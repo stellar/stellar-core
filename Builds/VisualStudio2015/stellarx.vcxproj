@@ -1,0 +1,185 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="14.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|Win32">
+      <Configuration>Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|Win32">
+      <Configuration>Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{916B91AB-A300-422C-B9C2-D683924DC109}</ProjectGuid>
+    <RootNamespace>stellarx</RootNamespace>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v140</PlatformToolset>
+    <CharacterSet>MultiByte</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v140</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>MultiByte</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup />
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>Disabled</Optimization>
+      <SDLCheck>true</SDLCheck>
+      <AdditionalIncludeDirectories>../../../libsodium/include;../../../xdrpp;../../src;c:/code/boost_1_57_0;C:\code\OpenSSL-Win32\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>_WIN32_WINNT=0x0501;WIN32;_MBCS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+    <Link>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>MaxSpeed</Optimization>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <SDLCheck>true</SDLCheck>
+      <AdditionalIncludeDirectories>c:/code/boost_1_57_0;C:\code\OpenSSL-Win32\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>_WIN32_WINNT=0x0501;_MBCS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+    <Link>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\src\clf\BucketList.cpp" />
+    <ClCompile Include="..\..\src\fba\Ballot.cpp" />
+    <ClCompile Include="..\..\src\fba\CommitStatement.cpp" />
+    <ClCompile Include="..\..\src\fba\CommittedStatement.cpp" />
+    <ClCompile Include="..\..\src\fba\FBAMaster.cpp" />
+    <ClCompile Include="..\..\src\fba\History.cpp" />
+    <ClCompile Include="..\..\src\fba\Node.cpp" />
+    <ClCompile Include="..\..\src\fba\OurNode.cpp" />
+    <ClCompile Include="..\..\src\fba\PreparedStatement.cpp" />
+    <ClCompile Include="..\..\src\fba\PrepareStatement.cpp" />
+    <ClCompile Include="..\..\src\fba\QuorumSet.cpp" />
+    <ClCompile Include="..\..\src\fba\Statement.cpp" />
+    <ClCompile Include="..\..\src\ledger\AccountEntry.cpp" />
+    <ClCompile Include="..\..\src\ledger\Ledger.cpp" />
+    <ClCompile Include="..\..\src\ledger\LedgerDatabase.cpp" />
+    <ClCompile Include="..\..\src\ledger\LedgerEntry.cpp" />
+    <ClCompile Include="..\..\src\ledger\LedgerMaster.cpp" />
+    <ClCompile Include="..\..\src\ledger\OfferEntry.cpp" />
+    <ClCompile Include="..\..\src\ledger\TrustLine.cpp" />
+    <ClCompile Include="..\..\src\lib\base58\Base58Data.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lib\crypto\edkeypair.cpp" />
+    <ClCompile Include="..\..\src\lib\crypto\StellarPrivateKey.cpp" />
+    <ClCompile Include="..\..\src\lib\crypto\StellarPublicKey.cpp" />
+    <ClCompile Include="..\..\src\lib\util\base58.cpp" />
+    <ClCompile Include="..\..\src\lib\util\types.cpp" />
+    <ClCompile Include="..\..\src\lib\util\uint256.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="..\..\src\main\Application.cpp" />
+    <ClCompile Include="..\..\src\main\main.cpp" />
+    <ClCompile Include="..\..\src\overlay\Floodgate.cpp" />
+    <ClCompile Include="..\..\src\overlay\ItemFetcher.cpp" />
+    <ClCompile Include="..\..\src\overlay\Peer.cpp" />
+    <ClCompile Include="..\..\src\overlay\PeerDoor.cpp" />
+    <ClCompile Include="..\..\src\overlay\PeerMaster.cpp" />
+    <ClCompile Include="..\..\src\transactions\Transaction.cpp" />
+    <ClCompile Include="..\..\src\transactions\TrustSetTx.cpp" />
+    <ClCompile Include="..\..\src\txherder\TransactionSet.cpp" />
+    <ClCompile Include="..\..\src\txherder\TxHerder.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\src\clf\BucketList.h" />
+    <ClInclude Include="..\..\src\clf\CanonicalLedgerForm.h" />
+    <ClInclude Include="..\..\src\database\Database.h" />
+    <ClInclude Include="..\..\src\fba\Ballot.h" />
+    <ClInclude Include="..\..\src\fba\CommitStatement.h" />
+    <ClInclude Include="..\..\src\fba\CommittedStatement.h" />
+    <ClInclude Include="..\..\src\fba\FBAGateway.h" />
+    <ClInclude Include="..\..\src\fba\FBAMaster.h" />
+    <ClInclude Include="..\..\src\fba\FBAWorldInterface.h" />
+    <ClInclude Include="..\..\src\fba\History.h" />
+    <ClInclude Include="..\..\src\fba\Node.h" />
+    <ClInclude Include="..\..\src\fba\OurNode.h" />
+    <ClInclude Include="..\..\src\fba\PreparedStatement.h" />
+    <ClInclude Include="..\..\src\fba\PrepareStatement.h" />
+    <ClInclude Include="..\..\src\fba\QuorumSet.h" />
+    <ClInclude Include="..\..\src\fba\Statement.h" />
+    <ClInclude Include="..\..\src\generated\stellar.hh" />
+    <ClInclude Include="..\..\src\history\HistoryGateway.h" />
+    <ClInclude Include="..\..\src\ledger\AccountEntry.h" />
+    <ClInclude Include="..\..\src\ledger\Ledger.h" />
+    <ClInclude Include="..\..\src\ledger\LedgerDatabase.h" />
+    <ClInclude Include="..\..\src\ledger\LedgerEntry.h" />
+    <ClInclude Include="..\..\src\ledger\LedgerGateway.h" />
+    <ClInclude Include="..\..\src\ledger\LedgerMaster.h" />
+    <ClInclude Include="..\..\src\ledger\OfferEntry.h" />
+    <ClInclude Include="..\..\src\ledger\TrustLine.h" />
+    <ClInclude Include="..\..\src\lib\base58\Base58.h" />
+    <ClInclude Include="..\..\src\lib\base58\Base58Data.h" />
+    <ClInclude Include="..\..\src\lib\base58\base_uint.h" />
+    <ClInclude Include="..\..\src\lib\base58\strHex.h" />
+    <ClInclude Include="..\..\src\lib\crypto\EdKeyPair.h" />
+    <ClInclude Include="..\..\src\lib\crypto\StellarPrivateKey.h" />
+    <ClInclude Include="..\..\src\lib\crypto\StellarPublicKey.h" />
+    <ClInclude Include="..\..\src\lib\util\base58.h" />
+    <ClInclude Include="..\..\src\lib\util\byte_order.h" />
+    <ClInclude Include="..\..\src\lib\util\Logging.h" />
+    <ClInclude Include="..\..\src\lib\util\types.h" />
+    <ClInclude Include="..\..\src\lib\util\uint256.h" />
+    <ClInclude Include="..\..\src\main\Application.h" />
+    <ClInclude Include="..\..\src\main\Config.h" />
+    <ClInclude Include="..\..\src\overlay\FetchableItem.h" />
+    <ClInclude Include="..\..\src\overlay\Floodgate.h" />
+    <ClInclude Include="..\..\src\overlay\ItemFetcher.h" />
+    <ClInclude Include="..\..\src\overlay\OverlayGateway.h" />
+    <ClInclude Include="..\..\src\overlay\Peer.h" />
+    <ClInclude Include="..\..\src\overlay\PeerDoor.h" />
+    <ClInclude Include="..\..\src\overlay\PeerMaster.h" />
+    <ClInclude Include="..\..\src\overlay\StellarMessage.h" />
+    <ClInclude Include="..\..\src\transactions\CancelOfferTx.h" />
+    <ClInclude Include="..\..\src\transactions\CreateOfferTx.h" />
+    <ClInclude Include="..\..\src\transactions\InflationTx.h" />
+    <ClInclude Include="..\..\src\transactions\MergeTx.h" />
+    <ClInclude Include="..\..\src\transactions\PaymentTx.h" />
+    <ClInclude Include="..\..\src\transactions\SetAccountTx.h" />
+    <ClInclude Include="..\..\src\transactions\SetRegularKeyTx.h" />
+    <ClInclude Include="..\..\src\transactions\Transaction.h" />
+    <ClInclude Include="..\..\src\transactions\TransactionResultCodes.h" />
+    <ClInclude Include="..\..\src\transactions\TrustSetTx.h" />
+    <ClInclude Include="..\..\src\txherder\TransactionSet.h" />
+    <ClInclude Include="..\..\src\txherder\TxHerder.h" />
+    <ClInclude Include="..\..\src\txherder\TxHerderGateway.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="..\..\src\lib\beast\beast.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\..\src\overlay\protocol.x" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>

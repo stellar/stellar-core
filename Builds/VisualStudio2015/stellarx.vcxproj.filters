@@ -1,0 +1,358 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="fba">
+      <UniqueIdentifier>{0cf920e3-5232-4c4e-8b79-25ec2c8f86ce}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="overlay">
+      <UniqueIdentifier>{b26ed986-c240-4b44-a1cd-ec2a40b3c7f3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="history">
+      <UniqueIdentifier>{2da1159b-be14-429e-be19-e0447082b844}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="txherder">
+      <UniqueIdentifier>{951355b1-432c-4dbe-87c0-bf77b6fab706}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="ledger">
+      <UniqueIdentifier>{89a037c6-770c-4df9-aa5e-3f963a001da3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="clf">
+      <UniqueIdentifier>{83ce5e44-5de9-452b-a707-780112922d21}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="main">
+      <UniqueIdentifier>{0dee9511-d4e9-44ba-b7d5-9bec41ec4143}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="generated">
+      <UniqueIdentifier>{a9692317-8851-4932-8329-6d2bb1a54787}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="lib">
+      <UniqueIdentifier>{5ce9b128-ab1f-437c-8b2b-f726dfe7070e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="lib\util">
+      <UniqueIdentifier>{886e9509-78a3-4d16-9b96-110c4849223d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="lib\database">
+      <UniqueIdentifier>{3f51215c-abdc-4e1d-8c5c-9bce057dbe19}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="lib\crypto">
+      <UniqueIdentifier>{ca69df68-9e2f-4688-b4de-977e0288ecad}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="transactions">
+      <UniqueIdentifier>{4545a642-5678-463c-a1b1-33e66fc6f809}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="lib\base58">
+      <UniqueIdentifier>{1deb2d13-8a40-4dd2-8096-bf710d2d2096}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="lib\beast">
+      <UniqueIdentifier>{a49cecd7-50ca-4ce9-bcb5-8db2172dfd42}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\src\fba\Ballot.cpp">
+      <Filter>fba</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\fba\FBAMaster.cpp">
+      <Filter>fba</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\fba\History.cpp">
+      <Filter>fba</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\fba\Node.cpp">
+      <Filter>fba</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\fba\OurNode.cpp">
+      <Filter>fba</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\fba\QuorumSet.cpp">
+      <Filter>fba</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\fba\Statement.cpp">
+      <Filter>fba</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\ledger\AccountEntry.cpp">
+      <Filter>ledger</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\ledger\Ledger.cpp">
+      <Filter>ledger</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\ledger\LedgerDatabase.cpp">
+      <Filter>ledger</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\ledger\LedgerEntry.cpp">
+      <Filter>ledger</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\ledger\LedgerMaster.cpp">
+      <Filter>ledger</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\ledger\OfferEntry.cpp">
+      <Filter>ledger</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\ledger\TrustLine.cpp">
+      <Filter>ledger</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\main\Application.cpp">
+      <Filter>main</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\main\main.cpp">
+      <Filter>main</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\txherder\TransactionSet.cpp">
+      <Filter>txherder</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\txherder\TxHerder.cpp">
+      <Filter>txherder</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\overlay\Floodgate.cpp">
+      <Filter>overlay</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\overlay\ItemFetcher.cpp">
+      <Filter>overlay</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\overlay\Peer.cpp">
+      <Filter>overlay</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\overlay\PeerDoor.cpp">
+      <Filter>overlay</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\overlay\PeerMaster.cpp">
+      <Filter>overlay</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lib\crypto\edkeypair.cpp">
+      <Filter>lib\crypto</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lib\crypto\StellarPrivateKey.cpp">
+      <Filter>lib\crypto</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lib\crypto\StellarPublicKey.cpp">
+      <Filter>lib\crypto</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\Transaction.cpp">
+      <Filter>transactions</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\TrustSetTx.cpp">
+      <Filter>transactions</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lib\base58\Base58Data.cpp">
+      <Filter>lib\base58</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lib\util\base58.cpp">
+      <Filter>lib\util</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lib\util\uint256.cpp">
+      <Filter>lib\util</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\fba\CommitStatement.cpp">
+      <Filter>fba</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\fba\CommittedStatement.cpp">
+      <Filter>fba</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\fba\PreparedStatement.cpp">
+      <Filter>fba</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\fba\PrepareStatement.cpp">
+      <Filter>fba</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lib\util\types.cpp">
+      <Filter>lib\util</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\clf\BucketList.cpp">
+      <Filter>clf</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\src\fba\Ballot.h">
+      <Filter>fba</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\fba\FBAGateway.h">
+      <Filter>fba</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\fba\FBAMaster.h">
+      <Filter>fba</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\fba\FBAWorldInterface.h">
+      <Filter>fba</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\fba\History.h">
+      <Filter>fba</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\fba\Node.h">
+      <Filter>fba</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\fba\OurNode.h">
+      <Filter>fba</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\fba\QuorumSet.h">
+      <Filter>fba</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\fba\Statement.h">
+      <Filter>fba</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\history\HistoryGateway.h">
+      <Filter>history</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\ledger\AccountEntry.h">
+      <Filter>ledger</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\ledger\Ledger.h">
+      <Filter>ledger</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\ledger\LedgerDatabase.h">
+      <Filter>ledger</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\ledger\LedgerEntry.h">
+      <Filter>ledger</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\ledger\LedgerGateway.h">
+      <Filter>ledger</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\ledger\LedgerMaster.h">
+      <Filter>ledger</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\ledger\OfferEntry.h">
+      <Filter>ledger</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\ledger\TrustLine.h">
+      <Filter>ledger</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\main\Application.h">
+      <Filter>main</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\txherder\TransactionSet.h">
+      <Filter>txherder</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\txherder\TxHerder.h">
+      <Filter>txherder</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\txherder\TxHerderGateway.h">
+      <Filter>txherder</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\overlay\FetchableItem.h">
+      <Filter>overlay</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\overlay\Floodgate.h">
+      <Filter>overlay</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\overlay\ItemFetcher.h">
+      <Filter>overlay</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\overlay\OverlayGateway.h">
+      <Filter>overlay</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\overlay\Peer.h">
+      <Filter>overlay</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\overlay\PeerDoor.h">
+      <Filter>overlay</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\overlay\PeerMaster.h">
+      <Filter>overlay</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\generated\stellar.hh">
+      <Filter>generated</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\database\Database.h">
+      <Filter>lib\database</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\lib\crypto\EdKeyPair.h">
+      <Filter>lib\crypto</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\lib\crypto\StellarPrivateKey.h">
+      <Filter>lib\crypto</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\lib\crypto\StellarPublicKey.h">
+      <Filter>lib\crypto</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\lib\util\Logging.h">
+      <Filter>lib\util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\lib\util\types.h">
+      <Filter>lib\util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\transactions\CancelOfferTx.h">
+      <Filter>transactions</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\transactions\CreateOfferTx.h">
+      <Filter>transactions</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\transactions\InflationTx.h">
+      <Filter>transactions</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\transactions\MergeTx.h">
+      <Filter>transactions</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\transactions\PaymentTx.h">
+      <Filter>transactions</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\transactions\SetAccountTx.h">
+      <Filter>transactions</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\transactions\SetRegularKeyTx.h">
+      <Filter>transactions</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\transactions\Transaction.h">
+      <Filter>transactions</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\transactions\TrustSetTx.h">
+      <Filter>transactions</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\transactions\TransactionResultCodes.h">
+      <Filter>transactions</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\lib\base58\base_uint.h">
+      <Filter>lib\base58</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\lib\base58\Base58.h">
+      <Filter>lib\base58</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\lib\base58\Base58Data.h">
+      <Filter>lib\base58</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\lib\base58\strHex.h">
+      <Filter>lib\base58</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\lib\util\byte_order.h">
+      <Filter>lib\util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\lib\util\base58.h">
+      <Filter>lib\util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\lib\util\uint256.h">
+      <Filter>lib\util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\main\Config.h">
+      <Filter>main</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\fba\CommitStatement.h">
+      <Filter>fba</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\fba\CommittedStatement.h">
+      <Filter>fba</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\fba\PreparedStatement.h">
+      <Filter>fba</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\fba\PrepareStatement.h">
+      <Filter>fba</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\clf\BucketList.h">
+      <Filter>clf</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\clf\CanonicalLedgerForm.h">
+      <Filter>clf</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\overlay\StellarMessage.h">
+      <Filter>overlay</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="..\..\src\lib\beast\beast.txt">
+      <Filter>lib\beast</Filter>
+    </Text>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\..\src\overlay\protocol.x">
+      <Filter>overlay</Filter>
+    </None>
+  </ItemGroup>
+</Project>
