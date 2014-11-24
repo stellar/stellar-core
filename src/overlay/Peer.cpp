@@ -65,6 +65,23 @@ namespace stellar
         
         sendMessage(msg);
     }
+    void Peer::sendGetTxSet(stellarxdr::uint256& setID)
+    {
+        stellarxdr::StellarMessage newMsg;
+        newMsg.type(stellarxdr::GET_TX_SET);
+        newMsg.txSetHash()=setID;
+
+        sendMessage(newMsg);
+    }
+    void Peer::sendGetQuorumSet(stellarxdr::uint256& setID)
+    {
+        stellarxdr::StellarMessage newMsg;
+        newMsg.type(stellarxdr::GET_QUORUMSET);
+        newMsg.txSetHash()=setID;
+
+        sendMessage(newMsg);
+    }
+
 
     void Peer::sendMessage(stellarxdr::StellarMessage& message)
     {

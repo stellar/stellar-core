@@ -19,7 +19,7 @@ namespace stellar
 	{
 		bool mCaughtUp;
 		CanonicalLedgerForm::pointer mCurrentCLF;
-        LedgerDatabase mCurrentDB;
+        // LATER LedgerDatabase mCurrentDB;
         stellarxdr::uint256 mLastLedgerHash;
 		
     public:

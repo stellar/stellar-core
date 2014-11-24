@@ -49,6 +49,7 @@
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalLibraryDirectories>c:/code/boost_1_57_0/stage/lib;C:\code\OpenSSL-Win32\lib\VC\static</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -90,10 +91,18 @@
     <ClCompile Include="..\..\src\lib\base58\Base58Data.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
     </ClCompile>
-    <ClCompile Include="..\..\src\lib\crypto\edkeypair.cpp" />
-    <ClCompile Include="..\..\src\lib\crypto\StellarPrivateKey.cpp" />
-    <ClCompile Include="..\..\src\lib\crypto\StellarPublicKey.cpp" />
-    <ClCompile Include="..\..\src\lib\util\base58.cpp" />
+    <ClCompile Include="..\..\src\lib\crypto\edkeypair.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lib\crypto\StellarPrivateKey.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lib\crypto\StellarPublicKey.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lib\util\base58.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+    </ClCompile>
     <ClCompile Include="..\..\src\lib\util\types.cpp" />
     <ClCompile Include="..\..\src\lib\util\uint256.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>

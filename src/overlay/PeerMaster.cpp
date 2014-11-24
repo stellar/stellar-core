@@ -11,6 +11,8 @@ If we have less than the target number of peers we will try to connect to one ou
 
 namespace stellar
 {
+    PeerMaster gPeerMaster;
+
 	PeerMaster::PeerMaster()
 	{
 		
@@ -56,6 +58,24 @@ namespace stellar
 	{
 
 	}
+
+    Peer::pointer PeerMaster::getRandomPeer()
+    {
+        // SANITY
+        return Peer::pointer();
+    }
+
+    // returns NULL if the passed peer isn't found
+    Peer::pointer PeerMaster::getNextPeer(Peer::pointer peer)
+    {
+        // SANITY
+        return Peer::pointer();
+    }
+
+    void PeerMaster::recvQuorumSet(QuorumSet::pointer qset)
+    {
+        // SANITY
+    }
 
 	void PeerMaster::addConfigPeers()
 	{

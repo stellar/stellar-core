@@ -15,6 +15,12 @@ namespace stellar
 	{
         // SANITY
 	}
+    stellarxdr::uint256 TransactionSet::getContentsHash()
+    {
+        // SANITY
+        return mHash;
+    }
+
 
 	/*
 	bool TransactionSet::operator > (const TransactionSet& other)

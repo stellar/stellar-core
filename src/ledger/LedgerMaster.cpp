@@ -2,38 +2,51 @@
 
 namespace stellar
 {
-    /* NICOLAS
-	LedgerMaster::pointer gLedgerMaster;
-
-    LedgerMaster::LedgerMaster() : mCurrentDB(getApp().getWorkingLedgerDB())
+    LedgerMaster::LedgerMaster() 
 	{
 		mCaughtUp = false;
         reset();
 	}
 
+    // called by txherder
+    void LedgerMaster::externalizeValue(TransactionSet::pointer txSet, uint64_t closeTime)
+    {
+        closeLedger(txSet);
+
+    }
+    // called by CLF
+    void LedgerMaster::ledgerHashComputed(stellarxdr::uint256& hash)
+    {
+        // SANITY
+    }
+
     void LedgerMaster::reset()
     {
-        mCurrentCLF = LegacyCLF::pointer(new LegacyCLF()); // change this to BucketList when we are ready
+        // NICOLAS mCurrentCLF = LegacyCLF::pointer(new LegacyCLF()); // change this to BucketList when we are ready
         mLastLedgerHash = stellarxdr::uint256();
     }
+
+    void LedgerMaster::closeLedger(TransactionSet::pointer txSet)
+    {
+        // see below
+    }
+
+
+    /* NICOLAS
+	LedgerMaster::pointer gLedgerMaster;
+
+   
+
+    
 
 	Ledger::pointer LedgerMaster::getCurrentLedger()
 	{
 		return(Ledger::pointer());
 	}
 
-	// called by txherder
-	void LedgerMaster::externalizeValue(TransactionSet::pointer txSet, uint64_t closeTime)
-	{
-		closeLedger(txSet);
+	
 
-	}
-
-	// called by CLF
-	void LedgerMaster::ledgerHashComputed(stellarxdr::uint256& hash)
-	{
-		// SANITY
-	}
+	
 
     bool LedgerMaster::ensureSync(ripple::Ledger::pointer lastClosedLedger)
     {

@@ -92,7 +92,7 @@ namespace stellar
 
 		void addQuorumSet(QuorumSet::pointer qset);
 
-		QuorumSet::pointer getOurQuorumSet();
+        QuorumSet::pointer getOurQuorumSet() { return mOurQuorumSet; }
 
 		
 

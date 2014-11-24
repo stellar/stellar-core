@@ -3,6 +3,8 @@
 
 namespace stellar
 {
+    Application gApp;
+
 	Application::Application()
 	{
 		mState = BOOTING_STATE;

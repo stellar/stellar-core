@@ -8,6 +8,12 @@ namespace stellar
         return Transaction::pointer();
 	}
 
+    bool Transaction::isValid()
+    {
+        // SANITY
+        return true;
+    }
+
     stellarxdr::uint256 Transaction::getHash()
 	{
 		if(isZero(mHash))

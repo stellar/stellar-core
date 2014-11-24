@@ -19,6 +19,12 @@ namespace stellar
         // SANITY
     }
 
+    stellarxdr::uint256 QuorumSet::getHash()
+    {
+        // SANITY
+        return mHash;
+    }
+
 	int QuorumSet::getBlockingSize()
 	{
 		return 1 + mNodes.size() - mThreshold;

@@ -6,4 +6,10 @@ namespace stellar
     {
 
     }
+
+    PreparedStatement::PreparedStatement(stellarxdr::uint256& nodeID, stellarxdr::uint256& qSetHash, Ballot::pointer ballot) :
+        Statement(nodeID, qSetHash, ballot)
+    {
+
+    }
 }

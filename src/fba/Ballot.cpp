@@ -20,6 +20,15 @@ namespace stellar
         mPreviousLedgerHash = ledger->mHash;
     }
 
+    Ballot::Ballot(Ballot::pointer other)
+    {
+        mIndex = other->mIndex;
+        mLedgerCloseTime = other->mLedgerCloseTime;
+        mTxSetHash = other->mTxSetHash;
+        mLederIndex = other->mLederIndex;
+        mPreviousLedgerHash = other->mPreviousLedgerHash;
+    }
+
     Ballot::Ballot(stellarxdr::SlotBallot xdrballot)
     {
         mIndex = xdrballot.ballot.index;
