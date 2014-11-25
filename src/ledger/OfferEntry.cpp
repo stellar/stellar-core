@@ -6,7 +6,7 @@ using namespace std;
 namespace stellar
 {
     /* NICOLAS
-    // SANITY: deal with amounts properly (see TrustLines)
+    // NICOLAS: deal with amounts properly (see TrustLines)
 
     const char *OfferEntry::kSQLCreateStatement = "CREATE TABLE IF NOT EXISTS Offers (						\
 			accountID		CHARACTER(35),		\

@@ -1,6 +1,7 @@
 #include "PeerMaster.h"
 #include "main/Application.h"
 #include <thread>
+#include <random>
 #include "ledger/Ledger.h"
 
 /*
@@ -61,20 +62,34 @@ namespace stellar
 
     Peer::pointer PeerMaster::getRandomPeer()
     {
-        // SANITY
+        if(mPeers.size())
+        {
+            std::random_device rd;
+            std::mt19937 gen(rd());
+            std::uniform_int_distribution<> dis(0, mPeers.size()-1);
+            return mPeers[dis(gen)];
+        }
+
         return Peer::pointer();
     }
 
     // returns NULL if the passed peer isn't found
     Peer::pointer PeerMaster::getNextPeer(Peer::pointer peer)
     {
-        // SANITY
+        for(unsigned int n = 0; n < mPeers.size(); n++)
+        {
+            if(mPeers[n]==peer)
+            {
+                if(n == mPeers.size() - 1) return mPeers[0];
+                return(mPeers[n + 1]);
+            }
+        }
         return Peer::pointer();
     }
 
     void PeerMaster::recvQuorumSet(QuorumSet::pointer qset)
     {
-        // SANITY
+        mQSetFetcher.recvItem(qset);
     }
 
 	void PeerMaster::addConfigPeers()

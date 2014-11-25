@@ -1,6 +1,7 @@
 #include "QuorumSet.h"
 #include "main/Application.h"
-
+#include "fba/NodePool.h"
+#include "xdrpp/marshal.h"
 /*
 Need to ensure that threshold is > 50% of the nodes or the network won't be confluent
 
@@ -16,12 +17,22 @@ namespace stellar
     // get qset from wire
     QuorumSet::QuorumSet(stellarxdr::QuorumSet& qset)
     {
-        // SANITY
+        mThreshold = qset.threshold;
+        for(auto id : qset.validators)
+        {
+            mNodes.push_back(gNodePool.getNode(id));
+        }
     }
 
     stellarxdr::uint256 QuorumSet::getHash()
     {
-        // SANITY
+        if(isZero(mHash))
+        {
+            stellarxdr::QuorumSet qset;
+            toXDR(qset);
+            xdr::msg_ptr xdrBytes(xdr::xdr_to_msg(qset));
+            hashXDR( std::move(xdrBytes), mHash);
+        }
         return mHash;
     }
 
@@ -150,7 +161,7 @@ namespace stellar
 	// like checkRatState except we must take exceptions into account
 	Node::RatState QuorumSet::checkPrepareRatState(Statement::pointer statement, int visitIndex)
 	{
-        // SANITY
+        // LATER
         return Node::PLEDGING_STATE;
 	}
 

@@ -1,4 +1,5 @@
 #include "TransactionSet.h"
+#include "xdrpp/marshal.h"
 
 namespace stellar
 {
@@ -6,18 +7,26 @@ namespace stellar
     {
 
     }
+
     TransactionSet::TransactionSet(stellarxdr::TransactionSet& xdrSet)
     {
-        // SANITY
+        for(auto txEnvelope : xdrSet.txs)
+        {
+            Transaction::pointer tx=Transaction::makeTransactionFromWire(txEnvelope);
+            mTransactions.push_back(tx);
+        }
     }
 
-	void TransactionSet::serialize()
-	{
-        // SANITY
-	}
+	
     stellarxdr::uint256 TransactionSet::getContentsHash()
     {
-        // SANITY
+        if(isZero(mHash))
+        {
+            stellarxdr::TransactionSet txSet;
+            toXDR(txSet);
+            xdr::msg_ptr xdrBytes(xdr::xdr_to_msg(txSet));
+            hashXDR(std::move(xdrBytes), mHash);
+        }
         return mHash;
     }
 
@@ -45,15 +54,16 @@ namespace stellar
 	// save this tx set to the node store in serialized format
 	void TransactionSet::store()
 	{
-		// SANITY
+		// LATER
 	}
 
     void TransactionSet::toXDR(stellarxdr::TransactionSet& txSet)
     {
         txSet.txs.resize(mTransactions.size());
-        for(int n = 0; n < mTransactions.size(); n++)
+        for(unsigned int n = 0; n < mTransactions.size(); n++)
         {
-            mTransactions[n]->toXDR(txSet.txs[n]);
+            mTransactions[n]->toXDR(txSet.txs[n].tx);
+            txSet.txs[n].signature = mTransactions[n]->getSignature();
         }
     }
 }

@@ -8,7 +8,7 @@ using namespace std;
 namespace stellar {
 
     /* NICOLAS
-    // SANITY -- code below does not work
+    // NICOLAS -- code below does not work
     // need to rethink the way we store those lines:
     //     balance, low and high limit share the same currency
     //     should save/load the currency properly

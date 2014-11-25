@@ -181,7 +181,7 @@ namespace stellar
 					
 					if(validity==TxHerderGateway::INVALID_BALLOT)
 					{
-						// SANITY WriteLog(lsWARNING, stellar::FBAMaster) << "Some old TX missing from PREPARE ballot ";
+						// LATER WriteLog(lsWARNING, stellar::FBAMaster) << "Some old TX missing from PREPARE ballot ";
 						
 					} else if(validity == TxHerderGateway::FUTURE_BALLOT)
 					{
@@ -210,7 +210,7 @@ namespace stellar
 				mCollectedStatements.push_back(statement);
 			} else if(slotCompare==TxHerderGateway::INCOMPATIBLIE_SLOT)
 			{
-				// SANITY WriteLog(lsWARNING, stellar::FBAMaster) << "Node: " << statement->mNodeID << " on a different ledger(" << statement->mBallot->mLederIndex << " : " << statement->mBallot->mPreviousLedgerHash;
+				// LATER WriteLog(lsWARNING, stellar::FBAMaster) << "Node: " << statement->mNodeID << " on a different ledger(" << statement->mBallot->mLederIndex << " : " << statement->mBallot->mPreviousLedgerHash;
 			}
 		}
 		return false;

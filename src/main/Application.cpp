@@ -3,6 +3,7 @@
 
 namespace stellar
 {
+    // SANITY get rid of global so we can simulate many nodes in one process
     Application gApp;
 
 	Application::Application()

@@ -7,7 +7,7 @@
 #include "fba/Statement.h"
 
 /*
-This is one other Node out there in he stellar network
+This is one other Node out there in the stellar network
 
 */
 namespace stellar
@@ -47,7 +47,7 @@ namespace stellar
 		// if you have a Q that is willRatify then you can ratify
 		StatementPtr mWillRaitify[Statement::NUM_TYPES];
 
-
+        Node();
 		Node(stellarxdr::uint256 nodeID);
 
 		Statement::StatementType getNodeState(){ return(mState); }

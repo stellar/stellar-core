@@ -2,9 +2,8 @@
 
 namespace stellar
 {
-    CommittedStatement::CommittedStatement(stellarxdr::FBAEnvelope& envelope)
+    CommittedStatement::CommittedStatement(stellarxdr::FBAEnvelope& envelope) : Statement(envelope)
     {
-        // SANITY
     }
 
     CommittedStatement::CommittedStatement(stellarxdr::uint256& nodeID, stellarxdr::uint256& qSetHash, Ballot::pointer ballot) :

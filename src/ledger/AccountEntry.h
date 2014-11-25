@@ -23,7 +23,7 @@ namespace stellar
 		uint32_t mOwnerCount;
 		uint32_t mTransferRate;
 		stellarxdr::uint160 mInflationDest;
-		StellarPublicKey mPubKey; // SANITY make this optional and map to nullable in SQL
+		StellarPublicKey mPubKey; // TODO make this optional and map to nullable in SQL
 		bool mRequireDest;
 		bool mRequireAuth;
 

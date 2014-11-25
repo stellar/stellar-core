@@ -17,7 +17,7 @@ namespace stellar
     // called by CLF
     void LedgerMaster::ledgerHashComputed(stellarxdr::uint256& hash)
     {
-        // SANITY
+        // NICOLAS
     }
 
     void LedgerMaster::reset()
@@ -315,7 +315,7 @@ namespace stellar
             throw;
         }
         mCurrentDB.endTransaction(false);
-        // SANITY this code is incomplete
+        // NICOLAS this code is incomplete
 	}
     */
 

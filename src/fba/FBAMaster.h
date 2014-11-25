@@ -40,6 +40,7 @@ namespace stellar
 		bool mValidatingNode;
 		OurNode::pointer mOurNode;
 		QuorumSet::pointer mOurQuorumSet;
+        //NodePool mNodePool;
 
 		// anytime we need a qset we store it here
 		//LATER: map<stellarxdr::uint256, bool> mNeededQuorumSets;

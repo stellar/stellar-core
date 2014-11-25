@@ -36,7 +36,7 @@ namespace stellar
 		mRequireDest = flags & lsfRequireDestTag;
 		mRequireAuth = flags & lsfRequireAuth;
 
-		// if(sle->isFieldPresent(sfPublicKey)) SANITY
+		// if(sle->isFieldPresent(sfPublicKey)) 
 		//	mPubKey=
 	}
 
@@ -108,7 +108,7 @@ namespace stellar
 
 	bool AccountEntry::checkFlag(LedgerSpecificFlags flag)
 	{
-		// SANITY: 
+		// TODO: 
 		return(true);
 	}
 

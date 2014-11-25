@@ -27,7 +27,7 @@ namespace stellar
 		stellarxdr::uint256 getContentsHash();
 
 		void add(Transaction::pointer tx){ mTransactions.push_back(tx); }
-		void serialize();
+		
 
 		void store();
 

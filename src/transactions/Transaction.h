@@ -23,7 +23,7 @@ namespace stellar
 		uint32_t mFee;
 		uint32_t mMinLedger;  // window where this tx is valid
 		uint32_t mMaxLedger;
-		// mSignature;
+        stellarxdr::uint256 mSignature;
 
 		AccountEntry mSigningAccount;	
 
@@ -36,15 +36,14 @@ namespace stellar
 		static Transaction::pointer makeTransactionFromDB();
 		static Transaction::pointer makeTransactionFromWire(stellarxdr::TransactionEnvelope& msg);
         stellarxdr::uint256 getHash();
+        stellarxdr::uint256 getSignature();
 		bool isValid();
 
 		// apply this transaction to the current ledger
-		// SANITY: how will applying historical txs work?
+		// LATER: how will applying historical txs work?
         TxResultCode apply();
 
-		void serialize(stellarxdr::uint256& hash, Blob& blobRet);
-
-        void toXDR(stellarxdr::TransactionEnvelope& envelope);
+        void toXDR(stellarxdr::Transaction& envelope);
 	};
 
 }

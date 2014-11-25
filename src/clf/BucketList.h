@@ -18,7 +18,7 @@ namespace stellar
 
 	class BucketList : public CanonicalLedgerForm
 	{
-        /* SANITY 
+        /* LATER 
 		// index , SLE
 		std::map<stellarxdr::uint256, SLE::pointer> mPendingAdds;
 		std::map<stellarxdr::uint256, SLE::pointer> mPendingUpdates;

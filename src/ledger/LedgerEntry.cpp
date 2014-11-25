@@ -51,7 +51,7 @@ namespace stellar
 	}
 
 
-	// SANITY
+	// NICOLAS
 	uint256 LedgerEntry::getHash()
 	{
 		return(stellarxdr::uint256());
@@ -59,10 +59,10 @@ namespace stellar
 		//return(mSLE->getHash());
 	}
 
-    // SANITY use a registration pattern instead as we also need factories
+    // NICOLAS use a registration pattern instead as we also need factories
     void LedgerEntry::dropAll(LedgerDatabase &db)
     {
-        // SANITY implement this for the actual ledger entry ~~ the ledger class seems to conflict with this
+        // NICOLAS implement this for the actual ledger entry ~~ the ledger class seems to conflict with this
         AccountEntry::dropAll(db);
         TrustLine::dropAll(db);
         OfferEntry::dropAll(db);

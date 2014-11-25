@@ -24,7 +24,7 @@ namespace stellar
 		TransactionSetPtr txSet = fetchTxSet(ballot->mTxSetHash);
 		if(!txSet)
 		{
-			// SANITY WriteLog(lsERROR, stellar::TxHerder) << "isValidBallotValue when we don't know the txSet";
+			// LATER WriteLog(lsERROR, stellar::TxHerder) << "isValidBallotValue when we don't know the txSet";
 			return INVALID_BALLOT;
 		}
 
@@ -138,7 +138,7 @@ namespace stellar
 				}
 				mReceivedTransactions[n].clear();
 			}
-		} // SANITY else WriteLog(lsERROR, stellar::TxHerder) << "externalizeValue txset not found: ";
+		} // LATER else WriteLog(lsERROR, stellar::TxHerder) << "externalizeValue txset not found: ";
 	}
 
 	// called by Ledger

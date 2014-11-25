@@ -12,7 +12,7 @@ namespace stellar
 		TxResultCode terResult = txTrustLine.fromTx(mSigningAccount, this);
 		if(terResult == txSUCCESS)
 		{
-			// SANITY anything else to check here?
+			// NICOLAS anything else to check here?
 
 			bool modSigner = false;
 

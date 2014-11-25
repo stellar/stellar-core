@@ -27,7 +27,7 @@ namespace stellar
 		std::uint32_t reserveBase = getConfig().FEE_ACCOUNT_RESERVE;
 		std::int64_t reserveIncrement = getConfig().FEE_OWNER_RESERVE;
 
-		// SANITY
+		// NICOLAS
 		LedgerStateParms p = lepNONE;
 		SLE::pointer sle = getASNode(p, Ledger::getLedgerFeeIndex(), ltFEE_SETTINGS);
 

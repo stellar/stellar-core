@@ -10,4 +10,9 @@ namespace stellar
 
         return true;
     }
+
+    void hashXDR(xdr::msg_ptr msg, stellarxdr::uint256& retHash)
+    {
+
+    }
 }

@@ -1,9 +1,12 @@
 #include "Transaction.h"
+#include "xdrpp/marshal.h"
 
 namespace stellar
 {
 	Transaction::pointer Transaction::makeTransactionFromWire(stellarxdr::TransactionEnvelope& msg)
 	{
+        //mSignature = msg.signature;
+
 		// SANITY check sig
         return Transaction::pointer();
 	}
@@ -14,12 +17,19 @@ namespace stellar
         return true;
     }
 
+    stellarxdr::uint256 Transaction::getSignature()
+    {
+        return mSignature;
+    }
+
     stellarxdr::uint256 Transaction::getHash()
 	{
 		if(isZero(mHash))
 		{
-			// serialize and then hash
-            // SANITY
+            stellarxdr::Transaction tx;
+            toXDR(tx);
+            xdr::msg_ptr xdrBytes(xdr::xdr_to_msg(tx));
+            hashXDR(std::move(xdrBytes), mHash);
 		}
 		return(mHash);
 	}
@@ -29,8 +39,8 @@ namespace stellar
 		return(doApply());
 	}
 
-    void Transaction::toXDR(stellarxdr::TransactionEnvelope& envelope)
+    void Transaction::toXDR(stellarxdr::Transaction& envelope)
     {
-        // SANITY
+        // LATER
     }
 }

@@ -69,6 +69,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\..\xdrpp\xdrpp\marshal.cc" />
     <ClCompile Include="..\..\src\clf\BucketList.cpp" />
     <ClCompile Include="..\..\src\fba\Ballot.cpp" />
     <ClCompile Include="..\..\src\fba\CommitStatement.cpp" />
@@ -76,6 +77,7 @@
     <ClCompile Include="..\..\src\fba\FBAMaster.cpp" />
     <ClCompile Include="..\..\src\fba\History.cpp" />
     <ClCompile Include="..\..\src\fba\Node.cpp" />
+    <ClCompile Include="..\..\src\fba\NodePool.cpp" />
     <ClCompile Include="..\..\src\fba\OurNode.cpp" />
     <ClCompile Include="..\..\src\fba\PreparedStatement.cpp" />
     <ClCompile Include="..\..\src\fba\PrepareStatement.cpp" />
@@ -120,6 +122,8 @@
     <ClCompile Include="..\..\src\txherder\TxHerder.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\..\xdrpp\xdrpp\marshal.h" />
+    <ClInclude Include="..\..\..\xdrpp\xdrpp\message.h" />
     <ClInclude Include="..\..\src\clf\BucketList.h" />
     <ClInclude Include="..\..\src\clf\CanonicalLedgerForm.h" />
     <ClInclude Include="..\..\src\database\Database.h" />
@@ -131,6 +135,7 @@
     <ClInclude Include="..\..\src\fba\FBAWorldInterface.h" />
     <ClInclude Include="..\..\src\fba\History.h" />
     <ClInclude Include="..\..\src\fba\Node.h" />
+    <ClInclude Include="..\..\src\fba\NodePool.h" />
     <ClInclude Include="..\..\src\fba\OurNode.h" />
     <ClInclude Include="..\..\src\fba\PreparedStatement.h" />
     <ClInclude Include="..\..\src\fba\PrepareStatement.h" />

@@ -28,7 +28,7 @@ namespace stellar {
 
 		//STAmount mLowLimit;
 		//STAmount mHighLimit;
-		//STAmount mBalance;	// SANITY: check this  positive balance means credit is held by high account
+		//STAmount mBalance;	// NICOLAS: check this  positive balance means credit is held by high account
 
 		bool mLowAuthSet;  // if the high account has authorized the low account to hold its credit
 		bool mHighAuthSet;

@@ -33,7 +33,7 @@ namespace stellar
 	void Peer::connect()
 	{
 		
-        // SANITY mSocket->async_connect(server_endpoint, your_completion_handler);
+        // GRAYDON mSocket->async_connect(server_endpoint, your_completion_handler);
 		
 	}
 
@@ -92,8 +92,7 @@ namespace stellar
     void Peer::sendMessage(StellarMessagePtr message)
     {
         if(mState == CLOSING) {
-            // SANITY if(ShouldLog(lsTRACE, stellar::PeerMaster))
-            // SANITY WriteLog(lsTRACE, stellar::PeerMaster) << "Peer::sendMessage while closing, dropping packet "
+            // LATER WriteLog(lsTRACE, stellar::PeerMaster) << "Peer::sendMessage while closing, dropping packet "
             return;
         }
 
@@ -131,8 +130,8 @@ namespace stellar
 			sendHello();
 		} else
 		{
-            // SANITY WriteLog(lsWARNING, stellar::PeerMaster) << "connectHandler error: " << error;
-			// SANITY drop Peer
+            // LATER WriteLog(lsWARNING, stellar::PeerMaster) << "connectHandler error: " << error;
+			// LATER drop Peer
 		}
 	}
 
@@ -146,8 +145,8 @@ namespace stellar
 			if(mOutputBuffer.size()) reallySendMessage(mOutputBuffer[0]);
 		} else
 		{
-            // SANITY WriteLog(lsWARNING, stellar::PeerMaster) << "writeHandler error: " << error;
-			// SANITY drop Peer
+            // LATER WriteLog(lsWARNING, stellar::PeerMaster) << "writeHandler error: " << error;
+			// LATER drop Peer
 		}
 		
 	}
@@ -188,8 +187,8 @@ namespace stellar
 				)); 
 		} else
 		{
-            // SANITY WriteLog(lsWARNING, stellar::PeerMaster) << "readHeaderHandler error: " << error;
-			// SANITY drop Peer
+            // LATER WriteLog(lsWARNING, stellar::PeerMaster) << "readHeaderHandler error: " << error;
+			// LATER drop Peer
 		}
 		
 	}
@@ -202,8 +201,8 @@ namespace stellar
 			startRead();
 		}else
 		{
-            // SANITY WriteLog(lsWARNING, stellar::PeerMaster) << "readBodyHandler error: " << error;
-			// SANITY drop Peer
+            // LATER WriteLog(lsWARNING, stellar::PeerMaster) << "readBodyHandler error: " << error;
+			// LATER drop Peer
 		}
 		
 	}
@@ -217,7 +216,7 @@ namespace stellar
         memcpy(incoming->raw_data(),&(mIncomingBody[0]), mIncomingBody.size());
         xdr::xdr_from_msg(incoming, *stellarMsg.get());
 
-        // SANITY WriteLog(lsTRACE, stellar::PeerMaster) << "recv: " << stellarMsg.type();
+        // LATER WriteLog(lsTRACE, stellar::PeerMaster) << "recv: " << stellarMsg.type();
 
 		switch(stellarMsg->type())
 		{
@@ -310,11 +309,11 @@ namespace stellar
 
 	void Peer::recvGetDelta(StellarMessagePtr msg)
 	{
-        // SANITY
+        // LATER
 	}
 	void Peer::recvDelta(StellarMessagePtr msg)
 	{
-        // SANITY
+        // LATER
 	}
 
     void Peer::recvDontHave(StellarMessagePtr msg)
@@ -322,10 +321,10 @@ namespace stellar
         switch(msg->dontHave().type)
         {
         case stellarxdr::HISTORY:
-            // SANITY
+            // LATER
             break;
         case stellarxdr::DELTA:
-            // SANITY
+            // LATER
             break;
         case stellarxdr::TX_SET:
             gApp.getTxHerderGateway().doesntHaveTxSet(msg->dontHave().reqHash, shared_from_this());
