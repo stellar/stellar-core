@@ -120,6 +120,7 @@
     <ClCompile Include="..\..\src\transactions\TrustSetTx.cpp" />
     <ClCompile Include="..\..\src\txherder\TransactionSet.cpp" />
     <ClCompile Include="..\..\src\txherder\TxHerder.cpp" />
+    <ClCompile Include="..\..\src\util\Logging.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\..\xdrpp\xdrpp\marshal.h" />
@@ -160,6 +161,7 @@
     <ClInclude Include="..\..\src\lib\crypto\StellarPublicKey.h" />
     <ClInclude Include="..\..\src\lib\util\base58.h" />
     <ClInclude Include="..\..\src\lib\util\byte_order.h" />
+    <ClInclude Include="..\..\src\lib\util\easylogging++.h" />
     <ClInclude Include="..\..\src\lib\util\Logging.h" />
     <ClInclude Include="..\..\src\lib\util\types.h" />
     <ClInclude Include="..\..\src\lib\util\uint256.h" />

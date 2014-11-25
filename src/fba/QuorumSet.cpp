@@ -2,6 +2,7 @@
 #include "main/Application.h"
 #include "fba/NodePool.h"
 #include "xdrpp/marshal.h"
+#include "lib/util/easylogging++.h"
 /*
 Need to ensure that threshold is > 50% of the nodes or the network won't be confluent
 

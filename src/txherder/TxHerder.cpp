@@ -4,6 +4,7 @@
 #include <time.h>
 #include "lib/util/Logging.h"
 #include "txherder/TransactionSet.h"
+#include "lib/util/easylogging++.h"
 
 #define MAX_TIME_IN_FUTURE 2
 
@@ -24,7 +25,7 @@ namespace stellar
 		TransactionSetPtr txSet = fetchTxSet(ballot->mTxSetHash);
 		if(!txSet)
 		{
-			// LATER WriteLog(lsERROR, stellar::TxHerder) << "isValidBallotValue when we don't know the txSet";
+			LOG(ERROR) << "isValidBallotValue when we don't know the txSet";
 			return INVALID_BALLOT;
 		}
 

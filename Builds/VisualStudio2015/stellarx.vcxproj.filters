@@ -168,6 +168,9 @@
     <ClCompile Include="..\..\src\fba\NodePool.cpp">
       <Filter>fba</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\util\Logging.cpp">
+      <Filter>lib\util</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\fba\Ballot.h">
@@ -361,6 +364,9 @@
     </ClInclude>
     <ClInclude Include="..\..\..\xdrpp\xdrpp\marshal.h">
       <Filter>xdrpp</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\lib\util\easylogging++.h">
+      <Filter>lib\util</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
