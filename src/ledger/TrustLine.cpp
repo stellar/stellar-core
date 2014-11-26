@@ -136,7 +136,7 @@ namespace stellar {
 
 			if(!db->executeSQL(sql, true))
 			{
-				WriteLog(lsWARNING, ripple::Ledger) << "SQL failed: " << sql;
+				CLOG(WARNING, ripple::Ledger) << "SQL failed: " << sql;
 			}
 		}
 	}
@@ -157,7 +157,7 @@ namespace stellar {
 
 			if(!db->executeSQL(sql, true))
 			{
-				WriteLog(lsWARNING, ripple::Ledger) << "SQL failed: " << sql;
+				CLOG(WARNING, ripple::Ledger) << "SQL failed: " << sql;
 			}
 		}
 	}
@@ -174,7 +174,7 @@ namespace stellar {
 
 			if(!db->executeSQL(sql, true))
 			{
-				WriteLog(lsWARNING, ripple::Ledger) << "SQL failed: " << sql;
+				CLOG(WARNING, ripple::Ledger) << "SQL failed: " << sql;
 			}
 		}
 	}

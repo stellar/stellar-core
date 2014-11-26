@@ -1,3 +1,4 @@
+#include "main/Application.h"
 #include "lib/util/Logging.h"
 
 /*
@@ -29,6 +30,7 @@ namespace stellar
         mDefaultConf.setToDefault();
 
         mDefaultConf.setGlobally(el::ConfigurationType::Format, "%datetime{%d/%M/%y %H:%m:%s} %level %msg");
+        mDefaultConf.setGlobally(el::ConfigurationType::Filename, gApp.mConfig.LOG_FILE_PATH);
         mDefaultConf.set(el::Level::Error, el::ConfigurationType::Format, "%datetime{%d/%M/%y %H:%m:%s} %level %msg [%fbase:%line]");
         mDefaultConf.set(el::Level::Trace, el::ConfigurationType::Format, "%datetime{%d/%M/%y %H:%m:%s} %level %msg [%fbase:%line]");
         mDefaultConf.set(el::Level::Fatal, el::ConfigurationType::Format, "%datetime{%d/%M/%y %H:%m:%s} %level %msg [%fbase:%line]");

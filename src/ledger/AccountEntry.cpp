@@ -70,7 +70,7 @@ namespace stellar
 
 		if(!db->executeSQL(sql, true))
 		{
-			WriteLog(lsWARNING, ripple::Ledger) << "SQL failed: " << sql;
+			CLOG(WARNING, "Ledger") << "SQL failed: " << sql;
 		}
 	}
 	void AccountEntry::updateInDB()
@@ -90,7 +90,7 @@ namespace stellar
 
 		if(!db->executeSQL(sql, true))
 		{
-			WriteLog(lsWARNING, ripple::Ledger) << "SQL failed: " << sql;
+			CLOG(WARNING, ripple::Ledger) << "SQL failed: " << sql;
 		}
 	}
 	void AccountEntry::deleteFromDB()
@@ -102,7 +102,7 @@ namespace stellar
 
 		if(!db->executeSQL(sql, true))
 		{
-			WriteLog(lsWARNING, ripple::Ledger) << "SQL failed: " << sql;
+			CLOG(WARNING, ripple::Ledger) << "SQL failed: " << sql;
 		}
 	}
 

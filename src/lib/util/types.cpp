@@ -13,6 +13,12 @@ namespace stellar
 
     void hashXDR(xdr::msg_ptr msg, stellarxdr::uint256& retHash)
     {
+        // SANITY
+    }
 
+    std::string& toStr(stellarxdr::uint256& b, std::string& retstr)
+    {
+        // SANITY
+        return(retstr);
     }
 }

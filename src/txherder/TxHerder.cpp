@@ -139,7 +139,7 @@ namespace stellar
 				}
 				mReceivedTransactions[n].clear();
 			}
-		} // LATER else WriteLog(lsERROR, stellar::TxHerder) << "externalizeValue txset not found: ";
+		} else CLOG(ERROR, "TxHerder") << "externalizeValue txset not found: ";
 	}
 
 	// called by Ledger

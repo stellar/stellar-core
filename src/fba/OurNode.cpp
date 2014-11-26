@@ -52,7 +52,7 @@ namespace stellar
 			}
 		} else
 		{
-			// LATER WriteLog(lsERROR, stellar::FBAMaster) << "OurNode::progressFBA   We don't know our own Qset?";
+			CLOG(ERROR, "FBA") << "OurNode::progressFBA   We don't know our own Qset?";
 		}
 	}
 
@@ -221,7 +221,7 @@ namespace stellar
 
 		if(!ourHighestPrepared)
 		{
-			// LATER WriteLog(lsERROR, stellar::FBAMaster) << "OurNode::progressPrepared   ourHighestPrepared NULL?";
+			CLOG(ERROR, "FBA") << "OurNode::progressPrepared   ourHighestPrepared NULL?";
 			return;
 		}
 
@@ -267,7 +267,7 @@ namespace stellar
 
 		if(!ourHighestCommit)
 		{
-			// LATER WriteLog(lsERROR, stellar::FBAMaster) << "OurNode::progressCommit   ourHighestCommit NULL?";
+			CLOG(ERROR, "FBA") << "OurNode::progressCommit   ourHighestCommit NULL?";
 			return;
 		}
 

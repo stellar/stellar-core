@@ -37,7 +37,7 @@ namespace stellar
             );
         if (!mDBCon->getDB()->executeSQL(sql))
         {
-            WriteLog(ripple::lsWARNING, ripple::Ledger) << "SQL failed: " << sql;
+            CLOG(ripple::WARNING, ripple::Ledger) << "SQL failed: " << sql;
             throw std::runtime_error("could not update state in database");
         }
     }

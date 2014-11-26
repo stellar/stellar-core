@@ -84,7 +84,7 @@ namespace stellar
             catch (...)
             {
                 // problem applying to the database
-                WriteLog(ripple::lsERROR, ripple::Ledger) << "database error";
+                CLOG(ripple::ERROR, ripple::Ledger) << "database error";
             }
         }
         else
@@ -120,7 +120,7 @@ namespace stellar
             }
             catch (std::runtime_error const &)
             {
-                WriteLog(ripple::lsERROR, ripple::Ledger) << "Ledger close: could not update database";
+                CLOG(ripple::ERROR, ripple::Ledger) << "Ledger close: could not update database";
             }
 
             if (newCLF != nullptr)
@@ -146,7 +146,7 @@ namespace stellar
         assert(mCurrentDB.getTransactionLevel() == 0);
         mCurrentCLF = ledger;
         mLastLedgerHash = ledger->getHash();
-        WriteLog(ripple::lsINFO, ripple::Ledger) << "Store at " << mLastLedgerHash;
+        CLOG(ripple::lsINFO, ripple::Ledger) << "Store at " << mLastLedgerHash;
     }
 
     void LedgerMaster::abortLedgerClose()
@@ -176,7 +176,7 @@ namespace stellar
 		SHAMap::Delta delta;
         bool needFull = false;
 
-        WriteLog(ripple::lsINFO, ripple::Ledger) << "catching up from " << mCurrentCLF->getHash() << " to " << updatedCurrentCLF;
+        CLOG(ripple::lsINFO, ripple::Ledger) << "catching up from " << mCurrentCLF->getHash() << " to " << updatedCurrentCLF;
 
         try
         {
@@ -191,7 +191,7 @@ namespace stellar
         }
         catch (std::runtime_error const &e)
         {
-            WriteLog(ripple::lsWARNING, ripple::Ledger) << "Could not compute delta: " << e.what();
+            CLOG(ripple::WARNING, ripple::Ledger) << "Could not compute delta: " << e.what();
             needFull = true;
         };
 
@@ -251,7 +251,7 @@ namespace stellar
     {
         CanonicalLedgerForm::pointer res;
 
-        WriteLog(ripple::lsINFO, ripple::Ledger) << "Importing full ledger " << ledgerHash;
+        CLOG(ripple::lsINFO, ripple::Ledger) << "Importing full ledger " << ledgerHash;
 
         CanonicalLedgerForm::pointer newLedger = LegacyCLF::pointer(new LegacyCLF());
 
@@ -268,7 +268,7 @@ namespace stellar
             }
             catch (...) {
                 mCurrentDB.endTransaction(true);
-                WriteLog(ripple::lsWARNING, ripple::Ledger) << "Could not import state";
+                CLOG(ripple::WARNING, ripple::Ledger) << "Could not import state";
                 return CanonicalLedgerForm::pointer();
             }
             mCurrentDB.endTransaction(false);

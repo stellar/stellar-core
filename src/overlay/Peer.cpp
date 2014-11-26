@@ -92,7 +92,7 @@ namespace stellar
     void Peer::sendMessage(StellarMessagePtr message)
     {
         if(mState == CLOSING) {
-            // LATER WriteLog(lsTRACE, stellar::PeerMaster) << "Peer::sendMessage while closing, dropping packet "
+            CLOG(TRACE, "Overlay") << "Peer::sendMessage while closing, dropping packet ";
             return;
         }
 
@@ -130,7 +130,7 @@ namespace stellar
 			sendHello();
 		} else
 		{
-            // LATER WriteLog(lsWARNING, stellar::PeerMaster) << "connectHandler error: " << error;
+            CLOG(WARNING, "Overlay") << "connectHandler error: " << error;
 			// LATER drop Peer
 		}
 	}
@@ -145,7 +145,7 @@ namespace stellar
 			if(mOutputBuffer.size()) reallySendMessage(mOutputBuffer[0]);
 		} else
 		{
-            // LATER WriteLog(lsWARNING, stellar::PeerMaster) << "writeHandler error: " << error;
+            CLOG(WARNING, "Overlay") << "writeHandler error: " << error;
 			// LATER drop Peer
 		}
 		
@@ -187,7 +187,7 @@ namespace stellar
 				)); 
 		} else
 		{
-            // LATER WriteLog(lsWARNING, stellar::PeerMaster) << "readHeaderHandler error: " << error;
+            CLOG(WARNING, "Overlay") << "readHeaderHandler error: " << error;
 			// LATER drop Peer
 		}
 		
@@ -201,7 +201,7 @@ namespace stellar
 			startRead();
 		}else
 		{
-            // LATER WriteLog(lsWARNING, stellar::PeerMaster) << "readBodyHandler error: " << error;
+            CLOG(WARNING, "Overlay") << "readBodyHandler error: " << error;
 			// LATER drop Peer
 		}
 		
@@ -216,7 +216,7 @@ namespace stellar
         memcpy(incoming->raw_data(),&(mIncomingBody[0]), mIncomingBody.size());
         xdr::xdr_from_msg(incoming, *stellarMsg.get());
 
-        // LATER WriteLog(lsTRACE, stellar::PeerMaster) << "recv: " << stellarMsg.type();
+        CLOG(TRACE, "Overlay") << "recv: " << stellarMsg->type();
 
 		switch(stellarMsg->type())
 		{

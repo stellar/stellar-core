@@ -171,6 +171,9 @@
     <ClCompile Include="..\..\src\util\Logging.cpp">
       <Filter>lib\util</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\main\Config.cpp">
+      <Filter>main</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\fba\Ballot.h">
@@ -366,6 +369,9 @@
       <Filter>xdrpp</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\lib\util\easylogging++.h">
+      <Filter>lib\util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\lib\util\cpptoml.h">
       <Filter>lib\util</Filter>
     </ClInclude>
   </ItemGroup>
