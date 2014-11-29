@@ -12,7 +12,7 @@ If we have less than the target number of peers we will try to connect to one ou
 
 namespace stellar
 {
-    PeerMaster gPeerMaster;
+    
 
 	PeerMaster::PeerMaster()
 	{
@@ -35,11 +35,11 @@ namespace stellar
 
 	void PeerMaster::start()
 	{
-		if(!gApp.mConfig.RUN_STANDALONE)
+		if(!mApp->mConfig.RUN_STANDALONE)
 		{
 			addConfigPeers();
 
-			mDoor.start();
+			mDoor.start(mApp);
 
 			auto fun = std::bind(&PeerMaster::run, this);
 			mPeerThread = std::thread(fun);
@@ -89,7 +89,7 @@ namespace stellar
 
     void PeerMaster::recvQuorumSet(QuorumSet::pointer qset)
     {
-        mQSetFetcher.recvItem(qset);
+        mQSetFetcher.recvItem(mApp,qset);
     }
 
 	void PeerMaster::addConfigPeers()
@@ -99,7 +99,7 @@ namespace stellar
 
 	void PeerMaster::broadcastMessage(stellarxdr::uint256& msgID)
 	{
-		mFloodGate.broadcast(msgID);
+		mFloodGate.broadcast(msgID,this);
 	}
 
 	void PeerMaster::broadcastMessage(StellarMessagePtr msg, Peer::pointer peer)

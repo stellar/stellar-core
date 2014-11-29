@@ -19,8 +19,9 @@ namespace stellar
 	);";
 
 
-	Peer::Peer(shared_ptr<boost::asio::ip::tcp::socket> socket)
+	Peer::Peer(Application::pointer app,shared_ptr<boost::asio::ip::tcp::socket> socket)
 	{
+        mApp = app;
 		mSocket = socket;
 	}
 
@@ -41,8 +42,8 @@ namespace stellar
 	{
 		stellarxdr::StellarMessage msg;
         msg.type(stellarxdr::HELLO);
-        msg.hello().protocolVersion = gApp.mConfig.PROTOCOL_VERSION;
-        msg.hello().versionStr = gApp.mConfig.VERSION_STR;
+        msg.hello().protocolVersion = mApp->mConfig.PROTOCOL_VERSION;
+        msg.hello().versionStr = mApp->mConfig.VERSION_STR;
 
 		sendMessage(msg);
 	}
@@ -327,10 +328,10 @@ namespace stellar
             // LATER
             break;
         case stellarxdr::TX_SET:
-            gApp.getTxHerderGateway().doesntHaveTxSet(msg->dontHave().reqHash, shared_from_this());
+            mApp->getTxHerderGateway().doesntHaveTxSet(msg->dontHave().reqHash, shared_from_this());
             break;
         case stellarxdr::QUORUMSET:
-            gApp.getOverlayGateway().doesntHaveQSet(msg->dontHave().reqHash, shared_from_this());
+            mApp->getOverlayGateway().doesntHaveQSet(msg->dontHave().reqHash, shared_from_this());
             break;
         case stellarxdr::VALIDATIONS:
             break;
@@ -339,7 +340,7 @@ namespace stellar
 
 	void Peer::recvGetTxSet(StellarMessagePtr msg)
 	{
-        TransactionSet::pointer txSet = gApp.getTxHerderGateway().fetchTxSet(msg->txSetHash());
+        TransactionSet::pointer txSet = mApp->getTxHerderGateway().fetchTxSet(msg->txSetHash());
 		if(txSet)
 		{
             stellarxdr::StellarMessage newMsg;
@@ -355,7 +356,7 @@ namespace stellar
 	void Peer::recvTxSet(StellarMessagePtr msg)
 	{
 		TransactionSet::pointer txSet(new TransactionSet(msg->txSet()));
-		gApp.getTxHerderGateway().recvTransactionSet(txSet);
+        mApp->getTxHerderGateway().recvTransactionSet(txSet);
 	}
 
 
@@ -364,16 +365,16 @@ namespace stellar
 		Transaction::pointer transaction = Transaction::makeTransactionFromWire(msg->transaction());
 		if(transaction)
 		{
-			if(gApp.getTxHerderGateway().recvTransaction(transaction))   // add it to our current set
+			if(mApp->getTxHerderGateway().recvTransaction(transaction))   // add it to our current set
 			{
-				gApp.getOverlayGateway().broadcastMessage(msg, shared_from_this());
+                mApp->getOverlayGateway().broadcastMessage(msg, shared_from_this());
 			}
 		}
 	}
 
 	void Peer::recvGetQuorumSet(StellarMessagePtr msg)
 	{
-		QuorumSet::pointer qset=gApp.getOverlayGateway().fetchQuorumSet(msg->qSetHash());
+		QuorumSet::pointer qset= mApp->getOverlayGateway().fetchQuorumSet(msg->qSetHash());
 		if(qset)
 		{
 			sendQuorumSet(qset);
@@ -387,7 +388,7 @@ namespace stellar
 	void Peer::recvQuorumSet(StellarMessagePtr msg)
 	{
 		QuorumSet::pointer qset(new QuorumSet(msg->quorumSet()));
-		gApp.getOverlayGateway().recvQuorumSet(qset);
+        mApp->getOverlayGateway().recvQuorumSet(qset);
 
 	}
 
@@ -396,8 +397,8 @@ namespace stellar
         stellarxdr::FBAEnvelope envelope=msg->fbaMessage();
         Statement::pointer statement = Statement::makeStatement(envelope);
 
-		gApp.getOverlayGateway().recvFloodedMsg(statement->mSignature, msg, statement->getLedgerIndex(), shared_from_this());
-		gApp.getFBAGateway().recvStatement(statement);
+        mApp->getOverlayGateway().recvFloodedMsg(statement->mSignature, msg, statement->getLedgerIndex(), shared_from_this());
+        mApp->getFBAGateway().recvStatement(statement);
 	}
 
     void Peer::recvError(StellarMessagePtr msg)

@@ -7,14 +7,15 @@
 #include "main/Config.h"
 #include "txherder/TxHerder.h"
 #include "overlay/OverlayGateway.h"
-
+#include "overlay/PeerMaster.h"
 /*
 The state of the world and the main loop
 
 */
 
-namespace stellar {
-	class Application
+namespace stellar 
+{
+	class Application : public enable_shared_from_this<Application>
 	{
 		enum { BOOTING_STATE,   // loading last known ledger from disk
 			CONNECTING_STATE,	// trying to connect to other peers 
@@ -26,13 +27,15 @@ namespace stellar {
 		
 
 		
-
+        PeerMaster mPeerMaster;
 		LedgerMaster mLedgerMaster;
 		TxHerder mTxHerder;
 		FBAMaster mFBAMaster;
 	public:
 		int mState;
 		Config mConfig;
+
+        typedef std::shared_ptr<Application> pointer;
 
 		Application();
 
@@ -42,12 +45,11 @@ namespace stellar {
 		//HistoryGateway& getHistoryGateway();
 		TxHerderGateway& getTxHerderGateway(){ return(mTxHerder); }
         OverlayGateway& getOverlayGateway();
+        PeerMaster& getPeerMaster() { return(mPeerMaster); }
 
 		void start();
 
 	};
-
-	extern Application gApp;
 
 }
 

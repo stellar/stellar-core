@@ -58,10 +58,11 @@ namespace stellar
 
 		void sortBallots(Statement::StatementType type, vector< BallotSet >& retList);
 		
-		Ballot::pointer getMostPopularBallot(Statement::StatementType type, bool checkValid);
-		Statement::pointer getHighestStatement(Statement::StatementType type, bool checkValid);
+		Ballot::pointer getMostPopularBallot(Statement::StatementType type, bool checkValid, ApplicationPtr app);
+		Statement::pointer getHighestStatement(Statement::StatementType type, bool checkValid, ApplicationPtr app);
 		bool checkQuorum(Statement::pointer statement);
-        Node::RatState checkRatState(Statement::StatementType statementType, BallotPtr ballot, int operationToken, int recheckCounter);
+        Node::RatState checkRatState(Statement::StatementType statementType, BallotPtr ballot, 
+            int operationToken, int recheckCounter,ApplicationPtr app);
 		////
 
 

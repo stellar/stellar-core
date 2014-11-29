@@ -31,12 +31,12 @@ namespace stellar
 		mFloodMap[index] = FloodRecord::pointer(new FloodRecord(msg, ledgerIndex, peer));
 	}
 
-	void Floodgate::broadcast(stellarxdr::uint256 index)
+	void Floodgate::broadcast(stellarxdr::uint256 index, PeerMaster* peerMaster)
 	{
 		auto result = mFloodMap.find(index);
 		if(result != mFloodMap.end())
 		{
-			gPeerMaster.broadcastMessage(result->second->mMessage, result->second->mPeersTold);
+			peerMaster->broadcastMessage(result->second->mMessage, result->second->mPeersTold);
 			
 		}
 	}

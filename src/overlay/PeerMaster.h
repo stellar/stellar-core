@@ -1,3 +1,6 @@
+#ifndef __PEERMASTER__
+#define __PEERMASTER__
+
 #include "Peer.h"
 #include "PeerDoor.h"
 #include "overlay/ItemFetcher.h"
@@ -21,6 +24,7 @@ namespace stellar
 		vector<Peer::pointer> mPeers;
 		PeerDoor mDoor;
 		QSetFetcher mQSetFetcher;
+        ApplicationPtr mApp;
 
 		void addConfigPeers();
 
@@ -32,12 +36,13 @@ namespace stellar
 		PeerMaster();
 		~PeerMaster();
 
+        void setApplication(ApplicationPtr app) { mApp = app; }
 		//////// GATEWAY FUNCTIONS
 		void ledgerClosed(LedgerPtr ledger);
 
 		QuorumSet::pointer fetchQuorumSet(stellarxdr::uint256& itemID){ return(mQSetFetcher.fetchItem(itemID)); }
         void recvFloodedMsg(stellarxdr::uint256 index, StellarMessagePtr msg, uint32_t ledgerIndex, Peer::pointer peer) { mFloodGate.addRecord(index, msg, ledgerIndex, peer);  }
-        void doesntHaveQSet(stellarxdr::uint256 index, Peer::pointer peer) { mQSetFetcher.doesntHave(index, peer); }
+        void doesntHaveQSet(stellarxdr::uint256 index, Peer::pointer peer) { mQSetFetcher.doesntHave(index, peer,mApp); }
 
         void broadcastMessage(StellarMessagePtr msg, Peer::pointer peer);
         void recvQuorumSet(QuorumSet::pointer qset);
@@ -55,6 +60,6 @@ namespace stellar
 		void broadcastMessage(stellarxdr::uint256& msgID);
 		void broadcastMessage(StellarMessagePtr msg, vector<Peer::pointer>& skip);
 	};
-
-    extern PeerMaster gPeerMaster;
 }
+
+#endif

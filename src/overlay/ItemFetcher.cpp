@@ -7,12 +7,12 @@ SANITY: we need some sort of timer callback to move this along
 
 namespace stellar
 {
-    void ItemFetcher::doesntHave(stellarxdr::uint256& itemID, Peer::pointer peer)
+    void ItemFetcher::doesntHave(stellarxdr::uint256& itemID, Peer::pointer peer,Application::pointer app)
     {
         auto result = mItemMap.find(itemID);
         if(result != mItemMap.end())
         { // found
-            result->second->doesntHave(peer);
+            result->second->doesntHave(peer,app);
         }
     }
 
@@ -76,7 +76,7 @@ namespace stellar
 	}
 
 	////////////////////////////////////////
-	void QSetFetcher::recvItem(QuorumSet::pointer qSet)
+	void QSetFetcher::recvItem(Application::pointer app, QuorumSet::pointer qSet)
 	{
 		if(qSet)
 		{
@@ -86,7 +86,7 @@ namespace stellar
 				((QSetTrackingCollar*)result->second.get())->mQSet = qSet;
 				if(result->second->mRefCount)
 				{  // someone was still interested in this tx set so tell Firmeza  LATER: maybe change this to pub/sub
-					gApp.getFBAGateway().addQuorumSet(qSet);
+					app->getFBAGateway().addQuorumSet(qSet);
 				}
 			} else
 			{  // doesn't seem like we were looking for it. Maybe just add it for now 
@@ -126,17 +126,17 @@ namespace stellar
         mTimeAsked = std::chrono::system_clock::now();  // TODO: better time here?
 	}
 
-    void TrackingCollar::doesntHave(Peer::pointer peer)
+    void TrackingCollar::doesntHave(Peer::pointer peer,Application::pointer app)
     {
         if(mLastAskedPeer == peer)
         {
-            tryNextPeer();
+            tryNextPeer(app);
         }
     }
 	
 
 	// SANITY: will be called by some timer or when we get a result saying they don't have it
-	void TrackingCollar::tryNextPeer()
+	void TrackingCollar::tryNextPeer(Application::pointer app)
 	{
 		if(!isItemFound())
 		{	// we still haven't found this item
@@ -146,12 +146,12 @@ namespace stellar
 			{
 				while(!peer && mPeersAsked.size())
 				{  // keep looping till we find a peer we are still connected to
-					peer = gApp.getOverlayGateway().getNextPeer(mPeersAsked[mPeersAsked.size() - 1]);
+					peer = app->getOverlayGateway().getNextPeer(mPeersAsked[mPeersAsked.size() - 1]);
 					if(!peer) mPeersAsked.pop_back();
 				}
 			} else
 			{
-				peer = gApp.getOverlayGateway().getRandomPeer();
+				peer = app->getOverlayGateway().getRandomPeer();
 			}
 
 			if(peer)

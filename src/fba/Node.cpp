@@ -41,7 +41,8 @@ namespace stellar
     //  it will increment anytime a node is removed from Va thus triggering a recheck of all nodes in the "pledging" state
 	
 	// this returns what RatState it thinks the particular statement is in.
-    Node::RatState Node::checkRatState(Statement::StatementType statementType, BallotPtr ballot, int operationToken, int recheckCounter)
+    Node::RatState Node::checkRatState(Statement::StatementType statementType, BallotPtr ballot, 
+        int operationToken, int recheckCounter,Application::pointer app)
 	{
         if(operationToken == mOperationToken)
         {   // this node was already visited during this check
@@ -88,10 +89,11 @@ namespace stellar
 		
 		// ok so this node is pledging the statement
         mRatState = PLEDGING_STATE;
-		QuorumSet::pointer qset = gApp.getOverlayGateway().fetchQuorumSet(ourStatement->mQuorumSetHash);
+		QuorumSet::pointer qset = app->getOverlayGateway().fetchQuorumSet(ourStatement->mQuorumSetHash);
 		if(qset)
 		{
-            RatState state = qset->checkRatState(statementType, ballot, operationToken, recheckCounter);
+            RatState state = qset->checkRatState(statementType, ballot, 
+                operationToken, recheckCounter,app);
             if(state == RECHECK_STATE) return(RECHECK_STATE); // just bounce back to the top
 
 			if(state == RATIFIED_STATE)
@@ -148,8 +150,5 @@ namespace stellar
 		}
 		return max;
 	}
-
-	
-
 	
 }

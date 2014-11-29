@@ -13,9 +13,13 @@ using namespace std;
 
 namespace stellar
 {
+    class Application;
+    typedef std::shared_ptr<Application> ApplicationPtr;
 
 	class PeerDoor
 	{
+        ApplicationPtr mApp;
+
 		boost::asio::ip::tcp::acceptor* mAcceptor;
 
 		void acceptNextPeer();
@@ -23,7 +27,7 @@ namespace stellar
 	public:
 		PeerDoor();
 
-		void start();
+		void start(ApplicationPtr app);
 		void close();
 
 	};

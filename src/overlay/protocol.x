@@ -205,6 +205,7 @@ enum MessageType
 	VALIDATIONS,	
 		
 	TRANSACTION, //pass on a tx you have heard about		
+	JSON_TRANSACTION,
 		
 	// FBA		
 	GET_QUORUMSET,		

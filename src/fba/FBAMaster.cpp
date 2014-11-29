@@ -86,9 +86,14 @@ namespace stellar
 
 	FBAMaster::FBAMaster()
 	{
-		mValidatingNode = false;
-		
+		mValidatingNode = false;   
 	}
+
+    void FBAMaster::setApplication(Application::pointer app) 
+    { 
+        mApp = app; 
+        mOurNode = OurNode::pointer(new OurNode(mApp));
+    }
 
 
 	// start a new round of consensus. This is called after the last ledger closes
@@ -157,7 +162,7 @@ namespace stellar
 	{
 		if(!statement->isSigValid()) return false;  // 1) yes   LATER we should doc any peer that sends us one of these
 
-		TxHerderGateway::SlotComparisonType slotCompare = gApp.getTxHerderGateway().compareSlot(statement->mBallot);
+		TxHerderGateway::SlotComparisonType slotCompare = mApp->getTxHerderGateway().compareSlot(statement->mBallot);
 		if(slotCompare==TxHerderGateway::SAME_SLOT)
 		{  // we are on the same slot 2) yes
 			bool newStatement = true;
@@ -174,10 +179,10 @@ namespace stellar
 			if(newStatement)
 			{ // 3) yes
 
-				TransactionSet::pointer txSet = statement->fetchTxSet();
+				TransactionSet::pointer txSet = statement->fetchTxSet(mApp);
 				if(txSet)
 				{ // set is local 4) yes
-					TxHerderGateway::BallotValidType validity = statement->checkValidity();
+					TxHerderGateway::BallotValidType validity = statement->checkValidity(mApp);
 					
 					if(validity==TxHerderGateway::INVALID_BALLOT)
 					{
@@ -190,7 +195,7 @@ namespace stellar
 					}// 6) yes
 
 					mKnownNodes[statement->mNodeID]->addStatement(statement);
-					if(validity==TxHerderGateway::VALID_BALLOT) gApp.getOverlayGateway().broadcastMessage(statement->mSignature);
+					if(validity==TxHerderGateway::VALID_BALLOT) mApp->getOverlayGateway().broadcastMessage(statement->mSignature);
 
 					///////  DO THE THING
 					return(true);

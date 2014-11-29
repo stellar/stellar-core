@@ -17,10 +17,13 @@ using namespace std;
 
 namespace stellar
 {
+    class Application;
+    typedef std::shared_ptr<Application> ApplicationPtr;
 
 	class Peer : public enable_shared_from_this <Peer>
 	{
 	protected:
+        ApplicationPtr mApp;
 		//boost::asio::io_service::strand mStrand;
 		shared_ptr<boost::asio::ip::tcp::socket> mSocket;
 
@@ -87,7 +90,7 @@ namespace stellar
 		int mPort;
 		int mRank;
 
-		Peer(shared_ptr<boost::asio::ip::tcp::socket> socket);
+		Peer(ApplicationPtr app,shared_ptr<boost::asio::ip::tcp::socket> socket);
 		void createFromDoor();
 		void connect();
 

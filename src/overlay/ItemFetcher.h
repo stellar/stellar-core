@@ -38,8 +38,8 @@ namespace stellar
 
 		TrackingCollar(stellarxdr::uint256& id);
 
-        void doesntHave(Peer::pointer peer);
-		void tryNextPeer();
+        void doesntHave(Peer::pointer peer,ApplicationPtr app);
+		void tryNextPeer(ApplicationPtr app);
 	};
 
 	
@@ -47,11 +47,11 @@ namespace stellar
 	class ItemFetcher
 	{
 	protected:
-        
+        ApplicationPtr mApp;
 		map<stellarxdr::uint256, TrackingCollar::pointer> mItemMap;
 	public:
 		
-        void doesntHave(stellarxdr::uint256& itemID, Peer::pointer peer);
+        void doesntHave(stellarxdr::uint256& itemID, Peer::pointer peer, ApplicationPtr app);
 		void stopFetching(stellarxdr::uint256& itemID);
 
 		void clear();
@@ -73,7 +73,7 @@ namespace stellar
 		QuorumSet::pointer fetchItem(stellarxdr::uint256& itemID);
 		// looks to see if we know about it but doesn't ask the network
         QuorumSet::pointer findItem(stellarxdr::uint256& itemID);
-		void recvItem(QuorumSet::pointer qSet);
+		void recvItem(ApplicationPtr app,QuorumSet::pointer qSet);
 	};
 
 	class TxSetTrackingCollar : public TrackingCollar

@@ -15,6 +15,9 @@ It tells FBA to start the next round
 
 namespace stellar
 {
+    class Application;
+    typedef std::shared_ptr<Application> ApplicationPtr;
+
 	class TxHerder : public TxHerderGateway
 	{
 		//SANITY need to track age of Txs so we become more adamant that they are included
@@ -35,11 +38,13 @@ namespace stellar
 		TxSetFetcher mTxSetFetcher;
 
 		int mCloseCount;
+        ApplicationPtr mApp;
 
 		LedgerPtr mLastClosedLedger;
 		void removeReceivedTx(TransactionPtr tx);
 	public:
 		TxHerder();
+        void setApplication(ApplicationPtr app) { mApp = app; }
 
 		///////// GATEWAY FUNCTIONS
 		// make sure this set contains any super old TXs
@@ -53,7 +58,7 @@ namespace stellar
 
 		// a Tx set comes in from the wire
 		void recvTransactionSet(TransactionSetPtr txSet);
-        void doesntHaveTxSet(stellarxdr::uint256& setHash, Peer::pointer peer) { mTxSetFetcher.doesntHave(setHash, peer);  }
+        void doesntHaveTxSet(stellarxdr::uint256& setHash, Peer::pointer peer) { mTxSetFetcher.doesntHave(setHash, peer,mApp);  }
 
 		// we are learning about a new transaction
         // return true if we should flood

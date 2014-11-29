@@ -74,7 +74,7 @@ namespace stellar
 		sort(retList.begin(), retList.end(), ballotSorter);
 	}
 
-	Ballot::pointer QuorumSet::getMostPopularBallot(Statement::StatementType type, bool checkValid)
+	Ballot::pointer QuorumSet::getMostPopularBallot(Statement::StatementType type, bool checkValid,Application::pointer app)
 	{
 		map< pair<stellarxdr::uint256, uint64_t>, int> ballotCounts;
 		Ballot::pointer ballot;
@@ -84,7 +84,7 @@ namespace stellar
 			Statement::pointer statement = node->getHighestStatement(type);
 			if(statement)
 			{
-				if(!checkValid || gApp.getTxHerderGateway().isValidBallotValue(statement->mBallot))
+				if(!checkValid || app->getTxHerderGateway().isValidBallotValue(statement->mBallot))
 				{
 					ballot = statement->mBallot;
 					ballotCounts[pair<stellarxdr::uint256, uint64_t>(ballot->mTxSetHash, ballot->mLedgerCloseTime)] += 1;
@@ -115,13 +115,13 @@ namespace stellar
 	}
 
 	// get the highest valid statement 
-	Statement::pointer QuorumSet::getHighestStatement(Statement::StatementType type,bool checkValid)
+	Statement::pointer QuorumSet::getHighestStatement(Statement::StatementType type,bool checkValid,Application::pointer app)
 	{
 		Statement::pointer highStatement;
 		for(auto node : mNodes)
 		{
 			Statement::pointer statement = node->getHighestStatement(type);
-			if(!checkValid || gApp.getTxHerderGateway().isValidBallotValue(statement->mBallot))
+			if(!checkValid || app->getTxHerderGateway().isValidBallotValue(statement->mBallot))
 			{
 				if(!highStatement) highStatement = statement;
 				else
@@ -142,14 +142,15 @@ namespace stellar
 	// b) they have ratified
 	// for PREPARE we need to look at gaps
 	//		for any gap see if other people can ratify the abort
-    Node::RatState QuorumSet::checkRatState(Statement::StatementType statementType, BallotPtr ballot, int operationToken, int recheckCounter)
+    Node::RatState QuorumSet::checkRatState(Statement::StatementType statementType, BallotPtr ballot, 
+        int operationToken, int recheckCounter,Application::pointer app)
 	{
 		// LATER if(statementType == Statement::PREPARE_TYPE) return checkPrepareRatState(statement, visitIndex);
  
 		int ratCount = 0;
 		for(auto node : mNodes)
 		{
-			Node::RatState state = node->checkRatState(statementType, ballot, operationToken, recheckCounter);
+			Node::RatState state = node->checkRatState(statementType, ballot, operationToken, recheckCounter,app);
 			if(state == Node::PLEDGING_STATE || state == Node::RATIFIED_STATE)
 			{
 				ratCount++;  

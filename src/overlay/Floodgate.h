@@ -19,6 +19,8 @@ Committed
 
 namespace stellar
 {
+    class PeerMaster;
+
 	class FloodRecord
 	{
 	public:
@@ -41,7 +43,7 @@ namespace stellar
 		void clearBelow(uint32_t currentLedger);
 		void addRecord(stellarxdr::uint256 index, StellarMessagePtr msg, uint32_t ledgerIndex, Peer::pointer peer);
 
-		void broadcast(stellarxdr::uint256 index);
+		void broadcast(stellarxdr::uint256 index,PeerMaster* peerMaster);
 
 	};
 }

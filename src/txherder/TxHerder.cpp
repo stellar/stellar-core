@@ -73,7 +73,7 @@ namespace stellar
 			{
 				recvTransaction(tx);
 			}
-			gApp.getFBAGateway().transactionSetAdded(txSet);
+			mApp->getFBAGateway().transactionSetAdded(txSet);
 		}
 	}
 
@@ -122,7 +122,7 @@ namespace stellar
 		TransactionSet::pointer externalizedSet = fetchTxSet(ballot->mTxSetHash);
 		if(externalizedSet)
 		{
-			gApp.getLedgerGateway().externalizeValue(externalizedSet, ballot->mLedgerCloseTime);
+			mApp->getLedgerGateway().externalizeValue(externalizedSet, ballot->mLedgerCloseTime);
 
 			// remove all these tx from mReceivedTransactions
 			for(auto tx : externalizedSet->mTransactions)
@@ -168,9 +168,9 @@ namespace stellar
 		
 		mCloseCount++;
 		// don't participate in FBA for a few ledger closes so you make sure you don't send PREPAREs that don't include old tx
-		if(mCloseCount > 2 && (!isZero(gApp.mConfig.VALIDATION_SEED))) gApp.getFBAGateway().setValidating(true);
+		if(mCloseCount > 2 && (!isZero(mApp->mConfig.VALIDATION_SEED))) mApp->getFBAGateway().setValidating(true);
 
-		gApp.getFBAGateway().startNewRound(firstBallot);
+		mApp->getFBAGateway().startNewRound(firstBallot);
 	}
 
 }

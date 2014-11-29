@@ -3,8 +3,6 @@
 
 namespace stellar
 {
-    // SANITY get rid of global so we can simulate many nodes in one process
-    Application gApp;
 
 	Application::Application()
 	{
@@ -13,15 +11,17 @@ namespace stellar
 
 	void Application::start()
 	{
+        mFBAMaster.setApplication(shared_from_this());
+        mTxHerder.setApplication(shared_from_this());
+        mPeerMaster.setApplication(shared_from_this());
+
 		// load last known ledger
 		// connect to peers
 		// listen for ledger close from the network
 		// sync to current ledger
 
-		gPeerMaster.start();
-
-		
+		mPeerMaster.start();
 	}
 
-    OverlayGateway& Application::getOverlayGateway() { return(gPeerMaster); }
+    OverlayGateway& Application::getOverlayGateway() { return(mPeerMaster); }
 }

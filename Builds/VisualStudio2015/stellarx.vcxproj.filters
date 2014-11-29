@@ -49,6 +49,9 @@
     <Filter Include="xdrpp">
       <UniqueIdentifier>{edf55658-9ccc-494c-83f5-34e638396749}</UniqueIdentifier>
     </Filter>
+    <Filter Include="docs">
+      <UniqueIdentifier>{b0b4abb7-5c4b-4d72-8529-30f235d36c68}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\src\fba\Ballot.cpp">

@@ -60,7 +60,8 @@ namespace stellar
 		// returns false if we already had this msg
 		bool addStatement(StatementPtr msg);
 
-        Node::RatState checkRatState(Statement::StatementType type, BallotPtr statement, int operationToken, int recheckCounter);
+        Node::RatState checkRatState(Statement::StatementType type, BallotPtr statement, 
+            int operationToken, int recheckCounter, ApplicationPtr app);
 		
     private:
         // for the ratification check

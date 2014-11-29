@@ -7,6 +7,8 @@ namespace stellar
 {
 	class Ballot;
 	typedef std::shared_ptr<Ballot> BallotPtr;
+    class Application;
+    typedef std::shared_ptr<Application> ApplicationPtr;
 
 	class Statement
 	{
@@ -55,7 +57,8 @@ namespace stellar
         bool isCompatible(BallotPtr ballot);
 
 		
-		TxHerderGateway::BallotValidType checkValidity();
+		TxHerderGateway::BallotValidType checkValidity(ApplicationPtr app);
+
 		bool compare(Statement::pointer other);
 
 		// checks signature
@@ -66,7 +69,7 @@ namespace stellar
 
 		uint32_t getLedgerIndex();
 
-		TransactionSetPtr fetchTxSet();
+		TransactionSetPtr fetchTxSet(ApplicationPtr app);
 
 		virtual void toXDR(stellarxdr::FBAEnvelope& envelope);	
 	};
