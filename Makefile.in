@@ -1,0 +1,168 @@
+# Autoconf-injected values.
+
+prefix:=@prefix@
+srcdir:=@srcdir@
+bindir:=@bindir@
+libdir:=@libdir@
+mandir:=@mandir@
+datadir:=@datadir@
+datarootdir:=@datarootdir@
+includedir:=@includedir@
+sysconfdir:=@sysconfdir@
+localstatedir:=@localstatedir@
+
+CC:=@CC@
+CFLAGS:=@CFLAGS@
+CPP:=@CPP@
+CPPFLAGS:=@CPPFLAGS@
+CXX:=@CXX@
+CXXFLAGS:=@CXXFLAGS@
+INSTALL:=@INSTALL@
+INSTALL_DATA:=@INSTALL_DATA@
+INSTALL_PROGRAM:=@INSTALL_PROGRAM@
+INSTALL_SCRIPT:=@INSTALL_SCRIPT@
+LDFLAGS:=@LDFLAGS@
+PACKAGE:=@PACKAGE_NAME@
+VERSION:=@PACKAGE_VERSION@
+
+
+
+# Clear implicit rules, add back those we want.
+
+.SUFFIXES:
+.SUFFIXES:.cpp .o .d
+MAKEFLAGS += --no-builtin-rules
+
+.PHONY: all install uninstall clean distclean dist check distcheck
+
+VPATH=${srcdir}
+
+
+
+# Actual code and build rules.
+
+SRCS:=\
+	src/overlay/test.cpp                                 \
+	src/overlay/Floodgate.cpp                            \
+	src/overlay/PeerDoor.cpp                             \
+	src/overlay/Peer.cpp                                 \
+	src/overlay/ItemFetcher.cpp                          \
+	src/overlay/PeerMaster.cpp                           \
+	src/lib/crypto/StellarPublicKey.cpp                  \
+	src/lib/crypto/StellarPrivateKey.cpp                 \
+	src/lib/crypto/edkeypair.cpp                         \
+	src/lib/util/types.cpp                               \
+	src/fba/FBAMaster.cpp                                \
+	src/fba/OurNode.cpp                                  \
+	src/fba/QuorumSet.cpp                                \
+	src/fba/NodePool.cpp                                 \
+	src/fba/Statement.cpp                                \
+	src/fba/Node.cpp                                     \
+	src/fba/History.cpp                                  \
+	src/fba/PreparedStatement.cpp                        \
+	src/fba/CommitStatement.cpp                          \
+	src/fba/CommittedStatement.cpp                       \
+	src/fba/PrepareStatement.cpp                         \
+	src/fba/Ballot.cpp                                   \
+	src/ledger/LedgerDatabase.cpp                        \
+	src/ledger/Ledger.cpp                                \
+	src/ledger/LedgerEntry.cpp                           \
+	src/ledger/OfferEntry.cpp                            \
+	src/ledger/LedgerMaster.cpp                          \
+	src/ledger/AccountEntry.cpp                          \
+	src/ledger/TrustLine.cpp                             \
+	src/txherder/TxHerder.cpp                            \
+	src/txherder/TransactionSet.cpp                      \
+	src/clf/BucketList.cpp                               \
+	src/main/main.cpp                                    \
+	src/main/Application.cpp                             \
+	src/transactions/TrustSetTx.cpp                      \
+	src/transactions/Transaction.cpp                     \
+	src/util/Logging.cpp                                 \
+
+OBJS:=$(patsubst %.cpp,%.o,${SRCS})
+DEPS:=$(patsubst %.cpp,%.d,${SRCS})
+
+CPPFLAGS+=-I${srcdir}/src -I${srcdir}/../xdrpp
+
+%.o: %.cpp
+	${CXX} -c -o $@ ${CPPFLAGS} ${CXXFLAGS} $<
+
+%.d: %.cpp
+	${CXX} ${CPPFLAGS} ${CXXFLAGS} -MT $(patsubst %.d,%.o,$@) -MM $< -MF $@
+
+all: bin/stellard
+
+bin/stellard: ${OBJS}
+	${CXX} -o $@ $<
+
+install:
+	${INSTALL_PROGRAM} stellard ${bindir}/stellard
+
+uninstall:
+	rm -f ${bindir}/stellard
+
+clean:
+	rm -f ${OBJS} ${DEPS}
+
+check:
+	bin/stellard --unit-test
+
+
+
+# Dependency generation for C++.
+
+NODEPS:=clean dist distclean
+
+ifeq (0, $(words $(findstring ${MAKECMDGOALS}, ${NODEPS})))
+    -include ${DEPS}
+endif
+
+
+
+# Autoreconfiguration.
+
+${srcdir}/configure: ${srcdir}/configure.ac
+	cd ${srcdir} && autoconf
+
+config.h: stamp-h
+stamp-h: config.h.in config.status
+	./config.status
+
+Makefile: Makefile.in config.status
+	./config.status
+
+config.status: configure
+	./config.status --recheck
+
+
+
+# Distribution.
+
+distdir = $(PACKAGE)-$(VERSION)
+DIST_COMMON := \
+	${srcdir}/Makefile.in    \
+	${srcdir}/configure      \
+	${srcdir}/config.h.in
+
+# Canonically DIST_COMMON should also include
+#    INSTALL NEWS README AUTHORS COPYING ChangeLog
+
+DISTFILES = $(DIST_COMMON) $(SRCS) 
+DISTARCHIVE = $(distdir).tar.gz
+
+dist:
+	mkdir -p ${distdir}
+	echo ${DISTFILES} | xargs tar -c | tar -x -C ${distdir}
+	tar -czf ${DISTARCHIVE} ${distdir}
+	rm -Rf ${distdir}
+
+distclean:
+	rm -f config.h stamp-h config.status config.cache config.log
+	rm -f Makefile 
+	rm -f ${DISTARCHIVE}
+
+distcheck: dist
+	tar -xzf ${DISTARCHIVE}
+	(cd ${distdir} && ./configure && make check)
+	rm -Rf ${distdir}
