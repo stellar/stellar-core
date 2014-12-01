@@ -56,7 +56,6 @@ namespace stellar
         mRecheckCounter = recheckCounter;
 
 
-		bool notFound = true;
 		for(int n = statementType; n < Statement::NUM_TYPES; n++)
 		{  // if this node has ratified this statement or a stronger version
             if(mRatified[n] && mRatified[n]->isCompatible(ballot))
