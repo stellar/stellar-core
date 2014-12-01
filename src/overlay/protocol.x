@@ -91,13 +91,6 @@ enum FBAStatementType
 	COMMITTED
 };
 
-struct FBAEnvelope
-{
-	uint256 nodeID;
-    uint256 signature;
-	FBAContents contents;
-};
-
 struct FBAContents
 {
 	SlotBallot ballot;
@@ -114,6 +107,12 @@ struct FBAContents
 	} body;
 };
 
+struct FBAEnvelope
+{
+	uint256 nodeID;
+    uint256 signature;
+	FBAContents contents;
+};
 
 enum LedgerTypes {
   ACCOUNT,
@@ -221,7 +220,17 @@ struct DontHave
 	uint256 reqHash;
 };
 
+struct GetDelta
+{
+    uint256 a;
+    uint256 b;
+};
 
+struct GetHistory
+{
+    uint256 a;
+    uint256 b;
+};
 
 union StellarMessage switch (MessageType type) {
 	case ERROR_MSG:
