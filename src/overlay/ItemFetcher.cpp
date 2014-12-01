@@ -63,7 +63,7 @@ namespace stellar
 		{  // not found 
             if(askNetwork)
             {
-                TrackingCollar::pointer collar = TrackingCollar::pointer(new TxSetTrackingCollar(setID,mApp));
+                TrackingCollar::pointer collar = std::make_shared<TxSetTrackingCollar>(setID,mApp);
                 mItemMap[setID] = collar;
                 collar->tryNextPeer(mApp);
             }
@@ -87,7 +87,7 @@ namespace stellar
 				}
 			} else
 			{  // doesn't seem like we were looking for it. Maybe just add it for now 
-				mItemMap[txSet->getContentsHash()] = TrackingCollar::pointer(new TxSetTrackingCollar(txSet->getContentsHash(),mApp));
+                mItemMap[txSet->getContentsHash()] = std::make_shared<TxSetTrackingCollar>(txSet->getContentsHash(),mApp);
 			}
 		}
 		return false;
@@ -109,7 +109,7 @@ namespace stellar
 				}
 			} else
 			{  // doesn't seem like we were looking for it. Maybe just add it for now 
-				mItemMap[qSet->getHash()] = TrackingCollar::pointer(new QSetTrackingCollar(qSet->getHash(),mApp));
+                mItemMap[qSet->getHash()] = std::make_shared<QSetTrackingCollar>(qSet->getHash(), mApp);
 			}
 		}
 	}
@@ -133,7 +133,7 @@ namespace stellar
 		{  // not found 
             if(askNetwork)
             {
-                TrackingCollar::pointer collar=TrackingCollar::pointer(new QSetTrackingCollar(setID,mApp));
+                TrackingCollar::pointer collar = std::make_shared<QSetTrackingCollar>(setID,mApp);
                 mItemMap[setID] = collar;
                 collar->tryNextPeer(mApp); // start asking
             }

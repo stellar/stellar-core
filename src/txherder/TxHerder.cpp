@@ -11,13 +11,11 @@
 namespace stellar
 {
 	TxHerder::TxHerder()
-	{
-		mCloseCount = 0;
-		mCollectingTransactionSet = TransactionSet::pointer(new TransactionSet());
-
-		mReceivedTransactions.resize(4);
-        mCurrentTxSetFetcher = 0;
-	}
+        : mCloseCount(0)
+        , mCollectingTransactionSet(std::make_shared<TransactionSet>())
+        , mReceivedTransactions(4)
+        , mCurrentTxSetFetcher(0)
+	{}
 
 	// make sure all the tx we have in the old set are included
 	// make sure the timestamp isn't too far in the future

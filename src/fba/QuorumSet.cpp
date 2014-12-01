@@ -104,7 +104,7 @@ namespace stellar
 
 		if(ballot)
 		{
-			ballot=Ballot::pointer(new Ballot(ballot));
+			ballot = std::make_shared<Ballot>(ballot);
 			ballot->mTxSetHash = mostPopular.first;
 			ballot->mLedgerCloseTime = mostPopular.second;
 			ballot->mIndex = 0;
