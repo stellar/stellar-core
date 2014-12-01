@@ -7,7 +7,7 @@
 
 namespace stellar
 {
-    class FutureStatement : public enable_shared_from_this<FutureStatement>
+    class FutureStatement : public std::enable_shared_from_this<FutureStatement>
     {
         boost::asio::deadline_timer mTimer;
         
