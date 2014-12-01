@@ -35,7 +35,8 @@ namespace stellar
 		// 3- three or more ledgers ago. Any set we validate must have these ledgers
 		vector< vector<Transaction::pointer> > mReceivedTransactions;
 
-		TxSetFetcher mTxSetFetcher;
+		TxSetFetcher mTxSetFetcher[2];
+        int mCurrentTxSetFetcher;
 
 		int mCloseCount;
         ApplicationPtr mApp;
@@ -52,13 +53,13 @@ namespace stellar
 		TxHerderGateway::SlotComparisonType compareSlot(BallotPtr ballot);
 		
 		// will start fetching this TxSet from the network if we don't know about it
-		TransactionSetPtr fetchTxSet(stellarxdr::uint256& setHash);
+		TransactionSetPtr fetchTxSet(stellarxdr::uint256& setHash, bool askNetwork);
 
 		void externalizeValue(BallotPtr ballot);
 
 		// a Tx set comes in from the wire
 		void recvTransactionSet(TransactionSetPtr txSet);
-        void doesntHaveTxSet(stellarxdr::uint256& setHash, Peer::pointer peer) { mTxSetFetcher.doesntHave(setHash, peer,mApp);  }
+        void doesntHaveTxSet(stellarxdr::uint256& setHash, Peer::pointer peer) { mTxSetFetcher[mCurrentTxSetFetcher].doesntHave(setHash, peer,mApp);  }
 
 		// we are learning about a new transaction
         // return true if we should flood

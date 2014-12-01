@@ -53,9 +53,9 @@ namespace stellar
 		virtual BallotValidType isValidBallotValue(BallotPtr ballot) = 0;
 		virtual SlotComparisonType compareSlot(BallotPtr ballot) = 0;
 
-		// will start fetching this TxSet from the network if we don't know about it
-		virtual TransactionSetPtr fetchTxSet(stellarxdr::uint256& setHash) = 0;
-		
+		// can start fetching this TxSet from the network if we don't know about it
+		virtual TransactionSetPtr fetchTxSet(stellarxdr::uint256& setHash, bool askNetwork) = 0;
+
 		virtual void externalizeValue(BallotPtr) = 0;
 
 

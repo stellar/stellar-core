@@ -16,13 +16,14 @@ namespace stellar
 		mCollectingTransactionSet = TransactionSet::pointer(new TransactionSet());
 
 		mReceivedTransactions.resize(4);
+        mCurrentTxSetFetcher = 0;
 	}
 
 	// make sure all the tx we have in the old set are included
 	// make sure the timestamp isn't too far in the future
 	TxHerderGateway::BallotValidType TxHerder::isValidBallotValue(Ballot::pointer ballot)
 	{
-		TransactionSetPtr txSet = fetchTxSet(ballot->mTxSetHash);
+		TransactionSetPtr txSet = fetchTxSet(ballot->mTxSetHash,true);
 		if(!txSet)
 		{
 			LOG(ERROR) << "isValidBallotValue when we don't know the txSet";
@@ -67,8 +68,8 @@ namespace stellar
 	// a Tx set comes in from the wire
 	void TxHerder::recvTransactionSet(TransactionSetPtr txSet)
 	{
-		if(mTxSetFetcher.recvItem(txSet))
-		{
+		if(mTxSetFetcher[mCurrentTxSetFetcher].recvItem(txSet))
+		{ // someone cares about this set
 			for(auto tx : txSet->mTransactions)
 			{
 				recvTransaction(tx);
@@ -96,10 +97,11 @@ namespace stellar
 	}
 
 	// will start fetching this TxSet from the network if we don't know about it
-	TransactionSetPtr TxHerder::fetchTxSet(stellarxdr::uint256& setHash)
+	TransactionSetPtr TxHerder::fetchTxSet(stellarxdr::uint256& setHash, bool askNetwork)
 	{
-		return mTxSetFetcher.fetchItem(setHash);
+		return mTxSetFetcher[mCurrentTxSetFetcher].fetchItem(setHash,askNetwork);
 	}
+
 
 	void TxHerder::removeReceivedTx(TransactionPtr dropTX)
 	{
@@ -119,9 +121,15 @@ namespace stellar
 	// called by FBA
 	void TxHerder::externalizeValue(Ballot::pointer ballot)
 	{
-		TransactionSet::pointer externalizedSet = fetchTxSet(ballot->mTxSetHash);
+		TransactionSet::pointer externalizedSet = fetchTxSet(ballot->mTxSetHash,false);
 		if(externalizedSet)
 		{
+            // we don't need to keep fetching any of the old TX sets
+            mTxSetFetcher[mCurrentTxSetFetcher].stopFetchingAll();
+            if(mCurrentTxSetFetcher) mCurrentTxSetFetcher = 0;
+            else mCurrentTxSetFetcher = 1;
+            mTxSetFetcher[mCurrentTxSetFetcher].clear();
+
 			mApp->getLedgerGateway().externalizeValue(externalizedSet, ballot->mLedgerCloseTime);
 
 			// remove all these tx from mReceivedTransactions
@@ -157,8 +165,8 @@ namespace stellar
 		
 		mLastClosedLedger = ledger;
 
-		// we don't need to keep fetching any of the old TX sets
-		mTxSetFetcher.clear();
+		
+		
 
 		uint64_t firstBallotTime = time(nullptr)+1;
 		if(firstBallotTime <= mLastClosedLedger->mCloseTime) firstBallotTime = mLastClosedLedger->mCloseTime + 1;

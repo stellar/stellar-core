@@ -30,6 +30,16 @@ namespace stellar
 		
 	}
 
+    // called every second
+    void PeerMaster::tick()
+    {
+        // if we have too few peers try to connect to more
+        if(mPeers.size() < mApp->mConfig.TARGET_PEER_CONNECTIONS)
+        {
+            // LATER
+        }
+    }
+
     // GRAYDON
 	void PeerMaster::run()
 	{

@@ -32,7 +32,6 @@ namespace stellar
 
 		void sendStatement(Statement::StatementType type, Ballot::pointer ballot);
 
-
 		Ballot::pointer whatRatified(Statement::StatementType type);
 		
 		

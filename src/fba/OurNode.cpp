@@ -321,6 +321,8 @@ namespace stellar
 		}
 	}
 
+   
+
     Ballot::pointer OurNode::whatRatified(Statement::StatementType type)
     {
         QuorumSet::pointer qset = mApp->getFBAGateway().getOurQuorumSet();

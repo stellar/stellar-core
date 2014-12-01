@@ -40,7 +40,9 @@ namespace stellar
 
 		vector<char> mIncomingHeader;
 		vector<uint8_t> mIncomingBody;
+        boost::asio::deadline_timer mHelloTimer;
 
+        void neverSaidHello();
 
         int getIncomingMsgLength();
 
@@ -92,11 +94,10 @@ namespace stellar
         std::string mVersion;
         int mProtocolVersion;
 
-		Peer(ApplicationPtr app,shared_ptr<boost::asio::ip::tcp::socket> socket);
+		Peer(shared_ptr<boost::asio::ip::tcp::socket> socket, ApplicationPtr app);
 		void createFromDoor();
 		void connect();
         void drop();
-
 		
         void sendMessage(StellarMessagePtr msg);
 		void sendMessage(stellarxdr::StellarMessage& msg);

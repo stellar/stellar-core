@@ -81,7 +81,7 @@ namespace stellar
 
 	TransactionSet::pointer Statement::fetchTxSet(Application::pointer app)
 	{
-		return app->getTxHerderGateway().fetchTxSet(mBallot->mTxSetHash);
+		return app->getTxHerderGateway().fetchTxSet(mBallot->mTxSetHash,true);
 	}
 
     void Statement::toXDR(stellarxdr::FBAEnvelope& envelope)

@@ -37,7 +37,7 @@ namespace stellar
 		virtual void broadcastMessage(stellarxdr::uint256& messageID) = 0;
 
 		//called by FBA
-		virtual QuorumSet::pointer fetchQuorumSet(stellarxdr::uint256& itemID)=0;
+		virtual QuorumSet::pointer fetchQuorumSet(stellarxdr::uint256& itemID,bool askNetwork)=0;
 
 		// called internally and by FBA
 		virtual void broadcastMessage(StellarMessagePtr msg, Peer::pointer peer)=0;

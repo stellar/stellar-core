@@ -45,7 +45,7 @@ namespace stellar
 		//////// GATEWAY FUNCTIONS
 		void ledgerClosed(LedgerPtr ledger);
 
-		QuorumSet::pointer fetchQuorumSet(stellarxdr::uint256& itemID){ return(mQSetFetcher.fetchItem(itemID)); }
+		QuorumSet::pointer fetchQuorumSet(stellarxdr::uint256& itemID, bool askNetwork){ return(mQSetFetcher.fetchItem(itemID,askNetwork)); }
         void recvFloodedMsg(stellarxdr::uint256 index, StellarMessagePtr msg, uint32_t ledgerIndex, Peer::pointer peer) { mFloodGate.addRecord(index, msg, ledgerIndex, peer);  }
         void doesntHaveQSet(stellarxdr::uint256 index, Peer::pointer peer) { mQSetFetcher.doesntHave(index, peer,mApp); }
 

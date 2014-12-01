@@ -8,8 +8,8 @@ namespace stellar
     public:
         int PEER_PORT;
         stellarxdr::uint256 VALIDATION_SEED;
-        int TARGET_PEER_CONNECTIONS;
-        int MAX_PEER_CONNECTIONS;
+        unsigned TARGET_PEER_CONNECTIONS;
+        unsigned MAX_PEER_CONNECTIONS;
 
         // Peers we will always try to stay connected to
         std::vector<std::string> PREFERRED_PEERS;

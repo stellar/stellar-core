@@ -1,8 +1,10 @@
 #include "ItemFetcher.h"
 #include "main/Application.h"
 
+#define MS_TO_WAIT_FOR_FETCH_REPLY 3000
+
 /*
-SANITY: we need some sort of timer callback to move this along
+
 */
 
 namespace stellar
@@ -15,24 +17,34 @@ namespace stellar
             result->second->doesntHave(peer,app);
         }
     }
+    void ItemFetcher::stopFetchingAll()
+    {
+        for(auto result : mItemMap)
+        {
+            result.second->cancelFetch();
+        }
+    }
 
-	void ItemFetcher::stopFetching(stellarxdr::uint256& itemID)
-	{
-		auto result = mItemMap.find(itemID);
-		if(result != mItemMap.end())
-		{ // found
-			if(result->second->mRefCount)
-				result->second->mRefCount--;
-		} 
-	}
+    //LATER  Do we ever need to call this
+    void ItemFetcher::stopFetching(stellarxdr::uint256& itemID)
+    {
+        auto result = mItemMap.find(itemID);
+        if(result != mItemMap.end())
+        {
+            result->second->refDec();
+        }
+    }
 
-	void ItemFetcher::clear()
-	{
-		mItemMap.clear();
-	}
+    void ItemFetcher::clear()
+    {
+        mItemMap.clear();
+    }
+   
 
 	//////////////////////////////
-	TransactionSet::pointer TxSetFetcher::fetchItem(stellarxdr::uint256& setID)
+   
+
+	TransactionSet::pointer TxSetFetcher::fetchItem(stellarxdr::uint256& setID,bool askNetwork)
 	{
 		// look it up in the map
 		// if not found then start fetching
@@ -44,12 +56,17 @@ namespace stellar
 				return ((TxSetTrackingCollar*)result->second.get())->mTxSet;
 			} else
 			{
-				result->second->mRefCount++;
+				result->second->refInc();
 			}
 			
 		} else
 		{  // not found 
-			mItemMap[setID] = TrackingCollar::pointer(new TxSetTrackingCollar(setID));
+            if(askNetwork)
+            {
+                TrackingCollar::pointer collar = TrackingCollar::pointer(new TxSetTrackingCollar(setID,mApp));
+                mItemMap[setID] = collar;
+                collar->tryNextPeer(mApp);
+            }
 		}
 		return (TransactionSet::pointer());
 	}
@@ -62,14 +79,15 @@ namespace stellar
 			auto result = mItemMap.find(txSet->getContentsHash());
 			if(result != mItemMap.end())
 			{
+                result->second->cancelFetch();
 				((TxSetTrackingCollar*)result->second.get())->mTxSet = txSet;
-				if(result->second->mRefCount)
-				{  // someone was still interested in this tx set so tell Firmeza  LATER: maybe change this to pub/sub
+				if(result->second->getRefCount())
+				{  // someone was still interested in this tx set so tell FBA  LATER: maybe change this to pub/sub
 					return true;
 				}
 			} else
 			{  // doesn't seem like we were looking for it. Maybe just add it for now 
-				mItemMap[txSet->getContentsHash()] = TrackingCollar::pointer(new TxSetTrackingCollar(txSet->getContentsHash()));
+				mItemMap[txSet->getContentsHash()] = TrackingCollar::pointer(new TxSetTrackingCollar(txSet->getContentsHash(),mApp));
 			}
 		}
 		return false;
@@ -83,19 +101,20 @@ namespace stellar
 			auto result = mItemMap.find(qSet->getHash());
 			if(result != mItemMap.end())
 			{
+                result->second->cancelFetch();
 				((QSetTrackingCollar*)result->second.get())->mQSet = qSet;
-				if(result->second->mRefCount)
-				{  // someone was still interested in this tx set so tell Firmeza  LATER: maybe change this to pub/sub
+				if(result->second->getRefCount())
+				{  // someone was still interested in this quorum set so tell FBA  LATER: maybe change this to pub/sub
 					app->getFBAGateway().addQuorumSet(qSet);
 				}
 			} else
 			{  // doesn't seem like we were looking for it. Maybe just add it for now 
-				mItemMap[qSet->getHash()] = TrackingCollar::pointer(new QSetTrackingCollar(qSet->getHash()));
+				mItemMap[qSet->getHash()] = TrackingCollar::pointer(new QSetTrackingCollar(qSet->getHash(),mApp));
 			}
 		}
 	}
 
-	QuorumSet::pointer QSetFetcher::fetchItem(stellarxdr::uint256& setID)
+	QuorumSet::pointer QSetFetcher::fetchItem(stellarxdr::uint256& setID, bool askNetwork)
 	{
 		// look it up in the map
 		// if not found then start fetching
@@ -107,24 +126,32 @@ namespace stellar
 				return ((QSetTrackingCollar*)result->second.get())->mQSet;
 			} else
 			{
-				result->second->mRefCount++;
+				result->second->refInc();
 			}
 
 		} else
 		{  // not found 
-			mItemMap[setID] = TrackingCollar::pointer(new QSetTrackingCollar(setID));
+            if(askNetwork)
+            {
+                TrackingCollar::pointer collar=TrackingCollar::pointer(new QSetTrackingCollar(setID,mApp));
+                mItemMap[setID] = collar;
+                collar->tryNextPeer(mApp); // start asking
+            }
 		}
 		return (QuorumSet::pointer());
 	}
 
     //////////////////////////////////////////////////////////////////////////
 
-	TrackingCollar::TrackingCollar(stellarxdr::uint256& id) : mItemID(id)
+	TrackingCollar::TrackingCollar(stellarxdr::uint256& id, ApplicationPtr app) : 
+        mItemID(id), mTimer(*(app->getPeerMaster().mIOservice))
 	{
 		mCantFind = false;
 		mRefCount = 1;
-        mTimeAsked = std::chrono::system_clock::now();  // TODO: better time here?
+        
 	}
+
+   
 
     void TrackingCollar::doesntHave(Peer::pointer peer,Application::pointer app)
     {
@@ -133,9 +160,20 @@ namespace stellar
             tryNextPeer(app);
         }
     }
+
+    void TrackingCollar::refDec()
+    {
+        mRefCount--;
+        if(mRefCount < 1) cancelFetch();
+    }
+
+    void TrackingCollar::cancelFetch()
+    {
+        mTimer.cancel();
+    }
 	
 
-	// SANITY: will be called by some timer or when we get a result saying they don't have it
+	// will be called by some timer or when we get a result saying they don't have it
 	void TrackingCollar::tryNextPeer(Application::pointer app)
 	{
 		if(!isItemFound())
@@ -159,20 +197,29 @@ namespace stellar
 				if(find(mPeersAsked.begin(), mPeersAsked.end(), peer) == mPeersAsked.end())
 				{ // we have never asked this guy
                     mLastAskedPeer = peer;
-                    mTimeAsked= std::chrono::system_clock::now();
+                    
+                    mTimer.cancel(); // cancel any stray timers
+                    auto fun = std::bind(&TrackingCollar::tryNextPeer, this, app);
+                    mTimer.expires_from_now(boost::posix_time::milliseconds(MS_TO_WAIT_FOR_FETCH_REPLY));
+                    mTimer.async_wait(fun);
+                    
+                    
 					askPeer(peer); 
 					mPeersAsked.push_back(peer);
 				} else
 				{  // we have looped back around 
 					mCantFind = true;
-					// SANITY what should we do here?
+					// LATER what should we do here?
+                    // try to connect to more peers?
+                    // just ask any new peers we connect to?
+                    // wait a longer amount of time and then loop again?
 				}
 
 			}
 		}
 	}
 
-    QSetTrackingCollar::QSetTrackingCollar(stellarxdr::uint256& id) : TrackingCollar(id)
+    QSetTrackingCollar::QSetTrackingCollar(stellarxdr::uint256& id, ApplicationPtr app) : TrackingCollar(id,app)
     {
 
     }
@@ -182,9 +229,9 @@ namespace stellar
 		peer->sendGetQuorumSet(mItemID);
 	}
 
-    TxSetTrackingCollar::TxSetTrackingCollar(stellarxdr::uint256& id) : TrackingCollar(id)
+    TxSetTrackingCollar::TxSetTrackingCollar(stellarxdr::uint256& id,  ApplicationPtr app) : TrackingCollar(id,app)
     {
-
+  
     }
 
 	void TxSetTrackingCollar::askPeer(Peer::pointer peer)

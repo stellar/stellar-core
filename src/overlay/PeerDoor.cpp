@@ -36,7 +36,7 @@ namespace stellar
 
 	void PeerDoor::handleKnock(shared_ptr<boost::asio::ip::tcp::socket> socket)
 	{
-		Peer::pointer peer(new Peer(mApp,socket));
+		Peer::pointer peer(new Peer(socket,mApp));
         mApp->getPeerMaster().addPeer(peer);
 		peer->createFromDoor();
 

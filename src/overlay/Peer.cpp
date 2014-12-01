@@ -5,6 +5,8 @@
 #include "generated/stellar.hh"
 #include "xdrpp/marshal.h"
 
+#define MS_TO_WAIT_FOR_HELLO 2000
+
 // LATER: need to add some way of docking peers that are misbehaving by sending you bad data
 
 namespace stellar
@@ -19,10 +21,14 @@ namespace stellar
 	);";
 
 
-	Peer::Peer(Application::pointer app,shared_ptr<boost::asio::ip::tcp::socket> socket)
+	Peer::Peer(shared_ptr<boost::asio::ip::tcp::socket> socket, Application::pointer app) :
+        mHelloTimer(*(app->getPeerMaster().mIOservice))
 	{
         mApp = app;
 		mSocket = socket;
+        mHelloTimer.expires_from_now(boost::posix_time::milliseconds(MS_TO_WAIT_FOR_HELLO));
+        auto fun = std::bind(&Peer::neverSaidHello, this);
+        mHelloTimer.async_wait(fun);
 	}
 
 	void Peer::createFromDoor()
@@ -37,6 +43,14 @@ namespace stellar
         // GRAYDON mSocket->async_connect(server_endpoint, your_completion_handler);
 		
 	}
+
+    // first of all, rude!
+    void Peer::neverSaidHello()
+    {
+        drop();
+    }
+
+    
 
 	void Peer::sendHello()
 	{
@@ -359,7 +373,7 @@ namespace stellar
 
 	void Peer::recvGetTxSet(StellarMessagePtr msg)
 	{
-        TransactionSet::pointer txSet = mApp->getTxHerderGateway().fetchTxSet(msg->txSetHash());
+        TransactionSet::pointer txSet = mApp->getTxHerderGateway().fetchTxSet(msg->txSetHash(),false);
 		if(txSet)
 		{
             stellarxdr::StellarMessage newMsg;
@@ -393,7 +407,7 @@ namespace stellar
 
 	void Peer::recvGetQuorumSet(StellarMessagePtr msg)
 	{
-		QuorumSet::pointer qset= mApp->getOverlayGateway().fetchQuorumSet(msg->qSetHash());
+		QuorumSet::pointer qset= mApp->getOverlayGateway().fetchQuorumSet(msg->qSetHash(),false);
 		if(qset)
 		{
 			sendQuorumSet(qset);
@@ -426,6 +440,7 @@ namespace stellar
     }
     void Peer::recvHello(StellarMessagePtr msg)
     {
+        mHelloTimer.cancel();
         mProtocolVersion=msg->hello().protocolVersion;
         mVersion = msg->hello().versionStr;
         mPort = msg->hello().port;
@@ -433,7 +448,7 @@ namespace stellar
         mState = GOT_HELLO;
 
         if(! mApp->getPeerMaster().isPeerAccepted(shared_from_this()))
-        {
+        {  // we can't accept anymore peer connections
             sendPeers();
             drop();
         }
