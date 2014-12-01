@@ -5,8 +5,8 @@
 #include "lib/util/Logging.h"
 #include "txherder/TransactionSet.h"
 #include "lib/util/easylogging++.h"
+#include "fba/FBA.h"
 
-#define MAX_TIME_IN_FUTURE 2
 
 namespace stellar
 {
@@ -39,7 +39,7 @@ namespace stellar
 		if(ballot->mLedgerCloseTime <= mLastClosedLedger->mCloseTime) return INVALID_BALLOT;
 
 		uint64_t timeNow = time(nullptr);
-		if(ballot->mLedgerCloseTime > timeNow+MAX_TIME_IN_FUTURE) return FUTURE_BALLOT;
+		if(ballot->mLedgerCloseTime > timeNow+MAX_SECONDS_LEDGER_CLOSE_IN_FUTURE) return FUTURE_BALLOT;
 
 		return VALID_BALLOT; 
 	}
@@ -165,10 +165,7 @@ namespace stellar
 		
 		mLastClosedLedger = ledger;
 
-		
-		
-
-		uint64_t firstBallotTime = time(nullptr)+1;
+		uint64_t firstBallotTime = time(nullptr)+NUM_SECONDS_IN_CLOSE;
 		if(firstBallotTime <= mLastClosedLedger->mCloseTime) firstBallotTime = mLastClosedLedger->mCloseTime + 1;
 
 		recvTransactionSet(proposedSet);

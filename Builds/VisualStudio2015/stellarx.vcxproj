@@ -75,6 +75,7 @@
     <ClCompile Include="..\..\src\fba\CommitStatement.cpp" />
     <ClCompile Include="..\..\src\fba\CommittedStatement.cpp" />
     <ClCompile Include="..\..\src\fba\FBAMaster.cpp" />
+    <ClCompile Include="..\..\src\fba\FutureStatement.cpp" />
     <ClCompile Include="..\..\src\fba\History.cpp" />
     <ClCompile Include="..\..\src\fba\Node.cpp" />
     <ClCompile Include="..\..\src\fba\NodePool.cpp" />
@@ -133,9 +134,11 @@
     <ClInclude Include="..\..\src\fba\Ballot.h" />
     <ClInclude Include="..\..\src\fba\CommitStatement.h" />
     <ClInclude Include="..\..\src\fba\CommittedStatement.h" />
+    <ClInclude Include="..\..\src\fba\FBA.h" />
     <ClInclude Include="..\..\src\fba\FBAGateway.h" />
     <ClInclude Include="..\..\src\fba\FBAMaster.h" />
     <ClInclude Include="..\..\src\fba\FBAWorldInterface.h" />
+    <ClInclude Include="..\..\src\fba\FutureStatement.h" />
     <ClInclude Include="..\..\src\fba\History.h" />
     <ClInclude Include="..\..\src\fba\Node.h" />
     <ClInclude Include="..\..\src\fba\NodePool.h" />

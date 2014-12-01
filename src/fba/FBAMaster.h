@@ -8,6 +8,7 @@
 #include "fba/Statement.h"
 #include "fba/FBAGateway.h"
 #include "fba/OurNode.h"
+#include "fba/FutureStatement.h"
 
 /*
 There is one FBAMaster that oversees the consensus process
@@ -57,7 +58,7 @@ namespace stellar
 		vector<Statement::pointer> mWaitTxStatements;
 
 		// statements we have gotten with a ledger time too far in the future
-		vector<Statement::pointer> mWaitFutureStatements;
+		vector<FutureStatement::pointer> mWaitFutureStatements;
 
 
 
@@ -104,6 +105,8 @@ namespace stellar
 
 		// get a new statement from the network
 		void recvStatement(Statement::pointer statement);
+
+        void statementReady(FutureStatement::pointer statement);
 
 		void getMessage();  // get some msg from the network about closing
 

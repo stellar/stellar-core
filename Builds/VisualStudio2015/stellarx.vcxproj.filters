@@ -180,6 +180,9 @@
     <ClCompile Include="..\..\src\overlay\PreferredPeers.cpp">
       <Filter>overlay</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\fba\FutureStatement.cpp">
+      <Filter>fba</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\fba\Ballot.h">
@@ -382,6 +385,12 @@
     </ClInclude>
     <ClInclude Include="..\..\src\overlay\PreferredPeers.h">
       <Filter>overlay</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\fba\FutureStatement.h">
+      <Filter>fba</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\fba\FBA.h">
+      <Filter>fba</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

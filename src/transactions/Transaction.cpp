@@ -11,9 +11,10 @@ namespace stellar
         return Transaction::pointer();
 	}
 
+    // check for the malformed, correct sig, min fee
     bool Transaction::isValid()
     {
-        // SANITY
+        // NICOLAS
         return true;
     }
 

@@ -101,6 +101,7 @@ namespace stellar
 	{
 		// start with all nodes having no FBA messages
 		mKnownNodes.clear();
+        mWaitFutureStatements.clear(); // SANITY: do these get cleaned up right away or do we need to go through and call cancel on all the timers?
 		
 		//apply any FBA messages we collected before close
 		//clear collected messages
@@ -190,12 +191,14 @@ namespace stellar
 						
 					} else if(validity == TxHerderGateway::FUTURE_BALLOT)
 					{
-						mWaitFutureStatements.push_back(statement); // SANITY when are these processed?
+						mWaitFutureStatements.push_back(
+                            FutureStatement::pointer(new FutureStatement(statement,mApp))); 
 						return false;
 					}// 6) yes
 
 					mKnownNodes[statement->mNodeID]->addStatement(statement);
-					if(validity==TxHerderGateway::VALID_BALLOT) mApp->getOverlayGateway().broadcastMessage(statement->mSignature);
+					if(validity==TxHerderGateway::VALID_BALLOT) 
+                        mApp->getOverlayGateway().broadcastMessage(statement->mSignature);
 
 					///////  DO THE THING
 					return(true);
@@ -222,7 +225,13 @@ namespace stellar
 		return false;
 	}
 
-
+    void FBAMaster::statementReady(FutureStatement::pointer fstate)
+    {
+       
+        auto iter = find(mWaitFutureStatements.begin(), mWaitFutureStatements.end(), fstate);
+        mWaitFutureStatements.erase(iter);
+        recvStatement(fstate->mStatement);
+    }
 	
 
 	// Who would be waiting for Tx sets?

@@ -14,7 +14,6 @@ Asks for TransactionSets from our Peers
 We need to get these for FBA.
 Anywhere else? If someone asked you you can late reply to them
 
-SANITY we also need to do this for qSets  so let's abstract this
 */
 
 namespace stellar

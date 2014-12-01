@@ -5,6 +5,7 @@
 #include <vector>
 #include "generated/stellar.hh"
 #include "fba/Statement.h"
+#include "fba/FBA.h"
 
 /*
 This is one other Node out there in the stellar network
@@ -12,11 +13,6 @@ This is one other Node out there in the stellar network
 */
 namespace stellar
 {
-	class Ballot;
-	typedef std::shared_ptr<Ballot> BallotPtr;
-	class Statement;
-	typedef std::shared_ptr<Statement> StatementPtr;
-
 	class Node
 	{
 	

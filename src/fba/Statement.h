@@ -2,11 +2,10 @@
 #define __FBAMESSAGE__
 
 #include "txherder/TxHerderGateway.h"
+#include "fba/FBA.h"
 
 namespace stellar
 {
-	class Ballot;
-	typedef std::shared_ptr<Ballot> BallotPtr;
     class Application;
     typedef std::shared_ptr<Application> ApplicationPtr;
 

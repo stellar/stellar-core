@@ -151,8 +151,6 @@ namespace stellar
         
 	}
 
-   
-
     void TrackingCollar::doesntHave(Peer::pointer peer,Application::pointer app)
     {
         if(mLastAskedPeer == peer)
@@ -169,6 +167,7 @@ namespace stellar
 
     void TrackingCollar::cancelFetch()
     {
+        mRefCount = 0;
         mTimer.cancel();
     }
 	
