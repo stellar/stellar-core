@@ -173,7 +173,7 @@ namespace stellar
 				newStatement = !(mKnownNodes[statement->mNodeID]->hasStatement(statement));
 			} else
 			{	// new node
-				node = Node::pointer(new Node(statement->mNodeID));
+				node = std::make_shared<Node>(statement->mNodeID);
 				mKnownNodes[statement->mNodeID] = node;
 			}
 

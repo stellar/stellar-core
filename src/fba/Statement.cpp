@@ -13,13 +13,13 @@ namespace stellar
         switch(envelope.contents.body.type())
         {
         case stellarxdr::PREPARE:
-            return(Statement::pointer(new PrepareStatement(envelope)));
+            return std::make_shared<PrepareStatement>(envelope);
         case stellarxdr::PREPARED:
-            return(Statement::pointer(new PreparedStatement(envelope)));
+            return std::make_shared<PreparedStatement>(envelope);
         case stellarxdr::COMMIT:
-            return(Statement::pointer(new CommitStatement(envelope)));
+            return std::make_shared<CommitStatement>(envelope);
         case stellarxdr::COMMITTED:
-            return(Statement::pointer(new CommittedStatement(envelope)));
+            return std::make_shared<CommittedStatement>(envelope);
         }
         return(Statement::pointer());
     }
@@ -32,7 +32,7 @@ namespace stellar
     Statement::Statement(stellarxdr::FBAEnvelope& envelope)
     {
         mValidity = TxHerderGateway::UKNOWN_VALIDITY;
-        mBallot = Ballot::pointer(new Ballot(envelope.contents.ballot));
+        mBallot = std::make_shared<Ballot>(envelope.contents.ballot);
         mQuorumSetHash = envelope.contents.quorumSetHash;
         mNodeID = envelope.nodeID;
         mSignature = envelope.signature;

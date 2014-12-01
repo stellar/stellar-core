@@ -28,7 +28,7 @@ namespace stellar
 
 	void Floodgate::addRecord(stellarxdr::uint256 index, StellarMessagePtr msg, uint32_t ledgerIndex, Peer::pointer peer)
 	{
-		mFloodMap[index] = FloodRecord::pointer(new FloodRecord(msg, ledgerIndex, peer));
+		mFloodMap[index] = std::make_shared<FloodRecord>(msg, ledgerIndex, peer);
 	}
 
 	void Floodgate::broadcast(stellarxdr::uint256 index, PeerMaster* peerMaster)

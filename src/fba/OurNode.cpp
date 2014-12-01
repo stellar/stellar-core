@@ -88,13 +88,13 @@ namespace stellar
             statement = Statement::pointer(prepStatement);
         }break;
 		case Statement::PREPARED_TYPE:
-			statement = Statement::pointer(new PreparedStatement(mNodeID, qset->getHash(), ballot));
+			statement = std::make_shared<PreparedStatement>(mNodeID, qset->getHash(), ballot);
 			break;
 		case Statement::COMMIT_TYPE:
-			statement = Statement::pointer(new CommitStatement(mNodeID, qset->getHash(), ballot));
+			statement = std::make_shared<CommitStatement>(mNodeID, qset->getHash(), ballot);
 			break;
 		case Statement::COMMITTED_TYPE:
-			statement = Statement::pointer(new CommittedStatement(mNodeID, qset->getHash(), ballot));
+			statement = std::make_shared<CommittedStatement>(mNodeID, qset->getHash(), ballot);
 			break;
 		}
 		

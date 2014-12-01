@@ -22,7 +22,7 @@ namespace stellar
 
     void LedgerMaster::reset()
     {
-        // NICOLAS mCurrentCLF = LegacyCLF::pointer(new LegacyCLF()); // change this to BucketList when we are ready
+        // NICOLAS mCurrentCLF = std::make_shared<LegacyCLF>(); // change this to BucketList when we are ready
         mLastLedgerHash = stellarxdr::uint256();
     }
 
@@ -253,7 +253,7 @@ namespace stellar
 
         CLOG(ripple::lsINFO, ripple::Ledger) << "Importing full ledger " << ledgerHash;
 
-        CanonicalLedgerForm::pointer newLedger = LegacyCLF::pointer(new LegacyCLF());
+        CanonicalLedgerForm::pointer newLedger = std::make_shared<LegacyCLF>();
 
         if (newLedger->load(ledgerHash)) {
             mCurrentDB.beginTransaction();

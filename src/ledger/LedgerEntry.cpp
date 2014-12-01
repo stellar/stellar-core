@@ -11,13 +11,13 @@ namespace stellar
 		switch(sle->getType())
 		{
 		case ltACCOUNT_ROOT:
-			return LedgerEntry::pointer(new AccountEntry(sle));
+			return std::make_shared<AccountEntry>(sle);
 
 		case ltRIPPLE_STATE:
-			return LedgerEntry::pointer(new TrustLine(sle));
+			return std::make_shared<TrustLine>(sle);
 
 		case ltOFFER:
-			return LedgerEntry::pointer(new OfferEntry(sle));
+			return std::make_shared<OfferEntry>(sle);
 		}
 		return(LedgerEntry::pointer());
 	}
