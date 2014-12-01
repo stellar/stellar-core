@@ -26,6 +26,7 @@ struct Hello
 {
 	int protocolVersion;
 	string versionStr<100>;
+	int port;
 };
 
 struct Transaction

@@ -3,9 +3,15 @@
 #include <thread>
 #include <random>
 #include "ledger/Ledger.h"
+#include "lib/util/Logging.h"
 
 /*
 If we have less than the target number of peers we will try to connect to one out there
+
+What we need timers for:
+    To make sure we have enough peers
+    For Item fetcher
+    Cleaning up hung peers. They never send Hello
 
 */
 
@@ -24,12 +30,16 @@ namespace stellar
 		
 	}
 
+    // GRAYDON
 	void PeerMaster::run()
 	{
+        mIOservice = new boost::asio::io_service();
+        mTimer=new boost::asio::deadline_timer(*mIOservice, boost::posix_time::seconds(1));
+        mDoor.start(mApp);
 		while(1)
 		{
-			mIOservice.run();
-			mIOservice.reset();
+			mIOservice->run();
+			mIOservice->reset();
 		}
 	}
 
@@ -39,7 +49,7 @@ namespace stellar
 		{
 			addConfigPeers();
 
-			mDoor.start(mApp);
+			//mDoor.start(mApp);
 
 			auto fun = std::bind(&PeerMaster::run, this);
 			mPeerThread = std::thread(fun);
@@ -53,12 +63,21 @@ namespace stellar
 
 	void PeerMaster::addPeer(Peer::pointer peer)
 	{
-
+        mPeers.push_back(peer);
 	}
+
 	void PeerMaster::dropPeer(Peer::pointer peer)
 	{
-
+        auto iter=find(mPeers.begin(), mPeers.end(), peer);
+        if(iter != mPeers.end()) mPeers.erase(iter);
+        else CLOG(WARNING, "Overlay") << "Dropping unlisted peer";
 	}
+
+    bool PeerMaster::isPeerAccepted(Peer::pointer peer)
+    {
+        if(mPeers.size() < mApp->mConfig.MAX_PEER_CONNECTIONS) return true;
+        return mPreferredPeers.isPeerPreferred(peer);
+    }
 
     Peer::pointer PeerMaster::getRandomPeer()
     {
@@ -94,7 +113,7 @@ namespace stellar
 
 	void PeerMaster::addConfigPeers()
 	{
-
+        mPreferredPeers.addPreferredPeers(mApp->mConfig.PREFERRED_PEERS);
 	}
 
 	void PeerMaster::broadcastMessage(stellarxdr::uint256& msgID)

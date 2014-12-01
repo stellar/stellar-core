@@ -32,7 +32,7 @@ server_info
 Left to figure out:
 Transaction Format
 Account Entry Format
-Generc Storage
+Generic Storage
 Generic Token
 
 

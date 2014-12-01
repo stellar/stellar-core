@@ -72,7 +72,7 @@ namespace stellar
 		void sendHello();
         void sendQuorumSet(QuorumSet::pointer qSet);
         void sendDontHave(stellarxdr::MessageType type, stellarxdr::uint256& itemID);
-		
+        void sendPeers();
 		
 	public:
 		typedef std::shared_ptr<Peer> pointer;
@@ -86,13 +86,16 @@ namespace stellar
 		};
 
 		PeerState mState;
-		int mIP;
-		int mPort;
+		std::string mIP;
+		int mPort; // the port they accept connections on
 		int mRank;
+        std::string mVersion;
+        int mProtocolVersion;
 
 		Peer(ApplicationPtr app,shared_ptr<boost::asio::ip::tcp::socket> socket);
 		void createFromDoor();
 		void connect();
+        void drop();
 
 		
         void sendMessage(StellarMessagePtr msg);

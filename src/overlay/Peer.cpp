@@ -27,7 +27,7 @@ namespace stellar
 
 	void Peer::createFromDoor()
 	{
-		sendHello();
+        sendHello();
 	}
 
 
@@ -81,6 +81,11 @@ namespace stellar
         newMsg.txSetHash()=setID;
 
         sendMessage(newMsg);
+    }
+
+    void Peer::sendPeers()
+    {
+        // LATER
     }
 
 
@@ -209,6 +214,13 @@ namespace stellar
 	}
 
     // GRAYDON
+    // disconnect from peer
+    void Peer::drop()
+    {
+
+    }
+
+    // GRAYDON
 	void Peer::recvMessage()
 	{
         StellarMessagePtr stellarMsg(new stellarxdr::StellarMessage());
@@ -218,6 +230,13 @@ namespace stellar
         xdr::xdr_from_msg(incoming, *stellarMsg.get());
 
         CLOG(TRACE, "Overlay") << "recv: " << stellarMsg->type();
+
+        if(mState < GOT_HELLO && stellarMsg->type() != stellarxdr::HELLO)
+        {
+            CLOG(WARNING, "Overlay") << "recv: " << stellarMsg->type() << " before hello";
+            drop();
+            return;
+        }
 
 		switch(stellarMsg->type())
 		{
@@ -407,7 +426,18 @@ namespace stellar
     }
     void Peer::recvHello(StellarMessagePtr msg)
     {
-        // LATER
+        mProtocolVersion=msg->hello().protocolVersion;
+        mVersion = msg->hello().versionStr;
+        mPort = msg->hello().port;
+
+        mState = GOT_HELLO;
+
+        if(! mApp->getPeerMaster().isPeerAccepted(shared_from_this()))
+        {
+            sendPeers();
+            drop();
+        }
+        
     }
     void Peer::recvGetPeers(StellarMessagePtr msg)
     {

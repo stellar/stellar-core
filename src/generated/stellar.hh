@@ -50,13 +50,16 @@ namespace stellarxdr {
     struct Hello {
         std::int32_t protocolVersion{};
         xdr::xstring<100> versionStr{};
+        std::int32_t port{};
 
         Hello() = default;
         template<typename _protocolVersion_T,
-            typename _versionStr_T>
+            typename _versionStr_T,
+            typename _port_T>
             explicit Hello(_protocolVersion_T &&_protocolVersion,
-            _versionStr_T &&_versionStr)
+            _versionStr_T &&_versionStr, _port_T &&_port)
             : protocolVersion(std::forward<_protocolVersion_T>(_protocolVersion)),
+            port(std::forward<_port_T>(_port)),
             versionStr(std::forward<_versionStr_T>(_versionStr)) {}
     };
 } namespace xdr {
@@ -66,19 +69,26 @@ namespace stellarxdr {
             &::stellarxdr::Hello::protocolVersion>,
             field_ptr < ::stellarxdr::Hello,
             decltype(::stellarxdr::Hello::versionStr),
-            &::stellarxdr::Hello::versionStr >> {
+            &::stellarxdr::Hello::versionStr >,
+            field_ptr < ::stellarxdr::Hello,
+            decltype(::stellarxdr::Hello::port),
+            &::stellarxdr::Hello::port >> {
             template<typename Archive> static void
                 save(Archive &ar, const ::stellarxdr::Hello &obj) {
                 archive(ar, obj.protocolVersion, "protocolVersion");
                 archive(ar, obj.versionStr, "versionStr");
+                archive(ar, obj.port, "port");
             }
             template<typename Archive> static void
                 load(Archive &ar, ::stellarxdr::Hello &obj) {
                 archive(ar, obj.protocolVersion, "protocolVersion");
                 archive(ar, obj.versionStr, "versionStr");
+                archive(ar, obj.port, "port");
             }
         };
-} namespace stellarxdr {
+} 
+
+namespace stellarxdr {
 
     struct Transaction {
         uint160 account{};

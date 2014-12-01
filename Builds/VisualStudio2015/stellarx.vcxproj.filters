@@ -177,6 +177,9 @@
     <ClCompile Include="..\..\src\main\Config.cpp">
       <Filter>main</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\overlay\PreferredPeers.cpp">
+      <Filter>overlay</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\fba\Ballot.h">
@@ -376,6 +379,9 @@
     </ClInclude>
     <ClInclude Include="..\..\src\lib\util\cpptoml.h">
       <Filter>lib\util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\overlay\PreferredPeers.h">
+      <Filter>overlay</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

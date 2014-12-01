@@ -9,6 +9,7 @@
 #include <thread>
 #include "generated/stellar.hh"
 #include "overlay/OverlayGateway.h"
+#include "overlay/PreferredPeers.h"
 
 using namespace std;
 /*
@@ -21,16 +22,20 @@ namespace stellar
 	{
 		std::thread mPeerThread;
 
+        // peers we are connected to
 		vector<Peer::pointer> mPeers;
 		PeerDoor mDoor;
 		QSetFetcher mQSetFetcher;
         ApplicationPtr mApp;
+        PreferredPeers mPreferredPeers;
 
 		void addConfigPeers();
 
 		void run();
+        void tick();
+        boost::asio::deadline_timer* mTimer;
 	public:
-		boost::asio::io_service mIOservice;
+		boost::asio::io_service* mIOservice;
 		Floodgate mFloodGate;
 
 		PeerMaster();
@@ -52,6 +57,7 @@ namespace stellar
 		void start();
 		void addPeer(Peer::pointer peer);
 		void dropPeer(Peer::pointer peer);
+        bool isPeerAccepted(Peer::pointer peer);
 
 		Peer::pointer getRandomPeer();
 		Peer::pointer getNextPeer(Peer::pointer peer); // returns NULL if the passed peer isn't found
