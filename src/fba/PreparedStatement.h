@@ -16,8 +16,8 @@ namespace stellar
 
         StatementType getType() { return(PREPARED_TYPE); }
 
-        PreparedStatement(stellarxdr::FBAEnvelope& envelope);
-        PreparedStatement(stellarxdr::uint256& nodeID, stellarxdr::uint256& qSetHash, Ballot::pointer ballot);
+        PreparedStatement(stellarxdr::FBAEnvelope const& envelope);
+        PreparedStatement(stellarxdr::uint256 const& nodeID, stellarxdr::uint256 const& qSetHash, Ballot::pointer ballot);
 
 
     };

@@ -2,11 +2,11 @@
 
 namespace stellar
 {
-    CommitStatement::CommitStatement(stellarxdr::FBAEnvelope& envelope) : Statement(envelope)
+    CommitStatement::CommitStatement(stellarxdr::FBAEnvelope const& envelope) : Statement(envelope)
     {
     }
 
-    CommitStatement::CommitStatement(stellarxdr::uint256& nodeID, stellarxdr::uint256& qSetHash, Ballot::pointer ballot) :
+    CommitStatement::CommitStatement(stellarxdr::uint256 const& nodeID, stellarxdr::uint256 const& qSetHash, Ballot::pointer ballot) :
         Statement(nodeID, qSetHash, ballot)
     {
     }

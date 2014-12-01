@@ -21,7 +21,7 @@ namespace stellar
         LOG_FILE_PATH="hayashi.log";
     }
 
-    void Config::load(std::string& filename)
+    void Config::load(std::string const& filename)
     {
         try {
             cpptoml::toml_group g = cpptoml::parse_file(filename);

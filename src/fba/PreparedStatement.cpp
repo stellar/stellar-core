@@ -2,12 +2,12 @@
 
 namespace stellar
 {
-    PreparedStatement::PreparedStatement(stellarxdr::FBAEnvelope& envelope) : Statement(envelope)
+    PreparedStatement::PreparedStatement(stellarxdr::FBAEnvelope const& envelope) : Statement(envelope)
     {
 
     }
 
-    PreparedStatement::PreparedStatement(stellarxdr::uint256& nodeID, stellarxdr::uint256& qSetHash, Ballot::pointer ballot) :
+    PreparedStatement::PreparedStatement(stellarxdr::uint256 const& nodeID, stellarxdr::uint256 const& qSetHash, Ballot::pointer ballot) :
         Statement(nodeID, qSetHash, ballot)
     {
 

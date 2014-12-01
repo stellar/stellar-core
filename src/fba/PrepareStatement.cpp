@@ -2,13 +2,13 @@
 
 namespace stellar
 {
-    PrepareStatement::PrepareStatement(stellarxdr::uint256& nodeID, stellarxdr::uint256& qSetHash, Ballot::pointer ballot) : Statement(nodeID,qSetHash,ballot)
+    PrepareStatement::PrepareStatement(stellarxdr::uint256 const& nodeID, stellarxdr::uint256 const& qSetHash, Ballot::pointer ballot) : Statement(nodeID,qSetHash,ballot)
     {
 
     }
 
     // make from the Wire
-    PrepareStatement::PrepareStatement(stellarxdr::FBAEnvelope& msg) : Statement(msg)
+    PrepareStatement::PrepareStatement(stellarxdr::FBAEnvelope const& msg) : Statement(msg)
     {
        
         for(auto excluded : msg.contents.body.excepted())

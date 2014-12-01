@@ -24,6 +24,6 @@ namespace stellar
 
         Config();
 
-        void load(std::string& filename);
+        void load(std::string const& filename);
     };
 }

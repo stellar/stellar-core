@@ -8,7 +8,7 @@
 
 namespace stellar
 {
-    Statement::pointer Statement::makeStatement(stellarxdr::FBAEnvelope& envelope)
+    Statement::pointer Statement::makeStatement(stellarxdr::FBAEnvelope const& envelope)
     {
         switch(envelope.contents.body.type())
         {
@@ -29,7 +29,7 @@ namespace stellar
 		mValidity = TxHerderGateway::UKNOWN_VALIDITY;
 	}
 
-    Statement::Statement(stellarxdr::FBAEnvelope& envelope)
+    Statement::Statement(stellarxdr::FBAEnvelope const& envelope)
     {
         mValidity = TxHerderGateway::UKNOWN_VALIDITY;
         mBallot = std::make_shared<Ballot>(envelope.contents.ballot);
@@ -38,7 +38,7 @@ namespace stellar
         mSignature = envelope.signature;
     }
 
-	Statement::Statement(stellarxdr::uint256& nodeID, stellarxdr::uint256& qSetHash, Ballot::pointer ballot) : mNodeID(nodeID), mQuorumSetHash(qSetHash)
+	Statement::Statement(stellarxdr::uint256 const& nodeID, stellarxdr::uint256 const& qSetHash, Ballot::pointer ballot)
 	{
 		mBallot = ballot;
 		mValidity = TxHerderGateway::UKNOWN_VALIDITY;
