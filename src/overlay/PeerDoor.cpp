@@ -29,14 +29,14 @@ namespace stellar
 
 	void PeerDoor::acceptNextPeer()
 	{
-		shared_ptr<boost::asio::ip::tcp::socket> pSocket(new boost::asio::ip::tcp::socket(*mApp->getPeerMaster().mIOservice));
+		shared_ptr<boost::asio::ip::tcp::socket> pSocket = std::make_shared<boost::asio::ip::tcp::socket>(*mApp->getPeerMaster().mIOservice);
 
 		mAcceptor->async_accept(*pSocket, bind(&PeerDoor::handleKnock, this, pSocket));
 	}
 
 	void PeerDoor::handleKnock(shared_ptr<boost::asio::ip::tcp::socket> socket)
 	{
-		Peer::pointer peer(new Peer(socket,mApp));
+		Peer::pointer peer = std::make_shared<Peer>(socket,mApp);
         mApp->getPeerMaster().addPeer(peer);
 		peer->createFromDoor();
 

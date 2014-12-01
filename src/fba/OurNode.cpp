@@ -83,9 +83,8 @@ namespace stellar
 		{
 		case Statement::PREPARE_TYPE:
         {
-            PrepareStatement* prepStatement = new PrepareStatement(mNodeID, qset->getHash(), ballot);
+            statement = std::make_shared<PrepareStatement>(mNodeID, qset->getHash(), ballot);
             // LATER need to add all our exceptions to the statement
-            statement = Statement::pointer(prepStatement);
         }break;
 		case Statement::PREPARED_TYPE:
 			statement = std::make_shared<PreparedStatement>(mNodeID, qset->getHash(), ballot);
@@ -100,7 +99,7 @@ namespace stellar
 		
 		
 		statement->sign();
-        StellarMessagePtr msg(new stellarxdr::StellarMessage());
+        StellarMessagePtr msg = std::make_shared<stellarxdr::StellarMessage>();
         msg->type(stellarxdr::FBA_MESSAGE);
         statement->toXDR(msg->fbaMessage());
 

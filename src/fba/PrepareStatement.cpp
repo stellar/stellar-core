@@ -13,7 +13,7 @@ namespace stellar
        
         for(auto excluded : msg.contents.body.excepted())
         {
-            Ballot::pointer xBallot(new Ballot(excluded));
+            Ballot::pointer xBallot = make_shared<Ballot>(excluded);
             mExcludedBallots.push_back(xBallot);
         }
     }

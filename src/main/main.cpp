@@ -7,7 +7,7 @@ using namespace stellar;
 
 int main(int argv, char* argc[])
 {
-    Application::pointer app(new Application());
+    Application::pointer app = std::make_shared<Application>();
     app->mConfig.load(std::string("hayashi.cfg"));
     Logging::setUpLogging(app);
     

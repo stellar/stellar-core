@@ -63,7 +63,7 @@ namespace stellar
 
             try
             {
-                CanonicalLedgerForm::pointer newCLF, currentCLF(new LegacyCLF(lastClosedLedger));
+                CanonicalLedgerForm::pointer newCLF, currentCLF = std::make_shared<LegacyCLF>(lastClosedLedger));
                 mCurrentDB.beginTransaction();
                 try
                 {
@@ -111,7 +111,7 @@ namespace stellar
 
         try
         {
-            CanonicalLedgerForm::pointer nl(new LegacyCLF(ledger));
+            CanonicalLedgerForm::pointer nl = std::make_shared<LegacyCLF>(ledger);
             try
             {
                 // only need to update ledger related fields as the account state is already in SQL

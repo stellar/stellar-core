@@ -105,7 +105,7 @@ namespace stellar
 
     void Peer::sendMessage(stellarxdr::StellarMessage& message)
     {
-        StellarMessagePtr messagePtr(new stellarxdr::StellarMessage(message));
+        StellarMessagePtr messagePtr = std::make_shared<stellarxdr::StellarMessage>(message);
         sendMessage(messagePtr);
 	}
 
@@ -237,7 +237,7 @@ namespace stellar
     // GRAYDON
 	void Peer::recvMessage()
 	{
-        StellarMessagePtr stellarMsg(new stellarxdr::StellarMessage());
+        StellarMessagePtr stellarMsg = std::make_shared<stellarxdr::StellarMessage>();
 
         xdr::msg_ptr incoming=xdr::message_t::alloc(mIncomingBody.size());
         memcpy(incoming->raw_data(),&(mIncomingBody[0]), mIncomingBody.size());
@@ -388,7 +388,7 @@ namespace stellar
 	}
 	void Peer::recvTxSet(StellarMessagePtr msg)
 	{
-		TransactionSet::pointer txSet(new TransactionSet(msg->txSet()));
+		TransactionSet::pointer txSet = std::make_shared<TransactionSet>(msg->txSet());
         mApp->getTxHerderGateway().recvTransactionSet(txSet);
 	}
 
@@ -420,7 +420,7 @@ namespace stellar
 	}
 	void Peer::recvQuorumSet(StellarMessagePtr msg)
 	{
-		QuorumSet::pointer qset(new QuorumSet(msg->quorumSet()));
+		QuorumSet::pointer qset = std::make_shared<QuorumSet>(msg->quorumSet());
         mApp->getOverlayGateway().recvQuorumSet(qset);
 
 	}

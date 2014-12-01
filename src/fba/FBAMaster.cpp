@@ -92,7 +92,7 @@ namespace stellar
     void FBAMaster::setApplication(Application::pointer app) 
     { 
         mApp = app; 
-        mOurNode = OurNode::pointer(new OurNode(mApp));
+        mOurNode = std::make_shared<OurNode>(mApp);
     }
 
 
@@ -192,7 +192,7 @@ namespace stellar
 					} else if(validity == TxHerderGateway::FUTURE_BALLOT)
 					{
 						mWaitFutureStatements.push_back(
-                            FutureStatement::pointer(new FutureStatement(statement,mApp))); 
+                            std::make_shared<FutureStatement>(statement,mApp));
 						return false;
 					}// 6) yes
 
