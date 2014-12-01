@@ -338,6 +338,10 @@ namespace stellar
             {
                 recvFBAMessage(stellarMsg);
             }break;
+            case stellarxdr::JSON_TRANSACTION:
+            {
+                assert(false);
+            }break;
 		}	
 	}
 
@@ -367,6 +371,7 @@ namespace stellar
             mApp->getOverlayGateway().doesntHaveQSet(msg->dontHave().reqHash, shared_from_this());
             break;
         case stellarxdr::VALIDATIONS:
+        default:
             break;
         }
     }

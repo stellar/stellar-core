@@ -49,6 +49,10 @@ namespace stellar
 			case Statement::COMMITTED_TYPE:
 				progressCommitted(qset);
 				break;
+			case Statement::NUM_TYPES:
+			case Statement::EXTERNALIZED_TYPE:
+				assert(false);
+				break;
 			}
 		} else
 		{
@@ -94,6 +98,11 @@ namespace stellar
 			break;
 		case Statement::COMMITTED_TYPE:
 			statement = std::make_shared<CommittedStatement>(mNodeID, qset->getHash(), ballot);
+			break;
+		case Statement::NUM_TYPES:
+		case Statement::EXTERNALIZED_TYPE:
+		case Statement::UNKNOWN_TYPE:
+			assert(false);
 			break;
 		}
 		
