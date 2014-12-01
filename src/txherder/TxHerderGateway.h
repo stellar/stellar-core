@@ -47,7 +47,7 @@ namespace stellar
 			VALID_BALLOT,
 			INVALID_BALLOT,
 			FUTURE_BALLOT,
-			UKNOWN_VALIDITY
+			UNKNOWN_VALIDITY
 		};
 		// make sure this set contains any super old TXs
 		virtual BallotValidType isValidBallotValue(BallotPtr ballot) = 0;
