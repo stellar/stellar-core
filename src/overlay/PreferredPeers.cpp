@@ -2,7 +2,7 @@
 
 namespace stellar
 {
-    void PreferredPeers::addPreferredPeers(vector<std::string>& peerList)
+    void PreferredPeers::addPreferredPeers(vector<std::string> const& peerList)
     {
         for(auto peerStr : peerList)
         {
