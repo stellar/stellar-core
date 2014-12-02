@@ -13,8 +13,8 @@ namespace stellar
 	void PeerDoor::start(Application::pointer app)
 	{
         mApp = app;
-		mAcceptor = new boost::asio::ip::tcp::acceptor(*mApp->getPeerMaster().mIOservice);
-		boost::asio::ip::tcp::endpoint endpoint(boost::asio::ip::tcp::v4(), mApp->mConfig.PEER_PORT);
+		mAcceptor = new asio::ip::tcp::acceptor(*mApp->getPeerMaster().mIOservice);
+		asio::ip::tcp::endpoint endpoint(asio::ip::tcp::v4(), mApp->mConfig.PEER_PORT);
 		mAcceptor->open(endpoint.protocol());
 		mAcceptor->bind(endpoint);
 		mAcceptor->listen();
@@ -29,12 +29,12 @@ namespace stellar
 
 	void PeerDoor::acceptNextPeer()
 	{
-		shared_ptr<boost::asio::ip::tcp::socket> pSocket = std::make_shared<boost::asio::ip::tcp::socket>(*mApp->getPeerMaster().mIOservice);
+		shared_ptr<asio::ip::tcp::socket> pSocket = std::make_shared<asio::ip::tcp::socket>(*mApp->getPeerMaster().mIOservice);
 
 		mAcceptor->async_accept(*pSocket, bind(&PeerDoor::handleKnock, this, pSocket));
 	}
 
-	void PeerDoor::handleKnock(shared_ptr<boost::asio::ip::tcp::socket> socket)
+	void PeerDoor::handleKnock(shared_ptr<asio::ip::tcp::socket> socket)
 	{
 		Peer::pointer peer = std::make_shared<Peer>(socket,mApp);
         mApp->getPeerMaster().addPeer(peer);

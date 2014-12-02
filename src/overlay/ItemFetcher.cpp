@@ -199,7 +199,7 @@ namespace stellar
                     
                     mTimer.cancel(); // cancel any stray timers
                     auto fun = std::bind(&TrackingCollar::tryNextPeer, this, app);
-                    mTimer.expires_from_now(boost::posix_time::milliseconds(MS_TO_WAIT_FOR_FETCH_REPLY));
+                    mTimer.expires_from_now(std::chrono::milliseconds(MS_TO_WAIT_FOR_FETCH_REPLY));
                     mTimer.async_wait(fun);
                     
                     

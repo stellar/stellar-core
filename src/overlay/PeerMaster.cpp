@@ -43,8 +43,8 @@ namespace stellar
     // GRAYDON
 	void PeerMaster::run()
 	{
-        mIOservice = new boost::asio::io_service();
-        mTimer=new boost::asio::deadline_timer(*mIOservice, boost::posix_time::seconds(1));
+        mIOservice = new asio::io_service();
+        mTimer=new Timer(*mIOservice, std::chrono::seconds(1));
         mDoor.start(mApp);
 		while(1)
 		{

@@ -23,7 +23,7 @@ namespace stellar
         Peer::pointer mLastAskedPeer;
 		vector<Peer::pointer> mPeersAsked;
 		bool mCantFind;
-        boost::asio::deadline_timer mTimer;
+        Timer mTimer;
         int mRefCount;
 
 	protected:
