@@ -1,5 +1,4 @@
 #include "LedgerDatabase.h"
-#include <boost/format.hpp>
 #include "generated/stellar.hh"
 
 #include "lib/util/Logging.h"

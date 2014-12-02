@@ -44,7 +44,7 @@ namespace stellar
 
 	Transaction::pointer TransactionSet::getTransaction(stellarxdr::uint256& txHash)
 	{
-		for each (auto tx in mTransactions)
+		for (auto tx : mTransactions)
 		{
 			if(txHash == tx->getHash()) return(tx);
 		}

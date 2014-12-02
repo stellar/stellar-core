@@ -2,7 +2,7 @@
 
 namespace stellar
 {
-    bool isZero(stellarxdr::uint256& b)
+    bool isZero(stellarxdr::uint256 const& b)
     {
         for(int i = 0; i < 32; i++)
             if(b[i] != 0)
@@ -16,7 +16,7 @@ namespace stellar
         // SANITY
     }
 
-    std::string& toStr(stellarxdr::uint256& b, std::string& retstr)
+    std::string& toStr(stellarxdr::uint256 const& b, std::string& retstr)
     {
         // SANITY
         return(retstr);

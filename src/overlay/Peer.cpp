@@ -1,4 +1,3 @@
-#include <boost/bind.hpp>
 #include "Peer.h"
 #include "lib/util/Logging.h"
 #include "main/Application.h"
@@ -21,12 +20,12 @@ namespace stellar
 	);";
 
 
-	Peer::Peer(shared_ptr<boost::asio::ip::tcp::socket> socket, Application::pointer app) :
+	Peer::Peer(shared_ptr<asio::ip::tcp::socket> socket, Application::pointer app) :
         mHelloTimer(*(app->getPeerMaster().mIOservice))
 	{
         mApp = app;
 		mSocket = socket;
-        mHelloTimer.expires_from_now(boost::posix_time::milliseconds(MS_TO_WAIT_FOR_HELLO));
+        mHelloTimer.expires_from_now(std::chrono::milliseconds(MS_TO_WAIT_FOR_HELLO));
         auto fun = std::bind(&Peer::neverSaidHello, this);
         mHelloTimer.async_wait(fun);
 	}
@@ -105,7 +104,7 @@ namespace stellar
 
     void Peer::sendMessage(stellarxdr::StellarMessage& message)
     {
-        StellarMessagePtr messagePtr(new stellarxdr::StellarMessage(message));
+        StellarMessagePtr messagePtr = std::make_shared<stellarxdr::StellarMessage>(message);
         sendMessage(messagePtr);
 	}
 
@@ -135,14 +134,13 @@ namespace stellar
         mWriteBuffer.resize(xdrBytes->raw_size());
         memcpy(&(mWriteBuffer[0]),xdrBytes->raw_data(),mWriteBuffer.size());
 
-		boost::asio::async_write(
-            *(mSocket.get()), boost::asio::buffer(mWriteBuffer), bind(&Peer::writeHandler, this,
-			boost::asio::placeholders::error,
-			boost::asio::placeholders::bytes_transferred
-			));
+		asio::async_write(*(mSocket.get()), asio::buffer(mWriteBuffer),
+                          [this](std::error_code ec, std::size_t length) {
+                              this->Peer::writeHandler(ec, length);
+                          });
 	}
 
-	void Peer::connectHandler(const boost::system::error_code& error)
+	void Peer::connectHandler(const asio::error_code& error)
 	{
 		if(!error)
 		{
@@ -155,7 +153,7 @@ namespace stellar
 		}
 	}
 
-	void Peer::writeHandler(const boost::system::error_code& error, std::size_t bytes_transferred)
+	void Peer::writeHandler(const asio::error_code& error, std::size_t bytes_transferred)
 	{
 		if(!error)
 		{
@@ -173,13 +171,12 @@ namespace stellar
 
 	void Peer::startRead()
 	{
-        //boost::shared_ptr<boost::asio::ip::tcp::socket> test;
+        //boost::shared_ptr<asio::ip::tcp::socket> test;
 
-		boost::asio::async_read(*(mSocket.get()), boost::asio::buffer(mIncomingHeader), bind(&Peer::readHeaderHandler, this,
-			boost::asio::placeholders::error,
-			boost::asio::placeholders::bytes_transferred
-			));
-            
+		asio::async_read(*(mSocket.get()), asio::buffer(mIncomingHeader),
+                         [this](std::error_code ec, std::size_t length) {
+                             this->Peer::readHeaderHandler(ec, length);
+                         });
 	}
 
     // GRAYDON
@@ -195,16 +192,16 @@ namespace stellar
         return(length);
     }
     // GRAYDON
-	void Peer::readHeaderHandler(const boost::system::error_code& error, std::size_t bytes_transferred)
+	void Peer::readHeaderHandler(const asio::error_code& error, std::size_t bytes_transferred)
 	{
 		if(!error)
 		{
             mIncomingBody.resize(getIncomingMsgLength());
             
-			boost::asio::async_read(*mSocket.get(), boost::asio::buffer(mIncomingBody), bind(&Peer::readBodyHandler, this,
-				boost::asio::placeholders::error,
-				boost::asio::placeholders::bytes_transferred
-				)); 
+			asio::async_read(*mSocket.get(), asio::buffer(mIncomingBody),
+                             [this](std::error_code ec, std::size_t length) {
+                                 this->Peer::readBodyHandler(ec, length);
+                             });
 		} else
 		{
             CLOG(WARNING, "Overlay") << "readHeaderHandler error: " << error;
@@ -213,7 +210,7 @@ namespace stellar
 		
 	}
 
-	void Peer::readBodyHandler(const boost::system::error_code& error, std::size_t bytes_transferred)
+	void Peer::readBodyHandler(const asio::error_code& error, std::size_t bytes_transferred)
 	{
 		if(!error)
 		{
@@ -237,7 +234,7 @@ namespace stellar
     // GRAYDON
 	void Peer::recvMessage()
 	{
-        StellarMessagePtr stellarMsg(new stellarxdr::StellarMessage());
+        StellarMessagePtr stellarMsg = std::make_shared<stellarxdr::StellarMessage>();
 
         xdr::msg_ptr incoming=xdr::message_t::alloc(mIncomingBody.size());
         memcpy(incoming->raw_data(),&(mIncomingBody[0]), mIncomingBody.size());
@@ -338,6 +335,10 @@ namespace stellar
             {
                 recvFBAMessage(stellarMsg);
             }break;
+            case stellarxdr::JSON_TRANSACTION:
+            {
+                assert(false);
+            }break;
 		}	
 	}
 
@@ -367,6 +368,7 @@ namespace stellar
             mApp->getOverlayGateway().doesntHaveQSet(msg->dontHave().reqHash, shared_from_this());
             break;
         case stellarxdr::VALIDATIONS:
+        default:
             break;
         }
     }
@@ -388,7 +390,7 @@ namespace stellar
 	}
 	void Peer::recvTxSet(StellarMessagePtr msg)
 	{
-		TransactionSet::pointer txSet(new TransactionSet(msg->txSet()));
+		TransactionSet::pointer txSet = std::make_shared<TransactionSet>(msg->txSet());
         mApp->getTxHerderGateway().recvTransactionSet(txSet);
 	}
 
@@ -420,7 +422,7 @@ namespace stellar
 	}
 	void Peer::recvQuorumSet(StellarMessagePtr msg)
 	{
-		QuorumSet::pointer qset(new QuorumSet(msg->quorumSet()));
+		QuorumSet::pointer qset = std::make_shared<QuorumSet>(msg->quorumSet());
         mApp->getOverlayGateway().recvQuorumSet(qset);
 
 	}

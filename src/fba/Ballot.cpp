@@ -11,7 +11,7 @@
 namespace stellar
 {
 
-    Ballot::Ballot(LedgerPtr ledger, stellarxdr::uint256& txSetHash, uint64_t closeTime)
+    Ballot::Ballot(LedgerPtr ledger, stellarxdr::uint256 const& txSetHash, uint64_t closeTime)
     {
         mIndex = 1;
         mLedgerCloseTime = closeTime;

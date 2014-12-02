@@ -33,9 +33,9 @@ namespace stellar
 
 		void run();
         void tick();
-        boost::asio::deadline_timer* mTimer;
+        Timer* mTimer;
 	public:
-		boost::asio::io_service* mIOservice;
+		asio::io_service* mIOservice;
 		Floodgate mFloodGate;
 
 		PeerMaster();

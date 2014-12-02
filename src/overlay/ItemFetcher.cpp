@@ -9,7 +9,7 @@
 
 namespace stellar
 {
-    void ItemFetcher::doesntHave(stellarxdr::uint256& itemID, Peer::pointer peer,Application::pointer app)
+    void ItemFetcher::doesntHave(stellarxdr::uint256 const& itemID, Peer::pointer peer,Application::pointer app)
     {
         auto result = mItemMap.find(itemID);
         if(result != mItemMap.end())
@@ -26,7 +26,7 @@ namespace stellar
     }
 
     //LATER  Do we ever need to call this
-    void ItemFetcher::stopFetching(stellarxdr::uint256& itemID)
+    void ItemFetcher::stopFetching(stellarxdr::uint256 const& itemID)
     {
         auto result = mItemMap.find(itemID);
         if(result != mItemMap.end())
@@ -44,7 +44,7 @@ namespace stellar
 	//////////////////////////////
    
 
-	TransactionSet::pointer TxSetFetcher::fetchItem(stellarxdr::uint256& setID,bool askNetwork)
+	TransactionSet::pointer TxSetFetcher::fetchItem(stellarxdr::uint256 const& setID,bool askNetwork)
 	{
 		// look it up in the map
 		// if not found then start fetching
@@ -114,7 +114,7 @@ namespace stellar
 		}
 	}
 
-	QuorumSet::pointer QSetFetcher::fetchItem(stellarxdr::uint256& setID, bool askNetwork)
+	QuorumSet::pointer QSetFetcher::fetchItem(stellarxdr::uint256 const& setID, bool askNetwork)
 	{
 		// look it up in the map
 		// if not found then start fetching
@@ -143,8 +143,8 @@ namespace stellar
 
     //////////////////////////////////////////////////////////////////////////
 
-	TrackingCollar::TrackingCollar(stellarxdr::uint256& id, ApplicationPtr app) : 
-        mItemID(id), mTimer(*(app->getPeerMaster().mIOservice))
+	TrackingCollar::TrackingCollar(stellarxdr::uint256 const& id, ApplicationPtr app) : 
+        mTimer(*(app->getPeerMaster().mIOservice)), mItemID(id)
 	{
 		mCantFind = false;
 		mRefCount = 1;
@@ -199,7 +199,7 @@ namespace stellar
                     
                     mTimer.cancel(); // cancel any stray timers
                     auto fun = std::bind(&TrackingCollar::tryNextPeer, this, app);
-                    mTimer.expires_from_now(boost::posix_time::milliseconds(MS_TO_WAIT_FOR_FETCH_REPLY));
+                    mTimer.expires_from_now(std::chrono::milliseconds(MS_TO_WAIT_FOR_FETCH_REPLY));
                     mTimer.async_wait(fun);
                     
                     
@@ -218,7 +218,7 @@ namespace stellar
 		}
 	}
 
-    QSetTrackingCollar::QSetTrackingCollar(stellarxdr::uint256& id, ApplicationPtr app) : TrackingCollar(id,app)
+    QSetTrackingCollar::QSetTrackingCollar(stellarxdr::uint256 const& id, ApplicationPtr app) : TrackingCollar(id,app)
     {
 
     }
@@ -228,7 +228,7 @@ namespace stellar
 		peer->sendGetQuorumSet(mItemID);
 	}
 
-    TxSetTrackingCollar::TxSetTrackingCollar(stellarxdr::uint256& id,  ApplicationPtr app) : TrackingCollar(id,app)
+    TxSetTrackingCollar::TxSetTrackingCollar(stellarxdr::uint256 const& id,  ApplicationPtr app) : TrackingCollar(id,app)
     {
   
     }

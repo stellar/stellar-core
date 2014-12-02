@@ -11,10 +11,10 @@
 namespace stellar
 {
 	TxHerder::TxHerder()
-        : mCloseCount(0)
-        , mCollectingTransactionSet(std::make_shared<TransactionSet>())
+        : mCollectingTransactionSet(std::make_shared<TransactionSet>())
         , mReceivedTransactions(4)
         , mCurrentTxSetFetcher(0)
+        , mCloseCount(0)
 	{}
 
 	// make sure all the tx we have in the old set are included
@@ -152,7 +152,7 @@ namespace stellar
 	void TxHerder::ledgerClosed(LedgerPtr ledger)
 	{
 		// our first choice for this round's set is all the tx we have collected during last ledger close
-		TransactionSet::pointer proposedSet(new TransactionSet());
+		TransactionSet::pointer proposedSet = std::make_shared<TransactionSet>();
 		for( auto list : mReceivedTransactions )
 		{
 			for(auto tx : list)
@@ -167,7 +167,7 @@ namespace stellar
 		if(firstBallotTime <= mLastClosedLedger->mCloseTime) firstBallotTime = mLastClosedLedger->mCloseTime + 1;
 
 		recvTransactionSet(proposedSet);
-		Ballot::pointer firstBallot(new Ballot(mLastClosedLedger, proposedSet->getContentsHash(), firstBallotTime));
+		Ballot::pointer firstBallot = std::make_shared<Ballot>(mLastClosedLedger, proposedSet->getContentsHash(), firstBallotTime);
 		
 		mCloseCount++;
 		// don't participate in FBA for a few ledger closes so you make sure you don't send PREPAREs that don't include old tx

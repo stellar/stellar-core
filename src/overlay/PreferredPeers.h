@@ -6,7 +6,7 @@ namespace stellar
     {
         vector< pair<std::string, int>> mPeerList;
     public:
-        void addPreferredPeers(vector<std::string>& peerList);
+        void addPreferredPeers(vector<std::string> const& peerList);
 
         bool isPeerPreferred(Peer::pointer peer);
     };

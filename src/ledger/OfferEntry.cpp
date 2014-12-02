@@ -1,4 +1,3 @@
-#include <boost/format.hpp>
 #include "OfferEntry.h"
 
 using namespace std;

@@ -14,7 +14,7 @@ namespace stellar
         uint64_t timeNow = time(nullptr);
         int numSeconds = statement->mBallot->mLedgerCloseTime - timeNow-MAX_SECONDS_LEDGER_CLOSE_IN_FUTURE;
         if(numSeconds <= 0) numSeconds = 1;
-        mTimer.expires_from_now(boost::posix_time::seconds(numSeconds));
+        mTimer.expires_from_now(std::chrono::seconds(numSeconds));
         auto fun = std::bind(&FutureStatement::tryNow, this, app);
         mTimer.async_wait(fun);
     }

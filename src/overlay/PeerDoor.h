@@ -1,7 +1,10 @@
 #ifndef __PEERDOOR__
 #define __PEERDOOR__
 
-#include <boost/asio.hpp>
+#ifndef ASIO_STANDALONE
+#define ASIO_STANDALONE
+#endif
+#include <asio.hpp>
 #include <memory>
 
 /*
@@ -20,10 +23,10 @@ namespace stellar
 	{
         ApplicationPtr mApp;
 
-		boost::asio::ip::tcp::acceptor* mAcceptor;
+		asio::ip::tcp::acceptor* mAcceptor;
 
 		void acceptNextPeer();
-		void handleKnock(shared_ptr<boost::asio::ip::tcp::socket> pSocket);
+		void handleKnock(shared_ptr<asio::ip::tcp::socket> pSocket);
 	public:
 		PeerDoor();
 

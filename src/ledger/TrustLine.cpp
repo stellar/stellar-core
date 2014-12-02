@@ -1,4 +1,3 @@
-#include <boost/format.hpp>
 #include "TrustLine.h"
 #include "AccountEntry.h"
 #include "LedgerMaster.h"

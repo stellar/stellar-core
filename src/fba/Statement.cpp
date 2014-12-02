@@ -8,7 +8,7 @@
 
 namespace stellar
 {
-    Statement::pointer Statement::makeStatement(stellarxdr::FBAEnvelope& envelope)
+    Statement::pointer Statement::makeStatement(stellarxdr::FBAEnvelope const& envelope)
     {
         switch(envelope.contents.body.type())
         {
@@ -25,24 +25,23 @@ namespace stellar
     }
 
 	Statement::Statement()
-	{
-		mValidity = TxHerderGateway::UKNOWN_VALIDITY;
-	}
+        : mValidity(TxHerderGateway::UNKNOWN_VALIDITY)
+    {}
 
-    Statement::Statement(stellarxdr::FBAEnvelope& envelope)
-    {
-        mValidity = TxHerderGateway::UKNOWN_VALIDITY;
-        mBallot = std::make_shared<Ballot>(envelope.contents.ballot);
-        mQuorumSetHash = envelope.contents.quorumSetHash;
-        mNodeID = envelope.nodeID;
-        mSignature = envelope.signature;
-    }
+    Statement::Statement(stellarxdr::FBAEnvelope const& envelope)
+        : mValidity(TxHerderGateway::UNKNOWN_VALIDITY)
+        , mNodeID(envelope.nodeID)
+        , mSignature(envelope.signature)
+        , mQuorumSetHash(envelope.contents.quorumSetHash)
+        , mBallot(std::make_shared<Ballot>(envelope.contents.ballot))
+    {}
 
-	Statement::Statement(stellarxdr::uint256& nodeID, stellarxdr::uint256& qSetHash, Ballot::pointer ballot) : mNodeID(nodeID), mQuorumSetHash(qSetHash)
-	{
-		mBallot = ballot;
-		mValidity = TxHerderGateway::UKNOWN_VALIDITY;
-	}
+	Statement::Statement(stellarxdr::uint256 const& nodeID, stellarxdr::uint256 const& qSetHash, Ballot::pointer ballot)
+        : mValidity(TxHerderGateway::UNKNOWN_VALIDITY)
+        , mNodeID(nodeID)
+        , mQuorumSetHash(qSetHash)
+        , mBallot(ballot)
+	{}
 
     bool Statement::isCompatible(BallotPtr ballot)
     {
@@ -65,7 +64,7 @@ namespace stellar
 
 	TxHerderGateway::BallotValidType Statement::checkValidity(Application::pointer app)
 	{
-		if( mValidity == TxHerderGateway::UKNOWN_VALIDITY ||
+		if( mValidity == TxHerderGateway::UNKNOWN_VALIDITY ||
 			mValidity == TxHerderGateway::FUTURE_BALLOT)
 		{
 			mValidity=app->getTxHerderGateway().isValidBallotValue(mBallot);

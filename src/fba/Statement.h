@@ -37,10 +37,10 @@ namespace stellar
 		};
 
         // creates a Statement from the wire
-        static Statement::pointer makeStatement(stellarxdr::FBAEnvelope& envelope);
+        static Statement::pointer makeStatement(stellarxdr::FBAEnvelope const& envelope);
 		Statement();
-        Statement(stellarxdr::FBAEnvelope& envelope);
-		Statement(stellarxdr::uint256& nodeID, stellarxdr::uint256& qSetHash, BallotPtr ballot);
+        Statement(stellarxdr::FBAEnvelope const& envelope);
+		Statement(stellarxdr::uint256 const& nodeID, stellarxdr::uint256 const& qSetHash, BallotPtr ballot);
 
 		void sign();
 

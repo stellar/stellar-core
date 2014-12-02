@@ -28,7 +28,7 @@ namespace stellar
         Ballot(stellarxdr::Ballot xdrballot);
 		Ballot(Ballot::pointer other);
         Ballot(stellarxdr::SlotBallot xdrballot);
-		Ballot(LedgerPtr ledger, stellarxdr::uint256& txSetHash, uint64_t closeTime);
+		Ballot(LedgerPtr ledger, stellarxdr::uint256 const& txSetHash, uint64_t closeTime);
 		
 
 		// returns true if this ballot is ranked higher

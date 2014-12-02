@@ -14,8 +14,8 @@ namespace stellar
 
         StatementType getType() { return(Statement::COMMITTED_TYPE); }
 
-        CommittedStatement(stellarxdr::FBAEnvelope& envelope);
-        CommittedStatement(stellarxdr::uint256& nodeID, stellarxdr::uint256& qSetHash, Ballot::pointer ballot);
+        CommittedStatement(stellarxdr::FBAEnvelope const& envelope);
+        CommittedStatement(stellarxdr::uint256 const& nodeID, stellarxdr::uint256 const& qSetHash, Ballot::pointer ballot);
     };
 }
 #endif

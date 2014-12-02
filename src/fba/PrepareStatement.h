@@ -18,8 +18,8 @@ namespace stellar
 
         vector<Ballot::pointer> mExcludedBallots; // these are ones this node has already set a COMMIT for
 
-        PrepareStatement(stellarxdr::uint256& nodeID, stellarxdr::uint256& qSetHash, Ballot::pointer ballot);
-        PrepareStatement(stellarxdr::FBAEnvelope& msg);
+        PrepareStatement(stellarxdr::uint256 const& nodeID, stellarxdr::uint256 const& qSetHash, Ballot::pointer ballot);
+        PrepareStatement(stellarxdr::FBAEnvelope const& msg);
 
     };
 }
