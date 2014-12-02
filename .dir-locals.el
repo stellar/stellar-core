@@ -3,6 +3,7 @@
 ((nil . ((flycheck-clang-language-standard . "c++11")
          (flycheck-clang-include-path . ("."
                                          "src"
+                                         "src/lib/asio/include"
                                          ))
          (eval . (add-to-list 'auto-mode-alist '("\\.h\\'" . c++-mode)))
          (c-file-style . "stroustrup")

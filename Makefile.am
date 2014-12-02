@@ -19,6 +19,10 @@ bin_stellard_SOURCES = src/overlay/test.cpp src/overlay/Floodgate.cpp	\
 	src/transactions/TrustSetTx.cpp src/transactions/Transaction.cpp	\
 	src/util/Logging.cpp
 
+bin_stellard_CPPFLAGS = -I$(srcdir)/src/lib/asio/include -DASIO_STANDALONE
+
+AM_CXXFLAGS = -stdlib=libc++
+
 # Less elegant but more portable than %.hh: %.x
 SUFFIXES = .x .hh
 .x.hh:
