@@ -5,7 +5,7 @@ _INITIALIZE_EASYLOGGINGPP
 
 using namespace stellar;
 
-int main(int argv, char* argc[])
+int main(int argc, char* argv[])
 {
     Application::pointer app = std::make_shared<Application>();
     app->mConfig.load(std::string("hayashi.cfg"));
