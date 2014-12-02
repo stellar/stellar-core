@@ -1,6 +1,7 @@
 #ifndef __ITEMFETCHER__
 #define __ITEMFETCHER__
 
+#include <map>
 #include "txherder/TransactionSet.h"
 #include "overlay/Peer.h"
 #include "fba/QuorumSet.h"
@@ -52,7 +53,7 @@ namespace stellar
 	{
 	protected:
         ApplicationPtr mApp;
-		map<stellarxdr::uint256, TrackingCollar::pointer> mItemMap;
+        std::map<stellarxdr::uint256, TrackingCollar::pointer> mItemMap;
 	public:
 		void clear();
         void stopFetching(stellarxdr::uint256 const& itemID);

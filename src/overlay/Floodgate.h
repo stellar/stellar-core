@@ -5,6 +5,7 @@
 #include "generated/stellar.hh"
 #include "overlay/Peer.h"
 #include "overlay/StellarMessage.h"
+#include <map>
 
 /*
 Keeps track of what peers have sent us which flood messages so we know who to send to when we broadcast the messages in return
@@ -36,7 +37,7 @@ namespace stellar
 
 	class Floodgate
 	{
-		map< stellarxdr::uint256, FloodRecord::pointer > mFloodMap; 
+		std::map< stellarxdr::uint256, FloodRecord::pointer > mFloodMap;
 	public:
 
 		// Floodgate will be cleared after every ledger close
