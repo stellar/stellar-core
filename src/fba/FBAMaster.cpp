@@ -4,6 +4,13 @@
 
 /*
 
+Timestamp:
+    set to be <min close time> seconds after your first proposal if you are making one fresh.
+    set to be the same as the highest ranked ballot
+    lower bound is last close time
+    upper bound is 2 seconds into the future
+
+
 Prepare means:	I will commit this ballot if a quorum does as well
 				I won't commit a lower ranked ballot
 
@@ -74,11 +81,7 @@ When do we externalize?
 
 
 
-Timestamp:
-	set to be <min close time> seconds after your first proposal if you are making one fresh.
-	set to be the same as the highest ranked ballot
-	lower bound is last close time
-	upper bound is 2 seconds into the future
+
 */
 
 namespace stellar
