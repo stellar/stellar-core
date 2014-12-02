@@ -1,5 +1,5 @@
 // -*- C++ -*-
-// Automatically generated from ../src/overlay/protocol.x.
+// Automatically generated from src/overlay/protocol.x.
 // DO NOT EDIT or your changes may be overwritten
 
 #ifndef __XDR_PROTOCOL_HH_INCLUDED__
@@ -371,8 +371,8 @@ enum FBAStatementType : std::uint32_t {
 } namespace xdr {
 template<> struct xdr_traits<::stellarxdr::FBAStatementType>
   : xdr_integral_base<::stellarxdr::FBAStatementType, std::uint32_t> {
-  static Constexpr const bool is_enum = true;
-  static Constexpr const bool is_numeric = false;
+  static const bool is_enum = true;
+  static const bool is_numeric = false;
   static const char *enum_name(::stellarxdr::FBAStatementType val) {
     switch (val) {
     case ::stellarxdr::PREPARE:
@@ -410,7 +410,7 @@ struct FBAContents {
   public:
     static_assert (sizeof (FBAStatementType) <= 4, "union discriminant must be 4 bytes");
 
-    static Constexpr int _xdr_field_number(std::uint32_t which) {
+    static int _xdr_field_number(std::uint32_t which) {
       return which == PREPARE ? 1
         : which == PREPARED || which == COMMIT || which == COMMITTED ? 0
         : -1;
@@ -513,9 +513,9 @@ struct FBAContents {
 };
 } namespace xdr {
 template<> struct xdr_traits<::stellarxdr::FBAContents::_body_t> : xdr_traits_base {
-  static Constexpr const bool is_class = true;
-  static Constexpr const bool is_union = true;
-  static Constexpr const bool has_fixed_size = false;
+  static const bool is_class = true;
+  static const bool is_union = true;
+  static const bool has_fixed_size = false;
 
   using union_type = ::stellarxdr::FBAContents::_body_t;
   using discriminant_type = decltype(std::declval<union_type>().type());
@@ -628,8 +628,8 @@ enum LedgerTypes : std::uint32_t {
 } namespace xdr {
 template<> struct xdr_traits<::stellarxdr::LedgerTypes>
   : xdr_integral_base<::stellarxdr::LedgerTypes, std::uint32_t> {
-  static Constexpr const bool is_enum = true;
-  static Constexpr const bool is_numeric = false;
+  static const bool is_enum = true;
+  static const bool is_numeric = false;
   static const char *enum_name(::stellarxdr::LedgerTypes val) {
     switch (val) {
     case ::stellarxdr::ACCOUNT:
@@ -932,7 +932,7 @@ private:
 public:
   static_assert (sizeof (LedgerTypes) <= 4, "union discriminant must be 4 bytes");
 
-  static Constexpr int _xdr_field_number(std::uint32_t which) {
+  static int _xdr_field_number(std::uint32_t which) {
     return which == ACCOUNT ? 1
       : which == TRUSTLINE ? 2
       : which == OFFER ? 3
@@ -1042,9 +1042,9 @@ public:
 };
 } namespace xdr {
 template<> struct xdr_traits<::stellarxdr::LedgerEntry> : xdr_traits_base {
-  static Constexpr const bool is_class = true;
-  static Constexpr const bool is_union = true;
-  static Constexpr const bool has_fixed_size = false;
+  static const bool is_class = true;
+  static const bool is_union = true;
+  static const bool has_fixed_size = false;
 
   using union_type = ::stellarxdr::LedgerEntry;
   using discriminant_type = decltype(std::declval<union_type>().type());
@@ -1177,8 +1177,8 @@ enum MessageType : std::uint32_t {
 } namespace xdr {
 template<> struct xdr_traits<::stellarxdr::MessageType>
   : xdr_integral_base<::stellarxdr::MessageType, std::uint32_t> {
-  static Constexpr const bool is_enum = true;
-  static Constexpr const bool is_numeric = false;
+  static const bool is_enum = true;
+  static const bool is_numeric = false;
   static const char *enum_name(::stellarxdr::MessageType val) {
     switch (val) {
     case ::stellarxdr::ERROR_MSG:
@@ -1371,7 +1371,7 @@ private:
 public:
   static_assert (sizeof (MessageType) <= 4, "union discriminant must be 4 bytes");
 
-  static Constexpr int _xdr_field_number(std::uint32_t which) {
+  static int _xdr_field_number(std::uint32_t which) {
     return which == ERROR_MSG ? 1
       : which == HELLO ? 2
       : which == DONT_HAVE ? 3
@@ -1666,9 +1666,9 @@ public:
 };
 } namespace xdr {
 template<> struct xdr_traits<::stellarxdr::StellarMessage> : xdr_traits_base {
-  static Constexpr const bool is_class = true;
-  static Constexpr const bool is_union = true;
-  static Constexpr const bool has_fixed_size = false;
+  static const bool is_class = true;
+  static const bool is_union = true;
+  static const bool has_fixed_size = false;
 
   using union_type = ::stellarxdr::StellarMessage;
   using discriminant_type = decltype(std::declval<union_type>().type());
