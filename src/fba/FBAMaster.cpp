@@ -142,6 +142,16 @@ namespace stellar
 		}	
 	}
 
+    Node::pointer FBAMaster::getNode(stellarxdr::uint256& nodeID)
+    {
+        Node::pointer ret = mKnownNodes[nodeID];
+        if(isZero(ret->mNodeID))
+        {  // we have never heard of this node
+            ret->mNodeID = nodeID;
+        }
+        return ret;
+    }
+
 
 	/*
 	When we get a FBA statement from the network we need to do the following:

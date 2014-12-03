@@ -168,9 +168,6 @@
     <ClCompile Include="..\..\..\xdrpp\xdrpp\marshal.cc">
       <Filter>xdrpp</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\fba\NodePool.cpp">
-      <Filter>fba</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\util\Logging.cpp">
       <Filter>lib\util</Filter>
     </ClCompile>
@@ -367,9 +364,6 @@
     </ClInclude>
     <ClInclude Include="..\..\src\overlay\StellarMessage.h">
       <Filter>overlay</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\fba\NodePool.h">
-      <Filter>fba</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\xdrpp\xdrpp\message.h">
       <Filter>xdrpp</Filter>

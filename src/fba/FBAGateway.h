@@ -26,6 +26,7 @@ namespace stellar
 
 		// called internally
 		virtual QuorumSet::pointer getOurQuorumSet() = 0;
+        virtual Node::pointer getNode(stellarxdr::uint256& nodeID)=0;
         virtual void statementReady(FutureStatementPtr statement)=0;
 	};
 }

@@ -18,7 +18,7 @@ namespace stellar
 
     std::string& toStr(stellarxdr::uint256 const& b, std::string& retstr)
     {
-        // SANITY
+        // SANITY base58 encode
         return(retstr);
     }
 }

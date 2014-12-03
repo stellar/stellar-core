@@ -45,10 +45,6 @@ namespace stellar
 		bool mValidatingNode;
 		OurNode::pointer mOurNode;
 		QuorumSet::pointer mOurQuorumSet;
-        //NodePool mNodePool;
-
-		// anytime we need a qset we store it here
-		//LATER: map<stellarxdr::uint256, bool> mNeededQuorumSets;
 
 		// map of nodes we have gotten FBA messages from in this round
 		// we save ones we don't care about in case they are on some yet unknown Quorom Set
@@ -100,7 +96,7 @@ namespace stellar
 		void addQuorumSet(QuorumSet::pointer qset);
 
         QuorumSet::pointer getOurQuorumSet() { return mOurQuorumSet; }
-
+        Node::pointer getNode(stellarxdr::uint256& nodeID);
 		
 
 		// get a new statement from the network

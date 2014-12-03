@@ -1,6 +1,5 @@
 #include "QuorumSet.h"
 #include "main/Application.h"
-#include "fba/NodePool.h"
 #include "xdrpp/marshal.h"
 #include "lib/util/easylogging++.h"
 /*
@@ -16,12 +15,12 @@ namespace stellar
 	}
 
     // get qset from wire
-    QuorumSet::QuorumSet(stellarxdr::QuorumSet& qset)
+    QuorumSet::QuorumSet(stellarxdr::QuorumSet& qset, ApplicationPtr app)
     {
         mThreshold = qset.threshold;
         for(auto id : qset.validators)
         {
-            mNodes.push_back(gNodePool.getNode(id));
+            mNodes.push_back(app->getFBAGateway().getNode(id));
         }
     }
 

@@ -78,7 +78,6 @@
     <ClCompile Include="..\..\src\fba\FutureStatement.cpp" />
     <ClCompile Include="..\..\src\fba\History.cpp" />
     <ClCompile Include="..\..\src\fba\Node.cpp" />
-    <ClCompile Include="..\..\src\fba\NodePool.cpp" />
     <ClCompile Include="..\..\src\fba\OurNode.cpp" />
     <ClCompile Include="..\..\src\fba\PreparedStatement.cpp" />
     <ClCompile Include="..\..\src\fba\PrepareStatement.cpp" />
@@ -141,7 +140,6 @@
     <ClInclude Include="..\..\src\fba\FutureStatement.h" />
     <ClInclude Include="..\..\src\fba\History.h" />
     <ClInclude Include="..\..\src\fba\Node.h" />
-    <ClInclude Include="..\..\src\fba\NodePool.h" />
     <ClInclude Include="..\..\src\fba\OurNode.h" />
     <ClInclude Include="..\..\src\fba\PreparedStatement.h" />
     <ClInclude Include="..\..\src\fba\PrepareStatement.h" />

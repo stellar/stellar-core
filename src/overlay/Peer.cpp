@@ -422,7 +422,7 @@ namespace stellar
 	}
 	void Peer::recvQuorumSet(StellarMessagePtr msg)
 	{
-		QuorumSet::pointer qset = std::make_shared<QuorumSet>(msg->quorumSet());
+		QuorumSet::pointer qset = std::make_shared<QuorumSet>(msg->quorumSet(),mApp);
         mApp->getOverlayGateway().recvQuorumSet(qset);
 
 	}
