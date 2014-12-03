@@ -29,6 +29,11 @@ SUFFIXES = .x .hh
 .x.hh:
 	$(XDRC) -hh -o $@ $<
 
+if USE_CLANG_FORMAT
+format:
+	cd $(srcdir) && $(CLANG_FORMAT) -i $(bin_stellard_SOURCES)
+endif
+
 maintainer-clean-local:
 	+@echo rm -rf `sed -ne 's!^/!!p' .gitignore` Makefile.in
 	rm -rf `sed -ne 's!^/!!p' .gitignore` Makefile.in
