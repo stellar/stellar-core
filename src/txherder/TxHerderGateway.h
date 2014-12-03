@@ -3,7 +3,7 @@
 
 #include <memory>
 #include "generated/stellar.hh"
-
+#include "fba/FBA.h"
 /*
 Public Interface to the TXHerder module
 
@@ -17,9 +17,6 @@ namespace stellar
 {
 	class Ledger;
 	typedef std::shared_ptr<Ledger> LedgerPtr;
-
-	class Ballot;
-	typedef std::shared_ptr<Ballot> BallotPtr;
 
 	class TransactionSet;
 	typedef std::shared_ptr<TransactionSet> TransactionSetPtr;

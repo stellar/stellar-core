@@ -5,6 +5,7 @@
 #include "generated/stellar.hh"
 #include "TransactionResultCodes.h"
 #include "lib/util/types.h"
+#include "overlay/StellarMessage.h"
 
 /*
 A transaction in its exploded form.
@@ -43,7 +44,9 @@ namespace stellar
 		// LATER: how will applying historical txs work?
         TxResultCode apply();
 
-        void toXDR(stellarxdr::Transaction& envelope);
+        void toXDR(stellarxdr::Transaction& body);
+        void toXDR(stellarxdr::TransactionEnvelope& envelope);
+        StellarMessagePtr toStellarMessage();
 	};
 
 }

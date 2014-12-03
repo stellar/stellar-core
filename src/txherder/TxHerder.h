@@ -20,7 +20,6 @@ namespace stellar
 
 	class TxHerder : public TxHerderGateway
 	{
-		//SANITY need to track age of Txs so we become more adamant that they are included
 		// the transactions that we have collected during ledger close
 		TransactionSet::pointer mCollectingTransactionSet;
 
@@ -32,7 +31,7 @@ namespace stellar
 		// 0- tx we got during ledger close
 		// 1- one ledger ago. Will only validate a vblocking set
 		// 2- two ledgers ago. Will only validate a vblock set and will rebroadcast
-		// 3- three or more ledgers ago. Any set we validate must have these ledgers
+		// 3- three or more ledgers ago. Any set we validate must have these tx
 		vector< vector<Transaction::pointer> > mReceivedTransactions;
 
 		TxSetFetcher mTxSetFetcher[2];

@@ -135,6 +135,13 @@ namespace stellar
 			{
 				removeReceivedTx(tx);
 			}
+            // rebroadcast those left in set 1
+            for(auto tx : mReceivedTransactions[1])
+            {
+                StellarMessagePtr msg = tx->toStellarMessage();
+                mApp->getPeerMaster().broadcastMessage(msg, Peer::pointer());
+            }
+
 			// move all the remaining to the next highest level
 			// don't move the largest array
 			for(int n = mReceivedTransactions.size() - 2; n >=0; n--)

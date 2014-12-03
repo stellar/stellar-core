@@ -44,4 +44,17 @@ namespace stellar
     {
         // LATER
     }
+
+    void Transaction::toXDR(stellarxdr::TransactionEnvelope& envelope)
+    {
+        // LATER
+    }
+
+    StellarMessagePtr Transaction::toStellarMessage()
+    {
+        StellarMessagePtr msg = std::make_shared<stellarxdr::StellarMessage>();
+        msg->type(stellarxdr::TRANSACTION);
+        toXDR(msg->transaction());
+        return msg;
+    }
 }
