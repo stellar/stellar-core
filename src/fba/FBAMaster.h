@@ -41,10 +41,13 @@ namespace stellar
 
 	class FBAMaster : public FBAGateway
 	{
+        
         ApplicationPtr mApp;
 		bool mValidatingNode;
 		OurNode::pointer mOurNode;
 		QuorumSet::pointer mOurQuorumSet;
+
+        // SANITY make sure all of these are filled out and cleaned up
 
 		// map of nodes we have gotten FBA messages from in this round
 		// we save ones we don't care about in case they are on some yet unknown Quorom Set
@@ -56,17 +59,8 @@ namespace stellar
 		// statements we have gotten with a ledger time too far in the future
 		vector<FutureStatement::pointer> mWaitFutureStatements;
 
-
-
 		// Collect any FBA messages we get for the next slot in case people are closing before you are ready
 		vector<Statement::pointer> mCollectedStatements;
-
-		
-
-		void checkRatify();
-		void findPrepare();
-		// returns true if our current prepare message is V Blocked
-		bool checkVBlock();
 
 		enum FBAState
 		{
@@ -104,9 +98,8 @@ namespace stellar
 
         void statementReady(FutureStatement::pointer statement);
 
-		void getMessage();  // get some msg from the network about closing
-
-		void ledgerClosed();
+        
+		void ledgerClosed(); // SANITY when is this called?
 	};
 }
 

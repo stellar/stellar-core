@@ -145,9 +145,9 @@ namespace stellar
     Node::pointer FBAMaster::getNode(stellarxdr::uint256& nodeID)
     {
         Node::pointer ret = mKnownNodes[nodeID];
-        if(isZero(ret->mNodeID))
+        if(!ret)
         {  // we have never heard of this node
-            ret->mNodeID = nodeID;
+            mKnownNodes[nodeID] = std::make_shared<Node>(nodeID);
         }
         return ret;
     }
@@ -179,16 +179,8 @@ namespace stellar
 		TxHerderGateway::SlotComparisonType slotCompare = mApp->getTxHerderGateway().compareSlot(statement->mBallot);
 		if(slotCompare==TxHerderGateway::SAME_SLOT)
 		{  // we are on the same slot 2) yes
-			bool newStatement = true;
-			Node::pointer node = mKnownNodes[statement->mNodeID];
-			if(node)
-			{	// we already knew about this node
-				newStatement = !(mKnownNodes[statement->mNodeID]->hasStatement(statement));
-			} else
-			{	// new node
-				node = std::make_shared<Node>(statement->mNodeID);
-				mKnownNodes[statement->mNodeID] = node;
-			}
+			Node::pointer node = getNode(statement->mNodeID);
+			bool newStatement = !(node->hasStatement(statement));
 
 			if(newStatement)
 			{ // 3) yes
@@ -209,7 +201,7 @@ namespace stellar
 						return false;
 					}// 6) yes
 
-					mKnownNodes[statement->mNodeID]->addStatement(statement);
+					node->addStatement(statement);
 					if(validity==TxHerderGateway::VALID_BALLOT) 
                         mApp->getOverlayGateway().broadcastMessage(statement->mSignature);
 
