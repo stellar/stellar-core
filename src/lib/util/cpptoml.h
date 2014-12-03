@@ -659,7 +659,10 @@ namespace cpptoml
         }
 
     private:
-#if defined __has_feature
+
+#if defined(__cplusplus) && __cplusplus >= 201103L
+#define CPPTOML_ATTRIBUTE_NORETURN [[noreturn]]
+#elif defined __has_feature
 #if __has_feature(attribute_analyzer_noreturn)
         __attribute__((analyzer_noreturn))
 #endif
@@ -668,7 +671,10 @@ namespace cpptoml
 #elif defined __GNUC__
         __attribute__((noreturn))
 #endif
-            void throw_parse_exception(const std::string& err)
+#ifndef CPPTOML_ATTRIBUTE_NORETURN
+#define CPPTOML_ATTRIBUTE_NORETURN
+#endif
+            void throw_parse_exception CPPTOML_ATTRIBUTE_NORETURN (const std::string& err)
         {
             throw toml_parse_exception{ err, line_number_ };
         }
