@@ -6,17 +6,17 @@ namespace stellar
 {
     Config::Config()
     {
+        // fill in defaults
+
         // non configurable
         PROTOCOL_VERSION=1;
         VERSION_STR="0.0.1";
 
-        TARGET_PEER_CONNECTIONS=20;
-        MAX_PEER_CONNECTIONS = 50;
-
-        
-        // defaults
+        // configurable
         PEER_PORT= 39133;
         RUN_STANDALONE=false;
+        TARGET_PEER_CONNECTIONS=20;
+        MAX_PEER_CONNECTIONS = 50;
        
         LOG_FILE_PATH="hayashi.log";
     }
@@ -31,7 +31,21 @@ namespace stellar
 
             if(g.contains("TARGET_PEER_CONNECTIONS")) TARGET_PEER_CONNECTIONS = (int)g.get("TARGET_PEER_CONNECTIONS")->as<int64_t>()->value();
             if(g.contains("MAX_PEER_CONNECTIONS")) MAX_PEER_CONNECTIONS = (int)g.get("MAX_PEER_CONNECTIONS")->as<int64_t>()->value();
-            
+            if(g.contains("PREFERRED_PEERS"))
+            {
+                for(auto v : g.get_array("PREFERRED_PEERS")->array())
+                {
+                    PREFERRED_PEERS.push_back(v->as<std::string>()->value());
+                }
+            }
+
+            if(g.contains("KNOWN_PEERS"))
+            {
+                for(auto v : g.get_array("KNOWN_PEERS")->array())
+                {
+                    KNOWN_PEERS.push_back(v->as<std::string>()->value());
+                }
+            }
 
         }catch(cpptoml::toml_parse_exception& ex)
         {
