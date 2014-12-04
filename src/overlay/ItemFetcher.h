@@ -21,6 +21,7 @@ namespace stellar
 {
 	class TrackingCollar
 	{
+        Application &mApp;
         Peer::pointer mLastAskedPeer;
 		vector<Peer::pointer> mPeersAsked;
 		bool mCantFind;
@@ -37,10 +38,10 @@ namespace stellar
 
 		virtual bool isItemFound() = 0;
 
-		TrackingCollar(stellarxdr::uint256 const& id, ApplicationPtr app);
+		TrackingCollar(stellarxdr::uint256 const& id, Application &app);
 
-        void doesntHave(Peer::pointer peer,ApplicationPtr app);
-		void tryNextPeer(ApplicationPtr app);
+        void doesntHave(Peer::pointer peer);
+		void tryNextPeer();
         void cancelFetch();
         void refInc() { mRefCount++; }
         void refDec();
@@ -52,13 +53,14 @@ namespace stellar
 	class ItemFetcher
 	{
 	protected:
-        ApplicationPtr mApp;
+        Application &mApp;
         std::map<stellarxdr::uint256, TrackingCollar::pointer> mItemMap;
 	public:
+        ItemFetcher(Application &app) : mApp(app) {}
 		void clear();
         void stopFetching(stellarxdr::uint256 const& itemID);
         void stopFetchingAll();
-        void doesntHave(stellarxdr::uint256 const& itemID, Peer::pointer peer, ApplicationPtr app);
+        void doesntHave(stellarxdr::uint256 const& itemID, Peer::pointer peer);
 	};
 
     // We want to keep the last N ledgers worth of Txsets around 
@@ -66,6 +68,7 @@ namespace stellar
 	class TxSetFetcher : public ItemFetcher
 	{
 	public:
+        TxSetFetcher(Application &app) : ItemFetcher(app) {}
 		TransactionSet::pointer fetchItem(stellarxdr::uint256 const& itemID, bool askNetwork);
 		// looks to see if we know about it but doesn't ask the network
 		TransactionSet::pointer findItem(stellarxdr::uint256 const& itemID);
@@ -78,10 +81,11 @@ namespace stellar
 	{
 	public:
         
+        QSetFetcher(Application &app) : ItemFetcher(app) {}
 		QuorumSet::pointer fetchItem(stellarxdr::uint256 const& itemID, bool askNetwork);
 		// looks to see if we know about it but doesn't ask the network
         QuorumSet::pointer findItem(stellarxdr::uint256 const& itemID);
-		void recvItem(ApplicationPtr app,QuorumSet::pointer qSet);
+		void recvItem(QuorumSet::pointer qSet);
 	};
 
 	class TxSetTrackingCollar : public TrackingCollar
@@ -91,7 +95,7 @@ namespace stellar
 	public:
 		TransactionSet::pointer mTxSet;
 
-        TxSetTrackingCollar(stellarxdr::uint256 const& id,  ApplicationPtr app);
+        TxSetTrackingCollar(stellarxdr::uint256 const& id,  Application &app);
 		bool isItemFound(){ return(!!mTxSet); }
 	};
 
@@ -101,7 +105,7 @@ namespace stellar
 	public:
 		QuorumSet::pointer mQSet;
 
-        QSetTrackingCollar(stellarxdr::uint256 const& id, ApplicationPtr app);
+        QSetTrackingCollar(stellarxdr::uint256 const& id, Application &app);
 		bool isItemFound(){ return(!!mQSet); }
 	};
 	

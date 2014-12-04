@@ -37,7 +37,7 @@ namespace stellar
 	
 	// this returns what RatState it thinks the particular statement is in.
     Node::RatState Node::checkRatState(Statement::StatementType statementType, BallotPtr ballot, 
-        int operationToken, int recheckCounter,Application::pointer app)
+                                       int operationToken, int recheckCounter, Application &app)
 	{
         if(operationToken == mOperationToken)
         {   // this node was already visited during this check
@@ -83,7 +83,7 @@ namespace stellar
 		
 		// ok so this node is pledging the statement
         mRatState = PLEDGING_STATE;
-		QuorumSet::pointer qset = app->getOverlayGateway().fetchQuorumSet(ourStatement->mQuorumSetHash,true);
+		QuorumSet::pointer qset = app.getOverlayGateway().fetchQuorumSet(ourStatement->mQuorumSetHash,true);
 		if(qset)
 		{
             RatState state = qset->checkRatState(statementType, ballot, 

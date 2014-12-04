@@ -62,12 +62,12 @@ namespace stellar
 	uint32_t Statement::getLedgerIndex(){ return(mBallot->mLederIndex); }
 
 
-	TxHerderGateway::BallotValidType Statement::checkValidity(Application::pointer app)
+	TxHerderGateway::BallotValidType Statement::checkValidity(Application &app)
 	{
 		if( mValidity == TxHerderGateway::UNKNOWN_VALIDITY ||
 			mValidity == TxHerderGateway::FUTURE_BALLOT)
 		{
-			mValidity=app->getTxHerderGateway().isValidBallotValue(mBallot);
+			mValidity=app.getTxHerderGateway().isValidBallotValue(mBallot);
 		}
 		return mValidity;
 	}
@@ -78,9 +78,9 @@ namespace stellar
 	}
 
 
-	TransactionSet::pointer Statement::fetchTxSet(Application::pointer app)
+	TransactionSet::pointer Statement::fetchTxSet(Application &app)
 	{
-		return app->getTxHerderGateway().fetchTxSet(mBallot->mTxSetHash,true);
+		return app.getTxHerderGateway().fetchTxSet(mBallot->mTxSetHash,true);
 	}
 
     void Statement::toXDR(stellarxdr::FBAEnvelope& envelope)

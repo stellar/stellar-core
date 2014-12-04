@@ -11,6 +11,7 @@
 #include "generated/stellar.hh"
 #include "fba/QuorumSet.h"
 #include "overlay/StellarMessage.h"
+#include "util/timer.h"
 
 /*
 Another peer out there that we are connected to
@@ -21,32 +22,19 @@ using namespace std;
 namespace stellar
 {
     class Application;
-    typedef std::shared_ptr<Application> ApplicationPtr;
-    typedef asio::basic_waitable_timer<std::chrono::steady_clock> Timer;
 
 	class Peer : public enable_shared_from_this <Peer>
 	{
 	protected:
-        ApplicationPtr mApp;
-		//asio::io_service::strand mStrand;
+        Application &mApp;
 		shared_ptr<asio::ip::tcp::socket> mSocket;
 
-		std::mutex mOutputBufferMutex;
-		// mOutputBuffer[0] is the message we are currently sending
-		deque<StellarMessagePtr> mOutputBuffer;
-        vector<uint8_t> mWriteBuffer; //buffer of one message that we keep around while the async_write is happening
-
 		void connectHandler(const asio::error_code& ec);
-		void reallySendMessage(StellarMessagePtr message);
 		void writeHandler(const asio::error_code& error, std::size_t bytes_transferred);
 
-        //xdr::msg_ptr mIncomingMsg;
-
-		vector<char> mIncomingHeader;
+		uint8_t mIncomingHeader[4];
 		vector<uint8_t> mIncomingBody;
         Timer mHelloTimer;
-
-        void neverSaidHello();
 
         int getIncomingMsgLength();
 
@@ -98,12 +86,11 @@ namespace stellar
         std::string mVersion;
         int mProtocolVersion;
 
-		Peer(shared_ptr<asio::ip::tcp::socket> socket, ApplicationPtr app);
+        Peer(Application &app, shared_ptr<asio::ip::tcp::socket> socket);
 		void createFromDoor();
 		void connect();
         void drop();
 		
-        void sendMessage(StellarMessagePtr msg);
 		void sendMessage(stellarxdr::StellarMessage& msg);
 		void sendGetTxSet(stellarxdr::uint256& setID);
 		void sendGetQuorumSet(stellarxdr::uint256& setID);

@@ -10,11 +10,13 @@
 
 namespace stellar
 {
-	TxHerder::TxHerder()
+	TxHerder::TxHerder(Application &app)
         : mCollectingTransactionSet(std::make_shared<TransactionSet>())
         , mReceivedTransactions(4)
+        , mTxSetFetcher { TxSetFetcher(app), TxSetFetcher(app) }
         , mCurrentTxSetFetcher(0)
         , mCloseCount(0)
+        , mApp(app)
 	{}
 
 	// make sure all the tx we have in the old set are included
@@ -72,7 +74,7 @@ namespace stellar
 			{
 				recvTransaction(tx);
 			}
-			mApp->getFBAGateway().transactionSetAdded(txSet);
+			mApp.getFBAGateway().transactionSetAdded(txSet);
 		}
 	}
 
@@ -128,7 +130,7 @@ namespace stellar
             else mCurrentTxSetFetcher = 1;
             mTxSetFetcher[mCurrentTxSetFetcher].clear();
 
-			mApp->getLedgerGateway().externalizeValue(externalizedSet, ballot->mLedgerCloseTime);
+			mApp.getLedgerGateway().externalizeValue(externalizedSet, ballot->mLedgerCloseTime);
 
 			// remove all these tx from mReceivedTransactions
 			for(auto tx : externalizedSet->mTransactions)
@@ -139,7 +141,7 @@ namespace stellar
             for(auto tx : mReceivedTransactions[1])
             {
                 StellarMessagePtr msg = tx->toStellarMessage();
-                mApp->getPeerMaster().broadcastMessage(msg, Peer::pointer());
+                mApp.getPeerMaster().broadcastMessage(msg, Peer::pointer());
             }
 
 			// move all the remaining to the next highest level
@@ -178,9 +180,9 @@ namespace stellar
 		
 		mCloseCount++;
 		// don't participate in FBA for a few ledger closes so you make sure you don't send PREPAREs that don't include old tx
-		if(mCloseCount > 2 && (!isZero(mApp->mConfig.VALIDATION_SEED))) mApp->getFBAGateway().setValidating(true);
+		if(mCloseCount > 2 && (!isZero(mApp.mConfig.VALIDATION_SEED))) mApp.getFBAGateway().setValidating(true);
 
-		mApp->getFBAGateway().startNewRound(firstBallot);
+		mApp.getFBAGateway().startNewRound(firstBallot);
 	}
 
 }

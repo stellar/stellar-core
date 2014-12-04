@@ -51,18 +51,18 @@ namespace stellar
 		int mThreshold;
 		
 		QuorumSet();
-        QuorumSet(stellarxdr::QuorumSet& qset, ApplicationPtr app);
+        QuorumSet(stellarxdr::QuorumSet& qset, Application &app);
 
         stellarxdr::uint256 getHash();
 		int getBlockingSize();  // returns the # of nodes it takes to block a Quorum
 
 		void sortBallots(Statement::StatementType type, vector< BallotSet >& retList);
 		
-		Ballot::pointer getMostPopularBallot(Statement::StatementType type, bool checkValid, ApplicationPtr app);
-		Statement::pointer getHighestStatement(Statement::StatementType type, bool checkValid, ApplicationPtr app);
+		Ballot::pointer getMostPopularBallot(Statement::StatementType type, bool checkValid, Application &app);
+		Statement::pointer getHighestStatement(Statement::StatementType type, bool checkValid, Application &app);
 		bool checkQuorum(Statement::pointer statement);
         Node::RatState checkRatState(Statement::StatementType statementType, BallotPtr ballot, 
-            int operationToken, int recheckCounter,ApplicationPtr app);
+            int operationToken, int recheckCounter,Application &app);
 		////
 
 

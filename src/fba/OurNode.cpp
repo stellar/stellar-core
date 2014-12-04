@@ -16,9 +16,8 @@ namespace stellar
 	int gOperationToken = 0;
 
 	
-	OurNode::OurNode(Application::pointer app) : Node(makePublicKey(app->mConfig.VALIDATION_SEED))
+	OurNode::OurNode(Application &app) : Node(makePublicKey(app.mConfig.VALIDATION_SEED)), mApp(app)
 	{
-        mApp = app;
 	}
 	
 
@@ -31,7 +30,7 @@ namespace stellar
 
 	void OurNode::progressFBA()
 	{
-		QuorumSet::pointer qset = mApp->getFBAGateway().getOurQuorumSet();
+		QuorumSet::pointer qset = mApp.getFBAGateway().getOurQuorumSet();
 		if(qset)
 		{
 			switch(getNodeState())
@@ -80,7 +79,7 @@ namespace stellar
 
 	void OurNode::sendStatement(Statement::StatementType type, Ballot::pointer ballot)
 	{
-		QuorumSet::pointer qset = mApp->getFBAGateway().getOurQuorumSet();
+		QuorumSet::pointer qset = mApp.getFBAGateway().getOurQuorumSet();
 
 		Statement::pointer statement;
 		switch(type)
@@ -112,7 +111,7 @@ namespace stellar
         msg->type(stellarxdr::FBA_MESSAGE);
         statement->toXDR(msg->fbaMessage());
 
-		mApp->getOverlayGateway().broadcastMessage(msg, Peer::pointer());
+		mApp.getOverlayGateway().broadcastMessage(msg, Peer::pointer());
 		mTimeSent[type] = std::chrono::system_clock::now();
 		mState = type;
 		// need to see how this effects everything
@@ -174,7 +173,7 @@ namespace stellar
 							// we have found the highest on the targetIndex
 							break;
 						}
-						if(mApp->getTxHerderGateway().isValidBallotValue(sortedBallots[i].mBallot))
+						if(mApp.getTxHerderGateway().isValidBallotValue(sortedBallots[i].mBallot))
 						{
 							bestChoice = sortedBallots[i].mBallot;
 						}
@@ -320,11 +319,11 @@ namespace stellar
 
 			if(ourHighestCommitted)
 			{
-				if(ourHighestCommitted->mBallot->isCompatible(ratifiedBallot)) mApp->getTxHerderGateway().externalizeValue(ratifiedBallot);
+				if(ourHighestCommitted->mBallot->isCompatible(ratifiedBallot)) mApp.getTxHerderGateway().externalizeValue(ratifiedBallot);
 			} else
 			{ // this is a non-validating node. Just check if our qset has ratified anything
 				
-				mApp->getTxHerderGateway().externalizeValue(ratifiedBallot);
+				mApp.getTxHerderGateway().externalizeValue(ratifiedBallot);
 			}
 		}
 	}
@@ -333,7 +332,7 @@ namespace stellar
 
     Ballot::pointer OurNode::whatRatified(Statement::StatementType type)
     {
-        QuorumSet::pointer qset = mApp->getFBAGateway().getOurQuorumSet();
+        QuorumSet::pointer qset = mApp.getFBAGateway().getOurQuorumSet();
 
         Ballot::pointer popularBallot = qset->getMostPopularBallot(type,true,mApp);
 

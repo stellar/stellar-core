@@ -11,12 +11,11 @@ using namespace std;
 namespace stellar
 {
     class Application;
-    typedef std::shared_ptr<Application> ApplicationPtr;
 
 	/// we want to limit the amount of statements we spew out if we are running through a bunch of incoming statements
 	class OurNode : public Node
 	{
-        ApplicationPtr mApp;
+        Application &mApp;
 		chrono::system_clock::time_point mTimeSent[Statement::NUM_TYPES];
 
 		Ballot::pointer mPreferredBallot;
@@ -38,7 +37,7 @@ namespace stellar
 	public:
 		typedef std::shared_ptr<OurNode> pointer;
 
-		OurNode(ApplicationPtr app);
+		OurNode(Application &app);
 
 		void startNewRound(Ballot::pointer firstBallot);
 

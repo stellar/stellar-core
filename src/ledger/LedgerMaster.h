@@ -16,7 +16,6 @@ Hands the old ledger off to the history
 namespace stellar
 {
     class Application;
-    typedef std::shared_ptr<Application> ApplicationPtr;
 
 	class LedgerMaster : public LedgerGateway
 	{
