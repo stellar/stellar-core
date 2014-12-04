@@ -13,12 +13,19 @@ namespace stellar
 
     void hashXDR(xdr::msg_ptr msg, stellarxdr::uint256& retHash)
     {
-        // SANITY
+        // SANITY  hash
     }
 
     std::string& toStr(stellarxdr::uint256 const& b, std::string& retstr)
     {
         // SANITY base58 encode
         return(retstr);
+    }
+
+    stellarxdr::uint256 makePublicKey(stellarxdr::uint256 const& b)
+    {
+        // SANITY 
+        stellarxdr::uint256 ret;
+        return(ret);
     }
 }

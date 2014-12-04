@@ -25,12 +25,7 @@ How we check for ratification:
 
 namespace stellar
 {
-    Node::Node()
-    {
-        mState = Statement::UNKNOWN_TYPE;
-    }
-
-	Node::Node(stellarxdr::uint256 nodeID) : mNodeID(nodeID)
+	Node::Node(const stellarxdr::uint256& nodeID) : mNodeID(nodeID)
 	{
 		mState = Statement::UNKNOWN_TYPE;
 	}

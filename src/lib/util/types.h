@@ -12,4 +12,6 @@ namespace stellar
 
     std::string& toStr(stellarxdr::uint256 const& b, std::string& retstr);
 
+    stellarxdr::uint256 makePublicKey(stellarxdr::uint256 const& b);
+
 }

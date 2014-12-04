@@ -49,13 +49,13 @@ namespace stellar
     }
 	void Statement::sign()
 	{
-		// SANITY
+		// SANITY sign
 	}
 
 	// checks signature
 	bool Statement::isSigValid()
 	{
-		// SANITY
+		// SANITY check sig
 		return(true);
 	}
 

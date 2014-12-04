@@ -16,7 +16,7 @@ namespace stellar
 	int gOperationToken = 0;
 
 	
-	OurNode::OurNode(Application::pointer app) : Node()
+	OurNode::OurNode(Application::pointer app) : Node(makePublicKey(app->mConfig.VALIDATION_SEED))
 	{
         mApp = app;
 	}

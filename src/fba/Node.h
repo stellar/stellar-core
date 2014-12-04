@@ -43,8 +43,7 @@ namespace stellar
 		// if you have a Q that is willRatify then you can ratify
 		StatementPtr mWillRaitify[Statement::NUM_TYPES];
 
-        Node();
-		Node(stellarxdr::uint256 nodeID);
+		Node(const stellarxdr::uint256& nodeID);
 
 		Statement::StatementType getNodeState(){ return(mState); }
 
