@@ -7,11 +7,10 @@ bin_stellard_SOURCES = src/overlay/Floodgate.cpp src/overlay/PeerDoor.cpp	\
 	src/overlay/PeerMaster.cpp src/overlay/PreferredPeers.cpp				\
 	src/lib/util/types.cpp src/fba/FBAMaster.cpp							\
 	src/fba/FutureStatement.cpp src/fba/OurNode.cpp src/fba/QuorumSet.cpp	\
-	src/fba/NodePool.cpp src/fba/Statement.cpp src/fba/Node.cpp				\
-	src/fba/History.cpp src/fba/PreparedStatement.cpp						\
-	src/fba/CommitStatement.cpp src/fba/CommittedStatement.cpp				\
-	src/fba/PrepareStatement.cpp src/fba/Ballot.cpp							\
-	src/ledger/LedgerDatabase.cpp src/ledger/Ledger.cpp						\
+	src/fba/Statement.cpp src/fba/Node.cpp src/fba/History.cpp				\
+	src/fba/PreparedStatement.cpp src/fba/CommitStatement.cpp				\
+	src/fba/CommittedStatement.cpp src/fba/PrepareStatement.cpp				\
+	src/fba/Ballot.cpp src/ledger/LedgerDatabase.cpp src/ledger/Ledger.cpp	\
 	src/ledger/LedgerEntry.cpp src/ledger/OfferEntry.cpp					\
 	src/ledger/LedgerMaster.cpp src/ledger/AccountEntry.cpp					\
 	src/ledger/TrustLine.cpp src/txherder/TxHerder.cpp						\
@@ -29,6 +28,11 @@ AM_CXXFLAGS = -stdlib=libc++
 SUFFIXES = .x .hh
 .x.hh:
 	$(XDRC) -hh -o $@ $<
+
+if USE_CLANG_FORMAT
+format:
+	cd $(srcdir) && $(CLANG_FORMAT) -i $(bin_stellard_SOURCES)
+endif
 
 maintainer-clean-local:
 	+@echo rm -rf `sed -ne 's!^/!!p' .gitignore` Makefile.in
