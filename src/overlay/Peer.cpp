@@ -96,44 +96,38 @@ namespace stellar
     }
 
 
-    void Peer::sendMessage(stellarxdr::StellarMessage& message)
+    void Peer::sendMessage(stellarxdr::StellarMessage &msg)
     {
-        StellarMessagePtr messagePtr = std::make_shared<stellarxdr::StellarMessage>(message);
-        sendMessage(messagePtr);
-	}
+        using std::placeholders::_1;
+        using std::placeholders::_2;
 
-    void Peer::sendMessage(StellarMessagePtr message)
-    {
         if(mState == CLOSING) {
             CLOG(TRACE, "Overlay") << "Peer::sendMessage while closing, dropping packet ";
             return;
         }
 
-        {
-            std::lock_guard<std::mutex> lock(mOutputBufferMutex);
-            mOutputBuffer.push_back(message);
+        // Serialize XDR into a unique_ptr<char[]>, more or less, then pass
+        // ownership of it along with an asio::buffer pointing into it to the
+        // callback for async_write, so it survives as long as the request is in
+        // flight in the io_service, and is deallocated when the write
+        // completes.
+        //
+        // The messy bind-of-lambda expression is required due to C++11 not
+        // supporting moving (passing ownership) into a lambda capture. This is
+        // fixed in C++14 but we're not there yet.
 
-            if(mOutputBuffer.size() == 1)
-            {	// we aren't writing so write this guy
-                reallySendMessage(message);
-            }
-        }
+        xdr::msg_ptr xdrBytes(xdr::xdr_to_msg(msg));
+        auto self = shared_from_this();
+        asio::async_write(*(mSocket.get()),
+                          asio::buffer(xdrBytes->raw_data(),
+                                       xdrBytes->raw_size()),
+                          std::bind([self](asio::error_code const &ec,
+                                           std::size_t length,
+                                           xdr::msg_ptr const& ignore) {
+                                        self->Peer::writeHandler(ec, length);
+                                    }, _1, _2, std::move(xdrBytes)));
     }
 		
-    // GRAYDON
-	void Peer::reallySendMessage(StellarMessagePtr message)
-	{
-        xdr::msg_ptr xdrBytes(xdr::xdr_to_msg(*message.get()));
-
-        mWriteBuffer.resize(xdrBytes->raw_size());
-        memcpy(&(mWriteBuffer[0]),xdrBytes->raw_data(),mWriteBuffer.size());
-
-		asio::async_write(*(mSocket.get()), asio::buffer(mWriteBuffer),
-                          [this](std::error_code ec, std::size_t length) {
-                              this->Peer::writeHandler(ec, length);
-                          });
-	}
-
 	void Peer::connectHandler(const asio::error_code& error)
 	{
 		if(!error)
@@ -149,13 +143,7 @@ namespace stellar
 
 	void Peer::writeHandler(const asio::error_code& error, std::size_t bytes_transferred)
 	{
-		if(!error)
-		{
-			std::lock_guard<std::mutex> lock(mOutputBufferMutex);
-			mOutputBuffer.pop_front();
-
-			if(mOutputBuffer.size()) reallySendMessage(mOutputBuffer[0]);
-		} else
+		if(error)
 		{
             CLOG(WARNING, "Overlay") << "writeHandler error: " << error;
 			// LATER drop Peer
@@ -165,15 +153,13 @@ namespace stellar
 
 	void Peer::startRead()
 	{
-        //boost::shared_ptr<asio::ip::tcp::socket> test;
-
+		auto self = shared_from_this();
 		asio::async_read(*(mSocket.get()), asio::buffer(mIncomingHeader),
-                         [this](std::error_code ec, std::size_t length) {
-                             this->Peer::readHeaderHandler(ec, length);
+                         [self](std::error_code ec, std::size_t length) {
+                             self->Peer::readHeaderHandler(ec, length);
                          });
 	}
 
-    // GRAYDON
     int Peer::getIncomingMsgLength()
     {
         int length = mIncomingHeader[0];
@@ -185,16 +171,16 @@ namespace stellar
         length |= mIncomingHeader[3];
         return(length);
     }
-    // GRAYDON
+
 	void Peer::readHeaderHandler(const asio::error_code& error, std::size_t bytes_transferred)
 	{
 		if(!error)
 		{
             mIncomingBody.resize(getIncomingMsgLength());
-            
+			auto self = shared_from_this();
 			asio::async_read(*mSocket.get(), asio::buffer(mIncomingBody),
-                             [this](std::error_code ec, std::size_t length) {
-                                 this->Peer::readBodyHandler(ec, length);
+                             [self](std::error_code ec, std::size_t length) {
+                                 self->Peer::readBodyHandler(ec, length);
                              });
 		} else
 		{
@@ -218,11 +204,10 @@ namespace stellar
 		
 	}
 
-    // GRAYDON
-    // disconnect from peer
     void Peer::drop()
     {
-
+        mSocket->shutdown(asio::socket_base::shutdown_both);
+        mSocket->close();
     }
 
     // GRAYDON

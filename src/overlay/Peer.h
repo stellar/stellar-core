@@ -29,22 +29,12 @@ namespace stellar
         Application &mApp;
 		shared_ptr<asio::ip::tcp::socket> mSocket;
 
-		std::mutex mOutputBufferMutex;
-		// mOutputBuffer[0] is the message we are currently sending
-		deque<StellarMessagePtr> mOutputBuffer;
-        vector<uint8_t> mWriteBuffer; //buffer of one message that we keep around while the async_write is happening
-
 		void connectHandler(const asio::error_code& ec);
-		void reallySendMessage(StellarMessagePtr message);
 		void writeHandler(const asio::error_code& error, std::size_t bytes_transferred);
 
-        //xdr::msg_ptr mIncomingMsg;
-
-		vector<char> mIncomingHeader;
+		uint8_t mIncomingHeader[4];
 		vector<uint8_t> mIncomingBody;
         Timer mHelloTimer;
-
-        void neverSaidHello();
 
         int getIncomingMsgLength();
 
@@ -101,7 +91,6 @@ namespace stellar
 		void connect();
         void drop();
 		
-        void sendMessage(StellarMessagePtr msg);
 		void sendMessage(stellarxdr::StellarMessage& msg);
 		void sendGetTxSet(stellarxdr::uint256& setID);
 		void sendGetQuorumSet(stellarxdr::uint256& setID);
