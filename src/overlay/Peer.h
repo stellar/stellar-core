@@ -22,13 +22,11 @@ using namespace std;
 namespace stellar
 {
     class Application;
-    typedef std::shared_ptr<Application> ApplicationPtr;
 
 	class Peer : public enable_shared_from_this <Peer>
 	{
 	protected:
-        ApplicationPtr mApp;
-		//asio::io_service::strand mStrand;
+        Application &mApp;
 		shared_ptr<asio::ip::tcp::socket> mSocket;
 
 		std::mutex mOutputBufferMutex;
@@ -98,7 +96,7 @@ namespace stellar
         std::string mVersion;
         int mProtocolVersion;
 
-		Peer(shared_ptr<asio::ip::tcp::socket> socket, ApplicationPtr app);
+        Peer(Application &app, shared_ptr<asio::ip::tcp::socket> socket);
 		void createFromDoor();
 		void connect();
         void drop();

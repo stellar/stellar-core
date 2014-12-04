@@ -37,12 +37,11 @@ FBA:
 namespace stellar
 {
     class Application;
-    typedef std::shared_ptr<Application> ApplicationPtr;
 
 	class FBAMaster : public FBAGateway
 	{
         
-        ApplicationPtr mApp;
+        Application &mApp;
 		bool mValidatingNode;
 		OurNode::pointer mOurNode;
 		QuorumSet::pointer mOurQuorumSet;
@@ -78,8 +77,7 @@ namespace stellar
 
 	public:
 
-		FBAMaster();
-        void setApplication(ApplicationPtr app);
+		FBAMaster(Application &app);
 
 		void setValidating(bool validating){ mValidatingNode = validating; }
 

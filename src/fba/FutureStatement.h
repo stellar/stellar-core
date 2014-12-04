@@ -15,10 +15,10 @@ namespace stellar
         Statement::pointer mStatement;
         typedef std::shared_ptr<FutureStatement> pointer;
 
-        FutureStatement(Statement::pointer statement, ApplicationPtr app);
+        FutureStatement(Statement::pointer statement, Application &app);
         ~FutureStatement();
 
-        void tryNow(ApplicationPtr app);
+        void tryNow(Application &app);
 
     };
 }

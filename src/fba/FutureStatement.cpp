@@ -8,7 +8,7 @@ You are unwilling to consider it until enough time passes.
 
 namespace stellar
 {
-    FutureStatement::FutureStatement(Statement::pointer statement, ApplicationPtr app) :
+    FutureStatement::FutureStatement(Statement::pointer statement, Application &app) :
         mTimer(*(app->getPeerMaster().mIOservice))
     {
         uint64_t timeNow = time(nullptr);
@@ -24,8 +24,8 @@ namespace stellar
         mTimer.cancel();
     }
 
-    void FutureStatement::tryNow(ApplicationPtr app)
+    void FutureStatement::tryNow(Application &app)
     {
-        app->getFBAGateway().statementReady(shared_from_this());
+        app.getFBAGateway().statementReady(shared_from_this());
     }
 }

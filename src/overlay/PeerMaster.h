@@ -10,6 +10,7 @@
 #include "generated/stellar.hh"
 #include "overlay/OverlayGateway.h"
 #include "overlay/PreferredPeers.h"
+#include "util/timer.h"
 
 using namespace std;
 /*
@@ -20,34 +21,29 @@ namespace stellar
 
 	class PeerMaster : public OverlayGateway
 	{
-		std::thread mPeerThread;
-
         // peers we are connected to
+        Application &mApp;
 		vector<Peer::pointer> mPeers;
 		PeerDoor mDoor;
 		QSetFetcher mQSetFetcher;
-        ApplicationPtr mApp;
         PreferredPeers mPreferredPeers;
 
 		void addConfigPeers();
 
-		void run();
         void tick();
-        Timer* mTimer;
+        Timer mTimer;
 	public:
-		asio::io_service* mIOservice;
 		Floodgate mFloodGate;
 
-		PeerMaster();
+		PeerMaster(Application &app);
 		~PeerMaster();
 
-        void setApplication(ApplicationPtr app) { mApp = app; }
 		//////// GATEWAY FUNCTIONS
 		void ledgerClosed(LedgerPtr ledger);
 
 		QuorumSet::pointer fetchQuorumSet(stellarxdr::uint256& itemID, bool askNetwork){ return(mQSetFetcher.fetchItem(itemID,askNetwork)); }
         void recvFloodedMsg(stellarxdr::uint256 index, StellarMessagePtr msg, uint32_t ledgerIndex, Peer::pointer peer) { mFloodGate.addRecord(index, msg, ledgerIndex, peer);  }
-        void doesntHaveQSet(stellarxdr::uint256 index, Peer::pointer peer) { mQSetFetcher.doesntHave(index, peer,mApp); }
+        void doesntHaveQSet(stellarxdr::uint256 index, Peer::pointer peer) { mQSetFetcher.doesntHave(index, peer); }
 
         void broadcastMessage(StellarMessagePtr msg, Peer::pointer peer);
         void recvQuorumSet(QuorumSet::pointer qset);

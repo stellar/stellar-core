@@ -17,20 +17,19 @@ using namespace std;
 namespace stellar
 {
     class Application;
-    typedef std::shared_ptr<Application> ApplicationPtr;
 
 	class PeerDoor
 	{
-        ApplicationPtr mApp;
+        Application &mApp;
 
 		asio::ip::tcp::acceptor* mAcceptor;
 
 		void acceptNextPeer();
 		void handleKnock(shared_ptr<asio::ip::tcp::socket> pSocket);
 	public:
-		PeerDoor();
+		PeerDoor(Application &);
 
-		void start(ApplicationPtr app);
+		void start();
 		void close();
 
 	};

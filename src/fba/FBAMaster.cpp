@@ -87,17 +87,12 @@ When do we externalize?
 namespace stellar
 {
 
-	FBAMaster::FBAMaster()
+	FBAMaster::FBAMaster(Application &app)
+        : mApp(app)
+        , mValidatingNode(false)
+        , mOurNode(std::make_shared<OurNode>(mApp))
 	{
-		mValidatingNode = false;   
 	}
-
-    void FBAMaster::setApplication(Application::pointer app) 
-    { 
-        mApp = app; 
-        mOurNode = std::make_shared<OurNode>(mApp);
-    }
-
 
 	// start a new round of consensus. This is called after the last ledger closes
 	void FBAMaster::startNewRound(Ballot::pointer firstBallot)
@@ -176,7 +171,7 @@ namespace stellar
 	{
 		if(!statement->isSigValid()) return false;  // 1) yes   LATER we should doc any peer that sends us one of these
 
-		TxHerderGateway::SlotComparisonType slotCompare = mApp->getTxHerderGateway().compareSlot(statement->mBallot);
+		TxHerderGateway::SlotComparisonType slotCompare = mApp.getTxHerderGateway().compareSlot(statement->mBallot);
 		if(slotCompare==TxHerderGateway::SAME_SLOT)
 		{  // we are on the same slot 2) yes
 			Node::pointer node = getNode(statement->mNodeID);
@@ -203,7 +198,7 @@ namespace stellar
 
 					node->addStatement(statement);
 					if(validity==TxHerderGateway::VALID_BALLOT) 
-                        mApp->getOverlayGateway().broadcastMessage(statement->mSignature);
+                        mApp.getOverlayGateway().broadcastMessage(statement->mSignature);
 
 					///////  DO THE THING
 					return(true);

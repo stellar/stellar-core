@@ -5,15 +5,15 @@ namespace stellar
 {
 
 	Application::Application()
+        mState(BOOTING_STATE),
+        mPeerMaster(*this),
+        mTxHerder(*this),
+        mFBAMaster(*this),
 	{
-		mState = BOOTING_STATE;
 	}
 
 	void Application::start()
 	{
-        mFBAMaster.setApplication(shared_from_this());
-        mTxHerder.setApplication(shared_from_this());
-        mPeerMaster.setApplication(shared_from_this());
 
 		// load last known ledger
 		// connect to peers

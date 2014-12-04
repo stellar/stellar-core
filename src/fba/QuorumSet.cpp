@@ -15,12 +15,12 @@ namespace stellar
 	}
 
     // get qset from wire
-    QuorumSet::QuorumSet(stellarxdr::QuorumSet& qset, ApplicationPtr app)
+    QuorumSet::QuorumSet(stellarxdr::QuorumSet& qset, Application &app)
     {
         mThreshold = qset.threshold;
         for(auto id : qset.validators)
         {
-            mNodes.push_back(app->getFBAGateway().getNode(id));
+            mNodes.push_back(app.getFBAGateway().getNode(id));
         }
     }
 
@@ -73,7 +73,7 @@ namespace stellar
 		sort(retList.begin(), retList.end(), ballotSorter);
 	}
 
-	Ballot::pointer QuorumSet::getMostPopularBallot(Statement::StatementType type, bool checkValid,Application::pointer app)
+	Ballot::pointer QuorumSet::getMostPopularBallot(Statement::StatementType type, bool checkValid, Application &app)
 	{
 		map< pair<stellarxdr::uint256, uint64_t>, int> ballotCounts;
 		Ballot::pointer ballot;
@@ -83,7 +83,7 @@ namespace stellar
 			Statement::pointer statement = node->getHighestStatement(type);
 			if(statement)
 			{
-				if(!checkValid || app->getTxHerderGateway().isValidBallotValue(statement->mBallot))
+				if(!checkValid || app.getTxHerderGateway().isValidBallotValue(statement->mBallot))
 				{
 					ballot = statement->mBallot;
 					ballotCounts[pair<stellarxdr::uint256, uint64_t>(ballot->mTxSetHash, ballot->mLedgerCloseTime)] += 1;
@@ -114,13 +114,13 @@ namespace stellar
 	}
 
 	// get the highest valid statement 
-	Statement::pointer QuorumSet::getHighestStatement(Statement::StatementType type,bool checkValid,Application::pointer app)
+	Statement::pointer QuorumSet::getHighestStatement(Statement::StatementType type,bool checkValid,Application &app)
 	{
 		Statement::pointer highStatement;
 		for(auto node : mNodes)
 		{
 			Statement::pointer statement = node->getHighestStatement(type);
-			if(!checkValid || app->getTxHerderGateway().isValidBallotValue(statement->mBallot))
+			if(!checkValid || app.getTxHerderGateway().isValidBallotValue(statement->mBallot))
 			{
 				if(!highStatement) highStatement = statement;
 				else
@@ -142,7 +142,7 @@ namespace stellar
 	// for PREPARE we need to look at gaps
 	//		for any gap see if other people can ratify the abort
     Node::RatState QuorumSet::checkRatState(Statement::StatementType statementType, BallotPtr ballot, 
-        int operationToken, int recheckCounter,Application::pointer app)
+        int operationToken, int recheckCounter,Application &app)
 	{
 		// LATER if(statementType == Statement::PREPARE_TYPE) return checkPrepareRatState(statement, visitIndex);
  

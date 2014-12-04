@@ -5,7 +5,8 @@
 
 namespace stellar
 {
-	PeerDoor::PeerDoor() 
+	PeerDoor::PeerDoor(Application &app)
+        : mApp(app)
 	{
         mAcceptor = NULL;
 	}
@@ -36,10 +37,10 @@ namespace stellar
 
 	void PeerDoor::handleKnock(shared_ptr<asio::ip::tcp::socket> socket)
 	{
-		Peer::pointer peer = std::make_shared<Peer>(socket,mApp);
-        mApp->getPeerMaster().addPeer(peer);
+        LOG(DEBUG) << "PeerDoor handleKnock()";
+		Peer::pointer peer = std::make_shared<Peer>(mApp, socket);
+        mApp.getPeerMaster().addPeer(peer);
 		peer->createFromDoor();
-
 		acceptNextPeer();
 	}
 }

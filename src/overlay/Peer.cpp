@@ -20,11 +20,11 @@ namespace stellar
 	);";
 
 
-	Peer::Peer(shared_ptr<asio::ip::tcp::socket> socket, Application::pointer app) :
+	Peer::Peer(Application &app, shared_ptr<asio::ip::tcp::socket> socket)
+        : mApp(app)
+        , mSocket(socket)
         mHelloTimer(*(app->getPeerMaster().mIOservice))
 	{
-        mApp = app;
-		mSocket = socket;
         mHelloTimer.expires_from_now(std::chrono::milliseconds(MS_TO_WAIT_FOR_HELLO));
         auto fun = std::bind(&Peer::neverSaidHello, this);
         mHelloTimer.async_wait(fun);
@@ -55,8 +55,8 @@ namespace stellar
 	{
 		stellarxdr::StellarMessage msg;
         msg.type(stellarxdr::HELLO);
-        msg.hello().protocolVersion = mApp->mConfig.PROTOCOL_VERSION;
-        msg.hello().versionStr = mApp->mConfig.VERSION_STR;
+        msg.hello().protocolVersion = mApp.mConfig.PROTOCOL_VERSION;
+        msg.hello().versionStr = mApp.mConfig.VERSION_STR;
 
 		sendMessage(msg);
 	}
@@ -362,10 +362,10 @@ namespace stellar
             // LATER
             break;
         case stellarxdr::TX_SET:
-            mApp->getTxHerderGateway().doesntHaveTxSet(msg->dontHave().reqHash, shared_from_this());
+            mApp.getTxHerderGateway().doesntHaveTxSet(msg->dontHave().reqHash, shared_from_this());
             break;
         case stellarxdr::QUORUMSET:
-            mApp->getOverlayGateway().doesntHaveQSet(msg->dontHave().reqHash, shared_from_this());
+            mApp.getOverlayGateway().doesntHaveQSet(msg->dontHave().reqHash, shared_from_this());
             break;
         case stellarxdr::VALIDATIONS:
         default:
@@ -375,7 +375,7 @@ namespace stellar
 
 	void Peer::recvGetTxSet(StellarMessagePtr msg)
 	{
-        TransactionSet::pointer txSet = mApp->getTxHerderGateway().fetchTxSet(msg->txSetHash(),false);
+        TransactionSet::pointer txSet = mApp.getTxHerderGateway().fetchTxSet(msg->txSetHash(),false);
 		if(txSet)
 		{
             stellarxdr::StellarMessage newMsg;
@@ -391,7 +391,7 @@ namespace stellar
 	void Peer::recvTxSet(StellarMessagePtr msg)
 	{
 		TransactionSet::pointer txSet = std::make_shared<TransactionSet>(msg->txSet());
-        mApp->getTxHerderGateway().recvTransactionSet(txSet);
+        mApp.getTxHerderGateway().recvTransactionSet(txSet);
 	}
 
 
@@ -400,16 +400,16 @@ namespace stellar
 		Transaction::pointer transaction = Transaction::makeTransactionFromWire(msg->transaction());
 		if(transaction)
 		{
-			if(mApp->getTxHerderGateway().recvTransaction(transaction))   // add it to our current set
+			if(mApp.getTxHerderGateway().recvTransaction(transaction))   // add it to our current set
 			{
-                mApp->getOverlayGateway().broadcastMessage(msg, shared_from_this());
+                mApp.getOverlayGateway().broadcastMessage(msg, shared_from_this());
 			}
 		}
 	}
 
 	void Peer::recvGetQuorumSet(StellarMessagePtr msg)
 	{
-		QuorumSet::pointer qset= mApp->getOverlayGateway().fetchQuorumSet(msg->qSetHash(),false);
+		QuorumSet::pointer qset= mApp.getOverlayGateway().fetchQuorumSet(msg->qSetHash(),false);
 		if(qset)
 		{
 			sendQuorumSet(qset);
@@ -423,7 +423,7 @@ namespace stellar
 	void Peer::recvQuorumSet(StellarMessagePtr msg)
 	{
 		QuorumSet::pointer qset = std::make_shared<QuorumSet>(msg->quorumSet(),mApp);
-        mApp->getOverlayGateway().recvQuorumSet(qset);
+        mApp.getOverlayGateway().recvQuorumSet(qset);
 
 	}
 
@@ -432,8 +432,8 @@ namespace stellar
         stellarxdr::FBAEnvelope envelope=msg->fbaMessage();
         Statement::pointer statement = Statement::makeStatement(envelope);
 
-        mApp->getOverlayGateway().recvFloodedMsg(statement->mSignature, msg, statement->getLedgerIndex(), shared_from_this());
-        mApp->getFBAGateway().recvStatement(statement);
+        mApp.getOverlayGateway().recvFloodedMsg(statement->mSignature, msg, statement->getLedgerIndex(), shared_from_this());
+        mApp.getFBAGateway().recvStatement(statement);
 	}
 
     void Peer::recvError(StellarMessagePtr msg)
@@ -449,7 +449,7 @@ namespace stellar
 
         mState = GOT_HELLO;
 
-        if(! mApp->getPeerMaster().isPeerAccepted(shared_from_this()))
+        if(! mApp.getPeerMaster().isPeerAccepted(shared_from_this()))
         {  // we can't accept anymore peer connections
             sendPeers();
             drop();

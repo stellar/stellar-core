@@ -20,7 +20,10 @@ namespace stellar
 {
     
 
-	PeerMaster::PeerMaster()
+	PeerMaster::PeerMaster(Application &app)
+        : mApp(app)
+        , mDoor(mApp)
+        , mQSetFetcher(mApp)
 	{
 		
 	}
@@ -34,7 +37,8 @@ namespace stellar
     void PeerMaster::tick()
     {
         // if we have too few peers try to connect to more
-        if(mPeers.size() < mApp->mConfig.TARGET_PEER_CONNECTIONS)
+        LOG(DEBUG) << "PeerMaster tick";
+        if(mPeers.size() < mApp.mConfig.TARGET_PEER_CONNECTIONS)
         {
             // LATER
         }
@@ -85,7 +89,7 @@ namespace stellar
 
     bool PeerMaster::isPeerAccepted(Peer::pointer peer)
     {
-        if(mPeers.size() < mApp->mConfig.MAX_PEER_CONNECTIONS) return true;
+        if(mPeers.size() < mApp.mConfig.MAX_PEER_CONNECTIONS) return true;
         return mPreferredPeers.isPeerPreferred(peer);
     }
 
@@ -118,12 +122,12 @@ namespace stellar
 
     void PeerMaster::recvQuorumSet(QuorumSet::pointer qset)
     {
-        mQSetFetcher.recvItem(mApp,qset);
+        mQSetFetcher.recvItem(qset);
     }
 
 	void PeerMaster::addConfigPeers()
 	{
-        mPreferredPeers.addPreferredPeers(mApp->mConfig.PREFERRED_PEERS);
+        mPreferredPeers.addPreferredPeers(mApp.mConfig.PREFERRED_PEERS);
 	}
 
 	void PeerMaster::broadcastMessage(stellarxdr::uint256& msgID)

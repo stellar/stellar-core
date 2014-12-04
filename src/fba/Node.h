@@ -56,7 +56,7 @@ namespace stellar
 		bool addStatement(StatementPtr msg);
 
         Node::RatState checkRatState(Statement::StatementType type, BallotPtr statement, 
-            int operationToken, int recheckCounter, ApplicationPtr app);
+            int operationToken, int recheckCounter, Application &app);
 		
     private:
         // for the ratification check
