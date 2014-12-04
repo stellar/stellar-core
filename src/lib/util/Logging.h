@@ -1,6 +1,9 @@
 #ifndef __LOGGING__
 #define __LOGGING__
 
+#define _ELPP_THREAD_SAFE
+#define _ELPP_DISABLE_DEFAULT_CRASH_HANDLING
+
 #include "lib/util/easylogging++.h"
 
 namespace stellar
