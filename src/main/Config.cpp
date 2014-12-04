@@ -1,4 +1,5 @@
 #include "main/Config.h"
+#include "util/StellardVersion.h"
 #include "lib/util/cpptoml.h"
 #include "lib/util/Logging.h"
 
@@ -10,15 +11,14 @@ namespace stellar
 
         // non configurable
         PROTOCOL_VERSION=1;
-        VERSION_STR="0.0.1";
+        VERSION_STR=STELLARD_VERSION;
 
         // configurable
         PEER_PORT= 39133;
         RUN_STANDALONE=false;
         TARGET_PEER_CONNECTIONS=20;
         MAX_PEER_CONNECTIONS = 50;
-       
-        LOG_FILE_PATH="hayashi.log";
+        LOG_FILE_PATH="stellard.log";
     }
 
     void Config::load(std::string const& filename)
