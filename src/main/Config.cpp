@@ -16,6 +16,7 @@ namespace stellar
         // configurable
         PEER_PORT= 39133;
         RUN_STANDALONE=false;
+        SINGLE_STEP_MODE=false;
         TARGET_PEER_CONNECTIONS=20;
         MAX_PEER_CONNECTIONS = 50;
         LOG_FILE_PATH="stellard.log";
