@@ -9,7 +9,7 @@ You are unwilling to consider it until enough time passes.
 namespace stellar
 {
     FutureStatement::FutureStatement(Statement::pointer statement, Application &app) :
-        mTimer(*(app->getPeerMaster().mIOservice))
+        mTimer(app.getMainIOService())
     {
         uint64_t timeNow = time(nullptr);
         int numSeconds = statement->mBallot->mLedgerCloseTime - timeNow-MAX_SECONDS_LEDGER_CLOSE_IN_FUTURE;

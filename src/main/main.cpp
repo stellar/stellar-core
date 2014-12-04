@@ -7,13 +7,12 @@ using namespace stellar;
 
 int main(int argc, char* argv[])
 {
-    Application::pointer app = std::make_shared<Application>();
-    app->mConfig.load(std::string("hayashi.cfg"));
-    Logging::setUpLogging(app);
-    
+    Config cfg;
+    cfg.load("hayashi.cfg");
+    Logging::setUpLogging(cfg.LOG_FILE_PATH);
     LOG(INFO) << "Starting Hayashi...";
-
-    app->start();
+    Application app(cfg);
+    app.joinAllThreads();
 }
 
 /*

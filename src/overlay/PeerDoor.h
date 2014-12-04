@@ -21,8 +21,7 @@ namespace stellar
 	class PeerDoor
 	{
         Application &mApp;
-
-		asio::ip::tcp::acceptor* mAcceptor;
+        asio::ip::tcp::acceptor mAcceptor;
 
 		void acceptNextPeer();
 		void handleKnock(shared_ptr<asio::ip::tcp::socket> pSocket);

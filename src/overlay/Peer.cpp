@@ -23,7 +23,7 @@ namespace stellar
 	Peer::Peer(Application &app, shared_ptr<asio::ip::tcp::socket> socket)
         : mApp(app)
         , mSocket(socket)
-        mHelloTimer(*(app->getPeerMaster().mIOservice))
+        , mHelloTimer(app.getMainIOService())
 	{
         mHelloTimer.expires_from_now(std::chrono::milliseconds(MS_TO_WAIT_FOR_HELLO));
         auto fun = std::bind(&Peer::neverSaidHello, this);
