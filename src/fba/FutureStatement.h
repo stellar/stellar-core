@@ -2,18 +2,14 @@
 #define __FUTURE_STATEMENT__
 
 #include <memory>
-#ifndef ASIO_STANDALONE
-#define ASIO_STANDALONE
-#endif
-#include <asio.hpp>
 #include "fba/Statement.h"
-#include <chrono>
+#include "util/timer.h"
 
 namespace stellar
 {
     class FutureStatement : public std::enable_shared_from_this<FutureStatement>
     {
-        asio::basic_waitable_timer<std::chrono::steady_clock> mTimer;
+        Timer mTimer;
         
     public:
         Statement::pointer mStatement;

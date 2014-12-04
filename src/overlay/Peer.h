@@ -11,6 +11,7 @@
 #include "generated/stellar.hh"
 #include "fba/QuorumSet.h"
 #include "overlay/StellarMessage.h"
+#include "util/timer.h"
 
 /*
 Another peer out there that we are connected to
@@ -22,7 +23,6 @@ namespace stellar
 {
     class Application;
     typedef std::shared_ptr<Application> ApplicationPtr;
-    typedef asio::basic_waitable_timer<std::chrono::steady_clock> Timer;
 
 	class Peer : public enable_shared_from_this <Peer>
 	{
