@@ -10,7 +10,6 @@
 bucket list will be a collection of temporal buckets
 It stores the hashes of the ledger entries
 
-Do we need the SLE in the bucket list?
 
 */
 namespace stellar
@@ -18,7 +17,7 @@ namespace stellar
 
 	class BucketList : public CanonicalLedgerForm
 	{
-        /* LATER 
+        /* CLF 
 		// index , SLE
 		std::map<stellarxdr::uint256, SLE::pointer> mPendingAdds;
 		std::map<stellarxdr::uint256, SLE::pointer> mPendingUpdates;

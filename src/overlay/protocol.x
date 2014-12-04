@@ -47,8 +47,18 @@ struct TransactionSet
 
 struct LedgerHeader
 {
+	uint256 hash;
     uint256 previousLedgerHash;
     uint256 txSetHash;
+	uint256 clfHash;
+
+	
+	uint64 totalCoins;
+	uint64 feePool;
+	uint32 ledgerSeq;
+	uint32 inflationSeq;
+	uint64 baseFee;
+	uint64 closeTime;       
 };
 
 

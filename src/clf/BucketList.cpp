@@ -2,7 +2,7 @@
 
 namespace stellar
 {
-    /* LATER
+    /* CLF
 	bool BucketList::load(stellarxdr::uint256 ledgerHash)
 	{
 

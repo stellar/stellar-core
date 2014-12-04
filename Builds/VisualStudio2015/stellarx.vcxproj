@@ -129,6 +129,8 @@
     <ClInclude Include="..\..\..\xdrpp\xdrpp\message.h" />
     <ClInclude Include="..\..\src\clf\BucketList.h" />
     <ClInclude Include="..\..\src\clf\CanonicalLedgerForm.h" />
+    <ClInclude Include="..\..\src\clf\CLF.h" />
+    <ClInclude Include="..\..\src\clf\CLFGateway.h" />
     <ClInclude Include="..\..\src\database\Database.h" />
     <ClInclude Include="..\..\src\fba\Ballot.h" />
     <ClInclude Include="..\..\src\fba\CommitStatement.h" />

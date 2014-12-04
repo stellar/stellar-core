@@ -24,7 +24,10 @@ namespace stellar
 		CanonicalLedgerForm::pointer mCurrentCLF;
         // LATER LedgerDatabase mCurrentDB;
         stellarxdr::uint256 mLastLedgerHash;
-		
+        ApplicationPtr mApp;
+
+        void startCatchUp(BallotPtr balllot);
+
     public:
 
         typedef std::shared_ptr<LedgerMaster>           pointer;
@@ -34,14 +37,12 @@ namespace stellar
 
 		//////// GATEWAY FUNCTIONS
 		// called by txherder
-		void externalizeValue(TransactionSet::pointer txSet, uint64_t closeTime);
+		void externalizeValue(BallotPtr balllot, TransactionSet::pointer txSet);
 
 		// called by CLF
 		void ledgerHashComputed(stellarxdr::uint256& hash);
 		
 		///////
-
-
 
 		// called on startup to get the last CLF we knew about
 		void loadLastKnownCLF();

@@ -14,17 +14,9 @@ namespace stellar
 	class Ledger
 	{
 	public:
+        stellarxdr::LedgerHeader mHeader;
 
-        stellarxdr::uint256     mHash;
-        stellarxdr::uint256     mParentHash;
-        stellarxdr::uint256     mTransHash;
-        stellarxdr::uint256     mAccountHash;
-		std::uint64_t      mTotCoins;
-		std::uint64_t      mFeePool;		// All the fees collected since last inflation spend
-		std::uint32_t		mLedgerSeq;
-		std::uint32_t		mInflationSeq;	// the last inflation that was applied 
-		
-		std::uint64_t      mCloseTime;         // when this ledger closed (seconds since 1970)
+        
 		std::uint64_t      mParentCloseTime;   // when the previous ledger closed
 		
 		
@@ -32,7 +24,7 @@ namespace stellar
 
 		std::uint32_t      mReferenceFeeUnits;                 // Fee units for the reference transaction
 		std::uint32_t      mReserveBase, mReserveIncrement;    // Reserve base and increment in fee units
-		std::uint64_t      mBaseFee;                           // Stroop cost of the reference transaction
+		
 
 
 		typedef std::shared_ptr<Ledger>           pointer;

@@ -386,6 +386,12 @@
     <ClInclude Include="..\..\src\fba\FBA.h">
       <Filter>fba</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\src\clf\CLFGateway.h">
+      <Filter>clf</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\clf\CLF.h">
+      <Filter>clf</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Text Include="..\..\src\lib\beast\beast.txt">
