@@ -26,8 +26,10 @@ namespace stellar
         , mHelloTimer(app.getMainIOService())
 	{
         mHelloTimer.expires_from_now(std::chrono::milliseconds(MS_TO_WAIT_FOR_HELLO));
-        auto fun = std::bind(&Peer::neverSaidHello, this);
-        mHelloTimer.async_wait(fun);
+        mHelloTimer.async_wait([socket](asio::error_code const& ec) {
+                socket->shutdown(asio::socket_base::shutdown_both);
+                socket->close();
+            });
 	}
 
 	void Peer::createFromDoor()
@@ -42,14 +44,6 @@ namespace stellar
         // GRAYDON mSocket->async_connect(server_endpoint, your_completion_handler);
 		
 	}
-
-    // first of all, rude!
-    void Peer::neverSaidHello()
-    {
-        drop();
-    }
-
-    
 
 	void Peer::sendHello()
 	{

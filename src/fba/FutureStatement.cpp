@@ -15,8 +15,7 @@ namespace stellar
         int numSeconds = statement->mBallot->mLedgerCloseTime - timeNow-MAX_SECONDS_LEDGER_CLOSE_IN_FUTURE;
         if(numSeconds <= 0) numSeconds = 1;
         mTimer.expires_from_now(std::chrono::seconds(numSeconds));
-        auto fun = std::bind(&FutureStatement::tryNow, this, app);
-        mTimer.async_wait(fun);
+        mTimer.async_wait([this, &app](asio::error_code const& ec){this->tryNow(app);});
     }
 
     FutureStatement::~FutureStatement()
