@@ -7,12 +7,16 @@
 
 namespace stellar
 {
+
+    using asio::ip::tcp;
+    using std::make_shared;
+
     PeerDoor::PeerDoor(Application &app)
         : mApp(app)
         , mAcceptor(mApp.getMainIOService())
     {
         if(!mApp.mConfig.RUN_STANDALONE) {
-            asio::ip::tcp::endpoint endpoint(asio::ip::tcp::v4(), mApp.mConfig.PEER_PORT);
+            tcp::endpoint endpoint(tcp::v4(), mApp.mConfig.PEER_PORT);
             LOG(DEBUG) << "PeerDoor binding to endpoint " << endpoint;
             mAcceptor.open(endpoint.protocol());
             mAcceptor.bind(endpoint);
@@ -29,7 +33,7 @@ namespace stellar
     void PeerDoor::acceptNextPeer()
     {
         LOG(DEBUG) << "PeerDoor acceptNextPeer()";
-        auto sock = std::make_shared<asio::ip::tcp::socket>(mApp.getMainIOService());
+        auto sock = make_shared<tcp::socket>(mApp.getMainIOService());
         mAcceptor.async_accept(*sock, [this, sock](asio::error_code const &ec) {
                 if (ec)
                     this->acceptNextPeer();
@@ -38,12 +42,11 @@ namespace stellar
             });
     }
 
-    void PeerDoor::handleKnock(shared_ptr<asio::ip::tcp::socket> socket)
+    void PeerDoor::handleKnock(shared_ptr<tcp::socket> socket)
     {
         LOG(DEBUG) << "PeerDoor handleKnock()";
-        Peer::pointer peer = std::make_shared<Peer>(mApp, socket);
+        Peer::pointer peer = make_shared<TCPPeer>(mApp, socket, Peer::ACCEPTOR);
         mApp.getPeerMaster().addPeer(peer);
-        peer->createFromDoor();
         acceptNextPeer();
     }
 }
