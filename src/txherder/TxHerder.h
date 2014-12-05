@@ -33,7 +33,7 @@ namespace stellar
 		// 3- three or more ledgers ago. Any set we validate must have these tx
 		vector< vector<Transaction::pointer> > mReceivedTransactions;
 
-		TxSetFetcher mTxSetFetcher[2];
+		std::array<TxSetFetcher, 2> mTxSetFetcher;
         int mCurrentTxSetFetcher;
 
 		int mCloseCount;

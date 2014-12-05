@@ -13,7 +13,7 @@ namespace stellar
 	TxHerder::TxHerder(Application &app)
         : mCollectingTransactionSet(std::make_shared<TransactionSet>())
         , mReceivedTransactions(4)
-        , mTxSetFetcher { TxSetFetcher(app), TxSetFetcher(app) }
+        , mTxSetFetcher ({ TxSetFetcher(app), TxSetFetcher(app) })
         , mCurrentTxSetFetcher(0)
         , mCloseCount(0)
         , mApp(app)

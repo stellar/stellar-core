@@ -40,8 +40,13 @@ void testHelloGoodbye(Config const& cfg){
 int
 test()
 {
-    std::ostringstream oss;
-    oss << "stellard-test-" << getpid() << "-" << time(nullptr) << ".log";
+#ifdef _MSC_VER
+#define GETPID _getpid
+#else
+#define GETPID getpid
+#endif
+	std::ostringstream oss;
+	oss << "stellard-test-" << time(nullptr) << "-" << GETPID() << ".log";
     Config cfg;
     cfg.LOG_FILE_PATH = oss.str();
 

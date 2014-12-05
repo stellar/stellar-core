@@ -403,7 +403,7 @@ namespace stellar
                                        xdrBytes->raw_size()),
                           std::bind([self](asio::error_code const &ec,
                                            std::size_t length,
-                                           xdr::msg_ptr const& ignore) {
+                                           xdr::msg_ptr const&) {
                                         self->writeHandler(ec, length);
                                     }, _1, _2, std::move(xdrBytes)));
     }

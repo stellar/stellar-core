@@ -50,7 +50,7 @@
  */
 
 #include <errno.h>
-#include <getopt.h>
+#include "lib/util/getopt.h"
 #include <stdlib.h>
 #include <string.h>
 

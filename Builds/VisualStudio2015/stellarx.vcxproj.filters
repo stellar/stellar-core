@@ -180,6 +180,12 @@
     <ClCompile Include="..\..\src\fba\FutureStatement.cpp">
       <Filter>fba</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\main\test.cpp">
+      <Filter>main</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lib\util\getopt_long.c">
+      <Filter>lib\util</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\fba\Ballot.h">
@@ -385,6 +391,9 @@
     </ClInclude>
     <ClInclude Include="..\..\src\fba\FBA.h">
       <Filter>fba</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\lib\util\getopt.h">
+      <Filter>lib\util</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
