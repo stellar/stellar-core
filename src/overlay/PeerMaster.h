@@ -49,8 +49,6 @@ namespace stellar
         void recvQuorumSet(QuorumSet::pointer qset);
 		//////
 
-
-		void start();
 		void addPeer(Peer::pointer peer);
 		void dropPeer(Peer::pointer peer);
         bool isPeerAccepted(Peer::pointer peer);
