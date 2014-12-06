@@ -27,7 +27,7 @@ void testHelloGoodbye(Config const& cfg){
     apps.emplace_back(make_unique<Application>(cfg));
     apps.emplace_back(make_unique<Application>(cfg));
 
-    LoopbackPeer::connectApplications(*apps[0], *apps[1]);
+    LoopbackPeerConnection conn(*apps[0], *apps[1]);
 
     while (!allStopped(apps)) {
         for (appPtr &app : apps) {
