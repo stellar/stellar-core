@@ -3,7 +3,7 @@
 
 bin_PROGRAMS = bin/stellard
 
-bin_stellard_SOURCES = src/overlay/Floodgate.cpp src/overlay/PeerDoor.cpp		\
+FMT_SRCS = src/overlay/Floodgate.cpp src/overlay/PeerDoor.cpp		\
 	src/overlay/Peer.cpp src/overlay/ItemFetcher.cpp src/overlay/PeerMaster.cpp	\
 	src/overlay/PreferredPeers.cpp src/lib/util/types.cpp src/fba/FBAMaster.cpp	\
 	src/fba/FutureStatement.cpp src/fba/OurNode.cpp src/fba/QuorumSet.cpp		\
@@ -17,8 +17,10 @@ bin_stellard_SOURCES = src/overlay/Floodgate.cpp src/overlay/PeerDoor.cpp		\
 	src/txherder/TransactionSet.cpp src/clf/BucketList.cpp src/main/main.cpp	\
 	src/main/test.cpp src/main/Application.cpp src/main/Config.cpp				\
 	src/transactions/TrustSetTx.cpp src/transactions/Transaction.cpp			\
-	src/util/Logging.cpp src/lib/util/getopt_long.c src/util/StellardVersion.h
+	src/util/Logging.cpp
 
+
+bin_stellard_SOURCES = $(FMT_SRCS) src/lib/util/getopt_long.c src/util/StellardVersion.h
 bin_stellard_LDADD = -lxdrpp
 bin_stellard_CPPFLAGS = -I$(srcdir)/src/lib/asio/include -DASIO_STANDALONE
 
@@ -42,7 +44,7 @@ SUFFIXES = .x .hh
 
 if USE_CLANG_FORMAT
 format:
-	cd $(srcdir) && $(CLANG_FORMAT) -i $(bin_stellard_SOURCES)
+	cd $(srcdir) && $(CLANG_FORMAT) -i $(FMT_SRCS)
 endif
 
 maintainer-clean-local:

@@ -7,21 +7,24 @@
 namespace stellar
 {
 
-
 typedef std::unique_ptr<Application> appPtr;
 
 bool
-allStopped(std::vector<appPtr>& apps)
+allStopped(std::vector<appPtr> &apps)
 {
-    for (appPtr &app : apps) {
-        if (!app->getMainIOService().stopped()) {
+    for (appPtr &app : apps)
+    {
+        if (!app->getMainIOService().stopped())
+        {
             return false;
         }
     }
     return true;
 }
 
-void testHelloGoodbye(Config const& cfg){
+void
+testHelloGoodbye(Config const &cfg)
+{
 
     std::vector<appPtr> apps;
     apps.emplace_back(make_unique<Application>(cfg));
@@ -29,8 +32,10 @@ void testHelloGoodbye(Config const& cfg){
 
     LoopbackPeerConnection conn(*apps[0], *apps[1]);
 
-    while (!allStopped(apps)) {
-        for (appPtr &app : apps) {
+    while (!allStopped(apps))
+    {
+        for (appPtr &app : apps)
+        {
             app->getMainIOService().poll_one();
             app->getWorkerIOService().poll_one();
         }
@@ -45,8 +50,8 @@ test()
 #else
 #define GETPID getpid
 #endif
-	std::ostringstream oss;
-	oss << "stellard-test-" << time(nullptr) << "-" << GETPID() << ".log";
+    std::ostringstream oss;
+    oss << "stellard-test-" << time(nullptr) << "-" << GETPID() << ".log";
     Config cfg;
     cfg.LOG_FILE_PATH = oss.str();
 
@@ -65,5 +70,4 @@ test()
 
     return 0;
 }
-
 }

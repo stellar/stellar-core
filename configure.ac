@@ -18,7 +18,7 @@ AC_LANG(C++)
 # -pthread Seems to be required by g++ -stc=c++1[14]
 AX_APPEND_COMPILE_FLAGS([-pthread])
 
-AC_CHECK_PROGS(CLANG_FORMAT, [clang-format clang-format-3.4 clang-format-3.5])
+AC_CHECK_PROGS(CLANG_FORMAT, [clang-format clang-format-3.6])
 AM_CONDITIONAL([USE_CLANG_FORMAT], [test "x$CLANG_FORMAT" != "x"])
 
 for dir in ../xdrpp/build ../xdrpp ./xdrpp; do

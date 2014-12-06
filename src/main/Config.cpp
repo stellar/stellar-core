@@ -5,52 +5,61 @@
 
 namespace stellar
 {
-    Config::Config()
+Config::Config()
+{
+    // fill in defaults
+
+    // non configurable
+    PROTOCOL_VERSION = 1;
+    VERSION_STR = STELLARD_VERSION;
+
+    // configurable
+    PEER_PORT = 39133;
+    RUN_STANDALONE = false;
+    SINGLE_STEP_MODE = false;
+    TARGET_PEER_CONNECTIONS = 20;
+    MAX_PEER_CONNECTIONS = 50;
+    LOG_FILE_PATH = "stellard.log";
+}
+
+void
+Config::load(std::string const &filename)
+{
+    try
     {
-        // fill in defaults
+        cpptoml::toml_group g = cpptoml::parse_file(filename);
+        if (g.contains("PEER_PORT"))
+            PEER_PORT = (int)g.get("PEER_PORT")->as<int64_t>()->value();
+        if (g.contains("RUN_STANDALONE"))
+            RUN_STANDALONE = g.get("RUN_STANDALONE")->as<bool>()->value();
+        if (g.contains("LOG_FILE_PATH"))
+            LOG_FILE_PATH = g.get("LOG_FILE_PATH")->as<std::string>()->value();
 
-        // non configurable
-        PROTOCOL_VERSION=1;
-        VERSION_STR=STELLARD_VERSION;
-
-        // configurable
-        PEER_PORT= 39133;
-        RUN_STANDALONE=false;
-        SINGLE_STEP_MODE=false;
-        TARGET_PEER_CONNECTIONS=20;
-        MAX_PEER_CONNECTIONS = 50;
-        LOG_FILE_PATH="stellard.log";
-    }
-
-    void Config::load(std::string const& filename)
-    {
-        try {
-            cpptoml::toml_group g = cpptoml::parse_file(filename);
-            if(g.contains("PEER_PORT")) PEER_PORT = (int) g.get("PEER_PORT")->as<int64_t>()->value();
-            if(g.contains("RUN_STANDALONE")) RUN_STANDALONE = g.get("RUN_STANDALONE")->as<bool>()->value();
-            if(g.contains("LOG_FILE_PATH")) LOG_FILE_PATH = g.get("LOG_FILE_PATH")->as<std::string>()->value();
-
-            if(g.contains("TARGET_PEER_CONNECTIONS")) TARGET_PEER_CONNECTIONS = (int)g.get("TARGET_PEER_CONNECTIONS")->as<int64_t>()->value();
-            if(g.contains("MAX_PEER_CONNECTIONS")) MAX_PEER_CONNECTIONS = (int)g.get("MAX_PEER_CONNECTIONS")->as<int64_t>()->value();
-            if(g.contains("PREFERRED_PEERS"))
-            {
-                for(auto v : g.get_array("PREFERRED_PEERS")->array())
-                {
-                    PREFERRED_PEERS.push_back(v->as<std::string>()->value());
-                }
-            }
-
-            if(g.contains("KNOWN_PEERS"))
-            {
-                for(auto v : g.get_array("KNOWN_PEERS")->array())
-                {
-                    KNOWN_PEERS.push_back(v->as<std::string>()->value());
-                }
-            }
-
-        }catch(cpptoml::toml_parse_exception& ex)
+        if (g.contains("TARGET_PEER_CONNECTIONS"))
+            TARGET_PEER_CONNECTIONS =
+                (int)g.get("TARGET_PEER_CONNECTIONS")->as<int64_t>()->value();
+        if (g.contains("MAX_PEER_CONNECTIONS"))
+            MAX_PEER_CONNECTIONS =
+                (int)g.get("MAX_PEER_CONNECTIONS")->as<int64_t>()->value();
+        if (g.contains("PREFERRED_PEERS"))
         {
-            LOG(ERROR) << "Failed to parse " << filename << ": " << ex.what();
-        } 
+            for (auto v : g.get_array("PREFERRED_PEERS")->array())
+            {
+                PREFERRED_PEERS.push_back(v->as<std::string>()->value());
+            }
+        }
+
+        if (g.contains("KNOWN_PEERS"))
+        {
+            for (auto v : g.get_array("KNOWN_PEERS")->array())
+            {
+                KNOWN_PEERS.push_back(v->as<std::string>()->value());
+            }
+        }
     }
+    catch (cpptoml::toml_parse_exception &ex)
+    {
+        LOG(ERROR) << "Failed to parse " << filename << ": " << ex.what();
+    }
+}
 }
