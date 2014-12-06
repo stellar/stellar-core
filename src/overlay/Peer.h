@@ -7,6 +7,7 @@
 #include <asio.hpp>
 #include <deque>
 #include <mutex>
+#include <random>
 #include "xdrpp/message.h"
 #include "generated/stellar.hh"
 #include "fba/QuorumSet.h"

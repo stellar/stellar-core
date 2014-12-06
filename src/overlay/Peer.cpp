@@ -803,7 +803,7 @@ void
 LoopbackPeer::setDamageProbability(double d)
 {
     checkProbRange(d);
-    mDamageProb.param(d);
+    mDamageProb = bernoulli_distribution(d);
 }
 
 double
@@ -816,7 +816,7 @@ void
 LoopbackPeer::setDropProbability(double d)
 {
     checkProbRange(d);
-    mDamageProb.param(d);
+    mDamageProb = bernoulli_distribution(d);
 }
 
 double
@@ -829,7 +829,7 @@ void
 LoopbackPeer::setDuplicateProbability(double d)
 {
     checkProbRange(d);
-    mDamageProb.param(d);
+    mDamageProb = bernoulli_distribution(d);
 }
 
 double
@@ -842,7 +842,7 @@ void
 LoopbackPeer::setReorderProbability(double d)
 {
     checkProbRange(d);
-    mDamageProb.param(d);
+    mDamageProb = bernoulli_distribution(d);
 }
 
 LoopbackPeerConnection::LoopbackPeerConnection(Application &initiator,
