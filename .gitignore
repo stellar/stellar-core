@@ -1,5 +1,16 @@
 *.a
 *.o
+*.obj
+*.log
+*.tlog
+*.lastbuildstate
+*.idb
+*.pdb
+*.exe
+*.ilk
+*.opensdf
+*.sdf
+*.suo
 *~
 .deps
 .dirstamp
