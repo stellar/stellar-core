@@ -11,7 +11,8 @@
          (c-file-style . "stroustrup")
          (eval . (add-to-list 'auto-mode-alist '("\\.h\\'" . c++-mode)))
          (eval . (add-to-list 'c-offsets-alist '(innamespace . -)))
-         (compile-command . (concat "make"
-                                    " -C " (locate-dominating-file
-                                     buffer-file-name ".dir-locals.el")
-                                    " -j $(nproc)")))))
+         (eval . (setq compile-command
+                       (concat "make"
+                               " -C " (locate-dominating-file
+                                       buffer-file-name ".dir-locals.el")
+                               " -j $(nproc)"))))))
