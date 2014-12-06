@@ -6,6 +6,12 @@
                                          "src/lib/asio/include"
                                          ))
          (fill-column . 80)
-         (eval . (add-to-list 'auto-mode-alist '("\\.h\\'" . c++-mode)))
+         (indent-tabs-mode .  nil)
+         (whitespace-style . (face tabs tab-mark trailing lines-tail empty))
          (c-file-style . "stroustrup")
-         (compile-command . "make -j $(nproc)"))))
+         (eval . (add-to-list 'auto-mode-alist '("\\.h\\'" . c++-mode)))
+         (eval . (add-to-list 'c-offsets-alist '(innamespace . -)))
+         (compile-command . (concat "make"
+                                    " -C " (locate-dominating-file
+                                     buffer-file-name ".dir-locals.el")
+                                    " -j $(nproc)")))))
