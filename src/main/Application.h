@@ -50,7 +50,7 @@ namespace stellar
         // NB: The io_services should come first, then the 'master'
         // sub-objects, then the threads. Do not reorder these fields.
         //
-        // The fields must be cosntructed in this order, because the
+        // The fields must be constructed in this order, because the
         // 'master' sub-objects register work-to-do (listening on sockets)
         // with the io_services during construction, and the threads are
         // activated immediately thereafter to serve requests; if the
