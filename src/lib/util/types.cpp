@@ -19,16 +19,23 @@ hashXDR(xdr::msg_ptr msg, stellarxdr::uint256 &retHash)
 }
 
 std::string &
-toStr(stellarxdr::uint256 const &b, std::string &retstr)
+toBase58(stellarxdr::uint256 const &b, std::string &retstr)
 {
     // SANITY base58 encode
     return (retstr);
 }
 
+stellarxdr::uint256 fromBase58(const std::string& str)
+{
+    // SANITY base58 decode str
+    stellarxdr::uint256 ret;
+    return (ret);
+}
+
 stellarxdr::uint256
 makePublicKey(stellarxdr::uint256 const &b)
 {
-    // SANITY
+    // SANITY pub from private
     stellarxdr::uint256 ret;
     return (ret);
 }

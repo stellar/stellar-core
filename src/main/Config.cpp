@@ -2,6 +2,7 @@
 #include "util/StellardVersion.h"
 #include "lib/util/cpptoml.h"
 #include "lib/util/Logging.h"
+#include "lib/util/types.h"
 
 namespace stellar
 {
@@ -20,6 +21,7 @@ Config::Config()
     TARGET_PEER_CONNECTIONS = 20;
     MAX_PEER_CONNECTIONS = 50;
     LOG_FILE_PATH = "stellard.log";
+    QUORUM_THRESHOLD=1000;
 }
 
 void
@@ -30,7 +32,11 @@ Config::load(std::string const &filename)
         cpptoml::toml_group g = cpptoml::parse_file(filename);
         if (g.contains("PEER_PORT"))
             PEER_PORT = (int)g.get("PEER_PORT")->as<int64_t>()->value();
-        if (g.contains("RUN_STANDALONE"))
+        if(g.contains("QUORUM_THRESHOLD"))
+            PEER_PORT = (int)g.get("QUORUM_THRESHOLD")->as<int64_t>()->value();
+        if (g.contains("SINGLE_STEP_MODE"))
+            SINGLE_STEP_MODE = g.get("SINGLE_STEP_MODE")->as<bool>()->value();
+        if(g.contains("RUN_STANDALONE"))
             RUN_STANDALONE = g.get("RUN_STANDALONE")->as<bool>()->value();
         if (g.contains("LOG_FILE_PATH"))
             LOG_FILE_PATH = g.get("LOG_FILE_PATH")->as<std::string>()->value();
@@ -54,6 +60,14 @@ Config::load(std::string const &filename)
             for (auto v : g.get_array("KNOWN_PEERS")->array())
             {
                 KNOWN_PEERS.push_back(v->as<std::string>()->value());
+            }
+        }
+
+        if(g.contains("QUORUM_SET"))
+        {
+            for(auto v : g.get_array("QUORUM_SET")->array())
+            {
+                QUORUM_SET.push_back(fromBase58(v->as<std::string>()->value()));
             }
         }
     }

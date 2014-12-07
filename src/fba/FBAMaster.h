@@ -40,13 +40,10 @@ namespace stellar
 
 	class FBAMaster : public FBAGateway
 	{
-        
         Application &mApp;
 		bool mValidatingNode;
 		OurNode::pointer mOurNode;
-		QuorumSet::pointer mOurQuorumSet;
-
-        // SANITY make sure all of these are filled out and cleaned up
+		QuorumSet::pointer mOurQuorumSet; // just store it as a ::pointer since the rest of the app wants it this way
 
 		// map of nodes we have gotten FBA messages from in this round
 		// we save ones we don't care about in case they are on some yet unknown Quorom Set
@@ -75,6 +72,8 @@ namespace stellar
 		bool processStatement(Statement::pointer statement);
 		void processStatements(vector<Statement::pointer>& statementList);
 
+        void createOurQuroumSet();
+
 	public:
 
 		FBAMaster(Application &app);
@@ -96,8 +95,6 @@ namespace stellar
 
         void statementReady(FutureStatement::pointer statement);
 
-        
-		void ledgerClosed(); // SANITY when is this called?
 	};
 }
 

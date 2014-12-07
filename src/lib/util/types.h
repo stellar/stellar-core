@@ -10,8 +10,10 @@ namespace stellar
 
     void hashXDR(xdr::msg_ptr msg, stellarxdr::uint256& retHash);
 
-    std::string& toStr(stellarxdr::uint256 const& b, std::string& retstr);
+    std::string& toBase58(stellarxdr::uint256 const& b, std::string& retstr);
+    stellarxdr::uint256 fromBase58(const std::string& str);
 
     stellarxdr::uint256 makePublicKey(stellarxdr::uint256 const& b);
+
 
 }

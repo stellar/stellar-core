@@ -89,16 +89,36 @@ namespace stellar
 
 	FBAMaster::FBAMaster(Application &app)
         : mApp(app)
-        , mValidatingNode(false)
+        , mValidatingNode(false)  // always start false since we aren't
+                                  // validating till we catch up to network
         , mOurNode(std::make_shared<OurNode>(mApp))
+        , mOurQuorumSet(std::make_shared<QuorumSet>())
 	{
+        createOurQuroumSet();
+        app.getOverlayGateway().recvQuorumSet(mOurQuorumSet);
+        // LATER: we will need to rehash the Qset and restore it with the
+        // fetcher if it ever becomes possible to change it
 	}
+
+    void FBAMaster::createOurQuroumSet()
+    {
+        mOurQuorumSet->mNodes.clear();
+        
+        for(auto nodeID : mApp.mConfig.QUORUM_SET)
+        {
+            Node::pointer node = std::make_shared<Node>(nodeID);
+            mOurQuorumSet->mNodes.push_back(node);
+            mKnownNodes[node->mNodeID] = node;
+        }
+    }
 
 	// start a new round of consensus. This is called after the last ledger closes
 	void FBAMaster::startNewRound(Ballot::pointer firstBallot)
 	{
-		// start with all nodes having no FBA messages
+		// start with no nodes
 		mKnownNodes.clear();
+        createOurQuroumSet();
+        mWaitTxStatements.clear();
         mWaitFutureStatements.clear(); // SANITY: do these get cleaned up right away or do we need to go through and call cancel on all the timers?
 		
 		//apply any FBA messages we collected before close
@@ -219,7 +239,9 @@ namespace stellar
 			} else if(slotCompare==TxHerderGateway::INCOMPATIBLIE_SLOT)
 			{
                 std::string str;
-				CLOG(WARNING, "FBA") << "Node: " << toStr(statement->mNodeID,str) << " on a different ledger(" << statement->mBallot->mLederIndex << " : " << toStr(statement->mBallot->mPreviousLedgerHash,str);
+				CLOG(WARNING, "FBA") << "Node: " << toBase58(statement->mNodeID,str) << 
+                    " on a different ledger(" << statement->mBallot->mLederIndex << 
+                    " : " << toBase58(statement->mBallot->mPreviousLedgerHash,str);
 			}
 		}
 		return false;
@@ -273,7 +295,8 @@ namespace stellar
 
 	void FBAMaster::addQuorumSet(QuorumSet::pointer qset)
 	{
-		// LATER: we should make sure we asked for and need this Qset. For now just assume we asked for it if someone sent it to us
+		// OPTIMIZE: we should make sure we asked for and need this Qset. 
+        //  For now just assume we asked for it if someone sent it to us
 		mOurNode->progressFBA();
 	}
 
