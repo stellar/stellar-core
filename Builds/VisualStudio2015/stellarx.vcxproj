@@ -118,6 +118,7 @@
     <ClCompile Include="..\..\src\main\test.cpp" />
     <ClCompile Include="..\..\src\overlay\Floodgate.cpp" />
     <ClCompile Include="..\..\src\overlay\ItemFetcher.cpp" />
+    <ClCompile Include="..\..\src\overlay\LoopbackPeer.cpp" />
     <ClCompile Include="..\..\src\overlay\Peer.cpp" />
     <ClCompile Include="..\..\src\overlay\PeerDoor.cpp" />
     <ClCompile Include="..\..\src\overlay\PeerMaster.cpp" />
@@ -178,9 +179,11 @@
     <ClInclude Include="..\..\src\lib\util\uint256.h" />
     <ClInclude Include="..\..\src\main\Application.h" />
     <ClInclude Include="..\..\src\main\Config.h" />
+    <ClInclude Include="..\..\src\main\main.h" />
     <ClInclude Include="..\..\src\overlay\FetchableItem.h" />
     <ClInclude Include="..\..\src\overlay\Floodgate.h" />
     <ClInclude Include="..\..\src\overlay\ItemFetcher.h" />
+    <ClInclude Include="..\..\src\overlay\LoopbackPeer.h" />
     <ClInclude Include="..\..\src\overlay\OverlayGateway.h" />
     <ClInclude Include="..\..\src\overlay\Peer.h" />
     <ClInclude Include="..\..\src\overlay\PeerDoor.h" />

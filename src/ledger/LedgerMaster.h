@@ -23,7 +23,7 @@ namespace stellar
 		CanonicalLedgerForm::pointer mCurrentCLF;
         // LATER LedgerDatabase mCurrentDB;
         stellarxdr::uint256 mLastLedgerHash;
-        ApplicationPtr mApp;
+        Application &mApp;
 
         void startCatchUp(BallotPtr balllot);
 

@@ -21,8 +21,8 @@ namespace stellar
 
 	class PeerMaster : public OverlayGateway
 	{
-        // peers we are connected to
         Application &mApp;
+        // peers we are connected to
 		vector<Peer::pointer> mPeers;
 		PeerDoor mDoor;
 		QSetFetcher mQSetFetcher;
