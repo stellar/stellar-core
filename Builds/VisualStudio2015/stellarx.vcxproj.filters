@@ -189,6 +189,9 @@
     <ClCompile Include="..\..\src\overlay\LoopbackPeer.cpp">
       <Filter>overlay</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\overlay\TCPPeer.cpp">
+      <Filter>overlay</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\fba\Ballot.h">
@@ -409,6 +412,9 @@
     </ClInclude>
     <ClInclude Include="..\..\src\main\main.h">
       <Filter>main</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\overlay\TCPPeer.h">
+      <Filter>overlay</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

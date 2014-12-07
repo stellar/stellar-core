@@ -123,6 +123,7 @@
     <ClCompile Include="..\..\src\overlay\PeerDoor.cpp" />
     <ClCompile Include="..\..\src\overlay\PeerMaster.cpp" />
     <ClCompile Include="..\..\src\overlay\PreferredPeers.cpp" />
+    <ClCompile Include="..\..\src\overlay\TCPPeer.cpp" />
     <ClCompile Include="..\..\src\transactions\Transaction.cpp" />
     <ClCompile Include="..\..\src\transactions\TrustSetTx.cpp" />
     <ClCompile Include="..\..\src\txherder\TransactionSet.cpp" />
@@ -190,6 +191,7 @@
     <ClInclude Include="..\..\src\overlay\PeerMaster.h" />
     <ClInclude Include="..\..\src\overlay\PreferredPeers.h" />
     <ClInclude Include="..\..\src\overlay\StellarMessage.h" />
+    <ClInclude Include="..\..\src\overlay\TCPPeer.h" />
     <ClInclude Include="..\..\src\transactions\CancelOfferTx.h" />
     <ClInclude Include="..\..\src\transactions\CreateOfferTx.h" />
     <ClInclude Include="..\..\src\transactions\InflationTx.h" />
