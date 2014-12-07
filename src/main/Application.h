@@ -15,15 +15,21 @@
  * Multiple instances may exist in the same process, eg. for the sake of
  * testing by simulating a network of applications.
  *
- * Owns two asio::io_services, one "main" (driven by a main thread) and one
- * "worker" (driven by a pool of #NCORE worker threads).  The main
- * thread/io_service has the run of the application and responds to the
- * majority of (small, sequential, consensus-related) network requests. The
- * worker threads/io_service are for long-running, self-contained helper
- * jobs such as bulk transfers and hashing. They should not touch anything
- * outside their own job-state (i.e. in a closure) and should post results
- * back to the main io_service when complete.
+ * Owns two asio::io_services, one "main" (usually driven by a main thread) and
+ * one "worker" (usually driven by a pool of #NCORE worker threads).  The main
+ * thread/io_service has the run of the application and responds to the majority
+ * of (small, sequential, consensus-related) network requests. The worker
+ * threads/io_service are for long-running, self-contained helper jobs such as
+ * bulk transfers and hashing. They should not touch anything outside their own
+ * job-state (i.e. in a closure) and should post results back to the main
+ * io_service when complete.
  *
+ * If the application is constructed in "single step" mode
+ * (cfg.SINGLE_STEP_MODE) then no threads are created and the owner of the
+ * Application has to manually step the event loops forware using
+ * app.getMainIOService().run_one() or .poll_one() or the like. This mode is
+ * useful in running multiple Applications inside a test, for simulating a
+ * specific, deterministic communication pattern between nodes.
  */
 
 namespace stellar
@@ -69,7 +75,7 @@ namespace stellar
         TxHerder mTxHerder;
         FBAMaster mFBAMaster;
 
-        std::thread mMainThread;
+        std::unique_ptr<std::thread> mMainThread;
         std::vector<std::thread> mWorkerThreads;
 
         asio::signal_set mStopSignals;

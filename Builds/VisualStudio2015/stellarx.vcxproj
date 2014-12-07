@@ -44,8 +44,10 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>../../src/lib/asio/include;../../../libsodium/include;../../../xdrpp;../../src;C:\code\OpenSSL-Win32\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>src;../../src/lib/asio/include;../../../libsodium/include;../../../xdrpp;../../src;C:\code\OpenSSL-Win32\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>_WINSOCK_DEPRECATED_NO_WARNINGS;ASIO_STANDALONE;ASIO_ERROR_CATEGORY_NOEXCEPT=noexcept;_CRT_SECURE_NO_WARNINGS;_WIN32_WINNT=0x0501;WIN32;_MBCS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <MinimalRebuild>false</MinimalRebuild>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -105,6 +107,7 @@
     <ClCompile Include="..\..\src\lib\util\base58.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
     </ClCompile>
+    <ClCompile Include="..\..\src\lib\util\getopt_long.c" />
     <ClCompile Include="..\..\src\lib\util\types.cpp" />
     <ClCompile Include="..\..\src\lib\util\uint256.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
@@ -112,6 +115,7 @@
     <ClCompile Include="..\..\src\main\Application.cpp" />
     <ClCompile Include="..\..\src\main\Config.cpp" />
     <ClCompile Include="..\..\src\main\main.cpp" />
+    <ClCompile Include="..\..\src\main\test.cpp" />
     <ClCompile Include="..\..\src\overlay\Floodgate.cpp" />
     <ClCompile Include="..\..\src\overlay\ItemFetcher.cpp" />
     <ClCompile Include="..\..\src\overlay\Peer.cpp" />
@@ -168,6 +172,7 @@
     <ClInclude Include="..\..\src\lib\util\byte_order.h" />
     <ClInclude Include="..\..\src\lib\util\cpptoml.h" />
     <ClInclude Include="..\..\src\lib\util\easylogging++.h" />
+    <ClInclude Include="..\..\src\lib\util\getopt.h" />
     <ClInclude Include="..\..\src\lib\util\Logging.h" />
     <ClInclude Include="..\..\src\lib\util\types.h" />
     <ClInclude Include="..\..\src\lib\util\uint256.h" />
