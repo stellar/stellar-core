@@ -23,6 +23,7 @@ PeerMaster::PeerMaster(Application &app)
     : mApp(app),
       mDoor(mApp),
       mQSetFetcher(mApp),
+      mDeltaFetcher(mApp),
       mTimer(app.getMainIOService(), std::chrono::seconds(1))
 {
     mPreferredPeers.addPreferredPeers(mApp.mConfig.PREFERRED_PEERS);
@@ -60,7 +61,7 @@ PeerMaster::tick()
 void
 PeerMaster::ledgerClosed(LedgerPtr ledger)
 {
-    mFloodGate.clearBelow(ledger->mLedgerSeq);
+    mFloodGate.clearBelow(ledger->mHeader.ledgerSeq);
 }
 
 void

@@ -32,6 +32,7 @@ namespace stellar
 
 		//called by Ledger
 		virtual void ledgerClosed(LedgerPtr ledger) = 0;
+        virtual void fetchDelta(stellarxdr::uint256& oldLedgerHash, uint32_t oldLedgerSeq) = 0;
 
 		// called by TxHerder
 		virtual void broadcastMessage(stellarxdr::uint256& messageID) = 0;

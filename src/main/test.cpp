@@ -3,6 +3,7 @@
 #include "lib/util/Logging.h"
 #include "util/make_unique.h"
 #include <time.h>
+#include "overlay/LoopbackPeer.h"
 
 namespace stellar
 {

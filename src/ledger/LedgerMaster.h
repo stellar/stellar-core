@@ -20,31 +20,35 @@ namespace stellar
 	class LedgerMaster : public LedgerGateway
 	{
 		bool mCaughtUp;
-		CanonicalLedgerForm::pointer mCurrentCLF;
+		// CanonicalLedgerForm::pointer mCurrentCLF;
         // LATER LedgerDatabase mCurrentDB;
-        stellarxdr::uint256 mLastLedgerHash;
+        //stellarxdr::uint256 mLastLedgerHash;
+        Ledger::pointer mCurrentLedger;
         Application &mApp;
 
-        void startCatchUp(BallotPtr balllot);
+        void startCatchUp();
+
+        LedgerHeaderPtr getCurrentHeader();
+        // called on startup to get the last CLF we knew about
+        void syncWithCLF();
 
     public:
 
         typedef std::shared_ptr<LedgerMaster>           pointer;
         typedef const std::shared_ptr<LedgerMaster>&    ref;
 
-		LedgerMaster();
+		LedgerMaster(Application& app);
 
 		//////// GATEWAY FUNCTIONS
 		// called by txherder
-		void externalizeValue(BallotPtr balllot, TransactionSet::pointer txSet);
+		void externalizeValue(BallotPtr ballot, TransactionSet::pointer txSet);
 
 		// called by CLF
-		void ledgerHashComputed(stellarxdr::uint256& hash);
+        void recvDelta(CLFDeltaPtr delta, LedgerHeaderPtr header);
 		
 		///////
 
-		// called on startup to get the last CLF we knew about
-		void loadLastKnownCLF();
+		
 
 		
         // establishes that our internal representation is in sync with passed ledger
@@ -60,7 +64,7 @@ namespace stellar
 		Ledger::pointer getCurrentLedger();
 
 		void closeLedger(TransactionSet::pointer txSet);
-		CanonicalLedgerForm::pointer getCurrentCLF(){ return(mCurrentCLF); }
+		
 
     private:
 

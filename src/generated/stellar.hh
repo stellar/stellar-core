@@ -1,5 +1,5 @@
 // -*- C++ -*-
-// Automatically generated from src/overlay/protocol.x.
+// Automatically generated from protocol.x.
 // DO NOT EDIT or your changes may be overwritten
 
 #ifndef __XDR_PROTOCOL_HH_INCLUDED__
@@ -171,34 +171,106 @@ template<> struct xdr_traits<::stellarxdr::TransactionSet>
 } namespace stellarxdr {
 
 struct LedgerHeader {
+  uint256 hash{};
   uint256 previousLedgerHash{};
   uint256 txSetHash{};
+  uint256 clfHash{};
+  uint64 totalCoins{};
+  uint64 feePool{};
+  uint32 ledgerSeq{};
+  uint32 inflationSeq{};
+  uint64 baseFee{};
+  uint64 closeTime{};
   
   LedgerHeader() = default;
-  template<typename _previousLedgerHash_T,
-           typename _txSetHash_T>
-  explicit LedgerHeader(_previousLedgerHash_T &&_previousLedgerHash,
-                        _txSetHash_T &&_txSetHash)
-    : previousLedgerHash(std::forward<_previousLedgerHash_T>(_previousLedgerHash)),
-      txSetHash(std::forward<_txSetHash_T>(_txSetHash)) {}
+  template<typename _hash_T,
+           typename _previousLedgerHash_T,
+           typename _txSetHash_T,
+           typename _clfHash_T,
+           typename _totalCoins_T,
+           typename _feePool_T,
+           typename _ledgerSeq_T,
+           typename _inflationSeq_T,
+           typename _baseFee_T,
+           typename _closeTime_T>
+  explicit LedgerHeader(_hash_T &&_hash,
+                        _previousLedgerHash_T &&_previousLedgerHash,
+                        _txSetHash_T &&_txSetHash,
+                        _clfHash_T &&_clfHash,
+                        _totalCoins_T &&_totalCoins,
+                        _feePool_T &&_feePool,
+                        _ledgerSeq_T &&_ledgerSeq,
+                        _inflationSeq_T &&_inflationSeq,
+                        _baseFee_T &&_baseFee,
+                        _closeTime_T &&_closeTime)
+    : hash(std::forward<_hash_T>(_hash)),
+      previousLedgerHash(std::forward<_previousLedgerHash_T>(_previousLedgerHash)),
+      txSetHash(std::forward<_txSetHash_T>(_txSetHash)),
+      clfHash(std::forward<_clfHash_T>(_clfHash)),
+      totalCoins(std::forward<_totalCoins_T>(_totalCoins)),
+      feePool(std::forward<_feePool_T>(_feePool)),
+      ledgerSeq(std::forward<_ledgerSeq_T>(_ledgerSeq)),
+      inflationSeq(std::forward<_inflationSeq_T>(_inflationSeq)),
+      baseFee(std::forward<_baseFee_T>(_baseFee)),
+      closeTime(std::forward<_closeTime_T>(_closeTime)) {}
 };
 } namespace xdr {
 template<> struct xdr_traits<::stellarxdr::LedgerHeader>
   : xdr_struct_base<field_ptr<::stellarxdr::LedgerHeader,
+                              decltype(::stellarxdr::LedgerHeader::hash),
+                              &::stellarxdr::LedgerHeader::hash>,
+                    field_ptr<::stellarxdr::LedgerHeader,
                               decltype(::stellarxdr::LedgerHeader::previousLedgerHash),
                               &::stellarxdr::LedgerHeader::previousLedgerHash>,
                     field_ptr<::stellarxdr::LedgerHeader,
                               decltype(::stellarxdr::LedgerHeader::txSetHash),
-                              &::stellarxdr::LedgerHeader::txSetHash>> {
+                              &::stellarxdr::LedgerHeader::txSetHash>,
+                    field_ptr<::stellarxdr::LedgerHeader,
+                              decltype(::stellarxdr::LedgerHeader::clfHash),
+                              &::stellarxdr::LedgerHeader::clfHash>,
+                    field_ptr<::stellarxdr::LedgerHeader,
+                              decltype(::stellarxdr::LedgerHeader::totalCoins),
+                              &::stellarxdr::LedgerHeader::totalCoins>,
+                    field_ptr<::stellarxdr::LedgerHeader,
+                              decltype(::stellarxdr::LedgerHeader::feePool),
+                              &::stellarxdr::LedgerHeader::feePool>,
+                    field_ptr<::stellarxdr::LedgerHeader,
+                              decltype(::stellarxdr::LedgerHeader::ledgerSeq),
+                              &::stellarxdr::LedgerHeader::ledgerSeq>,
+                    field_ptr<::stellarxdr::LedgerHeader,
+                              decltype(::stellarxdr::LedgerHeader::inflationSeq),
+                              &::stellarxdr::LedgerHeader::inflationSeq>,
+                    field_ptr<::stellarxdr::LedgerHeader,
+                              decltype(::stellarxdr::LedgerHeader::baseFee),
+                              &::stellarxdr::LedgerHeader::baseFee>,
+                    field_ptr<::stellarxdr::LedgerHeader,
+                              decltype(::stellarxdr::LedgerHeader::closeTime),
+                              &::stellarxdr::LedgerHeader::closeTime>> {
   template<typename Archive> static void
   save(Archive &ar, const ::stellarxdr::LedgerHeader &obj) {
+    archive(ar, obj.hash, "hash");
     archive(ar, obj.previousLedgerHash, "previousLedgerHash");
     archive(ar, obj.txSetHash, "txSetHash");
+    archive(ar, obj.clfHash, "clfHash");
+    archive(ar, obj.totalCoins, "totalCoins");
+    archive(ar, obj.feePool, "feePool");
+    archive(ar, obj.ledgerSeq, "ledgerSeq");
+    archive(ar, obj.inflationSeq, "inflationSeq");
+    archive(ar, obj.baseFee, "baseFee");
+    archive(ar, obj.closeTime, "closeTime");
   }
   template<typename Archive> static void
   load(Archive &ar, ::stellarxdr::LedgerHeader &obj) {
+    archive(ar, obj.hash, "hash");
     archive(ar, obj.previousLedgerHash, "previousLedgerHash");
     archive(ar, obj.txSetHash, "txSetHash");
+    archive(ar, obj.clfHash, "clfHash");
+    archive(ar, obj.totalCoins, "totalCoins");
+    archive(ar, obj.feePool, "feePool");
+    archive(ar, obj.ledgerSeq, "ledgerSeq");
+    archive(ar, obj.inflationSeq, "inflationSeq");
+    archive(ar, obj.baseFee, "baseFee");
+    archive(ar, obj.closeTime, "closeTime");
   }
 };
 } namespace stellarxdr {
@@ -1281,34 +1353,67 @@ template<> struct xdr_traits<::stellarxdr::DontHave>
 } namespace stellarxdr {
 
 struct GetDelta {
-  uint256 a{};
-  uint256 b{};
+  uint256 oldLedgerHash{};
+  uint32 oldLedgerSeq{};
   
   GetDelta() = default;
-  template<typename _a_T,
-           typename _b_T>
-  explicit GetDelta(_a_T &&_a,
-                    _b_T &&_b)
-    : a(std::forward<_a_T>(_a)),
-      b(std::forward<_b_T>(_b)) {}
+  template<typename _oldLedgerHash_T,
+           typename _oldLedgerSeq_T>
+  explicit GetDelta(_oldLedgerHash_T &&_oldLedgerHash,
+                    _oldLedgerSeq_T &&_oldLedgerSeq)
+    : oldLedgerHash(std::forward<_oldLedgerHash_T>(_oldLedgerHash)),
+      oldLedgerSeq(std::forward<_oldLedgerSeq_T>(_oldLedgerSeq)) {}
 };
 } namespace xdr {
 template<> struct xdr_traits<::stellarxdr::GetDelta>
   : xdr_struct_base<field_ptr<::stellarxdr::GetDelta,
-                              decltype(::stellarxdr::GetDelta::a),
-                              &::stellarxdr::GetDelta::a>,
+                              decltype(::stellarxdr::GetDelta::oldLedgerHash),
+                              &::stellarxdr::GetDelta::oldLedgerHash>,
                     field_ptr<::stellarxdr::GetDelta,
-                              decltype(::stellarxdr::GetDelta::b),
-                              &::stellarxdr::GetDelta::b>> {
+                              decltype(::stellarxdr::GetDelta::oldLedgerSeq),
+                              &::stellarxdr::GetDelta::oldLedgerSeq>> {
   template<typename Archive> static void
   save(Archive &ar, const ::stellarxdr::GetDelta &obj) {
-    archive(ar, obj.a, "a");
-    archive(ar, obj.b, "b");
+    archive(ar, obj.oldLedgerHash, "oldLedgerHash");
+    archive(ar, obj.oldLedgerSeq, "oldLedgerSeq");
   }
   template<typename Archive> static void
   load(Archive &ar, ::stellarxdr::GetDelta &obj) {
-    archive(ar, obj.a, "a");
-    archive(ar, obj.b, "b");
+    archive(ar, obj.oldLedgerHash, "oldLedgerHash");
+    archive(ar, obj.oldLedgerSeq, "oldLedgerSeq");
+  }
+};
+} namespace stellarxdr {
+
+struct Delta {
+  LedgerHeader ledgerHeader{};
+  xdr::xvector<LedgerEntry> deltaEntries{};
+  
+  Delta() = default;
+  template<typename _ledgerHeader_T,
+           typename _deltaEntries_T>
+  explicit Delta(_ledgerHeader_T &&_ledgerHeader,
+                 _deltaEntries_T &&_deltaEntries)
+    : ledgerHeader(std::forward<_ledgerHeader_T>(_ledgerHeader)),
+      deltaEntries(std::forward<_deltaEntries_T>(_deltaEntries)) {}
+};
+} namespace xdr {
+template<> struct xdr_traits<::stellarxdr::Delta>
+  : xdr_struct_base<field_ptr<::stellarxdr::Delta,
+                              decltype(::stellarxdr::Delta::ledgerHeader),
+                              &::stellarxdr::Delta::ledgerHeader>,
+                    field_ptr<::stellarxdr::Delta,
+                              decltype(::stellarxdr::Delta::deltaEntries),
+                              &::stellarxdr::Delta::deltaEntries>> {
+  template<typename Archive> static void
+  save(Archive &ar, const ::stellarxdr::Delta &obj) {
+    archive(ar, obj.ledgerHeader, "ledgerHeader");
+    archive(ar, obj.deltaEntries, "deltaEntries");
+  }
+  template<typename Archive> static void
+  load(Archive &ar, ::stellarxdr::Delta &obj) {
+    archive(ar, obj.ledgerHeader, "ledgerHeader");
+    archive(ar, obj.deltaEntries, "deltaEntries");
   }
 };
 } namespace stellarxdr {
@@ -1357,7 +1462,7 @@ private:
     GetHistory historyReq_;
     History history_;
     GetDelta deltaReq_;
-    xdr::xvector<LedgerEntry> deltaEntries_;
+    Delta delta_;
     uint256 txSetHash_;
     TransactionSet txSet_;
     uint256 ledgerHash_;
@@ -1418,7 +1523,7 @@ public:
       _f(&StellarMessage::deltaReq_, std::forward<A>(a)...);
       return true;
     case DELTA:
-      _f(&StellarMessage::deltaEntries_, std::forward<A>(a)...);
+      _f(&StellarMessage::delta_, std::forward<A>(a)...);
       return true;
     case GET_TX_SET:
       _f(&StellarMessage::txSetHash_, std::forward<A>(a)...);
@@ -1573,15 +1678,15 @@ public:
       return deltaReq_;
     throw xdr::xdr_wrong_union("StellarMessage: deltaReq accessed when not selected");
   }
-  xdr::xvector<LedgerEntry> &deltaEntries() {
+  Delta &delta() {
     if (_xdr_field_number(type_) == 8)
-      return deltaEntries_;
-    throw xdr::xdr_wrong_union("StellarMessage: deltaEntries accessed when not selected");
+      return delta_;
+    throw xdr::xdr_wrong_union("StellarMessage: delta accessed when not selected");
   }
-  const xdr::xvector<LedgerEntry> &deltaEntries() const {
+  const Delta &delta() const {
     if (_xdr_field_number(type_) == 8)
-      return deltaEntries_;
-    throw xdr::xdr_wrong_union("StellarMessage: deltaEntries accessed when not selected");
+      return delta_;
+    throw xdr::xdr_wrong_union("StellarMessage: delta accessed when not selected");
   }
   uint256 &txSetHash() {
     if (_xdr_field_number(type_) == 9)
@@ -1690,7 +1795,7 @@ template<> struct xdr_traits<::stellarxdr::StellarMessage> : xdr_traits_base {
     case 7:
       return "GetDelta";
     case 8:
-      return "LedgerEntry";
+      return "Delta";
     case 9:
       return "uint256";
     case 10:

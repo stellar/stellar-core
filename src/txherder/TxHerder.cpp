@@ -38,7 +38,7 @@ TxHerder::isValidBallotValue(Ballot::pointer ballot)
             return INVALID_BALLOT;
     }
     // check timestamp
-    if (ballot->mLedgerCloseTime <= mLastClosedLedger->mCloseTime)
+    if (ballot->mLedgerCloseTime <= mLastClosedLedger->mHeader.closeTime)
         return INVALID_BALLOT;
 
     uint64_t timeNow = time(nullptr);
@@ -51,11 +51,11 @@ TxHerder::isValidBallotValue(Ballot::pointer ballot)
 TxHerderGateway::SlotComparisonType
 TxHerder::compareSlot(Ballot::pointer ballot)
 {
-    if (ballot->mLederIndex > mLastClosedLedger->mLedgerSeq)
+    if (ballot->mLederIndex > mLastClosedLedger->mHeader.ledgerSeq)
         return (TxHerderGateway::FUTURE_SLOT);
-    if (ballot->mLederIndex < mLastClosedLedger->mLedgerSeq)
+    if (ballot->mLederIndex < mLastClosedLedger->mHeader.ledgerSeq)
         return (TxHerderGateway::PAST_SLOT);
-    if (ballot->mPreviousLedgerHash == mLastClosedLedger->mHash)
+    if (ballot->mPreviousLedgerHash == mLastClosedLedger->mHeader.hash)
         return (TxHerderGateway::SAME_SLOT);
     return TxHerderGateway::INCOMPATIBLIE_SLOT;
 }
@@ -148,8 +148,7 @@ TxHerder::externalizeValue(Ballot::pointer ballot)
             mCurrentTxSetFetcher = 1;
         mTxSetFetcher[mCurrentTxSetFetcher].clear();
 
-        mApp.getLedgerGateway().externalizeValue(externalizedSet,
-                                                 ballot->mLedgerCloseTime);
+        mApp.getLedgerGateway().externalizeValue(ballot,externalizedSet);
 
         // remove all these tx from mReceivedTransactions
         for (auto tx : externalizedSet->mTransactions)
@@ -196,8 +195,8 @@ TxHerder::ledgerClosed(LedgerPtr ledger)
     mLastClosedLedger = ledger;
 
     uint64_t firstBallotTime = time(nullptr) + NUM_SECONDS_IN_CLOSE;
-    if (firstBallotTime <= mLastClosedLedger->mCloseTime)
-        firstBallotTime = mLastClosedLedger->mCloseTime + 1;
+    if (firstBallotTime <= mLastClosedLedger->mHeader.closeTime)
+        firstBallotTime = mLastClosedLedger->mHeader.closeTime + 1;
 
     recvTransactionSet(proposedSet);
     Ballot::pointer firstBallot = std::make_shared<Ballot>(

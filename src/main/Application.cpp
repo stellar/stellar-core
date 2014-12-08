@@ -11,6 +11,7 @@ Application::Application(Config const &cfg)
       mPeerMaster(*this),
       mTxHerder(*this),
       mFBAMaster(*this),
+      mLedgerMaster(*this),
       mMainThread(cfg.SINGLE_STEP_MODE ? nullptr
                                        : std::move(make_unique<std::thread>(
                                              [this]()

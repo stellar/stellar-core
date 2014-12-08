@@ -17,6 +17,7 @@ namespace stellar
 
 		//void serialize(stellarxdr::uint256& hash, SLE::pointer& ret);
 	public:
+
         stellarxdr::uint160 mAccountID;
 		uint64_t mBalance;
 		uint32_t mSequence;

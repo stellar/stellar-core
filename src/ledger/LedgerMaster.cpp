@@ -1,5 +1,6 @@
 #include "LedgerMaster.h"
 #include "main/Application.h"
+#include "lib/util/Logging.h"
 
 /*
 The ledger module:
@@ -13,84 +14,98 @@ The ledger module:
     
 
 catching up to network:
-    1) Wait for FBA to tell us what the network is on on now
-    2) Ask network for the  
+    1) Wait for FBA to tell us what the network is on now
+    2) Ask network for the the delta between what it has now and our ledger last ledger  
 
     // TODO.1 need to make sure the CLF and the SQL Ledger are in sync on start up
     // TODO.1 need to also come to consensus on the base fee
+    // TODO.1 make sure you validate incoming Deltas to see that it gives you the CLF you want
+    // TODO.1 do we need to store some validation history?
 
 */
 namespace stellar
 {
-    LedgerMaster::LedgerMaster() 
+    LedgerMaster::LedgerMaster(Application& app) : mApp(app)
 	{
 		mCaughtUp = false;
-        reset();
+        syncWithCLF();
 	}
 
-    // make sure our state is consistent with the CLF
-    void LedgerMaster::loadLastKnownCLF()
+    LedgerHeaderPtr LedgerMaster::getCurrentHeader()
     {
-        LedgerHeaderPtr clfHeader=mApp->getCLFGateway().getCurrentHeader();
+        // TODO.1
+        return LedgerHeaderPtr();
+        //return mCurrentLedger->mHeader;
+    }
 
+    // make sure our state is consistent with the CLF
+    void LedgerMaster::syncWithCLF()
+    {
+        LedgerHeaderPtr clfHeader=mApp.getCLFGateway().getCurrentHeader();
+        LedgerHeaderPtr sqlHeader = getCurrentHeader();
 
-        bool needreset = true;
-        stellarxdr::uint256 lkcl = getLastClosedLedgerHash();
-        if(lkcl.isNonZero()) {
-            // there is a ledger in the database
-            if(mCurrentCLF->load(lkcl)) {
-                mLastLedgerHash = lkcl;
-                needreset = false;
-            }
-        }
-        if(needreset) {
-            reset();
+        if(clfHeader->hash == sqlHeader->hash)
+        {
+            CLOG(DEBUG, "Ledger") << "CLF and SQL headers match.";
+        } else
+        {  // ledgers don't match
+            // LATER try to sync them
+            CLOG(ERROR, "Ledger") << "CLF and SQL headers don't match. Aborting";
         }
     }
 
     // called by txherder
-    void LedgerMaster::externalizeValue(BallotPtr balllot, TransactionSet::pointer txSet)
+    void LedgerMaster::externalizeValue(BallotPtr ballot, TransactionSet::pointer txSet)
     {
-        if(mLastLedgerHash == balllot->mPreviousLedgerHash)
+        if(getCurrentHeader()->hash == ballot->mPreviousLedgerHash)
+        {
+            mCaughtUp = true;
             closeLedger(txSet);
+        }
         else
         { // we need to catch up
-            if(mApp->mState == Application::CATCHING_UP_STATE)
+            mCaughtUp = false;
+            if(mApp.mState == Application::CATCHING_UP_STATE)
             {  // we are already trying to catch up
-
+                CLOG(DEBUG, "Ledger") << "Missed a ledger while trying to catch up.";
             } else
             {  // start trying to catchup
-                startCatchUp()
+                startCatchUp();
             }
-           
         }
     }
 
     // we have some last ledger that is in the DB
     // we need to 
-    void LedgerMaster::startCatchUp(BallotPtr balllot)
+    void LedgerMaster::startCatchUp()
     {
-        mApp->mState = Application::CATCHING_UP_STATE;
+        mApp.mState = Application::CATCHING_UP_STATE;
+        mApp.getOverlayGateway().fetchDelta(getCurrentHeader()->hash, getCurrentHeader()->ledgerSeq );
 
     }
 
     // called by CLF
-    void LedgerMaster::ledgerHashComputed(stellarxdr::uint256& hash)
+    // when we either get in a delta from the network or the CLF computes the next ledger hash
+    // delta is null in the second case
+    void LedgerMaster::recvDelta(CLFDeltaPtr delta, LedgerHeaderPtr header)
     {
-        // NICOLAS
+        if(delta)
+        { // we got this delta in from the network
+            mApp.mState = Application::CONNECTED_STATE;
+            
+        } else
+        {
+
+        }
     }
 
-    void LedgerMaster::reset()
-    {
-        // NICOLAS mCurrentCLF = std::make_shared<LegacyCLF>(); // change this to BucketList when we are ready
-        mLastLedgerHash = stellarxdr::uint256();
-    }
+    
 
     void LedgerMaster::closeLedger(TransactionSet::pointer txSet)
     {
         for(auto tx : txSet->mTransactions)
         {
-
+            tx->apply();
         }
     }
 

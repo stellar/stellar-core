@@ -8,6 +8,7 @@
 #include "txherder/TxHerder.h"
 #include "overlay/OverlayGateway.h"
 #include "overlay/PeerMaster.h"
+#include "clf/BucketList.h"
 
 /*
  * State of a single instance of the application.
@@ -26,7 +27,7 @@
  *
  * If the application is constructed in "single step" mode
  * (cfg.SINGLE_STEP_MODE) then no threads are created and the owner of the
- * Application has to manually step the event loops forware using
+ * Application has to manually step the event loops forward using
  * app.getMainIOService().run_one() or .poll_one() or the like. This mode is
  * useful in running multiple Applications inside a test, for simulating a
  * specific, deterministic communication pattern between nodes.
@@ -74,6 +75,7 @@ namespace stellar
         LedgerMaster mLedgerMaster;
         TxHerder mTxHerder;
         FBAMaster mFBAMaster;
+        BucketList mBucketList;
 
         std::unique_ptr<std::thread> mMainThread;
         std::vector<std::thread> mWorkerThreads;
@@ -89,7 +91,7 @@ namespace stellar
 
         LedgerGateway& getLedgerGateway(){ return mLedgerMaster; }
         FBAGateway& getFBAGateway(){ return mFBAMaster; }
-        //CLFGateway& getCLFGateway();
+        CLFGateway& getCLFGateway() { return mBucketList;  }
         //HistoryGateway& getHistoryGateway();
         TxHerderGateway& getTxHerderGateway(){ return mTxHerder; }
         OverlayGateway& getOverlayGateway() { return mPeerMaster; }

@@ -416,6 +416,12 @@
     <ClInclude Include="..\..\src\overlay\TCPPeer.h">
       <Filter>overlay</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\src\clf\CLFDelta.h">
+      <Filter>clf</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\ledger\ValidatedLedgers.h">
+      <Filter>ledger</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Text Include="..\..\src\lib\beast\beast.txt">

@@ -232,8 +232,14 @@ struct DontHave
 
 struct GetDelta
 {
-    uint256 a;
-    uint256 b;
+    uint256 oldLedgerHash;
+    uint32 oldLedgerSeq;
+};
+
+struct Delta
+{
+	LedgerHeader ledgerHeader;
+	LedgerEntry deltaEntries<>;
 };
 
 struct GetHistory
@@ -241,6 +247,7 @@ struct GetHistory
     uint256 a;
     uint256 b;
 };
+
 
 union StellarMessage switch (MessageType type) {
 	case ERROR_MSG:
@@ -260,7 +267,7 @@ union StellarMessage switch (MessageType type) {
 	case GET_DELTA:	
 		GetDelta deltaReq;	
 	case DELTA:	
-		LedgerEntry deltaEntries<>;
+		Delta delta;
 
 	case GET_TX_SET:
 		uint256 txSetHash;		

@@ -6,8 +6,6 @@
     LATER: How do we use the excluded ballots in preparing?
 */
 
-
-
 namespace stellar
 {
 
@@ -16,8 +14,8 @@ namespace stellar
         mIndex = 1;
         mLedgerCloseTime = closeTime;
         mTxSetHash = txSetHash;
-        mLederIndex = ledger->mLedgerSeq + 1;
-        mPreviousLedgerHash = ledger->mHash;
+        mLederIndex = ledger->mHeader.ledgerSeq + 1;
+        mPreviousLedgerHash = ledger->mHeader.hash;
     }
 
     Ballot::Ballot(Ballot::pointer other)

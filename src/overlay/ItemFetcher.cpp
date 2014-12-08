@@ -104,6 +104,16 @@ TxSetFetcher::recvItem(TransactionSet::pointer txSet)
     }
     return false;
 }
+////////////////////////////////////////
+void DeltaFetcher::fetchItem(stellarxdr::uint256 const& itemID, uint32_t oldLedgerSeq)
+{
+
+}
+
+void DeltaFetcher::recvItem(CLFDeltaPtr delta)
+{
+    mApp.getCLFGateway().recvDelta(delta);
+}
 
 ////////////////////////////////////////
 void

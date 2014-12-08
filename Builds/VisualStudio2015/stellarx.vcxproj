@@ -136,6 +136,7 @@
     <ClInclude Include="..\..\src\clf\BucketList.h" />
     <ClInclude Include="..\..\src\clf\CanonicalLedgerForm.h" />
     <ClInclude Include="..\..\src\clf\CLF.h" />
+    <ClInclude Include="..\..\src\clf\CLFDelta.h" />
     <ClInclude Include="..\..\src\clf\CLFGateway.h" />
     <ClInclude Include="..\..\src\database\Database.h" />
     <ClInclude Include="..\..\src\fba\Ballot.h" />
@@ -163,6 +164,7 @@
     <ClInclude Include="..\..\src\ledger\LedgerMaster.h" />
     <ClInclude Include="..\..\src\ledger\OfferEntry.h" />
     <ClInclude Include="..\..\src\ledger\TrustLine.h" />
+    <ClInclude Include="..\..\src\ledger\ValidatedLedgers.h" />
     <ClInclude Include="..\..\src\lib\base58\Base58.h" />
     <ClInclude Include="..\..\src\lib\base58\Base58Data.h" />
     <ClInclude Include="..\..\src\lib\base58\base_uint.h" />

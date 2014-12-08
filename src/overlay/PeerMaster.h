@@ -26,6 +26,7 @@ namespace stellar
 		vector<Peer::pointer> mPeers;
 		PeerDoor mDoor;
 		QSetFetcher mQSetFetcher;
+        DeltaFetcher mDeltaFetcher;
         PreferredPeers mPreferredPeers;
 
 		void addConfigPeers();
@@ -42,6 +43,7 @@ namespace stellar
 		void ledgerClosed(LedgerPtr ledger);
 
 		QuorumSet::pointer fetchQuorumSet(stellarxdr::uint256& itemID, bool askNetwork){ return(mQSetFetcher.fetchItem(itemID,askNetwork)); }
+        void fetchDelta(stellarxdr::uint256& oldLedgerHash, uint32_t oldLedgerSeq) { mDeltaFetcher.fetchItem(oldLedgerHash, oldLedgerSeq); }
         void recvFloodedMsg(stellarxdr::uint256 index, StellarMessagePtr msg, uint32_t ledgerIndex, Peer::pointer peer) { mFloodGate.addRecord(index, msg, ledgerIndex, peer);  }
         void doesntHaveQSet(stellarxdr::uint256 index, Peer::pointer peer) { mQSetFetcher.doesntHave(index, peer); }
 

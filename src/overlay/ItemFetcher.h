@@ -5,6 +5,7 @@
 #include "txherder/TransactionSet.h"
 #include "overlay/Peer.h"
 #include "fba/QuorumSet.h"
+#include "clf/CLF.h"
 
 /*
 Manages asking for Transaction or Quorum sets from Peers
@@ -87,6 +88,21 @@ namespace stellar
         QuorumSet::pointer findItem(stellarxdr::uint256 const& itemID);
 		void recvItem(QuorumSet::pointer qSet);
 	};
+
+    class DeltaFetcher : public ItemFetcher
+    {
+    public:
+        DeltaFetcher(Application &app) : ItemFetcher(app) {}
+        void fetchItem(stellarxdr::uint256 const& itemID, uint32_t oldLedgerSeq);
+        void recvItem(CLFDeltaPtr delta);
+    };
+
+    class DeltaTrackingCollar : public TrackingCollar
+    {
+        void askPeer(Peer::pointer peer);
+    public:
+
+    };
 
 	class TxSetTrackingCollar : public TrackingCollar
 	{

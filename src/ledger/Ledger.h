@@ -8,7 +8,7 @@
 namespace stellar
 {
 	/*
-		Ledger headers + ?
+		Ledger headers + some stuff cached for txs to use during application?
 	*/
 
 	class Ledger
