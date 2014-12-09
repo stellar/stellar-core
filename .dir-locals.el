@@ -14,5 +14,5 @@
          (eval . (setq compile-command
                        (concat "make"
                                " -C " (locate-dominating-file
-                                       buffer-file-name ".dir-locals.el")
+                                       (or buffer-file-name ".") ".dir-locals.el")
                                " -j $(nproc)"))))))
