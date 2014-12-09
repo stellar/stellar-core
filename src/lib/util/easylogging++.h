@@ -6479,7 +6479,7 @@ public:
 #undef CCHECK_NOTNULL
 #undef CCHECK_STRCASEEQ
 #undef CCHECK_STRCASENE
-#undef CHECK
+//#undef CHECK  this conflicts with Catch the unit testing header
 #undef PCHECK
 #undef CHECK_EQ
 #undef CHECK_NE
@@ -6493,7 +6493,7 @@ public:
 #undef CHECK_STRCASENE
 #define CCHECK(condition, ...) CLOG_IF(!(condition), FATAL, __VA_ARGS__) << "Check failed: [" << #condition << "] "
 #define CPCHECK(condition, ...) CPLOG_IF(!(condition), FATAL, __VA_ARGS__) << "Check failed: [" << #condition << "] "
-#define CHECK(condition) CCHECK(condition, _CURRENT_FILE_LOGGER_ID)
+// #define CHECK(condition) CCHECK(condition, _CURRENT_FILE_LOGGER_ID)
 #define PCHECK(condition) CPCHECK(condition, _CURRENT_FILE_LOGGER_ID)
 #define CCHECK_EQ(a, b, ...) CCHECK(a == b, __VA_ARGS__)
 #define CCHECK_NE(a, b, ...) CCHECK(a != b, __VA_ARGS__)

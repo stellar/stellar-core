@@ -52,6 +52,9 @@
     <Filter Include="docs">
       <UniqueIdentifier>{b0b4abb7-5c4b-4d72-8529-30f235d36c68}</UniqueIdentifier>
     </Filter>
+    <Filter Include="sync">
+      <UniqueIdentifier>{bd23d429-9447-41d8-b8a6-1de10705097c}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\src\fba\Ballot.cpp">
@@ -191,6 +194,9 @@
     </ClCompile>
     <ClCompile Include="..\..\src\overlay\TCPPeer.cpp">
       <Filter>overlay</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\fba\tests.cpp">
+      <Filter>fba</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -421,6 +427,9 @@
     </ClInclude>
     <ClInclude Include="..\..\src\ledger\ValidatedLedgers.h">
       <Filter>ledger</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\sync\SyncMaster.h">
+      <Filter>sync</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

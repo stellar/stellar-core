@@ -85,6 +85,7 @@
     <ClCompile Include="..\..\src\fba\PrepareStatement.cpp" />
     <ClCompile Include="..\..\src\fba\QuorumSet.cpp" />
     <ClCompile Include="..\..\src\fba\Statement.cpp" />
+    <ClCompile Include="..\..\src\fba\tests.cpp" />
     <ClCompile Include="..\..\src\ledger\AccountEntry.cpp" />
     <ClCompile Include="..\..\src\ledger\Ledger.cpp" />
     <ClCompile Include="..\..\src\ledger\LedgerDatabase.cpp" />
@@ -194,6 +195,7 @@
     <ClInclude Include="..\..\src\overlay\PreferredPeers.h" />
     <ClInclude Include="..\..\src\overlay\StellarMessage.h" />
     <ClInclude Include="..\..\src\overlay\TCPPeer.h" />
+    <ClInclude Include="..\..\src\sync\SyncMaster.h" />
     <ClInclude Include="..\..\src\transactions\CancelOfferTx.h" />
     <ClInclude Include="..\..\src\transactions\CreateOfferTx.h" />
     <ClInclude Include="..\..\src\transactions\InflationTx.h" />

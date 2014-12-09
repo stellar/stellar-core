@@ -28,7 +28,7 @@ namespace stellar
     LedgerMaster::LedgerMaster(Application& app) : mApp(app)
 	{
 		mCaughtUp = false;
-        syncWithCLF();
+        //syncWithCLF();
 	}
 
     LedgerHeaderPtr LedgerMaster::getCurrentHeader()

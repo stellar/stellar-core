@@ -14,7 +14,7 @@ namespace stellar
 
     LedgerHeaderPtr BucketList::getCurrentHeader()
     {
-        // TODO.1
+        // TODO.2
         return LedgerHeaderPtr();
         //return mCurrentLedger->mHeader;
     }

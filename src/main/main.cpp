@@ -3,6 +3,10 @@
 #include "lib/util/Logging.h"
 #include "lib/util/getopt.h"
 
+#define CATCH_CONFIG_RUNNER
+#include "lib/catch.hpp"
+
+
 _INITIALIZE_EASYLOGGINGPP
 
 enum opttag
@@ -52,6 +56,7 @@ main(int argc, char *argv[])
         switch (opt)
         {
         case OPT_TEST:
+            Catch::Session().run(); //  (argc, argv);
             return test();
         case OPT_CONF:
             cfgFile = std::string(optarg);
