@@ -135,7 +135,7 @@ namespace stellar
 // How fast do we need to rewrite level 3? We rewrite it every time snap(2) is
 // evicted. This happens every 2048 ledgers. That's 10240 seconds, or 2.8
 // hours. So we have >2 hours to do a sequential read + merge + hash of level
-// 4. Level 3 contains 65,536 ledgers' worth of hashes, or 15GB of
+// 3. Level 3 contains 65,536 ledgers' worth of hashes, or 15GB of
 // data. Commodity storage now can do sequential reads at 200MB/s (disk) or
 // 500MB/s (SSD), so it should take (at worst) ~75 seconds, data, giving us a
 // safety margin of ~100x.
