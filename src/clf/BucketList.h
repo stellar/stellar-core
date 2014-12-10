@@ -256,7 +256,7 @@ public:
     std::shared_ptr<Bucket> snap();
 };
 
-class BucketList
+class BucketList : public CLFGateway
 {
     std::vector<BucketLevel> mLevels;
     static uint64_t levelSize(uint64_t i);
@@ -266,6 +266,15 @@ class BucketList
     static size_t numLevels(uint64_t ledger);
 
 public:
+
+    // These two are from CLFGateway, don't exactly map on to concepts in
+    // BucketList, but we implement them for now to keep it compiling.
+    virtual LedgerHeaderPtr getCurrentHeader() { return nullptr; }
+    virtual void recvDelta(CLFDeltaPtr delta) {};
+
+    // BucketList _just_ stores a set of key/hash pairs; anything else the CLF
+    // wants to support should happen in another class. These operations form a
+    // minimal, testable interface to BucketList.
     uint256 getHash() const;
     void addBatch(Application &app, uint64_t currLedger,
                   std::vector<Bucket::KVPair>&& batch);
