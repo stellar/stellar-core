@@ -70,6 +70,7 @@ namespace stellar
 
         asio::io_service mMainIOService;
         asio::io_service mWorkerIOService;
+        asio::io_service::work mWork;
 
         PeerMaster mPeerMaster;
         LedgerMaster mLedgerMaster;
