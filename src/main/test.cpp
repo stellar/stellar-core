@@ -1,7 +1,9 @@
 #include "main/Application.h"
+#include "clf/BucketList.h"
 #include "util/StellardVersion.h"
 #include "lib/util/Logging.h"
 #include "util/make_unique.h"
+#include "xdrpp/autocheck.h"
 #include <time.h>
 #include "overlay/LoopbackPeer.h"
 
@@ -43,6 +45,18 @@ testHelloGoodbye(Config const &cfg)
     }
 }
 
+void
+testBucketList(Config const &cfg)
+{
+    Application app(cfg);
+    BucketList bl;
+    autocheck::generator<std::vector<Bucket::KVPair>> gen;
+    for (uint64_t i = 1; i < 300; ++i)
+    {
+        bl.addBatch(app, i, gen(100));
+    }
+}
+
 int
 test()
 {
@@ -61,12 +75,15 @@ test()
     // created and connected loopback sockets), no external connections are
     // attempted, and the event loops must be manually cranked.
     cfg.RUN_STANDALONE = true;
-    cfg.SINGLE_STEP_MODE = true;
+    cfg.SINGLE_STEP_MODE = false;
 
     Logging::setUpLogging(cfg.LOG_FILE_PATH);
     LOG(INFO) << "Testing stellard-hayashi " << STELLARD_VERSION;
     LOG(INFO) << "Logging to " << cfg.LOG_FILE_PATH;
 
+    testBucketList(cfg);
+
+    cfg.SINGLE_STEP_MODE = true;
     testHelloGoodbye(cfg);
 
     return 0;
