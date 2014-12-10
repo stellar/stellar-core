@@ -41,7 +41,7 @@ namespace stellar
 
 		//////// GATEWAY FUNCTIONS
 		// called by txherder
-		void externalizeValue(BallotPtr ballot, TransactionSet::pointer txSet);
+		void externalizeValue(const stellarxdr::SlotBallot& slotBallot, TransactionSet::pointer txSet);
 
 		// called by CLF
         void recvDelta(CLFDeltaPtr delta, LedgerHeaderPtr header);

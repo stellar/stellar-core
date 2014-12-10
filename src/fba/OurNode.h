@@ -12,13 +12,12 @@ namespace stellar
 {
     class Application;
 
-	/// we want to limit the amount of statements we spew out if we are running through a bunch of incoming statements
 	class OurNode : public Node
 	{
         Application &mApp;
-		chrono::system_clock::time_point mTimeSent[Statement::NUM_TYPES];
+		chrono::system_clock::time_point mTimeSent[stellarxdr::FBAStatementType::UNKNOWN];
 
-		Ballot::pointer mPreferredBallot;
+		stellarxdr::SlotBallot mPreferredBallot;
 
 		void sendNewPrepare(QuorumSet::pointer qset);
 
@@ -29,9 +28,9 @@ namespace stellar
 		void progressCommit(QuorumSet::pointer);
 		void progressCommitted(QuorumSet::pointer);
 
-		void sendStatement(Statement::StatementType type, Ballot::pointer ballot);
+		void sendStatement(stellarxdr::FBAStatementType type, const stellarxdr::SlotBallot& ballot);
 
-		Ballot::pointer whatRatified(Statement::StatementType type);
+		BallotPtr whatRatified(stellarxdr::FBAStatementType type);
 		
 		
 	public:
@@ -39,7 +38,7 @@ namespace stellar
 
 		OurNode(Application &app);
 
-		void startNewRound(Ballot::pointer firstBallot);
+		void startNewRound(const stellarxdr::SlotBallot& firstBallot);
 
 		void progressFBA();
 

@@ -15,7 +15,7 @@ namespace stellar
 	{
 	public:
 		// called by txherder
-		virtual void externalizeValue(BallotPtr ballot, TransactionSet::pointer txSet)=0;
+		virtual void externalizeValue(const stellarxdr::SlotBallot& slotBallot, TransactionSet::pointer txSet)=0;
 
 		// called by CLF
         virtual void recvDelta(CLFDeltaPtr delta, LedgerHeaderPtr header) = 0;

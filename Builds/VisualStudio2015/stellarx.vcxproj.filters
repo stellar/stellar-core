@@ -150,18 +150,6 @@
     <ClCompile Include="..\..\src\lib\util\uint256.cpp">
       <Filter>lib\util</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\fba\CommitStatement.cpp">
-      <Filter>fba</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\fba\CommittedStatement.cpp">
-      <Filter>fba</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\fba\PreparedStatement.cpp">
-      <Filter>fba</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\fba\PrepareStatement.cpp">
-      <Filter>fba</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\lib\util\types.cpp">
       <Filter>lib\util</Filter>
     </ClCompile>
@@ -361,18 +349,6 @@
     </ClInclude>
     <ClInclude Include="..\..\src\main\Config.h">
       <Filter>main</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\fba\CommitStatement.h">
-      <Filter>fba</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\fba\CommittedStatement.h">
-      <Filter>fba</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\fba\PreparedStatement.h">
-      <Filter>fba</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\fba\PrepareStatement.h">
-      <Filter>fba</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\clf\BucketList.h">
       <Filter>clf</Filter>

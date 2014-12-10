@@ -47,13 +47,13 @@ namespace stellar
 			UNKNOWN_VALIDITY
 		};
 		// make sure this set contains any super old TXs
-		virtual BallotValidType isValidBallotValue(BallotPtr ballot) = 0;
-		virtual SlotComparisonType compareSlot(BallotPtr ballot) = 0;
+		virtual BallotValidType isValidBallotValue(const stellarxdr::Ballot& ballot) = 0;
+		virtual SlotComparisonType compareSlot(const stellarxdr::SlotBallot& ballot) = 0;
 
 		// can start fetching this TxSet from the network if we don't know about it
-		virtual TransactionSetPtr fetchTxSet(stellarxdr::uint256& setHash, bool askNetwork) = 0;
+		virtual TransactionSetPtr fetchTxSet(const stellarxdr::uint256& setHash, bool askNetwork) = 0;
 
-		virtual void externalizeValue(BallotPtr) = 0;
+		virtual void externalizeValue(const stellarxdr::SlotBallot&) = 0;
 
 
 

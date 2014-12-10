@@ -13,7 +13,7 @@ namespace stellar
 	{
 	public:
 		// called by TxHerder
-		virtual void startNewRound(Ballot::pointer firstBallot) = 0;
+		virtual void startNewRound(const stellarxdr::SlotBallot& firstBallot) = 0;
 
 		// a bit gross. ideally FBA wouldn't know what it is holding
 		virtual void transactionSetAdded(TransactionSet::pointer txSet) = 0;

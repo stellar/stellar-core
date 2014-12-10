@@ -1,8 +1,8 @@
 
 namespace stellar
 {
-    class Ballot;
-    typedef std::shared_ptr<Ballot> BallotPtr;
+    typedef std::shared_ptr<stellarxdr::Ballot> BallotPtr;
+    typedef std::shared_ptr<stellarxdr::SlotBallot> SlotBallotPtr;
     
     class Statement;
     typedef std::shared_ptr<Statement> StatementPtr;

@@ -12,7 +12,7 @@ namespace stellar
         mTimer(app.getMainIOService())
     {
         uint64_t timeNow = time(nullptr);
-        int numSeconds = statement->mBallot->mLedgerCloseTime - timeNow-MAX_SECONDS_LEDGER_CLOSE_IN_FUTURE;
+        int numSeconds = statement->getBallot().closeTime - timeNow-MAX_SECONDS_LEDGER_CLOSE_IN_FUTURE;
         if(numSeconds <= 0) numSeconds = 1;
         mTimer.expires_from_now(std::chrono::seconds(numSeconds));
         mTimer.async_wait([this, &app](asio::error_code const& ec){this->tryNow(app);});

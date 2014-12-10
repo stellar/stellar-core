@@ -4,41 +4,20 @@
 #include "txherder/TransactionSet.h"
 #include "fba/Node.h"
 #include "generated/stellar.hh"
+#include "fba/FBA.h"
 
 namespace stellar
 {
 	class Ledger;
 	typedef std::shared_ptr<Ledger> LedgerPtr;
 
-	// <n,x>
-	class Ballot
-	{
-
-	public:
-		typedef std::shared_ptr<Ballot> pointer;
-
-		uint32_t mLederIndex;					// the slot
-        stellarxdr::uint256 mPreviousLedgerHash;		// the slot
-
-		int mIndex;							// n
-		uint64_t mLedgerCloseTime;			// x
-        stellarxdr::uint256 mTxSetHash;					// x
-		//BallotValue::pointer mValue;
-
-        Ballot(stellarxdr::Ballot xdrballot);
-		Ballot(Ballot::pointer other);
-        Ballot(stellarxdr::SlotBallot xdrballot);
-		Ballot(LedgerPtr ledger, stellarxdr::uint256 const& txSetHash, uint64_t closeTime);
-		
-
-		// returns true if this ballot is ranked higher
-		bool compare(Ballot::pointer other);
-		bool compareValue(Ballot::pointer other);
-		bool isCompatible(Ballot::pointer other);
-
-        void toXDR(stellarxdr::SlotBallot& slotBallot);
-        void toXDR(stellarxdr::Ballot& ballot);
-	};
+    namespace ballot
+    {
+        // returns true if b1 is ranked higher
+        bool compare(const stellarxdr::Ballot& b1, const stellarxdr::Ballot& b2);
+        bool compareValue(const stellarxdr::Ballot& b1, const stellarxdr::Ballot& b2);
+        bool isCompatible(const stellarxdr::Ballot& b1, const stellarxdr::Ballot& b2);
+    }
 }
 
 #endif

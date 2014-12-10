@@ -20,7 +20,7 @@ How to represent a quorum set:
 */
 
 /*
-we need some function that walks the quroum graph applying and keeping track of where we have been so we don't duplicate
+we need some function that walks the quorum graph applying and keeping track of where we have been so we don't duplicate
 
 maybe we don't need to walk since we can just keep track of which Qs reference which Nodes
 	When a node is updated we update all the Qs that depend on it and see if any change state because of that
@@ -34,9 +34,9 @@ namespace stellar
 	class BallotSet
 	{
 	public:
-		Ballot::pointer mBallot;
+		stellarxdr::SlotBallot mBallot;
 		int mCount;
-		BallotSet(Ballot::pointer b){ mBallot = b; mCount = 1; }
+		BallotSet(const stellarxdr::SlotBallot& b): mBallot(b), mCount(1) { }
 	};
 
 	class QuorumSet
@@ -56,28 +56,18 @@ namespace stellar
         stellarxdr::uint256 getHash();
 		int getBlockingSize();  // returns the # of nodes it takes to block a Quorum
 
-		void sortBallots(Statement::StatementType type, vector< BallotSet >& retList);
+		void sortBallots(stellarxdr::FBAStatementType type, vector< BallotSet >& retList);
 		
-		Ballot::pointer getMostPopularBallot(Statement::StatementType type, bool checkValid, Application &app);
-		Statement::pointer getHighestStatement(Statement::StatementType type, bool checkValid, Application &app);
-		bool checkQuorum(Statement::pointer statement);
-        Node::RatState checkRatState(Statement::StatementType statementType, BallotPtr ballot, 
+        BallotPtr getMostPopularBallot(stellarxdr::FBAStatementType type, bool checkValid, Application &app);
+		Statement::pointer getHighestStatement(stellarxdr::FBAStatementType type, bool checkValid, Application &app);
+		
+        Node::RatState checkRatState(stellarxdr::FBAStatementType statementType, BallotPtr ballot,
             int operationToken, int recheckCounter,Application &app);
-		////
+		
 
-
-		// returns true if some Quorum of this Set has all pledged the given ballot 
-		bool isAccepted(Ballot::pointer ballot);
 
         void toXDR(stellarxdr::QuorumSet& qset);
-		
 
-		bool isStuck();
-		// returns true if this set cares and it changes what we already knew
-		//bool prepare(Prepare::pointer prepare);
-		//bool prepared(msg);
-		//bool commit(msg);
-		//bool commited(msg);
 	};
 }
 

@@ -1,51 +1,34 @@
 #include "Statement.h"
 #include "main/Application.h"
 #include "fba/Ballot.h"
-#include "fba/CommitStatement.h"
-#include "fba/CommittedStatement.h"
-#include "fba/PreparedStatement.h"
-#include "fba/PrepareStatement.h"
+
+
+// TODO.2 I think we can drop all the subclasses
 
 namespace stellar
 {
-    Statement::pointer Statement::makeStatement(stellarxdr::FBAEnvelope const& envelope)
-    {
-        switch(envelope.contents.body.type())
-        {
-        case stellarxdr::PREPARE:
-            return std::make_shared<PrepareStatement>(envelope);
-        case stellarxdr::PREPARED:
-            return std::make_shared<PreparedStatement>(envelope);
-        case stellarxdr::COMMIT:
-            return std::make_shared<CommitStatement>(envelope);
-        case stellarxdr::COMMITTED:
-            return std::make_shared<CommittedStatement>(envelope);
-        }
-        return(Statement::pointer());
-    }
-
 	Statement::Statement()
         : mValidity(TxHerderGateway::UNKNOWN_VALIDITY)
     {}
 
+    // make from the wire
     Statement::Statement(stellarxdr::FBAEnvelope const& envelope)
         : mValidity(TxHerderGateway::UNKNOWN_VALIDITY)
-        , mNodeID(envelope.nodeID)
-        , mSignature(envelope.signature)
-        , mQuorumSetHash(envelope.contents.quorumSetHash)
-        , mBallot(std::make_shared<Ballot>(envelope.contents.ballot))
+        , mEnvelope(envelope)
     {}
 
-	Statement::Statement(stellarxdr::uint256 const& nodeID, stellarxdr::uint256 const& qSetHash, Ballot::pointer ballot)
+	Statement::Statement(stellarxdr::FBAStatementType type,stellarxdr::uint256 const& nodeID, stellarxdr::uint256 const& qSetHash, const stellarxdr::SlotBallot& ballot)
         : mValidity(TxHerderGateway::UNKNOWN_VALIDITY)
-        , mNodeID(nodeID)
-        , mQuorumSetHash(qSetHash)
-        , mBallot(ballot)
-	{}
+	{
+        mEnvelope.contents.body.type(type);
+        mEnvelope.nodeID = nodeID;
+        mEnvelope.contents.quorumSetHash = qSetHash;
+        mEnvelope.contents.slotBallot = ballot;
+    }
 
     bool Statement::isCompatible(BallotPtr ballot)
     {
-        return(mBallot->isCompatible(ballot));
+        return(ballot::isCompatible(getBallot(),*ballot));
     }
 	void Statement::sign()
 	{
@@ -59,7 +42,7 @@ namespace stellar
 		return(true);
 	}
 
-	uint32_t Statement::getLedgerIndex(){ return(mBallot->mLederIndex); }
+	uint32_t Statement::getLedgerIndex(){ return(getSlotBallot().ledgerIndex); }
 
 
 	TxHerderGateway::BallotValidType Statement::checkValidity(Application &app)
@@ -67,30 +50,19 @@ namespace stellar
 		if( mValidity == TxHerderGateway::UNKNOWN_VALIDITY ||
 			mValidity == TxHerderGateway::FUTURE_BALLOT)
 		{
-			mValidity=app.getTxHerderGateway().isValidBallotValue(mBallot);
+			mValidity=app.getTxHerderGateway().isValidBallotValue(getBallot());
 		}
 		return mValidity;
 	}
 
 	bool Statement::compare(Statement::pointer other)
 	{
-		return mBallot->compare(other->mBallot);
+		return ballot::compare(getBallot(),other->getBallot());
 	}
 
 
 	TransactionSet::pointer Statement::fetchTxSet(Application &app)
 	{
-		return app.getTxHerderGateway().fetchTxSet(mBallot->mTxSetHash,true);
+		return app.getTxHerderGateway().fetchTxSet(getBallot().txSetHash,true);
 	}
-
-    void Statement::toXDR(stellarxdr::FBAEnvelope& envelope)
-    {
-        envelope.nodeID = mNodeID;
-        envelope.signature = mSignature;
-        envelope.contents.quorumSetHash = mQuorumSetHash;
-        mBallot->toXDR(envelope.contents.ballot);
-        envelope.contents.body.type((stellarxdr::FBAStatementType)getType());
-        fillXDRBody(envelope.contents);
-    }
-
 }

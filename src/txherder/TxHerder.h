@@ -46,13 +46,13 @@ namespace stellar
 
 		///////// GATEWAY FUNCTIONS
 		// make sure this set contains any super old TXs
-		BallotValidType isValidBallotValue(BallotPtr ballot);
-		TxHerderGateway::SlotComparisonType compareSlot(BallotPtr ballot);
+		BallotValidType isValidBallotValue(const stellarxdr::Ballot& ballot);
+		TxHerderGateway::SlotComparisonType compareSlot(const stellarxdr::SlotBallot& ballot);
 		
 		// will start fetching this TxSet from the network if we don't know about it
-		TransactionSetPtr fetchTxSet(stellarxdr::uint256& setHash, bool askNetwork);
+		TransactionSetPtr fetchTxSet(const stellarxdr::uint256& setHash, bool askNetwork);
 
-		void externalizeValue(BallotPtr ballot);
+		void externalizeValue(const stellarxdr::SlotBallot& slotBallot);
 
 		// a Tx set comes in from the wire
 		void recvTransactionSet(TransactionSetPtr txSet);

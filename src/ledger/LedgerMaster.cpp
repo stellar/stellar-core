@@ -55,9 +55,9 @@ namespace stellar
     }
 
     // called by txherder
-    void LedgerMaster::externalizeValue(BallotPtr ballot, TransactionSet::pointer txSet)
+    void LedgerMaster::externalizeValue(const stellarxdr::SlotBallot& slotBallot, TransactionSet::pointer txSet)
     {
-        if(getCurrentHeader()->hash == ballot->mPreviousLedgerHash)
+        if(getCurrentHeader()->hash == slotBallot.previousLedgerHash)
         {
             mCaughtUp = true;
             closeLedger(txSet);

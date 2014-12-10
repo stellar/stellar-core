@@ -27,7 +27,7 @@ namespace stellar
 {
 	Node::Node(const stellarxdr::uint256& nodeID) : mNodeID(nodeID)
 	{
-		mState = Statement::UNKNOWN_TYPE;
+		mState = stellarxdr::FBAStatementType::UNKNOWN;
 	}
 
 	// called recursively
@@ -36,7 +36,7 @@ namespace stellar
     //  it will increment anytime a node is removed from Va thus triggering a recheck of all nodes in the "pledging" state
 	
 	// this returns what RatState it thinks the particular statement is in.
-    Node::RatState Node::checkRatState(Statement::StatementType statementType, BallotPtr ballot, 
+    Node::RatState Node::checkRatState(stellarxdr::FBAStatementType statementType, BallotPtr ballot,
                                        int operationToken, int recheckCounter, Application &app)
 	{
         if(operationToken == mOperationToken)
@@ -51,7 +51,7 @@ namespace stellar
         mRecheckCounter = recheckCounter;
 
 
-		for(int n = statementType; n < Statement::NUM_TYPES; n++)
+		for(int n = statementType; n < stellarxdr::FBAStatementType::UNKNOWN; n++)
 		{  // if this node has ratified this statement or a stronger version
             if(mRatified[n] && mRatified[n]->isCompatible(ballot))
             {
@@ -61,7 +61,7 @@ namespace stellar
 
 			if(n>statementType)
 			{ // check if this guy has already pledged a stronger statement
-				Statement::pointer ourStatement = getHighestStatement((Statement::StatementType)n);
+				Statement::pointer ourStatement = getHighestStatement((stellarxdr::FBAStatementType)n);
                 if(ourStatement)
                 {
                     if(ourStatement->isCompatible(ballot))
@@ -83,7 +83,7 @@ namespace stellar
 		
 		// ok so this node is pledging the statement
         mRatState = PLEDGING_STATE;
-		QuorumSet::pointer qset = app.getOverlayGateway().fetchQuorumSet(ourStatement->mQuorumSetHash,true);
+		QuorumSet::pointer qset = app.getOverlayGateway().fetchQuorumSet(ourStatement->mEnvelope.contents.quorumSetHash,true);
 		if(qset)
 		{
             RatState state = qset->checkRatState(statementType, ballot, 
@@ -132,14 +132,14 @@ namespace stellar
 		return(false);
 	}
 
-	StatementPtr Node::getHighestStatement(Statement::StatementType type)
+	StatementPtr Node::getHighestStatement(stellarxdr::FBAStatementType type)
 	{
 		StatementPtr max;
 		for(auto statement : mStatements[type])
 		{
 			if(max)
 			{
-				if(statement->mBallot->compare(max->mBallot)) max = statement;
+				if(ballot::compare(statement->getBallot(),max->getBallot())) max = statement;
 			} else max = statement;
 		}
 		return max;

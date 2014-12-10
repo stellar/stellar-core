@@ -344,9 +344,9 @@ void
 Peer::recvFBAMessage(StellarMessagePtr msg)
 {
     stellarxdr::FBAEnvelope envelope = msg->fbaMessage();
-    Statement::pointer statement = Statement::makeStatement(envelope);
+    Statement::pointer statement = std::make_shared<Statement>(envelope);
 
-    mApp.getOverlayGateway().recvFloodedMsg(statement->mSignature, msg,
+    mApp.getOverlayGateway().recvFloodedMsg(statement->mEnvelope.signature, msg,
                                             statement->getLedgerIndex(),
                                             shared_from_this());
     mApp.getFBAGateway().recvStatement(statement);

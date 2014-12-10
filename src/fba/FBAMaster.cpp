@@ -113,7 +113,7 @@ namespace stellar
     }
 
 	// start a new round of consensus. This is called after the last ledger closes
-	void FBAMaster::startNewRound(Ballot::pointer firstBallot)
+	void FBAMaster::startNewRound(const stellarxdr::SlotBallot& firstBallot)
 	{
 		// start with no nodes
 		mKnownNodes.clear();
@@ -130,11 +130,11 @@ namespace stellar
 		if(mValidatingNode) processStatements(oldStatements);
 		else 
 		{  // not a validating node just look at the committed msgs
-			mOurNode->mState = Statement::COMMITTED_TYPE;
+			mOurNode->mState = stellarxdr::FBAStatementType::COMMITTED;
 			bool progress = false;
 			for(auto statement : oldStatements)
 			{
-				if(statement->getType() == Statement::COMMITTED_TYPE)
+				if(statement->getType() == stellarxdr::FBAStatementType::COMMITTED)
 				{
 					processStatement(statement);
 					progress = true;
@@ -148,7 +148,7 @@ namespace stellar
 	// get a Statement msg from the wire
 	void FBAMaster::recvStatement(Statement::pointer statement)
 	{
-		if(mValidatingNode || statement->getType()==Statement::COMMITTED_TYPE)
+		if(mValidatingNode || statement->getType()== stellarxdr::FBAStatementType::COMMITTED)
 		{
 			if(processStatement(statement) && mOurNode->getNodeState() == statement->getType())
 			{
@@ -191,10 +191,10 @@ namespace stellar
 	{
 		if(!statement->isSigValid()) return false;  // 1) yes   LATER we should doc any peer that sends us one of these
 
-		TxHerderGateway::SlotComparisonType slotCompare = mApp.getTxHerderGateway().compareSlot(statement->mBallot);
+		TxHerderGateway::SlotComparisonType slotCompare = mApp.getTxHerderGateway().compareSlot(statement->getSlotBallot());
 		if(slotCompare==TxHerderGateway::SAME_SLOT)
 		{  // we are on the same slot 2) yes
-			Node::pointer node = getNode(statement->mNodeID);
+			Node::pointer node = getNode(statement->mEnvelope.nodeID);
 			bool newStatement = !(node->hasStatement(statement));
 
 			if(newStatement)
@@ -218,7 +218,7 @@ namespace stellar
 
 					node->addStatement(statement);
 					if(validity==TxHerderGateway::VALID_BALLOT) 
-                        mApp.getOverlayGateway().broadcastMessage(statement->mSignature);
+                        mApp.getOverlayGateway().broadcastMessage(statement->mEnvelope.signature);
 
 					///////  DO THE THING
 					return(true);
@@ -239,9 +239,9 @@ namespace stellar
 			} else if(slotCompare==TxHerderGateway::INCOMPATIBLIE_SLOT)
 			{
                 std::string str;
-				CLOG(WARNING, "FBA") << "Node: " << toBase58(statement->mNodeID,str) << 
-                    " on a different ledger(" << statement->mBallot->mLederIndex << 
-                    " : " << toBase58(statement->mBallot->mPreviousLedgerHash,str);
+				CLOG(WARNING, "FBA") << "Node: " << toBase58(statement->mEnvelope.nodeID,str) << 
+                    " on a different ledger(" << statement->getLedgerIndex() << 
+                    " : " << toBase58(statement->getSlotBallot().previousLedgerHash,str);
 			}
 		}
 		return false;
@@ -267,7 +267,7 @@ namespace stellar
 		{
 			Statement::pointer waiting = *iter;
 
-			if(waiting->mBallot->mTxSetHash==txSet->getContentsHash())
+			if(waiting->getBallot().txSetHash==txSet->getContentsHash())
 			{
 				mWaitTxStatements.erase(iter);
 				fetched.push_back(waiting);

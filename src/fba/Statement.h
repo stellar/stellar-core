@@ -16,34 +16,22 @@ namespace stellar
         virtual void fillXDRBody(stellarxdr::FBAContents& body) { }
 	public:
 		typedef std::shared_ptr<Statement> pointer;
-		
-		stellarxdr::uint256 mNodeID;
-		stellarxdr::uint256 mSignature;
-		stellarxdr::uint256 mContentsHash;
-		stellarxdr::uint256 mQuorumSetHash;
 
-		
-		BallotPtr mBallot;
+        stellarxdr::FBAEnvelope mEnvelope;
+		stellarxdr::uint256 mContentsHash;  // TODO.1 should calculate this somewhere
 
-		enum StatementType {
-			PREPARE_TYPE,
-			PREPARED_TYPE,
-			COMMIT_TYPE,
-			COMMITTED_TYPE,
-			NUM_TYPES,
-			EXTERNALIZED_TYPE,   // ok this is ugly. we only need these for the node mState
-			UNKNOWN_TYPE
-		};
-
-        // creates a Statement from the wire
-        static Statement::pointer makeStatement(stellarxdr::FBAEnvelope const& envelope);
+       
 		Statement();
+        // creates a Statement from the wire
         Statement(stellarxdr::FBAEnvelope const& envelope);
-		Statement(stellarxdr::uint256 const& nodeID, stellarxdr::uint256 const& qSetHash, BallotPtr ballot);
+		Statement(stellarxdr::FBAStatementType type, stellarxdr::uint256 const& nodeID, stellarxdr::uint256 const& qSetHash, const stellarxdr::SlotBallot& ballot);
 
 		void sign();
 
-		virtual StatementType getType() = 0;
+        stellarxdr::FBAStatementType getType() { return mEnvelope.contents.body.type(); }
+
+        stellarxdr::SlotBallot& getSlotBallot() { return mEnvelope.contents.slotBallot; }
+        stellarxdr::Ballot& getBallot() { return mEnvelope.contents.slotBallot.ballot; }
 
 
 
@@ -68,8 +56,6 @@ namespace stellar
 		uint32_t getLedgerIndex();
 
 		TransactionSetPtr fetchTxSet(Application &app);
-
-		virtual void toXDR(stellarxdr::FBAEnvelope& envelope);	
 	};
 
 }

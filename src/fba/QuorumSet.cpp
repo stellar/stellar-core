@@ -44,11 +44,11 @@ namespace stellar
 	//returns true if the first argument is ordered before the second. 
 	bool ballotSorter(const BallotSet &a, const BallotSet &b)
 	{
-		return a.mBallot->compare(b.mBallot);
+		return ballot::compare(a.mBallot.ballot, b.mBallot.ballot);
 	}
 
 	// returns all the ballots sorted by rank
-	void QuorumSet::sortBallots(Statement::StatementType type, vector< BallotSet >& retList)
+	void QuorumSet::sortBallots(stellarxdr::FBAStatementType type, vector< BallotSet >& retList)
 	{
 		for(auto node : mNodes)
 		{
@@ -60,67 +60,67 @@ namespace stellar
 				// check if any of the ballots are compatible with this one
 				for(auto cballot : retList)
 				{
-					if(cballot.mBallot == statement->mBallot)
+					if(ballot::isCompatible(cballot.mBallot.ballot,statement->getBallot()))
 					{
 						cballot.mCount++;
 						found = true;
 					}
 				}
-				if(!found) retList.push_back(BallotSet(statement->mBallot));
+				if(!found) retList.push_back(BallotSet(statement->getSlotBallot()));
 			}
 		}
 		// sort the list
 		sort(retList.begin(), retList.end(), ballotSorter);
 	}
 
-	Ballot::pointer QuorumSet::getMostPopularBallot(Statement::StatementType type, bool checkValid, Application &app)
+    BallotPtr QuorumSet::getMostPopularBallot(stellarxdr::FBAStatementType type, bool checkValid, Application &app)
 	{
-		map< pair<stellarxdr::uint256, uint64_t>, int> ballotCounts;
-		Ballot::pointer ballot;
+        /* TODO.1 wait for xdrpp to include a comparison
+		map< stellarxdr::Ballot, int> ballotCounts;
+       
 
 		for(auto node : mNodes)
 		{
 			Statement::pointer statement = node->getHighestStatement(type);
 			if(statement)
 			{
-				if(!checkValid || app.getTxHerderGateway().isValidBallotValue(statement->mBallot))
+				if(!checkValid || app.getTxHerderGateway().isValidBallotValue(statement->getBallot()))
 				{
-					ballot = statement->mBallot;
-					ballotCounts[pair<stellarxdr::uint256, uint64_t>(ballot->mTxSetHash, ballot->mLedgerCloseTime)] += 1;
+                    stellarxdr::Ballot ballot = statement->getBallot();
+                    ballot.index = 0;
+					ballotCounts[ballot] += 1;
 				}
 			}
 		}
-		pair<stellarxdr::uint256, uint64_t> mostPopular;
+        stellarxdr::Ballot mostPopular;
 		int mostPopularCount = 0;
+        bool foundOne = false;
 		for(auto bcount : ballotCounts)
 		{
 			if(bcount.second > mostPopularCount)
 			{
+                foundOne = true;
 				mostPopular = bcount.first;
 				mostPopularCount = bcount.second;
 			}
 		}
 
-		if(ballot)
-		{
-			ballot = std::make_shared<Ballot>(ballot);
-			ballot->mTxSetHash = mostPopular.first;
-			ballot->mLedgerCloseTime = mostPopular.second;
-			ballot->mIndex = 0;
-			return ballot;
+		if(foundOne)
+        {
+			return std::make_shared<stellarxdr::Ballot>(mostPopular);
 		}
-		
-		return Ballot::pointer();
+		*/
+		return BallotPtr();
 	}
 
 	// get the highest valid statement 
-	Statement::pointer QuorumSet::getHighestStatement(Statement::StatementType type,bool checkValid,Application &app)
+	Statement::pointer QuorumSet::getHighestStatement(stellarxdr::FBAStatementType type,bool checkValid,Application &app)
 	{
 		Statement::pointer highStatement;
 		for(auto node : mNodes)
 		{
 			Statement::pointer statement = node->getHighestStatement(type);
-			if(!checkValid || app.getTxHerderGateway().isValidBallotValue(statement->mBallot))
+			if(!checkValid || app.getTxHerderGateway().isValidBallotValue(statement->getBallot()))
 			{
 				if(!highStatement) highStatement = statement;
 				else
@@ -141,7 +141,7 @@ namespace stellar
 	// b) they have ratified
 	// for PREPARE we need to look at gaps
 	//		for any gap see if other people can ratify the abort
-    Node::RatState QuorumSet::checkRatState(Statement::StatementType statementType, BallotPtr ballot, 
+    Node::RatState QuorumSet::checkRatState(stellarxdr::FBAStatementType statementType, BallotPtr ballot,
         int operationToken, int recheckCounter,Application &app)
 	{
 		// LATER if(statementType == Statement::PREPARE_TYPE) return checkPrepareRatState(statement, visitIndex);

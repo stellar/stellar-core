@@ -21,10 +21,15 @@ TxHerder::TxHerder(Application &app)
 
 // make sure all the tx we have in the old set are included
 // make sure the timestamp isn't too far in the future
+// make sure the base fee is within a certain range of your desired fee
 TxHerderGateway::BallotValidType
-TxHerder::isValidBallotValue(Ballot::pointer ballot)
+TxHerder::isValidBallotValue(const stellarxdr::Ballot& ballot)
 {
-    TransactionSetPtr txSet = fetchTxSet(ballot->mTxSetHash, true);
+    if(ballot.baseFee < mApp.mConfig.DESIRED_BASE_FEE*.5) return INVALID_BALLOT;
+    if(ballot.baseFee > mApp.mConfig.DESIRED_BASE_FEE*2) return INVALID_BALLOT;
+
+
+    TransactionSetPtr txSet = fetchTxSet(ballot.txSetHash, true);
     if (!txSet)
     {
         LOG(ERROR) << "isValidBallotValue when we don't know the txSet";
@@ -38,24 +43,24 @@ TxHerder::isValidBallotValue(Ballot::pointer ballot)
             return INVALID_BALLOT;
     }
     // check timestamp
-    if (ballot->mLedgerCloseTime <= mLastClosedLedger->mHeader.closeTime)
+    if (ballot.closeTime <= mLastClosedLedger->mHeader.closeTime)
         return INVALID_BALLOT;
 
     uint64_t timeNow = time(nullptr);
-    if (ballot->mLedgerCloseTime > timeNow + MAX_SECONDS_LEDGER_CLOSE_IN_FUTURE)
+    if (ballot.closeTime > timeNow + MAX_SECONDS_LEDGER_CLOSE_IN_FUTURE)
         return FUTURE_BALLOT;
 
     return VALID_BALLOT;
 }
 
 TxHerderGateway::SlotComparisonType
-TxHerder::compareSlot(Ballot::pointer ballot)
+TxHerder::compareSlot(const stellarxdr::SlotBallot& slotBallot)
 {
-    if (ballot->mLederIndex > mLastClosedLedger->mHeader.ledgerSeq)
+    if (slotBallot.ledgerIndex > mLastClosedLedger->mHeader.ledgerSeq)
         return (TxHerderGateway::FUTURE_SLOT);
-    if (ballot->mLederIndex < mLastClosedLedger->mHeader.ledgerSeq)
+    if (slotBallot.ledgerIndex < mLastClosedLedger->mHeader.ledgerSeq)
         return (TxHerderGateway::PAST_SLOT);
-    if (ballot->mPreviousLedgerHash == mLastClosedLedger->mHeader.hash)
+    if (slotBallot.previousLedgerHash == mLastClosedLedger->mHeader.hash)
         return (TxHerderGateway::SAME_SLOT);
     return TxHerderGateway::INCOMPATIBLIE_SLOT;
 }
@@ -109,7 +114,7 @@ TxHerder::recvTransaction(TransactionPtr tx)
 
 // will start fetching this TxSet from the network if we don't know about it
 TransactionSetPtr
-TxHerder::fetchTxSet(stellarxdr::uint256 &setHash, bool askNetwork)
+TxHerder::fetchTxSet(const stellarxdr::uint256 &setHash, bool askNetwork)
 {
     return mTxSetFetcher[mCurrentTxSetFetcher].fetchItem(setHash, askNetwork);
 }
@@ -134,10 +139,10 @@ TxHerder::removeReceivedTx(TransactionPtr dropTX)
 
 // called by FBA
 void
-TxHerder::externalizeValue(Ballot::pointer ballot)
+TxHerder::externalizeValue(const stellarxdr::SlotBallot& slotBallot)
 {
     TransactionSet::pointer externalizedSet =
-        fetchTxSet(ballot->mTxSetHash, false);
+        fetchTxSet(slotBallot.ballot.txSetHash, false);
     if (externalizedSet)
     {
         // we don't need to keep fetching any of the old TX sets
@@ -148,7 +153,7 @@ TxHerder::externalizeValue(Ballot::pointer ballot)
             mCurrentTxSetFetcher = 1;
         mTxSetFetcher[mCurrentTxSetFetcher].clear();
 
-        mApp.getLedgerGateway().externalizeValue(ballot,externalizedSet);
+        mApp.getLedgerGateway().externalizeValue(slotBallot,externalizedSet);
 
         // remove all these tx from mReceivedTransactions
         for (auto tx : externalizedSet->mTransactions)
@@ -199,8 +204,14 @@ TxHerder::ledgerClosed(LedgerPtr ledger)
         firstBallotTime = mLastClosedLedger->mHeader.closeTime + 1;
 
     recvTransactionSet(proposedSet);
-    Ballot::pointer firstBallot = std::make_shared<Ballot>(
-        mLastClosedLedger, proposedSet->getContentsHash(), firstBallotTime);
+    stellarxdr::SlotBallot firstBallot;
+    firstBallot.ledgerIndex = mLastClosedLedger->mHeader.ledgerSeq;
+    firstBallot.previousLedgerHash = mLastClosedLedger->mHeader.hash;
+    firstBallot.ballot.index = 1;
+    firstBallot.ballot.closeTime = firstBallotTime;
+    firstBallot.ballot.baseFee = mApp.mConfig.DESIRED_BASE_FEE;
+    firstBallot.ballot.txSetHash = proposedSet->getContentsHash();
+
 
     mCloseCount++;
     // don't participate in FBA for a few ledger closes so you make sure you

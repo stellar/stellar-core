@@ -12,6 +12,7 @@ namespace stellar
         int PROTOCOL_VERSION;
         std::string VERSION_STR;
         std::string LOG_FILE_PATH;
+        int DESIRED_BASE_FEE;  // in stroops
 
         // overlay config
         int PEER_PORT;

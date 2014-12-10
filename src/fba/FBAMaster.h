@@ -46,7 +46,7 @@ namespace stellar
 		QuorumSet::pointer mOurQuorumSet; // just store it as a ::pointer since the rest of the app wants it this way
 
 		// map of nodes we have gotten FBA messages from in this round
-		// we save ones we don't care about in case they are on some yet unknown Quorom Set
+		// we save ones we don't care about in case they are on some yet unknown Quorum Set
 		map<stellarxdr::uint256, Node::pointer> mKnownNodes;
 
 		// Statements we have gotten from the network but are waiting to get the txset of
@@ -80,7 +80,7 @@ namespace stellar
 
 		void setValidating(bool validating){ mValidatingNode = validating; }
 
-		void startNewRound(Ballot::pointer firstBallot);
+		void startNewRound(const stellarxdr::SlotBallot& firstBallot);
 		
 		void transactionSetAdded(TransactionSet::pointer txSet);
 

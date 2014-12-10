@@ -83,6 +83,7 @@ struct Ballot
 	int index;						// n
     uint256 txSetHash;				// x
 	uint64 closeTime;				// x
+	uint32 baseFee;					// x
 };
 
 struct SlotBallot
@@ -98,12 +99,14 @@ enum FBAStatementType
 	PREPARE,
 	PREPARED,
 	COMMIT,
-	COMMITTED
+	COMMITTED,
+	EXTERNALIZED,
+	UNKNOWN
 };
 
 struct FBAContents
 {
-	SlotBallot ballot;
+	SlotBallot slotBallot;
 	uint256 quorumSetHash;
 	
 	union switch (FBAStatementType type)
@@ -113,6 +116,8 @@ struct FBAContents
 		case PREPARED:
 		case COMMIT:
 		case COMMITTED:
+		case EXTERNALIZED:
+		case UNKNOWN:
 			void;		
 	} body;
 };

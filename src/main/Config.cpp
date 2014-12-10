@@ -15,6 +15,7 @@ Config::Config()
     VERSION_STR = STELLARD_VERSION;
 
     // configurable
+    DESIRED_BASE_FEE = 10;
     PEER_PORT = 39133;
     RUN_STANDALONE = false;
     SINGLE_STEP_MODE = false;
@@ -33,7 +34,10 @@ Config::load(std::string const &filename)
         if (g.contains("PEER_PORT"))
             PEER_PORT = (int)g.get("PEER_PORT")->as<int64_t>()->value();
         if(g.contains("QUORUM_THRESHOLD"))
-            PEER_PORT = (int)g.get("QUORUM_THRESHOLD")->as<int64_t>()->value();
+            QUORUM_THRESHOLD = (int)g.get("QUORUM_THRESHOLD")->as<int64_t>()->value();
+        if(g.contains("DESIRED_BASE_FEE"))
+            DESIRED_BASE_FEE = (int)g.get("DESIRED_BASE_FEE")->as<int64_t>()->value();
+
         if (g.contains("SINGLE_STEP_MODE"))
             SINGLE_STEP_MODE = g.get("SINGLE_STEP_MODE")->as<bool>()->value();
         if(g.contains("RUN_STANDALONE"))

@@ -354,17 +354,21 @@ struct Ballot {
   std::int32_t index{};
   uint256 txSetHash{};
   uint64 closeTime{};
+  uint32 baseFee{};
   
   Ballot() = default;
   template<typename _index_T,
            typename _txSetHash_T,
-           typename _closeTime_T>
+           typename _closeTime_T,
+           typename _baseFee_T>
   explicit Ballot(_index_T &&_index,
                   _txSetHash_T &&_txSetHash,
-                  _closeTime_T &&_closeTime)
+                  _closeTime_T &&_closeTime,
+                  _baseFee_T &&_baseFee)
     : index(std::forward<_index_T>(_index)),
       txSetHash(std::forward<_txSetHash_T>(_txSetHash)),
-      closeTime(std::forward<_closeTime_T>(_closeTime)) {}
+      closeTime(std::forward<_closeTime_T>(_closeTime)),
+      baseFee(std::forward<_baseFee_T>(_baseFee)) {}
 };
 } namespace xdr {
 template<> struct xdr_traits<::stellarxdr::Ballot>
@@ -376,18 +380,23 @@ template<> struct xdr_traits<::stellarxdr::Ballot>
                               &::stellarxdr::Ballot::txSetHash>,
                     field_ptr<::stellarxdr::Ballot,
                               decltype(::stellarxdr::Ballot::closeTime),
-                              &::stellarxdr::Ballot::closeTime>> {
+                              &::stellarxdr::Ballot::closeTime>,
+                    field_ptr<::stellarxdr::Ballot,
+                              decltype(::stellarxdr::Ballot::baseFee),
+                              &::stellarxdr::Ballot::baseFee>> {
   template<typename Archive> static void
   save(Archive &ar, const ::stellarxdr::Ballot &obj) {
     archive(ar, obj.index, "index");
     archive(ar, obj.txSetHash, "txSetHash");
     archive(ar, obj.closeTime, "closeTime");
+    archive(ar, obj.baseFee, "baseFee");
   }
   template<typename Archive> static void
   load(Archive &ar, ::stellarxdr::Ballot &obj) {
     archive(ar, obj.index, "index");
     archive(ar, obj.txSetHash, "txSetHash");
     archive(ar, obj.closeTime, "closeTime");
+    archive(ar, obj.baseFee, "baseFee");
   }
 };
 } namespace stellarxdr {
@@ -439,6 +448,8 @@ enum FBAStatementType : std::uint32_t {
   PREPARED,
   COMMIT,
   COMMITTED,
+  EXTERNALIZED,
+  UNKNOWN,
 };
 } namespace xdr {
 template<> struct xdr_traits<::stellarxdr::FBAStatementType>
@@ -455,6 +466,10 @@ template<> struct xdr_traits<::stellarxdr::FBAStatementType>
       return "COMMIT";
     case ::stellarxdr::COMMITTED:
       return "COMMITTED";
+    case ::stellarxdr::EXTERNALIZED:
+      return "EXTERNALIZED";
+    case ::stellarxdr::UNKNOWN:
+      return "UNKNOWN";
     default:
       return nullptr;
     }
@@ -464,7 +479,9 @@ template<> struct xdr_traits<::stellarxdr::FBAStatementType>
       ::stellarxdr::PREPARE,
       ::stellarxdr::PREPARED,
       ::stellarxdr::COMMIT,
-      ::stellarxdr::COMMITTED
+      ::stellarxdr::COMMITTED,
+      ::stellarxdr::EXTERNALIZED,
+      ::stellarxdr::UNKNOWN
     };
     return _xdr_enum_vec;
   }
@@ -484,7 +501,7 @@ struct FBAContents {
 
     static int _xdr_field_number(std::uint32_t which) {
       return which == PREPARE ? 1
-        : which == PREPARED || which == COMMIT || which == COMMITTED ? 0
+        : which == PREPARED || which == COMMIT || which == COMMITTED || which == EXTERNALIZED || which == UNKNOWN ? 0
         : -1;
     }
     template<typename _F, typename...A> static bool
@@ -496,6 +513,8 @@ struct FBAContents {
       case PREPARED:
       case COMMIT:
       case COMMITTED:
+      case EXTERNALIZED:
+      case UNKNOWN:
         return true;
       }
       return false;
@@ -568,18 +587,18 @@ struct FBAContents {
     }
   };
 
-  SlotBallot ballot{};
+  SlotBallot slotBallot{};
   uint256 quorumSetHash{};
   _body_t body{};
   
   FBAContents() = default;
-  template<typename _ballot_T,
+  template<typename _slotBallot_T,
            typename _quorumSetHash_T,
            typename _body_T>
-  explicit FBAContents(_ballot_T &&_ballot,
+  explicit FBAContents(_slotBallot_T &&_slotBallot,
                        _quorumSetHash_T &&_quorumSetHash,
                        _body_T &&_body)
-    : ballot(std::forward<_ballot_T>(_ballot)),
+    : slotBallot(std::forward<_slotBallot_T>(_slotBallot)),
       quorumSetHash(std::forward<_quorumSetHash_T>(_quorumSetHash)),
       body(std::forward<_body_T>(_body)) {}
 };
@@ -627,8 +646,8 @@ template<> struct xdr_traits<::stellarxdr::FBAContents::_body_t> : xdr_traits_ba
 };
 template<> struct xdr_traits<::stellarxdr::FBAContents>
   : xdr_struct_base<field_ptr<::stellarxdr::FBAContents,
-                              decltype(::stellarxdr::FBAContents::ballot),
-                              &::stellarxdr::FBAContents::ballot>,
+                              decltype(::stellarxdr::FBAContents::slotBallot),
+                              &::stellarxdr::FBAContents::slotBallot>,
                     field_ptr<::stellarxdr::FBAContents,
                               decltype(::stellarxdr::FBAContents::quorumSetHash),
                               &::stellarxdr::FBAContents::quorumSetHash>,
@@ -637,13 +656,13 @@ template<> struct xdr_traits<::stellarxdr::FBAContents>
                               &::stellarxdr::FBAContents::body>> {
   template<typename Archive> static void
   save(Archive &ar, const ::stellarxdr::FBAContents &obj) {
-    archive(ar, obj.ballot, "ballot");
+    archive(ar, obj.slotBallot, "slotBallot");
     archive(ar, obj.quorumSetHash, "quorumSetHash");
     archive(ar, obj.body, "body");
   }
   template<typename Archive> static void
   load(Archive &ar, ::stellarxdr::FBAContents &obj) {
-    archive(ar, obj.ballot, "ballot");
+    archive(ar, obj.slotBallot, "slotBallot");
     archive(ar, obj.quorumSetHash, "quorumSetHash");
     archive(ar, obj.body, "body");
   }
