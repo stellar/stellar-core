@@ -137,8 +137,8 @@ namespace stellar
 // hours. So we have >2 hours to do a sequential read + merge + hash of level
 // 3. Level 3 contains 65,536 ledgers' worth of hashes, or 15GB of
 // data. Commodity storage now can do sequential reads at 200MB/s (disk) or
-// 500MB/s (SSD), so it should take (at worst) ~75 seconds, data, giving us a
-// safety margin of ~100x.
+// 500MB/s (SSD), so it should take (at worst) ~75 seconds, giving us a safety
+// margin of ~100x.
 //
 // It _does_ mean that at this scale, we will be _doing_ a 15GB sequential
 // read/merge/hash/write every 2.8 hours. That might cause a noticable I/O spike
