@@ -161,15 +161,17 @@ BucketLevel::prepare(Application &app, std::shared_ptr<Bucket> snap)
     // error in our caller (and all hell will break loose).
     assert(!mNextCurr.valid());
 
-    std::promise<std::shared_ptr<Bucket>> promise;
-    mNextCurr = promise.get_future();
-
     auto curr = mCurr;
-    app.getWorkerIOService().post(
-        bind([curr, snap](std::promise<std::shared_ptr<Bucket>> &promise)
-             {
-                 promise.set_value(Bucket::merge(curr, snap));
-             }, std::move(promise)));
+
+    using task_t = std::packaged_task<std::shared_ptr<Bucket>()>;
+    std::shared_ptr<task_t> task = std::make_shared<task_t>(
+        [curr, snap]()
+        {
+            return Bucket::merge(curr, snap);
+        });
+
+    mNextCurr = task->get_future();
+    app.getWorkerIOService().post(bind(&task_t::operator(), task));
 
     assert(mNextCurr.valid());
 }
