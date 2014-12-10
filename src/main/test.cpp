@@ -75,16 +75,17 @@ test()
     // created and connected loopback sockets), no external connections are
     // attempted, and the event loops must be manually cranked.
     cfg.RUN_STANDALONE = true;
-    cfg.SINGLE_STEP_MODE = false;
+    cfg.SINGLE_STEP_MODE = true;
 
     Logging::setUpLogging(cfg.LOG_FILE_PATH);
     LOG(INFO) << "Testing stellard-hayashi " << STELLARD_VERSION;
     LOG(INFO) << "Logging to " << cfg.LOG_FILE_PATH;
 
-    testBucketList(cfg);
-
     cfg.SINGLE_STEP_MODE = true;
     testHelloGoodbye(cfg);
+
+    cfg.SINGLE_STEP_MODE = false;
+    testBucketList(cfg);
 
     return 0;
 }
