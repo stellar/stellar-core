@@ -39,6 +39,31 @@ namespace stellar
     {
     public:
 
+        // State invariants / definitions:
+        //
+        //  - Define "trusted" as "something signed by a sufficient set
+        //    of parties based on our _current_ config-file quorum-set".
+        //    This definition may change from run to run. This is intentional.
+        //    Trust is not permanent, may need to be reinforced by some
+        //    other party if we stop trusting someone we trusted in the past.
+        //
+        //  - Catching-up means: the newest trusted ledger we have on hand has a
+        //    sequence number less than the highest "previous-ledger" sequence
+        //    number we hear in ballots from any of our quorum-sets. In other
+        //    words, we don't have the prestate necessary to run consensus
+        //    transactions against yet, even if we wanted to.
+        //
+        //  - We only ever execute a transaction set when it's part of a
+        //    trusted ledger. Currently trusted, not historical trusted.
+        //    This includes the current consensus round: we don't run the
+        //    transactions at all until we're certain everyone agrees on them.
+        //
+        //  - We only ever place our signature on a ledger when we have executed
+        //    the transactions ourselves and verified the outcome. Even if we
+        //    trust someone else's signatures for the sake of constructing a
+        //    ledger (say, from snapshots), we don't _add our own signature_
+        //    without execution as well.
+
         enum
         {
             BOOTING_STATE,      // loading last known ledger from disk
@@ -70,6 +95,7 @@ namespace stellar
 
         asio::io_service mMainIOService;
         asio::io_service mWorkerIOService;
+        asio::io_service::work mWork;
 
         PeerMaster mPeerMaster;
         LedgerMaster mLedgerMaster;

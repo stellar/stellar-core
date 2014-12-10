@@ -8,6 +8,7 @@ namespace stellar
 Application::Application(Config const &cfg)
     : mState(BOOTING_STATE),
       mConfig(cfg),
+      mWork(mWorkerIOService),
       mPeerMaster(*this),
       mTxHerder(*this),
       mFBAMaster(*this),
