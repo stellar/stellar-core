@@ -5,6 +5,7 @@
 #include "util/make_unique.h"
 #include "xdrpp/autocheck.h"
 #include <time.h>
+#include <future>
 #include "overlay/LoopbackPeer.h"
 
 namespace stellar
@@ -40,7 +41,6 @@ testHelloGoodbye(Config const &cfg)
         for (appPtr &app : apps)
         {
             app->getMainIOService().poll_one();
-            app->getWorkerIOService().poll_one();
         }
     }
 }
@@ -48,12 +48,21 @@ testHelloGoodbye(Config const &cfg)
 void
 testBucketList(Config const &cfg)
 {
-    Application app(cfg);
-    BucketList bl;
-    autocheck::generator<std::vector<Bucket::KVPair>> gen;
-    for (uint64_t i = 1; i < 300; ++i)
+    try
     {
-        bl.addBatch(app, i, gen(100));
+        Application app(cfg);
+        BucketList bl;
+        autocheck::generator<std::vector<Bucket::KVPair>> gen;
+        for (uint64_t i = 1; !app.getMainIOService().stopped() && i < 300; ++i)
+        {
+            app.getMainIOService().poll_one();
+            bl.addBatch(app, i, gen(100));
+        }
+    }
+    catch (std::future_error &e)
+    {
+        LOG(DEBUG) << "Test caught std::future_error "
+                   << e.code() << ": " << e.what();
     }
 }
 
@@ -70,21 +79,16 @@ test()
     Config cfg;
     cfg.LOG_FILE_PATH = oss.str();
 
-    // Tests are run in standalone and single-step mode by default, meaning that
-    // no external listening interfaces are opened (all sockets must be manually
-    // created and connected loopback sockets), no external connections are
-    // attempted, and the event loops must be manually cranked.
+    // Tests are run in standalone by default, meaning that no external
+    // listening interfaces are opened (all sockets must be manually created and
+    // connected loopback sockets), no external connections are attempted.
     cfg.RUN_STANDALONE = true;
-    cfg.SINGLE_STEP_MODE = true;
 
     Logging::setUpLogging(cfg.LOG_FILE_PATH);
     LOG(INFO) << "Testing stellard-hayashi " << STELLARD_VERSION;
     LOG(INFO) << "Logging to " << cfg.LOG_FILE_PATH;
 
-    cfg.SINGLE_STEP_MODE = true;
     testHelloGoodbye(cfg);
-
-    cfg.SINGLE_STEP_MODE = false;
     testBucketList(cfg);
 
     return 0;

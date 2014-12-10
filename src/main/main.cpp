@@ -75,7 +75,12 @@ main(int argc, char *argv[])
     LOG(INFO) << "Starting stellard-hayashi " << STELLARD_VERSION;
     LOG(INFO) << "Config from " << cfgFile;
     Application app(cfg);
-    app.joinAllThreads();
+
+    auto &io = app.getMainIOService();
+    asio::io_service::work mainWork(io);
+    while (!io.stopped()) {
+        io.run();
+    }
 }
 
 /*

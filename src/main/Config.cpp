@@ -18,7 +18,6 @@ Config::Config()
     DESIRED_BASE_FEE = 10;
     PEER_PORT = 39133;
     RUN_STANDALONE = false;
-    SINGLE_STEP_MODE = false;
     TARGET_PEER_CONNECTIONS = 20;
     MAX_PEER_CONNECTIONS = 50;
     LOG_FILE_PATH = "stellard.log";
@@ -38,8 +37,6 @@ Config::load(std::string const &filename)
         if(g.contains("DESIRED_BASE_FEE"))
             DESIRED_BASE_FEE = (int)g.get("DESIRED_BASE_FEE")->as<int64_t>()->value();
 
-        if (g.contains("SINGLE_STEP_MODE"))
-            SINGLE_STEP_MODE = g.get("SINGLE_STEP_MODE")->as<bool>()->value();
         if(g.contains("RUN_STANDALONE"))
             RUN_STANDALONE = g.get("RUN_STANDALONE")->as<bool>()->value();
         if (g.contains("LOG_FILE_PATH"))

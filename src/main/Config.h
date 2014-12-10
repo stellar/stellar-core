@@ -4,11 +4,10 @@ namespace stellar
 {
     class Config
     {
-        
+
     public:
         // application config
         bool RUN_STANDALONE;
-        bool SINGLE_STEP_MODE;
         int PROTOCOL_VERSION;
         std::string VERSION_STR;
         std::string LOG_FILE_PATH;

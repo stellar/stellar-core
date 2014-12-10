@@ -8,19 +8,15 @@ namespace stellar
 Application::Application(Config const &cfg)
     : mState(BOOTING_STATE),
       mConfig(cfg),
-      mWork(mWorkerIOService),
+      mWorkerIOService(std::thread::hardware_concurrency()),
+      mWork(make_unique<asio::io_service::work>(mWorkerIOService)),
       mPeerMaster(*this),
       mTxHerder(*this),
       mFBAMaster(*this),
       mLedgerMaster(*this),
-      mMainThread(cfg.SINGLE_STEP_MODE ? nullptr
-                                       : std::move(make_unique<std::thread>(
-                                             [this]()
-                                             {
-                                                 this->runMainThread();
-                                             }))),
       mStopSignals(mMainIOService, SIGINT)
 {
+    LOG(INFO) << "Application constructing";
     mStopSignals.async_wait([this](asio::error_code const &ec, int sig)
                             {
                                 LOG(INFO) << "got signal " << sig
@@ -28,59 +24,55 @@ Application::Application(Config const &cfg)
                                 this->gracefulStop();
                             });
     unsigned t = std::thread::hardware_concurrency();
-    if (!mConfig.SINGLE_STEP_MODE)
+    LOG(INFO) << "Worker threads: " << t;
+    while (t--)
     {
-        LOG(INFO) << "Worker threads: " << t;
-        while (t--)
-        {
-            mWorkerThreads.emplace_back([this, t]()
-                                        {
-                                            this->runWorkerThread(t);
-                                        });
-        }
+        mWorkerThreads.emplace_back([this, t]()
+                                    {
+                                        this->runWorkerThread(t);
+                                    });
     }
+    LOG(INFO) << "Application constructed";
+}
+
+Application::~Application()
+{
+    LOG(INFO) << "Application destructing";
+    gracefulStop();
+    joinAllThreads();
+    LOG(INFO) << "Application destroyed";
 }
 
 void
 Application::runWorkerThread(unsigned i)
 {
-    if (mConfig.SINGLE_STEP_MODE)
-        return;
-
     LOG(INFO) << "Worker thread " << i << " starting";
     mWorkerIOService.run();
     LOG(INFO) << "Worker thread " << i << " complete";
 }
 
-void
-Application::runMainThread()
-{
-    if (mConfig.SINGLE_STEP_MODE)
-        return;
-
-    LOG(INFO) << "Main thread starting";
-    mMainIOService.run();
-    LOG(INFO) << "Main thread complete";
-}
 
 void
 Application::gracefulStop()
 {
-    LOG(INFO) << "Graceful stop requested";
-
-    LOG(INFO) << "Stopping worker IO service";
-    mWorkerIOService.stop();
-
-    LOG(INFO) << "Stopping main IO service";
-    mMainIOService.stop();
+    if (!mMainIOService.stopped())
+    {
+        LOG(INFO) << "Stopping main IO service";
+        mMainIOService.stop();
+    }
 }
 
 void
 Application::joinAllThreads()
 {
-    if (mConfig.SINGLE_STEP_MODE)
-        return;
-
+    // We never strictly stop the worker IO service, just release the work-lock
+    // that keeps the worker threads alive. This gives them the chance to finish
+    // any work that the main thread queued.
+    if (mWork)
+    {
+        LOG(INFO) << "Releasing worker threads";
+        mWork.reset();
+    }
     unsigned i = 0;
     for (auto &w : mWorkerThreads)
     {
@@ -88,9 +80,6 @@ Application::joinAllThreads()
         w.join();
     }
 
-    LOG(INFO) << "Joining main thread ";
-    mMainThread->join();
-
-    LOG(INFO) << "All threads complete";
+    LOG(INFO) << "All worker threads complete";
 }
 }
