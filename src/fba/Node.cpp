@@ -51,7 +51,7 @@ namespace stellar
         mRecheckCounter = recheckCounter;
 
 
-		for(int n = statementType; n < stellarxdr::FBAStatementType::UNKNOWN; n++)
+		for(unsigned n = statementType; n < stellarxdr::FBAStatementType::UNKNOWN; n++)
 		{  // if this node has ratified this statement or a stronger version
             if(mRatified[n] && mRatified[n]->isCompatible(ballot))
             {

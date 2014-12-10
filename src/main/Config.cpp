@@ -35,7 +35,7 @@ Config::load(std::string const &filename)
         if(g.contains("QUORUM_THRESHOLD"))
             QUORUM_THRESHOLD = (int)g.get("QUORUM_THRESHOLD")->as<int64_t>()->value();
         if(g.contains("DESIRED_BASE_FEE"))
-            DESIRED_BASE_FEE = (int)g.get("DESIRED_BASE_FEE")->as<int64_t>()->value();
+            DESIRED_BASE_FEE = (uint32_t)g.get("DESIRED_BASE_FEE")->as<int64_t>()->value();
 
         if(g.contains("RUN_STANDALONE"))
             RUN_STANDALONE = g.get("RUN_STANDALONE")->as<bool>()->value();
