@@ -437,5 +437,8 @@
     <None Include="..\..\docs\questions.md">
       <Filter>docs</Filter>
     </None>
+    <None Include="..\..\docs\usecases.md">
+      <Filter>docs</Filter>
+    </None>
   </ItemGroup>
 </Project>

@@ -18,6 +18,12 @@ hashXDR(xdr::msg_ptr msg, stellarxdr::uint256 &retHash)
     // SANITY  hash
 }
 
+void 
+hashStr(std::string str, stellarxdr::uint256& retHash)
+{
+    // SANITY  hash
+}
+
 std::string &
 toBase58(stellarxdr::uint256 const &b, std::string &retstr)
 {

@@ -214,6 +214,7 @@
     <None Include="..\..\docs\hayashi_example.cfg" />
     <None Include="..\..\docs\questions.md" />
     <None Include="..\..\docs\transactions.md" />
+    <None Include="..\..\docs\usecases.md" />
     <None Include="..\..\NEWS" />
     <None Include="..\..\README" />
     <None Include="..\..\src\overlay\protocol.x" />

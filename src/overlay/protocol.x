@@ -1,6 +1,6 @@
 // things we need to serialize
 //   protocol messages
-//    FBA messages for signing
+//   FBA messages for signing
 //   tx for signing
 //   tx sets for FBA
 //   tx sets for history
@@ -29,10 +29,33 @@ struct Hello
 	int port;
 };
 
+enum TransactionType
+{
+	PAYMENT,
+	CREATE_OFFER,
+	CANCEL_OFFER,
+	CHANGE_ACCOUNT,
+	CHANGE_TRUST,
+	ACCOUNT_MERGE,
+	INFLATION
+};
+
 struct Transaction
 {
     uint160 account;
 	uint32 maxFee;
+	uint32 seqNum;
+	union switch (TransactionType type)
+	{
+		case PAYMENT:
+		case CREATE_OFFER:
+		case CANCEL_OFFER:
+		case CHANGE_ACCOUNT:
+		case CHANGE_TRUST:
+		case ACCOUNT_MERGE:
+		case INFLATION:
+			void;		
+	} body;
 };
 
 struct TransactionEnvelope

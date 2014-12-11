@@ -1,34 +1,71 @@
 #include "lib/catch.hpp"
+#include "generated/stellar.hh"
+#include "fba/Ballot.h"
+using namespace stellar;
 
-TEST_CASE("vectors can be sized and resized", "[vector]") {
+TEST_CASE("ballot tests", "[ballot]") {
 
-    std::vector<int> v(5);
+    stellarxdr::Ballot b1;
 
-    REQUIRE(v.size() == 5);
-    REQUIRE(v.capacity() >= 5);
+    b1.baseFee = 10;
+    b1.closeTime = 10;
+    b1.index = 1;
+    hashStr("hello", b1.txSetHash);
 
-    SECTION("resizing bigger changes size and capacity") {
-        v.resize(10);
+    SECTION("compare") {
+        stellarxdr::Ballot b3 = b1;
+        
+        REQUIRE(!ballot::compare(b1, b3));
+        REQUIRE(!ballot::compare(b3, b1));
+        b3.baseFee++;
+        REQUIRE(!ballot::compare(b1, b3));
+        REQUIRE(ballot::compare(b3, b1));
+        b1.closeTime++;
+        REQUIRE(ballot::compare(b1, b3));
+        REQUIRE(!ballot::compare(b3, b1));
+        b3.txSetHash[0] += 1;
+        REQUIRE(!ballot::compare(b1, b3));
+        REQUIRE(ballot::compare(b3, b1));
 
-        REQUIRE(v.size() == 10);
-        REQUIRE(v.capacity() >= 10);
+        b1.index++;
+        REQUIRE(ballot::compare(b1, b3));
+        REQUIRE(!ballot::compare(b3, b1));
+
     }
-    SECTION("resizing smaller changes size but not capacity") {
-        v.resize(0);
+    SECTION("compareValue") {
+        stellarxdr::Ballot b3 = b1;
 
-        REQUIRE(v.size() == 0);
-        REQUIRE(v.capacity() >= 5);
+        REQUIRE(!ballot::compareValue(b1, b3));
+        REQUIRE(!ballot::compareValue(b3, b1));
+        b3.baseFee++;
+        REQUIRE(!ballot::compareValue(b1, b3));
+        REQUIRE(ballot::compareValue(b3, b1));
+        b1.closeTime++;
+        REQUIRE(ballot::compareValue(b1, b3));
+        REQUIRE(!ballot::compareValue(b3, b1));
+        b3.txSetHash[0] += 1;
+        REQUIRE(!ballot::compareValue(b1, b3));
+        REQUIRE(ballot::compareValue(b3, b1));
+
+        b1.index++;
+        REQUIRE(!ballot::compareValue(b1, b3));
+        REQUIRE(ballot::compareValue(b3, b1));
     }
-    SECTION("reserving bigger changes capacity but not size") {
-        v.reserve(10);
+    SECTION("isCompatible") {
+        stellarxdr::Ballot b3=b1;
 
-        REQUIRE(v.size() == 5);
-        REQUIRE(v.capacity() >= 10);
-    }
-    SECTION("reserving smaller does not change size or capacity") {
-        v.reserve(0);
-
-        REQUIRE(v.size() == 5);
-        REQUIRE(v.capacity() >= 5);
+        REQUIRE(ballot::isCompatible(b1,b3));
+        REQUIRE(ballot::isCompatible(b3,b1));
+        b3.index++;
+        REQUIRE(ballot::isCompatible(b1, b3));
+        REQUIRE(ballot::isCompatible(b3, b1));
+        b3.baseFee++;
+        REQUIRE(!ballot::isCompatible(b1, b3));
+        b3.baseFee--;
+        b3.closeTime++;
+        REQUIRE(!ballot::isCompatible(b1, b3));
+        b3.closeTime--;
+        b3.txSetHash[0] += 1;
+        REQUIRE(!ballot::isCompatible(b1, b3));
     }
 }
