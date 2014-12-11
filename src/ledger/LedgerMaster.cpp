@@ -18,7 +18,6 @@ catching up to network:
     2) Ask network for the the delta between what it has now and our ledger last ledger  
 
     // TODO.1 need to make sure the CLF and the SQL Ledger are in sync on start up
-    // TODO.1 need to also come to consensus on the base fee
     // TODO.1 make sure you validate incoming Deltas to see that it gives you the CLF you want
     // TODO.1 do we need to store some validation history?
 

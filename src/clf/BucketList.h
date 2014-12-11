@@ -122,6 +122,15 @@ namespace stellar
 // level[6]  curr=(0x0, 0x5000000],       snap= ------ empty ------
 //
 //
+// L0: 80 seconds
+// L1: 21.3 min
+// L2: 5.7 hours
+// L3: 3.8 days
+// L4: 60.7 days
+// L5: 2.66 years
+// L6: 42.5 years
+// L7: 681 years
+
 // Performance:
 // ------------
 //

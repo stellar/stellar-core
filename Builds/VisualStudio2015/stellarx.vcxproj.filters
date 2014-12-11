@@ -407,6 +407,9 @@
     <ClInclude Include="..\..\src\sync\SyncMaster.h">
       <Filter>sync</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\..\xdrpp\xdrpp\endian.h">
+      <Filter>xdrpp</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Text Include="..\..\src\lib\beast\beast.txt">
@@ -416,6 +419,23 @@
   <ItemGroup>
     <None Include="..\..\src\overlay\protocol.x">
       <Filter>overlay</Filter>
+    </None>
+    <None Include="..\..\docs\transactions.md">
+      <Filter>docs</Filter>
+    </None>
+    <None Include="..\..\docs\entries.md">
+      <Filter>docs</Filter>
+    </None>
+    <None Include="..\..\AUTHORS" />
+    <None Include="..\..\ChangeLog" />
+    <None Include="..\..\COPYING" />
+    <None Include="..\..\NEWS" />
+    <None Include="..\..\README" />
+    <None Include="..\..\docs\hayashi_example.cfg">
+      <Filter>docs</Filter>
+    </None>
+    <None Include="..\..\docs\questions.md">
+      <Filter>docs</Filter>
     </None>
   </ItemGroup>
 </Project>

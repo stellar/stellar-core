@@ -128,6 +128,7 @@
     <ClCompile Include="..\..\src\util\Logging.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\..\xdrpp\xdrpp\endian.h" />
     <ClInclude Include="..\..\..\xdrpp\xdrpp\marshal.h" />
     <ClInclude Include="..\..\..\xdrpp\xdrpp\message.h" />
     <ClInclude Include="..\..\src\clf\BucketList.h" />
@@ -206,6 +207,15 @@
     <Text Include="..\..\src\lib\beast\beast.txt" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="..\..\AUTHORS" />
+    <None Include="..\..\ChangeLog" />
+    <None Include="..\..\COPYING" />
+    <None Include="..\..\docs\entries.md" />
+    <None Include="..\..\docs\hayashi_example.cfg" />
+    <None Include="..\..\docs\questions.md" />
+    <None Include="..\..\docs\transactions.md" />
+    <None Include="..\..\NEWS" />
+    <None Include="..\..\README" />
     <None Include="..\..\src\overlay\protocol.x" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

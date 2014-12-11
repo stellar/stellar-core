@@ -32,6 +32,7 @@ struct Hello
 struct Transaction
 {
     uint160 account;
+	uint32 maxFee;
 };
 
 struct TransactionEnvelope
@@ -88,7 +89,7 @@ struct Ballot
 
 struct SlotBallot
 {
-	int ledgerIndex;				// the slot				
+	uint32 ledgerIndex;				// the slot				
 	uint256 previousLedgerHash;		// the slot
 
     Ballot ballot;
