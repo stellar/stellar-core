@@ -261,6 +261,8 @@ class BucketLevel
 public:
     BucketLevel(size_t i);
     uint256 getHash() const;
+    Bucket const& getCurr() const;
+    Bucket const& getSnap() const;
     void commit();
     void prepare(Application &app, uint64_t currLedger, std::shared_ptr<Bucket> snap);
     std::shared_ptr<Bucket> snap();
@@ -286,6 +288,8 @@ public:
     // BucketList _just_ stores a set of key/hash pairs; anything else the CLF
     // wants to support should happen in another class. These operations form a
     // minimal, testable interface to BucketList.
+    size_t numLevels() const;
+    BucketLevel const& getLevel(size_t i) const;
     uint256 getHash() const;
     void addBatch(Application &app, uint64_t currLedger,
                   std::vector<Bucket::KVPair>&& batch);

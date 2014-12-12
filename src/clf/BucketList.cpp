@@ -136,6 +136,20 @@ BucketLevel::getHash() const
     return hsh.finish();
 }
 
+Bucket const&
+BucketLevel::getCurr() const
+{
+    assert(mCurr);
+    return *mCurr;
+}
+
+Bucket const&
+BucketLevel::getSnap() const
+{
+    assert(mSnap);
+    return *mSnap;
+}
+
 void
 BucketLevel::commit()
 {
@@ -273,6 +287,19 @@ BucketList::levelShouldSpill(uint64_t ledger, size_t level)
     return (ledger == mask(ledger, levelHalf(level)) ||
             ledger == mask(ledger, levelSize(level)));
 }
+
+size_t
+BucketList::numLevels() const
+{
+    return mLevels.size();
+}
+
+BucketLevel const&
+BucketList::getLevel(size_t i) const
+{
+    return mLevels.at(i);
+}
+
 
 void
 BucketList::addBatch(Application &app, uint64_t currLedger,
