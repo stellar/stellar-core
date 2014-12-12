@@ -26,8 +26,8 @@ TEST_CASE("loopback peer hello", "[overlay]") {
 
     Config const& cfg = getTestConfig();
     std::vector<appPtr> apps;
-    apps.emplace_back(make_unique<Application>(cfg));
-    apps.emplace_back(make_unique<Application>(cfg));
+    apps.emplace_back(stellar::make_unique<Application>(cfg));
+    apps.emplace_back(stellar::make_unique<Application>(cfg));
 
     LoopbackPeerConnection conn(*apps[0], *apps[1]);
 

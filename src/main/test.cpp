@@ -4,6 +4,14 @@
 #include "lib/util/Logging.h"
 #include <time.h>
 
+#ifdef _MSC_VER
+#include <process.h>
+#define GETPID _getpid
+#else
+#include <unistd.h>
+#define GETPID getpid
+#endif
+
 #define CATCH_CONFIG_RUNNER
 #include "lib/catch.hpp"
 
@@ -17,14 +25,9 @@ getTestConfig()
 {
     if (!gTestCfg)
     {
-#ifdef _MSC_VER
-#define GETPID _getpid
-#else
-#define GETPID getpid
-#endif
         std::ostringstream oss;
         oss << "stellard-test-" << time(nullptr) << "-" << GETPID() << ".log";
-        gTestCfg = make_unique<Config>();
+		gTestCfg = stellar::make_unique<Config>();
         gTestCfg->LOG_FILE_PATH = oss.str();
 
         // Tests are run in standalone by default, meaning that no external

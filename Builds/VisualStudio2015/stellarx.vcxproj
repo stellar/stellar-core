@@ -73,14 +73,15 @@
   <ItemGroup>
     <ClCompile Include="..\..\..\xdrpp\xdrpp\marshal.cc" />
     <ClCompile Include="..\..\src\clf\BucketList.cpp" />
+    <ClCompile Include="..\..\src\clf\CLFTests.cpp" />
     <ClCompile Include="..\..\src\fba\Ballot.cpp" />
     <ClCompile Include="..\..\src\fba\FBAMaster.cpp" />
+    <ClCompile Include="..\..\src\fba\FBATests.cpp" />
     <ClCompile Include="..\..\src\fba\FutureStatement.cpp" />
     <ClCompile Include="..\..\src\fba\Node.cpp" />
     <ClCompile Include="..\..\src\fba\OurNode.cpp" />
     <ClCompile Include="..\..\src\fba\QuorumSet.cpp" />
     <ClCompile Include="..\..\src\fba\Statement.cpp" />
-    <ClCompile Include="..\..\src\fba\tests.cpp" />
     <ClCompile Include="..\..\src\ledger\AccountEntry.cpp" />
     <ClCompile Include="..\..\src\ledger\Ledger.cpp" />
     <ClCompile Include="..\..\src\ledger\LedgerDatabase.cpp" />
@@ -115,6 +116,7 @@
     <ClCompile Include="..\..\src\overlay\Floodgate.cpp" />
     <ClCompile Include="..\..\src\overlay\ItemFetcher.cpp" />
     <ClCompile Include="..\..\src\overlay\LoopbackPeer.cpp" />
+    <ClCompile Include="..\..\src\overlay\OverlayTests.cpp" />
     <ClCompile Include="..\..\src\overlay\Peer.cpp" />
     <ClCompile Include="..\..\src\overlay\PeerDoor.cpp" />
     <ClCompile Include="..\..\src\overlay\PeerMaster.cpp" />
@@ -175,6 +177,7 @@
     <ClInclude Include="..\..\src\main\Application.h" />
     <ClInclude Include="..\..\src\main\Config.h" />
     <ClInclude Include="..\..\src\main\main.h" />
+    <ClInclude Include="..\..\src\main\test.h" />
     <ClInclude Include="..\..\src\overlay\FetchableItem.h" />
     <ClInclude Include="..\..\src\overlay\Floodgate.h" />
     <ClInclude Include="..\..\src\overlay\ItemFetcher.h" />

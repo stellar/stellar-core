@@ -202,16 +202,16 @@ BucketLevel::prepare(Application &app, uint64_t currLedger,
         {
             if (curr)
             {
-                LOG(DEBUG)
-                << "Worker merging " << snap->getEntries().size()
-                << " new elements with " << curr->getEntries().size()
-                << " existing";
-                TIMED_SCOPE(timer, "merge + hash");
+                //LOG(DEBUG)
+                //<< "Worker merging " << snap->getEntries().size()
+                //<< " new elements with " << curr->getEntries().size()
+                //<< " existing";
+                //TIMED_SCOPE(timer, "merge + hash");
                 auto res = Bucket::merge(curr, snap);
-                LOG(DEBUG)
-                << "Worker finished merging " << snap->getEntries().size()
-                << " new elements with " << curr->getEntries().size()
-                << " existing (new size: " << res->getEntries().size() << ")";
+                //LOG(DEBUG)
+                //<< "Worker finished merging " << snap->getEntries().size()
+                //<< " new elements with " << curr->getEntries().size()
+                //<< " existing (new size: " << res->getEntries().size() << ")";
                 return res;
             }
             else
@@ -343,12 +343,12 @@ BucketList::addBatch(Application &app, uint64_t currLedger,
              * else spilled/added to it.
              */
             auto snap = mLevels[i-1].snap();
-            LOG(DEBUG) << "Ledger " << currLedger
-                       << " causing commit on level " << i
-                       << " and prepare of "
-                       << snap->getEntries().size()
-                       << " element snap from level " << i-1
-                       << " to level " << i;
+            //LOG(DEBUG) << "Ledger " << currLedger
+            //           << " causing commit on level " << i
+            //           << " and prepare of "
+            //           << snap->getEntries().size()
+            //           << " element snap from level " << i-1
+            //           << " to level " << i;
             mLevels[i].commit();
             mLevels[i].prepare(app, currLedger, snap);
         }

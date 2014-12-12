@@ -180,9 +180,11 @@
     <ClCompile Include="..\..\src\overlay\TCPPeer.cpp">
       <Filter>overlay</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\fba\tests.cpp">
-      <Filter>fba</Filter>
+    <ClCompile Include="..\..\src\clf\CLFTests.cpp">
+      <Filter>clf</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\overlay\OverlayTests.cpp" />
+    <ClCompile Include="..\..\src\fba\FBATests.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\fba\Ballot.h">
@@ -403,6 +405,9 @@
     </ClInclude>
     <ClInclude Include="..\..\..\xdrpp\xdrpp\endian.h">
       <Filter>xdrpp</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\main\test.h">
+      <Filter>main</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
