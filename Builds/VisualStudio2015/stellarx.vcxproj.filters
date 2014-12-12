@@ -63,9 +63,6 @@
     <ClCompile Include="..\..\src\fba\FBAMaster.cpp">
       <Filter>fba</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\fba\History.cpp">
-      <Filter>fba</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\fba\Node.cpp">
       <Filter>fba</Filter>
     </ClCompile>
@@ -198,9 +195,6 @@
       <Filter>fba</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\fba\FBAWorldInterface.h">
-      <Filter>fba</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\fba\History.h">
       <Filter>fba</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\fba\Node.h">

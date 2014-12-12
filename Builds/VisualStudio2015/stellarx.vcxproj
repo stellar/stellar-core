@@ -76,7 +76,6 @@
     <ClCompile Include="..\..\src\fba\Ballot.cpp" />
     <ClCompile Include="..\..\src\fba\FBAMaster.cpp" />
     <ClCompile Include="..\..\src\fba\FutureStatement.cpp" />
-    <ClCompile Include="..\..\src\fba\History.cpp" />
     <ClCompile Include="..\..\src\fba\Node.cpp" />
     <ClCompile Include="..\..\src\fba\OurNode.cpp" />
     <ClCompile Include="..\..\src\fba\QuorumSet.cpp" />
@@ -143,7 +142,6 @@
     <ClInclude Include="..\..\src\fba\FBAMaster.h" />
     <ClInclude Include="..\..\src\fba\FBAWorldInterface.h" />
     <ClInclude Include="..\..\src\fba\FutureStatement.h" />
-    <ClInclude Include="..\..\src\fba\History.h" />
     <ClInclude Include="..\..\src\fba\Node.h" />
     <ClInclude Include="..\..\src\fba\OurNode.h" />
     <ClInclude Include="..\..\src\fba\QuorumSet.h" />

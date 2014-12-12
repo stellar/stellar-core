@@ -28,6 +28,7 @@ namespace stellar
 	Node::Node(const stellarxdr::uint256& nodeID) : mNodeID(nodeID)
 	{
 		mState = stellarxdr::FBAStatementType::UNKNOWN;
+        mStatements.resize(stellarxdr::FBAStatementType::UNKNOWN);
 	}
 
 	// called recursively
