@@ -5,14 +5,10 @@
 #define ASIO_STANDALONE
 #endif
 #include <asio.hpp>
-#include <deque>
-#include <mutex>
-#include <random>
 #include "xdrpp/message.h"
 #include "generated/stellar.hh"
 #include "fba/QuorumSet.h"
 #include "overlay/StellarMessage.h"
-#include "util/timer.h"
 
 /*
 Another peer out there that we are connected to
