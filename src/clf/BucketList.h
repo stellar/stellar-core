@@ -254,27 +254,29 @@ public:
 
 class BucketLevel
 {
+    size_t mLevel;
     std::future<std::shared_ptr<Bucket>> mNextCurr;
     std::shared_ptr<Bucket> mCurr;
     std::shared_ptr<Bucket> mSnap;
 public:
-    BucketLevel();
+    BucketLevel(size_t i);
     uint256 getHash() const;
     void commit();
-    void prepare(Application &app, std::shared_ptr<Bucket> snap);
+    void prepare(Application &app, uint64_t currLedger, std::shared_ptr<Bucket> snap);
     std::shared_ptr<Bucket> snap();
 };
 
 class BucketList : public CLFGateway
 {
     std::vector<BucketLevel> mLevels;
-    static uint64_t levelSize(uint64_t i);
-    static uint64_t levelHalf(uint64_t i);
-    static uint64_t levelPrev(uint64_t i);
-    static uint64_t mask(uint64_t v, uint64_t m);
-    static size_t numLevels(uint64_t ledger);
 
 public:
+
+    static uint64_t levelSize(size_t level);
+    static uint64_t levelHalf(size_t level);
+    static bool levelShouldSpill(uint64_t ledger, size_t level);
+    static uint64_t mask(uint64_t v, uint64_t m);
+    static size_t numLevels(uint64_t ledger);
 
     // These two are from CLFGateway, don't exactly map on to concepts in
     // BucketList, but we implement them for now to keep it compiling.

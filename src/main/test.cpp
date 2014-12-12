@@ -53,7 +53,7 @@ testBucketList(Config const &cfg)
         Application app(cfg);
         BucketList bl;
         autocheck::generator<std::vector<Bucket::KVPair>> gen;
-        for (uint64_t i = 1; !app.getMainIOService().stopped() && i < 300; ++i)
+        for (uint64_t i = 1; !app.getMainIOService().stopped() && i < 9000; ++i)
         {
             app.getMainIOService().poll_one();
             bl.addBatch(app, i, gen(100));
