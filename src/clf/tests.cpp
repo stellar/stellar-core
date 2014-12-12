@@ -20,15 +20,15 @@ TEST_CASE("bucket list", "[clf]") {
         {
             app.getMainIOService().poll_one();
             bl.addBatch(app, i, gen(100));
-            LOG(DEBUG) << "Finished addition cycle " << i;
+            // LOG(DEBUG) << "Finished addition cycle " << i;
             for (size_t j = 0; j < bl.numLevels(); ++j)
             {
                 auto const& lev = bl.getLevel(j);
                 auto currSz = lev.getCurr().getEntries().size();
                 auto snapSz = lev.getSnap().getEntries().size();
-                LOG(DEBUG) << "level " << j
-                           << " curr=" << currSz
-                           << " snap=" << snapSz;
+                // LOG(DEBUG) << "level " << j
+                //            << " curr=" << currSz
+                //            << " snap=" << snapSz;
                 CHECK(currSz <= BucketList::levelHalf(j) * 100);
                 CHECK(snapSz <= BucketList::levelHalf(j) * 100);
             }
