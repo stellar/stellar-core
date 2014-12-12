@@ -16,7 +16,8 @@ FMT_SRCS = src/overlay/Floodgate.cpp src/overlay/PeerDoor.cpp                   
 	src/txherder/TransactionSet.cpp src/clf/BucketList.cpp src/main/main.cpp    \
 	src/main/test.cpp src/main/Application.cpp src/main/Config.cpp              \
 	src/transactions/TrustSetTx.cpp src/transactions/Transaction.cpp            \
-	src/util/Logging.cpp
+	src/util/Logging.cpp src/fba/tests.cpp src/clf/tests.cpp                    \
+	src/overlay/tests.cpp
 
 
 bin_stellard_SOURCES = $(FMT_SRCS) src/lib/util/getopt_long.c src/util/StellardVersion.h

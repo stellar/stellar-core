@@ -2,10 +2,7 @@
 #include "util/StellardVersion.h"
 #include "lib/util/Logging.h"
 #include "lib/util/getopt.h"
-
-#define CATCH_CONFIG_RUNNER
-#include "lib/catch.hpp"
-
+#include "main/test.h"
 
 _INITIALIZE_EASYLOGGINGPP
 
@@ -38,13 +35,8 @@ usage(int err = 1)
     exit(err);
 }
 
-namespace stellar
-{
-int test();
-}
-
 int
-main(int argc, char *argv[])
+main(int argc, char* const* argv)
 {
     using namespace stellar;
 
@@ -56,8 +48,12 @@ main(int argc, char *argv[])
         switch (opt)
         {
         case OPT_TEST:
-            Catch::Session().run(); //  (argc, argv);
-            return test();
+        {
+            std::vector<char*> rest;
+            rest.push_back(*argv);
+            rest.insert(++rest.begin(), argv+optind, argv+argc);
+            return test(rest.size(), &rest[0]);
+        }
         case OPT_CONF:
             cfgFile = std::string(optarg);
             break;

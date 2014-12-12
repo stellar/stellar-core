@@ -1,96 +1,49 @@
-#include "main/Application.h"
-#include "clf/BucketList.h"
 #include "util/StellardVersion.h"
-#include "lib/util/Logging.h"
+#include "main/Config.h"
 #include "util/make_unique.h"
-#include "xdrpp/autocheck.h"
+#include "lib/util/Logging.h"
 #include <time.h>
-#include <future>
-#include "overlay/LoopbackPeer.h"
+
+#define CATCH_CONFIG_RUNNER
+#include "lib/catch.hpp"
 
 namespace stellar
 {
 
-typedef std::unique_ptr<Application> appPtr;
+static std::unique_ptr<Config> gTestCfg;
 
-bool
-allStopped(std::vector<appPtr> &apps)
+Config const&
+getTestConfig()
 {
-    for (appPtr &app : apps)
+    if (!gTestCfg)
     {
-        if (!app->getMainIOService().stopped())
-        {
-            return false;
-        }
-    }
-    return true;
-}
-
-void
-testHelloGoodbye(Config const &cfg)
-{
-
-    std::vector<appPtr> apps;
-    apps.emplace_back(make_unique<Application>(cfg));
-    apps.emplace_back(make_unique<Application>(cfg));
-
-    LoopbackPeerConnection conn(*apps[0], *apps[1]);
-
-    while (!allStopped(apps))
-    {
-        for (appPtr &app : apps)
-        {
-            app->getMainIOService().poll_one();
-        }
-    }
-}
-
-void
-testBucketList(Config const &cfg)
-{
-    try
-    {
-        Application app(cfg);
-        BucketList bl;
-        autocheck::generator<std::vector<Bucket::KVPair>> gen;
-        for (uint64_t i = 1; !app.getMainIOService().stopped() && i < 9000; ++i)
-        {
-            app.getMainIOService().poll_one();
-            bl.addBatch(app, i, gen(100));
-        }
-    }
-    catch (std::future_error &e)
-    {
-        LOG(DEBUG) << "Test caught std::future_error "
-                   << e.code() << ": " << e.what();
-    }
-}
-
-int
-test()
-{
 #ifdef _MSC_VER
 #define GETPID _getpid
 #else
 #define GETPID getpid
 #endif
-    std::ostringstream oss;
-    oss << "stellard-test-" << time(nullptr) << "-" << GETPID() << ".log";
-    Config cfg;
-    cfg.LOG_FILE_PATH = oss.str();
+        std::ostringstream oss;
+        oss << "stellard-test-" << time(nullptr) << "-" << GETPID() << ".log";
+        gTestCfg = make_unique<Config>();
+        gTestCfg->LOG_FILE_PATH = oss.str();
 
-    // Tests are run in standalone by default, meaning that no external
-    // listening interfaces are opened (all sockets must be manually created and
-    // connected loopback sockets), no external connections are attempted.
-    cfg.RUN_STANDALONE = true;
+        // Tests are run in standalone by default, meaning that no external
+        // listening interfaces are opened (all sockets must be manually created
+        // and connected loopback sockets), no external connections are
+        // attempted.
+        gTestCfg->RUN_STANDALONE = true;
+    }
+    return *gTestCfg;
+}
 
+int
+test(int argc, char* const* argv)
+{
+    Config const& cfg = getTestConfig();
     Logging::setUpLogging(cfg.LOG_FILE_PATH);
     LOG(INFO) << "Testing stellard-hayashi " << STELLARD_VERSION;
     LOG(INFO) << "Logging to " << cfg.LOG_FILE_PATH;
 
-    testHelloGoodbye(cfg);
-    testBucketList(cfg);
-
-    return 0;
+    return Catch::Session().run(argc, argv);
 }
 }
