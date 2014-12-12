@@ -12,7 +12,13 @@ namespace stellar
 TxHerder::TxHerder(Application &app)
     : mCollectingTransactionSet(std::make_shared<TransactionSet>()),
       mReceivedTransactions(4),
+#ifdef _MSC_VER
+      // This form of initializer causes a warning due to brace-elision on clang.
       mTxSetFetcher({TxSetFetcher(app), TxSetFetcher(app)}),
+#else
+      // This form of initializer is "not implemented" in MSVC yet.
+      mTxSetFetcher{{{TxSetFetcher(app)}, {TxSetFetcher(app)}}},
+#endif
       mCurrentTxSetFetcher(0),
       mCloseCount(0),
       mApp(app)

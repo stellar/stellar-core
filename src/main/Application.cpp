@@ -11,9 +11,9 @@ Application::Application(Config const &cfg)
       mWorkerIOService(std::thread::hardware_concurrency()),
       mWork(make_unique<asio::io_service::work>(mWorkerIOService)),
       mPeerMaster(*this),
+      mLedgerMaster(*this),
       mTxHerder(*this),
       mFBAMaster(*this),
-      mLedgerMaster(*this),
       mStopSignals(mMainIOService, SIGINT)
 {
     LOG(INFO) << "Application constructing";

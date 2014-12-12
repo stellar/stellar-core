@@ -8,8 +8,8 @@ FMT_SRCS = src/overlay/Floodgate.cpp src/overlay/PeerDoor.cpp                   
 	src/overlay/ItemFetcher.cpp src/overlay/PeerMaster.cpp                      \
 	src/overlay/PreferredPeers.cpp src/lib/util/types.cpp src/fba/FBAMaster.cpp \
 	src/fba/FutureStatement.cpp src/fba/OurNode.cpp src/fba/QuorumSet.cpp       \
-	src/fba/Statement.cpp src/fba/Node.cpp src/fba/History.cpp                  \
-	src/fba/Ballot.cpp src/ledger/LedgerDatabase.cpp src/ledger/Ledger.cpp      \
+	src/fba/Statement.cpp src/fba/Node.cpp src/fba/Ballot.cpp                   \
+	src/ledger/LedgerDatabase.cpp src/ledger/Ledger.cpp                         \
 	src/ledger/LedgerEntry.cpp src/ledger/OfferEntry.cpp                        \
 	src/ledger/LedgerMaster.cpp src/ledger/AccountEntry.cpp                     \
 	src/ledger/TrustLine.cpp src/txherder/TxHerder.cpp                          \
