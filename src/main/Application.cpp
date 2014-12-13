@@ -14,6 +14,8 @@ Application::Application(Config const &cfg)
       mLedgerMaster(*this),
       mTxHerder(*this),
       mFBAMaster(*this),
+      mHistoryMaster(*this),
+      mProcessMaster(*this),
       mStopSignals(mMainIOService, SIGINT)
 {
     LOG(INFO) << "Application constructing";

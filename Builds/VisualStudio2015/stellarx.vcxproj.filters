@@ -55,6 +55,9 @@
     <Filter Include="sync">
       <UniqueIdentifier>{bd23d429-9447-41d8-b8a6-1de10705097c}</UniqueIdentifier>
     </Filter>
+    <Filter Include="process">
+      <UniqueIdentifier>{dfcbc766-c389-4f89-84ab-ed48a177c74d}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\src\fba\Ballot.cpp">
@@ -185,6 +188,18 @@
     </ClCompile>
     <ClCompile Include="..\..\src\overlay\OverlayTests.cpp" />
     <ClCompile Include="..\..\src\fba\FBATests.cpp" />
+    <ClCompile Include="..\..\src\history\HistoryMaster.cpp">
+      <Filter>history</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\history\HistoryTests.cpp">
+      <Filter>history</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\process\ProcessMaster.cpp">
+      <Filter>process</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\process\ProcessTests.cpp">
+      <Filter>process</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\fba\Ballot.h">
@@ -408,6 +423,15 @@
     </ClInclude>
     <ClInclude Include="..\..\src\main\test.h">
       <Filter>main</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\history\HistoryMaster.h">
+      <Filter>history</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\process\ProcessGateway.h">
+      <Filter>process</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\process\ProcessMaster.h">
+      <Filter>process</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

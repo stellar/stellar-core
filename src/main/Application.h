@@ -9,6 +9,8 @@
 #include "overlay/OverlayGateway.h"
 #include "overlay/PeerMaster.h"
 #include "clf/BucketList.h"
+#include "history/HistoryMaster.h"
+#include "process/ProcessMaster.h"
 
 /*
  * State of a single instance of the application.
@@ -96,6 +98,8 @@ namespace stellar
         TxHerder mTxHerder;
         FBAMaster mFBAMaster;
         BucketList mBucketList;
+        HistoryMaster mHistoryMaster;
+        ProcessMaster mProcessMaster;
 
         std::vector<std::thread> mWorkerThreads;
 
@@ -111,7 +115,8 @@ namespace stellar
         LedgerGateway& getLedgerGateway(){ return mLedgerMaster; }
         FBAGateway& getFBAGateway(){ return mFBAMaster; }
         CLFGateway& getCLFGateway() { return mBucketList;  }
-        //HistoryGateway& getHistoryGateway();
+        HistoryGateway& getHistoryGateway() { return mHistoryMaster; }
+        ProcessGateway& getProcessGateway() { return mProcessMaster; }
         TxHerderGateway& getTxHerderGateway(){ return mTxHerder; }
         OverlayGateway& getOverlayGateway() { return mPeerMaster; }
         PeerMaster& getPeerMaster() { return mPeerMaster; }
