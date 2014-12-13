@@ -1,4 +1,10 @@
 
+How do we submit tx to the network?
+	- some process that runs and converts between json-rpc and our peer code
+	- hayashi includes a webserver
+
+How do we give commands to a running stellarx?
+	
 
 Do we keep full entries in the BucketList?
 

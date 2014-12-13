@@ -1,6 +1,8 @@
 #include "lib/catch.hpp"
 #include "generated/stellar.hh"
 #include "fba/Ballot.h"
+#include "main/test.h"
+#include "main/Application.h"
 using namespace stellar;
 
 
@@ -70,6 +72,19 @@ TEST_CASE("node tests", "[fba]") {
         
     }
     SECTION("checkRatState") {
+        
+        Config const& cfg = getTestConfig();
+        Application app(cfg);
+
+        stellarxdr::uint256 nodeID;
+        Node testNode(nodeID);
+        BallotPtr ballot = std::make_shared<stellarxdr::Ballot>();
+
+        REQUIRE(Node::NOTPLEDGING_STATE ==
+            testNode.checkRatState(stellarxdr::FBAStatementType::PREPARE, ballot,1, 1, app));
+
+
+
         
     }
 }

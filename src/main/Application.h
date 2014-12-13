@@ -9,6 +9,7 @@
 #include "overlay/OverlayGateway.h"
 #include "overlay/PeerMaster.h"
 #include "clf/BucketList.h"
+#include "main/CommandHandler.h"
 
 /*
  * State of a single instance of the application.
@@ -96,6 +97,7 @@ namespace stellar
         TxHerder mTxHerder;
         FBAMaster mFBAMaster;
         BucketList mBucketList;
+        CommandHandler mCommandHandler;
 
         std::vector<std::thread> mWorkerThreads;
 

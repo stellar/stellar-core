@@ -22,16 +22,23 @@ Config::Config()
     MAX_PEER_CONNECTIONS = 50;
     LOG_FILE_PATH = "stellard.log";
     QUORUM_THRESHOLD=1000;
+    HTTP_PORT=39132;
+    PUBLIC_HTTP_PORT=false;
 }
 
 void
-Config::load(std::string const &filename)
+Config::load(const std::string& filename)
 {
     try
     {
         cpptoml::toml_group g = cpptoml::parse_file(filename);
         if (g.contains("PEER_PORT"))
             PEER_PORT = (int)g.get("PEER_PORT")->as<int64_t>()->value();
+        if(g.contains("HTTP_PORT"))
+            HTTP_PORT = (int)g.get("HTTP_PORT")->as<int64_t>()->value();
+        if(g.contains("PUBLIC_HTTP_PORT"))
+            PUBLIC_HTTP_PORT = g.get("PUBLIC_HTTP_PORT")->as<bool>()->value();
+
         if(g.contains("QUORUM_THRESHOLD"))
             QUORUM_THRESHOLD = (int)g.get("QUORUM_THRESHOLD")->as<int64_t>()->value();
         if(g.contains("DESIRED_BASE_FEE"))
@@ -46,8 +53,7 @@ Config::load(std::string const &filename)
             TARGET_PEER_CONNECTIONS =
                 (int)g.get("TARGET_PEER_CONNECTIONS")->as<int64_t>()->value();
         if (g.contains("MAX_PEER_CONNECTIONS"))
-            MAX_PEER_CONNECTIONS =
-                (int)g.get("MAX_PEER_CONNECTIONS")->as<int64_t>()->value();
+            MAX_PEER_CONNECTIONS = (int)g.get("MAX_PEER_CONNECTIONS")->as<int64_t>()->value();
         if (g.contains("PREFERRED_PEERS"))
         {
             for (auto v : g.get_array("PREFERRED_PEERS")->array())

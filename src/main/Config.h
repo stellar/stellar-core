@@ -12,6 +12,8 @@ namespace stellar
         std::string VERSION_STR;
         std::string LOG_FILE_PATH;
         uint32_t DESIRED_BASE_FEE;  // in stroops
+        int HTTP_PORT;              // what port to listen for commands on. 0 for don't
+        bool PUBLIC_HTTP_PORT;      // if you accept commands from not localhost
 
         // overlay config
         int PEER_PORT;
@@ -29,6 +31,6 @@ namespace stellar
 
         Config();
 
-        void load(std::string const& filename);
+        void load(const std::string& filename);
     };
 }
