@@ -17,6 +17,8 @@ FMT_SRCS = src/overlay/Floodgate.cpp src/overlay/PeerDoor.cpp                   
 	src/main/test.cpp src/main/Application.cpp src/main/Config.cpp              \
 	src/transactions/TrustSetTx.cpp src/transactions/Transaction.cpp            \
 	src/util/Logging.cpp src/fba/FBATests.cpp src/clf/CLFTests.cpp              \
+	src/process/ProcessMaster.cpp src/process/ProcessTests.cpp                  \
+	src/history/HistoryMaster.cpp src/history/HistoryTests.cpp                  \
 	src/overlay/OverlayTests.cpp
 
 
