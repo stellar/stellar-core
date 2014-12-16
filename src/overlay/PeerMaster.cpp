@@ -19,18 +19,18 @@ What we need timers for:
 namespace stellar
 {
 
-PeerMaster::PeerMaster(Application &app)
-    : mApp(app),
-      mDoor(mApp),
-      mQSetFetcher(mApp),
-      mDeltaFetcher(mApp),
-      mTimer(app.getMainIOService(), std::chrono::seconds(1))
+PeerMaster::PeerMaster(Application& app)
+    : mApp(app)
+    , mDoor(mApp)
+    , mQSetFetcher(mApp)
+    , mDeltaFetcher(mApp)
+    , mTimer(app.getMainIOService(), std::chrono::seconds(1))
 {
     mPreferredPeers.addPreferredPeers(mApp.mConfig.PREFERRED_PEERS);
     if (!mApp.mConfig.RUN_STANDALONE)
     {
         addConfigPeers();
-        mTimer.async_wait([this](asio::error_code const &ec)
+        mTimer.async_wait([this](asio::error_code const& ec)
                           {
                               this->tick();
                           });
@@ -52,7 +52,7 @@ PeerMaster::tick()
         // LATER
     }
     mTimer.expires_from_now(std::chrono::seconds(1));
-    mTimer.async_wait([this](asio::error_code const &ec)
+    mTimer.async_wait([this](asio::error_code const& ec)
                       {
                           this->tick();
                       });
@@ -131,7 +131,7 @@ PeerMaster::addConfigPeers()
 }
 
 void
-PeerMaster::broadcastMessage(stellarxdr::uint256 &msgID)
+PeerMaster::broadcastMessage(stellarxdr::uint256& msgID)
 {
     mFloodGate.broadcast(msgID, this);
 }
@@ -146,7 +146,7 @@ PeerMaster::broadcastMessage(StellarMessagePtr msg, Peer::pointer peer)
 
 // send message to anyone you haven't gotten it from
 void
-PeerMaster::broadcastMessage(StellarMessagePtr msg, vector<Peer::pointer> &skip)
+PeerMaster::broadcastMessage(StellarMessagePtr msg, vector<Peer::pointer>& skip)
 {
     for (auto peer : mPeers)
     {

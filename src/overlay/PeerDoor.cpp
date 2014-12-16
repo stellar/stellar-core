@@ -12,13 +12,13 @@ namespace stellar
 using asio::ip::tcp;
 using std::make_shared;
 
-PeerDoor::PeerDoor(Application &app)
+PeerDoor::PeerDoor(Application& app)
     : mApp(app), mAcceptor(mApp.getMainIOService())
 {
     if (!mApp.mConfig.RUN_STANDALONE)
     {
         tcp::endpoint endpoint(tcp::v4(), mApp.mConfig.PEER_PORT);
-        CLOG(DEBUG,"Overlay") << "PeerDoor binding to endpoint " << endpoint;
+        CLOG(DEBUG, "Overlay") << "PeerDoor binding to endpoint " << endpoint;
         mAcceptor.open(endpoint.protocol());
         mAcceptor.bind(endpoint);
         mAcceptor.listen();
@@ -37,7 +37,7 @@ PeerDoor::acceptNextPeer()
 {
     CLOG(DEBUG, "Overlay") << "PeerDoor acceptNextPeer()";
     auto sock = make_shared<tcp::socket>(mApp.getMainIOService());
-    mAcceptor.async_accept(*sock, [this, sock](asio::error_code const &ec)
+    mAcceptor.async_accept(*sock, [this, sock](asio::error_code const& ec)
                            {
         if (ec)
             this->acceptNextPeer();

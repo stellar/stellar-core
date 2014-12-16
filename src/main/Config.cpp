@@ -21,9 +21,9 @@ Config::Config()
     TARGET_PEER_CONNECTIONS = 20;
     MAX_PEER_CONNECTIONS = 50;
     LOG_FILE_PATH = "stellard.log";
-    QUORUM_THRESHOLD=1000;
-    HTTP_PORT=39132;
-    PUBLIC_HTTP_PORT=false;
+    QUORUM_THRESHOLD = 1000;
+    HTTP_PORT = 39132;
+    PUBLIC_HTTP_PORT = false;
 }
 
 void
@@ -34,17 +34,19 @@ Config::load(const std::string& filename)
         cpptoml::toml_group g = cpptoml::parse_file(filename);
         if (g.contains("PEER_PORT"))
             PEER_PORT = (int)g.get("PEER_PORT")->as<int64_t>()->value();
-        if(g.contains("HTTP_PORT"))
+        if (g.contains("HTTP_PORT"))
             HTTP_PORT = (int)g.get("HTTP_PORT")->as<int64_t>()->value();
-        if(g.contains("PUBLIC_HTTP_PORT"))
+        if (g.contains("PUBLIC_HTTP_PORT"))
             PUBLIC_HTTP_PORT = g.get("PUBLIC_HTTP_PORT")->as<bool>()->value();
 
-        if(g.contains("QUORUM_THRESHOLD"))
-            QUORUM_THRESHOLD = (int)g.get("QUORUM_THRESHOLD")->as<int64_t>()->value();
-        if(g.contains("DESIRED_BASE_FEE"))
-            DESIRED_BASE_FEE = (uint32_t)g.get("DESIRED_BASE_FEE")->as<int64_t>()->value();
+        if (g.contains("QUORUM_THRESHOLD"))
+            QUORUM_THRESHOLD =
+                (int)g.get("QUORUM_THRESHOLD")->as<int64_t>()->value();
+        if (g.contains("DESIRED_BASE_FEE"))
+            DESIRED_BASE_FEE =
+                (uint32_t)g.get("DESIRED_BASE_FEE")->as<int64_t>()->value();
 
-        if(g.contains("RUN_STANDALONE"))
+        if (g.contains("RUN_STANDALONE"))
             RUN_STANDALONE = g.get("RUN_STANDALONE")->as<bool>()->value();
         if (g.contains("LOG_FILE_PATH"))
             LOG_FILE_PATH = g.get("LOG_FILE_PATH")->as<std::string>()->value();
@@ -53,7 +55,8 @@ Config::load(const std::string& filename)
             TARGET_PEER_CONNECTIONS =
                 (int)g.get("TARGET_PEER_CONNECTIONS")->as<int64_t>()->value();
         if (g.contains("MAX_PEER_CONNECTIONS"))
-            MAX_PEER_CONNECTIONS = (int)g.get("MAX_PEER_CONNECTIONS")->as<int64_t>()->value();
+            MAX_PEER_CONNECTIONS =
+                (int)g.get("MAX_PEER_CONNECTIONS")->as<int64_t>()->value();
         if (g.contains("PREFERRED_PEERS"))
         {
             for (auto v : g.get_array("PREFERRED_PEERS")->array())
@@ -70,15 +73,15 @@ Config::load(const std::string& filename)
             }
         }
 
-        if(g.contains("QUORUM_SET"))
+        if (g.contains("QUORUM_SET"))
         {
-            for(auto v : g.get_array("QUORUM_SET")->array())
+            for (auto v : g.get_array("QUORUM_SET")->array())
             {
                 QUORUM_SET.push_back(fromBase58(v->as<std::string>()->value()));
             }
         }
     }
-    catch (cpptoml::toml_parse_exception &ex)
+    catch (cpptoml::toml_parse_exception& ex)
     {
         LOG(ERROR) << "Failed to parse " << filename << ": " << ex.what();
     }

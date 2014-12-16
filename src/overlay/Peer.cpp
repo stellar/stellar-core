@@ -10,11 +10,11 @@
 
 namespace stellar
 {
-Peer::Peer(Application &app, PeerRole role)
-    : mApp(app),
-      mRole(role),
-      mState(role == ACCEPTOR ? CONNECTED : CONNECTING),
-      mRemoteListeningPort(-1)
+Peer::Peer(Application& app, PeerRole role)
+    : mApp(app)
+    , mRole(role)
+    , mState(role == ACCEPTOR ? CONNECTED : CONNECTING)
+    , mRemoteListeningPort(-1)
 {
     if (mRole == ACCEPTOR)
     {
@@ -39,7 +39,7 @@ Peer::sendHello()
 }
 
 void
-Peer::connectHandler(const asio::error_code &error)
+Peer::connectHandler(const asio::error_code& error)
 {
     if (error)
     {
@@ -54,7 +54,7 @@ Peer::connectHandler(const asio::error_code &error)
 }
 
 void
-Peer::sendDontHave(stellarxdr::MessageType type, stellarxdr::uint256 &itemID)
+Peer::sendDontHave(stellarxdr::MessageType type, stellarxdr::uint256& itemID)
 {
     stellarxdr::StellarMessage msg;
     msg.type(stellarxdr::DONT_HAVE);
@@ -74,7 +74,7 @@ Peer::sendQuorumSet(QuorumSet::pointer qSet)
     sendMessage(msg);
 }
 void
-Peer::sendGetTxSet(stellarxdr::uint256 &setID)
+Peer::sendGetTxSet(stellarxdr::uint256& setID)
 {
     stellarxdr::StellarMessage newMsg;
     newMsg.type(stellarxdr::GET_TX_SET);
@@ -83,7 +83,7 @@ Peer::sendGetTxSet(stellarxdr::uint256 &setID)
     sendMessage(newMsg);
 }
 void
-Peer::sendGetQuorumSet(stellarxdr::uint256 &setID)
+Peer::sendGetQuorumSet(stellarxdr::uint256& setID)
 {
     stellarxdr::StellarMessage newMsg;
     newMsg.type(stellarxdr::GET_QUORUMSET);
@@ -107,7 +107,7 @@ Peer::sendMessage(stellarxdr::StellarMessage msg)
 }
 
 void
-Peer::recvMessage(xdr::msg_ptr const &msg)
+Peer::recvMessage(xdr::msg_ptr const& msg)
 {
     CLOG(TRACE, "Overlay") << "received xdr::msg_ptr";
     StellarMessagePtr stellarMsg =
@@ -398,7 +398,4 @@ Peer::recvValidations(StellarMessagePtr msg)
 {
     // LATER
 }
-
-
-
 }

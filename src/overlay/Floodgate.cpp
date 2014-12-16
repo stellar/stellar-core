@@ -37,7 +37,7 @@ Floodgate::addRecord(stellarxdr::uint256 index, StellarMessagePtr msg,
 }
 
 void
-Floodgate::broadcast(stellarxdr::uint256 index, PeerMaster *peerMaster)
+Floodgate::broadcast(stellarxdr::uint256 index, PeerMaster* peerMaster)
 {
     auto result = mFloodMap.find(index);
     if (result != mFloodMap.end())

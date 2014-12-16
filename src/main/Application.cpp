@@ -5,22 +5,22 @@
 
 namespace stellar
 {
-Application::Application(Config const &cfg)
-    : mState(BOOTING_STATE),
-      mConfig(cfg),
-      mWorkerIOService(std::thread::hardware_concurrency()),
-      mWork(make_unique<asio::io_service::work>(mWorkerIOService)),
-      mPeerMaster(*this),
-      mLedgerMaster(*this),
-      mTxHerder(*this),
-      mFBAMaster(*this),
-      mHistoryMaster(*this),
-      mProcessMaster(*this),
-      mCommandHandler(*this),
-      mStopSignals(mMainIOService, SIGINT)
+Application::Application(Config const& cfg)
+    : mState(BOOTING_STATE)
+    , mConfig(cfg)
+    , mWorkerIOService(std::thread::hardware_concurrency())
+    , mWork(make_unique<asio::io_service::work>(mWorkerIOService))
+    , mPeerMaster(*this)
+    , mLedgerMaster(*this)
+    , mTxHerder(*this)
+    , mFBAMaster(*this)
+    , mHistoryMaster(*this)
+    , mProcessMaster(*this)
+    , mCommandHandler(*this)
+    , mStopSignals(mMainIOService, SIGINT)
 {
     LOG(INFO) << "Application constructing";
-    mStopSignals.async_wait([this](asio::error_code const &ec, int sig)
+    mStopSignals.async_wait([this](asio::error_code const& ec, int sig)
                             {
                                 LOG(INFO) << "got signal " << sig
                                           << ", shutting down";
@@ -54,7 +54,6 @@ Application::runWorkerThread(unsigned i)
     LOG(INFO) << "Worker thread " << i << " complete";
 }
 
-
 void
 Application::gracefulStop()
 {
@@ -77,7 +76,7 @@ Application::joinAllThreads()
         mWork.reset();
     }
     unsigned i = 0;
-    for (auto &w : mWorkerThreads)
+    for (auto& w : mWorkerThreads)
     {
         LOG(INFO) << "Joining worker thread " << i++;
         w.join();
