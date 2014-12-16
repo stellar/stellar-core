@@ -22,27 +22,27 @@ FMT_SRCS = src/overlay/Floodgate.cpp src/overlay/PeerDoor.cpp                   
 	src/overlay/OverlayTests.cpp
 
 
-bin_stellard_SOURCES = $(FMT_SRCS) src/lib/util/getopt_long.c src/util/StellardVersion.h
+bin_stellard_SOURCES = $(FMT_SRCS) src/lib/util/getopt_long.c src/util/StellardVersion.h \
+                       src/generated/stellar.hh
 bin_stellard_LDADD = -lxdrpp
 bin_stellard_CPPFLAGS = -I$(srcdir)/src/lib/autocheck/include \
                         -I$(srcdir)/src/lib/asio/include -DASIO_STANDALONE
 
-MAINTAINERCLEANFILES = src/util/StellardVersion.h
-BUILT_SOURCES = src/util/StellardVersion.h
+BUILT_SOURCES = src/util/StellardVersion.h src/generated/stellar.hh
+CLEANFILES = $(BUILT_SOURCES)
 GITDIR = $(top_srcdir)/.git
 src/util/StellardVersion.h: Makefile
 	if test -d "$(GITDIR)"; then                                            \
-	  (VERS="$$(GIT_DIR=$(GITDIR) git describe --always --dirty --tags)" && \
-       echo "#define STELLARD_VERSION \"$$VERS\"") >$(srcdir)/$@;           \
+      (VERS="$$(GIT_DIR=$(GITDIR) git describe --always --dirty --tags)" && \
+       echo "#define STELLARD_VERSION \"$$VERS\"") >$@;                     \
+    else                                                                    \
+       echo "#define STELLARD_VERSION \"unknown\"" >$@;                     \
     fi
-
-.PHONY: $(srcdir)/src/util/StellardVersion.h
 
 AM_CXXFLAGS = -stdlib=libc++
 
-# Less elegant but more portable than %.hh: %.x
-SUFFIXES = .x .hh
-.x.hh:
+src/generated/stellar.hh: src/overlay/protocol.x Makefile
+	mkdir -p src/generated
 	$(XDRC) -hh -o $@ $<
 
 if USE_CLANG_FORMAT
