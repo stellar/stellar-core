@@ -16,8 +16,8 @@ Application::Application(Config const &cfg)
       mFBAMaster(*this),
       mHistoryMaster(*this),
       mProcessMaster(*this),
-      mStopSignals(mMainIOService, SIGINT),
-      mCommandHandler(*this)
+      mCommandHandler(*this),
+      mStopSignals(mMainIOService, SIGINT)
 {
     LOG(INFO) << "Application constructing";
     mStopSignals.async_wait([this](asio::error_code const &ec, int sig)

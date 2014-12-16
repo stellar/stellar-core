@@ -17,15 +17,19 @@ FMT_SRCS = src/overlay/Floodgate.cpp src/overlay/PeerDoor.cpp                   
 	src/main/test.cpp src/main/Application.cpp src/main/Config.cpp              \
 	src/transactions/TrustSetTx.cpp src/transactions/Transaction.cpp            \
 	src/util/Logging.cpp src/fba/FBATests.cpp src/clf/CLFTests.cpp              \
-	src/process/ProcessMaster.cpp src/process/ProcessTests.cpp                  \
-	src/history/HistoryMaster.cpp src/history/HistoryTests.cpp                  \
-	src/overlay/OverlayTests.cpp
+	src/lib/http/connection.cpp src/lib/http/connection_manager.cpp             \
+	src/lib/http/HttpClient.cpp src/lib/http/reply.cpp                          \
+	src/lib/http/request_parser.cpp src/lib/http/server.cpp                     \
+	src/main/CommandHandler.cpp src/process/ProcessMaster.cpp                   \
+	src/process/ProcessTests.cpp src/history/HistoryMaster.cpp                  \
+	src/history/HistoryTests.cpp src/overlay/OverlayTests.cpp
 
 
 bin_stellard_SOURCES = $(FMT_SRCS) src/lib/util/getopt_long.c src/util/StellardVersion.h \
                        src/generated/stellar.hh
 bin_stellard_LDADD = -lxdrpp
-bin_stellard_CPPFLAGS = -I$(srcdir)/src/lib/autocheck/include \
+bin_stellard_CPPFLAGS = -I$(builddir)/src \
+                        -I$(srcdir)/src/lib/autocheck/include \
                         -I$(srcdir)/src/lib/asio/include -DASIO_STANDALONE
 
 BUILT_SOURCES = src/util/StellardVersion.h src/generated/stellar.hh
