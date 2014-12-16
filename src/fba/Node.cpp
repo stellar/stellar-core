@@ -42,8 +42,9 @@ Node::Node(const stellarxdr::uint256& nodeID) : mNodeID(nodeID)
 
 // this returns what RatState it thinks the particular statement is in.
 Node::RatState
-Node::checkRatState(stellarxdr::FBAStatementType statementType, BallotPtr ballot,
-                    int operationToken, int recheckCounter, Application& app)
+Node::checkRatState(stellarxdr::FBAStatementType statementType,
+                    BallotPtr ballot, int operationToken, int recheckCounter,
+                    Application& app)
 {
     if (operationToken == mOperationToken)
     { // this node was already visited during this check
@@ -57,7 +58,8 @@ Node::checkRatState(stellarxdr::FBAStatementType statementType, BallotPtr ballot
     mOperationToken = operationToken;
     mRecheckCounter = recheckCounter;
 
-    for (unsigned n = statementType; n < stellarxdr::FBAStatementType::UNKNOWN; n++)
+    for (unsigned n = statementType; n < stellarxdr::FBAStatementType::UNKNOWN;
+         n++)
     { // if this node has ratified this statement or a stronger version
         if (mRatified[n] && mRatified[n]->isCompatible(ballot))
         {
@@ -66,12 +68,16 @@ Node::checkRatState(stellarxdr::FBAStatementType statementType, BallotPtr ballot
         }
 
         if (n > statementType)
-        { // check if this guy has already pledged a stronger statement
-            Statement::pointer ourStatement = getHighestStatement((stellarxdr::FBAStatementType)n);
+        { // check if this guy has already pledged a stronger
+            // statement
+            Statement::pointer ourStatement =
+                getHighestStatement((stellarxdr::FBAStatementType)n);
             if (ourStatement)
             {
                 if (ourStatement->isCompatible(ballot))
-                { // if we are pledging a stronger version that means we have
+                { // if we are pledging a
+                    // stronger version that means
+                    // we have
                     // ratified this lower version
                     mRatState = RATIFIED_STATE;
                 }
@@ -100,8 +106,8 @@ Node::checkRatState(stellarxdr::FBAStatementType statementType, BallotPtr ballot
         ourStatement->mEnvelope.contents.quorumSetHash, true);
     if (qset)
     {
-        RatState state =
-            qset->checkRatState(statementType, ballot, operationToken, recheckCounter, app);
+        RatState state = qset->checkRatState(
+            statementType, ballot, operationToken, recheckCounter, app);
         if (state == RECHECK_STATE)
             return (RECHECK_STATE); // just bounce back to the top
 
@@ -110,7 +116,8 @@ Node::checkRatState(stellarxdr::FBAStatementType statementType, BallotPtr ballot
             mRatified[statementType] = ourStatement;
         }
         if (mRatState == PLEDGING_STATE && state == Q_NOT_PLEDGING_STATE)
-        { // in the past we returned to someone that we are pledging so we need
+        { // in the past we returned to someone
+            // that we are pledging so we need
             // to recheck everything
             mRatState = state;
             return (RECHECK_STATE);
@@ -118,7 +125,8 @@ Node::checkRatState(stellarxdr::FBAStatementType statementType, BallotPtr ballot
         mRatState = state;
     }
     else
-    { // we haven't fetched this Qset but we know this guy at least is pledging
+    { // we haven't fetched this Qset but we know this guy at least is
+        // pledging
         mRatState = Q_UNKNOWN_STATE;
     }
 

@@ -8,7 +8,8 @@ namespace stellar
 #include <windows.h>
 #include <tchar.h>
 
-ProcessMaster::ProcessMaster(Application& app) : mApp(app), mSigChild(app.getMainIOService())
+ProcessMaster::ProcessMaster(Application& app)
+    : mApp(app), mSigChild(app.getMainIOService())
 {
 }
 
@@ -31,11 +32,12 @@ class ProcessExitEvent::Impl
     asio::windows::object_handle mObjHandle;
 
   public:
-    Impl(std::shared_ptr<Timer> const& outerTimer, std::shared_ptr<asio::error_code> const& outerEc,
-         HANDLE hProcess, HANDLE hThread)
-        : mOuterTimer(outerTimer),
-          mOuterEc(outerEc),
-          mObjHandle(outerTimer->get_io_service(), hProcess)
+    Impl(std::shared_ptr<Timer> const& outerTimer,
+         std::shared_ptr<asio::error_code> const& outerEc, HANDLE hProcess,
+         HANDLE hThread)
+        : mOuterTimer(outerTimer)
+        , mOuterEc(outerEc)
+        , mObjHandle(outerTimer->get_io_service(), hProcess)
     {
         auto ot = mOuterTimer;
         auto oe = mOuterEc;
@@ -78,7 +80,8 @@ ProcessMaster::runProcess(std::string const& cmdLine)
 
     auto& svc = mApp.getMainIOService();
     ProcessExitEvent pe(svc);
-    pe.mImpl = std::make_shared<ProcessExitEvent::Impl>(pe.mTimer, pe.mEc, pi.hProcess, pi.hThread);
+    pe.mImpl = std::make_shared<ProcessExitEvent::Impl>(
+        pe.mTimer, pe.mEc, pi.hProcess, pi.hThread);
     return pe;
 }
 
@@ -92,7 +95,8 @@ class ProcessExitEvent::Impl
   public:
     std::shared_ptr<Timer> mOuterTimer;
     std::shared_ptr<asio::error_code> mOuterEc;
-    Impl(std::shared_ptr<Timer> const& outerTimer, std::shared_ptr<asio::error_code> const& outerEc)
+    Impl(std::shared_ptr<Timer> const& outerTimer,
+         std::shared_ptr<asio::error_code> const& outerEc)
         : mOuterTimer(outerTimer), mOuterEc(outerEc)
     {
     }
@@ -129,7 +133,8 @@ ProcessMaster::handleSignalWait()
                 // nothing to do with process exit values. We could make a new
                 // error_category to tighten this up, but it's a bunch of work
                 // just to convey the meaningless string "exited" to the user.
-                ec = asio::error_code(WEXITSTATUS(status), asio::system_category());
+                ec = asio::error_code(WEXITSTATUS(status),
+                                      asio::system_category());
             }
             else
             {
@@ -208,9 +213,9 @@ ProcessMaster::runProcess(std::string const& cmdLine)
 #endif
 
 ProcessExitEvent::ProcessExitEvent(asio::io_service& io_service)
-    : mTimer(std::make_shared<Timer>(io_service)),
-      mImpl(nullptr),
-      mEc(std::make_shared<asio::error_code>())
+    : mTimer(std::make_shared<Timer>(io_service))
+    , mImpl(nullptr)
+    , mEc(std::make_shared<asio::error_code>())
 {
     mTimer->expires_from_now(std::chrono::steady_clock::duration::max());
 }

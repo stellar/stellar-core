@@ -4,7 +4,8 @@
 namespace stellar
 {
 
-FloodRecord::FloodRecord(StellarMessagePtr msg, uint32_t ledger, Peer::pointer peer)
+FloodRecord::FloodRecord(StellarMessagePtr msg, uint32_t ledger,
+                         Peer::pointer peer)
 {
     mMessage = msg;
     mLedgerIndex = ledger;
@@ -29,8 +30,8 @@ Floodgate::clearBelow(uint32_t currentLedger)
 }
 
 void
-Floodgate::addRecord(stellarxdr::uint256 index, StellarMessagePtr msg, uint32_t ledgerIndex,
-                     Peer::pointer peer)
+Floodgate::addRecord(stellarxdr::uint256 index, StellarMessagePtr msg,
+                     uint32_t ledgerIndex, Peer::pointer peer)
 {
     mFloodMap[index] = std::make_shared<FloodRecord>(msg, ledgerIndex, peer);
 }
@@ -41,7 +42,8 @@ Floodgate::broadcast(stellarxdr::uint256 index, PeerMaster* peerMaster)
     auto result = mFloodMap.find(index);
     if (result != mFloodMap.end())
     {
-        peerMaster->broadcastMessage(result->second->mMessage, result->second->mPeersTold);
+        peerMaster->broadcastMessage(result->second->mMessage,
+                                     result->second->mPeersTold);
     }
 }
 }

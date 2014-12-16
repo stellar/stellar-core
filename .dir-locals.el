@@ -5,7 +5,7 @@
                                          "src"
                                          "src/lib/asio/include"
                                          ))
-         (fill-column . 100)
+         (fill-column . 80)
          (indent-tabs-mode .  nil)
          (whitespace-style . (face tabs tab-mark trailing lines-tail empty))
          (c-file-style . "stroustrup")

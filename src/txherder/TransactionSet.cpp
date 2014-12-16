@@ -11,7 +11,8 @@ TransactionSet::TransactionSet(stellarxdr::TransactionSet& xdrSet)
 {
     for (auto txEnvelope : xdrSet.txs)
     {
-        Transaction::pointer tx = Transaction::makeTransactionFromWire(txEnvelope);
+        Transaction::pointer tx =
+            Transaction::makeTransactionFromWire(txEnvelope);
         mTransactions.push_back(tx);
     }
 }

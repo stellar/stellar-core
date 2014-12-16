@@ -20,11 +20,11 @@ namespace stellar
 {
 
 PeerMaster::PeerMaster(Application& app)
-    : mApp(app),
-      mDoor(mApp),
-      mQSetFetcher(mApp),
-      mDeltaFetcher(mApp),
-      mTimer(app.getMainIOService(), std::chrono::seconds(1))
+    : mApp(app)
+    , mDoor(mApp)
+    , mQSetFetcher(mApp)
+    , mDeltaFetcher(mApp)
+    , mTimer(app.getMainIOService(), std::chrono::seconds(1))
 {
     mPreferredPeers.addPreferredPeers(mApp.mConfig.PREFERRED_PEERS);
     if (!mApp.mConfig.RUN_STANDALONE)

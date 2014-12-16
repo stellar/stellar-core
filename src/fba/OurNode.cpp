@@ -10,7 +10,8 @@ namespace stellar
 {
 int gOperationToken = 0;
 
-OurNode::OurNode(Application& app) : Node(makePublicKey(app.mConfig.VALIDATION_SEED)), mApp(app)
+OurNode::OurNode(Application& app)
+    : Node(makePublicKey(app.mConfig.VALIDATION_SEED)), mApp(app)
 {
 }
 
@@ -49,7 +50,8 @@ OurNode::progressFBA()
     }
     else
     {
-        CLOG(ERROR, "FBA") << "OurNode::progressFBA   We don't know our own Qset?";
+        CLOG(ERROR, "FBA")
+            << "OurNode::progressFBA   We don't know our own Qset?";
     }
 }
 
@@ -58,17 +60,21 @@ void
 OurNode::sendNewPrepare(QuorumSet::pointer qset)
 {
     // switch to the highest valid ballot that has been sent by our Q
-    Statement::pointer highestQPrepare =
-        qset->getHighestStatement(stellarxdr::FBAStatementType::PREPARE, true, mApp);
+    Statement::pointer highestQPrepare = qset->getHighestStatement(
+        stellarxdr::FBAStatementType::PREPARE, true, mApp);
     if (highestQPrepare)
     {
         if (highestQPrepare->getBallot().index == 1 &&
-            ballot::compare(mPreferredBallot.ballot, highestQPrepare->getBallot()))
-        { // our preferred is higher than the highest we have found
-            sendStatement(stellarxdr::FBAStatementType::PREPARE, mPreferredBallot);
+            ballot::compare(mPreferredBallot.ballot,
+                            highestQPrepare->getBallot()))
+        { // our preferred is higher than the
+            // highest we have found
+            sendStatement(stellarxdr::FBAStatementType::PREPARE,
+                          mPreferredBallot);
         }
         else
-            sendStatement(stellarxdr::FBAStatementType::PREPARE, highestQPrepare->getSlotBallot());
+            sendStatement(stellarxdr::FBAStatementType::PREPARE,
+                          highestQPrepare->getSlotBallot());
         return;
     }
 
@@ -77,7 +83,8 @@ OurNode::sendNewPrepare(QuorumSet::pointer qset)
 }
 
 void
-OurNode::sendStatement(stellarxdr::FBAStatementType type, const stellarxdr::SlotBallot& ballot)
+OurNode::sendStatement(stellarxdr::FBAStatementType type,
+                       const stellarxdr::SlotBallot& ballot)
 {
     QuorumSet::pointer qset = mApp.getFBAGateway().getOurQuorumSet();
 
@@ -127,8 +134,9 @@ OurNode::progressPrepare(QuorumSet::pointer qset)
         getHighestStatement(stellarxdr::FBAStatementType::PREPARE);
 
     if ((!ourHighestPrepare) ||
-        (chrono::system_clock::now() > (mTimeSent[stellarxdr::FBAStatementType::PREPARE] +
-                                        chrono::milliseconds(PREPARE_TIMEOUT_MS))))
+        (chrono::system_clock::now() >
+         (mTimeSent[stellarxdr::FBAStatementType::PREPARE] +
+          chrono::milliseconds(PREPARE_TIMEOUT_MS))))
     { // we haven't prepared anything yet  3)
         // or our last msg has timedout  1)
         sendNewPrepare(qset);
@@ -143,7 +151,8 @@ OurNode::progressPrepare(QuorumSet::pointer qset)
     {
         BallotSet& ballotSet = sortedBallots[n];
 
-        if (ballot::compare(ballotSet.mBallot.ballot, ourHighestPrepare->getBallot()))
+        if (ballot::compare(ballotSet.mBallot.ballot,
+                            ourHighestPrepare->getBallot()))
         { // this  ballot is higher than ours
             aboveUsCount += ballotSet.mCount;
             if (aboveUsCount >= qset->getBlockingSize())
@@ -153,7 +162,8 @@ OurNode::progressPrepare(QuorumSet::pointer qset)
                 SlotBallotPtr bestChoice;
                 for (int i = n; i >= 0; i--)
                 {
-                    if (bestChoice && sortedBallots[i].mBallot.ballot.index > targetIndex)
+                    if (bestChoice &&
+                        sortedBallots[i].mBallot.ballot.index > targetIndex)
                     {
                         // we have found the highest on the targetIndex
                         break;
@@ -161,8 +171,8 @@ OurNode::progressPrepare(QuorumSet::pointer qset)
                     if (mApp.getTxHerderGateway().isValidBallotValue(
                             sortedBallots[i].mBallot.ballot))
                     {
-                        bestChoice =
-                            std::make_shared<stellarxdr::SlotBallot>(sortedBallots[i].mBallot);
+                        bestChoice = std::make_shared<stellarxdr::SlotBallot>(
+                            sortedBallots[i].mBallot);
                     }
                 }
                 if (!bestChoice)
@@ -172,38 +182,45 @@ OurNode::progressPrepare(QuorumSet::pointer qset)
                         stellarxdr::FBAStatementType::PREPARE, true, mApp);
                     if (popularBallot)
                     {
-                        bestChoice = std::make_shared<stellarxdr::SlotBallot>(mPreferredBallot);
+                        bestChoice = std::make_shared<stellarxdr::SlotBallot>(
+                            mPreferredBallot);
                         bestChoice->ballot = *popularBallot;
                     }
                     else
                     { // all ballots above us are invalid
                         // need to send our best guess with a higher index
-                        if (ballot::compareValue(mPreferredBallot.ballot,
-                                                 sortedBallots[0].mBallot.ballot))
-                            mPreferredBallot.ballot.index = sortedBallots[0].mBallot.ballot.index;
+                        if (ballot::compareValue(
+                                mPreferredBallot.ballot,
+                                sortedBallots[0].mBallot.ballot))
+                            mPreferredBallot.ballot.index =
+                                sortedBallots[0].mBallot.ballot.index;
                         else
                             mPreferredBallot.ballot.index =
                                 sortedBallots[0].mBallot.ballot.index + 1;
 
-                        sendStatement(stellarxdr::FBAStatementType::PREPARE, mPreferredBallot);
+                        sendStatement(stellarxdr::FBAStatementType::PREPARE,
+                                      mPreferredBallot);
                     }
                 }
 
                 if (bestChoice)
                 {
                     bestChoice->ballot.index = targetIndex;
-                    sendStatement(stellarxdr::FBAStatementType::PREPARE, *bestChoice);
+                    sendStatement(stellarxdr::FBAStatementType::PREPARE,
+                                  *bestChoice);
                 }
             }
         }
         else
         { // we have already proposed something higher
-            BallotPtr ratifiedBallot = whatRatified(stellarxdr::FBAStatementType::PREPARE);
+            BallotPtr ratifiedBallot =
+                whatRatified(stellarxdr::FBAStatementType::PREPARE);
             if (ratifiedBallot)
             {
                 stellarxdr::SlotBallot slotBallot;
                 slotBallot.ledgerIndex = mPreferredBallot.ledgerIndex;
-                slotBallot.previousLedgerHash = mPreferredBallot.previousLedgerHash;
+                slotBallot.previousLedgerHash =
+                    mPreferredBallot.previousLedgerHash;
                 slotBallot.ballot = *ratifiedBallot;
                 sendStatement(stellarxdr::FBAStatementType::PREPARED,
                               slotBallot); // SANITY: do we need to roll back
@@ -234,7 +251,8 @@ OurNode::progressPrepared(QuorumSet::pointer qset)
 
     if (!ourHighestPrepared)
     {
-        CLOG(ERROR, "FBA") << "OurNode::progressPrepared   ourHighestPrepared NULL?";
+        CLOG(ERROR, "FBA")
+            << "OurNode::progressPrepared   ourHighestPrepared NULL?";
         return;
     }
 
@@ -246,7 +264,8 @@ OurNode::progressPrepared(QuorumSet::pointer qset)
     {
         BallotSet& ballotSet = sortedBallots[n];
 
-        if (ballot::compare(ballotSet.mBallot.ballot, ourHighestPrepared->getBallot()))
+        if (ballot::compare(ballotSet.mBallot.ballot,
+                            ourHighestPrepared->getBallot()))
         { // this  ballot is higher than ours
             aboveUsCount += ballotSet.mCount;
             if (aboveUsCount >= qset->getBlockingSize())
@@ -258,12 +277,14 @@ OurNode::progressPrepared(QuorumSet::pointer qset)
         }
         else
         { // we have already proposed something higher
-            BallotPtr ratifiedBallot = whatRatified(stellarxdr::FBAStatementType::PREPARED);
+            BallotPtr ratifiedBallot =
+                whatRatified(stellarxdr::FBAStatementType::PREPARED);
             if (ratifiedBallot)
             {
                 stellarxdr::SlotBallot slotBallot;
                 slotBallot.ledgerIndex = mPreferredBallot.ledgerIndex;
-                slotBallot.previousLedgerHash = mPreferredBallot.previousLedgerHash;
+                slotBallot.previousLedgerHash =
+                    mPreferredBallot.previousLedgerHash;
                 slotBallot.ballot = *ratifiedBallot;
                 sendStatement(stellarxdr::FBAStatementType::COMMIT,
                               slotBallot); // SANITY: do we need to roll back
@@ -286,11 +307,13 @@ void
 OurNode::progressCommit(QuorumSet::pointer qset)
 {
 
-    Statement::pointer ourHighestCommit = getHighestStatement(stellarxdr::FBAStatementType::COMMIT);
+    Statement::pointer ourHighestCommit =
+        getHighestStatement(stellarxdr::FBAStatementType::COMMIT);
 
     if (!ourHighestCommit)
     {
-        CLOG(ERROR, "FBA") << "OurNode::progressCommit   ourHighestCommit NULL?";
+        CLOG(ERROR, "FBA")
+            << "OurNode::progressCommit   ourHighestCommit NULL?";
         return;
     }
 
@@ -302,7 +325,8 @@ OurNode::progressCommit(QuorumSet::pointer qset)
     {
         BallotSet& ballotSet = sortedBallots[n];
 
-        if (ballot::compare(ballotSet.mBallot.ballot, ourHighestCommit->getBallot()))
+        if (ballot::compare(ballotSet.mBallot.ballot,
+                            ourHighestCommit->getBallot()))
         { // this  ballot is higher than ours
             aboveUsCount += ballotSet.mCount;
             if (aboveUsCount >= qset->getBlockingSize())
@@ -315,12 +339,14 @@ OurNode::progressCommit(QuorumSet::pointer qset)
         else
         { // we have already proposed something higher
             // see if you have a quorum that has ratified anything
-            BallotPtr ratifiedBallot = whatRatified(stellarxdr::FBAStatementType::COMMIT);
+            BallotPtr ratifiedBallot =
+                whatRatified(stellarxdr::FBAStatementType::COMMIT);
             if (ratifiedBallot)
             {
                 stellarxdr::SlotBallot slotBallot;
                 slotBallot.ledgerIndex = mPreferredBallot.ledgerIndex;
-                slotBallot.previousLedgerHash = mPreferredBallot.previousLedgerHash;
+                slotBallot.previousLedgerHash =
+                    mPreferredBallot.previousLedgerHash;
                 slotBallot.ballot = *ratifiedBallot;
                 sendStatement(stellarxdr::FBAStatementType::COMMITTED,
                               slotBallot); // SANITY: do we need to roll back
@@ -339,7 +365,8 @@ OurNode::progressCommit(QuorumSet::pointer qset)
 void
 OurNode::progressCommitted(QuorumSet::pointer qset)
 {
-    BallotPtr ratifiedBallot = whatRatified(stellarxdr::FBAStatementType::COMMITTED);
+    BallotPtr ratifiedBallot =
+        whatRatified(stellarxdr::FBAStatementType::COMMITTED);
     if (ratifiedBallot)
     {
         Statement::pointer ourHighestCommitted =
@@ -347,11 +374,14 @@ OurNode::progressCommitted(QuorumSet::pointer qset)
 
         if (ourHighestCommitted)
         {
-            if (ballot::isCompatible(ourHighestCommitted->getBallot(), *ratifiedBallot))
-                mApp.getTxHerderGateway().externalizeValue(ourHighestCommitted->getSlotBallot());
+            if (ballot::isCompatible(ourHighestCommitted->getBallot(),
+                                     *ratifiedBallot))
+                mApp.getTxHerderGateway().externalizeValue(
+                    ourHighestCommitted->getSlotBallot());
         }
         else
-        { // this is a non-validating node. Just check if our qset has ratified
+        { // this is a non-validating node. Just check if our qset has
+            // ratified
             // anything
             stellarxdr::SlotBallot slotBallot;
             slotBallot.ledgerIndex = mPreferredBallot.ledgerIndex;
@@ -375,8 +405,8 @@ OurNode::whatRatified(stellarxdr::FBAStatementType type)
     int yesVotes = 0;
     for (unsigned int n = 0; n < qset->mNodes.size(); n++)
     {
-        Node::RatState state =
-            qset->mNodes[n]->checkRatState(type, popularBallot, operationToken, recheckIndex, mApp);
+        Node::RatState state = qset->mNodes[n]->checkRatState(
+            type, popularBallot, operationToken, recheckIndex, mApp);
         if (state == PLEDGING_STATE || state == RATIFIED_STATE)
         {
             yesVotes++;

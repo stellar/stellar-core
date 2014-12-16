@@ -92,12 +92,11 @@ namespace stellar
 {
 
 FBAMaster::FBAMaster(Application& app)
-    : mApp(app),
-      mValidatingNode(false) // always start false since we aren't
-                             // validating till we catch up to network
-      ,
-      mOurNode(std::make_shared<OurNode>(mApp)),
-      mOurQuorumSet(std::make_shared<QuorumSet>())
+    : mApp(app)
+    , mValidatingNode(false) // always start false since we aren't
+    // validating till we catch up to network
+    , mOurNode(std::make_shared<OurNode>(mApp))
+    , mOurQuorumSet(std::make_shared<QuorumSet>())
 {
     createOurQuroumSet();
     app.getOverlayGateway().recvQuorumSet(mOurQuorumSet);
@@ -159,9 +158,11 @@ FBAMaster::startNewRound(const stellarxdr::SlotBallot& firstBallot)
 void
 FBAMaster::recvStatement(Statement::pointer statement)
 {
-    if (mValidatingNode || statement->getType() == stellarxdr::FBAStatementType::COMMITTED)
+    if (mValidatingNode ||
+        statement->getType() == stellarxdr::FBAStatementType::COMMITTED)
     {
-        if (processStatement(statement) && mOurNode->getNodeState() == statement->getType())
+        if (processStatement(statement) &&
+            mOurNode->getNodeState() == statement->getType())
         {
             mOurNode->progressFBA();
         }
@@ -220,11 +221,13 @@ FBAMaster::processStatement(Statement::pointer statement)
             TransactionSet::pointer txSet = statement->fetchTxSet(mApp);
             if (txSet)
             { // set is local 4) yes
-                TxHerderGateway::BallotValidType validity = statement->checkValidity(mApp);
+                TxHerderGateway::BallotValidType validity =
+                    statement->checkValidity(mApp);
 
                 if (validity == TxHerderGateway::INVALID_BALLOT)
                 {
-                    CLOG(WARNING, "FBA") << "Some old TX missing from PREPARE ballot ";
+                    CLOG(WARNING, "FBA")
+                        << "Some old TX missing from PREPARE ballot ";
                 }
                 else if (validity == TxHerderGateway::FUTURE_BALLOT)
                 {
@@ -235,7 +238,8 @@ FBAMaster::processStatement(Statement::pointer statement)
 
                 node->addStatement(statement);
                 if (validity == TxHerderGateway::VALID_BALLOT)
-                    mApp.getOverlayGateway().broadcastMessage(statement->mEnvelope.signature);
+                    mApp.getOverlayGateway().broadcastMessage(
+                        statement->mEnvelope.signature);
 
                 ///////  DO THE THING
                 return (true);
@@ -251,7 +255,8 @@ FBAMaster::processStatement(Statement::pointer statement)
         }
     }
     else
-    { // Not for the current slot. If it is for a slot in the future save it
+    { // Not for the current slot. If it is for a slot in the future save
+        // it
         if (slotCompare == TxHerderGateway::FUTURE_SLOT)
         {
             mCollectedStatements.push_back(statement);
@@ -259,10 +264,11 @@ FBAMaster::processStatement(Statement::pointer statement)
         else if (slotCompare == TxHerderGateway::INCOMPATIBLIE_SLOT)
         {
             std::string str;
-            CLOG(WARNING, "FBA") << "Node: " << toBase58(statement->mEnvelope.nodeID, str)
-                                 << " on a different ledger(" << statement->getLedgerIndex()
-                                 << " : "
-                                 << toBase58(statement->getSlotBallot().previousLedgerHash, str);
+            CLOG(WARNING, "FBA")
+                << "Node: " << toBase58(statement->mEnvelope.nodeID, str)
+                << " on a different ledger(" << statement->getLedgerIndex()
+                << " : "
+                << toBase58(statement->getSlotBallot().previousLedgerHash, str);
         }
     }
     return false;
@@ -272,7 +278,8 @@ void
 FBAMaster::statementReady(FutureStatement::pointer fstate)
 {
 
-    auto iter = find(mWaitFutureStatements.begin(), mWaitFutureStatements.end(), fstate);
+    auto iter = find(mWaitFutureStatements.begin(), mWaitFutureStatements.end(),
+                     fstate);
     mWaitFutureStatements.erase(iter);
     recvStatement(fstate->mStatement);
 }
@@ -285,7 +292,8 @@ FBAMaster::transactionSetAdded(TransactionSet::pointer txSet)
 {
     vector<Statement::pointer> fetched;
 
-    for (auto iter = mWaitTxStatements.begin(); iter != mWaitTxStatements.end();)
+    for (auto iter = mWaitTxStatements.begin();
+         iter != mWaitTxStatements.end();)
     {
         Statement::pointer waiting = *iter;
 
@@ -310,7 +318,8 @@ FBAMaster::processStatements(vector<Statement::pointer>& statementList)
     // feed them back in to see if they move FBA along or get further flooded
     for (auto statement : statementList)
     {
-        if (processStatement(statement) && statement->getType() == mOurNode->getNodeState())
+        if (processStatement(statement) &&
+            statement->getType() == mOurNode->getNodeState())
             needProgress = true;
     }
 

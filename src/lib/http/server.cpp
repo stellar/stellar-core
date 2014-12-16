@@ -18,11 +18,11 @@ namespace server
 {
 
 server::server(const std::string& address, const int port)
-    : io_service_(),
-      signals_(io_service_),
-      acceptor_(io_service_),
-      connection_manager_(),
-      socket_(io_service_)
+    : io_service_()
+    , signals_(io_service_)
+    , acceptor_(io_service_)
+    , connection_manager_()
+    , socket_(io_service_)
 {
     // Register to handle the signals that indicate when the server should exit.
     // It is safe to register for the same signal multiple times in a program,
@@ -35,7 +35,8 @@ server::server(const std::string& address, const int port)
 
     do_await_stop();
 
-    asio::ip::tcp::endpoint endpoint(asio::ip::address::from_string(address), port);
+    asio::ip::tcp::endpoint endpoint(asio::ip::address::from_string(address),
+                                     port);
     // Open the acceptor with the option to reuse the address (i.e.
     // SO_REUSEADDR).
     acceptor_.open(endpoint.protocol());
@@ -77,8 +78,8 @@ server::do_accept()
 
         if (!ec)
         {
-            connection_manager_.start(
-                std::make_shared<connection>(std::move(socket_), connection_manager_, *this));
+            connection_manager_.start(std::make_shared<connection>(
+                std::move(socket_), connection_manager_, *this));
         }
 
         do_accept();

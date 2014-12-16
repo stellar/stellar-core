@@ -16,12 +16,18 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
         ipStr = "127.0.0.1";
         http::server::server httpServer(ipStr, mApp.mConfig.HTTP_PORT);
 
-        httpServer.addRoute("stop", std::bind(&CommandHandler::stop, this, _1, _2));
-        httpServer.addRoute("peers", std::bind(&CommandHandler::peers, this, _1, _2));
-        httpServer.addRoute("info", std::bind(&CommandHandler::info, this, _1, _2));
-        httpServer.addRoute("reload_cfg", std::bind(&CommandHandler::reloadCfg, this, _1, _2));
-        httpServer.addRoute("logrotate", std::bind(&CommandHandler::logRotate, this, _1, _2));
-        httpServer.addRoute("connect", std::bind(&CommandHandler::connect, this, _1, _2));
+        httpServer.addRoute("stop",
+                            std::bind(&CommandHandler::stop, this, _1, _2));
+        httpServer.addRoute("peers",
+                            std::bind(&CommandHandler::peers, this, _1, _2));
+        httpServer.addRoute("info",
+                            std::bind(&CommandHandler::info, this, _1, _2));
+        httpServer.addRoute(
+            "reload_cfg", std::bind(&CommandHandler::reloadCfg, this, _1, _2));
+        httpServer.addRoute(
+            "logrotate", std::bind(&CommandHandler::logRotate, this, _1, _2));
+        httpServer.addRoute("connect",
+                            std::bind(&CommandHandler::connect, this, _1, _2));
         httpServer.addRoute("tx", std::bind(&CommandHandler::tx, this, _1, _2));
 
         LOG(INFO) << "Start listening for http requests";

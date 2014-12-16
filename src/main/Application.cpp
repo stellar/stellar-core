@@ -6,23 +6,24 @@
 namespace stellar
 {
 Application::Application(Config const& cfg)
-    : mState(BOOTING_STATE),
-      mConfig(cfg),
-      mWorkerIOService(std::thread::hardware_concurrency()),
-      mWork(make_unique<asio::io_service::work>(mWorkerIOService)),
-      mPeerMaster(*this),
-      mLedgerMaster(*this),
-      mTxHerder(*this),
-      mFBAMaster(*this),
-      mHistoryMaster(*this),
-      mProcessMaster(*this),
-      mCommandHandler(*this),
-      mStopSignals(mMainIOService, SIGINT)
+    : mState(BOOTING_STATE)
+    , mConfig(cfg)
+    , mWorkerIOService(std::thread::hardware_concurrency())
+    , mWork(make_unique<asio::io_service::work>(mWorkerIOService))
+    , mPeerMaster(*this)
+    , mLedgerMaster(*this)
+    , mTxHerder(*this)
+    , mFBAMaster(*this)
+    , mHistoryMaster(*this)
+    , mProcessMaster(*this)
+    , mCommandHandler(*this)
+    , mStopSignals(mMainIOService, SIGINT)
 {
     LOG(INFO) << "Application constructing";
     mStopSignals.async_wait([this](asio::error_code const& ec, int sig)
                             {
-                                LOG(INFO) << "got signal " << sig << ", shutting down";
+                                LOG(INFO) << "got signal " << sig
+                                          << ", shutting down";
                                 this->gracefulStop();
                             });
     unsigned t = std::thread::hardware_concurrency();

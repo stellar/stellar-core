@@ -11,7 +11,8 @@ namespace stellar
 // LoopbackPeer
 ///////////////////////////////////////////////////////////////////////
 
-LoopbackPeer::LoopbackPeer(Application& app, PeerRole role) : Peer(app, role), mRemote(nullptr)
+LoopbackPeer::LoopbackPeer(Application& app, PeerRole role)
+    : Peer(app, role), mRemote(nullptr)
 {
 }
 
@@ -37,10 +38,11 @@ void
 LoopbackPeer::drop()
 {
     auto self = shared_from_this();
-    mApp.getMainIOService().post([self]()
-                                 {
-                                     self->getApp().getPeerMaster().dropPeer(self);
-                                 });
+    mApp.getMainIOService().post(
+        [self]()
+        {
+            self->getApp().getPeerMaster().dropPeer(self);
+        });
     if (mRemote)
     {
         auto remote = mRemote;
@@ -274,9 +276,10 @@ LoopbackPeer::setReorderProbability(double d)
     mDamageProb = bernoulli_distribution(d);
 }
 
-LoopbackPeerConnection::LoopbackPeerConnection(Application& initiator, Application& acceptor)
-    : mInitiator(make_shared<LoopbackPeer>(initiator, Peer::INITIATOR)),
-      mAcceptor(make_shared<LoopbackPeer>(acceptor, Peer::ACCEPTOR))
+LoopbackPeerConnection::LoopbackPeerConnection(Application& initiator,
+                                               Application& acceptor)
+    : mInitiator(make_shared<LoopbackPeer>(initiator, Peer::INITIATOR))
+    , mAcceptor(make_shared<LoopbackPeer>(acceptor, Peer::ACCEPTOR))
 {
     mInitiator->mRemote = mAcceptor;
     mInitiator->mState = Peer::CONNECTED;

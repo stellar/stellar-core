@@ -19,8 +19,11 @@ namespace http
 namespace server
 {
 
-connection::connection(asio::ip::tcp::socket socket, connection_manager& manager, server& handler)
-    : socket_(std::move(socket)), connection_manager_(manager), request_handler_(handler)
+connection::connection(asio::ip::tcp::socket socket,
+                       connection_manager& manager, server& handler)
+    : socket_(std::move(socket))
+    , connection_manager_(manager)
+    , request_handler_(handler)
 {
 }
 
@@ -41,13 +44,14 @@ connection::do_read()
 {
     auto self(shared_from_this());
     socket_.async_read_some(asio::buffer(buffer_),
-                            [this, self](std::error_code ec, std::size_t bytes_transferred)
+                            [this, self](std::error_code ec,
+                                         std::size_t bytes_transferred)
                             {
         if (!ec)
         {
             request_parser::result_type result;
-            std::tie(result, std::ignore) =
-                request_parser_.parse(request_, buffer_.data(), buffer_.data() + bytes_transferred);
+            std::tie(result, std::ignore) = request_parser_.parse(
+                request_, buffer_.data(), buffer_.data() + bytes_transferred);
 
             if (result == request_parser::good)
             {
@@ -75,7 +79,8 @@ void
 connection::do_write()
 {
     auto self(shared_from_this());
-    asio::async_write(socket_, reply_.to_buffers(), [this, self](std::error_code ec, std::size_t)
+    asio::async_write(socket_, reply_.to_buffers(),
+                      [this, self](std::error_code ec, std::size_t)
                       {
         if (!ec)
         {

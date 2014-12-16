@@ -51,7 +51,8 @@ std::shared_ptr<Bucket>
 Bucket::fresh(std::vector<Bucket::KVPair>&& entries)
 {
 
-    std::sort(entries.begin(), entries.end(), [](KVPair const& a, KVPair const& b)
+    std::sort(entries.begin(), entries.end(),
+              [](KVPair const& a, KVPair const& b)
               {
         return std::get<0>(a) < std::get<0>(b);
     });
@@ -66,7 +67,8 @@ Bucket::fresh(std::vector<Bucket::KVPair>&& entries)
 }
 
 std::shared_ptr<Bucket>
-Bucket::merge(std::shared_ptr<Bucket> const& oldBucket, std::shared_ptr<Bucket> const& newBucket)
+Bucket::merge(std::shared_ptr<Bucket> const& oldBucket,
+              std::shared_ptr<Bucket> const& newBucket)
 {
     // This is the key operation in the scheme: merging two (read-only)
     // buckets together into a new 3rd bucket, while calculating its hash,
@@ -120,7 +122,9 @@ Bucket::merge(std::shared_ptr<Bucket> const& oldBucket, std::shared_ptr<Bucket> 
 }
 
 BucketLevel::BucketLevel(size_t i)
-    : mLevel(i), mCurr(std::make_shared<Bucket>()), mSnap(std::make_shared<Bucket>())
+    : mLevel(i)
+    , mCurr(std::make_shared<Bucket>())
+    , mSnap(std::make_shared<Bucket>())
 {
 }
 
@@ -162,7 +166,8 @@ BucketLevel::commit()
 }
 
 void
-BucketLevel::prepare(Application& app, uint64_t currLedger, std::shared_ptr<Bucket> snap)
+BucketLevel::prepare(Application& app, uint64_t currLedger,
+                     std::shared_ptr<Bucket> snap)
 {
     // If more than one absorb is pending at the same time, we have a logic
     // error in our caller (and all hell will break loose).
@@ -179,7 +184,8 @@ BucketLevel::prepare(Application& app, uint64_t currLedger, std::shared_ptr<Buck
     // next snap).
     if (mLevel > 0)
     {
-        uint64_t nextChangeLedger = currLedger + BucketList::levelHalf(mLevel - 1);
+        uint64_t nextChangeLedger =
+            currLedger + BucketList::levelHalf(mLevel - 1);
         if (BucketList::levelShouldSpill(nextChangeLedger, mLevel))
         {
             // LOG(DEBUG) << "level " << mLevel
@@ -285,7 +291,8 @@ BucketList::getHash() const
 bool
 BucketList::levelShouldSpill(uint64_t ledger, size_t level)
 {
-    return (ledger == mask(ledger, levelHalf(level)) || ledger == mask(ledger, levelSize(level)));
+    return (ledger == mask(ledger, levelHalf(level)) ||
+            ledger == mask(ledger, levelSize(level)));
 }
 
 size_t
@@ -301,7 +308,8 @@ BucketList::getLevel(size_t i) const
 }
 
 void
-BucketList::addBatch(Application& app, uint64_t currLedger, std::vector<Bucket::KVPair>&& batch)
+BucketList::addBatch(Application& app, uint64_t currLedger,
+                     std::vector<Bucket::KVPair>&& batch)
 {
     assert(currLedger > 0);
     assert(numLevels(currLedger - 1) == mLevels.size());

@@ -31,7 +31,8 @@ const std::string bad_request = "HTTP/1.0 400 Bad Request\r\n";
 const std::string unauthorized = "HTTP/1.0 401 Unauthorized\r\n";
 const std::string forbidden = "HTTP/1.0 403 Forbidden\r\n";
 const std::string not_found = "HTTP/1.0 404 Not Found\r\n";
-const std::string internal_server_error = "HTTP/1.0 500 Internal Server Error\r\n";
+const std::string internal_server_error =
+    "HTTP/1.0 500 Internal Server Error\r\n";
 const std::string not_implemented = "HTTP/1.0 501 Not Implemented\r\n";
 const std::string bad_gateway = "HTTP/1.0 502 Bad Gateway\r\n";
 const std::string service_unavailable = "HTTP/1.0 503 Service Unavailable\r\n";
@@ -154,10 +155,11 @@ const char not_found[] = "<html>"
                          "<head><title>Not Found</title></head>"
                          "<body><h1>404 Not Found</h1></body>"
                          "</html>";
-const char internal_server_error[] = "<html>"
-                                     "<head><title>Internal Server Error</title></head>"
-                                     "<body><h1>500 Internal Server Error</h1></body>"
-                                     "</html>";
+const char internal_server_error[] =
+    "<html>"
+    "<head><title>Internal Server Error</title></head>"
+    "<body><h1>500 Internal Server Error</h1></body>"
+    "</html>";
 const char not_implemented[] = "<html>"
                                "<head><title>Not Implemented</title></head>"
                                "<body><h1>501 Not Implemented</h1></body>"
@@ -166,10 +168,11 @@ const char bad_gateway[] = "<html>"
                            "<head><title>Bad Gateway</title></head>"
                            "<body><h1>502 Bad Gateway</h1></body>"
                            "</html>";
-const char service_unavailable[] = "<html>"
-                                   "<head><title>Service Unavailable</title></head>"
-                                   "<body><h1>503 Service Unavailable</h1></body>"
-                                   "</html>";
+const char service_unavailable[] =
+    "<html>"
+    "<head><title>Service Unavailable</title></head>"
+    "<body><h1>503 Service Unavailable</h1></body>"
+    "</html>";
 
 std::string
 to_string(reply::status_type status)

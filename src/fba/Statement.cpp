@@ -16,8 +16,10 @@ Statement::Statement(stellarxdr::FBAEnvelope const& envelope)
 {
 }
 
-Statement::Statement(stellarxdr::FBAStatementType type, stellarxdr::uint256 const& nodeID,
-                     stellarxdr::uint256 const& qSetHash, const stellarxdr::SlotBallot& ballot)
+Statement::Statement(stellarxdr::FBAStatementType type,
+                     stellarxdr::uint256 const& nodeID,
+                     stellarxdr::uint256 const& qSetHash,
+                     const stellarxdr::SlotBallot& ballot)
     : mValidity(TxHerderGateway::UNKNOWN_VALIDITY)
 {
     mEnvelope.contents.body.type(type);

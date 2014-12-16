@@ -12,8 +12,8 @@ FutureStatement::FutureStatement(Statement::pointer statement, Application& app)
     : mTimer(app.getMainIOService())
 {
     uint64_t timeNow = time(nullptr);
-    uint64_t numSeconds =
-        statement->getBallot().closeTime - timeNow - MAX_SECONDS_LEDGER_CLOSE_IN_FUTURE;
+    uint64_t numSeconds = statement->getBallot().closeTime - timeNow -
+                          MAX_SECONDS_LEDGER_CLOSE_IN_FUTURE;
     if (numSeconds <= 0)
         numSeconds = 1;
     mTimer.expires_from_now(std::chrono::seconds(numSeconds));

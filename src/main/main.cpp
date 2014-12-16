@@ -16,12 +16,13 @@ enum opttag
     OPT_CMD,
 };
 
-static const struct option stellard_options[] = {{"version", no_argument, nullptr, OPT_VERSION},
-                                                 {"help", no_argument, nullptr, OPT_HELP},
-                                                 {"test", no_argument, nullptr, OPT_TEST},
-                                                 {"conf", required_argument, nullptr, OPT_CONF},
-                                                 {"c", required_argument, nullptr, OPT_CMD},
-                                                 {nullptr, 0, nullptr, 0}};
+static const struct option stellard_options[] = {
+    {"version", no_argument, nullptr, OPT_VERSION},
+    {"help", no_argument, nullptr, OPT_HELP},
+    {"test", no_argument, nullptr, OPT_TEST},
+    {"conf", required_argument, nullptr, OPT_CONF},
+    {"c", required_argument, nullptr, OPT_CMD},
+    {nullptr, 0, nullptr, 0}};
 
 static void
 usage(int err = 1)
@@ -46,7 +47,8 @@ usage(int err = 1)
 }
 
 void
-sendCommand(const std::string& command, const std::vector<char*>& rest, int port)
+sendCommand(const std::string& command, const std::vector<char*>& rest,
+            int port)
 {
     std::string ret;
     std::ostringstream path;
@@ -59,7 +61,8 @@ sendCommand(const std::string& command, const std::vector<char*>& rest, int port
     }
     else
     {
-        LOG(INFO) << "http failed(" << code << ") port: " << port << " command: " << command;
+        LOG(INFO) << "http failed(" << code << ") port: " << port
+                  << " command: " << command;
     }
 }
 
@@ -73,7 +76,8 @@ main(int argc, char* const* argv)
     std::vector<char*> rest;
 
     int opt;
-    while ((opt = getopt_long_only(argc, argv, "", stellard_options, nullptr)) != -1)
+    while ((opt = getopt_long_only(argc, argv, "", stellard_options,
+                                   nullptr)) != -1)
     {
         switch (opt)
         {

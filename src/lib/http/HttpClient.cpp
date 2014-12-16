@@ -17,7 +17,8 @@ http_request(std::string domain, std::string path, int port, std::string& ret)
         asio::io_service io_service;
 
         asio::ip::tcp::socket socket(io_service);
-        asio::ip::tcp::endpoint endpoint(asio::ip::address::from_string(domain), port);
+        asio::ip::tcp::endpoint endpoint(asio::ip::address::from_string(domain),
+                                         port);
         socket.connect(endpoint);
 
         // Form the request. We specify the "Connection: close" header so that
@@ -58,7 +59,8 @@ http_request(std::string domain, std::string path, int port, std::string& ret)
         }
         if (status_code != 200)
         {
-            LOG(DEBUG) << "Response returned with status code " << status_code << "\n";
+            LOG(DEBUG) << "Response returned with status code " << status_code
+                       << "\n";
             return status_code;
         }
 

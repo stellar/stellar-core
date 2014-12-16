@@ -40,9 +40,11 @@ Config::load(const std::string& filename)
             PUBLIC_HTTP_PORT = g.get("PUBLIC_HTTP_PORT")->as<bool>()->value();
 
         if (g.contains("QUORUM_THRESHOLD"))
-            QUORUM_THRESHOLD = (int)g.get("QUORUM_THRESHOLD")->as<int64_t>()->value();
+            QUORUM_THRESHOLD =
+                (int)g.get("QUORUM_THRESHOLD")->as<int64_t>()->value();
         if (g.contains("DESIRED_BASE_FEE"))
-            DESIRED_BASE_FEE = (uint32_t)g.get("DESIRED_BASE_FEE")->as<int64_t>()->value();
+            DESIRED_BASE_FEE =
+                (uint32_t)g.get("DESIRED_BASE_FEE")->as<int64_t>()->value();
 
         if (g.contains("RUN_STANDALONE"))
             RUN_STANDALONE = g.get("RUN_STANDALONE")->as<bool>()->value();
@@ -50,9 +52,11 @@ Config::load(const std::string& filename)
             LOG_FILE_PATH = g.get("LOG_FILE_PATH")->as<std::string>()->value();
 
         if (g.contains("TARGET_PEER_CONNECTIONS"))
-            TARGET_PEER_CONNECTIONS = (int)g.get("TARGET_PEER_CONNECTIONS")->as<int64_t>()->value();
+            TARGET_PEER_CONNECTIONS =
+                (int)g.get("TARGET_PEER_CONNECTIONS")->as<int64_t>()->value();
         if (g.contains("MAX_PEER_CONNECTIONS"))
-            MAX_PEER_CONNECTIONS = (int)g.get("MAX_PEER_CONNECTIONS")->as<int64_t>()->value();
+            MAX_PEER_CONNECTIONS =
+                (int)g.get("MAX_PEER_CONNECTIONS")->as<int64_t>()->value();
         if (g.contains("PREFERRED_PEERS"))
         {
             for (auto v : g.get_array("PREFERRED_PEERS")->array())

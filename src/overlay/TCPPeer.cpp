@@ -23,15 +23,18 @@ const char* TCPPeer::kSQLCreateStatement =
         rank    INT     \
     );";
 
-TCPPeer::TCPPeer(Application& app, shared_ptr<asio::ip::tcp::socket> socket, PeerRole role)
+TCPPeer::TCPPeer(Application& app, shared_ptr<asio::ip::tcp::socket> socket,
+                 PeerRole role)
     : Peer(app, role), mSocket(socket), mHelloTimer(app.getMainIOService())
 {
-    mHelloTimer.expires_from_now(std::chrono::milliseconds(MS_TO_WAIT_FOR_HELLO));
-    mHelloTimer.async_wait([socket](asio::error_code const& ec)
-                           {
-                               socket->shutdown(asio::socket_base::shutdown_both);
-                               socket->close();
-                           });
+    mHelloTimer.expires_from_now(
+        std::chrono::milliseconds(MS_TO_WAIT_FOR_HELLO));
+    mHelloTimer.async_wait(
+        [socket](asio::error_code const& ec)
+        {
+            socket->shutdown(asio::socket_base::shutdown_both);
+            socket->close();
+        });
 }
 
 std::string
@@ -62,18 +65,20 @@ TCPPeer::sendMessage(xdr::msg_ptr&& xdrBytes)
     // fixed in C++14 but we're not there yet.
 
     auto self = shared_from_this();
-    asio::async_write(
-        *(mSocket.get()), asio::buffer(xdrBytes->raw_data(), xdrBytes->raw_size()),
-        std::bind(
-            [self](asio::error_code const& ec, std::size_t length, xdr::msg_ptr const&)
-            {
-                self->writeHandler(ec, length);
-            },
-            _1, _2, std::move(xdrBytes)));
+    asio::async_write(*(mSocket.get()),
+                      asio::buffer(xdrBytes->raw_data(), xdrBytes->raw_size()),
+                      std::bind(
+                          [self](asio::error_code const& ec, std::size_t length,
+                                 xdr::msg_ptr const&)
+                          {
+                              self->writeHandler(ec, length);
+                          },
+                          _1, _2, std::move(xdrBytes)));
 }
 
 void
-TCPPeer::writeHandler(const asio::error_code& error, std::size_t bytes_transferred)
+TCPPeer::writeHandler(const asio::error_code& error,
+                      std::size_t bytes_transferred)
 {
     if (error)
     {
@@ -107,7 +112,8 @@ TCPPeer::getIncomingMsgLength()
 }
 
 void
-TCPPeer::readHeaderHandler(const asio::error_code& error, std::size_t bytes_transferred)
+TCPPeer::readHeaderHandler(const asio::error_code& error,
+                           std::size_t bytes_transferred)
 {
     if (!error)
     {
@@ -127,7 +133,8 @@ TCPPeer::readHeaderHandler(const asio::error_code& error, std::size_t bytes_tran
 }
 
 void
-TCPPeer::readBodyHandler(const asio::error_code& error, std::size_t bytes_transferred)
+TCPPeer::readBodyHandler(const asio::error_code& error,
+                         std::size_t bytes_transferred)
 {
     if (!error)
     {
@@ -168,11 +175,12 @@ TCPPeer::drop()
 {
     auto self = shared_from_this();
     auto sock = mSocket;
-    mApp.getMainIOService().post([self, sock]()
-                                 {
-                                     self->getApp().getPeerMaster().dropPeer(self);
-                                     sock->shutdown(asio::socket_base::shutdown_both);
-                                     sock->close();
-                                 });
+    mApp.getMainIOService().post(
+        [self, sock]()
+        {
+            self->getApp().getPeerMaster().dropPeer(self);
+            sock->shutdown(asio::socket_base::shutdown_both);
+            sock->close();
+        });
 }
 }

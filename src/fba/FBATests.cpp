@@ -23,28 +23,40 @@ TEST_CASE("node tests", "[fba]")
         StatementPtr s1 = std::make_shared<Statement>(sxdr1);
 
         REQUIRE(!testNode.hasStatement(s1));
-        REQUIRE(!testNode.getHighestStatement(stellarxdr::FBAStatementType::PREPARE));
-        REQUIRE(!testNode.getHighestStatement(stellarxdr::FBAStatementType::PREPARED));
-        REQUIRE(!testNode.getHighestStatement(stellarxdr::FBAStatementType::COMMIT));
-        REQUIRE(!testNode.getHighestStatement(stellarxdr::FBAStatementType::COMMITTED));
+        REQUIRE(!testNode.getHighestStatement(
+            stellarxdr::FBAStatementType::PREPARE));
+        REQUIRE(!testNode.getHighestStatement(
+            stellarxdr::FBAStatementType::PREPARED));
+        REQUIRE(!testNode.getHighestStatement(
+            stellarxdr::FBAStatementType::COMMIT));
+        REQUIRE(!testNode.getHighestStatement(
+            stellarxdr::FBAStatementType::COMMITTED));
 
         REQUIRE(testNode.addStatement(s1));
         REQUIRE(testNode.hasStatement(s1));
 
-        REQUIRE(testNode.getHighestStatement(stellarxdr::FBAStatementType::PREPARE) == s1);
-        REQUIRE(!testNode.getHighestStatement(stellarxdr::FBAStatementType::PREPARED));
-        REQUIRE(!testNode.getHighestStatement(stellarxdr::FBAStatementType::COMMIT));
-        REQUIRE(!testNode.getHighestStatement(stellarxdr::FBAStatementType::COMMITTED));
+        REQUIRE(testNode.getHighestStatement(
+                    stellarxdr::FBAStatementType::PREPARE) == s1);
+        REQUIRE(!testNode.getHighestStatement(
+            stellarxdr::FBAStatementType::PREPARED));
+        REQUIRE(!testNode.getHighestStatement(
+            stellarxdr::FBAStatementType::COMMIT));
+        REQUIRE(!testNode.getHighestStatement(
+            stellarxdr::FBAStatementType::COMMITTED));
 
         sxdr1.contents.slotBallot.ballot.baseFee = 10;
         StatementPtr s2 = std::make_shared<Statement>(sxdr1);
         REQUIRE(testNode.addStatement(s2));
         REQUIRE(testNode.hasStatement(s1));
         REQUIRE(testNode.hasStatement(s2));
-        REQUIRE(testNode.getHighestStatement(stellarxdr::FBAStatementType::PREPARE) == s2);
-        REQUIRE(!testNode.getHighestStatement(stellarxdr::FBAStatementType::PREPARED));
-        REQUIRE(!testNode.getHighestStatement(stellarxdr::FBAStatementType::COMMIT));
-        REQUIRE(!testNode.getHighestStatement(stellarxdr::FBAStatementType::COMMITTED));
+        REQUIRE(testNode.getHighestStatement(
+                    stellarxdr::FBAStatementType::PREPARE) == s2);
+        REQUIRE(!testNode.getHighestStatement(
+            stellarxdr::FBAStatementType::PREPARED));
+        REQUIRE(!testNode.getHighestStatement(
+            stellarxdr::FBAStatementType::COMMIT));
+        REQUIRE(!testNode.getHighestStatement(
+            stellarxdr::FBAStatementType::COMMITTED));
 
         sxdr1.contents.slotBallot.ballot.baseFee = 7;
         StatementPtr s3 = std::make_shared<Statement>(sxdr1);
@@ -52,10 +64,14 @@ TEST_CASE("node tests", "[fba]")
         REQUIRE(testNode.hasStatement(s1));
         REQUIRE(testNode.hasStatement(s2));
         REQUIRE(testNode.hasStatement(s3));
-        REQUIRE(testNode.getHighestStatement(stellarxdr::FBAStatementType::PREPARE) == s2);
-        REQUIRE(!testNode.getHighestStatement(stellarxdr::FBAStatementType::PREPARED));
-        REQUIRE(!testNode.getHighestStatement(stellarxdr::FBAStatementType::COMMIT));
-        REQUIRE(!testNode.getHighestStatement(stellarxdr::FBAStatementType::COMMITTED));
+        REQUIRE(testNode.getHighestStatement(
+                    stellarxdr::FBAStatementType::PREPARE) == s2);
+        REQUIRE(!testNode.getHighestStatement(
+            stellarxdr::FBAStatementType::PREPARED));
+        REQUIRE(!testNode.getHighestStatement(
+            stellarxdr::FBAStatementType::COMMIT));
+        REQUIRE(!testNode.getHighestStatement(
+            stellarxdr::FBAStatementType::COMMITTED));
 
         sxdr1.contents.body.type(stellarxdr::FBAStatementType::PREPARED);
         StatementPtr s4 = std::make_shared<Statement>(sxdr1);
@@ -64,10 +80,14 @@ TEST_CASE("node tests", "[fba]")
         REQUIRE(testNode.hasStatement(s2));
         REQUIRE(testNode.hasStatement(s3));
         REQUIRE(testNode.hasStatement(s4));
-        REQUIRE(testNode.getHighestStatement(stellarxdr::FBAStatementType::PREPARE) == s2);
-        REQUIRE(testNode.getHighestStatement(stellarxdr::FBAStatementType::PREPARED) == s4);
-        REQUIRE(!testNode.getHighestStatement(stellarxdr::FBAStatementType::COMMIT));
-        REQUIRE(!testNode.getHighestStatement(stellarxdr::FBAStatementType::COMMITTED));
+        REQUIRE(testNode.getHighestStatement(
+                    stellarxdr::FBAStatementType::PREPARE) == s2);
+        REQUIRE(testNode.getHighestStatement(
+                    stellarxdr::FBAStatementType::PREPARED) == s4);
+        REQUIRE(!testNode.getHighestStatement(
+            stellarxdr::FBAStatementType::COMMIT));
+        REQUIRE(!testNode.getHighestStatement(
+            stellarxdr::FBAStatementType::COMMITTED));
     }
     SECTION("checkRatState")
     {
@@ -80,7 +100,8 @@ TEST_CASE("node tests", "[fba]")
         BallotPtr ballot = std::make_shared<stellarxdr::Ballot>();
 
         REQUIRE(Node::NOTPLEDGING_STATE ==
-                testNode.checkRatState(stellarxdr::FBAStatementType::PREPARE, ballot, 1, 1, app));
+                testNode.checkRatState(stellarxdr::FBAStatementType::PREPARE,
+                                       ballot, 1, 1, app));
     }
 }
 

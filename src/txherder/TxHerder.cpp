@@ -10,19 +10,30 @@
 namespace stellar
 {
 TxHerder::TxHerder(Application& app)
-    : mCollectingTransactionSet(std::make_shared<TransactionSet>()),
-      mReceivedTransactions(4),
+    : mCollectingTransactionSet(std::make_shared<TransactionSet>())
+    , mReceivedTransactions(4)
 #ifdef _MSC_VER
-      // This form of initializer causes a warning due to brace-elision on
-      // clang.
-      mTxSetFetcher({TxSetFetcher(app), TxSetFetcher(app)}),
+    // This form of initializer causes a warning due to brace-elision on
+    // clang.
+    , mTxSetFetcher({TxSetFetcher(app), TxSetFetcher(app)})
 #else
-      // This form of initializer is "not implemented" in MSVC yet.
-      mTxSetFetcher{{{TxSetFetcher(app)}, {TxSetFetcher(app)}}},
+    // This form of initializer is "not implemented" in MSVC yet.
+    , mTxSetFetcher
+{
+    {
+        {
+            TxSetFetcher(app)
+        }
+        ,
+        {
+            TxSetFetcher(app)
+        }
+    }
+}
 #endif
-      mCurrentTxSetFetcher(0),
-      mCloseCount(0),
-      mApp(app)
+    , mCurrentTxSetFetcher(0)
+    , mCloseCount(0)
+    , mApp(app)
 {
 }
 
@@ -46,8 +57,8 @@ TxHerder::isValidBallotValue(const stellarxdr::Ballot& ballot)
 
     for (auto tx : mReceivedTransactions[mReceivedTransactions.size() - 1])
     {
-        if (find(txSet->mTransactions.begin(), txSet->mTransactions.end(), tx) ==
-            txSet->mTransactions.end())
+        if (find(txSet->mTransactions.begin(), txSet->mTransactions.end(),
+                 tx) == txSet->mTransactions.end())
             return INVALID_BALLOT;
     }
     // check timestamp
@@ -149,7 +160,8 @@ TxHerder::removeReceivedTx(TransactionPtr dropTX)
 void
 TxHerder::externalizeValue(const stellarxdr::SlotBallot& slotBallot)
 {
-    TransactionSet::pointer externalizedSet = fetchTxSet(slotBallot.ballot.txSetHash, false);
+    TransactionSet::pointer externalizedSet =
+        fetchTxSet(slotBallot.ballot.txSetHash, false);
     if (externalizedSet)
     {
         // we don't need to keep fetching any of the old TX sets

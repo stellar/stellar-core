@@ -53,7 +53,8 @@ ballotSorter(const BallotSet& a, const BallotSet& b)
 
 // returns all the ballots sorted by rank
 void
-QuorumSet::sortBallots(stellarxdr::FBAStatementType type, vector<BallotSet>& retList)
+QuorumSet::sortBallots(stellarxdr::FBAStatementType type,
+                       vector<BallotSet>& retList)
 {
     for (auto node : mNodes)
     {
@@ -65,7 +66,8 @@ QuorumSet::sortBallots(stellarxdr::FBAStatementType type, vector<BallotSet>& ret
             // check if any of the ballots are compatible with this one
             for (auto cballot : retList)
             {
-                if (ballot::isCompatible(cballot.mBallot.ballot, statement->getBallot()))
+                if (ballot::isCompatible(cballot.mBallot.ballot,
+                                         statement->getBallot()))
                 {
                     cballot.mCount++;
                     found = true;
@@ -80,8 +82,8 @@ QuorumSet::sortBallots(stellarxdr::FBAStatementType type, vector<BallotSet>& ret
 }
 
 BallotPtr
-QuorumSet::getMostPopularBallot(stellarxdr::FBAStatementType type, bool checkValid,
-                                Application& app)
+QuorumSet::getMostPopularBallot(stellarxdr::FBAStatementType type,
+                                bool checkValid, Application& app)
 {
     /* TODO.1 wait for xdrpp to include a comparison
             map< stellarxdr::Ballot, int> ballotCounts;
@@ -125,13 +127,15 @@ QuorumSet::getMostPopularBallot(stellarxdr::FBAStatementType type, bool checkVal
 
 // get the highest valid statement
 Statement::pointer
-QuorumSet::getHighestStatement(stellarxdr::FBAStatementType type, bool checkValid, Application& app)
+QuorumSet::getHighestStatement(stellarxdr::FBAStatementType type,
+                               bool checkValid, Application& app)
 {
     Statement::pointer highStatement;
     for (auto node : mNodes)
     {
         Statement::pointer statement = node->getHighestStatement(type);
-        if (!checkValid || app.getTxHerderGateway().isValidBallotValue(statement->getBallot()))
+        if (!checkValid ||
+            app.getTxHerderGateway().isValidBallotValue(statement->getBallot()))
         {
             if (!highStatement)
                 highStatement = statement;
@@ -154,8 +158,9 @@ QuorumSet::getHighestStatement(stellarxdr::FBAStatementType type, bool checkVali
 // for PREPARE we need to look at gaps
 //		for any gap see if other people can ratify the abort
 Node::RatState
-QuorumSet::checkRatState(stellarxdr::FBAStatementType statementType, BallotPtr ballot,
-                         int operationToken, int recheckCounter, Application& app)
+QuorumSet::checkRatState(stellarxdr::FBAStatementType statementType,
+                         BallotPtr ballot, int operationToken,
+                         int recheckCounter, Application& app)
 {
     // LATER if(statementType == Statement::PREPARE_TYPE) return
     // checkPrepareRatState(statement, visitIndex);
@@ -163,8 +168,8 @@ QuorumSet::checkRatState(stellarxdr::FBAStatementType statementType, BallotPtr b
     int ratCount = 0;
     for (auto node : mNodes)
     {
-        Node::RatState state =
-            node->checkRatState(statementType, ballot, operationToken, recheckCounter, app);
+        Node::RatState state = node->checkRatState(
+            statementType, ballot, operationToken, recheckCounter, app);
         if (state == Node::PLEDGING_STATE || state == Node::RATIFIED_STATE)
         {
             ratCount++;

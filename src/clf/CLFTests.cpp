@@ -37,6 +37,7 @@ TEST_CASE("bucket list", "[clf]")
     }
     catch (std::future_error& e)
     {
-        LOG(DEBUG) << "Test caught std::future_error " << e.code() << ": " << e.what();
+        LOG(DEBUG) << "Test caught std::future_error " << e.code() << ": "
+                   << e.what();
     }
 }
