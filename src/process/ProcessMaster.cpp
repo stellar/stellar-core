@@ -93,6 +93,7 @@ ProcessMaster::runProcess(std::string const& cmdLine)
 #else
 
 #include <spawn.h>
+#include <sys/wait.h>
 
 class
 ProcessExitEvent::Impl
