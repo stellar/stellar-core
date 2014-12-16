@@ -16,7 +16,6 @@
 .dirstamp
 /src/generated/stellar.hh
 /src/util/StellardVersion.h
-/INSTALL
 /Makefile
 /Makefile.in
 /aclocal.m4
