@@ -16,18 +16,17 @@ enum opttag
     OPT_CMD,
 };
 
-static const struct option stellard_options[] = {
-    {"version", no_argument, nullptr, OPT_VERSION},
-    {"help", no_argument, nullptr, OPT_HELP},
-    {"test", no_argument, nullptr, OPT_TEST},
-    {"conf", required_argument, nullptr, OPT_CONF},
-    { "c", required_argument, nullptr, OPT_CMD },
-    {nullptr, 0, nullptr, 0}};
+static const struct option stellard_options[] = {{"version", no_argument, nullptr, OPT_VERSION},
+                                                 {"help", no_argument, nullptr, OPT_HELP},
+                                                 {"test", no_argument, nullptr, OPT_TEST},
+                                                 {"conf", required_argument, nullptr, OPT_CONF},
+                                                 {"c", required_argument, nullptr, OPT_CMD},
+                                                 {nullptr, 0, nullptr, 0}};
 
 static void
 usage(int err = 1)
 {
-    std::ostream &os = err ? cerr : cout;
+    std::ostream& os = err ? cerr : cout;
     os << "usage: stellard [OPTIONS]\n"
           "where OPTIONS can be any of:\n"
           "      --help        To display this string\n"
@@ -47,21 +46,21 @@ usage(int err = 1)
 }
 
 void
-sendCommand(const std::string& command,const std::vector<char*>& rest, int port)
+sendCommand(const std::string& command, const std::vector<char*>& rest, int port)
 {
     std::string ret;
     std::ostringstream path;
     path << "/" << command;
 
-    int code = http_request("127.0.0.1",path.str(),port,ret);
-    if(code == 200)
+    int code = http_request("127.0.0.1", path.str(), port, ret);
+    if (code == 200)
     {
         LOG(INFO) << ret;
-    } else
+    }
+    else
     {
         LOG(INFO) << "http failed(" << code << ") port: " << port << " command: " << command;
     }
-    
 }
 
 int
@@ -74,10 +73,9 @@ main(int argc, char* const* argv)
     std::vector<char*> rest;
 
     int opt;
-    while((opt = getopt_long_only(argc, argv, "", stellard_options,
-        nullptr)) != -1)
+    while ((opt = getopt_long_only(argc, argv, "", stellard_options, nullptr)) != -1)
     {
-        switch(opt)
+        switch (opt)
         {
         case OPT_TEST:
         {
@@ -100,26 +98,25 @@ main(int argc, char* const* argv)
             return 0;
         }
     }
-    
+
     Config cfg;
     cfg.load(cfgFile);
     Logging::setUpLogging(cfg.LOG_FILE_PATH);
 
-    if(command.size())
+    if (command.size())
     {
         sendCommand(command, rest, cfg.HTTP_PORT);
         return 0;
     }
-        
+
     LOG(INFO) << "Starting stellard-hayashi " << STELLARD_VERSION;
     LOG(INFO) << "Config from " << cfgFile;
     Application app(cfg);
 
-    auto &io = app.getMainIOService();
+    auto& io = app.getMainIOService();
     asio::io_service::work mainWork(io);
-    while (!io.stopped()) {
+    while (!io.stopped())
+    {
         io.run();
     }
 }
-
-

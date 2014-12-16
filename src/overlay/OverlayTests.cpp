@@ -10,9 +10,9 @@ using namespace stellar;
 typedef std::unique_ptr<Application> appPtr;
 
 static bool
-allStopped(std::vector<appPtr> &apps)
+allStopped(std::vector<appPtr>& apps)
 {
-    for (appPtr &app : apps)
+    for (appPtr& app : apps)
     {
         if (!app->getMainIOService().stopped())
         {
@@ -22,7 +22,8 @@ allStopped(std::vector<appPtr> &apps)
     return true;
 }
 
-TEST_CASE("loopback peer hello", "[overlay]") {
+TEST_CASE("loopback peer hello", "[overlay]")
+{
 
     Config const& cfg = getTestConfig();
     std::vector<appPtr> apps;
@@ -34,7 +35,7 @@ TEST_CASE("loopback peer hello", "[overlay]") {
     size_t i = 0;
     while (!allStopped(apps))
     {
-        for (appPtr &app : apps)
+        for (appPtr& app : apps)
         {
             app->getMainIOService().poll_one();
             if (++i > 100)

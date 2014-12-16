@@ -21,18 +21,19 @@ Hasher::update(uint8_t const* data, size_t len)
 }
 
 uint256
-Hasher::finish() {
+Hasher::finish()
+{
     return mState;
 }
 
-Bucket::Bucket(std::vector<Bucket::KVPair>&& entries,
-               uint256&& hash)
-    : mEntries(entries)
-    , mHash(hash)
-{}
+Bucket::Bucket(std::vector<Bucket::KVPair>&& entries, uint256&& hash)
+    : mEntries(entries), mHash(hash)
+{
+}
 
 Bucket::Bucket()
-{}
+{
+}
 
 std::vector<Bucket::KVPair> const&
 Bucket::getEntries() const
@@ -47,13 +48,13 @@ Bucket::getHash() const
 }
 
 std::shared_ptr<Bucket>
-Bucket::fresh(std::vector<Bucket::KVPair>&& entries) {
+Bucket::fresh(std::vector<Bucket::KVPair>&& entries)
+{
 
-    std::sort(entries.begin(), entries.end(),
-              [](KVPair const& a, KVPair const& b)
+    std::sort(entries.begin(), entries.end(), [](KVPair const& a, KVPair const& b)
               {
-                  return std::get<0>(a) < std::get<0>(b);
-              });
+        return std::get<0>(a) < std::get<0>(b);
+    });
 
     Hasher hsh;
     for (auto const& e : entries)
@@ -64,10 +65,8 @@ Bucket::fresh(std::vector<Bucket::KVPair>&& entries) {
     return std::make_shared<Bucket>(std::move(entries), hsh.finish());
 }
 
-
 std::shared_ptr<Bucket>
-Bucket::merge(std::shared_ptr<Bucket> const& oldBucket,
-              std::shared_ptr<Bucket> const& newBucket)
+Bucket::merge(std::shared_ptr<Bucket> const& oldBucket, std::shared_ptr<Bucket> const& newBucket)
 {
     // This is the key operation in the scheme: merging two (read-only)
     // buckets together into a new 3rd bucket, while calculating its hash,
@@ -83,8 +82,7 @@ Bucket::merge(std::shared_ptr<Bucket> const& oldBucket,
     std::vector<KVPair>::const_iterator ne = newBucket->mEntries.end();
 
     std::vector<KVPair> out;
-    out.reserve(oldBucket->mEntries.size() +
-                newBucket->mEntries.size());
+    out.reserve(oldBucket->mEntries.size() + newBucket->mEntries.size());
     Hasher hsh;
     while (oi != oe || ni != ne)
     {
@@ -122,10 +120,9 @@ Bucket::merge(std::shared_ptr<Bucket> const& oldBucket,
 }
 
 BucketLevel::BucketLevel(size_t i)
-    : mLevel(i)
-    , mCurr(std::make_shared<Bucket>())
-    , mSnap(std::make_shared<Bucket>())
-{}
+    : mLevel(i), mCurr(std::make_shared<Bucket>()), mSnap(std::make_shared<Bucket>())
+{
+}
 
 uint256
 BucketLevel::getHash() const
@@ -165,8 +162,7 @@ BucketLevel::commit()
 }
 
 void
-BucketLevel::prepare(Application &app, uint64_t currLedger,
-                     std::shared_ptr<Bucket> snap)
+BucketLevel::prepare(Application& app, uint64_t currLedger, std::shared_ptr<Bucket> snap)
 {
     // If more than one absorb is pending at the same time, we have a logic
     // error in our caller (and all hell will break loose).
@@ -183,7 +179,7 @@ BucketLevel::prepare(Application &app, uint64_t currLedger,
     // next snap).
     if (mLevel > 0)
     {
-        uint64_t nextChangeLedger = currLedger + BucketList::levelHalf(mLevel-1);
+        uint64_t nextChangeLedger = currLedger + BucketList::levelHalf(mLevel - 1);
         if (BucketList::levelShouldSpill(nextChangeLedger, mLevel))
         {
             // LOG(DEBUG) << "level " << mLevel
@@ -197,26 +193,31 @@ BucketLevel::prepare(Application &app, uint64_t currLedger,
     //            << snap->getEntries().size() << " elements";
 
     using task_t = std::packaged_task<std::shared_ptr<Bucket>()>;
-    std::shared_ptr<task_t> task = std::make_shared<task_t>(
-        [curr, snap]()
-        {
-            if (curr)
-            {
-                //LOG(DEBUG)
-                //<< "Worker merging " << snap->getEntries().size()
-                //<< " new elements with " << curr->getEntries().size()
-                //<< " existing";
-                //TIMED_SCOPE(timer, "merge + hash");
-                auto res = Bucket::merge(curr, snap);
-                //LOG(DEBUG)
-                //<< "Worker finished merging " << snap->getEntries().size()
-                //<< " new elements with " << curr->getEntries().size()
-                //<< " existing (new size: " << res->getEntries().size() << ")";
-                return res;
-            }
-            else
-                return std::shared_ptr<Bucket>(snap);
-        });
+    std::shared_ptr<task_t> task =
+        std::make_shared<task_t>([curr, snap]()
+                                 {
+                                     if (curr)
+                                     {
+                                         // LOG(DEBUG)
+                                         //<< "Worker merging " <<
+                                         // snap->getEntries().size()
+                                         //<< " new elements with " <<
+                                         // curr->getEntries().size()
+                                         //<< " existing";
+                                         // TIMED_SCOPE(timer, "merge + hash");
+                                         auto res = Bucket::merge(curr, snap);
+                                         // LOG(DEBUG)
+                                         //<< "Worker finished merging " <<
+                                         // snap->getEntries().size()
+                                         //<< " new elements with " <<
+                                         // curr->getEntries().size()
+                                         //<< " existing (new size: " <<
+                                         // res->getEntries().size() << ")";
+                                         return res;
+                                     }
+                                     else
+                                         return std::shared_ptr<Bucket>(snap);
+                                 });
 
     mNextCurr = task->get_future();
     app.getWorkerIOService().post(bind(&task_t::operator(), task));
@@ -236,11 +237,10 @@ BucketLevel::snap()
     return mSnap;
 }
 
-
 uint64_t
 BucketList::levelSize(size_t level)
 {
-    return 1ULL << (4 * (static_cast<uint64_t>(level)+1));
+    return 1ULL << (4 * (static_cast<uint64_t>(level) + 1));
 }
 
 uint64_t
@@ -252,7 +252,7 @@ BucketList::levelHalf(size_t level)
 uint64_t
 BucketList::mask(uint64_t v, uint64_t m)
 {
-    return v & ~(m-1);
+    return v & ~(m - 1);
 }
 
 size_t
@@ -262,7 +262,8 @@ BucketList::numLevels(uint64_t ledger)
     // as soon as we're at the _half way_ point for each level.
     ledger <<= 1;
     size_t i = 0;
-    while (ledger) {
+    while (ledger)
+    {
         i += 1;
         ledger >>= 4;
     }
@@ -284,8 +285,7 @@ BucketList::getHash() const
 bool
 BucketList::levelShouldSpill(uint64_t ledger, size_t level)
 {
-    return (ledger == mask(ledger, levelHalf(level)) ||
-            ledger == mask(ledger, levelSize(level)));
+    return (ledger == mask(ledger, levelHalf(level)) || ledger == mask(ledger, levelSize(level)));
 }
 
 size_t
@@ -300,20 +300,18 @@ BucketList::getLevel(size_t i) const
     return mLevels.at(i);
 }
 
-
 void
-BucketList::addBatch(Application &app, uint64_t currLedger,
-                     std::vector<Bucket::KVPair>&& batch)
+BucketList::addBatch(Application& app, uint64_t currLedger, std::vector<Bucket::KVPair>&& batch)
 {
     assert(currLedger > 0);
-    assert(numLevels(currLedger-1) == mLevels.size());
+    assert(numLevels(currLedger - 1) == mLevels.size());
     size_t n = numLevels(currLedger);
     // LOG(DEBUG) << "numlevels(" << currLedger << ") = " << n;
     if (mLevels.size() < n)
     {
         // LOG(DEBUG) << "adding level!";
         assert(n == mLevels.size() + 1);
-        mLevels.push_back(BucketLevel(n-1));
+        mLevels.push_back(BucketLevel(n - 1));
     }
 
     for (size_t i = mLevels.size() - 1; i > 0; --i)
@@ -325,7 +323,7 @@ BucketList::addBatch(Application &app, uint64_t currLedger,
                    << ", mask(curr,half)=" << mask(currLedger, levelHalf(i-1))
                    << ", mask(curr,size)=" << mask(currLedger, levelSize(i-1));
         */
-        if (levelShouldSpill(currLedger, i-1))
+        if (levelShouldSpill(currLedger, i - 1))
         {
             /**
              * At every ledger, level[0] prepares the new batch and commits
@@ -342,8 +340,8 @@ BucketList::addBatch(Application &app, uint64_t currLedger,
              * a 'snap' the moment it's half-a-level full, not have anything
              * else spilled/added to it.
              */
-            auto snap = mLevels[i-1].snap();
-            //LOG(DEBUG) << "Ledger " << currLedger
+            auto snap = mLevels[i - 1].snap();
+            // LOG(DEBUG) << "Ledger " << currLedger
             //           << " causing commit on level " << i
             //           << " and prepare of "
             //           << snap->getEntries().size()
@@ -356,8 +354,5 @@ BucketList::addBatch(Application &app, uint64_t currLedger,
 
     mLevels[0].prepare(app, currLedger, Bucket::fresh(std::move(batch)));
     mLevels[0].commit();
-
 }
-
-
 }

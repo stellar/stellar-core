@@ -3,7 +3,7 @@
 namespace stellar
 {
 void
-PreferredPeers::addPreferredPeers(vector<std::string> const &peerList)
+PreferredPeers::addPreferredPeers(vector<std::string> const& peerList)
 {
     for (auto peerStr : peerList)
     {
@@ -15,7 +15,7 @@ bool
 PreferredPeers::isPeerPreferred(Peer::pointer peer)
 {
     int port = peer->getRemoteListeningPort();
-    std::string const &ip = peer->getIP();
+    std::string const& ip = peer->getIP();
     for (auto peerPair : mPeerList)
     {
         if ((peerPair.second == port) && (peerPair.first == ip))

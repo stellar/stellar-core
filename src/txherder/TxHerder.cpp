@@ -9,11 +9,12 @@
 
 namespace stellar
 {
-TxHerder::TxHerder(Application &app)
+TxHerder::TxHerder(Application& app)
     : mCollectingTransactionSet(std::make_shared<TransactionSet>()),
       mReceivedTransactions(4),
 #ifdef _MSC_VER
-      // This form of initializer causes a warning due to brace-elision on clang.
+      // This form of initializer causes a warning due to brace-elision on
+      // clang.
       mTxSetFetcher({TxSetFetcher(app), TxSetFetcher(app)}),
 #else
       // This form of initializer is "not implemented" in MSVC yet.
@@ -31,9 +32,10 @@ TxHerder::TxHerder(Application &app)
 TxHerderGateway::BallotValidType
 TxHerder::isValidBallotValue(const stellarxdr::Ballot& ballot)
 {
-    if(ballot.baseFee < mApp.mConfig.DESIRED_BASE_FEE*.5) return INVALID_BALLOT;
-    if(ballot.baseFee > mApp.mConfig.DESIRED_BASE_FEE*2) return INVALID_BALLOT;
-
+    if (ballot.baseFee < mApp.mConfig.DESIRED_BASE_FEE * .5)
+        return INVALID_BALLOT;
+    if (ballot.baseFee > mApp.mConfig.DESIRED_BASE_FEE * 2)
+        return INVALID_BALLOT;
 
     TransactionSetPtr txSet = fetchTxSet(ballot.txSetHash, true);
     if (!txSet)
@@ -44,8 +46,8 @@ TxHerder::isValidBallotValue(const stellarxdr::Ballot& ballot)
 
     for (auto tx : mReceivedTransactions[mReceivedTransactions.size() - 1])
     {
-        if (find(txSet->mTransactions.begin(), txSet->mTransactions.end(),
-                 tx) == txSet->mTransactions.end())
+        if (find(txSet->mTransactions.begin(), txSet->mTransactions.end(), tx) ==
+            txSet->mTransactions.end())
             return INVALID_BALLOT;
     }
     // check timestamp
@@ -72,7 +74,7 @@ TxHerder::compareSlot(const stellarxdr::SlotBallot& slotBallot)
 }
 
 bool
-TxHerder::isTxKnown(stellarxdr::uint256 &txHash)
+TxHerder::isTxKnown(stellarxdr::uint256& txHash)
 {
     for (auto list : mReceivedTransactions)
     {
@@ -120,7 +122,7 @@ TxHerder::recvTransaction(TransactionPtr tx)
 
 // will start fetching this TxSet from the network if we don't know about it
 TransactionSetPtr
-TxHerder::fetchTxSet(const stellarxdr::uint256 &setHash, bool askNetwork)
+TxHerder::fetchTxSet(const stellarxdr::uint256& setHash, bool askNetwork)
 {
     return mTxSetFetcher[mCurrentTxSetFetcher].fetchItem(setHash, askNetwork);
 }
@@ -147,8 +149,7 @@ TxHerder::removeReceivedTx(TransactionPtr dropTX)
 void
 TxHerder::externalizeValue(const stellarxdr::SlotBallot& slotBallot)
 {
-    TransactionSet::pointer externalizedSet =
-        fetchTxSet(slotBallot.ballot.txSetHash, false);
+    TransactionSet::pointer externalizedSet = fetchTxSet(slotBallot.ballot.txSetHash, false);
     if (externalizedSet)
     {
         // we don't need to keep fetching any of the old TX sets
@@ -159,7 +160,7 @@ TxHerder::externalizeValue(const stellarxdr::SlotBallot& slotBallot)
             mCurrentTxSetFetcher = 1;
         mTxSetFetcher[mCurrentTxSetFetcher].clear();
 
-        mApp.getLedgerGateway().externalizeValue(slotBallot,externalizedSet);
+        mApp.getLedgerGateway().externalizeValue(slotBallot, externalizedSet);
 
         // remove all these tx from mReceivedTransactions
         for (auto tx : externalizedSet->mTransactions)
@@ -217,7 +218,6 @@ TxHerder::ledgerClosed(LedgerPtr ledger)
     firstBallot.ballot.closeTime = firstBallotTime;
     firstBallot.ballot.baseFee = mApp.mConfig.DESIRED_BASE_FEE;
     firstBallot.ballot.txSetHash = proposedSet->getContentsHash();
-
 
     mCloseCount++;
     // don't participate in FBA for a few ledger closes so you make sure you

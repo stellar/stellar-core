@@ -16,7 +16,7 @@ namespace stellar
 el::Configurations Logging::mDefaultConf;
 
 void
-Logging::setUpLogging(std::string const &filename)
+Logging::setUpLogging(std::string const& filename)
 {
     // el::Loggers::addFlag(el::LoggingFlag::HierarchicalLogging);
     el::Loggers::addFlag(el::LoggingFlag::DisableApplicationAbortOnFatalLog);
@@ -44,7 +44,7 @@ Logging::setUpLogging(std::string const &filename)
 }
 
 void
-Logging::setLogLevel(el::Level level, const char *partition)
+Logging::setLogLevel(el::Level level, const char* partition)
 {
     el::Configurations config = mDefaultConf;
 

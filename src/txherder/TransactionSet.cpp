@@ -7,12 +7,11 @@ TransactionSet::TransactionSet()
 {
 }
 
-TransactionSet::TransactionSet(stellarxdr::TransactionSet &xdrSet)
+TransactionSet::TransactionSet(stellarxdr::TransactionSet& xdrSet)
 {
     for (auto txEnvelope : xdrSet.txs)
     {
-        Transaction::pointer tx =
-            Transaction::makeTransactionFromWire(txEnvelope);
+        Transaction::pointer tx = Transaction::makeTransactionFromWire(txEnvelope);
         mTransactions.push_back(tx);
     }
 }
@@ -41,7 +40,7 @@ bool TransactionSet::operator > (const TransactionSet& other)
 */
 
 Transaction::pointer
-TransactionSet::getTransaction(stellarxdr::uint256 &txHash)
+TransactionSet::getTransaction(stellarxdr::uint256& txHash)
 {
     for (auto tx : mTransactions)
     {
@@ -59,7 +58,7 @@ TransactionSet::store()
 }
 
 void
-TransactionSet::toXDR(stellarxdr::TransactionSet &txSet)
+TransactionSet::toXDR(stellarxdr::TransactionSet& txSet)
 {
     txSet.txs.resize(mTransactions.size());
     for (unsigned int n = 0; n < mTransactions.size(); n++)

@@ -4,8 +4,7 @@
 namespace stellar
 {
 
-HistoryMaster::HistoryMaster(Application& app)
-    : mApp(app)
-{}
-
+HistoryMaster::HistoryMaster(Application& app) : mApp(app)
+{
+}
 }

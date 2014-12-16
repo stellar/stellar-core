@@ -27,7 +27,7 @@ getTestConfig()
     {
         std::ostringstream oss;
         oss << "stellard-test-" << time(nullptr) << "-" << GETPID() << ".log";
-		gTestCfg = stellar::make_unique<Config>();
+        gTestCfg = stellar::make_unique<Config>();
         gTestCfg->LOG_FILE_PATH = oss.str();
 
         // Tests are run in standalone by default, meaning that no external

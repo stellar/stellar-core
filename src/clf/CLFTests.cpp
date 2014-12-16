@@ -8,7 +8,8 @@
 
 using namespace stellar;
 
-TEST_CASE("bucket list", "[clf]") {
+TEST_CASE("bucket list", "[clf]")
+{
 
     Config const& cfg = getTestConfig();
     try
@@ -34,9 +35,8 @@ TEST_CASE("bucket list", "[clf]") {
             }
         }
     }
-    catch (std::future_error &e)
+    catch (std::future_error& e)
     {
-        LOG(DEBUG) << "Test caught std::future_error "
-                   << e.code() << ": " << e.what();
+        LOG(DEBUG) << "Test caught std::future_error " << e.code() << ": " << e.what();
     }
 }

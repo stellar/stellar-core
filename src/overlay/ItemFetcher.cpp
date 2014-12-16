@@ -10,7 +10,7 @@
 namespace stellar
 {
 void
-ItemFetcher::doesntHave(stellarxdr::uint256 const &itemID, Peer::pointer peer)
+ItemFetcher::doesntHave(stellarxdr::uint256 const& itemID, Peer::pointer peer)
 {
     auto result = mItemMap.find(itemID);
     if (result != mItemMap.end())
@@ -29,7 +29,7 @@ ItemFetcher::stopFetchingAll()
 
 // LATER  Do we ever need to call this
 void
-ItemFetcher::stopFetching(stellarxdr::uint256 const &itemID)
+ItemFetcher::stopFetching(stellarxdr::uint256 const& itemID)
 {
     auto result = mItemMap.find(itemID);
     if (result != mItemMap.end())
@@ -47,7 +47,7 @@ ItemFetcher::clear()
 //////////////////////////////
 
 TransactionSet::pointer
-TxSetFetcher::fetchItem(stellarxdr::uint256 const &setID, bool askNetwork)
+TxSetFetcher::fetchItem(stellarxdr::uint256 const& setID, bool askNetwork)
 {
     // look it up in the map
     // if not found then start fetching
@@ -56,7 +56,7 @@ TxSetFetcher::fetchItem(stellarxdr::uint256 const &setID, bool askNetwork)
     { // collar found
         if (result->second->isItemFound())
         {
-            return ((TxSetTrackingCollar *)result->second.get())->mTxSet;
+            return ((TxSetTrackingCollar*)result->second.get())->mTxSet;
         }
         else
         {
@@ -67,8 +67,7 @@ TxSetFetcher::fetchItem(stellarxdr::uint256 const &setID, bool askNetwork)
     { // not found
         if (askNetwork)
         {
-            TrackingCollar::pointer collar =
-                std::make_shared<TxSetTrackingCollar>(setID, mApp);
+            TrackingCollar::pointer collar = std::make_shared<TxSetTrackingCollar>(setID, mApp);
             mItemMap[setID] = collar;
             collar->tryNextPeer();
         }
@@ -86,7 +85,7 @@ TxSetFetcher::recvItem(TransactionSet::pointer txSet)
         if (result != mItemMap.end())
         {
             result->second->cancelFetch();
-            ((TxSetTrackingCollar *)result->second.get())->mTxSet = txSet;
+            ((TxSetTrackingCollar*)result->second.get())->mTxSet = txSet;
             if (result->second->getRefCount())
             { // someone was still interested in
                 // this tx set so tell FBA  LATER:
@@ -98,19 +97,19 @@ TxSetFetcher::recvItem(TransactionSet::pointer txSet)
         { // doesn't seem like we were looking for it. Maybe just add it for
             // now
             mItemMap[txSet->getContentsHash()] =
-                std::make_shared<TxSetTrackingCollar>(txSet->getContentsHash(),
-                                                      mApp);
+                std::make_shared<TxSetTrackingCollar>(txSet->getContentsHash(), mApp);
         }
     }
     return false;
 }
 ////////////////////////////////////////
-void DeltaFetcher::fetchItem(stellarxdr::uint256 const& itemID, uint32_t oldLedgerSeq)
+void
+DeltaFetcher::fetchItem(stellarxdr::uint256 const& itemID, uint32_t oldLedgerSeq)
 {
-
 }
 
-void DeltaFetcher::recvItem(CLFDeltaPtr delta)
+void
+DeltaFetcher::recvItem(CLFDeltaPtr delta)
 {
     mApp.getCLFGateway().recvDelta(delta);
 }
@@ -125,7 +124,7 @@ QSetFetcher::recvItem(QuorumSet::pointer qSet)
         if (result != mItemMap.end())
         {
             result->second->cancelFetch();
-            ((QSetTrackingCollar *)result->second.get())->mQSet = qSet;
+            ((QSetTrackingCollar*)result->second.get())->mQSet = qSet;
             if (result->second->getRefCount())
             { // someone was still interested in
                 // this quorum set so tell FBA
@@ -137,14 +136,13 @@ QSetFetcher::recvItem(QuorumSet::pointer qSet)
         else
         { // doesn't seem like we were looking for it. Maybe just add it for
             // now
-            mItemMap[qSet->getHash()] =
-                std::make_shared<QSetTrackingCollar>(qSet->getHash(), mApp);
+            mItemMap[qSet->getHash()] = std::make_shared<QSetTrackingCollar>(qSet->getHash(), mApp);
         }
     }
 }
 
 QuorumSet::pointer
-QSetFetcher::fetchItem(stellarxdr::uint256 const &setID, bool askNetwork)
+QSetFetcher::fetchItem(stellarxdr::uint256 const& setID, bool askNetwork)
 {
     // look it up in the map
     // if not found then start fetching
@@ -153,7 +151,7 @@ QSetFetcher::fetchItem(stellarxdr::uint256 const &setID, bool askNetwork)
     { // collar found
         if (result->second->isItemFound())
         {
-            return ((QSetTrackingCollar *)result->second.get())->mQSet;
+            return ((QSetTrackingCollar*)result->second.get())->mQSet;
         }
         else
         {
@@ -164,8 +162,7 @@ QSetFetcher::fetchItem(stellarxdr::uint256 const &setID, bool askNetwork)
     { // not found
         if (askNetwork)
         {
-            TrackingCollar::pointer collar =
-                std::make_shared<QSetTrackingCollar>(setID, mApp);
+            TrackingCollar::pointer collar = std::make_shared<QSetTrackingCollar>(setID, mApp);
             mItemMap[setID] = collar;
             collar->tryNextPeer(); // start asking
         }
@@ -175,7 +172,7 @@ QSetFetcher::fetchItem(stellarxdr::uint256 const &setID, bool askNetwork)
 
 //////////////////////////////////////////////////////////////////////////
 
-TrackingCollar::TrackingCollar(stellarxdr::uint256 const &id, Application &app)
+TrackingCollar::TrackingCollar(stellarxdr::uint256 const& id, Application& app)
     : mApp(app), mTimer(app.getMainIOService()), mItemID(id)
 {
     mCantFind = false;
@@ -220,8 +217,7 @@ TrackingCollar::tryNextPeer()
             while (!peer && mPeersAsked.size())
             { // keep looping till we find a peer
                 // we are still connected to
-                peer = mApp.getOverlayGateway().getNextPeer(
-                    mPeersAsked[mPeersAsked.size() - 1]);
+                peer = mApp.getOverlayGateway().getNextPeer(mPeersAsked[mPeersAsked.size() - 1]);
                 if (!peer)
                     mPeersAsked.pop_back();
             }
@@ -233,15 +229,13 @@ TrackingCollar::tryNextPeer()
 
         if (peer)
         {
-            if (find(mPeersAsked.begin(), mPeersAsked.end(), peer) ==
-                mPeersAsked.end())
+            if (find(mPeersAsked.begin(), mPeersAsked.end(), peer) == mPeersAsked.end())
             { // we have never asked this guy
                 mLastAskedPeer = peer;
 
                 mTimer.cancel(); // cancel any stray timers
-                mTimer.expires_from_now(
-                    std::chrono::milliseconds(MS_TO_WAIT_FOR_FETCH_REPLY));
-                mTimer.async_wait([this](asio::error_code const &ec)
+                mTimer.expires_from_now(std::chrono::milliseconds(MS_TO_WAIT_FOR_FETCH_REPLY));
+                mTimer.async_wait([this](asio::error_code const& ec)
                                   {
                                       this->tryNextPeer();
                                   });
@@ -261,8 +255,7 @@ TrackingCollar::tryNextPeer()
     }
 }
 
-QSetTrackingCollar::QSetTrackingCollar(stellarxdr::uint256 const &id,
-                                       Application &app)
+QSetTrackingCollar::QSetTrackingCollar(stellarxdr::uint256 const& id, Application& app)
     : TrackingCollar(id, app)
 {
 }
@@ -273,8 +266,7 @@ QSetTrackingCollar::askPeer(Peer::pointer peer)
     peer->sendGetQuorumSet(mItemID);
 }
 
-TxSetTrackingCollar::TxSetTrackingCollar(stellarxdr::uint256 const &id,
-                                         Application &app)
+TxSetTrackingCollar::TxSetTrackingCollar(stellarxdr::uint256 const& id, Application& app)
     : TrackingCollar(id, app)
 {
 }

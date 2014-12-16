@@ -5,7 +5,7 @@
 
 namespace stellar
 {
-Application::Application(Config const &cfg)
+Application::Application(Config const& cfg)
     : mState(BOOTING_STATE),
       mConfig(cfg),
       mWorkerIOService(std::thread::hardware_concurrency()),
@@ -20,10 +20,9 @@ Application::Application(Config const &cfg)
       mStopSignals(mMainIOService, SIGINT)
 {
     LOG(INFO) << "Application constructing";
-    mStopSignals.async_wait([this](asio::error_code const &ec, int sig)
+    mStopSignals.async_wait([this](asio::error_code const& ec, int sig)
                             {
-                                LOG(INFO) << "got signal " << sig
-                                          << ", shutting down";
+                                LOG(INFO) << "got signal " << sig << ", shutting down";
                                 this->gracefulStop();
                             });
     unsigned t = std::thread::hardware_concurrency();
@@ -54,7 +53,6 @@ Application::runWorkerThread(unsigned i)
     LOG(INFO) << "Worker thread " << i << " complete";
 }
 
-
 void
 Application::gracefulStop()
 {
@@ -77,7 +75,7 @@ Application::joinAllThreads()
         mWork.reset();
     }
     unsigned i = 0;
-    for (auto &w : mWorkerThreads)
+    for (auto& w : mWorkerThreads)
     {
         LOG(INFO) << "Joining worker thread " << i++;
         w.join();

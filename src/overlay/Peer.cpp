@@ -10,7 +10,7 @@
 
 namespace stellar
 {
-Peer::Peer(Application &app, PeerRole role)
+Peer::Peer(Application& app, PeerRole role)
     : mApp(app),
       mRole(role),
       mState(role == ACCEPTOR ? CONNECTED : CONNECTING),
@@ -39,7 +39,7 @@ Peer::sendHello()
 }
 
 void
-Peer::connectHandler(const asio::error_code &error)
+Peer::connectHandler(const asio::error_code& error)
 {
     if (error)
     {
@@ -54,7 +54,7 @@ Peer::connectHandler(const asio::error_code &error)
 }
 
 void
-Peer::sendDontHave(stellarxdr::MessageType type, stellarxdr::uint256 &itemID)
+Peer::sendDontHave(stellarxdr::MessageType type, stellarxdr::uint256& itemID)
 {
     stellarxdr::StellarMessage msg;
     msg.type(stellarxdr::DONT_HAVE);
@@ -74,7 +74,7 @@ Peer::sendQuorumSet(QuorumSet::pointer qSet)
     sendMessage(msg);
 }
 void
-Peer::sendGetTxSet(stellarxdr::uint256 &setID)
+Peer::sendGetTxSet(stellarxdr::uint256& setID)
 {
     stellarxdr::StellarMessage newMsg;
     newMsg.type(stellarxdr::GET_TX_SET);
@@ -83,7 +83,7 @@ Peer::sendGetTxSet(stellarxdr::uint256 &setID)
     sendMessage(newMsg);
 }
 void
-Peer::sendGetQuorumSet(stellarxdr::uint256 &setID)
+Peer::sendGetQuorumSet(stellarxdr::uint256& setID)
 {
     stellarxdr::StellarMessage newMsg;
     newMsg.type(stellarxdr::GET_QUORUMSET);
@@ -107,11 +107,10 @@ Peer::sendMessage(stellarxdr::StellarMessage msg)
 }
 
 void
-Peer::recvMessage(xdr::msg_ptr const &msg)
+Peer::recvMessage(xdr::msg_ptr const& msg)
 {
     CLOG(TRACE, "Overlay") << "received xdr::msg_ptr";
-    StellarMessagePtr stellarMsg =
-        std::make_shared<stellarxdr::StellarMessage>();
+    StellarMessagePtr stellarMsg = std::make_shared<stellarxdr::StellarMessage>();
     xdr::xdr_from_msg(msg, *stellarMsg.get());
     recvMessage(stellarMsg);
 }
@@ -123,8 +122,7 @@ Peer::recvMessage(StellarMessagePtr stellarMsg)
 
     if (mState < GOT_HELLO && stellarMsg->type() != stellarxdr::HELLO)
     {
-        CLOG(WARNING, "Overlay") << "recv: " << stellarMsg->type()
-                                 << " before hello";
+        CLOG(WARNING, "Overlay") << "recv: " << stellarMsg->type() << " before hello";
         drop();
         return;
     }
@@ -263,12 +261,10 @@ Peer::recvDontHave(StellarMessagePtr msg)
         // LATER
         break;
     case stellarxdr::TX_SET:
-        mApp.getTxHerderGateway().doesntHaveTxSet(msg->dontHave().reqHash,
-                                                  shared_from_this());
+        mApp.getTxHerderGateway().doesntHaveTxSet(msg->dontHave().reqHash, shared_from_this());
         break;
     case stellarxdr::QUORUMSET:
-        mApp.getOverlayGateway().doesntHaveQSet(msg->dontHave().reqHash,
-                                                shared_from_this());
+        mApp.getOverlayGateway().doesntHaveQSet(msg->dontHave().reqHash, shared_from_this());
         break;
     case stellarxdr::VALIDATIONS:
     default:
@@ -279,8 +275,7 @@ Peer::recvDontHave(StellarMessagePtr msg)
 void
 Peer::recvGetTxSet(StellarMessagePtr msg)
 {
-    TransactionSet::pointer txSet =
-        mApp.getTxHerderGateway().fetchTxSet(msg->txSetHash(), false);
+    TransactionSet::pointer txSet = mApp.getTxHerderGateway().fetchTxSet(msg->txSetHash(), false);
     if (txSet)
     {
         stellarxdr::StellarMessage newMsg;
@@ -297,20 +292,17 @@ Peer::recvGetTxSet(StellarMessagePtr msg)
 void
 Peer::recvTxSet(StellarMessagePtr msg)
 {
-    TransactionSet::pointer txSet =
-        std::make_shared<TransactionSet>(msg->txSet());
+    TransactionSet::pointer txSet = std::make_shared<TransactionSet>(msg->txSet());
     mApp.getTxHerderGateway().recvTransactionSet(txSet);
 }
 
 void
 Peer::recvTransaction(StellarMessagePtr msg)
 {
-    Transaction::pointer transaction =
-        Transaction::makeTransactionFromWire(msg->transaction());
+    Transaction::pointer transaction = Transaction::makeTransactionFromWire(msg->transaction());
     if (transaction)
     {
-        if (mApp.getTxHerderGateway().recvTransaction(
-                transaction)) // add it to our current set
+        if (mApp.getTxHerderGateway().recvTransaction(transaction)) // add it to our current set
         {
             mApp.getOverlayGateway().broadcastMessage(msg, shared_from_this());
         }
@@ -320,8 +312,7 @@ Peer::recvTransaction(StellarMessagePtr msg)
 void
 Peer::recvGetQuorumSet(StellarMessagePtr msg)
 {
-    QuorumSet::pointer qset =
-        mApp.getOverlayGateway().fetchQuorumSet(msg->qSetHash(), false);
+    QuorumSet::pointer qset = mApp.getOverlayGateway().fetchQuorumSet(msg->qSetHash(), false);
     if (qset)
     {
         sendQuorumSet(qset);
@@ -335,8 +326,7 @@ Peer::recvGetQuorumSet(StellarMessagePtr msg)
 void
 Peer::recvQuorumSet(StellarMessagePtr msg)
 {
-    QuorumSet::pointer qset =
-        std::make_shared<QuorumSet>(msg->quorumSet(), mApp);
+    QuorumSet::pointer qset = std::make_shared<QuorumSet>(msg->quorumSet(), mApp);
     mApp.getOverlayGateway().recvQuorumSet(qset);
 }
 
@@ -347,8 +337,7 @@ Peer::recvFBAMessage(StellarMessagePtr msg)
     Statement::pointer statement = std::make_shared<Statement>(envelope);
 
     mApp.getOverlayGateway().recvFloodedMsg(statement->mEnvelope.signature, msg,
-                                            statement->getLedgerIndex(),
-                                            shared_from_this());
+                                            statement->getLedgerIndex(), shared_from_this());
     mApp.getFBAGateway().recvStatement(statement);
 }
 
@@ -363,8 +352,8 @@ Peer::recvHello(StellarMessagePtr msg)
     mRemoteProtocolVersion = msg->hello().protocolVersion;
     mRemoteVersion = msg->hello().versionStr;
     mRemoteListeningPort = msg->hello().port;
-    CLOG(INFO, "Overlay") << "recvHello: " << mRemoteProtocolVersion << " "
-                          << mRemoteVersion << " " << mRemoteListeningPort;
+    CLOG(INFO, "Overlay") << "recvHello: " << mRemoteProtocolVersion << " " << mRemoteVersion << " "
+                          << mRemoteListeningPort;
     mState = GOT_HELLO;
 }
 void
@@ -398,7 +387,4 @@ Peer::recvValidations(StellarMessagePtr msg)
 {
     // LATER
 }
-
-
-
 }

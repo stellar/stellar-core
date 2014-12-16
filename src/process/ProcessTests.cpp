@@ -8,19 +8,19 @@
 
 using namespace stellar;
 
-TEST_CASE("subprocess", "[process]") {
+TEST_CASE("subprocess", "[process]")
+{
     Config const& cfg = getTestConfig();
     Application app(cfg);
     auto evt = app.getProcessGateway().runProcess("hostname");
     bool exited = false;
-    evt.async_wait(
-        [&](asio::error_code ec)
-        {
-            LOG(DEBUG) << "process exited: " << ec;
-            if (ec)
-                LOG(DEBUG) << "error code: " << ec.message();
-            exited = true;
-        });
+    evt.async_wait([&](asio::error_code ec)
+                   {
+                       LOG(DEBUG) << "process exited: " << ec;
+                       if (ec)
+                           LOG(DEBUG) << "error code: " << ec.message();
+                       exited = true;
+                   });
 
     while (!exited && !app.getMainIOService().stopped())
     {
