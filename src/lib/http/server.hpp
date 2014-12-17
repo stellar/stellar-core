@@ -27,46 +27,42 @@ class server
     
 public:
     typedef std::function<void(const std::string&, std::string&)> routeHandler;
-  server(const server&) = delete;
-  server& operator=(const server&) = delete;
+    server(const server&) = delete;
+    server& operator=(const server&) = delete;
 
-  /// Construct the server to listen on the specified TCP address and port
-  explicit server(const std::string& address, const int port);
+    /// Construct the server to listen on the specified TCP address and port
+    explicit server(asio::io_service& io_service,
+                    const std::string& address, const int port);
+    ~server();
 
-  /// Run the server's io_service loop.
-  void run();
+    void addRoute(const std::string& routeName, routeHandler callback);
 
-  void addRoute(const std::string& routeName, routeHandler callback);
-
-  void handle_request(const request& req, reply& rep);
+    void handle_request(const request& req, reply& rep);
 
 private:
-  /// Perform an asynchronous accept operation.
-  void do_accept();
+    /// Perform an asynchronous accept operation.
+    void do_accept();
 
-  /// Wait for a request to stop the server.
-  void do_await_stop();
+    /// Perform URL-decoding on a string. Returns false if the encoding was
+    /// invalid.
+    static bool url_decode(const std::string& in, std::string& out);
 
-  /// Perform URL-decoding on a string. Returns false if the encoding was
-  /// invalid.
-  static bool url_decode(const std::string& in, std::string& out);
+    /// The io_service used to perform asynchronous operations.
+    asio::io_service& io_service_;
 
-  /// The io_service used to perform asynchronous operations.
-  asio::io_service io_service_;
+    /// The signal_set is used to register for process termination notifications.
+    asio::signal_set signals_;
 
-  /// The signal_set is used to register for process termination notifications.
-  asio::signal_set signals_;
+    /// Acceptor used to listen for incoming connections.
+    asio::ip::tcp::acceptor acceptor_;
 
-  /// Acceptor used to listen for incoming connections.
-  asio::ip::tcp::acceptor acceptor_;
+    /// The connection manager which owns all live connections.
+    connection_manager connection_manager_;
 
-  /// The connection manager which owns all live connections.
-  connection_manager connection_manager_;
+    /// The next socket to be accepted.
+    asio::ip::tcp::socket socket_;
 
-  /// The next socket to be accepted.
-  asio::ip::tcp::socket socket_;
-
-  std::map<std::string, routeHandler> mRoutes;
+    std::map<std::string, routeHandler> mRoutes;
 };
 
 } // namespace server

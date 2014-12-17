@@ -1,6 +1,7 @@
 #ifndef __COMMANDHANDLER__
 #define __COMMANDHANDLER__
 #include <string>
+#include "lib/http/server.hpp"
 
 /*
 handler functions for the http commands this server supports
@@ -14,6 +15,7 @@ namespace stellar
     {
 
         Application& mApp;
+        std::unique_ptr<http::server::server> mServer;
     public:
         CommandHandler(Application& app);
 

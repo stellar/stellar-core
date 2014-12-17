@@ -3,7 +3,6 @@
 
 namespace stellar
 {
-
 HistoryMaster::HistoryMaster(Application& app) : mApp(app)
 {
 }

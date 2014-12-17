@@ -2,6 +2,7 @@
 #include "main/Application.h"
 #include "lib/http/server.hpp"
 #include "lib/util/Logging.h"
+#include "util/make_unique.h"
 
 using std::placeholders::_1;
 using std::placeholders::_2;
@@ -10,28 +11,31 @@ namespace stellar
 {
 CommandHandler::CommandHandler(Application& app) : mApp(app)
 {
-    if (mApp.mConfig.HTTP_PORT)
+    if (!mApp.mConfig.RUN_STANDALONE &&
+        mApp.mConfig.HTTP_PORT)
     {
         std::string ipStr;
         ipStr = "127.0.0.1";
-        http::server::server httpServer(ipStr, mApp.mConfig.HTTP_PORT);
+        LOG(INFO) << "Listening on "
+                  << ipStr << ":" << mApp.mConfig.HTTP_PORT
+                  << " for HTTP requests";
 
-        httpServer.addRoute("stop",
+        mServer = stellar::make_unique<http::server::server>(
+            app.getMainIOService(), ipStr, mApp.mConfig.HTTP_PORT);
+
+        mServer->addRoute("stop",
                             std::bind(&CommandHandler::stop, this, _1, _2));
-        httpServer.addRoute("peers",
+        mServer->addRoute("peers",
                             std::bind(&CommandHandler::peers, this, _1, _2));
-        httpServer.addRoute("info",
+        mServer->addRoute("info",
                             std::bind(&CommandHandler::info, this, _1, _2));
-        httpServer.addRoute(
+        mServer->addRoute(
             "reload_cfg", std::bind(&CommandHandler::reloadCfg, this, _1, _2));
-        httpServer.addRoute(
+        mServer->addRoute(
             "logrotate", std::bind(&CommandHandler::logRotate, this, _1, _2));
-        httpServer.addRoute("connect",
+        mServer->addRoute("connect",
                             std::bind(&CommandHandler::connect, this, _1, _2));
-        httpServer.addRoute("tx", std::bind(&CommandHandler::tx, this, _1, _2));
-
-        LOG(INFO) << "Start listening for http requests";
-        httpServer.run();
+        mServer->addRoute("tx", std::bind(&CommandHandler::tx, this, _1, _2));
     }
 }
 

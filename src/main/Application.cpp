@@ -19,6 +19,13 @@ Application::Application(Config const& cfg)
     , mCommandHandler(*this)
     , mStopSignals(mMainIOService, SIGINT)
 {
+#ifdef SIGQUIT
+    mStopSignals.add(SIGQUIT);
+#endif
+#ifdef SIGTERM
+    mStopSignals.add(SIGTERM);
+#endif
+
     LOG(INFO) << "Application constructing";
     mStopSignals.async_wait([this](asio::error_code const& ec, int sig)
                             {
