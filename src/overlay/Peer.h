@@ -8,7 +8,6 @@
 #include "xdrpp/message.h"
 #include "generated/stellar.hh"
 #include "fba/QuorumSet.h"
-#include "overlay/StellarMessage.h"
 
 /*
 Another peer out there that we are connected to
@@ -50,32 +49,39 @@ namespace stellar
         std::string mRemoteVersion;
         int mRemoteProtocolVersion;
         int mRemoteListeningPort;
-        void recvMessage(StellarMessagePtr msg);
+        void recvMessage(stellarxdr::StellarMessage const& msg);
         void recvMessage(xdr::msg_ptr const& xdrBytes);
 
-        virtual void recvError(StellarMessagePtr msg);
-        virtual void recvHello(StellarMessagePtr msg);
-        void recvDontHave(StellarMessagePtr msg);
-        void recvGetPeers(StellarMessagePtr msg);
-        void recvPeers(StellarMessagePtr msg);
-        void recvGetHistory(StellarMessagePtr msg);
-        void recvHistory(StellarMessagePtr msg);
-        void recvGetDelta(StellarMessagePtr msg);
-        void recvDelta(StellarMessagePtr msg);
-        void recvGetTxSet(StellarMessagePtr msg);
-        void recvTxSet(StellarMessagePtr msg);
-        void recvGetValidations(StellarMessagePtr msg);
-        void recvValidations(StellarMessagePtr msg);
-        void recvTransaction(StellarMessagePtr msg);
-        void recvGetQuorumSet(StellarMessagePtr msg);
-        void recvQuorumSet(StellarMessagePtr msg);
-        void recvFBAMessage(StellarMessagePtr msg);
+        virtual void recvError(stellarxdr::StellarMessage const& msg);
+        virtual void recvHello(stellarxdr::StellarMessage const& msg);
+        void recvDontHave(stellarxdr::StellarMessage const& msg);
+        void recvGetPeers(stellarxdr::StellarMessage const& msg);
+        void recvPeers(stellarxdr::StellarMessage const& msg);
+        void recvGetHistory(stellarxdr::StellarMessage const& msg);
+        void recvHistory(stellarxdr::StellarMessage const& msg);
+        void recvGetDelta(stellarxdr::StellarMessage const& msg);
+        void recvDelta(stellarxdr::StellarMessage const& msg);
+        void recvGetTxSet(stellarxdr::StellarMessage const& msg);
+        void recvTxSet(stellarxdr::StellarMessage const& msg);
+        void recvGetValidations(stellarxdr::StellarMessage const& msg);
+        void recvValidations(stellarxdr::StellarMessage const& msg);
+        void recvTransaction(stellarxdr::StellarMessage const& msg);
+        void recvGetQuorumSet(stellarxdr::StellarMessage const& msg);
+        void recvQuorumSet(stellarxdr::StellarMessage const& msg);
+        void recvFBAMessage(stellarxdr::StellarMessage const& msg);
 
         void sendHello();
         void sendQuorumSet(QuorumSet::pointer qSet);
-        void sendDontHave(stellarxdr::MessageType type, stellarxdr::uint256& itemID);
+        void sendDontHave(stellarxdr::MessageType type, stellarxdr::uint256 const& itemID);
         void sendPeers();
 
+        // NB: This is a move-argument because the write-buffer has to travel
+        // with the write-request through the async IO system, and we might have
+        // several queued at once. We have carefully arranged this to not copy
+        // data more than the once necessary into this buffer, but it can't be
+        // put in a reused/non-owned buffer without having to buffer/queue
+        // messages somewhere else. The async write request will point _into_
+        // this owned buffer. This is really the best we can do.
         virtual void sendMessage(xdr::msg_ptr&& xdrBytes) = 0;
 
     public:
@@ -83,10 +89,10 @@ namespace stellar
         Peer(Application &app, PeerRole role);
         Application &getApp() { return mApp; }
 
-        void sendGetTxSet(stellarxdr::uint256& setID);
-        void sendGetQuorumSet(stellarxdr::uint256& setID);
+        void sendGetTxSet(stellarxdr::uint256 const& setID);
+        void sendGetQuorumSet(stellarxdr::uint256 const& setID);
 
-        void sendMessage(stellarxdr::StellarMessage msg);
+        void sendMessage(stellarxdr::StellarMessage const& msg);
 
         PeerRole getRole() const { return mRole; }
         PeerState getState() const { return mState; }

@@ -4,7 +4,6 @@
 
 #include "generated/stellar.hh"
 #include "overlay/Peer.h"
-#include "overlay/StellarMessage.h"
 #include <map>
 
 /*
@@ -28,10 +27,10 @@ namespace stellar
 		typedef std::shared_ptr<FloodRecord> pointer;
 
 		uint32_t mLedgerIndex;
-        StellarMessagePtr mMessage;
+        stellarxdr::StellarMessage mMessage;
 		vector<Peer::pointer> mPeersTold;
 
-		FloodRecord(StellarMessagePtr msg, uint32_t ledger, Peer::pointer peer);
+		FloodRecord(stellarxdr::StellarMessage const& msg, uint32_t ledger, Peer::pointer peer);
 
 	};
 
@@ -42,9 +41,9 @@ namespace stellar
 
 		// Floodgate will be cleared after every ledger close
 		void clearBelow(uint32_t currentLedger);
-		void addRecord(stellarxdr::uint256 index, StellarMessagePtr msg, uint32_t ledgerIndex, Peer::pointer peer);
+		void addRecord(stellarxdr::uint256 const& index, stellarxdr::StellarMessage const& msg, uint32_t ledgerIndex, Peer::pointer peer);
 
-		void broadcast(stellarxdr::uint256 index,PeerMaster* peerMaster);
+		void broadcast(stellarxdr::uint256 const& index, PeerMaster* peerMaster);
 
 	};
 }

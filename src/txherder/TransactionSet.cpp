@@ -7,7 +7,7 @@ TransactionSet::TransactionSet()
 {
 }
 
-TransactionSet::TransactionSet(stellarxdr::TransactionSet& xdrSet)
+TransactionSet::TransactionSet(stellarxdr::TransactionSet const& xdrSet)
 {
     for (auto txEnvelope : xdrSet.txs)
     {
@@ -41,7 +41,7 @@ bool TransactionSet::operator > (const TransactionSet& other)
 */
 
 Transaction::pointer
-TransactionSet::getTransaction(stellarxdr::uint256& txHash)
+TransactionSet::getTransaction(stellarxdr::uint256 const& txHash)
 {
     for (auto tx : mTransactions)
     {

@@ -3,7 +3,7 @@
 
 namespace stellar
 {
-	Transaction::pointer Transaction::makeTransactionFromWire(stellarxdr::TransactionEnvelope& msg)
+	Transaction::pointer Transaction::makeTransactionFromWire(stellarxdr::TransactionEnvelope const& msg)
 	{
         //mSignature = msg.signature;
 
@@ -50,11 +50,11 @@ namespace stellar
         // LATER
     }
 
-    StellarMessagePtr Transaction::toStellarMessage()
+    stellarxdr::StellarMessage&& Transaction::toStellarMessage()
     {
-        StellarMessagePtr msg = std::make_shared<stellarxdr::StellarMessage>();
-        msg->type(stellarxdr::TRANSACTION);
-        toXDR(msg->transaction());
-        return msg;
+        stellarxdr::StellarMessage msg;
+        msg.type(stellarxdr::TRANSACTION);
+        toXDR(msg.transaction());
+        return std::move(msg);
     }
 }

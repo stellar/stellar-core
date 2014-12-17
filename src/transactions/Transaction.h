@@ -5,7 +5,6 @@
 #include "generated/stellar.hh"
 #include "TransactionResultCodes.h"
 #include "lib/util/types.h"
-#include "overlay/StellarMessage.h"
 
 /*
 A transaction in its exploded form.
@@ -35,7 +34,7 @@ namespace stellar
 		typedef std::shared_ptr<Transaction> pointer;
 
 		static Transaction::pointer makeTransactionFromDB();
-		static Transaction::pointer makeTransactionFromWire(stellarxdr::TransactionEnvelope& msg);
+		static Transaction::pointer makeTransactionFromWire(stellarxdr::TransactionEnvelope const& msg);
         stellarxdr::uint256 getHash();
         stellarxdr::uint256 getSignature();
 		bool isValid();
@@ -46,7 +45,7 @@ namespace stellar
 
         void toXDR(stellarxdr::Transaction& body);
         void toXDR(stellarxdr::TransactionEnvelope& envelope);
-        StellarMessagePtr toStellarMessage();
+        stellarxdr::StellarMessage&& toStellarMessage();
 	};
 
 }

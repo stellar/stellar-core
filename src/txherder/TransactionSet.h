@@ -20,9 +20,9 @@ namespace stellar
         TransactionSet();
 
         // make it from the wire
-        TransactionSet(stellarxdr::TransactionSet& xdrSet);
+        TransactionSet(stellarxdr::TransactionSet const& xdrSet);
 
-		Transaction::pointer getTransaction(stellarxdr::uint256& txHash);
+		Transaction::pointer getTransaction(stellarxdr::uint256 const& txHash);
 		// returns the hash of this tx set
 		stellarxdr::uint256 getContentsHash();
 

@@ -56,13 +56,15 @@ namespace stellar
 
 		// a Tx set comes in from the wire
 		void recvTransactionSet(TransactionSetPtr txSet);
-        void doesntHaveTxSet(stellarxdr::uint256& setHash, Peer::pointer peer) { mTxSetFetcher[mCurrentTxSetFetcher].doesntHave(setHash, peer);  }
+        void doesntHaveTxSet(stellarxdr::uint256 const& setHash, Peer::pointer peer) {
+            mTxSetFetcher[mCurrentTxSetFetcher].doesntHave(setHash, peer);
+        }
 
 		// we are learning about a new transaction
         // return true if we should flood
 		bool recvTransaction(TransactionPtr tx);
 
-		bool isTxKnown(stellarxdr::uint256& txHash);
+		bool isTxKnown(stellarxdr::uint256 const& txHash);
 
 		void ledgerClosed(LedgerPtr ledger);
 		

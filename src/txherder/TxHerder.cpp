@@ -41,7 +41,7 @@ TxHerder::TxHerder(Application& app)
 // make sure the timestamp isn't too far in the future
 // make sure the base fee is within a certain range of your desired fee
 TxHerderGateway::BallotValidType
-TxHerder::isValidBallotValue(const stellarxdr::Ballot& ballot)
+TxHerder::isValidBallotValue(stellarxdr::Ballot const& ballot)
 {
     if (ballot.baseFee < mApp.mConfig.DESIRED_BASE_FEE * .5)
         return INVALID_BALLOT;
@@ -73,7 +73,7 @@ TxHerder::isValidBallotValue(const stellarxdr::Ballot& ballot)
 }
 
 TxHerderGateway::SlotComparisonType
-TxHerder::compareSlot(const stellarxdr::SlotBallot& slotBallot)
+TxHerder::compareSlot(stellarxdr::SlotBallot const& slotBallot)
 {
     if (slotBallot.ledgerIndex > mLastClosedLedger->mHeader.ledgerSeq)
         return (TxHerderGateway::FUTURE_SLOT);
@@ -85,7 +85,7 @@ TxHerder::compareSlot(const stellarxdr::SlotBallot& slotBallot)
 }
 
 bool
-TxHerder::isTxKnown(stellarxdr::uint256& txHash)
+TxHerder::isTxKnown(stellarxdr::uint256 const& txHash)
 {
     for (auto list : mReceivedTransactions)
     {
@@ -133,7 +133,7 @@ TxHerder::recvTransaction(TransactionPtr tx)
 
 // will start fetching this TxSet from the network if we don't know about it
 TransactionSetPtr
-TxHerder::fetchTxSet(const stellarxdr::uint256& setHash, bool askNetwork)
+TxHerder::fetchTxSet(stellarxdr::uint256 const& setHash, bool askNetwork)
 {
     return mTxSetFetcher[mCurrentTxSetFetcher].fetchItem(setHash, askNetwork);
 }
@@ -158,7 +158,7 @@ TxHerder::removeReceivedTx(TransactionPtr dropTX)
 
 // called by FBA
 void
-TxHerder::externalizeValue(const stellarxdr::SlotBallot& slotBallot)
+TxHerder::externalizeValue(stellarxdr::SlotBallot const& slotBallot)
 {
     TransactionSet::pointer externalizedSet =
         fetchTxSet(slotBallot.ballot.txSetHash, false);
@@ -182,7 +182,7 @@ TxHerder::externalizeValue(const stellarxdr::SlotBallot& slotBallot)
         // rebroadcast those left in set 1
         for (auto tx : mReceivedTransactions[1])
         {
-            StellarMessagePtr msg = tx->toStellarMessage();
+            auto msg = tx->toStellarMessage();
             mApp.getPeerMaster().broadcastMessage(msg, Peer::pointer());
         }
 

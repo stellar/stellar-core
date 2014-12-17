@@ -54,7 +54,7 @@ Peer::connectHandler(const asio::error_code& error)
 }
 
 void
-Peer::sendDontHave(stellarxdr::MessageType type, stellarxdr::uint256& itemID)
+Peer::sendDontHave(stellarxdr::MessageType type, stellarxdr::uint256 const& itemID)
 {
     stellarxdr::StellarMessage msg;
     msg.type(stellarxdr::DONT_HAVE);
@@ -74,7 +74,7 @@ Peer::sendQuorumSet(QuorumSet::pointer qSet)
     sendMessage(msg);
 }
 void
-Peer::sendGetTxSet(stellarxdr::uint256& setID)
+Peer::sendGetTxSet(stellarxdr::uint256 const& setID)
 {
     stellarxdr::StellarMessage newMsg;
     newMsg.type(stellarxdr::GET_TX_SET);
@@ -83,7 +83,7 @@ Peer::sendGetTxSet(stellarxdr::uint256& setID)
     sendMessage(newMsg);
 }
 void
-Peer::sendGetQuorumSet(stellarxdr::uint256& setID)
+Peer::sendGetQuorumSet(stellarxdr::uint256 const& setID)
 {
     stellarxdr::StellarMessage newMsg;
     newMsg.type(stellarxdr::GET_QUORUMSET);
@@ -99,7 +99,7 @@ Peer::sendPeers()
 }
 
 void
-Peer::sendMessage(stellarxdr::StellarMessage msg)
+Peer::sendMessage(stellarxdr::StellarMessage const& msg)
 {
     CLOG(TRACE, "Overlay") << "sending stellarMessage";
     xdr::msg_ptr xdrBytes(xdr::xdr_to_msg(msg));
@@ -110,26 +110,25 @@ void
 Peer::recvMessage(xdr::msg_ptr const& msg)
 {
     CLOG(TRACE, "Overlay") << "received xdr::msg_ptr";
-    StellarMessagePtr stellarMsg =
-        std::make_shared<stellarxdr::StellarMessage>();
-    xdr::xdr_from_msg(msg, *stellarMsg.get());
-    recvMessage(stellarMsg);
+    stellarxdr::StellarMessage sm;
+    xdr::xdr_from_msg(msg, sm);
+    recvMessage(sm);
 }
 
 void
-Peer::recvMessage(StellarMessagePtr stellarMsg)
+Peer::recvMessage(stellarxdr::StellarMessage const& stellarMsg)
 {
-    CLOG(TRACE, "Overlay") << "recv: " << stellarMsg->type();
+    CLOG(TRACE, "Overlay") << "recv: " << stellarMsg.type();
 
-    if (mState < GOT_HELLO && stellarMsg->type() != stellarxdr::HELLO)
+    if (mState < GOT_HELLO && stellarMsg.type() != stellarxdr::HELLO)
     {
-        CLOG(WARNING, "Overlay") << "recv: " << stellarMsg->type()
+        CLOG(WARNING, "Overlay") << "recv: " << stellarMsg.type()
                                  << " before hello";
         drop();
         return;
     }
 
-    switch (stellarMsg->type())
+    switch (stellarMsg.type())
     {
     case stellarxdr::ERROR_MSG:
     {
@@ -241,20 +240,20 @@ Peer::recvMessage(StellarMessagePtr stellarMsg)
 }
 
 void
-Peer::recvGetDelta(StellarMessagePtr msg)
+Peer::recvGetDelta(stellarxdr::StellarMessage const& msg)
 {
     // LATER
 }
 void
-Peer::recvDelta(StellarMessagePtr msg)
+Peer::recvDelta(stellarxdr::StellarMessage const& msg)
 {
     // LATER
 }
 
 void
-Peer::recvDontHave(StellarMessagePtr msg)
+Peer::recvDontHave(stellarxdr::StellarMessage const& msg)
 {
-    switch (msg->dontHave().type)
+    switch (msg.dontHave().type)
     {
     case stellarxdr::HISTORY:
         // LATER
@@ -263,11 +262,11 @@ Peer::recvDontHave(StellarMessagePtr msg)
         // LATER
         break;
     case stellarxdr::TX_SET:
-        mApp.getTxHerderGateway().doesntHaveTxSet(msg->dontHave().reqHash,
+        mApp.getTxHerderGateway().doesntHaveTxSet(msg.dontHave().reqHash,
                                                   shared_from_this());
         break;
     case stellarxdr::QUORUMSET:
-        mApp.getOverlayGateway().doesntHaveQSet(msg->dontHave().reqHash,
+        mApp.getOverlayGateway().doesntHaveQSet(msg.dontHave().reqHash,
                                                 shared_from_this());
         break;
     case stellarxdr::VALIDATIONS:
@@ -277,10 +276,10 @@ Peer::recvDontHave(StellarMessagePtr msg)
 }
 
 void
-Peer::recvGetTxSet(StellarMessagePtr msg)
+Peer::recvGetTxSet(stellarxdr::StellarMessage const& msg)
 {
     TransactionSet::pointer txSet =
-        mApp.getTxHerderGateway().fetchTxSet(msg->txSetHash(), false);
+        mApp.getTxHerderGateway().fetchTxSet(msg.txSetHash(), false);
     if (txSet)
     {
         stellarxdr::StellarMessage newMsg;
@@ -291,22 +290,22 @@ Peer::recvGetTxSet(StellarMessagePtr msg)
     }
     else
     {
-        sendDontHave(stellarxdr::TX_SET, msg->txSetHash());
+        sendDontHave(stellarxdr::TX_SET, msg.txSetHash());
     }
 }
 void
-Peer::recvTxSet(StellarMessagePtr msg)
+Peer::recvTxSet(stellarxdr::StellarMessage const& msg)
 {
     TransactionSet::pointer txSet =
-        std::make_shared<TransactionSet>(msg->txSet());
+        std::make_shared<TransactionSet>(msg.txSet());
     mApp.getTxHerderGateway().recvTransactionSet(txSet);
 }
 
 void
-Peer::recvTransaction(StellarMessagePtr msg)
+Peer::recvTransaction(stellarxdr::StellarMessage const& msg)
 {
     Transaction::pointer transaction =
-        Transaction::makeTransactionFromWire(msg->transaction());
+        Transaction::makeTransactionFromWire(msg.transaction());
     if (transaction)
     {
         if (mApp.getTxHerderGateway().recvTransaction(
@@ -318,32 +317,32 @@ Peer::recvTransaction(StellarMessagePtr msg)
 }
 
 void
-Peer::recvGetQuorumSet(StellarMessagePtr msg)
+Peer::recvGetQuorumSet(stellarxdr::StellarMessage const& msg)
 {
     QuorumSet::pointer qset =
-        mApp.getOverlayGateway().fetchQuorumSet(msg->qSetHash(), false);
+        mApp.getOverlayGateway().fetchQuorumSet(msg.qSetHash(), false);
     if (qset)
     {
         sendQuorumSet(qset);
     }
     else
     {
-        sendDontHave(stellarxdr::QUORUMSET, msg->qSetHash());
+        sendDontHave(stellarxdr::QUORUMSET, msg.qSetHash());
         // do we want to ask other people for it?
     }
 }
 void
-Peer::recvQuorumSet(StellarMessagePtr msg)
+Peer::recvQuorumSet(stellarxdr::StellarMessage const& msg)
 {
     QuorumSet::pointer qset =
-        std::make_shared<QuorumSet>(msg->quorumSet(), mApp);
+        std::make_shared<QuorumSet>(msg.quorumSet(), mApp);
     mApp.getOverlayGateway().recvQuorumSet(qset);
 }
 
 void
-Peer::recvFBAMessage(StellarMessagePtr msg)
+Peer::recvFBAMessage(stellarxdr::StellarMessage const& msg)
 {
-    stellarxdr::FBAEnvelope envelope = msg->fbaMessage();
+    stellarxdr::FBAEnvelope envelope = msg.fbaMessage();
     Statement::pointer statement = std::make_shared<Statement>(envelope);
 
     mApp.getOverlayGateway().recvFloodedMsg(statement->mEnvelope.signature, msg,
@@ -353,48 +352,48 @@ Peer::recvFBAMessage(StellarMessagePtr msg)
 }
 
 void
-Peer::recvError(StellarMessagePtr msg)
+Peer::recvError(stellarxdr::StellarMessage const& msg)
 {
     // LATER
 }
 void
-Peer::recvHello(StellarMessagePtr msg)
+Peer::recvHello(stellarxdr::StellarMessage const& msg)
 {
-    mRemoteProtocolVersion = msg->hello().protocolVersion;
-    mRemoteVersion = msg->hello().versionStr;
-    mRemoteListeningPort = msg->hello().port;
+    mRemoteProtocolVersion = msg.hello().protocolVersion;
+    mRemoteVersion = msg.hello().versionStr;
+    mRemoteListeningPort = msg.hello().port;
     CLOG(INFO, "Overlay") << "recvHello: " << mRemoteProtocolVersion << " "
                           << mRemoteVersion << " " << mRemoteListeningPort;
     mState = GOT_HELLO;
 }
 void
-Peer::recvGetPeers(StellarMessagePtr msg)
+Peer::recvGetPeers(stellarxdr::StellarMessage const& msg)
 {
     // LATER
 }
 void
-Peer::recvPeers(StellarMessagePtr msg)
+Peer::recvPeers(stellarxdr::StellarMessage const& msg)
 {
     // LATER
 }
 void
-Peer::recvGetHistory(StellarMessagePtr msg)
+Peer::recvGetHistory(stellarxdr::StellarMessage const& msg)
 {
     // LATER
 }
 void
-Peer::recvHistory(StellarMessagePtr msg)
+Peer::recvHistory(stellarxdr::StellarMessage const& msg)
 {
     // LATER
 }
 
 void
-Peer::recvGetValidations(StellarMessagePtr msg)
+Peer::recvGetValidations(stellarxdr::StellarMessage const& msg)
 {
     // LATER
 }
 void
-Peer::recvValidations(StellarMessagePtr msg)
+Peer::recvValidations(stellarxdr::StellarMessage const& msg)
 {
     // LATER
 }

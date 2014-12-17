@@ -16,7 +16,7 @@ namespace stellar
 
         void connect();
         void recvMessage();
-        void recvHello(StellarMessagePtr msg);
+        void recvHello(stellarxdr::StellarMessage const& msg);
         void sendMessage(xdr::msg_ptr&& xdrBytes);
         int getIncomingMsgLength();
         void startRead();

@@ -51,7 +51,7 @@ namespace stellar
 		int mThreshold;
 		
 		QuorumSet();
-        QuorumSet(stellarxdr::QuorumSet& qset, Application &app);
+        QuorumSet(stellarxdr::QuorumSet const& qset, Application &app);
 
         stellarxdr::uint256 getHash();
 		int getBlockingSize();  // returns the # of nodes it takes to block a Quorum

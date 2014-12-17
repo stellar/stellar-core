@@ -47,11 +47,11 @@ namespace stellar
 			UNKNOWN_VALIDITY
 		};
 		// make sure this set contains any super old TXs
-		virtual BallotValidType isValidBallotValue(const stellarxdr::Ballot& ballot) = 0;
-		virtual SlotComparisonType compareSlot(const stellarxdr::SlotBallot& ballot) = 0;
+		virtual BallotValidType isValidBallotValue(stellarxdr::Ballot const& ballot) = 0;
+		virtual SlotComparisonType compareSlot(stellarxdr::SlotBallot const& ballot) = 0;
 
 		// can start fetching this TxSet from the network if we don't know about it
-		virtual TransactionSetPtr fetchTxSet(const stellarxdr::uint256& setHash, bool askNetwork) = 0;
+		virtual TransactionSetPtr fetchTxSet(stellarxdr::uint256 const& setHash, bool askNetwork) = 0;
 
 		virtual void externalizeValue(const stellarxdr::SlotBallot&) = 0;
 
@@ -60,12 +60,12 @@ namespace stellar
 		// called by Overlay
 		// a Tx set comes in from the wire
 		virtual void recvTransactionSet(TransactionSetPtr txSet) = 0;
-        virtual void doesntHaveTxSet(stellarxdr::uint256& setHash, PeerPtr peer) = 0;
+        virtual void doesntHaveTxSet(stellarxdr::uint256 const& setHash, PeerPtr peer) = 0;
 
 		// we are learning about a new transaction
 		// returns true if we should flood this tx
 		virtual bool recvTransaction(TransactionPtr tx) = 0;
-		virtual bool isTxKnown(stellarxdr::uint256& txHash) = 0;
+		virtual bool isTxKnown(stellarxdr::uint256 const& txHash) = 0;
 
 
 		//called by Ledger

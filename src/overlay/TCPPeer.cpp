@@ -151,15 +151,15 @@ TCPPeer::readBodyHandler(const asio::error_code& error,
 void
 TCPPeer::recvMessage()
 {
-    // FIXME: This can do one-less-copy, given a new unmarshal-from-raw-pointers
-    // helper in xdrpp.
-    xdr::msg_ptr incoming = xdr::message_t::alloc(mIncomingBody.size());
-    memcpy(incoming->raw_data(), mIncomingBody.data(), mIncomingBody.size());
-    Peer::recvMessage(std::move(incoming));
+    xdr::xdr_get g(mIncomingBody.data(),
+                   mIncomingBody.data() + mIncomingBody.size());
+    stellarxdr::StellarMessage sm;
+    xdr::xdr_argpack_archive(g, sm);
+    Peer::recvMessage(sm);
 }
 
 void
-TCPPeer::recvHello(StellarMessagePtr msg)
+TCPPeer::recvHello(stellarxdr::StellarMessage const& msg)
 {
     mHelloTimer.cancel();
     Peer::recvHello(msg);

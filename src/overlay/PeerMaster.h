@@ -42,12 +42,12 @@ namespace stellar
 		//////// GATEWAY FUNCTIONS
 		void ledgerClosed(LedgerPtr ledger);
 
-		QuorumSet::pointer fetchQuorumSet(stellarxdr::uint256& itemID, bool askNetwork){ return(mQSetFetcher.fetchItem(itemID,askNetwork)); }
-        void fetchDelta(stellarxdr::uint256& oldLedgerHash, uint32_t oldLedgerSeq) { mDeltaFetcher.fetchItem(oldLedgerHash, oldLedgerSeq); }
-        void recvFloodedMsg(stellarxdr::uint256 index, StellarMessagePtr msg, uint32_t ledgerIndex, Peer::pointer peer) { mFloodGate.addRecord(index, msg, ledgerIndex, peer);  }
-        void doesntHaveQSet(stellarxdr::uint256 index, Peer::pointer peer) { mQSetFetcher.doesntHave(index, peer); }
+		QuorumSet::pointer fetchQuorumSet(stellarxdr::uint256 const& itemID, bool askNetwork){ return(mQSetFetcher.fetchItem(itemID,askNetwork)); }
+        void fetchDelta(stellarxdr::uint256 const& oldLedgerHash, uint32_t oldLedgerSeq) { mDeltaFetcher.fetchItem(oldLedgerHash, oldLedgerSeq); }
+        void recvFloodedMsg(stellarxdr::uint256 const& index, stellarxdr::StellarMessage const& msg, uint32_t ledgerIndex, Peer::pointer peer) { mFloodGate.addRecord(index, msg, ledgerIndex, peer);  }
+        void doesntHaveQSet(stellarxdr::uint256 const& index, Peer::pointer peer) { mQSetFetcher.doesntHave(index, peer); }
 
-        void broadcastMessage(StellarMessagePtr msg, Peer::pointer peer);
+        void broadcastMessage(stellarxdr::StellarMessage const& msg, Peer::pointer peer);
         void recvQuorumSet(QuorumSet::pointer qset);
 		//////
 
@@ -59,8 +59,8 @@ namespace stellar
 		Peer::pointer getNextPeer(Peer::pointer peer); // returns NULL if the passed peer isn't found
 
 		
-		void broadcastMessage(stellarxdr::uint256& msgID);
-		void broadcastMessage(StellarMessagePtr msg, vector<Peer::pointer>& skip);
+		void broadcastMessage(stellarxdr::uint256 const& msgID);
+		void broadcastMessage(stellarxdr::StellarMessage const& msg, vector<Peer::pointer> const& skip);
 	};
 }
 

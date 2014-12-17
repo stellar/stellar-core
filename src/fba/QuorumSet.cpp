@@ -16,7 +16,7 @@ QuorumSet::QuorumSet()
 }
 
 // get qset from wire
-QuorumSet::QuorumSet(stellarxdr::QuorumSet& qset, Application& app)
+QuorumSet::QuorumSet(stellarxdr::QuorumSet const& qset, Application& app)
 {
     mThreshold = qset.threshold;
     for (auto id : qset.validators)
