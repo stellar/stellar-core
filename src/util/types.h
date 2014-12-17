@@ -1,10 +1,12 @@
-#include <vector>
-#include "generated/StellarXDR.h"
+#ifndef __TYPES__
+#define __TYPES__
 
 // Copyright 2014 Stellar Development Foundation and contributors. Licensed
 // under the ISC License. See the COPYING file at the top-level directory of
 // this distribution or at http://opensource.org/licenses/ISC
 
+#include <vector>
+#include "generated/StellarXDR.h"
 #include "xdrpp/message.h"
 
 namespace stellar
@@ -21,3 +23,5 @@ stellarxdr::uint256 fromBase58(const std::string& str);
 
 stellarxdr::uint256 makePublicKey(stellarxdr::uint256 const& b);
 }
+
+#endif
