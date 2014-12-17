@@ -55,6 +55,8 @@ bin_stellard_SOURCES = $(FMT_SRCS) \
                        $(BUILT_SOURCES) \
                        src/lib/util/getopt_long.c
 
+bin_stellard_LDADD = -lxdrpp
+
 bin_stellard_CPPFLAGS = -I$(top_srcdir)/src \
                         -I$(builddir)/src \
                         -I$(srcdir)/src/lib/autocheck/include \
