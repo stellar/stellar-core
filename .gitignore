@@ -11,6 +11,7 @@
 *.opensdf
 *.sdf
 *.suo
+*.trs
 *~
 .deps
 .dirstamp
@@ -29,4 +30,5 @@
 /configure
 /depcomp
 /missing
+/test-driver
 /stamp-h1
