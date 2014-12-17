@@ -1,7 +1,7 @@
 #ifndef __EDKEYPAIR__
 #define __EDKEYPAIR__
 
-#include "lib/util/types.h"
+#include "util/types.h"
 
 /*
 

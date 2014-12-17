@@ -2,7 +2,7 @@
 #define __STELLARPUBLICKEY__
 
 //#include "lib/base58/Base58Data.h"
-#include "lib/util/types.h"
+#include "util/types.h"
 #include "generated/StellarXDR.h"
 
 /*

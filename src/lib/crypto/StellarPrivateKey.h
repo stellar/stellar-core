@@ -3,7 +3,7 @@
 
 
 #include "lib/crypto/EdKeyPair.h"
-#include "lib/util/types.h"
+#include "util/types.h"
 #include "generated/StellarXDR.h"
 
 /*

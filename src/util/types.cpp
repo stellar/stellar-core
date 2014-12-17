@@ -1,4 +1,4 @@
-#include "lib/util/types.h"
+#include "util/types.h"
 
 namespace stellar
 {

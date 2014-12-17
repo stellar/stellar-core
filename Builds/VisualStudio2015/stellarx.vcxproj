@@ -113,7 +113,7 @@
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="..\..\src\lib\util\getopt_long.c" />
-    <ClCompile Include="..\..\src\lib\util\types.cpp" />
+    <ClCompile Include="..\..\src\util\types.cpp" />
     <ClCompile Include="..\..\src\lib\util\uint256.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
     </ClCompile>

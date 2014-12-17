@@ -2,7 +2,7 @@
 #include "generated/StellardVersion.h"
 #include "lib/util/cpptoml.h"
 #include "util/Logging.h"
-#include "lib/util/types.h"
+#include "util/types.h"
 
 namespace stellar
 {

@@ -4,7 +4,7 @@
 #include "ledger/AccountEntry.h"
 #include "generated/StellarXDR.h"
 #include "TransactionResultCodes.h"
-#include "lib/util/types.h"
+#include "util/types.h"
 
 /*
 A transaction in its exploded form.

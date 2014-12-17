@@ -6,7 +6,7 @@ bin_PROGRAMS = bin/stellard
 FMT_SRCS = src/overlay/Floodgate.cpp src/overlay/PeerDoor.cpp                   \
 	src/overlay/TCPPeer.cpp src/overlay/LoopbackPeer.cpp src/overlay/Peer.cpp   \
 	src/overlay/ItemFetcher.cpp src/overlay/PeerMaster.cpp                      \
-	src/overlay/PreferredPeers.cpp src/lib/util/types.cpp src/fba/FBAMaster.cpp \
+	src/overlay/PreferredPeers.cpp src/util/types.cpp src/fba/FBAMaster.cpp \
 	src/fba/FutureStatement.cpp src/fba/OurNode.cpp src/fba/QuorumSet.cpp       \
 	src/fba/Statement.cpp src/fba/Node.cpp src/fba/Ballot.cpp                   \
 	src/ledger/LedgerDatabase.cpp src/ledger/Ledger.cpp                         \
