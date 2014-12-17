@@ -2,7 +2,7 @@
 #define __STELLARPRIVATECKEY__
 
 
-#include "lib/crypto/EdKeyPair.h"
+#include "crypto/EdKeyPair.h"
 #include "util/types.h"
 #include "generated/StellarXDR.h"
 

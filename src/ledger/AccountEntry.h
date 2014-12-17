@@ -3,7 +3,7 @@
 
 #include "transactions/TransactionResultCodes.h"
 #include "LedgerEntry.h"
-#include "lib/crypto/StellarPublicKey.h"
+#include "crypto/StellarPublicKey.h"
 
 namespace stellar
 {
