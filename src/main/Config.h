@@ -7,6 +7,7 @@ namespace stellar
 
     public:
         // application config
+        bool START_NEW_NETWORK;
         bool RUN_STANDALONE;
         int PROTOCOL_VERSION;
         std::string VERSION_STR;

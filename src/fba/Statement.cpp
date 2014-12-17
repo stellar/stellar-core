@@ -2,7 +2,6 @@
 #include "main/Application.h"
 #include "fba/Ballot.h"
 
-// TODO.2 I think we can drop all the subclasses
 
 namespace stellar
 {

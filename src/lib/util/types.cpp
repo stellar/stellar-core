@@ -21,7 +21,8 @@ hashXDR(xdr::msg_ptr msg, stellarxdr::uint256& retHash)
 void
 hashStr(std::string str, stellarxdr::uint256& retHash)
 {
-    // SANITY  hash
+    retHash[2] = 12;
+    // TODO.1  hash
 }
 
 std::string&

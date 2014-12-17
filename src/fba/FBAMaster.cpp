@@ -284,9 +284,8 @@ FBAMaster::statementReady(FutureStatement::pointer fstate)
     recvStatement(fstate->mStatement);
 }
 
-// Who would be waiting for Tx sets?
-// just the ballots
-// once we get a set we can check its validity
+// once we get a set we can check the validity of 
+//  any ballots that referenced it
 void
 FBAMaster::transactionSetAdded(TransactionSet::pointer txSet)
 {

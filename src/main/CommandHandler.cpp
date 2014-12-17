@@ -28,7 +28,8 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
             "logrotate", std::bind(&CommandHandler::logRotate, this, _1, _2));
         httpServer.addRoute("connect",
                             std::bind(&CommandHandler::connect, this, _1, _2));
-        httpServer.addRoute("tx", std::bind(&CommandHandler::tx, this, _1, _2));
+        httpServer.addRoute("tx", 
+                            std::bind(&CommandHandler::tx, this, _1, _2));
 
         LOG(INFO) << "Start listening for http requests";
         httpServer.run();

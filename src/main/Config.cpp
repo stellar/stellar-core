@@ -15,6 +15,7 @@ Config::Config()
     VERSION_STR = STELLARD_VERSION;
 
     // configurable
+    START_NEW_NETWORK = false;
     DESIRED_BASE_FEE = 10;
     PEER_PORT = 39133;
     RUN_STANDALONE = false;

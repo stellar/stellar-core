@@ -24,7 +24,10 @@ namespace stellar
 		Statement();
         // creates a Statement from the wire
         Statement(stellarxdr::FBAEnvelope const& envelope);
-		Statement(stellarxdr::FBAStatementType type, stellarxdr::uint256 const& nodeID, stellarxdr::uint256 const& qSetHash, const stellarxdr::SlotBallot& ballot);
+		Statement(stellarxdr::FBAStatementType type, 
+            stellarxdr::uint256 const& nodeID, 
+            stellarxdr::uint256 const& qSetHash, 
+            const stellarxdr::SlotBallot& ballot);
 
 		void sign();
 

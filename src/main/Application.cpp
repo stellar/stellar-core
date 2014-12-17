@@ -5,6 +5,7 @@
 
 namespace stellar
 {
+
 Application::Application(Config const& cfg)
     : mState(BOOTING_STATE)
     , mConfig(cfg)
@@ -21,21 +22,30 @@ Application::Application(Config const& cfg)
 {
     LOG(INFO) << "Application constructing";
     mStopSignals.async_wait([this](asio::error_code const& ec, int sig)
-                            {
-                                LOG(INFO) << "got signal " << sig
-                                          << ", shutting down";
-                                this->gracefulStop();
-                            });
+    {
+        LOG(INFO) << "got signal " << sig
+            << ", shutting down";
+        this->gracefulStop();
+    });
     unsigned t = std::thread::hardware_concurrency();
     LOG(INFO) << "Worker threads: " << t;
-    while (t--)
+    while(t--)
     {
         mWorkerThreads.emplace_back([this, t]()
-                                    {
-                                        this->runWorkerThread(t);
-                                    });
+        {
+            this->runWorkerThread(t);
+        });
     }
     LOG(INFO) << "Application constructed";
+}
+
+void Application::start()
+{
+    if(mConfig.START_NEW_NETWORK)
+    {
+        LOG(INFO) << "Starting a new network";
+        mLedgerMaster.startNewLedger();
+    }
 }
 
 Application::~Application()

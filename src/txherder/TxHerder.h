@@ -36,7 +36,7 @@ namespace stellar
 		std::array<TxSetFetcher, 2> mTxSetFetcher;
         int mCurrentTxSetFetcher;
 
-		int mCloseCount;
+		int mLedgersToWaitToParticipate;
         Application &mApp;
 
 		LedgerPtr mLastClosedLedger;

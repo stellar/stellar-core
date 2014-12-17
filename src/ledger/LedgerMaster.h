@@ -48,7 +48,7 @@ namespace stellar
 		
 		///////
 
-		
+        void startNewLedger();
 
 		
         // establishes that our internal representation is in sync with passed ledger

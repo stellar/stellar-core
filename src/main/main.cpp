@@ -14,6 +14,7 @@ enum opttag
     OPT_TEST,
     OPT_CONF,
     OPT_CMD,
+    OPT_NEW
 };
 
 static const struct option stellard_options[] = {
@@ -22,6 +23,7 @@ static const struct option stellard_options[] = {
     {"test", no_argument, nullptr, OPT_TEST},
     {"conf", required_argument, nullptr, OPT_CONF},
     {"c", required_argument, nullptr, OPT_CMD},
+    {"new", no_argument, nullptr, OPT_NEW }, 
     {nullptr, 0, nullptr, 0}};
 
 static void
@@ -33,6 +35,7 @@ usage(int err = 1)
           "      --help        To display this string\n"
           "      --version     To print version information\n"
           "      --test        To run self-tests\n"
+          "      --new         Start a brand new network to call your own."
           "      --c           Command to send to local hayashi\n"
           "                stop\n"
           "                info\n"
@@ -75,6 +78,8 @@ main(int argc, char* const* argv)
     std::string command;
     std::vector<char*> rest;
 
+    bool newNetwork = false;
+
     int opt;
     while ((opt = getopt_long_only(argc, argv, "", stellard_options,
                                    nullptr)) != -1)
@@ -100,6 +105,9 @@ main(int argc, char* const* argv)
         case OPT_HELP:
             usage(0);
             return 0;
+        case OPT_NEW:
+            newNetwork = true;
+            break;
         }
     }
 
@@ -107,6 +115,7 @@ main(int argc, char* const* argv)
     cfg.load(cfgFile);
     Logging::setUpLogging(cfg.LOG_FILE_PATH);
 
+    cfg.START_NEW_NETWORK = newNetwork;
     if (command.size())
     {
         sendCommand(command, rest, cfg.HTTP_PORT);
@@ -117,6 +126,8 @@ main(int argc, char* const* argv)
     LOG(INFO) << "Config from " << cfgFile;
     Application app(cfg);
 
+    app.start();
+    
     auto& io = app.getMainIOService();
     asio::io_service::work mainWork(io);
     while (!io.stopped())

@@ -32,9 +32,10 @@ TxHerder::TxHerder(Application& app)
 }
 #endif
     , mCurrentTxSetFetcher(0)
-    , mCloseCount(0)
+    , mLedgersToWaitToParticipate(3)
     , mApp(app)
 {
+    if(mApp.mConfig.START_NEW_NETWORK) mLedgersToWaitToParticipate = 0;
 }
 
 // make sure all the tx we have in the old set are included
@@ -231,11 +232,10 @@ TxHerder::ledgerClosed(LedgerPtr ledger)
     firstBallot.ballot.baseFee = mApp.mConfig.DESIRED_BASE_FEE;
     firstBallot.ballot.txSetHash = proposedSet->getContentsHash();
 
-    mCloseCount++;
+    mLedgersToWaitToParticipate--;
     // don't participate in FBA for a few ledger closes so you make sure you
-    // don't
-    // send PREPAREs that don't include old tx
-    if (mCloseCount > 2 && (!isZero(mApp.mConfig.VALIDATION_SEED)))
+    //      don't send PREPAREs that don't include old tx
+    if (mLedgersToWaitToParticipate < 0  && (!isZero(mApp.mConfig.VALIDATION_SEED)))
         mApp.getFBAGateway().setValidating(true);
 
     mApp.getFBAGateway().startNewRound(firstBallot);

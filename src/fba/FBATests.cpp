@@ -36,7 +36,7 @@ TEST_CASE("node tests", "[fba]")
         REQUIRE(testNode.hasStatement(s1));
 
         REQUIRE(testNode.getHighestStatement(
-                    stellarxdr::FBAStatementType::PREPARE) == s1);
+            stellarxdr::FBAStatementType::PREPARE) == s1);
         REQUIRE(!testNode.getHighestStatement(
             stellarxdr::FBAStatementType::PREPARED));
         REQUIRE(!testNode.getHighestStatement(
@@ -50,7 +50,7 @@ TEST_CASE("node tests", "[fba]")
         REQUIRE(testNode.hasStatement(s1));
         REQUIRE(testNode.hasStatement(s2));
         REQUIRE(testNode.getHighestStatement(
-                    stellarxdr::FBAStatementType::PREPARE) == s2);
+            stellarxdr::FBAStatementType::PREPARE) == s2);
         REQUIRE(!testNode.getHighestStatement(
             stellarxdr::FBAStatementType::PREPARED));
         REQUIRE(!testNode.getHighestStatement(
@@ -65,7 +65,7 @@ TEST_CASE("node tests", "[fba]")
         REQUIRE(testNode.hasStatement(s2));
         REQUIRE(testNode.hasStatement(s3));
         REQUIRE(testNode.getHighestStatement(
-                    stellarxdr::FBAStatementType::PREPARE) == s2);
+            stellarxdr::FBAStatementType::PREPARE) == s2);
         REQUIRE(!testNode.getHighestStatement(
             stellarxdr::FBAStatementType::PREPARED));
         REQUIRE(!testNode.getHighestStatement(
@@ -81,27 +81,65 @@ TEST_CASE("node tests", "[fba]")
         REQUIRE(testNode.hasStatement(s3));
         REQUIRE(testNode.hasStatement(s4));
         REQUIRE(testNode.getHighestStatement(
-                    stellarxdr::FBAStatementType::PREPARE) == s2);
+            stellarxdr::FBAStatementType::PREPARE) == s2);
         REQUIRE(testNode.getHighestStatement(
-                    stellarxdr::FBAStatementType::PREPARED) == s4);
+            stellarxdr::FBAStatementType::PREPARED) == s4);
         REQUIRE(!testNode.getHighestStatement(
             stellarxdr::FBAStatementType::COMMIT));
         REQUIRE(!testNode.getHighestStatement(
             stellarxdr::FBAStatementType::COMMITTED));
     }
+
     SECTION("checkRatState")
     {
+    }
+}
 
-        Config const& cfg = getTestConfig();
+TEST_CASE("end to end", "[fba]")
+{
+    SECTION("first")
+    {
+        Config cfg;
+        cfg.QUORUM_THRESHOLD = 3;
+        cfg.HTTP_PORT = 0;
+        cfg.START_NEW_NETWORK = true;
+        hashStr("seed", cfg.VALIDATION_SEED);
+
+        stellarxdr::uint256 nodeID[5];
+
+        for(int n = 0; n < 5; n++)
+        {
+            hashStr("hello", nodeID[n]);
+            nodeID[n][0] = n;
+            cfg.QUORUM_SET.push_back(nodeID[n]);
+        }
+
+
         Application app(cfg);
 
-        stellarxdr::uint256 nodeID;
-        Node testNode(nodeID);
+       
+        Node testNode(nodeID[0]);
         BallotPtr ballot = std::make_shared<stellarxdr::Ballot>();
 
         REQUIRE(Node::NOTPLEDGING_STATE ==
                 testNode.checkRatState(stellarxdr::FBAStatementType::PREPARE,
                                        ballot, 1, 1, app));
+
+        stellarxdr::SlotBallot slotBallot;
+        slotBallot.ballot = *ballot.get();
+        slotBallot.ledgerIndex = 1;
+        //slotBallot.previousLedgerHash;
+
+        for(int n = 0; n < 5; n++)
+        {
+            StatementPtr statement=std::make_shared<Statement>(stellarxdr::FBAStatementType::PREPARE,
+                nodeID[n], app.getFBAGateway().getOurQuorumSet()->getHash(), 
+                slotBallot);
+            app.getFBAGateway().recvStatement(statement);
+        }
+
+
+
     }
 }
 

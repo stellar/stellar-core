@@ -22,4 +22,9 @@ What do we do about tx that make it into the applied txset but have too low a ma
 	Do we let them get by for free?
 	
 
-	 
+How does the network start up?
+	validator starts with --new
+	DB is cleared
+	Hash genesis ledger
+	Start FBA with empty txSet
+	FBA will hang until a quorum is also started with --new

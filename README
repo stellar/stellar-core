@@ -1,0 +1,5 @@
+run tests with:
+ hayashi --test 
+ 
+run one test with:
+ hayashi --test  testName

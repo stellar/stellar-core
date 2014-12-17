@@ -126,6 +126,8 @@ namespace stellar
         asio::io_service& getMainIOService() { return mMainIOService; }
         asio::io_service& getWorkerIOService() { return mWorkerIOService; }
 
+        void start();
+
         // Stops the io_services, which should cause the threads to exit
         // once they finish running any work-in-progress. If you want a
         // more abrupt exit than this, call exit() and hope for the best.
