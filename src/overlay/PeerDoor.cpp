@@ -3,7 +3,7 @@
 #include "main/Application.h"
 #include "Peer.h"
 #include "overlay/PeerMaster.h"
-#include "lib/util/Logging.h"
+#include "util/Logging.h"
 #include "overlay/TCPPeer.h"
 
 namespace stellar

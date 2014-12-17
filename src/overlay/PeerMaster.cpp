@@ -3,7 +3,7 @@
 #include <thread>
 #include <random>
 #include "ledger/Ledger.h"
-#include "lib/util/Logging.h"
+#include "util/Logging.h"
 
 /*
 If we have less than the target number of peers we will try to connect to one

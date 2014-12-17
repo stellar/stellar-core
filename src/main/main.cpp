@@ -1,6 +1,6 @@
 #include "main/Application.h"
 #include "generated/StellardVersion.h"
-#include "lib/util/Logging.h"
+#include "util/Logging.h"
 #include "lib/util/getopt.h"
 #include "main/test.h"
 #include "lib/http/HttpClient.h"

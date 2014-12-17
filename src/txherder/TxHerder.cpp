@@ -2,7 +2,7 @@
 #include "ledger/LedgerMaster.h"
 #include "main/Application.h"
 #include <time.h>
-#include "lib/util/Logging.h"
+#include "util/Logging.h"
 #include "txherder/TransactionSet.h"
 #include "lib/util/easylogging++.h"
 #include "fba/FBA.h"

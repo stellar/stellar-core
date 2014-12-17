@@ -1,6 +1,6 @@
 #include "Application.h"
 #include "overlay/PeerMaster.h"
-#include "lib/util/Logging.h"
+#include "util/Logging.h"
 #include "util/make_unique.h"
 
 namespace stellar

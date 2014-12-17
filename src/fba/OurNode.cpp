@@ -2,7 +2,7 @@
 #include <time.h>
 #include "fba/OurNode.h"
 #include "main/Application.h"
-#include "lib/util/Logging.h"
+#include "util/Logging.h"
 
 #define PREPARE_TIMEOUT_MS 1000
 

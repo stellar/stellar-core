@@ -1,7 +1,7 @@
 #include "LedgerDatabase.h"
 #include "generated/StellarXDR.h"
 
-#include "lib/util/Logging.h"
+#include "util/Logging.h"
 
 namespace stellar
 {

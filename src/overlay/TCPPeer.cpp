@@ -1,5 +1,5 @@
 #include "overlay/TCPPeer.h"
-#include "lib/util/Logging.h"
+#include "util/Logging.h"
 #include "main/Application.h"
 #include "generated/StellarXDR.h"
 #include "xdrpp/marshal.h"

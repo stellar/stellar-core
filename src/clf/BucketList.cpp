@@ -1,6 +1,6 @@
 #include "BucketList.h"
 #include "main/Application.h"
-#include "lib/util/Logging.h"
+#include "util/Logging.h"
 #include <cassert>
 
 namespace stellar

@@ -4,7 +4,7 @@
 #include <ostream>
 #include <string>
 #include <asio.hpp>
-#include "lib/util/Logging.h"
+#include "util/Logging.h"
 
 using asio::ip::tcp;
 

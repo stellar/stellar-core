@@ -1,7 +1,7 @@
 #include "generated/StellardVersion.h"
 #include "main/Config.h"
 #include "util/make_unique.h"
-#include "lib/util/Logging.h"
+#include "util/Logging.h"
 #include <time.h>
 
 #ifdef _MSC_VER

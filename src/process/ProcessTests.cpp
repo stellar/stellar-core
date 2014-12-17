@@ -3,7 +3,7 @@
 #include "history/HistoryGateway.h"
 #include "main/test.h"
 #include "lib/catch.hpp"
-#include "lib/util/Logging.h"
+#include "util/Logging.h"
 #include <future>
 
 using namespace stellar;

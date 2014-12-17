@@ -1,7 +1,7 @@
 #include "main/CommandHandler.h"
 #include "main/Application.h"
 #include "lib/http/server.hpp"
-#include "lib/util/Logging.h"
+#include "util/Logging.h"
 #include "util/make_unique.h"
 
 using std::placeholders::_1;
