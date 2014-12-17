@@ -2,7 +2,7 @@
 #define __TCPPEER__
 
 #include "overlay/Peer.h"
-#include "util/timer.h"
+#include "util/Timer.h"
 
 namespace stellar
 {

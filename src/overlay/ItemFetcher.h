@@ -6,7 +6,7 @@
 #include "overlay/Peer.h"
 #include "fba/QuorumSet.h"
 #include "clf/CLF.h"
-#include "util/timer.h"
+#include "util/Timer.h"
 
 /*
 Manages asking for Transaction or Quorum sets from Peers

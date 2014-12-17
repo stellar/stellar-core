@@ -10,7 +10,7 @@
 #include "generated/StellarXDR.h"
 #include "overlay/OverlayGateway.h"
 #include "overlay/PreferredPeers.h"
-#include "util/timer.h"
+#include "util/Timer.h"
 
 using namespace std;
 /*

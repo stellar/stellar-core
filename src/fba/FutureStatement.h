@@ -3,7 +3,7 @@
 
 #include <memory>
 #include "fba/Statement.h"
-#include "util/timer.h"
+#include "util/Timer.h"
 
 namespace stellar
 {
