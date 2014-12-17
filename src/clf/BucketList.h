@@ -2,7 +2,7 @@
 #define __BUCKETLIST__
 
 #include <future>
-#include "generated/stellar.hh"
+#include "generated/StellarXDR.h"
 #include "CanonicalLedgerForm.h"
 
 namespace stellar

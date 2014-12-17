@@ -14,7 +14,7 @@
 *~
 .deps
 .dirstamp
-/src/generated/stellar.hh
+/src/generated/StellarXDR.h
 /src/util/StellardVersion.h
 /Makefile
 /Makefile.in

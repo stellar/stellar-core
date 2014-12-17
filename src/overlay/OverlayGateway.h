@@ -1,7 +1,7 @@
 #ifndef __OVERLAYGATEWAY__
 #define __OVERLAYGATEWAY__
 
-#include "generated/stellar.hh"
+#include "generated/StellarXDR.h"
 
 /*
 Public interface to the Overlay module

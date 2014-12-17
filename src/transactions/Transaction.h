@@ -2,7 +2,7 @@
 #define __TRANSACTION__
 #include <memory>
 #include "ledger/AccountEntry.h"
-#include "generated/stellar.hh"
+#include "generated/StellarXDR.h"
 #include "TransactionResultCodes.h"
 #include "lib/util/types.h"
 

@@ -1,5 +1,5 @@
 #include <memory>
-#include "generated/stellar.hh"
+#include "generated/StellarXDR.h"
 
 /*
 	What FBA uses to talk to the rest of the world

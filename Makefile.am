@@ -24,7 +24,7 @@ FMT_SRCS = src/overlay/Floodgate.cpp src/overlay/PeerDoor.cpp                   
 	src/process/ProcessTests.cpp src/history/HistoryMaster.cpp                  \
 	src/history/HistoryTests.cpp src/overlay/OverlayTests.cpp
 
-BUILT_SOURCES = src/util/StellardVersion.h src/generated/stellar.hh
+BUILT_SOURCES = src/util/StellardVersion.h src/generated/StellarXDR.h
 
 bin_stellard_SOURCES = $(FMT_SRCS) \
                        $(BUILT_SOURCES) \
@@ -47,7 +47,7 @@ src/util/StellardVersion.h: Makefile
 
 AM_CXXFLAGS = -stdlib=libc++
 
-src/generated/stellar.hh: src/overlay/protocol.x Makefile
+src/generated/StellarXDR.h: src/overlay/StellarXDR.x Makefile
 	mkdir -p src/generated
 	$(XDRC) -hh -o $@ $<
 

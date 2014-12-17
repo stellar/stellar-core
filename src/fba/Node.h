@@ -3,7 +3,7 @@
 
 #include <memory>
 #include <vector>
-#include "generated/stellar.hh"
+#include "generated/StellarXDR.h"
 #include "fba/Statement.h"
 #include "fba/FBA.h"
 

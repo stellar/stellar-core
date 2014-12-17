@@ -2,7 +2,7 @@
 #define __TXHERDERGATEWAY__
 
 #include <memory>
-#include "generated/stellar.hh"
+#include "generated/StellarXDR.h"
 #include "fba/FBA.h"
 /*
 Public Interface to the TXHerder module

@@ -1,7 +1,7 @@
 #ifndef __LEDGERENTRY__
 #define __LEDGERENTRY__
 
-#include "generated/stellar.hh"
+#include "generated/StellarXDR.h"
 #include "LedgerDatabase.h"
 
 /*

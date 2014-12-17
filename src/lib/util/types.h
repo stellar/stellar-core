@@ -1,5 +1,5 @@
 #include <vector>
-#include "generated/stellar.hh"
+#include "generated/StellarXDR.h"
 #include "xdrpp/message.h"
 
 namespace stellar

@@ -1,5 +1,5 @@
 #include "lib/catch.hpp"
-#include "generated/stellar.hh"
+#include "generated/StellarXDR.h"
 #include "fba/Ballot.h"
 #include "main/test.h"
 #include "main/Application.h"

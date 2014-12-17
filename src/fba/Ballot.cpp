@@ -1,6 +1,6 @@
 #include "fba/Ballot.h"
 #include "ledger/Ledger.h"
-#include "generated/stellar.hh"
+#include "generated/StellarXDR.h"
 
 /*
     TODO.2: How do we use the excluded ballots in preparing?

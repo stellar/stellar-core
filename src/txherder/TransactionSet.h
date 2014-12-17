@@ -3,7 +3,7 @@
 
 #include "transactions/Transaction.h"
 //#include "fba/FBAWorldInterface.h"
-#include "generated/stellar.hh"
+#include "generated/StellarXDR.h"
 
 using namespace std;
 

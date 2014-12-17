@@ -1,4 +1,4 @@
-#include "generated/stellar.hh"
+#include "generated/StellarXDR.h"
 
 namespace stellar
 {

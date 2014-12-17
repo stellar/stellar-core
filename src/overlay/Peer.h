@@ -6,7 +6,7 @@
 #endif
 #include <asio.hpp>
 #include "xdrpp/message.h"
-#include "generated/stellar.hh"
+#include "generated/StellarXDR.h"
 #include "fba/QuorumSet.h"
 
 /*

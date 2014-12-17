@@ -2,7 +2,7 @@
 #define __FLOODGATE__
 
 
-#include "generated/stellar.hh"
+#include "generated/StellarXDR.h"
 #include "overlay/Peer.h"
 #include <map>
 

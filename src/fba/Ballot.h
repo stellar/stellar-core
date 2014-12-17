@@ -3,7 +3,7 @@
 
 #include "txherder/TransactionSet.h"
 #include "fba/Node.h"
-#include "generated/stellar.hh"
+#include "generated/StellarXDR.h"
 #include "fba/FBA.h"
 
 namespace stellar

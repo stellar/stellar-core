@@ -4,7 +4,7 @@
 
 #include "lib/crypto/EdKeyPair.h"
 #include "lib/util/types.h"
-#include "generated/stellar.hh"
+#include "generated/StellarXDR.h"
 
 /*
 one half of the signing key

@@ -1,5 +1,5 @@
 #include "LedgerDatabase.h"
-#include "generated/stellar.hh"
+#include "generated/StellarXDR.h"
 
 #include "lib/util/Logging.h"
 

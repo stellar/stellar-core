@@ -3,7 +3,7 @@
 
 #include <vector>
 #include <memory>
-#include "generated/stellar.hh"
+#include "generated/StellarXDR.h"
 #include "ledger/LedgerEntry.h"
 #include "clf/CLFGateway.h"
 

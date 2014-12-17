@@ -7,7 +7,7 @@
 #include "overlay/Floodgate.h"
 #include <vector>
 #include <thread>
-#include "generated/stellar.hh"
+#include "generated/StellarXDR.h"
 #include "overlay/OverlayGateway.h"
 #include "overlay/PreferredPeers.h"
 #include "util/timer.h"

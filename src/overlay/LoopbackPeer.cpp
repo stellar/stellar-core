@@ -1,7 +1,7 @@
 #include "overlay/LoopbackPeer.h"
 #include "lib/util/Logging.h"
 #include "main/Application.h"
-#include "generated/stellar.hh"
+#include "generated/StellarXDR.h"
 #include "xdrpp/marshal.h"
 #include "overlay/PeerMaster.h"
 
