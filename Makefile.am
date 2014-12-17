@@ -24,6 +24,31 @@ FMT_SRCS = src/overlay/Floodgate.cpp src/overlay/PeerDoor.cpp                   
 	src/process/ProcessTests.cpp src/history/HistoryMaster.cpp                  \
 	src/history/HistoryTests.cpp src/overlay/OverlayTests.cpp
 
+FMT_HDRS = src/clf/BucketList.h src/clf/CanonicalLedgerForm.h src/clf/CLF.h     \
+	src/clf/CLFDelta.h src/clf/CLFGateway.h src/crypto/EdKeyPair.h              \
+	src/crypto/StellarPrivateKey.h src/crypto/StellarPublicKey.h                \
+	src/fba/Ballot.h src/fba/FBA.h src/fba/FBAGateway.h src/fba/FBAMaster.h     \
+	src/fba/FBAWorldInterface.h src/fba/FutureStatement.h src/fba/Node.h        \
+	src/fba/OurNode.h src/fba/QuorumSet.h src/fba/Statement.h                   \
+	src/history/HistoryGateway.h src/history/HistoryMaster.h                    \
+	src/ledger/AccountEntry.h src/ledger/Ledger.h src/ledger/LedgerDatabase.h   \
+	src/ledger/LedgerEntry.h src/ledger/LedgerGateway.h                         \
+	src/ledger/LedgerMaster.h src/ledger/OfferEntry.h src/ledger/TrustLine.h    \
+	src/main/Application.h src/main/CommandHandler.h src/main/Config.h          \
+	src/main/test.h src/overlay/FetchableItem.h src/overlay/Floodgate.h         \
+	src/overlay/ItemFetcher.h src/overlay/LoopbackPeer.h                        \
+	src/overlay/OverlayGateway.h src/overlay/Peer.h src/overlay/PeerDoor.h      \
+	src/overlay/PeerMaster.h src/overlay/PreferredPeers.h src/overlay/TCPPeer.h \
+	src/process/ProcessGateway.h src/process/ProcessMaster.h                    \
+	src/transactions/CancelOfferTx.h src/transactions/CreateOfferTx.h           \
+	src/transactions/InflationTx.h src/transactions/MergeTx.h                   \
+	src/transactions/PaymentTx.h src/transactions/SetAccountTx.h                \
+	src/transactions/SetRegularKeyTx.h src/transactions/Transaction.h           \
+	src/transactions/TransactionResultCodes.h src/transactions/TrustSetTx.h     \
+	src/txherder/TransactionSet.h src/txherder/TxHerder.h                       \
+	src/txherder/TxHerderGateway.h src/util/Logging.h src/util/make_unique.h    \
+	src/util/Timer.h src/util/types.h
+
 BUILT_SOURCES = src/generated/StellardVersion.h src/generated/StellarXDR.h
 
 bin_stellard_SOURCES = $(FMT_SRCS) \
@@ -53,7 +78,7 @@ src/generated/StellarXDR.h: src/overlay/StellarXDR.x Makefile
 
 if USE_CLANG_FORMAT
 format:
-	cd $(srcdir) && $(CLANG_FORMAT) -i $(FMT_SRCS)
+	cd $(srcdir) && $(CLANG_FORMAT) -i $(FMT_SRCS) $(FMT_HDRS)
 endif
 
 maintainer-clean-local:
