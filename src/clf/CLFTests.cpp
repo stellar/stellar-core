@@ -17,7 +17,7 @@ TEST_CASE("bucket list", "[clf]")
         Application app(cfg);
         BucketList bl;
         autocheck::generator<std::vector<Bucket::KVPair>> gen;
-        for (uint64_t i = 1; !app.getMainIOService().stopped() && i < 9000; ++i)
+        for (uint64_t i = 1; !app.getMainIOService().stopped() && i < 130; ++i)
         {
             app.getMainIOService().poll_one();
             bl.addBatch(app, i, gen(100));
