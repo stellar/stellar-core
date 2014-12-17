@@ -24,15 +24,17 @@ FMT_SRCS = src/overlay/Floodgate.cpp src/overlay/PeerDoor.cpp                   
 	src/process/ProcessTests.cpp src/history/HistoryMaster.cpp                  \
 	src/history/HistoryTests.cpp src/overlay/OverlayTests.cpp
 
+BUILT_SOURCES = src/util/StellardVersion.h src/generated/stellar.hh
 
-bin_stellard_SOURCES = $(FMT_SRCS) src/lib/util/getopt_long.c src/util/StellardVersion.h \
-                       src/generated/stellar.hh
-bin_stellard_LDADD = -lxdrpp
-bin_stellard_CPPFLAGS = -I$(builddir)/src \
+bin_stellard_SOURCES = $(FMT_SRCS) \
+                       $(BUILT_SOURCES) \
+                       src/lib/util/getopt_long.c
+
+bin_stellard_CPPFLAGS = -I$(top_srcdir)/src \
+                        -I$(builddir)/src \
                         -I$(srcdir)/src/lib/autocheck/include \
                         -I$(srcdir)/src/lib/asio/include -DASIO_STANDALONE
 
-BUILT_SOURCES = src/util/StellardVersion.h src/generated/stellar.hh
 CLEANFILES = $(BUILT_SOURCES)
 GITDIR = $(top_srcdir)/.git
 src/util/StellardVersion.h: Makefile
