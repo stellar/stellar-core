@@ -1,9 +1,13 @@
+// Copyright 2014 Stellar Development Foundation and contributors. Licensed
+// under the ISC License. See the COPYING file at the top-level directory of
+// this distribution or at http://opensource.org/licenses/ISC
+
 #include "Transaction.h"
 #include "xdrpp/marshal.h"
 
 namespace stellar
 {
-	Transaction::pointer Transaction::makeTransactionFromWire(stellarxdr::TransactionEnvelope& msg)
+	Transaction::pointer Transaction::makeTransactionFromWire(stellarxdr::TransactionEnvelope const& msg)
 	{
         //mSignature = msg.signature;
 
@@ -50,11 +54,11 @@ namespace stellar
         // LATER
     }
 
-    StellarMessagePtr Transaction::toStellarMessage()
+    stellarxdr::StellarMessage&& Transaction::toStellarMessage()
     {
-        StellarMessagePtr msg = std::make_shared<stellarxdr::StellarMessage>();
-        msg->type(stellarxdr::TRANSACTION);
-        toXDR(msg->transaction());
-        return msg;
+        stellarxdr::StellarMessage msg;
+        msg.type(stellarxdr::TRANSACTION);
+        toXDR(msg.transaction());
+        return std::move(msg);
     }
 }

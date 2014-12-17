@@ -1,11 +1,15 @@
 #ifndef __TRANSACTION__
 #define __TRANSACTION__
+
+// Copyright 2014 Stellar Development Foundation and contributors. Licensed
+// under the ISC License. See the COPYING file at the top-level directory of
+// this distribution or at http://opensource.org/licenses/ISC
+
 #include <memory>
 #include "ledger/AccountEntry.h"
-#include "generated/stellar.hh"
+#include "generated/StellarXDR.h"
 #include "TransactionResultCodes.h"
-#include "lib/util/types.h"
-#include "overlay/StellarMessage.h"
+#include "util/types.h"
 
 /*
 A transaction in its exploded form.
@@ -35,7 +39,7 @@ namespace stellar
 		typedef std::shared_ptr<Transaction> pointer;
 
 		static Transaction::pointer makeTransactionFromDB();
-		static Transaction::pointer makeTransactionFromWire(stellarxdr::TransactionEnvelope& msg);
+		static Transaction::pointer makeTransactionFromWire(stellarxdr::TransactionEnvelope const& msg);
         stellarxdr::uint256 getHash();
         stellarxdr::uint256 getSignature();
 		bool isValid();
@@ -46,7 +50,7 @@ namespace stellar
 
         void toXDR(stellarxdr::Transaction& body);
         void toXDR(stellarxdr::TransactionEnvelope& envelope);
-        StellarMessagePtr toStellarMessage();
+        stellarxdr::StellarMessage&& toStellarMessage();
 	};
 
 }

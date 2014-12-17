@@ -6,7 +6,7 @@ bin_PROGRAMS = bin/stellard
 FMT_SRCS = src/overlay/Floodgate.cpp src/overlay/PeerDoor.cpp                   \
 	src/overlay/TCPPeer.cpp src/overlay/LoopbackPeer.cpp src/overlay/Peer.cpp   \
 	src/overlay/ItemFetcher.cpp src/overlay/PeerMaster.cpp                      \
-	src/overlay/PreferredPeers.cpp src/lib/util/types.cpp src/fba/FBAMaster.cpp \
+	src/overlay/PreferredPeers.cpp src/util/types.cpp src/fba/FBAMaster.cpp \
 	src/fba/FutureStatement.cpp src/fba/OurNode.cpp src/fba/QuorumSet.cpp       \
 	src/fba/Statement.cpp src/fba/Node.cpp src/fba/Ballot.cpp                   \
 	src/ledger/LedgerDatabase.cpp src/ledger/Ledger.cpp                         \
@@ -24,18 +24,47 @@ FMT_SRCS = src/overlay/Floodgate.cpp src/overlay/PeerDoor.cpp                   
 	src/process/ProcessTests.cpp src/history/HistoryMaster.cpp                  \
 	src/history/HistoryTests.cpp src/overlay/OverlayTests.cpp
 
+FMT_HDRS = src/clf/BucketList.h src/clf/CanonicalLedgerForm.h src/clf/CLF.h     \
+	src/clf/CLFDelta.h src/clf/CLFGateway.h src/crypto/EdKeyPair.h              \
+	src/crypto/StellarPrivateKey.h src/crypto/StellarPublicKey.h                \
+	src/fba/Ballot.h src/fba/FBA.h src/fba/FBAGateway.h src/fba/FBAMaster.h     \
+	src/fba/FBAWorldInterface.h src/fba/FutureStatement.h src/fba/Node.h        \
+	src/fba/OurNode.h src/fba/QuorumSet.h src/fba/Statement.h                   \
+	src/history/HistoryGateway.h src/history/HistoryMaster.h                    \
+	src/ledger/AccountEntry.h src/ledger/Ledger.h src/ledger/LedgerDatabase.h   \
+	src/ledger/LedgerEntry.h src/ledger/LedgerGateway.h                         \
+	src/ledger/LedgerMaster.h src/ledger/OfferEntry.h src/ledger/TrustLine.h    \
+	src/main/Application.h src/main/CommandHandler.h src/main/Config.h          \
+	src/main/test.h src/overlay/FetchableItem.h src/overlay/Floodgate.h         \
+	src/overlay/ItemFetcher.h src/overlay/LoopbackPeer.h                        \
+	src/overlay/OverlayGateway.h src/overlay/Peer.h src/overlay/PeerDoor.h      \
+	src/overlay/PeerMaster.h src/overlay/PreferredPeers.h src/overlay/TCPPeer.h \
+	src/process/ProcessGateway.h src/process/ProcessMaster.h                    \
+	src/transactions/CancelOfferTx.h src/transactions/CreateOfferTx.h           \
+	src/transactions/InflationTx.h src/transactions/MergeTx.h                   \
+	src/transactions/PaymentTx.h src/transactions/SetAccountTx.h                \
+	src/transactions/SetRegularKeyTx.h src/transactions/Transaction.h           \
+	src/transactions/TransactionResultCodes.h src/transactions/TrustSetTx.h     \
+	src/txherder/TransactionSet.h src/txherder/TxHerder.h                       \
+	src/txherder/TxHerderGateway.h src/util/Logging.h src/util/make_unique.h    \
+	src/util/Timer.h src/util/types.h
 
-bin_stellard_SOURCES = $(FMT_SRCS) src/lib/util/getopt_long.c src/util/StellardVersion.h \
-                       src/generated/stellar.hh
+BUILT_SOURCES = src/generated/StellardVersion.h src/generated/StellarXDR.h
+
+bin_stellard_SOURCES = $(FMT_SRCS) \
+                       $(BUILT_SOURCES) \
+                       src/lib/util/getopt_long.c
+
 bin_stellard_LDADD = -lxdrpp
-bin_stellard_CPPFLAGS = -I$(builddir)/src \
+
+bin_stellard_CPPFLAGS = -I$(top_srcdir)/src \
+                        -I$(builddir)/src \
                         -I$(srcdir)/src/lib/autocheck/include \
                         -I$(srcdir)/src/lib/asio/include -DASIO_STANDALONE
 
-BUILT_SOURCES = src/util/StellardVersion.h src/generated/stellar.hh
 CLEANFILES = $(BUILT_SOURCES)
 GITDIR = $(top_srcdir)/.git
-src/util/StellardVersion.h: Makefile
+src/generated/StellardVersion.h: Makefile
 	if test -d "$(GITDIR)"; then                                            \
       (VERS="$$(GIT_DIR=$(GITDIR) git describe --always --dirty --tags)" && \
        echo "#define STELLARD_VERSION \"$$VERS\"") >$@;                     \
@@ -45,13 +74,13 @@ src/util/StellardVersion.h: Makefile
 
 AM_CXXFLAGS = -stdlib=libc++
 
-src/generated/stellar.hh: src/overlay/protocol.x Makefile
+src/generated/StellarXDR.h: src/overlay/StellarXDR.x Makefile
 	mkdir -p src/generated
 	$(XDRC) -hh -o $@ $<
 
 if USE_CLANG_FORMAT
 format:
-	cd $(srcdir) && $(CLANG_FORMAT) -i $(FMT_SRCS)
+	cd $(srcdir) && $(CLANG_FORMAT) -i $(FMT_SRCS) $(FMT_HDRS)
 endif
 
 maintainer-clean-local:

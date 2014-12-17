@@ -1,3 +1,7 @@
+// Copyright 2014 Stellar Development Foundation and contributors. Licensed
+// under the ISC License. See the COPYING file at the top-level directory of
+// this distribution or at http://opensource.org/licenses/ISC
+
 #include "TransactionSet.h"
 #include "xdrpp/marshal.h"
 
@@ -7,7 +11,7 @@ TransactionSet::TransactionSet()
 {
 }
 
-TransactionSet::TransactionSet(stellarxdr::TransactionSet& xdrSet)
+TransactionSet::TransactionSet(stellarxdr::TransactionSet const& xdrSet)
 {
     for (auto txEnvelope : xdrSet.txs)
     {
@@ -41,7 +45,7 @@ bool TransactionSet::operator > (const TransactionSet& other)
 */
 
 Transaction::pointer
-TransactionSet::getTransaction(stellarxdr::uint256& txHash)
+TransactionSet::getTransaction(stellarxdr::uint256 const& txHash)
 {
     for (auto tx : mTransactions)
     {

@@ -1,7 +1,11 @@
-#ifndef __PROCESSGATEWAY_H__
-#define __PROCESSGATEWAY_H__
+#ifndef __PROCESSGATEWAY__
+#define __PROCESSGATEWAY__
 
-#include "util/timer.h"
+// Copyright 2014 Stellar Development Foundation and contributors. Licensed
+// under the ISC License. See the COPYING file at the top-level directory of
+// this distribution or at http://opensource.org/licenses/ISC
+
+#include "util/Timer.h"
 #include <memory>
 #include <string>
 
@@ -18,7 +22,6 @@ namespace stellar
  * asynchronous version of system().
  */
 
-
 // Wrap a platform-specific Impl strategy that monitors process-exits in a
 // helper simulating an event-notifier, via a general asio timer set to maximum
 // duration. Clients can register handlers on this and they are wrapped into
@@ -32,7 +35,8 @@ class ProcessExitEvent
     std::shared_ptr<asio::error_code> mEc;
     ProcessExitEvent(asio::io_service& io_service);
     friend class ProcessMaster;
-public:
+
+  public:
     ~ProcessExitEvent();
     template <typename WaitHandler>
     void async_wait(ASIO_MOVE_ARG(WaitHandler) handler)
@@ -43,22 +47,20 @@ public:
         // _actual_ process-exit condition through _another_ variable shared
         // between ProcessExitEvent and the per-platform handlers.
         auto ec = mEc;
-        mTimer->async_wait(
-            bind([ec](WaitHandler &handler)
-                 {
-                     handler(*ec);
-                 }, std::move(handler)));
+        mTimer->async_wait(bind(
+            [ec](WaitHandler& handler)
+            {
+                handler(*ec);
+            },
+            std::move(handler)));
     }
 };
 
-
 class ProcessGateway
 {
-public:
+  public:
     virtual ProcessExitEvent runProcess(std::string const& cmdLine) = 0;
 };
-
-
 }
 
 #endif

@@ -1,7 +1,11 @@
-#include "LedgerDatabase.h"
-#include "generated/stellar.hh"
+// Copyright 2014 Stellar Development Foundation and contributors. Licensed
+// under the ISC License. See the COPYING file at the top-level directory of
+// this distribution or at http://opensource.org/licenses/ISC
 
-#include "lib/util/Logging.h"
+#include "LedgerDatabase.h"
+#include "generated/StellarXDR.h"
+
+#include "util/Logging.h"
 
 namespace stellar
 {

@@ -1,7 +1,11 @@
+// Copyright 2014 Stellar Development Foundation and contributors. Licensed
+// under the ISC License. See the COPYING file at the top-level directory of
+// this distribution or at http://opensource.org/licenses/ISC
+
 #include "overlay/TCPPeer.h"
-#include "lib/util/Logging.h"
+#include "util/Logging.h"
 #include "main/Application.h"
-#include "generated/stellar.hh"
+#include "generated/StellarXDR.h"
 #include "xdrpp/marshal.h"
 #include "overlay/PeerMaster.h"
 
@@ -151,15 +155,15 @@ TCPPeer::readBodyHandler(const asio::error_code& error,
 void
 TCPPeer::recvMessage()
 {
-    // FIXME: This can do one-less-copy, given a new unmarshal-from-raw-pointers
-    // helper in xdrpp.
-    xdr::msg_ptr incoming = xdr::message_t::alloc(mIncomingBody.size());
-    memcpy(incoming->raw_data(), mIncomingBody.data(), mIncomingBody.size());
-    Peer::recvMessage(std::move(incoming));
+    xdr::xdr_get g(mIncomingBody.data(),
+                   mIncomingBody.data() + mIncomingBody.size());
+    stellarxdr::StellarMessage sm;
+    xdr::xdr_argpack_archive(g, sm);
+    Peer::recvMessage(sm);
 }
 
 void
-TCPPeer::recvHello(StellarMessagePtr msg)
+TCPPeer::recvHello(stellarxdr::StellarMessage const& msg)
 {
     mHelloTimer.cancel();
     Peer::recvHello(msg);

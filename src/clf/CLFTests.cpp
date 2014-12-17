@@ -1,9 +1,13 @@
+// Copyright 2014 Stellar Development Foundation and contributors. Licensed
+// under the ISC License. See the COPYING file at the top-level directory of
+// this distribution or at http://opensource.org/licenses/ISC
+
 #include "main/Application.h"
 #include "xdrpp/autocheck.h"
 #include "clf/BucketList.h"
 #include "main/test.h"
 #include "lib/catch.hpp"
-#include "lib/util/Logging.h"
+#include "util/Logging.h"
 #include <future>
 
 using namespace stellar;
@@ -17,7 +21,7 @@ TEST_CASE("bucket list", "[clf]")
         Application app(cfg);
         BucketList bl;
         autocheck::generator<std::vector<Bucket::KVPair>> gen;
-        for (uint64_t i = 1; !app.getMainIOService().stopped() && i < 9000; ++i)
+        for (uint64_t i = 1; !app.getMainIOService().stopped() && i < 130; ++i)
         {
             app.getMainIOService().poll_one();
             bl.addBatch(app, i, gen(100));

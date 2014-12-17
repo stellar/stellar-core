@@ -1,7 +1,12 @@
+// Copyright 2014 Stellar Development Foundation and contributors. Licensed
+// under the ISC License. See the COPYING file at the top-level directory of
+// this distribution or at http://opensource.org/licenses/ISC
+
 #include "main/CommandHandler.h"
 #include "main/Application.h"
 #include "lib/http/server.hpp"
-#include "lib/util/Logging.h"
+#include "util/Logging.h"
+#include "util/make_unique.h"
 
 using std::placeholders::_1;
 using std::placeholders::_2;
@@ -10,29 +15,29 @@ namespace stellar
 {
 CommandHandler::CommandHandler(Application& app) : mApp(app)
 {
-    if (mApp.mConfig.HTTP_PORT)
+    if (!mApp.mConfig.RUN_STANDALONE && mApp.mConfig.HTTP_PORT)
     {
         std::string ipStr;
         ipStr = "127.0.0.1";
-        http::server::server httpServer(ipStr, mApp.mConfig.HTTP_PORT);
+        LOG(INFO) << "Listening on " << ipStr << ":" << mApp.mConfig.HTTP_PORT
+                  << " for HTTP requests";
 
-        httpServer.addRoute("stop",
-                            std::bind(&CommandHandler::stop, this, _1, _2));
-        httpServer.addRoute("peers",
-                            std::bind(&CommandHandler::peers, this, _1, _2));
-        httpServer.addRoute("info",
-                            std::bind(&CommandHandler::info, this, _1, _2));
-        httpServer.addRoute(
-            "reload_cfg", std::bind(&CommandHandler::reloadCfg, this, _1, _2));
-        httpServer.addRoute(
-            "logrotate", std::bind(&CommandHandler::logRotate, this, _1, _2));
-        httpServer.addRoute("connect",
-                            std::bind(&CommandHandler::connect, this, _1, _2));
-        httpServer.addRoute("tx", 
-                            std::bind(&CommandHandler::tx, this, _1, _2));
+        mServer = stellar::make_unique<http::server::server>(
+            app.getMainIOService(), ipStr, mApp.mConfig.HTTP_PORT);
 
-        LOG(INFO) << "Start listening for http requests";
-        httpServer.run();
+        mServer->addRoute("stop",
+                          std::bind(&CommandHandler::stop, this, _1, _2));
+        mServer->addRoute("peers",
+                          std::bind(&CommandHandler::peers, this, _1, _2));
+        mServer->addRoute("info",
+                          std::bind(&CommandHandler::info, this, _1, _2));
+        mServer->addRoute("reload_cfg",
+                          std::bind(&CommandHandler::reloadCfg, this, _1, _2));
+        mServer->addRoute("logrotate",
+                          std::bind(&CommandHandler::logRotate, this, _1, _2));
+        mServer->addRoute("connect",
+                          std::bind(&CommandHandler::connect, this, _1, _2));
+        mServer->addRoute("tx", std::bind(&CommandHandler::tx, this, _1, _2));
     }
 }
 

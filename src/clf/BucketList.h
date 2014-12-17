@@ -1,8 +1,12 @@
 #ifndef __BUCKETLIST__
 #define __BUCKETLIST__
 
+// Copyright 2014 Stellar Development Foundation and contributors. Licensed
+// under the ISC License. See the COPYING file at the top-level directory of
+// this distribution or at http://opensource.org/licenses/ISC
+
 #include <future>
-#include "generated/stellar.hh"
+#include "generated/StellarXDR.h"
 #include "CanonicalLedgerForm.h"
 
 namespace stellar
@@ -201,13 +205,17 @@ class Hasher
 {
     // FIXME : use a real CHF, this is a stand-in while doing design.
     uint256 mState;
-public:
+
+  public:
     void update(uint8_t const* data, size_t len);
     template <typename arr>
-    void update(arr const& v) { update(v.data(), v.size()); }
+    void
+    update(arr const& v)
+    {
+        update(v.data(), v.size());
+    }
     uint256 finish();
 };
-
 
 /**
  * Bucket is an immutable container for a sorted set of k/v pairs (object ID /
@@ -226,31 +234,29 @@ public:
 class Bucket
 {
 
-public:
+  public:
     // Each k/v entry is 20+32=52 bytes long.
     //
     // Suppose you reserve (say) 2**32=4GB RAM storing Buckets, then we can keep
     // about 82 million object/hash pairs in memory, before hitting disk.
     using KVPair = std::tuple<uint160, uint256>;
 
-private:
+  private:
     std::vector<KVPair> const mEntries;
     uint256 const mHash;
 
-public:
+  public:
     Bucket();
     Bucket(std::vector<KVPair>&& entries, uint256&& hash);
     std::vector<KVPair> const& getEntries() const;
     uint256 const& getHash() const;
 
-    static std::shared_ptr<Bucket>
-    fresh(std::vector<KVPair>&& entries);
+    static std::shared_ptr<Bucket> fresh(std::vector<KVPair>&& entries);
 
     static std::shared_ptr<Bucket>
     merge(std::shared_ptr<Bucket> const& oldBucket,
           std::shared_ptr<Bucket> const& newBucket);
 };
-
 
 class BucketLevel
 {
@@ -258,13 +264,15 @@ class BucketLevel
     std::future<std::shared_ptr<Bucket>> mNextCurr;
     std::shared_ptr<Bucket> mCurr;
     std::shared_ptr<Bucket> mSnap;
-public:
+
+  public:
     BucketLevel(size_t i);
     uint256 getHash() const;
     Bucket const& getCurr() const;
     Bucket const& getSnap() const;
     void commit();
-    void prepare(Application &app, uint64_t currLedger, std::shared_ptr<Bucket> snap);
+    void prepare(Application& app, uint64_t currLedger,
+                 std::shared_ptr<Bucket> snap);
     std::shared_ptr<Bucket> snap();
 };
 
@@ -272,8 +280,7 @@ class BucketList : public CLFGateway
 {
     std::vector<BucketLevel> mLevels;
 
-public:
-
+  public:
     static uint64_t levelSize(size_t level);
     static uint64_t levelHalf(size_t level);
     static bool levelShouldSpill(uint64_t ledger, size_t level);
@@ -282,8 +289,12 @@ public:
 
     // These two are from CLFGateway, don't exactly map on to concepts in
     // BucketList, but we implement them for now to keep it compiling.
-    virtual LedgerHeaderPtr getCurrentHeader() { return nullptr; }
-    virtual void recvDelta(CLFDeltaPtr delta) {};
+    virtual LedgerHeaderPtr
+    getCurrentHeader()
+    {
+        return nullptr;
+    }
+    virtual void recvDelta(CLFDeltaPtr delta){};
 
     // BucketList _just_ stores a set of key/hash pairs; anything else the CLF
     // wants to support should happen in another class. These operations form a
@@ -291,9 +302,8 @@ public:
     size_t numLevels() const;
     BucketLevel const& getLevel(size_t i) const;
     uint256 getHash() const;
-    void addBatch(Application &app, uint64_t currLedger,
+    void addBatch(Application& app, uint64_t currLedger,
                   std::vector<Bucket::KVPair>&& batch);
 };
-
 }
 #endif

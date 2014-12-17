@@ -33,8 +33,8 @@ XDRC=$(pkg-config --variable=xdrc xdrpp)
 AC_MSG_RESULT($XDRC)
 AC_SUBST(XDRC)
 
-CPPFLAGS="$CPPFLAGS "'-I$(top_srcdir)/src $(xdrpp_CFLAGS)'
-LDADD="$LDADD "'$(xdrpp_LIBS)'
+CPPFLAGS="$CPPFLAGS "'$(xdrpp_CFLAGS)'
+LDFLAGS="$LDFLAGS "'$(xdrpp_LIBS)'
 
 AC_CONFIG_HEADERS([config.h])
 AC_CONFIG_FILES([Makefile])

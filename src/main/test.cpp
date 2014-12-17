@@ -1,7 +1,11 @@
-#include "util/StellardVersion.h"
+// Copyright 2014 Stellar Development Foundation and contributors. Licensed
+// under the ISC License. See the COPYING file at the top-level directory of
+// this distribution or at http://opensource.org/licenses/ISC
+
+#include "generated/StellardVersion.h"
 #include "main/Config.h"
 #include "util/make_unique.h"
-#include "lib/util/Logging.h"
+#include "util/Logging.h"
 #include <time.h>
 
 #ifdef _MSC_VER

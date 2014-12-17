@@ -1,6 +1,10 @@
 #ifndef __FBAMASTER__
 #define __FBAMASTER__
 
+// Copyright 2014 Stellar Development Foundation and contributors. Licensed
+// under the ISC License. See the COPYING file at the top-level directory of
+// this distribution or at http://opensource.org/licenses/ISC
+
 #include <map>
 #include "ledger/Ledger.h"
 #include "txherder/TransactionSet.h"
@@ -20,82 +24,92 @@ start next ledger close
 
 
 What triggers ledgerclose?
-	people on your UNL start to close
-	you have tx and enough time has passed
+        people on your UNL start to close
+        you have tx and enough time has passed
 
 
 
 When a ledger closes
 
 FBA:
-	we see a prepare msg from someone
-	we issue our own prepare msg
+        we see a prepare msg from someone
+        we issue our own prepare msg
 
 
 */
 
 namespace stellar
 {
-    class Application;
+class Application;
 
-	class FBAMaster : public FBAGateway
-	{
-        Application &mApp;
-		bool mValidatingNode;
-		OurNode::pointer mOurNode;
-		QuorumSet::pointer mOurQuorumSet; // just store it as a ::pointer since the rest of the app wants it this way
+class FBAMaster : public FBAGateway
+{
+    Application& mApp;
+    bool mValidatingNode;
+    OurNode::pointer mOurNode;
+    QuorumSet::pointer mOurQuorumSet; // just store it as a ::pointer since the
+                                      // rest of the app wants it this way
 
-		// map of nodes we have gotten FBA messages from in this round
-		// we save ones we don't care about in case they are on some yet unknown Quorum Set
-		map<stellarxdr::uint256, Node::pointer> mKnownNodes;
+    // map of nodes we have gotten FBA messages from in this round
+    // we save ones we don't care about in case they are on some yet unknown
+    // Quorum Set
+    map<stellarxdr::uint256, Node::pointer> mKnownNodes;
 
-		// Statements we have gotten from the network but are waiting to get the txset of
-		vector<Statement::pointer> mWaitTxStatements;
+    // Statements we have gotten from the network but are waiting to get the
+    // txset of
+    vector<Statement::pointer> mWaitTxStatements;
 
-		// statements we have gotten with a ledger time too far in the future
-		vector<FutureStatement::pointer> mWaitFutureStatements;
+    // statements we have gotten with a ledger time too far in the future
+    vector<FutureStatement::pointer> mWaitFutureStatements;
 
-		// Collect any FBA messages we get for the next slot in case people are closing before you are ready
-		vector<Statement::pointer> mCollectedStatements;
+    // Collect any FBA messages we get for the next slot in case people are
+    // closing before you are ready
+    vector<Statement::pointer> mCollectedStatements;
 
-		enum FBAState
-		{
-			WAITING,  // we committed the last ledger so fast that we should wait a bit before closing the next one
-			UNPREPARED,
-			PREPARED,
-			RATIFIED,
-			COMMITED
-		};
+    enum FBAState
+    {
+        WAITING, // we committed the last ledger so fast that we should wait a
+                 // bit before closing the next one
+        UNPREPARED,
+        PREPARED,
+        RATIFIED,
+        COMMITED
+    };
 
-		// make sure we only send out our own FBA messages if we are a validator
+    // make sure we only send out our own FBA messages if we are a validator
 
-		bool processStatement(Statement::pointer statement);
-		void processStatements(vector<Statement::pointer>& statementList);
+    bool processStatement(Statement::pointer statement);
+    void processStatements(vector<Statement::pointer>& statementList);
 
-        void createOurQuroumSet();
+    void createOurQuroumSet();
 
-	public:
+  public:
+    FBAMaster(Application& app);
 
-		FBAMaster(Application &app);
+    void
+    setValidating(bool validating)
+    {
+        mValidatingNode = validating;
+    }
 
-		void setValidating(bool validating){ mValidatingNode = validating; }
+    void startNewRound(const stellarxdr::SlotBallot& firstBallot);
 
-		void startNewRound(const stellarxdr::SlotBallot& firstBallot);
-		
-		void transactionSetAdded(TransactionSet::pointer txSet);
+    void transactionSetAdded(TransactionSet::pointer txSet);
 
-		void addQuorumSet(QuorumSet::pointer qset);
+    void addQuorumSet(QuorumSet::pointer qset);
 
-        QuorumSet::pointer getOurQuorumSet() { return mOurQuorumSet; }
-        Node::pointer getNode(stellarxdr::uint256& nodeID);
-		
+    QuorumSet::pointer
+    getOurQuorumSet()
+    {
+        return mOurQuorumSet;
+    }
+    Node::pointer getNode(stellarxdr::uint256& nodeID);
 
-		// get a new statement from the network
-		void recvStatement(Statement::pointer statement);
+    // get a new statement from the network
+    void recvStatement(Statement::pointer statement);
 
-        void statementReady(FutureStatement::pointer statement);
-
-	};
+    void statementReady(FutureStatement::pointer statement);
+};
 }
 
 #endif

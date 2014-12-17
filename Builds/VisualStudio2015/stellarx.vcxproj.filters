@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
     <Filter Include="fba">
@@ -153,7 +153,7 @@
     <ClCompile Include="..\..\src\lib\util\uint256.cpp">
       <Filter>lib\util</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\lib\util\types.cpp">
+    <ClCompile Include="..\..\src\util\types.cpp">
       <Filter>lib\util</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\clf\BucketList.cpp">
@@ -317,7 +317,7 @@
     <ClInclude Include="..\..\src\overlay\PeerMaster.h">
       <Filter>overlay</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\generated\stellar.hh">
+    <ClInclude Include="..\..\src\generated\StellarXDR.h">
       <Filter>generated</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\database\Database.h">
@@ -498,7 +498,7 @@
     </Text>
   </ItemGroup>
   <ItemGroup>
-    <None Include="..\..\src\overlay\protocol.x">
+    <None Include="..\..\src\overlay\StellarXDR.x">
       <Filter>overlay</Filter>
     </None>
     <None Include="..\..\docs\transactions.md">

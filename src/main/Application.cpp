@@ -1,6 +1,10 @@
+// Copyright 2014 Stellar Development Foundation and contributors. Licensed
+// under the ISC License. See the COPYING file at the top-level directory of
+// this distribution or at http://opensource.org/licenses/ISC
+
 #include "Application.h"
 #include "overlay/PeerMaster.h"
-#include "lib/util/Logging.h"
+#include "util/Logging.h"
 #include "util/make_unique.h"
 
 namespace stellar
@@ -20,15 +24,22 @@ Application::Application(Config const& cfg)
     , mCommandHandler(*this)
     , mStopSignals(mMainIOService, SIGINT)
 {
-    LOG(INFO) << "Application constructing";
+#ifdef SIGQUIT
+    mStopSignals.add(SIGQUIT);
+#endif
+#ifdef SIGTERM
+    mStopSignals.add(SIGTERM);
+#endif
+
+    unsigned t = std::thread::hardware_concurrency();
+    LOG(INFO) << "Application constructing "
+              << "(worker threads: " << t << ")";
     mStopSignals.async_wait([this](asio::error_code const& ec, int sig)
     {
         LOG(INFO) << "got signal " << sig
             << ", shutting down";
         this->gracefulStop();
     });
-    unsigned t = std::thread::hardware_concurrency();
-    LOG(INFO) << "Worker threads: " << t;
     while(t--)
     {
         mWorkerThreads.emplace_back([this, t]()
@@ -59,9 +70,7 @@ Application::~Application()
 void
 Application::runWorkerThread(unsigned i)
 {
-    LOG(INFO) << "Worker thread " << i << " starting";
     mWorkerIOService.run();
-    LOG(INFO) << "Worker thread " << i << " complete";
 }
 
 void
@@ -82,16 +91,13 @@ Application::joinAllThreads()
     // any work that the main thread queued.
     if (mWork)
     {
-        LOG(INFO) << "Releasing worker threads";
         mWork.reset();
     }
-    unsigned i = 0;
+    LOG(INFO) << "Joining " << mWorkerThreads.size() << " worker threads";
     for (auto& w : mWorkerThreads)
     {
-        LOG(INFO) << "Joining worker thread " << i++;
         w.join();
     }
-
-    LOG(INFO) << "All worker threads complete";
+    LOG(INFO) << "Joined all " << mWorkerThreads.size() << " threads";
 }
 }

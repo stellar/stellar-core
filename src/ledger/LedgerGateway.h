@@ -1,5 +1,10 @@
 #ifndef __LEDGERGATEWAY__
 #define __LEDGERGATEWAY__
+
+// Copyright 2014 Stellar Development Foundation and contributors. Licensed
+// under the ISC License. See the COPYING file at the top-level directory of
+// this distribution or at http://opensource.org/licenses/ISC
+
 #include "fba/FBA.h"
 #include "clf/CLF.h"
 

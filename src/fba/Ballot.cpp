@@ -1,6 +1,10 @@
+// Copyright 2014 Stellar Development Foundation and contributors. Licensed
+// under the ISC License. See the COPYING file at the top-level directory of
+// this distribution or at http://opensource.org/licenses/ISC
+
 #include "fba/Ballot.h"
 #include "ledger/Ledger.h"
-#include "generated/stellar.hh"
+#include "generated/StellarXDR.h"
 
 /*
     TODO.2: How do we use the excluded ballots in preparing?

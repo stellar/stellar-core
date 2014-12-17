@@ -1,9 +1,13 @@
+// Copyright 2014 Stellar Development Foundation and contributors. Licensed
+// under the ISC License. See the COPYING file at the top-level directory of
+// this distribution or at http://opensource.org/licenses/ISC
+
 #include "PeerMaster.h"
 #include "main/Application.h"
 #include <thread>
 #include <random>
 #include "ledger/Ledger.h"
-#include "lib/util/Logging.h"
+#include "util/Logging.h"
 
 /*
 If we have less than the target number of peers we will try to connect to one
@@ -131,13 +135,14 @@ PeerMaster::addConfigPeers()
 }
 
 void
-PeerMaster::broadcastMessage(stellarxdr::uint256& msgID)
+PeerMaster::broadcastMessage(stellarxdr::uint256 const& msgID)
 {
     mFloodGate.broadcast(msgID, this);
 }
 
 void
-PeerMaster::broadcastMessage(StellarMessagePtr msg, Peer::pointer peer)
+PeerMaster::broadcastMessage(stellarxdr::StellarMessage const& msg,
+                             Peer::pointer peer)
 {
     vector<Peer::pointer> tempList;
     tempList.push_back(peer);
@@ -146,13 +151,14 @@ PeerMaster::broadcastMessage(StellarMessagePtr msg, Peer::pointer peer)
 
 // send message to anyone you haven't gotten it from
 void
-PeerMaster::broadcastMessage(StellarMessagePtr msg, vector<Peer::pointer>& skip)
+PeerMaster::broadcastMessage(stellarxdr::StellarMessage const& msg,
+                             vector<Peer::pointer> const& skip)
 {
     for (auto peer : mPeers)
     {
         if (find(skip.begin(), skip.end(), peer) == skip.end())
         {
-            peer->sendMessage(*msg);
+            peer->sendMessage(msg);
         }
     }
 }

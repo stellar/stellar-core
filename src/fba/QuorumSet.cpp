@@ -1,3 +1,7 @@
+// Copyright 2014 Stellar Development Foundation and contributors. Licensed
+// under the ISC License. See the COPYING file at the top-level directory of
+// this distribution or at http://opensource.org/licenses/ISC
+
 #include "QuorumSet.h"
 #include "main/Application.h"
 #include "xdrpp/marshal.h"
@@ -16,7 +20,7 @@ QuorumSet::QuorumSet()
 }
 
 // get qset from wire
-QuorumSet::QuorumSet(stellarxdr::QuorumSet& qset, Application& app)
+QuorumSet::QuorumSet(stellarxdr::QuorumSet const& qset, Application& app)
 {
     mThreshold = qset.threshold;
     for (auto id : qset.validators)

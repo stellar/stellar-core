@@ -11,3 +11,65 @@ SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
 WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
 ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR
 IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE
+
+
+Additional files found in the subdirectory src/lib are copies of liberally
+licensed external libraries (that we believe to be compatible with the license
+text of the collective work, above). The following are restatements of license
+information found in those files and/or their respective upstream repositories:
+
+src/lib/autocheck:
+
+  The Autocheck library,
+  Copyright 2012-2013 John Freeman
+  (https://github.com/thejohnfreeman)
+  Licensed under the MIT license
+  (http://opensource.org/licenses/MIT)
+
+src/lib/asio:
+
+  The ASIO library,
+  Copyright 2003-2014 Christopher M. Kohlhoff
+  (chris at kohlhoff dot com)
+  Licensed under the Boost Software License 1.0
+  (http://www.boost.org/LICENSE_1_0.txt)
+
+src/lib/catch.hpp:
+
+  The Catch library,
+  Copyright 2012 Two Blue Cubes Ltd.
+  (https://github.com/philsquared)
+  Licensed under the Boost Software License 1.0
+  (http://www.boost.org/LICENSE_1_0.txt)
+
+src/lib/http:
+
+  Example HTTP server from the ASIO library,
+  Copyright 2003-2014 Christopher M. Kohlhoff
+  (chris at kohlhoff dot com)
+  Licensed under the Boost Software License 1.0
+  (http://www.boost.org/LICENSE_1_0.txt)
+
+src/lib/util/easylogging++.h:
+
+  The EasyLogging++ library,
+  Copyright 2014 Majid Khan
+  (support@easylogging.org)
+  Licensed under the MIT license
+  (http://opensource.org/licenses/MIT)
+
+src/lib/util/getopt.h and getopt_long.c:
+
+  NetBSD's getopt/getopt_long libraries,
+  Copyright 2000 The NetBSD Foundation, Inc.
+  Copyright 2002 2002 Todd C. Miller <Todd.Miller@courtesan.com>
+  Licensed under the 2-clause BSD license
+  (http://opensource.org/licenses/BSD-2-Clause)
+
+src/lib/util/cpptoml.h:
+
+  The cpptoml library,
+  Copyright 2013-2014 Chase Geigle
+  (https://github.com/skystrife)
+  Licensed under the MIT license
+  (http://opensource.org/licenses/MIT)

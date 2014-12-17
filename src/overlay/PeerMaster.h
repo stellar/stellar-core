@@ -1,16 +1,20 @@
 #ifndef __PEERMASTER__
 #define __PEERMASTER__
 
+// Copyright 2014 Stellar Development Foundation and contributors. Licensed
+// under the ISC License. See the COPYING file at the top-level directory of
+// this distribution or at http://opensource.org/licenses/ISC
+
 #include "Peer.h"
 #include "PeerDoor.h"
 #include "overlay/ItemFetcher.h"
 #include "overlay/Floodgate.h"
 #include <vector>
 #include <thread>
-#include "generated/stellar.hh"
+#include "generated/StellarXDR.h"
 #include "overlay/OverlayGateway.h"
 #include "overlay/PreferredPeers.h"
-#include "util/timer.h"
+#include "util/Timer.h"
 
 using namespace std;
 /*
@@ -19,49 +23,70 @@ Maintain the set of peers we are connected to
 namespace stellar
 {
 
-	class PeerMaster : public OverlayGateway
-	{
-        Application &mApp;
-        // peers we are connected to
-		vector<Peer::pointer> mPeers;
-		PeerDoor mDoor;
-		QSetFetcher mQSetFetcher;
-        DeltaFetcher mDeltaFetcher;
-        PreferredPeers mPreferredPeers;
+class PeerMaster : public OverlayGateway
+{
+    Application& mApp;
+    // peers we are connected to
+    vector<Peer::pointer> mPeers;
+    PeerDoor mDoor;
+    QSetFetcher mQSetFetcher;
+    DeltaFetcher mDeltaFetcher;
+    PreferredPeers mPreferredPeers;
 
-		void addConfigPeers();
+    void addConfigPeers();
 
-        void tick();
-        Timer mTimer;
-	public:
-		Floodgate mFloodGate;
+    void tick();
+    Timer mTimer;
 
-		PeerMaster(Application &app);
-		~PeerMaster();
+  public:
+    Floodgate mFloodGate;
 
-		//////// GATEWAY FUNCTIONS
-		void ledgerClosed(LedgerPtr ledger);
+    PeerMaster(Application& app);
+    ~PeerMaster();
 
-		QuorumSet::pointer fetchQuorumSet(stellarxdr::uint256& itemID, bool askNetwork){ return(mQSetFetcher.fetchItem(itemID,askNetwork)); }
-        void fetchDelta(stellarxdr::uint256& oldLedgerHash, uint32_t oldLedgerSeq) { mDeltaFetcher.fetchItem(oldLedgerHash, oldLedgerSeq); }
-        void recvFloodedMsg(stellarxdr::uint256 index, StellarMessagePtr msg, uint32_t ledgerIndex, Peer::pointer peer) { mFloodGate.addRecord(index, msg, ledgerIndex, peer);  }
-        void doesntHaveQSet(stellarxdr::uint256 index, Peer::pointer peer) { mQSetFetcher.doesntHave(index, peer); }
+    //////// GATEWAY FUNCTIONS
+    void ledgerClosed(LedgerPtr ledger);
 
-        void broadcastMessage(StellarMessagePtr msg, Peer::pointer peer);
-        void recvQuorumSet(QuorumSet::pointer qset);
-		//////
+    QuorumSet::pointer
+    fetchQuorumSet(stellarxdr::uint256 const& itemID, bool askNetwork)
+    {
+        return (mQSetFetcher.fetchItem(itemID, askNetwork));
+    }
+    void
+    fetchDelta(stellarxdr::uint256 const& oldLedgerHash, uint32_t oldLedgerSeq)
+    {
+        mDeltaFetcher.fetchItem(oldLedgerHash, oldLedgerSeq);
+    }
+    void
+    recvFloodedMsg(stellarxdr::uint256 const& index,
+                   stellarxdr::StellarMessage const& msg, uint32_t ledgerIndex,
+                   Peer::pointer peer)
+    {
+        mFloodGate.addRecord(index, msg, ledgerIndex, peer);
+    }
+    void
+    doesntHaveQSet(stellarxdr::uint256 const& index, Peer::pointer peer)
+    {
+        mQSetFetcher.doesntHave(index, peer);
+    }
 
-		void addPeer(Peer::pointer peer);
-		void dropPeer(Peer::pointer peer);
-        bool isPeerAccepted(Peer::pointer peer);
+    void broadcastMessage(stellarxdr::StellarMessage const& msg,
+                          Peer::pointer peer);
+    void recvQuorumSet(QuorumSet::pointer qset);
+    //////
 
-		Peer::pointer getRandomPeer();
-		Peer::pointer getNextPeer(Peer::pointer peer); // returns NULL if the passed peer isn't found
+    void addPeer(Peer::pointer peer);
+    void dropPeer(Peer::pointer peer);
+    bool isPeerAccepted(Peer::pointer peer);
 
-		
-		void broadcastMessage(stellarxdr::uint256& msgID);
-		void broadcastMessage(StellarMessagePtr msg, vector<Peer::pointer>& skip);
-	};
+    Peer::pointer getRandomPeer();
+    Peer::pointer getNextPeer(
+        Peer::pointer peer); // returns NULL if the passed peer isn't found
+
+    void broadcastMessage(stellarxdr::uint256 const& msgID);
+    void broadcastMessage(stellarxdr::StellarMessage const& msg,
+                          vector<Peer::pointer> const& skip);
+};
 }
 
 #endif

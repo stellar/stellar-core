@@ -1,8 +1,11 @@
+// Copyright 2014 Stellar Development Foundation and contributors. Licensed
+// under the ISC License. See the COPYING file at the top-level directory of
+// this distribution or at http://opensource.org/licenses/ISC
 
 #include <time.h>
 #include "fba/OurNode.h"
 #include "main/Application.h"
-#include "lib/util/Logging.h"
+#include "util/Logging.h"
 
 #define PREPARE_TIMEOUT_MS 1000
 
@@ -96,9 +99,9 @@ OurNode::sendStatement(stellarxdr::FBAStatementType type,
     }
 
     statement->sign();
-    StellarMessagePtr msg = std::make_shared<stellarxdr::StellarMessage>();
-    msg->type(stellarxdr::FBA_MESSAGE);
-    msg->fbaMessage() = statement->mEnvelope;
+    stellarxdr::StellarMessage msg;
+    msg.type(stellarxdr::FBA_MESSAGE);
+    msg.fbaMessage() = statement->mEnvelope;
 
     mApp.getOverlayGateway().broadcastMessage(msg, Peer::pointer());
     mTimeSent[type] = std::chrono::system_clock::now();
