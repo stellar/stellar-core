@@ -1,5 +1,5 @@
-#ifndef TIMER_H
-#define TIMER_H
+#ifndef __TIMER__
+#define __TIMER__
 
 #include <chrono>
 #ifndef ASIO_STANDALONE

@@ -1,5 +1,5 @@
-#ifndef __PROCESSGATEWAY_H__
-#define __PROCESSGATEWAY_H__
+#ifndef __PROCESSGATEWAY__
+#define __PROCESSGATEWAY__
 
 #include "util/Timer.h"
 #include <memory>

@@ -1,5 +1,5 @@
-#ifndef __HISTORYGATEWAY_H__
-#define __HISTORYGATEWAY_H__
+#ifndef __HISTORYGATEWAY__
+#define __HISTORYGATEWAY__
 
 #include <string>
 

@@ -1,5 +1,5 @@
-#ifndef __HISTORYMASTER_H__
-#define __HISTORYMASTER_H__
+#ifndef __HISTORYMASTER__
+#define __HISTORYMASTER__
 
 #include "history/HistoryGateway.h"
 

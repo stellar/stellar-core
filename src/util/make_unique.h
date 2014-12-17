@@ -1,5 +1,5 @@
-#ifndef MAKE_UNIQUE_H
-#define MAKE_UNIQUE_H
+#ifndef __MAKE_UNIQUE__
+#define __MAKE_UNIQUE__
 #include <memory>
 
 namespace stellar {

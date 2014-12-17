@@ -1,5 +1,5 @@
-#ifndef __PROCESSMASTER_H__
-#define __PROCESSMASTER_H__
+#ifndef __PROCESSMASTER__
+#define __PROCESSMASTER__
 
 #include "process/ProcessGateway.h"
 
