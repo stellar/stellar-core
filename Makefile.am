@@ -84,6 +84,14 @@ format:
 endif
 
 TESTS=test/selftest-stellard
+
+@VALGRIND_CHECK_RULES@
+VALGRIND_FLAGS = --num-callers=30 --trace-children=yes \
+          --trace-children-skip=hostname,aws,gcutil,gcloud,azure,node,python
+VALGRIND_SUPPRESSIONS_FILES = stellard.supp
+EXTRA_DIST = stellard.supp
+MOSTLYCLEANFILES =
+
 maintainer-clean-local:
 	+@echo rm -rf `sed -ne 's!^/!!p' .gitignore` Makefile.in
 	rm -rf `sed -ne 's!^/!!p' .gitignore` Makefile.in
