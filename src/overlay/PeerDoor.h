@@ -1,6 +1,10 @@
 #ifndef __PEERDOOR__
 #define __PEERDOOR__
 
+// Copyright 2014 Stellar Development Foundation and contributors. Licensed
+// under the ISC License. See the COPYING file at the top-level directory of
+// this distribution or at http://opensource.org/licenses/ISC
+
 #ifndef ASIO_STANDALONE
 #define ASIO_STANDALONE
 #endif

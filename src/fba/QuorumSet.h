@@ -1,6 +1,10 @@
 #ifndef __QUORUMSET__
 #define __QUORUMSET__
 
+// Copyright 2014 Stellar Development Foundation and contributors. Licensed
+// under the ISC License. See the COPYING file at the top-level directory of
+// this distribution or at http://opensource.org/licenses/ISC
+
 #include "fba/Node.h"
 #include "fba/Ballot.h"
 //#include "fba/PrepareStatement.h"

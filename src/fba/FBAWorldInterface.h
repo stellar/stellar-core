@@ -1,5 +1,12 @@
+#ifndef __FBAWORLDINTERFACE__
+#define __FBAWORLDINTERFACE__
+
 #include <memory>
 #include "generated/StellarXDR.h"
+
+// Copyright 2014 Stellar Development Foundation and contributors. Licensed
+// under the ISC License. See the COPYING file at the top-level directory of
+// this distribution or at http://opensource.org/licenses/ISC
 
 /*
 	What FBA uses to talk to the rest of the world
@@ -36,3 +43,5 @@ namespace stellar
 	
 
 }
+
+#endif

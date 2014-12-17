@@ -1,6 +1,9 @@
 #ifndef __TRUSTLINE__
 #define __TRUSTLINE__
 
+// Copyright 2014 Stellar Development Foundation and contributors. Licensed
+// under the ISC License. See the COPYING file at the top-level directory of
+// this distribution or at http://opensource.org/licenses/ISC
 
 #include "ledger/LedgerEntry.h"
 #include "transactions/TransactionResultCodes.h"

@@ -1,6 +1,9 @@
-#ifndef __STELLARPRIVATECKEY__
-#define __STELLARPRIVATECKEY__
+#ifndef __STELLARPRIVATEKEY__
+#define __STELLARPRIVATEKEY__
 
+// Copyright 2014 Stellar Development Foundation and contributors. Licensed
+// under the ISC License. See the COPYING file at the top-level directory of
+// this distribution or at http://opensource.org/licenses/ISC
 
 #include "crypto/EdKeyPair.h"
 #include "util/types.h"

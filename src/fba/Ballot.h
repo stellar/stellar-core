@@ -1,6 +1,10 @@
 #ifndef __BALLOT__
 #define __BALLOT__
 
+// Copyright 2014 Stellar Development Foundation and contributors. Licensed
+// under the ISC License. See the COPYING file at the top-level directory of
+// this distribution or at http://opensource.org/licenses/ISC
+
 #include "txherder/TransactionSet.h"
 #include "fba/Node.h"
 #include "generated/StellarXDR.h"

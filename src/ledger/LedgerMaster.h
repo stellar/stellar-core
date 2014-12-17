@@ -1,6 +1,10 @@
 #ifndef __LEDGERMASTER__
 #define __LEDGERMASTER__
 
+// Copyright 2014 Stellar Development Foundation and contributors. Licensed
+// under the ISC License. See the COPYING file at the top-level directory of
+// this distribution or at http://opensource.org/licenses/ISC
+
 #include "Ledger.h"
 #include "clf/CanonicalLedgerForm.h"
 #include "txherder/TransactionSet.h"

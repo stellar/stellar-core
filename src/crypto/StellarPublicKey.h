@@ -1,6 +1,10 @@
 #ifndef __STELLARPUBLICKEY__
 #define __STELLARPUBLICKEY__
 
+// Copyright 2014 Stellar Development Foundation and contributors. Licensed
+// under the ISC License. See the COPYING file at the top-level directory of
+// this distribution or at http://opensource.org/licenses/ISC
+
 //#include "lib/base58/Base58Data.h"
 #include "util/types.h"
 #include "generated/StellarXDR.h"

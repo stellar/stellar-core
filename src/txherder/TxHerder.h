@@ -1,10 +1,13 @@
 #ifndef __TXHERDER__
 #define __TXHERDER__
 
+// Copyright 2014 Stellar Development Foundation and contributors. Licensed
+// under the ISC License. See the COPYING file at the top-level directory of
+// this distribution or at http://opensource.org/licenses/ISC
+
 #include <vector>
 #include "overlay/ItemFetcher.h"
 #include "txherder/TxHerderGateway.h"
-
 
 /*
 receives tx from network

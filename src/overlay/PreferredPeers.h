@@ -1,3 +1,10 @@
+#ifndef __PREFERREDPEERS__
+#define __PREFERREDPEERS__
+
+// Copyright 2014 Stellar Development Foundation and contributors. Licensed
+// under the ISC License. See the COPYING file at the top-level directory of
+// this distribution or at http://opensource.org/licenses/ISC
+
 #include "Peer.h"
 
 namespace stellar
@@ -11,3 +18,5 @@ namespace stellar
         bool isPeerPreferred(Peer::pointer peer);
     };
 }
+
+#endif

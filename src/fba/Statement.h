@@ -1,5 +1,9 @@
-#ifndef __FBAMESSAGE__
-#define __FBAMESSAGE__
+#ifndef __STATEMENT__
+#define __STATEMENT__
+
+// Copyright 2014 Stellar Development Foundation and contributors. Licensed
+// under the ISC License. See the COPYING file at the top-level directory of
+// this distribution or at http://opensource.org/licenses/ISC
 
 #include "txherder/TxHerderGateway.h"
 #include "fba/FBA.h"
