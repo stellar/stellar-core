@@ -18,62 +18,66 @@ It tells FBA to start the next round
 
 namespace stellar
 {
-    class Application;
+class Application;
 
-	class TxHerder : public TxHerderGateway
-	{
-		// the transactions that we have collected during ledger close
-		TransactionSet::pointer mCollectingTransactionSet;
+class TxHerder : public TxHerderGateway
+{
+    // the transactions that we have collected during ledger close
+    TransactionSet::pointer mCollectingTransactionSet;
 
-		// keep track of txs that didn't make it into last ledger.
-		// be less and less likely to commit a ballot that doesn't include the old ones
-		map<stellarxdr::uint256, uint32_t> mTransactionAgeMap;
+    // keep track of txs that didn't make it into last ledger.
+    // be less and less likely to commit a ballot that doesn't include the old
+    // ones
+    map<stellarxdr::uint256, uint32_t> mTransactionAgeMap;
 
-		
-		// 0- tx we got during ledger close
-		// 1- one ledger ago. Will only validate a vblocking set
-		// 2- two ledgers ago. Will only validate a vblock set and will rebroadcast
-		// 3- three or more ledgers ago. Any set we validate must have these tx
-		vector< vector<Transaction::pointer> > mReceivedTransactions;
+    // 0- tx we got during ledger close
+    // 1- one ledger ago. Will only validate a vblocking set
+    // 2- two ledgers ago. Will only validate a vblock set and will rebroadcast
+    // 3- three or more ledgers ago. Any set we validate must have these tx
+    vector<vector<Transaction::pointer>> mReceivedTransactions;
 
-		std::array<TxSetFetcher, 2> mTxSetFetcher;
-        int mCurrentTxSetFetcher;
+    std::array<TxSetFetcher, 2> mTxSetFetcher;
+    int mCurrentTxSetFetcher;
 
-		int mCloseCount;
-        Application &mApp;
+    int mCloseCount;
+    Application& mApp;
 
-		LedgerPtr mLastClosedLedger;
-		void removeReceivedTx(TransactionPtr tx);
-	public:
-		TxHerder(Application &app);
+    LedgerPtr mLastClosedLedger;
+    void removeReceivedTx(TransactionPtr tx);
 
-		///////// GATEWAY FUNCTIONS
-		// make sure this set contains any super old TXs
-		BallotValidType isValidBallotValue(const stellarxdr::Ballot& ballot);
-		TxHerderGateway::SlotComparisonType compareSlot(const stellarxdr::SlotBallot& ballot);
-		
-		// will start fetching this TxSet from the network if we don't know about it
-		TransactionSetPtr fetchTxSet(const stellarxdr::uint256& setHash, bool askNetwork);
+  public:
+    TxHerder(Application& app);
 
-		void externalizeValue(const stellarxdr::SlotBallot& slotBallot);
+    ///////// GATEWAY FUNCTIONS
+    // make sure this set contains any super old TXs
+    BallotValidType isValidBallotValue(const stellarxdr::Ballot& ballot);
+    TxHerderGateway::SlotComparisonType
+    compareSlot(const stellarxdr::SlotBallot& ballot);
 
-		// a Tx set comes in from the wire
-		void recvTransactionSet(TransactionSetPtr txSet);
-        void doesntHaveTxSet(stellarxdr::uint256 const& setHash, Peer::pointer peer) {
-            mTxSetFetcher[mCurrentTxSetFetcher].doesntHave(setHash, peer);
-        }
+    // will start fetching this TxSet from the network if we don't know about it
+    TransactionSetPtr fetchTxSet(const stellarxdr::uint256& setHash,
+                                 bool askNetwork);
 
-		// we are learning about a new transaction
-        // return true if we should flood
-		bool recvTransaction(TransactionPtr tx);
+    void externalizeValue(const stellarxdr::SlotBallot& slotBallot);
 
-		bool isTxKnown(stellarxdr::uint256 const& txHash);
+    // a Tx set comes in from the wire
+    void recvTransactionSet(TransactionSetPtr txSet);
+    void
+    doesntHaveTxSet(stellarxdr::uint256 const& setHash, Peer::pointer peer)
+    {
+        mTxSetFetcher[mCurrentTxSetFetcher].doesntHave(setHash, peer);
+    }
 
-		void ledgerClosed(LedgerPtr ledger);
-		
-		/////////////////
+    // we are learning about a new transaction
+    // return true if we should flood
+    bool recvTransaction(TransactionPtr tx);
 
-	};
+    bool isTxKnown(stellarxdr::uint256 const& txHash);
+
+    void ledgerClosed(LedgerPtr ledger);
+
+    /////////////////
+};
 }
 
 #endif

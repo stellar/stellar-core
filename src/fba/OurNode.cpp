@@ -2,7 +2,6 @@
 // under the ISC License. See the COPYING file at the top-level directory of
 // this distribution or at http://opensource.org/licenses/ISC
 
-
 #include <time.h>
 #include "fba/OurNode.h"
 #include "main/Application.h"

@@ -58,7 +58,8 @@ Peer::connectHandler(const asio::error_code& error)
 }
 
 void
-Peer::sendDontHave(stellarxdr::MessageType type, stellarxdr::uint256 const& itemID)
+Peer::sendDontHave(stellarxdr::MessageType type,
+                   stellarxdr::uint256 const& itemID)
 {
     stellarxdr::StellarMessage msg;
     msg.type(stellarxdr::DONT_HAVE);

@@ -14,24 +14,25 @@ handler functions for the http commands this server supports
 
 namespace stellar
 {
-    class Application;
+class Application;
 
-    class CommandHandler
-    {
+class CommandHandler
+{
 
-        Application& mApp;
-        std::unique_ptr<http::server::server> mServer;
-    public:
-        CommandHandler(Application& app);
+    Application& mApp;
+    std::unique_ptr<http::server::server> mServer;
 
-        void stop(const std::string& params, std::string& retStr);
-        void peers(const std::string& params, std::string& retStr);
-        void info(const std::string& params, std::string& retStr);
-        void reloadCfg(const std::string& params, std::string& retStr);
-        void logRotate(const std::string& params, std::string& retStr);
-        void connect(const std::string& params,std::string& retStr);
-        void tx(const std::string& params, std::string& retStr);
-    };
+  public:
+    CommandHandler(Application& app);
+
+    void stop(const std::string& params, std::string& retStr);
+    void peers(const std::string& params, std::string& retStr);
+    void info(const std::string& params, std::string& retStr);
+    void reloadCfg(const std::string& params, std::string& retStr);
+    void logRotate(const std::string& params, std::string& retStr);
+    void connect(const std::string& params, std::string& retStr);
+    void tx(const std::string& params, std::string& retStr);
+};
 }
 
 #endif

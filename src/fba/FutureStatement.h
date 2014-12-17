@@ -11,20 +11,19 @@
 
 namespace stellar
 {
-    class FutureStatement : public std::enable_shared_from_this<FutureStatement>
-    {
-        Timer mTimer;
-        
-    public:
-        Statement::pointer mStatement;
-        typedef std::shared_ptr<FutureStatement> pointer;
+class FutureStatement : public std::enable_shared_from_this<FutureStatement>
+{
+    Timer mTimer;
 
-        FutureStatement(Statement::pointer statement, Application &app);
-        ~FutureStatement();
+  public:
+    Statement::pointer mStatement;
+    typedef std::shared_ptr<FutureStatement> pointer;
 
-        void tryNow(Application &app);
+    FutureStatement(Statement::pointer statement, Application& app);
+    ~FutureStatement();
 
-    };
+    void tryNow(Application& app);
+};
 }
 
 #endif

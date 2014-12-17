@@ -141,7 +141,8 @@ PeerMaster::broadcastMessage(stellarxdr::uint256 const& msgID)
 }
 
 void
-PeerMaster::broadcastMessage(stellarxdr::StellarMessage const& msg, Peer::pointer peer)
+PeerMaster::broadcastMessage(stellarxdr::StellarMessage const& msg,
+                             Peer::pointer peer)
 {
     vector<Peer::pointer> tempList;
     tempList.push_back(peer);
@@ -150,7 +151,8 @@ PeerMaster::broadcastMessage(stellarxdr::StellarMessage const& msg, Peer::pointe
 
 // send message to anyone you haven't gotten it from
 void
-PeerMaster::broadcastMessage(stellarxdr::StellarMessage const& msg, vector<Peer::pointer> const& skip)
+PeerMaster::broadcastMessage(stellarxdr::StellarMessage const& msg,
+                             vector<Peer::pointer> const& skip)
 {
     for (auto peer : mPeers)
     {

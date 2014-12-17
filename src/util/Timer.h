@@ -13,7 +13,7 @@
 
 namespace stellar
 {
-    typedef asio::basic_waitable_timer<std::chrono::steady_clock> Timer;
+typedef asio::basic_waitable_timer<std::chrono::steady_clock> Timer;
 }
 
 #endif

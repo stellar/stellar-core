@@ -12,7 +12,7 @@ namespace stellar
 
 class ProcessMaster : public ProcessGateway
 {
-    Application &mApp;
+    Application& mApp;
 
     // These are only used on POSIX, but they're harmless here.
     asio::signal_set mSigChild;
@@ -20,7 +20,7 @@ class ProcessMaster : public ProcessGateway
     void startSignalWait();
     void handleSignalWait();
 
-public:
+  public:
     ProcessMaster(Application& app);
     ProcessExitEvent runProcess(std::string const& cmdLine);
 };

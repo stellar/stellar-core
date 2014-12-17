@@ -17,8 +17,8 @@ namespace http
 namespace server
 {
 
-server::server(asio::io_service& io_service,
-               const std::string& address, const int port)
+server::server(asio::io_service& io_service, const std::string& address,
+               const int port)
     : io_service_(io_service)
     , signals_(io_service_)
     , acceptor_(io_service_)

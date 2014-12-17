@@ -7,14 +7,14 @@
 
 namespace stellar
 {
-    typedef std::shared_ptr<stellarxdr::Ballot> BallotPtr;
-    typedef std::shared_ptr<stellarxdr::SlotBallot> SlotBallotPtr;
-    
-    class Statement;
-    typedef std::shared_ptr<Statement> StatementPtr;
+typedef std::shared_ptr<stellarxdr::Ballot> BallotPtr;
+typedef std::shared_ptr<stellarxdr::SlotBallot> SlotBallotPtr;
 
-    class FutureStatement;
-    typedef std::shared_ptr<FutureStatement> FutureStatementPtr;
+class Statement;
+typedef std::shared_ptr<Statement> StatementPtr;
+
+class FutureStatement;
+typedef std::shared_ptr<FutureStatement> FutureStatementPtr;
 }
 
 // beyond this then the ballot is considered invalid

@@ -12,7 +12,6 @@ class Config;
 
 Config const& getTestConfig();
 int test(int argc, char* const* argv);
-
 }
 
 #endif

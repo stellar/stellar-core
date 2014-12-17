@@ -12,16 +12,16 @@
 
 namespace stellar
 {
-	class Ledger;
-	typedef std::shared_ptr<Ledger> LedgerPtr;
+class Ledger;
+typedef std::shared_ptr<Ledger> LedgerPtr;
 
-    namespace ballot
-    {
-        // returns true if b1 is ranked higher
-        bool compare(const stellarxdr::Ballot& b1, const stellarxdr::Ballot& b2);
-        bool compareValue(const stellarxdr::Ballot& b1, const stellarxdr::Ballot& b2);
-        bool isCompatible(const stellarxdr::Ballot& b1, const stellarxdr::Ballot& b2);
-    }
+namespace ballot
+{
+// returns true if b1 is ranked higher
+bool compare(const stellarxdr::Ballot& b1, const stellarxdr::Ballot& b2);
+bool compareValue(const stellarxdr::Ballot& b1, const stellarxdr::Ballot& b2);
+bool isCompatible(const stellarxdr::Ballot& b1, const stellarxdr::Ballot& b2);
+}
 }
 
 #endif

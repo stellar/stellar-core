@@ -12,14 +12,14 @@
 
 namespace stellar
 {
-    class Logging
-    {
-        static el::Configurations mDefaultConf;
-    public:
-        static void setUpLogging(std::string const& filename);
-        static void setLogLevel(el::Level level, const char* partition);
-    };
-}
+class Logging
+{
+    static el::Configurations mDefaultConf;
 
+  public:
+    static void setUpLogging(std::string const& filename);
+    static void setLogLevel(el::Level level, const char* partition);
+};
+}
 
 #endif

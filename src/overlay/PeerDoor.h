@@ -20,22 +20,22 @@ using namespace std;
 
 namespace stellar
 {
-    class Application;
+class Application;
 
-	class PeerDoor
-	{
-        Application &mApp;
-        asio::ip::tcp::acceptor mAcceptor;
+class PeerDoor
+{
+    Application& mApp;
+    asio::ip::tcp::acceptor mAcceptor;
 
-		void acceptNextPeer();
-		void handleKnock(shared_ptr<asio::ip::tcp::socket> pSocket);
-	public:
-		PeerDoor(Application &);
+    void acceptNextPeer();
+    void handleKnock(shared_ptr<asio::ip::tcp::socket> pSocket);
 
-		void start();
-		void close();
+  public:
+    PeerDoor(Application&);
 
-	};
+    void start();
+    void close();
+};
 }
 
 #endif

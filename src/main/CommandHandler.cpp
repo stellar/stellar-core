@@ -15,30 +15,28 @@ namespace stellar
 {
 CommandHandler::CommandHandler(Application& app) : mApp(app)
 {
-    if (!mApp.mConfig.RUN_STANDALONE &&
-        mApp.mConfig.HTTP_PORT)
+    if (!mApp.mConfig.RUN_STANDALONE && mApp.mConfig.HTTP_PORT)
     {
         std::string ipStr;
         ipStr = "127.0.0.1";
-        LOG(INFO) << "Listening on "
-                  << ipStr << ":" << mApp.mConfig.HTTP_PORT
+        LOG(INFO) << "Listening on " << ipStr << ":" << mApp.mConfig.HTTP_PORT
                   << " for HTTP requests";
 
         mServer = stellar::make_unique<http::server::server>(
             app.getMainIOService(), ipStr, mApp.mConfig.HTTP_PORT);
 
         mServer->addRoute("stop",
-                            std::bind(&CommandHandler::stop, this, _1, _2));
+                          std::bind(&CommandHandler::stop, this, _1, _2));
         mServer->addRoute("peers",
-                            std::bind(&CommandHandler::peers, this, _1, _2));
+                          std::bind(&CommandHandler::peers, this, _1, _2));
         mServer->addRoute("info",
-                            std::bind(&CommandHandler::info, this, _1, _2));
-        mServer->addRoute(
-            "reload_cfg", std::bind(&CommandHandler::reloadCfg, this, _1, _2));
-        mServer->addRoute(
-            "logrotate", std::bind(&CommandHandler::logRotate, this, _1, _2));
+                          std::bind(&CommandHandler::info, this, _1, _2));
+        mServer->addRoute("reload_cfg",
+                          std::bind(&CommandHandler::reloadCfg, this, _1, _2));
+        mServer->addRoute("logrotate",
+                          std::bind(&CommandHandler::logRotate, this, _1, _2));
         mServer->addRoute("connect",
-                            std::bind(&CommandHandler::connect, this, _1, _2));
+                          std::bind(&CommandHandler::connect, this, _1, _2));
         mServer->addRoute("tx", std::bind(&CommandHandler::tx, this, _1, _2));
     }
 }

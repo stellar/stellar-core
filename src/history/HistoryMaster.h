@@ -4,7 +4,6 @@
 // under the ISC License. See the COPYING file at the top-level directory of
 // this distribution or at http://opensource.org/licenses/ISC
 
-
 #include "history/HistoryGateway.h"
 
 namespace stellar
@@ -12,8 +11,9 @@ namespace stellar
 class Application;
 class HistoryMaster : public HistoryGateway
 {
-    Application &mApp;
-public:
+    Application& mApp;
+
+  public:
     HistoryMaster(Application& app);
 };
 }
