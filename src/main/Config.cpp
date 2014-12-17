@@ -1,5 +1,5 @@
 #include "main/Config.h"
-#include "util/StellardVersion.h"
+#include "generated/StellardVersion.h"
 #include "lib/util/cpptoml.h"
 #include "lib/util/Logging.h"
 #include "lib/util/types.h"

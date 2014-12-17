@@ -1,5 +1,5 @@
 #include "main/Application.h"
-#include "util/StellardVersion.h"
+#include "generated/StellardVersion.h"
 #include "lib/util/Logging.h"
 #include "lib/util/getopt.h"
 #include "main/test.h"

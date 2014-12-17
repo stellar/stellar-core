@@ -24,7 +24,7 @@ FMT_SRCS = src/overlay/Floodgate.cpp src/overlay/PeerDoor.cpp                   
 	src/process/ProcessTests.cpp src/history/HistoryMaster.cpp                  \
 	src/history/HistoryTests.cpp src/overlay/OverlayTests.cpp
 
-BUILT_SOURCES = src/util/StellardVersion.h src/generated/StellarXDR.h
+BUILT_SOURCES = src/generated/StellardVersion.h src/generated/StellarXDR.h
 
 bin_stellard_SOURCES = $(FMT_SRCS) \
                        $(BUILT_SOURCES) \
@@ -37,7 +37,7 @@ bin_stellard_CPPFLAGS = -I$(top_srcdir)/src \
 
 CLEANFILES = $(BUILT_SOURCES)
 GITDIR = $(top_srcdir)/.git
-src/util/StellardVersion.h: Makefile
+src/generated/StellardVersion.h: Makefile
 	if test -d "$(GITDIR)"; then                                            \
       (VERS="$$(GIT_DIR=$(GITDIR) git describe --always --dirty --tags)" && \
        echo "#define STELLARD_VERSION \"$$VERS\"") >$@;                     \

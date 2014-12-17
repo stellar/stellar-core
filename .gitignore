@@ -14,8 +14,7 @@
 *~
 .deps
 .dirstamp
-/src/generated/StellarXDR.h
-/src/util/StellardVersion.h
+/src/generated
 /Makefile
 /Makefile.in
 /aclocal.m4

@@ -1,4 +1,4 @@
-#include "util/StellardVersion.h"
+#include "generated/StellardVersion.h"
 #include "main/Config.h"
 #include "util/make_unique.h"
 #include "lib/util/Logging.h"
