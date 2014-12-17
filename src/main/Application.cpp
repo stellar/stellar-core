@@ -26,15 +26,15 @@ Application::Application(Config const& cfg)
     mStopSignals.add(SIGTERM);
 #endif
 
-    LOG(INFO) << "Application constructing";
+    unsigned t = std::thread::hardware_concurrency();
+    LOG(INFO) << "Application constructing "
+              << "(worker threads: " << t << ")";
     mStopSignals.async_wait([this](asio::error_code const& ec, int sig)
                             {
                                 LOG(INFO) << "got signal " << sig
                                           << ", shutting down";
                                 this->gracefulStop();
                             });
-    unsigned t = std::thread::hardware_concurrency();
-    LOG(INFO) << "Worker threads: " << t;
     while (t--)
     {
         mWorkerThreads.emplace_back([this, t]()
@@ -56,9 +56,7 @@ Application::~Application()
 void
 Application::runWorkerThread(unsigned i)
 {
-    LOG(INFO) << "Worker thread " << i << " starting";
     mWorkerIOService.run();
-    LOG(INFO) << "Worker thread " << i << " complete";
 }
 
 void
@@ -79,16 +77,13 @@ Application::joinAllThreads()
     // any work that the main thread queued.
     if (mWork)
     {
-        LOG(INFO) << "Releasing worker threads";
         mWork.reset();
     }
-    unsigned i = 0;
+    LOG(INFO) << "Joining " << mWorkerThreads.size() << " worker threads";
     for (auto& w : mWorkerThreads)
     {
-        LOG(INFO) << "Joining worker thread " << i++;
         w.join();
     }
-
-    LOG(INFO) << "All worker threads complete";
+    LOG(INFO) << "Joined all " << mWorkerThreads.size() << " threads";
 }
 }
