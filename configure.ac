@@ -21,6 +21,17 @@ AX_APPEND_COMPILE_FLAGS([-pthread])
 AC_CHECK_PROGS(CLANG_FORMAT, [clang-format clang-format-3.6])
 AM_CONDITIONAL([USE_CLANG_FORMAT], [test "x$CLANG_FORMAT" != "x"])
 
+AC_ARG_ENABLE([address-sanitizer], AS_HELP_STRING([--enable-address-sanitizer], \
+              [enable AddressSanitizer support]), \
+              [AC_DEFINE(HAVE_ADDRESS_SANITIZER, 1, [enable AddressSanitizer])
+              CFLAGS="$CFLAGS -fsanitize=address"
+              CXXFLAGS="$CXXFLAGS -fsanitize=address"
+              LIBS="$LIBS -lasan"
+              AC_TRY_COMPILE([],[const int i=0;],[AC_MSG_NOTICE([Address Sanitizer Enabled])],
+                                                 [AC_MSG_ERROR([Address Sanitizer not available])])
+              ])
+
+
 for dir in ../xdrpp/build ../xdrpp ./xdrpp; do
     if test -d "$dir"; then
        export PKG_CONFIG_PATH="${dir}:${PKG_CONFIG_PATH}"
@@ -34,7 +45,7 @@ AC_MSG_RESULT($XDRC)
 AC_SUBST(XDRC)
 
 CPPFLAGS="$CPPFLAGS "'$(xdrpp_CFLAGS)'
-LDFLAGS="$LDFLAGS "'$(xdrpp_LIBS)'
+LIBS="$LIBS "'$(xdrpp_LIBS)'
 
 AX_VALGRIND_CHECK
 
