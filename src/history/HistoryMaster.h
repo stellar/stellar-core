@@ -17,7 +17,7 @@
  * The module design attempts to satisfy several key constraints:
  *
  *   - Simplicity. Historical records must be simple enough that multiple
- *     implementation can digest them. The formats and protocols employed
+ *     implementations can digest them. The formats and protocols employed
  *     should be simple enough that they will have longevity and resistance
  *     to implementation idiosyncrasies and bugs. The interface to the
  *     history system should be simple enough that multiple backends can
@@ -62,10 +62,10 @@
  * ledgers) and 12 (=4096 ledgers). The first is the granularity of history
  * blocks written to the hot section. The second is _both_ the granularity of
  * history blocks written to the cold section and also the granularity at which
- * complete BucketList snapshots are addedd to the cold section. The cold-section
+ * complete BucketList snapshots are added to the cold section. The cold-section
  * granularity is also implicitly the expiration threshold for the hot section.
  *
- * If we take the worst-case scenario of 1000 transactions/second as our design
+ * If we take the target-case scenario of 1000 transactions/second as our design
  * criterion: each transaction is (say) 200 bytes, and a ledger closes every 5s,
  * then we have 1MB of transactions per ledger, so hot blocks are (say) 16
  * ledgers (80 seconds, 16MB) and cold blocks are (say) 4096 ledgers (5.7h,
