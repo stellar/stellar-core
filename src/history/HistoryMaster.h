@@ -5,6 +5,7 @@
 // this distribution or at http://opensource.org/licenses/ISC
 
 #include "history/HistoryGateway.h"
+#include "generated/StellarXDR.h"
 
 /**
  * The history module is responsible for storing, mirroring, and retrieving
@@ -96,8 +97,10 @@ class HistoryMaster : public HistoryGateway
 {
     Application& mApp;
 
-
   public:
+    std::string writeLedgerHistoryToFile(stellarxdr::History const& hist);
+    void readLedgerHistoryFromFile(std::string const& fname,
+                                   stellarxdr::History& hist);
     HistoryMaster(Application& app);
 };
 }
