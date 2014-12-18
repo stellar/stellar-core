@@ -38,6 +38,8 @@ namespace stellar
 class Application : public enable_shared_from_this<Application>
 {
   public:
+    typedef std::shared_ptr<Application> pointer;
+
     // State invariants / definitions:
     //
     //  - Define "trusted" as "something signed by a sufficient set

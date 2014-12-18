@@ -40,7 +40,9 @@ stellarxdr::uint256
 fromBase58(const std::string& str)
 {
     // SANITY base58 decode str
+    static int i = 0;
     stellarxdr::uint256 ret;
+    ret[0] = ++i;
     return (ret);
 }
 

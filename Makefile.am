@@ -3,10 +3,10 @@
 
 bin_PROGRAMS = bin/stellard
 
-FMT_SRCS = src/overlay/Floodgate.cpp src/overlay/PeerDoor.cpp                   \
+FMT_SRCS = src/overlay/Floodgate.cpp src/overlay/PeerDoor.cpp                       \
 	src/overlay/TCPPeer.cpp src/overlay/LoopbackPeer.cpp src/overlay/Peer.cpp   \
 	src/overlay/ItemFetcher.cpp src/overlay/PeerMaster.cpp                      \
-	src/overlay/PreferredPeers.cpp src/util/types.cpp src/fba/FBAMaster.cpp \
+	src/overlay/PreferredPeers.cpp src/util/types.cpp src/fba/FBAMaster.cpp     \
 	src/fba/FutureStatement.cpp src/fba/OurNode.cpp src/fba/QuorumSet.cpp       \
 	src/fba/Statement.cpp src/fba/Node.cpp src/fba/Ballot.cpp                   \
 	src/ledger/LedgerDatabase.cpp src/ledger/Ledger.cpp                         \
@@ -22,9 +22,10 @@ FMT_SRCS = src/overlay/Floodgate.cpp src/overlay/PeerDoor.cpp                   
 	src/lib/http/request_parser.cpp src/lib/http/server.cpp                     \
 	src/main/CommandHandler.cpp src/process/ProcessMaster.cpp                   \
 	src/process/ProcessTests.cpp src/history/HistoryMaster.cpp                  \
-	src/history/HistoryTests.cpp src/overlay/OverlayTests.cpp
+	src/history/HistoryTests.cpp src/overlay/OverlayTests.cpp                   \
+	src/simulation/Simulation.cpp src/simulation/CycleTests.cpp
 
-FMT_HDRS = src/clf/BucketList.h src/clf/CanonicalLedgerForm.h src/clf/CLF.h     \
+FMT_HDRS = src/clf/BucketList.h src/clf/CanonicalLedgerForm.h src/clf/CLF.h         \
 	src/clf/CLFDelta.h src/clf/CLFGateway.h src/crypto/EdKeyPair.h              \
 	src/crypto/StellarPrivateKey.h src/crypto/StellarPublicKey.h                \
 	src/fba/Ballot.h src/fba/FBA.h src/fba/FBAGateway.h src/fba/FBAMaster.h     \
@@ -47,7 +48,7 @@ FMT_HDRS = src/clf/BucketList.h src/clf/CanonicalLedgerForm.h src/clf/CLF.h     
 	src/transactions/TransactionResultCodes.h src/transactions/TrustSetTx.h     \
 	src/txherder/TransactionSet.h src/txherder/TxHerder.h                       \
 	src/txherder/TxHerderGateway.h src/util/Logging.h src/util/make_unique.h    \
-	src/util/Timer.h src/util/types.h
+	src/util/Timer.h src/util/types.h src/simulation/Simulation.h
 
 BUILT_SOURCES = src/generated/StellardVersion.h src/generated/StellarXDR.h
 
