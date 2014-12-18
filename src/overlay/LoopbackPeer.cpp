@@ -146,12 +146,11 @@ LoopbackPeer::deliverOne()
         // callback event against the remote Peer, posted on the remote
         // Peer's io_service.
         auto remote = mRemote;
-        remote->getApp().getMainIOService().post(std::bind(
-            [remote](xdr::msg_ptr const& msg)
+        auto m = std::make_shared<xdr::msg_ptr>(std::move(msg));
+        remote->getApp().getMainIOService().post([remote, m]()
             {
-                remote->recvMessage(msg);
-            },
-            std::move(msg)));
+                remote->recvMessage(std::move(*m));
+            });
 
         CLOG(TRACE, "Overlay") << "LoopbackPeer posted message to remote";
     }

@@ -56,28 +56,22 @@ TCPPeer::connect()
 void
 TCPPeer::sendMessage(xdr::msg_ptr&& xdrBytes)
 {
-    using std::placeholders::_1;
-    using std::placeholders::_2;
-
     // Pass ownership of a serizlied XDR message buffer, along with an
     // asio::buffer pointing into it, to the callback for async_write, so it
     // survives as long as the request is in flight in the io_service, and
     // is deallocated when the write completes.
     //
-    // The messy bind-of-lambda expression is required due to C++11 not
-    // supporting moving (passing ownership) into a lambda capture. This is
-    // fixed in C++14 but we're not there yet.
+    // The capture of `buf` is required to keep the buffer alive long enough.
 
     auto self = shared_from_this();
+    auto buf = std::make_shared<xdr::msg_ptr>(std::move(xdrBytes));
     asio::async_write(*(mSocket.get()),
-                      asio::buffer(xdrBytes->raw_data(), xdrBytes->raw_size()),
-                      std::bind(
-                          [self](asio::error_code const& ec, std::size_t length,
-                                 xdr::msg_ptr const&)
-                          {
-                              self->writeHandler(ec, length);
-                          },
-                          _1, _2, std::move(xdrBytes)));
+                      asio::buffer((*buf)->raw_data(), (*buf)->raw_size()),
+                      [self, buf](asio::error_code const& ec, std::size_t length)
+                      {
+                          self->writeHandler(ec, length);
+                          (void)buf;
+                      });
 }
 
 void

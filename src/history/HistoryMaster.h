@@ -96,6 +96,7 @@ class HistoryMaster : public HistoryGateway
 {
     Application& mApp;
 
+
   public:
     HistoryMaster(Application& app);
 };
