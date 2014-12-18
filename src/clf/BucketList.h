@@ -126,14 +126,14 @@ namespace stellar
 // level[6]  curr=(0x0, 0x5000000],       snap= ------ empty ------
 //
 //
-// L0: 80 seconds
-// L1: 21.3 min
-// L2: 5.7 hours
-// L3: 3.8 days
-// L4: 60.7 days
-// L5: 2.66 years
-// L6: 42.5 years
-// L7: 681 years
+// L0: 80 seconds  (16 ledgers @ 5sec/ledger)
+// L1: 21.3 min    (256 ledgers)
+// L2: 5.7 hours   (4,096 ledgers)
+// L3: 3.8 days    (65,536 ledgers)
+// L4: 60.7 days   (1,048,576 ledgers)
+// L5: 2.66 years  (16,777,216 ledgers)
+// L6: 42.5 years  (268,435,456 ledgers)
+// L7: 681 years   (4,294,967,296 ledgers)
 
 // Performance:
 // ------------
