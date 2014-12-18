@@ -73,3 +73,11 @@ src/lib/util/cpptoml.h:
   (https://github.com/skystrife)
   Licensed under the MIT license
   (http://opensource.org/licenses/MIT)
+
+src/lib/util/format.cc and format.h:
+
+  The cppformat library,
+  Copyright 2012, Victor Zverovich
+  (victor.zverovich@gmail.com)
+  Licensed under the 2-clause BSD license
+  (http://opensource.org/licenses/BSD-2-Clause)

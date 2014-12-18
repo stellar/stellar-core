@@ -53,11 +53,13 @@ BUILT_SOURCES = src/generated/StellardVersion.h src/generated/StellarXDR.h
 
 bin_stellard_SOURCES = $(FMT_SRCS) \
                        $(BUILT_SOURCES) \
-                       src/lib/util/getopt_long.c
+                       src/lib/util/getopt_long.c \
+                       src/lib/util/format.cc
 
 bin_stellard_CPPFLAGS = -I$(top_srcdir)/src \
                         -I$(builddir)/src \
                         -I$(srcdir)/src/lib/autocheck/include \
+                        -I$(srcdir)/src/lib/util \
                         -I$(srcdir)/src/lib/asio/include -DASIO_STANDALONE
 
 CLEANFILES = $(BUILT_SOURCES)
