@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
     <Filter Include="fba">
@@ -57,7 +57,7 @@
     </Filter>
     <Filter Include="lib\http">
       <UniqueIdentifier>{82364e95-f6c1-4df2-b169-f1ee8982aaa5}</UniqueIdentifier>
-</Filter>
+    </Filter>
     <Filter Include="process">
       <UniqueIdentifier>{dfcbc766-c389-4f89-84ab-ed48a177c74d}</UniqueIdentifier>
     </Filter>
@@ -189,8 +189,8 @@
     <ClCompile Include="..\..\src\clf\CLFTests.cpp">
       <Filter>clf</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\overlay\OverlayTests.cpp" >
-    <Filter>overlay</Filter>
+    <ClCompile Include="..\..\src\overlay\OverlayTests.cpp">
+      <Filter>overlay</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\fba\FBATests.cpp">
       <Filter>fba</Filter>
@@ -215,10 +215,10 @@
     </ClCompile>
     <ClCompile Include="..\..\src\main\CommandHandler.cpp">
       <Filter>main</Filter>
-</ClCompile>
-    <ClCompile Include="..\..\src\fba\FBATests.cpp" >
-<Filter>fba</Filter>
-</ClCompile>
+    </ClCompile>
+    <ClCompile Include="..\..\src\fba\FBATests.cpp">
+      <Filter>fba</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\history\HistoryMaster.cpp">
       <Filter>history</Filter>
     </ClCompile>
@@ -498,9 +498,6 @@
     </Text>
   </ItemGroup>
   <ItemGroup>
-    <None Include="..\..\src\overlay\StellarXDR.x">
-      <Filter>overlay</Filter>
-    </None>
     <None Include="..\..\docs\transactions.md">
       <Filter>docs</Filter>
     </None>
@@ -521,5 +518,10 @@
     <None Include="..\..\docs\usecases.md">
       <Filter>docs</Filter>
     </None>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="..\..\src\overlay\StellarXDR.x">
+      <Filter>overlay</Filter>
+    </CustomBuild>
   </ItemGroup>
 </Project>
