@@ -43,7 +43,7 @@ enum TransactionType
 struct CurrencyIssuer
 {
 	opaque currency<20>;
-	uint160 *issuer;
+	uint160 issuer;
 };
 
 struct KeyValue
@@ -77,11 +77,11 @@ struct CreateOfferTx
 
 struct ChangeAccountTx
 {
-	uint256* setAuthKey;
-	uint256* signingKey;
-	KeyValue* data;
-	uint32*	flags;
-	uint32* transferRate;
+	uint256 setAuthKey;
+	uint256 signingKey;
+	KeyValue data;
+	uint32	flags;
+	uint32 transferRate;
 };
 
 struct ChangeTrustTx
@@ -221,8 +221,8 @@ enum LedgerTypes {
 struct Amount
 {
     uint64 value;
-    uint160 *currency;
-    uint160 *issuer;
+    uint160 currency;
+    uint160 issuer;
 };
 
 
@@ -235,8 +235,8 @@ struct AccountEntry
     uint32 ownerCount;
     uint32 transferRate;
     uint256 pubKey;
-	uint160 *inflationDest;
-	uint256 *creditAuthKey;
+	uint160 inflationDest;
+	uint256 creditAuthKey;
 	KeyValue data<>;
 
 	uint32 flags; // require dt, require auth, 
