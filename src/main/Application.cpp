@@ -143,20 +143,20 @@ Application::crank(bool block)
     if (mRealTimer && nWorkDone != 0)
     {
         // If we have a real timer, we let its sleep events _primarily_ drive
-        // the sleeping-and-waking of the main loop; but any time we did real in
-        // an event-loop crank we treat it as a timer tick to give virtual time
-        // the opportunity to catch up (in case real time overshot it while we
-        // were doing slow work) and to ensure that the real timer is scheduled
-        // for the next virtual-time wakeup (in case some new virtual timers
-        // were scheduled during the most recent work).
+        // the sleeping-and-waking of the main loop; but any time we did real
+        // work in an event-loop crank we treat it as a timer tick to give
+        // virtual time the opportunity to catch up (in case real time overshot
+        // it while we were doing slow work), and to ensure that the real timer
+        // is (re)scheduled for the next virtual-time wakeup (in case some new
+        // virtual timers were scheduled during the most recent work).
         realTimerTick();
     }
     else if (!mRealTimer && nWorkDone == 0)
     {
         // If we have no real-timer driving virtual time, then we advance
-        // virtual time any whenever we run out of immediate (I/O event loop)
-        // work to do; this means that in simulated-time all I/O and computation
-        // happens "instantly" between two time steps and all virtual time skips
+        // virtual time whenever we run out of immediate (I/O event loop) work
+        // to do; this means that in simulated-time all I/O and computation
+        // happens "instantly" between two time steps and then virtual time skips
         // forward to the next scheduled event as soon as we're idle.
         return mVirtualClock.advanceToNext();
     }
