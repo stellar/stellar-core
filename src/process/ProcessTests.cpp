@@ -14,8 +14,9 @@ using namespace stellar;
 
 TEST_CASE("subprocess", "[process]")
 {
+    VirtualClock clock;
     Config const& cfg = getTestConfig();
-    Application app(cfg);
+    Application app(clock, cfg);
     auto evt = app.getProcessGateway().runProcess("hostname");
     bool exited = false;
     evt.async_wait([&](asio::error_code ec)

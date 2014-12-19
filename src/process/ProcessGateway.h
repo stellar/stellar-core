@@ -8,9 +8,12 @@
 #include "util/Timer.h"
 #include <memory>
 #include <string>
+#include <functional>
 
 namespace stellar
 {
+
+class RealTimer;
 
 /**
  * This module exists because asio doesn't know much about subprocesses,
@@ -30,30 +33,16 @@ namespace stellar
 class ProcessExitEvent
 {
     class Impl;
-    std::shared_ptr<Timer> mTimer;
+    std::shared_ptr<RealTimer> mTimer;
     std::shared_ptr<Impl> mImpl;
     std::shared_ptr<asio::error_code> mEc;
     ProcessExitEvent(asio::io_service& io_service);
     friend class ProcessMaster;
 
   public:
+    ProcessExitEvent();
     ~ProcessExitEvent();
-    template <typename WaitHandler>
-    void async_wait(ASIO_MOVE_ARG(WaitHandler) handler)
-    {
-        // Unfortunately when you cancel a timer, asio delivers
-        // asio::error::operation_aborted to all the waiters, even if you pass a
-        // different error_code to the cancel() call. So we have to route the
-        // _actual_ process-exit condition through _another_ variable shared
-        // between ProcessExitEvent and the per-platform handlers.
-        auto ec = mEc;
-        mTimer->async_wait(bind(
-            [ec](WaitHandler& handler)
-            {
-                handler(*ec);
-            },
-            std::move(handler)));
-    }
+    void async_wait(std::function<void(asio::error_code)> const& handler);
 };
 
 class ProcessGateway

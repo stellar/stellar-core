@@ -219,6 +219,9 @@
     <ClCompile Include="..\..\src\util\Logging.cpp">
       <Filter>util</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\util\Timer.cpp">
+      <Filter>util</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\lib\util\format.cc">
       <Filter>lib</Filter>
     </ClCompile>

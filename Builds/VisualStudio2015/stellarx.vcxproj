@@ -111,6 +111,7 @@
       <DisableSpecificWarnings Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">4456</DisableSpecificWarnings>
     </ClCompile>
     <ClCompile Include="..\..\src\lib\util\getopt_long.c" />
+    <ClCompile Include="..\..\src\util\Timer.cpp" />
     <ClCompile Include="..\..\src\util\types.cpp" />
     <ClCompile Include="..\..\src\main\Application.cpp" />
     <ClCompile Include="..\..\src\main\CommandHandler.cpp" />

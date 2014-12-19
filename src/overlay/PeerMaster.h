@@ -36,7 +36,7 @@ class PeerMaster : public OverlayGateway
     void addConfigPeers();
 
     void tick();
-    Timer mTimer;
+    VirtualTimer mTimer;
 
   public:
     Floodgate mFloodGate;

@@ -14,7 +14,7 @@ namespace stellar
 class TCPPeer : public Peer
 {
     shared_ptr<asio::ip::tcp::socket> mSocket;
-    Timer mHelloTimer;
+    VirtualTimer mHelloTimer;
     uint8_t mIncomingHeader[4];
     vector<uint8_t> mIncomingBody;
 

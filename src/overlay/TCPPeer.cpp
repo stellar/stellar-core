@@ -29,7 +29,7 @@ const char* TCPPeer::kSQLCreateStatement =
 
 TCPPeer::TCPPeer(Application& app, shared_ptr<asio::ip::tcp::socket> socket,
                  PeerRole role)
-    : Peer(app, role), mSocket(socket), mHelloTimer(app.getMainIOService())
+    : Peer(app, role), mSocket(socket), mHelloTimer(app.getClock())
 {
     mHelloTimer.expires_from_now(
         std::chrono::milliseconds(MS_TO_WAIT_FOR_HELLO));

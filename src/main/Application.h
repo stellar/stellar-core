@@ -35,6 +35,9 @@
 
 namespace stellar
 {
+
+class VirtualClock;
+
 class Application : public enable_shared_from_this<Application>
 {
   public:
@@ -79,6 +82,7 @@ class Application : public enable_shared_from_this<Application>
   private:
 
     State mState;
+    VirtualClock& mVirtualClock;
     Config const& mConfig;
 
     // NB: The io_services should come first, then the 'master'
@@ -98,6 +102,7 @@ class Application : public enable_shared_from_this<Application>
     asio::io_service mMainIOService;
     asio::io_service mWorkerIOService;
     std::unique_ptr<asio::io_service::work> mWork;
+    std::unique_ptr<RealTimer> mRealTimer;
 
     PeerMaster mPeerMaster;
     LedgerMaster mLedgerMaster;
@@ -112,11 +117,19 @@ class Application : public enable_shared_from_this<Application>
 
     asio::signal_set mStopSignals;
 
+    size_t mRealTimerCancelCallbacks;
     void runWorkerThread(unsigned i);
-    
+    void scheduleRealTimerFromNextVirtualEvent();
+    size_t advanceVirtualTimeToRealTime();
+    void realTimerTick();
+
   public:
-    Application(Config const& config);
+    Application(VirtualClock& clock, Config const& config);
     ~Application();
+
+    void enableRealTimer();
+    void disableRealTimer();
+    size_t crank(bool block=true);
 
     Config const&
     getConfig()
@@ -135,6 +148,11 @@ class Application : public enable_shared_from_this<Application>
     {
         mState = s;
     }
+
+    VirtualClock&
+    getClock()
+    {
+        return mVirtualClock;
     }
     LedgerGateway&
     getLedgerGateway()
@@ -187,7 +205,7 @@ class Application : public enable_shared_from_this<Application>
     {
         return mWorkerIOService;
     }
-    
+
     void start();
 
     // Stops the io_services, which should cause the threads to exit

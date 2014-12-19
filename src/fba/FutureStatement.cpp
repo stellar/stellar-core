@@ -13,7 +13,7 @@ You are unwilling to consider it until enough time passes.
 namespace stellar
 {
 FutureStatement::FutureStatement(Statement::pointer statement, Application& app)
-    : mTimer(app.getMainIOService())
+    : mTimer(app.getClock())
 {
     uint64_t timeNow = time(nullptr);
     uint64_t numSeconds = statement->getBallot().closeTime - timeNow -
@@ -21,7 +21,7 @@ FutureStatement::FutureStatement(Statement::pointer statement, Application& app)
     if (numSeconds <= 0)
         numSeconds = 1;
     mTimer.expires_from_now(std::chrono::seconds(numSeconds));
-    mTimer.async_wait([this, &app](asio::error_code const& ec)
+    mTimer.async_wait([this, &app](asio::error_code ec)
                       {
                           this->tryNow(app);
                       });

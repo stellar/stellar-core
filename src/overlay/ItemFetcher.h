@@ -31,7 +31,7 @@ class TrackingCollar
     Peer::pointer mLastAskedPeer;
     vector<Peer::pointer> mPeersAsked;
     bool mCantFind;
-    Timer mTimer;
+    VirtualTimer mTimer;
     int mRefCount;
 
   protected:

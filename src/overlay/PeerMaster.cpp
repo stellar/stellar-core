@@ -28,8 +28,9 @@ PeerMaster::PeerMaster(Application& app)
     , mDoor(mApp)
     , mQSetFetcher(mApp)
     , mDeltaFetcher(mApp)
-    , mTimer(app.getMainIOService(), std::chrono::seconds(1))
+    , mTimer(app.getClock())
 {
+    mTimer.expires_from_now(std::chrono::seconds(1));
     mPreferredPeers.addPreferredPeers(mApp.getConfig().PREFERRED_PEERS);
     if (!mApp.getConfig().RUN_STANDALONE)
     {

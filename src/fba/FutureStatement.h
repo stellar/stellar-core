@@ -13,7 +13,7 @@ namespace stellar
 {
 class FutureStatement : public std::enable_shared_from_this<FutureStatement>
 {
-    Timer mTimer;
+    VirtualTimer mTimer;
 
   public:
     Statement::pointer mStatement;

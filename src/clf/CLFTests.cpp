@@ -14,11 +14,11 @@ using namespace stellar;
 
 TEST_CASE("bucket list", "[clf]")
 {
-
+    VirtualClock clock;
     Config const& cfg = getTestConfig();
     try
     {
-        Application app(cfg);
+        Application app(clock, cfg);
         BucketList bl;
         autocheck::generator<std::vector<Bucket::KVPair>> gen;
         for (uint64_t i = 1; !app.getMainIOService().stopped() && i < 130; ++i)

@@ -182,7 +182,7 @@ QSetFetcher::fetchItem(stellarxdr::uint256 const& setID, bool askNetwork)
 //////////////////////////////////////////////////////////////////////////
 
 TrackingCollar::TrackingCollar(stellarxdr::uint256 const& id, Application& app)
-    : mApp(app), mTimer(app.getMainIOService()), mItemID(id)
+    : mApp(app), mTimer(app.getClock()), mItemID(id)
 {
     mCantFind = false;
     mRefCount = 1;

@@ -118,10 +118,10 @@ TEST_CASE("end to end", "[fba]")
             cfg.QUORUM_SET.push_back(nodeID[n]);
         }
 
+        VirtualClock clock;
+        Application app(clock, cfg);
 
-        Application app(cfg);
 
-       
         Node testNode(nodeID[0]);
         BallotPtr ballot = std::make_shared<stellarxdr::Ballot>();
 

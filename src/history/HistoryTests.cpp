@@ -9,15 +9,14 @@
 #include "util/Logging.h"
 
 #include <xdrpp/autocheck.h>
-#include <xdrpp/compare.h>
 
 using namespace stellar;
 
 TEST_CASE("WriteLedgerHistoryToFile", "[history]")
 {
-    using namespace xdr::eq;
+    VirtualClock clock;
     Config const& cfg = getTestConfig();
-    Application app(cfg);
+    Application app(clock, cfg);
     autocheck::generator<stellarxdr::History> gen;
     HistoryMaster hm(app);
     auto h1 = gen(1000);
