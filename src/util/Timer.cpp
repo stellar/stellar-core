@@ -116,13 +116,17 @@ VirtualTimer::cancel()
 void
 VirtualTimer::expires_at(VirtualClock::time_point t)
 {
+    cancel();
     mExpiryTime = t;
+    mCancelled = false;
 }
 
 void
 VirtualTimer::expires_from_now(VirtualClock::duration d)
 {
+    cancel();
     mExpiryTime = mClock.now() + d;
+    mCancelled = false;
 }
 
 void
