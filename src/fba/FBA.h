@@ -5,16 +5,13 @@
 // under the ISC License. See the COPYING file at the top-level directory of
 // this distribution or at http://opensource.org/licenses/ISC
 
+#include "generated/FBAXDR.h"
+
 namespace stellar
 {
-typedef std::shared_ptr<stellarxdr::Ballot> BallotPtr;
-typedef std::shared_ptr<stellarxdr::SlotBallot> SlotBallotPtr;
-
-class Statement;
-typedef std::shared_ptr<Statement> StatementPtr;
-
-class FutureStatement;
-typedef std::shared_ptr<FutureStatement> FutureStatementPtr;
+typedef std::shared_ptr<fbaxdr::Ballot> BallotPtr;
+typedef std::shared_ptr<fbaxdr::SlotBallot> SlotBallotPtr;
+typedef std::shared_ptr<fbaxdr::Statement> StatementPtr;
 }
 
 // beyond this then the ballot is considered invalid

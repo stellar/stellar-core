@@ -7,8 +7,9 @@
 //   Bucket list for hashing
 //   array of ledgerentries for sending deltas
 
-namespace stellarxdr {
+%#include "generated/FBAXDR.h"
 
+namespace stellarxdr {
 
 // messages
 typedef opaque uint256[32];
@@ -160,58 +161,6 @@ struct History
 
 
 
-// FBA  messages
-struct Ballot
-{
-	int index;						// n
-    uint256 txSetHash;				// x
-	uint64 closeTime;				// x
-	uint32 baseFee;					// x
-};
-
-struct SlotBallot
-{
-	uint32 ledgerIndex;				// the slot				
-	uint256 previousLedgerHash;		// the slot
-
-    Ballot ballot;
-};
-
-enum FBAStatementType
-{
-	PREPARE,
-	PREPARED,
-	COMMIT,
-	COMMITTED,
-	EXTERNALIZED,
-	UNKNOWN
-};
-
-struct FBAContents
-{
-	SlotBallot slotBallot;
-	uint256 quorumSetHash;
-	
-	union switch (FBAStatementType type)
-	{
-		case PREPARE:
-			Ballot excepted<>;
-		case PREPARED:
-		case COMMIT:
-		case COMMITTED:
-		case EXTERNALIZED:
-		case UNKNOWN:
-			void;		
-	} body;
-};
-
-struct FBAEnvelope
-{
-	uint256 nodeID;
-    uint256 signature;
-	FBAContents contents;
-};
-
 enum LedgerTypes {
   ACCOUNT,
   TRUSTLINE,
@@ -276,12 +225,6 @@ union LedgerEntry switch (LedgerTypes type)
    TrustLineEntry trustLine;
  case OFFER:
       OfferEntry offer;
-};
-
-struct QuorumSet
-{
-    uint32 threshold;
-    uint256 validators<>;
 };
 
 struct Peer
@@ -374,7 +317,7 @@ union StellarMessage switch (MessageType type) {
 	case GET_VALIDATIONS:	
 		uint256 ledgerHash;	
 	case VALIDATIONS:
-		FBAEnvelope validations<>;
+		Envelope validations<>;
 
 	case TRANSACTION:
 		TransactionEnvelope transaction;
@@ -386,7 +329,7 @@ union StellarMessage switch (MessageType type) {
 		QuorumSet quorumSet;
 
 	case FBA_MESSAGE:
-		FBAEnvelope fbaMessage;
+		Envelope fbaMessage;
 };
 
 

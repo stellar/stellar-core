@@ -7,31 +7,36 @@
 
 #include "fba/FBA.h"
 
-/*
-The public interface to the FBA module
-*/
-
 namespace stellar
 {
+/**
+ * The public interface to the FBA module
+ */
 class FBAGateway
 {
   public:
-    // called by TxHerder
-    virtual void startNewRound(const stellarxdr::SlotBallot& firstBallot) = 0;
-
-    // a bit gross. ideally FBA wouldn't know what it is holding
-    virtual void transactionSetAdded(TransactionSet::pointer txSet) = 0;
-
     virtual void setValidating(bool validating) = 0;
 
-    // called by Overlay
-    virtual void addQuorumSet(QuorumSet::pointer qset) = 0;
-    virtual void recvStatement(Statement::pointer statement) = 0;
+    // Triggers a new round
+    virtual void startNewRound(const fbaxdr::SlotBallot& ballot);
 
-    // called internally
+    // QuorumSet retrieval interface
+    virtual void onQuorumSetNeeded(
+        std::function<void(fbaxdr::uint256 const& qSetHash) const& func) = 0;
+    virtual void recvQuorumSet(const fbaxdr::QuorumSet& qset) = 0;
+
+    // Statement envelope emission and reception interface
+    virtual void onEnvelopeEmitted(
+        std::function<void(const fbaxdr::Envelope&)> const& func) = 0;
+    virtual void recvEvenlope(const fbaxdr::Envelope& envelope) = 0;
+
+    // Externalization interface
+    virtual void onSlotExternalized(
+        std::function<void(const fbaxdr::SlotBallot&)> const& func) = 0;
+
+    // State interface
     virtual QuorumSet::pointer getOurQuorumSet() = 0;
-    virtual Node::pointer getNode(stellarxdr::uint256& nodeID) = 0;
-    virtual void statementReady(FutureStatementPtr statement) = 0;
+    virtual Node::pointer getNode(fbaxdr::uint256& nodeID) = 0;
 };
 }
 

@@ -51,7 +51,8 @@ FMT_HDRS = src/clf/BucketList.h src/clf/CanonicalLedgerForm.h src/clf/CLF.h     
 	src/txherder/TxHerderGateway.h src/util/Logging.h src/util/make_unique.h    \
 	src/util/Timer.h src/util/types.h src/simulation/Simulation.h
 
-BUILT_SOURCES = src/generated/StellardVersion.h src/generated/StellarXDR.h
+BUILT_SOURCES = src/generated/StellardVersion.h                                 \
+                src/generated/StellarXDR.h src/generated/FBAXDR.h
 
 bin_stellard_SOURCES = $(FMT_SRCS) \
                        $(BUILT_SOURCES) \
@@ -77,6 +78,9 @@ src/generated/StellardVersion.h: Makefile
 AM_CXXFLAGS = -stdlib=libc++
 
 src/generated/StellarXDR.h: src/overlay/StellarXDR.x Makefile
+	mkdir -p src/generated
+	$(XDRC) -hh -o $@ $<
+src/generated/FBAXDR.h: src/fba/FBAXDR.x Makefile
 	mkdir -p src/generated
 	$(XDRC) -hh -o $@ $<
 
