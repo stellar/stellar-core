@@ -1,4 +1,21 @@
 	
+Do we allow alternate paths?
+	I don't think it is worth the protocol complexity. Clients can just retry if it fails.
+	
+Do we want to include the public key in the tx or make them look it up in the account?
+
+
+How do we want to handle retunring payments?
+	If a user sends a payment from a gateway and someone needs to return it 
+		they can't just send it back since the gateway 
+		needs to know who to credit the payment to. 
+	source memo that is echod if there is a return payment?
+	include the tx id in the return payment?
+
+
+AccountEntry.ownerCount  do we want this in the ledgerEntry? 
+	It is calculateable
+
 
 Do we keep full entries in the BucketList?
 

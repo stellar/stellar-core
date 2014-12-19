@@ -40,21 +40,74 @@ enum TransactionType
 	INFLATION
 };
 
+struct CurrencyIssuer
+{
+	opaque currency<20>;
+	uint160 *issuer;
+};
+
+struct PaymentTx
+{
+	uint160 destination;  
+	opaque currency<20>;	// what they end up with
+	uint64 amount;			// amount they end up with
+	CurrencyIssuer path<>;	// what hops it must go through to get there
+	uint64 sendMax;			// the maximum amount of the source currency this
+							// will send. The tx will fail if can't be met
+	opaque memo<32>;
+	opaque sourceMemo<32>;	// used to return a payment
+};
+
+struct CreateOfferTx
+{
+	CurrencyIssuer currencyTakerGets;
+	uint64 amountTakerGets;
+	CurrencyIssuer currencyTakerPays;
+	uint64 amountTakerPays;
+
+	uint32 offerSeqNum;		// set if you want to change an existing offer
+	bool passive;	// only take offers that cross this. not offers that match it
+};
+
+struct ChangeAccountTx
+{
+	uint256* setAuthKey;
+	uint256* signingKey;
+	KeyValue* data;
+	uint32*	flags;
+	uint32* transferRate;
+};
+
+struct ChangeTrustTx
+{
+	CurrencyIssuer line;
+	uint64 amount;
+	bool auth;
+};
+
 struct Transaction
 {
     uint160 account;
 	uint32 maxFee;
 	uint32 seqNum;
+	uint32 maxLedger;	// maximum ledger this tx is valid to be applied in
+
 	union switch (TransactionType type)
 	{
 		case PAYMENT:
+			PaymentTx paymentTx;
 		case CREATE_OFFER:
+			CreateOfferTx createOfferTx;
 		case CANCEL_OFFER:
+			uint32 offerSeqNum;
 		case CHANGE_ACCOUNT:
+			ChangeAccountTx changeAccountTx;
 		case CHANGE_TRUST:
+			ChangeTrustTx changeTrustTx;
 		case ACCOUNT_MERGE:
+			uint160 destination;
 		case INFLATION:
-			void;		
+			unit32 inflationSeq;
 	} body;
 };
 
@@ -166,6 +219,12 @@ struct Amount
     uint160 *issuer;
 };
 
+struct KeyValue
+{
+	uint32 key;
+	opaque value<64>;
+};
+
 struct AccountEntry
 {
     uint160 accountID;
@@ -173,10 +232,15 @@ struct AccountEntry
     uint32 sequence;
     uint32 ownerCount;
     uint32 transferRate;
-    uint160 inflationDest;
     uint256 pubKey;
-    int flags;
+	uint160 *inflationDest;
+	uint256 *creditAuthKey;
+	KeyValue data<>;
+
+	uint32 flags; // require dt, require auth, 
 };
+
+
 
 struct TrustLineEntry
 {
@@ -194,10 +258,12 @@ struct OfferEntry
 {
     uint160 accountID;
     uint32 sequence;
-    //Amount takerPays;
-    //Amount takerGets;
+	CurrencyIssuer takerGets;
+	CurrencyIssuer takerPays;
+	uint64 takerGetsAmount;
+	uint64 takerPaysAmount;
+
     bool passive;
-    uint32 expiration;
 };
 
 union LedgerEntry switch (LedgerTypes type)
