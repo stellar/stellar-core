@@ -46,6 +46,12 @@ struct CurrencyIssuer
 	uint160 *issuer;
 };
 
+struct KeyValue
+{
+	uint32 key;
+	opaque value<64>;
+};
+
 struct PaymentTx
 {
 	uint160 destination;  
@@ -107,7 +113,7 @@ struct Transaction
 		case ACCOUNT_MERGE:
 			uint160 destination;
 		case INFLATION:
-			unit32 inflationSeq;
+			uint32 inflationSeq;
 	} body;
 };
 
@@ -219,11 +225,7 @@ struct Amount
     uint160 *issuer;
 };
 
-struct KeyValue
-{
-	uint32 key;
-	opaque value<64>;
-};
+
 
 struct AccountEntry
 {
