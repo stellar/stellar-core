@@ -39,5 +39,11 @@ TEST_CASE("cycle4 topology", "[simulation]")
     std::shared_ptr<LoopbackPeerConnection> n4n1 = 
       simulation.addConnection(n4, n1);
 
+    stellarxdr::SlotBallot ballot;
+    ballot.ledgerIndex = 0;
+    ballot.ballot.index = 1;
+    ballot.ballot.closeTime = time(nullptr) + NUM_SECONDS_IN_CLOSE;
+    simulation.getNode(n1)->getFBAGateway().startNewRound(ballot);
+
     while(simulation.crankAllNodes() > 0);
 }

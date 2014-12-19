@@ -13,8 +13,6 @@ namespace stellar
 {
 class Simulation
 {
-  typedef std::unique_ptr<Application> appPtr;
-
   private:
     VirtualClock mClock;
     std::map<stellarxdr::uint256, Application::pointer> mNodes;
