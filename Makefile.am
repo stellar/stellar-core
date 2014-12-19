@@ -3,7 +3,7 @@
 
 bin_PROGRAMS = bin/stellard
 
-FMT_SRCS = src/overlay/Floodgate.cpp src/overlay/PeerDoor.cpp                       \
+FMT_SRCS = src/overlay/Floodgate.cpp src/overlay/PeerDoor.cpp                   \
 	src/overlay/TCPPeer.cpp src/overlay/LoopbackPeer.cpp src/overlay/Peer.cpp   \
 	src/overlay/ItemFetcher.cpp src/overlay/PeerMaster.cpp                      \
 	src/overlay/PreferredPeers.cpp src/util/types.cpp src/fba/FBAMaster.cpp     \
@@ -23,9 +23,10 @@ FMT_SRCS = src/overlay/Floodgate.cpp src/overlay/PeerDoor.cpp                   
 	src/main/CommandHandler.cpp src/process/ProcessMaster.cpp                   \
 	src/process/ProcessTests.cpp src/history/HistoryMaster.cpp                  \
 	src/history/HistoryTests.cpp src/overlay/OverlayTests.cpp                   \
-	src/simulation/Simulation.cpp src/simulation/CycleTests.cpp
+	src/simulation/Simulation.cpp src/simulation/CycleTests.cpp                 \
+	src/util/Timer.cpp
 
-FMT_HDRS = src/clf/BucketList.h src/clf/CanonicalLedgerForm.h src/clf/CLF.h         \
+FMT_HDRS = src/clf/BucketList.h src/clf/CanonicalLedgerForm.h src/clf/CLF.h     \
 	src/clf/CLFDelta.h src/clf/CLFGateway.h src/crypto/EdKeyPair.h              \
 	src/crypto/StellarPrivateKey.h src/crypto/StellarPublicKey.h                \
 	src/fba/Ballot.h src/fba/FBA.h src/fba/FBAGateway.h src/fba/FBAMaster.h     \

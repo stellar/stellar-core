@@ -102,9 +102,9 @@ ProcessMaster::runProcess(std::string const& cmdLine)
 class ProcessExitEvent::Impl
 {
   public:
-    std::shared_ptr<Timer> mOuterTimer;
+    std::shared_ptr<RealTimer> mOuterTimer;
     std::shared_ptr<asio::error_code> mOuterEc;
-    Impl(std::shared_ptr<Timer> const& outerTimer,
+    Impl(std::shared_ptr<RealTimer> const& outerTimer,
          std::shared_ptr<asio::error_code> const& outerEc)
         : mOuterTimer(outerTimer), mOuterEc(outerEc)
     {

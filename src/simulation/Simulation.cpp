@@ -29,7 +29,7 @@ Simulation::addNode(stellarxdr::uint256 nodeID)
     if (!mNodes[nodeID]) 
     {
         Config const& cfg = getTestConfig();
-        mNodes[nodeID] = std::make_shared<Application>(cfg);
+        mNodes[nodeID] = std::make_shared<Application>(mClock, cfg);
     }
     return mNodes[nodeID];
 }
