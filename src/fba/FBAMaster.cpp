@@ -184,6 +184,12 @@ FBAMaster::getNode(stellarxdr::uint256& nodeID)
     return ret;
 }
 
+OurNode::pointer
+FBAMaster::getOurNode()
+{
+    return mOurNode;
+}
+
 /*
 When we get a FBA statement from the network we need to do the following:
 1) check the sig

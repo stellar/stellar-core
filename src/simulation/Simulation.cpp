@@ -23,15 +23,28 @@ Simulation::~Simulation()
     }
 }
 
-Application::pointer
-Simulation::addNode(stellarxdr::uint256 nodeID)
+VirtualClock& 
+Simulation::getClock()
 {
-    if (!mNodes[nodeID]) 
-    {
-        Config const& cfg = getTestConfig();
-        mNodes[nodeID] = std::make_shared<Application>(mClock, cfg);
-    }
-    return mNodes[nodeID];
+  return mClock;
+}
+
+stellarxdr::uint256
+Simulation::addNode(stellarxdr::uint256 validationSeed, VirtualClock& clock)
+{
+    Config::pointer cfg = stellar::make_shared<Config>();
+    cfg->LOG_FILE_PATH = getTestConfig().LOG_FILE_PATH;
+    cfg->VALIDATION_SEED = validationSeed;
+    cfg->RUN_STANDALONE = true;
+
+    Application::pointer node = 
+          std::make_shared<Application>(clock, *cfg);
+
+    stellarxdr::uint256 nodeID = node->getFBAGateway().getOurNode()->mNodeID;
+    mConfigs[nodeID] = cfg;
+    mNodes[nodeID] = node;
+
+    return nodeID;
 }
 
 Application::pointer
@@ -56,26 +69,26 @@ Simulation::addConnection(stellarxdr::uint256 initiator,
 
 
 std::size_t
-Simulation::advanceNode(stellarxdr::uint256 nodeID, int nbTicks)
+Simulation::crankNode(stellarxdr::uint256 nodeID, int nbTicks)
 {
     std::size_t count = 0;
     if (mNodes[nodeID])
     {
         for (int i = 0; i < nbTicks && nbTicks > 0; i ++)
-            count += mNodes[nodeID]->getMainIOService().poll_one();
+            count += mNodes[nodeID]->crank(false);
     }
     return count;
 }
 
 std::size_t
-Simulation::advanceAllNodes(int nbTicks)
+Simulation::crankAllNodes(int nbTicks)
 {
     std::size_t count = 0;
     for (int i = 0; i < nbTicks && nbTicks > 0; i ++)
     {
         std::map<stellarxdr::uint256, Application::pointer>::iterator it;
         for (it = mNodes.begin(); it != mNodes.end(); ++it) {
-            count += it->second->getMainIOService().poll_one();
+            count += it->second->crank(false);
         }
     }
     return count;
