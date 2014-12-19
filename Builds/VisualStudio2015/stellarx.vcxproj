@@ -91,9 +91,6 @@
     <ClCompile Include="..\..\src\ledger\LedgerMaster.cpp" />
     <ClCompile Include="..\..\src\ledger\OfferEntry.cpp" />
     <ClCompile Include="..\..\src\ledger\TrustLine.cpp" />
-    <ClCompile Include="..\..\src\lib\base58\Base58Data.cpp">
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
-    </ClCompile>
     <ClCompile Include="..\..\src\lib\crypto\edkeypair.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
     </ClCompile>
@@ -109,14 +106,12 @@
     <ClCompile Include="..\..\src\lib\http\reply.cpp" />
     <ClCompile Include="..\..\src\lib\http\request_parser.cpp" />
     <ClCompile Include="..\..\src\lib\http\server.cpp" />
-    <ClCompile Include="..\..\src\lib\util\base58.cpp">
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+    <ClCompile Include="..\..\src\lib\util\format.cc">
+      <DisableSpecificWarnings Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">4456</DisableSpecificWarnings>
+      <DisableSpecificWarnings Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">4456</DisableSpecificWarnings>
     </ClCompile>
     <ClCompile Include="..\..\src\lib\util\getopt_long.c" />
     <ClCompile Include="..\..\src\util\types.cpp" />
-    <ClCompile Include="..\..\src\lib\util\uint256.cpp">
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
-    </ClCompile>
     <ClCompile Include="..\..\src\main\Application.cpp" />
     <ClCompile Include="..\..\src\main\CommandHandler.cpp" />
     <ClCompile Include="..\..\src\main\Config.cpp" />
@@ -171,10 +166,6 @@
     <ClInclude Include="..\..\src\ledger\OfferEntry.h" />
     <ClInclude Include="..\..\src\ledger\TrustLine.h" />
     <ClInclude Include="..\..\src\ledger\ValidatedLedgers.h" />
-    <ClInclude Include="..\..\src\lib\base58\Base58.h" />
-    <ClInclude Include="..\..\src\lib\base58\Base58Data.h" />
-    <ClInclude Include="..\..\src\lib\base58\base_uint.h" />
-    <ClInclude Include="..\..\src\lib\base58\strHex.h" />
     <ClInclude Include="..\..\src\lib\crypto\EdKeyPair.h" />
     <ClInclude Include="..\..\src\lib\crypto\StellarPrivateKey.h" />
     <ClInclude Include="..\..\src\lib\crypto\StellarPublicKey.h" />
@@ -186,14 +177,11 @@
     <ClInclude Include="..\..\src\lib\http\request.hpp" />
     <ClInclude Include="..\..\src\lib\http\request_parser.hpp" />
     <ClInclude Include="..\..\src\lib\http\server.hpp" />
-    <ClInclude Include="..\..\src\lib\util\base58.h" />
-    <ClInclude Include="..\..\src\lib\util\byte_order.h" />
     <ClInclude Include="..\..\src\lib\util\cpptoml.h" />
     <ClInclude Include="..\..\src\lib\util\easylogging++.h" />
     <ClInclude Include="..\..\src\lib\util\getopt.h" />
     <ClInclude Include="..\..\src\lib\util\Logging.h" />
     <ClInclude Include="..\..\src\lib\util\types.h" />
-    <ClInclude Include="..\..\src\lib\util\uint256.h" />
     <ClInclude Include="..\..\src\main\Application.h" />
     <ClInclude Include="..\..\src\main\CommandHandler.h" />
     <ClInclude Include="..\..\src\main\Config.h" />
@@ -226,9 +214,7 @@
     <ClInclude Include="..\..\src\txherder\TransactionSet.h" />
     <ClInclude Include="..\..\src\txherder\TxHerder.h" />
     <ClInclude Include="..\..\src\txherder\TxHerderGateway.h" />
-  </ItemGroup>
-  <ItemGroup>
-    <Text Include="..\..\src\lib\beast\beast.txt" />
+    <ClInclude Include="..\..\src\util\Timer.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="..\..\AUTHORS" />

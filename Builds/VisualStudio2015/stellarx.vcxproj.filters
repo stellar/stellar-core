@@ -34,17 +34,8 @@
     <Filter Include="lib\database">
       <UniqueIdentifier>{3f51215c-abdc-4e1d-8c5c-9bce057dbe19}</UniqueIdentifier>
     </Filter>
-    <Filter Include="lib\crypto">
-      <UniqueIdentifier>{ca69df68-9e2f-4688-b4de-977e0288ecad}</UniqueIdentifier>
-    </Filter>
     <Filter Include="transactions">
       <UniqueIdentifier>{4545a642-5678-463c-a1b1-33e66fc6f809}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="lib\base58">
-      <UniqueIdentifier>{1deb2d13-8a40-4dd2-8096-bf710d2d2096}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="lib\beast">
-      <UniqueIdentifier>{a49cecd7-50ca-4ce9-bcb5-8db2172dfd42}</UniqueIdentifier>
     </Filter>
     <Filter Include="xdrpp">
       <UniqueIdentifier>{edf55658-9ccc-494c-83f5-34e638396749}</UniqueIdentifier>
@@ -60,6 +51,12 @@
     </Filter>
     <Filter Include="process">
       <UniqueIdentifier>{dfcbc766-c389-4f89-84ab-ed48a177c74d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="util">
+      <UniqueIdentifier>{9a90f557-0d93-4794-a2ad-694cc0968282}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="crypto">
+      <UniqueIdentifier>{ca69df68-9e2f-4688-b4de-977e0288ecad}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -130,13 +127,13 @@
       <Filter>overlay</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\lib\crypto\edkeypair.cpp">
-      <Filter>lib\crypto</Filter>
+      <Filter>crypto</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\lib\crypto\StellarPrivateKey.cpp">
-      <Filter>lib\crypto</Filter>
+      <Filter>crypto</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\lib\crypto\StellarPublicKey.cpp">
-      <Filter>lib\crypto</Filter>
+      <Filter>crypto</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\transactions\Transaction.cpp">
       <Filter>transactions</Filter>
@@ -144,26 +141,11 @@
     <ClCompile Include="..\..\src\transactions\TrustSetTx.cpp">
       <Filter>transactions</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\lib\base58\Base58Data.cpp">
-      <Filter>lib\base58</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\lib\util\base58.cpp">
-      <Filter>lib\util</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\lib\util\uint256.cpp">
-      <Filter>lib\util</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\util\types.cpp">
-      <Filter>lib\util</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\clf\BucketList.cpp">
       <Filter>clf</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\xdrpp\xdrpp\marshal.cc">
       <Filter>xdrpp</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\util\Logging.cpp">
-      <Filter>lib\util</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\main\Config.cpp">
       <Filter>main</Filter>
@@ -230,6 +212,15 @@
     </ClCompile>
     <ClCompile Include="..\..\src\process\ProcessTests.cpp">
       <Filter>process</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\util\types.cpp">
+      <Filter>util</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\util\Logging.cpp">
+      <Filter>util</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lib\util\format.cc">
+      <Filter>lib</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -324,19 +315,13 @@
       <Filter>lib\database</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\lib\crypto\EdKeyPair.h">
-      <Filter>lib\crypto</Filter>
+      <Filter>crypto</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\lib\crypto\StellarPrivateKey.h">
-      <Filter>lib\crypto</Filter>
+      <Filter>crypto</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\lib\crypto\StellarPublicKey.h">
-      <Filter>lib\crypto</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\lib\util\Logging.h">
-      <Filter>lib\util</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\lib\util\types.h">
-      <Filter>lib\util</Filter>
+      <Filter>crypto</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\transactions\CancelOfferTx.h">
       <Filter>transactions</Filter>
@@ -367,27 +352,6 @@
     </ClInclude>
     <ClInclude Include="..\..\src\transactions\TransactionResultCodes.h">
       <Filter>transactions</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\lib\base58\base_uint.h">
-      <Filter>lib\base58</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\lib\base58\Base58.h">
-      <Filter>lib\base58</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\lib\base58\Base58Data.h">
-      <Filter>lib\base58</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\lib\base58\strHex.h">
-      <Filter>lib\base58</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\lib\util\byte_order.h">
-      <Filter>lib\util</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\lib\util\base58.h">
-      <Filter>lib\util</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\lib\util\uint256.h">
-      <Filter>lib\util</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\main\Config.h">
       <Filter>main</Filter>
@@ -491,11 +455,15 @@
     <ClInclude Include="..\..\src\process\ProcessMaster.h">
       <Filter>process</Filter>
     </ClInclude>
-  </ItemGroup>
-  <ItemGroup>
-    <Text Include="..\..\src\lib\beast\beast.txt">
-      <Filter>lib\beast</Filter>
-    </Text>
+    <ClInclude Include="..\..\src\lib\util\types.h">
+      <Filter>util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\lib\util\Logging.h">
+      <Filter>util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\util\Timer.h">
+      <Filter>util</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="..\..\docs\transactions.md">
