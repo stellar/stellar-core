@@ -19,7 +19,7 @@ TEST_CASE("WriteLedgerHistoryToFile", "[history]")
     Application app(clock, cfg);
     autocheck::generator<stellarxdr::History> gen;
     HistoryMaster hm(app);
-    auto h1 = gen(1000);
+    auto h1 = gen(10);
     auto fname = hm.writeLedgerHistoryToFile(h1);
     stellarxdr::History h2;
     hm.readLedgerHistoryFromFile(fname, h2);
