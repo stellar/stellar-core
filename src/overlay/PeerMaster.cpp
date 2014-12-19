@@ -30,8 +30,8 @@ PeerMaster::PeerMaster(Application& app)
     , mDeltaFetcher(mApp)
     , mTimer(app.getMainIOService(), std::chrono::seconds(1))
 {
-    mPreferredPeers.addPreferredPeers(mApp.mConfig.PREFERRED_PEERS);
-    if (!mApp.mConfig.RUN_STANDALONE)
+    mPreferredPeers.addPreferredPeers(mApp.getConfig().PREFERRED_PEERS);
+    if (!mApp.getConfig().RUN_STANDALONE)
     {
         addConfigPeers();
         mTimer.async_wait([this](asio::error_code const& ec)
@@ -51,7 +51,7 @@ PeerMaster::tick()
 {
     // if we have too few peers try to connect to more
     LOG(DEBUG) << "PeerMaster tick";
-    if (mPeers.size() < mApp.mConfig.TARGET_PEER_CONNECTIONS)
+    if (mPeers.size() < mApp.getConfig().TARGET_PEER_CONNECTIONS)
     {
         // LATER
     }
@@ -87,7 +87,7 @@ PeerMaster::dropPeer(Peer::pointer peer)
 bool
 PeerMaster::isPeerAccepted(Peer::pointer peer)
 {
-    if (mPeers.size() < mApp.mConfig.MAX_PEER_CONNECTIONS)
+    if (mPeers.size() < mApp.getConfig().MAX_PEER_CONNECTIONS)
         return true;
     return mPreferredPeers.isPeerPreferred(peer);
 }
@@ -131,7 +131,7 @@ PeerMaster::recvQuorumSet(QuorumSet::pointer qset)
 void
 PeerMaster::addConfigPeers()
 {
-    mPreferredPeers.addPreferredPeers(mApp.mConfig.PREFERRED_PEERS);
+    mPreferredPeers.addPreferredPeers(mApp.getConfig().PREFERRED_PEERS);
 }
 
 void

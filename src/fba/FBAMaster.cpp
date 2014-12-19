@@ -113,7 +113,7 @@ FBAMaster::createOurQuroumSet()
 {
     mOurQuorumSet->mNodes.clear();
 
-    for (auto nodeID : mApp.mConfig.QUORUM_SET)
+    for (auto nodeID : mApp.getConfig().QUORUM_SET)
     {
         Node::pointer node = std::make_shared<Node>(nodeID);
         mOurQuorumSet->mNodes.push_back(node);

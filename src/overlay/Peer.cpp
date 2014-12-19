@@ -36,8 +36,8 @@ Peer::sendHello()
 {
     stellarxdr::StellarMessage msg;
     msg.type(stellarxdr::HELLO);
-    msg.hello().protocolVersion = mApp.mConfig.PROTOCOL_VERSION;
-    msg.hello().versionStr = mApp.mConfig.VERSION_STR;
+    msg.hello().protocolVersion = mApp.getConfig().PROTOCOL_VERSION;
+    msg.hello().versionStr = mApp.getConfig().VERSION_STR;
 
     sendMessage(msg);
 }

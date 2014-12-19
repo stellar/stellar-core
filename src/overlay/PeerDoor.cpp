@@ -19,9 +19,9 @@ using std::make_shared;
 PeerDoor::PeerDoor(Application& app)
     : mApp(app), mAcceptor(mApp.getMainIOService())
 {
-    if (!mApp.mConfig.RUN_STANDALONE)
+    if (!mApp.getConfig().RUN_STANDALONE)
     {
-        tcp::endpoint endpoint(tcp::v4(), mApp.mConfig.PEER_PORT);
+        tcp::endpoint endpoint(tcp::v4(), mApp.getConfig().PEER_PORT);
         CLOG(DEBUG, "Overlay") << "PeerDoor binding to endpoint " << endpoint;
         mAcceptor.open(endpoint.protocol());
         mAcceptor.bind(endpoint);

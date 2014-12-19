@@ -75,7 +75,7 @@ void LedgerMaster::externalizeValue(const stellarxdr::SlotBallot& slotBallot, Tr
     else
     { // we need to catch up
         mCaughtUp = false;
-        if(mApp.mState == Application::CATCHING_UP_STATE)
+        if(mApp.getState() == Application::CATCHING_UP_STATE)
         {  // we are already trying to catch up
             CLOG(DEBUG, "Ledger") << "Missed a ledger while trying to catch up.";
         } else
@@ -89,7 +89,7 @@ void LedgerMaster::externalizeValue(const stellarxdr::SlotBallot& slotBallot, Tr
 // we need to 
 void LedgerMaster::startCatchUp()
 {
-    mApp.mState = Application::CATCHING_UP_STATE;
+    mApp.setState(Application::CATCHING_UP_STATE);
     mApp.getOverlayGateway().fetchDelta(getCurrentHeader()->hash, getCurrentHeader()->ledgerSeq );
 
 }
@@ -101,7 +101,7 @@ void LedgerMaster::recvDelta(CLFDeltaPtr delta, LedgerHeaderPtr header)
 {
     if(delta)
     { // we got this delta in from the network
-        mApp.mState = Application::CONNECTED_STATE;
+        mApp.setState(Application::CONNECTED_STATE);
             
     } else
     {

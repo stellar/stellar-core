@@ -15,15 +15,15 @@ namespace stellar
 {
 CommandHandler::CommandHandler(Application& app) : mApp(app)
 {
-    if (!mApp.mConfig.RUN_STANDALONE && mApp.mConfig.HTTP_PORT)
+    if (!mApp.getConfig().RUN_STANDALONE && mApp.getConfig().HTTP_PORT)
     {
         std::string ipStr;
         ipStr = "127.0.0.1";
-        LOG(INFO) << "Listening on " << ipStr << ":" << mApp.mConfig.HTTP_PORT
+        LOG(INFO) << "Listening on " << ipStr << ":" << mApp.getConfig().HTTP_PORT
                   << " for HTTP requests";
 
         mServer = stellar::make_unique<http::server::server>(
-            app.getMainIOService(), ipStr, mApp.mConfig.HTTP_PORT);
+            app.getMainIOService(), ipStr, mApp.getConfig().HTTP_PORT);
 
         mServer->addRoute("stop",
                           std::bind(&CommandHandler::stop, this, _1, _2));

@@ -65,7 +65,7 @@ class Application : public enable_shared_from_this<Application>
     //    ledger (say, from snapshots), we don't _add our own signature_
     //    without execution as well.
 
-    enum
+    enum State
     {
         BOOTING_STATE,     // loading last known ledger from disk
         CONNECTING_STATE,  // trying to connect to other peers
@@ -76,10 +76,11 @@ class Application : public enable_shared_from_this<Application>
         NUM_STATE
     };
 
-    int mState;
+  private:
+
+    State mState;
     Config const& mConfig;
 
-  private:
     // NB: The io_services should come first, then the 'master'
     // sub-objects, then the threads. Do not reorder these fields.
     //
@@ -117,6 +118,24 @@ class Application : public enable_shared_from_this<Application>
     Application(Config const& config);
     ~Application();
 
+    Config const&
+    getConfig()
+    {
+        return mConfig;
+    }
+
+    State
+    getState()
+    {
+        return mState;
+    }
+
+    void
+    setState(State s)
+    {
+        mState = s;
+    }
+    }
     LedgerGateway&
     getLedgerGateway()
     {
