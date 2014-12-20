@@ -61,6 +61,7 @@ bin_stellard_SOURCES = $(FMT_SRCS) \
 bin_stellard_CPPFLAGS = -I$(top_srcdir)/src \
                         -I$(builddir)/src \
                         -I$(srcdir)/src/lib/autocheck/include \
+                        -I$(srcdir)/src/lib/cereal/include \
                         -I$(srcdir)/src/lib/util \
                         -I$(srcdir)/src/lib/asio/include -DASIO_STANDALONE
 
