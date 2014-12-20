@@ -22,9 +22,9 @@ FMT_SRCS = src/overlay/Floodgate.cpp src/overlay/PeerDoor.cpp                   
 	src/lib/http/request_parser.cpp src/lib/http/server.cpp                     \
 	src/main/CommandHandler.cpp src/process/ProcessMaster.cpp                   \
 	src/process/ProcessTests.cpp src/history/HistoryMaster.cpp                  \
-	src/history/HistoryTests.cpp src/overlay/OverlayTests.cpp                   \
-	src/simulation/Simulation.cpp src/simulation/CycleTests.cpp                 \
-	src/util/Timer.cpp
+	src/history/HistoryArchive.cpp src/history/HistoryTests.cpp                 \
+	src/overlay/OverlayTests.cpp src/simulation/Simulation.cpp                  \
+	src/simulation/CycleTests.cpp src/util/Timer.cpp
 
 FMT_HDRS = src/clf/BucketList.h src/clf/CanonicalLedgerForm.h src/clf/CLF.h     \
 	src/clf/CLFDelta.h src/clf/CLFGateway.h src/crypto/EdKeyPair.h              \
@@ -68,7 +68,8 @@ bin_stellard_CPPFLAGS = -I$(top_srcdir)/src \
 CLEANFILES = $(BUILT_SOURCES)
 GITDIR = $(top_srcdir)/.git
 src/generated/StellardVersion.h: Makefile
-	if test -d "$(GITDIR)"; then                                            \
+	mkdir -p src/generated; \
+    if test -d "$(GITDIR)"; then                                            \
       (VERS="$$(GIT_DIR=$(GITDIR) git describe --always --dirty --tags)" && \
        echo "#define STELLARD_VERSION \"$$VERS\"") >$@;                     \
     else                                                                    \
