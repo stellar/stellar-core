@@ -17,6 +17,23 @@ class FBAGateway
   public:
     virtual void setValidating(bool validating) = 0;
 
+    /**
+     * Users of the FBA library must provide an implementation of the Dispatch 
+     * class. The Dispatch methods are called by the FBA implementation to:
+     * 1) inform about events happening within the consensus algorithm
+     *    (`ballotCommitted`, `slotExternalized`)
+     * 2) trigger the retrieval of data required by the FBA protocol 
+     *    (`retrieveQuorumSet`)
+     * 3) trigger the broadcasting of FBA Envelopes to other nodes in the 
+     *    network (`emitEnvelope`) 
+     * 4) hand over the validation of ballots to the user of the library 
+     *    (`validateBallot`)
+     * The Dispatch interface permits the abstraction of the transport layer 
+     * used from the actual implementation of the FBA protocol. By providing an 
+     * implementation of `Dispatch` and calling `receiveQuorumSet` and 
+     * `receiveEnvelope` as needed, the user of FBA has full control on the 
+     * transport she relies on.
+     */
     class Dispatch : public enable_shared_from_this<Dispatch>
     {
         typedef std::shared_ptr<Dispatch> pointer;
@@ -31,16 +48,13 @@ class FBAGateway
         virtual void emitEnvelope(const fbaxdr::Envelope&) = 0;
     };
 
+    // Dispatch interface and QuorumSet/Envelope receival
     virtual void setDispatcher(const Dispatch::pointer disptacher) = 0;
+    virtual void receiveQuorumSet(const fbaxdr::QuorumSet& qset) = 0;
+    virtual void receiveEnvelope(const fbaxdr::Envelope& envelope) = 0;
 
-    // Ballot preparation and validation
+    // Ballot preparation
     virtual bool prepareBallot(const fbaxdr::SlotBallot& ballot) = 0;
-
-    // QuorumSet retrieval interface
-    virtual void recvQuorumSet(const fbaxdr::QuorumSet& qset) = 0;
-
-    // Statement envelope emission and reception interface
-    virtual void recvEvenlope(const fbaxdr::Envelope& envelope) = 0;
 
     // State interface
     virtual QuorumSet::pointer getOurQuorumSet() = 0;
