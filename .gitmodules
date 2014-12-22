@@ -1,0 +1,3 @@
+[submodule "src/lib/libsodium"]
+	path = src/lib/libsodium
+	url = https://github.com/stellar/libsodium.git
