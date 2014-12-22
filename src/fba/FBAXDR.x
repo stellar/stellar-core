@@ -21,7 +21,6 @@ enum StatementType
     PREPARED,
     COMMIT,
     COMMITTED,
-    EXTERNALIZED,
     UNKNOWN
 };
 
@@ -37,7 +36,6 @@ struct Statement
         case PREPARED:
         case COMMIT:
         case COMMITTED:
-        case EXTERNALIZED:
         case UNKNOWN:
             void;		
     } body;

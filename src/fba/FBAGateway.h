@@ -17,22 +17,30 @@ class FBAGateway
   public:
     virtual void setValidating(bool validating) = 0;
 
-    // Triggers a new round
-    virtual void startNewRound(const fbaxdr::SlotBallot& ballot);
+    class Dispatch : public enable_shared_from_this<Dispatch>
+    {
+        typedef std::shared_ptr<Dispatch> pointer;
+
+        virtual bool validateBallot(const fbaxdr::uint256 nodeID,
+                                    const fbaxdr::SlotBallot& ballot) = 0;
+
+        virtual void ballotCommitted(const fbaxdr::SlotBallot& ballot) = 0;
+        virtual void slotExternalized(const fbaxdr::SlotBallot& ballot) = 0;
+
+        virtual void retrieveQuorumSet(const fbaxdr::uint256& qSetHash) = 0;
+        virtual void emitEnvelope(const fbaxdr::Envelope&) = 0;
+    };
+
+    virtual void setDispatcher(const Dispatch::pointer disptacher) = 0;
+
+    // Ballot preparation and validation
+    virtual bool prepareBallot(const fbaxdr::SlotBallot& ballot) = 0;
 
     // QuorumSet retrieval interface
-    virtual void onQuorumSetNeeded(
-        std::function<void(fbaxdr::uint256 const& qSetHash) const& func) = 0;
     virtual void recvQuorumSet(const fbaxdr::QuorumSet& qset) = 0;
 
     // Statement envelope emission and reception interface
-    virtual void onEnvelopeEmitted(
-        std::function<void(const fbaxdr::Envelope&)> const& func) = 0;
     virtual void recvEvenlope(const fbaxdr::Envelope& envelope) = 0;
-
-    // Externalization interface
-    virtual void onSlotExternalized(
-        std::function<void(const fbaxdr::SlotBallot&)> const& func) = 0;
 
     // State interface
     virtual QuorumSet::pointer getOurQuorumSet() = 0;
