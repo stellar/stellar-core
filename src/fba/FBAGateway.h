@@ -56,7 +56,7 @@ class FBAGateway
     // Ballot preparation
     virtual bool prepareBallot(const fbaxdr::SlotBallot& ballot) = 0;
 
-    // Local QuorumSetinterface
+    // Local QuorumSet interface
     virtual void setLocalQuorumSet(const fbaxdr::QuorumSet& qset) = 0;
     virtual const fbaxdr::QuorumSet& getLocalQuorumSet() = 0;
 };
