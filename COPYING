@@ -81,3 +81,19 @@ src/lib/util/format.cc and format.h:
   (victor.zverovich@gmail.com)
   Licensed under the 2-clause BSD license
   (http://opensource.org/licenses/BSD-2-Clause)
+
+src/lib/cereal:
+
+  The cereal library,
+  Copyright 2014, Randolph Voorhies, Shane Grant
+  (voorhies@usc.edu, wgrant@usc.edu)
+  Licensed under the 3-clause BSD license
+  (http://opensource.org/licenses/BSD-3-Clause)
+
+src/lib/cereal/external/rapidjson:
+
+  The RapidJSON library,
+  Copyright 2011 Milo Yip
+  (miloyip@gmail.com)
+  Licensed under the MIT license
+  (http://opensource.org/licenses/MIT)

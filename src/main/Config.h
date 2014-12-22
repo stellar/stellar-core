@@ -2,6 +2,9 @@
 #define __CONFIG__
 
 #include "generated/StellarXDR.h"
+#include <string>
+#include <memory>
+#include <map>
 
 // Copyright 2014 Stellar Development Foundation and contributors. Licensed
 // under the ISC License. See the COPYING file at the top-level directory of
@@ -9,6 +12,8 @@
 
 namespace stellar
 {
+class HistoryArchive;
+
 class Config : public std::enable_shared_from_this<Config>
 {
   public:
@@ -36,6 +41,9 @@ class Config : public std::enable_shared_from_this<Config>
     stellarxdr::uint256 VALIDATION_SEED;
     int QUORUM_THRESHOLD;
     std::vector<stellarxdr::uint256> QUORUM_SET;
+
+    // History config
+    std::map<std::string,std::shared_ptr<HistoryArchive>> HISTORY;
 
     Config();
 
