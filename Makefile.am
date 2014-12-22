@@ -1,5 +1,7 @@
 ## Process this file with automake to produce Makefile.in
 
+CLEAN_SUBDIRS =
+DIST_SUBDIRS = src/lib/libsodium
 
 bin_PROGRAMS = bin/stellard
 
@@ -24,7 +26,7 @@ FMT_SRCS = src/overlay/Floodgate.cpp src/overlay/PeerDoor.cpp                   
 	src/process/ProcessTests.cpp src/history/HistoryMaster.cpp                  \
 	src/history/HistoryArchive.cpp src/history/HistoryTests.cpp                 \
 	src/overlay/OverlayTests.cpp src/simulation/Simulation.cpp                  \
-	src/simulation/CycleTests.cpp src/util/Timer.cpp
+	src/simulation/CycleTests.cpp src/util/Timer.cpp src/crypto/CryptoTests.cpp
 
 FMT_HDRS = src/clf/BucketList.h src/clf/CanonicalLedgerForm.h src/clf/CLF.h     \
 	src/clf/CLFDelta.h src/clf/CLFGateway.h src/crypto/EdKeyPair.h              \
@@ -64,6 +66,16 @@ bin_stellard_CPPFLAGS = -I$(top_srcdir)/src \
                         -I$(srcdir)/src/lib/cereal/include \
                         -I$(srcdir)/src/lib/util \
                         -I$(srcdir)/src/lib/asio/include -DASIO_STANDALONE
+
+if LIBSODIUM_INTERNAL
+bin_stellard_DEPENDENCIES = $(top_builddir)/src/lib/libsodium/.libs/libsodium.a
+
+$(top_builddir)/src/lib/libsodium/.libs/libsodium.a:
+	$(MAKE) -C $(top_builddir)/src/lib/libsodium
+
+CLEAN_SUBDIRS += @LIBSODIUM_SUBDIRS@
+endif
+
 
 CLEANFILES = $(BUILT_SOURCES)
 GITDIR = $(top_srcdir)/.git

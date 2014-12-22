@@ -8,6 +8,7 @@
 #include "lib/util/getopt.h"
 #include "main/test.h"
 #include "lib/http/HttpClient.h"
+#include <sodium.h>
 
 _INITIALIZE_EASYLOGGINGPP
 
@@ -77,6 +78,8 @@ int
 main(int argc, char* const* argv)
 {
     using namespace stellar;
+
+    sodium_init();
 
     std::string cfgFile("stellard.cfg");
     std::string command;

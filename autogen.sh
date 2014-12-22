@@ -1,18 +1,41 @@
 #!/bin/sh
 
-# Directory check.
-if [ ! -f autogen.sh ]; then
-  echo "Run ./autogen.sh from the directory it exists in."
-  exit 1
-fi
+SUBMODULES="src/lib/libsodium"
+GIT=`which git`
 
-run()
+autogen_submodules()
 {
-  echo "Running $1 ..."
-  $1
+	origdir=`pwd`
+
+	submod_initialized=1
+	for submod in $SUBMODULES; do
+		if [ ! -f $submod/configure.gnu ]; then
+			submod_initialized=0
+		fi
+	done
+
+	if [ -n "$GIT" ] && [ -f .gitmodules ] && [ -d .git ] && [ $submod_initialized = 0 ]; then
+        git submodule update --init
+		git submodule update --init --recursive
+	fi
+
+	for submod in $SUBMODULES; do
+		echo "Running autogen in '$submod'..."
+		cd "$submod"
+		if [ -x autogen.sh ]; then
+			./autogen.sh
+		elif [ -f configure.in ] || [ -f configure.ac ]; then
+			autoreconf -i
+		else
+			echo "Don't know how to bootstrap submodule '$submod'" >&2
+			exit 1
+		fi
+		cd "$origdir"
+	done
 }
 
-AUTORECONF=${AUTORECONF:-autoreconf}
+if [ -z "$skip_submodules" ] || [ "$skip_modules" = 0 ]; then
+	autogen_submodules
+fi
 
-run "$AUTORECONF"
-
+autoreconf -v -i

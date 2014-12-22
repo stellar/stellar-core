@@ -7,6 +7,8 @@ AM_INIT_AUTOMAKE([-Wall subdir-objects])
 AC_CONFIG_SRCDIR([configure.ac])
 AC_CONFIG_MACRO_DIR([m4])
 
+LIBSODIUM_MIN_VERSION="1.0.0"
+
 dnl AC_PROG_INSTALL
 
 test "${WFLAGS+set}" || WFLAGS="-Wall"
@@ -18,8 +20,13 @@ AC_LANG(C++)
 # -pthread Seems to be required by g++ -stc=c++1[14]
 AX_APPEND_COMPILE_FLAGS([-pthread])
 
-AC_ARG_ENABLE([address-sanitizer], AS_HELP_STRING([--enable-address-sanitizer], \
-              [enable AddressSanitizer support]), \
+AC_ARG_WITH([libsodium],
+    AS_HELP_STRING([--with-libsodium=[system/internal]]
+        [Link against the system supplied or the built-in libsodium.]),
+    [], with_libsodium="internal")
+
+AC_ARG_ENABLE([address-sanitizer], AS_HELP_STRING([--enable-address-sanitizer],
+              [enable AddressSanitizer support]),
               [AC_DEFINE(HAVE_ADDRESS_SANITIZER, 1, [enable AddressSanitizer])
               CFLAGS="$CFLAGS -fsanitize=address -fno-omit-frame-pointer"
               CXXFLAGS="$CXXFLAGS -fsanitize=address -fno-omit-frame-pointer"
@@ -47,6 +54,34 @@ CPPFLAGS="$CPPFLAGS "'$(xdrpp_CFLAGS)'
 LIBS="$LIBS "'$(xdrpp_LIBS)'
 
 AX_VALGRIND_CHECK
+
+
+# Permit using internal or system variants of libsodium
+#
+# Note: We can't just use pkg-config here because libsodium does not
+# ship with a libsodium-uninstalled.pc variant for linking-to in-tree.
+
+if test "x$with_libsodium" = "xinternal"
+then
+    if test -f "$srcdir/src/lib/libsodium/configure.ac"
+    then
+        AC_CONFIG_SUBDIRS([src/lib/libsodium])
+        libsodium_LIBS="-L\$(top_builddir)/src/lib/libsodium/.libs/ -lsodium"
+        libsodium_CFLAGS="-I\$(top_srcdir)/src/lib/libsodium/src/libsodium/include"
+        LIBSODIUM_SUBDIRS=src/lib/libsodium
+    else
+        AC_MSG_ERROR([Internal libsodium sources not found in src/lib/libsodium])
+    fi
+else
+    PKG_CHECK_MODULES(libsodium, libsodium >= $LIBSODIUM_MIN_VERSION,,)
+fi
+
+CPPFLAGS="$CPPFLAGS "'$(libsodium_CFLAGS)'
+LIBS="$LIBS "'$(libsodium_LIBS)'
+
+
+AM_CONDITIONAL(LIBSODIUM_INTERNAL, [test "x$LIBSODIUM_SUBDIRS" != "x"])
+AC_SUBST(LIBSODIUM_SUBDIRS)
 
 AC_CONFIG_HEADERS([config.h])
 AC_CONFIG_FILES([Makefile])
