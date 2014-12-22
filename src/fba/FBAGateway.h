@@ -56,9 +56,9 @@ class FBAGateway
     // Ballot preparation
     virtual bool prepareBallot(const fbaxdr::SlotBallot& ballot) = 0;
 
-    // State interface
-    virtual QuorumSet::pointer getOurQuorumSet() = 0;
-    virtual Node::pointer getNode(fbaxdr::uint256& nodeID) = 0;
+    // Local QuorumSetinterface
+    virtual void setLocalQuorumSet(const fbaxdr::QuorumSet& qset) = 0;
+    virtual const fbaxdr::QuorumSet& getLocalQuorumSet() = 0;
 };
 }
 
