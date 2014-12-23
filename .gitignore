@@ -27,6 +27,12 @@
 /config.h.in
 /config.log
 /config.status
+/config.guess
+/config.sub
+/libtool
+/ltmain.sh
+/m4/libtool.m4
+/m4/lt*.m4
 /configure
 /depcomp
 /missing

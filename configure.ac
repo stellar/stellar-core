@@ -7,7 +7,7 @@ AM_INIT_AUTOMAKE([-Wall subdir-objects])
 AC_CONFIG_SRCDIR([configure.ac])
 AC_CONFIG_MACRO_DIR([m4])
 
-LT_INIT
+LT_INIT([disable-shared])
 AC_SUBST(LIBTOOL_DEPS)
 
 LIBSODIUM_MIN_VERSION="1.0.0"
@@ -21,12 +21,8 @@ AX_CXX_COMPILE_STDCXX_11(noext,mandatory)
 test -z "$WFLAGS" || CFLAGS="$CFLAGS $WFLAGS" CXXFLAGS="$CXXFLAGS $WFLAGS"
 AC_LANG(C++)
 # -pthread Seems to be required by g++ -stc=c++1[14]
+AX_CHECK_COMPILE_FLAG([-stdlib=libc++], [CXXFLAGS="$CXXFLAGS -stdlib=libc++"])
 AX_APPEND_COMPILE_FLAGS([-pthread])
-
-AC_ARG_WITH([libsodium],
-    AS_HELP_STRING([--with-libsodium=[system/internal]]
-        [Link against the system supplied or the built-in libsodium.]),
-    [], with_libsodium="internal")
 
 AC_ARG_ENABLE([address-sanitizer], AS_HELP_STRING([--enable-address-sanitizer],
               [enable AddressSanitizer support]),
@@ -40,44 +36,47 @@ AC_ARG_ENABLE([address-sanitizer], AS_HELP_STRING([--enable-address-sanitizer],
 AC_CHECK_PROGS(CLANG_FORMAT, [clang-format clang-format-3.6])
 AM_CONDITIONAL([USE_CLANG_FORMAT], [test "x$CLANG_FORMAT" != "x"])
 
+AX_VALGRIND_CHECK
 
-for dir in ../xdrpp/build ../xdrpp ./xdrpp; do
-    if test -d "$dir"; then
-       export PKG_CONFIG_PATH="${dir}:${PKG_CONFIG_PATH}"
-       break
+# This is a simple replacement for AX_CONFIG_DIR. We can't use
+# AC_CONFIG_SUBDIRS here because we want configuration to run immediately
+# so we can use the results in the calls to PKG_CHECK_MODULES immediately
+# below.  AX_CONFIG_DIR might work but it's ambiguously licensed.
+function configure_pkgconfig_subdir() {
+    if test -f $1/configure.ac
+    then
+        if ! test -f $1/configure
+        then
+            AC_MSG_ERROR([included $ax_pkgname present but no configure, run ./autogen.sh ?])
+        fi
+        ax_popdir=`pwd`
+        ax_pkgname=`basename $1`
+        cd $1
+        AC_MSG_NOTICE([Configuring sources in $1])
+        ./configure $ac_configure_args --srcdir=$ac_srcdir $2 CXXFLAGS="${CXXFLAGS}"
+        AC_MSG_NOTICE([Finished configuring $1])
+        cd "$ax_popdir"
+        export PKG_CONFIG_PATH="${1}:${PKG_CONFIG_PATH}"
+        eval ${ax_pkgname}_INTERNAL=1
     fi
-done
+}
+
+configure_pkgconfig_subdir src/lib/libsodium --disable-shared
+configure_pkgconfig_subdir src/lib/xdrpp
+
+PKG_CHECK_MODULES([libsodium],[libsodium])
+AM_CONDITIONAL(LIBSODIUM_INTERNAL, [test "x$libsodium_INTERNAL" != "x"])
+
 PKG_CHECK_MODULES([xdrpp], [xdrpp])
+AM_CONDITIONAL(XDRPP_INTERNAL, [test "x$xdrpp_INTERNAL" != "x"])
+
 AC_MSG_CHECKING(for xdrc)
 XDRC=$(pkg-config --variable=xdrc xdrpp)
 AC_MSG_RESULT($XDRC)
 AC_SUBST(XDRC)
 
-CPPFLAGS="$CPPFLAGS "'$(xdrpp_CFLAGS)'
-LIBS="$LIBS "'$(xdrpp_LIBS)'
-
-AX_VALGRIND_CHECK
-
-
-# Permit using internal or system variants of libsodium
-#
-# Note: We can't just use pkg-config here because libsodium does not
-# ship with a libsodium-uninstalled.pc variant for linking-to in-tree.
-if test -f "$srcdir/src/lib/libsodium/configure.ac"
-then
-    AC_CONFIG_SUBDIRS([src/lib/libsodium])
-    LIBSODIUM_SUBDIRS=src/lib/libsodium
-    export PKG_CONFIG_PATH="src/lib/libsodium:${PKG_CONFIG_PATH}"
-fi
-PKG_CHECK_MODULES(libsodium, libsodium >= $LIBSODIUM_MIN_VERSION,,)
-
-
-CPPFLAGS="$CPPFLAGS "'$(libsodium_CFLAGS)'
-LIBS="$LIBS "'$(libsodium_LIBS)'
-
-
-AM_CONDITIONAL(LIBSODIUM_INTERNAL, [test "x$LIBSODIUM_SUBDIRS" != "x"])
-AC_SUBST(LIBSODIUM_SUBDIRS)
+CPPFLAGS="$CPPFLAGS "'$(xdrpp_CFLAGS) $(libsodium_CFLAGS)'
+LIBS="$LIBS "'$(xdrpp_LIBS) $(libsodium_LIBS)'
 
 AC_CONFIG_HEADERS([config.h])
 AC_CONFIG_FILES([Makefile])

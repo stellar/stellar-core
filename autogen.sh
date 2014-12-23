@@ -1,6 +1,6 @@
 #!/bin/sh
 
-SUBMODULES="src/lib/libsodium"
+SUBMODULES="src/lib/libsodium src/lib/xdrpp"
 GIT=`which git`
 
 autogen_submodules()
@@ -9,7 +9,7 @@ autogen_submodules()
 
 	submod_initialized=1
 	for submod in $SUBMODULES; do
-		if [ ! -f $submod/configure.gnu ]; then
+		if [ ! -f $submod/configure ]; then
 			submod_initialized=0
 		fi
 	done

@@ -1,7 +1,6 @@
 ## Process this file with automake to produce Makefile.in
 
-CLEAN_SUBDIRS = @LIBSODIUM_SUBDIRS@
-DIST_SUBDIRS = @LIBSODIUM_SUBDIRS@
+SUBDIRS =
 
 bin_PROGRAMS = bin/stellard
 
@@ -55,6 +54,8 @@ FMT_HDRS = src/clf/BucketList.h src/clf/CanonicalLedgerForm.h src/clf/CLF.h     
 
 BUILT_SOURCES = src/generated/StellardVersion.h src/generated/StellarXDR.h
 
+src/generated/StellarXDR.h: $(XDRC)
+
 bin_stellard_SOURCES = $(FMT_SRCS) \
                        $(BUILT_SOURCES) \
                        src/lib/util/getopt_long.c \
@@ -67,14 +68,23 @@ bin_stellard_CPPFLAGS = -I$(top_srcdir)/src \
                         -I$(srcdir)/src/lib/util \
                         -I$(srcdir)/src/lib/asio/include -DASIO_STANDALONE
 
-bin_stellard_LDADD = libsodium.la
-
 if LIBSODIUM_INTERNAL
-# bin_stellard_DEPENDENCIES = $(top_builddir)/src/lib/libsodium/.libs/libsodium.a
-$(top_builddir)/src/lib/libsodium/src/libsodium/libsodium.la:
-	$(MAKE) -C $(top_builddir)/src/lib/libsodium
+LIBSODIUM_DIR=src/lib/libsodium
+LIBSODIUM=$(top_builddir)/$(LIBSODIUM_DIR)/src/libsodium/libsodium.la
+bin_stellard_DEPENDENCIES = $(LIBSODIUM)
+SUBDIRS += $(LIBSODIUM_DIR)
+$(LIBSODIUM):
+	$(MAKE) -C $(top_builddir)/$(LIBSODIUM_DIR)
 endif
 
+if XDRPP_INTERNAL
+XDRPP_DIR=src/lib/xdrpp
+XDRPP=$(top_builddir)/$(XDRPP_DIR)/xdrpp/libxdrpp.a
+bin_stellard_DEPENDENCIES = $(XDRPP)
+SUBDIRS += $(XDRPP_DIR)
+$(XDRC) $(XDRPP):
+	$(MAKE) -C $(top_builddir)/$(XDRPP_DIR)
+endif
 
 CLEANFILES = $(BUILT_SOURCES)
 GITDIR = $(top_srcdir)/.git
@@ -86,8 +96,6 @@ src/generated/StellardVersion.h: Makefile
     else                                                                    \
        echo "#define STELLARD_VERSION \"unknown\"" >$@;                     \
     fi
-
-AM_CXXFLAGS = -stdlib=libc++
 
 src/generated/StellarXDR.h: src/overlay/StellarXDR.x Makefile
 	mkdir -p src/generated
@@ -113,4 +121,4 @@ maintainer-clean-local:
 
 
 libtool: $(LIBTOOL_DEPS)
-        $(SHELL) ./config.status libtool
+	$(SHELL) ./config.status libtool
