@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in
 
 SUBDIRS =
-
+noinst_LTLIBRARIES =
 bin_PROGRAMS = bin/stellard
 
 FMT_SRCS = src/overlay/Floodgate.cpp src/overlay/PeerDoor.cpp                   \
@@ -68,19 +68,27 @@ bin_stellard_CPPFLAGS = -I$(top_srcdir)/src \
                         -I$(srcdir)/src/lib/util \
                         -I$(srcdir)/src/lib/asio/include -DASIO_STANDALONE
 
+bin_stellard_DEPENDENCIES =
+
 if LIBSODIUM_INTERNAL
 LIBSODIUM_DIR=src/lib/libsodium
 LIBSODIUM=$(top_builddir)/$(LIBSODIUM_DIR)/src/libsodium/libsodium.la
-bin_stellard_DEPENDENCIES = $(LIBSODIUM)
+bin_stellard_DEPENDENCIES += $(LIBSODIUM)
 SUBDIRS += $(LIBSODIUM_DIR)
 $(LIBSODIUM):
 	$(MAKE) -C $(top_builddir)/$(LIBSODIUM_DIR)
 endif
 
+if SQLITE_INTERNAL
+noinst_LTLIBRARIES += libsqlite.la
+libsqlite_la_SOURCES = src/lib/sqlite/sqlite3.c src/lib/sqlite/sqlite3.h
+bin_stellard_DEPENDENCIES += libsqlite.la
+endif
+
 if XDRPP_INTERNAL
 XDRPP_DIR=src/lib/xdrpp
 XDRPP=$(top_builddir)/$(XDRPP_DIR)/xdrpp/libxdrpp.a
-bin_stellard_DEPENDENCIES = $(XDRPP)
+bin_stellard_DEPENDENCIES += $(XDRPP)
 SUBDIRS += $(XDRPP_DIR)
 $(XDRC) $(XDRPP):
 	$(MAKE) -C $(top_builddir)/$(XDRPP_DIR)
