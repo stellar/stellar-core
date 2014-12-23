@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in
 
-CLEAN_SUBDIRS =
-DIST_SUBDIRS = src/lib/libsodium
+CLEAN_SUBDIRS = @LIBSODIUM_SUBDIRS@
+DIST_SUBDIRS = @LIBSODIUM_SUBDIRS@
 
 bin_PROGRAMS = bin/stellard
 
@@ -67,13 +67,12 @@ bin_stellard_CPPFLAGS = -I$(top_srcdir)/src \
                         -I$(srcdir)/src/lib/util \
                         -I$(srcdir)/src/lib/asio/include -DASIO_STANDALONE
 
+bin_stellard_LDADD = libsodium.la
+
 if LIBSODIUM_INTERNAL
-bin_stellard_DEPENDENCIES = $(top_builddir)/src/lib/libsodium/.libs/libsodium.a
-
-$(top_builddir)/src/lib/libsodium/.libs/libsodium.a:
+# bin_stellard_DEPENDENCIES = $(top_builddir)/src/lib/libsodium/.libs/libsodium.a
+$(top_builddir)/src/lib/libsodium/src/libsodium/libsodium.la:
 	$(MAKE) -C $(top_builddir)/src/lib/libsodium
-
-CLEAN_SUBDIRS += @LIBSODIUM_SUBDIRS@
 endif
 
 
@@ -111,3 +110,7 @@ MOSTLYCLEANFILES =
 maintainer-clean-local:
 	+@echo rm -rf `sed -ne 's!^/!!p' .gitignore` Makefile.in
 	rm -rf `sed -ne 's!^/!!p' .gitignore` Makefile.in
+
+
+libtool: $(LIBTOOL_DEPS)
+        $(SHELL) ./config.status libtool

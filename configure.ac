@@ -7,6 +7,9 @@ AM_INIT_AUTOMAKE([-Wall subdir-objects])
 AC_CONFIG_SRCDIR([configure.ac])
 AC_CONFIG_MACRO_DIR([m4])
 
+LT_INIT
+AC_SUBST(LIBTOOL_DEPS)
+
 LIBSODIUM_MIN_VERSION="1.0.0"
 
 dnl AC_PROG_INSTALL
@@ -60,21 +63,14 @@ AX_VALGRIND_CHECK
 #
 # Note: We can't just use pkg-config here because libsodium does not
 # ship with a libsodium-uninstalled.pc variant for linking-to in-tree.
-
-if test "x$with_libsodium" = "xinternal"
+if test -f "$srcdir/src/lib/libsodium/configure.ac"
 then
-    if test -f "$srcdir/src/lib/libsodium/configure.ac"
-    then
-        AC_CONFIG_SUBDIRS([src/lib/libsodium])
-        libsodium_LIBS="-L\$(top_builddir)/src/lib/libsodium/.libs/ -lsodium"
-        libsodium_CFLAGS="-I\$(top_srcdir)/src/lib/libsodium/src/libsodium/include"
-        LIBSODIUM_SUBDIRS=src/lib/libsodium
-    else
-        AC_MSG_ERROR([Internal libsodium sources not found in src/lib/libsodium])
-    fi
-else
-    PKG_CHECK_MODULES(libsodium, libsodium >= $LIBSODIUM_MIN_VERSION,,)
+    AC_CONFIG_SUBDIRS([src/lib/libsodium])
+    LIBSODIUM_SUBDIRS=src/lib/libsodium
+    export PKG_CONFIG_PATH="src/lib/libsodium:${PKG_CONFIG_PATH}"
 fi
+PKG_CHECK_MODULES(libsodium, libsodium >= $LIBSODIUM_MIN_VERSION,,)
+
 
 CPPFLAGS="$CPPFLAGS "'$(libsodium_CFLAGS)'
 LIBS="$LIBS "'$(libsodium_LIBS)'
