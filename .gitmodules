@@ -1,3 +1,6 @@
 [submodule "src/lib/libsodium"]
 	path = src/lib/libsodium
 	url = https://github.com/stellar/libsodium.git
+[submodule "src/lib/xdrpp"]
+	path = src/lib/xdrpp
+	url = https://github.com/xdrpp/xdrpp.git
