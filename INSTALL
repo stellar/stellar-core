@@ -7,11 +7,6 @@ Build Dependencies
 - clang with C++11
 - libc++
 - pkg-config
-- `xdrpp` built with libc++
-
-`xdrpp` can be found at: http://www.scs.stanford.edu/~dm/repos/xdrpp.git. Make
-sure to build it using libc++. You can install `xdrpp` using `make install` or
-keep a copy in this directory or its parent.
 
 Basic Installation
 ==================
