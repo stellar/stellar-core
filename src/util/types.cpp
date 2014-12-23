@@ -50,7 +50,9 @@ stellarxdr::uint256
 makePublicKey(stellarxdr::uint256 const& b)
 {
     // SANITY pub from private
+    static int i = 0;
     stellarxdr::uint256 ret;
+    ret[0] = ++i;
     return (ret);
 }
 }
