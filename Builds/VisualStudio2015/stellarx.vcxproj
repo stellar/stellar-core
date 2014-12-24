@@ -74,6 +74,7 @@
   <ItemGroup>
     <ClCompile Include="..\..\src\clf\BucketList.cpp" />
     <ClCompile Include="..\..\src\clf\CLFTests.cpp" />
+    <ClCompile Include="..\..\src\crypto\CryptoTests.cpp" />
     <ClCompile Include="..\..\src\fba\Ballot.cpp" />
     <ClCompile Include="..\..\src\fba\FBAMaster.cpp" />
     <ClCompile Include="..\..\src\fba\FBATests.cpp" />
