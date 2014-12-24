@@ -4,6 +4,7 @@
 
 #include "main/Application.h"
 #include "history/HistoryGateway.h"
+#include "history/HistoryArchive.h"
 #include "main/test.h"
 #include "lib/catch.hpp"
 #include "util/Logging.h"
@@ -12,6 +13,16 @@
 
 using namespace stellar;
 
+static void
+del(std::string const& n)
+{
+#ifdef _MSC_VER
+    _unlink(n.c_str());
+#else
+    unlink(n.c_str());
+#endif
+}
+
 TEST_CASE("WriteLedgerHistoryToFile", "[history]")
 {
     VirtualClock clock;
@@ -19,15 +30,20 @@ TEST_CASE("WriteLedgerHistoryToFile", "[history]")
     Application app(clock, cfg);
     autocheck::generator<stellarxdr::History> gen;
     HistoryMaster hm(app);
-    auto h1 = gen(1000);
+    auto h1 = gen(10);
     auto fname = hm.writeLedgerHistoryToFile(h1);
     stellarxdr::History h2;
     hm.readLedgerHistoryFromFile(fname, h2);
     CHECK(h1.fromLedger == h2.fromLedger);
     LOG(DEBUG) << "unlinking " << fname;
-#ifdef _MSC_VER
-    _unlink(fname.c_str());
-#else
-    unlink(fname.c_str());
-#endif
+    del(fname);
+}
+
+
+TEST_CASE("HistoryArchiveParams::save", "[history]")
+{
+    HistoryArchiveParams hap;
+    auto fname = "stellar-history.json";
+    hap.save(fname);
+    del(fname);
 }

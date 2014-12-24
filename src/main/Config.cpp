@@ -3,6 +3,7 @@
 // this distribution or at http://opensource.org/licenses/ISC
 
 #include "main/Config.h"
+#include "history/HistoryArchive.h"
 #include "generated/StellardVersion.h"
 #include "lib/util/cpptoml.h"
 #include "util/Logging.h"
@@ -91,6 +92,31 @@ Config::load(const std::string& filename)
             for (auto v : g.get_array("QUORUM_SET")->array())
             {
                 QUORUM_SET.push_back(fromBase58(v->as<std::string>()->value()));
+            }
+        }
+
+        if (g.contains("HISTORY"))
+        {
+            auto hist = g.get_group("HISTORY");
+            if (hist)
+            {
+                for (auto const& archive : *hist)
+                {
+                    auto tab = archive.second->as_group();
+                    if (!tab)
+                        continue;
+                    std::string get, put;
+                    auto gg = tab->get_as<std::string>("get");
+                    auto pp = tab->get_as<std::string>("put");
+                    if (gg)
+                        get = *gg;
+                    if (pp)
+                        put = *pp;
+                    HISTORY[archive.first] =
+                        std::make_shared<HistoryArchive>(
+                            archive.first,
+                            get, put);
+                }
             }
         }
     }

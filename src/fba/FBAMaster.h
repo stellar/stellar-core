@@ -10,8 +10,8 @@
 #include "txherder/TransactionSet.h"
 #include "fba/QuorumSet.h"
 #include "fba/Statement.h"
-#include "fba/FBAGateway.h"
 #include "fba/OurNode.h"
+#include "fba/FBAGateway.h"
 #include "fba/FutureStatement.h"
 
 /*
@@ -104,6 +104,7 @@ class FBAMaster : public FBAGateway
         return mOurQuorumSet;
     }
     Node::pointer getNode(stellarxdr::uint256& nodeID);
+    OurNode::pointer getOurNode();
 
     // get a new statement from the network
     void recvStatement(Statement::pointer statement);

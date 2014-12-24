@@ -2,6 +2,10 @@ This subdirectory is for storing libraries that we have integrated directly into
 our build process, either due to their not being well-packaged or being small
 (single file / single header) or simply for convenience while developing.
 
+Some of these are included as part of the outer git tree. If they are
+sufficiently well-packaged, or sufficiently large, they are included as git
+submodules, which are configured and built in-tree, and linked statically.
+
 Sources here should be kept as close as possible to the original form they were
 acquired in, such that the code is easy to update and/or redirect to
 packaged/external variants of the libraries as necessary.

@@ -2,6 +2,9 @@
 #define __CONFIG__
 
 #include "generated/StellarXDR.h"
+#include <string>
+#include <memory>
+#include <map>
 
 // Copyright 2014 Stellar Development Foundation and contributors. Licensed
 // under the ISC License. See the COPYING file at the top-level directory of
@@ -9,10 +12,13 @@
 
 namespace stellar
 {
-class Config
+class HistoryArchive;
+
+class Config : public std::enable_shared_from_this<Config>
 {
-    
   public:
+    typedef std::shared_ptr<Config> pointer;
+
     // application config
     bool START_NEW_NETWORK;
     bool RUN_STANDALONE;
@@ -38,6 +44,9 @@ class Config
 
     std::string DATABASE_TYPE;
     std::string DATABASE_OPTIONS;
+
+    // History config
+    std::map<std::string,std::shared_ptr<HistoryArchive>> HISTORY;
 
     Config();
 

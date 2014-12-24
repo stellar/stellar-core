@@ -44,14 +44,14 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>src;../../src/lib/autocheck/include;../../src/lib/asio/include;../../../libsodium/include;../../../xdrpp;../../src;C:\code\OpenSSL-Win32\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>_WINSOCK_DEPRECATED_NO_WARNINGS;ASIO_STANDALONE;ASIO_ERROR_CATEGORY_NOEXCEPT=noexcept;_CRT_SECURE_NO_WARNINGS;_WIN32_WINNT=0x0501;WIN32;_MBCS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>src;../../src/lib/autocheck/include;../../src/lib/cereal/include;../../src/lib/asio/include;../../src/lib/xdrpp;../../src/lib/libsodium/src/libsodium/include;../../src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>_WINSOCK_DEPRECATED_NO_WARNINGS;SODIUM_STATIC;ASIO_STANDALONE;ASIO_ERROR_CATEGORY_NOEXCEPT=noexcept;_CRT_SECURE_NO_WARNINGS;_WIN32_WINNT=0x0501;WIN32;_MBCS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <MinimalRebuild>false</MinimalRebuild>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>c:/code/boost_1_57_0/stage/lib;C:\code\OpenSSL-Win32\lib\VC\static</AdditionalLibraryDirectories>
+      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -61,19 +61,20 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>c:/code/boost_1_57_0;C:\code\OpenSSL-Win32\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>_WIN32_WINNT=0x0501;_MBCS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>src;../../src/lib/autocheck/include;../../src/lib/cereal/include;../../src/lib/asio/include;../../src/lib/xdrpp;../../src/lib/libsodium/src/libsodium/include;../../src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>_WINSOCK_DEPRECATED_NO_WARNINGS;ASIO_STANDALONE;ASIO_ERROR_CATEGORY_NOEXCEPT=noexcept;_CRT_SECURE_NO_WARNINGS;_WIN32_WINNT=0x0501;WIN32;_MBCS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
+      <AdditionalDependencies>..\..\src\lib\libsodium\bin\Win32\Debug\v120\static\libsodium.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\..\xdrpp\xdrpp\marshal.cc" />
     <ClCompile Include="..\..\src\clf\BucketList.cpp" />
     <ClCompile Include="..\..\src\clf\CLFTests.cpp" />
+    <ClCompile Include="..\..\src\crypto\CryptoTests.cpp" />
     <ClCompile Include="..\..\src\fba\Ballot.cpp" />
     <ClCompile Include="..\..\src\fba\FBAMaster.cpp" />
     <ClCompile Include="..\..\src\fba\FBATests.cpp" />
@@ -82,6 +83,7 @@
     <ClCompile Include="..\..\src\fba\OurNode.cpp" />
     <ClCompile Include="..\..\src\fba\QuorumSet.cpp" />
     <ClCompile Include="..\..\src\fba\Statement.cpp" />
+    <ClCompile Include="..\..\src\history\HistoryArchive.cpp" />
     <ClCompile Include="..\..\src\history\HistoryMaster.cpp" />
     <ClCompile Include="..\..\src\history\HistoryTests.cpp" />
     <ClCompile Include="..\..\src\ledger\AccountEntry.cpp" />
@@ -140,9 +142,6 @@
     <ClCompile Include="..\..\src\util\Logging.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\..\xdrpp\xdrpp\endian.h" />
-    <ClInclude Include="..\..\..\xdrpp\xdrpp\marshal.h" />
-    <ClInclude Include="..\..\..\xdrpp\xdrpp\message.h" />
     <ClInclude Include="..\..\src\clf\BucketList.h" />
     <ClInclude Include="..\..\src\clf\CanonicalLedgerForm.h" />
     <ClInclude Include="..\..\src\clf\CLF.h" />
@@ -159,6 +158,7 @@
     <ClInclude Include="..\..\src\fba\QuorumSet.h" />
     <ClInclude Include="..\..\src\fba\Statement.h" />
     <ClInclude Include="..\..\src\generated\StellarXDR.h" />
+    <ClInclude Include="..\..\src\history\HistoryArchive.h" />
     <ClInclude Include="..\..\src\history\HistoryGateway.h" />
     <ClInclude Include="..\..\src\history\HistoryMaster.h" />
     <ClInclude Include="..\..\src\ledger\AccountEntry.h" />
@@ -246,6 +246,29 @@
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
       </ExcludedFromBuild>
     </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\lib\libsodium\builds\msvc\vs2013\libsodium\libsodium.vcxproj">
+      <Project>{a185b162-6cb6-4502-b03f-b56f7699a8d9}</Project>
+    </ProjectReference>
+    <ProjectReference Include="..\..\src\lib\xdrpp\msvc_xdrpp\xdrc\xdrc.vcxproj">
+      <Project>{e85843d9-b9e8-447b-bdd8-0cf9347229a4}</Project>
+    </ProjectReference>
+    <ProjectReference Include="..\..\src\lib\xdrpp\msvc_xdrpp\xdrpp\xdrpp.vcxproj">
+      <Project>{79708037-97a3-4b19-8e9e-252d00e2e007}</Project>
+    </ProjectReference>
+    <ProjectReference Include="libsoci\libsoci.vcxproj">
+      <Project>{bbd512eb-db2a-4fa1-bdb8-3ba3d2fcf51b}</Project>
+    </ProjectReference>
+    <ProjectReference Include="libsoci_postgresql\libsoci_postgresql.vcxproj">
+      <Project>{af73d670-3d56-4949-bec5-b8e5f7bca2e5}</Project>
+    </ProjectReference>
+    <ProjectReference Include="libsoci_sqlite3\libsoci_sqlite3.vcxproj">
+      <Project>{ae4b5814-d3d5-431f-9792-88689d1bc708}</Project>
+    </ProjectReference>
+    <ProjectReference Include="libsqlite\libsqlite.vcxproj">
+      <Project>{d16ee391-36cc-4a74-8f91-c6de95ab1cc5}</Project>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
