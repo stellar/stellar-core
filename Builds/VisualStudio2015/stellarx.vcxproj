@@ -238,6 +238,11 @@
       <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">../../src/generated/StellarXDR.h</Outputs>
     </CustomBuild>
   </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\lib\libsodium\builds\msvc\vs2013\libsodium\libsodium.vcxproj">
+      <Project>{a185b162-6cb6-4502-b03f-b56f7699a8d9}</Project>
+    </ProjectReference>
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
