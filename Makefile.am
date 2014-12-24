@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in
 
 SUBDIRS =
-noinst_LTLIBRARIES =
+noinst_LTLIBRARIES = libsoci.la
 bin_PROGRAMS = bin/stellard
 
 FMT_SRCS = src/overlay/Floodgate.cpp src/overlay/PeerDoor.cpp                   \
@@ -58,6 +58,7 @@ src/generated/StellarXDR.h: $(XDRC)
 
 bin_stellard_SOURCES = $(FMT_SRCS) \
                        $(BUILT_SOURCES) \
+                       $(SOCI_SRCS) \
                        src/lib/util/getopt_long.c \
                        src/lib/util/format.cc
 
@@ -66,9 +67,11 @@ bin_stellard_CPPFLAGS = -I$(top_srcdir)/src \
                         -I$(srcdir)/src/lib/autocheck/include \
                         -I$(srcdir)/src/lib/cereal/include \
                         -I$(srcdir)/src/lib/util \
-                        -I$(srcdir)/src/lib/asio/include -DASIO_STANDALONE
+                        -I$(srcdir)/src/lib/asio/include -DASIO_STANDALONE \
+                        -I$(srcdir)/src/lib/soci/src/core \
+                        -I$(srcdir)/src/lib/soci/src/backends/sqlite3
 
-bin_stellard_DEPENDENCIES =
+bin_stellard_DEPENDENCIES = libsoci.la
 
 if LIBSODIUM_INTERNAL
 LIBSODIUM_DIR=src/lib/libsodium
@@ -82,7 +85,51 @@ endif
 if SQLITE_INTERNAL
 noinst_LTLIBRARIES += libsqlite.la
 libsqlite_la_SOURCES = src/lib/sqlite/sqlite3.c src/lib/sqlite/sqlite3.h
+libsqlite_la_CPPFLAGS = -I$(srcdir)/src/lib/sqlite -DSQLITE_OMIT_LOAD_EXTENSION
 bin_stellard_DEPENDENCIES += libsqlite.la
+endif
+
+libsoci_la_CPPFLAGS = -I$(srcdir)/src/lib/soci/src/core \
+                      -I$(srcdir)/src/lib/soci/src/backends/sqlite3
+
+libsoci_la_SOURCES = src/lib/soci/src/backends/sqlite3/standard-use-type.cpp    \
+    src/lib/soci/src/backends/sqlite3/session.cpp                               \
+    src/lib/soci/src/backends/sqlite3/common.cpp                                \
+    src/lib/soci/src/backends/sqlite3/vector-use-type.cpp                       \
+    src/lib/soci/src/backends/sqlite3/row-id.cpp                                \
+    src/lib/soci/src/backends/sqlite3/factory.cpp                               \
+    src/lib/soci/src/backends/sqlite3/vector-into-type.cpp                      \
+    src/lib/soci/src/backends/sqlite3/statement.cpp                             \
+    src/lib/soci/src/backends/sqlite3/blob.cpp                                  \
+    src/lib/soci/src/backends/sqlite3/standard-into-type.cpp                    \
+    src/lib/soci/src/core/ref-counted-prepare-info.cpp                          \
+    src/lib/soci/src/core/transaction.cpp src/lib/soci/src/core/session.cpp     \
+    src/lib/soci/src/core/rowid.cpp src/lib/soci/src/core/prepare-temp-type.cpp \
+    src/lib/soci/src/core/into-type.cpp src/lib/soci/src/core/soci-simple.cpp   \
+    src/lib/soci/src/core/backend-loader.cpp                                    \
+    src/lib/soci/src/core/connection-pool.cpp                                   \
+    src/lib/soci/src/core/ref-counted-statement.cpp                             \
+    src/lib/soci/src/core/error.cpp src/lib/soci/src/core/values.cpp            \
+    src/lib/soci/src/core/once-temp-type.cpp                                    \
+    src/lib/soci/src/core/statement.cpp src/lib/soci/src/core/blob.cpp          \
+    src/lib/soci/src/core/row.cpp                                               \
+    src/lib/soci/src/core/connection-parameters.cpp                             \
+    src/lib/soci/src/core/procedure.cpp src/lib/soci/src/core/use-type.cpp
+
+if USE_POSTGRESQL
+libsoci_la_CPPFLAGS += -I$(srcdir)/src/lib/soci/src/backends/postgresql
+libsoci_la_SOURCES +=                                           \
+    src/lib/soci/src/backends/postgresql/standard-use-type.cpp  \
+    src/lib/soci/src/backends/postgresql/session.cpp            \
+    src/lib/soci/src/backends/postgresql/common.cpp             \
+    src/lib/soci/src/backends/postgresql/vector-use-type.cpp    \
+    src/lib/soci/src/backends/postgresql/error.cpp              \
+    src/lib/soci/src/backends/postgresql/row-id.cpp             \
+    src/lib/soci/src/backends/postgresql/factory.cpp            \
+    src/lib/soci/src/backends/postgresql/vector-into-type.cpp   \
+    src/lib/soci/src/backends/postgresql/statement.cpp          \
+    src/lib/soci/src/backends/postgresql/blob.cpp               \
+    src/lib/soci/src/backends/postgresql/standard-into-type.cpp
 endif
 
 if XDRPP_INTERNAL

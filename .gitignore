@@ -1,6 +1,8 @@
 *.a
 *.o
 *.obj
+*.la
+*.lo
 *.log
 *.tlog
 *.lastbuildstate
@@ -13,6 +15,7 @@
 *.suo
 *.trs
 *~
+.libs
 .deps
 .dirstamp
 /src/generated
