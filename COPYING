@@ -97,3 +97,17 @@ src/lib/cereal/external/rapidjson:
   (miloyip@gmail.com)
   Licensed under the MIT license
   (http://opensource.org/licenses/MIT)
+
+src/lib/sqlite:
+
+  The SQLite library,
+  dedicated to the public domain
+  (https://www.sqlite.org/copyright.html)
+
+src/lib/soci:
+
+  The SOCI library,
+  Copyright 2008 Maciej Sobczak
+  (maciej@msobczak.com)
+  Licensed under the Boost Software License 1.0
+  (http://www.boost.org/LICENSE_1_0.txt)
