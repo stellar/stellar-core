@@ -1,0 +1,136 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="14.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|Win32">
+      <Configuration>Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|Win32">
+      <Configuration>Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\..\src\lib\soci\src\core\backend-loader.cpp" />
+    <ClCompile Include="..\..\..\src\lib\soci\src\core\blob.cpp" />
+    <ClCompile Include="..\..\..\src\lib\soci\src\core\connection-parameters.cpp" />
+    <ClCompile Include="..\..\..\src\lib\soci\src\core\connection-pool.cpp" />
+    <ClCompile Include="..\..\..\src\lib\soci\src\core\error.cpp" />
+    <ClCompile Include="..\..\..\src\lib\soci\src\core\into-type.cpp" />
+    <ClCompile Include="..\..\..\src\lib\soci\src\core\once-temp-type.cpp" />
+    <ClCompile Include="..\..\..\src\lib\soci\src\core\prepare-temp-type.cpp" />
+    <ClCompile Include="..\..\..\src\lib\soci\src\core\procedure.cpp" />
+    <ClCompile Include="..\..\..\src\lib\soci\src\core\ref-counted-prepare-info.cpp" />
+    <ClCompile Include="..\..\..\src\lib\soci\src\core\ref-counted-statement.cpp" />
+    <ClCompile Include="..\..\..\src\lib\soci\src\core\row.cpp" />
+    <ClCompile Include="..\..\..\src\lib\soci\src\core\rowid.cpp" />
+    <ClCompile Include="..\..\..\src\lib\soci\src\core\session.cpp" />
+    <ClCompile Include="..\..\..\src\lib\soci\src\core\soci-simple.cpp" />
+    <ClCompile Include="..\..\..\src\lib\soci\src\core\statement.cpp" />
+    <ClCompile Include="..\..\..\src\lib\soci\src\core\transaction.cpp" />
+    <ClCompile Include="..\..\..\src\lib\soci\src\core\use-type.cpp" />
+    <ClCompile Include="..\..\..\src\lib\soci\src\core\values.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\..\src\lib\soci\src\core\backend-loader.h" />
+    <ClInclude Include="..\..\..\src\lib\soci\src\core\blob-exchange.h" />
+    <ClInclude Include="..\..\..\src\lib\soci\src\core\blob.h" />
+    <ClInclude Include="..\..\..\src\lib\soci\src\core\connection-parameters.h" />
+    <ClInclude Include="..\..\..\src\lib\soci\src\core\connection-pool.h" />
+    <ClInclude Include="..\..\..\src\lib\soci\src\core\error.h" />
+    <ClInclude Include="..\..\..\src\lib\soci\src\core\exchange-traits.h" />
+    <ClInclude Include="..\..\..\src\lib\soci\src\core\into-type.h" />
+    <ClInclude Include="..\..\..\src\lib\soci\src\core\into.h" />
+    <ClInclude Include="..\..\..\src\lib\soci\src\core\once-temp-type.h" />
+    <ClInclude Include="..\..\..\src\lib\soci\src\core\prepare-temp-type.h" />
+    <ClInclude Include="..\..\..\src\lib\soci\src\core\procedure.h" />
+    <ClInclude Include="..\..\..\src\lib\soci\src\core\query_transformation.h" />
+    <ClInclude Include="..\..\..\src\lib\soci\src\core\ref-counted-prepare-info.h" />
+    <ClInclude Include="..\..\..\src\lib\soci\src\core\ref-counted-statement.h" />
+    <ClInclude Include="..\..\..\src\lib\soci\src\core\row-exchange.h" />
+    <ClInclude Include="..\..\..\src\lib\soci\src\core\row.h" />
+    <ClInclude Include="..\..\..\src\lib\soci\src\core\rowid-exchange.h" />
+    <ClInclude Include="..\..\..\src\lib\soci\src\core\rowid.h" />
+    <ClInclude Include="..\..\..\src\lib\soci\src\core\rowset.h" />
+    <ClInclude Include="..\..\..\src\lib\soci\src\core\session.h" />
+    <ClInclude Include="..\..\..\src\lib\soci\src\core\soci-backend.h" />
+    <ClInclude Include="..\..\..\src\lib\soci\src\core\soci-config.h" />
+    <ClInclude Include="..\..\..\src\lib\soci\src\core\soci-platform.h" />
+    <ClInclude Include="..\..\..\src\lib\soci\src\core\soci-simple.h" />
+    <ClInclude Include="..\..\..\src\lib\soci\src\core\soci.h" />
+    <ClInclude Include="..\..\..\src\lib\soci\src\core\soci_backends_config.h" />
+    <ClInclude Include="..\..\..\src\lib\soci\src\core\statement.h" />
+    <ClInclude Include="..\..\..\src\lib\soci\src\core\transaction.h" />
+    <ClInclude Include="..\..\..\src\lib\soci\src\core\type-conversion-traits.h" />
+    <ClInclude Include="..\..\..\src\lib\soci\src\core\type-conversion.h" />
+    <ClInclude Include="..\..\..\src\lib\soci\src\core\type-holder.h" />
+    <ClInclude Include="..\..\..\src\lib\soci\src\core\type-ptr.h" />
+    <ClInclude Include="..\..\..\src\lib\soci\src\core\unsigned-types.h" />
+    <ClInclude Include="..\..\..\src\lib\soci\src\core\use-type.h" />
+    <ClInclude Include="..\..\..\src\lib\soci\src\core\use.h" />
+    <ClInclude Include="..\..\..\src\lib\soci\src\core\values-exchange.h" />
+    <ClInclude Include="..\..\..\src\lib\soci\src\core\values.h" />
+    <ClInclude Include="..\..\..\src\lib\soci\src\core\version.h" />
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{BBD512EB-DB2A-4FA1-BDB8-3BA3D2FCF51B}</ProjectGuid>
+    <RootNamespace>libsoci</RootNamespace>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v140</PlatformToolset>
+    <CharacterSet>MultiByte</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v140</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>MultiByte</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <TargetExt>.lib</TargetExt>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>Disabled</Optimization>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;_MBCS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <MinimalRebuild>false</MinimalRebuild>
+    </ClCompile>
+    <Link>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>MaxSpeed</Optimization>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <SDLCheck>true</SDLCheck>
+    </ClCompile>
+    <Link>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+    </Link>
+  </ItemDefinitionGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>

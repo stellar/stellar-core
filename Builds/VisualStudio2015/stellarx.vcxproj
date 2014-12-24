@@ -247,6 +247,18 @@
     <ProjectReference Include="..\..\src\lib\xdrpp\msvc_xdrpp\xdrpp\xdrpp.vcxproj">
       <Project>{79708037-97a3-4b19-8e9e-252d00e2e007}</Project>
     </ProjectReference>
+    <ProjectReference Include="libsoci\libsoci.vcxproj">
+      <Project>{bbd512eb-db2a-4fa1-bdb8-3ba3d2fcf51b}</Project>
+    </ProjectReference>
+    <ProjectReference Include="libsoci_postgresql\libsoci_postgresql.vcxproj">
+      <Project>{af73d670-3d56-4949-bec5-b8e5f7bca2e5}</Project>
+    </ProjectReference>
+    <ProjectReference Include="libsoci_sqlite3\libsoci_sqlite3.vcxproj">
+      <Project>{ae4b5814-d3d5-431f-9792-88689d1bc708}</Project>
+    </ProjectReference>
+    <ProjectReference Include="libsqlite\libsqlite.vcxproj">
+      <Project>{d16ee391-36cc-4a74-8f91-c6de95ab1cc5}</Project>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
