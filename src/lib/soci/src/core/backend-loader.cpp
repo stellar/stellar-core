@@ -173,84 +173,14 @@ private:
 // non-synchronized helper for the other functions
 void do_unload(std::string const & name)
 {
-    factory_map::iterator i = factories_.find(name);
-
-    if (i != factories_.end())
-    {
-        soci_handler_t h = i->second.handler_;
-        if (h != NULL)
-        {
-            DLCLOSE(h);
-        }
-
-        factories_.erase(i);
-    }
+    // Stellard customization: no dynamic loading of backends.
 }
 
 // non-synchronized helper
 void do_register_backend(std::string const & name, std::string const & shared_object)
 {
-    // The rules for backend search are as follows:
-    // - if the shared_object is given,
-    //   it names the library file and the search paths are not used
-    // - otherwise (shared_object not provided or empty):
-    //   - file named libsoci_NAME.so.SOVERSION is searched in the list of search paths
-
-    soci_handler_t h = 0;
-    if (shared_object.empty() == false)
-    {
-        h = DLOPEN(shared_object.c_str());
-    }
-    else
-    {
-        // try system paths
-        h = DLOPEN(LIBNAME(name).c_str());
-        if (0 == h)
-        {
-            // try all search paths
-            for (std::size_t i = 0; i != search_paths_.size(); ++i)
-            {
-                std::string const fullFileName(search_paths_[i] + "/" + LIBNAME(name));
-                h = DLOPEN(fullFileName.c_str());
-                if (0 != h)
-                {
-                    // already found
-                    break;
-                }
-             }
-         }
-    }
-
-    if (0 == h)
-    {
-        throw soci_error("Failed to find shared library for backend " + name);
-    }
-
-    std::string symbol = "factory_" + name;
-
-    typedef backend_factory const * bfc_ptr;
-    typedef bfc_ptr (*get_t)(void);
-    get_t entry;
-    entry = reinterpret_cast<get_t>(
-            reinterpret_cast<uintptr_t>(DLSYM(h, symbol.c_str())));
-
-    if (0 == entry)
-    {
-        DLCLOSE(h);
-        throw soci_error("Failed to resolve dynamic symbol: " + symbol);
-    }
-
-    // unload the existing handler if it's already loaded
-
-    do_unload(name);
-    
-    backend_factory const* f = entry();
-
-    info new_entry;
-    new_entry.factory_ = f;
-    new_entry.handler_ = h;
-
-    factories_[name] = new_entry;
+    // Stellard customization: no dynamic loading of backends.
+    throw soci_error("Failed to find shared library for backend " + name);
 }
 
 } // unnamed namespace
@@ -332,16 +262,6 @@ SOCI_DECL void dynamic_backends::unload(std::string const& name)
 
 SOCI_DECL void dynamic_backends::unload_all()
 {
-    scoped_lock lock(&mutex_);
-
-    for (factory_map::iterator i = factories_.begin(); i != factories_.end(); ++i)
-    {
-        soci_handler_t h = i->second.handler_;
-        if (0 != h)
-        {
-            DLCLOSE(h);
-        }
-    }
-
+    // Stellard customization: no dynamic loading of backends.
     factories_.clear();
 }
