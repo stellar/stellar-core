@@ -98,12 +98,12 @@ Config::load(const std::string& filename)
                     if (!tab)
                         continue;
                     std::string get, put;
-                    auto g = tab->get_as<std::string>("get");
-                    auto p = tab->get_as<std::string>("put");
-                    if (g)
-                        get = *g;
-                    if (p)
-                        put = *p;
+                    auto gg = tab->get_as<std::string>("get");
+                    auto pp = tab->get_as<std::string>("put");
+                    if (gg)
+                        get = *gg;
+                    if (pp)
+                        put = *pp;
                     HISTORY[archive.first] =
                         std::make_shared<HistoryArchive>(
                             archive.first,
