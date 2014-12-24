@@ -5,16 +5,17 @@
 // under the ISC License. See the COPYING file at the top-level directory of
 // this distribution or at http://opensource.org/licenses/ISC
 
+#include "main/Application.h"
 #include <string>
-#include "lib/database/Database.h"
 
 namespace stellar
 {
-    class LedgerDatabase
+    class Database
     {
+        Application& mApp;
     public:
 
-        LedgerDatabase(Database* dbCon);
+        Database(Application& app);
 
         // state store
         enum StoreStateName {
@@ -30,10 +31,18 @@ namespace stellar
         void endTransaction(bool rollback);
         int getTransactionLevel();
 
-        Database* getDBCon() { return mDBCon; }
+        bool loadAccount(const stellarxdr::uint160& accountID, stellarxdr::LedgerEntry& retEntry);
+        bool loadTrustLine(const stellarxdr::uint160& accountID, 
+                const stellarxdr::CurrencyIssuer& currency, 
+                stellarxdr::LedgerEntry& retEntry);
+
+        //bool loadOffer()
+
+
+        soci::session& getSession() { return mSession; }
 
     private:
-        Database* mDBCon;
+        soci::session mSession;
     };
 }
 

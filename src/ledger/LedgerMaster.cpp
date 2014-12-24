@@ -5,16 +5,19 @@
 #include "LedgerMaster.h"
 #include "main/Application.h"
 #include "util/Logging.h"
+#include "lib/json/json.h"
+#include "ledger/LedgerDelta.h"
 
 /*
 The ledger module:
     1) gets the externalized tx set
     2) applies this set to the previous ledger
-    3) sends the changed entries to the CLF
-    4) saves the changed entries to SQL
-    5) saves the ledger hash and header to SQL
-    6) sends the new ledger hash and the tx set to the history
-    7) sends the new ledger hash and header to the TxHerder
+    3) sends the resultMeta somewhere
+    4) sends the changed entries to the CLF
+    5) saves the changed entries to SQL
+    6) saves the ledger hash and header to SQL
+    7) sends the new ledger hash and the tx set to the history
+    8) sends the new ledger hash and header to the TxHerder
     
 
 catching up to network:
@@ -29,7 +32,7 @@ catching up to network:
 namespace stellar
 {
 
-LedgerMaster::LedgerMaster(Application& app) : mApp(app)
+LedgerMaster::LedgerMaster(Application& app) : mApp(app), mDatabase(app)
 {
 	mCaughtUp = false;
     //syncWithCLF();
@@ -109,14 +112,32 @@ void LedgerMaster::recvDelta(CLFDeltaPtr delta, LedgerHeaderPtr header)
     }
 }
 
-    
-
 void LedgerMaster::closeLedger(TransactionSet::pointer txSet)
 {
+    LedgerDelta ledgerDelta;
+    mDatabase.beginTransaction();
     for(auto tx : txSet->mTransactions)
     {
-        tx->apply();
+        try {
+            TxDelta delta;
+            tx->apply(delta,*this);
+
+            Json::Value txResult;
+            std::string retStr;
+            txResult["id"] = toBase58(getHash(), retStr);
+            txResult["code"] = tx->getResultCode();
+
+            delta.commitDelta(txResult, ledgerDelta, *this );
+
+            
+        }catch(...)
+        {
+            CLOG(ERROR, "Ledger") << "Exception during tx->apply";
+        }
     }
+    mDatabase.endTransaction(false);
+    
+    // TODO.2 give the LedgerDelta to the Bucketlist
 }
 
 

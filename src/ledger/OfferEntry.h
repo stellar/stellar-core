@@ -18,12 +18,7 @@ namespace stellar
 
 		void calculateIndex();
 	public:
-		stellarxdr::uint160 mAccountID;
-		uint32_t	mSequence;
-		//STAmount mTakerPays;
-		//STAmount mTakerGets;
-		bool mPassive;
-		uint32_t mExpiration;
+		
 
 
  		OfferEntry();

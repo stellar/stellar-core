@@ -18,31 +18,18 @@ namespace stellar {
 	{
 		void calculateIndex();
 		
-		void insertIntoDB();
-		void updateInDB();
-		void deleteFromDB();
-
-		// void serialize(stellarxdr::uint256& hash, SLE::pointer& ret);
-
 	public:
-        stellarxdr::uint160 mLowAccount;
-        stellarxdr::uint160 mHighAccount;
-        stellarxdr::uint160 mCurrency;
+        typedef std::shared_ptr<TrustLine> pointer;
 
-		//STAmount mLowLimit;
-		//STAmount mHighLimit;
-		//STAmount mBalance;	// NICOLAS: check this  positive balance means credit is held by high account
+		TrustLine(const stellarxdr::LedgerEntry& from);
 
-		bool mLowAuthSet;  // if the high account has authorized the low account to hold its credit
-		bool mHighAuthSet;
+        void storeDelete(Json::Value& txResult, LedgerMaster& ledgerMaster);
+        void storeChange(LedgerEntry::pointer startFrom, Json::Value& txResult, LedgerMaster& ledgerMaster);
+        void storeAdd(Json::Value& txResult, LedgerMaster& ledgerMaster);
 
-		TrustLine();
-		//TrustLine(SLE::pointer sle);
-
-		bool loadFromDB(const stellarxdr::uint256& index);
 		TxResultCode fromTx(AccountEntry& signingAccount, TrustSetTx* tx);
 		
-        static void dropAll(LedgerDatabase &db);
+        static void dropAll(Database &db);
         static const char *kSQLCreateStatement;
 		
 	};

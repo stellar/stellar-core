@@ -15,6 +15,7 @@ namespace stellar
 
 	class Ledger
 	{
+        
 	public:
         stellarxdr::LedgerHeader mHeader;
 
@@ -33,10 +34,14 @@ namespace stellar
 
 		Ledger();
 
+        uint64_t getMinBalance(); 
 		std::uint64_t scaleFeeBase(std::uint64_t fee);
 		std::uint64_t getReserve(int increments);
 
 		void updateFees();
+
+        void applyTx(const stellarxdr::Transaction& tx);
+        void isTxValid(const stellarxdr::Transaction& tx);
 	};
 }
 

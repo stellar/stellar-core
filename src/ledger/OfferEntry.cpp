@@ -8,6 +8,18 @@ using namespace std;
 
 namespace stellar
 {
+    const char *OfferEntry::kSQLCreateStatement = "CREATE TABLE IF NOT EXISTS Offers (						\
+			accountID		CHARACTER(35),		\
+			sequence		INT UNSIGNED,		\
+			takerPaysCurrency Blob(20),			\
+			takerPaysIssuer CHARACTER(35),		\
+			takerGetsCurrency Blob(20),			\
+			takerGetsIssuer CHARACTER(3),		\
+			amount BIGINT UNSIGNED,	\
+			price BIGINT UNSIGNED,	\
+			BOOL passive						\
+	);";
+
     /* NICOLAS
     // NICOLAS: deal with amounts properly (see TrustLines)
 

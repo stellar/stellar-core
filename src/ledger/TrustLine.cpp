@@ -10,6 +10,18 @@ using namespace std;
 
 namespace stellar {
 
+
+    const char *TrustLine::kSQLCreateStatement = "CREATE TABLE IF NOT EXISTS TrustLines (					\
+		trustIndex Blob(32),				\
+		accountID	CHARACTER(35),			\
+		issuer CHARACTER(35),				\
+		currency Blob(20),					\
+		limit UNSIGNED INT,		    		\
+		balance UNSIGNED INT,				\
+		authorized BOOL						\
+	); ";
+
+
     /* NICOLAS
     // NICOLAS -- code below does not work
     // need to rethink the way we store those lines:

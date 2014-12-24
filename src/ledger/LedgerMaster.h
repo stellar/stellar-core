@@ -8,7 +8,7 @@
 #include "Ledger.h"
 #include "clf/CanonicalLedgerForm.h"
 #include "txherder/TransactionSet.h"
-#include "ledger/LedgerDatabase.h"
+#include "ledger/Database.h"
 #include "ledger/LedgerGateway.h"
 
 /*
@@ -28,6 +28,8 @@ namespace stellar
         // LATER LedgerDatabase mCurrentDB;
         //stellarxdr::uint256 mLastLedgerHash;
         Ledger::pointer mCurrentLedger;
+        Database mDatabase;
+
         Application &mApp;
 
         void startCatchUp();
@@ -42,6 +44,8 @@ namespace stellar
         typedef const std::shared_ptr<LedgerMaster>&    ref;
 
 		LedgerMaster(Application& app);
+
+        
 
 		//////// GATEWAY FUNCTIONS
 		// called by txherder
@@ -66,6 +70,8 @@ namespace stellar
         void abortLedgerClose();
 
 		Ledger::pointer getCurrentLedger();
+
+        Database::pointer getDatabase();
 
 		void closeLedger(TransactionSet::pointer txSet);
 		

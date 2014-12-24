@@ -6,7 +6,7 @@
 // this distribution or at http://opensource.org/licenses/ISC
 
 #include "generated/StellarXDR.h"
-#include "LedgerDatabase.h"
+#include "Database.h"
 
 /*
 LedgerEntry
@@ -17,15 +17,19 @@ namespace stellar
 	class LedgerEntry
 	{
 	protected:
+        
 		stellarxdr::uint256 mIndex;
-
-		virtual void insertIntoDB() = 0;
-		virtual void updateInDB() = 0;
-		virtual void deleteFromDB() = 0;
 
 		virtual void calculateIndex() = 0;
 	public:
 		typedef std::shared_ptr<LedgerEntry> pointer;
+
+        stellarxdr::LedgerEntry mEntry;
+
+        LedgerEntry(const stellarxdr::LedgerEntry& from);
+
+
+        virtual LedgerEntry::pointer copy() const=0;
 
 		// calculate the index if you don't have it already
         stellarxdr::uint256 getIndex();
@@ -34,12 +38,12 @@ namespace stellar
         stellarxdr::uint256 getHash();
 
 		
-		// these will do the appropriate thing in the DB and the preimage
-		void storeDelete();
-		void storeChange();
-		void storeAdd();
+		// these will do the appropriate thing in the DB and the json txResult
+		virtual void storeDelete(Json::Value& txResult, LedgerMaster& ledgerMaster)=0;
+		virtual void storeChange(LedgerEntry::pointer startFrom, Json::Value& txResult, LedgerMaster& ledgerMaster)=0;
+		virtual void storeAdd(Json::Value& txResult, LedgerMaster& ledgerMaster)=0;
 
-        static void dropAll(LedgerDatabase &db); // deletes all data from DB
+        static void dropAll(Database &db); // deletes all data from DB
 	};
 }
 

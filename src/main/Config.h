@@ -36,6 +36,9 @@ class Config
     int QUORUM_THRESHOLD;
     std::vector<stellarxdr::uint256> QUORUM_SET;
 
+    std::string DATABASE_TYPE;
+    std::string DATABASE_OPTIONS;
+
     Config();
 
     void load(const std::string& filename);

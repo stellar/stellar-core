@@ -13,7 +13,16 @@ namespace stellar
         txSUCCESS,
         txALREADY,
         txNOFEE,
-        txMALFORMED
+        txMALFORMED,
+        txBADSEQ,
+        txUNDERFUNDED,
+        txBADRATE,
+        txLINEFULL,
+        txOVERSENDMAX,
+        txNOTRUST,
+
+
+        txNOACCOUNT
     };
 }
 

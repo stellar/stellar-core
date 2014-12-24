@@ -31,9 +31,6 @@
     <Filter Include="lib\util">
       <UniqueIdentifier>{886e9509-78a3-4d16-9b96-110c4849223d}</UniqueIdentifier>
     </Filter>
-    <Filter Include="lib\database">
-      <UniqueIdentifier>{3f51215c-abdc-4e1d-8c5c-9bce057dbe19}</UniqueIdentifier>
-    </Filter>
     <Filter Include="transactions">
       <UniqueIdentifier>{4545a642-5678-463c-a1b1-33e66fc6f809}</UniqueIdentifier>
     </Filter>
@@ -57,6 +54,9 @@
     </Filter>
     <Filter Include="crypto">
       <UniqueIdentifier>{ca69df68-9e2f-4688-b4de-977e0288ecad}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="lib\json">
+      <UniqueIdentifier>{353dbdb6-b0a3-41ee-9af5-b46403f495d7}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -82,9 +82,6 @@
       <Filter>ledger</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\ledger\Ledger.cpp">
-      <Filter>ledger</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\ledger\LedgerDatabase.cpp">
       <Filter>ledger</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\ledger\LedgerEntry.cpp">
@@ -225,6 +222,21 @@
     <ClCompile Include="..\..\src\lib\util\format.cc">
       <Filter>lib</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\transactions\PaymentTx.cpp">
+      <Filter>transactions</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\TxResult.cpp">
+      <Filter>transactions</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lib\json\jsoncpp.cpp">
+      <Filter>lib\json</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\ledger\LedgerDelta.cpp">
+      <Filter>ledger</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\ledger\Database.cpp">
+      <Filter>ledger</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\fba\Ballot.h">
@@ -258,9 +270,6 @@
       <Filter>ledger</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\ledger\Ledger.h">
-      <Filter>ledger</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\ledger\LedgerDatabase.h">
       <Filter>ledger</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\ledger\LedgerEntry.h">
@@ -313,9 +322,6 @@
     </ClInclude>
     <ClInclude Include="..\..\src\generated\StellarXDR.h">
       <Filter>generated</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\database\Database.h">
-      <Filter>lib\database</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\lib\crypto\EdKeyPair.h">
       <Filter>crypto</Filter>
@@ -466,6 +472,21 @@
     </ClInclude>
     <ClInclude Include="..\..\src\util\Timer.h">
       <Filter>util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\transactions\TxResult.h">
+      <Filter>transactions</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\lib\json\json\json.h">
+      <Filter>lib\json</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\lib\json\json\json-forwards.h">
+      <Filter>lib\json</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\ledger\LedgerDelta.h">
+      <Filter>ledger</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\ledger\Database.h">
+      <Filter>ledger</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

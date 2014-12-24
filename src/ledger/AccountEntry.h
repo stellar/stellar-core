@@ -21,30 +21,22 @@ namespace stellar
 
 		//void serialize(stellarxdr::uint256& hash, SLE::pointer& ret);
 	public:
+        typedef std::shared_ptr<AccountEntry> pointer;
+        
+		AccountEntry(const stellarxdr::LedgerEntry& from);
+        AccountEntry(stellarxdr::uint160& id);
 
-        stellarxdr::uint160 mAccountID;
-		uint64_t mBalance;
-		uint32_t mSequence;
-		uint32_t mOwnerCount;
-		uint32_t mTransferRate;
-		stellarxdr::uint160 mInflationDest;
-		StellarPublicKey mPubKey; // TODO make this optional and map to nullable in SQL
-		bool mRequireDest;
-		bool mRequireAuth;
+        LedgerEntry::pointer copy()  const  { return LedgerEntry::pointer(new AccountEntry(*this)); }
 
 
-		AccountEntry();
-		AccountEntry(stellarxdr::uint160& id);
-
-		bool loadFromDB(stellarxdr::uint256& index);
-		bool loadFromDB(); // load by accountID
-
-		//bool checkFlag(LedgerSpecificFlags flag);
+        void storeDelete(Json::Value& txResult, LedgerMaster& ledgerMaster);
+        void storeChange(LedgerEntry::pointer startFrom, Json::Value& txResult, LedgerMaster& ledgerMaster);
+        void storeAdd(Json::Value& txResult, LedgerMaster& ledgerMaster);
 
 		// will return txSUCCESS or that this account doesn't have the reserve to do this
 		TxResultCode tryToIncreaseOwnerCount();
 
-        static void dropAll(LedgerDatabase &db);
+        static void dropAll(Database &db);
         static const char *kSQLCreateStatement;
 	};
 }

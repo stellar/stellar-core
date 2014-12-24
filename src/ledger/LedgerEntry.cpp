@@ -9,6 +9,12 @@
 
 namespace stellar
 {
+
+    LedgerEntry::LedgerEntry(const stellarxdr::LedgerEntry& from) : mEntry(from)
+    {
+
+    }
+
     /* NICOLAS
 	LedgerEntry::pointer LedgerEntry::makeEntry(SLE::pointer sle)
 	{
