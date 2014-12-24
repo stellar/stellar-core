@@ -37,9 +37,6 @@
     <Filter Include="transactions">
       <UniqueIdentifier>{4545a642-5678-463c-a1b1-33e66fc6f809}</UniqueIdentifier>
     </Filter>
-    <Filter Include="xdrpp">
-      <UniqueIdentifier>{edf55658-9ccc-494c-83f5-34e638396749}</UniqueIdentifier>
-    </Filter>
     <Filter Include="docs">
       <UniqueIdentifier>{b0b4abb7-5c4b-4d72-8529-30f235d36c68}</UniqueIdentifier>
     </Filter>
@@ -144,9 +141,6 @@
     <ClCompile Include="..\..\src\clf\BucketList.cpp">
       <Filter>clf</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\xdrpp\xdrpp\marshal.cc">
-      <Filter>xdrpp</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\main\Config.cpp">
       <Filter>main</Filter>
     </ClCompile>
@@ -224,6 +218,9 @@
     </ClCompile>
     <ClCompile Include="..\..\src\lib\util\format.cc">
       <Filter>lib</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\history\HistoryArchive.cpp">
+      <Filter>history</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -368,12 +365,6 @@
     <ClInclude Include="..\..\src\overlay\StellarMessage.h">
       <Filter>overlay</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\xdrpp\xdrpp\message.h">
-      <Filter>xdrpp</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\..\xdrpp\xdrpp\marshal.h">
-      <Filter>xdrpp</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\src\lib\util\easylogging++.h">
       <Filter>lib\util</Filter>
     </ClInclude>
@@ -415,9 +406,6 @@
     </ClInclude>
     <ClInclude Include="..\..\src\sync\SyncMaster.h">
       <Filter>sync</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\..\xdrpp\xdrpp\endian.h">
-      <Filter>xdrpp</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\main\test.h">
       <Filter>main</Filter>
@@ -466,6 +454,9 @@
     </ClInclude>
     <ClInclude Include="..\..\src\util\Timer.h">
       <Filter>util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\history\HistoryArchive.h">
+      <Filter>history</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
