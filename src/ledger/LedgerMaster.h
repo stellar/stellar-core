@@ -7,7 +7,7 @@
 
 #include "Ledger.h"
 #include "clf/CanonicalLedgerForm.h"
-#include "ledger/Database.h"
+#include "database/Database.h"
 #include "ledger/LedgerGateway.h"
 
 /*

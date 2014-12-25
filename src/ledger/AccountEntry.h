@@ -15,10 +15,7 @@ namespace stellar
 	{
 		void calculateIndex();
 
-		void insertIntoDB();
-		void updateInDB();
-		void deleteFromDB();
-
+		
 		//void serialize(stellarxdr::uint256& hash, SLE::pointer& ret);
 	public:
         typedef std::shared_ptr<AccountEntry> pointer;

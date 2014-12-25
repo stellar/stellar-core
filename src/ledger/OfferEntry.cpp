@@ -13,6 +13,11 @@ namespace stellar
 
     }
 
+    void OfferEntry::calculateIndex()
+    {
+        // TODO.2
+    }
+
     const char *OfferEntry::kSQLCreateStatement = "CREATE TABLE IF NOT EXISTS Offers (						\
 			accountID		CHARACTER(35),		\
 			sequence		INT UNSIGNED,		\
@@ -24,6 +29,19 @@ namespace stellar
 			price BIGINT UNSIGNED,	\
 			BOOL passive						\
 	);";
+
+    void OfferEntry::storeDelete(Json::Value& txResult, LedgerMaster& ledgerMaster)
+    {
+
+    }
+    void OfferEntry::storeChange(LedgerEntry::pointer startFrom, Json::Value& txResult, LedgerMaster& ledgerMaster)
+    {
+
+    }
+    void OfferEntry::storeAdd(Json::Value& txResult, LedgerMaster& ledgerMaster)
+    {
+
+    }
 
     /* NICOLAS
     // NICOLAS: deal with amounts properly (see TrustLines)

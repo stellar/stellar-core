@@ -42,9 +42,6 @@ class Config : public std::enable_shared_from_this<Config>
     int QUORUM_THRESHOLD;
     std::vector<stellarxdr::uint256> QUORUM_SET;
 
-    std::string DATABASE_TYPE;
-    std::string DATABASE_OPTIONS;
-
     // History config
     std::map<std::string,std::shared_ptr<HistoryArchive>> HISTORY;
 

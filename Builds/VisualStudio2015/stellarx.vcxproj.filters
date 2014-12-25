@@ -54,6 +54,7 @@
     </Filter>
     <Filter Include="lib\json">
       <UniqueIdentifier>{353dbdb6-b0a3-41ee-9af5-b46403f495d7}</UniqueIdentifier>
+    </Filter>
     <Filter Include="database">
       <UniqueIdentifier>{88bc05c7-da04-4654-af79-dc9fc022e17e}</UniqueIdentifier>
     </Filter>
@@ -230,9 +231,6 @@
     <ClCompile Include="..\..\src\ledger\LedgerDelta.cpp">
       <Filter>ledger</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\ledger\Database.cpp">
-      <Filter>ledger</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\history\HistoryArchive.cpp">
       <Filter>history</Filter>
     </ClCompile>
@@ -241,6 +239,7 @@
     </ClCompile>
     <ClCompile Include="..\..\src\transactions\TxDelta.cpp">
       <Filter>transactions</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\database\Database.cpp">
       <Filter>database</Filter>
     </ClCompile>
@@ -480,9 +479,6 @@
     <ClInclude Include="..\..\src\ledger\LedgerDelta.h">
       <Filter>ledger</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\ledger\Database.h">
-      <Filter>ledger</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\src\history\HistoryArchive.h">
       <Filter>history</Filter>
     </ClInclude>
@@ -491,6 +487,7 @@
     </ClInclude>
     <ClInclude Include="..\..\src\transactions\TxResultCode.h">
       <Filter>transactions</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\src\database\Database.h">
       <Filter>database</Filter>
     </ClInclude>

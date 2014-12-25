@@ -30,9 +30,10 @@ bool Transaction::isValid()
     return true;
 }
 
+// TODO.2 we can probably get rid of this
 stellarxdr::uint256& Transaction::getSignature()
 {
-    return mSignature;
+    return mEnvelope.signature;
 }
 
 stellarxdr::uint256& Transaction::getHash()

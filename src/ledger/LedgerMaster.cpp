@@ -44,6 +44,12 @@ void LedgerMaster::startNewLedger()
 
 }
 
+Ledger::pointer LedgerMaster::getCurrentLedger()
+{
+    // TODO.2
+    return mCurrentLedger;
+}
+
 LedgerHeaderPtr LedgerMaster::getCurrentHeader()
 {
     // TODO.1

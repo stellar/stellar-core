@@ -6,7 +6,7 @@
 // this distribution or at http://opensource.org/licenses/ISC
 
 #include "generated/StellarXDR.h"
-#include "Database.h"
+#include "database/Database.h"
 #include "lib/json/json-forwards.h"
 
 /*
@@ -29,8 +29,9 @@ namespace stellar
 
         stellarxdr::LedgerEntry mEntry;
 
+        LedgerEntry();
         LedgerEntry(const stellarxdr::LedgerEntry& from);
-
+        
 
         virtual LedgerEntry::pointer copy() const=0;
 

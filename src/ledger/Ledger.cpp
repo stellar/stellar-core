@@ -8,6 +8,15 @@
 
 namespace stellar
 {
+    // TODO.2
+    uint64_t Ledger::getMinBalance()
+    {
+        return 0;
+    }
+    uint64_t Ledger::getTxFee()
+    {
+        return 0;
+    }
 
     /* NICOLAS
 	std::uint64_t Ledger::getReserve(int increments)

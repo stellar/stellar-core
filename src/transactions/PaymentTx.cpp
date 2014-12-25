@@ -162,18 +162,26 @@ namespace stellar
             }
 
             // make sure source has enough credit
-            TrustLine sourceLine = getTrustline(mEnvelope.tx.account, mEnvelope.tx.body.paymentTx().currency);
-            if(!sourceLine || sourceLine->mEntry.trustLine().balance < needToSend)
+            stellarxdr::LedgerEntry sourceLineEntry;
+            if(!ledgerMaster.getDatabase().loadTrustLine(mEnvelope.tx.account, mEnvelope.tx.body.paymentTx().currency, sourceLineEntry))
+            {
+                mResultCode = txUNDERFUNDED;
+                return;
+            }
+            
+            if(sourceLineEntry.trustLine().balance < needToSend)
             {
                 mResultCode = txUNDERFUNDED;
                 return;
             }
 
+            TrustLine sourceLine(sourceLineEntry);
+           
             delta.setStart(sourceLine);
             delta.setStart(destLine);
 
-            sourceLine->mEntry.trustLine().balance -= needToSend;
-            destLine->mEntry.trustLine().balance += amountToSend;
+            sourceLine.mEntry.trustLine().balance -= needToSend;
+            destLine.mEntry.trustLine().balance += amountToSend;
 
             delta.setFinal(sourceLine);
             delta.setFinal(destLine);
@@ -187,7 +195,8 @@ namespace stellar
     // make sure account has enough to send
     bool PaymentTx::doCheckValid(LedgerMaster& ledgerMaster)
     {
-
+        // TODO.2
+        return(false);
     }
 
 }

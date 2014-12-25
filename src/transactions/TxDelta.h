@@ -10,8 +10,8 @@ class TxDelta
     std::map<stellarxdr::uint256, std::pair<LedgerEntry::pointer, LedgerEntry::pointer>> mStartEnd;
 public:
     void merge(const TxDelta& other);
-    void setStart(const LedgerEntry& entry);
-    void setFinal(const LedgerEntry& entry);
+    void setStart(LedgerEntry& entry);
+    void setFinal(LedgerEntry& entry);
 
     void commitDelta(Json::Value& txResult, LedgerDelta& delta, LedgerMaster& ledgerMaster);
 };

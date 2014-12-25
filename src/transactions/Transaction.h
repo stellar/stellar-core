@@ -44,7 +44,7 @@ namespace stellar
         stellarxdr::uint256& getSignature();
 		bool isValid();
 
-        TxResultCode getResultCode();
+        TxResultCode getResultCode() { return mResultCode;  }
 
         bool checkValid(LedgerMaster& ledgerMaster);
 

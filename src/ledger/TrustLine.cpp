@@ -9,8 +9,6 @@
 using namespace std;
 
 namespace stellar {
-
-
     const char *TrustLine::kSQLCreateStatement = "CREATE TABLE IF NOT EXISTS TrustLines (					\
 		trustIndex Blob(32),				\
 		accountID	CHARACTER(35),			\
@@ -20,6 +18,30 @@ namespace stellar {
 		balance UNSIGNED INT,				\
 		authorized BOOL						\
 	); ";
+
+
+    TrustLine::TrustLine(const stellarxdr::LedgerEntry& from) : LedgerEntry(from)
+    {
+
+    }
+
+    
+    void TrustLine::calculateIndex()
+    {
+
+    }
+    void TrustLine::storeDelete(Json::Value& txResult, LedgerMaster& ledgerMaster)
+    {
+
+    }
+    void TrustLine::storeChange(LedgerEntry::pointer startFrom, Json::Value& txResult, LedgerMaster& ledgerMaster)
+    {
+
+    }
+    void TrustLine::storeAdd(Json::Value& txResult, LedgerMaster& ledgerMaster)
+    {
+
+    }
 
 
     /* NICOLAS

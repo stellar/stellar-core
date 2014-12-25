@@ -8,7 +8,7 @@ void TxDelta::merge(const TxDelta& other)
 
 }
 
-void TxDelta::setFinal(const LedgerEntry& entry)
+void TxDelta::setFinal(LedgerEntry& entry)
 {
     auto it = mStartEnd.find(entry.getIndex());
     if(it == mStartEnd.end())
@@ -16,11 +16,11 @@ void TxDelta::setFinal(const LedgerEntry& entry)
         mStartEnd[entry.getIndex()] = std::pair<LedgerEntry::pointer, LedgerEntry::pointer>(LedgerEntry::pointer(), entry.copy());
     } else
     {
-        it->second.second = entry;
+        it->second.second = entry.copy();
     }
 }
 
-void TxDelta::setStart(const LedgerEntry& entry)
+void TxDelta::setStart(LedgerEntry& entry)
 {
     auto it = mStartEnd.find(entry.getIndex());
     if(it == mStartEnd.end())
@@ -28,7 +28,7 @@ void TxDelta::setStart(const LedgerEntry& entry)
         mStartEnd[entry.getIndex()] = std::pair<LedgerEntry::pointer, LedgerEntry::pointer>(entry.copy(), LedgerEntry::pointer());
     } else
     {
-        it->second.first = entry;
+        it->second.first = entry.copy();
     }
 
 }
@@ -39,7 +39,7 @@ void TxDelta::commitDelta(Json::Value& txResult, LedgerDelta& delta, LedgerMaste
     // TODO.2  save the txResult in the DB
     // run through every value of the start and end and make the correct SQL
     // TODO.2
-
+    /*
     for(auto pair : mStartEnd)
     {
         if(!pair.second.first)
@@ -54,5 +54,6 @@ void TxDelta::commitDelta(Json::Value& txResult, LedgerDelta& delta, LedgerMaste
             sql << "UPDATE " << pair.second->getTableName() << " set "
         }
     }
+    */
 }
 }

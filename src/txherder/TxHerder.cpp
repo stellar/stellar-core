@@ -84,9 +84,7 @@ TxHerder::compareSlot(stellarxdr::SlotBallot const& slotBallot)
         return (TxHerderGateway::FUTURE_SLOT);
     if (slotBallot.ledgerIndex < mLastClosedLedger->mHeader.ledgerSeq)
         return (TxHerderGateway::PAST_SLOT);
-    if (slotBallot.previousLedgerHash == mLastClosedLedger->mHeader.hash)
-        return (TxHerderGateway::SAME_SLOT);
-    return TxHerderGateway::INCOMPATIBLIE_SLOT;
+    return TxHerderGateway::SAME_SLOT;
 }
 
 bool
@@ -230,7 +228,7 @@ TxHerder::ledgerClosed(LedgerPtr ledger)
     recvTransactionSet(proposedSet);
     stellarxdr::SlotBallot firstBallot;
     firstBallot.ledgerIndex = mLastClosedLedger->mHeader.ledgerSeq;
-    firstBallot.previousLedgerHash = mLastClosedLedger->mHeader.hash;
+    firstBallot.ballot.previousLedgerHash = mLastClosedLedger->mHeader.hash;
     firstBallot.ballot.index = 1;
     firstBallot.ballot.closeTime = firstBallotTime;
     firstBallot.ballot.baseFee = mApp.getConfig().DESIRED_BASE_FEE;

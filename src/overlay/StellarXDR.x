@@ -14,6 +14,7 @@ namespace stellarxdr {
 typedef opaque uint256[32];
 typedef opaque uint160[20];
 typedef unsigned hyper uint64;
+typedef hyper int64;
 typedef unsigned uint32;
 typedef opaque Currency<20>;
 
@@ -57,9 +58,9 @@ struct PaymentTx
 {
 	uint160 destination;  
 	CurrencyIssuer currency;	// what they end up with
-	uint64 amount;				// amount they end up with
+	int64 amount;				// amount they end up with
 	CurrencyIssuer path<>;		// what hops it must go through to get there
-	uint64 sendMax;				// the maximum amount of the source currency this
+	int64 sendMax;				// the maximum amount of the source currency this
 								// will send. The tx will fail if can't be met
 	opaque memo<32>;
 	opaque sourceMemo<32>;		// used to return a payment
@@ -68,9 +69,9 @@ struct PaymentTx
 struct CreateOfferTx
 {
 	CurrencyIssuer currencyTakerGets;
-	uint64 amountTakerGets;
+	int64 amountTakerGets;
 	CurrencyIssuer currencyTakerPays;
-	uint64 amountTakerPays;
+	int64 amountTakerPays;
 
 	uint32 offerSeqNum;		// set if you want to change an existing offer
 	bool passive;	// only take offers that cross this. not offers that match it
@@ -88,7 +89,7 @@ struct ChangeAccountTx
 struct ChangeTrustTx
 {
 	CurrencyIssuer line;
-	uint64 amount;
+	int64 amount;
 	bool auth;
 };
 
@@ -136,13 +137,12 @@ struct LedgerHeader
     uint256 previousLedgerHash;
     uint256 txSetHash;
 	uint256 clfHash;
-
 	
-	uint64 totalCoins;
-	uint64 feePool;
-	uint32 ledgerSeq;
+	int64 totalCoins;
+	int64 feePool;
+	uint64 ledgerSeq;
 	uint32 inflationSeq;
-	uint64 baseFee;
+	int64 baseFee;
 	uint64 closeTime;       
 };
 
@@ -223,7 +223,7 @@ enum LedgerTypes {
 struct AccountEntry
 {
     uint160 accountID;
-    uint64 balance;
+    int64 balance;
     uint32 sequence;
     uint32 ownerCount;
     uint32 transferRate;	// rate*1000000
@@ -242,8 +242,8 @@ struct TrustLineEntry
     uint160 accountID;
     uint160 issuer;
     uint160 currency;
-    uint64 limit;
-    uint64 balance;
+    int64 limit;
+    int64 balance;
     bool authorized;  // if the issuer has authorized this guy to hold its credit
 };
 
@@ -253,7 +253,7 @@ struct OfferEntry
     uint32 sequence;
 	CurrencyIssuer takerGets;
 	CurrencyIssuer takerPays;
-	uint64 amount;
+	int64 amount;
 	uint64 price;	// price*1,000,000,000
 
     bool passive;

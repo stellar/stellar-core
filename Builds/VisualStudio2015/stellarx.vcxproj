@@ -90,7 +90,6 @@
     <ClCompile Include="..\..\src\history\HistoryTests.cpp" />
     <ClCompile Include="..\..\src\ledger\AccountEntry.cpp" />
     <ClCompile Include="..\..\src\ledger\Ledger.cpp" />
-    <ClCompile Include="..\..\src\ledger\Database.cpp" />
     <ClCompile Include="..\..\src\ledger\LedgerDelta.cpp" />
     <ClCompile Include="..\..\src\ledger\LedgerEntry.cpp" />
     <ClCompile Include="..\..\src\ledger\LedgerMaster.cpp" />
@@ -150,6 +149,7 @@
     <ClInclude Include="..\..\src\clf\CLF.h" />
     <ClInclude Include="..\..\src\clf\CLFDelta.h" />
     <ClInclude Include="..\..\src\clf\CLFGateway.h" />
+    <ClInclude Include="..\..\src\database\Database.h" />
     <ClInclude Include="..\..\src\fba\Ballot.h" />
     <ClInclude Include="..\..\src\fba\FBA.h" />
     <ClInclude Include="..\..\src\fba\FBAGateway.h" />
@@ -166,7 +166,6 @@
     <ClInclude Include="..\..\src\history\HistoryMaster.h" />
     <ClInclude Include="..\..\src\ledger\AccountEntry.h" />
     <ClInclude Include="..\..\src\ledger\Ledger.h" />
-    <ClInclude Include="..\..\src\ledger\Database.h" />
     <ClInclude Include="..\..\src\ledger\LedgerDelta.h" />
     <ClInclude Include="..\..\src\ledger\LedgerEntry.h" />
     <ClInclude Include="..\..\src\ledger\LedgerGateway.h" />

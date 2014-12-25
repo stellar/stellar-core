@@ -31,8 +31,6 @@ Config::Config()
     HTTP_PORT = 39132;
     PUBLIC_HTTP_PORT = false;
 
-    DATABASE_TYPE="sqlite";
-    DATABASE_OPTIONS="";
 }
 
 void
@@ -60,10 +58,7 @@ Config::load(const std::string& filename)
         if (g.contains("LOG_FILE_PATH"))
             LOG_FILE_PATH = g.get("LOG_FILE_PATH")->as<std::string>()->value();
 
-        if(g.contains("DATABASE_TYPE"))
-            DATABASE_TYPE = g.get("DATABASE_TYPE")->as<std::string>()->value();
-        if(g.contains("DATABASE_OPTIONS"))
-            DATABASE_OPTIONS = g.get("DATABASE_OPTIONS")->as<std::string>()->value();
+       
 
         if (g.contains("TARGET_PEER_CONNECTIONS"))
             TARGET_PEER_CONNECTIONS =

@@ -4,7 +4,7 @@
 #include "transactions/TxResultCode.h"
 /*
 This is the result of one transaction being applied to the ledger
-*/
+
 class TxResult
 {
     stellarxdr::uint256 mTxID;
@@ -13,5 +13,5 @@ public:
     void setID(stellarxdr::uint256& id);
     void setCode(TxResultCode code);
 };
-
+*/
 #endif

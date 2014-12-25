@@ -9,10 +9,22 @@
 
 namespace stellar
 {
+    LedgerEntry::LedgerEntry()
+    {
 
+    }
     LedgerEntry::LedgerEntry(const stellarxdr::LedgerEntry& from) : mEntry(from)
     {
 
+    }
+
+    stellarxdr::uint256 LedgerEntry::getIndex()
+    {
+        if(isZero(mIndex))
+        {
+            calculateIndex();
+        }
+        return mIndex;
     }
 
     /* NICOLAS

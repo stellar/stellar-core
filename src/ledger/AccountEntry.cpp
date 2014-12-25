@@ -13,6 +13,17 @@ namespace stellar
 
     }
 
+    AccountEntry::AccountEntry(stellarxdr::uint160& id)
+    {
+        // TODO.2
+        //mEntry.
+    }
+
+    void AccountEntry::calculateIndex()
+    {
+        // TODO.2
+    }
+
     void AccountEntry::storeDelete(Json::Value& txResult, LedgerMaster& ledgerMaster)
     {
         std::string base58ID;

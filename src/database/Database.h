@@ -7,6 +7,7 @@
 
 #include <string>
 #include <soci.h>
+#include "generated/StellarXDR.h"
 
 namespace stellar
 {
@@ -15,7 +16,7 @@ class Application;
 class Database
 {
     Application& mApp;
-    soci::session mSql;
+    soci::session mSession;
 
     static bool gDriversRegistered;
     static void registerDrivers();
@@ -23,10 +24,30 @@ class Database
   public:
     Database(Application& app);
 
-    soci::session &getSql()
-    {
-        return mSql;
-    }
+    // state store
+    enum StoreStateName {
+        kLastClosedLedger = 0,
+        kLastEntry
+    };
+
+    const char *getStoreStateName(StoreStateName n);
+    std::string getState(const char *stateName);
+    void setState(const char *stateName, const char *value);
+
+    // transaction helpers
+    void beginTransaction();
+    void endTransaction(bool rollback);
+    int getTransactionLevel();
+
+    bool loadAccount(const stellarxdr::uint160& accountID, stellarxdr::LedgerEntry& retEntry);
+    bool loadTrustLine(const stellarxdr::uint160& accountID,
+        const stellarxdr::CurrencyIssuer& currency,
+        stellarxdr::LedgerEntry& retEntry);
+
+    //bool loadOffer()
+
+
+    soci::session& getSession() { return mSession; }
 };
 }
 
