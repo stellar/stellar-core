@@ -11,6 +11,8 @@ extern "C" void register_factory_sqlite3();
 extern "C" void register_factory_postgresql();
 #endif
 
+
+
 namespace stellar
 {
 
@@ -47,6 +49,12 @@ bool Database::loadTrustLine(const stellarxdr::uint160& accountID,
     stellarxdr::LedgerEntry& retEntry)
 {
     return false;
+}
+
+void Database::loadBestOffers(int numOffers, int offset, stellarxdr::CurrencyIssuer& pays,
+    stellarxdr::CurrencyIssuer& gets, vector<stellarxdr::LedgerEntry>& retOffers)
+{
+    // TODO.2
 }
 
 void Database::beginTransaction() {

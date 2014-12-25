@@ -8,6 +8,19 @@
 
 namespace stellar
 {
+    const char *AccountEntry::kSQLCreateStatement = "CREATE TABLE IF NOT EXISTS Accounts (						\
+		accountID		CHARACTER(35) PRIMARY KEY,	\
+		balance			BIGINT UNSIGNED,			\
+		sequence		INT UNSIGNED default 1,				\
+		ownerCount		INT UNSIGNED default 0,			\
+		transferRate	INT UNSIGNED default 0,		\
+        inflationDest	CHARACTER(35),		\
+        inflationDest	CHARACTER(35),		\
+		inflationDest	CHARACTER(35),		\
+		publicKey		CHARACTER(56),		\
+		flags		    INT UNSIGNED default 0  	\
+	);";
+
     AccountEntry::AccountEntry(const stellarxdr::LedgerEntry& from) : LedgerEntry(from)
     {
 
@@ -124,18 +137,7 @@ namespace stellar
         txResult["effects"]["new"][base58ID]["balance"] = mEntry.account().balance;
     }
 
-    const char *AccountEntry::kSQLCreateStatement = "CREATE TABLE IF NOT EXISTS Accounts (						\
-		accountID		CHARACTER(35) PRIMARY KEY,	\
-		balance			BIGINT UNSIGNED,			\
-		sequence		INT UNSIGNED default 1,				\
-		ownerCount		INT UNSIGNED default 0,			\
-		transferRate	INT UNSIGNED default 0,		\
-        inflationDest	CHARACTER(35),		\
-        inflationDest	CHARACTER(35),		\
-		inflationDest	CHARACTER(35),		\
-		publicKey		CHARACTER(56),		\
-		flags		    INT UNSIGNED default 0  	\
-	);";
+   
 
     /* NICOLAS
     

@@ -7,7 +7,7 @@ What is better,
 		 
 	including the public key in every tx?
 	We could also make a special "create account tx" that takes in a public key
-	Or we could make accountIDs full public keys rather than to these hashes.
+	Or we could make accountIDs full public keys rather than to these hashes. extra 12 bytes per ID
 
 How do we want to handle returning payments?
 	If a user sends a payment from a gateway and someone needs to return it 

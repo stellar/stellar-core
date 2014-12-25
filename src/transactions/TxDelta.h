@@ -1,3 +1,6 @@
+#ifndef __TXDELTA__
+#define __TXDELTA__
+
 #include <map>
 #include "generated/StellarXDR.h"
 #include "ledger/LedgerEntry.h"
@@ -14,6 +17,10 @@ public:
     void setFinal(LedgerEntry& entry);
 
     void commitDelta(Json::Value& txResult, LedgerDelta& delta, LedgerMaster& ledgerMaster);
+
+    static const char *kSQLCreateStatement;
 };
 }
+
+#endif
 

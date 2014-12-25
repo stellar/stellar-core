@@ -132,6 +132,7 @@ void LedgerMaster::closeLedger(TransactionSet::pointer txSet)
             std::string retStr;
             txResult["id"] = toBase58(tx->getHash(), retStr);
             txResult["code"] = tx->getResultCode();
+            txResult["ledger"] = getCurrentHeader()->ledgerSeq;
 
             delta.commitDelta(txResult, ledgerDelta, *this );
 
@@ -148,11 +149,6 @@ void LedgerMaster::closeLedger(TransactionSet::pointer txSet)
 
 
 /* NICOLAS
-
-Ledger::pointer LedgerMaster::getCurrentLedger()
-{
-	return(Ledger::pointer());
-}
 
 bool LedgerMaster::ensureSync(ripple::Ledger::pointer lastClosedLedger)
 {

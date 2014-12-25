@@ -9,6 +9,8 @@
 #include <soci.h>
 #include "generated/StellarXDR.h"
 
+#define OFFER_PRICE_DIVISOR 1000000000
+
 namespace stellar
 {
 class Application;
@@ -43,6 +45,9 @@ class Database
     bool loadTrustLine(const stellarxdr::uint160& accountID,
         const stellarxdr::CurrencyIssuer& currency,
         stellarxdr::LedgerEntry& retEntry);
+
+    void loadBestOffers(int numOffers, int offset, stellarxdr::CurrencyIssuer& pays,
+        stellarxdr::CurrencyIssuer& gets, std::vector<stellarxdr::LedgerEntry>& retOffers);
 
     //bool loadOffer()
 
