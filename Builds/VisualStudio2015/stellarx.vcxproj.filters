@@ -54,6 +54,8 @@
     </Filter>
     <Filter Include="lib\json">
       <UniqueIdentifier>{353dbdb6-b0a3-41ee-9af5-b46403f495d7}</UniqueIdentifier>
+    <Filter Include="database">
+      <UniqueIdentifier>{88bc05c7-da04-4654-af79-dc9fc022e17e}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -239,6 +241,11 @@
     </ClCompile>
     <ClCompile Include="..\..\src\transactions\TxDelta.cpp">
       <Filter>transactions</Filter>
+    <ClCompile Include="..\..\src\database\Database.cpp">
+      <Filter>database</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\database\DatabaseTests.cpp">
+      <Filter>database</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -484,6 +491,8 @@
     </ClInclude>
     <ClInclude Include="..\..\src\transactions\TxResultCode.h">
       <Filter>transactions</Filter>
+    <ClInclude Include="..\..\src\database\Database.h">
+      <Filter>database</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

@@ -7,7 +7,7 @@
 
 
 #include <string>
-#include "lib/soci/src/core/soci.h"
+#include "database/Database.h"
 
 namespace stellar
 {

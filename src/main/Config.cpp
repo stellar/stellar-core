@@ -119,6 +119,10 @@ Config::load(const std::string& filename)
                 }
             }
         }
+
+        if (g.contains("DATABASE"))
+            DATABASE = g.get("DATABASE")->as<std::string>()->value();
+
     }
     catch (cpptoml::toml_parse_exception& ex)
     {

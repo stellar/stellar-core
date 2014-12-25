@@ -5,6 +5,14 @@
 // under the ISC License. See the COPYING file at the top-level directory of
 // this distribution or at http://opensource.org/licenses/ISC
 
+// ASIO is somewhat particular about when it gets included -- it wants to be the
+// first to include <windows.h> -- so we try to include it before everything
+// else.
+#ifndef ASIO_STANDALONE
+#define ASIO_STANDALONE
+#endif
+#include <asio.hpp>
+
 #include "fba/FBAMaster.h"
 #include "ledger/LedgerMaster.h"
 #include "main/Config.h"
@@ -13,6 +21,7 @@
 #include "overlay/PeerMaster.h"
 #include "clf/BucketList.h"
 #include "history/HistoryMaster.h"
+#include "database/Database.h"
 #include "process/ProcessMaster.h"
 #include "main/CommandHandler.h"
 
@@ -112,6 +121,7 @@ class Application : public enable_shared_from_this<Application>
     HistoryMaster mHistoryMaster;
     ProcessMaster mProcessMaster;
     CommandHandler mCommandHandler;
+    Database mDatabase;
 
     std::vector<std::thread> mWorkerThreads;
 
@@ -193,6 +203,11 @@ class Application : public enable_shared_from_this<Application>
     getPeerMaster()
     {
         return mPeerMaster;
+    }
+    Database&
+    getDatabase()
+    {
+        return mDatabase;
     }
 
     asio::io_service&

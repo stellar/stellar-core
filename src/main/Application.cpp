@@ -26,6 +26,7 @@ Application::Application(VirtualClock& clock, Config const& cfg)
     , mHistoryMaster(*this)
     , mProcessMaster(*this)
     , mCommandHandler(*this)
+    , mDatabase(*this)
     , mStopSignals(mMainIOService, SIGINT)
     , mRealTimerCancelCallbacks(0)
 {
