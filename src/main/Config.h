@@ -45,6 +45,9 @@ class Config : public std::enable_shared_from_this<Config>
     // History config
     std::map<std::string,std::shared_ptr<HistoryArchive>> HISTORY;
 
+    // Database config
+    std::string DATABASE;
+
     Config();
 
     void load(const std::string& filename);

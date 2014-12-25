@@ -31,9 +31,6 @@
     <Filter Include="lib\util">
       <UniqueIdentifier>{886e9509-78a3-4d16-9b96-110c4849223d}</UniqueIdentifier>
     </Filter>
-    <Filter Include="lib\database">
-      <UniqueIdentifier>{3f51215c-abdc-4e1d-8c5c-9bce057dbe19}</UniqueIdentifier>
-    </Filter>
     <Filter Include="transactions">
       <UniqueIdentifier>{4545a642-5678-463c-a1b1-33e66fc6f809}</UniqueIdentifier>
     </Filter>
@@ -54,6 +51,9 @@
     </Filter>
     <Filter Include="crypto">
       <UniqueIdentifier>{ca69df68-9e2f-4688-b4de-977e0288ecad}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="database">
+      <UniqueIdentifier>{88bc05c7-da04-4654-af79-dc9fc022e17e}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -225,6 +225,12 @@
     <ClCompile Include="..\..\src\crypto\CryptoTests.cpp">
       <Filter>crypto</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\database\Database.cpp">
+      <Filter>database</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\database\DatabaseTests.cpp">
+      <Filter>database</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\fba\Ballot.h">
@@ -313,9 +319,6 @@
     </ClInclude>
     <ClInclude Include="..\..\src\generated\StellarXDR.h">
       <Filter>generated</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\database\Database.h">
-      <Filter>lib\database</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\lib\crypto\EdKeyPair.h">
       <Filter>crypto</Filter>
@@ -460,6 +463,9 @@
     </ClInclude>
     <ClInclude Include="..\..\src\history\HistoryArchive.h">
       <Filter>history</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\database\Database.h">
+      <Filter>database</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

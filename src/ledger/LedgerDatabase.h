@@ -6,7 +6,7 @@
 // this distribution or at http://opensource.org/licenses/ISC
 
 #include <string>
-#include "lib/database/Database.h"
+#include "database/Database.h"
 
 namespace stellar
 {
