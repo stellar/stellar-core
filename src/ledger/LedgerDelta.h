@@ -1,3 +1,6 @@
+#ifndef __LEDGERDELTA__
+#define __LEDGERDELTA__
+
 #include <map>
 #include "ledger/LedgerEntry.h"
 
@@ -15,15 +18,6 @@ namespace stellar
         void modEntry(LedgerEntry::pointer entry);
 
     };
-    
-    class TxDelta
-    {
-        std::map<stellarxdr::uint256, std::pair<LedgerEntry::pointer, LedgerEntry::pointer>> mStartEnd;
-    public:
-        void merge(const TxDelta& other);
-        void setStart(const LedgerEntry& entry);
-        void setFinal(const LedgerEntry& entry);
-
-        void commitDelta(Json::Value& txResult, LedgerDelta& delta, LedgerMaster& ledgerMaster);
-    };
 }
+
+#endif

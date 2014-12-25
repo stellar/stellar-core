@@ -116,6 +116,7 @@
     </ClCompile>
     <ClCompile Include="..\..\src\lib\util\getopt_long.c" />
     <ClCompile Include="..\..\src\transactions\PaymentTx.cpp" />
+    <ClCompile Include="..\..\src\transactions\TxDelta.cpp" />
     <ClCompile Include="..\..\src\transactions\TxResult.cpp" />
     <ClCompile Include="..\..\src\util\Timer.cpp" />
     <ClCompile Include="..\..\src\util\types.cpp" />
@@ -188,7 +189,6 @@
     <ClInclude Include="..\..\src\lib\util\easylogging++.h" />
     <ClInclude Include="..\..\src\lib\util\getopt.h" />
     <ClInclude Include="..\..\src\lib\util\Logging.h" />
-    <ClInclude Include="..\..\src\lib\util\types.h" />
     <ClInclude Include="..\..\src\main\Application.h" />
     <ClInclude Include="..\..\src\main\CommandHandler.h" />
     <ClInclude Include="..\..\src\main\Config.h" />
@@ -216,8 +216,9 @@
     <ClInclude Include="..\..\src\transactions\SetAccountTx.h" />
     <ClInclude Include="..\..\src\transactions\SetRegularKeyTx.h" />
     <ClInclude Include="..\..\src\transactions\Transaction.h" />
-    <ClInclude Include="..\..\src\transactions\TransactionResultCodes.h" />
+    <ClInclude Include="..\..\src\transactions\TxResultCode.h" />
     <ClInclude Include="..\..\src\transactions\TrustSetTx.h" />
+    <ClInclude Include="..\..\src\transactions\TxDelta.h" />
     <ClInclude Include="..\..\src\transactions\TxResult.h" />
     <ClInclude Include="..\..\src\txherder\TransactionSet.h" />
     <ClInclude Include="..\..\src\txherder\TxHerder.h" />
@@ -228,6 +229,7 @@
     <None Include="..\..\AUTHORS" />
     <None Include="..\..\ChangeLog" />
     <None Include="..\..\COPYING" />
+    <None Include="..\..\docs\design.md" />
     <None Include="..\..\docs\entries.md" />
     <None Include="..\..\docs\hayashi_example.cfg" />
     <None Include="..\..\docs\questions.md" />

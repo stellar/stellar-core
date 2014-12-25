@@ -2,6 +2,7 @@
 // under the ISC License. See the COPYING file at the top-level directory of
 // this distribution or at http://opensource.org/licenses/ISC
 
+#include "main/Application.h"
 #include "Database.h"
 #include "generated/StellarXDR.h"
 #include "util/Logging.h"
@@ -26,7 +27,8 @@ namespace stellar
         return false;
     }
 
-    void getLines(const stellarxdr::uint160& accountID, const stellarxdr::Currency& currency, vector<TrustLine::pointer>& retList)
+    /*
+    void Database::getLines(const stellarxdr::uint160& accountID, const stellarxdr::Currency& currency, vector<TrustLine::pointer>& retList)
     {
         std::string base58ID;
         toBase58(accountID, base58ID);
@@ -44,7 +46,7 @@ namespace stellar
         sql << "SELECT * from TrustLines where highAccount=" << base58ID
             << " and highLimit>0 or balance>0", into(r);
     }
-
+    
     TrustLine::pointer getTrustline(const stellarxdr::uint160& accountID, const stellarxdr::CurrencyIssuer& currency)
     {
         std::string base58ID, base58Issuer;
@@ -59,7 +61,7 @@ namespace stellar
             into(limit), into(balance), into(authorized);
 
         return TrustLine::pointer();
-    }
+    }*/
 
 
     /* 

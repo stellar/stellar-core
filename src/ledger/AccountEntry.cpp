@@ -4,6 +4,7 @@
 
 #include "AccountEntry.h"
 #include "LedgerMaster.h"
+#include "lib/json/json.h"
 
 namespace stellar
 {
@@ -58,25 +59,33 @@ namespace stellar
 
         if(mEntry.account().pubKey != startFrom->mEntry.account().pubKey)
         {
+            string keyStr;
+            toBase58(mEntry.account().pubKey, keyStr);
             if(before) sql << ", ";
-            sql << " pubKey= " << mEntry.account().pubKey;
-            txResult["effects"]["mod"][base58ID]["pubKey"] = mEntry.account().pubKey;
+            sql << " pubKey= " << keyStr;
+            txResult["effects"]["mod"][base58ID]["pubKey"] = keyStr;
             before = true;
         }
 
+        // TODO.2  make safe
         if(mEntry.account().inflationDest != startFrom->mEntry.account().inflationDest)
         {
+            string keyStr;
+            toBase58(*mEntry.account().inflationDest, keyStr);
             if(before) sql << ", ";
-            sql << " inflationDest= " << mEntry.account().inflationDest;
-            txResult["effects"]["mod"][base58ID]["inflationDest"] = mEntry.account().inflationDest;
+            sql << " inflationDest= " << keyStr;
+            txResult["effects"]["mod"][base58ID]["inflationDest"] = keyStr;
             before = true;
         }
 
         if(mEntry.account().creditAuthKey != startFrom->mEntry.account().creditAuthKey)
         {
+            string keyStr;
+            toBase58(*mEntry.account().creditAuthKey, keyStr);
+
             if(before) sql << ", ";
-            sql << " creditAuthKey= " << mEntry.account().creditAuthKey;
-            txResult["effects"]["mod"][base58ID]["creditAuthKey"] = mEntry.account().creditAuthKey;
+            sql << " creditAuthKey= " << keyStr;
+            txResult["effects"]["mod"][base58ID]["creditAuthKey"] = keyStr;
             before = true;
         }
 
@@ -89,7 +98,7 @@ namespace stellar
 
         // TODO.3   KeyValue data
         sql << " where accountID=" << base58ID;
-        ledgerMaster.getDatabase().getSession() << sql;
+        ledgerMaster.getDatabase().getSession() << sql.str();
     }
 
 
@@ -99,7 +108,7 @@ namespace stellar
         toBase58(getIndex(), base58ID);
 
         ledgerMaster.getDatabase().getSession() << "INSERT into Accounts (accountID,balance) values (:v1,:v2)",
-                use(base58ID), use(mEntry.account().balance);
+                soci::use(base58ID), soci::use(mEntry.account().balance);
 
         txResult["effects"]["new"][base58ID]["balance"] = mEntry.account().balance;
     }

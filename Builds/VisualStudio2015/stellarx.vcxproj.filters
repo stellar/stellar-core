@@ -230,11 +230,15 @@
     </ClCompile>
     <ClCompile Include="..\..\src\ledger\Database.cpp">
       <Filter>ledger</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\history\HistoryArchive.cpp">
       <Filter>history</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\crypto\CryptoTests.cpp">
       <Filter>crypto</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\TxDelta.cpp">
+      <Filter>transactions</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -358,9 +362,6 @@
     <ClInclude Include="..\..\src\transactions\TrustSetTx.h">
       <Filter>transactions</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\transactions\TransactionResultCodes.h">
-      <Filter>transactions</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\src\main\Config.h">
       <Filter>main</Filter>
     </ClInclude>
@@ -454,9 +455,6 @@
     <ClInclude Include="..\..\src\process\ProcessMaster.h">
       <Filter>process</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\lib\util\types.h">
-      <Filter>util</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\src\lib\util\Logging.h">
       <Filter>util</Filter>
     </ClInclude>
@@ -477,8 +475,15 @@
     </ClInclude>
     <ClInclude Include="..\..\src\ledger\Database.h">
       <Filter>ledger</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\src\history\HistoryArchive.h">
       <Filter>history</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\transactions\TxDelta.h">
+      <Filter>transactions</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\transactions\TxResultCode.h">
+      <Filter>transactions</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -500,6 +505,9 @@
       <Filter>docs</Filter>
     </None>
     <None Include="..\..\docs\usecases.md">
+      <Filter>docs</Filter>
+    </None>
+    <None Include="..\..\docs\design.md">
       <Filter>docs</Filter>
     </None>
   </ItemGroup>

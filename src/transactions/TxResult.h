@@ -1,5 +1,7 @@
 #ifndef __TXRESULT__
 #define __TXRESULT__
+#include "generated/StellarXDR.h"
+#include "transactions/TxResultCode.h"
 /*
 This is the result of one transaction being applied to the ledger
 */

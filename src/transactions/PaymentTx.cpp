@@ -45,7 +45,7 @@ namespace stellar
 
             }else
             {   // sending credit
-                sendCredit(receiver, delta);
+                sendCredit(receiver, delta,ledgerMaster);
                 return;
             }
         } else
@@ -77,10 +77,11 @@ namespace stellar
     // returns amount of the source currency or 0 for not possible
     int64_t convert(stellarxdr::CurrencyIssuer& source, stellarxdr::CurrencyIssuer& dest, TxDelta& delta)
     {
+        // TODO.2
         // load top n offers between source and dest
 
-        sql << "SELECT * from Offers where ... order by price ";
-
+        //sql << "SELECT * from Offers where ... order by price ";
+        return 0;
     }
 
     // work backward to determine how much they need to send to get the 
@@ -115,7 +116,7 @@ namespace stellar
             int64_t lastAmount=mEnvelope.tx.body.paymentTx().amount;
             for(int n = mEnvelope.tx.body.paymentTx().path.size(); n >= 0;  n--)
             {   // convert from link to last
-                lastAmount = convert(tempDelta);
+                lastAmount = convert(mEnvelope.tx.body.paymentTx().path[n], lastCI, tempDelta);
                 if(!lastAmount)
                 {
                     mResultCode = txOVERSENDMAX;
@@ -142,7 +143,7 @@ namespace stellar
         {   // straight credit transfer
             // make sure you have enough to send him
             stellarxdr::LedgerEntry issuerEntry;
-            if(!ledgerMaster.getDatabase().loadAccount(mEnvelope.tx.body.paymentTx().currency.issuer, issuerEntry))
+            if(!ledgerMaster.getDatabase().loadAccount(*mEnvelope.tx.body.paymentTx().currency.issuer, issuerEntry))
             {
                 CLOG(ERROR, "Tx") << "PaymentTx::sendCredit Issuer not found";
                 mResultCode = txMALFORMED;

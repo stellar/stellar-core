@@ -9,9 +9,10 @@
 #include "ledger/AccountEntry.h"
 #include "ledger/LedgerMaster.h"
 #include "generated/StellarXDR.h"
-#include "TransactionResultCodes.h"
+#include "transactions/TxResultCode.h"
 #include "util/types.h"
 #include "lib/json/json-forwards.h"
+#include "transactions/TxDelta.h"
 
 /*
 A transaction in its exploded form.

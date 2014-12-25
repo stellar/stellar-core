@@ -7,6 +7,7 @@
 
 #include "generated/StellarXDR.h"
 #include "Database.h"
+#include "lib/json/json-forwards.h"
 
 /*
 LedgerEntry
@@ -14,6 +15,8 @@ Parent of AccountEntry, TrustLine, OfferEntry
 */
 namespace stellar
 {
+    class LedgerMaster;
+
 	class LedgerEntry
 	{
 	protected:

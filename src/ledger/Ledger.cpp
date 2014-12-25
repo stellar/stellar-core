@@ -9,39 +9,6 @@
 namespace stellar
 {
 
-    void Ledger::applyTx(const stellarxdr::Transaction& tx)
-    {
-        stellarxdr::uint256 txHash;
-        getTxHash(tx, txHash);
-        Json::Value txResult;
-        string retStr;
-        txResult["id"] = toBase58(txHash,retStr);
-
-        if(takeFee(tx, txResult))
-        {
-            switch(tx.body.type())
-            {
-            case stellarxdr::PAYMENT:
-                applyPayment(tx, txResult);
-                break;
-            case stellarxdr::CREATE_OFFER:
-            case stellarxdr::CANCEL_OFFER:
-            case stellarxdr::CHANGE_ACCOUNT:
-            case stellarxdr::CHANGE_TRUST:
-            case stellarxdr::ACCOUNT_MERGE:
-            case stellarxdr::INFLATION:
-                break;
-            }
-        }
-
-       
-    }
-
-    
-    
-
-
-
     /* NICOLAS
 	std::uint64_t Ledger::getReserve(int increments)
 	{

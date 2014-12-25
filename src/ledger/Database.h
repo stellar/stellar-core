@@ -5,11 +5,14 @@
 // under the ISC License. See the COPYING file at the top-level directory of
 // this distribution or at http://opensource.org/licenses/ISC
 
-#include "main/Application.h"
+
 #include <string>
+#include "lib/soci/src/core/soci.h"
 
 namespace stellar
 {
+    class Application;
+
     class Database
     {
         Application& mApp;

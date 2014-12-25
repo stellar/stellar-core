@@ -8,6 +8,11 @@ using namespace std;
 
 namespace stellar
 {
+    OfferEntry::OfferEntry(const stellarxdr::LedgerEntry& from) : LedgerEntry(from)
+    {
+
+    }
+
     const char *OfferEntry::kSQLCreateStatement = "CREATE TABLE IF NOT EXISTS Offers (						\
 			accountID		CHARACTER(35),		\
 			sequence		INT UNSIGNED,		\

@@ -70,7 +70,7 @@ void LedgerMaster::syncWithCLF()
 // called by txherder
 void LedgerMaster::externalizeValue(const stellarxdr::SlotBallot& slotBallot, TransactionSet::pointer txSet)
 {
-    if(getCurrentHeader()->hash == slotBallot.previousLedgerHash)
+    if(getCurrentHeader()->hash == slotBallot.ballot.previousLedgerHash)
     {
         mCaughtUp = true;
         closeLedger(txSet);
@@ -124,7 +124,7 @@ void LedgerMaster::closeLedger(TransactionSet::pointer txSet)
 
             Json::Value txResult;
             std::string retStr;
-            txResult["id"] = toBase58(getHash(), retStr);
+            txResult["id"] = toBase58(tx->getHash(), retStr);
             txResult["code"] = tx->getResultCode();
 
             delta.commitDelta(txResult, ledgerDelta, *this );

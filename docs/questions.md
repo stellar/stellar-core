@@ -2,7 +2,12 @@
 Do we allow alternate paths?
 	I don't think it is worth the protocol complexity. Clients can just retry if it fails.
 	
-What is better, public keys in the AccountEntry and a tx to set the public key that an account must call before it can do any other tx or including the public key in every tx?
+What is better, 
+	public keys in the AccountEntry and a tx to set the public key that an account must call before it can do any other tx
+		 
+	including the public key in every tx?
+	We could also make a special "create account tx" that takes in a public key
+	Or we could make all sends to full public keys rather than to these hashes.
 
 How do we want to handle returning payments?
 	If a user sends a payment from a gateway and someone needs to return it 

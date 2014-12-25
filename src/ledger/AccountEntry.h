@@ -5,7 +5,7 @@
 // under the ISC License. See the COPYING file at the top-level directory of
 // this distribution or at http://opensource.org/licenses/ISC
 
-#include "transactions/TransactionResultCodes.h"
+#include "transactions/TxResultCode.h"
 #include "LedgerEntry.h"
 #include "crypto/StellarPublicKey.h"
 
