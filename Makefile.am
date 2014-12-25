@@ -25,7 +25,9 @@ FMT_SRCS = src/overlay/Floodgate.cpp src/overlay/PeerDoor.cpp                   
 	src/process/ProcessTests.cpp src/history/HistoryMaster.cpp                  \
 	src/history/HistoryArchive.cpp src/history/HistoryTests.cpp                 \
 	src/overlay/OverlayTests.cpp src/simulation/Simulation.cpp                  \
-	src/simulation/CycleTests.cpp src/util/Timer.cpp src/crypto/CryptoTests.cpp
+	src/simulation/CycleTests.cpp src/util/Timer.cpp src/crypto/CryptoTests.cpp \
+	src/database/Database.cpp src/database/DatabaseTests.cpp
+
 
 FMT_HDRS = src/clf/BucketList.h src/clf/CanonicalLedgerForm.h src/clf/CLF.h     \
 	src/clf/CLFDelta.h src/clf/CLFGateway.h src/crypto/EdKeyPair.h              \
@@ -50,7 +52,8 @@ FMT_HDRS = src/clf/BucketList.h src/clf/CanonicalLedgerForm.h src/clf/CLF.h     
 	src/transactions/TransactionResultCodes.h src/transactions/TrustSetTx.h     \
 	src/txherder/TransactionSet.h src/txherder/TxHerder.h                       \
 	src/txherder/TxHerderGateway.h src/util/Logging.h src/util/make_unique.h    \
-	src/util/Timer.h src/util/types.h src/simulation/Simulation.h
+	src/util/Timer.h src/util/types.h src/simulation/Simulation.h               \
+	src/database/Database.h
 
 BUILT_SOURCES = src/generated/StellardVersion.h src/generated/StellarXDR.h
 
@@ -71,12 +74,12 @@ bin_stellard_CPPFLAGS = -I$(top_srcdir)/src \
                         -I$(srcdir)/src/lib/soci/src/core \
                         -I$(srcdir)/src/lib/soci/src/backends/sqlite3
 
-bin_stellard_DEPENDENCIES = libsoci.la
+bin_stellard_LDADD = libsoci.la
 
 if LIBSODIUM_INTERNAL
 LIBSODIUM_DIR=src/lib/libsodium
 LIBSODIUM=$(top_builddir)/$(LIBSODIUM_DIR)/src/libsodium/libsodium.la
-bin_stellard_DEPENDENCIES += $(LIBSODIUM)
+bin_stellard_LDADD += $(LIBSODIUM)
 SUBDIRS += $(LIBSODIUM_DIR)
 $(LIBSODIUM):
 	$(MAKE) -C $(top_builddir)/$(LIBSODIUM_DIR)
@@ -86,7 +89,7 @@ if SQLITE_INTERNAL
 noinst_LTLIBRARIES += libsqlite.la
 libsqlite_la_SOURCES = src/lib/sqlite/sqlite3.c src/lib/sqlite/sqlite3.h
 libsqlite_la_CPPFLAGS = -I$(srcdir)/src/lib/sqlite -DSQLITE_OMIT_LOAD_EXTENSION
-bin_stellard_DEPENDENCIES += libsqlite.la
+bin_stellard_LDADD += libsqlite.la
 endif
 
 libsoci_la_CPPFLAGS = -I$(srcdir)/src/lib/soci/src/core \
@@ -135,7 +138,7 @@ endif
 if XDRPP_INTERNAL
 XDRPP_DIR=src/lib/xdrpp
 XDRPP=$(top_builddir)/$(XDRPP_DIR)/xdrpp/libxdrpp.a
-bin_stellard_DEPENDENCIES += $(XDRPP)
+bin_stellard_LDADD += $(XDRPP)
 SUBDIRS += $(XDRPP_DIR)
 $(XDRC) $(XDRPP):
 	$(MAKE) -C $(top_builddir)/$(XDRPP_DIR)
