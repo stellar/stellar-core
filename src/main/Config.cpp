@@ -31,6 +31,8 @@ Config::Config()
     HTTP_PORT = 39132;
     PUBLIC_HTTP_PORT = false;
 
+    DATABASE = "sqlite3://:memory:";
+
 }
 
 void
