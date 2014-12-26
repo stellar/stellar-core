@@ -8,6 +8,55 @@ using namespace std;
 
 namespace stellar
 {
+    const char *OfferEntry::kSQLCreateStatement = "CREATE TABLE IF NOT EXISTS Offers (						\
+			accountID		CHARACTER(35),		\
+			sequence		INT UNSIGNED,		\
+			takerPaysCurrency Blob(20),			\
+			takerPaysIssuer CHARACTER(35),		\
+			takerGetsCurrency Blob(20),			\
+			takerGetsIssuer CHARACTER(35),		\
+			amount BIGINT UNSIGNED,	\
+			price BIGINT UNSIGNED,	\
+			BOOL passive						\
+	);";
+
+    OfferEntry::OfferEntry(const stellarxdr::LedgerEntry& from) : LedgerEntry(from)
+    {
+
+    }
+
+    OfferEntry::OfferEntry(const stellarxdr::Transaction& tx) : LedgerEntry()
+    {
+        mEntry.type(stellarxdr::OFFER);
+        mEntry.offer().accountID = tx.account;
+        mEntry.offer().amount = tx.body.createOfferTx().amount;
+        mEntry.offer().price = tx.body.createOfferTx().price;
+        mEntry.offer().sequence = tx.body.createOfferTx().sequence;
+        mEntry.offer().takerGets = tx.body.createOfferTx().takerGets;
+        mEntry.offer().takerPays = tx.body.createOfferTx().takerPays;
+        mEntry.offer().passive = tx.body.createOfferTx().passive;
+    }
+
+    void OfferEntry::calculateIndex()
+    {
+        // TODO.2
+    }
+
+    
+
+    void OfferEntry::storeDelete(Json::Value& txResult, LedgerMaster& ledgerMaster)
+    {
+
+    }
+    void OfferEntry::storeChange(LedgerEntry::pointer startFrom, Json::Value& txResult, LedgerMaster& ledgerMaster)
+    {
+
+    }
+    void OfferEntry::storeAdd(Json::Value& txResult, LedgerMaster& ledgerMaster)
+    {
+
+    }
+
     /* NICOLAS
     // NICOLAS: deal with amounts properly (see TrustLines)
 

@@ -29,12 +29,21 @@ hashStr(std::string str, stellarxdr::uint256& retHash)
     // TODO.1  hash
 }
 
+
 std::string&
 toBase58(stellarxdr::uint256 const& b, std::string& retstr)
+{
+// SANITY base58 encode
+return (retstr);
+}
+
+std::string&
+toBase58(stellarxdr::uint160 const& b, std::string& retstr)
 {
     // SANITY base58 encode
     return (retstr);
 }
+
 
 stellarxdr::uint256
 fromBase58(const std::string& str)

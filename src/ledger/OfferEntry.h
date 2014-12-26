@@ -12,24 +12,19 @@ namespace stellar
 {
 	class OfferEntry : public LedgerEntry
 	{
-		void insertIntoDB();
-		void updateInDB();
-		void deleteFromDB();
-
 		void calculateIndex();
 	public:
-		stellarxdr::uint160 mAccountID;
-		uint32_t	mSequence;
-		//STAmount mTakerPays;
-		//STAmount mTakerGets;
-		bool mPassive;
-		uint32_t mExpiration;
+	
+ 		OfferEntry(const stellarxdr::LedgerEntry& from);
+        OfferEntry(const stellarxdr::Transaction& tx);
 
+        LedgerEntry::pointer copy()  const { return LedgerEntry::pointer(new OfferEntry(*this)); }
 
- 		OfferEntry();
-		//OfferEntry(SLE::pointer sle);
+        void storeDelete(Json::Value& txResult, LedgerMaster& ledgerMaster);
+        void storeChange(LedgerEntry::pointer startFrom, Json::Value& txResult, LedgerMaster& ledgerMaster);
+        void storeAdd(Json::Value& txResult, LedgerMaster& ledgerMaster);
 
-        static void dropAll(LedgerDatabase &db);
+        static void dropAll(Database &db);
         static const char *kSQLCreateStatement;
 	};
 }

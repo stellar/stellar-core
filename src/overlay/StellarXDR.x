@@ -14,7 +14,9 @@ namespace stellarxdr {
 typedef opaque uint256[32];
 typedef opaque uint160[20];
 typedef unsigned hyper uint64;
+typedef hyper int64;
 typedef unsigned uint32;
+typedef opaque Currency<20>;
 
 struct Error
 {
@@ -34,7 +36,7 @@ enum TransactionType
 	PAYMENT,
 	CREATE_OFFER,
 	CANCEL_OFFER,
-	CHANGE_ACCOUNT,
+	SET_OPTIONS,
 	CHANGE_TRUST,
 	ACCOUNT_MERGE,
 	INFLATION
@@ -42,8 +44,8 @@ enum TransactionType
 
 struct CurrencyIssuer
 {
-	opaque currency<20>;
-	uint160 issuer;
+	Currency currency;
+	uint160 *issuer;
 };
 
 struct KeyValue
@@ -55,39 +57,40 @@ struct KeyValue
 struct PaymentTx
 {
 	uint160 destination;  
-	opaque currency<20>;	// what they end up with
-	uint64 amount;			// amount they end up with
-	CurrencyIssuer path<>;	// what hops it must go through to get there
-	uint64 sendMax;			// the maximum amount of the source currency this
-							// will send. The tx will fail if can't be met
+	CurrencyIssuer currency;	// what they end up with
+	int64 amount;				// amount they end up with
+	CurrencyIssuer path<>;		// what hops it must go through to get there
+	int64 sendMax;				// the maximum amount of the source currency this
+								// will send. The tx will fail if can't be met
 	opaque memo<32>;
-	opaque sourceMemo<32>;	// used to return a payment
+	opaque sourceMemo<32>;		// used to return a payment
 };
 
 struct CreateOfferTx
 {
-	CurrencyIssuer currencyTakerGets;
-	uint64 amountTakerGets;
-	CurrencyIssuer currencyTakerPays;
-	uint64 amountTakerPays;
+	CurrencyIssuer takerGets;
+	CurrencyIssuer takerPays;
+	int64 amount;
+	int64 price;
 
-	uint32 offerSeqNum;		// set if you want to change an existing offer
+	uint32 sequence;		// set if you want to change an existing offer
 	bool passive;	// only take offers that cross this. not offers that match it
 };
 
-struct ChangeAccountTx
+struct SetOptionsTx
 {
-	uint256 setAuthKey;
-	uint256 signingKey;
-	KeyValue data;
-	uint32	flags;
-	uint32 transferRate;
+	uint256* creditAuthKey;
+	uint256* pubKey;
+	uint256* inflationDest;
+	uint32*	flags;
+	uint32* transferRate;
+	KeyValue* data;
 };
 
 struct ChangeTrustTx
 {
 	CurrencyIssuer line;
-	uint64 amount;
+	int64 amount;
 	bool auth;
 };
 
@@ -97,6 +100,7 @@ struct Transaction
 	uint32 maxFee;
 	uint32 seqNum;
 	uint32 maxLedger;	// maximum ledger this tx is valid to be applied in
+	uint32 minLedger;   // minimum ledger this tx is valid to be applied in
 
 	union switch (TransactionType type)
 	{
@@ -106,8 +110,8 @@ struct Transaction
 			CreateOfferTx createOfferTx;
 		case CANCEL_OFFER:
 			uint32 offerSeqNum;
-		case CHANGE_ACCOUNT:
-			ChangeAccountTx changeAccountTx;
+		case SET_OPTIONS:
+			SetOptionsTx setOptionsTx;
 		case CHANGE_TRUST:
 			ChangeTrustTx changeTrustTx;
 		case ACCOUNT_MERGE:
@@ -134,13 +138,12 @@ struct LedgerHeader
     uint256 previousLedgerHash;
     uint256 txSetHash;
 	uint256 clfHash;
-
 	
-	uint64 totalCoins;
-	uint64 feePool;
-	uint32 ledgerSeq;
+	int64 totalCoins;
+	int64 feePool;
+	uint64 ledgerSeq;
 	uint32 inflationSeq;
-	uint64 baseFee;
+	int64 baseFee;
 	uint64 closeTime;       
 };
 
@@ -163,7 +166,8 @@ struct History
 // FBA  messages
 struct Ballot
 {
-	int index;						// n
+	int index;						// n			
+	uint256 previousLedgerHash;		// x
     uint256 txSetHash;				// x
 	uint64 closeTime;				// x
 	uint32 baseFee;					// x
@@ -171,8 +175,7 @@ struct Ballot
 
 struct SlotBallot
 {
-	uint32 ledgerIndex;				// the slot				
-	uint256 previousLedgerHash;		// the slot
+	uint32 ledgerIndex;				// the slot	
 
     Ballot ballot;
 };
@@ -218,42 +221,31 @@ enum LedgerTypes {
   OFFER
 };
 
-struct Amount
-{
-    uint64 value;
-    uint160 currency;
-    uint160 issuer;
-};
-
-
-
 struct AccountEntry
 {
     uint160 accountID;
-    uint64 balance;
+    int64 balance;
     uint32 sequence;
     uint32 ownerCount;
-    uint32 transferRate;
+    uint32 transferRate;	// rate*1000000
     uint256 pubKey;
-	uint160 inflationDest;
-	uint256 creditAuthKey;
+	uint256 *inflationDest;
+	uint256 *creditAuthKey;
 	KeyValue data<>;
 
-	uint32 flags; // require dt, require auth, 
+	uint32 flags; // disable master, require dt, require auth, 
 };
 
 
 
 struct TrustLineEntry
 {
-    uint160 lowAccount;
-    uint160 highAccount;
+    uint160 accountID;
+    uint160 issuer;
     uint160 currency;
-    uint64 lowLimit;
-    uint64 highLimit;
-    uint64 balance;
-    bool lowAuthSet;  // if the high account has authorized the low account to hold its credit
-    bool highAuthSet;
+    int64 limit;
+    int64 balance;
+    bool authorized;  // if the issuer has authorized this guy to hold its credit
 };
 
 struct OfferEntry
@@ -262,8 +254,8 @@ struct OfferEntry
     uint32 sequence;
 	CurrencyIssuer takerGets;
 	CurrencyIssuer takerPays;
-	uint64 takerGetsAmount;
-	uint64 takerPaysAmount;
+	int64 amount;
+	uint64 price;	// price*1,000,000,000
 
     bool passive;
 };

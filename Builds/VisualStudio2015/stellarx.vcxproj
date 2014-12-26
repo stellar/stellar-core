@@ -90,7 +90,7 @@
     <ClCompile Include="..\..\src\history\HistoryTests.cpp" />
     <ClCompile Include="..\..\src\ledger\AccountEntry.cpp" />
     <ClCompile Include="..\..\src\ledger\Ledger.cpp" />
-    <ClCompile Include="..\..\src\ledger\LedgerDatabase.cpp" />
+    <ClCompile Include="..\..\src\ledger\LedgerDelta.cpp" />
     <ClCompile Include="..\..\src\ledger\LedgerEntry.cpp" />
     <ClCompile Include="..\..\src\ledger\LedgerMaster.cpp" />
     <ClCompile Include="..\..\src\ledger\OfferEntry.cpp" />
@@ -110,11 +110,46 @@
     <ClCompile Include="..\..\src\lib\http\reply.cpp" />
     <ClCompile Include="..\..\src\lib\http\request_parser.cpp" />
     <ClCompile Include="..\..\src\lib\http\server.cpp" />
+    <ClCompile Include="..\..\src\lib\json\jsoncpp.cpp" />
     <ClCompile Include="..\..\src\lib\util\format.cc">
       <DisableSpecificWarnings Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">4456</DisableSpecificWarnings>
       <DisableSpecificWarnings Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">4456</DisableSpecificWarnings>
     </ClCompile>
     <ClCompile Include="..\..\src\lib\util\getopt_long.c" />
+    <ClCompile Include="..\..\src\lib\xdrpp\tests\arpc.cc">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lib\xdrpp\tests\autocheck.cc">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lib\xdrpp\tests\cereal.cc">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lib\xdrpp\tests\compare.cc">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lib\xdrpp\tests\listener.cc">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lib\xdrpp\tests\marshal.cc">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lib\xdrpp\tests\msgsock.cc">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lib\xdrpp\tests\printer.cc">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lib\xdrpp\tests\srpc.cc">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\CancelOfferTx.cpp" />
+    <ClCompile Include="..\..\src\transactions\CreateOfferTx.cpp" />
+    <ClCompile Include="..\..\src\transactions\InflationTx.cpp" />
+    <ClCompile Include="..\..\src\transactions\MergeTx.cpp" />
+    <ClCompile Include="..\..\src\transactions\PaymentTx.cpp" />
+    <ClCompile Include="..\..\src\transactions\SetOptionsTx.cpp" />
+    <ClCompile Include="..\..\src\transactions\TxDelta.cpp" />
     <ClCompile Include="..\..\src\util\Timer.cpp" />
     <ClCompile Include="..\..\src\util\types.cpp" />
     <ClCompile Include="..\..\src\main\Application.cpp" />
@@ -162,7 +197,7 @@
     <ClInclude Include="..\..\src\history\HistoryMaster.h" />
     <ClInclude Include="..\..\src\ledger\AccountEntry.h" />
     <ClInclude Include="..\..\src\ledger\Ledger.h" />
-    <ClInclude Include="..\..\src\ledger\LedgerDatabase.h" />
+    <ClInclude Include="..\..\src\ledger\LedgerDelta.h" />
     <ClInclude Include="..\..\src\ledger\LedgerEntry.h" />
     <ClInclude Include="..\..\src\ledger\LedgerGateway.h" />
     <ClInclude Include="..\..\src\ledger\LedgerMaster.h" />
@@ -180,11 +215,12 @@
     <ClInclude Include="..\..\src\lib\http\request.hpp" />
     <ClInclude Include="..\..\src\lib\http\request_parser.hpp" />
     <ClInclude Include="..\..\src\lib\http\server.hpp" />
+    <ClInclude Include="..\..\src\lib\json\json\json-forwards.h" />
+    <ClInclude Include="..\..\src\lib\json\json\json.h" />
     <ClInclude Include="..\..\src\lib\util\cpptoml.h" />
     <ClInclude Include="..\..\src\lib\util\easylogging++.h" />
     <ClInclude Include="..\..\src\lib\util\getopt.h" />
     <ClInclude Include="..\..\src\lib\util\Logging.h" />
-    <ClInclude Include="..\..\src\lib\util\types.h" />
     <ClInclude Include="..\..\src\main\Application.h" />
     <ClInclude Include="..\..\src\main\CommandHandler.h" />
     <ClInclude Include="..\..\src\main\Config.h" />
@@ -209,11 +245,11 @@
     <ClInclude Include="..\..\src\transactions\InflationTx.h" />
     <ClInclude Include="..\..\src\transactions\MergeTx.h" />
     <ClInclude Include="..\..\src\transactions\PaymentTx.h" />
-    <ClInclude Include="..\..\src\transactions\SetAccountTx.h" />
-    <ClInclude Include="..\..\src\transactions\SetRegularKeyTx.h" />
+    <ClInclude Include="..\..\src\transactions\SetOptionsTx.h" />
     <ClInclude Include="..\..\src\transactions\Transaction.h" />
-    <ClInclude Include="..\..\src\transactions\TransactionResultCodes.h" />
+    <ClInclude Include="..\..\src\transactions\TxResultCode.h" />
     <ClInclude Include="..\..\src\transactions\TrustSetTx.h" />
+    <ClInclude Include="..\..\src\transactions\TxDelta.h" />
     <ClInclude Include="..\..\src\txherder\TransactionSet.h" />
     <ClInclude Include="..\..\src\txherder\TxHerder.h" />
     <ClInclude Include="..\..\src\txherder\TxHerderGateway.h" />
@@ -223,6 +259,7 @@
     <None Include="..\..\AUTHORS" />
     <None Include="..\..\ChangeLog" />
     <None Include="..\..\COPYING" />
+    <None Include="..\..\docs\design.md" />
     <None Include="..\..\docs\entries.md" />
     <None Include="..\..\docs\hayashi_example.cfg" />
     <None Include="..\..\docs\questions.md" />
@@ -238,7 +275,10 @@
       <Command Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">xdrc -hh -o ../../src/generated/StellarXDR.h ../../src/overlay/StellarXDR.x</Command>
       <Message Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">running xdrc</Message>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">../../src/generated/StellarXDR.h</Outputs>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+      </ExcludedFromBuild>
     </CustomBuild>
+    <None Include="..\..\src\lib\xdrpp\tests\xdrtest.x" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\lib\libsodium\builds\msvc\vs2013\libsodium\libsodium.vcxproj">

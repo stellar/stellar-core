@@ -222,8 +222,7 @@ OurNode::progressPrepare(QuorumSet::pointer qset)
             {
                 stellarxdr::SlotBallot slotBallot;
                 slotBallot.ledgerIndex = mPreferredBallot.ledgerIndex;
-                slotBallot.previousLedgerHash =
-                    mPreferredBallot.previousLedgerHash;
+                
                 slotBallot.ballot = *ratifiedBallot;
                 sendStatement(stellarxdr::FBAStatementType::PREPARED,
                               slotBallot); // SANITY: do we need to roll back
@@ -286,8 +285,7 @@ OurNode::progressPrepared(QuorumSet::pointer qset)
             {
                 stellarxdr::SlotBallot slotBallot;
                 slotBallot.ledgerIndex = mPreferredBallot.ledgerIndex;
-                slotBallot.previousLedgerHash =
-                    mPreferredBallot.previousLedgerHash;
+                
                 slotBallot.ballot = *ratifiedBallot;
                 sendStatement(stellarxdr::FBAStatementType::COMMIT,
                               slotBallot); // SANITY: do we need to roll back
@@ -348,8 +346,7 @@ OurNode::progressCommit(QuorumSet::pointer qset)
             {
                 stellarxdr::SlotBallot slotBallot;
                 slotBallot.ledgerIndex = mPreferredBallot.ledgerIndex;
-                slotBallot.previousLedgerHash =
-                    mPreferredBallot.previousLedgerHash;
+                
                 slotBallot.ballot = *ratifiedBallot;
                 sendStatement(stellarxdr::FBAStatementType::COMMITTED,
                               slotBallot); // SANITY: do we need to roll back
@@ -388,7 +385,6 @@ OurNode::progressCommitted(QuorumSet::pointer qset)
             // anything
             stellarxdr::SlotBallot slotBallot;
             slotBallot.ledgerIndex = mPreferredBallot.ledgerIndex;
-            slotBallot.previousLedgerHash = mPreferredBallot.previousLedgerHash;
             slotBallot.ballot = *ratifiedBallot;
             mApp.getTxHerderGateway().externalizeValue(slotBallot);
         }

@@ -52,8 +52,14 @@
     <Filter Include="crypto">
       <UniqueIdentifier>{ca69df68-9e2f-4688-b4de-977e0288ecad}</UniqueIdentifier>
     </Filter>
+    <Filter Include="lib\json">
+      <UniqueIdentifier>{353dbdb6-b0a3-41ee-9af5-b46403f495d7}</UniqueIdentifier>
+    </Filter>
     <Filter Include="database">
       <UniqueIdentifier>{88bc05c7-da04-4654-af79-dc9fc022e17e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="lib\xdrpp">
+      <UniqueIdentifier>{e9644fa5-096e-42f1-93e0-c462e377a6c9}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -79,9 +85,6 @@
       <Filter>ledger</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\ledger\Ledger.cpp">
-      <Filter>ledger</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\ledger\LedgerDatabase.cpp">
       <Filter>ledger</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\ledger\LedgerEntry.cpp">
@@ -219,17 +222,71 @@
     <ClCompile Include="..\..\src\lib\util\format.cc">
       <Filter>lib</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\transactions\PaymentTx.cpp">
+      <Filter>transactions</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lib\json\jsoncpp.cpp">
+      <Filter>lib\json</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\ledger\LedgerDelta.cpp">
+      <Filter>ledger</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\history\HistoryArchive.cpp">
       <Filter>history</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\crypto\CryptoTests.cpp">
       <Filter>crypto</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\transactions\TxDelta.cpp">
+      <Filter>transactions</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\database\Database.cpp">
       <Filter>database</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\database\DatabaseTests.cpp">
       <Filter>database</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\CancelOfferTx.cpp">
+      <Filter>transactions</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\CreateOfferTx.cpp">
+      <Filter>transactions</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\MergeTx.cpp">
+      <Filter>transactions</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\SetOptionsTx.cpp">
+      <Filter>transactions</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\InflationTx.cpp">
+      <Filter>transactions</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lib\xdrpp\tests\marshal.cc">
+      <Filter>lib\xdrpp</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lib\xdrpp\tests\arpc.cc">
+      <Filter>lib\xdrpp</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lib\xdrpp\tests\autocheck.cc">
+      <Filter>lib\xdrpp</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lib\xdrpp\tests\cereal.cc">
+      <Filter>lib\xdrpp</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lib\xdrpp\tests\compare.cc">
+      <Filter>lib\xdrpp</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lib\xdrpp\tests\listener.cc">
+      <Filter>lib\xdrpp</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lib\xdrpp\tests\msgsock.cc">
+      <Filter>lib\xdrpp</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lib\xdrpp\tests\printer.cc">
+      <Filter>lib\xdrpp</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lib\xdrpp\tests\srpc.cc">
+      <Filter>lib\xdrpp</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -264,9 +321,6 @@
       <Filter>ledger</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\ledger\Ledger.h">
-      <Filter>ledger</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\ledger\LedgerDatabase.h">
       <Filter>ledger</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\ledger\LedgerEntry.h">
@@ -344,19 +398,10 @@
     <ClInclude Include="..\..\src\transactions\PaymentTx.h">
       <Filter>transactions</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\transactions\SetAccountTx.h">
-      <Filter>transactions</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\transactions\SetRegularKeyTx.h">
-      <Filter>transactions</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\src\transactions\Transaction.h">
       <Filter>transactions</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\transactions\TrustSetTx.h">
-      <Filter>transactions</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\transactions\TransactionResultCodes.h">
       <Filter>transactions</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\main\Config.h">
@@ -452,20 +497,35 @@
     <ClInclude Include="..\..\src\process\ProcessMaster.h">
       <Filter>process</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\lib\util\types.h">
-      <Filter>util</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\src\lib\util\Logging.h">
       <Filter>util</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\util\Timer.h">
       <Filter>util</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\src\lib\json\json\json.h">
+      <Filter>lib\json</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\lib\json\json\json-forwards.h">
+      <Filter>lib\json</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\ledger\LedgerDelta.h">
+      <Filter>ledger</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\src\history\HistoryArchive.h">
       <Filter>history</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\src\transactions\TxDelta.h">
+      <Filter>transactions</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\transactions\TxResultCode.h">
+      <Filter>transactions</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\src\database\Database.h">
       <Filter>database</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\transactions\SetOptionsTx.h">
+      <Filter>transactions</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -488,6 +548,12 @@
     </None>
     <None Include="..\..\docs\usecases.md">
       <Filter>docs</Filter>
+    </None>
+    <None Include="..\..\docs\design.md">
+      <Filter>docs</Filter>
+    </None>
+    <None Include="..\..\src\lib\xdrpp\tests\xdrtest.x">
+      <Filter>lib\xdrpp</Filter>
     </None>
   </ItemGroup>
   <ItemGroup>

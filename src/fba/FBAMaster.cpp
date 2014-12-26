@@ -278,7 +278,7 @@ FBAMaster::processStatement(Statement::pointer statement)
                 << "Node: " << toBase58(statement->mEnvelope.nodeID, str)
                 << " on a different ledger(" << statement->getLedgerIndex()
                 << " : "
-                << toBase58(statement->getSlotBallot().previousLedgerHash, str);
+                << toBase58(statement->getSlotBallot().ballot.previousLedgerHash, str);
         }
     }
     return false;

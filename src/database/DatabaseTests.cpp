@@ -18,7 +18,7 @@ TEST_CASE("database smoketest", "[db]")
 
     int a = 10, b = 0;
 
-    auto& sql = app.getDatabase().getSql();
+    auto& sql = app.getDatabase().getSession();
 
     sql << "create table test (x integer)";
     sql << "insert into test (x) values (:aa)", soci::use(a, "aa");

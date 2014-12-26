@@ -2,27 +2,145 @@
 // under the ISC License. See the COPYING file at the top-level directory of
 // this distribution or at http://opensource.org/licenses/ISC
 
-// Copyright 2014 Stellar Development Foundation and contributors. Licensed
-// under the ISC License. See the COPYING file at the top-level directory of
-// this distribution or at http://opensource.org/licenses/ISC
-
 #include "AccountEntry.h"
 #include "LedgerMaster.h"
+#include "lib/json/json.h"
 
 namespace stellar
 {
-    /* NICOLAS
-    const char *AccountEntry::kSQLCreateStatement = 	"CREATE TABLE IF NOT EXISTS Accounts (						\
+    const char *AccountEntry::kSQLCreateStatement = "CREATE TABLE IF NOT EXISTS Accounts (						\
 		accountID		CHARACTER(35) PRIMARY KEY,	\
 		balance			BIGINT UNSIGNED,			\
-		sequence		INT UNSIGNED,				\
-		owenerCount		INT UNSIGNED,			\
-		transferRate	INT UNSIGNED,		\
+		sequence		INT UNSIGNED default 1,				\
+		ownerCount		INT UNSIGNED default 0,			\
+		transferRate	INT UNSIGNED default 0,		\
+        inflationDest	CHARACTER(35),		\
+        inflationDest	CHARACTER(35),		\
 		inflationDest	CHARACTER(35),		\
 		publicKey		CHARACTER(56),		\
-		requireDest		BOOL,				\
-		requireAuth		BOOL				\
+		flags		    INT UNSIGNED default 0  	\
 	);";
+
+    AccountEntry::AccountEntry(const stellarxdr::LedgerEntry& from) : LedgerEntry(from)
+    {
+
+    }
+
+    AccountEntry::AccountEntry(stellarxdr::uint160& id)
+    {
+        // TODO.2
+        //mEntry.
+    }
+
+    void AccountEntry::calculateIndex()
+    {
+        // TODO.2
+    }
+
+    void AccountEntry::storeDelete(Json::Value& txResult, LedgerMaster& ledgerMaster)
+    {
+        std::string base58ID;
+        toBase58(getIndex(), base58ID);
+
+        txResult["effects"]["delete"][base58ID];
+
+        ledgerMaster.getDatabase().getSession() << "DELETE from Accounts where accountID=" << base58ID;
+    }
+
+    void AccountEntry::storeChange(LedgerEntry::pointer startFrom, Json::Value& txResult, LedgerMaster& ledgerMaster)
+    {  
+        std::string base58ID;
+        toBase58(getIndex(), base58ID);
+
+        std::stringstream sql;
+        sql << "UPDATE Accounts set ";
+
+        bool before = false;
+
+        if(mEntry.account().balance != startFrom->mEntry.account().balance)
+        { 
+            sql << " balance= " << mEntry.account().balance;
+            txResult["effects"]["mod"][base58ID]["balance"] = mEntry.account().balance;
+            
+            before = true;
+        }
+        
+        if(mEntry.account().sequence != startFrom->mEntry.account().sequence)
+        {
+            if(before) sql << ", ";
+            sql << " sequence= " << mEntry.account().sequence;
+            txResult["effects"]["mod"][base58ID]["sequence"] = mEntry.account().sequence;
+            before = true;
+        }
+
+        if(mEntry.account().transferRate != startFrom->mEntry.account().transferRate)
+        {
+            if(before) sql << ", ";
+            sql << " transferRate= " << mEntry.account().transferRate;
+            txResult["effects"]["mod"][base58ID]["transferRate"] = mEntry.account().transferRate;
+            before = true;
+        }
+
+        if(mEntry.account().pubKey != startFrom->mEntry.account().pubKey)
+        {
+            string keyStr;
+            toBase58(mEntry.account().pubKey, keyStr);
+            if(before) sql << ", ";
+            sql << " pubKey= " << keyStr;
+            txResult["effects"]["mod"][base58ID]["pubKey"] = keyStr;
+            before = true;
+        }
+
+        // TODO.2  make safe
+        if(mEntry.account().inflationDest != startFrom->mEntry.account().inflationDest)
+        {
+            string keyStr;
+            toBase58(*mEntry.account().inflationDest, keyStr);
+            if(before) sql << ", ";
+            sql << " inflationDest= " << keyStr;
+            txResult["effects"]["mod"][base58ID]["inflationDest"] = keyStr;
+            before = true;
+        }
+
+        if(mEntry.account().creditAuthKey != startFrom->mEntry.account().creditAuthKey)
+        {
+            string keyStr;
+            toBase58(*mEntry.account().creditAuthKey, keyStr);
+
+            if(before) sql << ", ";
+            sql << " creditAuthKey= " << keyStr;
+            txResult["effects"]["mod"][base58ID]["creditAuthKey"] = keyStr;
+            before = true;
+        }
+
+        if(mEntry.account().flags != startFrom->mEntry.account().flags)
+        {
+            if(before) sql << ", ";
+            sql << " flags= " << mEntry.account().flags;
+            txResult["effects"]["mod"][base58ID]["flags"] = mEntry.account().flags;
+        }
+
+        // TODO.3   KeyValue data
+        sql << " where accountID=" << base58ID;
+        ledgerMaster.getDatabase().getSession() << sql.str();
+    }
+
+
+    void AccountEntry::storeAdd(Json::Value& txResult, LedgerMaster& ledgerMaster)
+    {
+        std::string base58ID;
+        toBase58(getIndex(), base58ID);
+
+        ledgerMaster.getDatabase().getSession() << "INSERT into Accounts (accountID,balance) values (:v1,:v2)",
+                soci::use(base58ID), soci::use(mEntry.account().balance);
+
+        txResult["effects"]["new"][base58ID]["balance"] = mEntry.account().balance;
+    }
+
+   
+
+    /* NICOLAS
+    
 
 	
 	AccountEntry::AccountEntry(SLE::pointer sle)
@@ -133,7 +251,7 @@ namespace stellar
 		return tecINSUF_RESERVE_LINE;
 	}
 
-    void AccountEntry::dropAll(LedgerDatabase &db)
+    void AccountEntry::dropAll(Database &db)
     {
         if (!db.getDBCon()->getDB()->executeSQL("DROP TABLE IF EXISTS Accounts;"))
 		{

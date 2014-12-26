@@ -30,6 +30,9 @@ Config::Config()
     QUORUM_THRESHOLD = 1000;
     HTTP_PORT = 39132;
     PUBLIC_HTTP_PORT = false;
+
+    DATABASE = "sqlite3://:memory:";
+
 }
 
 void
@@ -56,6 +59,8 @@ Config::load(const std::string& filename)
             RUN_STANDALONE = g.get("RUN_STANDALONE")->as<bool>()->value();
         if (g.contains("LOG_FILE_PATH"))
             LOG_FILE_PATH = g.get("LOG_FILE_PATH")->as<std::string>()->value();
+
+       
 
         if (g.contains("TARGET_PEER_CONNECTIONS"))
             TARGET_PEER_CONNECTIONS =

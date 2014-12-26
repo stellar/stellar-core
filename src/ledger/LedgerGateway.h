@@ -7,6 +7,7 @@
 
 #include "fba/FBA.h"
 #include "clf/CLF.h"
+#include "txherder/TransactionSet.h"
 
 /*
 Public Interface to the Ledger Module
@@ -15,12 +16,14 @@ Public Interface to the Ledger Module
 
 namespace stellar
 {
+    class TransactionSet;
+    typedef std::shared_ptr<TransactionSet> TransactionSetPtr;
 
 	class LedgerGateway
 	{
 	public:
 		// called by txherder
-		virtual void externalizeValue(const stellarxdr::SlotBallot& slotBallot, TransactionSet::pointer txSet)=0;
+		virtual void externalizeValue(const stellarxdr::SlotBallot& slotBallot, TransactionSetPtr txSet)=0;
 
 		// called by CLF
         virtual void recvDelta(CLFDeltaPtr delta, LedgerHeaderPtr header) = 0;

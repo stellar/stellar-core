@@ -13,7 +13,18 @@ namespace stellar
         txSUCCESS,
         txALREADY,
         txNOFEE,
-        txMALFORMED
+        txMALFORMED,
+        txBADSEQ,
+        txUNDERFUNDED,
+        txBADRATE,
+        txLINEFULL,
+        txOVERSENDMAX,
+        txNOTRUST,
+        txOFFER_NOT_FOUND,
+        txRATE_FIXED,
+
+
+        txNOACCOUNT
     };
 }
 

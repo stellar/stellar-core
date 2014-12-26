@@ -6,13 +6,16 @@
 // this distribution or at http://opensource.org/licenses/ISC
 
 #include "transactions/Transaction.h"
-//#include "fba/FBAWorldInterface.h"
 #include "generated/StellarXDR.h"
 
 using namespace std;
 
 namespace stellar
 {
+
+class Transaction;
+typedef std::shared_ptr<Transaction> TransactionPtr;
+
 class TransactionSet
 {
     stellarxdr::uint256 mHash;
@@ -20,19 +23,19 @@ class TransactionSet
   public:
     typedef std::shared_ptr<TransactionSet> pointer;
 
-    vector<Transaction::pointer> mTransactions;
+    vector<TransactionPtr> mTransactions;
 
     TransactionSet();
 
     // make it from the wire
     TransactionSet(stellarxdr::TransactionSet const& xdrSet);
 
-    Transaction::pointer getTransaction(stellarxdr::uint256 const& txHash);
+    TransactionPtr getTransaction(stellarxdr::uint256 const& txHash);
     // returns the hash of this tx set
     stellarxdr::uint256 getContentsHash();
 
     void
-    add(Transaction::pointer tx)
+    add(TransactionPtr tx)
     {
         mTransactions.push_back(tx);
     }
