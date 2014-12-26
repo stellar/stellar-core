@@ -36,7 +36,7 @@ enum TransactionType
 	PAYMENT,
 	CREATE_OFFER,
 	CANCEL_OFFER,
-	CHANGE_ACCOUNT,
+	SET_OPTIONS,
 	CHANGE_TRUST,
 	ACCOUNT_MERGE,
 	INFLATION
@@ -68,22 +68,23 @@ struct PaymentTx
 
 struct CreateOfferTx
 {
-	CurrencyIssuer currencyTakerGets;
-	int64 amountTakerGets;
-	CurrencyIssuer currencyTakerPays;
-	int64 amountTakerPays;
+	CurrencyIssuer takerGets;
+	CurrencyIssuer takerPays;
+	int64 amount;
+	int64 price;
 
-	uint32 offerSeqNum;		// set if you want to change an existing offer
+	uint32 sequence;		// set if you want to change an existing offer
 	bool passive;	// only take offers that cross this. not offers that match it
 };
 
-struct ChangeAccountTx
+struct SetOptionsTx
 {
-	uint256* setAuthKey;
-	uint256* signingKey;
-	KeyValue* data;
+	uint256* creditAuthKey;
+	uint256* pubKey;
+	uint256* inflationDest;
 	uint32*	flags;
 	uint32* transferRate;
+	KeyValue* data;
 };
 
 struct ChangeTrustTx
@@ -109,8 +110,8 @@ struct Transaction
 			CreateOfferTx createOfferTx;
 		case CANCEL_OFFER:
 			uint32 offerSeqNum;
-		case CHANGE_ACCOUNT:
-			ChangeAccountTx changeAccountTx;
+		case SET_OPTIONS:
+			SetOptionsTx setOptionsTx;
 		case CHANGE_TRUST:
 			ChangeTrustTx changeTrustTx;
 		case ACCOUNT_MERGE:
@@ -228,11 +229,11 @@ struct AccountEntry
     uint32 ownerCount;
     uint32 transferRate;	// rate*1000000
     uint256 pubKey;
-	uint160 *inflationDest;
+	uint256 *inflationDest;
 	uint256 *creditAuthKey;
 	KeyValue data<>;
 
-	uint32 flags; // require dt, require auth, 
+	uint32 flags; // disable master, require dt, require auth, 
 };
 
 

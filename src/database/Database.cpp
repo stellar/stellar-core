@@ -51,6 +51,12 @@ bool Database::loadTrustLine(const stellarxdr::uint160& accountID,
     return false;
 }
 
+bool Database::loadOffer(const stellarxdr::uint160& accountID, uint32_t seq, stellarxdr::LedgerEntry& retEntry)
+{
+    // TODO.2
+    return false;
+}
+
 void Database::loadBestOffers(int numOffers, int offset, stellarxdr::CurrencyIssuer& pays,
     stellarxdr::CurrencyIssuer& gets, vector<stellarxdr::LedgerEntry>& retOffers)
 {

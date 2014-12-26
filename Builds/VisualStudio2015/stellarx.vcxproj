@@ -116,9 +116,40 @@
       <DisableSpecificWarnings Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">4456</DisableSpecificWarnings>
     </ClCompile>
     <ClCompile Include="..\..\src\lib\util\getopt_long.c" />
+    <ClCompile Include="..\..\src\lib\xdrpp\tests\arpc.cc">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lib\xdrpp\tests\autocheck.cc">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lib\xdrpp\tests\cereal.cc">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lib\xdrpp\tests\compare.cc">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lib\xdrpp\tests\listener.cc">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lib\xdrpp\tests\marshal.cc">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lib\xdrpp\tests\msgsock.cc">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lib\xdrpp\tests\printer.cc">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lib\xdrpp\tests\srpc.cc">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\CancelOfferTx.cpp" />
+    <ClCompile Include="..\..\src\transactions\CreateOfferTx.cpp" />
+    <ClCompile Include="..\..\src\transactions\InflationTx.cpp" />
+    <ClCompile Include="..\..\src\transactions\MergeTx.cpp" />
     <ClCompile Include="..\..\src\transactions\PaymentTx.cpp" />
+    <ClCompile Include="..\..\src\transactions\SetOptionsTx.cpp" />
     <ClCompile Include="..\..\src\transactions\TxDelta.cpp" />
-    <ClCompile Include="..\..\src\transactions\TxResult.cpp" />
     <ClCompile Include="..\..\src\util\Timer.cpp" />
     <ClCompile Include="..\..\src\util\types.cpp" />
     <ClCompile Include="..\..\src\main\Application.cpp" />
@@ -214,13 +245,11 @@
     <ClInclude Include="..\..\src\transactions\InflationTx.h" />
     <ClInclude Include="..\..\src\transactions\MergeTx.h" />
     <ClInclude Include="..\..\src\transactions\PaymentTx.h" />
-    <ClInclude Include="..\..\src\transactions\SetAccountTx.h" />
-    <ClInclude Include="..\..\src\transactions\SetRegularKeyTx.h" />
+    <ClInclude Include="..\..\src\transactions\SetOptionsTx.h" />
     <ClInclude Include="..\..\src\transactions\Transaction.h" />
     <ClInclude Include="..\..\src\transactions\TxResultCode.h" />
     <ClInclude Include="..\..\src\transactions\TrustSetTx.h" />
     <ClInclude Include="..\..\src\transactions\TxDelta.h" />
-    <ClInclude Include="..\..\src\transactions\TxResult.h" />
     <ClInclude Include="..\..\src\txherder\TransactionSet.h" />
     <ClInclude Include="..\..\src\txherder\TxHerder.h" />
     <ClInclude Include="..\..\src\txherder\TxHerderGateway.h" />
@@ -249,6 +278,7 @@
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
       </ExcludedFromBuild>
     </CustomBuild>
+    <None Include="..\..\src\lib\xdrpp\tests\xdrtest.x" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\lib\libsodium\builds\msvc\vs2013\libsodium\libsodium.vcxproj">

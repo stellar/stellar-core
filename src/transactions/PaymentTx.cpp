@@ -89,6 +89,8 @@ namespace stellar
             for(auto entry : retList)
             {
                 OfferEntry offer(entry);
+                // TODO.2 make sure the offer is funded
+
                 delta.setStart(offer);
                 int64_t canFill=(entry.offer().amount*entry.offer().price) / OFFER_PRICE_DIVISOR;
                 if(canFill > amountToFill)

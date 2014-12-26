@@ -19,6 +19,13 @@ namespace stellar
 		//void serialize(stellarxdr::uint256& hash, SLE::pointer& ret);
 	public:
         typedef std::shared_ptr<AccountEntry> pointer;
+
+        enum Flags
+        {
+            DISABLE_MASTER_FLAG = 1,
+            DT_REQUIRED_FLAG = 2,
+            AUTH_REQUIRED_FLAG = 4
+        };
         
 		AccountEntry(const stellarxdr::LedgerEntry& from);
         AccountEntry(stellarxdr::uint160& id);

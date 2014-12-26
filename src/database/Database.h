@@ -45,6 +45,7 @@ class Database
     bool loadTrustLine(const stellarxdr::uint160& accountID,
         const stellarxdr::CurrencyIssuer& currency,
         stellarxdr::LedgerEntry& retEntry);
+    bool loadOffer(const stellarxdr::uint160& accountID,uint32_t seq, stellarxdr::LedgerEntry& retEntry);
 
     void loadBestOffers(int numOffers, int offset, stellarxdr::CurrencyIssuer& pays,
         stellarxdr::CurrencyIssuer& gets, std::vector<stellarxdr::LedgerEntry>& retOffers);

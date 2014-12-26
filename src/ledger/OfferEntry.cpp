@@ -25,6 +25,18 @@ namespace stellar
 
     }
 
+    OfferEntry::OfferEntry(const stellarxdr::Transaction& tx) : LedgerEntry()
+    {
+        mEntry.type(stellarxdr::OFFER);
+        mEntry.offer().accountID = tx.account;
+        mEntry.offer().amount = tx.body.createOfferTx().amount;
+        mEntry.offer().price = tx.body.createOfferTx().price;
+        mEntry.offer().sequence = tx.body.createOfferTx().sequence;
+        mEntry.offer().takerGets = tx.body.createOfferTx().takerGets;
+        mEntry.offer().takerPays = tx.body.createOfferTx().takerPays;
+        mEntry.offer().passive = tx.body.createOfferTx().passive;
+    }
+
     void OfferEntry::calculateIndex()
     {
         // TODO.2

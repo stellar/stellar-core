@@ -20,6 +20,8 @@ namespace stellar
         txLINEFULL,
         txOVERSENDMAX,
         txNOTRUST,
+        txOFFER_NOT_FOUND,
+        txRATE_FIXED,
 
 
         txNOACCOUNT

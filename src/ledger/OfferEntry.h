@@ -16,7 +16,7 @@ namespace stellar
 	public:
 	
  		OfferEntry(const stellarxdr::LedgerEntry& from);
-		//OfferEntry(SLE::pointer sle);
+        OfferEntry(const stellarxdr::Transaction& tx);
 
         LedgerEntry::pointer copy()  const { return LedgerEntry::pointer(new OfferEntry(*this)); }
 
