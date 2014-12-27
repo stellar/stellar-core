@@ -23,6 +23,7 @@ test -z "$WFLAGS" || CFLAGS="$CFLAGS $WFLAGS" CXXFLAGS="$CXXFLAGS $WFLAGS"
 AC_LANG(C++)
 # -pthread Seems to be required by g++ -stc=c++1[14]
 AX_CHECK_COMPILE_FLAG([-stdlib=libc++], [CXXFLAGS="$CXXFLAGS -stdlib=libc++"])
+AX_CHECK_COMPILE_FLAG([-lc++abi], [LDFLAGS="$LDFLAGS -lc++abi"])
 AX_APPEND_COMPILE_FLAGS([-pthread])
 
 AC_ARG_ENABLE([address-sanitizer], AS_HELP_STRING([--enable-address-sanitizer],
@@ -45,7 +46,7 @@ AX_VALGRIND_CHECK
 # below.  AX_CONFIG_DIR might work but it's ambiguously licensed.
 function configure_pkgconfig_subdir() {
     ax_pkgname=`basename $1`
-    if test -f "$1/${ax_pkgname}-uninstalled.pc"
+    if test -f "$1/${ax_pkgname}-uninstalled.pc" -o -f "$1/${ax_pkgname}-uninstalled.pc.in"
     then
         if test -f "$1/configure.ac"
         then
@@ -56,7 +57,7 @@ function configure_pkgconfig_subdir() {
             ax_popdir=`pwd`
             cd "$1"
             AC_MSG_NOTICE([Configuring sources in $1])
-            ./configure $ac_configure_args --srcdir=$ac_srcdir $2 CXXFLAGS="${CXXFLAGS}"
+            ./configure $ac_configure_args --srcdir=$ac_srcdir $2 CXXFLAGS="${CXXFLAGS}" LDFLAGS="${LDFLAGS}"
             AC_MSG_NOTICE([Finished configuring $1])
             cd "$ax_popdir"
         fi
