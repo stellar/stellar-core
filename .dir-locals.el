@@ -10,7 +10,8 @@
          (whitespace-style . (face tabs tab-mark trailing lines-tail empty))
          (c-file-style . "stroustrup")
          (eval . (add-to-list 'auto-mode-alist '("\\.h\\'" . c++-mode)))
-         (eval . (add-to-list 'c-offsets-alist '(innamespace . -)))
+         (eval . (if (boundp 'c-offsets-alist)
+                     (add-to-list 'c-offsets-alist '(innamespace . -))))
          (eval . (setq compile-command
                        (concat "make"
                                " -C " (locate-dominating-file
