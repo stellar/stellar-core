@@ -13,10 +13,11 @@ FMT_SRCS = src/overlay/Floodgate.cpp src/overlay/PeerDoor.cpp                   
 	src/fba/Node.cpp src/fba/Ballot.cpp src/ledger/Ledger.cpp               \
 	src/ledger/LedgerEntry.cpp src/ledger/OfferEntry.cpp                    \
 	src/ledger/LedgerMaster.cpp src/ledger/AccountEntry.cpp                 \
-	src/ledger/TrustLine.cpp src/txherder/TxHerder.cpp                      \
-	src/txherder/TransactionSet.cpp src/clf/BucketList.cpp                  \
-	src/main/main.cpp src/main/test.cpp src/main/Application.cpp            \
-	src/main/Config.cpp src/transactions/TrustSetTx.cpp                     \
+	src/ledger/TrustLine.cpp src/ledger/LedgerDelta.cpp                     \
+	src/txherder/TxHerder.cpp src/txherder/TransactionSet.cpp               \
+	src/clf/BucketList.cpp src/main/main.cpp src/main/test.cpp              \
+	src/main/Application.cpp src/main/Config.cpp                            \
+	src/transactions/TrustSetTx.cpp src/transactions/TxDelta.cpp            \
 	src/transactions/Transaction.cpp src/util/Logging.cpp                   \
 	src/fba/FBATests.cpp src/clf/CLFTests.cpp src/lib/http/connection.cpp   \
 	src/lib/http/connection_manager.cpp src/lib/http/HttpClient.cpp         \
@@ -39,9 +40,9 @@ FMT_HDRS = src/clf/BucketList.h src/clf/CanonicalLedgerForm.h src/clf/CLF.h     
 	src/history/HistoryGateway.h src/history/HistoryMaster.h                \
 	src/ledger/AccountEntry.h src/ledger/Ledger.h src/ledger/LedgerEntry.h  \
 	src/ledger/LedgerGateway.h src/ledger/LedgerMaster.h                    \
-	src/ledger/OfferEntry.h src/ledger/TrustLine.h src/main/Application.h   \
-	src/main/CommandHandler.h src/main/Config.h src/main/test.h             \
-	src/overlay/FetchableItem.h src/overlay/Floodgate.h                     \
+	src/ledger/OfferEntry.h src/ledger/LedgerDelta.h src/ledger/TrustLine.h \
+	src/main/Application.h src/main/CommandHandler.h src/main/Config.h      \
+	src/main/test.h src/overlay/FetchableItem.h src/overlay/Floodgate.h     \
 	src/overlay/ItemFetcher.h src/overlay/LoopbackPeer.h                    \
 	src/overlay/OverlayGateway.h src/overlay/Peer.h src/overlay/PeerDoor.h  \
 	src/overlay/PeerMaster.h src/overlay/PreferredPeers.h                   \
@@ -52,6 +53,7 @@ FMT_HDRS = src/clf/BucketList.h src/clf/CanonicalLedgerForm.h src/clf/CLF.h     
 	src/transactions/SetAccountTx.h src/transactions/SetRegularKeyTx.h      \
 	src/transactions/Transaction.h                                          \
 	src/transactions/TransactionResultCodes.h src/transactions/TrustSetTx.h \
+	src/transactions/TxDelta.h src/transactions/TxResultCode.h              \
 	src/txherder/TransactionSet.h src/txherder/TxHerder.h                   \
 	src/txherder/TxHerderGateway.h src/util/Logging.h                       \
 	src/util/make_unique.h src/util/Timer.h src/util/types.h                \
@@ -65,7 +67,8 @@ bin_stellard_SOURCES = $(FMT_SRCS) \
                        $(BUILT_SOURCES) \
                        $(SOCI_SRCS) \
                        src/lib/util/getopt_long.c \
-                       src/lib/util/format.cc
+                       src/lib/util/format.cc \
+                       src/lib/json/jsoncpp.cpp
 
 bin_stellard_CPPFLAGS = -I$(top_srcdir)/src \
                         -I$(builddir)/src \
