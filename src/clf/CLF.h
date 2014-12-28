@@ -9,10 +9,10 @@
 
 namespace stellar
 {
-typedef std::shared_ptr<stellarxdr::LedgerHeader> LedgerHeaderPtr;
+typedef std::shared_ptr<LedgerHeader> LedgerHeaderPtr;
 
 class CLFDelta;
-typedef std::shared_ptr<stellarxdr::Delta> CLFDeltaPtr;
+typedef std::shared_ptr<Delta> CLFDeltaPtr;
 }
 
 #endif

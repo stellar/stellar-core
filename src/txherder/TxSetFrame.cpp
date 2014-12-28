@@ -2,31 +2,31 @@
 // under the ISC License. See the COPYING file at the top-level directory of
 // this distribution or at http://opensource.org/licenses/ISC
 
-#include "TransactionSet.h"
+#include "TxSetFrame.h"
 #include "xdrpp/marshal.h"
 
 namespace stellar
 {
-TransactionSet::TransactionSet()
+    TxSetFrame::TxSetFrame()
 {
 }
 
-TransactionSet::TransactionSet(stellarxdr::TransactionSet const& xdrSet)
+TxSetFrame::TxSetFrame(TransactionSet const& xdrSet)
 {
     for (auto txEnvelope : xdrSet.txs)
     {
-        Transaction::pointer tx =
-            Transaction::makeTransactionFromWire(txEnvelope);
+        TransactionFramePtr tx =
+            TransactionFrame::makeTransactionFromWire(txEnvelope);
         mTransactions.push_back(tx);
     }
 }
 
-stellarxdr::uint256
-TransactionSet::getContentsHash()
+uint256
+TxSetFrame::getContentsHash()
 {
     if (isZero(mHash))
     {
-        stellarxdr::TransactionSet txSet;
+        TransactionSet txSet;
         toXDR(txSet);
         xdr::msg_ptr xdrBytes(xdr::xdr_to_msg(txSet));
         hashXDR(std::move(xdrBytes), mHash);
@@ -44,26 +44,26 @@ bool TransactionSet::operator > (const TransactionSet& other)
 }
 */
 
-Transaction::pointer
-TransactionSet::getTransaction(stellarxdr::uint256 const& txHash)
+TransactionFramePtr
+TxSetFrame::getTransaction(uint256 const& txHash)
 {
     for (auto tx : mTransactions)
     {
         if (txHash == tx->getHash())
             return (tx);
     }
-    return (Transaction::pointer());
+    return (TransactionFramePtr());
 }
 
 // save this tx set to the node store in serialized format
 void
-TransactionSet::store()
+TxSetFrame::store()
 {
     // LATER
 }
 
 void
-TransactionSet::toXDR(stellarxdr::TransactionSet& txSet)
+TxSetFrame::toXDR(TransactionSet& txSet)
 {
     txSet.txs.resize(mTransactions.size());
     for (unsigned int n = 0; n < mTransactions.size(); n++)

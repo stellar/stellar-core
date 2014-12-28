@@ -2,14 +2,14 @@
 // under the ISC License. See the COPYING file at the top-level directory of
 // this distribution or at http://opensource.org/licenses/ISC
 
-#include "TrustLine.h"
-#include "AccountEntry.h"
-#include "LedgerMaster.h"
+#include "ledger/TrustFrame.h"
+#include "ledger/AccountFrame.h"
+#include "ledger/LedgerMaster.h"
 
 using namespace std;
 
 namespace stellar {
-    const char *TrustLine::kSQLCreateStatement = "CREATE TABLE IF NOT EXISTS TrustLines (					\
+    const char *TrustFrame::kSQLCreateStatement = "CREATE TABLE IF NOT EXISTS TrustLines (					\
 		trustIndex Blob(32),				\
 		accountID	CHARACTER(35),			\
 		issuer CHARACTER(35),				\
@@ -19,26 +19,29 @@ namespace stellar {
 		authorized BOOL						\
 	); ";
 
+    TrustFrame::TrustFrame()
+    {
 
-    TrustLine::TrustLine(const stellarxdr::LedgerEntry& from) : LedgerEntry(from)
+    }
+    TrustFrame::TrustFrame(const LedgerEntry& from) : EntryFrame(from)
     {
 
     }
 
     
-    void TrustLine::calculateIndex()
+    void TrustFrame::calculateIndex()
     {
 
     }
-    void TrustLine::storeDelete(Json::Value& txResult, LedgerMaster& ledgerMaster)
+    void TrustFrame::storeDelete(Json::Value& txResult, LedgerMaster& ledgerMaster)
     {
 
     }
-    void TrustLine::storeChange(LedgerEntry::pointer startFrom, Json::Value& txResult, LedgerMaster& ledgerMaster)
+    void TrustFrame::storeChange(EntryFrame::pointer startFrom, Json::Value& txResult, LedgerMaster& ledgerMaster)
     {
 
     }
-    void TrustLine::storeAdd(Json::Value& txResult, LedgerMaster& ledgerMaster)
+    void TrustFrame::storeAdd(Json::Value& txResult, LedgerMaster& ledgerMaster)
     {
 
     }
@@ -123,7 +126,7 @@ namespace stellar {
 		return(tesSUCCESS);
 	}
 
-	bool TrustLine::loadFromDB(const stellarxdr::uint256& index)
+	bool TrustLine::loadFromDB(const uint256& index)
 	{
 		mIndex = index;
 		std::string sql = "SELECT * FROM TrustLines WHERE trustIndex=x'";

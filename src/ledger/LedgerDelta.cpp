@@ -2,27 +2,27 @@
 
 namespace stellar
 {
-    void LedgerDelta::addEntry(LedgerEntry::pointer entry)
+    void LedgerDelta::addEntry(EntryFrame& entry)
     {
-        mNew[entry->getIndex()] = entry;
+        mNew[entry.getIndex()] = entry.copy();
     }
 
-    void LedgerDelta::deleteEntry(LedgerEntry::pointer entry)
+    void LedgerDelta::deleteEntry(EntryFrame& entry)
     {
-        mMod.erase(entry->getIndex());
-        mNew.erase(entry->getIndex());
-        mDelete[entry->getIndex()] = entry;
+        mMod.erase(entry.getIndex());
+        mNew.erase(entry.getIndex());
+        mDelete[entry.getIndex()] = entry.copy();
     }
 
-    void LedgerDelta::modEntry(LedgerEntry::pointer entry)
+    void LedgerDelta::modEntry(EntryFrame& entry)
     {
         // check if it was just made
-        if(mNew.find(entry->getIndex()) != mNew.end())
+        if(mNew.find(entry.getIndex()) != mNew.end())
         {
-            mNew[entry->getIndex()] = entry;
+            mNew[entry.getIndex()] = entry.copy();
         } else
         {
-            mMod[entry->getIndex()] = entry;
+            mMod[entry.getIndex()] = entry.copy();
         }
     }
 

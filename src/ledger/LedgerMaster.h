@@ -25,7 +25,7 @@ namespace stellar
 		bool mCaughtUp;
 		// CanonicalLedgerForm::pointer mCurrentCLF;
         // LATER LedgerDatabase mCurrentDB;
-        //stellarxdr::uint256 mLastLedgerHash;
+        //uint256 mLastLedgerHash;
         Ledger::pointer mCurrentLedger;
         Database mDatabase;
 
@@ -48,7 +48,7 @@ namespace stellar
 
 		//////// GATEWAY FUNCTIONS
 		// called by txherder
-		void externalizeValue(const stellarxdr::SlotBallot& slotBallot, TransactionSetPtr txSet);
+		void externalizeValue(const SlotBallot& slotBallot, TransactionSetPtr txSet);
 
 		// called by CLF
         void recvDelta(CLFDeltaPtr delta, LedgerHeaderPtr header);
@@ -81,12 +81,12 @@ namespace stellar
         
         // called when we successfully sync to the network
 		CanonicalLedgerForm::pointer catchUp(CanonicalLedgerForm::pointer currentCLF);
-        CanonicalLedgerForm::pointer importLedgerState(stellarxdr::uint256 ledgerHash);
+        CanonicalLedgerForm::pointer importLedgerState(uint256 ledgerHash);
         
         void updateDBFromLedger(CanonicalLedgerForm::pointer ledger);
         
         void setLastClosedLedger(CanonicalLedgerForm::pointer ledger);
-        stellarxdr::uint256 getLastClosedLedgerHash();
+        uint256 getLastClosedLedgerHash();
 
         void reset();
 	};

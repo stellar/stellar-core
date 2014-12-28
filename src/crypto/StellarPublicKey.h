@@ -40,11 +40,11 @@ class StellarPublicKey //: public Base58Data
 
     void clear();
 
-    stellarxdr::uint160 getAccountID() const;
+    uint160 getAccountID() const;
 
-    bool verifySignature(stellarxdr::uint256 const& hash,
+    bool verifySignature(uint256 const& hash,
                          Blob const& vchSig) const;
-    bool verifySignature(stellarxdr::uint256 const& hash,
+    bool verifySignature(uint256 const& hash,
                          const std::string& strSig) const;
 
     std::string base58AccountID() const;

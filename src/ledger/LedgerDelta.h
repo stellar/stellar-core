@@ -2,20 +2,20 @@
 #define __LEDGERDELTA__
 
 #include <map>
-#include "ledger/LedgerEntry.h"
+#include "ledger/EntryFrame.h"
 
 namespace stellar
 {
     class LedgerDelta
     {
-        std::map<stellarxdr::uint256, LedgerEntry::pointer> mNew;
-        std::map<stellarxdr::uint256, LedgerEntry::pointer> mMod;
-        std::map<stellarxdr::uint256, LedgerEntry::pointer> mDelete;
+        std::map<uint256, EntryFrame::pointer> mNew;
+        std::map<uint256, EntryFrame::pointer> mMod;
+        std::map<uint256, EntryFrame::pointer> mDelete;
     public:
 
-        void addEntry(LedgerEntry::pointer entry);
-        void deleteEntry(LedgerEntry::pointer entry);
-        void modEntry(LedgerEntry::pointer entry);
+        void addEntry(EntryFrame& entry);
+        void deleteEntry(EntryFrame& entry);
+        void modEntry(EntryFrame& entry);
 
     };
 }

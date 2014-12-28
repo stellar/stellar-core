@@ -23,18 +23,18 @@ class Application;
 class TxHerder : public TxHerderGateway
 {
     // the transactions that we have collected during ledger close
-    TransactionSet::pointer mCollectingTransactionSet;
+    TxSetFrame::pointer mCollectingTransactionSet;
 
     // keep track of txs that didn't make it into last ledger.
     // be less and less likely to commit a ballot that doesn't include the old
     // ones
-    map<stellarxdr::uint256, uint32_t> mTransactionAgeMap;
+    map<uint256, uint32_t> mTransactionAgeMap;
 
     // 0- tx we got during ledger close
     // 1- one ledger ago. Will only validate a vblocking set
     // 2- two ledgers ago. Will only validate a vblock set and will rebroadcast
     // 3- three or more ledgers ago. Any set we validate must have these tx
-    vector<vector<Transaction::pointer>> mReceivedTransactions;
+    vector<vector<TransactionFrame::pointer>> mReceivedTransactions;
 
     std::array<TxSetFetcher, 2> mTxSetFetcher;
     int mCurrentTxSetFetcher;
@@ -43,36 +43,36 @@ class TxHerder : public TxHerderGateway
         Application &mApp;
 
     LedgerPtr mLastClosedLedger;
-    void removeReceivedTx(TransactionPtr tx);
+    void removeReceivedTx(TransactionFramePtr tx);
 
   public:
     TxHerder(Application& app);
 
     ///////// GATEWAY FUNCTIONS
     // make sure this set contains any super old TXs
-    BallotValidType isValidBallotValue(const stellarxdr::Ballot& ballot);
+    BallotValidType isValidBallotValue(const Ballot& ballot);
     TxHerderGateway::SlotComparisonType
-    compareSlot(const stellarxdr::SlotBallot& ballot);
+    compareSlot(const SlotBallot& ballot);
 
     // will start fetching this TxSet from the network if we don't know about it
-    TransactionSetPtr fetchTxSet(const stellarxdr::uint256& setHash,
+    TransactionSetPtr fetchTxSet(const uint256& setHash,
                                  bool askNetwork);
 
-    void externalizeValue(const stellarxdr::SlotBallot& slotBallot);
+    void externalizeValue(const SlotBallot& slotBallot);
 
     // a Tx set comes in from the wire
     void recvTransactionSet(TransactionSetPtr txSet);
     void
-    doesntHaveTxSet(stellarxdr::uint256 const& setHash, Peer::pointer peer)
+    doesntHaveTxSet(uint256 const& setHash, Peer::pointer peer)
     {
         mTxSetFetcher[mCurrentTxSetFetcher].doesntHave(setHash, peer);
     }
 
     // we are learning about a new transaction
     // return true if we should flood
-    bool recvTransaction(TransactionPtr tx);
+    bool recvTransaction(TransactionFramePtr tx);
 
-    bool isTxKnown(stellarxdr::uint256 const& txHash);
+    bool isTxKnown(uint256 const& txHash);
 
     void ledgerClosed(LedgerPtr ledger);
 

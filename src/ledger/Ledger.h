@@ -17,7 +17,7 @@ namespace stellar
 	{
         
 	public:
-        stellarxdr::LedgerHeader mHeader;
+        LedgerHeader mHeader;
 
         
 		std::uint64_t      mParentCloseTime;   // when the previous ledger closed
@@ -42,8 +42,8 @@ namespace stellar
 
 		void updateFees();
 
-        void applyTx(const stellarxdr::Transaction& tx);
-        void isTxValid(const stellarxdr::Transaction& tx);
+        void applyTx(const Transaction& tx);
+        void isTxValid(const Transaction& tx);
 	};
 }
 

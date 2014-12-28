@@ -20,7 +20,7 @@ HistoryMaster::HistoryMaster(Application& app) : mApp(app)
 }
 
 std::string
-HistoryMaster::writeLedgerHistoryToFile(stellarxdr::History const& hist)
+HistoryMaster::writeLedgerHistoryToFile(History const& hist)
 {
     std::string fname = fmt::format("history_{:d}_{:d}.xdr",
                                     hist.fromLedger, hist.toLedger);
@@ -33,7 +33,7 @@ HistoryMaster::writeLedgerHistoryToFile(stellarxdr::History const& hist)
 
 void
 HistoryMaster::readLedgerHistoryFromFile(std::string const& fname,
-                                         stellarxdr::History& hist)
+                                         History& hist)
 {
     LOG(INFO) << "Reading history block " << fname;
     std::ifstream in(fname, std::ofstream::binary);

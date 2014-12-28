@@ -39,28 +39,56 @@ Database::Database(Application& app)
     mSession.open(app.getConfig().DATABASE);
 }
 
-bool Database::loadAccount(const stellarxdr::uint160& accountID, stellarxdr::LedgerEntry& retEntry)
+bool Database::loadAccount(const uint256& accountID, AccountFrame& retEntry)
+{
+    std::string base58ID;
+    toBase58(accountID, base58ID);
+
+    //TODO.2 mSession << "SELECT * from Accounts where accountID=" << base58ID , into
+    return false;
+}
+
+bool Database::loadTrustLine(const uint256& accountID,
+    const CurrencyIssuer& currency,
+    TrustFrame& retEntry)
 {
     return false;
 }
 
-bool Database::loadTrustLine(const stellarxdr::uint160& accountID,
-    const stellarxdr::CurrencyIssuer& currency,
-    stellarxdr::LedgerEntry& retEntry)
-{
-    return false;
-}
-
-bool Database::loadOffer(const stellarxdr::uint160& accountID, uint32_t seq, stellarxdr::LedgerEntry& retEntry)
+bool Database::loadOffer(const uint256& accountID, uint32_t seq, OfferFrame& retEntry)
 {
     // TODO.2
     return false;
 }
 
-void Database::loadBestOffers(int numOffers, int offset, stellarxdr::CurrencyIssuer& pays,
-    stellarxdr::CurrencyIssuer& gets, vector<stellarxdr::LedgerEntry>& retOffers)
+void Database::loadBestOffers(int numOffers, int offset, Currency& pays,
+    Currency& gets, vector<OfferFrame>& retOffers)
 {
     // TODO.2
+}
+
+int64_t Database::getOfferAmountFunded(const OfferFrame& offer)
+{
+    int64_t amountFunded = 0;
+    if(offer.mEntry.offer().takerGets.native())
+    {
+        AccountFrame account;
+        if(loadAccount(offer.mEntry.offer().accountID, account))
+        {
+            amountFunded = account.mEntry.account().balance;
+        }
+    } else
+    {
+        TrustFrame trustLine;
+        if(loadTrustLine(offer.mEntry.offer().accountID, offer.mEntry.offer().takerGets.ci(), trustLine))
+        {
+            if(trustLine.mEntry.trustLine().authorized)
+                amountFunded = trustLine.mEntry.trustLine().balance;
+        }
+    }
+
+    if(offer.mEntry.offer().amount < amountFunded) return(offer.mEntry.offer().amount);
+    else return amountFunded;
 }
 
 void Database::beginTransaction() {
@@ -90,7 +118,7 @@ void Database::endTransaction(bool rollback) {
 }
 
 /*
-void Database::getLines(const stellarxdr::uint160& accountID, const stellarxdr::Currency& currency, vector<TrustLine::pointer>& retList)
+void Database::getLines(const uint160& accountID, const Currency& currency, vector<TrustLine::pointer>& retList)
 {
 std::string base58ID;
 toBase58(accountID, base58ID);
@@ -109,7 +137,7 @@ sql << "SELECT * from TrustLines where highAccount=" << base58ID
 << " and highLimit>0 or balance>0", into(r);
 }
 
-TrustLine::pointer getTrustline(const stellarxdr::uint160& accountID, const stellarxdr::CurrencyIssuer& currency)
+TrustLine::pointer getTrustline(const uint160& accountID, const CurrencyIssuer& currency)
 {
 std::string base58ID, base58Issuer;
 toBase58(accountID, base58ID);

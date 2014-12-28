@@ -20,7 +20,7 @@ QuorumSet::QuorumSet()
 }
 
 // get qset from wire
-QuorumSet::QuorumSet(stellarxdr::QuorumSet const& qset, Application& app)
+QuorumSet::QuorumSet(QuorumSetDesc const& qset, Application& app)
 {
     mThreshold = qset.threshold;
     for (auto id : qset.validators)
@@ -29,12 +29,12 @@ QuorumSet::QuorumSet(stellarxdr::QuorumSet const& qset, Application& app)
     }
 }
 
-stellarxdr::uint256
+uint256
 QuorumSet::getHash()
 {
     if (isZero(mHash))
     {
-        stellarxdr::QuorumSet qset;
+        QuorumSetDesc qset;
         toXDR(qset);
         xdr::msg_ptr xdrBytes(xdr::xdr_to_msg(qset));
         hashXDR(std::move(xdrBytes), mHash);
@@ -57,7 +57,7 @@ ballotSorter(const BallotSet& a, const BallotSet& b)
 
 // returns all the ballots sorted by rank
 void
-QuorumSet::sortBallots(stellarxdr::FBAStatementType type,
+QuorumSet::sortBallots(FBAStatementType type,
                        vector<BallotSet>& retList)
 {
     for (auto node : mNodes)
@@ -86,11 +86,11 @@ QuorumSet::sortBallots(stellarxdr::FBAStatementType type,
 }
 
 BallotPtr
-QuorumSet::getMostPopularBallot(stellarxdr::FBAStatementType type,
+QuorumSet::getMostPopularBallot(FBAStatementType type,
                                 bool checkValid, Application& app)
 {
     /* TODO.1 wait for xdrpp to include a comparison
-            map< stellarxdr::Ballot, int> ballotCounts;
+            map< Ballot, int> ballotCounts;
 
 
             for(auto node : mNodes)
@@ -102,13 +102,13 @@ QuorumSet::getMostPopularBallot(stellarxdr::FBAStatementType type,
                             if(!checkValid ||
     app.getTxHerderGateway().isValidBallotValue(statement->getBallot()))
                             {
-                stellarxdr::Ballot ballot = statement->getBallot();
+                Ballot ballot = statement->getBallot();
                 ballot.index = 0;
                                     ballotCounts[ballot] += 1;
                             }
                     }
             }
-    stellarxdr::Ballot mostPopular;
+    Ballot mostPopular;
             int mostPopularCount = 0;
     bool foundOne = false;
             for(auto bcount : ballotCounts)
@@ -123,7 +123,7 @@ QuorumSet::getMostPopularBallot(stellarxdr::FBAStatementType type,
 
             if(foundOne)
     {
-                    return std::make_shared<stellarxdr::Ballot>(mostPopular);
+                    return std::make_shared<Ballot>(mostPopular);
             }
             */
     return BallotPtr();
@@ -131,7 +131,7 @@ QuorumSet::getMostPopularBallot(stellarxdr::FBAStatementType type,
 
 // get the highest valid statement
 Statement::pointer
-QuorumSet::getHighestStatement(stellarxdr::FBAStatementType type,
+QuorumSet::getHighestStatement(FBAStatementType type,
                                bool checkValid, Application& app)
 {
     Statement::pointer highStatement;
@@ -162,7 +162,7 @@ QuorumSet::getHighestStatement(stellarxdr::FBAStatementType type,
 // for PREPARE we need to look at gaps
 //		for any gap see if other people can ratify the abort
 Node::RatState
-QuorumSet::checkRatState(stellarxdr::FBAStatementType statementType,
+QuorumSet::checkRatState(FBAStatementType statementType,
                          BallotPtr ballot, int operationToken,
                          int recheckCounter, Application& app)
 {
@@ -193,7 +193,7 @@ QuorumSet::checkPrepareRatState(Statement::pointer statement, int visitIndex)
 }
 
 void
-QuorumSet::toXDR(stellarxdr::QuorumSet& qSet)
+QuorumSet::toXDR(QuorumSetDesc& qSet)
 {
     qSet.threshold = mThreshold;
     for (auto val : mNodes)

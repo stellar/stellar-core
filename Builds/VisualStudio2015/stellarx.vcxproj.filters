@@ -81,22 +81,10 @@
     <ClCompile Include="..\..\src\fba\Statement.cpp">
       <Filter>fba</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\ledger\AccountEntry.cpp">
-      <Filter>ledger</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\ledger\Ledger.cpp">
       <Filter>ledger</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\ledger\LedgerEntry.cpp">
-      <Filter>ledger</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\ledger\LedgerMaster.cpp">
-      <Filter>ledger</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\ledger\OfferEntry.cpp">
-      <Filter>ledger</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\ledger\TrustLine.cpp">
       <Filter>ledger</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\main\Application.cpp">
@@ -104,9 +92,6 @@
     </ClCompile>
     <ClCompile Include="..\..\src\main\main.cpp">
       <Filter>main</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\txherder\TransactionSet.cpp">
-      <Filter>txherder</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\txherder\TxHerder.cpp">
       <Filter>txherder</Filter>
@@ -134,12 +119,6 @@
     </ClCompile>
     <ClCompile Include="..\..\src\lib\crypto\StellarPublicKey.cpp">
       <Filter>crypto</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\transactions\Transaction.cpp">
-      <Filter>transactions</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\transactions\TrustSetTx.cpp">
-      <Filter>transactions</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\clf\BucketList.cpp">
       <Filter>clf</Filter>
@@ -222,9 +201,6 @@
     <ClCompile Include="..\..\src\lib\util\format.cc">
       <Filter>lib</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\transactions\PaymentTx.cpp">
-      <Filter>transactions</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\lib\json\jsoncpp.cpp">
       <Filter>lib\json</Filter>
     </ClCompile>
@@ -245,21 +221,6 @@
     </ClCompile>
     <ClCompile Include="..\..\src\database\DatabaseTests.cpp">
       <Filter>database</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\transactions\CancelOfferTx.cpp">
-      <Filter>transactions</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\transactions\CreateOfferTx.cpp">
-      <Filter>transactions</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\transactions\MergeTx.cpp">
-      <Filter>transactions</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\transactions\SetOptionsTx.cpp">
-      <Filter>transactions</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\transactions\InflationTx.cpp">
-      <Filter>transactions</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\lib\xdrpp\tests\marshal.cc">
       <Filter>lib\xdrpp</Filter>
@@ -287,6 +248,45 @@
     </ClCompile>
     <ClCompile Include="..\..\src\lib\xdrpp\tests\srpc.cc">
       <Filter>lib\xdrpp</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\ledger\AccountFrame.cpp">
+      <Filter>ledger</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\ledger\OfferFrame.cpp">
+      <Filter>ledger</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\ledger\TrustFrame.cpp">
+      <Filter>ledger</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\ledger\EntryFrame.cpp">
+      <Filter>ledger</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\TransactionFrame.cpp">
+      <Filter>transactions</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\txherder\TxSetFrame.cpp">
+      <Filter>txherder</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\CancelOfferFrame.cpp">
+      <Filter>transactions</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\CreateOfferFrame.cpp">
+      <Filter>transactions</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\InflationFrame.cpp">
+      <Filter>transactions</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\MergeFrame.cpp">
+      <Filter>transactions</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\PaymentFrame.cpp">
+      <Filter>transactions</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\SetOptionsFrame.cpp">
+      <Filter>transactions</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\TrustSetFrame.cpp">
+      <Filter>transactions</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -317,13 +317,7 @@
     <ClInclude Include="..\..\src\history\HistoryGateway.h">
       <Filter>history</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\ledger\AccountEntry.h">
-      <Filter>ledger</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\src\ledger\Ledger.h">
-      <Filter>ledger</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\ledger\LedgerEntry.h">
       <Filter>ledger</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\ledger\LedgerGateway.h">
@@ -332,17 +326,8 @@
     <ClInclude Include="..\..\src\ledger\LedgerMaster.h">
       <Filter>ledger</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\ledger\OfferEntry.h">
-      <Filter>ledger</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\ledger\TrustLine.h">
-      <Filter>ledger</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\src\main\Application.h">
       <Filter>main</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\txherder\TransactionSet.h">
-      <Filter>txherder</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\txherder\TxHerder.h">
       <Filter>txherder</Filter>
@@ -382,27 +367,6 @@
     </ClInclude>
     <ClInclude Include="..\..\src\lib\crypto\StellarPublicKey.h">
       <Filter>crypto</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\transactions\CancelOfferTx.h">
-      <Filter>transactions</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\transactions\CreateOfferTx.h">
-      <Filter>transactions</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\transactions\InflationTx.h">
-      <Filter>transactions</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\transactions\MergeTx.h">
-      <Filter>transactions</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\transactions\PaymentTx.h">
-      <Filter>transactions</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\transactions\Transaction.h">
-      <Filter>transactions</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\transactions\TrustSetTx.h">
-      <Filter>transactions</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\main\Config.h">
       <Filter>main</Filter>
@@ -524,7 +488,46 @@
     <ClInclude Include="..\..\src\database\Database.h">
       <Filter>database</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\transactions\SetOptionsTx.h">
+    <ClInclude Include="..\..\src\ledger\AccountFrame.h">
+      <Filter>ledger</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\ledger\OfferFrame.h">
+      <Filter>ledger</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\ledger\TrustFrame.h">
+      <Filter>ledger</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\ledger\EntryFrame.h">
+      <Filter>ledger</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\util\types.h">
+      <Filter>util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\transactions\TransactionFrame.h">
+      <Filter>transactions</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\txherder\TxSetFrame.h">
+      <Filter>txherder</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\transactions\CancelOfferFrame.h">
+      <Filter>transactions</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\transactions\CreateOfferFrame.h">
+      <Filter>transactions</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\transactions\InflationFrame.h">
+      <Filter>transactions</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\transactions\MergeFrame.h">
+      <Filter>transactions</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\transactions\PaymentFrame.h">
+      <Filter>transactions</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\transactions\SetOptionsFrame.h">
+      <Filter>transactions</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\transactions\TrustSetFrame.h">
       <Filter>transactions</Filter>
     </ClInclude>
   </ItemGroup>

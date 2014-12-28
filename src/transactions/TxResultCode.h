@@ -22,6 +22,8 @@ namespace stellar
         txNOTRUST,
         txOFFER_NOT_FOUND,
         txRATE_FIXED,
+        txNOT_AUTHORIZED,
+        txINTERNAL_ERROR,
 
 
         txNOACCOUNT

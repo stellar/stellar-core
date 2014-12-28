@@ -7,14 +7,14 @@
 #include "main/Application.h"
 #include <time.h>
 #include "util/Logging.h"
-#include "txherder/TransactionSet.h"
+#include "txherder/TxSetFrame.h"
 #include "lib/util/easylogging++.h"
 #include "fba/FBA.h"
 
 namespace stellar
 {
 TxHerder::TxHerder(Application& app)
-    : mCollectingTransactionSet(std::make_shared<TransactionSet>())
+    : mCollectingTransactionSet(std::make_shared<TxSetFrame>())
     , mReceivedTransactions(4)
 #ifdef _MSC_VER
     // This form of initializer causes a warning due to brace-elision on
@@ -46,7 +46,7 @@ TxHerder::TxHerder(Application& app)
 // make sure the timestamp isn't too far in the future
 // make sure the base fee is within a certain range of your desired fee
 TxHerderGateway::BallotValidType
-TxHerder::isValidBallotValue(stellarxdr::Ballot const& ballot)
+TxHerder::isValidBallotValue(Ballot const& ballot)
 {
     if (ballot.baseFee < mApp.getConfig().DESIRED_BASE_FEE * .5)
         return INVALID_BALLOT;
@@ -78,7 +78,7 @@ TxHerder::isValidBallotValue(stellarxdr::Ballot const& ballot)
 }
 
 TxHerderGateway::SlotComparisonType
-TxHerder::compareSlot(stellarxdr::SlotBallot const& slotBallot)
+TxHerder::compareSlot(SlotBallot const& slotBallot)
 {
     if (slotBallot.ledgerIndex > mLastClosedLedger->mHeader.ledgerSeq)
         return (TxHerderGateway::FUTURE_SLOT);
@@ -88,7 +88,7 @@ TxHerder::compareSlot(stellarxdr::SlotBallot const& slotBallot)
 }
 
 bool
-TxHerder::isTxKnown(stellarxdr::uint256 const& txHash)
+TxHerder::isTxKnown(uint256 const& txHash)
 {
     for (auto list : mReceivedTransactions)
     {
@@ -118,9 +118,9 @@ TxHerder::recvTransactionSet(TransactionSetPtr txSet)
 
 // return true if we should flood
 bool
-TxHerder::recvTransaction(TransactionPtr tx)
+TxHerder::recvTransaction(TransactionFramePtr tx)
 {
-    stellarxdr::uint256 txHash = tx->getHash();
+    uint256 txHash = tx->getHash();
     if (!isTxKnown(txHash))
     {
         if (tx->isValid())
@@ -135,14 +135,14 @@ TxHerder::recvTransaction(TransactionPtr tx)
 }
 
 // will start fetching this TxSet from the network if we don't know about it
-TransactionSetPtr
-TxHerder::fetchTxSet(stellarxdr::uint256 const& setHash, bool askNetwork)
+TxSetFramePtr
+TxHerder::fetchTxSet(uint256 const& setHash, bool askNetwork)
 {
     return mTxSetFetcher[mCurrentTxSetFetcher].fetchItem(setHash, askNetwork);
 }
 
 void
-TxHerder::removeReceivedTx(TransactionPtr dropTX)
+TxHerder::removeReceivedTx(TransactionFramePtr dropTX)
 {
     for (auto list : mReceivedTransactions)
     {
@@ -161,9 +161,9 @@ TxHerder::removeReceivedTx(TransactionPtr dropTX)
 
 // called by FBA
 void
-TxHerder::externalizeValue(stellarxdr::SlotBallot const& slotBallot)
+TxHerder::externalizeValue(SlotBallot const& slotBallot)
 {
-    TransactionSet::pointer externalizedSet =
+    TxSetFramePtr externalizedSet =
         fetchTxSet(slotBallot.ballot.txSetHash, false);
     if (externalizedSet)
     {
@@ -210,7 +210,7 @@ TxHerder::ledgerClosed(LedgerPtr ledger)
 {
     // our first choice for this round's set is all the tx we have collected
     // during last ledger close
-    TransactionSet::pointer proposedSet = std::make_shared<TransactionSet>();
+    TxSetFramePtr proposedSet = std::make_shared<TxSetFrame>();
     for (auto list : mReceivedTransactions)
     {
         for (auto tx : list)
@@ -226,7 +226,7 @@ TxHerder::ledgerClosed(LedgerPtr ledger)
         firstBallotTime = mLastClosedLedger->mHeader.closeTime + 1;
 
     recvTransactionSet(proposedSet);
-    stellarxdr::SlotBallot firstBallot;
+    SlotBallot firstBallot;
     firstBallot.ledgerIndex = mLastClosedLedger->mHeader.ledgerSeq;
     firstBallot.ballot.previousLedgerHash = mLastClosedLedger->mHeader.hash;
     firstBallot.ballot.index = 1;

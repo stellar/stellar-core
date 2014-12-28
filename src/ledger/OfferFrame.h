@@ -5,23 +5,24 @@
 // under the ISC License. See the COPYING file at the top-level directory of
 // this distribution or at http://opensource.org/licenses/ISC
 
-#include "LedgerEntry.h"
+#include "ledger/EntryFrame.h"
 
 
 namespace stellar
 {
-	class OfferEntry : public LedgerEntry
+	class OfferFrame : public EntryFrame
 	{
 		void calculateIndex();
 	public:
-	
- 		OfferEntry(const stellarxdr::LedgerEntry& from);
-        OfferEntry(const stellarxdr::Transaction& tx);
 
-        LedgerEntry::pointer copy()  const { return LedgerEntry::pointer(new OfferEntry(*this)); }
+        OfferFrame();
+        OfferFrame(const LedgerEntry& from);
+        OfferFrame(const Transaction& tx);
+
+        EntryFrame::pointer copy()  const { return EntryFrame::pointer(new OfferFrame(*this)); }
 
         void storeDelete(Json::Value& txResult, LedgerMaster& ledgerMaster);
-        void storeChange(LedgerEntry::pointer startFrom, Json::Value& txResult, LedgerMaster& ledgerMaster);
+        void storeChange(EntryFrame::pointer startFrom, Json::Value& txResult, LedgerMaster& ledgerMaster);
         void storeAdd(Json::Value& txResult, LedgerMaster& ledgerMaster);
 
         static void dropAll(Database &db);

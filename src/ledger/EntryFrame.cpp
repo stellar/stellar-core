@@ -2,32 +2,72 @@
 // under the ISC License. See the COPYING file at the top-level directory of
 // this distribution or at http://opensource.org/licenses/ISC
 
-#include "LedgerEntry.h"
+#include "ledger/EntryFrame.h"
 #include "LedgerMaster.h"
-#include "TrustLine.h"
-#include "OfferEntry.h"
 
 namespace stellar
 {
-    LedgerEntry::LedgerEntry()
-    {
+ 
+EntryFrame::EntryFrame()
+{
 
+}
+
+EntryFrame::EntryFrame(const LedgerEntry& from) : mEntry(from)
+{
+
+}
+
+uint256 EntryFrame::getIndex()
+{
+    if(isZero(mIndex))
+    {
+        calculateIndex();
     }
-    LedgerEntry::LedgerEntry(const stellarxdr::LedgerEntry& from) : mEntry(from)
-    {
+    return mIndex;
+}
 
-    }
+     /*
+    I ended up with this kind of BS when I tried to drop these Frame classes and just use the .x classes
+    void storeDeleteAccount(const LedgerEntry& entry, Json::Value& txResult, LedgerMaster& ledgerMaster);
+    void storeDeleteOffer(const LedgerEntry& entry, Json::Value& txResult, LedgerMaster& ledgerMaster);
+    void storeDeleteTrust(const LedgerEntry& entry, Json::Value& txResult, LedgerMaster& ledgerMaster);
 
-    stellarxdr::uint256 LedgerEntry::getIndex()
+    void getIndex(const LedgerEntry& entry, const uint256& retIndex)
     {
-        if(isZero(mIndex))
+        switch(entry.type())
         {
-            calculateIndex();
+        case LedgerTypes::NONE:
+            return;
+        case LedgerTypes::ACCOUNT:
+        case LedgerTypes::OFFER:
+        case LedgerTypes::TRUSTLINE:
         }
-        return mIndex;
+    }
+   
+    void storeDelete(const LedgerEntry& entry, Json::Value& txResult, LedgerMaster& ledgerMaster)
+    {
+        switch(entry.type())
+        {
+        case LedgerTypes::NONE:
+            return;
+        case LedgerTypes::ACCOUNT:
+            return storeDeleteAccount(entry, txResult, ledgerMaster);
+        case LedgerTypes::OFFER:
+        case LedgerTypes::TRUSTLINE:
+        }
+    }
+    void storeChange(const LedgerEntry& entry, const LedgerEntry& startFrom, Json::Value& txResult, LedgerMaster& ledgerMaster)
+    {
+
     }
 
-    /* NICOLAS
+    void storeAdd(const LedgerEntry& entry, Json::Value& txResult, LedgerMaster& ledgerMaster)
+    {
+
+    } */
+    
+    /* 
 	LedgerEntry::pointer LedgerEntry::makeEntry(SLE::pointer sle)
 	{
 		switch(sle->getType())
@@ -76,7 +116,7 @@ namespace stellar
 	// NICOLAS
 	uint256 LedgerEntry::getHash()
 	{
-		return(stellarxdr::uint256());
+		return(uint256());
 		//if(!mSLE) makeSLE();
 		//return(mSLE->getHash());
 	}

@@ -7,7 +7,7 @@
 //   Bucket list for hashing
 //   array of ledgerentries for sending deltas
 
-namespace stellarxdr {
+namespace stellar {
 
 
 // messages
@@ -16,7 +16,7 @@ typedef opaque uint160[20];
 typedef unsigned hyper uint64;
 typedef hyper int64;
 typedef unsigned uint32;
-typedef opaque Currency<20>;
+typedef int int32;
 
 struct Error
 {
@@ -44,9 +44,19 @@ enum TransactionType
 
 struct CurrencyIssuer
 {
-	Currency currency;
-	uint160 *issuer;
+	uint160 currencyCode;
+	uint256 issuer;
 };
+
+union Currency switch(bool native)
+{
+	case TRUE: 
+		void;
+	case FALSE:
+		CurrencyIssuer ci;
+};
+	
+
 
 struct KeyValue
 {
@@ -56,10 +66,10 @@ struct KeyValue
 
 struct PaymentTx
 {
-	uint160 destination;  
-	CurrencyIssuer currency;	// what they end up with
+	uint256 destination;  
+	Currency currency;			// what they end up with
 	int64 amount;				// amount they end up with
-	CurrencyIssuer path<>;		// what hops it must go through to get there
+	Currency path<>;			// what hops it must go through to get there
 	int64 sendMax;				// the maximum amount of the source currency this
 								// will send. The tx will fail if can't be met
 	opaque memo<32>;
@@ -68,10 +78,10 @@ struct PaymentTx
 
 struct CreateOfferTx
 {
-	CurrencyIssuer takerGets;
-	CurrencyIssuer takerPays;
-	int64 amount;
-	int64 price;
+	Currency takerGets;
+	Currency takerPays;
+	int64 amount;		// amount taker gets
+	int64 price;		// =takerPaysAmount/takerGetsAmount
 
 	uint32 sequence;		// set if you want to change an existing offer
 	bool passive;	// only take offers that cross this. not offers that match it
@@ -96,7 +106,7 @@ struct ChangeTrustTx
 
 struct Transaction
 {
-    uint160 account;
+    uint256 account;
 	uint32 maxFee;
 	uint32 seqNum;
 	uint32 maxLedger;	// maximum ledger this tx is valid to be applied in
@@ -115,7 +125,7 @@ struct Transaction
 		case CHANGE_TRUST:
 			ChangeTrustTx changeTrustTx;
 		case ACCOUNT_MERGE:
-			uint160 destination;
+			uint256 destination;
 		case INFLATION:
 			uint32 inflationSeq;
 	} body;
@@ -143,7 +153,7 @@ struct LedgerHeader
 	int64 feePool;
 	uint64 ledgerSeq;
 	uint32 inflationSeq;
-	int64 baseFee;
+	int32 baseFee;
 	uint64 closeTime;       
 };
 
@@ -170,7 +180,7 @@ struct Ballot
 	uint256 previousLedgerHash;		// x
     uint256 txSetHash;				// x
 	uint64 closeTime;				// x
-	uint32 baseFee;					// x
+	int32 baseFee;					// x
 };
 
 struct SlotBallot
@@ -216,6 +226,7 @@ struct FBAEnvelope
 };
 
 enum LedgerTypes {
+  NONE,
   ACCOUNT,
   TRUSTLINE,
   OFFER
@@ -223,12 +234,12 @@ enum LedgerTypes {
 
 struct AccountEntry
 {
-    uint160 accountID;
+    uint256 accountID;
     int64 balance;
     uint32 sequence;
     uint32 ownerCount;
     uint32 transferRate;	// rate*1000000
-    uint256 pubKey;
+    uint256 *pubKey;
 	uint256 *inflationDest;
 	uint256 *creditAuthKey;
 	KeyValue data<>;
@@ -240,43 +251,48 @@ struct AccountEntry
 
 struct TrustLineEntry
 {
-    uint160 accountID;
-    uint160 issuer;
-    uint160 currency;
+    uint256 accountID;
+    uint256 issuer;
+    uint160 currencyCode;
     int64 limit;
     int64 balance;
     bool authorized;  // if the issuer has authorized this guy to hold its credit
 };
 
+
+// selling 10A @ 2B/A
 struct OfferEntry
 {
-    uint160 accountID;
+    uint256 accountID;
     uint32 sequence;
-	CurrencyIssuer takerGets;
-	CurrencyIssuer takerPays;
-	int64 amount;
-	uint64 price;	// price*1,000,000,000
-
+	Currency takerGets;  // A
+	Currency takerPays;  // B
+	int64 amount;	// amount of A
+	int64 price;	// price of A in terms of B
+					// price*1,000,000,000
+					// price=AmountB/AmountA
     bool passive;
 };
 
 union LedgerEntry switch (LedgerTypes type)
 {
+ case NONE:
+	void;
  case ACCOUNT:
    AccountEntry account;
  case TRUSTLINE:
    TrustLineEntry trustLine;
  case OFFER:
-      OfferEntry offer;
+   OfferEntry offer;
 };
 
-struct QuorumSet
+struct QuorumSetDesc
 {
     uint32 threshold;
     uint256 validators<>;
 };
 
-struct Peer
+struct PeerAddress
 {
     uint32 ip;
     uint32 port;
@@ -348,7 +364,7 @@ union StellarMessage switch (MessageType type) {
 	case GET_PEERS:
 		void;
 	case PEERS:
-		Peer peers<>;
+		PeerAddress peers<>;
 	case GET_HISTORY:
 		GetHistory historyReq;
 	case HISTORY:
@@ -375,7 +391,7 @@ union StellarMessage switch (MessageType type) {
 	case GET_QUORUMSET:		
 		uint256 qSetHash;	
 	case QUORUMSET:
-		QuorumSet quorumSet;
+		QuorumSetDesc quorumSet;
 
 	case FBA_MESSAGE:
 		FBAEnvelope fbaMessage;

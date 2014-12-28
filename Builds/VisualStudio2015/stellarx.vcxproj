@@ -88,13 +88,13 @@
     <ClCompile Include="..\..\src\history\HistoryArchive.cpp" />
     <ClCompile Include="..\..\src\history\HistoryMaster.cpp" />
     <ClCompile Include="..\..\src\history\HistoryTests.cpp" />
-    <ClCompile Include="..\..\src\ledger\AccountEntry.cpp" />
+    <ClCompile Include="..\..\src\ledger\AccountFrame.cpp" />
     <ClCompile Include="..\..\src\ledger\Ledger.cpp" />
     <ClCompile Include="..\..\src\ledger\LedgerDelta.cpp" />
-    <ClCompile Include="..\..\src\ledger\LedgerEntry.cpp" />
+    <ClCompile Include="..\..\src\ledger\EntryFrame.cpp" />
     <ClCompile Include="..\..\src\ledger\LedgerMaster.cpp" />
-    <ClCompile Include="..\..\src\ledger\OfferEntry.cpp" />
-    <ClCompile Include="..\..\src\ledger\TrustLine.cpp" />
+    <ClCompile Include="..\..\src\ledger\OfferFrame.cpp" />
+    <ClCompile Include="..\..\src\ledger\TrustFrame.cpp" />
     <ClCompile Include="..\..\src\lib\crypto\edkeypair.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
     </ClCompile>
@@ -143,12 +143,12 @@
     <ClCompile Include="..\..\src\lib\xdrpp\tests\srpc.cc">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
     </ClCompile>
-    <ClCompile Include="..\..\src\transactions\CancelOfferTx.cpp" />
-    <ClCompile Include="..\..\src\transactions\CreateOfferTx.cpp" />
-    <ClCompile Include="..\..\src\transactions\InflationTx.cpp" />
-    <ClCompile Include="..\..\src\transactions\MergeTx.cpp" />
-    <ClCompile Include="..\..\src\transactions\PaymentTx.cpp" />
-    <ClCompile Include="..\..\src\transactions\SetOptionsTx.cpp" />
+    <ClCompile Include="..\..\src\transactions\CancelOfferFrame.cpp" />
+    <ClCompile Include="..\..\src\transactions\CreateOfferFrame.cpp" />
+    <ClCompile Include="..\..\src\transactions\InflationFrame.cpp" />
+    <ClCompile Include="..\..\src\transactions\MergeFrame.cpp" />
+    <ClCompile Include="..\..\src\transactions\PaymentFrame.cpp" />
+    <ClCompile Include="..\..\src\transactions\SetOptionsFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\TxDelta.cpp" />
     <ClCompile Include="..\..\src\util\Timer.cpp" />
     <ClCompile Include="..\..\src\util\types.cpp" />
@@ -168,9 +168,9 @@
     <ClCompile Include="..\..\src\overlay\TCPPeer.cpp" />
     <ClCompile Include="..\..\src\process\ProcessMaster.cpp" />
     <ClCompile Include="..\..\src\process\ProcessTests.cpp" />
-    <ClCompile Include="..\..\src\transactions\Transaction.cpp" />
-    <ClCompile Include="..\..\src\transactions\TrustSetTx.cpp" />
-    <ClCompile Include="..\..\src\txherder\TransactionSet.cpp" />
+    <ClCompile Include="..\..\src\transactions\TransactionFrame.cpp" />
+    <ClCompile Include="..\..\src\transactions\TrustSetFrame.cpp" />
+    <ClCompile Include="..\..\src\txherder\TxSetFrame.cpp" />
     <ClCompile Include="..\..\src\txherder\TxHerder.cpp" />
     <ClCompile Include="..\..\src\util\Logging.cpp" />
   </ItemGroup>
@@ -195,14 +195,14 @@
     <ClInclude Include="..\..\src\history\HistoryArchive.h" />
     <ClInclude Include="..\..\src\history\HistoryGateway.h" />
     <ClInclude Include="..\..\src\history\HistoryMaster.h" />
-    <ClInclude Include="..\..\src\ledger\AccountEntry.h" />
+    <ClInclude Include="..\..\src\ledger\AccountFrame.h" />
     <ClInclude Include="..\..\src\ledger\Ledger.h" />
     <ClInclude Include="..\..\src\ledger\LedgerDelta.h" />
-    <ClInclude Include="..\..\src\ledger\LedgerEntry.h" />
+    <ClInclude Include="..\..\src\ledger\EntryFrame.h" />
     <ClInclude Include="..\..\src\ledger\LedgerGateway.h" />
     <ClInclude Include="..\..\src\ledger\LedgerMaster.h" />
-    <ClInclude Include="..\..\src\ledger\OfferEntry.h" />
-    <ClInclude Include="..\..\src\ledger\TrustLine.h" />
+    <ClInclude Include="..\..\src\ledger\OfferFrame.h" />
+    <ClInclude Include="..\..\src\ledger\TrustFrame.h" />
     <ClInclude Include="..\..\src\ledger\ValidatedLedgers.h" />
     <ClInclude Include="..\..\src\lib\crypto\EdKeyPair.h" />
     <ClInclude Include="..\..\src\lib\crypto\StellarPrivateKey.h" />
@@ -240,20 +240,21 @@
     <ClInclude Include="..\..\src\process\ProcessGateway.h" />
     <ClInclude Include="..\..\src\process\ProcessMaster.h" />
     <ClInclude Include="..\..\src\sync\SyncMaster.h" />
-    <ClInclude Include="..\..\src\transactions\CancelOfferTx.h" />
-    <ClInclude Include="..\..\src\transactions\CreateOfferTx.h" />
-    <ClInclude Include="..\..\src\transactions\InflationTx.h" />
-    <ClInclude Include="..\..\src\transactions\MergeTx.h" />
-    <ClInclude Include="..\..\src\transactions\PaymentTx.h" />
-    <ClInclude Include="..\..\src\transactions\SetOptionsTx.h" />
-    <ClInclude Include="..\..\src\transactions\Transaction.h" />
+    <ClInclude Include="..\..\src\transactions\CancelOfferFrame.h" />
+    <ClInclude Include="..\..\src\transactions\CreateOfferFrame.h" />
+    <ClInclude Include="..\..\src\transactions\InflationFrame.h" />
+    <ClInclude Include="..\..\src\transactions\MergeFrame.h" />
+    <ClInclude Include="..\..\src\transactions\PaymentFrame.h" />
+    <ClInclude Include="..\..\src\transactions\SetOptionsFrame.h" />
+    <ClInclude Include="..\..\src\transactions\TransactionFrame.h" />
     <ClInclude Include="..\..\src\transactions\TxResultCode.h" />
-    <ClInclude Include="..\..\src\transactions\TrustSetTx.h" />
+    <ClInclude Include="..\..\src\transactions\TrustSetFrame.h" />
     <ClInclude Include="..\..\src\transactions\TxDelta.h" />
-    <ClInclude Include="..\..\src\txherder\TransactionSet.h" />
+    <ClInclude Include="..\..\src\txherder\TxSetFrame.h" />
     <ClInclude Include="..\..\src\txherder\TxHerder.h" />
     <ClInclude Include="..\..\src\txherder\TxHerderGateway.h" />
     <ClInclude Include="..\..\src\util\Timer.h" />
+    <ClInclude Include="..\..\src\util\types.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="..\..\AUTHORS" />

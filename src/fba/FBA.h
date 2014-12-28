@@ -7,8 +7,8 @@
 
 namespace stellar
 {
-typedef std::shared_ptr<stellarxdr::Ballot> BallotPtr;
-typedef std::shared_ptr<stellarxdr::SlotBallot> SlotBallotPtr;
+typedef std::shared_ptr<Ballot> BallotPtr;
+typedef std::shared_ptr<SlotBallot> SlotBallotPtr;
 
 class Statement;
 typedef std::shared_ptr<Statement> StatementPtr;

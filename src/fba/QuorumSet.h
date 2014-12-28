@@ -41,16 +41,16 @@ namespace stellar
 class BallotSet
 {
   public:
-    stellarxdr::SlotBallot mBallot;
+    SlotBallot mBallot;
     int mCount;
-    BallotSet(const stellarxdr::SlotBallot& b) : mBallot(b), mCount(1)
+    BallotSet(const SlotBallot& b) : mBallot(b), mCount(1)
     {
     }
 };
 
 class QuorumSet
 {
-    stellarxdr::uint256 mHash;
+    uint256 mHash;
 
     Node::RatState checkPrepareRatState(Statement::pointer statement,
                                         int visitIndex);
@@ -62,24 +62,24 @@ class QuorumSet
     int mThreshold;
 
     QuorumSet();
-    QuorumSet(stellarxdr::QuorumSet const& qset, Application& app);
+    QuorumSet(QuorumSetDesc const& qset, Application& app);
 
-    stellarxdr::uint256 getHash();
+    uint256 getHash();
     int getBlockingSize(); // returns the # of nodes it takes to block a Quorum
 
-    void sortBallots(stellarxdr::FBAStatementType type,
+    void sortBallots(FBAStatementType type,
                      vector<BallotSet>& retList);
 
-    BallotPtr getMostPopularBallot(stellarxdr::FBAStatementType type,
+    BallotPtr getMostPopularBallot(FBAStatementType type,
                                    bool checkValid, Application& app);
-    Statement::pointer getHighestStatement(stellarxdr::FBAStatementType type,
+    Statement::pointer getHighestStatement(FBAStatementType type,
                                            bool checkValid, Application& app);
 
-    Node::RatState checkRatState(stellarxdr::FBAStatementType statementType,
+    Node::RatState checkRatState(FBAStatementType statementType,
                                  BallotPtr ballot, int operationToken,
                                  int recheckCounter, Application& app);
 
-    void toXDR(stellarxdr::QuorumSet& qset);
+    void toXDR(QuorumSetDesc& qset);
 };
 }
 

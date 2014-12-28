@@ -3,18 +3,18 @@
 
 #include <map>
 #include "generated/StellarXDR.h"
-#include "ledger/LedgerEntry.h"
 #include "ledger/LedgerDelta.h"
 
 namespace stellar
 {
 class TxDelta
 {
-    std::map<stellarxdr::uint256, std::pair<LedgerEntry::pointer, LedgerEntry::pointer>> mStartEnd;
+    typedef std::pair<EntryFrame::pointer, EntryFrame::pointer> StartEndPair;
+    std::map<uint256, StartEndPair> mStartEnd;
 public:
     void merge(const TxDelta& other);
-    void setStart(LedgerEntry& entry);
-    void setFinal(LedgerEntry& entry);
+    void setStart(EntryFrame& entry);
+    void setFinal(EntryFrame& entry);
 
     void commitDelta(Json::Value& txResult, LedgerDelta& delta, LedgerMaster& ledgerMaster);
 

@@ -48,29 +48,29 @@ class PeerMaster : public OverlayGateway
     void ledgerClosed(LedgerPtr ledger);
 
     QuorumSet::pointer
-    fetchQuorumSet(stellarxdr::uint256 const& itemID, bool askNetwork)
+    fetchQuorumSet(uint256 const& itemID, bool askNetwork)
     {
         return (mQSetFetcher.fetchItem(itemID, askNetwork));
     }
     void
-    fetchDelta(stellarxdr::uint256 const& oldLedgerHash, uint32_t oldLedgerSeq)
+    fetchDelta(uint256 const& oldLedgerHash, uint32_t oldLedgerSeq)
     {
         mDeltaFetcher.fetchItem(oldLedgerHash, oldLedgerSeq);
     }
     void
-    recvFloodedMsg(stellarxdr::uint256 const& index,
-                   stellarxdr::StellarMessage const& msg, uint32_t ledgerIndex,
+    recvFloodedMsg(uint256 const& index,
+                   StellarMessage const& msg, uint32_t ledgerIndex,
                    Peer::pointer peer)
     {
         mFloodGate.addRecord(index, msg, ledgerIndex, peer);
     }
     void
-    doesntHaveQSet(stellarxdr::uint256 const& index, Peer::pointer peer)
+    doesntHaveQSet(uint256 const& index, Peer::pointer peer)
     {
         mQSetFetcher.doesntHave(index, peer);
     }
 
-    void broadcastMessage(stellarxdr::StellarMessage const& msg,
+    void broadcastMessage(StellarMessage const& msg,
                           Peer::pointer peer);
     void recvQuorumSet(QuorumSet::pointer qset);
     //////
@@ -83,8 +83,8 @@ class PeerMaster : public OverlayGateway
     Peer::pointer getNextPeer(
         Peer::pointer peer); // returns NULL if the passed peer isn't found
 
-    void broadcastMessage(stellarxdr::uint256 const& msgID);
-    void broadcastMessage(stellarxdr::StellarMessage const& msg,
+    void broadcastMessage(uint256 const& msgID);
+    void broadcastMessage(StellarMessage const& msg,
                           vector<Peer::pointer> const& skip);
 };
 }

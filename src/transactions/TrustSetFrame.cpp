@@ -3,8 +3,8 @@
 // this distribution or at http://opensource.org/licenses/ISC
 
 #include "transactions/TxResultCode.h"
-#include "TrustSetTx.h"
-#include "ledger/TrustLine.h"
+#include "TrustSetFrame.h"
+#include "ledger/TrustFrame.h"
 #include "ledger/LedgerMaster.h"
 
 namespace stellar

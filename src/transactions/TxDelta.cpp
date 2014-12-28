@@ -43,29 +43,32 @@ void TxDelta::merge(const TxDelta& other)
     // TODO.2
 }
 
-void TxDelta::setFinal(LedgerEntry& entry)
+void TxDelta::setFinal(EntryFrame& entry)
 {
     auto it = mStartEnd.find(entry.getIndex());
     if(it == mStartEnd.end())
     {
-        mStartEnd[entry.getIndex()] = std::pair<LedgerEntry::pointer, LedgerEntry::pointer>(LedgerEntry::pointer(), entry.copy());
+        StartEndPair pair;
+        pair.second = entry.copy();
+        mStartEnd[entry.getIndex()] = pair;
     } else
     {
         it->second.second = entry.copy();
     }
 }
 
-void TxDelta::setStart(LedgerEntry& entry)
+void TxDelta::setStart(EntryFrame&  entry)
 {
     auto it = mStartEnd.find(entry.getIndex());
     if(it == mStartEnd.end())
     {
-        mStartEnd[entry.getIndex()] = std::pair<LedgerEntry::pointer, LedgerEntry::pointer>(entry.copy(), LedgerEntry::pointer());
+        StartEndPair pair;
+        pair.first = entry.copy();
+        mStartEnd[entry.getIndex()] = pair;
     } else
     {
         it->second.first = entry.copy();
     }
-
 }
 
 
@@ -77,15 +80,15 @@ void TxDelta::commitDelta(Json::Value& txResult, LedgerDelta& ledgerDelta, Ledge
         if(!pair.second.first)
         { // new entry
             pair.second.second->storeAdd(txResult, ledgerMaster);
-            ledgerDelta.addEntry(pair.second.second);
+            ledgerDelta.addEntry(*pair.second.second);
         } else if(!pair.second.second)
         { // delete entry
             pair.second.first->storeDelete(txResult, ledgerMaster);
-            ledgerDelta.deleteEntry(pair.second.first);
+            ledgerDelta.deleteEntry(*pair.second.first);
         } else
         {
             pair.second.second->storeChange(pair.second.first, txResult, ledgerMaster);
-            ledgerDelta.modEntry(pair.second.second);
+            ledgerDelta.modEntry(*pair.second.second);
         }
     }   
 

@@ -2,42 +2,46 @@
 // under the ISC License. See the COPYING file at the top-level directory of
 // this distribution or at http://opensource.org/licenses/ISC
 
-#include "AccountEntry.h"
+#include "AccountFrame.h"
 #include "LedgerMaster.h"
 #include "lib/json/json.h"
 
 namespace stellar
 {
-    const char *AccountEntry::kSQLCreateStatement = "CREATE TABLE IF NOT EXISTS Accounts (						\
+    const char *AccountFrame::kSQLCreateStatement = "CREATE TABLE IF NOT EXISTS Accounts (						\
 		accountID		CHARACTER(35) PRIMARY KEY,	\
 		balance			BIGINT UNSIGNED,			\
 		sequence		INT UNSIGNED default 1,				\
 		ownerCount		INT UNSIGNED default 0,			\
 		transferRate	INT UNSIGNED default 0,		\
+        publicKey   	CHARACTER(35),		\
         inflationDest	CHARACTER(35),		\
-        inflationDest	CHARACTER(35),		\
-		inflationDest	CHARACTER(35),		\
-		publicKey		CHARACTER(56),		\
+		creditAuthKey	CHARACTER(56),		\
 		flags		    INT UNSIGNED default 0  	\
 	);";
 
-    AccountEntry::AccountEntry(const stellarxdr::LedgerEntry& from) : LedgerEntry(from)
+    AccountFrame::AccountFrame()
     {
 
     }
 
-    AccountEntry::AccountEntry(stellarxdr::uint160& id)
+    AccountFrame::AccountFrame(const LedgerEntry& from) : EntryFrame(from)
+    {
+
+    }
+
+    AccountFrame::AccountFrame(uint256& id)
     {
         // TODO.2
         //mEntry.
     }
 
-    void AccountEntry::calculateIndex()
+    void AccountFrame::calculateIndex()
     {
         // TODO.2
     }
 
-    void AccountEntry::storeDelete(Json::Value& txResult, LedgerMaster& ledgerMaster)
+    void AccountFrame::storeDelete(Json::Value& txResult, LedgerMaster& ledgerMaster)
     {
         std::string base58ID;
         toBase58(getIndex(), base58ID);
@@ -47,7 +51,7 @@ namespace stellar
         ledgerMaster.getDatabase().getSession() << "DELETE from Accounts where accountID=" << base58ID;
     }
 
-    void AccountEntry::storeChange(LedgerEntry::pointer startFrom, Json::Value& txResult, LedgerMaster& ledgerMaster)
+    void AccountFrame::storeChange(EntryFrame::pointer startFrom, Json::Value& txResult, LedgerMaster& ledgerMaster)
     {  
         std::string base58ID;
         toBase58(getIndex(), base58ID);
@@ -84,7 +88,7 @@ namespace stellar
         if(mEntry.account().pubKey != startFrom->mEntry.account().pubKey)
         {
             string keyStr;
-            toBase58(mEntry.account().pubKey, keyStr);
+            toBase58(*mEntry.account().pubKey, keyStr);
             if(before) sql << ", ";
             sql << " pubKey= " << keyStr;
             txResult["effects"]["mod"][base58ID]["pubKey"] = keyStr;
@@ -126,7 +130,7 @@ namespace stellar
     }
 
 
-    void AccountEntry::storeAdd(Json::Value& txResult, LedgerMaster& ledgerMaster)
+    void AccountFrame::storeAdd(Json::Value& txResult, LedgerMaster& ledgerMaster)
     {
         std::string base58ID;
         toBase58(getIndex(), base58ID);

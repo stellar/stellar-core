@@ -198,8 +198,6 @@ namespace stellar
 // should be relatively harmless if this happens.
 
 class Application;
-using stellarxdr::uint160;
-using stellarxdr::uint256;
 
 class Hasher
 {

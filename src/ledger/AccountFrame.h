@@ -6,19 +6,19 @@
 // this distribution or at http://opensource.org/licenses/ISC
 
 #include "transactions/TxResultCode.h"
-#include "LedgerEntry.h"
+#include "ledger/EntryFrame.h"
 #include "crypto/StellarPublicKey.h"
 
 namespace stellar
 {
-	class AccountEntry : public LedgerEntry
+	class AccountFrame : public EntryFrame
 	{
 		void calculateIndex();
 
 		
-		//void serialize(stellarxdr::uint256& hash, SLE::pointer& ret);
+		//void serialize(uint256& hash, SLE::pointer& ret);
 	public:
-        typedef std::shared_ptr<AccountEntry> pointer;
+        typedef std::shared_ptr<AccountFrame> pointer;
 
         enum Flags
         {
@@ -27,14 +27,15 @@ namespace stellar
             AUTH_REQUIRED_FLAG = 4
         };
         
-		AccountEntry(const stellarxdr::LedgerEntry& from);
-        AccountEntry(stellarxdr::uint160& id);
+        AccountFrame();
+        AccountFrame(const LedgerEntry& from);
+        AccountFrame(uint256& id);
 
-        LedgerEntry::pointer copy()  const  { return LedgerEntry::pointer(new AccountEntry(*this)); }
+        EntryFrame::pointer copy()  const  { return EntryFrame::pointer(new AccountFrame(*this)); }
 
 
         void storeDelete(Json::Value& txResult, LedgerMaster& ledgerMaster);
-        void storeChange(LedgerEntry::pointer startFrom, Json::Value& txResult, LedgerMaster& ledgerMaster);
+        void storeChange(EntryFrame::pointer startFrom, Json::Value& txResult, LedgerMaster& ledgerMaster);
         void storeAdd(Json::Value& txResult, LedgerMaster& ledgerMaster);
 
 		// will return txSUCCESS or that this account doesn't have the reserve to do this

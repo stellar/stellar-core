@@ -22,7 +22,7 @@ class BallotValue
   public:
     typedef std::shared_ptr<BallotValue> pointer;
 
-    virtual stellarxdr::uint256 getContentsHash() = 0;
+    virtual uint256 getContentsHash() = 0;
     virtual bool operator>(const BallotValue& other) = 0;
 };
 

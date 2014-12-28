@@ -20,7 +20,7 @@ class TCPPeer : public Peer
 
     void connect();
     void recvMessage();
-    void recvHello(stellarxdr::StellarMessage const& msg);
+    void recvHello(StellarMessage const& msg);
     void sendMessage(xdr::msg_ptr&& xdrBytes);
     int getIncomingMsgLength();
     void startRead();

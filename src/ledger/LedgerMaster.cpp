@@ -74,7 +74,7 @@ void LedgerMaster::syncWithCLF()
 }
 
 // called by txherder
-void LedgerMaster::externalizeValue(const stellarxdr::SlotBallot& slotBallot, TransactionSet::pointer txSet)
+void LedgerMaster::externalizeValue(const SlotBallot& slotBallot, TxSetFramePtr txSet)
 {
     if(getCurrentHeader()->hash == slotBallot.ballot.previousLedgerHash)
     {
@@ -118,7 +118,7 @@ void LedgerMaster::recvDelta(CLFDeltaPtr delta, LedgerHeaderPtr header)
     }
 }
 
-void LedgerMaster::closeLedger(TransactionSet::pointer txSet)
+void LedgerMaster::closeLedger(TxSetFramePtr txSet)
 {
     LedgerDelta ledgerDelta;
     mDatabase.beginTransaction();
@@ -156,7 +156,7 @@ bool LedgerMaster::ensureSync(ripple::Ledger::pointer lastClosedLedger)
     // first, make sure we're in sync with the world
     if (lastClosedLedger->getHash() != mLastLedgerHash)
     {
-        std::vector<stellarxdr::uint256> needed=lastClosedLedger->getNeededAccountStateHashes(1,NULL);
+        std::vector<uint256> needed=lastClosedLedger->getNeededAccountStateHashes(1,NULL);
         if(needed.size())
         {
             // we're missing some nodes
@@ -335,7 +335,7 @@ static void importHelper(SLE::ref curEntry, LedgerMaster &lm) {
     // else entry type we don't care about
 }
     
-CanonicalLedgerForm::pointer LedgerMaster::importLedgerState(stellarxdr::uint256 ledgerHash)
+CanonicalLedgerForm::pointer LedgerMaster::importLedgerState(uint256 ledgerHash)
 {
     CanonicalLedgerForm::pointer res;
 
@@ -367,19 +367,19 @@ CanonicalLedgerForm::pointer LedgerMaster::importLedgerState(stellarxdr::uint256
 
 void LedgerMaster::updateDBFromLedger(CanonicalLedgerForm::pointer ledger)
 {
-    stellarxdr::uint256 currentHash = ledger->getHash();
+    uint256 currentHash = ledger->getHash();
     string hex(to_string(currentHash));
 
     mCurrentDB.setState(mCurrentDB.getStoreStateName(LedgerDatabase::kLastClosedLedger), hex.c_str());
 }
 
-stellarxdr::uint256 LedgerMaster::getLastClosedLedgerHash()
+uint256 LedgerMaster::getLastClosedLedgerHash()
 {
     string h = mCurrentDB.getState(mCurrentDB.getStoreStateName(LedgerDatabase::kLastClosedLedger));
-    return stellarxdr::uint256(h); // empty string -> 0
+    return uint256(h); // empty string -> 0
 }
 
-void LedgerMaster::closeLedger(TransactionSet::pointer txSet)
+void LedgerMaster::closeLedger(TxSetFramePtr txSet)
 {
     mCurrentDB.beginTransaction();
     assert(mCurrentDB.getTransactionLevel() == 1);

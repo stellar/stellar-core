@@ -2,13 +2,13 @@
 // under the ISC License. See the COPYING file at the top-level directory of
 // this distribution or at http://opensource.org/licenses/ISC
 
-#include "OfferEntry.h"
+#include "ledger/OfferFrame.h"
 
 using namespace std;
 
 namespace stellar
 {
-    const char *OfferEntry::kSQLCreateStatement = "CREATE TABLE IF NOT EXISTS Offers (						\
+    const char *OfferFrame::kSQLCreateStatement = "CREATE TABLE IF NOT EXISTS Offers (						\
 			accountID		CHARACTER(35),		\
 			sequence		INT UNSIGNED,		\
 			takerPaysCurrency Blob(20),			\
@@ -20,14 +20,18 @@ namespace stellar
 			BOOL passive						\
 	);";
 
-    OfferEntry::OfferEntry(const stellarxdr::LedgerEntry& from) : LedgerEntry(from)
+    OfferFrame::OfferFrame()
+    {
+
+    }
+    OfferFrame::OfferFrame(const LedgerEntry& from) : EntryFrame(from)
     {
 
     }
 
-    OfferEntry::OfferEntry(const stellarxdr::Transaction& tx) : LedgerEntry()
+    OfferFrame::OfferFrame(const Transaction& tx) : EntryFrame()
     {
-        mEntry.type(stellarxdr::OFFER);
+        mEntry.type(OFFER);
         mEntry.offer().accountID = tx.account;
         mEntry.offer().amount = tx.body.createOfferTx().amount;
         mEntry.offer().price = tx.body.createOfferTx().price;
@@ -37,22 +41,22 @@ namespace stellar
         mEntry.offer().passive = tx.body.createOfferTx().passive;
     }
 
-    void OfferEntry::calculateIndex()
+    void OfferFrame::calculateIndex()
     {
         // TODO.2
     }
 
     
 
-    void OfferEntry::storeDelete(Json::Value& txResult, LedgerMaster& ledgerMaster)
+    void OfferFrame::storeDelete(Json::Value& txResult, LedgerMaster& ledgerMaster)
     {
 
     }
-    void OfferEntry::storeChange(LedgerEntry::pointer startFrom, Json::Value& txResult, LedgerMaster& ledgerMaster)
+    void OfferFrame::storeChange(EntryFrame::pointer startFrom, Json::Value& txResult, LedgerMaster& ledgerMaster)
     {
 
     }
-    void OfferEntry::storeAdd(Json::Value& txResult, LedgerMaster& ledgerMaster)
+    void OfferFrame::storeAdd(Json::Value& txResult, LedgerMaster& ledgerMaster)
     {
 
     }

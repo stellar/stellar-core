@@ -5,7 +5,7 @@
 // under the ISC License. See the COPYING file at the top-level directory of
 // this distribution or at http://opensource.org/licenses/ISC
 
-#include "transactions/Transaction.h"
+#include "transactions/TransactionFrame.h"
 #include "generated/StellarXDR.h"
 
 using namespace std;
@@ -13,29 +13,29 @@ using namespace std;
 namespace stellar
 {
 
-class Transaction;
-typedef std::shared_ptr<Transaction> TransactionPtr;
+class TransactionFrame;
+typedef std::shared_ptr<TransactionFrame> TransactionFramePtr;
 
-class TransactionSet
+class TxSetFrame
 {
-    stellarxdr::uint256 mHash;
+    uint256 mHash;
 
   public:
-    typedef std::shared_ptr<TransactionSet> pointer;
+    typedef std::shared_ptr<TxSetFrame> pointer;
 
-    vector<TransactionPtr> mTransactions;
+    vector<TransactionFramePtr> mTransactions;
 
-    TransactionSet();
+    TxSetFrame();
 
     // make it from the wire
-    TransactionSet(stellarxdr::TransactionSet const& xdrSet);
+    TxSetFrame(TransactionSet const& xdrSet);
 
-    TransactionPtr getTransaction(stellarxdr::uint256 const& txHash);
+    TransactionFramePtr getTransaction(uint256 const& txHash);
     // returns the hash of this tx set
-    stellarxdr::uint256 getContentsHash();
+    uint256 getContentsHash();
 
     void
-    add(TransactionPtr tx)
+    add(TransactionFramePtr tx)
     {
         mTransactions.push_back(tx);
     }
@@ -48,7 +48,7 @@ class TransactionSet
         return mTransactions.size();
     }
 
-    void toXDR(stellarxdr::TransactionSet& set);
+    void toXDR(TransactionSet& set);
 };
 }
 

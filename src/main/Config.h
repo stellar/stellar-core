@@ -38,9 +38,9 @@ class Config : public std::enable_shared_from_this<Config>
     std::vector<std::string> KNOWN_PEERS;
 
     // FBA config
-    stellarxdr::uint256 VALIDATION_SEED;
+    uint256 VALIDATION_SEED;
     int QUORUM_THRESHOLD;
-    std::vector<stellarxdr::uint256> QUORUM_SET;
+    std::vector<uint256> QUORUM_SET;
 
     // History config
     std::map<std::string,std::shared_ptr<HistoryArchive>> HISTORY;

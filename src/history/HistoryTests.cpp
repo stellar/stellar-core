@@ -28,11 +28,11 @@ TEST_CASE("WriteLedgerHistoryToFile", "[history]")
     VirtualClock clock;
     Config const& cfg = getTestConfig();
     Application app(clock, cfg);
-    autocheck::generator<stellarxdr::History> gen;
+    autocheck::generator<History> gen;
     HistoryMaster hm(app);
     auto h1 = gen(10);
     auto fname = hm.writeLedgerHistoryToFile(h1);
-    stellarxdr::History h2;
+    History h2;
     hm.readLedgerHistoryFromFile(fname, h2);
     CHECK(h1.fromLedger == h2.fromLedger);
     LOG(DEBUG) << "unlinking " << fname;

@@ -8,6 +8,9 @@
 #include <string>
 #include <soci.h>
 #include "generated/StellarXDR.h"
+#include "ledger/AccountFrame.h"
+#include "ledger/OfferFrame.h"
+#include "ledger/TrustFrame.h"
 
 #define OFFER_PRICE_DIVISOR 1000000000
 
@@ -41,15 +44,16 @@ class Database
     void endTransaction(bool rollback);
     int getTransactionLevel();
 
-    bool loadAccount(const stellarxdr::uint160& accountID, stellarxdr::LedgerEntry& retEntry);
-    bool loadTrustLine(const stellarxdr::uint160& accountID,
-        const stellarxdr::CurrencyIssuer& currency,
-        stellarxdr::LedgerEntry& retEntry);
-    bool loadOffer(const stellarxdr::uint160& accountID,uint32_t seq, stellarxdr::LedgerEntry& retEntry);
+    bool loadAccount(const uint256& accountID, AccountFrame& retEntry);
+    bool loadTrustLine(const uint256& accountID,
+        const CurrencyIssuer& currency,
+        TrustFrame& retEntry);
+    bool loadOffer(const uint256& accountID,uint32_t seq, OfferFrame& retEntry);
 
-    void loadBestOffers(int numOffers, int offset, stellarxdr::CurrencyIssuer& pays,
-        stellarxdr::CurrencyIssuer& gets, std::vector<stellarxdr::LedgerEntry>& retOffers);
+    void loadBestOffers(int numOffers, int offset, Currency& pays,
+        Currency& gets, std::vector<OfferFrame>& retOffers);
 
+    int64_t getOfferAmountFunded(const OfferFrame& offer);
     //bool loadOffer()
 
 

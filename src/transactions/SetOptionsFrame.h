@@ -1,8 +1,8 @@
-#include "transactions/Transaction.h"
+#include "transactions/TransactionFrame.h"
 
 namespace stellar
 {
-    class MergeTx : public Transaction
+    class SetOptionsFrame : public TransactionFrame
     {
 
     public:
