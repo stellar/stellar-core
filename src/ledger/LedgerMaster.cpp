@@ -132,7 +132,7 @@ void LedgerMaster::closeLedger(TxSetFramePtr txSet)
             std::string retStr;
             txResult["id"] = toBase58(tx->getHash(), retStr);
             txResult["code"] = tx->getResultCode();
-            txResult["ledger"] = getCurrentHeader()->ledgerSeq;
+            txResult["ledger"] = (Json::UInt64)getCurrentHeader()->ledgerSeq;
 
             delta.commitDelta(txResult, ledgerDelta, *this );
 
