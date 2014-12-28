@@ -9,6 +9,32 @@
 
 namespace stellar
 {
+    void TrustSetFrame::fillTrustLine(TrustFrame& line)
+    {
+        line.mEntry.trustLine().limit
+        line.mEntry.trustLine().authorized;
+    }
+
+    // see if we are modifying an old trustline
+    void TrustSetFrame::doApply(TxDelta& delta, LedgerMaster& ledgerMaster)
+    {
+        TrustFrame trustLine;
+        if(ledgerMaster.getDatabase().loadTrustLine(mSigningAccount.mEntry.account().accountID,
+            mEnvelope.tx.body.changeTrustTx().line, trustLine))
+        {
+            delta.setStart(trustLine);
+            fillTrustLine(trustLine);
+            delta.setFinal(trustLine);
+        } else
+        { // new trust line
+            trustLine.mEntry.type(TRUSTLINE);
+            trustLine.mEntry.trustLine().accountID = mSigningAccount.mEntry.account().accountID;
+            fillTrustLine(trustLine);
+
+            delta.setFinal(trustLine);
+        }
+    }
+
     /* NICOLAS
 	TxResultCode TrustSetTx::doApply()
 	{

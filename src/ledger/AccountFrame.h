@@ -38,6 +38,8 @@ namespace stellar
         void storeChange(EntryFrame::pointer startFrom, Json::Value& txResult, LedgerMaster& ledgerMaster);
         void storeAdd(Json::Value& txResult, LedgerMaster& ledgerMaster);
 
+        
+
 		// will return txSUCCESS or that this account doesn't have the reserve to do this
 		TxResultCode tryToIncreaseOwnerCount();
 

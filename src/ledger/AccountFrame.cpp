@@ -38,7 +38,7 @@ namespace stellar
 
     void AccountFrame::calculateIndex()
     {
-        // TODO.2
+        mIndex = mEntry.account().accountID;
     }
 
     void AccountFrame::storeDelete(Json::Value& txResult, LedgerMaster& ledgerMaster)

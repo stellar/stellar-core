@@ -11,7 +11,7 @@ namespace stellar
 {
 	class TrustSetFrame : public TransactionFrame
 	{
-		
+        void fillTrustLine(TrustFrame& line);
 	public:
         void doApply(TxDelta& delta, LedgerMaster& ledgerMaster);
         bool doCheckValid(LedgerMaster& ledgerMaster);

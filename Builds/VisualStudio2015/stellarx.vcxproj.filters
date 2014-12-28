@@ -288,6 +288,9 @@
     <ClCompile Include="..\..\src\transactions\TrustSetFrame.cpp">
       <Filter>transactions</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\transactions\AllowTrustTxFrame.cpp">
+      <Filter>transactions</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\fba\Ballot.h">
@@ -528,6 +531,9 @@
       <Filter>transactions</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\transactions\TrustSetFrame.h">
+      <Filter>transactions</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\transactions\AllowTrustTxFrame.h">
       <Filter>transactions</Filter>
     </ClInclude>
   </ItemGroup>

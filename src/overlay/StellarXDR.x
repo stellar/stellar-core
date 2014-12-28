@@ -38,6 +38,7 @@ enum TransactionType
 	CANCEL_OFFER,
 	SET_OPTIONS,
 	CHANGE_TRUST,
+	ALLOW_TRUST,
 	ACCOUNT_MERGE,
 	INFLATION
 };
@@ -100,8 +101,14 @@ struct SetOptionsTx
 struct ChangeTrustTx
 {
 	CurrencyIssuer line;
-	int64 amount;
-	bool auth;
+	int64 limit;
+};
+
+struct AllowTrustTx
+{
+	uint256 trustor;
+	uint160 currencyCode;
+	bool authorize;
 };
 
 struct Transaction
@@ -124,6 +131,8 @@ struct Transaction
 			SetOptionsTx setOptionsTx;
 		case CHANGE_TRUST:
 			ChangeTrustTx changeTrustTx;
+		case ALLOW_TRUST:
+			AllowTrustTx allowTrustTx;
 		case ACCOUNT_MERGE:
 			uint256 destination;
 		case INFLATION:
