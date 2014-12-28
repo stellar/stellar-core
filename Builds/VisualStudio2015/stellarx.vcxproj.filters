@@ -285,10 +285,10 @@
     <ClCompile Include="..\..\src\transactions\SetOptionsFrame.cpp">
       <Filter>transactions</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\transactions\TrustSetFrame.cpp">
+    <ClCompile Include="..\..\src\transactions\AllowTrustTxFrame.cpp">
       <Filter>transactions</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\transactions\AllowTrustTxFrame.cpp">
+    <ClCompile Include="..\..\src\transactions\ChangeTrustTxFrame.cpp">
       <Filter>transactions</Filter>
     </ClCompile>
   </ItemGroup>
@@ -530,10 +530,10 @@
     <ClInclude Include="..\..\src\transactions\SetOptionsFrame.h">
       <Filter>transactions</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\transactions\TrustSetFrame.h">
+    <ClInclude Include="..\..\src\transactions\AllowTrustTxFrame.h">
       <Filter>transactions</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\transactions\AllowTrustTxFrame.h">
+    <ClInclude Include="..\..\src\transactions\ChangeTrustTxFrame.h">
       <Filter>transactions</Filter>
     </ClInclude>
   </ItemGroup>

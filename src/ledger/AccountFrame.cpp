@@ -41,6 +41,11 @@ namespace stellar
         mIndex = mEntry.account().accountID;
     }
 
+    bool AccountFrame::authRequired()
+    {
+        return(mEntry.account().flags & AccountFrame::AUTH_REQUIRED_FLAG);
+    }
+
     void AccountFrame::storeDelete(Json::Value& txResult, LedgerMaster& ledgerMaster)
     {
         std::string base58ID;

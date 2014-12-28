@@ -170,7 +170,7 @@
     <ClCompile Include="..\..\src\process\ProcessMaster.cpp" />
     <ClCompile Include="..\..\src\process\ProcessTests.cpp" />
     <ClCompile Include="..\..\src\transactions\TransactionFrame.cpp" />
-    <ClCompile Include="..\..\src\transactions\TrustSetFrame.cpp" />
+    <ClCompile Include="..\..\src\transactions\ChangeTrustTxFrame.cpp" />
     <ClCompile Include="..\..\src\txherder\TxSetFrame.cpp" />
     <ClCompile Include="..\..\src\txherder\TxHerder.cpp" />
     <ClCompile Include="..\..\src\util\Logging.cpp" />
@@ -250,7 +250,7 @@
     <ClInclude Include="..\..\src\transactions\SetOptionsFrame.h" />
     <ClInclude Include="..\..\src\transactions\TransactionFrame.h" />
     <ClInclude Include="..\..\src\transactions\TxResultCode.h" />
-    <ClInclude Include="..\..\src\transactions\TrustSetFrame.h" />
+    <ClInclude Include="..\..\src\transactions\ChangeTrustTxFrame.h" />
     <ClInclude Include="..\..\src\transactions\TxDelta.h" />
     <ClInclude Include="..\..\src\txherder\TxSetFrame.h" />
     <ClInclude Include="..\..\src\txherder\TxHerder.h" />
