@@ -86,7 +86,7 @@ AC_SUBST(XDRC)
 
 # We do not bundle libpq, but we'll compile-in support if it's present.
 # Add other optional database drivers here (and later, in SOCI).
-PKG_CHECK_MODULES([libpq],[libpq], [use_POSTGRESQL=1])
+PKG_CHECK_MODULES([libpq],[libpq],[use_POSTGRESQL=1],[use_POSTGRESQL=])
 AM_CONDITIONAL(USE_POSTGRESQL, [test "x$use_POSTGRESQL" != "x"])
 
 CPPFLAGS="$CPPFLAGS "'$(libsodium_CFLAGS) $(xdrpp_CFLAGS) $(sqlite_CFLAGS) $(libpq_CFLAGS)'
