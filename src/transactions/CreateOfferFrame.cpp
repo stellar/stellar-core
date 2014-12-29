@@ -86,9 +86,13 @@ void CreateOfferFrame::doApply(TxDelta& delta, LedgerMaster& ledgerMaster)
             return;
         }
     }
-        
+
 }
 
-
+bool CreateOfferFrame::doCheckValid(LedgerMaster& ledgerMaster)
+{
+    // TODO.2
+    return false;
+}
 
 }

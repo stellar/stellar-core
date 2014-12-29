@@ -21,4 +21,11 @@ void CancelOfferFrame::doApply(TxDelta& delta, LedgerMaster& ledgerMaster)
     delta.setStart(offerFrame);  // setting the start but no final deletes the entry
     delta.setFinal(mSigningAccount);
 }
+
+bool CancelOfferFrame::doCheckValid(LedgerMaster& ledgerMaster)
+{
+    // TODO.2
+    return false;
+}
+
 }

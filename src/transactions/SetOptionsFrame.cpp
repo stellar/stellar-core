@@ -41,4 +41,11 @@ namespace stellar
         mResultCode = txSUCCESS;
         delta.setFinal(mSigningAccount);
     }
+
+    bool SetOptionsFrame::doCheckValid(LedgerMaster& ledgerMaster)
+    {
+        // TODO.2
+        return false;
+    }
+
 }
