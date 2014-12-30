@@ -4,34 +4,35 @@ SUBDIRS =
 noinst_LTLIBRARIES = libsoci.la
 bin_PROGRAMS = bin/stellard
 
-FMT_SRCS = src/clf/BucketList.cpp src/clf/CLFTests.cpp                          \
-    src/crypto/CryptoTests.cpp src/database/Database.cpp                        \
-    src/database/DatabaseTests.cpp src/fba/Ballot.cpp src/fba/FBAMaster.cpp     \
-    src/fba/FBATests.cpp src/fba/FutureStatement.cpp src/fba/Node.cpp           \
-    src/fba/OurNode.cpp src/fba/QuorumSet.cpp src/fba/Statement.cpp             \
-    src/history/HistoryArchive.cpp src/history/HistoryMaster.cpp                \
-    src/history/HistoryTests.cpp src/ledger/AccountFrame.cpp                    \
-    src/ledger/EntryFrame.cpp src/ledger/Ledger.cpp src/ledger/LedgerDelta.cpp  \
-    src/ledger/LedgerMaster.cpp src/ledger/OfferFrame.cpp                       \
-    src/ledger/TrustFrame.cpp src/main/Application.cpp                          \
-    src/main/CommandHandler.cpp src/main/Config.cpp src/main/main.cpp           \
-    src/main/test.cpp src/overlay/Floodgate.cpp src/overlay/ItemFetcher.cpp     \
-    src/overlay/LoopbackPeer.cpp src/overlay/OverlayTests.cpp                   \
-    src/overlay/Peer.cpp src/overlay/PeerDoor.cpp src/overlay/PeerMaster.cpp    \
-    src/overlay/PreferredPeers.cpp src/overlay/TCPPeer.cpp                      \
-    src/process/ProcessMaster.cpp src/process/ProcessTests.cpp                  \
-    src/simulation/CycleTests.cpp src/simulation/Simulation.cpp                 \
-    src/transactions/CancelOfferFrame.cpp src/transactions/CreateOfferFrame.cpp \
-    src/transactions/InflationFrame.cpp src/transactions/MergeFrame.cpp         \
-    src/transactions/PaymentFrame.cpp src/transactions/SetOptionsFrame.cpp      \
-    src/transactions/TransactionFrame.cpp src/transactions/TrustSetFrame.cpp    \
-    src/transactions/TxDelta.cpp src/txherder/TxHerder.cpp                      \
-    src/txherder/TxSetFrame.cpp src/util/Logging.cpp src/util/Timer.cpp         \
-    src/util/types.cpp
+FMT_SRCS = src/clf/BucketList.cpp src/clf/CLFTests.cpp src/crypto/Base58.cpp    \
+    src/crypto/Hex.cpp src/crypto/SHA.cpp src/crypto/CryptoTests.cpp            \
+    src/database/Database.cpp src/database/DatabaseTests.cpp src/fba/Ballot.cpp \
+    src/fba/FBAMaster.cpp src/fba/FBATests.cpp src/fba/FutureStatement.cpp      \
+    src/fba/Node.cpp src/fba/OurNode.cpp src/fba/QuorumSet.cpp                  \
+    src/fba/Statement.cpp src/history/HistoryArchive.cpp                        \
+    src/history/HistoryMaster.cpp src/history/HistoryTests.cpp                  \
+    src/ledger/AccountFrame.cpp src/ledger/EntryFrame.cpp src/ledger/Ledger.cpp \
+    src/ledger/LedgerDelta.cpp src/ledger/LedgerMaster.cpp                      \
+    src/ledger/OfferFrame.cpp src/ledger/TrustFrame.cpp                         \
+    src/main/Application.cpp src/main/CommandHandler.cpp src/main/Config.cpp    \
+    src/main/main.cpp src/main/test.cpp src/overlay/Floodgate.cpp               \
+    src/overlay/ItemFetcher.cpp src/overlay/LoopbackPeer.cpp                    \
+    src/overlay/OverlayTests.cpp src/overlay/Peer.cpp src/overlay/PeerDoor.cpp  \
+    src/overlay/PeerMaster.cpp src/overlay/PreferredPeers.cpp                   \
+    src/overlay/TCPPeer.cpp src/process/ProcessMaster.cpp                       \
+    src/process/ProcessTests.cpp src/simulation/CycleTests.cpp                  \
+    src/simulation/Simulation.cpp src/transactions/CancelOfferFrame.cpp         \
+    src/transactions/CreateOfferFrame.cpp src/transactions/InflationFrame.cpp   \
+    src/transactions/MergeFrame.cpp src/transactions/PaymentFrame.cpp           \
+    src/transactions/SetOptionsFrame.cpp src/transactions/TransactionFrame.cpp  \
+    src/transactions/TrustSetFrame.cpp src/transactions/TxDelta.cpp             \
+    src/txherder/TxHerder.cpp src/txherder/TxSetFrame.cpp src/util/Logging.cpp  \
+    src/util/Timer.cpp src/util/types.cpp
 
 FMT_HDRS = src/clf/BucketList.h src/clf/CLF.h src/clf/CLFDelta.h                \
-    src/clf/CLFGateway.h src/clf/CanonicalLedgerForm.h src/database/Database.h  \
-    src/fba/Ballot.h src/fba/FBA.h src/fba/FBAGateway.h src/fba/FBAMaster.h     \
+    src/clf/CLFGateway.h src/clf/CanonicalLedgerForm.h src/crypto/Base58.h      \
+    src/crypto/Hex.h src/crypto/SHA.h src/database/Database.h src/fba/Ballot.h  \
+    src/fba/FBA.h src/fba/FBAGateway.h src/fba/FBAMaster.h                      \
     src/fba/FBAWorldInterface.h src/fba/FutureStatement.h src/fba/Node.h        \
     src/fba/OurNode.h src/fba/QuorumSet.h src/fba/Statement.h                   \
     src/history/HistoryArchive.h src/history/HistoryGateway.h                   \
