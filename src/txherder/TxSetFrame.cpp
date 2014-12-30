@@ -21,6 +21,15 @@ TxSetFrame::TxSetFrame(TransactionSet const& xdrSet)
     }
 }
 
+bool TxSetFrame::checkValid(Application& app)
+{
+    for(auto tx : mTransactions)
+    {
+        if(!tx->checkValid(app)) return false;
+    }
+    return true;
+}
+
 uint256
 TxSetFrame::getContentsHash()
 {

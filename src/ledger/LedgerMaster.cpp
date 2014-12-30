@@ -44,6 +44,21 @@ void LedgerMaster::startNewLedger()
 
 }
 
+int64_t LedgerMaster::getFee()
+{
+    return 0; // TODO.2
+}
+
+int64_t LedgerMaster::getMinBalance(int32_t ownerCount)
+{
+    return 0; // TODO.2
+}
+
+int64_t LedgerMaster::getLedgerNum()
+{
+    return 0; // TODO.2
+}
+
 Ledger::pointer LedgerMaster::getCurrentLedger()
 {
     // TODO.2

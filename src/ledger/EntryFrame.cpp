@@ -10,12 +10,12 @@ namespace stellar
  
 EntryFrame::EntryFrame()
 {
-
+    mValid = false;
 }
 
 EntryFrame::EntryFrame(const LedgerEntry& from) : mEntry(from)
 {
-
+    mValid = true;
 }
 
 uint256 EntryFrame::getIndex()

@@ -11,7 +11,7 @@ extern "C" void register_factory_sqlite3();
 extern "C" void register_factory_postgresql();
 #endif
 
-
+using namespace soci;
 
 namespace stellar
 {
@@ -39,56 +39,121 @@ Database::Database(Application& app)
     mSession.open(app.getConfig().DATABASE);
 }
 
-bool Database::loadAccount(const uint256& accountID, AccountFrame& retEntry)
+bool Database::loadAccount(const uint256& accountID, AccountFrame& retAcc)
 {
+    // TODO.2 how do we represent NULL unit256 values in the DB?
     std::string base58ID;
     toBase58(accountID, base58ID);
+    std::string publicKey, inflationDest, creditAuthKey;
 
-    //TODO.2 mSession << "SELECT * from Accounts where accountID=" << base58ID , into
-    return false;
+    retAcc.mEntry.type(ACCOUNT);
+    AccountEntry& account = retAcc.mEntry.account();
+    mSession << "SELECT balance,sequence,ownerCount,transferRate,publicKey, \
+        inflationDest,creditAuthKey,flags from Accounts where accountID=:v1",
+        into(account.balance), into(account.sequence), into(account.ownerCount),
+        into(account.transferRate), into(publicKey), into(inflationDest),
+        into(creditAuthKey), into(account.flags),
+        use(base58ID);
+
+    if(!mSession.got_data())
+        return false;
+
+    account.pubKey.activate() = fromBase58(publicKey);
+    account.inflationDest.activate() = fromBase58(inflationDest);
+    account.creditAuthKey.activate() = fromBase58(creditAuthKey);
+
+    return true;
 }
 
 bool Database::loadTrustLine(const uint256& accountID,
     const CurrencyIssuer& currency,
-    TrustFrame& retEntry)
+    TrustFrame& retLine)
 {
-    return false;
+    std::string accStr,issuerStr,currencyStr;
+    toBase58(accountID, accStr);
+    toBase58(currency.currencyCode, currencyStr);
+    toBase58(currency.issuer, issuerStr);
+
+    retLine.mEntry.type(TRUSTLINE);
+    int authInt;
+    mSession << "SELECT limit,balance,authorized from TrustLines where \
+        accountID=:v1 and issuer=:v2 and currency=:v3",
+        into(retLine.mEntry.trustLine().limit),
+        into(retLine.mEntry.trustLine().balance),
+        into(authInt),
+        use(accStr), use(issuerStr), use(currencyStr);
+    if(!mSession.got_data())
+        return false;
+    
+    retLine.mEntry.trustLine().authorized = authInt;
+    retLine.mEntry.trustLine().accountID = accountID;
+    retLine.mEntry.trustLine().currencyCode = currency.currencyCode;
+    retLine.mEntry.trustLine().issuer = currency.issuer;
+
+    return true;
 }
 
-bool Database::loadOffer(const uint256& accountID, uint32_t seq, OfferFrame& retEntry)
+bool Database::loadOffer(const uint256& accountID, uint32_t seq, OfferFrame& retOffer)
 {
-    // TODO.2
-    return false;
+    // TODO.2 how are we representing native currency and issuer
+    std::string accStr;
+    toBase58(accountID, accStr);
+    int passiveInt;
+    retOffer.mEntry.type(OFFER);
+    std::string takerPaysCurrency, takerPaysIssuer, takerGetsCurrency, takerGetsIssuer;
+    mSession << "SELECT takerPaysCurrency, takerPaysIssuer, takerGetsCurrency, \
+        takerGetsIssuer, amount, price, passive from Offers \
+        where accountID=:v1 and sequence=:v2",
+        into(takerPaysCurrency), into(takerPaysIssuer), into(takerGetsCurrency),
+        into(takerGetsIssuer), into(retOffer.mEntry.offer().amount),
+        into(retOffer.mEntry.offer().price), into(passiveInt),
+        use(accStr), use(seq);
+
+    if(!mSession.got_data()) return false;
+
+    retOffer.mEntry.offer().passive = passiveInt;
+    retOffer.mEntry.offer().takerGets.native(false);
+    retOffer.mEntry.offer().takerPays.native(false);
+
+    retOffer.mEntry.offer().takerGets.ci().currencyCode= base58to160(takerGetsCurrency);
+    retOffer.mEntry.offer().takerGets.ci().issuer = fromBase58(takerGetsIssuer);
+
+    retOffer.mEntry.offer().takerPays.ci().currencyCode = base58to160(takerPaysCurrency);
+    retOffer.mEntry.offer().takerPays.ci().issuer = fromBase58(takerPaysIssuer);
+
+    return true;
 }
 
 void Database::loadBestOffers(int numOffers, int offset, Currency& pays,
     Currency& gets, vector<OfferFrame>& retOffers)
 {
     // TODO.2
+    mSession << "SELECT * from Offers where order by price limit :v1, :v2",
+        use(offset), use(numOffers);
+
 }
 
-int64_t Database::getOfferAmountFunded(const OfferFrame& offer)
+int64_t Database::getBalance(const uint256& accountID,const Currency& currency)
 {
     int64_t amountFunded = 0;
-    if(offer.mEntry.offer().takerGets.native())
+    if(currency.native())
     {
         AccountFrame account;
-        if(loadAccount(offer.mEntry.offer().accountID, account))
+        if(loadAccount(accountID, account))
         {
             amountFunded = account.mEntry.account().balance;
         }
     } else
     {
         TrustFrame trustLine;
-        if(loadTrustLine(offer.mEntry.offer().accountID, offer.mEntry.offer().takerGets.ci(), trustLine))
+        if(loadTrustLine(accountID, currency.ci(), trustLine))
         {
             if(trustLine.mEntry.trustLine().authorized)
                 amountFunded = trustLine.mEntry.trustLine().balance;
         }
     }
 
-    if(offer.mEntry.offer().amount < amountFunded) return(offer.mEntry.offer().amount);
-    else return amountFunded;
+    return amountFunded;
 }
 
 void Database::beginTransaction() {

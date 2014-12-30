@@ -33,15 +33,13 @@ namespace stellar
 
         bool preApply(TxDelta& delta, LedgerMaster& ledgerMaster);
 
-        virtual bool doCheckValid(LedgerMaster& ledgerMaster) = 0;
+        virtual bool doCheckValid(Application& app) = 0;
 		virtual void doApply(TxDelta& delta, LedgerMaster& ledgerMaster) = 0;
-        int64_t convert(Currency& sell,
-            Currency& buy, int64_t amountToSell, int64_t maxPrice,  
-            TxDelta& delta, LedgerMaster& ledgerMaster);
+
         
-        int64_t convert(TrustLineEntry& sellLine,
-            TrustLineEntry& buyLine, int64_t amountToSell, int64_t maxPrice,
-            TxDelta& delta, LedgerMaster& ledgerMaster);
+        int64_t getTransferRate(Currency& currency, LedgerMaster& ledgerMaster);
+        
+       
 
         //bool isAuthorizedToHold(const AccountEntry& accountID, const CurrencyIssuer& currency,LedgerMaster& ledgerMaster);
 	public:
@@ -51,11 +49,10 @@ namespace stellar
 		static TransactionFrame::pointer makeTransactionFromWire(TransactionEnvelope const& msg);
         uint256& getHash();
         uint256& getSignature();
-		bool isValid();
 
         TxResultCode getResultCode() { return mResultCode;  }
 
-        bool checkValid(LedgerMaster& ledgerMaster);
+        bool checkValid(Application& app);
 
 		// apply this transaction to the current ledger
 		// LATER: how will applying historical txs work?

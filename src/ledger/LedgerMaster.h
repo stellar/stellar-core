@@ -52,6 +52,10 @@ namespace stellar
 
 		// called by CLF
         void recvDelta(CLFDeltaPtr delta, LedgerHeaderPtr header);
+
+        int64_t getFee();
+        int64_t getLedgerNum();
+        int64_t getMinBalance(int32_t ownerCount);
 		
 		///////
 

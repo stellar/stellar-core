@@ -17,8 +17,16 @@ namespace stellar
             mEnvelope.tx.body.changeTrustTx().line, trustLine))
         { // we are modifying an old trustline
             delta.setStart(trustLine);
+
             trustLine.mEntry.trustLine().limit= mEnvelope.tx.body.changeTrustTx().limit;
-            delta.setFinal(trustLine);
+            if(trustLine.mEntry.trustLine().limit == 0 &&
+                trustLine.mEntry.trustLine().balance == 0)
+            {
+                mSigningAccount.mEntry.account().ownerCount--;
+                delta.setFinal(mSigningAccount);
+                //delete this line by not adding it to setFinal
+            }else delta.setFinal(trustLine);
+            mResultCode = txSUCCESS;
         } else
         { // new trust line
             AccountFrame issuer;

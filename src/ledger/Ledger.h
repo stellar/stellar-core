@@ -34,8 +34,8 @@ namespace stellar
 
 		Ledger();
 
-        uint64_t getMinBalance(); 
-        uint64_t getTxFee();
+        int64_t getMinBalance(); 
+        int64_t getTxFee();
 
 		std::uint64_t scaleFeeBase(std::uint64_t fee);
 		std::uint64_t getReserve(int increments);

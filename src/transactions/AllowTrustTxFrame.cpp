@@ -29,7 +29,7 @@ namespace stellar
         delta.setFinal(trustLine);
     }
 
-    bool AllowTrustTxFrame::doCheckValid(LedgerMaster& ledgerMaster)
+    bool AllowTrustTxFrame::doCheckValid(Application& app)
     {
         return false;
     }

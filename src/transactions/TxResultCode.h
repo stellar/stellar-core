@@ -24,6 +24,7 @@ namespace stellar
         txRATE_FIXED,
         txNOT_AUTHORIZED,
         txINTERNAL_ERROR,
+        txCROSS_SELF,
 
 
         txNOACCOUNT

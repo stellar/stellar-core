@@ -14,7 +14,7 @@ namespace stellar
         
 	public:
         void doApply(TxDelta& delta, LedgerMaster& ledgerMaster);
-        bool doCheckValid(LedgerMaster& ledgerMaster);
+        bool doCheckValid(Application& app);
 	};
 }
 

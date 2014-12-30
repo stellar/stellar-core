@@ -41,4 +41,14 @@ namespace stellar
         mResultCode = txSUCCESS;
         delta.setFinal(mSigningAccount);
     }
+
+    bool SetOptionsFrame::doCheckValid(Application& app)
+    {
+        // transfer rate can't be greater than 1
+        if(mEnvelope.tx.body.setOptionsTx().transferRate)
+        {
+            if(*mEnvelope.tx.body.setOptionsTx().transferRate > TRANSFER_RATE_DIVISOR)
+                return false;
+        }
+    }
 }

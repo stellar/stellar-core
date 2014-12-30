@@ -34,6 +34,8 @@ class TxSetFrame
     // returns the hash of this tx set
     uint256 getContentsHash();
 
+    bool checkValid(Application& app);
+
     void
     add(TransactionFramePtr tx)
     {

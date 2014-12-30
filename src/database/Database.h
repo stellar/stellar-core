@@ -13,7 +13,7 @@
 #include "ledger/TrustFrame.h"
 
 #define OFFER_PRICE_DIVISOR 1000000000
-
+#define TRANSFER_RATE_DIVISOR 10000000
 namespace stellar
 {
 class Application;
@@ -53,7 +53,7 @@ class Database
     void loadBestOffers(int numOffers, int offset, Currency& pays,
         Currency& gets, std::vector<OfferFrame>& retOffers);
 
-    int64_t getOfferAmountFunded(const OfferFrame& offer);
+    int64_t getBalance(const uint256& accountID, const Currency& currency);
     //bool loadOffer()
 
 

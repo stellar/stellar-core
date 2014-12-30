@@ -56,7 +56,13 @@ TxHerder::isValidBallotValue(Ballot const& ballot)
     TransactionSetPtr txSet = fetchTxSet(ballot.txSetHash, true);
     if (!txSet)
     {
-        LOG(ERROR) << "isValidBallotValue when we don't know the txSet";
+        CLOG(ERROR,"TxHerder") << "isValidBallotValue when we don't know the txSet";
+        return INVALID_BALLOT;
+    }
+
+    if(!txSet->checkValid(mApp))
+    {
+        CLOG(ERROR, "TxHerder") << "invalid txSet";
         return INVALID_BALLOT;
     }
 
@@ -123,7 +129,7 @@ TxHerder::recvTransaction(TransactionFramePtr tx)
     uint256 txHash = tx->getHash();
     if (!isTxKnown(txHash))
     {
-        if (tx->isValid())
+        if (tx->checkValid())
         {
 
             mReceivedTransactions[0].push_back(tx);

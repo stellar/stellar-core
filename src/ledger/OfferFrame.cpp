@@ -29,7 +29,7 @@ namespace stellar
 
     }
 
-    OfferFrame::OfferFrame(const Transaction& tx) : EntryFrame()
+    void OfferFrame::from(const Transaction& tx) 
     {
         mEntry.type(OFFER);
         mEntry.offer().accountID = tx.account;

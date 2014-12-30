@@ -31,6 +31,7 @@ namespace stellar
 	{
 	protected:
         
+        bool mValid;
 		uint256 mIndex;
 
 		virtual void calculateIndex() = 0;
@@ -45,6 +46,7 @@ namespace stellar
 
         virtual EntryFrame::pointer copy() const=0;
 
+        bool isValid() { return mValid;  }
 		// calculate the index if you don't have it already
         uint256 getIndex();
 

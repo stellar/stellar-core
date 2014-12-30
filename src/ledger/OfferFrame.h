@@ -17,7 +17,7 @@ namespace stellar
 
         OfferFrame();
         OfferFrame(const LedgerEntry& from);
-        OfferFrame(const Transaction& tx);
+        void from(const Transaction& tx);
 
         EntryFrame::pointer copy()  const { return EntryFrame::pointer(new OfferFrame(*this)); }
 

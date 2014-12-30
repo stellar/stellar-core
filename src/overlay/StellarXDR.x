@@ -247,7 +247,7 @@ struct AccountEntry
     int64 balance;
     uint32 sequence;
     uint32 ownerCount;
-    uint32 transferRate;	// rate*1000000
+    uint32 transferRate;	// rate*10000000
     uint256 *pubKey;
 	uint256 *inflationDest;
 	uint256 *creditAuthKey;
@@ -280,6 +280,7 @@ struct OfferEntry
 	int64 price;	// price of A in terms of B
 					// price*1,000,000,000
 					// price=AmountB/AmountA
+					// price is after fees
     bool passive;
 };
 
