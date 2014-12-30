@@ -25,7 +25,7 @@ FMT_SRCS = src/clf/BucketList.cpp src/clf/CLFTests.cpp src/crypto/Base58.cpp    
     src/transactions/CreateOfferFrame.cpp src/transactions/InflationFrame.cpp   \
     src/transactions/MergeFrame.cpp src/transactions/PaymentFrame.cpp           \
     src/transactions/SetOptionsFrame.cpp src/transactions/TransactionFrame.cpp  \
-    src/transactions/TrustSetFrame.cpp src/transactions/TxDelta.cpp             \
+    src/transactions/ChangeTrustTxFrame.cpp src/transactions/TxDelta.cpp        \
     src/txherder/TxHerder.cpp src/txherder/TxSetFrame.cpp src/util/Logging.cpp  \
     src/util/Timer.cpp src/util/types.cpp
 
@@ -50,7 +50,7 @@ FMT_HDRS = src/clf/BucketList.h src/clf/CLF.h src/clf/CLFDelta.h                
     src/transactions/CreateOfferFrame.h src/transactions/InflationFrame.h       \
     src/transactions/MergeFrame.h src/transactions/PaymentFrame.h               \
     src/transactions/SetOptionsFrame.h src/transactions/SetRegularKeyTx.h       \
-    src/transactions/TransactionFrame.h src/transactions/TrustSetFrame.h        \
+    src/transactions/TransactionFrame.h src/transactions/ChangeTrustTxFrame.h   \
     src/transactions/TxDelta.h src/transactions/TxResultCode.h                  \
     src/txherder/TxHerder.h src/txherder/TxHerderGateway.h                      \
     src/txherder/TxSetFrame.h src/util/Logging.h src/util/Timer.h               \

@@ -51,6 +51,11 @@ namespace stellar
         }
     }
 
+bool ChangeTrustTxFrame::doCheckValid(Application& app)
+{
+    return false;
+}
+
    
 }
 

@@ -326,6 +326,11 @@ bool CreateOfferFrame::crossOffer(OfferFrame& sellingWheatOffer,
     return true;
 }
 
+bool CreateOfferFrame::doCheckValid(Application& app)
+{
+    return false;
+}
+
 
 
 }

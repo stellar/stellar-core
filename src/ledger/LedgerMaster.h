@@ -27,9 +27,10 @@ namespace stellar
         // LATER LedgerDatabase mCurrentDB;
         //uint256 mLastLedgerHash;
         Ledger::pointer mCurrentLedger;
-        Database mDatabase;
 
         Application &mApp;
+
+        Database mDatabase;
 
         void startCatchUp();
 
