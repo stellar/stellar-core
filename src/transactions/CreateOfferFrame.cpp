@@ -147,7 +147,6 @@ bool CreateOfferFrame::convert(Currency& sheep,
                 return false;
             }
 
-            int64_t numWheat = 0;
             int64_t numSheepReceived;
             if(!crossOffer(wheatOffer, maxSheepReceived, numSheepReceived, delta, ledgerMaster))
             {
@@ -312,14 +311,14 @@ bool CreateOfferFrame::crossOffer(OfferFrame& sellingWheatOffer,
 
     if(wheat.native())
     {
-        mSigningAccount.mEntry.account().balance -= numWheatSent;
-        accountB.mEntry.account().balance += numWheatSent;
+        mSigningAccount.mEntry.account().balance += numWheatSent;
+        accountB.mEntry.account().balance -= numWheatSent;
         delta.setFinal(accountB);
         delta.setFinal(mSigningAccount);
     } else
     {
         mWheatLineA.mEntry.trustLine().balance += numWheatReceived;
-        wheatLineAccountB.mEntry.trustLine().balance += numWheatSent;
+        wheatLineAccountB.mEntry.trustLine().balance -= numWheatSent;
         delta.setFinal(wheatLineAccountB);
         delta.setFinal(mWheatLineA);
     }

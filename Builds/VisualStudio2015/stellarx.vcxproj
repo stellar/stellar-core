@@ -74,7 +74,9 @@
   <ItemGroup>
     <ClCompile Include="..\..\src\clf\BucketList.cpp" />
     <ClCompile Include="..\..\src\clf\CLFTests.cpp" />
-    <ClCompile Include="..\..\src\crypto\CryptoTests.cpp" />
+    <ClCompile Include="..\..\src\crypto\CryptoTests.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+    </ClCompile>
     <ClCompile Include="..\..\src\database\Database.cpp" />
     <ClCompile Include="..\..\src\database\DatabaseTests.cpp" />
     <ClCompile Include="..\..\src\fba\Ballot.cpp" />
@@ -151,6 +153,7 @@
     <ClCompile Include="..\..\src\transactions\PaymentFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\SetOptionsFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\TxDelta.cpp" />
+    <ClCompile Include="..\..\src\transactions\TxTests.cpp" />
     <ClCompile Include="..\..\src\util\Timer.cpp" />
     <ClCompile Include="..\..\src\util\types.cpp" />
     <ClCompile Include="..\..\src\main\Application.cpp" />
