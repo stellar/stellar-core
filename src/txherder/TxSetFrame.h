@@ -13,6 +13,7 @@ using namespace std;
 namespace stellar
 {
 
+class Application;
 class TransactionFrame;
 typedef std::shared_ptr<TransactionFrame> TransactionFramePtr;
 

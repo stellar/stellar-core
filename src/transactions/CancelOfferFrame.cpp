@@ -22,7 +22,7 @@ void CancelOfferFrame::doApply(TxDelta& delta, LedgerMaster& ledgerMaster)
     delta.setFinal(mSigningAccount);
 }
 
-bool CancelOfferFrame::doCheckValid(LedgerMaster& ledgerMaster)
+bool CancelOfferFrame::doCheckValid(Application& app)
 {
     // TODO.2
     return false;

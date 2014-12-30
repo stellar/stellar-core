@@ -13,6 +13,8 @@ The public interface to the FBA module
 
 namespace stellar
 {
+    class TxSetFrame;
+    typedef shared_ptr<TxSetFrame> TxSetFramePtr;
 class FBAGateway
 {
   public:
@@ -20,7 +22,7 @@ class FBAGateway
     virtual void startNewRound(const SlotBallot& firstBallot) = 0;
 
     // a bit gross. ideally FBA wouldn't know what it is holding
-    virtual void transactionSetAdded(TxSetFrame::pointer txSet) = 0;
+    virtual void transactionSetAdded(TxSetFramePtr txSet) = 0;
 
     virtual void setValidating(bool validating) = 0;
 

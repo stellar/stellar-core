@@ -94,7 +94,7 @@ class FBAMaster : public FBAGateway
 
     void startNewRound(const SlotBallot& firstBallot);
 
-    void transactionSetAdded(TxSetFrame::pointer txSet);
+    void transactionSetAdded(TxSetFramePtr txSet);
 
     void addQuorumSet(QuorumSet::pointer qset);
 

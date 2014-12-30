@@ -14,7 +14,7 @@ namespace stellar
         
     }
 
-    bool MergeFrame::doCheckValid(LedgerMaster& ledgerMaster)
+    bool MergeFrame::doCheckValid(Application& app)
     {
         // TODO.2
         return false;

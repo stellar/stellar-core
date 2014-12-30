@@ -20,10 +20,13 @@ namespace stellar
 {
 class Application;
 
+class TransactionFrame;
+typedef shared_ptr<TransactionFrame> TransactionFramePtr;
+
 class TxHerder : public TxHerderGateway
 {
     // the transactions that we have collected during ledger close
-    TxSetFrame::pointer mCollectingTransactionSet;
+    TxSetFramePtr mCollectingTransactionSet;
 
     // keep track of txs that didn't make it into last ledger.
     // be less and less likely to commit a ballot that doesn't include the old
@@ -34,7 +37,7 @@ class TxHerder : public TxHerderGateway
     // 1- one ledger ago. Will only validate a vblocking set
     // 2- two ledgers ago. Will only validate a vblock set and will rebroadcast
     // 3- three or more ledgers ago. Any set we validate must have these tx
-    vector<vector<TransactionFrame::pointer>> mReceivedTransactions;
+    vector<vector<TransactionFramePtr>> mReceivedTransactions;
 
     std::array<TxSetFetcher, 2> mTxSetFetcher;
     int mCurrentTxSetFetcher;

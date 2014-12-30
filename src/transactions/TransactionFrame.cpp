@@ -2,6 +2,7 @@
 // under the ISC License. See the COPYING file at the top-level directory of
 // this distribution or at http://opensource.org/licenses/ISC
 
+#include "main/Application.h"
 #include "TransactionFrame.h"
 #include "xdrpp/marshal.h"
 #include <string>
@@ -9,7 +10,6 @@
 #include "util/Logging.h"
 #include "ledger/LedgerDelta.h"
 #include "ledger/OfferFrame.h"
-#include "main/Application.h"
 
 namespace stellar
 {

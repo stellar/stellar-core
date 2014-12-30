@@ -86,11 +86,11 @@ class TxSetFetcher : public ItemFetcher
     TxSetFetcher(Application& app) : ItemFetcher(app)
     {
     }
-    TxSetFrame::pointer fetchItem(uint256 const& itemID,
+    TxSetFramePtr fetchItem(uint256 const& itemID,
                                       bool askNetwork);
     // looks to see if we know about it but doesn't ask the network
-    TxSetFrame::pointer findItem(uint256 const& itemID);
-    bool recvItem(TxSetFrame::pointer txSet);
+    TxSetFramePtr findItem(uint256 const& itemID);
+    bool recvItem(TxSetFramePtr txSet);
 };
 
 class QSetFetcher : public ItemFetcher
@@ -129,7 +129,7 @@ class TxSetTrackingCollar : public TrackingCollar
     void askPeer(Peer::pointer peer);
 
   public:
-      TxSetFrame::pointer mTxSet;
+    TxSetFramePtr mTxSet;
 
     TxSetTrackingCollar(uint256 const& id, Application& app);
     bool
