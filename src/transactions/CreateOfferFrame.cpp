@@ -2,6 +2,8 @@
 #include "ledger/OfferFrame.h"
 #include "util/Logging.h"
 
+// This is pretty gnarly still. I'll clean it up as I write the tests
+//
 // convert from sheep to wheat
 // selling sheep
 // buying wheat

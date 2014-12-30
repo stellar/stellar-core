@@ -12,6 +12,6 @@ namespace stellar
         void sendCredit(AccountFrame& receiver, TxDelta& delta, LedgerMaster& ledgerMaster);
     public:
         void doApply(TxDelta& delta, LedgerMaster& ledgerMaster);
-        bool doCheckValid(LedgerMaster& ledgerMaster);
+        bool doCheckValid(Application& app);
     };
 }

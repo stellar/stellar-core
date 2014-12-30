@@ -80,7 +80,7 @@ namespace stellar
     // TODO.2 make sure path doesn't loop
     void PaymentFrame::sendCredit(AccountFrame& receiver, TxDelta& delta, LedgerMaster& ledgerMaster)
     {
-/*
+
         int64_t needToSend = 0;
         int64_t amountToSend = mEnvelope.tx.body.paymentTx().amount;
 
@@ -108,18 +108,16 @@ namespace stellar
             for(int n = mEnvelope.tx.body.paymentTx().path.size(); n >= 0;  n--)
             {   // convert from link to last
 
-                int64_t convert(mEnvelope.tx.body.paymentTx().path[n],
-                    lastCurrency, int64_t amountToSell, int64_t maxPrice,
-                    TxDelta& delta, LedgerMaster& ledgerMaster);
+               
 
-                lastAmount = convert(lastAmount,mEnvelope.tx.body.paymentTx().path[n], lastCI, tempDelta,ledgerMaster);
+                // TODO.2   lastAmount = convert(lastAmount,mEnvelope.tx.body.paymentTx().path[n], lastCurrency, tempDelta,ledgerMaster);
                 if(!lastAmount)
                 {   // there isn't enough offer depth
                     mResultCode = txOVERSENDMAX;
                     return;
                 }
 
-                lastCI = mEnvelope.tx.body.paymentTx().path[n];
+                lastCurrency = mEnvelope.tx.body.paymentTx().path[n];
             }
             needToSend = lastAmount;
 
@@ -146,7 +144,8 @@ namespace stellar
 
             if(issuerEntry.mEntry.account().transferRate)
             {
-                needToSend = amountToSend + (amountToSend*issuerEntry.mEntry.account().transferRate) / 1000000;  // TODO.3 This probably needs to be some big number thing
+                needToSend = amountToSend + 
+                    (amountToSend*issuerEntry.mEntry.account().transferRate) / TRANSFER_RATE_DIVISOR;  // TODO.3 This probably needs to be some big number thing
             }else needToSend = amountToSend;
          
             if(needToSend > mEnvelope.tx.body.paymentTx().sendMax)
@@ -186,10 +185,14 @@ namespace stellar
 
     // convert between two currencies at the best rate
     // returns amount of the source currency or 0 for not possible
-    int64_t PaymentFrame::convert(int64_t amountToFill, Currency& source,
-        Currency& dest, TxDelta& delta, LedgerMaster& ledgerMaster)
+    //int64_t PaymentFrame::convert(int64_t amountToFill, Currency& source,
+    //    Currency& dest, TxDelta& delta, LedgerMaster& ledgerMaster)
+    int64_t PaymentFrame::convert(Currency& sell,
+        Currency& buy, int64_t amountToBuy,
+        TxDelta& delta, LedgerMaster& ledgerMaster)
     {
-
+        return 0; // TODO.2
+        /*
         int64_t amountToSend = 0;
         int offerOffset = 0;
         while(amountToFill > 0)
@@ -231,7 +234,9 @@ namespace stellar
 
     // make sure there is no path for native transfer
     // make sure account has enough to send
-    bool PaymentFrame::doCheckValid(LedgerMaster& ledgerMaster)
+    // make sure there are no loops in the path
+    // make sure the path is less than N steps
+    bool PaymentFrame::doCheckValid(Application& app)
     {
         // TODO.2
         return(false);

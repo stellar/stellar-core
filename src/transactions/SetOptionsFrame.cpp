@@ -50,5 +50,6 @@ namespace stellar
             if(*mEnvelope.tx.body.setOptionsTx().transferRate > TRANSFER_RATE_DIVISOR)
                 return false;
         }
+        return true;
     }
 }

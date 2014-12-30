@@ -129,7 +129,7 @@ TxHerder::recvTransaction(TransactionFramePtr tx)
     uint256 txHash = tx->getHash();
     if (!isTxKnown(txHash))
     {
-        if (tx->checkValid())
+        if (tx->checkValid(mApp))
         {
 
             mReceivedTransactions[0].push_back(tx);
