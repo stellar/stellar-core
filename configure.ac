@@ -6,6 +6,10 @@ AC_INIT([stellard],[0.1],[],[],[http://www.stellar.org])
 AM_INIT_AUTOMAKE([-Wall subdir-objects])
 AC_CONFIG_SRCDIR([configure.ac])
 AC_CONFIG_MACRO_DIR([m4])
+
+test "${WFLAGS+set}" || WFLAGS="-Wall"
+AC_PROG_CC([clang gcc cc])
+AC_PROG_CXX([clang++ g++ c++])
 AM_PROG_AR
 
 LT_INIT([disable-shared])
@@ -15,16 +19,27 @@ LIBSODIUM_MIN_VERSION="1.0.0"
 
 dnl AC_PROG_INSTALL
 
-test "${WFLAGS+set}" || WFLAGS="-Wall"
-AC_PROG_CC([clang egcc gcc cc aCC CC cc cl.exe FCC KCC RCC xlC_r xlC])
-AC_PROG_CXX([clang++ eg++ g++ c++ gpp aCC CC cxx cc++ cl.exe FCC KCC RCC xlC_r xlC])
-AX_CXX_COMPILE_STDCXX_11(noext,mandatory)
 test -z "$WFLAGS" || CFLAGS="$CFLAGS $WFLAGS" CXXFLAGS="$CXXFLAGS $WFLAGS"
+
 AC_LANG(C++)
-# -pthread Seems to be required by g++ -stc=c++1[14]
-AX_CHECK_COMPILE_FLAG([-stdlib=libc++], [CXXFLAGS="$CXXFLAGS -stdlib=libc++"])
-AX_CHECK_COMPILE_FLAG([-lc++abi], [LDFLAGS="$LDFLAGS -lc++abi"])
+AX_CXX_COMPILE_STDCXX_11(noext,mandatory)
+
+# libstdc++ doesn't really seem complete enough for using c++11, need libc++
+AX_APPEND_COMPILE_FLAGS([-stdlib=libc++])
+if test "${CXXFLAGS#*stdlib}" == "${CXXFLAGS}"
+then
+    AC_MSG_ERROR([need -stdlib=libc++ for full c++11])
+fi
+
+# Our large include path set makes for annoying warnings without this
+AX_APPEND_COMPILE_FLAGS([-Wno-unused-command-line-argument])
+
+# -lc++abi seems to be required by -stdlib=libc++ on some hosts
+AX_APPEND_LINK_FLAGS([-lc++abi])
+
+# -pthread seems to be required by -std=c++11 on some hosts
 AX_APPEND_COMPILE_FLAGS([-pthread])
+
 
 AC_ARG_ENABLE([address-sanitizer], AS_HELP_STRING([--enable-address-sanitizer],
               [enable AddressSanitizer support]),
@@ -57,7 +72,7 @@ function configure_pkgconfig_subdir() {
             ax_popdir=`pwd`
             cd "$1"
             AC_MSG_NOTICE([Configuring sources in $1])
-            ./configure $ac_configure_args --srcdir=$ac_srcdir $2 CXXFLAGS="${CXXFLAGS}" LDFLAGS="${LDFLAGS}"
+            ./configure $ac_configure_args --srcdir=$ac_srcdir $2 CXX="${CXX}" CC="${CC}" CXXFLAGS="${CXXFLAGS}" LDFLAGS="${LDFLAGS}"
             AC_MSG_NOTICE([Finished configuring $1])
             cd "$ax_popdir"
         fi
@@ -86,7 +101,7 @@ AC_SUBST(XDRC)
 
 # We do not bundle libpq, but we'll compile-in support if it's present.
 # Add other optional database drivers here (and later, in SOCI).
-PKG_CHECK_MODULES([libpq],[libpq], [use_POSTGRESQL=1])
+PKG_CHECK_MODULES([libpq],[libpq],[use_POSTGRESQL=1],[use_POSTGRESQL=])
 AM_CONDITIONAL(USE_POSTGRESQL, [test "x$use_POSTGRESQL" != "x"])
 
 CPPFLAGS="$CPPFLAGS "'$(libsodium_CFLAGS) $(xdrpp_CFLAGS) $(sqlite_CFLAGS) $(libpq_CFLAGS)'

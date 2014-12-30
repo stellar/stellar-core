@@ -20,15 +20,15 @@ TEST_CASE("cycle4 topology", "[simulation]")
 {
     Simulation simulation;
 
-    stellarxdr::uint256 n1Seed = fromBase58("SEED_1");
-    stellarxdr::uint256 n2Seed = fromBase58("SEED_2");
-    stellarxdr::uint256 n3Seed = fromBase58("SEED_3");
-    stellarxdr::uint256 n4Seed = fromBase58("SEED_4");
+    stellar::uint256 n1Seed = fromBase58("SEED_1");
+    stellar::uint256 n2Seed = fromBase58("SEED_2");
+    stellar::uint256 n3Seed = fromBase58("SEED_3");
+    stellar::uint256 n4Seed = fromBase58("SEED_4");
 
-    stellarxdr::uint256 n1 = simulation.addNode(n1Seed, simulation.getClock());
-    stellarxdr::uint256 n2 = simulation.addNode(n2Seed, simulation.getClock());
-    stellarxdr::uint256 n3 = simulation.addNode(n3Seed, simulation.getClock());
-    stellarxdr::uint256 n4 = simulation.addNode(n4Seed, simulation.getClock());
+    stellar::uint256 n1 = simulation.addNode(n1Seed, simulation.getClock());
+    stellar::uint256 n2 = simulation.addNode(n2Seed, simulation.getClock());
+    stellar::uint256 n3 = simulation.addNode(n3Seed, simulation.getClock());
+    stellar::uint256 n4 = simulation.addNode(n4Seed, simulation.getClock());
     
     std::shared_ptr<LoopbackPeerConnection> n1n2 = 
       simulation.addConnection(n1, n2);
@@ -39,7 +39,7 @@ TEST_CASE("cycle4 topology", "[simulation]")
     std::shared_ptr<LoopbackPeerConnection> n4n1 = 
       simulation.addConnection(n4, n1);
 
-    stellarxdr::SlotBallot ballot;
+    stellar::SlotBallot ballot;
     ballot.ledgerIndex = 0;
     ballot.ballot.index = 1;
     ballot.ballot.closeTime = time(nullptr) + NUM_SECONDS_IN_CLOSE;
