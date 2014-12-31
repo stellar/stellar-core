@@ -20,7 +20,7 @@ binToHex(ByteSlice const& bin)
     if (sodium_bin2hex(hex.data(), hex.size(),
                        bin.data(), bin.size()) != hex.data())
     {
-        throw std::runtime_error("Error in stellar::binToHex(std::vector<uint8_t>)");
+        throw std::runtime_error("error in stellar::binToHex(std::vector<uint8_t>)");
     }
     return std::string(hex.begin(), hex.end()-1);
 }
@@ -32,7 +32,7 @@ hexToBin(std::string const& hex)
     if (sodium_hex2bin(bin.data(), bin.size(), hex.data(), hex.size(),
                        NULL, NULL, NULL) != 0)
     {
-        throw std::runtime_error("Error in stellar::hexToBin(std::string)");
+        throw std::runtime_error("error in stellar::hexToBin(std::string)");
     }
     return bin;
 }

@@ -22,7 +22,9 @@ std::string
 baseEncode(std::string const& alphabet, ByteSlice const& bytes)
 {
     if (bytes.size() == 0)
+    {
         return "";
+    }
 
     size_t base = alphabet.size();
     std::vector<uint16_t> digits {0};
@@ -31,7 +33,9 @@ baseEncode(std::string const& alphabet, ByteSlice const& bytes)
     for (auto byte : bytes)
     {
         for (auto& digit : digits)
+        {
             digit <<= 8;
+        }
 
         digits[0] += byte;
 
@@ -52,7 +56,9 @@ baseEncode(std::string const& alphabet, ByteSlice const& bytes)
 
     // Append leading zeroes.
     for (size_t i = 0; bytes[i] == 0 && i < bytes.size() - 1; ++i)
+    {
         digits.push_back(0);
+    }
 
     // Alphabet-ize and reverse.
     std::string ret(digits.size(), ' ');
@@ -67,7 +73,9 @@ baseDecode(std::string const& alphabet, std::string const& encoded)
 {
 
     if (encoded.size() == 0)
+    {
         return std::vector<uint8_t>();
+    }
 
     std::vector<uint16_t> bytes = {0};
 
@@ -80,11 +88,15 @@ baseDecode(std::string const& alphabet, std::string const& encoded)
     for (auto c : encoded)
     {
         for (auto& byte : bytes)
+        {
             byte *= base;
+        }
 
         auto n = alphabetMap.at(static_cast<uint8_t>(c));
         if (n == 0xffff)
-            throw std::runtime_error("Unknown character in stellar::baseDecode");
+        {
+            throw std::runtime_error("unknown character in stellar::baseDecode");
+        }
 
         bytes[0] += n;
 
@@ -105,7 +117,9 @@ baseDecode(std::string const& alphabet, std::string const& encoded)
 
     // Append leading zeroes.
     for (size_t i = 0; encoded.at(i) == alphabet.at(0) && i < encoded.size() - 1; i++)
+    {
         bytes.push_back(0);
+    }
 
     // Trim to real bytes and reverse.
     std::vector<uint8_t> ret(bytes.size(), 0);
@@ -131,11 +145,15 @@ baseCheckDecode(std::string const& alphabet, std::string const& encoded)
 {
     std::vector<uint8_t> bytes = baseDecode(alphabet, encoded);
     if (bytes.size() < 5)
+    {
         throw std::runtime_error("baseCheckDecode decoded to <5 bytes");
+    }
     uint256 hash = sha256(sha256(ByteSlice(bytes.data(), bytes.size() - 4)));
     if (! std::equal(hash.begin(), hash.begin() + 4,
                      bytes.begin() + (bytes.size() - 4)))
+    {
         throw std::runtime_error("baseCheckDecode checksum failed");
+    }
     return std::make_pair(bytes[0],
                           std::vector<uint8_t>(bytes.begin() + 1,
                                                bytes.begin() + (bytes.size() - 4)));

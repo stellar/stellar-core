@@ -15,7 +15,9 @@ sha256(ByteSlice const &bin)
 {
     uint256 out;
     if (crypto_hash_sha256(out.data(), bin.data(), bin.size()) != 0)
-        throw std::runtime_error("Error from crypto_hash_sha256");
+    {
+        throw std::runtime_error("error from crypto_hash_sha256");
+    }
     return out;
 }
 
@@ -57,8 +59,10 @@ struct SHA512_256::Impl
     Impl()
     : mFinished(false)
     {
-            if (crypto_hash_sha512_256_init(&mState) != 0)
-                throw std::runtime_error("error from crypto_hash_sha512_init");
+        if (crypto_hash_sha512_256_init(&mState) != 0)
+        {
+            throw std::runtime_error("error from crypto_hash_sha512_init");
+        }
     }
 };
 
@@ -71,9 +75,13 @@ void
 SHA512_256::add(ByteSlice const& bin)
 {
     if (mImpl->mFinished)
+    {
         throw std::runtime_error("adding bytes to finished SHA512_256");
+    }
     if (crypto_hash_sha512_update(&mImpl->mState, bin.data(), bin.size()) != 0)
+    {
         throw std::runtime_error("error from crypto_hash_sha512_update");
+    }
 }
 
 uint256
@@ -81,9 +89,13 @@ SHA512_256::finish()
 {
     unsigned char out[crypto_hash_sha512_BYTES];
     if (mImpl->mFinished)
+    {
         throw std::runtime_error("finishing already-finished SHA512_256");
+    }
     if (crypto_hash_sha512_final(&mImpl->mState, out) != 0)
+    {
         throw std::runtime_error("error from crypto_hash_sha512_final");
+    }
     uint256 trunc;
     std::copy(out, out+crypto_hash_sha256_BYTES, trunc.begin());
     return trunc;
