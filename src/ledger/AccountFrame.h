@@ -7,7 +7,6 @@
 
 #include "transactions/TxResultCode.h"
 #include "ledger/EntryFrame.h"
-#include "crypto/StellarPublicKey.h"
 
 namespace stellar
 {
