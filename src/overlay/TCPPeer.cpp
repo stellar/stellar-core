@@ -151,13 +151,13 @@ TCPPeer::recvMessage()
 {
     xdr::xdr_get g(mIncomingBody.data(),
                    mIncomingBody.data() + mIncomingBody.size());
-    stellarxdr::StellarMessage sm;
+    StellarMessage sm;
     xdr::xdr_argpack_archive(g, sm);
     Peer::recvMessage(sm);
 }
 
 void
-TCPPeer::recvHello(stellarxdr::StellarMessage const& msg)
+TCPPeer::recvHello(StellarMessage const& msg)
 {
     mHelloTimer.cancel();
     Peer::recvHello(msg);

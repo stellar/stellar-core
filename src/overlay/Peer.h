@@ -53,31 +53,31 @@ class Peer : public enable_shared_from_this<Peer>
     std::string mRemoteVersion;
     int mRemoteProtocolVersion;
     int mRemoteListeningPort;
-    void recvMessage(stellarxdr::StellarMessage const& msg);
+    void recvMessage(StellarMessage const& msg);
     void recvMessage(xdr::msg_ptr const& xdrBytes);
 
-    virtual void recvError(stellarxdr::StellarMessage const& msg);
-    virtual void recvHello(stellarxdr::StellarMessage const& msg);
-    void recvDontHave(stellarxdr::StellarMessage const& msg);
-    void recvGetPeers(stellarxdr::StellarMessage const& msg);
-    void recvPeers(stellarxdr::StellarMessage const& msg);
-    void recvGetHistory(stellarxdr::StellarMessage const& msg);
-    void recvHistory(stellarxdr::StellarMessage const& msg);
-    void recvGetDelta(stellarxdr::StellarMessage const& msg);
-    void recvDelta(stellarxdr::StellarMessage const& msg);
-    void recvGetTxSet(stellarxdr::StellarMessage const& msg);
-    void recvTxSet(stellarxdr::StellarMessage const& msg);
-    void recvGetValidations(stellarxdr::StellarMessage const& msg);
-    void recvValidations(stellarxdr::StellarMessage const& msg);
-    void recvTransaction(stellarxdr::StellarMessage const& msg);
-    void recvGetQuorumSet(stellarxdr::StellarMessage const& msg);
-    void recvQuorumSet(stellarxdr::StellarMessage const& msg);
-    void recvFBAMessage(stellarxdr::StellarMessage const& msg);
+    virtual void recvError(StellarMessage const& msg);
+    virtual void recvHello(StellarMessage const& msg);
+    void recvDontHave(StellarMessage const& msg);
+    void recvGetPeers(StellarMessage const& msg);
+    void recvPeers(StellarMessage const& msg);
+    void recvGetHistory(StellarMessage const& msg);
+    void recvHistory(StellarMessage const& msg);
+    void recvGetDelta(StellarMessage const& msg);
+    void recvDelta(StellarMessage const& msg);
+    void recvGetTxSet(StellarMessage const& msg);
+    void recvTxSet(StellarMessage const& msg);
+    void recvGetValidations(StellarMessage const& msg);
+    void recvValidations(StellarMessage const& msg);
+    void recvTransaction(StellarMessage const& msg);
+    void recvGetQuorumSet(StellarMessage const& msg);
+    void recvQuorumSet(StellarMessage const& msg);
+    void recvFBAMessage(StellarMessage const& msg);
 
     void sendHello();
     void sendQuorumSet(QuorumSet::pointer qSet);
-    void sendDontHave(stellarxdr::MessageType type,
-                      stellarxdr::uint256 const& itemID);
+    void sendDontHave(MessageType type,
+                      uint256 const& itemID);
     void sendPeers();
 
     // NB: This is a move-argument because the write-buffer has to travel
@@ -97,10 +97,10 @@ class Peer : public enable_shared_from_this<Peer>
         return mApp;
     }
 
-    void sendGetTxSet(stellarxdr::uint256 const& setID);
-    void sendGetQuorumSet(stellarxdr::uint256 const& setID);
+    void sendGetTxSet(uint256 const& setID);
+    void sendGetQuorumSet(uint256 const& setID);
 
-    void sendMessage(stellarxdr::StellarMessage const& msg);
+    void sendMessage(StellarMessage const& msg);
 
     PeerRole
     getRole() const

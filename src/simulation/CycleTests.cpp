@@ -20,15 +20,15 @@ TEST_CASE("cycle4 topology", "[simulation]")
 {
     Simulation simulation;
 
-    stellarxdr::uint256 n1 = fromBase58("1");
-    stellarxdr::uint256 n2 = fromBase58("2");
-    stellarxdr::uint256 n3 = fromBase58("3");
-    stellarxdr::uint256 n4 = fromBase58("4");
+    stellar::uint256 n1Seed = fromBase58("SEED_1");
+    stellar::uint256 n2Seed = fromBase58("SEED_2");
+    stellar::uint256 n3Seed = fromBase58("SEED_3");
+    stellar::uint256 n4Seed = fromBase58("SEED_4");
 
-    simulation.addNode(n1);
-    simulation.addNode(n2);
-    simulation.addNode(n3);
-    simulation.addNode(n4);
+    stellar::uint256 n1 = simulation.addNode(n1Seed, simulation.getClock());
+    stellar::uint256 n2 = simulation.addNode(n2Seed, simulation.getClock());
+    stellar::uint256 n3 = simulation.addNode(n3Seed, simulation.getClock());
+    stellar::uint256 n4 = simulation.addNode(n4Seed, simulation.getClock());
     
     std::shared_ptr<LoopbackPeerConnection> n1n2 = 
       simulation.addConnection(n1, n2);
@@ -39,6 +39,11 @@ TEST_CASE("cycle4 topology", "[simulation]")
     std::shared_ptr<LoopbackPeerConnection> n4n1 = 
       simulation.addConnection(n4, n1);
 
-    simulation.advanceAllNodes(100);
-    
+    stellar::SlotBallot ballot;
+    ballot.ledgerIndex = 0;
+    ballot.ballot.index = 1;
+    ballot.ballot.closeTime = time(nullptr) + NUM_SECONDS_IN_CLOSE;
+    simulation.getNode(n1)->getFBAGateway().startNewRound(ballot);
+
+    while(simulation.crankAllNodes() > 0);
 }

@@ -123,7 +123,7 @@ FBAMaster::createOurQuroumSet()
 
 // start a new round of consensus. This is called after the last ledger closes
 void
-FBAMaster::startNewRound(const stellarxdr::SlotBallot& firstBallot)
+FBAMaster::startNewRound(const SlotBallot& firstBallot)
 {
     // start with no nodes
     mKnownNodes.clear();
@@ -143,11 +143,11 @@ FBAMaster::startNewRound(const stellarxdr::SlotBallot& firstBallot)
         processStatements(oldStatements);
     else
     { // not a validating node just look at the committed msgs
-        mOurNode->mState = stellarxdr::FBAStatementType::COMMITTED;
+        mOurNode->mState = FBAStatementType::COMMITTED;
         bool progress = false;
         for (auto statement : oldStatements)
         {
-            if (statement->getType() == stellarxdr::FBAStatementType::COMMITTED)
+            if (statement->getType() == FBAStatementType::COMMITTED)
             {
                 processStatement(statement);
                 progress = true;
@@ -163,7 +163,7 @@ void
 FBAMaster::recvStatement(Statement::pointer statement)
 {
     if (mValidatingNode ||
-        statement->getType() == stellarxdr::FBAStatementType::COMMITTED)
+        statement->getType() == FBAStatementType::COMMITTED)
     {
         if (processStatement(statement) &&
             mOurNode->getNodeState() == statement->getType())
@@ -174,7 +174,7 @@ FBAMaster::recvStatement(Statement::pointer statement)
 }
 
 Node::pointer
-FBAMaster::getNode(stellarxdr::uint256& nodeID)
+FBAMaster::getNode(uint256& nodeID)
 {
     Node::pointer ret = mKnownNodes[nodeID];
     if (!ret)
@@ -182,6 +182,12 @@ FBAMaster::getNode(stellarxdr::uint256& nodeID)
         mKnownNodes[nodeID] = std::make_shared<Node>(nodeID);
     }
     return ret;
+}
+
+OurNode::pointer
+FBAMaster::getOurNode()
+{
+    return mOurNode;
 }
 
 /*
@@ -222,7 +228,7 @@ FBAMaster::processStatement(Statement::pointer statement)
         if (newStatement)
         { // 3) yes
 
-            TransactionSet::pointer txSet = statement->fetchTxSet(mApp);
+            TxSetFramePtr txSet = statement->fetchTxSet(mApp);
             if (txSet)
             { // set is local 4) yes
                 TxHerderGateway::BallotValidType validity =
@@ -272,7 +278,7 @@ FBAMaster::processStatement(Statement::pointer statement)
                 << "Node: " << toBase58(statement->mEnvelope.nodeID, str)
                 << " on a different ledger(" << statement->getLedgerIndex()
                 << " : "
-                << toBase58(statement->getSlotBallot().previousLedgerHash, str);
+                << toBase58(statement->getSlotBallot().ballot.previousLedgerHash, str);
         }
     }
     return false;
@@ -291,7 +297,7 @@ FBAMaster::statementReady(FutureStatement::pointer fstate)
 // once we get a set we can check the validity of 
 //  any ballots that referenced it
 void
-FBAMaster::transactionSetAdded(TransactionSet::pointer txSet)
+FBAMaster::transactionSetAdded(TxSetFramePtr txSet)
 {
     vector<Statement::pointer> fetched;
 

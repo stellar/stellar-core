@@ -6,7 +6,7 @@
 // this distribution or at http://opensource.org/licenses/ISC
 
 #include <map>
-#include "txherder/TransactionSet.h"
+#include "txherder/TxSetFrame.h"
 #include "overlay/Peer.h"
 #include "fba/QuorumSet.h"
 #include "clf/CLF.h"
@@ -40,11 +40,11 @@ class TrackingCollar
   public:
     typedef std::shared_ptr<TrackingCollar> pointer;
 
-    stellarxdr::uint256 mItemID;
+    uint256 mItemID;
 
     virtual bool isItemFound() = 0;
 
-    TrackingCollar(stellarxdr::uint256 const& id, Application& app);
+    TrackingCollar(uint256 const& id, Application& app);
 
     void doesntHave(Peer::pointer peer);
     void tryNextPeer();
@@ -66,16 +66,16 @@ class ItemFetcher
 {
   protected:
     Application& mApp;
-    std::map<stellarxdr::uint256, TrackingCollar::pointer> mItemMap;
+    std::map<uint256, TrackingCollar::pointer> mItemMap;
 
   public:
     ItemFetcher(Application& app) : mApp(app)
     {
     }
     void clear();
-    void stopFetching(stellarxdr::uint256 const& itemID);
+    void stopFetching(uint256 const& itemID);
     void stopFetchingAll();
-    void doesntHave(stellarxdr::uint256 const& itemID, Peer::pointer peer);
+    void doesntHave(uint256 const& itemID, Peer::pointer peer);
 };
 
 // We want to keep the last N ledgers worth of Txsets around
@@ -86,11 +86,11 @@ class TxSetFetcher : public ItemFetcher
     TxSetFetcher(Application& app) : ItemFetcher(app)
     {
     }
-    TransactionSet::pointer fetchItem(stellarxdr::uint256 const& itemID,
+    TxSetFramePtr fetchItem(uint256 const& itemID,
                                       bool askNetwork);
     // looks to see if we know about it but doesn't ask the network
-    TransactionSet::pointer findItem(stellarxdr::uint256 const& itemID);
-    bool recvItem(TransactionSet::pointer txSet);
+    TxSetFramePtr findItem(uint256 const& itemID);
+    bool recvItem(TxSetFramePtr txSet);
 };
 
 class QSetFetcher : public ItemFetcher
@@ -99,10 +99,10 @@ class QSetFetcher : public ItemFetcher
     QSetFetcher(Application& app) : ItemFetcher(app)
     {
     }
-    QuorumSet::pointer fetchItem(stellarxdr::uint256 const& itemID,
+    QuorumSet::pointer fetchItem(uint256 const& itemID,
                                  bool askNetwork);
     // looks to see if we know about it but doesn't ask the network
-    QuorumSet::pointer findItem(stellarxdr::uint256 const& itemID);
+    QuorumSet::pointer findItem(uint256 const& itemID);
     void recvItem(QuorumSet::pointer qSet);
 };
 
@@ -112,7 +112,7 @@ class DeltaFetcher : public ItemFetcher
     DeltaFetcher(Application& app) : ItemFetcher(app)
     {
     }
-    void fetchItem(stellarxdr::uint256 const& itemID, uint32_t oldLedgerSeq);
+    void fetchItem(uint256 const& itemID, uint32_t oldLedgerSeq);
     void recvItem(CLFDeltaPtr delta);
 };
 
@@ -129,9 +129,9 @@ class TxSetTrackingCollar : public TrackingCollar
     void askPeer(Peer::pointer peer);
 
   public:
-    TransactionSet::pointer mTxSet;
+    TxSetFramePtr mTxSet;
 
-    TxSetTrackingCollar(stellarxdr::uint256 const& id, Application& app);
+    TxSetTrackingCollar(uint256 const& id, Application& app);
     bool
     isItemFound()
     {
@@ -146,7 +146,7 @@ class QSetTrackingCollar : public TrackingCollar
   public:
     QuorumSet::pointer mQSet;
 
-    QSetTrackingCollar(stellarxdr::uint256 const& id, Application& app);
+    QSetTrackingCollar(uint256 const& id, Application& app);
     bool
     isItemFound()
     {

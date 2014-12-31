@@ -98,9 +98,9 @@ class HistoryMaster : public HistoryGateway
     Application& mApp;
 
   public:
-    std::string writeLedgerHistoryToFile(stellarxdr::History const& hist);
+    std::string writeLedgerHistoryToFile(History const& hist);
     void readLedgerHistoryFromFile(std::string const& fname,
-                                   stellarxdr::History& hist);
+                                   History& hist);
     HistoryMaster(Application& app);
 };
 }

@@ -20,9 +20,9 @@ class OurNode : public Node
 {
     Application& mApp;
     chrono::system_clock::time_point
-        mTimeSent[stellarxdr::FBAStatementType::UNKNOWN];
+        mTimeSent[FBAStatementType::UNKNOWN];
 
-    stellarxdr::SlotBallot mPreferredBallot;
+    SlotBallot mPreferredBallot;
 
     void sendNewPrepare(QuorumSet::pointer qset);
 
@@ -32,17 +32,17 @@ class OurNode : public Node
     void progressCommit(QuorumSet::pointer);
     void progressCommitted(QuorumSet::pointer);
 
-    void sendStatement(stellarxdr::FBAStatementType type,
-                       const stellarxdr::SlotBallot& ballot);
+    void sendStatement(FBAStatementType type,
+                       const SlotBallot& ballot);
 
-    BallotPtr whatRatified(stellarxdr::FBAStatementType type);
+    BallotPtr whatRatified(FBAStatementType type);
 
   public:
     typedef std::shared_ptr<OurNode> pointer;
 
     OurNode(Application& app);
 
-    void startNewRound(const stellarxdr::SlotBallot& firstBallot);
+    void startNewRound(const SlotBallot& firstBallot);
 
     void progressFBA();
 };

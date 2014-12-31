@@ -32,14 +32,14 @@ start the recursive search over
 
 namespace stellar
 {
-Node::Node(const stellarxdr::uint256& nodeID)
-    : mState(stellarxdr::FBAStatementType::UNKNOWN)
+Node::Node(const uint256& nodeID)
+    : mState(FBAStatementType::UNKNOWN)
     , mNodeID(nodeID)
     , mRecheckCounter(0)
     , mOperationToken(0)
     , mRatState(UNKNOWN_STATE)
 {
-    mStatements.resize(stellarxdr::FBAStatementType::UNKNOWN);
+    mStatements.resize(FBAStatementType::UNKNOWN);
 }
 
 // called recursively
@@ -50,7 +50,7 @@ Node::Node(const stellarxdr::uint256& nodeID)
 
 // this returns what RatState it thinks the particular statement is in.
 Node::RatState
-Node::checkRatState(stellarxdr::FBAStatementType statementType,
+Node::checkRatState(FBAStatementType statementType,
                     BallotPtr ballot, int operationToken, int recheckCounter,
                     Application& app)
 {
@@ -66,7 +66,7 @@ Node::checkRatState(stellarxdr::FBAStatementType statementType,
     mOperationToken = operationToken;
     mRecheckCounter = recheckCounter;
 
-    for (unsigned n = statementType; n < stellarxdr::FBAStatementType::UNKNOWN;
+    for (unsigned n = statementType; n < FBAStatementType::UNKNOWN;
          n++)
     { // if this node has ratified this statement or a stronger version
         if (mRatified[n] && mRatified[n]->isCompatible(ballot))
@@ -79,7 +79,7 @@ Node::checkRatState(stellarxdr::FBAStatementType statementType,
         { // check if this guy has already pledged a stronger
             // statement
             Statement::pointer ourStatement =
-                getHighestStatement((stellarxdr::FBAStatementType)n);
+                getHighestStatement((FBAStatementType)n);
             if (ourStatement)
             {
                 if (ourStatement->isCompatible(ballot))
@@ -166,7 +166,7 @@ Node::addStatement(StatementPtr statement)
 }
 
 StatementPtr
-Node::getHighestStatement(stellarxdr::FBAStatementType type)
+Node::getHighestStatement(FBAStatementType type)
 {
     StatementPtr max;
     for (auto statement : mStatements[type])

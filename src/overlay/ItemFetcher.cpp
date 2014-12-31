@@ -14,7 +14,7 @@
 namespace stellar
 {
 void
-ItemFetcher::doesntHave(stellarxdr::uint256 const& itemID, Peer::pointer peer)
+ItemFetcher::doesntHave(uint256 const& itemID, Peer::pointer peer)
 {
     auto result = mItemMap.find(itemID);
     if (result != mItemMap.end())
@@ -33,7 +33,7 @@ ItemFetcher::stopFetchingAll()
 
 // LATER  Do we ever need to call this
 void
-ItemFetcher::stopFetching(stellarxdr::uint256 const& itemID)
+ItemFetcher::stopFetching(uint256 const& itemID)
 {
     auto result = mItemMap.find(itemID);
     if (result != mItemMap.end())
@@ -50,8 +50,8 @@ ItemFetcher::clear()
 
 //////////////////////////////
 
-TransactionSet::pointer
-TxSetFetcher::fetchItem(stellarxdr::uint256 const& setID, bool askNetwork)
+TxSetFrame::pointer
+TxSetFetcher::fetchItem(uint256 const& setID, bool askNetwork)
 {
     // look it up in the map
     // if not found then start fetching
@@ -77,12 +77,12 @@ TxSetFetcher::fetchItem(stellarxdr::uint256 const& setID, bool askNetwork)
             collar->tryNextPeer();
         }
     }
-    return (TransactionSet::pointer());
+    return (TxSetFrame::pointer());
 }
 
 // returns true if we were waiting for this txSet
 bool
-TxSetFetcher::recvItem(TransactionSet::pointer txSet)
+TxSetFetcher::recvItem(TxSetFrame::pointer txSet)
 {
     if (txSet)
     {
@@ -110,7 +110,7 @@ TxSetFetcher::recvItem(TransactionSet::pointer txSet)
 }
 ////////////////////////////////////////
 void
-DeltaFetcher::fetchItem(stellarxdr::uint256 const& itemID,
+DeltaFetcher::fetchItem(uint256 const& itemID,
                         uint32_t oldLedgerSeq)
 {
 }
@@ -150,7 +150,7 @@ QSetFetcher::recvItem(QuorumSet::pointer qSet)
 }
 
 QuorumSet::pointer
-QSetFetcher::fetchItem(stellarxdr::uint256 const& setID, bool askNetwork)
+QSetFetcher::fetchItem(uint256 const& setID, bool askNetwork)
 {
     // look it up in the map
     // if not found then start fetching
@@ -181,7 +181,7 @@ QSetFetcher::fetchItem(stellarxdr::uint256 const& setID, bool askNetwork)
 
 //////////////////////////////////////////////////////////////////////////
 
-TrackingCollar::TrackingCollar(stellarxdr::uint256 const& id, Application& app)
+TrackingCollar::TrackingCollar(uint256 const& id, Application& app)
     : mApp(app), mTimer(app.getClock()), mItemID(id)
 {
     mCantFind = false;
@@ -267,7 +267,7 @@ TrackingCollar::tryNextPeer()
     }
 }
 
-QSetTrackingCollar::QSetTrackingCollar(stellarxdr::uint256 const& id,
+QSetTrackingCollar::QSetTrackingCollar(uint256 const& id,
                                        Application& app)
     : TrackingCollar(id, app)
 {
@@ -279,7 +279,7 @@ QSetTrackingCollar::askPeer(Peer::pointer peer)
     peer->sendGetQuorumSet(mItemID);
 }
 
-TxSetTrackingCollar::TxSetTrackingCollar(stellarxdr::uint256 const& id,
+TxSetTrackingCollar::TxSetTrackingCollar(uint256 const& id,
                                          Application& app)
     : TrackingCollar(id, app)
 {

@@ -1,4 +1,5 @@
-namespace fbaxdr {
+
+namespace stellar {
 
 typedef opaque uint256[32];
 typedef unsigned uint32;
@@ -11,6 +12,7 @@ struct Ballot
 
 struct SlotBallot
 {
+    uint32 slotIndex;
     uint256 slotHash;
     Ballot ballot;
 };
@@ -48,7 +50,7 @@ struct Envelope
     Statement statement;
 };
 
-struct QuorumSet
+struct QuorumSetDesc
 {
     uint32 threshold;
     uint256 validators<>;

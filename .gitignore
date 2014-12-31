@@ -1,6 +1,8 @@
 *.a
 *.o
 *.obj
+*.la
+*.lo
 *.log
 *.tlog
 *.lastbuildstate
@@ -13,6 +15,7 @@
 *.suo
 *.trs
 *~
+.libs
 .deps
 .dirstamp
 /src/generated
@@ -27,7 +30,14 @@
 /config.h.in
 /config.log
 /config.status
+/config.guess
+/config.sub
+/libtool
+/ltmain.sh
+/m4/libtool.m4
+/m4/lt*.m4
 /configure
+/ar-lib
 /depcomp
 /missing
 /test-driver

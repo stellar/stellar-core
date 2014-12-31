@@ -44,14 +44,14 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>src;../../src/lib/autocheck/include;../../src/lib/asio/include;../../../libsodium/include;../../../xdrpp;../../src;C:\code\OpenSSL-Win32\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>_WINSOCK_DEPRECATED_NO_WARNINGS;ASIO_STANDALONE;ASIO_ERROR_CATEGORY_NOEXCEPT=noexcept;_CRT_SECURE_NO_WARNINGS;_WIN32_WINNT=0x0501;WIN32;_MBCS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>src;../../src/lib/soci/src/core;../../src/lib/autocheck/include;../../src/lib/cereal/include;../../src/lib/asio/include;../../src/lib/xdrpp;../../src/lib/libsodium/src/libsodium/include;../../src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>_WINSOCK_DEPRECATED_NO_WARNINGS;SODIUM_STATIC;ASIO_STANDALONE;ASIO_ERROR_CATEGORY_NOEXCEPT=noexcept;_CRT_SECURE_NO_WARNINGS;_WIN32_WINNT=0x0501;WIN32;_MBCS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <MinimalRebuild>false</MinimalRebuild>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>c:/code/boost_1_57_0/stage/lib;C:\code\OpenSSL-Win32\lib\VC\static</AdditionalLibraryDirectories>
+      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -61,19 +61,24 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>c:/code/boost_1_57_0;C:\code\OpenSSL-Win32\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>_WIN32_WINNT=0x0501;_MBCS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>src;../../src/lib/autocheck/include;../../src/lib/cereal/include;../../src/lib/asio/include;../../src/lib/xdrpp;../../src/lib/libsodium/src/libsodium/include;../../src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>_WINSOCK_DEPRECATED_NO_WARNINGS;ASIO_STANDALONE;ASIO_ERROR_CATEGORY_NOEXCEPT=noexcept;_CRT_SECURE_NO_WARNINGS;_WIN32_WINNT=0x0501;WIN32;_MBCS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
+      <AdditionalDependencies>..\..\src\lib\libsodium\bin\Win32\Debug\v120\static\libsodium.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\..\xdrpp\xdrpp\marshal.cc" />
     <ClCompile Include="..\..\src\clf\BucketList.cpp" />
     <ClCompile Include="..\..\src\clf\CLFTests.cpp" />
+    <ClCompile Include="..\..\src\crypto\CryptoTests.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="..\..\src\database\Database.cpp" />
+    <ClCompile Include="..\..\src\database\DatabaseTests.cpp" />
     <ClCompile Include="..\..\src\fba\Ballot.cpp" />
     <ClCompile Include="..\..\src\fba\FBAMaster.cpp" />
     <ClCompile Include="..\..\src\fba\FBATests.cpp" />
@@ -82,15 +87,16 @@
     <ClCompile Include="..\..\src\fba\OurNode.cpp" />
     <ClCompile Include="..\..\src\fba\QuorumSet.cpp" />
     <ClCompile Include="..\..\src\fba\Statement.cpp" />
+    <ClCompile Include="..\..\src\history\HistoryArchive.cpp" />
     <ClCompile Include="..\..\src\history\HistoryMaster.cpp" />
     <ClCompile Include="..\..\src\history\HistoryTests.cpp" />
-    <ClCompile Include="..\..\src\ledger\AccountEntry.cpp" />
+    <ClCompile Include="..\..\src\ledger\AccountFrame.cpp" />
     <ClCompile Include="..\..\src\ledger\Ledger.cpp" />
-    <ClCompile Include="..\..\src\ledger\LedgerDatabase.cpp" />
-    <ClCompile Include="..\..\src\ledger\LedgerEntry.cpp" />
+    <ClCompile Include="..\..\src\ledger\LedgerDelta.cpp" />
+    <ClCompile Include="..\..\src\ledger\EntryFrame.cpp" />
     <ClCompile Include="..\..\src\ledger\LedgerMaster.cpp" />
-    <ClCompile Include="..\..\src\ledger\OfferEntry.cpp" />
-    <ClCompile Include="..\..\src\ledger\TrustLine.cpp" />
+    <ClCompile Include="..\..\src\ledger\OfferFrame.cpp" />
+    <ClCompile Include="..\..\src\ledger\TrustFrame.cpp" />
     <ClCompile Include="..\..\src\lib\crypto\edkeypair.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
     </ClCompile>
@@ -106,11 +112,48 @@
     <ClCompile Include="..\..\src\lib\http\reply.cpp" />
     <ClCompile Include="..\..\src\lib\http\request_parser.cpp" />
     <ClCompile Include="..\..\src\lib\http\server.cpp" />
+    <ClCompile Include="..\..\src\lib\json\jsoncpp.cpp" />
     <ClCompile Include="..\..\src\lib\util\format.cc">
       <DisableSpecificWarnings Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">4456</DisableSpecificWarnings>
       <DisableSpecificWarnings Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">4456</DisableSpecificWarnings>
     </ClCompile>
     <ClCompile Include="..\..\src\lib\util\getopt_long.c" />
+    <ClCompile Include="..\..\src\lib\xdrpp\tests\arpc.cc">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lib\xdrpp\tests\autocheck.cc">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lib\xdrpp\tests\cereal.cc">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lib\xdrpp\tests\compare.cc">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lib\xdrpp\tests\listener.cc">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lib\xdrpp\tests\marshal.cc">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lib\xdrpp\tests\msgsock.cc">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lib\xdrpp\tests\printer.cc">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lib\xdrpp\tests\srpc.cc">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\AllowTrustTxFrame.cpp" />
+    <ClCompile Include="..\..\src\transactions\CancelOfferFrame.cpp" />
+    <ClCompile Include="..\..\src\transactions\CreateOfferFrame.cpp" />
+    <ClCompile Include="..\..\src\transactions\InflationFrame.cpp" />
+    <ClCompile Include="..\..\src\transactions\MergeFrame.cpp" />
+    <ClCompile Include="..\..\src\transactions\PaymentFrame.cpp" />
+    <ClCompile Include="..\..\src\transactions\SetOptionsFrame.cpp" />
+    <ClCompile Include="..\..\src\transactions\TxDelta.cpp" />
+    <ClCompile Include="..\..\src\transactions\TxTests.cpp" />
     <ClCompile Include="..\..\src\util\Timer.cpp" />
     <ClCompile Include="..\..\src\util\types.cpp" />
     <ClCompile Include="..\..\src\main\Application.cpp" />
@@ -129,16 +172,13 @@
     <ClCompile Include="..\..\src\overlay\TCPPeer.cpp" />
     <ClCompile Include="..\..\src\process\ProcessMaster.cpp" />
     <ClCompile Include="..\..\src\process\ProcessTests.cpp" />
-    <ClCompile Include="..\..\src\transactions\Transaction.cpp" />
-    <ClCompile Include="..\..\src\transactions\TrustSetTx.cpp" />
-    <ClCompile Include="..\..\src\txherder\TransactionSet.cpp" />
+    <ClCompile Include="..\..\src\transactions\TransactionFrame.cpp" />
+    <ClCompile Include="..\..\src\transactions\ChangeTrustTxFrame.cpp" />
+    <ClCompile Include="..\..\src\txherder\TxSetFrame.cpp" />
     <ClCompile Include="..\..\src\txherder\TxHerder.cpp" />
     <ClCompile Include="..\..\src\util\Logging.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\..\xdrpp\xdrpp\endian.h" />
-    <ClInclude Include="..\..\..\xdrpp\xdrpp\marshal.h" />
-    <ClInclude Include="..\..\..\xdrpp\xdrpp\message.h" />
     <ClInclude Include="..\..\src\clf\BucketList.h" />
     <ClInclude Include="..\..\src\clf\CanonicalLedgerForm.h" />
     <ClInclude Include="..\..\src\clf\CLF.h" />
@@ -156,16 +196,17 @@
     <ClInclude Include="..\..\src\fba\QuorumSet.h" />
     <ClInclude Include="..\..\src\fba\Statement.h" />
     <ClInclude Include="..\..\src\generated\StellarXDR.h" />
+    <ClInclude Include="..\..\src\history\HistoryArchive.h" />
     <ClInclude Include="..\..\src\history\HistoryGateway.h" />
     <ClInclude Include="..\..\src\history\HistoryMaster.h" />
-    <ClInclude Include="..\..\src\ledger\AccountEntry.h" />
+    <ClInclude Include="..\..\src\ledger\AccountFrame.h" />
     <ClInclude Include="..\..\src\ledger\Ledger.h" />
-    <ClInclude Include="..\..\src\ledger\LedgerDatabase.h" />
-    <ClInclude Include="..\..\src\ledger\LedgerEntry.h" />
+    <ClInclude Include="..\..\src\ledger\LedgerDelta.h" />
+    <ClInclude Include="..\..\src\ledger\EntryFrame.h" />
     <ClInclude Include="..\..\src\ledger\LedgerGateway.h" />
     <ClInclude Include="..\..\src\ledger\LedgerMaster.h" />
-    <ClInclude Include="..\..\src\ledger\OfferEntry.h" />
-    <ClInclude Include="..\..\src\ledger\TrustLine.h" />
+    <ClInclude Include="..\..\src\ledger\OfferFrame.h" />
+    <ClInclude Include="..\..\src\ledger\TrustFrame.h" />
     <ClInclude Include="..\..\src\ledger\ValidatedLedgers.h" />
     <ClInclude Include="..\..\src\lib\crypto\EdKeyPair.h" />
     <ClInclude Include="..\..\src\lib\crypto\StellarPrivateKey.h" />
@@ -178,11 +219,12 @@
     <ClInclude Include="..\..\src\lib\http\request.hpp" />
     <ClInclude Include="..\..\src\lib\http\request_parser.hpp" />
     <ClInclude Include="..\..\src\lib\http\server.hpp" />
+    <ClInclude Include="..\..\src\lib\json\json\json-forwards.h" />
+    <ClInclude Include="..\..\src\lib\json\json\json.h" />
     <ClInclude Include="..\..\src\lib\util\cpptoml.h" />
     <ClInclude Include="..\..\src\lib\util\easylogging++.h" />
     <ClInclude Include="..\..\src\lib\util\getopt.h" />
     <ClInclude Include="..\..\src\lib\util\Logging.h" />
-    <ClInclude Include="..\..\src\lib\util\types.h" />
     <ClInclude Include="..\..\src\main\Application.h" />
     <ClInclude Include="..\..\src\main\CommandHandler.h" />
     <ClInclude Include="..\..\src\main\Config.h" />
@@ -202,25 +244,28 @@
     <ClInclude Include="..\..\src\process\ProcessGateway.h" />
     <ClInclude Include="..\..\src\process\ProcessMaster.h" />
     <ClInclude Include="..\..\src\sync\SyncMaster.h" />
-    <ClInclude Include="..\..\src\transactions\CancelOfferTx.h" />
-    <ClInclude Include="..\..\src\transactions\CreateOfferTx.h" />
-    <ClInclude Include="..\..\src\transactions\InflationTx.h" />
-    <ClInclude Include="..\..\src\transactions\MergeTx.h" />
-    <ClInclude Include="..\..\src\transactions\PaymentTx.h" />
-    <ClInclude Include="..\..\src\transactions\SetAccountTx.h" />
-    <ClInclude Include="..\..\src\transactions\SetRegularKeyTx.h" />
-    <ClInclude Include="..\..\src\transactions\Transaction.h" />
-    <ClInclude Include="..\..\src\transactions\TransactionResultCodes.h" />
-    <ClInclude Include="..\..\src\transactions\TrustSetTx.h" />
-    <ClInclude Include="..\..\src\txherder\TransactionSet.h" />
+    <ClInclude Include="..\..\src\transactions\AllowTrustTxFrame.h" />
+    <ClInclude Include="..\..\src\transactions\CancelOfferFrame.h" />
+    <ClInclude Include="..\..\src\transactions\CreateOfferFrame.h" />
+    <ClInclude Include="..\..\src\transactions\InflationFrame.h" />
+    <ClInclude Include="..\..\src\transactions\MergeFrame.h" />
+    <ClInclude Include="..\..\src\transactions\PaymentFrame.h" />
+    <ClInclude Include="..\..\src\transactions\SetOptionsFrame.h" />
+    <ClInclude Include="..\..\src\transactions\TransactionFrame.h" />
+    <ClInclude Include="..\..\src\transactions\TxResultCode.h" />
+    <ClInclude Include="..\..\src\transactions\ChangeTrustTxFrame.h" />
+    <ClInclude Include="..\..\src\transactions\TxDelta.h" />
+    <ClInclude Include="..\..\src\txherder\TxSetFrame.h" />
     <ClInclude Include="..\..\src\txherder\TxHerder.h" />
     <ClInclude Include="..\..\src\txherder\TxHerderGateway.h" />
     <ClInclude Include="..\..\src\util\Timer.h" />
+    <ClInclude Include="..\..\src\util\types.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="..\..\AUTHORS" />
     <None Include="..\..\ChangeLog" />
     <None Include="..\..\COPYING" />
+    <None Include="..\..\docs\design.md" />
     <None Include="..\..\docs\entries.md" />
     <None Include="..\..\docs\hayashi_example.cfg" />
     <None Include="..\..\docs\questions.md" />
@@ -236,7 +281,38 @@
       <Command Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">xdrc -hh -o ../../src/generated/StellarXDR.h ../../src/overlay/StellarXDR.x</Command>
       <Message Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">running xdrc</Message>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">../../src/generated/StellarXDR.h</Outputs>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+      </ExcludedFromBuild>
     </CustomBuild>
+    <None Include="..\..\src\lib\xdrpp\tests\xdrtest.x" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\lib\libsodium\builds\msvc\vs2013\libsodium\libsodium.vcxproj">
+      <Project>{a185b162-6cb6-4502-b03f-b56f7699a8d9}</Project>
+    </ProjectReference>
+    <ProjectReference Include="..\..\src\lib\xdrpp\msvc_xdrpp\xdrc\xdrc.vcxproj">
+      <Project>{e85843d9-b9e8-447b-bdd8-0cf9347229a4}</Project>
+    </ProjectReference>
+    <ProjectReference Include="..\..\src\lib\xdrpp\msvc_xdrpp\xdrpp\xdrpp.vcxproj">
+      <Project>{79708037-97a3-4b19-8e9e-252d00e2e007}</Project>
+    </ProjectReference>
+    <ProjectReference Include="libsoci\libsoci.vcxproj">
+      <Project>{bbd512eb-db2a-4fa1-bdb8-3ba3d2fcf51b}</Project>
+    </ProjectReference>
+    <ProjectReference Include="libsoci_postgresql\libsoci_postgresql.vcxproj">
+      <Project>{af73d670-3d56-4949-bec5-b8e5f7bca2e5}</Project>
+      <Private>false</Private>
+      <ReferenceOutputAssembly>true</ReferenceOutputAssembly>
+      <CopyLocalSatelliteAssemblies>false</CopyLocalSatelliteAssemblies>
+      <LinkLibraryDependencies>false</LinkLibraryDependencies>
+      <UseLibraryDependencyInputs>false</UseLibraryDependencyInputs>
+    </ProjectReference>
+    <ProjectReference Include="libsoci_sqlite3\libsoci_sqlite3.vcxproj">
+      <Project>{ae4b5814-d3d5-431f-9792-88689d1bc708}</Project>
+    </ProjectReference>
+    <ProjectReference Include="libsqlite\libsqlite.vcxproj">
+      <Project>{d16ee391-36cc-4a74-8f91-c6de95ab1cc5}</Project>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

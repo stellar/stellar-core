@@ -15,8 +15,9 @@ namespace stellar
 
 	class Ledger
 	{
+        
 	public:
-        stellarxdr::LedgerHeader mHeader;
+        LedgerHeader mHeader;
 
         
 		std::uint64_t      mParentCloseTime;   // when the previous ledger closed
@@ -33,10 +34,16 @@ namespace stellar
 
 		Ledger();
 
+        int64_t getMinBalance(); 
+        int64_t getTxFee();
+
 		std::uint64_t scaleFeeBase(std::uint64_t fee);
 		std::uint64_t getReserve(int increments);
 
 		void updateFees();
+
+        void applyTx(const Transaction& tx);
+        void isTxValid(const Transaction& tx);
 	};
 }
 

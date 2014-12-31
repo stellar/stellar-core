@@ -18,38 +18,38 @@ class Statement
     TxHerderGateway::BallotValidType mValidity;
 
     virtual void
-    fillXDRBody(stellarxdr::FBAContents& body)
+    fillXDRBody(FBAContents& body)
     {
     }
 
   public:
     typedef std::shared_ptr<Statement> pointer;
 
-    stellarxdr::FBAEnvelope mEnvelope;
-    stellarxdr::uint256 mContentsHash; // TODO.1 should calculate this somewhere
+    FBAEnvelope mEnvelope;
+    uint256 mContentsHash; // TODO.1 should calculate this somewhere
 
     Statement();
     // creates a Statement from the wire
-    Statement(stellarxdr::FBAEnvelope const& envelope);
-    Statement(stellarxdr::FBAStatementType type,
-              stellarxdr::uint256 const& nodeID,
-              stellarxdr::uint256 const& qSetHash,
-              const stellarxdr::SlotBallot& ballot);
+    Statement(FBAEnvelope const& envelope);
+    Statement(FBAStatementType type,
+              uint256 const& nodeID,
+              uint256 const& qSetHash,
+              const SlotBallot& ballot);
 
     void sign();
 
-    stellarxdr::FBAStatementType
+    FBAStatementType
     getType()
     {
         return mEnvelope.contents.body.type();
     }
 
-    stellarxdr::SlotBallot&
+    SlotBallot&
     getSlotBallot()
     {
         return mEnvelope.contents.slotBallot;
     }
-    stellarxdr::Ballot&
+    Ballot&
     getBallot()
     {
         return mEnvelope.contents.slotBallot.ballot;
@@ -74,7 +74,7 @@ class Statement
 
     uint32_t getLedgerIndex();
 
-    TransactionSetPtr fetchTxSet(Application& app);
+    TxSetFramePtr fetchTxSet(Application& app);
 };
 }
 

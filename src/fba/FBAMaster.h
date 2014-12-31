@@ -7,11 +7,11 @@
 
 #include <map>
 #include "ledger/Ledger.h"
-#include "txherder/TransactionSet.h"
+#include "txherder/TxSetFrame.h"
 #include "fba/QuorumSet.h"
 #include "fba/Statement.h"
-#include "fba/FBAGateway.h"
 #include "fba/OurNode.h"
+#include "fba/FBAGateway.h"
 #include "fba/FutureStatement.h"
 
 /*
@@ -53,7 +53,7 @@ class FBAMaster : public FBAGateway
     // map of nodes we have gotten FBA messages from in this round
     // we save ones we don't care about in case they are on some yet unknown
     // Quorum Set
-    map<stellarxdr::uint256, Node::pointer> mKnownNodes;
+    map<uint256, Node::pointer> mKnownNodes;
 
     // Statements we have gotten from the network but are waiting to get the
     // txset of
@@ -92,9 +92,9 @@ class FBAMaster : public FBAGateway
         mValidatingNode = validating;
     }
 
-    void startNewRound(const stellarxdr::SlotBallot& firstBallot);
+    void startNewRound(const SlotBallot& firstBallot);
 
-    void transactionSetAdded(TransactionSet::pointer txSet);
+    void transactionSetAdded(TxSetFramePtr txSet);
 
     void addQuorumSet(QuorumSet::pointer qset);
 
@@ -103,7 +103,8 @@ class FBAMaster : public FBAGateway
     {
         return mOurQuorumSet;
     }
-    Node::pointer getNode(stellarxdr::uint256& nodeID);
+    Node::pointer getNode(uint256& nodeID);
+    OurNode::pointer getOurNode();
 
     // get a new statement from the network
     void recvStatement(Statement::pointer statement);

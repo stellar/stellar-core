@@ -7,8 +7,7 @@
 
 #include "Ledger.h"
 #include "clf/CanonicalLedgerForm.h"
-#include "txherder/TransactionSet.h"
-#include "ledger/LedgerDatabase.h"
+#include "database/Database.h"
 #include "ledger/LedgerGateway.h"
 
 /*
@@ -26,9 +25,12 @@ namespace stellar
 		bool mCaughtUp;
 		// CanonicalLedgerForm::pointer mCurrentCLF;
         // LATER LedgerDatabase mCurrentDB;
-        //stellarxdr::uint256 mLastLedgerHash;
+        //uint256 mLastLedgerHash;
         Ledger::pointer mCurrentLedger;
+
         Application &mApp;
+
+        Database mDatabase;
 
         void startCatchUp();
 
@@ -43,12 +45,18 @@ namespace stellar
 
 		LedgerMaster(Application& app);
 
+        
+
 		//////// GATEWAY FUNCTIONS
 		// called by txherder
-		void externalizeValue(const stellarxdr::SlotBallot& slotBallot, TransactionSet::pointer txSet);
+		void externalizeValue(const SlotBallot& slotBallot, TransactionSetPtr txSet);
 
 		// called by CLF
         void recvDelta(CLFDeltaPtr delta, LedgerHeaderPtr header);
+
+        int64_t getFee();
+        int64_t getLedgerNum();
+        int64_t getMinBalance(int32_t ownerCount);
 		
 		///////
 
@@ -67,7 +75,9 @@ namespace stellar
 
 		Ledger::pointer getCurrentLedger();
 
-		void closeLedger(TransactionSet::pointer txSet);
+        Database& getDatabase() { return mDatabase;  }
+
+		void closeLedger(TransactionSetPtr txSet);
 		
 
     private:
@@ -76,12 +86,12 @@ namespace stellar
         
         // called when we successfully sync to the network
 		CanonicalLedgerForm::pointer catchUp(CanonicalLedgerForm::pointer currentCLF);
-        CanonicalLedgerForm::pointer importLedgerState(stellarxdr::uint256 ledgerHash);
+        CanonicalLedgerForm::pointer importLedgerState(uint256 ledgerHash);
         
         void updateDBFromLedger(CanonicalLedgerForm::pointer ledger);
         
         void setLastClosedLedger(CanonicalLedgerForm::pointer ledger);
-        stellarxdr::uint256 getLastClosedLedgerHash();
+        uint256 getLastClosedLedgerHash();
 
         void reset();
 	};

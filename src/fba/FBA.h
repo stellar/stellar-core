@@ -9,9 +9,9 @@
 
 namespace stellar
 {
-typedef std::shared_ptr<fbaxdr::Ballot> BallotPtr;
-typedef std::shared_ptr<fbaxdr::SlotBallot> SlotBallotPtr;
-typedef std::shared_ptr<fbaxdr::Statement> StatementPtr;
+typedef std::shared_ptr<Ballot> BallotPtr;
+typedef std::shared_ptr<SlotBallot> SlotBallotPtr;
+typedef std::shared_ptr<Statement> StatementPtr;
 }
 
 // beyond this then the ballot is considered invalid

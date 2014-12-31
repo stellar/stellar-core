@@ -5,16 +5,19 @@
 #include "LedgerMaster.h"
 #include "main/Application.h"
 #include "util/Logging.h"
+#include "lib/json/json.h"
+#include "ledger/LedgerDelta.h"
 
 /*
 The ledger module:
     1) gets the externalized tx set
     2) applies this set to the previous ledger
-    3) sends the changed entries to the CLF
-    4) saves the changed entries to SQL
-    5) saves the ledger hash and header to SQL
-    6) sends the new ledger hash and the tx set to the history
-    7) sends the new ledger hash and header to the TxHerder
+    3) sends the resultMeta somewhere
+    4) sends the changed entries to the CLF
+    5) saves the changed entries to SQL
+    6) saves the ledger hash and header to SQL
+    7) sends the new ledger hash and the tx set to the history
+    8) sends the new ledger hash and header to the TxHerder
     
 
 catching up to network:
@@ -29,7 +32,7 @@ catching up to network:
 namespace stellar
 {
 
-LedgerMaster::LedgerMaster(Application& app) : mApp(app)
+LedgerMaster::LedgerMaster(Application& app) : mApp(app), mDatabase(app)
 {
 	mCaughtUp = false;
     //syncWithCLF();
@@ -39,6 +42,27 @@ void LedgerMaster::startNewLedger()
 {
     // TODO.2
 
+}
+
+int64_t LedgerMaster::getFee()
+{
+    return 0; // TODO.2
+}
+
+int64_t LedgerMaster::getMinBalance(int32_t ownerCount)
+{
+    return 0; // TODO.2
+}
+
+int64_t LedgerMaster::getLedgerNum()
+{
+    return 0; // TODO.2
+}
+
+Ledger::pointer LedgerMaster::getCurrentLedger()
+{
+    // TODO.2
+    return mCurrentLedger;
 }
 
 LedgerHeaderPtr LedgerMaster::getCurrentHeader()
@@ -65,9 +89,9 @@ void LedgerMaster::syncWithCLF()
 }
 
 // called by txherder
-void LedgerMaster::externalizeValue(const stellarxdr::SlotBallot& slotBallot, TransactionSet::pointer txSet)
+void LedgerMaster::externalizeValue(const SlotBallot& slotBallot, TxSetFramePtr txSet)
 {
-    if(getCurrentHeader()->hash == slotBallot.previousLedgerHash)
+    if(getCurrentHeader()->hash == slotBallot.ballot.previousLedgerHash)
     {
         mCaughtUp = true;
         closeLedger(txSet);
@@ -109,23 +133,37 @@ void LedgerMaster::recvDelta(CLFDeltaPtr delta, LedgerHeaderPtr header)
     }
 }
 
-    
-
-void LedgerMaster::closeLedger(TransactionSet::pointer txSet)
+void LedgerMaster::closeLedger(TxSetFramePtr txSet)
 {
+    LedgerDelta ledgerDelta;
+    mDatabase.beginTransaction();
     for(auto tx : txSet->mTransactions)
     {
-        tx->apply();
+        try {
+            TxDelta delta;
+            tx->apply(delta,*this);
+
+            Json::Value txResult;
+            std::string retStr;
+            txResult["id"] = toBase58(tx->getHash(), retStr);
+            txResult["code"] = tx->getResultCode();
+            txResult["ledger"] = (Json::UInt64)getCurrentHeader()->ledgerSeq;
+
+            delta.commitDelta(txResult, ledgerDelta, *this );
+
+            
+        }catch(...)
+        {
+            CLOG(ERROR, "Ledger") << "Exception during tx->apply";
+        }
     }
+    mDatabase.endTransaction(false);
+    
+    // TODO.2 give the LedgerDelta to the Bucketlist
 }
 
 
 /* NICOLAS
-
-Ledger::pointer LedgerMaster::getCurrentLedger()
-{
-	return(Ledger::pointer());
-}
 
 bool LedgerMaster::ensureSync(ripple::Ledger::pointer lastClosedLedger)
 {
@@ -133,7 +171,7 @@ bool LedgerMaster::ensureSync(ripple::Ledger::pointer lastClosedLedger)
     // first, make sure we're in sync with the world
     if (lastClosedLedger->getHash() != mLastLedgerHash)
     {
-        std::vector<stellarxdr::uint256> needed=lastClosedLedger->getNeededAccountStateHashes(1,NULL);
+        std::vector<uint256> needed=lastClosedLedger->getNeededAccountStateHashes(1,NULL);
         if(needed.size())
         {
             // we're missing some nodes
@@ -312,7 +350,7 @@ static void importHelper(SLE::ref curEntry, LedgerMaster &lm) {
     // else entry type we don't care about
 }
     
-CanonicalLedgerForm::pointer LedgerMaster::importLedgerState(stellarxdr::uint256 ledgerHash)
+CanonicalLedgerForm::pointer LedgerMaster::importLedgerState(uint256 ledgerHash)
 {
     CanonicalLedgerForm::pointer res;
 
@@ -344,19 +382,19 @@ CanonicalLedgerForm::pointer LedgerMaster::importLedgerState(stellarxdr::uint256
 
 void LedgerMaster::updateDBFromLedger(CanonicalLedgerForm::pointer ledger)
 {
-    stellarxdr::uint256 currentHash = ledger->getHash();
+    uint256 currentHash = ledger->getHash();
     string hex(to_string(currentHash));
 
     mCurrentDB.setState(mCurrentDB.getStoreStateName(LedgerDatabase::kLastClosedLedger), hex.c_str());
 }
 
-stellarxdr::uint256 LedgerMaster::getLastClosedLedgerHash()
+uint256 LedgerMaster::getLastClosedLedgerHash()
 {
     string h = mCurrentDB.getState(mCurrentDB.getStoreStateName(LedgerDatabase::kLastClosedLedger));
-    return stellarxdr::uint256(h); // empty string -> 0
+    return uint256(h); // empty string -> 0
 }
 
-void LedgerMaster::closeLedger(TransactionSet::pointer txSet)
+void LedgerMaster::closeLedger(TxSetFramePtr txSet)
 {
     mCurrentDB.beginTransaction();
     assert(mCurrentDB.getTransactionLevel() == 1);

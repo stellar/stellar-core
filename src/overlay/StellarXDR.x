@@ -9,13 +9,16 @@
 
 %#include "generated/FBAXDR.h"
 
-namespace stellarxdr {
+namespace stellar {
 
 // messages
+typedef opaque uint512[64];
 typedef opaque uint256[32];
 typedef opaque uint160[20];
 typedef unsigned hyper uint64;
+typedef hyper int64;
 typedef unsigned uint32;
+typedef int int32;
 
 struct Error
 {
@@ -35,17 +38,28 @@ enum TransactionType
 	PAYMENT,
 	CREATE_OFFER,
 	CANCEL_OFFER,
-	CHANGE_ACCOUNT,
+	SET_OPTIONS,
 	CHANGE_TRUST,
+	ALLOW_TRUST,
 	ACCOUNT_MERGE,
 	INFLATION
 };
 
 struct CurrencyIssuer
 {
-	opaque currency<20>;
-	uint160 issuer;
+	uint160 currencyCode;
+	uint256 issuer;
 };
+
+union Currency switch(bool native)
+{
+	case TRUE: 
+		void;
+	case FALSE:
+		CurrencyIssuer ci;
+};
+	
+
 
 struct KeyValue
 {
@@ -55,49 +69,57 @@ struct KeyValue
 
 struct PaymentTx
 {
-	uint160 destination;  
-	opaque currency<20>;	// what they end up with
-	uint64 amount;			// amount they end up with
-	CurrencyIssuer path<>;	// what hops it must go through to get there
-	uint64 sendMax;			// the maximum amount of the source currency this
-							// will send. The tx will fail if can't be met
+	uint256 destination;  
+	Currency currency;			// what they end up with
+	int64 amount;				// amount they end up with
+	Currency path<>;			// what hops it must go through to get there
+	int64 sendMax;				// the maximum amount of the source currency this
+								// will send. The tx will fail if can't be met
 	opaque memo<32>;
-	opaque sourceMemo<32>;	// used to return a payment
+	opaque sourceMemo<32>;		// used to return a payment
 };
 
 struct CreateOfferTx
 {
-	CurrencyIssuer currencyTakerGets;
-	uint64 amountTakerGets;
-	CurrencyIssuer currencyTakerPays;
-	uint64 amountTakerPays;
+	Currency takerGets;
+	Currency takerPays;
+	int64 amount;		// amount taker gets
+	int64 price;		// =takerPaysAmount/takerGetsAmount
 
-	uint32 offerSeqNum;		// set if you want to change an existing offer
+	uint32 sequence;		// set if you want to change an existing offer
 	bool passive;	// only take offers that cross this. not offers that match it
 };
 
-struct ChangeAccountTx
+struct SetOptionsTx
 {
-	uint256 setAuthKey;
-	uint256 signingKey;
-	KeyValue data;
-	uint32	flags;
-	uint32 transferRate;
+	uint256* creditAuthKey;
+	uint256* pubKey;
+	uint256* inflationDest;
+	uint32*	flags;
+	uint32* transferRate;
+	KeyValue* data;
 };
 
 struct ChangeTrustTx
 {
 	CurrencyIssuer line;
-	uint64 amount;
-	bool auth;
+	int64 limit;
+};
+
+struct AllowTrustTx
+{
+	uint256 trustor;
+	uint160 currencyCode;
+	bool authorize;
 };
 
 struct Transaction
 {
-    uint160 account;
+    uint256 account;
 	uint32 maxFee;
 	uint32 seqNum;
 	uint32 maxLedger;	// maximum ledger this tx is valid to be applied in
+	uint32 minLedger;   // minimum ledger this tx is valid to be applied in
 
 	union switch (TransactionType type)
 	{
@@ -107,12 +129,14 @@ struct Transaction
 			CreateOfferTx createOfferTx;
 		case CANCEL_OFFER:
 			uint32 offerSeqNum;
-		case CHANGE_ACCOUNT:
-			ChangeAccountTx changeAccountTx;
+		case SET_OPTIONS:
+			SetOptionsTx setOptionsTx;
 		case CHANGE_TRUST:
 			ChangeTrustTx changeTrustTx;
+		case ALLOW_TRUST:
+			AllowTrustTx allowTrustTx;
 		case ACCOUNT_MERGE:
-			uint160 destination;
+			uint256 destination;
 		case INFLATION:
 			uint32 inflationSeq;
 	} body;
@@ -135,13 +159,12 @@ struct LedgerHeader
     uint256 previousLedgerHash;
     uint256 txSetHash;
 	uint256 clfHash;
-
 	
-	uint64 totalCoins;
-	uint64 feePool;
-	uint32 ledgerSeq;
+	int64 totalCoins;
+	int64 feePool;
+	uint64 ledgerSeq;
 	uint32 inflationSeq;
-	uint64 baseFee;
+	int32 baseFee;
 	uint64 closeTime;       
 };
 
@@ -162,72 +185,68 @@ struct History
 
 
 enum LedgerTypes {
+  NONE,
   ACCOUNT,
   TRUSTLINE,
   OFFER
 };
 
-struct Amount
-{
-    uint64 value;
-    uint160 currency;
-    uint160 issuer;
-};
-
-
-
 struct AccountEntry
 {
-    uint160 accountID;
-    uint64 balance;
+    uint256 accountID;
+    int64 balance;
     uint32 sequence;
     uint32 ownerCount;
-    uint32 transferRate;
-    uint256 pubKey;
-	uint160 inflationDest;
-	uint256 creditAuthKey;
+    uint32 transferRate;	// rate*10000000
+    uint256 *pubKey;
+	uint256 *inflationDest;
+	uint256 *creditAuthKey;
 	KeyValue data<>;
 
-	uint32 flags; // require dt, require auth, 
+	uint32 flags; // disable master, require dt, require auth, 
 };
 
 
 
 struct TrustLineEntry
 {
-    uint160 lowAccount;
-    uint160 highAccount;
-    uint160 currency;
-    uint64 lowLimit;
-    uint64 highLimit;
-    uint64 balance;
-    bool lowAuthSet;  // if the high account has authorized the low account to hold its credit
-    bool highAuthSet;
+    uint256 accountID;
+    uint256 issuer;
+    uint160 currencyCode;
+    int64 limit;
+    int64 balance;
+    bool authorized;  // if the issuer has authorized this guy to hold its credit
 };
 
+
+// selling 10A @ 2B/A
 struct OfferEntry
 {
-    uint160 accountID;
+    uint256 accountID;
     uint32 sequence;
-	CurrencyIssuer takerGets;
-	CurrencyIssuer takerPays;
-	uint64 takerGetsAmount;
-	uint64 takerPaysAmount;
-
+	Currency takerGets;  // A
+	Currency takerPays;  // B
+	int64 amount;	// amount of A
+	int64 price;	// price of A in terms of B
+					// price*1,000,000,000
+					// price=AmountB/AmountA
+					// price is after fees
     bool passive;
 };
 
 union LedgerEntry switch (LedgerTypes type)
 {
+ case NONE:
+	void;
  case ACCOUNT:
    AccountEntry account;
  case TRUSTLINE:
    TrustLineEntry trustLine;
  case OFFER:
-      OfferEntry offer;
+   OfferEntry offer;
 };
 
-struct Peer
+struct PeerAddress
 {
     uint32 ip;
     uint32 port;
@@ -299,7 +318,7 @@ union StellarMessage switch (MessageType type) {
 	case GET_PEERS:
 		void;
 	case PEERS:
-		Peer peers<>;
+		PeerAddress peers<>;
 	case GET_HISTORY:
 		GetHistory historyReq;
 	case HISTORY:
@@ -326,8 +345,7 @@ union StellarMessage switch (MessageType type) {
 	case GET_QUORUMSET:		
 		uint256 qSetHash;	
 	case QUORUMSET:
-		QuorumSet quorumSet;
-
+		QuorumSetDesc qSet;
 	case FBA_MESSAGE:
 		Envelope fbaMessage;
 };

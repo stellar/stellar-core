@@ -14,15 +14,15 @@ Statement::Statement() : mValidity(TxHerderGateway::UNKNOWN_VALIDITY)
 }
 
 // make from the wire
-Statement::Statement(stellarxdr::FBAEnvelope const& envelope)
+Statement::Statement(FBAEnvelope const& envelope)
     : mValidity(TxHerderGateway::UNKNOWN_VALIDITY), mEnvelope(envelope)
 {
 }
 
-Statement::Statement(stellarxdr::FBAStatementType type,
-                     stellarxdr::uint256 const& nodeID,
-                     stellarxdr::uint256 const& qSetHash,
-                     const stellarxdr::SlotBallot& ballot)
+Statement::Statement(FBAStatementType type,
+                     uint256 const& nodeID,
+                     uint256 const& qSetHash,
+                     const SlotBallot& ballot)
     : mValidity(TxHerderGateway::UNKNOWN_VALIDITY)
 {
     mEnvelope.contents.body.type(type);
@@ -73,7 +73,7 @@ Statement::compare(Statement::pointer other)
     return ballot::compare(getBallot(), other->getBallot());
 }
 
-TransactionSet::pointer
+TxSetFramePtr
 Statement::fetchTxSet(Application& app)
 {
     return app.getTxHerderGateway().fetchTxSet(getBallot().txSetHash, true);

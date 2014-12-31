@@ -136,13 +136,13 @@ PeerMaster::addConfigPeers()
 }
 
 void
-PeerMaster::broadcastMessage(stellarxdr::uint256 const& msgID)
+PeerMaster::broadcastMessage(uint256 const& msgID)
 {
     mFloodGate.broadcast(msgID, this);
 }
 
 void
-PeerMaster::broadcastMessage(stellarxdr::StellarMessage const& msg,
+PeerMaster::broadcastMessage(StellarMessage const& msg,
                              Peer::pointer peer)
 {
     vector<Peer::pointer> tempList;
@@ -152,7 +152,7 @@ PeerMaster::broadcastMessage(stellarxdr::StellarMessage const& msg,
 
 // send message to anyone you haven't gotten it from
 void
-PeerMaster::broadcastMessage(stellarxdr::StellarMessage const& msg,
+PeerMaster::broadcastMessage(StellarMessage const& msg,
                              vector<Peer::pointer> const& skip)
 {
     for (auto peer : mPeers)

@@ -3,6 +3,7 @@
 // this distribution or at http://opensource.org/licenses/ISC
 
 #include "main/Config.h"
+#include "history/HistoryArchive.h"
 #include "generated/StellardVersion.h"
 #include "lib/util/cpptoml.h"
 #include "util/Logging.h"
@@ -29,6 +30,9 @@ Config::Config()
     QUORUM_THRESHOLD = 1000;
     HTTP_PORT = 39132;
     PUBLIC_HTTP_PORT = false;
+
+    DATABASE = "sqlite3://:memory:";
+
 }
 
 void
@@ -55,6 +59,8 @@ Config::load(const std::string& filename)
             RUN_STANDALONE = g.get("RUN_STANDALONE")->as<bool>()->value();
         if (g.contains("LOG_FILE_PATH"))
             LOG_FILE_PATH = g.get("LOG_FILE_PATH")->as<std::string>()->value();
+
+       
 
         if (g.contains("TARGET_PEER_CONNECTIONS"))
             TARGET_PEER_CONNECTIONS =
@@ -85,6 +91,35 @@ Config::load(const std::string& filename)
                 QUORUM_SET.push_back(fromBase58(v->as<std::string>()->value()));
             }
         }
+
+        if (g.contains("HISTORY"))
+        {
+            auto hist = g.get_group("HISTORY");
+            if (hist)
+            {
+                for (auto const& archive : *hist)
+                {
+                    auto tab = archive.second->as_group();
+                    if (!tab)
+                        continue;
+                    std::string get, put;
+                    auto gg = tab->get_as<std::string>("get");
+                    auto pp = tab->get_as<std::string>("put");
+                    if (gg)
+                        get = *gg;
+                    if (pp)
+                        put = *pp;
+                    HISTORY[archive.first] =
+                        std::make_shared<HistoryArchive>(
+                            archive.first,
+                            get, put);
+                }
+            }
+        }
+
+        if (g.contains("DATABASE"))
+            DATABASE = g.get("DATABASE")->as<std::string>()->value();
+
     }
     catch (cpptoml::toml_parse_exception& ex)
     {

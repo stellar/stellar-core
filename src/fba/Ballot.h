@@ -5,7 +5,7 @@
 // under the ISC License. See the COPYING file at the top-level directory of
 // this distribution or at http://opensource.org/licenses/ISC
 
-#include "txherder/TransactionSet.h"
+#include "txherder/TxSetFrame.h"
 #include "fba/Node.h"
 #include "generated/StellarXDR.h"
 #include "fba/FBA.h"
@@ -18,9 +18,9 @@ typedef std::shared_ptr<Ledger> LedgerPtr;
 namespace ballot
 {
 // returns true if b1 is ranked higher
-bool compare(const stellarxdr::Ballot& b1, const stellarxdr::Ballot& b2);
-bool compareValue(const stellarxdr::Ballot& b1, const stellarxdr::Ballot& b2);
-bool isCompatible(const stellarxdr::Ballot& b1, const stellarxdr::Ballot& b2);
+bool compare(const Ballot& b1, const Ballot& b2);
+bool compareValue(const Ballot& b1, const Ballot& b2);
+bool isCompatible(const Ballot& b1, const Ballot& b2);
 }
 }
 

@@ -15,7 +15,7 @@ namespace stellar
 namespace ballot
 {
 bool
-isCompatible(const stellarxdr::Ballot& b1, const stellarxdr::Ballot& b2)
+isCompatible(const Ballot& b1, const Ballot& b2)
 {
     if (b1.closeTime != b2.closeTime)
         return false;
@@ -29,7 +29,7 @@ isCompatible(const stellarxdr::Ballot& b1, const stellarxdr::Ballot& b2)
 
 // favor longer close times and greater fees !
 bool
-compareValue(const stellarxdr::Ballot& b1, const stellarxdr::Ballot& b2)
+compareValue(const Ballot& b1, const Ballot& b2)
 {
     if (b1.txSetHash != b2.txSetHash)
         return (b1.txSetHash > b2.txSetHash);
@@ -44,7 +44,7 @@ compareValue(const stellarxdr::Ballot& b1, const stellarxdr::Ballot& b2)
 // returns true if b1 is higher
 // returns false if b1 is lower or they are the same
 bool
-compare(const stellarxdr::Ballot& b1, const stellarxdr::Ballot& b2)
+compare(const Ballot& b1, const Ballot& b2)
 {
     if (b1.index > b2.index)
         return true;

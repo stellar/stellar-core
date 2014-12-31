@@ -38,7 +38,7 @@ namespace cpptoml
             // nothing
         }
 
-        option(T value) : empty_{ false }, value_{ std::move(value) }
+        option(T value) : empty_(false), value_(std::move(value))
         {
             // nothing
         }
