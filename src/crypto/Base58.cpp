@@ -3,6 +3,7 @@
 // this distribution or at http://opensource.org/licenses/ISC
 
 #include "crypto/Base58.h"
+#include "crypto/ByteSlice.h"
 #include "crypto/SHA.h"
 
 namespace stellar
@@ -19,7 +20,7 @@ std::string const stellarBase58Alphabet =
 // was adapted from https://github.com/bitcoin/bitcoin/blob/master/src/base58.cpp
 
 std::string
-baseEncode(std::string const& alphabet, std::vector<uint8_t> const& bytes)
+baseEncode(std::string const& alphabet, ByteSlice const& bytes)
 {
     if (bytes.size() == 0)
         return "";
@@ -116,12 +117,12 @@ baseDecode(std::string const& alphabet, std::string const& encoded)
 
 
 std::string
-baseCheckEncode(std::string const& alphabet, uint8_t ver, std::vector<uint8_t> const& bytes)
+baseCheckEncode(std::string const& alphabet, uint8_t ver, ByteSlice const& bytes)
 {
     std::vector<uint8_t> vb(bytes.size() + 1, 0);
     vb.at(0) = ver;
     std::copy(bytes.begin(), bytes.end(), vb.begin() + 1);
-    uint256 hash = sha256<uint256>(sha256<std::vector<uint8_t>>(vb));
+    uint256 hash = sha256(sha256(vb));
     vb.insert(vb.end(), hash.begin(), hash.begin() + 4);
     return baseEncode(alphabet, vb);
 }
@@ -132,7 +133,7 @@ baseCheckDecode(std::string const& alphabet, std::string const& encoded)
     std::vector<uint8_t> bytes = baseDecode(alphabet, encoded);
     if (bytes.size() < 5)
         throw std::runtime_error("baseCheckDecode decoded to <5 bytes");
-    uint256 hash = sha256<uint256>(sha256(bytes.data(), bytes.size() - 4));
+    uint256 hash = sha256(sha256(ByteSlice(bytes.data(), bytes.size() - 4)));
     if (! std::equal(hash.begin(), hash.begin() + 4,
                      bytes.begin() + (bytes.size() - 4)))
         throw std::runtime_error("baseCheckDecode checksum failed");
@@ -142,7 +143,7 @@ baseCheckDecode(std::string const& alphabet, std::string const& encoded)
 }
 
 std::string
-toBase58Check(Base58CheckVersionByte ver, std::vector<uint8_t> const& bytes)
+toBase58Check(Base58CheckVersionByte ver, ByteSlice const& bytes)
 {
     return baseCheckEncode(stellarBase58Alphabet, static_cast<uint8_t>(ver), bytes);
 }

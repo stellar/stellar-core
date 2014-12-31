@@ -8,6 +8,8 @@
 #include "crypto/Base58.h"
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
+#include "crypto/ByteSlice.h"
+#include "crypto/Sign.h"
 #include <autocheck/autocheck.hpp>
 #include <sodium.h>
 #include <map>
@@ -70,7 +72,7 @@ TEST_CASE("SHA256 tests", "[crypto]")
     {
         LOG(DEBUG) << "fixed test vector SHA256: \"" << pair.second << "\"";
 
-        auto hash = binToHex(sha256<std::string>(pair.first));
+        auto hash = binToHex(sha256(pair.first));
         CHECK(hash.size() == pair.second.size());
         CHECK(hash == pair.second);
     }
@@ -99,7 +101,7 @@ TEST_CASE("SHA512/256 tests", "[crypto]")
     {
         LOG(DEBUG) << "fixed test vector SHA512/256: \"" << pair.second << "\"";
 
-        auto hash = binToHex(sha512_256<std::string>(pair.first));
+        auto hash = binToHex(sha512_256(pair.first));
         CHECK(hash.size() == pair.second.size());
         CHECK(hash == pair.second);
     }
@@ -250,4 +252,29 @@ TEST_CASE("base58check tests", "[crypto]")
             return ver == dec.first && bytes == dec.second;
         }, 20);
 
+}
+
+TEST_CASE("sign tests", "[crypto]")
+{
+    auto sk = SecretKey::random();
+    auto pk = sk.getPublicKey();
+    LOG(DEBUG) << "generated random secret key: " << toBase58Check(VER_ACCOUNT_PRIVATE, sk);
+    LOG(DEBUG) << "corresponding public key: " << toBase58Check(VER_ACCOUNT_PUBLIC, pk);
+
+    CHECK(SecretKey::fromBase58Seed(sk.getBase58Seed()) == sk);
+
+    std::string msg = "hello";
+    auto sig = sk.sign(msg);
+
+    LOG(DEBUG) << "formed signature: " << binToHex(sig);
+
+    LOG(DEBUG) << "checking signature-verify";
+    CHECK(pk.verify(sig, msg));
+
+    LOG(DEBUG) << "checking verify-failure on bad message";
+    CHECK(!pk.verify(sig, std::string("helloo")));
+
+    LOG(DEBUG) << "checking verify-failure on bad signature";
+    sig[4] ^= 1;
+    CHECK(!pk.verify(sig, msg));
 }

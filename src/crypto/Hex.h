@@ -10,11 +10,10 @@
 namespace stellar
 {
 
-std::string
-binToHex(std::vector<uint8_t> const& bin);
+class ByteSlice;
 
 std::string
-binToHex(uint256 const& bin);
+binToHex(ByteSlice const& bin);
 
 std::vector<uint8_t>
 hexToBin(std::string const& hex);

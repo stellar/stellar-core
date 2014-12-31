@@ -11,6 +11,7 @@ namespace stellar {
 
 
 // messages
+typedef opaque uint512[64];
 typedef opaque uint256[32];
 typedef opaque uint160[20];
 typedef unsigned hyper uint64;

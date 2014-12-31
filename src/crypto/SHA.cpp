@@ -3,20 +3,20 @@
 // this distribution or at http://opensource.org/licenses/ISC
 
 #include "crypto/SHA.h"
+#include "crypto/ByteSlice.h"
 
 namespace stellar
 {
 
 // Plain SHA256
 uint256
-sha256(void const *bin, size_t size)
+sha256(ByteSlice const &bin)
 {
     uint256 out;
-    if (crypto_hash_sha256(out.data(), static_cast<unsigned char const*>(bin), size) != 0)
+    if (crypto_hash_sha256(out.data(), bin.data(), bin.size()) != 0)
         throw std::runtime_error("Error from crypto_hash_sha256");
     return out;
 }
-
 
 // Note: this function was omitted from libsodium, presumably for space,
 // but to get sha512/256 exactly-as-specified in FIPS-180-4 we need to
@@ -38,13 +38,12 @@ crypto_hash_sha512_256_init(crypto_hash_sha512_state *state)
     return 0;
 }
 
-
 // SHA512/256: SHA512 truncated to 256 bits
 uint256
-sha512_256(void const *bin, size_t size)
+sha512_256(ByteSlice const& bin)
 {
     SHA512_256 s;
-    s.add(bin, size);
+    s.add(bin);
     return s.finish();
 }
 
@@ -56,11 +55,11 @@ SHA512_256::SHA512_256()
 }
 
 void
-SHA512_256::add(void const* buf, size_t size)
+SHA512_256::add(ByteSlice const& bin)
 {
     if (mFinished)
         throw std::runtime_error("adding bytes to finished SHA512_256");
-    if (crypto_hash_sha512_update(&mState, static_cast<unsigned char const*>(buf), size) != 0)
+    if (crypto_hash_sha512_update(&mState, bin.data(), bin.size()) != 0)
         throw std::runtime_error("error from crypto_hash_sha512_update");
 }
 

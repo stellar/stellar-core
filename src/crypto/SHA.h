@@ -7,33 +7,19 @@
 
 #include "generated/StellarXDR.h"
 #include <sodium.h>
-#include <vector>
 
 namespace stellar
 {
 
+class ByteSlice;
+
 // Plain SHA256
 uint256
-sha256(void const *bin, size_t size);
-
-template <typename T>
-uint256
-sha256(typename std::enable_if<sizeof(typename T::value_type) == 1, T>::type const& bin)
-{
-    return sha256(bin.data(), bin.size());
-}
-
+sha256(ByteSlice const& bin);
 
 // SHA512/256: SHA512 truncated to 256 bits
 uint256
-sha512_256(void const *bin, size_t size);
-
-template <typename T>
-uint256
-sha512_256(typename std::enable_if<sizeof(typename T::value_type) == 1, T>::type const& bin)
-{
-    return sha512_256(bin.data(), bin.size());
-}
+sha512_256(ByteSlice const& bin);
 
 // SHA512/256 in incremental mode, for large inputs.
 class SHA512_256
@@ -42,12 +28,7 @@ class SHA512_256
     bool mFinished;
 public:
     SHA512_256();
-    template <typename T>
-    void add(typename std::enable_if<sizeof(typename T::value_type) == 1, T>::type const& bin)
-    {
-        add(bin.data(), bin.size());
-    }
-    void add(void const* buf, size_t size);
+    void add(ByteSlice const& bin);
     uint256 finish();
 };
 
