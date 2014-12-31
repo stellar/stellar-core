@@ -7,12 +7,10 @@
 
 #include "generated/StellarXDR.h"
 #include "crypto/ByteSlice.h"
-#include <sodium.h>
+#include <memory>
 
 namespace stellar
 {
-
-class ByteSlice;
 
 // Plain SHA256
 uint256
@@ -25,8 +23,8 @@ sha512_256(ByteSlice const& bin);
 // SHA512/256 in incremental mode, for large inputs.
 class SHA512_256
 {
-    crypto_hash_sha512_state mState;
-    bool mFinished;
+    struct Impl;
+    std::unique_ptr<Impl> mImpl;
 public:
     SHA512_256();
     void add(ByteSlice const& bin);

@@ -4,6 +4,7 @@
 
 #include "crypto/SHA.h"
 #include "crypto/ByteSlice.h"
+#include <sodium.h>
 
 namespace stellar
 {
@@ -47,19 +48,31 @@ sha512_256(ByteSlice const& bin)
     return s.finish();
 }
 
-SHA512_256::SHA512_256()
-    : mFinished(false)
+
+struct SHA512_256::Impl
 {
-    if (crypto_hash_sha512_256_init(&mState) != 0)
-        throw std::runtime_error("error from crypto_hash_sha512_init");
+    crypto_hash_sha512_state mState;
+    bool mFinished;
+
+    Impl()
+    : mFinished(false)
+    {
+            if (crypto_hash_sha512_256_init(&mState) != 0)
+                throw std::runtime_error("error from crypto_hash_sha512_init");
+    }
+};
+
+SHA512_256::SHA512_256()
+    : mImpl(new Impl())
+{
 }
 
 void
 SHA512_256::add(ByteSlice const& bin)
 {
-    if (mFinished)
+    if (mImpl->mFinished)
         throw std::runtime_error("adding bytes to finished SHA512_256");
-    if (crypto_hash_sha512_update(&mState, bin.data(), bin.size()) != 0)
+    if (crypto_hash_sha512_update(&mImpl->mState, bin.data(), bin.size()) != 0)
         throw std::runtime_error("error from crypto_hash_sha512_update");
 }
 
@@ -67,9 +80,9 @@ uint256
 SHA512_256::finish()
 {
     unsigned char out[crypto_hash_sha512_BYTES];
-    if (mFinished)
+    if (mImpl->mFinished)
         throw std::runtime_error("finishing already-finished SHA512_256");
-    if (crypto_hash_sha512_final(&mState, out) != 0)
+    if (crypto_hash_sha512_final(&mImpl->mState, out) != 0)
         throw std::runtime_error("error from crypto_hash_sha512_final");
     uint256 trunc;
     std::copy(out, out+crypto_hash_sha256_BYTES, trunc.begin());
