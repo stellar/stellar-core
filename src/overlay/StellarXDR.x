@@ -13,7 +13,6 @@ namespace stellar {
 // messages
 typedef opaque uint512[64];
 typedef opaque uint256[32];
-typedef opaque uint160[20];
 typedef unsigned hyper uint64;
 typedef hyper int64;
 typedef unsigned uint32;
@@ -46,7 +45,7 @@ enum TransactionType
 
 struct CurrencyIssuer
 {
-	uint160 currencyCode;
+	uint256 currencyCode;
 	uint256 issuer;
 };
 
@@ -108,7 +107,7 @@ struct ChangeTrustTx
 struct AllowTrustTx
 {
 	uint256 trustor;
-	uint160 currencyCode;
+	uint256 currencyCode;
 	bool authorize;
 };
 
@@ -263,7 +262,7 @@ struct TrustLineEntry
 {
     uint256 accountID;
     uint256 issuer;
-    uint160 currencyCode;
+    uint256 currencyCode;
     int64 limit;
     int64 balance;
     bool authorized;  // if the issuer has authorized this guy to hold its credit

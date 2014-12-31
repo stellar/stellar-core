@@ -237,7 +237,7 @@ class Bucket
     //
     // Suppose you reserve (say) 2**32=4GB RAM storing Buckets, then we can keep
     // about 82 million object/hash pairs in memory, before hitting disk.
-    using KVPair = std::tuple<uint160, uint256>;
+    using KVPair = std::tuple<uint256, uint256>;
 
   private:
     std::vector<KVPair> const mEntries;

@@ -64,9 +64,9 @@ bool Database::loadAccount(const uint256& accountID, AccountFrame& retAcc)
     if(!mSession.got_data())
         return false;
 
-    account.pubKey.activate() = fromBase58(publicKey);
-    account.inflationDest.activate() = fromBase58(inflationDest);
-    account.creditAuthKey.activate() = fromBase58(creditAuthKey);
+    account.pubKey.activate() = fromBase58Check256(VER_ACCOUNT_PUBLIC, publicKey);
+    account.inflationDest.activate() = fromBase58Check256(VER_ACCOUNT_PUBLIC, inflationDest);
+    account.creditAuthKey.activate() = fromBase58Check256(VER_ACCOUNT_PUBLIC, creditAuthKey);
 
     return true;
 }
@@ -122,11 +122,11 @@ bool Database::loadOffer(const uint256& accountID, uint32_t seq, OfferFrame& ret
     retOffer.mEntry.offer().takerGets.native(false);
     retOffer.mEntry.offer().takerPays.native(false);
 
-    retOffer.mEntry.offer().takerGets.ci().currencyCode= base58to160(takerGetsCurrency);
-    retOffer.mEntry.offer().takerGets.ci().issuer = fromBase58(takerGetsIssuer);
+    retOffer.mEntry.offer().takerGets.ci().currencyCode = hexToBin256(takerGetsCurrency);
+    retOffer.mEntry.offer().takerGets.ci().issuer = fromBase58Check256(VER_ACCOUNT_PUBLIC, takerGetsIssuer);
 
-    retOffer.mEntry.offer().takerPays.ci().currencyCode = base58to160(takerPaysCurrency);
-    retOffer.mEntry.offer().takerPays.ci().issuer = fromBase58(takerPaysIssuer);
+    retOffer.mEntry.offer().takerPays.ci().currencyCode = hexToBin256(takerPaysCurrency);
+    retOffer.mEntry.offer().takerPays.ci().issuer = fromBase58Check256(VER_ACCOUNT_PUBLIC, takerPaysIssuer);
 
     return true;
 }

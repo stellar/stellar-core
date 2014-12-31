@@ -37,4 +37,16 @@ hexToBin(std::string const& hex)
     return bin;
 }
 
+uint256
+hexToBin256(std::string const& hex)
+{
+    uint256 out;
+    auto bin = hexToBin(hex);
+    if (bin.size() != out.size())
+    {
+        throw std::runtime_error("wrong number of hex bytes when decoding uint256");
+    }
+    return out;
+}
+
 }

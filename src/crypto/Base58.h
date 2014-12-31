@@ -7,6 +7,7 @@
 
 #include <string>
 #include <vector>
+#include "generated/StellarXDR.h"
 #include "crypto/ByteSlice.h"
 
 namespace stellar
@@ -32,6 +33,11 @@ toBase58Check(Base58CheckVersionByte ver, ByteSlice const& bin);
 
 std::pair<Base58CheckVersionByte, std::vector<uint8_t>>
 fromBase58Check(std::string const& encoded);
+
+// Variant that throws when there's either the wrong version byte
+// or anything other than 32 bytes encoded.
+uint256
+fromBase58Check256(Base58CheckVersionByte expect, std::string const& encoded);
 
 
 // Lower-level helper routines; you probably don't want to use these ones.

@@ -17,25 +17,6 @@ isZero(uint256 const& b)
 }
 
 uint256
-fromBase58(const std::string& str)
-{
-    // SANITY base58 decode str
-    static int i = 0;
-    uint256 ret;
-    ret[0] = ++i;
-    return (ret);
-}
-
-uint160 base58to160(const std::string& str)
-{
-    // TODO.2 
-    static int i = 0;
-    uint160 ret;
-    ret[0] = ++i;
-    return (ret);
-}
-
-uint256
 makePublicKey(uint256 const& b)
 {
     // SANITY pub from private

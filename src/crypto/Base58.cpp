@@ -154,4 +154,21 @@ fromBase58Check(std::string const& encoded)
     return std::make_pair(static_cast<Base58CheckVersionByte>(pair.first), pair.second);
 }
 
+uint256
+fromBase58Check256(Base58CheckVersionByte expect, std::string const& encoded)
+{
+    uint256 out;
+    auto p = fromBase58Check(encoded);
+    if (p.first != expect)
+    {
+        throw std::runtime_error("unexpected base58 version byte");
+    }
+    if (p.second.size() != out.size())
+    {
+        throw std::runtime_error("unexpected base58 length when decoding uint256");
+    }
+    std::copy(p.second.begin(), p.second.end(), out.begin());
+    return out;
+}
+
 }

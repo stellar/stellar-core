@@ -15,9 +15,6 @@ typedef std::vector<unsigned char> Blob;
 
 bool isZero(uint256 const& b);
 
-uint256 fromBase58(const std::string& str);
-uint160 base58to160(const std::string& str);
-
 uint256 makePublicKey(uint256 const& b);
 }
 
