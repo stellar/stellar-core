@@ -9,8 +9,8 @@ namespace stellar
 bool
 isZero(uint256 const& b)
 {
-    for (int i = 0; i < 32; i++)
-        if (b[i] != 0)
+    for (auto i : b)
+        if (i != 0)
             return false;
 
     return true;
