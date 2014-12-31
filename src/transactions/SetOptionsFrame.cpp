@@ -1,4 +1,5 @@
 #include "transactions/SetOptionsFrame.h"
+#include "crypto/Base58.h"
 
 // TODO.2 Handle all SQL exceptions
 namespace stellar
@@ -21,8 +22,7 @@ namespace stellar
         {
             // make sure no one holds your credit
             int64_t b=0;
-            std::string base58ID;
-            toBase58(mSigningAccount.mEntry.account().accountID, base58ID);
+            std::string base58ID = toBase58Check(VER_ACCOUNT_ID, mSigningAccount.mEntry.account().accountID);
             ledgerMaster.getDatabase().getSession() <<
                 "SELECT balance from TrustLines where issuer=:v1 and balance>0 limit 1",
                 soci::into(b), soci::use(base58ID);

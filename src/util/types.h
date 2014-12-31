@@ -15,8 +15,6 @@ typedef std::vector<unsigned char> Blob;
 
 bool isZero(uint256 const& b);
 
-std::string& toBase58(uint160 const& b, std::string& retstr);
-std::string& toBase58(uint256 const& b, std::string& retstr);
 uint256 fromBase58(const std::string& str);
 uint160 base58to160(const std::string& str);
 

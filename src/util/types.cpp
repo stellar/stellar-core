@@ -16,21 +16,6 @@ isZero(uint256 const& b)
     return true;
 }
 
-std::string&
-toBase58(uint256 const& b, std::string& retstr)
-{
-// SANITY base58 encode
-return (retstr);
-}
-
-std::string&
-toBase58(uint160 const& b, std::string& retstr)
-{
-    // SANITY base58 encode
-    return (retstr);
-}
-
-
 uint256
 fromBase58(const std::string& str)
 {

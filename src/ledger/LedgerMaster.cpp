@@ -7,6 +7,7 @@
 #include "util/Logging.h"
 #include "lib/json/json.h"
 #include "ledger/LedgerDelta.h"
+#include "crypto/Hex.h"
 
 /*
 The ledger module:
@@ -144,8 +145,7 @@ void LedgerMaster::closeLedger(TxSetFramePtr txSet)
             tx->apply(delta,*this);
 
             Json::Value txResult;
-            std::string retStr;
-            txResult["id"] = toBase58(tx->getHash(), retStr);
+            txResult["id"] = binToHex(tx->getHash());
             txResult["code"] = tx->getResultCode();
             txResult["ledger"] = (Json::UInt64)getCurrentHeader()->ledgerSeq;
 

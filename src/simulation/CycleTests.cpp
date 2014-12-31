@@ -7,7 +7,7 @@
 #include "main/Application.h"
 #include "overlay/LoopbackPeer.h"
 #include "util/make_unique.h"
-#include "util/types.h"
+#include "crypto/SHA.h"
 #include "main/test.h"
 #include "util/Logging.h"
 #include "simulation/Simulation.h"
@@ -20,10 +20,10 @@ TEST_CASE("cycle4 topology", "[simulation]")
 {
     Simulation simulation;
 
-    stellar::uint256 n1Seed = fromBase58("SEED_1");
-    stellar::uint256 n2Seed = fromBase58("SEED_2");
-    stellar::uint256 n3Seed = fromBase58("SEED_3");
-    stellar::uint256 n4Seed = fromBase58("SEED_4");
+    stellar::uint256 n1Seed = sha512_256("SEED_1");
+    stellar::uint256 n2Seed = sha512_256("SEED_2");
+    stellar::uint256 n3Seed = sha512_256("SEED_3");
+    stellar::uint256 n4Seed = sha512_256("SEED_4");
 
     stellar::uint256 n1 = simulation.addNode(n1Seed, simulation.getClock());
     stellar::uint256 n2 = simulation.addNode(n2Seed, simulation.getClock());

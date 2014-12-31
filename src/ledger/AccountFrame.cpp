@@ -5,6 +5,7 @@
 #include "AccountFrame.h"
 #include "LedgerMaster.h"
 #include "lib/json/json.h"
+#include "crypto/Base58.h"
 
 namespace stellar
 {
@@ -48,8 +49,7 @@ namespace stellar
 
     void AccountFrame::storeDelete(Json::Value& txResult, LedgerMaster& ledgerMaster)
     {
-        std::string base58ID;
-        toBase58(getIndex(), base58ID);
+        std::string base58ID = toBase58Check(VER_ACCOUNT_ID, getIndex());
 
         txResult["effects"]["delete"][base58ID];
 
@@ -58,8 +58,7 @@ namespace stellar
 
     void AccountFrame::storeChange(EntryFrame::pointer startFrom, Json::Value& txResult, LedgerMaster& ledgerMaster)
     {  
-        std::string base58ID;
-        toBase58(getIndex(), base58ID);
+        std::string base58ID = toBase58Check(VER_ACCOUNT_ID, getIndex());
 
         std::stringstream sql;
         sql << "UPDATE Accounts set ";
@@ -92,8 +91,8 @@ namespace stellar
 
         if(mEntry.account().pubKey != startFrom->mEntry.account().pubKey)
         {
-            string keyStr;
-            toBase58(*mEntry.account().pubKey, keyStr);
+            string keyStr = toBase58Check(VER_ACCOUNT_PUBLIC, *mEntry.account().pubKey);
+
             if(before) sql << ", ";
             sql << " pubKey= " << keyStr;
             txResult["effects"]["mod"][base58ID]["pubKey"] = keyStr;
@@ -103,8 +102,7 @@ namespace stellar
         // TODO.2  make safe
         if(mEntry.account().inflationDest != startFrom->mEntry.account().inflationDest)
         {
-            string keyStr;
-            toBase58(*mEntry.account().inflationDest, keyStr);
+            string keyStr = toBase58Check(VER_ACCOUNT_PUBLIC, *mEntry.account().inflationDest);
             if(before) sql << ", ";
             sql << " inflationDest= " << keyStr;
             txResult["effects"]["mod"][base58ID]["inflationDest"] = keyStr;
@@ -113,8 +111,7 @@ namespace stellar
 
         if(mEntry.account().creditAuthKey != startFrom->mEntry.account().creditAuthKey)
         {
-            string keyStr;
-            toBase58(*mEntry.account().creditAuthKey, keyStr);
+            string keyStr = toBase58Check(VER_ACCOUNT_PUBLIC, *mEntry.account().creditAuthKey);
 
             if(before) sql << ", ";
             sql << " creditAuthKey= " << keyStr;
@@ -137,8 +134,7 @@ namespace stellar
 
     void AccountFrame::storeAdd(Json::Value& txResult, LedgerMaster& ledgerMaster)
     {
-        std::string base58ID;
-        toBase58(getIndex(), base58ID);
+        std::string base58ID = toBase58Check(VER_ACCOUNT_ID, getIndex());
 
         ledgerMaster.getDatabase().getSession() << "INSERT into Accounts (accountID,balance) values (:v1,:v2)",
                 soci::use(base58ID), soci::use(mEntry.account().balance);

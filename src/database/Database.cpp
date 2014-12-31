@@ -4,6 +4,8 @@
 
 #include "database/Database.h"
 #include "main/Application.h"
+#include "crypto/Hex.h"
+#include "crypto/Base58.h"
 
 extern "C" void register_factory_sqlite3();
 
@@ -47,8 +49,7 @@ void Database::initialize()
 bool Database::loadAccount(const uint256& accountID, AccountFrame& retAcc)
 {
     // TODO.2 how do we represent NULL unit256 values in the DB?
-    std::string base58ID;
-    toBase58(accountID, base58ID);
+    std::string base58ID = toBase58Check(VER_ACCOUNT_ID, accountID);
     std::string publicKey, inflationDest, creditAuthKey;
 
     retAcc.mEntry.type(ACCOUNT);
@@ -75,9 +76,10 @@ bool Database::loadTrustLine(const uint256& accountID,
     TrustFrame& retLine)
 {
     std::string accStr,issuerStr,currencyStr;
-    toBase58(accountID, accStr);
-    toBase58(currency.currencyCode, currencyStr);
-    toBase58(currency.issuer, issuerStr);
+
+    accStr = toBase58Check(VER_ACCOUNT_ID, accountID);
+    currencyStr = binToHex(currency.currencyCode);
+    issuerStr = binToHex(issuerStr);
 
     retLine.mEntry.type(TRUSTLINE);
     int authInt;
@@ -102,7 +104,7 @@ bool Database::loadOffer(const uint256& accountID, uint32_t seq, OfferFrame& ret
 {
     // TODO.2 how are we representing native currency and issuer
     std::string accStr;
-    toBase58(accountID, accStr);
+    accStr = toBase58Check(VER_ACCOUNT_ID, accountID);
     int passiveInt;
     retOffer.mEntry.type(OFFER);
     std::string takerPaysCurrency, takerPaysIssuer, takerGetsCurrency, takerGetsIssuer;
