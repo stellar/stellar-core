@@ -39,6 +39,11 @@ Database::Database(Application& app)
     mSession.open(app.getConfig().DATABASE);
 }
 
+void Database::initialize()
+{
+
+}
+
 bool Database::loadAccount(const uint256& accountID, AccountFrame& retAcc)
 {
     // TODO.2 how do we represent NULL unit256 values in the DB?

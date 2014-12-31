@@ -242,7 +242,7 @@ namespace stellar
 
 	bool AccountEntry::checkFlag(LedgerSpecificFlags flag)
 	{
-		// TODO: 
+		
 		return(true);
 	}
 

@@ -40,7 +40,11 @@ const char *TxDelta::kSQLCreateStatement = "CREATE TABLE IF NOT EXISTS TxDelta (
 
 void TxDelta::merge(const TxDelta& other)
 {
-    // TODO.2
+    for(auto item : other.mStartEnd)
+    {
+        if(item.second.first) setStart(*item.second.first);
+        if(item.second.second) setFinal(*item.second.second);
+    }
 }
 
 void TxDelta::setFinal(EntryFrame& entry)

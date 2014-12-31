@@ -29,6 +29,8 @@ class Database
   public:
     Database(Application& app);
 
+    void initialize();
+
     // state store
     enum StoreStateName {
         kLastClosedLedger = 0,
