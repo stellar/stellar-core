@@ -7,6 +7,8 @@
 #include "fba/Ballot.h"
 #include "main/test.h"
 #include "main/Application.h"
+#include "crypto/SHA.h"
+
 using namespace stellar;
 
 // addStatement when we already have it
@@ -107,13 +109,13 @@ TEST_CASE("end to end", "[fba]")
         cfg.QUORUM_THRESHOLD = 3;
         cfg.HTTP_PORT = 0;
         cfg.START_NEW_NETWORK = true;
-        hashStr("seed", cfg.VALIDATION_SEED);
+        cfg.VALIDATION_SEED = sha512_256("seed");
 
         uint256 nodeID[5];
 
         for(int n = 0; n < 5; n++)
         {
-            hashStr("hello", nodeID[n]);
+            nodeID[n] = sha512_256("hello");
             nodeID[n][0] = n;
             cfg.QUORUM_SET.push_back(nodeID[n]);
         }
@@ -155,7 +157,7 @@ TEST_CASE("ballot tests", "[fba]")
     b1.baseFee = 10;
     b1.closeTime = 10;
     b1.index = 1;
-    hashStr("hello", b1.txSetHash);
+    b1.txSetHash = sha512_256("hello");
 
     SECTION("compare")
     {

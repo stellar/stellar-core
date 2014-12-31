@@ -6,6 +6,7 @@
 #include "main/Application.h"
 #include "xdrpp/marshal.h"
 #include "lib/util/easylogging++.h"
+#include "crypto/SHA.h"
 /*
 Need to ensure that threshold is > 50% of the nodes or the network won't be
 confluent
@@ -36,8 +37,7 @@ QuorumSet::getHash()
     {
         QuorumSetDesc qset;
         toXDR(qset);
-        xdr::msg_ptr xdrBytes(xdr::xdr_to_msg(qset));
-        hashXDR(std::move(xdrBytes), mHash);
+        mHash = sha512_256(xdr::xdr_to_msg(qset));
     }
     return mHash;
 }

@@ -10,6 +10,7 @@
 #include "util/Logging.h"
 #include "ledger/LedgerDelta.h"
 #include "ledger/OfferFrame.h"
+#include "crypto/SHA.h"
 
 namespace stellar
 {
@@ -35,8 +36,7 @@ uint256& TransactionFrame::getHash()
 	{
         Transaction tx;
         toXDR(tx);
-        xdr::msg_ptr xdrBytes(xdr::xdr_to_msg(tx));
-        hashXDR(std::move(xdrBytes), mHash);
+        mHash = sha512_256(xdr::xdr_to_msg(tx));
 	}
 	return(mHash);
 }

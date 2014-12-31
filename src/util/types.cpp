@@ -16,20 +16,6 @@ isZero(uint256 const& b)
     return true;
 }
 
-void
-hashXDR(xdr::msg_ptr msg, uint256& retHash)
-{
-    // SANITY  hash
-}
-
-void
-hashStr(std::string str, uint256& retHash)
-{
-    retHash[2] = 12;
-    // TODO.1  hash
-}
-
-
 std::string&
 toBase58(uint256 const& b, std::string& retstr)
 {

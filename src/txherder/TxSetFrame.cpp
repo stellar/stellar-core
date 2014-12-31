@@ -4,6 +4,7 @@
 
 #include "TxSetFrame.h"
 #include "xdrpp/marshal.h"
+#include "crypto/SHA.h"
 
 namespace stellar
 {
@@ -37,8 +38,7 @@ TxSetFrame::getContentsHash()
     {
         TransactionSet txSet;
         toXDR(txSet);
-        xdr::msg_ptr xdrBytes(xdr::xdr_to_msg(txSet));
-        hashXDR(std::move(xdrBytes), mHash);
+        mHash = sha512_256(xdr::xdr_to_msg(txSet));
     }
     return mHash;
 }
