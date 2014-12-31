@@ -3,7 +3,6 @@
 // this distribution or at http://opensource.org/licenses/ISC
 
 #include "crypto/Base58.h"
-#include "crypto/ByteSlice.h"
 #include "crypto/SHA.h"
 
 namespace stellar

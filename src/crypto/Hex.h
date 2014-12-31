@@ -6,11 +6,10 @@
 // this distribution or at http://opensource.org/licenses/ISC
 
 #include "generated/StellarXDR.h"
+#include "crypto/ByteSlice.h"
 
 namespace stellar
 {
-
-class ByteSlice;
 
 std::string
 binToHex(ByteSlice const& bin);

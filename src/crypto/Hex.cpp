@@ -3,7 +3,6 @@
 // this distribution or at http://opensource.org/licenses/ISC
 
 #include "crypto/Hex.h"
-#include "crypto/ByteSlice.h"
 #include <sodium.h>
 
 namespace stellar

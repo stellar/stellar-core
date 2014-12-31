@@ -7,11 +7,10 @@
 
 #include <string>
 #include <vector>
+#include "crypto/ByteSlice.h"
 
 namespace stellar
 {
-
-class ByteSlice;
 
 // Higher-level routines that target the stellar alphabet stellar base58check
 // version tags defined here (and a double-sha256 checksum, a la bitcoin); you

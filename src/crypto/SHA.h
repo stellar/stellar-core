@@ -6,6 +6,7 @@
 // this distribution or at http://opensource.org/licenses/ISC
 
 #include "generated/StellarXDR.h"
+#include "crypto/ByteSlice.h"
 #include <sodium.h>
 
 namespace stellar

@@ -4,7 +4,6 @@
 
 #include "crypto/Sign.h"
 #include "crypto/Base58.h"
-#include "crypto/ByteSlice.h"
 #include <sodium.h>
 #include <type_traits>
 
