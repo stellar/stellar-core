@@ -152,6 +152,52 @@ $(XDRC) $(XDRPP):
 	$(MAKE) -C $(top_builddir)/$(XDRPP_DIR)
 endif
 
+if LIBMEDIDA_INTERNAL
+noinst_LTLIBRARIES += libmedida.la
+libmedida_la_SOURCES = src/lib/libmedida/src/medida/metered_interface.h         \
+    src/lib/libmedida/src/medida/types.h                                        \
+    src/lib/libmedida/src/medida/histogram.cc                                   \
+    src/lib/libmedida/src/medida/reporting/collectd_reporter.h                  \
+    src/lib/libmedida/src/medida/reporting/collectd_reporter.cc                 \
+    src/lib/libmedida/src/medida/reporting/util.cc                              \
+    src/lib/libmedida/src/medida/reporting/console_reporter.h                   \
+    src/lib/libmedida/src/medida/reporting/abstract_polling_reporter.cc         \
+    src/lib/libmedida/src/medida/reporting/abstract_polling_reporter.h          \
+    src/lib/libmedida/src/medida/reporting/json_reporter.cc                     \
+    src/lib/libmedida/src/medida/reporting/json_reporter.h                      \
+    src/lib/libmedida/src/medida/reporting/util.h                               \
+    src/lib/libmedida/src/medida/reporting/console_reporter.cc                  \
+    src/lib/libmedida/src/medida/medida.h                                       \
+    src/lib/libmedida/src/medida/metrics_registry.cc                            \
+    src/lib/libmedida/src/medida/meter.cc src/lib/libmedida/src/medida/timer.h  \
+    src/lib/libmedida/src/medida/stats/ewma.cc                                  \
+    src/lib/libmedida/src/medida/stats/uniform_sample.cc                        \
+    src/lib/libmedida/src/medida/stats/snapshot.cc                              \
+    src/lib/libmedida/src/medida/stats/uniform_sample.h                         \
+    src/lib/libmedida/src/medida/stats/snapshot.h                               \
+    src/lib/libmedida/src/medida/stats/sample.h                                 \
+    src/lib/libmedida/src/medida/stats/exp_decay_sample.h                       \
+    src/lib/libmedida/src/medida/stats/ewma.h                                   \
+    src/lib/libmedida/src/medida/stats/exp_decay_sample.cc                      \
+    src/lib/libmedida/src/medida/timer_context.h                                \
+    src/lib/libmedida/src/medida/metric_interface.h                             \
+    src/lib/libmedida/src/medida/histogram.h                                    \
+    src/lib/libmedida/src/medida/counter.h                                      \
+    src/lib/libmedida/src/medida/metric_processor.cc                            \
+    src/lib/libmedida/src/medida/metrics_registry.h                             \
+    src/lib/libmedida/src/medida/metric_name.cc                                 \
+    src/lib/libmedida/src/medida/meter.h                                        \
+    src/lib/libmedida/src/medida/metric_name.h                                  \
+    src/lib/libmedida/src/medida/counter.cc                                     \
+    src/lib/libmedida/src/medida/metric_processor.h                             \
+    src/lib/libmedida/src/medida/timer_context.cc                               \
+    src/lib/libmedida/src/medida/summarizable_interface.h                       \
+    src/lib/libmedida/src/medida/sampling_interface.h                           \
+    src/lib/libmedida/src/medida/timer.cc
+libmedida_la_CPPFLAGS = -I$(srcdir)/src/lib/libmedida/src
+bin_stellard_LDADD += libmedida.la
+endif
+
 CLEANFILES = $(BUILT_SOURCES)
 GITDIR = $(top_srcdir)/.git
 src/generated/StellardVersion.h: Makefile

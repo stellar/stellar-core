@@ -4,3 +4,6 @@
 [submodule "src/lib/xdrpp"]
 	path = src/lib/xdrpp
 	url = https://github.com/xdrpp/xdrpp.git
+[submodule "src/lib/libmedida"]
+	path = src/lib/libmedida
+	url = https://github.com/stellar/medida.git
