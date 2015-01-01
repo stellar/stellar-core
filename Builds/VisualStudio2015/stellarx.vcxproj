@@ -74,9 +74,13 @@
   <ItemGroup>
     <ClCompile Include="..\..\src\clf\BucketList.cpp" />
     <ClCompile Include="..\..\src\clf\CLFTests.cpp" />
+    <ClCompile Include="..\..\src\crypto\Base58.cpp" />
     <ClCompile Include="..\..\src\crypto\CryptoTests.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
     </ClCompile>
+    <ClCompile Include="..\..\src\crypto\Hex.cpp" />
+    <ClCompile Include="..\..\src\crypto\SHA.cpp" />
+    <ClCompile Include="..\..\src\crypto\Sign.cpp" />
     <ClCompile Include="..\..\src\database\Database.cpp" />
     <ClCompile Include="..\..\src\database\DatabaseTests.cpp" />
     <ClCompile Include="..\..\src\fba\Ballot.cpp" />
@@ -97,15 +101,6 @@
     <ClCompile Include="..\..\src\ledger\LedgerMaster.cpp" />
     <ClCompile Include="..\..\src\ledger\OfferFrame.cpp" />
     <ClCompile Include="..\..\src\ledger\TrustFrame.cpp" />
-    <ClCompile Include="..\..\src\lib\crypto\edkeypair.cpp">
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
-    </ClCompile>
-    <ClCompile Include="..\..\src\lib\crypto\StellarPrivateKey.cpp">
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
-    </ClCompile>
-    <ClCompile Include="..\..\src\lib\crypto\StellarPublicKey.cpp">
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
-    </ClCompile>
     <ClCompile Include="..\..\src\lib\http\connection.cpp" />
     <ClCompile Include="..\..\src\lib\http\connection_manager.cpp" />
     <ClCompile Include="..\..\src\lib\http\HttpClient.cpp" />
@@ -184,6 +179,11 @@
     <ClInclude Include="..\..\src\clf\CLF.h" />
     <ClInclude Include="..\..\src\clf\CLFDelta.h" />
     <ClInclude Include="..\..\src\clf\CLFGateway.h" />
+    <ClInclude Include="..\..\src\crypto\Base58.h" />
+    <ClInclude Include="..\..\src\crypto\ByteSlice.h" />
+    <ClInclude Include="..\..\src\crypto\Hex.h" />
+    <ClInclude Include="..\..\src\crypto\SHA.h" />
+    <ClInclude Include="..\..\src\crypto\Sign.h" />
     <ClInclude Include="..\..\src\database\Database.h" />
     <ClInclude Include="..\..\src\fba\Ballot.h" />
     <ClInclude Include="..\..\src\fba\FBA.h" />
@@ -208,9 +208,6 @@
     <ClInclude Include="..\..\src\ledger\OfferFrame.h" />
     <ClInclude Include="..\..\src\ledger\TrustFrame.h" />
     <ClInclude Include="..\..\src\ledger\ValidatedLedgers.h" />
-    <ClInclude Include="..\..\src\lib\crypto\EdKeyPair.h" />
-    <ClInclude Include="..\..\src\lib\crypto\StellarPrivateKey.h" />
-    <ClInclude Include="..\..\src\lib\crypto\StellarPublicKey.h" />
     <ClInclude Include="..\..\src\lib\http\connection.hpp" />
     <ClInclude Include="..\..\src\lib\http\connection_manager.hpp" />
     <ClInclude Include="..\..\src\lib\http\header.hpp" />

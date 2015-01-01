@@ -111,15 +111,6 @@
     <ClCompile Include="..\..\src\overlay\PeerMaster.cpp">
       <Filter>overlay</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\lib\crypto\edkeypair.cpp">
-      <Filter>crypto</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\lib\crypto\StellarPrivateKey.cpp">
-      <Filter>crypto</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\lib\crypto\StellarPublicKey.cpp">
-      <Filter>crypto</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\clf\BucketList.cpp">
       <Filter>clf</Filter>
     </ClCompile>
@@ -294,6 +285,18 @@
     <ClCompile Include="..\..\src\transactions\TxTests.cpp">
       <Filter>transactions</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\crypto\Base58.cpp">
+      <Filter>crypto</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\crypto\Hex.cpp">
+      <Filter>crypto</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\crypto\SHA.cpp">
+      <Filter>crypto</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\crypto\Sign.cpp">
+      <Filter>crypto</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\fba\Ballot.h">
@@ -364,15 +367,6 @@
     </ClInclude>
     <ClInclude Include="..\..\src\generated\StellarXDR.h">
       <Filter>generated</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\lib\crypto\EdKeyPair.h">
-      <Filter>crypto</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\lib\crypto\StellarPrivateKey.h">
-      <Filter>crypto</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\lib\crypto\StellarPublicKey.h">
-      <Filter>crypto</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\main\Config.h">
       <Filter>main</Filter>
@@ -538,6 +532,21 @@
     </ClInclude>
     <ClInclude Include="..\..\src\transactions\ChangeTrustTxFrame.h">
       <Filter>transactions</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\crypto\Base58.h">
+      <Filter>crypto</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\crypto\ByteSlice.h">
+      <Filter>crypto</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\crypto\Hex.h">
+      <Filter>crypto</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\crypto\SHA.h">
+      <Filter>crypto</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\crypto\Sign.h">
+      <Filter>crypto</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
