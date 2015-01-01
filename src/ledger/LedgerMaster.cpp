@@ -8,6 +8,8 @@
 #include "lib/json/json.h"
 #include "ledger/LedgerDelta.h"
 #include "crypto/Hex.h"
+#include "crypto/Sign.h"
+#include "crypto/Base58.h"
 
 /*
 The ledger module:
@@ -41,8 +43,13 @@ LedgerMaster::LedgerMaster(Application& app) : mApp(app), mDatabase(app)
 
 void LedgerMaster::startNewLedger()
 {
-    // TODO.2
-
+    ByteSlice bytes("masterpassphrasemasterpassphrase");
+    std::string b58SeedStr = toBase58Check(VER_SEED, bytes);
+    SecretKey skey = SecretKey::fromBase58Seed(b58SeedStr);
+    AccountFrame masterAccount(skey.getPublicKey());
+    masterAccount.mEntry.account().balance = 100000000000000;
+    Json::Value result;
+    masterAccount.storeAdd(result, *this);
 }
 
 int64_t LedgerMaster::getFee()

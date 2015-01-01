@@ -6,6 +6,7 @@
 #include "main/Application.h"
 #include "crypto/Hex.h"
 #include "crypto/Base58.h"
+#include "util/Logging.h"
 
 extern "C" void register_factory_sqlite3();
 
@@ -39,11 +40,19 @@ Database::Database(Application& app)
 {
     registerDrivers();
     mSession.open(app.getConfig().DATABASE);
+    if(mApp.getConfig().START_NEW_NETWORK) initialize();
 }
 
 void Database::initialize()
 {
-
+    try {
+        AccountFrame::dropAll(*this);
+        OfferFrame::dropAll(*this);
+        TrustFrame::dropAll(*this);
+    }catch(exception const &e)
+    {
+        LOG(ERROR) << "Error: " << e.what();
+    }
 }
 
 bool Database::loadAccount(const uint256& accountID, AccountFrame& retAcc)
@@ -52,21 +61,24 @@ bool Database::loadAccount(const uint256& accountID, AccountFrame& retAcc)
     std::string base58ID = toBase58Check(VER_ACCOUNT_ID, accountID);
     std::string publicKey, inflationDest, creditAuthKey;
 
+    soci::indicator publicKeyInd, inflationDestInd, creditAuthKeyInd;
+
     retAcc.mEntry.type(ACCOUNT);
     AccountEntry& account = retAcc.mEntry.account();
     mSession << "SELECT balance,sequence,ownerCount,transferRate,publicKey, \
         inflationDest,creditAuthKey,flags from Accounts where accountID=:v1",
         into(account.balance), into(account.sequence), into(account.ownerCount),
-        into(account.transferRate), into(publicKey), into(inflationDest),
-        into(creditAuthKey), into(account.flags),
+        into(account.transferRate), into(publicKey, publicKeyInd), 
+        into(inflationDest, inflationDestInd),
+        into(creditAuthKey, creditAuthKeyInd), into(account.flags),
         use(base58ID);
 
     if(!mSession.got_data())
         return false;
 
-    account.pubKey.activate() = fromBase58Check256(VER_ACCOUNT_PUBLIC, publicKey);
-    account.inflationDest.activate() = fromBase58Check256(VER_ACCOUNT_PUBLIC, inflationDest);
-    account.creditAuthKey.activate() = fromBase58Check256(VER_ACCOUNT_PUBLIC, creditAuthKey);
+    if(publicKeyInd==soci::i_ok) account.pubKey.activate() = fromBase58Check256(VER_ACCOUNT_PUBLIC, publicKey);
+    if(inflationDestInd == soci::i_ok) account.inflationDest.activate() = fromBase58Check256(VER_ACCOUNT_PUBLIC, inflationDest);
+    if(creditAuthKeyInd == soci::i_ok) account.creditAuthKey.activate() = fromBase58Check256(VER_ACCOUNT_PUBLIC, creditAuthKey);
 
     return true;
 }

@@ -350,7 +350,7 @@ Peer::recvFBAMessage(StellarMessage const& msg)
     FBAEnvelope envelope = msg.fbaMessage();
     Statement::pointer statement = std::make_shared<Statement>(envelope);
 
-    mApp.getOverlayGateway().recvFloodedMsg(statement->mEnvelope.signature, msg,
+    mApp.getOverlayGateway().recvFloodedMsg(statement->mContentsHash, msg,
                                             statement->getLedgerIndex(),
                                             shared_from_this());
     mApp.getFBAGateway().recvStatement(statement);

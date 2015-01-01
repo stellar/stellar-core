@@ -10,6 +10,10 @@
 
 namespace stellar
 {
+    CreateOfferFrame::CreateOfferFrame(const TransactionEnvelope& envelope) : TransactionFrame(envelope)
+    {
+
+    }
 
 // make sure these issuers exist and you can hold the ask currency
 bool CreateOfferFrame::checkOfferValid(LedgerMaster& ledgerMaster)

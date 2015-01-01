@@ -251,7 +251,7 @@ FBAMaster::processStatement(Statement::pointer statement)
                 node->addStatement(statement);
                 if (validity == TxHerderGateway::VALID_BALLOT)
                     mApp.getOverlayGateway().broadcastMessage(
-                        statement->mEnvelope.signature);
+                        statement->mContentsHash);
 
                 ///////  DO THE THING
                 return (true);

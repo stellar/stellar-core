@@ -3,6 +3,10 @@
 
 namespace stellar
 {
+    AllowTrustTxFrame::AllowTrustTxFrame(const TransactionEnvelope& envelope) : TransactionFrame(envelope)
+    {
+
+    }
 
     void AllowTrustTxFrame::doApply(TxDelta& delta, LedgerMaster& ledgerMaster)
     {

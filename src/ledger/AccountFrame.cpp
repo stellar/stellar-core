@@ -23,7 +23,7 @@ namespace stellar
 
     AccountFrame::AccountFrame()
     {
-
+        mEntry.type(ACCOUNT);
     }
 
     AccountFrame::AccountFrame(const LedgerEntry& from) : EntryFrame(from)
@@ -33,8 +33,9 @@ namespace stellar
 
     AccountFrame::AccountFrame(uint256& id)
     {
-        // TODO.2
-        //mEntry.
+        mEntry.type(ACCOUNT);
+        mEntry.account().accountID = id;
+        mEntry.account().sequence = 1;
     }
 
     void AccountFrame::calculateIndex()
@@ -142,9 +143,17 @@ namespace stellar
         txResult["effects"]["new"][base58ID]["balance"] = (Json::Int64)mEntry.account().balance;
     }
 
+    void AccountFrame::dropAll(Database &db)
+    {
+        db.getSession() << "DROP TABLE IF EXISTS Accounts;";
+        db.getSession() << kSQLCreateStatement;
+        
+
+    }
+
    
 
-    /* NICOLAS
+    /*
     
 
 	
@@ -256,17 +265,7 @@ namespace stellar
 		return tecINSUF_RESERVE_LINE;
 	}
 
-    void AccountEntry::dropAll(Database &db)
-    {
-        if (!db.getDBCon()->getDB()->executeSQL("DROP TABLE IF EXISTS Accounts;"))
-		{
-            throw std::runtime_error("Could not drop Account data");
-		}
-        if (!db.getDBCon()->getDB()->executeSQL(kSQLCreateStatement))
-        {
-            throw std::runtime_error("Could not recreate Account data");
-		}
-    }
+    
     */
 }
 

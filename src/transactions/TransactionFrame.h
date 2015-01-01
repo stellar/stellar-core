@@ -46,10 +46,12 @@ namespace stellar
 	public:
 		typedef std::shared_ptr<TransactionFrame> pointer;
 
+        TransactionFrame(const TransactionEnvelope& envelope);
+
 		//static TransactionFramePtr makeTransactionFromDB();
 		static TransactionFrame::pointer makeTransactionFromWire(TransactionEnvelope const& msg);
         uint256& getHash();
-        uint256& getSignature();
+        uint512& getSignature();
 
         TxResultCode getResultCode() { return mResultCode;  }
 

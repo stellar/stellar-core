@@ -14,7 +14,7 @@ namespace stellar {
 		accountID	CHARACTER(35),			\
 		issuer CHARACTER(35),				\
 		currency Blob(20),					\
-		limit UNSIGNED INT,		    		\
+		tlimit UNSIGNED INT,		   		\
 		balance UNSIGNED INT,				\
 		authorized BOOL						\
 	); ";
@@ -46,8 +46,14 @@ namespace stellar {
 
     }
 
+    void TrustFrame::dropAll(Database &db)
+    {
+        db.getSession() << "DROP TABLE IF EXISTS TrustLines;";
+        db.getSession() << kSQLCreateStatement;
+    }
 
-    /* NICOLAS
+
+    /* 
     // NICOLAS -- code below does not work
     // need to rethink the way we store those lines:
     //     balance, low and high limit share the same currency
@@ -55,17 +61,6 @@ namespace stellar {
     //     currency's issuer should be also first classed if we're going this direction
 
 
-    const char *TrustLine::kSQLCreateStatement = "CREATE TABLE IF NOT EXISTS TrustLines (					\
-		trustIndex Blob(32),					\
-		lowAccount	CHARACTER(35),				\
-		highAccount CHARACTER(35),				\
-		currency Blob(20),						\
-		lowLimit CHARACTER(100),				\
-		highLimit CHARACTER(100),				\
-		balance CHARACTER(100),					\
-		lowAuthSet BOOL,						\
-		highAuthSet BOOL						\
-	); ";
 
 	TrustLine::TrustLine()
 	{
@@ -219,16 +214,6 @@ namespace stellar {
 		}
 	}
 
-    void TrustLine::dropAll(LedgerDatabase &db)
-    {
-        if (!db.getDBCon()->getDB()->executeSQL("DROP TABLE IF EXISTS TrustLines;"))
-		{
-            throw std::runtime_error("Could not drop TrustLines data");
-		}
-        if (!db.getDBCon()->getDB()->executeSQL(kSQLCreateStatement))
-        {
-            throw std::runtime_error("Could not recreate Account data");
-		}
-    }
+   
     */
 }

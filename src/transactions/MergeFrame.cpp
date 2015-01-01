@@ -4,6 +4,12 @@
 
 namespace stellar
 {
+
+    MergeFrame::MergeFrame(const TransactionEnvelope& envelope) : TransactionFrame(envelope)
+    {
+
+    }
+
     // make sure the deleted Account hasn't issued credit
     // make sure the we delete all the offers
     // move the STR to the new account

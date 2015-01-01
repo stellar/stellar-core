@@ -169,6 +169,11 @@ class Application : public enable_shared_from_this<Application>
     {
         return mLedgerMaster;
     }
+    LedgerMaster&
+    getLedgerMaster()
+    {
+        return mLedgerMaster;
+    }
     FBAGateway&
     getFBAGateway()
     {

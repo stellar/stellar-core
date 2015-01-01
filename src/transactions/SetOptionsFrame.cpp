@@ -4,6 +4,11 @@
 // TODO.2 Handle all SQL exceptions
 namespace stellar
 {
+    SetOptionsFrame::SetOptionsFrame(const TransactionEnvelope& envelope) : TransactionFrame(envelope)
+    {
+
+    }
+
     void SetOptionsFrame::doApply(TxDelta& delta, LedgerMaster& ledgerMaster)
     {
         if(mEnvelope.tx.body.setOptionsTx().creditAuthKey)

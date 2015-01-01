@@ -3,6 +3,7 @@
 // this distribution or at http://opensource.org/licenses/ISC
 
 #include "ledger/OfferFrame.h"
+#include "database/Database.h"
 
 using namespace std;
 
@@ -61,21 +62,15 @@ namespace stellar
 
     }
 
-    /* NICOLAS
-    // NICOLAS: deal with amounts properly (see TrustLines)
+    void OfferFrame::dropAll(Database &db)
+    {
+        db.getSession() << "DROP TABLE IF EXISTS Offers;";
+        db.getSession() << kSQLCreateStatement;
+    }
 
-    const char *OfferEntry::kSQLCreateStatement = "CREATE TABLE IF NOT EXISTS Offers (						\
-			accountID		CHARACTER(35),		\
-			sequence		INT UNSIGNED,		\
-			takerPaysCurrency Blob(20),			\
-			takerPaysAmount BIGINT UNSIGNED,	\
-			takerPaysIssuer CHARACTER(35),		\
-			takerGetsCurrency Blob(20),			\
-			takerGetsAmount BIGINT UNSIGNED,	\
-			takerGetsIssuer CHARACTER(3),		\
-			expiration INT UNSIGNED,			\
-			BOOL passive						\
-	);";
+    /* 
+    
+
 
 	OfferEntry::OfferEntry(SLE::pointer sle)
 	{
@@ -180,16 +175,6 @@ namespace stellar
 		}
 	}
 
-    void OfferEntry::dropAll(LedgerDatabase &db)
-    {
-        if (!db.getDBCon()->getDB()->executeSQL("DROP TABLE IF EXISTS Offers;"))
-		{
-            throw std::runtime_error("Could not drop Offers data");
-		}
-        if (!db.getDBCon()->getDB()->executeSQL(kSQLCreateStatement))
-        {
-            throw std::runtime_error("Could not recreate Offers data");
-		}
-    }
+   
     */
 }

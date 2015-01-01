@@ -9,6 +9,10 @@
 
 namespace stellar
 { 
+    ChangeTrustTxFrame::ChangeTrustTxFrame(const TransactionEnvelope& envelope) : TransactionFrame(envelope)
+    {
+
+    }
     void ChangeTrustTxFrame::doApply(TxDelta& delta, LedgerMaster& ledgerMaster)
     {
         TrustFrame trustLine;

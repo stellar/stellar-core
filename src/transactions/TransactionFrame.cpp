@@ -11,21 +11,57 @@
 #include "ledger/LedgerDelta.h"
 #include "ledger/OfferFrame.h"
 #include "crypto/SHA.h"
+#include "transactions/AllowTrustTxFrame.h"
+#include "transactions/CancelOfferFrame.h"
+#include "transactions/CreateOfferFrame.h"
+#include "transactions/ChangeTrustTxFrame.h"
+#include "transactions/InflationFrame.h"
+#include "transactions/MergeFrame.h"
+#include "transactions/PaymentFrame.h"
+#include "transactions/SetOptionsFrame.h"
+
 
 namespace stellar
 {
 
-    TransactionFrame::pointer TransactionFrame::makeTransactionFromWire(TransactionEnvelope const& msg)
+   
+TransactionFrame::pointer TransactionFrame::makeTransactionFromWire(TransactionEnvelope const& msg)
 {
+    switch(msg.tx.body.type())
+    {
+    case PAYMENT:
+        return TransactionFrame::pointer(new PaymentFrame(msg));
+    case CREATE_OFFER:
+        return TransactionFrame::pointer(new CreateOfferFrame(msg));
+    case CANCEL_OFFER:
+        return TransactionFrame::pointer(new CancelOfferFrame(msg));
+    case SET_OPTIONS:
+        return TransactionFrame::pointer(new SetOptionsFrame(msg));
+    case CHANGE_TRUST:
+        return TransactionFrame::pointer(new ChangeTrustTxFrame(msg));
+    case ALLOW_TRUST:
+        return TransactionFrame::pointer(new AllowTrustTxFrame(msg));
+    case ACCOUNT_MERGE:
+        return TransactionFrame::pointer(new MergeFrame(msg));
+    case INFLATION:
+        return TransactionFrame::pointer(new InflationFrame(msg));
+
+    default:
+        CLOG(WARNING, "Tx") << "Unknown Tx type: " << msg.tx.body.type();
+    }
     //mSignature = msg.signature;
 
 	// SANITY check sig
     return TransactionFrame::pointer();
 }
 
+TransactionFrame::TransactionFrame(const TransactionEnvelope& envelope) : mEnvelope(envelope)
+{
+
+}
     
 // TODO.2 we can probably get rid of this
-uint256& TransactionFrame::getSignature()
+uint512& TransactionFrame::getSignature()
 {
     return mEnvelope.signature;
 }

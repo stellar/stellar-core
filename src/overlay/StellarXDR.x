@@ -143,7 +143,7 @@ struct Transaction
 struct TransactionEnvelope
 {
     Transaction tx;
-    uint256 signature;
+    uint512 signature;
 };
 
 struct TransactionSet
@@ -230,7 +230,7 @@ struct FBAContents
 struct FBAEnvelope
 {
 	uint256 nodeID;
-    uint256 signature;
+    uint512 signature;
 	FBAContents contents;
 };
 

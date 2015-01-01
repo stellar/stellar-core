@@ -7,6 +7,11 @@
 
 namespace stellar
 { 
+    PaymentFrame::PaymentFrame(const TransactionEnvelope& envelope) : TransactionFrame(envelope)
+    {
+
+    }
+
     void PaymentFrame::doApply(TxDelta& delta,LedgerMaster& ledgerMaster)
     {
         uint32_t minBalance = ledgerMaster.getMinBalance(mSigningAccount.mEntry.account().ownerCount);
