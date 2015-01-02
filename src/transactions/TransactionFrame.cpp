@@ -57,7 +57,7 @@ TransactionFrame::pointer TransactionFrame::makeTransactionFromWire(TransactionE
 
 TransactionFrame::TransactionFrame(const TransactionEnvelope& envelope) : mEnvelope(envelope)
 {
-
+    mResultCode = txUNKNOWN;
 }
     
 // TODO.2 we can probably get rid of this

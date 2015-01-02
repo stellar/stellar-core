@@ -50,6 +50,11 @@ void LedgerMaster::startNewLedger()
     masterAccount.mEntry.account().balance = 100000000000000;
     Json::Value result;
     masterAccount.storeAdd(result, *this);
+
+    mCurrentLedger = std::make_shared<Ledger>();
+    mCurrentLedger->mHeader.baseFee = mApp.getConfig().DESIRED_BASE_FEE;
+    mCurrentLedger->mHeader.totalCoins = masterAccount.mEntry.account().balance;
+    mCurrentLedger->mHeader.ledgerSeq = 1;
 }
 
 int64_t LedgerMaster::getFee()

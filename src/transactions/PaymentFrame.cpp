@@ -45,12 +45,17 @@ namespace stellar
                 destAccount.mEntry.account().balance += mEnvelope.tx.body.paymentTx().amount;
                 delta.setFinal(destAccount);
                 delta.setFinal(mSigningAccount);
+                mResultCode = txSUCCESS;
 
             }else
             {   // sending credit
                 TxDelta tempDelta;
                 if(sendCredit(destAccount, tempDelta, ledgerMaster))
+                {
                     delta.merge(tempDelta);
+                    mResultCode = txSUCCESS;
+                }
+                    
                 return;
             }
         } else
@@ -68,6 +73,7 @@ namespace stellar
                     destAccount.mEntry.account().balance = mEnvelope.tx.body.paymentTx().amount;
                     delta.setFinal(destAccount);
                     delta.setFinal(mSigningAccount);
+                    mResultCode = txSUCCESS;
                 }
             } else
             {   // trying to send credit to an unmade account

@@ -48,13 +48,19 @@ namespace stellar
         return(mEntry.account().flags & AccountFrame::AUTH_REQUIRED_FLAG);
     }
 
+    uint64_t AccountFrame::getBalance()
+    {
+        return(mEntry.account().balance);
+    }
+
     void AccountFrame::storeDelete(Json::Value& txResult, LedgerMaster& ledgerMaster)
     {
         std::string base58ID = toBase58Check(VER_ACCOUNT_ID, getIndex());
 
         txResult["effects"]["delete"][base58ID];
 
-        ledgerMaster.getDatabase().getSession() << "DELETE from Accounts where accountID=" << base58ID;
+        ledgerMaster.getDatabase().getSession() << 
+            "DELETE from Accounts where accountID= :v1", soci::use(base58ID);
     }
 
     void AccountFrame::storeChange(EntryFrame::pointer startFrom, Json::Value& txResult, LedgerMaster& ledgerMaster)
@@ -95,7 +101,7 @@ namespace stellar
             string keyStr = toBase58Check(VER_ACCOUNT_PUBLIC, *mEntry.account().pubKey);
 
             if(before) sql << ", ";
-            sql << " pubKey= " << keyStr;
+            sql << " pubKey= '" << keyStr << "' ";
             txResult["effects"]["mod"][base58ID]["pubKey"] = keyStr;
             before = true;
         }
@@ -105,7 +111,7 @@ namespace stellar
         {
             string keyStr = toBase58Check(VER_ACCOUNT_PUBLIC, *mEntry.account().inflationDest);
             if(before) sql << ", ";
-            sql << " inflationDest= " << keyStr;
+            sql << " inflationDest= '" << keyStr << "' ";
             txResult["effects"]["mod"][base58ID]["inflationDest"] = keyStr;
             before = true;
         }
@@ -115,7 +121,7 @@ namespace stellar
             string keyStr = toBase58Check(VER_ACCOUNT_PUBLIC, *mEntry.account().creditAuthKey);
 
             if(before) sql << ", ";
-            sql << " creditAuthKey= " << keyStr;
+            sql << " creditAuthKey= '" << keyStr << "' " ;
             txResult["effects"]["mod"][base58ID]["creditAuthKey"] = keyStr;
             before = true;
         }
@@ -128,7 +134,7 @@ namespace stellar
         }
 
         // TODO.3   KeyValue data
-        sql << " where accountID=" << base58ID;
+        sql << " where accountID='" << base58ID << "';";
         ledgerMaster.getDatabase().getSession() << sql.str();
     }
 

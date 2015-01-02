@@ -8,6 +8,11 @@
 
 namespace stellar
 {
+    Ledger::Ledger()
+    {
+
+    }
+
     // TODO.2
     int64_t Ledger::getMinBalance()
     {

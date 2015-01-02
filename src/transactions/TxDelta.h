@@ -18,6 +18,7 @@ public:
 
     void commitDelta(Json::Value& txResult, LedgerDelta& delta, LedgerMaster& ledgerMaster);
 
+    static void dropAll(Database& db);
     static const char *kSQLCreateStatement;
 };
 }

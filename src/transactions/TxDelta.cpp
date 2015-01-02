@@ -104,4 +104,11 @@ void TxDelta::commitDelta(Json::Value& txResult, LedgerDelta& ledgerDelta, Ledge
         soci::use(txResult["id"].asString()), soci::use(txResult["ledger"].asInt()),
         soci::use(json.str());
 }
+
+void TxDelta::dropAll(Database& db)
+{
+    db.getSession() << "DROP TABLE IF EXISTS TxDelta;";
+    db.getSession() << kSQLCreateStatement;
+}
+
 }

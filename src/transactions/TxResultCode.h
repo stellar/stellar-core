@@ -27,7 +27,8 @@ namespace stellar
         txCROSS_SELF,
 
 
-        txNOACCOUNT
+        txNOACCOUNT,
+        txUNKNOWN
     };
 }
 

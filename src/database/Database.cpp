@@ -49,6 +49,7 @@ void Database::initialize()
         AccountFrame::dropAll(*this);
         OfferFrame::dropAll(*this);
         TrustFrame::dropAll(*this);
+        TxDelta::dropAll(*this);
     }catch(exception const &e)
     {
         LOG(ERROR) << "Error: " << e.what();
@@ -64,6 +65,7 @@ bool Database::loadAccount(const uint256& accountID, AccountFrame& retAcc)
     soci::indicator publicKeyInd, inflationDestInd, creditAuthKeyInd;
 
     retAcc.mEntry.type(ACCOUNT);
+    retAcc.mEntry.account().accountID = accountID;
     AccountEntry& account = retAcc.mEntry.account();
     mSession << "SELECT balance,sequence,ownerCount,transferRate,publicKey, \
         inflationDest,creditAuthKey,flags from Accounts where accountID=:v1",
@@ -94,6 +96,7 @@ bool Database::loadTrustLine(const uint256& accountID,
     issuerStr = binToHex(issuerStr);
 
     retLine.mEntry.type(TRUSTLINE);
+    retLine.mEntry.trustLine().accountID = accountID;
     int authInt;
     mSession << "SELECT limit,balance,authorized from TrustLines where \
         accountID=:v1 and issuer=:v2 and currency=:v3",
@@ -119,6 +122,7 @@ bool Database::loadOffer(const uint256& accountID, uint32_t seq, OfferFrame& ret
     accStr = toBase58Check(VER_ACCOUNT_ID, accountID);
     int passiveInt;
     retOffer.mEntry.type(OFFER);
+    retOffer.mEntry.offer().accountID = accountID;
     std::string takerPaysCurrency, takerPaysIssuer, takerGetsCurrency, takerGetsIssuer;
     mSession << "SELECT takerPaysCurrency, takerPaysIssuer, takerGetsCurrency, \
         takerGetsIssuer, amount, price, passive from Offers \

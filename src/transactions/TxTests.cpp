@@ -33,6 +33,42 @@ SecretKey getAccount(const char* n)
     return SecretKey::fromBase58Seed(b58SeedStr);
 }
 
+TransactionFramePtr createPaymentTx(SecretKey& from, SecretKey& to, uint32_t seq, uint64_t amount)
+{
+    TransactionEnvelope txEnvelope;
+    txEnvelope.tx.body.type(PAYMENT);
+    txEnvelope.tx.account = from.getPublicKey();
+    txEnvelope.tx.maxFee = 12;
+    txEnvelope.tx.maxLedger = 1000;
+    txEnvelope.tx.minLedger = 0;
+    txEnvelope.tx.seqNum = seq;
+    txEnvelope.tx.body.paymentTx().amount = amount;
+    txEnvelope.tx.body.paymentTx().destination = to.getPublicKey();
+    txEnvelope.tx.body.paymentTx().sendMax = amount+1000;
+    txEnvelope.tx.body.paymentTx().currency.native(true);
+
+    return TransactionFrame::makeTransactionFromWire(txEnvelope);
+}
+
+TransactionFramePtr createCreditPaymentTx(SecretKey& from, SecretKey& to, CurrencyIssuer& ci,uint32_t seq, uint64_t amount)
+{
+    TransactionEnvelope txEnvelope;
+    txEnvelope.tx.body.type(PAYMENT);
+    txEnvelope.tx.account = from.getPublicKey();
+    txEnvelope.tx.maxFee = 12;
+    txEnvelope.tx.maxLedger = 1000;
+    txEnvelope.tx.minLedger = 0;
+    txEnvelope.tx.seqNum = seq;
+    txEnvelope.tx.body.paymentTx().amount = amount;
+    txEnvelope.tx.body.paymentTx().currency.native(false);
+    txEnvelope.tx.body.paymentTx().destination = to.getPublicKey();
+    txEnvelope.tx.body.paymentTx().sendMax = amount + 1000;
+    txEnvelope.tx.body.paymentTx().currency.native(true);
+
+    return TransactionFrame::makeTransactionFromWire(txEnvelope);
+}
+
+
 
 // Offer that doesn't cross
 // Offer that crosses exactly
@@ -71,9 +107,11 @@ TEST_CASE("create offer", "[tx]")
 TEST_CASE("payment", "[tx]")
 {
     LOG(INFO) << "************ Starting payment test";
+
     Config cfg;
     cfg.RUN_STANDALONE = true;
     cfg.START_NEW_NETWORK = true;
+    cfg.DESIRED_BASE_FEE = 10;
 
     VirtualClock clock;
     Application app(clock, cfg);
@@ -83,19 +121,7 @@ TEST_CASE("payment", "[tx]")
     SecretKey root = getRoot();
     SecretKey a1 = getAccount("A");
 
-    TransactionEnvelope txEnvelope;
-    txEnvelope.tx.body.type(PAYMENT);
-    txEnvelope.tx.account = root.getPublicKey();
-    txEnvelope.tx.maxFee = 12;
-    txEnvelope.tx.maxLedger = 1000;
-    txEnvelope.tx.minLedger = 0;
-    txEnvelope.tx.seqNum = 1;
-    txEnvelope.tx.body.paymentTx().amount = 1000;
-    txEnvelope.tx.body.paymentTx().destination = a1.getPublicKey();
-    txEnvelope.tx.body.paymentTx().sendMax = 2000;
-    txEnvelope.tx.body.paymentTx().currency.native(true);
-    
-    TransactionFramePtr paymentTx = TransactionFrame::makeTransactionFromWire(txEnvelope);
+    TransactionFramePtr paymentTx = createPaymentTx(root, a1, 1, 1000);
 
     TxDelta delta;
     paymentTx->apply(delta,app.getLedgerMaster());
@@ -104,7 +130,17 @@ TEST_CASE("payment", "[tx]")
     LedgerDelta ledgerDelta;
 
     delta.commitDelta(jsonResult,ledgerDelta, app.getLedgerMaster());
+
+    REQUIRE(paymentTx->getResultCode()==txSUCCESS);
+    AccountFrame a1Account,rootAccount;
+    REQUIRE(app.getDatabase().loadAccount(root.getPublicKey(), rootAccount));
+    REQUIRE(app.getDatabase().loadAccount(a1.getPublicKey(), a1Account));
+    REQUIRE(a1Account.getBalance() == 1000);
+    REQUIRE(rootAccount.getBalance() == (100000000000000-1000-10));
+
     LOG(INFO) << jsonResult.toStyledString();
+
+
 
     LOG(INFO) << "************ Ending payment test";
 }

@@ -33,6 +33,8 @@ namespace stellar
         EntryFrame::pointer copy()  const  { return EntryFrame::pointer(new AccountFrame(*this)); }
 
 
+        uint64_t getBalance();
+
         void storeDelete(Json::Value& txResult, LedgerMaster& ledgerMaster);
         void storeChange(EntryFrame::pointer startFrom, Json::Value& txResult, LedgerMaster& ledgerMaster);
         void storeAdd(Json::Value& txResult, LedgerMaster& ledgerMaster);
