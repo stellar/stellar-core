@@ -46,7 +46,7 @@ namespace stellar
             trustLine.mEntry.trustLine().limit = mEnvelope.tx.body.changeTrustTx().limit;
             trustLine.mEntry.trustLine().currencyCode = mEnvelope.tx.body.changeTrustTx().line.currencyCode;
             trustLine.mEntry.trustLine().balance = 0;
-            trustLine.mEntry.trustLine().authorized = !issuer.authRequired();
+            trustLine.mEntry.trustLine().authorized = !issuer.isAuthRequired();
 
             mSigningAccount.mEntry.account().ownerCount++;
             delta.setFinal(mSigningAccount);

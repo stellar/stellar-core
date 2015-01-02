@@ -13,9 +13,6 @@ namespace stellar
 	class AccountFrame : public EntryFrame
 	{
 		void calculateIndex();
-
-		
-		//void serialize(uint256& hash, SLE::pointer& ret);
 	public:
         typedef std::shared_ptr<AccountFrame> pointer;
 
@@ -34,15 +31,12 @@ namespace stellar
 
 
         uint64_t getBalance();
+        bool isAuthRequired();
 
         void storeDelete(Json::Value& txResult, LedgerMaster& ledgerMaster);
         void storeChange(EntryFrame::pointer startFrom, Json::Value& txResult, LedgerMaster& ledgerMaster);
         void storeAdd(Json::Value& txResult, LedgerMaster& ledgerMaster);
-
-        bool authRequired();
-
-		// will return txSUCCESS or that this account doesn't have the reserve to do this
-		TxResultCode tryToIncreaseOwnerCount();
+	
 
         static void dropAll(Database &db);
         static const char *kSQLCreateStatement;

@@ -12,8 +12,6 @@ namespace stellar {
 
 	class TrustSetTx;
 	
-
-	//index is: 
 	class TrustFrame : public EntryFrame
 	{
 		void calculateIndex();
@@ -30,11 +28,8 @@ namespace stellar {
         void storeChange(EntryFrame::pointer startFrom, Json::Value& txResult, LedgerMaster& ledgerMaster);
         void storeAdd(Json::Value& txResult, LedgerMaster& ledgerMaster);
 
-		//TxResultCode fromTx(AccountEntry& signingAccount, TrustSetTx* tx);
-		
         static void dropAll(Database &db);
         static const char *kSQLCreateStatement;
-		
 	};
 }
 

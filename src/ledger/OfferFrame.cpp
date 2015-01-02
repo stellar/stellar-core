@@ -14,17 +14,18 @@ using namespace soci;
 
 namespace stellar
 {
-    const char *OfferFrame::kSQLCreateStatement = "CREATE TABLE IF NOT EXISTS Offers (						\
-			offerIndex CHARACTER(35) PRIMARY KEY \
-            accountID		CHARACTER(35),		\
-			sequence		INT UNSIGNED,		\
-			takerPaysCurrency Blob(20),			\
-			takerPaysIssuer CHARACTER(35),		\
-			takerGetsCurrency Blob(20),			\
-			takerGetsIssuer CHARACTER(35),		\
-			amount BIGINT UNSIGNED,	\
-			price BIGINT UNSIGNED,	\
-			flags INT UNSIGNED					\
+    const char *OfferFrame::kSQLCreateStatement = 
+            "CREATE TABLE IF NOT EXISTS Offers (	\
+			offerIndex CHARACTER(35) PRIMARY KEY,   \
+            accountID		CHARACTER(35),		    \
+			sequence		INT UNSIGNED,		    \
+			takerPaysCurrency Blob(20),			    \
+			takerPaysIssuer CHARACTER(35),		    \
+			takerGetsCurrency Blob(20),			    \
+			takerGetsIssuer CHARACTER(35),		    \
+			amount BIGINT UNSIGNED,             	\
+			price BIGINT UNSIGNED,	                \
+			flags INT UNSIGNED					    \
 	);";
 
     OfferFrame::OfferFrame()

@@ -17,6 +17,7 @@ typedef unsigned hyper uint64;
 typedef hyper int64;
 typedef unsigned uint32;
 typedef int int32;
+typedef opaque CurrencyCode<32>;
 
 struct Error
 {
