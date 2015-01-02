@@ -26,6 +26,7 @@ FMT_SRCS = src/clf/BucketList.cpp src/clf/CLFTests.cpp src/crypto/Base58.cpp    
     src/transactions/InflationFrame.cpp src/transactions/MergeFrame.cpp         \
     src/transactions/PaymentFrame.cpp src/transactions/SetOptionsFrame.cpp      \
     src/transactions/TransactionFrame.cpp                                       \
+    src/transactions/AllowTrustTxFrame.cpp                                      \
     src/transactions/ChangeTrustTxFrame.cpp src/transactions/TxDelta.cpp        \
     src/txherder/TxHerder.cpp src/txherder/TxSetFrame.cpp src/util/Logging.cpp  \
     src/util/Timer.cpp src/util/types.cpp
@@ -83,6 +84,7 @@ bin_stellard_CPPFLAGS = -I$(top_srcdir)/src \
                         -I$(srcdir)/src/lib/soci/src/backends/sqlite3
 
 bin_stellard_LDADD = libsoci.la
+bin_stellard_DEPENDENCIES =
 
 if LIBSODIUM_INTERNAL
 LIBSODIUM_DIR=src/lib/libsodium
@@ -97,6 +99,7 @@ if SQLITE_INTERNAL
 noinst_LTLIBRARIES += libsqlite.la
 libsqlite_la_SOURCES = src/lib/sqlite/sqlite3.c src/lib/sqlite/sqlite3.h
 libsqlite_la_CPPFLAGS = -I$(srcdir)/src/lib/sqlite -DSQLITE_OMIT_LOAD_EXTENSION
+bin_stellard_DEPENDENCIES += libsqlite.la
 bin_stellard_LDADD += libsqlite.la
 endif
 
@@ -195,6 +198,7 @@ libmedida_la_SOURCES = src/lib/libmedida/src/medida/metered_interface.h         
     src/lib/libmedida/src/medida/sampling_interface.h                           \
     src/lib/libmedida/src/medida/timer.cc
 libmedida_la_CPPFLAGS = -I$(srcdir)/src/lib/libmedida/src
+bin_stellard_DEPENDENCIES += libmedida.la
 bin_stellard_LDADD += libmedida.la
 endif
 
