@@ -336,18 +336,18 @@ union StellarMessage switch (MessageType type) {
 	case GET_VALIDATIONS:	
 		uint256 ledgerHash;	
 	case VALIDATIONS:
-		Envelope validations<>;
+		FBAEnvelope validations<>;
 
 	case TRANSACTION:
 		TransactionEnvelope transaction;
 
 	// FBA		
-	case GET_QUORUMSET:		
-		uint256 qSetHash;	
-	case QUORUMSET:
-		QuorumSetDesc qSet;
+	case GET_FBA_QUORUMSET:
+		uint256 qSetHash;
+	case FBA_QUORUMSET:
+		FBAQuorumSetDesc qSet;
 	case FBA_MESSAGE:
-		Envelope fbaMessage;
+		FBAEnvelope fbaMessage;
 };
 
 

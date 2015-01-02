@@ -44,12 +44,12 @@ class Statement
         return mEnvelope.contents.body.type();
     }
 
-    SlotBallot&
+    FBASlotBallot&
     getSlotBallot()
     {
         return mEnvelope.contents.slotBallot;
     }
-    Ballot&
+    FBABallot&
     getBallot()
     {
         return mEnvelope.contents.slotBallot.ballot;

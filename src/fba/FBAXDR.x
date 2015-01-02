@@ -4,20 +4,19 @@ namespace stellar {
 typedef opaque uint256[32];
 typedef unsigned uint32;
 
-struct Ballot
+struct FBABallot
 {
     int index;           // n
     uint256 valueHash;   // x
 };
 
-struct SlotBallot
+struct FBASlotBallot
 {
-    uint32 slotIndex;
-    uint256 slotHash;
-    Ballot ballot;
+    uint256 slotHash;    // i
+    FBABallot ballot;
 };
 
-enum StatementType
+enum FBAStatementType
 {
     PREPARE,
     PREPARED,
@@ -26,15 +25,15 @@ enum StatementType
     UNKNOWN
 };
 
-struct Statement
+struct FBAStatement
 {
-    SlotBallot slotBallot;
+    FBASlotBallot slotBallot;
     uint256 quorumSetHash;
 	
-    union switch (StatementType type)
+    union switch (FBAStatementType type)
     {
         case PREPARE:
-            Ballot excepted<>;
+            FBABallot excepted<>;  // B_c
         case PREPARED:
         case COMMIT:
         case COMMITTED:
@@ -43,17 +42,43 @@ struct Statement
     } body;
 };
 
-struct Envelope
+struct FBAEnvelope
 {
     uint256 nodeID;
     uint256 signature;
-    Statement statement;
+    FBAStatement statement;
 };
 
-struct QuorumSetDesc
+enum FBAQuorumSetType
+{
+    COMPACT,
+    DETAILED,
+    UNKNOWN
+};
+
+struct FBACompactQuorumSet 
 {
     uint32 threshold;
     uint256 validators<>;
+};
+
+struct FBAQuorum
+{
+    uint256 validators<>;
+};
+
+struct FBAQuorumSet
+{
+    uint256 nodeID;
+    union switch (FBAQuorumSetType type)
+    {
+        case COMPACT:
+            FBACompactQuorumSet set;
+        case DETAILED:
+            FBAQuorum quorums<>;
+        case UNKNOWN:
+            void;
+    } content;
 };
 
 }

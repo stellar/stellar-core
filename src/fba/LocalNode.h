@@ -15,17 +15,16 @@ namespace stellar
 /**
  * This is one Node in the stellar network
  */
-class Node : public enable_shared_from_this<Node>
+class LocalNode : public Node
 {
   public:
-    Node(const uint256& nodeID);
+    LocalNode(const uint256& nodeID);
 
-    const FBAQuorumSet& retrieveQuorumSet(const uint256& qSetHash);
-    void cacheQuorumSet(const uint256& qSetHash,
-                        const FBAQuorumSet& qSet);
+    void setCurrentQuorumSet(const FBAQuorumSet& qset);
+    const FBAQuorumSet& getCurrentQuorumSet();
+
   private:
-    uint256                         mNodeID;
-    std::map<uint256, FBAQuorumSet> mCachedQuorumSets;
+    FBAQuorumSet&                   mCurrentQuorumSet;
 };
 }
 

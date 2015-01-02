@@ -61,6 +61,7 @@ BUILT_SOURCES = src/generated/StellardVersion.h                                 
                 src/generated/StellarXDR.h src/generated/FBAXDR.h
 
 src/generated/StellarXDR.h: $(XDRC)
+src/generated/FBAXDR.h: $(XDRC)
 
 bin_stellard_SOURCES = $(FMT_SRCS) \
                        $(BUILT_SOURCES) \
