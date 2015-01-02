@@ -71,6 +71,10 @@ SHA512_256::SHA512_256()
 {
 }
 
+SHA512_256::~SHA512_256()
+{
+}
+
 void
 SHA512_256::add(ByteSlice const& bin)
 {

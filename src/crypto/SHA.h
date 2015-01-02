@@ -27,6 +27,7 @@ class SHA512_256
     std::unique_ptr<Impl> mImpl;
 public:
     SHA512_256();
+    ~SHA512_256();
     void add(ByteSlice const& bin);
     uint256 finish();
 };

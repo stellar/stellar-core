@@ -27,8 +27,8 @@ namespace stellar
         };
         
         AccountFrame();
-        AccountFrame(const LedgerEntry& from);
-        AccountFrame(uint256& id);
+        AccountFrame(LedgerEntry const& from);
+        AccountFrame(uint256 const& id);
 
         EntryFrame::pointer copy()  const  { return EntryFrame::pointer(new AccountFrame(*this)); }
 

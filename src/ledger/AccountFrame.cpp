@@ -26,12 +26,12 @@ namespace stellar
         mEntry.type(ACCOUNT);
     }
 
-    AccountFrame::AccountFrame(const LedgerEntry& from) : EntryFrame(from)
+    AccountFrame::AccountFrame(LedgerEntry const& from) : EntryFrame(from)
     {
 
     }
 
-    AccountFrame::AccountFrame(uint256& id)
+    AccountFrame::AccountFrame(uint256 const& id)
     {
         mEntry.type(ACCOUNT);
         mEntry.account().accountID = id;
