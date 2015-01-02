@@ -84,8 +84,8 @@ struct CreateOfferTx
 	int64 amount;		// amount taker gets
 	int64 price;		// =takerPaysAmount/takerGetsAmount
 
-	uint32 sequence;		// set if you want to change an existing offer
-	bool passive;	// only take offers that cross this. not offers that match it
+	uint32 sequence;	// set if you want to change an existing offer
+	uint32 flags;	// passive: only take offers that cross this. not offers that match it
 };
 
 struct SetOptionsTx
@@ -281,7 +281,7 @@ struct OfferEntry
 					// price*1,000,000,000
 					// price=AmountB/AmountA
 					// price is after fees
-    bool passive;
+    int32 flags;
 };
 
 union LedgerEntry switch (LedgerTypes type)

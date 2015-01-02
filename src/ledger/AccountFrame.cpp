@@ -146,6 +146,7 @@ namespace stellar
         ledgerMaster.getDatabase().getSession() << "INSERT into Accounts (accountID,balance) values (:v1,:v2)",
                 soci::use(base58ID), soci::use(mEntry.account().balance);
 
+        txResult["effects"]["new"][base58ID]["type"] = "account";
         txResult["effects"]["new"][base58ID]["balance"] = (Json::Int64)mEntry.account().balance;
     }
 

@@ -33,7 +33,7 @@ namespace stellar
 {
 
 const char *TxDelta::kSQLCreateStatement = "CREATE TABLE IF NOT EXISTS TxDelta (						\
-	txID		CHARACTER(35) PRIMARY KEY,	\
+	txID		CHARACTER(35),	\
     ledgerSeq   INT UNSIGNED, \
 	json	    BLOB \
 );";

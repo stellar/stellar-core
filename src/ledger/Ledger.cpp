@@ -14,10 +14,6 @@ namespace stellar
     }
 
     // TODO.2
-    int64_t Ledger::getMinBalance()
-    {
-        return 0;
-    }
     int64_t Ledger::getTxFee()
     {
         return 0;

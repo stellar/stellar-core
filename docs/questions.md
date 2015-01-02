@@ -1,6 +1,5 @@
 	
 
-	
 Do we check seq numbers when we check validity?
 
 How do we want to handle returning payments?
@@ -46,7 +45,7 @@ What do we do about tx that make it into the applied txset but have too low a ma
 We need to deal with someone submitting a ton of tx for one ledger when they can only pay fee for one tx.
 
 
-
+Should we make entry indexes just be a sequential number rather than do this hasing to calculate it?
 
 
 

@@ -58,7 +58,6 @@ void Database::initialize()
 
 bool Database::loadAccount(const uint256& accountID, AccountFrame& retAcc)
 {
-    // TODO.2 how do we represent NULL unit256 values in the DB?
     std::string base58ID = toBase58Check(VER_ACCOUNT_ID, accountID);
     std::string publicKey, inflationDest, creditAuthKey;
 
@@ -98,7 +97,7 @@ bool Database::loadTrustLine(const uint256& accountID,
     retLine.mEntry.type(TRUSTLINE);
     retLine.mEntry.trustLine().accountID = accountID;
     int authInt;
-    mSession << "SELECT limit,balance,authorized from TrustLines where \
+    mSession << "SELECT tlimit,balance,authorized from TrustLines where \
         accountID=:v1 and issuer=:v2 and currency=:v3",
         into(retLine.mEntry.trustLine().limit),
         into(retLine.mEntry.trustLine().balance),
@@ -117,32 +116,47 @@ bool Database::loadTrustLine(const uint256& accountID,
 
 bool Database::loadOffer(const uint256& accountID, uint32_t seq, OfferFrame& retOffer)
 {
-    // TODO.2 how are we representing native currency and issuer
     std::string accStr;
     accStr = toBase58Check(VER_ACCOUNT_ID, accountID);
-    int passiveInt;
+    int flags;
+    soci::indicator takerPaysCurrencyInd, takerPaysIssuerInd, 
+        takerGetsCurrencyInd, takerGetsIssuerInd;
     retOffer.mEntry.type(OFFER);
     retOffer.mEntry.offer().accountID = accountID;
     std::string takerPaysCurrency, takerPaysIssuer, takerGetsCurrency, takerGetsIssuer;
     mSession << "SELECT takerPaysCurrency, takerPaysIssuer, takerGetsCurrency, \
         takerGetsIssuer, amount, price, passive from Offers \
         where accountID=:v1 and sequence=:v2",
-        into(takerPaysCurrency), into(takerPaysIssuer), into(takerGetsCurrency),
-        into(takerGetsIssuer), into(retOffer.mEntry.offer().amount),
-        into(retOffer.mEntry.offer().price), into(passiveInt),
+        into(takerPaysCurrency, takerPaysCurrencyInd), into(takerPaysIssuer, takerPaysIssuerInd),
+        into(takerGetsCurrency, takerGetsCurrencyInd),
+        into(takerGetsIssuer, takerGetsIssuerInd), into(retOffer.mEntry.offer().amount),
+        into(retOffer.mEntry.offer().price), into(flags),
         use(accStr), use(seq);
 
     if(!mSession.got_data()) return false;
 
-    retOffer.mEntry.offer().passive = passiveInt;
-    retOffer.mEntry.offer().takerGets.native(false);
-    retOffer.mEntry.offer().takerPays.native(false);
+    retOffer.mEntry.offer().flags = flags;
+    if(takerPaysCurrencyInd == soci::i_ok && takerPaysIssuerInd == soci::i_ok)
+    {
+        retOffer.mEntry.offer().takerPays.native(false);
+        retOffer.mEntry.offer().takerPays.ci().currencyCode = hexToBin256(takerPaysCurrency);
+        retOffer.mEntry.offer().takerPays.ci().issuer = fromBase58Check256(VER_ACCOUNT_PUBLIC, takerPaysIssuer);
+    } else
+    {
+        retOffer.mEntry.offer().takerPays.native(true);
+    }
 
-    retOffer.mEntry.offer().takerGets.ci().currencyCode = hexToBin256(takerGetsCurrency);
-    retOffer.mEntry.offer().takerGets.ci().issuer = fromBase58Check256(VER_ACCOUNT_PUBLIC, takerGetsIssuer);
+    if(takerGetsCurrencyInd == soci::i_ok && takerGetsIssuerInd == soci::i_ok)
+    {
+        retOffer.mEntry.offer().takerGets.native(false);
+        retOffer.mEntry.offer().takerGets.ci().currencyCode = hexToBin256(takerGetsCurrency);
+        retOffer.mEntry.offer().takerGets.ci().issuer = fromBase58Check256(VER_ACCOUNT_PUBLIC, takerGetsIssuer);
+    } else
+    {
+        retOffer.mEntry.offer().takerGets.native(true);
+    }
 
-    retOffer.mEntry.offer().takerPays.ci().currencyCode = hexToBin256(takerPaysCurrency);
-    retOffer.mEntry.offer().takerPays.ci().issuer = fromBase58Check256(VER_ACCOUNT_PUBLIC, takerPaysIssuer);
+    
 
     return true;
 }
