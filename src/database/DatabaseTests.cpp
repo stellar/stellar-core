@@ -27,3 +27,26 @@ TEST_CASE("database smoketest", "[db]")
     CHECK(a == b);
     LOG(DEBUG) << "round trip with in-memory database: " << a << " == " << b;
 }
+
+
+#ifdef USE_POSTGRES
+TEST_CASE("postgres smoketest", "[db]")
+{
+    Config cfg;
+    VirtualClock clock;
+    cfg.DATABASE = "postgresql://dbname=test user=test password=test";
+    Application app(clock, cfg);
+
+    int a = 10, b = 0;
+
+    auto& sql = app.getDatabase().getSession();
+
+    sql << "drop table if exists test";
+    sql << "create table test (x integer)";
+    sql << "insert into test (x) values (:aa)", soci::use(a, "aa");
+    sql << "select x from test", soci::into(b);
+
+    CHECK(a == b);
+    LOG(DEBUG) << "round trip with postgresql database: " << a << " == " << b;
+}
+#endif
