@@ -26,7 +26,7 @@ baseEncode(std::string const& alphabet, ByteSlice const& bytes)
         return "";
     }
 
-    size_t base = alphabet.size();
+    uint16_t base = static_cast<uint16_t>(alphabet.size());
     std::vector<uint16_t> digits {0};
 
     // Propagate each byte + carry.
@@ -81,8 +81,8 @@ baseDecode(std::string const& alphabet, std::string const& encoded)
 
     std::vector<uint16_t> alphabetMap(256, 0xffff);
     for (size_t i = 0; i < alphabet.size(); ++i)
-        alphabetMap.at(static_cast<uint8_t>(alphabet.at(i))) = i;
-    size_t base = alphabet.size();
+        alphabetMap.at(static_cast<uint8_t>(alphabet.at(i))) = static_cast<uint16_t>(i);
+    uint16_t base = static_cast<uint16_t>(alphabet.size());
 
     // Propagate each character + carry.
     for (auto c : encoded)

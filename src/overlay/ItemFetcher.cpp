@@ -111,7 +111,7 @@ TxSetFetcher::recvItem(TxSetFrame::pointer txSet)
 ////////////////////////////////////////
 void
 DeltaFetcher::fetchItem(uint256 const& itemID,
-                        uint32_t oldLedgerSeq)
+                        uint64_t oldLedgerSeq)
 {
 }
 

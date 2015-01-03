@@ -42,7 +42,7 @@ QuorumSet::getHash()
     return mHash;
 }
 
-int
+size_t
 QuorumSet::getBlockingSize()
 {
     return 1 + mNodes.size() - mThreshold;

@@ -35,7 +35,7 @@ class OverlayGateway
     // called by Ledger
     virtual void ledgerClosed(LedgerPtr ledger) = 0;
     virtual void fetchDelta(uint256 const& oldLedgerHash,
-                            uint32_t oldLedgerSeq) = 0;
+                            uint64_t oldLedgerSeq) = 0;
 
     // called by TxHerder
     virtual void broadcastMessage(uint256 const& messageID) = 0;

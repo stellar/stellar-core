@@ -101,7 +101,7 @@ main(int argc, char* const* argv)
         {
             rest.push_back(*argv);
             rest.insert(++rest.begin(), argv + optind, argv + argc);
-            return test(rest.size(), &rest[0]);
+            return test(static_cast<int>(rest.size()), &rest[0]);
         }
         case OPT_CONF:
             cfgFile = std::string(optarg);

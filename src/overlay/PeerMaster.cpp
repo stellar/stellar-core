@@ -100,7 +100,7 @@ PeerMaster::getRandomPeer()
     {
         std::random_device rd;
         std::mt19937 gen(rd());
-        std::uniform_int_distribution<> dis(0, mPeers.size() - 1);
+        std::uniform_int_distribution<size_t> dis(0, mPeers.size() - 1);
         return mPeers[dis(gen)];
     }
 
