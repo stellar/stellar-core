@@ -11,14 +11,7 @@ namespace stellar
 
     void SetOptionsFrame::doApply(TxDelta& delta, LedgerMaster& ledgerMaster)
     {
-        if(mEnvelope.tx.body.setOptionsTx().creditAuthKey)
-        {
-            mSigningAccount.mEntry.account().creditAuthKey.activate()=*mEnvelope.tx.body.setOptionsTx().creditAuthKey;
-        }
-        if(mEnvelope.tx.body.setOptionsTx().pubKey)
-        {
-            mSigningAccount.mEntry.account().pubKey.activate() = *mEnvelope.tx.body.setOptionsTx().pubKey;
-        }
+       
         if(mEnvelope.tx.body.setOptionsTx().inflationDest)
         {
             mSigningAccount.mEntry.account().inflationDest.activate()=*mEnvelope.tx.body.setOptionsTx().inflationDest;

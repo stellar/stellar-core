@@ -41,6 +41,7 @@ enum TransactionType
 	CHANGE_TRUST,
 	ALLOW_TRUST,
 	ACCOUNT_MERGE,
+	CHANGE_SIGNER,
 	INFLATION
 };
 
@@ -59,6 +60,11 @@ union Currency switch(bool native)
 };
 	
 
+struct Signer
+{
+	uint256 pubKey;
+	uint32 weight;  // really only need 1byte
+};
 
 struct KeyValue
 {
@@ -91,12 +97,12 @@ struct CreateOfferTx
 
 struct SetOptionsTx
 {
-	uint256* creditAuthKey;
-	uint256* pubKey;
 	uint256* inflationDest;
 	uint32*	flags;
 	uint32* transferRate;
 	KeyValue* data;
+	uint32* thresholds;
+	Signer* signer;
 };
 
 struct ChangeTrustTx
@@ -111,6 +117,8 @@ struct AllowTrustTx
 	uint256 currencyCode;
 	bool authorize;
 };
+
+
 
 struct Transaction
 {
@@ -144,7 +152,7 @@ struct Transaction
 struct TransactionEnvelope
 {
     Transaction tx;
-    uint512 signature;
+    uint512 signatures<>;
 };
 
 struct TransactionSet
@@ -242,19 +250,21 @@ enum LedgerTypes {
   OFFER
 };
 
+
+
 struct AccountEntry
 {
-    uint256 accountID;
-    int64 balance;
-    uint32 sequence;
-    uint32 ownerCount;
-    uint32 transferRate;	// rate*10000000
-    uint256 *pubKey;
+	uint256 accountID;
+	int64 balance;
+	uint32 sequence;
+	uint32 ownerCount;
+	uint32 transferRate;	// rate*10000000
 	uint256 *inflationDest;
-	uint256 *creditAuthKey;
+	uint32 thresholds; // weight of master/threshold1/threshold2/threshold3
+	Signer signers<>; // do we want some max or just increase the min balance
 	KeyValue data<>;
 
-	uint32 flags; // disable master, require dt, require auth, 
+	uint32 flags; // require dt, require auth, 
 };
 
 

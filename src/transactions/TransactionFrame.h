@@ -33,14 +33,14 @@ namespace stellar
 
 
         bool preApply(TxDelta& delta, LedgerMaster& ledgerMaster);
+        bool checkSignature();
 
         virtual bool doCheckValid(Application& app) = 0;
 		virtual void doApply(TxDelta& delta, LedgerMaster& ledgerMaster) = 0;
+        virtual int32_t getNeededThreshold();
 
         
         int64_t getTransferRate(Currency& currency, LedgerMaster& ledgerMaster);
-        
-       
 
         //bool isAuthorizedToHold(const AccountEntry& accountID, const CurrencyIssuer& currency,LedgerMaster& ledgerMaster);
 	public:
@@ -60,7 +60,7 @@ namespace stellar
 
 		// apply this transaction to the current ledger
 		// LATER: how will applying historical txs work?
-        void apply(TxDelta& delta, LedgerMaster& ledgerMaster);
+        void apply(TxDelta& delta, Application& app);
 
         void toXDR(Transaction& body);
         void toXDR(TransactionEnvelope& envelope);

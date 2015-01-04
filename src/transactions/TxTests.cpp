@@ -139,7 +139,7 @@ TEST_CASE("payment", "[tx]")
 
     { // simple payment
         TxDelta delta;
-        txFrame->apply(delta, app.getLedgerMaster());
+        txFrame->apply(delta, app);
 
         Json::Value jsonResult;
         LedgerDelta ledgerDelta;
@@ -157,7 +157,7 @@ TEST_CASE("payment", "[tx]")
     }
     { // make sure 2nd time fails
         TxDelta delta;
-        txFrame->apply(delta, app.getLedgerMaster());
+        txFrame->apply(delta, app);
 
         Json::Value jsonResult;
         LedgerDelta ledgerDelta;
@@ -176,7 +176,7 @@ TEST_CASE("payment", "[tx]")
 
         txFrame = createCreditPaymentTx(root, a1, ci, 2, 100);
         TxDelta delta;
-        txFrame->apply(delta, app.getLedgerMaster());
+        txFrame->apply(delta, app);
 
         Json::Value jsonResult;
         LedgerDelta ledgerDelta;
@@ -191,7 +191,7 @@ TEST_CASE("payment", "[tx]")
     {
         txFrame = setTrust(a1, root, 1, root.getPublicKey());
         TxDelta delta;
-        txFrame->apply(delta, app.getLedgerMaster());
+        txFrame->apply(delta, app);
 
         Json::Value jsonResult;
         LedgerDelta ledgerDelta;
@@ -210,7 +210,7 @@ TEST_CASE("payment", "[tx]")
 
         txFrame = createCreditPaymentTx(root, a1, ci, 3, 100);
         TxDelta delta;
-        txFrame->apply(delta, app.getLedgerMaster());
+        txFrame->apply(delta, app);
 
         Json::Value jsonResult;
         LedgerDelta ledgerDelta;

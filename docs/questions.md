@@ -9,7 +9,6 @@ How do we want to handle returning payments?
 	source memo that is echod if there is a return payment?
 	include the tx id in the return payment?
 
-What do we want to do instead of STAmount?	
 How do we represnt currencies?
 	A client should be able to see the code and know if it was 
 		something simple like "USD" or "BTC" without doing some lookup

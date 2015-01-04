@@ -154,7 +154,7 @@ void LedgerMaster::closeLedger(TxSetFramePtr txSet)
     {
         try {
             TxDelta delta;
-            tx->apply(delta,*this);
+            tx->apply(delta,mApp);
 
             Json::Value txResult;
             txResult["id"] = binToHex(tx->getHash());

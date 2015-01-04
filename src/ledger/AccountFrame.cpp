@@ -9,16 +9,26 @@
 
 namespace stellar
 {
-    const char *AccountFrame::kSQLCreateStatement = "CREATE TABLE IF NOT EXISTS Accounts (						\
+    const char *AccountFrame::kSQLCreateStatement1 = "CREATE TABLE IF NOT EXISTS Accounts (						\
 		accountID		CHARACTER(35) PRIMARY KEY,	\
 		balance			BIGINT UNSIGNED,			\
 		sequence		INT UNSIGNED default 1,		\
 		ownerCount		INT UNSIGNED default 0,		\
 		transferRate	INT UNSIGNED default 0,		\
-        publicKey   	CHARACTER(35),		        \
         inflationDest	CHARACTER(35),		        \
-		creditAuthKey	CHARACTER(56),		        \
+        thresholds   	INT UNSIGNED default 0,		\
 		flags		    INT UNSIGNED default 0  	\
+	);";
+
+    const char *AccountFrame::kSQLCreateStatement2 = "CREATE TABLE IF NOT EXISTS Signers (						\
+		accountID		CHARACTER(35) PRIMARY KEY,	\
+        publicKey   	CHARACTER(35),		        \
+        weight	INT 	\
+	);";
+
+    const char *AccountFrame::kSQLCreateStatement3 = "CREATE TABLE IF NOT EXISTS AccountData (						\
+		accountID		CHARACTER(35) PRIMARY KEY,	\
+		value			BLOB(32)			\
 	);";
 
     AccountFrame::AccountFrame()
@@ -65,6 +75,10 @@ namespace stellar
 
         ledgerMaster.getDatabase().getSession() << 
             "DELETE from Accounts where accountID= :v1", soci::use(base58ID);
+        ledgerMaster.getDatabase().getSession() <<
+            "DELETE from AccountData where accountID= :v1", soci::use(base58ID);
+        ledgerMaster.getDatabase().getSession() <<
+            "DELETE from Signers where accountID= :v1", soci::use(base58ID);
     }
 
     void AccountFrame::storeChange(EntryFrame::pointer startFrom, 
@@ -101,15 +115,6 @@ namespace stellar
             before = true;
         }
 
-        if(mEntry.account().pubKey != startFrom->mEntry.account().pubKey)
-        {
-            string keyStr = toBase58Check(VER_ACCOUNT_PUBLIC, *mEntry.account().pubKey);
-
-            if(before) sql << ", ";
-            sql << " pubKey= '" << keyStr << "' ";
-            txResult["effects"]["mod"][base58ID]["pubKey"] = keyStr;
-            before = true;
-        }
 
         // TODO.2  make safe
         if(mEntry.account().inflationDest != startFrom->mEntry.account().inflationDest)
@@ -121,13 +126,11 @@ namespace stellar
             before = true;
         }
 
-        if(mEntry.account().creditAuthKey != startFrom->mEntry.account().creditAuthKey)
+        if(mEntry.account().thresholds != startFrom->mEntry.account().thresholds)
         {
-            string keyStr = toBase58Check(VER_ACCOUNT_PUBLIC, *mEntry.account().creditAuthKey);
-
             if(before) sql << ", ";
-            sql << " creditAuthKey= '" << keyStr << "' " ;
-            txResult["effects"]["mod"][base58ID]["creditAuthKey"] = keyStr;
+            sql << " thresholds= " << mEntry.account().thresholds;
+            txResult["effects"]["mod"][base58ID]["thresholds"] = mEntry.account().thresholds;
             before = true;
         }
 
@@ -139,6 +142,7 @@ namespace stellar
         }
 
         // TODO.3   KeyValue data
+        // TODO.2 signers
         sql << " where accountID='" << base58ID << "';";
         ledgerMaster.getDatabase().getSession() << sql.str();
     }
@@ -158,7 +162,12 @@ namespace stellar
     void AccountFrame::dropAll(Database &db)
     {
         db.getSession() << "DROP TABLE IF EXISTS Accounts;";
-        db.getSession() << kSQLCreateStatement;
+        db.getSession() << "DROP TABLE IF EXISTS Signers;";
+        db.getSession() << "DROP TABLE IF EXISTS AccountData;";
+
+        db.getSession() << kSQLCreateStatement1;
+        db.getSession() << kSQLCreateStatement2;
+        db.getSession() << kSQLCreateStatement3;
     }
 }
 

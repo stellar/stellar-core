@@ -62,7 +62,7 @@ TransactionFrame::TransactionFrame(const TransactionEnvelope& envelope) : mEnvel
     
 uint512& TransactionFrame::getSignature()
 {
-    return mEnvelope.signature;
+    return mEnvelope.signatures[0];  // TODO.2 do we need this function?
 }
 
 uint256& TransactionFrame::getHash()
@@ -150,19 +150,36 @@ bool TransactionFrame::preApply(TxDelta& delta,LedgerMaster& ledgerMaster)
     return true;
 }
 
-void TransactionFrame::apply(TxDelta& delta, LedgerMaster& ledgerMaster)
+void TransactionFrame::apply(TxDelta& delta, Application& app)
 {
-    if(ledgerMaster.getDatabase().loadAccount(mEnvelope.tx.account, mSigningAccount))
+    if(checkValid(app))
     {
-        if(preApply(delta,ledgerMaster))
+        if(preApply(delta,app.getLedgerMaster()))
         {
-            doApply(delta,ledgerMaster);
+            doApply(delta,app.getLedgerMaster());
         }
     } else
     {
-        CLOG(ERROR, "Tx") << "Signing account not found. This should never happen";
+        CLOG(ERROR, "Tx") << "invalid tx. This should never happen";
     }
     
+}
+
+
+int32_t TransactionFrame::getNeededThreshold()
+{
+    //mSigningAccount.mEntry.account().thresholds;
+    return 0; // TODO.2
+}
+
+bool TransactionFrame::checkSignature()
+{
+    // TODO.2
+    // calculate the weight of the signatures
+    int totalWeight = 0;
+    if(totalWeight>getNeededThreshold())
+        return true;
+    return false;
 }
 
 // called when determining if we should accept this tx.
@@ -174,18 +191,20 @@ bool TransactionFrame::checkValid(Application& app)
     if(mEnvelope.tx.maxFee < app.getLedgerGateway().getFee()) return false;
     if(mEnvelope.tx.maxLedger < app.getLedgerGateway().getLedgerNum()) return false;
     if(mEnvelope.tx.minLedger > app.getLedgerGateway().getLedgerNum()) return false;
-    
+    if(!app.getDatabase().loadAccount(mEnvelope.tx.account, mSigningAccount, true)) return false;
+    if(!checkSignature()) return false;
+
     return doCheckValid(app);
 }
 
 void TransactionFrame::toXDR(Transaction& envelope)
 {
-    // LATER
+    // TODO.2
 }
 
 void TransactionFrame::toXDR(TransactionEnvelope& envelope)
 {
-    // LATER
+    // TODO.2
 }
 
 StellarMessage&& TransactionFrame::toStellarMessage()

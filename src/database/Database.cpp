@@ -56,31 +56,42 @@ void Database::initialize()
     }
 }
 
-bool Database::loadAccount(const uint256& accountID, AccountFrame& retAcc)
+bool Database::loadAccount(const uint256& accountID, AccountFrame& retAcc, bool withSig)
 {
     std::string base58ID = toBase58Check(VER_ACCOUNT_ID, accountID);
     std::string publicKey, inflationDest, creditAuthKey;
 
-    soci::indicator publicKeyInd, inflationDestInd, creditAuthKeyInd;
+    soci::indicator inflationDestInd;
 
     retAcc.mEntry.type(ACCOUNT);
     retAcc.mEntry.account().accountID = accountID;
     AccountEntry& account = retAcc.mEntry.account();
-    mSession << "SELECT balance,sequence,ownerCount,transferRate,publicKey, \
-        inflationDest,creditAuthKey,flags from Accounts where accountID=:v1",
+    mSession << "SELECT balance,sequence,ownerCount,transferRate, \
+        inflationDest, thresholds, flags from Accounts where accountID=:v1",
         into(account.balance), into(account.sequence), into(account.ownerCount),
-        into(account.transferRate), into(publicKey, publicKeyInd), 
-        into(inflationDest, inflationDestInd),
-        into(creditAuthKey, creditAuthKeyInd), into(account.flags),
+        into(account.transferRate), into(inflationDest, inflationDestInd),
+        into(account.thresholds), into(account.flags),
         use(base58ID);
 
     if(!mSession.got_data())
         return false;
 
-    if(publicKeyInd==soci::i_ok) account.pubKey.activate() = fromBase58Check256(VER_ACCOUNT_PUBLIC, publicKey);
     if(inflationDestInd == soci::i_ok) account.inflationDest.activate() = fromBase58Check256(VER_ACCOUNT_PUBLIC, inflationDest);
-    if(creditAuthKeyInd == soci::i_ok) account.creditAuthKey.activate() = fromBase58Check256(VER_ACCOUNT_PUBLIC, creditAuthKey);
 
+    if(withSig)
+    {
+        stringstream sql;
+        sql << "SELECT pubKey,weight from Signers where accountID='" << base58ID << "';";
+        rowset<row> rs = mSession.prepare << sql.str();
+        for(rowset<row>::const_iterator it = rs.begin(); it != rs.end(); ++it)
+        {
+            row const& row = *it;
+            Signer signer;
+            signer.pubKey=fromBase58Check256(VER_ACCOUNT_ID, row.get<std::string>(0));
+            signer.weight = row.get<uint32_t>(1);
+            account.signers.push_back(signer);
+        }
+    }
     return true;
 }
 

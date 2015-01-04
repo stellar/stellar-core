@@ -48,7 +48,7 @@ class Database
     void endTransaction(bool rollback);
     int getTransactionLevel();
 
-    bool loadAccount(const uint256& accountID, AccountFrame& retEntry);
+    bool loadAccount(const uint256& accountID, AccountFrame& retEntry, bool withSig=false);
     bool loadTrustLine(const uint256& accountID,
         const CurrencyIssuer& currency,
         TrustFrame& retEntry);
