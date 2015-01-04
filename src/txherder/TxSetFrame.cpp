@@ -72,7 +72,7 @@ TxSetFrame::getTransaction(uint256 const& txHash)
 void
 TxSetFrame::store()
 {
-    // LATER
+    // TODO.3
 }
 
 void

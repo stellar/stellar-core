@@ -10,6 +10,7 @@
 namespace stellar
 {
 	/*
+        TODO.2 I don't think we need this class anymore
 		Ledger headers + some stuff cached for txs to use during application?
 	*/
 

@@ -9,6 +9,14 @@ namespace stellar
 
     }
 
+    int32_t SetOptionsFrame::getNeededThreshold()
+    {
+        // threshold depends on 
+        if(mEnvelope.tx.body.setOptionsTx().thresholds ||
+            mEnvelope.tx.body.setOptionsTx().signer) return mSigningAccount.getHighThreshold();
+        return mSigningAccount.getMidThreshold();
+    }
+
     void SetOptionsFrame::doApply(TxDelta& delta, LedgerMaster& ledgerMaster)
     {
        
@@ -34,6 +42,41 @@ namespace stellar
         if(mEnvelope.tx.body.setOptionsTx().flags)
         {   
             mSigningAccount.mEntry.account().flags = *mEnvelope.tx.body.setOptionsTx().flags;
+        }
+        if(mEnvelope.tx.body.setOptionsTx().thresholds)
+        {
+            mSigningAccount.mEntry.account().thresholds = *mEnvelope.tx.body.setOptionsTx().thresholds;
+        }
+        if(mEnvelope.tx.body.setOptionsTx().signer)
+        {
+            xdr::xvector<Signer>& signers = mSigningAccount.mEntry.account().signers;
+            if(mEnvelope.tx.body.setOptionsTx().signer->weight)
+            { // add or change signer
+                bool found = false;
+                for(auto oldSigner : signers)
+                {
+                    if(oldSigner.pubKey == mEnvelope.tx.body.setOptionsTx().signer->pubKey)
+                    {
+                        oldSigner.weight = mEnvelope.tx.body.setOptionsTx().signer->weight;
+                    }
+                }
+                if(!found)
+                {
+                    mSigningAccount.mEntry.account().ownerCount++;
+                    signers.push_back(*mEnvelope.tx.body.setOptionsTx().signer);
+                }
+            } else
+            { // delete signer
+                for(auto it = signers.begin(); it != signers.end(); it++)
+                {
+                    Signer& oldSigner = *it;
+                    if(oldSigner.pubKey == mEnvelope.tx.body.setOptionsTx().signer->pubKey)
+                    {
+                        signers.erase(it);
+                        mSigningAccount.mEntry.account().ownerCount--;
+                    }
+                }
+            }
         }
         
         mResultCode = txSUCCESS;

@@ -116,15 +116,15 @@ bool TransactionFrame::preApply(TxDelta& delta,LedgerMaster& ledgerMaster)
         return false;
     }
 
-    if((ledgerMaster.getCurrentLedger()->mHeader.ledgerSeq > mEnvelope.tx.maxLedger) ||
-        (ledgerMaster.getCurrentLedger()->mHeader.ledgerSeq < mEnvelope.tx.minLedger))
+    if((ledgerMaster.getCurrentLedgerHeader().ledgerSeq > mEnvelope.tx.maxLedger) ||
+        (ledgerMaster.getCurrentLedgerHeader().ledgerSeq < mEnvelope.tx.minLedger))
     {
         mResultCode = txMALFORMED;
         CLOG(ERROR, "Tx") << "tx not in valid ledger in validated set. This should never happen.";
         return false;
     }
         
-    uint32_t fee=ledgerMaster.getCurrentLedger()->getTxFee();
+    uint32_t fee=ledgerMaster.getTxFee();
     if(fee > mEnvelope.tx.maxFee)
     {
         mResultCode = txNOFEE;
@@ -188,7 +188,7 @@ bool TransactionFrame::checkSignature()
 // make sure it is in the correct ledger bounds
 bool TransactionFrame::checkValid(Application& app)
 {
-    if(mEnvelope.tx.maxFee < app.getLedgerGateway().getFee()) return false;
+    if(mEnvelope.tx.maxFee < app.getLedgerGateway().getTxFee()) return false;
     if(mEnvelope.tx.maxLedger < app.getLedgerGateway().getLedgerNum()) return false;
     if(mEnvelope.tx.minLedger > app.getLedgerGateway().getLedgerNum()) return false;
     if(!app.getDatabase().loadAccount(mEnvelope.tx.account, mSigningAccount, true)) return false;

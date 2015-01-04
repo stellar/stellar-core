@@ -23,10 +23,8 @@ namespace stellar
 	class LedgerMaster : public LedgerGateway
 	{
 		bool mCaughtUp;
-		// CanonicalLedgerForm::pointer mCurrentCLF;
-        // LATER LedgerDatabase mCurrentDB;
-        //uint256 mLastLedgerHash;
-        Ledger::pointer mCurrentLedger;
+
+        LedgerHeader mCurrentHeader;
 
         Application &mApp;
 
@@ -34,7 +32,7 @@ namespace stellar
 
         void startCatchUp();
 
-        LedgerHeaderPtr getCurrentHeader();
+        
         // called on startup to get the last CLF we knew about
         void syncWithCLF();
 
@@ -54,7 +52,7 @@ namespace stellar
 		// called by CLF
         void recvDelta(CLFDeltaPtr delta, LedgerHeaderPtr header);
 
-        int64_t getFee();
+        int64_t getTxFee();
         int64_t getLedgerNum();
         int64_t getMinBalance(int32_t ownerCount);
 		
@@ -73,7 +71,7 @@ namespace stellar
         // called when we could not close the ledger
         void abortLedgerClose();
 
-		Ledger::pointer getCurrentLedger();
+		LedgerHeader& getCurrentLedgerHeader();
 
         Database& getDatabase() { return mDatabase;  }
 
@@ -95,8 +93,6 @@ namespace stellar
 
         void reset();
 	};
-
-	extern LedgerMaster::pointer gLedgerMaster;
 }
 
 #endif

@@ -51,15 +51,15 @@ void LedgerMaster::startNewLedger()
     Json::Value result;
     masterAccount.storeAdd(result, *this);
 
-    mCurrentLedger = std::make_shared<Ledger>();
-    mCurrentLedger->mHeader.baseFee = mApp.getConfig().DESIRED_BASE_FEE;
-    mCurrentLedger->mHeader.totalCoins = masterAccount.mEntry.account().balance;
-    mCurrentLedger->mHeader.ledgerSeq = 1;
+    
+    mCurrentHeader.baseFee = mApp.getConfig().DESIRED_BASE_FEE;
+    mCurrentHeader.totalCoins = masterAccount.mEntry.account().balance;
+    mCurrentHeader.ledgerSeq = 1;
 }
 
-int64_t LedgerMaster::getFee()
+int64_t LedgerMaster::getTxFee()
 {
-    return 0; // TODO.2
+    return mCurrentHeader.baseFee; 
 }
 
 int64_t LedgerMaster::getMinBalance(int32_t ownerCount)
@@ -69,29 +69,20 @@ int64_t LedgerMaster::getMinBalance(int32_t ownerCount)
 
 int64_t LedgerMaster::getLedgerNum()
 {
-    return 0; // TODO.2
+    return mCurrentHeader.ledgerSeq;
 }
 
-Ledger::pointer LedgerMaster::getCurrentLedger()
+LedgerHeader& LedgerMaster::getCurrentLedgerHeader()
 {
-    // TODO.2
-    return mCurrentLedger;
-}
-
-LedgerHeaderPtr LedgerMaster::getCurrentHeader()
-{
-    // TODO.1
-    return LedgerHeaderPtr();
-    //return mCurrentLedger->mHeader;
+    return mCurrentHeader;
 }
 
 // make sure our state is consistent with the CLF
 void LedgerMaster::syncWithCLF()
 {
     LedgerHeaderPtr clfHeader=mApp.getCLFGateway().getCurrentHeader();
-    LedgerHeaderPtr sqlHeader = getCurrentHeader();
 
-    if(clfHeader->hash == sqlHeader->hash)
+    if(clfHeader->hash == mCurrentHeader.hash)
     {
         CLOG(DEBUG, "Ledger") << "CLF and SQL headers match.";
     } else
@@ -104,7 +95,7 @@ void LedgerMaster::syncWithCLF()
 // called by txherder
 void LedgerMaster::externalizeValue(const SlotBallot& slotBallot, TxSetFramePtr txSet)
 {
-    if(getCurrentHeader()->hash == slotBallot.ballot.previousLedgerHash)
+    if(mCurrentHeader.hash == slotBallot.ballot.previousLedgerHash)
     {
         mCaughtUp = true;
         closeLedger(txSet);
@@ -127,7 +118,7 @@ void LedgerMaster::externalizeValue(const SlotBallot& slotBallot, TxSetFramePtr 
 void LedgerMaster::startCatchUp()
 {
     mApp.setState(Application::CATCHING_UP_STATE);
-    mApp.getOverlayGateway().fetchDelta(getCurrentHeader()->hash, getCurrentHeader()->ledgerSeq );
+    mApp.getOverlayGateway().fetchDelta(mCurrentHeader.hash, mCurrentHeader.ledgerSeq );
 
 }
 
@@ -159,7 +150,7 @@ void LedgerMaster::closeLedger(TxSetFramePtr txSet)
             Json::Value txResult;
             txResult["id"] = binToHex(tx->getHash());
             txResult["code"] = tx->getResultCode();
-            txResult["ledger"] = (Json::UInt64)getCurrentHeader()->ledgerSeq;
+            txResult["ledger"] = (Json::UInt64)mCurrentHeader.ledgerSeq;
 
             delta.commitDelta(txResult, ledgerDelta, *this );
 
@@ -174,264 +165,5 @@ void LedgerMaster::closeLedger(TxSetFramePtr txSet)
     // TODO.2 give the LedgerDelta to the Bucketlist
 }
 
-
-/* NICOLAS
-
-bool LedgerMaster::ensureSync(ripple::Ledger::pointer lastClosedLedger)
-{
-    bool res = false;
-    // first, make sure we're in sync with the world
-    if (lastClosedLedger->getHash() != mLastLedgerHash)
-    {
-        std::vector<uint256> needed=lastClosedLedger->getNeededAccountStateHashes(1,NULL);
-        if(needed.size())
-        {
-            // we're missing some nodes
-            return false;
-        }
-
-        try
-        {
-            CanonicalLedgerForm::pointer newCLF, currentCLF = std::make_shared<LegacyCLF>(lastClosedLedger));
-            mCurrentDB.beginTransaction();
-            try
-            {
-                newCLF = catchUp(currentCLF);
-            }
-            catch (...)
-            {
-                mCurrentDB.endTransaction(true);
-            }
-
-            if (newCLF)
-            {
-                mCurrentDB.endTransaction(false);
-                setLastClosedLedger(newCLF);
-                res = true;
-            }
-        }
-        catch (...)
-        {
-            // problem applying to the database
-            CLOG(ripple::ERROR, ripple::Ledger) << "database error";
-        }
-    }
-    else
-    { // already tracking proper ledger
-        res = true;
-    }
-
-    return res;
-}
-
-void LedgerMaster::beginClosingLedger()
-{
-    // ready to make changes
-    mCurrentDB.beginTransaction();
-    assert(mCurrentDB.getTransactionLevel() == 1); // should be top level transaction
-}
-
-bool  LedgerMaster::commitLedgerClose(ripple::Ledger::pointer ledger)
-{
-    bool res = false;
-    CanonicalLedgerForm::pointer newCLF;
-
-    assert(ledger->getParentHash() == mLastLedgerHash); // should not happen
-
-    try
-    {
-        CanonicalLedgerForm::pointer nl = std::make_shared<LegacyCLF>(ledger);
-        try
-        {
-            // only need to update ledger related fields as the account state is already in SQL
-            updateDBFromLedger(nl);
-            newCLF = nl;
-        }
-        catch (std::runtime_error const &)
-        {
-            CLOG(ripple::ERROR, ripple::Ledger) << "Ledger close: could not update database";
-        }
-
-        if (newCLF != nullptr)
-        {
-            mCurrentDB.endTransaction(false);
-            setLastClosedLedger(newCLF);
-            res = true;
-        }
-        else
-        {
-            mCurrentDB.endTransaction(true);
-        }
-    }
-    catch (...)
-    {
-    }
-    return res;
-}
-
-void LedgerMaster::setLastClosedLedger(CanonicalLedgerForm::pointer ledger)
-{
-    // should only be done outside of transactions, to guarantee state reflects what is on disk
-    assert(mCurrentDB.getTransactionLevel() == 0);
-    mCurrentCLF = ledger;
-    mLastLedgerHash = ledger->getHash();
-    CLOG(ripple::lsINFO, ripple::Ledger) << "Store at " << mLastLedgerHash;
-}
-
-void LedgerMaster::abortLedgerClose()
-{
-    mCurrentDB.endTransaction(true);
-}
-
-	
-
-CanonicalLedgerForm::pointer LedgerMaster::catchUp(CanonicalLedgerForm::pointer updatedCurrentCLF)
-{
-	// new SLE , old SLE
-	SHAMap::Delta delta;
-    bool needFull = false;
-
-    CLOG(ripple::lsINFO, ripple::Ledger) << "catching up from " << mCurrentCLF->getHash() << " to " << updatedCurrentCLF;
-
-    try
-    {
-        if (mCurrentCLF->getHash().isZero())
-        {
-            needFull = true;
-        }
-        else
-        {
-		    updatedCurrentCLF->getDeltaSince(mCurrentCLF,delta);
-        }
-    }
-    catch (std::runtime_error const &e)
-    {
-        CLOG(ripple::WARNING, ripple::Ledger) << "Could not compute delta: " << e.what();
-        needFull = true;
-    };
-
-    if (needFull){
-        return importLedgerState(updatedCurrentCLF->getHash());
-    }
-
-    // incremental update
-
-    mCurrentDB.beginTransaction();
-
-    try {
-        BOOST_FOREACH(SHAMap::Delta::value_type it, delta)
-		{
-            SLE::pointer newEntry = updatedCurrentCLF->getLegacyLedger()->getSLEi(it.first);
-            SLE::pointer oldEntry = mCurrentCLF->getLegacyLedger()->getSLEi(it.first);
-
-			if(newEntry)
-			{
-				LedgerEntry::pointer entry = LedgerEntry::makeEntry(newEntry);
-				if(oldEntry)
-				{	// SLE updated
-					if(entry) entry->storeChange();
-				} else
-				{	// SLE added
-					if(entry) entry->storeAdd();
-				}
-			} else
-			{ // SLE must have been deleted
-                assert(oldEntry);
-				LedgerEntry::pointer entry = LedgerEntry::makeEntry(oldEntry);
-				if(entry) entry->storeDelete();
-			}			
-		}
-        updateDBFromLedger(updatedCurrentCLF);
-    }
-    catch (...) {
-        mCurrentDB.endTransaction(true);
-        throw;
-    }
-
-    mCurrentDB.endTransaction(false);
-
-    return updatedCurrentCLF;
-}
-
-
-static void importHelper(SLE::ref curEntry, LedgerMaster &lm) {
-    LedgerEntry::pointer entry = LedgerEntry::makeEntry(curEntry);
-    if(entry) {
-        entry->storeAdd();
-    }
-    // else entry type we don't care about
-}
-    
-CanonicalLedgerForm::pointer LedgerMaster::importLedgerState(uint256 ledgerHash)
-{
-    CanonicalLedgerForm::pointer res;
-
-    CLOG(ripple::lsINFO, ripple::Ledger) << "Importing full ledger " << ledgerHash;
-
-    CanonicalLedgerForm::pointer newLedger = std::make_shared<LegacyCLF>();
-
-    if (newLedger->load(ledgerHash)) {
-        mCurrentDB.beginTransaction();
-        try {
-            // delete all
-            LedgerEntry::dropAll(mCurrentDB);
-
-            // import all anew
-            newLedger->getLegacyLedger()->visitStateItems(BIND_TYPE (&importHelper, P_1, boost::ref (*this)));
-
-            updateDBFromLedger(newLedger);
-        }
-        catch (...) {
-            mCurrentDB.endTransaction(true);
-            CLOG(ripple::WARNING, ripple::Ledger) << "Could not import state";
-            return CanonicalLedgerForm::pointer();
-        }
-        mCurrentDB.endTransaction(false);
-        res = newLedger;
-    }
-    return res;
-}
-
-void LedgerMaster::updateDBFromLedger(CanonicalLedgerForm::pointer ledger)
-{
-    uint256 currentHash = ledger->getHash();
-    string hex(to_string(currentHash));
-
-    mCurrentDB.setState(mCurrentDB.getStoreStateName(LedgerDatabase::kLastClosedLedger), hex.c_str());
-}
-
-uint256 LedgerMaster::getLastClosedLedgerHash()
-{
-    string h = mCurrentDB.getState(mCurrentDB.getStoreStateName(LedgerDatabase::kLastClosedLedger));
-    return uint256(h); // empty string -> 0
-}
-
-void LedgerMaster::closeLedger(TxSetFramePtr txSet)
-{
-    mCurrentDB.beginTransaction();
-    assert(mCurrentDB.getTransactionLevel() == 1);
-    try {
-	// apply tx set to the last ledger
-        // todo: needs the logic to deal with partial failure
-		for(int n = 0; n < txSet->mTransactions.size(); n++)
-		{
-			txSet->mTransactions[n].apply();
-		}
-
-		// save collected changes to the bucket list
-		mCurrentCLF->closeLedger();
-
-		// save set to the history
-		txSet->store();
-    }
-    catch (...)
-    {
-        mCurrentDB.endTransaction(true);
-        throw;
-    }
-    mCurrentDB.endTransaction(false);
-    // NICOLAS this code is incomplete
-}
-*/
 
 }
