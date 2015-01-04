@@ -591,6 +591,9 @@
     <None Include="..\..\src\lib\xdrpp\tests\xdrtest.x">
       <Filter>lib\xdrpp</Filter>
     </None>
+    <None Include="..\..\docs\multisig.md">
+      <Filter>docs</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="..\..\src\overlay\StellarXDR.x">

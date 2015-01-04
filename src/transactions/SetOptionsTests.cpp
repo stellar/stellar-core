@@ -17,3 +17,29 @@ using namespace stellar::txtest;
 
 
 typedef std::unique_ptr<Application> appPtr;
+
+// Try setting each option to make sure it works
+// try setting all at once
+// try setting high threshold ones without the correct sigs
+TEST_CASE("set options", "[tx]")
+{
+    Config cfg;
+    cfg.RUN_STANDALONE = true;
+    cfg.START_NEW_NETWORK = true;
+    cfg.DESIRED_BASE_FEE = 10;
+
+    VirtualClock clock;
+    Application app(clock, cfg);
+
+    // set up world
+    SecretKey root = getRoot();
+    
+    // set InflationDest
+    // set flags
+    // set transfer rate
+    // set data
+    // set thresholds
+    // set signer
+
+    // these are all tested by other tests
+}

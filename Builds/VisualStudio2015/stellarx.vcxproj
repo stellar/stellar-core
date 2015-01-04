@@ -344,6 +344,7 @@
     <None Include="..\..\docs\design.md" />
     <None Include="..\..\docs\entries.md" />
     <None Include="..\..\docs\hayashi_example.cfg" />
+    <None Include="..\..\docs\multisig.md" />
     <None Include="..\..\docs\questions.md" />
     <None Include="..\..\docs\transactions.md" />
     <None Include="..\..\docs\usecases.md" />

@@ -17,3 +17,22 @@ using namespace stellar::txtest;
 
 
 typedef std::unique_ptr<Application> appPtr;
+
+
+// Merging when you are holding credit
+// Merging when others are holding your credit
+// Merging and then trying to set options in same ledger
+// Merging with outstanding 0 balance trust lines
+// Merging with outstanding offers
+TEST_CASE("merge", "[tx]")
+{
+    Config cfg;
+    cfg.RUN_STANDALONE = true;
+    cfg.START_NEW_NETWORK = true;
+
+    VirtualClock clock;
+    Application app(clock, cfg);
+
+    // set up world
+
+}
