@@ -8,7 +8,7 @@
 #include "lib/util/getopt.h"
 #include "main/test.h"
 #include "lib/http/HttpClient.h"
-#include "crypto/Sign.h"
+#include "crypto/SecretKey.h"
 #include <sodium.h>
 
 _INITIALIZE_EASYLOGGINGPP

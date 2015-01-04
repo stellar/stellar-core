@@ -2,7 +2,7 @@
 // under the ISC License. See the COPYING file at the top-level directory of
 // this distribution or at http://opensource.org/licenses/ISC
 
-#include "crypto/Sign.h"
+#include "crypto/SecretKey.h"
 #include "crypto/Base58.h"
 #include <sodium.h>
 #include <type_traits>

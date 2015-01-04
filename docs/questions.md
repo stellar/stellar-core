@@ -7,8 +7,8 @@ Should we make entry indexes just be a sequential number rather than do this has
 		tx would only need 64bit for destination and source
 	Downsides:
 		Creating an account would have to be a special kind of tx
-		Easier to accidently send to the wrong person?
-		Makes it more complicted to go from secret key to account
+		Easier to accidentally send to the wrong person?
+		Makes it more complicated to go from secret key to account
 
 Do we check seq numbers when we check validity?
 

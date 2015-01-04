@@ -8,7 +8,7 @@
 #include "lib/json/json.h"
 #include "ledger/LedgerDelta.h"
 #include "crypto/Hex.h"
-#include "crypto/Sign.h"
+#include "crypto/SecretKey.h"
 #include "crypto/Base58.h"
 
 /*

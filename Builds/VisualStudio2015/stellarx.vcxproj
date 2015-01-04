@@ -144,7 +144,7 @@
     </ClCompile>
     <ClCompile Include="..\..\src\crypto\Hex.cpp" />
     <ClCompile Include="..\..\src\crypto\SHA.cpp" />
-    <ClCompile Include="..\..\src\crypto\Sign.cpp" />
+    <ClCompile Include="..\..\src\crypto\SecretKey.cpp" />
     <ClCompile Include="..\..\src\database\Database.cpp" />
     <ClCompile Include="..\..\src\database\DatabaseTests.cpp" />
     <ClCompile Include="..\..\src\fba\Ballot.cpp" />
@@ -218,9 +218,14 @@
     <ClCompile Include="..\..\src\transactions\CancelOfferFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\CreateOfferFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\InflationFrame.cpp" />
+    <ClCompile Include="..\..\src\transactions\InflationTests.cpp" />
     <ClCompile Include="..\..\src\transactions\MergeFrame.cpp" />
+    <ClCompile Include="..\..\src\transactions\MergeTests.cpp" />
+    <ClCompile Include="..\..\src\transactions\OfferTests.cpp" />
     <ClCompile Include="..\..\src\transactions\PaymentFrame.cpp" />
+    <ClCompile Include="..\..\src\transactions\PaymentTests.cpp" />
     <ClCompile Include="..\..\src\transactions\SetOptionsFrame.cpp" />
+    <ClCompile Include="..\..\src\transactions\SetOptionsTests.cpp" />
     <ClCompile Include="..\..\src\transactions\TxDelta.cpp" />
     <ClCompile Include="..\..\src\transactions\TxTests.cpp" />
     <ClCompile Include="..\..\src\util\Timer.cpp" />
@@ -257,7 +262,7 @@
     <ClInclude Include="..\..\src\crypto\ByteSlice.h" />
     <ClInclude Include="..\..\src\crypto\Hex.h" />
     <ClInclude Include="..\..\src\crypto\SHA.h" />
-    <ClInclude Include="..\..\src\crypto\Sign.h" />
+    <ClInclude Include="..\..\src\crypto\SecretKey.h" />
     <ClInclude Include="..\..\src\database\Database.h" />
     <ClInclude Include="..\..\src\fba\Ballot.h" />
     <ClInclude Include="..\..\src\fba\FBA.h" />
@@ -325,6 +330,7 @@
     <ClInclude Include="..\..\src\transactions\TxResultCode.h" />
     <ClInclude Include="..\..\src\transactions\ChangeTrustTxFrame.h" />
     <ClInclude Include="..\..\src\transactions\TxDelta.h" />
+    <ClInclude Include="..\..\src\transactions\TxTests.h" />
     <ClInclude Include="..\..\src\txherder\TxSetFrame.h" />
     <ClInclude Include="..\..\src\txherder\TxHerder.h" />
     <ClInclude Include="..\..\src\txherder\TxHerderGateway.h" />

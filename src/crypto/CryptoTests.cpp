@@ -8,7 +8,7 @@
 #include "crypto/Base58.h"
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
-#include "crypto/Sign.h"
+#include "crypto/SecretKey.h"
 #include <autocheck/autocheck.hpp>
 #include <sodium.h>
 #include <map>
