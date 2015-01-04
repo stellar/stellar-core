@@ -297,30 +297,15 @@ int64_t Database::getBalance(const uint256& accountID,const Currency& currency)
     return amountFunded;
 }
 
-void Database::beginTransaction() {
-    /* TODO.2
-    mDBCon->getDBLock().lock();
-    try {
-        mDBCon->getDB()->beginTransaction();
-    }
-    catch(...) {
-        mDBCon->getDBLock().unlock();
-        throw;
-    }
-    */
+void Database::beginTransaction() 
+{
+    mSession.begin();
 }
 
-void Database::endTransaction(bool rollback) {
-    /* TODO.2
-    try {
-        mDBCon->getDB()->endTransaction(rollback);
-    }
-    catch(...) {
-        mDBCon->getDBLock().unlock();
-        throw;
-    }
-    mDBCon->getDBLock().unlock();
-    */
+void Database::endTransaction(bool rollback) 
+{
+    if(rollback) mSession.rollback();
+    else mSession.commit();
 }
 
 /*

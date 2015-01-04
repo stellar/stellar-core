@@ -60,10 +60,6 @@ TransactionFrame::TransactionFrame(const TransactionEnvelope& envelope) : mEnvel
     mResultCode = txUNKNOWN;
 }
     
-uint512& TransactionFrame::getSignature()
-{
-    return mEnvelope.signatures[0];  // TODO.2 do we need this function?
-}
 
 uint256& TransactionFrame::getHash()
 {
@@ -197,21 +193,11 @@ bool TransactionFrame::checkValid(Application& app)
     return doCheckValid(app);
 }
 
-void TransactionFrame::toXDR(Transaction& envelope)
-{
-    // TODO.2
-}
-
-void TransactionFrame::toXDR(TransactionEnvelope& envelope)
-{
-    // TODO.2
-}
-
 StellarMessage&& TransactionFrame::toStellarMessage()
 {
     StellarMessage msg;
     msg.type(TRANSACTION);
-    toXDR(msg.transaction());
+    msg.transaction()=mEnvelope;
     return std::move(msg);
 }
 }

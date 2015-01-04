@@ -1,6 +1,20 @@
 	
+Should we make entry indexes just be a sequential number rather than do this hashing to calculate it?
+	Entry indexes could be 64bit
+	This will have a bunch of space everywhere. 
+		Issuers would only be 64 bit
+		Offers are smaller
+		tx would only need 64bit for destination and source
+	Downsides:
+		Creating an account would have to be a special kind of tx
+		Easier to accidently send to the wrong person?
+		Makes it more complicted to go from secret key to account
 
 Do we check seq numbers when we check validity?
+
+Do we want a separate base fee for the reserve? or should it be tied to the amount we charge for tx fee?
+	Maybe changing the base reserve is the same process for approving protocol upgrades?
+
 
 How do we want to handle returning payments?
 	If a user sends a payment from a gateway and someone needs to return it 
@@ -44,7 +58,7 @@ What do we do about tx that make it into the applied txset but have too low a ma
 We need to deal with someone submitting a ton of tx for one ledger when they can only pay fee for one tx.
 
 
-Should we make entry indexes just be a sequential number rather than do this hasing to calculate it?
+
 
 
 

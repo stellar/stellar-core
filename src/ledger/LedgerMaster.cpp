@@ -53,6 +53,7 @@ void LedgerMaster::startNewLedger()
 
     
     mCurrentHeader.baseFee = mApp.getConfig().DESIRED_BASE_FEE;
+    mCurrentHeader.baseReserve = mApp.getConfig().DESIRED_BASE_RESERVE;
     mCurrentHeader.totalCoins = masterAccount.mEntry.account().balance;
     mCurrentHeader.ledgerSeq = 1;
 }
@@ -64,7 +65,7 @@ int64_t LedgerMaster::getTxFee()
 
 int64_t LedgerMaster::getMinBalance(int32_t ownerCount)
 {
-    return 0; // TODO.2
+    return (2 + ownerCount) * mCurrentHeader.baseReserve; 
 }
 
 int64_t LedgerMaster::getLedgerNum()

@@ -51,7 +51,6 @@ namespace stellar
 		//static TransactionFramePtr makeTransactionFromDB();
 		static TransactionFrame::pointer makeTransactionFromWire(TransactionEnvelope const& msg);
         uint256& getHash();
-        uint512& getSignature();
         TransactionEnvelope& getEnvelope();
 
         TxResultCode getResultCode() { return mResultCode;  }
@@ -62,8 +61,7 @@ namespace stellar
 		// LATER: how will applying historical txs work?
         void apply(TxDelta& delta, Application& app);
 
-        void toXDR(Transaction& body);
-        void toXDR(TransactionEnvelope& envelope);
+       
         StellarMessage&& toStellarMessage();
 
        

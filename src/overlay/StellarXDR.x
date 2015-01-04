@@ -172,6 +172,7 @@ struct LedgerHeader
 	uint64 ledgerSeq;
 	uint32 inflationSeq;
 	int32 baseFee;
+	int32 baseReserve;
 	uint64 closeTime;       
 };
 
@@ -199,6 +200,7 @@ struct Ballot
     uint256 txSetHash;				// x
 	uint64 closeTime;				// x
 	int32 baseFee;					// x
+	int32 baseReserve;				// x
 };
 
 struct SlotBallot

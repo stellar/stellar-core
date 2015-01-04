@@ -13,7 +13,7 @@ namespace stellar
 
     }
 
-    // TODO.2
+    
     int64_t Ledger::getTxFee()
     {
         return 0;

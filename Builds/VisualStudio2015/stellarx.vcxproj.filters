@@ -81,9 +81,6 @@
     <ClCompile Include="..\..\src\fba\Statement.cpp">
       <Filter>fba</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\ledger\Ledger.cpp">
-      <Filter>ledger</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\ledger\LedgerMaster.cpp">
       <Filter>ledger</Filter>
     </ClCompile>
@@ -325,9 +322,6 @@
     </ClInclude>
     <ClInclude Include="..\..\src\history\HistoryGateway.h">
       <Filter>history</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\ledger\Ledger.h">
-      <Filter>ledger</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\ledger\LedgerGateway.h">
       <Filter>ledger</Filter>

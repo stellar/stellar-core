@@ -81,8 +81,7 @@ TxSetFrame::toXDR(TransactionSet& txSet)
     txSet.txs.resize(mTransactions.size());
     for (unsigned int n = 0; n < mTransactions.size(); n++)
     {
-        mTransactions[n]->toXDR(txSet.txs[n].tx);
-        txSet.txs[n].signatures.push_back(mTransactions[n]->getSignature());
+        txSet.txs[n]=mTransactions[n]->getEnvelope();
     }
 }
 }

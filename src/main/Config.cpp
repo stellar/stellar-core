@@ -23,6 +23,7 @@ Config::Config()
     // configurable
     START_NEW_NETWORK = false;
     DESIRED_BASE_FEE = 10;
+    DESIRED_BASE_RESERVE = 10000000;
     PEER_PORT = 39133;
     RUN_STANDALONE = false;
     TARGET_PEER_CONNECTIONS = 20;
