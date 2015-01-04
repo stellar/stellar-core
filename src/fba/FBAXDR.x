@@ -6,14 +6,8 @@ typedef unsigned uint32;
 
 struct FBABallot
 {
-    int index;           // n
+    uint32 counter;      // n
     uint256 valueHash;   // x
-};
-
-struct FBASlotBallot
-{
-    uint256 slotHash;    // i
-    FBABallot ballot;
 };
 
 enum FBAStatementType
@@ -27,7 +21,8 @@ enum FBAStatementType
 
 struct FBAStatement
 {
-    FBASlotBallot slotBallot;
+    uint32 slotIndex;      // i
+    FBABallot ballot;      // b
     uint256 quorumSetHash;
 	
     union switch (FBAStatementType type)
@@ -62,9 +57,9 @@ struct FBACompactQuorumSet
     uint256 validators<>;
 };
 
-struct FBAQuorum
+struct FBANodeSet
 {
-    uint256 validators<>;
+    uint256 nodes<>;
 };
 
 struct FBAQuorumSet
@@ -75,7 +70,7 @@ struct FBAQuorumSet
         case COMPACT:
             FBACompactQuorumSet set;
         case DETAILED:
-            FBAQuorum quorums<>;
+            FBANodeSet quorums<>;
         case UNKNOWN:
             void;
     } content;

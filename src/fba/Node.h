@@ -1,5 +1,5 @@
-#ifndef __NODE__
-#define __NODE__
+#ifndef __FBA_NODE__
+#define __FBA_NODE__
 
 // Copyright 2014 Stellar Development Foundation and contributors. Licensed
 // under the ISC License. See the COPYING file at the top-level directory of
@@ -18,14 +18,17 @@ namespace stellar
 class Node : public enable_shared_from_this<Node>
 {
   public:
-    Node(const uint256& nodeID);
+    Node(const uint256& nodeID,
+         unsigned cacheCapacity = 4);
 
     const FBAQuorumSet& retrieveQuorumSet(const uint256& qSetHash);
     void cacheQuorumSet(const uint256& qSetHash,
                         const FBAQuorumSet& qSet);
   private:
     uint256                         mNodeID;
-    std::map<uint256, FBAQuorumSet> mCachedQuorumSets;
+    unsigned                        mCacheCapacity;
+    std::map<uint256, FBAQuorumSet> mCache;
+    std::vector<uint256>            mCacheLRU;
 };
 }
 

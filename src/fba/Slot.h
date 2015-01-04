@@ -9,6 +9,49 @@
 
 namespace stellar 
 {
+/**
+ * The Slot object is in charge of maintaining the state of the FBA protocol
+ * for a given slot index.
+ */
+class Slot
+{
+  public:
+    // Constructor
+    Slot(const uint32& slotIndex,
+         FBA* FBA)
+
+    processEnvelope(const FBAEnvelope& envelope);
+
+  private:
+
+    void doPrepare();
+    void doPrepared();
+    void doCommit();
+    void doCommitted();
+    void doExternalize();
+
+    bool isQuorumTransitive(
+        const FBAStatementType& type,
+        const uint256& nodeID,
+        std::function<bool(const FBAStatement&)> const& filter);
+    bool isVBlocking(
+        const FBAStatementType& type,
+        const uint256& nodeID,
+        std::function<bool(const FBAStatement&)> const& filter);
+
+    bool isNull();
+    bool isPrepared();
+    bool isPreparedConfirmed();
+    bool isCommitted();
+    bool isCommittedConfirmed();
+
+    void advanceSlot();
+
+    uint32&                                          mSlotIndex;
+    FBA*                                             mFBA;
+    FBABallot&                                       mBallot;
+    map<FBAStatementType, map<uint256, FBAEnvelope>> mEnvelopes;
+};
 
 }
 
