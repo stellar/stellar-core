@@ -25,6 +25,7 @@ namespace stellar
         txNOT_AUTHORIZED,
         txINTERNAL_ERROR,
         txCROSS_SELF,
+        txCREDIT_ISSUED,
 
 
         txNOACCOUNT,

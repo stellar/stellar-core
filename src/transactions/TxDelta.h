@@ -15,6 +15,7 @@ public:
     void merge(const TxDelta& other);
     void setStart(EntryFrame& entry);
     void setFinal(EntryFrame& entry);
+    void removeFinal(EntryFrame& entry);
 
     void commitDelta(Json::Value& txResult, LedgerDelta& delta, LedgerMaster& ledgerMaster);
 

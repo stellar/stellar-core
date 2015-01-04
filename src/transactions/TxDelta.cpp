@@ -75,6 +75,17 @@ void TxDelta::setStart(EntryFrame&  entry)
     }
 }
 
+void TxDelta::removeFinal(EntryFrame& entry)
+{
+    auto it = mStartEnd.find(entry.getIndex());
+    if(it != mStartEnd.end())
+    { 
+        StartEndPair pair;
+        pair.first = it->second.first;
+        mStartEnd[entry.getIndex()] = pair;
+    } 
+}
+
 
 void TxDelta::commitDelta(Json::Value& txResult, LedgerDelta& ledgerDelta, LedgerMaster& ledgerMaster)
 {

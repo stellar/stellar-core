@@ -26,6 +26,8 @@ class Database
     static bool gDriversRegistered;
     static void registerDrivers();
 
+    void loadOffer(const soci::row& row, OfferFrame& offer);
+    void loadLine(const soci::row& row, TrustFrame& offer);
   public:
     Database(Application& app);
 
@@ -54,6 +56,9 @@ class Database
 
     void loadBestOffers(int numOffers, int offset, Currency& pays,
         Currency& gets, std::vector<OfferFrame>& retOffers);
+
+    void loadOffers(const uint256& accountID, std::vector<OfferFrame>& retOffers);
+    void loadLines(const uint256& accountID, std::vector<TrustFrame>& retLines);
 
     int64_t getBalance(const uint256& accountID, const Currency& currency);
     //bool loadOffer()

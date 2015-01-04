@@ -36,9 +36,13 @@ TxSetFrame::getContentsHash()
 {
     if (isZero(mHash))
     {
-        TransactionSet txSet;
-        toXDR(txSet);
-        mHash = sha512_256(xdr::xdr_to_msg(txSet));
+        SHA512_256 hasher;
+        for(unsigned int n = 0; n < mTransactions.size(); n++)
+        {
+            hasher.add(xdr::xdr_to_msg(mTransactions[n]->getEnvelope()));
+        }
+
+        mHash = hasher.finish();
     }
     return mHash;
 }

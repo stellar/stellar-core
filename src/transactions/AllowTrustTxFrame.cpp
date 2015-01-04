@@ -35,6 +35,6 @@ namespace stellar
 
     bool AllowTrustTxFrame::doCheckValid(Application& app)
     {
-        return false;
+        return true;
     }
 }

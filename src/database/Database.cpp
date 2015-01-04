@@ -118,56 +118,149 @@ bool Database::loadOffer(const uint256& accountID, uint32_t seq, OfferFrame& ret
 {
     std::string accStr;
     accStr = toBase58Check(VER_ACCOUNT_ID, accountID);
-    int flags;
-    soci::indicator takerPaysCurrencyInd, takerPaysIssuerInd, 
-        takerGetsCurrencyInd, takerGetsIssuerInd;
+ 
+    stringstream sql;
+    sql << "SELECT * from Offers where accountID='" << accStr << "' and sequence=" << seq;
+    rowset<row> rs = mSession.prepare << sql.str();
+    rowset<row>::const_iterator it = rs.begin();
+    if(rs.end() == it) return false;
+    row const& row = *it;
+    loadOffer(row, retOffer);
+    
+    return true;
+}
+
+/*
+0 offerIndex CHARACTER(35) PRIMARY KEY, \
+1 accountID		CHARACTER(35), \
+2 sequence		INT UNSIGNED, \
+3 takerPaysCurrency Blob(20), \
+4 takerPaysIssuer CHARACTER(35), \
+5 takerGetsCurrency Blob(20), \
+6 takerGetsIssuer CHARACTER(35), \
+7 amount BIGINT UNSIGNED, \
+8 price BIGINT UNSIGNED, \
+9 flags INT UNSIGNED					    \
+*/
+void Database::loadOffer(const soci::row& row, OfferFrame& retOffer)
+{
     retOffer.mEntry.type(OFFER);
-    retOffer.mEntry.offer().accountID = accountID;
-    std::string takerPaysCurrency, takerPaysIssuer, takerGetsCurrency, takerGetsIssuer;
-    mSession << "SELECT takerPaysCurrency, takerPaysIssuer, takerGetsCurrency, \
-        takerGetsIssuer, amount, price, passive from Offers \
-        where accountID=:v1 and sequence=:v2",
-        into(takerPaysCurrency, takerPaysCurrencyInd), into(takerPaysIssuer, takerPaysIssuerInd),
-        into(takerGetsCurrency, takerGetsCurrencyInd),
-        into(takerGetsIssuer, takerGetsIssuerInd), into(retOffer.mEntry.offer().amount),
-        into(retOffer.mEntry.offer().price), into(flags),
-        use(accStr), use(seq);
-
-    if(!mSession.got_data()) return false;
-
-    retOffer.mEntry.offer().flags = flags;
-    if(takerPaysCurrencyInd == soci::i_ok && takerPaysIssuerInd == soci::i_ok)
+    retOffer.mEntry.offer().accountID = fromBase58Check256(VER_ACCOUNT_ID,row.get<std::string>(1));
+    retOffer.mEntry.offer().sequence = row.get<uint64_t>(2);
+    if(row.get_indicator(3))
     {
         retOffer.mEntry.offer().takerPays.native(false);
-        retOffer.mEntry.offer().takerPays.ci().currencyCode = hexToBin256(takerPaysCurrency);
-        retOffer.mEntry.offer().takerPays.ci().issuer = fromBase58Check256(VER_ACCOUNT_PUBLIC, takerPaysIssuer);
+        retOffer.mEntry.offer().takerPays.ci().currencyCode=fromBase58Check256(VER_ACCOUNT_ID,row.get<std::string>(3));
+        retOffer.mEntry.offer().takerPays.ci().issuer = fromBase58Check256(VER_ACCOUNT_ID, row.get<std::string>(4));
     } else
     {
         retOffer.mEntry.offer().takerPays.native(true);
     }
-
-    if(takerGetsCurrencyInd == soci::i_ok && takerGetsIssuerInd == soci::i_ok)
+    if(row.get_indicator(5))
     {
         retOffer.mEntry.offer().takerGets.native(false);
-        retOffer.mEntry.offer().takerGets.ci().currencyCode = hexToBin256(takerGetsCurrency);
-        retOffer.mEntry.offer().takerGets.ci().issuer = fromBase58Check256(VER_ACCOUNT_PUBLIC, takerGetsIssuer);
+        retOffer.mEntry.offer().takerGets.ci().currencyCode = fromBase58Check256(VER_ACCOUNT_ID, row.get<std::string>(5));
+        retOffer.mEntry.offer().takerGets.ci().issuer = fromBase58Check256(VER_ACCOUNT_ID, row.get<std::string>(6));
     } else
     {
         retOffer.mEntry.offer().takerGets.native(true);
     }
+    retOffer.mEntry.offer().amount = row.get<uint64_t>(7);
+    retOffer.mEntry.offer().price = row.get<uint64_t>(8);
+    retOffer.mEntry.offer().flags = row.get<int32_t>(9);
+}
 
-    
+/*
+0 trustIndex CHARACTER(35) PRIMARY KEY,				\
+1 accountID	CHARACTER(35),			\
+2 issuer CHARACTER(35),				\
+3 currency CHARACTER(35),				\
+4 tlimit UNSIGNED INT,		   		\
+5 balance UNSIGNED INT,				\
+6 authorized BOOL						\
+*/
 
-    return true;
+void Database::loadLine(const soci::row& row, TrustFrame& retLine)
+{
+    retLine.mEntry.type(TRUSTLINE);
+    retLine.mEntry.trustLine().accountID = fromBase58Check256(VER_ACCOUNT_ID, row.get<std::string>(1));
+    retLine.mEntry.trustLine().issuer = fromBase58Check256(VER_ACCOUNT_ID, row.get<std::string>(2));
+    retLine.mEntry.trustLine().currencyCode = fromBase58Check256(VER_ACCOUNT_ID, row.get<std::string>(3));
+    retLine.mEntry.trustLine().limit = row.get<uint64_t>(4);
+    retLine.mEntry.trustLine().balance = row.get<uint64_t>(5);
+    retLine.mEntry.trustLine().authorized = row.get<uint32_t>(6);
 }
 
 void Database::loadBestOffers(int numOffers, int offset, Currency& pays,
     Currency& gets, vector<OfferFrame>& retOffers)
 {
-    // TODO.2
-    mSession << "SELECT * from Offers where order by price limit :v1, :v2",
-        use(offset), use(numOffers);
+    
+    stringstream sql;
+    sql << "SELECT * from Offers where ";
+    if(pays.native())
+    {
+        std::string b58Currency, b58Issuer;
+        b58Currency=toBase58Check(VER_ACCOUNT_ID, gets.ci().currencyCode);
+        b58Issuer=toBase58Check(VER_ACCOUNT_ID, gets.ci().issuer);
+        sql << "takerPaysIssuer is NULL and takerGetsCurrency='" << b58Currency << "' and takerGetsIssuer='" << b58Issuer << "' ";
+    } else if(gets.native())
+    {
+        std::string b58Currency, b58Issuer;
+        b58Currency = toBase58Check(VER_ACCOUNT_ID, pays.ci().currencyCode);
+        b58Issuer = toBase58Check(VER_ACCOUNT_ID, pays.ci().issuer);
+        sql << "takerGetsIssuer is NULL and takerPaysCurrency='" << b58Currency << "' and takerPaysIssuer='" << b58Issuer << "' ";
+    } else
+    {
+        std::string b58GCurrency, b58GIssuer;
+        std::string b58PCurrency, b58PIssuer;
+        b58GCurrency = toBase58Check(VER_ACCOUNT_ID, gets.ci().currencyCode);
+        b58GIssuer = toBase58Check(VER_ACCOUNT_ID, gets.ci().issuer);
+        sql << "takerGetsCurrency='" << b58GCurrency << "' and takerGetsIssuer='" << b58GIssuer << "' ";
+        
+        b58PCurrency = toBase58Check(VER_ACCOUNT_ID, pays.ci().currencyCode);
+        b58PIssuer = toBase58Check(VER_ACCOUNT_ID, pays.ci().issuer);
+        sql << "takerPaysCurrency='" << b58PCurrency << "' and takerPaysIssuer='" << b58PIssuer << "' ";
+    }
+    sql << " order by price limit " << offset << " ," << numOffers;
+    rowset<row> rs = mSession.prepare << sql.str();
+    for(rowset<row>::const_iterator it = rs.begin(); it != rs.end(); ++it)
+    {
+        row const& row = *it;
+        retOffers.resize(retOffers.size() + 1);
+        loadOffer(row, retOffers[retOffers.size() - 1]);
+    }
+}
 
+void Database::loadOffers(const uint256& accountID, std::vector<OfferFrame>& retOffers)
+{
+    std::string accStr;
+    accStr = toBase58Check(VER_ACCOUNT_ID, accountID);
+
+    stringstream sql;
+    sql << "SELECT * from Offers where accountID='" << accStr << "' ";
+    rowset<row> rs = mSession.prepare << sql.str();
+    for(rowset<row>::const_iterator it = rs.begin(); it != rs.end(); ++it)
+    {
+        row const& row = *it;
+        retOffers.resize(retOffers.size() + 1);
+        loadOffer(row, retOffers[retOffers.size() - 1]);
+    }
+}
+
+void Database::loadLines(const uint256& accountID, std::vector<TrustFrame>& retLines)
+{
+    std::string accStr;
+    accStr = toBase58Check(VER_ACCOUNT_ID, accountID);
+
+    stringstream sql;
+    sql << "SELECT * from TrustLines where accountID='" << accStr << "' ";
+    rowset<row> rs = mSession.prepare << sql.str();
+    for(rowset<row>::const_iterator it = rs.begin(); it != rs.end(); ++it)
+    {
+        row const& row = *it;
+        retLines.resize(retLines.size() + 1);
+        loadLine(row, retLines[retLines.size() - 1]);
+    }
 }
 
 int64_t Database::getBalance(const uint256& accountID,const Currency& currency)

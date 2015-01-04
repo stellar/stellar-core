@@ -52,6 +52,7 @@ namespace stellar
 		static TransactionFrame::pointer makeTransactionFromWire(TransactionEnvelope const& msg);
         uint256& getHash();
         uint512& getSignature();
+        TransactionEnvelope& getEnvelope();
 
         TxResultCode getResultCode() { return mResultCode;  }
 

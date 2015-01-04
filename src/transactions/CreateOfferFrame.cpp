@@ -21,7 +21,7 @@ bool CreateOfferFrame::checkOfferValid(LedgerMaster& ledgerMaster)
     Currency& sheep = mEnvelope.tx.body.createOfferTx().takerGets;
     Currency& wheat = mEnvelope.tx.body.createOfferTx().takerPays;
 
-    // TODO.2 makes sure the currencies are different if(sheep.native() && wheat.native())
+    
 
     if(!sheep.native() &&
         !ledgerMaster.getDatabase().loadTrustLine(mEnvelope.tx.account, sheep.ci(), mSheepLineA))
@@ -71,8 +71,17 @@ void CreateOfferFrame::doApply(TxDelta& delta, LedgerMaster& ledgerMaster)
         
         if(ledgerMaster.getDatabase().loadOffer(mEnvelope.tx.account, offerSeq, mSellSheepOffer))
         {
-            // TODO.2 make sure the currencies are the same
-            tempDelta.setStart(mSellSheepOffer);
+            // make sure the currencies are the same
+            if( compareCurrency(mEnvelope.tx.body.createOfferTx().takerGets, mSellSheepOffer.mEntry.offer().takerGets) &&
+                compareCurrency(mEnvelope.tx.body.createOfferTx().takerPays, mSellSheepOffer.mEntry.offer().takerPays))
+            {
+                tempDelta.setStart(mSellSheepOffer);
+            } else
+            {
+                mResultCode = txMALFORMED;
+                return;
+            }
+            
         } else
         {
             mResultCode = txOFFER_NOT_FOUND;
@@ -329,11 +338,15 @@ bool CreateOfferFrame::crossOffer(OfferFrame& sellingWheatOffer,
     return true;
 }
 
+// makes sure the currencies are different 
 bool CreateOfferFrame::doCheckValid(Application& app)
 {
-    return false;
+    Currency& sheep = mEnvelope.tx.body.createOfferTx().takerGets;
+    Currency& wheat = mEnvelope.tx.body.createOfferTx().takerPays;
+    if(compareCurrency(sheep, wheat)) return false;
+    
+    return true;
 }
-
 
 
 }

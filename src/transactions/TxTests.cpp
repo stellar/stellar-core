@@ -107,13 +107,10 @@ TEST_CASE("create offer", "[tx]")
 
     // set up world
 
-
-
-
 }
 
-// STR Payment 
-// Credit Payment
+// *STR Payment 
+// *Credit Payment
 // STR -> Credit Payment
 // Credit -> STR Payment
 // Credit -> STR -> Credit Payment
@@ -153,10 +150,10 @@ TEST_CASE("payment", "[tx]")
 
         REQUIRE(txFrame->getResultCode() == txSUCCESS);
         AccountFrame a1Account, rootAccount;
-       // REQUIRE(app.getDatabase().loadAccount(root.getPublicKey(), rootAccount));
-       // REQUIRE(app.getDatabase().loadAccount(a1.getPublicKey(), a1Account));
-       // REQUIRE(a1Account.getBalance() == 1000);
-      //  REQUIRE(rootAccount.getBalance() == (100000000000000 - 1000 - 10));
+        REQUIRE(app.getDatabase().loadAccount(root.getPublicKey(), rootAccount));
+        REQUIRE(app.getDatabase().loadAccount(a1.getPublicKey(), a1Account));
+        REQUIRE(a1Account.getBalance() == 1000);
+        REQUIRE(rootAccount.getBalance() == (100000000000000 - 1000 - 10));
     }
     { // make sure 2nd time fails
         TxDelta delta;
@@ -206,10 +203,24 @@ TEST_CASE("payment", "[tx]")
         REQUIRE(txFrame->getResultCode() == txSUCCESS);
     }
 
+    { // simple credit payment
+        CurrencyIssuer ci;
+        ci.issuer = root.getPublicKey();
+        ci.currencyCode = root.getPublicKey();
 
-   
+        txFrame = createCreditPaymentTx(root, a1, ci, 3, 100);
+        TxDelta delta;
+        txFrame->apply(delta, app.getLedgerMaster());
 
+        Json::Value jsonResult;
+        LedgerDelta ledgerDelta;
 
+        delta.commitDelta(jsonResult, ledgerDelta, app.getLedgerMaster());
+
+        LOG(INFO) << jsonResult.toStyledString();
+
+        REQUIRE(txFrame->getResultCode() == txSUCCESS);
+    }
 
     LOG(INFO) << "************ Ending payment test";
 }

@@ -32,6 +32,7 @@ namespace stellar
 
         uint64_t getBalance();
         bool isAuthRequired();
+        uint256& getID();
 
         void storeDelete(Json::Value& txResult, LedgerMaster& ledgerMaster);
         void storeChange(EntryFrame::pointer startFrom, Json::Value& txResult, LedgerMaster& ledgerMaster);

@@ -25,4 +25,19 @@ makePublicKey(uint256 const& b)
     ret[0] = ++i;
     return (ret);
 }
+
+bool compareCurrency(Currency& first, Currency& second)
+{
+    if(first.native())
+    {
+        if(second.native()) return true;
+    } else if(!second.native())
+    {
+        if((first.ci().issuer == second.ci().issuer) &&
+            (first.ci().currencyCode == second.ci().currencyCode)) return true;
+
+    }
+    return false;
+}
+
 }

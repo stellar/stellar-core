@@ -52,6 +52,10 @@ namespace stellar
     {
         return(mEntry.account().balance);
     }
+    uint256& AccountFrame::getID()
+    {
+        return(mEntry.account().accountID);
+    }
 
     void AccountFrame::storeDelete(Json::Value& txResult, LedgerMaster& ledgerMaster)
     {

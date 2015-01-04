@@ -1,6 +1,5 @@
 #include "transactions/InflationFrame.h"
 
-// TODO.2 still 
 
 namespace stellar
 {
@@ -15,8 +14,7 @@ namespace stellar
 
     bool InflationFrame::doCheckValid(Application& app)
     {
-        // TODO.2
-        return false;
+        return true;
     }
 
 }

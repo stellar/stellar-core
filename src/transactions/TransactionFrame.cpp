@@ -60,7 +60,6 @@ TransactionFrame::TransactionFrame(const TransactionEnvelope& envelope) : mEnvel
     mResultCode = txUNKNOWN;
 }
     
-// TODO.2 we can probably get rid of this
 uint512& TransactionFrame::getSignature()
 {
     return mEnvelope.signature;
@@ -69,10 +68,8 @@ uint512& TransactionFrame::getSignature()
 uint256& TransactionFrame::getHash()
 {
 	if(isZero(mHash))
-	{
-        Transaction tx;
-        toXDR(tx);
-        mHash = sha512_256(xdr::xdr_to_msg(tx));
+    {
+        mHash = sha512_256(xdr::xdr_to_msg(mEnvelope.tx));
 	}
 	return(mHash);
 }

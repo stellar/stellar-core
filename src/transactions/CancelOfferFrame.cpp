@@ -28,8 +28,7 @@ void CancelOfferFrame::doApply(TxDelta& delta, LedgerMaster& ledgerMaster)
 
 bool CancelOfferFrame::doCheckValid(Application& app)
 {
-    // TODO.2
-    return false;
+    return true;
 }
 
 }
