@@ -3,6 +3,7 @@
 // this distribution or at http://opensource.org/licenses/ISC
 
 #include "Peer.h"
+
 #include "util/Logging.h"
 #include "main/Application.h"
 #include "generated/StellarXDR.h"
@@ -70,11 +71,11 @@ Peer::sendDontHave(MessageType type,
 }
 
 void
-Peer::sendQuorumSet(QuorumSet::pointer qSet)
+Peer::sendFBAQuorumSet(FBAQuorumSetPtr qSet)
 {
     StellarMessage msg;
-    msg.type(QUORUMSET);
-    qSet->toXDR(msg.quorumSet());
+    msg.type(FBA_QUORUMSET);
+    msg.qSet() = *qSet;
 
     sendMessage(msg);
 }
@@ -91,7 +92,7 @@ void
 Peer::sendGetQuorumSet(uint256 const& setID)
 {
     StellarMessage newMsg;
-    newMsg.type(GET_QUORUMSET);
+    newMsg.type(GET_FBA_QUORUMSET);
     newMsg.txSetHash() = setID;
 
     sendMessage(newMsg);
@@ -219,15 +220,15 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
     }
     break;
 
-    case GET_QUORUMSET:
+    case GET_FBA_QUORUMSET:
     {
-        recvGetQuorumSet(stellarMsg);
+        recvGetFBAQuorumSet(stellarMsg);
     }
     break;
 
-    case QUORUMSET:
+    case FBA_QUORUMSET:
     {
-        recvQuorumSet(stellarMsg);
+        recvFBAQuorumSet(stellarMsg);
     }
     break;
 
@@ -270,7 +271,7 @@ Peer::recvDontHave(StellarMessage const& msg)
         mApp.getTxHerderGateway().doesntHaveTxSet(msg.dontHave().reqHash,
                                                   shared_from_this());
         break;
-    case QUORUMSET:
+    case FBA_QUORUMSET:
         mApp.getOverlayGateway().doesntHaveQSet(msg.dontHave().reqHash,
                                                 shared_from_this());
         break;
@@ -322,38 +323,41 @@ Peer::recvTransaction(StellarMessage const& msg)
 }
 
 void
-Peer::recvGetQuorumSet(StellarMessage const& msg)
+Peer::recvGetFBAQuorumSet(StellarMessage const& msg)
 {
-    QuorumSet::pointer qset =
-        mApp.getOverlayGateway().fetchQuorumSet(msg.qSetHash(), false);
-    if (qset)
+    FBAQuorumSetPtr qset = 
+        mApp.getOverlayGateway().fetchFBAQuorumSet(msg.qSetHash(), false);
+    if (qset->content.type() != FBAQuorumSetType::UNKNOWN)
     {
-        sendQuorumSet(qset);
+        sendFBAQuorumSet(qset);
     }
     else
     {
-        sendDontHave(QUORUMSET, msg.qSetHash());
+        sendDontHave(FBA_QUORUMSET, msg.qSetHash());
         // do we want to ask other people for it?
     }
 }
 void
-Peer::recvQuorumSet(StellarMessage const& msg)
+Peer::recvFBAQuorumSet(StellarMessage const& msg)
 {
-    QuorumSet::pointer qset =
-        std::make_shared<QuorumSet>(msg.quorumSet(), mApp);
-    mApp.getOverlayGateway().recvQuorumSet(qset);
+  FBAQuorumSetPtr qSet =
+    std::make_shared<FBAQuorumSet>(msg.qSet());
+    mApp.getOverlayGateway().recvFBAQuorumSet(qSet);
 }
 
 void
 Peer::recvFBAMessage(StellarMessage const& msg)
 {
+    /* TODO(spolu) Update to new FBA */
     FBAEnvelope envelope = msg.fbaMessage();
+    /*
     Statement::pointer statement = std::make_shared<Statement>(envelope);
 
     mApp.getOverlayGateway().recvFloodedMsg(statement->mEnvelope.signature, msg,
                                             statement->getLedgerIndex(),
                                             shared_from_this());
     mApp.getFBAGateway().recvStatement(statement);
+    */
 }
 
 void

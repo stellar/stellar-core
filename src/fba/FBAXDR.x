@@ -16,7 +16,7 @@ enum FBAStatementType
     PREPARED,
     COMMIT,
     COMMITTED,
-    UNKNOWN
+    INVALID
 };
 
 struct FBAStatement
@@ -32,7 +32,7 @@ struct FBAStatement
         case PREPARED:
         case COMMIT:
         case COMMITTED:
-        case UNKNOWN:
+        case INVALID:
             void;		
     } body;
 };
@@ -47,7 +47,6 @@ struct FBAEnvelope
 enum FBAQuorumSetType
 {
     COMPACT,
-    DETAILED,
     UNKNOWN
 };
 
@@ -57,11 +56,6 @@ struct FBACompactQuorumSet
     uint256 validators<>;
 };
 
-struct FBANodeSet
-{
-    uint256 nodes<>;
-};
-
 struct FBAQuorumSet
 {
     uint256 nodeID;
@@ -69,8 +63,6 @@ struct FBAQuorumSet
     {
         case COMPACT:
             FBACompactQuorumSet set;
-        case DETAILED:
-            FBANodeSet quorums<>;
         case UNKNOWN:
             void;
     } content;

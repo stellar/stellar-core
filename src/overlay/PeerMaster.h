@@ -47,8 +47,8 @@ class PeerMaster : public OverlayGateway
     //////// GATEWAY FUNCTIONS
     void ledgerClosed(LedgerPtr ledger);
 
-    QuorumSet::pointer
-    fetchQuorumSet(uint256 const& itemID, bool askNetwork)
+    FBAQuorumSetPtr
+    fetchFBAQuorumSet(uint256 const& itemID, bool askNetwork)
     {
         return (mQSetFetcher.fetchItem(itemID, askNetwork));
     }
@@ -72,7 +72,7 @@ class PeerMaster : public OverlayGateway
 
     void broadcastMessage(StellarMessage const& msg,
                           Peer::pointer peer);
-    void recvQuorumSet(QuorumSet::pointer qset);
+    void recvFBAQuorumSet(FBAQuorumSetPtr qset);
     //////
 
     void addPeer(Peer::pointer peer);

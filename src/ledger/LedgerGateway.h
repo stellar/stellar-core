@@ -9,28 +9,26 @@
 #include "clf/CLF.h"
 #include "txherder/TxSetFrame.h"
 
-/*
-Public Interface to the Ledger Module
-
-*/
-
 namespace stellar
 {
-    class TxSetFrame;
-    typedef std::shared_ptr<TxSetFrame> TransactionSetPtr;
+class TxSetFrame;
+typedef std::shared_ptr<TxSetFrame> TxSetFramePtr;
 
-	class LedgerGateway
-	{
-	public:
-		// called by txherder
-		virtual void externalizeValue(const SlotBallot& slotBallot, TransactionSetPtr txSet)=0;
+/*
+ * Public Interface to the Ledger Module
+ */
+class LedgerGateway
+{
+  public:
+    // called by txherder
+    virtual void externalizeValue(TxSetFramePtr txSet)=0;
 
-		// called by CLF
-        virtual void recvDelta(CLFDeltaPtr delta, LedgerHeaderPtr header) = 0;
+    // called by CLF
+    virtual void recvDelta(CLFDeltaPtr delta, LedgerHeaderPtr header) = 0;
 
-        virtual int64_t getFee() = 0;
-        virtual int64_t getLedgerNum() = 0;
-	};
+    virtual int64_t getFee() = 0;
+    virtual int64_t getLedgerNum() = 0;
+};
 }
 
 #endif

@@ -12,6 +12,9 @@ Node::Node(const uint256& nodeID,
     : mNodeID(nodeID)
     , mCacheCapacity(cacheCapacity)
 {
+  mQSetUnknown.nodeID = nodeID;
+  mQSetUnknown.content.type(UNKNOWN);
+  /* TODO(spolu) Ensure type is UNKNOWN */
 }
 
 const FBAQuorumSet& 
@@ -20,14 +23,11 @@ Node::retrieveQuorumSet(const uint256& qSetHash)
     auto it = mCache.find(qSetHash);
     if (it != mCache.end()) 
     {
-        return *it;
+        return it->second;
     }
     else 
     {
-        FBAQuorumSet qSet;
-        qSet.nodeID = mNodeID;
-        qSet.type = FBAQuorumSetType::UNKNOWN;
-        return qSet;
+        return mQSetUnknown;
     }
 }
 

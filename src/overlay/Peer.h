@@ -11,19 +11,20 @@
 #include <asio.hpp>
 #include "xdrpp/message.h"
 #include "generated/StellarXDR.h"
-#include "fba/QuorumSet.h"
-
-/*
-Another peer out there that we are connected to
-*/
+#include "fba/FBA.h"
 
 namespace stellar
 {
+typedef std::shared_ptr<FBAQuorumSet> FBAQuorumSetPtr;
+
 using namespace std;
 
 class Application;
 class LoopbackPeer;
 
+/*
+ * Another peer out there that we are connected to
+ */
 class Peer : public enable_shared_from_this<Peer>
 {
 
@@ -70,12 +71,12 @@ class Peer : public enable_shared_from_this<Peer>
     void recvGetValidations(StellarMessage const& msg);
     void recvValidations(StellarMessage const& msg);
     void recvTransaction(StellarMessage const& msg);
-    void recvGetQuorumSet(StellarMessage const& msg);
-    void recvQuorumSet(StellarMessage const& msg);
+    void recvGetFBAQuorumSet(StellarMessage const& msg);
+    void recvFBAQuorumSet(StellarMessage const& msg);
     void recvFBAMessage(StellarMessage const& msg);
 
     void sendHello();
-    void sendQuorumSet(QuorumSet::pointer qSet);
+    void sendFBAQuorumSet(FBAQuorumSetPtr qSet);
     void sendDontHave(MessageType type,
                       uint256 const& itemID);
     void sendPeers();

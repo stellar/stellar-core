@@ -2,9 +2,11 @@
 // under the ISC License. See the COPYING file at the top-level directory of
 // this distribution or at http://opensource.org/licenses/ISC
 
-#include "simulation/Simulation.h"
+#include "Simulation.h"
+
 #include "main/test.h"
 #include "util/Logging.h"
+#include "util/types.h"
 
 namespace stellar
 {
@@ -40,7 +42,7 @@ Simulation::addNode(stellar::uint256 validationSeed, VirtualClock& clock)
     Application::pointer node = 
           std::make_shared<Application>(clock, *cfg);
 
-    stellar::uint256 nodeID = node->getFBAGateway().getOurNode()->mNodeID;
+    stellar::uint256 nodeID = makePublicKey(validationSeed);
     mConfigs[nodeID] = cfg;
     mNodes[nodeID] = node;
 

@@ -38,7 +38,7 @@ class FBA
      * `receiveEnvelope` as needed, users of FBA has full control on the
      * transport layer and protocol they want to rely on.
      */
-    class Client : public enable_shared_from_this<Client>
+    class Client : public std::enable_shared_from_this<Client>
     {
         virtual void validateBallot(const uint32& slotIndex,
                                     const uint256& nodeID,
@@ -59,7 +59,8 @@ class FBA
     };
 
     // Constructor
-    FBA(bool validating, 
+    FBA(const uint256& validationSeed,
+        bool validating, 
         const FBAQuorumSet& qSetLocal,
         std::shared_ptr<Client> client);
 
@@ -76,11 +77,11 @@ class FBA
     const FBAQuorumSet& getLocalQuorumSet();
 
   private:
-    bool                           mValidatingNode;
+    bool                           mValidating;
     std::shared_ptr<Client>        mClient;
     LocalNode*                     mLocalNode;
     std::map<uint256, Node*>       mKnownNodes;
-}
+};
 }
 
 #endif

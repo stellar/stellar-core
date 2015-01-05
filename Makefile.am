@@ -7,9 +7,8 @@ bin_PROGRAMS = bin/stellard
 FMT_SRCS = src/clf/BucketList.cpp src/clf/CLFTests.cpp src/crypto/Base58.cpp    \
     src/crypto/Hex.cpp src/crypto/SHA.cpp src/crypto/Sign.cpp                   \
     src/crypto/CryptoTests.cpp src/database/Database.cpp                        \
-    src/database/DatabaseTests.cpp src/fba/Ballot.cpp src/fba/FBAMaster.cpp     \
-    src/fba/FBATests.cpp src/fba/FutureStatement.cpp src/fba/Node.cpp           \
-    src/fba/OurNode.cpp src/fba/QuorumSet.cpp src/fba/Statement.cpp             \
+    src/database/DatabaseTests.cpp src/fba/FBA.cpp src/fba/Slot.cpp             \
+    src/fba/Node.cpp src/fba/LocalNode.cpp                                      \
     src/history/HistoryArchive.cpp src/history/HistoryMaster.cpp                \
     src/history/HistoryTests.cpp src/ledger/AccountFrame.cpp                    \
     src/ledger/EntryFrame.cpp src/ledger/Ledger.cpp src/ledger/LedgerDelta.cpp  \
@@ -33,9 +32,8 @@ FMT_SRCS = src/clf/BucketList.cpp src/clf/CLFTests.cpp src/crypto/Base58.cpp    
 FMT_HDRS = src/clf/BucketList.h src/clf/CLF.h src/clf/CLFDelta.h                \
     src/clf/CLFGateway.h src/clf/CanonicalLedgerForm.h src/crypto/Base58.h      \
     src/crypto/Hex.h src/crypto/SHA.h src/crypto/Sign.h src/database/Database.h \
-    src/fba/Ballot.h src/fba/FBA.h src/fba/FBAGateway.h src/fba/FBAMaster.h     \
-    src/fba/FBAWorldInterface.h src/fba/FutureStatement.h src/fba/Node.h        \
-    src/fba/OurNode.h src/fba/QuorumSet.h src/fba/Statement.h                   \
+    src/fba/FBA.h src/fba/Slot.h \
+    src/fba/Node.h src/fba/LocalNode.h       \
     src/history/HistoryArchive.h src/history/HistoryGateway.h                   \
     src/history/HistoryMaster.h src/ledger/AccountFrame.h                       \
     src/ledger/EntryFrame.h src/ledger/Ledger.h src/ledger/LedgerDelta.h        \

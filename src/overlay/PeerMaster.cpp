@@ -124,7 +124,7 @@ PeerMaster::getNextPeer(Peer::pointer peer)
 }
 
 void
-PeerMaster::recvQuorumSet(QuorumSet::pointer qset)
+PeerMaster::recvFBAQuorumSet(FBAQuorumSetPtr qset)
 {
     mQSetFetcher.recvItem(qset);
 }

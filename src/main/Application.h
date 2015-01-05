@@ -13,7 +13,10 @@
 #endif
 #include <asio.hpp>
 
+/* TODO(spolu) Reintroduce FBA */
+/*
 #include "fba/FBAMaster.h"
+*/
 #include "ledger/LedgerMaster.h"
 #include "main/Config.h"
 #include "txherder/TxHerder.h"
@@ -116,7 +119,10 @@ class Application : public enable_shared_from_this<Application>
     PeerMaster mPeerMaster;
     LedgerMaster mLedgerMaster;
     TxHerder mTxHerder;
+    /* TODO(spolu) Reintroduce FBA */
+    /*
     FBAMaster mFBAMaster;
+    */
     BucketList mBucketList;
     HistoryMaster mHistoryMaster;
     ProcessMaster mProcessMaster;
@@ -169,11 +175,14 @@ class Application : public enable_shared_from_this<Application>
     {
         return mLedgerMaster;
     }
+    /* TODO(spolu) Reintroduce FBA */
+    /*
     FBAGateway&
     getFBAGateway()
     {
         return mFBAMaster;
     }
+    */
     CLFGateway&
     getCLFGateway()
     {

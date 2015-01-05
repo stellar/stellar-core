@@ -15,7 +15,7 @@ namespace stellar
 /**
  * This is one Node in the stellar network
  */
-class Node : public enable_shared_from_this<Node>
+class Node : public std::enable_shared_from_this<Node>
 {
   public:
     Node(const uint256& nodeID,
@@ -24,8 +24,11 @@ class Node : public enable_shared_from_this<Node>
     const FBAQuorumSet& retrieveQuorumSet(const uint256& qSetHash);
     void cacheQuorumSet(const uint256& qSetHash,
                         const FBAQuorumSet& qSet);
+
+  protected:
+    const uint256&                  mNodeID;
+    FBAQuorumSet                    mQSetUnknown;
   private:
-    uint256                         mNodeID;
     unsigned                        mCacheCapacity;
     std::map<uint256, FBAQuorumSet> mCache;
     std::vector<uint256>            mCacheLRU;

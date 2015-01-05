@@ -150,6 +150,7 @@ struct TransactionEnvelope
 
 struct TransactionSet
 {
+    uint256 previousLedgerHash;
     TransactionEnvelope txs<>;
 };
 
@@ -344,7 +345,7 @@ union StellarMessage switch (MessageType type) {
 	case GET_FBA_QUORUMSET:
 		uint256 qSetHash;
 	case FBA_QUORUMSET:
-		FBAQuorumSetDesc qSet;
+		FBAQuorumSet qSet;
 	case FBA_MESSAGE:
 		FBAEnvelope fbaMessage;
 };

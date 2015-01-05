@@ -16,6 +16,12 @@ FBA checks it to see if a give set is valid
 It tells FBA to start the next round
 */
 
+// beyond this then the ballot is considered invalid
+#define MAX_SECONDS_LEDGER_CLOSE_IN_FUTURE 2
+
+// how far in the future to guess the ledger will close
+#define NUM_SECONDS_IN_CLOSE 2
+
 namespace stellar
 {
 class Application;
@@ -53,18 +59,19 @@ class TxHerder : public TxHerderGateway
 
     ///////// GATEWAY FUNCTIONS
     // make sure this set contains any super old TXs
-    BallotValidType isValidBallotValue(const Ballot& ballot);
+    BallotValidType isValidBallotValue(FBABallot const& ballot);
     TxHerderGateway::SlotComparisonType
-    compareSlot(const SlotBallot& ballot);
+    compareSlot(const uint32& slotIndex);
 
     // will start fetching this TxSet from the network if we don't know about it
-    TransactionSetPtr fetchTxSet(const uint256& setHash,
-                                 bool askNetwork);
+    TxSetFramePtr fetchTxSet(const uint256& setHash,
+                             bool askNetwork);
 
-    void externalizeValue(const SlotBallot& slotBallot);
+    void externalizeValue(const uint32& slotIndex,
+                          const uint256& valueHash);
 
     // a Tx set comes in from the wire
-    void recvTransactionSet(TransactionSetPtr txSet);
+    void recvTransactionSet(TxSetFramePtr txSet);
     void
     doesntHaveTxSet(uint256 const& setHash, Peer::pointer peer)
     {

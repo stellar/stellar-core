@@ -24,10 +24,14 @@ Should keep rotating peers till you get an answer:
 
 */
 
+#include "overlay/Peer.h"
+#include "fba/FBA.h"
+
 namespace stellar
 {
 class Ledger;
 typedef std::shared_ptr<Ledger> LedgerPtr;
+typedef std::shared_ptr<FBAQuorumSet> FBAQuorumSetPtr;
 
 class OverlayGateway
 {
@@ -41,7 +45,7 @@ class OverlayGateway
     virtual void broadcastMessage(uint256 const& messageID) = 0;
 
     // called by FBA
-    virtual QuorumSet::pointer fetchQuorumSet(uint256 const& itemID,
+    virtual FBAQuorumSetPtr fetchFBAQuorumSet(uint256 const& itemID,
                                               bool askNetwork) = 0;
 
     // called internally and by FBA
@@ -53,7 +57,7 @@ class OverlayGateway
     // virtual void stopTrackingItem(uint256 itemID) = 0;
 
     // called internally
-    virtual void recvQuorumSet(QuorumSet::pointer qset) = 0;
+    virtual void recvFBAQuorumSet(FBAQuorumSetPtr qset) = 0;
     virtual void doesntHaveQSet(uint256 const& index,
                                 Peer::pointer peer) = 0;
     virtual void recvFloodedMsg(uint256 const& index,

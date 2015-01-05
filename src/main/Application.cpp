@@ -22,7 +22,10 @@ Application::Application(VirtualClock& clock, Config const& cfg)
     , mPeerMaster(*this)
     , mLedgerMaster(*this)
     , mTxHerder(*this)
+    /* TODO(spolu) Reintroduce FBA */
+    /*
     , mFBAMaster(*this)
+    */
     , mHistoryMaster(*this)
     , mProcessMaster(*this)
     , mCommandHandler(*this)

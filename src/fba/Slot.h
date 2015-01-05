@@ -18,9 +18,9 @@ class Slot
   public:
     // Constructor
     Slot(const uint32& slotIndex,
-         FBA* FBA)
+         FBA* FBA);
 
-    processEnvelope(const FBAEnvelope& envelope);
+    void processEnvelope(const FBAEnvelope& envelope);
 
   private:
 
@@ -47,10 +47,10 @@ class Slot
 
     void advanceSlot();
 
-    uint32&                                          mSlotIndex;
-    FBA*                                             mFBA;
-    FBABallot&                                       mBallot;
-    map<FBAStatementType, map<uint256, FBAEnvelope>> mEnvelopes;
+    const uint32&                                              mSlotIndex;
+    FBA*                                                       mFBA;
+    FBABallot                                                  mBallot;
+    std::map<FBAStatementType, std::map<uint256, FBAEnvelope>> mEnvelopes;
 };
 
 }
