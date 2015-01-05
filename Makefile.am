@@ -5,7 +5,7 @@ noinst_LTLIBRARIES = libsoci.la
 bin_PROGRAMS = bin/stellard
 
 FMT_SRCS = src/clf/BucketList.cpp src/clf/CLFTests.cpp src/crypto/Base58.cpp    \
-    src/crypto/Hex.cpp src/crypto/SHA.cpp src/crypto/Sign.cpp                   \
+    src/crypto/Hex.cpp src/crypto/SHA.cpp src/crypto/SecretKey.cpp              \
     src/crypto/CryptoTests.cpp src/database/Database.cpp                        \
     src/database/DatabaseTests.cpp src/fba/FBA.cpp src/fba/Slot.cpp             \
     src/fba/Node.cpp src/fba/LocalNode.cpp                                      \
@@ -33,8 +33,8 @@ FMT_SRCS = src/clf/BucketList.cpp src/clf/CLFTests.cpp src/crypto/Base58.cpp    
 FMT_HDRS = src/clf/BucketList.h src/clf/CLF.h src/clf/CLFDelta.h                \
     src/clf/CLFGateway.h src/clf/CanonicalLedgerForm.h src/crypto/Base58.h      \
     src/crypto/Hex.h src/crypto/SHA.h src/crypto/Sign.h src/database/Database.h \
-    src/fba/FBA.h src/fba/Slot.h \
-    src/fba/Node.h src/fba/LocalNode.h       \
+    src/database/Database.h src/fba/FBA.h src/fba/Slot.h src/fba/Node.h         \
+    src/fba/LocalNode.h       \
     src/history/HistoryArchive.h src/history/HistoryGateway.h                   \
     src/history/HistoryMaster.h src/ledger/AccountFrame.h                       \
     src/ledger/EntryFrame.h src/ledger/Ledger.h src/ledger/LedgerDelta.h        \

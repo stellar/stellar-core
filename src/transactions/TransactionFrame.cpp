@@ -70,6 +70,12 @@ uint256& TransactionFrame::getHash()
 	return(mHash);
 }
 
+TransactionEnvelope&
+TransactionFrame::getEnvelope()
+{
+    return mEnvelope;
+}
+
 
 int64_t TransactionFrame::getTransferRate(Currency& currency, LedgerMaster& ledgerMaster)
 {
