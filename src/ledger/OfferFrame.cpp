@@ -91,7 +91,7 @@ namespace stellar
         {
             if(before) sql << ", ";
             sql << " price= " << mEntry.offer().price;
-            txResult["effects"]["mod"][base58ID]["price"] = mEntry.offer().price;
+            txResult["effects"]["mod"][base58ID]["price"] = (Json::Int64)mEntry.offer().price;
         }
 
         sql << " where offerIndex='" << base58ID << "';";
@@ -105,8 +105,8 @@ namespace stellar
         txResult["effects"]["new"][b58Index]["type"] = "offer";
         txResult["effects"]["new"][b58Index]["accountID"] = b58AccountID;
         txResult["effects"]["new"][b58Index]["seq"] = mEntry.offer().sequence;
-        txResult["effects"]["new"][b58Index]["amount"] = mEntry.offer().amount;
-        txResult["effects"]["new"][b58Index]["price"] = mEntry.offer().price;
+        txResult["effects"]["new"][b58Index]["amount"] = (Json::Int64)mEntry.offer().amount;
+        txResult["effects"]["new"][b58Index]["price"] = (Json::Int64)mEntry.offer().price;
         txResult["effects"]["new"][b58Index]["flags"] = mEntry.offer().flags;
         
         if(mEntry.offer().takerGets.native())

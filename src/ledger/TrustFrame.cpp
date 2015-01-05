@@ -72,7 +72,7 @@ namespace stellar {
         {
             if(before) sql << ", ";
             sql << " tlimit= " << mEntry.trustLine().limit;
-            txResult["effects"]["mod"][base58ID]["limit"] = mEntry.trustLine().limit;
+            txResult["effects"]["mod"][base58ID]["limit"] = (Json::Int64)mEntry.trustLine().limit;
             before = true;
         }
 
