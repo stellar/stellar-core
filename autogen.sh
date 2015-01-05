@@ -27,8 +27,7 @@ autogen_submodules()
 		elif [ -f configure.in ] || [ -f configure.ac ]; then
 			autoreconf -i
 		else
-			echo "Don't know how to bootstrap submodule '$submod'" >&2
-			exit 1
+			echo "Don't know how to bootstrap submodule '$submod', skipping"
 		fi
 		cd "$origdir"
 	done
