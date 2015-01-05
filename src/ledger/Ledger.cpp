@@ -8,11 +8,12 @@
 
 namespace stellar
 {
-    // TODO.2
-    int64_t Ledger::getMinBalance()
+    Ledger::Ledger()
     {
-        return 0;
+
     }
+
+    
     int64_t Ledger::getTxFee()
     {
         return 0;

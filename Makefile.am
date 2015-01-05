@@ -25,6 +25,7 @@ FMT_SRCS = src/clf/BucketList.cpp src/clf/CLFTests.cpp src/crypto/Base58.cpp    
     src/transactions/InflationFrame.cpp src/transactions/MergeFrame.cpp         \
     src/transactions/PaymentFrame.cpp src/transactions/SetOptionsFrame.cpp      \
     src/transactions/TransactionFrame.cpp                                       \
+    src/transactions/AllowTrustTxFrame.cpp                                      \
     src/transactions/ChangeTrustTxFrame.cpp src/transactions/TxDelta.cpp        \
     src/txherder/TxHerder.cpp src/txherder/TxSetFrame.cpp src/util/Logging.cpp  \
     src/util/Timer.cpp src/util/types.cpp
@@ -83,6 +84,7 @@ bin_stellard_CPPFLAGS = -I$(top_srcdir)/src \
                         -I$(srcdir)/src/lib/soci/src/backends/sqlite3
 
 bin_stellard_LDADD = libsoci.la
+bin_stellard_DEPENDENCIES =
 
 if LIBSODIUM_INTERNAL
 LIBSODIUM_DIR=src/lib/libsodium
@@ -97,6 +99,7 @@ if SQLITE_INTERNAL
 noinst_LTLIBRARIES += libsqlite.la
 libsqlite_la_SOURCES = src/lib/sqlite/sqlite3.c src/lib/sqlite/sqlite3.h
 libsqlite_la_CPPFLAGS = -I$(srcdir)/src/lib/sqlite -DSQLITE_OMIT_LOAD_EXTENSION
+bin_stellard_DEPENDENCIES += libsqlite.la
 bin_stellard_LDADD += libsqlite.la
 endif
 
@@ -150,6 +153,53 @@ bin_stellard_LDADD += $(XDRPP)
 SUBDIRS += $(XDRPP_DIR)
 $(XDRC) $(XDRPP):
 	$(MAKE) -C $(top_builddir)/$(XDRPP_DIR)
+endif
+
+if LIBMEDIDA_INTERNAL
+noinst_LTLIBRARIES += libmedida.la
+libmedida_la_SOURCES = src/lib/libmedida/src/medida/metered_interface.h         \
+    src/lib/libmedida/src/medida/types.h                                        \
+    src/lib/libmedida/src/medida/histogram.cc                                   \
+    src/lib/libmedida/src/medida/reporting/collectd_reporter.h                  \
+    src/lib/libmedida/src/medida/reporting/collectd_reporter.cc                 \
+    src/lib/libmedida/src/medida/reporting/util.cc                              \
+    src/lib/libmedida/src/medida/reporting/console_reporter.h                   \
+    src/lib/libmedida/src/medida/reporting/abstract_polling_reporter.cc         \
+    src/lib/libmedida/src/medida/reporting/abstract_polling_reporter.h          \
+    src/lib/libmedida/src/medida/reporting/json_reporter.cc                     \
+    src/lib/libmedida/src/medida/reporting/json_reporter.h                      \
+    src/lib/libmedida/src/medida/reporting/util.h                               \
+    src/lib/libmedida/src/medida/reporting/console_reporter.cc                  \
+    src/lib/libmedida/src/medida/medida.h                                       \
+    src/lib/libmedida/src/medida/metrics_registry.cc                            \
+    src/lib/libmedida/src/medida/meter.cc src/lib/libmedida/src/medida/timer.h  \
+    src/lib/libmedida/src/medida/stats/ewma.cc                                  \
+    src/lib/libmedida/src/medida/stats/uniform_sample.cc                        \
+    src/lib/libmedida/src/medida/stats/snapshot.cc                              \
+    src/lib/libmedida/src/medida/stats/uniform_sample.h                         \
+    src/lib/libmedida/src/medida/stats/snapshot.h                               \
+    src/lib/libmedida/src/medida/stats/sample.h                                 \
+    src/lib/libmedida/src/medida/stats/exp_decay_sample.h                       \
+    src/lib/libmedida/src/medida/stats/ewma.h                                   \
+    src/lib/libmedida/src/medida/stats/exp_decay_sample.cc                      \
+    src/lib/libmedida/src/medida/timer_context.h                                \
+    src/lib/libmedida/src/medida/metric_interface.h                             \
+    src/lib/libmedida/src/medida/histogram.h                                    \
+    src/lib/libmedida/src/medida/counter.h                                      \
+    src/lib/libmedida/src/medida/metric_processor.cc                            \
+    src/lib/libmedida/src/medida/metrics_registry.h                             \
+    src/lib/libmedida/src/medida/metric_name.cc                                 \
+    src/lib/libmedida/src/medida/meter.h                                        \
+    src/lib/libmedida/src/medida/metric_name.h                                  \
+    src/lib/libmedida/src/medida/counter.cc                                     \
+    src/lib/libmedida/src/medida/metric_processor.h                             \
+    src/lib/libmedida/src/medida/timer_context.cc                               \
+    src/lib/libmedida/src/medida/summarizable_interface.h                       \
+    src/lib/libmedida/src/medida/sampling_interface.h                           \
+    src/lib/libmedida/src/medida/timer.cc
+libmedida_la_CPPFLAGS = -I$(srcdir)/src/lib/libmedida/src
+bin_stellard_DEPENDENCIES += libmedida.la
+bin_stellard_LDADD += libmedida.la
 endif
 
 CLEANFILES = $(BUILT_SOURCES)

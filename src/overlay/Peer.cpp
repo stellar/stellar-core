@@ -101,7 +101,7 @@ Peer::sendGetQuorumSet(uint256 const& setID)
 void
 Peer::sendPeers()
 {
-    // LATER
+    // TODO.3
 }
 
 void
@@ -353,7 +353,7 @@ Peer::recvFBAMessage(StellarMessage const& msg)
     /*
     Statement::pointer statement = std::make_shared<Statement>(envelope);
 
-    mApp.getOverlayGateway().recvFloodedMsg(statement->mEnvelope.signature, msg,
+    mApp.getOverlayGateway().recvFloodedMsg(statement->mContentsHash, msg,
                                             statement->getLedgerIndex(),
                                             shared_from_this());
     mApp.getFBAGateway().recvStatement(statement);
@@ -363,7 +363,7 @@ Peer::recvFBAMessage(StellarMessage const& msg)
 void
 Peer::recvError(StellarMessage const& msg)
 {
-    // LATER
+    // TODO.3
 }
 void
 Peer::recvHello(StellarMessage const& msg)
@@ -378,12 +378,12 @@ Peer::recvHello(StellarMessage const& msg)
 void
 Peer::recvGetPeers(StellarMessage const& msg)
 {
-    // LATER
+    // TODO.3
 }
 void
 Peer::recvPeers(StellarMessage const& msg)
 {
-    // LATER
+    // TODO.3
 }
 void
 Peer::recvGetHistory(StellarMessage const& msg)
@@ -399,11 +399,11 @@ Peer::recvHistory(StellarMessage const& msg)
 void
 Peer::recvGetValidations(StellarMessage const& msg)
 {
-    // LATER
+    // TODO.3
 }
 void
 Peer::recvValidations(StellarMessage const& msg)
 {
-    // LATER
+    // TODO.3
 }
 }

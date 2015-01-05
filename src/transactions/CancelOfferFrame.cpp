@@ -5,6 +5,10 @@
 
 namespace stellar
 {
+    CancelOfferFrame::CancelOfferFrame(const TransactionEnvelope& envelope) : TransactionFrame(envelope)
+    {
+
+    }
 // look up this Offer
 void CancelOfferFrame::doApply(TxDelta& delta, LedgerMaster& ledgerMaster)
 {
@@ -24,8 +28,7 @@ void CancelOfferFrame::doApply(TxDelta& delta, LedgerMaster& ledgerMaster)
 
 bool CancelOfferFrame::doCheckValid(Application& app)
 {
-    // TODO.2
-    return false;
+    return true;
 }
 
 }

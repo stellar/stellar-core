@@ -74,7 +74,7 @@ class LoopbackPeer : public Peer
     bool getCorked() const;
     void setCorked(bool c);
 
-    int getMaxQueueDepth() const;
+    size_t getMaxQueueDepth() const;
     void setMaxQueueDepth(size_t sz);
 
     double getDamageProbability() const;

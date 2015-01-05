@@ -8,7 +8,7 @@
 namespace stellar
 {
 
-FloodRecord::FloodRecord(StellarMessage const& msg, uint32_t ledger,
+FloodRecord::FloodRecord(StellarMessage const& msg, uint64_t ledger,
                          Peer::pointer peer)
 {
     mMessage = msg;
@@ -18,7 +18,7 @@ FloodRecord::FloodRecord(StellarMessage const& msg, uint32_t ledger,
 
 // remove old flood records
 void
-Floodgate::clearBelow(uint32_t currentLedger)
+Floodgate::clearBelow(uint64_t currentLedger)
 {
     for (auto it = mFloodMap.cbegin(); it != mFloodMap.cend();)
     {
@@ -36,7 +36,7 @@ Floodgate::clearBelow(uint32_t currentLedger)
 void
 Floodgate::addRecord(uint256 const& index,
                      StellarMessage const& msg,
-                     uint32_t ledgerIndex, Peer::pointer peer)
+                     uint64_t ledgerIndex, Peer::pointer peer)
 {
     mFloodMap[index] = std::make_shared<FloodRecord>(msg, ledgerIndex, peer);
 }

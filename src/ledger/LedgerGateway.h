@@ -26,7 +26,7 @@ class LedgerGateway
     // called by CLF
     virtual void recvDelta(CLFDeltaPtr delta, LedgerHeaderPtr header) = 0;
 
-    virtual int64_t getFee() = 0;
+    virtual int64_t getTxFee() = 0;
     virtual int64_t getLedgerNum() = 0;
 };
 }

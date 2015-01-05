@@ -25,9 +25,12 @@ namespace stellar
         txNOT_AUTHORIZED,
         txINTERNAL_ERROR,
         txCROSS_SELF,
+        txCREDIT_ISSUED,
+        txBELOW_MIN_BALANCE,
 
 
-        txNOACCOUNT
+        txNOACCOUNT,
+        txUNKNOWN
     };
 }
 

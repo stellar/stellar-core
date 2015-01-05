@@ -61,6 +61,9 @@
     <Filter Include="lib\xdrpp">
       <UniqueIdentifier>{e9644fa5-096e-42f1-93e0-c462e377a6c9}</UniqueIdentifier>
     </Filter>
+    <Filter Include="transactions\tests">
+      <UniqueIdentifier>{fde6dbe4-621c-41ab-b1fc-cc28d741966a}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\src\fba\Ballot.cpp">
@@ -80,9 +83,6 @@
     </ClCompile>
     <ClCompile Include="..\..\src\fba\Statement.cpp">
       <Filter>fba</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\ledger\Ledger.cpp">
-      <Filter>ledger</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\ledger\LedgerMaster.cpp">
       <Filter>ledger</Filter>
@@ -110,15 +110,6 @@
     </ClCompile>
     <ClCompile Include="..\..\src\overlay\PeerMaster.cpp">
       <Filter>overlay</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\lib\crypto\edkeypair.cpp">
-      <Filter>crypto</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\lib\crypto\StellarPrivateKey.cpp">
-      <Filter>crypto</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\lib\crypto\StellarPublicKey.cpp">
-      <Filter>crypto</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\clf\BucketList.cpp">
       <Filter>clf</Filter>
@@ -197,9 +188,6 @@
     </ClCompile>
     <ClCompile Include="..\..\src\util\Timer.cpp">
       <Filter>util</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\lib\util\format.cc">
-      <Filter>lib</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\lib\json\jsoncpp.cpp">
       <Filter>lib\json</Filter>
@@ -291,8 +279,38 @@
     <ClCompile Include="..\..\src\transactions\ChangeTrustTxFrame.cpp">
       <Filter>transactions</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\crypto\Base58.cpp">
+      <Filter>crypto</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\crypto\Hex.cpp">
+      <Filter>crypto</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\crypto\SHA.cpp">
+      <Filter>crypto</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lib\util\format.cc">
+      <Filter>lib\util</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\crypto\SecretKey.cpp">
+      <Filter>crypto</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\OfferTests.cpp">
+      <Filter>transactions\tests</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\transactions\TxTests.cpp">
-      <Filter>transactions</Filter>
+      <Filter>transactions\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\PaymentTests.cpp">
+      <Filter>transactions\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\MergeTests.cpp">
+      <Filter>transactions\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\InflationTests.cpp">
+      <Filter>transactions\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\SetOptionsTests.cpp">
+      <Filter>transactions\tests</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -322,9 +340,6 @@
     </ClInclude>
     <ClInclude Include="..\..\src\history\HistoryGateway.h">
       <Filter>history</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\ledger\Ledger.h">
-      <Filter>ledger</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\ledger\LedgerGateway.h">
       <Filter>ledger</Filter>
@@ -364,15 +379,6 @@
     </ClInclude>
     <ClInclude Include="..\..\src\generated\StellarXDR.h">
       <Filter>generated</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\lib\crypto\EdKeyPair.h">
-      <Filter>crypto</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\lib\crypto\StellarPrivateKey.h">
-      <Filter>crypto</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\lib\crypto\StellarPublicKey.h">
-      <Filter>crypto</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\main\Config.h">
       <Filter>main</Filter>
@@ -539,6 +545,24 @@
     <ClInclude Include="..\..\src\transactions\ChangeTrustTxFrame.h">
       <Filter>transactions</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\src\crypto\Base58.h">
+      <Filter>crypto</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\crypto\ByteSlice.h">
+      <Filter>crypto</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\crypto\Hex.h">
+      <Filter>crypto</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\crypto\SHA.h">
+      <Filter>crypto</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\crypto\SecretKey.h">
+      <Filter>crypto</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\transactions\TxTests.h">
+      <Filter>transactions\tests</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="..\..\docs\transactions.md">
@@ -566,6 +590,9 @@
     </None>
     <None Include="..\..\src\lib\xdrpp\tests\xdrtest.x">
       <Filter>lib\xdrpp</Filter>
+    </None>
+    <None Include="..\..\docs\multisig.md">
+      <Filter>docs</Filter>
     </None>
   </ItemGroup>
   <ItemGroup>

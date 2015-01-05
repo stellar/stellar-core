@@ -54,7 +54,7 @@ PeerMaster::tick()
     LOG(DEBUG) << "PeerMaster tick";
     if (mPeers.size() < mApp.getConfig().TARGET_PEER_CONNECTIONS)
     {
-        // LATER
+        // TODO.3
     }
     mTimer.expires_from_now(std::chrono::seconds(1));
     mTimer.async_wait([this](asio::error_code const& ec)
@@ -100,7 +100,7 @@ PeerMaster::getRandomPeer()
     {
         std::random_device rd;
         std::mt19937 gen(rd());
-        std::uniform_int_distribution<> dis(0, mPeers.size() - 1);
+        std::uniform_int_distribution<size_t> dis(0, mPeers.size() - 1);
         return mPeers[dis(gen)];
     }
 

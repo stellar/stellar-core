@@ -47,7 +47,7 @@ class TxSetFrame
 
     void store();
 
-    uint32_t
+    size_t
     size()
     {
         return mTransactions.size();

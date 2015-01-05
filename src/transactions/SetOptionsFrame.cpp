@@ -1,18 +1,25 @@
 #include "transactions/SetOptionsFrame.h"
+#include "crypto/Base58.h"
 
 // TODO.2 Handle all SQL exceptions
 namespace stellar
 {
+    SetOptionsFrame::SetOptionsFrame(const TransactionEnvelope& envelope) : TransactionFrame(envelope)
+    {
+
+    }
+
+    int32_t SetOptionsFrame::getNeededThreshold()
+    {
+        // threshold depends on 
+        if(mEnvelope.tx.body.setOptionsTx().thresholds ||
+            mEnvelope.tx.body.setOptionsTx().signer) return mSigningAccount.getHighThreshold();
+        return mSigningAccount.getMidThreshold();
+    }
+
+    // make sure it doesn't allow us to add signers when we don't have the minbalance
     void SetOptionsFrame::doApply(TxDelta& delta, LedgerMaster& ledgerMaster)
     {
-        if(mEnvelope.tx.body.setOptionsTx().creditAuthKey)
-        {
-            mSigningAccount.mEntry.account().creditAuthKey.activate()=*mEnvelope.tx.body.setOptionsTx().creditAuthKey;
-        }
-        if(mEnvelope.tx.body.setOptionsTx().pubKey)
-        {
-            mSigningAccount.mEntry.account().pubKey.activate() = *mEnvelope.tx.body.setOptionsTx().pubKey;
-        }
         if(mEnvelope.tx.body.setOptionsTx().inflationDest)
         {
             mSigningAccount.mEntry.account().inflationDest.activate()=*mEnvelope.tx.body.setOptionsTx().inflationDest;
@@ -21,8 +28,7 @@ namespace stellar
         {
             // make sure no one holds your credit
             int64_t b=0;
-            std::string base58ID;
-            toBase58(mSigningAccount.mEntry.account().accountID, base58ID);
+            std::string base58ID = toBase58Check(VER_ACCOUNT_ID, mSigningAccount.mEntry.account().accountID);
             ledgerMaster.getDatabase().getSession() <<
                 "SELECT balance from TrustLines where issuer=:v1 and balance>0 limit 1",
                 soci::into(b), soci::use(base58ID);
@@ -36,6 +42,47 @@ namespace stellar
         if(mEnvelope.tx.body.setOptionsTx().flags)
         {   
             mSigningAccount.mEntry.account().flags = *mEnvelope.tx.body.setOptionsTx().flags;
+        }
+        if(mEnvelope.tx.body.setOptionsTx().thresholds)
+        {
+            mSigningAccount.mEntry.account().thresholds = *mEnvelope.tx.body.setOptionsTx().thresholds;
+        }
+        if(mEnvelope.tx.body.setOptionsTx().signer)
+        {
+            xdr::xvector<Signer>& signers = mSigningAccount.mEntry.account().signers;
+            if(mEnvelope.tx.body.setOptionsTx().signer->weight)
+            { // add or change signer
+                bool found = false;
+                for(auto oldSigner : signers)
+                {
+                    if(oldSigner.pubKey == mEnvelope.tx.body.setOptionsTx().signer->pubKey)
+                    {
+                        oldSigner.weight = mEnvelope.tx.body.setOptionsTx().signer->weight;
+                    }
+                }
+                if(!found)
+                {
+                    if( mSigningAccount.mEntry.account().balance < 
+                        ledgerMaster.getMinBalance(mSigningAccount.mEntry.account().ownerCount + 1))
+                    {
+                        mResultCode = txBELOW_MIN_BALANCE;
+                        return;
+                    }
+                    mSigningAccount.mEntry.account().ownerCount++;
+                    signers.push_back(*mEnvelope.tx.body.setOptionsTx().signer);
+                }
+            } else
+            { // delete signer
+                for(auto it = signers.begin(); it != signers.end(); it++)
+                {
+                    Signer& oldSigner = *it;
+                    if(oldSigner.pubKey == mEnvelope.tx.body.setOptionsTx().signer->pubKey)
+                    {
+                        signers.erase(it);
+                        mSigningAccount.mEntry.account().ownerCount--;
+                    }
+                }
+            }
         }
         
         mResultCode = txSUCCESS;

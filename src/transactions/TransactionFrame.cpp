@@ -10,33 +10,62 @@
 #include "util/Logging.h"
 #include "ledger/LedgerDelta.h"
 #include "ledger/OfferFrame.h"
+#include "crypto/SHA.h"
+#include "transactions/AllowTrustTxFrame.h"
+#include "transactions/CancelOfferFrame.h"
+#include "transactions/CreateOfferFrame.h"
+#include "transactions/ChangeTrustTxFrame.h"
+#include "transactions/InflationFrame.h"
+#include "transactions/MergeFrame.h"
+#include "transactions/PaymentFrame.h"
+#include "transactions/SetOptionsFrame.h"
+
 
 namespace stellar
 {
 
-    TransactionFrame::pointer TransactionFrame::makeTransactionFromWire(TransactionEnvelope const& msg)
+   
+TransactionFrame::pointer TransactionFrame::makeTransactionFromWire(TransactionEnvelope const& msg)
 {
+    switch(msg.tx.body.type())
+    {
+    case PAYMENT:
+        return TransactionFrame::pointer(new PaymentFrame(msg));
+    case CREATE_OFFER:
+        return TransactionFrame::pointer(new CreateOfferFrame(msg));
+    case CANCEL_OFFER:
+        return TransactionFrame::pointer(new CancelOfferFrame(msg));
+    case SET_OPTIONS:
+        return TransactionFrame::pointer(new SetOptionsFrame(msg));
+    case CHANGE_TRUST:
+        return TransactionFrame::pointer(new ChangeTrustTxFrame(msg));
+    case ALLOW_TRUST:
+        return TransactionFrame::pointer(new AllowTrustTxFrame(msg));
+    case ACCOUNT_MERGE:
+        return TransactionFrame::pointer(new MergeFrame(msg));
+    case INFLATION:
+        return TransactionFrame::pointer(new InflationFrame(msg));
+
+    default:
+        CLOG(WARNING, "Tx") << "Unknown Tx type: " << msg.tx.body.type();
+    }
     //mSignature = msg.signature;
 
 	// SANITY check sig
     return TransactionFrame::pointer();
 }
 
-    
-// TODO.2 we can probably get rid of this
-uint256& TransactionFrame::getSignature()
+TransactionFrame::TransactionFrame(const TransactionEnvelope& envelope) : mEnvelope(envelope)
 {
-    return mEnvelope.signature;
+    mResultCode = txUNKNOWN;
 }
+    
 
 uint256& TransactionFrame::getHash()
 {
 	if(isZero(mHash))
-	{
-        Transaction tx;
-        toXDR(tx);
-        xdr::msg_ptr xdrBytes(xdr::xdr_to_msg(tx));
-        hashXDR(std::move(xdrBytes), mHash);
+    {
+        mHash = sha512_256(xdr::xdr_to_msg(mEnvelope.tx));
 	}
 	return(mHash);
 }
@@ -83,15 +112,15 @@ bool TransactionFrame::preApply(TxDelta& delta,LedgerMaster& ledgerMaster)
         return false;
     }
 
-    if((ledgerMaster.getCurrentLedger()->mHeader.ledgerSeq > mEnvelope.tx.maxLedger) ||
-        (ledgerMaster.getCurrentLedger()->mHeader.ledgerSeq < mEnvelope.tx.minLedger))
+    if((ledgerMaster.getCurrentLedgerHeader().ledgerSeq > mEnvelope.tx.maxLedger) ||
+        (ledgerMaster.getCurrentLedgerHeader().ledgerSeq < mEnvelope.tx.minLedger))
     {
         mResultCode = txMALFORMED;
         CLOG(ERROR, "Tx") << "tx not in valid ledger in validated set. This should never happen.";
         return false;
     }
         
-    uint32_t fee=ledgerMaster.getCurrentLedger()->getTxFee();
+    uint32_t fee=ledgerMaster.getTxFee();
     if(fee > mEnvelope.tx.maxFee)
     {
         mResultCode = txNOFEE;
@@ -112,24 +141,41 @@ bool TransactionFrame::preApply(TxDelta& delta,LedgerMaster& ledgerMaster)
 
     mSigningAccount.mEntry.account().balance -= fee;
     mSigningAccount.mEntry.account().sequence += 1;
-
+    delta.addFee(fee);
     delta.setFinal(mSigningAccount);
     return true;
 }
 
-void TransactionFrame::apply(TxDelta& delta, LedgerMaster& ledgerMaster)
+void TransactionFrame::apply(TxDelta& delta, Application& app)
 {
-    if(ledgerMaster.getDatabase().loadAccount(mEnvelope.tx.account, mSigningAccount))
+    if(checkValid(app))
     {
-        if(preApply(delta,ledgerMaster))
+        if(preApply(delta,app.getLedgerMaster()))
         {
-            doApply(delta,ledgerMaster);
+            doApply(delta,app.getLedgerMaster());
         }
     } else
     {
-        CLOG(ERROR, "Tx") << "Signing account not found. This should never happen";
+        CLOG(ERROR, "Tx") << "invalid tx. This should never happen";
     }
     
+}
+
+
+int32_t TransactionFrame::getNeededThreshold()
+{
+    //mSigningAccount.mEntry.account().thresholds;
+    return 0; // TODO.2
+}
+
+bool TransactionFrame::checkSignature()
+{
+    // TODO.2
+    // calculate the weight of the signatures
+    int totalWeight = 0;
+    if(totalWeight>getNeededThreshold())
+        return true;
+    return false;
 }
 
 // called when determining if we should accept this tx.
@@ -138,28 +184,20 @@ void TransactionFrame::apply(TxDelta& delta, LedgerMaster& ledgerMaster)
 // make sure it is in the correct ledger bounds
 bool TransactionFrame::checkValid(Application& app)
 {
-    if(mEnvelope.tx.maxFee < app.getLedgerGateway().getFee()) return false;
+    if(mEnvelope.tx.maxFee < app.getLedgerGateway().getTxFee()) return false;
     if(mEnvelope.tx.maxLedger < app.getLedgerGateway().getLedgerNum()) return false;
     if(mEnvelope.tx.minLedger > app.getLedgerGateway().getLedgerNum()) return false;
-    
+    if(!app.getDatabase().loadAccount(mEnvelope.tx.account, mSigningAccount, true)) return false;
+    if(!checkSignature()) return false;
+
     return doCheckValid(app);
-}
-
-void TransactionFrame::toXDR(Transaction& envelope)
-{
-    // LATER
-}
-
-void TransactionFrame::toXDR(TransactionEnvelope& envelope)
-{
-    // LATER
 }
 
 StellarMessage&& TransactionFrame::toStellarMessage()
 {
     StellarMessage msg;
     msg.type(TRANSACTION);
-    toXDR(msg.transaction());
+    msg.transaction()=mEnvelope;
     return std::move(msg);
 }
 }

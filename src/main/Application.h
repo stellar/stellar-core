@@ -175,7 +175,12 @@ class Application : public enable_shared_from_this<Application>
     {
         return mLedgerMaster;
     }
-    /* TODO(spolu) Reintroduce FBA */
+    LedgerMaster&
+    getLedgerMaster()
+    {
+        return mLedgerMaster;
+    }
+    /* TODO(spolu): Adapt to new FBA */
     /*
     FBAGateway&
     getFBAGateway()

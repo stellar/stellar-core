@@ -1,7 +1,20 @@
 	
+Should we make entry indexes just be a sequential number rather than do this hashing to calculate it?
+	Entry indexes could be 64bit
+	This will have a bunch of space everywhere. 
+		Issuers would only be 64 bit
+		Offers are smaller
+		tx would only need 64bit for destination and source
+	Downsides:
+		Creating an account would have to be a special kind of tx
+		Easier to accidentally send to the wrong person?
+		Makes it more complicated to go from secret key to account
 
-	
 Do we check seq numbers when we check validity?
+
+Do we want a separate base fee for the reserve? or should it be tied to the amount we charge for tx fee?
+	Maybe changing the base reserve is the same process for approving protocol upgrades?
+
 
 How do we want to handle returning payments?
 	If a user sends a payment from a gateway and someone needs to return it 
@@ -10,7 +23,6 @@ How do we want to handle returning payments?
 	source memo that is echod if there is a return payment?
 	include the tx id in the return payment?
 
-What do we want to do instead of STAmount?	
 How do we represnt currencies?
 	A client should be able to see the code and know if it was 
 		something simple like "USD" or "BTC" without doing some lookup

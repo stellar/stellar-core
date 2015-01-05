@@ -113,7 +113,7 @@ class DeltaFetcher : public ItemFetcher
     DeltaFetcher(Application& app) : ItemFetcher(app)
     {
     }
-    void fetchItem(uint256 const& itemID, uint32_t oldLedgerSeq);
+    void fetchItem(uint256 const& itemID, uint64_t oldLedgerSeq);
     void recvItem(CLFDeltaPtr delta);
 };
 

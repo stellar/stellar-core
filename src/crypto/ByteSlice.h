@@ -40,6 +40,7 @@ public:
     ByteSlice(xdr::msg_ptr const& p) : mData(p->data()), mSize(p->size()) {}
     ByteSlice(std::vector<uint8_t> const& bytes) : mData(bytes.data()), mSize(bytes.size()) {}
     ByteSlice(std::string const& bytes) : mData(bytes.data()), mSize(bytes.size()) {}
+    ByteSlice(char const* str) : ByteSlice(std::string(str)) {}
     ByteSlice(void const* data, size_t size) : mData(data), mSize(size) {}
 };
 

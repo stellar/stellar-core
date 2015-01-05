@@ -86,7 +86,7 @@ server::handle_request(const request& req, reply& rep)
 
     std::string command;
     std::string params;
-    int pos = request_path.find('?');
+    auto pos = request_path.find('?');
     if (pos == std::string::npos)
         command = request_path;
     else

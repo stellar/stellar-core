@@ -5,6 +5,8 @@
 #include "FBAMaster.h"
 #include "main/Application.h"
 #include "util/Logging.h"
+#include "crypto/Hex.h"
+#include "crypto/Base58.h"
 
 /*
 
@@ -249,7 +251,7 @@ FBAMaster::processStatement(Statement::pointer statement)
                 node->addStatement(statement);
                 if (validity == TxHerderGateway::VALID_BALLOT)
                     mApp.getOverlayGateway().broadcastMessage(
-                        statement->mEnvelope.signature);
+                        statement->mContentsHash);
 
                 ///////  DO THE THING
                 return (true);
@@ -275,10 +277,11 @@ FBAMaster::processStatement(Statement::pointer statement)
         {
             std::string str;
             CLOG(WARNING, "FBA")
-                << "Node: " << toBase58(statement->mEnvelope.nodeID, str)
-                << " on a different ledger(" << statement->getLedgerIndex()
+                << "Node: " << toBase58Check(VER_NODE_PUBLIC, statement->mEnvelope.nodeID)
+                << " on a different ledger (" << statement->getLedgerIndex()
                 << " : "
-                << toBase58(statement->getSlotBallot().ballot.previousLedgerHash, str);
+                << binToHex(statement->getSlotBallot().ballot.previousLedgerHash)
+                << ")";
         }
     }
     return false;

@@ -17,6 +17,8 @@ class PaymentFrame : public TransactionFrame
         TxDelta& delta, LedgerMaster& ledgerMaster);
     bool sendCredit(AccountFrame& receiver, TxDelta& delta, LedgerMaster& ledgerMaster);
 public:
+    PaymentFrame(const TransactionEnvelope& envelope);
+
     void doApply(TxDelta& delta, LedgerMaster& ledgerMaster);
     bool doCheckValid(Application& app);
 };

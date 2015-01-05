@@ -53,7 +53,7 @@ class PeerMaster : public OverlayGateway
         return (mQSetFetcher.fetchItem(itemID, askNetwork));
     }
     void
-    fetchDelta(uint256 const& oldLedgerHash, uint32_t oldLedgerSeq)
+    fetchDelta(uint256 const& oldLedgerHash, uint64_t oldLedgerSeq)
     {
         mDeltaFetcher.fetchItem(oldLedgerHash, oldLedgerSeq);
     }

@@ -10,6 +10,10 @@
 
 namespace stellar
 {
+    CreateOfferFrame::CreateOfferFrame(const TransactionEnvelope& envelope) : TransactionFrame(envelope)
+    {
+
+    }
 
 // make sure these issuers exist and you can hold the ask currency
 bool CreateOfferFrame::checkOfferValid(LedgerMaster& ledgerMaster)
@@ -17,7 +21,7 @@ bool CreateOfferFrame::checkOfferValid(LedgerMaster& ledgerMaster)
     Currency& sheep = mEnvelope.tx.body.createOfferTx().takerGets;
     Currency& wheat = mEnvelope.tx.body.createOfferTx().takerPays;
 
-    // TODO.2 makes sure the currencies are different if(sheep.native() && wheat.native())
+    
 
     if(!sheep.native() &&
         !ledgerMaster.getDatabase().loadTrustLine(mEnvelope.tx.account, sheep.ci(), mSheepLineA))
@@ -43,6 +47,8 @@ bool CreateOfferFrame::checkOfferValid(LedgerMaster& ledgerMaster)
     return true;
 }
 
+
+
 // you are selling sheep for wheat
 // need to check the counter offers selling wheat for sheep
 // see if this is modifying an old offer
@@ -67,8 +73,17 @@ void CreateOfferFrame::doApply(TxDelta& delta, LedgerMaster& ledgerMaster)
         
         if(ledgerMaster.getDatabase().loadOffer(mEnvelope.tx.account, offerSeq, mSellSheepOffer))
         {
-            // TODO.2 make sure the currencies are the same
-            tempDelta.setStart(mSellSheepOffer);
+            // make sure the currencies are the same
+            if( compareCurrency(mEnvelope.tx.body.createOfferTx().takerGets, mSellSheepOffer.mEntry.offer().takerGets) &&
+                compareCurrency(mEnvelope.tx.body.createOfferTx().takerPays, mSellSheepOffer.mEntry.offer().takerPays))
+            {
+                tempDelta.setStart(mSellSheepOffer);
+            } else
+            {
+                mResultCode = txMALFORMED;
+                return;
+            }
+            
         } else
         {
             mResultCode = txOFFER_NOT_FOUND;
@@ -103,18 +118,28 @@ void CreateOfferFrame::doApply(TxDelta& delta, LedgerMaster& ledgerMaster)
         return;
     }
 
-    delta.merge(tempDelta);
+    
 
     if(mSellSheepOffer.mEntry.offer().amount>0)
     { // we still have sheep to sell so leave an offer
 
-        delta.setFinal(mSellSheepOffer);
+        tempDelta.setFinal(mSellSheepOffer);
         if(creatingNewOffer)
         {
+            // make sure we don't allow us to add offers when we don't have the minbalance
+            if(mSigningAccount.mEntry.account().balance <
+                ledgerMaster.getMinBalance(mSigningAccount.mEntry.account().ownerCount + 1))
+            {
+                mResultCode = txBELOW_MIN_BALANCE;
+                return;
+            }
+
             mSigningAccount.mEntry.account().ownerCount++;
-            delta.setFinal(mSigningAccount);
+            tempDelta.setFinal(mSigningAccount);
         }
     } 
+    
+    delta.merge(tempDelta);
 
 }
 
@@ -325,11 +350,15 @@ bool CreateOfferFrame::crossOffer(OfferFrame& sellingWheatOffer,
     return true;
 }
 
+// makes sure the currencies are different 
 bool CreateOfferFrame::doCheckValid(Application& app)
 {
-    return false;
+    Currency& sheep = mEnvelope.tx.body.createOfferTx().takerGets;
+    Currency& wheat = mEnvelope.tx.body.createOfferTx().takerPays;
+    if(compareCurrency(sheep, wheat)) return false;
+    
+    return true;
 }
-
 
 
 }

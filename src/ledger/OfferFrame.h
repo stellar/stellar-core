@@ -15,6 +15,11 @@ namespace stellar
 		void calculateIndex();
 	public:
 
+        enum OfferFlags
+        {
+            PASSIVE_FLAG = 1
+        };
+
         OfferFrame();
         OfferFrame(const LedgerEntry& from);
         void from(const Transaction& tx);

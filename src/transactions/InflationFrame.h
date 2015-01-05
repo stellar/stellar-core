@@ -6,6 +6,8 @@ namespace stellar
     {
 
     public:
+        InflationFrame(const TransactionEnvelope& envelope);
+
         void doApply(TxDelta& delta, LedgerMaster& ledgerMaster);
         bool doCheckValid(Application& app);
     };

@@ -8,6 +8,7 @@
 #include "lib/util/cpptoml.h"
 #include "util/Logging.h"
 #include "util/types.h"
+#include "crypto/Base58.h"
 
 namespace stellar
 {
@@ -22,6 +23,7 @@ Config::Config()
     // configurable
     START_NEW_NETWORK = false;
     DESIRED_BASE_FEE = 10;
+    DESIRED_BASE_RESERVE = 10000000;
     PEER_PORT = 39133;
     RUN_STANDALONE = false;
     TARGET_PEER_CONNECTIONS = 20;
@@ -88,7 +90,9 @@ Config::load(const std::string& filename)
         {
             for (auto v : g.get_array("QUORUM_SET")->array())
             {
-                QUORUM_SET.push_back(fromBase58(v->as<std::string>()->value()));
+                uint256 p = fromBase58Check256(VER_NODE_PUBLIC,
+                                               v->as<std::string>()->value());
+                QUORUM_SET.push_back(p);
             }
         }
 

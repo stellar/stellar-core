@@ -65,7 +65,7 @@ class QuorumSet
     QuorumSet(QuorumSetDesc const& qset, Application& app);
 
     uint256 getHash();
-    int getBlockingSize(); // returns the # of nodes it takes to block a Quorum
+    size_t getBlockingSize(); // returns the # of nodes it takes to block a Quorum
 
     void sortBallots(FBAStatementType type,
                      vector<BallotSet>& retList);

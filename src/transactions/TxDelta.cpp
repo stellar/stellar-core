@@ -33,14 +33,18 @@ namespace stellar
 {
 
 const char *TxDelta::kSQLCreateStatement = "CREATE TABLE IF NOT EXISTS TxDelta (						\
-	txID		CHARACTER(35) PRIMARY KEY,	\
+	txID		CHARACTER(35),	\
     ledgerSeq   INT UNSIGNED, \
 	json	    BLOB \
 );";
 
 void TxDelta::merge(const TxDelta& other)
 {
-    // TODO.2
+    for(auto item : other.mStartEnd)
+    {
+        if(item.second.first) setStart(*item.second.first);
+        if(item.second.second) setFinal(*item.second.second);
+    }
 }
 
 void TxDelta::setFinal(EntryFrame& entry)
@@ -69,6 +73,17 @@ void TxDelta::setStart(EntryFrame&  entry)
     {
         it->second.first = entry.copy();
     }
+}
+
+void TxDelta::removeFinal(EntryFrame& entry)
+{
+    auto it = mStartEnd.find(entry.getIndex());
+    if(it != mStartEnd.end())
+    { 
+        StartEndPair pair;
+        pair.first = it->second.first;
+        mStartEnd[entry.getIndex()] = pair;
+    } 
 }
 
 
@@ -100,4 +115,11 @@ void TxDelta::commitDelta(Json::Value& txResult, LedgerDelta& ledgerDelta, Ledge
         soci::use(txResult["id"].asString()), soci::use(txResult["ledger"].asInt()),
         soci::use(json.str());
 }
+
+void TxDelta::dropAll(Database& db)
+{
+    db.getSession() << "DROP TABLE IF EXISTS TxDelta;";
+    db.getSession() << kSQLCreateStatement;
+}
+
 }

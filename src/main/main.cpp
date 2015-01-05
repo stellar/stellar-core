@@ -8,6 +8,7 @@
 #include "lib/util/getopt.h"
 #include "main/test.h"
 #include "lib/http/HttpClient.h"
+#include "crypto/SecretKey.h"
 #include <sodium.h>
 
 _INITIALIZE_EASYLOGGINGPP
@@ -19,7 +20,8 @@ enum opttag
     OPT_TEST,
     OPT_CONF,
     OPT_CMD,
-    OPT_NEW
+    OPT_NEW,
+    OPT_GENSEED
 };
 
 static const struct option stellard_options[] = {
@@ -28,7 +30,8 @@ static const struct option stellard_options[] = {
     {"test", no_argument, nullptr, OPT_TEST},
     {"conf", required_argument, nullptr, OPT_CONF},
     {"c", required_argument, nullptr, OPT_CMD},
-    {"new", no_argument, nullptr, OPT_NEW }, 
+    {"new", no_argument, nullptr, OPT_NEW },
+    {"genseed", no_argument, nullptr, OPT_GENSEED },
     {nullptr, 0, nullptr, 0}};
 
 static void
@@ -41,6 +44,7 @@ usage(int err = 1)
           "      --version     To print version information\n"
           "      --test        To run self-tests\n"
           "      --new         Start a brand new network to call your own."
+          "      --genseed     Generate and print a random node seed."
           "      --c           Command to send to local hayashi\n"
           "                stop\n"
           "                info\n"
@@ -97,7 +101,7 @@ main(int argc, char* const* argv)
         {
             rest.push_back(*argv);
             rest.insert(++rest.begin(), argv + optind, argv + argc);
-            return test(rest.size(), &rest[0]);
+            return test(static_cast<int>(rest.size()), &rest[0]);
         }
         case OPT_CONF:
             cfgFile = std::string(optarg);
@@ -115,6 +119,9 @@ main(int argc, char* const* argv)
         case OPT_NEW:
             newNetwork = true;
             break;
+        case OPT_GENSEED:
+            std::cout << SecretKey::random().getBase58Seed() << std::endl;
+            return 0;
         }
     }
 

@@ -5,9 +5,17 @@
       <Configuration>Debug</Configuration>
       <Platform>Win32</Platform>
     </ProjectConfiguration>
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
     <ProjectConfiguration Include="Release|Win32">
       <Configuration>Release</Configuration>
       <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
     </ProjectConfiguration>
   </ItemGroup>
   <PropertyGroup Label="Globals">
@@ -21,7 +29,20 @@
     <PlatformToolset>v140</PlatformToolset>
     <CharacterSet>MultiByte</CharacterSet>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v140</PlatformToolset>
+    <CharacterSet>MultiByte</CharacterSet>
+  </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v140</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>MultiByte</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
     <PlatformToolset>v140</PlatformToolset>
@@ -34,7 +55,13 @@
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="PropertySheets">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
@@ -45,13 +72,32 @@
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
       <AdditionalIncludeDirectories>src;../../src/lib/soci/src/core;../../src/lib/autocheck/include;../../src/lib/cereal/include;../../src/lib/asio/include;../../src/lib/xdrpp;../../src/lib/libsodium/src/libsodium/include;../../src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>_WINSOCK_DEPRECATED_NO_WARNINGS;SODIUM_STATIC;ASIO_STANDALONE;ASIO_ERROR_CATEGORY_NOEXCEPT=noexcept;_CRT_SECURE_NO_WARNINGS;_WIN32_WINNT=0x0501;WIN32;_MBCS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>USE_POSTGRES;_WINSOCK_DEPRECATED_NO_WARNINGS;SODIUM_STATIC;ASIO_STANDALONE;ASIO_ERROR_CATEGORY_NOEXCEPT=noexcept;_CRT_SECURE_NO_WARNINGS;_WIN32_WINNT=0x0501;WIN32;_MBCS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <MinimalRebuild>false</MinimalRebuild>
+      <DisableSpecificWarnings>4800;4805</DisableSpecificWarnings>
+      <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies);C:\Program Files\PostgreSQL\9.4\lib\libpq.lib</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>Disabled</Optimization>
+      <SDLCheck>true</SDLCheck>
+      <AdditionalIncludeDirectories>src;../../src/lib/soci/src/core;../../src/lib/autocheck/include;../../src/lib/cereal/include;../../src/lib/asio/include;../../src/lib/xdrpp;../../src/lib/libsodium/src/libsodium/include;../../src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>USE_POSTGRES;_WINSOCK_DEPRECATED_NO_WARNINGS;SODIUM_STATIC;ASIO_STANDALONE;ASIO_ERROR_CATEGORY_NOEXCEPT=noexcept;_CRT_SECURE_NO_WARNINGS;_WIN32_WINNT=0x0501;WIN32;_MBCS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <MinimalRebuild>false</MinimalRebuild>
+      <DisableSpecificWarnings>4800;4805</DisableSpecificWarnings>
+      <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
+    </ClCompile>
+    <Link>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies);C:\Program Files\PostgreSQL\9.4\lib\libpq.lib</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -71,12 +117,34 @@
       <AdditionalDependencies>..\..\src\lib\libsodium\bin\Win32\Debug\v120\static\libsodium.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>MaxSpeed</Optimization>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <SDLCheck>true</SDLCheck>
+      <AdditionalIncludeDirectories>src;../../src/lib/autocheck/include;../../src/lib/cereal/include;../../src/lib/asio/include;../../src/lib/xdrpp;../../src/lib/libsodium/src/libsodium/include;../../src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>_WINSOCK_DEPRECATED_NO_WARNINGS;ASIO_STANDALONE;ASIO_ERROR_CATEGORY_NOEXCEPT=noexcept;_CRT_SECURE_NO_WARNINGS;_WIN32_WINNT=0x0501;WIN32;_MBCS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+    <Link>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+      <AdditionalDependencies>..\..\src\lib\libsodium\bin\Win32\Debug\v120\static\libsodium.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="..\..\src\clf\BucketList.cpp" />
     <ClCompile Include="..\..\src\clf\CLFTests.cpp" />
+    <ClCompile Include="..\..\src\crypto\Base58.cpp" />
     <ClCompile Include="..\..\src\crypto\CryptoTests.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
     </ClCompile>
+    <ClCompile Include="..\..\src\crypto\Hex.cpp" />
+    <ClCompile Include="..\..\src\crypto\SHA.cpp" />
+    <ClCompile Include="..\..\src\crypto\SecretKey.cpp" />
     <ClCompile Include="..\..\src\database\Database.cpp" />
     <ClCompile Include="..\..\src\database\DatabaseTests.cpp" />
     <ClCompile Include="..\..\src\fba\Ballot.cpp" />
@@ -91,21 +159,11 @@
     <ClCompile Include="..\..\src\history\HistoryMaster.cpp" />
     <ClCompile Include="..\..\src\history\HistoryTests.cpp" />
     <ClCompile Include="..\..\src\ledger\AccountFrame.cpp" />
-    <ClCompile Include="..\..\src\ledger\Ledger.cpp" />
     <ClCompile Include="..\..\src\ledger\LedgerDelta.cpp" />
     <ClCompile Include="..\..\src\ledger\EntryFrame.cpp" />
     <ClCompile Include="..\..\src\ledger\LedgerMaster.cpp" />
     <ClCompile Include="..\..\src\ledger\OfferFrame.cpp" />
     <ClCompile Include="..\..\src\ledger\TrustFrame.cpp" />
-    <ClCompile Include="..\..\src\lib\crypto\edkeypair.cpp">
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
-    </ClCompile>
-    <ClCompile Include="..\..\src\lib\crypto\StellarPrivateKey.cpp">
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
-    </ClCompile>
-    <ClCompile Include="..\..\src\lib\crypto\StellarPublicKey.cpp">
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
-    </ClCompile>
     <ClCompile Include="..\..\src\lib\http\connection.cpp" />
     <ClCompile Include="..\..\src\lib\http\connection_manager.cpp" />
     <ClCompile Include="..\..\src\lib\http\HttpClient.cpp" />
@@ -115,43 +173,59 @@
     <ClCompile Include="..\..\src\lib\json\jsoncpp.cpp" />
     <ClCompile Include="..\..\src\lib\util\format.cc">
       <DisableSpecificWarnings Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">4456</DisableSpecificWarnings>
+      <DisableSpecificWarnings Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">4456</DisableSpecificWarnings>
       <DisableSpecificWarnings Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">4456</DisableSpecificWarnings>
+      <DisableSpecificWarnings Condition="'$(Configuration)|$(Platform)'=='Release|x64'">4456</DisableSpecificWarnings>
     </ClCompile>
     <ClCompile Include="..\..\src\lib\util\getopt_long.c" />
     <ClCompile Include="..\..\src\lib\xdrpp\tests\arpc.cc">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="..\..\src\lib\xdrpp\tests\autocheck.cc">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="..\..\src\lib\xdrpp\tests\cereal.cc">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="..\..\src\lib\xdrpp\tests\compare.cc">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="..\..\src\lib\xdrpp\tests\listener.cc">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="..\..\src\lib\xdrpp\tests\marshal.cc">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="..\..\src\lib\xdrpp\tests\msgsock.cc">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="..\..\src\lib\xdrpp\tests\printer.cc">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="..\..\src\lib\xdrpp\tests\srpc.cc">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="..\..\src\transactions\AllowTrustTxFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\CancelOfferFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\CreateOfferFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\InflationFrame.cpp" />
+    <ClCompile Include="..\..\src\transactions\InflationTests.cpp" />
     <ClCompile Include="..\..\src\transactions\MergeFrame.cpp" />
+    <ClCompile Include="..\..\src\transactions\MergeTests.cpp" />
+    <ClCompile Include="..\..\src\transactions\OfferTests.cpp" />
     <ClCompile Include="..\..\src\transactions\PaymentFrame.cpp" />
+    <ClCompile Include="..\..\src\transactions\PaymentTests.cpp" />
     <ClCompile Include="..\..\src\transactions\SetOptionsFrame.cpp" />
+    <ClCompile Include="..\..\src\transactions\SetOptionsTests.cpp" />
     <ClCompile Include="..\..\src\transactions\TxDelta.cpp" />
     <ClCompile Include="..\..\src\transactions\TxTests.cpp" />
     <ClCompile Include="..\..\src\util\Timer.cpp" />
@@ -184,6 +258,11 @@
     <ClInclude Include="..\..\src\clf\CLF.h" />
     <ClInclude Include="..\..\src\clf\CLFDelta.h" />
     <ClInclude Include="..\..\src\clf\CLFGateway.h" />
+    <ClInclude Include="..\..\src\crypto\Base58.h" />
+    <ClInclude Include="..\..\src\crypto\ByteSlice.h" />
+    <ClInclude Include="..\..\src\crypto\Hex.h" />
+    <ClInclude Include="..\..\src\crypto\SHA.h" />
+    <ClInclude Include="..\..\src\crypto\SecretKey.h" />
     <ClInclude Include="..\..\src\database\Database.h" />
     <ClInclude Include="..\..\src\fba\Ballot.h" />
     <ClInclude Include="..\..\src\fba\FBA.h" />
@@ -200,7 +279,6 @@
     <ClInclude Include="..\..\src\history\HistoryGateway.h" />
     <ClInclude Include="..\..\src\history\HistoryMaster.h" />
     <ClInclude Include="..\..\src\ledger\AccountFrame.h" />
-    <ClInclude Include="..\..\src\ledger\Ledger.h" />
     <ClInclude Include="..\..\src\ledger\LedgerDelta.h" />
     <ClInclude Include="..\..\src\ledger\EntryFrame.h" />
     <ClInclude Include="..\..\src\ledger\LedgerGateway.h" />
@@ -208,9 +286,6 @@
     <ClInclude Include="..\..\src\ledger\OfferFrame.h" />
     <ClInclude Include="..\..\src\ledger\TrustFrame.h" />
     <ClInclude Include="..\..\src\ledger\ValidatedLedgers.h" />
-    <ClInclude Include="..\..\src\lib\crypto\EdKeyPair.h" />
-    <ClInclude Include="..\..\src\lib\crypto\StellarPrivateKey.h" />
-    <ClInclude Include="..\..\src\lib\crypto\StellarPublicKey.h" />
     <ClInclude Include="..\..\src\lib\http\connection.hpp" />
     <ClInclude Include="..\..\src\lib\http\connection_manager.hpp" />
     <ClInclude Include="..\..\src\lib\http\header.hpp" />
@@ -255,6 +330,7 @@
     <ClInclude Include="..\..\src\transactions\TxResultCode.h" />
     <ClInclude Include="..\..\src\transactions\ChangeTrustTxFrame.h" />
     <ClInclude Include="..\..\src\transactions\TxDelta.h" />
+    <ClInclude Include="..\..\src\transactions\TxTests.h" />
     <ClInclude Include="..\..\src\txherder\TxSetFrame.h" />
     <ClInclude Include="..\..\src\txherder\TxHerder.h" />
     <ClInclude Include="..\..\src\txherder\TxHerderGateway.h" />
@@ -268,6 +344,7 @@
     <None Include="..\..\docs\design.md" />
     <None Include="..\..\docs\entries.md" />
     <None Include="..\..\docs\hayashi_example.cfg" />
+    <None Include="..\..\docs\multisig.md" />
     <None Include="..\..\docs\questions.md" />
     <None Include="..\..\docs\transactions.md" />
     <None Include="..\..\docs\usecases.md" />
@@ -276,12 +353,20 @@
     <CustomBuild Include="..\..\src\overlay\StellarXDR.x">
       <FileType>Document</FileType>
       <Command Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">xdrc -hh -o ../../src/generated/StellarXDR.h ../../src/overlay/StellarXDR.x</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">xdrc -hh -o ../../src/generated/StellarXDR.h ../../src/overlay/StellarXDR.x</Command>
       <Message Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">running xdrc</Message>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">running xdrc</Message>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">../../src/generated/StellarXDR.h</Outputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">../../src/generated/StellarXDR.h</Outputs>
       <Command Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">xdrc -hh -o ../../src/generated/StellarXDR.h ../../src/overlay/StellarXDR.x</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">xdrc -hh -o ../../src/generated/StellarXDR.h ../../src/overlay/StellarXDR.x</Command>
       <Message Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">running xdrc</Message>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">running xdrc</Message>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">../../src/generated/StellarXDR.h</Outputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">../../src/generated/StellarXDR.h</Outputs>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+      </ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
       </ExcludedFromBuild>
     </CustomBuild>
     <None Include="..\..\src\lib\xdrpp\tests\xdrtest.x" />
@@ -304,7 +389,7 @@
       <Private>false</Private>
       <ReferenceOutputAssembly>true</ReferenceOutputAssembly>
       <CopyLocalSatelliteAssemblies>false</CopyLocalSatelliteAssemblies>
-      <LinkLibraryDependencies>false</LinkLibraryDependencies>
+      <LinkLibraryDependencies>true</LinkLibraryDependencies>
       <UseLibraryDependencyInputs>false</UseLibraryDependencyInputs>
     </ProjectReference>
     <ProjectReference Include="libsoci_sqlite3\libsoci_sqlite3.vcxproj">

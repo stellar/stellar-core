@@ -26,6 +26,7 @@ class Config : public std::enable_shared_from_this<Config>
     std::string VERSION_STR;
     std::string LOG_FILE_PATH;
     uint32_t DESIRED_BASE_FEE; // in stroops
+    uint32_t DESIRED_BASE_RESERVE; // in stroops
     int HTTP_PORT;         // what port to listen for commands on. 0 for don't
     bool PUBLIC_HTTP_PORT; // if you accept commands from not localhost
 

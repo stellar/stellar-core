@@ -31,11 +31,11 @@ class FloodRecord
   public:
     typedef std::shared_ptr<FloodRecord> pointer;
 
-    uint32_t mLedgerIndex;
+    uint64_t mLedgerIndex;
     StellarMessage mMessage;
     vector<Peer::pointer> mPeersTold;
 
-    FloodRecord(StellarMessage const& msg, uint32_t ledger,
+    FloodRecord(StellarMessage const& msg, uint64_t ledger,
                 Peer::pointer peer);
 };
 
@@ -45,9 +45,9 @@ class Floodgate
 
   public:
     // Floodgate will be cleared after every ledger close
-    void clearBelow(uint32_t currentLedger);
+    void clearBelow(uint64_t currentLedger);
     void addRecord(uint256 const& index,
-                   StellarMessage const& msg, uint32_t ledgerIndex,
+                   StellarMessage const& msg, uint64_t ledgerIndex,
                    Peer::pointer peer);
 
     void broadcast(uint256 const& index, PeerMaster* peerMaster);

@@ -206,7 +206,7 @@ LoopbackPeer::setCorked(bool c)
     mCorked = c;
 }
 
-int
+size_t
 LoopbackPeer::getMaxQueueDepth() const
 {
     return mMaxQueueDepth;

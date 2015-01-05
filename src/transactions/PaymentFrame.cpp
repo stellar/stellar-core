@@ -5,8 +5,15 @@
 #include "ledger/TrustFrame.h"
 #include "ledger/OfferFrame.h"
 
+#define MAX_PAYMENT_PATH_LENGTH 5
+
 namespace stellar
 { 
+    PaymentFrame::PaymentFrame(const TransactionEnvelope& envelope) : TransactionFrame(envelope)
+    {
+
+    }
+
     void PaymentFrame::doApply(TxDelta& delta,LedgerMaster& ledgerMaster)
     {
         uint32_t minBalance = ledgerMaster.getMinBalance(mSigningAccount.mEntry.account().ownerCount);
@@ -40,12 +47,17 @@ namespace stellar
                 destAccount.mEntry.account().balance += mEnvelope.tx.body.paymentTx().amount;
                 delta.setFinal(destAccount);
                 delta.setFinal(mSigningAccount);
+                mResultCode = txSUCCESS;
 
             }else
             {   // sending credit
                 TxDelta tempDelta;
                 if(sendCredit(destAccount, tempDelta, ledgerMaster))
+                {
                     delta.merge(tempDelta);
+                    mResultCode = txSUCCESS;
+                }
+                    
                 return;
             }
         } else
@@ -63,6 +75,7 @@ namespace stellar
                     destAccount.mEntry.account().balance = mEnvelope.tx.body.paymentTx().amount;
                     delta.setFinal(destAccount);
                     delta.setFinal(mSigningAccount);
+                    mResultCode = txSUCCESS;
                 }
             } else
             {   // trying to send credit to an unmade account
@@ -342,13 +355,33 @@ namespace stellar
     }
 
     // make sure there is no path for native transfer
-    // make sure account has enough to send
     // make sure there are no loops in the path
     // make sure the path is less than N steps
     bool PaymentFrame::doCheckValid(Application& app)
     {
-        // TODO.2
-        return(false);
+        if(mEnvelope.tx.body.paymentTx().currency.native())
+        {
+            if(mEnvelope.tx.body.paymentTx().path.size()) return false;
+        } else
+        {
+            if(mEnvelope.tx.body.paymentTx().path.size() > MAX_PAYMENT_PATH_LENGTH) return false;
+
+            // make sure there are no loops in the path
+            for(auto step : mEnvelope.tx.body.paymentTx().path)
+            {
+                bool seen = false;
+                for(auto inner : mEnvelope.tx.body.paymentTx().path)
+                {
+                    if(compareCurrency(step, inner))
+                    {
+                        if(seen) return false;
+                        seen=true;
+                    }
+                }
+            }
+        }
+
+        return true;
     }
 
 }

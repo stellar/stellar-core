@@ -1,6 +1,6 @@
 #!/bin/sh
 
-SUBMODULES="src/lib/libsodium src/lib/xdrpp"
+SUBMODULES="src/lib/libsodium src/lib/xdrpp src/lib/libmedida"
 GIT=`which git`
 
 autogen_submodules()

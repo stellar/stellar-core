@@ -4,6 +4,7 @@
 
 #include "TxSetFrame.h"
 #include "xdrpp/marshal.h"
+#include "crypto/SHA.h"
 
 namespace stellar
 {
@@ -36,10 +37,13 @@ TxSetFrame::getContentsHash()
 {
     if (isZero(mHash))
     {
-        TransactionSet txSet;
-        toXDR(txSet);
-        xdr::msg_ptr xdrBytes(xdr::xdr_to_msg(txSet));
-        hashXDR(std::move(xdrBytes), mHash);
+        SHA512_256 hasher;
+        for(unsigned int n = 0; n < mTransactions.size(); n++)
+        {
+            hasher.add(xdr::xdr_to_msg(mTransactions[n]->getEnvelope()));
+        }
+
+        mHash = hasher.finish();
     }
     return mHash;
 }
@@ -75,7 +79,7 @@ TxSetFrame::getPreviousLedgerHash()
 void
 TxSetFrame::store()
 {
-    // LATER
+    // TODO.3
 }
 
 void
@@ -84,8 +88,7 @@ TxSetFrame::toXDR(TransactionSet& txSet)
     txSet.txs.resize(mTransactions.size());
     for (unsigned int n = 0; n < mTransactions.size(); n++)
     {
-        mTransactions[n]->toXDR(txSet.txs[n].tx);
-        txSet.txs[n].signature = mTransactions[n]->getSignature();
+        txSet.txs[n]=mTransactions[n]->getEnvelope();
     }
 }
 }

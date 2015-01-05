@@ -14,11 +14,11 @@ namespace stellar {
 // messages
 typedef opaque uint512[64];
 typedef opaque uint256[32];
-typedef opaque uint160[20];
 typedef unsigned hyper uint64;
 typedef hyper int64;
 typedef unsigned uint32;
 typedef int int32;
+typedef opaque CurrencyCode<32>;
 
 struct Error
 {
@@ -47,7 +47,7 @@ enum TransactionType
 
 struct CurrencyIssuer
 {
-	uint160 currencyCode;
+	uint256 currencyCode;
 	uint256 issuer;
 };
 
@@ -60,6 +60,11 @@ union Currency switch(bool native)
 };
 	
 
+struct Signer
+{
+	uint256 pubKey;
+	uint32 weight;  // really only need 1byte
+};
 
 struct KeyValue
 {
@@ -86,18 +91,18 @@ struct CreateOfferTx
 	int64 amount;		// amount taker gets
 	int64 price;		// =takerPaysAmount/takerGetsAmount
 
-	uint32 sequence;		// set if you want to change an existing offer
-	bool passive;	// only take offers that cross this. not offers that match it
+	uint32 sequence;	// set if you want to change an existing offer
+	uint32 flags;	// passive: only take offers that cross this. not offers that match it
 };
 
 struct SetOptionsTx
 {
-	uint256* creditAuthKey;
-	uint256* pubKey;
 	uint256* inflationDest;
 	uint32*	flags;
 	uint32* transferRate;
 	KeyValue* data;
+	uint32* thresholds;
+	Signer* signer;
 };
 
 struct ChangeTrustTx
@@ -109,9 +114,11 @@ struct ChangeTrustTx
 struct AllowTrustTx
 {
 	uint256 trustor;
-	uint160 currencyCode;
+	uint256 currencyCode;
 	bool authorize;
 };
+
+
 
 struct Transaction
 {
@@ -145,7 +152,7 @@ struct Transaction
 struct TransactionEnvelope
 {
     Transaction tx;
-    uint256 signature;
+    uint512 signatures<>;
 };
 
 struct TransactionSet
@@ -166,6 +173,7 @@ struct LedgerHeader
 	uint64 ledgerSeq;
 	uint32 inflationSeq;
 	int32 baseFee;
+	int32 baseReserve;
 	uint64 closeTime;       
 };
 
@@ -192,19 +200,21 @@ enum LedgerTypes {
   OFFER
 };
 
+
+
 struct AccountEntry
 {
-    uint256 accountID;
-    int64 balance;
-    uint32 sequence;
-    uint32 ownerCount;
-    uint32 transferRate;	// rate*10000000
-    uint256 *pubKey;
+	uint256 accountID;
+	int64 balance;
+	uint32 sequence;
+	uint32 ownerCount;
+	uint32 transferRate;	// rate*10000000
 	uint256 *inflationDest;
-	uint256 *creditAuthKey;
+	uint32 thresholds; // weight of master/threshold1/threshold2/threshold3
+	Signer signers<>; // do we want some max or just increase the min balance
 	KeyValue data<>;
 
-	uint32 flags; // disable master, require dt, require auth, 
+	uint32 flags; // require dt, require auth, 
 };
 
 
@@ -213,7 +223,7 @@ struct TrustLineEntry
 {
     uint256 accountID;
     uint256 issuer;
-    uint160 currencyCode;
+    uint256 currencyCode;
     int64 limit;
     int64 balance;
     bool authorized;  // if the issuer has authorized this guy to hold its credit
@@ -232,7 +242,7 @@ struct OfferEntry
 					// price*1,000,000,000
 					// price=AmountB/AmountA
 					// price is after fees
-    bool passive;
+    int32 flags;
 };
 
 union LedgerEntry switch (LedgerTypes type)

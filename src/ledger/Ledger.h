@@ -10,6 +10,7 @@
 namespace stellar
 {
 	/*
+        TODO.2 I don't think we need this class anymore
 		Ledger headers + some stuff cached for txs to use during application?
 	*/
 
@@ -34,7 +35,7 @@ namespace stellar
 
 		Ledger();
 
-        int64_t getMinBalance(); 
+         
         int64_t getTxFee();
 
 		std::uint64_t scaleFeeBase(std::uint64_t fee);

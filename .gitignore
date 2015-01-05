@@ -4,6 +4,10 @@
 *.la
 *.lo
 *.log
+*.lib
+*.user
+*.xdr
+*.cache
 *.tlog
 *.lastbuildstate
 *.idb

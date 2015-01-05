@@ -207,7 +207,7 @@ TxHerder::externalizeValue(const uint32& slotIndex,
 
         // move all the remaining to the next highest level
         // don't move the largest array
-        for (int n = mReceivedTransactions.size() - 2; n >= 0; n--)
+        for (size_t n = mReceivedTransactions.size() - 2; n >= 0; n--)
         {
             for (auto tx : mReceivedTransactions[n])
             {

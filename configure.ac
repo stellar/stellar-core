@@ -84,6 +84,7 @@ function configure_pkgconfig_subdir() {
 configure_pkgconfig_subdir src/lib/libsodium --disable-shared
 configure_pkgconfig_subdir src/lib/sqlite
 configure_pkgconfig_subdir src/lib/xdrpp
+configure_pkgconfig_subdir src/lib/libmedida
 
 PKG_CHECK_MODULES([libsodium],[libsodium])
 AM_CONDITIONAL(LIBSODIUM_INTERNAL, [test "x$libsodium_INTERNAL" != "x"])
@@ -93,6 +94,9 @@ AM_CONDITIONAL(SQLITE_INTERNAL, [test "x$sqlite_INTERNAL" != "x"])
 
 PKG_CHECK_MODULES([xdrpp], [xdrpp])
 AM_CONDITIONAL(XDRPP_INTERNAL, [test "x$xdrpp_INTERNAL" != "x"])
+
+PKG_CHECK_MODULES([libmedida], [libmedida])
+AM_CONDITIONAL(LIBMEDIDA_INTERNAL, [test "x$libmedida_INTERNAL" != "x"])
 
 AC_MSG_CHECKING(for xdrc)
 XDRC=$(pkg-config --variable=xdrc xdrpp)
@@ -104,8 +108,8 @@ AC_SUBST(XDRC)
 PKG_CHECK_MODULES([libpq],[libpq],[use_POSTGRESQL=1],[use_POSTGRESQL=])
 AM_CONDITIONAL(USE_POSTGRESQL, [test "x$use_POSTGRESQL" != "x"])
 
-CPPFLAGS="$CPPFLAGS "'$(libsodium_CFLAGS) $(xdrpp_CFLAGS) $(sqlite_CFLAGS) $(libpq_CFLAGS)'
-LIBS="$LIBS "'$(libsodium_LIBS) $(xdrpp_LIBS) $(sqlite_LIBS) $(libpq_LIBS)'
+CPPFLAGS="$CPPFLAGS "'$(libsodium_CFLAGS) $(xdrpp_CFLAGS) $(sqlite_CFLAGS) $(libpq_CFLAGS) $(libmedida_CFLAGS)'
+LIBS="$LIBS "'$(libsodium_LIBS) $(xdrpp_LIBS) $(sqlite_LIBS) $(libpq_LIBS) $(libmedida_LIBS)'
 
 AC_CONFIG_HEADERS([config.h])
 AC_CONFIG_FILES([Makefile])
