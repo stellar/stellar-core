@@ -21,6 +21,7 @@ typedef std::unique_ptr<Application> appPtr;
 // Try setting each option to make sure it works
 // try setting all at once
 // try setting high threshold ones without the correct sigs
+// make sure it doesn't allow us to add signers when we don't have the minbalance
 TEST_CASE("set options", "[tx]")
 {
     Config cfg;

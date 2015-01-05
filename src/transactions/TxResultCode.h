@@ -26,6 +26,7 @@ namespace stellar
         txINTERNAL_ERROR,
         txCROSS_SELF,
         txCREDIT_ISSUED,
+        txBELOW_MIN_BALANCE,
 
 
         txNOACCOUNT,

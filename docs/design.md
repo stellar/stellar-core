@@ -5,13 +5,14 @@ Left to design:
 
 
 Left to do:
--txs should adjust the ledger header
 -ledger header needs to be stored in the DB
 -Syncing to the network
 -saving peers in the DB
+-sending round lists of peers
 -storing history
 -bucket list 
 -deal with many tx from same account in the same ledger
+-store validations in the DB
 -inflation tx
 -Tests for FBA
 -Tests for transactions

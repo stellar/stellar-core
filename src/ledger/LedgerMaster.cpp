@@ -88,7 +88,7 @@ void LedgerMaster::syncWithCLF()
         CLOG(DEBUG, "Ledger") << "CLF and SQL headers match.";
     } else
     {  // ledgers don't match
-        // LATER try to sync them
+        // TODO.3 try to sync them
         CLOG(ERROR, "Ledger") << "CLF and SQL headers don't match. Aborting";
     }
 }
@@ -140,6 +140,8 @@ void LedgerMaster::recvDelta(CLFDeltaPtr delta, LedgerHeaderPtr header)
 
 void LedgerMaster::closeLedger(TxSetFramePtr txSet)
 {
+    LedgerHeader nextHeader = mCurrentHeader;
+
     LedgerDelta ledgerDelta;
     mDatabase.beginTransaction();
     for(auto tx : txSet->mTransactions)
@@ -154,7 +156,7 @@ void LedgerMaster::closeLedger(TxSetFramePtr txSet)
             txResult["ledger"] = (Json::UInt64)mCurrentHeader.ledgerSeq;
 
             delta.commitDelta(txResult, ledgerDelta, *this );
-
+            nextHeader.feePool += delta.getCollectedFee();
             
         }catch(...)
         {
@@ -162,6 +164,8 @@ void LedgerMaster::closeLedger(TxSetFramePtr txSet)
         }
     }
     mDatabase.endTransaction(false);
+
+    // TODO.2 do something with the nextHeader
     
     // TODO.2 give the LedgerDelta to the Bucketlist
 }

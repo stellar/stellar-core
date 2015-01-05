@@ -47,6 +47,8 @@ bool CreateOfferFrame::checkOfferValid(LedgerMaster& ledgerMaster)
     return true;
 }
 
+
+
 // you are selling sheep for wheat
 // need to check the counter offers selling wheat for sheep
 // see if this is modifying an old offer
@@ -116,18 +118,28 @@ void CreateOfferFrame::doApply(TxDelta& delta, LedgerMaster& ledgerMaster)
         return;
     }
 
-    delta.merge(tempDelta);
+    
 
     if(mSellSheepOffer.mEntry.offer().amount>0)
     { // we still have sheep to sell so leave an offer
 
-        delta.setFinal(mSellSheepOffer);
+        tempDelta.setFinal(mSellSheepOffer);
         if(creatingNewOffer)
         {
+            // make sure we don't allow us to add offers when we don't have the minbalance
+            if(mSigningAccount.mEntry.account().balance <
+                ledgerMaster.getMinBalance(mSigningAccount.mEntry.account().ownerCount + 1))
+            {
+                mResultCode = txBELOW_MIN_BALANCE;
+                return;
+            }
+
             mSigningAccount.mEntry.account().ownerCount++;
-            delta.setFinal(mSigningAccount);
+            tempDelta.setFinal(mSigningAccount);
         }
     } 
+    
+    delta.merge(tempDelta);
 
 }
 

@@ -141,7 +141,7 @@ bool TransactionFrame::preApply(TxDelta& delta,LedgerMaster& ledgerMaster)
 
     mSigningAccount.mEntry.account().balance -= fee;
     mSigningAccount.mEntry.account().sequence += 1;
-
+    delta.addFee(fee);
     delta.setFinal(mSigningAccount);
     return true;
 }
