@@ -11,6 +11,10 @@ There are 3 categories of transactions. Each has a separate threshold that can b
  * All else
 * High:
  * SetOptions for Signer and threshold
+
+Accounts can have arbitraily many signers. Each additional signer increases the ownerCount and therfore the min balance the account must maintain.
+
+Transactions can have multiple signatures attached. If a transaction requires multiple signatures the txblob must be passed around out of band.
   
 ###Example use cases
 1. Gateway keeps most of its funds in a cold account. The Gateway requires authorization for people to hold its credit. It adds another signing key to the cold account with a weight below Medium. It is now safe to use this 2nd key on its server to authorize people to hold its credit.
