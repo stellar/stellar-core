@@ -43,10 +43,12 @@ namespace stellar
         {   
             mSigningAccount.mEntry.account().flags = *mEnvelope.tx.body.setOptionsTx().flags;
         }
+        /* TODO.2
         if(mEnvelope.tx.body.setOptionsTx().thresholds)
         {
             mSigningAccount.mEntry.account().thresholds = *mEnvelope.tx.body.setOptionsTx().thresholds;
         }
+        */
         if(mEnvelope.tx.body.setOptionsTx().signer)
         {
             xdr::xvector<Signer>& signers = mSigningAccount.mEntry.account().signers;

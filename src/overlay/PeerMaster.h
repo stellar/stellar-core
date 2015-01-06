@@ -86,6 +86,9 @@ class PeerMaster : public OverlayGateway
     void broadcastMessage(uint256 const& msgID);
     void broadcastMessage(StellarMessage const& msg,
                           vector<Peer::pointer> const& skip);
+
+    static void createTable(Database &db);
+    static const char *kSQLCreateStatement;
 };
 }
 

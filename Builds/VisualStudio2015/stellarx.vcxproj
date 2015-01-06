@@ -88,7 +88,7 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>src;../../src/lib/soci/src/core;../../src/lib/autocheck/include;../../src/lib/cereal/include;../../src/lib/asio/include;../../src/lib/xdrpp;../../src/lib/libsodium/src/libsodium/include;../../src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>src;../../src/lib/libmedida/src;../../src/lib/soci/src/core;../../src/lib/autocheck/include;../../src/lib/cereal/include;../../src/lib/asio/include;../../src/lib/xdrpp;../../src/lib/libsodium/src/libsodium/include;../../src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>USE_POSTGRES;_WINSOCK_DEPRECATED_NO_WARNINGS;SODIUM_STATIC;ASIO_STANDALONE;ASIO_ERROR_CATEGORY_NOEXCEPT=noexcept;_CRT_SECURE_NO_WARNINGS;_WIN32_WINNT=0x0501;WIN32;_MBCS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <MinimalRebuild>false</MinimalRebuild>
@@ -380,6 +380,9 @@
     </ProjectReference>
     <ProjectReference Include="..\..\src\lib\xdrpp\msvc_xdrpp\xdrpp\xdrpp.vcxproj">
       <Project>{79708037-97a3-4b19-8e9e-252d00e2e007}</Project>
+    </ProjectReference>
+    <ProjectReference Include="libmedida\libmedida.vcxproj">
+      <Project>{274a9f25-f6ae-4484-b5d1-5812c1b7a48d}</Project>
     </ProjectReference>
     <ProjectReference Include="libsoci\libsoci.vcxproj">
       <Project>{bbd512eb-db2a-4fa1-bdb8-3ba3d2fcf51b}</Project>

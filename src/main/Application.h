@@ -27,7 +27,7 @@
 #include "database/Database.h"
 #include "process/ProcessMaster.h"
 #include "main/CommandHandler.h"
-
+#include "medida/metrics_registry.h"
 /*
  * State of a single instance of the application.
  *
@@ -116,6 +116,7 @@ class Application : public enable_shared_from_this<Application>
     std::unique_ptr<asio::io_service::work> mWork;
     std::unique_ptr<RealTimer> mRealTimer;
 
+    medida::MetricsRegistry mMetrics;
     PeerMaster mPeerMaster;
     LedgerMaster mLedgerMaster;
     TxHerder mTxHerder;
@@ -169,6 +170,11 @@ class Application : public enable_shared_from_this<Application>
     getClock()
     {
         return mVirtualClock;
+    }
+    medida::MetricsRegistry&
+    getMetrics()
+    {
+        return mMetrics;
     }
     LedgerGateway&
     getLedgerGateway()

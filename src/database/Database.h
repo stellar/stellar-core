@@ -61,7 +61,9 @@ class Database
     void loadLines(const uint256& accountID, std::vector<TrustFrame>& retLines);
 
     int64_t getBalance(const uint256& accountID, const Currency& currency);
-    //bool loadOffer()
+    
+    void addPeer(std::string ip, int port);
+    void loadPeers(int max, std::vector< std::pair<std::string, int>>& retList);
 
 
     soci::session& getSession() { return mSession; }

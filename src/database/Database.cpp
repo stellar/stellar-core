@@ -50,12 +50,31 @@ void Database::initialize()
         OfferFrame::dropAll(*this);
         TrustFrame::dropAll(*this);
         TxDelta::dropAll(*this);
+        PeerMaster::createTable(*this);
     }catch(exception const &e)
     {
         LOG(ERROR) << "Error: " << e.what();
     }
 }
 
+void Database::addPeer(std::string ip, int port)
+{
+    int peerID;
+    mSession << "SELECT peerID from Peers where IP=:v1 and Port=:v2",
+        into(peerID), use(ip), use(port);
+    if(!mSession.got_data())
+    {
+        mSession << "INSERT INTO Peers (IP,Port) values (:v1,:v2)",
+            use(ip), use(port);
+    }
+}
+
+void Database::loadPeers(int max, vector< pair<std::string, int>>& retList)
+{
+
+}
+
+// TODO.2 load thresholds
 bool Database::loadAccount(const uint256& accountID, AccountFrame& retAcc, bool withSig)
 {
     std::string base58ID = toBase58Check(VER_ACCOUNT_ID, accountID);
@@ -67,10 +86,10 @@ bool Database::loadAccount(const uint256& accountID, AccountFrame& retAcc, bool 
     retAcc.mEntry.account().accountID = accountID;
     AccountEntry& account = retAcc.mEntry.account();
     mSession << "SELECT balance,sequence,ownerCount,transferRate, \
-        inflationDest, thresholds, flags from Accounts where accountID=:v1",
+        inflationDest,  flags from Accounts where accountID=:v1",
         into(account.balance), into(account.sequence), into(account.ownerCount),
         into(account.transferRate), into(inflationDest, inflationDestInd),
-        into(account.thresholds), into(account.flags),
+        into(account.flags),
         use(base58ID);
 
     if(!mSession.got_data())

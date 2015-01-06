@@ -163,4 +163,18 @@ PeerMaster::broadcastMessage(StellarMessage const& msg,
         }
     }
 }
+
+void PeerMaster::createTable(Database &db)
+{
+    db.getSession() << kSQLCreateStatement;
+}
+
+const char* PeerMaster::kSQLCreateStatement = "CREATE TABLE IF NOT EXISTS Peers (						\
+	peerID	INT UNSIGNED PRIMARY KEY,	\
+    ip	    CHARACTER(11),		        \
+    port   	INT UNSIGNED default 0,		\
+    lastConnect   	TIMESTAMP,	    	\
+	rank	INT UNSIGNED default 0  	\
+);";
+
 }

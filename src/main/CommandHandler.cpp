@@ -7,6 +7,7 @@
 #include "lib/http/server.hpp"
 #include "util/Logging.h"
 #include "util/make_unique.h"
+#include "medida/reporting/json_reporter.h"
 
 using std::placeholders::_1;
 using std::placeholders::_2;
@@ -31,6 +32,8 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
                           std::bind(&CommandHandler::peers, this, _1, _2));
         mServer->addRoute("info",
                           std::bind(&CommandHandler::info, this, _1, _2));
+        mServer->addRoute("metrics",
+                          std::bind(&CommandHandler::metrics, this, _1, _2));
         mServer->addRoute("reload_cfg",
                           std::bind(&CommandHandler::reloadCfg, this, _1, _2));
         mServer->addRoute("logrotate",
@@ -57,6 +60,12 @@ void
 CommandHandler::info(const std::string& params, std::string& retStr)
 {
     retStr = "Info...";
+}
+void
+CommandHandler::metrics(const std::string& params, std::string& retStr)
+{
+    medida::reporting::JsonReporter jr(mApp.getMetrics());
+    retStr = jr.Report();
 }
 void
 CommandHandler::reloadCfg(const std::string& params, std::string& retStr)

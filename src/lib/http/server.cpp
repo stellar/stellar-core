@@ -104,7 +104,7 @@ server::handle_request(const request& req, reply& rep)
         rep.headers[0].name = "Content-Length";
         rep.headers[0].value = std::to_string(rep.content.size());
         rep.headers[1].name = "Content-Type";
-        rep.headers[1].value = "text/plain";
+        rep.headers[1].value = "application/json";
     }
     else
     {

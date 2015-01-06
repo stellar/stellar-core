@@ -1,14 +1,5 @@
 	
-Should we make entry indexes just be a sequential number rather than do this hashing to calculate it?
-	Entry indexes could be 64bit
-	This will have a bunch of space everywhere. 
-		Issuers would only be 64 bit
-		Offers are smaller
-		tx would only need 64bit for destination and source
-	Downsides:
-		Creating an account would have to be a special kind of tx
-		Easier to accidentally send to the wrong person?
-		Makes it more complicated to go from secret key to account
+
 
 Do we check seq numbers when we check validity?
 
@@ -56,10 +47,21 @@ What do we do about tx that make it into the applied txset but have too low a ma
 	Do we let them get by for free?
 
 We need to deal with someone submitting a ton of tx for one ledger when they can only pay fee for one tx.
+	Take fees before any other txs
 
 
 
-
+Should we make entry indexes just be a sequential number rather than do this hashing to calculate it?
+	Entry indexes could be 64bit
+	This will have a bunch of space everywhere. 
+		Issuers would only be 64 bit
+		Offers are smaller
+		tx would only need 64bit for destination and source
+	Downsides:
+		Creating an account would have to be a special kind of tx
+		Easier to accidentally send to the wrong person?
+		Makes it more complicated to go from secret key to account
+		We of course need to be absolutely sure people securely learn the Ledger IDs corresponding to created accounts.
 
 
 How does the network start up?
