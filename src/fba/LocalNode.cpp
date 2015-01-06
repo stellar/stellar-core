@@ -4,28 +4,41 @@
 
 #include "LocalNode.h"
 
+#include "xdrpp/marshal.h"
 #include "util/types.h"
+#include "crypto/SHA.h"
 
 namespace stellar
 {
 
-LocalNode::LocalNode(const uint256& validationSeed)
-    : Node(makePublicKey(validationSeed))
+LocalNode::LocalNode(const uint256& validationSeed,
+                     const FBAQuorumSet& qSet)
+    : Node(makePublicKey(validationSeed), -1)
     , mValidationSeed(validationSeed)
+    , mQSet(qSet)
+    , mQSetHash(sha512_256(xdr::xdr_to_msg(qSet)))
 {
-    mCurrentQuorumSet = mQSetUnknown;
 }
 
 void 
-LocalNode::setCurrentQuorumSet(const FBAQuorumSet& qSet)
+LocalNode::updateQuorumSet(const FBAQuorumSet& qSet)
 {
-    mCurrentQuorumSet = qSet;
+    cacheQuorumSet(qSet);
+
+    mQSetHash = sha512_256(xdr::xdr_to_msg(qSet));
+    mQSet = qSet;
 }
 
 const FBAQuorumSet& 
-LocalNode::getCurrentQuorumSet()
+LocalNode::getQuorumSet()
 {
-    return mCurrentQuorumSet;
+    return mQSet;
+}
+
+const uint256& 
+LocalNode::getQuorumSetHash()
+{
+  return mQSetHash;
 }
 
 }

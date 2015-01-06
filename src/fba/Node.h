@@ -15,21 +15,49 @@ namespace stellar
 /**
  * This is one Node in the stellar network
  */
-class Node : public std::enable_shared_from_this<Node>
+class Node
 {
   public:
     Node(const uint256& nodeID,
-         unsigned cacheCapacity = 4);
+         int cacheCapacity = 4);
 
+    /**
+     * Exception used to trigger the retrieval of a quorum set based on its
+     * hash when it was not cached yet. This exception should not escape the
+     * FBA module.
+     */
+    class QuorumSetNotFound : public std::exception
+    {
+      public:
+        QuorumSetNotFound(const uint256& nodeID,
+                          const uint256& qSetHash)
+            : mNodeID(nodeID)
+            , mQSetHash(qSetHash) {}
+
+        virtual const char* what() const throw()
+        {
+            return "QuorumSet not found";
+        }
+        const uint256& qSetHash() const throw() { return mQSetHash; }
+        const uint256& nodeID() const throw() { return mNodeID; }
+
+        const uint256& mNodeID;
+        const uint256& mQSetHash;
+    };
+
+    // Retrieves the cached quorum set associated with this hash or throws a
+    // QuorumSetNotFound exception otherwise. The exception shall not escape
+    // the FBA module
     const FBAQuorumSet& retrieveQuorumSet(const uint256& qSetHash);
-    void cacheQuorumSet(const uint256& qSetHash,
-                        const FBAQuorumSet& qSet);
+
+    void cacheQuorumSet(const FBAQuorumSet& qSet);
+
+    const uint256& getNodeID();
 
   protected:
     const uint256&                  mNodeID;
-    FBAQuorumSet                    mQSetUnknown;
   private:
-    unsigned                        mCacheCapacity;
+    int                             mCacheCapacity;
     std::map<uint256, FBAQuorumSet> mCache;
     std::vector<uint256>            mCacheLRU;
 };

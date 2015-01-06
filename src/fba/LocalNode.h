@@ -19,14 +19,18 @@ namespace stellar
 class LocalNode : public Node
 {
   public:
-    LocalNode(const uint256& validationSeed);
+    LocalNode(const uint256& validationSeed,
+              const FBAQuorumSet& qSet);
 
-    void setCurrentQuorumSet(const FBAQuorumSet& qSet);
-    const FBAQuorumSet& getCurrentQuorumSet();
+    void updateQuorumSet(const FBAQuorumSet& qSet);
+
+    const FBAQuorumSet& getQuorumSet();
+    const uint256& getQuorumSetHash();
 
   private:
     const uint256&                  mValidationSeed;
-    FBAQuorumSet                    mCurrentQuorumSet;
+    FBAQuorumSet                    mQSet;
+    uint256                         mQSetHash;
 };
 }
 

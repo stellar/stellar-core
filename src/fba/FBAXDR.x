@@ -44,28 +44,11 @@ struct FBAEnvelope
     FBAStatement statement;
 };
 
-enum FBAQuorumSetType
-{
-    COMPACT,
-    UNKNOWN
-};
-
-struct FBACompactQuorumSet 
-{
-    uint32 threshold;
-    uint256 validators<>;
-};
-
 struct FBAQuorumSet
 {
     uint256 nodeID;
-    union switch (FBAQuorumSetType type)
-    {
-        case COMPACT:
-            FBACompactQuorumSet set;
-        case UNKNOWN:
-            void;
-    } content;
+    uint32 threshold;
+    uint256 validators<>;
 };
 
 }

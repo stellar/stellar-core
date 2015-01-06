@@ -325,11 +325,11 @@ Peer::recvTransaction(StellarMessage const& msg)
 void
 Peer::recvGetFBAQuorumSet(StellarMessage const& msg)
 {
-    FBAQuorumSetPtr qset = 
+    FBAQuorumSetPtr qSet = 
         mApp.getOverlayGateway().fetchFBAQuorumSet(msg.qSetHash(), false);
-    if (qset->content.type() != FBAQuorumSetType::UNKNOWN)
+    if (qSet)
     {
-        sendFBAQuorumSet(qset);
+        sendFBAQuorumSet(qSet);
     }
     else
     {
@@ -340,8 +340,8 @@ Peer::recvGetFBAQuorumSet(StellarMessage const& msg)
 void
 Peer::recvFBAQuorumSet(StellarMessage const& msg)
 {
-  FBAQuorumSetPtr qSet =
-    std::make_shared<FBAQuorumSet>(msg.qSet());
+    FBAQuorumSetPtr qSet =
+        std::make_shared<FBAQuorumSet>(msg.qSet());
     mApp.getOverlayGateway().recvFBAQuorumSet(qSet);
 }
 

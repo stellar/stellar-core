@@ -14,6 +14,7 @@ namespace stellar
 {
 
 class Node;
+class Slot;
 class LocalNode;
 
 class FBA
@@ -24,7 +25,8 @@ class FBA
      * class. The Client methods are called by the FBA implementation to:
      *
      * 1) inform about events happening within the consensus algorithm
-     *    ( `ballotPrepared`, `ballotCommitted`, `valueExternalized`)
+     *    ( `ballotPrepared`, `ballotCommitted`, `valueCancelled`, 
+     *      `valueExternalized`)
      * 2) trigger the retrieval of data required by the FBA protocol
      *    (`retrieveQuorumSet`)
      * 3) trigger the broadcasting of FBA Envelopes to other nodes in the 
@@ -38,8 +40,9 @@ class FBA
      * `receiveEnvelope` as needed, users of FBA has full control on the
      * transport layer and protocol they want to rely on.
      */
-    class Client : public std::enable_shared_from_this<Client>
+    class Client
     {
+      public:
         virtual void validateBallot(const uint32& slotIndex,
                                     const uint256& nodeID,
                                     const FBABallot& ballot,
@@ -50,6 +53,8 @@ class FBA
         virtual void ballotCommitted(const uint32& slotIndex,
                                      const FBABallot& ballot) {};
 
+        virtual void valueCancelled(const uint32& slotIndex,
+                                    const uint256& valueHash) = 0;
         virtual void valueExternalized(const uint32& slotIndex,
                                        const uint256& valueHash) = 0;
 
@@ -58,11 +63,12 @@ class FBA
         virtual void emitEnvelope(const FBAEnvelope& envelope) = 0;
     };
 
-    // Constructor
+    // The constructor is passed an FBA::Client object but does not own it. The
+    // FBA::Client must outlive the FBA object itself.
     FBA(const uint256& validationSeed,
         bool validating, 
         const FBAQuorumSet& qSetLocal,
-        std::shared_ptr<Client> client);
+        Client* client);
 
     // FBAQuorumSet/Envelope receival
     void receiveQuorumSet(const FBAQuorumSet& qSet);
@@ -76,11 +82,24 @@ class FBA
     void setLocalQuorumSet(const FBAQuorumSet& qSet);
     const FBAQuorumSet& getLocalQuorumSet();
 
+    // Local nodeID getter
+    const uint256& getLocalNodeID();
+
   private:
+    // Node getter
+    Node* getNode(const uint256& nodeID);
+    // LocalNode getter
+    LocalNode* getLocalNode();
+    // FBA::Client getter
+    Client* getClient();
+
     bool                           mValidating;
-    std::shared_ptr<Client>        mClient;
+    Client*                        mClient;
     LocalNode*                     mLocalNode;
     std::map<uint256, Node*>       mKnownNodes;
+    std::map<uint32, Slot*>        mKnownSlots;
+
+    friend class Slot;
 };
 }
 

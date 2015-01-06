@@ -4,46 +4,58 @@
 
 #include "Node.h"
 
+#include <cassert>
+#include "xdrpp/marshal.h"
+#include "crypto/SHA.h"
+
 namespace stellar
 {
 
 Node::Node(const uint256& nodeID,
-           unsigned cacheCapacity)
+           int cacheCapacity)
     : mNodeID(nodeID)
     , mCacheCapacity(cacheCapacity)
 {
-  mQSetUnknown.nodeID = nodeID;
-  mQSetUnknown.content.type(UNKNOWN);
-  /* TODO(spolu) Ensure type is UNKNOWN */
 }
 
 const FBAQuorumSet& 
 Node::retrieveQuorumSet(const uint256& qSetHash)
 {
+    assert(mCacheLRU.size() == mCache.size());
     auto it = mCache.find(qSetHash);
     if (it != mCache.end()) 
     {
         return it->second;
     }
-    else 
-    {
-        return mQSetUnknown;
-    }
+    throw QuorumSetNotFound(mNodeID, qSetHash);
 }
 
 void
-Node::cacheQuorumSet(const uint256& qSetHash,
-                     const FBAQuorumSet& qSet)
+Node::cacheQuorumSet(const FBAQuorumSet& qSet)
 {
-    while (mCache.size() >= mCacheCapacity) 
+    uint256 qSetHash = sha512_256(xdr::xdr_to_msg(qSet));
+
+    if (mCache.find(qSetHash) != mCache.end())
     {
-        // TODO(spolu): ASSERT mCacheLRU.size() == mCache.size()
+        return;
+    }
+
+    while (mCacheCapacity >= 0 && 
+           mCache.size() >= mCacheCapacity) 
+    {
+        assert(mCacheLRU.size() == mCache.size());
         auto it = mCacheLRU.begin();
         mCache.erase(*it);
         mCacheLRU.erase(it);
     }
     mCacheLRU.push_back(qSetHash);
     mCache[qSetHash] = qSet;
+}
+
+const uint256&
+Node::getNodeID()
+{
+  return mNodeID;
 }
 
 }

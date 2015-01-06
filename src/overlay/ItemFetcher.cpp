@@ -5,6 +5,7 @@
 #include "ItemFetcher.h"
 #include "main/Application.h"
 #include "xdrpp/marshal.h"
+#include "crypto/SHA.h"
 
 #define MS_TO_WAIT_FOR_FETCH_REPLY 3000
 
@@ -126,9 +127,7 @@ DeltaFetcher::recvItem(CLFDeltaPtr delta)
 void
 QSetFetcher::recvItem(FBAQuorumSetPtr qSet)
 {
-    uint256 qSetHash;
-    xdr::msg_ptr xdrBytes(xdr::xdr_to_msg(*qSet));
-    hashXDR(std::move(xdrBytes), qSetHash);
+    uint256 qSetHash = sha512_256(xdr::xdr_to_msg(*qSet));
 
     if (qSet)
     {
