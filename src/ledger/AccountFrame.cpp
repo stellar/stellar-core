@@ -145,7 +145,7 @@ void AccountFrame::storeChange(EntryFrame::pointer startFrom,
             before = true;
         }
     }
-
+    /* TODO.2
     if(mEntry.account().thresholds != startAccount.thresholds)
     {
         if(before) sql << ", ";
@@ -153,6 +153,7 @@ void AccountFrame::storeChange(EntryFrame::pointer startFrom,
         txResult["effects"]["mod"][base58ID]["thresholds"] = mEntry.account().thresholds;
         before = true;
     }
+    */
 
     if(mEntry.account().flags != startAccount.flags)
     {

@@ -371,15 +371,52 @@ Peer::recvHello(StellarMessage const& msg)
                           << mRemoteVersion << " " << mRemoteListeningPort;
     mState = GOT_HELLO;
 }
+
+// returns false if string is malformed
+bool Peer::ipFromStr(std::string ipStr,xdr::opaque_array<4U>& ret)
+{
+    std::stringstream ss(ipStr);
+    std::string item;
+    int n = 0;
+    while(std::getline(ss, item, '.') && n<4) 
+    {
+        ret[n] = atoi(item.c_str());
+        n++;
+    }
+    if(n==4)
+        return true;
+
+    return false;
+}
+
 void
 Peer::recvGetPeers(StellarMessage const& msg)
 {
-    // TODO.3
+    // TODO.2 catch DB errors and malformed IPs
+
+    // send top 50 peers we know about
+    vector< pair<string, int> > peerList;
+    mApp.getDatabase().loadPeers(50,peerList);
+    StellarMessage newMsg;
+    newMsg.type(PEERS);
+    newMsg.peers().resize(peerList.size());
+    for(int n = 0; n < peerList.size(); n++)
+    {
+        ipFromStr(peerList[n].first, newMsg.peers()[n].ip);
+        newMsg.peers()[n].port = peerList[n].second;
+    }
+    sendMessage(newMsg);
 }
+
 void
 Peer::recvPeers(StellarMessage const& msg)
 {
-    // TODO.3
+    for(auto peer : msg.peers())
+    {
+        stringstream ip;
+        ip << (int)peer.ip[0] << "." << (int)peer.ip[1] << "." << (int)peer.ip[2] << "." << (int)peer.ip[3];
+        mApp.getDatabase().addPeer(ip.str(), peer.port);
+    }
 }
 void
 Peer::recvGetHistory(StellarMessage const& msg)

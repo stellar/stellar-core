@@ -26,6 +26,7 @@ class LoopbackPeer;
 
 class Peer : public enable_shared_from_this<Peer>
 {
+    static bool ipFromStr(std::string ipStr, xdr::opaque_array<4U>& ret);
 
   public:
     typedef std::shared_ptr<Peer> pointer;

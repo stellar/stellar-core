@@ -11,13 +11,14 @@ namespace stellar {
 
 
 // messages
+typedef opaque byte[1];
 typedef opaque uint512[64];
 typedef opaque uint256[32];
 typedef unsigned hyper uint64;
 typedef hyper int64;
 typedef unsigned uint32;
 typedef int int32;
-typedef opaque CurrencyCode<32>;
+typedef opaque CurrencyCode<33>;
 
 struct Error
 {
@@ -261,7 +262,7 @@ struct AccountEntry
 	uint32 ownerCount;
 	uint32 transferRate;	// rate*10000000
 	uint256 *inflationDest;
-	uint32 thresholds; // weight of master/threshold1/threshold2/threshold3
+	opaque thresholds[4]; // weight of master/threshold1/threshold2/threshold3
 	Signer signers<>; // do we want some max or just increase the min balance
 	KeyValue data<>;
 
@@ -316,7 +317,7 @@ struct QuorumSetDesc
 
 struct PeerAddress
 {
-    uint32 ip;
+    opaque ip[4];
     uint32 port;
 };
 
