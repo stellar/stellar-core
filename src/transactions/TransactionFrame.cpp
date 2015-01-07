@@ -82,7 +82,10 @@ int64_t TransactionFrame::getTransferRate(Currency& currency, LedgerMaster& ledg
     if(currency.native()) return TRANSFER_RATE_DIVISOR;
 
     AccountFrame issuer;
-    ledgerMaster.getDatabase().loadAccount(currency.ci().issuer, issuer);
+    if (!ledgerMaster.getDatabase().loadAccount(currency.ci().issuer, issuer))
+    {
+        throw std::runtime_error("Account not found in TransactionFrame::getTransferRate");
+    }
     return issuer.mEntry.account().transferRate;    
 }
 

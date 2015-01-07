@@ -11,6 +11,7 @@
 #include "ledger/AccountFrame.h"
 #include "ledger/OfferFrame.h"
 #include "ledger/TrustFrame.h"
+#include "util/must_use.h"
 
 #define OFFER_PRICE_DIVISOR 1000000000
 #define TRANSFER_RATE_DIVISOR 10000000
@@ -48,11 +49,20 @@ class Database
     void endTransaction(bool rollback);
     int getTransactionLevel();
 
-    bool loadAccount(const uint256& accountID, AccountFrame& retEntry, bool withSig=false);
-    bool loadTrustLine(const uint256& accountID,
-        const CurrencyIssuer& currency,
-        TrustFrame& retEntry);
-    bool loadOffer(const uint256& accountID,uint32_t seq, OfferFrame& retEntry);
+    MUST_USE bool
+    loadAccount(const uint256& accountID,
+                AccountFrame& retEntry,
+                bool withSig=false);
+
+    MUST_USE bool
+    loadTrustLine(const uint256& accountID,
+                  const CurrencyIssuer& currency,
+                  TrustFrame& retEntry);
+
+    MUST_USE bool
+    loadOffer(const uint256& accountID,
+              uint32_t seq,
+              OfferFrame& retEntry);
 
     void loadBestOffers(int numOffers, int offset, Currency& pays,
         Currency& gets, std::vector<OfferFrame>& retOffers);
