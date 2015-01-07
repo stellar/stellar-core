@@ -27,15 +27,14 @@ struct HistoryArchiveParams
 
 class HistoryArchive
 {
-    std::string mName;
-    std::string mGetCmd;
-    std::string mPutCmd;
+    class Impl;
+    std::unique_ptr<Impl> mImpl;
 
 public:
     HistoryArchive(std::string const& name,
                    std::string const& getCmd,
                    std::string const& putCmd);
-
+    ~HistoryArchive();
     HistoryArchiveParams fetchParams();
 };
 

@@ -190,8 +190,8 @@ class Application : public enable_shared_from_this<Application>
     {
         return mBucketList;
     }
-    HistoryGateway&
-    getHistoryGateway()
+    HistoryMaster&
+    getHistoryMaster()
     {
         return mHistoryMaster;
     }

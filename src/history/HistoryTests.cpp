@@ -3,7 +3,7 @@
 // this distribution or at http://opensource.org/licenses/ISC
 
 #include "main/Application.h"
-#include "history/HistoryGateway.h"
+#include "history/HistoryMaster.h"
 #include "history/HistoryArchive.h"
 #include "main/test.h"
 #include "lib/catch.hpp"

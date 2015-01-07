@@ -4,7 +4,6 @@
 // under the ISC License. See the COPYING file at the top-level directory of
 // this distribution or at http://opensource.org/licenses/ISC
 
-#include "history/HistoryGateway.h"
 #include "generated/StellarXDR.h"
 
 /**
@@ -93,15 +92,17 @@
 namespace stellar
 {
 class Application;
-class HistoryMaster : public HistoryGateway
+class HistoryMaster
 {
-    Application& mApp;
+    class Impl;
+    std::unique_ptr<Impl> mImpl;
 
   public:
     std::string writeLedgerHistoryToFile(History const& hist);
     void readLedgerHistoryFromFile(std::string const& fname,
                                    History& hist);
     HistoryMaster(Application& app);
+    ~HistoryMaster();
 };
 }
 
