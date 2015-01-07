@@ -23,6 +23,14 @@ PublicKey::verify(uint512 const& signature, ByteSlice const& bin) const
                                        data()) == 0;
 }
 
+bool PublicKey::verifySig(const uint256& key, uint512 const& signature, ByteSlice const& bin)
+{
+    return crypto_sign_verify_detached(signature.data(),
+        bin.data(),
+        bin.size(),
+        key.data()) == 0;
+}
+
 SecretKey::SecretKey()
 {
 }

@@ -11,6 +11,7 @@
 #include "ledger/LedgerDelta.h"
 #include "ledger/OfferFrame.h"
 #include "crypto/SHA.h"
+#include "crypto/SecretKey.h"
 #include "transactions/AllowTrustTxFrame.h"
 #include "transactions/CancelOfferFrame.h"
 #include "transactions/CreateOfferFrame.h"
@@ -177,15 +178,43 @@ int32_t TransactionFrame::getNeededThreshold()
     return mSigningAccount.getMidThreshold();
 }
 
+// TODO.2 make sure accounts default with threshold of master key to 1
 bool TransactionFrame::checkSignature()
 {
-    // TODO.2
+    vector<Signer> keyWeights;
+    if(mSigningAccount.mEntry.account().thresholds[0])
+        keyWeights.push_back(Signer(mSigningAccount.getID(),mSigningAccount.mEntry.account().thresholds[0]));
+
+    keyWeights.insert(keyWeights.end(), mSigningAccount.mEntry.account().signers.begin(), mSigningAccount.mEntry.account().signers.end());
+   
+    
+    // make sure not too many signatures attached to the tx
+    if(keyWeights.size() < mEnvelope.signatures.size())
+        return false;
+
+    uint256& txHash = getHash();
+    
     // calculate the weight of the signatures
     int totalWeight = 0;
-    
+    for(auto sig : mEnvelope.signatures)
+    {
+        bool found = false;
+        for(auto it = keyWeights.begin(); it != keyWeights.end(); it++)
+        {
+            if(PublicKey::verifySig((*it).pubKey, sig, txHash))
+            {
+                totalWeight += (*it).weight;
+                if(totalWeight > getNeededThreshold())
+                    return true;
 
-    if(totalWeight>getNeededThreshold())
-        return true;
+                keyWeights.erase(it);  // can't sign twice
+                found = true;
+                break;
+            }
+        }
+        if(!found) return false;  // some random person signed it
+    }
+
     return false;
 }
 
