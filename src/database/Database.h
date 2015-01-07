@@ -49,8 +49,7 @@ class Database
     int getTransactionLevel();
 
     bool loadAccount(const uint256& accountID, AccountFrame& retEntry, bool withSig=false);
-    bool loadTrustLine(const uint256& accountID,
-        const CurrencyIssuer& currency,
+    bool loadTrustLine(const uint256& accountID, const Currency& currency,
         TrustFrame& retEntry);
     bool loadOffer(const uint256& accountID,uint32_t seq, OfferFrame& retEntry);
 

@@ -35,7 +35,7 @@ void ChangeTrustTxFrame::doApply(TxDelta& delta, LedgerMaster& ledgerMaster)
     } else
     { // new trust line
         AccountFrame issuer;
-        if(!ledgerMaster.getDatabase().loadAccount(mEnvelope.tx.body.changeTrustTx().line.issuer, issuer))
+        if(!ledgerMaster.getDatabase().loadAccount(mEnvelope.tx.body.changeTrustTx().line.isoCI().issuer, issuer))
         {
             mResultCode = txNOACCOUNT;
             return;
@@ -43,9 +43,8 @@ void ChangeTrustTxFrame::doApply(TxDelta& delta, LedgerMaster& ledgerMaster)
             
         trustLine.mEntry.type(TRUSTLINE);
         trustLine.mEntry.trustLine().accountID = mSigningAccount.mEntry.account().accountID;
-        trustLine.mEntry.trustLine().issuer = mEnvelope.tx.body.changeTrustTx().line.issuer;
+        trustLine.mEntry.trustLine().currency = mEnvelope.tx.body.changeTrustTx().line;
         trustLine.mEntry.trustLine().limit = mEnvelope.tx.body.changeTrustTx().limit;
-        trustLine.mEntry.trustLine().currencyCode = mEnvelope.tx.body.changeTrustTx().line.currencyCode;
         trustLine.mEntry.trustLine().balance = 0;
         trustLine.mEntry.trustLine().authorized = !issuer.isAuthRequired();
 

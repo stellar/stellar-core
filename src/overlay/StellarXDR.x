@@ -11,14 +11,13 @@ namespace stellar {
 
 
 // messages
-typedef opaque byte[1];
 typedef opaque uint512[64];
 typedef opaque uint256[32];
 typedef unsigned hyper uint64;
 typedef hyper int64;
 typedef unsigned uint32;
 typedef int int32;
-typedef opaque CurrencyCode<33>;
+typedef opaque AccountID[32];
 
 struct Error
 {
@@ -45,18 +44,36 @@ enum TransactionType
 	INFLATION
 };
 
-struct CurrencyIssuer
+enum CurrencyTypes
 {
-	uint256 currencyCode;
-	uint256 issuer;
+	NATIVE,
+	ISO4217,
+	CUSTOM_TEXT,
+	CUSTOM_HASH,
+	DEMURRAGE
 };
 
-union Currency switch(bool native)
+struct HashCurrencyIssuer
 {
-	case TRUE: 
+	uint256 currencyCode;
+	AccountID issuer;
+};
+
+struct ISOCurrencyIssuer
+{
+	opaque currencyCode[4];
+	AccountID issuer;
+};
+
+union Currency switch(CurrencyTypes type)
+{
+	case NATIVE: 
 		void;
-	case FALSE:
-		CurrencyIssuer ci;
+
+	case ISO4217: 
+		ISOCurrencyIssuer isoCI;
+
+	// add other currency types here in the future
 };
 	
 
@@ -74,7 +91,7 @@ struct KeyValue
 
 struct PaymentTx
 {
-	uint256 destination;  
+	AccountID destination;  
 	Currency currency;			// what they end up with
 	int64 amount;				// amount they end up with
 	Currency path<>;			// what hops it must go through to get there
@@ -97,7 +114,7 @@ struct CreateOfferTx
 
 struct SetOptionsTx
 {
-	uint256* inflationDest;
+	AccountID* inflationDest;
 	uint32*	flags;
 	uint32* transferRate;
 	KeyValue* data;
@@ -107,14 +124,21 @@ struct SetOptionsTx
 
 struct ChangeTrustTx
 {
-	CurrencyIssuer line;
+	Currency line;
 	int64 limit;
 };
 
 struct AllowTrustTx
 {
-	uint256 trustor;
-	uint256 currencyCode;
+	AccountID trustor;
+	union switch(CurrencyTypes type)
+	{
+		case ISO4217: 
+			opaque currencyCode[4];
+
+		// add other currency types here in the future
+	} code;
+
 	bool authorize;
 };
 
@@ -122,7 +146,7 @@ struct AllowTrustTx
 
 struct Transaction
 {
-    uint256 account;
+    AccountID account;
 	uint32 maxFee;
 	uint32 seqNum;
 	uint32 maxLedger;	// maximum ledger this tx is valid to be applied in
@@ -274,8 +298,7 @@ struct AccountEntry
 struct TrustLineEntry
 {
     uint256 accountID;
-    uint256 issuer;
-    uint256 currencyCode;
+    Currency currency;
     int64 limit;
     int64 balance;
     bool authorized;  // if the issuer has authorized this guy to hold its credit

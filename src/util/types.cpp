@@ -28,16 +28,35 @@ makePublicKey(uint256 const& b)
 
 bool compareCurrency(Currency& first, Currency& second)
 {
-    if(first.native())
+    if(first.type() != second.type()) return false;
+
+    if(first.type()==NATIVE)
     {
-        if(second.native()) return true;
-    } else if(!second.native())
+        if(second.type() == NATIVE) return true;
+    } else if(second.type() == ISO4217)
     {
-        if((first.ci().issuer == second.ci().issuer) &&
-            (first.ci().currencyCode == second.ci().currencyCode)) return true;
+        if((first.isoCI().issuer == second.isoCI().issuer) &&
+            (first.isoCI().currencyCode == second.isoCI().currencyCode)) return true;
 
     }
     return false;
+}
+
+void currencyCodeToStr(xdr::opaque_array<4U>& code, std::string& retStr)
+{
+    retStr = "    ";
+    for(int n = 0; n < 4; n++)
+    {
+        retStr[n] = code[n];
+    }
+}
+
+void strToCurrencyCode(xdr::opaque_array<4U>& ret, const std::string& str)
+{
+    for(int n = 0; (n < str.size()) && (n < 4); n++)
+    {
+        ret[n] = str[n];
+    }
 }
 
 }

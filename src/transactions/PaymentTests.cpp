@@ -79,11 +79,12 @@ TEST_CASE("payment", "[tx]")
     }
 
     { // credit payment with no trust
-        CurrencyIssuer ci;
-        ci.issuer = root.getPublicKey();
-        ci.currencyCode = root.getPublicKey();
+        Currency currency;
+        currency.type(ISO4217);
+        currency.isoCI().issuer = root.getPublicKey();
+        strToCurrencyCode(currency.isoCI().currencyCode, "IDR");
 
-        txFrame = createCreditPaymentTx(root, a1, ci, 2, 100);
+        txFrame = createCreditPaymentTx(root, a1, currency, 2, 100);
         TxDelta delta;
         txFrame->apply(delta, app);
 
@@ -98,7 +99,7 @@ TEST_CASE("payment", "[tx]")
     }
 
     {
-        txFrame = setTrust(a1, root, 1, root.getPublicKey());
+        txFrame = setTrust(a1, root, 1, "IDR");
         TxDelta delta;
         txFrame->apply(delta, app);
 
@@ -113,11 +114,12 @@ TEST_CASE("payment", "[tx]")
     }
 
     { // simple credit payment
-        CurrencyIssuer ci;
-        ci.issuer = root.getPublicKey();
-        ci.currencyCode = root.getPublicKey();
+        Currency currency;
+        currency.type(ISO4217);
+        currency.isoCI().issuer = root.getPublicKey();
+        strToCurrencyCode(currency.isoCI().currencyCode, "IDR");
 
-        txFrame = createCreditPaymentTx(root, a1, ci, 3, 100);
+        txFrame = createCreditPaymentTx(root, a1, currency, 3, 100);
         TxDelta delta;
         txFrame->apply(delta, app);
 

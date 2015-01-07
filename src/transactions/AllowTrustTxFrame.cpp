@@ -16,9 +16,10 @@ namespace stellar
             return;
         }
 
-        CurrencyIssuer ci;
-        ci.currencyCode = mEnvelope.tx.body.allowTrustTx().currencyCode;
-        ci.issuer = mEnvelope.tx.account;
+        Currency ci;
+        ci.type(ISO4217);
+        ci.isoCI().currencyCode = mEnvelope.tx.body.allowTrustTx().code.currencyCode();
+        ci.isoCI().issuer=mEnvelope.tx.account;
 
         TrustFrame trustLine;
         if(!ledgerMaster.getDatabase().loadTrustLine(mEnvelope.tx.body.allowTrustTx().trustor, ci, trustLine))
@@ -35,6 +36,7 @@ namespace stellar
 
     bool AllowTrustTxFrame::doCheckValid(Application& app)
     {
+        if(mEnvelope.tx.body.allowTrustTx().code.type() != ISO4217) return false;
         return true;
     }
 }

@@ -79,10 +79,10 @@ TransactionFrame::getEnvelope()
 
 int64_t TransactionFrame::getTransferRate(Currency& currency, LedgerMaster& ledgerMaster)
 {
-    if(currency.native()) return TRANSFER_RATE_DIVISOR;
+    if(currency.type() == NATIVE) return TRANSFER_RATE_DIVISOR;
 
     AccountFrame issuer;
-    ledgerMaster.getDatabase().loadAccount(currency.ci().issuer, issuer);
+    ledgerMaster.getDatabase().loadAccount(currency.isoCI().issuer, issuer);
     return issuer.mEntry.account().transferRate;    
 }
 

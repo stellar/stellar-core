@@ -37,7 +37,7 @@ SecretKey getAccount(const char* n)
     return SecretKey::fromBase58Seed(b58SeedStr);
 }
 
-TransactionFramePtr setTrust(SecretKey& from, SecretKey& to, uint32_t seq, uint256& currencyCode)
+TransactionFramePtr setTrust(SecretKey& from, SecretKey& to, uint32_t seq, const std::string& currencyCode)
 {
     TransactionEnvelope txEnvelope;
     txEnvelope.tx.body.type(CHANGE_TRUST);
@@ -47,8 +47,9 @@ TransactionFramePtr setTrust(SecretKey& from, SecretKey& to, uint32_t seq, uint2
     txEnvelope.tx.minLedger = 0;
     txEnvelope.tx.seqNum = seq;
     txEnvelope.tx.body.changeTrustTx().limit = 1000000;
-    txEnvelope.tx.body.changeTrustTx().line.currencyCode = currencyCode;
-    txEnvelope.tx.body.changeTrustTx().line.issuer = to.getPublicKey();
+    txEnvelope.tx.body.changeTrustTx().line.type(ISO4217);
+    strToCurrencyCode(txEnvelope.tx.body.changeTrustTx().line.isoCI().currencyCode,currencyCode);
+    txEnvelope.tx.body.changeTrustTx().line.isoCI().issuer = to.getPublicKey();
 
     return TransactionFrame::makeTransactionFromWire(txEnvelope);
 }
@@ -65,12 +66,12 @@ TransactionFramePtr createPaymentTx(SecretKey& from, SecretKey& to, uint32_t seq
     txEnvelope.tx.body.paymentTx().amount = amount;
     txEnvelope.tx.body.paymentTx().destination = to.getPublicKey();
     txEnvelope.tx.body.paymentTx().sendMax = amount+1000;
-    txEnvelope.tx.body.paymentTx().currency.native(true);
+    txEnvelope.tx.body.paymentTx().currency.type(NATIVE);
 
     return TransactionFrame::makeTransactionFromWire(txEnvelope);
 }
 
-TransactionFramePtr createCreditPaymentTx(SecretKey& from, SecretKey& to, CurrencyIssuer& ci,uint32_t seq, uint64_t amount)
+TransactionFramePtr createCreditPaymentTx(SecretKey& from, SecretKey& to, Currency& ci,uint32_t seq, uint64_t amount)
 {
     TransactionEnvelope txEnvelope;
     txEnvelope.tx.body.type(PAYMENT);
@@ -80,8 +81,7 @@ TransactionFramePtr createCreditPaymentTx(SecretKey& from, SecretKey& to, Curren
     txEnvelope.tx.minLedger = 0;
     txEnvelope.tx.seqNum = seq;
     txEnvelope.tx.body.paymentTx().amount = amount;
-    txEnvelope.tx.body.paymentTx().currency.native(false);
-    txEnvelope.tx.body.paymentTx().currency.ci() = ci;
+    txEnvelope.tx.body.paymentTx().currency = ci;
     txEnvelope.tx.body.paymentTx().destination = to.getPublicKey();
     txEnvelope.tx.body.paymentTx().sendMax = amount + 1000;
 

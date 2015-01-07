@@ -115,20 +115,20 @@ bool Database::loadAccount(const uint256& accountID, AccountFrame& retAcc, bool 
 }
 
 bool Database::loadTrustLine(const uint256& accountID,
-    const CurrencyIssuer& currency,
+    const Currency& currency,
     TrustFrame& retLine)
 {
     std::string accStr,issuerStr,currencyStr;
 
     accStr = toBase58Check(VER_ACCOUNT_ID, accountID);
-    currencyStr = binToHex(currency.currencyCode);
-    issuerStr = binToHex(issuerStr);
+    currencyStr = binToHex(currency.isoCI().currencyCode);
+    issuerStr = toBase58Check(VER_ACCOUNT_ID, currency.isoCI().issuer);
 
     retLine.mEntry.type(TRUSTLINE);
     retLine.mEntry.trustLine().accountID = accountID;
     int authInt;
     mSession << "SELECT tlimit,balance,authorized from TrustLines where \
-        accountID=:v1 and issuer=:v2 and currency=:v3",
+        accountID=:v1 and issuer=:v2 and isoCurrency=:v3",
         into(retLine.mEntry.trustLine().limit),
         into(retLine.mEntry.trustLine().balance),
         into(authInt),
@@ -138,8 +138,7 @@ bool Database::loadTrustLine(const uint256& accountID,
     
     retLine.mEntry.trustLine().authorized = authInt;
     retLine.mEntry.trustLine().accountID = accountID;
-    retLine.mEntry.trustLine().currencyCode = currency.currencyCode;
-    retLine.mEntry.trustLine().issuer = currency.issuer;
+    retLine.mEntry.trustLine().currency = currency;
 
     return true;
 }
@@ -160,6 +159,23 @@ bool Database::loadOffer(const uint256& accountID, uint32_t seq, OfferFrame& ret
     return true;
 }
 
+void currencyCodeToStr(xdr::opaque_array<4U>& code, std::string& retStr)
+{
+    retStr = "    ";
+    for(int n = 0; n < 4; n++)
+    {
+        retStr[n]=code[n];
+    }
+}
+
+void strToCurrencyCode(xdr::opaque_array<4U>& ret, std::string& str)
+{
+    for(int n = 0; (n < str.size()) && (n < 4); n++)
+    {
+        ret[n] = str[n];
+    }
+}
+
 /*
 0 offerIndex CHARACTER(35) PRIMARY KEY, \
 1 accountID		CHARACTER(35), \
@@ -176,24 +192,24 @@ void Database::loadOffer(const soci::row& row, OfferFrame& retOffer)
 {
     retOffer.mEntry.type(OFFER);
     retOffer.mEntry.offer().accountID = fromBase58Check256(VER_ACCOUNT_ID,row.get<std::string>(1));
-    retOffer.mEntry.offer().sequence = row.get<uint64_t>(2);
+    retOffer.mEntry.offer().sequence = row.get<uint32_t>(2);
     if(row.get_indicator(3))
     {
-        retOffer.mEntry.offer().takerPays.native(false);
-        retOffer.mEntry.offer().takerPays.ci().currencyCode=fromBase58Check256(VER_ACCOUNT_ID,row.get<std::string>(3));
-        retOffer.mEntry.offer().takerPays.ci().issuer = fromBase58Check256(VER_ACCOUNT_ID, row.get<std::string>(4));
+        retOffer.mEntry.offer().takerPays.type(ISO4217);
+        strToCurrencyCode(retOffer.mEntry.offer().takerPays.isoCI().currencyCode,row.get<std::string>(3));
+        retOffer.mEntry.offer().takerPays.isoCI().issuer = fromBase58Check256(VER_ACCOUNT_ID, row.get<std::string>(4));
     } else
     {
-        retOffer.mEntry.offer().takerPays.native(true);
+        retOffer.mEntry.offer().takerPays.type(NATIVE);
     }
     if(row.get_indicator(5))
     {
-        retOffer.mEntry.offer().takerGets.native(false);
-        retOffer.mEntry.offer().takerGets.ci().currencyCode = fromBase58Check256(VER_ACCOUNT_ID, row.get<std::string>(5));
-        retOffer.mEntry.offer().takerGets.ci().issuer = fromBase58Check256(VER_ACCOUNT_ID, row.get<std::string>(6));
+        retOffer.mEntry.offer().takerGets.type(ISO4217);
+        strToCurrencyCode(retOffer.mEntry.offer().takerGets.isoCI().currencyCode,row.get<std::string>(5));
+        retOffer.mEntry.offer().takerGets.isoCI().issuer = fromBase58Check256(VER_ACCOUNT_ID, row.get<std::string>(6));
     } else
     {
-        retOffer.mEntry.offer().takerGets.native(true);
+        retOffer.mEntry.offer().takerGets.type(NATIVE);
     }
     retOffer.mEntry.offer().amount = row.get<uint64_t>(7);
     retOffer.mEntry.offer().price = row.get<uint64_t>(8);
@@ -214,8 +230,9 @@ void Database::loadLine(const soci::row& row, TrustFrame& retLine)
 {
     retLine.mEntry.type(TRUSTLINE);
     retLine.mEntry.trustLine().accountID = fromBase58Check256(VER_ACCOUNT_ID, row.get<std::string>(1));
-    retLine.mEntry.trustLine().issuer = fromBase58Check256(VER_ACCOUNT_ID, row.get<std::string>(2));
-    retLine.mEntry.trustLine().currencyCode = fromBase58Check256(VER_ACCOUNT_ID, row.get<std::string>(3));
+    retLine.mEntry.trustLine().currency.type(ISO4217);
+    retLine.mEntry.trustLine().currency.isoCI().issuer = fromBase58Check256(VER_ACCOUNT_ID, row.get<std::string>(2));
+    strToCurrencyCode(retLine.mEntry.trustLine().currency.isoCI().currencyCode,row.get<std::string>(3));
     retLine.mEntry.trustLine().limit = row.get<uint64_t>(4);
     retLine.mEntry.trustLine().balance = row.get<uint64_t>(5);
     retLine.mEntry.trustLine().authorized = row.get<uint32_t>(6);
@@ -224,32 +241,31 @@ void Database::loadLine(const soci::row& row, TrustFrame& retLine)
 void Database::loadBestOffers(int numOffers, int offset, Currency& pays,
     Currency& gets, vector<OfferFrame>& retOffers)
 {
-    
     stringstream sql;
     sql << "SELECT * from Offers where ";
-    if(pays.native())
+    if(pays.type()==NATIVE)
     {
-        std::string b58Currency, b58Issuer;
-        b58Currency=toBase58Check(VER_ACCOUNT_ID, gets.ci().currencyCode);
-        b58Issuer=toBase58Check(VER_ACCOUNT_ID, gets.ci().issuer);
-        sql << "takerPaysIssuer is NULL and takerGetsCurrency='" << b58Currency << "' and takerGetsIssuer='" << b58Issuer << "' ";
-    } else if(gets.native())
+        std::string b58Issuer,code;
+        b58Issuer=toBase58Check(VER_ACCOUNT_ID, gets.isoCI().issuer);
+        currencyCodeToStr(gets.isoCI().currencyCode, code);
+        sql << "paysIssuer is NULL and getsCurrency='" << code << "' and getsIssuer='" << b58Issuer << "' ";
+    } else if(gets.type()==NATIVE)
     {
-        std::string b58Currency, b58Issuer;
-        b58Currency = toBase58Check(VER_ACCOUNT_ID, pays.ci().currencyCode);
-        b58Issuer = toBase58Check(VER_ACCOUNT_ID, pays.ci().issuer);
-        sql << "takerGetsIssuer is NULL and takerPaysCurrency='" << b58Currency << "' and takerPaysIssuer='" << b58Issuer << "' ";
+        std::string currencyCode, b58Issuer;
+        currencyCodeToStr(pays.isoCI().currencyCode,currencyCode);
+        b58Issuer = toBase58Check(VER_ACCOUNT_ID, pays.isoCI().issuer);
+        sql << "getsIssuer is NULL and paysCurrency='" << currencyCode << "' and paysIssuer='" << b58Issuer << "' ";
     } else
     {
-        std::string b58GCurrency, b58GIssuer;
-        std::string b58PCurrency, b58PIssuer;
-        b58GCurrency = toBase58Check(VER_ACCOUNT_ID, gets.ci().currencyCode);
-        b58GIssuer = toBase58Check(VER_ACCOUNT_ID, gets.ci().issuer);
-        sql << "takerGetsCurrency='" << b58GCurrency << "' and takerGetsIssuer='" << b58GIssuer << "' ";
+        std::string getCurrencyCode, b58GIssuer;
+        std::string payCurrencyCode, b58PIssuer;
+        currencyCodeToStr(gets.isoCI().currencyCode,getCurrencyCode);
+        b58GIssuer = toBase58Check(VER_ACCOUNT_ID, gets.isoCI().issuer);
+        sql << "getsCurrency='" << getCurrencyCode << "' and getsIssuer='" << b58GIssuer << "' ";
         
-        b58PCurrency = toBase58Check(VER_ACCOUNT_ID, pays.ci().currencyCode);
-        b58PIssuer = toBase58Check(VER_ACCOUNT_ID, pays.ci().issuer);
-        sql << "takerPaysCurrency='" << b58PCurrency << "' and takerPaysIssuer='" << b58PIssuer << "' ";
+        currencyCodeToStr(pays.isoCI().currencyCode,payCurrencyCode);
+        b58PIssuer = toBase58Check(VER_ACCOUNT_ID, pays.isoCI().issuer);
+        sql << "paysCurrency='" << payCurrencyCode << "' and paysIssuer='" << b58PIssuer << "' ";
     }
     sql << " order by price limit " << offset << " ," << numOffers;
     rowset<row> rs = mSession.prepare << sql.str();
@@ -296,7 +312,7 @@ void Database::loadLines(const uint256& accountID, std::vector<TrustFrame>& retL
 int64_t Database::getBalance(const uint256& accountID,const Currency& currency)
 {
     int64_t amountFunded = 0;
-    if(currency.native())
+    if(currency.type()==NATIVE)
     {
         AccountFrame account;
         if(loadAccount(accountID, account))
@@ -306,7 +322,7 @@ int64_t Database::getBalance(const uint256& accountID,const Currency& currency)
     } else
     {
         TrustFrame trustLine;
-        if(loadTrustLine(accountID, currency.ci(), trustLine))
+        if(loadTrustLine(accountID, currency, trustLine))
         {
             if(trustLine.mEntry.trustLine().authorized)
                 amountFunded = trustLine.mEntry.trustLine().balance;

@@ -58,7 +58,7 @@ void LedgerMaster::startNewLedger()
     mCurrentHeader.ledgerSeq = 1;
 }
 
-int64_t LedgerMaster::getTxFee()
+int32_t LedgerMaster::getTxFee()
 {
     return mCurrentHeader.baseFee; 
 }

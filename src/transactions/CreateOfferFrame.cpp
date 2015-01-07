@@ -23,16 +23,16 @@ bool CreateOfferFrame::checkOfferValid(LedgerMaster& ledgerMaster)
 
     
 
-    if(!sheep.native() &&
-        !ledgerMaster.getDatabase().loadTrustLine(mEnvelope.tx.account, sheep.ci(), mSheepLineA))
+    if(sheep.type()!=NATIVE &&
+        !ledgerMaster.getDatabase().loadTrustLine(mEnvelope.tx.account, sheep, mSheepLineA))
     {   // we don't have what we are trying to sell
         mResultCode = txNOTRUST;
         return false;
     }
 
-    if(!wheat.native())
+    if(wheat.type()!=NATIVE)
     {
-        if(!ledgerMaster.getDatabase().loadTrustLine(mEnvelope.tx.account, wheat.ci(), mWheatLineA))
+        if(!ledgerMaster.getDatabase().loadTrustLine(mEnvelope.tx.account, wheat, mWheatLineA))
         {   // we can't hold what we are trying to buy
             mResultCode = txNOTRUST;
             return false;
@@ -99,7 +99,7 @@ void CreateOfferFrame::doApply(TxDelta& delta, LedgerMaster& ledgerMaster)
     
 
     int64_t amountOfSheepOwned;
-    if(sheep.native()) 
+    if(sheep.type()==NATIVE) 
         amountOfSheepOwned = mSigningAccount.mEntry.account().balance - 
             ledgerMaster.getMinBalance(mSigningAccount.mEntry.account().ownerCount);
     else amountOfSheepOwned = mSheepLineA.mEntry.trustLine().balance;
@@ -244,10 +244,10 @@ bool CreateOfferFrame::crossOffer(OfferFrame& sellingWheatOffer,
     }
     
     TrustFrame wheatLineAccountB;
-    if(!wheat.native())
+    if(wheat.type()!=NATIVE)
     {
         if(!ledgerMaster.getDatabase().loadTrustLine(accountBID,
-            wheat.ci(), wheatLineAccountB))
+            wheat, wheatLineAccountB))
         {
             mResultCode = txINTERNAL_ERROR;
             return false;
@@ -256,10 +256,10 @@ bool CreateOfferFrame::crossOffer(OfferFrame& sellingWheatOffer,
     
 
     TrustFrame sheepLineAccountB;
-    if(!sheep.native())
+    if(sheep.type()!=NATIVE)
     {
         if(!ledgerMaster.getDatabase().loadTrustLine(accountBID,
-            sheep.ci(), sheepLineAccountB))
+            sheep, sheepLineAccountB))
         {
             mResultCode = txINTERNAL_ERROR;
             return false;
@@ -267,7 +267,7 @@ bool CreateOfferFrame::crossOffer(OfferFrame& sellingWheatOffer,
     }
     
     int64_t maxWheatReceived = 0;
-    if(wheat.native()) maxWheatReceived = accountB.mEntry.account().balance;
+    if(wheat.type()==NATIVE) maxWheatReceived = accountB.mEntry.account().balance;
     else maxWheatReceived = wheatLineAccountB.mEntry.trustLine().balance;
 
     // you can receive the lesser of the amount of wheat offered or the amount the guy has
@@ -320,7 +320,7 @@ bool CreateOfferFrame::crossOffer(OfferFrame& sellingWheatOffer,
     }
 
     // Adjust balances
-    if(sheep.native())
+    if(sheep.type()==NATIVE)
     {
         mSigningAccount.mEntry.account().balance -= numSheepSent;
         accountB.mEntry.account().balance += numSheepSent;
@@ -334,7 +334,7 @@ bool CreateOfferFrame::crossOffer(OfferFrame& sellingWheatOffer,
         delta.setFinal(mSheepLineA);
     }
 
-    if(wheat.native())
+    if(wheat.type()==NATIVE)
     {
         mSigningAccount.mEntry.account().balance += numWheatSent;
         accountB.mEntry.account().balance -= numWheatSent;
