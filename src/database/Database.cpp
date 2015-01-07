@@ -159,22 +159,6 @@ bool Database::loadOffer(const uint256& accountID, uint32_t seq, OfferFrame& ret
     return true;
 }
 
-void currencyCodeToStr(xdr::opaque_array<4U>& code, std::string& retStr)
-{
-    retStr = "    ";
-    for(int n = 0; n < 4; n++)
-    {
-        retStr[n]=code[n];
-    }
-}
-
-void strToCurrencyCode(xdr::opaque_array<4U>& ret, std::string& str)
-{
-    for(int n = 0; (n < str.size()) && (n < 4); n++)
-    {
-        ret[n] = str[n];
-    }
-}
 
 /*
 0 offerIndex CHARACTER(35) PRIMARY KEY, \
