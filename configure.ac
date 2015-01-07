@@ -34,6 +34,9 @@ fi
 # Our large include path set makes for annoying warnings without this
 AX_APPEND_COMPILE_FLAGS([-Wno-unused-command-line-argument])
 
+# We want to consider unused MUST_USE results as errors
+AX_APPEND_COMPILE_FLAGS([-Werror=unused-result])
+
 # -lc++abi seems to be required by -stdlib=libc++ on some hosts
 AX_APPEND_LINK_FLAGS([-lc++abi])
 
