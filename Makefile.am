@@ -205,7 +205,7 @@ endif
 CLEANFILES = $(BUILT_SOURCES)
 GITDIR = $(top_srcdir)/.git
 src/generated/StellardVersion.h: Makefile
-	mkdir -p src/generated; \
+	$(AM_V_GEN)mkdir -p src/generated; \
     if test -d "$(GITDIR)"; then                                            \
       (VERS="$$(GIT_DIR=$(GITDIR) git describe --always --dirty --tags)" && \
        echo "#define STELLARD_VERSION \"$$VERS\"") >$@;                     \
@@ -214,7 +214,7 @@ src/generated/StellardVersion.h: Makefile
     fi
 
 src/generated/StellarXDR.h: src/overlay/StellarXDR.x Makefile
-	mkdir -p src/generated
+	$(AM_V_GEN)mkdir -p src/generated; \
 	$(XDRC) -hh -o $@ $<
 
 if USE_CLANG_FORMAT
