@@ -174,8 +174,7 @@ void TransactionFrame::apply(TxDelta& delta, Application& app)
 
 int32_t TransactionFrame::getNeededThreshold()
 {
-    //mSigningAccount.mEntry.account().thresholds;
-    return 0; // TODO.2
+    return mSigningAccount.getMidThreshold();
 }
 
 bool TransactionFrame::checkSignature()
@@ -183,6 +182,8 @@ bool TransactionFrame::checkSignature()
     // TODO.2
     // calculate the weight of the signatures
     int totalWeight = 0;
+    
+
     if(totalWeight>getNeededThreshold())
         return true;
     return false;

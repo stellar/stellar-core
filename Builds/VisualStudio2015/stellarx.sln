@@ -19,6 +19,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "libsoci_sqlite3", "libsoci_
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "libsoci_postgresql", "libsoci_postgresql\libsoci_postgresql.vcxproj", "{AF73D670-3D56-4949-BEC5-B8E5F7BCA2E5}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "libmedida", "libmedida\libmedida.vcxproj", "{274A9F25-F6AE-4484-B5D1-5812C1B7A48D}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Win32 = Debug|Win32
@@ -87,6 +89,14 @@ Global
 		{AF73D670-3D56-4949-BEC5-B8E5F7BCA2E5}.Release|Win32.Build.0 = Release|Win32
 		{AF73D670-3D56-4949-BEC5-B8E5F7BCA2E5}.Release|x64.ActiveCfg = Release|x64
 		{AF73D670-3D56-4949-BEC5-B8E5F7BCA2E5}.Release|x64.Build.0 = Release|x64
+		{274A9F25-F6AE-4484-B5D1-5812C1B7A48D}.Debug|Win32.ActiveCfg = Debug|Win32
+		{274A9F25-F6AE-4484-B5D1-5812C1B7A48D}.Debug|Win32.Build.0 = Debug|Win32
+		{274A9F25-F6AE-4484-B5D1-5812C1B7A48D}.Debug|x64.ActiveCfg = Debug|x64
+		{274A9F25-F6AE-4484-B5D1-5812C1B7A48D}.Debug|x64.Build.0 = Debug|x64
+		{274A9F25-F6AE-4484-B5D1-5812C1B7A48D}.Release|Win32.ActiveCfg = Release|Win32
+		{274A9F25-F6AE-4484-B5D1-5812C1B7A48D}.Release|Win32.Build.0 = Release|Win32
+		{274A9F25-F6AE-4484-B5D1-5812C1B7A48D}.Release|x64.ActiveCfg = Release|x64
+		{274A9F25-F6AE-4484-B5D1-5812C1B7A48D}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

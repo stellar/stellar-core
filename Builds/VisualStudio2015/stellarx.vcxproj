@@ -393,6 +393,7 @@ $(SolutionDir)$(Platform)\$(Configuration)\xdrc.exe -hh -o ../../src/generated/S
       <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">../../src/overlay/StellarXDR.x</AdditionalInputs>
     </CustomBuild>
     <None Include="..\..\src\lib\xdrpp\tests\xdrtest.x" />
+    <None Include="libmedida\libmedida.vcxproj" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\lib\libsodium\builds\msvc\vs2013\libsodium\libsodium.vcxproj">

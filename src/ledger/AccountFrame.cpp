@@ -72,15 +72,15 @@ uint256& AccountFrame::getID()
 }
 uint32_t AccountFrame::getHighThreshold()
 {
-    return 0; // TODO.2
+    return mEntry.account().thresholds[3];
 }
 uint32_t AccountFrame::getMidThreshold()
 {
-    return 0; // TODO.2
+    return mEntry.account().thresholds[2];
 }
 uint32_t AccountFrame::getLowThreshold()
 {
-    return 0; // TODO.2
+    return mEntry.account().thresholds[1];
 }
 
 void AccountFrame::storeDelete(Json::Value& txResult, LedgerMaster& ledgerMaster)

@@ -8,6 +8,11 @@ namespace stellar
 
     }
 
+    int32_t AllowTrustTxFrame::getNeededThreshold()
+    {
+        return mSigningAccount.getLowThreshold();
+    }
+
     void AllowTrustTxFrame::doApply(TxDelta& delta, LedgerMaster& ledgerMaster)
     {
         if(!(mSigningAccount.mEntry.account().flags & AccountFrame::AUTH_REQUIRED_FLAG))

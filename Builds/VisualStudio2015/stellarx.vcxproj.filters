@@ -594,6 +594,7 @@
     <None Include="..\..\docs\multisig.md">
       <Filter>docs</Filter>
     </None>
+    <None Include="libmedida\libmedida.vcxproj" />
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="..\..\src\overlay\StellarXDR.x">
