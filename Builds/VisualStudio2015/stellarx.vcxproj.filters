@@ -595,6 +595,7 @@
       <Filter>docs</Filter>
     </None>
     <None Include="libmedida\libmedida.vcxproj" />
+    <None Include="..\..\INSTALL" />
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="..\..\src\overlay\StellarXDR.x">

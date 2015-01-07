@@ -19,9 +19,9 @@ namespace stellar
 			offerIndex CHARACTER(35) PRIMARY KEY,   \
             accountID		CHARACTER(35),		    \
 			sequence		INT UNSIGNED,		    \
-			paysIsoCurrency Blob(4),			    \
+			paysIsoCurrency CHARACTER(4),		    \
 			paysIssuer CHARACTER(35),		        \
-			getsIsoCurrency Blob(4),			    \
+			getsIsoCurrency CHARACTER(4),			\
 			getsIssuer CHARACTER(35),		        \
 			amount BIGINT UNSIGNED,             	\
 			price BIGINT UNSIGNED,	                \

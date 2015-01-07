@@ -6,7 +6,7 @@
 #include "LedgerMaster.h"
 #include "lib/json/json.h"
 #include "crypto/Base58.h"
-
+#include "crypto/Hex.h"
 
 using namespace soci;
 
@@ -19,7 +19,7 @@ const char *AccountFrame::kSQLCreateStatement1 = "CREATE TABLE IF NOT EXISTS Acc
 	ownerCount		INT UNSIGNED default 0,		\
 	transferRate	INT UNSIGNED default 0,		\
     inflationDest	CHARACTER(35),		        \
-    thresholds   	INT UNSIGNED default 0,		\
+    thresholds   	BLOB(4),		            \
 	flags		    INT UNSIGNED default 0  	\
 );";
 
@@ -145,15 +145,18 @@ void AccountFrame::storeChange(EntryFrame::pointer startFrom,
             before = true;
         }
     }
-    /* TODO.2
+    
     if(mEntry.account().thresholds != startAccount.thresholds)
     {
         if(before) sql << ", ";
-        sql << " thresholds= " << mEntry.account().thresholds;
-        txResult["effects"]["mod"][base58ID]["thresholds"] = mEntry.account().thresholds;
+        sql << " thresholds= " << binToHex(mEntry.account().thresholds);
+        txResult["effects"]["mod"][base58ID]["thresholds"][0] = mEntry.account().thresholds[0];
+        txResult["effects"]["mod"][base58ID]["thresholds"][1] = mEntry.account().thresholds[1];
+        txResult["effects"]["mod"][base58ID]["thresholds"][2] = mEntry.account().thresholds[2];
+        txResult["effects"]["mod"][base58ID]["thresholds"][3] = mEntry.account().thresholds[3];
         before = true;
     }
-    */
+    
 
     if(mEntry.account().flags != startAccount.flags)
     {

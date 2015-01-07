@@ -16,7 +16,7 @@ namespace stellar {
 		trustIndex CHARACTER(35) PRIMARY KEY,				\
 		accountID	CHARACTER(35),			\
 		issuer CHARACTER(35),				\
-		isoCurrency BLOB(4),    			\
+		isoCurrency CHARACTER(4),    		\
 		tlimit UNSIGNED INT,		   		\
 		balance UNSIGNED INT,				\
 		authorized BOOL						\

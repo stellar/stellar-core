@@ -74,23 +74,30 @@ void Database::loadPeers(int max, vector< pair<std::string, int>>& retList)
 
 }
 
-// TODO.2 load thresholds
 bool Database::loadAccount(const uint256& accountID, AccountFrame& retAcc, bool withSig)
 {
     std::string base58ID = toBase58Check(VER_ACCOUNT_ID, accountID);
     std::string publicKey, inflationDest, creditAuthKey;
-
+    std::string thresholds;
     soci::indicator inflationDestInd;
 
     retAcc.mEntry.type(ACCOUNT);
     retAcc.mEntry.account().accountID = accountID;
     AccountEntry& account = retAcc.mEntry.account();
     mSession << "SELECT balance,sequence,ownerCount,transferRate, \
-        inflationDest,  flags from Accounts where accountID=:v1",
+        inflationDest, thresholds,  flags from Accounts where accountID=:v1",
         into(account.balance), into(account.sequence), into(account.ownerCount),
         into(account.transferRate), into(inflationDest, inflationDestInd),
-        into(account.flags),
+        into(thresholds), into(account.flags),
         use(base58ID);
+
+    
+    std::vector<uint8_t> bin=hexToBin(thresholds);
+    for(int n = 0; (n < 4) && (n<bin.size()); n++)
+    {
+        retAcc.mEntry.account().thresholds[n] = bin[n];
+    }
+   
 
     if(!mSession.got_data())
         return false;

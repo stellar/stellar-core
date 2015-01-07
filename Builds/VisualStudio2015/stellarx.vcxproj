@@ -363,6 +363,7 @@
     <None Include="..\..\docs\questions.md" />
     <None Include="..\..\docs\transactions.md" />
     <None Include="..\..\docs\usecases.md" />
+    <None Include="..\..\INSTALL" />
     <None Include="..\..\NEWS" />
     <None Include="..\..\README" />
     <CustomBuild Include="..\..\src\overlay\StellarXDR.x">

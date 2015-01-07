@@ -100,7 +100,20 @@ Peer::sendGetQuorumSet(uint256 const& setID)
 void
 Peer::sendPeers()
 {
-    // TODO.3
+    // TODO.2 catch DB errors and malformed IPs
+
+    // send top 50 peers we know about
+    vector< pair<string, int> > peerList;
+    mApp.getDatabase().loadPeers(50, peerList);
+    StellarMessage newMsg;
+    newMsg.type(PEERS);
+    newMsg.peers().resize(peerList.size());
+    for(int n = 0; n < peerList.size(); n++)
+    {
+        ipFromStr(peerList[n].first, newMsg.peers()[n].ip);
+        newMsg.peers()[n].port = peerList[n].second;
+    }
+    sendMessage(newMsg);
 }
 
 void
@@ -392,20 +405,7 @@ bool Peer::ipFromStr(std::string ipStr,xdr::opaque_array<4U>& ret)
 void
 Peer::recvGetPeers(StellarMessage const& msg)
 {
-    // TODO.2 catch DB errors and malformed IPs
-
-    // send top 50 peers we know about
-    vector< pair<string, int> > peerList;
-    mApp.getDatabase().loadPeers(50,peerList);
-    StellarMessage newMsg;
-    newMsg.type(PEERS);
-    newMsg.peers().resize(peerList.size());
-    for(int n = 0; n < peerList.size(); n++)
-    {
-        ipFromStr(peerList[n].first, newMsg.peers()[n].ip);
-        newMsg.peers()[n].port = peerList[n].second;
-    }
-    sendMessage(newMsg);
+    sendPeers();
 }
 
 void
