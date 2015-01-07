@@ -65,7 +65,22 @@
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
-  <PropertyGroup />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <OutDir>$(SolutionDir)$(Platform)\$(Configuration)\</OutDir>
+    <IntDir>$(SolutionDir)\Build\$(Platform)\$(Configuration)\$(ProjectName)\</IntDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <OutDir>$(SolutionDir)$(Platform)\$(Configuration)\</OutDir>
+    <IntDir>$(SolutionDir)\Build\$(Platform)\$(Configuration)\$(ProjectName)\</IntDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <OutDir>$(SolutionDir)$(Platform)\$(Configuration)\</OutDir>
+    <IntDir>$(SolutionDir)\Build\$(Platform)\$(Configuration)\$(ProjectName)\</IntDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <OutDir>$(SolutionDir)$(Platform)\$(Configuration)\</OutDir>
+    <IntDir>$(SolutionDir)\Build\$(Platform)\$(Configuration)\$(ProjectName)\</IntDir>
+  </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
@@ -108,7 +123,7 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
       <AdditionalIncludeDirectories>src;../../src/lib/autocheck/include;../../src/lib/cereal/include;../../src/lib/asio/include;../../src/lib/xdrpp;../../src/lib/libsodium/src/libsodium/include;../../src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>_WINSOCK_DEPRECATED_NO_WARNINGS;ASIO_STANDALONE;ASIO_ERROR_CATEGORY_NOEXCEPT=noexcept;_CRT_SECURE_NO_WARNINGS;_WIN32_WINNT=0x0501;WIN32;_MBCS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>USE_POSTGRES;_WINSOCK_DEPRECATED_NO_WARNINGS;ASIO_STANDALONE;ASIO_ERROR_CATEGORY_NOEXCEPT=noexcept;_CRT_SECURE_NO_WARNINGS;_WIN32_WINNT=0x0501;WIN32;_MBCS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -125,7 +140,7 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
       <AdditionalIncludeDirectories>src;../../src/lib/autocheck/include;../../src/lib/cereal/include;../../src/lib/asio/include;../../src/lib/xdrpp;../../src/lib/libsodium/src/libsodium/include;../../src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>_WINSOCK_DEPRECATED_NO_WARNINGS;ASIO_STANDALONE;ASIO_ERROR_CATEGORY_NOEXCEPT=noexcept;_CRT_SECURE_NO_WARNINGS;_WIN32_WINNT=0x0501;WIN32;_MBCS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>USE_POSTGRES;_WINSOCK_DEPRECATED_NO_WARNINGS;ASIO_STANDALONE;ASIO_ERROR_CATEGORY_NOEXCEPT=noexcept;_CRT_SECURE_NO_WARNINGS;_WIN32_WINNT=0x0501;WIN32;_MBCS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -352,14 +367,18 @@
     <None Include="..\..\README" />
     <CustomBuild Include="..\..\src\overlay\StellarXDR.x">
       <FileType>Document</FileType>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">xdrc -hh -o ../../src/generated/StellarXDR.h ../../src/overlay/StellarXDR.x</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">xdrc -hh -o ../../src/generated/StellarXDR.h ../../src/overlay/StellarXDR.x</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">echo $(SolutionDir)$(Platform)\$(Configuration)\xdrc.exe -hh -o ../../src/generated/StellarXDR.h ../../src/overlay/StellarXDR.x
+$(SolutionDir)$(Platform)\$(Configuration)\xdrc.exe -hh -o ../../src/generated/StellarXDR.h ../../src/overlay/StellarXDR.x</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">echo $(SolutionDir)$(Platform)\$(Configuration)\xdrc.exe -hh -o ../../src/generated/StellarXDR.h ../../src/overlay/StellarXDR.x
+$(SolutionDir)$(Platform)\$(Configuration)\xdrc.exe -hh -o ../../src/generated/StellarXDR.h ../../src/overlay/StellarXDR.x</Command>
       <Message Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">running xdrc</Message>
       <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">running xdrc</Message>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">../../src/generated/StellarXDR.h</Outputs>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">../../src/generated/StellarXDR.h</Outputs>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">xdrc -hh -o ../../src/generated/StellarXDR.h ../../src/overlay/StellarXDR.x</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">xdrc -hh -o ../../src/generated/StellarXDR.h ../../src/overlay/StellarXDR.x</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">echo $(SolutionDir)$(Platform)\$(Configuration)\xdrc.exe -hh -o ../../src/generated/StellarXDR.h ../../src/overlay/StellarXDR.x
+$(SolutionDir)$(Platform)\$(Configuration)\xdrc.exe -hh -o ../../src/generated/StellarXDR.h ../../src/overlay/StellarXDR.x</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">echo $(SolutionDir)$(Platform)\$(Configuration)\xdrc.exe -hh -o ../../src/generated/StellarXDR.h ../../src/overlay/StellarXDR.x
+$(SolutionDir)$(Platform)\$(Configuration)\xdrc.exe -hh -o ../../src/generated/StellarXDR.h ../../src/overlay/StellarXDR.x</Command>
       <Message Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">running xdrc</Message>
       <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">running xdrc</Message>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">../../src/generated/StellarXDR.h</Outputs>
@@ -368,6 +387,10 @@
       </ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
       </ExcludedFromBuild>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">../../src/overlay/StellarXDR.x</AdditionalInputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">../../src/overlay/StellarXDR.x</AdditionalInputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">../../src/overlay/StellarXDR.x</AdditionalInputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">../../src/overlay/StellarXDR.x</AdditionalInputs>
     </CustomBuild>
     <None Include="..\..\src\lib\xdrpp\tests\xdrtest.x" />
   </ItemGroup>
