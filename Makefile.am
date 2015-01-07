@@ -81,9 +81,19 @@ bin_stellard_CPPFLAGS = -I$(top_srcdir)/src \
                         -I$(srcdir)/src/lib/util \
                         -I$(srcdir)/src/lib/asio/include -DASIO_STANDALONE \
                         -I$(srcdir)/src/lib/soci/src/core \
-                        -I$(srcdir)/src/lib/soci/src/backends/sqlite3
+                        -I$(srcdir)/src/lib/soci/src/backends/sqlite3 \
+                        $(libsodium_CFLAGS) \
+                        $(xdrpp_CFLAGS) \
+                        $(sqlite_CFLAGS) \
+                        $(libpq_CFLAGS) \
+                        $(libmedida_CFLAGS)
 
-bin_stellard_LDADD = libsoci.la
+bin_stellard_LDADD = libsoci.la \
+                     $(libsodium_LIBS) \
+                     $(xdrpp_LIBS) \
+                     $(sqlite_LIBS) \
+                     $(libpq_LIBS) \
+                     $(libmedida_LIBS)
 bin_stellard_DEPENDENCIES =
 
 if LIBSODIUM_INTERNAL
@@ -104,7 +114,8 @@ bin_stellard_LDADD += libsqlite.la
 endif
 
 libsoci_la_CPPFLAGS = -I$(srcdir)/src/lib/soci/src/core \
-                      -I$(srcdir)/src/lib/soci/src/backends/sqlite3
+                      -I$(srcdir)/src/lib/soci/src/backends/sqlite3 \
+                      $(sqlite_CFLAGS)
 
 libsoci_la_SOURCES = src/lib/soci/src/backends/sqlite3/standard-use-type.cpp    \
     src/lib/soci/src/backends/sqlite3/session.cpp                               \
@@ -131,7 +142,9 @@ libsoci_la_SOURCES = src/lib/soci/src/backends/sqlite3/standard-use-type.cpp    
     src/lib/soci/src/core/procedure.cpp src/lib/soci/src/core/use-type.cpp
 
 if USE_POSTGRESQL
-libsoci_la_CPPFLAGS += -I$(srcdir)/src/lib/soci/src/backends/postgresql
+libsoci_la_CPPFLAGS += -I$(srcdir)/src/lib/soci/src/backends/postgresql \
+                         $(libpq_CFLAGS)
+
 libsoci_la_SOURCES +=                                           \
     src/lib/soci/src/backends/postgresql/standard-use-type.cpp  \
     src/lib/soci/src/backends/postgresql/session.cpp            \

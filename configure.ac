@@ -112,9 +112,6 @@ AC_SUBST(XDRC)
 PKG_CHECK_MODULES([libpq],[libpq],[use_POSTGRESQL=1],[use_POSTGRESQL=])
 AM_CONDITIONAL(USE_POSTGRESQL, [test "x$use_POSTGRESQL" != "x"])
 
-CPPFLAGS="$CPPFLAGS "'$(libsodium_CFLAGS) $(xdrpp_CFLAGS) $(sqlite_CFLAGS) $(libpq_CFLAGS) $(libmedida_CFLAGS)'
-LIBS="$LIBS "'$(libsodium_LIBS) $(xdrpp_LIBS) $(sqlite_LIBS) $(libpq_LIBS) $(libmedida_LIBS)'
-
 AC_CONFIG_HEADERS([config.h])
 AC_CONFIG_FILES([Makefile])
 AC_OUTPUT
