@@ -1,5 +1,5 @@
 run tests with:
- hayashi --test 
- 
+ stellard --test
+
 run one test with:
- hayashi --test  testName
+ stellard --test  testName
