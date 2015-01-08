@@ -22,6 +22,7 @@ We can get it in from the DB or from the wire
 namespace stellar
 {    
     class LedgerDelta;
+    class SecretKey;
 
 	class TransactionFrame
 	{
@@ -55,6 +56,7 @@ namespace stellar
         uint256& getID();
         TransactionEnvelope& getEnvelope();
         AccountFrame& getSourceAccount() { return mSigningAccount;  }
+        void addSignature(const SecretKey& secretKey);
 
         uint256& getSourceID() { return mEnvelope.tx.account; }
 

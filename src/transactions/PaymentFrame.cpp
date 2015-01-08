@@ -23,7 +23,7 @@ namespace stellar
         {   // this tx is creating an account
             if (mEnvelope.tx.body.paymentTx().currency.type() == NATIVE)
             {
-                if (mEnvelope.tx.body.paymentTx().amount < minBalance)
+                if (mEnvelope.tx.body.paymentTx().amount < ledgerMaster.getMinBalance(0))
                 {   // not over the minBalance to make an account
                     mResultCode = txUNDERFUNDED;
                     return;

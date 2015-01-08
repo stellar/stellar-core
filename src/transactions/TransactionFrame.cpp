@@ -185,6 +185,12 @@ void TransactionFrame::apply(TxDelta& delta, Application& app)
     
 }
 
+void TransactionFrame::addSignature(const SecretKey& secretKey)
+{
+    uint512 sig = secretKey.sign(getHash());
+    mEnvelope.signatures.push_back(sig);
+}
+
 
 int32_t TransactionFrame::getNeededThreshold()
 {
