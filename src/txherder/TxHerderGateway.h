@@ -72,7 +72,6 @@ class TxHerderGateway
     // we are learning about a new transaction
     // returns true if we should flood this tx
     virtual bool recvTransaction(TransactionFramePtr tx) = 0;
-    virtual bool isTxKnown(uint256 const& txHash) = 0;
 
     // called by Ledger
     virtual void ledgerClosed(LedgerPtr ledger) = 0;

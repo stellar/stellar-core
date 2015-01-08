@@ -5,6 +5,7 @@
 #include "TxSetFrame.h"
 #include "xdrpp/marshal.h"
 #include "crypto/SHA.h"
+#include "main/Application.h"
 
 namespace stellar
 {
@@ -22,11 +23,39 @@ TxSetFrame::TxSetFrame(TransactionSet const& xdrSet)
     }
 }
 
+
+// need to make sure every account that is submitting a tx has enough to pay 
+//  the fees of all the tx it has submitted in this set
 bool TxSetFrame::checkValid(Application& app)
 {
+    
+    // don't consider minBalance since you want to allow them to still send around credit etc
+    
+    map<uint256, vector<TransactionFramePtr>> accountTxMap;
+
     for(auto tx : mTransactions)
     {
-        if(!tx->checkValid(app)) return false;
+        accountTxMap[tx->getSourceID()].push_back(tx);
+    }
+
+    for(auto item : accountTxMap)
+    {
+        TransactionFramePtr first;
+        for(auto tx : item.second)
+        {
+            if(!first)
+            {
+                first = tx;
+                if(!tx->loadAccount(app)) return false;
+                if(tx->getSourceAccount().getBalance() < 
+                    item.second.size() * app.getLedgerGateway().getTxFee()) return false;
+            } else
+            {
+                tx->getSourceAccount() = first->getSourceAccount();
+            }
+
+            if(!tx->checkValid(app)) return false;
+        }
     }
     return true;
 }

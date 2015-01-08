@@ -4,7 +4,6 @@
 
 #Left to do:
 - items blocking function
- - check tx signatures (jed)
  - Tests for FBA (stan)
  - Tests for transactions (nicolas)
  - ledger header needs to be stored in the DB (nicolas)
@@ -12,7 +11,6 @@
  - Replaying transactions to catch up (graydon)
  - storing history (graydon)
  - bucket list (graydon)
- - deal with many tx from same account in the same ledger (nicolas)
 - non blocking items
  - saving peers in the DB (jed)
  - sending round lists of peers (jed)
@@ -28,4 +26,8 @@ Things we know we probably want to add later but design earlier than later
 to avoid churn on the protocol front:
 - private transactions
 - scripting
+
+
+
+
 

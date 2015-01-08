@@ -75,7 +75,8 @@ class TxHerder : public TxHerderGateway
     // return true if we should flood
     bool recvTransaction(TransactionFramePtr tx);
 
-    bool isTxKnown(uint256 const& txHash);
+    // retNumOthers is the number of other txs from the same account
+    bool isTxKnown(uint256 const& txID, int& retNumOthers);
 
     void ledgerClosed(LedgerPtr ledger);
 

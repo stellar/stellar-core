@@ -94,13 +94,13 @@ TxHerder::compareSlot(SlotBallot const& slotBallot)
 }
 
 bool
-TxHerder::isTxKnown(uint256 const& txHash)
+TxHerder::isTxKnown(uint256 const& txID,int& retNumOthers)
 {
     for (auto list : mReceivedTransactions)
     {
         for (auto tx : list)
         {
-            if (tx->getHash() == txHash)
+            if (tx->getID() == txID)
                 return true;
         }
     }
@@ -126,9 +126,13 @@ TxHerder::recvTransactionSet(TransactionSetPtr txSet)
 bool
 TxHerder::recvTransaction(TransactionFramePtr tx)
 {
-    uint256 txHash = tx->getHash();
-    if (!isTxKnown(txHash))
+    int numOthers=0;
+    if (!isTxKnown(tx->getID(), numOthers))
     {
+        if(!tx->loadAccount(mApp)) return false;
+        // don't consider minBalance since you want to allow them to still send around credit etc
+        if(tx->getSourceAccount().getBalance() < (numOthers + 1)*mApp.getLedgerGateway().getTxFee()) return false;
+
         if (tx->checkValid(mApp))
         {
 

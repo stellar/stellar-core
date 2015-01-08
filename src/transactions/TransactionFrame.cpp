@@ -62,6 +62,15 @@ TransactionFrame::TransactionFrame(const TransactionEnvelope& envelope) : mEnvel
 }
     
 
+uint256& TransactionFrame::getID()
+{
+    if(isZero(mID))
+    {
+        mID = sha512_256(xdr::xdr_to_msg(mEnvelope));
+    }
+    return(mID);
+}
+
 uint256& TransactionFrame::getHash()
 {
 	if(isZero(mHash))
@@ -144,7 +153,11 @@ bool TransactionFrame::preApply(TxDelta& delta,LedgerMaster& ledgerMaster)
     {
         mResultCode = txNOFEE;
         CLOG(ERROR, "Tx") << "tx doesn't have fee. This should never happen.";
-        // TODO.2: what do we do here? take all their balance?
+
+        // take all their balance to be safe
+        delta.addFee(mSigningAccount.mEntry.account().balance);
+        mSigningAccount.mEntry.account().balance = 0;
+        delta.setFinal(mSigningAccount);
         return false;
     }
 
@@ -218,6 +231,11 @@ bool TransactionFrame::checkSignature()
     return false;
 }
 
+bool TransactionFrame::loadAccount(Application& app)
+{
+    return app.getDatabase().loadAccount(mEnvelope.tx.account, mSigningAccount, true);
+}
+
 // called when determining if we should accept this tx.
 // make sure sig is correct
 // make sure maxFee is above the current fee
@@ -227,7 +245,6 @@ bool TransactionFrame::checkValid(Application& app)
     if(mEnvelope.tx.maxFee < app.getLedgerGateway().getTxFee()) return false;
     if(mEnvelope.tx.maxLedger < app.getLedgerGateway().getLedgerNum()) return false;
     if(mEnvelope.tx.minLedger > app.getLedgerGateway().getLedgerNum()) return false;
-    if(!app.getDatabase().loadAccount(mEnvelope.tx.account, mSigningAccount, true)) return false;
     if(!checkSignature()) return false;
 
     return doCheckValid(app);
