@@ -5,12 +5,14 @@ Every account entry has a list of signers and their corresponding weights.
 
 There are 3 categories of transactions. Each has a separate threshold that can be set and stored in the account entry.
 
-* Low:
+* Low Security:
  * AllowTrustTx
-* Medium:
+ * allowing other keys to allow people to hold your credit but not issue it
+* Medium Secruity:
  * All else
-* High:
+* High Security:
  * SetOptions for Signer and threshold
+ * Change the Set of signers and the thresholds
 
 Accounts can have arbitraily many signers. Each additional signer increases the ownerCount and therfore the min balance the account must maintain.
 
