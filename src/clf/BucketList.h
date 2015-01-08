@@ -230,22 +230,6 @@ namespace stellar
 
 class Application;
 
-class Hasher
-{
-    // FIXME : use a real CHF, this is a stand-in while doing design.
-    uint256 mState;
-
-  public:
-    void update(uint8_t const* data, size_t len);
-    template <typename arr>
-    void
-    update(arr const& v)
-    {
-        update(v.data(), v.size());
-    }
-    uint256 finish();
-};
-
 /**
  * Bucket is an immutable container for a sorted set of "Entries" (object ID,
  * hash, xdr-message tuples) which is designed to be held in a shared_ptr<>

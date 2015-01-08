@@ -9,30 +9,12 @@
 #include "BucketList.h"
 #include "main/Application.h"
 #include "util/Logging.h"
+#include "crypto/SHA.h"
+#include "xdrpp/marshal.h"
 #include <cassert>
 
 namespace stellar
 {
-
-void
-Hasher::update(uint8_t const* data, size_t len)
-{
-    size_t i = 0;
-    while (len--)
-    {
-        mState[i] += *data;
-        mState[i] ^= *data;
-        ++data;
-        ++i;
-        i &= 0x1f;
-    }
-}
-
-uint256
-Hasher::finish()
-{
-    return mState;
-}
 
 Bucket::Bucket(std::vector<Bucket::Entry>&& entries, uint256&& hash)
     : mEntries(entries), mHash(hash)
@@ -64,11 +46,12 @@ Bucket::fresh(std::vector<Bucket::Entry>&& entries)
                   return std::get<0>(a) < std::get<0>(b);
               });
 
-    Hasher hsh;
+    SHA512_256 hsh;
     for (auto const& e : entries)
     {
-        hsh.update(std::get<0>(e));
-        hsh.update(std::get<1>(e));
+        hsh.add(std::get<0>(e));
+        hsh.add(std::get<1>(e));
+        hsh.add(xdr::xdr_to_msg(std::get<2>(e)));
     }
     return std::make_shared<Bucket>(std::move(entries), hsh.finish());
 }
@@ -92,7 +75,7 @@ Bucket::merge(std::shared_ptr<Bucket> const& oldBucket,
 
     std::vector<Entry> out;
     out.reserve(oldBucket->mEntries.size() + newBucket->mEntries.size());
-    Hasher hsh;
+    SHA512_256 hsh;
     while (oi != oe || ni != ne)
     {
         std::vector<Entry>::const_iterator e;
@@ -121,8 +104,9 @@ Bucket::merge(std::shared_ptr<Bucket> const& oldBucket,
             // Old and new are for the same key, take new.
             e = ni++;
         }
-        hsh.update(std::get<0>(*e));
-        hsh.update(std::get<1>(*e));
+        hsh.add(std::get<0>(*e));
+        hsh.add(std::get<1>(*e));
+        hsh.add(xdr::xdr_to_msg(std::get<2>(*e)));
         out.emplace_back(*e);
     }
     return std::make_shared<Bucket>(std::move(out), hsh.finish());
@@ -138,9 +122,9 @@ BucketLevel::BucketLevel(size_t i)
 uint256
 BucketLevel::getHash() const
 {
-    Hasher hsh;
-    hsh.update(mCurr->getHash());
-    hsh.update(mSnap->getHash());
+    SHA512_256 hsh;
+    hsh.add(mCurr->getHash());
+    hsh.add(mSnap->getHash());
     return hsh.finish();
 }
 
@@ -287,10 +271,10 @@ BucketList::numLevels(uint64_t ledger)
 uint256
 BucketList::getHash() const
 {
-    Hasher hsh;
+    SHA512_256 hsh;
     for (auto const& lev : mLevels)
     {
-        hsh.update(lev.getHash());
+        hsh.add(lev.getHash());
     }
     return hsh.finish();
 }
