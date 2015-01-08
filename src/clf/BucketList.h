@@ -248,7 +248,7 @@ class Bucket
 {
 
   public:
-    using Entry = std::tuple<uint256, uint256, TrustLineEntry>;
+    using Entry = std::tuple<uint256, uint256, LedgerEntry>;
 
   private:
     std::vector<Entry> const mEntries;
