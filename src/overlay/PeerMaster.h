@@ -30,7 +30,6 @@ class PeerMaster : public OverlayGateway
     vector<Peer::pointer> mPeers;
     PeerDoor mDoor;
     QSetFetcher mQSetFetcher;
-    DeltaFetcher mDeltaFetcher;
     PreferredPeers mPreferredPeers;
 
     void addConfigPeers();
@@ -51,11 +50,6 @@ class PeerMaster : public OverlayGateway
     fetchQuorumSet(uint256 const& itemID, bool askNetwork)
     {
         return (mQSetFetcher.fetchItem(itemID, askNetwork));
-    }
-    void
-    fetchDelta(uint256 const& oldLedgerHash, uint64_t oldLedgerSeq)
-    {
-        mDeltaFetcher.fetchItem(oldLedgerHash, oldLedgerSeq);
     }
     void
     recvFloodedMsg(uint256 const& index,

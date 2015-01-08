@@ -106,23 +106,6 @@ class QSetFetcher : public ItemFetcher
     void recvItem(QuorumSet::pointer qSet);
 };
 
-class DeltaFetcher : public ItemFetcher
-{
-  public:
-    DeltaFetcher(Application& app) : ItemFetcher(app)
-    {
-    }
-    void fetchItem(uint256 const& itemID, uint64_t oldLedgerSeq);
-    void recvItem(CLFDeltaPtr delta);
-};
-
-class DeltaTrackingCollar : public TrackingCollar
-{
-    void askPeer(Peer::pointer peer);
-
-  public:
-};
-
 class TxSetTrackingCollar : public TrackingCollar
 {
 

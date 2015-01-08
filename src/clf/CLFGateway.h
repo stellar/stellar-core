@@ -13,8 +13,6 @@ class CLFGateway
 {
   public:
     virtual LedgerHeaderPtr getCurrentHeader() = 0;
-
-    virtual void recvDelta(CLFDeltaPtr delta) = 0;
 };
 }
 

@@ -303,7 +303,6 @@ class BucketList : public CLFGateway
     {
         return nullptr;
     }
-    virtual void recvDelta(CLFDeltaPtr delta){};
 
     // BucketList _just_ stores a set of entries; anything else the CLF
     // wants to support should happen in another class. These operations form a

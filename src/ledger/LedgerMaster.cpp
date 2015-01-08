@@ -119,23 +119,7 @@ void LedgerMaster::externalizeValue(const SlotBallot& slotBallot, TxSetFramePtr 
 void LedgerMaster::startCatchUp()
 {
     mApp.setState(Application::CATCHING_UP_STATE);
-    mApp.getOverlayGateway().fetchDelta(mCurrentHeader.hash, mCurrentHeader.ledgerSeq );
 
-}
-
-// called by CLF
-// when we either get in a delta from the network or the CLF computes the next ledger hash
-// delta is null in the second case
-void LedgerMaster::recvDelta(CLFDeltaPtr delta, LedgerHeaderPtr header)
-{
-    if(delta)
-    { // we got this delta in from the network
-        mApp.setState(Application::CONNECTED_STATE);
-            
-    } else
-    {
-
-    }
 }
 
 void LedgerMaster::closeLedger(TxSetFramePtr txSet)

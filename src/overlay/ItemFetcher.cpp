@@ -108,18 +108,6 @@ TxSetFetcher::recvItem(TxSetFrame::pointer txSet)
     }
     return false;
 }
-////////////////////////////////////////
-void
-DeltaFetcher::fetchItem(uint256 const& itemID,
-                        uint64_t oldLedgerSeq)
-{
-}
-
-void
-DeltaFetcher::recvItem(CLFDeltaPtr delta)
-{
-    mApp.getCLFGateway().recvDelta(delta);
-}
 
 ////////////////////////////////////////
 void
