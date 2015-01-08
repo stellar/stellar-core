@@ -122,6 +122,7 @@ TxHerder::recvTransactionSet(TransactionSetPtr txSet)
     }
 }
 
+// TODO.2 check seq num
 // return true if we should flood
 bool
 TxHerder::recvTransaction(TransactionFramePtr tx)

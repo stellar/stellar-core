@@ -23,7 +23,8 @@ TxSetFrame::TxSetFrame(TransactionSet const& xdrSet)
     }
 }
 
-
+// TODO.2 order the txset correctly
+// TODO.2 check seq num
 // need to make sure every account that is submitting a tx has enough to pay 
 //  the fees of all the tx it has submitted in this set
 bool TxSetFrame::checkValid(Application& app)

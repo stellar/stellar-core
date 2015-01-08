@@ -4,6 +4,7 @@
 
 #Left to do:
 - items blocking function
+ - Random TODOs in the code (jed)
  - Tests for FBA (stan)
  - Tests for transactions (nicolas)
  - ledger header needs to be stored in the DB (nicolas)

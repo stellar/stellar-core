@@ -1,10 +1,66 @@
-	
 
+
+Do we want to make a maxTransferRate for moving credit around?
+
+Do we keep full entries in the BucketList?
+
+What is the file format for the history?
+
+Are we charging enough for storage?
+	Right now you can make a few million offers and greatly increase 
+		the ledger size and get it all back at somepoint
+	Maybe it should be more than a bond. Like some part is destroyed permanently.
+
+How does the network start up?
+	validator starts with --new
+	DB is cleared
+	Hash genesis ledger
+	Start FBA with empty txSet
+	FBA will hang until a quorum is also started with --new
+
+
+
+
+ANSWERED
+=======
+What do we do about tx that make it into the applied txset but have too low a max fee? 
+	Do we consume the seq num?
+	Do we charge the max fee and not apply them? 
+	Do we just ignore them?
+	Do we let them get by for free?
+
+How do we want to represent the transaction results?
+	I think we need to calculate this and make it available to be stored for clients
+	The data is pretty unstructured so maybe we stick it in json?
+	Entries and new values
+
+We need to deal with someone submitting a ton of tx for one ledger when they can only pay fee for one tx.
+	Take fees before any other txs
+
+Should we make entry indexes just be a sequential number rather than do this hashing to calculate it?
+	Entry indexes could be 64bit
+	This will have a bunch of space everywhere. 
+		Issuers would only be 64 bit
+		Offers are smaller
+		tx would only need 64bit for destination and source
+	Downsides:
+		Creating an account would have to be a special kind of tx
+		Easier to accidentally send to the wrong person?
+		Makes it more complicated to go from secret key to account
+		We of course need to be absolutely sure people securely learn the Ledger IDs corresponding to created accounts.
+
+AccountEntry.ownerCount  do we want this in the ledgerEntry? 
+	It is calculateable
+
+Do we allow alternate paths?
+	I don't think it is worth the protocol complexity. Clients can just retry if it fails.
 
 Do we check seq numbers when we check validity?
+	Yes probably better otherwise if someone signs a tx with a future seq num it can be resubimtted and million times and the fee can drain the accounts balance. 
 
 Do we want a separate base fee for the reserve? or should it be tied to the amount we charge for tx fee?
 	Maybe changing the base reserve is the same process for approving protocol upgrades?
+
 
 
 How do we want to handle returning payments?
@@ -23,61 +79,3 @@ How do we represnt currencies?
 	options:
 		bit packed code ala ripple
 		union of string or hash we look up
-
-
-
-Do we want to make a maxTransferRate for moving credit around?
-
-Do we keep full entries in the BucketList?
-
-
-What is the file format for the history?
-
-
-Are we charging enough for storage?
-	Right now you can make a few million offers and greatly increase 
-		the ledger size and get it all back at somepoint
-	Maybe it should be more than a bond. Like some part is destroyed permanently.
-
-
-What do we do about tx that make it into the applied txset but have too low a max fee? 
-	Do we consume the seq num?
-	Do we charge the max fee and not apply them? 
-	Do we just ignore them?
-	Do we let them get by for free?
-
-We need to deal with someone submitting a ton of tx for one ledger when they can only pay fee for one tx.
-	Take fees before any other txs
-
-
-
-Should we make entry indexes just be a sequential number rather than do this hashing to calculate it?
-	Entry indexes could be 64bit
-	This will have a bunch of space everywhere. 
-		Issuers would only be 64 bit
-		Offers are smaller
-		tx would only need 64bit for destination and source
-	Downsides:
-		Creating an account would have to be a special kind of tx
-		Easier to accidentally send to the wrong person?
-		Makes it more complicated to go from secret key to account
-		We of course need to be absolutely sure people securely learn the Ledger IDs corresponding to created accounts.
-
-
-How does the network start up?
-	validator starts with --new
-	DB is cleared
-	Hash genesis ledger
-	Start FBA with empty txSet
-	FBA will hang until a quorum is also started with --new
-
-How do we want to represent the transaction results?
-	I think we need to calculate this and make it available to be stored for clients
-	The data is pretty unstructured so maybe we stick it in json?
-	Entries and new values
-
-AccountEntry.ownerCount  do we want this in the ledgerEntry? 
-	It is calculateable
-
-Do we allow alternate paths?
-	I don't think it is worth the protocol complexity. Clients can just retry if it fails.
