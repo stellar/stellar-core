@@ -242,6 +242,7 @@
     <ClCompile Include="..\..\src\transactions\SetOptionsFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\SetOptionsTests.cpp" />
     <ClCompile Include="..\..\src\transactions\TxDelta.cpp" />
+    <ClCompile Include="..\..\src\transactions\TxEnvelopeTests.cpp" />
     <ClCompile Include="..\..\src\transactions\TxTests.cpp" />
     <ClCompile Include="..\..\src\util\Timer.cpp" />
     <ClCompile Include="..\..\src\util\types.cpp" />

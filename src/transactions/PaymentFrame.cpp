@@ -19,69 +19,66 @@ namespace stellar
         int64_t minBalance = ledgerMaster.getMinBalance(mSigningAccount.mEntry.account().ownerCount);
         
         AccountFrame destAccount;
-        if(ledgerMaster.getDatabase().loadAccount(mEnvelope.tx.body.paymentTx().destination, destAccount))
-        {
-            if(mEnvelope.tx.body.paymentTx().currency.type()==NATIVE)
-            {   // sending STR
-
-                if(mEnvelope.tx.body.paymentTx().path.size())
-                {
-                    mResultCode = txMALFORMED;
-                    return;
-                }
-
-                if(mSigningAccount.mEntry.account().balance < minBalance + mEnvelope.tx.body.paymentTx().amount)
-                {   // they don't have enough to send
+        if (!ledgerMaster.getDatabase().loadAccount(mEnvelope.tx.body.paymentTx().destination, destAccount))
+        {   // this tx is creating an account
+            if (mEnvelope.tx.body.paymentTx().currency.type() == NATIVE)
+            {
+                if (mEnvelope.tx.body.paymentTx().amount < minBalance)
+                {   // not over the minBalance to make an account
                     mResultCode = txUNDERFUNDED;
                     return;
                 }
-                
-                if(destAccount.getIndex() == mSigningAccount.getIndex())
-                {   // sending to yourself
-                    mResultCode = txSUCCESS;
-                    return;
-                }
-                
-                delta.setStart(destAccount);
-                mSigningAccount.mEntry.account().balance -= mEnvelope.tx.body.paymentTx().amount;
-                destAccount.mEntry.account().balance += mEnvelope.tx.body.paymentTx().amount;
-                delta.setFinal(destAccount);
-                delta.setFinal(mSigningAccount);
-                mResultCode = txSUCCESS;
-
-            }else
-            {   // sending credit
-                TxDelta tempDelta;
-                if(sendCredit(destAccount, tempDelta, ledgerMaster))
+                else
                 {
-                    delta.merge(tempDelta);
-                    mResultCode = txSUCCESS;
+                    destAccount.mEntry.account().accountID = mEnvelope.tx.body.paymentTx().destination;
+                    destAccount.mEntry.account().balance = 0;
                 }
-                    
-                return;
             }
-        } else
-        {   // this tx is creating an account
-            if(mEnvelope.tx.body.paymentTx().currency.type()==NATIVE)
-            {
-                if(mEnvelope.tx.body.paymentTx().amount < minBalance)
-                {   // not over the minBalance to make an account
-                    mResultCode = txNOACCOUNT;
-                    return;
-                } else
-                {
-                    destAccount.mEntry.account().accountID=mEnvelope.tx.body.paymentTx().destination;
-                    mSigningAccount.mEntry.account().balance -= mEnvelope.tx.body.paymentTx().amount;
-                    destAccount.mEntry.account().balance = mEnvelope.tx.body.paymentTx().amount;
-                    delta.setFinal(destAccount);
-                    delta.setFinal(mSigningAccount);
-                    mResultCode = txSUCCESS;
-                }
-            } else
+            else
             {   // trying to send credit to an unmade account
                 mResultCode = txNOACCOUNT;
                 return;
             }
+        }
+
+        if(mEnvelope.tx.body.paymentTx().currency.type()==NATIVE)
+        {   // sending STR
+
+            if(mEnvelope.tx.body.paymentTx().path.size())
+            {
+                mResultCode = txMALFORMED;
+                return;
+            }
+
+            if(mSigningAccount.mEntry.account().balance < minBalance + mEnvelope.tx.body.paymentTx().amount)
+            {   // they don't have enough to send
+                mResultCode = txUNDERFUNDED;
+                return;
+            }
+
+            if(destAccount.getIndex() == mSigningAccount.getIndex())
+            {   // sending to yourself
+                mResultCode = txSUCCESS;
+                return;
+            }
+
+            delta.setStart(destAccount);
+            mSigningAccount.mEntry.account().balance -= mEnvelope.tx.body.paymentTx().amount;
+            destAccount.mEntry.account().balance += mEnvelope.tx.body.paymentTx().amount;
+            delta.setFinal(destAccount);
+            delta.setFinal(mSigningAccount);
+            mResultCode = txSUCCESS;
+
+        }else
+        {   // sending credit
+            TxDelta tempDelta;
+            if(sendCredit(destAccount, tempDelta, ledgerMaster))
+            {
+                delta.merge(tempDelta);
+                mResultCode = txSUCCESS;
+            }
+
+            return;
         }
     }
     

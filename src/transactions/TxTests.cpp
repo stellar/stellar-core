@@ -54,7 +54,8 @@ TransactionFramePtr setTrust(SecretKey& from, SecretKey& to, uint32_t seq, const
     return TransactionFrame::makeTransactionFromWire(txEnvelope);
 }
 
-TransactionFramePtr createPaymentTx(SecretKey& from, SecretKey& to, uint32_t seq, uint64_t amount)
+TransactionFramePtr createPaymentTx(SecretKey& from, SecretKey& to, uint32_t seq, uint64_t amount,
+    std::function<void (TransactionEnvelope&)> func)
 {
     TransactionEnvelope txEnvelope;
     txEnvelope.tx.body.type(PAYMENT);
@@ -67,6 +68,11 @@ TransactionFramePtr createPaymentTx(SecretKey& from, SecretKey& to, uint32_t seq
     txEnvelope.tx.body.paymentTx().destination = to.getPublicKey();
     txEnvelope.tx.body.paymentTx().sendMax = amount+1000;
     txEnvelope.tx.body.paymentTx().currency.type(NATIVE);
+
+    if (func)
+    {
+        func(txEnvelope);
+    }
 
     return TransactionFrame::makeTransactionFromWire(txEnvelope);
 }

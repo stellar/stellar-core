@@ -26,15 +26,15 @@ typedef std::unique_ptr<Application> appPtr;
 // Credit -> Credit -> Credit -> Credit Payment
 // path payment where there isn't enough in the path
 // path payment with a transfer rate
-TEST_CASE("payment", "[tx]")
+TEST_CASE("payment", "[tx][payment]")
 {
     LOG(INFO) << "************ Starting payment test";
 
-    Config cfg;
-    cfg.RUN_STANDALONE = true;
-    cfg.START_NEW_NETWORK = true;
-    cfg.DESIRED_BASE_FEE = 10;
-    //cfg.DATABASE = "postgresql://dbmaster:-island-@localhost/hayashi";
+    Config const& cfg = getTestConfig();
+    /*
+    Config cfg2(cfg);
+    //cfg2.DATABASE = "postgresql://dbmaster:-island-@localhost/hayashi";
+    */
 
     VirtualClock clock;
     Application app(clock, cfg);
@@ -43,94 +43,187 @@ TEST_CASE("payment", "[tx]")
     // set up world
     SecretKey root = getRoot();
     SecretKey a1 = getAccount("A");
+    SecretKey b1 = getAccount("B");
 
-    TransactionFramePtr txFrame = createPaymentTx(root, a1, 1, 1000);
+    int32_t txfee = app.getLedgerMaster().getTxFee();
 
-    { // simple payment
-        TxDelta delta;
-        txFrame->apply(delta, app);
+    TransactionFramePtr txFrame;
 
-        Json::Value jsonResult;
-        LedgerDelta ledgerDelta;
+    txFrame = createPaymentTx(root, a1, 1, 10000);
+    TxDelta delta;
+    txFrame->apply(delta, app);
 
-        delta.commitDelta(jsonResult, ledgerDelta, app.getLedgerMaster());
+    Json::Value jsonResult;
+    LedgerDelta ledgerDelta;
 
-        LOG(INFO) << jsonResult.toStyledString();
+    delta.commitDelta(jsonResult, ledgerDelta, app.getLedgerMaster());
 
-        REQUIRE(txFrame->getResultCode() == txSUCCESS);
-        AccountFrame a1Account, rootAccount;
-        REQUIRE(app.getDatabase().loadAccount(root.getPublicKey(), rootAccount));
-        REQUIRE(app.getDatabase().loadAccount(a1.getPublicKey(), a1Account));
-        REQUIRE(a1Account.getBalance() == 1000);
-        REQUIRE(rootAccount.getBalance() == (100000000000000 - 1000 - 10));
-    }
-    { // make sure 2nd time fails
-        TxDelta delta;
-        txFrame->apply(delta, app);
+    LOG(INFO) << jsonResult.toStyledString();
 
-        Json::Value jsonResult;
-        LedgerDelta ledgerDelta;
+    REQUIRE(txFrame->getResultCode() == txSUCCESS);
+    AccountFrame a1Account, rootAccount;
+    REQUIRE(app.getDatabase().loadAccount(root.getPublicKey(), rootAccount));
+    REQUIRE(app.getDatabase().loadAccount(a1.getPublicKey(), a1Account));
+    REQUIRE(a1Account.getBalance() == 10000);
+    REQUIRE(rootAccount.getBalance() == (100000000000000 - 10000 - txfee));
 
-        delta.commitDelta(jsonResult, ledgerDelta, app.getLedgerMaster());
-
-        LOG(INFO) << jsonResult.toStyledString();
-
-        REQUIRE(txFrame->getResultCode() == txBADSEQ);
-    }
-
-    { // credit payment with no trust
-        Currency currency;
-        currency.type(ISO4217);
-        currency.isoCI().issuer = root.getPublicKey();
-        strToCurrencyCode(currency.isoCI().currencyCode, "IDR");
-
-        txFrame = createCreditPaymentTx(root, a1, currency, 2, 100);
-        TxDelta delta;
-        txFrame->apply(delta, app);
-
-        Json::Value jsonResult;
-        LedgerDelta ledgerDelta;
-
-        delta.commitDelta(jsonResult, ledgerDelta, app.getLedgerMaster());
-
-        LOG(INFO) << jsonResult.toStyledString();
-
-        REQUIRE(txFrame->getResultCode() == txNOTRUST);
-    }
-
+    SECTION("send STR to an existing account")
     {
-        txFrame = setTrust(a1, root, 1, "IDR");
-        TxDelta delta;
-        txFrame->apply(delta, app);
+        TransactionFramePtr txFrame2 = createPaymentTx(root, a1, 2, 1000);
+        TxDelta delta2;
+        txFrame2->apply(delta2, app);
 
-        Json::Value jsonResult;
-        LedgerDelta ledgerDelta;
+        Json::Value jsonResult2;
+        LedgerDelta ledgerDelta2;
 
-        delta.commitDelta(jsonResult, ledgerDelta, app.getLedgerMaster());
+        delta2.commitDelta(jsonResult2, ledgerDelta2, app.getLedgerMaster());
 
-        LOG(INFO) << jsonResult.toStyledString();
+        LOG(INFO) << jsonResult2.toStyledString();
 
-        REQUIRE(txFrame->getResultCode() == txSUCCESS);
+        REQUIRE(txFrame2->getResultCode() == txSUCCESS);
+        AccountFrame a1Account2, rootAccount2;
+        REQUIRE(app.getDatabase().loadAccount(root.getPublicKey(), rootAccount2));
+        REQUIRE(app.getDatabase().loadAccount(a1.getPublicKey(), a1Account2));
+        REQUIRE(a1Account2.getBalance() == a1Account.getBalance() + 1000);
+        REQUIRE(rootAccount2.getBalance() == (rootAccount.getBalance() - 1000 - txfee));
     }
 
-    { // simple credit payment
+    SECTION("send to self")
+    {
+        TransactionFramePtr txFrame2 = createPaymentTx(root, root, 2, 1000);
+        TxDelta delta2;
+        txFrame2->apply(delta2, app);
+
+        Json::Value jsonResult2;
+        LedgerDelta ledgerDelta2;
+
+        delta2.commitDelta(jsonResult2, ledgerDelta2, app.getLedgerMaster());
+
+        LOG(INFO) << jsonResult2.toStyledString();
+
+        REQUIRE(txFrame2->getResultCode() == txSUCCESS);
+
+        AccountFrame rootAccount2;
+        REQUIRE(app.getDatabase().loadAccount(root.getPublicKey(), rootAccount2));
+        REQUIRE(rootAccount2.getBalance() == (rootAccount.getBalance() - txfee));
+    }
+
+    SECTION("send too little STR to new account (insufficient balance)")
+    {
+        TransactionFramePtr txFrame2 = createPaymentTx(root, b1, 2,
+            app.getLedgerMaster().getMinBalance(1)-1);
+
+        TxDelta delta2;
+        txFrame2->apply(delta2, app);
+
+        Json::Value jsonResult2;
+        LedgerDelta ledgerDelta2;
+
+        delta2.commitDelta(jsonResult2, ledgerDelta2, app.getLedgerMaster());
+
+        LOG(INFO) << jsonResult2.toStyledString();
+
+        REQUIRE(txFrame2->getResultCode() == txUNDERFUNDED);
+    }
+
+    SECTION("simple credit")
+    {
         Currency currency;
         currency.type(ISO4217);
         currency.isoCI().issuer = root.getPublicKey();
         strToCurrencyCode(currency.isoCI().currencyCode, "IDR");
 
-        txFrame = createCreditPaymentTx(root, a1, currency, 3, 100);
-        TxDelta delta;
-        txFrame->apply(delta, app);
+        SECTION("credit sent to new account (no account error)")
+        {
+            txFrame = createCreditPaymentTx(root, b1, currency, 2, 100);
+            TxDelta delta2;
+            txFrame->apply(delta2, app);
 
-        Json::Value jsonResult;
-        LedgerDelta ledgerDelta;
+            Json::Value jsonResult2;
+            LedgerDelta ledgerDelta2;
 
-        delta.commitDelta(jsonResult, ledgerDelta, app.getLedgerMaster());
+            delta2.commitDelta(jsonResult2, ledgerDelta2, app.getLedgerMaster());
 
-        LOG(INFO) << jsonResult.toStyledString();
+            LOG(INFO) << jsonResult2.toStyledString();
 
-        REQUIRE(txFrame->getResultCode() == txSUCCESS);
+            REQUIRE(txFrame->getResultCode() == txNOACCOUNT);
+        }
+
+        SECTION("send STR with path (malformed)")
+        {
+            TransactionFramePtr txFrame2 = createPaymentTx(root, a1, 2, 10000,
+                [&currency](TransactionEnvelope &e)
+            {
+                e.tx.body.paymentTx().path[0] = currency;
+            }
+            );
+            TxDelta delta2;
+            txFrame2->apply(delta2, app);
+
+            Json::Value jsonResult2;
+            LedgerDelta ledgerDelta2;
+
+            delta2.commitDelta(jsonResult2, ledgerDelta2, app.getLedgerMaster());
+
+            LOG(INFO) << jsonResult2.toStyledString();
+
+            REQUIRE(txFrame2->getResultCode() == txMALFORMED);
+        }
+
+        // actual sendcredit
+        SECTION("credit payment with no trust")
+        {
+
+            txFrame = createCreditPaymentTx(root, a1, currency, 2, 100);
+            TxDelta delta2;
+            txFrame->apply(delta2, app);
+
+            Json::Value jsonResult2;
+            LedgerDelta ledgerDelta2;
+
+            delta2.commitDelta(jsonResult2, ledgerDelta2, app.getLedgerMaster());
+
+            LOG(INFO) << jsonResult2.toStyledString();
+
+            REQUIRE(txFrame->getResultCode() == txNOTRUST);
+        }
+
+        SECTION("with trust")
+        {
+            txFrame = setTrust(a1, root, 1, "IDR");
+            TxDelta delta;
+            txFrame->apply(delta, app);
+
+            Json::Value jsonResult;
+            LedgerDelta ledgerDelta;
+
+            delta.commitDelta(jsonResult, ledgerDelta, app.getLedgerMaster());
+
+            LOG(INFO) << jsonResult.toStyledString();
+
+            REQUIRE(txFrame->getResultCode() == txSUCCESS);
+        }
+
+        SECTION("simple credit payment")
+        {
+            Currency currency;
+            currency.type(ISO4217);
+            currency.isoCI().issuer = root.getPublicKey();
+            strToCurrencyCode(currency.isoCI().currencyCode, "IDR");
+
+            txFrame = createCreditPaymentTx(root, a1, currency, 3, 100);
+            TxDelta delta;
+            txFrame->apply(delta, app);
+
+            Json::Value jsonResult;
+            LedgerDelta ledgerDelta;
+
+            delta.commitDelta(jsonResult, ledgerDelta, app.getLedgerMaster());
+
+            LOG(INFO) << jsonResult.toStyledString();
+
+            REQUIRE(txFrame->getResultCode() == txSUCCESS);
+        }
     }
 
     LOG(INFO) << "************ Ending payment test";

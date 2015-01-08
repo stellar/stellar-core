@@ -312,6 +312,9 @@
     <ClCompile Include="..\..\src\transactions\SetOptionsTests.cpp">
       <Filter>transactions\tests</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\transactions\TxEnvelopeTests.cpp">
+      <Filter>transactions\tests</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\fba\Ballot.h">
