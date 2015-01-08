@@ -8,14 +8,20 @@
 #include <future>
 #include "generated/StellarXDR.h"
 #include "CanonicalLedgerForm.h"
+#include "xdrpp/message.h"
 
 namespace stellar
 {
-// This is the "bucket list", a set sets-of-hashes, organized into temporal
-// "levels", with older levels being larger and changing less frequently. The
-// purpose of this data structure is to _effectively_ provide a "single summary
-// hash" of a rapidly-changing database without actually having to rehash the
-// database on each change.
+// This is the "bucket list", a set sets-of-hashed-objects, organized into
+// temporal "levels", with older levels being larger and changing less
+// frequently. The purpose of this data structure is twofold:
+//
+//  1. to _effectively_ provide a "single summary hash" of a rapidly-changing
+//     database without actually having to rehash the database on each change.
+//
+//  2. to provide a relatively cheap (in terms of bytes transferred) "catch-up"
+//     operation, when a node has been offline for a period of time and wants to
+//     synchronize its (database) ledger with the network's current ledger.
 //
 // In a sense it plays a role analogous to the "SHAMap" Merkle radix trie in
 // Ripple, the difference being that the SHAMap has to do quite a lot of random
@@ -30,17 +36,19 @@ namespace stellar
 // while maintaining a degree of "not rehashing stuff too often if it didn't
 // change".
 //
-// It is also completely decoupled from the storage of actual objects; this
-// structure just calculates hashes-of-hashes. Object storage is in an RDBMS.
+// It is also somewhat decoupled from transaction processing; modified objects
+// are written to it in serial form (for hashing and history storage) but the
+// deserialized, "live" state of each object, against-which transactions are
+// applied, is stored in the RDBMS.
 //
 // The approach we take is, rather than key-prefix / trie style partitioning,
 // _temporal_ leveling, taking a cue from the design of log-structured merge
 // trees (LSM-trees) such as those used in LevelDB. Within each temporal level,
-// any time a subset of [key:hash] pairs are modified, the whole level is
-// rehashed. But we arrange for three conditions that make this tolerable:
+// any time a subset of [key:hash:object] tuples are modified, the whole level
+// is rehashed. But we arrange for three conditions that make this tolerable:
 //
-//    1. key:hash pairs are added in _batches_, each batch 1/16 the size of
-//       the level. Rehashing only happens after a _batch_ is added.
+//    1. [key:hash:object] tuples are added in _batches_, each batch 1/16 the
+//       size of the level. Rehashing only happens after a _batch_ is added.
 //
 //    2. The batches are propagated at frequencies that slow down in proportion
 //       to the size of the level / size of the batches.
@@ -94,7 +102,7 @@ namespace stellar
 //
 // Define levels(k) = ceil(log_16(k))
 //
-// Each level holds hashes of objects changed _in some range of ledgers_.
+// Each level holds objects changed _in some range of ledgers_.
 //
 // for i in range(0, levels(k)):
 //   curr(i) covers range (mask(k,half(i)), mask(k,prev(i))]
@@ -112,10 +120,12 @@ namespace stellar
 //
 // Suppose we're on ledger 0x56789ab (decimal 90,671,531)
 //
-// We immediately know that we have 7 levels, because the ledger number has 7
-// hex digits (alternatively: ceil(log_16(ledger)) == 7)
+// We immediately know that we could represent the bucket list for this in 7
+// levels, because the ledger number has 7 hex digits (alternatively:
+// ceil(log_16(ledger)) == 7). It turns out (see below re: "degeneracy")
+// that we won't use all 7, but for now let's imagine we did:
 //
-// The levels hold hashes of objects changed in the following ranges:
+// The levels would then hold objects changed in the following ranges:
 //
 // level[0]  curr=(0x56789a8, 0x56789ab], snap=(0x56789a0, 0x56789a8]
 // level[1]  curr=(0x5678980, 0x56789a0], snap=(0x5678900, 0x5678980]
@@ -125,8 +135,10 @@ namespace stellar
 // level[5]  curr=(0x5000000, 0x5600000], snap= ------ empty ------
 // level[6]  curr=(0x0, 0x5000000],       snap= ------ empty ------
 //
+// Assuming a ledger closes every 5 seconds, here are the timespans
+// covered by each level:
 //
-// L0: 80 seconds  (16 ledgers @ 5sec/ledger)
+// L0: 80 seconds  (16 ledgers)
 // L1: 21.3 min    (256 ledgers)
 // L2: 5.7 hours   (4,096 ledgers)
 // L3: 3.8 days    (65,536 ledgers)
@@ -134,68 +146,87 @@ namespace stellar
 // L5: 2.66 years  (16,777,216 ledgers)
 // L6: 42.5 years  (268,435,456 ledgers)
 // L7: 681 years   (4,294,967,296 ledgers)
-
+//
+//
 // Performance:
 // ------------
 //
-// Assume we're receiving 1000 transactions / second, and each is changing 2
-// objects, and ledgers take 5s to close, i.e. we're adding 10000 hashes /
-// ledger to this data structure. Assuming the 4GB allocated to in-memory
-// buckets, below, we can keep 82 million hashes in memory, which is 8200
-// ledgers, which means we're keeping levels 0-2 (sizes: 16, 256 and 4096
-// ledgers, respectively) in RAM and levels 3 and up on disk.
+// Assume we're receiving 1,000 transactions / second, and each is changing 2
+// objects, and ledgers take 5s to close, i.e. we're adding 10,000 objects /
+// ledger to this data structure. Assuming the 10GB allocated to in-memory
+// buckets, if each object is on average 256 bytes then we can store 4 objects
+// per kb or 40 million objects in memory, or 4,000 (say: 4,096) ledgers in
+// memory. So levels 0, 1, 2. Levels 3 and 4 must go on disk.
 //
-// How fast do we need to rewrite level 3? We rewrite it every time snap(2) is
-// evicted. This happens every 2048 ledgers. That's 10240 seconds, or 2.8
-// hours. So we have >2 hours to do a sequential read + merge + hash of level
-// 3. Level 3 contains 65,536 ledgers' worth of hashes, or 15GB of
-// data. Commodity storage now can do sequential reads at 200MB/s (disk) or
-// 500MB/s (SSD), so it should take (at worst) ~75 seconds, giving us a safety
-// margin of ~100x.
+// How fast do we need to rewrite/rehash level 3? We rewrite it every time
+// snap(2) is evicted. This happens every 2048 ledgers. That's 10240 seconds, or
+// 2.8 hours. So we have >2 hours to do a sequential read + merge + hash of a
+// half of level 3 (32,768 ledgers' worth of objects), or 83GB of data (at 1,000
+// tx/s). Amazon EBS disks sustain sequential writes at 30MB/s, so it should
+// take ~46 minutes, giving us a safety margin of ~3x.
 //
-// It _does_ mean that at this scale, we will be _doing_ a 15GB sequential
+// It _does_ mean that at this scale, we will be _doing_ an 83GB sequential
 // read/merge/hash/write every 2.8 hours. That might cause a noticable I/O spike
 // and/or some degree of I/O wear. But the hardware should keep up and this is,
-// after all, the 1000 tx/s "great success" situation. People running validators
-// can probably afford a few SSDs at that point.
+// after all, the 1000 tx/s "great success" situation where we're doing some
+// substantial tuning, having scaled through three orders of magnitude.
 //
-// It also means we're doing a ~256GB sequential read once every ~45 hours, as
+// It also means we're doing a ~1.3TB sequential write once every ~45 hours, as
 // we evict a snap from level 3 to level 4. But again, any storage device that's
-// actually comfortable slinging around 256GB files (and we will have that much
-// data to hash, period) should be able to serve it to you in much less than 45
-// hours.
+// actually comfortable slinging around 1.4TB files (and we will have that much
+// data to hash, period) should be able to process it in much less than 45
+// hours; at 30MB/s it should take less than 13h (safety margin ~3x).
+//
+// It is possible to increase the safety margin by several possible means:
+// either buying physical hardware (commodity SSDs sustain writes in the 400MB/s
+// range), by using instance storage rather than EBS (measured around 100MB/s
+// write on disk, 250MB/s on SSD) or by using striping across EBS or instance
+// volumes. If none of these are acceptable, the data structure can also be
+// modified to split each bucket into (say) 8 sub-buckets, Merkle style, and
+// combine the hashes of each; essentially performing the striping "in the data
+// structure". Though this would effect the hash values so should be done
+// earlier in the design process, if at all.
 //
 //
-// Degeneracy:
-// -----------
+// Degeneracy and limits:
+// ----------------------
 //
-// As you get into bigger and bigger levels, you will start to merge more and
-// more updates-to-the-same-objects into the level, and the level will not take
-// up its theoretical maximum size in terms of ledger-churn-rate so much as
-// it'll start to approximate the set of "all the objects in the system". For
-// the sake of implementation simplicity, we don't try to track this
-// phenomenon. It's just a natural size-limiting condition the levels will run
-// into.
+// Beyond level 4, a certain degeneracy takes over. "Objects changed over the
+// course of a million ledgers" starts to sound like "the entire database": if
+// we're getting 10,000 objects changed per ledger, a million ledgers means
+// touching 10 billion objects. It's unlikely that we're going to have _much_
+// more objects than that over the long term; in particular we're unlikely to
+// bump up against 160 billion objects anytime soon, which is where the next
+// level would be. There are only so many humans on earth. Having more levels
+// just produces "dead weight" levels that contain copies of the old database
+// and are completely shadowed by levels above them.
 //
-// For example, at level 7 you'll have room for (potentially) the set of objects
-// changed in the previous 200 million ledgers; besides the fact that that's 42
-// years of ledger-time, it's also likely that your system will have peaked at
-// fewer than 200 billion objects by then -- assuming there are fewer than 10
-// billion users on earth -- i.e. the level will not be using its "theoretical
-// maximum". But the implementation has fewer complications if we just define it
-// in terms of "objects changed per N ledgers", and let the levels
-// asymptotically approach "the whole database" at whatever rate it happens.
+// Moreover, even if we are dealing with (say) IoT smart toasters rather than
+// humans -- thus we have trillions of accounts -- we want the data structure to
+// "garbage collect" transient undesirable state at some reasonable frequency;
+// if there was a bug, a temporary bulge in the object count, or similar
+// transient condition, we'd like there to be a "last" level beyond which
+// history is cut off, collapsed into a single "... and so on" snapshot of all
+// history before: the state of the _full_ database at a certain point in the
+// past, with no implied dependence on deeper history beneath it.
 //
-// In the worst case, the levels become "the whole database" relatively early
-// (say, at level 4) in the lifetime of the system, and levels 5, 6, even 7 are
-// effectively redundant / fully-shadowed copies of the same set of objects, as
-// the system ages and the ledger number continues to climb. This is the "not
-// too many users, but long-lived system" scenario: 40 years of activity on
-// (say) 1m accounts. The amount of "redundant" hashing/storage in such a
-// degenerate case is _much cheaper_ than the amount of work those levels would
-// be if they were "fully populated" (i.e. they're only as big as level 4,
-// rather than their theoretical maximums, each 16x bigger than the last) so it
-// should be relatively harmless if this happens.
+// We therefore cut off at level 4. Level 5 doesn't exist: it's "the entire
+// database", which we update with a half-level-4 snapshot every half-million
+// ledgers. Which is "once a month" (at 5s per ledger).
+//
+// Cutting off at a fixed level carries a minor design risk: that the database
+// might grow very large, relative to the transaction volume, and that we might
+// therefore burden certain peers (those that have been offline longer than a
+// month) with having to download a (large) full-database snapshot when, had we
+// added an additional level, they might have got away with "only downloading a
+// level", as a delta. We consider this risk acceptable, in light of the
+// multiple tradeoffs competing in this design. Most peers with transient
+// connectivity problems will be offline for less than a month if they are
+// participating in the system, and we expect transaction volume and database
+// size to scale in a quasi-linear fashion. In any case it only causes such a
+// peer to artificially degenerate to "new peer syncing for the first time"
+// behavior, which ought to be tolerably fast anyways.
+
 
 class Application;
 
@@ -216,10 +247,10 @@ class Hasher
 };
 
 /**
- * Bucket is an immutable container for a sorted set of k/v pairs (object ID /
- * hash) which is designed to be held in a shared_ptr<> which is referenced
- * between threads, to minimize copying. It is therefore imperative that it be
- * _really_ immutable, not just faking it.
+ * Bucket is an immutable container for a sorted set of "Entries" (object ID,
+ * hash, xdr-message tuples) which is designed to be held in a shared_ptr<>
+ * which is referenced between threads, to minimize copying. It is therefore
+ * imperative that it be _really_ immutable, not just faking it.
  *
  * Two buckets can be merged together efficiently (in a single pass): elements
  * from the newer bucket overwrite elements from the older bucket, the rest are
@@ -233,23 +264,19 @@ class Bucket
 {
 
   public:
-    // Each k/v entry is 20+32=52 bytes long.
-    //
-    // Suppose you reserve (say) 2**32=4GB RAM storing Buckets, then we can keep
-    // about 82 million object/hash pairs in memory, before hitting disk.
-    using KVPair = std::tuple<uint256, uint256>;
+    using Entry = std::tuple<uint256, uint256, TrustLineEntry>;
 
   private:
-    std::vector<KVPair> const mEntries;
+    std::vector<Entry> const mEntries;
     uint256 const mHash;
 
   public:
     Bucket();
-    Bucket(std::vector<KVPair>&& entries, uint256&& hash);
-    std::vector<KVPair> const& getEntries() const;
+    Bucket(std::vector<Entry>&& entries, uint256&& hash);
+    std::vector<Entry> const& getEntries() const;
     uint256 const& getHash() const;
 
-    static std::shared_ptr<Bucket> fresh(std::vector<KVPair>&& entries);
+    static std::shared_ptr<Bucket> fresh(std::vector<Entry>&& entries);
 
     static std::shared_ptr<Bucket>
     merge(std::shared_ptr<Bucket> const& oldBucket,
@@ -294,14 +321,14 @@ class BucketList : public CLFGateway
     }
     virtual void recvDelta(CLFDeltaPtr delta){};
 
-    // BucketList _just_ stores a set of key/hash pairs; anything else the CLF
+    // BucketList _just_ stores a set of entries; anything else the CLF
     // wants to support should happen in another class. These operations form a
     // minimal, testable interface to BucketList.
     size_t numLevels() const;
     BucketLevel const& getLevel(size_t i) const;
     uint256 getHash() const;
     void addBatch(Application& app, uint64_t currLedger,
-                  std::vector<Bucket::KVPair>&& batch);
+                  std::vector<Bucket::Entry>&& batch);
 };
 }
 #endif

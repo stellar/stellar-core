@@ -34,7 +34,7 @@ Hasher::finish()
     return mState;
 }
 
-Bucket::Bucket(std::vector<Bucket::KVPair>&& entries, uint256&& hash)
+Bucket::Bucket(std::vector<Bucket::Entry>&& entries, uint256&& hash)
     : mEntries(entries), mHash(hash)
 {
 }
@@ -43,7 +43,7 @@ Bucket::Bucket()
 {
 }
 
-std::vector<Bucket::KVPair> const&
+std::vector<Bucket::Entry> const&
 Bucket::getEntries() const
 {
     return mEntries;
@@ -56,14 +56,13 @@ Bucket::getHash() const
 }
 
 std::shared_ptr<Bucket>
-Bucket::fresh(std::vector<Bucket::KVPair>&& entries)
+Bucket::fresh(std::vector<Bucket::Entry>&& entries)
 {
-
     std::sort(entries.begin(), entries.end(),
-              [](KVPair const& a, KVPair const& b)
+              [](Entry const& a, Entry const& b)
               {
-        return std::get<0>(a) < std::get<0>(b);
-    });
+                  return std::get<0>(a) < std::get<0>(b);
+              });
 
     Hasher hsh;
     for (auto const& e : entries)
@@ -85,18 +84,18 @@ Bucket::merge(std::shared_ptr<Bucket> const& oldBucket,
     assert(oldBucket);
     assert(newBucket);
 
-    std::vector<KVPair>::const_iterator oi = oldBucket->mEntries.begin();
-    std::vector<KVPair>::const_iterator ni = newBucket->mEntries.begin();
+    std::vector<Entry>::const_iterator oi = oldBucket->mEntries.begin();
+    std::vector<Entry>::const_iterator ni = newBucket->mEntries.begin();
 
-    std::vector<KVPair>::const_iterator oe = oldBucket->mEntries.end();
-    std::vector<KVPair>::const_iterator ne = newBucket->mEntries.end();
+    std::vector<Entry>::const_iterator oe = oldBucket->mEntries.end();
+    std::vector<Entry>::const_iterator ne = newBucket->mEntries.end();
 
-    std::vector<KVPair> out;
+    std::vector<Entry> out;
     out.reserve(oldBucket->mEntries.size() + newBucket->mEntries.size());
     Hasher hsh;
     while (oi != oe || ni != ne)
     {
-        std::vector<KVPair>::const_iterator e;
+        std::vector<Entry>::const_iterator e;
         if (ni == ne)
         {
             // Out of new entries, take old entries.
@@ -317,7 +316,7 @@ BucketList::getLevel(size_t i) const
 
 void
 BucketList::addBatch(Application& app, uint64_t currLedger,
-                     std::vector<Bucket::KVPair>&& batch)
+                     std::vector<Bucket::Entry>&& batch)
 {
     assert(currLedger > 0);
     assert(numLevels(currLedger - 1) == mLevels.size());

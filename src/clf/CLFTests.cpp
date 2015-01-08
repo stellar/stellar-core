@@ -20,10 +20,10 @@ TEST_CASE("bucket list", "[clf]")
     {
         Application app(clock, cfg);
         BucketList bl;
-        autocheck::generator<std::vector<Bucket::KVPair>> gen;
+        autocheck::generator<std::vector<Bucket::Entry>> gen;
         for (uint64_t i = 1; !app.getMainIOService().stopped() && i < 130; ++i)
         {
-            app.getMainIOService().poll_one();
+            app.crank(false);
             bl.addBatch(app, i, gen(100));
             // LOG(DEBUG) << "Finished addition cycle " << i;
             for (size_t j = 0; j < bl.numLevels(); ++j)
