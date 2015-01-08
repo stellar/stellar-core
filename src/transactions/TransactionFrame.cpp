@@ -127,7 +127,7 @@ bool TransactionFrame::preApply(TxDelta& delta,LedgerMaster& ledgerMaster)
 {
     if(mSigningAccount.mEntry.account().sequence != mEnvelope.tx.seqNum)
     {
-        mResultCode = txBADSEQ;
+        mResultCode = txBAD_SEQ;
         CLOG(ERROR, "Tx") << "Tx sequence # doesn't match Account in validated set. This should never happen.";
         return false;
     }
@@ -135,7 +135,7 @@ bool TransactionFrame::preApply(TxDelta& delta,LedgerMaster& ledgerMaster)
     if((ledgerMaster.getCurrentLedgerHeader().ledgerSeq > mEnvelope.tx.maxLedger) ||
         (ledgerMaster.getCurrentLedgerHeader().ledgerSeq < mEnvelope.tx.minLedger))
     {
-        mResultCode = txMALFORMED;
+        mResultCode = txBAD_LEDGER;
         CLOG(ERROR, "Tx") << "tx not in valid ledger in validated set. This should never happen.";
         return false;
     }
