@@ -123,7 +123,7 @@
  * (say) 256 bytes, and a ledger closes every 5s, then we have 1.28MB of
  * transactions per ledger, so hot blocks are "written" (made available by the
  * database) every ledger, and cold blocks are written every 256 ledgers (21min,
- * 327MB), and we accumulate 26,280 cold blocks totalling 33GB per year in long
+ * 327MB), and we accumulate 26,280 cold blocks totalling 8.6TB per year in long
  * term transaction storage. Plus bucket snapshots, which should *roughly* follow
  * the same size profile, times a scalar factor for difference in size between
  * a transaction and the objects it changes, but divided by a scalar factor
