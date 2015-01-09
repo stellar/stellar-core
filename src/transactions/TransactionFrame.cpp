@@ -248,10 +248,31 @@ bool TransactionFrame::loadAccount(Application& app)
 // make sure it is in the correct ledger bounds
 bool TransactionFrame::checkValid(Application& app)
 {
-    if(mEnvelope.tx.maxFee < app.getLedgerGateway().getTxFee()) return false;
-    if(mEnvelope.tx.maxLedger < app.getLedgerGateway().getLedgerNum()) return false;
-    if(mEnvelope.tx.minLedger > app.getLedgerGateway().getLedgerNum()) return false;
-    if(!checkSignature()) return false;
+    if (mEnvelope.tx.maxFee < app.getLedgerGateway().getTxFee())
+    {
+        mResultCode = txINSUFFICIENT_FEE;
+        return false;
+    }
+    if (mEnvelope.tx.maxLedger < app.getLedgerGateway().getLedgerNum())
+    {
+        mResultCode = txBAD_LEDGER;
+        return false;
+    }
+    if (mEnvelope.tx.minLedger > app.getLedgerGateway().getLedgerNum())
+    {
+        mResultCode = txBAD_LEDGER;
+        return false;
+    }
+    if (!loadAccount(app))
+    {
+        mResultCode = txNOACCOUNT;
+        return false;
+    }
+    if (!checkSignature())
+    {
+        mResultCode = txBAD_AUTH;
+        return false;
+    }
 
     return doCheckValid(app);
 }

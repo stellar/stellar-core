@@ -74,7 +74,11 @@ TransactionFramePtr createPaymentTx(SecretKey& from, SecretKey& to, uint32_t seq
         func(txEnvelope);
     }
 
-    return TransactionFrame::makeTransactionFromWire(txEnvelope);
+    TransactionFramePtr res = TransactionFrame::makeTransactionFromWire(txEnvelope);
+
+    res->addSignature(from);
+
+    return res;
 }
 
 TransactionFramePtr createCreditPaymentTx(SecretKey& from, SecretKey& to, Currency& ci,uint32_t seq, uint64_t amount)
@@ -91,7 +95,11 @@ TransactionFramePtr createCreditPaymentTx(SecretKey& from, SecretKey& to, Curren
     txEnvelope.tx.body.paymentTx().destination = to.getPublicKey();
     txEnvelope.tx.body.paymentTx().sendMax = amount + 1000;
 
-    return TransactionFrame::makeTransactionFromWire(txEnvelope);
+    TransactionFramePtr res = TransactionFrame::makeTransactionFromWire(txEnvelope);
+
+    res->addSignature(from);
+
+    return res;
 }
 }
 }

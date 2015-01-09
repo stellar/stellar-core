@@ -15,6 +15,7 @@ namespace stellar
         txBAD_AUTH,
         txBAD_SEQ, // txPRE_SEQ, txPAST_SEQ,
         txBAD_LEDGER, // txMIN_LEDGER,txMAX_LEDGER,
+        txINSUFFICIENT_FEE,
         txMALFORMED,
         txALREADY,
         txNOFEE,

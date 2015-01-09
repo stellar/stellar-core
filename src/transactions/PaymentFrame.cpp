@@ -19,6 +19,8 @@ namespace stellar
         int64_t minBalance = ledgerMaster.getMinBalance(mSigningAccount.mEntry.account().ownerCount);
         
         AccountFrame destAccount;
+        bool isNew = false;
+
         if (!ledgerMaster.getDatabase().loadAccount(mEnvelope.tx.body.paymentTx().destination, destAccount))
         {   // this tx is creating an account
             if (mEnvelope.tx.body.paymentTx().currency.type() == NATIVE)
@@ -32,6 +34,7 @@ namespace stellar
                 {
                     destAccount.mEntry.account().accountID = mEnvelope.tx.body.paymentTx().destination;
                     destAccount.mEntry.account().balance = 0;
+                    isNew = true;
                 }
             }
             else
@@ -62,7 +65,10 @@ namespace stellar
                 return;
             }
 
-            delta.setStart(destAccount);
+            if (!isNew)
+            {
+                delta.setStart(destAccount);
+            }
             mSigningAccount.mEntry.account().balance -= mEnvelope.tx.body.paymentTx().amount;
             destAccount.mEntry.account().balance += mEnvelope.tx.body.paymentTx().amount;
             delta.setFinal(destAccount);
@@ -358,10 +364,19 @@ namespace stellar
     {
         if(mEnvelope.tx.body.paymentTx().currency.type()==NATIVE)
         {
-            if(mEnvelope.tx.body.paymentTx().path.size()) return false;
-        } else
+            if (mEnvelope.tx.body.paymentTx().path.size())
+            {
+                mResultCode = txMALFORMED;
+                return false;
+            }
+        }
+        else
         {
-            if(mEnvelope.tx.body.paymentTx().path.size() > MAX_PAYMENT_PATH_LENGTH) return false;
+            if (mEnvelope.tx.body.paymentTx().path.size() > MAX_PAYMENT_PATH_LENGTH)
+            {
+                mResultCode = txMALFORMED;
+                return false;
+            }
 
             // make sure there are no loops in the path
             for(auto step : mEnvelope.tx.body.paymentTx().path)
@@ -371,7 +386,11 @@ namespace stellar
                 {
                     if(compareCurrency(step, inner))
                     {
-                        if(seen) return false;
+                        if (seen)
+                        {
+                            mResultCode = txMALFORMED;
+                            return false;
+                        }
                         seen=true;
                     }
                 }

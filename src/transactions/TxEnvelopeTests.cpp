@@ -38,6 +38,8 @@ TEST_CASE("txenvelope", "[tx][envelope]")
     SecretKey root = getRoot();
     SecretKey a1 = getAccount("A");
 
+    const int32 paymentAmount = app.getLedgerMaster().getCurrentLedgerHeader().baseReserve*10;
+
     SECTION("outer envelope")
     {
         TransactionFramePtr txFrame;
@@ -45,11 +47,8 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
         SECTION("no signature")
         {
-            txFrame = createPaymentTx(root, a1, 1, 1000,
-                [](TransactionEnvelope &e)
-            {
-                e.signatures.clear();
-            });
+            txFrame = createPaymentTx(root, a1, 1, paymentAmount);
+            txFrame->getEnvelope().signatures.clear();
 
             txFrame->apply(delta, app);
 
@@ -57,13 +56,12 @@ TEST_CASE("txenvelope", "[tx][envelope]")
         }
         SECTION("bad signature")
         {
-            txFrame = createPaymentTx(root, a1, 1, 1000,
-                [](TransactionEnvelope &e)
+            txFrame = createPaymentTx(root, a1, 1, paymentAmount);
             {
                 uint512 badSig;
                 badSig.fill(123);
-                e.signatures[0] = badSig;
-            });
+                txFrame->getEnvelope().signatures[0] = badSig;
+            }
 
             txFrame->apply(delta, app);
 
@@ -76,19 +74,32 @@ TEST_CASE("txenvelope", "[tx][envelope]")
         TxSetFramePtr txSet = make_shared<TxSetFrame>();
 
         // create an account
-        TransactionFramePtr txFrame = createPaymentTx(root, a1, 1, 1000);
+        TransactionFramePtr txFrame = createPaymentTx(root, a1, 1, paymentAmount);
 
         txSet->add(txFrame);
 
         // close this ledger
         app.getLedgerMaster().closeLedger(txSet);
 
-        REQUIRE(app.getLedgerGateway().getLedgerNum() == 1);
+        REQUIRE(app.getLedgerGateway().getLedgerNum() == 2);
 
         {
             TxDelta delta;
             Json::Value jsonResult;
             LedgerDelta ledgerDelta;
+
+            SECTION("Insufficient fee")
+            {
+                txFrame->getEnvelope().tx.maxFee = app.getLedgerMaster().getTxFee() - 1;
+
+                txFrame->apply(delta, app);
+
+                delta.commitDelta(jsonResult, ledgerDelta, app.getLedgerMaster());
+
+                LOG(INFO) << jsonResult.toStyledString();
+
+                REQUIRE(txFrame->getResultCode() == txINSUFFICIENT_FEE);
+            }
 
             SECTION("duplicate payment")
             {
@@ -105,7 +116,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
             TransactionFramePtr txFrame2;
             SECTION("transaction gap")
             {
-                txFrame2 = createPaymentTx(root, a1, 3, 1000);
+                txFrame2 = createPaymentTx(root, a1, 3, paymentAmount);
 
                 txFrame2->apply(delta, app);
 
@@ -118,10 +129,10 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
             SECTION("min ledger seq")
             {
-                txFrame = createPaymentTx(root, a1, 1, 1000,
+                txFrame = createPaymentTx(root, a1, 1, paymentAmount,
                     [](TransactionEnvelope &e)
                 {
-                    e.tx.minLedger = 2;
+                    e.tx.minLedger = 3;
                 });
 
                 txFrame->apply(delta, app);
@@ -131,10 +142,10 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
             SECTION("max ledger seq")
             {
-                txFrame = createPaymentTx(root, a1, 1, 1000,
+                txFrame = createPaymentTx(root, a1, 1, paymentAmount,
                     [](TransactionEnvelope &e)
                 {
-                    e.tx.maxLedger = 0;
+                    e.tx.maxLedger = 1;
                 });
 
                 txFrame->apply(delta, app);

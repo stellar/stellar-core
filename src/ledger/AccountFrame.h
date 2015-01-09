@@ -13,6 +13,8 @@ namespace stellar
 	class AccountFrame : public EntryFrame
 	{
 		void calculateIndex();
+        void storeUpdate(EntryFrame::pointer startFrom, Json::Value& txResult,
+            LedgerMaster& ledgerMaster, bool insert);
 	public:
         typedef std::shared_ptr<AccountFrame> pointer;
 

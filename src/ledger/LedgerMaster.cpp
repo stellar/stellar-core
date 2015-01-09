@@ -168,6 +168,7 @@ void LedgerMaster::closeLedger(TxSetFramePtr txSet)
     mDatabase.endTransaction(false);
 
     // TODO.2 do something with the nextHeader
+    mCurrentHeader.ledgerSeq++;
     
     // TODO.2 give the LedgerDelta to the Bucketlist
 }

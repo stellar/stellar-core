@@ -50,6 +50,7 @@ AccountFrame::AccountFrame(uint256 const& id)
     mEntry.type(ACCOUNT);
     mEntry.account().accountID = id;
     mEntry.account().sequence = 1;
+    mEntry.account().thresholds[0] = 1; // by default, master key's weight is 1
 }
 
 void AccountFrame::calculateIndex()
@@ -102,77 +103,78 @@ void AccountFrame::storeDelete(Json::Value& txResult, LedgerMaster& ledgerMaster
         "DELETE from Signers where accountID= :v1", soci::use(base58ID);
 }
 
-void AccountFrame::storeChange(EntryFrame::pointer startFrom, 
-    Json::Value& txResult, LedgerMaster& ledgerMaster)
-{  
+void AccountFrame::storeUpdate(EntryFrame::pointer startFrom, Json::Value& txResult,
+    LedgerMaster& ledgerMaster, bool insert)
+{
     AccountEntry& finalAccount = mEntry.account();
     AccountEntry& startAccount = startFrom->mEntry.account();
     std::string base58ID = toBase58Check(VER_ACCOUNT_ID, getIndex());
 
     std::stringstream sql;
-    sql << "UPDATE Accounts set ";
 
-    bool before = false;
+    const char * op = insert ? "new" : "mod";
 
-    if(finalAccount.balance != startAccount.balance)
+    if (insert)
+    {
+        sql << "INSERT INTO Accounts ( accountID, balance, sequence,    \
+            ownerCount, transferRate, inflationDest, thresholds, flags) \
+            VALUES ( :id, :v1, :v2, :v3, :v4, :v5, :v6, :v7 )";
+    }
+    else
+    {
+        sql << "UPDATE Accounts SET balance = :v1, sequence = :v2, ownerCount = :v3, \
+                transferRate = :v4, inflationDest = :v5, thresholds = :v6, \
+                flags = :v7 WHERE accountID = :id";
+    }
+
+    if(insert || finalAccount.balance != startAccount.balance)
     { 
-        sql << " balance= " << mEntry.account().balance;
-        txResult["effects"]["mod"][base58ID]["balance"] = (Json::Int64)mEntry.account().balance;
-            
-        before = true;
-    }
-        
-    if(mEntry.account().sequence != startAccount.sequence)
-    {
-        if(before) sql << ", ";
-        sql << " sequence= " << mEntry.account().sequence;
-        txResult["effects"]["mod"][base58ID]["sequence"] = mEntry.account().sequence;
-        before = true;
+        txResult["effects"][op][base58ID]["balance"] = (Json::Int64)finalAccount.balance;
     }
 
-    if(mEntry.account().transferRate != startAccount.transferRate)
+    if(insert || finalAccount.sequence != startAccount.sequence || insert)
     {
-        if(before) sql << ", ";
-        sql << " transferRate= " << mEntry.account().transferRate;
-        txResult["effects"]["mod"][base58ID]["transferRate"] = mEntry.account().transferRate;
-        before = true;
+        txResult["effects"][op][base58ID]["sequence"] = finalAccount.sequence;
     }
 
+    if(insert || finalAccount.transferRate != startAccount.transferRate)
+    {
+        txResult["effects"][op][base58ID]["transferRate"] = finalAccount.transferRate;
+    }
+
+    soci::indicator inflation_ind = soci::i_null;
+    string inflationDestStr;
 
     if(finalAccount.inflationDest)
     {
-        if(!startAccount.inflationDest || *finalAccount.inflationDest != *startAccount.inflationDest)
+        if(insert || !startAccount.inflationDest || *finalAccount.inflationDest != *startAccount.inflationDest)
         {
-            string keyStr = toBase58Check(VER_ACCOUNT_PUBLIC, *finalAccount.inflationDest);
-            if(before) sql << ", ";
-            sql << " inflationDest= '" << keyStr << "' ";
-            txResult["effects"]["mod"][base58ID]["inflationDest"] = keyStr;
-            before = true;
+            inflationDestStr = toBase58Check(VER_ACCOUNT_PUBLIC, *finalAccount.inflationDest);
+            inflation_ind = soci::i_ok;
+            txResult["effects"][op][base58ID]["inflationDest"] = inflationDestStr;
         }
     }
     
-    if(mEntry.account().thresholds != startAccount.thresholds)
+    if(insert || finalAccount.thresholds != startAccount.thresholds)
     {
-        if(before) sql << ", ";
-        sql << " thresholds= " << binToHex(mEntry.account().thresholds);
-        txResult["effects"]["mod"][base58ID]["thresholds"][0] = mEntry.account().thresholds[0];
-        txResult["effects"]["mod"][base58ID]["thresholds"][1] = mEntry.account().thresholds[1];
-        txResult["effects"]["mod"][base58ID]["thresholds"][2] = mEntry.account().thresholds[2];
-        txResult["effects"]["mod"][base58ID]["thresholds"][3] = mEntry.account().thresholds[3];
-        before = true;
+        txResult["effects"][op][base58ID]["thresholds"][0] = finalAccount.thresholds[0];
+        txResult["effects"][op][base58ID]["thresholds"][1] = finalAccount.thresholds[1];
+        txResult["effects"][op][base58ID]["thresholds"][2] = finalAccount.thresholds[2];
+        txResult["effects"][op][base58ID]["thresholds"][3] = finalAccount.thresholds[3];
     }
     
 
-    if(mEntry.account().flags != startAccount.flags)
+    if(insert || mEntry.account().flags != startAccount.flags)
     {
-        if(before) sql << ", ";
-        sql << " flags= " << mEntry.account().flags;
-        txResult["effects"]["mod"][base58ID]["flags"] = mEntry.account().flags;
+        txResult["effects"][op][base58ID]["flags"] = finalAccount.flags;
     }
 
     // TODO.3   KeyValue data
-    sql << " where accountID='" << base58ID << "';";
-    ledgerMaster.getDatabase().getSession() << sql.str();
+    ledgerMaster.getDatabase().getSession() << sql.str(), use(base58ID, "id"),
+        use(finalAccount.balance, "v1"), use(finalAccount.sequence, "v2"),
+        use(finalAccount.ownerCount, "v3"), use(finalAccount.transferRate, "v4"),
+        use(inflationDestStr, inflation_ind, "v5"),
+        use(binToHex(finalAccount.thresholds), "v6"), use(finalAccount.flags, "v7");
 
     // deal with changes to Signers
     if(finalAccount.signers.size() < startAccount.signers.size())
@@ -215,7 +217,7 @@ void AccountFrame::storeChange(EntryFrame::pointer startFrom,
                     if(finalSigner.weight != startSigner.weight)
                     {
                         std::string b58signKey = toBase58Check(VER_ACCOUNT_ID, finalSigner.pubKey);
-                        txResult["effects"]["mod"][base58ID]["signers"][b58signKey] = finalSigner.weight;
+                        txResult["effects"][op][base58ID]["signers"][b58signKey] = finalSigner.weight;
                         ledgerMaster.getDatabase().getSession() << "UPDATE Signers set weight=:v1 where accountID=:v2 and pubKey=:v3",
                             use(finalSigner.weight), use(base58ID), use(b58signKey);
                     }
@@ -226,7 +228,7 @@ void AccountFrame::storeChange(EntryFrame::pointer startFrom,
             if(!found)
             { // new signer
                 std::string b58signKey = toBase58Check(VER_ACCOUNT_ID, finalSigner.pubKey);
-                txResult["effects"]["mod"][base58ID]["signers"][b58signKey] = finalSigner.weight;
+                txResult["effects"]["new"][base58ID]["signers"][b58signKey] = finalSigner.weight;
                 ledgerMaster.getDatabase().getSession() << "INSERT INTO Signers (accountID,pubKey,weight) values (:v1,:v2,:v3)",
                     use(base58ID), use(b58signKey), use(finalSigner.weight);
             }
@@ -234,16 +236,16 @@ void AccountFrame::storeChange(EntryFrame::pointer startFrom,
     }
 }
 
+void AccountFrame::storeChange(EntryFrame::pointer startFrom,
+    Json::Value& txResult, LedgerMaster& ledgerMaster)
+{
+    storeUpdate(startFrom, txResult, ledgerMaster, false);
+}
 
 void AccountFrame::storeAdd(Json::Value& txResult, LedgerMaster& ledgerMaster)
 {
-    std::string base58ID = toBase58Check(VER_ACCOUNT_ID, getIndex());
-
-    ledgerMaster.getDatabase().getSession() << "INSERT into Accounts (accountID,balance) values (:v1,:v2)",
-            soci::use(base58ID), soci::use(mEntry.account().balance);
-
-    txResult["effects"]["new"][base58ID]["type"] = "account";
-    txResult["effects"]["new"][base58ID]["balance"] = (Json::Int64)mEntry.account().balance;
+    EntryFrame::pointer emptyAccount = make_shared<AccountFrame>();
+    storeUpdate(emptyAccount, txResult, ledgerMaster, true);
 }
 
 void AccountFrame::dropAll(Database &db)
