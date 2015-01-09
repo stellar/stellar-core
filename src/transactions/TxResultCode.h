@@ -7,14 +7,18 @@
 
 namespace stellar
 {
+    // TODO: should be moved to .x file as it's protocol definition
 
     enum TxResultCode
     {
-        txSUCCESS,
+        txSUCCESS = 0,
+        txBAD_AUTH,
+        txBAD_SEQ, // txPRE_SEQ, txPAST_SEQ,
+        txBAD_LEDGER, // txMIN_LEDGER,txMAX_LEDGER,
+        txINSUFFICIENT_FEE,
+        txMALFORMED,
         txALREADY,
         txNOFEE,
-        txMALFORMED,
-        txBADSEQ,
         txUNDERFUNDED,
         txBADRATE,
         txLINEFULL,

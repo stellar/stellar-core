@@ -5,15 +5,17 @@ namespace stellar
 namespace txtest
 {
 
-extern SecretKey getRoot();
+SecretKey getRoot();
 
-extern SecretKey getAccount(const char* n);
+SecretKey getAccount(const char* n);
 
-extern TransactionFramePtr setTrust(SecretKey& from, SecretKey& to, uint32_t seq, uint256& currencyCode);
+TransactionFramePtr setTrust(SecretKey& from, SecretKey& to, uint32_t seq, const std::string& currencyCode);
 
-extern TransactionFramePtr createPaymentTx(SecretKey& from, SecretKey& to, uint32_t seq, uint64_t amount);
+TransactionFramePtr createPaymentTx(SecretKey& from, SecretKey& to, uint32_t seq, uint64_t amount,
+    std::function<void(TransactionEnvelope&)> func = nullptr);
 
-extern TransactionFramePtr createCreditPaymentTx(SecretKey& from, SecretKey& to, CurrencyIssuer& ci, uint32_t seq, uint64_t amount);
+TransactionFramePtr createCreditPaymentTx(SecretKey& from, SecretKey& to, Currency& ci, uint32_t seq,
+    uint64_t amount);
 }
 
 

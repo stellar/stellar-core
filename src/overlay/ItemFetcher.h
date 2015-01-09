@@ -10,7 +10,6 @@
 #include "txherder/TxSetFrame.h"
 #include "overlay/Peer.h"
 #include "fba/FBA.h"
-#include "clf/CLF.h"
 #include "util/Timer.h"
 
 /*
@@ -105,23 +104,6 @@ class QSetFetcher : public ItemFetcher
     // looks to see if we know about it but doesn't ask the network
     FBAQuorumSetPtr findItem(uint256 const& itemID);
     void recvItem(FBAQuorumSetPtr qSet);
-};
-
-class DeltaFetcher : public ItemFetcher
-{
-  public:
-    DeltaFetcher(Application& app) : ItemFetcher(app)
-    {
-    }
-    void fetchItem(uint256 const& itemID, uint64_t oldLedgerSeq);
-    void recvItem(CLFDeltaPtr delta);
-};
-
-class DeltaTrackingCollar : public TrackingCollar
-{
-    void askPeer(Peer::pointer peer);
-
-  public:
 };
 
 class TxSetTrackingCollar : public TrackingCollar

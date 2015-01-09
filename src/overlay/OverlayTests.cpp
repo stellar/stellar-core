@@ -8,6 +8,7 @@
 #include "main/test.h"
 #include "lib/catch.hpp"
 #include "util/Logging.h"
+#include "util/Timer.h"
 
 using namespace stellar;
 

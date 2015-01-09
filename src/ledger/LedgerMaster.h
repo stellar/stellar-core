@@ -6,7 +6,6 @@
 // this distribution or at http://opensource.org/licenses/ISC
 
 #include "Ledger.h"
-#include "clf/CanonicalLedgerForm.h"
 #include "database/Database.h"
 #include "ledger/LedgerGateway.h"
 
@@ -49,10 +48,7 @@ namespace stellar
         // called by txherder
         void externalizeValue(TxSetFramePtr txSet);
 
-        // called by CLF
-        void recvDelta(CLFDeltaPtr delta, LedgerHeaderPtr header);
-
-        int64_t getTxFee();
+        int32_t getTxFee();
         int64_t getLedgerNum();
         int64_t getMinBalance(int32_t ownerCount);
 		
@@ -77,21 +73,6 @@ namespace stellar
 
 		void closeLedger(TxSetFramePtr txSet);
 		
-
-    private:
-
-        // helper methods: returns new value of CLF in database 
-        
-        // called when we successfully sync to the network
-		CanonicalLedgerForm::pointer catchUp(CanonicalLedgerForm::pointer currentCLF);
-        CanonicalLedgerForm::pointer importLedgerState(uint256 ledgerHash);
-        
-        void updateDBFromLedger(CanonicalLedgerForm::pointer ledger);
-        
-        void setLastClosedLedger(CanonicalLedgerForm::pointer ledger);
-        uint256 getLastClosedLedgerHash();
-
-        void reset();
 	};
 }
 

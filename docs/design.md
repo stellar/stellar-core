@@ -1,42 +1,36 @@
-Left to design:
--Bucket list
--currency codes
--number format
+#Left to design:
+- Bucket list
+- Is this really the way we want to do paths/offers?
 
 
-Left to do:
-
-[items blocking platform work]
-
--Tests for FBA
--Tests for transactions
-
--ledger header needs to be stored in the DB
-
--saving peers in the DB
--sending round lists of peers
-
--Syncing to the network
--Replaying transactions (catch up)
--storing history
--bucket list 
-
--deal with many tx from same account in the same ledger
-
-[non blocking platform]
-
--stress test
--End to end tests
-
--inflation tx
--store validations in the DB
--fuzzer
+#Left to do:
+- items blocking function
+ - Random TODOs in the code (jed)
+ - Tests for FBA (stan)
+ - Tests for transactions (nicolas)
+ - ledger header needs to be stored in the DB (nicolas)
+ - Syncing to the network (graydon)
+ - Replaying transactions to catch up (graydon)
+ - storing history (graydon)
+ - bucket list (graydon)
+- non blocking items
+ - saving peers in the DB (jed)
+ - sending round lists of peers (jed)
+ - deal with bad acting peers (jed)
+ - stress test
+ - End to end tests, replaying a known set of tx  
+ - inflation tx (nicolas)
+ - store validations in the DB
+ - fuzzer
 
 
 
 Things we know we probably want to add later but design earlier than later
 to avoid churn on the protocol front:
--multisig accounts
--private transactions
--scripting
+- private transactions
+- scripting
+
+
+
+
 

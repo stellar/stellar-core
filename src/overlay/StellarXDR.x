@@ -4,22 +4,22 @@
 //   tx for signing
 //   tx sets for FBA
 //   tx sets for history
-//   Bucket list for hashing
-//   array of ledgerentries for sending deltas
+//   State snapshots for hashing
 
 %#include "generated/FBAXDR.h"
 
 namespace stellar {
 
 // messages
-typedef opaque byte[1];
 typedef opaque uint512[64];
 typedef opaque uint256[32];
 typedef unsigned hyper uint64;
 typedef hyper int64;
 typedef unsigned uint32;
 typedef int int32;
-typedef opaque CurrencyCode<33>;
+typedef opaque AccountID[32];
+typedef opaque Signature[64];
+typedef opaque Hash[32];
 
 struct Error
 {
@@ -46,18 +46,36 @@ enum TransactionType
 	INFLATION
 };
 
-struct CurrencyIssuer
+enum CurrencyTypes
 {
-	uint256 currencyCode;
-	uint256 issuer;
+	NATIVE,
+	ISO4217,
+	CUSTOM_TEXT,
+	CUSTOM_HASH,
+	DEMURRAGE
 };
 
-union Currency switch(bool native)
+struct HashCurrencyIssuer
 {
-	case TRUE: 
+	uint256 currencyCode;
+	AccountID issuer;
+};
+
+struct ISOCurrencyIssuer
+{
+	opaque currencyCode[4];
+	AccountID issuer;
+};
+
+union Currency switch(CurrencyTypes type)
+{
+	case NATIVE: 
 		void;
-	case FALSE:
-		CurrencyIssuer ci;
+
+	case ISO4217: 
+		ISOCurrencyIssuer isoCI;
+
+	// add other currency types here in the future
 };
 	
 
@@ -75,7 +93,7 @@ struct KeyValue
 
 struct PaymentTx
 {
-	uint256 destination;  
+	AccountID destination;  
 	Currency currency;			// what they end up with
 	int64 amount;				// amount they end up with
 	Currency path<>;			// what hops it must go through to get there
@@ -98,7 +116,7 @@ struct CreateOfferTx
 
 struct SetOptionsTx
 {
-	uint256* inflationDest;
+	AccountID* inflationDest;
 	uint32*	flags;
 	uint32* transferRate;
 	KeyValue* data;
@@ -108,14 +126,21 @@ struct SetOptionsTx
 
 struct ChangeTrustTx
 {
-	CurrencyIssuer line;
+	Currency line;
 	int64 limit;
 };
 
 struct AllowTrustTx
 {
-	uint256 trustor;
-	uint256 currencyCode;
+	AccountID trustor;
+	union switch(CurrencyTypes type)
+	{
+		case ISO4217: 
+			opaque currencyCode[4];
+
+		// add other currency types here in the future
+	} code;
+
 	bool authorize;
 };
 
@@ -123,7 +148,7 @@ struct AllowTrustTx
 
 struct Transaction
 {
-    uint256 account;
+    AccountID account;
 	uint32 maxFee;
 	uint32 seqNum;
 	uint32 maxLedger;	// maximum ledger this tx is valid to be applied in
@@ -209,7 +234,7 @@ struct AccountEntry
 	int64 balance;
 	uint32 sequence;
 	uint32 ownerCount;
-	uint32 transferRate;	// rate*10000000
+	uint32 transferRate;	// amountsent/transferrate is how much you charge
 	uint256 *inflationDest;
 	opaque thresholds[4]; // weight of master/threshold1/threshold2/threshold3
 	Signer signers<>; // do we want some max or just increase the min balance
@@ -223,8 +248,7 @@ struct AccountEntry
 struct TrustLineEntry
 {
     uint256 accountID;
-    uint256 issuer;
-    uint256 currencyCode;
+    Currency currency;
     int64 limit;
     int64 balance;
     bool authorized;  // if the issuer has authorized this guy to hold its credit
@@ -240,7 +264,7 @@ struct OfferEntry
 	Currency takerPays;  // B
 	int64 amount;	// amount of A
 	int64 price;	// price of A in terms of B
-					// price*1,000,000,000
+					// price*10,000,000
 					// price=AmountB/AmountA
 					// price is after fees
     int32 flags;
@@ -273,12 +297,6 @@ enum MessageType
 	GET_PEERS,   // gets a list of peers this guy knows about		
 	PEERS,		
 		
-	GET_HISTORY,  // gets a list of tx sets in the given range		
-	HISTORY,		
-
-	GET_DELTA,  // gets all the bucket list changes since a particular ledger index		
-	DELTA,		
-		
 	GET_TX_SET,  // gets a particular txset by hash		
 	TX_SET,	
 		
@@ -300,25 +318,6 @@ struct DontHave
 	uint256 reqHash;
 };
 
-struct GetDelta
-{
-    uint256 oldLedgerHash;
-    uint32 oldLedgerSeq;
-};
-
-struct Delta
-{
-	LedgerHeader ledgerHeader;
-	LedgerEntry deltaEntries<>;
-};
-
-struct GetHistory
-{
-    uint256 a;
-    uint256 b;
-};
-
-
 union StellarMessage switch (MessageType type) {
 	case ERROR_MSG:
 		Error error;
@@ -330,14 +329,6 @@ union StellarMessage switch (MessageType type) {
 		void;
 	case PEERS:
 		PeerAddress peers<>;
-	case GET_HISTORY:
-		GetHistory historyReq;
-	case HISTORY:
-		History history;
-	case GET_DELTA:	
-		GetDelta deltaReq;	
-	case DELTA:	
-		Delta delta;
 
 	case GET_TX_SET:
 		uint256 txSetHash;		

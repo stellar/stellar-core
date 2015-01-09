@@ -15,6 +15,7 @@ class ByteSlice;
 struct PublicKey : public uint256
 {
     bool verify(uint512 const& signature, ByteSlice const& bin) const;
+    static bool verifySig(const uint256& key, uint512 const& signature, ByteSlice const& bin);
 };
 
 class SecretKey : public uint512

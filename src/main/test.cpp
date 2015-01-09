@@ -39,6 +39,9 @@ getTestConfig()
         // and connected loopback sockets), no external connections are
         // attempted.
         gTestCfg->RUN_STANDALONE = true;
+        gTestCfg->START_NEW_NETWORK = true;
+
+        gTestCfg->DATABASE = "sqlite3://test.db";
     }
     return *gTestCfg;
 }

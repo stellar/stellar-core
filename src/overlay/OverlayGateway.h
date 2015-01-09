@@ -6,6 +6,7 @@
 // this distribution or at http://opensource.org/licenses/ISC
 
 #include "generated/StellarXDR.h"
+#include "overlay/Peer.h"
 
 /*
 Public interface to the Overlay module
@@ -19,7 +20,7 @@ There are 3 classes of messages:
     transaction, prepare, prepared, etc...
 -Messages that you want a response from some peer but you don't care which.
 Should keep rotating peers till you get an answer:
-    getTxSet, getQuorumSet, getHistory, getDelta, ...
+    getTxSet, getQuorumSet, ...
 
 
 */
@@ -38,8 +39,6 @@ class OverlayGateway
   public:
     // called by Ledger
     virtual void ledgerClosed(LedgerPtr ledger) = 0;
-    virtual void fetchDelta(uint256 const& oldLedgerHash,
-                            uint64_t oldLedgerSeq) = 0;
 
     // called by TxHerder
     virtual void broadcastMessage(uint256 const& messageID) = 0;

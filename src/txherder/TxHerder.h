@@ -82,7 +82,7 @@ class TxHerder : public TxHerderGateway
     // return true if we should flood
     bool recvTransaction(TransactionFramePtr tx);
 
-    bool isTxKnown(uint256 const& txHash);
+   
 
     void ledgerClosed(LedgerPtr ledger);
 

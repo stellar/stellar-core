@@ -6,9 +6,11 @@
 
 #include "util/Logging.h"
 #include "main/Application.h"
+#include "main/Config.h"
 #include "generated/StellarXDR.h"
 #include "xdrpp/marshal.h"
 #include "overlay/PeerMaster.h"
+#include "txherder/TxHerderGateway.h"
 
 // LATER: need to add some way of docking peers that are misbehaving by sending
 // you bad data
@@ -101,7 +103,20 @@ Peer::sendGetQuorumSet(uint256 const& setID)
 void
 Peer::sendPeers()
 {
-    // TODO.3
+    // TODO.2 catch DB errors and malformed IPs
+
+    // send top 50 peers we know about
+    vector< pair<string, int> > peerList;
+    mApp.getDatabase().loadPeers(50, peerList);
+    StellarMessage newMsg;
+    newMsg.type(PEERS);
+    newMsg.peers().resize(peerList.size());
+    for(int n = 0; n < peerList.size(); n++)
+    {
+        ipFromStr(peerList[n].first, newMsg.peers()[n].ip);
+        newMsg.peers()[n].port = peerList[n].second;
+    }
+    sendMessage(newMsg);
 }
 
 void
@@ -166,30 +181,6 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
     }
     break;
 
-    case GET_HISTORY:
-    {
-        recvGetHistory(stellarMsg);
-    }
-    break;
-
-    case HISTORY:
-    {
-        recvHistory(stellarMsg);
-    }
-    break;
-
-    case GET_DELTA:
-    {
-        recvGetDelta(stellarMsg);
-    }
-    break;
-
-    case DELTA:
-    {
-        recvDelta(stellarMsg);
-    }
-    break;
-
     case GET_TX_SET:
     {
         recvGetTxSet(stellarMsg);
@@ -246,27 +237,10 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
 }
 
 void
-Peer::recvGetDelta(StellarMessage const& msg)
-{
-    // LATER
-}
-void
-Peer::recvDelta(StellarMessage const& msg)
-{
-    // LATER
-}
-
-void
 Peer::recvDontHave(StellarMessage const& msg)
 {
     switch (msg.dontHave().type)
     {
-    case HISTORY:
-        // LATER
-        break;
-    case DELTA:
-        // LATER
-        break;
     case TX_SET:
         mApp.getTxHerderGateway().doesntHaveTxSet(msg.dontHave().reqHash,
                                                   shared_from_this());
@@ -396,20 +370,7 @@ bool Peer::ipFromStr(std::string ipStr,xdr::opaque_array<4U>& ret)
 void
 Peer::recvGetPeers(StellarMessage const& msg)
 {
-    // TODO.2 catch DB errors and malformed IPs
-
-    // send top 50 peers we know about
-    vector< pair<string, int> > peerList;
-    mApp.getDatabase().loadPeers(50,peerList);
-    StellarMessage newMsg;
-    newMsg.type(PEERS);
-    newMsg.peers().resize(peerList.size());
-    for(int n = 0; n < peerList.size(); n++)
-    {
-        ipFromStr(peerList[n].first, newMsg.peers()[n].ip);
-        newMsg.peers()[n].port = peerList[n].second;
-    }
-    sendMessage(newMsg);
+    sendPeers();
 }
 
 void
@@ -421,16 +382,6 @@ Peer::recvPeers(StellarMessage const& msg)
         ip << (int)peer.ip[0] << "." << (int)peer.ip[1] << "." << (int)peer.ip[2] << "." << (int)peer.ip[3];
         mApp.getDatabase().addPeer(ip.str(), peer.port);
     }
-}
-void
-Peer::recvGetHistory(StellarMessage const& msg)
-{
-    // LATER
-}
-void
-Peer::recvHistory(StellarMessage const& msg)
-{
-    // LATER
 }
 
 void

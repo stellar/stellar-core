@@ -4,43 +4,43 @@ SUBDIRS =
 noinst_LTLIBRARIES = libsoci.la
 bin_PROGRAMS = bin/stellard
 
-FMT_SRCS = src/clf/BucketList.cpp src/clf/CLFTests.cpp src/crypto/Base58.cpp    \
-    src/crypto/Hex.cpp src/crypto/SHA.cpp src/crypto/SecretKey.cpp              \
-    src/crypto/CryptoTests.cpp src/database/Database.cpp                        \
-    src/database/DatabaseTests.cpp src/fba/FBA.cpp src/fba/Slot.cpp             \
-    src/fba/Node.cpp src/fba/LocalNode.cpp src/fba/FBATests.cpp                 \
-    src/history/HistoryArchive.cpp src/history/HistoryMaster.cpp                \
-    src/history/HistoryTests.cpp src/ledger/AccountFrame.cpp                    \
-    src/ledger/EntryFrame.cpp src/ledger/Ledger.cpp src/ledger/LedgerDelta.cpp  \
-    src/ledger/LedgerMaster.cpp src/ledger/OfferFrame.cpp                       \
-    src/ledger/TrustFrame.cpp src/main/Application.cpp                          \
-    src/main/CommandHandler.cpp src/main/Config.cpp src/main/main.cpp           \
-    src/main/test.cpp src/overlay/Floodgate.cpp src/overlay/ItemFetcher.cpp     \
-    src/overlay/LoopbackPeer.cpp src/overlay/OverlayTests.cpp                   \
-    src/overlay/Peer.cpp src/overlay/PeerDoor.cpp src/overlay/PeerMaster.cpp    \
-    src/overlay/PreferredPeers.cpp src/overlay/TCPPeer.cpp                      \
-    src/process/ProcessMaster.cpp src/process/ProcessTests.cpp                  \
-    src/simulation/CycleTests.cpp src/simulation/Simulation.cpp                 \
-    src/transactions/CancelOfferFrame.cpp src/transactions/CreateOfferFrame.cpp \
-    src/transactions/InflationFrame.cpp src/transactions/MergeFrame.cpp         \
-    src/transactions/PaymentFrame.cpp src/transactions/SetOptionsFrame.cpp      \
-    src/transactions/TransactionFrame.cpp                                       \
+FMT_SRCS = src/clf/BucketList.cpp src/clf/CLFMaster.cpp src/clf/CLFTests.cpp    \
+    src/crypto/Base58.cpp src/crypto/Hex.cpp src/crypto/SHA.cpp                 \
+    src/crypto/SecretKey.cpp src/crypto/CryptoTests.cpp                         \
+    src/database/Database.cpp src/database/DatabaseTests.cpp src/fba/FBA.cpp    \
+    src/fba/Slot.cpp src/fba/Node.cpp src/fba/LocalNode.cpp                     \
+    src/fba/FBATests.cpp src/history/HistoryArchive.cpp                         \
+    src/history/HistoryMaster.cpp src/history/HistoryTests.cpp                  \
+    src/ledger/AccountFrame.cpp src/ledger/EntryFrame.cpp src/ledger/Ledger.cpp \
+    src/ledger/LedgerDelta.cpp src/ledger/LedgerMaster.cpp                      \
+    src/ledger/OfferFrame.cpp src/ledger/TrustFrame.cpp                         \
+    src/main/Application.cpp src/main/CommandHandler.cpp src/main/Config.cpp    \
+    src/main/main.cpp src/main/test.cpp src/overlay/Floodgate.cpp               \
+    src/overlay/ItemFetcher.cpp src/overlay/LoopbackPeer.cpp                    \
+    src/overlay/OverlayTests.cpp src/overlay/Peer.cpp src/overlay/PeerDoor.cpp  \
+    src/overlay/PeerMaster.cpp src/overlay/PreferredPeers.cpp                   \
+    src/overlay/TCPPeer.cpp src/process/ProcessMaster.cpp                       \
+    src/process/ProcessTests.cpp src/simulation/CycleTests.cpp                  \
+    src/simulation/Simulation.cpp src/transactions/CancelOfferFrame.cpp         \
+    src/transactions/CreateOfferFrame.cpp src/transactions/InflationFrame.cpp   \
+    src/transactions/MergeFrame.cpp src/transactions/PaymentFrame.cpp           \
+    src/transactions/SetOptionsFrame.cpp src/transactions/TransactionFrame.cpp  \
     src/transactions/AllowTrustTxFrame.cpp                                      \
     src/transactions/ChangeTrustTxFrame.cpp src/transactions/TxDelta.cpp        \
     src/txherder/TxHerder.cpp src/txherder/TxSetFrame.cpp src/util/Logging.cpp  \
-    src/util/Timer.cpp src/util/types.cpp
+    src/util/Timer.cpp src/util/types.cpp src/util/Uint128Tests.cpp
 
-FMT_HDRS = src/clf/BucketList.h src/clf/CLF.h src/clf/CLFDelta.h                \
-    src/clf/CLFGateway.h src/clf/CanonicalLedgerForm.h src/crypto/Base58.h      \
-    src/crypto/Hex.h src/crypto/SHA.h src/crypto/Sign.h src/database/Database.h \
+FMT_HDRS = src/clf/BucketList.h src/clf/CLFMaster.h src/crypto/Base58.h         \
+    src/crypto/Hex.h src/crypto/SHA.h src/crypto/SecretKey.h                    \
     src/database/Database.h src/fba/FBA.h src/fba/Slot.h src/fba/Node.h         \
-    src/fba/LocalNode.h src/history/HistoryArchive.h                            \
-    src/history/HistoryGateway.h src/history/HistoryMaster.h                    \
-    src/ledger/AccountFrame.h src/ledger/EntryFrame.h src/ledger/Ledger.h       \
-    src/ledger/LedgerDelta.h src/ledger/LedgerGateway.h                         \
-    src/ledger/LedgerMaster.h src/ledger/OfferFrame.h src/ledger/TrustFrame.h   \
-    src/main/Application.h src/main/CommandHandler.h src/main/Config.h          \
-    src/main/test.h src/overlay/FetchableItem.h src/overlay/Floodgate.h         \
+    src/fba/LocalNode.h                                                         \
+    src/history/HistoryArchive.h src/history/HistoryGateway.h                   \
+    src/history/HistoryMaster.h src/ledger/AccountFrame.h                       \
+    src/ledger/EntryFrame.h src/ledger/Ledger.h src/ledger/LedgerDelta.h        \
+    src/ledger/LedgerGateway.h src/ledger/LedgerMaster.h                        \
+    src/ledger/OfferFrame.h src/ledger/TrustFrame.h src/main/Application.h      \
+    src/main/CommandHandler.h src/main/Config.h src/main/test.h                 \
+    src/overlay/FetchableItem.h src/overlay/Floodgate.h                         \
     src/overlay/ItemFetcher.h src/overlay/LoopbackPeer.h                        \
     src/overlay/OverlayGateway.h src/overlay/Peer.h src/overlay/PeerDoor.h      \
     src/overlay/PeerMaster.h src/overlay/PreferredPeers.h src/overlay/TCPPeer.h \
@@ -65,24 +65,36 @@ bin_stellard_SOURCES = $(FMT_SRCS) \
                        $(BUILT_SOURCES) \
                        src/lib/util/getopt_long.c \
                        src/lib/util/format.cc \
+                       src/lib/util/uint128_t.cpp \
                        src/lib/json/jsoncpp.cpp \
                        src/lib/http/HttpClient.cpp \
                        src/lib/http/connection.cpp \
                        src/lib/http/connection_manager.cpp \
                        src/lib/http/reply.cpp \
                        src/lib/http/request_parser.cpp \
-                       src/lib/http/server.cpp
+                       src/lib/http/server.cpp \
+                       src/lib/asio/src/asio.cpp
 
 bin_stellard_CPPFLAGS = -I$(top_srcdir)/src \
                         -I$(builddir)/src \
                         -I$(srcdir)/src/lib/autocheck/include \
                         -I$(srcdir)/src/lib/cereal/include \
                         -I$(srcdir)/src/lib/util \
-                        -I$(srcdir)/src/lib/asio/include -DASIO_STANDALONE \
+                        -I$(srcdir)/src/lib/asio/include -DASIO_SEPARATE_COMPILATION \
                         -I$(srcdir)/src/lib/soci/src/core \
-                        -I$(srcdir)/src/lib/soci/src/backends/sqlite3
+                        -I$(srcdir)/src/lib/soci/src/backends/sqlite3 \
+                        $(libsodium_CFLAGS) \
+                        $(xdrpp_CFLAGS) \
+                        $(sqlite_CFLAGS) \
+                        $(libpq_CFLAGS) \
+                        $(libmedida_CFLAGS)
 
-bin_stellard_LDADD = libsoci.la
+bin_stellard_LDADD = libsoci.la \
+                     $(libsodium_LIBS) \
+                     $(xdrpp_LIBS) \
+                     $(sqlite_LIBS) \
+                     $(libpq_LIBS) \
+                     $(libmedida_LIBS)
 bin_stellard_DEPENDENCIES =
 
 if LIBSODIUM_INTERNAL
@@ -103,7 +115,8 @@ bin_stellard_LDADD += libsqlite.la
 endif
 
 libsoci_la_CPPFLAGS = -I$(srcdir)/src/lib/soci/src/core \
-                      -I$(srcdir)/src/lib/soci/src/backends/sqlite3
+                      -I$(srcdir)/src/lib/soci/src/backends/sqlite3 \
+                      $(sqlite_CFLAGS)
 
 libsoci_la_SOURCES = src/lib/soci/src/backends/sqlite3/standard-use-type.cpp    \
     src/lib/soci/src/backends/sqlite3/session.cpp                               \
@@ -130,7 +143,9 @@ libsoci_la_SOURCES = src/lib/soci/src/backends/sqlite3/standard-use-type.cpp    
     src/lib/soci/src/core/procedure.cpp src/lib/soci/src/core/use-type.cpp
 
 if USE_POSTGRESQL
-libsoci_la_CPPFLAGS += -I$(srcdir)/src/lib/soci/src/backends/postgresql
+libsoci_la_CPPFLAGS += -I$(srcdir)/src/lib/soci/src/backends/postgresql \
+                         $(libpq_CFLAGS)
+
 libsoci_la_SOURCES +=                                           \
     src/lib/soci/src/backends/postgresql/standard-use-type.cpp  \
     src/lib/soci/src/backends/postgresql/session.cpp            \
@@ -204,7 +219,7 @@ endif
 CLEANFILES = $(BUILT_SOURCES)
 GITDIR = $(top_srcdir)/.git
 src/generated/StellardVersion.h: Makefile
-	mkdir -p src/generated; \
+	$(AM_V_GEN)mkdir -p src/generated; \
     if test -d "$(GITDIR)"; then                                            \
       (VERS="$$(GIT_DIR=$(GITDIR) git describe --always --dirty --tags)" && \
        echo "#define STELLARD_VERSION \"$$VERS\"") >$@;                     \
@@ -213,10 +228,10 @@ src/generated/StellardVersion.h: Makefile
     fi
 
 src/generated/StellarXDR.h: src/overlay/StellarXDR.x Makefile
-	mkdir -p src/generated
+	$(AM_V_GEN)mkdir -p src/generated; \
 	$(XDRC) -hh -o $@ $<
 src/generated/FBAXDR.h: src/fba/FBAXDR.x Makefile
-	mkdir -p src/generated
+	$(AM_V_GEN)mkdir -p src/generated
 	$(XDRC) -hh -o $@ $<
 
 if USE_CLANG_FORMAT

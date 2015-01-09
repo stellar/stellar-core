@@ -19,10 +19,10 @@ namespace stellar
 			offerIndex CHARACTER(35) PRIMARY KEY,   \
             accountID		CHARACTER(35),		    \
 			sequence		INT UNSIGNED,		    \
-			takerPaysCurrency Blob(20),			    \
-			takerPaysIssuer CHARACTER(35),		    \
-			takerGetsCurrency Blob(20),			    \
-			takerGetsIssuer CHARACTER(35),		    \
+			paysIsoCurrency CHARACTER(4),		    \
+			paysIssuer CHARACTER(35),		        \
+			getsIsoCurrency CHARACTER(4),			\
+			getsIssuer CHARACTER(35),		        \
 			amount BIGINT UNSIGNED,             	\
 			price BIGINT UNSIGNED,	                \
 			flags INT UNSIGNED					    \
@@ -97,6 +97,7 @@ namespace stellar
         sql << " where offerIndex='" << base58ID << "';";
         ledgerMaster.getDatabase().getSession() << sql.str();
     }
+
     void OfferFrame::storeAdd(Json::Value& txResult, LedgerMaster& ledgerMaster)
     {
         std::string b58Index = toBase58Check(VER_ACCOUNT_ID, getIndex());
@@ -109,48 +110,51 @@ namespace stellar
         txResult["effects"]["new"][b58Index]["price"] = (Json::Int64)mEntry.offer().price;
         txResult["effects"]["new"][b58Index]["flags"] = mEntry.offer().flags;
         
-        if(mEntry.offer().takerGets.native())
+        if(mEntry.offer().takerGets.type()==NATIVE)
         {
-            std::string b58issuer = toBase58Check(VER_ACCOUNT_ID, mEntry.offer().takerPays.ci().issuer);
-            std::string b58currency = toBase58Check(VER_ACCOUNT_ID, mEntry.offer().takerPays.ci().currencyCode);
+            std::string b58issuer = toBase58Check(VER_ACCOUNT_ID, mEntry.offer().takerPays.isoCI().issuer);
+            std::string currencyCode;
+            currencyCodeToStr(mEntry.offer().takerPays.isoCI().currencyCode, currencyCode);
             ledgerMaster.getDatabase().getSession() <<
-                "INSERT into Offers (offerIndex,accountID,sequence,takerPaysCurrency,takerPaysIssuer,amount,price,flags) values (:v1,:v2,:v3,:v4,:v5,:v6,:v7,:v8)",
+                "INSERT into Offers (offerIndex,accountID,sequence,paysCurrency,paysIssuer,amount,price,flags) values (:v1,:v2,:v3,:v4,:v5,:v6,:v7,:v8)",
                 use(b58Index), use(b58AccountID), use(mEntry.offer().sequence), 
-                use(b58issuer),use(b58currency),use(mEntry.offer().amount),
+                use(b58issuer),use(currencyCode),use(mEntry.offer().amount),
                 use(mEntry.offer().price),use(mEntry.offer().flags);
 
             txResult["effects"]["new"][b58Index]["takerPaysIssuer"] = b58issuer;
-            txResult["effects"]["new"][b58Index]["takerPaysCurrency"] = b58currency;
+            txResult["effects"]["new"][b58Index]["takerPaysCurrency"] = currencyCode;
 
-        } else if(mEntry.offer().takerPays.native())
+        } else if(mEntry.offer().takerPays.type()==NATIVE)
         {
-            std::string b58issuer = toBase58Check(VER_ACCOUNT_ID, mEntry.offer().takerGets.ci().issuer);
-            std::string b58currency = toBase58Check(VER_ACCOUNT_ID, mEntry.offer().takerGets.ci().currencyCode);
+            std::string b58issuer = toBase58Check(VER_ACCOUNT_ID, mEntry.offer().takerGets.isoCI().issuer);
+            std::string currencyCode;
+            currencyCodeToStr(mEntry.offer().takerGets.isoCI().currencyCode, currencyCode);
             ledgerMaster.getDatabase().getSession() <<
-                "INSERT into Offers (offerIndex,accountID,sequence,takerGetsCurrency,takerGetsIssuer,amount,price,flags) values (:v1,:v2,:v3,:v4,:v5,:v6,:v7,:v8)",
+                "INSERT into Offers (offerIndex,accountID,sequence,getsCurrency,getsIssuer,amount,price,flags) values (:v1,:v2,:v3,:v4,:v5,:v6,:v7,:v8)",
                 use(b58Index), use(b58AccountID), use(mEntry.offer().sequence),
-                use(b58issuer), use(b58currency), use(mEntry.offer().amount),
+                use(b58issuer), use(currencyCode), use(mEntry.offer().amount),
                 use(mEntry.offer().price), use(mEntry.offer().flags);
 
             txResult["effects"]["new"][b58Index]["takerGetsIssuer"] = b58issuer;
-            txResult["effects"]["new"][b58Index]["takerGetsCurrency"] = b58currency;
+            txResult["effects"]["new"][b58Index]["takerGetsCurrency"] = currencyCode;
         } else
         {
-            std::string b58PaysIssuer = toBase58Check(VER_ACCOUNT_ID, mEntry.offer().takerPays.ci().issuer);
-            std::string b58PaysCurrency = toBase58Check(VER_ACCOUNT_ID, mEntry.offer().takerPays.ci().currencyCode);
-            std::string b58GetsIssuer = toBase58Check(VER_ACCOUNT_ID, mEntry.offer().takerGets.ci().issuer);
-            std::string b58GetsCurrency = toBase58Check(VER_ACCOUNT_ID, mEntry.offer().takerGets.ci().currencyCode);
+            std::string b58PaysIssuer = toBase58Check(VER_ACCOUNT_ID, mEntry.offer().takerPays.isoCI().issuer);
+            std::string paysCurrency, getsCurrency;
+            currencyCodeToStr(mEntry.offer().takerPays.isoCI().currencyCode,paysCurrency);
+            std::string b58GetsIssuer = toBase58Check(VER_ACCOUNT_ID, mEntry.offer().takerGets.isoCI().issuer);
+            currencyCodeToStr(mEntry.offer().takerGets.isoCI().currencyCode,getsCurrency);
             ledgerMaster.getDatabase().getSession() << 
-                "INSERT into Offers (offerIndex,accountID,sequence,takerPaysCurrency,takerPaysIssuer,takerGetsCurrency,takerGetsIssuer,amount,price,flags) values (:v1,:v2,:v3,:v4,:v5,:v6,:v7,:v8,:v9,:v10)",
+                "INSERT into Offers (offerIndex,accountID,sequence,paysCurrency,paysIssuer,getsCurrency,getsIssuer,amount,price,flags) values (:v1,:v2,:v3,:v4,:v5,:v6,:v7,:v8,:v9,:v10)",
                 use(b58Index), use(b58AccountID), use(mEntry.offer().sequence),
-                use(b58PaysIssuer), use(b58PaysCurrency), use(b58GetsIssuer), use(b58GetsCurrency),
+                use(b58PaysIssuer), use(paysCurrency), use(b58GetsIssuer), use(getsCurrency),
                 use(mEntry.offer().amount),
                 use(mEntry.offer().price), use(mEntry.offer().flags);
 
             txResult["effects"]["new"][b58Index]["takerPaysIssuer"] = b58PaysIssuer;
-            txResult["effects"]["new"][b58Index]["takerPaysCurrency"] = b58PaysCurrency;
+            txResult["effects"]["new"][b58Index]["takerPaysCurrency"] = paysCurrency;
             txResult["effects"]["new"][b58Index]["takerGetsIssuer"] = b58GetsIssuer;
-            txResult["effects"]["new"][b58Index]["takerGetsCurrency"] = b58GetsCurrency;
+            txResult["effects"]["new"][b58Index]["takerGetsCurrency"] = getsCurrency;
         }
     }
 

@@ -5,29 +5,28 @@
 // under the ISC License. See the COPYING file at the top-level directory of
 // this distribution or at http://opensource.org/licenses/ISC
 
-// ASIO is somewhat particular about when it gets included -- it wants to be the
-// first to include <windows.h> -- so we try to include it before everything
-// else.
-#ifndef ASIO_STANDALONE
-#define ASIO_STANDALONE
-#endif
-#include <asio.hpp>
+#include <memory>
 
-/* TODO(spolu) Reintroduce FBA */
-/*
-#include "fba/FBAMaster.h"
-*/
-#include "ledger/LedgerMaster.h"
-#include "main/Config.h"
-#include "txherder/TxHerder.h"
-#include "overlay/OverlayGateway.h"
-#include "overlay/PeerMaster.h"
-#include "clf/BucketList.h"
-#include "history/HistoryMaster.h"
-#include "database/Database.h"
-#include "process/ProcessMaster.h"
-#include "main/CommandHandler.h"
-#include "medida/metrics_registry.h"
+namespace asio { class io_service; }
+namespace medida { class MetricsRegistry; }
+
+namespace stellar
+{
+
+class VirtualClock;
+class Config;
+class LedgerGateway;
+class LedgerMaster;
+//class FBAGateway;
+class CLFMaster;
+class HistoryMaster;
+class ProcessGateway;
+class TxHerderGateway;
+class OverlayGateway;
+class PeerMaster;
+class Database;
+
+
 /*
  * State of a single instance of the application.
  *
@@ -45,13 +44,12 @@
  *
  */
 
-namespace stellar
+class Application
 {
 
-class VirtualClock;
+    struct Impl;
+    std::unique_ptr<Impl> mImpl;
 
-class Application : public enable_shared_from_this<Application>
-{
   public:
     typedef std::shared_ptr<Application> pointer;
 
@@ -93,53 +91,6 @@ class Application : public enable_shared_from_this<Application>
 
   private:
 
-    State mState;
-    VirtualClock& mVirtualClock;
-    Config const& mConfig;
-
-    // NB: The io_services should come first, then the 'master'
-    // sub-objects, then the threads. Do not reorder these fields.
-    //
-    // The fields must be constructed in this order, because the
-    // 'master' sub-objects register work-to-do (listening on sockets)
-    // with the io_services during construction, and the threads are
-    // activated immediately thereafter to serve requests; if the
-    // threads started first, they would try to do work, find no work,
-    // and exit.
-    //
-    // The fields must be destructed in the reverse order because the
-    // 'master' sub-objects contain various IO objects that refer
-    // directly to the io_services.
-
-    asio::io_service mMainIOService;
-    asio::io_service mWorkerIOService;
-    std::unique_ptr<asio::io_service::work> mWork;
-    std::unique_ptr<RealTimer> mRealTimer;
-
-    medida::MetricsRegistry mMetrics;
-    PeerMaster mPeerMaster;
-    LedgerMaster mLedgerMaster;
-    TxHerder mTxHerder;
-    /* TODO(spolu) Reintroduce FBA */
-    /*
-    FBAMaster mFBAMaster;
-    */
-    BucketList mBucketList;
-    HistoryMaster mHistoryMaster;
-    ProcessMaster mProcessMaster;
-    CommandHandler mCommandHandler;
-    Database mDatabase;
-
-    std::vector<std::thread> mWorkerThreads;
-
-    asio::signal_set mStopSignals;
-
-    size_t mRealTimerCancelCallbacks;
-    void runWorkerThread(unsigned i);
-    void scheduleRealTimerFromNextVirtualEvent();
-    size_t advanceVirtualTimeToRealTime();
-    void realTimerTick();
-
   public:
     Application(VirtualClock& clock, Config const& config);
     ~Application();
@@ -148,98 +99,25 @@ class Application : public enable_shared_from_this<Application>
     void disableRealTimer();
     size_t crank(bool block=true);
 
-    Config const&
-    getConfig()
-    {
-        return mConfig;
-    }
+    Config const& getConfig();
 
-    State
-    getState()
-    {
-        return mState;
-    }
+    State getState();
+    void setState(State);
+    VirtualClock& getClock();
+    medida::MetricsRegistry& getMetrics();
+    LedgerGateway& getLedgerGateway();
+    LedgerMaster& getLedgerMaster();
+    //FBAGateway& getFBAGateway();
+    CLFMaster& getCLFMaster();
+    HistoryMaster& getHistoryMaster();
+    ProcessGateway& getProcessGateway();
+    TxHerderGateway& getTxHerderGateway();
+    OverlayGateway& getOverlayGateway();
+    PeerMaster& getPeerMaster();
+    Database& getDatabase();
 
-    void
-    setState(State s)
-    {
-        mState = s;
-    }
-
-    VirtualClock&
-    getClock()
-    {
-        return mVirtualClock;
-    }
-    medida::MetricsRegistry&
-    getMetrics()
-    {
-        return mMetrics;
-    }
-    LedgerGateway&
-    getLedgerGateway()
-    {
-        return mLedgerMaster;
-    }
-    LedgerMaster&
-    getLedgerMaster()
-    {
-        return mLedgerMaster;
-    }
-    /* TODO(spolu): Adapt to new FBA */
-    /*
-    FBAGateway&
-    getFBAGateway()
-    {
-        return mFBAMaster;
-    }
-    */
-    CLFGateway&
-    getCLFGateway()
-    {
-        return mBucketList;
-    }
-    HistoryGateway&
-    getHistoryGateway()
-    {
-        return mHistoryMaster;
-    }
-    ProcessGateway&
-    getProcessGateway()
-    {
-        return mProcessMaster;
-    }
-    TxHerderGateway&
-    getTxHerderGateway()
-    {
-        return mTxHerder;
-    }
-    OverlayGateway&
-    getOverlayGateway()
-    {
-        return mPeerMaster;
-    }
-    PeerMaster&
-    getPeerMaster()
-    {
-        return mPeerMaster;
-    }
-    Database&
-    getDatabase()
-    {
-        return mDatabase;
-    }
-
-    asio::io_service&
-    getMainIOService()
-    {
-        return mMainIOService;
-    }
-    asio::io_service&
-    getWorkerIOService()
-    {
-        return mWorkerIOService;
-    }
+    asio::io_service& getMainIOService();
+    asio::io_service& getWorkerIOService();
 
     void start();
 

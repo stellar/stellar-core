@@ -16,7 +16,7 @@ namespace stellar {
 		trustIndex CHARACTER(35) PRIMARY KEY,				\
 		accountID	CHARACTER(35),			\
 		issuer CHARACTER(35),				\
-		currency CHARACTER(35),				\
+		isoCurrency CHARACTER(4),    		\
 		tlimit UNSIGNED INT,		   		\
 		balance UNSIGNED INT,				\
 		authorized BOOL						\
@@ -37,8 +37,8 @@ namespace stellar {
         // hash of accountID+issuer+currency
         SHA512_256 hasher;
         hasher.add(mEntry.trustLine().accountID);
-        hasher.add(mEntry.trustLine().issuer);
-        hasher.add(mEntry.trustLine().currencyCode);
+        hasher.add(mEntry.trustLine().currency.isoCI().issuer);
+        hasher.add(mEntry.trustLine().currency.isoCI().currencyCode);
         mIndex = hasher.finish();
     }
 
@@ -92,18 +92,19 @@ namespace stellar {
     {
         std::string base58Index = toBase58Check(VER_ACCOUNT_ID, getIndex());
         std::string b58AccountID = toBase58Check(VER_ACCOUNT_ID, mEntry.trustLine().accountID);
-        std::string b58Issuer = toBase58Check(VER_ACCOUNT_ID, mEntry.trustLine().issuer);
-        std::string b58Currency = toBase58Check(VER_ACCOUNT_ID, mEntry.trustLine().currencyCode);
+        std::string b58Issuer = toBase58Check(VER_ACCOUNT_ID, mEntry.trustLine().currency.isoCI().issuer);
+        std::string currencyCode;
+        currencyCodeToStr(mEntry.trustLine().currency.isoCI().currencyCode,currencyCode);
 
         ledgerMaster.getDatabase().getSession() << "INSERT into TrustLines (trustIndex,accountID,issuer,currency,tlimit,authorized) values (:v1,:v2,:v3,:v4,:v5,:v6)",
             soci::use(base58Index), soci::use(b58AccountID), soci::use(b58Issuer),
-            soci::use(b58Currency), soci::use(mEntry.trustLine().limit), 
+            soci::use(currencyCode), soci::use(mEntry.trustLine().limit),
             soci::use((int)mEntry.trustLine().authorized);
 
         txResult["effects"]["new"][base58Index]["type"] = "trust";
         txResult["effects"]["new"][base58Index]["accountID"] = b58AccountID;
         txResult["effects"]["new"][base58Index]["issuer"] = b58Issuer;
-        txResult["effects"]["new"][base58Index]["currency"] = b58Currency;
+        txResult["effects"]["new"][base58Index]["currency"] = currencyCode;
         txResult["effects"]["new"][base58Index]["limit"] = (Json::Int64)mEntry.trustLine().limit;
         txResult["effects"]["new"][base58Index]["authorized"] = mEntry.trustLine().authorized;
     }

@@ -1,15 +1,18 @@
 // Copyright 2014 Stellar Development Foundation and contributors. Licensed
 // under the ISC License. See the COPYING file at the top-level directory of
 // this distribution or at http://opensource.org/licenses/ISC
-
+#include <asio.hpp>
 #include "LedgerMaster.h"
 #include "main/Application.h"
+#include "main/Config.h"
+#include "clf/CLFMaster.h"
 #include "util/Logging.h"
 #include "lib/json/json.h"
 #include "ledger/LedgerDelta.h"
 #include "crypto/Hex.h"
 #include "crypto/SecretKey.h"
 #include "crypto/Base58.h"
+#include "txherder/TxHerder.h"
 
 /*
 The ledger module:
@@ -29,7 +32,7 @@ catching up to network:
 
     // TODO.1 need to make sure the CLF and the SQL Ledger are in sync on start up
     // TODO.1 make sure you validate incoming Deltas to see that it gives you the CLF you want
-    // TODO.1 do we need to store some validation history?
+    // TODO.3 do we need to store some validation history?
 
 */
 namespace stellar
@@ -58,7 +61,7 @@ void LedgerMaster::startNewLedger()
     mCurrentHeader.ledgerSeq = 1;
 }
 
-int64_t LedgerMaster::getTxFee()
+int32_t LedgerMaster::getTxFee()
 {
     return mCurrentHeader.baseFee; 
 }
@@ -81,9 +84,9 @@ LedgerHeader& LedgerMaster::getCurrentLedgerHeader()
 // make sure our state is consistent with the CLF
 void LedgerMaster::syncWithCLF()
 {
-    LedgerHeaderPtr clfHeader=mApp.getCLFGateway().getCurrentHeader();
+    LedgerHeader const& clfHeader = mApp.getCLFMaster().getHeader();
 
-    if(clfHeader->hash == mCurrentHeader.hash)
+    if(clfHeader.hash == mCurrentHeader.hash)
     {
         CLOG(DEBUG, "Ledger") << "CLF and SQL headers match.";
     } else
@@ -119,23 +122,7 @@ void LedgerMaster::externalizeValue(TxSetFramePtr txSet)
 void LedgerMaster::startCatchUp()
 {
     mApp.setState(Application::CATCHING_UP_STATE);
-    mApp.getOverlayGateway().fetchDelta(mCurrentHeader.hash, mCurrentHeader.ledgerSeq );
 
-}
-
-// called by CLF
-// when we either get in a delta from the network or the CLF computes the next ledger hash
-// delta is null in the second case
-void LedgerMaster::recvDelta(CLFDeltaPtr delta, LedgerHeaderPtr header)
-{
-    if(delta)
-    { // we got this delta in from the network
-        mApp.setState(Application::CONNECTED_STATE);
-            
-    } else
-    {
-
-    }
 }
 
 void LedgerMaster::closeLedger(TxSetFramePtr txSet)
@@ -144,7 +131,9 @@ void LedgerMaster::closeLedger(TxSetFramePtr txSet)
 
     LedgerDelta ledgerDelta;
     mDatabase.beginTransaction();
-    for(auto tx : txSet->mTransactions)
+    vector<TransactionFramePtr> txs;
+    txSet->sortForApply(txs);
+    for(auto tx : txs)
     {
         try {
             TxDelta delta;
@@ -166,6 +155,7 @@ void LedgerMaster::closeLedger(TxSetFramePtr txSet)
     mDatabase.endTransaction(false);
 
     // TODO.2 do something with the nextHeader
+    mCurrentHeader.ledgerSeq++;
     
     // TODO.2 give the LedgerDelta to the Bucketlist
 }

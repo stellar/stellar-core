@@ -10,7 +10,8 @@
 namespace stellar
 {
 
-#if __cplusplus >= 201402L
+#if __cplusplus >= 201402L || ( defined(_MSC_VER) && _MSC_VER >= 1900 )
+
 using std::make_unique;
 
 #else
@@ -20,7 +21,7 @@ make_unique(Args&&... args)
 {
     return std::unique_ptr<T>(new T(std::forward<Args>(args)...));
 }
+#endif
 }
 #endif
 
-#endif

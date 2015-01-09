@@ -37,6 +37,10 @@ class TxSetFrame
     uint256 getContentsHash();
     uint256 getPreviousLedgerHash();
 
+    void sortForHash();
+
+    void sortForApply(vector<TransactionFramePtr>& retList);
+
     bool checkValid(Application& app);
 
     void

@@ -4,6 +4,7 @@
 
 #include "PeerMaster.h"
 #include "main/Application.h"
+#include "main/Config.h"
 #include <thread>
 #include <random>
 #include "ledger/Ledger.h"
@@ -27,7 +28,6 @@ PeerMaster::PeerMaster(Application& app)
     : mApp(app)
     , mDoor(mApp)
     , mQSetFetcher(mApp)
-    , mDeltaFetcher(mApp)
     , mTimer(app.getClock())
 {
     mTimer.expires_from_now(std::chrono::seconds(1));

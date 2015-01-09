@@ -4,6 +4,7 @@
 
 #include "main/CommandHandler.h"
 #include "main/Application.h"
+#include "main/Config.h"
 #include "lib/http/server.hpp"
 #include "util/Logging.h"
 #include "util/make_unique.h"
@@ -98,5 +99,6 @@ void
 CommandHandler::tx(const std::string& params, std::string& retStr)
 {
     retStr = "Submiting Transaction...";
+    // TODO.2 
 }
 }

@@ -3,7 +3,8 @@
 
 AC_PREREQ([2.69])
 AC_INIT([stellard],[0.1],[],[],[http://www.stellar.org])
-AM_INIT_AUTOMAKE([-Wall subdir-objects])
+AM_INIT_AUTOMAKE([-Wall subdir-objects silent-rules])
+AM_SILENT_RULES([yes])
 AC_CONFIG_SRCDIR([configure.ac])
 AC_CONFIG_MACRO_DIR([m4])
 
@@ -33,6 +34,9 @@ fi
 
 # Our large include path set makes for annoying warnings without this
 AX_APPEND_COMPILE_FLAGS([-Wno-unused-command-line-argument])
+
+# We want to consider unused MUST_USE results as errors
+AX_APPEND_COMPILE_FLAGS([-Werror=unused-result])
 
 # -lc++abi seems to be required by -stdlib=libc++ on some hosts
 AX_APPEND_LINK_FLAGS([-lc++abi])
@@ -107,9 +111,6 @@ AC_SUBST(XDRC)
 # Add other optional database drivers here (and later, in SOCI).
 PKG_CHECK_MODULES([libpq],[libpq],[use_POSTGRESQL=1],[use_POSTGRESQL=])
 AM_CONDITIONAL(USE_POSTGRESQL, [test "x$use_POSTGRESQL" != "x"])
-
-CPPFLAGS="$CPPFLAGS "'$(libsodium_CFLAGS) $(xdrpp_CFLAGS) $(sqlite_CFLAGS) $(libpq_CFLAGS) $(libmedida_CFLAGS)'
-LIBS="$LIBS "'$(libsodium_LIBS) $(xdrpp_LIBS) $(sqlite_LIBS) $(libpq_LIBS) $(libmedida_LIBS)'
 
 AC_CONFIG_HEADERS([config.h])
 AC_CONFIG_FILES([Makefile])

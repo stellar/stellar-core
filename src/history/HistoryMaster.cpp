@@ -5,6 +5,7 @@
 #include "main/Application.h"
 #include "generated/StellarXDR.h"
 #include "history/HistoryMaster.h"
+#include "util/make_unique.h"
 #include "util/Logging.h"
 #include "lib/util/format.h"
 
@@ -15,9 +16,27 @@
 namespace stellar
 {
 
-HistoryMaster::HistoryMaster(Application& app) : mApp(app)
+class
+HistoryMaster::Impl
+{
+    Application& mApp;
+public:
+    Impl(Application &app)
+        : mApp(app)
+        {}
+
+};
+
+
+HistoryMaster::HistoryMaster(Application& app)
+    : mImpl(make_unique<Impl>(app))
 {
 }
+
+HistoryMaster::~HistoryMaster()
+{
+}
+
 
 std::string
 HistoryMaster::writeLedgerHistoryToFile(History const& hist)

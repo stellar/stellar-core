@@ -1,0 +1,18 @@
+Installation Instructions
+*************************
+
+Build Dependencies
+==================
+
+- Visual C++ 2015
+- PostgreSQL drivers (optional)
+  download from http://www.postgresql.org/download/windows/
+
+Basic Installation
+==================
+
+- Open the solution Builds\VisualStudio2015
+- pick the target architecture and flavor (e.g. x64, Release)
+- Hit "Build"
+
+

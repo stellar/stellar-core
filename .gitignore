@@ -18,11 +18,15 @@
 *.sdf
 *.suo
 *.trs
-*.xdr
+
+# text editors
 *~
+*.swp
+
 .libs
 .deps
 .dirstamp
+
 /src/generated
 /Makefile
 /Makefile.in
@@ -47,3 +51,9 @@
 /missing
 /test-driver
 /stamp-h1
+
+# Windows specific
+**/Build/*
+**/x64/*
+*.vcxproj.user
+

@@ -6,6 +6,7 @@
 #include "main/Application.h"
 #include "xdrpp/marshal.h"
 #include "crypto/SHA.h"
+#include "overlay/OverlayGateway.h"
 
 #define MS_TO_WAIT_FOR_FETCH_REPLY 3000
 
@@ -109,18 +110,6 @@ TxSetFetcher::recvItem(TxSetFrame::pointer txSet)
         }
     }
     return false;
-}
-////////////////////////////////////////
-void
-DeltaFetcher::fetchItem(uint256 const& itemID,
-                        uint64_t oldLedgerSeq)
-{
-}
-
-void
-DeltaFetcher::recvItem(CLFDeltaPtr delta)
-{
-    mApp.getCLFGateway().recvDelta(delta);
 }
 
 ////////////////////////////////////////

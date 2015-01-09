@@ -12,7 +12,6 @@
 
 namespace stellar
 {
-
 class Node;
 class Slot;
 class LocalNode;

@@ -6,7 +6,6 @@
 // this distribution or at http://opensource.org/licenses/ISC
 
 #include "fba/FBA.h"
-#include "clf/CLF.h"
 #include "txherder/TxSetFrame.h"
 
 namespace stellar
@@ -23,10 +22,7 @@ class LedgerGateway
     // called by txherder
     virtual void externalizeValue(TxSetFramePtr txSet)=0;
 
-    // called by CLF
-    virtual void recvDelta(CLFDeltaPtr delta, LedgerHeaderPtr header) = 0;
-
-    virtual int64_t getTxFee() = 0;
+    virtual int32_t getTxFee() = 0;
     virtual int64_t getLedgerNum() = 0;
 };
 }

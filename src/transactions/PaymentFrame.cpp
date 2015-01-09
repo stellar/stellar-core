@@ -16,72 +16,75 @@ namespace stellar
 
     void PaymentFrame::doApply(TxDelta& delta,LedgerMaster& ledgerMaster)
     {
-        uint32_t minBalance = ledgerMaster.getMinBalance(mSigningAccount.mEntry.account().ownerCount);
+        int64_t minBalance = ledgerMaster.getMinBalance(mSigningAccount.mEntry.account().ownerCount);
         
         AccountFrame destAccount;
-        if(ledgerMaster.getDatabase().loadAccount(mEnvelope.tx.body.paymentTx().destination, destAccount))
-        {
-            if(mEnvelope.tx.body.paymentTx().currency.native())
-            {   // sending STR
+        bool isNew = false;
 
-                if(mEnvelope.tx.body.paymentTx().path.size())
-                {
-                    mResultCode = txMALFORMED;
-                    return;
-                }
-
-                if(mSigningAccount.mEntry.account().balance < minBalance + mEnvelope.tx.body.paymentTx().amount)
-                {   // they don't have enough to send
+        if (!ledgerMaster.getDatabase().loadAccount(mEnvelope.tx.body.paymentTx().destination, destAccount))
+        {   // this tx is creating an account
+            if (mEnvelope.tx.body.paymentTx().currency.type() == NATIVE)
+            {
+                if (mEnvelope.tx.body.paymentTx().amount < ledgerMaster.getMinBalance(0))
+                {   // not over the minBalance to make an account
                     mResultCode = txUNDERFUNDED;
                     return;
                 }
-                
-                if(destAccount.getIndex() == mSigningAccount.getIndex())
-                {   // sending to yourself
-                    mResultCode = txSUCCESS;
-                    return;
-                }
-                
-                delta.setStart(destAccount);
-                mSigningAccount.mEntry.account().balance -= mEnvelope.tx.body.paymentTx().amount;
-                destAccount.mEntry.account().balance += mEnvelope.tx.body.paymentTx().amount;
-                delta.setFinal(destAccount);
-                delta.setFinal(mSigningAccount);
-                mResultCode = txSUCCESS;
-
-            }else
-            {   // sending credit
-                TxDelta tempDelta;
-                if(sendCredit(destAccount, tempDelta, ledgerMaster))
+                else
                 {
-                    delta.merge(tempDelta);
-                    mResultCode = txSUCCESS;
+                    destAccount.mEntry.account().accountID = mEnvelope.tx.body.paymentTx().destination;
+                    destAccount.mEntry.account().balance = 0;
+                    isNew = true;
                 }
-                    
-                return;
             }
-        } else
-        {   // this tx is creating an account
-            if(mEnvelope.tx.body.paymentTx().currency.native())
-            {
-                if(mEnvelope.tx.body.paymentTx().amount < minBalance)
-                {   // not over the minBalance to make an account
-                    mResultCode = txNOACCOUNT;
-                    return;
-                } else
-                {
-                    destAccount.mEntry.account().accountID=mEnvelope.tx.body.paymentTx().destination;
-                    mSigningAccount.mEntry.account().balance -= mEnvelope.tx.body.paymentTx().amount;
-                    destAccount.mEntry.account().balance = mEnvelope.tx.body.paymentTx().amount;
-                    delta.setFinal(destAccount);
-                    delta.setFinal(mSigningAccount);
-                    mResultCode = txSUCCESS;
-                }
-            } else
+            else
             {   // trying to send credit to an unmade account
                 mResultCode = txNOACCOUNT;
                 return;
             }
+        }
+
+        if(mEnvelope.tx.body.paymentTx().currency.type()==NATIVE)
+        {   // sending STR
+
+            if(mEnvelope.tx.body.paymentTx().path.size())
+            {
+                mResultCode = txMALFORMED;
+                return;
+            }
+
+            if(mSigningAccount.mEntry.account().balance < minBalance + mEnvelope.tx.body.paymentTx().amount)
+            {   // they don't have enough to send
+                mResultCode = txUNDERFUNDED;
+                return;
+            }
+
+            if(destAccount.getIndex() == mSigningAccount.getIndex())
+            {   // sending to yourself
+                mResultCode = txSUCCESS;
+                return;
+            }
+
+            if (!isNew)
+            {
+                delta.setStart(destAccount);
+            }
+            mSigningAccount.mEntry.account().balance -= mEnvelope.tx.body.paymentTx().amount;
+            destAccount.mEntry.account().balance += mEnvelope.tx.body.paymentTx().amount;
+            delta.setFinal(destAccount);
+            delta.setFinal(mSigningAccount);
+            mResultCode = txSUCCESS;
+
+        }else
+        {   // sending credit
+            TxDelta tempDelta;
+            if(sendCredit(destAccount, tempDelta, ledgerMaster))
+            {
+                delta.merge(tempDelta);
+                mResultCode = txSUCCESS;
+            }
+
+            return;
         }
     }
     
@@ -94,7 +97,7 @@ namespace stellar
         TrustFrame destLine;
         // make sure guy can hold what you are trying to send him
         if(!ledgerMaster.getDatabase().loadTrustLine(mEnvelope.tx.body.paymentTx().destination, 
-            mEnvelope.tx.body.paymentTx().currency.ci(), destLine))
+            mEnvelope.tx.body.paymentTx().currency, destLine))
         {
             mResultCode = txNOTRUST;
             return false;
@@ -135,7 +138,7 @@ namespace stellar
         
         
         // make sure you have enough to send him
-        if(sendCurrency.native())
+        if(sendCurrency.type()==NATIVE)
         {
             if(mSigningAccount.mEntry.account().balance < sendAmount + ledgerMaster.getMinBalance(mSigningAccount.mEntry.account().ownerCount))
             {
@@ -145,7 +148,7 @@ namespace stellar
         }else
         { // make sure source has enough credit
             AccountFrame issuer;
-            if(!ledgerMaster.getDatabase().loadAccount(sendCurrency.ci().issuer, issuer))
+            if(!ledgerMaster.getDatabase().loadAccount(sendCurrency.isoCI().issuer, issuer))
             {
                 CLOG(ERROR, "Tx") << "PaymentTx::sendCredit Issuer not found";
                 mResultCode = txMALFORMED;
@@ -160,7 +163,7 @@ namespace stellar
 
             TrustFrame sourceLineFrame;
             if(!ledgerMaster.getDatabase().loadTrustLine(mEnvelope.tx.account,
-                sendCurrency.ci(), sourceLineFrame))
+                sendCurrency, sourceLineFrame))
             {
                 mResultCode = txUNDERFUNDED;
                 return false;
@@ -262,10 +265,10 @@ namespace stellar
         }
 
         TrustFrame wheatLineAccountB;
-        if(!wheat.native())
+        if(wheat.type()!=NATIVE)
         {
             if(!ledgerMaster.getDatabase().loadTrustLine(accountBID,
-                wheat.ci(), wheatLineAccountB))
+                wheat, wheatLineAccountB))
             {
                 mResultCode = txINTERNAL_ERROR;
                 return false;
@@ -274,10 +277,10 @@ namespace stellar
 
 
         TrustFrame sheepLineAccountB;
-        if(!sheep.native())
+        if(sheep.type()!=NATIVE)
         {
             if(!ledgerMaster.getDatabase().loadTrustLine(accountBID,
-                sheep.ci(), sheepLineAccountB))
+                sheep, sheepLineAccountB))
             {
                 mResultCode = txINTERNAL_ERROR;
                 return false;
@@ -285,7 +288,7 @@ namespace stellar
         }
 
         numWheatReceived = 0;
-        if(wheat.native()) numWheatReceived = accountB.mEntry.account().balance;
+        if(wheat.type()==NATIVE) numWheatReceived = accountB.mEntry.account().balance;
         else numWheatReceived = wheatLineAccountB.mEntry.trustLine().balance;
 
         // you can receive the lesser of the amount of wheat offered or the amount the guy has
@@ -332,7 +335,7 @@ namespace stellar
         }
 
         // Adjust balances
-        if(sheep.native())
+        if(sheep.type()==NATIVE)
         {
             accountB.mEntry.account().balance += numSheepReceived;
             delta.setFinal(accountB);
@@ -342,7 +345,7 @@ namespace stellar
             delta.setFinal(sheepLineAccountB);
         }
 
-        if(wheat.native())
+        if(wheat.type()==NATIVE)
         {
             accountB.mEntry.account().balance -= numWheatSent;
             delta.setFinal(accountB);
@@ -359,12 +362,21 @@ namespace stellar
     // make sure the path is less than N steps
     bool PaymentFrame::doCheckValid(Application& app)
     {
-        if(mEnvelope.tx.body.paymentTx().currency.native())
+        if(mEnvelope.tx.body.paymentTx().currency.type()==NATIVE)
         {
-            if(mEnvelope.tx.body.paymentTx().path.size()) return false;
-        } else
+            if (mEnvelope.tx.body.paymentTx().path.size())
+            {
+                mResultCode = txMALFORMED;
+                return false;
+            }
+        }
+        else
         {
-            if(mEnvelope.tx.body.paymentTx().path.size() > MAX_PAYMENT_PATH_LENGTH) return false;
+            if (mEnvelope.tx.body.paymentTx().path.size() > MAX_PAYMENT_PATH_LENGTH)
+            {
+                mResultCode = txMALFORMED;
+                return false;
+            }
 
             // make sure there are no loops in the path
             for(auto step : mEnvelope.tx.body.paymentTx().path)
@@ -374,7 +386,11 @@ namespace stellar
                 {
                     if(compareCurrency(step, inner))
                     {
-                        if(seen) return false;
+                        if (seen)
+                        {
+                            mResultCode = txMALFORMED;
+                            return false;
+                        }
                         seen=true;
                     }
                 }

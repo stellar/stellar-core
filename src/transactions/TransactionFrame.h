@@ -22,13 +22,15 @@ We can get it in from the DB or from the wire
 namespace stellar
 {    
     class LedgerDelta;
+    class SecretKey;
 
 	class TransactionFrame
 	{
 	protected:
         TransactionEnvelope mEnvelope;
 		AccountFrame mSigningAccount;	
-        uint256 mHash;
+        uint256 mHash;  // the hash of the contents
+        uint256 mID;    // the hash of the contents and the sig. This uniquely IDs this tx
         TxResultCode mResultCode;
 
 
@@ -50,8 +52,16 @@ namespace stellar
 
 		//static TransactionFramePtr makeTransactionFromDB();
 		static TransactionFrame::pointer makeTransactionFromWire(TransactionEnvelope const& msg);
-        uint256& getHash();
+        Hash& getHash();
+        uint256& getID();
+        uint32 getSeqNum() { return mEnvelope.tx.seqNum; }
         TransactionEnvelope& getEnvelope();
+        AccountFrame& getSourceAccount() { return mSigningAccount;  }
+        void addSignature(const SecretKey& secretKey);
+
+        uint256& getSourceID() { return mEnvelope.tx.account; }
+
+        bool loadAccount(Application& app);
 
         TxResultCode getResultCode() { return mResultCode;  }
 

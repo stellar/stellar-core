@@ -2,39 +2,25 @@
 // under the ISC License. See the COPYING file at the top-level directory of
 // this distribution or at http://opensource.org/licenses/ISC
 
-// Copyright 2014 Stellar Development Foundation and contributors. Licensed
-// under the ISC License. See the COPYING file at the top-level directory of
-// this distribution or at http://opensource.org/licenses/ISC
+// ASIO is somewhat particular about when it gets included -- it wants to be the
+// first to include <windows.h> -- so we try to include it before everything
+// else.
+#ifndef ASIO_SEPARATE_COMPILATION
+#define ASIO_SEPARATE_COMPILATION
+#endif
+#include <asio.hpp>
 
 #include "BucketList.h"
 #include "main/Application.h"
 #include "util/Logging.h"
+#include "crypto/SHA.h"
+#include "xdrpp/marshal.h"
 #include <cassert>
 
 namespace stellar
 {
 
-void
-Hasher::update(uint8_t const* data, size_t len)
-{
-    size_t i = 0;
-    while (len--)
-    {
-        mState[i] += *data;
-        mState[i] ^= *data;
-        ++data;
-        ++i;
-        i &= 0x1f;
-    }
-}
-
-uint256
-Hasher::finish()
-{
-    return mState;
-}
-
-Bucket::Bucket(std::vector<Bucket::KVPair>&& entries, uint256&& hash)
+Bucket::Bucket(std::vector<Bucket::Entry>&& entries, uint256&& hash)
     : mEntries(entries), mHash(hash)
 {
 }
@@ -43,7 +29,7 @@ Bucket::Bucket()
 {
 }
 
-std::vector<Bucket::KVPair> const&
+std::vector<Bucket::Entry> const&
 Bucket::getEntries() const
 {
     return mEntries;
@@ -56,20 +42,20 @@ Bucket::getHash() const
 }
 
 std::shared_ptr<Bucket>
-Bucket::fresh(std::vector<Bucket::KVPair>&& entries)
+Bucket::fresh(std::vector<Bucket::Entry>&& entries)
 {
-
     std::sort(entries.begin(), entries.end(),
-              [](KVPair const& a, KVPair const& b)
+              [](Entry const& a, Entry const& b)
               {
-        return std::get<0>(a) < std::get<0>(b);
-    });
+                  return std::get<0>(a) < std::get<0>(b);
+              });
 
-    Hasher hsh;
+    SHA512_256 hsh;
     for (auto const& e : entries)
     {
-        hsh.update(std::get<0>(e));
-        hsh.update(std::get<1>(e));
+        hsh.add(std::get<0>(e));
+        hsh.add(std::get<1>(e));
+        hsh.add(xdr::xdr_to_msg(std::get<2>(e)));
     }
     return std::make_shared<Bucket>(std::move(entries), hsh.finish());
 }
@@ -85,18 +71,18 @@ Bucket::merge(std::shared_ptr<Bucket> const& oldBucket,
     assert(oldBucket);
     assert(newBucket);
 
-    std::vector<KVPair>::const_iterator oi = oldBucket->mEntries.begin();
-    std::vector<KVPair>::const_iterator ni = newBucket->mEntries.begin();
+    std::vector<Entry>::const_iterator oi = oldBucket->mEntries.begin();
+    std::vector<Entry>::const_iterator ni = newBucket->mEntries.begin();
 
-    std::vector<KVPair>::const_iterator oe = oldBucket->mEntries.end();
-    std::vector<KVPair>::const_iterator ne = newBucket->mEntries.end();
+    std::vector<Entry>::const_iterator oe = oldBucket->mEntries.end();
+    std::vector<Entry>::const_iterator ne = newBucket->mEntries.end();
 
-    std::vector<KVPair> out;
+    std::vector<Entry> out;
     out.reserve(oldBucket->mEntries.size() + newBucket->mEntries.size());
-    Hasher hsh;
+    SHA512_256 hsh;
     while (oi != oe || ni != ne)
     {
-        std::vector<KVPair>::const_iterator e;
+        std::vector<Entry>::const_iterator e;
         if (ni == ne)
         {
             // Out of new entries, take old entries.
@@ -122,8 +108,9 @@ Bucket::merge(std::shared_ptr<Bucket> const& oldBucket,
             // Old and new are for the same key, take new.
             e = ni++;
         }
-        hsh.update(std::get<0>(*e));
-        hsh.update(std::get<1>(*e));
+        hsh.add(std::get<0>(*e));
+        hsh.add(std::get<1>(*e));
+        hsh.add(xdr::xdr_to_msg(std::get<2>(*e)));
         out.emplace_back(*e);
     }
     return std::make_shared<Bucket>(std::move(out), hsh.finish());
@@ -139,9 +126,9 @@ BucketLevel::BucketLevel(size_t i)
 uint256
 BucketLevel::getHash() const
 {
-    Hasher hsh;
-    hsh.update(mCurr->getHash());
-    hsh.update(mSnap->getHash());
+    SHA512_256 hsh;
+    hsh.add(mCurr->getHash());
+    hsh.add(mSnap->getHash());
     return hsh.finish();
 }
 
@@ -288,10 +275,10 @@ BucketList::numLevels(uint64_t ledger)
 uint256
 BucketList::getHash() const
 {
-    Hasher hsh;
+    SHA512_256 hsh;
     for (auto const& lev : mLevels)
     {
-        hsh.update(lev.getHash());
+        hsh.add(lev.getHash());
     }
     return hsh.finish();
 }
@@ -317,7 +304,7 @@ BucketList::getLevel(size_t i) const
 
 void
 BucketList::addBatch(Application& app, uint64_t currLedger,
-                     std::vector<Bucket::KVPair>&& batch)
+                     std::vector<Bucket::Entry>&& batch)
 {
     assert(currLedger > 0);
     assert(numLevels(currLedger - 1) == mLevels.size());
