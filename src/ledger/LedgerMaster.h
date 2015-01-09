@@ -6,7 +6,6 @@
 // this distribution or at http://opensource.org/licenses/ISC
 
 #include "Ledger.h"
-#include "clf/CanonicalLedgerForm.h"
 #include "database/Database.h"
 #include "ledger/LedgerGateway.h"
 
@@ -74,21 +73,6 @@ namespace stellar
 
 		void closeLedger(TransactionSetPtr txSet);
 		
-
-    private:
-
-        // helper methods: returns new value of CLF in database 
-        
-        // called when we successfully sync to the network
-		CanonicalLedgerForm::pointer catchUp(CanonicalLedgerForm::pointer currentCLF);
-        CanonicalLedgerForm::pointer importLedgerState(uint256 ledgerHash);
-        
-        void updateDBFromLedger(CanonicalLedgerForm::pointer ledger);
-        
-        void setLastClosedLedger(CanonicalLedgerForm::pointer ledger);
-        uint256 getLastClosedLedgerHash();
-
-        void reset();
 	};
 }
 

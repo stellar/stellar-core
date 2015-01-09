@@ -19,7 +19,7 @@
 #include "txherder/TxHerder.h"
 #include "overlay/OverlayGateway.h"
 #include "overlay/PeerMaster.h"
-#include "clf/BucketList.h"
+#include "clf/CLFMaster.h"
 #include "history/HistoryMaster.h"
 #include "database/Database.h"
 #include "process/ProcessMaster.h"
@@ -118,7 +118,7 @@ class Application : public enable_shared_from_this<Application>
     LedgerMaster mLedgerMaster;
     TxHerder mTxHerder;
     FBAMaster mFBAMaster;
-    BucketList mBucketList;
+    CLFMaster mCLFMaster;
     HistoryMaster mHistoryMaster;
     ProcessMaster mProcessMaster;
     CommandHandler mCommandHandler;
@@ -185,10 +185,10 @@ class Application : public enable_shared_from_this<Application>
     {
         return mFBAMaster;
     }
-    CLFGateway&
-    getCLFGateway()
+    CLFMaster&
+    getCLFMaster()
     {
-        return mBucketList;
+        return mCLFMaster;
     }
     HistoryMaster&
     getHistoryMaster()

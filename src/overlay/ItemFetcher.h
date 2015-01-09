@@ -9,7 +9,6 @@
 #include "txherder/TxSetFrame.h"
 #include "overlay/Peer.h"
 #include "fba/QuorumSet.h"
-#include "clf/CLF.h"
 #include "util/Timer.h"
 
 /*

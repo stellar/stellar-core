@@ -6,7 +6,6 @@
 // this distribution or at http://opensource.org/licenses/ISC
 
 #include "fba/FBA.h"
-#include "clf/CLF.h"
 #include "txherder/TxSetFrame.h"
 
 /*

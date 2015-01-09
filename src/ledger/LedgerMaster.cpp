@@ -81,9 +81,9 @@ LedgerHeader& LedgerMaster::getCurrentLedgerHeader()
 // make sure our state is consistent with the CLF
 void LedgerMaster::syncWithCLF()
 {
-    LedgerHeaderPtr clfHeader=mApp.getCLFGateway().getCurrentHeader();
+    LedgerHeader const& clfHeader = mApp.getCLFMaster().getHeader();
 
-    if(clfHeader->hash == mCurrentHeader.hash)
+    if(clfHeader.hash == mCurrentHeader.hash)
     {
         CLOG(DEBUG, "Ledger") << "CLF and SQL headers match.";
     } else

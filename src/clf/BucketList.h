@@ -7,7 +7,6 @@
 
 #include <future>
 #include "generated/StellarXDR.h"
-#include "CanonicalLedgerForm.h"
 #include "xdrpp/message.h"
 
 namespace stellar
@@ -285,7 +284,7 @@ class BucketLevel
     std::shared_ptr<Bucket> snap();
 };
 
-class BucketList : public CLFGateway
+class BucketList
 {
     std::vector<BucketLevel> mLevels;
 
@@ -295,14 +294,6 @@ class BucketList : public CLFGateway
     static bool levelShouldSpill(uint64_t ledger, size_t level);
     static uint64_t mask(uint64_t v, uint64_t m);
     static size_t numLevels(uint64_t ledger);
-
-    // These two are from CLFGateway, don't exactly map on to concepts in
-    // BucketList, but we implement them for now to keep it compiling.
-    virtual LedgerHeaderPtr
-    getCurrentHeader()
-    {
-        return nullptr;
-    }
 
     // BucketList _just_ stores a set of entries; anything else the CLF
     // wants to support should happen in another class. These operations form a
