@@ -59,17 +59,29 @@ struct ApplyTxSorter
     }
 };
 
+struct SeqSorter
+{
+    bool operator () (const TransactionFramePtr & tx1, const TransactionFramePtr & tx2)
+    {
+        return tx1->getSeqNum() < tx2->getSeqNum();
+    }
+};
+
 void TxSetFrame::sortForApply(vector<TransactionFramePtr>& retList)
 {
     vector< vector<TransactionFramePtr>> txLevels;
     map<uint256, vector<TransactionFramePtr>> accountTxMap;
-
-    for(auto tx : mTransactions)
+    retList = mTransactions;
+    // sort all the txs by seqnum
+    std::sort(retList.begin(), retList.end(), SeqSorter());
+    for(auto tx : retList)
     {
         auto &v = accountTxMap[tx->getSourceID()];
         txLevels[v.size()].push_back(tx);
         v.push_back(tx);
     }
+
+    retList.clear();
    
     for(auto level : txLevels)
     {

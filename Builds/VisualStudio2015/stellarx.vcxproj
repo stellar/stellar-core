@@ -84,6 +84,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="..\..\src\clf\BucketList.cpp" />
+    <ClCompile Include="..\..\src\clf\CLFMaster.cpp" />
     <ClCompile Include="..\..\src\clf\CLFTests.cpp" />
     <ClCompile Include="..\..\src\crypto\Base58.cpp" />
     <ClCompile Include="..\..\src\crypto\CryptoTests.cpp">
@@ -111,6 +112,7 @@
     <ClCompile Include="..\..\src\ledger\LedgerMaster.cpp" />
     <ClCompile Include="..\..\src\ledger\OfferFrame.cpp" />
     <ClCompile Include="..\..\src\ledger\TrustFrame.cpp" />
+    <ClCompile Include="..\..\src\lib\asio\src\asio.cpp" />
     <ClCompile Include="..\..\src\lib\http\connection.cpp" />
     <ClCompile Include="..\..\src\lib\http\connection_manager.cpp" />
     <ClCompile Include="..\..\src\lib\http\HttpClient.cpp" />
@@ -165,6 +167,7 @@
     <ClCompile Include="..\..\src\transactions\TxDelta.cpp" />
     <ClCompile Include="..\..\src\transactions\TxEnvelopeTests.cpp" />
     <ClCompile Include="..\..\src\transactions\TxTests.cpp" />
+    <ClCompile Include="..\..\src\txherder\HerdTests.cpp" />
     <ClCompile Include="..\..\src\util\Timer.cpp" />
     <ClCompile Include="..\..\src\util\types.cpp" />
     <ClCompile Include="..\..\src\main\Application.cpp" />

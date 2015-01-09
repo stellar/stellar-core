@@ -315,6 +315,15 @@
     <ClCompile Include="..\..\src\transactions\TxEnvelopeTests.cpp">
       <Filter>transactions\tests</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\lib\asio\src\asio.cpp">
+      <Filter>lib</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\txherder\HerdTests.cpp">
+      <Filter>txherder</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\clf\CLFMaster.cpp">
+      <Filter>clf</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\fba\Ballot.h">

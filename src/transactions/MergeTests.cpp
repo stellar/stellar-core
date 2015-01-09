@@ -3,6 +3,8 @@
 // this distribution or at http://opensource.org/licenses/ISC
 
 #include "main/Application.h"
+#include "main/Config.h"
+#include "util/Timer.h"
 #include "overlay/LoopbackPeer.h"
 #include "util/make_unique.h"
 #include "main/test.h"

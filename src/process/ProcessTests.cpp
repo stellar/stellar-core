@@ -2,6 +2,7 @@
 // under the ISC License. See the COPYING file at the top-level directory of
 // this distribution or at http://opensource.org/licenses/ISC
 
+#include <asio.hpp>
 #include "main/Config.h"
 #include "main/Application.h"
 #include "xdrpp/autocheck.h"
