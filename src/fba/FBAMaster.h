@@ -6,7 +6,6 @@
 // this distribution or at http://opensource.org/licenses/ISC
 
 #include <map>
-#include "ledger/Ledger.h"
 #include "txherder/TxSetFrame.h"
 #include "fba/QuorumSet.h"
 #include "fba/Statement.h"

@@ -42,10 +42,10 @@ class TxHerder : public TxHerderGateway
     std::array<TxSetFetcher, 2> mTxSetFetcher;
     int mCurrentTxSetFetcher;
 
-		int mLedgersToWaitToParticipate;
-        Application &mApp;
+    int mLedgersToWaitToParticipate;
+    Application &mApp;
 
-    LedgerPtr mLastClosedLedger;
+    LedgerHeader mLastClosedLedger;
     void removeReceivedTx(TransactionFramePtr tx);
 
   public:
@@ -54,8 +54,7 @@ class TxHerder : public TxHerderGateway
     ///////// GATEWAY FUNCTIONS
     // make sure this set contains any super old TXs
     BallotValidType isValidBallotValue(const Ballot& ballot);
-    TxHerderGateway::SlotComparisonType
-    compareSlot(const SlotBallot& ballot);
+    TxHerderGateway::SlotComparisonType compareSlot(const SlotBallot& ballot);
 
     // will start fetching this TxSet from the network if we don't know about it
     TransactionSetPtr fetchTxSet(const uint256& setHash,
@@ -77,7 +76,7 @@ class TxHerder : public TxHerderGateway
 
    
 
-    void ledgerClosed(LedgerPtr ledger);
+    void ledgerClosed(LedgerHeader& ledger);
 
     /////////////////
 };

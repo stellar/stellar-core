@@ -7,7 +7,6 @@
 #include "main/Config.h"
 #include <thread>
 #include <random>
-#include "ledger/Ledger.h"
 #include "util/Logging.h"
 
 /*
@@ -64,9 +63,9 @@ PeerMaster::tick()
 }
 
 void
-PeerMaster::ledgerClosed(LedgerPtr ledger)
+PeerMaster::ledgerClosed(LedgerHeader& ledger)
 {
-    mFloodGate.clearBelow(ledger->mHeader.ledgerSeq);
+    mFloodGate.clearBelow(ledger.ledgerSeq);
 }
 
 void

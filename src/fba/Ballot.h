@@ -12,8 +12,6 @@
 
 namespace stellar
 {
-class Ledger;
-typedef std::shared_ptr<Ledger> LedgerPtr;
 
 namespace ballot
 {

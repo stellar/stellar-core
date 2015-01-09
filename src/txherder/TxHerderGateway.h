@@ -21,8 +21,6 @@ the bidirectional interfaces
 */
 namespace stellar
 {
-class Ledger;
-typedef std::shared_ptr<Ledger> LedgerPtr;
 
 class TxSetFrame;
 typedef std::shared_ptr<TxSetFrame> TxSetFramePtr;
@@ -74,7 +72,7 @@ class TxHerderGateway
     virtual bool recvTransaction(TransactionFramePtr tx) = 0;
 
     // called by Ledger
-    virtual void ledgerClosed(LedgerPtr ledger) = 0;
+    virtual void ledgerClosed(LedgerHeader& ledger) = 0;
 };
 }
 

@@ -28,14 +28,13 @@ Should keep rotating peers till you get an answer:
 
 namespace stellar
 {
-class Ledger;
-typedef std::shared_ptr<Ledger> LedgerPtr;
+
 
 class OverlayGateway
 {
   public:
     // called by Ledger
-    virtual void ledgerClosed(LedgerPtr ledger) = 0;
+    virtual void ledgerClosed(LedgerHeader& ledger) = 0;
 
     // called by TxHerder
     virtual void broadcastMessage(uint256 const& messageID) = 0;

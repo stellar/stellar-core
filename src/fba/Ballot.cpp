@@ -3,7 +3,6 @@
 // this distribution or at http://opensource.org/licenses/ISC
 
 #include "fba/Ballot.h"
-#include "ledger/Ledger.h"
 #include "generated/StellarXDR.h"
 
 /*

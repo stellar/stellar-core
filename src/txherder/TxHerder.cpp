@@ -76,7 +76,7 @@ TxHerder::isValidBallotValue(Ballot const& ballot)
             return INVALID_BALLOT;
     }
     // check timestamp
-    if (ballot.closeTime <= mLastClosedLedger->mHeader.closeTime)
+    if (ballot.closeTime <= mLastClosedLedger.closeTime)
         return INVALID_BALLOT;
 
     uint64_t timeNow = time(nullptr);
@@ -89,9 +89,9 @@ TxHerder::isValidBallotValue(Ballot const& ballot)
 TxHerderGateway::SlotComparisonType
 TxHerder::compareSlot(SlotBallot const& slotBallot)
 {
-    if (slotBallot.ledgerIndex > mLastClosedLedger->mHeader.ledgerSeq)
+    if (slotBallot.ledgerIndex > mLastClosedLedger.ledgerSeq)
         return (TxHerderGateway::FUTURE_SLOT);
-    if (slotBallot.ledgerIndex < mLastClosedLedger->mHeader.ledgerSeq)
+    if (slotBallot.ledgerIndex < mLastClosedLedger.ledgerSeq)
         return (TxHerderGateway::PAST_SLOT);
     return TxHerderGateway::SAME_SLOT;
 }
@@ -111,6 +111,8 @@ TxHerder::recvTransactionSet(TransactionSetPtr txSet)
 }
 
 
+// TODO.2 we need to make the distinction about when to flood vs when a tx makes a set invalid 
+// TODO.2 if we get a tx with a duplicate seqnum drop the lower one.
 // return true if we should flood
 bool
 TxHerder::recvTransaction(TransactionFramePtr tx)
@@ -222,7 +224,7 @@ TxHerder::externalizeValue(SlotBallot const& slotBallot)
 
 // called by Ledger
 void
-TxHerder::ledgerClosed(LedgerPtr ledger)
+TxHerder::ledgerClosed(LedgerHeader& ledger)
 {
     // our first choice for this round's set is all the tx we have collected
     // during last ledger close
@@ -238,13 +240,13 @@ TxHerder::ledgerClosed(LedgerPtr ledger)
     mLastClosedLedger = ledger;
 
     uint64_t firstBallotTime = time(nullptr) + NUM_SECONDS_IN_CLOSE;
-    if (firstBallotTime <= mLastClosedLedger->mHeader.closeTime)
-        firstBallotTime = mLastClosedLedger->mHeader.closeTime + 1;
+    if (firstBallotTime <= mLastClosedLedger.closeTime)
+        firstBallotTime = mLastClosedLedger.closeTime + 1;
 
     recvTransactionSet(proposedSet);
     SlotBallot firstBallot;
-    firstBallot.ledgerIndex = mLastClosedLedger->mHeader.ledgerSeq;
-    firstBallot.ballot.previousLedgerHash = mLastClosedLedger->mHeader.hash;
+    firstBallot.ledgerIndex = mLastClosedLedger.ledgerSeq;
+    firstBallot.ballot.previousLedgerHash = mLastClosedLedger.hash;
     firstBallot.ballot.index = 1;
     firstBallot.ballot.closeTime = firstBallotTime;
     firstBallot.ballot.baseFee = mApp.getConfig().DESIRED_BASE_FEE;
