@@ -66,8 +66,9 @@ void TxSetFrame::sortForApply(vector<TransactionFramePtr>& retList)
 
     for(auto tx : mTransactions)
     {
-        accountTxMap[tx->getSourceID()].push_back(tx);
-        txLevels[accountTxMap[tx->getSourceID()].size()].push_back(tx);
+        auto &v = accountTxMap[tx->getSourceID()];
+        txLevels[v.size()].push_back(tx);
+        v.push_back(tx);
     }
    
     for(auto level : txLevels)
