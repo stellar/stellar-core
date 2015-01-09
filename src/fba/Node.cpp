@@ -6,14 +6,20 @@
 
 #include <cassert>
 #include "xdrpp/marshal.h"
+#include "util/Logging.h"
+#include "crypto/Hex.h"
 #include "crypto/SHA.h"
+#include "fba/Slot.h"
+
 
 namespace stellar
 {
 
 Node::Node(const uint256& nodeID,
+           FBA* FBA,
            int cacheCapacity)
     : mNodeID(nodeID)
+    , mFBA(FBA)
     , mCacheCapacity(cacheCapacity)
 {
 }
@@ -21,6 +27,10 @@ Node::Node(const uint256& nodeID,
 const FBAQuorumSet& 
 Node::retrieveQuorumSet(const uint256& qSetHash)
 {
+    LOG(INFO) << "Node::retrieveQuorumSet"
+              << "@" << binToHex(mNodeID).substr(0,6)
+              << " "  << binToHex(qSetHash).substr(0,6);
+
     assert(mCacheLRU.size() == mCache.size());
     auto it = mCache.find(qSetHash);
     if (it != mCache.end()) 
@@ -30,10 +40,30 @@ Node::retrieveQuorumSet(const uint256& qSetHash)
     throw QuorumSetNotFound(mNodeID, qSetHash);
 }
 
+void 
+Node::addPendingSlot(const uint256& qSetHash, const uint32& slotIndex)
+{
+    LOG(INFO) << "Node::addPendingSlot"
+              << "@" << binToHex(mNodeID).substr(0,6)
+              << " " << binToHex(qSetHash).substr(0,6)
+              << " " << slotIndex;
+    auto it = std::find(mPendingSlots[qSetHash].begin(), 
+                        mPendingSlots[qSetHash].end(),
+                        slotIndex);
+    if(it == mPendingSlots[qSetHash].end())
+    {
+        mPendingSlots[qSetHash].push_back(slotIndex);
+    }
+}
+
 void
 Node::cacheQuorumSet(const FBAQuorumSet& qSet)
 {
     uint256 qSetHash = sha512_256(xdr::xdr_to_msg(qSet));
+
+    LOG(INFO) << "Node::cacheQuorumSet"
+              << "@" << binToHex(mNodeID).substr(0,6)
+              << " "  << binToHex(qSetHash).substr(0,6);
 
     if (mCache.find(qSetHash) != mCache.end())
     {
@@ -50,12 +80,18 @@ Node::cacheQuorumSet(const FBAQuorumSet& qSet)
     }
     mCacheLRU.push_back(qSetHash);
     mCache[qSetHash] = qSet;
+
+    for (uint32 sIndex : mPendingSlots[qSetHash])
+    {
+        mFBA->getSlot(sIndex)->advanceSlot();
+    }
+    mPendingSlots.erase(qSetHash);
 }
 
 const uint256&
 Node::getNodeID()
 {
-  return mNodeID;
+    return mNodeID;
 }
 
 }

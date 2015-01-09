@@ -20,7 +20,8 @@ class LocalNode : public Node
 {
   public:
     LocalNode(const uint256& validationSeed,
-              const FBAQuorumSet& qSet);
+              const FBAQuorumSet& qSet,
+              FBA* FBA);
 
     void updateQuorumSet(const FBAQuorumSet& qSet);
 

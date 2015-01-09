@@ -46,7 +46,6 @@ struct FBAEnvelope
 
 struct FBAQuorumSet
 {
-    uint256 nodeID;
     uint32 threshold;
     uint256 validators<>;
 };

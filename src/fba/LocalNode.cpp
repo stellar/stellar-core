@@ -6,18 +6,26 @@
 
 #include "xdrpp/marshal.h"
 #include "util/types.h"
+#include "crypto/Hex.h"
 #include "crypto/SHA.h"
+#include "util/Logging.h"
 
 namespace stellar
 {
 
 LocalNode::LocalNode(const uint256& validationSeed,
-                     const FBAQuorumSet& qSet)
-    : Node(makePublicKey(validationSeed), -1)
+                     const FBAQuorumSet& qSet,
+                     FBA* FBA)
+    : Node(makePublicKey(validationSeed), FBA, -1)
     , mValidationSeed(validationSeed)
     , mQSet(qSet)
     , mQSetHash(sha512_256(xdr::xdr_to_msg(qSet)))
 {
+    cacheQuorumSet(qSet);
+
+    LOG(INFO) << "LocalNode::LocalNode"
+              << "@" << binToHex(mNodeID).substr(0,6)
+              << " " << binToHex(mQSetHash).substr(0,6);
 }
 
 void 

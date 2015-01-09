@@ -20,15 +20,15 @@ TEST_CASE("cycle4 topology", "[simulation]")
 {
     Simulation simulation;
 
-    stellar::uint256 n1Seed = sha512_256("SEED_1");
-    stellar::uint256 n2Seed = sha512_256("SEED_2");
-    stellar::uint256 n3Seed = sha512_256("SEED_3");
-    stellar::uint256 n4Seed = sha512_256("SEED_4");
+    uint256 n1Seed = sha512_256("SEED_1");
+    uint256 n2Seed = sha512_256("SEED_2");
+    uint256 n3Seed = sha512_256("SEED_3");
+    uint256 n4Seed = sha512_256("SEED_4");
 
-    stellar::uint256 n1 = simulation.addNode(n1Seed, simulation.getClock());
-    stellar::uint256 n2 = simulation.addNode(n2Seed, simulation.getClock());
-    stellar::uint256 n3 = simulation.addNode(n3Seed, simulation.getClock());
-    stellar::uint256 n4 = simulation.addNode(n4Seed, simulation.getClock());
+    uint256 n1 = simulation.addNode(n1Seed, simulation.getClock());
+    uint256 n2 = simulation.addNode(n2Seed, simulation.getClock());
+    uint256 n3 = simulation.addNode(n3Seed, simulation.getClock());
+    uint256 n4 = simulation.addNode(n4Seed, simulation.getClock());
     
     std::shared_ptr<LoopbackPeerConnection> n1n2 = 
       simulation.addConnection(n1, n2);
@@ -41,7 +41,7 @@ TEST_CASE("cycle4 topology", "[simulation]")
 
     /* TODO(spolu) update to new FBA */
     /*
-    stellar::SlotBallot ballot;
+    SlotBallot ballot;
     ballot.ledgerIndex = 0;
     ballot.ballot.index = 1;
     ballot.ballot.closeTime = time(nullptr) + NUM_SECONDS_IN_CLOSE;

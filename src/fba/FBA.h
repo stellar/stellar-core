@@ -25,7 +25,7 @@ class FBA
      * class. The Client methods are called by the FBA implementation to:
      *
      * 1) inform about events happening within the consensus algorithm
-     *    ( `ballotPrepared`, `ballotCommitted`, `valueCancelled`, 
+     *    ( `ballotDidPrepare`, `ballotDidCommit`, `valueCancelled`, 
      *      `valueExternalized`)
      * 2) trigger the retrieval of data required by the FBA protocol
      *    (`retrieveQuorumSet`)
@@ -48,9 +48,9 @@ class FBA
                                     const FBABallot& ballot,
                                     std::function<void(bool)> const& cb) = 0;
 
-        virtual void ballotPrepared(const uint32& slotIndex,
-                                    const FBABallot& ballot) {};
-        virtual void ballotCommitted(const uint32& slotIndex,
+        virtual void ballotDidPrepare(const uint32& slotIndex,
+                                      const FBABallot& ballot) {};
+        virtual void ballotDidCommit(const uint32& slotIndex,
                                      const FBABallot& ballot) {};
 
         virtual void valueCancelled(const uint32& slotIndex,
@@ -66,12 +66,12 @@ class FBA
     // The constructor is passed an FBA::Client object but does not own it. The
     // FBA::Client must outlive the FBA object itself.
     FBA(const uint256& validationSeed,
-        bool validating, 
         const FBAQuorumSet& qSetLocal,
         Client* client);
 
     // FBAQuorumSet/Envelope receival
-    void receiveQuorumSet(const FBAQuorumSet& qSet);
+    void receiveQuorumSet(const uint256& nodeID,
+                          const FBAQuorumSet& qSet);
     void receiveEnvelope(const FBAEnvelope& envelope);
 
     // Value submission
@@ -79,7 +79,7 @@ class FBA
                       const uint256& valueHash);
 
     // Local QuorumSet interface (can be dynamically updated)
-    void setLocalQuorumSet(const FBAQuorumSet& qSet);
+    void updateLocalQuorumSet(const FBAQuorumSet& qSet);
     const FBAQuorumSet& getLocalQuorumSet();
 
     // Local nodeID getter
@@ -88,18 +88,19 @@ class FBA
   private:
     // Node getter
     Node* getNode(const uint256& nodeID);
-    // LocalNode getter
     LocalNode* getLocalNode();
+    // Slot getter
+    Slot* getSlot(const uint32& slotIndex);
     // FBA::Client getter
     Client* getClient();
 
-    bool                           mValidating;
     Client*                        mClient;
     LocalNode*                     mLocalNode;
     std::map<uint256, Node*>       mKnownNodes;
     std::map<uint32, Slot*>        mKnownSlots;
 
     friend class Slot;
+    friend class Node;
 };
 }
 

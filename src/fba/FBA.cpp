@@ -11,48 +11,37 @@ namespace stellar
 {
 
 FBA::FBA(const uint256& validationSeed,
-         bool validating, 
          const FBAQuorumSet& qSetLocal,
          Client* client)
-    : mValidating(validating)
-    , mClient(client)
+    : mClient(client)
 {
-    mLocalNode = new LocalNode(validationSeed, qSetLocal);
+    mLocalNode = new LocalNode(validationSeed, qSetLocal, this);
     mKnownNodes[mLocalNode->getNodeID()] = mLocalNode;
 }
 
 void
-FBA::receiveQuorumSet(const FBAQuorumSet& qSet)
+FBA::receiveQuorumSet(const uint256& nodeID, 
+                      const FBAQuorumSet& qSet)
 {
-    getNode(qSet.nodeID)->cacheQuorumSet(qSet);
+    getNode(nodeID)->cacheQuorumSet(qSet);
 }
 
 void
 FBA::receiveEnvelope(const FBAEnvelope& envelope)
 {
     uint32 slotIndex = envelope.statement.slotIndex;
-    auto it = mKnownSlots.find(slotIndex);
-    if (it == mKnownSlots.end())
-    {
-        mKnownSlots[slotIndex] = new Slot(slotIndex, this);
-    }
-    mKnownSlots[slotIndex]->processEnvelope(envelope);
+    return getSlot(slotIndex)->processEnvelope(envelope);
 }
 
 bool
 FBA::attemptValue(const uint32& slotIndex,
                   const uint256& valueHash)
 {
-    auto it = mKnownSlots.find(slotIndex);
-    if (it == mKnownSlots.end())
-    {
-        mKnownSlots[slotIndex] = new Slot(slotIndex, this);
-    }
-    return mKnownSlots[slotIndex]->attemptValue(valueHash);
+    return getSlot(slotIndex)->attemptValue(valueHash);
 }
 
 void 
-FBA::setLocalQuorumSet(const FBAQuorumSet& qSet)
+FBA::updateLocalQuorumSet(const FBAQuorumSet& qSet)
 {
     mLocalNode->updateQuorumSet(qSet);
 }
@@ -75,7 +64,7 @@ FBA::getNode(const uint256& nodeID)
     auto it = mKnownNodes.find(nodeID);
     if (it == mKnownNodes.end())
     {
-        mKnownNodes[nodeID] = new Node(nodeID);
+        mKnownNodes[nodeID] = new Node(nodeID, this);
     }
     return mKnownNodes[nodeID];
 }
@@ -84,6 +73,17 @@ LocalNode*
 FBA::getLocalNode()
 {
   return mLocalNode;
+}
+
+Slot*
+FBA::getSlot(const uint32& slotIndex)
+{
+    auto it = mKnownSlots.find(slotIndex);
+    if (it == mKnownSlots.end())
+    {
+        mKnownSlots[slotIndex] = new Slot(slotIndex, this);
+    }
+    return mKnownSlots[slotIndex];
 }
 
 FBA::Client*
