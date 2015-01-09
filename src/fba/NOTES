@@ -10,4 +10,11 @@ to attempt another value y. Can it just emit a new PREPARE message with ballot
 - isPrepared implementation
 Please check the code and let's discuss any error you find there  
 
+- processEnvelope semantics
+When I receive a PREPARED message from a node, I opportunistically update the
+old PREPARE message for that same node by setting the optional prepared ballot
+to the current ballot. The goal is to be able to only consider PREPARE
+envelopes to determine if an excepted ballot is aborted in isPrepared() (see
+abortedFilter)
+
 

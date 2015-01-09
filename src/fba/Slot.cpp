@@ -64,6 +64,13 @@ Slot::processEnvelope(const FBAEnvelope& envelope)
         {
             mEnvelopes[envelope.statement.body.type()][envelope.nodeID] = 
                 envelope;
+            // We also update the PREARE envelope with the newly prepared
+            // ballot value
+            FBAEnvelope& prepareEnvelope =
+              mEnvelopes[FBAStatementType::PREPARE][envelope.nodeID];
+            prepareEnvelope.statement.body.prepare().prepared.activate() =
+               mBallot;
+
             advanceSlot();
         }
     }
@@ -101,6 +108,7 @@ Slot::processEnvelope(const FBAEnvelope& envelope)
 
             // Finally store the envelope and advance the slot if possible.
             mEnvelopes[FBAStatementType::PREPARE][envelope.nodeID] = envelope;
+
             advanceSlot();
         };
 
@@ -289,6 +297,10 @@ Slot::attemptExternalize()
     }
 
     mBallot.counter = FBA_SLOT_MAX_COUNTER;
+
+    mPrepared[mBallot.valueHash] = mBallot;
+    mPledgedCommit.push_back(mBallot);
+
     mFBA->getClient()->valueExternalized(mSlotIndex, mBallot.valueHash);
 }
 
@@ -435,42 +447,45 @@ Slot::isPrepared()
     }
 
     // Check if we can establish the pledges for a transitive quorum.
-    auto ratifyFilter = [&] (const FBAEnvelope& env) -> bool
+    auto ratifyFilter = [&] (const FBAEnvelope& envR) -> bool
     {
-        // Either this node has no excepted B_c ballot
-        if (env.statement.body.prepare().excepted.size() == 0)
+        // Either the ratifying node has no excepted B_c ballot
+        if (envR.statement.body.prepare().excepted.size() == 0)
         {
             return true;
         }
 
-        // Or they are all compatible
-        bool compatible = true;
-        for (auto b : env.statement.body.prepare().excepted)
+        // Or they are all compatible or aborted. They are aborted if there is
+        // a v-blocking set of nodes that prepared the ballot with a higher
+        // counter than the the excepted ballot c.
+        bool compOrAborted = true;
+        for (auto c : envR.statement.body.prepare().excepted)
         {
-            if (b.valueHash != mBallot.valueHash ||
-                b.counter > mBallot.counter)
+            auto abortedFilter = [&] (const FBAEnvelope& envA) -> bool
             {
-                compatible = false;
+                if (envA.statement.body.prepare().prepared) {
+                    FBABallot p = *(envA.statement.body.prepare().prepared);
+                    if (p.counter > c.counter)
+                    {
+                        return true;
+                    }
+                }
+                return false;
+            };
+
+            if ((c.valueHash == mBallot.valueHash &&
+                 c.counter <= mBallot.counter) ||
+                isVBlocking(FBAStatementType::PREPARE,
+                            envR.nodeID,
+                            abortedFilter))
+            {
+                compOrAborted = false;
             }
         }
-        if (compatible)
-        {
-            return true;
-        }
 
-        /* TODO(spolu): Sees a V-BlockingSet who aborted all its excepted
-         * statements */
-
-        // Or it sees a v-blocking set of nodes that has prepared (as the
-        // ballots in its excepted are all smaller than the current one)
-        if (isVBlocking(FBAStatementType::PREPARED,
-                        env.nodeID))
-        {
-            return true;
-        }
-
-        return false;
+        return compOrAborted;
     };
+
     if (isQuorumTransitive(FBAStatementType::PREPARE,
                            mFBA->getLocalNodeID(),
                            ratifyFilter))

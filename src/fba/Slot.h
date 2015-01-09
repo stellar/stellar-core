@@ -91,7 +91,7 @@ class Slot
     // knownledge of this node. 
     void advanceSlot();
 
-    const uint32&                                              mSlotIndex;
+    const uint32                                               mSlotIndex;
     FBA*                                                       mFBA;
 
     FBABallot                                                  mBallot;
