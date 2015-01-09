@@ -9,7 +9,8 @@
 
 namespace stellar
 {
-    TxSetFrame::TxSetFrame()
+    
+TxSetFrame::TxSetFrame()
 {
 }
 
@@ -23,20 +24,78 @@ TxSetFrame::TxSetFrame(TransactionSet const& xdrSet)
     }
 }
 
-// TODO.2 order the txset correctly
-// TODO.2 check seq num
-// need to make sure every account that is submitting a tx has enough to pay 
-//  the fees of all the tx it has submitted in this set
-bool TxSetFrame::checkValid(Application& app)
+struct HashTxSorter
 {
-    
-    // don't consider minBalance since you want to allow them to still send around credit etc
-    
+    bool operator () (const TransactionFramePtr & tx1, const TransactionFramePtr & tx2)
+    {
+        // TODO.2 should we actually use ID here since multiple txs could have the same Hash
+        return tx1->getHash() < tx2->getHash();
+    }
+};
+
+// order the txset correctly
+// must take into account multiple tx from same account
+void TxSetFrame::sortForHash()
+{
+    std::sort(mTransactions.begin(), mTransactions.end(), HashTxSorter());
+}
+
+struct ApplyTxSorter
+{
+    Hash& mSetHash;
+    ApplyTxSorter(Hash& h) : mSetHash(h) {}
+    bool operator () (const TransactionFramePtr & tx1, const TransactionFramePtr & tx2)
+    {
+        Hash h1 = tx1->getHash(); // TODO.2 should we actually use ID here since multiple txs could have the same Hash
+        Hash h2 = tx2->getHash(); 
+        Hash v1,v2;
+        for(int n = 0; n < 32; n++)
+        {
+            v1[n] = mSetHash[n] ^ h1[n];
+            v2[n] = mSetHash[n] ^ h2[n];
+        }
+
+        return v1 < v2;
+    }
+};
+
+void TxSetFrame::sortForApply(vector<TransactionFramePtr>& retList)
+{
+    vector< vector<TransactionFramePtr>> txLevels;
     map<uint256, vector<TransactionFramePtr>> accountTxMap;
 
     for(auto tx : mTransactions)
     {
         accountTxMap[tx->getSourceID()].push_back(tx);
+        txLevels[accountTxMap[tx->getSourceID()].size()].push_back(tx);
+    }
+   
+    for(auto level : txLevels)
+    {
+        std::sort(level.begin(), level.end(), ApplyTxSorter(getContentsHash()));
+        for(auto tx : level)
+        {
+            retList.push_back(tx);
+        }
+    }
+}
+
+
+// need to make sure every account that is submitting a tx has enough to pay 
+//  the fees of all the tx it has submitted in this set
+// check seq num
+bool TxSetFrame::checkValid(Application& app)
+{
+    // don't consider minBalance since you want to allow them to still send around credit etc
+    map<uint256, vector<TransactionFramePtr>> accountTxMap;
+
+    Hash lastHash;
+    for(auto tx : mTransactions)
+    {
+        // make sure the set is sorted correctly
+        if(tx->getHash() < lastHash) return false;
+        accountTxMap[tx->getSourceID()].push_back(tx);
+        lastHash = tx->getHash();
     }
 
     for(auto item : accountTxMap)
@@ -45,15 +104,17 @@ bool TxSetFrame::checkValid(Application& app)
         for(auto tx : item.second)
         {
             if(!first)
-            {
-                first = tx;
+            {    
                 if(!tx->loadAccount(app)) return false;
+                if(tx->getSeqNum() != tx->getSourceAccount().getSeqNum() + 1) return false;
                 if(tx->getSourceAccount().getBalance() < 
                     item.second.size() * app.getLedgerGateway().getTxFee()) return false;
             } else
             {
                 tx->getSourceAccount() = first->getSourceAccount();
+                if(tx->getSeqNum() != first->getSeqNum() + 1) return false;
             }
+            first = tx;
 
             if(!tx->checkValid(app)) return false;
         }
@@ -66,6 +127,7 @@ TxSetFrame::getContentsHash()
 {
     if (isZero(mHash))
     {
+        sortForHash();
         SHA512_256 hasher;
         for(unsigned int n = 0; n < mTransactions.size(); n++)
         {

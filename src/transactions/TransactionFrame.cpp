@@ -71,7 +71,7 @@ uint256& TransactionFrame::getID()
     return(mID);
 }
 
-uint256& TransactionFrame::getHash()
+Hash& TransactionFrame::getHash()
 {
 	if(isZero(mHash))
     {
@@ -211,7 +211,7 @@ bool TransactionFrame::checkSignature()
     if(keyWeights.size() < mEnvelope.signatures.size())
         return false;
 
-    uint256& txHash = getHash();
+    Hash& txHash = getHash();
     
     // calculate the weight of the signatures
     int totalWeight = 0;

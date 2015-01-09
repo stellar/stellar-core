@@ -144,7 +144,9 @@ void LedgerMaster::closeLedger(TxSetFramePtr txSet)
 
     LedgerDelta ledgerDelta;
     mDatabase.beginTransaction();
-    for(auto tx : txSet->mTransactions)
+    vector<TransactionFramePtr> txs;
+    txSet->sortForApply(txs);
+    for(auto tx : txs)
     {
         try {
             TxDelta delta;

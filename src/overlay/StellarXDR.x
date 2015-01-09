@@ -18,6 +18,8 @@ typedef hyper int64;
 typedef unsigned uint32;
 typedef int int32;
 typedef opaque AccountID[32];
+typedef opaque Signature[64];
+typedef opaque Hash[32];
 
 struct Error
 {

@@ -35,6 +35,10 @@ class TxSetFrame
     // returns the hash of this tx set
     uint256 getContentsHash();
 
+    void sortForHash();
+
+    void sortForApply(vector<TransactionFramePtr>& retList);
+
     bool checkValid(Application& app);
 
     void

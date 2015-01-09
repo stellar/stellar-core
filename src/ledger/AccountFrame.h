@@ -36,6 +36,7 @@ namespace stellar
         uint32_t getHighThreshold();
         uint32_t getMidThreshold();
         uint32_t getLowThreshold();
+        uint32_t getSeqNum();
 
         void storeDelete(Json::Value& txResult, LedgerMaster& ledgerMaster);
         void storeChange(EntryFrame::pointer startFrom, Json::Value& txResult, LedgerMaster& ledgerMaster);

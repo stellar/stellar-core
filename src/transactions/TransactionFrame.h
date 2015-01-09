@@ -52,8 +52,9 @@ namespace stellar
 
 		//static TransactionFramePtr makeTransactionFromDB();
 		static TransactionFrame::pointer makeTransactionFromWire(TransactionEnvelope const& msg);
-        uint256& getHash();
+        Hash& getHash();
         uint256& getID();
+        uint32 getSeqNum() { return mEnvelope.tx.seqNum; }
         TransactionEnvelope& getEnvelope();
         AccountFrame& getSourceAccount() { return mSigningAccount;  }
         void addSignature(const SecretKey& secretKey);

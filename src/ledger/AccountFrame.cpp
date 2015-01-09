@@ -62,6 +62,11 @@ bool AccountFrame::isAuthRequired()
     return(mEntry.account().flags & AccountFrame::AUTH_REQUIRED_FLAG);
 }
 
+uint32_t AccountFrame::getSeqNum()
+{
+    return(mEntry.account().sequence);
+}
+
 uint64_t AccountFrame::getBalance()
 {
     return(mEntry.account().balance);

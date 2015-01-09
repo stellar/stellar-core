@@ -15,6 +15,7 @@
 - non blocking items
  - saving peers in the DB (jed)
  - sending round lists of peers (jed)
+ - deal with bad acting peers (jed)
  - stress test
  - End to end tests, replaying a known set of tx  
  - inflation tx (nicolas)

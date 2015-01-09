@@ -93,21 +93,6 @@ TxHerder::compareSlot(SlotBallot const& slotBallot)
     return TxHerderGateway::SAME_SLOT;
 }
 
-bool
-TxHerder::isTxKnown(uint256 const& txID,int& retNumOthers)
-{
-    for (auto list : mReceivedTransactions)
-    {
-        for (auto tx : list)
-        {
-            if (tx->getID() == txID)
-                return true;
-        }
-    }
-
-    return (false);
-}
-
 // a Tx set comes in from the wire
 void
 TxHerder::recvTransactionSet(TransactionSetPtr txSet)
@@ -122,27 +107,44 @@ TxHerder::recvTransactionSet(TransactionSetPtr txSet)
     }
 }
 
-// TODO.2 check seq num
+
 // return true if we should flood
 bool
 TxHerder::recvTransaction(TransactionFramePtr tx)
 {
+    uint32 maxSeqNum = 0;
     int numOthers=0;
-    if (!isTxKnown(tx->getID(), numOthers))
+    uint256& txID = tx->getID();
+    // determine if we have seen this tx before and if not if it has the right seq num
+    for(auto list : mReceivedTransactions)
     {
-        if(!tx->loadAccount(mApp)) return false;
-        // don't consider minBalance since you want to allow them to still send around credit etc
-        if(tx->getSourceAccount().getBalance() < (numOthers + 1)*mApp.getLedgerGateway().getTxFee()) return false;
-
-        if (tx->checkValid(mApp))
+        for(auto oldTX : list)
         {
-
-            mReceivedTransactions[0].push_back(tx);
-
-            return true;
+            if(txID == oldTX->getID())
+                return false;
+            if(oldTX->getSourceID() == tx->getSourceID())
+            {
+                if(oldTX->getSeqNum() < maxSeqNum) maxSeqNum = oldTX->getSeqNum();
+                numOthers++;
+            }
         }
     }
-    return false;
+
+    if(!tx->loadAccount(mApp)) return false;
+    
+    // any new tx should have a seqnum 1 higher than the highest we have heard of or 1 higher than the account seqnum
+    if(!maxSeqNum) maxSeqNum = tx->getSourceAccount().getSeqNum();
+    if(tx->getSeqNum() != maxSeqNum + 1) return false;
+    
+    
+    // don't consider minBalance since you want to allow them to still send around credit etc
+    if(tx->getSourceAccount().getBalance() < (numOthers + 1)*mApp.getLedgerGateway().getTxFee()) return false;
+
+    if (!tx->checkValid(mApp)) return false;
+       
+    mReceivedTransactions[0].push_back(tx);
+
+    return true;
 }
 
 // will start fetching this TxSet from the network if we don't know about it
