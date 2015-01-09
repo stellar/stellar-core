@@ -118,3 +118,11 @@ src/lib/libmedida:
   Copyright 2012 Daniel Lundin
   Licensed under the Apache License, Version 2.0
   (https://www.apache.org/licenses/LICENSE-2.0)
+
+src/lib/util/uint128_t.{cpp,h}
+
+  The uint128_t library,
+  Copyright 2013 2014 Jason Lee
+  (calccrypto@gmail.com)
+  Licensed under the MIT license
+  (http://opensource.org/licenses/MIT)

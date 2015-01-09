@@ -5,6 +5,7 @@
 #include <memory>
 #include "PeerDoor.h"
 #include "main/Application.h"
+#include "main/Config.h"
 #include "Peer.h"
 #include "overlay/PeerMaster.h"
 #include "util/Logging.h"

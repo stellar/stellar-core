@@ -5,11 +5,14 @@
 #include "txherder/TxHerder.h"
 #include "ledger/LedgerMaster.h"
 #include "main/Application.h"
+#include "main/Config.h"
 #include <time.h>
 #include "util/Logging.h"
 #include "txherder/TxSetFrame.h"
 #include "lib/util/easylogging++.h"
 #include "fba/FBA.h"
+#include "overlay/PeerMaster.h"
+#include "fba/FBAGateway.h"
 
 namespace stellar
 {

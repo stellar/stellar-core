@@ -3,8 +3,11 @@
 // this distribution or at http://opensource.org/licenses/ISC
 
 #include "fba/FutureStatement.h"
+#include "fba/FBAGateway.h"
 #include "main/Application.h"
 #include "fba/FBA.h"
+#include <memory>
+
 /*
 A ballot that has its close time too far in the future.
 You are unwilling to consider it until enough time passes.

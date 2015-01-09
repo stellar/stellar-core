@@ -5,9 +5,11 @@
 #include "Peer.h"
 #include "util/Logging.h"
 #include "main/Application.h"
+#include "main/Config.h"
 #include "generated/StellarXDR.h"
 #include "xdrpp/marshal.h"
 #include "overlay/PeerMaster.h"
+#include "fba/FBAGateway.h"
 
 // LATER: need to add some way of docking peers that are misbehaving by sending
 // you bad data

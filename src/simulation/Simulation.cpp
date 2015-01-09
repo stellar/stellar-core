@@ -5,6 +5,8 @@
 #include "simulation/Simulation.h"
 #include "main/test.h"
 #include "util/Logging.h"
+#include "util/Timer.h"
+#include "fba/FBAGateway.h"
 
 namespace stellar
 {

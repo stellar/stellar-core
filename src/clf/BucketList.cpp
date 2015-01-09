@@ -2,9 +2,13 @@
 // under the ISC License. See the COPYING file at the top-level directory of
 // this distribution or at http://opensource.org/licenses/ISC
 
-// Copyright 2014 Stellar Development Foundation and contributors. Licensed
-// under the ISC License. See the COPYING file at the top-level directory of
-// this distribution or at http://opensource.org/licenses/ISC
+// ASIO is somewhat particular about when it gets included -- it wants to be the
+// first to include <windows.h> -- so we try to include it before everything
+// else.
+#ifndef ASIO_SEPARATE_COMPILATION
+#define ASIO_SEPARATE_COMPILATION
+#endif
+#include <asio.hpp>
 
 #include "BucketList.h"
 #include "main/Application.h"

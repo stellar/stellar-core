@@ -4,10 +4,11 @@
 
 #include "FBAMaster.h"
 #include "main/Application.h"
+#include "main/Config.h"
 #include "util/Logging.h"
 #include "crypto/Hex.h"
 #include "crypto/Base58.h"
-
+#include "overlay/OverlayGateway.h"
 /*
 
 Timestamp:

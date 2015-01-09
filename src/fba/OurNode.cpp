@@ -3,8 +3,11 @@
 // this distribution or at http://opensource.org/licenses/ISC
 
 #include <time.h>
+#include "overlay/OverlayGateway.h"
 #include "fba/OurNode.h"
+#include "fba/FBAGateway.h"
 #include "main/Application.h"
+#include "main/Config.h"
 #include "util/Logging.h"
 
 #define PREPARE_TIMEOUT_MS 1000

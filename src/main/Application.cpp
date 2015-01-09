@@ -2,32 +2,102 @@
 // under the ISC License. See the COPYING file at the top-level directory of
 // this distribution or at http://opensource.org/licenses/ISC
 
+// ASIO is somewhat particular about when it gets included -- it wants to be the
+// first to include <windows.h> -- so we try to include it before everything
+// else.
+#ifndef ASIO_SEPARATE_COMPILATION
+#define ASIO_SEPARATE_COMPILATION
+#endif
+#include <asio.hpp>
+
 #define STELLARD_REAL_TIMER_FOR_CERTAIN_NOT_JUST_VIRTUAL_TIME
 #include "util/Timer.h"
 
 #include "Application.h"
+
+#include "fba/FBAMaster.h"
+#include "ledger/LedgerMaster.h"
+#include "main/Config.h"
+#include "txherder/TxHerder.h"
+#include "overlay/OverlayGateway.h"
 #include "overlay/PeerMaster.h"
+#include "clf/CLFMaster.h"
+#include "history/HistoryMaster.h"
+#include "database/Database.h"
+#include "process/ProcessMaster.h"
+#include "main/CommandHandler.h"
+#include "medida/metrics_registry.h"
+
 #include "util/Logging.h"
 #include "util/make_unique.h"
 
 namespace stellar
 {
 
-Application::Application(VirtualClock& clock, Config const& cfg)
-    : mState(BOOTING_STATE)
+struct Application::Impl
+{
+    Application::State mState;
+    VirtualClock& mVirtualClock;
+    Config const& mConfig;
+
+    // NB: The io_services should come first, then the 'master'
+    // sub-objects, then the threads. Do not reorder these fields.
+    //
+    // The fields must be constructed in this order, because the
+    // 'master' sub-objects register work-to-do (listening on sockets)
+    // with the io_services during construction, and the threads are
+    // activated immediately thereafter to serve requests; if the
+    // threads started first, they would try to do work, find no work,
+    // and exit.
+    //
+    // The fields must be destructed in the reverse order because the
+    // 'master' sub-objects contain various IO objects that refer
+    // directly to the io_services.
+
+    asio::io_service mMainIOService;
+    asio::io_service mWorkerIOService;
+    std::unique_ptr<asio::io_service::work> mWork;
+    std::unique_ptr<RealTimer> mRealTimer;
+
+    std::unique_ptr<medida::MetricsRegistry> mMetrics;
+    std::unique_ptr<PeerMaster> mPeerMaster;
+    std::unique_ptr<LedgerMaster> mLedgerMaster;
+    std::unique_ptr<TxHerder> mTxHerder;
+    std::unique_ptr<FBAMaster> mFBAMaster;
+    std::unique_ptr<CLFMaster> mCLFMaster;
+    std::unique_ptr<HistoryMaster> mHistoryMaster;
+    std::unique_ptr<ProcessMaster> mProcessMaster;
+    std::unique_ptr<CommandHandler> mCommandHandler;
+    std::unique_ptr<Database> mDatabase;
+
+    std::vector<std::thread> mWorkerThreads;
+
+    asio::signal_set mStopSignals;
+    size_t mRealTimerCancelCallbacks;
+
+    void runWorkerThread(unsigned i);
+    void scheduleRealTimerFromNextVirtualEvent();
+    size_t advanceVirtualTimeToRealTime();
+    void realTimerTick();
+
+    void enableRealTimer();
+    void disableRealTimer();
+    size_t crank(bool block=true);
+
+    void start();
+    void gracefulStop();
+    void joinAllThreads();
+
+    Impl(VirtualClock& clock, Config const& cfg);
+};
+
+Application::Impl::Impl(VirtualClock& clock, Config const& cfg)
+    : mState(Application::State::BOOTING_STATE)
     , mVirtualClock(clock)
     , mConfig(cfg)
+    , mMainIOService()
     , mWorkerIOService(std::thread::hardware_concurrency())
     , mWork(make_unique<asio::io_service::work>(mWorkerIOService))
-    , mPeerMaster(*this)
-    , mLedgerMaster(*this)
-    , mTxHerder(*this)
-    , mFBAMaster(*this)
-    , mCLFMaster(*this)
-    , mHistoryMaster(*this)
-    , mProcessMaster(*this)
-    , mCommandHandler(*this)
-    , mDatabase(*this)
     , mStopSignals(mMainIOService, SIGINT)
     , mRealTimerCancelCallbacks(0)
 {
@@ -55,10 +125,34 @@ Application::Application(VirtualClock& clock, Config const& cfg)
         });
     }
     LOG(INFO) << "Application constructed";
+
+}
+
+Application::Application(VirtualClock& clock, Config const& cfg)
+    : mImpl(make_unique<Impl>(clock, cfg))
+{
+    // These must be constructed _after_ mImpl points to a
+    // full Impl object, because they frequently call back
+    // into App.getFoo() to get information / start up.
+    mImpl->mPeerMaster = make_unique<PeerMaster>(*this);
+    mImpl->mLedgerMaster = make_unique<LedgerMaster>(*this);
+    mImpl->mTxHerder = make_unique<TxHerder>(*this);
+    mImpl->mFBAMaster = make_unique<FBAMaster>(*this);
+    mImpl->mCLFMaster = make_unique<CLFMaster>(*this);
+    mImpl->mHistoryMaster = make_unique<HistoryMaster>(*this);
+    mImpl->mProcessMaster = make_unique<ProcessMaster>(*this);
+    mImpl->mCommandHandler = make_unique<CommandHandler>(*this);
+    mImpl->mDatabase = make_unique<Database>(*this);
 }
 
 void
 Application::enableRealTimer()
+{
+    mImpl->enableRealTimer();
+}
+
+void
+Application::Impl::enableRealTimer()
 {
     if (!mRealTimer)
     {
@@ -70,6 +164,12 @@ Application::enableRealTimer()
 void
 Application::disableRealTimer()
 {
+    mImpl->disableRealTimer();
+}
+
+void
+Application::Impl::disableRealTimer()
+{
     if (mRealTimer)
     {
         mRealTimer.reset();
@@ -77,7 +177,7 @@ Application::disableRealTimer()
 }
 
 void
-Application::realTimerTick()
+Application::Impl::realTimerTick()
 {
     // LOG(DEBUG) << "realTimerTick";
     advanceVirtualTimeToRealTime();
@@ -85,7 +185,7 @@ Application::realTimerTick()
 }
 
 void
-Application::scheduleRealTimerFromNextVirtualEvent()
+Application::Impl::scheduleRealTimerFromNextVirtualEvent()
 {
     if (mRealTimer)
     {
@@ -96,21 +196,21 @@ Application::scheduleRealTimerFromNextVirtualEvent()
         //           << nxt.time_since_epoch().count();
         mRealTimer->expires_at(nxt);
         mRealTimer->async_wait([this](asio::error_code ec)
-                               {
-                                   if (ec == asio::error::operation_aborted)
-                                   {
-                                       this->mRealTimerCancelCallbacks++;
-                                   }
-                                   else
-                                   {
-                                       this->realTimerTick();
-                                   }
-                               });
+                                      {
+                                          if (ec == asio::error::operation_aborted)
+                                          {
+                                              this->mRealTimerCancelCallbacks++;
+                                          }
+                                          else
+                                          {
+                                              this->realTimerTick();
+                                          }
+                                      });
     }
 }
 
 size_t
-Application::advanceVirtualTimeToRealTime()
+Application::Impl::advanceVirtualTimeToRealTime()
 {
     auto n = std::chrono::steady_clock::now();
     // LOG(DEBUG) << "Application::advanceVirtualTimeToRealTime";
@@ -119,6 +219,12 @@ Application::advanceVirtualTimeToRealTime()
 
 size_t
 Application::crank(bool block)
+{
+    return mImpl->crank(block);
+}
+
+size_t
+Application::Impl::crank(bool block)
 {
     // LOG(DEBUG) << "Application::crank(block=" << block << ")";
     mRealTimerCancelCallbacks = 0;
@@ -168,10 +274,16 @@ Application::crank(bool block)
 void
 Application::start()
 {
+    mImpl->start();
+}
+
+void
+Application::Impl::start()
+{
     if(mConfig.START_NEW_NETWORK)
     {
         LOG(INFO) << "Starting a new network";
-        mLedgerMaster.startNewLedger();
+        mLedgerMaster->startNewLedger();
     }
 }
 
@@ -181,16 +293,29 @@ Application::~Application()
     gracefulStop();
     joinAllThreads();
     LOG(INFO) << "Application destroyed";
+
+    // We have to do this manually because some of the dtors
+    // of the sub-objects call back through here into the
+    // being-deleted application object, and the default
+    // dtor for unique_ptr clears itself first.
+    delete mImpl.get();
+    mImpl.release();
 }
 
 void
-Application::runWorkerThread(unsigned i)
+Application::Impl::runWorkerThread(unsigned i)
 {
     mWorkerIOService.run();
 }
 
 void
 Application::gracefulStop()
+{
+    mImpl->gracefulStop();
+}
+
+void
+Application::Impl::gracefulStop()
 {
     if (!mMainIOService.stopped())
     {
@@ -201,6 +326,12 @@ Application::gracefulStop()
 
 void
 Application::joinAllThreads()
+{
+    mImpl->joinAllThreads();
+}
+
+void
+Application::Impl::joinAllThreads()
 {
     // We never strictly stop the worker IO service, just release the work-lock
     // that keeps the worker threads alive. This gives them the chance to finish
@@ -216,4 +347,107 @@ Application::joinAllThreads()
     }
     LOG(INFO) << "Joined all " << mWorkerThreads.size() << " threads";
 }
+
+Config const&
+Application::getConfig()
+{
+    return mImpl->mConfig;
+}
+
+Application::State
+Application::getState()
+{
+    return mImpl->mState;
+}
+
+void
+Application::setState(State s)
+{
+    mImpl->mState = s;
+}
+
+VirtualClock&
+Application::getClock()
+{
+    return mImpl->mVirtualClock;
+}
+
+medida::MetricsRegistry&
+Application::getMetrics()
+{
+    return *mImpl->mMetrics;
+}
+
+LedgerGateway&
+Application::getLedgerGateway()
+{
+    return *mImpl->mLedgerMaster;
+}
+
+LedgerMaster&
+Application::getLedgerMaster()
+{
+    return *mImpl->mLedgerMaster;
+}
+
+FBAGateway&
+Application::getFBAGateway()
+{
+    return *mImpl->mFBAMaster;
+}
+
+CLFMaster&
+Application::getCLFMaster()
+{
+    return *mImpl->mCLFMaster;
+}
+
+HistoryMaster&
+Application::getHistoryMaster()
+{
+    return *mImpl->mHistoryMaster;
+}
+
+ProcessGateway&
+Application::getProcessGateway()
+{
+    return *mImpl->mProcessMaster;
+}
+
+TxHerderGateway&
+Application::getTxHerderGateway()
+{
+    return *mImpl->mTxHerder;
+}
+
+OverlayGateway&
+Application::getOverlayGateway()
+{
+    return *mImpl->mPeerMaster;
+}
+
+PeerMaster&
+Application::getPeerMaster()
+{
+    return *mImpl->mPeerMaster;
+}
+
+Database&
+Application::getDatabase()
+{
+    return *mImpl->mDatabase;
+}
+
+asio::io_service&
+Application::getMainIOService()
+{
+    return mImpl->mMainIOService;
+}
+
+asio::io_service&
+Application::getWorkerIOService()
+{
+    return mImpl->mWorkerIOService;
+}
+
 }

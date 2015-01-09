@@ -8,19 +8,24 @@
 #include "main/test.h"
 #include "lib/catch.hpp"
 #include "util/Logging.h"
+#include "util/Timer.h"
 
 #include <xdrpp/autocheck.h>
+
+#ifdef _MSC_VER
+#include <io.h>
+#define UNLINK _unlink
+#else
+#include <unistd.h>
+#define UNLINK unlink
+#endif
 
 using namespace stellar;
 
 static void
 del(std::string const& n)
 {
-#ifdef _MSC_VER
-    _unlink(n.c_str());
-#else
-    unlink(n.c_str());
-#endif
+    UNLINK(n.c_str());
 }
 
 TEST_CASE("WriteLedgerHistoryToFile", "[history]")

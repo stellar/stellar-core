@@ -4,6 +4,8 @@
 
 #include "ItemFetcher.h"
 #include "main/Application.h"
+#include "fba/FBAGateway.h"
+#include "overlay/OverlayGateway.h"
 
 #define MS_TO_WAIT_FOR_FETCH_REPLY 3000
 

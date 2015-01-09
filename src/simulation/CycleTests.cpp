@@ -6,6 +6,7 @@
 #include "generated/StellarXDR.h"
 #include "main/Application.h"
 #include "overlay/LoopbackPeer.h"
+#include "fba/FBAGateway.h"
 #include "util/make_unique.h"
 #include "crypto/SHA.h"
 #include "main/test.h"
