@@ -2,10 +2,12 @@
 // under the ISC License. See the COPYING file at the top-level directory of
 // this distribution or at http://opensource.org/licenses/ISC
 
-#include "transactions/TxResultCode.h"
+
 #include "ChangeTrustTxFrame.h"
+#include "transactions/TxResultCode.h"
 #include "ledger/TrustFrame.h"
 #include "ledger/LedgerMaster.h"
+#include "database/Database.h"
 
 namespace stellar
 { 

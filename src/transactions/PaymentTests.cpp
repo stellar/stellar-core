@@ -13,6 +13,7 @@
 #include "crypto/Base58.h"
 #include "lib/json/json.h"
 #include "TxTests.h"
+#include "database/Database.h"
 
 using namespace stellar;
 using namespace stellar::txtest;

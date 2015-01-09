@@ -8,6 +8,7 @@
 #include "crypto/Base58.h"
 #include "crypto/SHA.h"
 #include "lib/json/json.h"
+#include "database/Database.h"
 
 using namespace std;
 

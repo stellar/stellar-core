@@ -8,6 +8,7 @@
 #include <thread>
 #include <random>
 #include "util/Logging.h"
+#include "database/Database.h"
 
 /*
 If we have less than the target number of peers we will try to connect to one

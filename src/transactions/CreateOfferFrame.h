@@ -1,4 +1,6 @@
 #include "transactions/TransactionFrame.h"
+#include "ledger/TrustFrame.h"
+#include "ledger/OfferFrame.h"
 
 namespace stellar
 {

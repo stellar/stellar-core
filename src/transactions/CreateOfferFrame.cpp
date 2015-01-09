@@ -2,6 +2,7 @@
 #include "ledger/OfferFrame.h"
 #include "util/Logging.h"
 #include "util/types.h"
+#include "database/Database.h"
 
 // This is pretty gnarly still. I'll clean it up as I write the tests
 //

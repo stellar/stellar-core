@@ -33,21 +33,6 @@ class Database
 
     void initialize();
 
-    // state store
-    enum StoreStateName {
-        kLastClosedLedger = 0,
-        kLastEntry
-    };
-
-    const char *getStoreStateName(StoreStateName n);
-    std::string getState(const char *stateName);
-    void setState(const char *stateName, const char *value);
-
-    // transaction helpers
-    void beginTransaction();
-    void endTransaction(bool rollback);
-    int getTransactionLevel();
-
     bool loadAccount(const uint256& accountID, AccountFrame& retEntry, bool withSig=false);
     bool loadTrustLine(const uint256& accountID, const Currency& currency,
         TrustFrame& retEntry);

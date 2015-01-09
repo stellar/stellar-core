@@ -1,6 +1,7 @@
 #include "transactions/TxDelta.h"
 #include "lib/json/json.h"
 #include "ledger/LedgerMaster.h"
+#include "database/Database.h"
 
 /*
 

@@ -1,5 +1,7 @@
 #include "ledger/LedgerMaster.h"
 #include "transactions/AllowTrustTxFrame.h"
+#include "ledger/TrustFrame.h"
+#include "database/Database.h"
 
 namespace stellar
 {

@@ -13,6 +13,7 @@
 #include "crypto/SecretKey.h"
 #include "crypto/Base58.h"
 #include "txherder/TxHerder.h"
+#include "database/Database.h"
 
 /*
 The ledger module:
@@ -38,7 +39,7 @@ catching up to network:
 namespace stellar
 {
 
-LedgerMaster::LedgerMaster(Application& app) : mApp(app), mDatabase(app)
+LedgerMaster::LedgerMaster(Application& app) : mApp(app)
 {
 	mCaughtUp = false;
     //syncWithCLF();
@@ -59,6 +60,11 @@ void LedgerMaster::startNewLedger()
     mCurrentHeader.baseReserve = mApp.getConfig().DESIRED_BASE_RESERVE;
     mCurrentHeader.totalCoins = masterAccount.mEntry.account().balance;
     mCurrentHeader.ledgerSeq = 1;
+}
+
+Database &LedgerMaster::getDatabase()
+{
+    return mApp.getDatabase();
 }
 
 int32_t LedgerMaster::getTxFee()
@@ -130,7 +136,9 @@ void LedgerMaster::closeLedger(TxSetFramePtr txSet)
     LedgerHeader nextHeader = mCurrentHeader;
 
     LedgerDelta ledgerDelta;
-    mDatabase.beginTransaction();
+    
+    soci::transaction txscope(getDatabase().getSession());
+
     vector<TransactionFramePtr> txs;
     txSet->sortForApply(txs);
     for(auto tx : txs)
@@ -152,7 +160,8 @@ void LedgerMaster::closeLedger(TxSetFramePtr txSet)
             CLOG(ERROR, "Ledger") << "Exception during tx->apply";
         }
     }
-    mDatabase.endTransaction(false);
+
+    txscope.commit();
 
     // TODO.2 do something with the nextHeader
     mCurrentHeader.ledgerSeq++;

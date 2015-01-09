@@ -5,7 +5,6 @@
 // under the ISC License. See the COPYING file at the top-level directory of
 // this distribution or at http://opensource.org/licenses/ISC
 
-#include "database/Database.h"
 #include "ledger/LedgerGateway.h"
 
 /*
@@ -17,6 +16,7 @@ Hands the old ledger off to the history
 namespace stellar
 {
     class Application;
+    class Database;
 
 	class LedgerMaster : public LedgerGateway
 	{
@@ -25,8 +25,6 @@ namespace stellar
         LedgerHeader mCurrentHeader;
 
         Application &mApp;
-
-        Database mDatabase;
 
         void startCatchUp();
 
@@ -68,7 +66,7 @@ namespace stellar
 
 		LedgerHeader& getCurrentLedgerHeader();
 
-        Database& getDatabase() { return mDatabase;  }
+        Database& getDatabase();
 
 		void closeLedger(TransactionSetPtr txSet);
 		
