@@ -11,6 +11,7 @@
 #include "server.hpp"
 #include <signal.h>
 #include <utility>
+#include <sstream>
 
 namespace http
 {
