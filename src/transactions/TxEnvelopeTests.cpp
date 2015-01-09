@@ -39,7 +39,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
     SecretKey root = getRoot();
     SecretKey a1 = getAccount("A");
 
-    const int32 paymentAmount = app.getLedgerMaster().getCurrentLedgerHeader().baseReserve*10;
+    const uint64_t paymentAmount = app.getLedgerMaster().getCurrentLedgerHeader().baseReserve*10;
 
     SECTION("outer envelope")
     {
@@ -97,8 +97,6 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
                 delta.commitDelta(jsonResult, ledgerDelta, app.getLedgerMaster());
 
-                LOG(INFO) << jsonResult.toStyledString();
-
                 REQUIRE(txFrame->getResultCode() == txINSUFFICIENT_FEE);
             }
 
@@ -109,32 +107,24 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
                 delta.commitDelta(jsonResult, ledgerDelta, app.getLedgerMaster());
 
-                LOG(INFO) << jsonResult.toStyledString();
-
                 REQUIRE(txFrame->getResultCode() == txBAD_SEQ);
             }
 
-            TransactionFramePtr txFrame2;
             SECTION("transaction gap")
             {
-                txFrame2 = createPaymentTx(root, a1, 3, paymentAmount);
+                txFrame = createPaymentTx(root, a1, 3, paymentAmount);
 
-                txFrame2->apply(delta, app);
+                txFrame->apply(delta, app);
 
                 delta.commitDelta(jsonResult, ledgerDelta, app.getLedgerMaster());
-
-                LOG(INFO) << jsonResult.toStyledString();
 
                 REQUIRE(txFrame->getResultCode() == txBAD_SEQ);
             }
 
             SECTION("min ledger seq")
             {
-                txFrame = createPaymentTx(root, a1, 1, paymentAmount,
-                    [](TransactionEnvelope &e)
-                {
-                    e.tx.minLedger = 3;
-                });
+                txFrame = createPaymentTx(root, a1, 1, paymentAmount);
+                txFrame->getEnvelope().tx.minLedger = 3;
 
                 txFrame->apply(delta, app);
 
@@ -143,11 +133,8 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
             SECTION("max ledger seq")
             {
-                txFrame = createPaymentTx(root, a1, 1, paymentAmount,
-                    [](TransactionEnvelope &e)
-                {
-                    e.tx.maxLedger = 1;
-                });
+                txFrame = createPaymentTx(root, a1, 1, paymentAmount);
+                txFrame->getEnvelope().tx.maxLedger = 1;
 
                 txFrame->apply(delta, app);
 
