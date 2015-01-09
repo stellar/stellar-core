@@ -29,7 +29,7 @@ FMT_SRCS = src/clf/BucketList.cpp src/clf/CLFMaster.cpp src/clf/CLFTests.cpp    
     src/transactions/AllowTrustTxFrame.cpp                                      \
     src/transactions/ChangeTrustTxFrame.cpp src/transactions/TxDelta.cpp        \
     src/txherder/TxHerder.cpp src/txherder/TxSetFrame.cpp src/util/Logging.cpp  \
-    src/util/Timer.cpp src/util/types.cpp
+    src/util/Timer.cpp src/util/types.cpp src/util/Uint128Tests.cpp
 
 FMT_HDRS = src/clf/BucketList.h src/clf/CLFMaster.h src/crypto/Base58.h         \
     src/crypto/Hex.h src/crypto/SHA.h src/crypto/SecretKey.h                    \
@@ -65,6 +65,7 @@ bin_stellard_SOURCES = $(FMT_SRCS) \
                        $(BUILT_SOURCES) \
                        src/lib/util/getopt_long.c \
                        src/lib/util/format.cc \
+                       src/lib/util/uint128_t.cpp \
                        src/lib/json/jsoncpp.cpp \
                        src/lib/http/HttpClient.cpp \
                        src/lib/http/connection.cpp \
