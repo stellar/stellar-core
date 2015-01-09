@@ -43,7 +43,7 @@ LocalNode::getQuorumSet()
     return mQSet;
 }
 
-const uint256& 
+const Hash& 
 LocalNode::getQuorumSetHash()
 {
   return mQSetHash;

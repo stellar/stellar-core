@@ -35,7 +35,7 @@ FBA::receiveEnvelope(const FBAEnvelope& envelope)
 
 bool
 FBA::attemptValue(const uint32& slotIndex,
-                  const uint256& valueHash)
+                  const Hash& valueHash)
 {
     return getSlot(slotIndex)->attemptValue(valueHash);
 }

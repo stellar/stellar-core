@@ -18,6 +18,7 @@ Slot::Slot(const uint32& slotIndex,
            FBA* FBA)
     : mSlotIndex(slotIndex)
     , mFBA(FBA)
+    , mInAdvanceSlot(false)
 {
     mBallot.counter = 0;
     assert(isZero(mBallot.valueHash));
@@ -44,6 +45,10 @@ Slot::processEnvelope(const FBAEnvelope& envelope)
     {
         return;
     }
+
+    /* TODO(spolu): Refactor so that we prevent ballot upgrade for any other
+     * message than a valid PREPARE message. Ballot verification can be
+     * limited to that case */
 
     auto cb = [&] (bool valid)
     {
@@ -85,14 +90,15 @@ Slot::processEnvelope(const FBAEnvelope& envelope)
 }
 
 bool
-Slot::attemptValue(const uint256& valueHash)
+Slot::attemptValue(const Hash& valueHash,
+                   bool forceBump)
 {
     if (mBallot.counter == FBA_SLOT_MAX_COUNTER)
     {
         return false;
     }
 
-    else if (!isNull() && mBallot.valueHash != valueHash)
+    else if (forceBump || (!isNull() && mBallot.valueHash != valueHash))
     {
         mFBA->getClient()->valueCancelled(mSlotIndex, mBallot.valueHash);
         mEnvelopes.empty();
@@ -142,9 +148,6 @@ Slot::envToStr(const FBAEnvelope& envelope)
         case FBAStatementType::COMMITTED:
             oss << "COMMITTED";
             break;
-        case FBAStatementType::INVALID:
-            oss << "INVALID";
-            break;
     }
     oss << "|" << "(" << envelope.statement.ballot.counter 
         << "," << binToHex(envelope.statement.ballot.valueHash).substr(0,6) << ")"
@@ -177,7 +180,14 @@ Slot::attemptPrepare()
     }
 
     FBAEnvelope envelope = createEnvelope(FBAStatementType::PREPARE);
-    /* TODO(spolu): Add mPledgedCommit to `excepted` */
+    if (mPrepared.find(mBallot.valueHash) != mPrepared.end())
+    {
+        envelope.statement.body.prepare().prepared.activate() = mBallot;
+    }
+    for (auto b : mPledgedCommit)
+    {
+        envelope.statement.body.prepare().excepted.push_back(b);
+    }
     signEnvelope(envelope);
 
     mFBA->getClient()->ballotDidPrepare(mSlotIndex, mBallot);
@@ -198,6 +208,10 @@ Slot::attemptPrepared()
     FBAEnvelope envelope = createEnvelope(FBAStatementType::PREPARED);
     signEnvelope(envelope);
 
+    // Store the current ballot in mPrepared as the last ballot prepared for
+    // the current value.
+    mPrepared[mBallot.valueHash] =  mBallot;
+
     mFBA->getClient()->emitEnvelope(envelope);
     processEnvelope(envelope);
 }
@@ -215,6 +229,7 @@ Slot::attemptCommit()
     FBAEnvelope envelope = createEnvelope(FBAStatementType::COMMIT);
     signEnvelope(envelope);
 
+    // Store the current ballot in the list of ballot we pledged to commit.
     mPledgedCommit.push_back(mBallot);
 
     mFBA->getClient()->ballotDidCommit(mSlotIndex, mBallot);
@@ -253,7 +268,7 @@ Slot::attemptExternalize()
 
 bool 
 Slot::nodeHasQuorum(const uint256& nodeID,
-                    const uint256& qSetHash,
+                    const Hash& qSetHash,
                     const std::vector<uint256>& nodeSet)
 {
     LOG(INFO) << "Slot::nodeHashQuorum" 
@@ -278,7 +293,7 @@ Slot::nodeHasQuorum(const uint256& nodeID,
 
 bool 
 Slot::nodeIsVBlocking(const uint256& nodeID,
-                      const uint256& qSetHash,
+                      const Hash& qSetHash,
                       const std::vector<uint256>& nodeSet)
 {
     LOG(INFO) << "Slot::nodeIsVBlocking" 
@@ -349,7 +364,7 @@ Slot::isVBlocking(const FBAStatementType& type,
         }
     }
 
-    uint256 qSetHash;
+    Hash qSetHash;
     if (mEnvelopes[type].find(nodeID) != mEnvelopes[type].end())
     {
         qSetHash = mEnvelopes[type][nodeID].statement.quorumSetHash;
@@ -386,7 +401,7 @@ Slot::isPrepared()
     }
 
     // Checks if there is a v-blocking set of nodes that accepted the PREPARE
-    // statements.
+    // statements. This is a optimization.
     if (isVBlocking(FBAStatementType::PREPARED,
                     mFBA->getLocalNodeID()))
     {
@@ -397,14 +412,14 @@ Slot::isPrepared()
     auto ratifyFilter = [&] (const FBAEnvelope& env) -> bool
     {
         // Either this node has no excepted B_c ballot
-        if (env.statement.body.excepted().size() == 0)
+        if (env.statement.body.prepare().excepted.size() == 0)
         {
             return true;
         }
 
         // Or they are all compatible
         bool compatible = true;
-        for (auto b : env.statement.body.excepted())
+        for (auto b : env.statement.body.prepare().excepted)
         {
             if (b.valueHash != mBallot.valueHash ||
                 b.counter > mBallot.counter)
@@ -465,7 +480,7 @@ Slot::isCommitted()
     }
 
     // Checks if there is a v-blocking set of nodes that accepted the COMMIT
-    // statement.
+    // statement. This is an optimization
     if (isVBlocking(FBAStatementType::COMMITTED,
                     mFBA->getLocalNodeID()))
     {
@@ -498,6 +513,16 @@ Slot::isCommittedConfirmed()
 void
 Slot::advanceSlot()
 {
+    // `advanceSlot` will prevent recursive call by setting and checking
+    // `mInAdvanceSlot`. If a recursive call is made, `mRunAdvanceSlot` will be
+    // set and `advanceSlot` will be called again after it is done executing.
+    if(mInAdvanceSlot)
+    {
+        mRunAdvanceSlot = true;
+        return;
+    }
+    mInAdvanceSlot = true;
+
     try
     {
         // PREPARE Phase
@@ -517,6 +542,13 @@ Slot::advanceSlot()
     {
         mFBA->getClient()->retrieveQuorumSet(e.nodeID(), e.qSetHash());
         mFBA->getNode(e.nodeID())->addPendingSlot(e.qSetHash(), mSlotIndex);
+    }
+
+    mInAdvanceSlot = false;
+    if (mRunAdvanceSlot)
+    {
+        mRunAdvanceSlot = false;
+        advanceSlot();
     }
 }
 

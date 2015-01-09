@@ -29,9 +29,10 @@ class Slot
     void processEnvelope(const FBAEnvelope& envelope);
 
     // Attempts a new value for this slot. If the value is compatible with the
-    // current ballot, the current ballot is used. Otherwise a new ballot is
-    // generated with an increased counter value.
-    bool attemptValue(const uint256& valueHash);
+    // current ballot, and forceBump is false, the current ballot is used.
+    // Otherwise a new ballot is generated with an increased counter value.
+    bool attemptValue(const Hash& valueHash, 
+                      bool forceBump = false);
 
   private:
     // Helper methods to generate a new envelopes
@@ -54,10 +55,10 @@ class Slot
     // Helper functions to test a nodeSet against a specifed quorum set for a
     // given node.
     bool nodeHasQuorum(const uint256& nodeID,
-                       const uint256& qSetHash,
+                       const Hash& qSetHash,
                        const std::vector<uint256>& nodeSet);
     bool nodeIsVBlocking(const uint256& nodeID,
-                         const uint256& qSetHash,
+                         const Hash& qSetHash,
                          const std::vector<uint256>& nodeSet);
 
     // Helper methods to test if we have a transitive quorum or a v-blocking
@@ -86,13 +87,19 @@ class Slot
 
     // `advanceSlot` can be called as many time as needed. It attempts to
     // advance the slot to a next state if possible given the current
-    // knownledge of this node.
+    // knownledge of this node. 
     void advanceSlot();
 
     const uint32&                                              mSlotIndex;
     FBA*                                                       mFBA;
     FBABallot                                                  mBallot;
+
+    bool                                                       mInAdvanceSlot;
+    bool                                                       mRunAdvanceSlot;
+
     std::vector<FBABallot>                                     mPledgedCommit;
+    std::map<Hash, FBABallot>                                  mPrepared;
+
     std::map<FBAStatementType, std::map<uint256, FBAEnvelope>> mEnvelopes;
 
     friend class Node;

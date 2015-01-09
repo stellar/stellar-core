@@ -53,12 +53,12 @@ class FBA
                                      const FBABallot& ballot) {};
 
         virtual void valueCancelled(const uint32& slotIndex,
-                                    const uint256& valueHash) = 0;
+                                    const Hash& valueHash) = 0;
         virtual void valueExternalized(const uint32& slotIndex,
-                                       const uint256& valueHash) = 0;
+                                       const Hash& valueHash) = 0;
 
         virtual void retrieveQuorumSet(const uint256& nodeID,
-                                       const uint256& qSetHash) = 0;
+                                       const Hash& qSetHash) = 0;
         virtual void emitEnvelope(const FBAEnvelope& envelope) = 0;
     };
 
@@ -75,7 +75,7 @@ class FBA
 
     // Value submission
     bool attemptValue(const uint32& slotIndex,
-                      const uint256& valueHash);
+                      const Hash& valueHash);
 
     // Local QuorumSet interface (can be dynamically updated)
     void updateLocalQuorumSet(const FBAQuorumSet& qSet);

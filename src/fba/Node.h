@@ -31,7 +31,7 @@ class Node
     {
       public:
         QuorumSetNotFound(const uint256& nodeID,
-                          const uint256& qSetHash)
+                          const Hash& qSetHash)
             : mNodeID(nodeID)
             , mQSetHash(qSetHash) {}
 
@@ -39,23 +39,23 @@ class Node
         {
             return "QuorumSet not found";
         }
-        const uint256& qSetHash() const throw() { return mQSetHash; }
+        const Hash& qSetHash() const throw() { return mQSetHash; }
         const uint256& nodeID() const throw() { return mNodeID; }
 
         const uint256 mNodeID;
-        const uint256 mQSetHash;
+        const Hash mQSetHash;
     };
 
     // Retrieves the cached quorum set associated with this hash or throws a
     // QuorumSetNotFound exception otherwise. The exception shall not escape
     // the FBA module
-    const FBAQuorumSet& retrieveQuorumSet(const uint256& qSetHash);
+    const FBAQuorumSet& retrieveQuorumSet(const Hash& qSetHash);
 
     // Adds a slot to the list of slots awaiting for a quorunm set to be
     // retrieved. When cacheQuorumSet is called with the specified quorum set
     // hash, all slots pending on this quorum set are woken up for
     // re-evaluation.
-    void addPendingSlot(const uint256& qSetHash, const uint32& slotIndex);
+    void addPendingSlot(const Hash& qSetHash, const uint32& slotIndex);
 
     void cacheQuorumSet(const FBAQuorumSet& qSet);
 
@@ -66,10 +66,10 @@ class Node
     FBA*                                   mFBA;
   private:
     int                                    mCacheCapacity;
-    std::map<uint256, FBAQuorumSet>        mCache;
-    std::vector<uint256>                   mCacheLRU;
+    std::map<Hash, FBAQuorumSet>           mCache;
+    std::vector<Hash>                      mCacheLRU;
 
-    std::map<uint256, std::vector<uint32>> mPendingSlots;
+    std::map<Hash, std::vector<uint32>>    mPendingSlots;
 };
 }
 

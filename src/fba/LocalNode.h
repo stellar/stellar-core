@@ -26,12 +26,12 @@ class LocalNode : public Node
     void updateQuorumSet(const FBAQuorumSet& qSet);
 
     const FBAQuorumSet& getQuorumSet();
-    const uint256& getQuorumSetHash();
+    const Hash& getQuorumSetHash();
 
   private:
     const uint256&                  mValidationSeed;
     FBAQuorumSet                    mQSet;
-    uint256                         mQSetHash;
+    Hash                            mQSetHash;
 };
 }
 

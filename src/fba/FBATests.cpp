@@ -13,7 +13,7 @@ using namespace stellar;
 class TestFBAClient : public FBA::Client
 {
     void validateBallot(const uint32& slotIndex,
-                        const uint256& nodeID,
+                        const Hash& nodeID,
                         const FBABallot& ballot,
                         std::function<void(bool)> const& cb)
     {
@@ -30,16 +30,16 @@ class TestFBAClient : public FBA::Client
     }
 
     void valueCancelled(const uint32& slotIndex,
-                        const uint256& valueHash)
+                        const Hash& valueHash)
     {
     }
     void valueExternalized(const uint32& slotIndex,
-                           const uint256& valueHash)
+                           const Hash& valueHash)
     {
     }
 
-    void retrieveQuorumSet(const uint256& nodeID,
-                           const uint256& qSetHash)
+    void retrieveQuorumSet(const Hash& nodeID,
+                           const Hash& qSetHash)
     {
         LOG(INFO) << "FBA::Client::retrieveQuorumSet"
                   << " " << binToHex(qSetHash).substr(0,6)
@@ -55,13 +55,13 @@ TEST_CASE("attemptValue", "[fba]")
 {
     SECTION("first")
     {
-        const uint256 validationSeed = sha512_256("SEED_VALIDATIONSEED");
+        const Hash validationSeed = sha512_256("SEED_VALIDATIONSEED");
 
         FBAQuorumSet qSet;
         qSet.threshold = 3;
         for(int n = 0; n < 5; n++)
         {
-            uint256 nodeID = sha512_256("SEED_FOOBAR");;
+            Hash nodeID = sha512_256("SEED_FOOBAR");;
             nodeID[0] = n;
             LOG(INFO) << "ADD TO QSET: " << binToHex(nodeID);
             qSet.validators.push_back(nodeID);
@@ -71,7 +71,7 @@ TEST_CASE("attemptValue", "[fba]")
 
         FBA* fba = new FBA(validationSeed, qSet, client);
 
-        const uint256 valueHash = sha512_256("SEED_VALUEHASH");
+        const Hash valueHash = sha512_256("SEED_VALUEHASH");
         fba->attemptValue(0, valueHash);
         LOG(INFO) << "TEST";
     }
