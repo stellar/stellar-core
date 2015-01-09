@@ -71,14 +71,15 @@ bin_stellard_SOURCES = $(FMT_SRCS) \
                        src/lib/http/connection_manager.cpp \
                        src/lib/http/reply.cpp \
                        src/lib/http/request_parser.cpp \
-                       src/lib/http/server.cpp
+                       src/lib/http/server.cpp \
+                       src/lib/asio/src/asio.cpp
 
 bin_stellard_CPPFLAGS = -I$(top_srcdir)/src \
                         -I$(builddir)/src \
                         -I$(srcdir)/src/lib/autocheck/include \
                         -I$(srcdir)/src/lib/cereal/include \
                         -I$(srcdir)/src/lib/util \
-                        -I$(srcdir)/src/lib/asio/include -DASIO_STANDALONE \
+                        -I$(srcdir)/src/lib/asio/include -DASIO_SEPARATE_COMPILATION \
                         -I$(srcdir)/src/lib/soci/src/core \
                         -I$(srcdir)/src/lib/soci/src/backends/sqlite3 \
                         $(libsodium_CFLAGS) \

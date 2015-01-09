@@ -8,8 +8,8 @@
 // ASIO is somewhat particular about when it gets included -- it wants to be the
 // first to include <windows.h> -- so we try to include it before everything
 // else.
-#ifndef ASIO_STANDALONE
-#define ASIO_STANDALONE
+#ifndef ASIO_SEPARATE_COMPILATION
+#define ASIO_SEPARATE_COMPILATION
 #endif
 #include <asio.hpp>
 
