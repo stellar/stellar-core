@@ -4,6 +4,7 @@
 
 #include "PeerMaster.h"
 #include "main/Application.h"
+#include "main/Config.h"
 #include <thread>
 #include <random>
 #include "ledger/Ledger.h"

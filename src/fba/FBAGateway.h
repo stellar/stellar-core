@@ -6,6 +6,8 @@
 // this distribution or at http://opensource.org/licenses/ISC
 
 #include "fba/FBA.h"
+#include "fba/QuorumSet.h"
+#include "fba/OurNode.h"
 
 /*
 The public interface to the FBA module
@@ -14,7 +16,7 @@ The public interface to the FBA module
 namespace stellar
 {
     class TxSetFrame;
-    typedef shared_ptr<TxSetFrame> TxSetFramePtr;
+    typedef std::shared_ptr<TxSetFrame> TxSetFramePtr;
 class FBAGateway
 {
   public:

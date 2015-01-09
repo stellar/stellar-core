@@ -6,6 +6,8 @@
 // this distribution or at http://opensource.org/licenses/ISC
 
 #include "generated/StellarXDR.h"
+#include "fba/QuorumSet.h"
+#include "overlay/Peer.h"
 
 /*
 Public interface to the Overlay module

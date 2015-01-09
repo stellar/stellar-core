@@ -2,11 +2,18 @@
 // under the ISC License. See the COPYING file at the top-level directory of
 // this distribution or at http://opensource.org/licenses/ISC
 
+#include "generated/StellarXDR.h"
+
+#include "overlay/PeerMaster.h"
 #include "database/Database.h"
 #include "main/Application.h"
+#include "main/Config.h"
 #include "crypto/Hex.h"
 #include "crypto/Base58.h"
 #include "util/Logging.h"
+
+#include <stdexcept>
+#include <vector>
 
 extern "C" void register_factory_sqlite3();
 

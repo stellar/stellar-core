@@ -4,12 +4,15 @@
 
 #include "LedgerMaster.h"
 #include "main/Application.h"
+#include "main/Config.h"
+#include "clf/CLFMaster.h"
 #include "util/Logging.h"
 #include "lib/json/json.h"
 #include "ledger/LedgerDelta.h"
 #include "crypto/Hex.h"
 #include "crypto/SecretKey.h"
 #include "crypto/Base58.h"
+#include "txherder/TxHerder.h"
 
 /*
 The ledger module:

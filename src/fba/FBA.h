@@ -5,6 +5,8 @@
 // under the ISC License. See the COPYING file at the top-level directory of
 // this distribution or at http://opensource.org/licenses/ISC
 
+#include "generated/StellarXDR.h"
+
 namespace stellar
 {
 typedef std::shared_ptr<Ballot> BallotPtr;

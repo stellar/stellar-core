@@ -3,6 +3,8 @@
 // this distribution or at http://opensource.org/licenses/ISC
 
 #include "QuorumSet.h"
+#include "fba/OurNode.h"
+#include "fba/FBAGateway.h"
 #include "main/Application.h"
 #include "xdrpp/marshal.h"
 #include "lib/util/easylogging++.h"

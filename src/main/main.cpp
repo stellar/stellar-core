@@ -5,8 +5,10 @@
 #include "main/Application.h"
 #include "generated/StellardVersion.h"
 #include "util/Logging.h"
+#include "util/Timer.h"
 #include "lib/util/getopt.h"
 #include "main/test.h"
+#include "main/Config.h"
 #include "lib/http/HttpClient.h"
 #include "crypto/SecretKey.h"
 #include <sodium.h>
@@ -37,14 +39,14 @@ static const struct option stellard_options[] = {
 static void
 usage(int err = 1)
 {
-    std::ostream& os = err ? cerr : cout;
+    std::ostream& os = err ? std::cerr : std::cout;
     os << "usage: stellard [OPTIONS]\n"
           "where OPTIONS can be any of:\n"
           "      --help        To display this string\n"
           "      --version     To print version information\n"
           "      --test        To run self-tests\n"
-          "      --new         Start a brand new network to call your own."
-          "      --genseed     Generate and print a random node seed."
+          "      --new         Start a brand new network to call your own.\n"
+          "      --genseed     Generate and print a random node seed.\n"
           "      --c           Command to send to local hayashi\n"
           "                stop\n"
           "                info\n"
@@ -111,7 +113,7 @@ main(int argc, char* const* argv)
             rest.insert(rest.begin(), argv + optind, argv + argc);
             break;
         case OPT_VERSION:
-            cout << STELLARD_VERSION;
+            std::cout << STELLARD_VERSION;
             return 0;
         case OPT_HELP:
             usage(0);

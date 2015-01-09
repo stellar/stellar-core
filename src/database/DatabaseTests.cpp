@@ -2,9 +2,12 @@
 // under the ISC License. See the COPYING file at the top-level directory of
 // this distribution or at http://opensource.org/licenses/ISC
 
+#include "database/Database.h"
 #include "main/Application.h"
+#include "main/Config.h"
 #include "main/test.h"
 #include "util/Logging.h"
+#include "util/Timer.h"
 #include "lib/catch.hpp"
 
 using namespace stellar;

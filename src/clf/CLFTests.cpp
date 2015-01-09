@@ -2,12 +2,21 @@
 // under the ISC License. See the COPYING file at the top-level directory of
 // this distribution or at http://opensource.org/licenses/ISC
 
+// ASIO is somewhat particular about when it gets included -- it wants to be the
+// first to include <windows.h> -- so we try to include it before everything
+// else.
+#ifndef ASIO_SEPARATE_COMPILATION
+#define ASIO_SEPARATE_COMPILATION
+#endif
+#include <asio.hpp>
+
 #include "main/Application.h"
 #include "xdrpp/autocheck.h"
 #include "clf/BucketList.h"
 #include "main/test.h"
 #include "lib/catch.hpp"
 #include "util/Logging.h"
+#include "util/Timer.h"
 #include <future>
 
 using namespace stellar;

@@ -3,6 +3,7 @@
 // this distribution or at http://opensource.org/licenses/ISC
 
 #include "Node.h"
+#include "overlay/OverlayGateway.h"
 #include "fba/Ballot.h"
 #include "fba/QuorumSet.h"
 #include "main/Application.h"

@@ -2,13 +2,23 @@
 // under the ISC License. See the COPYING file at the top-level directory of
 // this distribution or at http://opensource.org/licenses/ISC
 
+// ASIO is somewhat particular about when it gets included -- it wants to be the
+// first to include <windows.h> -- so we try to include it before everything
+// else.
+#ifndef ASIO_SEPARATE_COMPILATION
+#define ASIO_SEPARATE_COMPILATION
+#endif
+#include <asio.hpp>
+
 #define STELLARD_REAL_TIMER_FOR_CERTAIN_NOT_JUST_VIRTUAL_TIME
 #include "util/Timer.h"
 
 #include "main/Application.h"
 #include "util/Logging.h"
 #include "process/ProcessGateway.h"
-
+#include "process/ProcessMaster.h"
+#include <string>
+#include <functional>
 
 namespace stellar
 {
@@ -120,7 +130,7 @@ ProcessMaster::ProcessMaster(Application& app)
 void
 ProcessMaster::startSignalWait()
 {
-    mSigChild.async_wait(bind(&ProcessMaster::handleSignalWait, this));
+    mSigChild.async_wait(std::bind(&ProcessMaster::handleSignalWait, this));
 }
 
 void
@@ -178,9 +188,9 @@ split(const std::string& s)
     auto delim = " ";
     auto a = s.find_first_not_of(delim, 0);
     auto b = s.find_first_of(delim, a);
-    while (b != string::npos || a != string::npos)
+    while (b != std::string::npos || a != std::string::npos)
     {
-        auto len = b == string::npos ? string::npos : b - a;
+        auto len = b == std::string::npos ? std::string::npos : b - a;
         parts.push_back(s.substr(a, len));
         a = s.find_first_not_of(delim, b);
         b = s.find_first_of(delim, a);

@@ -5,8 +5,11 @@
 #include "lib/catch.hpp"
 #include "generated/StellarXDR.h"
 #include "fba/Ballot.h"
+#include "fba/FBAGateway.h"
 #include "main/test.h"
+#include "main/Config.h"
 #include "main/Application.h"
+#include "util/Timer.h"
 #include "crypto/SHA.h"
 
 using namespace stellar;
