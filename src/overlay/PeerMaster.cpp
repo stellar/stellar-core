@@ -27,7 +27,6 @@ PeerMaster::PeerMaster(Application& app)
     : mApp(app)
     , mDoor(mApp)
     , mQSetFetcher(mApp)
-    , mDeltaFetcher(mApp)
     , mTimer(app.getClock())
 {
     mTimer.expires_from_now(std::chrono::seconds(1));

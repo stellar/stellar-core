@@ -42,8 +42,8 @@ void TxSetFrame::sortForHash()
 
 struct ApplyTxSorter
 {
-    Hash& mSetHash;
-    ApplyTxSorter(Hash& h) : mSetHash(h) {}
+    Hash const& mSetHash;
+    ApplyTxSorter(Hash const& h) : mSetHash(h) {}
     bool operator () (const TransactionFramePtr & tx1, const TransactionFramePtr & tx2)
     {
         Hash h1 = tx1->getHash(); // TODO.2 should we actually use ID here since multiple txs could have the same Hash
@@ -72,7 +72,8 @@ void TxSetFrame::sortForApply(vector<TransactionFramePtr>& retList)
    
     for(auto level : txLevels)
     {
-        std::sort(level.begin(), level.end(), ApplyTxSorter(getContentsHash()));
+        ApplyTxSorter s(getContentsHash());
+        std::sort(level.begin(), level.end(), s);
         for(auto tx : level)
         {
             retList.push_back(tx);

@@ -4,8 +4,7 @@
 //   tx for signing
 //   tx sets for FBA
 //   tx sets for history
-//   Bucket list for hashing
-//   array of ledgerentries for sending deltas
+//   State snapshots for hashing
 
 namespace stellar {
 
@@ -355,12 +354,6 @@ enum MessageType
 	GET_PEERS,   // gets a list of peers this guy knows about		
 	PEERS,		
 		
-	GET_HISTORY,  // gets a list of tx sets in the given range		
-	HISTORY,		
-
-	GET_DELTA,  // gets all the bucket list changes since a particular ledger index		
-	DELTA,		
-		
 	GET_TX_SET,  // gets a particular txset by hash		
 	TX_SET,	
 		
@@ -383,25 +376,6 @@ struct DontHave
 	uint256 reqHash;
 };
 
-struct GetDelta
-{
-    uint256 oldLedgerHash;
-    uint32 oldLedgerSeq;
-};
-
-struct Delta
-{
-	LedgerHeader ledgerHeader;
-	LedgerEntry deltaEntries<>;
-};
-
-struct GetHistory
-{
-    uint256 a;
-    uint256 b;
-};
-
-
 union StellarMessage switch (MessageType type) {
 	case ERROR_MSG:
 		Error error;
@@ -413,14 +387,6 @@ union StellarMessage switch (MessageType type) {
 		void;
 	case PEERS:
 		PeerAddress peers<>;
-	case GET_HISTORY:
-		GetHistory historyReq;
-	case HISTORY:
-		History history;
-	case GET_DELTA:	
-		GetDelta deltaReq;	
-	case DELTA:	
-		Delta delta;
 
 	case GET_TX_SET:
 		uint256 txSetHash;		
