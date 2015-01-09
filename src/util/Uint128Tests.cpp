@@ -6,7 +6,7 @@
 #include "main/test.h"
 #include "lib/catch.hpp"
 #include "util/Logging.h"
-#include "uint128_t.h"
+#include "lib/util/uint128_t.h"
 #include <limits>
 #include <ostream>
 

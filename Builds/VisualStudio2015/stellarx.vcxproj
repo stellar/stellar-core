@@ -192,6 +192,7 @@
     <ClCompile Include="..\..\src\txherder\TxSetFrame.cpp" />
     <ClCompile Include="..\..\src\txherder\TxHerder.cpp" />
     <ClCompile Include="..\..\src\util\Logging.cpp" />
+    <ClCompile Include="..\..\src\util\Uint128Tests.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\clf\BucketList.h" />
@@ -277,6 +278,9 @@
     <ClInclude Include="..\..\src\txherder\TxSetFrame.h" />
     <ClInclude Include="..\..\src\txherder\TxHerder.h" />
     <ClInclude Include="..\..\src\txherder\TxHerderGateway.h" />
+    <ClInclude Include="..\..\src\util\Logging.h" />
+    <ClInclude Include="..\..\src\util\make_unique.h" />
+    <ClInclude Include="..\..\src\util\must_use.h" />
     <ClInclude Include="..\..\src\util\Timer.h" />
     <ClInclude Include="..\..\src\util\types.h" />
   </ItemGroup>

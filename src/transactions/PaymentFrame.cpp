@@ -158,7 +158,7 @@ namespace stellar
             if(issuer.mEntry.account().transferRate != TRANSFER_RATE_DIVISOR)
             {
                 sendAmount = sendAmount +
-                    (sendAmount*issuer.mEntry.account().transferRate) / TRANSFER_RATE_DIVISOR;  // TODO.3 This probably needs to be some big number thing
+                    bigDivide(sendAmount,issuer.mEntry.account().transferRate,TRANSFER_RATE_DIVISOR);  
             } 
 
             TrustFrame sourceLineFrame;
@@ -293,7 +293,7 @@ namespace stellar
 
         // you can receive the lesser of the amount of wheat offered or the amount the guy has
         if(wheatTransferRate != TRANSFER_RATE_DIVISOR)
-            numWheatReceived = (numWheatReceived*wheatTransferRate) / TRANSFER_RATE_DIVISOR;
+            numWheatReceived = bigDivide(numWheatReceived,wheatTransferRate,TRANSFER_RATE_DIVISOR);
         if(numWheatReceived > sellingWheatOffer.mEntry.offer().amount)
             numWheatReceived = sellingWheatOffer.mEntry.offer().amount;
 
@@ -309,7 +309,7 @@ namespace stellar
         int64_t numWheatSent;
 
         // this guy can get X wheat to you. How many sheep does that get him?
-        numSheepReceived = (numWheatReceived*sellingWheatOffer.mEntry.offer().price) / OFFER_PRICE_DIVISOR;
+        numSheepReceived = bigDivide(numWheatReceived,sellingWheatOffer.mEntry.offer().price,OFFER_PRICE_DIVISOR);
         if(offerLeft)
         { // need to only take part of the wheat offer
             sellingWheatOffer.mEntry.offer().amount -= numWheatReceived;
@@ -318,7 +318,7 @@ namespace stellar
             sellingWheatOffer.mEntry.offer().amount = 0;
         }
 
-        numWheatSent = (numWheatReceived*TRANSFER_RATE_DIVISOR) / wheatTransferRate;
+        numWheatSent = bigDivide(numWheatReceived,TRANSFER_RATE_DIVISOR,wheatTransferRate);
 
         if(sellingWheatOffer.mEntry.offer().amount < 0)
         {

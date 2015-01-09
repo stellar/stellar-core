@@ -31,6 +31,10 @@ to avoid churn on the protocol front:
 - scripting
 
 
+#Later things
+- make a int128_t and use that for the math 
+
+
 
 
 

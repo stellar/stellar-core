@@ -327,6 +327,9 @@
     <ClCompile Include="..\..\src\lib\util\uint128_t.cpp">
       <Filter>lib\util</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\util\Uint128Tests.cpp">
+      <Filter>util</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\fba\Ballot.h">
@@ -583,6 +586,15 @@
     </ClInclude>
     <ClInclude Include="..\..\src\lib\util\uint128_t.h">
       <Filter>lib\util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\util\Logging.h">
+      <Filter>util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\util\make_unique.h">
+      <Filter>util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\util\must_use.h">
+      <Filter>util</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

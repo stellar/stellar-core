@@ -348,7 +348,7 @@ std::string uint128_t::str(uint8_t base, const unsigned int & len) const{
     else{
         std::pair <uint128_t, uint128_t> qr(*this, uint128_0);
         do{
-            qr = divmod(qr.first, base);
+            qr = divmod(qr.first, uint128_t(base));
             out = "0123456789abcdef"[(uint8_t) qr.second] + out;
         } while (qr.first);
     }

@@ -48,7 +48,7 @@ class uint128_t{
         uint128_t();
         uint128_t(const uint128_t & rhs);
 
-        template <typename T> uint128_t(const T & rhs){
+        template <typename T> explicit uint128_t(const T & rhs){
             UPPER = 0;
             LOWER = rhs;
         }
