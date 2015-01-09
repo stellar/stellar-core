@@ -286,7 +286,7 @@ struct AccountEntry
 	int64 balance;
 	uint32 sequence;
 	uint32 ownerCount;
-	uint32 transferRate;	// rate*10000000
+	uint32 transferRate;	// amountsent/transferrate is how much you charge
 	uint256 *inflationDest;
 	opaque thresholds[4]; // weight of master/threshold1/threshold2/threshold3
 	Signer signers<>; // do we want some max or just increase the min balance
@@ -316,7 +316,7 @@ struct OfferEntry
 	Currency takerPays;  // B
 	int64 amount;	// amount of A
 	int64 price;	// price of A in terms of B
-					// price*1,000,000,000
+					// price*10,000,000
 					// price=AmountB/AmountA
 					// price is after fees
     int32 flags;

@@ -1,5 +1,6 @@
 #Left to design:
 - Bucket list
+- Is this really the way we want to do paths/offers?
 
 
 #Left to do:
