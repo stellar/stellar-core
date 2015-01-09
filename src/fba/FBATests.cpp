@@ -15,13 +15,15 @@ class TestFBAClient : public FBA::Client
     void validateBallot(const uint32& slotIndex,
                         const Hash& nodeID,
                         const FBABallot& ballot,
+                        const Hash& evidence,
                         std::function<void(bool)> const& cb)
     {
         cb(true);
     }
 
     void ballotDidPrepare(const uint32& slotIndex,
-                          const FBABallot& ballot)
+                          const FBABallot& ballot,
+                          const Hash& evidence)
     {
     }
     void ballotDidCommit(const uint32& slotIndex,
@@ -72,7 +74,9 @@ TEST_CASE("attemptValue", "[fba]")
         FBA* fba = new FBA(validationSeed, qSet, client);
 
         const Hash valueHash = sha512_256("SEED_VALUEHASH");
-        fba->attemptValue(0, valueHash);
+        const Hash evidence;
+
+        fba->attemptValue(0, valueHash, evidence);
         LOG(INFO) << "TEST";
     }
 }

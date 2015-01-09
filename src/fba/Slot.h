@@ -32,6 +32,7 @@ class Slot
     // current ballot, and forceBump is false, the current ballot is used.
     // Otherwise a new ballot is generated with an increased counter value.
     bool attemptValue(const Hash& valueHash, 
+                      const Hash& evidence,
                       bool forceBump = false);
 
   private:
@@ -92,7 +93,9 @@ class Slot
 
     const uint32&                                              mSlotIndex;
     FBA*                                                       mFBA;
+
     FBABallot                                                  mBallot;
+    Hash                                                       mEvidence;
 
     bool                                                       mInAdvanceSlot;
     bool                                                       mRunAdvanceSlot;

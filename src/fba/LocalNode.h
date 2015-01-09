@@ -29,7 +29,7 @@ class LocalNode : public Node
     const Hash& getQuorumSetHash();
 
   private:
-    const uint256&                  mValidationSeed;
+    const uint256                   mValidationSeed;
     FBAQuorumSet                    mQSet;
     Hash                            mQSetHash;
 };

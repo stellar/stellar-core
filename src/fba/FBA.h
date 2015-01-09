@@ -45,10 +45,12 @@ class FBA
         virtual void validateBallot(const uint32& slotIndex,
                                     const uint256& nodeID,
                                     const FBABallot& ballot,
+                                    const Hash& evidence,
                                     std::function<void(bool)> const& cb) = 0;
 
         virtual void ballotDidPrepare(const uint32& slotIndex,
-                                      const FBABallot& ballot) {};
+                                      const FBABallot& ballot,
+                                      const Hash& evidence) {};
         virtual void ballotDidCommit(const uint32& slotIndex,
                                      const FBABallot& ballot) {};
 
@@ -75,7 +77,8 @@ class FBA
 
     // Value submission
     bool attemptValue(const uint32& slotIndex,
-                      const Hash& valueHash);
+                      const Hash& valueHash,
+                      const Hash& evidence);
 
     // Local QuorumSet interface (can be dynamically updated)
     void updateLocalQuorumSet(const FBAQuorumSet& qSet);

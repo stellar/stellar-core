@@ -1,0 +1,13 @@
+Outstanding questions for @dm:
+------------------------------
+
+- attemptValue semantics
+If our node already emitted a PREPARE message for a ballot (0,x) it received
+from another node. What should be the behaviour if the local user of FBA wants
+to attempt another value y. Can it just emit a new PREPARE message with ballot
+(0,y) since the abort pledges it represents are exactly the same.
+
+- isPrepared implementation
+Please check the code and let's discuss any error you find there  
+
+

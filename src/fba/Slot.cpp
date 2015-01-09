@@ -46,51 +46,75 @@ Slot::processEnvelope(const FBAEnvelope& envelope)
         return;
     }
 
-    /* TODO(spolu): Refactor so that we prevent ballot upgrade for any other
-     * message than a valid PREPARE message. Ballot verification can be
-     * limited to that case */
-
-    auto cb = [&] (bool valid)
+    // We only accept envelopes that are not PREPARE if we already accepted a
+    // valid envelope with PREPARE type.
+    if (envelope.statement.body.type() != FBAStatementType::PREPARE)
     {
-        // If the ballot is not valid, we just ignore it.
-        if (!valid)
+        // If the ballot is incompatible or with a higher counter, we ignore
+        // it. We refuse to bump ballots on other messages than valid PREPARE
+        // ones.
+        if (envelope.statement.ballot.valueHash != mBallot.valueHash ||
+            envelope.statement.ballot.counter != mBallot.counter)
         {
             return;
         }
 
-        // If a new higher ballot has been issued, let's move on to it.
-        if (envelope.statement.ballot.counter > mBallot.counter)
+        if (mEnvelopes[FBAStatementType::PREPARE].find(envelope.nodeID) !=
+            mEnvelopes[FBAStatementType::PREPARE].end())
         {
-            if (!isNull())
+            mEnvelopes[envelope.statement.body.type()][envelope.nodeID] = 
+                envelope;
+            advanceSlot();
+        }
+    }
+    else
+    {
+        Hash evidence = envelope.statement.body.prepare().evidence;
+        FBABallot ballot = envelope.statement.ballot;
+
+        auto cb = [ballot,evidence,envelope,this] (bool valid)
+        {
+            // If the ballot is not valid, we just ignore it.
+            if (!valid)
             {
-                mFBA->getClient()->valueCancelled(mSlotIndex, 
-                                                  mBallot.valueHash);
+                return;
             }
-            mEnvelopes.empty();
 
-            mBallot = envelope.statement.ballot;
-        }
+            // If a new higher ballot has been issued, let's move on to it.
+            if (ballot.counter > mBallot.counter)
+            {
+                if (!isNull())
+                {
+                    mFBA->getClient()->valueCancelled(mSlotIndex, 
+                                                      mBallot.valueHash);
+                }
+                mEnvelopes.empty();
+                mBallot = ballot;
+                mEvidence = evidence;
+            }
 
-        // If the ballot is incompatible, we ignore it.
-        if (envelope.statement.ballot.valueHash != mBallot.valueHash)
-        {
-            return;
-        }
+            // If the ballot is incompatible, we ignore it.
+            if (ballot.valueHash != mBallot.valueHash)
+            {
+                return;
+            }
 
-        // Finally store the envelope and advance the slot if possible.
-        mEnvelopes[envelope.statement.body.type()][envelope.nodeID] = 
-          envelope;
-        advanceSlot();
-    };
+            // Finally store the envelope and advance the slot if possible.
+            mEnvelopes[FBAStatementType::PREPARE][envelope.nodeID] = envelope;
+            advanceSlot();
+        };
 
-    mFBA->getClient()->validateBallot(mSlotIndex,
-                                      envelope.nodeID,
-                                      envelope.statement.ballot,
-                                      cb);
+        mFBA->getClient()->validateBallot(mSlotIndex,
+                                          envelope.nodeID,
+                                          ballot,
+                                          evidence,
+                                          cb);
+    }
 }
 
 bool
 Slot::attemptValue(const Hash& valueHash,
+                   const Hash& evidence,
                    bool forceBump)
 {
     if (mBallot.counter == FBA_SLOT_MAX_COUNTER)
@@ -106,6 +130,7 @@ Slot::attemptValue(const Hash& valueHash,
         mBallot.counter++;
     }
     mBallot.valueHash = valueHash;
+    mEvidence = evidence;
 
     advanceSlot();
     return true;
@@ -188,9 +213,10 @@ Slot::attemptPrepare()
     {
         envelope.statement.body.prepare().excepted.push_back(b);
     }
+    envelope.statement.body.prepare().evidence = mEvidence;
     signEnvelope(envelope);
 
-    mFBA->getClient()->ballotDidPrepare(mSlotIndex, mBallot);
+    mFBA->getClient()->ballotDidPrepare(mSlotIndex, mBallot, mEvidence);
     mFBA->getClient()->emitEnvelope(envelope);
     processEnvelope(envelope);
 }
@@ -401,7 +427,7 @@ Slot::isPrepared()
     }
 
     // Checks if there is a v-blocking set of nodes that accepted the PREPARE
-    // statements. This is a optimization.
+    // statements (this is an optimization).
     if (isVBlocking(FBAStatementType::PREPARED,
                     mFBA->getLocalNodeID()))
     {
@@ -480,7 +506,7 @@ Slot::isCommitted()
     }
 
     // Checks if there is a v-blocking set of nodes that accepted the COMMIT
-    // statement. This is an optimization
+    // statement (this is an optimization).
     if (isVBlocking(FBAStatementType::COMMITTED,
                     mFBA->getLocalNodeID()))
     {
