@@ -11,7 +11,7 @@
 #include <asio.hpp>
 #include "xdrpp/message.h"
 #include "generated/StellarXDR.h"
-#include "fba/FBA.h"
+#include "generated/FBAXDR.h"
 
 namespace stellar
 {

@@ -10,7 +10,6 @@
 #include "util/Logging.h"
 #include "txherder/TxSetFrame.h"
 #include "lib/util/easylogging++.h"
-#include "fba/FBA.h"
 #include "overlay/PeerMaster.h"
 
 namespace stellar

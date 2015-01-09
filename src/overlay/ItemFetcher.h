@@ -9,7 +9,7 @@
 #include "overlay/OverlayGateway.h"
 #include "txherder/TxSetFrame.h"
 #include "overlay/Peer.h"
-#include "fba/FBA.h"
+#include "generated/FBAXDR.h"
 #include "util/Timer.h"
 
 /*

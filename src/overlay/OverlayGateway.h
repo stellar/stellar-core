@@ -25,9 +25,6 @@ Should keep rotating peers till you get an answer:
 
 */
 
-#include "overlay/Peer.h"
-#include "fba/FBA.h"
-
 namespace stellar
 {
 class Ledger;

@@ -15,7 +15,6 @@
 
 #include "Application.h"
 
-//#include "fba/FBAMaster.h"
 #include "ledger/LedgerMaster.h"
 #include "main/Config.h"
 #include "txherder/TxHerder.h"
@@ -63,7 +62,6 @@ struct Application::Impl
     std::unique_ptr<PeerMaster> mPeerMaster;
     std::unique_ptr<LedgerMaster> mLedgerMaster;
     std::unique_ptr<TxHerder> mTxHerder;
-    //std::unique_ptr<FBAMaster> mFBAMaster;
     std::unique_ptr<CLFMaster> mCLFMaster;
     std::unique_ptr<HistoryMaster> mHistoryMaster;
     std::unique_ptr<ProcessMaster> mProcessMaster;
@@ -137,7 +135,6 @@ Application::Application(VirtualClock& clock, Config const& cfg)
     mImpl->mPeerMaster = make_unique<PeerMaster>(*this);
     mImpl->mLedgerMaster = make_unique<LedgerMaster>(*this);
     mImpl->mTxHerder = make_unique<TxHerder>(*this);
-    //mImpl->mFBAMaster = make_unique<FBAMaster>(*this);
     mImpl->mCLFMaster = make_unique<CLFMaster>(*this);
     mImpl->mHistoryMaster = make_unique<HistoryMaster>(*this);
     mImpl->mProcessMaster = make_unique<ProcessMaster>(*this);
@@ -389,14 +386,6 @@ Application::getLedgerMaster()
 {
     return *mImpl->mLedgerMaster;
 }
-
-/*
-FBAGateway&
-Application::getFBAGateway()
-{
-    return *mImpl->mFBAMaster;
-}
-*/
 
 CLFMaster&
 Application::getCLFMaster()

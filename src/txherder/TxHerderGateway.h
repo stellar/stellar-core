@@ -7,7 +7,7 @@
 
 #include <memory>
 #include "generated/StellarXDR.h"
-#include "fba/FBA.h"
+#include "generated/FBAXDR.h"
 /*
 Public Interface to the TXHerder module
 
