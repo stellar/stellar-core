@@ -324,6 +324,9 @@
     <ClCompile Include="..\..\src\clf\CLFMaster.cpp">
       <Filter>clf</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\lib\util\uint128_t.cpp">
+      <Filter>lib\util</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\fba\Ballot.h">
@@ -574,6 +577,12 @@
     </ClInclude>
     <ClInclude Include="..\..\src\transactions\TxTests.h">
       <Filter>transactions\tests</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\lib\util\format.h">
+      <Filter>lib\util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\lib\util\uint128_t.h">
+      <Filter>lib\util</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

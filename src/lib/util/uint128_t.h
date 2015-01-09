@@ -37,6 +37,7 @@ to do a general rewrite of this class.
 #include <stdexcept>
 #include <stdint.h>
 #include <utility>
+#include <string>
 
 class uint128_t{
     private:
