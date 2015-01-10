@@ -18,7 +18,7 @@ namespace stellar
     }
 
     // make sure it doesn't allow us to add signers when we don't have the minbalance
-    void SetOptionsFrame::doApply(TxDelta& delta, LedgerMaster& ledgerMaster)
+    bool SetOptionsFrame::doApply(TxDelta& delta, LedgerMaster& ledgerMaster)
     {
         if(mEnvelope.tx.body.setOptionsTx().inflationDest)
         {
@@ -35,7 +35,7 @@ namespace stellar
             if(b)
             {
                 mResultCode = txRATE_FIXED;
-                return;
+                return false;
             }
             mSigningAccount.mEntry.account().transferRate = *mEnvelope.tx.body.setOptionsTx().transferRate;
         }
@@ -68,7 +68,7 @@ namespace stellar
                         ledgerMaster.getMinBalance(mSigningAccount.mEntry.account().ownerCount + 1))
                     {
                         mResultCode = txBELOW_MIN_BALANCE;
-                        return;
+                        return false;
                     }
                     mSigningAccount.mEntry.account().ownerCount++;
                     signers.push_back(*mEnvelope.tx.body.setOptionsTx().signer);
@@ -89,6 +89,7 @@ namespace stellar
         
         mResultCode = txSUCCESS;
         delta.setFinal(mSigningAccount);
+        return true;
     }
 
     bool SetOptionsFrame::doCheckValid(Application& app)

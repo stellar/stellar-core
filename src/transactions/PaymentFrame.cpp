@@ -14,7 +14,7 @@ namespace stellar
 
     }
 
-    void PaymentFrame::doApply(TxDelta& delta,LedgerMaster& ledgerMaster)
+    bool PaymentFrame::doApply(TxDelta& delta,LedgerMaster& ledgerMaster)
     {
         int64_t minBalance = ledgerMaster.getMinBalance(mSigningAccount.mEntry.account().ownerCount);
         
@@ -28,7 +28,7 @@ namespace stellar
                 if (mEnvelope.tx.body.paymentTx().amount < ledgerMaster.getMinBalance(0))
                 {   // not over the minBalance to make an account
                     mResultCode = txUNDERFUNDED;
-                    return;
+                    return false;
                 }
                 else
                 {
@@ -40,7 +40,7 @@ namespace stellar
             else
             {   // trying to send credit to an unmade account
                 mResultCode = txNOACCOUNT;
-                return;
+                return false;
             }
         }
 
@@ -50,19 +50,19 @@ namespace stellar
             if(mEnvelope.tx.body.paymentTx().path.size())
             {
                 mResultCode = txMALFORMED;
-                return;
+                return false;
             }
 
             if(mSigningAccount.mEntry.account().balance < minBalance + mEnvelope.tx.body.paymentTx().amount)
             {   // they don't have enough to send
                 mResultCode = txUNDERFUNDED;
-                return;
+                return false;
             }
 
             if(destAccount.getIndex() == mSigningAccount.getIndex())
             {   // sending to yourself
                 mResultCode = txSUCCESS;
-                return;
+                return true;
             }
 
             if (!isNew)
@@ -74,7 +74,7 @@ namespace stellar
             delta.setFinal(destAccount);
             delta.setFinal(mSigningAccount);
             mResultCode = txSUCCESS;
-
+            return true;
         }else
         {   // sending credit
             TxDelta tempDelta;
@@ -82,10 +82,10 @@ namespace stellar
             {
                 delta.merge(tempDelta);
                 mResultCode = txSUCCESS;
-            }
-
-            return;
+                return true;
+            }    
         }
+        return false;
     }
     
 

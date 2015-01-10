@@ -129,6 +129,8 @@ void LedgerMaster::closeLedger(TxSetFramePtr txSet)
 {
     LedgerHeader nextHeader = mCurrentHeader;
 
+    TxSetFrame successfulTX;
+
     LedgerDelta ledgerDelta;
     mDatabase.beginTransaction();
     vector<TransactionFramePtr> txs;
@@ -137,7 +139,10 @@ void LedgerMaster::closeLedger(TxSetFramePtr txSet)
     {
         try {
             TxDelta delta;
-            tx->apply(delta,mApp);
+            if(tx->apply(delta, mApp))
+            {
+                successfulTX.add(tx);
+            }
 
             Json::Value txResult;
             txResult["id"] = binToHex(tx->getHash());
@@ -154,8 +159,10 @@ void LedgerMaster::closeLedger(TxSetFramePtr txSet)
     }
     mDatabase.endTransaction(false);
 
+    
     // TODO.2 do something with the nextHeader
     mCurrentHeader.ledgerSeq++;
+    //TODO.2 mCurrentHeader.workedTxSetHash = successfulTX.getContentsHash();
     
     // TODO.2 give the LedgerDelta to the Bucketlist
 }

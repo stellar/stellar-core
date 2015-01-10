@@ -170,19 +170,19 @@ bool TransactionFrame::preApply(TxDelta& delta,LedgerMaster& ledgerMaster)
     return true;
 }
 
-void TransactionFrame::apply(TxDelta& delta, Application& app)
+bool TransactionFrame::apply(TxDelta& delta, Application& app)
 {
     if(checkValid(app))
     {
         if(preApply(delta,app.getLedgerMaster()))
         {
-            doApply(delta,app.getLedgerMaster());
+            return doApply(delta,app.getLedgerMaster());
         }
     } else
     {
         CLOG(ERROR, "Tx") << "invalid tx. This should never happen";
     }
-    
+    return false;
 }
 
 void TransactionFrame::addSignature(const SecretKey& secretKey)

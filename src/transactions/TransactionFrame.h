@@ -38,7 +38,7 @@ namespace stellar
         bool checkSignature();
 
         virtual bool doCheckValid(Application& app) = 0;
-		virtual void doApply(TxDelta& delta, LedgerMaster& ledgerMaster) = 0;
+		virtual bool doApply(TxDelta& delta, LedgerMaster& ledgerMaster) = 0;
         virtual int32_t getNeededThreshold();
 
         
@@ -69,7 +69,8 @@ namespace stellar
 
 		// apply this transaction to the current ledger
 		// LATER: how will applying historical txs work?
-        void apply(TxDelta& delta, Application& app);
+        // returns true if successfully applied
+        bool apply(TxDelta& delta, Application& app);
 
        
         StellarMessage&& toStellarMessage();

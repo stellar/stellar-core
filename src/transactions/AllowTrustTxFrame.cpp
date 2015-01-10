@@ -13,12 +13,12 @@ namespace stellar
         return mSigningAccount.getLowThreshold();
     }
 
-    void AllowTrustTxFrame::doApply(TxDelta& delta, LedgerMaster& ledgerMaster)
+    bool AllowTrustTxFrame::doApply(TxDelta& delta, LedgerMaster& ledgerMaster)
     {
         if(!(mSigningAccount.mEntry.account().flags & AccountFrame::AUTH_REQUIRED_FLAG))
         {   // this account doesn't require authorization to hold credit
             mResultCode = txNOT_AUTHORIZED;
-            return;
+            return false;
         }
 
         Currency ci;
@@ -30,13 +30,14 @@ namespace stellar
         if(!ledgerMaster.getDatabase().loadTrustLine(mEnvelope.tx.body.allowTrustTx().trustor, ci, trustLine))
         {
             mResultCode = txNOTRUST;
-            return;
+            return false;
         }
 
         mResultCode = txSUCCESS;
         delta.setStart(trustLine);
         trustLine.mEntry.trustLine().authorized = mEnvelope.tx.body.allowTrustTx().authorize;
         delta.setFinal(trustLine);
+        return true;
     }
 
     bool AllowTrustTxFrame::doCheckValid(Application& app)

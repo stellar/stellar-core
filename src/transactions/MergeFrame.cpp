@@ -16,13 +16,13 @@ namespace stellar
     // make sure the we delete all the offers
     // make sure the we delete all the trustlines
     // move the STR to the new account
-    void MergeFrame::doApply(TxDelta& delta, LedgerMaster& ledgerMaster)
+    bool MergeFrame::doApply(TxDelta& delta, LedgerMaster& ledgerMaster)
     {
         AccountFrame otherAccount;
         if(!ledgerMaster.getDatabase().loadAccount(mEnvelope.tx.body.destination(),otherAccount))
         {
             mResultCode = txNOACCOUNT;
-            return;
+            return false;
         }
 
         std::string b58Account = toBase58Check(VER_ACCOUNT_ID, mSigningAccount.getID());
@@ -32,7 +32,7 @@ namespace stellar
         if(ledgerMaster.getDatabase().getSession().got_data())
         {
             mResultCode = txCREDIT_ISSUED;
-            return;
+            return false;
         }
 
         ledgerMaster.getDatabase().getSession() <<
@@ -41,7 +41,7 @@ namespace stellar
         if(ledgerMaster.getDatabase().getSession().got_data())
         {
             mResultCode = txCREDIT_ISSUED;
-            return;
+            return false;
         }
         
         std::vector<OfferFrame> retOffers;
@@ -64,6 +64,7 @@ namespace stellar
         delta.removeFinal(mSigningAccount);
 
         mResultCode = txSUCCESS;
+        return true;
     }
 
     bool MergeFrame::doCheckValid(Application& app)

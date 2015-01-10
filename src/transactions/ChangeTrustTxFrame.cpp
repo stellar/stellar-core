@@ -14,7 +14,7 @@ ChangeTrustTxFrame::ChangeTrustTxFrame(const TransactionEnvelope& envelope) : Tr
 {
 
 }
-void ChangeTrustTxFrame::doApply(TxDelta& delta, LedgerMaster& ledgerMaster)
+bool ChangeTrustTxFrame::doApply(TxDelta& delta, LedgerMaster& ledgerMaster)
 {
     TrustFrame trustLine;
         
@@ -32,13 +32,14 @@ void ChangeTrustTxFrame::doApply(TxDelta& delta, LedgerMaster& ledgerMaster)
             //delete this line by not adding it to setFinal
         }else delta.setFinal(trustLine);
         mResultCode = txSUCCESS;
+        return true;
     } else
     { // new trust line
         AccountFrame issuer;
         if(!ledgerMaster.getDatabase().loadAccount(mEnvelope.tx.body.changeTrustTx().line.isoCI().issuer, issuer))
         {
             mResultCode = txNOACCOUNT;
-            return;
+            return false;
         }
             
         trustLine.mEntry.type(TRUSTLINE);
@@ -52,6 +53,7 @@ void ChangeTrustTxFrame::doApply(TxDelta& delta, LedgerMaster& ledgerMaster)
         delta.setFinal(mSigningAccount);
         delta.setFinal(trustLine);
         mResultCode = txSUCCESS;
+        return true;
     }
 }
 

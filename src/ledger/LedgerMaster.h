@@ -39,9 +39,7 @@ namespace stellar
         typedef std::shared_ptr<LedgerMaster>           pointer;
         typedef const std::shared_ptr<LedgerMaster>&    ref;
 
-		LedgerMaster(Application& app);
-
-        
+		LedgerMaster(Application& app);    
 
 		//////// GATEWAY FUNCTIONS
 		// called by txherder
@@ -70,8 +68,7 @@ namespace stellar
 
         Database& getDatabase() { return mDatabase;  }
 
-		void closeLedger(TransactionSetPtr txSet);
-		
+        void closeLedger(TransactionSetPtr txSet);
 	};
 }
 

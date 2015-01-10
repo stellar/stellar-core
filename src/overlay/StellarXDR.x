@@ -187,10 +187,10 @@ struct TransactionSet
 
 struct LedgerHeader
 {
-	uint256 hash;
-    uint256 previousLedgerHash;
-    uint256 txSetHash;
-	uint256 clfHash;
+	Hash hash;
+    Hash previousLedgerHash;
+	Hash txSetHash;			// the tx set that was FBA confirmed
+	Hash clfHash;
 	
 	int64 totalCoins;
 	int64 feePool;

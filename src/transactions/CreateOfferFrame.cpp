@@ -55,11 +55,11 @@ bool CreateOfferFrame::checkOfferValid(LedgerMaster& ledgerMaster)
 // need to check the counter offers selling wheat for sheep
 // see if this is modifying an old offer
 // see if this offer crosses any existing offers
-void CreateOfferFrame::doApply(TxDelta& delta, LedgerMaster& ledgerMaster)
+bool CreateOfferFrame::doApply(TxDelta& delta, LedgerMaster& ledgerMaster)
 {
     TxDelta tempDelta;
 
-    if(!checkOfferValid(ledgerMaster)) return;
+    if(!checkOfferValid(ledgerMaster)) return false;
     Currency& sheep = mEnvelope.tx.body.createOfferTx().takerGets;
     Currency& wheat = mEnvelope.tx.body.createOfferTx().takerPays;
 
@@ -83,13 +83,13 @@ void CreateOfferFrame::doApply(TxDelta& delta, LedgerMaster& ledgerMaster)
             } else
             {
                 mResultCode = txMALFORMED;
-                return;
+                return false;
             }
             
         } else
         {
             mResultCode = txOFFER_NOT_FOUND;
-            return;
+            return false;
         }
     }
 
@@ -117,7 +117,7 @@ void CreateOfferFrame::doApply(TxDelta& delta, LedgerMaster& ledgerMaster)
     if(!convert(sheep, wheat,
         maxSheepReceived, sheepPrice, tempDelta, ledgerMaster))
     {
-        return;
+        return false;
     }
 
     
@@ -133,7 +133,7 @@ void CreateOfferFrame::doApply(TxDelta& delta, LedgerMaster& ledgerMaster)
                 ledgerMaster.getMinBalance(mSigningAccount.mEntry.account().ownerCount + 1))
             {
                 mResultCode = txBELOW_MIN_BALANCE;
-                return;
+                return false;
             }
 
             mSigningAccount.mEntry.account().ownerCount++;
@@ -142,7 +142,7 @@ void CreateOfferFrame::doApply(TxDelta& delta, LedgerMaster& ledgerMaster)
     } 
     
     delta.merge(tempDelta);
-
+    return true;
 }
 
 // must go through the available offers that we cross with

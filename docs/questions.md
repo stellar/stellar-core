@@ -19,6 +19,11 @@ How does the network start up?
 	FBA will hang until a quorum is also started with --new
 
 
+Is simple bool success or failure enough for to put in the ledger for tx?
+	What about later when there are more complicated scripts?
+	Maybe we should make everything composable of simpler tx.
+
+
 
 
 ANSWERED
