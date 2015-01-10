@@ -7,8 +7,8 @@
 #include "main/Config.h"
 #include <thread>
 #include <random>
-#include "ledger/Ledger.h"
 #include "util/Logging.h"
+#include "database/Database.h"
 
 /*
 If we have less than the target number of peers we will try to connect to one
@@ -64,9 +64,9 @@ PeerMaster::tick()
 }
 
 void
-PeerMaster::ledgerClosed(LedgerPtr ledger)
+PeerMaster::ledgerClosed(LedgerHeader& ledger)
 {
-    mFloodGate.clearBelow(ledger->mHeader.ledgerSeq);
+    mFloodGate.clearBelow(ledger.ledgerSeq);
 }
 
 void

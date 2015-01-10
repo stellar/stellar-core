@@ -11,6 +11,7 @@
 #include "xdrpp/marshal.h"
 #include "overlay/PeerMaster.h"
 #include "txherder/TxHerderGateway.h"
+#include "database/Database.h"
 
 // LATER: need to add some way of docking peers that are misbehaving by sending
 // you bad data

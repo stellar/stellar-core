@@ -1,6 +1,7 @@
 #Left to design:
 - Bucket list
 - Is this really the way we want to do paths/offers?
+- we need some indicator of if a tx is successful in the ledger header. Otherwise people have to either replay the tx or trust someone to know if the payment worked
 
 
 #Left to do:
@@ -29,6 +30,10 @@ Things we know we probably want to add later but design earlier than later
 to avoid churn on the protocol front:
 - private transactions
 - scripting
+
+
+#Later things
+- make a int128_t and use that for the math 
 
 
 

@@ -3,6 +3,7 @@
 // this distribution or at http://opensource.org/licenses/ISC
 
 #include "util/types.h"
+#include "lib/util/uint128_t.h"
 
 namespace stellar
 {
@@ -57,6 +58,16 @@ void strToCurrencyCode(xdr::opaque_array<4U>& ret, const std::string& str)
     {
         ret[n] = str[n];
     }
+}
+
+// calculates A*B/C when A*B overflows 64bits
+int64_t bigDivide(int64_t A, int64_t B, int64_t C)
+{
+    uint128_t a(A);
+    uint128_t b(B);
+    uint128_t c(C);
+    uint128_t x = (a*b)/c;
+    return (uint64_t)x;
 }
 
 }

@@ -44,7 +44,7 @@ class PeerMaster : public OverlayGateway
     ~PeerMaster();
 
     //////// GATEWAY FUNCTIONS
-    void ledgerClosed(LedgerPtr ledger);
+    void ledgerClosed(LedgerHeader& ledger);
 
     FBAQuorumSetPtr
     fetchFBAQuorumSet(uint256 const& itemID, bool askNetwork)

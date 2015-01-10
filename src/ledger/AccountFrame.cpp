@@ -7,6 +7,7 @@
 #include "lib/json/json.h"
 #include "crypto/Base58.h"
 #include "crypto/Hex.h"
+#include "database/Database.h"
 
 using namespace soci;
 

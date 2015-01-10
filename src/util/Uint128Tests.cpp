@@ -6,7 +6,7 @@
 #include "main/test.h"
 #include "lib/catch.hpp"
 #include "util/Logging.h"
-#include "uint128_t.h"
+#include "lib/util/uint128_t.h"
 #include <limits>
 #include <ostream>
 
@@ -29,6 +29,12 @@ unsigned __int128
 toNative(uint128_t x)
 {
     return ((unsigned __int128)x.upper()) << 64 | x.lower();
+}
+
+unsigned bool
+toNative(bool x)
+{
+    return x;
 }
 
 struct gen128

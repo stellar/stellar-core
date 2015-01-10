@@ -20,7 +20,8 @@ A transaction in its exploded form.
 We can get it in from the DB or from the wire
 */
 namespace stellar
-{    
+{
+    class Application;
     class LedgerDelta;
     class SecretKey;
 

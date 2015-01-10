@@ -1,5 +1,6 @@
 #include "transactions/MergeFrame.h"
 #include "crypto/Base58.h"
+#include "database/Database.h"
 
 using namespace soci;
 

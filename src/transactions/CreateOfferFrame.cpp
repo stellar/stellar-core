@@ -1,6 +1,8 @@
 #include "transactions/CreateOfferFrame.h"
 #include "ledger/OfferFrame.h"
 #include "util/Logging.h"
+#include "util/types.h"
+#include "database/Database.h"
 
 // This is pretty gnarly still. I'll clean it up as I write the tests
 //
@@ -10,10 +12,11 @@
 
 namespace stellar
 {
-    CreateOfferFrame::CreateOfferFrame(const TransactionEnvelope& envelope) : TransactionFrame(envelope)
-    {
 
-    }
+CreateOfferFrame::CreateOfferFrame(const TransactionEnvelope& envelope) : TransactionFrame(envelope)
+{
+
+}
 
 // make sure these issuers exist and you can hold the ask currency
 bool CreateOfferFrame::checkOfferValid(LedgerMaster& ledgerMaster)
@@ -108,7 +111,7 @@ void CreateOfferFrame::doApply(TxDelta& delta, LedgerMaster& ledgerMaster)
     //int64_t amountOfSheepForSale = amountOfWheat*OFFER_PRICE_DIVISOR / sheepPrice;
     if(amountOfSheepOwned < maxSheepReceived) maxSheepReceived = amountOfSheepOwned;
     if(mSheepTransferRate != TRANSFER_RATE_DIVISOR)
-        maxSheepReceived = (maxSheepReceived*mSheepTransferRate) / TRANSFER_RATE_DIVISOR;
+        maxSheepReceived = bigDivide(maxSheepReceived,mSheepTransferRate,TRANSFER_RATE_DIVISOR);
 
     int64_t sheepPrice = mEnvelope.tx.body.createOfferTx().price;
     
@@ -152,7 +155,7 @@ bool CreateOfferFrame::convert(Currency& sheep,
     Currency& wheat, int64_t maxSheepReceived, int64_t minSheepPrice,
     TxDelta& delta, LedgerMaster& ledgerMaster)
 {
-    int64_t maxWheatPrice = (OFFER_PRICE_DIVISOR*OFFER_PRICE_DIVISOR) / minSheepPrice;
+    int64_t maxWheatPrice = bigDivide(OFFER_PRICE_DIVISOR,OFFER_PRICE_DIVISOR,minSheepPrice);
 
     int offerOffset = 0;
     while(maxSheepReceived > 0)
@@ -272,7 +275,7 @@ bool CreateOfferFrame::crossOffer(OfferFrame& sellingWheatOffer,
 
     // you can receive the lesser of the amount of wheat offered or the amount the guy has
     if(mWheatTransferRate != TRANSFER_RATE_DIVISOR) 
-        maxWheatReceived = (maxWheatReceived*mWheatTransferRate) / TRANSFER_RATE_DIVISOR;
+        maxWheatReceived = bigDivide(maxWheatReceived,mWheatTransferRate,TRANSFER_RATE_DIVISOR);
     if(maxWheatReceived > sellingWheatOffer.mEntry.offer().amount)
         maxWheatReceived = sellingWheatOffer.mEntry.offer().amount;
 
@@ -284,25 +287,25 @@ bool CreateOfferFrame::crossOffer(OfferFrame& sellingWheatOffer,
     int64_t numWheatReceived;
 
     // this guy can get X wheat to you. How many sheep does that get him?
-    int64_t maxSheepBwillBuy = (maxWheatReceived*sellingWheatOffer.mEntry.offer().price) / OFFER_PRICE_DIVISOR;
+    int64_t maxSheepBwillBuy = bigDivide(maxWheatReceived,sellingWheatOffer.mEntry.offer().price,OFFER_PRICE_DIVISOR);
     if(maxSheepBwillBuy > maxSheepReceived)
     { // need to only take part of the wheat offer
       // determine how much to take
         numSheepReceived = maxSheepReceived;
-        numWheatReceived = numSheepReceived*OFFER_PRICE_DIVISOR / sellingWheatOffer.mEntry.offer().price;
+        numWheatReceived = bigDivide(numSheepReceived,OFFER_PRICE_DIVISOR,sellingWheatOffer.mEntry.offer().price);
         
         sellingWheatOffer.mEntry.offer().amount -= numWheatReceived;
         mSellSheepOffer.mEntry.offer().amount = 0;
     } else
     { // take whole wheat offer
-        numSheepReceived = (maxWheatReceived*sellingWheatOffer.mEntry.offer().price) / OFFER_PRICE_DIVISOR;
+        numSheepReceived = bigDivide(maxWheatReceived,sellingWheatOffer.mEntry.offer().price,OFFER_PRICE_DIVISOR);
         numWheatReceived = maxWheatReceived;
         sellingWheatOffer.mEntry.offer().amount = 0;
         mSellSheepOffer.mEntry.offer().amount -= numSheepReceived;
     }
 
-    numSheepSent = (numSheepReceived*TRANSFER_RATE_DIVISOR) / mSheepTransferRate;
-    numWheatSent = (numWheatReceived*TRANSFER_RATE_DIVISOR) / mWheatTransferRate;
+    numSheepSent = bigDivide(numSheepReceived,TRANSFER_RATE_DIVISOR,mSheepTransferRate);
+    numWheatSent = bigDivide(numWheatReceived,TRANSFER_RATE_DIVISOR,mWheatTransferRate);
  
     if(sellingWheatOffer.mEntry.offer().amount < 0)
     {

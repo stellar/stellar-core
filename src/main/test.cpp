@@ -41,7 +41,8 @@ getTestConfig()
         gTestCfg->RUN_STANDALONE = true;
         gTestCfg->START_NEW_NETWORK = true;
 
-        gTestCfg->DATABASE = "sqlite3://test.db";
+        // uncomment this when debugging test cases
+        //gTestCfg->DATABASE = "sqlite3://test.db";
     }
     return *gTestCfg;
 }

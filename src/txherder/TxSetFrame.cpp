@@ -70,17 +70,30 @@ struct SeqSorter
 
 void TxSetFrame::sortForApply(vector<TransactionFramePtr>& retList)
 {
-    vector< vector<TransactionFramePtr>> txLevels;
+    vector< vector<TransactionFramePtr>> txLevels(4);
     map<uint256, vector<TransactionFramePtr>> accountTxMap;
     retList = mTransactions;
     // sort all the txs by seqnum
     std::sort(retList.begin(), retList.end(), SeqSorter());
+    size_t maxLevel = 0;
     for(auto tx : retList)
     {
         auto &v = accountTxMap[tx->getSourceID()];
+
+        if (v.size() > maxLevel)
+        {
+            maxLevel = v.size();
+        }
+
+        if (maxLevel >= txLevels.size())
+        {
+            txLevels.resize(maxLevel + 4);
+        }
         txLevels[v.size()].push_back(tx);
         v.push_back(tx);
     }
+
+    txLevels.resize(maxLevel + 1);
 
     retList.clear();
    

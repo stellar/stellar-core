@@ -72,7 +72,7 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
       <AdditionalIncludeDirectories>src;../../src/lib/autocheck/include;../../src/lib/cereal/include;../../src/lib/asio/include;../../src/lib/xdrpp;../../src/lib/libsodium/src/libsodium/include;../../src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>USE_POSTGRES;_WINSOCK_DEPRECATED_NO_WARNINGS;ASIO_SEPARATE_COMPILATION;ASIO_ERROR_CATEGORY_NOEXCEPT=noexcept;_CRT_SECURE_NO_WARNINGS;_WIN32_WINNT=0x0501;WIN32;_MBCS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>ASIO_STANDALONE;USE_POSTGRES;_WINSOCK_DEPRECATED_NO_WARNINGS;ASIO_SEPARATE_COMPILATION;ASIO_ERROR_CATEGORY_NOEXCEPT=noexcept;_CRT_SECURE_NO_WARNINGS;_WIN32_WINNT=0x0501;WIN32;_MBCS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <BrowseInformation>false</BrowseInformation>
     </ClCompile>
     <Link>
@@ -125,6 +125,7 @@
       <DisableSpecificWarnings Condition="'$(Configuration)|$(Platform)'=='Release|x64'">4456</DisableSpecificWarnings>
     </ClCompile>
     <ClCompile Include="..\..\src\lib\util\getopt_long.c" />
+    <ClCompile Include="..\..\src\lib\util\uint128_t.cpp" />
     <ClCompile Include="..\..\src\lib\xdrpp\tests\arpc.cc">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
     </ClCompile>
@@ -191,6 +192,7 @@
     <ClCompile Include="..\..\src\txherder\TxSetFrame.cpp" />
     <ClCompile Include="..\..\src\txherder\TxHerder.cpp" />
     <ClCompile Include="..\..\src\util\Logging.cpp" />
+    <ClCompile Include="..\..\src\util\Uint128Tests.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\clf\BucketList.h" />
@@ -238,8 +240,10 @@
     <ClInclude Include="..\..\src\lib\json\json\json.h" />
     <ClInclude Include="..\..\src\lib\util\cpptoml.h" />
     <ClInclude Include="..\..\src\lib\util\easylogging++.h" />
+    <ClInclude Include="..\..\src\lib\util\format.h" />
     <ClInclude Include="..\..\src\lib\util\getopt.h" />
     <ClInclude Include="..\..\src\lib\util\Logging.h" />
+    <ClInclude Include="..\..\src\lib\util\uint128_t.h" />
     <ClInclude Include="..\..\src\main\Application.h" />
     <ClInclude Include="..\..\src\main\CommandHandler.h" />
     <ClInclude Include="..\..\src\main\Config.h" />
@@ -274,6 +278,9 @@
     <ClInclude Include="..\..\src\txherder\TxSetFrame.h" />
     <ClInclude Include="..\..\src\txherder\TxHerder.h" />
     <ClInclude Include="..\..\src\txherder\TxHerderGateway.h" />
+    <ClInclude Include="..\..\src\util\Logging.h" />
+    <ClInclude Include="..\..\src\util\make_unique.h" />
+    <ClInclude Include="..\..\src\util\must_use.h" />
     <ClInclude Include="..\..\src\util\Timer.h" />
     <ClInclude Include="..\..\src\util\types.h" />
   </ItemGroup>

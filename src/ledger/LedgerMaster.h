@@ -5,8 +5,6 @@
 // under the ISC License. See the COPYING file at the top-level directory of
 // this distribution or at http://opensource.org/licenses/ISC
 
-#include "Ledger.h"
-#include "database/Database.h"
 #include "ledger/LedgerGateway.h"
 
 /*
@@ -18,6 +16,7 @@ Hands the old ledger off to the history
 namespace stellar
 {
     class Application;
+    class Database;
 
 	class LedgerMaster : public LedgerGateway
 	{
@@ -26,8 +25,6 @@ namespace stellar
         LedgerHeader mCurrentHeader;
 
         Application &mApp;
-
-        Database mDatabase;
 
         void startCatchUp();
 
@@ -58,18 +55,18 @@ namespace stellar
 
 		
         // establishes that our internal representation is in sync with passed ledger
-        bool ensureSync(Ledger::pointer lastClosedLedger);
+        //bool ensureSync(Ledger::pointer lastClosedLedger);
 
         // called before starting to make changes to the db
         void beginClosingLedger();
         // called every time we successfully closed a ledger
-		bool commitLedgerClose(Ledger::pointer ledger);
+		//bool commitLedgerClose(Ledger::pointer ledger);
         // called when we could not close the ledger
         void abortLedgerClose();
 
 		LedgerHeader& getCurrentLedgerHeader();
 
-        Database& getDatabase() { return mDatabase;  }
+        Database& getDatabase();
 
 		void closeLedger(TxSetFramePtr txSet);
 		

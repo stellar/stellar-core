@@ -11,7 +11,7 @@ FMT_SRCS = src/clf/BucketList.cpp src/clf/CLFMaster.cpp src/clf/CLFTests.cpp    
     src/fba/Slot.cpp src/fba/Node.cpp src/fba/LocalNode.cpp                     \
     src/fba/FBATests.cpp src/history/HistoryArchive.cpp                         \
     src/history/HistoryMaster.cpp src/history/HistoryTests.cpp                  \
-    src/ledger/AccountFrame.cpp src/ledger/EntryFrame.cpp src/ledger/Ledger.cpp \
+    src/ledger/AccountFrame.cpp src/ledger/EntryFrame.cpp                       \
     src/ledger/LedgerDelta.cpp src/ledger/LedgerMaster.cpp                      \
     src/ledger/OfferFrame.cpp src/ledger/TrustFrame.cpp                         \
     src/main/Application.cpp src/main/CommandHandler.cpp src/main/Config.cpp    \
@@ -35,7 +35,7 @@ FMT_HDRS = src/clf/BucketList.h src/clf/CLFMaster.h src/crypto/Base58.h         
     src/database/Database.h src/fba/FBA.h src/fba/Slot.h src/fba/Node.h         \
     src/fba/LocalNode.h src/history/HistoryArchive.h                            \
     src/history/HistoryGateway.h src/history/HistoryMaster.h                    \
-    src/ledger/AccountFrame.h src/ledger/EntryFrame.h src/ledger/Ledger.h       \
+    src/ledger/AccountFrame.h src/ledger/EntryFrame.h                           \
     src/ledger/LedgerDelta.h src/ledger/LedgerGateway.h                         \
     src/ledger/LedgerMaster.h src/ledger/OfferFrame.h src/ledger/TrustFrame.h   \
     src/main/Application.h src/main/CommandHandler.h src/main/Config.h          \
