@@ -11,6 +11,8 @@
 #include "crypto/Hex.h"
 #include "crypto/Base58.h"
 #include "util/Logging.h"
+#include "ledger/LedgerMaster.h"
+#include "ledger/LedgerHeaderFrame.h"
 
 #include <stdexcept>
 #include <vector>
@@ -58,6 +60,8 @@ void Database::initialize()
         TrustFrame::dropAll(*this);
         TxDelta::dropAll(*this);
         PeerMaster::createTable(*this);
+        LedgerMaster::dropAll(*this);
+        LedgerHeaderFrame::dropAll(*this);
     }catch(exception const &e)
     {
         LOG(ERROR) << "Error: " << e.what();

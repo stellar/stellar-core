@@ -5,7 +5,9 @@
 // under the ISC License. See the COPYING file at the top-level directory of
 // this distribution or at http://opensource.org/licenses/ISC
 
+#include <string>
 #include "ledger/LedgerGateway.h"
+#include "ledger/LedgerHeaderFrame.h"
 
 /*
 Holds the current ledger
@@ -13,16 +15,19 @@ Applies the tx set to the last ledger to get the next one
 Hands the old ledger off to the history
 */
 
+using namespace std;
+
 namespace stellar
 {
     class Application;
     class Database;
 
-	class LedgerMaster : public LedgerGateway
-	{
-		bool mCaughtUp;
+    class LedgerMaster : public LedgerGateway
+    {
+        bool mCaughtUp;
 
-        LedgerHeader mCurrentHeader;
+        LedgerHeaderFrame::pointer mLastClosedLedger;
+        LedgerHeaderFrame::pointer mCurrentLedger;
 
         Application &mApp;
 
@@ -48,29 +53,44 @@ namespace stellar
         int32_t getTxFee();
         int64_t getLedgerNum();
         int64_t getMinBalance(int32_t ownerCount);
-		
+
         ///////
 
         void startNewLedger();
-
-		
         // establishes that our internal representation is in sync with passed ledger
         //bool ensureSync(Ledger::pointer lastClosedLedger);
 
         // called before starting to make changes to the db
         void beginClosingLedger();
         // called every time we successfully closed a ledger
-		//bool commitLedgerClose(Ledger::pointer ledger);
+        //bool commitLedgerClose(Ledger::pointer ledger);
         // called when we could not close the ledger
         void abortLedgerClose();
 
-		LedgerHeader& getCurrentLedgerHeader();
+        LedgerHeader& getCurrentLedgerHeader();
 
         Database& getDatabase();
 
 		void closeLedger(TxSetFramePtr txSet);
-		
-	};
+
+        // state store
+        enum StoreStateName {
+            kLastClosedLedger = 0,
+            kLastClosedLedgerContent,
+            kLastEntry
+        };
+
+        string getState(StoreStateName stateName);
+        void setState(StoreStateName stateName, const string &value);
+
+        static void dropAll(Database &db);
+    private:
+        string getStoreStateName(StoreStateName n);
+        void closeLedgerHelper();
+
+        static const char *kSQLCreateStatement;
+
+    };
 }
 
 #endif

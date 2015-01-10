@@ -321,6 +321,9 @@
     <ClCompile Include="..\..\src\fba\Slot.cpp">
       <Filter>fba</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\ledger\LedgerHeaderFrame.cpp">
+      <Filter>ledger</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\history\HistoryGateway.h">
@@ -568,6 +571,9 @@
     </ClInclude>
     <ClInclude Include="..\..\src\fba\Slot.h">
       <Filter>fba</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\ledger\LedgerHeaderFrame.h">
+      <Filter>ledger</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

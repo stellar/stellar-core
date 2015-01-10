@@ -83,7 +83,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
         // close this ledger
         app.getLedgerMaster().closeLedger(txSet);
 
-        REQUIRE(app.getLedgerGateway().getLedgerNum() == 2);
+        REQUIRE(app.getLedgerGateway().getLedgerNum() == 3);
 
         {
             TxDelta delta;
@@ -125,7 +125,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
             SECTION("min ledger seq")
             {
                 txFrame = createPaymentTx(root, a1, 1, paymentAmount);
-                txFrame->getEnvelope().tx.minLedger = 3;
+                txFrame->getEnvelope().tx.minLedger = 4;
 
                 txFrame->apply(delta, app);
 
@@ -135,7 +135,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
             SECTION("max ledger seq")
             {
                 txFrame = createPaymentTx(root, a1, 1, paymentAmount);
-                txFrame->getEnvelope().tx.maxLedger = 1;
+                txFrame->getEnvelope().tx.maxLedger = 2;
 
                 txFrame->apply(delta, app);
 

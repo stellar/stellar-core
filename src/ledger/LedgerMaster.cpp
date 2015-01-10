@@ -1,8 +1,8 @@
 // Copyright 2014 Stellar Development Foundation and contributors. Licensed
 // under the ISC License. See the COPYING file at the top-level directory of
 // this distribution or at http://opensource.org/licenses/ISC
-#include <asio.hpp>
 #include "LedgerMaster.h"
+#include <asio.hpp>
 #include "main/Application.h"
 #include "main/Config.h"
 #include "clf/CLFMaster.h"
@@ -14,6 +14,7 @@
 #include "crypto/Base58.h"
 #include "txherder/TxHerder.h"
 #include "database/Database.h"
+#include "ledger/LedgerHeaderFrame.h"
 
 /*
 The ledger module:
@@ -55,11 +56,16 @@ void LedgerMaster::startNewLedger()
     Json::Value result;
     masterAccount.storeAdd(result, *this);
 
-    
-    mCurrentHeader.baseFee = mApp.getConfig().DESIRED_BASE_FEE;
-    mCurrentHeader.baseReserve = mApp.getConfig().DESIRED_BASE_RESERVE;
-    mCurrentHeader.totalCoins = masterAccount.mEntry.account().balance;
-    mCurrentHeader.ledgerSeq = 1;
+    LedgerHeader genenisHeader;
+    genenisHeader.baseFee = mApp.getConfig().DESIRED_BASE_FEE;
+    genenisHeader.baseReserve = mApp.getConfig().DESIRED_BASE_RESERVE;
+    genenisHeader.totalCoins = masterAccount.mEntry.account().balance;
+    genenisHeader.ledgerSeq = 1;
+
+    mCurrentLedger = make_shared<LedgerHeaderFrame>(genenisHeader);
+
+    closeLedgerHelper();
+
 }
 
 Database &LedgerMaster::getDatabase()
@@ -69,22 +75,22 @@ Database &LedgerMaster::getDatabase()
 
 int32_t LedgerMaster::getTxFee()
 {
-    return mCurrentHeader.baseFee; 
+    return mCurrentLedger->mHeader.baseFee; 
 }
 
 int64_t LedgerMaster::getMinBalance(int32_t ownerCount)
 {
-    return (2 + ownerCount) * mCurrentHeader.baseReserve; 
+    return (2 + ownerCount) * mCurrentLedger->mHeader.baseReserve;
 }
 
 int64_t LedgerMaster::getLedgerNum()
 {
-    return mCurrentHeader.ledgerSeq;
+    return mCurrentLedger->mHeader.ledgerSeq;
 }
 
 LedgerHeader& LedgerMaster::getCurrentLedgerHeader()
 {
-    return mCurrentHeader;
+    return mCurrentLedger->mHeader;
 }
 
 // make sure our state is consistent with the CLF
@@ -92,7 +98,7 @@ void LedgerMaster::syncWithCLF()
 {
     LedgerHeader const& clfHeader = mApp.getCLFMaster().getHeader();
 
-    if(clfHeader.hash == mCurrentHeader.hash)
+    if(clfHeader.hash == mCurrentLedger->mHeader.hash)
     {
         CLOG(DEBUG, "Ledger") << "CLF and SQL headers match.";
     } else
@@ -105,7 +111,7 @@ void LedgerMaster::syncWithCLF()
 // called by txherder
 void LedgerMaster::externalizeValue(TxSetFramePtr txSet)
 {
-    if (mCurrentHeader.hash == txSet->getPreviousLedgerHash())
+    if(mLastClosedLedger->mHeader.hash == txSet->getPreviousLedgerHash())
     {
         mCaughtUp = true;
         closeLedger(txSet);
@@ -133,8 +139,6 @@ void LedgerMaster::startCatchUp()
 
 void LedgerMaster::closeLedger(TxSetFramePtr txSet)
 {
-    LedgerHeader nextHeader = mCurrentHeader;
-
     TxSetFrame successfulTX;
 
     LedgerDelta ledgerDelta;
@@ -155,10 +159,10 @@ void LedgerMaster::closeLedger(TxSetFramePtr txSet)
             Json::Value txResult;
             txResult["id"] = binToHex(tx->getHash());
             txResult["code"] = tx->getResultCode();
-            txResult["ledger"] = (Json::UInt64)mCurrentHeader.ledgerSeq;
+            txResult["ledger"] = (Json::UInt64)mCurrentLedger->mHeader.ledgerSeq;
 
             delta.commitDelta(txResult, ledgerDelta, *this );
-            nextHeader.feePool += delta.getCollectedFee();
+            mCurrentLedger->mHeader.feePool += delta.getCollectedFee();
             
         }catch(...)
         {
@@ -166,15 +170,76 @@ void LedgerMaster::closeLedger(TxSetFramePtr txSet)
         }
     }
 
+    closeLedgerHelper();
     txscope.commit();
-
-    
-    // TODO.2 do something with the nextHeader
-    mCurrentHeader.ledgerSeq++;
-    //TODO.2 mCurrentHeader.workedTxSetHash = successfulTX.getContentsHash();
-    
-    // TODO.2 give the LedgerDelta to the Bucketlist
 }
 
+// helper function that updates the various hashes in the current ledger header
+// and switches to a new ledger
+void LedgerMaster::closeLedgerHelper()
+{
+    // TODO: give the LedgerDelta to the Bucketlist to compute the new clfHash
+    mCurrentLedger->mHeader.clfHash.fill(1);
+    // TODO: compute hashes in header
+    mCurrentLedger->mHeader.txSetHash.fill(1);
+    mCurrentLedger->computeHash();
+
+    mCurrentLedger->storeInsert(*this);
+
+    mLastClosedLedger = mCurrentLedger;
+
+    mCurrentLedger = make_shared<LedgerHeaderFrame>(mLastClosedLedger);
+}
+
+const char *LedgerMaster::kSQLCreateStatement =
+"CREATE TABLE IF NOT EXISTS StoreState (        \
+        StateName   CHARACTER(32) PRIMARY KEY,  \
+        State       BLOB                        \
+);";
+
+void LedgerMaster::dropAll(Database &db)
+{
+    db.getSession() << "DROP TABLE IF EXISTS StoreState;";
+
+    db.getSession() << kSQLCreateStatement;
+}
+
+string LedgerMaster::getStoreStateName(StoreStateName n) {
+    static const char *mapping[kLastEntry] = { "lastClosedLedger", "lastClosedLedgerContent" };
+    if (n < 0 || n >= kLastEntry) {
+        throw out_of_range("unknown entry");
+    }
+    return mapping[n];
+}
+
+string LedgerMaster::getState(StoreStateName stateName) {
+    string res;
+
+    getDatabase().getSession() << "SELECT State FROM StoreState WHERE StateName = :n;",
+        soci::use(getStoreStateName(stateName)), soci::into(res);
+
+    if (!getDatabase().getSession().got_data())
+    {
+        res.clear();
+    }
+
+    return res;
+}
+
+void LedgerMaster::setState(StoreStateName stateName, const string &value) {
+    try
+    {
+        getDatabase().getSession() <<
+            "REPLACE StoreState StateName = :n, State = :v;",
+            soci::use(getStoreStateName(stateName)), soci::use(value);
+    }
+    catch (soci::soci_error &e)
+    {
+        getDatabase().getSession() <<
+            "INSERT INTO StoreState (StateName, State) VALUES (:n, :v );",
+            soci::use(getStoreStateName(stateName)), soci::use(value);
+
+    }
+}
 
 }
