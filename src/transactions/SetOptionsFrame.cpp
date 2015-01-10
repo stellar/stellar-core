@@ -1,5 +1,6 @@
 #include "transactions/SetOptionsFrame.h"
 #include "crypto/Base58.h"
+#include "database/Database.h"
 
 // TODO.2 Handle all SQL exceptions
 namespace stellar

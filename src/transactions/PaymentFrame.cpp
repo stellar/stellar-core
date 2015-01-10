@@ -4,6 +4,7 @@
 #include "ledger/LedgerDelta.h"
 #include "ledger/TrustFrame.h"
 #include "ledger/OfferFrame.h"
+#include "database/Database.h"
 
 #define MAX_PAYMENT_PATH_LENGTH 5
 

@@ -2,8 +2,8 @@
 // under the ISC License. See the COPYING file at the top-level directory of
 // this distribution or at http://opensource.org/licenses/ISC
 
-#include "main/Application.h"
 #include "TransactionFrame.h"
+#include "main/Application.h"
 #include "xdrpp/marshal.h"
 #include <string>
 #include "lib/json/json.h"
@@ -20,7 +20,7 @@
 #include "transactions/MergeFrame.h"
 #include "transactions/PaymentFrame.h"
 #include "transactions/SetOptionsFrame.h"
-
+#include "database/Database.h"
 
 namespace stellar
 {

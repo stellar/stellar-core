@@ -1,4 +1,5 @@
 #include "transactions/TransactionFrame.h"
+#include "ledger/OfferFrame.h"
 
 namespace stellar
 {
