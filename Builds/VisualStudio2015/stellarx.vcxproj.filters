@@ -66,24 +66,6 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\src\fba\Ballot.cpp">
-      <Filter>fba</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\fba\FBAMaster.cpp">
-      <Filter>fba</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\fba\Node.cpp">
-      <Filter>fba</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\fba\OurNode.cpp">
-      <Filter>fba</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\fba\QuorumSet.cpp">
-      <Filter>fba</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\fba\Statement.cpp">
-      <Filter>fba</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\ledger\LedgerMaster.cpp">
       <Filter>ledger</Filter>
     </ClCompile>
@@ -120,9 +102,6 @@
     <ClCompile Include="..\..\src\overlay\PreferredPeers.cpp">
       <Filter>overlay</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\fba\FutureStatement.cpp">
-      <Filter>fba</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\main\test.cpp">
       <Filter>main</Filter>
     </ClCompile>
@@ -140,9 +119,6 @@
     </ClCompile>
     <ClCompile Include="..\..\src\overlay\OverlayTests.cpp">
       <Filter>overlay</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\fba\FBATests.cpp">
-      <Filter>fba</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\lib\http\connection.cpp">
       <Filter>lib\http</Filter>
@@ -330,32 +306,23 @@
     <ClCompile Include="..\..\src\util\Uint128Tests.cpp">
       <Filter>util</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\fba\FBA.cpp">
+      <Filter>fba</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\fba\FBATests.cpp">
+      <Filter>fba</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\fba\LocalNode.cpp">
+      <Filter>fba</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\fba\Node.cpp">
+      <Filter>fba</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\fba\Slot.cpp">
+      <Filter>fba</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\src\fba\Ballot.h">
-      <Filter>fba</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\fba\FBAGateway.h">
-      <Filter>fba</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\fba\FBAMaster.h">
-      <Filter>fba</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\fba\FBAWorldInterface.h">
-      <Filter>fba</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\fba\Node.h">
-      <Filter>fba</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\fba\OurNode.h">
-      <Filter>fba</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\fba\QuorumSet.h">
-      <Filter>fba</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\fba\Statement.h">
-      <Filter>fba</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\src\history\HistoryGateway.h">
       <Filter>history</Filter>
     </ClInclude>
@@ -418,12 +385,6 @@
     </ClInclude>
     <ClInclude Include="..\..\src\overlay\PreferredPeers.h">
       <Filter>overlay</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\fba\FutureStatement.h">
-      <Filter>fba</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\fba\FBA.h">
-      <Filter>fba</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\clf\CLFGateway.h">
       <Filter>clf</Filter>
@@ -596,6 +557,18 @@
     <ClInclude Include="..\..\src\util\must_use.h">
       <Filter>util</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\src\fba\FBA.h">
+      <Filter>fba</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\fba\LocalNode.h">
+      <Filter>fba</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\fba\Node.h">
+      <Filter>fba</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\fba\Slot.h">
+      <Filter>fba</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="..\..\docs\transactions.md">
@@ -629,10 +602,16 @@
     </None>
     <None Include="libmedida\libmedida.vcxproj" />
     <None Include="..\..\INSTALL" />
+    <None Include="..\..\src\fba\NOTES">
+      <Filter>fba</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="..\..\src\overlay\StellarXDR.x">
       <Filter>overlay</Filter>
+    </CustomBuild>
+    <CustomBuild Include="..\..\src\fba\FBAXDR.x">
+      <Filter>fba</Filter>
     </CustomBuild>
   </ItemGroup>
 </Project>

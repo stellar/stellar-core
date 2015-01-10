@@ -95,14 +95,11 @@
     <ClCompile Include="..\..\src\crypto\SecretKey.cpp" />
     <ClCompile Include="..\..\src\database\Database.cpp" />
     <ClCompile Include="..\..\src\database\DatabaseTests.cpp" />
-    <ClCompile Include="..\..\src\fba\Ballot.cpp" />
-    <ClCompile Include="..\..\src\fba\FBAMaster.cpp" />
+    <ClCompile Include="..\..\src\fba\FBA.cpp" />
     <ClCompile Include="..\..\src\fba\FBATests.cpp" />
-    <ClCompile Include="..\..\src\fba\FutureStatement.cpp" />
+    <ClCompile Include="..\..\src\fba\LocalNode.cpp" />
     <ClCompile Include="..\..\src\fba\Node.cpp" />
-    <ClCompile Include="..\..\src\fba\OurNode.cpp" />
-    <ClCompile Include="..\..\src\fba\QuorumSet.cpp" />
-    <ClCompile Include="..\..\src\fba\Statement.cpp" />
+    <ClCompile Include="..\..\src\fba\Slot.cpp" />
     <ClCompile Include="..\..\src\history\HistoryArchive.cpp" />
     <ClCompile Include="..\..\src\history\HistoryMaster.cpp" />
     <ClCompile Include="..\..\src\history\HistoryTests.cpp" />
@@ -206,16 +203,10 @@
     <ClInclude Include="..\..\src\crypto\SHA.h" />
     <ClInclude Include="..\..\src\crypto\SecretKey.h" />
     <ClInclude Include="..\..\src\database\Database.h" />
-    <ClInclude Include="..\..\src\fba\Ballot.h" />
     <ClInclude Include="..\..\src\fba\FBA.h" />
-    <ClInclude Include="..\..\src\fba\FBAGateway.h" />
-    <ClInclude Include="..\..\src\fba\FBAMaster.h" />
-    <ClInclude Include="..\..\src\fba\FBAWorldInterface.h" />
-    <ClInclude Include="..\..\src\fba\FutureStatement.h" />
+    <ClInclude Include="..\..\src\fba\LocalNode.h" />
     <ClInclude Include="..\..\src\fba\Node.h" />
-    <ClInclude Include="..\..\src\fba\OurNode.h" />
-    <ClInclude Include="..\..\src\fba\QuorumSet.h" />
-    <ClInclude Include="..\..\src\fba\Statement.h" />
+    <ClInclude Include="..\..\src\fba\Slot.h" />
     <ClInclude Include="..\..\src\generated\StellarXDR.h" />
     <ClInclude Include="..\..\src\history\HistoryArchive.h" />
     <ClInclude Include="..\..\src\history\HistoryGateway.h" />
@@ -313,6 +304,14 @@ $(SolutionDir)$(Platform)\$(Configuration)\xdrc.exe -hh -o ../../src/generated/S
       <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">../../src/overlay/StellarXDR.x</AdditionalInputs>
       <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">../../src/overlay/StellarXDR.x</AdditionalInputs>
     </CustomBuild>
+    <CustomBuild Include="..\..\src\fba\FBAXDR.x">
+      <FileType>Document</FileType>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">echo $(SolutionDir)$(Platform)\$(Configuration)\xdrc.exe -hh -o ../../src/generated/FBAXDR.h ../../src/fba/FBAXDR.x</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">../../src/fba/FBAXDR.x</AdditionalInputs>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">fba xdr</Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">../../src/generated/FBAXDR.h</Outputs>
+    </CustomBuild>
+    <None Include="..\..\src\fba\NOTES" />
     <None Include="..\..\src\lib\xdrpp\tests\xdrtest.x" />
     <None Include="libmedida\libmedida.vcxproj" />
   </ItemGroup>

@@ -12,6 +12,7 @@
 #include "crypto/Base58.h"
 #include "lib/json/json.h"
 #include "TxTests.h"
+#include "ledger/LedgerMaster.h"
 
 using namespace stellar;
 using namespace stellar::txtest;

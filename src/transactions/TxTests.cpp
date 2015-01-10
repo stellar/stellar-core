@@ -11,6 +11,8 @@
 #include "crypto/Base58.h"
 #include "lib/json/json.h"
 #include "transactions/TxTests.h"
+#include "util/types.h"
+#include "transactions/TransactionFrame.h"
 
 using namespace stellar;
 using namespace stellar::txtest;
