@@ -37,19 +37,19 @@ namespace stellar
         typedef std::shared_ptr<LedgerMaster>           pointer;
         typedef const std::shared_ptr<LedgerMaster>&    ref;
 
-		LedgerMaster(Application& app);
+        LedgerMaster(Application& app);
 
         
 
-		//////// GATEWAY FUNCTIONS
-		// called by txherder
-		void externalizeValue(const SlotBallot& slotBallot, TransactionSetPtr txSet);
+        //////// GATEWAY FUNCTIONS
+        // called by txherder
+        void externalizeValue(TxSetFramePtr txSet);
 
         int32_t getTxFee();
         int64_t getLedgerNum();
         int64_t getMinBalance(int32_t ownerCount);
 		
-		///////
+        ///////
 
         void startNewLedger();
 
@@ -68,7 +68,7 @@ namespace stellar
 
         Database& getDatabase();
 
-		void closeLedger(TransactionSetPtr txSet);
+		void closeLedger(TxSetFramePtr txSet);
 		
 	};
 }

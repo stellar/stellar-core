@@ -4,7 +4,8 @@
 
 #include "ItemFetcher.h"
 #include "main/Application.h"
-#include "fba/FBAGateway.h"
+#include "xdrpp/marshal.h"
+#include "crypto/SHA.h"
 #include "overlay/OverlayGateway.h"
 
 #define MS_TO_WAIT_FOR_FETCH_REPLY 3000
@@ -113,11 +114,13 @@ TxSetFetcher::recvItem(TxSetFrame::pointer txSet)
 
 ////////////////////////////////////////
 void
-QSetFetcher::recvItem(QuorumSet::pointer qSet)
+QSetFetcher::recvItem(FBAQuorumSetPtr qSet)
 {
+    uint256 qSetHash = sha512_256(xdr::xdr_to_msg(*qSet));
+
     if (qSet)
     {
-        auto result = mItemMap.find(qSet->getHash());
+        auto result = mItemMap.find(qSetHash);
         if (result != mItemMap.end())
         {
             result->second->cancelFetch();
@@ -127,19 +130,22 @@ QSetFetcher::recvItem(QuorumSet::pointer qSet)
                 // this quorum set so tell FBA
                 // LATER: maybe change this to
                 // pub/sub
+                /* TODO(spolu) Readapt to new FBA */
+                /*
                 mApp.getFBAGateway().addQuorumSet(qSet);
+                */
             }
         }
         else
         { // doesn't seem like we were looking for it. Maybe just add it for
             // now
-            mItemMap[qSet->getHash()] =
-                std::make_shared<QSetTrackingCollar>(qSet->getHash(), mApp);
+            mItemMap[qSetHash] =
+                std::make_shared<QSetTrackingCollar>(qSetHash, mApp);
         }
     }
 }
 
-QuorumSet::pointer
+FBAQuorumSetPtr
 QSetFetcher::fetchItem(uint256 const& setID, bool askNetwork)
 {
     // look it up in the map
@@ -166,7 +172,7 @@ QSetFetcher::fetchItem(uint256 const& setID, bool askNetwork)
             collar->tryNextPeer(); // start asking
         }
     }
-    return (QuorumSet::pointer());
+    return (FBAQuorumSetPtr());
 }
 
 //////////////////////////////////////////////////////////////////////////

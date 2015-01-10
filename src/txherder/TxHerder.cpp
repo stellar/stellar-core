@@ -10,9 +10,7 @@
 #include "util/Logging.h"
 #include "txherder/TxSetFrame.h"
 #include "lib/util/easylogging++.h"
-#include "fba/FBA.h"
 #include "overlay/PeerMaster.h"
-#include "fba/FBAGateway.h"
 
 namespace stellar
 {
@@ -49,14 +47,17 @@ TxHerder::TxHerder(Application& app)
 // make sure the timestamp isn't too far in the future
 // make sure the base fee is within a certain range of your desired fee
 TxHerderGateway::BallotValidType
-TxHerder::isValidBallotValue(Ballot const& ballot)
+TxHerder::isValidBallotValue(FBABallot const& ballot)
 {
+    /* TODO(spolu): move to txSet */
+    /*
     if (ballot.baseFee < mApp.getConfig().DESIRED_BASE_FEE * .5)
         return INVALID_BALLOT;
     if (ballot.baseFee > mApp.getConfig().DESIRED_BASE_FEE * 2)
         return INVALID_BALLOT;
+    */
 
-    TransactionSetPtr txSet = fetchTxSet(ballot.txSetHash, true);
+    TxSetFramePtr txSet = fetchTxSet(ballot.valueHash, true);
     if (!txSet)
     {
         CLOG(ERROR,"TxHerder") << "isValidBallotValue when we don't know the txSet";
@@ -76,29 +77,32 @@ TxHerder::isValidBallotValue(Ballot const& ballot)
             return INVALID_BALLOT;
     }
     // check timestamp
+    /* TODO(spolu): move to txSet */
+    /*
     if (ballot.closeTime <= mLastClosedLedger.closeTime)
         return INVALID_BALLOT;
 
     uint64_t timeNow = time(nullptr);
     if (ballot.closeTime > timeNow + MAX_SECONDS_LEDGER_CLOSE_IN_FUTURE)
         return FUTURE_BALLOT;
+    */
 
     return VALID_BALLOT;
 }
 
 TxHerderGateway::SlotComparisonType
-TxHerder::compareSlot(SlotBallot const& slotBallot)
+TxHerder::compareSlot(uint32 const& slotIndex)
 {
-    if (slotBallot.ledgerIndex > mLastClosedLedger.ledgerSeq)
+    if (slotIndex > mLastClosedLedger.ledgerSeq)
         return (TxHerderGateway::FUTURE_SLOT);
-    if (slotBallot.ledgerIndex < mLastClosedLedger.ledgerSeq)
+    if (slotIndex < mLastClosedLedger.ledgerSeq)
         return (TxHerderGateway::PAST_SLOT);
     return TxHerderGateway::SAME_SLOT;
 }
 
 // a Tx set comes in from the wire
 void
-TxHerder::recvTransactionSet(TransactionSetPtr txSet)
+TxHerder::recvTransactionSet(TxSetFramePtr txSet)
 {
     if (mTxSetFetcher[mCurrentTxSetFetcher].recvItem(txSet))
     { // someone cares about this set
@@ -106,7 +110,10 @@ TxHerder::recvTransactionSet(TransactionSetPtr txSet)
         {
             recvTransaction(tx);
         }
+        /* TODO(spolu): Adapt to new FBA */
+        /*
         mApp.getFBAGateway().transactionSetAdded(txSet);
+        */
     }
 }
 
@@ -179,10 +186,11 @@ TxHerder::removeReceivedTx(TransactionFramePtr dropTX)
 
 // called by FBA
 void
-TxHerder::externalizeValue(SlotBallot const& slotBallot)
+TxHerder::externalizeValue(const uint32& slotIndex,
+                          const uint256& valueHash)
 {
     TxSetFramePtr externalizedSet =
-        fetchTxSet(slotBallot.ballot.txSetHash, false);
+        fetchTxSet(valueHash, false);
     if (externalizedSet)
     {
         // we don't need to keep fetching any of the old TX sets
@@ -193,7 +201,7 @@ TxHerder::externalizeValue(SlotBallot const& slotBallot)
             mCurrentTxSetFetcher = 1;
         mTxSetFetcher[mCurrentTxSetFetcher].clear();
 
-        mApp.getLedgerGateway().externalizeValue(slotBallot, externalizedSet);
+        mApp.getLedgerGateway().externalizeValue(externalizedSet);
 
         // remove all these tx from mReceivedTransactions
         for (auto tx : externalizedSet->mTransactions)
@@ -243,6 +251,8 @@ TxHerder::ledgerClosed(LedgerHeader& ledger)
     if (firstBallotTime <= mLastClosedLedger.closeTime)
         firstBallotTime = mLastClosedLedger.closeTime + 1;
 
+    /* TODO(spolu): Adapt to new FBA */
+    /*
     recvTransactionSet(proposedSet);
     SlotBallot firstBallot;
     firstBallot.ledgerIndex = mLastClosedLedger.ledgerSeq;
@@ -259,5 +269,6 @@ TxHerder::ledgerClosed(LedgerHeader& ledger)
         mApp.getFBAGateway().setValidating(true);
 
     mApp.getFBAGateway().startNewRound(firstBallot);
+    */
 }
 }

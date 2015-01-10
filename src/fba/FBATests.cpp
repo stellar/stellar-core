@@ -3,211 +3,83 @@
 // this distribution or at http://opensource.org/licenses/ISC
 
 #include "lib/catch.hpp"
-#include "generated/StellarXDR.h"
-#include "fba/Ballot.h"
-#include "fba/FBAGateway.h"
-#include "main/test.h"
-#include "main/Config.h"
-#include "main/Application.h"
-#include "util/Timer.h"
+#include "fba/FBA.h"
+#include "crypto/Hex.h"
 #include "crypto/SHA.h"
+#include "util/Logging.h"
 
 using namespace stellar;
 
-// addStatement when we already have it
-// checkRatState?
-//   we need an application
-TEST_CASE("node tests", "[fba]")
+class TestFBAClient : public FBA::Client
 {
-
-    SECTION("simple")
+    void validateBallot(const uint32& slotIndex,
+                        const Hash& nodeID,
+                        const FBABallot& ballot,
+                        const Hash& evidence,
+                        std::function<void(bool)> const& cb)
     {
-        uint256 nodeID;
-        Node testNode(nodeID);
-
-        FBAEnvelope sxdr1;
-        sxdr1.nodeID = nodeID;
-        sxdr1.contents.body.type(FBAStatementType::PREPARE);
-        sxdr1.contents.slotBallot.ballot.baseFee = 5;
-        StatementPtr s1 = std::make_shared<Statement>(sxdr1);
-
-        REQUIRE(!testNode.hasStatement(s1));
-        REQUIRE(!testNode.getHighestStatement(
-            FBAStatementType::PREPARE));
-        REQUIRE(!testNode.getHighestStatement(
-            FBAStatementType::PREPARED));
-        REQUIRE(!testNode.getHighestStatement(
-            FBAStatementType::COMMIT));
-        REQUIRE(!testNode.getHighestStatement(
-            FBAStatementType::COMMITTED));
-
-        REQUIRE(testNode.addStatement(s1));
-        REQUIRE(testNode.hasStatement(s1));
-
-        REQUIRE(testNode.getHighestStatement(
-            FBAStatementType::PREPARE) == s1);
-        REQUIRE(!testNode.getHighestStatement(
-            FBAStatementType::PREPARED));
-        REQUIRE(!testNode.getHighestStatement(
-            FBAStatementType::COMMIT));
-        REQUIRE(!testNode.getHighestStatement(
-            FBAStatementType::COMMITTED));
-
-        sxdr1.contents.slotBallot.ballot.baseFee = 10;
-        StatementPtr s2 = std::make_shared<Statement>(sxdr1);
-        REQUIRE(testNode.addStatement(s2));
-        REQUIRE(testNode.hasStatement(s1));
-        REQUIRE(testNode.hasStatement(s2));
-        REQUIRE(testNode.getHighestStatement(
-            FBAStatementType::PREPARE) == s2);
-        REQUIRE(!testNode.getHighestStatement(
-            FBAStatementType::PREPARED));
-        REQUIRE(!testNode.getHighestStatement(
-            FBAStatementType::COMMIT));
-        REQUIRE(!testNode.getHighestStatement(
-            FBAStatementType::COMMITTED));
-
-        sxdr1.contents.slotBallot.ballot.baseFee = 7;
-        StatementPtr s3 = std::make_shared<Statement>(sxdr1);
-        REQUIRE(testNode.addStatement(s3));
-        REQUIRE(testNode.hasStatement(s1));
-        REQUIRE(testNode.hasStatement(s2));
-        REQUIRE(testNode.hasStatement(s3));
-        REQUIRE(testNode.getHighestStatement(
-            FBAStatementType::PREPARE) == s2);
-        REQUIRE(!testNode.getHighestStatement(
-            FBAStatementType::PREPARED));
-        REQUIRE(!testNode.getHighestStatement(
-            FBAStatementType::COMMIT));
-        REQUIRE(!testNode.getHighestStatement(
-            FBAStatementType::COMMITTED));
-
-        sxdr1.contents.body.type(FBAStatementType::PREPARED);
-        StatementPtr s4 = std::make_shared<Statement>(sxdr1);
-        REQUIRE(testNode.addStatement(s4));
-        REQUIRE(testNode.hasStatement(s1));
-        REQUIRE(testNode.hasStatement(s2));
-        REQUIRE(testNode.hasStatement(s3));
-        REQUIRE(testNode.hasStatement(s4));
-        REQUIRE(testNode.getHighestStatement(
-            FBAStatementType::PREPARE) == s2);
-        REQUIRE(testNode.getHighestStatement(
-            FBAStatementType::PREPARED) == s4);
-        REQUIRE(!testNode.getHighestStatement(
-            FBAStatementType::COMMIT));
-        REQUIRE(!testNode.getHighestStatement(
-            FBAStatementType::COMMITTED));
+        cb(true);
     }
 
-    SECTION("checkRatState")
+    void ballotDidPrepare(const uint32& slotIndex,
+                          const FBABallot& ballot,
+                          const Hash& evidence)
     {
     }
-}
+    void ballotDidCommit(const uint32& slotIndex,
+                         const FBABallot& ballot)
+    {
+    }
 
-TEST_CASE("end to end", "[fba]")
+    void valueCancelled(const uint32& slotIndex,
+                        const Hash& valueHash)
+    {
+    }
+    void valueExternalized(const uint32& slotIndex,
+                           const Hash& valueHash)
+    {
+    }
+
+    void retrieveQuorumSet(const Hash& nodeID,
+                           const Hash& qSetHash)
+    {
+        LOG(INFO) << "FBA::Client::retrieveQuorumSet"
+                  << " " << binToHex(qSetHash).substr(0,6)
+                  << "@" << binToHex(nodeID).substr(0,6);
+    }
+    void emitEnvelope(const FBAEnvelope& envelope)
+    {
+        LOG(INFO) << "Envelope emitted";
+    }
+};
+
+TEST_CASE("attemptValue", "[fba]")
 {
     SECTION("first")
     {
-        Config cfg;
-        cfg.QUORUM_THRESHOLD = 3;
-        cfg.HTTP_PORT = 0;
-        cfg.START_NEW_NETWORK = true;
-        cfg.VALIDATION_SEED = sha512_256("seed");
+        const Hash validationSeed = sha512_256("SEED_VALIDATIONSEED");
 
-        uint256 nodeID[5];
-
+        FBAQuorumSet qSet;
+        qSet.threshold = 3;
         for(int n = 0; n < 5; n++)
         {
-            nodeID[n] = sha512_256("hello");
-            nodeID[n][0] = n;
-            cfg.QUORUM_SET.push_back(nodeID[n]);
+            Hash nodeID = sha512_256("SEED_FOOBAR");;
+            nodeID[0] = n;
+            LOG(INFO) << "ADD TO QSET: " << binToHex(nodeID);
+            qSet.validators.push_back(nodeID);
         }
 
-        VirtualClock clock;
-        Application app(clock, cfg);
+        TestFBAClient* client = new TestFBAClient();
 
+        FBA* fba = new FBA(validationSeed, qSet, client);
 
-        Node testNode(nodeID[0]);
-        BallotPtr ballot = std::make_shared<Ballot>();
+        const Hash valueHash = sha512_256("SEED_VALUEHASH");
+        const Hash evidence;
 
-        REQUIRE(Node::NOTPLEDGING_STATE ==
-                testNode.checkRatState(FBAStatementType::PREPARE,
-                                       ballot, 1, 1, app));
-
-        SlotBallot slotBallot;
-        slotBallot.ballot = *ballot.get();
-        slotBallot.ledgerIndex = 1;
-        //slotBallot.previousLedgerHash;
-
-        for(int n = 0; n < 5; n++)
-        {
-            StatementPtr statement=std::make_shared<Statement>(FBAStatementType::PREPARE,
-                nodeID[n], app.getFBAGateway().getOurQuorumSet()->getHash(), 
-                slotBallot);
-            app.getFBAGateway().recvStatement(statement);
-        }
-
-
-
+        fba->attemptValue(0, valueHash, evidence);
+        LOG(INFO) << "TEST";
     }
 }
 
-TEST_CASE("ballot tests", "[fba]")
-{
 
-    Ballot b1;
 
-    b1.baseFee = 10;
-    b1.closeTime = 10;
-    b1.index = 1;
-    b1.txSetHash = sha512_256("hello");
-
-    SECTION("compare")
-    {
-        Ballot b3 = b1;
-
-        REQUIRE(!ballot::compare(b1, b3));
-        REQUIRE(!ballot::compare(b3, b1));
-        REQUIRE(!ballot::compareValue(b1, b3));
-        REQUIRE(!ballot::compareValue(b3, b1));
-        b3.baseFee++;
-        REQUIRE(!ballot::compare(b1, b3));
-        REQUIRE(ballot::compare(b3, b1));
-        REQUIRE(!ballot::compareValue(b1, b3));
-        REQUIRE(ballot::compareValue(b3, b1));
-        b1.closeTime++;
-        REQUIRE(ballot::compare(b1, b3));
-        REQUIRE(!ballot::compare(b3, b1));
-        REQUIRE(ballot::compareValue(b1, b3));
-        REQUIRE(!ballot::compareValue(b3, b1));
-        b3.txSetHash[0] += 1;
-        REQUIRE(!ballot::compare(b1, b3));
-        REQUIRE(ballot::compare(b3, b1));
-        REQUIRE(!ballot::compareValue(b1, b3));
-        REQUIRE(ballot::compareValue(b3, b1));
-
-        b1.index++;
-        REQUIRE(ballot::compare(b1, b3));
-        REQUIRE(!ballot::compare(b3, b1));
-        REQUIRE(!ballot::compareValue(b1, b3));
-        REQUIRE(ballot::compareValue(b3, b1));
-    }
-    SECTION("isCompatible")
-    {
-        Ballot b3 = b1;
-
-        REQUIRE(ballot::isCompatible(b1, b3));
-        REQUIRE(ballot::isCompatible(b3, b1));
-        b3.index++;
-        REQUIRE(ballot::isCompatible(b1, b3));
-        REQUIRE(ballot::isCompatible(b3, b1));
-        b3.baseFee++;
-        REQUIRE(!ballot::isCompatible(b1, b3));
-        b3.baseFee--;
-        b3.closeTime++;
-        REQUIRE(!ballot::isCompatible(b1, b3));
-        b3.closeTime--;
-        b3.txSetHash[0] += 1;
-        REQUIRE(!ballot::isCompatible(b1, b3));
-    }
-}

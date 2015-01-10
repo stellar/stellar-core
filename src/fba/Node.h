@@ -1,5 +1,5 @@
-#ifndef __NODE__
-#define __NODE__
+#ifndef __FBA_NODE__
+#define __FBA_NODE__
 
 // Copyright 2014 Stellar Development Foundation and contributors. Licensed
 // under the ISC License. See the COPYING file at the top-level directory of
@@ -7,71 +7,69 @@
 
 #include <memory>
 #include <vector>
-#include "generated/StellarXDR.h"
-#include "fba/Statement.h"
+
 #include "fba/FBA.h"
 
-/*
-This is one other Node out there in the stellar network
-
-*/
 namespace stellar
 {
+/**
+ * This is one Node in the stellar network
+ */
 class Node
 {
-
   public:
-    typedef std::shared_ptr<Node> pointer;
+    Node(const uint256& nodeID,
+         FBA* FBA,
+         int cacheCapacity = 4);
 
-    enum RatState
+    /**
+     * Exception used to trigger the retrieval of a quorum set based on its
+     * hash when it was not cached yet. This exception should not escape the
+     * FBA module.
+     */
+    class QuorumSetNotFound : public std::exception
     {
-        UNKNOWN_STATE,
-        RECHECK_STATE,
-        NOTPLEDGING_STATE,
-        Q_NOT_PLEDGING_STATE,
-        Q_UNKNOWN_STATE,
-        PLEDGING_STATE, // node has pledged
-        RATIFIED_STATE  // this node has ratified
+      public:
+        QuorumSetNotFound(const uint256& nodeID,
+                          const Hash& qSetHash)
+            : mNodeID(nodeID)
+            , mQSetHash(qSetHash) {}
+
+        virtual const char* what() const throw()
+        {
+            return "QuorumSet not found";
+        }
+        const Hash& qSetHash() const throw() { return mQSetHash; }
+        const uint256& nodeID() const throw() { return mNodeID; }
+
+        const uint256 mNodeID;
+        const Hash mQSetHash;
     };
 
-    FBAStatementType mState;
+    // Retrieves the cached quorum set associated with this hash or throws a
+    // QuorumSetNotFound exception otherwise. The exception shall not escape
+    // the FBA module
+    const FBAQuorumSet& retrieveQuorumSet(const Hash& qSetHash);
 
-    uint256 mNodeID;
+    // Adds a slot to the list of slots awaiting for a quorunm set to be
+    // retrieved. When cacheQuorumSet is called with the specified quorum set
+    // hash, all slots pending on this quorum set are woken up for
+    // re-evaluation.
+    void addPendingSlot(const Hash& qSetHash, const uint32& slotIndex);
 
-    // a vector of each message type holding a vector of the messages this node
-    // has sent for each message
-    std::vector<std::vector<StatementPtr>> mStatements;
-    // list of statements this node has ratified
-    StatementPtr mRatified[FBAStatementType::UNKNOWN];
-    // this means you have a Q that has pledged this ballot
-    // if you have a Q that is willRatify then you can ratify
-    StatementPtr mWillRaitify[FBAStatementType::UNKNOWN];
+    void cacheQuorumSet(const FBAQuorumSet& qSet);
 
-    Node(const uint256& nodeID);
+    const uint256& getNodeID();
 
-    FBAStatementType
-    getNodeState()
-    {
-        return (mState);
-    }
-
-    // get the highest Prepare message we have gotten for this Node
-    StatementPtr getHighestStatement(FBAStatementType type);
-
-    bool hasStatement(StatementPtr msg);
-
-    // returns false if we already had this msg
-    bool addStatement(StatementPtr msg);
-
-    Node::RatState checkRatState(FBAStatementType type,
-                                 BallotPtr ballot, int operationToken,
-                                 int recheckCounter, Application& app);
-
+  protected:
+    const uint256                          mNodeID;
+    FBA*                                   mFBA;
   private:
-    // for the ratification check
-    int mRecheckCounter;
-    int mOperationToken;
-    Node::RatState mRatState;
+    int                                    mCacheCapacity;
+    std::map<Hash, FBAQuorumSet>           mCache;
+    std::vector<Hash>                      mCacheLRU;
+
+    std::map<Hash, std::vector<uint32>>    mPendingSlots;
 };
 }
 

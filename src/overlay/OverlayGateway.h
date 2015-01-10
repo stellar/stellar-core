@@ -6,7 +6,6 @@
 // this distribution or at http://opensource.org/licenses/ISC
 
 #include "generated/StellarXDR.h"
-#include "fba/QuorumSet.h"
 #include "overlay/Peer.h"
 
 /*
@@ -29,7 +28,6 @@ Should keep rotating peers till you get an answer:
 namespace stellar
 {
 
-
 class OverlayGateway
 {
   public:
@@ -40,7 +38,7 @@ class OverlayGateway
     virtual void broadcastMessage(uint256 const& messageID) = 0;
 
     // called by FBA
-    virtual QuorumSet::pointer fetchQuorumSet(uint256 const& itemID,
+    virtual FBAQuorumSetPtr fetchFBAQuorumSet(uint256 const& itemID,
                                               bool askNetwork) = 0;
 
     // called internally and by FBA
@@ -52,7 +50,7 @@ class OverlayGateway
     // virtual void stopTrackingItem(uint256 itemID) = 0;
 
     // called internally
-    virtual void recvQuorumSet(QuorumSet::pointer qset) = 0;
+    virtual void recvFBAQuorumSet(FBAQuorumSetPtr qset) = 0;
     virtual void doesntHaveQSet(uint256 const& index,
                                 Peer::pointer peer) = 0;
     virtual void recvFloodedMsg(uint256 const& index,

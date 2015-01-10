@@ -6,8 +6,9 @@
 //   tx sets for history
 //   State snapshots for hashing
 
-namespace stellar {
+%#include "generated/FBAXDR.h"
 
+namespace stellar {
 
 // messages
 typedef opaque uint512[64];
@@ -182,6 +183,7 @@ struct TransactionEnvelope
 
 struct TransactionSet
 {
+    uint256 previousLedgerHash;
     TransactionEnvelope txs<>;
 };
 
@@ -216,59 +218,6 @@ struct History
 };
 
 
-
-// FBA  messages
-struct Ballot
-{
-	int index;						// n			
-	uint256 previousLedgerHash;		// x
-    uint256 txSetHash;				// x
-	uint64 closeTime;				// x
-	int32 baseFee;					// x
-	int32 baseReserve;				// x
-};
-
-struct SlotBallot
-{
-	uint32 ledgerIndex;				// the slot	
-
-    Ballot ballot;
-};
-
-enum FBAStatementType
-{
-	PREPARE,
-	PREPARED,
-	COMMIT,
-	COMMITTED,
-	EXTERNALIZED,
-	UNKNOWN
-};
-
-struct FBAContents
-{
-	SlotBallot slotBallot;
-	uint256 quorumSetHash;
-	
-	union switch (FBAStatementType type)
-	{
-		case PREPARE:
-			Ballot excepted<>;
-		case PREPARED:
-		case COMMIT:
-		case COMMITTED:
-		case EXTERNALIZED:
-		case UNKNOWN:
-			void;		
-	} body;
-};
-
-struct FBAEnvelope
-{
-	uint256 nodeID;
-    uint512 signature;
-	FBAContents contents;
-};
 
 enum LedgerTypes {
   NONE,
@@ -333,12 +282,6 @@ union LedgerEntry switch (LedgerTypes type)
    OfferEntry offer;
 };
 
-struct QuorumSetDesc
-{
-    uint32 threshold;
-    uint256 validators<>;
-};
-
 struct PeerAddress
 {
     opaque ip[4];
@@ -364,9 +307,8 @@ enum MessageType
 	JSON_TRANSACTION,
 		
 	// FBA		
-	GET_QUORUMSET,		
-	QUORUMSET,	
-		
+	GET_FBA_QUORUMSET,		
+	FBA_QUORUMSET,	
 	FBA_MESSAGE
 };
 
@@ -402,11 +344,10 @@ union StellarMessage switch (MessageType type) {
 		TransactionEnvelope transaction;
 
 	// FBA		
-	case GET_QUORUMSET:		
-		uint256 qSetHash;	
-	case QUORUMSET:
-		QuorumSetDesc quorumSet;
-
+	case GET_FBA_QUORUMSET:
+		uint256 qSetHash;
+	case FBA_QUORUMSET:
+		FBAQuorumSet qSet;
 	case FBA_MESSAGE:
 		FBAEnvelope fbaMessage;
 };
