@@ -7,10 +7,9 @@ bin_PROGRAMS = bin/stellard
 FMT_SRCS = src/clf/BucketList.cpp src/clf/CLFMaster.cpp src/clf/CLFTests.cpp    \
     src/crypto/Base58.cpp src/crypto/Hex.cpp src/crypto/SHA.cpp                 \
     src/crypto/SecretKey.cpp src/crypto/CryptoTests.cpp                         \
-    src/database/Database.cpp src/database/DatabaseTests.cpp src/fba/Ballot.cpp \
-    src/fba/FBAMaster.cpp src/fba/FBATests.cpp src/fba/FutureStatement.cpp      \
-    src/fba/Node.cpp src/fba/OurNode.cpp src/fba/QuorumSet.cpp                  \
-    src/fba/Statement.cpp src/history/HistoryArchive.cpp                        \
+    src/database/Database.cpp src/database/DatabaseTests.cpp src/fba/FBA.cpp    \
+    src/fba/Slot.cpp src/fba/Node.cpp src/fba/LocalNode.cpp                     \
+    src/fba/FBATests.cpp src/history/HistoryArchive.cpp                         \
     src/history/HistoryMaster.cpp src/history/HistoryTests.cpp                  \
     src/ledger/AccountFrame.cpp src/ledger/EntryFrame.cpp                       \
     src/ledger/LedgerDelta.cpp src/ledger/LedgerMaster.cpp                      \
@@ -33,16 +32,14 @@ FMT_SRCS = src/clf/BucketList.cpp src/clf/CLFMaster.cpp src/clf/CLFTests.cpp    
 
 FMT_HDRS = src/clf/BucketList.h src/clf/CLFMaster.h src/crypto/Base58.h         \
     src/crypto/Hex.h src/crypto/SHA.h src/crypto/SecretKey.h                    \
-    src/database/Database.h src/fba/Ballot.h src/fba/FBA.h src/fba/FBAGateway.h \
-    src/fba/FBAMaster.h src/fba/FBAWorldInterface.h src/fba/FutureStatement.h   \
-    src/fba/Node.h src/fba/OurNode.h src/fba/QuorumSet.h src/fba/Statement.h    \
-    src/history/HistoryArchive.h src/history/HistoryGateway.h                   \
-    src/history/HistoryMaster.h src/ledger/AccountFrame.h                       \
-    src/ledger/EntryFrame.h src/ledger/LedgerDelta.h                            \
-    src/ledger/LedgerGateway.h src/ledger/LedgerMaster.h                        \
-    src/ledger/OfferFrame.h src/ledger/TrustFrame.h src/main/Application.h      \
-    src/main/CommandHandler.h src/main/Config.h src/main/test.h                 \
-    src/overlay/FetchableItem.h src/overlay/Floodgate.h                         \
+    src/database/Database.h src/fba/FBA.h src/fba/Slot.h src/fba/Node.h         \
+    src/fba/LocalNode.h src/history/HistoryArchive.h                            \
+    src/history/HistoryGateway.h src/history/HistoryMaster.h                    \
+    src/ledger/AccountFrame.h src/ledger/EntryFrame.h                           \
+    src/ledger/LedgerDelta.h src/ledger/LedgerGateway.h                         \
+    src/ledger/LedgerMaster.h src/ledger/OfferFrame.h src/ledger/TrustFrame.h   \
+    src/main/Application.h src/main/CommandHandler.h src/main/Config.h          \
+    src/main/test.h src/overlay/FetchableItem.h src/overlay/Floodgate.h         \
     src/overlay/ItemFetcher.h src/overlay/LoopbackPeer.h                        \
     src/overlay/OverlayGateway.h src/overlay/Peer.h src/overlay/PeerDoor.h      \
     src/overlay/PeerMaster.h src/overlay/PreferredPeers.h src/overlay/TCPPeer.h \
@@ -57,9 +54,11 @@ FMT_HDRS = src/clf/BucketList.h src/clf/CLFMaster.h src/crypto/Base58.h         
     src/txherder/TxSetFrame.h src/util/Logging.h src/util/Timer.h               \
     src/util/make_unique.h src/util/types.h
 
-BUILT_SOURCES = src/generated/StellardVersion.h src/generated/StellarXDR.h
+BUILT_SOURCES = src/generated/StellardVersion.h                                 \
+                src/generated/StellarXDR.h src/generated/FBAXDR.h
 
 src/generated/StellarXDR.h: $(XDRC)
+src/generated/FBAXDR.h: $(XDRC)
 
 bin_stellard_SOURCES = $(FMT_SRCS) \
                        $(BUILT_SOURCES) \
@@ -229,6 +228,9 @@ src/generated/StellardVersion.h: Makefile
 
 src/generated/StellarXDR.h: src/overlay/StellarXDR.x Makefile
 	$(AM_V_GEN)mkdir -p src/generated; \
+	$(XDRC) -hh -o $@ $<
+src/generated/FBAXDR.h: src/fba/FBAXDR.x Makefile
+	$(AM_V_GEN)mkdir -p src/generated
 	$(XDRC) -hh -o $@ $<
 
 if USE_CLANG_FORMAT

@@ -5,28 +5,25 @@
 // under the ISC License. See the COPYING file at the top-level directory of
 // this distribution or at http://opensource.org/licenses/ISC
 
-#include "fba/FBA.h"
 #include "txherder/TxSetFrame.h"
-
-/*
-Public Interface to the Ledger Module
-
-*/
 
 namespace stellar
 {
-    class TxSetFrame;
-    typedef std::shared_ptr<TxSetFrame> TransactionSetPtr;
+class TxSetFrame;
+typedef std::shared_ptr<TxSetFrame> TxSetFramePtr;
 
-	class LedgerGateway
-	{
-	public:
-		// called by txherder
-		virtual void externalizeValue(const SlotBallot& slotBallot, TransactionSetPtr txSet)=0;
+/*
+ * Public Interface to the Ledger Module
+ */
+class LedgerGateway
+{
+  public:
+    // called by txherder
+    virtual void externalizeValue(TxSetFramePtr txSet)=0;
 
-        virtual int32_t getTxFee() = 0;
-        virtual int64_t getLedgerNum() = 0;
-	};
+    virtual int32_t getTxFee() = 0;
+    virtual int64_t getLedgerNum() = 0;
+};
 }
 
 #endif

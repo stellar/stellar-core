@@ -1,0 +1,58 @@
+
+namespace stellar {
+
+typedef opaque Signature[64];
+typedef opaque Hash[32];
+typedef opaque uint256[32];
+typedef unsigned uint32;
+
+struct FBABallot
+{
+    uint32 counter;      // n
+    Hash valueHash;   // x
+};
+
+enum FBAStatementType
+{
+    PREPARE,
+    PREPARED,
+    COMMIT,
+    COMMITTED
+};
+
+struct FBAStatement
+{
+    uint32 slotIndex;      // i
+    FBABallot ballot;      // b
+    Hash quorumSetHash;
+	
+    union switch (FBAStatementType type)
+    {
+        case PREPARE:
+            struct 
+            {
+                FBABallot excepted<>;  // B_c
+                FBABallot* prepared;   // p
+                Hash evidence;         // \sigma
+            } prepare;
+        case PREPARED:
+        case COMMIT:
+        case COMMITTED:
+            void;		
+    } body;
+};
+
+struct FBAEnvelope
+{
+    uint256 nodeID;
+    FBAStatement statement;
+    Signature signature;
+};
+
+struct FBAQuorumSet
+{
+    uint32 threshold;
+    Hash validators<>;
+};
+
+}

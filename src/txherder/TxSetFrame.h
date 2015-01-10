@@ -25,6 +25,7 @@ class TxSetFrame
     typedef std::shared_ptr<TxSetFrame> pointer;
 
     vector<TransactionFramePtr> mTransactions;
+    uint256                     mPreviousLedgerHash;
 
     TxSetFrame();
 
@@ -34,6 +35,7 @@ class TxSetFrame
     TransactionFramePtr getTransaction(uint256 const& txHash);
     // returns the hash of this tx set
     uint256 getContentsHash();
+    uint256 getPreviousLedgerHash();
 
     void sortForHash();
 

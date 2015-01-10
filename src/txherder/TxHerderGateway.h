@@ -7,7 +7,7 @@
 
 #include <memory>
 #include "generated/StellarXDR.h"
-#include "fba/FBA.h"
+#include "generated/FBAXDR.h"
 /*
 Public Interface to the TXHerder module
 
@@ -51,15 +51,16 @@ class TxHerderGateway
     };
     // make sure this set contains any super old TXs
     virtual BallotValidType
-    isValidBallotValue(Ballot const& ballot) = 0;
+    isValidBallotValue(FBABallot const& ballot) = 0;
     virtual SlotComparisonType
-    compareSlot(SlotBallot const& ballot) = 0;
+    compareSlot(uint32 const& slotIndex) = 0;
 
     // can start fetching this TxSet from the network if we don't know about it
     virtual TxSetFramePtr fetchTxSet(uint256 const& setHash,
                                          bool askNetwork) = 0;
 
-    virtual void externalizeValue(const SlotBallot&) = 0;
+    virtual void externalizeValue(const uint32& slotIndex,
+                                  const uint256& valueHash) = 0;
 
     // called by Overlay
     // a Tx set comes in from the wire

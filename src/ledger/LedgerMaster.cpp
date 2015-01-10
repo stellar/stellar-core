@@ -103,9 +103,9 @@ void LedgerMaster::syncWithCLF()
 }
 
 // called by txherder
-void LedgerMaster::externalizeValue(const SlotBallot& slotBallot, TxSetFramePtr txSet)
+void LedgerMaster::externalizeValue(TxSetFramePtr txSet)
 {
-    if(mCurrentHeader.hash == slotBallot.ballot.previousLedgerHash)
+    if (mCurrentHeader.hash == txSet->getPreviousLedgerHash())
     {
         mCaughtUp = true;
         closeLedger(txSet);

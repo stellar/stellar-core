@@ -17,7 +17,6 @@ class VirtualClock;
 class Config;
 class LedgerGateway;
 class LedgerMaster;
-class FBAGateway;
 class CLFMaster;
 class HistoryMaster;
 class ProcessGateway;
@@ -107,7 +106,6 @@ class Application
     medida::MetricsRegistry& getMetrics();
     LedgerGateway& getLedgerGateway();
     LedgerMaster& getLedgerMaster();
-    FBAGateway& getFBAGateway();
     CLFMaster& getCLFMaster();
     HistoryMaster& getHistoryMaster();
     ProcessGateway& getProcessGateway();

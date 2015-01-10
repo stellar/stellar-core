@@ -22,6 +22,7 @@ TxSetFrame::TxSetFrame(TransactionSet const& xdrSet)
             TransactionFrame::makeTransactionFromWire(txEnvelope);
         mTransactions.push_back(tx);
     }
+    mPreviousLedgerHash = xdrSet.previousLedgerHash;
 }
 
 struct HashTxSorter
@@ -185,6 +186,12 @@ TxSetFrame::getTransaction(uint256 const& txHash)
             return (tx);
     }
     return (TransactionFramePtr());
+}
+
+uint256
+TxSetFrame::getPreviousLedgerHash()
+{
+  return mPreviousLedgerHash;
 }
 
 // save this tx set to the node store in serialized format

@@ -6,9 +6,10 @@
 // this distribution or at http://opensource.org/licenses/ISC
 
 #include <map>
+#include "overlay/OverlayGateway.h"
 #include "txherder/TxSetFrame.h"
 #include "overlay/Peer.h"
-#include "fba/QuorumSet.h"
+#include "generated/FBAXDR.h"
 #include "util/Timer.h"
 
 /*
@@ -98,11 +99,11 @@ class QSetFetcher : public ItemFetcher
     QSetFetcher(Application& app) : ItemFetcher(app)
     {
     }
-    QuorumSet::pointer fetchItem(uint256 const& itemID,
+    FBAQuorumSetPtr fetchItem(uint256 const& itemID,
                                  bool askNetwork);
     // looks to see if we know about it but doesn't ask the network
-    QuorumSet::pointer findItem(uint256 const& itemID);
-    void recvItem(QuorumSet::pointer qSet);
+    FBAQuorumSetPtr findItem(uint256 const& itemID);
+    void recvItem(FBAQuorumSetPtr qSet);
 };
 
 class TxSetTrackingCollar : public TrackingCollar
@@ -126,7 +127,7 @@ class QSetTrackingCollar : public TrackingCollar
     void askPeer(Peer::pointer peer);
 
   public:
-    QuorumSet::pointer mQSet;
+    FBAQuorumSetPtr mQSet;
 
     QSetTrackingCollar(uint256 const& id, Application& app);
     bool
