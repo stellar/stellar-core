@@ -31,7 +31,7 @@ toNative(uint128_t x)
     return ((unsigned __int128)x.upper()) << 64 | x.lower();
 }
 
-unsigned bool
+bool
 toNative(bool x)
 {
     return x;
