@@ -31,6 +31,12 @@ toNative(uint128_t x)
     return ((unsigned __int128)x.upper()) << 64 | x.lower();
 }
 
+bool
+toNative(bool x)
+{
+    return x;
+}
+
 struct gen128
 {
     typedef unsigned __int128 result_type;
