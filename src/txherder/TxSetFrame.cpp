@@ -134,14 +134,16 @@ bool TxSetFrame::checkValid(Application& app)
             if(!first)
             {    
                 if(!tx->loadAccount(app)) return false;
-                if(tx->getSeqNum() != tx->getSourceAccount().getSeqNum() + 1) return false;
+                
+                // make sure account can pay the fee for all these tx
                 if(tx->getSourceAccount().getBalance() < 
                     item.second.size() * app.getLedgerGateway().getTxFee()) return false;
             } else
             {
                 tx->getSourceAccount() = first->getSourceAccount();
-                if(tx->getSeqNum() != first->getSeqNum() + 1) return false;
             }
+            
+            if(tx->getSeqNum() < tx->getSourceAccount().getSeqNum() + 1) return false;
             first = tx;
 
             if(!tx->checkValid(app)) return false;

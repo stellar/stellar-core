@@ -118,13 +118,10 @@ TxHerder::recvTransactionSet(TxSetFramePtr txSet)
 }
 
 
-// TODO.2 we need to make the distinction about when to flood vs when a tx makes a set invalid 
-// TODO.2 if we get a tx with a duplicate seqnum drop the lower one.
 // return true if we should flood
 bool
 TxHerder::recvTransaction(TransactionFramePtr tx)
 {
-    uint32 maxSeqNum = 0;
     int numOthers=0;
     uint256& txID = tx->getID();
     // determine if we have seen this tx before and if not if it has the right seq num
@@ -136,7 +133,6 @@ TxHerder::recvTransaction(TransactionFramePtr tx)
                 return false;
             if(oldTX->getSourceID() == tx->getSourceID())
             {
-                if(oldTX->getSeqNum() < maxSeqNum) maxSeqNum = oldTX->getSeqNum();
                 numOthers++;
             }
         }
@@ -144,9 +140,8 @@ TxHerder::recvTransaction(TransactionFramePtr tx)
 
     if(!tx->loadAccount(mApp)) return false;
     
-    // any new tx should have a seqnum 1 higher than the highest we have heard of or 1 higher than the account seqnum
-    if(!maxSeqNum) maxSeqNum = tx->getSourceAccount().getSeqNum();
-    if(tx->getSeqNum() != maxSeqNum + 1) return false;
+    // don't flood any tx with to old a seq num
+    if(tx->getSeqNum() < tx->getSourceAccount().getSeqNum() + 1) return false;
     
     
     // don't consider minBalance since you want to allow them to still send around credit etc

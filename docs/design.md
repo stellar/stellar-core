@@ -22,12 +22,14 @@
  - End to end tests, replaying a known set of tx  
  - inflation tx (nicolas)
  - store validations in the DB
+ - tx set reconciliation
  - fuzzer
 
 
 
 Things we know we probably want to add later but design earlier than later
 to avoid churn on the protocol front:
+- some common place to look up tx memos, multisig txs, etc
 - private transactions
 - scripting
 
