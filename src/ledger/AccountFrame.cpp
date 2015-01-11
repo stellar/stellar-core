@@ -90,11 +90,11 @@ uint32_t AccountFrame::getLowThreshold()
     return mEntry.account().thresholds[1];
 }
 
-void AccountFrame::storeDelete(Json::Value& txResult, LedgerMaster& ledgerMaster)
+void AccountFrame::storeDelete(rapidjson::Value& txResult, LedgerMaster& ledgerMaster)
 {
     std::string base58ID = toBase58Check(VER_ACCOUNT_ID, getIndex());
 
-    txResult["effects"]["delete"][base58ID];
+    txResult["effects"]["delete"][base58ID.c_str()];
 
     ledgerMaster.getDatabase().getSession() << 
         "DELETE from Accounts where accountID= :v1", soci::use(base58ID);
@@ -104,7 +104,7 @@ void AccountFrame::storeDelete(Json::Value& txResult, LedgerMaster& ledgerMaster
         "DELETE from Signers where accountID= :v1", soci::use(base58ID);
 }
 
-void AccountFrame::storeUpdate(EntryFrame::pointer startFrom, Json::Value& txResult,
+void AccountFrame::storeUpdate(EntryFrame::pointer startFrom, rapidjson::Value& txResult,
     LedgerMaster& ledgerMaster, bool insert)
 {
     AccountEntry& finalAccount = mEntry.account();
@@ -130,17 +130,17 @@ void AccountFrame::storeUpdate(EntryFrame::pointer startFrom, Json::Value& txRes
 
     if(insert || finalAccount.balance != startAccount.balance)
     { 
-        txResult["effects"][op][base58ID]["balance"] = (Json::Int64)finalAccount.balance;
+        txResult["effects"][op][base58ID.c_str()]["balance"] = finalAccount.balance;
     }
 
     if(insert || finalAccount.sequence != startAccount.sequence || insert)
     {
-        txResult["effects"][op][base58ID]["sequence"] = finalAccount.sequence;
+        txResult["effects"][op][base58ID.c_str()]["sequence"] = finalAccount.sequence;
     }
 
     if(insert || finalAccount.transferRate != startAccount.transferRate)
     {
-        txResult["effects"][op][base58ID]["transferRate"] = finalAccount.transferRate;
+        txResult["effects"][op][base58ID.c_str()]["transferRate"] = finalAccount.transferRate;
     }
 
     soci::indicator inflation_ind = soci::i_null;
@@ -152,22 +152,22 @@ void AccountFrame::storeUpdate(EntryFrame::pointer startFrom, Json::Value& txRes
         {
             inflationDestStr = toBase58Check(VER_ACCOUNT_PUBLIC, *finalAccount.inflationDest);
             inflation_ind = soci::i_ok;
-            txResult["effects"][op][base58ID]["inflationDest"] = inflationDestStr;
+            txResult["effects"][op][base58ID.c_str()]["inflationDest"] = inflationDestStr.c_str();
         }
     }
     
     if(insert || finalAccount.thresholds != startAccount.thresholds)
     {
-        txResult["effects"][op][base58ID]["thresholds"][0] = finalAccount.thresholds[0];
-        txResult["effects"][op][base58ID]["thresholds"][1] = finalAccount.thresholds[1];
-        txResult["effects"][op][base58ID]["thresholds"][2] = finalAccount.thresholds[2];
-        txResult["effects"][op][base58ID]["thresholds"][3] = finalAccount.thresholds[3];
+        txResult["effects"][op][base58ID.c_str()]["thresholds"]['0'] = finalAccount.thresholds[0];
+        txResult["effects"][op][base58ID.c_str()]["thresholds"]['1'] = finalAccount.thresholds[1];
+        txResult["effects"][op][base58ID.c_str()]["thresholds"]['2'] = finalAccount.thresholds[2];
+        txResult["effects"][op][base58ID.c_str()]["thresholds"]['3'] = finalAccount.thresholds[3];
     }
     
 
     if(insert || mEntry.account().flags != startAccount.flags)
     {
-        txResult["effects"][op][base58ID]["flags"] = finalAccount.flags;
+        txResult["effects"][op][base58ID.c_str()]["flags"] = finalAccount.flags;
     }
 
     // TODO.3   KeyValue data
@@ -190,7 +190,7 @@ void AccountFrame::storeUpdate(EntryFrame::pointer startFrom, Json::Value& txRes
                     if(finalSigner.weight != startSigner.weight)
                     {
                         std::string b58signKey = toBase58Check(VER_ACCOUNT_ID, finalSigner.pubKey);
-                        txResult["effects"]["mod"][base58ID]["signers"][b58signKey] = finalSigner.weight;
+                        txResult["effects"]["mod"][base58ID.c_str()]["signers"][b58signKey.c_str()] = finalSigner.weight;
                         ledgerMaster.getDatabase().getSession() << "UPDATE Signers set weight=:v1 where accountID=:v2 and pubKey=:v3",
                             use(finalSigner.weight), use(base58ID), use(b58signKey);
                     }
@@ -201,7 +201,7 @@ void AccountFrame::storeUpdate(EntryFrame::pointer startFrom, Json::Value& txRes
             if(!found)
             { // delete signer
                 std::string b58signKey = toBase58Check(VER_ACCOUNT_ID, startSigner.pubKey);
-                txResult["effects"]["mod"][base58ID]["signers"][b58signKey] = 0;
+                txResult["effects"]["mod"][base58ID.c_str()]["signers"][b58signKey.c_str()] = 0;
                 ledgerMaster.getDatabase().getSession() << "DELETE from Signers where accountID=:v2 and pubKey=:v3",
                      use(base58ID), use(b58signKey);
             }
@@ -218,7 +218,7 @@ void AccountFrame::storeUpdate(EntryFrame::pointer startFrom, Json::Value& txRes
                     if(finalSigner.weight != startSigner.weight)
                     {
                         std::string b58signKey = toBase58Check(VER_ACCOUNT_ID, finalSigner.pubKey);
-                        txResult["effects"][op][base58ID]["signers"][b58signKey] = finalSigner.weight;
+                        txResult["effects"][op][base58ID.c_str()]["signers"][b58signKey.c_str()] = finalSigner.weight;
                         ledgerMaster.getDatabase().getSession() << "UPDATE Signers set weight=:v1 where accountID=:v2 and pubKey=:v3",
                             use(finalSigner.weight), use(base58ID), use(b58signKey);
                     }
@@ -229,7 +229,7 @@ void AccountFrame::storeUpdate(EntryFrame::pointer startFrom, Json::Value& txRes
             if(!found)
             { // new signer
                 std::string b58signKey = toBase58Check(VER_ACCOUNT_ID, finalSigner.pubKey);
-                txResult["effects"]["new"][base58ID]["signers"][b58signKey] = finalSigner.weight;
+                txResult["effects"]["new"][base58ID.c_str()]["signers"][b58signKey.c_str()] = finalSigner.weight;
                 ledgerMaster.getDatabase().getSession() << "INSERT INTO Signers (accountID,pubKey,weight) values (:v1,:v2,:v3)",
                     use(base58ID), use(b58signKey), use(finalSigner.weight);
             }
@@ -238,12 +238,12 @@ void AccountFrame::storeUpdate(EntryFrame::pointer startFrom, Json::Value& txRes
 }
 
 void AccountFrame::storeChange(EntryFrame::pointer startFrom,
-    Json::Value& txResult, LedgerMaster& ledgerMaster)
+    rapidjson::Value& txResult, LedgerMaster& ledgerMaster)
 {
     storeUpdate(startFrom, txResult, ledgerMaster, false);
 }
 
-void AccountFrame::storeAdd(Json::Value& txResult, LedgerMaster& ledgerMaster)
+void AccountFrame::storeAdd(rapidjson::Value& txResult, LedgerMaster& ledgerMaster)
 {
     EntryFrame::pointer emptyAccount = make_shared<AccountFrame>();
     storeUpdate(emptyAccount, txResult, ledgerMaster, true);

@@ -13,8 +13,6 @@
 
 using namespace stellar;
 
-// TODO.2 switch to only one json lib
-
 typedef std::unique_ptr<Application> appPtr;
 
 // see if we flood at the right times

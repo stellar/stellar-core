@@ -165,9 +165,6 @@
     <ClCompile Include="..\..\src\util\Timer.cpp">
       <Filter>util</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\lib\json\jsoncpp.cpp">
-      <Filter>lib\json</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\ledger\LedgerDelta.cpp">
       <Filter>ledger</Filter>
     </ClCompile>
@@ -461,12 +458,6 @@
     <ClInclude Include="..\..\src\util\Timer.h">
       <Filter>util</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\lib\json\json\json.h">
-      <Filter>lib\json</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\lib\json\json\json-forwards.h">
-      <Filter>lib\json</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\src\ledger\LedgerDelta.h">
       <Filter>ledger</Filter>
     </ClInclude>
@@ -574,6 +565,9 @@
     </ClInclude>
     <ClInclude Include="..\..\src\ledger\LedgerHeaderFrame.h">
       <Filter>ledger</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\lib\json\json.h">
+      <Filter>lib\json</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

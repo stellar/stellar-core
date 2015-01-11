@@ -88,7 +88,7 @@ void TxDelta::removeFinal(EntryFrame& entry)
 }
 
 
-void TxDelta::commitDelta(Json::Value& txResult, LedgerDelta& ledgerDelta, LedgerMaster& ledgerMaster)
+void TxDelta::commitDelta(rapidjson::Value& txResult, LedgerDelta& ledgerDelta, LedgerMaster& ledgerMaster)
 {
     // run through every value of the start and end and make the correct SQL 
     for(auto pair : mStartEnd)
@@ -110,10 +110,10 @@ void TxDelta::commitDelta(Json::Value& txResult, LedgerDelta& ledgerDelta, Ledge
 
     // save the Json in the DB
     std::stringstream json;
-    json << txResult;
+    json << txResult.GetString();
     ledgerMaster.getDatabase().getSession() <<
         "INSERT INTO TxDelta (txID,ledgerSeq,json) values (:v1,:v2,:v3)",
-        soci::use(txResult["id"].asString()), soci::use(txResult["ledger"].asInt()),
+        soci::use(std::string(txResult["id"].GetString())), soci::use(txResult["ledger"].GetInt()),
         soci::use(json.str());
 }
 

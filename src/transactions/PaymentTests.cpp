@@ -59,7 +59,7 @@ TEST_CASE("payment", "[tx][payment]")
     TxDelta delta;
     txFrame->apply(delta, app);
 
-    Json::Value jsonResult;
+    rapidjson::Value jsonResult;
     LedgerDelta ledgerDelta;
 
     delta.commitDelta(jsonResult, ledgerDelta, app.getLedgerMaster());
@@ -79,7 +79,7 @@ TEST_CASE("payment", "[tx][payment]")
         TxDelta delta2;
         txFrame2->apply(delta2, app);
 
-        Json::Value jsonResult2;
+        rapidjson::Value jsonResult2;
         LedgerDelta ledgerDelta2;
 
         delta2.commitDelta(jsonResult2, ledgerDelta2, app.getLedgerMaster());
@@ -98,7 +98,7 @@ TEST_CASE("payment", "[tx][payment]")
         TxDelta delta2;
         txFrame2->apply(delta2, app);
 
-        Json::Value jsonResult2;
+        rapidjson::Value jsonResult2;
         LedgerDelta ledgerDelta2;
 
         delta2.commitDelta(jsonResult2, ledgerDelta2, app.getLedgerMaster());
@@ -118,7 +118,7 @@ TEST_CASE("payment", "[tx][payment]")
         TxDelta delta2;
         txFrame2->apply(delta2, app);
 
-        Json::Value jsonResult2;
+        rapidjson::Value jsonResult2;
         LedgerDelta ledgerDelta2;
 
         delta2.commitDelta(jsonResult2, ledgerDelta2, app.getLedgerMaster());
@@ -139,7 +139,7 @@ TEST_CASE("payment", "[tx][payment]")
             TxDelta delta2;
             txFrame->apply(delta2, app);
 
-            Json::Value jsonResult2;
+            rapidjson::Value jsonResult2;
             LedgerDelta ledgerDelta2;
 
             delta2.commitDelta(jsonResult2, ledgerDelta2, app.getLedgerMaster());
@@ -154,7 +154,7 @@ TEST_CASE("payment", "[tx][payment]")
             TxDelta delta2;
             txFrame2->apply(delta2, app);
 
-            Json::Value jsonResult2;
+            rapidjson::Value jsonResult2;
             LedgerDelta ledgerDelta2;
 
             delta2.commitDelta(jsonResult2, ledgerDelta2, app.getLedgerMaster());
@@ -170,7 +170,7 @@ TEST_CASE("payment", "[tx][payment]")
             TxDelta delta2;
             txFrame->apply(delta2, app);
 
-            Json::Value jsonResult2;
+            rapidjson::Value jsonResult2;
             LedgerDelta ledgerDelta2;
 
             delta2.commitDelta(jsonResult2, ledgerDelta2, app.getLedgerMaster());
@@ -184,7 +184,7 @@ TEST_CASE("payment", "[tx][payment]")
             TxDelta delta;
             txFrame->apply(delta, app);
 
-            Json::Value jsonResult;
+            rapidjson::Value jsonResult;
             LedgerDelta ledgerDelta;
 
             delta.commitDelta(jsonResult, ledgerDelta, app.getLedgerMaster());
@@ -202,7 +202,7 @@ TEST_CASE("payment", "[tx][payment]")
                 TxDelta delta;
                 txFrame->apply(delta, app);
 
-                Json::Value jsonResult;
+                rapidjson::Value jsonResult;
                 LedgerDelta ledgerDelta;
 
                 delta.commitDelta(jsonResult, ledgerDelta, app.getLedgerMaster());

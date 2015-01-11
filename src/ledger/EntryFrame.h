@@ -6,7 +6,7 @@
 // this distribution or at http://opensource.org/licenses/ISC
 
 #include "generated/StellarXDR.h"
-#include "lib/json/json-forwards.h"
+#include "lib/json/json.h"
 
 /*
 Frame
@@ -19,13 +19,7 @@ namespace stellar
 {
     class LedgerMaster;
     class Database;
-    /*
-    extern void getIndex(const LedgerEntry& entry, const uint256& retIndex);
-
-    extern void storeDelete(const LedgerEntry& entry, Json::Value& txResult, LedgerMaster& ledgerMaster);
-    extern void storeChange(const LedgerEntry& entry, const LedgerEntry& startFrom, Json::Value& txResult, LedgerMaster& ledgerMaster);
-    extern void storeAdd(const LedgerEntry& entry, Json::Value& txResult, LedgerMaster& ledgerMaster);
-    */
+    
     
 	class EntryFrame
 	{
@@ -55,9 +49,9 @@ namespace stellar
 
 		
 		// these will do the appropriate thing in the DB and the json txResult
-		virtual void storeDelete(Json::Value& txResult, LedgerMaster& ledgerMaster)=0;
-		virtual void storeChange(EntryFrame::pointer startFrom, Json::Value& txResult, LedgerMaster& ledgerMaster)=0;
-		virtual void storeAdd(Json::Value& txResult, LedgerMaster& ledgerMaster)=0;
+		virtual void storeDelete(rapidjson::Value& txResult, LedgerMaster& ledgerMaster)=0;
+		virtual void storeChange(EntryFrame::pointer startFrom, rapidjson::Value& txResult, LedgerMaster& ledgerMaster)=0;
+		virtual void storeAdd(rapidjson::Value& txResult, LedgerMaster& ledgerMaster)=0;
 
         static void dropAll(Database &db); // deletes all data from DB
 	};

@@ -24,9 +24,9 @@ namespace stellar {
 
         EntryFrame::pointer copy()  const { return EntryFrame::pointer(new TrustFrame(*this)); }
 
-        void storeDelete(Json::Value& txResult, LedgerMaster& ledgerMaster);
-        void storeChange(EntryFrame::pointer startFrom, Json::Value& txResult, LedgerMaster& ledgerMaster);
-        void storeAdd(Json::Value& txResult, LedgerMaster& ledgerMaster);
+        void storeDelete(rapidjson::Value& txResult, LedgerMaster& ledgerMaster);
+        void storeChange(EntryFrame::pointer startFrom, rapidjson::Value& txResult, LedgerMaster& ledgerMaster);
+        void storeAdd(rapidjson::Value& txResult, LedgerMaster& ledgerMaster);
 
         static void dropAll(Database &db);
         static const char *kSQLCreateStatement;
