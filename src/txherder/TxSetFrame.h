@@ -32,10 +32,9 @@ class TxSetFrame
     // make it from the wire
     TxSetFrame(TransactionSet const& xdrSet);
 
-    TransactionFramePtr getTransaction(uint256 const& txHash);
     // returns the hash of this tx set
-    uint256 getContentsHash();
-    uint256 getPreviousLedgerHash();
+    Hash getContentsHash();
+    Hash getPreviousLedgerHash();
 
     void sortForHash();
 
@@ -48,8 +47,6 @@ class TxSetFrame
     {
         mTransactions.push_back(tx);
     }
-
-    void store();
 
     size_t
     size()

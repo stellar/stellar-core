@@ -61,24 +61,24 @@ TransactionFrame::TransactionFrame(const TransactionEnvelope& envelope) : mEnvel
     mResultCode = txUNKNOWN;
 }
     
-
-uint256& TransactionFrame::getID()
+Hash& TransactionFrame::getFullHash()
 {
-    if(isZero(mID))
+    if(isZero(mFullHash))
     {
-        mID = sha512_256(xdr::xdr_to_msg(mEnvelope));
+        mFullHash = sha512_256(xdr::xdr_to_msg(mEnvelope));
     }
-    return(mID);
+    return(mFullHash);
 }
 
-Hash& TransactionFrame::getHash()
+Hash& TransactionFrame::getContentsHash()
 {
-	if(isZero(mHash))
+    if(isZero(mContentsHash))
     {
-        mHash = sha512_256(xdr::xdr_to_msg(mEnvelope.tx));
+        mContentsHash = sha512_256(xdr::xdr_to_msg(mEnvelope.tx));
 	}
-	return(mHash);
+	return(mContentsHash);
 }
+
 
 TransactionEnvelope&
 TransactionFrame::getEnvelope()
@@ -187,7 +187,7 @@ bool TransactionFrame::apply(TxDelta& delta, Application& app)
 
 void TransactionFrame::addSignature(const SecretKey& secretKey)
 {
-    uint512 sig = secretKey.sign(getHash());
+    uint512 sig = secretKey.sign(getContentsHash());
     mEnvelope.signatures.push_back(sig);
 }
 
@@ -211,7 +211,7 @@ bool TransactionFrame::checkSignature()
     if(keyWeights.size() < mEnvelope.signatures.size())
         return false;
 
-    Hash& txHash = getHash();
+    getContentsHash();
     
     // calculate the weight of the signatures
     int totalWeight = 0;
@@ -220,7 +220,7 @@ bool TransactionFrame::checkSignature()
         bool found = false;
         for(auto it = keyWeights.begin(); it != keyWeights.end(); it++)
         {
-            if(PublicKey::verifySig((*it).pubKey, sig, txHash))
+            if(PublicKey::verifySig((*it).pubKey, sig, mContentsHash))
             {
                 totalWeight += (*it).weight;
                 if(totalWeight > getNeededThreshold())

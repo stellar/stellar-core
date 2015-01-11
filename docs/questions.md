@@ -23,6 +23,13 @@ Is simple bool success or failure enough for to put in the ledger for tx?
 	What about later when there are more complicated scripts?
 	Maybe we should make everything composable of simpler tx.
 
+If we id txs by hash of contents then there are multiple txs that could match
+ maybe same contents were submitted too early and failed without consuming the seq num
+ maybe two different sets of signers submitted the same contents 
+ but
+ If we id by hash(contents + sig) we have similar problems
+ I think we have to id by account:seqnum that is garaunteed to be a unique tx
+ but we still need a way to refer to txs that didn't claim a seq num? 
 
 
 

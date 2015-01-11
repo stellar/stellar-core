@@ -30,8 +30,8 @@ namespace stellar
 	protected:
         TransactionEnvelope mEnvelope;
 		AccountFrame mSigningAccount;	
-        uint256 mHash;  // the hash of the contents
-        uint256 mID;    // the hash of the contents and the sig. This uniquely IDs this tx
+        Hash mContentsHash;  // the hash of the contents
+        Hash mFullHash;    // the hash of the contents and the sig. 
         TxResultCode mResultCode;
 
 
@@ -45,16 +45,14 @@ namespace stellar
         
         int64_t getTransferRate(Currency& currency, LedgerMaster& ledgerMaster);
 
-        //bool isAuthorizedToHold(const AccountEntry& accountID, const CurrencyIssuer& currency,LedgerMaster& ledgerMaster);
 	public:
 		typedef std::shared_ptr<TransactionFrame> pointer;
 
         TransactionFrame(const TransactionEnvelope& envelope);
 
-		//static TransactionFramePtr makeTransactionFromDB();
 		static TransactionFrame::pointer makeTransactionFromWire(TransactionEnvelope const& msg);
-        Hash& getHash();
-        uint256& getID();
+        Hash& getFullHash();
+        Hash& getContentsHash();
         uint32 getSeqNum() { return mEnvelope.tx.seqNum; }
         TransactionEnvelope& getEnvelope();
         AccountFrame& getSourceAccount() { return mSigningAccount;  }

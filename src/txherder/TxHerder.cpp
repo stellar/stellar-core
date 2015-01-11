@@ -123,13 +123,13 @@ bool
 TxHerder::recvTransaction(TransactionFramePtr tx)
 {
     int numOthers=0;
-    uint256& txID = tx->getID();
+    Hash& txID = tx->getFullHash();
     // determine if we have seen this tx before and if not if it has the right seq num
     for(auto list : mReceivedTransactions)
     {
         for(auto oldTX : list)
         {
-            if(txID == oldTX->getID())
+            if(txID == oldTX->getFullHash())
                 return false;
             if(oldTX->getSourceID() == tx->getSourceID())
             {
@@ -168,7 +168,7 @@ TxHerder::removeReceivedTx(TransactionFramePtr dropTX)
     {
         for (auto iter = list.begin(); iter != list.end();)
         {
-            if ((iter.operator->())->get()->getHash() == dropTX->getHash())
+            if ((iter.operator->())->get()->getFullHash() == dropTX->getFullHash())
             {
                 list.erase(iter);
                 return;

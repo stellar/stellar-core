@@ -157,7 +157,7 @@ void LedgerMaster::closeLedger(TxSetFramePtr txSet)
             }
 
             Json::Value txResult;
-            txResult["id"] = binToHex(tx->getHash());
+            txResult["id"] = binToHex(tx->getContentsHash());
             txResult["code"] = tx->getResultCode();
             txResult["ledger"] = (Json::UInt64)mCurrentLedger->mHeader.ledgerSeq;
 
