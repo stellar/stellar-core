@@ -20,6 +20,7 @@ typedef int int32;
 typedef opaque AccountID[32];
 typedef opaque Signature[64];
 typedef opaque Hash[32];
+typedef opaque Thresholds[4];
 
 struct Error
 {
@@ -120,7 +121,7 @@ struct SetOptionsTx
 	uint32*	flags;
 	uint32* transferRate;
 	KeyValue* data;
-	uint32* thresholds;
+	Thresholds* thresholds;
 	Signer* signer;
 };
 
