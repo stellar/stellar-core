@@ -85,9 +85,10 @@ src/generated/FBAXDR.h: $(XDRC)
 
 bin_stellard_SOURCES = $(FMT_SRCS) \
                        $(BUILT_SOURCES) \
-                       src/lib/util/getopt_long.c \
-                       src/lib/util/format.cc \
-                       src/lib/util/uint128_t.cpp \
+                       src/lib/util/getopt_long.c  \
+                       src/lib/util/format.cc      \
+                       src/lib/util/uint128_t.cpp  \
+                       src/lib/json/jsoncpp.cpp    \
                        src/lib/http/HttpClient.cpp \
                        src/lib/http/connection.cpp \
                        src/lib/http/connection_manager.cpp \
