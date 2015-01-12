@@ -87,7 +87,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
         {
             TxDelta delta;
-            rapidjson::Value jsonResult;
+            Json::Value jsonResult;
             LedgerDelta ledgerDelta;
 
             SECTION("Insufficient fee")

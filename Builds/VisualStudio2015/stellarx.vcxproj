@@ -117,6 +117,7 @@
     <ClCompile Include="..\..\src\lib\http\reply.cpp" />
     <ClCompile Include="..\..\src\lib\http\request_parser.cpp" />
     <ClCompile Include="..\..\src\lib\http\server.cpp" />
+    <ClCompile Include="..\..\src\lib\json\jsoncpp.cpp" />
     <ClCompile Include="..\..\src\lib\util\format.cc">
       <DisableSpecificWarnings Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">4456</DisableSpecificWarnings>
       <DisableSpecificWarnings Condition="'$(Configuration)|$(Platform)'=='Release|x64'">4456</DisableSpecificWarnings>
@@ -228,7 +229,8 @@
     <ClInclude Include="..\..\src\lib\http\request.hpp" />
     <ClInclude Include="..\..\src\lib\http\request_parser.hpp" />
     <ClInclude Include="..\..\src\lib\http\server.hpp" />
-    <ClInclude Include="..\..\src\lib\json\json.h" />
+    <ClInclude Include="..\..\src\lib\json\json\json-forwards.h" />
+    <ClInclude Include="..\..\src\lib\json\json\json.h" />
     <ClInclude Include="..\..\src\lib\util\cpptoml.h" />
     <ClInclude Include="..\..\src\lib\util\easylogging++.h" />
     <ClInclude Include="..\..\src\lib\util\format.h" />

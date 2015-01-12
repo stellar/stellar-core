@@ -13,7 +13,7 @@ namespace stellar
 	class AccountFrame : public EntryFrame
 	{
 		void calculateIndex();
-        void storeUpdate(EntryFrame::pointer startFrom, rapidjson::Value& txResult,
+        void storeUpdate(EntryFrame::pointer startFrom, Json::Value& txResult,
             LedgerMaster& ledgerMaster, bool insert);
 	public:
         typedef std::shared_ptr<AccountFrame> pointer;
@@ -40,9 +40,9 @@ namespace stellar
         uint32_t getLowThreshold();
         uint32_t getSeqNum();
 
-        void storeDelete(rapidjson::Value& txResult, LedgerMaster& ledgerMaster);
-        void storeChange(EntryFrame::pointer startFrom, rapidjson::Value& txResult, LedgerMaster& ledgerMaster);
-        void storeAdd(rapidjson::Value& txResult, LedgerMaster& ledgerMaster);
+        void storeDelete(Json::Value& txResult, LedgerMaster& ledgerMaster);
+        void storeChange(EntryFrame::pointer startFrom, Json::Value& txResult, LedgerMaster& ledgerMaster);
+        void storeAdd(Json::Value& txResult, LedgerMaster& ledgerMaster);
 	
 
         static void dropAll(Database &db);

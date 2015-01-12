@@ -24,7 +24,7 @@ public:
     void addFee(uint64_t fee) { mFee += fee; }
     uint64_t getCollectedFee() { return mFee; }
 
-    void commitDelta(rapidjson::Value& txResult, LedgerDelta& delta, LedgerMaster& ledgerMaster);
+    void commitDelta(Json::Value& txResult, LedgerDelta& delta, LedgerMaster& ledgerMaster);
 
     static void dropAll(Database& db);
     static const char *kSQLCreateStatement;

@@ -12,7 +12,7 @@
 #include "generated/StellarXDR.h"
 #include "transactions/TxResultCode.h"
 #include "util/types.h"
-#include "lib/json/json.h"
+#include "lib/json/json-forwards.h"
 #include "transactions/TxDelta.h"
 
 /*

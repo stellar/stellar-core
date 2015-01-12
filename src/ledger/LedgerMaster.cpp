@@ -53,7 +53,7 @@ void LedgerMaster::startNewLedger()
     SecretKey skey = SecretKey::fromBase58Seed(b58SeedStr);
     AccountFrame masterAccount(skey.getPublicKey());
     masterAccount.mEntry.account().balance = 100000000000000;
-    rapidjson::Value result;
+    Json::Value result;
     masterAccount.storeAdd(result, *this);
 
     LedgerHeader genenisHeader;
@@ -156,10 +156,10 @@ void LedgerMaster::closeLedger(TxSetFramePtr txSet)
                 successfulTX.add(tx);
             }
 
-            rapidjson::Value txResult;
-            txResult["id"] = binToHex(tx->getContentsHash()).c_str();
+            Json::Value txResult;
+            txResult["id"] = binToHex(tx->getContentsHash());
             txResult["code"] = tx->getResultCode();
-            txResult["ledger"] = mCurrentLedger->mHeader.ledgerSeq;
+            txResult["ledger"] = (Json::UInt64)mCurrentLedger->mHeader.ledgerSeq;
 
             delta.commitDelta(txResult, ledgerDelta, *this );
             mCurrentLedger->mHeader.feePool += delta.getCollectedFee();

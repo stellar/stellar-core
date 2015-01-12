@@ -43,16 +43,16 @@ namespace stellar {
         mIndex = hasher.finish();
     }
 
-    void TrustFrame::storeDelete(rapidjson::Value& txResult, LedgerMaster& ledgerMaster)
+    void TrustFrame::storeDelete(Json::Value& txResult, LedgerMaster& ledgerMaster)
     {
         std::string base58ID = toBase58Check(VER_ACCOUNT_ID, getIndex());
 
-        txResult["effects"]["delete"][base58ID.c_str()];
+        txResult["effects"]["delete"][base58ID];
 
         ledgerMaster.getDatabase().getSession() <<
             "DELETE from TrustLines where trustIndex= :v1", soci::use(base58ID);
     }
-    void TrustFrame::storeChange(EntryFrame::pointer startFrom, rapidjson::Value& txResult, LedgerMaster& ledgerMaster)
+    void TrustFrame::storeChange(EntryFrame::pointer startFrom, Json::Value& txResult, LedgerMaster& ledgerMaster)
     {
         std::string base58ID = toBase58Check(VER_ACCOUNT_ID, getIndex());
 
@@ -64,7 +64,7 @@ namespace stellar {
         if(mEntry.trustLine().balance != startFrom->mEntry.trustLine().balance)
         {
             sql << " balance= " << mEntry.trustLine().balance;
-            txResult["effects"]["mod"][base58ID.c_str()]["balance"] = mEntry.trustLine().balance;
+            txResult["effects"]["mod"][base58ID]["balance"] = (Json::Int64)mEntry.trustLine().balance;
 
             before = true;
         }
@@ -73,7 +73,7 @@ namespace stellar {
         {
             if(before) sql << ", ";
             sql << " tlimit= " << mEntry.trustLine().limit;
-            txResult["effects"]["mod"][base58ID.c_str()]["limit"] = mEntry.trustLine().limit;
+            txResult["effects"]["mod"][base58ID]["limit"] = (Json::Int64)mEntry.trustLine().limit;
             before = true;
         }
 
@@ -81,7 +81,7 @@ namespace stellar {
         {
             if(before) sql << ", ";
             sql << " authorized= " << mEntry.trustLine().authorized;
-            txResult["effects"]["mod"][base58ID.c_str()]["authorized"] = mEntry.trustLine().authorized;
+            txResult["effects"]["mod"][base58ID]["authorized"] = mEntry.trustLine().authorized;
            
         }
 
@@ -89,7 +89,7 @@ namespace stellar {
         ledgerMaster.getDatabase().getSession() << sql.str();
     }
 
-    void TrustFrame::storeAdd(rapidjson::Value& txResult, LedgerMaster& ledgerMaster)
+    void TrustFrame::storeAdd(Json::Value& txResult, LedgerMaster& ledgerMaster)
     {
         std::string base58Index = toBase58Check(VER_ACCOUNT_ID, getIndex());
         std::string b58AccountID = toBase58Check(VER_ACCOUNT_ID, mEntry.trustLine().accountID);
@@ -102,12 +102,12 @@ namespace stellar {
             soci::use(currencyCode), soci::use(mEntry.trustLine().limit),
             soci::use((int)mEntry.trustLine().authorized);
 
-        txResult["effects"]["new"][base58Index.c_str()]["type"] = "trust";
-        txResult["effects"]["new"][base58Index.c_str()]["accountID"] = b58AccountID.c_str();
-        txResult["effects"]["new"][base58Index.c_str()]["issuer"] = b58Issuer.c_str();
-        txResult["effects"]["new"][base58Index.c_str()]["currency"] = currencyCode.c_str();
-        txResult["effects"]["new"][base58Index.c_str()]["limit"] = mEntry.trustLine().limit;
-        txResult["effects"]["new"][base58Index.c_str()]["authorized"] = mEntry.trustLine().authorized;
+        txResult["effects"]["new"][base58Index]["type"] = "trust";
+        txResult["effects"]["new"][base58Index]["accountID"] = b58AccountID;
+        txResult["effects"]["new"][base58Index]["issuer"] = b58Issuer;
+        txResult["effects"]["new"][base58Index]["currency"] = currencyCode;
+        txResult["effects"]["new"][base58Index]["limit"] = (Json::Int64)mEntry.trustLine().limit;
+        txResult["effects"]["new"][base58Index]["authorized"] = mEntry.trustLine().authorized;
     }
 
     void TrustFrame::dropAll(Database &db)

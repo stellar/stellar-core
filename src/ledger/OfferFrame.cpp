@@ -60,17 +60,17 @@ namespace stellar
 
     
 
-    void OfferFrame::storeDelete(rapidjson::Value& txResult, LedgerMaster& ledgerMaster)
+    void OfferFrame::storeDelete(Json::Value& txResult, LedgerMaster& ledgerMaster)
     {
         std::string base58ID = toBase58Check(VER_ACCOUNT_ID, getIndex());
 
-        txResult["effects"]["delete"][base58ID.c_str()];
+        txResult["effects"]["delete"][base58ID];
 
         ledgerMaster.getDatabase().getSession() <<
             "DELETE from Offers where offerIndex= :v1", soci::use(base58ID);
     }
 
-    void OfferFrame::storeChange(EntryFrame::pointer startFrom, rapidjson::Value& txResult, LedgerMaster& ledgerMaster)
+    void OfferFrame::storeChange(EntryFrame::pointer startFrom, Json::Value& txResult, LedgerMaster& ledgerMaster)
     {
         std::string base58ID = toBase58Check(VER_ACCOUNT_ID, getIndex());
 
@@ -82,7 +82,7 @@ namespace stellar
         if(mEntry.offer().amount != startFrom->mEntry.offer().amount)
         {
             sql << " amount= " << mEntry.offer().amount;
-            txResult["effects"]["mod"][base58ID.c_str()]["amount"] =mEntry.offer().amount;
+            txResult["effects"]["mod"][base58ID]["amount"] = (Json::Int64)mEntry.offer().amount;
 
             before = true;
         }
@@ -91,24 +91,24 @@ namespace stellar
         {
             if(before) sql << ", ";
             sql << " price= " << mEntry.offer().price;
-            txResult["effects"]["mod"][base58ID.c_str()]["price"] = mEntry.offer().price;
+            txResult["effects"]["mod"][base58ID]["price"] = (Json::Int64)mEntry.offer().price;
         }
 
         sql << " where offerIndex='" << base58ID << "';";
         ledgerMaster.getDatabase().getSession() << sql.str();
     }
 
-    void OfferFrame::storeAdd(rapidjson::Value& txResult, LedgerMaster& ledgerMaster)
+    void OfferFrame::storeAdd(Json::Value& txResult, LedgerMaster& ledgerMaster)
     {
         std::string b58Index = toBase58Check(VER_ACCOUNT_ID, getIndex());
         std::string b58AccountID = toBase58Check(VER_ACCOUNT_ID, mEntry.offer().accountID);
 
-        txResult["effects"]["new"][b58Index.c_str()]["type"] = "offer";
-        txResult["effects"]["new"][b58Index.c_str()]["accountID"] = b58AccountID.c_str();
-        txResult["effects"]["new"][b58Index.c_str()]["seq"] = mEntry.offer().sequence;
-        txResult["effects"]["new"][b58Index.c_str()]["amount"] = mEntry.offer().amount;
-        txResult["effects"]["new"][b58Index.c_str()]["price"] = mEntry.offer().price;
-        txResult["effects"]["new"][b58Index.c_str()]["flags"] = mEntry.offer().flags;
+        txResult["effects"]["new"][b58Index]["type"] = "offer";
+        txResult["effects"]["new"][b58Index]["accountID"] = b58AccountID;
+        txResult["effects"]["new"][b58Index]["seq"] = mEntry.offer().sequence;
+        txResult["effects"]["new"][b58Index]["amount"] = (Json::Int64)mEntry.offer().amount;
+        txResult["effects"]["new"][b58Index]["price"] = (Json::Int64)mEntry.offer().price;
+        txResult["effects"]["new"][b58Index]["flags"] = mEntry.offer().flags;
         
         if(mEntry.offer().takerGets.type()==NATIVE)
         {
@@ -121,8 +121,8 @@ namespace stellar
                 use(b58issuer),use(currencyCode),use(mEntry.offer().amount),
                 use(mEntry.offer().price),use(mEntry.offer().flags);
 
-            txResult["effects"]["new"][b58Index.c_str()]["takerPaysIssuer"] = b58issuer.c_str();
-            txResult["effects"]["new"][b58Index.c_str()]["takerPaysCurrency"] = currencyCode.c_str();
+            txResult["effects"]["new"][b58Index]["takerPaysIssuer"] = b58issuer;
+            txResult["effects"]["new"][b58Index]["takerPaysCurrency"] = currencyCode;
 
         } else if(mEntry.offer().takerPays.type()==NATIVE)
         {
@@ -135,8 +135,8 @@ namespace stellar
                 use(b58issuer), use(currencyCode), use(mEntry.offer().amount),
                 use(mEntry.offer().price), use(mEntry.offer().flags);
 
-            txResult["effects"]["new"][b58Index.c_str()]["takerGetsIssuer"] = b58issuer.c_str();
-            txResult["effects"]["new"][b58Index.c_str()]["takerGetsCurrency"] = currencyCode.c_str();
+            txResult["effects"]["new"][b58Index]["takerGetsIssuer"] = b58issuer;
+            txResult["effects"]["new"][b58Index]["takerGetsCurrency"] = currencyCode;
         } else
         {
             std::string b58PaysIssuer = toBase58Check(VER_ACCOUNT_ID, mEntry.offer().takerPays.isoCI().issuer);
@@ -151,10 +151,10 @@ namespace stellar
                 use(mEntry.offer().amount),
                 use(mEntry.offer().price), use(mEntry.offer().flags);
 
-            txResult["effects"]["new"][b58Index.c_str()]["takerPaysIssuer"] = b58PaysIssuer.c_str();
-            txResult["effects"]["new"][b58Index.c_str()]["takerPaysCurrency"] = paysCurrency.c_str();
-            txResult["effects"]["new"][b58Index.c_str()]["takerGetsIssuer"] = b58GetsIssuer.c_str();
-            txResult["effects"]["new"][b58Index.c_str()]["takerGetsCurrency"] = getsCurrency.c_str();
+            txResult["effects"]["new"][b58Index]["takerPaysIssuer"] = b58PaysIssuer;
+            txResult["effects"]["new"][b58Index]["takerPaysCurrency"] = paysCurrency;
+            txResult["effects"]["new"][b58Index]["takerGetsIssuer"] = b58GetsIssuer;
+            txResult["effects"]["new"][b58Index]["takerGetsCurrency"] = getsCurrency;
         }
     }
 
