@@ -1,5 +1,17 @@
 
 
+
+Some people are asking that quasi paranoid group of people 
+
+Options for tx results
+- implementation specific
+- standardize some API
+- canonical version that is hashed and becomes part of the ledger header
+- store just success or failure in the header
+
+
+
+
 Do we want to make a maxTransferRate for moving credit around?
 
 Do we keep full entries in the BucketList?
