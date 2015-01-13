@@ -283,7 +283,7 @@ Slot::attemptPrepared()
 
     // Store the current ballot in mPrepared as the last ballot prepared for
     // the current value.
-    mPrepared[mBallot.valueHash] =  mBallot;
+    mPrepared[mBallot.valueHash] = mBallot;
 
     mFBA->getClient()->emitEnvelope(envelope);
 
