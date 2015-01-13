@@ -21,9 +21,8 @@ uint256
 makePublicKey(uint256 const& b)
 {
     // SANITY pub from private
-    static int i = 0;
     uint256 ret;
-    ret[0] = ++i;
+    ret[0] = b[0];
     return (ret);
 }
 

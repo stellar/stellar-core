@@ -36,6 +36,10 @@ class Slot
                       bool forceBump = false);
 
   private:
+    // bumps to the specified ballot emitting a valueCancelled if needed
+    void bumpToBallot(const FBABallot& ballot, 
+                      const Hash& evidence);
+
     // Helper methods to generate a new envelopes
     FBAEnvelope createEnvelope(const FBAStatementType& type);
     std::string envToStr(const FBAEnvelope& envelope);
@@ -67,12 +71,12 @@ class Slot
     // a given node specified by nodeID. The filter function allows to restrict
     // the set of nodes to a subset matching a certain criteria.
     bool isQuorumTransitive(
-        const FBAStatementType& type,
+        const std::map<uint256, FBAEnvelope>& envelopes,
         const uint256& nodeID,
         std::function<bool(const FBAEnvelope&)> const& filter =
           [] (const FBAEnvelope&) { return true; });
     bool isVBlocking(
-        const FBAStatementType& type,
+        const std::map<uint256, FBAEnvelope>& envelopes,
         const uint256& nodeID,
         std::function<bool(const FBAEnvelope&)> const& filter =
           [] (const FBAEnvelope&) { return true; });
@@ -80,11 +84,17 @@ class Slot
     // `is*` methods check if the specified state for the current slot has been
     // reached or not. They are called by `advanceSlot` and drive the call of
     // the `attempt*` methods.
-    bool isNull();
-    bool isPrepared();
-    bool isPreparedConfirmed();
-    bool isCommitted();
-    bool isCommittedConfirmed();
+    bool isPristine();
+    bool isPrepared(const Hash& valueHash);
+    bool isPreparedConfirmed(const Hash& valueHash);
+    bool isCommitted(const Hash& valueHash);
+    bool isCommittedConfirmed(const Hash& valueHash);
+
+    // Retrieve all the envelopes of a given type for a given node for the
+    // current rounds
+    std::vector<FBAEnvelope> getNodeEnvelopes(const uint256& nodeID,
+                                              const FBAStatementType& type);
+                                          
 
     // `advanceSlot` can be called as many time as needed. It attempts to
     // advance the slot to a next state if possible given the current
@@ -96,6 +106,7 @@ class Slot
 
     FBABallot                                                  mBallot;
     Hash                                                       mEvidence;
+    bool                                                       mIsPristine;
 
     bool                                                       mInAdvanceSlot;
     bool                                                       mRunAdvanceSlot;
@@ -103,7 +114,10 @@ class Slot
     std::vector<FBABallot>                                     mPledgedCommit;
     std::map<Hash, FBABallot>                                  mPrepared;
 
-    std::map<FBAStatementType, std::map<uint256, FBAEnvelope>> mEnvelopes;
+    // mEnvelopes keep track of received envelopes for this round.
+    std::map<Hash,
+             std::map<FBAStatementType,
+                      std::map<uint256, FBAEnvelope>>>         mEnvelopes;
 
     friend class Node;
 };
