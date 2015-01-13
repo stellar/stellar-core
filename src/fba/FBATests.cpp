@@ -42,6 +42,11 @@ class TestFBAClient : public FBA::Client
     void valueExternalized(const uint32& slotIndex,
                            const Hash& valueHash)
     {
+        if (mExternalizedValues.find(slotIndex) != mExternalizedValues.end())
+        {
+            throw std::out_of_range("Value already externalized");
+        }
+        mExternalizedValues[slotIndex] = valueHash;
     }
 
     void retrieveQuorumSet(const Hash& nodeID,
@@ -58,6 +63,7 @@ class TestFBAClient : public FBA::Client
     }
 
     std::vector<FBAEnvelope> mEmittedEnvelopes;
+    std::map<uint32, Hash> mExternalizedValues;
 };
 
 /* 
@@ -309,9 +315,14 @@ TEST_CASE("protocol core4", "[fba]")
 
         fba->receiveEnvelope(committed3);
         REQUIRE(client->mEmittedEnvelopes.size() == 4);
+        // The slot should not have externalized yet
+        REQUIRE(client->mExternalizedValues.find(0) == 
+            client->mExternalizedValues.end());
+
         fba->receiveEnvelope(committed1);
         REQUIRE(client->mEmittedEnvelopes.size() == 4);
-        /* TODO(spolu): add externalization test */
+        // The slot should have externalized the value
+        REQUIRE(client->mExternalizedValues[0] == xValueHash);
 
         fba->receiveEnvelope(committed2);
         REQUIRE(client->mEmittedEnvelopes.size() == 5);
