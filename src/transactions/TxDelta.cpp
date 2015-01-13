@@ -111,10 +111,13 @@ void TxDelta::commitDelta(Json::Value& txResult, LedgerDelta& ledgerDelta, Ledge
     // save the Json in the DB
     std::stringstream json;
     json << txResult;
+
+    string txID(txResult["id"].asString()), jsonStr(json.str());
+
     ledgerMaster.getDatabase().getSession() <<
         "INSERT INTO TxDelta (txID,ledgerSeq,json) values (:v1,:v2,:v3)",
-        soci::use(txResult["id"].asString()), soci::use(txResult["ledger"].asInt()),
-        soci::use(json.str());
+        soci::use(txID), soci::use(txResult["ledger"].asInt()),
+        soci::use(jsonStr);
 }
 
 void TxDelta::dropAll(Database& db)

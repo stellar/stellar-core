@@ -245,8 +245,10 @@ string LedgerMaster::getStoreStateName(StoreStateName n) {
 string LedgerMaster::getState(StoreStateName stateName) {
     string res;
 
+    string sn(getStoreStateName(stateName));
+
     getDatabase().getSession() << "SELECT State FROM StoreState WHERE StateName = :n;",
-        soci::use(getStoreStateName(stateName)), soci::into(res);
+        soci::use(sn), soci::into(res);
 
     if (!getDatabase().getSession().got_data())
     {

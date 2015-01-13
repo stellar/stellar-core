@@ -41,14 +41,17 @@ namespace stellar
     {
         assert(!isZero(mHeader.hash));
 
+        string hash(binToHex(mHeader.hash)), prevHash(binToHex(mHeader.previousLedgerHash)),
+            txSetHash(binToHex(mHeader.txSetHash)), clfHash(binToHex(mHeader.clfHash));
+
         ledgerMaster.getDatabase().getSession() <<
             "INSERT INTO LedgerHeaders (hash, prevHash, txSetHash, clfHash, totCoins, "\
             "feePool, ledgerSeq,inflationSeq,baseFee,baseReserve,closeTime) VALUES"\
             "(:h,:ph,:tx,:clf,:coins,"\
             ":feeP,:seq,:inf,:Bfee,:res,"\
             ":ct )",
-            use(binToHex(mHeader.hash)), use(binToHex(mHeader.previousLedgerHash)),
-            use(binToHex(mHeader.txSetHash)), use(binToHex(mHeader.clfHash)),
+            use(hash), use(prevHash),
+            use(txSetHash), use(clfHash),
             use(mHeader.totalCoins), use(mHeader.feePool), use(mHeader.ledgerSeq),
             use(mHeader.inflationSeq), use(mHeader.baseFee), use(mHeader.baseReserve),
             use(mHeader.closeTime);
@@ -62,6 +65,7 @@ namespace stellar
 
         LedgerHeader &lh = lhf->mHeader;
 
+        string hash_s(binToHex(hash));
         string prevHash, txSetHash, clfHash;
 
         ledgerMaster.getDatabase().getSession() <<
@@ -72,7 +76,7 @@ namespace stellar
             into(prevHash), into(txSetHash), into(clfHash), into(lh.totalCoins),
             into(lh.feePool), into(lh.ledgerSeq), into(lh.inflationSeq), into(lh.baseFee),
             into(lh.baseReserve), into(lh.closeTime),
-            use(binToHex(hash));
+            use(hash_s);
         lh.hash = hash;
         lh.previousLedgerHash = hexToBin256(prevHash);
         lh.txSetHash = hexToBin256(txSetHash);

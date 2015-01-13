@@ -171,11 +171,14 @@ void AccountFrame::storeUpdate(EntryFrame::pointer startFrom, Json::Value& txRes
     }
 
     // TODO.3   KeyValue data
+
+    string thresholds(binToHex(finalAccount.thresholds));
+
     ledgerMaster.getDatabase().getSession() << sql.str(), use(base58ID, "id"),
         use(finalAccount.balance, "v1"), use(finalAccount.sequence, "v2"),
         use(finalAccount.ownerCount, "v3"), use(finalAccount.transferRate, "v4"),
         use(inflationDestStr, inflation_ind, "v5"),
-        use(binToHex(finalAccount.thresholds), "v6"), use(finalAccount.flags, "v7");
+        use(thresholds, "v6"), use(finalAccount.flags, "v7");
 
     // deal with changes to Signers
     if(finalAccount.signers.size() < startAccount.signers.size())
