@@ -17,7 +17,7 @@ namespace stellar
 
     bool PaymentFrame::doApply(TxDelta& delta,LedgerMaster& ledgerMaster)
     {
-        int64_t minBalance = ledgerMaster.getMinBalance(mSigningAccount.mEntry.account().ownerCount);
+        int64_t minBalance = ledgerMaster.getMinBalance(mSigningAccount->mEntry.account().ownerCount);
         
         AccountFrame destAccount;
         bool isNew = false;
@@ -54,13 +54,13 @@ namespace stellar
                 return false;
             }
 
-            if(mSigningAccount.mEntry.account().balance < minBalance + mEnvelope.tx.body.paymentTx().amount)
+            if(mSigningAccount->mEntry.account().balance < minBalance + mEnvelope.tx.body.paymentTx().amount)
             {   // they don't have enough to send
                 mResultCode = txUNDERFUNDED;
                 return false;
             }
 
-            if(destAccount.getIndex() == mSigningAccount.getIndex())
+            if(destAccount.getIndex() == mSigningAccount->getIndex())
             {   // sending to yourself
                 mResultCode = txSUCCESS;
                 return true;
@@ -70,10 +70,10 @@ namespace stellar
             {
                 delta.setStart(destAccount);
             }
-            mSigningAccount.mEntry.account().balance -= mEnvelope.tx.body.paymentTx().amount;
+            mSigningAccount->mEntry.account().balance -= mEnvelope.tx.body.paymentTx().amount;
             destAccount.mEntry.account().balance += mEnvelope.tx.body.paymentTx().amount;
             delta.setFinal(destAccount);
-            delta.setFinal(mSigningAccount);
+            delta.setFinal(*mSigningAccount);
             mResultCode = txSUCCESS;
             return true;
         }else
@@ -141,7 +141,7 @@ namespace stellar
         // make sure you have enough to send him
         if(sendCurrency.type()==NATIVE)
         {
-            if(mSigningAccount.mEntry.account().balance < sendAmount + ledgerMaster.getMinBalance(mSigningAccount.mEntry.account().ownerCount))
+            if(mSigningAccount->mEntry.account().balance < sendAmount + ledgerMaster.getMinBalance(mSigningAccount->mEntry.account().ownerCount))
             {
                 mResultCode = txUNDERFUNDED;
                 return false;

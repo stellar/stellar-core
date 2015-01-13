@@ -26,7 +26,7 @@ namespace stellar
             return false;
         }
 
-        std::string b58Account = toBase58Check(VER_ACCOUNT_ID, mSigningAccount.getID());
+        std::string b58Account = toBase58Check(VER_ACCOUNT_ID, mSigningAccount->getID());
         ledgerMaster.getDatabase().getSession() <<
             "SELECT trustIndex from TrustLines where issuer=:v1 and balance>0 limit 1",
             use(b58Account);
@@ -46,23 +46,23 @@ namespace stellar
         }
         
         std::vector<OfferFrame> retOffers;
-        ledgerMaster.getDatabase().loadOffers(mSigningAccount.getID(), retOffers);
+        ledgerMaster.getDatabase().loadOffers(mSigningAccount->getID(), retOffers);
         for(auto offer : retOffers)
         {
             delta.setStart(offer);
         }
 
         std::vector<TrustFrame> retLines;
-        ledgerMaster.getDatabase().loadLines(mSigningAccount.getID(), retLines);
+        ledgerMaster.getDatabase().loadLines(mSigningAccount->getID(), retLines);
         for(auto line : retLines)
         {
             delta.setStart(line);
         }
 
         delta.setStart(otherAccount);
-        otherAccount.mEntry.account().balance += mSigningAccount.mEntry.account().balance;
+        otherAccount.mEntry.account().balance += mSigningAccount->mEntry.account().balance;
         delta.setFinal(otherAccount);
-        delta.removeFinal(mSigningAccount);
+        delta.removeFinal(*mSigningAccount);
 
         mResultCode = txSUCCESS;
         return true;

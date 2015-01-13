@@ -13,17 +13,17 @@ namespace stellar
 bool CancelOfferFrame::doApply(TxDelta& delta, LedgerMaster& ledgerMaster)
 {
     OfferFrame offerFrame;
-    if(!ledgerMaster.getDatabase().loadOffer(mSigningAccount.mEntry.account().accountID, 
+    if(!ledgerMaster.getDatabase().loadOffer(mSigningAccount->mEntry.account().accountID, 
         mEnvelope.tx.body.offerSeqNum(), offerFrame))
     {
         mResultCode = txOFFER_NOT_FOUND;
         return false;
     }
     mResultCode = txSUCCESS;
-    mSigningAccount.mEntry.account().ownerCount--;
+    mSigningAccount->mEntry.account().ownerCount--;
     
     delta.setStart(offerFrame);  // setting the start but no final deletes the entry
-    delta.setFinal(mSigningAccount);
+    delta.setFinal(*mSigningAccount);
     return true;
 }
 

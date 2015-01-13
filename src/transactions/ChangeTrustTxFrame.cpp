@@ -20,7 +20,7 @@ bool ChangeTrustTxFrame::doApply(TxDelta& delta, LedgerMaster& ledgerMaster)
 {
     TrustFrame trustLine;
         
-    if(ledgerMaster.getDatabase().loadTrustLine(mSigningAccount.mEntry.account().accountID,
+    if(ledgerMaster.getDatabase().loadTrustLine(mSigningAccount->mEntry.account().accountID,
         mEnvelope.tx.body.changeTrustTx().line, trustLine))
     { // we are modifying an old trustline
         delta.setStart(trustLine);
@@ -29,8 +29,8 @@ bool ChangeTrustTxFrame::doApply(TxDelta& delta, LedgerMaster& ledgerMaster)
         if(trustLine.mEntry.trustLine().limit == 0 &&
             trustLine.mEntry.trustLine().balance == 0)
         {
-            mSigningAccount.mEntry.account().ownerCount--;
-            delta.setFinal(mSigningAccount);
+            mSigningAccount->mEntry.account().ownerCount--;
+            delta.setFinal(*mSigningAccount);
             //delete this line by not adding it to setFinal
         }else delta.setFinal(trustLine);
         mResultCode = txSUCCESS;
@@ -45,14 +45,14 @@ bool ChangeTrustTxFrame::doApply(TxDelta& delta, LedgerMaster& ledgerMaster)
         }
             
         trustLine.mEntry.type(TRUSTLINE);
-        trustLine.mEntry.trustLine().accountID = mSigningAccount.mEntry.account().accountID;
+        trustLine.mEntry.trustLine().accountID = mSigningAccount->mEntry.account().accountID;
         trustLine.mEntry.trustLine().currency = mEnvelope.tx.body.changeTrustTx().line;
         trustLine.mEntry.trustLine().limit = mEnvelope.tx.body.changeTrustTx().limit;
         trustLine.mEntry.trustLine().balance = 0;
         trustLine.mEntry.trustLine().authorized = !issuer.isAuthRequired();
 
-        mSigningAccount.mEntry.account().ownerCount++;
-        delta.setFinal(mSigningAccount);
+        mSigningAccount->mEntry.account().ownerCount++;
+        delta.setFinal(*mSigningAccount);
         delta.setFinal(trustLine);
         mResultCode = txSUCCESS;
         return true;

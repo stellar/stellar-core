@@ -12,12 +12,12 @@ namespace stellar
 
     int32_t AllowTrustTxFrame::getNeededThreshold()
     {
-        return mSigningAccount.getLowThreshold();
+        return mSigningAccount->getLowThreshold();
     }
 
     bool AllowTrustTxFrame::doApply(TxDelta& delta, LedgerMaster& ledgerMaster)
     {
-        if(!(mSigningAccount.mEntry.account().flags & AccountFrame::AUTH_REQUIRED_FLAG))
+        if(!(mSigningAccount->mEntry.account().flags & AccountFrame::AUTH_REQUIRED_FLAG))
         {   // this account doesn't require authorization to hold credit
             mResultCode = txNOT_AUTHORIZED;
             return false;

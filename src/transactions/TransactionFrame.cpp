@@ -119,54 +119,29 @@ bool Transaction::isAuthorizedToHold(const AccountEntry& account,
 */
     
 
-// take fee
-// check seq
-// take seq
-// check max ledger
 bool TransactionFrame::preApply(TxDelta& delta,LedgerMaster& ledgerMaster)
 {
-    if(mSigningAccount.mEntry.account().sequence != mEnvelope.tx.seqNum)
-    {
-        mResultCode = txBAD_SEQ;
-        CLOG(ERROR, "Tx") << "Tx sequence # doesn't match Account in validated set. This should never happen.";
-        return false;
-    }
 
-    if((ledgerMaster.getCurrentLedgerHeader().ledgerSeq > mEnvelope.tx.maxLedger) ||
-        (ledgerMaster.getCurrentLedgerHeader().ledgerSeq < mEnvelope.tx.minLedger))
-    {
-        mResultCode = txBAD_LEDGER;
-        CLOG(ERROR, "Tx") << "tx not in valid ledger in validated set. This should never happen.";
-        return false;
-    }
-        
-    uint32_t fee=ledgerMaster.getTxFee();
-    if(fee > mEnvelope.tx.maxFee)
+    uint32_t fee = ledgerMaster.getTxFee();
+
+    if (mSigningAccount->mEntry.account().balance < fee)
     {
         mResultCode = txNOFEE;
-        CLOG(ERROR, "Tx") << "tx isn't willing to pay fee. This should never happen.";
-        return false;
-    }
-
-
-    if(mSigningAccount.mEntry.account().balance < fee)
-    {
-        mResultCode = txNOFEE;
-        CLOG(ERROR, "Tx") << "tx doesn't have fee. This should never happen.";
 
         // take all their balance to be safe
-        delta.addFee(mSigningAccount.mEntry.account().balance);
-        mSigningAccount.mEntry.account().balance = 0;
-        delta.setFinal(mSigningAccount);
+        delta.addFee(mSigningAccount->mEntry.account().balance);
+        mSigningAccount->mEntry.account().balance = 0;
+        delta.setFinal(*mSigningAccount);
         return false;
     }
 
-    delta.setStart(mSigningAccount);
+    delta.setStart(*mSigningAccount);
 
-    mSigningAccount.mEntry.account().balance -= fee;
-    mSigningAccount.mEntry.account().sequence += 1;
+    mSigningAccount->mEntry.account().balance -= fee;
+    mSigningAccount->mEntry.account().sequence += 1;
     delta.addFee(fee);
-    delta.setFinal(mSigningAccount);
+    delta.setFinal(*mSigningAccount);
+
     return true;
 }
 
@@ -194,25 +169,23 @@ void TransactionFrame::addSignature(const SecretKey& secretKey)
 
 int32_t TransactionFrame::getNeededThreshold()
 {
-    return mSigningAccount.getMidThreshold();
+    return mSigningAccount->getMidThreshold();
 }
 
-// TODO.2 make sure accounts default with threshold of master key to 1
 bool TransactionFrame::checkSignature()
 {
     vector<Signer> keyWeights;
-    if(mSigningAccount.mEntry.account().thresholds[0])
-        keyWeights.push_back(Signer(mSigningAccount.getID(),mSigningAccount.mEntry.account().thresholds[0]));
+    if(mSigningAccount->mEntry.account().thresholds[0])
+        keyWeights.push_back(Signer(mSigningAccount->getID(),mSigningAccount->mEntry.account().thresholds[0]));
 
-    keyWeights.insert(keyWeights.end(), mSigningAccount.mEntry.account().signers.begin(), mSigningAccount.mEntry.account().signers.end());
-   
-    
+    keyWeights.insert(keyWeights.end(), mSigningAccount->mEntry.account().signers.begin(), mSigningAccount->mEntry.account().signers.end());
+
     // make sure not too many signatures attached to the tx
     if(keyWeights.size() < mEnvelope.signatures.size())
         return false;
 
     getContentsHash();
-    
+
     // calculate the weight of the signatures
     int totalWeight = 0;
     for(auto sig : mEnvelope.signatures)
@@ -239,7 +212,22 @@ bool TransactionFrame::checkSignature()
 
 bool TransactionFrame::loadAccount(Application& app)
 {
-    return app.getDatabase().loadAccount(mEnvelope.tx.account, mSigningAccount, true);
+    bool res;
+    if (!mSigningAccount)
+    {
+        AccountFrame::pointer account = make_shared<AccountFrame>();
+        res = app.getDatabase().loadAccount(mEnvelope.tx.account, *account, true);
+
+        if (res)
+        {
+            mSigningAccount = account;
+        }
+    }
+    else
+    {
+        res = true;
+    }
+    return res;
 }
 
 // called when determining if we should accept this tx.
@@ -263,14 +251,36 @@ bool TransactionFrame::checkValid(Application& app)
         mResultCode = txBAD_LEDGER;
         return false;
     }
+
+    uint32_t fee = app.getLedgerGateway().getTxFee();
+
+    if (fee > mEnvelope.tx.maxFee)
+    {
+        mResultCode = txNOFEE;
+        return false;
+    }
+
     if (!loadAccount(app))
     {
         mResultCode = txNOACCOUNT;
         return false;
     }
+
     if (!checkSignature())
     {
         mResultCode = txBAD_AUTH;
+        return false;
+    }
+
+    if (mSigningAccount->mEntry.account().sequence != mEnvelope.tx.seqNum)
+    {
+        mResultCode = txBAD_SEQ;
+        return false;
+    }
+
+    if (mSigningAccount->mEntry.account().balance < fee)
+    {
+        mResultCode = txNOFEE;
         return false;
     }
 

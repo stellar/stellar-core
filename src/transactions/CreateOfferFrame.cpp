@@ -67,7 +67,7 @@ bool CreateOfferFrame::doApply(TxDelta& delta, LedgerMaster& ledgerMaster)
     bool creatingNewOffer = false;
     uint32_t offerSeq = mEnvelope.tx.body.createOfferTx().sequence;
     // plus 1 since the account seq has already been incremented at this point
-    if(offerSeq + 1 == mSigningAccount.mEntry.account().sequence)
+    if(offerSeq + 1 == mSigningAccount->mEntry.account().sequence)
     { // creating a new Offer
         creatingNewOffer = true;
         mSellSheepOffer.from(mEnvelope.tx);
@@ -103,8 +103,8 @@ bool CreateOfferFrame::doApply(TxDelta& delta, LedgerMaster& ledgerMaster)
 
     int64_t amountOfSheepOwned;
     if(sheep.type()==NATIVE) 
-        amountOfSheepOwned = mSigningAccount.mEntry.account().balance - 
-            ledgerMaster.getMinBalance(mSigningAccount.mEntry.account().ownerCount);
+        amountOfSheepOwned = mSigningAccount->mEntry.account().balance - 
+            ledgerMaster.getMinBalance(mSigningAccount->mEntry.account().ownerCount);
     else amountOfSheepOwned = mSheepLineA.mEntry.trustLine().balance;
     
     // amount of sheep for sale is the lesser of amount we have and amount put in the offer
@@ -130,15 +130,15 @@ bool CreateOfferFrame::doApply(TxDelta& delta, LedgerMaster& ledgerMaster)
         if(creatingNewOffer)
         {
             // make sure we don't allow us to add offers when we don't have the minbalance
-            if(mSigningAccount.mEntry.account().balance <
-                ledgerMaster.getMinBalance(mSigningAccount.mEntry.account().ownerCount + 1))
+            if(mSigningAccount->mEntry.account().balance <
+                ledgerMaster.getMinBalance(mSigningAccount->mEntry.account().ownerCount + 1))
             {
                 mResultCode = txBELOW_MIN_BALANCE;
                 return false;
             }
 
-            mSigningAccount.mEntry.account().ownerCount++;
-            tempDelta.setFinal(mSigningAccount);
+            mSigningAccount->mEntry.account().ownerCount++;
+            tempDelta.setFinal(*mSigningAccount);
         }
     } 
     
@@ -169,7 +169,7 @@ bool CreateOfferFrame::convert(Currency& sheep,
                 return true;
             }
 
-            if(wheatOffer.mEntry.offer().accountID == mSigningAccount.mEntry.account().accountID)
+            if(wheatOffer.mEntry.offer().accountID == mSigningAccount->mEntry.account().accountID)
             {   // we are crossing our own offer
                 mResultCode = txCROSS_SELF;
                 return false;
@@ -325,10 +325,10 @@ bool CreateOfferFrame::crossOffer(OfferFrame& sellingWheatOffer,
     // Adjust balances
     if(sheep.type()==NATIVE)
     {
-        mSigningAccount.mEntry.account().balance -= numSheepSent;
+        mSigningAccount->mEntry.account().balance -= numSheepSent;
         accountB.mEntry.account().balance += numSheepSent;
         delta.setFinal(accountB);
-        delta.setFinal(mSigningAccount);
+        delta.setFinal(*mSigningAccount);
     } else
     {
         mSheepLineA.mEntry.trustLine().balance -= numSheepSent;
@@ -339,10 +339,10 @@ bool CreateOfferFrame::crossOffer(OfferFrame& sellingWheatOffer,
 
     if(wheat.type()==NATIVE)
     {
-        mSigningAccount.mEntry.account().balance += numWheatSent;
+        mSigningAccount->mEntry.account().balance += numWheatSent;
         accountB.mEntry.account().balance -= numWheatSent;
         delta.setFinal(accountB);
-        delta.setFinal(mSigningAccount);
+        delta.setFinal(*mSigningAccount);
     } else
     {
         mWheatLineA.mEntry.trustLine().balance += numWheatReceived;
