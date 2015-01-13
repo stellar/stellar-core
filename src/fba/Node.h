@@ -39,8 +39,8 @@ class Node
         {
             return "QuorumSet not found";
         }
-        const Hash& qSetHash() const throw() { return mQSetHash; }
         const uint256& nodeID() const throw() { return mNodeID; }
+        const Hash& qSetHash() const throw() { return mQSetHash; }
 
         const uint256 mNodeID;
         const Hash mQSetHash;

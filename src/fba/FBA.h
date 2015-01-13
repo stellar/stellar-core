@@ -11,6 +11,8 @@
 
 #include "generated/FBAXDR.h"
 
+#define FBA_SLOT_MAX_COUNTER 0xffffffff
+
 namespace stellar
 {
 class Node;

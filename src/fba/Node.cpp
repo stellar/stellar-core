@@ -27,9 +27,11 @@ Node::Node(const uint256& nodeID,
 const FBAQuorumSet& 
 Node::retrieveQuorumSet(const uint256& qSetHash)
 {
+    /*
     LOG(INFO) << "Node::retrieveQuorumSet"
               << "@" << binToHex(mNodeID).substr(0,6)
               << " "  << binToHex(qSetHash).substr(0,6);
+    */
 
     assert(mCacheLRU.size() == mCache.size());
     auto it = mCache.find(qSetHash);
@@ -43,10 +45,12 @@ Node::retrieveQuorumSet(const uint256& qSetHash)
 void 
 Node::addPendingSlot(const uint256& qSetHash, const uint32& slotIndex)
 {
+    /*
     LOG(INFO) << "Node::addPendingSlot"
               << "@" << binToHex(mNodeID).substr(0,6)
               << " " << binToHex(qSetHash).substr(0,6)
               << " " << slotIndex;
+    */
     auto it = std::find(mPendingSlots[qSetHash].begin(), 
                         mPendingSlots[qSetHash].end(),
                         slotIndex);
@@ -60,10 +64,11 @@ void
 Node::cacheQuorumSet(const FBAQuorumSet& qSet)
 {
     uint256 qSetHash = sha512_256(xdr::xdr_to_msg(qSet));
-
+    /*
     LOG(INFO) << "Node::cacheQuorumSet"
               << "@" << binToHex(mNodeID).substr(0,6)
               << " "  << binToHex(qSetHash).substr(0,6);
+    */
 
     if (mCache.find(qSetHash) != mCache.end())
     {
