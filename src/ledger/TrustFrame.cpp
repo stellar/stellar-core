@@ -86,7 +86,14 @@ namespace stellar {
         }
 
         sql << " where trustIndex='" << base58ID << "';";
-        ledgerMaster.getDatabase().getSession() << sql.str();
+        soci::statement st = (ledgerMaster.getDatabase().getSession().prepare << sql.str());
+
+        st.execute(false);
+
+        if (st.get_affected_rows() != 1)
+        {
+            throw std::runtime_error("Could not update data in SQL");
+        }
     }
 
     void TrustFrame::storeAdd(Json::Value& txResult, LedgerMaster& ledgerMaster)
@@ -97,10 +104,18 @@ namespace stellar {
         std::string currencyCode;
         currencyCodeToStr(mEntry.trustLine().currency.isoCI().currencyCode,currencyCode);
 
-        ledgerMaster.getDatabase().getSession() << "INSERT into TrustLines (trustIndex,accountID,issuer,currency,tlimit,authorized) values (:v1,:v2,:v3,:v4,:v5,:v6)",
+        soci::statement st = (ledgerMaster.getDatabase().getSession().prepare <<
+            "INSERT into TrustLines (trustIndex,accountID,issuer,currency,tlimit,authorized) values (:v1,:v2,:v3,:v4,:v5,:v6)",
             soci::use(base58Index), soci::use(b58AccountID), soci::use(b58Issuer),
             soci::use(currencyCode), soci::use(mEntry.trustLine().limit),
-            soci::use((int)mEntry.trustLine().authorized);
+            soci::use((int)mEntry.trustLine().authorized));
+
+        st.execute(true);
+
+        if (st.get_affected_rows() != 1)
+        {
+            throw std::runtime_error("Could not update data in SQL");
+        }
 
         txResult["effects"]["new"][base58Index]["type"] = "trust";
         txResult["effects"]["new"][base58Index]["accountID"] = b58AccountID;

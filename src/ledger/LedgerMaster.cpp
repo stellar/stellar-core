@@ -78,12 +78,17 @@ void LedgerMaster::loadLastKnownLedger()
 
     if (lastLedger.empty())
     {
-        throw new runtime_error("No ledger in database");
+        throw std::runtime_error("No ledger in database");
     }
 
     Hash lastLedgerHash = hexToBin256(lastLedger);
 
     mCurrentLedger = LedgerHeaderFrame::loadByHash(lastLedgerHash, *this);
+
+    if (!mCurrentLedger)
+    {
+        throw std::runtime_error("Could not load ledger from database");
+    }
 
     closeLedgerHelper(false);
 }
@@ -267,11 +272,18 @@ void LedgerMaster::setState(StoreStateName stateName, const string &value) {
 
     st.execute(true);
 
-    if (st.get_affected_rows() == 0)
+    if (st.get_affected_rows() != 1)
     {
-        getDatabase().getSession() <<
+        st = (getDatabase().getSession().prepare <<
             "INSERT INTO StoreState (StateName, State) VALUES (:n, :v );",
-            soci::use(sn), soci::use(value);
+            soci::use(sn), soci::use(value));
+
+            st.execute(true);
+
+            if (st.get_affected_rows() != 1)
+            {
+                throw std::runtime_error("Could not insert data in SQL");
+            }
     }
 }
 

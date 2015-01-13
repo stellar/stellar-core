@@ -44,7 +44,7 @@ namespace stellar
         string hash(binToHex(mHeader.hash)), prevHash(binToHex(mHeader.previousLedgerHash)),
             txSetHash(binToHex(mHeader.txSetHash)), clfHash(binToHex(mHeader.clfHash));
 
-        ledgerMaster.getDatabase().getSession() <<
+        soci::statement st = (ledgerMaster.getDatabase().getSession().prepare <<
             "INSERT INTO LedgerHeaders (hash, prevHash, txSetHash, clfHash, totCoins, "\
             "feePool, ledgerSeq,inflationSeq,baseFee,baseReserve,closeTime) VALUES"\
             "(:h,:ph,:tx,:clf,:coins,"\
@@ -54,7 +54,14 @@ namespace stellar
             use(txSetHash), use(clfHash),
             use(mHeader.totalCoins), use(mHeader.feePool), use(mHeader.ledgerSeq),
             use(mHeader.inflationSeq), use(mHeader.baseFee), use(mHeader.baseReserve),
-            use(mHeader.closeTime);
+            use(mHeader.closeTime));
+
+        st.execute(true);
+
+        if (st.get_affected_rows() != 1)
+        {
+            throw std::runtime_error("Could not update data in SQL");
+        }
     }
 
     LedgerHeaderFrame::pointer LedgerHeaderFrame::loadByHash(const uint256 &hash, LedgerMaster& ledgerMaster)
@@ -77,10 +84,17 @@ namespace stellar
             into(lh.feePool), into(lh.ledgerSeq), into(lh.inflationSeq), into(lh.baseFee),
             into(lh.baseReserve), into(lh.closeTime),
             use(hash_s);
-        lh.hash = hash;
-        lh.previousLedgerHash = hexToBin256(prevHash);
-        lh.txSetHash = hexToBin256(txSetHash);
-        lh.clfHash = hexToBin256(clfHash);
+        if (ledgerMaster.getDatabase().getSession().got_data())
+        {
+            lh.hash = hash;
+            lh.previousLedgerHash = hexToBin256(prevHash);
+            lh.txSetHash = hexToBin256(txSetHash);
+            lh.clfHash = hexToBin256(clfHash);
+        }
+        else
+        {
+            lhf = LedgerHeaderFrame::pointer();
+        }
 
         return lhf;
     }
@@ -104,11 +118,18 @@ namespace stellar
             into(lh.feePool), into(lh.inflationSeq), into(lh.baseFee),
             into(lh.baseReserve), into(lh.closeTime),
             use(seq);
-        lh.ledgerSeq = seq;
-        lh.hash = hexToBin256(hash);
-        lh.previousLedgerHash = hexToBin256(prevHash);
-        lh.txSetHash = hexToBin256(txSetHash);
-        lh.clfHash = hexToBin256(clfHash);
+        if (ledgerMaster.getDatabase().getSession().got_data())
+        {
+            lh.ledgerSeq = seq;
+            lh.hash = hexToBin256(hash);
+            lh.previousLedgerHash = hexToBin256(prevHash);
+            lh.txSetHash = hexToBin256(txSetHash);
+            lh.clfHash = hexToBin256(clfHash);
+        }
+        else
+        {
+            lhf = LedgerHeaderFrame::pointer();
+        }
 
         return lhf;
     }

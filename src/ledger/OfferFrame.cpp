@@ -95,7 +95,16 @@ namespace stellar
         }
 
         sql << " where offerIndex='" << base58ID << "';";
-        ledgerMaster.getDatabase().getSession() << sql.str();
+
+        soci::statement st = (ledgerMaster.getDatabase().getSession().prepare <<
+            sql.str());
+
+        st.execute(false);
+
+        if (st.get_affected_rows() != 1)
+        {
+            throw std::runtime_error("could not update SQL");
+        }
     }
 
     void OfferFrame::storeAdd(Json::Value& txResult, LedgerMaster& ledgerMaster)
@@ -109,17 +118,19 @@ namespace stellar
         txResult["effects"]["new"][b58Index]["amount"] = (Json::Int64)mEntry.offer().amount;
         txResult["effects"]["new"][b58Index]["price"] = (Json::Int64)mEntry.offer().price;
         txResult["effects"]["new"][b58Index]["flags"] = mEntry.offer().flags;
-        
+
+        soci::statement st(ledgerMaster.getDatabase().getSession().prepare << "DUMMY");
+
         if(mEntry.offer().takerGets.type()==NATIVE)
         {
             std::string b58issuer = toBase58Check(VER_ACCOUNT_ID, mEntry.offer().takerPays.isoCI().issuer);
             std::string currencyCode;
             currencyCodeToStr(mEntry.offer().takerPays.isoCI().currencyCode, currencyCode);
-            ledgerMaster.getDatabase().getSession() <<
+            st = (ledgerMaster.getDatabase().getSession().prepare <<
                 "INSERT into Offers (offerIndex,accountID,sequence,paysCurrency,paysIssuer,amount,price,flags) values (:v1,:v2,:v3,:v4,:v5,:v6,:v7,:v8)",
                 use(b58Index), use(b58AccountID), use(mEntry.offer().sequence), 
                 use(b58issuer),use(currencyCode),use(mEntry.offer().amount),
-                use(mEntry.offer().price),use(mEntry.offer().flags);
+                use(mEntry.offer().price),use(mEntry.offer().flags));
 
             txResult["effects"]["new"][b58Index]["takerPaysIssuer"] = b58issuer;
             txResult["effects"]["new"][b58Index]["takerPaysCurrency"] = currencyCode;
@@ -129,11 +140,11 @@ namespace stellar
             std::string b58issuer = toBase58Check(VER_ACCOUNT_ID, mEntry.offer().takerGets.isoCI().issuer);
             std::string currencyCode;
             currencyCodeToStr(mEntry.offer().takerGets.isoCI().currencyCode, currencyCode);
-            ledgerMaster.getDatabase().getSession() <<
+            st = (ledgerMaster.getDatabase().getSession().prepare <<
                 "INSERT into Offers (offerIndex,accountID,sequence,getsCurrency,getsIssuer,amount,price,flags) values (:v1,:v2,:v3,:v4,:v5,:v6,:v7,:v8)",
                 use(b58Index), use(b58AccountID), use(mEntry.offer().sequence),
                 use(b58issuer), use(currencyCode), use(mEntry.offer().amount),
-                use(mEntry.offer().price), use(mEntry.offer().flags);
+                use(mEntry.offer().price), use(mEntry.offer().flags));
 
             txResult["effects"]["new"][b58Index]["takerGetsIssuer"] = b58issuer;
             txResult["effects"]["new"][b58Index]["takerGetsCurrency"] = currencyCode;
@@ -144,17 +155,24 @@ namespace stellar
             currencyCodeToStr(mEntry.offer().takerPays.isoCI().currencyCode,paysCurrency);
             std::string b58GetsIssuer = toBase58Check(VER_ACCOUNT_ID, mEntry.offer().takerGets.isoCI().issuer);
             currencyCodeToStr(mEntry.offer().takerGets.isoCI().currencyCode,getsCurrency);
-            ledgerMaster.getDatabase().getSession() << 
+            st = (ledgerMaster.getDatabase().getSession().prepare <<
                 "INSERT into Offers (offerIndex,accountID,sequence,paysCurrency,paysIssuer,getsCurrency,getsIssuer,amount,price,flags) values (:v1,:v2,:v3,:v4,:v5,:v6,:v7,:v8,:v9,:v10)",
                 use(b58Index), use(b58AccountID), use(mEntry.offer().sequence),
                 use(b58PaysIssuer), use(paysCurrency), use(b58GetsIssuer), use(getsCurrency),
                 use(mEntry.offer().amount),
-                use(mEntry.offer().price), use(mEntry.offer().flags);
+                use(mEntry.offer().price), use(mEntry.offer().flags));
 
             txResult["effects"]["new"][b58Index]["takerPaysIssuer"] = b58PaysIssuer;
             txResult["effects"]["new"][b58Index]["takerPaysCurrency"] = paysCurrency;
             txResult["effects"]["new"][b58Index]["takerGetsIssuer"] = b58GetsIssuer;
             txResult["effects"]["new"][b58Index]["takerGetsCurrency"] = getsCurrency;
+        }
+
+        st.execute(true);
+
+        if (st.get_affected_rows() != 1)
+        {
+            throw std::runtime_error("could not update SQL");
         }
     }
 

@@ -431,9 +431,6 @@
     <ClInclude Include="..\..\src\sync\SyncMaster.h">
       <Filter>sync</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\main\test.h">
-      <Filter>main</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\src\lib\http\connection.hpp">
       <Filter>lib\http</Filter>
     </ClInclude>
@@ -589,6 +586,9 @@
     </ClInclude>
     <ClInclude Include="..\..\src\ledger\LedgerHeaderFrame.h">
       <Filter>ledger</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\main\test.h">
+      <Filter>main\tests</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

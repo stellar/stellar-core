@@ -174,11 +174,21 @@ void AccountFrame::storeUpdate(EntryFrame::pointer startFrom, Json::Value& txRes
 
     string thresholds(binToHex(finalAccount.thresholds));
 
-    ledgerMaster.getDatabase().getSession() << sql.str(), use(base58ID, "id"),
-        use(finalAccount.balance, "v1"), use(finalAccount.sequence, "v2"),
-        use(finalAccount.ownerCount, "v3"), use(finalAccount.transferRate, "v4"),
-        use(inflationDestStr, inflation_ind, "v5"),
-        use(thresholds, "v6"), use(finalAccount.flags, "v7");
+    {
+        soci::statement st = (ledgerMaster.getDatabase().getSession().prepare <<
+            sql.str(), use(base58ID, "id"),
+            use(finalAccount.balance, "v1"), use(finalAccount.sequence, "v2"),
+            use(finalAccount.ownerCount, "v3"), use(finalAccount.transferRate, "v4"),
+            use(inflationDestStr, inflation_ind, "v5"),
+            use(thresholds, "v6"), use(finalAccount.flags, "v7"));
+
+        st.execute(true);
+
+        if (st.get_affected_rows() != 1)
+        {
+            throw std::runtime_error("Could not update data in SQL");
+        }
+    }
 
     // deal with changes to Signers
     if(finalAccount.signers.size() < startAccount.signers.size())
@@ -205,8 +215,17 @@ void AccountFrame::storeUpdate(EntryFrame::pointer startFrom, Json::Value& txRes
             { // delete signer
                 std::string b58signKey = toBase58Check(VER_ACCOUNT_ID, startSigner.pubKey);
                 txResult["effects"]["mod"][base58ID]["signers"][b58signKey] = 0;
-                ledgerMaster.getDatabase().getSession() << "DELETE from Signers where accountID=:v2 and pubKey=:v3",
-                     use(base58ID), use(b58signKey);
+                
+                soci::statement st = (ledgerMaster.getDatabase().getSession().prepare << 
+                    "DELETE from Signers where accountID=:v2 and pubKey=:v3",
+                     use(base58ID), use(b58signKey));
+
+                st.execute(true);
+
+                if (st.get_affected_rows() != 1)
+                {
+                    throw std::runtime_error("Could not update data in SQL");
+                }
             }
         }
     } else
@@ -222,8 +241,17 @@ void AccountFrame::storeUpdate(EntryFrame::pointer startFrom, Json::Value& txRes
                     {
                         std::string b58signKey = toBase58Check(VER_ACCOUNT_ID, finalSigner.pubKey);
                         txResult["effects"][op][base58ID]["signers"][b58signKey] = finalSigner.weight;
-                        ledgerMaster.getDatabase().getSession() << "UPDATE Signers set weight=:v1 where accountID=:v2 and pubKey=:v3",
-                            use(finalSigner.weight), use(base58ID), use(b58signKey);
+                        
+                        soci::statement st = (ledgerMaster.getDatabase().getSession().prepare <<
+                            "UPDATE Signers set weight=:v1 where accountID=:v2 and pubKey=:v3",
+                            use(finalSigner.weight), use(base58ID), use(b58signKey));
+
+                        st.execute(true);
+
+                        if (st.get_affected_rows() != 1)
+                        {
+                            throw std::runtime_error("Could not update data in SQL");
+                        }
                     }
                     found = true;
                     break;
@@ -233,8 +261,17 @@ void AccountFrame::storeUpdate(EntryFrame::pointer startFrom, Json::Value& txRes
             { // new signer
                 std::string b58signKey = toBase58Check(VER_ACCOUNT_ID, finalSigner.pubKey);
                 txResult["effects"]["new"][base58ID]["signers"][b58signKey] = finalSigner.weight;
-                ledgerMaster.getDatabase().getSession() << "INSERT INTO Signers (accountID,pubKey,weight) values (:v1,:v2,:v3)",
-                    use(base58ID), use(b58signKey), use(finalSigner.weight);
+                
+                soci::statement st = (ledgerMaster.getDatabase().getSession().prepare <<
+                    "INSERT INTO Signers (accountID,pubKey,weight) values (:v1,:v2,:v3)",
+                    use(base58ID), use(b58signKey), use(finalSigner.weight));
+
+                st.execute(true);
+
+                if (st.get_affected_rows() != 1)
+                {
+                    throw std::runtime_error("Could not update data in SQL");
+                }
             }
         }
     }
