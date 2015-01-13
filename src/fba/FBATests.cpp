@@ -315,9 +315,23 @@ TEST_CASE("protocol core4", "[fba]")
 
         fba->receiveEnvelope(committed2);
         REQUIRE(client->mEmittedEnvelopes.size() == 5);
-        /* TODO(spolu): The 5th is a inf,x work on a stoping mechanism here
-         *              probably want to not reemit when we receive a 
-         *              committed inf,x */
+
+        FBAEnvelope ext = client->mEmittedEnvelopes[4];
+        REQUIRE(ext.nodeID == n0NodeID);
+        REQUIRE(ext.statement.ballot.valueHash == xValueHash);
+        REQUIRE(ext.statement.ballot.counter == FBA_SLOT_MAX_COUNTER);
+        REQUIRE(ext.statement.body.type() == FBAStatementType::COMMITTED);
+
+        // We test there is no reemission of COMMITTED when a COMMITTED (inf,x)
+        // is received
+        FBAEnvelope ext3 = 
+            createEnvelope(n3NodeID,
+                           qSetHash,
+                           0,
+                           FBABallot(FBA_SLOT_MAX_COUNTER, xValueHash),
+                           FBAStatementType::COMMITTED);
+        fba->receiveEnvelope(ext3);
+        REQUIRE(client->mEmittedEnvelopes.size() == 5);
     }
 
     SECTION("attempt (0,x), prepared (0,y) by v-blocking")

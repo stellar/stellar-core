@@ -46,10 +46,13 @@ Slot::processEnvelope(const FBAEnvelope& envelope)
     // envelope.
     if (mBallot.counter == FBA_SLOT_MAX_COUNTER)
     {
-        FBAEnvelope envelope = createEnvelope(FBAStatementType::COMMITTED);
-        signEnvelope(envelope);
+        if (envelope.statement.ballot.counter != FBA_SLOT_MAX_COUNTER)
+        {
+            FBAEnvelope envelope = createEnvelope(FBAStatementType::COMMITTED);
+            signEnvelope(envelope);
 
-        mFBA->getClient()->emitEnvelope(envelope);
+            mFBA->getClient()->emitEnvelope(envelope);
+        }
         return;
     }
 
