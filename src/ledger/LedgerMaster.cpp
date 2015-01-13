@@ -48,6 +48,8 @@ LedgerMaster::LedgerMaster(Application& app) : mApp(app)
 
 void LedgerMaster::startNewLedger()
 {
+    LOG(INFO) << "Starting a new network";
+
     ByteSlice bytes("masterpassphrasemasterpassphrase");
     std::string b58SeedStr = toBase58Check(VER_SEED, bytes);
     SecretKey skey = SecretKey::fromBase58Seed(b58SeedStr);
@@ -64,8 +66,26 @@ void LedgerMaster::startNewLedger()
 
     mCurrentLedger = make_shared<LedgerHeaderFrame>(genenisHeader);
 
-    closeLedgerHelper();
+    closeLedgerHelper(true);
 
+}
+
+void LedgerMaster::loadLastKnownLedger()
+{
+    LOG(INFO) << "Loading last known ledger";
+
+    string lastLedger = getState(StoreStateName::kLastClosedLedger);
+
+    if (lastLedger.empty())
+    {
+        throw new runtime_error("No ledger in database");
+    }
+
+    Hash lastLedgerHash = hexToBin256(lastLedger);
+
+    mCurrentLedger = LedgerHeaderFrame::loadByHash(lastLedgerHash, *this);
+
+    closeLedgerHelper(false);
 }
 
 Database &LedgerMaster::getDatabase()
@@ -91,6 +111,11 @@ int64_t LedgerMaster::getLedgerNum()
 LedgerHeader& LedgerMaster::getCurrentLedgerHeader()
 {
     return mCurrentLedger->mHeader;
+}
+
+LedgerHeader& LedgerMaster::getLastClosedLedgerHeader()
+{
+    return mLastClosedLedger->mHeader;
 }
 
 // make sure our state is consistent with the CLF
@@ -170,21 +195,26 @@ void LedgerMaster::closeLedger(TxSetFramePtr txSet)
         }
     }
 
-    closeLedgerHelper();
+    closeLedgerHelper(true);
     txscope.commit();
 }
 
 // helper function that updates the various hashes in the current ledger header
 // and switches to a new ledger
-void LedgerMaster::closeLedgerHelper()
+void LedgerMaster::closeLedgerHelper(bool updateCurrent)
 {
-    // TODO: give the LedgerDelta to the Bucketlist to compute the new clfHash
-    mCurrentLedger->mHeader.clfHash.fill(1);
-    // TODO: compute hashes in header
-    mCurrentLedger->mHeader.txSetHash.fill(1);
-    mCurrentLedger->computeHash();
+    if (updateCurrent)
+    {
+        // TODO: give the LedgerDelta to the Bucketlist to compute the new clfHash
+        mCurrentLedger->mHeader.clfHash.fill(1);
+        // TODO: compute hashes in header
+        mCurrentLedger->mHeader.txSetHash.fill(1);
+        mCurrentLedger->computeHash();
 
-    mCurrentLedger->storeInsert(*this);
+        mCurrentLedger->storeInsert(*this);
+
+        setState(StoreStateName::kLastClosedLedger, binToHex(mCurrentLedger->mHeader.hash));
+    }
 
     mLastClosedLedger = mCurrentLedger;
 
@@ -205,7 +235,7 @@ void LedgerMaster::dropAll(Database &db)
 }
 
 string LedgerMaster::getStoreStateName(StoreStateName n) {
-    static const char *mapping[kLastEntry] = { "lastClosedLedger", "lastClosedLedgerContent" };
+    static const char *mapping[kLastEntry] = { "lastClosedLedger" };
     if (n < 0 || n >= kLastEntry) {
         throw out_of_range("unknown entry");
     }
@@ -227,18 +257,19 @@ string LedgerMaster::getState(StoreStateName stateName) {
 }
 
 void LedgerMaster::setState(StoreStateName stateName, const string &value) {
-    try
-    {
-        getDatabase().getSession() <<
-            "REPLACE StoreState StateName = :n, State = :v;",
-            soci::use(getStoreStateName(stateName)), soci::use(value);
-    }
-    catch (soci::soci_error &e)
+    string sn(getStoreStateName(stateName));
+
+    soci::statement st = (getDatabase().getSession().prepare <<
+        "UPDATE StoreState SET State = :v WHERE StateName = :n;",
+        soci::use(value), soci::use(sn));
+
+    st.execute(true);
+
+    if (st.get_affected_rows() == 0)
     {
         getDatabase().getSession() <<
             "INSERT INTO StoreState (StateName, State) VALUES (:n, :v );",
-            soci::use(getStoreStateName(stateName)), soci::use(value);
-
+            soci::use(sn), soci::use(value);
     }
 }
 

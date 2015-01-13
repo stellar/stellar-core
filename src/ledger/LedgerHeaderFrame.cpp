@@ -54,9 +54,14 @@ namespace stellar
             use(mHeader.closeTime);
     }
 
-    LedgerHeaderFrame LedgerHeaderFrame::loadByHash(const uint256 &hash, LedgerMaster& ledgerMaster)
+    LedgerHeaderFrame::pointer LedgerHeaderFrame::loadByHash(const uint256 &hash, LedgerMaster& ledgerMaster)
     {
-        LedgerHeader lh;
+        LedgerHeaderFrame::pointer lhf;
+
+        lhf = make_shared<LedgerHeaderFrame>();
+
+        LedgerHeader &lh = lhf->mHeader;
+
         string prevHash, txSetHash, clfHash;
 
         ledgerMaster.getDatabase().getSession() <<
@@ -73,12 +78,17 @@ namespace stellar
         lh.txSetHash = hexToBin256(txSetHash);
         lh.clfHash = hexToBin256(clfHash);
 
-        return lh;
+        return lhf;
     }
 
-    LedgerHeaderFrame LedgerHeaderFrame::loadBySequence(uint64_t seq, LedgerMaster& ledgerMaster)
+    LedgerHeaderFrame::pointer LedgerHeaderFrame::loadBySequence(uint64_t seq, LedgerMaster& ledgerMaster)
     {
-        LedgerHeader lh;
+        LedgerHeaderFrame::pointer lhf;
+
+        lhf = make_shared<LedgerHeaderFrame>();
+        
+        LedgerHeader &lh = lhf->mHeader;
+
         string hash, prevHash, txSetHash, clfHash;
 
         ledgerMaster.getDatabase().getSession() <<
@@ -96,7 +106,7 @@ namespace stellar
         lh.txSetHash = hexToBin256(txSetHash);
         lh.clfHash = hexToBin256(clfHash);
 
-        return lh;
+        return lhf;
     }
 
     void LedgerHeaderFrame::dropAll(Database &db)

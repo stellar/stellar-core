@@ -64,6 +64,18 @@
     <Filter Include="transactions\tests">
       <UniqueIdentifier>{fde6dbe4-621c-41ab-b1fc-cc28d741966a}</UniqueIdentifier>
     </Filter>
+    <Filter Include="fba\tests">
+      <UniqueIdentifier>{14929285-728b-426c-b124-e5c899081f36}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="history\tests">
+      <UniqueIdentifier>{3ad6e2f5-3afc-44cb-87a4-8ef0780ec071}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="main\tests">
+      <UniqueIdentifier>{82cf7520-3e3b-4280-b3ca-e681b940451c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="ledger\tests">
+      <UniqueIdentifier>{20d51c0a-e9bd-49ac-960e-ea1055651ed4}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\src\ledger\LedgerMaster.cpp">
@@ -102,9 +114,6 @@
     <ClCompile Include="..\..\src\overlay\PreferredPeers.cpp">
       <Filter>overlay</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\main\test.cpp">
-      <Filter>main</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\lib\util\getopt_long.c">
       <Filter>lib\util</Filter>
     </ClCompile>
@@ -141,13 +150,7 @@
     <ClCompile Include="..\..\src\main\CommandHandler.cpp">
       <Filter>main</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\fba\FBATests.cpp">
-      <Filter>fba</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\history\HistoryMaster.cpp">
-      <Filter>history</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\history\HistoryTests.cpp">
       <Filter>history</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\process\ProcessMaster.cpp">
@@ -323,6 +326,18 @@
     </ClCompile>
     <ClCompile Include="..\..\src\ledger\LedgerHeaderFrame.cpp">
       <Filter>ledger</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\fba\FBATests.cpp">
+      <Filter>fba\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\history\HistoryTests.cpp">
+      <Filter>history\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\main\test.cpp">
+      <Filter>main\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\ledger\LedgerHeaderTests.cpp">
+      <Filter>ledger\tests</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

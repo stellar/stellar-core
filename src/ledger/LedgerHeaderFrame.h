@@ -19,6 +19,7 @@ namespace stellar
 
         LedgerHeader mHeader;
 
+        LedgerHeaderFrame() {}
         LedgerHeaderFrame(LedgerHeader lh);
         LedgerHeaderFrame(LedgerHeaderFrame::pointer previousLedger);
 
@@ -26,8 +27,8 @@ namespace stellar
 
         void storeInsert(LedgerMaster& ledgerMaster);
 
-        static LedgerHeaderFrame loadByHash(const uint256 &hash, LedgerMaster& ledgerMaster);
-        static LedgerHeaderFrame loadBySequence(uint64_t seq, LedgerMaster& ledgerMaster);
+        static LedgerHeaderFrame::pointer loadByHash(const uint256 &hash, LedgerMaster& ledgerMaster);
+        static LedgerHeaderFrame::pointer loadBySequence(uint64_t seq, LedgerMaster& ledgerMaster);
 
         static void dropAll(Database &db);
         static const char *kSQLCreateStatement;

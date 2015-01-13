@@ -279,8 +279,11 @@ Application::Impl::start()
 {
     if(mConfig.START_NEW_NETWORK)
     {
-        LOG(INFO) << "Starting a new network";
         mLedgerMaster->startNewLedger();
+    }
+    else
+    {
+        mLedgerMaster->loadLastKnownLedger();
     }
 }
 

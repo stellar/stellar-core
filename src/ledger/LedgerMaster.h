@@ -44,8 +44,6 @@ namespace stellar
 
         LedgerMaster(Application& app);
 
-        
-
         //////// GATEWAY FUNCTIONS
         // called by txherder
         void externalizeValue(TxSetFramePtr txSet);
@@ -57,6 +55,8 @@ namespace stellar
         ///////
 
         void startNewLedger();
+        void loadLastKnownLedger();
+
         // establishes that our internal representation is in sync with passed ledger
         //bool ensureSync(Ledger::pointer lastClosedLedger);
 
@@ -68,6 +68,7 @@ namespace stellar
         void abortLedgerClose();
 
         LedgerHeader& getCurrentLedgerHeader();
+        LedgerHeader& getLastClosedLedgerHeader();
 
         Database& getDatabase();
 
@@ -76,7 +77,6 @@ namespace stellar
         // state store
         enum StoreStateName {
             kLastClosedLedger = 0,
-            kLastClosedLedgerContent,
             kLastEntry
         };
 
@@ -86,7 +86,7 @@ namespace stellar
         static void dropAll(Database &db);
     private:
         string getStoreStateName(StoreStateName n);
-        void closeLedgerHelper();
+        void closeLedgerHelper(bool updateCurrent);
 
         static const char *kSQLCreateStatement;
 

@@ -14,7 +14,7 @@ FMT_SRCS = src/clf/BucketList.cpp src/clf/CLFMaster.cpp src/clf/CLFTests.cpp    
     src/ledger/AccountFrame.cpp src/ledger/EntryFrame.cpp                       \
     src/ledger/LedgerDelta.cpp src/ledger/LedgerMaster.cpp                      \
     src/ledger/OfferFrame.cpp src/ledger/TrustFrame.cpp                         \
-    src/ledger/LedgerHeaderFrame.cpp                                           \
+    src/ledger/LedgerHeaderFrame.cpp src/ledger/LedgerHeaderTests.cpp           \
     src/main/Application.cpp src/main/CommandHandler.cpp src/main/Config.cpp    \
     src/main/main.cpp src/main/test.cpp src/overlay/Floodgate.cpp               \
     src/overlay/ItemFetcher.cpp src/overlay/LoopbackPeer.cpp                    \
