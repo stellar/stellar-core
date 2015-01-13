@@ -46,6 +46,7 @@ hexToBin256(std::string const& hex)
     {
         throw std::runtime_error("wrong number of hex bytes when decoding uint256");
     }
+    memcpy(out.data(), bin.data(), bin.size());
     return out;
 }
 
