@@ -133,12 +133,12 @@ void AccountFrame::storeUpdate(EntryFrame::pointer startFrom, Json::Value& txRes
         txResult["effects"][op][base58ID]["balance"] = (Json::Int64)finalAccount.balance;
     }
 
-    if(insert || finalAccount.sequence != startAccount.sequence || insert)
+    if(finalAccount.sequence != startAccount.sequence)
     {
         txResult["effects"][op][base58ID]["sequence"] = finalAccount.sequence;
     }
 
-    if(insert || finalAccount.transferRate != startAccount.transferRate)
+    if(finalAccount.transferRate != startAccount.transferRate)
     {
         txResult["effects"][op][base58ID]["transferRate"] = finalAccount.transferRate;
     }
@@ -148,7 +148,7 @@ void AccountFrame::storeUpdate(EntryFrame::pointer startFrom, Json::Value& txRes
 
     if(finalAccount.inflationDest)
     {
-        if(insert || !startAccount.inflationDest || *finalAccount.inflationDest != *startAccount.inflationDest)
+        if(!startAccount.inflationDest || *finalAccount.inflationDest != *startAccount.inflationDest)
         {
             inflationDestStr = toBase58Check(VER_ACCOUNT_PUBLIC, *finalAccount.inflationDest);
             inflation_ind = soci::i_ok;
@@ -156,7 +156,7 @@ void AccountFrame::storeUpdate(EntryFrame::pointer startFrom, Json::Value& txRes
         }
     }
     
-    if(insert || finalAccount.thresholds != startAccount.thresholds)
+    if(finalAccount.thresholds != startAccount.thresholds)
     {
         txResult["effects"][op][base58ID]["thresholds"][0] = finalAccount.thresholds[0];
         txResult["effects"][op][base58ID]["thresholds"][1] = finalAccount.thresholds[1];
@@ -165,7 +165,7 @@ void AccountFrame::storeUpdate(EntryFrame::pointer startFrom, Json::Value& txRes
     }
     
 
-    if(insert || mEntry.account().flags != startAccount.flags)
+    if(mEntry.account().flags != startAccount.flags)
     {
         txResult["effects"][op][base58ID]["flags"] = finalAccount.flags;
     }
@@ -245,7 +245,7 @@ void AccountFrame::storeChange(EntryFrame::pointer startFrom,
 
 void AccountFrame::storeAdd(Json::Value& txResult, LedgerMaster& ledgerMaster)
 {
-    EntryFrame::pointer emptyAccount = make_shared<AccountFrame>();
+    EntryFrame::pointer emptyAccount = make_shared<AccountFrame>(mEntry.account().accountID);
     storeUpdate(emptyAccount, txResult, ledgerMaster, true);
 }
 

@@ -53,7 +53,10 @@ TransactionFramePtr setTrust(SecretKey& from, SecretKey& to, uint32_t seq, const
     strToCurrencyCode(txEnvelope.tx.body.changeTrustTx().line.isoCI().currencyCode,currencyCode);
     txEnvelope.tx.body.changeTrustTx().line.isoCI().issuer = to.getPublicKey();
 
-    return TransactionFrame::makeTransactionFromWire(txEnvelope);
+    TransactionFramePtr res = TransactionFrame::makeTransactionFromWire(txEnvelope);
+
+    res->addSignature(from);
+    return res;
 }
 
 TransactionFramePtr createPaymentTx(SecretKey& from, SecretKey& to, uint32_t seq, uint64_t amount)
