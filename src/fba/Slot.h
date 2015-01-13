@@ -64,15 +64,15 @@ class Slot
                          const Hash& qSetHash,
                          const std::vector<uint256>& nodeSet);
 
-    // Helper methods to test if we have a transitive quorum or a v-blocking
-    // set of nodes which have pledge the statements of the specified type for
-    // a given node specified by nodeID. The filter function allows to restrict
-    // the set of nodes to a subset matching a certain criteria.
+    // Helper method to test if the filtered set of envelopes is a transitive
+    // quorum and whether this transitive quorum is a quorum for the local
+    // node.
     bool isQuorumTransitive(
         const std::map<uint256, FBAEnvelope>& envelopes,
-        const uint256& nodeID,
         std::function<bool(const FBAEnvelope&)> const& filter =
           [] (const FBAEnvelope&) { return true; });
+    // Helper method to test if the filtered set of envelopes is a v-blocking
+    // set for the node specified by nodeID.
     bool isVBlocking(
         const std::map<uint256, FBAEnvelope>& envelopes,
         const uint256& nodeID,

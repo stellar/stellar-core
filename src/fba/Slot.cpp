@@ -31,7 +31,7 @@ Slot::processEnvelope(const FBAEnvelope& envelope)
 {
     assert(envelope.statement.slotIndex == mSlotIndex);
 
-    LOG(INFO) << "++ Slot::processEnvelope" 
+    LOG(INFO) << "Slot::processEnvelope" 
               << "@" << binToHex(mFBA->getLocalNodeID()).substr(0,6)
               << ":" << mSlotIndex
               << " " << envToStr(envelope);
@@ -58,18 +58,27 @@ Slot::processEnvelope(const FBAEnvelope& envelope)
 
     if (envelope.statement.body.type() != FBAStatementType::PREPARE)
     {
+        // isExternalized is true if we have a COMMITTED (inf,*) envelope. We
+        // let these envelope go through as they don't bump the ballot counter
+        // and are the only ones sent by a node that exteranlized.
+        bool isExternalized = 
+            (envelope.statement.ballot.counter == FBA_SLOT_MAX_COUNTER &&
+             envelope.statement.body.type() == FBAStatementType::COMMITTED);
+
         // We don't bump ballots on other evenlopes than valid PREPARE ones.
         // So if the counter is different than the current one. We simply
-        // ignore it.
-        if (envelope.statement.ballot.counter != mBallot.counter)
+        // ignore it unless isExternalized is true.
+        if (!isExternalized && 
+            envelope.statement.ballot.counter != mBallot.counter)
         {
             return;
         }
 
         // We accept envelopes other than PREPARE only if we previously saw a
         // valid envelope PREPARE for that ballot. This prevents node from
-        // emitting phony messages too easily
-        if (getNodeEnvelopes(envelope.nodeID, 
+        // emitting phony messages too easily.
+        if (isExternalized ||
+            getNodeEnvelopes(envelope.nodeID, 
                              FBAStatementType::PREPARE).size() == 1)
         {
             FBABallot b = envelope.statement.ballot;
@@ -88,14 +97,6 @@ Slot::processEnvelope(const FBAEnvelope& envelope)
     }
     else
     {
-        // If we already saw a PREPARE message from this node, we just ignore
-        // this one as it is illegal.
-        if (getNodeEnvelopes(envelope.nodeID, 
-                             FBAStatementType::PREPARE).size() != 0)
-        {
-            return;
-        }
-
         Hash evidence = envelope.statement.body.prepare().evidence;
         FBABallot b = envelope.statement.ballot;
         FBAStatementType t = FBAStatementType::PREPARE;
@@ -112,6 +113,14 @@ Slot::processEnvelope(const FBAEnvelope& envelope)
             if (b.counter > mBallot.counter || isPristine())
             {
                 bumpToBallot(b, evidence);
+            }
+
+            // If we already saw a PREPARE message from this node, we just
+            // ignore this one as it is illegal.
+            if (getNodeEnvelopes(envelope.nodeID, 
+                                 FBAStatementType::PREPARE).size() != 0)
+            {
+              return;
             }
 
             // Finally store the envelope and advance the slot if possible.
@@ -157,12 +166,17 @@ void
 Slot::bumpToBallot(const FBABallot& ballot,
                    const Hash& evidence)
 {
+    LOG(INFO) << "Slot::bumpToBallot" 
+              << "@" << binToHex(mFBA->getLocalNodeID()).substr(0,6)
+              << " (" << ballot.counter
+              << "," << binToHex(ballot.valueHash).substr(0,6) << ")"
+              << " [" << binToHex(evidence).substr(0,6) << "]";
     if (!isPristine())
     {
         mFBA->getClient()->valueCancelled(mSlotIndex, 
                                           mBallot.valueHash);
     }
-    mEnvelopes.empty();
+    mEnvelopes.clear();
     mBallot = ballot;
     mEvidence = evidence;
     mIsPristine = true;
@@ -238,7 +252,7 @@ Slot::attemptPrepare()
     {
         return;
     }
-    LOG(INFO) << "!! Slot::attemptPrepare" 
+    LOG(INFO) << "Slot::attemptPrepare" 
               << "@" << binToHex(mFBA->getLocalNodeID()).substr(0,6)
               << " (" << mBallot.counter
               << ","  << binToHex(mBallot.valueHash).substr(0,6) << ")";
@@ -273,7 +287,7 @@ Slot::attemptPrepared()
     {
         return;
     }
-    LOG(INFO) << "!! Slot::attemptPrepared" 
+    LOG(INFO) << "Slot::attemptPrepared" 
               << "@" << binToHex(mFBA->getLocalNodeID()).substr(0,6)
               << " (" << mBallot.counter
               << ","  << binToHex(mBallot.valueHash).substr(0,6) << ")";
@@ -300,7 +314,7 @@ Slot::attemptCommit()
     {
         return;
     }
-    LOG(INFO) << "!! Slot::attemptCommit" 
+    LOG(INFO) << "Slot::attemptCommit" 
               << "@" << binToHex(mFBA->getLocalNodeID()).substr(0,6)
               << " (" << mBallot.counter
               << ","  << binToHex(mBallot.valueHash).substr(0,6) << ")";
@@ -327,7 +341,7 @@ Slot::attemptCommitted()
     {
         return;
     }
-    LOG(INFO) << "!! Slot::attemptCommitted" 
+    LOG(INFO) << "Slot::attemptCommitted" 
               << "@" << binToHex(mFBA->getLocalNodeID()).substr(0,6)
               << " (" << mBallot.counter
               << ","  << binToHex(mBallot.valueHash).substr(0,6) << ")";
@@ -364,11 +378,11 @@ Slot::nodeHasQuorum(const uint256& nodeID,
                     const Hash& qSetHash,
                     const std::vector<uint256>& nodeSet)
 {
-    LOG(INFO) << ">> Slot::nodeHasQuorum" 
-              << "@" << binToHex(mFBA->getLocalNodeID()).substr(0,6)
-              << " [" << binToHex(nodeID).substr(0,6) << "]"
-              << " " << binToHex(qSetHash).substr(0,6)
-              << " " << nodeSet.size();
+    LOG(DEBUG) << ">> Slot::nodeHasQuorum" 
+               << "@" << binToHex(mFBA->getLocalNodeID()).substr(0,6)
+               << " [" << binToHex(nodeID).substr(0,6) << "]"
+               << " " << binToHex(qSetHash).substr(0,6)
+               << " " << nodeSet.size();
     Node* node = mFBA->getNode(nodeID);
     // This call can throw a `QuorumSetNotFound` if the quorumSet is unknown.
     // The exception is catched in `advanceSlot`
@@ -389,11 +403,11 @@ Slot::nodeIsVBlocking(const uint256& nodeID,
                       const Hash& qSetHash,
                       const std::vector<uint256>& nodeSet)
 {
-    LOG(INFO) << ">> Slot::nodeIsVBlocking" 
-              << "@" << binToHex(mFBA->getLocalNodeID()).substr(0,6)
-              << " [" << binToHex(nodeID).substr(0,6) << "]"
-              << " " << binToHex(qSetHash).substr(0,6)
-              << " " << nodeSet.size();
+    LOG(DEBUG) << ">> Slot::nodeIsVBlocking" 
+               << "@" << binToHex(mFBA->getLocalNodeID()).substr(0,6)
+               << " [" << binToHex(nodeID).substr(0,6) << "]"
+               << " " << binToHex(qSetHash).substr(0,6)
+               << " " << nodeSet.size();
     Node* node = mFBA->getNode(nodeID);
     // This call can throw a `QuorumSetNotFound` if the quorumSet is unknown.
     // The exception is catched in `advanceSlot`
@@ -411,7 +425,6 @@ Slot::nodeIsVBlocking(const uint256& nodeID,
 
 bool 
 Slot::isQuorumTransitive(const std::map<uint256, FBAEnvelope>& envelopes,
-                         const uint256& nodeID,
                          std::function<bool(const FBAEnvelope&)> const& filter)
 {
     std::vector<uint256> pNodes;
@@ -440,8 +453,13 @@ Slot::isQuorumTransitive(const std::map<uint256, FBAEnvelope>& envelopes,
         pNodes = fNodes;
     } while (count != pNodes.size());
 
+    return nodeHasQuorum(mFBA->getLocalNodeID(),
+                         mFBA->getLocalNode()->getQuorumSetHash(),
+                         pNodes);
+    /*
     auto it = std::find(pNodes.begin(), pNodes.end(), nodeID);
     return (it != pNodes.end());
+    */
 }
 
 bool 
@@ -553,7 +571,6 @@ Slot::isPrepared(const Hash& valueHash)
     };
 
     if (isQuorumTransitive(mEnvelopes[valueHash][FBAStatementType::PREPARE],
-                           mFBA->getLocalNodeID(),
                            ratifyFilter))
     {
         return true;
@@ -567,8 +584,7 @@ Slot::isPreparedConfirmed(const Hash& valueHash)
 {
     // Checks if there is a transitive quorum that accepted the PREPARE
     // statements for the local node.
-    if (isQuorumTransitive(mEnvelopes[valueHash][FBAStatementType::PREPARED],
-                           mFBA->getLocalNodeID()))
+    if (isQuorumTransitive(mEnvelopes[valueHash][FBAStatementType::PREPARED]))
     {
         return true;
     }
@@ -596,8 +612,7 @@ Slot::isCommitted(const Hash& valueHash)
     }
 
     // Check if we can establish the pledges for a transitive quorum.
-    if (isQuorumTransitive(mEnvelopes[valueHash][FBAStatementType::COMMIT],
-                           mFBA->getLocalNodeID()))
+    if (isQuorumTransitive(mEnvelopes[valueHash][FBAStatementType::COMMIT]))
     {
         return true;
     }
@@ -610,8 +625,7 @@ Slot::isCommittedConfirmed(const Hash& valueHash)
 {
     // Checks if there is a transitive quorum that accepted the COMMIT
     // statement for the local node.
-    if (isQuorumTransitive(mEnvelopes[valueHash][FBAStatementType::COMMITTED],
-                           mFBA->getLocalNodeID()))
+    if (isQuorumTransitive(mEnvelopes[valueHash][FBAStatementType::COMMITTED]))
     {
         return true;
     }
@@ -659,7 +673,9 @@ Slot::advanceSlot()
         for (auto it : mEnvelopes)
         {
             Hash valueHash = it.first;
-            LOG(INFO) << "ADVANCE FBA: " << binToHex(valueHash);
+            LOG(DEBUG) << "=> Slot::advanceSlot" 
+                       << "@" << binToHex(mFBA->getLocalNodeID()).substr(0,6)
+                       << " " << binToHex(valueHash).substr(0,6);
 
             // Given externalized node send COMMITTED (inf,x) messages we first
             // check if we can externalize directly

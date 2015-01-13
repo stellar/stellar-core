@@ -24,7 +24,7 @@ abortedFilter)
 4: PREPARE (1,x) - DIE
 > Can 3 move onto PREPARED(1,y) directly? Should it?
 
-TESTCASE: attemptValue (1,x) then receive PREPARE/PREPARED (1,y)
+[x] TESTCASE: attemptValue (1,x) then receive PREPARE/PREPARED (1,y)
 
 - attemptValue after PREPARE (Q: 3 out of 4)
 1: PREPARE (1,x) - attemptValue(y) - ?
@@ -42,9 +42,10 @@ TESTCASE: attemptValue (1,x) then receive PREPARE/PREPARED (1,y)
 > This requires a shortcut in progressFBA to skip to isCommittedConfirmed if
 > possible
 
-TESTCASE: committed message directly received. skip to externalization.
-TESTCASE: if externalized send committed in response to PREPARE(D), COMMIT(TED)
-TESTCASE: ignore previous ballot counter
+[x] TESTCASE: committed message directly received. skip to externalization.
+[x] TESTCASE: if externalized send committed in response to PREPARE(D), COMMIT(TED)
+[x] TESTCASE: ignore previous ballot counter
+[x] TESTCASE: cancelled pledge to commit
 
 Some personal notes [@spolu]:
 -----------------------------

@@ -23,6 +23,8 @@ makePublicKey(uint256 const& b)
     // SANITY pub from private
     uint256 ret;
     ret[0] = b[0];
+    ret[1] = b[1];
+    ret[2] = b[2];
     return (ret);
 }
 
