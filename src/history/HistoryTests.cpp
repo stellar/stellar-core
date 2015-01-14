@@ -6,27 +6,17 @@
 #include "history/HistoryMaster.h"
 #include "history/HistoryArchive.h"
 #include "main/test.h"
+#include "main/Config.h"
 #include "lib/catch.hpp"
 #include "util/Logging.h"
 #include "util/Timer.h"
-
+#include "util/TempDir.h"
+#include <cstdio>
 #include <xdrpp/autocheck.h>
-
-#ifdef _MSC_VER
-#include <io.h>
-#define UNLINK _unlink
-#else
-#include <unistd.h>
-#define UNLINK unlink
-#endif
+#include <fstream>
 
 using namespace stellar;
 
-static void
-del(std::string const& n)
-{
-    UNLINK(n.c_str());
-}
 
 TEST_CASE("WriteLedgerHistoryToFile", "[history]")
 {
@@ -40,15 +30,31 @@ TEST_CASE("WriteLedgerHistoryToFile", "[history]")
     History h2;
     hm.readLedgerHistoryFromFile(fname, h2);
     CHECK(h1.fromLedger == h2.fromLedger);
-    LOG(DEBUG) << "unlinking " << fname;
-    del(fname);
+    LOG(DEBUG) << "removing " << fname;
+    std::remove(fname.c_str());
 }
 
 
 TEST_CASE("HistoryArchiveParams::save", "[history]")
 {
+    TempDir dir("historytest");
     HistoryArchiveParams hap;
-    auto fname = "stellar-history.json";
+    auto fname = dir.getName() + "/stellar-history.json";
     hap.save(fname);
-    del(fname);
+    std::ifstream in(fname);
+    LOG(DEBUG) << "re-reading " << fname;
+    char buf[128];
+    while (in.getline(buf, sizeof(buf)))
+    {
+        LOG(DEBUG) << buf;
+    }
+}
+
+
+TEST_CASE("HistoryArchive", "[history]")
+{
+    Config cfg = getTestConfig();
+    cfg.HISTORY["test"] = std::make_shared<HistoryArchive>("test", "cp {0} {1}", "cp {0} {1}");
+    VirtualClock clock;
+    Application app(clock, cfg);
 }

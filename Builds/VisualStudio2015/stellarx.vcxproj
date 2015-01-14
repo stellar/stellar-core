@@ -91,6 +91,7 @@
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="..\..\src\crypto\Hex.cpp" />
+    <ClCompile Include="..\..\src\crypto\Random.cpp" />
     <ClCompile Include="..\..\src\crypto\SHA.cpp" />
     <ClCompile Include="..\..\src\crypto\SecretKey.cpp" />
     <ClCompile Include="..\..\src\database\Database.cpp" />
@@ -168,6 +169,7 @@
     <ClCompile Include="..\..\src\transactions\TxEnvelopeTests.cpp" />
     <ClCompile Include="..\..\src\transactions\TxTests.cpp" />
     <ClCompile Include="..\..\src\txherder\HerdTests.cpp" />
+    <ClCompile Include="..\..\src\util\TempDir.cpp" />
     <ClCompile Include="..\..\src\util\Timer.cpp" />
     <ClCompile Include="..\..\src\util\types.cpp" />
     <ClCompile Include="..\..\src\main\Application.cpp" />
@@ -202,6 +204,7 @@
     <ClInclude Include="..\..\src\crypto\Base58.h" />
     <ClInclude Include="..\..\src\crypto\ByteSlice.h" />
     <ClInclude Include="..\..\src\crypto\Hex.h" />
+    <ClInclude Include="..\..\src\crypto\Random.h" />
     <ClInclude Include="..\..\src\crypto\SHA.h" />
     <ClInclude Include="..\..\src\crypto\SecretKey.h" />
     <ClInclude Include="..\..\src\database\Database.h" />
@@ -275,6 +278,7 @@
     <ClInclude Include="..\..\src\util\Logging.h" />
     <ClInclude Include="..\..\src\util\make_unique.h" />
     <ClInclude Include="..\..\src\util\must_use.h" />
+    <ClInclude Include="..\..\src\util\TempDir.h" />
     <ClInclude Include="..\..\src\util\Timer.h" />
     <ClInclude Include="..\..\src\util\types.h" />
   </ItemGroup>

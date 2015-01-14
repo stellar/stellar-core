@@ -339,6 +339,12 @@
     <ClCompile Include="..\..\src\ledger\LedgerHeaderTests.cpp">
       <Filter>ledger\tests</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\util\TempDir.cpp">
+      <Filter>util</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\crypto\Random.cpp">
+      <Filter>crypto</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\history\HistoryGateway.h">
@@ -589,6 +595,12 @@
     </ClInclude>
     <ClInclude Include="..\..\src\main\test.h">
       <Filter>main\tests</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\util\TempDir.h">
+      <Filter>util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\crypto\Random.h">
+      <Filter>crypto</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
