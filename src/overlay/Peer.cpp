@@ -10,7 +10,7 @@
 #include "generated/StellarXDR.h"
 #include "xdrpp/marshal.h"
 #include "overlay/PeerMaster.h"
-#include "txherder/TxHerderGateway.h"
+#include "herder/HerderGateway.h"
 #include "database/Database.h"
 
 // LATER: need to add some way of docking peers that are misbehaving by sending
@@ -243,8 +243,8 @@ Peer::recvDontHave(StellarMessage const& msg)
     switch (msg.dontHave().type)
     {
     case TX_SET:
-        mApp.getTxHerderGateway().doesntHaveTxSet(msg.dontHave().reqHash,
-                                                  shared_from_this());
+        mApp.getHerderGateway().doesntHaveTxSet(msg.dontHave().reqHash,
+                                                shared_from_this());
         break;
     case FBA_QUORUMSET:
         mApp.getOverlayGateway().doesntHaveQSet(msg.dontHave().reqHash,
@@ -260,7 +260,7 @@ void
 Peer::recvGetTxSet(StellarMessage const& msg)
 {
     TxSetFramePtr txSet =
-        mApp.getTxHerderGateway().fetchTxSet(msg.txSetHash(), false);
+        mApp.getHerderGateway().fetchTxSet(msg.txSetHash(), false);
     if (txSet)
     {
         StellarMessage newMsg;
@@ -279,7 +279,7 @@ Peer::recvTxSet(StellarMessage const& msg)
 {
     TxSetFramePtr txSet =
         std::make_shared<TxSetFrame>(msg.txSet());
-    mApp.getTxHerderGateway().recvTransactionSet(txSet);
+    mApp.getHerderGateway().recvTransactionSet(txSet);
 }
 
 void
@@ -288,9 +288,9 @@ Peer::recvTransaction(StellarMessage const& msg)
     TransactionFramePtr transaction =
         TransactionFrame::makeTransactionFromWire(msg.transaction());
     if (transaction)
-    {
-        if (mApp.getTxHerderGateway().recvTransaction(
-                transaction)) // add it to our current set
+    { 
+        // add it to our current set
+        if (mApp.getHerderGateway().recvTransaction(transaction))
         {
             mApp.getOverlayGateway().broadcastMessage(msg, shared_from_this());
         }

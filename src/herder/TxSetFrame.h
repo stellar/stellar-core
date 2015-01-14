@@ -12,8 +12,8 @@ using namespace std;
 
 namespace stellar
 {
-
 class Application;
+
 class TransactionFrame;
 typedef std::shared_ptr<TransactionFrame> TransactionFramePtr;
 
@@ -28,7 +28,6 @@ class TxSetFrame
     uint256                     mPreviousLedgerHash;
 
     TxSetFrame();
-
     // make it from the wire
     TxSetFrame(TransactionSet const& xdrSet);
 

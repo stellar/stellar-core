@@ -19,6 +19,18 @@ FBA::FBA(const uint256& validationSeed,
     mKnownNodes[mLocalNode->getNodeID()] = mLocalNode;
 }
 
+FBA::~FBA()
+{
+    for (auto it : mKnownNodes)
+    {
+        delete it.second;
+    }
+    for (auto it : mKnownSlots)
+    {
+        delete it.second;
+    }
+}
+
 void
 FBA::receiveQuorumSet(const uint256& nodeID, 
                       const FBAQuorumSet& qSet)
@@ -29,12 +41,12 @@ FBA::receiveQuorumSet(const uint256& nodeID,
 void
 FBA::receiveEnvelope(const FBAEnvelope& envelope)
 {
-    uint32 slotIndex = envelope.statement.slotIndex;
+    uint64 slotIndex = envelope.statement.slotIndex;
     return getSlot(slotIndex)->processEnvelope(envelope);
 }
 
 bool
-FBA::attemptValue(const uint32& slotIndex,
+FBA::attemptValue(const uint64& slotIndex,
                   const Hash& valueHash,
                   const Hash& evidence)
 {
@@ -77,7 +89,7 @@ FBA::getLocalNode()
 }
 
 Slot*
-FBA::getSlot(const uint32& slotIndex)
+FBA::getSlot(const uint64& slotIndex)
 {
     auto it = mKnownSlots.find(slotIndex);
     if (it == mKnownSlots.end())

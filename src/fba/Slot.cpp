@@ -14,7 +14,7 @@
 namespace stellar
 {
 
-Slot::Slot(const uint32& slotIndex,
+Slot::Slot(const uint64& slotIndex,
            FBA* FBA)
     : mSlotIndex(slotIndex)
     , mFBA(FBA)

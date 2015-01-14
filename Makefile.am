@@ -22,8 +22,8 @@ FMT_SRCS = src/clf/BucketList.cpp src/clf/CLFMaster.cpp src/clf/CLFTests.cpp    
     src/overlay/PeerMaster.cpp src/overlay/PreferredPeers.cpp                   \
     src/overlay/TCPPeer.cpp src/process/ProcessMaster.cpp                       \
     src/process/ProcessTests.cpp src/simulation/CycleTests.cpp                  \
-    src/simulation/Simulation.cpp src/txherder/TxHerder.cpp                     \
-    src/txherder/TxSetFrame.cpp src/util/Logging.cpp src/util/Timer.cpp         \
+    src/simulation/Simulation.cpp src/herder/Herder.cpp                         \
+    src/herder/TxSetFrame.cpp src/util/Logging.cpp src/util/Timer.cpp           \
     src/util/types.cpp src/util/TempDir.cpp src/util/Uint128Tests.cpp           \
     src/transactions/AllowTrustTxFrame.cpp                                      \
     src/transactions/CancelOfferFrame.cpp                                       \
@@ -52,8 +52,8 @@ FMT_HDRS = src/clf/BucketList.h src/clf/CLFMaster.h src/crypto/Base58.h         
     src/overlay/OverlayGateway.h src/overlay/Peer.h src/overlay/PeerDoor.h      \
     src/overlay/PeerMaster.h src/overlay/PreferredPeers.h src/overlay/TCPPeer.h \
     src/process/ProcessGateway.h src/process/ProcessMaster.h                    \
-    src/simulation/Simulation.h src/txherder/TxHerder.h                         \
-    src/txherder/TxHerderGateway.h src/txherder/TxSetFrame.h src/util/Logging.h \
+    src/simulation/Simulation.h src/herder/Herder.h                             \
+    src/herder/HerderGateway.h src/herder/TxSetFrame.h src/util/Logging.h       \
     src/util/Timer.h src/util/make_unique.h src/util/types.h src/util/TempDir.h \
     src/transactions/AllowTrustTxFrame.h src/transactions/CancelOfferFrame.h    \
     src/transactions/ChangeTrustTxFrame.h src/transactions/CreateOfferFrame.h   \

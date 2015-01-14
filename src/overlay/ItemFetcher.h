@@ -6,10 +6,10 @@
 // this distribution or at http://opensource.org/licenses/ISC
 
 #include <map>
-#include "overlay/OverlayGateway.h"
-#include "txherder/TxSetFrame.h"
-#include "overlay/Peer.h"
 #include "generated/FBAXDR.h"
+#include "overlay/OverlayGateway.h"
+#include "herder/TxSetFrame.h"
+#include "overlay/Peer.h"
 #include "util/Timer.h"
 
 /*

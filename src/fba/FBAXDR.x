@@ -5,10 +5,11 @@ typedef opaque Signature[64];
 typedef opaque Hash[32];
 typedef opaque uint256[32];
 typedef unsigned uint32;
+typedef unsigned hyper uint64;
 
 struct FBABallot
 {
-    uint32 counter;      // n
+    uint32 counter;   // n
     Hash valueHash;   // x
 };
 
@@ -22,7 +23,7 @@ enum FBAStatementType
 
 struct FBAStatement
 {
-    uint32 slotIndex;      // i
+    uint64 slotIndex;      // i
     FBABallot ballot;      // b
     Hash quorumSetHash;
 	

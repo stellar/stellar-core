@@ -12,7 +12,7 @@
 #include "crypto/Hex.h"
 #include "crypto/SecretKey.h"
 #include "crypto/Base58.h"
-#include "txherder/TxHerder.h"
+#include "herder/Herder.h"
 #include "database/Database.h"
 #include "ledger/LedgerHeaderFrame.h"
 
@@ -25,7 +25,7 @@ The ledger module:
     5) saves the changed entries to SQL
     6) saves the ledger hash and header to SQL
     7) sends the new ledger hash and the tx set to the history
-    8) sends the new ledger hash and header to the TxHerder
+    8) sends the new ledger hash and header to the Herder
     
 
 catching up to network:
