@@ -23,24 +23,25 @@ class FBA
 {
   public:
     /**
-     * Users of the FBA library must provide an implementation of the Client
-     * class. The Client methods are called by the FBA implementation to:
+     * Users of the FBA library must provide an implementation of the
+     * FBA::Client class. The Client methods are called by the FBA
+     * implementation to:
      *
-     * 1) inform about events happening within the consensus algorithm
+     * 1) hand over the validation of ballots to the user of the library 
+     *    (`validateBallot`)
+     * 2) inform about events happening within the consensus algorithm
      *    ( `ballotDidPrepare`, `ballotDidCommit`, `valueCancelled`, 
      *      `valueExternalized`)
-     * 2) trigger the retrieval of data required by the FBA protocol
+     * 3) trigger the retrieval of data required by the FBA protocol
      *    (`retrieveQuorumSet`)
-     * 3) trigger the broadcasting of FBA Envelopes to other nodes in the 
+     * 4) trigger the broadcasting of FBA Envelopes to other nodes in the 
      *    network (`emitEnvelope`) 
-     * 4) hand over the validation of ballots to the user of the library 
-     *    (`validateBallot`)
+     * 5) hint rentransmissions when it can be detected by the protocol
+     *    (`retransmissionHinted`)
      *    
-     * The Client interface permits the abstraction of the transport layer used
-     * from the actual implementation of the FBA protocol. By providing an
-     * implementation of `Client` and calling `receiveQuorumSet` and
-     * `receiveEnvelope` as needed, users of FBA has full control on the
-     * transport layer and protocol they want to rely on.
+     * The FBA::Client interface not only informs the outside world about the
+     * progress made by FBA but it also permits the abstraction of the
+     * transport layer used from the actual implementation of the FBA protocol. 
      */
     class Client
     {
@@ -65,6 +66,9 @@ class FBA
         virtual void retrieveQuorumSet(const uint256& nodeID,
                                        const Hash& qSetHash) = 0;
         virtual void emitEnvelope(const FBAEnvelope& envelope) = 0;
+        
+        virtual void retransmissionHinted(const uint32& slotIndex,
+                                          const uint256& nodeID) = 0;
     };
 
     // The constructor is passed an FBA::Client object but does not own it. The

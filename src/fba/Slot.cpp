@@ -92,7 +92,8 @@ Slot::processEnvelope(const FBAEnvelope& envelope)
         else if (getNodeEnvelopes(envelope.nodeID, 
                                   FBAStatementType::PREPARE).size() == 0)
         {
-            /* TODO(spolu): Call for retransmission. */
+            mFBA->getClient()->retransmissionHinted(mSlotIndex,
+                                                    envelope.nodeID);
         }
     }
     else
