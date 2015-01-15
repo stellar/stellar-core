@@ -243,23 +243,21 @@ class Application;
  * add soon) will store itself on disk if it's any bigger than a specified
  * limit. For now we assume we can fit all of them in memory.
  */
+
 class Bucket
 {
 
-  public:
-    using Entry = std::tuple<uint256, uint256, LedgerEntry>;
-
   private:
-    std::vector<Entry> const mEntries;
+    std::vector<CLFEntry> const mEntries;
     uint256 const mHash;
 
   public:
     Bucket();
-    Bucket(std::vector<Entry>&& entries, uint256&& hash);
-    std::vector<Entry> const& getEntries() const;
+    Bucket(std::vector<CLFEntry>&& entries, uint256&& hash);
+    std::vector<CLFEntry> const& getEntries() const;
     uint256 const& getHash() const;
 
-    static std::shared_ptr<Bucket> fresh(std::vector<Entry>&& entries);
+    static std::shared_ptr<Bucket> fresh(std::vector<LedgerEntry> const& entries);
 
     static std::shared_ptr<Bucket>
     merge(std::shared_ptr<Bucket> const& oldBucket,
@@ -302,7 +300,7 @@ class BucketList
     BucketLevel const& getLevel(size_t i) const;
     uint256 getHash() const;
     void addBatch(Application& app, uint64_t currLedger,
-                  std::vector<Bucket::Entry>&& batch);
+                  std::vector<LedgerEntry> const& batch);
 };
 }
 #endif

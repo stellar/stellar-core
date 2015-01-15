@@ -20,7 +20,85 @@
 namespace stellar
 {
 
-Bucket::Bucket(std::vector<Bucket::Entry>&& entries, uint256&& hash)
+/**
+ * Compare two LedgerEntries for 'identity', not content.
+ *
+ * LedgerEntries are identified iff they have:
+ *
+ *   - The same type
+ *     - If accounts, then with same accountID
+ *     - If trustlines, then with same (accountID, currency) pair
+ *     - If offers, then with same (accountID, sequence) pair
+ */
+struct
+LedgerEntryIdCmp
+{
+    bool operator()(LedgerEntry const& a,
+                    LedgerEntry const& b) const
+    {
+        LedgerTypes aty = a.type();
+        LedgerTypes bty = b.type();
+
+        if (aty < bty)
+            return true;
+
+        if (aty > bty)
+            return false;
+
+        switch (aty)
+        {
+        case NONE:
+            return false;
+
+        case ACCOUNT:
+            return a.account().accountID < b.account().accountID;
+
+        case TRUSTLINE:
+        {
+            TrustLineEntry const& atl = a.trustLine();
+            TrustLineEntry const& btl = b.trustLine();
+            if (atl.accountID < btl.accountID)
+                return true;
+            if (atl.accountID > btl.accountID)
+                return false;
+            {
+                using xdr::operator<;
+                return atl.currency < btl.currency;
+            }
+        }
+
+        case OFFER:
+        {
+            OfferEntry const& aof = a.offer();
+            OfferEntry const& bof = b.offer();
+            if (aof.accountID < bof.accountID)
+                return true;
+            if (aof.accountID > bof.accountID)
+                return false;
+            return aof.sequence < bof.sequence;
+        }
+        }
+        return false;
+    }
+};
+
+/**
+ * Compare two CLFEntries for identity by comparing their respective
+ * LedgerEntries (ignoring their hashes, as the LedgerEntryIdCmp ignores their
+ * bodies).
+ */
+struct
+CLFEntryIdCmp
+{
+    LedgerEntryIdCmp mCmp;
+    bool operator()(CLFEntry const& a,
+                    CLFEntry const& b) const
+    {
+            return mCmp(a.entry, b.entry);
+    }
+};
+
+Bucket::Bucket(std::vector<CLFEntry>&& entries, uint256&& hash)
     : mEntries(entries), mHash(hash)
 {
 }
@@ -29,7 +107,7 @@ Bucket::Bucket()
 {
 }
 
-std::vector<Bucket::Entry> const&
+std::vector<CLFEntry> const&
 Bucket::getEntries() const
 {
     return mEntries;
@@ -42,22 +120,27 @@ Bucket::getHash() const
 }
 
 std::shared_ptr<Bucket>
-Bucket::fresh(std::vector<Bucket::Entry>&& entries)
+Bucket::fresh(std::vector<LedgerEntry> const& entries)
 {
-    std::sort(entries.begin(), entries.end(),
-              [](Entry const& a, Entry const& b)
-              {
-                  return std::get<0>(a) < std::get<0>(b);
-              });
-
-    SHA512_256 hsh;
+    std::vector<CLFEntry> clfEntries;
+    clfEntries.reserve(entries.size());
     for (auto const& e : entries)
     {
-        hsh.add(std::get<0>(e));
-        hsh.add(std::get<1>(e));
-        hsh.add(xdr::xdr_to_msg(std::get<2>(e)));
+        CLFEntry ce;
+        ce.entry = e;
+        ce.hash = sha512_256(xdr::xdr_to_msg(e));
+        clfEntries.push_back(ce);
     }
-    return std::make_shared<Bucket>(std::move(entries), hsh.finish());
+
+    std::sort(clfEntries.begin(), clfEntries.end(),
+              CLFEntryIdCmp());
+
+    SHA512_256 hsh;
+    for (auto const& ce : clfEntries)
+    {
+        hsh.add(ce.hash);
+    }
+    return std::make_shared<Bucket>(std::move(clfEntries), hsh.finish());
 }
 
 std::shared_ptr<Bucket>
@@ -71,18 +154,19 @@ Bucket::merge(std::shared_ptr<Bucket> const& oldBucket,
     assert(oldBucket);
     assert(newBucket);
 
-    std::vector<Entry>::const_iterator oi = oldBucket->mEntries.begin();
-    std::vector<Entry>::const_iterator ni = newBucket->mEntries.begin();
+    std::vector<CLFEntry>::const_iterator oi = oldBucket->mEntries.begin();
+    std::vector<CLFEntry>::const_iterator ni = newBucket->mEntries.begin();
 
-    std::vector<Entry>::const_iterator oe = oldBucket->mEntries.end();
-    std::vector<Entry>::const_iterator ne = newBucket->mEntries.end();
+    std::vector<CLFEntry>::const_iterator oe = oldBucket->mEntries.end();
+    std::vector<CLFEntry>::const_iterator ne = newBucket->mEntries.end();
 
-    std::vector<Entry> out;
+    std::vector<CLFEntry> out;
     out.reserve(oldBucket->mEntries.size() + newBucket->mEntries.size());
     SHA512_256 hsh;
+    CLFEntryIdCmp cmp;
     while (oi != oe || ni != ne)
     {
-        std::vector<Entry>::const_iterator e;
+        std::vector<CLFEntry>::const_iterator e;
         if (ni == ne)
         {
             // Out of new entries, take old entries.
@@ -93,12 +177,12 @@ Bucket::merge(std::shared_ptr<Bucket> const& oldBucket,
             // Out of old entries, take new entries.
             e = ni++;
         }
-        else if (std::get<0>(*oi) < std::get<0>(*ni))
+        else if (cmp(*oi, *ni))
         {
             // Next old-entry has smaller key, take it.
             e = oi++;
         }
-        else if (std::get<0>(*ni) < std::get<0>(*oi))
+        else if (cmp(*ni, *oi))
         {
             // Next new-entry has smaller key, take it.
             e = ni++;
@@ -108,9 +192,7 @@ Bucket::merge(std::shared_ptr<Bucket> const& oldBucket,
             // Old and new are for the same key, take new.
             e = ni++;
         }
-        hsh.add(std::get<0>(*e));
-        hsh.add(std::get<1>(*e));
-        hsh.add(xdr::xdr_to_msg(std::get<2>(*e)));
+        hsh.add(e->hash);
         out.emplace_back(*e);
     }
     return std::make_shared<Bucket>(std::move(out), hsh.finish());
@@ -304,7 +386,7 @@ BucketList::getLevel(size_t i) const
 
 void
 BucketList::addBatch(Application& app, uint64_t currLedger,
-                     std::vector<Bucket::Entry>&& batch)
+                     std::vector<LedgerEntry> const& batch)
 {
     assert(currLedger > 0);
     assert(numLevels(currLedger - 1) == mLevels.size());
@@ -355,7 +437,7 @@ BucketList::addBatch(Application& app, uint64_t currLedger,
         }
     }
 
-    mLevels[0].prepare(app, currLedger, Bucket::fresh(std::move(batch)));
+    mLevels[0].prepare(app, currLedger, Bucket::fresh(batch));
     mLevels[0].commit();
 }
 }

@@ -29,7 +29,7 @@ TEST_CASE("bucket list", "[clf]")
     {
         Application app(clock, cfg);
         BucketList bl;
-        autocheck::generator<std::vector<Bucket::Entry>> gen;
+        autocheck::generator<std::vector<LedgerEntry>> gen;
         for (uint64_t i = 1; !app.getMainIOService().stopped() && i < 130; ++i)
         {
             app.crank(false);
