@@ -51,7 +51,7 @@ TEST_CASE("payment", "[tx][payment]")
 
     const uint64_t paymentAmount = (uint64_t)app.getLedgerMaster().getMinBalance(0);
 
-    {
+    { // create an account
         TransactionFramePtr txFrame;
 
         txFrame = createPaymentTx(root, a1, 1, paymentAmount);
@@ -64,12 +64,21 @@ TEST_CASE("payment", "[tx][payment]")
 
         delta.commitDelta(jsonResult, ledgerDelta, app.getLedgerMaster());
         REQUIRE(txFrame->getResultCode() == txSUCCESS);
+
     }
     
     AccountFrame a1Account, rootAccount;
     REQUIRE(app.getDatabase().loadAccount(root.getPublicKey(), rootAccount));
     REQUIRE(app.getDatabase().loadAccount(a1.getPublicKey(), a1Account));
+    REQUIRE(rootAccount.getMasterWeight() == 1);
+    REQUIRE(rootAccount.getHighThreshold() == 0);
+    REQUIRE(rootAccount.getLowThreshold() == 0);
+    REQUIRE(rootAccount.getMidThreshold() == 0);
     REQUIRE(a1Account.getBalance() == paymentAmount);
+    REQUIRE(a1Account.getMasterWeight() == 1);
+    REQUIRE(a1Account.getHighThreshold() == 0);
+    REQUIRE(a1Account.getLowThreshold() == 0);
+    REQUIRE(a1Account.getMidThreshold() == 0);
     REQUIRE(rootAccount.getBalance() == (100000000000000 - paymentAmount - txfee));
 
     const uint64_t morePayment = paymentAmount / 2;
@@ -206,7 +215,7 @@ TEST_CASE("payment", "[tx][payment]")
             {
                 LOG(INFO) << "simple credit payment";
                 
-                TransactionFramePtr txFrame = createCreditPaymentTx(root, a1, currency, 3, 100);
+                TransactionFramePtr txFrame = createCreditPaymentTx(root, a1, currency, 2, 100);
                 TxDelta delta;
                 txFrame->apply(delta, app);
 

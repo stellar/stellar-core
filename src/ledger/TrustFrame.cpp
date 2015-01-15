@@ -18,8 +18,8 @@ namespace stellar {
 		accountID	CHARACTER(35),			\
 		issuer CHARACTER(35),				\
 		isoCurrency CHARACTER(4),    		\
-		tlimit UNSIGNED INT,		   		\
-		balance UNSIGNED INT,				\
+		tlimit BIGINT UNSIGNED default 0,		   		\
+		balance BIGINT UNSIGNED default 0,			\
 		authorized BOOL						\
 	); ";
 
@@ -105,7 +105,7 @@ namespace stellar {
         currencyCodeToStr(mEntry.trustLine().currency.isoCI().currencyCode,currencyCode);
 
         soci::statement st = (ledgerMaster.getDatabase().getSession().prepare <<
-            "INSERT into TrustLines (trustIndex,accountID,issuer,currency,tlimit,authorized) values (:v1,:v2,:v3,:v4,:v5,:v6)",
+            "INSERT into TrustLines (trustIndex,accountID,issuer,isoCurrency,tlimit,authorized) values (:v1,:v2,:v3,:v4,:v5,:v6)",
             soci::use(base58Index), soci::use(b58AccountID), soci::use(b58Issuer),
             soci::use(currencyCode), soci::use(mEntry.trustLine().limit),
             soci::use((int)mEntry.trustLine().authorized));

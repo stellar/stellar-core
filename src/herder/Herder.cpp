@@ -402,9 +402,7 @@ Herder::ledgerClosed(LedgerHeader& ledger)
     if (firstBallotTime <= mLastClosedLedger.closeTime)
         firstBallotTime = mLastClosedLedger.closeTime + 1;
 
-    // TODO(spolu): [ask jed]:
-    //              - why not ledgerSeq + 1?
-    uint64& slotIndex = mLastClosedLedger.ledgerSeq;
+    uint64_t slotIndex = mLastClosedLedger.ledgerSeq+1;
 
     // TODO(spolu): Evidence
     Hash evidence; 

@@ -24,8 +24,7 @@ namespace txtest
 {
 SecretKey getRoot()
 {
-    ByteSlice bytes("masterpassphrasemasterpassphrase");
-    std::string b58SeedStr = toBase58Check(VER_SEED, bytes);
+    std::string b58SeedStr = toBase58Check(VER_SEED, "masterpassphrasemasterpassphrase");
     return SecretKey::fromBase58Seed(b58SeedStr);
 }
 
@@ -34,8 +33,7 @@ SecretKey getAccount(const char* n)
     // stretch name to 32 bytes
     std::string name(n);
     while(name.size() < 32) name += '.';
-    ByteSlice bytes(name);
-    std::string b58SeedStr = toBase58Check(VER_SEED, bytes);
+    std::string b58SeedStr = toBase58Check(VER_SEED, name);
     return SecretKey::fromBase58Seed(b58SeedStr);
 }
 

@@ -44,12 +44,14 @@ bool compareCurrency(Currency& first, Currency& second)
     return false;
 }
 
-void currencyCodeToStr(xdr::opaque_array<4U>& code, std::string& retStr)
+void currencyCodeToStr(const xdr::opaque_array<4U>& code, std::string& retStr)
 {
     retStr = "    ";
     for(int n = 0; n < 4; n++)
     {
-        retStr[n] = code[n];
+        if(code[n])
+            retStr[n] = code[n];
+        else return;
     }
 }
 

@@ -7,6 +7,7 @@
 #include "database/Database.h"
 
 #define MAX_PAYMENT_PATH_LENGTH 5
+// TODO.2 handle sending to and from an issuer and with offers
 
 namespace stellar
 { 
@@ -148,36 +149,40 @@ namespace stellar
             }
         }else
         { // make sure source has enough credit
-            AccountFrame issuer;
-            if(!ledgerMaster.getDatabase().loadAccount(sendCurrency.isoCI().issuer, issuer))
+            // issuer can always send its own credit
+            if(getSourceID() != sendCurrency.isoCI().issuer)
             {
-                CLOG(ERROR, "Tx") << "PaymentTx::sendCredit Issuer not found";
-                mResultCode = txMALFORMED;
-                return false;
-            }
+                AccountFrame issuer;
+                if(!ledgerMaster.getDatabase().loadAccount(sendCurrency.isoCI().issuer, issuer))
+                {
+                    CLOG(ERROR, "Tx") << "PaymentTx::sendCredit Issuer not found";
+                    mResultCode = txMALFORMED;
+                    return false;
+                }
 
-            if(issuer.mEntry.account().transferRate != TRANSFER_RATE_DIVISOR)
-            {
-                sendAmount = sendAmount +
-                    bigDivide(sendAmount,issuer.mEntry.account().transferRate,TRANSFER_RATE_DIVISOR);  
-            } 
+                if(issuer.mEntry.account().transferRate != TRANSFER_RATE_DIVISOR)
+                {
+                    sendAmount = sendAmount +
+                        bigDivide(sendAmount, issuer.mEntry.account().transferRate, TRANSFER_RATE_DIVISOR);
+                }
 
-            TrustFrame sourceLineFrame;
-            if(!ledgerMaster.getDatabase().loadTrustLine(mEnvelope.tx.account,
-                sendCurrency, sourceLineFrame))
-            {
-                mResultCode = txUNDERFUNDED;
-                return false;
-            }
+                TrustFrame sourceLineFrame;
+                if(!ledgerMaster.getDatabase().loadTrustLine(mEnvelope.tx.account,
+                    sendCurrency, sourceLineFrame))
+                {
+                    mResultCode = txUNDERFUNDED;
+                    return false;
+                }
 
-            if(sourceLineFrame.mEntry.trustLine().balance < sendAmount)
-            {
-                mResultCode = txUNDERFUNDED;
-                return false;
+                if(sourceLineFrame.mEntry.trustLine().balance < sendAmount)
+                {
+                    mResultCode = txUNDERFUNDED;
+                    return false;
+                }
+                delta.setStart(sourceLineFrame);
+                sourceLineFrame.mEntry.trustLine().balance -= sendAmount;
+                delta.setFinal(sourceLineFrame);
             }
-            delta.setStart(sourceLineFrame);
-            sourceLineFrame.mEntry.trustLine().balance -= sendAmount;
-            delta.setFinal(sourceLineFrame);
         }
         
         if(sendAmount > mEnvelope.tx.body.paymentTx().sendMax)

@@ -39,6 +39,8 @@ const char *AccountFrame::kSQLCreateStatement3 = "CREATE TABLE IF NOT EXISTS Acc
 AccountFrame::AccountFrame()
 {
     mEntry.type(ACCOUNT);
+    mEntry.account().sequence = 1;
+    mEntry.account().thresholds[0] = 1; // by default, master key's weight is 1
 }
 
 AccountFrame::AccountFrame(LedgerEntry const& from) : EntryFrame(from)
@@ -76,6 +78,10 @@ uint64_t AccountFrame::getBalance()
 uint256& AccountFrame::getID()
 {
     return(mEntry.account().accountID);
+}
+uint32_t AccountFrame::getMasterWeight()
+{
+    return mEntry.account().thresholds[0];
 }
 uint32_t AccountFrame::getHighThreshold()
 {

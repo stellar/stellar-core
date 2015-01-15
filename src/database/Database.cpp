@@ -143,21 +143,25 @@ bool Database::loadTrustLine(const uint256& accountID,
     std::string accStr,issuerStr,currencyStr;
 
     accStr = toBase58Check(VER_ACCOUNT_ID, accountID);
-    currencyStr = binToHex(currency.isoCI().currencyCode);
+    currencyCodeToStr(currency.isoCI().currencyCode, currencyStr);
     issuerStr = toBase58Check(VER_ACCOUNT_ID, currency.isoCI().issuer);
+
+    stringstream sql;
+    sql << "SELECT tlimit,balance,authorized from TrustLines where \
+        accountID='" << accStr << "' and issuer='" << issuerStr << "' and isoCurrency='" << currencyStr.c_str() << "';"; 
 
     retLine.mEntry.type(TRUSTLINE);
     retLine.mEntry.trustLine().accountID = accountID;
     int authInt;
-    mSession << "SELECT tlimit,balance,authorized from TrustLines where \
-        accountID=:v1 and issuer=:v2 and isoCurrency=:v3",
-        into(retLine.mEntry.trustLine().limit),
-        into(retLine.mEntry.trustLine().balance),
-        into(authInt),
-        use(accStr), use(issuerStr), use(currencyStr);
+    uint64_t tlimit, balance;
+
+    mSession << sql.str() , into(tlimit),  into(balance), into(authInt);
+
     if(!mSession.got_data())
         return false;
-    
+ 
+    retLine.mEntry.trustLine().limit = tlimit;
+    retLine.mEntry.trustLine().balance = balance;
     retLine.mEntry.trustLine().authorized = authInt;
     retLine.mEntry.trustLine().accountID = accountID;
     retLine.mEntry.trustLine().currency = currency;

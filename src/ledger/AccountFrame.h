@@ -35,6 +35,7 @@ namespace stellar
         uint64_t getBalance();
         bool isAuthRequired();
         uint256& getID();
+        uint32_t getMasterWeight();
         uint32_t getHighThreshold();
         uint32_t getMidThreshold();
         uint32_t getLowThreshold();
