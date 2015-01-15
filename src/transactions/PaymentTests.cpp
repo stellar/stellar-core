@@ -34,7 +34,7 @@ TEST_CASE("payment", "[tx][payment]")
 {
     Config const& cfg = getTestConfig();
     Config cfg2(cfg);
-    cfg2.DATABASE = "sqlite3://test.db";
+    //cfg2.DATABASE = "sqlite3://test.db";
     //cfg2.DATABASE = "postgresql://dbmaster:-island-@localhost/hayashi";
     
 
