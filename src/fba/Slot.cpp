@@ -14,7 +14,7 @@
 namespace stellar
 {
 
-Slot::Slot(const uint32& slotIndex,
+Slot::Slot(const uint64& slotIndex,
            FBA* FBA)
     : mSlotIndex(slotIndex)
     , mFBA(FBA)
@@ -102,6 +102,7 @@ Slot::processEnvelope(const FBAEnvelope& envelope)
         FBABallot b = envelope.statement.ballot;
         FBAStatementType t = FBAStatementType::PREPARE;
 
+        // We copy everything we need as this can be async (no reference)
         auto cb = [b,t,evidence,envelope,this] (bool valid)
         {
             // If the ballot is not valid, we just ignore it.
@@ -157,7 +158,7 @@ Slot::attemptValue(const Hash& valueHash,
     {
         bumpToBallot(FBABallot(mBallot.counter + 1, valueHash), evidence);
     }
-    /* TODO(spolu): prevent in case of pledged to commit? */
+    // TODO(spolu): prevent in case of pledged to commit?
 
     advanceSlot();
     return true;
@@ -232,14 +233,14 @@ Slot::envToStr(const FBAEnvelope& envelope)
 void
 Slot::signEnvelope(FBAEnvelope& envelope)
 {
-    /* TODO(spolu) */
+    // TODO(spolu)
 }
 
 
 bool 
 Slot::verifyEnvelope(const FBAEnvelope& envelope)
 {
-    /* TODO(spolu) */
+    // TODO(spolu)
     return true;
 }
 
@@ -542,10 +543,9 @@ Slot::isPrepared(const Hash& valueHash)
                 continue;
             }
             
-            /* TODO(spolu): 
-             * Do we need to take every ballot into account?
-             * Do we need to take PREPARED statement into account?
-             */
+            // TODO(spolu):
+            // Do we need to take every ballot into account?
+            // Do we need to take PREPARED statement into account?
             auto abortedFilter = [&] (const FBAEnvelope& envA) -> bool
             {
                 if (envA.statement.body.prepare().prepared) {

@@ -20,7 +20,7 @@ class LedgerMaster;
 class CLFMaster;
 class HistoryMaster;
 class ProcessGateway;
-class TxHerderGateway;
+class HerderGateway;
 class OverlayGateway;
 class PeerMaster;
 class Database;
@@ -109,7 +109,7 @@ class Application
     CLFMaster& getCLFMaster();
     HistoryMaster& getHistoryMaster();
     ProcessGateway& getProcessGateway();
-    TxHerderGateway& getTxHerderGateway();
+    HerderGateway& getHerderGateway();
     OverlayGateway& getOverlayGateway();
     PeerMaster& getPeerMaster();
     Database& getDatabase();

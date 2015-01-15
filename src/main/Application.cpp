@@ -17,7 +17,7 @@
 
 #include "ledger/LedgerMaster.h"
 #include "main/Config.h"
-#include "txherder/TxHerder.h"
+#include "herder/Herder.h"
 #include "overlay/OverlayGateway.h"
 #include "overlay/PeerMaster.h"
 #include "clf/CLFMaster.h"
@@ -61,7 +61,7 @@ struct Application::Impl
     std::unique_ptr<medida::MetricsRegistry> mMetrics;
     std::unique_ptr<PeerMaster> mPeerMaster;
     std::unique_ptr<LedgerMaster> mLedgerMaster;
-    std::unique_ptr<TxHerder> mTxHerder;
+    std::unique_ptr<Herder> mHerder;
     std::unique_ptr<CLFMaster> mCLFMaster;
     std::unique_ptr<HistoryMaster> mHistoryMaster;
     std::unique_ptr<ProcessMaster> mProcessMaster;
@@ -134,7 +134,7 @@ Application::Application(VirtualClock& clock, Config const& cfg)
     // into App.getFoo() to get information / start up.
     mImpl->mPeerMaster = make_unique<PeerMaster>(*this);
     mImpl->mLedgerMaster = make_unique<LedgerMaster>(*this);
-    mImpl->mTxHerder = make_unique<TxHerder>(*this);
+    mImpl->mHerder = make_unique<Herder>(*this);
     mImpl->mCLFMaster = make_unique<CLFMaster>(*this);
     mImpl->mHistoryMaster = make_unique<HistoryMaster>(*this);
     mImpl->mProcessMaster = make_unique<ProcessMaster>(*this);
@@ -408,10 +408,10 @@ Application::getProcessGateway()
     return *mImpl->mProcessMaster;
 }
 
-TxHerderGateway&
-Application::getTxHerderGateway()
+HerderGateway&
+Application::getHerderGateway()
 {
-    return *mImpl->mTxHerder;
+    return *mImpl->mHerder;
 }
 
 OverlayGateway&

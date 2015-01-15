@@ -46,28 +46,28 @@ class FBA
     class Client
     {
       public:
-        virtual void validateBallot(const uint32& slotIndex,
+        virtual void validateBallot(const uint64& slotIndex,
                                     const uint256& nodeID,
                                     const FBABallot& ballot,
                                     const Hash& evidence,
                                     std::function<void(bool)> const& cb) = 0;
 
-        virtual void ballotDidPrepare(const uint32& slotIndex,
+        virtual void ballotDidPrepare(const uint64& slotIndex,
                                       const FBABallot& ballot,
                                       const Hash& evidence) {};
-        virtual void ballotDidCommit(const uint32& slotIndex,
+        virtual void ballotDidCommit(const uint64& slotIndex,
                                      const FBABallot& ballot) {};
 
-        virtual void valueCancelled(const uint32& slotIndex,
+        virtual void valueCancelled(const uint64& slotIndex,
                                     const Hash& valueHash) = 0;
-        virtual void valueExternalized(const uint32& slotIndex,
+        virtual void valueExternalized(const uint64& slotIndex,
                                        const Hash& valueHash) = 0;
 
         virtual void retrieveQuorumSet(const uint256& nodeID,
                                        const Hash& qSetHash) = 0;
         virtual void emitEnvelope(const FBAEnvelope& envelope) = 0;
         
-        virtual void retransmissionHinted(const uint32& slotIndex,
+        virtual void retransmissionHinted(const uint64& slotIndex,
                                           const uint256& nodeID) = 0;
     };
 
@@ -76,6 +76,7 @@ class FBA
     FBA(const uint256& validationSeed,
         const FBAQuorumSet& qSetLocal,
         Client* client);
+    ~FBA();
 
     // FBAQuorumSet/Envelope receival
     void receiveQuorumSet(const uint256& nodeID,
@@ -83,7 +84,7 @@ class FBA
     void receiveEnvelope(const FBAEnvelope& envelope);
 
     // Value submission
-    bool attemptValue(const uint32& slotIndex,
+    bool attemptValue(const uint64& slotIndex,
                       const Hash& valueHash,
                       const Hash& evidence);
 
@@ -99,14 +100,14 @@ class FBA
     Node* getNode(const uint256& nodeID);
     LocalNode* getLocalNode();
     // Slot getter
-    Slot* getSlot(const uint32& slotIndex);
+    Slot* getSlot(const uint64& slotIndex);
     // FBA::Client getter
     Client* getClient();
 
     Client*                        mClient;
     LocalNode*                     mLocalNode;
     std::map<uint256, Node*>       mKnownNodes;
-    std::map<uint32, Slot*>        mKnownSlots;
+    std::map<uint64, Slot*>        mKnownSlots;
 
     friend class Slot;
     friend class Node;

@@ -26,7 +26,7 @@ class TestFBAClient : public FBA::Client
         mQuorumSets[qSetHash] = qSet;
     }
 
-    void validateBallot(const uint32& slotIndex,
+    void validateBallot(const uint64& slotIndex,
                         const Hash& nodeID,
                         const FBABallot& ballot,
                         const Hash& evidence,
@@ -35,23 +35,23 @@ class TestFBAClient : public FBA::Client
         cb(true);
     }
 
-    void ballotDidPrepare(const uint32& slotIndex,
+    void ballotDidPrepare(const uint64& slotIndex,
                           const FBABallot& ballot,
                           const Hash& evidence)
     {
     }
-    void ballotDidCommit(const uint32& slotIndex,
+    void ballotDidCommit(const uint64& slotIndex,
                          const FBABallot& ballot)
     {
     }
 
-    void valueCancelled(const uint32& slotIndex,
+    void valueCancelled(const uint64& slotIndex,
                         const Hash& valueHash)
     {
         mCancelledValues[slotIndex].push_back(valueHash);
     }
 
-    void valueExternalized(const uint32& slotIndex,
+    void valueExternalized(const uint64& slotIndex,
                            const Hash& valueHash)
     {
         if (mExternalizedValues.find(slotIndex) != mExternalizedValues.end())
@@ -85,7 +85,7 @@ class TestFBAClient : public FBA::Client
         mEmittedEnvelopes.push_back(envelope);
     }
 
-    void retransmissionHinted(const uint32& slotIndex,
+    void retransmissionHinted(const uint64& slotIndex,
                               const uint256& nodeID)
     {
         mRetransmissionHints[slotIndex].push_back(nodeID);
@@ -93,9 +93,9 @@ class TestFBAClient : public FBA::Client
 
     std::map<Hash, FBAQuorumSet>           mQuorumSets;
     std::vector<FBAEnvelope>               mEmittedEnvelopes;
-    std::map<uint32, Hash>                 mExternalizedValues;
-    std::map<uint32, std::vector<Hash>>    mCancelledValues;
-    std::map<uint32, std::vector<uint256>> mRetransmissionHints;
+    std::map<uint64, Hash>                 mExternalizedValues;
+    std::map<uint64, std::vector<Hash>>    mCancelledValues;
+    std::map<uint64, std::vector<uint256>> mRetransmissionHints;
 
     FBA*                                mFBA;
 };
@@ -104,7 +104,7 @@ class TestFBAClient : public FBA::Client
 FBAEnvelope 
 makeEnvelope(const uint256& nodeID,
              const Hash& qSetHash,
-             const uint32& slotIndex,
+             const uint64& slotIndex,
              const FBABallot& ballot,
              const FBAStatementType& type)
 {

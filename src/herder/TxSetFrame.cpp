@@ -109,7 +109,6 @@ void TxSetFrame::sortForApply(vector<TransactionFramePtr>& retList)
     }
 }
 
-
 // need to make sure every account that is submitting a tx has enough to pay 
 //  the fees of all the tx it has submitted in this set
 // check seq num
@@ -178,8 +177,6 @@ TxSetFrame::getPreviousLedgerHash()
   return mPreviousLedgerHash;
 }
 
-
-
 void
 TxSetFrame::toXDR(TransactionSet& txSet)
 {
@@ -189,4 +186,5 @@ TxSetFrame::toXDR(TransactionSet& txSet)
         txSet.txs[n]=mTransactions[n]->getEnvelope();
     }
 }
+
 }

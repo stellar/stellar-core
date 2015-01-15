@@ -5,12 +5,13 @@
 #include "Peer.h"
 
 #include "util/Logging.h"
+#include "crypto/SHA.h"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "generated/StellarXDR.h"
 #include "xdrpp/marshal.h"
 #include "overlay/PeerMaster.h"
-#include "txherder/TxHerderGateway.h"
+#include "herder/HerderGateway.h"
 #include "database/Database.h"
 
 // LATER: need to add some way of docking peers that are misbehaving by sending
@@ -243,12 +244,12 @@ Peer::recvDontHave(StellarMessage const& msg)
     switch (msg.dontHave().type)
     {
     case TX_SET:
-        mApp.getTxHerderGateway().doesntHaveTxSet(msg.dontHave().reqHash,
-                                                  shared_from_this());
+        mApp.getHerderGateway().doesntHaveTxSet(msg.dontHave().reqHash,
+                                                shared_from_this());
         break;
     case FBA_QUORUMSET:
-        mApp.getOverlayGateway().doesntHaveQSet(msg.dontHave().reqHash,
-                                                shared_from_this());
+        mApp.getHerderGateway().doesntHaveFBAQuorumSet(msg.dontHave().reqHash,
+                                                       shared_from_this());
         break;
     case VALIDATIONS:
     default:
@@ -260,7 +261,7 @@ void
 Peer::recvGetTxSet(StellarMessage const& msg)
 {
     TxSetFramePtr txSet =
-        mApp.getTxHerderGateway().fetchTxSet(msg.txSetHash(), false);
+        mApp.getHerderGateway().fetchTxSet(msg.txSetHash(), false);
     if (txSet)
     {
         StellarMessage newMsg;
@@ -279,7 +280,7 @@ Peer::recvTxSet(StellarMessage const& msg)
 {
     TxSetFramePtr txSet =
         std::make_shared<TxSetFrame>(msg.txSet());
-    mApp.getTxHerderGateway().recvTransactionSet(txSet);
+    mApp.getHerderGateway().recvTxSet(txSet);
 }
 
 void
@@ -288,9 +289,9 @@ Peer::recvTransaction(StellarMessage const& msg)
     TransactionFramePtr transaction =
         TransactionFrame::makeTransactionFromWire(msg.transaction());
     if (transaction)
-    {
-        if (mApp.getTxHerderGateway().recvTransaction(
-                transaction)) // add it to our current set
+    { 
+        // add it to our current set
+        if (mApp.getHerderGateway().recvTransaction(transaction))
         {
             mApp.getOverlayGateway().broadcastMessage(msg, shared_from_this());
         }
@@ -301,7 +302,7 @@ void
 Peer::recvGetFBAQuorumSet(StellarMessage const& msg)
 {
     FBAQuorumSetPtr qSet = 
-        mApp.getOverlayGateway().fetchFBAQuorumSet(msg.qSetHash(), false);
+        mApp.getHerderGateway().fetchFBAQuorumSet(msg.qSetHash(), false);
     if (qSet)
     {
         sendFBAQuorumSet(qSet);
@@ -317,22 +318,21 @@ Peer::recvFBAQuorumSet(StellarMessage const& msg)
 {
     FBAQuorumSetPtr qSet =
         std::make_shared<FBAQuorumSet>(msg.qSet());
-    mApp.getOverlayGateway().recvFBAQuorumSet(qSet);
+    mApp.getHerderGateway().recvFBAQuorumSet(qSet);
 }
 
 void
 Peer::recvFBAMessage(StellarMessage const& msg)
 {
-    /* TODO(spolu) Update to new FBA */
     FBAEnvelope envelope = msg.fbaMessage();
-    /*
-    Statement::pointer statement = std::make_shared<Statement>(envelope);
 
-    mApp.getOverlayGateway().recvFloodedMsg(statement->mContentsHash, msg,
-                                            statement->getLedgerIndex(),
+    // TODO(spolu): [ask jed] Check OK
+    Hash envHash = sha512_256(xdr::xdr_to_msg(envelope));
+    mApp.getOverlayGateway().recvFloodedMsg(envHash, msg,
+                                            envelope.statement.slotIndex,
                                             shared_from_this());
-    mApp.getFBAGateway().recvStatement(statement);
-    */
+
+    mApp.getHerderGateway().recvFBAEnvelope(envelope);
 }
 
 void

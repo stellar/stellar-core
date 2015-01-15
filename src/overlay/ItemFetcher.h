@@ -6,10 +6,10 @@
 // this distribution or at http://opensource.org/licenses/ISC
 
 #include <map>
-#include "overlay/OverlayGateway.h"
-#include "txherder/TxSetFrame.h"
-#include "overlay/Peer.h"
 #include "generated/FBAXDR.h"
+#include "overlay/OverlayGateway.h"
+#include "herder/TxSetFrame.h"
+#include "overlay/Peer.h"
 #include "util/Timer.h"
 
 /*
@@ -93,17 +93,17 @@ class TxSetFetcher : public ItemFetcher
     bool recvItem(TxSetFramePtr txSet);
 };
 
-class QSetFetcher : public ItemFetcher
+class FBAQSetFetcher : public ItemFetcher
 {
   public:
-    QSetFetcher(Application& app) : ItemFetcher(app)
+    FBAQSetFetcher(Application& app) : ItemFetcher(app)
     {
     }
     FBAQuorumSetPtr fetchItem(uint256 const& itemID,
                                  bool askNetwork);
     // looks to see if we know about it but doesn't ask the network
     FBAQuorumSetPtr findItem(uint256 const& itemID);
-    void recvItem(FBAQuorumSetPtr qSet);
+    bool recvItem(FBAQuorumSetPtr qSet);
 };
 
 class TxSetTrackingCollar : public TrackingCollar

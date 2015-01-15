@@ -19,7 +19,7 @@ class Slot
 {
   public:
     // Constructor
-    Slot(const uint32& slotIndex,
+    Slot(const uint64& slotIndex,
          FBA* FBA);
 
     // Process a newly received envelope for this slot and update the state of
@@ -99,7 +99,7 @@ class Slot
     // knownledge of this node. 
     void advanceSlot();
 
-    const uint32                                               mSlotIndex;
+    const uint64                                               mSlotIndex;
     FBA*                                                       mFBA;
 
     FBABallot                                                  mBallot;
