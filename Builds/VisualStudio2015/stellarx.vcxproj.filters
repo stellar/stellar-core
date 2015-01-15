@@ -10,9 +10,6 @@
     <Filter Include="history">
       <UniqueIdentifier>{2da1159b-be14-429e-be19-e0447082b844}</UniqueIdentifier>
     </Filter>
-    <Filter Include="txherder">
-      <UniqueIdentifier>{951355b1-432c-4dbe-87c0-bf77b6fab706}</UniqueIdentifier>
-    </Filter>
     <Filter Include="ledger">
       <UniqueIdentifier>{89a037c6-770c-4df9-aa5e-3f963a001da3}</UniqueIdentifier>
     </Filter>
@@ -76,6 +73,9 @@
     <Filter Include="ledger\tests">
       <UniqueIdentifier>{20d51c0a-e9bd-49ac-960e-ea1055651ed4}</UniqueIdentifier>
     </Filter>
+    <Filter Include="herder">
+      <UniqueIdentifier>{951355b1-432c-4dbe-87c0-bf77b6fab706}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\src\ledger\LedgerMaster.cpp">
@@ -86,9 +86,6 @@
     </ClCompile>
     <ClCompile Include="..\..\src\main\main.cpp">
       <Filter>main</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\txherder\TxHerder.cpp">
-      <Filter>txherder</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\overlay\Floodgate.cpp">
       <Filter>overlay</Filter>
@@ -231,9 +228,6 @@
     <ClCompile Include="..\..\src\transactions\TransactionFrame.cpp">
       <Filter>transactions</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\txherder\TxSetFrame.cpp">
-      <Filter>txherder</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\transactions\CancelOfferFrame.cpp">
       <Filter>transactions</Filter>
     </ClCompile>
@@ -297,9 +291,6 @@
     <ClCompile Include="..\..\src\lib\asio\src\asio.cpp">
       <Filter>lib</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\txherder\HerdTests.cpp">
-      <Filter>txherder</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\clf\CLFMaster.cpp">
       <Filter>clf</Filter>
     </ClCompile>
@@ -345,6 +336,15 @@
     <ClCompile Include="..\..\src\crypto\Random.cpp">
       <Filter>crypto</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\herder\Herder.cpp">
+      <Filter>herder</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\herder\HerderTests.cpp">
+      <Filter>herder</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\herder\TxSetFrame.cpp">
+      <Filter>herder</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\history\HistoryGateway.h">
@@ -358,12 +358,6 @@
     </ClInclude>
     <ClInclude Include="..\..\src\main\Application.h">
       <Filter>main</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\txherder\TxHerder.h">
-      <Filter>txherder</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\txherder\TxHerderGateway.h">
-      <Filter>txherder</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\overlay\FetchableItem.h">
       <Filter>overlay</Filter>
@@ -518,9 +512,6 @@
     <ClInclude Include="..\..\src\transactions\TransactionFrame.h">
       <Filter>transactions</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\txherder\TxSetFrame.h">
-      <Filter>txherder</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\src\transactions\CancelOfferFrame.h">
       <Filter>transactions</Filter>
     </ClInclude>
@@ -601,6 +592,15 @@
     </ClInclude>
     <ClInclude Include="..\..\src\crypto\Random.h">
       <Filter>crypto</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\herder\Herder.h">
+      <Filter>herder</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\herder\HerderGateway.h">
+      <Filter>herder</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\herder\TxSetFrame.h">
+      <Filter>herder</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
