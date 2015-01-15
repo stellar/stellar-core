@@ -33,13 +33,13 @@ typedef std::unique_ptr<Application> appPtr;
 TEST_CASE("payment", "[tx][payment]")
 {
     Config const& cfg = getTestConfig();
-    /*
     Config cfg2(cfg);
+    cfg2.DATABASE = "sqlite3://test.db";
     //cfg2.DATABASE = "postgresql://dbmaster:-island-@localhost/hayashi";
-    */
+    
 
     VirtualClock clock;
-    Application app(clock, cfg);
+    Application app(clock, cfg2);
     app.start();
 
     // set up world
@@ -226,6 +226,67 @@ TEST_CASE("payment", "[tx][payment]")
 
                 REQUIRE(txFrame->getResultCode() == txSUCCESS);
             }
+
+            { // create b1 account
+                TransactionFramePtr txFrame;
+
+                txFrame = createPaymentTx(root, b1, 3, paymentAmount);
+
+                TxDelta delta;
+                txFrame->apply(delta, app);
+
+                Json::Value jsonResult;
+                LedgerDelta ledgerDelta;
+
+                delta.commitDelta(jsonResult, ledgerDelta, app.getLedgerMaster());
+                REQUIRE(txFrame->getResultCode() == txSUCCESS);
+
+            }
+
+            {
+                TransactionFramePtr txFrame = setTrust(b1, root, 1, "IDR");
+                TxDelta delta2;
+                txFrame->apply(delta2, app);
+
+                Json::Value jsonResult2;
+                LedgerDelta ledgerDelta2;
+
+
+                delta2.commitDelta(jsonResult2, ledgerDelta2, app.getLedgerMaster());
+
+                REQUIRE(txFrame->getResultCode() == txSUCCESS);
+            }
+
+            {
+                LOG(INFO) << "simple credit payment";
+
+                TransactionFramePtr txFrame = createCreditPaymentTx(a1, b1, currency, 2, 50);
+                TxDelta delta;
+                txFrame->apply(delta, app);
+
+                Json::Value jsonResult;
+                LedgerDelta ledgerDelta;
+
+                delta.commitDelta(jsonResult, ledgerDelta, app.getLedgerMaster());
+
+                REQUIRE(txFrame->getResultCode() == txSUCCESS);
+            }
+
+            {
+                LOG(INFO) << "sending credit back to issuer";
+
+                TransactionFramePtr txFrame = createCreditPaymentTx(b1, root, currency, 2, 50);
+                TxDelta delta;
+                txFrame->apply(delta, app);
+
+                Json::Value jsonResult;
+                LedgerDelta ledgerDelta;
+
+                delta.commitDelta(jsonResult, ledgerDelta, app.getLedgerMaster());
+
+                REQUIRE(txFrame->getResultCode() == txSUCCESS);
+            }
+
 
         }
     }

@@ -88,7 +88,7 @@ namespace stellar {
         sql << " where trustIndex='" << base58ID << "';";
         soci::statement st = (ledgerMaster.getDatabase().getSession().prepare << sql.str());
 
-        st.execute(false);
+        st.execute(true);
 
         if (st.get_affected_rows() != 1)
         {

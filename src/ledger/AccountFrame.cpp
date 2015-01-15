@@ -40,6 +40,7 @@ AccountFrame::AccountFrame()
 {
     mEntry.type(ACCOUNT);
     mEntry.account().sequence = 1;
+    mEntry.account().transferRate = TRANSFER_RATE_DIVISOR;
     mEntry.account().thresholds[0] = 1; // by default, master key's weight is 1
 }
 
@@ -52,6 +53,7 @@ AccountFrame::AccountFrame(uint256 const& id)
 {
     mEntry.type(ACCOUNT);
     mEntry.account().accountID = id;
+    mEntry.account().transferRate = TRANSFER_RATE_DIVISOR;
     mEntry.account().sequence = 1;
     mEntry.account().thresholds[0] = 1; // by default, master key's weight is 1
 }

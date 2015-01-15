@@ -8,7 +8,7 @@
 
 #define MAX_PAYMENT_PATH_LENGTH 5
 // TODO.2 handle sending to and from an issuer and with offers
-
+// TODO.2 clean up trustlines 
 namespace stellar
 { 
     PaymentFrame::PaymentFrame(const TransactionEnvelope& envelope) : TransactionFrame(envelope)
@@ -96,26 +96,34 @@ namespace stellar
     // specified amount of currency to the recipient
     bool PaymentFrame::sendCredit(AccountFrame& receiver, TxDelta& delta, LedgerMaster& ledgerMaster)
     {
-        TrustFrame destLine;
         // make sure guy can hold what you are trying to send him
-        if(!ledgerMaster.getDatabase().loadTrustLine(mEnvelope.tx.body.paymentTx().destination, 
-            mEnvelope.tx.body.paymentTx().currency, destLine))
+        if(mEnvelope.tx.body.paymentTx().destination != mEnvelope.tx.body.paymentTx().currency.isoCI().issuer)
         {
-            mResultCode = txNOTRUST;
-            return false;
-        }
+            TrustFrame destLine;
+            
+            if(!ledgerMaster.getDatabase().loadTrustLine(mEnvelope.tx.body.paymentTx().destination, 
+                mEnvelope.tx.body.paymentTx().currency, destLine))
+            {
+                mResultCode = txNOTRUST;
+                return false;
+            }
 
-        if(destLine.mEntry.trustLine().limit < mEnvelope.tx.body.paymentTx().amount + destLine.mEntry.trustLine().balance)
-        {
-            mResultCode = txLINEFULL;
-            return false;
-        }
+            if(destLine.mEntry.trustLine().limit < mEnvelope.tx.body.paymentTx().amount + destLine.mEntry.trustLine().balance)
+            {
+                mResultCode = txLINEFULL;
+                return false;
+            }
 
-        if(!destLine.mEntry.trustLine().authorized)
-        {
-            mResultCode = txNOT_AUTHORIZED;
-            return false;
+            if(!destLine.mEntry.trustLine().authorized)
+            {
+                mResultCode = txNOT_AUTHORIZED;
+                return false;
+            }
+            delta.setStart(destLine);
+            destLine.mEntry.trustLine().balance += mEnvelope.tx.body.paymentTx().amount;
+            delta.setFinal(destLine);
         }
+        
         
         int64_t sendAmount = mEnvelope.tx.body.paymentTx().amount;
         Currency sendCurrency=mEnvelope.tx.body.paymentTx().currency;
@@ -192,9 +200,7 @@ namespace stellar
         }
 
         
-        delta.setStart(destLine);
-        destLine.mEntry.trustLine().balance += mEnvelope.tx.body.paymentTx().amount;
-        delta.setFinal(destLine);
+        
 
         mResultCode = txSUCCESS;
         return true;
