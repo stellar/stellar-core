@@ -188,12 +188,23 @@ struct TransactionSet
     TransactionEnvelope txs<>;
 };
 
+struct CLFLevel
+{
+    uint64 currStartSeq;
+    uint64 snapStartSeq;
+    uint32 currCount;
+    uint32 snapCount;
+    Hash currHash;
+    Hash snapHash;
+};
+
 struct LedgerHeader
 {
 	Hash hash;
     Hash previousLedgerHash;
 	Hash txSetHash;			// the tx set that was FBA confirmed
 	Hash clfHash;
+    CLFLevel clfLevels[5];
 	
 	int64 totalCoins;
 	int64 feePool;
@@ -205,7 +216,7 @@ struct LedgerHeader
 };
 
 
-struct LedgerHistory
+struct HistoryEntry
 {
     LedgerHeader header;
     TransactionSet txSet;
@@ -213,9 +224,9 @@ struct LedgerHistory
 
 struct History
 {
-    int fromLedger;
-    int toLedger;
-    LedgerHistory ledgers<>;
+    uint64 fromLedger;
+    uint64 toLedger;
+    HistoryEntry entries<>;
 };
 
 
@@ -281,6 +292,12 @@ union LedgerEntry switch (LedgerTypes type)
    TrustLineEntry trustLine;
  case OFFER:
    OfferEntry offer;
+};
+
+struct CLFEntry
+{
+    LedgerEntry entry;
+    Hash hash;
 };
 
 struct PeerAddress
