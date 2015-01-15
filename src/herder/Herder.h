@@ -77,28 +77,35 @@ class Herder : public HerderGateway,
     void removeReceivedTx(TransactionFramePtr tx);
 
     // the transactions that we have collected during ledger close
-    TxSetFramePtr                       mCollectingTransactionSet;
+    TxSetFramePtr                                  mCollectingTransactionSet;
 
-    // keep track of txs that didn't make it into last ledger.
-    // be less and less likely to commit a ballot that doesn't include the old
-    // ones
-    map<uint256, uint32_t>              mTransactionAgeMap;
+    // keep track of txs that didn't make it into last ledger. Be less and less
+    // likely to commit a ballot that doesn't include the old ones
+    map<uint256, uint32_t>                         mTransactionAgeMap;
 
     // 0- tx we got during ledger close
     // 1- one ledger ago. Will only validate a vblocking set
     // 2- two ledgers ago. Will only validate a vblock set and will rebroadcast
     // 3- three or more ledgers ago. Any set we validate must have these tx
-    vector<vector<TransactionFramePtr>> mReceivedTransactions;
+    vector<vector<TransactionFramePtr>>            mReceivedTransactions;
 
-    std::array<TxSetFetcher, 2>         mTxSetFetcher;
-    int                                 mCurrentTxSetFetcher;
-    FBAQSetFetcher                      mFBAQSetFetcher;
+    std::array<TxSetFetcher, 2>                    mTxSetFetcher;
+    int                                            mCurrentTxSetFetcher;
 
-    int                                 mLedgersToWaitToParticipate;
-    LedgerHeader                        mLastClosedLedger;
+    std::map<Hash, 
+        std::vector<
+            std::function<void(TxSetFramePtr)>>>   mPendingValidations;
+    std::map<Hash,
+        std::vector<
+            std::function<void(FBAQuorumSetPtr)>>> mPendingRetrievals;
 
-    Application&                        mApp;
-    FBA*                                mFBA;
+    FBAQSetFetcher                                 mFBAQSetFetcher;
+
+    int                                            mLedgersToWaitToParticipate;
+    LedgerHeader                                   mLastClosedLedger;
+
+    Application&                                   mApp;
+    FBA*                                           mFBA;
 };
 }
 

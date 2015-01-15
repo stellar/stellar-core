@@ -102,6 +102,7 @@ Slot::processEnvelope(const FBAEnvelope& envelope)
         FBABallot b = envelope.statement.ballot;
         FBAStatementType t = FBAStatementType::PREPARE;
 
+        // We copy everything we need as this can be async (no reference)
         auto cb = [b,t,evidence,envelope,this] (bool valid)
         {
             // If the ballot is not valid, we just ignore it.

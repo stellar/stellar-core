@@ -24,7 +24,7 @@ typedef std::unique_ptr<Application> appPtr;
 //  account can't pay for all the tx
 //  account has just enough for all the tx
 //  tx from account not in the DB
-TEST_CASE("recvTx", "[txh]")
+TEST_CASE("recvTx", "[hrd]")
 {
    
 
@@ -39,7 +39,7 @@ TEST_CASE("recvTx", "[txh]")
 //   account can't pay for all the tx
 //   account has just enough for all the tx
 //   tx from account not in the DB 
-TEST_CASE("txset", "[txh]")
+TEST_CASE("txset", "[hrd]")
 {
 
 }

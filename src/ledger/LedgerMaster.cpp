@@ -12,7 +12,6 @@
 #include "crypto/Hex.h"
 #include "crypto/SecretKey.h"
 #include "crypto/Base58.h"
-#include "herder/Herder.h"
 #include "database/Database.h"
 #include "ledger/LedgerHeaderFrame.h"
 

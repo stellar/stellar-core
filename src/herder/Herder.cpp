@@ -12,6 +12,8 @@
 #include "main/Config.h"
 #include "util/Logging.h"
 #include "lib/util/easylogging++.h"
+#include "xdrpp/marshal.h"
+#include "crypto/SHA.h"
 
 namespace stellar
 {
@@ -52,7 +54,7 @@ Herder::Herder(Application& app)
     qSetLocal.threshold = app.getConfig().QUORUM_THRESHOLD;
     for (auto q : app.getConfig().QUORUM_SET)
     {
-      qSetLocal.validators.push_back(q);
+        qSetLocal.validators.push_back(q);
     }
 
     mFBA = new FBA(app.getConfig().VALIDATION_SEED,
@@ -75,52 +77,53 @@ Herder::validateBallot(const uint64& slotIndex,
     // make sure all the tx we have in the old set are included
     // make sure the timestamp isn't too far in the future
     // make sure the base fee is within a certain range of your desired fee
-    
-    // TODO(spolu): check baseFee
-    /*
-    if (ballot.baseFee < mApp.getConfig().DESIRED_BASE_FEE * .5)
-        return INVALID_BALLOT;
-    if (ballot.baseFee > mApp.getConfig().DESIRED_BASE_FEE * 2)
-        return INVALID_BALLOT;
-    */
+    auto validate = [=] (TxSetFramePtr txSet)
+    {
+        // TODO(spolu): check baseFee
+        /*
+        if (ballot.baseFee < mApp.getConfig().DESIRED_BASE_FEE * .5)
+            return INVALID_BALLOT;
+        if (ballot.baseFee > mApp.getConfig().DESIRED_BASE_FEE * 2)
+            return INVALID_BALLOT;
+        */
+
+        if(!txSet->checkValid(mApp))
+        {
+            CLOG(ERROR, "Herder") << "invalid txSet";
+            return cb(false);
+        }
+
+        for (auto tx : mReceivedTransactions[mReceivedTransactions.size() - 1])
+        {
+            if (find(txSet->mTransactions.begin(), txSet->mTransactions.end(),
+                     tx) == txSet->mTransactions.end())
+            {
+                return cb(false);
+            }
+        }
+
+        // TODO(spolu): check closeTime
+        /*
+        if (ballot.closeTime <= mLastClosedLedger.closeTime)
+            return INVALID_BALLOT;
+        uint64_t timeNow = time(nullptr);
+        if (ballot.closeTime > timeNow + MAX_SECONDS_LEDGER_CLOSE_IN_FUTURE)
+            return FUTURE_BALLOT;
+        */
+
+        return cb(true);
+    };
 
     TxSetFramePtr txSet = fetchTxSet(ballot.valueHash, true);
     if (!txSet)
     {
-        // TODO(spolu) store the callback;
-        return;
-        /*
-        CLOG(ERROR,"Herder") << "isValidBallotValue when we don't know the txSet";
-        return INVALID_BALLOT;
-        */
+        mPendingValidations[ballot.valueHash].push_back(validate);
     }
-
-    if(!txSet->checkValid(mApp))
+    else
     {
-        CLOG(ERROR, "Herder") << "invalid txSet";
-        return cb(false);
+        validate(txSet);
     }
 
-    for (auto tx : mReceivedTransactions[mReceivedTransactions.size() - 1])
-    {
-        if (find(txSet->mTransactions.begin(), txSet->mTransactions.end(),
-                 tx) == txSet->mTransactions.end())
-        {
-            return cb(false);
-        }
-    }
-
-    // TODO(spolu): check closeTime
-    /*
-    if (ballot.closeTime <= mLastClosedLedger.closeTime)
-        return INVALID_BALLOT;
-
-    uint64_t timeNow = time(nullptr);
-    if (ballot.closeTime > timeNow + MAX_SECONDS_LEDGER_CLOSE_IN_FUTURE)
-        return FUTURE_BALLOT;
-    */
-
-    return cb(true);
 }
 
 void 
@@ -185,7 +188,7 @@ Herder::valueExternalized(const uint64& slotIndex,
         // TODO(spolu): This may still be possible if we contact nodes that 
         //              have already externalized, then there is no validation
         //              and we won't have necessarily fetched the txSet.
-        CLOG(ERROR, "TxHerder") << "externalizeValue txset not found: ";
+        CLOG(ERROR, "Herder") << "externalizeValue txset not found: ";
     }
 }
 
@@ -193,6 +196,22 @@ void
 Herder::retrieveQuorumSet(const uint256& nodeID,
                           const Hash& qSetHash)
 {
+    auto retrieve = [=] (FBAQuorumSetPtr qSet)
+    {
+        mFBA->receiveQuorumSet(nodeID, *qSet);
+    };
+
+    // TODO(spolu): [ask jed]
+    //              - We know which node to ask here, can we optimize?
+    FBAQuorumSetPtr qSet = fetchFBAQuorumSet(qSetHash, true);
+    if (!qSet)
+    {
+        mPendingRetrievals[qSetHash].push_back(retrieve);
+    }
+    else
+    {
+        retrieve(qSet);
+    }
 }
 
 void 
@@ -224,11 +243,17 @@ Herder::recvTxSet(TxSetFramePtr txSet)
         {
             recvTransaction(tx);
         }
-        // TODO(spolu): Adapt to new FBA
-        /*
-        // This will be required at validation
-        // mApp.getFBAGateway().transactionSetAdded(txSet);
-        */
+
+        // Runs any pending validation on this txSet.
+        auto it = mPendingValidations.find(txSet->getContentsHash());
+        if (it != mPendingValidations.end())
+        {
+            for (auto validate : it->second)
+            {
+                validate(txSet);
+            }
+            mPendingValidations.erase(it);
+        }
     }
 }
 
@@ -253,7 +278,18 @@ Herder::recvFBAQuorumSet(FBAQuorumSetPtr qSet)
     if (mFBAQSetFetcher.recvItem(qSet))
     { 
         // someone cares about this set
-        // TODO(spolu): send to FBA
+        uint256 qSetHash = sha512_256(xdr::xdr_to_msg(*qSet));
+
+        // Runs any pending retrievals on this qSet
+        auto it = mPendingRetrievals.find(qSetHash);
+        if (it != mPendingRetrievals.end())
+        {
+            for (auto retrieve : it->second)
+            {
+                retrieve(qSet);
+            }
+            mPendingRetrievals.erase(it);
+        }
     }
 }
 
