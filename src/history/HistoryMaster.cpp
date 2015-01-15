@@ -7,6 +7,7 @@
 #include "history/HistoryMaster.h"
 #include "util/make_unique.h"
 #include "util/Logging.h"
+#include "util/TempDir.h"
 #include "lib/util/format.h"
 
 #include "xdrpp/marshal.h"
@@ -20,9 +21,12 @@ class
 HistoryMaster::Impl
 {
     Application& mApp;
+    TempDir mWorkDir;
+    friend class HistoryMaster;
 public:
     Impl(Application &app)
         : mApp(app)
+        , mWorkDir("history")
         {}
 
 };
@@ -38,11 +42,35 @@ HistoryMaster::~HistoryMaster()
 }
 
 
+/*
+ * HistoryMaster behaves differently depending on application state.
+ *
+ * When application is in anything before CATCHING_UP_STATE, HistoryMaster
+ * should be idle.
+ *
+ * When application is in CATCHING_UP_STATE, HistoryMaster picks an "anchor"
+ * ledger X that it's trying to build a complete bucketlist for, as well as a
+ * history-suffix from [X,current] as current advances. It downloads buckets
+ * for X and accumulates history entries from X forward.
+ *
+ * Once it has a full set of buckets for X, it will force-apply them to the
+ * database (overwrite objects) in order to acquire state X. If successful
+ * it will then play transactions forward from X, as fast as it can, until
+ * X==current. At that point it will switch to SYNCED_STATE.
+ *
+ * in SYNCED_STATE it accumulates history entries as they arrive, in the
+ * database, periodically flushes those to a file on disk, copies it to s3 (or
+ * wherever) and deletes the archived entries. It also flushes buckets to
+ * s3 as they are evicted from the CLF.
+ */
+
 std::string
 HistoryMaster::writeLedgerHistoryToFile(History const& hist)
 {
-    std::string fname = fmt::format("history_{:d}_{:d}.xdr",
-                                    hist.fromLedger, hist.toLedger);
+    std::string fname = fmt::format("{:s}/history_{:d}_{:d}.xdr",
+                                    mImpl->mWorkDir.getName(),
+                                    hist.fromLedger,
+                                    hist.toLedger);
     LOG(INFO) << "Writing history block " << fname;
     std::ofstream out(fname, std::ofstream::binary);
     auto m = xdr::xdr_to_msg(hist);
