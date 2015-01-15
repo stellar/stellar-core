@@ -29,7 +29,6 @@ class PeerMaster : public OverlayGateway
     // peers we are connected to
     vector<Peer::pointer> mPeers;
     PeerDoor mDoor;
-    QSetFetcher mQSetFetcher;
     PreferredPeers mPreferredPeers;
 
     void addConfigPeers();
@@ -46,27 +45,13 @@ class PeerMaster : public OverlayGateway
     //////// GATEWAY FUNCTIONS
     void ledgerClosed(LedgerHeader& ledger);
 
-    FBAQuorumSetPtr
-    fetchFBAQuorumSet(uint256 const& itemID, bool askNetwork)
-    {
-        return (mQSetFetcher.fetchItem(itemID, askNetwork));
-    }
-    void
-    recvFloodedMsg(uint256 const& index,
-                   StellarMessage const& msg, uint32_t ledgerIndex,
-                   Peer::pointer peer)
-    {
-        mFloodGate.addRecord(index, msg, ledgerIndex, peer);
-    }
-    void
-    doesntHaveQSet(uint256 const& index, Peer::pointer peer)
-    {
-        mQSetFetcher.doesntHave(index, peer);
-    }
+    void recvFloodedMsg(uint256 const& messageID, 
+                        StellarMessage const& msg, 
+                        uint32_t ledgerIndex,
+                        Peer::pointer peer);
 
     void broadcastMessage(StellarMessage const& msg,
                           Peer::pointer peer);
-    void recvFBAQuorumSet(FBAQuorumSetPtr qset);
     //////
 
     void addPeer(Peer::pointer peer);
@@ -74,8 +59,8 @@ class PeerMaster : public OverlayGateway
     bool isPeerAccepted(Peer::pointer peer);
 
     Peer::pointer getRandomPeer();
-    Peer::pointer getNextPeer(
-        Peer::pointer peer); // returns NULL if the passed peer isn't found
+    // returns NULL if the passed peer isn't found
+    Peer::pointer getNextPeer(Peer::pointer peer);
 
     void broadcastMessage(uint256 const& msgID);
     void broadcastMessage(StellarMessage const& msg,

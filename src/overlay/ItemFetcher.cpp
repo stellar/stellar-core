@@ -96,8 +96,8 @@ TxSetFetcher::recvItem(TxSetFrame::pointer txSet)
             ((TxSetTrackingCollar*)result->second.get())->mTxSet = txSet;
             if (result->second->getRefCount())
             { // someone was still interested in
-                // this tx set so tell FBA  LATER:
-                // maybe change this to pub/sub
+                // this tx set so tell FBA
+                // LATER: maybe change this to pub/sub
                 return true;
             }
         }
@@ -113,8 +113,8 @@ TxSetFetcher::recvItem(TxSetFrame::pointer txSet)
 }
 
 ////////////////////////////////////////
-void
-QSetFetcher::recvItem(FBAQuorumSetPtr qSet)
+bool
+FBAQSetFetcher::recvItem(FBAQuorumSetPtr qSet)
 {
     uint256 qSetHash = sha512_256(xdr::xdr_to_msg(*qSet));
 
@@ -128,12 +128,8 @@ QSetFetcher::recvItem(FBAQuorumSetPtr qSet)
             if (result->second->getRefCount())
             { // someone was still interested in
                 // this quorum set so tell FBA
-                // LATER: maybe change this to
-                // pub/sub
-                /* TODO(spolu) Readapt to new FBA */
-                /*
-                mApp.getFBAGateway().addQuorumSet(qSet);
-                */
+                // LATER: maybe change this to pub/sub
+                return true;
             }
         }
         else
@@ -143,10 +139,11 @@ QSetFetcher::recvItem(FBAQuorumSetPtr qSet)
                 std::make_shared<QSetTrackingCollar>(qSetHash, mApp);
         }
     }
+    return false;
 }
 
 FBAQuorumSetPtr
-QSetFetcher::fetchItem(uint256 const& setID, bool askNetwork)
+FBAQSetFetcher::fetchItem(uint256 const& setID, bool askNetwork)
 {
     // look it up in the map
     // if not found then start fetching

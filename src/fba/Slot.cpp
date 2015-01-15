@@ -157,7 +157,7 @@ Slot::attemptValue(const Hash& valueHash,
     {
         bumpToBallot(FBABallot(mBallot.counter + 1, valueHash), evidence);
     }
-    /* TODO(spolu): prevent in case of pledged to commit? */
+    // TODO(spolu): prevent in case of pledged to commit?
 
     advanceSlot();
     return true;
@@ -232,14 +232,14 @@ Slot::envToStr(const FBAEnvelope& envelope)
 void
 Slot::signEnvelope(FBAEnvelope& envelope)
 {
-    /* TODO(spolu) */
+    // TODO(spolu)
 }
 
 
 bool 
 Slot::verifyEnvelope(const FBAEnvelope& envelope)
 {
-    /* TODO(spolu) */
+    // TODO(spolu)
     return true;
 }
 
@@ -542,10 +542,9 @@ Slot::isPrepared(const Hash& valueHash)
                 continue;
             }
             
-            /* TODO(spolu): 
-             * Do we need to take every ballot into account?
-             * Do we need to take PREPARED statement into account?
-             */
+            // TODO(spolu):
+            // Do we need to take every ballot into account?
+            // Do we need to take PREPARED statement into account?
             auto abortedFilter = [&] (const FBAEnvelope& envA) -> bool
             {
                 if (envA.statement.body.prepare().prepared) {

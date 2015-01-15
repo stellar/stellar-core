@@ -58,14 +58,18 @@ class Herder : public HerderGateway,
                               const uint256& nodeID);
 
     // HerderGateway methods
-    TxSetFramePtr fetchTxSet(const uint256& setHash,
-                             bool askNetwork);
+    TxSetFramePtr fetchTxSet(const uint256& setHash, bool askNetwork);
+    void recvTxSet(TxSetFramePtr txSet);
+    void doesntHaveTxSet(uint256 const& setHash, PeerPtr peer);
 
-    void recvTransactionSet(TxSetFramePtr txSet);
-    void doesntHaveTxSet(uint256 const& setHash, Peer::pointer peer);
+    FBAQuorumSetPtr fetchFBAQuorumSet(uint256 const& qSetHash, bool askNetwork);
+    void recvFBAQuorumSet(FBAQuorumSetPtr qSet);
+    void doesntHaveFBAQuorumSet(uint256 const& qSetHash, PeerPtr peer);
 
     // returns wether the transaction should be flooded
     bool recvTransaction(TransactionFramePtr tx);
+
+    void recvFBAEnvelope(FBAEnvelope envelope);
 
     void ledgerClosed(LedgerHeader& ledger);
     
@@ -88,6 +92,7 @@ class Herder : public HerderGateway,
 
     std::array<TxSetFetcher, 2>         mTxSetFetcher;
     int                                 mCurrentTxSetFetcher;
+    FBAQSetFetcher                      mFBAQSetFetcher;
 
     int                                 mLedgersToWaitToParticipate;
     LedgerHeader                        mLastClosedLedger;

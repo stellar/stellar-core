@@ -27,7 +27,6 @@ namespace stellar
 PeerMaster::PeerMaster(Application& app)
     : mApp(app)
     , mDoor(mApp)
-    , mQSetFetcher(mApp)
     , mTimer(app.getClock())
 {
     mTimer.expires_from_now(std::chrono::seconds(1));
@@ -124,15 +123,18 @@ PeerMaster::getNextPeer(Peer::pointer peer)
 }
 
 void
-PeerMaster::recvFBAQuorumSet(FBAQuorumSetPtr qset)
-{
-    mQSetFetcher.recvItem(qset);
-}
-
-void
 PeerMaster::addConfigPeers()
 {
     mPreferredPeers.addPreferredPeers(mApp.getConfig().PREFERRED_PEERS);
+}
+
+void 
+PeerMaster::recvFloodedMsg(uint256 const& messageID, 
+                           StellarMessage const& msg, 
+                           uint32_t ledgerIndex,
+                           Peer::pointer peer)
+{
+    mFloodGate.addRecord(messageID, msg, ledgerIndex, peer);
 }
 
 void

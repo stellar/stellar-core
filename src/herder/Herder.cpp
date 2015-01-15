@@ -39,6 +39,7 @@ Herder::Herder(Application& app)
       }
 #endif
     , mCurrentTxSetFetcher(0)
+    , mFBAQSetFetcher(app)
     , mLedgersToWaitToParticipate(3)
     , mApp(app)
 {
@@ -214,7 +215,7 @@ Herder::fetchTxSet(uint256 const& setHash,
 }
 
 void
-Herder::recvTransactionSet(TxSetFramePtr txSet)
+Herder::recvTxSet(TxSetFramePtr txSet)
 {
     if (mTxSetFetcher[mCurrentTxSetFetcher].recvItem(txSet))
     { 
@@ -223,7 +224,7 @@ Herder::recvTransactionSet(TxSetFramePtr txSet)
         {
             recvTransaction(tx);
         }
-        /* TODO(spolu): Adapt to new FBA */
+        // TODO(spolu): Adapt to new FBA
         /*
         // This will be required at validation
         // mApp.getFBAGateway().transactionSetAdded(txSet);
@@ -232,11 +233,37 @@ Herder::recvTransactionSet(TxSetFramePtr txSet)
 }
 
 void 
-Herder::doesntHaveTxSet(uint256 const& setHash, 
-                        Peer::pointer peer)
+Herder::doesntHaveTxSet(uint256 const& txSetHash, 
+                        PeerPtr peer)
 {
-    mTxSetFetcher[mCurrentTxSetFetcher].doesntHave(setHash, peer);
+    mTxSetFetcher[mCurrentTxSetFetcher].doesntHave(txSetHash, peer);
 }
+
+
+FBAQuorumSetPtr
+Herder::fetchFBAQuorumSet(uint256 const& qSetHash, 
+                          bool askNetwork)
+{
+    return mFBAQSetFetcher.fetchItem(qSetHash, askNetwork);
+}
+
+void 
+Herder::recvFBAQuorumSet(FBAQuorumSetPtr qSet)
+{
+    if (mFBAQSetFetcher.recvItem(qSet))
+    { 
+        // someone cares about this set
+        // TODO(spolu): send to FBA
+    }
+}
+
+void 
+Herder::doesntHaveFBAQuorumSet(uint256 const& qSetHash, 
+                               PeerPtr peer)
+{
+    mFBAQSetFetcher.doesntHave(qSetHash, peer);
+}
+
 
 
 bool
@@ -291,6 +318,12 @@ Herder::recvTransaction(TransactionFramePtr tx)
     return true;
 }
 
+void 
+Herder::recvFBAEnvelope(FBAEnvelope envelope)
+{
+    mFBA->receiveEnvelope(envelope);
+}
+
 void
 Herder::removeReceivedTx(TransactionFramePtr dropTx)
 {
@@ -325,7 +358,7 @@ Herder::ledgerClosed(LedgerHeader& ledger)
             proposedSet->add(tx);
         }
     }
-    recvTransactionSet(proposedSet);
+    recvTxSet(proposedSet);
 
     mLastClosedLedger = ledger;
 

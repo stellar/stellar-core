@@ -34,31 +34,18 @@ class OverlayGateway
     // called by Ledger
     virtual void ledgerClosed(LedgerHeader& ledger) = 0;
 
-    // called by TxHerder
-    virtual void broadcastMessage(uint256 const& messageID) = 0;
-
-    // called by FBA
-    virtual FBAQuorumSetPtr fetchFBAQuorumSet(uint256 const& itemID,
-                                              bool askNetwork) = 0;
-
-    // called internally and by FBA
+    // called by Herder
+    virtual void broadcastMessage(Hash const& messageID) = 0;
     virtual void broadcastMessage(StellarMessage const& msg,
                                   Peer::pointer peer) = 0;
-    // virtual Item trackDownItem(uint256 itemID,
-    // StellarMessage& msg) = 0;  needs to return Item this is the
-    // issue
-    // virtual void stopTrackingItem(uint256 itemID) = 0;
-
     // called internally
-    virtual void recvFBAQuorumSet(FBAQuorumSetPtr qset) = 0;
-    virtual void doesntHaveQSet(uint256 const& index,
-                                Peer::pointer peer) = 0;
-    virtual void recvFloodedMsg(uint256 const& index,
+    virtual void recvFloodedMsg(Hash const& messageID,
                                 StellarMessage const& msg,
-                                uint32_t ledgerIndex, Peer::pointer peer) = 0;
+                                uint32_t ledgerIndex, 
+                                Peer::pointer peer) = 0;
     virtual Peer::pointer getRandomPeer() = 0;
-    virtual Peer::pointer getNextPeer(
-        Peer::pointer peer) = 0; // returns NULL if the passed peer isn't found
+    // returns NULL if the passed peer isn't found
+    virtual Peer::pointer getNextPeer(Peer::pointer peer) = 0; 
 };
 }
 
