@@ -36,12 +36,10 @@ class Herder : public HerderGateway,
     void validateBallot(const uint64& slotIndex,
                         const uint256& nodeID,
                         const FBABallot& ballot,
-                        const Hash& evidence,
                         std::function<void(bool)> const& cb);
 
     void ballotDidPrepare(const uint64& slotIndex,
-                          const FBABallot& ballot,
-                          const Hash& evidence);
+                          const FBABallot& ballot);
     void ballotDidCommit(const uint64& slotIndex,
                          const FBABallot& ballot);
 
