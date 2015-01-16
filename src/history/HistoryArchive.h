@@ -36,6 +36,8 @@ public:
                    std::string const& putCmd);
     ~HistoryArchive();
     HistoryArchiveParams fetchParams();
+    std::string getFileCmd(std::string const& basename, std::string const& filename);
+    std::string putFileCmd(std::string const& filename, std::string const& basename);
 };
 
 }
