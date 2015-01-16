@@ -1,7 +1,7 @@
 # -*- Autoconf -*-
 # Process this file with autoconf to produce a configure script.
 
-AC_PREREQ([2.69])
+AC_PREREQ([2.68])
 AC_INIT([stellard],[0.1],[],[],[http://www.stellar.org])
 AM_INIT_AUTOMAKE([-Wall subdir-objects silent-rules])
 AM_SILENT_RULES([yes])
