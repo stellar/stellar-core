@@ -1,0 +1,26 @@
+language: cpp
+
+compiler:
+  - clang
+
+before_install:
+  - sudo apt-get update -qq
+  - sudo apt-get install -qq autoconf automake libtool pkg-config libpq5 libpq-dev
+  # Report versions
+  - clang -v
+
+script:
+  - set -e
+  - ./autogen.sh
+  - ./configure
+  - make
+  - make check
+
+notifications:
+  email:
+    false
+  slack:
+    secure: eOhSpyT0z9aEg6ArTRXfU33HgbCv8g7L5+RGBs6VMmJAVFIwJ8xaXopyE0YLt0M+iADk80jrw8CeoujEPeCXP41usDQzr481ADOl4cUNIntb9ysx+ZKfSeLo86sc+iq2VAYF0Le3c+WEww3aQEbH46tMVvMhcvzGu03hXXGy8vk=
+#  irc:
+#    channels:
+#      - "chat.freenode.net#stellar-dev"
