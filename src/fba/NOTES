@@ -9,10 +9,10 @@ to attempt another value y. Can it just emit a new PREPARE message with ballot
 
 => OK if y>x
 
+[x] TESTCASE: x<y prepare(0,x), attemptValue(0,y)
+
 - isPrepared implementation
 Please check the code and let's discuss any error you find there  
-
-=> Wait for later
 
 - V-blocking incompatible PREPARED (Q: 3 out of 4)
 1: PREPARE (1,x) - PREPARED (1,x)
@@ -20,19 +20,10 @@ Please check the code and let's discuss any error you find there
 3: PREPARE (1,y) - ?
 4: PREPARE (1,x) - DIE
 > Can 3 move onto PREPARED(1,y) directly? Should it?
-
-Yes but cant COMMIT (1,y)
+=> Yes but cant COMMIT (1,y) if x<y. Won't for now in implementation as this is
+   not a requirement
 
 [x] TESTCASE: attemptValue (1,x) then receive PREPARE/PREPARED (1,y)
-
-- attemptValue after PREPARE (Q: 3 out of 4)
-1: PREPARE (1,x) - attemptValue(y) - ?
-2: PREPARE (1,y)                   
-3: PREPARE (1,y)
-4: PREPARE (1,z)
-> Can 1 emit directly a PREPARE (1,y)? Or should we move onto (2,y)?
-TCASE: for that
-
 
 - PREPARED by ballot bigger (Q: 3 out of 4)
 1: PREPARE (1,x) 
@@ -41,51 +32,21 @@ TCASE: for that
 4: PREPARE (1,y)
 > Emit PREPARE (1,y) PREPARED(1,y) COMMIT(1,y)
 
-[ ] TESTCASE: for that
+[x] TESTCASE: x<y, attempt(1,x) prepared(1,y)
 
-- PREPARED by ballot bigger (Q: 4 out of 5)
-1: PREPARE (1,x) 
-2: PREPARE (1,y) - PREPARED (1,y)                  
-3: PREPARE (1,y) - PREPARED (1,y)
-4: PREPARE (1,y)
-5: PREPARE (1,y)
-> Emit PREPARE (1,y) PREPARED (1,y)
-
-[ ] TESTCASE: for that
-
-- participation after externalization
-1: ... - COMMITTED (1,x) -               - COMMITTED (inf,x)
-2: ... - COMMITTED (1,x) -               - COMMITTED (inf,x)
-3: ... - COMMITTED (1,x) -               - COMMITTED (inf,x)
-4:    (4 is down)        - PREPARE (1,y) - COMMITTED (inf,x)
-> I think we only need to reemit COMMITTED messages with (inf,x). Correct?
-> This requires a shortcut in progressFBA to skip to isCommittedConfirmed if
-> possible
+- participation after externalization (x<y)
+1: ... - COMMITTED (1,x) -               - COMMITTED (1,x)
+2: ... - COMMITTED (1,x) -               - COMMITTED (1,x)
+3: ... - COMMITTED (1,x) -               - COMMITTED (1,x)
+4:    (4 is down)        - PREPARE (1,y) - COMMITTED (2,x)
 
 [x] TESTCASE: committed message directly received. skip to externalization.
-[x] TESTCASE: if externalized send committed in response to messages
+[x] TESTCASE: if committed send committed in response to messages
 [x] TESTCASE: ignore previous ballot counter
 [x] TESTCASE: cancelled pledge to commit
 
-
 - COMMITTED (*,x) can't bump my ballot anymore but can only extenralize if
   ratified. Keep sending that message when I receive something.
-
-- COMMITTED b -> store PREPARED b and COMMIT b for that node. Might help moving
-  forward
-
-Some personal notes [@spolu]:
------------------------------
-- Why we must keep track of incompatible ballot envelopes for the same ballot
-  counter (Q:3 out of 4)
-1: PREPARE (1,x) - PREPARED (1,x) - COMMIT (1,x) - COMMITTED (1,x)
-2: PREPARE (1,x) - PREPARED (1,x) - COMMIT (1,x) - COMMITTED (1,x)
-3: PREPARE (1,x) - PREPARED (1,x) - COMMIT (1,x) - COMMITTED (1,x)
-4: PREPARE (1,y) -
-> 4 must externalize so it must keep track of (1,x) envelopes even if it
-> originally attempted (1,y). 
-> That being said We could also get away we bumping the ballot and reverting to
-> the post-externalization protocol.
 
 
 

@@ -568,6 +568,42 @@ TEST_CASE("protocol core4", "[fba]")
         REQUIRE(C.mEnvs.size() == 2);
     }
 
+    SECTION("x<y, prepare (0,x), prepare (0,y), attempt (0,y)")
+    {
+        FBAEnvelope prepare1 = makeEnvelope(v1NodeID, qSetHash, 0,
+                                            FBABallot(0, xValueHash),
+                                            FBAStatementType::PREPARE);
+        FBAEnvelope prepare2 = makeEnvelope(v1NodeID, qSetHash, 0,
+                                            FBABallot(0, xValueHash),
+                                            FBAStatementType::PREPARE);
+        FBAEnvelope prepare3 = makeEnvelope(v1NodeID, qSetHash, 0,
+                                            FBABallot(0, yValueHash),
+                                            FBAStatementType::PREPARE);
+
+        fba.receiveEnvelope(prepare1);
+        REQUIRE(C.mEnvs.size() == 1);
+
+        REQUIRE(C.mEnvs[0].nodeID == v0NodeID);
+        REQUIRE(C.mEnvs[0].statement.ballot.valueHash == xValueHash);
+        REQUIRE(C.mEnvs[0].statement.ballot.counter == 0);
+        REQUIRE(C.mEnvs[0].statement.body.type() == FBAStatementType::PREPARE);
+
+        fba.receiveEnvelope(prepare2);
+        REQUIRE(C.mEnvs.size() == 1);
+
+        fba.receiveEnvelope(prepare3);
+        // No effect on this round
+        REQUIRE(C.mEnvs.size() == 1);
+
+        REQUIRE(fba.attemptValue(0, yValueHash));
+        REQUIRE(C.mEnvs.size() == 2);
+
+        REQUIRE(C.mEnvs[1].nodeID == v0NodeID);
+        REQUIRE(C.mEnvs[1].statement.ballot.valueHash == yValueHash);
+        REQUIRE(C.mEnvs[1].statement.ballot.counter == 0);
+        REQUIRE(C.mEnvs[1].statement.body.type() == FBAStatementType::PREPARE);
+    }
+
     SECTION("pledge to commit (0,x), accept cancel on (1,y)")
     {
         // 1 and 2 prepare (0,x)
