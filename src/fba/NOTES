@@ -7,15 +7,12 @@ from another node. What should be the behaviour if the local user of FBA wants
 to attempt another value y. Can it just emit a new PREPARE message with ballot
 (0,y) since the abort pledges it represents are exactly the same.
 
+=> OK if y>x
+
 - isPrepared implementation
 Please check the code and let's discuss any error you find there  
 
-- processEnvelope semantics
-When I receive a PREPARED message from a node, I opportunistically update the
-old PREPARE message for that same node by setting the optional prepared ballot
-to the current ballot. The goal is to be able to only consider PREPARE
-envelopes to determine if an excepted ballot is aborted in isPrepared() (see
-abortedFilter)
+=> Wait for later
 
 - V-blocking incompatible PREPARED (Q: 3 out of 4)
 1: PREPARE (1,x) - PREPARED (1,x)
@@ -24,6 +21,8 @@ abortedFilter)
 4: PREPARE (1,x) - DIE
 > Can 3 move onto PREPARED(1,y) directly? Should it?
 
+Yes but cant COMMIT (1,y)
+
 [x] TESTCASE: attemptValue (1,x) then receive PREPARE/PREPARED (1,y)
 
 - attemptValue after PREPARE (Q: 3 out of 4)
@@ -31,7 +30,28 @@ abortedFilter)
 2: PREPARE (1,y)                   
 3: PREPARE (1,y)
 4: PREPARE (1,z)
-> Can 1 emit directly a PREPARE (1,x)? Or should we move onto (2,y)?
+> Can 1 emit directly a PREPARE (1,y)? Or should we move onto (2,y)?
+TCASE: for that
+
+
+- PREPARED by ballot bigger (Q: 3 out of 4)
+1: PREPARE (1,x) 
+2: PREPARE (1,y) - PREPARED (1,y)                  
+3: PREPARE (1,y  - PREPARED (1,y)
+4: PREPARE (1,y)
+> Emit PREPARE (1,y) PREPARED(1,y) COMMIT(1,y)
+
+[ ] TESTCASE: for that
+
+- PREPARED by ballot bigger (Q: 4 out of 5)
+1: PREPARE (1,x) 
+2: PREPARE (1,y) - PREPARED (1,y)                  
+3: PREPARE (1,y) - PREPARED (1,y)
+4: PREPARE (1,y)
+5: PREPARE (1,y)
+> Emit PREPARE (1,y) PREPARED (1,y)
+
+[ ] TESTCASE: for that
 
 - participation after externalization
 1: ... - COMMITTED (1,x) -               - COMMITTED (inf,x)
@@ -43,9 +63,16 @@ abortedFilter)
 > possible
 
 [x] TESTCASE: committed message directly received. skip to externalization.
-[x] TESTCASE: if externalized send committed in response to PREPARE(D), COMMIT(TED)
+[x] TESTCASE: if externalized send committed in response to messages
 [x] TESTCASE: ignore previous ballot counter
 [x] TESTCASE: cancelled pledge to commit
+
+
+- COMMITTED (*,x) can't bump my ballot anymore but can only extenralize if
+  ratified. Keep sending that message when I receive something.
+
+- COMMITTED b -> store PREPARED b and COMMIT b for that node. Might help moving
+  forward
 
 Some personal notes [@spolu]:
 -----------------------------

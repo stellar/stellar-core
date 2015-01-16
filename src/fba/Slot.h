@@ -9,6 +9,9 @@
 
 namespace stellar 
 {
+using xdr::operator==;
+using xdr::operator<;
+
 class Node;
 
 /**
@@ -19,8 +22,7 @@ class Slot
 {
   public:
     // Constructor
-    Slot(const uint64& slotIndex,
-         FBA* FBA);
+    Slot(const uint64& slotIndex, FBA* FBA);
 
     // Process a newly received envelope for this slot and update the state of
     // the slot accordingly.
@@ -30,25 +32,19 @@ class Slot
     // current ballot, and forceBump is false, the current ballot is used.
     // Otherwise a new ballot is generated with an increased counter value.
     bool attemptValue(const Hash& valueHash, 
-                      const Hash& evidence,
                       bool forceBump = false);
 
   private:
     // bumps to the specified ballot emitting a valueCancelled if needed
-    void bumpToBallot(const FBABallot& ballot, 
-                      const Hash& evidence);
+    void bumpToBallot(const FBABallot& ballot);
 
     // Helper methods to generate a new envelopes
-    FBAEnvelope createEnvelope(const FBAStatementType& type);
-    std::string envToStr(const FBAEnvelope& envelope);
-
-    // Signature and verificatio methods
-    void signEnvelope(FBAEnvelope& envelope);
-    bool verifyEnvelope(const FBAEnvelope& envelope);
+    FBAStatement createStatement(const FBAStatementType& type);
+    FBAEnvelope createEnvelope(const FBAStatement& statement);
 
     // `attempt*` methods progress the slot to the specified state if it was
     // not already reached previously. They are in charge of emitting events
-    // and envelopes. They are indempotent.
+    // and envelopes. They are indempotent. 
     void attemptPrepare();
     void attemptPrepared();
     void attemptCommit();
@@ -64,36 +60,38 @@ class Slot
                          const Hash& qSetHash,
                          const std::vector<uint256>& nodeSet);
 
-    // Helper method to test if the filtered set of envelopes is a transitive
-    // quorum and whether this transitive quorum is a quorum for the local
+    // Helper method to test if the filtered set of statements is a transitive
+    // quorum *and* whether this transitive quorum is a quorum for the local
     // node.
     bool isQuorumTransitive(
-        const std::map<uint256, FBAEnvelope>& envelopes,
-        std::function<bool(const FBAEnvelope&)> const& filter =
-          [] (const FBAEnvelope&) { return true; });
-    // Helper method to test if the filtered set of envelopes is a v-blocking
+        const std::map<uint256, FBAStatement>& statements,
+        std::function<bool(const uint256&, const FBAStatement&)> const& filter =
+          [] (const uint256&, const FBAStatement&) { return true; });
+    // Helper method to test if the filtered set of statements is a v-blocking
     // set for the node specified by nodeID.
     bool isVBlocking(
-        const std::map<uint256, FBAEnvelope>& envelopes,
+        const std::map<uint256, FBAStatement>& statements,
         const uint256& nodeID,
-        std::function<bool(const FBAEnvelope&)> const& filter =
-          [] (const FBAEnvelope&) { return true; });
+        std::function<bool(const uint256&, const FBAStatement&)> const& filter =
+          [] (const uint256&, const FBAStatement&) { return true; });
 
     // `is*` methods check if the specified state for the current slot has been
     // reached or not. They are called by `advanceSlot` and drive the call of
-    // the `attempt*` methods.
+    // the `attempt*` methods. `isCommittedConfirmed` does not take a ballot
+    // but a `valueHash` as it is determined across ballot rounds
     bool isPristine();
-    bool isPrepared(const Hash& valueHash);
-    bool isPreparedConfirmed(const Hash& valueHash);
-    bool isCommitted(const Hash& valueHash);
+    bool isPrepared(const FBABallot& ballot);
+    bool isPreparedConfirmed(const FBABallot& ballot);
+    bool isCommitted(const FBABallot& ballot);
     bool isCommittedConfirmed(const Hash& valueHash);
 
-    // Retrieve all the envelopes of a given type for a given node for the
-    // current rounds
-    std::vector<FBAEnvelope> getNodeEnvelopes(const uint256& nodeID,
-                                              const FBAStatementType& type);
-                                          
+    // Retrieve all the statements of a given type for a given node
+    std::vector<FBAStatement> getNodeStatements(const uint256& nodeID,
+                                                const FBAStatementType& type);
 
+    // Helper method to compare two ballots
+    int compareBallots(const FBABallot& b1, const FBABallot& b2);
+                                          
     // `advanceSlot` can be called as many time as needed. It attempts to
     // advance the slot to a next state if possible given the current
     // knownledge of this node. 
@@ -102,20 +100,20 @@ class Slot
     const uint64                                               mSlotIndex;
     FBA*                                                       mFBA;
 
+    // mBallot is the current ballot (monotically increasing)
     FBABallot                                                  mBallot;
-    Hash                                                       mEvidence;
+
     bool                                                       mIsPristine;
+    bool                                                       mIsCommitted;
+    bool                                                       mIsExternalized;
 
     bool                                                       mInAdvanceSlot;
     bool                                                       mRunAdvanceSlot;
 
-    std::vector<FBABallot>                                     mPledgedCommit;
-    std::map<Hash, FBABallot>                                  mPrepared;
-
-    // mEnvelopes keep track of received envelopes for this round.
-    std::map<Hash,
+    // mEnvelopes keep track of all received and sent envelopes for this slot.
+    std::map<FBABallot,
              std::map<FBAStatementType,
-                      std::map<uint256, FBAEnvelope>>>         mEnvelopes;
+                      std::map<uint256, FBAStatement>>>        mStatements;
 
     friend class Node;
 };

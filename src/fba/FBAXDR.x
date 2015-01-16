@@ -10,7 +10,7 @@ typedef unsigned hyper uint64;
 struct FBABallot
 {
     uint32 counter;   // n
-    Hash valueHash;   // x
+    Hash valueHash;
 };
 
 enum FBAStatementType
@@ -34,7 +34,6 @@ struct FBAStatement
             {
                 FBABallot excepted<>;  // B_c
                 FBABallot* prepared;   // p
-                Hash evidence;         // \sigma
             } prepare;
         case PREPARED:
         case COMMIT:
