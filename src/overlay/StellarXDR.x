@@ -136,7 +136,10 @@ struct AllowTrustTx
 	AccountID trustor;
 	union switch(CurrencyTypes type)
 	{
-		case ISO4217: 
+		case NATIVE:
+			void;
+
+		case ISO4217:
 			opaque currencyCode[4];
 
 		// add other currency types here in the future
