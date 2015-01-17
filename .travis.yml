@@ -5,7 +5,7 @@ compiler:
 
 before_install:
   - sudo apt-get update -qq
-  - sudo apt-get install -qq autoconf automake libtool pkg-config flex bison libc++1 libc++-dev libpq5 libpq-dev
+  - 'sudo apt-get install -qq autoconf automake libtool pkg-config flex bison libc++1 libc++-dev libpq5 libpq-dev'
   # Report versions
   - clang -v
 
