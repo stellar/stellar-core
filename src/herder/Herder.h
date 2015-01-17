@@ -64,7 +64,7 @@ class Herder : public HerderGateway,
     void recvFBAQuorumSet(FBAQuorumSetPtr qSet);
     void doesntHaveFBAQuorumSet(uint256 const& qSetHash, PeerPtr peer);
 
-    // returns wether the transaction should be flooded
+    // returns whether the transaction should be flooded
     bool recvTransaction(TransactionFramePtr tx);
 
     void recvFBAEnvelope(FBAEnvelope envelope);
@@ -87,6 +87,8 @@ class Herder : public HerderGateway,
     // 3- three or more ledgers ago. Any set we validate must have these tx
     vector<vector<TransactionFramePtr>>            mReceivedTransactions;
 
+    // need to keep the old tx sets around for at least one Consensus round
+    //  in case some stragglers are still need the old txsets in order to close
     std::array<TxSetFetcher, 2>                    mTxSetFetcher;
     int                                            mCurrentTxSetFetcher;
 

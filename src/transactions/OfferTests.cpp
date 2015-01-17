@@ -60,11 +60,12 @@ TEST_CASE("create offer", "[tx]")
     applyPaymentTx(app, root, gateway, 3, paymentAmount);
 
     applyTrust(app, a1, gateway, 1, "USD");
+    applyTrust(app, a1, gateway, 2, "IDR");
     applyTrust(app, b1, gateway, 1, "IDR");
 
     Currency idrCur=makeCurrency(gateway,"IDR");
     Currency usdCur = makeCurrency(gateway, "USD");
-    applyOffer(app, a1, idrCur, usdCur, OFFER_PRICE_DIVISOR, 100, 2);
+    applyOffer(app, a1, idrCur, usdCur, OFFER_PRICE_DIVISOR, 100, 3);
     OfferFrame offer;
     REQUIRE(app.getDatabase().loadOffer(a1.getPublicKey(), 1, offer));
     REQUIRE(offer.getPrice() == OFFER_PRICE_DIVISOR);
