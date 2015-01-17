@@ -12,6 +12,7 @@ test "${WFLAGS+set}" || WFLAGS="-Wall"
 AC_PROG_CC([clang gcc cc])
 AC_PROG_CXX([clang++ g++ c++])
 AM_PROG_AR
+AM_PROG_CC_C_O
 
 LT_INIT([disable-shared])
 AC_SUBST(LIBTOOL_DEPS)
@@ -76,7 +77,7 @@ function configure_pkgconfig_subdir() {
             ax_popdir=`pwd`
             cd "$1"
             AC_MSG_NOTICE([Configuring sources in $1])
-            ./configure $ac_configure_args --srcdir=$ac_srcdir $2 CXX="${CXX}" CC="${CC}" CXXFLAGS="${CXXFLAGS}" LDFLAGS="${LDFLAGS}"
+            eval ./configure $ac_configure_args "'--srcdir=$ac_srcdir'" "'$2'" "CXX='${CXX}'" "CC='${CC}'" "CXXFLAGS='${CXXFLAGS}'" "LDFLAGS='${LDFLAGS}'"
             AC_MSG_NOTICE([Finished configuring $1])
             cd "$ax_popdir"
         fi
