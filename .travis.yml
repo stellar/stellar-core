@@ -12,6 +12,7 @@ before_install:
 script:
   - set -e
   - ./autogen.sh
+  - cat src/lib/xdrpp/configure
   - ./configure
   - make
   - make check
