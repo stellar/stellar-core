@@ -13,8 +13,8 @@ namespace stellar
 using xdr::operator<;
 
 int
-FBA::Client::compareValues(const Hash& v1,
-                           const Hash& v2)
+FBA::Client::compareValues(const Value& v1,
+                           const Value& v2)
 {
     if (v1 < v2) return -1;
     if (v2 < v1) return 1;
@@ -58,9 +58,9 @@ FBA::receiveEnvelope(const FBAEnvelope& envelope)
 
 bool
 FBA::attemptValue(const uint64& slotIndex,
-                  const Hash& valueHash)
+                  const Value& value)
 {
-    return getSlot(slotIndex)->attemptValue(valueHash);
+    return getSlot(slotIndex)->attemptValue(value);
 }
 
 void 

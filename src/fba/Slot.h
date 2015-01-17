@@ -31,7 +31,7 @@ class Slot
     // Attempts a new value for this slot. If the value is compatible with the
     // current ballot, and forceBump is false, the current ballot is used.
     // Otherwise a new ballot is generated with an increased counter value.
-    bool attemptValue(const Hash& valueHash, 
+    bool attemptValue(const Value& value, 
                       bool forceBump = false);
 
   private:
@@ -78,12 +78,12 @@ class Slot
     // `is*` methods check if the specified state for the current slot has been
     // reached or not. They are called by `advanceSlot` and drive the call of
     // the `attempt*` methods. `isCommittedConfirmed` does not take a ballot
-    // but a `valueHash` as it is determined across ballot rounds
+    // but a `Value` as it is determined across ballot rounds
     bool isPristine();
     bool isPrepared(const FBABallot& ballot);
     bool isPreparedConfirmed(const FBABallot& ballot);
     bool isCommitted(const FBABallot& ballot);
-    bool isCommittedConfirmed(const Hash& valueHash);
+    bool isCommittedConfirmed(const Value& value);
 
     // Retrieve all the statements of a given type for a given node
     std::vector<FBAStatement> getNodeStatements(const uint256& nodeID,
