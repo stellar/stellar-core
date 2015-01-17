@@ -71,7 +71,6 @@ void
 Herder::validateBallot(const uint64& slotIndex,
                        const uint256& nodeID,
                        const FBABallot& ballot,
-                       const Hash& evidence,
                        std::function<void(bool)> const& cb)
 {
     // make sure all the tx we have in the old set are included
@@ -128,8 +127,7 @@ Herder::validateBallot(const uint64& slotIndex,
 
 void 
 Herder::ballotDidPrepare(const uint64& slotIndex,
-                         const FBABallot& ballot,
-                         const Hash& evidence)
+                         const FBABallot& ballot)
 {
 }
 
@@ -404,12 +402,8 @@ Herder::ledgerClosed(LedgerHeader& ledger)
 
     uint64_t slotIndex = mLastClosedLedger.ledgerSeq+1;
 
-    // TODO(spolu): Evidence
-    Hash evidence; 
-
     mFBA->attemptValue(slotIndex, 
-                       proposedSet->getContentsHash(), 
-                       evidence);
+                       proposedSet->getContentsHash());
 
     // TODO(spolu): closeTime (in FBA?)
     // firstBallot.ballot.closeTime = firstBallotTime;

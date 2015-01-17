@@ -6,6 +6,7 @@
 #include "util/make_unique.h"
 #include <cereal/cereal.hpp>
 #include <cereal/archives/json.hpp>
+#include "lib/util/format.h"
 
 #include <iostream>
 #include <fstream>
@@ -15,10 +16,10 @@ namespace stellar
 
 class HistoryArchive::Impl
 {
+public:
     std::string mName;
     std::string mGetCmd;
     std::string mPutCmd;
-public:
     Impl(std::string const& name,
          std::string const& getCmd,
          std::string const& putCmd)
@@ -59,6 +60,22 @@ HistoryArchiveParams
 HistoryArchive::fetchParams()
 {
     return HistoryArchiveParams();
+}
+
+std::string
+HistoryArchive::getFileCmd(std::string const& basename, std::string const& filename)
+{
+    if (mImpl->mGetCmd.empty())
+        return "";
+    return fmt::format(mImpl->mGetCmd, basename, filename);
+}
+
+std::string
+HistoryArchive::putFileCmd(std::string const& filename, std::string const& basename)
+{
+    if (mImpl->mPutCmd.empty())
+        return "";
+    return fmt::format(mImpl->mPutCmd, filename, basename);
 }
 
 

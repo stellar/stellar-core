@@ -136,7 +136,10 @@ struct AllowTrustTx
 	AccountID trustor;
 	union switch(CurrencyTypes type)
 	{
-		case ISO4217: 
+		case NATIVE:
+			void;
+
+		case ISO4217:
 			opaque currencyCode[4];
 
 		// add other currency types here in the future
@@ -188,14 +191,17 @@ struct TransactionSet
     TransactionEnvelope txs<>;
 };
 
+struct CLFBucketHeader
+{
+    uint64 ledgerSeq;
+    uint32 ledgerCount;
+    Hash hash;
+};
+
 struct CLFLevel
 {
-    uint64 currStartSeq;
-    uint64 snapStartSeq;
-    uint32 currCount;
-    uint32 snapCount;
-    Hash currHash;
-    Hash snapHash;
+    CLFBucketHeader curr;
+    CLFBucketHeader snap;
 };
 
 struct LedgerHeader
@@ -298,6 +304,12 @@ struct CLFEntry
 {
     LedgerEntry entry;
     Hash hash;
+};
+
+struct CLFBucket
+{
+    CLFBucketHeader header;
+    CLFEntry entries<>;
 };
 
 struct PeerAddress

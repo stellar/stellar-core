@@ -5,6 +5,7 @@
 // this distribution or at http://opensource.org/licenses/ISC
 
 #include "generated/StellarXDR.h"
+#include <functional>
 
 /**
  * The history module is responsible for storing, mirroring, and retrieving
@@ -154,9 +155,21 @@ class HistoryMaster
     std::unique_ptr<Impl> mImpl;
 
   public:
-    std::string writeLedgerHistoryToFile(History const& hist);
-    void readLedgerHistoryFromFile(std::string const& fname,
-                                   History& hist);
+    void archiveHistoryEntry(HistoryEntry const& historyEntry);
+
+    void archiveHistory(std::shared_ptr<History> hist,
+                        std::function<void(std::string const&)> handler);
+
+    void archiveBucket(std::shared_ptr<CLFBucket> bucket,
+                       std::function<void(std::string const&)> handler);
+
+    void acquireHistory(std::string const& name,
+                        std::function<void(std::shared_ptr<History>)> handler);
+
+    void putFile(std::string const& filename,
+                 std::string const& basename,
+                 std::function<void(std::string const&)> handler);
+
     HistoryMaster(Application& app);
     ~HistoryMaster();
 };

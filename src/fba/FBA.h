@@ -11,13 +11,14 @@
 
 #include "generated/FBAXDR.h"
 
-#define FBA_SLOT_MAX_COUNTER 0xffffffff
-
 namespace stellar
 {
 class Node;
 class Slot;
 class LocalNode;
+
+//using xdr::operator<;
+
 
 class FBA
 {
@@ -49,26 +50,26 @@ class FBA
         virtual void validateBallot(const uint64& slotIndex,
                                     const uint256& nodeID,
                                     const FBABallot& ballot,
-                                    const Hash& evidence,
                                     std::function<void(bool)> const& cb) = 0;
+        virtual int compareValues(const Hash& v1,
+                                  const Hash& v2);
 
         virtual void ballotDidPrepare(const uint64& slotIndex,
-                                      const FBABallot& ballot,
-                                      const Hash& evidence) {};
+                                      const FBABallot& ballot) {}
         virtual void ballotDidCommit(const uint64& slotIndex,
                                      const FBABallot& ballot) {};
 
         virtual void valueCancelled(const uint64& slotIndex,
-                                    const Hash& valueHash) = 0;
+                                    const Hash& valueHash) {}
         virtual void valueExternalized(const uint64& slotIndex,
-                                       const Hash& valueHash) = 0;
+                                       const Hash& valueHash) {}
 
         virtual void retrieveQuorumSet(const uint256& nodeID,
                                        const Hash& qSetHash) = 0;
         virtual void emitEnvelope(const FBAEnvelope& envelope) = 0;
         
         virtual void retransmissionHinted(const uint64& slotIndex,
-                                          const uint256& nodeID) = 0;
+                                          const uint256& nodeID) {};
     };
 
     // The constructor is passed an FBA::Client object but does not own it. The
@@ -85,8 +86,7 @@ class FBA
 
     // Value submission
     bool attemptValue(const uint64& slotIndex,
-                      const Hash& valueHash,
-                      const Hash& evidence);
+                      const Hash& valueHash);
 
     // Local QuorumSet interface (can be dynamically updated)
     void updateLocalQuorumSet(const FBAQuorumSet& qSet);

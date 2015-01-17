@@ -29,15 +29,13 @@ class TestFBAClient : public FBA::Client
     void validateBallot(const uint64& slotIndex,
                         const Hash& nodeID,
                         const FBABallot& ballot,
-                        const Hash& evidence,
                         std::function<void(bool)> const& cb)
     {
         cb(true);
     }
 
     void ballotDidPrepare(const uint64& slotIndex,
-                          const FBABallot& ballot,
-                          const Hash& evidence)
+                          const FBABallot& ballot)
     {
     }
     void ballotDidCommit(const uint64& slotIndex,
@@ -82,7 +80,7 @@ class TestFBAClient : public FBA::Client
     }
     void emitEnvelope(const FBAEnvelope& envelope)
     {
-        mEmittedEnvelopes.push_back(envelope);
+        mEnvs.push_back(envelope);
     }
 
     void retransmissionHinted(const uint64& slotIndex,
@@ -92,12 +90,12 @@ class TestFBAClient : public FBA::Client
     }
 
     std::map<Hash, FBAQuorumSet>           mQuorumSets;
-    std::vector<FBAEnvelope>               mEmittedEnvelopes;
+    std::vector<FBAEnvelope>               mEnvs;
     std::map<uint64, Hash>                 mExternalizedValues;
     std::map<uint64, std::vector<Hash>>    mCancelledValues;
     std::map<uint64, std::vector<uint256>> mRetransmissionHints;
 
-    FBA*                                mFBA;
+    FBA*                                   mFBA;
 };
 
 
@@ -124,8 +122,7 @@ makeEnvelope(const uint256& nodeID,
     const Hash v##N##NodeID = makePublicKey(v##N##VSeed);
 
 #define CREATE_VALUE(X) \
-    const Hash X##ValueHash = sha512_256("SEED_VALUE_HASH_" #X); \
-    const Hash X##Evidence = sha512_256("SEED_VALUE_EVIDENCE_" #X);
+    const Hash X##ValueHash = sha512_256("SEED_VALUE_HASH_" #X); 
 
 TEST_CASE("protocol core4", "[fba]")
 {
@@ -143,26 +140,32 @@ TEST_CASE("protocol core4", "[fba]")
 
     uint256 qSetHash = sha512_256(xdr::xdr_to_msg(qSet));
 
-    TestFBAClient client;
-    FBA fba(v0VSeed, qSet, &client);
+    TestFBAClient C;
+    FBA fba(v0VSeed, qSet, &C);
 
-    client.setFBA(&fba);
-    client.addQuorumSet(qSet);
+    C.setFBA(&fba);
+    C.addQuorumSet(qSet);
 
     CREATE_VALUE(x);
     CREATE_VALUE(y);
     CREATE_VALUE(z);
 
+    using xdr::operator<;
+    REQUIRE(xValueHash < yValueHash);
+
+    LOG(INFO) << "<<<< BEGIN FBA TEST >>>>";
+
     SECTION("attemptValue x")
     {
-        REQUIRE(fba.attemptValue(0, xValueHash, xEvidence));
-        REQUIRE(client.mEmittedEnvelopes.size() == 1);
+        REQUIRE(fba.attemptValue(0, xValueHash));
+        REQUIRE(C.mEnvs.size() == 1);
 
-        FBAEnvelope prepare = client.mEmittedEnvelopes[0];
-        REQUIRE(prepare.nodeID == v0NodeID);
-        REQUIRE(prepare.statement.ballot.valueHash == xValueHash);
-        REQUIRE(prepare.statement.ballot.counter == 0);
-        REQUIRE(prepare.statement.body.type() == FBAStatementType::PREPARE);
+        REQUIRE(C.mEnvs[0].nodeID == v0NodeID);
+        REQUIRE(C.mEnvs[0].statement.ballot.valueHash == xValueHash);
+        REQUIRE(C.mEnvs[0].statement.ballot.counter == 0);
+        REQUIRE(C.mEnvs[0].statement.body.type() == FBAStatementType::PREPARE);
+        REQUIRE(!C.mEnvs[0].statement.body.prepare().prepared);
+        REQUIRE(C.mEnvs[0].statement.body.prepare().excepted.size() == 0);
     }
 
     SECTION("normal round (0,x)")
@@ -178,27 +181,25 @@ TEST_CASE("protocol core4", "[fba]")
                                             FBAStatementType::PREPARE);
 
         fba.receiveEnvelope(prepare1);
-        REQUIRE(client.mEmittedEnvelopes.size() == 1);
+        REQUIRE(C.mEnvs.size() == 1);
 
         // We send a prepare as we were pristine
-        FBAEnvelope prepare = client.mEmittedEnvelopes[0];
-        REQUIRE(prepare.nodeID == v0NodeID);
-        REQUIRE(prepare.statement.ballot.valueHash == xValueHash);
-        REQUIRE(prepare.statement.ballot.counter == 0);
-        REQUIRE(prepare.statement.body.type() == FBAStatementType::PREPARE);
+        REQUIRE(C.mEnvs[0].nodeID == v0NodeID);
+        REQUIRE(C.mEnvs[0].statement.ballot.valueHash == xValueHash);
+        REQUIRE(C.mEnvs[0].statement.ballot.counter == 0);
+        REQUIRE(C.mEnvs[0].statement.body.type() == FBAStatementType::PREPARE);
 
         fba.receiveEnvelope(prepare2);
-        REQUIRE(client.mEmittedEnvelopes.size() == 2);
+        REQUIRE(C.mEnvs.size() == 2);
 
         // We have a quorum including us
-        FBAEnvelope prepared = client.mEmittedEnvelopes[1];
-        REQUIRE(prepared.nodeID == v0NodeID);
-        REQUIRE(prepared.statement.ballot.valueHash == xValueHash);
-        REQUIRE(prepared.statement.ballot.counter == 0);
-        REQUIRE(prepared.statement.body.type() == FBAStatementType::PREPARED);
+        REQUIRE(C.mEnvs[1].nodeID == v0NodeID);
+        REQUIRE(C.mEnvs[1].statement.ballot.valueHash == xValueHash);
+        REQUIRE(C.mEnvs[1].statement.ballot.counter == 0);
+        REQUIRE(C.mEnvs[1].statement.body.type() == FBAStatementType::PREPARED);
 
         fba.receiveEnvelope(prepare3);
-        REQUIRE(client.mEmittedEnvelopes.size() == 2);
+        REQUIRE(C.mEnvs.size() == 2);
 
         FBAEnvelope prepared1 = makeEnvelope(v1NodeID, qSetHash, 0,
                                              FBABallot(0, xValueHash),
@@ -211,19 +212,18 @@ TEST_CASE("protocol core4", "[fba]")
                                              FBAStatementType::PREPARED);
 
         fba.receiveEnvelope(prepared3);
-        REQUIRE(client.mEmittedEnvelopes.size() == 2);
+        REQUIRE(C.mEnvs.size() == 2);
 
         fba.receiveEnvelope(prepared2);
-        REQUIRE(client.mEmittedEnvelopes.size() == 3);
+        REQUIRE(C.mEnvs.size() == 3);
 
-        FBAEnvelope commit = client.mEmittedEnvelopes[2];
-        REQUIRE(commit.nodeID == v0NodeID);
-        REQUIRE(commit.statement.ballot.valueHash == xValueHash);
-        REQUIRE(commit.statement.ballot.counter == 0);
-        REQUIRE(commit.statement.body.type() == FBAStatementType::COMMIT);
+        REQUIRE(C.mEnvs[2].nodeID == v0NodeID);
+        REQUIRE(C.mEnvs[2].statement.ballot.valueHash == xValueHash);
+        REQUIRE(C.mEnvs[2].statement.ballot.counter == 0);
+        REQUIRE(C.mEnvs[2].statement.body.type() == FBAStatementType::COMMIT);
         
         fba.receiveEnvelope(prepared1);
-        REQUIRE(client.mEmittedEnvelopes.size() == 3);
+        REQUIRE(C.mEnvs.size() == 3);
 
         FBAEnvelope commit1 = makeEnvelope(v1NodeID, qSetHash, 0,
                                            FBABallot(0, xValueHash),
@@ -236,19 +236,23 @@ TEST_CASE("protocol core4", "[fba]")
                                            FBAStatementType::COMMIT);
 
         fba.receiveEnvelope(commit2);
-        REQUIRE(client.mEmittedEnvelopes.size() == 3);
+        REQUIRE(C.mEnvs.size() == 3);
 
         fba.receiveEnvelope(commit1);
-        REQUIRE(client.mEmittedEnvelopes.size() == 4);
+        REQUIRE(C.mEnvs.size() == 4);
 
-        FBAEnvelope committed = client.mEmittedEnvelopes[3];
-        REQUIRE(committed.nodeID == v0NodeID);
-        REQUIRE(committed.statement.ballot.valueHash == xValueHash);
-        REQUIRE(committed.statement.ballot.counter == 0);
-        REQUIRE(committed.statement.body.type() == FBAStatementType::COMMITTED);
+        REQUIRE(C.mEnvs[3].nodeID == v0NodeID);
+        REQUIRE(C.mEnvs[3].statement.ballot.valueHash == xValueHash);
+        REQUIRE(C.mEnvs[3].statement.ballot.counter == 0);
+        REQUIRE(C.mEnvs[3].statement.body.type() == FBAStatementType::COMMITTED);
 
         fba.receiveEnvelope(commit3);
-        REQUIRE(client.mEmittedEnvelopes.size() == 4);
+        REQUIRE(C.mEnvs.size() == 5);
+
+        REQUIRE(C.mEnvs[4].nodeID == v0NodeID);
+        REQUIRE(C.mEnvs[4].statement.ballot.valueHash == xValueHash);
+        REQUIRE(C.mEnvs[4].statement.ballot.counter == 0);
+        REQUIRE(C.mEnvs[4].statement.body.type() == FBAStatementType::COMMITTED);
 
         FBAEnvelope committed1 = makeEnvelope(v1NodeID, qSetHash, 0,
                                               FBABallot(0, xValueHash),
@@ -261,46 +265,31 @@ TEST_CASE("protocol core4", "[fba]")
                                               FBAStatementType::COMMITTED);
 
         fba.receiveEnvelope(committed3);
-        REQUIRE(client.mEmittedEnvelopes.size() == 4);
+        REQUIRE(C.mEnvs.size() == 5);
         // The slot should not have externalized yet
-        REQUIRE(client.mExternalizedValues.find(0) == 
-            client.mExternalizedValues.end());
+        REQUIRE(C.mExternalizedValues.find(0) == 
+            C.mExternalizedValues.end());
 
         fba.receiveEnvelope(committed1);
-        REQUIRE(client.mEmittedEnvelopes.size() == 4);
+        REQUIRE(C.mEnvs.size() == 5);
         // The slot should have externalized the value
-        REQUIRE(client.mExternalizedValues[0] == xValueHash);
+        REQUIRE(C.mExternalizedValues.size() == 1);
+        REQUIRE(C.mExternalizedValues[0] == xValueHash);
 
         fba.receiveEnvelope(committed2);
-        REQUIRE(client.mEmittedEnvelopes.size() == 5);
-
-        FBAEnvelope ext = client.mEmittedEnvelopes[4];
-        REQUIRE(ext.nodeID == v0NodeID);
-        REQUIRE(ext.statement.ballot.valueHash == xValueHash);
-        REQUIRE(ext.statement.ballot.counter == FBA_SLOT_MAX_COUNTER);
-        REQUIRE(ext.statement.body.type() == FBAStatementType::COMMITTED);
-
-        // We test there is no reemission of COMMITTED when a COMMITTED (inf,x)
-        // is received
-        FBAEnvelope externalize3 = makeEnvelope(v3NodeID, qSetHash, 0,
-                                                FBABallot(FBA_SLOT_MAX_COUNTER, 
-                                                          xValueHash),
-                                                FBAStatementType::COMMITTED);
-
-        fba.receiveEnvelope(externalize3);
-        REQUIRE(client.mEmittedEnvelopes.size() == 5);
+        REQUIRE(C.mEnvs.size() == 5);
+        REQUIRE(C.mExternalizedValues.size() == 1);
     }
 
-    SECTION("attempt (0,x), prepared (0,y) by v-blocking")
+    SECTION("x<y, attempt (0,x), prepared (0,y) by v-blocking")
     {
-        REQUIRE(fba.attemptValue(0, xValueHash, xEvidence));
-        REQUIRE(client.mEmittedEnvelopes.size() == 1);
+        REQUIRE(fba.attemptValue(0, xValueHash));
+        REQUIRE(C.mEnvs.size() == 1);
 
-        FBAEnvelope prepare = client.mEmittedEnvelopes[0];
-        REQUIRE(prepare.nodeID == v0NodeID);
-        REQUIRE(prepare.statement.ballot.valueHash == xValueHash);
-        REQUIRE(prepare.statement.ballot.counter == 0);
-        REQUIRE(prepare.statement.body.type() == FBAStatementType::PREPARE);
+        REQUIRE(C.mEnvs[0].nodeID == v0NodeID);
+        REQUIRE(C.mEnvs[0].statement.ballot.valueHash == xValueHash);
+        REQUIRE(C.mEnvs[0].statement.ballot.counter == 0);
+        REQUIRE(C.mEnvs[0].statement.body.type() == FBAStatementType::PREPARE);
 
         FBAEnvelope prepare1 = makeEnvelope(v1NodeID, qSetHash, 0,
                                             FBABallot(0, yValueHash),
@@ -311,7 +300,7 @@ TEST_CASE("protocol core4", "[fba]")
 
         fba.receiveEnvelope(prepare1);
         fba.receiveEnvelope(prepare2);
-        REQUIRE(client.mEmittedEnvelopes.size() == 1);
+        REQUIRE(C.mEnvs.size() == 1);
 
         FBAEnvelope prepared1 = makeEnvelope(v1NodeID, qSetHash, 0,
                                              FBABallot(0, yValueHash),
@@ -321,35 +310,75 @@ TEST_CASE("protocol core4", "[fba]")
                                              FBAStatementType::PREPARED);
 
         fba.receiveEnvelope(prepared1);
-        REQUIRE(client.mEmittedEnvelopes.size() == 1);
+        REQUIRE(C.mEnvs.size() == 1);
         fba.receiveEnvelope(prepared2);
-        REQUIRE(client.mEmittedEnvelopes.size() == 3);
+        REQUIRE(C.mEnvs.size() == 4);
 
-        FBAEnvelope prepared = client.mEmittedEnvelopes[1];
-        FBAEnvelope commit = client.mEmittedEnvelopes[2];
 
-        REQUIRE(prepared.nodeID == v0NodeID);
-        REQUIRE(prepared.statement.ballot.valueHash == yValueHash);
-        REQUIRE(prepared.statement.ballot.counter == 0);
-        REQUIRE(prepared.statement.body.type() == FBAStatementType::PREPARED);
+        REQUIRE(C.mEnvs[1].nodeID == v0NodeID);
+        REQUIRE(C.mEnvs[1].statement.ballot.valueHash == yValueHash);
+        REQUIRE(C.mEnvs[1].statement.ballot.counter == 0);
+        REQUIRE(C.mEnvs[1].statement.body.type() == FBAStatementType::PREPARE);
+        REQUIRE(!C.mEnvs[1].statement.body.prepare().prepared);
+        REQUIRE(C.mEnvs[1].statement.body.prepare().excepted.size() == 0);
 
-        REQUIRE(commit.nodeID == v0NodeID);
-        REQUIRE(commit.statement.ballot.valueHash == yValueHash);
-        REQUIRE(commit.statement.ballot.counter == 0);
-        REQUIRE(commit.statement.body.type() == FBAStatementType::COMMIT);
+        REQUIRE(C.mEnvs[2].nodeID == v0NodeID);
+        REQUIRE(C.mEnvs[2].statement.ballot.valueHash == yValueHash);
+        REQUIRE(C.mEnvs[2].statement.ballot.counter == 0);
+        REQUIRE(C.mEnvs[2].statement.body.type() == FBAStatementType::PREPARED);
+
+        REQUIRE(C.mEnvs[3].nodeID == v0NodeID);
+        REQUIRE(C.mEnvs[3].statement.ballot.valueHash == yValueHash);
+        REQUIRE(C.mEnvs[3].statement.ballot.counter == 0);
+        REQUIRE(C.mEnvs[3].statement.body.type() == FBAStatementType::COMMIT);
     }
 
-    SECTION("attempt (0,x), prepare (0,y) by quorum")
+    SECTION("x<y, attempt (0,y), prepared (0,x) by v-blocking")
     {
-        REQUIRE(fba.attemptValue(0, xValueHash, xEvidence));
-        REQUIRE(client.mEmittedEnvelopes.size() == 1);
+        REQUIRE(fba.attemptValue(0, yValueHash));
+        REQUIRE(C.mEnvs.size() == 1);
 
-        FBAEnvelope prepare = client.mEmittedEnvelopes[0];
-        REQUIRE(prepare.nodeID == v0NodeID);
-        REQUIRE(prepare.statement.ballot.valueHash == xValueHash);
-        REQUIRE(prepare.statement.ballot.counter == 0);
-        REQUIRE(prepare.statement.body.type() == FBAStatementType::PREPARE);
+        REQUIRE(C.mEnvs[0].nodeID == v0NodeID);
+        REQUIRE(C.mEnvs[0].statement.ballot.valueHash == yValueHash);
+        REQUIRE(C.mEnvs[0].statement.ballot.counter == 0);
+        REQUIRE(C.mEnvs[0].statement.body.type() == FBAStatementType::PREPARE);
 
+        FBAEnvelope prepare1 = makeEnvelope(v1NodeID, qSetHash, 0,
+                                            FBABallot(0, xValueHash),
+                                            FBAStatementType::PREPARE);
+        FBAEnvelope prepare2 = makeEnvelope(v2NodeID, qSetHash, 0,
+                                            FBABallot(0, xValueHash),
+                                            FBAStatementType::PREPARE);
+
+        fba.receiveEnvelope(prepare1);
+        fba.receiveEnvelope(prepare2);
+        REQUIRE(C.mEnvs.size() == 1);
+
+        FBAEnvelope prepared1 = makeEnvelope(v1NodeID, qSetHash, 0,
+                                             FBABallot(0, xValueHash),
+                                             FBAStatementType::PREPARED);
+        FBAEnvelope prepared2 = makeEnvelope(v2NodeID, qSetHash, 0,
+                                             FBABallot(0, xValueHash),
+                                             FBAStatementType::PREPARED);
+
+        fba.receiveEnvelope(prepared1);
+        REQUIRE(C.mEnvs.size() == 1);
+        fba.receiveEnvelope(prepared2);
+        REQUIRE(C.mEnvs.size() == 1);
+
+        // TODO(spolu): We don't emit a PREPARED here as our mBallot is higher,
+        // but we might want to do so for later PREPARE messages (TBD with dm)
+    }
+    
+    SECTION("x<y, attempt (0,x), prepare (0,y) by quorum")
+    {
+        REQUIRE(fba.attemptValue(0, xValueHash));
+        REQUIRE(C.mEnvs.size() == 1);
+
+        REQUIRE(C.mEnvs[0].nodeID == v0NodeID);
+        REQUIRE(C.mEnvs[0].statement.ballot.valueHash == xValueHash);
+        REQUIRE(C.mEnvs[0].statement.ballot.counter == 0);
+        REQUIRE(C.mEnvs[0].statement.body.type() == FBAStatementType::PREPARE);
 
         FBAEnvelope prepare1 = makeEnvelope(v1NodeID, qSetHash, 0,
                                             FBABallot(0, yValueHash),
@@ -363,62 +392,167 @@ TEST_CASE("protocol core4", "[fba]")
 
         fba.receiveEnvelope(prepare1);
         fba.receiveEnvelope(prepare2);
-        REQUIRE(client.mEmittedEnvelopes.size() == 1);
+        REQUIRE(C.mEnvs.size() == 1);
         fba.receiveEnvelope(prepare3);
-        REQUIRE(client.mEmittedEnvelopes.size() == 2);
+        REQUIRE(C.mEnvs.size() == 3);
 
-        FBAEnvelope prepared = client.mEmittedEnvelopes[1];
+        REQUIRE(C.mEnvs[1].nodeID == v0NodeID);
+        REQUIRE(C.mEnvs[1].statement.ballot.valueHash == yValueHash);
+        REQUIRE(C.mEnvs[1].statement.ballot.counter == 0);
+        REQUIRE(C.mEnvs[1].statement.body.type() == FBAStatementType::PREPARE);
+        REQUIRE(!C.mEnvs[1].statement.body.prepare().prepared);
+        REQUIRE(C.mEnvs[1].statement.body.prepare().excepted.size() == 0);
 
-        REQUIRE(prepared.nodeID == v0NodeID);
-        REQUIRE(prepared.statement.ballot.valueHash == yValueHash);
-        REQUIRE(prepared.statement.ballot.counter == 0);
-        REQUIRE(prepared.statement.body.type() == FBAStatementType::PREPARED);
+        REQUIRE(C.mEnvs[2].nodeID == v0NodeID);
+        REQUIRE(C.mEnvs[2].statement.ballot.valueHash == yValueHash);
+        REQUIRE(C.mEnvs[2].statement.ballot.counter == 0);
+        REQUIRE(C.mEnvs[2].statement.body.type() == FBAStatementType::PREPARED);
     }
 
-    SECTION("attempt (0,x), committed (inf,y) by quorum")
+    SECTION("x<y, attempt (0,y), prepare (0,x) by quorum")
     {
-        REQUIRE(fba.attemptValue(0, xValueHash, xEvidence));
-        REQUIRE(client.mEmittedEnvelopes.size() == 1);
+        REQUIRE(fba.attemptValue(0, yValueHash));
+        REQUIRE(C.mEnvs.size() == 1);
+
+        REQUIRE(C.mEnvs[0].nodeID == v0NodeID);
+        REQUIRE(C.mEnvs[0].statement.ballot.valueHash == yValueHash);
+        REQUIRE(C.mEnvs[0].statement.ballot.counter == 0);
+        REQUIRE(C.mEnvs[0].statement.body.type() == FBAStatementType::PREPARE);
+
+        FBAEnvelope prepare1 = makeEnvelope(v1NodeID, qSetHash, 0,
+                                            FBABallot(0, xValueHash),
+                                            FBAStatementType::PREPARE);
+        FBAEnvelope prepare2 = makeEnvelope(v2NodeID, qSetHash, 0,
+                                            FBABallot(0, xValueHash),
+                                            FBAStatementType::PREPARE);
+        FBAEnvelope prepare3 = makeEnvelope(v3NodeID, qSetHash, 0,
+                                            FBABallot(0, xValueHash),
+                                            FBAStatementType::PREPARE);
+
+        fba.receiveEnvelope(prepare1);
+        fba.receiveEnvelope(prepare2);
+        REQUIRE(C.mEnvs.size() == 1);
+        fba.receiveEnvelope(prepare3);
+        REQUIRE(C.mEnvs.size() == 1);
+
+        // TODO(spolu): We don't emit a PREPARED here as our mBallot is higher,
+        // but we might want to do so for later PREPARE messages (TBD with dm)
+    }
+
+    SECTION("attempt (0,x), committed (*,y) by quorum")
+    {
+        REQUIRE(fba.attemptValue(0, xValueHash));
+        REQUIRE(C.mEnvs.size() == 1);
 
         FBAEnvelope committed1 = makeEnvelope(v1NodeID, qSetHash, 0,
-                                              FBABallot(FBA_SLOT_MAX_COUNTER, 
-                                                        yValueHash),
+                                              FBABallot(1, yValueHash),
                                               FBAStatementType::COMMITTED);
         FBAEnvelope committed2 = makeEnvelope(v2NodeID, qSetHash, 0,
-                                              FBABallot(FBA_SLOT_MAX_COUNTER,
-                                                        yValueHash),
+                                              FBABallot(2, yValueHash),
                                               FBAStatementType::COMMITTED);
         FBAEnvelope committed3 = makeEnvelope(v3NodeID, qSetHash, 0,
-                                              FBABallot(FBA_SLOT_MAX_COUNTER,
-                                                        yValueHash),
+                                              FBABallot(4, yValueHash),
                                               FBAStatementType::COMMITTED);
 
         fba.receiveEnvelope(committed1);
-        REQUIRE(client.mEmittedEnvelopes.size() == 1);
+        REQUIRE(C.mEnvs.size() == 1);
 
         fba.receiveEnvelope(committed2);
-        // TODO(spolu): Should we be able to move directly onto COMMITTED, as 
-        //              we see a v-blocking set of node and therefore move
-        //              onto externalization as we have quorum with ourselves?
-        REQUIRE(client.mEmittedEnvelopes.size() == 1);
+        // No change yet as a v-blocking set is not enough here
+        REQUIRE(C.mEnvs.size() == 1);
 
         fba.receiveEnvelope(committed3);
+        REQUIRE(C.mEnvs.size() == 2);
+
         // The slot should have externalized the value
-        REQUIRE(client.mExternalizedValues[0] == yValueHash);
+        REQUIRE(C.mExternalizedValues[0] == yValueHash);
+
+        REQUIRE(C.mEnvs[1].nodeID == v0NodeID);
+        REQUIRE(C.mEnvs[1].statement.ballot.valueHash == yValueHash);
+        REQUIRE(C.mEnvs[1].statement.ballot.counter == 4);
+        REQUIRE(C.mEnvs[1].statement.body.type() == FBAStatementType::COMMITTED);
+    }
+
+    SECTION("x<y, attempt (0,x), committed (0,y) by quorum")
+    {
+        REQUIRE(fba.attemptValue(0, xValueHash));
+        REQUIRE(C.mEnvs.size() == 1);
+
+        FBAEnvelope committed1 = makeEnvelope(v1NodeID, qSetHash, 0,
+                                              FBABallot(0, yValueHash),
+                                              FBAStatementType::COMMITTED);
+        FBAEnvelope committed2 = makeEnvelope(v2NodeID, qSetHash, 0,
+                                              FBABallot(0, yValueHash),
+                                              FBAStatementType::COMMITTED);
+        FBAEnvelope committed3 = makeEnvelope(v3NodeID, qSetHash, 0,
+                                              FBABallot(0, yValueHash),
+                                              FBAStatementType::COMMITTED);
+
+        fba.receiveEnvelope(committed1);
+        REQUIRE(C.mEnvs.size() == 1);
+
+        fba.receiveEnvelope(committed2);
+        // No change yet as a v-blocking set is not enough here
+        REQUIRE(C.mEnvs.size() == 1);
+
+        fba.receiveEnvelope(committed3);
+        REQUIRE(C.mEnvs.size() == 2);
+
+        // The slot should have externalized the value
+        REQUIRE(C.mExternalizedValues[0] == yValueHash);
+
+        REQUIRE(C.mEnvs[1].nodeID == v0NodeID);
+        REQUIRE(C.mEnvs[1].statement.ballot.valueHash == yValueHash);
+        REQUIRE(C.mEnvs[1].statement.ballot.counter == 0);
+        REQUIRE(C.mEnvs[1].statement.body.type() == FBAStatementType::COMMITTED);
+    }
+
+    SECTION("x<y, attempt (0,y), committed (0,x) by quorum")
+    {
+        REQUIRE(fba.attemptValue(0, yValueHash));
+        REQUIRE(C.mEnvs.size() == 1);
+
+        FBAEnvelope committed1 = makeEnvelope(v1NodeID, qSetHash, 0,
+                                              FBABallot(0, xValueHash),
+                                              FBAStatementType::COMMITTED);
+        FBAEnvelope committed2 = makeEnvelope(v2NodeID, qSetHash, 0,
+                                              FBABallot(0, xValueHash),
+                                              FBAStatementType::COMMITTED);
+        FBAEnvelope committed3 = makeEnvelope(v3NodeID, qSetHash, 0,
+                                              FBABallot(0, xValueHash),
+                                              FBAStatementType::COMMITTED);
+
+        fba.receiveEnvelope(committed1);
+        REQUIRE(C.mEnvs.size() == 1);
+
+        fba.receiveEnvelope(committed2);
+        // No change yet as a v-blocking set is not enough here
+        REQUIRE(C.mEnvs.size() == 1);
+
+        fba.receiveEnvelope(committed3);
+        REQUIRE(C.mEnvs.size() == 2);
+
+        // The slot should have externalized the value
+        REQUIRE(C.mExternalizedValues[0] == xValueHash);
+
+        REQUIRE(C.mEnvs[1].nodeID == v0NodeID);
+        REQUIRE(C.mEnvs[1].statement.ballot.valueHash == xValueHash);
+        REQUIRE(C.mEnvs[1].statement.ballot.counter == 1);
+        REQUIRE(C.mEnvs[1].statement.body.type() == FBAStatementType::COMMITTED);
     }
 
     SECTION("attempt (0,x), prepare (1,y), * (0,z)")
     {
-        REQUIRE(fba.attemptValue(0, xValueHash, xEvidence));
-        REQUIRE(client.mEmittedEnvelopes.size() == 1);
+        REQUIRE(fba.attemptValue(0, xValueHash));
+        REQUIRE(C.mEnvs.size() == 1);
 
         FBAEnvelope prepare1 = makeEnvelope(v1NodeID, qSetHash, 0,
                                             FBABallot(1, yValueHash),
                                             FBAStatementType::PREPARE);
 
         fba.receiveEnvelope(prepare1);
-        REQUIRE(client.mEmittedEnvelopes.size() == 2);
-        REQUIRE(client.mCancelledValues[0][0] == xValueHash);
+        REQUIRE(C.mEnvs.size() == 2);
+        REQUIRE(C.mCancelledValues[0][0] == xValueHash);
 
         FBAEnvelope prepare2 = makeEnvelope(v2NodeID, qSetHash, 0,
                                             FBABallot(0, zValueHash),
@@ -430,8 +564,44 @@ TEST_CASE("protocol core4", "[fba]")
                                            FBAStatementType::COMMIT);
         fba.receiveEnvelope(commit3);
 
-        // The envelopes should be ignored (no prepare)
-        REQUIRE(client.mEmittedEnvelopes.size() == 2);
+        // The envelopes should have no effect
+        REQUIRE(C.mEnvs.size() == 2);
+    }
+
+    SECTION("x<y, prepare (0,x), prepare (0,y), attempt (0,y)")
+    {
+        FBAEnvelope prepare1 = makeEnvelope(v1NodeID, qSetHash, 0,
+                                            FBABallot(0, xValueHash),
+                                            FBAStatementType::PREPARE);
+        FBAEnvelope prepare2 = makeEnvelope(v1NodeID, qSetHash, 0,
+                                            FBABallot(0, xValueHash),
+                                            FBAStatementType::PREPARE);
+        FBAEnvelope prepare3 = makeEnvelope(v1NodeID, qSetHash, 0,
+                                            FBABallot(0, yValueHash),
+                                            FBAStatementType::PREPARE);
+
+        fba.receiveEnvelope(prepare1);
+        REQUIRE(C.mEnvs.size() == 1);
+
+        REQUIRE(C.mEnvs[0].nodeID == v0NodeID);
+        REQUIRE(C.mEnvs[0].statement.ballot.valueHash == xValueHash);
+        REQUIRE(C.mEnvs[0].statement.ballot.counter == 0);
+        REQUIRE(C.mEnvs[0].statement.body.type() == FBAStatementType::PREPARE);
+
+        fba.receiveEnvelope(prepare2);
+        REQUIRE(C.mEnvs.size() == 1);
+
+        fba.receiveEnvelope(prepare3);
+        // No effect on this round
+        REQUIRE(C.mEnvs.size() == 1);
+
+        REQUIRE(fba.attemptValue(0, yValueHash));
+        REQUIRE(C.mEnvs.size() == 2);
+
+        REQUIRE(C.mEnvs[1].nodeID == v0NodeID);
+        REQUIRE(C.mEnvs[1].statement.ballot.valueHash == yValueHash);
+        REQUIRE(C.mEnvs[1].statement.ballot.counter == 0);
+        REQUIRE(C.mEnvs[1].statement.body.type() == FBAStatementType::PREPARE);
     }
 
     SECTION("pledge to commit (0,x), accept cancel on (1,y)")
@@ -450,25 +620,23 @@ TEST_CASE("protocol core4", "[fba]")
                                               FBAStatementType::PREPARE);
 
         fba.receiveEnvelope(prepare1_x);
-        REQUIRE(client.mEmittedEnvelopes.size() == 1);
+        REQUIRE(C.mEnvs.size() == 1);
 
-        FBAEnvelope prepare_x = client.mEmittedEnvelopes[0];
-        REQUIRE(prepare_x.nodeID == v0NodeID);
-        REQUIRE(prepare_x.statement.ballot.valueHash == xValueHash);
-        REQUIRE(prepare_x.statement.ballot.counter == 0);
-        REQUIRE(prepare_x.statement.body.type() == FBAStatementType::PREPARE);
+        REQUIRE(C.mEnvs[0].nodeID == v0NodeID);
+        REQUIRE(C.mEnvs[0].statement.ballot.valueHash == xValueHash);
+        REQUIRE(C.mEnvs[0].statement.ballot.counter == 0);
+        REQUIRE(C.mEnvs[0].statement.body.type() == FBAStatementType::PREPARE);
 
         fba.receiveEnvelope(prepare3_y);
-        REQUIRE(client.mEmittedEnvelopes.size() == 1);
+        REQUIRE(C.mEnvs.size() == 1);
 
         fba.receiveEnvelope(prepare2_x);
-        REQUIRE(client.mEmittedEnvelopes.size() == 2);
+        REQUIRE(C.mEnvs.size() == 2);
 
-        FBAEnvelope prepared_x = client.mEmittedEnvelopes[1];
-        REQUIRE(prepared_x.nodeID == v0NodeID);
-        REQUIRE(prepared_x.statement.ballot.valueHash == xValueHash);
-        REQUIRE(prepared_x.statement.ballot.counter == 0);
-        REQUIRE(prepared_x.statement.body.type() == FBAStatementType::PREPARED);
+        REQUIRE(C.mEnvs[1].nodeID == v0NodeID);
+        REQUIRE(C.mEnvs[1].statement.ballot.valueHash == xValueHash);
+        REQUIRE(C.mEnvs[1].statement.ballot.counter == 0);
+        REQUIRE(C.mEnvs[1].statement.body.type() == FBAStatementType::PREPARED);
 
         FBAEnvelope prepared1_x = makeEnvelope(v1NodeID, qSetHash, 0,
                                                FBABallot(0, xValueHash),
@@ -478,16 +646,15 @@ TEST_CASE("protocol core4", "[fba]")
                                                FBAStatementType::PREPARED);
         
         fba.receiveEnvelope(prepared1_x);
-        REQUIRE(client.mEmittedEnvelopes.size() == 2);
+        REQUIRE(C.mEnvs.size() == 2);
 
         fba.receiveEnvelope(prepared2_x);
-        REQUIRE(client.mEmittedEnvelopes.size() == 3);
+        REQUIRE(C.mEnvs.size() == 3);
 
-        FBAEnvelope commit_x = client.mEmittedEnvelopes[2];
-        REQUIRE(commit_x.nodeID == v0NodeID);
-        REQUIRE(commit_x.statement.ballot.valueHash == xValueHash);
-        REQUIRE(commit_x.statement.ballot.counter == 0);
-        REQUIRE(commit_x.statement.body.type() == FBAStatementType::COMMIT);
+        REQUIRE(C.mEnvs[2].nodeID == v0NodeID);
+        REQUIRE(C.mEnvs[2].statement.ballot.valueHash == xValueHash);
+        REQUIRE(C.mEnvs[2].statement.ballot.counter == 0);
+        REQUIRE(C.mEnvs[2].statement.body.type() == FBAStatementType::COMMIT);
 
         // then our node becomes laggy for a while time during which 1, 2, 3
         // confirms prepare on (1,y) but 3 dies. Then we come back and 2
@@ -507,28 +674,25 @@ TEST_CASE("protocol core4", "[fba]")
             FBABallot(1, yValueHash);
 
         fba.receiveEnvelope(prepare1_y);
-        REQUIRE(client.mEmittedEnvelopes.size() == 4);
-        REQUIRE(client.mCancelledValues[0][0] == xValueHash);
+        REQUIRE(C.mEnvs.size() == 4);
+        REQUIRE(C.mCancelledValues[0][0] == xValueHash);
 
-        FBAEnvelope prepare_y = client.mEmittedEnvelopes[3];
-        REQUIRE(prepare_y.nodeID == v0NodeID);
-        REQUIRE(prepare_y.statement.ballot.valueHash == yValueHash);
-        REQUIRE(prepare_y.statement.ballot.counter == 2);
-        REQUIRE(prepare_y.statement.body.type() == FBAStatementType::PREPARE);
-        REQUIRE(prepare_y.statement.body.prepare().excepted.size() == 1);
-        REQUIRE(prepare_y.statement.body.prepare().excepted[0].counter == 0);
-        REQUIRE(prepare_y.statement.body.prepare().excepted[0].valueHash == 
-            xValueHash);
-        REQUIRE(!prepare_y.statement.body.prepare().prepared);
+        REQUIRE(C.mEnvs[3].nodeID == v0NodeID);
+        REQUIRE(C.mEnvs[3].statement.ballot.valueHash == yValueHash);
+        REQUIRE(C.mEnvs[3].statement.ballot.counter == 2);
+        REQUIRE(C.mEnvs[3].statement.body.type() == FBAStatementType::PREPARE);
+        REQUIRE(C.mEnvs[3].statement.body.prepare().excepted.size() == 1);
+        REQUIRE(C.mEnvs[3].statement.body.prepare().excepted[0].counter == 0);
+        REQUIRE(C.mEnvs[3].statement.body.prepare().excepted[0].valueHash == xValueHash);
+        REQUIRE(!C.mEnvs[3].statement.body.prepare().prepared);
 
         fba.receiveEnvelope(prepare2_y);
-        REQUIRE(client.mEmittedEnvelopes.size() == 5);
+        REQUIRE(C.mEnvs.size() == 5);
 
-        FBAEnvelope prepared_y = client.mEmittedEnvelopes[4];
-        REQUIRE(prepared_y.nodeID == v0NodeID);
-        REQUIRE(prepared_y.statement.ballot.valueHash == yValueHash);
-        REQUIRE(prepared_y.statement.ballot.counter == 2);
-        REQUIRE(prepared_y.statement.body.type() == FBAStatementType::PREPARED);
+        REQUIRE(C.mEnvs[4].nodeID == v0NodeID);
+        REQUIRE(C.mEnvs[4].statement.ballot.valueHash == yValueHash);
+        REQUIRE(C.mEnvs[4].statement.ballot.counter == 2);
+        REQUIRE(C.mEnvs[4].statement.body.type() == FBAStatementType::PREPARED);
 
         FBAEnvelope prepared1_y = makeEnvelope(v1NodeID, qSetHash, 0,
                                                FBABallot(2, yValueHash),
@@ -538,41 +702,36 @@ TEST_CASE("protocol core4", "[fba]")
                                                FBAStatementType::PREPARED);
         
         fba.receiveEnvelope(prepared1_y);
-        REQUIRE(client.mEmittedEnvelopes.size() == 5);
+        REQUIRE(C.mEnvs.size() == 5);
 
         fba.receiveEnvelope(prepared2_y);
-        REQUIRE(client.mEmittedEnvelopes.size() == 6);
+        REQUIRE(C.mEnvs.size() == 6);
 
-        FBAEnvelope commit_y = client.mEmittedEnvelopes[5];
-        REQUIRE(commit_y.nodeID == v0NodeID);
-        REQUIRE(commit_y.statement.ballot.valueHash == yValueHash);
-        REQUIRE(commit_y.statement.ballot.counter == 2);
-        REQUIRE(commit_y.statement.body.type() == FBAStatementType::COMMIT);
+        REQUIRE(C.mEnvs[5].nodeID == v0NodeID);
+        REQUIRE(C.mEnvs[5].statement.ballot.valueHash == yValueHash);
+        REQUIRE(C.mEnvs[5].statement.ballot.counter == 2);
+        REQUIRE(C.mEnvs[5].statement.body.type() == FBAStatementType::COMMIT);
 
         // finally things go south and we attempt x again
-        REQUIRE(fba.attemptValue(0, xValueHash, xEvidence));
-        REQUIRE(client.mEmittedEnvelopes.size() == 7);
+        REQUIRE(fba.attemptValue(0, xValueHash));
+        REQUIRE(C.mEnvs.size() == 7);
 
         // we check the prepare message is all in order
-        FBAEnvelope prepare_x2 = client.mEmittedEnvelopes[6];
-        REQUIRE(prepare_x2.nodeID == v0NodeID);
-        REQUIRE(prepare_x2.statement.ballot.valueHash == xValueHash);
-        REQUIRE(prepare_x2.statement.ballot.counter == 3);
-        REQUIRE(prepare_x2.statement.body.type() == FBAStatementType::PREPARE);
-        REQUIRE(prepare_x2.statement.body.prepare().excepted.size() == 2);
-        REQUIRE(prepare_x2.statement.body.prepare().excepted[0].counter == 0);
-        REQUIRE(prepare_x2.statement.body.prepare().excepted[0].valueHash == 
-            xValueHash);
-        REQUIRE(prepare_x2.statement.body.prepare().excepted[1].counter == 2);
-        REQUIRE(prepare_x2.statement.body.prepare().excepted[1].valueHash == 
-            yValueHash);
-        REQUIRE(prepare_x2.statement.body.prepare().prepared);
-        REQUIRE((*prepare_x2.statement.body.prepare().prepared).counter == 0);
-        REQUIRE((*prepare_x2.statement.body.prepare().prepared).valueHash == 
-            xValueHash);
+        REQUIRE(C.mEnvs[6].nodeID == v0NodeID);
+        REQUIRE(C.mEnvs[6].statement.ballot.valueHash == xValueHash);
+        REQUIRE(C.mEnvs[6].statement.ballot.counter == 3);
+        REQUIRE(C.mEnvs[6].statement.body.type() == FBAStatementType::PREPARE);
+        REQUIRE(C.mEnvs[6].statement.body.prepare().excepted.size() == 2);
+        REQUIRE(C.mEnvs[6].statement.body.prepare().excepted[0].counter == 0);
+        REQUIRE(C.mEnvs[6].statement.body.prepare().excepted[0].valueHash == xValueHash);
+        REQUIRE(C.mEnvs[6].statement.body.prepare().excepted[1].counter == 2);
+        REQUIRE(C.mEnvs[6].statement.body.prepare().excepted[1].valueHash == yValueHash);
+        REQUIRE(C.mEnvs[6].statement.body.prepare().prepared);
+        REQUIRE((*C.mEnvs[6].statement.body.prepare().prepared).counter == 0);
+        REQUIRE((*C.mEnvs[6].statement.body.prepare().prepared).valueHash == xValueHash);
     }
 
-    SECTION("missing prepare envelope")
+    SECTION("missing prepare (0,y), retransmission hint")
     {
         FBAEnvelope prepare1 = makeEnvelope(v1NodeID, qSetHash, 0,
                                             FBABallot(0, xValueHash),
@@ -583,13 +742,12 @@ TEST_CASE("protocol core4", "[fba]")
 
         // never received prepare1
         fba.receiveEnvelope(prepare2);
-        REQUIRE(client.mEmittedEnvelopes.size() == 1);
+        REQUIRE(C.mEnvs.size() == 1);
 
-        FBAEnvelope prepare = client.mEmittedEnvelopes[0];
-        REQUIRE(prepare.nodeID == v0NodeID);
-        REQUIRE(prepare.statement.ballot.valueHash == xValueHash);
-        REQUIRE(prepare.statement.ballot.counter == 0);
-        REQUIRE(prepare.statement.body.type() == FBAStatementType::PREPARE);
+        REQUIRE(C.mEnvs[0].nodeID == v0NodeID);
+        REQUIRE(C.mEnvs[0].statement.ballot.valueHash == xValueHash);
+        REQUIRE(C.mEnvs[0].statement.ballot.counter == 0);
+        REQUIRE(C.mEnvs[0].statement.body.type() == FBAStatementType::PREPARE);
 
         FBAEnvelope prepared1 = makeEnvelope(v1NodeID, qSetHash, 0,
                                              FBABallot(0, yValueHash),
@@ -597,23 +755,25 @@ TEST_CASE("protocol core4", "[fba]")
 
         // the node must have hinted a retransmission
         fba.receiveEnvelope(prepared1);
-        REQUIRE(client.mEmittedEnvelopes.size() == 1);
-        REQUIRE(client.mRetransmissionHints[0].size() == 1);
-        REQUIRE(client.mRetransmissionHints[0][0] == v1NodeID);
+        REQUIRE(C.mEnvs.size() == 1);
+        REQUIRE(C.mRetransmissionHints[0].size() == 1);
+        REQUIRE(C.mRetransmissionHints[0][0] == v1NodeID);
 
         // after retransmission all is in order
         fba.receiveEnvelope(prepare1);
-        REQUIRE(client.mEmittedEnvelopes.size() == 2);
+        REQUIRE(C.mEnvs.size() == 2);
 
-        FBAEnvelope prepared = client.mEmittedEnvelopes[1];
-        REQUIRE(prepared.nodeID == v0NodeID);
-        REQUIRE(prepared.statement.ballot.valueHash == xValueHash);
-        REQUIRE(prepared.statement.ballot.counter == 0);
-        REQUIRE(prepared.statement.body.type() == FBAStatementType::PREPARED);
+        REQUIRE(C.mEnvs[1].nodeID == v0NodeID);
+        REQUIRE(C.mEnvs[1].statement.ballot.valueHash == xValueHash);
+        REQUIRE(C.mEnvs[1].statement.ballot.counter == 0);
+        REQUIRE(C.mEnvs[1].statement.body.type() == FBAStatementType::PREPARED);
 
         fba.receiveEnvelope(prepared1);
-        REQUIRE(client.mEmittedEnvelopes.size() == 2);
+        REQUIRE(C.mEnvs.size() == 2);
     }
+
+    // TODO(spolu): add generic test to check that no statement emitted contradict
+    //              itself
 }
 
 
