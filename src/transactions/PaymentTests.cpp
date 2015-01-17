@@ -51,21 +51,8 @@ TEST_CASE("payment", "[tx][payment]")
 
     const uint64_t paymentAmount = (uint64_t)app.getLedgerMaster().getMinBalance(0);
 
-    { // create an account
-        TransactionFramePtr txFrame;
-
-        txFrame = createPaymentTx(root, a1, 1, paymentAmount);
-    
-        TxDelta delta;
-        txFrame->apply(delta, app);
-
-        Json::Value jsonResult;
-        LedgerDelta ledgerDelta;
-
-        delta.commitDelta(jsonResult, ledgerDelta, app.getLedgerMaster());
-        REQUIRE(txFrame->getResultCode() == txSUCCESS);
-
-    }
+    // create an account
+    applyPaymentTx(app, root, a1, 1, paymentAmount);
     
     AccountFrame a1Account, rootAccount;
     REQUIRE(app.getDatabase().loadAccount(root.getPublicKey(), rootAccount));
@@ -85,16 +72,8 @@ TEST_CASE("payment", "[tx][payment]")
 
     SECTION("send STR to an existing account")
     {
-        TransactionFramePtr txFrame2 = createPaymentTx(root, a1, 2, morePayment);
-        TxDelta delta2;
-        txFrame2->apply(delta2, app);
-
-        Json::Value jsonResult2;
-        LedgerDelta ledgerDelta2;
-
-        delta2.commitDelta(jsonResult2, ledgerDelta2, app.getLedgerMaster());
-
-        REQUIRE(txFrame2->getResultCode() == txSUCCESS);
+        applyPaymentTx(app, root, a1, 2, morePayment);
+        
         AccountFrame a1Account2, rootAccount2;
         REQUIRE(app.getDatabase().loadAccount(root.getPublicKey(), rootAccount2));
         REQUIRE(app.getDatabase().loadAccount(a1.getPublicKey(), a1Account2));
@@ -104,16 +83,7 @@ TEST_CASE("payment", "[tx][payment]")
 
     SECTION("send to self")
     {
-        TransactionFramePtr txFrame2 = createPaymentTx(root, root, 2, morePayment);
-        TxDelta delta2;
-        txFrame2->apply(delta2, app);
-
-        Json::Value jsonResult2;
-        LedgerDelta ledgerDelta2;
-
-        delta2.commitDelta(jsonResult2, ledgerDelta2, app.getLedgerMaster());
-
-        REQUIRE(txFrame2->getResultCode() == txSUCCESS);
+        applyPaymentTx(app, root, root, 2, morePayment);
 
         AccountFrame rootAccount2;
         REQUIRE(app.getDatabase().loadAccount(root.getPublicKey(), rootAccount2));
@@ -136,6 +106,8 @@ TEST_CASE("payment", "[tx][payment]")
         delta2.commitDelta(jsonResult2, ledgerDelta2, app.getLedgerMaster());
 
         REQUIRE(txFrame2->getResultCode() == txUNDERFUNDED);
+        AccountFrame bAccount;
+        REQUIRE(!app.getDatabase().loadAccount(b1.getPublicKey(), bAccount));
     }
 
     SECTION("simple credit")
@@ -158,6 +130,8 @@ TEST_CASE("payment", "[tx][payment]")
             delta2.commitDelta(jsonResult2, ledgerDelta2, app.getLedgerMaster());
 
             REQUIRE(txFrame->getResultCode() == txNOACCOUNT);
+            AccountFrame bAccount;
+            REQUIRE(!app.getDatabase().loadAccount(b1.getPublicKey(), bAccount));
         }
 
         SECTION("send STR with path (malformed)")
@@ -174,6 +148,9 @@ TEST_CASE("payment", "[tx][payment]")
             delta2.commitDelta(jsonResult2, ledgerDelta2, app.getLedgerMaster());
 
             REQUIRE(txFrame2->getResultCode() == txMALFORMED);
+            AccountFrame account;
+            REQUIRE(app.getDatabase().loadAccount(a1.getPublicKey(), account));
+            
         }
 
         // actual sendcredit
@@ -190,41 +167,22 @@ TEST_CASE("payment", "[tx][payment]")
             delta2.commitDelta(jsonResult2, ledgerDelta2, app.getLedgerMaster());
 
             REQUIRE(txFrame->getResultCode() == txNOTRUST);
+            AccountFrame account;
+            REQUIRE(app.getDatabase().loadAccount(a1.getPublicKey(), account));
+           
         }
 
         SECTION("with trust")
         {
             LOG(INFO) << "with trust";
 
+            applyTrust(app, a1, root, 1, "IDR");
+            applyCreditPaymentTx(app, root, a1, currency, 2, 100);
+
             {
-                TransactionFramePtr txFrame = setTrust(a1, root, 1, "IDR");
-                TxDelta delta2;
-                txFrame->apply(delta2, app);
-
-                Json::Value jsonResult2;
-                LedgerDelta ledgerDelta2;
-
-
-                delta2.commitDelta(jsonResult2, ledgerDelta2, app.getLedgerMaster());
-
-                REQUIRE(txFrame->getResultCode() == txSUCCESS);
-            }
-            
-
-            //SECTION("simple credit payment")
-            {
-                LOG(INFO) << "simple credit payment";
-                
-                TransactionFramePtr txFrame = createCreditPaymentTx(root, a1, currency, 2, 100);
-                TxDelta delta;
-                txFrame->apply(delta, app);
-
-                Json::Value jsonResult;
-                LedgerDelta ledgerDelta;
-
-                delta.commitDelta(jsonResult, ledgerDelta, app.getLedgerMaster());
-
-                REQUIRE(txFrame->getResultCode() == txSUCCESS);
+                TrustFrame line;
+                REQUIRE(app.getDatabase().loadTrustLine(a1.getPublicKey(), currency, line));
+                REQUIRE(line.getBalance() == 100);
             }
 
             { // create b1 account
@@ -260,7 +218,7 @@ TEST_CASE("payment", "[tx][payment]")
             {
                 LOG(INFO) << "simple credit payment";
 
-                TransactionFramePtr txFrame = createCreditPaymentTx(a1, b1, currency, 2, 50);
+                TransactionFramePtr txFrame = createCreditPaymentTx(a1, b1, currency, 2, 40);
                 TxDelta delta;
                 txFrame->apply(delta, app);
 
@@ -270,12 +228,17 @@ TEST_CASE("payment", "[tx][payment]")
                 delta.commitDelta(jsonResult, ledgerDelta, app.getLedgerMaster());
 
                 REQUIRE(txFrame->getResultCode() == txSUCCESS);
+                TrustFrame line;
+                REQUIRE(app.getDatabase().loadTrustLine(a1.getPublicKey(), currency, line));
+                REQUIRE(line.getBalance() == 60);
+                REQUIRE(app.getDatabase().loadTrustLine(b1.getPublicKey(), currency, line));
+                REQUIRE(line.getBalance() == 40);
             }
 
             {
                 LOG(INFO) << "sending credit back to issuer";
 
-                TransactionFramePtr txFrame = createCreditPaymentTx(b1, root, currency, 2, 50);
+                TransactionFramePtr txFrame = createCreditPaymentTx(b1, root, currency, 2, 40);
                 TxDelta delta;
                 txFrame->apply(delta, app);
 
@@ -285,6 +248,9 @@ TEST_CASE("payment", "[tx][payment]")
                 delta.commitDelta(jsonResult, ledgerDelta, app.getLedgerMaster());
 
                 REQUIRE(txFrame->getResultCode() == txSUCCESS);
+                TrustFrame line;
+                REQUIRE(app.getDatabase().loadTrustLine(b1.getPublicKey(), currency, line));
+                REQUIRE(line.getBalance() == 0);
             }
 
 

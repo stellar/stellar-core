@@ -28,6 +28,8 @@ namespace stellar {
         void storeChange(EntryFrame::pointer startFrom, Json::Value& txResult, LedgerMaster& ledgerMaster);
         void storeAdd(Json::Value& txResult, LedgerMaster& ledgerMaster);
 
+        int64_t getBalance();
+
         static void dropAll(Database &db);
         static const char *kSQLCreateStatement;
 	};

@@ -58,6 +58,23 @@ namespace stellar
         mIndex = hasher.finish();
     }
 
+    int64_t OfferFrame::getPrice()
+    {
+        return mEntry.offer().price;
+    }
+    int64_t OfferFrame::getAmount()
+    {
+        return mEntry.offer().amount;
+    }
+    Currency& OfferFrame::getTakerPays()
+    {
+        return mEntry.offer().takerPays;
+    }
+    Currency& OfferFrame::getTakerGets()
+    {
+        return mEntry.offer().takerGets;
+    }
+
     
 
     void OfferFrame::storeDelete(Json::Value& txResult, LedgerMaster& ledgerMaster)

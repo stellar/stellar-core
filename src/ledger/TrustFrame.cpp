@@ -43,6 +43,11 @@ namespace stellar {
         mIndex = hasher.finish();
     }
 
+    int64_t TrustFrame::getBalance()
+    {
+        return mEntry.trustLine().balance;
+    }
+
     void TrustFrame::storeDelete(Json::Value& txResult, LedgerMaster& ledgerMaster)
     {
         std::string base58ID = toBase58Check(VER_ACCOUNT_ID, getIndex());
@@ -52,6 +57,7 @@ namespace stellar {
         ledgerMaster.getDatabase().getSession() <<
             "DELETE from TrustLines where trustIndex= :v1", soci::use(base58ID);
     }
+
     void TrustFrame::storeChange(EntryFrame::pointer startFrom, Json::Value& txResult, LedgerMaster& ledgerMaster)
     {
         std::string base58ID = toBase58Check(VER_ACCOUNT_ID, getIndex());
