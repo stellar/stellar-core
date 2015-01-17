@@ -16,6 +16,20 @@
 namespace stellar
 {
 
+// Static helper to stringify bellot for logging
+static std::string
+ballotToStr(const FBABallot& ballot)
+{
+    std::ostringstream oss;
+
+    uint256 valueHash = 
+      sha512_256(xdr::xdr_to_msg(ballot.value));
+
+    oss << "(" << ballot.counter
+        << "," << binToHex(valueHash).substr(0,6) << ")";
+    return oss.str();
+}
+
 // Static helper to stringify envelope for logging
 static std::string
 envToStr(const FBAEnvelope& envelope)
@@ -37,13 +51,8 @@ envToStr(const FBAEnvelope& envelope)
             oss << "COMMITTED";
             break;
     }
-    /*
-    uint256 valueHash = 
-      sha512_256(xdr::xdr_to_msg(envelope.statement.ballot.value));
-    */
 
-    oss << "|" << "(" << envelope.statement.ballot.counter 
-        << "," << binToHex(envelope.statement.ballot.valueHash).substr(0,6) << ")"
+    oss << "|" << ballotToStr(envelope.statement.ballot)
         << "|" << binToHex(envelope.statement.quorumSetHash).substr(0,6) << "}";
     return oss.str();
 }
@@ -98,17 +107,17 @@ Slot::processEnvelope(const FBAEnvelope& envelope)
     uint256 nodeID = envelope.nodeID;
     FBAStatement statement = envelope.statement;
 
-    if (!mIsCommitted && t == FBAStatementType::PREPARE)
+    // We copy everything we need as this can be async (no reference).
+    auto cb = [b,t,nodeID,statement,this] (bool valid)
     {
-        // We copy everything we need as this can be async (no reference)
-        auto cb = [b,t,nodeID,statement,this] (bool valid)
+        // If the ballot is not valid, we just ignore it.
+        if (!valid)
         {
-            // If the ballot is not valid, we just ignore it.
-            if (!valid)
-            {
-                return;
-            }
+            return;
+        }
 
+        if (!mIsCommitted && t == FBAStatementType::PREPARE)
+        {
             // If a new higher ballot has been issued, let's move on to it.
             if (b.counter > mBallot.counter || isPristine())
             {
@@ -118,95 +127,100 @@ Slot::processEnvelope(const FBAEnvelope& envelope)
             // Finally store the statement and advance the slot if possible.
             mStatements[b][t][nodeID] = statement;
             advanceSlot();
-        };
-
-        mFBA->getClient()->validateBallot(mSlotIndex, nodeID, b, cb);
-    }
-    else if (!mIsCommitted && t == FBAStatementType::PREPARED)
-    {
-        // We accept PREPARED statements only if we previously saw a valid
-        // PREPARE statement for that round. This prevents node from emitting
-        // phony messages too easily.
-        bool isPrepare = false;
-        for (auto s : getNodeStatements(nodeID, FBAStatementType::PREPARE))
-        {
-            if (s.ballot.counter == b.counter)
-            {
-                isPrepare = true;
-            }
         }
-        if (isPrepare)
+        else if (!mIsCommitted && t == FBAStatementType::PREPARED)
         {
-            // Finally store the statement and advance the slot if possible.
-            mStatements[b][t][nodeID] = statement;
-            advanceSlot();
-        }
-        else
-        {
-            mFBA->getClient()->retransmissionHinted(mSlotIndex, nodeID);
-        }
-    }
-    else if (!mIsCommitted && t == FBAStatementType::COMMIT)
-    {
-        // We accept COMMIT statements only if we previously saw a valid
-        // PREPARE statement for that ballot and all the PREPARE we saw so far
-        // have a lower ballot than this one or have that COMMIT in their B_c.
-        // This prevents node from emitting phony messages too easily.
-        bool isPrepare = false;
-        for (auto s : getNodeStatements(nodeID, FBAStatementType::PREPARE))
-        {
-            if (compareBallots(b, s.ballot) == 0)
+            // We accept PREPARED statements only if we previously saw a valid
+            // PREPARE statement for that round. This prevents node from
+            // emitting phony messages too easily.
+            bool isPrepare = false;
+            for (auto s : getNodeStatements(nodeID, FBAStatementType::PREPARE))
             {
-                isPrepare = true;
-            }
-            if (compareBallots(b, s.ballot) < 0)
-            {
-                auto excepted = s.body.prepare().excepted;
-                auto it = std::find(excepted.begin(), excepted.end(), b);
-                if (it == excepted.end())
+                if (s.ballot.counter == b.counter)
                 {
-                    return;
+                    isPrepare = true;
                 }
             }
+            if (isPrepare)
+            {
+                // Finally store the statement and advance the slot if
+                // possible.
+                mStatements[b][t][nodeID] = statement;
+                advanceSlot();
+            }
+            else
+            {
+                mFBA->getClient()->retransmissionHinted(mSlotIndex, nodeID);
+            }
         }
-        if (isPrepare)
+        else if (!mIsCommitted && t == FBAStatementType::COMMIT)
         {
+            // We accept COMMIT statements only if we previously saw a valid
+            // PREPARE statement for that ballot and all the PREPARE we saw so
+            // far have a lower ballot than this one or have that COMMIT in
+            // their B_c.  This prevents node from emitting phony messages too
+            // easily.
+            bool isPrepare = false;
+            for (auto s : getNodeStatements(nodeID, FBAStatementType::PREPARE))
+            {
+                if (compareBallots(b, s.ballot) == 0)
+                {
+                    isPrepare = true;
+                }
+                if (compareBallots(b, s.ballot) < 0)
+                {
+                    auto excepted = s.body.prepare().excepted;
+                    auto it = std::find(excepted.begin(), excepted.end(), b);
+                    if (it == excepted.end())
+                    {
+                        return;
+                    }
+                }
+            }
+            if (isPrepare)
+            {
+                // Finally store the statement and advance the slot if
+                // possible.
+                mStatements[b][t][nodeID] = statement;
+                advanceSlot();
+            }
+            else
+            {
+                mFBA->getClient()->retransmissionHinted(mSlotIndex, nodeID);
+            }
+            
+        }
+        else if (t == FBAStatementType::COMMITTED)
+        {
+            // If we already have a COMMITTED statements for this node, we just
+            // ignore this one as it is illegal.
+            if (getNodeStatements(nodeID, 
+                                  FBAStatementType::COMMITTED).size() > 0)
+            {
+                return;
+            }
+
             // Finally store the statement and advance the slot if possible.
             mStatements[b][t][nodeID] = statement;
             advanceSlot();
         }
-        else
+        else if(mIsCommitted)
         {
-            mFBA->getClient()->retransmissionHinted(mSlotIndex, nodeID);
-        }
-        
-    }
-    else if (t == FBAStatementType::COMMITTED)
-    {
-        // If we already have a COMMITTED statements for this node, we just
-        // ignore this one as it is illegal
-        if (getNodeStatements(nodeID, FBAStatementType::COMMITTED).size() > 0)
-        {
-            return;
-        }
+            // If the slot already COMMITTED and we received another statement,
+            // we resend our own COMMITTED message.
+            FBAStatement statement = 
+                createStatement(FBAStatementType::COMMITTED);
 
-        // Finally store the statement and advance the slot if possible.
-        mStatements[b][t][nodeID] = statement;
-        advanceSlot();
-    }
-    else if(mIsCommitted)
-    {
-        // If the slot already COMMITTED an we received something different
-        // than a COMMITTED message, we resend our own COMMITTED message
-        FBAStatement statement = createStatement(FBAStatementType::COMMITTED);
+            FBAEnvelope envelope = createEnvelope(statement);
+            mFBA->getClient()->emitEnvelope(envelope);
+        }
+    };
 
-        FBAEnvelope envelope = createEnvelope(statement);
-        mFBA->getClient()->emitEnvelope(envelope);
-    }
+    mFBA->getClient()->validateBallot(mSlotIndex, nodeID, b, cb);
 }
 
 bool
-Slot::attemptValue(const Hash& valueHash,
+Slot::attemptValue(const Value& value,
                    bool forceBump)
 {
     if (mIsCommitted)
@@ -214,14 +228,14 @@ Slot::attemptValue(const Hash& valueHash,
         return false;
     }
     else if (isPristine() ||
-             mFBA->getClient()->compareValues(mBallot.valueHash, valueHash) < 0)
+             mFBA->getClient()->compareValues(mBallot.value, value) < 0)
     {
-        bumpToBallot(FBABallot(mBallot.counter, valueHash));
+        bumpToBallot(FBABallot(mBallot.counter, value));
     }
     else if (forceBump || 
-             mFBA->getClient()->compareValues(mBallot.valueHash, valueHash) > 0)
+             mFBA->getClient()->compareValues(mBallot.value, value) > 0)
     {
-        bumpToBallot(FBABallot(mBallot.counter + 1, valueHash));
+        bumpToBallot(FBABallot(mBallot.counter + 1, value));
     }
 
     advanceSlot();
@@ -233,13 +247,12 @@ Slot::bumpToBallot(const FBABallot& ballot)
 {
     LOG(INFO) << "Slot::bumpToBallot" 
               << "@" << binToHex(mFBA->getLocalNodeID()).substr(0,6)
-              << " (" << ballot.counter
-              << "," << binToHex(ballot.valueHash).substr(0,6) << ")";
+              << " " << ballotToStr(ballot);
 
     if (!isPristine())
     {
         mFBA->getClient()->valueCancelled(mSlotIndex, 
-                                          mBallot.valueHash);
+                                          mBallot.value);
     }
 
     // We shouldnt have emitted any prepare message for this ballot or any
@@ -301,15 +314,14 @@ Slot::attemptPrepare()
     }
     LOG(INFO) << "Slot::attemptPrepare" 
               << "@" << binToHex(mFBA->getLocalNodeID()).substr(0,6)
-              << " (" << mBallot.counter
-              << ","  << binToHex(mBallot.valueHash).substr(0,6) << ")";
+              << " " << ballotToStr(mBallot);
 
     FBAStatement statement = createStatement(FBAStatementType::PREPARE);
 
     for (auto s : getNodeStatements(mFBA->getLocalNodeID(), 
                                     FBAStatementType::PREPARED))
     {
-        if(s.ballot.valueHash == mBallot.valueHash)
+        if(s.ballot.value == mBallot.value)
         {
             if(!statement.body.prepare().prepared ||
                compareBallots(*(statement.body.prepare().prepared),
@@ -345,8 +357,7 @@ Slot::attemptPrepared()
     }
     LOG(INFO) << "Slot::attemptPrepared" 
               << "@" << binToHex(mFBA->getLocalNodeID()).substr(0,6)
-              << " (" << mBallot.counter
-              << ","  << binToHex(mBallot.valueHash).substr(0,6) << ")";
+              << " " << ballotToStr(mBallot);
 
     FBAStatement statement = createStatement(FBAStatementType::PREPARED);
 
@@ -369,8 +380,7 @@ Slot::attemptCommit()
     }
     LOG(INFO) << "Slot::attemptCommit" 
               << "@" << binToHex(mFBA->getLocalNodeID()).substr(0,6)
-              << " (" << mBallot.counter
-              << ","  << binToHex(mBallot.valueHash).substr(0,6) << ")";
+              << " " << ballotToStr(mBallot);
 
     FBAStatement statement = createStatement(FBAStatementType::COMMIT);
 
@@ -394,8 +404,7 @@ Slot::attemptCommitted()
     }
     LOG(INFO) << "Slot::attemptCommitted" 
               << "@" << binToHex(mFBA->getLocalNodeID()).substr(0,6)
-              << " (" << mBallot.counter
-              << ","  << binToHex(mBallot.valueHash).substr(0,6) << ")";
+              << " " << ballotToStr(mBallot);
 
     FBAStatement statement = createStatement(FBAStatementType::COMMITTED);
 
@@ -416,13 +425,12 @@ Slot::attemptExternalize()
     }
     LOG(INFO) << "Slot::attemptExternalize" 
               << "@" << binToHex(mFBA->getLocalNodeID()).substr(0,6)
-              << " (" << mBallot.counter
-              << ","  << binToHex(mBallot.valueHash).substr(0,6) << ")";
+              << " " << ballotToStr(mBallot);
 
     mIsExternalized = true;
     mIsPristine = false;
 
-    mFBA->getClient()->valueExternalized(mSlotIndex, mBallot.valueHash);
+    mFBA->getClient()->valueExternalized(mSlotIndex, mBallot.value);
 }
 
 bool 
@@ -590,7 +598,7 @@ Slot::isPrepared(const FBABallot& ballot)
         bool compOrAborted = true;
         for (auto c : stR.body.prepare().excepted)
         {
-            if (c.valueHash == mBallot.valueHash)
+            if (c.value == mBallot.value)
             {
                 continue;
             }
@@ -674,13 +682,13 @@ Slot::isCommitted(const FBABallot& ballot)
 }
 
 bool 
-Slot::isCommittedConfirmed(const Hash& valueHash)
+Slot::isCommittedConfirmed(const Value& value)
 {
-    // TODO Extract ballots for valueHash
+    // TODO Extract ballots for value
     std::map<uint256, FBAStatement> statements;
     for (auto it : mStatements)
     {
-        if (it.first.valueHash == valueHash)
+        if (it.first.value == value)
         {
             for(auto sit : it.second[FBAStatementType::COMMITTED])
             {
@@ -725,7 +733,7 @@ Slot::compareBallots(const FBABallot& b1,
     {
         return 1;
     }
-    return mFBA->getClient()->compareValues(b1.valueHash, b2.valueHash);
+    return mFBA->getClient()->compareValues(b1.value, b2.value);
 }
 
 void
@@ -745,8 +753,7 @@ Slot::advanceSlot()
     {
         LOG(DEBUG) << "=> Slot::advanceSlot" 
                    << "@" << binToHex(mFBA->getLocalNodeID()).substr(0,6)
-                   << " (" << mBallot.counter 
-                   << "," << binToHex(mBallot.valueHash).substr(0,6) << ")";
+                   << " " << ballotToStr(mBallot);
 
         // If we're pristine we pick the first ballot we find and advance the
         // protocol.
@@ -774,7 +781,7 @@ Slot::advanceSlot()
 
         // If our current ballot is committed and we can confirm the value then
         // we externalize
-        if (mIsCommitted && isCommittedConfirmed(mBallot.valueHash)) 
+        if (mIsCommitted && isCommittedConfirmed(mBallot.value)) 
         {
             attemptExternalize(); 
         }
@@ -793,26 +800,25 @@ Slot::advanceSlot()
 
             LOG(DEBUG) << "=> Slot::advanceSlot::tryBumping" 
                        << "@" << binToHex(mFBA->getLocalNodeID()).substr(0,6)
-                       << " (" << b.counter 
-                       << "," << binToHex(b.valueHash).substr(0,6) << ")";
+                       << " " << ballotToStr(mBallot);
 
             // If we could externalize by moving on to a given value we bump
             // our ballot to the apporpriate one
-            if (isCommittedConfirmed(b.valueHash)) 
+            if (isCommittedConfirmed(b.value)) 
             { 
-                assert(!mIsCommitted || mBallot.valueHash == b.valueHash);
+                assert(!mIsCommitted || mBallot.value == b.value);
 
                 // We look for the smallest ballot that is bigger than all the
                 // COMMITTED message we saw for the value and our own current
                 // ballot.
-                FBABallot bext = FBABallot(mBallot.counter, b.valueHash);
+                FBABallot bext = FBABallot(mBallot.counter, b.value);
                 if(compareBallots(bext, mBallot) < 0)
                 {
                     bext.counter += 1;
                 }
                 for (auto it : mStatements)
                 {
-                    if (it.first.valueHash == bext.valueHash)
+                    if (it.first.value == bext.value)
                     {
                         for(auto sit : it.second[FBAStatementType::COMMITTED])
                         {

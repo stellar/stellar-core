@@ -6,11 +6,12 @@ typedef opaque Hash[32];
 typedef opaque uint256[32];
 typedef unsigned uint32;
 typedef unsigned hyper uint64;
+typedef opaque Value<>;
 
 struct FBABallot
 {
     uint32 counter;   // n
-    Hash valueHash;
+    Value value;      // x
 };
 
 enum FBAStatementType
