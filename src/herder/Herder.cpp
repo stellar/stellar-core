@@ -189,10 +189,9 @@ Herder::valueExternalized(const uint64& slotIndex,
     }
     else
     {
-        // TODO(spolu): This may still be possible if we contact nodes that 
-        //              have already externalized, then there is no validation
-        //              and we won't have necessarily fetched the txSet.
-        CLOG(ERROR, "Herder") << "externalizeValue txset not found: ";
+        // This may not be possible are all messages are validated and should
+        // therefore fetch the txSet.
+        CLOG(ERROR, "Herder") << "Externalized txSet not found";
     }
 }
 

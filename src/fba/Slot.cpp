@@ -107,17 +107,17 @@ Slot::processEnvelope(const FBAEnvelope& envelope)
     uint256 nodeID = envelope.nodeID;
     FBAStatement statement = envelope.statement;
 
-    if (!mIsCommitted && t == FBAStatementType::PREPARE)
+    // We copy everything we need as this can be async (no reference).
+    auto cb = [b,t,nodeID,statement,this] (bool valid)
     {
-        // We copy everything we need as this can be async (no reference)
-        auto cb = [b,t,nodeID,statement,this] (bool valid)
+        // If the ballot is not valid, we just ignore it.
+        if (!valid)
         {
-            // If the ballot is not valid, we just ignore it.
-            if (!valid)
-            {
-                return;
-            }
+            return;
+        }
 
+        if (!mIsCommitted && t == FBAStatementType::PREPARE)
+        {
             // If a new higher ballot has been issued, let's move on to it.
             if (b.counter > mBallot.counter || isPristine())
             {
@@ -127,91 +127,96 @@ Slot::processEnvelope(const FBAEnvelope& envelope)
             // Finally store the statement and advance the slot if possible.
             mStatements[b][t][nodeID] = statement;
             advanceSlot();
-        };
-
-        mFBA->getClient()->validateBallot(mSlotIndex, nodeID, b, cb);
-    }
-    else if (!mIsCommitted && t == FBAStatementType::PREPARED)
-    {
-        // We accept PREPARED statements only if we previously saw a valid
-        // PREPARE statement for that round. This prevents node from emitting
-        // phony messages too easily.
-        bool isPrepare = false;
-        for (auto s : getNodeStatements(nodeID, FBAStatementType::PREPARE))
-        {
-            if (s.ballot.counter == b.counter)
-            {
-                isPrepare = true;
-            }
         }
-        if (isPrepare)
+        else if (!mIsCommitted && t == FBAStatementType::PREPARED)
         {
-            // Finally store the statement and advance the slot if possible.
-            mStatements[b][t][nodeID] = statement;
-            advanceSlot();
-        }
-        else
-        {
-            mFBA->getClient()->retransmissionHinted(mSlotIndex, nodeID);
-        }
-    }
-    else if (!mIsCommitted && t == FBAStatementType::COMMIT)
-    {
-        // We accept COMMIT statements only if we previously saw a valid
-        // PREPARE statement for that ballot and all the PREPARE we saw so far
-        // have a lower ballot than this one or have that COMMIT in their B_c.
-        // This prevents node from emitting phony messages too easily.
-        bool isPrepare = false;
-        for (auto s : getNodeStatements(nodeID, FBAStatementType::PREPARE))
-        {
-            if (compareBallots(b, s.ballot) == 0)
+            // We accept PREPARED statements only if we previously saw a valid
+            // PREPARE statement for that round. This prevents node from
+            // emitting phony messages too easily.
+            bool isPrepare = false;
+            for (auto s : getNodeStatements(nodeID, FBAStatementType::PREPARE))
             {
-                isPrepare = true;
-            }
-            if (compareBallots(b, s.ballot) < 0)
-            {
-                auto excepted = s.body.prepare().excepted;
-                auto it = std::find(excepted.begin(), excepted.end(), b);
-                if (it == excepted.end())
+                if (s.ballot.counter == b.counter)
                 {
-                    return;
+                    isPrepare = true;
                 }
             }
+            if (isPrepare)
+            {
+                // Finally store the statement and advance the slot if
+                // possible.
+                mStatements[b][t][nodeID] = statement;
+                advanceSlot();
+            }
+            else
+            {
+                mFBA->getClient()->retransmissionHinted(mSlotIndex, nodeID);
+            }
         }
-        if (isPrepare)
+        else if (!mIsCommitted && t == FBAStatementType::COMMIT)
         {
+            // We accept COMMIT statements only if we previously saw a valid
+            // PREPARE statement for that ballot and all the PREPARE we saw so
+            // far have a lower ballot than this one or have that COMMIT in
+            // their B_c.  This prevents node from emitting phony messages too
+            // easily.
+            bool isPrepare = false;
+            for (auto s : getNodeStatements(nodeID, FBAStatementType::PREPARE))
+            {
+                if (compareBallots(b, s.ballot) == 0)
+                {
+                    isPrepare = true;
+                }
+                if (compareBallots(b, s.ballot) < 0)
+                {
+                    auto excepted = s.body.prepare().excepted;
+                    auto it = std::find(excepted.begin(), excepted.end(), b);
+                    if (it == excepted.end())
+                    {
+                        return;
+                    }
+                }
+            }
+            if (isPrepare)
+            {
+                // Finally store the statement and advance the slot if
+                // possible.
+                mStatements[b][t][nodeID] = statement;
+                advanceSlot();
+            }
+            else
+            {
+                mFBA->getClient()->retransmissionHinted(mSlotIndex, nodeID);
+            }
+            
+        }
+        else if (t == FBAStatementType::COMMITTED)
+        {
+            // If we already have a COMMITTED statements for this node, we just
+            // ignore this one as it is illegal.
+            if (getNodeStatements(nodeID, 
+                                  FBAStatementType::COMMITTED).size() > 0)
+            {
+                return;
+            }
+
             // Finally store the statement and advance the slot if possible.
             mStatements[b][t][nodeID] = statement;
             advanceSlot();
         }
-        else
+        else if(mIsCommitted)
         {
-            mFBA->getClient()->retransmissionHinted(mSlotIndex, nodeID);
-        }
-        
-    }
-    else if (t == FBAStatementType::COMMITTED)
-    {
-        // If we already have a COMMITTED statements for this node, we just
-        // ignore this one as it is illegal
-        if (getNodeStatements(nodeID, FBAStatementType::COMMITTED).size() > 0)
-        {
-            return;
-        }
+            // If the slot already COMMITTED and we received another statement,
+            // we resend our own COMMITTED message.
+            FBAStatement statement = 
+                createStatement(FBAStatementType::COMMITTED);
 
-        // Finally store the statement and advance the slot if possible.
-        mStatements[b][t][nodeID] = statement;
-        advanceSlot();
-    }
-    else if(mIsCommitted)
-    {
-        // If the slot already COMMITTED an we received something different
-        // than a COMMITTED message, we resend our own COMMITTED message
-        FBAStatement statement = createStatement(FBAStatementType::COMMITTED);
+            FBAEnvelope envelope = createEnvelope(statement);
+            mFBA->getClient()->emitEnvelope(envelope);
+        }
+    };
 
-        FBAEnvelope envelope = createEnvelope(statement);
-        mFBA->getClient()->emitEnvelope(envelope);
-    }
+    mFBA->getClient()->validateBallot(mSlotIndex, nodeID, b, cb);
 }
 
 bool
