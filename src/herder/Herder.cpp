@@ -112,11 +112,14 @@ Herder::validateBallot(const uint64& slotIndex,
 
         return cb(true);
     };
+    
+    Hash txSetHash;
+    // TODO(spolu): extract txSetHash from ballot.value
 
-    TxSetFramePtr txSet = fetchTxSet(ballot.valueHash, true);
+    TxSetFramePtr txSet = fetchTxSet(txSetHash, true);
     if (!txSet)
     {
-        mPendingValidations[ballot.valueHash].push_back(validate);
+        mPendingValidations[txSetHash].push_back(validate);
     }
     else
     {
@@ -139,15 +142,18 @@ Herder::ballotDidCommit(const uint64& slotIndex,
 
 void 
 Herder::valueCancelled(const uint64& slotIndex,
-                       const Hash& valueHash)
+                       const Value& value)
 {
 }
 
 void 
 Herder::valueExternalized(const uint64& slotIndex,
-                          const Hash& valueHash)
+                          const Value& value)
 {
-    TxSetFramePtr externalizedSet = fetchTxSet(valueHash, false);
+    Hash txSetHash;
+    // TODO(spolu): extract txSetHash from ballot.value
+    
+    TxSetFramePtr externalizedSet = fetchTxSet(txSetHash, false);
     if (externalizedSet)
     {
         // we don't need to keep fetching any of the old TX sets
@@ -402,14 +408,16 @@ Herder::ledgerClosed(LedgerHeader& ledger)
 
     uint64_t slotIndex = mLastClosedLedger.ledgerSeq+1;
 
-    mFBA->attemptValue(slotIndex, 
-                       proposedSet->getContentsHash());
+    Value x;
+    // TODO(spolu): add the proposedSet content Hash to x;
 
     // TODO(spolu): closeTime (in FBA?)
     // firstBallot.ballot.closeTime = firstBallotTime;
     
     // TODO(spolu): baseFee (in TransactionSet?)
     // firstBallot.ballot.baseFee = mApp.getConfig().DESIRED_BASE_FEE;
+    //
+    mFBA->attemptValue(slotIndex, x);
 
     // TODO(spolu) [ask jed]:
     /*

@@ -44,9 +44,9 @@ class Herder : public HerderGateway,
                          const FBABallot& ballot);
 
     void valueCancelled(const uint64& slotIndex,
-                        const Hash& valueHash);
+                        const Value& value);
     void valueExternalized(const uint64& slotIndex,
-                           const Hash& valueHash);
+                           const Value& value);
 
     void retrieveQuorumSet(const uint256& nodeID,
                            const Hash& qSetHash);

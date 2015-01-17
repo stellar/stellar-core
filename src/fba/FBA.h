@@ -51,8 +51,8 @@ class FBA
                                     const uint256& nodeID,
                                     const FBABallot& ballot,
                                     std::function<void(bool)> const& cb) = 0;
-        virtual int compareValues(const Hash& v1,
-                                  const Hash& v2);
+        virtual int compareValues(const Value& v1,
+                                  const Value& v2);
 
         virtual void ballotDidPrepare(const uint64& slotIndex,
                                       const FBABallot& ballot) {}
@@ -60,9 +60,9 @@ class FBA
                                      const FBABallot& ballot) {};
 
         virtual void valueCancelled(const uint64& slotIndex,
-                                    const Hash& valueHash) {}
+                                    const Value& value) {}
         virtual void valueExternalized(const uint64& slotIndex,
-                                       const Hash& valueHash) {}
+                                       const Value& value) {}
 
         virtual void retrieveQuorumSet(const uint256& nodeID,
                                        const Hash& qSetHash) = 0;
@@ -86,7 +86,7 @@ class FBA
 
     // Value submission
     bool attemptValue(const uint64& slotIndex,
-                      const Hash& valueHash);
+                      const Value& value);
 
     // Local QuorumSet interface (can be dynamically updated)
     void updateLocalQuorumSet(const FBAQuorumSet& qSet);
