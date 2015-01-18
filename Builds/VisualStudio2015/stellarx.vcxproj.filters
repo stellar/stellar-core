@@ -108,9 +108,6 @@
     <ClCompile Include="..\..\src\main\Config.cpp">
       <Filter>main</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\overlay\PreferredPeers.cpp">
-      <Filter>overlay</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\lib\util\getopt_long.c">
       <Filter>lib\util</Filter>
     </ClCompile>
@@ -400,9 +397,6 @@
     </ClInclude>
     <ClInclude Include="..\..\src\lib\util\cpptoml.h">
       <Filter>lib\util</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\overlay\PreferredPeers.h">
-      <Filter>overlay</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\clf\CLFGateway.h">
       <Filter>clf</Filter>

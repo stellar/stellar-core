@@ -13,13 +13,15 @@
 namespace stellar
 {
 
+
+
 PeerMaster::PeerMaster(Application& app)
     : mApp(app)
     , mDoor(mApp)
     , mTimer(app.getClock())
 {
     mTimer.expires_from_now(std::chrono::seconds(2));
-    mPreferredPeers.addPreferredPeers(mApp.getConfig().PREFERRED_PEERS);
+    
     if (!mApp.getConfig().RUN_STANDALONE)
     {
         addConfigPeers();
@@ -34,6 +36,19 @@ PeerMaster::~PeerMaster()
 {
 }
 
+void PeerMaster::addConfigPeers()
+{
+    for(auto peerStr : mApp.getConfig().KNOWN_PEERS)
+    {
+        // TODO.3
+    }
+
+    for(auto peerStr : mApp.getConfig().PREFERRED_PEERS)
+    {
+        // TODO.3
+    }
+}
+
 // called every 2 seconds
 // If we have less than the target number of peers 
 // we will try to connect to one out there
@@ -45,6 +60,9 @@ PeerMaster::tick()
     if (mPeers.size() < mApp.getConfig().TARGET_PEER_CONNECTIONS)
     {
         // TODO.3 make some outbound connections if we can
+        int num = mApp.getConfig().TARGET_PEER_CONNECTIONS - mPeers.size();
+
+        // SELECT * from Peers where nextAttempt<now() order by rank limit :v1
     }
     
 
@@ -82,7 +100,16 @@ PeerMaster::isPeerAccepted(Peer::pointer peer)
 {
     if (mPeers.size() < mApp.getConfig().MAX_PEER_CONNECTIONS)
         return true;
-    return mPreferredPeers.isPeerPreferred(peer);
+    return isPeerPreferred(peer);
+}
+
+bool PeerMaster::isPeerPreferred(Peer::pointer peer)
+{
+    int port = peer->getRemoteListeningPort();
+    std::string const& ip = peer->getIP();
+    // TODO.3
+    // SELECT count(*) from Peers where rank>9 and ip=:v1 and port=:v2;
+    return false;
 }
 
 Peer::pointer
@@ -115,11 +142,7 @@ PeerMaster::getNextPeer(Peer::pointer peer)
     return Peer::pointer();
 }
 
-void
-PeerMaster::addConfigPeers()
-{
-    mPreferredPeers.addPreferredPeers(mApp.getConfig().PREFERRED_PEERS);
-}
+
 
 void 
 PeerMaster::recvFloodedMsg(uint256 const& messageID, 
@@ -168,6 +191,8 @@ const char* PeerMaster::kSQLCreateStatement = "CREATE TABLE IF NOT EXISTS Peers 
 	peerID	INT UNSIGNED PRIMARY KEY,	\
     ip	    CHARACTER(11),		        \
     port   	INT UNSIGNED default 0,		\
+    nextAttempt   	TIMESTAMP,	    	\
+    numFailures     INT default 0,      \
     lastConnect   	TIMESTAMP,	    	\
 	rank	INT UNSIGNED default 0  	\
 );";

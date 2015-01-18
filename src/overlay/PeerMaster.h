@@ -13,7 +13,6 @@
 #include <thread>
 #include "generated/StellarXDR.h"
 #include "overlay/OverlayGateway.h"
-#include "overlay/PreferredPeers.h"
 #include "util/Timer.h"
 
 using namespace std;
@@ -28,13 +27,14 @@ class PeerMaster : public OverlayGateway
     Application& mApp;
     // peers we are connected to
     vector<Peer::pointer> mPeers;
+    
     PeerDoor mDoor;
-    PreferredPeers mPreferredPeers;
-
-    void addConfigPeers();
 
     void tick();
     VirtualTimer mTimer;
+
+    void addConfigPeers();
+    bool isPeerPreferred(Peer::pointer peer);
 
   public:
     Floodgate mFloodGate;

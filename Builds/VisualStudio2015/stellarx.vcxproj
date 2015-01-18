@@ -188,7 +188,6 @@
     <ClCompile Include="..\..\src\overlay\Peer.cpp" />
     <ClCompile Include="..\..\src\overlay\PeerDoor.cpp" />
     <ClCompile Include="..\..\src\overlay\PeerMaster.cpp" />
-    <ClCompile Include="..\..\src\overlay\PreferredPeers.cpp" />
     <ClCompile Include="..\..\src\overlay\TCPPeer.cpp" />
     <ClCompile Include="..\..\src\process\ProcessMaster.cpp" />
     <ClCompile Include="..\..\src\process\ProcessTests.cpp" />
@@ -259,7 +258,6 @@
     <ClInclude Include="..\..\src\overlay\Peer.h" />
     <ClInclude Include="..\..\src\overlay\PeerDoor.h" />
     <ClInclude Include="..\..\src\overlay\PeerMaster.h" />
-    <ClInclude Include="..\..\src\overlay\PreferredPeers.h" />
     <ClInclude Include="..\..\src\overlay\StellarMessage.h" />
     <ClInclude Include="..\..\src\overlay\TCPPeer.h" />
     <ClInclude Include="..\..\src\process\ProcessGateway.h" />
