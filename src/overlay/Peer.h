@@ -93,6 +93,7 @@ class Peer : public enable_shared_from_this<Peer>
 
   public:
     Peer(Application& app, PeerRole role);
+    
     Application&
     getApp()
     {
@@ -109,6 +110,9 @@ class Peer : public enable_shared_from_this<Peer>
     {
         return mRole;
     }
+
+
+    
     PeerState
     getState() const
     {
@@ -120,11 +124,13 @@ class Peer : public enable_shared_from_this<Peer>
     {
         return mRemoteVersion;
     }
+    
     int
     getRemoteProtocolVersion() const
     {
         return mRemoteProtocolVersion;
     }
+    
     int
     getRemoteListeningPort()
     {
@@ -134,15 +140,18 @@ class Peer : public enable_shared_from_this<Peer>
     // These exist mostly to be overridden in TCPPeer and callable via
     // shared_ptr<Peer> as a captured shared_from_this().
     virtual void connectHandler(const asio::error_code& ec);
+    
     virtual void
     writeHandler(const asio::error_code& error, std::size_t bytes_transferred)
     {
     }
+    
     virtual void
     readHeaderHandler(const asio::error_code& error,
                       std::size_t bytes_transferred)
     {
     }
+
     virtual void
     readBodyHandler(const asio::error_code& error,
                     std::size_t bytes_transferred)

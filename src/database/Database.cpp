@@ -49,7 +49,8 @@ Database::Database(Application& app)
 {
     registerDrivers();
     mSession.open(app.getConfig().DATABASE);
-    if(mApp.getConfig().START_NEW_NETWORK) initialize();
+    if( (mApp.getConfig().START_NEW_NETWORK) || 
+        (app.getConfig().DATABASE == "sqlite3://:memory:"))  initialize();
 }
 
 void Database::initialize()

@@ -47,7 +47,7 @@ LedgerMaster::LedgerMaster(Application& app) : mApp(app)
 
 void LedgerMaster::startNewLedger()
 {
-    LOG(INFO) << "Starting a new network";
+    LOG(INFO) << "Creating the genesis ledger.";
 
     ByteSlice bytes("masterpassphrasemasterpassphrase");
     std::string b58SeedStr = toBase58Check(VER_SEED, bytes);
@@ -76,8 +76,10 @@ void LedgerMaster::loadLastKnownLedger()
     string lastLedger = getState(StoreStateName::kLastClosedLedger);
 
     if (lastLedger.empty())
-    {
-        throw std::runtime_error("No ledger in database");
+    {  // we don't have any ledger in the DB so put the ledger 0 in there
+        // and then catch up with the network
+        startNewLedger();
+        return;
     }
 
     Hash lastLedgerHash = hexToBin256(lastLedger);

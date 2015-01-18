@@ -97,7 +97,9 @@
     <ClCompile Include="..\..\src\database\Database.cpp" />
     <ClCompile Include="..\..\src\database\DatabaseTests.cpp" />
     <ClCompile Include="..\..\src\fba\FBA.cpp" />
-    <ClCompile Include="..\..\src\fba\FBATests.cpp" />
+    <ClCompile Include="..\..\src\fba\FBATests.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+    </ClCompile>
     <ClCompile Include="..\..\src\fba\LocalNode.cpp" />
     <ClCompile Include="..\..\src\fba\Node.cpp" />
     <ClCompile Include="..\..\src\fba\Slot.cpp" />

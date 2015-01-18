@@ -10,17 +10,6 @@
 #include "util/Logging.h"
 #include "database/Database.h"
 
-/*
-If we have less than the target number of peers we will try to connect to one
-out there
-
-What we need timers for:
-    To make sure we have enough peers
-    For Item fetcher
-    Cleaning up hung peers. They never send Hello
-
-*/
-
 namespace stellar
 {
 
@@ -29,7 +18,7 @@ PeerMaster::PeerMaster(Application& app)
     , mDoor(mApp)
     , mTimer(app.getClock())
 {
-    mTimer.expires_from_now(std::chrono::seconds(1));
+    mTimer.expires_from_now(std::chrono::seconds(2));
     mPreferredPeers.addPreferredPeers(mApp.getConfig().PREFERRED_PEERS);
     if (!mApp.getConfig().RUN_STANDALONE)
     {
@@ -45,7 +34,9 @@ PeerMaster::~PeerMaster()
 {
 }
 
-// called every second
+// called every 2 seconds
+// If we have less than the target number of peers 
+// we will try to connect to one out there
 void
 PeerMaster::tick()
 {
@@ -53,9 +44,11 @@ PeerMaster::tick()
     LOG(DEBUG) << "PeerMaster tick";
     if (mPeers.size() < mApp.getConfig().TARGET_PEER_CONNECTIONS)
     {
-        // TODO.3
+        // TODO.3 make some outbound connections if we can
     }
-    mTimer.expires_from_now(std::chrono::seconds(1));
+    
+
+    mTimer.expires_from_now(std::chrono::seconds(2));
     mTimer.async_wait([this](asio::error_code const& ec)
                       {
                           this->tick();
