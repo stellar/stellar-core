@@ -11,17 +11,16 @@
 #include "database/Database.h"
 #include "overlay/TCPPeer.h"
 
-<<<<<<< HEAD
+
 using namespace soci;
 
-#define MAX_FAILURES 
+#define MAX_FAILURES 20
 
 // TODO.3 drop long failed peers from the DB
 // TODO.3 allow manual connects
 // TODO.3 some tests
 
-=======
->>>>>>> 731512ba65f029284a49424b27f1060fdde73f95
+
 namespace stellar
 {
 
