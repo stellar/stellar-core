@@ -5,6 +5,8 @@
 // this distribution or at http://opensource.org/licenses/ISC
 
 #include <vector>
+#include <cstdint>
+#include <cstddef>
 
 std::vector<uint8_t>
 randomBytes(size_t length);

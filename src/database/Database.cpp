@@ -16,6 +16,7 @@
 
 #include <stdexcept>
 #include <vector>
+#include <sstream>
 
 extern "C" void register_factory_sqlite3();
 
