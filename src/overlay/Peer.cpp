@@ -25,15 +25,7 @@ Peer::Peer(Application& app, PeerRole role)
     , mState(role == ACCEPTOR ? CONNECTED : CONNECTING)
     , mRemoteListeningPort(-1)
 {
-    if (mRole == ACCEPTOR)
-    {
-        // Schedule a 'say hello' event at the next opportunity,
-        // if we're the acceptor-role.
-        mApp.getMainIOService().post([this]()
-                                     {
-                                         this->sendHello();
-                                     });
-    }
+    
 }
 
 void
@@ -56,6 +48,7 @@ Peer::connectHandler(const asio::error_code& error)
         drop();
     } else
     {
+        connected();
         mState = CONNECTED;
         sendHello();
     }
@@ -142,7 +135,8 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
 {
     CLOG(TRACE, "Overlay") << "recv: " << stellarMsg.type();
 
-    if (mState < GOT_HELLO && stellarMsg.type() != HELLO)
+    if ( mState < GOT_HELLO && 
+        ((stellarMsg.type() != HELLO) || (stellarMsg.type() != PEERS)) )
     {
         CLOG(WARNING, "Overlay") << "recv: " << stellarMsg.type()
                                  << " before hello";
@@ -337,7 +331,7 @@ Peer::recvFBAMessage(StellarMessage const& msg)
 void
 Peer::recvError(StellarMessage const& msg)
 {
-    // TODO.3
+    // TODO.4
 }
 void
 Peer::recvHello(StellarMessage const& msg)
@@ -388,11 +382,11 @@ Peer::recvPeers(StellarMessage const& msg)
 void
 Peer::recvGetValidations(StellarMessage const& msg)
 {
-    // TODO.3
+    // TODO.4
 }
 void
 Peer::recvValidations(StellarMessage const& msg)
 {
-    // TODO.3
+    // TODO.4
 }
 }

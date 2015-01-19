@@ -13,6 +13,12 @@
 
 using namespace soci;
 
+#define MAX_FAILURES 
+
+// TODO.3 drop long failed peers from the DB
+// TODO.3 allow manual connects
+// TODO.3 some tests
+
 namespace stellar
 {
 
@@ -91,11 +97,25 @@ PeerMaster::tick()
         // make some outbound connections if we can
         int num = mApp.getConfig().TARGET_PEER_CONNECTIONS - mPeers.size();
         vector<PeerRecord> retList;
-        mApp.getDatabase().loadPeers(num, retList);
-        for(auto addr : retList)
+        mApp.getDatabase().loadPeers(100, retList);
+        for(auto peerRecord : retList)
         {
-            addPeer(Peer::pointer(new TCPPeer(mApp,addr.mIP,addr.mPort)));
-            // TODO.3 update DB
+            if(!getPeer(peerRecord.mIP, peerRecord.mPort))
+            {
+                time_t rawtime;
+                struct tm * nextAttempt;
+
+                time(&rawtime);
+                nextAttempt = gmtime(&rawtime);
+                nextAttempt->tm_sec += pow(2, peerRecord.mNumFailures + 1)*2;
+                mktime(nextAttempt);
+
+                mApp.getDatabase().getSession() << "UPDATE Peers set numFailures=numFailures+1 and nextAttempt=:v1 where peerID=:v2",
+                    use(*nextAttempt), use(peerRecord.mPeerID);
+                addPeer(Peer::pointer(new TCPPeer(mApp, peerRecord.mIP, peerRecord.mPort)));
+                num--;
+                if(num < 1) break;
+            }        
         }
     }
     
@@ -105,6 +125,18 @@ PeerMaster::tick()
                       {
                           this->tick();
                       });
+}
+
+Peer::pointer PeerMaster::getPeer(const std::string& ip, int port)
+{
+    for(auto peer : mPeers)
+    {
+        if(peer->getIP() == ip && peer->getRemoteListeningPort() == port)
+        {
+            return peer;
+        }
+    }
+    return Peer::pointer();
 }
 
 void
