@@ -20,10 +20,11 @@ class LoopbackPeer;
 class PeerRecord
 {
 public:
+    int mPeerID;
     std::string mIP;
     int mPort;
     int mNumFailures;
-    PeerRecord(std::string const& ip,int port,int fails) :mIP(ip), mPort(port), mNumFailures(fails){ }
+    PeerRecord(int id,const std::string& ip,int port,int fails) : mPeerID(id), mIP(ip), mPort(port), mNumFailures(fails){ }
 };
 
 /*
@@ -94,7 +95,7 @@ class Peer : public std::enable_shared_from_this<Peer>
     // messages somewhere else. The async write request will point _into_
     // this owned buffer. This is really the best we can do.
     virtual void sendMessage(xdr::msg_ptr&& xdrBytes) = 0;
-
+    virtual void connected() {}
   public:
     Peer(Application& app, PeerRole role);
     

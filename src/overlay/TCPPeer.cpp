@@ -8,8 +8,12 @@
 #include "generated/StellarXDR.h"
 #include "xdrpp/marshal.h"
 #include "overlay/PeerMaster.h"
+#include "database/Database.h"
 
 #define MS_TO_WAIT_FOR_HELLO 2000
+
+using namespace soci;
+
 
 namespace stellar
 {
@@ -30,8 +34,9 @@ const char* TCPPeer::kSQLCreateStatement =
         rank    INT     \
     );";
 
+// make to be called
 TCPPeer::TCPPeer(Application& app, std::string& ip, int port)
-    : Peer(app, INITIATOR), mHelloTimer(app.getClock())
+    : Peer(app, ACCEPTOR), mHelloTimer(app.getClock())
 {
     mSocket=make_shared<asio::ip::tcp::socket>(mApp.getMainIOService());
     asio::ip::tcp::endpoint endpoint(asio::ip::address::from_string(ip),
@@ -40,19 +45,27 @@ TCPPeer::TCPPeer(Application& app, std::string& ip, int port)
         std::placeholders::_1));
 }
 
+// make from door
 TCPPeer::TCPPeer(Application& app, shared_ptr<asio::ip::tcp::socket> socket)
-    : Peer(app, ACCEPTOR), mSocket(socket), mHelloTimer(app.getClock())
+    : Peer(app, INITIATOR), mSocket(socket), mHelloTimer(app.getClock())
 {
     mHelloTimer.expires_from_now(
         std::chrono::milliseconds(MS_TO_WAIT_FOR_HELLO));
-    mHelloTimer.async_wait(
-        [socket](asio::error_code const& ec)
-        {
-            socket->shutdown(asio::socket_base::shutdown_both);
-            socket->close();
-        });
+    mHelloTimer.async_wait(std::bind(&TCPPeer::timerExpired, this, std::placeholders::_1));
 }
 
+void TCPPeer::timerExpired(const asio::error_code& error)
+{
+    mSocket->shutdown(asio::socket_base::shutdown_both);
+    mSocket->close();
+}
+
+void TCPPeer::connected()
+{
+    mHelloTimer.expires_from_now(
+        std::chrono::milliseconds(MS_TO_WAIT_FOR_HELLO));
+    mHelloTimer.async_wait(std::bind(&TCPPeer::timerExpired, this, std::placeholders::_1));
+}
 
 std::string
 TCPPeer::getIP()
@@ -169,12 +182,45 @@ TCPPeer::recvHello(StellarMessage const& msg)
 {
     mHelloTimer.cancel();
     Peer::recvHello(msg);
-    if (!mApp.getPeerMaster().isPeerAccepted(shared_from_this()))
-    { // we can't accept anymore peer connections
-        sendPeers();
-        drop();
-    }
+   
+    session& dbSession = mApp.getDatabase().getSession();
+
+    if(mRole==INITIATOR)
+    {  // this guy called us
+        // make sure he is in the DB
+        int peerID=0;
+        dbSession << "SELECT peerID from Peers where ip=:v2 and port=:v3",
+             into(peerID), use(getIP()), use(getRemoteListeningPort());
+
+        if(!dbSession.got_data())
+        {
+            dbSession << "INSERT into Peers (ip,port,rank) values (:v1,:v2,1)" ,
+                use(getIP()), use(getRemoteListeningPort());
+        }
+
+        if(mApp.getPeerMaster().isPeerAccepted(shared_from_this()))
+        {
+            sendHello();
+        }else
+        { // we can't accept anymore peer connections
+            sendPeers();
+            drop();
+        }
+    } else
+    { // we called this guy
+        // only lower numFailures if we were successful connecting out to him
+        time_t rawtime;
+        struct tm * nextAttempt;
+
+        time(&rawtime);
+        nextAttempt = gmtime(&rawtime);
+
+        mApp.getDatabase().getSession() << "UPDATE Peers set numFailures=0 and nextAttempt=:v1 where ip=:v2 and port=:v3",
+            use(*nextAttempt), use(getIP()), use(getRemoteListeningPort());
+    } 
 }
+
+
 
 void
 TCPPeer::drop()

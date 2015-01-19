@@ -15,7 +15,7 @@ ability to do debits
 invoices
 recurring payments or subscriptions
 passing around titles to things
-
+oracles where contracts can look things up
 
 bitcoin bridge
 SEPA bridge (developer.fidor.de/API-Browser)

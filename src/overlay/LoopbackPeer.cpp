@@ -63,6 +63,16 @@ LoopbackPeer::drop()
     }
 }
 
+void LoopbackPeer::recvHello(StellarMessage const& msg)
+{
+    Peer::recvHello(msg);
+
+    if(mRole == INITIATOR)
+    {  // this guy called us
+       sendHello();
+    } 
+}
+
 static bool
 damageMessage(default_random_engine& gen, xdr::msg_ptr& msg)
 {

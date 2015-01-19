@@ -16,6 +16,7 @@ using namespace stellar;
 TEST_CASE("database smoketest", "[db]")
 {
     Config cfg;
+    cfg.RUN_STANDALONE=true;
     VirtualClock clock;
     cfg.DATABASE = "sqlite3://:memory:";
     Application app(clock, cfg);
@@ -37,20 +38,30 @@ TEST_CASE("database smoketest", "[db]")
 TEST_CASE("postgres smoketest", "[db]")
 {
     Config cfg;
+    cfg.RUN_STANDALONE = true;
     VirtualClock clock;
     cfg.DATABASE = "postgresql://dbname=test user=test password=test";
-    Application app(clock, cfg);
+    try
+    {
+        Application app(clock, cfg);
 
-    int a = 10, b = 0;
+        int a = 10, b = 0;
 
-    auto& sql = app.getDatabase().getSession();
+        auto& sql = app.getDatabase().getSession();
 
-    sql << "drop table if exists test";
-    sql << "create table test (x integer)";
-    sql << "insert into test (x) values (:aa)", soci::use(a, "aa");
-    sql << "select x from test", soci::into(b);
+        sql << "drop table if exists test";
+        sql << "create table test (x integer)";
+        sql << "insert into test (x) values (:aa)", soci::use(a, "aa");
+        sql << "select x from test", soci::into(b);
 
-    CHECK(a == b);
-    LOG(DEBUG) << "round trip with postgresql database: " << a << " == " << b;
+        CHECK(a == b);
+        LOG(DEBUG) << "round trip with postgresql database: " << a << " == " << b;
+    }
+    catch(soci::soci_error& err)
+    {
+        LOG(ERROR) << "DB error: " << err.what();
+        REQUIRE(0);
+    }
+   
 }
 #endif
