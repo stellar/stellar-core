@@ -32,8 +32,8 @@ FMT_SRCS = src/clf/BucketList.cpp src/clf/CLFMaster.cpp src/clf/CLFTests.cpp    
     src/transactions/MergeTests.cpp src/transactions/OfferTests.cpp             \
     src/transactions/PaymentFrame.cpp src/transactions/PaymentTests.cpp         \
     src/transactions/SetOptionsFrame.cpp src/transactions/SetOptionsTests.cpp   \
-    src/transactions/TransactionFrame.cpp src/transactions/TxDelta.cpp          \
-    src/transactions/TxEnvelopeTests.cpp src/transactions/TxTests.cpp
+    src/transactions/TransactionFrame.cpp src/transactions/TxEnvelopeTests.cpp  \
+    src/transactions/TxTests.cpp
 
 
 FMT_HDRS = src/clf/BucketList.h src/clf/CLFMaster.h src/crypto/Base58.h         \
