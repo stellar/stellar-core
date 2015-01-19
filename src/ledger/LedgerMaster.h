@@ -15,8 +15,6 @@ Applies the tx set to the last ledger to get the next one
 Hands the old ledger off to the history
 */
 
-using namespace std;
-
 namespace stellar
 {
     class Application;
@@ -80,12 +78,12 @@ namespace stellar
             kLastEntry
         };
 
-        string getState(StoreStateName stateName);
-        void setState(StoreStateName stateName, const string &value);
+        std::string getState(StoreStateName stateName);
+        void setState(StoreStateName stateName, const std::string &value);
 
         static void dropAll(Database &db);
     private:
-        string getStoreStateName(StoreStateName n);
+        std::string getStoreStateName(StoreStateName n);
         void closeLedgerHelper(bool updateCurrent);
 
         static const char *kSQLCreateStatement;

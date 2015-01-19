@@ -11,10 +11,11 @@
 #include "database/Database.h"
 #include "overlay/TCPPeer.h"
 
-using namespace soci;
-
 namespace stellar
 {
+
+using namespace soci;
+using namespace std;
 
 PeerMaster::PeerMaster(Application& app)
     : mApp(app)

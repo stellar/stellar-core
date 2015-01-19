@@ -25,6 +25,7 @@
 namespace stellar
 {
 
+using namespace std;
    
 TransactionFrame::pointer TransactionFrame::makeTransactionFromWire(TransactionEnvelope const& msg)
 {

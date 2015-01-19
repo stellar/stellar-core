@@ -10,6 +10,8 @@
 
 namespace stellar
 {
+
+using namespace std;
     
 TxSetFrame::TxSetFrame()
 {

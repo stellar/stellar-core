@@ -14,6 +14,7 @@
 #include "main/Config.h"
 
 using namespace stellar;
+using namespace std;
 
 typedef std::unique_ptr<Application> appPtr;
 

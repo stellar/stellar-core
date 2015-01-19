@@ -19,6 +19,9 @@
 
 namespace stellar
 {
+
+using namespace std;
+
 Peer::Peer(Application& app, PeerRole role)
     : mApp(app)
     , mRole(role)

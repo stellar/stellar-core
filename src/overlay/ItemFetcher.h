@@ -29,7 +29,7 @@ class TrackingCollar
 {
     Application& mApp;
     Peer::pointer mLastAskedPeer;
-    vector<Peer::pointer> mPeersAsked;
+    std::vector<Peer::pointer> mPeersAsked;
     bool mCantFind;
     VirtualTimer mTimer;
     int mRefCount;

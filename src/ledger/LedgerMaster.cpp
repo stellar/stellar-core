@@ -39,6 +39,8 @@ catching up to network:
 namespace stellar
 {
 
+using namespace std;
+
 LedgerMaster::LedgerMaster(Application& app) : mApp(app)
 {
 	mCaughtUp = false;

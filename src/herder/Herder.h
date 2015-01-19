@@ -79,13 +79,13 @@ class Herder : public HerderGateway,
 
     // keep track of txs that didn't make it into last ledger. Be less and less
     // likely to commit a ballot that doesn't include the old ones
-    map<uint256, uint32_t>                         mTransactionAgeMap;
+    std::map<uint256, uint32_t>                    mTransactionAgeMap;
 
     // 0- tx we got during ledger close
     // 1- one ledger ago. Will only validate a vblocking set
     // 2- two ledgers ago. Will only validate a vblock set and will rebroadcast
     // 3- three or more ledgers ago. Any set we validate must have these tx
-    vector<vector<TransactionFramePtr>>            mReceivedTransactions;
+    std::vector<std::vector<TransactionFramePtr>>  mReceivedTransactions;
 
     // need to keep the old tx sets around for at least one Consensus round
     //  in case some stragglers are still need the old txsets in order to close

@@ -17,8 +17,6 @@ namespace stellar
 {
 typedef std::shared_ptr<FBAQuorumSet> FBAQuorumSetPtr;
 
-using namespace std;
-
 class Application;
 class LoopbackPeer;
 
@@ -28,13 +26,13 @@ public:
     std::string mIP;
     int mPort;
     int mNumFailures;
-    PeerRecord(std::string& ip,int port,int fails) :mIP(ip), mPort(port), mNumFailures(fails){ }
+    PeerRecord(std::string const& ip,int port,int fails) :mIP(ip), mPort(port), mNumFailures(fails){ }
 };
 
 /*
  * Another peer out there that we are connected to
  */
-class Peer : public enable_shared_from_this<Peer>
+class Peer : public std::enable_shared_from_this<Peer>
 {
     static bool ipFromStr(std::string ipStr, xdr::opaque_array<4U>& ret);
 

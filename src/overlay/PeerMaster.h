@@ -15,7 +15,6 @@
 #include "overlay/OverlayGateway.h"
 #include "util/Timer.h"
 
-using namespace std;
 /*
 Maintain the set of peers we are connected to
 */
@@ -26,7 +25,7 @@ class PeerMaster : public OverlayGateway
 {
     Application& mApp;
     // peers we are connected to
-    vector<Peer::pointer> mPeers;
+    std::vector<Peer::pointer> mPeers;
     
     PeerDoor mDoor;
 
@@ -66,7 +65,7 @@ class PeerMaster : public OverlayGateway
 
     void broadcastMessage(uint256 const& msgID);
     void broadcastMessage(StellarMessage const& msg,
-                          vector<Peer::pointer> const& skip);
+                          std::vector<Peer::pointer> const& skip);
 
     static void createTable(Database &db);
     static const char *kSQLCreateStatement;

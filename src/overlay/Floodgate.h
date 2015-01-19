@@ -33,7 +33,7 @@ class FloodRecord
 
     uint64_t mLedgerIndex;
     StellarMessage mMessage;
-    vector<Peer::pointer> mPeersTold;
+    std::vector<Peer::pointer> mPeersTold;
 
     FloodRecord(StellarMessage const& msg, uint64_t ledger,
                 Peer::pointer peer);

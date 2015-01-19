@@ -24,10 +24,11 @@ extern "C" void register_factory_sqlite3();
 extern "C" void register_factory_postgresql();
 #endif
 
-using namespace soci;
-
 namespace stellar
 {
+
+using namespace soci;
+using namespace std;
 
 bool
 Database::gDriversRegistered = false;

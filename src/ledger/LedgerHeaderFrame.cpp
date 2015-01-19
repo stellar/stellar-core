@@ -9,10 +9,11 @@
 #include "crypto/Hex.h"
 #include "database/Database.h"
 
-using namespace soci;
-
 namespace stellar
 {
+
+using namespace soci;
+using namespace std;
 
     LedgerHeaderFrame::LedgerHeaderFrame(LedgerHeader lh) : mHeader(lh)
     {

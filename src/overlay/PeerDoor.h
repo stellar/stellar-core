@@ -16,8 +16,6 @@ listens for peer connections.
 When found passes them to the PeerMaster
 */
 
-using namespace std;
-
 namespace stellar
 {
 class Application;
@@ -28,7 +26,7 @@ class PeerDoor
     asio::ip::tcp::acceptor mAcceptor;
 
     void acceptNextPeer();
-    void handleKnock(shared_ptr<asio::ip::tcp::socket> pSocket);
+    void handleKnock(std::shared_ptr<asio::ip::tcp::socket> pSocket);
 
   public:
     PeerDoor(Application&);
