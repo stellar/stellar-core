@@ -123,8 +123,6 @@ void AccountFrame::storeUpdate(LedgerDelta &delta, LedgerMaster& ledgerMaster, b
 
     std::stringstream sql;
 
-    const char * op = insert ? "new" : "mod";
-
     if (insert)
     {
         sql << "INSERT INTO Accounts ( accountID, balance, sequence,    \

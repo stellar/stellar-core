@@ -95,8 +95,6 @@ namespace stellar
         std::stringstream sql;
         sql << "UPDATE Offers set ";
 
-        bool before = false;
-
         soci::statement st = (ledgerMaster.getDatabase().getSession().prepare <<
             "UPDATE Offers set amount=:a, price=:p where offerIndex=:i",
             use(mEntry.offer().amount), use(mEntry.offer().price), use(base58ID));
