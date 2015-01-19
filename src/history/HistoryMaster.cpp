@@ -130,7 +130,8 @@ decompressAndLoad(Application &app,
                         in.seekg(0, in.end);
                         std::ifstream::pos_type length = in.tellg();
                         in.seekg(0, in.beg);
-                        xdr::msg_ptr m = xdr::message_t::alloc(length-4LL);
+                        xdr::msg_ptr m = xdr::message_t::alloc(
+                            length - static_cast<std::ifstream::pos_type>(4));
                         in.read(m->raw_data(), m->raw_size());
                         in.close();
                         std::shared_ptr<T> t = std::make_shared<T>();
