@@ -86,7 +86,7 @@ Slot::Slot(const uint64& slotIndex,
 {
 }
 
-void
+bool
 Slot::processEnvelope(const FBAEnvelope& envelope)
 {
     assert(envelope.statement.slotIndex == mSlotIndex);
@@ -99,7 +99,7 @@ Slot::processEnvelope(const FBAEnvelope& envelope)
     // If the envelope is not correctly signed, we ignore it.
     if (!verifyEnv(envelope))
     {
-        return;
+        return false;
     }
 
     FBABallot b = envelope.statement.ballot;
@@ -217,6 +217,7 @@ Slot::processEnvelope(const FBAEnvelope& envelope)
     };
 
     mFBA->getClient()->validateBallot(mSlotIndex, nodeID, b, cb);
+    return true;
 }
 
 bool
