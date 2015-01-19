@@ -24,8 +24,6 @@ class TCPPeer : public Peer
     int getIncomingMsgLength();
     void startRead();
 
-    void connectHandler(const asio::error_code& error, Application& app);
-
     void writeHandler(const asio::error_code& error,
                       std::size_t bytes_transferred);
     void readHeaderHandler(const asio::error_code& error,
