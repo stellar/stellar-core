@@ -49,8 +49,8 @@ PeerMaster::~PeerMaster()
 // LATER: verify ip and port are valid
 bool PeerMaster::parseIPPort(const std::string& peerStr, std::string& retIP, int& retPort)
 {
-    std::string innerStr(peerStr);
-    std::string::iterator splitPoint =
+    std::string const innerStr(peerStr);
+    std::string::const_iterator splitPoint =
         std::find(innerStr.rbegin(), innerStr.rend(), ':').base();
     if(splitPoint == innerStr.end())
     {
