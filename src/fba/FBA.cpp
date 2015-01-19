@@ -49,7 +49,7 @@ FBA::receiveQuorumSet(const uint256& nodeID,
     getNode(nodeID)->cacheQuorumSet(qSet);
 }
 
-void
+bool
 FBA::receiveEnvelope(const FBAEnvelope& envelope)
 {
     uint64 slotIndex = envelope.statement.slotIndex;

@@ -82,7 +82,8 @@ class FBA
     // FBAQuorumSet/Envelope receival
     void receiveQuorumSet(const uint256& nodeID,
                           const FBAQuorumSet& qSet);
-    void receiveEnvelope(const FBAEnvelope& envelope);
+    // Returns wether the envelope signature is valid or not
+    bool receiveEnvelope(const FBAEnvelope& envelope);
 
     // Value submission
     bool attemptValue(const uint64& slotIndex,
