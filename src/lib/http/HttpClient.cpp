@@ -1,4 +1,12 @@
 
+#ifndef ASIO_SEPARATE_COMPILATION
+#define ASIO_SEPARATE_COMPILATION
+#endif
+
+#ifndef ASIO_HAS_STD_ARRAY
+#define ASIO_HAS_STD_ARRAY
+#endif
+
 #include <iostream>
 #include <istream>
 #include <ostream>

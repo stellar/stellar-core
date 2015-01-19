@@ -46,7 +46,7 @@ server::addRoute(const std::string& routeName, routeHandler callback)
 void
 server::do_accept()
 {
-    acceptor_.async_accept(socket_, [this](std::error_code ec)
+    acceptor_.async_accept(socket_, [this](asio::error_code ec)
                            {
         // Check whether the server was stopped by a signal before this
         // completion handler had a chance to run.

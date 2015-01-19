@@ -11,6 +11,14 @@
 #ifndef HTTP_SERVER_HPP
 #define HTTP_SERVER_HPP
 
+#ifndef ASIO_SEPARATE_COMPILATION
+#define ASIO_SEPARATE_COMPILATION
+#endif
+
+#ifndef ASIO_HAS_STD_ARRAY
+#define ASIO_HAS_STD_ARRAY
+#endif
+
 #include <asio.hpp>
 #include <string>
 #include <map>
