@@ -20,4 +20,36 @@
 #define ASIO_HAS_STD_CHRONO
 #endif
 
+#ifndef ASIO_HAS_STD_ADDRESSOF
+#define ASIO_HAS_STD_ADDRESSOF
+#endif
+
+#ifndef ASIO_HAS_STD_FUNCTION
+#define ASIO_HAS_STD_FUNCTION
+#endif
+
+#ifndef ASIO_HAS_STD_SHARED_PTR
+#define ASIO_HAS_STD_SHARED_PTR
+#endif
+
+#ifndef ASIO_HAS_STD_MUTEX_AND_CONDVAR
+#define ASIO_HAS_STD_MUTEX_AND_CONDVAR
+#endif
+
+#ifndef ASIO_HAS_STD_ATOMIC
+#define ASIO_HAS_STD_ATOMIC
+#endif
+
+#ifndef ASIO_HAS_STD_TYPE_TRAITS
+#define ASIO_HAS_STD_TYPE_TRAITS
+#endif
+
+#ifndef ASIO_HAS_CSTDINT
+#define ASIO_HAS_CSTDINT
+#endif
+
+#ifndef ASIO_HAS_STD_THREAD
+#define ASIO_HAS_STD_THREAD
+#endif
+
 #include <asio.hpp>

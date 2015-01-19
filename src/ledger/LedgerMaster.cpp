@@ -2,7 +2,6 @@
 // under the ISC License. See the COPYING file at the top-level directory of
 // this distribution or at http://opensource.org/licenses/ISC
 #include "LedgerMaster.h"
-#include <asio.hpp>
 #include "main/Application.h"
 #include "main/Config.h"
 #include "clf/CLFMaster.h"
