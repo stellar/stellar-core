@@ -73,25 +73,55 @@ Herder::validateBallot(const uint64& slotIndex,
                        const FBABallot& ballot,
                        std::function<void(bool)> const& cb)
 {
-    // make sure all the tx we have in the old set are included
-    // make sure the timestamp isn't too far in the future
-    // make sure the base fee is within a certain range of your desired fee
-    auto validate = [=] (TxSetFramePtr txSet)
-    {
-        // TODO(spolu): check baseFee
-        /*
-        if (ballot.baseFee < mApp.getConfig().DESIRED_BASE_FEE * .5)
-            return INVALID_BALLOT;
-        if (ballot.baseFee > mApp.getConfig().DESIRED_BASE_FEE * 2)
-            return INVALID_BALLOT;
-        */
+    StellarBallot b;
+    xdr::xdr_from_opaque(ballot.value, b);
 
+    // All tests that are relative to mLastClosedLedger are executed only once
+    // we have waited for a couple ledgers to close
+    if (mLedgersToWaitToParticipate <= 0)
+    {
+        // Check slotIndex.
+        if (mLastClosedLedger.ledgerSeq + 1 != slotIndex)
+        {
+            return cb(false);
+        }
+        // Check previousLedgerHash.
+        if (mLastClosedLedger.hash != b.previousLedgerHash)
+        {
+            return cb(false);
+        }
+        // Check closeTime (not too old or too far in the future)
+        if (b.closeTime <= mLastClosedLedger.closeTime)
+        {
+            return cb(false);
+        }
+        uint64_t timeNow = time(nullptr);
+        if (b.closeTime > timeNow + MAX_SECONDS_LEDGER_CLOSE_IN_FUTURE)
+        {
+            return cb(false);
+        }
+    }
+
+    // Check baseFee (within range of desired fee).
+    if (b.baseFee < mApp.getConfig().DESIRED_BASE_FEE * .5)
+    {
+        return cb(false);
+    }
+    if (b.baseFee > mApp.getConfig().DESIRED_BASE_FEE * 2)
+    {
+        return cb(false);
+    }
+
+    // make sure all the tx we have in the old set are included
+    auto validate = [cb,b,this] (TxSetFramePtr txSet)
+    {
+        // Check txSet.
         if(!txSet->checkValid(mApp))
         {
             CLOG(ERROR, "Herder") << "invalid txSet";
             return cb(false);
         }
-
+        // Check we have all the 3-level txs in mReceivedTransactions
         for (auto tx : mReceivedTransactions[mReceivedTransactions.size() - 1])
         {
             if (find(txSet->mTransactions.begin(), txSet->mTransactions.end(),
@@ -100,32 +130,18 @@ Herder::validateBallot(const uint64& slotIndex,
                 return cb(false);
             }
         }
-
-        // TODO(spolu): check closeTime
-        /*
-        if (ballot.closeTime <= mLastClosedLedger.closeTime)
-            return INVALID_BALLOT;
-        uint64_t timeNow = time(nullptr);
-        if (ballot.closeTime > timeNow + MAX_SECONDS_LEDGER_CLOSE_IN_FUTURE)
-            return FUTURE_BALLOT;
-        */
-
         return cb(true);
     };
     
-    Hash txSetHash;
-    // TODO(spolu): extract txSetHash from ballot.value
-
-    TxSetFramePtr txSet = fetchTxSet(txSetHash, true);
+    TxSetFramePtr txSet = fetchTxSet(b.txSetHash, true);
     if (!txSet)
     {
-        mPendingValidations[txSetHash].push_back(validate);
+        mPendingValidations[b.txSetHash].push_back(validate);
     }
     else
     {
         validate(txSet);
     }
-
 }
 
 void 
@@ -150,10 +166,10 @@ void
 Herder::valueExternalized(const uint64& slotIndex,
                           const Value& value)
 {
-    Hash txSetHash;
-    // TODO(spolu): extract txSetHash from ballot.value
+    StellarBallot b;
+    xdr::xdr_from_opaque(value, b);
     
-    TxSetFramePtr externalizedSet = fetchTxSet(txSetHash, false);
+    TxSetFramePtr externalizedSet = fetchTxSet(b.txSetHash, false);
     if (externalizedSet)
     {
         // we don't need to keep fetching any of the old TX sets
@@ -190,7 +206,7 @@ Herder::valueExternalized(const uint64& slotIndex,
     else
     {
         // This may not be possible are all messages are validated and should
-        // therefore fetch the txSet.
+        // therefore fetch the txSet before being considered by FBA.
         CLOG(ERROR, "Herder") << "Externalized txSet not found";
     }
 }
@@ -204,8 +220,8 @@ Herder::retrieveQuorumSet(const uint256& nodeID,
         mFBA->receiveQuorumSet(nodeID, *qSet);
     };
 
-    // TODO(spolu): [ask jed]
-    //              - We know which node to ask here, can we optimize?
+    // Peer Overlays and nodeIDs have no relationship for now. Sow we just
+    // retrieve qSetHash by asking the whole overaly.
     FBAQuorumSetPtr qSet = fetchFBAQuorumSet(qSetHash, true);
     if (!qSet)
     {
@@ -220,6 +236,11 @@ Herder::retrieveQuorumSet(const uint256& nodeID,
 void 
 Herder::emitEnvelope(const FBAEnvelope& envelope)
 {
+    StellarMessage msg;
+    msg.type(FBA_MESSAGE);
+    msg.envelope() = envelope;
+
+    // TODO(jed) send/broadcast `msg`
 }
 
 void 
@@ -387,6 +408,19 @@ Herder::removeReceivedTx(TransactionFramePtr dropTx)
 void
 Herder::ledgerClosed(LedgerHeader& ledger)
 {
+    if (mLedgersToWaitToParticipate > 0)
+    {
+        mLedgersToWaitToParticipate--;
+    }
+
+    // If we haven't waited for a couple ledgers or we are not in SYNCED_STATE
+    // we don't prepare any value locally.
+    if (mLedgersToWaitToParticipate > 0 ||
+        mApp.getState() != Application::State::SYNCED_STATE)
+    {
+        return;
+    }
+
     // our first choice for this round's set is all the tx we have collected
     // during last ledger close
     TxSetFramePtr proposedSet = std::make_shared<TxSetFrame>();
@@ -401,30 +435,18 @@ Herder::ledgerClosed(LedgerHeader& ledger)
 
     mLastClosedLedger = ledger;
 
-    uint64_t firstBallotTime = time(nullptr) + NUM_SECONDS_IN_CLOSE;
-    if (firstBallotTime <= mLastClosedLedger.closeTime)
-        firstBallotTime = mLastClosedLedger.closeTime + 1;
+    uint64_t nextCloseTime = time(nullptr) + NUM_SECONDS_IN_CLOSE;
+    if (nextCloseTime <= mLastClosedLedger.closeTime)
+        nextCloseTime = mLastClosedLedger.closeTime + 1;
 
-    uint64_t slotIndex = mLastClosedLedger.ledgerSeq+1;
+    uint64_t slotIndex = mLastClosedLedger.ledgerSeq + 1;
 
-    Value x;
-    // TODO(spolu): add the proposedSet content Hash to x;
+    StellarBallot b;
+    b.previousLedgerHash = ledger.hash;
+    b.txSetHash = proposedSet->getContentsHash();
+    b.closeTime = nextCloseTime;
+    b.baseFee = mApp.getConfig().DESIRED_BASE_FEE;
 
-    // TODO(spolu): closeTime (in FBA?)
-    // firstBallot.ballot.closeTime = firstBallotTime;
-    
-    // TODO(spolu): baseFee (in TransactionSet?)
-    // firstBallot.ballot.baseFee = mApp.getConfig().DESIRED_BASE_FEE;
-    //
-    mFBA->attemptValue(slotIndex, x);
-
-    // TODO(spolu) [ask jed]:
-    /*
-    mLedgersToWaitToParticipate--;
-    // don't participate in FBA for a few ledger closes so you make sure you
-    //      don't send PREPAREs that don't include old tx
-    if (mLedgersToWaitToParticipate < 0  && (!isZero(mApp.getConfig().VALIDATION_SEED)))
-        mApp.getFBAGateway().setValidating(true);
-    */
+    mFBA->attemptValue(slotIndex, xdr::xdr_to_opaque(b));
 }
 }

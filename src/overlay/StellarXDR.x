@@ -312,6 +312,14 @@ struct CLFBucket
     CLFEntry entries<>;
 };
 
+struct StellarBallot
+{
+    Hash previousLedgerHash;
+    Hash txSetHash;
+    uint64 closeTime;
+    int64 baseFee;
+};
+
 struct PeerAddress
 {
     opaque ip[4];
@@ -379,7 +387,7 @@ union StellarMessage switch (MessageType type) {
 	case FBA_QUORUMSET:
 		FBAQuorumSet qSet;
 	case FBA_MESSAGE:
-		FBAEnvelope fbaMessage;
+		FBAEnvelope envelope;
 };
 
 
