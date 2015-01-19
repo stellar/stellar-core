@@ -32,7 +32,7 @@ class PeerMaster : public OverlayGateway
     void tick();
     VirtualTimer mTimer;
 
-    bool parseIPPort(std::string& peerStr,std::string& retIP,int& retPort);
+    bool parseIPPort(const std::string& peerStr,std::string& retIP,int& retPort);
     void addConfigPeers();
     void addPeerList(const std::vector<std::string>& list,int rank);
     bool isPeerPreferred(Peer::pointer peer);
@@ -55,6 +55,7 @@ class PeerMaster : public OverlayGateway
                           Peer::pointer peer);
     //////
 
+    void connectTo(const std::string& addr);
     void addPeer(Peer::pointer peer);
     void dropPeer(Peer::pointer peer);
     bool isPeerAccepted(Peer::pointer peer);

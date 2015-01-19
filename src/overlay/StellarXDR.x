@@ -316,6 +316,7 @@ struct PeerAddress
 {
     opaque ip[4];
     uint32 port;
+	uint32 numFailures;
 };
 
 enum MessageType

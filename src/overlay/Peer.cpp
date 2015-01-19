@@ -112,6 +112,7 @@ Peer::sendPeers()
     {
         ipFromStr(peerList[n].mIP, newMsg.peers()[n].ip);
         newMsg.peers()[n].port = peerList[n].mPort;
+        newMsg.peers()[n].numFailures= peerList[n].mNumFailures;
     }
     sendMessage(newMsg);
 }
@@ -378,7 +379,7 @@ Peer::recvPeers(StellarMessage const& msg)
         // TODO.3 make sure they aren't sending us garbage
         stringstream ip;
         ip << (int)peer.ip[0] << "." << (int)peer.ip[1] << "." << (int)peer.ip[2] << "." << (int)peer.ip[3];
-        mApp.getDatabase().addPeer(ip.str(), peer.port,1);
+        mApp.getDatabase().addPeer(ip.str(), peer.port, peer.numFailures, 1);
     }
 }
 

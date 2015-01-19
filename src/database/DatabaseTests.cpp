@@ -62,6 +62,5 @@ TEST_CASE("postgres smoketest", "[db]")
         LOG(ERROR) << "DB error: " << err.what();
         REQUIRE(0);
     }
-   
 }
 #endif
