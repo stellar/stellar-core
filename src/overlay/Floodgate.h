@@ -13,9 +13,8 @@
 Keeps track of what peers have sent us which flood messages so we know who to
 send to when we broadcast the messages in return
 
-Transactions  (txID)
-Prepare		(sig I know they could be malleable but that doesn't
-matter in this case the worse thing would be we would flood twice)
+Transactions  (fullHash)
+Prepare		(hash of envelope)
 Aborted
 Commit
 Committed

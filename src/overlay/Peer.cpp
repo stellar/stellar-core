@@ -290,8 +290,7 @@ Peer::recvTransaction(StellarMessage const& msg)
         // add it to our current set
         if (mApp.getHerderGateway().recvTransaction(transaction))
         {
-
-            mApp.getOverlayGateway().recvFloodedMsg(transaction->getFullHash(),msg, shared_from_this());
+            mApp.getOverlayGateway().recvFloodedMsg(transaction->getFullHash(), msg, mApp.getLedgerMaster().getLedgerNum()+1, Peer::pointer());
         }
     }
 }
@@ -326,7 +325,8 @@ Peer::recvFBAMessage(StellarMessage const& msg)
 
     if(mApp.getHerderGateway().recvFBAEnvelope(envelope))
     {
-        mApp.getOverlayGateway().recvFloodedMsg(msg.fbaMessage.signature, msg,
+        Hash envHash = sha512_256(xdr::xdr_to_msg(envelope));
+        mApp.getOverlayGateway().recvFloodedMsg(envHash, msg,
                                             envelope.statement.slotIndex,
                                             shared_from_this());
     }

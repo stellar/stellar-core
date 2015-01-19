@@ -18,6 +18,7 @@ using namespace soci;
 
 // TODO.3 some tests
 // TODO.2 are we flooding txs?
+// TODO.2 floodgate seems broken. are we adding peers that we tell?
 
 namespace stellar
 {
