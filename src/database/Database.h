@@ -47,7 +47,7 @@ class Database
 
     int64_t getBalance(const uint256& accountID, const Currency& currency);
     
-    void addPeer(std::string ip, int port,int rank);
+    void addPeer(const std::string& ip, int port,int numFailures, int rank);
     void loadPeers(int max, std::vector<PeerRecord>& retList);
 
 

@@ -14,10 +14,8 @@
 
 using namespace soci;
 
-#define MAX_FAILURES 20
+#define SECONDS_PER_BACKOFF 10
 
-// TODO.3 drop long failed peers from the DB
-// TODO.3 allow manual connects
 // TODO.3 some tests
 
 
@@ -49,17 +47,18 @@ PeerMaster::~PeerMaster()
 }
 
 // LATER: verify ip and port are valid
-bool PeerMaster::parseIPPort(std::string& peerStr, std::string& retIP, int& retPort)
+bool PeerMaster::parseIPPort(const std::string& peerStr, std::string& retIP, int& retPort)
 {
+    std::string innerStr(peerStr);
     std::string::iterator splitPoint =
-        std::find(peerStr.rbegin(), peerStr.rend(), ':').base();
-    if(splitPoint == peerStr.end())
+        std::find(innerStr.rbegin(), innerStr.rend(), ':').base();
+    if(splitPoint == innerStr.end())
     {
-        retIP = peerStr;
+        retIP = innerStr;
         retPort = DEFAULT_PEER_PORT;
     }else
     {
-        retIP.assign(peerStr.begin(), splitPoint);
+        retIP.assign(innerStr.begin(), splitPoint);
         std::string portStr;
         splitPoint++;
         portStr.assign(splitPoint, peerStr.end());
@@ -67,6 +66,33 @@ bool PeerMaster::parseIPPort(std::string& peerStr, std::string& retIP, int& retP
         if(!retPort) return false;
     }
     return true;
+}
+
+void PeerMaster::connectTo(const std::string& peerStr)
+{
+    std::string ip;
+    int port;
+    if(parseIPPort(peerStr, ip, port))
+    {
+        mApp.getDatabase().addPeer(ip, port, 0, 2);
+        if(!getPeer(ip, port))
+        {
+            time_t rawtime;
+            struct tm * nextAttempt;
+
+            time(&rawtime);
+            nextAttempt = gmtime(&rawtime);
+            nextAttempt->tm_sec += 2 * SECONDS_PER_BACKOFF;
+            mktime(nextAttempt);
+
+            mApp.getDatabase().getSession() << "UPDATE Peers set numFailures=numFailures+1 and nextAttempt=:v1 where ip=:v2 and port=:v3",
+                use(*nextAttempt), use(ip), use(port);
+            addPeer(Peer::pointer(new TCPPeer(mApp, ip, port)));
+        }
+    } else
+    {
+        CLOG(ERROR, "overlay") << "couldn't parse peer: " << peerStr;
+    }
 }
 
 void PeerMaster::addPeerList(const std::vector<std::string>& list, int rank)
@@ -77,7 +103,7 @@ void PeerMaster::addPeerList(const std::vector<std::string>& list, int rank)
         int port;
         if(parseIPPort(peerStr, ip, port))
         {
-            mApp.getDatabase().addPeer(ip, port, rank);
+            mApp.getDatabase().addPeer(ip, port, 0, rank);
         } else
         {
             CLOG(ERROR, "overlay") << "couldn't parse peer: " << peerStr;
@@ -107,12 +133,13 @@ PeerMaster::tick()
         {
             if(!getPeer(peerRecord.mIP, peerRecord.mPort))
             {
+                
                 time_t rawtime;
                 struct tm * nextAttempt;
 
                 time(&rawtime);
                 nextAttempt = gmtime(&rawtime);
-                nextAttempt->tm_sec += pow(2, peerRecord.mNumFailures + 1)*2;
+                nextAttempt->tm_sec += pow(2, peerRecord.mNumFailures + 1) * SECONDS_PER_BACKOFF;
                 mktime(nextAttempt);
 
                 mApp.getDatabase().getSession() << "UPDATE Peers set numFailures=numFailures+1 and nextAttempt=:v1 where peerID=:v2",
@@ -120,6 +147,8 @@ PeerMaster::tick()
                 addPeer(Peer::pointer(new TCPPeer(mApp, peerRecord.mIP, peerRecord.mPort)));
                 num--;
                 if(num < 1) break;
+               
+               
             }        
         }
     }

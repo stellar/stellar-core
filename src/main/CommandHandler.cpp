@@ -9,6 +9,7 @@
 #include "util/Logging.h"
 #include "util/make_unique.h"
 #include "medida/reporting/json_reporter.h"
+#include "overlay/PeerMaster.h"
 
 using std::placeholders::_1;
 using std::placeholders::_2;
@@ -80,7 +81,7 @@ CommandHandler::reloadCfg(const std::string& params, std::string& retStr)
     }
     else
     {
-        retStr = "Must specify a filename reload_cfg?file=????";
+        retStr = "Must specify a filename reload_cfg&file=????";
     }
 }
 
@@ -92,13 +93,21 @@ CommandHandler::logRotate(const std::string& params, std::string& retStr)
 void
 CommandHandler::connect(const std::string& params, std::string& retStr)
 {
-    retStr = "Connect to";
+    std::string addr = params.substr(6);
+    if(addr.size())
+    {
+        retStr = "Connect to";
+        mApp.getPeerMaster().connectTo(addr);
+    } else
+    {
+        retStr = "Must specify a filename connect&peer=????";
+    }
 }
 
 void
 CommandHandler::tx(const std::string& params, std::string& retStr)
 {
-    retStr = "Submiting Transaction...";
+    retStr = "Submitting Transaction...";
     // TODO.2 
 }
 }
