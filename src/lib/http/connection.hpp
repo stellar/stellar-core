@@ -1,3 +1,5 @@
+#pragma once
+
 //
 // connection.hpp
 // ~~~~~~~~~~~~~~
@@ -8,20 +10,13 @@
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
 
-#ifndef HTTP_CONNECTION_HPP
-#define HTTP_CONNECTION_HPP
-
-#ifndef ASIO_SEPARATE_COMPILATION
-#define ASIO_SEPARATE_COMPILATION
-#endif
-
-#ifndef ASIO_HAS_STD_ARRAY
-#define ASIO_HAS_STD_ARRAY
-#endif
+// ASIO is somewhat particular about when it gets included -- it wants to be the
+// first to include <windows.h> -- so we try to include it before everything
+// else.
+#include "util/asio.h"
 
 #include <array>
 #include <memory>
-#include <asio.hpp>
 #include "reply.hpp"
 #include "request.hpp"
 #include "request_parser.hpp"
@@ -83,5 +78,3 @@ typedef std::shared_ptr<connection> connection_ptr;
 
 } // namespace server
 } // namespace http
-
-#endif // HTTP_CONNECTION_HPP

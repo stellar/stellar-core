@@ -1,3 +1,4 @@
+#pragma once
 //
 // reply.hpp
 // ~~~~~~~~~
@@ -8,20 +9,13 @@
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
 
-#ifndef HTTP_REPLY_HPP
-#define HTTP_REPLY_HPP
-
-#ifndef ASIO_SEPARATE_COMPILATION
-#define ASIO_SEPARATE_COMPILATION
-#endif
-
-#ifndef ASIO_HAS_STD_ARRAY
-#define ASIO_HAS_STD_ARRAY
-#endif
+// ASIO is somewhat particular about when it gets included -- it wants to be the
+// first to include <windows.h> -- so we try to include it before everything
+// else.
+#include "util/asio.h"
 
 #include <string>
 #include <vector>
-#include <asio.hpp>
 #include "header.hpp"
 
 namespace http {
@@ -68,5 +62,3 @@ struct reply
 
 } // namespace server
 } // namespace http
-
-#endif // HTTP_REPLY_HPP
