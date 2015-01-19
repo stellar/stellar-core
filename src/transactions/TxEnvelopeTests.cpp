@@ -13,6 +13,7 @@
 #include "lib/json/json.h"
 #include "TxTests.h"
 #include "ledger/LedgerMaster.h"
+#include "ledger/LedgerDelta.h"
 
 using namespace stellar;
 using namespace stellar::txtest;
@@ -45,7 +46,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
     SECTION("outer envelope")
     {
         TransactionFramePtr txFrame;
-        TxDelta delta;
+        LedgerDelta delta;
 
         SECTION("no signature")
         {
@@ -86,17 +87,13 @@ TEST_CASE("txenvelope", "[tx][envelope]")
         REQUIRE(app.getLedgerGateway().getLedgerNum() == 3);
 
         {
-            TxDelta delta;
-            Json::Value jsonResult;
-            LedgerDelta ledgerDelta;
+            LedgerDelta delta;
 
             SECTION("Insufficient fee")
             {
                 txFrame->getEnvelope().tx.maxFee = app.getLedgerMaster().getTxFee() - 1;
 
                 txFrame->apply(delta, app);
-
-                delta.commitDelta(jsonResult, ledgerDelta, app.getLedgerMaster());
 
                 REQUIRE(txFrame->getResultCode() == txINSUFFICIENT_FEE);
             }
@@ -106,8 +103,6 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
                 txFrame->apply(delta, app);
 
-                delta.commitDelta(jsonResult, ledgerDelta, app.getLedgerMaster());
-
                 REQUIRE(txFrame->getResultCode() == txBAD_SEQ);
             }
 
@@ -116,8 +111,6 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                 txFrame = createPaymentTx(root, a1, 3, paymentAmount);
 
                 txFrame->apply(delta, app);
-
-                delta.commitDelta(jsonResult, ledgerDelta, app.getLedgerMaster());
 
                 REQUIRE(txFrame->getResultCode() == txBAD_SEQ);
             }

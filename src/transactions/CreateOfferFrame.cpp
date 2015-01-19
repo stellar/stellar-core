@@ -3,6 +3,7 @@
 #include "util/Logging.h"
 #include "util/types.h"
 #include "database/Database.h"
+#include "ledger/LedgerDelta.h"
 
 // This is pretty gnarly still. I'll clean it up as I write the tests
 //
@@ -58,10 +59,8 @@ bool CreateOfferFrame::checkOfferValid(LedgerMaster& ledgerMaster)
 // need to check the counter offers selling wheat for sheep
 // see if this is modifying an old offer
 // see if this offer crosses any existing offers
-bool CreateOfferFrame::doApply(TxDelta& delta, LedgerMaster& ledgerMaster)
+bool CreateOfferFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
 {
-    TxDelta tempDelta;
-
     if(!checkOfferValid(ledgerMaster)) return false;
     Currency& sheep = mEnvelope.tx.body.createOfferTx().takerGets;
     Currency& wheat = mEnvelope.tx.body.createOfferTx().takerPays;
@@ -79,16 +78,12 @@ bool CreateOfferFrame::doApply(TxDelta& delta, LedgerMaster& ledgerMaster)
         if(ledgerMaster.getDatabase().loadOffer(mEnvelope.tx.account, offerSeq, mSellSheepOffer))
         {
             // make sure the currencies are the same
-            if( compareCurrency(mEnvelope.tx.body.createOfferTx().takerGets, mSellSheepOffer.mEntry.offer().takerGets) &&
-                compareCurrency(mEnvelope.tx.body.createOfferTx().takerPays, mSellSheepOffer.mEntry.offer().takerPays))
-            {
-                tempDelta.setStart(mSellSheepOffer);
-            } else
+            if(!compareCurrency(mEnvelope.tx.body.createOfferTx().takerGets, mSellSheepOffer.mEntry.offer().takerGets) ||
+                !compareCurrency(mEnvelope.tx.body.createOfferTx().takerPays, mSellSheepOffer.mEntry.offer().takerPays))
             {
                 mResultCode = txMALFORMED;
                 return false;
             }
-            
         } else
         {
             mResultCode = txOFFER_NOT_FOUND;
@@ -104,47 +99,68 @@ bool CreateOfferFrame::doApply(TxDelta& delta, LedgerMaster& ledgerMaster)
     
 
     int64_t amountOfSheepOwned;
-    if(sheep.type()==NATIVE) 
-        amountOfSheepOwned = mSigningAccount->mEntry.account().balance - 
+    if (sheep.type() == NATIVE)
+    {
+        amountOfSheepOwned = mSigningAccount->mEntry.account().balance -
             ledgerMaster.getMinBalance(mSigningAccount->mEntry.account().ownerCount);
-    else amountOfSheepOwned = mSheepLineA.mEntry.trustLine().balance;
+    }
+    else
+    {
+        amountOfSheepOwned = mSheepLineA.mEntry.trustLine().balance;
+    }
     
     // amount of sheep for sale is the lesser of amount we have and amount put in the offer
     //int64_t amountOfSheepForSale = amountOfWheat*OFFER_PRICE_DIVISOR / sheepPrice;
-    if(amountOfSheepOwned < maxSheepReceived) maxSheepReceived = amountOfSheepOwned;
-    if(mSheepTransferRate != TRANSFER_RATE_DIVISOR)
-        maxSheepReceived = bigDivide(maxSheepReceived,mSheepTransferRate,TRANSFER_RATE_DIVISOR);
+    if (amountOfSheepOwned < maxSheepReceived)
+    {
+        maxSheepReceived = amountOfSheepOwned;
+    }
+    if (mSheepTransferRate != TRANSFER_RATE_DIVISOR)
+    {
+        maxSheepReceived = bigDivide(maxSheepReceived, mSheepTransferRate, TRANSFER_RATE_DIVISOR);
+    }
 
     int64_t sheepPrice = mEnvelope.tx.body.createOfferTx().price;
     
-    if(!convert(sheep, wheat,
-        maxSheepReceived, sheepPrice, tempDelta, ledgerMaster))
     {
-        return false;
-    }
+        soci::transaction sqlTx(ledgerMaster.getDatabase().getSession());
+        LedgerDelta tempDelta;
 
-    
-
-    if(mSellSheepOffer.mEntry.offer().amount>0)
-    { // we still have sheep to sell so leave an offer
-
-        tempDelta.setFinal(mSellSheepOffer);
-        if(creatingNewOffer)
+        if (!convert(sheep, wheat,
+            maxSheepReceived, sheepPrice, tempDelta, ledgerMaster))
         {
-            // make sure we don't allow us to add offers when we don't have the minbalance
-            if(mSigningAccount->mEntry.account().balance <
-                ledgerMaster.getMinBalance(mSigningAccount->mEntry.account().ownerCount + 1))
-            {
-                mResultCode = txBELOW_MIN_BALANCE;
-                return false;
-            }
-
-            mSigningAccount->mEntry.account().ownerCount++;
-            tempDelta.setFinal(*mSigningAccount);
+            return false;
         }
-    } 
-    
-    delta.merge(tempDelta);
+
+
+
+        if (mSellSheepOffer.mEntry.offer().amount > 0)
+        { // we still have sheep to sell so leave an offer
+
+            if (creatingNewOffer)
+            {
+                // make sure we don't allow us to add offers when we don't have the minbalance
+                if (mSigningAccount->mEntry.account().balance <
+                    ledgerMaster.getMinBalance(mSigningAccount->mEntry.account().ownerCount + 1))
+                {
+                    mResultCode = txBELOW_MIN_BALANCE;
+                    return false;
+                }
+
+                mSellSheepOffer.storeAdd(tempDelta, ledgerMaster);
+
+                mSigningAccount->mEntry.account().ownerCount++;
+                mSigningAccount->storeChange(tempDelta, ledgerMaster);
+            }
+            else
+            {
+                mSellSheepOffer.storeChange(tempDelta, ledgerMaster);
+            }
+        }
+
+        sqlTx.commit();
+        delta.merge(tempDelta);
+    }
     return true;
 }
 
@@ -155,7 +171,7 @@ bool CreateOfferFrame::doApply(TxDelta& delta, LedgerMaster& ledgerMaster)
 // returns false if the tx should abort
 bool CreateOfferFrame::convert(Currency& sheep,
     Currency& wheat, int64_t maxSheepReceived, int64_t minSheepPrice,
-    TxDelta& delta, LedgerMaster& ledgerMaster)
+    LedgerDelta& delta, LedgerMaster& ledgerMaster)
 {
     int64_t maxWheatPrice = bigDivide(OFFER_PRICE_DIVISOR,OFFER_PRICE_DIVISOR,minSheepPrice);
 
@@ -234,7 +250,7 @@ amountWheatTheyHave
 // returns false if there was an error
 bool CreateOfferFrame::crossOffer(OfferFrame& sellingWheatOffer,
     int64_t maxSheepReceived, int64_t& amountSheepReceived,
-    TxDelta& delta, LedgerMaster& ledgerMaster)
+    LedgerDelta& delta, LedgerMaster& ledgerMaster)
 {
     Currency& sheep = mEnvelope.tx.body.createOfferTx().takerGets;
     Currency& wheat = mEnvelope.tx.body.createOfferTx().takerPays;
@@ -272,16 +288,24 @@ bool CreateOfferFrame::crossOffer(OfferFrame& sellingWheatOffer,
     }
     
     int64_t maxWheatReceived = 0;
-    if(wheat.type()==NATIVE) maxWheatReceived = accountB.mEntry.account().balance;
-    else maxWheatReceived = wheatLineAccountB.mEntry.trustLine().balance;
+    if (wheat.type() == NATIVE)
+    {
+        maxWheatReceived = accountB.mEntry.account().balance;
+    }
+    else
+    {
+        maxWheatReceived = wheatLineAccountB.mEntry.trustLine().balance;
+    }
 
     // you can receive the lesser of the amount of wheat offered or the amount the guy has
-    if(mWheatTransferRate != TRANSFER_RATE_DIVISOR) 
-        maxWheatReceived = bigDivide(maxWheatReceived,mWheatTransferRate,TRANSFER_RATE_DIVISOR);
-    if(maxWheatReceived > sellingWheatOffer.mEntry.offer().amount)
+    if (mWheatTransferRate != TRANSFER_RATE_DIVISOR)
+    {
+        maxWheatReceived = bigDivide(maxWheatReceived, mWheatTransferRate, TRANSFER_RATE_DIVISOR);
+    }
+    if (maxWheatReceived > sellingWheatOffer.mEntry.offer().amount)
+    {
         maxWheatReceived = sellingWheatOffer.mEntry.offer().amount;
-
-    delta.setStart(sellingWheatOffer);
+    }
 
     int64_t numSheepSent;
     int64_t numSheepReceived;
@@ -314,14 +338,18 @@ bool CreateOfferFrame::crossOffer(OfferFrame& sellingWheatOffer,
         
         CLOG(ERROR, "Tx") << "Transaction::convert offer amount below 0 :" << sellingWheatOffer.mEntry.offer().amount;
         sellingWheatOffer.mEntry.offer().amount = 0;
+        // TODO: this is probably a bug, why not throw?
     }
+
     if(sellingWheatOffer.mEntry.offer().amount)
     {
-        delta.setFinal(sellingWheatOffer);
-    } else
+        sellingWheatOffer.storeChange(delta, ledgerMaster);
+    }
+    else
     {   // entire offer is taken
+        sellingWheatOffer.storeDelete(delta, ledgerMaster);
         accountB.mEntry.account().ownerCount--;
-        delta.setFinal(accountB);
+        accountB.storeChange(delta, ledgerMaster);
     }
 
     // Adjust balances
@@ -329,28 +357,31 @@ bool CreateOfferFrame::crossOffer(OfferFrame& sellingWheatOffer,
     {
         mSigningAccount->mEntry.account().balance -= numSheepSent;
         accountB.mEntry.account().balance += numSheepSent;
-        delta.setFinal(accountB);
-        delta.setFinal(*mSigningAccount);
-    } else
+
+        accountB.storeChange(delta, ledgerMaster);
+        mSigningAccount->storeChange(delta, ledgerMaster);
+    }
+    else
     {
         mSheepLineA.mEntry.trustLine().balance -= numSheepSent;
         sheepLineAccountB.mEntry.trustLine().balance += numSheepReceived;
-        delta.setFinal(sheepLineAccountB);
-        delta.setFinal(mSheepLineA);
+        sheepLineAccountB.storeChange(delta, ledgerMaster);
+        mSheepLineA.storeChange(delta, ledgerMaster);
     }
 
     if(wheat.type()==NATIVE)
     {
         mSigningAccount->mEntry.account().balance += numWheatSent;
         accountB.mEntry.account().balance -= numWheatSent;
-        delta.setFinal(accountB);
-        delta.setFinal(*mSigningAccount);
-    } else
+        accountB.storeChange(delta, ledgerMaster);
+        mSigningAccount->storeChange(delta, ledgerMaster);
+    }
+    else
     {
         mWheatLineA.mEntry.trustLine().balance += numWheatReceived;
         wheatLineAccountB.mEntry.trustLine().balance -= numWheatSent;
-        delta.setFinal(wheatLineAccountB);
-        delta.setFinal(mWheatLineA);
+        wheatLineAccountB.storeChange(delta, ledgerMaster);
+        mWheatLineA.storeChange(delta, ledgerMaster);
     }
     return true;
 }
@@ -360,7 +391,10 @@ bool CreateOfferFrame::doCheckValid(Application& app)
 {
     Currency& sheep = mEnvelope.tx.body.createOfferTx().takerGets;
     Currency& wheat = mEnvelope.tx.body.createOfferTx().takerPays;
-    if(compareCurrency(sheep, wheat)) return false;
+    if (compareCurrency(sheep, wheat))
+    {
+        return false;
+    }
     
     return true;
 }

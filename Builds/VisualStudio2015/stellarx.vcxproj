@@ -170,7 +170,6 @@
     <ClCompile Include="..\..\src\transactions\PaymentTests.cpp" />
     <ClCompile Include="..\..\src\transactions\SetOptionsFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\SetOptionsTests.cpp" />
-    <ClCompile Include="..\..\src\transactions\TxDelta.cpp" />
     <ClCompile Include="..\..\src\transactions\TxEnvelopeTests.cpp" />
     <ClCompile Include="..\..\src\transactions\TxTests.cpp" />
     <ClCompile Include="..\..\src\util\TempDir.cpp" />
@@ -273,7 +272,6 @@
     <ClInclude Include="..\..\src\transactions\TransactionFrame.h" />
     <ClInclude Include="..\..\src\transactions\TxResultCode.h" />
     <ClInclude Include="..\..\src\transactions\ChangeTrustTxFrame.h" />
-    <ClInclude Include="..\..\src\transactions\TxDelta.h" />
     <ClInclude Include="..\..\src\transactions\TxTests.h" />
     <ClInclude Include="..\..\src\util\Logging.h" />
     <ClInclude Include="..\..\src\util\make_unique.h" />

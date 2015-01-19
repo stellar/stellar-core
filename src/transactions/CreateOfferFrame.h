@@ -18,18 +18,18 @@ namespace stellar
         
         bool crossOffer(OfferFrame& sellingWheatOffer,
             int64_t maxSheepReceived, int64_t& amountSheepReceived,
-            TxDelta& delta, LedgerMaster& ledgerMaster);
+            LedgerDelta& delta, LedgerMaster& ledgerMaster);
 
         
 
         bool convert(Currency& sheep,
             Currency& wheat, int64_t amountOfSheepToSell, int64_t minSheepPrice,
-            TxDelta& delta, LedgerMaster& ledgerMaster);
+            LedgerDelta& delta, LedgerMaster& ledgerMaster);
 
     public:
         CreateOfferFrame(const TransactionEnvelope& envelope);
 
-        bool doApply(TxDelta& delta, LedgerMaster& ledgerMaster);
+        bool doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster);
         bool doCheckValid(Application& app);
     };
 }

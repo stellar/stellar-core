@@ -19,6 +19,8 @@ namespace stellar
 {
     class LedgerMaster;
     class Database;
+    class LedgerDelta;
+
     /*
     extern void getIndex(const LedgerEntry& entry, const uint256& retIndex);
 
@@ -54,10 +56,9 @@ namespace stellar
         uint256 getHash();
 
 		
-		// these will do the appropriate thing in the DB and the json txResult
-		virtual void storeDelete(Json::Value& txResult, LedgerMaster& ledgerMaster)=0;
-		virtual void storeChange(EntryFrame::pointer startFrom, Json::Value& txResult, LedgerMaster& ledgerMaster)=0;
-		virtual void storeAdd(Json::Value& txResult, LedgerMaster& ledgerMaster)=0;
+		virtual void storeDelete(LedgerDelta &delta, LedgerMaster& ledgerMaster)=0;
+		virtual void storeChange(LedgerDelta &delta, LedgerMaster& ledgerMaster)=0;
+		virtual void storeAdd(LedgerDelta &delta, LedgerMaster& ledgerMaster)=0;
 
         static void dropAll(Database &db); // deletes all data from DB
 	};

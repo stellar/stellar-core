@@ -174,9 +174,6 @@
     <ClCompile Include="..\..\src\crypto\CryptoTests.cpp">
       <Filter>crypto</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\transactions\TxDelta.cpp">
-      <Filter>transactions</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\database\Database.cpp">
       <Filter>database</Filter>
     </ClCompile>
@@ -478,9 +475,6 @@
     </ClInclude>
     <ClInclude Include="..\..\src\history\HistoryArchive.h">
       <Filter>history</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\transactions\TxDelta.h">
-      <Filter>transactions</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\transactions\TxResultCode.h">
       <Filter>transactions</Filter>

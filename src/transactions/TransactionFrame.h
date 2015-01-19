@@ -13,7 +13,6 @@
 #include "transactions/TxResultCode.h"
 #include "util/types.h"
 #include "lib/json/json-forwards.h"
-#include "transactions/TxDelta.h"
 
 /*
 A transaction in its exploded form.
@@ -33,16 +32,17 @@ namespace stellar
         Hash mContentsHash;  // the hash of the contents
         Hash mFullHash;    // the hash of the contents and the sig. 
         TxResultCode mResultCode;
+        int64 mFee;
 
 
         // common side effects to all transactions (fees)
         // returns true if we should proceed with the transaction
-        bool preApply(TxDelta& delta, LedgerMaster& ledgerMaster);
+        bool preApply(LedgerDelta& delta, LedgerMaster& ledgerMaster);
 
         bool checkSignature();
 
         virtual bool doCheckValid(Application& app) = 0;
-        virtual bool doApply(TxDelta& delta, LedgerMaster& ledgerMaster) = 0;
+        virtual bool doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster) = 0;
         virtual int32_t getNeededThreshold();
 
         int64_t getTransferRate(Currency& currency, LedgerMaster& ledgerMaster);
@@ -67,13 +67,14 @@ namespace stellar
         bool loadAccount(Application& app);
 
         TxResultCode getResultCode() { return mResultCode;  }
+        int64 getFee() { return mFee; }
 
         bool checkValid(Application& app);
 
         // apply this transaction to the current ledger
         // LATER: how will applying historical txs work?
         // returns true if successfully applied
-        bool apply(TxDelta& delta, Application& app);
+        bool apply(LedgerDelta& delta, Application& app);
 
         StellarMessage&& toStellarMessage();
 

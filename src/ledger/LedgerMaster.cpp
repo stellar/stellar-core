@@ -55,8 +55,8 @@ void LedgerMaster::startNewLedger()
     SecretKey skey = SecretKey::fromBase58Seed(b58SeedStr);
     AccountFrame masterAccount(skey.getPublicKey());
     masterAccount.mEntry.account().balance = 100000000000000;
-    Json::Value result;
-    masterAccount.storeAdd(result, *this);
+    LedgerDelta delta;
+    masterAccount.storeAdd(delta, *this);
 
     LedgerHeader genenisHeader;
     genenisHeader.baseFee = mApp.getConfig().DESIRED_BASE_FEE;
@@ -182,19 +182,18 @@ void LedgerMaster::closeLedger(TxSetFramePtr txSet)
     for(auto tx : txs)
     {
         try {
-            TxDelta delta;
+            LedgerDelta delta;
+
+            // note that successfulTX here just means it got processed
+            // a failed transaction collecting a fee is successful at this layer
             if(tx->apply(delta, mApp))
             {
                 successfulTX.add(tx);
             }
-
-            Json::Value txResult;
-            txResult["id"] = binToHex(tx->getContentsHash());
-            txResult["code"] = tx->getResultCode();
-            txResult["ledger"] = (Json::UInt64)mCurrentLedger->mHeader.ledgerSeq;
-
-            delta.commitDelta(txResult, ledgerDelta, *this );
-            mCurrentLedger->mHeader.feePool += delta.getCollectedFee();
+            else
+            {
+                CLOG(ERROR, "Tx") << "invalid tx. This should never happen";
+            }
             
         }catch(...)
         {

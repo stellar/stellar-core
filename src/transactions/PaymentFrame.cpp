@@ -19,7 +19,7 @@ using namespace std;
 
     }
 
-    bool PaymentFrame::doApply(TxDelta& delta,LedgerMaster& ledgerMaster)
+    bool PaymentFrame::doApply(LedgerDelta& delta,LedgerMaster& ledgerMaster)
     {
         int64_t minBalance = ledgerMaster.getMinBalance(mSigningAccount->mEntry.account().ownerCount);
         
@@ -70,25 +70,31 @@ using namespace std;
                 return true;
             }
 
-            if (!isNew)
-            {
-                delta.setStart(destAccount);
-            }
             mSigningAccount->mEntry.account().balance -= mEnvelope.tx.body.paymentTx().amount;
             destAccount.mEntry.account().balance += mEnvelope.tx.body.paymentTx().amount;
-            delta.setFinal(destAccount);
-            delta.setFinal(*mSigningAccount);
+            
+            if (isNew)
+            {
+                destAccount.storeAdd(delta, ledgerMaster);
+            }
+            else
+            {
+                destAccount.storeChange(delta, ledgerMaster);
+            }
+            mSigningAccount->storeChange(delta, ledgerMaster);
             mResultCode = txSUCCESS;
             return true;
         }else
         {   // sending credit
-            TxDelta tempDelta;
+            LedgerDelta tempDelta;
+            soci::transaction sqlTx(ledgerMaster.getDatabase().getSession());
             if(sendCredit(destAccount, tempDelta, ledgerMaster))
             {
+                sqlTx.commit();
                 delta.merge(tempDelta);
                 mResultCode = txSUCCESS;
                 return true;
-            }    
+            }
         }
         return false;
     }
@@ -97,7 +103,7 @@ using namespace std;
     // A is sending to B
     // work backward to determine how much they need to send to get the 
     // specified amount of currency to the recipient
-    bool PaymentFrame::sendCredit(AccountFrame& receiver, TxDelta& delta, LedgerMaster& ledgerMaster)
+    bool PaymentFrame::sendCredit(AccountFrame& receiver, LedgerDelta& delta, LedgerMaster& ledgerMaster)
     {
         // make sure guy can hold what you are trying to send him
         if(mEnvelope.tx.body.paymentTx().destination != mEnvelope.tx.body.paymentTx().currency.isoCI().issuer)
@@ -122,9 +128,9 @@ using namespace std;
                 mResultCode = txNOT_AUTHORIZED;
                 return false;
             }
-            delta.setStart(destLine);
+            
             destLine.mEntry.trustLine().balance += mEnvelope.tx.body.paymentTx().amount;
-            delta.setFinal(destLine);
+            destLine.storeChange(delta, ledgerMaster);
         }
         
         
@@ -190,9 +196,9 @@ using namespace std;
                     mResultCode = txUNDERFUNDED;
                     return false;
                 }
-                delta.setStart(sourceLineFrame);
+                
                 sourceLineFrame.mEntry.trustLine().balance -= sendAmount;
-                delta.setFinal(sourceLineFrame);
+                sourceLineFrame.storeChange(delta, ledgerMaster);
             }
         }
         
@@ -222,7 +228,7 @@ using namespace std;
     // returns false if not possible or something else goes wrong
     bool PaymentFrame::convert(Currency& sheep,
         Currency& wheat, int64_t amountWheat, int64_t& retAmountSheep,
-        TxDelta& delta, LedgerMaster& ledgerMaster)
+        LedgerDelta& delta, LedgerMaster& ledgerMaster)
     {
         int64_t wheatTransferRate = getTransferRate(wheat, ledgerMaster);
 
@@ -265,7 +271,7 @@ using namespace std;
         int64_t maxWheatReceived, int64_t& numWheatReceived, 
         int64_t& numSheepReceived,
         int64_t wheatTransferRate,
-        TxDelta& delta, LedgerMaster& ledgerMaster)
+        LedgerDelta& delta, LedgerMaster& ledgerMaster)
     {
         Currency& sheep = sellingWheatOffer.mEntry.offer().takerPays;
         Currency& wheat = sellingWheatOffer.mEntry.offer().takerGets;
@@ -303,14 +309,24 @@ using namespace std;
         }
 
         numWheatReceived = 0;
-        if(wheat.type()==NATIVE) numWheatReceived = accountB.mEntry.account().balance;
-        else numWheatReceived = wheatLineAccountB.mEntry.trustLine().balance;
+        if (wheat.type() == NATIVE)
+        {
+            numWheatReceived = accountB.mEntry.account().balance;
+        }
+        else
+        {
+            numWheatReceived = wheatLineAccountB.mEntry.trustLine().balance;
+        }
 
         // you can receive the lesser of the amount of wheat offered or the amount the guy has
-        if(wheatTransferRate != TRANSFER_RATE_DIVISOR)
-            numWheatReceived = bigDivide(numWheatReceived,wheatTransferRate,TRANSFER_RATE_DIVISOR);
-        if(numWheatReceived > sellingWheatOffer.mEntry.offer().amount)
+        if (wheatTransferRate != TRANSFER_RATE_DIVISOR)
+        {
+            numWheatReceived = bigDivide(numWheatReceived, wheatTransferRate, TRANSFER_RATE_DIVISOR);
+        }
+        if (numWheatReceived > sellingWheatOffer.mEntry.offer().amount)
+        {
             numWheatReceived = sellingWheatOffer.mEntry.offer().amount;
+        }
 
         bool offerLeft = false;
         if(numWheatReceived > maxWheatReceived)
@@ -318,8 +334,6 @@ using namespace std;
             offerLeft = true;
             numWheatReceived = maxWheatReceived;
         }
-
-        delta.setStart(sellingWheatOffer);
 
         int64_t numWheatSent;
 
@@ -342,32 +356,33 @@ using namespace std;
         }
         if(sellingWheatOffer.mEntry.offer().amount)
         {
-            delta.setFinal(sellingWheatOffer);
+            sellingWheatOffer.storeChange(delta, ledgerMaster);
         } else
         {   // entire offer is taken
+            sellingWheatOffer.storeDelete(delta, ledgerMaster);
             accountB.mEntry.account().ownerCount--;
-            delta.setFinal(accountB);
+            accountB.storeChange(delta, ledgerMaster);
         }
 
         // Adjust balances
         if(sheep.type()==NATIVE)
         {
             accountB.mEntry.account().balance += numSheepReceived;
-            delta.setFinal(accountB);
+            accountB.storeChange(delta, ledgerMaster);
         } else
         {
             sheepLineAccountB.mEntry.trustLine().balance += numSheepReceived;
-            delta.setFinal(sheepLineAccountB);
+            sheepLineAccountB.storeChange(delta, ledgerMaster);
         }
 
         if(wheat.type()==NATIVE)
         {
             accountB.mEntry.account().balance -= numWheatSent;
-            delta.setFinal(accountB);
+            accountB.storeChange(delta, ledgerMaster);
         } else
         {
             wheatLineAccountB.mEntry.trustLine().balance -= numWheatSent;
-            delta.setFinal(wheatLineAccountB);
+            wheatLineAccountB.storeChange(delta, ledgerMaster);
         }
         return true;
     }

@@ -15,7 +15,7 @@ namespace stellar
 	public:
         ChangeTrustTxFrame(const TransactionEnvelope& envelope);
 
-        bool doApply(TxDelta& delta, LedgerMaster& ledgerMaster);
+        bool doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster);
         bool doCheckValid(Application& app);
 	};
 }

@@ -8,6 +8,7 @@
 #include "crypto/Base58.h"
 #include "crypto/Hex.h"
 #include "database/Database.h"
+#include "LedgerDelta.h"
 
 using namespace soci;
 using namespace std;
@@ -43,11 +44,12 @@ AccountFrame::AccountFrame()
     mEntry.account().sequence = 1;
     mEntry.account().transferRate = TRANSFER_RATE_DIVISOR;
     mEntry.account().thresholds[0] = 1; // by default, master key's weight is 1
+    mUpdateSigners = false;
 }
 
 AccountFrame::AccountFrame(LedgerEntry const& from) : EntryFrame(from)
 {
-
+    mUpdateSigners = false;
 }
 
 AccountFrame::AccountFrame(uint256 const& id)
@@ -57,6 +59,7 @@ AccountFrame::AccountFrame(uint256 const& id)
     mEntry.account().transferRate = TRANSFER_RATE_DIVISOR;
     mEntry.account().sequence = 1;
     mEntry.account().thresholds[0] = 1; // by default, master key's weight is 1
+    mUpdateSigners = false;
 }
 
 void AccountFrame::calculateIndex()
@@ -99,11 +102,9 @@ uint32_t AccountFrame::getLowThreshold()
     return mEntry.account().thresholds[1];
 }
 
-void AccountFrame::storeDelete(Json::Value& txResult, LedgerMaster& ledgerMaster)
+void AccountFrame::storeDelete(LedgerDelta &delta, LedgerMaster& ledgerMaster)
 {
     std::string base58ID = toBase58Check(VER_ACCOUNT_ID, getIndex());
-
-    txResult["effects"]["delete"][base58ID];
 
     ledgerMaster.getDatabase().getSession() << 
         "DELETE from Accounts where accountID= :v1", soci::use(base58ID);
@@ -111,13 +112,13 @@ void AccountFrame::storeDelete(Json::Value& txResult, LedgerMaster& ledgerMaster
         "DELETE from AccountData where accountID= :v1", soci::use(base58ID);
     ledgerMaster.getDatabase().getSession() <<
         "DELETE from Signers where accountID= :v1", soci::use(base58ID);
+
+    delta.deleteEntry(*this);
 }
 
-void AccountFrame::storeUpdate(EntryFrame::pointer startFrom, Json::Value& txResult,
-    LedgerMaster& ledgerMaster, bool insert)
+void AccountFrame::storeUpdate(LedgerDelta &delta, LedgerMaster& ledgerMaster, bool insert)
 {
     AccountEntry& finalAccount = mEntry.account();
-    AccountEntry& startAccount = startFrom->mEntry.account();
     std::string base58ID = toBase58Check(VER_ACCOUNT_ID, getIndex());
 
     std::stringstream sql;
@@ -137,46 +138,13 @@ void AccountFrame::storeUpdate(EntryFrame::pointer startFrom, Json::Value& txRes
                 flags = :v7 WHERE accountID = :id";
     }
 
-    if(insert || finalAccount.balance != startAccount.balance)
-    { 
-        txResult["effects"][op][base58ID]["balance"] = (Json::Int64)finalAccount.balance;
-    }
-
-    if(finalAccount.sequence != startAccount.sequence)
-    {
-        txResult["effects"][op][base58ID]["sequence"] = finalAccount.sequence;
-    }
-
-    if(finalAccount.transferRate != startAccount.transferRate)
-    {
-        txResult["effects"][op][base58ID]["transferRate"] = finalAccount.transferRate;
-    }
-
     soci::indicator inflation_ind = soci::i_null;
     string inflationDestStr;
 
     if(finalAccount.inflationDest)
     {
-        if(!startAccount.inflationDest || *finalAccount.inflationDest != *startAccount.inflationDest)
-        {
-            inflationDestStr = toBase58Check(VER_ACCOUNT_PUBLIC, *finalAccount.inflationDest);
-            inflation_ind = soci::i_ok;
-            txResult["effects"][op][base58ID]["inflationDest"] = inflationDestStr;
-        }
-    }
-    
-    if(finalAccount.thresholds != startAccount.thresholds)
-    {
-        txResult["effects"][op][base58ID]["thresholds"][0] = finalAccount.thresholds[0];
-        txResult["effects"][op][base58ID]["thresholds"][1] = finalAccount.thresholds[1];
-        txResult["effects"][op][base58ID]["thresholds"][2] = finalAccount.thresholds[2];
-        txResult["effects"][op][base58ID]["thresholds"][3] = finalAccount.thresholds[3];
-    }
-    
-
-    if(mEntry.account().flags != startAccount.flags)
-    {
-        txResult["effects"][op][base58ID]["flags"] = finalAccount.flags;
+        inflationDestStr = toBase58Check(VER_ACCOUNT_PUBLIC, *finalAccount.inflationDest);
+        inflation_ind = soci::i_ok;
     }
 
     // TODO.3   KeyValue data
@@ -197,105 +165,121 @@ void AccountFrame::storeUpdate(EntryFrame::pointer startFrom, Json::Value& txRes
         {
             throw std::runtime_error("Could not update data in SQL");
         }
+        if (insert)
+        {
+            delta.addEntry(*this);
+        }
+        else
+        {
+            delta.modEntry(*this);
+        }
     }
 
-    // deal with changes to Signers
-    if(finalAccount.signers.size() < startAccount.signers.size())
-    { // some signers were removed
-        for(auto startSigner : startAccount.signers)
+    if (mUpdateSigners)
+    {
+        // TODO: don't do this
+        // instead separate signatures from account, just like offers are separate entities
+        AccountFrame startAccountFrame;
+        if (!ledgerMaster.getDatabase().loadAccount(getID(), startAccountFrame, true))
         {
-            bool found = false;
-            for(auto finalSigner : finalAccount.signers)
-            {
-                if(finalSigner.pubKey == startSigner.pubKey)
-                {
-                    if(finalSigner.weight != startSigner.weight)
-                    {
-                        std::string b58signKey = toBase58Check(VER_ACCOUNT_ID, finalSigner.pubKey);
-                        txResult["effects"]["mod"][base58ID]["signers"][b58signKey] = finalSigner.weight;
-                        ledgerMaster.getDatabase().getSession() << "UPDATE Signers set weight=:v1 where accountID=:v2 and pubKey=:v3",
-                            use(finalSigner.weight), use(base58ID), use(b58signKey);
-                    }
-                    found = true;
-                    break;
-                }
-            }
-            if(!found)
-            { // delete signer
-                std::string b58signKey = toBase58Check(VER_ACCOUNT_ID, startSigner.pubKey);
-                txResult["effects"]["mod"][base58ID]["signers"][b58signKey] = 0;
-                
-                soci::statement st = (ledgerMaster.getDatabase().getSession().prepare << 
-                    "DELETE from Signers where accountID=:v2 and pubKey=:v3",
-                     use(base58ID), use(b58signKey));
-
-                st.execute(true);
-
-                if (st.get_affected_rows() != 1)
-                {
-                    throw std::runtime_error("Could not update data in SQL");
-                }
-            }
+            throw runtime_error("could not load account!");
         }
-    } else
-    { // signers added or the same
-        for(auto finalSigner : finalAccount.signers)
-        {
-            bool found = false;
-            for(auto startSigner : startAccount.signers)
+        AccountEntry &startAccount = startAccountFrame.mEntry.account();
+
+        // deal with changes to Signers
+        if (finalAccount.signers.size() < startAccount.signers.size())
+        { // some signers were removed
+            for (auto startSigner : startAccount.signers)
             {
-                if(finalSigner.pubKey == startSigner.pubKey)
+                bool found = false;
+                for (auto finalSigner : finalAccount.signers)
                 {
-                    if(finalSigner.weight != startSigner.weight)
+                    if (finalSigner.pubKey == startSigner.pubKey)
                     {
-                        std::string b58signKey = toBase58Check(VER_ACCOUNT_ID, finalSigner.pubKey);
-                        txResult["effects"][op][base58ID]["signers"][b58signKey] = finalSigner.weight;
-                        
-                        soci::statement st = (ledgerMaster.getDatabase().getSession().prepare <<
-                            "UPDATE Signers set weight=:v1 where accountID=:v2 and pubKey=:v3",
-                            use(finalSigner.weight), use(base58ID), use(b58signKey));
-
-                        st.execute(true);
-
-                        if (st.get_affected_rows() != 1)
+                        if (finalSigner.weight != startSigner.weight)
                         {
-                            throw std::runtime_error("Could not update data in SQL");
+                            std::string b58signKey = toBase58Check(VER_ACCOUNT_ID, finalSigner.pubKey);
+                            ledgerMaster.getDatabase().getSession() << "UPDATE Signers set weight=:v1 where accountID=:v2 and pubKey=:v3",
+                                use(finalSigner.weight), use(base58ID), use(b58signKey);
                         }
+                        found = true;
+                        break;
                     }
-                    found = true;
-                    break;
+                }
+                if (!found)
+                { // delete signer
+                    std::string b58signKey = toBase58Check(VER_ACCOUNT_ID, startSigner.pubKey);
+
+                    soci::statement st = (ledgerMaster.getDatabase().getSession().prepare <<
+                        "DELETE from Signers where accountID=:v2 and pubKey=:v3",
+                        use(base58ID), use(b58signKey));
+
+                    st.execute(true);
+
+                    if (st.get_affected_rows() != 1)
+                    {
+                        throw std::runtime_error("Could not update data in SQL");
+                    }
                 }
             }
-            if(!found)
-            { // new signer
-                std::string b58signKey = toBase58Check(VER_ACCOUNT_ID, finalSigner.pubKey);
-                txResult["effects"]["new"][base58ID]["signers"][b58signKey] = finalSigner.weight;
-                
-                soci::statement st = (ledgerMaster.getDatabase().getSession().prepare <<
-                    "INSERT INTO Signers (accountID,pubKey,weight) values (:v1,:v2,:v3)",
-                    use(base58ID), use(b58signKey), use(finalSigner.weight));
-
-                st.execute(true);
-
-                if (st.get_affected_rows() != 1)
+        }
+        else
+        { // signers added or the same
+            for (auto finalSigner : finalAccount.signers)
+            {
+                bool found = false;
+                for (auto startSigner : startAccount.signers)
                 {
-                    throw std::runtime_error("Could not update data in SQL");
+                    if (finalSigner.pubKey == startSigner.pubKey)
+                    {
+                        if (finalSigner.weight != startSigner.weight)
+                        {
+                            std::string b58signKey = toBase58Check(VER_ACCOUNT_ID, finalSigner.pubKey);
+
+                            soci::statement st = (ledgerMaster.getDatabase().getSession().prepare <<
+                                "UPDATE Signers set weight=:v1 where accountID=:v2 and pubKey=:v3",
+                                use(finalSigner.weight), use(base58ID), use(b58signKey));
+
+                            st.execute(true);
+
+                            if (st.get_affected_rows() != 1)
+                            {
+                                throw std::runtime_error("Could not update data in SQL");
+                            }
+                        }
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found)
+                { // new signer
+                    std::string b58signKey = toBase58Check(VER_ACCOUNT_ID, finalSigner.pubKey);
+
+                    soci::statement st = (ledgerMaster.getDatabase().getSession().prepare <<
+                        "INSERT INTO Signers (accountID,pubKey,weight) values (:v1,:v2,:v3)",
+                        use(base58ID), use(b58signKey), use(finalSigner.weight));
+
+                    st.execute(true);
+
+                    if (st.get_affected_rows() != 1)
+                    {
+                        throw std::runtime_error("Could not update data in SQL");
+                    }
                 }
             }
         }
     }
 }
 
-void AccountFrame::storeChange(EntryFrame::pointer startFrom,
-    Json::Value& txResult, LedgerMaster& ledgerMaster)
+void AccountFrame::storeChange(LedgerDelta &delta, LedgerMaster& ledgerMaster)
 {
-    storeUpdate(startFrom, txResult, ledgerMaster, false);
+    storeUpdate(delta, ledgerMaster, false);
 }
 
-void AccountFrame::storeAdd(Json::Value& txResult, LedgerMaster& ledgerMaster)
+void AccountFrame::storeAdd(LedgerDelta &delta, LedgerMaster& ledgerMaster)
 {
     EntryFrame::pointer emptyAccount = make_shared<AccountFrame>(mEntry.account().accountID);
-    storeUpdate(emptyAccount, txResult, ledgerMaster, true);
+    storeUpdate(delta, ledgerMaster, true);
 }
 
 void AccountFrame::dropAll(Database &db)
