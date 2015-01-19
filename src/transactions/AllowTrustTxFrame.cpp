@@ -15,7 +15,7 @@ namespace stellar
         return mSigningAccount->getLowThreshold();
     }
 
-    bool AllowTrustTxFrame::doApply(TxDelta& delta, LedgerMaster& ledgerMaster)
+    bool AllowTrustTxFrame::doApply(LedgerDelta &delta, LedgerMaster& ledgerMaster)
     {
         if(!(mSigningAccount->mEntry.account().flags & AccountFrame::AUTH_REQUIRED_FLAG))
         {   // this account doesn't require authorization to hold credit
@@ -36,9 +36,10 @@ namespace stellar
         }
 
         mResultCode = txSUCCESS;
-        delta.setStart(trustLine);
+
         trustLine.mEntry.trustLine().authorized = mEnvelope.tx.body.allowTrustTx().authorize;
-        delta.setFinal(trustLine);
+        trustLine.storeChange(delta, ledgerMaster);
+
         return true;
     }
 

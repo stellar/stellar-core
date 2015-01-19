@@ -13,6 +13,7 @@
 #include "transactions/TxTests.h"
 #include "util/types.h"
 #include "transactions/TransactionFrame.h"
+#include "ledger/LedgerDelta.h"
 
 using namespace stellar;
 using namespace stellar::txtest;
@@ -84,13 +85,9 @@ void applyPaymentTx(Application& app, SecretKey& from, SecretKey& to, uint32_t s
 
     txFrame = createPaymentTx(from, to, seq, amount);
 
-    TxDelta delta;
+    LedgerDelta delta;
     txFrame->apply(delta, app);
 
-    Json::Value jsonResult;
-    LedgerDelta ledgerDelta;
-
-    delta.commitDelta(jsonResult, ledgerDelta, app.getLedgerMaster());
     REQUIRE(txFrame->getResultCode() == txSUCCESS);
 }
 
@@ -100,13 +97,9 @@ void applyTrust(Application& app, SecretKey& from, SecretKey& to, uint32_t seq, 
 
     txFrame = setTrust(from, to, seq, currencyCode);
 
-    TxDelta delta;
+    LedgerDelta delta;
     txFrame->apply(delta, app);
 
-    Json::Value jsonResult;
-    LedgerDelta ledgerDelta;
-
-    delta.commitDelta(jsonResult, ledgerDelta, app.getLedgerMaster());
     REQUIRE(txFrame->getResultCode() == txSUCCESS);
 }
 
@@ -147,13 +140,9 @@ void applyCreditPaymentTx(Application& app, SecretKey& from, SecretKey& to, Curr
 
     txFrame = createCreditPaymentTx(from,to,ci,seq,amount);
 
-    TxDelta delta;
+    LedgerDelta delta;
     txFrame->apply(delta, app);
 
-    Json::Value jsonResult;
-    LedgerDelta ledgerDelta;
-
-    delta.commitDelta(jsonResult, ledgerDelta, app.getLedgerMaster());
     REQUIRE(txFrame->getResultCode() == txSUCCESS);
 }
 
@@ -186,13 +175,9 @@ void applyOffer(Application& app, SecretKey& source, Currency& takerGets,
 
     txFrame = createOfferTx(source, takerGets,takerPays,price,amount, seq);
 
-    TxDelta delta;
+    LedgerDelta delta;
     txFrame->apply(delta, app);
 
-    Json::Value jsonResult;
-    LedgerDelta ledgerDelta;
-
-    delta.commitDelta(jsonResult, ledgerDelta, app.getLedgerMaster());
     REQUIRE(txFrame->getResultCode() == txSUCCESS);
 }
 

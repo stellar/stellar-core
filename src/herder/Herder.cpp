@@ -378,10 +378,10 @@ Herder::recvTransaction(TransactionFramePtr tx)
     return true;
 }
 
-void 
+bool
 Herder::recvFBAEnvelope(FBAEnvelope envelope)
 {
-    mFBA->receiveEnvelope(envelope);
+    return mFBA->receiveEnvelope(envelope);
 }
 
 void

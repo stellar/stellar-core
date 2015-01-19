@@ -7,7 +7,7 @@ namespace stellar
     {
 
     }
-    bool InflationFrame::doApply(TxDelta& delta, LedgerMaster& ledgerMaster)
+    bool InflationFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
     {
         // TODO.2
         return false;

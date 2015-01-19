@@ -61,7 +61,6 @@ void Database::initialize()
         AccountFrame::dropAll(*this);
         OfferFrame::dropAll(*this);
         TrustFrame::dropAll(*this);
-        TxDelta::dropAll(*this);
         PeerMaster::createTable(*this);
         LedgerMaster::dropAll(*this);
         LedgerHeaderFrame::dropAll(*this);

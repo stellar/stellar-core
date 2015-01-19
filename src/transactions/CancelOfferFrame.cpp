@@ -10,7 +10,7 @@ namespace stellar
 
     }
 // look up this Offer
-bool CancelOfferFrame::doApply(TxDelta& delta, LedgerMaster& ledgerMaster)
+bool CancelOfferFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
 {
     OfferFrame offerFrame;
     if(!ledgerMaster.getDatabase().loadOffer(mSigningAccount->mEntry.account().accountID, 
@@ -21,9 +21,9 @@ bool CancelOfferFrame::doApply(TxDelta& delta, LedgerMaster& ledgerMaster)
     }
     mResultCode = txSUCCESS;
     mSigningAccount->mEntry.account().ownerCount--;
-    
-    delta.setStart(offerFrame);  // setting the start but no final deletes the entry
-    delta.setFinal(*mSigningAccount);
+
+    offerFrame.storeDelete(delta, ledgerMaster);
+
     return true;
 }
 

@@ -17,7 +17,7 @@ namespace stellar
     // make sure the we delete all the offers
     // make sure the we delete all the trustlines
     // move the STR to the new account
-    bool MergeFrame::doApply(TxDelta& delta, LedgerMaster& ledgerMaster)
+    bool MergeFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
     {
         AccountFrame otherAccount;
         if(!ledgerMaster.getDatabase().loadAccount(mEnvelope.tx.body.destination(),otherAccount))
@@ -45,24 +45,25 @@ namespace stellar
             return false;
         }
         
+        // delete offers
         std::vector<OfferFrame> retOffers;
         ledgerMaster.getDatabase().loadOffers(mSigningAccount->getID(), retOffers);
         for(auto offer : retOffers)
         {
-            delta.setStart(offer);
+            offer.storeDelete(delta, ledgerMaster);
         }
 
+        // delete trust lines
         std::vector<TrustFrame> retLines;
         ledgerMaster.getDatabase().loadLines(mSigningAccount->getID(), retLines);
         for(auto line : retLines)
         {
-            delta.setStart(line);
+            line.storeDelete(delta, ledgerMaster);
         }
 
-        delta.setStart(otherAccount);
         otherAccount.mEntry.account().balance += mSigningAccount->mEntry.account().balance;
-        delta.setFinal(otherAccount);
-        delta.removeFinal(*mSigningAccount);
+        otherAccount.storeChange(delta, ledgerMaster);
+        mSigningAccount->storeDelete(delta, ledgerMaster);
 
         mResultCode = txSUCCESS;
         return true;

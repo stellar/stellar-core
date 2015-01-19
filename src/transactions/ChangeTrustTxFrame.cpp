@@ -16,23 +16,26 @@ ChangeTrustTxFrame::ChangeTrustTxFrame(const TransactionEnvelope& envelope) : Tr
 {
 
 }
-bool ChangeTrustTxFrame::doApply(TxDelta& delta, LedgerMaster& ledgerMaster)
+bool ChangeTrustTxFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
 {
     TrustFrame trustLine;
         
     if(ledgerMaster.getDatabase().loadTrustLine(mSigningAccount->mEntry.account().accountID,
         mEnvelope.tx.body.changeTrustTx().line, trustLine))
     { // we are modifying an old trustline
-        delta.setStart(trustLine);
-
         trustLine.mEntry.trustLine().limit= mEnvelope.tx.body.changeTrustTx().limit;
         if(trustLine.mEntry.trustLine().limit == 0 &&
             trustLine.mEntry.trustLine().balance == 0)
         {
+            // line gets deleted
             mSigningAccount->mEntry.account().ownerCount--;
-            delta.setFinal(*mSigningAccount);
-            //delete this line by not adding it to setFinal
-        }else delta.setFinal(trustLine);
+            trustLine.storeDelete(delta, ledgerMaster);
+            mSigningAccount->storeChange(delta, ledgerMaster);
+        }
+        else
+        {
+            trustLine.storeChange(delta, ledgerMaster);
+        }
         mResultCode = txSUCCESS;
         return true;
     } else
@@ -52,8 +55,10 @@ bool ChangeTrustTxFrame::doApply(TxDelta& delta, LedgerMaster& ledgerMaster)
         trustLine.mEntry.trustLine().authorized = !issuer.isAuthRequired();
 
         mSigningAccount->mEntry.account().ownerCount++;
-        delta.setFinal(*mSigningAccount);
-        delta.setFinal(trustLine);
+
+        mSigningAccount->storeChange(delta, ledgerMaster);
+        trustLine.storeAdd(delta, ledgerMaster);
+
         mResultCode = txSUCCESS;
         return true;
     }

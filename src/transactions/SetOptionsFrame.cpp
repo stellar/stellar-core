@@ -19,7 +19,7 @@ namespace stellar
     }
 
     // make sure it doesn't allow us to add signers when we don't have the minbalance
-    bool SetOptionsFrame::doApply(TxDelta& delta, LedgerMaster& ledgerMaster)
+    bool SetOptionsFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
     {
         if(mEnvelope.tx.body.setOptionsTx().inflationDest)
         {
@@ -86,10 +86,11 @@ namespace stellar
                     }
                 }
             }
+            mSigningAccount->setUpdateSigners();
         }
         
         mResultCode = txSUCCESS;
-        delta.setFinal(*mSigningAccount);
+        mSigningAccount->storeChange(delta, ledgerMaster);
         return true;
     }
 

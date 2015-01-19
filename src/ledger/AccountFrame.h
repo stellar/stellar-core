@@ -13,8 +13,9 @@ namespace stellar
 	class AccountFrame : public EntryFrame
 	{
 		void calculateIndex();
-        void storeUpdate(EntryFrame::pointer startFrom, Json::Value& txResult,
-            LedgerMaster& ledgerMaster, bool insert);
+        void storeUpdate(LedgerDelta &delta, LedgerMaster& ledgerMaster, bool insert);
+        bool mUpdateSigners;
+
 	public:
         typedef std::shared_ptr<AccountFrame> pointer;
 
@@ -31,7 +32,7 @@ namespace stellar
 
         EntryFrame::pointer copy()  const  { return EntryFrame::pointer(new AccountFrame(*this)); }
 
-
+        void setUpdateSigners() { mUpdateSigners = true; }
         uint64_t getBalance();
         bool isAuthRequired();
         uint256& getID();
@@ -41,9 +42,9 @@ namespace stellar
         uint32_t getLowThreshold();
         uint32_t getSeqNum();
 
-        void storeDelete(Json::Value& txResult, LedgerMaster& ledgerMaster);
-        void storeChange(EntryFrame::pointer startFrom, Json::Value& txResult, LedgerMaster& ledgerMaster);
-        void storeAdd(Json::Value& txResult, LedgerMaster& ledgerMaster);
+        void storeDelete(LedgerDelta &delta, LedgerMaster& ledgerMaster);
+        void storeChange(LedgerDelta &delta, LedgerMaster& ledgerMaster);
+        void storeAdd(LedgerDelta &delta, LedgerMaster& ledgerMaster);
 	
 
         static void dropAll(Database &db);

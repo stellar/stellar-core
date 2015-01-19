@@ -9,6 +9,7 @@
 #include "crypto/SHA.h"
 #include "lib/json/json.h"
 #include "database/Database.h"
+#include "LedgerDelta.h"
 
 using namespace std;
 
@@ -48,51 +49,25 @@ namespace stellar {
         return mEntry.trustLine().balance;
     }
 
-    void TrustFrame::storeDelete(Json::Value& txResult, LedgerMaster& ledgerMaster)
+    void TrustFrame::storeDelete(LedgerDelta &delta, LedgerMaster& ledgerMaster)
     {
         std::string base58ID = toBase58Check(VER_ACCOUNT_ID, getIndex());
-
-        txResult["effects"]["delete"][base58ID];
 
         ledgerMaster.getDatabase().getSession() <<
             "DELETE from TrustLines where trustIndex= :v1", soci::use(base58ID);
+
+        delta.deleteEntry(*this);
     }
 
-    void TrustFrame::storeChange(EntryFrame::pointer startFrom, Json::Value& txResult, LedgerMaster& ledgerMaster)
+    void TrustFrame::storeChange(LedgerDelta &delta, LedgerMaster& ledgerMaster)
     {
         std::string base58ID = toBase58Check(VER_ACCOUNT_ID, getIndex());
 
-        std::stringstream sql;
-        sql << "UPDATE TrustLines set ";
-
-        bool before = false;
-
-        if(mEntry.trustLine().balance != startFrom->mEntry.trustLine().balance)
-        {
-            sql << " balance= " << mEntry.trustLine().balance;
-            txResult["effects"]["mod"][base58ID]["balance"] = (Json::Int64)mEntry.trustLine().balance;
-
-            before = true;
-        }
-
-        if(mEntry.trustLine().limit != startFrom->mEntry.trustLine().limit)
-        {
-            if(before) sql << ", ";
-            sql << " tlimit= " << mEntry.trustLine().limit;
-            txResult["effects"]["mod"][base58ID]["limit"] = (Json::Int64)mEntry.trustLine().limit;
-            before = true;
-        }
-
-        if(mEntry.trustLine().authorized != startFrom->mEntry.trustLine().authorized)
-        {
-            if(before) sql << ", ";
-            sql << " authorized= " << mEntry.trustLine().authorized;
-            txResult["effects"]["mod"][base58ID]["authorized"] = mEntry.trustLine().authorized;
-           
-        }
-
-        sql << " where trustIndex='" << base58ID << "';";
-        soci::statement st = (ledgerMaster.getDatabase().getSession().prepare << sql.str());
+        soci::statement st = (ledgerMaster.getDatabase().getSession().prepare <<
+            "UPDATE TrustLines set balance=:b, tlimit=:tl, "\
+            "authorized=:a WHERE trustIndex=:in",
+            soci::use(mEntry.trustLine().balance), soci::use(mEntry.trustLine().limit),
+            soci::use((int)mEntry.trustLine().authorized), soci::use(base58ID));
 
         st.execute(true);
 
@@ -100,9 +75,11 @@ namespace stellar {
         {
             throw std::runtime_error("Could not update data in SQL");
         }
+
+        delta.modEntry(*this);
     }
 
-    void TrustFrame::storeAdd(Json::Value& txResult, LedgerMaster& ledgerMaster)
+    void TrustFrame::storeAdd(LedgerDelta &delta, LedgerMaster& ledgerMaster)
     {
         std::string base58Index = toBase58Check(VER_ACCOUNT_ID, getIndex());
         std::string b58AccountID = toBase58Check(VER_ACCOUNT_ID, mEntry.trustLine().accountID);
@@ -123,12 +100,7 @@ namespace stellar {
             throw std::runtime_error("Could not update data in SQL");
         }
 
-        txResult["effects"]["new"][base58Index]["type"] = "trust";
-        txResult["effects"]["new"][base58Index]["accountID"] = b58AccountID;
-        txResult["effects"]["new"][base58Index]["issuer"] = b58Issuer;
-        txResult["effects"]["new"][base58Index]["currency"] = currencyCode;
-        txResult["effects"]["new"][base58Index]["limit"] = (Json::Int64)mEntry.trustLine().limit;
-        txResult["effects"]["new"][base58Index]["authorized"] = mEntry.trustLine().authorized;
+        delta.addEntry(*this);
     }
 
     void TrustFrame::dropAll(Database &db)

@@ -60,6 +60,7 @@ TransactionFrame::pointer TransactionFrame::makeTransactionFromWire(TransactionE
 TransactionFrame::TransactionFrame(const TransactionEnvelope& envelope) : mEnvelope(envelope)
 {
     mResultCode = txUNKNOWN;
+    mFee = 0;
 }
     
 Hash& TransactionFrame::getFullHash()
@@ -120,7 +121,7 @@ bool Transaction::isAuthorizedToHold(const AccountEntry& account,
 */
     
 
-bool TransactionFrame::preApply(TxDelta& delta,LedgerMaster& ledgerMaster)
+bool TransactionFrame::preApply(LedgerDelta& delta,LedgerMaster& ledgerMaster)
 {
 
     uint32_t fee = ledgerMaster.getTxFee();
@@ -130,35 +131,52 @@ bool TransactionFrame::preApply(TxDelta& delta,LedgerMaster& ledgerMaster)
         mResultCode = txNOFEE;
 
         // take all their balance to be safe
-        delta.addFee(mSigningAccount->mEntry.account().balance);
         mSigningAccount->mEntry.account().balance = 0;
-        delta.setFinal(*mSigningAccount);
+        mSigningAccount->storeChange(delta, ledgerMaster);
         return false;
     }
 
-    delta.setStart(*mSigningAccount);
-
     mSigningAccount->mEntry.account().balance -= fee;
     mSigningAccount->mEntry.account().sequence += 1;
-    delta.addFee(fee);
-    delta.setFinal(*mSigningAccount);
+    mFee = fee;
+    ledgerMaster.getCurrentLedgerHeader().feePool += getFee();
+
+    mSigningAccount->storeChange(delta, ledgerMaster);
 
     return true;
 }
 
-bool TransactionFrame::apply(TxDelta& delta, Application& app)
+bool TransactionFrame::apply(LedgerDelta& delta, Application& app)
 {
+    bool res;
+
     if(checkValid(app))
     {
-        if(preApply(delta,app.getLedgerMaster()))
+        res = true;
+
+        LedgerMaster &lm = app.getLedgerMaster();
+
+        bool pre_res = preApply(delta, lm);
+
+        if (pre_res)
         {
-            return doApply(delta,app.getLedgerMaster());
+            soci::transaction sqlTx(lm.getDatabase().getSession());
+            LedgerDelta txDelta;
+
+            bool apply_res = doApply(txDelta, lm);
+            if (apply_res)
+            {
+                sqlTx.commit();
+                delta.merge(txDelta);
+            }
         }
-    } else
-    {
-        CLOG(ERROR, "Tx") << "invalid tx. This should never happen";
     }
-    return false;
+    else
+    {
+        res = false;
+    }
+
+    return res;
 }
 
 void TransactionFrame::addSignature(const SecretKey& secretKey)
