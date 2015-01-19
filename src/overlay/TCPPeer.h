@@ -18,12 +18,13 @@ class TCPPeer : public Peer
     uint8_t mIncomingHeader[4];
     vector<uint8_t> mIncomingBody;
 
-    void connect();
     void recvMessage();
     void recvHello(StellarMessage const& msg);
     void sendMessage(xdr::msg_ptr&& xdrBytes);
     int getIncomingMsgLength();
     void startRead();
+
+    void connectHandler(const asio::error_code& error, Application& app);
 
     void writeHandler(const asio::error_code& error,
                       std::size_t bytes_transferred);
@@ -35,8 +36,9 @@ class TCPPeer : public Peer
     static const char* kSQLCreateStatement;
 
   public:
-    TCPPeer(Application& app, shared_ptr<asio::ip::tcp::socket> socket,
-            PeerRole role);
+    TCPPeer(Application& app, shared_ptr<asio::ip::tcp::socket> socket);
+    TCPPeer(Application& app, std::string& ip, int port);
+
     virtual ~TCPPeer()
     {
     }

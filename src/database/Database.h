@@ -17,6 +17,7 @@
 namespace stellar
 {
 class Application;
+class PeerRecord;
 
 class Database
 {
@@ -46,8 +47,8 @@ class Database
 
     int64_t getBalance(const uint256& accountID, const Currency& currency);
     
-    void addPeer(std::string ip, int port);
-    void loadPeers(int max, std::vector< std::pair<std::string, int>>& retList);
+    void addPeer(std::string ip, int port,int rank);
+    void loadPeers(int max, std::vector<PeerRecord>& retList);
 
 
     soci::session& getSession() { return mSession; }

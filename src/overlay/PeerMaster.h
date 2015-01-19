@@ -33,7 +33,9 @@ class PeerMaster : public OverlayGateway
     void tick();
     VirtualTimer mTimer;
 
+    bool parseIPPort(std::string& peerStr,std::string& retIP,int& retPort);
     void addConfigPeers();
+    void addPeerList(const std::vector<std::string>& list,int rank);
     bool isPeerPreferred(Peer::pointer peer);
 
   public:

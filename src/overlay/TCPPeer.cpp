@@ -27,9 +27,18 @@ const char* TCPPeer::kSQLCreateStatement =
         rank    INT     \
     );";
 
-TCPPeer::TCPPeer(Application& app, shared_ptr<asio::ip::tcp::socket> socket,
-                 PeerRole role)
-    : Peer(app, role), mSocket(socket), mHelloTimer(app.getClock())
+TCPPeer::TCPPeer(Application& app, std::string& ip, int port)
+    : Peer(app, INITIATOR), mHelloTimer(app.getClock())
+{
+    mSocket=make_shared<asio::ip::tcp::socket>(mApp.getMainIOService());
+    asio::ip::tcp::endpoint endpoint(asio::ip::address::from_string(ip),
+        port);
+    mSocket->async_connect(endpoint, std::bind(&Peer::connectHandler, this,
+        std::placeholders::_1));
+}
+
+TCPPeer::TCPPeer(Application& app, shared_ptr<asio::ip::tcp::socket> socket)
+    : Peer(app, ACCEPTOR), mSocket(socket), mHelloTimer(app.getClock())
 {
     mHelloTimer.expires_from_now(
         std::chrono::milliseconds(MS_TO_WAIT_FOR_HELLO));
@@ -41,22 +50,18 @@ TCPPeer::TCPPeer(Application& app, shared_ptr<asio::ip::tcp::socket> socket,
         });
 }
 
+
 std::string
 TCPPeer::getIP()
 {
     return mSocket->remote_endpoint().address().to_string();
 }
 
-void
-TCPPeer::connect()
-{
-    // GRAYDON mSocket->async_connect(server_endpoint, your_completion_handler);
-}
 
 void
 TCPPeer::sendMessage(xdr::msg_ptr&& xdrBytes)
 {
-    // Pass ownership of a serizlied XDR message buffer, along with an
+    // Pass ownership of a serialized XDR message buffer, along with an
     // asio::buffer pointing into it, to the callback for async_write, so it
     // survives as long as the request is in flight in the io_service, and
     // is deallocated when the write completes.
@@ -81,7 +86,7 @@ TCPPeer::writeHandler(const asio::error_code& error,
     if (error)
     {
         CLOG(WARNING, "Overlay") << "writeHandler error: " << error;
-        // LATER drop Peer
+        drop();
     }
 }
 
@@ -126,7 +131,7 @@ TCPPeer::readHeaderHandler(const asio::error_code& error,
     else
     {
         CLOG(WARNING, "Overlay") << "readHeaderHandler error: " << error;
-        // LATER drop Peer
+        drop();
     }
 }
 
@@ -142,7 +147,7 @@ TCPPeer::readBodyHandler(const asio::error_code& error,
     else
     {
         CLOG(WARNING, "Overlay") << "readBodyHandler error: " << error;
-        // LATER drop Peer
+        drop();
     }
 }
 

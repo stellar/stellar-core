@@ -22,6 +22,15 @@ using namespace std;
 class Application;
 class LoopbackPeer;
 
+class PeerRecord
+{
+public:
+    std::string mIP;
+    int mPort;
+    int mNumFailures;
+    PeerRecord(std::string& ip,int port,int fails) :mIP(ip), mPort(port), mNumFailures(fails){ }
+};
+
 /*
  * Another peer out there that we are connected to
  */

@@ -10,6 +10,8 @@
 // under the ISC License. See the COPYING file at the top-level directory of
 // this distribution or at http://opensource.org/licenses/ISC
 
+#define DEFAULT_PEER_PORT 39133
+
 namespace stellar
 {
 class HistoryArchive;

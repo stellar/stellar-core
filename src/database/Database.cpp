@@ -69,21 +69,28 @@ void Database::initialize()
     }
 }
 
-void Database::addPeer(std::string ip, int port)
+void Database::addPeer(std::string ip, int port,int rank)
 {
     int peerID;
     mSession << "SELECT peerID from Peers where IP=:v1 and Port=:v2",
         into(peerID), use(ip), use(port);
     if(!mSession.got_data())
     {
-        mSession << "INSERT INTO Peers (IP,Port) values (:v1,:v2)",
-            use(ip), use(port);
+        mSession << "INSERT INTO Peers (IP,Port,Rank) values (:v1,:v2,:v3)",
+            use(ip), use(port), use(rank);
     }
 }
 
-void Database::loadPeers(int max, vector< pair<std::string, int>>& retList)
+void Database::loadPeers(int max, vector<PeerRecord>& retList)
 {
-
+    stringstream sql;
+    sql << "SELECT ip,port,numFailures from Peers where nextAttempt<now() order by rank limit " << max;
+    rowset<row> rs = mSession.prepare << sql.str();
+    for(rowset<row>::const_iterator it = rs.begin(); it != rs.end(); ++it)
+    {
+        row const& row = *it;
+        retList.push_back(PeerRecord(row.get<std::string>(0), row.get<int>(1), row.get<int>(2)));
+    }
 }
 
 bool Database::loadAccount(const uint256& accountID, AccountFrame& retAcc, bool withSig)

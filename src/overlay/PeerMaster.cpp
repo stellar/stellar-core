@@ -9,11 +9,12 @@
 #include <random>
 #include "util/Logging.h"
 #include "database/Database.h"
+#include "overlay/TCPPeer.h"
+
+using namespace soci;
 
 namespace stellar
 {
-
-
 
 PeerMaster::PeerMaster(Application& app)
     : mApp(app)
@@ -36,22 +37,50 @@ PeerMaster::~PeerMaster()
 {
 }
 
-void PeerMaster::addConfigPeers()
+// LATER: verify ip and port are valid
+bool PeerMaster::parseIPPort(std::string& peerStr, std::string& retIP, int& retPort)
+{
+    std::string::iterator splitPoint =
+        std::find(peerStr.rbegin(), peerStr.rend(), ':').base();
+    if(splitPoint == peerStr.end())
+    {
+        retIP = peerStr;
+        retPort = DEFAULT_PEER_PORT;
+    }else
+    {
+        retIP.assign(peerStr.begin(), splitPoint);
+        std::string portStr;
+        splitPoint++;
+        portStr.assign(splitPoint, peerStr.end());
+        retPort = atoi(portStr.c_str());
+        if(!retPort) return false;
+    }
+    return true;
+}
+
+void PeerMaster::addPeerList(const std::vector<std::string>& list, int rank)
 {
     for(auto peerStr : mApp.getConfig().KNOWN_PEERS)
     {
-        // TODO.3
-    }
-
-    for(auto peerStr : mApp.getConfig().PREFERRED_PEERS)
-    {
-        // TODO.3
+        std::string ip;
+        int port;
+        if(parseIPPort(peerStr, ip, port))
+        {
+            mApp.getDatabase().addPeer(ip, port, rank);
+        } else
+        {
+            CLOG(ERROR, "overlay") << "couldn't parse peer: " << peerStr;
+        }
     }
 }
 
+void PeerMaster::addConfigPeers()
+{
+    addPeerList(mApp.getConfig().KNOWN_PEERS, 2);
+    addPeerList(mApp.getConfig().PREFERRED_PEERS, 10);
+}
+
 // called every 2 seconds
-// If we have less than the target number of peers 
-// we will try to connect to one out there
 void
 PeerMaster::tick()
 {
@@ -59,10 +88,15 @@ PeerMaster::tick()
     LOG(DEBUG) << "PeerMaster tick";
     if (mPeers.size() < mApp.getConfig().TARGET_PEER_CONNECTIONS)
     {
-        // TODO.3 make some outbound connections if we can
+        // make some outbound connections if we can
         int num = mApp.getConfig().TARGET_PEER_CONNECTIONS - mPeers.size();
-
-        // SELECT * from Peers where nextAttempt<now() order by rank limit :v1
+        vector<PeerRecord> retList;
+        mApp.getDatabase().loadPeers(num, retList);
+        for(auto addr : retList)
+        {
+            addPeer(Peer::pointer(new TCPPeer(mApp,addr.mIP,addr.mPort)));
+            // TODO.3 update DB
+        }
     }
     
 
@@ -105,11 +139,15 @@ PeerMaster::isPeerAccepted(Peer::pointer peer)
 
 bool PeerMaster::isPeerPreferred(Peer::pointer peer)
 {
+    int count = 0;
     int port = peer->getRemoteListeningPort();
     std::string const& ip = peer->getIP();
-    // TODO.3
-    // SELECT count(*) from Peers where rank>9 and ip=:v1 and port=:v2;
-    return false;
+   
+    mApp.getDatabase().getSession() <<
+        "SELECT count(*) from Peers where rank>9 and ip=:v1 and port=:v2",
+        into(count), use(ip), use(port);
+
+    return count;
 }
 
 Peer::pointer

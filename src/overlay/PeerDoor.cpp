@@ -55,7 +55,7 @@ void
 PeerDoor::handleKnock(shared_ptr<tcp::socket> socket)
 {
     CLOG(DEBUG, "Overlay") << "PeerDoor handleKnock()";
-    Peer::pointer peer = make_shared<TCPPeer>(mApp, socket, Peer::ACCEPTOR);
+    Peer::pointer peer = make_shared<TCPPeer>(mApp, socket);
     mApp.getPeerMaster().addPeer(peer);
     acceptNextPeer();
 }

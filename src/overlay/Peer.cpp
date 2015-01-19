@@ -50,12 +50,11 @@ Peer::sendHello()
 void
 Peer::connectHandler(const asio::error_code& error)
 {
-    if (error)
+    if(error)
     {
         CLOG(WARNING, "Overlay") << "connectHandler error: " << error;
         drop();
-    }
-    else
+    } else
     {
         mState = CONNECTED;
         sendHello();
@@ -108,15 +107,15 @@ Peer::sendPeers()
     // TODO.2 catch DB errors and malformed IPs
 
     // send top 50 peers we know about
-    vector< pair<string, int> > peerList;
+    vector<PeerRecord> peerList;
     mApp.getDatabase().loadPeers(50, peerList);
     StellarMessage newMsg;
     newMsg.type(PEERS);
     newMsg.peers().resize(peerList.size());
     for(int n = 0; n < peerList.size(); n++)
     {
-        ipFromStr(peerList[n].first, newMsg.peers()[n].ip);
-        newMsg.peers()[n].port = peerList[n].second;
+        ipFromStr(peerList[n].mIP, newMsg.peers()[n].ip);
+        newMsg.peers()[n].port = peerList[n].mPort;
     }
     sendMessage(newMsg);
 }
@@ -379,9 +378,10 @@ Peer::recvPeers(StellarMessage const& msg)
 {
     for(auto peer : msg.peers())
     {
+        // TODO.3 make sure they aren't sending us garbage
         stringstream ip;
         ip << (int)peer.ip[0] << "." << (int)peer.ip[1] << "." << (int)peer.ip[2] << "." << (int)peer.ip[3];
-        mApp.getDatabase().addPeer(ip.str(), peer.port);
+        mApp.getDatabase().addPeer(ip.str(), peer.port,1);
     }
 }
 
