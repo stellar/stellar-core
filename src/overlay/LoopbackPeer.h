@@ -15,7 +15,6 @@ Another peer out there that we are connected to
 
 namespace stellar
 {
-using namespace std;
 // [testing] Peer that communicates via byte-buffer delivery events queued in
 // in-process io_services.
 //
@@ -100,14 +99,14 @@ class LoopbackPeer : public Peer
 */
 class LoopbackPeerConnection
 {
-    shared_ptr<LoopbackPeer> mInitiator;
-    shared_ptr<LoopbackPeer> mAcceptor;
+    std::shared_ptr<LoopbackPeer> mInitiator;
+    std::shared_ptr<LoopbackPeer> mAcceptor;
 
   public:
     LoopbackPeerConnection(Application& initiator, Application& acceptor);
     ~LoopbackPeerConnection();
-    shared_ptr<LoopbackPeer> const& getInitiator() const;
-    shared_ptr<LoopbackPeer> const& getAcceptor() const;
+    std::shared_ptr<LoopbackPeer> const& getInitiator() const;
+    std::shared_ptr<LoopbackPeer> const& getAcceptor() const;
 };
 }
 

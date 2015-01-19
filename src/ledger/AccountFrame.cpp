@@ -10,6 +10,7 @@
 #include "database/Database.h"
 
 using namespace soci;
+using namespace std;
 
 namespace stellar
 {

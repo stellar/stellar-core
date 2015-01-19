@@ -6,9 +6,12 @@
 #include "xdrpp/marshal.h"
 #include "crypto/SHA.h"
 #include "main/Application.h"
+#include <algorithm>
 
 namespace stellar
 {
+
+using namespace std;
     
 TxSetFrame::TxSetFrame()
 {

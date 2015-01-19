@@ -15,7 +15,7 @@ namespace stellar
 {
 
 using asio::ip::tcp;
-using std::make_shared;
+using namespace std;
 
 PeerDoor::PeerDoor(Application& app)
     : mApp(app), mAcceptor(mApp.getMainIOService())

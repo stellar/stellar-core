@@ -1,9 +1,12 @@
+// ASIO is somewhat particular about when it gets included -- it wants to be the
+// first to include <windows.h> -- so we try to include it before everything
+// else.
+#include "util/asio.h"
 
 #include <iostream>
 #include <istream>
 #include <ostream>
 #include <string>
-#include <asio.hpp>
 #include "util/Logging.h"
 
 using asio::ip::tcp;

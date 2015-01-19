@@ -4,6 +4,7 @@
 
 #include "crypto/Base58.h"
 #include "crypto/SHA.h"
+#include <algorithm>
 
 namespace stellar
 {

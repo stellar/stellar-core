@@ -11,6 +11,7 @@
 #include "database/Database.h"
 #include "overlay/TCPPeer.h"
 
+<<<<<<< HEAD
 using namespace soci;
 
 #define MAX_FAILURES 
@@ -19,8 +20,13 @@ using namespace soci;
 // TODO.3 allow manual connects
 // TODO.3 some tests
 
+=======
+>>>>>>> 731512ba65f029284a49424b27f1060fdde73f95
 namespace stellar
 {
+
+using namespace soci;
+using namespace std;
 
 PeerMaster::PeerMaster(Application& app)
     : mApp(app)

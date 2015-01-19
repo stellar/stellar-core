@@ -13,10 +13,10 @@ namespace stellar
 // Peer that communicates via a TCP socket.
 class TCPPeer : public Peer
 {
-    shared_ptr<asio::ip::tcp::socket> mSocket;
+    std::shared_ptr<asio::ip::tcp::socket> mSocket;
     VirtualTimer mHelloTimer;
     uint8_t mIncomingHeader[4];
-    vector<uint8_t> mIncomingBody;
+    std::vector<uint8_t> mIncomingBody;
 
     void recvMessage();
     void recvHello(StellarMessage const& msg);
@@ -38,7 +38,7 @@ class TCPPeer : public Peer
     static const char* kSQLCreateStatement;
 
   public:
-    TCPPeer(Application& app, shared_ptr<asio::ip::tcp::socket> socket);
+    TCPPeer(Application& app, std::shared_ptr<asio::ip::tcp::socket> socket);
     TCPPeer(Application& app, std::string& ip, int port);
 
     virtual ~TCPPeer()

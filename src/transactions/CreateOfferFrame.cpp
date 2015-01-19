@@ -13,6 +13,8 @@
 namespace stellar
 {
 
+using namespace std;
+
 CreateOfferFrame::CreateOfferFrame(const TransactionEnvelope& envelope) : TransactionFrame(envelope)
 {
 

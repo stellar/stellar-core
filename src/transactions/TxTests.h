@@ -2,8 +2,8 @@
 
 namespace stellar
 {
-    class TransactionFrame;
-    typedef shared_ptr<TransactionFrame> TransactionFramePtr;
+class TransactionFrame;
+typedef std::shared_ptr<TransactionFrame> TransactionFramePtr;
 namespace txtest
 {
 

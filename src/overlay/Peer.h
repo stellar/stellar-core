@@ -5,10 +5,7 @@
 // under the ISC License. See the COPYING file at the top-level directory of
 // this distribution or at http://opensource.org/licenses/ISC
 
-#ifndef ASIO_SEPARATE_COMPILATION
-#define ASIO_SEPARATE_COMPILATION
-#endif
-#include <asio.hpp>
+#include "util/asio.h"
 #include "xdrpp/message.h"
 #include "generated/StellarXDR.h"
 #include "generated/FBAXDR.h"
@@ -16,8 +13,6 @@
 namespace stellar
 {
 typedef std::shared_ptr<FBAQuorumSet> FBAQuorumSetPtr;
-
-using namespace std;
 
 class Application;
 class LoopbackPeer;
@@ -35,7 +30,7 @@ public:
 /*
  * Another peer out there that we are connected to
  */
-class Peer : public enable_shared_from_this<Peer>
+class Peer : public std::enable_shared_from_this<Peer>
 {
     static bool ipFromStr(std::string ipStr, xdr::opaque_array<4U>& ret);
 

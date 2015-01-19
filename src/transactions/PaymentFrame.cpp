@@ -11,6 +11,9 @@
 // TODO.2 clean up trustlines 
 namespace stellar
 { 
+
+using namespace std;
+
     PaymentFrame::PaymentFrame(const TransactionEnvelope& envelope) : TransactionFrame(envelope)
     {
 

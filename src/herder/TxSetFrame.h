@@ -8,8 +8,6 @@
 #include "transactions/TransactionFrame.h"
 #include "generated/StellarXDR.h"
 
-using namespace std;
-
 namespace stellar
 {
 class Application;
@@ -24,7 +22,7 @@ class TxSetFrame
   public:
     typedef std::shared_ptr<TxSetFrame> pointer;
 
-    vector<TransactionFramePtr> mTransactions;
+    std::vector<TransactionFramePtr> mTransactions;
     uint256                     mPreviousLedgerHash;
 
     TxSetFrame();
@@ -37,7 +35,7 @@ class TxSetFrame
 
     void sortForHash();
 
-    void sortForApply(vector<TransactionFramePtr>& retList);
+    void sortForApply(std::vector<TransactionFramePtr>& retList);
 
     bool checkValid(Application& app);
 

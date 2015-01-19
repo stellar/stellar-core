@@ -1,12 +1,13 @@
-//
-// asio.cpp
-// ~~~~~~~~
-//
-// Copyright (c) 2003-2014 Christopher M. Kohlhoff (chris at kohlhoff dot com)
-//
-// Distributed under the Boost Software License, Version 1.0. (See accompanying
-// file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
-//
+#pragma once
+
+// Copyright 2015 Stellar Development Foundation and contributors. Licensed
+// under the ISC License. See the COPYING file at the top-level directory of
+// this distribution or at http://opensource.org/licenses/ISC
+
+#ifndef ASIO_SEPARATE_COMPILATION
+#define ASIO_SEPARATE_COMPILATION
+#endif
+
 #ifndef ASIO_STANDALONE
 #define ASIO_STANDALONE
 #endif
@@ -51,4 +52,4 @@
 #define ASIO_HAS_STD_THREAD
 #endif
 
-#include "asio/impl/src.hpp"
+#include <asio.hpp>

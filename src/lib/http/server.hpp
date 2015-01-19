@@ -1,3 +1,5 @@
+#pragma once
+
 //
 // server.hpp
 // ~~~~~~~~~~
@@ -8,10 +10,11 @@
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
 
-#ifndef HTTP_SERVER_HPP
-#define HTTP_SERVER_HPP
+// ASIO is somewhat particular about when it gets included -- it wants to be the
+// first to include <windows.h> -- so we try to include it before everything
+// else.
+#include "util/asio.h"
 
-#include <asio.hpp>
 #include <string>
 #include <map>
 #include "connection.hpp"
@@ -67,5 +70,3 @@ private:
 
 } // namespace server
 } // namespace http
-
-#endif // HTTP_SERVER_HPP

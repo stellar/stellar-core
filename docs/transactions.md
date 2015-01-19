@@ -1,34 +1,34 @@
 
 Anything that changes the ledger is a Transaction:
 
-All transactions have:
-	Source Account
-	Max Fee
-	Sequence
+## All transactions have:
+- Source Account
+- Max Fee
+- Sequence
 
 
-Supported Transactions:
+## Supported Transactions:
 
-Payment
-	Destination
-	Amount
-	Path
-	Meta Info
-
-Create Offer
-Cancel Offer
-AdjustAccount
-AccountMerge
-SetTrust
-Inflation
-
-
-Later:
-StoreData
-RemoveData
+- Payment
+	- Destination
+	- Amount
+	- Path
+	- Meta Info
+- 
+- Create Offer
+- Cancel Offer
+- AdjustAccount
+- AccountMerge
+- SetTrust
+- Inflation
 
 
-#Rules for what txs are not flooded
+## Later:
+- StoreData
+- RemoveData
+
+
+## Rules for what txs are not flooded
 - malformed
 - sum signature weight not above the necessary threshold
 - source account doesn't have enough balance to pay the fee for all the txs in this set

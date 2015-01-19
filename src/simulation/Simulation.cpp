@@ -11,6 +11,8 @@
 namespace stellar
 {
 
+using namespace std;
+
 Simulation::Simulation()
 {
 }

@@ -73,7 +73,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
     SECTION("common transaction")
     {
-        TxSetFramePtr txSet = make_shared<TxSetFrame>();
+        TxSetFramePtr txSet = std::make_shared<TxSetFrame>();
 
         // create an account
         TransactionFramePtr txFrame = createPaymentTx(root, a1, 1, paymentAmount);

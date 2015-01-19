@@ -26,21 +26,11 @@ test -z "$WFLAGS" || CFLAGS="$CFLAGS $WFLAGS" CXXFLAGS="$CXXFLAGS $WFLAGS"
 AC_LANG(C++)
 AX_CXX_COMPILE_STDCXX_11(noext,mandatory)
 
-# libstdc++ doesn't really seem complete enough for using c++11, need libc++
-AX_APPEND_COMPILE_FLAGS([-stdlib=libc++])
-if test "${CXXFLAGS#*stdlib}" == "${CXXFLAGS}"
-then
-    AC_MSG_ERROR([need -stdlib=libc++ for full c++11])
-fi
-
 # Our large include path set makes for annoying warnings without this
 AX_APPEND_COMPILE_FLAGS([-Wno-unused-command-line-argument])
 
 # We want to consider unused MUST_USE results as errors
 AX_APPEND_COMPILE_FLAGS([-Werror=unused-result])
-
-# -lc++abi seems to be required by -stdlib=libc++ on some hosts
-AX_APPEND_LINK_FLAGS([-lc++abi])
 
 # -pthread seems to be required by -std=c++11 on some hosts
 AX_APPEND_COMPILE_FLAGS([-pthread])

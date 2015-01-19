@@ -17,6 +17,9 @@ using namespace soci;
 
 namespace stellar
 {
+
+using namespace std;
+
 ///////////////////////////////////////////////////////////////////////
 // TCPPeer
 ///////////////////////////////////////////////////////////////////////
@@ -108,7 +111,7 @@ TCPPeer::startRead()
 {
     auto self = shared_from_this();
     asio::async_read(*(mSocket.get()), asio::buffer(mIncomingHeader),
-                     [self](std::error_code ec, std::size_t length)
+                     [self](asio::error_code ec, std::size_t length)
                      {
         self->Peer::readHeaderHandler(ec, length);
     });
@@ -136,7 +139,7 @@ TCPPeer::readHeaderHandler(const asio::error_code& error,
         mIncomingBody.resize(getIncomingMsgLength());
         auto self = shared_from_this();
         asio::async_read(*mSocket.get(), asio::buffer(mIncomingBody),
-                         [self](std::error_code ec, std::size_t length)
+                         [self](asio::error_code ec, std::size_t length)
                          {
             self->Peer::readBodyHandler(ec, length);
         });
