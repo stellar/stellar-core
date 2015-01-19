@@ -2,22 +2,22 @@
 
 namespace stellar
 {
-    void LedgerDelta::addEntry(EntryFrame& entry)
+    void LedgerDelta::addEntry(EntryFrame const& entry)
     {
         addEntry(entry.copy());
     }
 
-    void LedgerDelta::deleteEntry(EntryFrame& entry)
+    void LedgerDelta::deleteEntry(EntryFrame const& entry)
     {
         deleteEntry(entry.copy());
     }
 
-    void LedgerDelta::modEntry(EntryFrame& entry)
+    void LedgerDelta::modEntry(EntryFrame const& entry)
     {
         modEntry(entry.copy());
     }
 
-    void LedgerDelta::addEntry(EntryFrame::pointer& entry)
+    void LedgerDelta::addEntry(EntryFrame::pointer entry)
     {
         Hash index = entry->getIndex();
         auto del_it = mDelete.find(index);
@@ -35,7 +35,7 @@ namespace stellar
         }
     }
 
-    void LedgerDelta::deleteEntry(EntryFrame::pointer& entry)
+    void LedgerDelta::deleteEntry(EntryFrame::pointer entry)
     {
         Hash index = entry->getIndex();
         auto new_it = mNew.find(index);
@@ -53,7 +53,7 @@ namespace stellar
         }
     }
 
-    void LedgerDelta::modEntry(EntryFrame::pointer& entry)
+    void LedgerDelta::modEntry(EntryFrame::pointer entry)
     {
         Hash index = entry->getIndex();
         auto mod_it = mMod.find(index);
