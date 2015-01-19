@@ -13,7 +13,7 @@ FloodRecord::FloodRecord(StellarMessage const& msg, uint64_t ledger,
 {
     mMessage = msg;
     mLedgerIndex = ledger;
-    mPeersTold.push_back(peer);
+    if(peer) mPeersTold.push_back(peer);
 }
 
 // remove old flood records

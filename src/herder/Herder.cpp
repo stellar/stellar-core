@@ -240,7 +240,7 @@ Herder::emitEnvelope(const FBAEnvelope& envelope)
     msg.type(FBA_MESSAGE);
     msg.envelope() = envelope;
 
-    // TODO(jed) send/broadcast `msg`
+    mApp.getOverlayGateway().broadcastMessage(msg,Peer::pointer());
 }
 
 void 

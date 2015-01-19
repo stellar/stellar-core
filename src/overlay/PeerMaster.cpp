@@ -17,7 +17,7 @@ using namespace soci;
 #define SECONDS_PER_BACKOFF 10
 
 // TODO.3 some tests
-
+// TODO.2 are we flooding txs?
 
 namespace stellar
 {
