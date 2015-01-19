@@ -834,9 +834,9 @@ Slot::advanceSlot()
                 attemptCommitted();
             }
 
-            // If a higher ballot has prepared, we can bump to it to help
-            // the protocol progress
-            if (isPrepared(b) && compareBallots(b, mBallot) > 0)
+            // If a higher ballot has prepared, we can bump to it as our
+            // current ballot has become irrelevant (aborted)
+            if (compareBallots(b, mBallot) > 0 && isPrepared(b))
             {
                 bumpToBallot(b);
                 mRunAdvanceSlot = true;

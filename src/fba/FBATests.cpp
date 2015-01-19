@@ -126,7 +126,7 @@ makeEnvelope(const uint256& nodeID,
 
 #define CREATE_VALUE(X) \
     const Hash X##ValueHash = sha512_256("SEED_VALUE_HASH_" #X); \
-    const Value X##Value(X##ValueHash.begin(), X##ValueHash.end()); \
+    const Value X##Value = xdr::xdr_to_opaque(X##ValueHash);
 
 TEST_CASE("protocol core4", "[fba]")
 {

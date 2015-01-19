@@ -321,9 +321,9 @@ Peer::recvFBAQuorumSet(StellarMessage const& msg)
 void
 Peer::recvFBAMessage(StellarMessage const& msg)
 {
-    FBAEnvelope envelope = msg.fbaMessage();
+    FBAEnvelope envelope = msg.envelope();
 
-    // TODO(spolu): [ask jed] Check OK
+    // TODO(jed) Check
     Hash envHash = sha512_256(xdr::xdr_to_msg(envelope));
     mApp.getOverlayGateway().recvFloodedMsg(envHash, msg,
                                             envelope.statement.slotIndex,
