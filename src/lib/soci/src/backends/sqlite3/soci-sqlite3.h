@@ -254,6 +254,10 @@ struct sqlite3_session_backend : details::session_backend
     virtual sqlite3_blob_backend * make_blob_backend();
 
     sqlite_api::sqlite3 *conn_;
+
+protected:
+    void transaction_commit_helper(bool commit);
+    int transaction_level;
 };
 
 struct sqlite3_backend_factory : backend_factory
