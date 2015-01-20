@@ -30,6 +30,7 @@ PeerMaster::PeerMaster(Application& app)
     : mApp(app)
     , mDoor(mApp)
     , mTimer(app.getClock())
+    , mFloodGate(app)
 {
     mTimer.expires_from_now(std::chrono::seconds(2));
     
@@ -257,27 +258,13 @@ PeerMaster::recvFloodedMsg(StellarMessage const& msg,Peer::pointer peer)
 
 
 void
-PeerMaster::broadcastMessage(StellarMessage const& msg,
-                             Peer::pointer peer)
+PeerMaster::broadcastMessage(StellarMessage const& msg)
 {
     mFloodGate.broadcast(msg);
 }
 
 
-// should only be called by flood gate
-void
-PeerMaster::broadcastMessage(StellarMessage const& msg,
-                             vector<Peer::pointer>& skip)
-{
-    for (auto peer : mPeers)
-    {
-        if (find(skip.begin(), skip.end(), peer) == skip.end())
-        {
-            peer->sendMessage(msg);
-            skip.push_back(peer);
-        }
-    }
-}
+
 
 void PeerMaster::createTable(Database &db)
 {

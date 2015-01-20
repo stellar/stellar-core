@@ -82,8 +82,9 @@ class FBA
     // FBAQuorumSet/Envelope receival
     void receiveQuorumSet(const uint256& nodeID,
                           const FBAQuorumSet& qSet);
-    // Returns wether the envelope signature is valid or not
-    bool receiveEnvelope(const FBAEnvelope& envelope);
+    // Receives an envelope. Returns wether the envelope was validated or not.
+    void receiveEnvelope(const FBAEnvelope& envelope,
+                         std::function<void(bool)> const& cb = [] (bool) { });
 
     // Value submission
     bool attemptValue(const uint64& slotIndex,

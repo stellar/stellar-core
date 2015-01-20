@@ -49,11 +49,12 @@ FBA::receiveQuorumSet(const uint256& nodeID,
     getNode(nodeID)->cacheQuorumSet(qSet);
 }
 
-bool
-FBA::receiveEnvelope(const FBAEnvelope& envelope)
+void
+FBA::receiveEnvelope(const FBAEnvelope& envelope,
+                     std::function<void(bool)> const& cb)
 {
     uint64 slotIndex = envelope.statement.slotIndex;
-    return getSlot(slotIndex)->processEnvelope(envelope);
+    getSlot(slotIndex)->processEnvelope(envelope, cb);
 }
 
 bool

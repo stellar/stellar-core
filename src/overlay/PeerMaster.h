@@ -46,13 +46,10 @@ class PeerMaster : public OverlayGateway
     //////// GATEWAY FUNCTIONS
     void ledgerClosed(LedgerHeader& ledger);
 
-    void recvFloodedMsg(uint256 const& messageID, 
-                        StellarMessage const& msg, 
-                        uint32_t ledgerIndex,
+    void recvFloodedMsg(StellarMessage const& msg, 
                         Peer::pointer peer);
 
-    void broadcastMessage(StellarMessage const& msg,
-                          Peer::pointer peer);
+    void broadcastMessage(StellarMessage const& msg);
     //////
 
     void connectTo(const std::string& addr);
@@ -65,10 +62,6 @@ class PeerMaster : public OverlayGateway
     Peer::pointer getRandomPeer();
     // returns NULL if the passed peer isn't found
     Peer::pointer getNextPeer(Peer::pointer peer);
-
-    void broadcastMessage(uint256 const& msgID);
-    void broadcastMessage(StellarMessage const& msg,
-                          std::vector<Peer::pointer> const& skip);
 
     static void createTable(Database &db);
     static const char *kSQLCreateStatement;

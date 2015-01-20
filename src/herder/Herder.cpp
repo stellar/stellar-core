@@ -190,7 +190,7 @@ Herder::valueExternalized(const uint64& slotIndex,
         for (auto tx : mReceivedTransactions[1])
         {
             auto msg = tx->toStellarMessage();
-            mApp.getPeerMaster().broadcastMessage(msg, Peer::pointer());
+            mApp.getPeerMaster().broadcastMessage(msg);
         }
 
         // move all the remaining to the next highest level
@@ -241,7 +241,7 @@ Herder::emitEnvelope(const FBAEnvelope& envelope)
     msg.type(FBA_MESSAGE);
     msg.envelope() = envelope;
 
-    mApp.getOverlayGateway().broadcastMessage(msg,Peer::pointer());
+    mApp.getOverlayGateway().broadcastMessage(msg);
 }
 
 void 
@@ -379,10 +379,11 @@ Herder::recvTransaction(TransactionFramePtr tx)
     return true;
 }
 
-bool
-Herder::recvFBAEnvelope(FBAEnvelope envelope)
+void
+Herder::recvFBAEnvelope(FBAEnvelope envelope,
+                        std::function<void(bool)> const& cb)
 {
-    return mFBA->receiveEnvelope(envelope);
+    return mFBA->receiveEnvelope(envelope, cb);
 }
 
 void

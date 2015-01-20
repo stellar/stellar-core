@@ -70,17 +70,22 @@ void Floodgate::broadcast(StellarMessage const& msg)
             mApp.getLedgerMaster().getLedgerNum(), Peer::pointer() );
         record->mPeersTold = mApp.getPeerMaster().getPeers();
 
-        mFloodMap[index]
-        
-
-    }
-
-    for(auto peer : mApp.getPeerMaster().getPeers())
-    {
-        if(find(skip.begin(), skip.end(), peer) == skip.end())
+        mFloodMap[index]= record;
+        for(auto peer : mApp.getPeerMaster().getPeers())
         {
             peer->sendMessage(msg);
-            skip.push_back(peer);
+        }
+        
+    } else
+    { // send it to people that haven't sent it to us
+        std::vector<Peer::pointer>& peersTold = result->second->mPeersTold;
+        for(auto peer : mApp.getPeerMaster().getPeers())
+        {
+            if(find(peersTold.begin(), peersTold.end(), peer) == peersTold.end())
+            {
+                peer->sendMessage(msg);
+                peersTold.push_back(peer);
+            }
         }
     }
 }

@@ -86,8 +86,9 @@ Slot::Slot(const uint64& slotIndex,
 {
 }
 
-bool
-Slot::processEnvelope(const FBAEnvelope& envelope)
+void
+Slot::processEnvelope(const FBAEnvelope& envelope,
+                      std::function<void(bool)> const& cb)
 {
     assert(envelope.statement.slotIndex == mSlotIndex);
 
@@ -99,7 +100,7 @@ Slot::processEnvelope(const FBAEnvelope& envelope)
     // If the envelope is not correctly signed, we ignore it.
     if (!verifyEnv(envelope))
     {
-        return false;
+        return cb(false);
     }
 
     FBABallot b = envelope.statement.ballot;
@@ -108,12 +109,12 @@ Slot::processEnvelope(const FBAEnvelope& envelope)
     FBAStatement statement = envelope.statement;
 
     // We copy everything we need as this can be async (no reference).
-    auto cb = [b,t,nodeID,statement,this] (bool valid)
+    auto validate_cb = [b,t,nodeID,statement,cb,this] (bool valid)
     {
         // If the ballot is not valid, we just ignore it.
         if (!valid)
         {
-            return;
+            return cb(false);
         }
 
         if (!mIsCommitted && t == FBAStatementType::PREPARE)
@@ -173,7 +174,7 @@ Slot::processEnvelope(const FBAEnvelope& envelope)
                     auto it = std::find(excepted.begin(), excepted.end(), b);
                     if (it == excepted.end())
                     {
-                        return;
+                        return cb(false);
                     }
                 }
             }
@@ -197,7 +198,7 @@ Slot::processEnvelope(const FBAEnvelope& envelope)
             if (getNodeStatements(nodeID, 
                                   FBAStatementType::COMMITTED).size() > 0)
             {
-                return;
+                return cb(false);
             }
 
             // Finally store the statement and advance the slot if possible.
@@ -214,10 +215,12 @@ Slot::processEnvelope(const FBAEnvelope& envelope)
             FBAEnvelope envelope = createEnvelope(statement);
             mFBA->getClient()->emitEnvelope(envelope);
         }
+
+        // Finally call the callback saying that this was a valid envelope
+        return cb(true);
     };
 
-    mFBA->getClient()->validateBallot(mSlotIndex, nodeID, b, cb);
-    return true;
+    mFBA->getClient()->validateBallot(mSlotIndex, nodeID, b, validate_cb);
 }
 
 bool

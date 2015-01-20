@@ -67,7 +67,8 @@ class Herder : public HerderGateway,
     // returns whether the transaction should be flooded
     bool recvTransaction(TransactionFramePtr tx);
 
-    bool recvFBAEnvelope(FBAEnvelope envelope);
+    void recvFBAEnvelope(FBAEnvelope envelope,
+                         std::function<void(bool)> const& cb = [] (bool) { });
 
     void ledgerClosed(LedgerHeader& ledger);
     

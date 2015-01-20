@@ -1,16 +1,23 @@
 language: cpp
 compiler:
 - clang
+- gcc
+cache: apt
 before_install:
+- wget -O - http://llvm.org/apt/llvm-snapshot.gpg.key | sudo apt-key add -
 - sudo apt-get update -qq
-- sudo apt-get install -qq autoconf automake libtool pkg-config flex bison libpq5
-  libpq-dev
+- sudo apt-get install -qq python-software-properties
+- sudo add-apt-repository -y 'deb http://llvm.org/apt/precise/ llvm-toolchain-precise-3.5 main'
+- sudo add-apt-repository -y 'ppa:ubuntu-toolchain-r/test'
+- sudo apt-get update -qq
+- sudo apt-get install -qq autoconf automake libtool pkg-config flex bison clang-3.5 llvm-3.5 g++-4.8 libstdc++6 libpq5 libpq-dev
 - clang -v
+- g++ -v
 script:
 - set -e
 - ./autogen.sh
 - ./configure
-- make -j $(nproc)
+- make
 - make check
 notifications:
   email: false
