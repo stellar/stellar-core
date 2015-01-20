@@ -5,26 +5,14 @@
 #include "FBA.h"
 
 #include "fba/LocalNode.h"
+#include "fba/ReadySlot.h"
 #include "fba/Slot.h"
 
 namespace stellar
 {
 
-using xdr::operator<;
-
-int
-FBA::Client::compareValues(const Value& v1,
-                           const Value& v2)
-{
-    if (v1 < v2) return -1;
-    if (v2 < v1) return 1;
-    return 0;
-}
-
 FBA::FBA(const uint256& validationSeed,
-         const FBAQuorumSet& qSetLocal,
-         Client* client)
-    : mClient(client)
+         const FBAQuorumSet& qSetLocal)
 {
     mLocalNode = new LocalNode(validationSeed, qSetLocal, this);
     mKnownNodes[mLocalNode->getNodeID()] = mLocalNode;
@@ -40,28 +28,62 @@ FBA::~FBA()
     {
         delete it.second;
     }
-}
-
-void
-FBA::receiveQuorumSet(const uint256& nodeID, 
-                      const FBAQuorumSet& qSet)
-{
-    getNode(nodeID)->cacheQuorumSet(qSet);
+    for (auto it : mKnownReadySlots)
+    {
+        delete it.second;
+    }
 }
 
 void
 FBA::receiveEnvelope(const FBAEnvelope& envelope,
-                     std::function<void(bool)> const& cb)
+                     std::function<void(EnvelopeState)> const& cb)
 {
-    uint64 slotIndex = envelope.statement.slotIndex;
-    getSlot(slotIndex)->processEnvelope(envelope, cb);
+    // If the envelope is not correctly signed, we ignore it.
+    if (!verifyEnvelope(envelope))
+    {
+        return cb(FBA::EnvelopeState::INVALID);
+    }
+
+    uint64 slotIndex = envelope.slotIndex;
+    FBAEnvelopeType type = envelope.payload.type();
+
+    if (type == FBAEnvelopeType::VALUE_PART)
+    {
+        getReadySlot(slotIndex)->processEnvelope(envelope, cb);
+    }
+    else if (type == FBAEnvelopeType::STATEMENT)
+    {
+        getSlot(slotIndex)->processEnvelope(envelope, cb);
+    }
+    else 
+    {
+        return cb(FBA::EnvelopeState::INVALID);
+    }
 }
 
 bool
-FBA::attemptValue(const uint64& slotIndex,
-                  const Value& value)
+FBA::readyValue(const uint64& slotIndex,
+                const Value& valuePart,
+                std::function<void(Value, FBAReadyEvidence)> const& cb)
 {
-    return getSlot(slotIndex)->attemptValue(value);
+    return getReadySlot(slotIndex)->readyValue(valuePart, cb);
+}
+
+void
+FBA::validateReady(const uint64& slotIndex,
+                   const Value& value,
+                   const FBAReadyEvidence evidence,
+                   std::function<void(bool)> const& cb)
+{
+    // TODO(spolu) implement validateReady
+}
+
+bool
+FBA::prepareValue(const uint64& slotIndex,
+                  const Value& value,
+                  bool forceBump)
+{
+    return getSlot(slotIndex)->prepareValue(value, forceBump);
 }
 
 void 
@@ -99,6 +121,17 @@ FBA::getLocalNode()
   return mLocalNode;
 }
 
+ReadySlot*
+FBA::getReadySlot(const uint64& slotIndex)
+{
+    auto it = mKnownReadySlots.find(slotIndex);
+    if (it == mKnownReadySlots.end())
+    {
+        mKnownReadySlots[slotIndex] = new ReadySlot(slotIndex, this);
+    }
+    return mKnownReadySlots[slotIndex];
+}
+
 Slot*
 FBA::getSlot(const uint64& slotIndex)
 {
@@ -110,10 +143,18 @@ FBA::getSlot(const uint64& slotIndex)
     return mKnownSlots[slotIndex];
 }
 
-FBA::Client*
-FBA::getClient()
+void
+FBA::signEnvelope(FBAEnvelope& envelope)
 {
-    return mClient;
+    // TODO(spolu) envelope signature
 }
+
+bool 
+FBA::verifyEnvelope(const FBAEnvelope& envelope)
+{
+    // TODO(spolu) envelope verification
+    return true;
+}
+
 
 }

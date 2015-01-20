@@ -24,7 +24,7 @@ class Application;
  * receiving transactions from the network.
  */
 class Herder : public HerderGateway,
-               public FBA::Client
+               public FBA
 {
   public:
     Herder(Application& app);
@@ -33,29 +33,25 @@ class Herder : public HerderGateway,
     // Bootstraps the Herder if we're creating a new Network
     void bootstrap();
     
-    // FBA::Client methods
+    // FBA methods
+    void validateValue(const uint64& slotIndex,
+                       const uint256& nodeID,
+                       const Value& value,
+                       std::function<void(bool)> const& cb);
+
     void validateBallot(const uint64& slotIndex,
                         const uint256& nodeID,
                         const FBABallot& ballot,
                         std::function<void(bool)> const& cb);
 
-    void ballotDidPrepare(const uint64& slotIndex,
-                          const FBABallot& ballot);
-    void ballotDidCommit(const uint64& slotIndex,
-                         const FBABallot& ballot);
-
-    void valueCancelled(const uint64& slotIndex,
-                        const Value& value);
     void valueExternalized(const uint64& slotIndex,
                            const Value& value);
 
     void retrieveQuorumSet(const uint256& nodeID,
-                           const Hash& qSetHash);
+                           const Hash& qSetHash,
+                           std::function<void(const FBAQuorumSet&)> const& cb);
     void emitEnvelope(const FBAEnvelope& envelope);
     
-    void retransmissionHinted(const uint64& slotIndex,
-                              const uint256& nodeID);
-
     // HerderGateway methods
     TxSetFramePtr fetchTxSet(const uint256& setHash, bool askNetwork);
     void recvTxSet(TxSetFramePtr txSet);
@@ -112,6 +108,5 @@ class Herder : public HerderGateway,
     LedgerHeader                                   mLastClosedLedger;
 
     Application&                                   mApp;
-    FBA*                                           mFBA;
 };
 }

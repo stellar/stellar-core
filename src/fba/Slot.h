@@ -1,5 +1,4 @@
-#ifndef __FBA_SLOT__
-#define __FBA_SLOT__
+#pragma once
 
 // Copyright 2014 Stellar Development Foundation and contributors. Licensed
 // under the ISC License. See the COPYING file at the top-level directory of
@@ -9,9 +8,6 @@
 
 namespace stellar 
 {
-using xdr::operator==;
-using xdr::operator<;
-
 class Node;
 
 /**
@@ -25,18 +21,21 @@ class Slot
     Slot(const uint64& slotIndex, FBA* FBA);
 
     // Process a newly received envelope for this slot and update the state of
-    // the slot accordingly. Returns wether the envelope was validated or not.
+    // the slot accordingly. `cb` asynchronously returns wether the envelope
+    // was validated or not. Must exclusively receive envelopes whose payload
+    // type is STATEMENT
     void processEnvelope(const FBAEnvelope& envelope,
-                         std::function<void(bool)> const& cb = [] (bool) { });
+                         std::function<void(FBA::EnvelopeState)> const& cb);
 
-    // Attempts a new value for this slot. If the value is compatible with the
-    // current ballot, and forceBump is false, the current ballot is used.
-    // Otherwise a new ballot is generated with an increased counter value.
-    bool attemptValue(const Value& value, 
+    // Prepares a new ballot with the provided value for this slot. If the
+    // value is less or equal to the current ballot value, and forceBump is
+    // false, the current ballot counter is used. Otherwise a new ballot is
+    // generated with an increased counter value.
+    bool prepareValue(const Value& value, 
                       bool forceBump = false);
 
   private:
-    // bumps to the specified ballot emitting a valueCancelled if needed
+    // bumps to the specified ballot emitting a ballotDidAbort if needed
     void bumpToBallot(const FBABallot& ballot);
 
     // Helper methods to generate a new envelopes
@@ -45,36 +44,14 @@ class Slot
 
     // `attempt*` methods progress the slot to the specified state if it was
     // not already reached previously. They are in charge of emitting events
-    // and envelopes. They are indempotent. 
+    // and envelopes. They are indempotent. `attemptPrepared` takes an extra
+    // ballot argument as we can emit PREPARED messages for ballots different
+    // than our current `mBallot`.
     void attemptPrepare();
-    void attemptPrepared();
+    void attemptPrepared(const FBABallot& ballot);
     void attemptCommit();
     void attemptCommitted();
     void attemptExternalize();
-
-    // Helper functions to test a nodeSet against a specifed quorum set for a
-    // given node.
-    bool nodeHasQuorum(const uint256& nodeID,
-                       const Hash& qSetHash,
-                       const std::vector<uint256>& nodeSet);
-    bool nodeIsVBlocking(const uint256& nodeID,
-                         const Hash& qSetHash,
-                         const std::vector<uint256>& nodeSet);
-
-    // Helper method to test if the filtered set of statements is a transitive
-    // quorum *and* whether this transitive quorum is a quorum for the local
-    // node.
-    bool isQuorumTransitive(
-        const std::map<uint256, FBAStatement>& statements,
-        std::function<bool(const uint256&, const FBAStatement&)> const& filter =
-          [] (const uint256&, const FBAStatement&) { return true; });
-    // Helper method to test if the filtered set of statements is a v-blocking
-    // set for the node specified by nodeID.
-    bool isVBlocking(
-        const std::map<uint256, FBAStatement>& statements,
-        const uint256& nodeID,
-        std::function<bool(const uint256&, const FBAStatement&)> const& filter =
-          [] (const uint256&, const FBAStatement&) { return true; });
 
     // `is*` methods check if the specified state for the current slot has been
     // reached or not. They are called by `advanceSlot` and drive the call of
@@ -111,14 +88,14 @@ class Slot
     bool                                                       mInAdvanceSlot;
     bool                                                       mRunAdvanceSlot;
 
-    struct StatementMap : public std::map<uint256, FBAStatement> {};
-    struct StatementTypeMap : public std::map<FBAStatementType, StatementMap> {};
-    // mEnvelopes keep track of all received and sent envelopes for this slot.
-    std::map<FBABallot, StatementTypeMap> mStatements;
+    // mStatements keep track of all statements seen so far for this slot.
+    struct StatementMap : 
+        public std::map<uint256, FBAStatement> {};
+    struct StatementTypeMap : 
+        public std::map<FBAStatementType, StatementMap> {};
+    std::map<FBABallot, StatementTypeMap>                      mStatements;
 
     friend class Node;
 };
 
 }
-
-#endif

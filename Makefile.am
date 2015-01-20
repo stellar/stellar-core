@@ -8,8 +8,8 @@ FMT_SRCS = src/clf/BucketList.cpp src/clf/CLFMaster.cpp src/clf/CLFTests.cpp    
     src/crypto/Base58.cpp src/crypto/Hex.cpp src/crypto/SHA.cpp                 \
     src/crypto/SecretKey.cpp src/crypto/CryptoTests.cpp src/crypto/Random.cpp   \
     src/database/Database.cpp src/database/DatabaseTests.cpp src/fba/FBA.cpp    \
-    src/fba/Slot.cpp src/fba/Node.cpp src/fba/LocalNode.cpp                     \
-    src/fba/FBATests.cpp src/history/HistoryArchive.cpp                         \
+    src/fba/ReadySlot.cpp src/fba/Node.cpp src/fba/LocalNode.cpp                \
+    src/fba/Slot.cpp src/fba/FBATests.cpp src/history/HistoryArchive.cpp        \
     src/history/HistoryMaster.cpp src/history/HistoryTests.cpp                  \
     src/ledger/AccountFrame.cpp src/ledger/EntryFrame.cpp                       \
     src/ledger/LedgerDelta.cpp src/ledger/LedgerMaster.cpp                      \
@@ -39,12 +39,12 @@ FMT_SRCS = src/clf/BucketList.cpp src/clf/CLFMaster.cpp src/clf/CLFTests.cpp    
 
 FMT_HDRS = src/clf/BucketList.h src/clf/CLFMaster.h src/crypto/Base58.h         \
     src/crypto/Hex.h src/crypto/SHA.h src/crypto/SecretKey.h                    \
-    src/crypto/Random.h src/database/Database.h src/fba/FBA.h src/fba/Slot.h    \
-    src/fba/Node.h src/fba/LocalNode.h src/history/HistoryArchive.h             \
-    src/history/HistoryGateway.h src/history/HistoryMaster.h                    \
-    src/ledger/AccountFrame.h src/ledger/EntryFrame.h src/ledger/LedgerDelta.h  \
-    src/ledger/LedgerGateway.h src/ledger/LedgerMaster.h                        \
-    src/ledger/OfferFrame.h src/ledger/TrustFrame.h                             \
+    src/crypto/Random.h src/database/Database.h src/fba/FBA.h                   \
+    src/fba/ReadySlot.h src/fba/Slot.h src/fba/Node.h src/fba/LocalNode.h       \
+    src/history/HistoryArchive.h src/history/HistoryGateway.h                   \
+    src/history/HistoryMaster.h src/ledger/AccountFrame.h                       \
+    src/ledger/EntryFrame.h src/ledger/LedgerDelta.h src/ledger/LedgerGateway.h \
+    src/ledger/LedgerMaster.h src/ledger/OfferFrame.h src/ledger/TrustFrame.h   \
     src/ledger/LedgerHeaderFrame.h src/main/Application.h                       \
     src/main/CommandHandler.h src/main/Config.h src/main/test.h                 \
     src/overlay/FetchableItem.h src/overlay/Floodgate.h                         \
