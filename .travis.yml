@@ -2,6 +2,7 @@ language: cpp
 compiler:
 - clang
 - gcc
+cache: apt
 before_install:
 - wget -O - http://llvm.org/apt/llvm-snapshot.gpg.key | sudo apt-key add -
 - sudo apt-get update -qq
