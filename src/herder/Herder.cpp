@@ -130,6 +130,7 @@ Herder::validateBallot(const uint64& slotIndex,
                 return cb(false);
             }
         }
+        
         return cb(true);
     };
     
@@ -189,7 +190,7 @@ Herder::valueExternalized(const uint64& slotIndex,
         for (auto tx : mReceivedTransactions[1])
         {
             auto msg = tx->toStellarMessage();
-            mApp.getPeerMaster().broadcastMessage(msg, Peer::pointer());
+            mApp.getPeerMaster().broadcastMessage(msg);
         }
 
         // move all the remaining to the next highest level
@@ -221,7 +222,7 @@ Herder::retrieveQuorumSet(const uint256& nodeID,
     };
 
     // Peer Overlays and nodeIDs have no relationship for now. Sow we just
-    // retrieve qSetHash by asking the whole overaly.
+    // retrieve qSetHash by asking the whole overlay.
     FBAQuorumSetPtr qSet = fetchFBAQuorumSet(qSetHash, true);
     if (!qSet)
     {
@@ -240,7 +241,7 @@ Herder::emitEnvelope(const FBAEnvelope& envelope)
     msg.type(FBA_MESSAGE);
     msg.envelope() = envelope;
 
-    mApp.getOverlayGateway().broadcastMessage(msg,Peer::pointer());
+    mApp.getOverlayGateway().broadcastMessage(msg);
 }
 
 void 

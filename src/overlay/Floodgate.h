@@ -41,15 +41,16 @@ class FloodRecord
 class Floodgate
 {
     std::map<uint256, FloodRecord::pointer> mFloodMap;
+    Application& mApp;
 
   public:
+    Floodgate(Application& app);
     // Floodgate will be cleared after every ledger close
     void clearBelow(uint64_t currentLedger);
-    void addRecord(uint256 const& index,
-                   StellarMessage const& msg, uint64_t ledgerIndex,
-                   Peer::pointer peer);
+    // returns true if this is a new record
+    bool addRecord(StellarMessage const& msg, Peer::pointer fromPeer);
 
-    void broadcast(uint256 const& index, PeerMaster* peerMaster);
+    void broadcast(StellarMessage const& msg);
 };
 }
 

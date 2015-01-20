@@ -6,6 +6,7 @@
 // this distribution or at http://opensource.org/licenses/ISC
 
 #include <memory>
+#include <functional>
 #include "generated/StellarXDR.h"
 #include "generated/FBAXDR.h"
 
@@ -54,7 +55,7 @@ class HerderGateway
     // this tx.
     virtual bool recvTransaction(TransactionFramePtr tx) = 0;
 
-    // We are learning about a new envelope. Callback called with wether the 
+    // We are learning about a new envelope. Callback called with whether the 
     // envelope should be flooded or not.
     virtual void recvFBAEnvelope(
         FBAEnvelope envelope,
