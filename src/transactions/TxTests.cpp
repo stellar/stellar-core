@@ -79,7 +79,7 @@ TransactionFramePtr createPaymentTx(SecretKey& from, SecretKey& to, uint32_t seq
     return res;
 }
 
-void applyPaymentTx(Application& app, SecretKey& from, SecretKey& to, uint32_t seq, uint64_t amount)
+void applyPaymentTx(Application& app, SecretKey& from, SecretKey& to, uint32_t seq, uint64_t amount, TxResultCode result)
 {
     TransactionFramePtr txFrame;
 
@@ -88,10 +88,10 @@ void applyPaymentTx(Application& app, SecretKey& from, SecretKey& to, uint32_t s
     LedgerDelta delta;
     txFrame->apply(delta, app);
 
-    REQUIRE(txFrame->getResultCode() == txSUCCESS);
+    REQUIRE(txFrame->getResultCode() == result);
 }
 
-void applyTrust(Application& app, SecretKey& from, SecretKey& to, uint32_t seq, const std::string& currencyCode)
+void applyTrust(Application& app, SecretKey& from, SecretKey& to, uint32_t seq, const std::string& currencyCode, TxResultCode result)
 {
     TransactionFramePtr txFrame;
 
@@ -100,7 +100,7 @@ void applyTrust(Application& app, SecretKey& from, SecretKey& to, uint32_t seq, 
     LedgerDelta delta;
     txFrame->apply(delta, app);
 
-    REQUIRE(txFrame->getResultCode() == txSUCCESS);
+    REQUIRE(txFrame->getResultCode() == result);
 }
 
 TransactionFramePtr createCreditPaymentTx(SecretKey& from, SecretKey& to, Currency& ci,uint32_t seq, uint64_t amount)
@@ -134,7 +134,7 @@ Currency makeCurrency(SecretKey& issuer, const std::string& code)
 }
 
 void applyCreditPaymentTx(Application& app, SecretKey& from, SecretKey& to, Currency& ci, uint32_t seq,
-    uint64_t amount)
+    uint64_t amount, TxResultCode result)
 {
     TransactionFramePtr txFrame;
 
@@ -143,7 +143,7 @@ void applyCreditPaymentTx(Application& app, SecretKey& from, SecretKey& to, Curr
     LedgerDelta delta;
     txFrame->apply(delta, app);
 
-    REQUIRE(txFrame->getResultCode() == txSUCCESS);
+    REQUIRE(txFrame->getResultCode() == result);
 }
 
 TransactionFramePtr createOfferTx(SecretKey& source, Currency& takerGets,
@@ -169,7 +169,7 @@ TransactionFramePtr createOfferTx(SecretKey& source, Currency& takerGets,
 }
 
 void applyOffer(Application& app, SecretKey& source, Currency& takerGets,
-    Currency& takerPays, uint64_t price, uint64_t amount, uint32_t seq)
+    Currency& takerPays, uint64_t price, uint64_t amount, uint32_t seq, TxResultCode result)
 {
     TransactionFramePtr txFrame;
 
@@ -178,8 +178,7 @@ void applyOffer(Application& app, SecretKey& source, Currency& takerGets,
     LedgerDelta delta;
     txFrame->apply(delta, app);
 
-    // FIXME: this is currently broken.
-    // REQUIRE(txFrame->getResultCode() == txSUCCESS);
+    REQUIRE(txFrame->getResultCode() == result);
 }
 
 }

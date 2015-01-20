@@ -288,10 +288,11 @@ Peer::recvTransaction(StellarMessage const& msg)
     if (transaction)
     { 
         // add it to our current set
+        // and make sure it is valid
         if (mApp.getHerderGateway().recvTransaction(transaction))
         {
             mApp.getOverlayGateway().recvFloodedMsg(msg, shared_from_this());
-            mApp.getOverlayGateway().broadcastMessage(msg); // TODO.3 make sure we are validating the tx first
+            mApp.getOverlayGateway().broadcastMessage(msg); 
         }
     }
 }
