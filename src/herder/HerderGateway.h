@@ -54,9 +54,11 @@ class HerderGateway
     // this tx.
     virtual bool recvTransaction(TransactionFramePtr tx) = 0;
 
-    // We are learning about a new envelope. Returns wether the signature is
-    // valid or not
-    virtual bool recvFBAEnvelope(FBAEnvelope envelope) = 0;
+    // We are learning about a new envelope. Callback called with wether the 
+    // envelope should be flooded or not.
+    virtual void recvFBAEnvelope(
+        FBAEnvelope envelope,
+        std::function<void(bool)> const& cb = [] (bool) { }) = 0;
 
     // Called by Ledger once the ledger closes.
     virtual void ledgerClosed(LedgerHeader& ledger) = 0;

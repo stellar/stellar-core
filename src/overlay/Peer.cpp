@@ -321,15 +321,18 @@ Peer::recvFBAQuorumSet(StellarMessage const& msg)
 void
 Peer::recvFBAMessage(StellarMessage const& msg)
 {
-    FBAEnvelope envelope = msg.envelope();
-
-    if(mApp.getHerderGateway().recvFBAEnvelope(envelope))
+    auto cb = [msg,this] (bool valid)
     {
-        Hash envHash = sha512_256(xdr::xdr_to_msg(envelope));
-        mApp.getOverlayGateway().recvFloodedMsg(envHash, msg,
-                                            envelope.statement.slotIndex,
-                                            shared_from_this());
-    }
+        if (valid)
+        {
+            Hash envHash = sha512_256(xdr::xdr_to_msg(msg.envelope()));
+            mApp.getOverlayGateway()
+                .recvFloodedMsg(envHash, msg,
+                                msg.envelope().statement.slotIndex,
+                                shared_from_this());
+        }
+    };
+    mApp.getHerderGateway().recvFBAEnvelope(msg.envelope(), cb);
 }
 
 void
