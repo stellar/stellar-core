@@ -16,7 +16,10 @@
 #include <fstream>
 
 using namespace stellar;
+
+namespace stellar {
 using xdr::operator==;
+};
 
 TEST_CASE("Archive and reload history", "[history]")
 {
@@ -45,8 +48,7 @@ TEST_CASE("Archive and reload history", "[history]")
                 [h1, &done](std::shared_ptr<History> h2)
                 {
                     LOG(DEBUG) << "reloaded history";
-                    bool b = h1->fromLedger == h2->fromLedger;
-                    CHECK(b);
+                    CHECK(*h1 == *h2);
                     done = true;
                 });
         });
