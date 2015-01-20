@@ -602,7 +602,6 @@
     <None Include="..\..\ChangeLog" />
     <None Include="..\..\COPYING" />
     <None Include="..\..\NEWS" />
-    <None Include="..\..\README" />
     <None Include="..\..\docs\hayashi_example.cfg">
       <Filter>docs</Filter>
     </None>
@@ -626,6 +625,7 @@
     <None Include="..\..\src\fba\NOTES">
       <Filter>fba</Filter>
     </None>
+    <None Include="..\..\README.md" />
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="..\..\src\overlay\StellarXDR.x">
