@@ -18,8 +18,24 @@
 namespace stellar
 {
 
+// Static helper for Herder's FBA constructor
+static FBAQuorumSet
+quorumSetFromApp(Application& app)
+{
+    FBAQuorumSet qSet;
+    qSet.threshold = app.getConfig().QUORUM_THRESHOLD;
+    for (auto q : app.getConfig().QUORUM_SET)
+    {
+        qSet.validators.push_back(q);
+    }
+    return qSet;
+}
+
+
 Herder::Herder(Application& app)
-    : mCollectingTransactionSet(std::make_shared<TxSetFrame>())
+    : FBA(app.getConfig().VALIDATION_SEED,
+          quorumSetFromApp(app))
+    , mCollectingTransactionSet(std::make_shared<TxSetFrame>())
     , mReceivedTransactions(4)
 #ifdef _MSC_VER
     // This form of initializer causes a warning due to brace-elision on
@@ -45,22 +61,10 @@ Herder::Herder(Application& app)
     , mLedgersToWaitToParticipate(3)
     , mApp(app)
 {
-    FBAQuorumSet qSetLocal;
-    qSetLocal.threshold = app.getConfig().QUORUM_THRESHOLD;
-    for (auto q : app.getConfig().QUORUM_SET)
-    {
-        qSetLocal.validators.push_back(q);
-    }
-
-    mFBA = new FBA(app.getConfig().VALIDATION_SEED,
-                   qSetLocal,
-                   this);
-
 }
 
 Herder::~Herder()
 {
-    delete mFBA;
 }
 
 void
@@ -74,15 +78,15 @@ Herder::bootstrap()
 }
 
 void 
-Herder::validateBallot(const uint64& slotIndex,
-                       const uint256& nodeID,
-                       const FBABallot& ballot,
-                       std::function<void(bool)> const& cb)
+Herder::validateValue(const uint64& slotIndex,
+                      const uint256& nodeID,
+                      const Value& value,
+                      std::function<void(bool)> const& cb)
 {
     StellarBallot b;
     try
     {
-        xdr::xdr_from_opaque(ballot.value, b);
+        xdr::xdr_from_opaque(value, b);
     }
     catch (...)
     {
@@ -153,21 +157,14 @@ Herder::validateBallot(const uint64& slotIndex,
 }
 
 void 
-Herder::ballotDidPrepare(const uint64& slotIndex,
-                         const FBABallot& ballot)
+Herder::validateBallot(const uint64& slotIndex,
+                       const uint256& nodeID,
+                       const FBABallot& ballot,
+                       std::function<void(bool)> const& cb)
 {
-}
-
-void 
-Herder::ballotDidCommit(const uint64& slotIndex,
-                        const FBABallot& ballot)
-{
-}
-
-void 
-Herder::valueCancelled(const uint64& slotIndex,
-                       const Value& value)
-{
+    // TODO(spolu) implement ballot validation (goal is to prevent ballot
+    //             counter exhaustion attacks)
+    return cb(true);
 }
 
 void 
@@ -233,11 +230,12 @@ Herder::valueExternalized(const uint64& slotIndex,
 
 void 
 Herder::retrieveQuorumSet(const uint256& nodeID,
-                          const Hash& qSetHash)
+                          const Hash& qSetHash,
+                          std::function<void(const FBAQuorumSet&)> const& cb)
 {
-    auto retrieve = [=] (FBAQuorumSetPtr qSet)
+    auto retrieve = [cb] (FBAQuorumSetPtr qSet)
     {
-        mFBA->receiveQuorumSet(nodeID, *qSet);
+        return cb(*qSet);
     };
 
     // Peer Overlays and nodeIDs have no relationship for now. Sow we just
@@ -267,13 +265,6 @@ Herder::emitEnvelope(const FBAEnvelope& envelope)
     msg.envelope() = envelope;
 
     mApp.getOverlayGateway().broadcastMessage(msg);
-}
-
-void 
-Herder::retransmissionHinted(const uint64& slotIndex,
-                             const uint256& nodeID)
-{
-    // Not implemented yet. Requires a new message.
 }
 
 TxSetFramePtr
@@ -411,15 +402,15 @@ Herder::recvFBAEnvelope(FBAEnvelope envelope,
     // If we are fully synced and we see envelopes that are from future ledgers
     // we store them for later replay.
     if (mLedgersToWaitToParticipate <= 0 &&
-        envelope.statement.slotIndex > mLastClosedLedger.ledgerSeq + 1)
+        envelope.slotIndex > mLastClosedLedger.ledgerSeq + 1)
     {
-        mFutureEnvelopes[envelope.statement.slotIndex]
+        mFutureEnvelopes[envelope.slotIndex]
             .push_back(std::make_pair(envelope, cb));
     }
     // TODO(spolu) limit on mFutureEnvelopes
     // TODO(spolu) limit if envelopes are too old
 
-    return mFBA->receiveEnvelope(envelope, cb);
+    return receiveEnvelope(envelope, cb);
 }
 
 void
@@ -496,7 +487,7 @@ Herder::advanceToNextLedger()
     b.closeTime = nextCloseTime;
     b.baseFee = mApp.getConfig().DESIRED_BASE_FEE;
 
-    mFBA->attemptValue(slotIndex, xdr::xdr_to_opaque(b));
+    prepareValue(slotIndex, xdr::xdr_to_opaque(b));
 
     for (auto p : mFutureEnvelopes[slotIndex])
     {

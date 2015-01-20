@@ -10,21 +10,8 @@
 namespace stellar
 {
 
-using xdr::operator<;
-
-int
-FBA::Client::compareValues(const Value& v1,
-                           const Value& v2)
-{
-    if (v1 < v2) return -1;
-    if (v2 < v1) return 1;
-    return 0;
-}
-
 FBA::FBA(const uint256& validationSeed,
-         const FBAQuorumSet& qSetLocal,
-         Client* client)
-    : mClient(client)
+         const FBAQuorumSet& qSetLocal)
 {
     mLocalNode = new LocalNode(validationSeed, qSetLocal, this);
     mKnownNodes[mLocalNode->getNodeID()] = mLocalNode;
@@ -43,25 +30,25 @@ FBA::~FBA()
 }
 
 void
-FBA::receiveQuorumSet(const uint256& nodeID, 
-                      const FBAQuorumSet& qSet)
-{
-    getNode(nodeID)->cacheQuorumSet(qSet);
-}
-
-void
 FBA::receiveEnvelope(const FBAEnvelope& envelope,
-                     std::function<void(bool)> const& cb)
+                     std::function<void(EnvelopeState)> const& cb)
 {
-    uint64 slotIndex = envelope.statement.slotIndex;
+    // If the envelope is not correctly signed, we ignore it.
+    if (!verifyEnvelope(envelope))
+    {
+        return cb(FBA::EnvelopeState::INVALID);
+    }
+
+    uint64 slotIndex = envelope.slotIndex;
     getSlot(slotIndex)->processEnvelope(envelope, cb);
 }
 
 bool
-FBA::attemptValue(const uint64& slotIndex,
-                  const Value& value)
+FBA::prepareValue(const uint64& slotIndex,
+                  const Value& value,
+                  bool forceBump)
 {
-    return getSlot(slotIndex)->attemptValue(value);
+    return getSlot(slotIndex)->prepareValue(value, forceBump);
 }
 
 void 
@@ -110,10 +97,18 @@ FBA::getSlot(const uint64& slotIndex)
     return mKnownSlots[slotIndex];
 }
 
-FBA::Client*
-FBA::getClient()
+void
+FBA::signEnvelope(FBAEnvelope& envelope)
 {
-    return mClient;
+    // TODO(spolu) envelope signature
 }
+
+bool 
+FBA::verifyEnvelope(const FBAEnvelope& envelope)
+{
+    // TODO(spolu) envelope verification
+    return true;
+}
+
 
 }
