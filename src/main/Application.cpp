@@ -84,6 +84,7 @@ struct Application::Impl
     void joinAllThreads();
 
     Impl(VirtualClock& clock, Config const& cfg);
+    ~Impl();
 };
 
 Application::Impl::Impl(VirtualClock& clock, Config const& cfg)
@@ -121,6 +122,14 @@ Application::Impl::Impl(VirtualClock& clock, Config const& cfg)
     }
     LOG(INFO) << "Application constructed";
 
+}
+
+Application::Impl::~Impl()
+{
+    LOG(INFO) << "Application destructing";
+    gracefulStop();
+    joinAllThreads();
+    LOG(INFO) << "Application destroyed";
 }
 
 Application::Application(VirtualClock& clock, Config const& cfg)
@@ -286,11 +295,6 @@ Application::Impl::start()
 
 Application::~Application()
 {
-    LOG(INFO) << "Application destructing";
-    gracefulStop();
-    joinAllThreads();
-    LOG(INFO) << "Application destroyed";
-
     // We have to do this manually because some of the dtors
     // of the sub-objects call back through here into the
     // being-deleted application object, and the default
