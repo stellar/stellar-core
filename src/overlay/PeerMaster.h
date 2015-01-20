@@ -59,6 +59,7 @@ class PeerMaster : public OverlayGateway
     void addPeer(Peer::pointer peer);
     void dropPeer(Peer::pointer peer);
     bool isPeerAccepted(Peer::pointer peer);
+    std::vector<Peer::pointer>& getPeers() { return mPeers;  }
 
     Peer::pointer getPeer(const std::string& ip, int port);
     Peer::pointer getRandomPeer();

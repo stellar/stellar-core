@@ -250,39 +250,31 @@ PeerMaster::getNextPeer(Peer::pointer peer)
 
 
 void 
-PeerMaster::recvFloodedMsg(uint256 const& messageID, 
-                           StellarMessage const& msg, 
-                           uint32_t ledgerIndex,
-                           Peer::pointer peer)
+PeerMaster::recvFloodedMsg(StellarMessage const& msg,Peer::pointer peer)
 {
-    mFloodGate.addRecord(messageID, msg, ledgerIndex, peer);
+    mFloodGate.addRecord(msg, peer);
 }
 
-void
-PeerMaster::broadcastMessage(uint256 const& msgID)
-{
-    mFloodGate.broadcast(msgID, this);
-}
 
 void
 PeerMaster::broadcastMessage(StellarMessage const& msg,
                              Peer::pointer peer)
 {
-    vector<Peer::pointer> tempList;
-    tempList.push_back(peer);
-    broadcastMessage(msg, tempList);
+    mFloodGate.broadcast(msg);
 }
 
-// send message to anyone you haven't gotten it from
+
+// should only be called by flood gate
 void
 PeerMaster::broadcastMessage(StellarMessage const& msg,
-                             vector<Peer::pointer> const& skip)
+                             vector<Peer::pointer>& skip)
 {
     for (auto peer : mPeers)
     {
         if (find(skip.begin(), skip.end(), peer) == skip.end())
         {
             peer->sendMessage(msg);
+            skip.push_back(peer);
         }
     }
 }

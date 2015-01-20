@@ -4,6 +4,10 @@
 
 #include "Floodgate.h"
 #include "overlay/PeerMaster.h"
+#include "xdrpp/marshal.h"
+#include "crypto/SHA.h"
+#include "ledger/LedgerMaster.h"
+#include "main/Application.h"
 
 namespace stellar
 {
@@ -14,6 +18,11 @@ FloodRecord::FloodRecord(StellarMessage const& msg, uint64_t ledger,
     mMessage = msg;
     mLedgerIndex = ledger;
     if(peer) mPeersTold.push_back(peer);
+}
+
+Floodgate::Floodgate(Application& app) : mApp(app)
+{
+
 }
 
 // remove old flood records
@@ -33,22 +42,46 @@ Floodgate::clearBelow(uint64_t currentLedger)
     }
 }
 
-void
-Floodgate::addRecord(uint256 const& index,
-                     StellarMessage const& msg,
-                     uint64_t ledgerIndex, Peer::pointer peer)
+bool
+Floodgate::addRecord(StellarMessage const& msg, Peer::pointer peer)
 {
-    mFloodMap[index] = std::make_shared<FloodRecord>(msg, ledgerIndex, peer);
+    Hash index= sha512_256(xdr::xdr_to_msg(msg));
+    auto result = mFloodMap.find(index);
+    if(result == mFloodMap.end())
+    { // we have never seen this message
+        mFloodMap[index] = std::make_shared<FloodRecord>(msg, 
+            mApp.getLedgerMaster().getLedgerNum(), peer);
+        return true;
+    }else
+    { 
+        result->second->mPeersTold.push_back(peer);
+        return false;
+    }
 }
 
-void
-Floodgate::broadcast(uint256 const& index, PeerMaster* peerMaster)
+// send message to anyone you haven't gotten it from
+void Floodgate::broadcast(StellarMessage const& msg)
 {
+    Hash index = sha512_256(xdr::xdr_to_msg(msg));
     auto result = mFloodMap.find(index);
-    if (result != mFloodMap.end())
+    if(result == mFloodMap.end())
+    {  // no one has sent us this message
+        FloodRecord::pointer record = std::make_shared<FloodRecord>(msg,
+            mApp.getLedgerMaster().getLedgerNum(), Peer::pointer() );
+        record->mPeersTold = mApp.getPeerMaster().getPeers();
+
+        mFloodMap[index]
+        
+
+    }
+
+    for(auto peer : mApp.getPeerMaster().getPeers())
     {
-        peerMaster->broadcastMessage(result->second->mMessage,
-                                     result->second->mPeersTold);
+        if(find(skip.begin(), skip.end(), peer) == skip.end())
+        {
+            peer->sendMessage(msg);
+            skip.push_back(peer);
+        }
     }
 }
 }

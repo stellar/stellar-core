@@ -130,6 +130,7 @@ Herder::validateBallot(const uint64& slotIndex,
                 return cb(false);
             }
         }
+        
         return cb(true);
     };
     
@@ -221,7 +222,7 @@ Herder::retrieveQuorumSet(const uint256& nodeID,
     };
 
     // Peer Overlays and nodeIDs have no relationship for now. Sow we just
-    // retrieve qSetHash by asking the whole overaly.
+    // retrieve qSetHash by asking the whole overlay.
     FBAQuorumSetPtr qSet = fetchFBAQuorumSet(qSetHash, true);
     if (!qSet)
     {
