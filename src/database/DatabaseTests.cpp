@@ -40,7 +40,7 @@ TEST_CASE("postgres smoketest", "[db]")
     Config cfg;
     cfg.RUN_STANDALONE = true;
     VirtualClock clock;
-    cfg.DATABASE = "postgresql://dbname=test user=test password=test";
+    cfg.DATABASE = "postgresql://host=localhost dbname=test user=test password=test";
     try
     {
         Application app(clock, cfg);
