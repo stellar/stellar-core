@@ -16,7 +16,7 @@ script:
 - set -e
 - ./autogen.sh
 - ./configure
-- make -j $(nproc)
+- make
 - make check
 notifications:
   email: false
