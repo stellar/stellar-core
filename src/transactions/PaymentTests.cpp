@@ -93,33 +93,22 @@ TEST_CASE("payment", "[tx][payment]")
     SECTION("send too little STR to new account (below reserve)")
     {
         LOG(INFO) << "send too little STR to new account (below reserve)";
+        applyPaymentTx(app,root, b1, 2,
+            app.getLedgerMaster().getCurrentLedgerHeader().baseReserve -1,txUNDERFUNDED);
 
-        TransactionFramePtr txFrame2 = createPaymentTx(root, b1, 2,
-            app.getLedgerMaster().getCurrentLedgerHeader().baseReserve -1);
-
-        LedgerDelta delta2;
-        txFrame2->apply(delta2, app);
-
-        REQUIRE(txFrame2->getResultCode() == txUNDERFUNDED);
         AccountFrame bAccount;
         REQUIRE(!app.getDatabase().loadAccount(b1.getPublicKey(), bAccount));
     }
 
     SECTION("simple credit")
     {
-        Currency currency;
-        currency.type(ISO4217);
-        currency.isoCI().issuer = root.getPublicKey();
-        strToCurrencyCode(currency.isoCI().currencyCode, "IDR");
+        Currency currency=makeCurrency(root,"IDR");
 
         SECTION("credit sent to new account (no account error)")
         {
             LOG(INFO) << "credit sent to new account (no account error)";
-            TransactionFramePtr txFrame = createCreditPaymentTx(root, b1, currency, 2, 100);
-            LedgerDelta delta2;
-            txFrame->apply(delta2, app);
+            applyCreditPaymentTx(app,root, b1, currency, 2, 100, txNOACCOUNT);
 
-            REQUIRE(txFrame->getResultCode() == txNOACCOUNT);
             AccountFrame bAccount;
             REQUIRE(!app.getDatabase().loadAccount(b1.getPublicKey(), bAccount));
         }
@@ -142,11 +131,7 @@ TEST_CASE("payment", "[tx][payment]")
         SECTION("credit payment with no trust")
         {
             LOG(INFO) << "credit payment with no trust";
-            TransactionFramePtr txFrame = createCreditPaymentTx(root, a1, currency, 2, 100);
-            LedgerDelta delta2;
-            txFrame->apply(delta2, app);
-
-            REQUIRE(txFrame->getResultCode() == txNOTRUST);
+            applyCreditPaymentTx(app,root, a1, currency, 2, 100, txNOTRUST);
             AccountFrame account;
             REQUIRE(app.getDatabase().loadAccount(a1.getPublicKey(), account));
            
@@ -159,61 +144,22 @@ TEST_CASE("payment", "[tx][payment]")
             applyTrust(app, a1, root, 1, "IDR");
             applyCreditPaymentTx(app, root, a1, currency, 2, 100);
 
-            {
-                TrustFrame line;
-                REQUIRE(app.getDatabase().loadTrustLine(a1.getPublicKey(), currency, line));
-                REQUIRE(line.getBalance() == 100);
-            }
+            TrustFrame line;
+            REQUIRE(app.getDatabase().loadTrustLine(a1.getPublicKey(), currency, line));
+            REQUIRE(line.getBalance() == 100);
 
-            { // create b1 account
-                TransactionFramePtr txFrame;
-
-                txFrame = createPaymentTx(root, b1, 3, paymentAmount);
-
-                LedgerDelta delta;
-                txFrame->apply(delta, app);
-
-                REQUIRE(txFrame->getResultCode() == txSUCCESS);
-
-            }
-
-            {
-                TransactionFramePtr txFrame = setTrust(b1, root, 1, "IDR");
-                LedgerDelta delta2;
-                txFrame->apply(delta2, app);
-
-                REQUIRE(txFrame->getResultCode() == txSUCCESS);
-            }
-
-            {
-                LOG(INFO) << "simple credit payment";
-
-                TransactionFramePtr txFrame = createCreditPaymentTx(a1, b1, currency, 2, 40);
-                LedgerDelta delta;
-                txFrame->apply(delta, app);
-
-                REQUIRE(txFrame->getResultCode() == txSUCCESS);
-                TrustFrame line;
-                REQUIRE(app.getDatabase().loadTrustLine(a1.getPublicKey(), currency, line));
-                REQUIRE(line.getBalance() == 60);
-                REQUIRE(app.getDatabase().loadTrustLine(b1.getPublicKey(), currency, line));
-                REQUIRE(line.getBalance() == 40);
-            }
-
-            {
-                LOG(INFO) << "sending credit back to issuer";
-
-                TransactionFramePtr txFrame = createCreditPaymentTx(b1, root, currency, 2, 40);
-                LedgerDelta delta;
-                txFrame->apply(delta, app);
-
-                REQUIRE(txFrame->getResultCode() == txSUCCESS);
-                TrustFrame line;
-                REQUIRE(app.getDatabase().loadTrustLine(b1.getPublicKey(), currency, line));
-                REQUIRE(line.getBalance() == 0);
-            }
-
-
+            // create b1 account
+            applyPaymentTx(app,root, b1, 3, paymentAmount);
+            applyTrust(app,b1, root, 1, "IDR");
+            applyCreditPaymentTx(app,a1, b1, currency, 2, 40);
+               
+            REQUIRE(app.getDatabase().loadTrustLine(a1.getPublicKey(), currency, line));
+            REQUIRE(line.getBalance() == 60);
+            REQUIRE(app.getDatabase().loadTrustLine(b1.getPublicKey(), currency, line));
+            REQUIRE(line.getBalance() == 40);
+            applyCreditPaymentTx(app,b1, root, currency, 2, 40);
+            REQUIRE(app.getDatabase().loadTrustLine(b1.getPublicKey(), currency, line));
+            REQUIRE(line.getBalance() == 0);
         }
     }
 }

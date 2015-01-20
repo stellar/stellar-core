@@ -31,7 +31,8 @@ Floodgate::clearBelow(uint64_t currentLedger)
 {
     for (auto it = mFloodMap.cbegin(); it != mFloodMap.cend();)
     {
-        if (it->second->mLedgerIndex < currentLedger)
+        // give one ledger of leeway
+        if (it->second->mLedgerIndex+1 < currentLedger)  
         {
             mFloodMap.erase(it++);
         }

@@ -17,8 +17,6 @@ using namespace soci;
 #define SECONDS_PER_BACKOFF 10
 
 // TODO.3 some tests
-// TODO.2 are we flooding txs?
-// TODO.2 floodgate seems broken. are we adding peers that we tell?
 
 namespace stellar
 {
