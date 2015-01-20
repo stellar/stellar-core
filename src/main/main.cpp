@@ -13,6 +13,7 @@
 #include "crypto/SecretKey.h"
 #include <sodium.h>
 
+
 _INITIALIZE_EASYLOGGINGPP
 
 enum opttag

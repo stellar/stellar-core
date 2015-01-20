@@ -33,7 +33,9 @@ TEST_CASE("database smoketest", "[db]")
     LOG(DEBUG) << "round trip with in-memory database: " << a << " == " << b;
 }
 
-
+// TODO.4  the throw if the DB doesn't exist crashes (on windows at least) and 
+//   isn't caught. If I just open the session directly it works fine. 
+//   Something about doing it in the constructor I guess
 #ifdef USE_POSTGRES
 TEST_CASE("postgres smoketest", "[db]")
 {

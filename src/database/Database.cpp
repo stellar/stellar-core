@@ -84,13 +84,19 @@ void Database::addPeer(const std::string& ip, int port,int numFailures, int rank
 
 void Database::loadPeers(int max, vector<PeerRecord>& retList)
 {
-    stringstream sql;
-    sql << "SELECT peerID,ip,port,numFailures from Peers where nextAttempt<now() order by rank limit " << max;
-    rowset<row> rs = mSession.prepare << sql.str();
-    for(rowset<row>::const_iterator it = rs.begin(); it != rs.end(); ++it)
+    try {
+        stringstream sql;
+        sql << "SELECT peerID,ip,port,numFailures from Peers where nextAttempt<now() order by rank limit " << max;
+        rowset<row> rs = mSession.prepare << sql.str();
+        for(rowset<row>::const_iterator it = rs.begin(); it != rs.end(); ++it)
+        {
+            row const& row = *it;
+            retList.push_back(PeerRecord(row.get<int>(0), row.get<std::string>(1), row.get<int>(2), row.get<int>(3)));
+        }
+    }
+    catch(soci_error& err)
     {
-        row const& row = *it;
-        retList.push_back(PeerRecord(row.get<int>(0), row.get<std::string>(1), row.get<int>(2), row.get<int>(3)));
+        LOG(ERROR) << "loadPeers Error: " << err.what();
     }
 }
 

@@ -7,7 +7,7 @@
  - Not sure we need this
 
 
-#v.1 API implemention can start
+#v.1 Platform implemention can start
  - Tests for transactions (jed)
  - hit DB during the transactions (nicolas)
  - Syncing to the network (graydon)
