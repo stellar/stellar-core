@@ -25,9 +25,9 @@ class Slot
     Slot(const uint64& slotIndex, FBA* FBA);
 
     // Process a newly received envelope for this slot and update the state of
-    // the slot accordingly. Returns wether the envelope signature is valid or
-    // not.
-    bool processEnvelope(const FBAEnvelope& envelope);
+    // the slot accordingly. Returns wether the envelope was validated or not.
+    void processEnvelope(const FBAEnvelope& envelope,
+                         std::function<void(bool)> const& cb = [] (bool) { });
 
     // Attempts a new value for this slot. If the value is compatible with the
     // current ballot, and forceBump is false, the current ballot is used.
