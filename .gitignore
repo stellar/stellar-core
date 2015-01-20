@@ -29,6 +29,7 @@
 .dirstamp
 
 /src/generated
+/README
 /Makefile
 /Makefile.in
 /aclocal.m4
