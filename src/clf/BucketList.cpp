@@ -33,8 +33,8 @@ LedgerEntryIdCmp
     bool operator()(LedgerEntry const& a,
                     LedgerEntry const& b) const
     {
-        LedgerTypes aty = a.type();
-        LedgerTypes bty = b.type();
+        LedgerType aty = a.type();
+        LedgerType bty = b.type();
 
         if (aty < bty)
             return true;
