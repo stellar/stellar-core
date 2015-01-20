@@ -100,8 +100,8 @@ AC_SUBST(XDRC)
 
 # We do not bundle libpq, but we'll compile-in support if it's present.
 # Add other optional database drivers here (and later, in SOCI).
-PKG_CHECK_MODULES([libpq],[libpq],[use_POSTGRESQL=1],[use_POSTGRESQL=])
-AM_CONDITIONAL(USE_POSTGRESQL, [test "x$use_POSTGRESQL" != "x"])
+PKG_CHECK_MODULES([libpq],[libpq],[use_POSTGRES=1],[use_POSTGRES=])
+AM_CONDITIONAL(USE_POSTGRES, [test "x$use_POSTGRES" != "x"])
 
 AC_CONFIG_HEADERS([config.h])
 AC_CONFIG_FILES([Makefile])

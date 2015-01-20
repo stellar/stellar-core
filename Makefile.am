@@ -148,7 +148,8 @@ libsoci_la_SOURCES = src/lib/soci/src/backends/sqlite3/standard-use-type.cpp    
     src/lib/soci/src/core/connection-parameters.cpp                             \
     src/lib/soci/src/core/procedure.cpp src/lib/soci/src/core/use-type.cpp
 
-if USE_POSTGRESQL
+if USE_POSTGRES
+bin_stellard_CPPFLAGS += -DUSE_POSTGRES
 libsoci_la_CPPFLAGS += -I$(srcdir)/src/lib/soci/src/backends/postgresql \
                          $(libpq_CFLAGS)
 
