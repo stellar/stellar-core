@@ -264,3 +264,5 @@ libtool: $(LIBTOOL_DEPS)
 
 ACLOCAL_AMFLAGS = -I m4
 
+README: README.md
+	$(AM_V_GEN)cp $< $@
