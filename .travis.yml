@@ -2,6 +2,8 @@ language: cpp
 compiler:
 - clang
 - gcc
+addons:
+- postgresql: "9.3"
 cache: apt
 before_install:
 - wget -O - http://llvm.org/apt/llvm-snapshot.gpg.key | sudo apt-key add -
@@ -14,6 +16,9 @@ before_install:
 - sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-4.8 90 --slave /usr/bin/g++ g++ /usr/bin/g++-4.8
 - clang -v
 - g++ -v
+before_script:
+- psql -c "create user test with password 'test';" -U postgres
+- psql -c "create database test;" -U postgres
 script:
 - set -e
 - ./autogen.sh
