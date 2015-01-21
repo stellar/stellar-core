@@ -88,19 +88,18 @@ class Herder : public HerderGateway,
     // 3- three or more ledgers ago. Any set we validate must have these tx
     std::vector<std::vector<TransactionFramePtr>>  mReceivedTransactions;
 
-    // need to keep the old tx sets around for at least one Consensus round
-    //  in case some stragglers are still need the old txsets in order to close
-    std::array<TxSetFetcher, 2>                    mTxSetFetcher;
+    // need to keep the old tx sets around for at least one Consensus round in
+    // case some stragglers are still need the old txsets in order to close
+    std::array<TxSetFetcherPtr, 2>                 mTxSetFetcher;
     int                                            mCurrentTxSetFetcher;
-
     std::map<Hash, 
         std::vector<
-            std::function<void(TxSetFramePtr)>>>   mPendingValidations;
+            std::function<void(TxSetFramePtr)>>>   mTxSetFetches;
+
+    FBAQSetFetcherPtr                              mFBAQSetFetcher;
     std::map<Hash,
         std::vector<
-            std::function<void(FBAQuorumSetPtr)>>> mPendingRetrievals;
-
-    FBAQSetFetcher                                 mFBAQSetFetcher;
+            std::function<void(FBAQuorumSetPtr)>>> mFBAQSetFetches;
 
     int                                            mLedgersToWaitToParticipate;
     LedgerHeader                                   mLastClosedLedger;

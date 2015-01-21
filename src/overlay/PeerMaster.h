@@ -50,6 +50,9 @@ class PeerMaster : public OverlayGateway
                         Peer::pointer peer);
 
     void broadcastMessage(StellarMessage const& msg);
+
+    TxSetFetcherPtr getNewTxSetFetcher();
+    FBAQSetFetcherPtr getNewFBAQSetFetcher();
     //////
 
     void connectTo(const std::string& addr);
