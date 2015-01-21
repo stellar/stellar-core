@@ -209,11 +209,11 @@ Slot::processEnvelope(const FBAEnvelope& envelope,
         {
             // If the slot already COMMITTED and we received another statement,
             // we resend our own COMMITTED message.
-            FBAStatement statement = 
+            FBAStatement stmt =
                 createStatement(FBAStatementType::COMMITTED);
 
-            FBAEnvelope envelope = createEnvelope(statement);
-            mFBA->getClient()->emitEnvelope(envelope);
+            FBAEnvelope env = createEnvelope(stmt);
+            mFBA->getClient()->emitEnvelope(env);
         }
 
         // Finally call the callback saying that this was a valid envelope
@@ -510,14 +510,14 @@ Slot::isQuorumTransitive(const std::map<uint256, FBAStatement>& statements,
     {
         count = pNodes.size();
         std::vector<uint256> fNodes(pNodes.size());
-        auto filter = [&] (uint256 nodeID) -> bool 
+        auto quorumFilter = [&] (uint256 nodeID) -> bool
         {
             FBAStatement s = statements.find(nodeID)->second;
             auto qSetHash = s.quorumSetHash;
             return nodeHasQuorum(nodeID, qSetHash, pNodes);
         };
         auto it = std::copy_if(pNodes.begin(), pNodes.end(), 
-                               fNodes.begin(), filter);
+                               fNodes.begin(), quorumFilter);
         fNodes.resize(std::distance(fNodes.begin(), it));
         pNodes = fNodes;
     } while (count != pNodes.size());
