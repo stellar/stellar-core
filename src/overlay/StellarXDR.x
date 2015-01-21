@@ -47,7 +47,7 @@ enum TransactionType
 	INFLATION
 };
 
-enum CurrencyTypes
+enum CurrencyType
 {
 	NATIVE,
 	ISO4217,
@@ -68,7 +68,7 @@ struct ISOCurrencyIssuer
 	AccountID issuer;
 };
 
-union Currency switch(CurrencyTypes type)
+union Currency switch(CurrencyType type)
 {
 	case NATIVE: 
 		void;
@@ -134,7 +134,7 @@ struct ChangeTrustTx
 struct AllowTrustTx
 {
 	AccountID trustor;
-	union switch(CurrencyTypes type)
+	union switch(CurrencyType type)
 	{
 		case NATIVE:
 			void;
@@ -237,7 +237,7 @@ struct History
 
 
 
-enum LedgerTypes {
+enum LedgerType {
   NONE,
   ACCOUNT,
   TRUSTLINE,
@@ -288,7 +288,7 @@ struct OfferEntry
     int32 flags;
 };
 
-union LedgerEntry switch (LedgerTypes type)
+union LedgerEntry switch (LedgerType type)
 {
  case NONE:
 	void;

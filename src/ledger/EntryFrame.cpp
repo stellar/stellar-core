@@ -37,11 +37,11 @@ uint256 EntryFrame::getIndex()
     {
         switch(entry.type())
         {
-        case LedgerTypes::NONE:
+        case LedgerType::NONE:
             return;
-        case LedgerTypes::ACCOUNT:
-        case LedgerTypes::OFFER:
-        case LedgerTypes::TRUSTLINE:
+        case LedgerType::ACCOUNT:
+        case LedgerType::OFFER:
+        case LedgerType::TRUSTLINE:
         }
     }
    
@@ -49,12 +49,12 @@ uint256 EntryFrame::getIndex()
     {
         switch(entry.type())
         {
-        case LedgerTypes::NONE:
+        case LedgerType::NONE:
             return;
-        case LedgerTypes::ACCOUNT:
+        case LedgerType::ACCOUNT:
             return storeDeleteAccount(entry, txResult, ledgerMaster);
-        case LedgerTypes::OFFER:
-        case LedgerTypes::TRUSTLINE:
+        case LedgerType::OFFER:
+        case LedgerType::TRUSTLINE:
         }
     }
     void storeChange(const LedgerEntry& entry, const LedgerEntry& startFrom, Json::Value& txResult, LedgerMaster& ledgerMaster)

@@ -154,21 +154,40 @@ class HistoryMaster
     class Impl;
     std::unique_ptr<Impl> mImpl;
 
-  public:
-    void archiveHistoryEntry(HistoryEntry const& historyEntry);
+    template <typename T> void
+    saveAndCompressAndPut(std::string const& basename,
+                          std::shared_ptr<T> xdrp,
+                          std::function<void(std::string const&)> handler);
 
-    void archiveHistory(std::shared_ptr<History> hist,
-                        std::function<void(std::string const&)> handler);
-
-    void archiveBucket(std::shared_ptr<CLFBucket> bucket,
-                       std::function<void(std::string const&)> handler);
-
-    void acquireHistory(std::string const& name,
-                        std::function<void(std::shared_ptr<History>)> handler);
+    template <typename T> void
+    getAndDecompressAndLoad(std::string const& basename,
+                            std::function<void(std::shared_ptr<T>)> handler);
 
     void putFile(std::string const& filename,
                  std::string const& basename,
                  std::function<void(std::string const&)> handler);
+
+    void getFile(std::string const& basename,
+                 std::string const& filename,
+                 std::function<void(std::string const&)> handler);
+
+    std::string const& getTempDir();
+
+  public:
+
+    void archiveBucket(std::shared_ptr<CLFBucket> bucket,
+                       std::function<void(std::string const&)> handler);
+
+    void archiveHistory(std::shared_ptr<History> hist,
+                        std::function<void(std::string const&)> handler);
+
+    void acquireBucket(uint64_t ledgerSeq,
+                       uint32_t ledgerCount,
+                       std::function<void(std::shared_ptr<CLFBucket>)> handler);
+
+    void acquireHistory(uint64_t fromLedger,
+                        uint64_t toLedger,
+                        std::function<void(std::shared_ptr<History>)> handler);
 
     HistoryMaster(Application& app);
     ~HistoryMaster();
