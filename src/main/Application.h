@@ -129,6 +129,10 @@ class Application
     // force-stopped the io_services. Application can be safely destroyed
     // after this returns.
     void joinAllThreads();
+
+    // For testing purposes we have an interfaces to mock Gateways. We pass the
+    // mocks as unique_ptr<> whose ownership is then transfered to this class.
+    void mockOverlayGateway(std::unique_ptr<OverlayGateway>);
 };
 }
 

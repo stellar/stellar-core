@@ -113,11 +113,15 @@ void TxSetFrame::sortForApply(vector<TransactionFramePtr>& retList)
 }
 
 // need to make sure every account that is submitting a tx has enough to pay 
-//  the fees of all the tx it has submitted in this set
+// the fees of all the tx it has submitted in this set
 // check seq num
-bool TxSetFrame::checkValid(Application& app)
+bool 
+TxSetFrame::checkValid(Application& app)
 {
-    // don't consider minBalance since you want to allow them to still send around credit etc
+    // TODO(spolu) check lastLedgerHash
+    
+    // don't consider minBalance since you want to allow them to still send
+    // around credit etc
     map<uint256, vector<TransactionFramePtr>> accountTxMap;
 
     Hash lastHash;
@@ -177,7 +181,7 @@ TxSetFrame::getContentsHash()
 Hash
 TxSetFrame::getPreviousLedgerHash()
 {
-  return mPreviousLedgerHash;
+    return mPreviousLedgerHash;
 }
 
 void

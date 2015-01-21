@@ -263,6 +263,17 @@ PeerMaster::broadcastMessage(StellarMessage const& msg)
 }
 
 
+TxSetFetcherPtr 
+PeerMaster::getNewTxSetFetcher()
+{
+    return std::make_shared<TxSetFetcher>(TxSetFetcher(mApp));
+}
+
+FBAQSetFetcherPtr 
+PeerMaster::getNewFBAQSetFetcher()
+{
+    return std::make_shared<FBAQSetFetcher>(FBAQSetFetcher(mApp));
+}
 
 
 void PeerMaster::createTable(Database &db)

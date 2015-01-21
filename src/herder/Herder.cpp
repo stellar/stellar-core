@@ -31,17 +31,17 @@ Herder::Herder(Application& app)
       {
           {
               {
-                  TxSetFetcher(app)
+                  app.getOverlayGateway().getNewTxSetFetcher()
               }
               ,
               {
-                  TxSetFetcher(app)
+                  app.getOverlayGateway().getNewTxSetFetcher()
               }
           }
       }
 #endif
     , mCurrentTxSetFetcher(0)
-    , mFBAQSetFetcher(app)
+    , mFBAQSetFetcher(app.getOverlayGateway().getNewFBAQSetFetcher())
     , mLedgersToWaitToParticipate(3)
     , mApp(app)
 {
@@ -74,19 +74,21 @@ Herder::validateBallot(const uint64& slotIndex,
                        std::function<void(bool)> const& cb)
 {
     StellarBallot b;
-    xdr::xdr_from_opaque(ballot.value, b);
+    try
+    {
+        xdr::xdr_from_opaque(ballot.value, b);
+    }
+    catch (...)
+    {
+        return cb(false);
+    }
 
     // All tests that are relative to mLastClosedLedger are executed only once
-    // we have waited for a couple ledgers to close
+    // we are fully synced up
     if (mLedgersToWaitToParticipate <= 0)
     {
         // Check slotIndex.
         if (mLastClosedLedger.ledgerSeq + 1 != slotIndex)
-        {
-            return cb(false);
-        }
-        // Check previousLedgerHash.
-        if (mLastClosedLedger.hash != b.previousLedgerHash)
         {
             return cb(false);
         }
@@ -100,23 +102,22 @@ Herder::validateBallot(const uint64& slotIndex,
         {
             return cb(false);
         }
-    }
-
-    // Check baseFee (within range of desired fee).
-    if (b.baseFee < mApp.getConfig().DESIRED_BASE_FEE * .5)
-    {
-        return cb(false);
-    }
-    if (b.baseFee > mApp.getConfig().DESIRED_BASE_FEE * 2)
-    {
-        return cb(false);
+        // Check baseFee (within range of desired fee).
+        if (b.baseFee < mApp.getConfig().DESIRED_BASE_FEE * .5)
+        {
+            return cb(false);
+        }
+        if (b.baseFee > mApp.getConfig().DESIRED_BASE_FEE * 2)
+        {
+            return cb(false);
+        }
     }
 
     // make sure all the tx we have in the old set are included
     auto validate = [cb,b,this] (TxSetFramePtr txSet)
     {
-        // Check txSet.
-        if(!txSet->checkValid(mApp))
+        // Check txSet (only if we're fully synced)
+        if(mLedgersToWaitToParticipate <= 0 && !txSet->checkValid(mApp))
         {
             CLOG(ERROR, "Herder") << "invalid txSet";
             return cb(false);
@@ -137,7 +138,7 @@ Herder::validateBallot(const uint64& slotIndex,
     TxSetFramePtr txSet = fetchTxSet(b.txSetHash, true);
     if (!txSet)
     {
-        mPendingValidations[b.txSetHash].push_back(validate);
+        mTxSetFetches[b.txSetHash].push_back(validate);
     }
     else
     {
@@ -168,16 +169,25 @@ Herder::valueExternalized(const uint64& slotIndex,
                           const Value& value)
 {
     StellarBallot b;
-    xdr::xdr_from_opaque(value, b);
+    try
+    {
+        xdr::xdr_from_opaque(value, b);
+    }
+    catch (...)
+    {
+        // This may not be possible as all messages are validated and should
+        // therefore contain a valid StellarBallot.
+        CLOG(ERROR, "Herder") << "Externalized StellarBallot malformed";
+    }
     
     TxSetFramePtr externalizedSet = fetchTxSet(b.txSetHash, false);
     if (externalizedSet)
     {
         // we don't need to keep fetching any of the old TX sets
-        mTxSetFetcher[mCurrentTxSetFetcher].stopFetchingAll();
+        mTxSetFetcher[mCurrentTxSetFetcher]->stopFetchingAll();
 
         mCurrentTxSetFetcher = mCurrentTxSetFetcher ? 0 : 1;
-        mTxSetFetcher[mCurrentTxSetFetcher].clear();
+        mTxSetFetcher[mCurrentTxSetFetcher]->clear();
 
         mApp.getLedgerGateway().externalizeValue(externalizedSet);
 
@@ -190,7 +200,7 @@ Herder::valueExternalized(const uint64& slotIndex,
         for (auto tx : mReceivedTransactions[1])
         {
             auto msg = tx->toStellarMessage();
-            mApp.getPeerMaster().broadcastMessage(msg);
+            mApp.getOverlayGateway().broadcastMessage(msg);
         }
 
         // move all the remaining to the next highest level
@@ -206,7 +216,7 @@ Herder::valueExternalized(const uint64& slotIndex,
     }
     else
     {
-        // This may not be possible are all messages are validated and should
+        // This may not be possible as all messages are validated and should
         // therefore fetch the txSet before being considered by FBA.
         CLOG(ERROR, "Herder") << "Externalized txSet not found";
     }
@@ -226,7 +236,7 @@ Herder::retrieveQuorumSet(const uint256& nodeID,
     FBAQuorumSetPtr qSet = fetchFBAQuorumSet(qSetHash, true);
     if (!qSet)
     {
-        mPendingRetrievals[qSetHash].push_back(retrieve);
+        mFBAQSetFetches[qSetHash].push_back(retrieve);
     }
     else
     {
@@ -237,6 +247,12 @@ Herder::retrieveQuorumSet(const uint256& nodeID,
 void 
 Herder::emitEnvelope(const FBAEnvelope& envelope)
 {
+    // We don't emit any envelope as long as we're not fully synced
+    if (mLedgersToWaitToParticipate > 0)
+    {
+        return;
+    }
+    
     StellarMessage msg;
     msg.type(FBA_MESSAGE);
     msg.envelope() = envelope;
@@ -255,13 +271,13 @@ TxSetFramePtr
 Herder::fetchTxSet(uint256 const& setHash, 
                    bool askNetwork)
 {
-    return mTxSetFetcher[mCurrentTxSetFetcher].fetchItem(setHash, askNetwork);
+    return mTxSetFetcher[mCurrentTxSetFetcher]->fetchItem(setHash, askNetwork);
 }
 
 void
 Herder::recvTxSet(TxSetFramePtr txSet)
 {
-    if (mTxSetFetcher[mCurrentTxSetFetcher].recvItem(txSet))
+    if (mTxSetFetcher[mCurrentTxSetFetcher]->recvItem(txSet))
     { 
         // someone cares about this set
         for (auto tx : txSet->mTransactions)
@@ -270,14 +286,14 @@ Herder::recvTxSet(TxSetFramePtr txSet)
         }
 
         // Runs any pending validation on this txSet.
-        auto it = mPendingValidations.find(txSet->getContentsHash());
-        if (it != mPendingValidations.end())
+        auto it = mTxSetFetches.find(txSet->getContentsHash());
+        if (it != mTxSetFetches.end())
         {
             for (auto validate : it->second)
             {
                 validate(txSet);
             }
-            mPendingValidations.erase(it);
+            mTxSetFetches.erase(it);
         }
     }
 }
@@ -286,7 +302,7 @@ void
 Herder::doesntHaveTxSet(uint256 const& txSetHash, 
                         PeerPtr peer)
 {
-    mTxSetFetcher[mCurrentTxSetFetcher].doesntHave(txSetHash, peer);
+    mTxSetFetcher[mCurrentTxSetFetcher]->doesntHave(txSetHash, peer);
 }
 
 
@@ -294,26 +310,26 @@ FBAQuorumSetPtr
 Herder::fetchFBAQuorumSet(uint256 const& qSetHash, 
                           bool askNetwork)
 {
-    return mFBAQSetFetcher.fetchItem(qSetHash, askNetwork);
+    return mFBAQSetFetcher->fetchItem(qSetHash, askNetwork);
 }
 
 void 
 Herder::recvFBAQuorumSet(FBAQuorumSetPtr qSet)
 {
-    if (mFBAQSetFetcher.recvItem(qSet))
+    if (mFBAQSetFetcher->recvItem(qSet))
     { 
         // someone cares about this set
         uint256 qSetHash = sha512_256(xdr::xdr_to_msg(*qSet));
 
         // Runs any pending retrievals on this qSet
-        auto it = mPendingRetrievals.find(qSetHash);
-        if (it != mPendingRetrievals.end())
+        auto it = mFBAQSetFetches.find(qSetHash);
+        if (it != mFBAQSetFetches.end())
         {
             for (auto retrieve : it->second)
             {
                 retrieve(qSet);
             }
-            mPendingRetrievals.erase(it);
+            mFBAQSetFetches.erase(it);
         }
     }
 }
@@ -322,7 +338,7 @@ void
 Herder::doesntHaveFBAQuorumSet(uint256 const& qSetHash, 
                                PeerPtr peer)
 {
-    mFBAQSetFetcher.doesntHave(qSetHash, peer);
+    mFBAQSetFetcher->doesntHave(qSetHash, peer);
 }
 
 
@@ -410,15 +426,18 @@ Herder::removeReceivedTx(TransactionFramePtr dropTx)
 void
 Herder::ledgerClosed(LedgerHeader& ledger)
 {
-    if (mLedgersToWaitToParticipate > 0)
+    mLastClosedLedger = ledger;
+
+    // We start skipping ledgers only after we're in SYNCED_STATE
+    if (mLedgersToWaitToParticipate > 0 &&
+        mApp.getState() != Application::State::SYNCED_STATE)
     {
         mLedgersToWaitToParticipate--;
     }
 
-    // If we haven't waited for a couple ledgers or we are not in SYNCED_STATE
-    // we don't prepare any value locally.
-    if (mLedgersToWaitToParticipate > 0 ||
-        mApp.getState() != Application::State::SYNCED_STATE)
+    // If we haven't waited for a couple ledgers after we got in SYNCED_STATE
+    // we consider ourselves not fully synced so we don't push any value.
+    if (mLedgersToWaitToParticipate > 0)
     {
         return;
     }
@@ -433,9 +452,9 @@ Herder::ledgerClosed(LedgerHeader& ledger)
             proposedSet->add(tx);
         }
     }
-    recvTxSet(proposedSet);
+    proposedSet->mPreviousLedgerHash = ledger.hash;
 
-    mLastClosedLedger = ledger;
+    recvTxSet(proposedSet);
 
     uint64_t nextCloseTime = time(nullptr) + NUM_SECONDS_IN_CLOSE;
     if (nextCloseTime <= mLastClosedLedger.closeTime)
@@ -444,7 +463,6 @@ Herder::ledgerClosed(LedgerHeader& ledger)
     uint64_t slotIndex = mLastClosedLedger.ledgerSeq + 1;
 
     StellarBallot b;
-    b.previousLedgerHash = ledger.hash;
     b.txSetHash = proposedSet->getContentsHash();
     b.closeTime = nextCloseTime;
     b.baseFee = mApp.getConfig().DESIRED_BASE_FEE;

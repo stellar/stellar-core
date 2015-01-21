@@ -314,7 +314,6 @@ struct CLFBucket
 
 struct StellarBallot
 {
-    Hash previousLedgerHash;
     Hash txSetHash;
     uint64 closeTime;
     int64 baseFee;

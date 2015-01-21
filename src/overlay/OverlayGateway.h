@@ -27,6 +27,11 @@ Should keep rotating peers till you get an answer:
 
 namespace stellar
 {
+class TxSetFetcher;
+typedef std::shared_ptr<TxSetFetcher> TxSetFetcherPtr;
+
+class FBAQSetFetcher;
+typedef std::shared_ptr<FBAQSetFetcher> FBAQSetFetcherPtr;
 
 class OverlayGateway
 {
@@ -36,6 +41,9 @@ class OverlayGateway
 
     // called by Herder
     virtual void broadcastMessage(StellarMessage const& msg) = 0;
+
+    virtual TxSetFetcherPtr getNewTxSetFetcher() = 0;
+    virtual FBAQSetFetcherPtr getNewFBAQSetFetcher() = 0;
 
     // called internally
     virtual void recvFloodedMsg(StellarMessage const& msg,

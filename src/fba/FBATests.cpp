@@ -102,7 +102,7 @@ class TestFBAClient : public FBA::Client
 };
 
 
-FBAEnvelope 
+static FBAEnvelope 
 makeEnvelope(const uint256& nodeID,
              const Hash& qSetHash,
              const uint64& slotIndex,
