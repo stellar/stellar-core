@@ -24,6 +24,9 @@ extern "C" void register_factory_sqlite3();
 extern "C" void register_factory_postgresql();
 #endif
 
+// NOTE: soci will just crash and not throw 
+//  if you misname a column in a query. yay!
+
 namespace stellar
 {
 
@@ -50,6 +53,7 @@ Database::Database(Application& app)
     : mApp(app)
 {
     registerDrivers();
+    LOG(INFO) << "Connecting to: " << app.getConfig().DATABASE;
     mSession.open(app.getConfig().DATABASE);
     if( (mApp.getConfig().START_NEW_NETWORK) || 
         (app.getConfig().DATABASE == "sqlite3://:memory:"))  initialize();
@@ -74,11 +78,10 @@ void Database::addPeer(const std::string& ip, int port,int numFailures, int rank
 {
     try {
         int peerID;
-        mSession << "SELECT peerID from Peers where IP=:v1 and Port=:v2",
+        mSession << "SELECT peerID from Peers where ip=:v1 and port=:v2",
             into(peerID), use(ip), use(port);
         if(!mSession.got_data())
         {
-            mSession.close();
             mSession << "INSERT INTO Peers (IP,Port,numFailures,Rank) values (:v1, :v2, :v3, :v4)",
                 use(ip), use(port), use(numFailures), use(rank);
         }

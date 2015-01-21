@@ -271,11 +271,11 @@ void PeerMaster::createTable(Database &db)
 }
 
 const char* PeerMaster::kSQLCreateStatement = "CREATE TABLE IF NOT EXISTS Peers (						\
-	peerID	INT UNSIGNED PRIMARY KEY,	\
+	peerID	INTEGER PRIMARY KEY,	\
     ip	    CHARACTER(11),		        \
     port   	INT UNSIGNED default 0,		\
     nextAttempt   	TIMESTAMP,	    	\
-    numFailures     INT default 0,      \
+    numFailures     INT UNSIGNED default 0,      \
     lastConnect   	TIMESTAMP,	    	\
 	rank	INT UNSIGNED default 0  	\
 );";
