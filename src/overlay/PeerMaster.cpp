@@ -58,10 +58,11 @@ bool PeerMaster::parseIPPort(const std::string& peerStr, std::string& retIP, int
         retPort = DEFAULT_PEER_PORT;
     }else
     {
+        splitPoint--;
         retIP.assign(innerStr.begin(), splitPoint);
         std::string portStr;
         splitPoint++;
-        portStr.assign(splitPoint, peerStr.end());
+        portStr.assign(splitPoint, innerStr.end());
         retPort = atoi(portStr.c_str());
         if(!retPort) return false;
     }
