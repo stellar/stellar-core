@@ -11,33 +11,43 @@
 #include "crypto/SHA.h"
 #include "main/test.h"
 #include "util/Logging.h"
+#include "util/types.h"
 
 using namespace stellar;
 
 typedef std::unique_ptr<Application> appPtr;
 
+#define CREATE_NODE(N) \
+    const Hash v##N##VSeed = sha512_256("SEED_VALIDATION_SEED_" #N); \
+    const Hash v##N##NodeID = makePublicKey(v##N##VSeed);
+
 TEST_CASE("cycle4 topology", "[simulation]")
 {
     Simulation simulation;
 
-    uint256 n1Seed = sha512_256("SEED_1");
-    uint256 n2Seed = sha512_256("SEED_2");
-    uint256 n3Seed = sha512_256("SEED_3");
-    uint256 n4Seed = sha512_256("SEED_4");
+    CREATE_NODE(0);
+    CREATE_NODE(1);
+    CREATE_NODE(2);
+    CREATE_NODE(3);
 
-    uint256 n1 = simulation.addNode(n1Seed, simulation.getClock());
-    uint256 n2 = simulation.addNode(n2Seed, simulation.getClock());
-    uint256 n3 = simulation.addNode(n3Seed, simulation.getClock());
-    uint256 n4 = simulation.addNode(n4Seed, simulation.getClock());
+    FBAQuorumSet qSet0; qSet0.threshold = 1; qSet0.validators.push_back(v1NodeID);
+    FBAQuorumSet qSet1; qSet1.threshold = 1; qSet1.validators.push_back(v2NodeID);
+    FBAQuorumSet qSet2; qSet2.threshold = 1; qSet2.validators.push_back(v3NodeID);
+    FBAQuorumSet qSet3; qSet3.threshold = 1; qSet3.validators.push_back(v0NodeID);
+
+    uint256 n0 = simulation.addNode(v0VSeed, qSet0, simulation.getClock());
+    uint256 n1 = simulation.addNode(v1VSeed, qSet1, simulation.getClock());
+    uint256 n2 = simulation.addNode(v2VSeed, qSet2, simulation.getClock());
+    uint256 n3 = simulation.addNode(v3VSeed, qSet3, simulation.getClock());
     
+    std::shared_ptr<LoopbackPeerConnection> n0n1 = 
+        simulation.addConnection(n0, n1);
     std::shared_ptr<LoopbackPeerConnection> n1n2 = 
-      simulation.addConnection(n1, n2);
+        simulation.addConnection(n1, n2);
     std::shared_ptr<LoopbackPeerConnection> n2n3 = 
-      simulation.addConnection(n2, n3);
-    std::shared_ptr<LoopbackPeerConnection> n3n4 = 
-      simulation.addConnection(n3, n4);
-    std::shared_ptr<LoopbackPeerConnection> n4n1 = 
-      simulation.addConnection(n4, n1);
+        simulation.addConnection(n2, n3);
+    std::shared_ptr<LoopbackPeerConnection> n3n0 = 
+        simulation.addConnection(n3, n0);
 
     // TODO(spolu) update to new FBA
     /*

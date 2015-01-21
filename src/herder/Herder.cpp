@@ -34,7 +34,7 @@ quorumSetFromApp(Application& app)
 // TODO. probably want to just use SecretKey in FBA ?
 Herder::Herder(Application& app)
     : FBA(app.getConfig().VALIDATION_KEY.getSeed(),
-        quorumSetFromApp(app))
+          quorumSetFromApp(app))
     , mCollectingTransactionSet(std::make_shared<TxSetFrame>())
     , mReceivedTransactions(4)
 #ifdef _MSC_VER
