@@ -131,7 +131,7 @@ bool Database::loadAccount(const uint256& accountID, AccountFrame& retAcc, bool 
 
     if (inflationDestInd == soci::i_ok)
     {
-        account.inflationDest.activate() = fromBase58Check256(VER_ACCOUNT_PUBLIC, inflationDest);
+        account.inflationDest.activate() = fromBase58Check256(VER_ACCOUNT_ID, inflationDest);
     }
 
     if(withSig)

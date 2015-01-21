@@ -123,8 +123,13 @@ main(int argc, char* const* argv)
             newNetwork = true;
             break;
         case OPT_GENSEED:
-            std::cout << SecretKey::random().getBase58Seed() << std::endl;
+        {
+            SecretKey key=SecretKey::random();
+            std::cout << "Secret: " << key.getBase58Seed() << std::endl;
+            std::cout << "Public: " << key.getBase58Public() << std::endl;
             return 0;
+        }
+            
         }
     }
 

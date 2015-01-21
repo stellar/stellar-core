@@ -88,7 +88,7 @@
     <ClCompile Include="..\..\src\clf\CLFTests.cpp" />
     <ClCompile Include="..\..\src\crypto\Base58.cpp" />
     <ClCompile Include="..\..\src\crypto\CryptoTests.cpp">
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="..\..\src\crypto\Hex.cpp" />
     <ClCompile Include="..\..\src\crypto\Random.cpp" />

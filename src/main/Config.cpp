@@ -90,7 +90,7 @@ Config::load(const std::string& filename)
         {
             for (auto v : g.get_array("QUORUM_SET")->array())
             {
-                uint256 p = fromBase58Check256(VER_NODE_PUBLIC,
+                uint256 p = fromBase58Check256(VER_ACCOUNT_ID,
                                                v->as<std::string>()->value());
                 QUORUM_SET.push_back(p);
             }

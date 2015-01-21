@@ -109,5 +109,14 @@ CommandHandler::tx(const std::string& params, std::string& retStr)
 {
     retStr = "Submitting Transaction...";
     // TODO.2 
+    std::string addr = params.substr(6);
+    if(addr.size())
+    {
+        retStr = "Connect to";
+        mApp.getPeerMaster().connectTo(addr);
+    } else
+    {
+        retStr = "Must specify a filename connect&peer=????";
+    }
 }
 }

@@ -24,6 +24,7 @@ class SecretKey : public uint512
 public:
     PublicKey getPublicKey() const;
     std::string getBase58Seed() const;
+    std::string getBase58Public() const;
 
     uint512 sign(ByteSlice const& bin) const;
 
