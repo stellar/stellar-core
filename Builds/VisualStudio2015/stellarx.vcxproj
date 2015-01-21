@@ -87,9 +87,7 @@
     <ClCompile Include="..\..\src\clf\CLFMaster.cpp" />
     <ClCompile Include="..\..\src\clf\CLFTests.cpp" />
     <ClCompile Include="..\..\src\crypto\Base58.cpp" />
-    <ClCompile Include="..\..\src\crypto\CryptoTests.cpp">
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
-    </ClCompile>
+    <ClCompile Include="..\..\src\crypto\CryptoTests.cpp" />
     <ClCompile Include="..\..\src\crypto\Hex.cpp" />
     <ClCompile Include="..\..\src\crypto\Random.cpp" />
     <ClCompile Include="..\..\src\crypto\SHA.cpp" />
@@ -97,9 +95,7 @@
     <ClCompile Include="..\..\src\database\Database.cpp" />
     <ClCompile Include="..\..\src\database\DatabaseTests.cpp" />
     <ClCompile Include="..\..\src\fba\FBA.cpp" />
-    <ClCompile Include="..\..\src\fba\FBATests.cpp">
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
-    </ClCompile>
+    <ClCompile Include="..\..\src\fba\FBATests.cpp" />
     <ClCompile Include="..\..\src\fba\LocalNode.cpp" />
     <ClCompile Include="..\..\src\fba\Node.cpp" />
     <ClCompile Include="..\..\src\fba\Slot.cpp" />
@@ -261,7 +257,6 @@
     <ClInclude Include="..\..\src\overlay\TCPPeer.h" />
     <ClInclude Include="..\..\src\process\ProcessGateway.h" />
     <ClInclude Include="..\..\src\process\ProcessMaster.h" />
-    <ClInclude Include="..\..\src\sync\SyncMaster.h" />
     <ClInclude Include="..\..\src\transactions\AllowTrustTxFrame.h" />
     <ClInclude Include="..\..\src\transactions\CancelOfferFrame.h" />
     <ClInclude Include="..\..\src\transactions\CreateOfferFrame.h" />
