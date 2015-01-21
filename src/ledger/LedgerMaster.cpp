@@ -100,7 +100,7 @@ Database &LedgerMaster::getDatabase()
     return mApp.getDatabase();
 }
 
-int64_t LedgerMaster::getTxFee()
+int32_t LedgerMaster::getTxFee()
 {
     return mCurrentLedger->mHeader.baseFee; 
 }

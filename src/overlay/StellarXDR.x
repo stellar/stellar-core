@@ -153,7 +153,7 @@ struct AllowTrustTx
 struct Transaction
 {
     AccountID account;
-	int64 maxFee;
+	int32 maxFee;
 	uint32 seqNum;
 	uint64 maxLedger;	// maximum ledger this tx is valid to be applied in
 	uint64 minLedger;   // minimum ledger this tx is valid to be applied in
@@ -216,8 +216,8 @@ struct LedgerHeader
 	int64 feePool;
 	uint64 ledgerSeq;
 	uint32 inflationSeq;
-	int64 baseFee;
-	int64 baseReserve;
+	int32 baseFee;
+	int32 baseReserve;
 	uint64 closeTime;       
 };
 

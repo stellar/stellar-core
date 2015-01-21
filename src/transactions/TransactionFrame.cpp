@@ -124,7 +124,7 @@ bool Transaction::isAuthorizedToHold(const AccountEntry& account,
 bool TransactionFrame::preApply(LedgerDelta& delta,LedgerMaster& ledgerMaster)
 {
 
-    int64_t fee = ledgerMaster.getTxFee();
+    int32_t fee = ledgerMaster.getTxFee();
 
     if (mSigningAccount->mEntry.account().balance < fee)
     {
@@ -271,7 +271,7 @@ bool TransactionFrame::checkValid(Application& app)
         return false;
     }
 
-    int64_t fee = app.getLedgerGateway().getTxFee();
+    int32_t fee = app.getLedgerGateway().getTxFee();
 
     if (fee > mEnvelope.tx.maxFee)
     {

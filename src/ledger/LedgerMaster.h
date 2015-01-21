@@ -46,9 +46,9 @@ namespace stellar
         // called by txherder
         void externalizeValue(TxSetFramePtr txSet);
 
-        int64_t getTxFee();
         uint64_t getLedgerNum();
         int64_t getMinBalance(uint32_t ownerCount);
+        int32_t getTxFee();
 
         ///////
 
