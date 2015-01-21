@@ -68,6 +68,7 @@ void Database::initialize()
         PeerMaster::createTable(*this);
         LedgerMaster::dropAll(*this);
         LedgerHeaderFrame::dropAll(*this);
+        TransactionFrame::dropAll(*this);
     }catch(exception const &e)
     {
         LOG(ERROR) << "Error: " << e.what();

@@ -1,5 +1,4 @@
-#ifndef __TRUSTSETTX__
-#define __TRUSTSETTX__
+#pragma once
 
 #include "transactions/TransactionFrame.h"
 
@@ -11,13 +10,20 @@ namespace stellar
 {
 	class ChangeTrustTxFrame : public TransactionFrame
 	{
-        
+        ChangeTrust::ChangeTrustResult &innerResult() { return mResult.body.tr().changeTrustResult(); }
 	public:
         ChangeTrustTxFrame(const TransactionEnvelope& envelope);
 
         bool doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster);
         bool doCheckValid(Application& app);
 	};
-}
 
-#endif
+    namespace ChangeTrust
+    {
+        inline ChangeTrust::ChangeTrustResultCode getInnerCode(TransactionResult const & res)
+        {
+            return res.body.tr().changeTrustResult().result.code();
+        }
+    }
+
+}

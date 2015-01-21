@@ -21,6 +21,8 @@
 #include "transactions/PaymentFrame.h"
 #include "transactions/SetOptionsFrame.h"
 #include "database/Database.h"
+#include "crypto/Hex.h"
+
 
 namespace stellar
 {
@@ -59,8 +61,6 @@ TransactionFrame::pointer TransactionFrame::makeTransactionFromWire(TransactionE
 
 TransactionFrame::TransactionFrame(const TransactionEnvelope& envelope) : mEnvelope(envelope)
 {
-    mResultCode = txUNKNOWN;
-    mFee = 0;
 }
     
 Hash& TransactionFrame::getFullHash()
@@ -128,7 +128,7 @@ bool TransactionFrame::preApply(LedgerDelta& delta,LedgerMaster& ledgerMaster)
 
     if (mSigningAccount->mEntry.account().balance < fee)
     {
-        mResultCode = txNOFEE;
+        mResult.body.code(txNO_FEE);
 
         // take all their balance to be safe
         mSigningAccount->mEntry.account().balance = 0;
@@ -138,8 +138,8 @@ bool TransactionFrame::preApply(LedgerDelta& delta,LedgerMaster& ledgerMaster)
 
     mSigningAccount->mEntry.account().balance -= fee;
     mSigningAccount->mEntry.account().sequence += 1;
-    mFee = fee;
-    ledgerMaster.getCurrentLedgerHeader().feePool += getFee();
+    mResult.feeCharged = fee;
+    ledgerMaster.getCurrentLedgerHeader().feePool += fee;
 
     mSigningAccount->storeChange(delta, ledgerMaster);
 
@@ -249,6 +249,11 @@ bool TransactionFrame::loadAccount(Application& app)
     return res;
 }
 
+TransactionResultCode TransactionFrame::getResultCode()
+{
+    return mResult.body.code();
+}
+
 // called when determining if we should accept this tx.
 // make sure sig is correct
 // make sure maxFee is above the current fee
@@ -257,17 +262,17 @@ bool TransactionFrame::checkValid(Application& app)
 {
     if (mEnvelope.tx.maxFee < app.getLedgerGateway().getTxFee())
     {
-        mResultCode = txINSUFFICIENT_FEE;
+        mResult.body.code(txINSUFFICIENT_FEE);
         return false;
     }
     if (mEnvelope.tx.maxLedger < app.getLedgerGateway().getLedgerNum())
     {
-        mResultCode = txBAD_LEDGER;
+        mResult.body.code(txBAD_LEDGER);
         return false;
     }
     if (mEnvelope.tx.minLedger > app.getLedgerGateway().getLedgerNum())
     {
-        mResultCode = txBAD_LEDGER;
+        mResult.body.code(txBAD_LEDGER);
         return false;
     }
 
@@ -275,33 +280,37 @@ bool TransactionFrame::checkValid(Application& app)
 
     if (fee > mEnvelope.tx.maxFee)
     {
-        mResultCode = txNOFEE;
+        mResult.body.code(txNO_FEE);
         return false;
     }
 
     if (!loadAccount(app))
     {
-        mResultCode = txNOACCOUNT;
+        mResult.body.code(txNO_ACCOUNT);
         return false;
     }
 
     if (!checkSignature())
     {
-        mResultCode = txBAD_AUTH;
+        mResult.body.code(txBAD_AUTH);
         return false;
     }
 
     if (mSigningAccount->mEntry.account().sequence != mEnvelope.tx.seqNum)
     {
-        mResultCode = txBAD_SEQ;
+        mResult.body.code(txBAD_SEQ);
         return false;
     }
 
     if (mSigningAccount->mEntry.account().balance < fee)
     {
-        mResultCode = txNOFEE;
+        mResult.body.code(txNO_FEE);
         return false;
     }
+
+    mResult.body.code(txINNER);
+    mResult.body.tr().type(
+        mEnvelope.tx.body.type());
 
     return doCheckValid(app);
 }
@@ -313,4 +322,47 @@ StellarMessage&& TransactionFrame::toStellarMessage()
     msg.transaction()=mEnvelope;
     return std::move(msg);
 }
+
+void TransactionFrame::storeTransaction(LedgerMaster &ledgerMaster)
+{
+    soci::blob txBlob(ledgerMaster.getDatabase().getSession());
+    soci::blob txResultBlob(ledgerMaster.getDatabase().getSession());
+
+    xdr::msg_ptr txBytes(xdr::xdr_to_msg(mEnvelope));
+    xdr::msg_ptr txResultBytes(xdr::xdr_to_msg(mResult));
+
+    txBlob.write(0, txBytes->raw_data(), txBytes->raw_size());
+    txResultBlob.write(0, txResultBytes->raw_data(), txResultBytes->raw_size());
+
+    string txIDString(binToHex(getContentsHash()));
+
+    soci::statement st = (ledgerMaster.getDatabase().getSession().prepare <<
+        "INSERT INTO TxHistory (txID, ledgerSeq, Tx, TxResult) VALUES "\
+        "(:id,:seq,:tx,:txres)",
+        soci::use(txIDString), soci::use(ledgerMaster.getCurrentLedgerHeader().ledgerSeq),
+        soci::use(txBlob), soci::use(txResultBlob));
+
+    st.execute(true);
+
+    if (st.get_affected_rows() != 1)
+    {
+        throw std::runtime_error("Could not update data in SQL");
+    }
+}
+
+void TransactionFrame::dropAll(Database &db)
+{
+    db.getSession() << "DROP TABLE IF EXISTS TxHistory";
+
+    db.getSession() <<
+        "CREATE TABLE IF NOT EXISTS TxHistory (" \
+        "txID       CHARACTER(35) NOT NULL,"\
+        "ledgerSeq  INT UNSIGNED NOT NULL,"\
+        "Tx         BLOB NOT NULL,"\
+        "TxResult   BLOB NOT NULL,"\
+        "PRIMARY KEY (txID, ledgerSeq)"\
+        ")";
+
+}
+
 }

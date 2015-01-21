@@ -10,6 +10,7 @@ namespace stellar
     bool InflationFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
     {
         // TODO.2
+        innerResult().result.code(Inflation::NOT_TIME);
         return false;
     }
 

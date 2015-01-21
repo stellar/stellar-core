@@ -10,7 +10,6 @@
 #include "ledger/AccountFrame.h"
 #include "ledger/LedgerMaster.h"
 #include "generated/StellarXDR.h"
-#include "transactions/TxResultCode.h"
 #include "util/types.h"
 #include "lib/json/json-forwards.h"
 
@@ -31,9 +30,7 @@ namespace stellar
         AccountFrame::pointer mSigningAccount;	
         Hash mContentsHash;  // the hash of the contents
         Hash mFullHash;    // the hash of the contents and the sig. 
-        TxResultCode mResultCode;
-        int64 mFee;
-
+        TransactionResult mResult;
 
         // common side effects to all transactions (fees)
         // returns true if we should proceed with the transaction
@@ -66,8 +63,8 @@ namespace stellar
         // returns true on success
         bool loadAccount(Application& app);
 
-        TxResultCode getResultCode() { return mResultCode;  }
-        int64 getFee() { return mFee; }
+        TransactionResult &getResult() { return mResult;  }
+        TransactionResultCode getResultCode();
 
         bool checkValid(Application& app);
 
@@ -78,7 +75,10 @@ namespace stellar
 
         StellarMessage&& toStellarMessage();
 
-       
+        // transaction history
+
+        void storeTransaction(LedgerMaster &ledgerMaster);
+        static void dropAll(Database &db);
 	};
 
 }

@@ -76,6 +76,10 @@ namespace stellar
         return mEntry.offer().takerGets;
     }
 
+    uint32 OfferFrame::getSequence()
+    {
+        return mEntry.offer().sequence;
+    }
     
 
     void OfferFrame::storeDelete(LedgerDelta &delta, LedgerMaster& ledgerMaster)

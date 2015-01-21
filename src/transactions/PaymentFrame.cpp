@@ -21,10 +21,15 @@ using namespace std;
 
     bool PaymentFrame::doApply(LedgerDelta& delta,LedgerMaster& ledgerMaster)
     {
-        int64_t minBalance = ledgerMaster.getMinBalance(mSigningAccount->mEntry.account().ownerCount);
-        
         AccountFrame destAccount;
-        bool isNew = false;
+
+        // if sending to self directly, just mark as success
+        if (mEnvelope.tx.body.paymentTx().destination == mSigningAccount->getID()
+            && mEnvelope.tx.body.paymentTx().path.empty())
+        {
+            innerResult().result.code(Payment::SUCCESS);
+            return true;
+        }
 
         if (!ledgerMaster.getDatabase().loadAccount(mEnvelope.tx.body.paymentTx().destination, destAccount))
         {   // this tx is creating an account
@@ -32,140 +37,144 @@ using namespace std;
             {
                 if (mEnvelope.tx.body.paymentTx().amount < ledgerMaster.getMinBalance(0))
                 {   // not over the minBalance to make an account
-                    mResultCode = txUNDERFUNDED;
+                    innerResult().result.code(Payment::UNDERFUNDED);
                     return false;
                 }
                 else
                 {
                     destAccount.mEntry.account().accountID = mEnvelope.tx.body.paymentTx().destination;
                     destAccount.mEntry.account().balance = 0;
-                    isNew = true;
+
+                    destAccount.storeAdd(delta, ledgerMaster);
                 }
             }
             else
             {   // trying to send credit to an unmade account
-                mResultCode = txNOACCOUNT;
+                innerResult().result.code(Payment::NO_DESTINATION);
                 return false;
             }
         }
 
-        if(mEnvelope.tx.body.paymentTx().currency.type()==NATIVE)
-        {   // sending STR
-
-            if(mEnvelope.tx.body.paymentTx().path.size())
-            {
-                mResultCode = txMALFORMED;
-                return false;
-            }
-
-            if(mSigningAccount->mEntry.account().balance < minBalance + mEnvelope.tx.body.paymentTx().amount)
-            {   // they don't have enough to send
-                mResultCode = txUNDERFUNDED;
-                return false;
-            }
-
-            if(destAccount.getIndex() == mSigningAccount->getIndex())
-            {   // sending to yourself
-                mResultCode = txSUCCESS;
-                return true;
-            }
-
-            mSigningAccount->mEntry.account().balance -= mEnvelope.tx.body.paymentTx().amount;
-            destAccount.mEntry.account().balance += mEnvelope.tx.body.paymentTx().amount;
-            
-            if (isNew)
-            {
-                destAccount.storeAdd(delta, ledgerMaster);
-            }
-            else
-            {
-                destAccount.storeChange(delta, ledgerMaster);
-            }
-            mSigningAccount->storeChange(delta, ledgerMaster);
-            mResultCode = txSUCCESS;
-            return true;
-        }else
-        {   // sending credit
-            LedgerDelta tempDelta;
-            soci::transaction sqlTx(ledgerMaster.getDatabase().getSession());
-            if(sendCredit(destAccount, tempDelta, ledgerMaster))
-            {
-                sqlTx.commit();
-                delta.merge(tempDelta);
-                mResultCode = txSUCCESS;
-                return true;
-            }
-        }
-        return false;
+        return sendNoCreate(destAccount, delta, ledgerMaster);
     }
     
 
     // A is sending to B
     // work backward to determine how much they need to send to get the 
     // specified amount of currency to the recipient
-    bool PaymentFrame::sendCredit(AccountFrame& receiver, LedgerDelta& delta, LedgerMaster& ledgerMaster)
+    bool PaymentFrame::sendNoCreate(AccountFrame& receiver, LedgerDelta& delta, LedgerMaster& ledgerMaster)
     {
-        // make sure guy can hold what you are trying to send him
-        if(mEnvelope.tx.body.paymentTx().destination != mEnvelope.tx.body.paymentTx().currency.isoCI().issuer)
+        bool multi_mode = mEnvelope.tx.body.paymentTx().path.size();
+        if (multi_mode)
         {
-            TrustFrame destLine;
-            
-            if(!ledgerMaster.getDatabase().loadTrustLine(mEnvelope.tx.body.paymentTx().destination, 
-                mEnvelope.tx.body.paymentTx().currency, destLine))
-            {
-                mResultCode = txNOTRUST;
-                return false;
-            }
-
-            if(destLine.mEntry.trustLine().limit < mEnvelope.tx.body.paymentTx().amount + destLine.mEntry.trustLine().balance)
-            {
-                mResultCode = txLINEFULL;
-                return false;
-            }
-
-            if(!destLine.mEntry.trustLine().authorized)
-            {
-                mResultCode = txNOT_AUTHORIZED;
-                return false;
-            }
-            
-            destLine.mEntry.trustLine().balance += mEnvelope.tx.body.paymentTx().amount;
-            destLine.storeChange(delta, ledgerMaster);
+            innerResult().result.code(Payment::SUCCESS_MULTI);
         }
-        
-        
+        else
+        {
+            innerResult().result.code(Payment::SUCCESS);
+        }
+
+        // tracks the last amount that was traded
         int64_t sendAmount = mEnvelope.tx.body.paymentTx().amount;
         Currency sendCurrency = mEnvelope.tx.body.paymentTx().currency;
-        
-        if(!mEnvelope.tx.body.paymentTx().path.empty())
-        {      
-            int64_t lastAmount=mEnvelope.tx.body.paymentTx().amount;
-            for(auto& pathElement : mEnvelope.tx.body.paymentTx().path)
-            {   // convert from link to last
-                lastAmount = 0;
+
+        // update balances, walks backwards
+
+        // update last balance in the chain
+        {
+
+            if (sendCurrency.type() == NATIVE)
+            {
+                receiver.mEntry.account().balance += sendAmount;
+                receiver.storeChange(delta, ledgerMaster);
+            }
+            else if (receiver.getID() !=
+                sendCurrency.isoCI().issuer)
+            {
+                TrustFrame destLine;
+
+                if (!ledgerMaster.getDatabase().loadTrustLine(receiver.getID(),
+                    sendCurrency, destLine))
+                {
+                    innerResult().result.code(Payment::NO_TRUST);
+                    return false;
+                }
+
+                if (destLine.mEntry.trustLine().limit <
+                    sendAmount + destLine.mEntry.trustLine().balance)
+                {
+                    innerResult().result.code(Payment::LINE_FULL);
+                    return false;
+                }
+
+                if (!destLine.mEntry.trustLine().authorized)
+                {
+                    innerResult().result.code(Payment::NOT_AUTHORIZED);
+                    return false;
+                }
+
+                destLine.mEntry.trustLine().balance += sendAmount;
+                destLine.storeChange(delta, ledgerMaster);
+            }
+
+            if (multi_mode)
+            {
+                innerResult().result.multi().last = Payment::SimplePaymentResult(
+                    receiver.getID(),
+                    sendCurrency,
+                    sendAmount);
+            }
+        }
+
+        if (multi_mode)
+        {
+            // now, walk the path backwards
+            int64_t lastAmount=sendAmount;
+            for(int i = mEnvelope.tx.body.paymentTx().path.size()-1; i >= 0;  i--)
+            {
                 int64_t amountToSell = 0;
-                if(!convert(pathElement, sendCurrency, lastAmount, amountToSell, delta, ledgerMaster))
+                if(!convert(mEnvelope.tx.body.paymentTx().path[i],
+                    sendCurrency, lastAmount,
+                    amountToSell,
+                    delta, ledgerMaster))
                 {
                     return false;
                 }
                 lastAmount = amountToSell;
-
-                sendCurrency = pathElement;
+                sendCurrency = mEnvelope.tx.body.paymentTx().path[i];
             }
             sendAmount = lastAmount;
         } 
         
-        
-        // make sure you have enough to send him
-        if(sendCurrency.type()==NATIVE)
+        if (sendAmount > mEnvelope.tx.body.paymentTx().sendMax)
+        { // make sure not over the max
+            innerResult().result.code(Payment::OVERSENDMAX);
+            return false;
+        }
+
+        // last step: we've reached the first account in the chain, update its balance
+
+        if(sendCurrency.type() == NATIVE)
         {
-            if(mSigningAccount->mEntry.account().balance < sendAmount + ledgerMaster.getMinBalance(mSigningAccount->mEntry.account().ownerCount))
+            if (mEnvelope.tx.body.paymentTx().path.size())
             {
-                mResultCode = txUNDERFUNDED;
+                innerResult().result.code(Payment::MALFORMED);
                 return false;
             }
-        }else
-        { // make sure source has enough credit
+
+            int64_t minBalance = ledgerMaster.getMinBalance(mSigningAccount->mEntry.account().ownerCount);
+
+            if (mSigningAccount->mEntry.account().balance < (minBalance + sendAmount))
+            {   // they don't have enough to send
+                innerResult().result.code(Payment::UNDERFUNDED);
+                return false;
+            }
+
+            mSigningAccount->mEntry.account().balance -= sendAmount;
+            mSigningAccount->storeChange(delta, ledgerMaster);
+        }
+        else
+        {
             // issuer can always send its own credit
             if(getSourceID() != sendCurrency.isoCI().issuer)
             {
@@ -173,7 +182,7 @@ using namespace std;
                 if(!ledgerMaster.getDatabase().loadAccount(sendCurrency.isoCI().issuer, issuer))
                 {
                     CLOG(ERROR, "Tx") << "PaymentTx::sendCredit Issuer not found";
-                    mResultCode = txMALFORMED;
+                    innerResult().result.code(Payment::MALFORMED);
                     return false;
                 }
 
@@ -187,31 +196,23 @@ using namespace std;
                 if(!ledgerMaster.getDatabase().loadTrustLine(mEnvelope.tx.account,
                     sendCurrency, sourceLineFrame))
                 {
-                    mResultCode = txUNDERFUNDED;
+                    innerResult().result.code(Payment::UNDERFUNDED);
                     return false;
                 }
 
                 if(sourceLineFrame.mEntry.trustLine().balance < sendAmount)
                 {
-                    mResultCode = txUNDERFUNDED;
+                    innerResult().result.code(Payment::UNDERFUNDED);
                     return false;
                 }
                 
                 sourceLineFrame.mEntry.trustLine().balance -= sendAmount;
                 sourceLineFrame.storeChange(delta, ledgerMaster);
+
             }
         }
         
-        if(sendAmount > mEnvelope.tx.body.paymentTx().sendMax)
-        { // make sure not over the max
-            mResultCode = txOVERSENDMAX;
-            return false;
-        }
 
-        
-        
-
-        mResultCode = txSUCCESS;
         return true;
     }
 
@@ -227,7 +228,8 @@ using namespace std;
     // will adjust all the offers and balances in the middle
     // returns false if not possible or something else goes wrong
     bool PaymentFrame::convert(Currency& sheep,
-        Currency& wheat, int64_t amountWheat, int64_t& retAmountSheep,
+        Currency& wheat, int64_t amountWheat,
+        int64_t& retAmountSheep,
         LedgerDelta& delta, LedgerMaster& ledgerMaster)
     {
         int64_t wheatTransferRate = getTransferRate(wheat, ledgerMaster);
@@ -254,7 +256,7 @@ using namespace std;
             // still stuff to fill but no more offers
             if(amountWheat > 0 && retList.size() < 5)
             { // there isn't enough offer depth
-                mResultCode = txOVERSENDMAX;
+                innerResult().result.code(Payment::OVERSENDMAX);
                 return false;
             }
             offerOffset += retList.size();
@@ -268,7 +270,7 @@ using namespace std;
     // amountToTake is reduced by the amount taken
     // returns false if there was an error
     bool PaymentFrame::crossOffer(OfferFrame& sellingWheatOffer,
-        int64_t maxWheatReceived, int64_t& numWheatReceived, 
+        int64_t maxWheatToReceive, int64_t& numWheatReceived, 
         int64_t& numSheepReceived,
         int64_t wheatTransferRate,
         LedgerDelta& delta, LedgerMaster& ledgerMaster)
@@ -281,8 +283,7 @@ using namespace std;
         AccountFrame accountB;
         if(!ledgerMaster.getDatabase().loadAccount(accountBID, accountB))
         {
-            mResultCode = txINTERNAL_ERROR;
-            return false;
+            throw runtime_error("invalid database state: offer must have matching account");
         }
 
         TrustFrame wheatLineAccountB;
@@ -291,8 +292,7 @@ using namespace std;
             if(!ledgerMaster.getDatabase().loadTrustLine(accountBID,
                 wheat, wheatLineAccountB))
             {
-                mResultCode = txINTERNAL_ERROR;
-                return false;
+                throw runtime_error("invalid database state: offer must have matching trust line");
             }
         }
 
@@ -303,8 +303,7 @@ using namespace std;
             if(!ledgerMaster.getDatabase().loadTrustLine(accountBID,
                 sheep, sheepLineAccountB))
             {
-                mResultCode = txINTERNAL_ERROR;
-                return false;
+                throw runtime_error("invalid database state: offer must have matching trust line");
             }
         }
 
@@ -329,10 +328,10 @@ using namespace std;
         }
 
         bool offerLeft = false;
-        if(numWheatReceived > maxWheatReceived)
+        if(numWheatReceived > maxWheatToReceive)
         {
             offerLeft = true;
-            numWheatReceived = maxWheatReceived;
+            numWheatReceived = maxWheatToReceive;
         }
 
         int64_t numWheatSent;
@@ -354,6 +353,7 @@ using namespace std;
             CLOG(ERROR, "Tx") << "PaymentFrame::crossOffer offer amount below 0 :" << sellingWheatOffer.mEntry.offer().amount;
             sellingWheatOffer.mEntry.offer().amount = 0;
         }
+
         if(sellingWheatOffer.mEntry.offer().amount)
         {
             sellingWheatOffer.storeChange(delta, ledgerMaster);
@@ -384,51 +384,26 @@ using namespace std;
             wheatLineAccountB.mEntry.trustLine().balance -= numWheatSent;
             wheatLineAccountB.storeChange(delta, ledgerMaster);
         }
+
+        innerResult().result.multi().offers.push_back(Payment::ClaimOfferAtom(
+            accountB.getID(),
+            sellingWheatOffer.getSequence(),
+            sheep,
+            numSheepReceived
+            ));
+
         return true;
     }
 
-    // make sure there is no path for native transfer
-    // make sure there are no loops in the path
-    // make sure the path is less than N steps
     bool PaymentFrame::doCheckValid(Application& app)
     {
-        if(mEnvelope.tx.body.paymentTx().currency.type()==NATIVE)
+        if (mEnvelope.tx.body.paymentTx().path.size() > MAX_PAYMENT_PATH_LENGTH)
         {
-            if (mEnvelope.tx.body.paymentTx().path.size())
-            {
-                mResultCode = txMALFORMED;
-                return false;
-            }
-        }
-        else
-        {
-            if (mEnvelope.tx.body.paymentTx().path.size() > MAX_PAYMENT_PATH_LENGTH)
-            {
-                mResultCode = txMALFORMED;
-                return false;
-            }
-
-            // make sure there are no loops in the path
-            for(auto step : mEnvelope.tx.body.paymentTx().path)
-            {
-                bool seen = false;
-                for(auto inner : mEnvelope.tx.body.paymentTx().path)
-                {
-                    if(compareCurrency(step, inner))
-                    {
-                        if (seen)
-                        {
-                            mResultCode = txMALFORMED;
-                            return false;
-                        }
-                        seen=true;
-                    }
-                }
-            }
+            innerResult().result.code(Payment::MALFORMED);
+            return false;
         }
 
         return true;
     }
-
 }
 

@@ -1,3 +1,5 @@
+#pragma once
+
 #include "transactions/TransactionFrame.h"
 #include "ledger/OfferFrame.h"
 
@@ -16,13 +18,25 @@ class PaymentFrame : public TransactionFrame
         Currency& buy, int64_t amountToBuy,
         int64_t& retAmountToSell,
         LedgerDelta& delta, LedgerMaster& ledgerMaster);
-    bool sendCredit(AccountFrame& receiver, LedgerDelta& delta, LedgerMaster& ledgerMaster);
+
+    // receiver must exist
+    bool sendNoCreate(AccountFrame& receiver, LedgerDelta& delta, LedgerMaster& ledgerMaster);
+
+    Payment::PaymentResult &innerResult() { return mResult.body.tr().paymentResult(); }
 public:
     PaymentFrame(const TransactionEnvelope& envelope);
 
     bool doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster);
     bool doCheckValid(Application& app);
+
 };
 
+namespace Payment
+{
+    inline Payment::PaymentResultCode getInnerCode(TransactionResult const & res)
+    {
+        return res.body.tr().paymentResult().result.code();
+    }
+}
 
 }

@@ -1,3 +1,5 @@
+#pragma once
+
 #include "transactions/TransactionFrame.h"
 #include "ledger/TrustFrame.h"
 #include "ledger/OfferFrame.h"
@@ -26,10 +28,20 @@ namespace stellar
             Currency& wheat, int64_t amountOfSheepToSell, int64_t minSheepPrice,
             LedgerDelta& delta, LedgerMaster& ledgerMaster);
 
+        CreateOffer::CreateOfferResult &innerResult() { return mResult.body.tr().createOfferResult(); }
     public:
         CreateOfferFrame(const TransactionEnvelope& envelope);
 
         bool doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster);
         bool doCheckValid(Application& app);
     };
+
+    namespace CreateOffer
+    {
+        inline CreateOffer::CreateOfferResultCode getInnerCode(TransactionResult const & res)
+        {
+            return res.body.tr().createOfferResult().result.code();
+        }
+    }
+
 }

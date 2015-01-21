@@ -58,7 +58,7 @@ FMT_HDRS = src/clf/BucketList.h src/clf/CLFMaster.h src/crypto/Base58.h         
     src/transactions/InflationFrame.h src/transactions/MergeFrame.h             \
     src/transactions/PaymentFrame.h src/transactions/SetOptionsFrame.h          \
     src/transactions/TransactionFrame.h                                         \
-    src/transactions/TxResultCode.h src/transactions/TxTests.h
+    src/transactions/TxTests.h
 
 
 BUILT_SOURCES = src/generated/StellardVersion.h                                 \

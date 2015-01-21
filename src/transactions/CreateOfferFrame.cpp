@@ -32,7 +32,7 @@ bool CreateOfferFrame::checkOfferValid(LedgerMaster& ledgerMaster)
     if(sheep.type()!=NATIVE &&
         !ledgerMaster.getDatabase().loadTrustLine(mEnvelope.tx.account, sheep, mSheepLineA))
     {   // we don't have what we are trying to sell
-        mResultCode = txNOTRUST;
+        innerResult().result.code(CreateOffer::NO_TRUST);
         return false;
     }
 
@@ -40,13 +40,13 @@ bool CreateOfferFrame::checkOfferValid(LedgerMaster& ledgerMaster)
     {
         if(!ledgerMaster.getDatabase().loadTrustLine(mEnvelope.tx.account, wheat, mWheatLineA))
         {   // we can't hold what we are trying to buy
-            mResultCode = txNOTRUST;
+            innerResult().result.code(CreateOffer::NO_TRUST);
             return false;
         }
 
         if(!mWheatLineA.mEntry.trustLine().authorized)
         {   // we are not authorized to hold what we are trying to buy
-            mResultCode = txNOT_AUTHORIZED;
+            innerResult().result.code(CreateOffer::NOT_AUTHORIZED);
             return false;
         }
     }
@@ -59,6 +59,9 @@ bool CreateOfferFrame::checkOfferValid(LedgerMaster& ledgerMaster)
 // need to check the counter offers selling wheat for sheep
 // see if this is modifying an old offer
 // see if this offer crosses any existing offers
+
+// TODO: revisit this, offer code should share logic with payment code
+//      to keep the code working, I ended up duplicating the error codes
 bool CreateOfferFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
 {
     if(!checkOfferValid(ledgerMaster)) return false;
@@ -81,12 +84,12 @@ bool CreateOfferFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
             if(!compareCurrency(mEnvelope.tx.body.createOfferTx().takerGets, mSellSheepOffer.mEntry.offer().takerGets) ||
                 !compareCurrency(mEnvelope.tx.body.createOfferTx().takerPays, mSellSheepOffer.mEntry.offer().takerPays))
             {
-                mResultCode = txMALFORMED;
+                innerResult().result.code(CreateOffer::MALFORMED);
                 return false;
             }
         } else
         {
-            mResultCode = txOFFER_NOT_FOUND;
+            innerResult().result.code(CreateOffer::NOT_FOUND);
             return false;
         }
     }
@@ -143,7 +146,9 @@ bool CreateOfferFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
                 if (mSigningAccount->mEntry.account().balance <
                     ledgerMaster.getMinBalance(mSigningAccount->mEntry.account().ownerCount + 1))
                 {
-                    mResultCode = txBELOW_MIN_BALANCE;
+                    // TODO: revisit
+                    // mResultCode = txBELOW_MIN_BALANCE;
+                    innerResult().result.code(CreateOffer::MALFORMED);
                     return false;
                 }
 
@@ -189,7 +194,9 @@ bool CreateOfferFrame::convert(Currency& sheep,
 
             if(wheatOffer.mEntry.offer().accountID == mSigningAccount->mEntry.account().accountID)
             {   // we are crossing our own offer
-                mResultCode = txCROSS_SELF;
+                // TODO: revisit
+                //mResultCode = txCROSS_SELF;
+                innerResult().result.code(CreateOffer::MALFORMED);
                 return false;
             }
 
@@ -260,8 +267,7 @@ bool CreateOfferFrame::crossOffer(OfferFrame& sellingWheatOffer,
     AccountFrame accountB;
     if(!ledgerMaster.getDatabase().loadAccount(accountBID, accountB))
     {
-        mResultCode = txINTERNAL_ERROR;
-        return false;
+        throw runtime_error("offer with no account");
     }
     
     TrustFrame wheatLineAccountB;
@@ -270,8 +276,7 @@ bool CreateOfferFrame::crossOffer(OfferFrame& sellingWheatOffer,
         if(!ledgerMaster.getDatabase().loadTrustLine(accountBID,
             wheat, wheatLineAccountB))
         {
-            mResultCode = txINTERNAL_ERROR;
-            return false;
+            throw runtime_error("offer with no trust line");
         }
     }
     
@@ -282,8 +287,7 @@ bool CreateOfferFrame::crossOffer(OfferFrame& sellingWheatOffer,
         if(!ledgerMaster.getDatabase().loadTrustLine(accountBID,
             sheep, sheepLineAccountB))
         {
-            mResultCode = txINTERNAL_ERROR;
-            return false;
+            throw runtime_error("offer with no trust line");
         }
     }
     

@@ -4,7 +4,6 @@
 
 
 #include "ChangeTrustTxFrame.h"
-#include "transactions/TxResultCode.h"
 #include "ledger/TrustFrame.h"
 #include "ledger/LedgerMaster.h"
 #include "database/Database.h"
@@ -36,14 +35,14 @@ bool ChangeTrustTxFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
         {
             trustLine.storeChange(delta, ledgerMaster);
         }
-        mResultCode = txSUCCESS;
+        innerResult().result.code(ChangeTrust::SUCCESS);
         return true;
     } else
     { // new trust line
         AccountFrame issuer;
         if(!ledgerMaster.getDatabase().loadAccount(mEnvelope.tx.body.changeTrustTx().line.isoCI().issuer, issuer))
         {
-            mResultCode = txNOACCOUNT;
+            innerResult().result.code(ChangeTrust::NO_ACCOUNT);
             return false;
         }
             
@@ -59,7 +58,7 @@ bool ChangeTrustTxFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
         mSigningAccount->storeChange(delta, ledgerMaster);
         trustLine.storeAdd(delta, ledgerMaster);
 
-        mResultCode = txSUCCESS;
+        innerResult().result.code(ChangeTrust::SUCCESS);
         return true;
     }
 }
@@ -69,6 +68,5 @@ bool ChangeTrustTxFrame::doCheckValid(Application& app)
     return true;
 }
 
-   
 }
 

@@ -13,6 +13,7 @@
 #include "crypto/Base58.h"
 #include "database/Database.h"
 #include "ledger/LedgerHeaderFrame.h"
+#include "herder/TxSetFrame.h"
 
 /*
 The ledger module:
@@ -189,6 +190,7 @@ void LedgerMaster::closeLedger(TxSetFramePtr txSet)
             if(tx->apply(delta, mApp))
             {
                 successfulTX.add(tx);
+                tx->storeTransaction(*this);
             }
             else
             {
