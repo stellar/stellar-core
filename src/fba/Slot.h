@@ -111,10 +111,10 @@ class Slot
     bool                                                       mInAdvanceSlot;
     bool                                                       mRunAdvanceSlot;
 
+    struct StatementMap : public std::map<uint256, FBAStatement> {};
+    struct StatementTypeMap : public std::map<FBAStatementType, StatementMap> {};
     // mEnvelopes keep track of all received and sent envelopes for this slot.
-    std::map<FBABallot,
-             std::map<FBAStatementType,
-                      std::map<uint256, FBAStatement>>>        mStatements;
+    std::map<FBABallot, StatementTypeMap> mStatements;
 
     friend class Node;
 };
