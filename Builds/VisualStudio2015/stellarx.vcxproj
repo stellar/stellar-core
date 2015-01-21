@@ -261,7 +261,6 @@
     <ClInclude Include="..\..\src\overlay\TCPPeer.h" />
     <ClInclude Include="..\..\src\process\ProcessGateway.h" />
     <ClInclude Include="..\..\src\process\ProcessMaster.h" />
-    <ClInclude Include="..\..\src\sync\SyncMaster.h" />
     <ClInclude Include="..\..\src\transactions\AllowTrustTxFrame.h" />
     <ClInclude Include="..\..\src\transactions\CancelOfferFrame.h" />
     <ClInclude Include="..\..\src\transactions\CreateOfferFrame.h" />
