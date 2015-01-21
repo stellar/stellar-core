@@ -820,15 +820,19 @@ Slot::advanceSlot()
                 {
                     bext.counter += 1;
                 }
-                for (auto it : mStatements)
+                for (auto sit : mStatements)
                 {
-                    if (it.first.value == bext.value)
+                    // We consider only the ballots that have a compatible
+                    // value
+                    if (sit.first.value == bext.value)
                     {
-                        for(auto sit : it.second[FBAStatementType::COMMITTED])
+                        // If we have a COMMITTED statement for this ballot and
+                        // it is bigger than bext, we bump bext to it.
+                        if (!sit.second[FBAStatementType::COMMITTED].empty())
                         {
-                            if(compareBallots(bext, it.first) < 0)
+                            if(compareBallots(bext, sit.first) < 0)
                             {
-                                bext = it.first;
+                                bext = sit.first;
                             }
                         }
                     }
