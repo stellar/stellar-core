@@ -187,6 +187,7 @@ Herder::valueExternalized(const uint64& slotIndex,
             removeReceivedTx(tx);
         }
         // rebroadcast those left in set 1
+        assert(mReceivedTransactions.size() >= 2);
         for (auto tx : mReceivedTransactions[1])
         {
             auto msg = tx->toStellarMessage();
