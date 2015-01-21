@@ -45,22 +45,19 @@ class ProcessExitEvent::Impl
 {
     std::shared_ptr<RealTimer> mOuterTimer;
     std::shared_ptr<asio::error_code> mOuterEc;
-    asio::windows::object_handle mObjHandle;
+    asio::windows::object_handle mProcessHandle;
 
   public:
     Impl(std::shared_ptr<RealTimer> const& outerTimer,
-         std::shared_ptr<asio::error_code> const& outerEc, HANDLE hProcess,
-         HANDLE hThread)
+         std::shared_ptr<asio::error_code> const& outerEc, HANDLE hProcess)
         : mOuterTimer(outerTimer)
         , mOuterEc(outerEc)
-        , mObjHandle(outerTimer->get_io_service(), hProcess)
+        , mProcessHandle(outerTimer->get_io_service(), hProcess)
     {
         auto ot = mOuterTimer;
         auto oe = mOuterEc;
-        mObjHandle.async_wait([hProcess, hThread, ot, oe](asio::error_code ec)
+        mProcessHandle.async_wait([ot, oe](asio::error_code ec)
                               {
-                                  CloseHandle(hProcess);
-                                  CloseHandle(hThread);
                                   *oe = ec;
                                   ot->cancel();
                               });
@@ -94,10 +91,13 @@ ProcessMaster::runProcess(std::string const& cmdLine)
         throw std::runtime_error("CreateProcess() failed");
     }
 
+    CloseHandle(pi.hThread); // we don't need this handle
+    pi.hThread = INVALID_HANDLE_VALUE;
+
     auto& svc = mApp.getMainIOService();
     ProcessExitEvent pe(svc);
     pe.mImpl = std::make_shared<ProcessExitEvent::Impl>(
-        pe.mTimer, pe.mEc, pi.hProcess, pi.hThread);
+        pe.mTimer, pe.mEc, pi.hProcess);
     return pe;
 }
 
