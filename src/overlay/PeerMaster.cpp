@@ -34,9 +34,9 @@ PeerMaster::PeerMaster(Application& app)
     
     if (!mApp.getConfig().RUN_STANDALONE)
     {
-        addConfigPeers();
         mTimer.async_wait([this](asio::error_code const& ec)
                           {
+                              addConfigPeers();
                               this->tick();
                           });
     }

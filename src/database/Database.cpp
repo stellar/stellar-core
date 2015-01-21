@@ -72,13 +72,20 @@ void Database::initialize()
 
 void Database::addPeer(const std::string& ip, int port,int numFailures, int rank)
 {
-    int peerID;
-    mSession << "SELECT peerID from Peers where IP=:v1 and Port=:v2",
-        into(peerID), use(ip), use(port);
-    if(!mSession.got_data())
+    try {
+        int peerID;
+        mSession << "SELECT peerID from Peers where IP=:v1 and Port=:v2",
+            into(peerID), use(ip), use(port);
+        if(!mSession.got_data())
+        {
+            mSession.close();
+            mSession << "INSERT INTO Peers (IP,Port,numFailures,Rank) values (:v1, :v2, :v3, :v4)",
+                use(ip), use(port), use(numFailures), use(rank);
+        }
+    }
+    catch(soci_error& err)
     {
-        mSession << "INSERT INTO Peers (IP,Port,numFailures,Rank) values (:v1,:v2,:v3,:v4)",
-            use(ip), use(port), use(numFailures), use(rank);
+        LOG(ERROR) << "DB addPeer: " << err.what();
     }
 }
 
