@@ -73,6 +73,7 @@ namespace stellar
             else
             {
                 assert(mDelete.find(index) == mDelete.end()); // delete + mod is illegal
+                mMod[index] = entry;
             }
         }
     }
