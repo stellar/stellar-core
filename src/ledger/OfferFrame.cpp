@@ -126,7 +126,7 @@ namespace stellar
             std::string currencyCode;
             currencyCodeToStr(mEntry.offer().takerPays.isoCI().currencyCode, currencyCode);
             st = (ledgerMaster.getDatabase().getSession().prepare <<
-                "INSERT into Offers (offerIndex,accountID,sequence,paysCurrency,paysIssuer,amount,price,flags) values (:v1,:v2,:v3,:v4,:v5,:v6,:v7,:v8)",
+                "INSERT into Offers (offerIndex,accountID,sequence,paysIsoCurrency,paysIssuer,amount,price,flags) values (:v1,:v2,:v3,:v4,:v5,:v6,:v7,:v8)",
                 use(b58Index), use(b58AccountID), use(mEntry.offer().sequence), 
                 use(b58issuer),use(currencyCode),use(mEntry.offer().amount),
                 use(mEntry.offer().price),use(mEntry.offer().flags));
@@ -137,7 +137,7 @@ namespace stellar
             std::string currencyCode;
             currencyCodeToStr(mEntry.offer().takerGets.isoCI().currencyCode, currencyCode);
             st = (ledgerMaster.getDatabase().getSession().prepare <<
-                "INSERT into Offers (offerIndex,accountID,sequence,getsCurrency,getsIssuer,amount,price,flags) values (:v1,:v2,:v3,:v4,:v5,:v6,:v7,:v8)",
+                "INSERT into Offers (offerIndex,accountID,sequence,getsIsoCurrency,getsIssuer,amount,price,flags) values (:v1,:v2,:v3,:v4,:v5,:v6,:v7,:v8)",
                 use(b58Index), use(b58AccountID), use(mEntry.offer().sequence),
                 use(b58issuer), use(currencyCode), use(mEntry.offer().amount),
                 use(mEntry.offer().price), use(mEntry.offer().flags));
@@ -145,14 +145,14 @@ namespace stellar
         else
         {
             std::string b58PaysIssuer = toBase58Check(VER_ACCOUNT_ID, mEntry.offer().takerPays.isoCI().issuer);
-            std::string paysCurrency, getsCurrency;
-            currencyCodeToStr(mEntry.offer().takerPays.isoCI().currencyCode,paysCurrency);
+            std::string paysIsoCurrency, getsIsoCurrency;
+            currencyCodeToStr(mEntry.offer().takerPays.isoCI().currencyCode, paysIsoCurrency);
             std::string b58GetsIssuer = toBase58Check(VER_ACCOUNT_ID, mEntry.offer().takerGets.isoCI().issuer);
-            currencyCodeToStr(mEntry.offer().takerGets.isoCI().currencyCode,getsCurrency);
+            currencyCodeToStr(mEntry.offer().takerGets.isoCI().currencyCode, getsIsoCurrency);
             st = (ledgerMaster.getDatabase().getSession().prepare <<
-                "INSERT into Offers (offerIndex,accountID,sequence,paysCurrency,paysIssuer,getsCurrency,getsIssuer,amount,price,flags) values (:v1,:v2,:v3,:v4,:v5,:v6,:v7,:v8,:v9,:v10)",
+                "INSERT into Offers (offerIndex,accountID,sequence,paysIsoCurrency,paysIssuer,getsIsoCurrency,getsIssuer,amount,price,flags) values (:v1,:v2,:v3,:v4,:v5,:v6,:v7,:v8,:v9,:v10)",
                 use(b58Index), use(b58AccountID), use(mEntry.offer().sequence),
-                use(b58PaysIssuer), use(paysCurrency), use(b58GetsIssuer), use(getsCurrency),
+                use(b58PaysIssuer), use(paysIsoCurrency), use(b58GetsIssuer), use(getsIsoCurrency),
                 use(mEntry.offer().amount),
                 use(mEntry.offer().price), use(mEntry.offer().flags));
         }
