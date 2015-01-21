@@ -1,5 +1,4 @@
-#ifndef __HERDER__
-#define __HERDER__
+#pragma once
 
 // Copyright 2014 Stellar Development Foundation and contributors. Licensed
 // under the ISC License. See the COPYING file at the top-level directory of
@@ -92,15 +91,14 @@ class Herder : public HerderGateway,
     //  in case some stragglers are still need the old txsets in order to close
     std::array<TxSetFetcher, 2>                    mTxSetFetcher;
     int                                            mCurrentTxSetFetcher;
-
     std::map<Hash, 
         std::vector<
-            std::function<void(TxSetFramePtr)>>>   mPendingValidations;
-    std::map<Hash,
-        std::vector<
-            std::function<void(FBAQuorumSetPtr)>>> mPendingRetrievals;
+            std::function<void(TxSetFramePtr)>>>   mTxSetFetches;
 
     FBAQSetFetcher                                 mFBAQSetFetcher;
+    std::map<Hash,
+        std::vector<
+            std::function<void(FBAQuorumSetPtr)>>> mFBAQSetFetches;
 
     int                                            mLedgersToWaitToParticipate;
     LedgerHeader                                   mLastClosedLedger;
@@ -109,5 +107,3 @@ class Herder : public HerderGateway,
     FBA*                                           mFBA;
 };
 }
-
-#endif

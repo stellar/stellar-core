@@ -1,5 +1,4 @@
-#ifndef __HERDERGATEWAY__
-#define __HERDERGATEWAY__
+#pragma once
 
 // Copyright 2014 Stellar Development Foundation and contributors. Licensed
 // under the ISC License. See the COPYING file at the top-level directory of
@@ -65,5 +64,3 @@ class HerderGateway
     virtual void ledgerClosed(LedgerHeader& ledger) = 0;
 };
 }
-
-#endif
