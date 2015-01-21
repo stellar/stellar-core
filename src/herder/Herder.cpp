@@ -74,7 +74,14 @@ Herder::validateBallot(const uint64& slotIndex,
                        std::function<void(bool)> const& cb)
 {
     StellarBallot b;
-    xdr::xdr_from_opaque(ballot.value, b);
+    try
+    {
+        xdr::xdr_from_opaque(ballot.value, b);
+    }
+    catch (...)
+    {
+        return cb(false);
+    }
 
     // All tests that are relative to mLastClosedLedger are executed only once
     // we are fully synced up
@@ -82,11 +89,6 @@ Herder::validateBallot(const uint64& slotIndex,
     {
         // Check slotIndex.
         if (mLastClosedLedger.ledgerSeq + 1 != slotIndex)
-        {
-            return cb(false);
-        }
-        // Check previousLedgerHash.
-        if (mLastClosedLedger.hash != b.previousLedgerHash)
         {
             return cb(false);
         }
@@ -167,7 +169,16 @@ Herder::valueExternalized(const uint64& slotIndex,
                           const Value& value)
 {
     StellarBallot b;
-    xdr::xdr_from_opaque(value, b);
+    try
+    {
+        xdr::xdr_from_opaque(value, b);
+    }
+    catch (...)
+    {
+        // This may not be possible as all messages are validated and should
+        // therefore contain a valid StellarBallot.
+        CLOG(ERROR, "Herder") << "Externalized StellarBallot malformed";
+    }
     
     TxSetFramePtr externalizedSet = fetchTxSet(b.txSetHash, false);
     if (externalizedSet)
@@ -189,7 +200,7 @@ Herder::valueExternalized(const uint64& slotIndex,
         for (auto tx : mReceivedTransactions[1])
         {
             auto msg = tx->toStellarMessage();
-            mApp.getPeerMaster().broadcastMessage(msg);
+            mApp.getOverlayGateway().broadcastMessage(msg);
         }
 
         // move all the remaining to the next highest level
@@ -205,7 +216,7 @@ Herder::valueExternalized(const uint64& slotIndex,
     }
     else
     {
-        // This may not be possible are all messages are validated and should
+        // This may not be possible as all messages are validated and should
         // therefore fetch the txSet before being considered by FBA.
         CLOG(ERROR, "Herder") << "Externalized txSet not found";
     }
@@ -441,6 +452,8 @@ Herder::ledgerClosed(LedgerHeader& ledger)
             proposedSet->add(tx);
         }
     }
+    proposedSet->mPreviousLedgerHash = ledger.hash;
+
     recvTxSet(proposedSet);
 
     uint64_t nextCloseTime = time(nullptr) + NUM_SECONDS_IN_CLOSE;
@@ -450,7 +463,6 @@ Herder::ledgerClosed(LedgerHeader& ledger)
     uint64_t slotIndex = mLastClosedLedger.ledgerSeq + 1;
 
     StellarBallot b;
-    b.previousLedgerHash = ledger.hash;
     b.txSetHash = proposedSet->getContentsHash();
     b.closeTime = nextCloseTime;
     b.baseFee = mApp.getConfig().DESIRED_BASE_FEE;

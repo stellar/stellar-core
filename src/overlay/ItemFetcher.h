@@ -72,10 +72,10 @@ class ItemFetcher
     ItemFetcher(Application& app) : mApp(app)
     {
     }
-    void clear();
-    void stopFetching(uint256 const& itemID);
-    void stopFetchingAll();
-    void doesntHave(uint256 const& itemID, Peer::pointer peer);
+    virtual void clear();
+    virtual void stopFetching(uint256 const& itemID);
+    virtual void stopFetchingAll();
+    virtual void doesntHave(uint256 const& itemID, Peer::pointer peer);
 };
 
 // We want to keep the last N ledgers worth of Txsets around
@@ -86,11 +86,11 @@ class TxSetFetcher : public ItemFetcher
     TxSetFetcher(Application& app) : ItemFetcher(app)
     {
     }
-    TxSetFramePtr fetchItem(uint256 const& itemID,
-                                      bool askNetwork);
+    virtual TxSetFramePtr fetchItem(uint256 const& itemID,
+                                    bool askNetwork);
     // looks to see if we know about it but doesn't ask the network
     TxSetFramePtr findItem(uint256 const& itemID);
-    bool recvItem(TxSetFramePtr txSet);
+    virtual bool recvItem(TxSetFramePtr txSet);
 };
 
 class FBAQSetFetcher : public ItemFetcher
@@ -99,11 +99,11 @@ class FBAQSetFetcher : public ItemFetcher
     FBAQSetFetcher(Application& app) : ItemFetcher(app)
     {
     }
-    FBAQuorumSetPtr fetchItem(uint256 const& itemID,
-                                 bool askNetwork);
+    virtual FBAQuorumSetPtr fetchItem(uint256 const& itemID,
+                                      bool askNetwork);
     // looks to see if we know about it but doesn't ask the network
     FBAQuorumSetPtr findItem(uint256 const& itemID);
-    bool recvItem(FBAQuorumSetPtr qSet);
+    virtual bool recvItem(FBAQuorumSetPtr qSet);
 };
 
 class TxSetTrackingCollar : public TrackingCollar

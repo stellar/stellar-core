@@ -65,6 +65,8 @@ struct Application::Impl
     std::unique_ptr<CommandHandler> mCommandHandler;
     std::unique_ptr<Database> mDatabase;
 
+    std::unique_ptr<OverlayGateway> mOverlayGatewayMock;
+
     std::vector<std::thread> mWorkerThreads;
 
     asio::signal_set mStopSignals;
@@ -418,6 +420,10 @@ Application::getHerderGateway()
 OverlayGateway&
 Application::getOverlayGateway()
 {
+    if (mImpl->mOverlayGatewayMock)
+    {
+        return *mImpl->mOverlayGatewayMock;
+    }
     return *mImpl->mPeerMaster;
 }
 
@@ -443,6 +449,12 @@ asio::io_service&
 Application::getWorkerIOService()
 {
     return mImpl->mWorkerIOService;
+}
+
+void
+Application::mockOverlayGateway(std::unique_ptr<OverlayGateway> mock)
+{
+    mImpl->mOverlayGatewayMock = std::move(mock);
 }
 
 }

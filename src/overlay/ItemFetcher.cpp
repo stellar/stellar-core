@@ -53,7 +53,7 @@ ItemFetcher::clear()
 
 //////////////////////////////
 
-TxSetFrame::pointer
+TxSetFramePtr
 TxSetFetcher::fetchItem(uint256 const& setID, bool askNetwork)
 {
     // look it up in the map
@@ -80,12 +80,12 @@ TxSetFetcher::fetchItem(uint256 const& setID, bool askNetwork)
             collar->tryNextPeer();
         }
     }
-    return (TxSetFrame::pointer());
+    return (TxSetFramePtr());
 }
 
 // returns true if we were waiting for this txSet
 bool
-TxSetFetcher::recvItem(TxSetFrame::pointer txSet)
+TxSetFetcher::recvItem(TxSetFramePtr txSet)
 {
     if (txSet)
     {

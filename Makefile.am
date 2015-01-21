@@ -22,9 +22,10 @@ FMT_SRCS = src/clf/BucketList.cpp src/clf/CLFMaster.cpp src/clf/CLFTests.cpp    
     src/overlay/PeerMaster.cpp src/overlay/TCPPeer.cpp                          \
     src/process/ProcessMaster.cpp src/process/ProcessTests.cpp                  \
     src/simulation/CycleTests.cpp src/simulation/Simulation.cpp                 \
-    src/herder/Herder.cpp src/herder/TxSetFrame.cpp src/util/Logging.cpp        \
-    src/util/Timer.cpp src/util/types.cpp src/util/TempDir.cpp                  \
-    src/util/Uint128Tests.cpp src/transactions/AllowTrustTxFrame.cpp            \
+    src/herder/Herder.cpp src/herder/HerderTests.cpp src/herder/TxSetFrame.cpp  \
+    src/util/Logging.cpp src/util/Timer.cpp src/util/types.cpp                  \
+    src/util/TempDir.cpp src/util/Uint128Tests.cpp                              \
+    src/transactions/AllowTrustTxFrame.cpp                                      \
     src/transactions/CancelOfferFrame.cpp                                       \
     src/transactions/ChangeTrustTxFrame.cpp                                     \
     src/transactions/CreateOfferFrame.cpp src/transactions/InflationFrame.cpp   \

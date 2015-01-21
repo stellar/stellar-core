@@ -1,5 +1,4 @@
-#ifndef __TRANSACTIONSET__
-#define __TRANSACTIONSET__
+#pragma once
 
 // Copyright 2014 Stellar Development Foundation and contributors. Licensed
 // under the ISC License. See the COPYING file at the top-level directory of
@@ -54,5 +53,3 @@ class TxSetFrame
     void toXDR(TransactionSet& set);
 };
 }
-
-#endif // !__TRANSACTIONSET__
