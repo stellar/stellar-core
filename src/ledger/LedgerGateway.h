@@ -21,8 +21,8 @@ class LedgerGateway
     // called by txherder
     virtual void externalizeValue(TxSetFramePtr txSet)=0;
 
-    virtual int32_t getTxFee() = 0;
-    virtual int64_t getLedgerNum() = 0;
+    virtual int64_t getTxFee() = 0;
+    virtual uint64_t getLedgerNum() = 0;
 };
 }
 

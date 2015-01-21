@@ -175,7 +175,7 @@ bool CreateOfferFrame::convert(Currency& sheep,
 {
     int64_t maxWheatPrice = bigDivide(OFFER_PRICE_DIVISOR,OFFER_PRICE_DIVISOR,minSheepPrice);
 
-    int offerOffset = 0;
+    size_t offerOffset = 0;
     while(maxSheepReceived > 0)
     {
         vector<OfferFrame> retList;

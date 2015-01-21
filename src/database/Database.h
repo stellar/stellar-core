@@ -39,7 +39,7 @@ class Database
         TrustFrame& retEntry);
     bool loadOffer(const uint256& accountID,uint32_t seq, OfferFrame& retEntry);
 
-    void loadBestOffers(int numOffers, int offset, Currency& pays,
+    void loadBestOffers(size_t numOffers, size_t offset, Currency& pays,
         Currency& gets, std::vector<OfferFrame>& retOffers);
 
     void loadOffers(const uint256& accountID, std::vector<OfferFrame>& retOffers);

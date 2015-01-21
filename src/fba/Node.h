@@ -55,7 +55,7 @@ class Node
     // retrieved. When cacheQuorumSet is called with the specified quorum set
     // hash, all slots pending on this quorum set are woken up for
     // re-evaluation.
-    void addPendingSlot(const Hash& qSetHash, const uint32& slotIndex);
+    void addPendingSlot(const Hash& qSetHash, const uint64& slotIndex);
 
     void cacheQuorumSet(const FBAQuorumSet& qSet);
 
@@ -69,7 +69,7 @@ class Node
     std::map<Hash, FBAQuorumSet>           mCache;
     std::vector<Hash>                      mCacheLRU;
 
-    std::map<Hash, std::vector<uint32>>    mPendingSlots;
+    std::map<Hash, std::vector<uint64>>    mPendingSlots;
 };
 }
 

@@ -135,22 +135,22 @@ using namespace std;
         
         
         int64_t sendAmount = mEnvelope.tx.body.paymentTx().amount;
-        Currency sendCurrency=mEnvelope.tx.body.paymentTx().currency;
+        Currency sendCurrency = mEnvelope.tx.body.paymentTx().currency;
         
-        if(mEnvelope.tx.body.paymentTx().path.size())
+        if(!mEnvelope.tx.body.paymentTx().path.empty())
         {      
             int64_t lastAmount=mEnvelope.tx.body.paymentTx().amount;
-            for(int n = mEnvelope.tx.body.paymentTx().path.size(); n >= 0;  n--)
+            for(auto& pathElement : mEnvelope.tx.body.paymentTx().path)
             {   // convert from link to last
                 lastAmount = 0;
                 int64_t amountToSell = 0;
-                if(!convert(mEnvelope.tx.body.paymentTx().path[n], sendCurrency, lastAmount, amountToSell, delta, ledgerMaster))
+                if(!convert(pathElement, sendCurrency, lastAmount, amountToSell, delta, ledgerMaster))
                 {
                     return false;
                 }
                 lastAmount = amountToSell;
 
-                sendCurrency = mEnvelope.tx.body.paymentTx().path[n];
+                sendCurrency = pathElement;
             }
             sendAmount = lastAmount;
         } 
@@ -233,7 +233,7 @@ using namespace std;
         int64_t wheatTransferRate = getTransferRate(wheat, ledgerMaster);
 
         retAmountSheep = 0;
-        int offerOffset = 0;
+        size_t offerOffset = 0;
         while(amountWheat > 0)
         {
             vector<OfferFrame> retList;
