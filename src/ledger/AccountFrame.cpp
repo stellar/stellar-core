@@ -17,7 +17,7 @@ namespace stellar
 {
 const char *AccountFrame::kSQLCreateStatement1 = "CREATE TABLE IF NOT EXISTS Accounts (						\
 	accountID		CHARACTER(35) PRIMARY KEY,	\
-	balance			BIGINT UNSIGNED,			\
+	balance		BIGINT,			\
 	sequence		INT UNSIGNED default 1,		\
 	ownerCount		INT UNSIGNED default 0,		\
 	transferRate	INT UNSIGNED default 0,		\
@@ -77,7 +77,7 @@ uint32_t AccountFrame::getSeqNum()
     return(mEntry.account().sequence);
 }
 
-uint64_t AccountFrame::getBalance()
+int64_t AccountFrame::getBalance()
 {
     return(mEntry.account().balance);
 }

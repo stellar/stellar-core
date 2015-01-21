@@ -33,7 +33,7 @@ namespace stellar
         EntryFrame::pointer copy()  const  { return EntryFrame::pointer(new AccountFrame(*this)); }
 
         void setUpdateSigners() { mUpdateSigners = true; }
-        uint64_t getBalance();
+        int64_t getBalance();
         bool isAuthRequired();
         uint256& getID();
         uint32_t getMasterWeight();

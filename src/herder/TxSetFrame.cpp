@@ -140,7 +140,8 @@ bool TxSetFrame::checkValid(Application& app)
                 
                 // make sure account can pay the fee for all these tx
                 if(tx->getSourceAccount().getBalance() < 
-                    item.second.size() * app.getLedgerGateway().getTxFee()) return false;
+                    (static_cast<int64_t>(xdr::size32(item.second.size())) * app.getLedgerGateway().getTxFee()))
+					return false;
             } else
             {
                 tx->getSourceAccount() = first->getSourceAccount();
@@ -183,7 +184,7 @@ TxSetFrame::getPreviousLedgerHash()
 void
 TxSetFrame::toXDR(TransactionSet& txSet)
 {
-    txSet.txs.resize(mTransactions.size());
+    txSet.txs.resize(xdr::size32(mTransactions.size()));
     for (unsigned int n = 0; n < mTransactions.size(); n++)
     {
         txSet.txs[n]=mTransactions[n]->getEnvelope();

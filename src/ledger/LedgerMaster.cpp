@@ -105,12 +105,12 @@ int32_t LedgerMaster::getTxFee()
     return mCurrentLedger->mHeader.baseFee; 
 }
 
-int64_t LedgerMaster::getMinBalance(int32_t ownerCount)
+int64_t LedgerMaster::getMinBalance(uint32_t ownerCount)
 {
     return (2 + ownerCount) * mCurrentLedger->mHeader.baseReserve;
 }
 
-int64_t LedgerMaster::getLedgerNum()
+uint64_t LedgerMaster::getLedgerNum()
 {
     return mCurrentLedger->mHeader.ledgerSeq;
 }

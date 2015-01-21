@@ -43,7 +43,7 @@ Node::retrieveQuorumSet(const uint256& qSetHash)
 }
 
 void 
-Node::addPendingSlot(const uint256& qSetHash, const uint32& slotIndex)
+Node::addPendingSlot(const uint256& qSetHash, const uint64& slotIndex)
 {
     /*
     LOG(INFO) << "Node::addPendingSlot"
@@ -86,7 +86,7 @@ Node::cacheQuorumSet(const FBAQuorumSet& qSet)
     mCacheLRU.push_back(qSetHash);
     mCache[qSetHash] = qSet;
 
-    for (uint32 sIndex : mPendingSlots[qSetHash])
+    for (uint64 sIndex : mPendingSlots[qSetHash])
     {
         mFBA->getSlot(sIndex)->advanceSlot();
     }

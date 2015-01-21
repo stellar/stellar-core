@@ -273,7 +273,7 @@ void Database::loadLine(const soci::row& row, TrustFrame& retLine)
     retLine.mEntry.trustLine().authorized = row.get<uint32_t>(6);
 }
 
-void Database::loadBestOffers(int numOffers, int offset, Currency& pays,
+void Database::loadBestOffers(size_t numOffers, size_t offset, Currency& pays,
     Currency& gets, vector<OfferFrame>& retOffers)
 {
     stringstream sql;

@@ -107,7 +107,7 @@ Peer::sendPeers()
     mApp.getDatabase().loadPeers(50, peerList);
     StellarMessage newMsg;
     newMsg.type(PEERS);
-    newMsg.peers().resize(peerList.size());
+    newMsg.peers().resize(xdr::size32(peerList.size()));
     for(int n = 0; n < peerList.size(); n++)
     {
         ipFromStr(peerList[n].mIP, newMsg.peers()[n].ip);

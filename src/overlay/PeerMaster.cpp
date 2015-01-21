@@ -127,7 +127,6 @@ PeerMaster::tick()
     if (mPeers.size() < mApp.getConfig().TARGET_PEER_CONNECTIONS)
     {
         // make some outbound connections if we can
-        int num = mApp.getConfig().TARGET_PEER_CONNECTIONS - mPeers.size();
         vector<PeerRecord> retList;
         mApp.getDatabase().loadPeers(100, retList);
         for(auto peerRecord : retList)
@@ -146,10 +145,10 @@ PeerMaster::tick()
                 mApp.getDatabase().getSession() << "UPDATE Peers set numFailures=numFailures+1 and nextAttempt=:v1 where peerID=:v2",
                     use(*nextAttempt), use(peerRecord.mPeerID);
                 addPeer(Peer::pointer(new TCPPeer(mApp, peerRecord.mIP, peerRecord.mPort)));
-                num--;
-                if(num < 1) break;
-               
-               
+                if (mPeers.size() >= mApp.getConfig().TARGET_PEER_CONNECTIONS)
+                {
+                    break;
+                }
             }        
         }
     }
