@@ -20,11 +20,7 @@ namespace stellar
 typedef enum
 {
     VER_NONE = 1,
-    VER_NODE_PUBLIC = 122,     // 'n'
-    VER_NODE_PRIVATE = 102,    // 'h'
     VER_ACCOUNT_ID = 0,        // 'g'
-    VER_ACCOUNT_PUBLIC = 67,   // 'p'
-    VER_ACCOUNT_PRIVATE = 101, // 'h'
     VER_SEED = 33              // 's'
 } Base58CheckVersionByte;
 

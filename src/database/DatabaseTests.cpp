@@ -33,7 +33,8 @@ TEST_CASE("database smoketest", "[db]")
     LOG(DEBUG) << "round trip with in-memory database: " << a << " == " << b;
 }
 
-
+// TODO.4  if the SQL is malformed it crashes rather than throws. 
+//  (on windows at least) or rather it throws but isn't handled correctly for some reason
 #ifdef USE_POSTGRES
 TEST_CASE("postgres smoketest", "[db]")
 {

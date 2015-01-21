@@ -57,6 +57,11 @@ SecretKey::getBase58Seed() const
     return toBase58Check(VER_SEED, seed);
 }
 
+std::string SecretKey::getBase58Public() const
+{
+    return toBase58Check(VER_ACCOUNT_ID, getPublicKey());
+}
+
 uint512
 SecretKey::sign(ByteSlice const& bin) const
 {

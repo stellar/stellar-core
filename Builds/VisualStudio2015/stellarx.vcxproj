@@ -293,7 +293,6 @@
     <None Include="..\..\docs\usecases.md" />
     <None Include="..\..\INSTALL" />
     <None Include="..\..\NEWS" />
-    <None Include="..\..\README" />
     <CustomBuild Include="..\..\src\overlay\StellarXDR.x">
       <FileType>Document</FileType>
       <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(SolutionDir)$(Platform)\$(Configuration)\xdrc.exe -hh -o ../../src/generated/StellarXDR.h ../../src/overlay/StellarXDR.x
@@ -320,6 +319,7 @@ $(SolutionDir)$(Platform)\$(Configuration)\xdrc.exe -hh -o ../../src/generated/S
       <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">../../src/generated/FBAXDR.h</Outputs>
       <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">../../src/fba/FBAXDR.x</AdditionalInputs>
     </CustomBuild>
+    <None Include="..\..\README.md" />
     <None Include="..\..\src\fba\NOTES" />
     <None Include="..\..\src\lib\xdrpp\tests\xdrtest.x" />
     <None Include="libmedida\libmedida.vcxproj" />

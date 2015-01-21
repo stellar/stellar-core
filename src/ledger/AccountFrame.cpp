@@ -141,7 +141,7 @@ void AccountFrame::storeUpdate(LedgerDelta &delta, LedgerMaster& ledgerMaster, b
 
     if(finalAccount.inflationDest)
     {
-        inflationDestStr = toBase58Check(VER_ACCOUNT_PUBLIC, *finalAccount.inflationDest);
+        inflationDestStr = toBase58Check(VER_ACCOUNT_ID, *finalAccount.inflationDest);
         inflation_ind = soci::i_ok;
     }
 

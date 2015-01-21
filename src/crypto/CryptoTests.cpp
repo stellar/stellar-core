@@ -257,8 +257,8 @@ TEST_CASE("sign tests", "[crypto]")
 {
     auto sk = SecretKey::random();
     auto pk = sk.getPublicKey();
-    LOG(DEBUG) << "generated random secret key: " << toBase58Check(VER_ACCOUNT_PRIVATE, sk);
-    LOG(DEBUG) << "corresponding public key: " << toBase58Check(VER_ACCOUNT_PUBLIC, pk);
+    LOG(DEBUG) << "generated random secret key seed: " << toBase58Check(VER_SEED, sk);
+    LOG(DEBUG) << "corresponding public key: " << toBase58Check(VER_ACCOUNT_ID, pk);
 
     CHECK(SecretKey::fromBase58Seed(sk.getBase58Seed()) == sk);
 

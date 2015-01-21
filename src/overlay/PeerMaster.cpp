@@ -34,9 +34,9 @@ PeerMaster::PeerMaster(Application& app)
     
     if (!mApp.getConfig().RUN_STANDALONE)
     {
-        addConfigPeers();
         mTimer.async_wait([this](asio::error_code const& ec)
                           {
+                              addConfigPeers();
                               this->tick();
                           });
     }
@@ -58,10 +58,11 @@ bool PeerMaster::parseIPPort(const std::string& peerStr, std::string& retIP, int
         retPort = DEFAULT_PEER_PORT;
     }else
     {
+        splitPoint--;
         retIP.assign(innerStr.begin(), splitPoint);
         std::string portStr;
         splitPoint++;
-        portStr.assign(splitPoint, peerStr.end());
+        portStr.assign(splitPoint, innerStr.end());
         retPort = atoi(portStr.c_str());
         if(!retPort) return false;
     }
@@ -270,11 +271,11 @@ void PeerMaster::createTable(Database &db)
 }
 
 const char* PeerMaster::kSQLCreateStatement = "CREATE TABLE IF NOT EXISTS Peers (						\
-	peerID	INT UNSIGNED PRIMARY KEY,	\
+	peerID	INTEGER PRIMARY KEY,	\
     ip	    CHARACTER(11),		        \
     port   	INT UNSIGNED default 0,		\
     nextAttempt   	TIMESTAMP,	    	\
-    numFailures     INT default 0,      \
+    numFailures     INT UNSIGNED default 0,      \
     lastConnect   	TIMESTAMP,	    	\
 	rank	INT UNSIGNED default 0  	\
 );";

@@ -24,6 +24,9 @@ extern "C" void register_factory_sqlite3();
 extern "C" void register_factory_postgresql();
 #endif
 
+// NOTE: soci will just crash and not throw 
+//  if you misname a column in a query. yay!
+
 namespace stellar
 {
 
@@ -50,6 +53,7 @@ Database::Database(Application& app)
     : mApp(app)
 {
     registerDrivers();
+    LOG(INFO) << "Connecting to: " << app.getConfig().DATABASE;
     mSession.open(app.getConfig().DATABASE);
     if( (mApp.getConfig().START_NEW_NETWORK) || 
         (app.getConfig().DATABASE == "sqlite3://:memory:"))  initialize();
@@ -72,25 +76,37 @@ void Database::initialize()
 
 void Database::addPeer(const std::string& ip, int port,int numFailures, int rank)
 {
-    int peerID;
-    mSession << "SELECT peerID from Peers where IP=:v1 and Port=:v2",
-        into(peerID), use(ip), use(port);
-    if(!mSession.got_data())
+    try {
+        int peerID;
+        mSession << "SELECT peerID from Peers where ip=:v1 and port=:v2",
+            into(peerID), use(ip), use(port);
+        if(!mSession.got_data())
+        {
+            mSession << "INSERT INTO Peers (IP,Port,numFailures,Rank) values (:v1, :v2, :v3, :v4)",
+                use(ip), use(port), use(numFailures), use(rank);
+        }
+    }
+    catch(soci_error& err)
     {
-        mSession << "INSERT INTO Peers (IP,Port,numFailures,Rank) values (:v1,:v2,:v3,:v4)",
-            use(ip), use(port), use(numFailures), use(rank);
+        LOG(ERROR) << "DB addPeer: " << err.what();
     }
 }
 
 void Database::loadPeers(int max, vector<PeerRecord>& retList)
 {
-    stringstream sql;
-    sql << "SELECT peerID,ip,port,numFailures from Peers where nextAttempt<now() order by rank limit " << max;
-    rowset<row> rs = mSession.prepare << sql.str();
-    for(rowset<row>::const_iterator it = rs.begin(); it != rs.end(); ++it)
+    try {
+        stringstream sql;
+        sql << "SELECT peerID,ip,port,numFailures from Peers where nextAttempt<now() order by rank limit " << max;
+        rowset<row> rs = mSession.prepare << sql.str();
+        for(rowset<row>::const_iterator it = rs.begin(); it != rs.end(); ++it)
+        {
+            row const& row = *it;
+            retList.push_back(PeerRecord(row.get<int>(0), row.get<std::string>(1), row.get<int>(2), row.get<int>(3)));
+        }
+    }
+    catch(soci_error& err)
     {
-        row const& row = *it;
-        retList.push_back(PeerRecord(row.get<int>(0), row.get<std::string>(1), row.get<int>(2), row.get<int>(3)));
+        LOG(ERROR) << "loadPeers Error: " << err.what();
     }
 }
 
@@ -125,7 +141,7 @@ bool Database::loadAccount(const uint256& accountID, AccountFrame& retAcc, bool 
 
     if (inflationDestInd == soci::i_ok)
     {
-        account.inflationDest.activate() = fromBase58Check256(VER_ACCOUNT_PUBLIC, inflationDest);
+        account.inflationDest.activate() = fromBase58Check256(VER_ACCOUNT_ID, inflationDest);
     }
 
     if(withSig)
