@@ -29,12 +29,12 @@ class
 HistoryMaster::Impl
 {
     Application& mApp;
-    TempDir mWorkDir;
+    std::unique_ptr<TempDir> mWorkDir;
     friend class HistoryMaster;
 public:
     Impl(Application &app)
         : mApp(app)
-        , mWorkDir("history")
+        , mWorkDir(nullptr)
         {}
 
 };
@@ -71,79 +71,106 @@ HistoryMaster::~HistoryMaster()
  * s3 as they are evicted from the CLF.
  */
 
+std::string const&
+HistoryMaster::getTempDir()
+{
+    if (!mImpl->mWorkDir)
+    {
+        mImpl->mWorkDir = make_unique<TempDir>("history");
+    }
+    return mImpl->mWorkDir->getName();
+}
 
 template<typename T> void
-saveAndCompress(Application &app,
-                std::string fname,
-                std::shared_ptr<T> xdrp,
-                std::function<void(std::string const&)> handler)
+HistoryMaster::saveAndCompressAndPut(std::string const& basename,
+                                     std::shared_ptr<T> xdrp,
+                                     std::function<void(std::string const&)> handler)
 {
-    app.getWorkerIOService().post(
-        [&app, fname, handler, xdrp]()
+    this->mImpl->mApp.getWorkerIOService().post(
+        [this, basename, handler, xdrp]()
         {
-            std::ofstream out(fname, std::ofstream::binary);
+            std::string fullname = this->getTempDir() + "/" + basename;
+            std::ofstream out(fullname, std::ofstream::binary);
             auto m = xdr::xdr_to_msg(*xdrp);
             out.write(m->raw_data(), m->raw_size());
-            app.getMainIOService().post(
-                [&app, fname, handler]()
+            this->mImpl->mApp.getMainIOService().post(
+                [this, basename, fullname, handler]()
                 {
-                    auto exit = app.getProcessGateway().runProcess("gzip " + fname);
+                    auto& app = this->mImpl->mApp;
+                    auto exit = app.getProcessGateway().runProcess("gzip " + fullname);
                     exit.async_wait(
-                        [fname, handler](asio::error_code ec) {
+                        [this, basename, fullname, handler](asio::error_code ec) {
                             if (ec)
                             {
-                                handler("");
+                                LOG(DEBUG) << "'gzip " << fullname << "' failed";
                             }
                             else
                             {
-                                handler(fname + ".gz");
+                                this->putFile(fullname + ".gz",
+                                              basename  + ".gz", handler);
                             }
                         });
                 });
         });
 }
 
-template<typename T> void
-decompressAndLoad(Application &app,
-                  std::string fname,
-                  std::function<void(std::shared_ptr<T>)> handler)
+void
+checkGzipSuffix(std::string const& filename)
 {
     std::string suf(".gz");
-    assert(fname.size() >= suf.size() &&
-           std::equal(suf.rbegin(), suf.rend(), fname.rbegin()));
+    if (!(filename.size() >= suf.size() &&
+          std::equal(suf.rbegin(), suf.rend(), filename.rbegin())))
+    {
+        throw std::runtime_error("filename does not end in .gz");
+    }
+}
 
-    auto exit = app.getProcessGateway().runProcess("gunzip " + fname);
-    exit.async_wait(
-        [&app, fname, handler](asio::error_code ec)
+template<typename T> void
+HistoryMaster::getAndDecompressAndLoad(std::string const& basename,
+                                       std::function<void(std::shared_ptr<T>)> handler)
+{
+
+    std::string fullname = getTempDir() + "/" + basename + ".gz";
+    getFile(
+        basename + ".gz", fullname,
+        [this, handler](std::string const& fullname)
         {
-            if (!ec)
-            {
-                app.getWorkerIOService().post(
-                    [&app, fname, handler]()
+            checkGzipSuffix(fullname);
+            Application& app = this->mImpl->mApp;
+            auto exit = app.getProcessGateway().runProcess("gunzip " + fullname);
+            exit.async_wait(
+                [&app, fullname, handler](asio::error_code ec)
+                {
+                    if (!ec)
                     {
-                        std::string stem = fname.substr(0, fname.size() - 3);
-                        std::ifstream in(stem, std::ofstream::binary);
-                        in.exceptions(std::ifstream::failbit);
-                        in.seekg(0, in.end);
-                        std::ifstream::pos_type length = in.tellg();
-                        in.seekg(0, in.beg);
-                        xdr::msg_ptr m = xdr::message_t::alloc(
-                            length - static_cast<std::ifstream::pos_type>(4));
-                        in.read(m->raw_data(), m->raw_size());
-                        in.close();
-                        std::shared_ptr<T> t = std::make_shared<T>();
-                        xdr::xdr_from_msg(m, *t);
-                        app.getMainIOService().post(
-                            [handler, t]()
+                        app.getWorkerIOService().post(
+                            [&app, fullname, handler]()
                             {
-                                handler(t);
+                                checkGzipSuffix(fullname);
+                                std::string stem = fullname.substr(0, fullname.size() - 3);
+                                std::ifstream in(stem, std::ofstream::binary);
+                                in.exceptions(std::ifstream::failbit);
+                                in.seekg(0, in.end);
+                                std::ifstream::pos_type length = in.tellg();
+                                in.seekg(0, in.beg);
+                                xdr::msg_ptr m = xdr::message_t::alloc(
+                                    length - static_cast<std::ifstream::pos_type>(4));
+                                in.read(m->raw_data(), m->raw_size());
+                                in.close();
+                                std::shared_ptr<T> t = std::make_shared<T>();
+                                xdr::xdr_from_msg(m, *t);
+                                app.getMainIOService().post(
+                                    [handler, t]()
+                                    {
+                                        handler(t);
+                                    });
                             });
-                    });
-            }
+                    }
+                });
         });
 }
 
-void
+static void
 runCommands(Application &app,
             std::shared_ptr<std::vector<std::string>> cmds,
             std::function<void(asio::error_code)> handler,
@@ -190,72 +217,82 @@ HistoryMaster::putFile(std::string const& filename,
     runCommands(mImpl->mApp, commands,
                 [handler, filename](asio::error_code ec)
                 {
-                    handler(filename);
+                    if (!ec)
+                        handler(filename);
                 });
 }
 
-
 void
-HistoryMaster::archiveHistoryEntry(HistoryEntry const& historyEntry)
+HistoryMaster::getFile(std::string const& basename,
+                       std::string const& filename,
+                       std::function<void(std::string const&)> handler)
 {
-    // Write to DB for later flush.
+    auto const& hist = mImpl->mApp.getConfig().HISTORY;
+    auto commands = std::make_shared<std::vector<std::string>>();
+    for (auto const& pair : hist)
+    {
+        auto s = pair.second->getFileCmd(basename, filename);
+        if (!s.empty())
+        {
+            commands->push_back(s);
+        }
+    }
+    runCommands(mImpl->mApp, commands,
+                [handler, filename](asio::error_code ec)
+                {
+                    if (!ec)
+                        handler(filename);
+                });
+}
+
+static std::string
+bucketBasename(uint64_t ledgerSeq, uint32_t ledgerCount)
+{
+    return fmt::format("bucket_{:d}_{:d}.xdr",
+                       ledgerSeq, ledgerCount);
+}
+
+static std::string
+historyBasename(uint64_t fromLedger, uint64_t toLedger)
+{
+    return fmt::format("history_{:d}_{:d}.xdr",
+                       fromLedger, toLedger);
 }
 
 void
 HistoryMaster::archiveBucket(std::shared_ptr<CLFBucket> bucket,
                              std::function<void(std::string const&)> handler)
 {
-    std::string basename = fmt::format("bucket_{:d}_{:d}.xdr",
-                                       bucket->header.ledgerSeq,
-                                       bucket->header.ledgerCount);
-    std::string fname = mImpl->mWorkDir.getName() + "/" + basename;
-
-    saveAndCompress<CLFBucket>(
-        mImpl->mApp, fname, bucket,
-        [this, handler, basename](std::string const& outfile)
-        {
-            if (outfile.empty())
-            {
-                LOG(DEBUG) << "SaveAndCompressed failed";
-            }
-            else
-            {
-                LOG(DEBUG) << "SaveAndCompressed succeeded, putting file " << outfile;
-                this->putFile(outfile, basename + ".gz", handler);
-            }
-        });
+    std::string basename = bucketBasename(bucket->header.ledgerSeq,
+                                          bucket->header.ledgerCount);
+    saveAndCompressAndPut<CLFBucket>(basename, bucket, handler);
 }
 
 void
 HistoryMaster::archiveHistory(std::shared_ptr<History> hist,
                               std::function<void(std::string const&)> handler)
 {
-    std::string basename = fmt::format("history_{:d}_{:d}.xdr",
-                                       hist->fromLedger,
-                                       hist->toLedger);
-    std::string fname = mImpl->mWorkDir.getName() + "/" + basename;
-
-    saveAndCompress<History>(
-        mImpl->mApp, fname, hist,
-        [this, handler, basename](std::string const& outfile)
-        {
-            if (outfile.empty())
-            {
-                LOG(DEBUG) << "SaveAndCompressed failed";
-            }
-            else
-            {
-                LOG(DEBUG) << "SaveAndCompressed succeeded, putting file " << outfile;
-                this->putFile(outfile, basename + ".gz", handler);
-            }
-        });
+    std::string basename = historyBasename(hist->fromLedger,
+                                           hist->toLedger);
+    saveAndCompressAndPut<History>(basename, hist, handler);
 }
 
 void
-HistoryMaster::acquireHistory(std::string const& fname,
+HistoryMaster::acquireBucket(uint64_t ledgerSeq,
+                             uint32_t ledgerCount,
+                             std::function<void(std::shared_ptr<CLFBucket>)> handler)
+{
+    std::string basename = bucketBasename(ledgerSeq, ledgerCount);
+    getAndDecompressAndLoad<CLFBucket>(basename, handler);
+}
+
+void
+HistoryMaster::acquireHistory(uint64_t fromLedger,
+                              uint64_t toLedger,
                               std::function<void(std::shared_ptr<History>)> handler)
 {
-    decompressAndLoad<History>(mImpl->mApp, fname, handler);
+    std::string basename = historyBasename(fromLedger, toLedger);
+    getAndDecompressAndLoad<History>(basename, handler);
 }
 
 }
