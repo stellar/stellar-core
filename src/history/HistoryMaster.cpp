@@ -21,15 +21,18 @@
 #include "xdrpp/marshal.h"
 
 #include <fstream>
+#include <system_error>
 
 namespace stellar
 {
+
+using namespace std;
 
 class
 HistoryMaster::Impl
 {
     Application& mApp;
-    std::unique_ptr<TempDir> mWorkDir;
+    unique_ptr<TempDir> mWorkDir;
     friend class HistoryMaster;
 public:
     Impl(Application &app)
@@ -71,7 +74,7 @@ HistoryMaster::~HistoryMaster()
  * s3 as they are evicted from the CLF.
  */
 
-std::string const&
+string const&
 HistoryMaster::getTempDir()
 {
     if (!mImpl->mWorkDir)
@@ -82,27 +85,32 @@ HistoryMaster::getTempDir()
 }
 
 template<typename T> void
-HistoryMaster::saveAndCompressAndPut(std::string const& basename,
-                                     std::shared_ptr<T> xdrp,
-                                     std::function<void(std::string const&)> handler)
+HistoryMaster::saveAndCompressAndPut(string const& basename,
+                                     shared_ptr<T> xdrp,
+                                     function<void(asio::error_code const&)>
+                                     handler)
 {
     this->mImpl->mApp.getWorkerIOService().post(
         [this, basename, handler, xdrp]()
         {
-            std::string fullname = this->getTempDir() + "/" + basename;
-            std::ofstream out(fullname, std::ofstream::binary);
+            string fullname = this->getTempDir() + "/" + basename;
+            ofstream out(fullname, ofstream::binary);
             auto m = xdr::xdr_to_msg(*xdrp);
             out.write(m->raw_data(), m->raw_size());
             this->mImpl->mApp.getMainIOService().post(
                 [this, basename, fullname, handler]()
                 {
                     auto& app = this->mImpl->mApp;
-                    auto exit = app.getProcessGateway().runProcess("gzip " + fullname);
+                    auto exit = app.getProcessGateway().runProcess(
+                        "gzip " + fullname);
                     exit.async_wait(
-                        [this, basename, fullname, handler](asio::error_code ec) {
+                        [this, basename, fullname, handler](
+                            asio::error_code const& ec) {
                             if (ec)
                             {
-                                LOG(DEBUG) << "'gzip " << fullname << "' failed";
+                                LOG(DEBUG) << "'gzip "
+                                           << fullname << "' failed";
+                                handler(ec);
                             }
                             else
                             {
@@ -115,65 +123,91 @@ HistoryMaster::saveAndCompressAndPut(std::string const& basename,
 }
 
 void
-checkGzipSuffix(std::string const& filename)
+checkGzipSuffix(string const& filename)
 {
-    std::string suf(".gz");
+    string suf(".gz");
     if (!(filename.size() >= suf.size() &&
-          std::equal(suf.rbegin(), suf.rend(), filename.rbegin())))
+          equal(suf.rbegin(), suf.rend(), filename.rbegin())))
     {
-        throw std::runtime_error("filename does not end in .gz");
+        throw runtime_error("filename does not end in .gz");
     }
 }
 
 template<typename T> void
-HistoryMaster::getAndDecompressAndLoad(std::string const& basename,
-                                       std::function<void(std::shared_ptr<T>)> handler)
+HistoryMaster::getAndDecompressAndLoad(string const& basename,
+                                       function<void(asio::error_code const&,
+                                                     shared_ptr<T>)> handler)
 {
 
-    std::string fullname = getTempDir() + "/" + basename + ".gz";
+    string fullname = getTempDir() + "/" + basename + ".gz";
     getFile(
         basename + ".gz", fullname,
-        [this, handler](std::string const& fullname)
+        [this, fullname, handler](asio::error_code const& ec)
         {
+            if (ec)
+            {
+                handler(ec, shared_ptr<T>(nullptr));
+                return;
+            }
             checkGzipSuffix(fullname);
             Application& app = this->mImpl->mApp;
-            auto exit = app.getProcessGateway().runProcess("gunzip " + fullname);
+            auto exit = app.getProcessGateway().runProcess(
+                "gunzip " + fullname);
             exit.async_wait(
-                [&app, fullname, handler](asio::error_code ec)
+                [&app, fullname, handler](asio::error_code const& ec)
                 {
-                    if (!ec)
+                    if (ec)
                     {
-                        app.getWorkerIOService().post(
-                            [&app, fullname, handler]()
+                        LOG(DEBUG) << "Removing incoming file "
+                                   << fullname;
+                        handler(ec, shared_ptr<T>(nullptr));
+                        return;
+                    }
+                    app.getWorkerIOService().post(
+                        [&app, fullname, handler]()
+                        {
+                            asio::error_code ec2;
+                            shared_ptr<T> t;
+                            try
                             {
                                 checkGzipSuffix(fullname);
-                                std::string stem = fullname.substr(0, fullname.size() - 3);
-                                std::ifstream in(stem, std::ofstream::binary);
-                                in.exceptions(std::ifstream::failbit);
+                                string stem =
+                                    fullname.substr(0, fullname.size() - 3);
+                                ifstream in(stem, ofstream::binary);
+                                in.exceptions(ifstream::failbit);
                                 in.seekg(0, in.end);
-                                std::ifstream::pos_type length = in.tellg();
+                                ifstream::pos_type length = in.tellg();
                                 in.seekg(0, in.beg);
                                 xdr::msg_ptr m = xdr::message_t::alloc(
-                                    length - static_cast<std::ifstream::pos_type>(4));
+                                    length -
+                                    static_cast<ifstream::pos_type>(4));
                                 in.read(m->raw_data(), m->raw_size());
                                 in.close();
-                                std::shared_ptr<T> t = std::make_shared<T>();
+                                t = make_shared<T>();
                                 xdr::xdr_from_msg(m, *t);
-                                app.getMainIOService().post(
-                                    [handler, t]()
-                                    {
-                                        handler(t);
-                                    });
-                            });
-                    }
+                                LOG(DEBUG) << "Removing decompressed file "
+                                           << stem;
+                                std::remove(stem.c_str());
+                            }
+                            catch (...)
+                            {
+                                ec2 = std::make_error_code(
+                                    std::errc::io_error);
+                            }
+                            app.getMainIOService().post(
+                                [ec2, handler, t]()
+                                {
+                                    handler(ec2, t);
+                                });
+                        });
                 });
         });
 }
 
 static void
 runCommands(Application &app,
-            std::shared_ptr<std::vector<std::string>> cmds,
-            std::function<void(asio::error_code)> handler,
+            shared_ptr<vector<string>> cmds,
+            function<void(asio::error_code const&)> handler,
             size_t i = 0,
             asio::error_code ec = asio::error_code())
 {
@@ -181,7 +215,7 @@ runCommands(Application &app,
     {
         auto exit = app.getProcessGateway().runProcess((*cmds)[i]);
         exit.async_wait(
-            [&app, cmds, handler, i](asio::error_code ec)
+            [&app, cmds, handler, i](asio::error_code const& ec)
             {
                 if (ec)
                 {
@@ -200,12 +234,12 @@ runCommands(Application &app,
 }
 
 void
-HistoryMaster::putFile(std::string const& filename,
-                       std::string const& basename,
-                       std::function<void(std::string const&)> handler)
+HistoryMaster::putFile(string const& filename,
+                       string const& basename,
+                       function<void(asio::error_code const& ec)> handler)
 {
     auto const& hist = mImpl->mApp.getConfig().HISTORY;
-    auto commands = std::make_shared<std::vector<std::string>>();
+    auto commands = make_shared<vector<string>>();
     for (auto const& pair : hist)
     {
         auto s = pair.second->putFileCmd(filename, basename);
@@ -215,20 +249,21 @@ HistoryMaster::putFile(std::string const& filename,
         }
     }
     runCommands(mImpl->mApp, commands,
-                [handler, filename](asio::error_code ec)
+                [filename, handler](asio::error_code const& ec)
                 {
-                    if (!ec)
-                        handler(filename);
+                    LOG(DEBUG) << "Removing temporary file " << filename;
+                    std::remove(filename.c_str());
+                    handler(ec);
                 });
 }
 
 void
-HistoryMaster::getFile(std::string const& basename,
-                       std::string const& filename,
-                       std::function<void(std::string const&)> handler)
+HistoryMaster::getFile(string const& basename,
+                       string const& filename,
+                       function<void(asio::error_code const& ec)> handler)
 {
     auto const& hist = mImpl->mApp.getConfig().HISTORY;
-    auto commands = std::make_shared<std::vector<std::string>>();
+    auto commands = make_shared<vector<string>>();
     for (auto const& pair : hist)
     {
         auto s = pair.second->getFileCmd(basename, filename);
@@ -237,22 +272,17 @@ HistoryMaster::getFile(std::string const& basename,
             commands->push_back(s);
         }
     }
-    runCommands(mImpl->mApp, commands,
-                [handler, filename](asio::error_code ec)
-                {
-                    if (!ec)
-                        handler(filename);
-                });
+    runCommands(mImpl->mApp, commands, handler);
 }
 
-static std::string
+static string
 bucketBasename(uint64_t ledgerSeq, uint32_t ledgerCount)
 {
     return fmt::format("bucket_{:d}_{:d}.xdr",
                        ledgerSeq, ledgerCount);
 }
 
-static std::string
+static string
 historyBasename(uint64_t fromLedger, uint64_t toLedger)
 {
     return fmt::format("history_{:d}_{:d}.xdr",
@@ -260,38 +290,40 @@ historyBasename(uint64_t fromLedger, uint64_t toLedger)
 }
 
 void
-HistoryMaster::archiveBucket(std::shared_ptr<CLFBucket> bucket,
-                             std::function<void(std::string const&)> handler)
+HistoryMaster::archiveBucket(shared_ptr<CLFBucket> bucket,
+                             function<void(asio::error_code const&)> handler)
 {
-    std::string basename = bucketBasename(bucket->header.ledgerSeq,
-                                          bucket->header.ledgerCount);
+    string basename = bucketBasename(bucket->header.ledgerSeq,
+                                     bucket->header.ledgerCount);
     saveAndCompressAndPut<CLFBucket>(basename, bucket, handler);
 }
 
 void
-HistoryMaster::archiveHistory(std::shared_ptr<History> hist,
-                              std::function<void(std::string const&)> handler)
+HistoryMaster::archiveHistory(shared_ptr<History> hist,
+                              function<void(asio::error_code const&)> handler)
 {
-    std::string basename = historyBasename(hist->fromLedger,
-                                           hist->toLedger);
+    string basename = historyBasename(hist->fromLedger,
+                                      hist->toLedger);
     saveAndCompressAndPut<History>(basename, hist, handler);
 }
 
 void
 HistoryMaster::acquireBucket(uint64_t ledgerSeq,
                              uint32_t ledgerCount,
-                             std::function<void(std::shared_ptr<CLFBucket>)> handler)
+                             function<void(asio::error_code const&,
+                                           shared_ptr<CLFBucket>)> handler)
 {
-    std::string basename = bucketBasename(ledgerSeq, ledgerCount);
+    string basename = bucketBasename(ledgerSeq, ledgerCount);
     getAndDecompressAndLoad<CLFBucket>(basename, handler);
 }
 
 void
 HistoryMaster::acquireHistory(uint64_t fromLedger,
                               uint64_t toLedger,
-                              std::function<void(std::shared_ptr<History>)> handler)
+                              function<void(asio::error_code const&,
+                                            shared_ptr<History>)> handler)
 {
-    std::string basename = historyBasename(fromLedger, toLedger);
+    string basename = historyBasename(fromLedger, toLedger);
     getAndDecompressAndLoad<History>(basename, handler);
 }
 
