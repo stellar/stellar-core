@@ -408,7 +408,17 @@ void
 Herder::recvFBAEnvelope(FBAEnvelope envelope,
                         std::function<void(bool)> const& cb)
 {
-    // TODO(spolu) store FBA Envelopes that are in the future
+    // If we are fully synced and we see envelopes that are from future ledgers
+    // we store them for later replay.
+    if (mLedgersToWaitToParticipate <= 0 &&
+        envelope.statement.slotIndex > mLastClosedLedger.ledgerSeq + 1)
+    {
+        mFutureEnvelopes[envelope.statement.slotIndex]
+            .push_back(std::make_pair(envelope, cb));
+    }
+    // TODO(spolu) limit on mFutureEnvelopes
+    // TODO(spolu) limit if envelopes are too old
+
     return mFBA->receiveEnvelope(envelope, cb);
 }
 
@@ -487,6 +497,13 @@ Herder::advanceToNextLedger()
     b.baseFee = mApp.getConfig().DESIRED_BASE_FEE;
 
     mFBA->attemptValue(slotIndex, xdr::xdr_to_opaque(b));
+
+    for (auto p : mFutureEnvelopes[slotIndex])
+    {
+        recvFBAEnvelope(p.first, p.second);
+    }
+    mFutureEnvelopes.erase(slotIndex);
+
     // TODO(spolu) timer mechanism if we haven't externalized
 }
 

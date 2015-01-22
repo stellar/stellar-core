@@ -30,7 +30,7 @@ class Herder : public HerderGateway,
     Herder(Application& app);
     ~Herder();
 
-    // Start
+    // Bootstraps the Herder if we're creating a new Network
     void bootstrap();
     
     // FBA::Client methods
@@ -102,6 +102,11 @@ class Herder : public HerderGateway,
     std::map<Hash,
         std::vector<
             std::function<void(FBAQuorumSetPtr)>>> mFBAQSetFetches;
+
+    std::map<uint64,
+        std::vector<
+            std::pair<FBAEnvelope, 
+                      std::function<void(bool)>>>> mFutureEnvelopes;
 
     int                                            mLedgersToWaitToParticipate;
     LedgerHeader                                   mLastClosedLedger;
