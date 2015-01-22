@@ -306,7 +306,6 @@ LoopbackPeerConnection::LoopbackPeerConnection(Application& initiator,
     initiator.getPeerMaster().addPeer(mInitiator);
     acceptor.getPeerMaster().addPeer(mAcceptor);
 
-    mInitiator->connectHandler(asio::error_code());
     mAcceptor->connectHandler(asio::error_code());
 }
 
