@@ -48,5 +48,7 @@ TEST_CASE("cycle4 topology", "[simulation]")
     simulation.getNode(n1)->getFBAGateway().startNewRound(ballot);
     */
 
+    simulation.startAllNodes();
+
     while(simulation.crankAllNodes() > 0);
 }

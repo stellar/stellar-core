@@ -30,7 +30,9 @@ class Herder : public HerderGateway,
     Herder(Application& app);
     ~Herder();
 
-
+    // Start
+    void bootstrap();
+    
     // FBA::Client methods
     void validateBallot(const uint64& slotIndex,
                         const uint256& nodeID,
@@ -73,6 +75,7 @@ class Herder : public HerderGateway,
     
   private:
     void removeReceivedTx(TransactionFramePtr tx);
+    void advanceToNextLedger();
 
     // the transactions that we have collected during ledger close
     TxSetFramePtr                                  mCollectingTransactionSet;

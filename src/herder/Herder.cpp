@@ -45,11 +45,6 @@ Herder::Herder(Application& app)
     , mLedgersToWaitToParticipate(3)
     , mApp(app)
 {
-    if(mApp.getConfig().START_NEW_NETWORK) 
-    {
-        mLedgersToWaitToParticipate = 0;
-    }
-
     FBAQuorumSet qSetLocal;
     qSetLocal.threshold = app.getConfig().QUORUM_THRESHOLD;
     for (auto q : app.getConfig().QUORUM_SET)
@@ -60,11 +55,22 @@ Herder::Herder(Application& app)
     mFBA = new FBA(app.getConfig().VALIDATION_SEED,
                    qSetLocal,
                    this);
+
 }
 
 Herder::~Herder()
 {
     delete mFBA;
+}
+
+void
+Herder::bootstrap()
+{
+    assert(mApp.getConfig().START_NEW_NETWORK);
+
+    mLastClosedLedger = mApp.getLedgerMaster().getLastClosedLedgerHeader();
+    mLedgersToWaitToParticipate = 0;
+    advanceToNextLedger();
 }
 
 void 
@@ -203,6 +209,7 @@ Herder::valueExternalized(const uint64& slotIndex,
             auto msg = tx->toStellarMessage();
             mApp.getOverlayGateway().broadcastMessage(msg);
         }
+        // TODO(spolu) rebroadcast all levels?
 
         // move all the remaining to the next highest level
         // don't move the largest array
@@ -404,6 +411,28 @@ Herder::recvFBAEnvelope(FBAEnvelope envelope,
 }
 
 void
+Herder::ledgerClosed(LedgerHeader& ledger)
+{
+    mLastClosedLedger = ledger;
+
+    // We start skipping ledgers only after we're in SYNCED_STATE
+    if (mLedgersToWaitToParticipate > 0 &&
+        mApp.getState() != Application::State::SYNCED_STATE)
+    {
+        mLedgersToWaitToParticipate--;
+    }
+
+    // If we haven't waited for a couple ledgers after we got in SYNCED_STATE
+    // we consider ourselves not fully synced so we don't push any value.
+    if (mLedgersToWaitToParticipate > 0)
+    {
+        return;
+    }
+
+    advanceToNextLedger();
+}
+
+void
 Herder::removeReceivedTx(TransactionFramePtr dropTx)
 {
     for (auto list : mReceivedTransactions)
@@ -425,24 +454,8 @@ Herder::removeReceivedTx(TransactionFramePtr dropTx)
 }
 
 void
-Herder::ledgerClosed(LedgerHeader& ledger)
+Herder::advanceToNextLedger()
 {
-    mLastClosedLedger = ledger;
-
-    // We start skipping ledgers only after we're in SYNCED_STATE
-    if (mLedgersToWaitToParticipate > 0 &&
-        mApp.getState() != Application::State::SYNCED_STATE)
-    {
-        mLedgersToWaitToParticipate--;
-    }
-
-    // If we haven't waited for a couple ledgers after we got in SYNCED_STATE
-    // we consider ourselves not fully synced so we don't push any value.
-    if (mLedgersToWaitToParticipate > 0)
-    {
-        return;
-    }
-
     // our first choice for this round's set is all the tx we have collected
     // during last ledger close
     TxSetFramePtr proposedSet = std::make_shared<TxSetFrame>();
@@ -453,7 +466,7 @@ Herder::ledgerClosed(LedgerHeader& ledger)
             proposedSet->add(tx);
         }
     }
-    proposedSet->mPreviousLedgerHash = ledger.hash;
+    proposedSet->mPreviousLedgerHash = mLastClosedLedger.hash;
 
     recvTxSet(proposedSet);
 
@@ -470,4 +483,5 @@ Herder::ledgerClosed(LedgerHeader& ledger)
 
     mFBA->attemptValue(slotIndex, xdr::xdr_to_opaque(b));
 }
+
 }
