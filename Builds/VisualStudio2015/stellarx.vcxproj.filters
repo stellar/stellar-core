@@ -73,6 +73,9 @@
     <Filter Include="overlay\generated">
       <UniqueIdentifier>{a9692317-8851-4932-8329-6d2bb1a54787}</UniqueIdentifier>
     </Filter>
+    <Filter Include="xdr">
+      <UniqueIdentifier>{fe536180-763e-40aa-8c30-2a100a064b94}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\src\ledger\LedgerMaster.cpp">
@@ -624,6 +627,18 @@
     </CustomBuild>
     <CustomBuild Include="..\..\src\fba\FBAXDR.x">
       <Filter>fba</Filter>
+    </CustomBuild>
+    <CustomBuild Include="..\..\src\xdr\Stellar-ledger.x">
+      <Filter>xdr</Filter>
+    </CustomBuild>
+    <CustomBuild Include="..\..\src\xdr\Stellar-transaction.x">
+      <Filter>xdr</Filter>
+    </CustomBuild>
+    <CustomBuild Include="..\..\src\xdr\Stellar-types.x">
+      <Filter>xdr</Filter>
+    </CustomBuild>
+    <CustomBuild Include="..\..\src\xdr\Stellar-overlay.x">
+      <Filter>xdr</Filter>
     </CustomBuild>
   </ItemGroup>
 </Project>

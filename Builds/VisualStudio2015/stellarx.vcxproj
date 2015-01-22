@@ -41,10 +41,12 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <OutDir>$(SolutionDir)$(Platform)\$(Configuration)\</OutDir>
     <IntDir>$(SolutionDir)\Build\$(Platform)\$(Configuration)\$(ProjectName)\</IntDir>
+    <CustomBuildBeforeTargets>BuildGenerateSources</CustomBuildBeforeTargets>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <OutDir>$(SolutionDir)$(Platform)\$(Configuration)\</OutDir>
     <IntDir>$(SolutionDir)\Build\$(Platform)\$(Configuration)\$(ProjectName)\</IntDir>
+    <CustomBuildBeforeTargets>BuildGenerateSources</CustomBuildBeforeTargets>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
@@ -63,6 +65,29 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies);C:\Program Files\PostgreSQL\9.4\lib\libpq.lib</AdditionalDependencies>
     </Link>
+    <PreBuildEvent>
+      <Command>@echo Checking XDR</Command>
+    </PreBuildEvent>
+    <PreBuildEvent>
+      <Message>XDR</Message>
+    </PreBuildEvent>
+    <CustomBuildStep>
+      <Inputs>../../src/generated/StellarXDR.h</Inputs>
+      <Command>@echo XDR &gt; $(IntermediateOutputPath)\xdrgen.stamp</Command>
+      <Message>XDR check</Message>
+      <Outputs>$(IntermediateOutputPath)\xdrgen.stamp</Outputs>
+      <TreatOutputAsContent>false</TreatOutputAsContent>
+    </CustomBuildStep>
+    <CustomBuild>
+      <Command>
+      </Command>
+    </CustomBuild>
+    <CustomBuild>
+      <Outputs>
+      </Outputs>
+      <Message />
+      <LinkObjects>false</LinkObjects>
+    </CustomBuild>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
@@ -81,6 +106,29 @@
       <OptimizeReferences>true</OptimizeReferences>
       <AdditionalDependencies>..\..\src\lib\libsodium\bin\Win32\Debug\v120\static\libsodium.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
+    <PreBuildEvent>
+      <Command>@echo Checking XDR</Command>
+    </PreBuildEvent>
+    <PreBuildEvent>
+      <Message>XDR</Message>
+    </PreBuildEvent>
+    <CustomBuildStep>
+      <Inputs>../../src/generated/StellarXDR.h</Inputs>
+      <Command>@echo XDR &gt; $(IntermediateOutputPath)\xdrgen.stamp</Command>
+      <Message>XDR check</Message>
+      <Outputs>$(IntermediateOutputPath)\xdrgen.stamp</Outputs>
+      <TreatOutputAsContent>false</TreatOutputAsContent>
+    </CustomBuildStep>
+    <CustomBuild>
+      <Command>
+      </Command>
+    </CustomBuild>
+    <CustomBuild>
+      <Outputs>
+      </Outputs>
+      <Message />
+      <LinkObjects>false</LinkObjects>
+    </CustomBuild>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="..\..\src\clf\BucketList.cpp" />
@@ -299,8 +347,8 @@ $(SolutionDir)$(Platform)\$(Configuration)\xdrc.exe -hh -o ../../src/generated/S
       <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">../../src/generated/StellarXDR.h</Outputs>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
       </ExcludedFromBuild>
-      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">../../src/overlay/StellarXDR.x</AdditionalInputs>
-      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">../../src/overlay/StellarXDR.x</AdditionalInputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">../../src/overlay/StellarXDR.x;../../src/generated/Stellar-types.h;../../src/generated/Stellar-transaction.h;../../src/generated/Stellar-ledger.h;../../src/generated/Stellar-overlay.h</AdditionalInputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">../../src/overlay/StellarXDR.x;../../src/generated/Stellar-types.h;../../src/generated/Stellar-transaction.h;../../src/generated/Stellar-ledger.h;../../src/generated/Stellar-overlay.h</AdditionalInputs>
     </CustomBuild>
     <CustomBuild Include="..\..\src\fba\FBAXDR.x">
       <FileType>Document</FileType>
@@ -316,6 +364,50 @@ $(SolutionDir)$(Platform)\$(Configuration)\xdrc.exe -hh -o ../../src/generated/S
     <None Include="..\..\README.md" />
     <None Include="..\..\src\fba\NOTES" />
     <None Include="..\..\src\lib\xdrpp\tests\xdrtest.x" />
+    <CustomBuild Include="..\..\src\xdr\Stellar-ledger.x">
+      <FileType>Document</FileType>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(SolutionDir)$(Platform)\$(Configuration)\xdrc.exe -hh -o ../../src/generated/Stellar-ledger.h ../../src/xdr/Stellar-ledger.x</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(SolutionDir)$(Platform)\$(Configuration)\xdrc.exe -hh -o ../../src/generated/Stellar-ledger.h ../../src/xdr/Stellar-ledger.x</Command>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">running xdrc</Message>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">running xdrc</Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">../../src/generated/Stellar-ledger.h</Outputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">../../src/generated/Stellar-ledger.h</Outputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">../../src/xdr/Stellar-ledger.x;../../src/generated/Stellar-transaction.h</AdditionalInputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">../../src/xdr/Stellar-ledger.x;../../src/generated/Stellar-transaction.h</AdditionalInputs>
+    </CustomBuild>
+    <CustomBuild Include="..\..\src\xdr\Stellar-transaction.x">
+      <FileType>Document</FileType>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(SolutionDir)$(Platform)\$(Configuration)\xdrc.exe -hh -o ../../src/generated/Stellar-transaction.h ../../src/xdr/Stellar-transaction.x</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(SolutionDir)$(Platform)\$(Configuration)\xdrc.exe -hh -o ../../src/generated/Stellar-transaction.h ../../src/xdr/Stellar-transaction.x</Command>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">running xdrc</Message>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">running xdrc</Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">../../src/generated/Stellar-transaction.h</Outputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">../../src/generated/Stellar-transaction.h</Outputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">../../src/xdr/Stellar-transaction.x;../../src/generated/Stellar-types.h</AdditionalInputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">../../src/xdr/Stellar-transaction.x;../../src/generated/Stellar-types.h</AdditionalInputs>
+    </CustomBuild>
+    <CustomBuild Include="..\..\src\xdr\Stellar-types.x">
+      <FileType>Document</FileType>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(SolutionDir)$(Platform)\$(Configuration)\xdrc.exe -hh -o ../../src/generated/Stellar-types.h ../../src/xdr/Stellar-types.x</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(SolutionDir)$(Platform)\$(Configuration)\xdrc.exe -hh -o ../../src/generated/Stellar-types.h ../../src/xdr/Stellar-types.x</Command>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">running xdrc</Message>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">running xdrc</Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">../../src/generated/Stellar-types.h</Outputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">../../src/generated/Stellar-types.h</Outputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">../../src/xdr/Stellar-types.x;../../src/generated/FBAXDR.h</AdditionalInputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">../../src/xdr/Stellar-types.x;../../src/generated/FBAXDR.h</AdditionalInputs>
+    </CustomBuild>
+    <CustomBuild Include="..\..\src\xdr\Stellar-overlay.x">
+      <FileType>Document</FileType>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(SolutionDir)$(Platform)\$(Configuration)\xdrc.exe -hh -o ../../src/generated/Stellar-overlay.h ../../src/xdr/Stellar-overlay.x</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(SolutionDir)$(Platform)\$(Configuration)\xdrc.exe -hh -o ../../src/generated/Stellar-overlay.h ../../src/xdr/Stellar-overlay.x</Command>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">running xdrc</Message>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">running xdrc</Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">../../src/generated/Stellar-overlay.h</Outputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">../../src/generated/Stellar-overlay.h</Outputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">../../src/xdr/Stellar-overlay.x;../../src/generated/Stellar-ledger.h</AdditionalInputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">../../src/xdr/Stellar-overlay.x;../../src/generated/Stellar-ledger.h</AdditionalInputs>
+    </CustomBuild>
     <None Include="libmedida\libmedida.vcxproj" />
   </ItemGroup>
   <ItemGroup>
