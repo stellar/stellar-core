@@ -140,7 +140,7 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
     CLOG(TRACE, "Overlay") << "recv: " << stellarMsg.type();
 
     if ( mState < GOT_HELLO && 
-        ((stellarMsg.type() != HELLO) || (stellarMsg.type() != PEERS)) )
+        ((stellarMsg.type() != HELLO) && (stellarMsg.type() != PEERS)) )
     {
         CLOG(WARNING, "Overlay") << "recv: " << stellarMsg.type()
                                  << " before hello";

@@ -1,5 +1,4 @@
-#ifndef __HERDER__
-#define __HERDER__
+#pragma once
 
 // Copyright 2014 Stellar Development Foundation and contributors. Licensed
 // under the ISC License. See the COPYING file at the top-level directory of
@@ -31,7 +30,9 @@ class Herder : public HerderGateway,
     Herder(Application& app);
     ~Herder();
 
-
+    // Bootstraps the Herder if we're creating a new Network
+    void bootstrap();
+    
     // FBA::Client methods
     void validateBallot(const uint64& slotIndex,
                         const uint256& nodeID,
@@ -74,6 +75,7 @@ class Herder : public HerderGateway,
     
   private:
     void removeReceivedTx(TransactionFramePtr tx);
+    void advanceToNextLedger();
 
     // the transactions that we have collected during ledger close
     TxSetFramePtr                                  mCollectingTransactionSet;
@@ -92,15 +94,19 @@ class Herder : public HerderGateway,
     //  in case some stragglers are still need the old txsets in order to close
     std::array<TxSetFetcher, 2>                    mTxSetFetcher;
     int                                            mCurrentTxSetFetcher;
-
     std::map<Hash, 
         std::vector<
-            std::function<void(TxSetFramePtr)>>>   mPendingValidations;
-    std::map<Hash,
-        std::vector<
-            std::function<void(FBAQuorumSetPtr)>>> mPendingRetrievals;
+            std::function<void(TxSetFramePtr)>>>   mTxSetFetches;
 
     FBAQSetFetcher                                 mFBAQSetFetcher;
+    std::map<Hash,
+        std::vector<
+            std::function<void(FBAQuorumSetPtr)>>> mFBAQSetFetches;
+
+    std::map<uint64,
+        std::vector<
+            std::pair<FBAEnvelope, 
+                      std::function<void(bool)>>>> mFutureEnvelopes;
 
     int                                            mLedgersToWaitToParticipate;
     LedgerHeader                                   mLastClosedLedger;
@@ -109,5 +115,3 @@ class Herder : public HerderGateway,
     FBA*                                           mFBA;
 };
 }
-
-#endif

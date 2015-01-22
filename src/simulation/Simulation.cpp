@@ -40,6 +40,7 @@ Simulation::addNode(stellar::uint256 validationSeed, VirtualClock& clock)
     cfg->LOG_FILE_PATH = getTestConfig().LOG_FILE_PATH;
     cfg->VALIDATION_SEED = validationSeed;
     cfg->RUN_STANDALONE = true;
+    cfg->START_NEW_NETWORK = true;
 
     Application::pointer node = 
           std::make_shared<Application>(clock, *cfg);
@@ -71,6 +72,14 @@ Simulation::addConnection(stellar::uint256 initiator,
     return connection;
 }
 
+void 
+Simulation::startAllNodes()
+{
+    for(auto it : mNodes)
+    {
+        it.second->start();
+    }
+}
 
 std::size_t
 Simulation::crankNode(stellar::uint256 nodeID, int nbTicks)

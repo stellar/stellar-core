@@ -286,6 +286,7 @@ Application::Impl::start()
     if(mConfig.START_NEW_NETWORK)
     {
         mLedgerMaster->startNewLedger();
+        mHerder->bootstrap();
     }
     else
     {

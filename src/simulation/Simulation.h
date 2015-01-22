@@ -35,6 +35,8 @@ class Simulation
         addConnection(stellar::uint256 initiator, 
                       stellar::uint256 acceptor);
 
+    void startAllNodes();
+
     std::size_t crankNode(stellar::uint256 nodeID, int nbTicks=1);
     std::size_t crankAllNodes(int nbTicks=1);
 };
