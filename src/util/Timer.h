@@ -79,6 +79,7 @@ public:
     }
 };
 
+
 struct VirtualClockEvent
 {
     VirtualClock::time_point const mWhen;
