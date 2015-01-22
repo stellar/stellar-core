@@ -13,6 +13,7 @@
 #include "util/Logging.h"
 #include "ledger/LedgerMaster.h"
 #include "ledger/LedgerHeaderFrame.h"
+#include "util/types.h"
 
 #include <stdexcept>
 #include <vector>
@@ -96,9 +97,16 @@ void Database::addPeer(const std::string& ip, int port,int numFailures, int rank
 void Database::loadPeers(int max, vector<PeerRecord>& retList)
 {
     try {
+        time_t rawtime;
+        struct tm * nextAttempt;
+
+        time(&rawtime);
+        nextAttempt = gmtime(&rawtime);
+
         stringstream sql;
-        sql << "SELECT peerID,ip,port,numFailures from Peers where nextAttempt<now() order by rank limit " << max;
+        sql << "SELECT peerID,ip,port,numFailures from Peers where nextAttempt<" << nextAttempt <<" order by rank limit " << max;
         rowset<row> rs = mSession.prepare << sql.str();
+        
         for(rowset<row>::const_iterator it = rs.begin(); it != rs.end(); ++it)
         {
             row const& row = *it;

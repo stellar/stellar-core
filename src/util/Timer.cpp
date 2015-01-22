@@ -1,3 +1,4 @@
+#include <chrono>
 #include "util/Timer.h"
 #include "util/Logging.h"
 
@@ -137,7 +138,5 @@ VirtualTimer::async_wait(function<void(asio::error_code)> const& fn)
         mClock.enqueue(VirtualClockEvent{mExpiryTime, fn, this});
     }
 }
-
-
 
 }
