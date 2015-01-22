@@ -15,6 +15,8 @@
 #include "database/Database.h"
 #include "ledger/LedgerMaster.h"
 #include "ledger/LedgerDelta.h"
+#include "transactions/PaymentFrame.h"
+#include "transactions/ChangeTrustTxFrame.h"
 
 using namespace stellar;
 using namespace stellar::txtest;
@@ -94,7 +96,7 @@ TEST_CASE("payment", "[tx][payment]")
     {
         LOG(INFO) << "send too little STR to new account (below reserve)";
         applyPaymentTx(app,root, b1, 2,
-            app.getLedgerMaster().getCurrentLedgerHeader().baseReserve -1,txUNDERFUNDED);
+            app.getLedgerMaster().getCurrentLedgerHeader().baseReserve -1,Payment::UNDERFUNDED);
 
         AccountFrame bAccount;
         REQUIRE(!app.getDatabase().loadAccount(b1.getPublicKey(), bAccount));
@@ -107,21 +109,21 @@ TEST_CASE("payment", "[tx][payment]")
         SECTION("credit sent to new account (no account error)")
         {
             LOG(INFO) << "credit sent to new account (no account error)";
-            applyCreditPaymentTx(app,root, b1, currency, 2, 100, txNOACCOUNT);
+            applyCreditPaymentTx(app,root, b1, currency, 2, 100, Payment::NO_DESTINATION);
 
             AccountFrame bAccount;
             REQUIRE(!app.getDatabase().loadAccount(b1.getPublicKey(), bAccount));
         }
 
-        SECTION("send STR with path (malformed)")
+        SECTION("send STR with path (not enough offers)")
         {
-            LOG(INFO) << "send STR with path (malformed)";
+            LOG(INFO) << "send STR with path";
             TransactionFramePtr txFrame2 = createPaymentTx(root, a1, 2, morePayment);
             txFrame2->getEnvelope().tx.body.paymentTx().path.push_back(currency);
             LedgerDelta delta2;
             txFrame2->apply(delta2, app);
 
-            REQUIRE(txFrame2->getResultCode() == txMALFORMED);
+            REQUIRE(Payment::getInnerCode(txFrame2->getResult()) == Payment::OVERSENDMAX);
             AccountFrame account;
             REQUIRE(app.getDatabase().loadAccount(a1.getPublicKey(), account));
             
@@ -131,7 +133,7 @@ TEST_CASE("payment", "[tx][payment]")
         SECTION("credit payment with no trust")
         {
             LOG(INFO) << "credit payment with no trust";
-            applyCreditPaymentTx(app,root, a1, currency, 2, 100, txNOTRUST);
+            applyCreditPaymentTx(app,root, a1, currency, 2, 100, Payment::NO_TRUST);
             AccountFrame account;
             REQUIRE(app.getDatabase().loadAccount(a1.getPublicKey(), account));
            

@@ -68,6 +68,7 @@ void Database::initialize()
         PeerMaster::createTable(*this);
         LedgerMaster::dropAll(*this);
         LedgerHeaderFrame::dropAll(*this);
+        TransactionFrame::dropAll(*this);
     }catch(exception const &e)
     {
         LOG(ERROR) << "Error: " << e.what();
@@ -211,18 +212,6 @@ bool Database::loadOffer(const uint256& accountID, uint32_t seq, OfferFrame& ret
 }
 
 
-/*
-0 offerIndex CHARACTER(35) PRIMARY KEY, \
-1 accountID		CHARACTER(35), \
-2 sequence		INT UNSIGNED, \
-3 takerPaysCurrency Blob(20), \
-4 takerPaysIssuer CHARACTER(35), \
-5 takerGetsCurrency Blob(20), \
-6 takerGetsIssuer CHARACTER(35), \
-7 amount BIGINT UNSIGNED, \
-8 price BIGINT UNSIGNED, \
-9 flags INT UNSIGNED					    \
-*/
 void Database::loadOffer(const soci::row& row, OfferFrame& retOffer)
 {
     retOffer.mEntry.type(OFFER);
@@ -289,7 +278,7 @@ void Database::loadBestOffers(size_t numOffers, size_t offset, Currency& pays,
         std::string currencyCode, b58Issuer;
         currencyCodeToStr(pays.isoCI().currencyCode,currencyCode);
         b58Issuer = toBase58Check(VER_ACCOUNT_ID, pays.isoCI().issuer);
-        sql << "getsIssuer is NULL and paysCurrency='" << currencyCode << "' and paysIssuer='" << b58Issuer << "' ";
+        sql << "getsIssuer is NULL and paysIsoCurrency='" << currencyCode << "' and paysIssuer='" << b58Issuer << "' ";
     } else
     {
         std::string getCurrencyCode, b58GIssuer;
@@ -300,7 +289,7 @@ void Database::loadBestOffers(size_t numOffers, size_t offset, Currency& pays,
         
         currencyCodeToStr(pays.isoCI().currencyCode,payCurrencyCode);
         b58PIssuer = toBase58Check(VER_ACCOUNT_ID, pays.isoCI().issuer);
-        sql << "paysCurrency='" << payCurrencyCode << "' and paysIssuer='" << b58PIssuer << "' ";
+        sql << "paysIsoCurrency='" << payCurrencyCode << "' and paysIssuer='" << b58PIssuer << "' ";
     }
     sql << " order by price limit " << offset << " ," << numOffers;
     rowset<row> rs = mSession.prepare << sql.str();

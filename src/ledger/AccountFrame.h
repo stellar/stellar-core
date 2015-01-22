@@ -5,7 +5,6 @@
 // under the ISC License. See the COPYING file at the top-level directory of
 // this distribution or at http://opensource.org/licenses/ISC
 
-#include "transactions/TxResultCode.h"
 #include "ledger/EntryFrame.h"
 
 namespace stellar

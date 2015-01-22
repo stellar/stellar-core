@@ -22,7 +22,7 @@ namespace stellar
         AccountFrame otherAccount;
         if(!ledgerMaster.getDatabase().loadAccount(mEnvelope.tx.body.destination(),otherAccount))
         {
-            mResultCode = txNOACCOUNT;
+            innerResult().result.code(AccountMerge::NO_ACCOUNT);
             return false;
         }
 
@@ -32,7 +32,7 @@ namespace stellar
             use(b58Account);
         if(ledgerMaster.getDatabase().getSession().got_data())
         {
-            mResultCode = txCREDIT_ISSUED;
+            innerResult().result.code(AccountMerge::HAS_CREDIT);
             return false;
         }
 
@@ -41,7 +41,7 @@ namespace stellar
             use(b58Account);
         if(ledgerMaster.getDatabase().getSession().got_data())
         {
-            mResultCode = txCREDIT_ISSUED;
+            innerResult().result.code(AccountMerge::HAS_CREDIT);
             return false;
         }
         
@@ -65,14 +65,18 @@ namespace stellar
         otherAccount.storeChange(delta, ledgerMaster);
         mSigningAccount->storeDelete(delta, ledgerMaster);
 
-        mResultCode = txSUCCESS;
+        innerResult().result.code(AccountMerge::SUCCESS);
         return true;
     }
 
     bool MergeFrame::doCheckValid(Application& app)
     {
         // makes sure not merging into self
-        if(mEnvelope.tx.account == mEnvelope.tx.body.destination()) return false;
+        if (mEnvelope.tx.account == mEnvelope.tx.body.destination())
+        {
+            innerResult().result.code(AccountMerge::MALFORMED);
+            return false;
+        }
         return true;
     }
 }

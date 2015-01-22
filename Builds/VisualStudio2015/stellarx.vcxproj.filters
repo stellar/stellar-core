@@ -19,9 +19,6 @@
     <Filter Include="main">
       <UniqueIdentifier>{0dee9511-d4e9-44ba-b7d5-9bec41ec4143}</UniqueIdentifier>
     </Filter>
-    <Filter Include="generated">
-      <UniqueIdentifier>{a9692317-8851-4932-8329-6d2bb1a54787}</UniqueIdentifier>
-    </Filter>
     <Filter Include="lib">
       <UniqueIdentifier>{5ce9b128-ab1f-437c-8b2b-f726dfe7070e}</UniqueIdentifier>
     </Filter>
@@ -72,6 +69,9 @@
     </Filter>
     <Filter Include="herder">
       <UniqueIdentifier>{951355b1-432c-4dbe-87c0-bf77b6fab706}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="overlay\generated">
+      <UniqueIdentifier>{a9692317-8851-4932-8329-6d2bb1a54787}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -372,7 +372,7 @@
       <Filter>overlay</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\generated\StellarXDR.h">
-      <Filter>generated</Filter>
+      <Filter>overlay\generated</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\main\Config.h">
       <Filter>main</Filter>
@@ -469,9 +469,6 @@
     </ClInclude>
     <ClInclude Include="..\..\src\history\HistoryArchive.h">
       <Filter>history</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\transactions\TxResultCode.h">
-      <Filter>transactions</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\database\Database.h">
       <Filter>database</Filter>

@@ -16,13 +16,15 @@ bool CancelOfferFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
     if(!ledgerMaster.getDatabase().loadOffer(mSigningAccount->mEntry.account().accountID, 
         mEnvelope.tx.body.offerSeqNum(), offerFrame))
     {
-        mResultCode = txOFFER_NOT_FOUND;
+        innerResult().result.code(CancelOffer::NOT_FOUND);
         return false;
     }
-    mResultCode = txSUCCESS;
-    mSigningAccount->mEntry.account().ownerCount--;
 
+    innerResult().result.code(CancelOffer::SUCCESS);
+    
+    mSigningAccount->mEntry.account().ownerCount--;
     offerFrame.storeDelete(delta, ledgerMaster);
+    mSigningAccount->storeChange(delta, ledgerMaster);
 
     return true;
 }

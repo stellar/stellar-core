@@ -14,6 +14,9 @@
 #include "util/types.h"
 #include "transactions/TransactionFrame.h"
 #include "ledger/LedgerDelta.h"
+#include "transactions/PaymentFrame.h"
+#include "transactions/ChangeTrustTxFrame.h"
+#include "transactions/CreateOfferFrame.h"
 
 using namespace stellar;
 using namespace stellar::txtest;
@@ -79,7 +82,7 @@ TransactionFramePtr createPaymentTx(SecretKey& from, SecretKey& to, uint32_t seq
     return res;
 }
 
-void applyPaymentTx(Application& app, SecretKey& from, SecretKey& to, uint32_t seq, uint64_t amount, TxResultCode result)
+void applyPaymentTx(Application& app, SecretKey& from, SecretKey& to, uint32_t seq, uint64_t amount, Payment::PaymentResultCode result)
 {
     TransactionFramePtr txFrame;
 
@@ -88,10 +91,10 @@ void applyPaymentTx(Application& app, SecretKey& from, SecretKey& to, uint32_t s
     LedgerDelta delta;
     txFrame->apply(delta, app);
 
-    REQUIRE(txFrame->getResultCode() == result);
+    REQUIRE(Payment::getInnerCode(txFrame->getResult()) == result);
 }
 
-void applyTrust(Application& app, SecretKey& from, SecretKey& to, uint32_t seq, const std::string& currencyCode, TxResultCode result)
+void applyTrust(Application& app, SecretKey& from, SecretKey& to, uint32_t seq, const std::string& currencyCode, ChangeTrust::ChangeTrustResultCode result)
 {
     TransactionFramePtr txFrame;
 
@@ -100,7 +103,7 @@ void applyTrust(Application& app, SecretKey& from, SecretKey& to, uint32_t seq, 
     LedgerDelta delta;
     txFrame->apply(delta, app);
 
-    REQUIRE(txFrame->getResultCode() == result);
+    REQUIRE(ChangeTrust::getInnerCode(txFrame->getResult()) == result);
 }
 
 TransactionFramePtr createCreditPaymentTx(SecretKey& from, SecretKey& to, Currency& ci,uint32_t seq, uint64_t amount)
@@ -134,7 +137,7 @@ Currency makeCurrency(SecretKey& issuer, const std::string& code)
 }
 
 void applyCreditPaymentTx(Application& app, SecretKey& from, SecretKey& to, Currency& ci, uint32_t seq,
-    uint64_t amount, TxResultCode result)
+    uint64_t amount, Payment::PaymentResultCode result)
 {
     TransactionFramePtr txFrame;
 
@@ -143,7 +146,7 @@ void applyCreditPaymentTx(Application& app, SecretKey& from, SecretKey& to, Curr
     LedgerDelta delta;
     txFrame->apply(delta, app);
 
-    REQUIRE(txFrame->getResultCode() == result);
+    REQUIRE(Payment::getInnerCode(txFrame->getResult()) == result);
 }
 
 TransactionFramePtr createOfferTx(SecretKey& source, Currency& takerGets,
@@ -169,7 +172,7 @@ TransactionFramePtr createOfferTx(SecretKey& source, Currency& takerGets,
 }
 
 void applyOffer(Application& app, SecretKey& source, Currency& takerGets,
-    Currency& takerPays, uint64_t price, uint64_t amount, uint32_t seq, TxResultCode result)
+    Currency& takerPays, uint64_t price, uint64_t amount, uint32_t seq, CreateOffer::CreateOfferResultCode result)
 {
     TransactionFramePtr txFrame;
 
@@ -178,7 +181,7 @@ void applyOffer(Application& app, SecretKey& source, Currency& takerGets,
     LedgerDelta delta;
     txFrame->apply(delta, app);
 
-    REQUIRE(txFrame->getResultCode() == result);
+    REQUIRE(CreateOffer::getInnerCode(txFrame->getResult()) == result);
 }
 
 }

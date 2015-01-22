@@ -34,6 +34,7 @@ namespace stellar
         int64_t getAmount();
         Currency& getTakerPays();
         Currency& getTakerGets();
+        uint32 getSequence();
 
         static void dropAll(Database &db);
         static const char *kSQLCreateStatement;

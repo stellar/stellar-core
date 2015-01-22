@@ -19,7 +19,7 @@ namespace stellar
     {
         if(!(mSigningAccount->mEntry.account().flags & AccountFrame::AUTH_REQUIRED_FLAG))
         {   // this account doesn't require authorization to hold credit
-            mResultCode = txNOT_AUTHORIZED;
+            innerResult().result.code(AllowTrust::MALFORMED);
             return false;
         }
 
@@ -31,11 +31,11 @@ namespace stellar
         TrustFrame trustLine;
         if(!ledgerMaster.getDatabase().loadTrustLine(mEnvelope.tx.body.allowTrustTx().trustor, ci, trustLine))
         {
-            mResultCode = txNOTRUST;
+            innerResult().result.code(AllowTrust::NO_TRUST_LINE);
             return false;
         }
 
-        mResultCode = txSUCCESS;
+        innerResult().result.code(AllowTrust::SUCCESS);
 
         trustLine.mEntry.trustLine().authorized = mEnvelope.tx.body.allowTrustTx().authorize;
         trustLine.storeChange(delta, ledgerMaster);
@@ -45,7 +45,11 @@ namespace stellar
 
     bool AllowTrustTxFrame::doCheckValid(Application& app)
     {
-        if(mEnvelope.tx.body.allowTrustTx().code.type() != ISO4217) return false;
+        if (mEnvelope.tx.body.allowTrustTx().code.type() != ISO4217)
+        {
+            innerResult().result.code(AllowTrust::MALFORMED);
+            return false;
+        }
         return true;
     }
 }

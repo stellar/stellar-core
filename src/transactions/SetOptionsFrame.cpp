@@ -5,7 +5,8 @@
 // TODO.2 Handle all SQL exceptions
 namespace stellar
 {
-    SetOptionsFrame::SetOptionsFrame(const TransactionEnvelope& envelope) : TransactionFrame(envelope)
+    SetOptionsFrame::SetOptionsFrame(const TransactionEnvelope& envelope) :
+        TransactionFrame(envelope)
     {
 
     }
@@ -35,7 +36,7 @@ namespace stellar
                 soci::into(b), soci::use(base58ID);
             if(b)
             {
-                mResultCode = txRATE_FIXED;
+                innerResult().result.code(SetOptions::RATE_FIXED);
                 return false;
             }
             mSigningAccount->mEntry.account().transferRate = *mEnvelope.tx.body.setOptionsTx().transferRate;
@@ -68,7 +69,7 @@ namespace stellar
                     if( mSigningAccount->mEntry.account().balance < 
                         ledgerMaster.getMinBalance(mSigningAccount->mEntry.account().ownerCount + 1))
                     {
-                        mResultCode = txBELOW_MIN_BALANCE;
+                        innerResult().result.code(SetOptions::BELOW_MIN_BALANCE);
                         return false;
                     }
                     mSigningAccount->mEntry.account().ownerCount++;
@@ -89,7 +90,7 @@ namespace stellar
             mSigningAccount->setUpdateSigners();
         }
         
-        mResultCode = txSUCCESS;
+        innerResult().result.code(SetOptions::SUCCESS);
         mSigningAccount->storeChange(delta, ledgerMaster);
         return true;
     }
@@ -99,8 +100,11 @@ namespace stellar
         // transfer rate can't be greater than 1
         if(mEnvelope.tx.body.setOptionsTx().transferRate)
         {
-            if(*mEnvelope.tx.body.setOptionsTx().transferRate > TRANSFER_RATE_DIVISOR)
+            if (*mEnvelope.tx.body.setOptionsTx().transferRate > TRANSFER_RATE_DIVISOR)
+            {
+                innerResult().result.code(SetOptions::RATE_TOO_HIGH);
                 return false;
+            }
         }
         return true;
     }

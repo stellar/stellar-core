@@ -148,8 +148,6 @@ struct AllowTrustTx
 	bool authorize;
 };
 
-
-
 struct Transaction
 {
     AccountID account;
@@ -183,6 +181,253 @@ struct TransactionEnvelope
 {
     Transaction tx;
     uint512 signatures<>;
+};
+
+namespace Payment {
+enum PaymentResultCode
+{
+	SUCCESS,
+	SUCCESS_MULTI,
+	UNDERFUNDED,
+	NO_DESTINATION,
+	MALFORMED,
+	NO_TRUST,
+	NOT_AUTHORIZED,
+	LINE_FULL,
+	OVERSENDMAX
+};
+
+struct ClaimOfferAtom
+{
+	AccountID offerOwner;
+	uint32 offerSequence;
+	Currency currencySent;
+	int64 amountSent;
+	// should we also include the amount that the account gets in return?
+	// one can deduct it by looking at the next operation in the chain
+};
+
+struct SimplePaymentResult
+{
+	AccountID destination;
+	Currency currency;
+	int64 amount;
+};
+
+struct SuccessMultiResult
+{
+	ClaimOfferAtom offers<>;
+	SimplePaymentResult last;
+};
+
+struct PaymentResult
+{
+	union switch(PaymentResultCode code) // ideally could collapse with TransactionResult
+	{
+		case SUCCESS:
+			void;
+		case SUCCESS_MULTI:
+			SuccessMultiResult multi;
+		default:
+			void;
+	} result;
+};
+}
+
+namespace CreateOffer
+{
+enum CreateOfferResultCode
+{
+	SUCCESS,
+	NO_TRUST,
+	NOT_AUTHORIZED,
+	MALFORMED,
+	NOT_FOUND
+};
+
+struct CreateOfferResult
+{
+	union switch(CreateOfferResultCode code)
+	{
+		case SUCCESS:
+			void;
+		default:
+			void;
+	} result;
+};
+}
+
+namespace CancelOffer
+{
+enum CancelOfferResultCode
+{
+	SUCCESS,
+	NOT_FOUND
+};
+
+struct CancelOfferResult
+{
+	union switch(CancelOfferResultCode code)
+	{
+		case SUCCESS:
+			void;
+		default:
+			void;
+	} result;
+};
+}
+
+namespace SetOptions
+{
+enum SetOptionsResultCode
+{
+	SUCCESS,
+	RATE_FIXED,
+	RATE_TOO_HIGH,
+	BELOW_MIN_BALANCE
+};
+
+struct SetOptionsResult
+{
+	union switch(SetOptionsResultCode code)
+	{
+		case SUCCESS:
+			void;
+		default:
+			void;
+	} result;
+};
+}
+
+namespace ChangeTrust
+{
+enum ChangeTrustResultCode
+{
+	SUCCESS,
+	NO_ACCOUNT
+};
+
+struct ChangeTrustResult
+{
+	union switch(ChangeTrustResultCode code)
+	{
+		case SUCCESS:
+			void;
+		default:
+			void;
+	} result;
+};
+}
+
+namespace AllowTrust
+{
+enum AllowTrustResultCode
+{
+	SUCCESS,
+	MALFORMED,
+	NO_TRUST_LINE
+};
+
+struct AllowTrustResult
+{
+	union switch(AllowTrustResultCode code)
+	{
+		case SUCCESS:
+			void;
+		default:
+			void;
+	} result;
+};
+}
+
+namespace AccountMerge
+{
+enum AccountMergeResultCode
+{
+	SUCCESS,
+	MALFORMED,
+	NO_ACCOUNT,
+	HAS_CREDIT
+};
+
+struct AccountMergeResult
+{
+	union switch(AccountMergeResultCode code)
+	{
+		case SUCCESS:
+			void;
+		default:
+			void;
+	} result;
+};
+}
+
+namespace Inflation
+{
+enum InflationResultCode
+{
+	SUCCESS,
+	NOT_TIME
+};
+
+struct inflationPayout // or use PaymentResultAtom to limit types?
+{
+	AccountID destination;
+	int64 amount;
+};
+
+struct InflationResult
+{
+	union switch(InflationResultCode code)
+	{
+		case SUCCESS:
+			inflationPayout payouts<>;
+		default:
+			void;
+	} result;
+};
+}
+
+enum TransactionResultCode
+{
+	txINNER,
+	txINTERNAL_ERROR,
+	txBAD_AUTH,
+	txBAD_SEQ, // maybe PRE_SEQ, PAST_SEQ
+	txBAD_LEDGER,
+	txNO_FEE,
+	txNO_ACCOUNT,
+	txINSUFFICIENT_FEE
+};
+
+struct TransactionResult
+{
+	uint64 feeCharged;
+	union switch(TransactionResultCode code)
+	{
+		case txINNER:
+			union switch(TransactionType type)
+			{
+				case PAYMENT:
+					Payment::PaymentResult paymentResult;
+				case CREATE_OFFER:
+					CreateOffer::CreateOfferResult createOfferResult;
+				case CANCEL_OFFER:
+					CancelOffer::CancelOfferResult cancelOfferResult;
+				case SET_OPTIONS:
+					SetOptions::SetOptionsResult setOptionsResult;
+				case CHANGE_TRUST:
+					ChangeTrust::ChangeTrustResult changeTrustResult;
+				case ALLOW_TRUST:
+					AllowTrust::AllowTrustResult allowTrustResult;
+				case ACCOUNT_MERGE:
+					AccountMerge::AccountMergeResult accountMergeResult;
+				case INFLATION:
+					Inflation::InflationResult inflationResult;
+			} tr;
+		default:
+			void;
+	} body;
 };
 
 struct TransactionSet

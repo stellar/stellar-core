@@ -6,7 +6,6 @@
 // this distribution or at http://opensource.org/licenses/ISC
 
 #include "ledger/EntryFrame.h"
-#include "transactions/TxResultCode.h"
 
 namespace stellar {
 
