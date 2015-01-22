@@ -30,7 +30,7 @@ TEST_CASE("bucket list", "[clf]")
         for (uint64_t i = 1; !app.getMainIOService().stopped() && i < 130; ++i)
         {
             app.crank(false);
-            bl.addBatch(app, i, gen(100));
+            bl.addBatch(app, i, gen(10));
             // LOG(DEBUG) << "Finished addition cycle " << i;
             for (size_t j = 0; j < bl.numLevels(); ++j)
             {
