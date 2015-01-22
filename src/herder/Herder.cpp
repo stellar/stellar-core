@@ -195,6 +195,7 @@ Herder::valueExternalized(const uint64& slotIndex,
         mCurrentTxSetFetcher = mCurrentTxSetFetcher ? 0 : 1;
         mTxSetFetcher[mCurrentTxSetFetcher].clear();
 
+        // TODO(spolu) make sure that this triggers SYNCing
         mApp.getLedgerGateway().externalizeValue(externalizedSet);
 
         // remove all these tx from mReceivedTransactions
@@ -407,12 +408,15 @@ void
 Herder::recvFBAEnvelope(FBAEnvelope envelope,
                         std::function<void(bool)> const& cb)
 {
+    // TODO(spolu) store FBA Envelopes that are in the future
     return mFBA->receiveEnvelope(envelope, cb);
 }
 
 void
 Herder::ledgerClosed(LedgerHeader& ledger)
 {
+    // TODO(spolu) make sure this is called and when?
+    
     mLastClosedLedger = ledger;
 
     // We start skipping ledgers only after we're in SYNCED_STATE
@@ -429,6 +433,7 @@ Herder::ledgerClosed(LedgerHeader& ledger)
         return;
     }
 
+    // TODO(spolu) add a timer before advanceToNextLedger based on closeTime?
     advanceToNextLedger();
 }
 
@@ -482,6 +487,7 @@ Herder::advanceToNextLedger()
     b.baseFee = mApp.getConfig().DESIRED_BASE_FEE;
 
     mFBA->attemptValue(slotIndex, xdr::xdr_to_opaque(b));
+    // TODO(spolu) timer mechanism if we haven't externalized
 }
 
 }
