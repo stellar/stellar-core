@@ -212,15 +212,15 @@ Herder::valueExternalized(const uint64& slotIndex,
         }
         // TODO(spolu) rebroadcast all levels?
 
-        // move all the remaining to the next highest level don't move the
-        // largest array
-        for (int n = (int)mReceivedTransactions.size() - 2; n >= 0; n--)
+        // move all the remaining to the next highest level
+        // don't move the largest array
+        for (size_t n = mReceivedTransactions.size() - 1; n > 0; n--)
         {
-            for (auto tx : mReceivedTransactions[n])
+            for (auto tx : mReceivedTransactions[n-1])
             {
-                mReceivedTransactions[n + 1].push_back(tx);
+                mReceivedTransactions[n].push_back(tx);
             }
-            mReceivedTransactions[n].clear();
+            mReceivedTransactions[n-1].clear();
         }
     }
     else
