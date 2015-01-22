@@ -65,9 +65,6 @@ FMT_HDRS = src/clf/BucketList.h src/clf/CLFMaster.h src/crypto/Base58.h         
 BUILT_SOURCES = src/generated/StellardVersion.h                                 \
                 src/generated/StellarXDR.h src/generated/FBAXDR.h
 
-src/generated/StellarXDR.h: $(XDRC)
-src/generated/FBAXDR.h: $(XDRC)
-
 bin_stellard_SOURCES = $(FMT_SRCS) \
                        $(BUILT_SOURCES) \
                        src/lib/util/getopt_long.c  \
@@ -235,10 +232,27 @@ src/generated/StellardVersion.h: Makefile
        echo "#define STELLARD_VERSION \"unknown\"" >$@;                     \
     fi
 
-src/generated/StellarXDR.h: src/overlay/StellarXDR.x Makefile
+src/generated/Stellar-types.h: src/xdr/Stellar-types.x src/generated/FBAXDR.h Makefile $(XDRC)
 	$(AM_V_GEN)mkdir -p src/generated; \
 	$(XDRC) -hh -o $@ $<
-src/generated/FBAXDR.h: src/fba/FBAXDR.x Makefile
+
+src/generated/Stellar-overlay.h: src/xdr/Stellar-overlay.x src/generated/Stellar-ledger.h Makefile $(XDRC)
+	$(AM_V_GEN)mkdir -p src/generated; \
+	$(XDRC) -hh -o $@ $<
+
+src/generated/Stellar-transaction.h: src/xdr/Stellar-transaction.x src/generated/Stellar-types.h Makefile $(XDRC)
+	$(AM_V_GEN)mkdir -p src/generated; \
+	$(XDRC) -hh -o $@ $<
+
+src/generated/Stellar-ledger.h: src/xdr/Stellar-ledger.x src/generated/Stellar-transaction.h Makefile $(XDRC)
+	$(AM_V_GEN)mkdir -p src/generated; \
+	$(XDRC) -hh -o $@ $<
+
+src/generated/StellarXDR.h: src/overlay/StellarXDR.x src/generated/Stellar-overlay.h Makefile $(XDRC)
+	$(AM_V_GEN)mkdir -p src/generated; \
+	$(XDRC) -hh -o $@ $<
+
+src/generated/FBAXDR.h: src/fba/FBAXDR.x Makefile $(XDRC)
 	$(AM_V_GEN)mkdir -p src/generated
 	$(XDRC) -hh -o $@ $<
 
