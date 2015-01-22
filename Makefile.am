@@ -24,7 +24,7 @@ FMT_SRCS = src/clf/BucketList.cpp src/clf/CLFMaster.cpp src/clf/CLFTests.cpp    
     src/simulation/CycleTests.cpp src/simulation/Simulation.cpp                 \
     src/herder/Herder.cpp src/herder/TxSetFrame.cpp src/herder/HerderTests.cpp  \
     src/util/Logging.cpp src/util/Timer.cpp src/util/types.cpp                  \
-    src/util/TempDir.cpp src/util/Uint128Tests.cpp                              \
+    src/util/TempDir.cpp src/util/Uint128Tests.cpp src/util/TimerTests.cpp      \
     src/transactions/AllowTrustTxFrame.cpp                                      \
     src/transactions/CancelOfferFrame.cpp                                       \
     src/transactions/ChangeTrustTxFrame.cpp                                     \

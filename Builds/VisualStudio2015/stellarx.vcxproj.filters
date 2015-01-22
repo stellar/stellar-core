@@ -339,6 +339,9 @@
     <ClCompile Include="..\..\src\herder\TxSetFrame.cpp">
       <Filter>herder</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\util\TimerTests.cpp">
+      <Filter>util</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\history\HistoryGateway.h">

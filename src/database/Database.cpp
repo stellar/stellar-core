@@ -97,16 +97,13 @@ void Database::addPeer(const std::string& ip, int port,int numFailures, int rank
 void Database::loadPeers(int max, vector<PeerRecord>& retList)
 {
     try {
-        time_t rawtime;
-        struct tm * nextAttempt;
-
-        time(&rawtime);
-        nextAttempt = gmtime(&rawtime);
-
-        stringstream sql;
-        sql << "SELECT peerID,ip,port,numFailures from Peers where nextAttempt<" << nextAttempt <<" order by rank limit " << max;
-        rowset<row> rs = mSession.prepare << sql.str();
-        
+        std::tm nextAttempt = VirtualClock::pointToTm(mApp.getClock().now());
+        rowset<row> rs =
+            (mSession.prepare <<
+             "SELECT peerID,ip,port,numFailures from Peers "
+             " where nextAttempt < :nextAttempt "
+             " order by rank limit :max ",
+             use(nextAttempt), use(max));
         for(rowset<row>::const_iterator it = rs.begin(); it != rs.end(); ++it)
         {
             row const& row = *it;

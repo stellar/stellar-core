@@ -60,6 +60,11 @@ public:
     typedef std::chrono::time_point<std::chrono::steady_clock, duration>
                                         time_point;
     static const bool is_steady       = true;
+
+    static std::tm pointToTm(time_point);
+    static std::string tmToISOString(std::tm const& tm);
+    static std::string pointToISOString(time_point point);
+
 private:
     time_point mNow;
     std::priority_queue<std::shared_ptr<VirtualClockEvent>> mEvents;

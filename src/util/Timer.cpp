@@ -27,6 +27,40 @@ VirtualClock::next()
     }
 }
 
+std::tm
+VirtualClock::pointToTm(time_point point)
+{
+    std::tm out;
+    std::time_t rawtime =
+        static_cast<std::time_t>(
+            std::chrono::duration_cast<std::chrono::seconds>(
+                point.time_since_epoch()).count());
+#ifdef _WIN32
+    // On Win32 this is returns a thread-local and there's no _r variant.
+    std::tm *tmPtr = gmtime(&rawtime);
+    out = *tmPtr;
+#else
+    // On unix the _r variant uses a local output, so is threadsafe.
+    gmtime_r(&rawtime, &out);
+#endif
+    return out;
+}
+
+std::string
+VirtualClock::tmToISOString(std::tm const& tm)
+{
+    char buf[sizeof("0000-00-00T00:00:00Z")];
+    size_t conv = strftime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%SZ", &tm);
+    assert(conv == (sizeof(buf) - 1));
+    return std::string(buf);
+}
+
+std::string
+VirtualClock::pointToISOString(time_point point)
+{
+    return tmToISOString(pointToTm(point));
+}
+
 void
 VirtualClock::enqueue(VirtualClockEvent const& ve)
 {

@@ -78,16 +78,12 @@ void PeerMaster::connectTo(const std::string& peerStr)
         mApp.getDatabase().addPeer(ip, port, 0, 2);
         if(!getPeer(ip, port))
         {
-            time_t rawtime;
-            struct tm * nextAttempt;
-
-            time(&rawtime);
-            nextAttempt = gmtime(&rawtime);
-            nextAttempt->tm_sec += 2 * SECONDS_PER_BACKOFF;
-            mktime(nextAttempt);
+            auto now = mApp.getClock().now();
+            now += 2 * std::chrono::seconds(2 * SECONDS_PER_BACKOFF);
+            std::tm nextAttempt = VirtualClock::pointToTm(now);
 
             mApp.getDatabase().getSession() << "UPDATE Peers set numFailures=numFailures+1 and nextAttempt=:v1 where ip=:v2 and port=:v3",
-                use(*nextAttempt), use(ip), use(port);
+                use(nextAttempt), use(ip), use(port);
             addPeer(Peer::pointer(new TCPPeer(mApp, ip, port)));
         }
     } else
@@ -133,26 +129,22 @@ PeerMaster::tick()
         {
             if(!getPeer(peerRecord.mIP, peerRecord.mPort))
             {
-                
-                time_t rawtime;
-                struct tm * nextAttempt;
-
-                time(&rawtime);
-                nextAttempt = gmtime(&rawtime);
-                nextAttempt->tm_sec += pow(2, peerRecord.mNumFailures + 1) * SECONDS_PER_BACKOFF;
-                mktime(nextAttempt);
-
+                auto now = mApp.getClock().now();
+                now += std::chrono::seconds(
+                    static_cast<int64_t>(
+                        pow(2, peerRecord.mNumFailures + 1) * SECONDS_PER_BACKOFF));
+                std::tm nextAttempt = VirtualClock::pointToTm(now);
                 mApp.getDatabase().getSession() << "UPDATE Peers set numFailures=numFailures+1 and nextAttempt=:v1 where peerID=:v2",
-                    use(*nextAttempt), use(peerRecord.mPeerID);
+                    use(nextAttempt), use(peerRecord.mPeerID);
                 addPeer(Peer::pointer(new TCPPeer(mApp, peerRecord.mIP, peerRecord.mPort)));
                 if (mPeers.size() >= mApp.getConfig().TARGET_PEER_CONNECTIONS)
                 {
                     break;
                 }
-            }        
+            }
         }
     }
-    
+
 
     mTimer.expires_from_now(std::chrono::seconds(2));
     mTimer.async_wait([this](asio::error_code const& ec)
