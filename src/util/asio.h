@@ -52,4 +52,8 @@
 #define ASIO_HAS_STD_THREAD
 #endif
 
+#ifndef ASIO_HAS_STD_SYSTEM_ERROR
+#define ASIO_HAS_STD_SYSTEM_ERROR
+#endif
+
 #include <asio.hpp>
