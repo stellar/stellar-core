@@ -71,6 +71,7 @@ struct FBAEnvelope
 
 struct FBAReadyEvidence
 {
+    uint256 nodeID;
     FBAEnvelope parts<>;
 };
 

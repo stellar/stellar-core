@@ -810,7 +810,7 @@ TEST_CASE("protocol core4", "[fba]")
               {
                   ready = true;
                   REQUIRE(x == yValue);
-                  // TODO(spolu) test evidence
+                  REQUIRE(e.parts.size() == 3);
               }));
         REQUIRE(fba.mEnvs.size() == 1);
 
@@ -828,10 +828,7 @@ TEST_CASE("protocol core4", "[fba]")
 
         fba.receiveEnvelope(part2);
         REQUIRE(fba.mEnvs.size() == 1);
-        // TODO(spolu) update after ready callback is called
-        /*
         REQUIRE(ready);
-        */
     }
 
 

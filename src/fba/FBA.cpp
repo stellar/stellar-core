@@ -75,7 +75,14 @@ FBA::validateReady(const uint64& slotIndex,
                    const FBAReadyEvidence evidence,
                    std::function<void(bool)> const& cb)
 {
-    // TODO(spolu) implement validateReady
+    for (auto e : evidence.parts)
+    {
+        if (!verifyEnvelope(e))
+        {
+            return cb(false);
+        }
+    }
+    return getReadySlot(slotIndex)->validateReady(value, evidence, cb);
 }
 
 bool

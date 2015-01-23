@@ -34,20 +34,37 @@ class ReadySlot
     bool readyValue(const Value& valuePart,
                     std::function<void(Value, FBAReadyEvidence)> const& cb);
 
+    // Extract the value parts from the evidece, validate them and check the
+    // construction of the value.
+    void validateReady(const Value& value,
+                       const FBAReadyEvidence& evidence,
+                       std::function<void(bool)> const& cb);
+
   private:
     // `advanceReadySlot` can be called as many time as needed. It checks if we
     // have heard from a transitive quorum and if so triggers the preparation
     // of a ballot.
     void advanceReadySlot();
 
-    const uint64                                               mSlotIndex;
-    FBA*                                                       mFBA;
+    // Called whenever we made progress in the validation of a value readiness.
+    // Can be called as many times as needed, supports reentrant calls.
+    void advanceValidate(const Hash& evidenceHash);
 
-    bool                                                       mIsReady;
-    bool                                                       mIsWaiting;
+    const uint64                                           mSlotIndex;
+    FBA*                                                   mFBA;
 
-    std::map<uint256, FBAEnvelope>                             mParts;
-    std::function<void(Value,FBAReadyEvidence)>                mCallback;
+    bool                                                   mIsReady;
+    bool                                                   mIsWaiting;
+
+    std::map<uint256, FBAEnvelope>                         mParts;
+    std::function<void(Value,FBAReadyEvidence)>            mCallback;
+
+    std::map<Hash, std::vector<std::function<void(bool)>>> mValidatePendings;
+    std::map<Hash, std::map<Hash, bool>>                   mValidateResults;
+    std::map<Hash, std::pair<Value,FBAReadyEvidence>>      mValidateInputs;
+
+    std::map<Hash,bool>                                    mInAdvanceValidate;
+    std::map<Hash,bool>                                    mRunAdvanceValidate;
 
     friend class Node;
 };

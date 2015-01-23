@@ -120,6 +120,174 @@ ReadySlot::readyValue(const Value& valuePart,
     return true;
 }
 
+void 
+ReadySlot::validateReady(const Value& value,
+                         const FBAReadyEvidence& evidence,
+                         std::function<void(bool)> const& cb)
+{
+    uint256 eHash = sha512_256(xdr::xdr_to_msg(evidence));
+
+    // TODO(spolu) cache validation results
+
+    // Signature validation is done in FBA. We check for structural sanity of
+    // the evidence here.
+    bool hasSource = false;
+    for (auto e : evidence.parts)
+    {
+        if (e.nodeID == evidence.nodeID)
+        {
+            hasSource = true;
+        }
+        if (e.payload.type() != FBAEnvelopeType::VALUE_PART ||
+            e.slotIndex != mSlotIndex)
+        {
+            return cb(false);
+        }
+    }
+    if (!hasSource)
+    {
+        return cb(false);
+    }
+    
+    if (mValidatePendings.find(eHash) != mValidatePendings.end())
+    {
+        mValidatePendings[eHash].push_back(cb);
+        return;
+    }
+    else
+    {
+        mValidatePendings[eHash].push_back(cb);
+    }
+
+    mValidateInputs[eHash] = std::make_pair(value, evidence);
+
+    for (auto e : evidence.parts)
+    {
+        uint256 pHash = sha512_256(xdr::xdr_to_msg(e.payload.part().value));
+        
+        auto validate = [this,pHash,eHash] (bool valid)
+        {
+            if (!valid)
+            {
+                mValidateResults[eHash][pHash] = false;
+            }
+            advanceValidate(eHash);
+        };
+        mFBA->validateValue(mSlotIndex, e.nodeID, 
+                            e.payload.part().value, validate);
+    }
+}
+
+void
+ReadySlot::advanceValidate(const Hash& eHash)
+{
+    // `advanceValidate` suopports reentrant calls by setting and checking
+    // `mInAdvanceValidate`. If a reentrant call is made, `mRunAdvanceValidate`
+    // will be set and `advanceValidate` will be called again after it is done
+    // executing.
+    if(mInAdvanceValidate[eHash])
+    {
+        mRunAdvanceValidate[eHash] = true;
+        return;
+    }
+    mInAdvanceValidate[eHash] = true;
+
+    try
+    {
+        const Value& value = mValidateInputs[eHash].first;
+        const FBAReadyEvidence& evidence = mValidateInputs[eHash].second;
+
+        bool allCalled = true;
+        bool valid = true;
+        for (auto e : evidence.parts)
+        {
+            uint256 pHash = sha512_256(xdr::xdr_to_msg(e.payload.part().value));
+
+            if (mValidateResults[eHash].find(pHash) ==
+                mValidateResults[eHash].end())
+            {
+                allCalled = false;
+                break;
+            }
+            else if(!mValidateResults[eHash][pHash])
+            {
+                valid = false;
+            }
+        }
+
+        if (allCalled && valid)
+        {
+            // We rebuild a map of nodeID -> FBAEnvelope to later call
+            // `isQuorumTransitive`
+            std::map<uint256, FBAEnvelope> parts;
+            for (auto e : evidence.parts)
+            {
+                parts[e.nodeID] = e;
+            }
+
+            const Hash& sourceQSetHash = 
+                parts[evidence.nodeID].payload.part().quorumSetHash;
+            const uint256& sourceNodeID = evidence.nodeID;
+            
+            if (mFBA->getNode(sourceNodeID)->isQuorumTransitive<FBAEnvelope>(
+                    sourceQSetHash,
+                    parts,
+                    [] (const FBAEnvelope& e) 
+                    { 
+                        return e.payload.part().quorumSetHash; 
+                    }))
+            {
+                Value x = parts[sourceNodeID].payload.part().value;
+                for (auto e : evidence.parts)
+                {
+                    x = mFBA->mergeValueParts(x, e.payload.part().value);
+                }
+                valid = (x == value);
+            }
+            else
+            {
+                valid = false;
+            }
+        }
+
+        if(allCalled)
+        {
+           for(auto cb : mValidatePendings[eHash])
+           {
+               cb(valid);
+           }
+           mValidatePendings.erase(eHash);
+           mValidateResults.erase(eHash);
+           mValidateInputs.erase(eHash);
+           mInAdvanceValidate.erase(eHash);
+           mRunAdvanceValidate.erase(eHash);
+           
+           // We're clean we return directly (skip reentrance)
+           return;
+        }
+    }
+    catch(Node::QuorumSetNotFound e)
+    {
+        auto cb = [this,e,eHash] (const FBAQuorumSet& qSet)
+        {
+            uint256 qSetHash = sha512_256(xdr::xdr_to_msg(qSet));
+            if (e.qSetHash() == qSetHash)
+            {
+                mFBA->getNode(e.nodeID())->cacheQuorumSet(qSet);
+                advanceValidate(eHash);
+            }
+        };
+        mFBA->retrieveQuorumSet(e.nodeID(), e.qSetHash(), cb);
+    }
+
+    mInAdvanceValidate[eHash] = false;
+    if (mRunAdvanceValidate[eHash])
+    {
+        mRunAdvanceValidate[eHash] = false;
+        advanceValidate(eHash);
+    }
+}
+
 void
 ReadySlot::advanceReadySlot()
 {
@@ -138,21 +306,24 @@ ReadySlot::advanceReadySlot()
     try
     {
         if (mFBA->getLocalNode()->isQuorumTransitive<FBAEnvelope>(
-                mFBA->getLocalNode()->getQuorumSetHash(),
+                mParts[mFBA->getLocalNodeID()].payload.part().quorumSetHash,
                 mParts,
                 [] (const FBAEnvelope& e) 
                 { 
                     return e.payload.part().quorumSetHash; 
                 }))
         {
+            FBAReadyEvidence e;
+            e.nodeID = mFBA->getLocalNodeID();
             Value x = mParts[mFBA->getLocalNodeID()].payload.part().value;
             for (auto it : mParts)
             {
                 x = mFBA->mergeValueParts(x, it.second.payload.part().value);
+                e.parts.push_back(it.second);
             }
 
             mIsReady = true;
-            // TODO(spolu) generate evidence and call back
+            mCallback(x, e);
         }
     }
     catch(Node::QuorumSetNotFound e)

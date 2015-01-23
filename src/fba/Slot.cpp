@@ -628,8 +628,8 @@ Slot::compareBallots(const FBABallot& b1,
 void
 Slot::advanceSlot()
 {
-    // `advanceSlot` will prevent recursive call by setting and checking
-    // `mInAdvanceSlot`. If a recursive call is made, `mRunAdvanceSlot` will be
+    // `advanceSlot` suopports reentrant calls by setting and checking
+    // `mInAdvanceSlot`. If a reentrant call is made, `mRunAdvanceSlot` will be
     // set and `advanceSlot` will be called again after it is done executing.
     if(mInAdvanceSlot)
     {
