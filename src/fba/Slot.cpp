@@ -109,7 +109,7 @@ Slot::processEnvelope(const FBAEnvelope& envelope,
                 }
 
                 // If a new higher ballot has been issued, let's move on to it.
-                if (b.counter > mBallot.counter || isPristine())
+                if (compareBallots(b, mBallot) > 0 || isPristine())
                 {
                     bumpToBallot(b);
                 }

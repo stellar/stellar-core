@@ -316,17 +316,6 @@ TEST_CASE("protocol core4", "[fba]")
         REQUIRE(fba.mEnvs[0].payload.statement().ballot.counter == 0);
         REQUIRE(fba.mEnvs[0].payload.statement().pledges.type() == FBAStatementType::PREPARE);
 
-        FBAEnvelope prepare1 = makeStEnvelope(v1NodeID, qSetHash, 0,
-                                              FBABallot(0, yValue),
-                                              FBAStatementType::PREPARE);
-        FBAEnvelope prepare2 = makeStEnvelope(v2NodeID, qSetHash, 0,
-                                              FBABallot(0, yValue),
-                                              FBAStatementType::PREPARE);
-
-        fba.receiveEnvelope(prepare1);
-        fba.receiveEnvelope(prepare2);
-        REQUIRE(fba.mEnvs.size() == 1);
-
         FBAEnvelope prepared1 = makeStEnvelope(v1NodeID, qSetHash, 0,
                                                FBABallot(0, yValue),
                                                FBAStatementType::PREPARED);
@@ -339,13 +328,6 @@ TEST_CASE("protocol core4", "[fba]")
         fba.receiveEnvelope(prepared2);
         REQUIRE(fba.mEnvs.size() == 4);
 
-
-        REQUIRE(fba.mEnvs[1].nodeID == v0NodeID);
-        REQUIRE(fba.mEnvs[1].payload.statement().ballot.value == yValue);
-        REQUIRE(fba.mEnvs[1].payload.statement().ballot.counter == 0);
-        REQUIRE(fba.mEnvs[1].payload.statement().pledges.type() == FBAStatementType::PREPARE);
-        REQUIRE(!fba.mEnvs[1].payload.statement().pledges.prepare().prepared);
-        REQUIRE(fba.mEnvs[1].payload.statement().pledges.prepare().excepted.size() == 0);
 
         REQUIRE(fba.mEnvs[2].nodeID == v0NodeID);
         REQUIRE(fba.mEnvs[2].payload.statement().ballot.value == yValue);
@@ -421,10 +403,7 @@ TEST_CASE("protocol core4", "[fba]")
                                               FBAStatementType::PREPARE);
 
         fba.receiveEnvelope(prepare1);
-        fba.receiveEnvelope(prepare2);
-        REQUIRE(fba.mEnvs.size() == 1);
-        fba.receiveEnvelope(prepare3);
-        REQUIRE(fba.mEnvs.size() == 3);
+        REQUIRE(fba.mEnvs.size() == 2);
 
         REQUIRE(fba.mEnvs[1].nodeID == v0NodeID);
         REQUIRE(fba.mEnvs[1].payload.statement().ballot.value == yValue);
@@ -433,10 +412,16 @@ TEST_CASE("protocol core4", "[fba]")
         REQUIRE(!fba.mEnvs[1].payload.statement().pledges.prepare().prepared);
         REQUIRE(fba.mEnvs[1].payload.statement().pledges.prepare().excepted.size() == 0);
 
+        fba.receiveEnvelope(prepare2);
+        REQUIRE(fba.mEnvs.size() == 3);
+
         REQUIRE(fba.mEnvs[2].nodeID == v0NodeID);
         REQUIRE(fba.mEnvs[2].payload.statement().ballot.value == yValue);
         REQUIRE(fba.mEnvs[2].payload.statement().ballot.counter == 0);
         REQUIRE(fba.mEnvs[2].payload.statement().pledges.type() == FBAStatementType::PREPARED);
+
+        fba.receiveEnvelope(prepare3);
+        REQUIRE(fba.mEnvs.size() == 3);
     }
 
     SECTION("x<y, prepare (0,y), prepare (0,x) by quorum")
@@ -628,19 +613,19 @@ TEST_CASE("protocol core4", "[fba]")
         REQUIRE(fba.mEnvs.size() == 1);
 
         fba.receiveEnvelope(prepare3);
-        // No effect on this round
-        REQUIRE(fba.mEnvs.size() == 1);
-
-        REQUIRE(fba.prepareValue(0, yValue));
         REQUIRE(fba.mEnvs.size() == 2);
 
         REQUIRE(fba.mEnvs[1].nodeID == v0NodeID);
         REQUIRE(fba.mEnvs[1].payload.statement().ballot.value == yValue);
         REQUIRE(fba.mEnvs[1].payload.statement().ballot.counter == 0);
         REQUIRE(fba.mEnvs[1].payload.statement().pledges.type() == FBAStatementType::PREPARE);
+
+        REQUIRE(fba.prepareValue(0, yValue));
+        // No effect on this round
+        REQUIRE(fba.mEnvs.size() == 2);
     }
 
-    SECTION("pledge to commit (0,x), accept cancel on (1,y)")
+    SECTION("x<y, pledge to commit (0,x), accept cancel on (2,y)")
     {
         // 1 and 2 prepare (0,x)
         FBAEnvelope prepare1_x = makeStEnvelope(v1NodeID, qSetHash, 0,
@@ -650,11 +635,6 @@ TEST_CASE("protocol core4", "[fba]")
                                                 FBABallot(0, xValue),
                                                 FBAStatementType::PREPARE);
 
-        // 3 prepares (0,y)
-        FBAEnvelope prepare3_y = makeStEnvelope(v3NodeID, qSetHash, 0,
-                                                FBABallot(0, yValue),
-                                                FBAStatementType::PREPARE);
-
         fba.receiveEnvelope(prepare1_x);
         REQUIRE(fba.mEnvs.size() == 1);
 
@@ -662,9 +642,6 @@ TEST_CASE("protocol core4", "[fba]")
         REQUIRE(fba.mEnvs[0].payload.statement().ballot.value == xValue);
         REQUIRE(fba.mEnvs[0].payload.statement().ballot.counter == 0);
         REQUIRE(fba.mEnvs[0].payload.statement().pledges.type() == FBAStatementType::PREPARE);
-
-        fba.receiveEnvelope(prepare3_y);
-        REQUIRE(fba.mEnvs.size() == 1);
 
         fba.receiveEnvelope(prepare2_x);
         REQUIRE(fba.mEnvs.size() == 2);
