@@ -238,24 +238,41 @@ class Application;
  * Two buckets can be merged together efficiently (in a single pass): elements
  * from the newer bucket overwrite elements from the older bucket, the rest are
  * merged in sorted order, and all elements are hashed while being added.
- *
- * This is the basic version of a Bucket; a more sophisticated one (which we'll
- * add soon) will store itself on disk if it's any bigger than a specified
- * limit. For now we assume we can fit all of them in memory.
  */
 
 class Bucket
 {
 
   private:
+
+    // Assuming an object is ~256 bytes and we might have as many as 100 buckets
+    // in memory at a time (due to history operations, hashing, and the
+    // naturally-occurring 10 buckets we get from 5 levels): Allocating a 1GB
+    // memory cap gives us 10MB per bucket. Rounding down a touch to 2^23 bytes
+    // (8MB) gives us 2^15 objects before we spill to disk.
+    static size_t const kMaxMemoryObjectsPerBucket = 1 << 15;
+
+    // If mSpilledToFile, then filename is empty, mEntries contains entries;
+    // else filename is non-empty, it names an XDR file with entries and
+    // mEntries is empty. In both cases mHash is valid.
+    bool const mSpilledToFile;
     std::vector<CLFEntry> const mEntries;
     uint256 const mHash;
+    std::string mFilename;
 
   public:
+
+    class InputIterator;
+    class OutputIterator;
+
     Bucket();
-    Bucket(std::vector<CLFEntry>&& entries, uint256&& hash);
+    ~Bucket();
+    Bucket(std::vector<CLFEntry> const& entries, uint256 const& hash);
+    Bucket(std::string const& filename, uint256 const& hash);
     std::vector<CLFEntry> const& getEntries() const;
     uint256 const& getHash() const;
+    std::string const& getFilename() const;
+    bool isSpilledToFile() const;
 
     static std::shared_ptr<Bucket> fresh(std::vector<LedgerEntry> const& entries);
 

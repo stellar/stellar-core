@@ -14,6 +14,7 @@
 #include "lib/catch.hpp"
 #include "util/Logging.h"
 #include "util/Timer.h"
+#include "crypto/Hex.h"
 #include <future>
 
 using namespace stellar;
@@ -27,11 +28,13 @@ TEST_CASE("bucket list", "[clf]")
         Application app(clock, cfg);
         BucketList bl;
         autocheck::generator<std::vector<LedgerEntry>> gen;
+        LOG(DEBUG) << "Adding batches to bucket list";
         for (uint64_t i = 1; !app.getMainIOService().stopped() && i < 130; ++i)
         {
             app.crank(false);
             bl.addBatch(app, i, gen(10));
-            // LOG(DEBUG) << "Finished addition cycle " << i;
+            if (i % 10 == 0)
+                LOG(DEBUG) << "Added batch " << i << ", hash=" << binToHex(bl.getHash());
             for (size_t j = 0; j < bl.numLevels(); ++j)
             {
                 auto const& lev = bl.getLevel(j);
@@ -50,4 +53,32 @@ TEST_CASE("bucket list", "[clf]")
         LOG(DEBUG) << "Test caught std::future_error " << e.code() << ": "
                    << e.what();
     }
+}
+
+static std::ifstream::pos_type
+fileSize(std::string const& name)
+{
+    std::ifstream in(name, std::ifstream::ate | std::ifstream::binary);
+    return in.tellg();
+}
+
+TEST_CASE("file-backed buckets", "[clf]")
+{
+    autocheck::generator<LedgerEntry> gen;
+    LOG(DEBUG) << "Generating 10000 random ledger entries";
+    std::vector<LedgerEntry> v(10000);
+    for (auto &e : v)
+        e = gen(3);
+    LOG(DEBUG) << "Hashing entries";
+    std::shared_ptr<Bucket> b1 = Bucket::fresh(v);
+    for (size_t i = 0; i < 5; ++i)
+    {
+        LOG(DEBUG) << "Merging 10000 new ledger entries into "
+                   << (i * 10000) << " entry bucket";
+        for (auto &e : v)
+            e = gen(3);
+        b1 = Bucket::merge(b1, Bucket::fresh(v));
+    }
+    CHECK(b1->isSpilledToFile());
+    LOG(DEBUG) << "Spill file size: " << fileSize(b1->getFilename());
 }

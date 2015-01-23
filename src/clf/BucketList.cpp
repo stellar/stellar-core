@@ -11,7 +11,9 @@
 #include "main/Application.h"
 #include "util/Logging.h"
 #include "crypto/SHA.h"
-#include "xdrpp/marshal.h"
+#include "crypto/Hex.h"
+#include "crypto/Random.h"
+#include "util/XDRStream.h"
 #include <cassert>
 
 namespace stellar
@@ -95,12 +97,64 @@ CLFEntryIdCmp
     }
 };
 
-Bucket::Bucket(std::vector<CLFEntry>&& entries, uint256&& hash)
-    : mEntries(entries), mHash(hash)
+static std::string
+randomBucketName()
+{
+    while (true)
+    {
+        std::string name =
+            std::string("bucket-") + binToHex(randomBytes(8)) + ".xdr";
+        std::ifstream ifile(name);
+        if (!ifile)
+        {
+            return name;
+        }
+    }
+}
+
+/**
+ * This ctor will spill to a file if it was given too many entries. This is
+ * where the _first_ spill decision is made; subsequent spilled buckets are made
+ * as the output of a merge with an already-spilled bucket as an input.
+ */
+Bucket::Bucket(std::vector<CLFEntry> const& entries, uint256 const& hash)
+    : mSpilledToFile(entries.size() > kMaxMemoryObjectsPerBucket)
+    , mEntries(mSpilledToFile ? std::vector<CLFEntry>() : entries)
+    , mHash(hash)
+    , mFilename(mSpilledToFile ? randomBucketName() : std::string(""))
+{
+    if (mSpilledToFile)
+    {
+        XDROutputFileStream out;
+        out.open(mFilename);
+        LOG(DEBUG) << "Bucket spilling " << entries.size()
+                   << " CLFEntries to file "
+                   << mFilename;
+        for (auto const& e : entries)
+        {
+            if (!out.writeOne(e))
+            {
+                throw std::runtime_error("failed writing XDR to bucket");
+            }
+        }
+    }
+}
+
+Bucket::Bucket(std::string const& filename, uint256 const& hash)
+    : mSpilledToFile(true), mHash(hash), mFilename(filename)
 {
 }
 
+Bucket::~Bucket()
+{
+    if (!mFilename.empty())
+    {
+        std::remove(mFilename.c_str());
+    }
+}
+
 Bucket::Bucket()
+    : mSpilledToFile(false)
 {
 }
 
@@ -114,6 +168,18 @@ uint256 const&
 Bucket::getHash() const
 {
     return mHash;
+}
+
+bool
+Bucket::isSpilledToFile() const
+{
+    return mSpilledToFile;
+}
+
+std::string const&
+Bucket::getFilename() const
+{
+    return mFilename;
 }
 
 std::shared_ptr<Bucket>
@@ -137,8 +203,154 @@ Bucket::fresh(std::vector<LedgerEntry> const& entries)
     {
         hsh.add(ce.hash);
     }
-    return std::make_shared<Bucket>(std::move(clfEntries), hsh.finish());
+    return std::make_shared<Bucket>(clfEntries, hsh.finish());
 }
+
+
+/**
+ * Helper class that either reads from to an input file or an in-memory
+ * vector iterator, depending on the underlying Bucket it's attached to.
+ */
+class
+Bucket::InputIterator
+{
+    std::shared_ptr<Bucket> mBucket;
+
+    // Validity and current-value of the iterator is funneled into a pointer. If
+    // non-null, it either points to mEntry, or to the referent of mVecIter.
+    CLFEntry const* mEntryPtr;
+
+    std::vector<CLFEntry>::const_iterator mVecIter;
+    XDRInputFileStream mIn;
+    CLFEntry mEntry;
+
+    void loadEntry()
+    {
+        if (mIn.readOne(mEntry))
+        {
+            mEntryPtr = &mEntry;
+        }
+        else
+        {
+            mEntryPtr = nullptr;
+        }
+    }
+
+public:
+
+    operator bool() const
+    {
+        return mEntryPtr != nullptr;
+    }
+
+    CLFEntry const& operator*()
+    {
+        return *mEntryPtr;
+    }
+
+    InputIterator(std::shared_ptr<Bucket> bucket)
+        : mBucket(bucket)
+        , mEntryPtr(nullptr)
+    {
+        if (mBucket->mSpilledToFile)
+        {
+            LOG(DEBUG) << "Bucket::InputIterator opening file to read: "
+                       << mBucket->mFilename;
+            mIn.open(mBucket->mFilename);
+            loadEntry();
+        }
+        else
+        {
+            mVecIter = mBucket->mEntries.begin();
+            if (mVecIter != mBucket->mEntries.end())
+            {
+                mEntryPtr = &(*mVecIter);
+            }
+        }
+    }
+
+    ~InputIterator()
+    {
+        if (mBucket->mSpilledToFile)
+        {
+            mIn.close();
+        }
+    }
+
+    InputIterator& operator++()
+    {
+        if (mBucket->mSpilledToFile && mIn)
+        {
+            loadEntry();
+        }
+        else if (++mVecIter != mBucket->mEntries.end())
+        {
+            mEntryPtr = &(*mVecIter);
+        }
+        else
+        {
+            mEntryPtr = nullptr;
+        }
+        return *this;
+    }
+};
+
+/**
+ * Helper class that either points to an output file or an in-memory
+ * vector of CLFEntries. Absorbs CLFEntries and hashes them while
+ * writing to either destination. Produces a Bucket when done.
+ */
+class
+Bucket::OutputIterator
+{
+    bool mWriteToFile;
+    std::string mFilename;
+    std::vector<CLFEntry> mEntries;
+    XDROutputFileStream mOut;
+    SHA512_256 mHasher;
+
+public:
+
+    OutputIterator(bool writeToFile)
+        : mWriteToFile(writeToFile)
+    {
+        if (mWriteToFile)
+        {
+            mFilename = randomBucketName();
+            LOG(DEBUG) << "Bucket::OutputIterator opening file to write: "
+                       << mFilename;
+            mOut.open(mFilename);
+        }
+    }
+
+    void
+    put(CLFEntry const& e)
+    {
+        mHasher.add(e.hash);
+        if (mWriteToFile)
+        {
+            mOut.writeOne(e);
+        }
+        else
+        {
+            mEntries.emplace_back(e);
+        }
+    }
+
+    std::shared_ptr<Bucket>
+    getBucket()
+    {
+        if (mWriteToFile)
+        {
+            return std::make_shared<Bucket>(mFilename, mHasher.finish());
+        }
+        else
+        {
+            return std::make_shared<Bucket>(mEntries, mHasher.finish());
+        }
+    }
+
+};
 
 std::shared_ptr<Bucket>
 Bucket::merge(std::shared_ptr<Bucket> const& oldBucket,
@@ -151,48 +363,48 @@ Bucket::merge(std::shared_ptr<Bucket> const& oldBucket,
     assert(oldBucket);
     assert(newBucket);
 
-    std::vector<CLFEntry>::const_iterator oi = oldBucket->mEntries.begin();
-    std::vector<CLFEntry>::const_iterator ni = newBucket->mEntries.begin();
+    Bucket::InputIterator oi(oldBucket);
+    Bucket::InputIterator ni(newBucket);
 
-    std::vector<CLFEntry>::const_iterator oe = oldBucket->mEntries.end();
-    std::vector<CLFEntry>::const_iterator ne = newBucket->mEntries.end();
+    Bucket::OutputIterator out(oldBucket->isSpilledToFile() ||
+                               newBucket->isSpilledToFile());
 
-    std::vector<CLFEntry> out;
-    out.reserve(oldBucket->mEntries.size() + newBucket->mEntries.size());
     SHA512_256 hsh;
     CLFEntryIdCmp cmp;
-    while (oi != oe || ni != ne)
+    while (oi || ni)
     {
-        std::vector<CLFEntry>::const_iterator e;
-        if (ni == ne)
+        if (!ni)
         {
             // Out of new entries, take old entries.
-            e = oi++;
+            out.put(*oi);
+            ++oi;
         }
-        else if (oi == oe)
+        else if (!oi)
         {
             // Out of old entries, take new entries.
-            e = ni++;
+            out.put(*ni);
+            ++ni;
         }
         else if (cmp(*oi, *ni))
         {
             // Next old-entry has smaller key, take it.
-            e = oi++;
+            out.put(*oi);
+            ++oi;
         }
         else if (cmp(*ni, *oi))
         {
             // Next new-entry has smaller key, take it.
-            e = ni++;
+            out.put(*ni);
+            ++ni;
         }
         else
         {
             // Old and new are for the same key, take new.
-            e = ni++;
+            out.put(*ni);
+            ++ni;
         }
-        hsh.add(e->hash);
-        out.emplace_back(*e);
     }
-    return std::make_shared<Bucket>(std::move(out), hsh.finish());
+    return out.getBucket();
 }
 
 BucketLevel::BucketLevel(size_t i)
