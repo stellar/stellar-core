@@ -64,6 +64,7 @@ fileSize(std::string const& name)
 
 TEST_CASE("file-backed buckets", "[clf]")
 {
+    TIMED_FUNC(timerObj);
     autocheck::generator<LedgerEntry> gen;
     LOG(DEBUG) << "Generating 10000 random ledger entries";
     std::vector<LedgerEntry> v(10000);
@@ -77,7 +78,10 @@ TEST_CASE("file-backed buckets", "[clf]")
                    << (i * 10000) << " entry bucket";
         for (auto &e : v)
             e = gen(3);
-        b1 = Bucket::merge(b1, Bucket::fresh(v));
+        {
+            TIMED_SCOPE(timerObj, "merge");
+            b1 = Bucket::merge(b1, Bucket::fresh(v));
+        }
     }
     CHECK(b1->isSpilledToFile());
     LOG(DEBUG) << "Spill file size: " << fileSize(b1->getFilename());
