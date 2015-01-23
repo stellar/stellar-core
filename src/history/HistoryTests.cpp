@@ -46,20 +46,30 @@ TEST_CASE("Archive and reload history", "[history]")
     bool done = false;
     app.getHistoryMaster().archiveHistory(
         h1,
-        [&app, &done, h1](std::string const& filename)
+        [&app, &done, h1](asio::error_code const& ec)
         {
-            LOG(DEBUG) << "archived " << filename << ", deleting";
-            std::remove(filename.c_str());
-            LOG(DEBUG) << "reloading history for ["
+            CHECK(!ec);
+            if (ec)
+            {
+                done = true;
+                return;
+            }
+            LOG(DEBUG) << "archived history, reloading ["
                        << h1->fromLedger << ", "
                        << h1->toLedger << "]";
             app.getHistoryMaster().acquireHistory(
                 h1->fromLedger,
                 h1->toLedger,
-                [h1, &done](std::shared_ptr<History> h2)
+                [h1, &done](asio::error_code const& ec,
+                            std::shared_ptr<History> h2)
                 {
-                    LOG(DEBUG) << "reloaded history";
-                    CHECK(*h1 == *h2);
+                    CHECK(!ec);
+                    CHECK(h2);
+                    if (!ec && h2)
+                    {
+                        LOG(DEBUG) << "reloaded history";
+                        CHECK(*h1 == *h2);
+                    }
                     done = true;
                 });
         });
@@ -84,20 +94,30 @@ TEST_CASE("Archive and reload bucket", "[history]")
     bool done = false;
     app.getHistoryMaster().archiveBucket(
         b1,
-        [&app, &done, b1](std::string const& filename)
+        [&app, &done, b1](asio::error_code const& ec)
         {
-            LOG(DEBUG) << "archived " << filename << ", deleting";
-            std::remove(filename.c_str());
-            LOG(DEBUG) << "reloading bucket for seq="
+            CHECK(!ec);
+            if (ec)
+            {
+                done = true;
+                return;
+            }
+            LOG(DEBUG) << "archived bucket, reloading seq="
                        << b1->header.ledgerSeq << ", count="
                        << b1->header.ledgerCount;
             app.getHistoryMaster().acquireBucket(
                 b1->header.ledgerSeq,
                 b1->header.ledgerCount,
-                [b1, &done](std::shared_ptr<CLFBucket> b2)
+                [b1, &done](asio::error_code const& ec,
+                            std::shared_ptr<CLFBucket> b2)
                 {
-                    LOG(DEBUG) << "reloaded bucket";
-                    CHECK(*b1 == *b2);
+                    CHECK(!ec);
+                    CHECK(b2);
+                    if (!ec && b2)
+                    {
+                        LOG(DEBUG) << "reloaded bucket";
+                        CHECK(*b1 == *b2);
+                    }
                     done = true;
                 });
         });

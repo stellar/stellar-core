@@ -146,6 +146,11 @@
  * /cold/history/00/00/0x0000000000000000.xdr.gz
  */
 
+namespace asio
+{
+typedef std::error_code error_code;
+};
+
 namespace stellar
 {
 class Application;
@@ -157,37 +162,40 @@ class HistoryMaster
     template <typename T> void
     saveAndCompressAndPut(std::string const& basename,
                           std::shared_ptr<T> xdrp,
-                          std::function<void(std::string const&)> handler);
+                          std::function<void(asio::error_code const&)> handler);
 
     template <typename T> void
     getAndDecompressAndLoad(std::string const& basename,
-                            std::function<void(std::shared_ptr<T>)> handler);
+                            std::function<void(asio::error_code const&,
+                                               std::shared_ptr<T>)> handler);
 
     void putFile(std::string const& filename,
                  std::string const& basename,
-                 std::function<void(std::string const&)> handler);
+                 std::function<void(asio::error_code const&)> handler);
 
     void getFile(std::string const& basename,
                  std::string const& filename,
-                 std::function<void(std::string const&)> handler);
+                 std::function<void(asio::error_code const&)> handler);
 
     std::string const& getTempDir();
 
   public:
 
     void archiveBucket(std::shared_ptr<CLFBucket> bucket,
-                       std::function<void(std::string const&)> handler);
+                       std::function<void(asio::error_code const&)> handler);
 
     void archiveHistory(std::shared_ptr<History> hist,
-                        std::function<void(std::string const&)> handler);
+                        std::function<void(asio::error_code const&)> handler);
 
     void acquireBucket(uint64_t ledgerSeq,
                        uint32_t ledgerCount,
-                       std::function<void(std::shared_ptr<CLFBucket>)> handler);
+                       std::function<void(asio::error_code const&,
+                                          std::shared_ptr<CLFBucket>)> handler);
 
     void acquireHistory(uint64_t fromLedger,
                         uint64_t toLedger,
-                        std::function<void(std::shared_ptr<History>)> handler);
+                        std::function<void(asio::error_code const&,
+                                           std::shared_ptr<History>)> handler);
 
     HistoryMaster(Application& app);
     ~HistoryMaster();
