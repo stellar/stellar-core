@@ -54,11 +54,11 @@ FMT_HDRS = src/clf/BucketList.h src/clf/CLFMaster.h src/crypto/Base58.h         
     src/process/ProcessMaster.h src/simulation/Simulation.h src/herder/Herder.h \
     src/herder/HerderGateway.h src/herder/TxSetFrame.h src/util/Logging.h       \
     src/util/Timer.h src/util/make_unique.h src/util/types.h src/util/TempDir.h \
-    src/transactions/AllowTrustTxFrame.h src/transactions/CancelOfferFrame.h    \
-    src/transactions/ChangeTrustTxFrame.h src/transactions/CreateOfferFrame.h   \
-    src/transactions/InflationFrame.h src/transactions/MergeFrame.h             \
-    src/transactions/PaymentFrame.h src/transactions/SetOptionsFrame.h          \
-    src/transactions/TransactionFrame.h                                         \
+    src/util/XDRStream.h src/transactions/AllowTrustTxFrame.h                   \
+    src/transactions/CancelOfferFrame.h src/transactions/ChangeTrustTxFrame.h   \
+    src/transactions/CreateOfferFrame.h src/transactions/InflationFrame.h       \
+    src/transactions/MergeFrame.h src/transactions/PaymentFrame.h               \
+    src/transactions/SetOptionsFrame.h src/transactions/TransactionFrame.h      \
     src/transactions/TxTests.h
 
 
