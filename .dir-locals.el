@@ -4,6 +4,15 @@
          (flycheck-clang-include-path . ("."
                                          "src"
                                          "src/lib/asio/include"
+                                         "src/lib/autocheck/include"
+                                         "src/lib/cereal/include"
+                                         "src/lib/util"
+                                         "src/lib/soci/src/core"
+                                         "src/lib/soci/src/backends/sqlite3"
+                                         "src/lib/xdrpp"
+                                         "src/lib/sqlite"
+                                         "src/lib/libsodium/src/libsodium"
+                                         "src/lib/libmedida/src"
                                          ))
          (fill-column . 80)
          (indent-tabs-mode .  nil)
