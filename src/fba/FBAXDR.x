@@ -7,11 +7,12 @@ typedef opaque uint256[32];
 typedef unsigned uint32;
 typedef unsigned hyper uint64;
 typedef opaque Value<>;
+typedef opaque Evidence<>;
 
 struct FBABallot
 {
-    uint32 counter;   // n
-    Value value;      // x
+    uint32 counter;     // n
+    Value value;        // x
 };
 
 enum FBAStatementType
@@ -24,9 +25,8 @@ enum FBAStatementType
 
 struct FBAStatement
 {
-    uint64 slotIndex;      // i
     FBABallot ballot;      // b
-    Hash quorumSetHash;
+    Hash quorumSetHash;    // D
 	
     union switch (FBAStatementType type)
     {
@@ -40,14 +40,39 @@ struct FBAStatement
         case COMMIT:
         case COMMITTED:
             void;		
-    } body;
+    } pledges;
+};
+
+struct FBAValuePart
+{
+    Value value;           // x
+    Hash quorumSetHash;    // D
+};
+
+enum FBAEnvelopeType
+{
+    VALUE_PART,
+    STATEMENT
 };
 
 struct FBAEnvelope
 {
-    uint256 nodeID;
-    FBAStatement statement;
+    uint256 nodeID;       // v
+    uint64 slotIndex;     // i
+    union switch (FBAEnvelopeType type)
+    {
+        case VALUE_PART:
+            FBAValuePart part;
+        case STATEMENT:
+            FBAStatement statement;
+    } payload;
     Signature signature;
+};
+
+struct FBAReadyEvidence
+{
+    uint256 nodeID;
+    FBAEnvelope parts<>;
 };
 
 struct FBAQuorumSet

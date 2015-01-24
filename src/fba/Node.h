@@ -1,5 +1,4 @@
-#ifndef __FBA_NODE__
-#define __FBA_NODE__
+#pragma once
 
 // Copyright 2014 Stellar Development Foundation and contributors. Licensed
 // under the ISC License. See the COPYING file at the top-level directory of
@@ -17,10 +16,42 @@ namespace stellar
  */
 class Node
 {
+
   public:
     Node(const uint256& nodeID,
          FBA* FBA,
          int cacheCapacity = 4);
+
+    // Tests this node against nodeSet for the specified qSethash. Triggers the
+    // retrieval of qSetHash for this node and may throw a QuorumSetNotFound
+    // exception
+    bool hasQuorum(const Hash& qSetHash,
+                   const std::vector<uint256>& nodeSet);
+    bool isVBlocking(const Hash& qSetHash,
+                     const std::vector<uint256>& nodeSet);
+
+    // Tests this node against a map of nodeID -> T for the specified qSetHash.
+    // Triggers the retrieval of qSetHash for this node and may throw a
+    // QuorumSetNotFound exception.
+    
+    // `isVBlocking` tests if the filtered nodes V are a v-blocking set for
+    // this node.
+    template <class T> bool isVBlocking(
+        const Hash& qSetHash,
+        const std::map<uint256, T>& map,
+        std::function<bool(const uint256&, const T&)> const& filter =
+        [] (const uint256&, const T&) { return true; });
+    // `isQuorumTransitive` tests if the filtered nodes V are a transitive
+    // quorum for this node (meaning for each v \in V there is q \in Q(v)
+    // included in V and we have quorum on V for qSetHash). `qfun` extracts the
+    // qSetHash from the template T for its associated node in map (required
+    // for transitivity)
+    template <class T> bool isQuorumTransitive(
+        const Hash& qSetHash,
+        const std::map<uint256, T>& map,
+        std::function<Hash(const T&)> const& qfun,
+        std::function<bool(const uint256&, const T&)> const& filter =
+        [] (const uint256&, const T&) { return true; });
 
     /**
      * Exception used to trigger the retrieval of a quorum set based on its
@@ -51,12 +82,7 @@ class Node
     // the FBA module
     const FBAQuorumSet& retrieveQuorumSet(const Hash& qSetHash);
 
-    // Adds a slot to the list of slots awaiting for a quorunm set to be
-    // retrieved. When cacheQuorumSet is called with the specified quorum set
-    // hash, all slots pending on this quorum set are woken up for
-    // re-evaluation.
-    void addPendingSlot(const Hash& qSetHash, const uint64& slotIndex);
-
+    // Cache a quorumSet for this node.
     void cacheQuorumSet(const FBAQuorumSet& qSet);
 
     const uint256& getNodeID();
@@ -64,13 +90,10 @@ class Node
   protected:
     const uint256                          mNodeID;
     FBA*                                   mFBA;
+
   private:
     int                                    mCacheCapacity;
     std::map<Hash, FBAQuorumSet>           mCache;
     std::vector<Hash>                      mCacheLRU;
-
-    std::map<Hash, std::vector<uint64>>    mPendingSlots;
 };
 }
-
-#endif
