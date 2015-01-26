@@ -8,12 +8,19 @@
 #include "herder/HerderGateway.h"
 #include "overlay/ItemFetcher.h"
 #include "fba/FBA.h"
+#include "util/Timer.h"
 
-// beyond this then the ballot is considered invalid
-#define MAX_SECONDS_LEDGER_CLOSE_IN_FUTURE 2
+// Expected time between two ledger close.
+#define EXP_LEDGER_TIMESPAN_SECONDS 2
 
-// how far in the future to guess the ledger will close
-#define NUM_SECONDS_IN_CLOSE 2
+// Maximum timeout for FBA consensus.
+#define MAX_FBA_TIMEOUT_SECONDS 240
+
+// Maximum time slip between nodes
+#define MAX_TIME_SLIP_SECONDS 60
+
+// How many ledger in past/future we consider an envelope viable.
+#define LEDGER_VALIDITY_BRACKET 10
 
 namespace stellar
 {
@@ -71,14 +78,7 @@ class Herder : public HerderGateway,
     
   private:
     void removeReceivedTx(TransactionFramePtr tx);
-    void advanceToNextLedger();
-
-    // the transactions that we have collected during ledger close
-    TxSetFramePtr                                  mCollectingTransactionSet;
-
-    // keep track of txs that didn't make it into last ledger. Be less and less
-    // likely to commit a ballot that doesn't include the old ones
-    std::map<uint256, uint32_t>                    mTransactionAgeMap;
+    void triggerNextLedger();
 
     // 0- tx we got during ledger close
     // 1- one ledger ago. Will only validate a vblocking set
@@ -86,8 +86,8 @@ class Herder : public HerderGateway,
     // 3- three or more ledgers ago. Any set we validate must have these tx
     std::vector<std::vector<TransactionFramePtr>>  mReceivedTransactions;
 
-    // need to keep the old tx sets around for at least one Consensus round
-    //  in case some stragglers are still need the old txsets in order to close
+    // need to keep the old tx sets around for at least one Consensus round in
+    // case some stragglers are still need the old txsets in order to close
     std::array<TxSetFetcher, 2>                    mTxSetFetcher;
     int                                            mCurrentTxSetFetcher;
     std::map<Hash, 
@@ -106,6 +106,11 @@ class Herder : public HerderGateway,
 
     int                                            mLedgersToWaitToParticipate;
     LedgerHeader                                   mLastClosedLedger;
+
+    VirtualClock::time_point                       mLastTrigger;
+    VirtualTimer                                   mTriggerTimer;
+
+    VirtualTimer                                   mBumpTimer;
 
     Application&                                   mApp;
 };

@@ -171,7 +171,7 @@ Node::cacheQuorumSet(const FBAQuorumSet& qSet)
     }
 
     while (mCacheCapacity >= 0 && 
-           mCache.size() >= mCacheCapacity) 
+           mCache.size() >= (size_t)mCacheCapacity) 
     {
         assert(mCacheLRU.size() == mCache.size());
         auto it = mCacheLRU.begin();

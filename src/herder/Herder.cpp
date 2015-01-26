@@ -4,7 +4,7 @@
 
 #include "Herder.h"
 
-#include <time.h>
+#include <ctime>
 #include "herder/TxSetFrame.h"
 #include "ledger/LedgerMaster.h"
 #include "overlay/PeerMaster.h"
@@ -35,7 +35,6 @@ quorumSetFromApp(Application& app)
 Herder::Herder(Application& app)
     : FBA(app.getConfig().VALIDATION_KEY.getSeed(),
           quorumSetFromApp(app))
-    , mCollectingTransactionSet(std::make_shared<TxSetFrame>())
     , mReceivedTransactions(4)
 #ifdef _MSC_VER
     // This form of initializer causes a warning due to brace-elision on
@@ -59,6 +58,9 @@ Herder::Herder(Application& app)
     , mCurrentTxSetFetcher(0)
     , mFBAQSetFetcher(app)
     , mLedgersToWaitToParticipate(3)
+    , mLastTrigger(app.getClock().now())
+    , mTriggerTimer(app.getClock())
+    , mBumpTimer(app.getClock())
     , mApp(app)
 {
 }
@@ -74,7 +76,7 @@ Herder::bootstrap()
 
     mLastClosedLedger = mApp.getLedgerMaster().getLastClosedLedgerHeader();
     mLedgersToWaitToParticipate = 0;
-    advanceToNextLedger();
+    triggerNextLedger();
 }
 
 void 
@@ -102,22 +104,8 @@ Herder::validateValue(const uint64& slotIndex,
         {
             return cb(false);
         }
-        // Check closeTime (not too old or too far in the future)
+        // Check closeTime (not too old)
         if (b.closeTime <= mLastClosedLedger.closeTime)
-        {
-            return cb(false);
-        }
-        uint64_t timeNow = time(nullptr);
-        if (b.closeTime > timeNow + MAX_SECONDS_LEDGER_CLOSE_IN_FUTURE)
-        {
-            return cb(false);
-        }
-        // Check baseFee (within range of desired fee).
-        if (b.baseFee < mApp.getConfig().DESIRED_BASE_FEE * .5)
-        {
-            return cb(false);
-        }
-        if (b.baseFee > mApp.getConfig().DESIRED_BASE_FEE * 2)
         {
             return cb(false);
         }
@@ -131,15 +119,6 @@ Herder::validateValue(const uint64& slotIndex,
         {
             CLOG(ERROR, "Herder") << "invalid txSet";
             return cb(false);
-        }
-        // Check we have all the 3-level txs in mReceivedTransactions
-        for (auto tx : mReceivedTransactions[mReceivedTransactions.size() - 1])
-        {
-            if (find(txSet->mTransactions.begin(), txSet->mTransactions.end(),
-                     tx) == txSet->mTransactions.end())
-            {
-                return cb(false);
-            }
         }
         
         return cb(true);
@@ -162,9 +141,61 @@ Herder::validateBallot(const uint64& slotIndex,
                        const FBABallot& ballot,
                        std::function<void(bool)> const& cb)
 {
+    StellarBallot b;
+    try
+    {
+        xdr::xdr_from_opaque(ballot.value, b);
+    }
+    catch (...)
+    {
+        return cb(false);
+    }
+
+    // Check closeTime (not too far in the future)
+    std::tm tmNow = VirtualClock::pointToTm(mApp.getClock().now());
+    uint64_t timeNow = std::mktime(&tmNow);
+    if (b.closeTime > timeNow + MAX_TIME_SLIP_SECONDS)
+    {
+        return cb(false);
+    }
+    // Check baseFee (within range of desired fee).
+    if (b.baseFee < mApp.getConfig().DESIRED_BASE_FEE * .5)
+    {
+        return cb(false);
+    }
+    if (b.baseFee > mApp.getConfig().DESIRED_BASE_FEE * 2)
+    {
+        return cb(false);
+    }
+
     // TODO(spolu) implement ballot validation (goal is to prevent ballot
     //             counter exhaustion attacks)
-    return cb(true);
+
+    // make sure all the tx we have in the old set are included
+    auto validate = [cb,b,this] (TxSetFramePtr txSet)
+    {
+        // Check we have all the 3-level txs in mReceivedTransactions
+        for (auto tx : mReceivedTransactions[mReceivedTransactions.size() - 1])
+        {
+            if (find(txSet->mTransactions.begin(), txSet->mTransactions.end(),
+                     tx) == txSet->mTransactions.end())
+            {
+                return cb(false);
+            }
+        }
+        
+        return cb(true);
+    };
+    
+    TxSetFramePtr txSet = fetchTxSet(b.txSetHash, true);
+    if (!txSet)
+    {
+        mTxSetFetches[b.txSetHash].push_back(validate);
+    }
+    else
+    {
+        validate(txSet);
+    }
 }
 
 void 
@@ -399,16 +430,30 @@ void
 Herder::recvFBAEnvelope(FBAEnvelope envelope,
                         std::function<void(bool)> const& cb)
 {
-    // If we are fully synced and we see envelopes that are from future ledgers
-    // we store them for later replay.
-    if (mLedgersToWaitToParticipate <= 0 &&
-        envelope.slotIndex > mLastClosedLedger.ledgerSeq + 1)
+    if (mLedgersToWaitToParticipate <= 0)
     {
-        mFutureEnvelopes[envelope.slotIndex]
-            .push_back(std::make_pair(envelope, cb));
+        uint64 minLedgerSeq = ((int)mLastClosedLedger.ledgerSeq -
+            LEDGER_VALIDITY_BRACKET) < 0 ? 0 :
+            (mLastClosedLedger.ledgerSeq - LEDGER_VALIDITY_BRACKET);
+        uint64 maxLedgerSeq = mLastClosedLedger.ledgerSeq +
+            LEDGER_VALIDITY_BRACKET;
+
+        // If we are fully synced and the envelopes are out of our validity
+        // brackets, we just ignore them.
+        if(envelope.slotIndex > maxLedgerSeq ||
+           envelope.slotIndex < minLedgerSeq)
+        {
+            return;
+        }
+
+        // If we are fully synced and we see envelopes that are from future
+        // ledgers we store them for later replay.
+        if (envelope.slotIndex > mLastClosedLedger.ledgerSeq + 1)
+        {
+            mFutureEnvelopes[envelope.slotIndex]
+                .push_back(std::make_pair(envelope, cb));
+        }
     }
-    // TODO(spolu) limit on mFutureEnvelopes
-    // TODO(spolu) limit if envelopes are too old
 
     return receiveEnvelope(envelope, cb);
 }
@@ -434,8 +479,22 @@ Herder::ledgerClosed(LedgerHeader& ledger)
         return;
     }
 
-    // TODO(spolu) add a timer before advanceToNextLedger based on closeTime?
-    advanceToNextLedger();
+    // We trigger next ledger EXP_LEDGER_TIMESPAN_SECONDS after our last
+    // trigger.
+    mTriggerTimer.async_wait(std::bind(&Herder::triggerNextLedger, this));
+    
+    auto now = mApp.getClock().now();
+    if ((now - mLastTrigger) < 
+        std::chrono::seconds(EXP_LEDGER_TIMESPAN_SECONDS))
+    {
+        auto timeout = std::chrono::seconds(EXP_LEDGER_TIMESPAN_SECONDS) -
+            (now - mLastTrigger);
+        mTriggerTimer.expires_from_now(timeout);
+    }
+    else 
+    {
+        mTriggerTimer.expires_from_now(std::chrono::nanoseconds(0));
+    }
 }
 
 void
@@ -460,8 +519,11 @@ Herder::removeReceivedTx(TransactionFramePtr dropTx)
 }
 
 void
-Herder::advanceToNextLedger()
+Herder::triggerNextLedger()
 {
+    // We store at which time we triggered consensus
+    mLastTrigger = mApp.getClock().now();
+
     // our first choice for this round's set is all the tx we have collected
     // during last ledger close
     TxSetFramePtr proposedSet = std::make_shared<TxSetFrame>();
@@ -476,11 +538,17 @@ Herder::advanceToNextLedger()
 
     recvTxSet(proposedSet);
 
-    uint64_t nextCloseTime = time(nullptr) + NUM_SECONDS_IN_CLOSE;
-    if (nextCloseTime <= mLastClosedLedger.closeTime)
-        nextCloseTime = mLastClosedLedger.closeTime + 1;
-
     uint64_t slotIndex = mLastClosedLedger.ledgerSeq + 1;
+
+    // We pick as next close time the current time unless it's before the last
+    // close time. We don't know how much time it will take to reach consensus
+    // so this is the most appropriate value to use as closeTime.
+    std::tm nextCloseTm = VirtualClock::pointToTm(mLastTrigger);
+    uint64_t nextCloseTime = std::mktime(&nextCloseTm);
+    if (nextCloseTime <= mLastClosedLedger.closeTime)
+    {
+        nextCloseTime = mLastClosedLedger.closeTime + 1;
+    }
 
     StellarBallot b;
     b.txSetHash = proposedSet->getContentsHash();
