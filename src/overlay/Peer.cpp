@@ -349,7 +349,7 @@ Peer::recvHello(StellarMessage const& msg)
 {
     mRemoteProtocolVersion = msg.hello().protocolVersion;
     mRemoteVersion = msg.hello().versionStr;
-    mRemoteListeningPort = msg.hello().port;
+    mRemoteListeningPort = msg.hello().listeningPort;
     CLOG(INFO, "Overlay") << "recvHello: " << mRemoteProtocolVersion << " "
                           << mRemoteVersion << " " << mRemoteListeningPort;
     mState = GOT_HELLO;

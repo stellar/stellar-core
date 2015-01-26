@@ -18,6 +18,19 @@ using namespace soci;
 
 // TODO.3 some tests
 // TODO.3 detect that we are connected to self
+// TODO.3 flood older msgs to people that connect to you
+
+/*
+Connection process:
+A wants to connect to B
+A initiates a tcp connection to B
+connection is established
+A sends HELLO to B
+B now has IP and listening port of A
+B either:
+    sends HELLO back, or 
+    sends list of other peers to connect to and disconnects
+*/
 
 namespace stellar
 {

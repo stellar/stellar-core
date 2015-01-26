@@ -164,7 +164,7 @@ namespace stellar
 // take ~46 minutes, giving us a safety margin of ~3x.
 //
 // It _does_ mean that at this scale, we will be _doing_ an 83GB sequential
-// read/merge/hash/write every 2.8 hours. That might cause a noticable I/O spike
+// read/merge/hash/write every 2.8 hours. That might cause a noticeable I/O spike
 // and/or some degree of I/O wear. But the hardware should keep up and this is,
 // after all, the 1000 tx/s "great success" situation where we're doing some
 // substantial tuning, having scaled through three orders of magnitude.
