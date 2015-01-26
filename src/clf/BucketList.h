@@ -1,5 +1,4 @@
-#ifndef __BUCKETLIST__
-#define __BUCKETLIST__
+#pragma once
 
 // Copyright 2014 Stellar Development Foundation and contributors. Licensed
 // under the ISC License. See the COPYING file at the top-level directory of
@@ -320,4 +319,4 @@ class BucketList
                   std::vector<LedgerEntry> const& batch);
 };
 }
-#endif
+

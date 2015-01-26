@@ -1,5 +1,4 @@
-#ifndef __PEER__
-#define __PEER__
+#pragma once
 
 // Copyright 2014 Stellar Development Foundation and contributors. Licensed
 // under the ISC License. See the COPYING file at the top-level directory of
@@ -173,4 +172,4 @@ class Peer : public std::enable_shared_from_this<Peer>
 };
 }
 
-#endif
+

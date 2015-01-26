@@ -1,5 +1,4 @@
-#ifndef __BASE58__
-#define __BASE58__
+#pragma once
 
 // Copyright 2014 Stellar Development Foundation and contributors. Licensed
 // under the ISC License. See the COPYING file at the top-level directory of
@@ -54,5 +53,3 @@ extern const std::string bitcoinBase58Alphabet;
 extern const std::string stellarBase58Alphabet;
 
 }
-
-#endif

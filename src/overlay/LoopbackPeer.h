@@ -1,5 +1,4 @@
-#ifndef __LOOPBACKPEER__
-#define __LOOPBACKPEER__
+#pragma once
 
 // Copyright 2014 Stellar Development Foundation and contributors. Licensed
 // under the ISC License. See the COPYING file at the top-level directory of
@@ -109,5 +108,3 @@ class LoopbackPeerConnection
     std::shared_ptr<LoopbackPeer> const& getAcceptor() const;
 };
 }
-
-#endif

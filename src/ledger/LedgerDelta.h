@@ -1,5 +1,4 @@
-#ifndef __LEDGERDELTA__
-#define __LEDGERDELTA__
+#pragma once
 
 #include <map>
 #include "ledger/EntryFrame.h"
@@ -27,4 +26,4 @@ namespace stellar
     };
 }
 
-#endif
+
