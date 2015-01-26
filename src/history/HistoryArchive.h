@@ -1,5 +1,4 @@
-#ifndef __HISTORYARCHIVE__
-#define __HISTORYARCHIVE__
+#pragma once
 
 #include <cereal/cereal.hpp>
 #include <string>
@@ -42,4 +41,4 @@ public:
 
 }
 
-#endif
+

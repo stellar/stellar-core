@@ -1,5 +1,4 @@
-#ifndef __TYPES__
-#define __TYPES__
+#pragma once
 
 // Copyright 2014 Stellar Development Foundation and contributors. Licensed
 // under the ISC License. See the COPYING file at the top-level directory of
@@ -29,4 +28,4 @@ int64_t bigDivide(int64_t A, int64_t B, int64_t C);
 
 }
 
-#endif
+

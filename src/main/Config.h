@@ -1,5 +1,4 @@
-#ifndef __CONFIG__
-#define __CONFIG__
+#pragma once
 
 #include "generated/StellarXDR.h"
 #include <string>
@@ -57,4 +56,4 @@ class Config : public std::enable_shared_from_this<Config>
 };
 }
 
-#endif
+

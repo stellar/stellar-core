@@ -1,5 +1,4 @@
-#ifndef __SHA__
-#define __SHA__
+#pragma once
 
 // Copyright 2014 Stellar Development Foundation and contributors. Licensed
 // under the ISC License. See the COPYING file at the top-level directory of
@@ -33,5 +32,3 @@ public:
 };
 
 }
-
-#endif
