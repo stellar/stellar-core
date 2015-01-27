@@ -97,7 +97,7 @@ Herder::validateValue(const uint64& slotIndex,
 
     // All tests that are relative to mLastClosedLedger are executed only once
     // we are fully synced up
-    if (mLedgersToWaitToParticipate <= 0)
+    if (mLedgersToWaitToParticipate == 0)
     {
         // Check slotIndex.
         if (mLastClosedLedger.ledgerSeq + 1 != slotIndex)
@@ -115,7 +115,7 @@ Herder::validateValue(const uint64& slotIndex,
     auto validate = [cb,b,this] (TxSetFramePtr txSet)
     {
         // Check txSet (only if we're fully synced)
-        if(mLedgersToWaitToParticipate <= 0 && !txSet->checkValid(mApp))
+        if(mLedgersToWaitToParticipate == 0 && !txSet->checkValid(mApp))
         {
             CLOG(ERROR, "Herder") << "invalid txSet";
             return cb(false);
@@ -430,7 +430,7 @@ void
 Herder::recvFBAEnvelope(FBAEnvelope envelope,
                         std::function<void(bool)> const& cb)
 {
-    if (mLedgersToWaitToParticipate <= 0)
+    if (mLedgersToWaitToParticipate == 0)
     {
         uint64 minLedgerSeq = ((int)mLastClosedLedger.ledgerSeq -
             LEDGER_VALIDITY_BRACKET) < 0 ? 0 :

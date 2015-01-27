@@ -104,7 +104,7 @@ class Herder : public HerderGateway,
             std::pair<FBAEnvelope, 
                       std::function<void(bool)>>>> mFutureEnvelopes;
 
-    int                                            mLedgersToWaitToParticipate;
+    unsigned                                       mLedgersToWaitToParticipate;
     LedgerHeader                                   mLastClosedLedger;
 
     VirtualClock::time_point                       mLastTrigger;
