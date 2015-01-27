@@ -31,48 +31,36 @@ quorumSetFromApp(Application& app)
     return qSet;
 }
 
-
+// TODO. probably want to just use SecretKey in FBA ?
 Herder::Herder(Application& app)
-    : FBA(app.getConfig().VALIDATION_SEED,
-          quorumSetFromApp(app))
+    : FBA(app.getConfig().VALIDATION_KEY.getSeed(),
+        quorumSetFromApp(app))
     , mCollectingTransactionSet(std::make_shared<TxSetFrame>())
     , mReceivedTransactions(4)
 #ifdef _MSC_VER
     // This form of initializer causes a warning due to brace-elision on
     // clang.
-    , mTxSetFetcher({TxSetFetcher(app), TxSetFetcher(app)})
+    , mTxSetFetcher({ TxSetFetcher(app), TxSetFetcher(app) })
 #else
     // This form of initializer is "not implemented" in MSVC yet.
     , mTxSetFetcher
-      {
-          {
-              {
-                  TxSetFetcher(app)
-              }
-              ,
-              {
-                  TxSetFetcher(app)
-              }
-          }
-      }
+{
+    {
+        {
+            TxSetFetcher(app)
+        }
+        ,
+        {
+            TxSetFetcher(app)
+        }
+    }
+}
 #endif
     , mCurrentTxSetFetcher(0)
     , mFBAQSetFetcher(app)
     , mLedgersToWaitToParticipate(3)
     , mApp(app)
 {
-    FBAQuorumSet qSetLocal;
-    qSetLocal.threshold = app.getConfig().QUORUM_THRESHOLD;
-    for (auto q : app.getConfig().QUORUM_SET)
-    {
-        qSetLocal.validators.push_back(q);
-    }
-
-    // TODO. probably want to just use SecretKey in FBA ?
-    mFBA = new FBA(app.getConfig().VALIDATION_KEY.getSeed(),
-                   qSetLocal,
-                   this);
-
 }
 
 Herder::~Herder()
