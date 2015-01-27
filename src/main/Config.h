@@ -4,6 +4,7 @@
 #include <string>
 #include <memory>
 #include <map>
+#include "crypto/SecretKey.h"
 
 // Copyright 2014 Stellar Development Foundation and contributors. Licensed
 // under the ISC License. See the COPYING file at the top-level directory of
@@ -33,6 +34,8 @@ class Config : public std::enable_shared_from_this<Config>
 
     // overlay config
     int PEER_PORT;
+    SecretKey PEER_KEY;
+    PublicKey PEER_PUBLIC_KEY;
     unsigned TARGET_PEER_CONNECTIONS;
     unsigned MAX_PEER_CONNECTIONS;
     // Peers we will always try to stay connected to
@@ -40,7 +43,7 @@ class Config : public std::enable_shared_from_this<Config>
     std::vector<std::string> KNOWN_PEERS;
 
     // FBA config
-    uint256 VALIDATION_SEED;
+    SecretKey VALIDATION_KEY;
     int QUORUM_THRESHOLD;
     std::vector<uint256> QUORUM_SET;
 

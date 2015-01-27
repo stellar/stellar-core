@@ -14,6 +14,8 @@ static_assert(crypto_sign_PUBLICKEYBYTES == sizeof(uint256), "Unexpected public 
 static_assert(crypto_sign_SECRETKEYBYTES == sizeof(uint512), "Unexpected secret key length");
 static_assert(crypto_sign_BYTES == sizeof(uint512), "Unexpected signature length");
 
+
+
 bool
 PublicKey::verify(uint512 const& signature, ByteSlice const& bin) const
 {
@@ -31,9 +33,7 @@ bool PublicKey::verifySig(const uint256& key, uint512 const& signature, ByteSlic
         key.data()) == 0;
 }
 
-SecretKey::SecretKey()
-{
-}
+//////////////////////////////////////////////////////////////////////////
 
 PublicKey
 SecretKey::getPublicKey() const
@@ -46,15 +46,20 @@ SecretKey::getPublicKey() const
     return pk;
 }
 
-std::string
-SecretKey::getBase58Seed() const
+uint256 SecretKey::getSeed() const
 {
     uint256 seed;
-    if (crypto_sign_ed25519_sk_to_seed(seed.data(), data()) != 0)
+    if(crypto_sign_ed25519_sk_to_seed(seed.data(), data()) != 0)
     {
         throw std::runtime_error("error extracting seed from secret key");
     }
-    return toBase58Check(VER_SEED, seed);
+    return seed;
+}
+
+std::string
+SecretKey::getBase58Seed() const
+{
+    return toBase58Check(VER_SEED, getSeed());
 }
 
 std::string SecretKey::getBase58Public() const

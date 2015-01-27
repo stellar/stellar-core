@@ -19,9 +19,9 @@ struct PublicKey : public uint256
 
 class SecretKey : public uint512
 {
-    SecretKey();
 public:
     PublicKey getPublicKey() const;
+    uint256 getSeed() const;
     std::string getBase58Seed() const;
     std::string getBase58Public() const;
 

@@ -61,6 +61,18 @@ Herder::Herder(Application& app)
     , mLedgersToWaitToParticipate(3)
     , mApp(app)
 {
+    FBAQuorumSet qSetLocal;
+    qSetLocal.threshold = app.getConfig().QUORUM_THRESHOLD;
+    for (auto q : app.getConfig().QUORUM_SET)
+    {
+        qSetLocal.validators.push_back(q);
+    }
+
+    // TODO. probably want to just use SecretKey in FBA ?
+    mFBA = new FBA(app.getConfig().VALIDATION_KEY.getSeed(),
+                   qSetLocal,
+                   this);
+
 }
 
 Herder::~Herder()
