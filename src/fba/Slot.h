@@ -35,7 +35,7 @@ class Slot
                       bool forceBump = false);
 
   private:
-    // bumps to the specified ballot emitting a ballotDidAbort if needed
+    // bumps to the specified ballot
     void bumpToBallot(const FBABallot& ballot);
 
     // Helper methods to generate a new envelopes
@@ -75,25 +75,28 @@ class Slot
     // knownledge of this node. 
     void advanceSlot();
 
-    const uint64                                               mSlotIndex;
-    FBA*                                                       mFBA;
+    const uint64                                            mSlotIndex;
+    FBA*                                                    mFBA;
 
-    // mBallot is the current ballot (monotically increasing)
-    FBABallot                                                  mBallot;
+    // mBallot is the current ballot (monotically increasing). 
+    FBABallot                                               mBallot;
+    // mIsPristine is true while we never bump our ballot (mBallot invalid)
+    bool                                                    mIsPristine;
 
-    bool                                                       mIsPristine;
-    bool                                                       mIsCommitted;
-    bool                                                       mIsExternalized;
+    bool                                                    mHeardFromQuorum;
+    bool                                                    mIsCommitted;
+    bool                                                    mIsExternalized;
 
-    bool                                                       mInAdvanceSlot;
-    bool                                                       mRunAdvanceSlot;
+    bool                                                    mInAdvanceSlot;
+    bool                                                    mRunAdvanceSlot;
 
     // mStatements keep track of all statements seen so far for this slot.
+    // FBABallot -> FBAStatementType -> uint256 -> FBAStatement
     struct StatementMap : 
         public std::map<uint256, FBAStatement> {};
     struct StatementTypeMap : 
         public std::map<FBAStatementType, StatementMap> {};
-    std::map<FBABallot, StatementTypeMap>                      mStatements;
+    std::map<FBABallot, StatementTypeMap>                   mStatements;
 
     friend class Node;
 };

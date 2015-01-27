@@ -65,6 +65,7 @@ Slot::Slot(const uint64& slotIndex,
     : mSlotIndex(slotIndex)
     , mFBA(FBA)
     , mIsPristine(true)
+    , mHeardFromQuorum(true)
     , mIsCommitted(false)
     , mIsExternalized(false)
     , mInAdvanceSlot(false)
@@ -108,7 +109,7 @@ Slot::processEnvelope(const FBAEnvelope& envelope,
                 }
 
                 // If a new higher ballot has been issued, let's move on to it.
-                if (compareBallots(b, mBallot) > 0 || isPristine())
+                if (mIsPristine || compareBallots(b, mBallot) > 0)
                 {
                     bumpToBallot(b);
                 }
@@ -209,7 +210,7 @@ Slot::prepareValue(const Value& value,
     {
         return false;
     }
-    else if (isPristine() || mFBA->compareValues(mBallot.value, value) < 0)
+    else if (mIsPristine || mFBA->compareValues(mBallot.value, value) < 0)
     {
         bumpToBallot(FBABallot(mBallot.counter, value));
     }
@@ -225,14 +226,12 @@ Slot::prepareValue(const Value& value,
 void 
 Slot::bumpToBallot(const FBABallot& ballot)
 {
+    // `bumpToBallot` should be never called once we committed.
+    assert(!mIsCommitted && !mIsExternalized);
+
     LOG(INFO) << "Slot::bumpToBallot" 
               << "@" << binToHex(mFBA->getLocalNodeID()).substr(0,6)
               << " " << ballotToStr(ballot);
-
-    if (!isPristine())
-    {
-        mFBA->ballotDidAbort(mSlotIndex, mBallot);
-    }
 
     // We shouldnt have emitted any prepare message for this ballot or any
     // other higher ballot.
@@ -246,7 +245,8 @@ Slot::bumpToBallot(const FBABallot& ballot)
 
     mBallot = ballot;
 
-    mIsPristine = true;
+    mIsPristine = false;
+    mHeardFromQuorum = false;
 }
 
 
@@ -316,7 +316,6 @@ Slot::attemptPrepare()
         statement.pledges.prepare().excepted.push_back(s.ballot);
     }
 
-    mIsPristine = false;
     mFBA->ballotDidPrepare(mSlotIndex, mBallot);
 
     FBAEnvelope envelope = createEnvelope(statement);
@@ -345,11 +344,6 @@ Slot::attemptPrepared(const FBABallot& ballot)
     FBAStatement statement = createStatement(FBAStatementType::PREPARED);
     statement.ballot = ballot;
 
-    if (ballot == mBallot)
-    {
-        mIsPristine = false;
-    }
-
     FBAEnvelope envelope = createEnvelope(statement);
     auto cb = [envelope,this] (bool valid)
     {
@@ -374,7 +368,6 @@ Slot::attemptCommit()
 
     FBAStatement statement = createStatement(FBAStatementType::COMMIT);
 
-    mIsPristine = false;
     mFBA->ballotDidCommit(mSlotIndex, mBallot);
 
     FBAEnvelope envelope = createEnvelope(statement);
@@ -402,7 +395,7 @@ Slot::attemptCommitted()
     FBAStatement statement = createStatement(FBAStatementType::COMMITTED);
 
     mIsCommitted = true;
-    mIsPristine = false;
+    mFBA->ballotDidCommitted(mSlotIndex, mBallot);
 
     FBAEnvelope envelope = createEnvelope(statement);
     auto cb = [envelope,this] (bool valid)
@@ -424,15 +417,8 @@ Slot::attemptExternalize()
               << " " << ballotToStr(mBallot);
 
     mIsExternalized = true;
-    mIsPristine = false;
 
     mFBA->valueExternalized(mSlotIndex, mBallot.value);
-}
-
-bool
-Slot::isPristine()
-{
-    return mIsPristine;
 }
 
 bool 
@@ -568,7 +554,6 @@ Slot::isCommitted(const FBABallot& ballot)
 bool 
 Slot::isCommittedConfirmed(const Value& value)
 {
-    // TODO Extract ballots for value
     std::map<uint256, FBAStatement> statements;
     for (auto it : mStatements)
     {
@@ -642,35 +627,41 @@ Slot::advanceSlot()
                    << "@" << binToHex(mFBA->getLocalNodeID()).substr(0,6)
                    << " " << ballotToStr(mBallot);
 
-        // If we're pristine we pick the first ballot we find and advance the
-        // protocol.
-        if (isPristine()) 
-        { 
-            attemptPrepare(); 
-        }
-
-        if (isPrepared(mBallot))
+        // If we're pristine, we haven't set `mBallot` yet so we just skip
+        // to the search for conditions to bump our ballot
+        if (!mIsPristine)
         {
-            attemptPrepared(mBallot); 
-        }
-
-        // If our current ballot is prepared confirmed we can move onto the
-        // commit phase
-        if (isPreparedConfirmed(mBallot))
-        {
-            attemptCommit();
-
-            if (isCommitted(mBallot))
+            if (!mIsCommitted)
             {
-                attemptCommitted();
-            }
-        }
+                attemptPrepare(); 
+        
+                if (isPrepared(mBallot))
+                {
+                    attemptPrepared(mBallot); 
+                }
 
-        // If our current ballot is committed and we can confirm the value then
-        // we externalize
-        if (mIsCommitted && isCommittedConfirmed(mBallot.value)) 
-        {
-            attemptExternalize(); 
+                // If our current ballot is prepared confirmed we can move onto
+                // the commit phase
+                if (isPreparedConfirmed(mBallot))
+                {
+                    attemptCommit();
+
+                    if (isCommitted(mBallot))
+                    {
+                        attemptCommitted();
+                    }
+                }
+            }
+            else
+            {
+                // If our current ballot is committed and we can confirm the
+                // value then we externalize
+                if (isCommittedConfirmed(mBallot.value)) 
+                {
+                    attemptExternalize(); 
+                }
+            }
+
         }
 
         // We loop on all known ballots to check if there are conditions that
@@ -744,6 +735,26 @@ Slot::advanceSlot()
             }
         }
 
+        // Check if we can call `ballotDidHearFromQuorum`
+        if (!mHeardFromQuorum)
+        {
+            std::map<uint256, FBAStatement> allStatements;
+            for (auto tp : mStatements[mBallot])
+            {
+                for (auto np : tp.second)
+                {
+                    allStatements[np.first] = np.second;
+                }
+            }
+            if (mFBA->getLocalNode()->isQuorumTransitive<FBAStatement>(
+                    mFBA->getLocalNode()->getQuorumSetHash(),
+                    allStatements,
+                    [] (const FBAStatement& s) { return s.quorumSetHash; }))
+            {
+                mHeardFromQuorum = true;
+                mFBA->ballotDidHearFromQuorum(mSlotIndex, mBallot);
+            }
+        }
     }
     catch(Node::QuorumSetNotFound e)
     {
