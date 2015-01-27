@@ -14,88 +14,11 @@
 #include "crypto/Hex.h"
 #include "crypto/Random.h"
 #include "util/XDRStream.h"
+#include "clf/LedgerCmp.h"
 #include <cassert>
 
 namespace stellar
 {
-
-/**
- * Compare two LedgerEntries for 'identity', not content.
- *
- * LedgerEntries are identified iff they have:
- *
- *   - The same type
- *     - If accounts, then with same accountID
- *     - If trustlines, then with same (accountID, currency) pair
- *     - If offers, then with same (accountID, sequence) pair
- */
-struct
-LedgerEntryIdCmp
-{
-    bool operator()(LedgerEntry const& a,
-                    LedgerEntry const& b) const
-    {
-        LedgerType aty = a.type();
-        LedgerType bty = b.type();
-
-        if (aty < bty)
-            return true;
-
-        if (aty > bty)
-            return false;
-
-        switch (aty)
-        {
-        case NONE:
-            return false;
-
-        case ACCOUNT:
-            return a.account().accountID < b.account().accountID;
-
-        case TRUSTLINE:
-        {
-            TrustLineEntry const& atl = a.trustLine();
-            TrustLineEntry const& btl = b.trustLine();
-            if (atl.accountID < btl.accountID)
-                return true;
-            if (atl.accountID > btl.accountID)
-                return false;
-            {
-                using xdr::operator<;
-                return atl.currency < btl.currency;
-            }
-        }
-
-        case OFFER:
-        {
-            OfferEntry const& aof = a.offer();
-            OfferEntry const& bof = b.offer();
-            if (aof.accountID < bof.accountID)
-                return true;
-            if (aof.accountID > bof.accountID)
-                return false;
-            return aof.sequence < bof.sequence;
-        }
-        }
-        return false;
-    }
-};
-
-/**
- * Compare two CLFEntries for identity by comparing their respective
- * LedgerEntries (ignoring their hashes, as the LedgerEntryIdCmp ignores their
- * bodies).
- */
-struct
-CLFEntryIdCmp
-{
-    LedgerEntryIdCmp mCmp;
-    bool operator()(CLFEntry const& a,
-                    CLFEntry const& b) const
-    {
-            return mCmp(a.entry, b.entry);
-    }
-};
 
 static std::string
 randomBucketName()
@@ -190,8 +113,8 @@ Bucket::fresh(std::vector<LedgerEntry> const& entries)
     for (auto const& e : entries)
     {
         CLFEntry ce;
-        ce.entry = e;
-        ce.hash = sha512_256(xdr::xdr_to_msg(e));
+        ce.entry.liveEntry() = e;
+        ce.hash = sha512_256(xdr::xdr_to_msg(ce.entry));
         clfEntries.push_back(ce);
     }
 
