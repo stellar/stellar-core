@@ -60,6 +60,7 @@ public:
                                         time_point;
     static const bool is_steady       = true;
 
+    static std::time_t pointToTimeT(time_point);
     static std::tm pointToTm(time_point);
     static std::string tmToISOString(std::tm const& tm);
     static std::string pointToISOString(time_point point);

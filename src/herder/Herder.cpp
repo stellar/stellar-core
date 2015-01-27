@@ -152,8 +152,7 @@ Herder::validateBallot(const uint64& slotIndex,
     }
 
     // Check closeTime (not too far in the future)
-    std::tm tmNow = VirtualClock::pointToTm(mApp.getClock().now());
-    uint64_t timeNow = std::mktime(&tmNow);
+    uint64_t timeNow = VirtualClock::pointToTimeT(mApp.getClock().now());
     if (b.closeTime > timeNow + MAX_TIME_SLIP_SECONDS)
     {
         return cb(false);
@@ -543,8 +542,7 @@ Herder::triggerNextLedger()
     // We pick as next close time the current time unless it's before the last
     // close time. We don't know how much time it will take to reach consensus
     // so this is the most appropriate value to use as closeTime.
-    std::tm nextCloseTm = VirtualClock::pointToTm(mLastTrigger);
-    uint64_t nextCloseTime = std::mktime(&nextCloseTm);
+    uint64_t nextCloseTime = VirtualClock::pointToTimeT(mLastTrigger);
     if (nextCloseTime <= mLastClosedLedger.closeTime)
     {
         nextCloseTime = mLastClosedLedger.closeTime + 1;

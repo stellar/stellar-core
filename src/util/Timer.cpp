@@ -27,14 +27,20 @@ VirtualClock::next()
     }
 }
 
-std::tm
-VirtualClock::pointToTm(time_point point)
+std::time_t 
+VirtualClock::pointToTimeT(time_point point)
 {
-    std::tm out;
-    std::time_t rawtime =
+    return
         static_cast<std::time_t>(
             std::chrono::duration_cast<std::chrono::seconds>(
                 point.time_since_epoch()).count());
+}
+
+std::tm
+VirtualClock::pointToTm(time_point point)
+{
+    std::time_t rawtime = pointToTimeT(point);
+    std::tm out;
 #ifdef _WIN32
     // On Win32 this is returns a thread-local and there's no _r variant.
     std::tm *tmPtr = gmtime(&rawtime);
