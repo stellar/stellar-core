@@ -17,13 +17,13 @@ typedef std::shared_ptr<TransactionFrame> TransactionFramePtr;
 
 class TxSetFrame
 {
-    uint256 mHash;
+    Hash mHash;
 
   public:
     typedef std::shared_ptr<TxSetFrame> pointer;
 
     std::vector<TransactionFramePtr> mTransactions;
-    uint256                     mPreviousLedgerHash;
+    Hash                             mPreviousLedgerHash;
 
     TxSetFrame();
     // make it from the wire

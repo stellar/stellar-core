@@ -45,12 +45,15 @@ class Herder : public HerderGateway,
                        const uint256& nodeID,
                        const Value& value,
                        std::function<void(bool)> const& cb);
-
     void validateBallot(const uint64& slotIndex,
                         const uint256& nodeID,
                         const FBABallot& ballot,
                         std::function<void(bool)> const& cb);
 
+    void ballotDidPrepared(const uint64& slotIndex,
+                           const FBABallot& ballot);
+    void ballotDidHearFromQuorum(const uint64& slotIndex,
+                                 const FBABallot& ballot);
     void valueExternalized(const uint64& slotIndex,
                            const Value& value);
 
@@ -78,7 +81,10 @@ class Herder : public HerderGateway,
     
   private:
     void removeReceivedTx(TransactionFramePtr tx);
-    void triggerNextLedger();
+    void triggerNextLedger(const asio::error_code& ec);
+    void expireBallot(const asio::error_code& ec, 
+                      const uint64& slotIndex,
+                      const FBABallot& ballot);
 
     // 0- tx we got during ledger close
     // 1- one ledger ago. Will only validate a vblocking set
@@ -111,6 +117,7 @@ class Herder : public HerderGateway,
     VirtualTimer                                   mTriggerTimer;
 
     VirtualTimer                                   mBumpTimer;
+    Value                                          mBumpValue;
 
     Application&                                   mApp;
 };

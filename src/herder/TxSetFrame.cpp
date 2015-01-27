@@ -30,16 +30,20 @@ TxSetFrame::TxSetFrame(TransactionSet const& xdrSet)
 
 struct HashTxSorter
 {
-    bool operator () (const TransactionFramePtr & tx1, const TransactionFramePtr & tx2)
+    bool 
+    operator () (const TransactionFramePtr & tx1, 
+                 const TransactionFramePtr & tx2)
     {
-        // need to use the hash of whole tx here since multiple txs could have the same Contents
+        // need to use the hash of whole tx here since multiple txs could have
+        // the same Contents
         return tx1->getFullHash() < tx2->getFullHash();
     }
 };
 
 // order the txset correctly
 // must take into account multiple tx from same account
-void TxSetFrame::sortForHash()
+void 
+TxSetFrame::sortForHash()
 {
     std::sort(mTransactions.begin(), mTransactions.end(), HashTxSorter());
 }
@@ -48,9 +52,13 @@ struct ApplyTxSorter
 {
     Hash const& mSetHash;
     ApplyTxSorter(Hash const& h) : mSetHash(h) {}
-    bool operator () (const TransactionFramePtr & tx1, const TransactionFramePtr & tx2)
+
+    bool 
+    operator () (const TransactionFramePtr & tx1, 
+                 const TransactionFramePtr & tx2)
     {
-        // need to use the hash of whole tx here since multiple txs could have the same Contents
+        // need to use the hash of whole tx here since multiple txs could have
+        // the same Contents
         Hash h1 = tx1->getFullHash();
         Hash h2 = tx2->getFullHash();
         Hash v1,v2;
@@ -66,13 +74,16 @@ struct ApplyTxSorter
 
 struct SeqSorter
 {
-    bool operator () (const TransactionFramePtr & tx1, const TransactionFramePtr & tx2)
+    bool 
+    operator () (const TransactionFramePtr & tx1, 
+                 const TransactionFramePtr & tx2)
     {
         return tx1->getSeqNum() < tx2->getSeqNum();
     }
 };
 
-void TxSetFrame::sortForApply(vector<TransactionFramePtr>& retList)
+void 
+TxSetFrame::sortForApply(vector<TransactionFramePtr>& retList)
 {
     vector< vector<TransactionFramePtr>> txLevels(4);
     map<uint256, vector<TransactionFramePtr>> accountTxMap;
@@ -80,7 +91,7 @@ void TxSetFrame::sortForApply(vector<TransactionFramePtr>& retList)
     // sort all the txs by seqnum
     std::sort(retList.begin(), retList.end(), SeqSorter());
     size_t maxLevel = 0;
-    for(auto tx : retList)
+    for (auto tx : retList)
     {
         auto &v = accountTxMap[tx->getSourceID()];
 
@@ -101,11 +112,11 @@ void TxSetFrame::sortForApply(vector<TransactionFramePtr>& retList)
 
     retList.clear();
    
-    for(auto level : txLevels)
+    for (auto level : txLevels)
     {
         ApplyTxSorter s(getContentsHash());
         std::sort(level.begin(), level.end(), s);
-        for(auto tx : level)
+        for (auto tx : level)
         {
             retList.push_back(tx);
         }
@@ -113,18 +124,26 @@ void TxSetFrame::sortForApply(vector<TransactionFramePtr>& retList)
 }
 
 // need to make sure every account that is submitting a tx has enough to pay 
-//  the fees of all the tx it has submitted in this set
+// the fees of all the tx it has submitted in this set
 // check seq num
 bool 
 TxSetFrame::checkValid(Application& app)
 {
-    // TODO(spolu) check lastLedgerHash
+    using xdr::operator==;
+
+    // Start by checking previousLedgerHash
+    if (app.getLedgerMaster().getLastClosedLedgerHeader().hash !=
+        mPreviousLedgerHash)
+    {
+        return false;
+    }
     
-    // don't consider minBalance since you want to allow them to still send around credit etc
+    // don't consider minBalance since you want to allow them to still send
+    // around credit etc
     map<uint256, vector<TransactionFramePtr>> accountTxMap;
 
     Hash lastHash;
-    for(auto tx : mTransactions)
+    for (auto tx : mTransactions)
     {
         // make sure the set is sorted correctly
         if(tx->getFullHash() < lastHash) return false;
@@ -132,28 +151,38 @@ TxSetFrame::checkValid(Application& app)
         lastHash = tx->getFullHash();
     }
 
-    for(auto item : accountTxMap)
+    for (auto item : accountTxMap)
     {
         TransactionFramePtr first;
-        for(auto tx : item.second)
+        for (auto tx : item.second)
         {
-            if(!first)
+            if (!first)
             {    
-                if(!tx->loadAccount(app)) return false;
+                if (!tx->loadAccount(app)) return false;
                 
                 // make sure account can pay the fee for all these tx
-                if(tx->getSourceAccount().getBalance() < 
-                    (static_cast<int64_t>(xdr::size32(item.second.size())) * app.getLedgerGateway().getTxFee()))
-					return false;
-            } else
+                if (tx->getSourceAccount().getBalance() < 
+                    (static_cast<int64_t>(xdr::size32(item.second.size())) * 
+                                          app.getLedgerGateway().getTxFee()))
+                {
+                    return false;
+                }
+            } 
+            else
             {
                 tx->getSourceAccount() = first->getSourceAccount();
             }
             
-            if(tx->getSeqNum() < tx->getSourceAccount().getSeqNum() + 1) return false;
+            if (tx->getSeqNum() < tx->getSourceAccount().getSeqNum() + 1) 
+            {
+                return false;
+            }
             first = tx;
 
-            if(!tx->checkValid(app)) return false;
+            if (!tx->checkValid(app)) 
+            {
+                return false;
+            }
         }
     }
     return true;
@@ -166,11 +195,10 @@ TxSetFrame::getContentsHash()
     {
         sortForHash();
         SHA512_256 hasher;
-        for(unsigned int n = 0; n < mTransactions.size(); n++)
+        for (unsigned int n = 0; n < mTransactions.size(); n++)
         {
             hasher.add(xdr::xdr_to_msg(mTransactions[n]->getEnvelope()));
         }
-
         mHash = hasher.finish();
     }
     return mHash;

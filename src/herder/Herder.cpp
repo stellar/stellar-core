@@ -5,6 +5,7 @@
 #include "Herder.h"
 
 #include <ctime>
+#include "math.h"
 #include "herder/TxSetFrame.h"
 #include "ledger/LedgerMaster.h"
 #include "overlay/PeerMaster.h"
@@ -76,7 +77,7 @@ Herder::bootstrap()
 
     mLastClosedLedger = mApp.getLedgerMaster().getLastClosedLedgerHeader();
     mLedgersToWaitToParticipate = 0;
-    triggerNextLedger();
+    triggerNextLedger(asio::error_code());
 }
 
 void 
@@ -157,6 +158,23 @@ Herder::validateBallot(const uint64& slotIndex,
     {
         return cb(false);
     }
+
+    // Check the ballot counter is not growing too rapidly. We ignore ballots
+    // that were triggered before the expected series of timeouts (accepting
+    // MAX_TIME_SLIP_SECONDS as error). This prevents ballot counter
+    // exhaustion attacks.
+    uint64_t lastTrigger = VirtualClock::pointToTimeT(mLastTrigger);
+    uint64_t sumTimeouts = 0;
+    for (int i = 0; i <= ballot.counter; i ++)
+    {
+        sumTimeouts += std::min(MAX_FBA_TIMEOUT_SECONDS, (int)pow(2.0, i));
+    }
+    // This inequality is effectively a limitation on `ballot.counter`
+    if (timeNow < lastTrigger + sumTimeouts + MAX_TIME_SLIP_SECONDS)
+    {
+        return cb(false);
+    }
+
     // Check baseFee (within range of desired fee).
     if (b.baseFee < mApp.getConfig().DESIRED_BASE_FEE * .5)
     {
@@ -166,9 +184,6 @@ Herder::validateBallot(const uint64& slotIndex,
     {
         return cb(false);
     }
-
-    // TODO(spolu) implement ballot validation (goal is to prevent ballot
-    //             counter exhaustion attacks)
 
     // make sure all the tx we have in the old set are included
     auto validate = [cb,b,this] (TxSetFramePtr txSet)
@@ -198,9 +213,53 @@ Herder::validateBallot(const uint64& slotIndex,
 }
 
 void 
+Herder::ballotDidPrepared(const uint64& slotIndex,
+                          const FBABallot& ballot)
+{
+    // If we're not fully synced, we just don't timeout FBA, so no need to
+    // store mBumpValue
+    if (mLedgersToWaitToParticipate > 0)
+    {
+        return;
+    }
+    // Only validated values (current) values should trigger this.
+    assert(slotIndex != mLastClosedLedger.ledgerSeq + 1);
+
+    // We keep around the maximal value that prepared.
+    if (compareValues(mBumpValue, ballot.value) < 0)
+    {
+        mBumpValue = ballot.value;
+    }
+}
+
+void
+Herder::ballotDidHearFromQuorum(const uint64& slotIndex,
+                                const FBABallot& ballot)
+{
+    // If we're not fully synced, we just don't timeout FBA.
+    if (mLedgersToWaitToParticipate > 0)
+    {
+        return;
+    }
+    // Only validated values (current) values should trigger this.
+    assert(slotIndex != mLastClosedLedger.ledgerSeq + 1);
+
+    mBumpTimer.cancel();
+
+    // Once we hear from a transitive quorum, we start a timer in case FBA
+    // timeouts.
+    mBumpTimer.async_wait(std::bind(&Herder::expireBallot, this, 
+                                    std::placeholders::_1, 
+                                    slotIndex, ballot));
+    mBumpTimer.expires_from_now(
+        std::chrono::seconds((int)pow(2.0, ballot.counter)));
+}
+
+void 
 Herder::valueExternalized(const uint64& slotIndex,
                           const Value& value)
 {
+    mBumpTimer.cancel();
     StellarBallot b;
     try
     {
@@ -480,7 +539,9 @@ Herder::ledgerClosed(LedgerHeader& ledger)
 
     // We trigger next ledger EXP_LEDGER_TIMESPAN_SECONDS after our last
     // trigger.
-    mTriggerTimer.async_wait(std::bind(&Herder::triggerNextLedger, this));
+    mTriggerTimer.cancel();
+    mTriggerTimer.async_wait(std::bind(&Herder::triggerNextLedger, this,
+                                       std::placeholders::_1));
     
     auto now = mApp.getClock().now();
     if ((now - mLastTrigger) < 
@@ -518,8 +579,10 @@ Herder::removeReceivedTx(TransactionFramePtr dropTx)
 }
 
 void
-Herder::triggerNextLedger()
+Herder::triggerNextLedger(const asio::error_code& error)
 {
+    assert(!error);
+    
     // We store at which time we triggered consensus
     mLastTrigger = mApp.getClock().now();
 
@@ -553,15 +616,33 @@ Herder::triggerNextLedger()
     b.closeTime = nextCloseTime;
     b.baseFee = mApp.getConfig().DESIRED_BASE_FEE;
 
-    prepareValue(slotIndex, xdr::xdr_to_opaque(b));
+    Value x = xdr::xdr_to_opaque(b);
+    mBumpValue = x;
+    prepareValue(slotIndex, x);
 
     for (auto p : mFutureEnvelopes[slotIndex])
     {
         recvFBAEnvelope(p.first, p.second);
     }
     mFutureEnvelopes.erase(slotIndex);
-
-    // TODO(spolu) timer mechanism if we haven't externalized
 }
+
+void
+Herder::expireBallot(const asio::error_code& error,
+                     const uint64& slotIndex,
+                     const FBABallot& ballot)
+                     
+{
+    // The timer was simply cancelled, nothing to do.
+    if (error == asio::error::operation_aborted)
+    {
+        return;
+    }
+
+    assert(slotIndex == mLastClosedLedger.ledgerSeq + 1);
+
+    prepareValue(slotIndex, mBumpValue, true);
+}
+
 
 }

@@ -138,7 +138,7 @@ struct CLFBucket
 
 struct TransactionSet
 {
-    uint256 previousLedgerHash;
+    Hash previousLedgerHash;
     TransactionEnvelope txs<>;
 };
 

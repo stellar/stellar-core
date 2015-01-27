@@ -147,11 +147,6 @@ class FBA
     // Local nodeID getter
     const uint256& getLocalNodeID();
 
-  protected:
-    // Retrieves the highest prepared value for the specified slot.
-    // TODO(spolu) highestPreparedValue
-    // Value highestPreparedValue(const uint64& slotIndex);
-
 
   private:
     // Node getter
