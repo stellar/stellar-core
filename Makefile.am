@@ -37,14 +37,14 @@ FMT_SRCS = src/clf/BucketList.cpp src/clf/CLFMaster.cpp src/clf/CLFTests.cpp    
     src/transactions/TxTests.cpp
 
 
-FMT_HDRS = src/clf/BucketList.h src/clf/CLFMaster.h src/crypto/Base58.h         \
-    src/crypto/Hex.h src/crypto/SHA.h src/crypto/SecretKey.h                    \
-    src/crypto/Random.h src/database/Database.h src/fba/FBA.h src/fba/Slot.h    \
-    src/fba/Node.h src/fba/LocalNode.h src/history/HistoryArchive.h             \
-    src/history/HistoryGateway.h src/history/HistoryMaster.h                    \
-    src/ledger/AccountFrame.h src/ledger/EntryFrame.h src/ledger/LedgerDelta.h  \
-    src/ledger/LedgerGateway.h src/ledger/LedgerMaster.h                        \
-    src/ledger/OfferFrame.h src/ledger/TrustFrame.h                             \
+FMT_HDRS = src/clf/BucketList.h src/clf/LedgerCmp.h src/clf/CLFMaster.h         \
+    src/crypto/Base58.h src/crypto/Hex.h src/crypto/SHA.h                       \
+    src/crypto/SecretKey.h src/crypto/Random.h src/database/Database.h          \
+    src/fba/FBA.h src/fba/Slot.h src/fba/Node.h src/fba/LocalNode.h             \
+    src/history/HistoryArchive.h src/history/HistoryGateway.h                   \
+    src/history/HistoryMaster.h src/ledger/AccountFrame.h                       \
+    src/ledger/EntryFrame.h src/ledger/LedgerDelta.h src/ledger/LedgerGateway.h \
+    src/ledger/LedgerMaster.h src/ledger/OfferFrame.h src/ledger/TrustFrame.h   \
     src/ledger/LedgerHeaderFrame.h src/main/Application.h                       \
     src/main/CommandHandler.h src/main/Config.h src/main/test.h                 \
     src/overlay/FetchableItem.h src/overlay/Floodgate.h                         \

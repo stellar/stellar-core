@@ -23,18 +23,17 @@ struct LedgerHeader
     Hash txSetHash;            // the tx set that was FBA confirmed
     Hash clfHash;
     CLFLevel clfLevels[5];
-    
+
     int64 totalCoins;
     int64 feePool;
     uint64 ledgerSeq;
     uint32 inflationSeq;
     int32 baseFee;
     int32 baseReserve;
-    uint64 closeTime;       
+    uint64 closeTime;
 };
 
 enum LedgerType {
-    NONE,
     ACCOUNT,
     TRUSTLINE,
     OFFER
@@ -52,7 +51,7 @@ struct AccountEntry
     Signer signers<>; // do we want some max or just increase the min balance
     KeyValue data<>;
 
-    uint32 flags; // require dt, require auth, 
+    uint32 flags; // require dt, require auth,
 };
 
 struct TrustLineEntry
@@ -81,14 +80,60 @@ struct OfferEntry
 
 union LedgerEntry switch (LedgerType type)
 {
-    case NONE:
-        void;
     case ACCOUNT:
         AccountEntry account;
+
     case TRUSTLINE:
         TrustLineEntry trustLine;
+
     case OFFER:
         OfferEntry offer;
+};
+
+
+enum CLFType {
+    LIVEENTRY,
+    TOMBSTONE
+};
+
+union LedgerKey switch (LedgerType type)
+{
+    case ACCOUNT:
+        struct {
+            uint256 accountID;
+        } account;
+
+    case TRUSTLINE:
+        struct {
+            uint256 accountID;
+            Currency currency;
+        } trustLine;
+
+    case OFFER:
+        struct {
+            uint256 accountID;
+            uint32 sequence;
+        } offer;
+};
+
+struct CLFEntry
+{
+    Hash hash;
+    union switch (CLFType type)
+    {
+        case LIVEENTRY:
+            LedgerEntry liveEntry;
+
+        case TOMBSTONE:
+            LedgerKey tombstone;
+    } entry;
+};
+
+
+struct CLFBucket
+{
+    CLFBucketHeader header;
+    CLFEntry entries<>;
 };
 
 struct TransactionSet
@@ -108,18 +153,6 @@ struct History
     uint64 fromLedger;
     uint64 toLedger;
     HistoryEntry entries<>;
-};
-
-struct CLFEntry
-{
-    LedgerEntry entry;
-    Hash hash;
-};
-
-struct CLFBucket
-{
-    CLFBucketHeader header;
-    CLFEntry entries<>;
 };
 
 }
