@@ -44,17 +44,17 @@ Herder::Herder(Application& app)
 #else
     // This form of initializer is "not implemented" in MSVC yet.
     , mTxSetFetcher
-{
     {
         {
-            TxSetFetcher(app)
-        }
-        ,
-        {
-            TxSetFetcher(app)
+            {
+                TxSetFetcher(app)
+            }
+            ,
+            {
+                TxSetFetcher(app)
+            }
         }
     }
-}
 #endif
     , mCurrentTxSetFetcher(0)
     , mFBAQSetFetcher(app)
