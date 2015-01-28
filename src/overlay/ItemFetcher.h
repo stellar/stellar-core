@@ -114,7 +114,7 @@ class TxSetTrackingCollar : public TrackingCollar
   public:
     TxSetFramePtr mTxSet;
 
-    TxSetTrackingCollar(uint256 const& id, Application& app);
+    TxSetTrackingCollar(uint256 const& id, TxSetFramePtr txSet, Application& app);
     bool
     isItemFound()
     {
@@ -129,7 +129,7 @@ class QSetTrackingCollar : public TrackingCollar
   public:
     FBAQuorumSetPtr mQSet;
 
-    QSetTrackingCollar(uint256 const& id, Application& app);
+    QSetTrackingCollar(uint256 const& id, FBAQuorumSetPtr qSet, Application& app);
     bool
     isItemFound()
     {
