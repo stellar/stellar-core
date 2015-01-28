@@ -365,6 +365,7 @@ Bucket::merge(std::shared_ptr<Bucket> const& oldBucket,
         {
             // Old and new are for the same key, take new.
             out.put(*ni);
+            ++oi;
             ++ni;
         }
     }
