@@ -10,10 +10,10 @@
 namespace stellar
 {
 
-FBA::FBA(const uint256& validationSeed,
+FBA::FBA(const SecretKey& secretKey,
          const FBAQuorumSet& qSetLocal)
 {
-    mLocalNode = new LocalNode(validationSeed, qSetLocal, this);
+    mLocalNode = new LocalNode(secretKey, qSetLocal, this);
     mKnownNodes[mLocalNode->getNodeID()] = mLocalNode;
 }
 

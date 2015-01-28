@@ -17,18 +17,14 @@ using namespace stellar;
 
 typedef std::unique_ptr<Application> appPtr;
 
-#define CREATE_NODE(N) \
-    const Hash v##N##VSeed = sha512_256("SEED_VALIDATION_SEED_" #N); \
-    const Hash v##N##NodeID = makePublicKey(v##N##VSeed);
-
 TEST_CASE("cycle4 topology", "[simulation]")
 {
     Simulation simulation;
 
-    CREATE_NODE(0);
-    CREATE_NODE(1);
-    CREATE_NODE(2);
-    CREATE_NODE(3);
+    SIMULATION_CREATE_NODE(0);
+    SIMULATION_CREATE_NODE(1);
+    SIMULATION_CREATE_NODE(2);
+    SIMULATION_CREATE_NODE(3);
 
     FBAQuorumSet qSet0; qSet0.threshold = 1; qSet0.validators.push_back(v1NodeID);
     FBAQuorumSet qSet1; qSet1.threshold = 1; qSet1.validators.push_back(v2NodeID);

@@ -19,9 +19,9 @@ using xdr::operator==;
 class TestFBA : public FBA
 {
   public:
-    TestFBA(const uint256& validationSeed,
+    TestFBA(const SecretKey& secretKey,
             const FBAQuorumSet& qSetLocal)
-        : FBA(validationSeed, qSetLocal)
+        : FBA(secretKey, qSetLocal)
     {
     }
     void storeQuorumSet(FBAQuorumSet qSet)
@@ -129,8 +129,9 @@ makeEnvelope(const uint256& nodeID,
 }
 
 #define CREATE_NODE(N) \
-    const Hash v##N##VSeed = sha512_256("SEED_VALIDATION_SEED_" #N); \
-    const Hash v##N##NodeID = makePublicKey(v##N##VSeed);
+    const Hash v##N##VSeed = sha512_256("SEED_VALIDATION_SEED_" #N);    \
+    const SecretKey v##N##SecretKey = SecretKey::fromSeed(v##N##VSeed); \
+    const Hash v##N##NodeID = v##N##SecretKey.getPublicKey();
 
 #define CREATE_VALUE(X) \
     const Hash X##ValueHash = sha512_256("SEED_VALUE_HASH_" #X); \
@@ -152,7 +153,7 @@ TEST_CASE("protocol core4", "[fba]")
 
     uint256 qSetHash = sha512_256(xdr::xdr_to_msg(qSet));
 
-    TestFBA fba(v0VSeed, qSet);
+    TestFBA fba(v0SecretKey, qSet);
 
     fba.storeQuorumSet(qSet);
 
