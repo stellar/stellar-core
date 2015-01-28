@@ -11,10 +11,11 @@
 #include "overlay/PeerMaster.h"
 #include "main/Application.h"
 #include "main/Config.h"
-#include "util/Logging.h"
-#include "lib/util/easylogging++.h"
 #include "xdrpp/marshal.h"
 #include "crypto/SHA.h"
+#include "crypto/Hex.h"
+#include "util/Logging.h"
+#include "lib/util/easylogging++.h"
 
 namespace stellar
 {
@@ -121,6 +122,9 @@ Herder::validateValue(const uint64& slotIndex,
             return cb(false);
         }
         
+        LOG(DEBUG) << "[hrd] Herder::validateValue"
+                   << "@" << binToHex(mApp.getConfig().VALIDATION_KEY.getSeed()).substr(0,6)
+                   << " OK";
         return cb(true);
     };
     
@@ -164,12 +168,12 @@ Herder::validateBallot(const uint64& slotIndex,
     // exhaustion attacks.
     uint64_t lastTrigger = VirtualClock::pointToTimeT(mLastTrigger);
     uint64_t sumTimeouts = 0;
-    for (int i = 0; i <= ballot.counter; i ++)
+    for (int i = 0; i < ballot.counter; i ++)
     {
         sumTimeouts += std::min(MAX_FBA_TIMEOUT_SECONDS, (int)pow(2.0, i));
     }
     // This inequality is effectively a limitation on `ballot.counter`
-    if (timeNow < lastTrigger + sumTimeouts + MAX_TIME_SLIP_SECONDS)
+    if (timeNow + MAX_TIME_SLIP_SECONDS < (int)(lastTrigger + sumTimeouts))
     {
         return cb(false);
     }
@@ -197,6 +201,9 @@ Herder::validateBallot(const uint64& slotIndex,
             }
         }
         
+        LOG(DEBUG) << "[hrd] validateBallot"
+                   << "@" << binToHex(mApp.getConfig().VALIDATION_KEY.getSeed()).substr(0,6)
+                   << " OK";
         return cb(true);
     };
     
@@ -280,7 +287,7 @@ Herder::valueExternalized(const uint64& slotIndex,
         mCurrentTxSetFetcher = mCurrentTxSetFetcher ? 0 : 1;
         mTxSetFetcher[mCurrentTxSetFetcher].clear();
 
-        // TODO(spolu) make sure that this triggers SYNCing
+        // Triggers sync if not already syncing.
         mApp.getLedgerGateway().externalizeValue(externalizedSet);
 
         // remove all these tx from mReceivedTransactions
@@ -295,7 +302,6 @@ Herder::valueExternalized(const uint64& slotIndex,
             auto msg = tx->toStellarMessage();
             mApp.getOverlayGateway().broadcastMessage(msg);
         }
-        // TODO(spolu) rebroadcast all levels?
 
         // move all the remaining to the next highest level
         // don't move the largest array
@@ -342,6 +348,9 @@ Herder::retrieveQuorumSet(const uint256& nodeID,
 void 
 Herder::emitEnvelope(const FBAEnvelope& envelope)
 {
+    LOG(DEBUG) << "[hrd] Herder:emitEnvelope"
+               << "@" << binToHex(mApp.getConfig().VALIDATION_KEY.getSeed()).substr(0,6)
+               << " mLedgersToWaitToParticipate: " << mLedgersToWaitToParticipate;
     // We don't emit any envelope as long as we're not fully synced
     if (mLedgersToWaitToParticipate > 0)
     {
@@ -597,6 +606,9 @@ Herder::triggerNextLedger(const asio::error_code& error)
     }
     proposedSet->mPreviousLedgerHash = mLastClosedLedger.hash;
 
+    // TODO(spolu) we shouldn't need to ping the network to store the TxSet
+    //             within the ItemFetcher
+    fetchTxSet(proposedSet->getContentsHash(), true);
     recvTxSet(proposedSet);
 
     uint64_t slotIndex = mLastClosedLedger.ledgerSeq + 1;
@@ -616,6 +628,14 @@ Herder::triggerNextLedger(const asio::error_code& error)
     b.baseFee = mApp.getConfig().DESIRED_BASE_FEE;
 
     Value x = xdr::xdr_to_opaque(b);
+
+    uint256 valueHash = sha512_256(xdr::xdr_to_msg(x));
+    LOG(DEBUG) << "[hrd] Herder::triggerNextLedger"
+               << "@" << binToHex(mApp.getConfig().VALIDATION_KEY.getSeed()).substr(0,6)
+               << " txSet.size: " << proposedSet->mTransactions.size()
+               << " previousLedgerHash: " << binToHex(proposedSet->mPreviousLedgerHash).substr(0,6)
+               << " value: " << binToHex(valueHash).substr(0,6);
+
     mBumpValue = x;
     prepareValue(slotIndex, x);
 

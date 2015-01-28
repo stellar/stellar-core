@@ -94,7 +94,7 @@ Peer::sendGetQuorumSet(uint256 const& setID)
 {
     StellarMessage newMsg;
     newMsg.type(GET_FBA_QUORUMSET);
-    newMsg.txSetHash() = setID;
+    newMsg.qSetHash() = setID;
 
     sendMessage(newMsg);
 }

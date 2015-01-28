@@ -242,7 +242,10 @@ TrackingCollar::tryNextPeer()
                     std::chrono::milliseconds(MS_TO_WAIT_FOR_FETCH_REPLY));
                 mTimer.async_wait([this](asio::error_code const& ec)
                                   {
-                                      this->tryNextPeer();
+                                      if (!ec)
+                                      {
+                                          this->tryNextPeer();
+                                      }
                                   });
 
                 askPeer(peer);
