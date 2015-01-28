@@ -75,7 +75,7 @@ TxSetFetcher::fetchItem(uint256 const& setID, bool askNetwork)
         if (askNetwork)
         {
             TrackingCollar::pointer collar =
-                std::make_shared<TxSetTrackingCollar>(setID, mApp);
+                std::make_shared<TxSetTrackingCollar>(setID, TxSetFramePtr(), mApp);
             mItemMap[setID] = collar;
             collar->tryNextPeer();
         }
@@ -104,9 +104,10 @@ TxSetFetcher::recvItem(TxSetFramePtr txSet)
         else
         { // doesn't seem like we were looking for it. Maybe just add it for
             // now
-            mItemMap[txSet->getContentsHash()] =
+            mItemMap[txSet->getContentsHash()] = 
                 std::make_shared<TxSetTrackingCollar>(txSet->getContentsHash(),
-                                                      mApp);
+                       txSet, mApp);
+                
         }
     }
     return false;
@@ -116,10 +117,9 @@ TxSetFetcher::recvItem(TxSetFramePtr txSet)
 bool
 FBAQSetFetcher::recvItem(FBAQuorumSetPtr qSet)
 {
-    uint256 qSetHash = sha512_256(xdr::xdr_to_msg(*qSet));
-
     if (qSet)
     {
+        uint256 qSetHash = sha512_256(xdr::xdr_to_msg(*qSet));
         auto result = mItemMap.find(qSetHash);
         if (result != mItemMap.end())
         {
@@ -136,7 +136,7 @@ FBAQSetFetcher::recvItem(FBAQuorumSetPtr qSet)
         { // doesn't seem like we were looking for it. Maybe just add it for
             // now
             mItemMap[qSetHash] =
-                std::make_shared<QSetTrackingCollar>(qSetHash, mApp);
+                std::make_shared<QSetTrackingCollar>(qSetHash, qSet, mApp);
         }
     }
     return false;
@@ -164,7 +164,7 @@ FBAQSetFetcher::fetchItem(uint256 const& setID, bool askNetwork)
         if (askNetwork)
         {
             TrackingCollar::pointer collar =
-                std::make_shared<QSetTrackingCollar>(setID, mApp);
+                std::make_shared<QSetTrackingCollar>(setID, FBAQuorumSetPtr(), mApp);
             mItemMap[setID] = collar;
             collar->tryNextPeer(); // start asking
         }
@@ -260,9 +260,9 @@ TrackingCollar::tryNextPeer()
     }
 }
 
-QSetTrackingCollar::QSetTrackingCollar(uint256 const& id,
+QSetTrackingCollar::QSetTrackingCollar(uint256 const& id, FBAQuorumSetPtr qSet,
                                        Application& app)
-    : TrackingCollar(id, app)
+    : TrackingCollar(id, app), mQSet(qSet)
 {
 }
 
@@ -272,9 +272,9 @@ QSetTrackingCollar::askPeer(Peer::pointer peer)
     peer->sendGetQuorumSet(mItemID);
 }
 
-TxSetTrackingCollar::TxSetTrackingCollar(uint256 const& id,
+TxSetTrackingCollar::TxSetTrackingCollar(uint256 const& id, TxSetFramePtr txSet,
                                          Application& app)
-    : TrackingCollar(id, app)
+    : TrackingCollar(id, app), mTxSet(txSet)
 {
 }
 

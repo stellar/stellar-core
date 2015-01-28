@@ -13,6 +13,7 @@
 #include <queue>
 #include <memory>
 #include <functional>
+#include <ctime>
 
 namespace stellar
 {
