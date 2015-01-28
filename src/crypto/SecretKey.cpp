@@ -91,7 +91,7 @@ SecretKey::random()
     return sk;
 }
 
-SecretKey SecretKey::fromSeed(uint256& seed)
+SecretKey SecretKey::fromSeed(const uint256& seed)
 {
     PublicKey pk;
     SecretKey sk;

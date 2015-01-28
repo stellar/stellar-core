@@ -8,6 +8,8 @@
 #include <memory>
 #include <functional>
 
+#include "crypto/SecretKey.h"
+
 #include "generated/FBAXDR.h"
 
 namespace stellar
@@ -20,7 +22,7 @@ class FBA
 {
 
   public:
-    FBA(const uint256& validationSeed,
+    FBA(const SecretKey& secretKey,
         const FBAQuorumSet& qSetLocal);
     ~FBA();
 

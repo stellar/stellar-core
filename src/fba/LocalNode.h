@@ -18,7 +18,7 @@ namespace stellar
 class LocalNode : public Node
 {
   public:
-    LocalNode(const uint256& validationSeed,
+    LocalNode(const SecretKey& secretKey,
               const FBAQuorumSet& qSet,
               FBA* FBA);
 
@@ -28,7 +28,7 @@ class LocalNode : public Node
     const Hash& getQuorumSetHash();
 
   private:
-    const uint256                   mValidationSeed;
+    const SecretKey                 mSecretKey;
     FBAQuorumSet                    mQSet;
     Hash                            mQSetHash;
 };

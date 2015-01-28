@@ -13,11 +13,11 @@
 namespace stellar
 {
 
-LocalNode::LocalNode(const uint256& validationSeed,
+LocalNode::LocalNode(const SecretKey& secretKey,
                      const FBAQuorumSet& qSet,
                      FBA* FBA)
-    : Node(makePublicKey(validationSeed), FBA, -1)
-    , mValidationSeed(validationSeed)
+    : Node(secretKey.getPublicKey(), FBA, -1)
+    , mSecretKey(secretKey)
     , mQSet(qSet)
     , mQSetHash(sha512_256(xdr::xdr_to_msg(qSet)))
 {
