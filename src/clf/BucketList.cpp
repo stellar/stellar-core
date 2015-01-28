@@ -35,6 +35,33 @@ randomBucketName()
     }
 }
 
+LedgerKey
+LedgerEntryKey(LedgerEntry const& e)
+{
+    LedgerKey k;
+    switch (e.type())
+        {
+
+        case ACCOUNT:
+            k.type(ACCOUNT);
+            k.account().accountID = e.account().accountID;
+            break;
+
+        case TRUSTLINE:
+            k.type(TRUSTLINE);
+            k.trustLine().accountID = e.trustLine().accountID;
+            k.trustLine().currency = e.trustLine().currency;
+            break;
+
+        case OFFER:
+            k.type(OFFER);
+            k.offer().accountID = e.offer().accountID;
+            k.offer().sequence = e.offer().sequence;
+            break;
+        }
+    return k;
+}
+
 /**
  * This ctor will spill to a file if it was given too many entries. This is
  * where the _first_ spill decision is made; subsequent spilled buckets are made
