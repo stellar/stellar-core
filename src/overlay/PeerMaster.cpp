@@ -17,7 +17,6 @@ using namespace soci;
 #define SECONDS_PER_BACKOFF 10
 
 // TODO.3 some tests
-// TODO.3 detect that we are connected to self
 // TODO.3 flood older msgs to people that connect to you
 
 /*

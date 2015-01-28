@@ -10,6 +10,10 @@
 #include "util/make_unique.h"
 #include "medida/reporting/json_reporter.h"
 #include "overlay/PeerMaster.h"
+#include "crypto/Hex.h"
+#include "xdrpp/marshal.h"
+#include "herder/HerderGateway.h"
+
 
 using std::placeholders::_1;
 using std::placeholders::_2;
@@ -81,7 +85,7 @@ CommandHandler::reloadCfg(const std::string& params, std::string& retStr)
     }
     else
     {
-        retStr = "Must specify a filename reload_cfg&file=????";
+        retStr = "Must specify a filename: reload_cfg&file=????";
     }
 }
 
@@ -90,6 +94,7 @@ CommandHandler::logRotate(const std::string& params, std::string& retStr)
 {
     retStr = "Log rotate...";
 }
+
 void
 CommandHandler::connect(const std::string& params, std::string& retStr)
 {
@@ -100,23 +105,45 @@ CommandHandler::connect(const std::string& params, std::string& retStr)
         mApp.getPeerMaster().connectTo(addr);
     } else
     {
-        retStr = "Must specify a filename connect&peer=????";
+        retStr = "Must specify a peer: connect&peer=????";
     }
 }
 
 void
 CommandHandler::tx(const std::string& params, std::string& retStr)
 {
-    retStr = "Submitting Transaction...";
-    // TODO.2 
-    std::string addr = params.substr(6);
-    if(addr.size())
+    std::string blob = params.substr(4);
+    if(blob.size())
     {
-        retStr = "Connect to";
-        mApp.getPeerMaster().connectTo(addr);
+        retStr = "Submitting Transaction...";
+        std::vector<uint8_t> binBlob=hexToBin(blob);
+
+        TransactionEnvelope envelope;
+        try
+        {
+            xdr::xdr_from_opaque(binBlob, envelope);
+            TransactionFramePtr transaction =
+                TransactionFrame::makeTransactionFromWire(envelope);
+            if(transaction)
+            {
+                // add it to our current set
+                // and make sure it is valid
+                if(mApp.getHerderGateway().recvTransaction(transaction))
+                {
+                    StellarMessage msg;
+                    msg.type(TRANSACTION);
+                    msg.transaction() = envelope;
+                    mApp.getOverlayGateway().broadcastMessage(msg);
+                }
+            }
+        }
+        catch(...)
+        {
+            
+        }
     } else
     {
-        retStr = "Must specify a filename connect&peer=????";
+        retStr = "Must specify a xt blob: submit&tx=<tx in xdr format>";
     }
 }
 }

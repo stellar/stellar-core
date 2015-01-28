@@ -1,5 +1,8 @@
 #Left to design:
 - Bucket list
+- memo in txs
+- seq numbers
+- can we drop transaction rate?
 - Is this really the way we want to do paths/offers?
 - Is there a way to have payments be atomic units and express everything in terms of a batch of a smaller payments?
 	- Taking an offer would just be A paying B followed by B paying A
@@ -8,8 +11,6 @@
 
 
 #v.1 Platform implemention can start
- - Tests for transactions (jed)
- - hit DB during the transactions (nicolas)
  - Syncing to the network (graydon)
  - storing history (graydon)
  - bucket list (graydon)
