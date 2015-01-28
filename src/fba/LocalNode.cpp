@@ -23,9 +23,9 @@ LocalNode::LocalNode(const SecretKey& secretKey,
 {
     cacheQuorumSet(qSet);
 
-    LOG(INFO) << "LocalNode::LocalNode"
+    LOG(INFO) << "[fba] LocalNode::LocalNode"
               << "@" << binToHex(mNodeID).substr(0,6)
-              << " " << binToHex(mQSetHash).substr(0,6);
+              << " qSet: " << binToHex(mQSetHash).substr(0,6);
 }
 
 void 
