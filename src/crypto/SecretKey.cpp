@@ -91,6 +91,18 @@ SecretKey::random()
     return sk;
 }
 
+SecretKey SecretKey::fromSeed(uint256& seed)
+{
+    PublicKey pk;
+    SecretKey sk;
+    if(crypto_sign_seed_keypair(pk.data(), sk.data(), 
+        (unsigned char*) &(seed[0])) != 0)
+    {
+        throw std::runtime_error("error generating secret key from seed");
+    }
+    return sk;
+}
+
 SecretKey
 SecretKey::fromBase58Seed(std::string const& base58Seed)
 {

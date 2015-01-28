@@ -29,6 +29,7 @@ public:
 
     static SecretKey random();
     static SecretKey fromBase58Seed(std::string const& base58Seed);
+    static SecretKey fromSeed(uint256& seed);
 };
 
 }
