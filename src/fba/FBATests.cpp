@@ -58,10 +58,14 @@ class TestFBA : public FBA
                          const FBABallot& ballot)
     {
     }
-    void ballotDidAbort(const uint64& slotIndex,
-                        const FBABallot& ballot)
+    void ballotDidCommitted(const uint64& slotIndex,
+                            const FBABallot& ballot)
     {
-        mAbortedBallots[slotIndex].push_back(ballot);
+    }
+    void ballotDidHearFromQuorum(const uint64& slotIndex,
+                                 const FBABallot& ballot) 
+    {
+        mHeardFromQuorums[slotIndex].push_back(ballot);
     }
 
     void valueExternalized(const uint64& slotIndex,
@@ -102,7 +106,7 @@ class TestFBA : public FBA
     std::map<Hash, FBAQuorumSet>              mQuorumSets;
     std::vector<FBAEnvelope>                  mEnvs;
     std::map<uint64, Value>                   mExternalizedValues;
-    std::map<uint64, std::vector<FBABallot>>  mAbortedBallots;
+    std::map<uint64, std::vector<FBABallot>>  mHeardFromQuorums;
 };
 
 
@@ -189,6 +193,7 @@ TEST_CASE("protocol core4", "[fba]")
 
         fba.receiveEnvelope(prepare1);
         REQUIRE(fba.mEnvs.size() == 1);
+        REQUIRE(fba.mHeardFromQuorums[0].size() == 0);
 
         // We send a prepare as we were pristine
         REQUIRE(fba.mEnvs[0].nodeID == v0NodeID);
@@ -198,6 +203,9 @@ TEST_CASE("protocol core4", "[fba]")
 
         fba.receiveEnvelope(prepare2);
         REQUIRE(fba.mEnvs.size() == 2);
+        REQUIRE(fba.mHeardFromQuorums[0].size() == 1);
+        REQUIRE(fba.mHeardFromQuorums[0][0].counter == 0);
+        REQUIRE(fba.mHeardFromQuorums[0][0].value == xValue);
 
         // We have a quorum including us
         REQUIRE(fba.mEnvs[1].nodeID == v0NodeID);
@@ -307,8 +315,10 @@ TEST_CASE("protocol core4", "[fba]")
 
         fba.receiveEnvelope(prepared1);
         REQUIRE(fba.mEnvs.size() == 1);
+        REQUIRE(fba.mHeardFromQuorums[0].size() == 0);
         fba.receiveEnvelope(prepared2);
         REQUIRE(fba.mEnvs.size() == 4);
+        REQUIRE(fba.mHeardFromQuorums[0].size() == 1);
 
         REQUIRE(fba.mEnvs[1].nodeID == v0NodeID);
         REQUIRE(fba.mEnvs[1].statement.ballot.value == yValue);
@@ -468,9 +478,12 @@ TEST_CASE("protocol core4", "[fba]")
         fba.receiveEnvelope(committed2);
         // No change yet as a v-blocking set is not enough here
         REQUIRE(fba.mEnvs.size() == 1);
+        REQUIRE(fba.mHeardFromQuorums[0].size() == 0);
 
         fba.receiveEnvelope(committed3);
         REQUIRE(fba.mEnvs.size() == 2);
+        // We're on different ballots
+        REQUIRE(fba.mHeardFromQuorums[0].size() == 0);
 
         // The slot should have externalized the value
         REQUIRE(fba.mExternalizedValues[0] == yValue);
@@ -549,6 +562,39 @@ TEST_CASE("protocol core4", "[fba]")
         REQUIRE(fba.mEnvs[1].statement.pledges.type() == FBAStatementType::COMMITTED);
     }
 
+    SECTION("pristine, committed (0,x) by quorum")
+    {
+        REQUIRE(fba.mEnvs.size() == 0);
+
+        FBAEnvelope committed1 = makeEnvelope(v1NodeID, qSetHash, 0,
+                                              FBABallot(0, xValue),
+                                              FBAStatementType::COMMITTED);
+        FBAEnvelope committed2 = makeEnvelope(v2NodeID, qSetHash, 0,
+                                              FBABallot(0, xValue),
+                                              FBAStatementType::COMMITTED);
+        FBAEnvelope committed3 = makeEnvelope(v3NodeID, qSetHash, 0,
+                                              FBABallot(0, xValue),
+                                              FBAStatementType::COMMITTED);
+
+        fba.receiveEnvelope(committed1);
+        REQUIRE(fba.mEnvs.size() == 0);
+
+        fba.receiveEnvelope(committed2);
+        // No change yet as a v-blocking set is not enough here
+        REQUIRE(fba.mEnvs.size() == 0);
+
+        fba.receiveEnvelope(committed3);
+        REQUIRE(fba.mEnvs.size() == 1);
+
+        // The slot should have externalized the value
+        REQUIRE(fba.mExternalizedValues[0] == xValue);
+
+        REQUIRE(fba.mEnvs[0].nodeID == v0NodeID);
+        REQUIRE(fba.mEnvs[0].statement.ballot.value == xValue);
+        REQUIRE(fba.mEnvs[0].statement.ballot.counter == 0);
+        REQUIRE(fba.mEnvs[0].statement.pledges.type() == FBAStatementType::COMMITTED);
+    }
+
     SECTION("prepare (0,x), prepare (1,y), * (0,z)")
     {
         REQUIRE(fba.prepareValue(0, xValue));
@@ -560,8 +606,11 @@ TEST_CASE("protocol core4", "[fba]")
 
         fba.receiveEnvelope(prepare1);
         REQUIRE(fba.mEnvs.size() == 2);
-        REQUIRE(fba.mAbortedBallots[0][0].counter == 0);
-        REQUIRE(fba.mAbortedBallots[0][0].value == xValue);
+
+        REQUIRE(fba.mEnvs[1].nodeID == v0NodeID);
+        REQUIRE(fba.mEnvs[1].statement.ballot.value == yValue);
+        REQUIRE(fba.mEnvs[1].statement.ballot.counter == 1);
+        REQUIRE(fba.mEnvs[1].statement.pledges.type() == FBAStatementType::PREPARE);
 
         FBAEnvelope prepare2 = makeEnvelope(v2NodeID, qSetHash, 0,
                                             FBABallot(0, zValue),
@@ -633,6 +682,7 @@ TEST_CASE("protocol core4", "[fba]")
 
         fba.receiveEnvelope(prepare2_x);
         REQUIRE(fba.mEnvs.size() == 2);
+        REQUIRE(fba.mHeardFromQuorums[0].size() == 1);
 
         REQUIRE(fba.mEnvs[1].nodeID == v0NodeID);
         REQUIRE(fba.mEnvs[1].statement.ballot.value == xValue);
@@ -676,8 +726,7 @@ TEST_CASE("protocol core4", "[fba]")
 
         fba.receiveEnvelope(prepare1_y);
         REQUIRE(fba.mEnvs.size() == 4);
-        REQUIRE(fba.mAbortedBallots[0][0].counter == 0);
-        REQUIRE(fba.mAbortedBallots[0][0].value == xValue);
+        REQUIRE(fba.mHeardFromQuorums[0].size() == 1);
 
         REQUIRE(fba.mEnvs[3].nodeID == v0NodeID);
         REQUIRE(fba.mEnvs[3].statement.ballot.value == yValue);
@@ -690,6 +739,9 @@ TEST_CASE("protocol core4", "[fba]")
 
         fba.receiveEnvelope(prepare2_y);
         REQUIRE(fba.mEnvs.size() == 5);
+        REQUIRE(fba.mHeardFromQuorums[0].size() == 2);
+        REQUIRE(fba.mHeardFromQuorums[0][1].counter == 2);
+        REQUIRE(fba.mHeardFromQuorums[0][1].value == yValue);
 
         REQUIRE(fba.mEnvs[4].nodeID == v0NodeID);
         REQUIRE(fba.mEnvs[4].statement.ballot.value == yValue);
@@ -747,8 +799,8 @@ TEST_CASE("protocol core4", "[fba]")
         REQUIRE(fba.mEnvs[0].statement.pledges.type() == FBAStatementType::PREPARE);
 
         FBAEnvelope commit1 = makeEnvelope(v1NodeID, qSetHash, 0,
-                                         FBABallot(0, yValue),
-                                         FBAStatementType::COMMIT);
+                                           FBABallot(0, yValue),
+                                           FBAStatementType::COMMIT);
 
         // the node must have requested evidence
         fba.receiveEnvelope(
@@ -760,10 +812,116 @@ TEST_CASE("protocol core4", "[fba]")
         REQUIRE(fba.mEnvs.size() == 1);
     }
 
+    SECTION("prepared(0,y) on pristine slot should not bump")
+    {
+        FBAEnvelope prepared1 = makeEnvelope(v1NodeID, qSetHash, 0,
+                                             FBABallot(0, xValue),
+                                             FBAStatementType::PREPARED);
+
+        fba.receiveEnvelope(prepared1);
+        REQUIRE(fba.mEnvs.size() == 0);
+    }
+
+    SECTION("commit(0,y) on pristine slot should not bump and request evidence")
+    {
+        FBAEnvelope commit1 = makeEnvelope(v1NodeID, qSetHash, 0,
+                                           FBABallot(0, yValue),
+                                           FBAStatementType::COMMIT);
+
+        // the node must have requested evidence
+        fba.receiveEnvelope(
+            commit1, 
+            [] (FBA::EnvelopeState s)
+            {
+                REQUIRE(s == FBA::EnvelopeState::STATEMENTS_MISSING);
+            });
+        REQUIRE(fba.mEnvs.size() == 0);
+    }
+
+    SECTION("committed(0,y) on pristine slot should not bump")
+    {
+        FBAEnvelope commit1 = makeEnvelope(v1NodeID, qSetHash, 0,
+                                           FBABallot(0, yValue),
+                                           FBAStatementType::COMMIT);
+
+        fba.receiveEnvelope(commit1);
+        REQUIRE(fba.mEnvs.size() == 0);
+    }
+
+    SECTION("bumpToBallot prevented once committed")
+    {
+        FBAEnvelope prepared1 = makeEnvelope(v1NodeID, qSetHash, 0,
+                                             FBABallot(0, xValue),
+                                             FBAStatementType::PREPARED);
+        FBAEnvelope prepared2 = makeEnvelope(v2NodeID, qSetHash, 0,
+                                             FBABallot(0, xValue),
+                                             FBAStatementType::PREPARED);
+        
+        fba.receiveEnvelope(prepared1);
+        REQUIRE(fba.mEnvs.size() == 0);
+
+        fba.receiveEnvelope(prepared2);
+        REQUIRE(fba.mEnvs.size() == 3);
+
+        REQUIRE(fba.mEnvs[0].nodeID == v0NodeID);
+        REQUIRE(fba.mEnvs[0].statement.ballot.value == xValue);
+        REQUIRE(fba.mEnvs[0].statement.ballot.counter == 0);
+        REQUIRE(fba.mEnvs[0].statement.pledges.type() == FBAStatementType::PREPARE);
+
+        REQUIRE(fba.mEnvs[1].nodeID == v0NodeID);
+        REQUIRE(fba.mEnvs[1].statement.ballot.value == xValue);
+        REQUIRE(fba.mEnvs[1].statement.ballot.counter == 0);
+        REQUIRE(fba.mEnvs[1].statement.pledges.type() == FBAStatementType::PREPARED);
+
+        REQUIRE(fba.mEnvs[2].nodeID == v0NodeID);
+        REQUIRE(fba.mEnvs[2].statement.ballot.value == xValue);
+        REQUIRE(fba.mEnvs[2].statement.ballot.counter == 0);
+        REQUIRE(fba.mEnvs[2].statement.pledges.type() == FBAStatementType::COMMIT);
+
+        FBAEnvelope commit1 = makeEnvelope(v1NodeID, qSetHash, 0,
+                                           FBABallot(0, xValue),
+                                           FBAStatementType::COMMIT);
+        FBAEnvelope commit2 = makeEnvelope(v2NodeID, qSetHash, 0,
+                                           FBABallot(0, xValue),
+                                           FBAStatementType::COMMIT);
+
+        fba.receiveEnvelope(commit1);
+        REQUIRE(fba.mEnvs.size() == 3);
+
+        fba.receiveEnvelope(commit2);
+        REQUIRE(fba.mEnvs.size() == 4);
+
+        REQUIRE(fba.mEnvs[3].nodeID == v0NodeID);
+        REQUIRE(fba.mEnvs[3].statement.ballot.value == xValue);
+        REQUIRE(fba.mEnvs[3].statement.ballot.counter == 0);
+        REQUIRE(fba.mEnvs[3].statement.pledges.type() == FBAStatementType::COMMITTED);
+
+
+        FBAEnvelope prepared1_y = makeEnvelope(v1NodeID, qSetHash, 0,
+                                               FBABallot(1, yValue),
+                                               FBAStatementType::PREPARED);
+        FBAEnvelope prepared2_y = makeEnvelope(v2NodeID, qSetHash, 0,
+                                               FBABallot(1, yValue),
+                                               FBAStatementType::PREPARED);
+        
+        fba.receiveEnvelope(prepared1_y);
+        REQUIRE(fba.mEnvs.size() == 5);
+
+        REQUIRE(fba.mEnvs[4].nodeID == v0NodeID);
+        REQUIRE(fba.mEnvs[4].statement.ballot.value == xValue);
+        REQUIRE(fba.mEnvs[4].statement.ballot.counter == 0);
+        REQUIRE(fba.mEnvs[3].statement.pledges.type() == FBAStatementType::COMMITTED);
+
+        fba.receiveEnvelope(prepared2_y);
+        REQUIRE(fba.mEnvs.size() == 6);
+
+        REQUIRE(fba.mEnvs[5].nodeID == v0NodeID);
+        REQUIRE(fba.mEnvs[5].statement.ballot.value == xValue);
+        REQUIRE(fba.mEnvs[5].statement.ballot.counter == 0);
+        REQUIRE(fba.mEnvs[5].statement.pledges.type() == FBAStatementType::COMMITTED);
+    }
+
     // TODO(spolu) add generic test to check that no statement emitted 
     //             contradict itself
 }
-
-
-
 

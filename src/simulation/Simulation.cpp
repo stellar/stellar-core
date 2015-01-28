@@ -20,7 +20,7 @@ Simulation::Simulation()
 Simulation::~Simulation()
 {
     // tear down
-    std::map<stellar::uint256, Application::pointer>::iterator it;
+    std::map<uint256, Application::pointer>::iterator it;
     for (it = mNodes.begin(); it != mNodes.end(); ++it) {
         it->second->getMainIOService().poll_one();
         it->second->getMainIOService().stop();
@@ -33,19 +33,28 @@ Simulation::getClock()
   return mClock;
 }
 
-stellar::uint256
-Simulation::addNode(stellar::uint256 validationSeed, VirtualClock& clock)
+uint256
+Simulation::addNode(uint256 validationSeed, 
+                    FBAQuorumSet qSet,
+                    VirtualClock& clock)
 {
-    Config::pointer cfg = stellar::make_shared<Config>();
+    Config::pointer cfg = std::make_shared<Config>();
+
     cfg->LOG_FILE_PATH = getTestConfig().LOG_FILE_PATH;
     cfg->VALIDATION_KEY = SecretKey::fromSeed(validationSeed);
     cfg->RUN_STANDALONE = true;
     cfg->START_NEW_NETWORK = true;
 
+    cfg->QUORUM_THRESHOLD = qSet.threshold;
+    for (auto q : qSet.validators)
+    {
+        cfg->QUORUM_SET.push_back(q);
+    }
+
     Application::pointer node = 
           std::make_shared<Application>(clock, *cfg);
 
-    stellar::uint256 nodeID = makePublicKey(validationSeed);
+    uint256 nodeID = makePublicKey(validationSeed);
     mConfigs[nodeID] = cfg;
     mNodes[nodeID] = node;
 
@@ -53,14 +62,14 @@ Simulation::addNode(stellar::uint256 validationSeed, VirtualClock& clock)
 }
 
 Application::pointer
-Simulation::getNode(stellar::uint256 nodeID)
+Simulation::getNode(uint256 nodeID)
 {
     return mNodes[nodeID];
 }
 
 std::shared_ptr<LoopbackPeerConnection>
-Simulation::addConnection(stellar::uint256 initiator, 
-                          stellar::uint256 acceptor)
+Simulation::addConnection(uint256 initiator, 
+                          uint256 acceptor)
 {
     std::shared_ptr<LoopbackPeerConnection> connection;
     if (mNodes[initiator] && mNodes[acceptor]) 
@@ -82,7 +91,7 @@ Simulation::startAllNodes()
 }
 
 std::size_t
-Simulation::crankNode(stellar::uint256 nodeID, int nbTicks)
+Simulation::crankNode(uint256 nodeID, int nbTicks)
 {
     std::size_t count = 0;
     if (mNodes[nodeID])
@@ -99,7 +108,7 @@ Simulation::crankAllNodes(int nbTicks)
     std::size_t count = 0;
     for (int i = 0; i < nbTicks && nbTicks > 0; i ++)
     {
-        std::map<stellar::uint256, Application::pointer>::iterator it;
+        std::map<uint256, Application::pointer>::iterator it;
         for (it = mNodes.begin(); it != mNodes.end(); ++it) {
             count += it->second->crank(false);
         }
