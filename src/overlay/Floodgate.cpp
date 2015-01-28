@@ -74,9 +74,9 @@ void Floodgate::broadcast(StellarMessage const& msg)
         mFloodMap[index]= record;
         for(auto peer : mApp.getPeerMaster().getPeers())
         {
-            peer->sendMessage(msg);
+            if(peer->getState()==Peer::GOT_HELLO)
+                peer->sendMessage(msg);
         }
-        
     } else
     { // send it to people that haven't sent it to us
         std::vector<Peer::pointer>& peersTold = result->second->mPeersTold;
@@ -84,8 +84,11 @@ void Floodgate::broadcast(StellarMessage const& msg)
         {
             if(find(peersTold.begin(), peersTold.end(), peer) == peersTold.end())
             {
-                peer->sendMessage(msg);
-                peersTold.push_back(peer);
+                if(peer->getState() == Peer::GOT_HELLO)
+                {
+                    peer->sendMessage(msg);
+                    peersTold.push_back(peer);
+                }
             }
         }
     }
