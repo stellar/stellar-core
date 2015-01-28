@@ -16,22 +16,22 @@ using namespace soci;
 namespace stellar
 {
     const char *OfferFrame::kSQLCreateStatement = 
-            "CREATE TABLE IF NOT EXISTS Offers (	\
-			offerIndex CHARACTER(35) PRIMARY KEY,   \
-            accountID		CHARACTER(35),		    \
-			sequence		INT UNSIGNED,		    \
-			paysIsoCurrency CHARACTER(4),		    \
-			paysIssuer CHARACTER(35),		        \
-			getsIsoCurrency CHARACTER(4),			\
-			getsIssuer CHARACTER(35),		        \
-			amount BIGINT UNSIGNED,             	\
-			price BIGINT UNSIGNED,	                \
-			flags INT UNSIGNED					    \
-	);";
+            "CREATE TABLE IF NOT EXISTS Offers (    \
+            accountID       CHARACTER(35) NOT NULL, \
+            sequence        INT UNSIGNED NOT NULL,  \
+            paysIsoCurrency CHARACTER(4),           \
+            paysIssuer CHARACTER(35),               \
+            getsIsoCurrency CHARACTER(4),           \
+            getsIssuer CHARACTER(35),               \
+            amount BIGINT NOT NULL,                 \
+            price BIGINT NOT NULL,                  \
+            flags INT NOT NULL,                     \
+            PRIMARY KEY (accountID, sequence)       \
+    );";
 
     OfferFrame::OfferFrame()
     {
-
+        mEntry.type(OFFER);
     }
     OfferFrame::OfferFrame(const LedgerEntry& from) : EntryFrame(from)
     {
@@ -52,21 +52,28 @@ namespace stellar
 
     void OfferFrame::calculateIndex()
     {
-        // hash of accountID+offerSeq
         SHA512_256 hasher;
         hasher.add(mEntry.offer().accountID);
-        // TODO.2 hasher.add(mEntry.offer().sequence);
+        // TODO: fix this (endian), or remove index altogether
+        hasher.add(ByteSlice(&mEntry.offer().sequence, sizeof(mEntry.offer().sequence)));
         mIndex = hasher.finish();
     }
 
-    int64_t OfferFrame::getPrice()
+    int64_t OfferFrame::getPrice() const
     {
         return mEntry.offer().price;
     }
-    int64_t OfferFrame::getAmount()
+    
+    int64_t OfferFrame::getAmount() const
     {
         return mEntry.offer().amount;
     }
+
+    uint256 const& OfferFrame::getAccountID() const
+    {
+        return mEntry.offer().accountID;
+    }
+
     Currency& OfferFrame::getTakerPays()
     {
         return mEntry.offer().takerPays;
@@ -84,24 +91,26 @@ namespace stellar
 
     void OfferFrame::storeDelete(LedgerDelta &delta, LedgerMaster& ledgerMaster)
     {
-        std::string base58ID = toBase58Check(VER_ACCOUNT_ID, getIndex());
+        std::string b58AccountID = toBase58Check(VER_ACCOUNT_ID, mEntry.offer().accountID);
 
         ledgerMaster.getDatabase().getSession() <<
-            "DELETE from Offers where offerIndex= :v1", soci::use(base58ID);
+            "DELETE FROM Offers WHERE accountID=:id AND sequence=:s",
+            use(b58AccountID), use(mEntry.offer().sequence);
 
         delta.deleteEntry(*this);
     }
 
     void OfferFrame::storeChange(LedgerDelta &delta, LedgerMaster& ledgerMaster)
     {
-        std::string base58ID = toBase58Check(VER_ACCOUNT_ID, getIndex());
+        std::string b58AccountID = toBase58Check(VER_ACCOUNT_ID, mEntry.offer().accountID);
 
         std::stringstream sql;
         sql << "UPDATE Offers set ";
 
         soci::statement st = (ledgerMaster.getDatabase().getSession().prepare <<
-            "UPDATE Offers set amount=:a, price=:p where offerIndex=:i",
-            use(mEntry.offer().amount), use(mEntry.offer().price), use(base58ID));
+            "UPDATE Offers SET amount=:a, price=:p WHERE accountID=:id AND sequence=:s",
+            use(mEntry.offer().amount), use(mEntry.offer().price),
+            use(b58AccountID), use(mEntry.offer().sequence));
 
         st.execute(true);
 
@@ -115,10 +124,9 @@ namespace stellar
 
     void OfferFrame::storeAdd(LedgerDelta &delta, LedgerMaster& ledgerMaster)
     {
-        std::string b58Index = toBase58Check(VER_ACCOUNT_ID, getIndex());
         std::string b58AccountID = toBase58Check(VER_ACCOUNT_ID, mEntry.offer().accountID);
 
-        soci::statement st(ledgerMaster.getDatabase().getSession().prepare << "DUMMY");
+        soci::statement st(ledgerMaster.getDatabase().getSession().prepare << "select 1");
 
         if(mEntry.offer().takerGets.type()==NATIVE)
         {
@@ -126,10 +134,11 @@ namespace stellar
             std::string currencyCode;
             currencyCodeToStr(mEntry.offer().takerPays.isoCI().currencyCode, currencyCode);
             st = (ledgerMaster.getDatabase().getSession().prepare <<
-                "INSERT into Offers (offerIndex,accountID,sequence,paysIsoCurrency,paysIssuer,amount,price,flags) values (:v1,:v2,:v3,:v4,:v5,:v6,:v7,:v8)",
-                use(b58Index), use(b58AccountID), use(mEntry.offer().sequence), 
+                "INSERT into Offers (accountID,sequence,paysIsoCurrency,paysIssuer,amount,price,flags) values (:v1,:v2,:v3,:v4,:v5,:v6,:v7)",
+                use(b58AccountID), use(mEntry.offer().sequence), 
                 use(b58issuer),use(currencyCode),use(mEntry.offer().amount),
                 use(mEntry.offer().price),use(mEntry.offer().flags));
+            st.execute(true);
         }
         else if(mEntry.offer().takerPays.type()==NATIVE)
         {
@@ -137,10 +146,11 @@ namespace stellar
             std::string currencyCode;
             currencyCodeToStr(mEntry.offer().takerGets.isoCI().currencyCode, currencyCode);
             st = (ledgerMaster.getDatabase().getSession().prepare <<
-                "INSERT into Offers (offerIndex,accountID,sequence,getsIsoCurrency,getsIssuer,amount,price,flags) values (:v1,:v2,:v3,:v4,:v5,:v6,:v7,:v8)",
-                use(b58Index), use(b58AccountID), use(mEntry.offer().sequence),
+                "INSERT into Offers (accountID,sequence,getsIsoCurrency,getsIssuer,amount,price,flags) values (:v1,:v2,:v3,:v4,:v5,:v6,:v7)",
+                use(b58AccountID), use(mEntry.offer().sequence),
                 use(b58issuer), use(currencyCode), use(mEntry.offer().amount),
                 use(mEntry.offer().price), use(mEntry.offer().flags));
+            st.execute(true);
         }
         else
         {
@@ -150,14 +160,14 @@ namespace stellar
             std::string b58GetsIssuer = toBase58Check(VER_ACCOUNT_ID, mEntry.offer().takerGets.isoCI().issuer);
             currencyCodeToStr(mEntry.offer().takerGets.isoCI().currencyCode, getsIsoCurrency);
             st = (ledgerMaster.getDatabase().getSession().prepare <<
-                "INSERT into Offers (offerIndex,accountID,sequence,paysIsoCurrency,paysIssuer,getsIsoCurrency,getsIssuer,amount,price,flags) values (:v1,:v2,:v3,:v4,:v5,:v6,:v7,:v8,:v9,:v10)",
-                use(b58Index), use(b58AccountID), use(mEntry.offer().sequence),
-                use(b58PaysIssuer), use(paysIsoCurrency), use(b58GetsIssuer), use(getsIsoCurrency),
-                use(mEntry.offer().amount),
-                use(mEntry.offer().price), use(mEntry.offer().flags));
+                "INSERT into Offers (accountID,sequence,"\
+                "paysIsoCurrency,paysIssuer,getsIsoCurrency,getsIssuer,"\
+                "amount,price,flags) values (:v1,:v2,:v3,:v4,:v5,:v6,:v7,:v8,:v9)",
+                use(b58AccountID), use(mEntry.offer().sequence),
+                use(paysIsoCurrency), use(b58PaysIssuer), use(getsIsoCurrency), use(b58GetsIssuer),
+                use(mEntry.offer().amount), use(mEntry.offer().price), use(mEntry.offer().flags));
+            st.execute(true);
         }
-
-        st.execute(true);
 
         if (st.get_affected_rows() != 1)
         {

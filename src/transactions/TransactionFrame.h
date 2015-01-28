@@ -41,8 +41,6 @@ namespace stellar
         virtual bool doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster) = 0;
         virtual int32_t getNeededThreshold();
 
-        int64_t getTransferRate(Currency& currency, LedgerMaster& ledgerMaster);
-
     public:
         typedef std::shared_ptr<TransactionFrame> pointer;
 
@@ -78,7 +76,10 @@ namespace stellar
 
         void storeTransaction(LedgerMaster &ledgerMaster);
         static void dropAll(Database &db);
-	};
+
+
+        static int64_t getTransferRate(const Currency& currency, LedgerMaster& ledgerMaster);
+    };
 
 }
 

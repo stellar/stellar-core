@@ -8,19 +8,8 @@ namespace stellar
 
 class PaymentFrame : public TransactionFrame
 {
-    bool crossOffer(OfferFrame& sellingWheatOffer, int64_t maxWheatReceived, 
-        int64_t& numWheatReceived,  int64_t& numSheepReceived, 
-        int64_t wheatTransferRate,
-        LedgerDelta& delta, LedgerMaster& ledgerMaster);
-
-    // returns false if tx should be canceled
-    bool convert(Currency& sell,
-        Currency& buy, int64_t amountToBuy,
-        int64_t& retAmountToSell,
-        LedgerDelta& delta, LedgerMaster& ledgerMaster);
-
-    // receiver must exist
-    bool sendNoCreate(AccountFrame& receiver, LedgerDelta& delta, LedgerMaster& ledgerMaster);
+    // destination must exist
+    bool sendNoCreate(AccountFrame& destination, LedgerDelta& delta, LedgerMaster& ledgerMaster);
 
     Payment::PaymentResult &innerResult() { return mResult.body.tr().paymentResult(); }
 public:

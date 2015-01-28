@@ -33,7 +33,7 @@ namespace stellar
         void setUpdateSigners() { mUpdateSigners = true; }
         int64_t getBalance();
         bool isAuthRequired();
-        uint256& getID();
+        uint256 const& getID() const;
         uint32_t getMasterWeight();
         uint32_t getHighThreshold();
         uint32_t getMidThreshold();
