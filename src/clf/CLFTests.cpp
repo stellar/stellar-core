@@ -16,6 +16,7 @@
 #include "util/Timer.h"
 #include "crypto/Hex.h"
 #include <future>
+#include <algorithm>
 
 using namespace stellar;
 
@@ -27,12 +28,13 @@ TEST_CASE("bucket list", "[clf]")
     {
         Application app(clock, cfg);
         BucketList bl;
-        autocheck::generator<std::vector<LedgerEntry>> gen;
+        autocheck::generator<std::vector<LedgerEntry>> liveGen;
+        autocheck::generator<std::vector<LedgerKey>> deadGen;
         LOG(DEBUG) << "Adding batches to bucket list";
         for (uint64_t i = 1; !app.getMainIOService().stopped() && i < 130; ++i)
         {
             app.crank(false);
-            bl.addBatch(app, i, gen(10));
+            bl.addBatch(app, i, liveGen(8), deadGen(5));
             if (i % 10 == 0)
                 LOG(DEBUG) << "Added batch " << i << ", hash=" << binToHex(bl.getHash());
             for (size_t j = 0; j < bl.numLevels(); ++j)
@@ -65,24 +67,131 @@ fileSize(std::string const& name)
 TEST_CASE("file-backed buckets", "[clf]")
 {
     TIMED_FUNC(timerObj);
-    autocheck::generator<LedgerEntry> gen;
+    autocheck::generator<LedgerEntry> liveGen;
+    autocheck::generator<LedgerKey> deadGen;
     LOG(DEBUG) << "Generating 10000 random ledger entries";
-    std::vector<LedgerEntry> v(10000);
-    for (auto &e : v)
-        e = gen(3);
+    std::vector<LedgerEntry> live(9000);
+    std::vector<LedgerKey> dead(1000);
+    for (auto &e : live)
+        e = liveGen(3);
+    for (auto &e : dead)
+        e = deadGen(3);
     LOG(DEBUG) << "Hashing entries";
-    std::shared_ptr<Bucket> b1 = Bucket::fresh(v);
+    std::shared_ptr<Bucket> b1 = Bucket::fresh(live, dead);
     for (size_t i = 0; i < 5; ++i)
     {
         LOG(DEBUG) << "Merging 10000 new ledger entries into "
                    << (i * 10000) << " entry bucket";
-        for (auto &e : v)
-            e = gen(3);
+        for (auto &e : live)
+            e = liveGen(3);
+        for (auto &e : dead)
+            e = deadGen(3);
         {
             TIMED_SCOPE(timerObj, "merge");
-            b1 = Bucket::merge(b1, Bucket::fresh(v));
+            b1 = Bucket::merge(b1, Bucket::fresh(live, dead));
         }
     }
     CHECK(b1->isSpilledToFile());
     LOG(DEBUG) << "Spill file size: " << fileSize(b1->getFilename());
+}
+
+
+TEST_CASE("merging clf entries", "[clf]")
+{
+    LedgerEntry liveEntry;
+    LedgerKey deadEntry;
+
+    autocheck::generator<LedgerEntry> leGen;
+    autocheck::generator<AccountEntry> acGen;
+    autocheck::generator<TrustLineEntry> tlGen;
+    autocheck::generator<OfferEntry> ofGen;
+    autocheck::generator<bool> flip;
+
+    SECTION("dead account entry annaihilates live account entry")
+    {
+        liveEntry.type(ACCOUNT);
+        liveEntry.account() = acGen(10);
+        deadEntry.type(ACCOUNT);
+        deadEntry.account().accountID = liveEntry.account().accountID;
+        std::vector<LedgerEntry> live { liveEntry };
+        std::vector<LedgerKey> dead { deadEntry };
+        std::shared_ptr<Bucket> b1 = Bucket::fresh(live, dead);
+        CHECK(b1->getEntries().size() == 1);
+    }
+
+    SECTION("dead trustline entry annaihilates live trustline entry")
+    {
+        liveEntry.type(TRUSTLINE);
+        liveEntry.trustLine() = tlGen(10);
+        deadEntry.type(TRUSTLINE);
+        deadEntry.trustLine().accountID = liveEntry.trustLine().accountID;
+        deadEntry.trustLine().currency = liveEntry.trustLine().currency;
+        std::vector<LedgerEntry> live { liveEntry };
+        std::vector<LedgerKey> dead { deadEntry };
+        std::shared_ptr<Bucket> b1 = Bucket::fresh(live, dead);
+        CHECK(b1->getEntries().size() == 1);
+    }
+
+    SECTION("dead offer entry annaihilates live offer entry")
+    {
+        liveEntry.type(OFFER);
+        liveEntry.offer() = ofGen(10);
+        deadEntry.type(OFFER);
+        deadEntry.offer().accountID = liveEntry.offer().accountID;
+        deadEntry.offer().sequence = liveEntry.offer().sequence;
+        std::vector<LedgerEntry> live { liveEntry };
+        std::vector<LedgerKey> dead { deadEntry };
+        std::shared_ptr<Bucket> b1 = Bucket::fresh(live, dead);
+        CHECK(b1->getEntries().size() == 1);
+    }
+
+    SECTION("random dead entries annaihilate live entries")
+    {
+        std::vector<LedgerEntry> live(100);
+        std::vector<LedgerKey> dead;
+        for (auto &e : live)
+        {
+            e = leGen(10);
+            if (flip())
+            {
+                dead.push_back(LedgerEntryKey(e));
+            }
+        }
+        std::shared_ptr<Bucket> b1 = Bucket::fresh(live, dead);
+        CHECK(b1->getEntries().size() == live.size());
+        size_t liveCount = 0;
+        for (auto const& e : b1->getEntries())
+        {
+            if (e.entry.type() == LIVEENTRY)
+            {
+                liveCount++;
+            }
+        }
+        LOG(DEBUG) << "post-merge live count: " << liveCount << " of " << live.size();
+        CHECK(liveCount == live.size() - dead.size());
+    }
+
+    SECTION("random live entries overwrite live entries in any order")
+    {
+        std::vector<LedgerEntry> live(100);
+        std::vector<LedgerKey> dead;
+        for (auto &e : live)
+        {
+            e = leGen(10);
+        }
+        std::shared_ptr<Bucket> b1 = Bucket::fresh(live, dead);
+        std::random_shuffle(live.begin(), live.end());
+        size_t liveCount = live.size();
+        for (auto& e : live)
+        {
+            if (flip())
+            {
+                e = leGen(10);
+                ++liveCount;
+            }
+        }
+        std::shared_ptr<Bucket> b2 = Bucket::fresh(live, dead);
+        std::shared_ptr<Bucket> b3 = Bucket::merge(b1, b2);
+        CHECK(b3->getEntries().size() == liveCount);
+    }
 }

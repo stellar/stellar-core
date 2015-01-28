@@ -27,9 +27,9 @@ namespace stellar
 struct
 LedgerEntryIdCmp
 {
-    template <typename T>
+    template <typename T, typename U>
     bool operator()(T const& a,
-                    T const& b) const
+                    U const& b) const
     {
         LedgerType aty = a.type();
         LedgerType bty = b.type();
@@ -90,18 +90,27 @@ CLFEntryIdCmp
         CLFType aty = a.entry.type();
         CLFType bty = b.entry.type();
 
-        if (aty < bty)
-            return true;
-
-        if (aty > bty)
-            return false;
-
-        switch (aty)
+        if (aty == LIVEENTRY)
         {
-        case LIVEENTRY:
-            return mCmp(a.entry.liveEntry(), b.entry.liveEntry());
-        case TOMBSTONE:
-            return mCmp(a.entry.tombstone(), b.entry.tombstone());
+            if (bty == LIVEENTRY)
+            {
+                return mCmp(a.entry.liveEntry(), b.entry.liveEntry());
+            }
+            else
+            {
+                return mCmp(a.entry.liveEntry(), b.entry.deadEntry());
+            }
+        }
+        else
+        {
+            if (bty == LIVEENTRY)
+            {
+                return mCmp(a.entry.deadEntry(), b.entry.liveEntry());
+            }
+            else
+            {
+                return mCmp(a.entry.deadEntry(), b.entry.deadEntry());
+            }
         }
     }
 };
