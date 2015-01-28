@@ -273,7 +273,9 @@ class Bucket
     std::string const& getFilename() const;
     bool isSpilledToFile() const;
 
-    static std::shared_ptr<Bucket> fresh(std::vector<LedgerEntry> const& entries);
+    static std::shared_ptr<Bucket>
+    fresh(std::vector<LedgerEntry> const& liveEntries,
+          std::vector<LedgerKey> const& deadEntries);
 
     static std::shared_ptr<Bucket>
     merge(std::shared_ptr<Bucket> const& oldBucket,
@@ -316,7 +318,8 @@ class BucketList
     BucketLevel const& getLevel(size_t i) const;
     uint256 getHash() const;
     void addBatch(Application& app, uint64_t currLedger,
-                  std::vector<LedgerEntry> const& batch);
+                  std::vector<LedgerEntry> const& liveEntries,
+                  std::vector<LedgerKey> const& deadEntries);
 };
 }
 

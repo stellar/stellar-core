@@ -93,7 +93,7 @@ union LedgerEntry switch (LedgerType type)
 
 enum CLFType {
     LIVEENTRY,
-    TOMBSTONE
+    DEADENTRY
 };
 
 union LedgerKey switch (LedgerType type)
@@ -124,8 +124,8 @@ struct CLFEntry
         case LIVEENTRY:
             LedgerEntry liveEntry;
 
-        case TOMBSTONE:
-            LedgerKey tombstone;
+        case DEADENTRY:
+            LedgerKey deadEntry;
     } entry;
 };
 

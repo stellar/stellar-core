@@ -106,27 +106,41 @@ Bucket::getFilename() const
 }
 
 std::shared_ptr<Bucket>
-Bucket::fresh(std::vector<LedgerEntry> const& entries)
+Bucket::fresh(std::vector<LedgerEntry> const& liveEntries,
+              std::vector<LedgerKey> const& deadEntries)
 {
-    std::vector<CLFEntry> clfEntries;
-    clfEntries.reserve(entries.size());
-    for (auto const& e : entries)
+    std::vector<CLFEntry> live, dead, combined;
+    live.reserve(liveEntries.size());
+    dead.reserve(deadEntries.size());
+
+    for (auto const& e : liveEntries)
     {
         CLFEntry ce;
+        ce.entry.type(LIVEENTRY);
         ce.entry.liveEntry() = e;
         ce.hash = sha512_256(xdr::xdr_to_msg(ce.entry));
-        clfEntries.push_back(ce);
+        live.push_back(ce);
     }
 
-    std::sort(clfEntries.begin(), clfEntries.end(),
+    for (auto const& e : deadEntries)
+    {
+        CLFEntry ce;
+        ce.entry.type(DEADENTRY);
+        ce.entry.deadEntry() = e;
+        ce.hash = sha512_256(xdr::xdr_to_msg(ce.entry));
+        dead.push_back(ce);
+    }
+
+    std::sort(live.begin(), live.end(),
               CLFEntryIdCmp());
 
-    SHA512_256 hsh;
-    for (auto const& ce : clfEntries)
-    {
-        hsh.add(ce.hash);
-    }
-    return std::make_shared<Bucket>(clfEntries, hsh.finish());
+    std::sort(dead.begin(), dead.end(),
+              CLFEntryIdCmp());
+
+    uint256 dummyHash;
+    auto liveBucket = std::make_shared<Bucket>(live, dummyHash);
+    auto deadBucket = std::make_shared<Bucket>(dead, dummyHash);
+    return Bucket::merge(liveBucket, deadBucket);
 }
 
 
@@ -518,7 +532,8 @@ BucketList::getLevel(size_t i) const
 
 void
 BucketList::addBatch(Application& app, uint64_t currLedger,
-                     std::vector<LedgerEntry> const& batch)
+                     std::vector<LedgerEntry> const& liveEntries,
+                     std::vector<LedgerKey> const& deadEntries)
 {
     assert(currLedger > 0);
     assert(numLevels(currLedger - 1) == mLevels.size());
@@ -569,7 +584,7 @@ BucketList::addBatch(Application& app, uint64_t currLedger,
         }
     }
 
-    mLevels[0].prepare(app, currLedger, Bucket::fresh(batch));
+    mLevels[0].prepare(app, currLedger, Bucket::fresh(liveEntries, deadEntries));
     mLevels[0].commit();
 }
 }
