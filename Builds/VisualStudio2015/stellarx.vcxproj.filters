@@ -351,6 +351,9 @@
     <ClCompile Include="..\..\src\simulation\CycleTests.cpp">
       <Filter>simulation</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\transactions\OfferExchange.cpp">
+      <Filter>transactions</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\history\HistoryGateway.h">
@@ -598,6 +601,9 @@
     </ClInclude>
     <ClInclude Include="..\..\src\simulation\Simulation.h">
       <Filter>simulation</Filter>
+    </ClCompile>
+    <ClInclude Include="..\..\src\transactions\OfferExchange.h">
+      <Filter>transactions</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

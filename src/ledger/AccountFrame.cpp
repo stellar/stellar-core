@@ -81,7 +81,7 @@ int64_t AccountFrame::getBalance()
 {
     return(mEntry.account().balance);
 }
-uint256& AccountFrame::getID()
+uint256 const& AccountFrame::getID() const
 {
     return(mEntry.account().accountID);
 }

@@ -29,8 +29,9 @@ namespace stellar
         void storeChange(LedgerDelta &delta, LedgerMaster& ledgerMaster);
         void storeAdd(LedgerDelta &delta, LedgerMaster& ledgerMaster);
 
-        int64_t getPrice();
-        int64_t getAmount();
+        int64_t getPrice() const;
+        int64_t getAmount() const;
+        uint256 const& getAccountID() const;
         Currency& getTakerPays();
         Currency& getTakerGets();
         uint32 getSequence();

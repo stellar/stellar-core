@@ -18,16 +18,6 @@ namespace stellar
 
         bool checkOfferValid(LedgerMaster& ledgerMaster); 
         
-        bool crossOffer(OfferFrame& sellingWheatOffer,
-            int64_t maxSheepReceived, int64_t& amountSheepReceived,
-            LedgerDelta& delta, LedgerMaster& ledgerMaster);
-
-        
-
-        bool convert(Currency& sheep,
-            Currency& wheat, int64_t amountOfSheepToSell, int64_t minSheepPrice,
-            LedgerDelta& delta, LedgerMaster& ledgerMaster);
-
         CreateOffer::CreateOfferResult &innerResult() { return mResult.body.tr().createOfferResult(); }
     public:
         CreateOfferFrame(const TransactionEnvelope& envelope);

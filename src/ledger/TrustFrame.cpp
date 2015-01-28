@@ -46,7 +46,17 @@ namespace stellar {
 
     int64_t TrustFrame::getBalance()
     {
+        assert(isValid());
         return mEntry.trustLine().balance;
+    }
+
+    bool TrustFrame::isValid() const
+    {
+        const TrustLineEntry &tl = mEntry.trustLine();
+        bool res = tl.currency.type() != NATIVE;
+        res = res && (tl.balance >= 0);
+        res = res && (tl.balance <= tl.limit);
+        return res;
     }
 
     void TrustFrame::storeDelete(LedgerDelta &delta, LedgerMaster& ledgerMaster)
@@ -61,6 +71,8 @@ namespace stellar {
 
     void TrustFrame::storeChange(LedgerDelta &delta, LedgerMaster& ledgerMaster)
     {
+        assert(isValid());
+
         std::string base58ID = toBase58Check(VER_ACCOUNT_ID, getIndex());
 
         soci::statement st = (ledgerMaster.getDatabase().getSession().prepare <<
@@ -81,6 +93,8 @@ namespace stellar {
 
     void TrustFrame::storeAdd(LedgerDelta &delta, LedgerMaster& ledgerMaster)
     {
+        assert(isValid());
+
         std::string base58Index = toBase58Check(VER_ACCOUNT_ID, getIndex());
         std::string b58AccountID = toBase58Check(VER_ACCOUNT_ID, mEntry.trustLine().accountID);
         std::string b58Issuer = toBase58Check(VER_ACCOUNT_ID, mEntry.trustLine().currency.isoCI().issuer);

@@ -51,7 +51,11 @@ void currencyCodeToStr(const xdr::opaque_array<4U>& code, std::string& retStr)
     {
         if(code[n])
             retStr[n] = code[n];
-        else return;
+        else
+        {
+            retStr.resize(n);
+            return;
+        }
     }
 }
 
@@ -66,6 +70,8 @@ void strToCurrencyCode(xdr::opaque_array<4U>& ret, const std::string& str)
 // calculates A*B/C when A*B overflows 64bits
 int64_t bigDivide(int64_t A, int64_t B, int64_t C)
 {
+    // update when moving to (signed) int128
+    assert((A >= 0) && (B >= 0) && (C > 0));
     uint128_t a(A);
     uint128_t b(B);
     uint128_t c(C);

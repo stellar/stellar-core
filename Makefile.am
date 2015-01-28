@@ -31,6 +31,7 @@ FMT_SRCS = src/clf/BucketList.cpp src/clf/CLFMaster.cpp src/clf/CLFTests.cpp    
     src/transactions/CreateOfferFrame.cpp src/transactions/InflationFrame.cpp   \
     src/transactions/InflationTests.cpp src/transactions/MergeFrame.cpp         \
     src/transactions/MergeTests.cpp src/transactions/OfferTests.cpp             \
+    src/transactions/OfferExchange.cpp                                          \
     src/transactions/PaymentFrame.cpp src/transactions/PaymentTests.cpp         \
     src/transactions/SetOptionsFrame.cpp src/transactions/SetOptionsTests.cpp   \
     src/transactions/TransactionFrame.cpp src/transactions/TxEnvelopeTests.cpp  \
@@ -57,6 +58,7 @@ FMT_HDRS = src/clf/BucketList.h src/clf/LedgerCmp.h src/clf/CLFMaster.h         
     src/util/XDRStream.h src/transactions/AllowTrustTxFrame.h                   \
     src/transactions/CancelOfferFrame.h src/transactions/ChangeTrustTxFrame.h   \
     src/transactions/CreateOfferFrame.h src/transactions/InflationFrame.h       \
+    src/transactions/OfferExchange.h                                            \
     src/transactions/MergeFrame.h src/transactions/PaymentFrame.h               \
     src/transactions/SetOptionsFrame.h src/transactions/TransactionFrame.h      \
     src/transactions/TxTests.h

@@ -26,7 +26,7 @@ class Database
     static bool gDriversRegistered;
     static void registerDrivers();
 
-    void loadOffer(const soci::row& row, OfferFrame& offer);
+    void loadOffers(soci::details::prepare_temp_type &prep, std::function<void(const OfferFrame&)> offerProcessor);
     void loadLine(const soci::row& row, TrustFrame& offer);
   public:
     Database(Application& app);
@@ -38,8 +38,8 @@ class Database
         TrustFrame& retEntry);
     bool loadOffer(const uint256& accountID,uint32_t seq, OfferFrame& retEntry);
 
-    void loadBestOffers(size_t numOffers, size_t offset, Currency& pays,
-        Currency& gets, std::vector<OfferFrame>& retOffers);
+    void loadBestOffers(size_t numOffers, size_t offset, const Currency& pays,
+        const Currency& gets, std::vector<OfferFrame>& retOffers);
 
     void loadOffers(const uint256& accountID, std::vector<OfferFrame>& retOffers);
     void loadLines(const uint256& accountID, std::vector<TrustFrame>& retLines);

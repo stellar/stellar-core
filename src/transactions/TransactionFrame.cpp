@@ -89,17 +89,19 @@ TransactionFrame::getEnvelope()
 }
 
 
-int64_t TransactionFrame::getTransferRate(Currency& currency, LedgerMaster& ledgerMaster)
+int64_t TransactionFrame::getTransferRate(const Currency& currency, LedgerMaster& ledgerMaster)
 {
-    if(currency.type() == NATIVE) return TRANSFER_RATE_DIVISOR;
+    if (currency.type() == NATIVE)
+    {
+        return TRANSFER_RATE_DIVISOR;
+    }
 
     AccountFrame issuer;
-    
-	if (!ledgerMaster.getDatabase().loadAccount(currency.isoCI().issuer, issuer))
+    if (!ledgerMaster.getDatabase().loadAccount(currency.isoCI().issuer, issuer))
     {
         throw std::runtime_error("Account not found in TransactionFrame::getTransferRate");
     }
-    return issuer.mEntry.account().transferRate;    
+    return issuer.mEntry.account().transferRate;
 }
 
 

@@ -28,6 +28,8 @@ namespace stellar {
 
         int64_t getBalance();
 
+        bool isValid() const;
+
         static void dropAll(Database &db);
         static const char *kSQLCreateStatement;
 	};

@@ -147,6 +147,15 @@ struct TransactionEnvelope
     uint512 signatures<>;
 };
 
+struct ClaimOfferAtom
+{
+    AccountID offerOwner;
+    uint32 offerSequence;
+    Currency currencyClaimed; // redundant but emited for clarity
+    int64 amountClaimed;
+    // should we also include the amount that the owner gets in return?
+};
+
 namespace Payment {
 enum PaymentResultCode
 {
@@ -159,16 +168,6 @@ enum PaymentResultCode
     NOT_AUTHORIZED,
     LINE_FULL,
     OVERSENDMAX
-};
-
-struct ClaimOfferAtom
-{
-    AccountID offerOwner;
-    uint32 offerSequence;
-    Currency currencySent;
-    int64 amountSent;
-    // should we also include the amount that the account gets in return?
-    // one can deduct it by looking at the next operation in the chain
 };
 
 struct SimplePaymentResult
@@ -206,6 +205,7 @@ enum CreateOfferResultCode
     NO_TRUST,
     NOT_AUTHORIZED,
     MALFORMED,
+    UNDERFUNDED,
     NOT_FOUND
 };
 
