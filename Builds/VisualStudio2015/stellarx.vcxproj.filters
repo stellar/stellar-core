@@ -76,6 +76,9 @@
     <Filter Include="xdr">
       <UniqueIdentifier>{fe536180-763e-40aa-8c30-2a100a064b94}</UniqueIdentifier>
     </Filter>
+    <Filter Include="simulation">
+      <UniqueIdentifier>{5da37d0f-0d0e-4f17-a7b4-5463b0ccc0a9}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\src\ledger\LedgerMaster.cpp">
@@ -342,6 +345,12 @@
     <ClCompile Include="..\..\src\util\TimerTests.cpp">
       <Filter>util</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\simulation\Simulation.cpp">
+      <Filter>simulation</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\simulation\CycleTests.cpp">
+      <Filter>simulation</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\history\HistoryGateway.h">
@@ -586,6 +595,9 @@
     </ClInclude>
     <ClInclude Include="..\..\src\herder\TxSetFrame.h">
       <Filter>herder</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\simulation\Simulation.h">
+      <Filter>simulation</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

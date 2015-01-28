@@ -12,7 +12,7 @@
 
 namespace stellar
 {
-Config::Config()
+Config::Config() : PEER_KEY( SecretKey::random() )
 {
     // fill in defaults
 
@@ -32,6 +32,7 @@ Config::Config()
     QUORUM_THRESHOLD = 1000;
     HTTP_PORT = 39132;
     PUBLIC_HTTP_PORT = false;
+    PEER_PUBLIC_KEY = PEER_KEY.getPublicKey();
 
     DATABASE = "sqlite3://:memory:";
 
@@ -61,6 +62,20 @@ Config::load(const std::string& filename)
             RUN_STANDALONE = g.get("RUN_STANDALONE")->as<bool>()->value();
         if (g.contains("LOG_FILE_PATH"))
             LOG_FILE_PATH = g.get("LOG_FILE_PATH")->as<std::string>()->value();
+
+        if(g.contains("VALIDATION_SEED"))
+        {
+            std::string seed= g.get("VALIDATION_SEED")->as<std::string>()->value();
+            VALIDATION_KEY=SecretKey::fromBase58Seed(seed);
+        }
+
+        if(g.contains("PEER_SEED"))
+        {
+            std::string seed = g.get("PEER_SEED")->as<std::string>()->value();
+            PEER_KEY = SecretKey::fromBase58Seed(seed);
+            PEER_PUBLIC_KEY = PEER_KEY.getPublicKey();
+        }
+
 
        
 

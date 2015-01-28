@@ -19,9 +19,9 @@ struct PublicKey : public uint256
 
 class SecretKey : public uint512
 {
-    SecretKey();
 public:
     PublicKey getPublicKey() const;
+    uint256 getSeed() const;
     std::string getBase58Seed() const;
     std::string getBase58Public() const;
 
@@ -29,6 +29,7 @@ public:
 
     static SecretKey random();
     static SecretKey fromBase58Seed(std::string const& base58Seed);
+    static SecretKey fromSeed(uint256& seed);
 };
 
 }

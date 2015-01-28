@@ -38,7 +38,7 @@ Simulation::addNode(stellar::uint256 validationSeed, VirtualClock& clock)
 {
     Config::pointer cfg = stellar::make_shared<Config>();
     cfg->LOG_FILE_PATH = getTestConfig().LOG_FILE_PATH;
-    cfg->VALIDATION_SEED = validationSeed;
+    cfg->VALIDATION_KEY = SecretKey::fromSeed(validationSeed);
     cfg->RUN_STANDALONE = true;
     cfg->START_NEW_NETWORK = true;
 

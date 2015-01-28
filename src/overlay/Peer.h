@@ -53,7 +53,7 @@ class Peer : public std::enable_shared_from_this<Peer>
   protected:
     Application& mApp;
 
-    PeerRole mRole;
+    PeerRole mRole;  // from point of view of the other end
     PeerState mState;
 
     std::string mRemoteVersion;

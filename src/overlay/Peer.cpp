@@ -38,6 +38,8 @@ Peer::sendHello()
     msg.type(HELLO);
     msg.hello().protocolVersion = mApp.getConfig().PROTOCOL_VERSION;
     msg.hello().versionStr = mApp.getConfig().VERSION_STR;
+    msg.hello().listeningPort = mApp.getConfig().PEER_PORT;
+    msg.hello().peerID = mApp.getConfig().PEER_PUBLIC_KEY;
 
     sendMessage(msg);
 }
@@ -347,11 +349,18 @@ Peer::recvError(StellarMessage const& msg)
 void
 Peer::recvHello(StellarMessage const& msg)
 {
+    if(msg.hello().peerID == mApp.getConfig().PEER_PUBLIC_KEY)
+    {
+        CLOG(INFO, "Overlay") << "connecting to self";
+        drop();
+        return;
+    }
+
     mRemoteProtocolVersion = msg.hello().protocolVersion;
     mRemoteVersion = msg.hello().versionStr;
-    mRemoteListeningPort = msg.hello().port;
+    mRemoteListeningPort = msg.hello().listeningPort;
     CLOG(INFO, "Overlay") << "recvHello: " << mRemoteProtocolVersion << " "
-                          << mRemoteVersion << " " << mRemoteListeningPort;
+        << mRemoteVersion << " " << mRemoteListeningPort;
     mState = GOT_HELLO;
 }
 

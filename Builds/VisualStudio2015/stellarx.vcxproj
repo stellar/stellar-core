@@ -202,6 +202,8 @@
     <ClCompile Include="..\..\src\lib\xdrpp\tests\srpc.cc">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
     </ClCompile>
+    <ClCompile Include="..\..\src\simulation\CycleTests.cpp" />
+    <ClCompile Include="..\..\src\simulation\Simulation.cpp" />
     <ClCompile Include="..\..\src\transactions\AllowTrustTxFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\CancelOfferFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\CreateOfferFrame.cpp" />
@@ -306,6 +308,7 @@
     <ClInclude Include="..\..\src\overlay\TCPPeer.h" />
     <ClInclude Include="..\..\src\process\ProcessGateway.h" />
     <ClInclude Include="..\..\src\process\ProcessMaster.h" />
+    <ClInclude Include="..\..\src\simulation\Simulation.h" />
     <ClInclude Include="..\..\src\transactions\AllowTrustTxFrame.h" />
     <ClInclude Include="..\..\src\transactions\CancelOfferFrame.h" />
     <ClInclude Include="..\..\src\transactions\CreateOfferFrame.h" />
