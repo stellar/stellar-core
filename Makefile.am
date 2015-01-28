@@ -24,7 +24,7 @@ FMT_SRCS = src/clf/BucketList.cpp src/clf/CLFMaster.cpp src/clf/CLFTests.cpp    
     src/simulation/CycleTests.cpp src/simulation/Simulation.cpp                 \
     src/herder/Herder.cpp src/herder/TxSetFrame.cpp src/herder/HerderTests.cpp  \
     src/util/Logging.cpp src/util/Timer.cpp src/util/types.cpp                  \
-    src/util/TempDir.cpp src/util/Uint128Tests.cpp src/util/TimerTests.cpp      \
+    src/util/TmpDir.cpp src/util/Uint128Tests.cpp src/util/TimerTests.cpp       \
     src/transactions/AllowTrustTxFrame.cpp                                      \
     src/transactions/CancelOfferFrame.cpp                                       \
     src/transactions/ChangeTrustTxFrame.cpp                                     \
@@ -53,7 +53,7 @@ FMT_HDRS = src/clf/BucketList.h src/clf/LedgerCmp.h src/clf/CLFMaster.h         
     src/overlay/PeerMaster.h src/overlay/TCPPeer.h src/process/ProcessGateway.h \
     src/process/ProcessMaster.h src/simulation/Simulation.h src/herder/Herder.h \
     src/herder/HerderGateway.h src/herder/TxSetFrame.h src/util/Logging.h       \
-    src/util/Timer.h src/util/make_unique.h src/util/types.h src/util/TempDir.h \
+    src/util/Timer.h src/util/make_unique.h src/util/types.h src/util/TmpDir.h  \
     src/util/XDRStream.h src/transactions/AllowTrustTxFrame.h                   \
     src/transactions/CancelOfferFrame.h src/transactions/ChangeTrustTxFrame.h   \
     src/transactions/CreateOfferFrame.h src/transactions/InflationFrame.h       \

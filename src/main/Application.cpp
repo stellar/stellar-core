@@ -24,6 +24,7 @@
 #include "main/CommandHandler.h"
 #include "medida/metrics_registry.h"
 
+#include "util/TmpDir.h"
 #include "util/Logging.h"
 #include "util/make_unique.h"
 
@@ -56,6 +57,7 @@ struct Application::Impl
     std::unique_ptr<RealTimer> mRealTimer;
 
     std::unique_ptr<medida::MetricsRegistry> mMetrics;
+    std::unique_ptr<TmpDirMaster> mTmpDirMaster;
     std::unique_ptr<PeerMaster> mPeerMaster;
     std::unique_ptr<LedgerMaster> mLedgerMaster;
     std::unique_ptr<Herder> mHerder;
@@ -138,6 +140,7 @@ Application::Application(VirtualClock& clock, Config const& cfg)
     // These must be constructed _after_ mImpl points to a
     // full Impl object, because they frequently call back
     // into App.getFoo() to get information / start up.
+    mImpl->mTmpDirMaster = make_unique<TmpDirMaster>(*this);
     mImpl->mPeerMaster = make_unique<PeerMaster>(*this);
     mImpl->mLedgerMaster = make_unique<LedgerMaster>(*this);
     mImpl->mHerder = make_unique<Herder>(*this);
@@ -378,6 +381,12 @@ medida::MetricsRegistry&
 Application::getMetrics()
 {
     return *mImpl->mMetrics;
+}
+
+TmpDirMaster&
+Application::getTmpDirMaster()
+{
+    return *mImpl->mTmpDirMaster;
 }
 
 LedgerGateway&

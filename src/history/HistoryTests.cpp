@@ -10,7 +10,7 @@
 #include "lib/catch.hpp"
 #include "util/Logging.h"
 #include "util/Timer.h"
-#include "util/TempDir.h"
+#include "util/TmpDir.h"
 #include <cstdio>
 #include <xdrpp/autocheck.h>
 #include <fstream>
@@ -23,7 +23,7 @@ using xdr::operator==;
 };
 
 void
-addLocalDirHistoryArchive(TempDir const& dir, Config &cfg)
+addLocalDirHistoryArchive(TmpDir const& dir, Config &cfg)
 {
     std::string d = dir.getName();
     cfg.HISTORY["test"] = std::make_shared<HistoryArchive>(
@@ -36,10 +36,11 @@ TEST_CASE("Archive and reload history", "[history]")
 {
     VirtualClock clock;
     Config cfg = getTestConfig();
-    TempDir dir("archive");
+    Application app(clock, cfg);
+
+    TmpDir dir(app, "archive");
     addLocalDirHistoryArchive(dir, cfg);
 
-    Application app(clock, cfg);
     autocheck::generator<History> gen;
     auto h1 = std::make_shared<History>(gen(10));
     LOG(DEBUG) << "archiving " << h1->entries.size() << " history entries";
@@ -84,10 +85,10 @@ TEST_CASE("Archive and reload bucket", "[history]")
 {
     VirtualClock clock;
     Config cfg = getTestConfig();
-    TempDir dir("archive");
+    Application app(clock, cfg);
+    TmpDir dir(app, "archive");
     addLocalDirHistoryArchive(dir, cfg);
 
-    Application app(clock, cfg);
     autocheck::generator<CLFBucket> gen;
     auto b1 = std::make_shared<CLFBucket>(gen(10));
     LOG(DEBUG) << "archiving " << b1->entries.size() << " bucket entries";
@@ -131,7 +132,10 @@ TEST_CASE("Archive and reload bucket", "[history]")
 
 TEST_CASE("HistoryArchiveParams::save", "[history]")
 {
-    TempDir dir("historytest");
+    VirtualClock clock;
+    Config cfg = getTestConfig();
+    Application app(clock, cfg);
+    TmpDir dir(app, "historytest");
     HistoryArchiveParams hap;
     auto fname = dir.getName() + "/stellar-history.json";
     hap.save(fname);

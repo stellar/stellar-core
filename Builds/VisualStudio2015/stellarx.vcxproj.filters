@@ -327,7 +327,7 @@
     <ClCompile Include="..\..\src\ledger\LedgerHeaderTests.cpp">
       <Filter>ledger\tests</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\util\TempDir.cpp">
+    <ClCompile Include="..\..\src\util\TmpDir.cpp">
       <Filter>util</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\crypto\Random.cpp">
@@ -581,7 +581,7 @@
     <ClInclude Include="..\..\src\main\test.h">
       <Filter>main\tests</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\util\TempDir.h">
+    <ClInclude Include="..\..\src\util\TmpDir.h">
       <Filter>util</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\crypto\Random.h">
