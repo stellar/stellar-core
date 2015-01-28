@@ -177,7 +177,7 @@ class HistoryMaster
                  std::string const& filename,
                  std::function<void(asio::error_code const&)> handler);
 
-    std::string const& getTempDir();
+    std::string const& getTmpDir();
 
   public:
 

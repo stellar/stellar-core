@@ -14,6 +14,7 @@ namespace stellar
 
 class VirtualClock;
 class Config;
+class TmpDirMaster;
 class LedgerGateway;
 class LedgerMaster;
 class CLFMaster;
@@ -103,6 +104,7 @@ class Application
     void setState(State);
     VirtualClock& getClock();
     medida::MetricsRegistry& getMetrics();
+    TmpDirMaster& getTmpDirMaster();
     LedgerGateway& getLedgerGateway();
     LedgerMaster& getLedgerMaster();
     CLFMaster& getCLFMaster();

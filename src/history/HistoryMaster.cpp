@@ -15,7 +15,7 @@
 #include "process/ProcessGateway.h"
 #include "util/make_unique.h"
 #include "util/Logging.h"
-#include "util/TempDir.h"
+#include "util/TmpDir.h"
 #include "lib/util/format.h"
 
 #include "xdrpp/marshal.h"
@@ -32,7 +32,7 @@ class
 HistoryMaster::Impl
 {
     Application& mApp;
-    unique_ptr<TempDir> mWorkDir;
+    unique_ptr<TmpDir> mWorkDir;
     friend class HistoryMaster;
 public:
     Impl(Application &app)
@@ -75,11 +75,12 @@ HistoryMaster::~HistoryMaster()
  */
 
 string const&
-HistoryMaster::getTempDir()
+HistoryMaster::getTmpDir()
 {
     if (!mImpl->mWorkDir)
     {
-        mImpl->mWorkDir = make_unique<TempDir>("history");
+        TmpDir t = mImpl->mApp.getTmpDirMaster().tmpDir("history");
+        mImpl->mWorkDir = make_unique<TmpDir>(std::move(t));
     }
     return mImpl->mWorkDir->getName();
 }
@@ -93,7 +94,7 @@ HistoryMaster::saveAndCompressAndPut(string const& basename,
     this->mImpl->mApp.getWorkerIOService().post(
         [this, basename, handler, xdrp]()
         {
-            string fullname = this->getTempDir() + "/" + basename;
+            string fullname = this->getTmpDir() + "/" + basename;
             ofstream out(fullname, ofstream::binary);
             auto m = xdr::xdr_to_msg(*xdrp);
             out.write(m->raw_data(), m->raw_size());
@@ -139,7 +140,7 @@ HistoryMaster::getAndDecompressAndLoad(string const& basename,
                                                      shared_ptr<T>)> handler)
 {
 
-    string fullname = getTempDir() + "/" + basename + ".gz";
+    string fullname = getTmpDir() + "/" + basename + ".gz";
     getFile(
         basename + ".gz", fullname,
         [this, fullname, handler](asio::error_code const& ec)
