@@ -64,6 +64,14 @@ Herder::Herder(Application& app)
     , mBumpTimer(app.getClock())
     , mApp(app)
 {
+    // Inject our local qSet in the FBAQSetFetcher.
+    FBAQuorumSetPtr qSet = std::make_shared<FBAQuorumSet>();
+    qSet->threshold = app.getConfig().QUORUM_THRESHOLD;
+    for (auto q : app.getConfig().QUORUM_SET)
+    {
+        qSet->validators.push_back(q);
+    }
+    recvFBAQuorumSet(qSet);
 }
 
 Herder::~Herder()
@@ -118,12 +126,17 @@ Herder::validateValue(const uint64& slotIndex,
         // Check txSet (only if we're fully synced)
         if(mLedgersToWaitToParticipate == 0 && !txSet->checkValid(mApp))
         {
-            CLOG(ERROR, "Herder") << "invalid txSet";
+            LOG(ERROR) << "[hrd] Herder::validateValue"
+                       << "@" << binToHex(getLocalNodeID()).substr(0,6)
+                       << " Invalid txSet:"
+                       << " " << binToHex(txSet->getContentsHash()).substr(0,6);
             return cb(false);
         }
         
         LOG(DEBUG) << "[hrd] Herder::validateValue"
-                   << "@" << binToHex(mApp.getConfig().VALIDATION_KEY.getPublicKey()).substr(0,6)
+                   << "@" << binToHex(getLocalNodeID()).substr(0,6)
+                   << " txSet:"
+                   << " " << binToHex(txSet->getContentsHash()).substr(0,6)
                    << " OK";
         return cb(true);
     };
@@ -202,7 +215,7 @@ Herder::validateBallot(const uint64& slotIndex,
         }
         
         LOG(DEBUG) << "[hrd] validateBallot"
-                   << "@" << binToHex(mApp.getConfig().VALIDATION_KEY.getPublicKey()).substr(0,6)
+                   << "@" << binToHex(getLocalNodeID()).substr(0,6)
                    << " OK";
         return cb(true);
     };
@@ -229,7 +242,7 @@ Herder::ballotDidPrepared(const uint64& slotIndex,
         return;
     }
     // Only validated values (current) values should trigger this.
-    assert(slotIndex != mLastClosedLedger.ledgerSeq + 1);
+    assert(slotIndex == mLastClosedLedger.ledgerSeq + 1);
 
     // We keep around the maximal value that prepared.
     if (compareValues(mBumpValue, ballot.value) < 0)
@@ -248,7 +261,7 @@ Herder::ballotDidHearFromQuorum(const uint64& slotIndex,
         return;
     }
     // Only validated values (current) values should trigger this.
-    assert(slotIndex != mLastClosedLedger.ledgerSeq + 1);
+    assert(slotIndex == mLastClosedLedger.ledgerSeq + 1);
 
     mBumpTimer.cancel();
 
@@ -275,8 +288,14 @@ Herder::valueExternalized(const uint64& slotIndex,
     {
         // This may not be possible as all messages are validated and should
         // therefore contain a valid StellarBallot.
-        CLOG(ERROR, "Herder") << "Externalized StellarBallot malformed";
+        LOG(ERROR) << "[hrd] Herder::valueExternalized"
+                   << "@" << binToHex(getLocalNodeID()).substr(0,6)
+                   << " Externalized StellarBallot malformed";
     }
+
+    LOG(INFO) << "[hrd] Herder::valueExternalized"
+               << "@" << binToHex(getLocalNodeID()).substr(0,6)
+               << " txSet: " << binToHex(b.txSetHash).substr(0,6);
     
     TxSetFramePtr externalizedSet = fetchTxSet(b.txSetHash, false);
     if (externalizedSet)
@@ -318,7 +337,9 @@ Herder::valueExternalized(const uint64& slotIndex,
     {
         // This may not be possible as all messages are validated and should
         // therefore fetch the txSet before being considered by FBA.
-        CLOG(ERROR, "Herder") << "Externalized txSet not found";
+        LOG(ERROR) << "[hrd] Herder::valueExternalized"
+                   << "@" << binToHex(getLocalNodeID()).substr(0,6)
+                   << " Externalized txSet not found";
     }
 }
 
@@ -327,7 +348,10 @@ Herder::retrieveQuorumSet(const uint256& nodeID,
                           const Hash& qSetHash,
                           std::function<void(const FBAQuorumSet&)> const& cb)
 {
-    auto retrieve = [cb] (FBAQuorumSetPtr qSet)
+    LOG(INFO) << "[hrd] Herder::retrieveQuorumSet"
+               << "@" << binToHex(getLocalNodeID()).substr(0,6)
+               << " qSet: " << binToHex(qSetHash).substr(0,6);
+    auto retrieve = [cb, this] (FBAQuorumSetPtr qSet)
     {
         return cb(*qSet);
     };
@@ -349,7 +373,7 @@ void
 Herder::emitEnvelope(const FBAEnvelope& envelope)
 {
     LOG(DEBUG) << "[hrd] Herder:emitEnvelope"
-               << "@" << binToHex(mApp.getConfig().VALIDATION_KEY.getPublicKey()).substr(0,6)
+               << "@" << binToHex(getLocalNodeID()).substr(0,6)
                << " mLedgersToWaitToParticipate: " << mLedgersToWaitToParticipate;
     // We don't emit any envelope as long as we're not fully synced
     if (mLedgersToWaitToParticipate > 0)
@@ -365,10 +389,10 @@ Herder::emitEnvelope(const FBAEnvelope& envelope)
 }
 
 TxSetFramePtr
-Herder::fetchTxSet(uint256 const& setHash, 
+Herder::fetchTxSet(const uint256& txSetHash, 
                    bool askNetwork)
 {
-    return mTxSetFetcher[mCurrentTxSetFetcher].fetchItem(setHash, askNetwork);
+    return mTxSetFetcher[mCurrentTxSetFetcher].fetchItem(txSetHash, askNetwork);
 }
 
 void
@@ -413,6 +437,10 @@ Herder::fetchFBAQuorumSet(uint256 const& qSetHash,
 void 
 Herder::recvFBAQuorumSet(FBAQuorumSetPtr qSet)
 {
+    LOG(INFO) << "[hrd] Herder::recvFBAQuorumSet"
+              << "@" << binToHex(getLocalNodeID()).substr(0,6)
+              << " qSet: " << binToHex(sha512_256(xdr::xdr_to_msg(*qSet))).substr(0,6);
+              
     if (mFBAQSetFetcher.recvItem(qSet))
     { 
         // someone cares about this set
@@ -631,9 +659,10 @@ Herder::triggerNextLedger(const asio::error_code& error)
 
     uint256 valueHash = sha512_256(xdr::xdr_to_msg(x));
     LOG(DEBUG) << "[hrd] Herder::triggerNextLedger"
-               << "@" << binToHex(mApp.getConfig().VALIDATION_KEY.getPublicKey()).substr(0,6)
+               << "@" << binToHex(getLocalNodeID()).substr(0,6)
                << " txSet.size: " << proposedSet->mTransactions.size()
-               << " previousLedgerHash: " << binToHex(proposedSet->mPreviousLedgerHash).substr(0,6)
+               << " previousLedgerHash: " 
+               << binToHex(proposedSet->mPreviousLedgerHash).substr(0,6)
                << " value: " << binToHex(valueHash).substr(0,6);
 
     mBumpValue = x;

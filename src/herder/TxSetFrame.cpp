@@ -5,6 +5,8 @@
 #include "TxSetFrame.h"
 #include "xdrpp/marshal.h"
 #include "crypto/SHA.h"
+#include "util/Logging.h"
+#include "crypto/Hex.h"
 #include "main/Application.h"
 #include <algorithm>
 
@@ -220,6 +222,7 @@ TxSetFrame::toXDR(TransactionSet& txSet)
     {
         txSet.txs[n]=mTransactions[n]->getEnvelope();
     }
+    txSet.previousLedgerHash = mPreviousLedgerHash;
 }
 
 }

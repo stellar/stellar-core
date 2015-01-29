@@ -6,6 +6,7 @@
 #include "main/Application.h"
 #include "xdrpp/marshal.h"
 #include "crypto/SHA.h"
+#include "util/Logging.h"
 #include "overlay/OverlayGateway.h"
 
 #define MS_TO_WAIT_FOR_FETCH_REPLY 3000
@@ -54,11 +55,11 @@ ItemFetcher::clear()
 //////////////////////////////
 
 TxSetFramePtr
-TxSetFetcher::fetchItem(uint256 const& setID, bool askNetwork)
+TxSetFetcher::fetchItem(uint256 const& txSetHash, bool askNetwork)
 {
     // look it up in the map
     // if not found then start fetching
-    auto result = mItemMap.find(setID);
+    auto result = mItemMap.find(txSetHash);
     if (result != mItemMap.end())
     { // collar found
         if (result->second->isItemFound())
@@ -75,8 +76,8 @@ TxSetFetcher::fetchItem(uint256 const& setID, bool askNetwork)
         if (askNetwork)
         {
             TrackingCollar::pointer collar =
-                std::make_shared<TxSetTrackingCollar>(setID, TxSetFramePtr(), mApp);
-            mItemMap[setID] = collar;
+                std::make_shared<TxSetTrackingCollar>(txSetHash, TxSetFramePtr(), mApp);
+            mItemMap[txSetHash] = collar;
             collar->tryNextPeer();
         }
     }
@@ -92,9 +93,10 @@ TxSetFetcher::recvItem(TxSetFramePtr txSet)
         auto result = mItemMap.find(txSet->getContentsHash());
         if (result != mItemMap.end())
         {
+            int refCount = result->second->getRefCount();
             result->second->cancelFetch();
             ((TxSetTrackingCollar*)result->second.get())->mTxSet = txSet;
-            if (result->second->getRefCount())
+            if (refCount)
             { // someone was still interested in
                 // this tx set so tell FBA
                 // LATER: maybe change this to pub/sub
@@ -114,40 +116,13 @@ TxSetFetcher::recvItem(TxSetFramePtr txSet)
 }
 
 ////////////////////////////////////////
-bool
-FBAQSetFetcher::recvItem(FBAQuorumSetPtr qSet)
-{
-    if (qSet)
-    {
-        uint256 qSetHash = sha512_256(xdr::xdr_to_msg(*qSet));
-        auto result = mItemMap.find(qSetHash);
-        if (result != mItemMap.end())
-        {
-            result->second->cancelFetch();
-            ((QSetTrackingCollar*)result->second.get())->mQSet = qSet;
-            if (result->second->getRefCount())
-            { // someone was still interested in
-                // this quorum set so tell FBA
-                // LATER: maybe change this to pub/sub
-                return true;
-            }
-        }
-        else
-        { // doesn't seem like we were looking for it. Maybe just add it for
-            // now
-            mItemMap[qSetHash] =
-                std::make_shared<QSetTrackingCollar>(qSetHash, qSet, mApp);
-        }
-    }
-    return false;
-}
 
 FBAQuorumSetPtr
-FBAQSetFetcher::fetchItem(uint256 const& setID, bool askNetwork)
+FBAQSetFetcher::fetchItem(uint256 const& qSetHash, bool askNetwork)
 {
     // look it up in the map
     // if not found then start fetching
-    auto result = mItemMap.find(setID);
+    auto result = mItemMap.find(qSetHash);
     if (result != mItemMap.end())
     { // collar found
         if (result->second->isItemFound())
@@ -164,13 +139,44 @@ FBAQSetFetcher::fetchItem(uint256 const& setID, bool askNetwork)
         if (askNetwork)
         {
             TrackingCollar::pointer collar =
-                std::make_shared<QSetTrackingCollar>(setID, FBAQuorumSetPtr(), mApp);
-            mItemMap[setID] = collar;
+                std::make_shared<QSetTrackingCollar>(qSetHash, FBAQuorumSetPtr(), mApp);
+            mItemMap[qSetHash] = collar;
             collar->tryNextPeer(); // start asking
         }
     }
     return (FBAQuorumSetPtr());
 }
+
+// returns true if we were waiting for this qSet
+bool
+FBAQSetFetcher::recvItem(FBAQuorumSetPtr qSet)
+{
+    if (qSet)
+    {
+        uint256 qSetHash = sha512_256(xdr::xdr_to_msg(*qSet));
+        auto result = mItemMap.find(qSetHash);
+        if (result != mItemMap.end())
+        {
+            int refCount = result->second->getRefCount();
+            result->second->cancelFetch();
+            ((QSetTrackingCollar*)result->second.get())->mQSet = qSet;
+            if (refCount)
+            { // someone was still interested in
+                // this quorum set so tell FBA
+                // LATER: maybe change this to pub/sub
+                return true;
+            }
+        }
+        else
+        { // doesn't seem like we were looking for it. Maybe just add it for
+            // now
+            mItemMap[qSetHash] =
+                std::make_shared<QSetTrackingCollar>(qSetHash, qSet, mApp);
+        }
+    }
+    return false;
+}
+
 
 //////////////////////////////////////////////////////////////////////////
 

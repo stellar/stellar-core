@@ -318,7 +318,14 @@ void
 Peer::recvFBAQuorumSet(StellarMessage const& msg)
 {
     FBAQuorumSetPtr qSet =
-        std::make_shared<FBAQuorumSet>(msg.qSet());
+        std::make_shared<FBAQuorumSet>();
+
+    qSet->threshold = msg.qSet().threshold;
+    for (auto q : msg.qSet().validators)
+    {
+        qSet->validators.push_back(q);
+    }
+
     mApp.getHerderGateway().recvFBAQuorumSet(qSet);
 }
 

@@ -85,7 +85,7 @@ void
 Simulation::startAllNodes()
 {
     // We wait for the connections to set up (HELLO).
-    while(simulation.crankAllNodes() > 0);
+    while(crankAllNodes() > 0);
 
     for(auto it : mNodes)
     {

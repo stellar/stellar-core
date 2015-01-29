@@ -63,11 +63,11 @@ class Herder : public HerderGateway,
     void emitEnvelope(const FBAEnvelope& envelope);
     
     // HerderGateway methods
-    TxSetFramePtr fetchTxSet(const uint256& setHash, bool askNetwork);
+    TxSetFramePtr fetchTxSet(const uint256& txSetHash, bool askNetwork);
     void recvTxSet(TxSetFramePtr txSet);
-    void doesntHaveTxSet(uint256 const& setHash, PeerPtr peer);
+    void doesntHaveTxSet(uint256 const& txSethash, PeerPtr peer);
 
-    FBAQuorumSetPtr fetchFBAQuorumSet(uint256 const& qSetHash, bool askNetwork);
+    FBAQuorumSetPtr fetchFBAQuorumSet(const uint256& qSetHash, bool askNetwork);
     void recvFBAQuorumSet(FBAQuorumSetPtr qSet);
     void doesntHaveFBAQuorumSet(uint256 const& qSetHash, PeerPtr peer);
 
