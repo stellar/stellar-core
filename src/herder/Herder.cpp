@@ -65,12 +65,8 @@ Herder::Herder(Application& app)
     , mApp(app)
 {
     // Inject our local qSet in the FBAQSetFetcher.
-    FBAQuorumSetPtr qSet = std::make_shared<FBAQuorumSet>();
-    qSet->threshold = app.getConfig().QUORUM_THRESHOLD;
-    for (auto q : app.getConfig().QUORUM_SET)
-    {
-        qSet->validators.push_back(q);
-    }
+    FBAQuorumSetPtr qSet = 
+        std::make_shared<FBAQuorumSet>(std::move(quorumSetFromApp(mApp)));
     recvFBAQuorumSet(qSet);
 }
 
