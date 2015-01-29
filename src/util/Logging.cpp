@@ -29,20 +29,24 @@ Logging::setUpLogging(std::string const& filename)
     el::Loggers::getLogger("CLF");
     el::Loggers::getLogger("Ledger");
     el::Loggers::getLogger("Overlay");
-    el::Loggers::getLogger("TxHerder");
+    el::Loggers::getLogger("Herder");
     el::Loggers::getLogger("Tx");
 
     mDefaultConf.setToDefault();
 
-    mDefaultConf.setGlobally(el::ConfigurationType::Format,
-                             "%datetime{%d/%M/%y %H:%m:%s} %level %msg");
+    mDefaultConf.setGlobally(
+        el::ConfigurationType::Format,
+        "%datetime{%d/%M/%y %H:%m:%s} [%logger] %level %msg");
     mDefaultConf.setGlobally(el::ConfigurationType::Filename, filename);
-    mDefaultConf.set(el::Level::Error, el::ConfigurationType::Format,
-                     "%datetime{%d/%M/%y %H:%m:%s} %level %msg [%fbase:%line]");
-    mDefaultConf.set(el::Level::Trace, el::ConfigurationType::Format,
-                     "%datetime{%d/%M/%y %H:%m:%s} %level %msg [%fbase:%line]");
-    mDefaultConf.set(el::Level::Fatal, el::ConfigurationType::Format,
-                     "%datetime{%d/%M/%y %H:%m:%s} %level %msg [%fbase:%line]");
+    mDefaultConf.set(
+        el::Level::Error, el::ConfigurationType::Format,
+        "%datetime{%d/%M/%y %H:%m:%s} [%logger] %level %msg [%fbase:%line]");
+    mDefaultConf.set(
+        el::Level::Trace, el::ConfigurationType::Format,
+        "%datetime{%d/%M/%y %H:%m:%s} [%logger] %level %msg [%fbase:%line]");
+    mDefaultConf.set(
+        el::Level::Fatal, el::ConfigurationType::Format,
+        "%datetime{%d/%M/%y %H:%m:%s} [%logger] %level %msg [%fbase:%line]");
 
     el::Loggers::reconfigureAllLoggers(mDefaultConf);
 }
