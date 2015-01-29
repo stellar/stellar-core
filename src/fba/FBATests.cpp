@@ -84,18 +84,18 @@ class TestFBA : public FBA
     {
         if (mQuorumSets.find(qSetHash) != mQuorumSets.end())
         {
-            LOG(INFO) << "[fba] TestFBA::retrieveQuorumSet"
-                      << " qSet: " << binToHex(qSetHash).substr(0,6)
-                      << " nodeID: " << binToHex(nodeID).substr(0,6)
-                      << " OK";
+            CLOG(DEBUG, "FBA") << "TestFBA::retrieveQuorumSet"
+                << " qSet: " << binToHex(qSetHash).substr(0,6)
+                << " nodeID: " << binToHex(nodeID).substr(0,6)
+                << " OK";
             return cb(mQuorumSets[qSetHash]);
         }
         else
         {
-            LOG(INFO) << "[fba] TestFBA::retrieveQuorumSet"
-                      << " qSet: " << binToHex(qSetHash).substr(0,6)
-                      << " nodeID: " << binToHex(nodeID).substr(0,6)
-                      << " FAIL";
+            CLOG(DEBUG, "FBA") << "TestFBA::retrieveQuorumSet"
+                << " qSet: " << binToHex(qSetHash).substr(0,6)
+                << " nodeID: " << binToHex(nodeID).substr(0,6)
+                << " FAIL";
         }
     }
     void emitEnvelope(const FBAEnvelope& envelope)
@@ -163,8 +163,8 @@ TEST_CASE("protocol core4", "[fba]")
 
     REQUIRE(xValue < yValue);
 
-    LOG(INFO) << "";
-    LOG(INFO) << "[fba] BEGIN TEST";
+    CLOG(INFO, "FBA") << "";
+    CLOG(INFO, "FBA") << "BEGIN TEST";
 
     SECTION("prepareValue x")
     {

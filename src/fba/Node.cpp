@@ -27,10 +27,10 @@ bool
 Node::hasQuorum(const Hash& qSetHash,
                     const std::vector<uint256>& nodeSet)
 {
-    LOG(DEBUG) << "[fba] Node::hasQuorum" 
-               << "@" << binToHex(mNodeID).substr(0,6)
-               << " qSet: " << binToHex(qSetHash).substr(0,6)
-               << " nodeSet.size: " << nodeSet.size();
+    CLOG(DEBUG, "FBA") << "Node::hasQuorum" 
+        << "@" << binToHex(mNodeID).substr(0,6)
+        << " qSet: " << binToHex(qSetHash).substr(0,6)
+        << " nodeSet.size: " << nodeSet.size();
     // This call can throw a `QuorumSetNotFound` if the quorumSet is unknown.
     const FBAQuorumSet& qSet = retrieveQuorumSet(qSetHash);
 
@@ -47,10 +47,10 @@ bool
 Node::isVBlocking(const Hash& qSetHash,
                   const std::vector<uint256>& nodeSet)
 {
-    LOG(DEBUG) << "[fba] Node::isVBlocking" 
-               << "@" << binToHex(mNodeID).substr(0,6)
-               << " qSet: " << binToHex(qSetHash).substr(0,6)
-               << " nodeSet.size: " << nodeSet.size();
+    CLOG(DEBUG, "FBA") << "Node::isVBlocking" 
+        << "@" << binToHex(mNodeID).substr(0,6)
+        << " qSet: " << binToHex(qSetHash).substr(0,6)
+        << " nodeSet.size: " << nodeSet.size();
     // This call can throw a `QuorumSetNotFound` if the quorumSet is unknown.
     const FBAQuorumSet& qSet = retrieveQuorumSet(qSetHash);
 
@@ -147,9 +147,9 @@ Node::retrieveQuorumSet(const uint256& qSetHash)
         return it->second;
     }
 
-    LOG(DEBUG) << "[fba] Node::retrieveQuorumSet"
-               << "@" << binToHex(mNodeID).substr(0,6)
-               << " qSet: "  << binToHex(qSetHash).substr(0,6);
+    CLOG(DEBUG, "FBA") << "Node::retrieveQuorumSet"
+        << "@" << binToHex(mNodeID).substr(0,6)
+        << " qSet: "  << binToHex(qSetHash).substr(0,6);
 
     throw QuorumSetNotFound(mNodeID, qSetHash);
 }
@@ -158,9 +158,9 @@ void
 Node::cacheQuorumSet(const FBAQuorumSet& qSet)
 {
     uint256 qSetHash = sha512_256(xdr::xdr_to_msg(qSet));
-    LOG(DEBUG) << "[fba] Node::cacheQuorumSet"
-               << "@" << binToHex(mNodeID).substr(0,6)
-               << " qSet: "  << binToHex(qSetHash).substr(0,6);
+    CLOG(DEBUG, "FBA") << "Node::cacheQuorumSet"
+        << "@" << binToHex(mNodeID).substr(0,6)
+        << " qSet: "  << binToHex(qSetHash).substr(0,6);
 
     if (mCache.find(qSetHash) != mCache.end())
     {

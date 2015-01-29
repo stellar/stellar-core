@@ -121,23 +121,27 @@ Herder::validateValue(const uint64& slotIndex,
     }
 
     // make sure all the tx we have in the old set are included
-    auto validate = [cb,b,this] (TxSetFramePtr txSet)
+    auto validate = [cb,b,slotIndex,nodeID,this] (TxSetFramePtr txSet)
     {
         // Check txSet (only if we're fully synced)
         if(mLedgersToWaitToParticipate == 0 && !txSet->checkValid(mApp))
         {
-            LOG(ERROR) << "[hrd] Herder::validateValue"
-                       << "@" << binToHex(getLocalNodeID()).substr(0,6)
-                       << " Invalid txSet:"
-                       << " " << binToHex(txSet->getContentsHash()).substr(0,6);
+            CLOG(DEBUG, "Herder") << "Herder::validateValue"
+                << "@" << binToHex(getLocalNodeID()).substr(0,6)
+                << " i: " << slotIndex
+                << " v: " << binToHex(nodeID).substr(0,6)
+                << " Invalid txSet:"
+                << " " << binToHex(txSet->getContentsHash()).substr(0,6);
             return cb(false);
         }
         
-        LOG(DEBUG) << "[hrd] Herder::validateValue"
-                   << "@" << binToHex(getLocalNodeID()).substr(0,6)
-                   << " txSet:"
-                   << " " << binToHex(txSet->getContentsHash()).substr(0,6)
-                   << " OK";
+        CLOG(DEBUG, "Herder") << "Herder::validateValue"
+            << "@" << binToHex(getLocalNodeID()).substr(0,6)
+            << " i: " << slotIndex
+            << " v: " << binToHex(nodeID).substr(0,6)
+            << " txSet:"
+            << " " << binToHex(txSet->getContentsHash()).substr(0,6)
+            << " OK";
         return cb(true);
     };
     
@@ -202,7 +206,7 @@ Herder::validateBallot(const uint64& slotIndex,
     }
 
     // make sure all the tx we have in the old set are included
-    auto validate = [cb,b,this] (TxSetFramePtr txSet)
+    auto validate = [cb,b,slotIndex,nodeID,this] (TxSetFramePtr txSet)
     {
         // Check we have all the 3-level txs in mReceivedTransactions
         for (auto tx : mReceivedTransactions[mReceivedTransactions.size() - 1])
@@ -210,13 +214,23 @@ Herder::validateBallot(const uint64& slotIndex,
             if (find(txSet->mTransactions.begin(), txSet->mTransactions.end(),
                      tx) == txSet->mTransactions.end())
             {
+                CLOG(DEBUG, "Herder") << "Herder::validateBallot"
+                    << "@" << binToHex(getLocalNodeID()).substr(0,6)
+                    << " i: " << slotIndex
+                    << " v: " << binToHex(nodeID).substr(0,6)
+                    << " Missing received tx in txSet:"
+                    << " " << binToHex(txSet->getContentsHash()).substr(0,6);
                 return cb(false);
             }
         }
         
-        LOG(DEBUG) << "[hrd] validateBallot"
-                   << "@" << binToHex(getLocalNodeID()).substr(0,6)
-                   << " OK";
+        CLOG(DEBUG, "Herder") << "Herder::validateBallot"
+            << "@" << binToHex(getLocalNodeID()).substr(0,6)
+            << " i: " << slotIndex
+            << " v: " << binToHex(nodeID).substr(0,6)
+            << " txSet:"
+            << " " << binToHex(txSet->getContentsHash()).substr(0,6)
+            << " OK";
         return cb(true);
     };
     
@@ -288,14 +302,14 @@ Herder::valueExternalized(const uint64& slotIndex,
     {
         // This may not be possible as all messages are validated and should
         // therefore contain a valid StellarBallot.
-        LOG(ERROR) << "[hrd] Herder::valueExternalized"
-                   << "@" << binToHex(getLocalNodeID()).substr(0,6)
-                   << " Externalized StellarBallot malformed";
+        CLOG(ERROR, "Herder") << "Herder::valueExternalized"
+            << "@" << binToHex(getLocalNodeID()).substr(0,6)
+            << " Externalized StellarBallot malformed";
     }
 
-    LOG(INFO) << "[hrd] Herder::valueExternalized"
-               << "@" << binToHex(getLocalNodeID()).substr(0,6)
-               << " txSet: " << binToHex(b.txSetHash).substr(0,6);
+    CLOG(INFO, "Herder") << "Herder::valueExternalized"
+        << "@" << binToHex(getLocalNodeID()).substr(0,6)
+        << " txSet: " << binToHex(b.txSetHash).substr(0,6);
     
     TxSetFramePtr externalizedSet = fetchTxSet(b.txSetHash, false);
     if (externalizedSet)
@@ -337,9 +351,9 @@ Herder::valueExternalized(const uint64& slotIndex,
     {
         // This may not be possible as all messages are validated and should
         // therefore fetch the txSet before being considered by FBA.
-        LOG(ERROR) << "[hrd] Herder::valueExternalized"
-                   << "@" << binToHex(getLocalNodeID()).substr(0,6)
-                   << " Externalized txSet not found";
+        CLOG(ERROR, "Herder") << "Herder::valueExternalized"
+            << "@" << binToHex(getLocalNodeID()).substr(0,6)
+            << " Externalized txSet not found";
     }
 }
 
@@ -348,9 +362,9 @@ Herder::retrieveQuorumSet(const uint256& nodeID,
                           const Hash& qSetHash,
                           std::function<void(const FBAQuorumSet&)> const& cb)
 {
-    LOG(INFO) << "[hrd] Herder::retrieveQuorumSet"
-               << "@" << binToHex(getLocalNodeID()).substr(0,6)
-               << " qSet: " << binToHex(qSetHash).substr(0,6);
+    CLOG(DEBUG, "Herder") << "Herder::retrieveQuorumSet"
+        << "@" << binToHex(getLocalNodeID()).substr(0,6)
+        << " qSet: " << binToHex(qSetHash).substr(0,6);
     auto retrieve = [cb, this] (FBAQuorumSetPtr qSet)
     {
         return cb(*qSet);
@@ -372,9 +386,9 @@ Herder::retrieveQuorumSet(const uint256& nodeID,
 void 
 Herder::emitEnvelope(const FBAEnvelope& envelope)
 {
-    LOG(DEBUG) << "[hrd] Herder:emitEnvelope"
-               << "@" << binToHex(getLocalNodeID()).substr(0,6)
-               << " mLedgersToWaitToParticipate: " << mLedgersToWaitToParticipate;
+    CLOG(DEBUG, "Herder") << "Herder:emitEnvelope"
+        << "@" << binToHex(getLocalNodeID()).substr(0,6)
+        << " mLedgersToWaitToParticipate: " << mLedgersToWaitToParticipate;
     // We don't emit any envelope as long as we're not fully synced
     if (mLedgersToWaitToParticipate > 0)
     {
@@ -437,9 +451,9 @@ Herder::fetchFBAQuorumSet(uint256 const& qSetHash,
 void 
 Herder::recvFBAQuorumSet(FBAQuorumSetPtr qSet)
 {
-    LOG(INFO) << "[hrd] Herder::recvFBAQuorumSet"
-              << "@" << binToHex(getLocalNodeID()).substr(0,6)
-              << " qSet: " << binToHex(sha512_256(xdr::xdr_to_msg(*qSet))).substr(0,6);
+    CLOG(DEBUG, "Herder") << "Herder::recvFBAQuorumSet"
+        << "@" << binToHex(getLocalNodeID()).substr(0,6)
+        << " qSet: " << binToHex(sha512_256(xdr::xdr_to_msg(*qSet))).substr(0,6);
               
     if (mFBAQSetFetcher.recvItem(qSet))
     { 
@@ -658,12 +672,12 @@ Herder::triggerNextLedger(const asio::error_code& error)
     Value x = xdr::xdr_to_opaque(b);
 
     uint256 valueHash = sha512_256(xdr::xdr_to_msg(x));
-    LOG(DEBUG) << "[hrd] Herder::triggerNextLedger"
-               << "@" << binToHex(getLocalNodeID()).substr(0,6)
-               << " txSet.size: " << proposedSet->mTransactions.size()
-               << " previousLedgerHash: " 
-               << binToHex(proposedSet->mPreviousLedgerHash).substr(0,6)
-               << " value: " << binToHex(valueHash).substr(0,6);
+    CLOG(DEBUG, "Herder") << "Herder::triggerNextLedger"
+        << "@" << binToHex(getLocalNodeID()).substr(0,6)
+        << " txSet.size: " << proposedSet->mTransactions.size()
+        << " previousLedgerHash: " 
+        << binToHex(proposedSet->mPreviousLedgerHash).substr(0,6)
+        << " value: " << binToHex(valueHash).substr(0,6);
 
     mBumpValue = x;
     prepareValue(slotIndex, x);
