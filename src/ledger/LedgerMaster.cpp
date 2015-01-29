@@ -13,7 +13,9 @@
 #include "crypto/Base58.h"
 #include "database/Database.h"
 #include "ledger/LedgerHeaderFrame.h"
+#include "herder/HerderGateway.h"
 #include "herder/TxSetFrame.h"
+#include "overlay/OverlayGateway.h"
 
 /*
 The ledger module:
@@ -205,6 +207,10 @@ void LedgerMaster::closeLedger(TxSetFramePtr txSet)
 
     closeLedgerHelper(true);
     txscope.commit();
+
+    // Notify ledger close to other components.
+    mApp.getHerderGateway().ledgerClosed(mLastClosedLedger->mHeader);
+    mApp.getOverlayGateway().ledgerClosed(mLastClosedLedger->mHeader);
 }
 
 // helper function that updates the various hashes in the current ledger header

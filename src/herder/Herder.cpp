@@ -565,7 +565,9 @@ Herder::recvFBAEnvelope(FBAEnvelope envelope,
 void
 Herder::ledgerClosed(LedgerHeader& ledger)
 {
-    // TODO(spolu) make sure this is called and when?
+    CLOG(TRACE, "Herder") << "Herder::ledgerClosed@"
+        << "@" << binToHex(getLocalNodeID()).substr(0,6)
+        << " ledger: " << binToHex(ledger.hash).substr(0,6);
     
     mLastClosedLedger = ledger;
 
@@ -586,8 +588,6 @@ Herder::ledgerClosed(LedgerHeader& ledger)
     // We trigger next ledger EXP_LEDGER_TIMESPAN_SECONDS after our last
     // trigger.
     mTriggerTimer.cancel();
-    mTriggerTimer.async_wait(std::bind(&Herder::triggerNextLedger, this,
-                                       std::placeholders::_1));
     
     auto now = mApp.getClock().now();
     if ((now - mLastTrigger) < 
@@ -601,6 +601,9 @@ Herder::ledgerClosed(LedgerHeader& ledger)
     {
         mTriggerTimer.expires_from_now(std::chrono::nanoseconds(0));
     }
+
+    mTriggerTimer.async_wait(std::bind(&Herder::triggerNextLedger, this,
+                                       std::placeholders::_1));
 }
 
 void
