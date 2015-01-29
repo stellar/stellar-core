@@ -3,9 +3,11 @@
 // this distribution or at http://opensource.org/licenses/ISC
 
 #include "generated/StellarXDR.h"
+#include "main/Application.h"
 #include "clf/CLFMaster.h"
 #include "clf/BucketList.h"
 #include "util/make_unique.h"
+#include "util/TmpDir.h"
 
 namespace stellar
 {
@@ -16,8 +18,10 @@ public:
     Application& mApp;
     LedgerHeader mHeader;
     BucketList mBucketList;
+    std::unique_ptr<TmpDir> mWorkDir;
     Impl(Application &app)
         : mApp(app)
+        , mWorkDir(nullptr)
         {}
 };
 
@@ -28,6 +32,17 @@ CLFMaster::CLFMaster(Application& app)
 
 CLFMaster::~CLFMaster()
 {
+}
+
+std::string const&
+CLFMaster::getTmpDir()
+{
+    if (!mImpl->mWorkDir)
+    {
+        TmpDir t = mImpl->mApp.getTmpDirMaster().tmpDir("clf");
+        mImpl->mWorkDir = make_unique<TmpDir>(std::move(t));
+    }
+    return mImpl->mWorkDir->getName();
 }
 
 LedgerHeader const&

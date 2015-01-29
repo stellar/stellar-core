@@ -21,6 +21,7 @@ class CLFMaster
   public:
     CLFMaster(Application&);
     ~CLFMaster();
+    std::string const& getTmpDir();
     LedgerHeader const& getHeader();
     BucketList const& getBucketList();
 };

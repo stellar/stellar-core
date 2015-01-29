@@ -14,6 +14,7 @@
 #include "crypto/Hex.h"
 #include "crypto/Random.h"
 #include "util/XDRStream.h"
+#include "clf/CLFMaster.h"
 #include "clf/LedgerCmp.h"
 #include <cassert>
 
@@ -21,12 +22,11 @@ namespace stellar
 {
 
 static std::string
-randomBucketName()
+randomBucketName(std::string const& tmpDir)
 {
     while (true)
     {
-        std::string name =
-            std::string("bucket-") + binToHex(randomBytes(8)) + ".xdr";
+        std::string name = tmpDir + "/bucket-" + binToHex(randomBytes(8)) + ".xdr";
         std::ifstream ifile(name);
         if (!ifile)
         {
@@ -67,11 +67,12 @@ LedgerEntryKey(LedgerEntry const& e)
  * where the _first_ spill decision is made; subsequent spilled buckets are made
  * as the output of a merge with an already-spilled bucket as an input.
  */
-Bucket::Bucket(std::vector<CLFEntry> const& entries, uint256 const& hash)
+Bucket::Bucket(std::string const& tmpDir,
+               std::vector<CLFEntry> const& entries, uint256 const& hash)
     : mSpilledToFile(entries.size() > kMaxMemoryObjectsPerBucket)
     , mEntries(mSpilledToFile ? std::vector<CLFEntry>() : entries)
     , mHash(hash)
-    , mFilename(mSpilledToFile ? randomBucketName() : std::string(""))
+    , mFilename(mSpilledToFile ? randomBucketName(tmpDir) : std::string(""))
 {
     if (mSpilledToFile)
     {
@@ -133,7 +134,8 @@ Bucket::getFilename() const
 }
 
 std::shared_ptr<Bucket>
-Bucket::fresh(std::vector<LedgerEntry> const& liveEntries,
+Bucket::fresh(std::string const& tmpDir,
+              std::vector<LedgerEntry> const& liveEntries,
               std::vector<LedgerKey> const& deadEntries)
 {
     std::vector<CLFEntry> live, dead, combined;
@@ -165,9 +167,9 @@ Bucket::fresh(std::vector<LedgerEntry> const& liveEntries,
               CLFEntryIdCmp());
 
     uint256 dummyHash;
-    auto liveBucket = std::make_shared<Bucket>(live, dummyHash);
-    auto deadBucket = std::make_shared<Bucket>(dead, dummyHash);
-    return Bucket::merge(liveBucket, deadBucket);
+    auto liveBucket = std::make_shared<Bucket>(tmpDir, live, dummyHash);
+    auto deadBucket = std::make_shared<Bucket>(tmpDir, dead, dummyHash);
+    return Bucket::merge(tmpDir, liveBucket, deadBucket);
 }
 
 
@@ -275,12 +277,12 @@ Bucket::OutputIterator
 
 public:
 
-    OutputIterator(bool writeToFile)
+    OutputIterator(std::string const& tmpDir, bool writeToFile)
         : mWriteToFile(writeToFile)
     {
         if (mWriteToFile)
         {
-            mFilename = randomBucketName();
+            mFilename = randomBucketName(tmpDir);
             LOG(DEBUG) << "Bucket::OutputIterator opening file to write: "
                        << mFilename;
             mOut.open(mFilename);
@@ -302,7 +304,7 @@ public:
     }
 
     std::shared_ptr<Bucket>
-    getBucket()
+    getBucket(std::string const& tmpDir)
     {
         if (mWriteToFile)
         {
@@ -310,14 +312,15 @@ public:
         }
         else
         {
-            return std::make_shared<Bucket>(mEntries, mHasher.finish());
+            return std::make_shared<Bucket>(tmpDir, mEntries, mHasher.finish());
         }
     }
 
 };
 
 std::shared_ptr<Bucket>
-Bucket::merge(std::shared_ptr<Bucket> const& oldBucket,
+Bucket::merge(std::string const& tmpDir,
+              std::shared_ptr<Bucket> const& oldBucket,
               std::shared_ptr<Bucket> const& newBucket)
 {
     // This is the key operation in the scheme: merging two (read-only)
@@ -330,7 +333,8 @@ Bucket::merge(std::shared_ptr<Bucket> const& oldBucket,
     Bucket::InputIterator oi(oldBucket);
     Bucket::InputIterator ni(newBucket);
 
-    Bucket::OutputIterator out(oldBucket->isSpilledToFile() ||
+    Bucket::OutputIterator out(tmpDir,
+                               oldBucket->isSpilledToFile() ||
                                newBucket->isSpilledToFile());
 
     SHA512_256 hsh;
@@ -369,7 +373,7 @@ Bucket::merge(std::shared_ptr<Bucket> const& oldBucket,
             ++ni;
         }
     }
-    return out.getBucket();
+    return out.getBucket(tmpDir);
 }
 
 BucketLevel::BucketLevel(size_t i)
@@ -448,10 +452,10 @@ BucketLevel::prepare(Application& app, uint64_t currLedger,
     // LOG(DEBUG) << "level " << mLevel << " preparing merge of mCurr="
     //            << (curr ? curr->getEntries().size() : 0) << " with snap="
     //            << snap->getEntries().size() << " elements";
-
+    std::string tmpDir = app.getCLFMaster().getTmpDir();
     using task_t = std::packaged_task<std::shared_ptr<Bucket>()>;
     std::shared_ptr<task_t> task =
-        std::make_shared<task_t>([curr, snap]()
+        std::make_shared<task_t>([curr, snap, tmpDir]()
                                  {
                                      if (curr)
                                      {
@@ -462,7 +466,7 @@ BucketLevel::prepare(Application& app, uint64_t currLedger,
                                          // curr->getEntries().size()
                                          //<< " existing";
                                          // TIMED_SCOPE(timer, "merge + hash");
-                                         auto res = Bucket::merge(curr, snap);
+                                         auto res = Bucket::merge(tmpDir, curr, snap);
                                          // LOG(DEBUG)
                                          //<< "Worker finished merging " <<
                                          // snap->getEntries().size()
@@ -612,7 +616,9 @@ BucketList::addBatch(Application& app, uint64_t currLedger,
         }
     }
 
-    mLevels[0].prepare(app, currLedger, Bucket::fresh(liveEntries, deadEntries));
+    mLevels[0].prepare(app, currLedger,
+                       Bucket::fresh(app.getCLFMaster().getTmpDir(),
+                                     liveEntries, deadEntries));
     mLevels[0].commit();
 }
 }

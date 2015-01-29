@@ -266,7 +266,9 @@ class Bucket
 
     Bucket();
     ~Bucket();
-    Bucket(std::vector<CLFEntry> const& entries, uint256 const& hash);
+    Bucket(std::string const& tmpDir,
+           std::vector<CLFEntry> const& entries,
+           uint256 const& hash);
     Bucket(std::string const& filename, uint256 const& hash);
     std::vector<CLFEntry> const& getEntries() const;
     uint256 const& getHash() const;
@@ -274,11 +276,13 @@ class Bucket
     bool isSpilledToFile() const;
 
     static std::shared_ptr<Bucket>
-    fresh(std::vector<LedgerEntry> const& liveEntries,
+    fresh(std::string const& tmpDir,
+          std::vector<LedgerEntry> const& liveEntries,
           std::vector<LedgerKey> const& deadEntries);
 
     static std::shared_ptr<Bucket>
-    merge(std::shared_ptr<Bucket> const& oldBucket,
+    merge(std::string const& tmpDir,
+          std::shared_ptr<Bucket> const& oldBucket,
           std::shared_ptr<Bucket> const& newBucket);
 };
 
