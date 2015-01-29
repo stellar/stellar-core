@@ -84,6 +84,9 @@ Simulation::addConnection(uint256 initiator,
 void 
 Simulation::startAllNodes()
 {
+    // We wait for the connections to set up (HELLO).
+    while(simulation.crankAllNodes() > 0);
+
     for(auto it : mNodes)
     {
         it.second->start();

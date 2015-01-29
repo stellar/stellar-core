@@ -123,7 +123,7 @@ Herder::validateValue(const uint64& slotIndex,
         }
         
         LOG(DEBUG) << "[hrd] Herder::validateValue"
-                   << "@" << binToHex(mApp.getConfig().VALIDATION_KEY.getSeed()).substr(0,6)
+                   << "@" << binToHex(mApp.getConfig().VALIDATION_KEY.getPublicKey()).substr(0,6)
                    << " OK";
         return cb(true);
     };
@@ -202,7 +202,7 @@ Herder::validateBallot(const uint64& slotIndex,
         }
         
         LOG(DEBUG) << "[hrd] validateBallot"
-                   << "@" << binToHex(mApp.getConfig().VALIDATION_KEY.getSeed()).substr(0,6)
+                   << "@" << binToHex(mApp.getConfig().VALIDATION_KEY.getPublicKey()).substr(0,6)
                    << " OK";
         return cb(true);
     };
@@ -349,7 +349,7 @@ void
 Herder::emitEnvelope(const FBAEnvelope& envelope)
 {
     LOG(DEBUG) << "[hrd] Herder:emitEnvelope"
-               << "@" << binToHex(mApp.getConfig().VALIDATION_KEY.getSeed()).substr(0,6)
+               << "@" << binToHex(mApp.getConfig().VALIDATION_KEY.getPublicKey()).substr(0,6)
                << " mLedgersToWaitToParticipate: " << mLedgersToWaitToParticipate;
     // We don't emit any envelope as long as we're not fully synced
     if (mLedgersToWaitToParticipate > 0)
@@ -631,7 +631,7 @@ Herder::triggerNextLedger(const asio::error_code& error)
 
     uint256 valueHash = sha512_256(xdr::xdr_to_msg(x));
     LOG(DEBUG) << "[hrd] Herder::triggerNextLedger"
-               << "@" << binToHex(mApp.getConfig().VALIDATION_KEY.getSeed()).substr(0,6)
+               << "@" << binToHex(mApp.getConfig().VALIDATION_KEY.getPublicKey()).substr(0,6)
                << " txSet.size: " << proposedSet->mTransactions.size()
                << " previousLedgerHash: " << binToHex(proposedSet->mPreviousLedgerHash).substr(0,6)
                << " value: " << binToHex(valueHash).substr(0,6);
