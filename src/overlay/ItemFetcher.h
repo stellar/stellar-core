@@ -86,8 +86,8 @@ class TxSetFetcher : public ItemFetcher
     TxSetFetcher(Application& app) : ItemFetcher(app)
     {
     }
-    TxSetFramePtr fetchItem(uint256 const& itemID,
-                                      bool askNetwork);
+    TxSetFramePtr fetchItem(uint256 const& txSetHash,
+                            bool askNetwork);
     // looks to see if we know about it but doesn't ask the network
     TxSetFramePtr findItem(uint256 const& itemID);
     bool recvItem(TxSetFramePtr txSet);
@@ -99,8 +99,8 @@ class FBAQSetFetcher : public ItemFetcher
     FBAQSetFetcher(Application& app) : ItemFetcher(app)
     {
     }
-    FBAQuorumSetPtr fetchItem(uint256 const& itemID,
-                                 bool askNetwork);
+    FBAQuorumSetPtr fetchItem(uint256 const& qSetHash,
+                              bool askNetwork);
     // looks to see if we know about it but doesn't ask the network
     FBAQuorumSetPtr findItem(uint256 const& itemID);
     bool recvItem(FBAQuorumSetPtr qSet);

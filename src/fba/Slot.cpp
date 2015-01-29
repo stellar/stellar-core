@@ -79,9 +79,9 @@ Slot::processEnvelope(const FBAEnvelope& envelope,
 {
     assert(envelope.slotIndex == mSlotIndex);
 
-    LOG(INFO) << "Slot::processEnvelope" 
+    LOG(INFO) << "[fba] Slot::processEnvelope" 
               << "@" << binToHex(mFBA->getLocalNodeID()).substr(0,6)
-              << ":" << mSlotIndex
+              << " i: " << mSlotIndex
               << " " << envToStr(envelope);
 
     uint256 nodeID = envelope.nodeID;
@@ -229,9 +229,9 @@ Slot::bumpToBallot(const FBABallot& ballot)
     // `bumpToBallot` should be never called once we committed.
     assert(!mIsCommitted && !mIsExternalized);
 
-    LOG(INFO) << "Slot::bumpToBallot" 
+    LOG(INFO) << "[fba] Slot::bumpToBallot" 
               << "@" << binToHex(mFBA->getLocalNodeID()).substr(0,6)
-              << " " << ballotToStr(ballot);
+              << " b: " << ballotToStr(ballot);
 
     // We shouldnt have emitted any prepare message for this ballot or any
     // other higher ballot.
@@ -272,12 +272,6 @@ Slot::createEnvelope(const FBAStatement& statement)
     envelope.statement = statement;
     mFBA->signEnvelope(envelope);
 
-    /*
-    LOG(INFO) << "Slot::createEnvelope" 
-              << "@" << binToHex(mFBA->getLocalNodeID()).substr(0,6)
-              << " " << envToStr(envelope);
-    */
-
     return envelope;
 }
 
@@ -291,9 +285,9 @@ Slot::attemptPrepare()
     {
         return;
     }
-    LOG(INFO) << "Slot::attemptPrepare" 
+    LOG(INFO) << "[fba] Slot::attemptPrepare" 
               << "@" << binToHex(mFBA->getLocalNodeID()).substr(0,6)
-              << " " << ballotToStr(mBallot);
+              << " b: " << ballotToStr(mBallot);
 
     FBAStatement statement = createStatement(FBAStatementType::PREPARE);
 
@@ -319,9 +313,12 @@ Slot::attemptPrepare()
     mFBA->ballotDidPrepare(mSlotIndex, mBallot);
 
     FBAEnvelope envelope = createEnvelope(statement);
-    auto cb = [envelope,this] (bool valid)
+    auto cb = [envelope,this] (const FBA::EnvelopeState& s)
     {
-        mFBA->emitEnvelope(envelope);
+        if (s == FBA::EnvelopeState::VALID)
+        {
+            mFBA->emitEnvelope(envelope);
+        }
     };
     processEnvelope(envelope, cb);
                         
@@ -337,17 +334,20 @@ Slot::attemptPrepared(const FBABallot& ballot)
     {
         return;
     }
-    LOG(INFO) << "Slot::attemptPrepared" 
+    LOG(INFO) << "[fba] Slot::attemptPrepared" 
               << "@" << binToHex(mFBA->getLocalNodeID()).substr(0,6)
-              << " " << ballotToStr(ballot);
+              << " b: " << ballotToStr(ballot);
 
     FBAStatement statement = createStatement(FBAStatementType::PREPARED);
     statement.ballot = ballot;
 
     FBAEnvelope envelope = createEnvelope(statement);
-    auto cb = [envelope,this] (bool valid)
+    auto cb = [envelope,this] (FBA::EnvelopeState s)
     {
-        mFBA->emitEnvelope(envelope);
+        if (s == FBA::EnvelopeState::VALID)
+        {
+            mFBA->emitEnvelope(envelope);
+        }
     };
     processEnvelope(envelope, cb);
 }
@@ -362,18 +362,21 @@ Slot::attemptCommit()
     {
         return;
     }
-    LOG(INFO) << "Slot::attemptCommit" 
+    LOG(INFO) << "[fba] Slot::attemptCommit" 
               << "@" << binToHex(mFBA->getLocalNodeID()).substr(0,6)
-              << " " << ballotToStr(mBallot);
+              << " b: " << ballotToStr(mBallot);
 
     FBAStatement statement = createStatement(FBAStatementType::COMMIT);
 
     mFBA->ballotDidCommit(mSlotIndex, mBallot);
 
     FBAEnvelope envelope = createEnvelope(statement);
-    auto cb = [envelope,this] (bool valid)
+    auto cb = [envelope,this] (FBA::EnvelopeState s)
     {
-        mFBA->emitEnvelope(envelope);
+        if (s == FBA::EnvelopeState::VALID)
+        {
+            mFBA->emitEnvelope(envelope);
+        }
     };
     processEnvelope(envelope, cb);
 }
@@ -388,9 +391,9 @@ Slot::attemptCommitted()
     {
         return;
     }
-    LOG(INFO) << "Slot::attemptCommitted" 
+    LOG(INFO) << "[fba] Slot::attemptCommitted" 
               << "@" << binToHex(mFBA->getLocalNodeID()).substr(0,6)
-              << " " << ballotToStr(mBallot);
+              << " b: " << ballotToStr(mBallot);
 
     FBAStatement statement = createStatement(FBAStatementType::COMMITTED);
 
@@ -398,9 +401,12 @@ Slot::attemptCommitted()
     mFBA->ballotDidCommitted(mSlotIndex, mBallot);
 
     FBAEnvelope envelope = createEnvelope(statement);
-    auto cb = [envelope,this] (bool valid)
+    auto cb = [envelope,this] (FBA::EnvelopeState s)
     {
-        mFBA->emitEnvelope(envelope);
+        if (s == FBA::EnvelopeState::VALID)
+        {
+            mFBA->emitEnvelope(envelope);
+        }
     };
     processEnvelope(envelope, cb);
 }
@@ -412,9 +418,9 @@ Slot::attemptExternalize()
     {
         return;
     }
-    LOG(INFO) << "Slot::attemptExternalize" 
+    LOG(INFO) << "[fba] Slot::attemptExternalize" 
               << "@" << binToHex(mFBA->getLocalNodeID()).substr(0,6)
-              << " " << ballotToStr(mBallot);
+              << " b: " << ballotToStr(mBallot);
 
     mIsExternalized = true;
 
@@ -623,9 +629,9 @@ Slot::advanceSlot()
 
     try
     {
-        LOG(DEBUG) << "=> Slot::advanceSlot" 
+        LOG(DEBUG) << "[fba] Slot::advanceSlot" 
                    << "@" << binToHex(mFBA->getLocalNodeID()).substr(0,6)
-                   << " " << ballotToStr(mBallot);
+                   << " b: " << ballotToStr(mBallot);
 
         // If we're pristine, we haven't set `mBallot` yet so we just skip
         // to the search for conditions to bump our ballot
@@ -676,9 +682,9 @@ Slot::advanceSlot()
 
             FBABallot b = it.first;
 
-            LOG(DEBUG) << "=> Slot::advanceSlot::tryBumping" 
+            LOG(DEBUG) << "[fba] Slot::advanceSlot::tryBumping" 
                        << "@" << binToHex(mFBA->getLocalNodeID()).substr(0,6)
-                       << " " << ballotToStr(mBallot);
+                       << " b: " << ballotToStr(mBallot);
 
             // If we could externalize by moving on to a given value we bump
             // our ballot to the apporpriate one

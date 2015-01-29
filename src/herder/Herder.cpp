@@ -11,10 +11,11 @@
 #include "overlay/PeerMaster.h"
 #include "main/Application.h"
 #include "main/Config.h"
-#include "util/Logging.h"
-#include "lib/util/easylogging++.h"
 #include "xdrpp/marshal.h"
 #include "crypto/SHA.h"
+#include "crypto/Hex.h"
+#include "util/Logging.h"
+#include "lib/util/easylogging++.h"
 
 namespace stellar
 {
@@ -63,6 +64,14 @@ Herder::Herder(Application& app)
     , mBumpTimer(app.getClock())
     , mApp(app)
 {
+    // Inject our local qSet in the FBAQSetFetcher.
+    FBAQuorumSetPtr qSet = std::make_shared<FBAQuorumSet>();
+    qSet->threshold = app.getConfig().QUORUM_THRESHOLD;
+    for (auto q : app.getConfig().QUORUM_SET)
+    {
+        qSet->validators.push_back(q);
+    }
+    recvFBAQuorumSet(qSet);
 }
 
 Herder::~Herder()
@@ -117,10 +126,18 @@ Herder::validateValue(const uint64& slotIndex,
         // Check txSet (only if we're fully synced)
         if(mLedgersToWaitToParticipate == 0 && !txSet->checkValid(mApp))
         {
-            CLOG(ERROR, "Herder") << "invalid txSet";
+            LOG(ERROR) << "[hrd] Herder::validateValue"
+                       << "@" << binToHex(getLocalNodeID()).substr(0,6)
+                       << " Invalid txSet:"
+                       << " " << binToHex(txSet->getContentsHash()).substr(0,6);
             return cb(false);
         }
         
+        LOG(DEBUG) << "[hrd] Herder::validateValue"
+                   << "@" << binToHex(getLocalNodeID()).substr(0,6)
+                   << " txSet:"
+                   << " " << binToHex(txSet->getContentsHash()).substr(0,6)
+                   << " OK";
         return cb(true);
     };
     
@@ -164,12 +181,12 @@ Herder::validateBallot(const uint64& slotIndex,
     // exhaustion attacks.
     uint64_t lastTrigger = VirtualClock::pointToTimeT(mLastTrigger);
     uint64_t sumTimeouts = 0;
-    for (int i = 0; i <= ballot.counter; i ++)
+    for (int i = 0; i < ballot.counter; i ++)
     {
         sumTimeouts += std::min(MAX_FBA_TIMEOUT_SECONDS, (int)pow(2.0, i));
     }
     // This inequality is effectively a limitation on `ballot.counter`
-    if (timeNow < lastTrigger + sumTimeouts + MAX_TIME_SLIP_SECONDS)
+    if (timeNow + MAX_TIME_SLIP_SECONDS < (int)(lastTrigger + sumTimeouts))
     {
         return cb(false);
     }
@@ -197,6 +214,9 @@ Herder::validateBallot(const uint64& slotIndex,
             }
         }
         
+        LOG(DEBUG) << "[hrd] validateBallot"
+                   << "@" << binToHex(getLocalNodeID()).substr(0,6)
+                   << " OK";
         return cb(true);
     };
     
@@ -222,7 +242,7 @@ Herder::ballotDidPrepared(const uint64& slotIndex,
         return;
     }
     // Only validated values (current) values should trigger this.
-    assert(slotIndex != mLastClosedLedger.ledgerSeq + 1);
+    assert(slotIndex == mLastClosedLedger.ledgerSeq + 1);
 
     // We keep around the maximal value that prepared.
     if (compareValues(mBumpValue, ballot.value) < 0)
@@ -241,7 +261,7 @@ Herder::ballotDidHearFromQuorum(const uint64& slotIndex,
         return;
     }
     // Only validated values (current) values should trigger this.
-    assert(slotIndex != mLastClosedLedger.ledgerSeq + 1);
+    assert(slotIndex == mLastClosedLedger.ledgerSeq + 1);
 
     mBumpTimer.cancel();
 
@@ -268,8 +288,14 @@ Herder::valueExternalized(const uint64& slotIndex,
     {
         // This may not be possible as all messages are validated and should
         // therefore contain a valid StellarBallot.
-        CLOG(ERROR, "Herder") << "Externalized StellarBallot malformed";
+        LOG(ERROR) << "[hrd] Herder::valueExternalized"
+                   << "@" << binToHex(getLocalNodeID()).substr(0,6)
+                   << " Externalized StellarBallot malformed";
     }
+
+    LOG(INFO) << "[hrd] Herder::valueExternalized"
+               << "@" << binToHex(getLocalNodeID()).substr(0,6)
+               << " txSet: " << binToHex(b.txSetHash).substr(0,6);
     
     TxSetFramePtr externalizedSet = fetchTxSet(b.txSetHash, false);
     if (externalizedSet)
@@ -280,7 +306,7 @@ Herder::valueExternalized(const uint64& slotIndex,
         mCurrentTxSetFetcher = mCurrentTxSetFetcher ? 0 : 1;
         mTxSetFetcher[mCurrentTxSetFetcher].clear();
 
-        // TODO(spolu) make sure that this triggers SYNCing
+        // Triggers sync if not already syncing.
         mApp.getLedgerGateway().externalizeValue(externalizedSet);
 
         // remove all these tx from mReceivedTransactions
@@ -295,7 +321,6 @@ Herder::valueExternalized(const uint64& slotIndex,
             auto msg = tx->toStellarMessage();
             mApp.getOverlayGateway().broadcastMessage(msg);
         }
-        // TODO(spolu) rebroadcast all levels?
 
         // move all the remaining to the next highest level
         // don't move the largest array
@@ -312,7 +337,9 @@ Herder::valueExternalized(const uint64& slotIndex,
     {
         // This may not be possible as all messages are validated and should
         // therefore fetch the txSet before being considered by FBA.
-        CLOG(ERROR, "Herder") << "Externalized txSet not found";
+        LOG(ERROR) << "[hrd] Herder::valueExternalized"
+                   << "@" << binToHex(getLocalNodeID()).substr(0,6)
+                   << " Externalized txSet not found";
     }
 }
 
@@ -321,7 +348,10 @@ Herder::retrieveQuorumSet(const uint256& nodeID,
                           const Hash& qSetHash,
                           std::function<void(const FBAQuorumSet&)> const& cb)
 {
-    auto retrieve = [cb] (FBAQuorumSetPtr qSet)
+    LOG(INFO) << "[hrd] Herder::retrieveQuorumSet"
+               << "@" << binToHex(getLocalNodeID()).substr(0,6)
+               << " qSet: " << binToHex(qSetHash).substr(0,6);
+    auto retrieve = [cb, this] (FBAQuorumSetPtr qSet)
     {
         return cb(*qSet);
     };
@@ -342,6 +372,9 @@ Herder::retrieveQuorumSet(const uint256& nodeID,
 void 
 Herder::emitEnvelope(const FBAEnvelope& envelope)
 {
+    LOG(DEBUG) << "[hrd] Herder:emitEnvelope"
+               << "@" << binToHex(getLocalNodeID()).substr(0,6)
+               << " mLedgersToWaitToParticipate: " << mLedgersToWaitToParticipate;
     // We don't emit any envelope as long as we're not fully synced
     if (mLedgersToWaitToParticipate > 0)
     {
@@ -356,10 +389,10 @@ Herder::emitEnvelope(const FBAEnvelope& envelope)
 }
 
 TxSetFramePtr
-Herder::fetchTxSet(uint256 const& setHash, 
+Herder::fetchTxSet(const uint256& txSetHash, 
                    bool askNetwork)
 {
-    return mTxSetFetcher[mCurrentTxSetFetcher].fetchItem(setHash, askNetwork);
+    return mTxSetFetcher[mCurrentTxSetFetcher].fetchItem(txSetHash, askNetwork);
 }
 
 void
@@ -404,6 +437,10 @@ Herder::fetchFBAQuorumSet(uint256 const& qSetHash,
 void 
 Herder::recvFBAQuorumSet(FBAQuorumSetPtr qSet)
 {
+    LOG(INFO) << "[hrd] Herder::recvFBAQuorumSet"
+              << "@" << binToHex(getLocalNodeID()).substr(0,6)
+              << " qSet: " << binToHex(sha512_256(xdr::xdr_to_msg(*qSet))).substr(0,6);
+              
     if (mFBAQSetFetcher.recvItem(qSet))
     { 
         // someone cares about this set
@@ -597,6 +634,9 @@ Herder::triggerNextLedger(const asio::error_code& error)
     }
     proposedSet->mPreviousLedgerHash = mLastClosedLedger.hash;
 
+    // TODO(spolu) we shouldn't need to ping the network to store the TxSet
+    //             within the ItemFetcher
+    fetchTxSet(proposedSet->getContentsHash(), true);
     recvTxSet(proposedSet);
 
     uint64_t slotIndex = mLastClosedLedger.ledgerSeq + 1;
@@ -616,6 +656,15 @@ Herder::triggerNextLedger(const asio::error_code& error)
     b.baseFee = mApp.getConfig().DESIRED_BASE_FEE;
 
     Value x = xdr::xdr_to_opaque(b);
+
+    uint256 valueHash = sha512_256(xdr::xdr_to_msg(x));
+    LOG(DEBUG) << "[hrd] Herder::triggerNextLedger"
+               << "@" << binToHex(getLocalNodeID()).substr(0,6)
+               << " txSet.size: " << proposedSet->mTransactions.size()
+               << " previousLedgerHash: " 
+               << binToHex(proposedSet->mPreviousLedgerHash).substr(0,6)
+               << " value: " << binToHex(valueHash).substr(0,6);
+
     mBumpValue = x;
     prepareValue(slotIndex, x);
 

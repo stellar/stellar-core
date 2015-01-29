@@ -84,17 +84,17 @@ class TestFBA : public FBA
     {
         if (mQuorumSets.find(qSetHash) != mQuorumSets.end())
         {
-            LOG(INFO) << "FBA::Client::retrieveQuorumSet"
-                      << " " << binToHex(qSetHash).substr(0,6)
-                      << "@" << binToHex(nodeID).substr(0,6)
+            LOG(INFO) << "[fba] TestFBA::retrieveQuorumSet"
+                      << " qSet: " << binToHex(qSetHash).substr(0,6)
+                      << " nodeID: " << binToHex(nodeID).substr(0,6)
                       << " OK";
             return cb(mQuorumSets[qSetHash]);
         }
         else
         {
-            LOG(INFO) << "FBA::Client::retrieveQuorumSet"
-                      << " " << binToHex(qSetHash).substr(0,6)
-                      << "@" << binToHex(nodeID).substr(0,6)
+            LOG(INFO) << "[fba] TestFBA::retrieveQuorumSet"
+                      << " qSet: " << binToHex(qSetHash).substr(0,6)
+                      << " nodeID: " << binToHex(nodeID).substr(0,6)
                       << " FAIL";
         }
     }
@@ -163,7 +163,8 @@ TEST_CASE("protocol core4", "[fba]")
 
     REQUIRE(xValue < yValue);
 
-    LOG(INFO) << "<<<< BEGIN FBA TEST >>>>";
+    LOG(INFO) << "";
+    LOG(INFO) << "[fba] BEGIN TEST";
 
     SECTION("prepareValue x")
     {
