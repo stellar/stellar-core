@@ -44,6 +44,7 @@ namespace stellar
         EntryFrame();
         EntryFrame(const LedgerEntry& from);
         
+        static pointer FromXDR(LedgerEntry const& from);
 
         virtual EntryFrame::pointer copy() const=0;
 
