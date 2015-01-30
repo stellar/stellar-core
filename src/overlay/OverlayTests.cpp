@@ -9,6 +9,8 @@
 #include "lib/catch.hpp"
 #include "util/Logging.h"
 #include "util/Timer.h"
+#include "crypto/SecretKey.h"
+#include "main/Config.h"
 
 using namespace stellar;
 
@@ -29,13 +31,16 @@ allStopped(std::vector<appPtr>& apps)
 
 TEST_CASE("loopback peer hello", "[overlay]")
 {
-    /*  GRAYDON  not sure what is going on here. 
-        I'll look tomorrow if it isn't obvious to you.
-    Config const& cfg = getTestConfig();
+    Config& cfg1 = getTestConfig();
     VirtualClock clock;
     std::vector<appPtr> apps;
-    apps.emplace_back(stellar::make_unique<Application>(clock, cfg));
-    apps.emplace_back(stellar::make_unique<Application>(clock, cfg));
+    apps.emplace_back(stellar::make_unique<Application>(clock, cfg1));
+
+    Config cfg2;
+    cfg2.LOG_FILE_PATH = cfg1.LOG_FILE_PATH;
+    cfg2.RUN_STANDALONE = true;
+    cfg2.START_NEW_NETWORK = true;
+    apps.emplace_back(stellar::make_unique<Application>(clock, cfg2));
 
     LoopbackPeerConnection conn(*apps[0], *apps[1]);
 
@@ -49,5 +54,4 @@ TEST_CASE("loopback peer hello", "[overlay]")
                 app->getMainIOService().stop();
         }
     }
-    */
 }

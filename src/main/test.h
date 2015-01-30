@@ -9,7 +9,7 @@ namespace stellar
 
 class Config;
 
-Config const& getTestConfig();
+Config& getTestConfig();
 int test(int argc, char* const* argv);
 }
 

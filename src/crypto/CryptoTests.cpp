@@ -30,6 +30,16 @@ hexTestVectors = {
     {{0x4f, 0x46, 0x79, 0x58, 0x43, 0x6d, 0x68, 0x37, 0x51}, "4f467958436d683751"}
 };
 
+
+TEST_CASE("random", "[crypto]")
+{
+    SecretKey k1 = SecretKey::random();
+    SecretKey k2 = SecretKey::random();
+    LOG(DEBUG) << "k1: " << k1.getBase58Seed();
+    LOG(DEBUG) << "k2: " << k2.getBase58Seed();
+    CHECK(k1.getBase58Seed() != k2.getBase58Seed());
+}
+
 TEST_CASE("hex tests", "[crypto]")
 {
     // Do some fixed test vectors.
