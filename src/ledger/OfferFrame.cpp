@@ -4,11 +4,11 @@
 
 #include "ledger/OfferFrame.h"
 #include "database/Database.h"
-#include "ledger/LedgerMaster.h"
 #include "crypto/Base58.h"
 #include "crypto/SHA.h"
 #include "lib/json/json.h"
 #include "LedgerDelta.h"
+#include "util/types.h"
 
 using namespace std;
 using namespace soci;
@@ -89,25 +89,153 @@ namespace stellar
     }
     
 
-    void OfferFrame::storeDelete(LedgerDelta &delta, LedgerMaster& ledgerMaster)
+    // TODO: move this and related SQL code to OfferFrame
+    static const char *offerColumnSelector = "SELECT accountID,sequence,paysIsoCurrency,paysIssuer,getsIsoCurrency,getsIssuer,amount,price,flags FROM Offers";
+
+    bool OfferFrame::loadOffer(const uint256& accountID, uint32_t seq,
+        OfferFrame& retOffer, Database& db)
+    {
+        std::string accStr;
+        accStr = toBase58Check(VER_ACCOUNT_ID, accountID);
+
+        soci::session &session = db.getSession();
+
+        soci::details::prepare_temp_type sql = (session.prepare <<
+            offerColumnSelector << " where accountID=:id and sequence=:seq",
+            use(accStr), use(seq));
+
+        bool res = false;
+
+        loadOffers(sql, [&retOffer, &res](OfferFrame const& offer) {
+            retOffer = offer;
+            res = true;
+        });
+
+        return res;
+    }
+
+
+    void OfferFrame::loadOffers(soci::details::prepare_temp_type &prep,
+        std::function<void(OfferFrame const&)> offerProcessor)
+    {
+        string accountID;
+        std::string paysIsoCurrency, getsIsoCurrency, paysIssuer, getsIssuer;
+
+        soci::indicator paysIsoIndicator, getsIsoIndicator;
+
+        OfferFrame offerFrame;
+
+        OfferEntry &oe = offerFrame.mEntry.offer();
+
+        statement st = (prep,
+            into(accountID), into(oe.sequence),
+            into(paysIsoCurrency, paysIsoIndicator), into(paysIssuer),
+            into(getsIsoCurrency, getsIsoIndicator), into(getsIssuer),
+            into(oe.amount), into(oe.price), into(oe.flags)
+            );
+
+        st.execute(true);
+        while (st.got_data())
+        {
+            oe.accountID = fromBase58Check256(VER_ACCOUNT_ID, accountID);
+            if (paysIsoIndicator == soci::i_ok)
+            {
+                oe.takerPays.type(ISO4217);
+                strToCurrencyCode(oe.takerPays.isoCI().currencyCode, paysIsoCurrency);
+                oe.takerPays.isoCI().issuer = fromBase58Check256(VER_ACCOUNT_ID, paysIssuer);
+            }
+            else
+            {
+                oe.takerPays.type(NATIVE);
+            }
+            if (getsIsoIndicator == soci::i_ok)
+            {
+                oe.takerGets.type(ISO4217);
+                strToCurrencyCode(oe.takerGets.isoCI().currencyCode, getsIsoCurrency);
+                oe.takerGets.isoCI().issuer = fromBase58Check256(VER_ACCOUNT_ID, getsIssuer);
+            }
+            else
+            {
+                oe.takerGets.type(NATIVE);
+            }
+            offerProcessor(offerFrame);
+            st.fetch();
+        }
+    }
+
+    void OfferFrame::loadBestOffers(size_t numOffers, size_t offset, const Currency & pays,
+        const Currency & gets, vector<OfferFrame>& retOffers, Database& db)
+    {
+        soci::session &session = db.getSession();
+
+        soci::details::prepare_temp_type sql = (session.prepare <<
+            offerColumnSelector);
+
+        std::string getCurrencyCode, b58GIssuer;
+        std::string payCurrencyCode, b58PIssuer;
+
+        if (pays.type() == NATIVE)
+        {
+            sql << " WHERE paysIssuer IS NULL";
+        }
+        else
+        {
+            currencyCodeToStr(pays.isoCI().currencyCode, payCurrencyCode);
+            b58PIssuer = toBase58Check(VER_ACCOUNT_ID, pays.isoCI().issuer);
+            sql << " WHERE paysIsoCurrency=:pcur AND paysIssuer = :pi", use(payCurrencyCode), use(b58PIssuer);
+        }
+
+        if (gets.type() == NATIVE)
+        {
+            sql << " AND getsIssuer IS NULL";
+        }
+        else
+        {
+            currencyCodeToStr(gets.isoCI().currencyCode, getCurrencyCode);
+            b58GIssuer = toBase58Check(VER_ACCOUNT_ID, gets.isoCI().issuer);
+
+            sql << " AND getsIsoCurrency=:gcur AND getsIssuer = :gi", use(getCurrencyCode), use(b58GIssuer);
+        }
+        sql << " order by price,sequence,accountID limit :o,:n", use(offset), use(numOffers);
+
+        loadOffers(sql, [&retOffers](OfferFrame const &of)
+        {
+            retOffers.push_back(of);
+        });
+    }
+
+    void OfferFrame::loadOffers(const uint256& accountID, std::vector<OfferFrame>& retOffers, Database& db)
+    {
+        soci::session &session = db.getSession();
+
+        std::string accStr;
+        accStr = toBase58Check(VER_ACCOUNT_ID, accountID);
+
+        soci::details::prepare_temp_type sql = (session.prepare <<
+            offerColumnSelector << " WHERE accountID=:id", use(accStr));
+
+        loadOffers(sql, [&retOffers](OfferFrame const &of)
+        {
+            retOffers.push_back(of);
+        });
+    }
+
+    void OfferFrame::storeDelete(LedgerDelta &delta, Database& db)
     {
         std::string b58AccountID = toBase58Check(VER_ACCOUNT_ID, mEntry.offer().accountID);
 
-        ledgerMaster.getDatabase().getSession() <<
+        db.getSession() <<
             "DELETE FROM Offers WHERE accountID=:id AND sequence=:s",
             use(b58AccountID), use(mEntry.offer().sequence);
 
         delta.deleteEntry(*this);
     }
 
-    void OfferFrame::storeChange(LedgerDelta &delta, LedgerMaster& ledgerMaster)
+    void OfferFrame::storeChange(LedgerDelta &delta, Database& db)
     {
         std::string b58AccountID = toBase58Check(VER_ACCOUNT_ID, mEntry.offer().accountID);
 
-        std::stringstream sql;
-        sql << "UPDATE Offers set ";
-
-        soci::statement st = (ledgerMaster.getDatabase().getSession().prepare <<
+        soci::statement st = (db.getSession().prepare <<
             "UPDATE Offers SET amount=:a, price=:p WHERE accountID=:id AND sequence=:s",
             use(mEntry.offer().amount), use(mEntry.offer().price),
             use(b58AccountID), use(mEntry.offer().sequence));
@@ -122,18 +250,18 @@ namespace stellar
         delta.modEntry(*this);
     }
 
-    void OfferFrame::storeAdd(LedgerDelta &delta, LedgerMaster& ledgerMaster)
+    void OfferFrame::storeAdd(LedgerDelta &delta, Database& db)
     {
         std::string b58AccountID = toBase58Check(VER_ACCOUNT_ID, mEntry.offer().accountID);
 
-        soci::statement st(ledgerMaster.getDatabase().getSession().prepare << "select 1");
+        soci::statement st(db.getSession().prepare << "select 1");
 
         if(mEntry.offer().takerGets.type()==NATIVE)
         {
             std::string b58issuer = toBase58Check(VER_ACCOUNT_ID, mEntry.offer().takerPays.isoCI().issuer);
             std::string currencyCode;
             currencyCodeToStr(mEntry.offer().takerPays.isoCI().currencyCode, currencyCode);
-            st = (ledgerMaster.getDatabase().getSession().prepare <<
+            st = (db.getSession().prepare <<
                 "INSERT into Offers (accountID,sequence,paysIsoCurrency,paysIssuer,amount,price,flags) values (:v1,:v2,:v3,:v4,:v5,:v6,:v7)",
                 use(b58AccountID), use(mEntry.offer().sequence), 
                 use(b58issuer),use(currencyCode),use(mEntry.offer().amount),
@@ -145,7 +273,7 @@ namespace stellar
             std::string b58issuer = toBase58Check(VER_ACCOUNT_ID, mEntry.offer().takerGets.isoCI().issuer);
             std::string currencyCode;
             currencyCodeToStr(mEntry.offer().takerGets.isoCI().currencyCode, currencyCode);
-            st = (ledgerMaster.getDatabase().getSession().prepare <<
+            st = (db.getSession().prepare <<
                 "INSERT into Offers (accountID,sequence,getsIsoCurrency,getsIssuer,amount,price,flags) values (:v1,:v2,:v3,:v4,:v5,:v6,:v7)",
                 use(b58AccountID), use(mEntry.offer().sequence),
                 use(b58issuer), use(currencyCode), use(mEntry.offer().amount),
@@ -159,7 +287,7 @@ namespace stellar
             currencyCodeToStr(mEntry.offer().takerPays.isoCI().currencyCode, paysIsoCurrency);
             std::string b58GetsIssuer = toBase58Check(VER_ACCOUNT_ID, mEntry.offer().takerGets.isoCI().issuer);
             currencyCodeToStr(mEntry.offer().takerGets.isoCI().currencyCode, getsIsoCurrency);
-            st = (ledgerMaster.getDatabase().getSession().prepare <<
+            st = (db.getSession().prepare <<
                 "INSERT into Offers (accountID,sequence,"\
                 "paysIsoCurrency,paysIssuer,getsIsoCurrency,getsIssuer,"\
                 "amount,price,flags) values (:v1,:v2,:v3,:v4,:v5,:v6,:v7,:v8,:v9)",

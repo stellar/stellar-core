@@ -21,8 +21,10 @@ namespace stellar
         Currency& wheat = sellingWheatOffer.mEntry.offer().takerGets;
         uint256& accountBID = sellingWheatOffer.mEntry.offer().accountID;
 
+        Database &db = mLedgerMaster.getDatabase();
+
         AccountFrame accountB;
-        if (!mLedgerMaster.getDatabase().loadAccount(accountBID, accountB))
+        if (!AccountFrame::loadAccount(accountBID, accountB, db))
         {
             throw std::runtime_error("invalid database state: offer must have matching account");
         }
@@ -30,8 +32,8 @@ namespace stellar
         TrustFrame wheatLineAccountB;
         if (wheat.type() != NATIVE)
         {
-            if (!mLedgerMaster.getDatabase().loadTrustLine(accountBID,
-                wheat, wheatLineAccountB))
+            if (!TrustFrame::loadTrustLine(accountBID,
+                wheat, wheatLineAccountB, db))
             {
                 throw std::runtime_error("invalid database state: offer must have matching trust line");
             }
@@ -40,8 +42,8 @@ namespace stellar
         TrustFrame sheepLineAccountB;
         if (sheep.type() != NATIVE)
         {
-            if (!mLedgerMaster.getDatabase().loadTrustLine(accountBID,
-                sheep, sheepLineAccountB))
+            if (!TrustFrame::loadTrustLine(accountBID,
+                sheep, sheepLineAccountB, db))
             {
                 throw std::runtime_error("invalid database state: offer must have matching trust line");
             }
@@ -120,37 +122,37 @@ namespace stellar
         bool offerTaken = sellingWheatOffer.mEntry.offer().amount <= numWheatReceived;
         if (offerTaken)
         {   // entire offer is taken
-            sellingWheatOffer.storeDelete(mDelta, mLedgerMaster);
+            sellingWheatOffer.storeDelete(mDelta, db);
             accountB.mEntry.account().ownerCount--;
-            accountB.storeChange(mDelta, mLedgerMaster);
+            accountB.storeChange(mDelta, db);
         }
         else
         {
             sellingWheatOffer.mEntry.offer().amount -= numWheatReceived;
-            sellingWheatOffer.storeChange(mDelta, mLedgerMaster);
+            sellingWheatOffer.storeChange(mDelta, db);
         }
 
         // Adjust balances
         if (sheep.type() == NATIVE)
         {
             accountB.mEntry.account().balance += numSheepReceived;
-            accountB.storeChange(mDelta, mLedgerMaster);
+            accountB.storeChange(mDelta, db);
         }
         else
         {
             sheepLineAccountB.mEntry.trustLine().balance += numSheepReceived;
-            sheepLineAccountB.storeChange(mDelta, mLedgerMaster);
+            sheepLineAccountB.storeChange(mDelta, db);
         }
 
         if (wheat.type() == NATIVE)
         {
             accountB.mEntry.account().balance -= numWheatSent;
-            accountB.storeChange(mDelta, mLedgerMaster);
+            accountB.storeChange(mDelta, db);
         }
         else
         {
             wheatLineAccountB.mEntry.trustLine().balance -= numWheatSent;
-            wheatLineAccountB.storeChange(mDelta, mLedgerMaster);
+            wheatLineAccountB.storeChange(mDelta, db);
         }
 
         mOfferTrail.push_back(ClaimOfferAtom(
@@ -175,12 +177,14 @@ namespace stellar
         sheepSend = 0;
         wheatReceived = 0;
 
+        Database &db = mLedgerMaster.getDatabase();
+
         size_t offerOffset = 0;
 
         while (maxWheatReceive > 0 && maxSheepReceive > 0)
         {
             std::vector<OfferFrame> retList;
-            mLedgerMaster.getDatabase().loadBestOffers(5, offerOffset, sheep, wheat, retList);
+            OfferFrame::loadBestOffers(5, offerOffset, sheep, wheat, retList, db);
             for (auto wheatOffer : retList)
             {
                 if (filter)

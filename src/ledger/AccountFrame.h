@@ -5,13 +5,22 @@
 // this distribution or at http://opensource.org/licenses/ISC
 
 #include "ledger/EntryFrame.h"
+#include <functional>
+
+namespace soci
+{
+    namespace details
+    {
+        class prepare_temp_type;
+    }
+}
 
 namespace stellar
 {
 	class AccountFrame : public EntryFrame
 	{
 		void calculateIndex();
-        void storeUpdate(LedgerDelta &delta, LedgerMaster& ledgerMaster, bool insert);
+        void storeUpdate(LedgerDelta &delta, Database& db, bool insert);
         bool mUpdateSigners;
 
 	public:
@@ -40,10 +49,13 @@ namespace stellar
         uint32_t getLowThreshold();
         uint32_t getSeqNum();
 
-        void storeDelete(LedgerDelta &delta, LedgerMaster& ledgerMaster);
-        void storeChange(LedgerDelta &delta, LedgerMaster& ledgerMaster);
-        void storeAdd(LedgerDelta &delta, LedgerMaster& ledgerMaster);
-	
+        // database utilities
+        static bool loadAccount(const uint256& accountID, AccountFrame& retEntry,
+            Database& db, bool withSig = false);
+
+        void storeDelete(LedgerDelta &delta, Database& db);
+        void storeChange(LedgerDelta &delta, Database& db);
+        void storeAdd(LedgerDelta &delta, Database& db);
 
         static void dropAll(Database &db);
         static const char *kSQLCreateStatement1;

@@ -6,8 +6,8 @@
 
 
 #include <memory>
-#include "ledger/AccountFrame.h"
 #include "ledger/LedgerMaster.h"
+#include "ledger/AccountFrame.h"
 #include "generated/StellarXDR.h"
 #include "util/types.h"
 #include "lib/json/json-forwards.h"
@@ -19,6 +19,7 @@ We can get it in from the DB or from the wire
 namespace stellar
 {
     class Application;
+    class LedgerMaster;
     class LedgerDelta;
     class SecretKey;
 

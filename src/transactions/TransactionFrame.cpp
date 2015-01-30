@@ -97,7 +97,7 @@ int64_t TransactionFrame::getTransferRate(const Currency& currency, LedgerMaster
     }
 
     AccountFrame issuer;
-    if (!ledgerMaster.getDatabase().loadAccount(currency.isoCI().issuer, issuer))
+    if (!AccountFrame::loadAccount(currency.isoCI().issuer, issuer, ledgerMaster.getDatabase()))
     {
         throw std::runtime_error("Account not found in TransactionFrame::getTransferRate");
     }
@@ -126,6 +126,7 @@ bool Transaction::isAuthorizedToHold(const AccountEntry& account,
 bool TransactionFrame::preApply(LedgerDelta& delta,LedgerMaster& ledgerMaster)
 {
 
+    Database &db = ledgerMaster.getDatabase();
     int32_t fee = ledgerMaster.getTxFee();
 
     if (mSigningAccount->mEntry.account().balance < fee)
@@ -134,7 +135,7 @@ bool TransactionFrame::preApply(LedgerDelta& delta,LedgerMaster& ledgerMaster)
 
         // take all their balance to be safe
         mSigningAccount->mEntry.account().balance = 0;
-        mSigningAccount->storeChange(delta, ledgerMaster);
+        mSigningAccount->storeChange(delta, db);
         return false;
     }
 
@@ -143,7 +144,7 @@ bool TransactionFrame::preApply(LedgerDelta& delta,LedgerMaster& ledgerMaster)
     mResult.feeCharged = fee;
     ledgerMaster.getCurrentLedgerHeader().feePool += fee;
 
-    mSigningAccount->storeChange(delta, ledgerMaster);
+    mSigningAccount->storeChange(delta, db);
 
     return true;
 }
@@ -237,7 +238,8 @@ bool TransactionFrame::loadAccount(Application& app)
     if (!mSigningAccount)
     {
         AccountFrame::pointer account = make_shared<AccountFrame>();
-        res = app.getDatabase().loadAccount(mEnvelope.tx.account, *account, true);
+        res = AccountFrame::loadAccount(mEnvelope.tx.account,
+            *account, app.getDatabase(), true);
 
         if (res)
         {

@@ -28,8 +28,10 @@ namespace stellar
         ci.isoCI().currencyCode = mEnvelope.tx.body.allowTrustTx().code.currencyCode();
         ci.isoCI().issuer=mEnvelope.tx.account;
 
+        Database &db = ledgerMaster.getDatabase();
         TrustFrame trustLine;
-        if(!ledgerMaster.getDatabase().loadTrustLine(mEnvelope.tx.body.allowTrustTx().trustor, ci, trustLine))
+        if(!TrustFrame::loadTrustLine(mEnvelope.tx.body.allowTrustTx().trustor, ci,
+            trustLine, db))
         {
             innerResult().result.code(AllowTrust::NO_TRUST_LINE);
             return false;
@@ -38,7 +40,7 @@ namespace stellar
         innerResult().result.code(AllowTrust::SUCCESS);
 
         trustLine.mEntry.trustLine().authorized = mEnvelope.tx.body.allowTrustTx().authorize;
-        trustLine.storeChange(delta, ledgerMaster);
+        trustLine.storeChange(delta, db);
 
         return true;
     }

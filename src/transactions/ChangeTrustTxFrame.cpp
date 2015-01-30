@@ -18,9 +18,10 @@ ChangeTrustTxFrame::ChangeTrustTxFrame(const TransactionEnvelope& envelope) : Tr
 bool ChangeTrustTxFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
 {
     TrustFrame trustLine;
-        
-    if(ledgerMaster.getDatabase().loadTrustLine(mSigningAccount->mEntry.account().accountID,
-        mEnvelope.tx.body.changeTrustTx().line, trustLine))
+    Database &db = ledgerMaster.getDatabase();
+
+    if(TrustFrame::loadTrustLine(mSigningAccount->mEntry.account().accountID,
+        mEnvelope.tx.body.changeTrustTx().line, trustLine, db))
     { // we are modifying an old trustline
         trustLine.mEntry.trustLine().limit= mEnvelope.tx.body.changeTrustTx().limit;
         if(trustLine.mEntry.trustLine().limit == 0 &&
@@ -28,19 +29,20 @@ bool ChangeTrustTxFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
         {
             // line gets deleted
             mSigningAccount->mEntry.account().ownerCount--;
-            trustLine.storeDelete(delta, ledgerMaster);
-            mSigningAccount->storeChange(delta, ledgerMaster);
+            trustLine.storeDelete(delta, db);
+            mSigningAccount->storeChange(delta, db);
         }
         else
         {
-            trustLine.storeChange(delta, ledgerMaster);
+            trustLine.storeChange(delta, db);
         }
         innerResult().result.code(ChangeTrust::SUCCESS);
         return true;
     } else
     { // new trust line
         AccountFrame issuer;
-        if(!ledgerMaster.getDatabase().loadAccount(mEnvelope.tx.body.changeTrustTx().line.isoCI().issuer, issuer))
+        if(!AccountFrame::loadAccount(mEnvelope.tx.body.changeTrustTx().line.isoCI().issuer,
+            issuer, db))
         {
             innerResult().result.code(ChangeTrust::NO_ACCOUNT);
             return false;
@@ -55,8 +57,8 @@ bool ChangeTrustTxFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
 
         mSigningAccount->mEntry.account().ownerCount++;
 
-        mSigningAccount->storeChange(delta, ledgerMaster);
-        trustLine.storeAdd(delta, ledgerMaster);
+        mSigningAccount->storeChange(delta, db);
+        trustLine.storeAdd(delta, db);
 
         innerResult().result.code(ChangeTrust::SUCCESS);
         return true;

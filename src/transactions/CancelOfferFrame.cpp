@@ -13,8 +13,9 @@ namespace stellar
 bool CancelOfferFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
 {
     OfferFrame offerFrame;
-    if(!ledgerMaster.getDatabase().loadOffer(mSigningAccount->mEntry.account().accountID, 
-        mEnvelope.tx.body.offerSeqNum(), offerFrame))
+    Database &db = ledgerMaster.getDatabase();
+    if(!OfferFrame::loadOffer(mSigningAccount->mEntry.account().accountID, 
+        mEnvelope.tx.body.offerSeqNum(), offerFrame, db))
     {
         innerResult().result.code(CancelOffer::NOT_FOUND);
         return false;
@@ -23,8 +24,8 @@ bool CancelOfferFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
     innerResult().result.code(CancelOffer::SUCCESS);
     
     mSigningAccount->mEntry.account().ownerCount--;
-    offerFrame.storeDelete(delta, ledgerMaster);
-    mSigningAccount->storeChange(delta, ledgerMaster);
+    offerFrame.storeDelete(delta, db);
+    mSigningAccount->storeChange(delta, db);
 
     return true;
 }
