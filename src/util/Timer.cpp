@@ -108,7 +108,8 @@ VirtualClock::cancelAllEventsFrom(VirtualTimer *v)
 }
 
 size_t
-VirtualClock::advanceTo(time_point n) {
+VirtualClock::advanceTo(time_point n) 
+{
     vector<shared_ptr<VirtualClockEvent>> toDispatch;
     toDispatch.reserve(mEvents.size());
     // LOG(DEBUG) << "VirtualClock::advanceTo("
@@ -116,7 +117,7 @@ VirtualClock::advanceTo(time_point n) {
     mNow = n;
     while (!mEvents.empty())
     {
-        if (mEvents.top()->mWhen >= mNow)
+        if (mEvents.top()->mWhen > mNow)
             break;
         toDispatch.emplace_back(mEvents.top());
         mEvents.pop();
@@ -130,6 +131,16 @@ VirtualClock::advanceTo(time_point n) {
     }
     // LOG(DEBUG) << "VirtualClock::advanceTo done";
     return toDispatch.size();
+}
+
+size_t
+VirtualClock::advanceToNext() 
+{
+    if (mEvents.empty())
+    {
+        return 0;
+    }
+    return advanceTo(next());
 }
 
 VirtualTimer::VirtualTimer(VirtualClock &c)
