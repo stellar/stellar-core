@@ -565,6 +565,9 @@ Herder::recvFBAEnvelope(FBAEnvelope envelope,
 void
 Herder::ledgerClosed(LedgerHeader& ledger)
 {
+    // TODO(spolu): No infinite loop for now.
+    return;
+   
     CLOG(TRACE, "Herder") << "Herder::ledgerClosed@"
         << "@" << binToHex(getLocalNodeID()).substr(0,6)
         << " ledger: " << binToHex(ledger.hash).substr(0,6);

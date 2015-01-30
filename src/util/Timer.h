@@ -79,10 +79,7 @@ public:
     void enqueue(VirtualClockEvent const& ve);
     void cancelAllEventsFrom(VirtualTimer *timer);
     size_t advanceTo(time_point n);
-    size_t advanceToNext()
-    {
-        return advanceTo(next());
-    }
+    size_t advanceToNext();
 };
 
 
