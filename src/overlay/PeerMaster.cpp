@@ -49,8 +49,11 @@ PeerMaster::PeerMaster(Application& app)
     {
         mTimer.async_wait([this](asio::error_code const& ec)
                           {
-                              addConfigPeers();
-                              this->tick();
+                              if (!ec)
+                              {
+                                  addConfigPeers();
+                                  this->tick();
+                              }
                           });
     }
 }
@@ -162,7 +165,10 @@ PeerMaster::tick()
     mTimer.expires_from_now(std::chrono::seconds(2));
     mTimer.async_wait([this](asio::error_code const& ec)
                       {
-                          this->tick();
+                          if (!ec)
+                          {
+                              this->tick();
+                          }
                       });
 }
 
