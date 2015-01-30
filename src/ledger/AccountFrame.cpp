@@ -3,7 +3,6 @@
 // this distribution or at http://opensource.org/licenses/ISC
 
 #include "AccountFrame.h"
-#include "LedgerMaster.h"
 #include "lib/json/json.h"
 #include "crypto/Base58.h"
 #include "crypto/Hex.h"
@@ -102,21 +101,81 @@ uint32_t AccountFrame::getLowThreshold()
     return mEntry.account().thresholds[1];
 }
 
-void AccountFrame::storeDelete(LedgerDelta &delta, LedgerMaster& ledgerMaster)
+bool AccountFrame::loadAccount(const uint256& accountID, AccountFrame& retAcc,
+    Database &db, bool withSig)
+{
+    std::string base58ID = toBase58Check(VER_ACCOUNT_ID, accountID);
+    std::string publicKey, inflationDest, creditAuthKey;
+    std::string thresholds;
+    soci::indicator inflationDestInd, thresholdsInd;
+
+    soci::session &session = db.getSession();
+
+    retAcc.mEntry.type(ACCOUNT);
+    retAcc.mEntry.account().accountID = accountID;
+    AccountEntry& account = retAcc.mEntry.account();
+    session << "SELECT balance,sequence,ownerCount,transferRate, \
+        inflationDest, thresholds,  flags from Accounts where accountID=:v1",
+        into(account.balance), into(account.sequence), into(account.ownerCount),
+        into(account.transferRate), into(inflationDest, inflationDestInd),
+        into(thresholds, thresholdsInd), into(account.flags),
+        use(base58ID);
+
+    if (!session.got_data())
+        return false;
+
+    if (thresholdsInd == soci::i_ok)
+    {
+        std::vector<uint8_t> bin = hexToBin(thresholds);
+        for (int n = 0; (n < 4) && (n < bin.size()); n++)
+        {
+            retAcc.mEntry.account().thresholds[n] = bin[n];
+        }
+    }
+
+    if (inflationDestInd == soci::i_ok)
+    {
+        account.inflationDest.activate() = fromBase58Check256(VER_ACCOUNT_ID, inflationDest);
+    }
+
+    if (withSig)
+    {
+        string pubKey;
+        Signer signer;
+
+        statement st = (session.prepare <<
+            "SELECT publicKey, weight from Signers where accountID =:id",
+            use(base58ID), into(signer.weight));
+        st.execute(true);
+        while(st.got_data())
+        {
+            signer.pubKey = fromBase58Check256(VER_ACCOUNT_ID, pubKey);
+            
+            account.signers.push_back(signer);
+
+            st.fetch();
+        }
+    }
+    return true;
+}
+
+void AccountFrame::storeDelete(LedgerDelta &delta, Database &db)
 {
     std::string base58ID = toBase58Check(VER_ACCOUNT_ID, getIndex());
 
-    ledgerMaster.getDatabase().getSession() << 
+    soci::session &session = db.getSession();
+
+    session << 
         "DELETE from Accounts where accountID= :v1", soci::use(base58ID);
-    ledgerMaster.getDatabase().getSession() <<
+    session <<
         "DELETE from AccountData where accountID= :v1", soci::use(base58ID);
-    ledgerMaster.getDatabase().getSession() <<
+    session <<
         "DELETE from Signers where accountID= :v1", soci::use(base58ID);
 
     delta.deleteEntry(*this);
 }
 
-void AccountFrame::storeUpdate(LedgerDelta &delta, LedgerMaster& ledgerMaster, bool insert)
+void AccountFrame::storeUpdate(LedgerDelta &delta, Database &db, bool insert)
 {
     AccountEntry& finalAccount = mEntry.account();
     std::string base58ID = toBase58Check(VER_ACCOUNT_ID, getIndex());
@@ -150,7 +209,7 @@ void AccountFrame::storeUpdate(LedgerDelta &delta, LedgerMaster& ledgerMaster, b
     string thresholds(binToHex(finalAccount.thresholds));
 
     {
-        soci::statement st = (ledgerMaster.getDatabase().getSession().prepare <<
+        soci::statement st = (db.getSession().prepare <<
             sql.str(), use(base58ID, "id"),
             use(finalAccount.balance, "v1"), use(finalAccount.sequence, "v2"),
             use(finalAccount.ownerCount, "v3"), use(finalAccount.transferRate, "v4"),
@@ -175,10 +234,10 @@ void AccountFrame::storeUpdate(LedgerDelta &delta, LedgerMaster& ledgerMaster, b
 
     if (mUpdateSigners)
     {
-        // TODO: don't do this
         // instead separate signatures from account, just like offers are separate entities
         AccountFrame startAccountFrame;
-        if (!ledgerMaster.getDatabase().loadAccount(getID(), startAccountFrame, true))
+        // TODO: don't do this (should move the logic out, just like trustlines)
+        if (!loadAccount(getID(), startAccountFrame, db, true))
         {
             throw runtime_error("could not load account!");
         }
@@ -197,7 +256,7 @@ void AccountFrame::storeUpdate(LedgerDelta &delta, LedgerMaster& ledgerMaster, b
                         if (finalSigner.weight != startSigner.weight)
                         {
                             std::string b58signKey = toBase58Check(VER_ACCOUNT_ID, finalSigner.pubKey);
-                            ledgerMaster.getDatabase().getSession() << "UPDATE Signers set weight=:v1 where accountID=:v2 and pubKey=:v3",
+                            db.getSession() << "UPDATE Signers set weight=:v1 where accountID=:v2 and pubKey=:v3",
                                 use(finalSigner.weight), use(base58ID), use(b58signKey);
                         }
                         found = true;
@@ -208,7 +267,7 @@ void AccountFrame::storeUpdate(LedgerDelta &delta, LedgerMaster& ledgerMaster, b
                 { // delete signer
                     std::string b58signKey = toBase58Check(VER_ACCOUNT_ID, startSigner.pubKey);
 
-                    soci::statement st = (ledgerMaster.getDatabase().getSession().prepare <<
+                    soci::statement st = (db.getSession().prepare <<
                         "DELETE from Signers where accountID=:v2 and pubKey=:v3",
                         use(base58ID), use(b58signKey));
 
@@ -234,7 +293,7 @@ void AccountFrame::storeUpdate(LedgerDelta &delta, LedgerMaster& ledgerMaster, b
                         {
                             std::string b58signKey = toBase58Check(VER_ACCOUNT_ID, finalSigner.pubKey);
 
-                            soci::statement st = (ledgerMaster.getDatabase().getSession().prepare <<
+                            soci::statement st = (db.getSession().prepare <<
                                 "UPDATE Signers set weight=:v1 where accountID=:v2 and pubKey=:v3",
                                 use(finalSigner.weight), use(base58ID), use(b58signKey));
 
@@ -253,7 +312,7 @@ void AccountFrame::storeUpdate(LedgerDelta &delta, LedgerMaster& ledgerMaster, b
                 { // new signer
                     std::string b58signKey = toBase58Check(VER_ACCOUNT_ID, finalSigner.pubKey);
 
-                    soci::statement st = (ledgerMaster.getDatabase().getSession().prepare <<
+                    soci::statement st = (db.getSession().prepare <<
                         "INSERT INTO Signers (accountID,pubKey,weight) values (:v1,:v2,:v3)",
                         use(base58ID), use(b58signKey), use(finalSigner.weight));
 
@@ -269,15 +328,15 @@ void AccountFrame::storeUpdate(LedgerDelta &delta, LedgerMaster& ledgerMaster, b
     }
 }
 
-void AccountFrame::storeChange(LedgerDelta &delta, LedgerMaster& ledgerMaster)
+void AccountFrame::storeChange(LedgerDelta &delta, Database &db)
 {
-    storeUpdate(delta, ledgerMaster, false);
+    storeUpdate(delta, db, false);
 }
 
-void AccountFrame::storeAdd(LedgerDelta &delta, LedgerMaster& ledgerMaster)
+void AccountFrame::storeAdd(LedgerDelta &delta, Database &db)
 {
     EntryFrame::pointer emptyAccount = make_shared<AccountFrame>(mEntry.account().accountID);
-    storeUpdate(delta, ledgerMaster, true);
+    storeUpdate(delta, db, true);
 }
 
 void AccountFrame::dropAll(Database &db)

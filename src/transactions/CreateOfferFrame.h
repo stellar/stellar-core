@@ -16,7 +16,7 @@ namespace stellar
 
         OfferFrame mSellSheepOffer;
 
-        bool checkOfferValid(LedgerMaster& ledgerMaster); 
+        bool checkOfferValid(Database& db); 
         
         CreateOffer::CreateOfferResult &innerResult() { return mResult.body.tr().createOfferResult(); }
     public:

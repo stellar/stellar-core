@@ -103,7 +103,7 @@ TEST_CASE("create offer", "[tx][offers]")
 
         // there should be no pending offer at this point in the system
         OfferFrame offer;
-        REQUIRE(!app.getDatabase().loadOffer(a1.getPublicKey(), 5, offer));
+        REQUIRE(!OfferFrame::loadOffer(a1.getPublicKey(), 5, offer, app.getDatabase()));
     }
 
     // minimum balance to hold
@@ -136,7 +136,7 @@ TEST_CASE("create offer", "[tx][offers]")
 
             // offer is sell 100 IDR for 150 USD; buy USD @ 1.5
             applyOffer(app, a1, idrCur, usdCur, usdPriceOfferA, 100, a1OfferSeq[i]);
-            REQUIRE(app.getDatabase().loadOffer(a1.getPublicKey(), a1OfferSeq[i], offer));
+            REQUIRE(OfferFrame::loadOffer(a1.getPublicKey(), a1OfferSeq[i], offer, app.getDatabase()));
 
             // verifies that the offer was created as expected
             REQUIRE(offer.getPrice() == usdPriceOfferA);
@@ -159,7 +159,7 @@ TEST_CASE("create offer", "[tx][offers]")
             applyOffer(app, b1, usdCur, idrCur, OFFER_PRICE_DIVISOR * 2, 40, b1OfferSeq);
 
             // verifies that the offer was created properly
-            REQUIRE(app.getDatabase().loadOffer(b1.getPublicKey(), b1OfferSeq, offer));
+            REQUIRE(OfferFrame::loadOffer(b1.getPublicKey(), b1OfferSeq, offer, app.getDatabase()));
             REQUIRE(offer.getPrice() == OFFER_PRICE_DIVISOR * 2);
             REQUIRE(offer.getAmount() == 40);
             REQUIRE(offer.getTakerPays().isoCI().currencyCode == idrCur.isoCI().currencyCode);
@@ -168,7 +168,7 @@ TEST_CASE("create offer", "[tx][offers]")
             // and that a1 offers were not touched
             for (auto a1Offer : a1OfferSeq)
             {
-                REQUIRE(app.getDatabase().loadOffer(a1.getPublicKey(), a1Offer, offer));
+                REQUIRE(OfferFrame::loadOffer(a1.getPublicKey(), a1Offer, offer, app.getDatabase()));
                 REQUIRE(offer.getPrice() == usdPriceOfferA);
                 REQUIRE(offer.getAmount() == 100);
                 REQUIRE(offer.getTakerPays().isoCI().currencyCode == usdCur.isoCI().currencyCode);
@@ -189,20 +189,20 @@ TEST_CASE("create offer", "[tx][offers]")
         // Offer that crosses exactly
 
         TrustFrame line;
-        REQUIRE(app.getDatabase().loadTrustLine(a1.getPublicKey(), usdCur, line));
+        REQUIRE(TrustFrame::loadTrustLine(a1.getPublicKey(), usdCur, line, app.getDatabase()));
         int64_t a1_usd = line.getBalance();
 
-        REQUIRE(app.getDatabase().loadTrustLine(a1.getPublicKey(), idrCur, line));
+        REQUIRE(TrustFrame::loadTrustLine(a1.getPublicKey(), idrCur, line, app.getDatabase()));
         int64_t a1_idr = line.getBalance();
 
         SECTION("Offer that takes multiple other offers and is cleared")
         {
             applyCreditPaymentTx(app, gateway, b1, usdCur, gateway_seq++, 20000);
 
-            REQUIRE(app.getDatabase().loadTrustLine(a1.getPublicKey(), usdCur, line));
+            REQUIRE(TrustFrame::loadTrustLine(a1.getPublicKey(), usdCur, line, app.getDatabase()));
             int64_t b1_usd = line.getBalance();
 
-            REQUIRE(app.getDatabase().loadTrustLine(a1.getPublicKey(), idrCur, line));
+            REQUIRE(TrustFrame::loadTrustLine(a1.getPublicKey(), idrCur, line, app.getDatabase()));
             int64_t b1_idr = line.getBalance();
 
             uint32_t b1OfferSeq = b1_seq++;
@@ -212,7 +212,7 @@ TEST_CASE("create offer", "[tx][offers]")
 
             // offer is cleared
             // TODO: offer is not cleared because of rounding issues
-            //REQUIRE(!app.getDatabase().loadOffer(b1.getPublicKey(), b1OfferSeq, offer));
+            //REQUIRE(!OfferFrame::loadOffer(b1.getPublicKey(), b1OfferSeq, offer, app.getDatabase()));
 
             for (int i = 0; i < nbOffers; i++)
             {
@@ -221,12 +221,14 @@ TEST_CASE("create offer", "[tx][offers]")
                 if (i < 15)
                 {
                     // first 5 offers are taken
-                    REQUIRE(!app.getDatabase().loadOffer(a1.getPublicKey(), a1Offer, offer));
+                    REQUIRE(!OfferFrame::loadOffer(a1.getPublicKey(), a1Offer,
+                        offer, app.getDatabase()));
                 }
                 else
                 {
                     // others are untouched
-                    REQUIRE(app.getDatabase().loadOffer(a1.getPublicKey(), a1Offer, offer));
+                    REQUIRE(OfferFrame::loadOffer(a1.getPublicKey(), a1Offer, offer,
+                        app.getDatabase()));
                     REQUIRE(offer.getPrice() == usdPriceOfferA);
                     REQUIRE(offer.getTakerPays().isoCI().currencyCode == usdCur.isoCI().currencyCode);
                     REQUIRE(offer.getTakerGets().isoCI().currencyCode == idrCur.isoCI().currencyCode);
@@ -251,16 +253,16 @@ TEST_CASE("create offer", "[tx][offers]")
             int64_t idrSend = usdRecv * 3 / 2;
             int64_t idrRecv = idrSend * 9 / 10;
 
-            REQUIRE(app.getDatabase().loadTrustLine(a1.getPublicKey(), usdCur, line));
+            REQUIRE(TrustFrame::loadTrustLine(a1.getPublicKey(), usdCur, line, app.getDatabase()));
             REQUIRE(line.getBalance() == a1_usd + usdRescv);
 
-            REQUIRE(app.getDatabase().loadTrustLine(a1.getPublicKey(), idrCur, line));
+            REQUIRE(TrustFrame::loadTrustLine(a1.getPublicKey(), idrCur, line, app.getDatabase()));
             REQUIRE(line.getBalance() == a1_idr - idrSend);
 
-            REQUIRE(app.getDatabase().loadTrustLine(b1.getPublicKey(), usdCur, line));
+            REQUIRE(TrustFrame::loadTrustLine(b1.getPublicKey(), usdCur, line, app.getDatabase()));
             REQUIRE(line.getBalance() == b1_usd - usdSend);
 
-            REQUIRE(app.getDatabase().loadTrustLine(b1.getPublicKey(), idrCur, line));
+            REQUIRE(TrustFrame::loadTrustLine(b1.getPublicKey(), idrCur, line, app.getDatabase()));
             REQUIRE(line.getBalance() == b1_idr + idrRecv);
 #endif
 

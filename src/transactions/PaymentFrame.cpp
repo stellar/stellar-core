@@ -31,7 +31,10 @@ using namespace std;
             return true;
         }
 
-        if (!ledgerMaster.getDatabase().loadAccount(mEnvelope.tx.body.paymentTx().destination, destAccount))
+        Database &db = ledgerMaster.getDatabase();
+
+        if (!AccountFrame::loadAccount(mEnvelope.tx.body.paymentTx().destination,
+            destAccount, db))
         {   // this tx is creating an account
             if (mEnvelope.tx.body.paymentTx().currency.type() == NATIVE)
             {
@@ -45,7 +48,7 @@ using namespace std;
                     destAccount.mEntry.account().accountID = mEnvelope.tx.body.paymentTx().destination;
                     destAccount.mEntry.account().balance = 0;
 
-                    destAccount.storeAdd(delta, ledgerMaster);
+                    destAccount.storeAdd(delta, db);
                 }
             }
             else
@@ -63,6 +66,8 @@ using namespace std;
     // specified amount of currency to the recipient
     bool PaymentFrame::sendNoCreate(AccountFrame& destination, LedgerDelta& delta, LedgerMaster& ledgerMaster)
     {
+        Database &db = ledgerMaster.getDatabase();
+
         bool multi_mode = mEnvelope.tx.body.paymentTx().path.size();
         if (multi_mode)
         {
@@ -85,15 +90,15 @@ using namespace std;
             if (curB.type() == NATIVE)
             {
                 destination.mEntry.account().balance += curBReceived;
-                destination.storeChange(delta, ledgerMaster);
+                destination.storeChange(delta, db);
             }
             else if (destination.getID() !=
                 curB.isoCI().issuer)
             {
                 TrustFrame destLine;
 
-                if (!ledgerMaster.getDatabase().loadTrustLine(destination.getID(),
-                    curB, destLine))
+                if (!TrustFrame::loadTrustLine(destination.getID(),
+                    curB, destLine, db))
                 {
                     innerResult().result.code(Payment::NO_TRUST);
                     return false;
@@ -113,7 +118,7 @@ using namespace std;
                 }
 
                 destLine.mEntry.trustLine().balance += curBReceived;
-                destLine.storeChange(delta, ledgerMaster);
+                destLine.storeChange(delta, db);
             }
 
             if (multi_mode)
@@ -204,7 +209,7 @@ using namespace std;
             }
 
             mSigningAccount->mEntry.account().balance -= curBSent;
-            mSigningAccount->storeChange(delta, ledgerMaster);
+            mSigningAccount->storeChange(delta, db);
         }
         else
         {
@@ -212,7 +217,7 @@ using namespace std;
             if(getSourceID() != curB.isoCI().issuer)
             {
                 AccountFrame issuer;
-                if(!ledgerMaster.getDatabase().loadAccount(curB.isoCI().issuer, issuer))
+                if(!AccountFrame::loadAccount(curB.isoCI().issuer, issuer, db))
                 {
                     CLOG(ERROR, "Tx") << "PaymentTx::sendCredit Issuer not found";
                     innerResult().result.code(Payment::MALFORMED);
@@ -220,8 +225,8 @@ using namespace std;
                 }
 
                 TrustFrame sourceLineFrame;
-                if(!ledgerMaster.getDatabase().loadTrustLine(mEnvelope.tx.account,
-                    curB, sourceLineFrame))
+                if(!TrustFrame::loadTrustLine(mEnvelope.tx.account,
+                    curB, sourceLineFrame, db))
                 {
                     innerResult().result.code(Payment::UNDERFUNDED);
                     return false;
@@ -234,7 +239,7 @@ using namespace std;
                 }
                 
                 sourceLineFrame.mEntry.trustLine().balance -= curBSent;
-                sourceLineFrame.storeChange(delta, ledgerMaster);
+                sourceLineFrame.storeChange(delta, db);
 
             }
         }

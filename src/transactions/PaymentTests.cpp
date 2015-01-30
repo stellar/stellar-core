@@ -57,8 +57,8 @@ TEST_CASE("payment", "[tx][payment]")
     applyPaymentTx(app, root, a1, 1, paymentAmount);
     
     AccountFrame a1Account, rootAccount;
-    REQUIRE(app.getDatabase().loadAccount(root.getPublicKey(), rootAccount));
-    REQUIRE(app.getDatabase().loadAccount(a1.getPublicKey(), a1Account));
+    REQUIRE(AccountFrame::loadAccount(root.getPublicKey(), rootAccount, app.getDatabase()));
+    REQUIRE(AccountFrame::loadAccount(a1.getPublicKey(), a1Account, app.getDatabase()));
     REQUIRE(rootAccount.getMasterWeight() == 1);
     REQUIRE(rootAccount.getHighThreshold() == 0);
     REQUIRE(rootAccount.getLowThreshold() == 0);
@@ -77,8 +77,8 @@ TEST_CASE("payment", "[tx][payment]")
         applyPaymentTx(app, root, a1, 2, morePayment);
         
         AccountFrame a1Account2, rootAccount2;
-        REQUIRE(app.getDatabase().loadAccount(root.getPublicKey(), rootAccount2));
-        REQUIRE(app.getDatabase().loadAccount(a1.getPublicKey(), a1Account2));
+        REQUIRE(AccountFrame::loadAccount(root.getPublicKey(), rootAccount2, app.getDatabase()));
+        REQUIRE(AccountFrame::loadAccount(a1.getPublicKey(), a1Account2, app.getDatabase()));
         REQUIRE(a1Account2.getBalance() == a1Account.getBalance() + morePayment);
         REQUIRE(rootAccount2.getBalance() == (rootAccount.getBalance() - morePayment - txfee));
     }
@@ -88,7 +88,7 @@ TEST_CASE("payment", "[tx][payment]")
         applyPaymentTx(app, root, root, 2, morePayment);
 
         AccountFrame rootAccount2;
-        REQUIRE(app.getDatabase().loadAccount(root.getPublicKey(), rootAccount2));
+        REQUIRE(AccountFrame::loadAccount(root.getPublicKey(), rootAccount2, app.getDatabase()));
         REQUIRE(rootAccount2.getBalance() == (rootAccount.getBalance() - txfee));
     }
 
@@ -99,7 +99,7 @@ TEST_CASE("payment", "[tx][payment]")
             app.getLedgerMaster().getCurrentLedgerHeader().baseReserve -1,Payment::UNDERFUNDED);
 
         AccountFrame bAccount;
-        REQUIRE(!app.getDatabase().loadAccount(b1.getPublicKey(), bAccount));
+        REQUIRE(!AccountFrame::loadAccount(b1.getPublicKey(), bAccount, app.getDatabase()));
     }
 
     SECTION("simple credit")
@@ -112,7 +112,7 @@ TEST_CASE("payment", "[tx][payment]")
             applyCreditPaymentTx(app,root, b1, currency, 2, 100, Payment::NO_DESTINATION);
 
             AccountFrame bAccount;
-            REQUIRE(!app.getDatabase().loadAccount(b1.getPublicKey(), bAccount));
+            REQUIRE(!AccountFrame::loadAccount(b1.getPublicKey(), bAccount, app.getDatabase()));
         }
 
         SECTION("send STR with path (not enough offers)")
@@ -125,7 +125,7 @@ TEST_CASE("payment", "[tx][payment]")
 
             REQUIRE(Payment::getInnerCode(txFrame2->getResult()) == Payment::OVERSENDMAX);
             AccountFrame account;
-            REQUIRE(app.getDatabase().loadAccount(a1.getPublicKey(), account));
+            REQUIRE(AccountFrame::loadAccount(a1.getPublicKey(), account, app.getDatabase()));
             
         }
 
@@ -135,7 +135,7 @@ TEST_CASE("payment", "[tx][payment]")
             LOG(INFO) << "credit payment with no trust";
             applyCreditPaymentTx(app,root, a1, currency, 2, 100, Payment::NO_TRUST);
             AccountFrame account;
-            REQUIRE(app.getDatabase().loadAccount(a1.getPublicKey(), account));
+            REQUIRE(AccountFrame::loadAccount(a1.getPublicKey(), account, app.getDatabase()));
            
         }
 
@@ -147,7 +147,7 @@ TEST_CASE("payment", "[tx][payment]")
             applyCreditPaymentTx(app, root, a1, currency, 2, 100);
 
             TrustFrame line;
-            REQUIRE(app.getDatabase().loadTrustLine(a1.getPublicKey(), currency, line));
+            REQUIRE(TrustFrame::loadTrustLine(a1.getPublicKey(), currency, line, app.getDatabase()));
             REQUIRE(line.getBalance() == 100);
 
             // create b1 account
@@ -155,12 +155,12 @@ TEST_CASE("payment", "[tx][payment]")
             applyTrust(app,b1, root, 1, "IDR");
             applyCreditPaymentTx(app,a1, b1, currency, 2, 40);
                
-            REQUIRE(app.getDatabase().loadTrustLine(a1.getPublicKey(), currency, line));
+            REQUIRE(TrustFrame::loadTrustLine(a1.getPublicKey(), currency, line, app.getDatabase()));
             REQUIRE(line.getBalance() == 60);
-            REQUIRE(app.getDatabase().loadTrustLine(b1.getPublicKey(), currency, line));
+            REQUIRE(TrustFrame::loadTrustLine(b1.getPublicKey(), currency, line, app.getDatabase()));
             REQUIRE(line.getBalance() == 40);
             applyCreditPaymentTx(app,b1, root, currency, 2, 40);
-            REQUIRE(app.getDatabase().loadTrustLine(b1.getPublicKey(), currency, line));
+            REQUIRE(TrustFrame::loadTrustLine(b1.getPublicKey(), currency, line, app.getDatabase()));
             REQUIRE(line.getBalance() == 0);
         }
     }

@@ -23,16 +23,14 @@ CreateOfferFrame::CreateOfferFrame(const TransactionEnvelope& envelope) : Transa
 }
 
 // make sure these issuers exist and you can hold the ask currency
-bool CreateOfferFrame::checkOfferValid(LedgerMaster& ledgerMaster)
+bool CreateOfferFrame::checkOfferValid(Database &db)
 {
     Currency& sheep = mEnvelope.tx.body.createOfferTx().takerGets;
     Currency& wheat = mEnvelope.tx.body.createOfferTx().takerPays;
 
-    
-
     if (sheep.type() != NATIVE)
     {
-        if (!ledgerMaster.getDatabase().loadTrustLine(mEnvelope.tx.account, sheep, mSheepLineA))
+        if (!TrustFrame::loadTrustLine(mEnvelope.tx.account, sheep, mSheepLineA, db))
         {   // we don't have what we are trying to sell
             innerResult().result.code(CreateOffer::NO_TRUST);
             return false;
@@ -46,7 +44,7 @@ bool CreateOfferFrame::checkOfferValid(LedgerMaster& ledgerMaster)
 
     if(wheat.type()!=NATIVE)
     {
-        if(!ledgerMaster.getDatabase().loadTrustLine(mEnvelope.tx.account, wheat, mWheatLineA))
+        if(!TrustFrame::loadTrustLine(mEnvelope.tx.account, wheat, mWheatLineA, db))
         {   // we can't hold what we are trying to buy
             innerResult().result.code(CreateOffer::NO_TRUST);
             return false;
@@ -72,7 +70,9 @@ bool CreateOfferFrame::checkOfferValid(LedgerMaster& ledgerMaster)
 //      to keep the code working, I ended up duplicating the error codes
 bool CreateOfferFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
 {
-    if (!checkOfferValid(ledgerMaster))
+    Database &db = ledgerMaster.getDatabase();
+
+    if (!checkOfferValid(db))
     {
         return false;
     }
@@ -91,7 +91,7 @@ bool CreateOfferFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
     } else
     { // modifying an old offer
         
-        if(ledgerMaster.getDatabase().loadOffer(mEnvelope.tx.account, offerSeq, mSellSheepOffer))
+        if(OfferFrame::loadOffer(mEnvelope.tx.account, offerSeq, mSellSheepOffer, db))
         {
             // make sure the currencies are the same
             if(!compareCurrency(mEnvelope.tx.body.createOfferTx().takerGets, mSellSheepOffer.mEntry.offer().takerGets) ||
@@ -140,7 +140,7 @@ bool CreateOfferFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
     int64_t sheepPrice = mEnvelope.tx.body.createOfferTx().price;
     
     {
-        soci::transaction sqlTx(ledgerMaster.getDatabase().getSession());
+        soci::transaction sqlTx(db.getSession());
         LedgerDelta tempDelta;
 
         int64_t sheepSent, sheepReceived, wheatReceived;
@@ -188,29 +188,29 @@ bool CreateOfferFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
             if (wheat.type() == NATIVE)
             {
                 mSigningAccount->mEntry.account().balance += wheatReceived;
-                mSigningAccount->storeChange(delta, ledgerMaster);
+                mSigningAccount->storeChange(delta, db);
             }
             else
             {
                 TrustFrame wheatLineSigningAccount;
-                if (!ledgerMaster.getDatabase().loadTrustLine(mSigningAccount->getID(),
-                    wheat, wheatLineSigningAccount))
+                if (!TrustFrame::loadTrustLine(mSigningAccount->getID(),
+                    wheat, wheatLineSigningAccount, db))
                 {
                     throw std::runtime_error("invalid database state: must have matching trust line");
                 }
                 wheatLineSigningAccount.mEntry.trustLine().balance += wheatReceived;
-                wheatLineSigningAccount.storeChange(delta, ledgerMaster);
+                wheatLineSigningAccount.storeChange(delta, db);
             }
 
             if (sheep.type() == NATIVE)
             {
                 mSigningAccount->mEntry.account().balance -= sheepSent;
-                mSigningAccount->storeChange(delta, ledgerMaster);
+                mSigningAccount->storeChange(delta, db);
             }
             else
             {
                 mSheepLineA.mEntry.trustLine().balance -= sheepSent;
-                mSheepLineA.storeChange(delta, ledgerMaster);
+                mSheepLineA.storeChange(delta, db);
             }
         }
 
@@ -235,21 +235,21 @@ bool CreateOfferFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
                     return false;
                 }
 
-                mSellSheepOffer.storeAdd(tempDelta, ledgerMaster);
+                mSellSheepOffer.storeAdd(tempDelta, db);
 
                 mSigningAccount->mEntry.account().ownerCount++;
-                mSigningAccount->storeChange(tempDelta, ledgerMaster);
+                mSigningAccount->storeChange(tempDelta, db);
             }
             else
             {
-                mSellSheepOffer.storeChange(tempDelta, ledgerMaster);
+                mSellSheepOffer.storeChange(tempDelta, db);
             }
         }
         else
         {
             if (!creatingNewOffer)
             {
-                mSellSheepOffer.storeDelete(tempDelta, ledgerMaster);
+                mSellSheepOffer.storeDelete(tempDelta, db);
             }
         }
 

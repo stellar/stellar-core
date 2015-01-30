@@ -16,18 +16,9 @@ These just hold the xdr LedgerEntry objects and have some associated functions
 
 namespace stellar
 {
-    class LedgerMaster;
     class Database;
     class LedgerDelta;
 
-    /*
-    extern void getIndex(const LedgerEntry& entry, const uint256& retIndex);
-
-    extern void storeDelete(const LedgerEntry& entry, Json::Value& txResult, LedgerMaster& ledgerMaster);
-    extern void storeChange(const LedgerEntry& entry, const LedgerEntry& startFrom, Json::Value& txResult, LedgerMaster& ledgerMaster);
-    extern void storeAdd(const LedgerEntry& entry, Json::Value& txResult, LedgerMaster& ledgerMaster);
-    */
-    
 	class EntryFrame
 	{
 	protected:
@@ -44,6 +35,7 @@ namespace stellar
         EntryFrame();
         EntryFrame(const LedgerEntry& from);
         
+        static pointer FromXDR(LedgerEntry const& from);
 
         virtual EntryFrame::pointer copy() const=0;
 
@@ -55,9 +47,9 @@ namespace stellar
         uint256 getHash();
 
 		
-		virtual void storeDelete(LedgerDelta &delta, LedgerMaster& ledgerMaster)=0;
-		virtual void storeChange(LedgerDelta &delta, LedgerMaster& ledgerMaster)=0;
-		virtual void storeAdd(LedgerDelta &delta, LedgerMaster& ledgerMaster)=0;
+		virtual void storeDelete(LedgerDelta &delta, Database& db)=0;
+		virtual void storeChange(LedgerDelta &delta, Database& db)=0;
+		virtual void storeAdd(LedgerDelta &delta, Database& db)=0;
 
         static void dropAll(Database &db); // deletes all data from DB
 	};

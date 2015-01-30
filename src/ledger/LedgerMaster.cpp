@@ -57,7 +57,7 @@ void LedgerMaster::startNewLedger()
     AccountFrame masterAccount(skey.getPublicKey());
     masterAccount.mEntry.account().balance = 100000000000000;
     LedgerDelta delta;
-    masterAccount.storeAdd(delta, *this);
+    masterAccount.storeAdd(delta, this->getDatabase());
 
     LedgerHeader genenisHeader;
     genenisHeader.baseFee = mApp.getConfig().DESIRED_BASE_FEE;

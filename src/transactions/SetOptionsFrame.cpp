@@ -22,6 +22,7 @@ namespace stellar
     // make sure it doesn't allow us to add signers when we don't have the minbalance
     bool SetOptionsFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
     {
+        Database &db = ledgerMaster.getDatabase();
         if(mEnvelope.tx.body.setOptionsTx().inflationDest)
         {
             mSigningAccount->mEntry.account().inflationDest.activate()=*mEnvelope.tx.body.setOptionsTx().inflationDest;
@@ -31,7 +32,7 @@ namespace stellar
             // make sure no one holds your credit
             int64_t b=0;
             std::string base58ID = toBase58Check(VER_ACCOUNT_ID, mSigningAccount->mEntry.account().accountID);
-            ledgerMaster.getDatabase().getSession() <<
+            db.getSession() <<
                 "SELECT balance from TrustLines where issuer=:v1 and balance>0 limit 1",
                 soci::into(b), soci::use(base58ID);
             if(b)
@@ -91,7 +92,7 @@ namespace stellar
         }
         
         innerResult().result.code(SetOptions::SUCCESS);
-        mSigningAccount->storeChange(delta, ledgerMaster);
+        mSigningAccount->storeChange(delta, db);
         return true;
     }
 
