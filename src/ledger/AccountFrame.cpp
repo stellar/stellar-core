@@ -15,26 +15,26 @@ using namespace std;
 namespace stellar
 {
 const char *AccountFrame::kSQLCreateStatement1 = "CREATE TABLE IF NOT EXISTS Accounts (						\
-	accountID		CHARACTER(35) PRIMARY KEY,	\
+	accountID		CHARACTER(64) PRIMARY KEY,	\
 	balance		BIGINT,			\
-	sequence		INT UNSIGNED default 1,		\
-	ownerCount		INT UNSIGNED default 0,		\
-	transferRate	INT UNSIGNED default 0,		\
-    inflationDest	CHARACTER(35),		        \
-    thresholds   	BLOB(4),		            \
-	flags		    INT UNSIGNED default 0  	\
+	sequence		INT DEFAULT 1 CHECK (sequence >= 0),		\
+	ownerCount		INT DEFAULT 0 CHECK (ownercount >= 0),		\
+	transferRate	INT DEFAULT 0 CHECK (transferRate >= 0),		\
+    inflationDest	CHARACTER(64),		        \
+    thresholds   	TEXT,		            \
+	flags		    INT DEFAULT 0  	\
 );";
 
 const char *AccountFrame::kSQLCreateStatement2 = "CREATE TABLE IF NOT EXISTS Signers (						\
-	accountID		CHARACTER(35) PRIMARY KEY,	\
-    publicKey   	CHARACTER(35),		        \
+	accountID		CHARACTER(64) PRIMARY KEY,	\
+    publicKey   	CHARACTER(64),		        \
     weight	INT 	\
 );";
 
 const char *AccountFrame::kSQLCreateStatement3 = "CREATE TABLE IF NOT EXISTS AccountData (						\
-	accountID		CHARACTER(35) PRIMARY KEY,	\
+	accountID		CHARACTER(64) PRIMARY KEY,	\
     key INT, \
-	value			BLOB(32)			\
+	value			TEXT			\
 );";
 
 AccountFrame::AccountFrame()

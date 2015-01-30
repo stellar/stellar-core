@@ -17,12 +17,13 @@ namespace stellar
 {
     const char *OfferFrame::kSQLCreateStatement = 
             "CREATE TABLE IF NOT EXISTS Offers (    \
-            accountID       CHARACTER(35) NOT NULL, \
-            sequence        INT UNSIGNED NOT NULL,  \
+            accountID       CHARACTER(64) NOT NULL, \
+            sequence        INT NOT NULL \
+                            CHECK (sequence >= 0),  \
             paysIsoCurrency CHARACTER(4),           \
-            paysIssuer CHARACTER(35),               \
+            paysIssuer CHARACTER(64),               \
             getsIsoCurrency CHARACTER(4),           \
-            getsIssuer CHARACTER(35),               \
+            getsIssuer CHARACTER(64),               \
             amount BIGINT NOT NULL,                 \
             price BIGINT NOT NULL,                  \
             flags INT NOT NULL,                     \

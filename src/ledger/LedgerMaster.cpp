@@ -238,7 +238,7 @@ void LedgerMaster::closeLedgerHelper(bool updateCurrent)
 const char *LedgerMaster::kSQLCreateStatement =
 "CREATE TABLE IF NOT EXISTS StoreState (        \
         StateName   CHARACTER(32) PRIMARY KEY,  \
-        State       BLOB                        \
+        State       TEXT                        \
 );";
 
 void LedgerMaster::dropAll(Database &db)

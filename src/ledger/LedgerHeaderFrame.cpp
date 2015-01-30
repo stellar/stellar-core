@@ -145,17 +145,17 @@ using namespace std;
             "prevHash        CHARACTER(64) NOT NULL,"\
             "txSetHash       CHARACTER(64) NOT NULL,"\
             "clfHash         CHARACTER(64) NOT NULL,"\
-            "totCoins        BIGINT UNSIGNED NOT NULL,"\
-            "feePool         BIGINT UNSIGNED NOT NULL,"\
-            "ledgerSeq       BIGINT UNSIGNED UNIQUE,"\
-            "inflationSeq    INT UNSIGNED NOT NULL,"\
-            "baseFee         INT UNSIGNED NOT NULL,"\
-            "baseReserve     INT UNSIGNED NOT NULL,"\
-            "closeTime       BIGINT UNSIGNED NOT NULL"\
+            "totCoins        BIGINT NOT NULL CHECK (totCoins >= 0),"\
+            "feePool         BIGINT NOT NULL CHECK (feePool >= 0),"\
+            "ledgerSeq       BIGINT UNIQUE CHECK (ledgerSeq >= 0),"\
+            "inflationSeq    INT NOT NULL CHECK (inflationSeq >= 0),"\
+            "baseFee         INT NOT NULL CHECK (baseFee >= 0),"\
+            "baseReserve     INT NOT NULL CHECK (baseReserve >= 0),"\
+            "closeTime       BIGINT NOT NULL CHECK (closeTime >= 0)"\
             ");";
 
         db.getSession() <<
-            "CREATE INDEX IF NOT EXISTS ledgersBySeq ON LedgerHeaders ( ledgerSeq );";
+            "CREATE INDEX ON LedgerHeaders ( ledgerSeq );";
     }
 }
 
