@@ -66,6 +66,8 @@ TmpDir::getName() const
 bool
 TmpDir::exists(std::string const& name)
 {
+    if(name.empty()) return false;
+
     if (GetFileAttributes(name.c_str()) == INVALID_FILE_ATTRIBUTES)
     {
         if (GetLastError() == ERROR_FILE_NOT_FOUND)

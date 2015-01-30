@@ -24,7 +24,7 @@ namespace stellar
 
 static std::unique_ptr<Config> gTestCfg;
 
-Config const&
+Config&
 getTestConfig()
 {
     if (!gTestCfg)

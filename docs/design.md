@@ -1,21 +1,23 @@
 #Left to design:
 - Bucket list
 - memo in txs
-- seq numbers
-- can we drop transaction rate?
+- seq numbers 
+	- top buyte is the slot so we have 256 slots 
+- can we drop the idea of transaction rate?
+- what to do about inner ledger arbitrage?
+- should we make payments that go through the same orderbook in the same ledger cross each other?
+	- this will make things way more complicated but could potentially increase the liquidity a lot.
 - Is this really the way we want to do paths/offers?
 - Is there a way to have payments be atomic units and express everything in terms of a batch of a smaller payments?
 	- Taking an offer would just be A paying B followed by B paying A
 - we need some indicator of if a tx is successful in the ledger header. Otherwise people have to either replay the tx or trust someone to know if the payment worked
- - Not sure we need this
+	- Not sure we need this
 
 
-#v.1 Platform implemention can start
- - Syncing to the network (graydon)
- - storing history (graydon)
- - bucket list (graydon)
- 
 #v.2 code public
+- Syncing to the network (graydon)
+- storing history (graydon)
+- bucket list (graydon)
 - publish FBA (david)
 - Replaying transactions to catch up (graydon)
   
