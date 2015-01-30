@@ -7,6 +7,8 @@
 #include "lib/json/json.h"
 #include "crypto/Base58.h"
 #include "crypto/Hex.h"
+#include "crypto/SHA.h"
+#include "xdrpp/marshal.h"
 #include "database/Database.h"
 
 namespace stellar
@@ -32,9 +34,9 @@ using namespace std;
     {
         if (isZero(mHeader.hash))
         {
-            // TODO: compute hash
-            mHeader.hash.fill(mHeader.ledgerSeq & 0xFFu);
-            // assert(!isZero(mHeader.hash));
+            // Hash is hash(header-with-hash-field-all-zero)
+            mHeader.hash = sha512_256(xdr::xdr_to_msg(mHeader));
+            assert(!isZero(mHeader.hash));
         }
     }
 
