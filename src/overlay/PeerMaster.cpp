@@ -271,17 +271,30 @@ PeerMaster::broadcastMessage(StellarMessage const& msg)
 
 void PeerMaster::createTable(Database &db)
 {
-    db.getSession() << kSQLCreateStatement;
+    if (db.isSqlite())
+    {
+        // Horrendous hack: replace "SERIAL" with "INTEGER" when
+        // on SQLite:
+        std::string q(kSQLCreateStatement);
+        auto p = q.find("SERIAL");
+        assert(p != std::string::npos);
+        q.replace(p, 6, "INTEGER");
+        db.getSession() << q.c_str();
+    }
+    else
+    {
+        db.getSession() << kSQLCreateStatement;
+    }
 }
 
 const char* PeerMaster::kSQLCreateStatement = "CREATE TABLE IF NOT EXISTS Peers (						\
-	peerID	INTEGER PRIMARY KEY,	\
+	peerID	SERIAL PRIMARY KEY,	\
     ip	    CHARACTER(11),		        \
-    port   	INT UNSIGNED default 0,		\
+    port   	INT DEFAULT 0 CHECK (port >= 0),		\
     nextAttempt   	TIMESTAMP,	    	\
-    numFailures     INT UNSIGNED default 0,      \
+    numFailures     INT DEFAULT 0 CHECK (numFailures >= 0),      \
     lastConnect   	TIMESTAMP,	    	\
-	rank	INT UNSIGNED default 0  	\
+	rank	INT DEFAULT 0 CHECK (rank >= 0)  	\
 );";
 
 }

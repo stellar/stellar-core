@@ -60,6 +60,12 @@ Database::Database(Application& app)
         (app.getConfig().DATABASE == "sqlite3://:memory:"))  initialize();
 }
 
+bool
+Database::isSqlite()
+{
+    return mApp.getConfig().DATABASE.find("sqlite3:") != std::string::npos;
+}
+
 void Database::initialize()
 {
     try {

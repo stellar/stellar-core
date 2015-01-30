@@ -360,10 +360,10 @@ void TransactionFrame::dropAll(Database &db)
 
     db.getSession() <<
         "CREATE TABLE IF NOT EXISTS TxHistory (" \
-        "txID       CHARACTER(35) NOT NULL,"\
-        "ledgerSeq  INT UNSIGNED NOT NULL,"\
-        "Tx         BLOB NOT NULL,"\
-        "TxResult   BLOB NOT NULL,"\
+        "txID       CHARACTER(64) NOT NULL,"\
+        "ledgerSeq  INT NOT NULL CHECK (ledgerSeq >= 0),"\
+        "Tx         OID NOT NULL,"\
+        "TxResult   OID NOT NULL,"\
         "PRIMARY KEY (txID, ledgerSeq)"\
         ")";
 

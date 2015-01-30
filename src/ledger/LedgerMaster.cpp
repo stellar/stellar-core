@@ -61,13 +61,13 @@ void LedgerMaster::startNewLedger()
     LedgerDelta delta;
     masterAccount.storeAdd(delta, this->getDatabase());
 
-    LedgerHeader genenisHeader;
-    genenisHeader.baseFee = mApp.getConfig().DESIRED_BASE_FEE;
-    genenisHeader.baseReserve = mApp.getConfig().DESIRED_BASE_RESERVE;
-    genenisHeader.totalCoins = masterAccount.mEntry.account().balance;
-    genenisHeader.ledgerSeq = 1;
+    LedgerHeader genesisHeader;
+    genesisHeader.baseFee = mApp.getConfig().DESIRED_BASE_FEE;
+    genesisHeader.baseReserve = mApp.getConfig().DESIRED_BASE_RESERVE;
+    genesisHeader.totalCoins = masterAccount.mEntry.account().balance;
+    genesisHeader.ledgerSeq = 1;
 
-    mCurrentLedger = make_shared<LedgerHeaderFrame>(genenisHeader);
+    mCurrentLedger = make_shared<LedgerHeaderFrame>(genesisHeader);
 
     closeLedgerHelper(true);
 
@@ -238,7 +238,7 @@ void LedgerMaster::closeLedgerHelper(bool updateCurrent)
 const char *LedgerMaster::kSQLCreateStatement =
 "CREATE TABLE IF NOT EXISTS StoreState (        \
         StateName   CHARACTER(32) PRIMARY KEY,  \
-        State       BLOB                        \
+        State       TEXT                        \
 );";
 
 void LedgerMaster::dropAll(Database &db)

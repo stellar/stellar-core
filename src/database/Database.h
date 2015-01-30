@@ -29,6 +29,8 @@ class Database
   public:
     Database(Application& app);
 
+    bool isSqlite();
+
     void initialize();
 
     int64_t getBalance(const uint256& accountID, const Currency& currency);
