@@ -210,13 +210,14 @@ Slot::prepareValue(const Value& value,
     {
         return false;
     }
-    else if (mIsPristine || mFBA->compareValues(mBallot.value, value) < 0)
-    {
-        bumpToBallot(FBABallot(mBallot.counter, value));
-    }
-    else if (forceBump || mFBA->compareValues(mBallot.value, value) > 0)
+    if (forceBump || mFBA->compareValues(mSlotIndex, mBallot.counter, 
+                                         mBallot.value, value) > 0)
     {
         bumpToBallot(FBABallot(mBallot.counter + 1, value));
+    }
+    else
+    {
+        bumpToBallot(FBABallot(mBallot.counter, value));
     }
 
     advanceSlot();
@@ -241,7 +242,7 @@ Slot::bumpToBallot(const FBABallot& ballot)
         assert(compareBallots(ballot, s.ballot) >= 0);
     }
     // We should move mBallot monotically only
-    assert(compareBallots(ballot, mBallot) > 0);
+    assert(compareBallots(ballot, mBallot) >= 0);
 
     mBallot = ballot;
 
@@ -611,7 +612,8 @@ Slot::compareBallots(const FBABallot& b1,
     {
         return 1;
     }
-    return mFBA->compareValues(b1.value, b2.value);
+    return mFBA->compareValues(mSlotIndex, b1.counter, 
+                               b1.value, b2.value);
 }
 
 void

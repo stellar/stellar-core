@@ -56,8 +56,12 @@ class FBA
 
     // `compareValues` is used in ballot comparison. Ballots with higher values
     // cancel ones with lower values for the same ballot counter which
-    // prioritize higher values.
-    virtual int compareValues(const Value& v1, const Value& v2)
+    // prioritize higher values. It is acceptable to parametrize the value
+    // ordering by slotIndex and ballot counter. That's why they are provided
+    // as argument to `compareValues`.
+    virtual int compareValues(const uint64& slotIndex, 
+                              const uint32& ballotCounter,
+                              const Value& v1, const Value& v2)
     {
         using xdr::operator<;
 

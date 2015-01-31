@@ -5,9 +5,14 @@ namespace stellar {
 
 struct StellarBallot
 {
-    Hash txSetHash;
-    uint64 closeTime;
-    int64 baseFee;
+    uint256 nodeID;
+    Signature signature;
+    struct
+    {
+        Hash txSetHash;
+        uint64 closeTime;
+        int64 baseFee;
+    } value;
 };
 
 struct Error

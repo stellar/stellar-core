@@ -110,7 +110,7 @@ Herder::validateValue(const uint64& slotIndex,
             return cb(false);
         }
         // Check closeTime (not too old)
-        if (b.closeTime <= mLastClosedLedger.closeTime)
+        if (b.value.closeTime <= mLastClosedLedger.closeTime)
         {
             return cb(false);
         }
@@ -141,15 +141,27 @@ Herder::validateValue(const uint64& slotIndex,
         return cb(true);
     };
     
-    TxSetFramePtr txSet = fetchTxSet(b.txSetHash, true);
+    TxSetFramePtr txSet = fetchTxSet(b.value.txSetHash, true);
     if (!txSet)
     {
-        mTxSetFetches[b.txSetHash].push_back(validate);
+        mTxSetFetches[b.value.txSetHash].push_back(validate);
     }
     else
     {
         validate(txSet);
     }
+}
+
+int 
+Herder::compareValues(const uint64& slotIndex, 
+                      const uint32& ballotCounter,
+                      const Value& v1, const Value& v2)
+{
+    using xdr::operator<;
+  
+    if (v1 < v2) return -1;
+    if (v2 < v1) return 1;
+    return 0;
 }
 
 void 
@@ -170,7 +182,7 @@ Herder::validateBallot(const uint64& slotIndex,
 
     // Check closeTime (not too far in the future)
     uint64_t timeNow = VirtualClock::pointToTimeT(mApp.getClock().now());
-    if (b.closeTime > timeNow + MAX_TIME_SLIP_SECONDS)
+    if (b.value.closeTime > timeNow + MAX_TIME_SLIP_SECONDS)
     {
         return cb(false);
     }
@@ -192,11 +204,11 @@ Herder::validateBallot(const uint64& slotIndex,
     }
 
     // Check baseFee (within range of desired fee).
-    if (b.baseFee < mApp.getConfig().DESIRED_BASE_FEE * .5)
+    if (b.value.baseFee < mApp.getConfig().DESIRED_BASE_FEE * .5)
     {
         return cb(false);
     }
-    if (b.baseFee > mApp.getConfig().DESIRED_BASE_FEE * 2)
+    if (b.value.baseFee > mApp.getConfig().DESIRED_BASE_FEE * 2)
     {
         return cb(false);
     }
@@ -230,34 +242,14 @@ Herder::validateBallot(const uint64& slotIndex,
         return cb(true);
     };
     
-    TxSetFramePtr txSet = fetchTxSet(b.txSetHash, true);
+    TxSetFramePtr txSet = fetchTxSet(b.value.txSetHash, true);
     if (!txSet)
     {
-        mTxSetFetches[b.txSetHash].push_back(validate);
+        mTxSetFetches[b.value.txSetHash].push_back(validate);
     }
     else
     {
         validate(txSet);
-    }
-}
-
-void 
-Herder::ballotDidPrepared(const uint64& slotIndex,
-                          const FBABallot& ballot)
-{
-    // If we're not fully synced, we just don't timeout FBA, so no need to
-    // store mBumpValue
-    if (mLedgersToWaitToParticipate > 0)
-    {
-        return;
-    }
-    // Only validated values (current) values should trigger this.
-    assert(slotIndex == mLastClosedLedger.ledgerSeq + 1);
-
-    // We keep around the maximal value that prepared.
-    if (compareValues(mBumpValue, ballot.value) < 0)
-    {
-        mBumpValue = ballot.value;
     }
 }
 
@@ -305,9 +297,9 @@ Herder::valueExternalized(const uint64& slotIndex,
 
     CLOG(INFO, "Herder") << "Herder::valueExternalized"
         << "@" << binToHex(getLocalNodeID()).substr(0,6)
-        << " txSet: " << binToHex(b.txSetHash).substr(0,6);
+        << " txSet: " << binToHex(b.value.txSetHash).substr(0,6);
     
-    TxSetFramePtr externalizedSet = fetchTxSet(b.txSetHash, false);
+    TxSetFramePtr externalizedSet = fetchTxSet(b.value.txSetHash, false);
     if (externalizedSet)
     {
         // we don't need to keep fetching any of the old TX sets
@@ -667,13 +659,13 @@ Herder::triggerNextLedger(const asio::error_code& error)
     }
 
     StellarBallot b;
-    b.txSetHash = proposedSet->getContentsHash();
-    b.closeTime = nextCloseTime;
-    b.baseFee = mApp.getConfig().DESIRED_BASE_FEE;
+    b.value.txSetHash = proposedSet->getContentsHash();
+    b.value.closeTime = nextCloseTime;
+    b.value.baseFee = mApp.getConfig().DESIRED_BASE_FEE;
 
-    Value x = xdr::xdr_to_opaque(b);
+    mLocalValue = xdr::xdr_to_opaque(b);
 
-    uint256 valueHash = sha512_256(xdr::xdr_to_msg(x));
+    uint256 valueHash = sha512_256(xdr::xdr_to_msg(mLocalValue));
     CLOG(DEBUG, "Herder") << "Herder::triggerNextLedger"
         << "@" << binToHex(getLocalNodeID()).substr(0,6)
         << " txSet.size: " << proposedSet->mTransactions.size()
@@ -681,8 +673,9 @@ Herder::triggerNextLedger(const asio::error_code& error)
         << binToHex(proposedSet->mPreviousLedgerHash).substr(0,6)
         << " value: " << binToHex(valueHash).substr(0,6);
 
-    mBumpValue = x;
-    prepareValue(slotIndex, x);
+    // We prepare that value. If we're king, the ballot will be validated, and
+    // if we're not it'll just get ignored.
+    prepareValue(slotIndex, mLocalValue);
 
     for (auto p : mFutureEnvelopes[slotIndex])
     {
@@ -705,7 +698,9 @@ Herder::expireBallot(const asio::error_code& error,
 
     assert(slotIndex == mLastClosedLedger.ledgerSeq + 1);
 
-    prepareValue(slotIndex, mBumpValue, true);
+    // We prepare the value while bumping the ballot counter. If we're king,
+    // this prepare will go through. If not, we will have bumped our ballot.
+    prepareValue(slotIndex, mLocalValue, true);
 }
 
 

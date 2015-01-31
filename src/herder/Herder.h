@@ -45,13 +45,15 @@ class Herder : public HerderGateway,
                        const uint256& nodeID,
                        const Value& value,
                        std::function<void(bool)> const& cb);
+    int compareValues(const uint64& slotIndex, 
+                      const uint32& ballotCounter,
+                      const Value& v1, const Value& v2);
+
     void validateBallot(const uint64& slotIndex,
                         const uint256& nodeID,
                         const FBABallot& ballot,
                         std::function<void(bool)> const& cb);
 
-    void ballotDidPrepared(const uint64& slotIndex,
-                           const FBABallot& ballot);
     void ballotDidHearFromQuorum(const uint64& slotIndex,
                                  const FBABallot& ballot);
     void valueExternalized(const uint64& slotIndex,
@@ -117,7 +119,7 @@ class Herder : public HerderGateway,
     VirtualTimer                                   mTriggerTimer;
 
     VirtualTimer                                   mBumpTimer;
-    Value                                          mBumpValue;
+    Value                                          mLocalValue;
 
     Application&                                   mApp;
 };
