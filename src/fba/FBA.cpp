@@ -4,6 +4,8 @@
 
 #include "FBA.h"
 
+#include <algorithm>
+
 #include "fba/LocalNode.h"
 #include "fba/Slot.h"
 
@@ -67,6 +69,44 @@ const uint256&
 FBA::getLocalNodeID()
 {
   return mLocalNode->getNodeID();
+}
+
+void 
+FBA::purgeNode(const uint256& nodeID)
+{
+    auto it = mKnownNodes.find(nodeID);
+    if (it != mKnownNodes.end())
+    {
+        delete it->second;
+        mKnownNodes.erase(it);
+    }
+}
+
+void 
+FBA::nodeForEach(std::function<void(const uint256&)> const& fn)
+{
+    for (auto it : mKnownNodes)
+    {
+        fn(it.first);
+    }
+}
+
+void 
+FBA::purgeSlots(const uint64& maxSlotIndex)
+{
+    auto it = mKnownSlots.begin();
+    while(it != mKnownSlots.end())
+    {
+        if(it->first < maxSlotIndex)
+        {
+            delete it->second;
+            it = mKnownSlots.erase(it);
+        }
+        else 
+        {
+            ++it;
+        }
+    }
 }
 
 Node* 

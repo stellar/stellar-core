@@ -88,25 +88,32 @@ class FBA
     // `ballotDidCommit` is called each time the local node COMMIT a ballot.
     // It is always called on the internally monotically increasing `mBallot`.
     virtual void ballotDidCommit(const uint64& slotIndex,
-                                 const FBABallot& ballot) {};
+                                 const FBABallot& ballot) {}
     // `ballotDidCommitted` is called each time the local node COMMITTED a
     // ballot. It is always called on the internally monotically increasing
     // `mBallot`. Once COMMITTED, a slot cannot switch to another value. That
     // does not mean that the network agress on it yet though, but if the slot
     // later externalize on this node, it will necessarily be on this value.
     virtual void ballotDidCommitted(const uint64& slotIndex,
-                                    const FBABallot& ballot) {};
+                                    const FBABallot& ballot) {}
 
     // `ballotDidHearFromQuorum` is called when we received messages related to
     // the current `mBallot` from a set of node that is a transitive quorum for 
     // the local node. It should be used to start ballot expiration timer.
     virtual void ballotDidHearFromQuorum(const uint64& slotIndex,
-                                         const FBABallot& ballot) {};
+                                         const FBABallot& ballot) {}
 
     // `valueExternalized` is called at most once per slot when the slot
     // externalize its value.
     virtual void valueExternalized(const uint64& slotIndex,
                                    const Value& value) {}
+
+
+    // `nodeTouched` is call whenever a node is used within the FBA consensus
+    // protocol. It lets implementor of FBA evict nodes that haven't been
+    // touched for a long time (because it died or the quorum structure was
+    // updated).
+    virtual void nodeTouched(const uint256& nodeID) {}
 
     // Delegates the retrieval of the quorum set designated by `qSetHash` to
     // the user of FBA.
@@ -115,10 +122,10 @@ class FBA
         const Hash& qSetHash,
         std::function<void(const FBAQuorumSet&)> const& cb) = 0;
 
+
     // Delegates the emission of an FBAEnvelope to the user of FBA. Envelopes
     // should be flooded to the network.
     virtual void emitEnvelope(const FBAEnvelope& envelope) = 0;
-
 
     // Receives an envelope. `cb` asynchronously returns with a status for the
     // envelope:
@@ -149,9 +156,23 @@ class FBA
     // Local nodeID getter
     const uint256& getLocalNodeID();
 
+  protected:
+    // Purges all data relative to that node. Can be called at any time on any
+    // node. If the node is subsquently needed, it will be recreated and its
+    // quorumSet retrieved again. This method has no effect if called on the
+    // local nodeID.
+    void purgeNode(const uint256& nodeID);
+
+    // `nodeForEach` lets classes extending FBA iterate on the locally known
+    // nodeIDs.
+    void nodeForEach(std::function<void(const uint256&)> const& fn);
+
+    // Purges all data relative to all the slots whose slotIndex is smaller
+    // than the specified `maxSlotIndex`.
+    void purgeSlots(const uint64& maxSlotIndex);
 
   private:
-    // Node getter
+    // Node getters
     Node* getNode(const uint256& nodeID);
     LocalNode* getLocalNode();
 

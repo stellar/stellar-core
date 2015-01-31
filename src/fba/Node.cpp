@@ -25,7 +25,7 @@ Node::Node(const uint256& nodeID,
 
 bool
 Node::hasQuorum(const Hash& qSetHash,
-                    const std::vector<uint256>& nodeSet)
+                const std::vector<uint256>& nodeSet)
 {
     CLOG(DEBUG, "FBA") << "Node::hasQuorum" 
         << "@" << binToHex(mNodeID).substr(0,6)
@@ -140,6 +140,9 @@ Node::isQuorumTransitive<FBAStatement>(
 const FBAQuorumSet& 
 Node::retrieveQuorumSet(const uint256& qSetHash)
 {
+    // Notify that we touched this node.
+    mFBA->nodeTouched(mNodeID);
+
     assert(mCacheLRU.size() == mCache.size());
     auto it = mCache.find(qSetHash);
     if (it != mCache.end()) 
