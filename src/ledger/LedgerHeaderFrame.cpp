@@ -157,7 +157,7 @@ using namespace std;
             ");";
 
         db.getSession() <<
-            "CREATE INDEX ls ON LedgerHeaders ( ledgerSeq );";
+            "CREATE INDEX LedgersBySeq ON LedgerHeaders ( ledgerSeq );";
     }
 }
 
