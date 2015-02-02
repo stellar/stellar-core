@@ -1,8 +1,10 @@
 // Copyright 2014 Stellar Development Foundation and contributors. Licensed
 // under the ISC License. See the COPYING file at the top-level directory of
 // this distribution or at http://opensource.org/licenses/ISC
-#include "LedgerMaster.h"
+#include "util/asio.h"
+
 #include "main/Application.h"
+#include "LedgerMaster.h"
 #include "main/Config.h"
 #include "clf/CLFMaster.h"
 #include "util/Logging.h"
