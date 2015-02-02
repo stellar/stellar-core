@@ -94,7 +94,7 @@ TEST_CASE("file-backed buckets", "[clf]")
         for (auto &e : dead)
             e = deadGen(3);
         {
-            TIMED_SCOPE(timerObj, "merge");
+            TIMED_SCOPE(timerObj2, "merge");
             b1 = Bucket::merge(tmpDir, b1,
                                Bucket::fresh(tmpDir, live, dead));
         }
