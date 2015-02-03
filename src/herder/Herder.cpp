@@ -77,6 +77,7 @@ Herder::~Herder()
 void
 Herder::bootstrap()
 {
+    assert(!getSecretKey().isZero());
     assert(mApp.getConfig().START_NEW_NETWORK);
 
     mLastClosedLedger = mApp.getLedgerMaster().getLastClosedLedgerHeader();
@@ -100,6 +101,13 @@ Herder::validateValue(const uint64& slotIndex,
         return cb(false);
     }
 
+    // First of all let's verify the internal Stellar Ballot signature is
+    // correct.
+    if (!verifyStellarBallot(b))
+    {
+        return cb(false);
+    }
+
     // All tests that are relative to mLastClosedLedger are executed only once
     // we are fully synced up
     if (mLedgersToWaitToParticipate == 0)
@@ -110,7 +118,7 @@ Herder::validateValue(const uint64& slotIndex,
             return cb(false);
         }
         // Check closeTime (not too old)
-        if (b.closeTime <= mLastClosedLedger.closeTime)
+        if (b.value.closeTime <= mLastClosedLedger.closeTime)
         {
             return cb(false);
         }
@@ -141,15 +149,72 @@ Herder::validateValue(const uint64& slotIndex,
         return cb(true);
     };
     
-    TxSetFramePtr txSet = fetchTxSet(b.txSetHash, true);
+    TxSetFramePtr txSet = fetchTxSet(b.value.txSetHash, true);
     if (!txSet)
     {
-        mTxSetFetches[b.txSetHash].push_back(validate);
+        mTxSetFetches[b.value.txSetHash].push_back(validate);
     }
     else
     {
         validate(txSet);
     }
+}
+
+int 
+Herder::compareValues(const uint64& slotIndex, 
+                      const uint32& ballotCounter,
+                      const Value& v1, const Value& v2)
+{
+    // TODO(spolu) cache validated values at each round
+    using xdr::operator<;
+
+    StellarBallot b1;
+    StellarBallot b2;
+    try
+    {
+        xdr::xdr_from_opaque(v1, b1);
+        xdr::xdr_from_opaque(v2, b2);
+    }
+    catch (...)
+    {
+        // This should not be possible are valuies are validated before they
+        // are compared.
+        CLOG(ERROR, "Herder") << "Herder::compareValues"
+            << "@" << binToHex(getLocalNodeID()).substr(0,6)
+            << " Unexpected invalid value format";
+        assert(false);
+        return 0;
+    }
+    
+    // Unverified StellarBallot shouldn't be possible either for the precise
+    // same reasons.
+    assert(verifyStellarBallot(b1));
+    assert(verifyStellarBallot(b2));
+
+    // Ordering is based on H(slotIndex, ballotCounter, nodeID). Such that the
+    // round king value gets priviledged over other values. Given the hash
+    // function used, a new king is "coronated" for each round of FBA (ballot
+    // counter) and each slotIndex.
+    
+    SHA512_256 s1;
+    s1.add(xdr::xdr_to_msg(slotIndex));
+    s1.add(xdr::xdr_to_msg(ballotCounter));
+    s1.add(xdr::xdr_to_msg(b1.nodeID));
+    auto h1 = s1.finish();
+
+    SHA512_256 s2;
+    s2.add(xdr::xdr_to_msg(slotIndex));
+    s2.add(xdr::xdr_to_msg(ballotCounter));
+    s2.add(xdr::xdr_to_msg(b2.nodeID));
+    auto h2 = s2.finish();
+
+    if (h1 < h2) return -1;
+    if (h2 < h1) return 1;
+
+    if (b1.value < b2.value) return -1;
+    if (b2.value < b1.value) return -1;
+
+    return 0;
 }
 
 void 
@@ -158,6 +223,7 @@ Herder::validateBallot(const uint64& slotIndex,
                        const FBABallot& ballot,
                        std::function<void(bool)> const& cb)
 {
+    // TODO(spolu) cache validated values at each round
     StellarBallot b;
     try
     {
@@ -170,7 +236,7 @@ Herder::validateBallot(const uint64& slotIndex,
 
     // Check closeTime (not too far in the future)
     uint64_t timeNow = VirtualClock::pointToTimeT(mApp.getClock().now());
-    if (b.closeTime > timeNow + MAX_TIME_SLIP_SECONDS)
+    if (b.value.closeTime > timeNow + MAX_TIME_SLIP_SECONDS)
     {
         return cb(false);
     }
@@ -181,84 +247,60 @@ Herder::validateBallot(const uint64& slotIndex,
     // exhaustion attacks.
     uint64_t lastTrigger = VirtualClock::pointToTimeT(mLastTrigger);
     uint64_t sumTimeouts = 0;
-    for (int i = 0; i < ballot.counter; i ++)
+    // The second condition is to prevent attackers from emitting ballots whose
+    // verification would busy lock us.
+    for (int unsigned i = 0; 
+         i < ballot.counter && 
+         (timeNow + MAX_TIME_SLIP_SECONDS) >= (lastTrigger + sumTimeouts); 
+         i ++)
     {
         sumTimeouts += std::min(MAX_FBA_TIMEOUT_SECONDS, (int)pow(2.0, i));
     }
     // This inequality is effectively a limitation on `ballot.counter`
-    if (timeNow + MAX_TIME_SLIP_SECONDS < (int)(lastTrigger + sumTimeouts))
+    if ((timeNow + MAX_TIME_SLIP_SECONDS) < (lastTrigger + sumTimeouts))
     {
         return cb(false);
     }
 
     // Check baseFee (within range of desired fee).
-    if (b.baseFee < mApp.getConfig().DESIRED_BASE_FEE * .5)
+    if (b.value.baseFee < mApp.getConfig().DESIRED_BASE_FEE * .5)
     {
         return cb(false);
     }
-    if (b.baseFee > mApp.getConfig().DESIRED_BASE_FEE * 2)
+    if (b.value.baseFee > mApp.getConfig().DESIRED_BASE_FEE * 2)
     {
         return cb(false);
     }
 
-    // make sure all the tx we have in the old set are included
-    auto validate = [cb,b,slotIndex,nodeID,this] (TxSetFramePtr txSet)
+    // No need to check if all the txs are in the txSet as this is decided by
+    // the king of that round. Just check that we believe that this ballot is
+    // actually from the king itself.
+    bool isKing = true;
+    auto coronation = [&slotIndex,&ballot,&b,&isKing] (const uint256& nodeID)
     {
-        // Check we have all the 3-level txs in mReceivedTransactions
-        for (auto tx : mReceivedTransactions[mReceivedTransactions.size() - 1])
+        // TODO(spolu) ignore ourselves if not validating
+        using xdr::operator<;
+
+        SHA512_256 sProposed;
+        sProposed.add(xdr::xdr_to_msg(slotIndex));
+        sProposed.add(xdr::xdr_to_msg(ballot.counter));
+        sProposed.add(xdr::xdr_to_msg(b.nodeID));
+        auto hProposed = sProposed.finish();
+
+        SHA512_256 sContender;
+        sContender.add(xdr::xdr_to_msg(slotIndex));
+        sContender.add(xdr::xdr_to_msg(ballot.counter));
+        sContender.add(xdr::xdr_to_msg(nodeID));
+        auto hContender = sContender.finish();
+
+        if(hProposed < hContender)
         {
-            if (find(txSet->mTransactions.begin(), txSet->mTransactions.end(),
-                     tx) == txSet->mTransactions.end())
-            {
-                CLOG(DEBUG, "Herder") << "Herder::validateBallot"
-                    << "@" << binToHex(getLocalNodeID()).substr(0,6)
-                    << " i: " << slotIndex
-                    << " v: " << binToHex(nodeID).substr(0,6)
-                    << " Missing received tx in txSet:"
-                    << " " << binToHex(txSet->getContentsHash()).substr(0,6);
-                return cb(false);
-            }
+            isKing = false;
         }
-        
-        CLOG(DEBUG, "Herder") << "Herder::validateBallot"
-            << "@" << binToHex(getLocalNodeID()).substr(0,6)
-            << " i: " << slotIndex
-            << " v: " << binToHex(nodeID).substr(0,6)
-            << " txSet:"
-            << " " << binToHex(txSet->getContentsHash()).substr(0,6)
-            << " OK";
-        return cb(true);
     };
+    nodeForEach(coronation);
     
-    TxSetFramePtr txSet = fetchTxSet(b.txSetHash, true);
-    if (!txSet)
-    {
-        mTxSetFetches[b.txSetHash].push_back(validate);
-    }
-    else
-    {
-        validate(txSet);
-    }
-}
-
-void 
-Herder::ballotDidPrepared(const uint64& slotIndex,
-                          const FBABallot& ballot)
-{
-    // If we're not fully synced, we just don't timeout FBA, so no need to
-    // store mBumpValue
-    if (mLedgersToWaitToParticipate > 0)
-    {
-        return;
-    }
-    // Only validated values (current) values should trigger this.
-    assert(slotIndex == mLastClosedLedger.ledgerSeq + 1);
-
-    // We keep around the maximal value that prepared.
-    if (compareValues(mBumpValue, ballot.value) < 0)
-    {
-        mBumpValue = ballot.value;
-    }
+    return cb(isKing);
 }
 
 void
@@ -305,9 +347,9 @@ Herder::valueExternalized(const uint64& slotIndex,
 
     CLOG(INFO, "Herder") << "Herder::valueExternalized"
         << "@" << binToHex(getLocalNodeID()).substr(0,6)
-        << " txSet: " << binToHex(b.txSetHash).substr(0,6);
+        << " txSet: " << binToHex(b.value.txSetHash).substr(0,6);
     
-    TxSetFramePtr externalizedSet = fetchTxSet(b.txSetHash, false);
+    TxSetFramePtr externalizedSet = fetchTxSet(b.value.txSetHash, false);
     if (externalizedSet)
     {
         // we don't need to keep fetching any of the old TX sets
@@ -331,6 +373,8 @@ Herder::valueExternalized(const uint64& slotIndex,
             auto msg = tx->toStellarMessage();
             mApp.getOverlayGateway().broadcastMessage(msg);
         }
+
+        // TODO(spolu) evict old nodes and slots
 
         // move all the remaining to the next highest level
         // don't move the largest array
@@ -544,17 +588,17 @@ Herder::recvFBAEnvelope(FBAEnvelope envelope,
 
         // If we are fully synced and the envelopes are out of our validity
         // brackets, we just ignore them.
-        if(envelope.slotIndex > maxLedgerSeq ||
-           envelope.slotIndex < minLedgerSeq)
+        if(envelope.statement.slotIndex > maxLedgerSeq ||
+           envelope.statement.slotIndex < minLedgerSeq)
         {
             return;
         }
 
         // If we are fully synced and we see envelopes that are from future
         // ledgers we store them for later replay.
-        if (envelope.slotIndex > mLastClosedLedger.ledgerSeq + 1)
+        if (envelope.statement.slotIndex > mLastClosedLedger.ledgerSeq + 1)
         {
-            mFutureEnvelopes[envelope.slotIndex]
+            mFutureEnvelopes[envelope.statement.slotIndex]
                 .push_back(std::make_pair(envelope, cb));
         }
     }
@@ -579,6 +623,13 @@ Herder::ledgerClosed(LedgerHeader& ledger)
         mApp.getState() != Application::State::SYNCED_STATE)
     {
         mLedgersToWaitToParticipate--;
+    }
+
+    // If we are not a validating not and just watching FBA we don't call
+    // triggerNextLedger
+    if (getSecretKey().isZero())
+    {
+        return;
     }
 
     // If we haven't waited for a couple ledgers after we got in SYNCED_STATE
@@ -649,10 +700,6 @@ Herder::triggerNextLedger(const asio::error_code& error)
         }
     }
     proposedSet->mPreviousLedgerHash = mLastClosedLedger.hash;
-
-    // TODO(spolu) we shouldn't need to ping the network to store the TxSet
-    //             within the ItemFetcher
-    fetchTxSet(proposedSet->getContentsHash(), true);
     recvTxSet(proposedSet);
 
     uint64_t slotIndex = mLastClosedLedger.ledgerSeq + 1;
@@ -667,13 +714,14 @@ Herder::triggerNextLedger(const asio::error_code& error)
     }
 
     StellarBallot b;
-    b.txSetHash = proposedSet->getContentsHash();
-    b.closeTime = nextCloseTime;
-    b.baseFee = mApp.getConfig().DESIRED_BASE_FEE;
+    b.value.txSetHash = proposedSet->getContentsHash();
+    b.value.closeTime = nextCloseTime;
+    b.value.baseFee = mApp.getConfig().DESIRED_BASE_FEE;
+    signStellarBallot(b);
 
-    Value x = xdr::xdr_to_opaque(b);
+    mCurrentValue = xdr::xdr_to_opaque(b);
 
-    uint256 valueHash = sha512_256(xdr::xdr_to_msg(x));
+    uint256 valueHash = sha512_256(xdr::xdr_to_msg(mCurrentValue));
     CLOG(DEBUG, "Herder") << "Herder::triggerNextLedger"
         << "@" << binToHex(getLocalNodeID()).substr(0,6)
         << " txSet.size: " << proposedSet->mTransactions.size()
@@ -681,8 +729,9 @@ Herder::triggerNextLedger(const asio::error_code& error)
         << binToHex(proposedSet->mPreviousLedgerHash).substr(0,6)
         << " value: " << binToHex(valueHash).substr(0,6);
 
-    mBumpValue = x;
-    prepareValue(slotIndex, x);
+    // We prepare that value. If we're king, the ballot will be validated, and
+    // if we're not it'll just get ignored.
+    prepareValue(slotIndex, mCurrentValue);
 
     for (auto p : mFutureEnvelopes[slotIndex])
     {
@@ -705,8 +754,23 @@ Herder::expireBallot(const asio::error_code& error,
 
     assert(slotIndex == mLastClosedLedger.ledgerSeq + 1);
 
-    prepareValue(slotIndex, mBumpValue, true);
+    // We prepare the value while bumping the ballot counter. If we're king,
+    // this prepare will go through. If not, we will have bumped our ballot.
+    prepareValue(slotIndex, mCurrentValue, true);
 }
 
+void 
+Herder::signStellarBallot(StellarBallot& b)
+{
+    b.nodeID = getSecretKey().getPublicKey();
+    b.signature = getSecretKey().sign(xdr::xdr_to_msg(b.value));
+}
+
+bool 
+Herder::verifyStellarBallot(const StellarBallot& b)
+{
+    return PublicKey::verifySig(b.nodeID, b.signature, 
+                                xdr::xdr_to_msg(b.value));
+}
 
 }

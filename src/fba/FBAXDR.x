@@ -25,6 +25,7 @@ enum FBAStatementType
 
 struct FBAStatement
 {
+    uint64 slotIndex;      // i
     FBABallot ballot;      // b
     Hash quorumSetHash;    // D
 	
@@ -46,7 +47,6 @@ struct FBAStatement
 struct FBAEnvelope
 {
     uint256 nodeID;         // v
-    uint64 slotIndex;       // i
     FBAStatement statement;
     Signature signature;
 };

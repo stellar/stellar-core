@@ -41,6 +41,10 @@ getTestConfig()
         gTestCfg->RUN_STANDALONE = true;
         gTestCfg->START_NEW_NETWORK = true;
 
+        // We set a secret key by default as START_NEW_NETWORK is true by
+        // default and we do need a VALIDATION_KEY to start a new network
+        gTestCfg->VALIDATION_KEY = SecretKey::random();
+
         // uncomment this when debugging test cases
         //gTestCfg->DATABASE = "sqlite3://test.db";
     }

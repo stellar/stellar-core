@@ -4,6 +4,10 @@
 
 #include "FBA.h"
 
+#include <algorithm>
+
+#include "xdrpp/marshal.h"
+#include "crypto/SHA.h"
 #include "fba/LocalNode.h"
 #include "fba/Slot.h"
 
@@ -39,7 +43,7 @@ FBA::receiveEnvelope(const FBAEnvelope& envelope,
         return cb(FBA::EnvelopeState::INVALID);
     }
 
-    uint64 slotIndex = envelope.slotIndex;
+    uint64 slotIndex = envelope.statement.slotIndex;
     getSlot(slotIndex)->processEnvelope(envelope, cb);
 }
 
@@ -48,6 +52,7 @@ FBA::prepareValue(const uint64& slotIndex,
                   const Value& value,
                   bool forceBump)
 {
+    assert(!getSecretKey().isZero());
     return getSlot(slotIndex)->prepareValue(value, forceBump);
 }
 
@@ -67,6 +72,44 @@ const uint256&
 FBA::getLocalNodeID()
 {
   return mLocalNode->getNodeID();
+}
+
+void 
+FBA::purgeNode(const uint256& nodeID)
+{
+    auto it = mKnownNodes.find(nodeID);
+    if (it != mKnownNodes.end())
+    {
+        delete it->second;
+        mKnownNodes.erase(it);
+    }
+}
+
+void 
+FBA::nodeForEach(std::function<void(const uint256&)> const& fn)
+{
+    for (auto it : mKnownNodes)
+    {
+        fn(it.first);
+    }
+}
+
+void 
+FBA::purgeSlots(const uint64& maxSlotIndex)
+{
+    auto it = mKnownSlots.begin();
+    while(it != mKnownSlots.end())
+    {
+        if(it->first < maxSlotIndex)
+        {
+            delete it->second;
+            it = mKnownSlots.erase(it);
+        }
+        else 
+        {
+            ++it;
+        }
+    }
 }
 
 Node* 
@@ -100,15 +143,22 @@ FBA::getSlot(const uint64& slotIndex)
 void
 FBA::signEnvelope(FBAEnvelope& envelope)
 {
-    // TODO(spolu) envelope signature
+    assert(envelope.nodeID == getSecretKey().getPublicKey());
+    envelope.signature = 
+        getSecretKey().sign(xdr::xdr_to_msg(envelope.statement));
 }
 
 bool 
 FBA::verifyEnvelope(const FBAEnvelope& envelope)
 {
-    // TODO(spolu) envelope verification
-    return true;
+    return PublicKey::verifySig(envelope.nodeID, envelope.signature, 
+                                xdr::xdr_to_msg(envelope.statement));
 }
 
+const SecretKey& 
+FBA::getSecretKey()
+{
+    return mLocalNode->getSecretKey();
+}
 
 }

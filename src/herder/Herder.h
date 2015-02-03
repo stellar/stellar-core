@@ -45,13 +45,15 @@ class Herder : public HerderGateway,
                        const uint256& nodeID,
                        const Value& value,
                        std::function<void(bool)> const& cb);
+    int compareValues(const uint64& slotIndex, 
+                      const uint32& ballotCounter,
+                      const Value& v1, const Value& v2);
+
     void validateBallot(const uint64& slotIndex,
                         const uint256& nodeID,
                         const FBABallot& ballot,
                         std::function<void(bool)> const& cb);
 
-    void ballotDidPrepared(const uint64& slotIndex,
-                           const FBABallot& ballot);
     void ballotDidHearFromQuorum(const uint64& slotIndex,
                                  const FBABallot& ballot);
     void valueExternalized(const uint64& slotIndex,
@@ -86,10 +88,13 @@ class Herder : public HerderGateway,
                       const uint64& slotIndex,
                       const FBABallot& ballot);
 
+    // StellarBallot internal signature/verifiaction
+    void signStellarBallot(StellarBallot& b);
+    bool verifyStellarBallot(const StellarBallot& b);
+
     // 0- tx we got during ledger close
-    // 1- one ledger ago. Will only validate a vblocking set
-    // 2- two ledgers ago. Will only validate a vblock set and will rebroadcast
-    // 3- three or more ledgers ago. Any set we validate must have these tx
+    // 1- one ledger ago. rebroadcast
+    // 2- two ledgers ago. 
     std::vector<std::vector<TransactionFramePtr>>  mReceivedTransactions;
 
     // need to keep the old tx sets around for at least one Consensus round in
@@ -117,7 +122,7 @@ class Herder : public HerderGateway,
     VirtualTimer                                   mTriggerTimer;
 
     VirtualTimer                                   mBumpTimer;
-    Value                                          mBumpValue;
+    Value                                          mCurrentValue;
 
     Application&                                   mApp;
 };

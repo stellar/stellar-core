@@ -54,9 +54,8 @@ TEST_CASE("recvTx", "[hrd]")
     Config cfg(getTestConfig());
     
     cfg.RUN_STANDALONE = true;
-    cfg.START_NEW_NETWORK = true;
+    //cfg.START_NEW_NETWORK = true;
 
-    cfg.VALIDATION_KEY = SecretKey::random(); // TODO. 
     cfg.QUORUM_THRESHOLD = qSet->threshold;
     cfg.QUORUM_SET.push_back(v0NodeID);
     cfg.QUORUM_SET.push_back(v1NodeID);
