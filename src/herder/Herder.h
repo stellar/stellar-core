@@ -16,11 +16,15 @@
 // Maximum timeout for FBA consensus.
 #define MAX_FBA_TIMEOUT_SECONDS 240
 
-// Maximum time slip between nodes
+// Maximum time slip between nodes.
 #define MAX_TIME_SLIP_SECONDS 60
+
+// How many seconds of inactivity before evicting a node.
+#define NODE_EXPIRATION_SECONDS 240
 
 // How many ledger in past/future we consider an envelope viable.
 #define LEDGER_VALIDITY_BRACKET 10
+
 
 namespace stellar
 {
@@ -59,6 +63,8 @@ class Herder : public HerderGateway,
     void valueExternalized(const uint64& slotIndex,
                            const Value& value);
 
+    void nodeTouched(const uint256& nodeID);
+
     void retrieveQuorumSet(const uint256& nodeID,
                            const Hash& qSetHash,
                            std::function<void(const FBAQuorumSet&)> const& cb);
@@ -96,6 +102,10 @@ class Herder : public HerderGateway,
     // 1- one ledger ago. rebroadcast
     // 2- two ledgers ago. 
     std::vector<std::vector<TransactionFramePtr>>  mReceivedTransactions;
+
+
+    // Time of last access to a node, used to evict unused nodes.
+    std::map<uint256, VirtualClock::time_point>    mNodeLastAccess;
 
     // need to keep the old tx sets around for at least one Consensus round in
     // case some stragglers are still need the old txsets in order to close

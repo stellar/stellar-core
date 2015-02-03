@@ -26,10 +26,14 @@ TEST_CASE("cycle4 topology", "[simulation]")
     SIMULATION_CREATE_NODE(2);
     SIMULATION_CREATE_NODE(3);
 
-    FBAQuorumSet qSet0; qSet0.threshold = 1; qSet0.validators.push_back(v1NodeID);
-    FBAQuorumSet qSet1; qSet1.threshold = 1; qSet1.validators.push_back(v2NodeID);
-    FBAQuorumSet qSet2; qSet2.threshold = 1; qSet2.validators.push_back(v3NodeID);
-    FBAQuorumSet qSet3; qSet3.threshold = 1; qSet3.validators.push_back(v0NodeID);
+    FBAQuorumSet qSet0; qSet0.threshold = 2; 
+    qSet0.validators.push_back(v0NodeID); qSet0.validators.push_back(v1NodeID);
+    FBAQuorumSet qSet1; qSet1.threshold = 2; 
+    qSet1.validators.push_back(v1NodeID); qSet1.validators.push_back(v2NodeID);
+    FBAQuorumSet qSet2; qSet2.threshold = 2; 
+    qSet2.validators.push_back(v2NodeID); qSet2.validators.push_back(v3NodeID);
+    FBAQuorumSet qSet3; qSet3.threshold = 2; 
+    qSet3.validators.push_back(v3NodeID); qSet3.validators.push_back(v0NodeID);
 
     uint256 n0 = simulation.addNode(v0VSeed, qSet0, simulation.getClock());
     uint256 n1 = simulation.addNode(v1VSeed, qSet1, simulation.getClock());

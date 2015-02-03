@@ -165,7 +165,6 @@ Herder::compareValues(const uint64& slotIndex,
                       const uint32& ballotCounter,
                       const Value& v1, const Value& v2)
 {
-    // TODO(spolu) cache validated values at each round
     using xdr::operator<;
 
     StellarBallot b1;
@@ -223,7 +222,6 @@ Herder::validateBallot(const uint64& slotIndex,
                        const FBABallot& ballot,
                        std::function<void(bool)> const& cb)
 {
-    // TODO(spolu) cache validated values at each round
     StellarBallot b;
     try
     {
@@ -276,10 +274,24 @@ Herder::validateBallot(const uint64& slotIndex,
     // the king of that round. Just check that we believe that this ballot is
     // actually from the king itself.
     bool isKing = true;
-    auto coronation = [&slotIndex,&ballot,&b,&isKing] (const uint256& nodeID)
+    bool isTrusted = false;
+    for (auto vID : getLocalQuorumSet().validators)
     {
-        // TODO(spolu) ignore ourselves if not validating
+        // A ballot is trusted if its value is generated or prepared by a node
+        // in our qSet.
+        if (nodeID == vID || b.nodeID == vID)
+        {
+            isTrusted = true;
+        }
         using xdr::operator<;
+        using xdr::operator==;
+
+        // Ignore ourselves if we're just watching FBA
+        if (getSecretKey().isZero() &&
+            nodeID == getLocalNodeID())
+        {
+            return;
+        }
 
         SHA512_256 sProposed;
         sProposed.add(xdr::xdr_to_msg(slotIndex));
@@ -290,17 +302,31 @@ Herder::validateBallot(const uint64& slotIndex,
         SHA512_256 sContender;
         sContender.add(xdr::xdr_to_msg(slotIndex));
         sContender.add(xdr::xdr_to_msg(ballot.counter));
-        sContender.add(xdr::xdr_to_msg(nodeID));
+        sContender.add(xdr::xdr_to_msg(vID));
         auto hContender = sContender.finish();
 
+        // A ballot is king (locally) only if it is higher than any potential
+        // ballots from nodes in our qSet.
         if(hProposed < hContender)
         {
             isKing = false;
         }
-    };
-    nodeForEach(coronation);
+    }
+
+    uint256 valueHash = 
+      sha512_256(xdr::xdr_to_msg(ballot.value));
     
-    return cb(isKing);
+    CLOG(DEBUG, "Herder") << "Herder::validateBallot"
+        << "@" << binToHex(getLocalNodeID()).substr(0,6)
+        << " i: " << slotIndex
+        << " v: " << binToHex(nodeID).substr(0,6)
+        << " o: " << binToHex(b.nodeID).substr(0,6)
+        << " b: (" << ballot.counter 
+        << "," << binToHex(valueHash).substr(0,6) << ")"
+        << " isTrusted: " << isTrusted
+        << " isKing: " << isKing;
+    
+    return cb(isKing && isTrusted);
 }
 
 void
@@ -374,10 +400,25 @@ Herder::valueExternalized(const uint64& slotIndex,
             mApp.getOverlayGateway().broadcastMessage(msg);
         }
 
-        // TODO(spolu) evict old nodes and slots
+        // Evict nodes that weren't touched for more than
+        auto now = mApp.getClock().now();
+        for (auto it : mNodeLastAccess)
+        {
+            if ((now - it.second) >
+                std::chrono::seconds(NODE_EXPIRATION_SECONDS))
+            {
+                purgeNode(it.first);
+            }
+        }
+         
+        // Evict slots that are outside of our ledger validity bracket
+        if (slotIndex > LEDGER_VALIDITY_BRACKET)
+        {
+            purgeSlots(slotIndex - LEDGER_VALIDITY_BRACKET);
+        }
 
-        // move all the remaining to the next highest level
-        // don't move the largest array
+        // Move all the remaining to the next highest level don't move the
+        // largest array.
         for (size_t n = mReceivedTransactions.size() - 1; n > 0; n--)
         {
             for (auto tx : mReceivedTransactions[n-1])
@@ -395,6 +436,14 @@ Herder::valueExternalized(const uint64& slotIndex,
             << "@" << binToHex(getLocalNodeID()).substr(0,6)
             << " Externalized txSet not found";
     }
+}
+
+void 
+Herder::nodeTouched(const uint256& nodeID)
+{
+    // We simply store the time of last access each time a node is touched by
+    // FBA. That way we can evict old irrelevant nodes at each round.
+    mNodeLastAccess[nodeID] = mApp.getClock().now();
 }
 
 void 
