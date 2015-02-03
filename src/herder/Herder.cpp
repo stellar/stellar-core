@@ -165,6 +165,7 @@ Herder::compareValues(const uint64& slotIndex,
                       const uint32& ballotCounter,
                       const Value& v1, const Value& v2)
 {
+    // TODO(spolu) cache validated values at each round
     using xdr::operator<;
 
     StellarBallot b1;
@@ -222,6 +223,7 @@ Herder::validateBallot(const uint64& slotIndex,
                        const FBABallot& ballot,
                        std::function<void(bool)> const& cb)
 {
+    // TODO(spolu) cache validated values at each round
     StellarBallot b;
     try
     {
@@ -276,6 +278,7 @@ Herder::validateBallot(const uint64& slotIndex,
     bool isKing = true;
     auto coronation = [&slotIndex,&ballot,&b,&isKing] (const uint256& nodeID)
     {
+        // TODO(spolu) ignore ourselves if not validating
         using xdr::operator<;
 
         SHA512_256 sProposed;
@@ -370,6 +373,8 @@ Herder::valueExternalized(const uint64& slotIndex,
             auto msg = tx->toStellarMessage();
             mApp.getOverlayGateway().broadcastMessage(msg);
         }
+
+        // TODO(spolu) evict old nodes and slots
 
         // move all the remaining to the next highest level
         // don't move the largest array
