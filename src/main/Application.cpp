@@ -35,7 +35,7 @@ struct Application::Impl
 {
     Application::State mState;
     VirtualClock& mVirtualClock;
-    Config const& mConfig;
+    Config mConfig;
 
     // NB: The io_services should come first, then the 'master'
     // sub-objects, then the threads. Do not reorder these fields.
