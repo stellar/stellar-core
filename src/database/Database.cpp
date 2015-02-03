@@ -68,18 +68,13 @@ Database::isSqlite()
 
 void Database::initialize()
 {
-    try {
-        AccountFrame::dropAll(*this);
-        OfferFrame::dropAll(*this);
-        TrustFrame::dropAll(*this);
-        PeerMaster::createTable(*this);
-        LedgerMaster::dropAll(*this);
-        LedgerHeaderFrame::dropAll(*this);
-        TransactionFrame::dropAll(*this);
-    }catch(exception const &e)
-    {
-        LOG(ERROR) << "Error: " << e.what();
-    }
+    AccountFrame::dropAll(*this);
+    OfferFrame::dropAll(*this);
+    TrustFrame::dropAll(*this);
+    PeerMaster::createTable(*this);
+    LedgerMaster::dropAll(*this);
+    LedgerHeaderFrame::dropAll(*this);
+    TransactionFrame::dropAll(*this);
 }
 
 void Database::addPeer(const std::string& ip, int port,int numFailures, int rank)
