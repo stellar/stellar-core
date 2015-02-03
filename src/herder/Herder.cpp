@@ -77,6 +77,7 @@ Herder::~Herder()
 void
 Herder::bootstrap()
 {
+    assert(!getSecretKey().isZero());
     assert(mApp.getConfig().START_NEW_NETWORK);
 
     mLastClosedLedger = mApp.getLedgerMaster().getLastClosedLedgerHeader();
@@ -617,6 +618,13 @@ Herder::ledgerClosed(LedgerHeader& ledger)
         mApp.getState() != Application::State::SYNCED_STATE)
     {
         mLedgersToWaitToParticipate--;
+    }
+
+    // If we are not a validating not and just watching FBA we don't call
+    // triggerNextLedger
+    if (getSecretKey().isZero())
+    {
+        return;
     }
 
     // If we haven't waited for a couple ledgers after we got in SYNCED_STATE

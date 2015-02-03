@@ -67,6 +67,14 @@ std::string SecretKey::getBase58Public() const
     return toBase58Check(VER_ACCOUNT_ID, getPublicKey());
 }
 
+bool SecretKey::isZero() const
+{
+    for (auto i : (*this))
+        if (i != 0)
+            return false;
+    return true;
+}
+
 uint512
 SecretKey::sign(ByteSlice const& bin) const
 {

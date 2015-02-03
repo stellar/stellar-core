@@ -52,6 +52,7 @@ FBA::prepareValue(const uint64& slotIndex,
                   const Value& value,
                   bool forceBump)
 {
+    assert(!getSecretKey().isZero());
     return getSlot(slotIndex)->prepareValue(value, forceBump);
 }
 

@@ -24,6 +24,7 @@ public:
     uint256 getSeed() const;
     std::string getBase58Seed() const;
     std::string getBase58Public() const;
+    bool isZero() const;
 
     uint512 sign(ByteSlice const& bin) const;
 
