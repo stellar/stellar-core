@@ -58,8 +58,17 @@ TEST_CASE("postgres smoketest", "[db]")
     }
     catch(soci::soci_error& err)
     {
-        LOG(ERROR) << "DB error: " << err.what();
-        REQUIRE(0);
+        std::string what(err.what());
+
+        if (what.find("Cannot establish connection") != std::string::npos)
+        {
+            LOG(WARNING) << "Cannot connect to postgres server " << what;
+        }
+        else
+        {
+            LOG(ERROR) << "DB error: " << what;
+            REQUIRE(0);
+        }
     }
 }
 #endif
