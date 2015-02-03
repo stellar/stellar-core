@@ -6,6 +6,8 @@
 
 #include <algorithm>
 
+#include "xdrpp/marshal.h"
+#include "crypto/SHA.h"
 #include "fba/LocalNode.h"
 #include "fba/Slot.h"
 
@@ -41,7 +43,7 @@ FBA::receiveEnvelope(const FBAEnvelope& envelope,
         return cb(FBA::EnvelopeState::INVALID);
     }
 
-    uint64 slotIndex = envelope.slotIndex;
+    uint64 slotIndex = envelope.statement.slotIndex;
     getSlot(slotIndex)->processEnvelope(envelope, cb);
 }
 
@@ -140,15 +142,22 @@ FBA::getSlot(const uint64& slotIndex)
 void
 FBA::signEnvelope(FBAEnvelope& envelope)
 {
-    // TODO(spolu) envelope signature
+    assert(envelope.nodeID == getSecretKey().getPublicKey());
+    envelope.signature = 
+        getSecretKey().sign(xdr::xdr_to_msg(envelope.statement));
 }
 
 bool 
 FBA::verifyEnvelope(const FBAEnvelope& envelope)
 {
-    // TODO(spolu) envelope verification
-    return true;
+    return PublicKey::verifySig(envelope.nodeID, envelope.signature, 
+                                xdr::xdr_to_msg(envelope.statement));
 }
 
+const SecretKey& 
+FBA::getSecretKey()
+{
+    return mLocalNode->getSecretKey();
+}
 
 }

@@ -175,6 +175,9 @@ class FBA
     // than the specified `maxSlotIndex`.
     void purgeSlots(const uint64& maxSlotIndex);
 
+    // Retrieves the local secret key as specified at construction
+    const SecretKey& getSecretKey();
+
   private:
     // Node getters
     Node* getNode(const uint256& nodeID);

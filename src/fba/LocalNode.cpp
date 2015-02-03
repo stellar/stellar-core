@@ -46,7 +46,13 @@ LocalNode::getQuorumSet()
 const Hash& 
 LocalNode::getQuorumSetHash()
 {
-  return mQSetHash;
+    return mQSetHash;
+}
+
+const SecretKey& 
+LocalNode::getSecretKey()
+{
+    return mSecretKey;
 }
 
 }

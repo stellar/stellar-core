@@ -111,7 +111,7 @@ class TestFBA : public FBA
 
 
 static FBAEnvelope 
-makeEnvelope(const uint256& nodeID,
+makeEnvelope(const SecretKey& secretKey,
              const Hash& qSetHash,
              const uint64& slotIndex,
              const FBABallot& ballot,
@@ -119,13 +119,23 @@ makeEnvelope(const uint256& nodeID,
 {
     FBAEnvelope envelope;
 
-    envelope.nodeID = nodeID;
-    envelope.slotIndex = slotIndex;
+    envelope.nodeID = secretKey.getPublicKey();
+    envelope.statement.slotIndex = slotIndex;
     envelope.statement.ballot = ballot;
     envelope.statement.quorumSetHash = qSetHash;
     envelope.statement.pledges.type(type);
+    envelope.signature = 
+        secretKey.sign(xdr::xdr_to_msg(envelope.statement));
 
     return envelope;
+}
+
+void
+signEnvelope(const SecretKey& secretKey,
+             FBAEnvelope& envelope)
+{
+    envelope.signature = 
+        secretKey.sign(xdr::xdr_to_msg(envelope.statement));
 }
 
 #define CREATE_NODE(N) \
@@ -172,7 +182,7 @@ TEST_CASE("protocol core4", "[fba]")
         REQUIRE(fba.mEnvs.size() == 1);
 
         REQUIRE(fba.mEnvs[0].nodeID == v0NodeID);
-        REQUIRE(fba.mEnvs[0].slotIndex == 0);
+        REQUIRE(fba.mEnvs[0].statement.slotIndex == 0);
         REQUIRE(fba.mEnvs[0].statement.quorumSetHash == qSetHash);
         REQUIRE(fba.mEnvs[0].statement.ballot.value == xValue);
         REQUIRE(fba.mEnvs[0].statement.ballot.counter == 0);
@@ -183,13 +193,13 @@ TEST_CASE("protocol core4", "[fba]")
 
     SECTION("normal round (0,x)")
     {
-        FBAEnvelope prepare1 = makeEnvelope(v1NodeID, qSetHash, 0,
+        FBAEnvelope prepare1 = makeEnvelope(v1SecretKey, qSetHash, 0,
                                             FBABallot(0, xValue),
                                             FBAStatementType::PREPARE);
-        FBAEnvelope prepare2 = makeEnvelope(v2NodeID, qSetHash, 0,
+        FBAEnvelope prepare2 = makeEnvelope(v2SecretKey, qSetHash, 0,
                                             FBABallot(0, xValue),
                                             FBAStatementType::PREPARE);
-        FBAEnvelope prepare3 = makeEnvelope(v3NodeID, qSetHash, 0,
+        FBAEnvelope prepare3 = makeEnvelope(v3SecretKey, qSetHash, 0,
                                             FBABallot(0, xValue),
                                             FBAStatementType::PREPARE);
 
@@ -218,13 +228,13 @@ TEST_CASE("protocol core4", "[fba]")
         fba.receiveEnvelope(prepare3);
         REQUIRE(fba.mEnvs.size() == 2);
 
-        FBAEnvelope prepared1 = makeEnvelope(v1NodeID, qSetHash, 0,
+        FBAEnvelope prepared1 = makeEnvelope(v1SecretKey, qSetHash, 0,
                                              FBABallot(0, xValue),
                                              FBAStatementType::PREPARED);
-        FBAEnvelope prepared2 = makeEnvelope(v2NodeID, qSetHash, 0,
+        FBAEnvelope prepared2 = makeEnvelope(v2SecretKey, qSetHash, 0,
                                              FBABallot(0, xValue),
                                              FBAStatementType::PREPARED);
-        FBAEnvelope prepared3 = makeEnvelope(v3NodeID, qSetHash, 0,
+        FBAEnvelope prepared3 = makeEnvelope(v3SecretKey, qSetHash, 0,
                                              FBABallot(0, xValue),
                                              FBAStatementType::PREPARED);
 
@@ -242,13 +252,13 @@ TEST_CASE("protocol core4", "[fba]")
         fba.receiveEnvelope(prepared1);
         REQUIRE(fba.mEnvs.size() == 3);
 
-        FBAEnvelope commit1 = makeEnvelope(v1NodeID, qSetHash, 0,
+        FBAEnvelope commit1 = makeEnvelope(v1SecretKey, qSetHash, 0,
                                            FBABallot(0, xValue),
                                            FBAStatementType::COMMIT);
-        FBAEnvelope commit2 = makeEnvelope(v2NodeID, qSetHash, 0,
+        FBAEnvelope commit2 = makeEnvelope(v2SecretKey, qSetHash, 0,
                                            FBABallot(0, xValue),
                                            FBAStatementType::COMMIT);
-        FBAEnvelope commit3 = makeEnvelope(v3NodeID, qSetHash, 0,
+        FBAEnvelope commit3 = makeEnvelope(v3SecretKey, qSetHash, 0,
                                            FBABallot(0, xValue),
                                            FBAStatementType::COMMIT);
 
@@ -271,13 +281,13 @@ TEST_CASE("protocol core4", "[fba]")
         REQUIRE(fba.mEnvs[4].statement.ballot.counter == 0);
         REQUIRE(fba.mEnvs[4].statement.pledges.type() == FBAStatementType::COMMITTED);
 
-        FBAEnvelope committed1 = makeEnvelope(v1NodeID, qSetHash, 0,
+        FBAEnvelope committed1 = makeEnvelope(v1SecretKey, qSetHash, 0,
                                               FBABallot(0, xValue),
                                               FBAStatementType::COMMITTED);
-        FBAEnvelope committed2 = makeEnvelope(v2NodeID, qSetHash, 0,
+        FBAEnvelope committed2 = makeEnvelope(v2SecretKey, qSetHash, 0,
                                               FBABallot(0, xValue),
                                               FBAStatementType::COMMITTED);
-        FBAEnvelope committed3 = makeEnvelope(v3NodeID, qSetHash, 0,
+        FBAEnvelope committed3 = makeEnvelope(v3SecretKey, qSetHash, 0,
                                               FBABallot(0, xValue),
                                               FBAStatementType::COMMITTED);
 
@@ -308,10 +318,10 @@ TEST_CASE("protocol core4", "[fba]")
         REQUIRE(fba.mEnvs[0].statement.ballot.counter == 0);
         REQUIRE(fba.mEnvs[0].statement.pledges.type() == FBAStatementType::PREPARE);
 
-        FBAEnvelope prepared1 = makeEnvelope(v1NodeID, qSetHash, 0,
+        FBAEnvelope prepared1 = makeEnvelope(v1SecretKey, qSetHash, 0,
                                              FBABallot(0, yValue),
                                              FBAStatementType::PREPARED);
-        FBAEnvelope prepared2 = makeEnvelope(v2NodeID, qSetHash, 0,
+        FBAEnvelope prepared2 = makeEnvelope(v2SecretKey, qSetHash, 0,
                                              FBABallot(0, yValue),
                                              FBAStatementType::PREPARED);
 
@@ -350,10 +360,10 @@ TEST_CASE("protocol core4", "[fba]")
         REQUIRE(fba.mEnvs[0].statement.ballot.counter == 0);
         REQUIRE(fba.mEnvs[0].statement.pledges.type() == FBAStatementType::PREPARE);
 
-        FBAEnvelope prepare1 = makeEnvelope(v1NodeID, qSetHash, 0,
+        FBAEnvelope prepare1 = makeEnvelope(v1SecretKey, qSetHash, 0,
                                             FBABallot(0, xValue),
                                             FBAStatementType::PREPARE);
-        FBAEnvelope prepare2 = makeEnvelope(v2NodeID, qSetHash, 0,
+        FBAEnvelope prepare2 = makeEnvelope(v2SecretKey, qSetHash, 0,
                                             FBABallot(0, xValue),
                                             FBAStatementType::PREPARE);
 
@@ -361,10 +371,10 @@ TEST_CASE("protocol core4", "[fba]")
         fba.receiveEnvelope(prepare2);
         REQUIRE(fba.mEnvs.size() == 1);
 
-        FBAEnvelope prepared1 = makeEnvelope(v1NodeID, qSetHash, 0,
+        FBAEnvelope prepared1 = makeEnvelope(v1SecretKey, qSetHash, 0,
                                              FBABallot(0, xValue),
                                              FBAStatementType::PREPARED);
-        FBAEnvelope prepared2 = makeEnvelope(v2NodeID, qSetHash, 0,
+        FBAEnvelope prepared2 = makeEnvelope(v2SecretKey, qSetHash, 0,
                                              FBABallot(0, xValue),
                                              FBAStatementType::PREPARED);
 
@@ -392,13 +402,13 @@ TEST_CASE("protocol core4", "[fba]")
         REQUIRE(fba.mEnvs[0].statement.ballot.counter == 0);
         REQUIRE(fba.mEnvs[0].statement.pledges.type() == FBAStatementType::PREPARE);
 
-        FBAEnvelope prepare1 = makeEnvelope(v1NodeID, qSetHash, 0,
+        FBAEnvelope prepare1 = makeEnvelope(v1SecretKey, qSetHash, 0,
                                             FBABallot(0, yValue),
                                             FBAStatementType::PREPARE);
-        FBAEnvelope prepare2 = makeEnvelope(v2NodeID, qSetHash, 0,
+        FBAEnvelope prepare2 = makeEnvelope(v2SecretKey, qSetHash, 0,
                                             FBABallot(0, yValue),
                                             FBAStatementType::PREPARE);
-        FBAEnvelope prepare3 = makeEnvelope(v3NodeID, qSetHash, 0,
+        FBAEnvelope prepare3 = makeEnvelope(v3SecretKey, qSetHash, 0,
                                             FBABallot(0, yValue),
                                             FBAStatementType::PREPARE);
 
@@ -434,13 +444,13 @@ TEST_CASE("protocol core4", "[fba]")
         REQUIRE(fba.mEnvs[0].statement.ballot.counter == 0);
         REQUIRE(fba.mEnvs[0].statement.pledges.type() == FBAStatementType::PREPARE);
 
-        FBAEnvelope prepare1 = makeEnvelope(v1NodeID, qSetHash, 0,
+        FBAEnvelope prepare1 = makeEnvelope(v1SecretKey, qSetHash, 0,
                                             FBABallot(0, xValue),
                                             FBAStatementType::PREPARE);
-        FBAEnvelope prepare2 = makeEnvelope(v2NodeID, qSetHash, 0,
+        FBAEnvelope prepare2 = makeEnvelope(v2SecretKey, qSetHash, 0,
                                             FBABallot(0, xValue),
                                             FBAStatementType::PREPARE);
-        FBAEnvelope prepare3 = makeEnvelope(v3NodeID, qSetHash, 0,
+        FBAEnvelope prepare3 = makeEnvelope(v3SecretKey, qSetHash, 0,
                                             FBABallot(0, xValue),
                                             FBAStatementType::PREPARE);
 
@@ -464,13 +474,13 @@ TEST_CASE("protocol core4", "[fba]")
         REQUIRE(fba.prepareValue(0, xValue));
         REQUIRE(fba.mEnvs.size() == 1);
 
-        FBAEnvelope committed1 = makeEnvelope(v1NodeID, qSetHash, 0,
+        FBAEnvelope committed1 = makeEnvelope(v1SecretKey, qSetHash, 0,
                                               FBABallot(1, yValue),
                                               FBAStatementType::COMMITTED);
-        FBAEnvelope committed2 = makeEnvelope(v2NodeID, qSetHash, 0,
+        FBAEnvelope committed2 = makeEnvelope(v2SecretKey, qSetHash, 0,
                                               FBABallot(2, yValue),
                                               FBAStatementType::COMMITTED);
-        FBAEnvelope committed3 = makeEnvelope(v3NodeID, qSetHash, 0,
+        FBAEnvelope committed3 = makeEnvelope(v3SecretKey, qSetHash, 0,
                                               FBABallot(4, yValue),
                                               FBAStatementType::COMMITTED);
 
@@ -501,13 +511,13 @@ TEST_CASE("protocol core4", "[fba]")
         REQUIRE(fba.prepareValue(0, xValue));
         REQUIRE(fba.mEnvs.size() == 1);
 
-        FBAEnvelope committed1 = makeEnvelope(v1NodeID, qSetHash, 0,
+        FBAEnvelope committed1 = makeEnvelope(v1SecretKey, qSetHash, 0,
                                               FBABallot(0, yValue),
                                               FBAStatementType::COMMITTED);
-        FBAEnvelope committed2 = makeEnvelope(v2NodeID, qSetHash, 0,
+        FBAEnvelope committed2 = makeEnvelope(v2SecretKey, qSetHash, 0,
                                               FBABallot(0, yValue),
                                               FBAStatementType::COMMITTED);
-        FBAEnvelope committed3 = makeEnvelope(v3NodeID, qSetHash, 0,
+        FBAEnvelope committed3 = makeEnvelope(v3SecretKey, qSetHash, 0,
                                               FBABallot(0, yValue),
                                               FBAStatementType::COMMITTED);
 
@@ -535,13 +545,13 @@ TEST_CASE("protocol core4", "[fba]")
         REQUIRE(fba.prepareValue(0, yValue));
         REQUIRE(fba.mEnvs.size() == 1);
 
-        FBAEnvelope committed1 = makeEnvelope(v1NodeID, qSetHash, 0,
+        FBAEnvelope committed1 = makeEnvelope(v1SecretKey, qSetHash, 0,
                                               FBABallot(0, xValue),
                                               FBAStatementType::COMMITTED);
-        FBAEnvelope committed2 = makeEnvelope(v2NodeID, qSetHash, 0,
+        FBAEnvelope committed2 = makeEnvelope(v2SecretKey, qSetHash, 0,
                                               FBABallot(0, xValue),
                                               FBAStatementType::COMMITTED);
-        FBAEnvelope committed3 = makeEnvelope(v3NodeID, qSetHash, 0,
+        FBAEnvelope committed3 = makeEnvelope(v3SecretKey, qSetHash, 0,
                                               FBABallot(0, xValue),
                                               FBAStatementType::COMMITTED);
 
@@ -568,13 +578,13 @@ TEST_CASE("protocol core4", "[fba]")
     {
         REQUIRE(fba.mEnvs.size() == 0);
 
-        FBAEnvelope committed1 = makeEnvelope(v1NodeID, qSetHash, 0,
+        FBAEnvelope committed1 = makeEnvelope(v1SecretKey, qSetHash, 0,
                                               FBABallot(0, xValue),
                                               FBAStatementType::COMMITTED);
-        FBAEnvelope committed2 = makeEnvelope(v2NodeID, qSetHash, 0,
+        FBAEnvelope committed2 = makeEnvelope(v2SecretKey, qSetHash, 0,
                                               FBABallot(0, xValue),
                                               FBAStatementType::COMMITTED);
-        FBAEnvelope committed3 = makeEnvelope(v3NodeID, qSetHash, 0,
+        FBAEnvelope committed3 = makeEnvelope(v3SecretKey, qSetHash, 0,
                                               FBABallot(0, xValue),
                                               FBAStatementType::COMMITTED);
 
@@ -602,7 +612,7 @@ TEST_CASE("protocol core4", "[fba]")
         REQUIRE(fba.prepareValue(0, xValue));
         REQUIRE(fba.mEnvs.size() == 1);
 
-        FBAEnvelope prepare1 = makeEnvelope(v1NodeID, qSetHash, 0,
+        FBAEnvelope prepare1 = makeEnvelope(v1SecretKey, qSetHash, 0,
                                             FBABallot(1, yValue),
                                             FBAStatementType::PREPARE);
 
@@ -614,12 +624,12 @@ TEST_CASE("protocol core4", "[fba]")
         REQUIRE(fba.mEnvs[1].statement.ballot.counter == 1);
         REQUIRE(fba.mEnvs[1].statement.pledges.type() == FBAStatementType::PREPARE);
 
-        FBAEnvelope prepare2 = makeEnvelope(v2NodeID, qSetHash, 0,
+        FBAEnvelope prepare2 = makeEnvelope(v2SecretKey, qSetHash, 0,
                                             FBABallot(0, zValue),
                                             FBAStatementType::PREPARE);
         fba.receiveEnvelope(prepare2);
 
-        FBAEnvelope commit3 = makeEnvelope(v3NodeID, qSetHash, 0,
+        FBAEnvelope commit3 = makeEnvelope(v3SecretKey, qSetHash, 0,
                                            FBABallot(0, zValue),
                                            FBAStatementType::COMMIT);
         fba.receiveEnvelope(commit3);
@@ -630,13 +640,13 @@ TEST_CASE("protocol core4", "[fba]")
 
     SECTION("x<y, prepare (0,x), prepare (0,y), attempt (0,y)")
     {
-        FBAEnvelope prepare1 = makeEnvelope(v1NodeID, qSetHash, 0,
+        FBAEnvelope prepare1 = makeEnvelope(v1SecretKey, qSetHash, 0,
                                             FBABallot(0, xValue),
                                             FBAStatementType::PREPARE);
-        FBAEnvelope prepare2 = makeEnvelope(v1NodeID, qSetHash, 0,
+        FBAEnvelope prepare2 = makeEnvelope(v1SecretKey, qSetHash, 0,
                                             FBABallot(0, xValue),
                                             FBAStatementType::PREPARE);
-        FBAEnvelope prepare3 = makeEnvelope(v1NodeID, qSetHash, 0,
+        FBAEnvelope prepare3 = makeEnvelope(v1SecretKey, qSetHash, 0,
                                             FBABallot(0, yValue),
                                             FBAStatementType::PREPARE);
 
@@ -667,10 +677,10 @@ TEST_CASE("protocol core4", "[fba]")
     SECTION("x<y, pledge to commit (0,x), accept cancel on (2,y)")
     {
         // 1 and 2 prepare (0,x)
-        FBAEnvelope prepare1_x = makeEnvelope(v1NodeID, qSetHash, 0,
+        FBAEnvelope prepare1_x = makeEnvelope(v1SecretKey, qSetHash, 0,
                                               FBABallot(0, xValue),
                                               FBAStatementType::PREPARE);
-        FBAEnvelope prepare2_x = makeEnvelope(v2NodeID, qSetHash, 0,
+        FBAEnvelope prepare2_x = makeEnvelope(v2SecretKey, qSetHash, 0,
                                               FBABallot(0, xValue),
                                               FBAStatementType::PREPARE);
 
@@ -691,10 +701,10 @@ TEST_CASE("protocol core4", "[fba]")
         REQUIRE(fba.mEnvs[1].statement.ballot.counter == 0);
         REQUIRE(fba.mEnvs[1].statement.pledges.type() == FBAStatementType::PREPARED);
 
-        FBAEnvelope prepared1_x = makeEnvelope(v1NodeID, qSetHash, 0,
+        FBAEnvelope prepared1_x = makeEnvelope(v1SecretKey, qSetHash, 0,
                                                FBABallot(0, xValue),
                                                FBAStatementType::PREPARED);
-        FBAEnvelope prepared2_x = makeEnvelope(v2NodeID, qSetHash, 0,
+        FBAEnvelope prepared2_x = makeEnvelope(v2SecretKey, qSetHash, 0,
                                                FBABallot(0, xValue),
                                                FBAStatementType::PREPARED);
         
@@ -714,17 +724,19 @@ TEST_CASE("protocol core4", "[fba]")
         // prepares (2,y)
 
         // 1 and 2 prepare (2,y)
-        FBAEnvelope prepare1_y = makeEnvelope(v1NodeID, qSetHash, 0,
+        FBAEnvelope prepare1_y = makeEnvelope(v1SecretKey, qSetHash, 0,
                                               FBABallot(2, yValue),
                                               FBAStatementType::PREPARE);
         prepare1_y.statement.pledges.prepare().prepared.activate() = 
             FBABallot(1, yValue);
+        signEnvelope(v1SecretKey, prepare1_y);
 
-        FBAEnvelope prepare2_y = makeEnvelope(v2NodeID, qSetHash, 0,
+        FBAEnvelope prepare2_y = makeEnvelope(v2SecretKey, qSetHash, 0,
                                               FBABallot(2, yValue),
                                               FBAStatementType::PREPARE);
         prepare2_y.statement.pledges.prepare().prepared.activate() = 
             FBABallot(1, yValue);
+        signEnvelope(v2SecretKey, prepare2_y);
 
         fba.receiveEnvelope(prepare1_y);
         REQUIRE(fba.mEnvs.size() == 4);
@@ -750,10 +762,10 @@ TEST_CASE("protocol core4", "[fba]")
         REQUIRE(fba.mEnvs[4].statement.ballot.counter == 2);
         REQUIRE(fba.mEnvs[4].statement.pledges.type() == FBAStatementType::PREPARED);
 
-        FBAEnvelope prepared1_y = makeEnvelope(v1NodeID, qSetHash, 0,
+        FBAEnvelope prepared1_y = makeEnvelope(v1SecretKey, qSetHash, 0,
                                                FBABallot(2, yValue),
                                                FBAStatementType::PREPARED);
-        FBAEnvelope prepared2_y = makeEnvelope(v2NodeID, qSetHash, 0,
+        FBAEnvelope prepared2_y = makeEnvelope(v2SecretKey, qSetHash, 0,
                                                FBABallot(2, yValue),
                                                FBAStatementType::PREPARED);
         
@@ -789,7 +801,7 @@ TEST_CASE("protocol core4", "[fba]")
 
     SECTION("missing prepared (0,y), commit (0,y)")
     {
-        FBAEnvelope prepare1 = makeEnvelope(v1NodeID, qSetHash, 0,
+        FBAEnvelope prepare1 = makeEnvelope(v1SecretKey, qSetHash, 0,
                                             FBABallot(0, xValue),
                                             FBAStatementType::PREPARE);
         fba.receiveEnvelope(prepare1);
@@ -800,7 +812,7 @@ TEST_CASE("protocol core4", "[fba]")
         REQUIRE(fba.mEnvs[0].statement.ballot.counter == 0);
         REQUIRE(fba.mEnvs[0].statement.pledges.type() == FBAStatementType::PREPARE);
 
-        FBAEnvelope commit1 = makeEnvelope(v1NodeID, qSetHash, 0,
+        FBAEnvelope commit1 = makeEnvelope(v1SecretKey, qSetHash, 0,
                                            FBABallot(0, yValue),
                                            FBAStatementType::COMMIT);
 
@@ -816,7 +828,7 @@ TEST_CASE("protocol core4", "[fba]")
 
     SECTION("prepared(0,y) on pristine slot should not bump")
     {
-        FBAEnvelope prepared1 = makeEnvelope(v1NodeID, qSetHash, 0,
+        FBAEnvelope prepared1 = makeEnvelope(v1SecretKey, qSetHash, 0,
                                              FBABallot(0, xValue),
                                              FBAStatementType::PREPARED);
 
@@ -826,7 +838,7 @@ TEST_CASE("protocol core4", "[fba]")
 
     SECTION("commit(0,y) on pristine slot should not bump and request evidence")
     {
-        FBAEnvelope commit1 = makeEnvelope(v1NodeID, qSetHash, 0,
+        FBAEnvelope commit1 = makeEnvelope(v1SecretKey, qSetHash, 0,
                                            FBABallot(0, yValue),
                                            FBAStatementType::COMMIT);
 
@@ -842,7 +854,7 @@ TEST_CASE("protocol core4", "[fba]")
 
     SECTION("committed(0,y) on pristine slot should not bump")
     {
-        FBAEnvelope commit1 = makeEnvelope(v1NodeID, qSetHash, 0,
+        FBAEnvelope commit1 = makeEnvelope(v1SecretKey, qSetHash, 0,
                                            FBABallot(0, yValue),
                                            FBAStatementType::COMMIT);
 
@@ -852,10 +864,10 @@ TEST_CASE("protocol core4", "[fba]")
 
     SECTION("bumpToBallot prevented once committed")
     {
-        FBAEnvelope prepared1 = makeEnvelope(v1NodeID, qSetHash, 0,
+        FBAEnvelope prepared1 = makeEnvelope(v1SecretKey, qSetHash, 0,
                                              FBABallot(0, xValue),
                                              FBAStatementType::PREPARED);
-        FBAEnvelope prepared2 = makeEnvelope(v2NodeID, qSetHash, 0,
+        FBAEnvelope prepared2 = makeEnvelope(v2SecretKey, qSetHash, 0,
                                              FBABallot(0, xValue),
                                              FBAStatementType::PREPARED);
         
@@ -880,10 +892,10 @@ TEST_CASE("protocol core4", "[fba]")
         REQUIRE(fba.mEnvs[2].statement.ballot.counter == 0);
         REQUIRE(fba.mEnvs[2].statement.pledges.type() == FBAStatementType::COMMIT);
 
-        FBAEnvelope commit1 = makeEnvelope(v1NodeID, qSetHash, 0,
+        FBAEnvelope commit1 = makeEnvelope(v1SecretKey, qSetHash, 0,
                                            FBABallot(0, xValue),
                                            FBAStatementType::COMMIT);
-        FBAEnvelope commit2 = makeEnvelope(v2NodeID, qSetHash, 0,
+        FBAEnvelope commit2 = makeEnvelope(v2SecretKey, qSetHash, 0,
                                            FBABallot(0, xValue),
                                            FBAStatementType::COMMIT);
 
@@ -899,10 +911,10 @@ TEST_CASE("protocol core4", "[fba]")
         REQUIRE(fba.mEnvs[3].statement.pledges.type() == FBAStatementType::COMMITTED);
 
 
-        FBAEnvelope prepared1_y = makeEnvelope(v1NodeID, qSetHash, 0,
+        FBAEnvelope prepared1_y = makeEnvelope(v1SecretKey, qSetHash, 0,
                                                FBABallot(1, yValue),
                                                FBAStatementType::PREPARED);
-        FBAEnvelope prepared2_y = makeEnvelope(v2NodeID, qSetHash, 0,
+        FBAEnvelope prepared2_y = makeEnvelope(v2SecretKey, qSetHash, 0,
                                                FBABallot(1, yValue),
                                                FBAStatementType::PREPARED);
         

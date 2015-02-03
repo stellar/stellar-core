@@ -71,13 +71,14 @@ Slot::Slot(const uint64& slotIndex,
     , mInAdvanceSlot(false)
     , mRunAdvanceSlot(false)
 {
+    mBallot.counter = 0;
 }
 
 void
 Slot::processEnvelope(const FBAEnvelope& envelope,
                       std::function<void(FBA::EnvelopeState)> const& cb)
 {
-    assert(envelope.slotIndex == mSlotIndex);
+    assert(envelope.statement.slotIndex == mSlotIndex);
 
     CLOG(INFO, "FBA") << "Slot::processEnvelope" 
         << "@" << binToHex(mFBA->getLocalNodeID()).substr(0,6)
@@ -210,8 +211,9 @@ Slot::prepareValue(const Value& value,
     {
         return false;
     }
-    if (forceBump || mFBA->compareValues(mSlotIndex, mBallot.counter, 
-                                         mBallot.value, value) > 0)
+    if (forceBump || 
+        (!mIsPristine && mFBA->compareValues(mSlotIndex, mBallot.counter, 
+                                             mBallot.value, value) > 0))
     {
         bumpToBallot(FBABallot(mBallot.counter + 1, value));
     }
@@ -242,7 +244,7 @@ Slot::bumpToBallot(const FBABallot& ballot)
         assert(compareBallots(ballot, s.ballot) >= 0);
     }
     // We should move mBallot monotically only
-    assert(compareBallots(ballot, mBallot) >= 0);
+    assert(mIsPristine || compareBallots(ballot, mBallot) >= 0);
 
     mBallot = ballot;
 
@@ -256,6 +258,7 @@ Slot::createStatement(const FBAStatementType& type)
 {
     FBAStatement statement;
 
+    statement.slotIndex = mSlotIndex;
     statement.ballot = mBallot;
     statement.quorumSetHash = mFBA->getLocalNode()->getQuorumSetHash();
     statement.pledges.type(type);
@@ -269,7 +272,6 @@ Slot::createEnvelope(const FBAStatement& statement)
     FBAEnvelope envelope;
 
     envelope.nodeID = mFBA->getLocalNodeID();
-    envelope.slotIndex = mSlotIndex;
     envelope.statement = statement;
     mFBA->signEnvelope(envelope);
 

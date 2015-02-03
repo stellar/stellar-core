@@ -26,6 +26,7 @@ class LocalNode : public Node
 
     const FBAQuorumSet& getQuorumSet();
     const Hash& getQuorumSetHash();
+    const SecretKey& getSecretKey();
 
   private:
     const SecretKey                 mSecretKey;
