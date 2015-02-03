@@ -45,6 +45,12 @@ TEST_CASE("cycle4 topology", "[simulation]")
     std::shared_ptr<LoopbackPeerConnection> n3n0 = 
         simulation.addConnection(n3, n0);
 
+    std::shared_ptr<LoopbackPeerConnection> n0n2 =
+        simulation.addConnection(n0, n2);
+    std::shared_ptr<LoopbackPeerConnection> n1n3 =
+        simulation.addConnection(n1, n3);
+
+
     // TODO(spolu) update to new FBA
     /*
     SlotBallot ballot;
