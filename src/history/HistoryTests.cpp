@@ -32,6 +32,7 @@ addLocalDirHistoryArchive(TmpDir const& dir, Config &cfg)
         "cp {0} " + d + "/{1}");
 }
 
+#if 0
 TEST_CASE("Archive and reload history", "[history]")
 {
     VirtualClock clock;
@@ -128,6 +129,7 @@ TEST_CASE("Archive and reload bucket", "[history]")
         app.crank();
     }
 }
+#endif
 
 
 TEST_CASE("HistoryArchiveParams::save", "[history]")
