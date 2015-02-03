@@ -26,7 +26,7 @@ LoopbackPeer::LoopbackPeer(Application& app, PeerRole role)
 void
 LoopbackPeer::sendMessage(xdr::msg_ptr&& msg)
 {
-    CLOG(TRACE, "Overlay") << "LoopbackPeer queueing message";
+    //CLOG(TRACE, "Overlay") << "LoopbackPeer queueing message";
     mQueue.emplace_back(std::move(msg));
     // Possibly flush some queued messages if queue's full.
     while (mQueue.size() > mMaxQueueDepth && !mCorked)
@@ -107,7 +107,7 @@ duplicateMessage(xdr::msg_ptr const& msg)
 void
 LoopbackPeer::deliverOne()
 {
-    CLOG(TRACE, "Overlay") << "LoopbackPeer attempting to deliver message";
+    //CLOG(TRACE, "Overlay") << "LoopbackPeer attempting to deliver message";
     if (!mRemote)
     {
         throw std::runtime_error("LoopbackPeer missing target");
@@ -118,7 +118,7 @@ LoopbackPeer::deliverOne()
         xdr::msg_ptr msg = std::move(mQueue.front());
         mQueue.pop_front();
 
-        CLOG(TRACE, "Overlay") << "LoopbackPeer dequeued message";
+        //CLOG(TRACE, "Overlay") << "LoopbackPeer dequeued message";
 
         // Possibly duplicate the message and requeue it at the front.
         if (mDuplicateProb(mGenerator))
@@ -165,7 +165,7 @@ LoopbackPeer::deliverOne()
                 remote->recvMessage(std::move(*m));
             });
 
-        CLOG(TRACE, "Overlay") << "LoopbackPeer posted message to remote";
+        //CLOG(TRACE, "Overlay") << "LoopbackPeer posted message to remote";
     }
 }
 

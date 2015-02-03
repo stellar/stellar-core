@@ -244,7 +244,7 @@ Application::Impl::crank(bool block)
         nWorkDone = mMainIOService.poll_one();
     }
 
-    // NB: We do not consider "cancelling the realtimer" as a form of "real
+    // NB: We do not consider "canceling the realtimer" as a form of "real
     // work", partly because it's just plain uninteresting work, and partly
     // because we actually queue up such a cancellation below _as part of_
     // rescheduling the realtimer, when there _was_ "real work" done; if we

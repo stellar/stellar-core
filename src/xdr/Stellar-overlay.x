@@ -38,26 +38,26 @@ struct PeerAddress
 
 enum MessageType
 {
-    ERROR_MSG,    
-    HELLO,
-    DONT_HAVE,
+    ERROR_MSG=0,    
+    HELLO=1,
+    DONT_HAVE=2,
 
-    GET_PEERS,   // gets a list of peers this guy knows about        
-    PEERS,
+    GET_PEERS=3,   // gets a list of peers this guy knows about        
+    PEERS=4,
 
-    GET_TX_SET,  // gets a particular txset by hash        
-    TX_SET,    
+    GET_TX_SET=5,  // gets a particular txset by hash        
+    TX_SET=6,    
 
-    GET_VALIDATIONS, // gets validations for a given ledger hash        
-    VALIDATIONS,    
+    GET_VALIDATIONS=7, // gets validations for a given ledger hash        
+    VALIDATIONS=8,    
 
-    TRANSACTION, //pass on a tx you have heard about        
-    JSON_TRANSACTION,
+    TRANSACTION=9, //pass on a tx you have heard about        
+    JSON_TRANSACTION=10,
 
     // FBA        
-    GET_FBA_QUORUMSET,        
-    FBA_QUORUMSET,    
-    FBA_MESSAGE
+    GET_FBA_QUORUMSET=11,        
+    FBA_QUORUMSET=12,    
+    FBA_MESSAGE=13
 };
 
 struct DontHave

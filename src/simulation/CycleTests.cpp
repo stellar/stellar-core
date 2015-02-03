@@ -57,4 +57,8 @@ TEST_CASE("cycle4 topology", "[simulation]")
     simulation.startAllNodes();
 
     while(simulation.crankAllNodes() > 0);
+
+    REQUIRE(simulation.haveAllExternalized(3));
+
+    LOG(DEBUG) << "Simulation complete";
 }
