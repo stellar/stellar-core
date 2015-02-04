@@ -187,7 +187,7 @@ void applyOffer(Application& app, SecretKey& source, Currency& takerGets,
 }
 
 TransactionFramePtr createSetOptions(SecretKey& source, AccountID *inflationDest,
-    uint32_t *flags, uint32_t *transferRate, KeyValue *data, Thresholds *thrs,
+    uint32_t *setFlags, uint32_t *clearFlags, uint32_t *transferRate, KeyValue *data, Thresholds *thrs,
     Signer *signer, uint32_t seq)
 {
     TransactionEnvelope txEnvelope;
@@ -199,17 +199,39 @@ TransactionFramePtr createSetOptions(SecretKey& source, AccountID *inflationDest
     txEnvelope.tx.seqNum = seq;
 
     if (inflationDest)
+    {
         txEnvelope.tx.body.setOptionsTx().inflationDest.activate() = *inflationDest;
-    if (flags)
-        txEnvelope.tx.body.setOptionsTx().flags.activate() = *flags;
+    }
+
+    if (setFlags)
+    {
+        txEnvelope.tx.body.setOptionsTx().setFlags.activate() = *setFlags;
+    }
+
+    if (clearFlags)
+    {
+        txEnvelope.tx.body.setOptionsTx().clearFlags.activate() = *clearFlags;
+    }
+
     if (transferRate)
+    {
         txEnvelope.tx.body.setOptionsTx().transferRate.activate() = *transferRate;
+    }
+
     if (data)
+    {
         txEnvelope.tx.body.setOptionsTx().data.activate() = *data;
+    }
+
     if (thrs)
+    {
         txEnvelope.tx.body.setOptionsTx().thresholds.activate() = *thrs;
+    }
+
     if (signer)
+    {
         txEnvelope.tx.body.setOptionsTx().signer.activate() = *signer;
+    }
 
     TransactionFramePtr res = TransactionFrame::makeTransactionFromWire(txEnvelope);
 
@@ -219,13 +241,13 @@ TransactionFramePtr createSetOptions(SecretKey& source, AccountID *inflationDest
 }
 
 void applySetOptions(Application& app, SecretKey& source, AccountID *inflationDest,
-    uint32_t *flags, uint32_t *transferRate, KeyValue *data, Thresholds *thrs,
+    uint32_t *setFlags, uint32_t *clearFlags, uint32_t *transferRate, KeyValue *data, Thresholds *thrs,
     Signer *signer, uint32_t seq, SetOptions::SetOptionsResultCode result)
 {
     TransactionFramePtr txFrame;
 
     txFrame = createSetOptions(source, inflationDest,
-        flags, transferRate, data, thrs,
+        setFlags, clearFlags, transferRate, data, thrs,
         signer, seq);
 
     LedgerDelta delta;

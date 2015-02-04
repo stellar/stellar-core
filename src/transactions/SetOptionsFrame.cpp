@@ -13,9 +13,10 @@ namespace stellar
 
     int32_t SetOptionsFrame::getNeededThreshold()
     {
-        // threshold depends on 
+        // updating thresholds or signer requires high threshold
         if(mEnvelope.tx.body.setOptionsTx().thresholds ||
-            mEnvelope.tx.body.setOptionsTx().signer) return mSigningAccount->getHighThreshold();
+            mEnvelope.tx.body.setOptionsTx().signer)
+            return mSigningAccount->getHighThreshold();
         return mSigningAccount->getMidThreshold();
     }
 
@@ -42,9 +43,14 @@ namespace stellar
             }
             mSigningAccount->mEntry.account().transferRate = *mEnvelope.tx.body.setOptionsTx().transferRate;
         }
-        if(mEnvelope.tx.body.setOptionsTx().flags)
+
+        if (mEnvelope.tx.body.setOptionsTx().clearFlags)
+        {
+            mSigningAccount->mEntry.account().flags = mSigningAccount->mEntry.account().flags & ~*mEnvelope.tx.body.setOptionsTx().clearFlags;
+        }
+        if(mEnvelope.tx.body.setOptionsTx().setFlags)
         {   
-            mSigningAccount->mEntry.account().flags = *mEnvelope.tx.body.setOptionsTx().flags;
+            mSigningAccount->mEntry.account().flags = mSigningAccount->mEntry.account().flags | *mEnvelope.tx.body.setOptionsTx().setFlags;
         }
         
         if(mEnvelope.tx.body.setOptionsTx().thresholds)
@@ -78,13 +84,18 @@ namespace stellar
                 }
             } else
             { // delete signer
-                for(auto it = signers.begin(); it != signers.end(); it++)
+                auto it = signers.begin();
+                while (it != signers.end())
                 {
                     Signer& oldSigner = *it;
                     if(oldSigner.pubKey == mEnvelope.tx.body.setOptionsTx().signer->pubKey)
                     {
-                        signers.erase(it);
+                        it = signers.erase(it);
                         mSigningAccount->mEntry.account().ownerCount--;
+                    }
+                    else
+                    {
+                        it++;
                     }
                 }
             }
@@ -104,6 +115,14 @@ namespace stellar
             if (*mEnvelope.tx.body.setOptionsTx().transferRate > TRANSFER_RATE_DIVISOR)
             {
                 innerResult().result.code(SetOptions::RATE_TOO_HIGH);
+                return false;
+            }
+        }
+        if (mEnvelope.tx.body.setOptionsTx().setFlags && mEnvelope.tx.body.setOptionsTx().clearFlags)
+        {
+            if ((*mEnvelope.tx.body.setOptionsTx().setFlags & *mEnvelope.tx.body.setOptionsTx().clearFlags) != 0)
+            {
+                innerResult().result.code(SetOptions::MALFORMED);
                 return false;
             }
         }

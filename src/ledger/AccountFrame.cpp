@@ -14,27 +14,31 @@ using namespace std;
 
 namespace stellar
 {
-const char *AccountFrame::kSQLCreateStatement1 = "CREATE TABLE IF NOT EXISTS Accounts (						\
-	accountID		CHARACTER(64) PRIMARY KEY,	\
-	balance		BIGINT,			\
-	sequence		INT DEFAULT 1 CHECK (sequence >= 0),		\
-	ownerCount		INT DEFAULT 0 CHECK (ownercount >= 0),		\
-	transferRate	INT DEFAULT 0 CHECK (transferRate >= 0),		\
-    inflationDest	CHARACTER(64),		        \
-    thresholds   	TEXT,		            \
-	flags		    INT DEFAULT 0  	\
+const char *AccountFrame::kSQLCreateStatement1 =
+"CREATE TABLE IF NOT EXISTS Accounts (                      \
+    accountID       CHARACTER(64) PRIMARY KEY,              \
+    balance         BIGINT NOT NULL,                        \
+    sequence        INT DEFAULT 1 CHECK (sequence >= 0),    \
+    ownerCount      INT DEFAULT 0 CHECK (ownercount >= 0),  \
+    transferRate    INT DEFAULT 0 CHECK (transferRate >= 0),\
+    inflationDest   CHARACTER(64),                          \
+    thresholds      TEXT,                                   \
+	flags           INT NOT NULL                            \
 );";
 
-const char *AccountFrame::kSQLCreateStatement2 = "CREATE TABLE IF NOT EXISTS Signers (						\
-	accountID		CHARACTER(64) PRIMARY KEY,	\
-    publicKey   	CHARACTER(64),		        \
-    weight	INT 	\
+const char *AccountFrame::kSQLCreateStatement2 =
+    "CREATE TABLE IF NOT EXISTS Signers (       \
+    accountID       CHARACTER(64) NOT NULL,     \
+    publicKey       CHARACTER(64) NOT NULL,     \
+    weight          INT           NOT NULL,     \
+    PRIMARY KEY (accountID, publicKey)          \
 );";
 
-const char *AccountFrame::kSQLCreateStatement3 = "CREATE TABLE IF NOT EXISTS AccountData (						\
-	accountID		CHARACTER(64) PRIMARY KEY,	\
-    key INT, \
-	value			TEXT			\
+const char *AccountFrame::kSQLCreateStatement3 =
+"CREATE TABLE IF NOT EXISTS AccountData (       \
+    accountID       CHARACTER(64) PRIMARY KEY,  \
+    key             INT NOT NULL,               \
+    value           TEXT NOT NULL               \
 );";
 
 AccountFrame::AccountFrame()
@@ -68,7 +72,7 @@ void AccountFrame::calculateIndex()
 
 bool AccountFrame::isAuthRequired()
 {
-    return(mEntry.account().flags & AccountFrame::AUTH_REQUIRED_FLAG);
+    return(mEntry.account().flags & AUTH_REQUIRED_FLAG);
 }
 
 uint32_t AccountFrame::getSeqNum()
@@ -99,6 +103,11 @@ uint32_t AccountFrame::getMidThreshold()
 uint32_t AccountFrame::getLowThreshold()
 {
     return mEntry.account().thresholds[1];
+}
+
+xdr::xvector<Signer> &AccountFrame::getSigners()
+{
+    return mEntry.account().signers;
 }
 
 bool AccountFrame::loadAccount(const uint256& accountID, AccountFrame& retAcc,
@@ -138,6 +147,8 @@ bool AccountFrame::loadAccount(const uint256& accountID, AccountFrame& retAcc,
         account.inflationDest.activate() = fromBase58Check256(VER_ACCOUNT_ID, inflationDest);
     }
 
+    account.signers.clear();
+
     if (withSig)
     {
         string pubKey;
@@ -145,7 +156,7 @@ bool AccountFrame::loadAccount(const uint256& accountID, AccountFrame& retAcc,
 
         statement st = (session.prepare <<
             "SELECT publicKey, weight from Signers where accountID =:id",
-            use(base58ID), into(signer.weight));
+            use(base58ID), into(pubKey), into(signer.weight));
         st.execute(true);
         while(st.got_data())
         {
@@ -256,7 +267,7 @@ void AccountFrame::storeUpdate(LedgerDelta &delta, Database &db, bool insert)
                         if (finalSigner.weight != startSigner.weight)
                         {
                             std::string b58signKey = toBase58Check(VER_ACCOUNT_ID, finalSigner.pubKey);
-                            db.getSession() << "UPDATE Signers set weight=:v1 where accountID=:v2 and pubKey=:v3",
+                            db.getSession() << "UPDATE Signers set weight=:v1 where accountID=:v2 and publicKey=:v3",
                                 use(finalSigner.weight), use(base58ID), use(b58signKey);
                         }
                         found = true;
@@ -268,7 +279,7 @@ void AccountFrame::storeUpdate(LedgerDelta &delta, Database &db, bool insert)
                     std::string b58signKey = toBase58Check(VER_ACCOUNT_ID, startSigner.pubKey);
 
                     soci::statement st = (db.getSession().prepare <<
-                        "DELETE from Signers where accountID=:v2 and pubKey=:v3",
+                        "DELETE from Signers where accountID=:v2 and publicKey=:v3",
                         use(base58ID), use(b58signKey));
 
                     st.execute(true);
@@ -294,7 +305,7 @@ void AccountFrame::storeUpdate(LedgerDelta &delta, Database &db, bool insert)
                             std::string b58signKey = toBase58Check(VER_ACCOUNT_ID, finalSigner.pubKey);
 
                             soci::statement st = (db.getSession().prepare <<
-                                "UPDATE Signers set weight=:v1 where accountID=:v2 and pubKey=:v3",
+                                "UPDATE Signers set weight=:v1 where accountID=:v2 and publicKey=:v3",
                                 use(finalSigner.weight), use(base58ID), use(b58signKey));
 
                             st.execute(true);
@@ -313,7 +324,7 @@ void AccountFrame::storeUpdate(LedgerDelta &delta, Database &db, bool insert)
                     std::string b58signKey = toBase58Check(VER_ACCOUNT_ID, finalSigner.pubKey);
 
                     soci::statement st = (db.getSession().prepare <<
-                        "INSERT INTO Signers (accountID,pubKey,weight) values (:v1,:v2,:v3)",
+                        "INSERT INTO Signers (accountID,publicKey,weight) values (:v1,:v2,:v3)",
                         use(base58ID), use(b58signKey), use(finalSigner.weight));
 
                     st.execute(true);

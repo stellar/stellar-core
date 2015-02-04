@@ -38,11 +38,11 @@ void applyOffer(Application& app, SecretKey& source, Currency& takerGets,
     Currency& takerPays, uint64_t price, int64_t amount, uint32_t seq, CreateOffer::CreateOfferResultCode result=CreateOffer::SUCCESS);
 
 TransactionFramePtr createSetOptions(SecretKey& source, AccountID *inflationDest,
-    uint32_t *flags, uint32_t *transferRate, KeyValue *data, Thresholds *thrs,
-    Signer *signer, uint32_t seq);
+    uint32_t *setFlags, uint32_t *clearFlags, uint32_t *transferRate, KeyValue *data,
+    Thresholds *thrs, Signer *signer, uint32_t seq);
 
 void applySetOptions(Application& app, SecretKey& source, AccountID *inflationDest,
-    uint32_t *flags, uint32_t *transferRate, KeyValue *data, Thresholds *thrs,
+    uint32_t *setFlags, uint32_t *clearFlags, uint32_t *transferRate, KeyValue *data, Thresholds *thrs,
     Signer *signer, uint32_t seq, SetOptions::SetOptionsResultCode result = SetOptions::SUCCESS);
 
 

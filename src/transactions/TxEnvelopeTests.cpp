@@ -14,6 +14,7 @@
 #include "TxTests.h"
 #include "ledger/LedgerMaster.h"
 #include "ledger/LedgerDelta.h"
+#include "transactions/PaymentFrame.h"
 
 using namespace stellar;
 using namespace stellar::txtest;
@@ -26,7 +27,6 @@ typedef std::unique_ptr<Application> appPtr;
   Things like:
     authz/authn
     double spend
-    // TODO.2 test multisig
 */
 TEST_CASE("txenvelope", "[tx][envelope]")
 {
@@ -73,13 +73,67 @@ TEST_CASE("txenvelope", "[tx][envelope]")
         }
     }
 
+    SECTION("multisig")
+    {
+        applyPaymentTx(app, root, a1, 1, paymentAmount);
+        uint32_t a1Seq = 1;
+
+        SecretKey s1 = getAccount("S1");
+        Signer sk1(s1.getPublicKey(), 10); // med right account
+
+        Thresholds th;
+
+        th[0] = 100; // weight of master key
+        th[1] = 1;
+        th[2] = 10;
+        th[3] = 100;
+
+        applySetOptions(app, a1, nullptr, nullptr, nullptr, nullptr, nullptr,
+            &th, &sk1, a1Seq++);
+
+        SecretKey s2 = getAccount("S2");
+        Signer sk2(s2.getPublicKey(), 90); // med right account
+
+        applySetOptions(app, a1, nullptr, nullptr, nullptr, nullptr, nullptr,
+            nullptr, &sk2, a1Seq++);
+
+
+        SECTION("not enough rights")
+        {
+            TransactionFramePtr tx = createSetOptions(a1, nullptr,
+                nullptr, nullptr, nullptr, nullptr, &th, &sk1, a1Seq);
+
+            // only sign with s1
+            tx->getEnvelope().signatures.clear();
+            tx->addSignature(s1);
+
+            LedgerDelta delta;
+
+            tx->apply(delta, app);
+            REQUIRE(tx->getResultCode() == txBAD_AUTH);
+        }
+
+        SECTION("success two signatures")
+        {
+            TransactionFramePtr tx = createPaymentTx(a1, root, a1Seq++, 1000);
+
+            tx->getEnvelope().signatures.clear();
+            tx->addSignature(s1);
+            tx->addSignature(s2);
+
+            LedgerDelta delta;
+
+            tx->apply(delta, app);
+            REQUIRE(Payment::getInnerCode(tx->getResult()) == Payment::SUCCESS);
+        }
+
+    }
+
     SECTION("common transaction")
     {
         TxSetFramePtr txSet = std::make_shared<TxSetFrame>();
 
-        // create an account
         TransactionFramePtr txFrame = createPaymentTx(root, a1, 1, paymentAmount);
-
         txSet->add(txFrame);
 
         // close this ledger

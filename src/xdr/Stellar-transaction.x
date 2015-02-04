@@ -50,6 +50,11 @@ struct Signer
     uint32 weight;  // really only need 1byte
 };
 
+enum AccountFlags
+{ // masks for each flag
+    AUTH_REQUIRED_FLAG = 0x1
+};
+
 struct KeyValue
 {
     uint32 key;
@@ -82,7 +87,8 @@ struct CreateOfferTx
 struct SetOptionsTx
 {
     AccountID* inflationDest;
-    uint32*    flags;
+    uint32*    clearFlags;
+    uint32*    setFlags;
     uint32* transferRate;
     KeyValue* data;
     Thresholds* thresholds;
@@ -248,7 +254,8 @@ enum SetOptionsResultCode
     SUCCESS,
     RATE_FIXED,
     RATE_TOO_HIGH,
-    BELOW_MIN_BALANCE
+    BELOW_MIN_BALANCE,
+    MALFORMED
 };
 
 struct SetOptionsResult
