@@ -242,7 +242,11 @@ src/generated/Stellar-overlay.h: src/xdr/Stellar-overlay.x src/generated/Stellar
 	$(AM_V_GEN)mkdir -p src/generated; \
 	$(XDRC) -hh -o $@ $<
 
-src/generated/Stellar-transaction.h: src/xdr/Stellar-transaction.x src/generated/Stellar-types.h Makefile $(XDRC)
+src/generated/Stellar-ledger-entries.h: src/xdr/Stellar-ledger-entries.x src/generated/Stellar-types.h Makefile $(XDRC)
+	$(AM_V_GEN)mkdir -p src/generated; \
+	$(XDRC) -hh -o $@ $<
+
+src/generated/Stellar-transaction.h: src/xdr/Stellar-transaction.x src/generated/Stellar-ledger-entries.h Makefile $(XDRC)
 	$(AM_V_GEN)mkdir -p src/generated; \
 	$(XDRC) -hh -o $@ $<
 

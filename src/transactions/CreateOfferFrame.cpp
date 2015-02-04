@@ -183,6 +183,13 @@ bool CreateOfferFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
             throw std::runtime_error("Could not process offer");
         }
 
+        // updates the result with the offers that got taken on the way
+
+        for (auto oatom : oe.getOfferTrail())
+        {
+            innerResult().result.success().offersClaimed.push_back(oatom);
+        }
+
         if (wheatReceived > 0)
         {
             if (wheat.type() == NATIVE)
@@ -235,6 +242,7 @@ bool CreateOfferFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
                     return false;
                 }
 
+                innerResult().result.success().offerCreated.activate() = mSellSheepOffer.mEntry.offer();
                 mSellSheepOffer.storeAdd(tempDelta, db);
 
                 mSigningAccount->mEntry.account().ownerCount++;
