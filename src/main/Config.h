@@ -55,7 +55,7 @@ class Config : public std::enable_shared_from_this<Config>
     std::string DATABASE;
 
     Config();
-
+    
     void load(const std::string& filename);
 };
 }

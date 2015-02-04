@@ -1,13 +1,15 @@
+# Transactions
+Anything that changes the ledger is called a Transaction
 
-Anything that changes the ledger is a Transaction:
-
-## All transactions have:
+## All transactions have
 - Source Account
-- Max Fee
+- Max Fee they are willing to pay
 - Sequence
+- min ledger it is valid in (optional)
+- max ledger it is valid in (optional)
 
 
-## Supported Transactions:
+## Supported Transaction types
 
 - Payment
 	- Destination
@@ -27,6 +29,8 @@ Anything that changes the ledger is a Transaction:
 - StoreData
 - RemoveData
 
+
+When a server receives a transaction it should send it on to all of its peers. 
 
 ## Rules for what txs are not flooded
 - malformed

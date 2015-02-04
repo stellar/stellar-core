@@ -42,6 +42,8 @@ class Simulation
 
     void startAllNodes();
 
+    bool haveAllExternalized(int num);
+
     std::size_t crankNode(uint256 nodeID, int nbTicks=1);
     std::size_t crankAllNodes(int nbTicks=1);
 };

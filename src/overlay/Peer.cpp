@@ -13,6 +13,7 @@
 #include "overlay/PeerMaster.h"
 #include "herder/HerderGateway.h"
 #include "database/Database.h"
+#include "crypto/Hex.h"
 
 // LATER: need to add some way of docking peers that are misbehaving by sending
 // you bad data
@@ -92,6 +93,8 @@ Peer::sendGetTxSet(uint256 const& setID)
 void
 Peer::sendGetQuorumSet(uint256 const& setID)
 {
+    CLOG(TRACE, "Overlay") << "Get quorum set: " << binToHex(setID).substr(0, 6);
+
     StellarMessage newMsg;
     newMsg.type(GET_FBA_QUORUMSET);
     newMsg.qSetHash() = setID;
@@ -122,7 +125,8 @@ Peer::sendPeers()
 void
 Peer::sendMessage(StellarMessage const& msg)
 {
-    CLOG(TRACE, "Overlay") << "sending stellarMessage";
+    CLOG(TRACE, "Overlay") << "(" << binToHex(mApp.getConfig().PEER_PUBLIC_KEY).substr(0, 6) <<
+        ")send: " << msg.type() << " to : " << binToHex(mPeerID).substr(0, 6);
     xdr::msg_ptr xdrBytes(xdr::xdr_to_msg(msg));
     this->sendMessage(std::move(xdrBytes));
 }
@@ -139,7 +143,8 @@ Peer::recvMessage(xdr::msg_ptr const& msg)
 void
 Peer::recvMessage(StellarMessage const& stellarMsg)
 {
-    CLOG(TRACE, "Overlay") << "recv: " << stellarMsg.type();
+    CLOG(TRACE, "Overlay") << "(" << binToHex(mApp.getConfig().PEER_PUBLIC_KEY).substr(0, 6) << 
+        ")recv: " << stellarMsg.type() << " from:" << binToHex(mPeerID).substr(0, 6);
 
     if ( mState < GOT_HELLO && 
         ((stellarMsg.type() != HELLO) && (stellarMsg.type() != PEERS)) )
@@ -310,6 +315,7 @@ Peer::recvGetFBAQuorumSet(StellarMessage const& msg)
     }
     else
     {
+        CLOG(TRACE, "Overlay") << "No quorum set: " << binToHex(msg.qSetHash()).substr(0, 6);
         sendDontHave(FBA_QUORUMSET, msg.qSetHash());
         // do we want to ask other people for it?
     }
@@ -325,6 +331,7 @@ void
 Peer::recvFBAMessage(StellarMessage const& msg)
 {
     FBAEnvelope envelope = msg.envelope();
+    CLOG(TRACE, "Overlay") << "recvFBAMessage qset: " << binToHex(msg.envelope().statement.quorumSetHash).substr(0, 6);
 
     mApp.getOverlayGateway()
         .recvFloodedMsg(msg, shared_from_this());
@@ -361,6 +368,7 @@ Peer::recvHello(StellarMessage const& msg)
     CLOG(INFO, "Overlay") << "recvHello: " << mRemoteProtocolVersion << " "
         << mRemoteVersion << " " << mRemoteListeningPort;
     mState = GOT_HELLO;
+    mPeerID = msg.hello().peerID;
 }
 
 // returns false if string is malformed

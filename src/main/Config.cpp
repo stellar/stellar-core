@@ -39,6 +39,7 @@ Config::Config() : PEER_KEY( SecretKey::random() )
 
 }
 
+
 void
 Config::load(const std::string& filename)
 {

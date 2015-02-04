@@ -641,6 +641,12 @@
       <Filter>fba</Filter>
     </None>
     <None Include="..\..\README.md" />
+    <None Include="..\..\docs\overview.md">
+      <Filter>docs</Filter>
+    </None>
+    <None Include="..\..\docs\stellar_overview.md">
+      <Filter>docs</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="..\..\src\overlay\StellarXDR.x">
