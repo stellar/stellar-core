@@ -107,11 +107,7 @@ bool CreateOfferFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
         }
     }
 
-    mWheatTransferRate = getTransferRate(wheat, ledgerMaster);
-    mSheepTransferRate = getTransferRate(sheep, ledgerMaster);
-
-
-    int64_t maxSheepReceived = mEnvelope.tx.body.createOfferTx().amount;
+    int64_t maxSheepSend = mEnvelope.tx.body.createOfferTx().amount;
 
     int64_t maxAmountOfSheepCanSell;
     if (sheep.type() == NATIVE)
@@ -124,17 +120,11 @@ bool CreateOfferFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
         maxAmountOfSheepCanSell = mSheepLineA.mEntry.trustLine().balance;
     }
 
-    // compute the amount that can be received with what we own
-    if (mSheepTransferRate != TRANSFER_RATE_DIVISOR)
-    {
-        maxAmountOfSheepCanSell = bigDivide(maxAmountOfSheepCanSell, mSheepTransferRate, TRANSFER_RATE_DIVISOR);
-    }
-
     // amount of sheep for sale is the lesser of amount we can sell and amount put in the offer
     //int64_t amountOfSheepForSale = amountOfWheat*OFFER_PRICE_DIVISOR / sheepPrice;
-    if (maxAmountOfSheepCanSell < maxSheepReceived)
+    if (maxAmountOfSheepCanSell < maxSheepSend)
     {
-        maxSheepReceived = maxAmountOfSheepCanSell;
+        maxSheepSend = maxAmountOfSheepCanSell;
     }
 
     int64_t sheepPrice = mEnvelope.tx.body.createOfferTx().price;
@@ -143,14 +133,14 @@ bool CreateOfferFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
         soci::transaction sqlTx(db.getSession());
         LedgerDelta tempDelta;
 
-        int64_t sheepSent, sheepReceived, wheatReceived;
+        int64_t sheepSent, wheatReceived;
 
         OfferExchange oe(tempDelta, ledgerMaster);
 
         int64_t maxWheatPrice = bigDivide(OFFER_PRICE_DIVISOR, OFFER_PRICE_DIVISOR, sheepPrice);
 
         OfferExchange::ConvertResult r = oe.convertWithOffers(
-            sheep, maxSheepReceived, sheepReceived, sheepSent,
+            sheep, maxSheepSend, sheepSent,
             wheat, INT64_MAX, wheatReceived,
             [this, maxWheatPrice](OfferFrame const& o) {
                 if (o.getPrice() > maxWheatPrice)
@@ -222,7 +212,7 @@ bool CreateOfferFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
         }
 
         // recomputes the amount of sheep for sale
-        mSellSheepOffer.mEntry.offer().amount = maxSheepReceived - sheepReceived;
+        mSellSheepOffer.mEntry.offer().amount = maxSheepSend - sheepSent;
 
         int64_t minAmount = 0;
         {

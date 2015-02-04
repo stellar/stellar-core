@@ -78,8 +78,6 @@ namespace stellar
         void storeTransaction(LedgerMaster &ledgerMaster);
         static void dropAll(Database &db);
 
-
-        static int64_t getTransferRate(const Currency& currency, LedgerMaster& ledgerMaster);
     };
 
 }

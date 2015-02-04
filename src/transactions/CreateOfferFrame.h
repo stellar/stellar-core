@@ -11,9 +11,6 @@ namespace stellar
         TrustFrame mSheepLineA;
         TrustFrame mWheatLineA;
 
-        int64_t mWheatTransferRate;
-        int64_t mSheepTransferRate;
-
         OfferFrame mSellSheepOffer;
 
         bool checkOfferValid(Database& db); 

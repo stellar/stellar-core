@@ -11,8 +11,6 @@
 #include "ledger/OfferFrame.h"
 #include "ledger/TrustFrame.h"
 
-#define OFFER_PRICE_DIVISOR 10000000
-#define TRANSFER_RATE_DIVISOR 10000000
 namespace stellar
 {
 class Application;

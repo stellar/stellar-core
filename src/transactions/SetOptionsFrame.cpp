@@ -28,21 +28,6 @@ namespace stellar
         {
             mSigningAccount->mEntry.account().inflationDest.activate()=*mEnvelope.tx.body.setOptionsTx().inflationDest;
         }
-        if(mEnvelope.tx.body.setOptionsTx().transferRate)
-        {
-            // make sure no one holds your credit
-            int64_t b=0;
-            std::string base58ID = toBase58Check(VER_ACCOUNT_ID, mSigningAccount->mEntry.account().accountID);
-            db.getSession() <<
-                "SELECT balance from TrustLines where issuer=:v1 and balance>0 limit 1",
-                soci::into(b), soci::use(base58ID);
-            if(b)
-            {
-                innerResult().result.code(SetOptions::RATE_FIXED);
-                return false;
-            }
-            mSigningAccount->mEntry.account().transferRate = *mEnvelope.tx.body.setOptionsTx().transferRate;
-        }
 
         if (mEnvelope.tx.body.setOptionsTx().clearFlags)
         {
@@ -109,15 +94,6 @@ namespace stellar
 
     bool SetOptionsFrame::doCheckValid(Application& app)
     {
-        // transfer rate can't be greater than 1
-        if(mEnvelope.tx.body.setOptionsTx().transferRate)
-        {
-            if (*mEnvelope.tx.body.setOptionsTx().transferRate > TRANSFER_RATE_DIVISOR)
-            {
-                innerResult().result.code(SetOptions::RATE_TOO_HIGH);
-                return false;
-            }
-        }
         if (mEnvelope.tx.body.setOptionsTx().setFlags && mEnvelope.tx.body.setOptionsTx().clearFlags)
         {
             if ((*mEnvelope.tx.body.setOptionsTx().setFlags & *mEnvelope.tx.body.setOptionsTx().clearFlags) != 0)
