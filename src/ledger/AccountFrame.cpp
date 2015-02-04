@@ -20,7 +20,6 @@ const char *AccountFrame::kSQLCreateStatement1 =
     balance         BIGINT NOT NULL,                        \
     sequence        INT DEFAULT 1 CHECK (sequence >= 0),    \
     ownerCount      INT DEFAULT 0 CHECK (ownercount >= 0),  \
-    transferRate    INT DEFAULT 0 CHECK (transferRate >= 0),\
     inflationDest   CHARACTER(64),                          \
     thresholds      TEXT,                                   \
 	flags           INT NOT NULL                            \
@@ -45,7 +44,6 @@ AccountFrame::AccountFrame()
 {
     mEntry.type(ACCOUNT);
     mEntry.account().sequence = 1;
-    mEntry.account().transferRate = TRANSFER_RATE_DIVISOR;
     mEntry.account().thresholds[0] = 1; // by default, master key's weight is 1
     mUpdateSigners = false;
 }
@@ -59,7 +57,6 @@ AccountFrame::AccountFrame(uint256 const& id)
 {
     mEntry.type(ACCOUNT);
     mEntry.account().accountID = id;
-    mEntry.account().transferRate = TRANSFER_RATE_DIVISOR;
     mEntry.account().sequence = 1;
     mEntry.account().thresholds[0] = 1; // by default, master key's weight is 1
     mUpdateSigners = false;
@@ -123,10 +120,10 @@ bool AccountFrame::loadAccount(const uint256& accountID, AccountFrame& retAcc,
     retAcc.mEntry.type(ACCOUNT);
     retAcc.mEntry.account().accountID = accountID;
     AccountEntry& account = retAcc.mEntry.account();
-    session << "SELECT balance,sequence,ownerCount,transferRate, \
+    session << "SELECT balance,sequence,ownerCount, \
         inflationDest, thresholds,  flags from Accounts where accountID=:v1",
         into(account.balance), into(account.sequence), into(account.ownerCount),
-        into(account.transferRate), into(inflationDest, inflationDestInd),
+        into(inflationDest, inflationDestInd),
         into(thresholds, thresholdsInd), into(account.flags),
         use(base58ID);
 
@@ -196,14 +193,14 @@ void AccountFrame::storeUpdate(LedgerDelta &delta, Database &db, bool insert)
     if (insert)
     {
         sql << "INSERT INTO Accounts ( accountID, balance, sequence,    \
-            ownerCount, transferRate, inflationDest, thresholds, flags) \
-            VALUES ( :id, :v1, :v2, :v3, :v4, :v5, :v6, :v7 )";
+            ownerCount, inflationDest, thresholds, flags) \
+            VALUES ( :id, :v1, :v2, :v3, :v4, :v5, :v6 )";
     }
     else
     {
         sql << "UPDATE Accounts SET balance = :v1, sequence = :v2, ownerCount = :v3, \
-                transferRate = :v4, inflationDest = :v5, thresholds = :v6, \
-                flags = :v7 WHERE accountID = :id";
+                inflationDest = :v4, thresholds = :v5, \
+                flags = :v6 WHERE accountID = :id";
     }
 
     soci::indicator inflation_ind = soci::i_null;
@@ -223,10 +220,9 @@ void AccountFrame::storeUpdate(LedgerDelta &delta, Database &db, bool insert)
         soci::statement st = (db.getSession().prepare <<
             sql.str(), use(base58ID, "id"),
             use(finalAccount.balance, "v1"), use(finalAccount.sequence, "v2"),
-            use(finalAccount.ownerCount, "v3"), use(finalAccount.transferRate, "v4"),
-            use(inflationDestStr, inflation_ind, "v5"),
-            use(thresholds, "v6"), use(finalAccount.flags, "v7"));
-
+            use(finalAccount.ownerCount, "v3"),
+            use(inflationDestStr, inflation_ind, "v4"),
+            use(thresholds, "v5"), use(finalAccount.flags, "v6"));
         st.execute(true);
 
         if (st.get_affected_rows() != 1)

@@ -1,5 +1,4 @@
-
-%#include "generated/Stellar-types.h"
+%#include "generated/Stellar-ledger-entries.h"
 
 namespace stellar {
 
@@ -13,52 +12,6 @@ enum TransactionType
     ALLOW_TRUST,
     ACCOUNT_MERGE,
     INFLATION
-};
-
-enum CurrencyType
-{
-    NATIVE,
-    ISO4217
-};
-
-struct HashCurrencyIssuer
-{
-    uint256 currencyCode;
-    AccountID issuer;
-};
-
-struct ISOCurrencyIssuer
-{
-    opaque currencyCode[4];
-    AccountID issuer;
-};
-
-union Currency switch(CurrencyType type)
-{
-    case NATIVE: 
-        void;
-
-    case ISO4217: 
-        ISOCurrencyIssuer isoCI;
-
-    // add other currency types here in the future
-};
-
-struct Signer
-{
-    uint256 pubKey;
-    uint32 weight;  // really only need 1byte
-};
-
-enum AccountFlags
-{ // masks for each flag
-    AUTH_REQUIRED_FLAG = 0x1
-};
-
-struct KeyValue
-{
-    uint32 key;
-    opaque value<64>;
 };
 
 struct PaymentTx
@@ -89,7 +42,6 @@ struct SetOptionsTx
     AccountID* inflationDest;
     uint32*    clearFlags;
     uint32*    setFlags;
-    uint32* transferRate;
     KeyValue* data;
     Thresholds* thresholds;
     Signer* signer;
@@ -215,12 +167,18 @@ enum CreateOfferResultCode
     NOT_FOUND
 };
 
+struct CreateOfferSuccessResult
+{
+    ClaimOfferAtom offersClaimed<>;
+    OfferEntry *offerCreated;
+};
+
 struct CreateOfferResult
 {
     union switch(CreateOfferResultCode code)
     {
         case SUCCESS:
-            void;
+            CreateOfferSuccessResult success;
         default:
             void;
     } result;

@@ -88,20 +88,20 @@ TEST_CASE("txenvelope", "[tx][envelope]")
         th[2] = 10;
         th[3] = 100;
 
-        applySetOptions(app, a1, nullptr, nullptr, nullptr, nullptr, nullptr,
+        applySetOptions(app, a1, nullptr, nullptr, nullptr, nullptr,
             &th, &sk1, a1Seq++);
 
         SecretKey s2 = getAccount("S2");
         Signer sk2(s2.getPublicKey(), 90); // med right account
 
-        applySetOptions(app, a1, nullptr, nullptr, nullptr, nullptr, nullptr,
+        applySetOptions(app, a1, nullptr, nullptr, nullptr, nullptr,
             nullptr, &sk2, a1Seq++);
 
 
         SECTION("not enough rights")
         {
             TransactionFramePtr tx = createSetOptions(a1, nullptr,
-                nullptr, nullptr, nullptr, nullptr, &th, &sk1, a1Seq);
+                nullptr, nullptr, nullptr, &th, &sk1, a1Seq);
 
             // only sign with s1
             tx->getEnvelope().signatures.clear();

@@ -245,10 +245,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\clf\BucketList.h" />
-    <ClInclude Include="..\..\src\clf\CanonicalLedgerForm.h" />
-    <ClInclude Include="..\..\src\clf\CLF.h" />
-    <ClInclude Include="..\..\src\clf\CLFDelta.h" />
-    <ClInclude Include="..\..\src\clf\CLFGateway.h" />
+    <ClInclude Include="..\..\src\clf\LedgerCmp.h" />
     <ClInclude Include="..\..\src\crypto\Base58.h" />
     <ClInclude Include="..\..\src\crypto\ByteSlice.h" />
     <ClInclude Include="..\..\src\crypto\Hex.h" />
@@ -265,7 +262,6 @@
     <ClInclude Include="..\..\src\herder\HerderGateway.h" />
     <ClInclude Include="..\..\src\herder\TxSetFrame.h" />
     <ClInclude Include="..\..\src\history\HistoryArchive.h" />
-    <ClInclude Include="..\..\src\history\HistoryGateway.h" />
     <ClInclude Include="..\..\src\history\HistoryMaster.h" />
     <ClInclude Include="..\..\src\ledger\AccountFrame.h" />
     <ClInclude Include="..\..\src\ledger\LedgerDelta.h" />
@@ -275,7 +271,6 @@
     <ClInclude Include="..\..\src\ledger\LedgerMaster.h" />
     <ClInclude Include="..\..\src\ledger\OfferFrame.h" />
     <ClInclude Include="..\..\src\ledger\TrustFrame.h" />
-    <ClInclude Include="..\..\src\ledger\ValidatedLedgers.h" />
     <ClInclude Include="..\..\src\lib\http\connection.hpp" />
     <ClInclude Include="..\..\src\lib\http\connection_manager.hpp" />
     <ClInclude Include="..\..\src\lib\http\header.hpp" />
@@ -290,12 +285,10 @@
     <ClInclude Include="..\..\src\lib\util\easylogging++.h" />
     <ClInclude Include="..\..\src\lib\util\format.h" />
     <ClInclude Include="..\..\src\lib\util\getopt.h" />
-    <ClInclude Include="..\..\src\lib\util\Logging.h" />
     <ClInclude Include="..\..\src\lib\util\uint128_t.h" />
     <ClInclude Include="..\..\src\main\Application.h" />
     <ClInclude Include="..\..\src\main\CommandHandler.h" />
     <ClInclude Include="..\..\src\main\Config.h" />
-    <ClInclude Include="..\..\src\main\main.h" />
     <ClInclude Include="..\..\src\main\test.h" />
     <ClInclude Include="..\..\src\overlay\FetchableItem.h" />
     <ClInclude Include="..\..\src\overlay\Floodgate.h" />
@@ -305,7 +298,6 @@
     <ClInclude Include="..\..\src\overlay\Peer.h" />
     <ClInclude Include="..\..\src\overlay\PeerDoor.h" />
     <ClInclude Include="..\..\src\overlay\PeerMaster.h" />
-    <ClInclude Include="..\..\src\overlay\StellarMessage.h" />
     <ClInclude Include="..\..\src\overlay\TCPPeer.h" />
     <ClInclude Include="..\..\src\process\ProcessGateway.h" />
     <ClInclude Include="..\..\src\process\ProcessMaster.h" />
@@ -355,8 +347,8 @@ $(SolutionDir)$(Platform)\$(Configuration)\xdrc.exe -hh -o ../../src/generated/S
       <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">../../src/generated/StellarXDR.h</Outputs>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
       </ExcludedFromBuild>
-      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">../../src/overlay/StellarXDR.x;../../src/generated/Stellar-types.h;../../src/generated/Stellar-transaction.h;../../src/generated/Stellar-ledger.h;../../src/generated/Stellar-overlay.h</AdditionalInputs>
-      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">../../src/overlay/StellarXDR.x;../../src/generated/Stellar-types.h;../../src/generated/Stellar-transaction.h;../../src/generated/Stellar-ledger.h;../../src/generated/Stellar-overlay.h</AdditionalInputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">../../src/overlay/StellarXDR.x;../../src/generated/Stellar-types.h;../../src/generated/Stellar-ledger-entries.h;../../src/generated/Stellar-transaction.h;../../src/generated/Stellar-ledger.h;../../src/generated/Stellar-overlay.h</AdditionalInputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">../../src/overlay/StellarXDR.x;../../src/generated/Stellar-types.h;../../src/generated/Stellar-ledger-entries.h;../../src/generated/Stellar-transaction.h;../../src/generated/Stellar-ledger.h;../../src/generated/Stellar-overlay.h</AdditionalInputs>
     </CustomBuild>
     <CustomBuild Include="..\..\src\fba\FBAXDR.x">
       <FileType>Document</FileType>
@@ -370,7 +362,6 @@ $(SolutionDir)$(Platform)\$(Configuration)\xdrc.exe -hh -o ../../src/generated/S
       <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">../../src/fba/FBAXDR.x</AdditionalInputs>
     </CustomBuild>
     <None Include="..\..\README.md" />
-    <None Include="..\..\src\fba\NOTES" />
     <None Include="..\..\src\lib\xdrpp\tests\xdrtest.x" />
     <CustomBuild Include="..\..\src\xdr\Stellar-ledger.x">
       <FileType>Document</FileType>
@@ -380,8 +371,8 @@ $(SolutionDir)$(Platform)\$(Configuration)\xdrc.exe -hh -o ../../src/generated/S
       <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">running xdrc</Message>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">../../src/generated/Stellar-ledger.h</Outputs>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">../../src/generated/Stellar-ledger.h</Outputs>
-      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">../../src/xdr/Stellar-ledger.x;../../src/generated/Stellar-transaction.h</AdditionalInputs>
-      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">../../src/xdr/Stellar-ledger.x;../../src/generated/Stellar-transaction.h</AdditionalInputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">../../src/xdr/Stellar-ledger.x;../../src/generated/Stellar-transaction.h;../../src/generated/Stellar-ledger-entries.h</AdditionalInputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">../../src/xdr/Stellar-ledger.x;../../src/generated/Stellar-transaction.h;../../src/generated/Stellar-ledger-entries.h</AdditionalInputs>
     </CustomBuild>
     <CustomBuild Include="..\..\src\xdr\Stellar-transaction.x">
       <FileType>Document</FileType>
@@ -415,6 +406,17 @@ $(SolutionDir)$(Platform)\$(Configuration)\xdrc.exe -hh -o ../../src/generated/S
       <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">../../src/generated/Stellar-overlay.h</Outputs>
       <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">../../src/xdr/Stellar-overlay.x;../../src/generated/Stellar-ledger.h</AdditionalInputs>
       <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">../../src/xdr/Stellar-overlay.x;../../src/generated/Stellar-ledger.h</AdditionalInputs>
+    </CustomBuild>
+    <CustomBuild Include="..\..\src\xdr\Stellar-ledger-entries.x">
+      <FileType>Document</FileType>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(SolutionDir)$(Platform)\$(Configuration)\xdrc.exe -hh -o ../../src/generated/Stellar-ledger-entries.h ../../src/xdr/Stellar-ledger-entries.x</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(SolutionDir)$(Platform)\$(Configuration)\xdrc.exe -hh -o ../../src/generated/Stellar-ledger-entries.h ../../src/xdr/Stellar-ledger-entries.x</Command>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">running xdrc</Message>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">running xdrc</Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">../../src/generated/Stellar-ledger-entries.h</Outputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">../../src/generated/Stellar-ledger-entries.h</Outputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">../../src/xdr/Stellar-ledger.x;../../src/generated/Stellar-types.h</AdditionalInputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">../../src/xdr/Stellar-ledger.x;../../src/generated/Stellar-types.h</AdditionalInputs>
     </CustomBuild>
     <None Include="libmedida\libmedida.vcxproj" />
   </ItemGroup>

@@ -356,9 +356,6 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\src\history\HistoryGateway.h">
-      <Filter>history</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\src\ledger\LedgerGateway.h">
       <Filter>ledger</Filter>
     </ClInclude>
@@ -398,23 +395,11 @@
     <ClInclude Include="..\..\src\clf\BucketList.h">
       <Filter>clf</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\clf\CanonicalLedgerForm.h">
-      <Filter>clf</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\overlay\StellarMessage.h">
-      <Filter>overlay</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\src\lib\util\easylogging++.h">
       <Filter>lib\util</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\lib\util\cpptoml.h">
       <Filter>lib\util</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\clf\CLFGateway.h">
-      <Filter>clf</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\clf\CLF.h">
-      <Filter>clf</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\lib\util\getopt.h">
       <Filter>lib\util</Filter>
@@ -422,17 +407,8 @@
     <ClInclude Include="..\..\src\overlay\LoopbackPeer.h">
       <Filter>overlay</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\main\main.h">
-      <Filter>main</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\src\overlay\TCPPeer.h">
       <Filter>overlay</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\clf\CLFDelta.h">
-      <Filter>clf</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\ledger\ValidatedLedgers.h">
-      <Filter>ledger</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\lib\http\connection.hpp">
       <Filter>lib\http</Filter>
@@ -469,9 +445,6 @@
     </ClInclude>
     <ClInclude Include="..\..\src\process\ProcessMaster.h">
       <Filter>process</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\lib\util\Logging.h">
-      <Filter>util</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\util\Timer.h">
       <Filter>util</Filter>
@@ -605,6 +578,9 @@
     <ClInclude Include="..\..\src\transactions\OfferExchange.h">
       <Filter>transactions</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\src\clf\LedgerCmp.h">
+      <Filter>clf</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="..\..\docs\transactions.md">
@@ -637,9 +613,6 @@
     </None>
     <None Include="libmedida\libmedida.vcxproj" />
     <None Include="..\..\INSTALL" />
-    <None Include="..\..\src\fba\NOTES">
-      <Filter>fba</Filter>
-    </None>
     <None Include="..\..\README.md" />
     <None Include="..\..\docs\overview.md">
       <Filter>docs</Filter>
@@ -665,6 +638,9 @@
       <Filter>xdr</Filter>
     </CustomBuild>
     <CustomBuild Include="..\..\src\xdr\Stellar-overlay.x">
+      <Filter>xdr</Filter>
+    </CustomBuild>
+    <CustomBuild Include="..\..\src\xdr\Stellar-ledger-entries.x">
       <Filter>xdr</Filter>
     </CustomBuild>
   </ItemGroup>

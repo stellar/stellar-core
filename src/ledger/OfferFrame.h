@@ -15,6 +15,8 @@ namespace details
 }
 }
 
+#define OFFER_PRICE_DIVISOR 10000000
+
 namespace stellar
 {
     class OfferFrame : public EntryFrame

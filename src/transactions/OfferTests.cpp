@@ -74,11 +74,6 @@ TEST_CASE("create offer", "[tx][offers]")
     // sets up gateway account
     applyPaymentTx(app, root, gateway, root_seq++, minBalance2);
 
-    uint32_t txRate = (TRANSFER_RATE_DIVISOR-TRANSFER_RATE_DIVISOR/10); // 90%
-
-    applySetOptions(app, gateway, nullptr, nullptr, &txRate,
-        nullptr, nullptr, nullptr, nullptr, gateway_seq++);
-
     SECTION("negative offer creation tests")
     {
         applyPaymentTx(app, root, a1, root_seq++, minBalance2 + 10000);
@@ -249,22 +244,20 @@ TEST_CASE("create offer", "[tx][offers]")
             // check balances
             // the USDs were sold at the (better) rate found in the original offers
             int64_t usdRecv = 1010;
-            int64_t usdSend = usdRecv * 10 / 9;
 
             int64_t idrSend = usdRecv * 3 / 2;
-            int64_t idrRecv = idrSend * 9 / 10;
 
             REQUIRE(TrustFrame::loadTrustLine(a1.getPublicKey(), usdCur, line, app.getDatabase()));
-            REQUIRE(line.getBalance() == a1_usd + usdRescv);
+            REQUIRE(line.getBalance() == a1_usd + usdRecv);
 
             REQUIRE(TrustFrame::loadTrustLine(a1.getPublicKey(), idrCur, line, app.getDatabase()));
             REQUIRE(line.getBalance() == a1_idr - idrSend);
 
             REQUIRE(TrustFrame::loadTrustLine(b1.getPublicKey(), usdCur, line, app.getDatabase()));
-            REQUIRE(line.getBalance() == b1_usd - usdSend);
+            REQUIRE(line.getBalance() == b1_usd - usdRecv);
 
             REQUIRE(TrustFrame::loadTrustLine(b1.getPublicKey(), idrCur, line, app.getDatabase()));
-            REQUIRE(line.getBalance() == b1_idr + idrRecv);
+            REQUIRE(line.getBalance() == b1_idr + idrSend);
 #endif
 
         }

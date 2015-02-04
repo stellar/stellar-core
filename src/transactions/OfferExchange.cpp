@@ -14,8 +14,8 @@ namespace stellar
     }
 
     OfferExchange::CrossOfferResult OfferExchange::crossOffer(OfferFrame& sellingWheatOffer,
-        int64_t maxWheatReceived, int64_t& numWheatReceived, int64_t wheatTransferRate,
-        int64_t maxSheepReceive, int64_t& numSheepSent, int64_t& numSheepReceived, int64_t sheepTransferRate)
+        int64_t maxWheatReceived, int64_t& numWheatReceived,
+        int64_t maxSheepSend, int64_t& numSheepSend)
     {
         Currency& sheep = sellingWheatOffer.mEntry.offer().takerPays;
         Currency& wheat = sellingWheatOffer.mEntry.offer().takerGets;
@@ -59,14 +59,14 @@ namespace stellar
             numWheatReceived = wheatLineAccountB.mEntry.trustLine().balance;
         }
 
-        if (wheatTransferRate != TRANSFER_RATE_DIVISOR)
-        {
-            // adjust available balance by the rate
-            numWheatReceived = bigDivide(numWheatReceived, wheatTransferRate, TRANSFER_RATE_DIVISOR);
-        }
-
         // you can receive the lesser of the amount of wheat offered or
         // the amount the guy has
+
+        if (numWheatReceived > maxWheatReceived)
+        {
+            numWheatReceived = maxWheatReceived;
+        }
+
         if (numWheatReceived >= sellingWheatOffer.mEntry.offer().amount)
         {
             numWheatReceived = sellingWheatOffer.mEntry.offer().amount;
@@ -79,41 +79,24 @@ namespace stellar
             sellingWheatOffer.mEntry.offer().amount = numWheatReceived;
         }
 
-        if (numWheatReceived > maxWheatReceived)
-        {
-            numWheatReceived = maxWheatReceived;
-        }
-
         // TODO: there are a bunch of rounding modes here
         // this should be simplified as it may create situations where an offer
         // can never be completely taken and sticks around (for example)
 
         // this guy can get X wheat to you. How many sheep does that get him?
-        numSheepReceived = bigDivide(numWheatReceived, sellingWheatOffer.mEntry.offer().price, OFFER_PRICE_DIVISOR);
-        numSheepSent = bigDivide(numSheepReceived, TRANSFER_RATE_DIVISOR, sheepTransferRate);
+        numSheepSend = bigDivide(numWheatReceived, sellingWheatOffer.mEntry.offer().price, OFFER_PRICE_DIVISOR);
 
-        if (numSheepReceived > maxSheepReceive)
+        if (numSheepSend > maxSheepSend)
         {
             // reduce the number even more if there is a limit on Sheep
-            numWheatReceived = bigDivide(maxSheepReceive, OFFER_PRICE_DIVISOR, sellingWheatOffer.mEntry.offer().price);
+            numWheatReceived = bigDivide(maxSheepSend, OFFER_PRICE_DIVISOR, sellingWheatOffer.mEntry.offer().price);
 
-            numSheepReceived = bigDivide(numWheatReceived, sellingWheatOffer.mEntry.offer().price, OFFER_PRICE_DIVISOR);
-            numSheepSent = bigDivide(numSheepReceived, TRANSFER_RATE_DIVISOR, sheepTransferRate);
-            assert(numSheepReceived <= maxSheepReceive);
+            numSheepSend = bigDivide(numWheatReceived, sellingWheatOffer.mEntry.offer().price, OFFER_PRICE_DIVISOR);
+
+            assert(numSheepSend <= maxSheepSend);
         }
 
-        // computes the amount leaving the source account
-        int64_t numWheatSent;
-        if (wheatTransferRate != TRANSFER_RATE_DIVISOR)
-        {
-            numWheatSent = bigDivide(numWheatReceived, TRANSFER_RATE_DIVISOR, wheatTransferRate); \
-        }
-        else
-        {
-            numWheatSent = numWheatReceived;
-        }
-
-        if (numWheatReceived == 0 || numSheepReceived == 0)
+        if (numWheatReceived == 0 || numSheepSend == 0)
         {
             // TODO: cleanup offers that result in this (offer amount too low to be converted)
             return eOfferCantConvert;
@@ -135,23 +118,23 @@ namespace stellar
         // Adjust balances
         if (sheep.type() == NATIVE)
         {
-            accountB.mEntry.account().balance += numSheepReceived;
+            accountB.mEntry.account().balance += numSheepSend;
             accountB.storeChange(mDelta, db);
         }
         else
         {
-            sheepLineAccountB.mEntry.trustLine().balance += numSheepReceived;
+            sheepLineAccountB.mEntry.trustLine().balance += numSheepSend;
             sheepLineAccountB.storeChange(mDelta, db);
         }
 
         if (wheat.type() == NATIVE)
         {
-            accountB.mEntry.account().balance -= numWheatSent;
+            accountB.mEntry.account().balance -= numWheatReceived;
             accountB.storeChange(mDelta, db);
         }
         else
         {
-            wheatLineAccountB.mEntry.trustLine().balance -= numWheatSent;
+            wheatLineAccountB.mEntry.trustLine().balance -= numWheatReceived;
             wheatLineAccountB.storeChange(mDelta, db);
         }
 
@@ -166,14 +149,10 @@ namespace stellar
     }
 
     OfferExchange::ConvertResult OfferExchange::convertWithOffers(
-        Currency& sheep, int64_t maxSheepReceive, int64_t &sheepReceived, int64_t &sheepSend,
+        Currency& sheep, int64_t maxSheepSend, int64_t &sheepSend,
         Currency& wheat, int64_t maxWheatReceive, int64_t &wheatReceived,
         std::function<OfferFilterResult(const OfferFrame &)> filter)
     {
-        int64_t wheatTransferRate = TransactionFrame::getTransferRate(wheat, mLedgerMaster);
-        int64_t sheepTransferRate = TransactionFrame::getTransferRate(sheep, mLedgerMaster);
-
-        sheepReceived = 0;
         sheepSend = 0;
         wheatReceived = 0;
 
@@ -181,7 +160,7 @@ namespace stellar
 
         size_t offerOffset = 0;
 
-        while (maxWheatReceive > 0 && maxSheepReceive > 0)
+        while (maxWheatReceive > 0 && maxSheepSend > 0)
         {
             std::vector<OfferFrame> retList;
             OfferFrame::loadBestOffers(5, offerOffset, sheep, wheat, retList, db);
@@ -204,11 +183,11 @@ namespace stellar
                 }
 
                 int64_t numWheatReceived;
-                int64_t numSheepSend, numSheepReceived;
+                int64_t numSheepSend;
 
                 CrossOfferResult cor = crossOffer(wheatOffer,
-                    maxWheatReceive, numWheatReceived, wheatTransferRate,
-                    maxSheepReceive, numSheepSend, numSheepReceived, sheepTransferRate);
+                    maxWheatReceive, numWheatReceived,
+                    maxSheepSend, numSheepSend);
 
                 switch (cor)
                 {
@@ -224,18 +203,15 @@ namespace stellar
                     return eOK;
                 }
 
-                sheepReceived += numSheepReceived;
                 sheepSend += numSheepSend;
-                maxSheepReceive -= numSheepReceived;
+                maxSheepSend -= numSheepSend;
 
                 wheatReceived += numWheatReceived;
                 maxWheatReceive -= numWheatReceived;
             }
             // still stuff to fill but no more offers
-            if ((maxWheatReceive > 0 || maxSheepReceive) && retList.size() < 5)
+            if ((maxWheatReceive > 0 || (maxSheepSend != 0)) && retList.size() < 5)
             { // there isn't enough offer depth
-                // TODO: replace bool with a OfferReturnCode (namespace to share with atom)
-                // innerResult().result.code(Payment::OVERSENDMAX);
                 return eNotEnoughOffers;
             }
             offerOffset += retList.size();

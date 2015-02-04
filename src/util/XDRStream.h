@@ -110,7 +110,7 @@ public:
     template <typename T> bool
     writeOne(T const& t)
     {
-        uint32_t sz = xdr::xdr_size(t);
+        uint32_t sz = (uint32_t)xdr::xdr_size(t);
         assert(sz < 0x80000000);
 
         if (mBuf.size() < sz + 4)

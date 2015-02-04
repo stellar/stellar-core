@@ -135,14 +135,14 @@ using namespace std;
             // now, walk the path backwards
             for(int i = (int)mEnvelope.tx.body.paymentTx().path.size()-1; i >= 0;  i--)
             {
-                int64_t curASent, curAReceived, actualCurBReceived;
+                int64_t curASent, actualCurBReceived;
                 Currency &curA = mEnvelope.tx.body.paymentTx().path[i];
 
                 OfferExchange oe(delta, ledgerMaster);
 
                 // curA -> curB
                 OfferExchange::ConvertResult r = oe.convertWithOffers(
-                    curA, INT64_MAX, curAReceived, curASent,
+                    curA, INT64_MAX, curASent,
                     curB, curBReceived, actualCurBReceived,
                     nullptr);
                 switch (r)
@@ -159,6 +159,7 @@ using namespace std;
                     innerResult().result.code(Payment::OVERSENDMAX);
                     return false;
                 }
+                assert(curBReceived == actualCurBReceived);
                 curBReceived = curASent; // next round, we need to send enough
                 curB = curA;
             }
@@ -168,23 +169,7 @@ using namespace std;
 
         int64_t curBSent;
 
-        if (curB.type() == NATIVE)
-        {
-            curBSent = curBReceived;
-        }
-        else
-        {
-            int64_t curBRate = TransactionFrame::getTransferRate(curB, ledgerMaster);
-
-            if (curBRate != TRANSFER_RATE_DIVISOR)
-            {
-                curBSent = bigDivide(curBReceived, TRANSFER_RATE_DIVISOR, curBRate);
-            }
-            else
-            {
-                curBSent = curBReceived;
-            }
-        }
+        curBSent = curBReceived;
 
         if (curBSent > mEnvelope.tx.body.paymentTx().sendMax)
         { // make sure not over the max

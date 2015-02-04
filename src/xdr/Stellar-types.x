@@ -14,4 +14,27 @@ typedef opaque Signature[64];
 typedef opaque Hash[32];
 typedef opaque Thresholds[4];
 
+enum CurrencyType
+{
+    NATIVE,
+    ISO4217
+};
+
+struct ISOCurrencyIssuer
+{
+    opaque currencyCode[4];
+    AccountID issuer;
+};
+
+union Currency switch(CurrencyType type)
+{
+    case NATIVE: 
+        void;
+
+    case ISO4217: 
+        ISOCurrencyIssuer isoCI;
+
+    // add other currency types here in the future
+};
+
 }

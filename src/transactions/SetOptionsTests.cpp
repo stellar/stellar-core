@@ -58,13 +58,13 @@ TEST_CASE("set options", "[tx][setoptions]")
         SECTION("insufficient balance")
         {
             applySetOptions(app, a1, nullptr,
-                nullptr, nullptr, nullptr, nullptr, &th, &sk1, a1seq++, SetOptions::BELOW_MIN_BALANCE);
+                nullptr, nullptr, nullptr, &th, &sk1, a1seq++, SetOptions::BELOW_MIN_BALANCE);
         }
 
         applyPaymentTx(app, root, a1, 2, app.getLedgerMaster().getMinBalance(2));
 
         applySetOptions(app, a1, nullptr,
-            nullptr, nullptr, nullptr, nullptr, &th, &sk1, a1seq++);
+            nullptr, nullptr, nullptr, &th, &sk1, a1seq++);
 
 
         AccountFrame a1Account;
@@ -79,7 +79,7 @@ TEST_CASE("set options", "[tx][setoptions]")
         SecretKey s2 = getAccount("S2");
         Signer sk2(s2.getPublicKey(), 100);
         applySetOptions(app, a1, nullptr,
-            nullptr, nullptr, nullptr, nullptr, nullptr, &sk2, a1seq++);
+            nullptr, nullptr, nullptr, nullptr, &sk2, a1seq++);
 
         REQUIRE(AccountFrame::loadAccount(a1.getPublicKey(), a1Account, app.getDatabase(), true));
         REQUIRE(a1Account.getSigners().size() == 2);
@@ -87,17 +87,17 @@ TEST_CASE("set options", "[tx][setoptions]")
         // update signer 2
         sk2.weight = 11;
         applySetOptions(app, a1, nullptr,
-            nullptr, nullptr, nullptr, nullptr, nullptr, &sk2, a1seq++);
+            nullptr, nullptr, nullptr, nullptr, &sk2, a1seq++);
 
         // update signer 1
         sk1.weight = 11;
         applySetOptions(app, a1, nullptr,
-            nullptr, nullptr, nullptr, nullptr, nullptr, &sk1, a1seq++);
+            nullptr, nullptr, nullptr, nullptr, &sk1, a1seq++);
 
         // remove signer 1
         sk1.weight = 0;
         applySetOptions(app, a1, nullptr,
-            nullptr, nullptr, nullptr, nullptr, nullptr, &sk1, a1seq++);
+            nullptr, nullptr, nullptr, nullptr, &sk1, a1seq++);
 
         REQUIRE(AccountFrame::loadAccount(a1.getPublicKey(), a1Account, app.getDatabase(), true));
         REQUIRE(a1Account.getSigners().size() == 1);
@@ -111,9 +111,8 @@ TEST_CASE("set options", "[tx][setoptions]")
         uint32_t setFlags = AUTH_REQUIRED_FLAG;
         uint32_t clearFlags = AUTH_REQUIRED_FLAG;
         applySetOptions(app, a1, nullptr,
-            &setFlags, &clearFlags, nullptr, nullptr, nullptr, nullptr, a1seq++,
+            &setFlags, &clearFlags, nullptr, nullptr, nullptr, a1seq++,
             SetOptions::MALFORMED);
-        
     }
 
     // these are all tested by other tests
