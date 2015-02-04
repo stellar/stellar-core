@@ -140,8 +140,6 @@ TxSetFrame::checkValid(Application& app)
         return false;
     }
     
-    // don't consider minBalance since you want to allow them to still send
-    // around credit etc
     map<uint256, vector<TransactionFramePtr>> accountTxMap;
 
     Hash lastHash;
@@ -160,8 +158,7 @@ TxSetFrame::checkValid(Application& app)
         {
             if (!first)
             {    
-                if (!tx->loadAccount(app)) return false;
-                
+                if(!tx->loadAccount(app)) return false;
                 // make sure account can pay the fee for all these tx
                 if (tx->getSourceAccount().getBalance() < 
                     (static_cast<int64_t>(xdr::size32(item.second.size())) * 
@@ -172,19 +169,17 @@ TxSetFrame::checkValid(Application& app)
             } 
             else
             {
+                // save us a DB load
                 tx->getSourceAccount() = first->getSourceAccount();
             }
             
-            if (tx->getSeqNum() < tx->getSourceAccount().getSeqNum() + 1) 
-            {
-                return false;
-            }
-            first = tx;
-
             if (!tx->checkValid(app)) 
             {
                 return false;
             }
+            
+            
+            first = tx;
         }
     }
     return true;

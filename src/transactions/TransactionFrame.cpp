@@ -157,6 +157,14 @@ bool TransactionFrame::apply(LedgerDelta& delta, Application& app)
 
     if(checkValid(app))
     {
+        // this can't be done in checkValid since we should still flood txs 
+        // where seq != envelope.seq
+        if(mSigningAccount->mEntry.account().sequence != mEnvelope.tx.seqNum)
+        {
+            mResult.body.code(txBAD_SEQ);
+            return false;
+        }
+
         res = true;
 
         LedgerMaster &lm = app.getLedgerMaster();
@@ -261,11 +269,16 @@ TransactionResultCode TransactionFrame::getResultCode()
 }
 
 // called when determining if we should accept this tx.
+// called when determining if we should flood
 // make sure sig is correct
 // make sure maxFee is above the current fee
 // make sure it is in the correct ledger bounds
+// don't consider minBalance since you want to allow them to still send
+// around credit etc
 bool TransactionFrame::checkValid(Application& app)
 {
+    int32_t fee = app.getLedgerGateway().getTxFee();
+
     if (mEnvelope.tx.maxFee < app.getLedgerGateway().getTxFee())
     {
         mResult.body.code(txINSUFFICIENT_FEE);
@@ -282,29 +295,22 @@ bool TransactionFrame::checkValid(Application& app)
         return false;
     }
 
-    int32_t fee = app.getLedgerGateway().getTxFee();
-
-    if (fee > mEnvelope.tx.maxFee)
-    {
-        mResult.body.code(txNO_FEE);
-        return false;
-    }
-
     if (!loadAccount(app))
     {
         mResult.body.code(txNO_ACCOUNT);
         return false;
     }
 
-    if (!checkSignature())
+    // don't flood any tx with a too old seq num
+    if(mEnvelope.tx.seqNum < mSigningAccount->getSeqNum())
     {
-        mResult.body.code(txBAD_AUTH);
+        mResult.body.code(txBAD_SEQ);
         return false;
     }
 
-    if (mSigningAccount->mEntry.account().sequence != mEnvelope.tx.seqNum)
+    if (!checkSignature())
     {
-        mResult.body.code(txBAD_SEQ);
+        mResult.body.code(txBAD_AUTH);
         return false;
     }
 

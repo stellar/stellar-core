@@ -544,14 +544,8 @@ Herder::recvTransaction(TransactionFramePtr tx)
             }
         }
     }
-
-    if (!tx->loadAccount(mApp)) 
-    {
-        return false;
-    }
     
-    // don't flood any tx with to old a seq num
-    if (tx->getSeqNum() < tx->getSourceAccount().getSeqNum() + 1) 
+    if (!tx->checkValid(mApp)) 
     {
         return false;
     }
@@ -564,11 +558,6 @@ Herder::recvTransaction(TransactionFramePtr tx)
         return false;
     }
 
-    if (!tx->checkValid(mApp)) 
-    {
-        return false;
-    }
-       
     mReceivedTransactions[0].push_back(tx);
 
     return true;
