@@ -10,6 +10,7 @@
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
 #include "util/Logging.h"
+#include "simulation/Simulation.h"
 
 using namespace stellar;
 
@@ -138,21 +139,16 @@ signEnvelope(const SecretKey& secretKey,
         secretKey.sign(xdr::xdr_to_msg(envelope.statement));
 }
 
-#define CREATE_NODE(N) \
-    const Hash v##N##VSeed = sha512_256("SEED_VALIDATION_SEED_" #N);    \
-    const SecretKey v##N##SecretKey = SecretKey::fromSeed(v##N##VSeed); \
-    const Hash v##N##NodeID = v##N##SecretKey.getPublicKey();
-
 #define CREATE_VALUE(X) \
     const Hash X##ValueHash = sha512_256("SEED_VALUE_HASH_" #X); \
     const Value X##Value = xdr::xdr_to_opaque(X##ValueHash);
 
 TEST_CASE("protocol core4", "[fba]")
 {
-    CREATE_NODE(0);
-    CREATE_NODE(1);
-    CREATE_NODE(2);
-    CREATE_NODE(3);
+    SIMULATION_CREATE_NODE(0);
+    SIMULATION_CREATE_NODE(1);
+    SIMULATION_CREATE_NODE(2);
+    SIMULATION_CREATE_NODE(3);
 
     FBAQuorumSet qSet;
     qSet.threshold = 3;

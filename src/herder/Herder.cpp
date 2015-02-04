@@ -345,11 +345,12 @@ Herder::ballotDidHearFromQuorum(const uint64& slotIndex,
 
     // Once we hear from a transitive quorum, we start a timer in case FBA
     // timeouts.
+    mBumpTimer.expires_from_now(
+        std::chrono::seconds((int)pow(2.0, ballot.counter)));
+
     mBumpTimer.async_wait(std::bind(&Herder::expireBallot, this, 
                                     std::placeholders::_1, 
                                     slotIndex, ballot));
-    mBumpTimer.expires_from_now(
-        std::chrono::seconds((int)pow(2.0, ballot.counter)));
 }
 
 void 
@@ -371,13 +372,14 @@ Herder::valueExternalized(const uint64& slotIndex,
             << " Externalized StellarBallot malformed";
     }
 
-    CLOG(INFO, "Herder") << "Herder::valueExternalized"
-        << "@" << binToHex(getLocalNodeID()).substr(0,6)
-        << " txSet: " << binToHex(b.value.txSetHash).substr(0,6);
-    
     TxSetFramePtr externalizedSet = fetchTxSet(b.value.txSetHash, false);
     if (externalizedSet)
     {
+
+        CLOG(INFO, "Herder") << "Herder::valueExternalized"
+            << "@" << binToHex(getLocalNodeID()).substr(0,6)
+            << " txSet: " << binToHex(b.value.txSetHash).substr(0,6);
+    
         // we don't need to keep fetching any of the old TX sets
         mTxSetFetcher[mCurrentTxSetFetcher].stopFetchingAll();
 
@@ -647,9 +649,6 @@ Herder::recvFBAEnvelope(FBAEnvelope envelope,
 void
 Herder::ledgerClosed(LedgerHeader& ledger)
 {
-    // TODO(spolu): No infinite loop for now.
-    return;
-   
     CLOG(TRACE, "Herder") << "Herder::ledgerClosed@"
         << "@" << binToHex(getLocalNodeID()).substr(0,6)
         << " ledger: " << binToHex(ledger.hash).substr(0,6);
@@ -722,7 +721,11 @@ Herder::removeReceivedTx(TransactionFramePtr dropTx)
 void
 Herder::triggerNextLedger(const asio::error_code& error)
 {
-    assert(!error);
+    if (error)
+    {
+        // This probably means we're shutting down.
+        return;
+    }
     
     // We store at which time we triggered consensus
     mLastTrigger = mApp.getClock().now();
