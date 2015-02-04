@@ -153,6 +153,8 @@ bool TransactionFrame::apply(LedgerDelta& delta, Application& app)
 {
     bool res;
 
+    mResult.body.code(txINTERNAL_ERROR);
+
     if(checkValid(app))
     {
         res = true;
@@ -218,7 +220,7 @@ bool TransactionFrame::checkSignature()
             if(PublicKey::verifySig((*it).pubKey, sig, mContentsHash))
             {
                 totalWeight += (*it).weight;
-                if(totalWeight > getNeededThreshold())
+                if(totalWeight >= getNeededThreshold())
                     return true;
 
                 keyWeights.erase(it);  // can't sign twice

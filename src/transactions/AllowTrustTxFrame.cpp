@@ -17,7 +17,7 @@ namespace stellar
 
     bool AllowTrustTxFrame::doApply(LedgerDelta &delta, LedgerMaster& ledgerMaster)
     {
-        if(!(mSigningAccount->mEntry.account().flags & AccountFrame::AUTH_REQUIRED_FLAG))
+        if(!(mSigningAccount->mEntry.account().flags & AUTH_REQUIRED_FLAG))
         {   // this account doesn't require authorization to hold credit
             innerResult().result.code(AllowTrust::MALFORMED);
             return false;

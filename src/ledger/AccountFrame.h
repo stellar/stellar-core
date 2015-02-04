@@ -26,13 +26,6 @@ namespace stellar
 	public:
         typedef std::shared_ptr<AccountFrame> pointer;
 
-        enum Flags
-        {
-            DISABLE_MASTER_FLAG = 1,
-            DT_REQUIRED_FLAG = 2,
-            AUTH_REQUIRED_FLAG = 4
-        };
-        
         AccountFrame();
         AccountFrame(LedgerEntry const& from);
         AccountFrame(uint256 const& id);
@@ -48,6 +41,7 @@ namespace stellar
         uint32_t getMidThreshold();
         uint32_t getLowThreshold();
         uint32_t getSeqNum();
+        xdr::xvector<Signer> &getSigners();
 
         // database utilities
         static bool loadAccount(const uint256& accountID, AccountFrame& retEntry,

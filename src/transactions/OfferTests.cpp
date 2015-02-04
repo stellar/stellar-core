@@ -76,7 +76,8 @@ TEST_CASE("create offer", "[tx][offers]")
 
     uint32_t txRate = (TRANSFER_RATE_DIVISOR-TRANSFER_RATE_DIVISOR/10); // 90%
 
-    applySetOptions(app, gateway, nullptr, nullptr, &txRate, nullptr, nullptr, nullptr, gateway_seq++);
+    applySetOptions(app, gateway, nullptr, nullptr, &txRate,
+        nullptr, nullptr, nullptr, nullptr, gateway_seq++);
 
     SECTION("negative offer creation tests")
     {

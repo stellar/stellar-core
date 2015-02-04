@@ -13,6 +13,8 @@
 #include "crypto/Base58.h"
 #include "lib/json/json.h"
 #include "TxTests.h"
+#include "transactions/TransactionFrame.h"
+#include "ledger/LedgerDelta.h"
 
 using namespace stellar;
 using namespace stellar::txtest;
@@ -24,19 +26,97 @@ typedef std::unique_ptr<Application> appPtr;
 // try setting all at once
 // try setting high threshold ones without the correct sigs
 // make sure it doesn't allow us to add signers when we don't have the minbalance
-TEST_CASE("set options", "[tx]")
+TEST_CASE("set options", "[tx][setoptions]")
 {
-    Config cfg;
-    cfg.RUN_STANDALONE = true;
-    cfg.START_NEW_NETWORK = true;
-    cfg.DESIRED_BASE_FEE = 10;
+    Config const& cfg = getTestConfig();
 
     VirtualClock clock;
     Application app(clock, cfg);
 
+    app.start();
+
     // set up world
     SecretKey root = getRoot();
+    SecretKey a1 = getAccount("A");
+
+    applyPaymentTx(app, root, a1, 1, app.getLedgerMaster().getMinBalance(0)+1000);
+
+    uint32_t a1seq = 1;
     
+    SECTION("Signers")
+    {
+        SecretKey s1 = getAccount("S1");
+        Signer sk1(s1.getPublicKey(), 1 ); // low right account
+
+        Thresholds th;
+
+        th[0] = 100; // weight of master key
+        th[1] = 1;
+        th[2] = 10;
+        th[3] = 100;
+
+        SECTION("insufficient balance")
+        {
+            applySetOptions(app, a1, nullptr,
+                nullptr, nullptr, nullptr, nullptr, &th, &sk1, a1seq++, SetOptions::BELOW_MIN_BALANCE);
+        }
+
+        applyPaymentTx(app, root, a1, 2, app.getLedgerMaster().getMinBalance(2));
+
+        applySetOptions(app, a1, nullptr,
+            nullptr, nullptr, nullptr, nullptr, &th, &sk1, a1seq++);
+
+
+        AccountFrame a1Account;
+
+        REQUIRE(AccountFrame::loadAccount(a1.getPublicKey(), a1Account, app.getDatabase(), true));
+        REQUIRE(a1Account.getSigners().size() == 1);
+        Signer &a_sk1 = a1Account.getSigners()[0];
+        REQUIRE(a_sk1.pubKey == sk1.pubKey);
+        REQUIRE(a_sk1.weight == sk1.weight);
+
+        // add signer 2
+        SecretKey s2 = getAccount("S2");
+        Signer sk2(s2.getPublicKey(), 100);
+        applySetOptions(app, a1, nullptr,
+            nullptr, nullptr, nullptr, nullptr, nullptr, &sk2, a1seq++);
+
+        REQUIRE(AccountFrame::loadAccount(a1.getPublicKey(), a1Account, app.getDatabase(), true));
+        REQUIRE(a1Account.getSigners().size() == 2);
+
+        // update signer 2
+        sk2.weight = 11;
+        applySetOptions(app, a1, nullptr,
+            nullptr, nullptr, nullptr, nullptr, nullptr, &sk2, a1seq++);
+
+        // update signer 1
+        sk1.weight = 11;
+        applySetOptions(app, a1, nullptr,
+            nullptr, nullptr, nullptr, nullptr, nullptr, &sk1, a1seq++);
+
+        // remove signer 1
+        sk1.weight = 0;
+        applySetOptions(app, a1, nullptr,
+            nullptr, nullptr, nullptr, nullptr, nullptr, &sk1, a1seq++);
+
+        REQUIRE(AccountFrame::loadAccount(a1.getPublicKey(), a1Account, app.getDatabase(), true));
+        REQUIRE(a1Account.getSigners().size() == 1);
+        Signer &a_sk2 = a1Account.getSigners()[0];
+        REQUIRE(a_sk2.pubKey == sk2.pubKey);
+        REQUIRE(a_sk2.weight == sk2.weight);
+    }
+
+    SECTION("Can't set and clear same flag")
+    {
+        uint32_t setFlags = AUTH_REQUIRED_FLAG;
+        uint32_t clearFlags = AUTH_REQUIRED_FLAG;
+        applySetOptions(app, a1, nullptr,
+            &setFlags, &clearFlags, nullptr, nullptr, nullptr, nullptr, a1seq++,
+            SetOptions::MALFORMED);
+        
+    }
+
+    // these are all tested by other tests
     // set InflationDest
     // set flags
     // set transfer rate
@@ -44,5 +124,5 @@ TEST_CASE("set options", "[tx]")
     // set thresholds
     // set signer
 
-    // these are all tested by other tests
+    
 }
