@@ -121,55 +121,16 @@ Bucket::getHash() const
     return mHash;
 }
 
-bool
-Bucket::isSpilledToFile() const
-{
-    return mSpilledToFile;
-}
-
 std::string const&
 Bucket::getFilename() const
 {
     return mFilename;
 }
 
-std::shared_ptr<Bucket>
-Bucket::fresh(std::string const& tmpDir,
-              std::vector<LedgerEntry> const& liveEntries,
-              std::vector<LedgerKey> const& deadEntries)
+bool
+Bucket::isSpilledToFile() const
 {
-    std::vector<CLFEntry> live, dead, combined;
-    live.reserve(liveEntries.size());
-    dead.reserve(deadEntries.size());
-
-    for (auto const& e : liveEntries)
-    {
-        CLFEntry ce;
-        ce.entry.type(LIVEENTRY);
-        ce.entry.liveEntry() = e;
-        ce.hash = sha512_256(xdr::xdr_to_msg(ce.entry));
-        live.push_back(ce);
-    }
-
-    for (auto const& e : deadEntries)
-    {
-        CLFEntry ce;
-        ce.entry.type(DEADENTRY);
-        ce.entry.deadEntry() = e;
-        ce.hash = sha512_256(xdr::xdr_to_msg(ce.entry));
-        dead.push_back(ce);
-    }
-
-    std::sort(live.begin(), live.end(),
-              CLFEntryIdCmp());
-
-    std::sort(dead.begin(), dead.end(),
-              CLFEntryIdCmp());
-
-    uint256 dummyHash;
-    auto liveBucket = std::make_shared<Bucket>(tmpDir, live, dummyHash);
-    auto deadBucket = std::make_shared<Bucket>(tmpDir, dead, dummyHash);
-    return Bucket::merge(tmpDir, liveBucket, deadBucket);
+    return mSpilledToFile;
 }
 
 
@@ -180,7 +141,7 @@ Bucket::fresh(std::string const& tmpDir,
 class
 Bucket::InputIterator
 {
-    std::shared_ptr<Bucket> mBucket;
+    std::shared_ptr<Bucket const> mBucket;
 
     // Validity and current-value of the iterator is funneled into a pointer. If
     // non-null, it either points to mEntry, or to the referent of mVecIter.
@@ -214,7 +175,7 @@ public:
         return *mEntryPtr;
     }
 
-    InputIterator(std::shared_ptr<Bucket> bucket)
+    InputIterator(std::shared_ptr<Bucket const> bucket)
         : mBucket(bucket)
         , mEntryPtr(nullptr)
     {
@@ -318,10 +279,95 @@ public:
 
 };
 
+bool
+Bucket::containsCLFIdentity(CLFEntry const& id) const
+{
+    CLFEntryIdCmp cmp;
+    Bucket::InputIterator iter(shared_from_this());
+    while (iter)
+    {
+        if (! (cmp(*iter, id) || cmp(id, *iter)))
+        {
+            return true;
+        }
+        ++iter;
+    }
+    return false;
+}
+
+std::shared_ptr<Bucket>
+Bucket::fresh(std::string const& tmpDir,
+              std::vector<LedgerEntry> const& liveEntries,
+              std::vector<LedgerKey> const& deadEntries)
+{
+    std::vector<CLFEntry> live, dead, combined;
+    live.reserve(liveEntries.size());
+    dead.reserve(deadEntries.size());
+
+    for (auto const& e : liveEntries)
+    {
+        CLFEntry ce;
+        ce.entry.type(LIVEENTRY);
+        ce.entry.liveEntry() = e;
+        ce.hash = sha512_256(xdr::xdr_to_msg(ce.entry));
+        live.push_back(ce);
+    }
+
+    for (auto const& e : deadEntries)
+    {
+        CLFEntry ce;
+        ce.entry.type(DEADENTRY);
+        ce.entry.deadEntry() = e;
+        ce.hash = sha512_256(xdr::xdr_to_msg(ce.entry));
+        dead.push_back(ce);
+    }
+
+    std::sort(live.begin(), live.end(),
+              CLFEntryIdCmp());
+
+    std::sort(dead.begin(), dead.end(),
+              CLFEntryIdCmp());
+
+    uint256 dummyHash;
+    auto liveBucket = std::make_shared<Bucket>(tmpDir, live, dummyHash);
+    auto deadBucket = std::make_shared<Bucket>(tmpDir, dead, dummyHash);
+    return Bucket::merge(tmpDir, liveBucket, deadBucket);
+}
+
+inline void
+maybe_put(CLFEntryIdCmp& cmp,
+          Bucket::OutputIterator& out,
+          Bucket::InputIterator& in,
+          std::vector<Bucket::InputIterator>& shadowIterators)
+{
+    for (auto& si : shadowIterators)
+    {
+        // Advance the shadowIterator while it's less than the candidate
+        while (si && cmp(*si, *in))
+        {
+            ++si;
+        }
+        // We have stepped si forward to the point that either si is exhausted,
+        // or else *si >= *in; we now check the opposite direction to see if we
+        // have equality.
+        if (si && !cmp(*in, *si))
+        {
+            // If so, then *in is shadowed in at least one level and we will
+            // not be doing a 'put'; we return early. There is no need to advance
+            // the other iterators, they will advance as and if necessary in future
+            // calls to maybe_put.
+            return;
+        }
+    }
+    // Nothing shadowed.
+    out.put(*in);
+}
+
 std::shared_ptr<Bucket>
 Bucket::merge(std::string const& tmpDir,
               std::shared_ptr<Bucket> const& oldBucket,
-              std::shared_ptr<Bucket> const& newBucket)
+              std::shared_ptr<Bucket> const& newBucket,
+              std::vector<std::shared_ptr<Bucket>> const& shadows)
 {
     // This is the key operation in the scheme: merging two (read-only)
     // buckets together into a new 3rd bucket, while calculating its hash,
@@ -332,6 +378,9 @@ Bucket::merge(std::string const& tmpDir,
 
     Bucket::InputIterator oi(oldBucket);
     Bucket::InputIterator ni(newBucket);
+
+    std::vector<Bucket::InputIterator> shadowIterators(shadows.begin(),
+                                                       shadows.end());
 
     Bucket::OutputIterator out(tmpDir,
                                oldBucket->isSpilledToFile() ||
@@ -344,31 +393,31 @@ Bucket::merge(std::string const& tmpDir,
         if (!ni)
         {
             // Out of new entries, take old entries.
-            out.put(*oi);
+            maybe_put(cmp, out, oi, shadowIterators);
             ++oi;
         }
         else if (!oi)
         {
             // Out of old entries, take new entries.
-            out.put(*ni);
+            maybe_put(cmp, out, ni, shadowIterators);
             ++ni;
         }
         else if (cmp(*oi, *ni))
         {
             // Next old-entry has smaller key, take it.
-            out.put(*oi);
+            maybe_put(cmp, out, oi, shadowIterators);
             ++oi;
         }
         else if (cmp(*ni, *oi))
         {
             // Next new-entry has smaller key, take it.
-            out.put(*ni);
+            maybe_put(cmp, out, ni, shadowIterators);
             ++ni;
         }
         else
         {
             // Old and new are for the same key, take new.
-            out.put(*ni);
+            maybe_put(cmp, out, ni, shadowIterators);
             ++oi;
             ++ni;
         }
@@ -392,18 +441,16 @@ BucketLevel::getHash() const
     return hsh.finish();
 }
 
-Bucket const&
+std::shared_ptr<Bucket>
 BucketLevel::getCurr() const
 {
-    assert(mCurr);
-    return *mCurr;
+    return mCurr;
 }
 
-Bucket const&
+std::shared_ptr<Bucket>
 BucketLevel::getSnap() const
 {
-    assert(mSnap);
-    return *mSnap;
+    return mSnap;
 }
 
 void
@@ -422,7 +469,8 @@ BucketLevel::commit()
 
 void
 BucketLevel::prepare(Application& app, uint64_t currLedger,
-                     std::shared_ptr<Bucket> snap)
+                     std::shared_ptr<Bucket> snap,
+                     std::vector<std::shared_ptr<Bucket>> const& shadows)
 {
     // If more than one absorb is pending at the same time, we have a logic
     // error in our caller (and all hell will break loose).
@@ -455,30 +503,29 @@ BucketLevel::prepare(Application& app, uint64_t currLedger,
     std::string tmpDir = app.getCLFMaster().getTmpDir();
     using task_t = std::packaged_task<std::shared_ptr<Bucket>()>;
     std::shared_ptr<task_t> task =
-        std::make_shared<task_t>([curr, snap, tmpDir]()
-                                 {
-                                     if (curr)
-                                     {
-                                         // LOG(DEBUG)
-                                         //<< "Worker merging " <<
-                                         // snap->getEntries().size()
-                                         //<< " new elements with " <<
-                                         // curr->getEntries().size()
-                                         //<< " existing";
-                                         // TIMED_SCOPE(timer, "merge + hash");
-                                         auto res = Bucket::merge(tmpDir, curr, snap);
-                                         // LOG(DEBUG)
-                                         //<< "Worker finished merging " <<
-                                         // snap->getEntries().size()
-                                         //<< " new elements with " <<
-                                         // curr->getEntries().size()
-                                         //<< " existing (new size: " <<
-                                         // res->getEntries().size() << ")";
-                                         return res;
-                                     }
-                                     else
-                                         return std::shared_ptr<Bucket>(snap);
-                                 });
+        std::make_shared<task_t>(
+            [curr, snap, tmpDir, shadows]()
+            {
+                // LOG(DEBUG)
+                //<< "Worker merging " <<
+                // snap->getEntries().size()
+                //<< " new elements with " <<
+                // curr->getEntries().size()
+                //<< " existing";
+                // TIMED_SCOPE(timer, "merge + hash");
+                auto res = Bucket::merge(tmpDir,
+                                         (curr ? curr :
+                                          std::make_shared<Bucket>()),
+                                         snap, shadows);
+                // LOG(DEBUG)
+                //<< "Worker finished merging " <<
+                // snap->getEntries().size()
+                //<< " new elements with " <<
+                // curr->getEntries().size()
+                //<< " existing (new size: " <<
+                // res->getEntries().size() << ")";
+                return res;
+            });
 
     mNextCurr = task->get_future();
     app.getWorkerIOService().post(bind(&task_t::operator(), task));
@@ -578,8 +625,24 @@ BucketList::addBatch(Application& app, uint64_t currLedger,
         mLevels.push_back(BucketLevel(n - 1));
     }
 
+    std::vector<std::shared_ptr<Bucket>> shadows;
+    for (auto& level : mLevels)
+    {
+        shadows.push_back(level.getCurr());
+        shadows.push_back(level.getSnap());
+    }
+
     for (size_t i = mLevels.size() - 1; i > 0; --i)
     {
+        // We are counting-down from the highest-numbered level (the
+        // oldest/largest level) to the lowest (youngest); each step we check
+        // for shadows in all the levels _above_ us, which means we pop the
+        // current level's curr and snap buckets off the shadow list before
+        // proceeding.
+        assert(shadows.size() >= 2);
+        shadows.pop_back();
+        shadows.pop_back();
+
         /*
         LOG(DEBUG) << "curr=" << currLedger
                    << ", half(i-1)=" << levelHalf(i-1)
@@ -612,13 +675,17 @@ BucketList::addBatch(Application& app, uint64_t currLedger,
             //           << " element snap from level " << i-1
             //           << " to level " << i;
             mLevels[i].commit();
-            mLevels[i].prepare(app, currLedger, snap);
+            mLevels[i].prepare(app, currLedger, snap, shadows);
         }
     }
 
+    assert(shadows.size() == 2);
+    shadows.pop_back();
+    shadows.pop_back();
     mLevels[0].prepare(app, currLedger,
                        Bucket::fresh(app.getCLFMaster().getTmpDir(),
-                                     liveEntries, deadEntries));
+                                     liveEntries, deadEntries),
+                       shadows);
     mLevels[0].commit();
 }
 }
