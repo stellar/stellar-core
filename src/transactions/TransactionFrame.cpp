@@ -145,7 +145,7 @@ bool TransactionFrame::apply(LedgerDelta& delta, Application& app)
         if(mSigningAccount->mEntry.account().sequence != mEnvelope.tx.seqNum)
         {
             mResult.body.code(txBAD_SEQ);
-            return false;
+            return true;  // needs to return true since it will still claim a fee
         }
 
         res = true;
