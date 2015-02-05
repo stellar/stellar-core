@@ -234,6 +234,7 @@ Slot::bumpToBallot(const FBABallot& ballot)
 
     CLOG(INFO, "FBA") << "Slot::bumpToBallot" 
         << "@" << binToHex(mFBA->getLocalNodeID()).substr(0,6)
+        << " i: " << mSlotIndex
         << " b: " << ballotToStr(ballot);
 
     // We shouldnt have emitted any prepare message for this ballot or any
@@ -290,6 +291,7 @@ Slot::attemptPrepare()
     }
     CLOG(INFO, "FBA") << "Slot::attemptPrepare" 
         << "@" << binToHex(mFBA->getLocalNodeID()).substr(0,6)
+        << " i: " << mSlotIndex
         << " b: " << ballotToStr(mBallot);
 
     FBAStatement statement = createStatement(FBAStatementType::PREPARE);
@@ -339,6 +341,7 @@ Slot::attemptPrepared(const FBABallot& ballot)
     }
     CLOG(INFO, "FBA") << "Slot::attemptPrepared" 
         << "@" << binToHex(mFBA->getLocalNodeID()).substr(0,6)
+        << " i: " << mSlotIndex
         << " b: " << ballotToStr(ballot);
 
     FBAStatement statement = createStatement(FBAStatementType::PREPARED);
@@ -367,6 +370,7 @@ Slot::attemptCommit()
     }
     CLOG(INFO, "FBA") << "Slot::attemptCommit" 
         << "@" << binToHex(mFBA->getLocalNodeID()).substr(0,6)
+        << " i: " << mSlotIndex
         << " b: " << ballotToStr(mBallot);
 
     FBAStatement statement = createStatement(FBAStatementType::COMMIT);
@@ -396,6 +400,7 @@ Slot::attemptCommitted()
     }
     CLOG(INFO, "FBA") << "Slot::attemptCommitted" 
         << "@" << binToHex(mFBA->getLocalNodeID()).substr(0,6)
+        << " i: " << mSlotIndex
         << " b: " << ballotToStr(mBallot);
 
     FBAStatement statement = createStatement(FBAStatementType::COMMITTED);
@@ -423,6 +428,7 @@ Slot::attemptExternalize()
     }
     CLOG(INFO, "FBA") << "Slot::attemptExternalize" 
         << "@" << binToHex(mFBA->getLocalNodeID()).substr(0,6)
+        << " i: " << mSlotIndex
         << " b: " << ballotToStr(mBallot);
 
     mIsExternalized = true;
@@ -635,6 +641,7 @@ Slot::advanceSlot()
     {
         CLOG(DEBUG, "FBA") << "Slot::advanceSlot" 
             << "@" << binToHex(mFBA->getLocalNodeID()).substr(0,6)
+            << " i: " << mSlotIndex
             << " b: " << ballotToStr(mBallot);
 
         // If we're pristine, we haven't set `mBallot` yet so we just skip
@@ -688,6 +695,7 @@ Slot::advanceSlot()
 
             CLOG(DEBUG, "FBA") << "Slot::advanceSlot::tryBumping" 
                 << "@" << binToHex(mFBA->getLocalNodeID()).substr(0,6)
+                << " i: " << mSlotIndex
                 << " b: " << ballotToStr(mBallot);
 
             // If we could externalize by moving on to a given value we bump

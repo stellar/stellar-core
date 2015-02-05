@@ -92,6 +92,12 @@ Node::isVBlocking<FBAStatement>(
     const std::map<uint256, FBAStatement>& map,
     std::function<bool(const uint256&, const FBAStatement&)> const& filter);
 
+template bool 
+Node::isVBlocking<bool>(
+    const Hash& qSetHash,
+    const std::map<uint256, bool>& map,
+    std::function<bool(const uint256&, const bool&)> const& filter);
+
 
 template <class T> bool 
 Node::isQuorumTransitive(const Hash& qSetHash,

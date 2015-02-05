@@ -167,16 +167,16 @@ class FBA
     // local nodeID.
     void purgeNode(const uint256& nodeID);
 
-    // `nodeForEach` lets classes extending FBA iterate on the locally known
-    // nodeIDs.
-    void nodeForEach(std::function<void(const uint256&)> const& fn);
-
     // Purges all data relative to all the slots whose slotIndex is smaller
     // than the specified `maxSlotIndex`.
     void purgeSlots(const uint64& maxSlotIndex);
 
     // Retrieves the local secret key as specified at construction
     const SecretKey& getSecretKey();
+
+    // Tests wether a set of nodes is v-blocking for our local node. This can
+    // be used in ballot validation decisions.
+    bool isVBlocking(const std::vector<uint256>& nodes);
 
   private:
     // Node getters

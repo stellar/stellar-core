@@ -30,6 +30,9 @@ namespace stellar
 {
 class Application;
 
+using xdr::operator<;
+using xdr::operator==;
+
 /*
  * Drives the FBA protocol (is an FBA::Client). It is also incharge of
  * receiving transactions from the network.
@@ -124,6 +127,10 @@ class Herder : public HerderGateway,
         std::vector<
             std::pair<FBAEnvelope, 
                       std::function<void(bool)>>>> mFutureEnvelopes;
+
+    std::map<FBABallot,
+        std::map<uint256, 
+            std::vector<VirtualTimer>>>            mBallotValidationTimers;
 
     unsigned                                       mLedgersToWaitToParticipate;
     LedgerHeader                                   mLastClosedLedger;

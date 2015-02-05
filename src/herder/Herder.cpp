@@ -270,6 +270,12 @@ Herder::validateBallot(const uint64& slotIndex,
         return cb(false);
     }
 
+    // Ignore ourselves if we're just watching FBA.
+    if (getSecretKey().isZero() && nodeID == getLocalNodeID())
+    {
+        return cb(false);
+    }
+
     // No need to check if all the txs are in the txSet as this is decided by
     // the king of that round. Just check that we believe that this ballot is
     // actually from the king itself.
@@ -279,18 +285,9 @@ Herder::validateBallot(const uint64& slotIndex,
     {
         // A ballot is trusted if its value is generated or prepared by a node
         // in our qSet.
-        if (nodeID == vID || b.nodeID == vID)
+        if (b.nodeID == vID || b.nodeID == getLocalNodeID())
         {
             isTrusted = true;
-        }
-        using xdr::operator<;
-        using xdr::operator==;
-
-        // Ignore ourselves if we're just watching FBA
-        if (getSecretKey().isZero() &&
-            nodeID == getLocalNodeID())
-        {
-            return;
         }
 
         SHA512_256 sProposed;
@@ -314,19 +311,52 @@ Herder::validateBallot(const uint64& slotIndex,
     }
 
     uint256 valueHash = 
-      sha512_256(xdr::xdr_to_msg(ballot.value));
+        sha512_256(xdr::xdr_to_msg(ballot.value));
     
-    CLOG(DEBUG, "Herder") << "Herder::validateBallot"
-        << "@" << binToHex(getLocalNodeID()).substr(0,6)
-        << " i: " << slotIndex
-        << " v: " << binToHex(nodeID).substr(0,6)
-        << " o: " << binToHex(b.nodeID).substr(0,6)
-        << " b: (" << ballot.counter 
-        << "," << binToHex(valueHash).substr(0,6) << ")"
-        << " isTrusted: " << isTrusted
-        << " isKing: " << isKing;
-    
-    return cb(isKing && isTrusted);
+    if(isKing && isTrusted)
+    {
+        CLOG(DEBUG, "Herder") << "Herder::validateBallot"
+            << "@" << binToHex(getLocalNodeID()).substr(0,6)
+            << " i: " << slotIndex
+            << " v: " << binToHex(nodeID).substr(0,6)
+            << " o: " << binToHex(b.nodeID).substr(0,6)
+            << " b: (" << ballot.counter 
+            << "," << binToHex(valueHash).substr(0,6) << ")"
+            << " isTrusted: " << isTrusted
+            << " isKing: " << isKing 
+            << " timeout: " << pow(2.0, ballot.counter)/2;
+
+        return cb(true); 
+    }
+    else
+    {
+        // Create a timer to wait for current FBA timeout / 2 before accepting
+        // that ballot.
+        VirtualTimer ballotTimer(mApp.getClock());
+        ballotTimer.expires_from_now(
+            std::chrono::milliseconds(
+                (int)(1000*pow(2.0, ballot.counter)/2)));
+        ballotTimer.async_wait(
+            [cb] (const asio::error_code& error)
+            {
+                CLOG(DEBUG, "Herder") << "Herder::validateBallot";
+                return cb(true);
+            });
+        mBallotValidationTimers[ballot][nodeID].push_back(ballotTimer);
+
+        // Check if the nodes that have requested validation for this ballot
+        // is a v-blocking. If so, rush validation by cancelling all timers.
+        std::vector<uint256> nodes;
+        for (auto it : mBallotValidationTimers[ballot])
+        {
+            nodes.push_back(it.first);
+        }
+        if (isVBlocking(nodes))
+        {
+            // This will cancel all timers.
+            mBallotValidationTimers.erase(ballot);
+        }
+    }
 }
 
 void
@@ -654,6 +684,11 @@ Herder::ledgerClosed(LedgerHeader& ledger)
         << " ledger: " << binToHex(ledger.hash).substr(0,6);
     
     mLastClosedLedger = ledger;
+
+    // As the current slotIndex changes we cancel all pending validation
+    // timers. Since the value externalized, the messages that this generates
+    // wont' have any impact.
+    mBallotValidationTimers.clear();
 
     // We start skipping ledgers only after we're in SYNCED_STATE
     if (mLedgersToWaitToParticipate > 0 &&
