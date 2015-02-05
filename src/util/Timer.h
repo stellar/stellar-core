@@ -68,7 +68,7 @@ public:
 
 private:
     time_point mNow;
-    std::priority_queue<std::shared_ptr<VirtualClockEvent>> mEvents;
+    std::priority_queue<VirtualClockEvent> mEvents;
 
 public:
     // Note: this is not a static method, which means that VirtualClock is
@@ -85,10 +85,10 @@ public:
 
 struct VirtualClockEvent
 {
-    VirtualClock::time_point const mWhen;
-    std::function<void(asio::error_code)> const mCallback;
+    VirtualClock::time_point mWhen;
+    std::function<void(asio::error_code)> mCallback;
     VirtualTimer *mTimer;
-    bool operator<(VirtualClockEvent const& other)
+    bool operator<(VirtualClockEvent const& other) const
     {
         // For purposes of priority queue, a timer is "less than"
         // another timer if it occurs in the future (has a higher

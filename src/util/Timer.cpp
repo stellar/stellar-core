@@ -23,7 +23,7 @@ VirtualClock::next()
     }
     else
     {
-        return mEvents.top()->mWhen;
+        return mEvents.top().mWhen;
     }
 }
 
@@ -71,7 +71,7 @@ void
 VirtualClock::enqueue(VirtualClockEvent const& ve)
 {
     // LOG(DEBUG) << "VirtualClock::enqueue";
-    mEvents.emplace(make_shared<VirtualClockEvent>(ve));
+    mEvents.emplace(ve);
 }
 
 void
@@ -81,13 +81,13 @@ VirtualClock::cancelAllEventsFrom(VirtualTimer *v)
     // Brute force approach; could be done better with a linked list
     // per timer, as is done in asio. For the time being this should
     // be tolerable.
-    vector<shared_ptr<VirtualClockEvent>> toCancel;
-    vector<shared_ptr<VirtualClockEvent>> toKeep;
+    vector<VirtualClockEvent> toCancel;
+    vector<VirtualClockEvent> toKeep;
     toCancel.reserve(mEvents.size());
     toKeep.reserve(mEvents.size());
     while (!mEvents.empty())
     {
-        if (mEvents.top()->mTimer == v)
+        if (mEvents.top().mTimer == v)
         {
             toCancel.emplace_back(mEvents.top());
         }
@@ -100,24 +100,24 @@ VirtualClock::cancelAllEventsFrom(VirtualTimer *v)
 
     for (auto& e : toCancel)
     {
-        e->mCallback(asio::error::operation_aborted);
+        e.mCallback(asio::error::operation_aborted);
     }
     mEvents =
-        priority_queue<shared_ptr<VirtualClockEvent>>(toKeep.begin(),
-                                                      toKeep.end());
+        priority_queue<VirtualClockEvent>(toKeep.begin(),
+                                          toKeep.end());
 }
 
 size_t
 VirtualClock::advanceTo(time_point n) 
 {
-    vector<shared_ptr<VirtualClockEvent>> toDispatch;
+    vector<VirtualClockEvent> toDispatch;
     toDispatch.reserve(mEvents.size());
     // LOG(DEBUG) << "VirtualClock::advanceTo("
     //            << n.time_since_epoch().count() << ")";
     mNow = n;
     while (!mEvents.empty())
     {
-        if (mEvents.top()->mWhen > mNow)
+        if (mEvents.top().mWhen > mNow)
             break;
         toDispatch.emplace_back(mEvents.top());
         mEvents.pop();
@@ -127,7 +127,7 @@ VirtualClock::advanceTo(time_point n)
     for (auto& e : toDispatch) {
         // LOG(DEBUG) << "VirtualClock::advanceTo callback set for @ "
         //            << e->mWhen.time_since_epoch().count();
-        e->mCallback(asio::error_code());
+        e.mCallback(asio::error_code());
     }
     // LOG(DEBUG) << "VirtualClock::advanceTo done";
     return toDispatch.size();
