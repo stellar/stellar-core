@@ -21,9 +21,10 @@ FMT_SRCS = src/clf/BucketList.cpp src/clf/CLFMaster.cpp src/clf/CLFTests.cpp    
     src/overlay/OverlayTests.cpp src/overlay/Peer.cpp src/overlay/PeerDoor.cpp  \
     src/overlay/PeerMaster.cpp src/overlay/TCPPeer.cpp                          \
     src/process/ProcessMaster.cpp src/process/ProcessTests.cpp                  \
-    src/simulation/CycleTests.cpp src/simulation/Simulation.cpp                 \
-    src/herder/Herder.cpp src/herder/TxSetFrame.cpp src/herder/HerderTests.cpp  \
-    src/util/Logging.cpp src/util/Timer.cpp src/util/types.cpp                  \
+    src/simulation/CycleTests.cpp src/simulation/CoreTests.cpp                  \
+    src/simulation/Simulation.cpp  src/herder/Herder.cpp                        \
+    src/herder/TxSetFrame.cpp src/herder/HerderTests.cpp src/util/Logging.cpp   \
+	src/util/Timer.cpp src/util/types.cpp                                       \
     src/util/TmpDir.cpp src/util/Uint128Tests.cpp src/util/TimerTests.cpp       \
     src/transactions/AllowTrustTxFrame.cpp                                      \
     src/transactions/CancelOfferFrame.cpp                                       \

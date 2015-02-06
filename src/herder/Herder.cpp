@@ -312,20 +312,21 @@ Herder::validateBallot(const uint64& slotIndex,
 
     uint256 valueHash = 
         sha512_256(xdr::xdr_to_msg(ballot.value));
+
+    CLOG(DEBUG, "Herder") << "Herder::validateBallot"
+        << "@" << binToHex(getLocalNodeID()).substr(0,6)
+        << " i: " << slotIndex
+        << " v: " << binToHex(nodeID).substr(0,6)
+        << " o: " << binToHex(b.nodeID).substr(0,6)
+        << " b: (" << ballot.counter 
+        << "," << binToHex(valueHash).substr(0,6) << ")"
+        << " isTrusted: " << isTrusted
+        << " isKing: " << isKing 
+        << " timeout: " << pow(2.0, ballot.counter)/2;
+
     
     if(isKing && isTrusted)
     {
-        CLOG(DEBUG, "Herder") << "Herder::validateBallot"
-            << "@" << binToHex(getLocalNodeID()).substr(0,6)
-            << " i: " << slotIndex
-            << " v: " << binToHex(nodeID).substr(0,6)
-            << " o: " << binToHex(b.nodeID).substr(0,6)
-            << " b: (" << ballot.counter 
-            << "," << binToHex(valueHash).substr(0,6) << ")"
-            << " isTrusted: " << isTrusted
-            << " isKing: " << isKing 
-            << " timeout: " << pow(2.0, ballot.counter)/2;
-
         return cb(true); 
     }
     else
@@ -339,7 +340,6 @@ Herder::validateBallot(const uint64& slotIndex,
         ballotTimer.async_wait(
             [cb] (const asio::error_code& error)
             {
-                CLOG(DEBUG, "Herder") << "Herder::validateBallot";
                 return cb(true);
             });
         mBallotValidationTimers[ballot][nodeID].push_back(ballotTimer);
