@@ -84,14 +84,14 @@ namespace stellar
         // can never be completely taken and sticks around (for example)
 
         // this guy can get X wheat to you. How many sheep does that get him?
-        numSheepSend = bigDivide(numWheatReceived, sellingWheatOffer.mEntry.offer().price, OFFER_PRICE_DIVISOR);
+        numSheepSend = bigDivide(numWheatReceived, OFFER_PRICE_DIVISOR, sellingWheatOffer.mEntry.offer().price);
 
         if (numSheepSend > maxSheepSend)
         {
             // reduce the number even more if there is a limit on Sheep
-            numWheatReceived = bigDivide(maxSheepSend, OFFER_PRICE_DIVISOR, sellingWheatOffer.mEntry.offer().price);
+            numWheatReceived = bigDivide(maxSheepSend, sellingWheatOffer.mEntry.offer().price, OFFER_PRICE_DIVISOR);
 
-            numSheepSend = bigDivide(numWheatReceived, sellingWheatOffer.mEntry.offer().price, OFFER_PRICE_DIVISOR);
+            numSheepSend = bigDivide(numWheatReceived, OFFER_PRICE_DIVISOR, sellingWheatOffer.mEntry.offer().price);
 
             assert(numSheepSend <= maxSheepSend);
         }

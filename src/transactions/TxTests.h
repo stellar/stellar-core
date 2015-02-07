@@ -14,11 +14,11 @@ SecretKey getRoot();
 
 SecretKey getAccount(const char* n);
 
-TransactionFramePtr setTrust(SecretKey& from, SecretKey& to, uint32_t seq,
-    const std::string& currencyCode);
+TransactionFramePtr changeTrust(SecretKey& from, SecretKey& to, uint32_t seq,
+    const std::string& currencyCode, int64_t limit);
 
-void applyTrust(Application& app, SecretKey& from, SecretKey& to, uint32_t seq,
-    const std::string& currencyCode, ChangeTrust::ChangeTrustResultCode result = ChangeTrust::SUCCESS);
+void applyChangeTrust(Application& app, SecretKey& from, SecretKey& to, uint32_t seq,
+    const std::string& currencyCode, int64_t limit, ChangeTrust::ChangeTrustResultCode result = ChangeTrust::SUCCESS);
 
 TransactionFramePtr createPaymentTx(SecretKey& from, SecretKey& to, uint32_t seq, int64_t amount);
 
