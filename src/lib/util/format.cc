@@ -1084,7 +1084,7 @@ void fmt::print_colored(Color c, StringRef format, ArgList args) {
   std::fputs(RESET_COLOR, stdout);
 }
 
-int fmt::fprintf(std::FILE *f, StringRef format, ArgList args) {
+std::size_t fmt::fprintf(std::FILE *f, StringRef format, ArgList args) {
   MemoryWriter w;
   printf(w, format, args);
   return std::fwrite(w.data(), 1, w.size(), f);

@@ -2,6 +2,8 @@
 // under the ISC License. See the COPYING file at the top-level directory of
 // this distribution or at http://opensource.org/licenses/ISC
 
+#include "util/asio.h"
+
 #include "lib/catch.hpp"
 #include "fba/FBA.h"
 #include "util/types.h"

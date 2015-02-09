@@ -2185,7 +2185,7 @@ inline std::string sprintf(StringRef format, ArgList args) {
     fmt::fprintf(stderr, "Don't %s!", "panic");
   \endrst
  */
-int fprintf(std::FILE *f, StringRef format, ArgList args);
+std::size_t fprintf(std::FILE *f, StringRef format, ArgList args);
 
 /**
   \rst
@@ -2196,7 +2196,7 @@ int fprintf(std::FILE *f, StringRef format, ArgList args);
     fmt::printf("Elapsed time: %.2f seconds", 1.23);
   \endrst
  */
-inline int printf(StringRef format, ArgList args) {
+inline std::size_t printf(StringRef format, ArgList args) {
   return fprintf(stdout, format, args);
 }
 
@@ -2416,8 +2416,8 @@ FMT_VARIADIC(void, print, std::FILE *, StringRef)
 FMT_VARIADIC(void, print, std::ostream &, StringRef)
 FMT_VARIADIC(void, print_colored, Color, StringRef)
 FMT_VARIADIC(std::string, sprintf, StringRef)
-FMT_VARIADIC(int, printf, StringRef)
-FMT_VARIADIC(int, fprintf, std::FILE *, StringRef)
+FMT_VARIADIC(std::size_t, printf, StringRef)
+FMT_VARIADIC(std::size_t, fprintf, std::FILE *, StringRef)
 }
 
 // Restore warnings.
