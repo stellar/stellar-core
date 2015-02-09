@@ -7,6 +7,7 @@
 #include "overlay/ItemFetcher.h"
 #include "main/Application.h"
 #include "main/Config.h"
+#include "simulation/Simulation.h"
 
 #include <cassert>
 #include "util/make_unique.h"
@@ -26,9 +27,70 @@ using namespace stellar::txtest;
 
 typedef std::unique_ptr<Application> appPtr;
 
-#define CREATE_NODE(N) \
-    const Hash v##N##VSeed = sha512_256("SEED_VALIDATION_SEED_" #N); \
-    const Hash v##N##NodeID = makePublicKey(v##N##VSeed);
+TEST_CASE("standalone", "[hrd]")
+{
+    SIMULATION_CREATE_NODE(0);
+
+    Config cfg(getTestConfig());
+    
+    cfg.RUN_STANDALONE = true;
+    cfg.VALIDATION_KEY = v0SecretKey;
+    cfg.START_NEW_NETWORK = true;
+
+    cfg.QUORUM_THRESHOLD = 1;
+    cfg.QUORUM_SET.push_back(v0NodeID);
+
+    VirtualClock clock;
+    Application app(clock, cfg);
+
+    app.start();
+
+    // set up world
+    SecretKey root = getRoot();
+    SecretKey a1 = getAccount("A");
+
+    const uint64_t paymentAmount = 
+        (uint64_t)app.getLedgerMaster().getMinBalance(0);
+
+    AccountFrame rootAccount;
+    REQUIRE(AccountFrame::loadAccount(
+        root.getPublicKey(), rootAccount, app.getDatabase()));
+    
+    SECTION("basic ledger close on valid tx")
+    {
+        bool stop = false;
+        VirtualTimer setupTimer(app.getClock());
+        VirtualTimer checkTimer(app.getClock());
+
+        auto check = [&] (const asio::error_code& error)
+        {
+            stop = true;
+
+            AccountFrame a1Account;
+            REQUIRE(AccountFrame::loadAccount(
+                a1.getPublicKey(), a1Account, app.getDatabase()));
+
+            REQUIRE(a1Account.getBalance() == paymentAmount);
+        };
+
+        auto setup = [&] (const asio::error_code& error)
+        {
+            // create account
+            TransactionFramePtr txFrameA1 = 
+                createPaymentTx(root, a1, 1, paymentAmount);
+
+            REQUIRE(app.getHerderGateway().recvTransaction(txFrameA1));
+        };
+
+        setupTimer.expires_from_now(std::chrono::seconds(0));
+        setupTimer.async_wait(setup);
+
+        checkTimer.expires_from_now(std::chrono::seconds(2));
+        checkTimer.async_wait(check);
+
+        while(!stop && app.crank(false) > 0);
+    }
+}
 
 // see if we flood at the right times
 //  invalid tx
@@ -39,46 +101,7 @@ typedef std::unique_ptr<Application> appPtr;
 //  tx from account not in the DB
 TEST_CASE("recvTx", "[hrd]")
 {
-    CREATE_NODE(0);
-    CREATE_NODE(1);
-    CREATE_NODE(2);
-    CREATE_NODE(3);
-
-    FBAQuorumSetPtr qSet = std::make_shared<FBAQuorumSet>();
-    qSet->threshold = 3;
-    qSet->validators.push_back(v0NodeID);
-    qSet->validators.push_back(v1NodeID);
-    qSet->validators.push_back(v2NodeID);
-    qSet->validators.push_back(v3NodeID);
-
-    Config cfg(getTestConfig());
-    
-    cfg.RUN_STANDALONE = true;
-    //cfg.START_NEW_NETWORK = true;
-
-    cfg.QUORUM_THRESHOLD = qSet->threshold;
-    cfg.QUORUM_SET.push_back(v0NodeID);
-    cfg.QUORUM_SET.push_back(v1NodeID);
-    cfg.QUORUM_SET.push_back(v2NodeID);
-    cfg.QUORUM_SET.push_back(v3NodeID);
-
-    VirtualClock clock;
-    Application app(clock, cfg);
-    app.start();
-
-    // set up world
-    SecretKey root = getRoot();
-    SecretKey a1 = getAccount("A");
-    SecretKey b1 = getAccount("B");
-
-    const uint64_t paymentAmount = (uint64_t)app.getLedgerMaster().getMinBalance(0);
-    // create accounts
-    applyPaymentTx(app, root, a1, 1, paymentAmount);
-    applyPaymentTx(app, root, a1, 2, paymentAmount);
-
-    // TODO(spolu) HerderTests recvTx
 }
-
 
 // sortForApply 
 // sortForHash
@@ -90,6 +113,5 @@ TEST_CASE("recvTx", "[hrd]")
 //   tx from account not in the DB 
 TEST_CASE("txset", "[hrd]")
 {
-
 }
 

@@ -86,15 +86,6 @@ FBA::purgeNode(const uint256& nodeID)
 }
 
 void 
-FBA::nodeForEach(std::function<void(const uint256&)> const& fn)
-{
-    for (auto it : mKnownNodes)
-    {
-        fn(it.first);
-    }
-}
-
-void 
 FBA::purgeSlots(const uint64& maxSlotIndex)
 {
     auto it = mKnownSlots.begin();
@@ -159,6 +150,19 @@ const SecretKey&
 FBA::getSecretKey()
 {
     return mLocalNode->getSecretKey();
+}
+
+bool 
+FBA::isVBlocking(const std::vector<uint256>& nodes)
+{
+    std::map<uint256, bool> map;
+    for (auto v : nodes)
+    {
+        map[v] = true;
+    }
+    return getLocalNode()->isVBlocking<bool>( 
+        getLocalNode()->getQuorumSetHash(), 
+        map);
 }
 
 }

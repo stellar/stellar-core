@@ -21,8 +21,8 @@ class Simulation
 {
   private:
     VirtualClock mClock;
-    std::map<uint256, Application::pointer> mNodes;
     std::map<uint256, Config::pointer> mConfigs;
+    std::map<uint256, Application::pointer> mNodes;
     std::vector<std::shared_ptr<LoopbackPeerConnection>> mConnections;
   
   public:

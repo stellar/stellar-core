@@ -124,7 +124,7 @@ bool Simulation::haveAllExternalized(int num)
 {
     for(auto it = mNodes.begin(); it != mNodes.end(); ++it) 
     {
-//        LOG(DEBUG) << "Ledger#: " << it->second->getLedgerMaster().getLedgerNum();
+        LOG(DEBUG) << "Ledger#: " << it->second->getLedgerMaster().getLedgerNum();
 
         if(it->second->getLedgerMaster().getLedgerNum() != num)
             return(false);

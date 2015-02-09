@@ -165,7 +165,6 @@ Herder::compareValues(const uint64& slotIndex,
                       const uint32& ballotCounter,
                       const Value& v1, const Value& v2)
 {
-    // TODO(spolu) cache validated values at each round
     using xdr::operator<;
 
     StellarBallot b1;
@@ -223,7 +222,6 @@ Herder::validateBallot(const uint64& slotIndex,
                        const FBABallot& ballot,
                        std::function<void(bool)> const& cb)
 {
-    // TODO(spolu) cache validated values at each round
     StellarBallot b;
     try
     {
@@ -272,14 +270,25 @@ Herder::validateBallot(const uint64& slotIndex,
         return cb(false);
     }
 
+    // Ignore ourselves if we're just watching FBA.
+    if (getSecretKey().isZero() && nodeID == getLocalNodeID())
+    {
+        return cb(false);
+    }
+
     // No need to check if all the txs are in the txSet as this is decided by
     // the king of that round. Just check that we believe that this ballot is
     // actually from the king itself.
     bool isKing = true;
-    auto coronation = [&slotIndex,&ballot,&b,&isKing] (const uint256& nodeID)
+    bool isTrusted = false;
+    for (auto vID : getLocalQuorumSet().validators)
     {
-        // TODO(spolu) ignore ourselves if not validating
-        using xdr::operator<;
+        // A ballot is trusted if its value is generated or prepared by a node
+        // in our qSet.
+        if (b.nodeID == vID || b.nodeID == getLocalNodeID())
+        {
+            isTrusted = true;
+        }
 
         SHA512_256 sProposed;
         sProposed.add(xdr::xdr_to_msg(slotIndex));
@@ -290,17 +299,64 @@ Herder::validateBallot(const uint64& slotIndex,
         SHA512_256 sContender;
         sContender.add(xdr::xdr_to_msg(slotIndex));
         sContender.add(xdr::xdr_to_msg(ballot.counter));
-        sContender.add(xdr::xdr_to_msg(nodeID));
+        sContender.add(xdr::xdr_to_msg(vID));
         auto hContender = sContender.finish();
 
+        // A ballot is king (locally) only if it is higher than any potential
+        // ballots from nodes in our qSet.
         if(hProposed < hContender)
         {
             isKing = false;
         }
-    };
-    nodeForEach(coronation);
+    }
+
+    uint256 valueHash = 
+        sha512_256(xdr::xdr_to_msg(ballot.value));
+
+    CLOG(DEBUG, "Herder") << "Herder::validateBallot"
+        << "@" << binToHex(getLocalNodeID()).substr(0,6)
+        << " i: " << slotIndex
+        << " v: " << binToHex(nodeID).substr(0,6)
+        << " o: " << binToHex(b.nodeID).substr(0,6)
+        << " b: (" << ballot.counter 
+        << "," << binToHex(valueHash).substr(0,6) << ")"
+        << " isTrusted: " << isTrusted
+        << " isKing: " << isKing 
+        << " timeout: " << pow(2.0, ballot.counter)/2;
+
     
-    return cb(isKing);
+    if(isKing && isTrusted)
+    {
+        return cb(true); 
+    }
+    else
+    {
+        // Create a timer to wait for current FBA timeout / 2 before accepting
+        // that ballot.
+        VirtualTimer ballotTimer(mApp.getClock());
+        ballotTimer.expires_from_now(
+            std::chrono::milliseconds(
+                (int)(1000*pow(2.0, ballot.counter)/2)));
+        ballotTimer.async_wait(
+            [cb] (const asio::error_code& error)
+            {
+                return cb(true);
+            });
+        mBallotValidationTimers[ballot][nodeID].push_back(ballotTimer);
+
+        // Check if the nodes that have requested validation for this ballot
+        // is a v-blocking. If so, rush validation by cancelling all timers.
+        std::vector<uint256> nodes;
+        for (auto it : mBallotValidationTimers[ballot])
+        {
+            nodes.push_back(it.first);
+        }
+        if (isVBlocking(nodes))
+        {
+            // This will cancel all timers.
+            mBallotValidationTimers.erase(ballot);
+        }
+    }
 }
 
 void
@@ -319,11 +375,12 @@ Herder::ballotDidHearFromQuorum(const uint64& slotIndex,
 
     // Once we hear from a transitive quorum, we start a timer in case FBA
     // timeouts.
+    mBumpTimer.expires_from_now(
+        std::chrono::seconds((int)pow(2.0, ballot.counter)));
+
     mBumpTimer.async_wait(std::bind(&Herder::expireBallot, this, 
                                     std::placeholders::_1, 
                                     slotIndex, ballot));
-    mBumpTimer.expires_from_now(
-        std::chrono::seconds((int)pow(2.0, ballot.counter)));
 }
 
 void 
@@ -345,13 +402,14 @@ Herder::valueExternalized(const uint64& slotIndex,
             << " Externalized StellarBallot malformed";
     }
 
-    CLOG(INFO, "Herder") << "Herder::valueExternalized"
-        << "@" << binToHex(getLocalNodeID()).substr(0,6)
-        << " txSet: " << binToHex(b.value.txSetHash).substr(0,6);
-    
     TxSetFramePtr externalizedSet = fetchTxSet(b.value.txSetHash, false);
     if (externalizedSet)
     {
+
+        CLOG(INFO, "Herder") << "Herder::valueExternalized"
+            << "@" << binToHex(getLocalNodeID()).substr(0,6)
+            << " txSet: " << binToHex(b.value.txSetHash).substr(0,6);
+    
         // we don't need to keep fetching any of the old TX sets
         mTxSetFetcher[mCurrentTxSetFetcher].stopFetchingAll();
 
@@ -374,10 +432,25 @@ Herder::valueExternalized(const uint64& slotIndex,
             mApp.getOverlayGateway().broadcastMessage(msg);
         }
 
-        // TODO(spolu) evict old nodes and slots
+        // Evict nodes that weren't touched for more than
+        auto now = mApp.getClock().now();
+        for (auto it : mNodeLastAccess)
+        {
+            if ((now - it.second) >
+                std::chrono::seconds(NODE_EXPIRATION_SECONDS))
+            {
+                purgeNode(it.first);
+            }
+        }
+         
+        // Evict slots that are outside of our ledger validity bracket
+        if (slotIndex > LEDGER_VALIDITY_BRACKET)
+        {
+            purgeSlots(slotIndex - LEDGER_VALIDITY_BRACKET);
+        }
 
-        // move all the remaining to the next highest level
-        // don't move the largest array
+        // Move all the remaining to the next highest level don't move the
+        // largest array.
         for (size_t n = mReceivedTransactions.size() - 1; n > 0; n--)
         {
             for (auto tx : mReceivedTransactions[n-1])
@@ -395,6 +468,14 @@ Herder::valueExternalized(const uint64& slotIndex,
             << "@" << binToHex(getLocalNodeID()).substr(0,6)
             << " Externalized txSet not found";
     }
+}
+
+void 
+Herder::nodeTouched(const uint256& nodeID)
+{
+    // We simply store the time of last access each time a node is touched by
+    // FBA. That way we can evict old irrelevant nodes at each round.
+    mNodeLastAccess[nodeID] = mApp.getClock().now();
 }
 
 void 
@@ -598,14 +679,16 @@ Herder::recvFBAEnvelope(FBAEnvelope envelope,
 void
 Herder::ledgerClosed(LedgerHeader& ledger)
 {
-    // TODO(spolu): No infinite loop for now.
-    return;
-   
     CLOG(TRACE, "Herder") << "Herder::ledgerClosed@"
         << "@" << binToHex(getLocalNodeID()).substr(0,6)
         << " ledger: " << binToHex(ledger.hash).substr(0,6);
     
     mLastClosedLedger = ledger;
+
+    // As the current slotIndex changes we cancel all pending validation
+    // timers. Since the value externalized, the messages that this generates
+    // wont' have any impact.
+    mBallotValidationTimers.clear();
 
     // We start skipping ledgers only after we're in SYNCED_STATE
     if (mLedgersToWaitToParticipate > 0 &&
@@ -673,7 +756,11 @@ Herder::removeReceivedTx(TransactionFramePtr dropTx)
 void
 Herder::triggerNextLedger(const asio::error_code& error)
 {
-    assert(!error);
+    if (error)
+    {
+        // This probably means we're shutting down.
+        return;
+    }
     
     // We store at which time we triggered consensus
     mLastTrigger = mApp.getClock().now();
