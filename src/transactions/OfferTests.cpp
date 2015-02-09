@@ -22,6 +22,14 @@ using namespace stellar::txtest;
 
 typedef std::unique_ptr<Application> appPtr;
 
+bool equalAmounts(int64_t a, int64_t b, int64_t maxd = 1)
+{
+    int64_t d = a - b;
+    if (d < 0)
+        d = -d;
+    return (d <= maxd);
+}
+
 // Offer that doesn't cross
 // Offer that crosses exactly
 // Offer that takes multiple other offers and is cleared
@@ -50,7 +58,9 @@ TEST_CASE("create offer", "[tx][offers]")
     SecretKey b1 = getAccount("B");
     SecretKey gateway = getAccount("gate");
 
-    const int64_t trustLineLimit = 1000000;
+    const int64_t currencyMultiplier = 10000000;
+    const int64_t trustLineLimit = 1000000 * currencyMultiplier;
+
 
     uint64_t txfee = app.getLedgerMaster().getTxFee();
 
@@ -64,7 +74,8 @@ TEST_CASE("create offer", "[tx][offers]")
 
     SECTION("account a1 does not exist")
     {
-        auto txFrame = createOfferTx(a1, idrCur, usdCur, OFFER_PRICE_DIVISOR, 100, a1_seq);
+        auto txFrame = createOfferTx(a1, idrCur, 100 * currencyMultiplier,
+            usdCur, 100 * currencyMultiplier, a1_seq);
 
         LedgerDelta delta;
         txFrame->apply(delta, app);
@@ -79,23 +90,26 @@ TEST_CASE("create offer", "[tx][offers]")
         applyPaymentTx(app, root, a1, root_seq++, minBalance2 + 10000);
 
         // missing USD trust
-        applyOffer(app, a1, idrCur, usdCur, OFFER_PRICE_DIVISOR, 100, a1_seq++, CreateOffer::NO_TRUST);
+        applyOffer(app, a1, idrCur, 100, usdCur, 100, a1_seq++, CreateOffer::NO_TRUST);
 
-        applyTrust(app, a1, gateway, a1_seq++, "USD");
+        applyChangeTrust(app, a1, gateway, a1_seq++, "USD", trustLineLimit);
 
         // missing IDR trust
-        applyOffer(app, a1, idrCur, usdCur, OFFER_PRICE_DIVISOR, 100, a1_seq++, CreateOffer::NO_TRUST);
+        applyOffer(app, a1, idrCur, 100, usdCur, 100, a1_seq++, CreateOffer::NO_TRUST);
 
-        applyTrust(app, a1, gateway, a1_seq++, "IDR");
+        applyChangeTrust(app, a1, gateway, a1_seq++, "IDR", trustLineLimit);
 
         // can't sell IDR if account doesn't have any
-        applyOffer(app, a1, idrCur, usdCur, OFFER_PRICE_DIVISOR, 100, a1_seq++, CreateOffer::UNDERFUNDED);
+        applyOffer(app, a1, idrCur, 100, usdCur, 100, a1_seq++, CreateOffer::UNDERFUNDED);
 
         // fund a1 with some IDR
         applyCreditPaymentTx(app, gateway, a1, idrCur, gateway_seq++, trustLineLimit);
 
         // need sufficient STR funds to create an offer
-        applyOffer(app, a1, idrCur, usdCur, OFFER_PRICE_DIVISOR, 100, a1_seq++, CreateOffer::UNDERFUNDED);
+        applyOffer(app, a1,
+            idrCur, 100 * currencyMultiplier,
+            usdCur, 100 * currencyMultiplier,
+            a1_seq++, CreateOffer::UNDERFUNDED);
 
         // there should be no pending offer at this point in the system
         OfferFrame offer;
@@ -117,58 +131,66 @@ TEST_CASE("create offer", "[tx][offers]")
 
         applyPaymentTx(app, root, a1, root_seq++, minBalanceA + 10000);
 
-        applyTrust(app, a1, gateway, a1_seq++, "USD");
-        applyTrust(app, a1, gateway, a1_seq++, "IDR");
+        applyChangeTrust(app, a1, gateway, a1_seq++, "USD", trustLineLimit);
+        applyChangeTrust(app, a1, gateway, a1_seq++, "IDR", trustLineLimit);
         applyCreditPaymentTx(app, gateway, a1, idrCur, gateway_seq++, trustLineLimit);
 
         // create nbOffers
         std::vector<uint32_t> a1OfferSeq;
-
-        int64_t usdPriceOfferA = OFFER_PRICE_DIVISOR*2/3;
 
         for (int i = 0; i < nbOffers; i++)
         {
             a1OfferSeq.push_back(a1_seq++);
 
             // offer is sell 100 IDR for 150 USD; buy USD @ 1.5
-            applyOffer(app, a1, idrCur, usdCur, usdPriceOfferA, 100, a1OfferSeq[i]);
+            applyOffer(app, a1,
+                idrCur, 100 * currencyMultiplier,
+                usdCur, 150 * currencyMultiplier,
+                a1OfferSeq[i]);
             REQUIRE(OfferFrame::loadOffer(a1.getPublicKey(), a1OfferSeq[i], offer, app.getDatabase()));
 
             // verifies that the offer was created as expected
-            REQUIRE(offer.getPrice() == usdPriceOfferA);
-            REQUIRE(offer.getAmount() == 100);
-            REQUIRE(offer.getTakerGets().isoCI().currencyCode == idrCur.isoCI().currencyCode);
-            REQUIRE(offer.getTakerPays().isoCI().currencyCode == usdCur.isoCI().currencyCode);
+            REQUIRE(offer.getSell().isoCI().currencyCode == idrCur.isoCI().currencyCode);
+            REQUIRE(offer.getSellAmount() == 100 * currencyMultiplier);
+
+            REQUIRE(offer.getBuy().isoCI().currencyCode == usdCur.isoCI().currencyCode);
+            REQUIRE(offer.getBuyAmount() == 150 * currencyMultiplier);
         }
 
         applyPaymentTx(app, root, b1, root_seq++, minBalance3 + 10000);
-        applyTrust(app, b1, gateway, b1_seq++, "IDR");
-        applyTrust(app, b1, gateway, b1_seq++, "USD");
+        applyChangeTrust(app, b1, gateway, b1_seq++, "IDR", trustLineLimit);
+        applyChangeTrust(app, b1, gateway, b1_seq++, "USD", trustLineLimit);
 
         SECTION("offer that doesn't cross")
         {
-            applyCreditPaymentTx(app, gateway, b1, usdCur, gateway_seq++, 20000);
+            applyCreditPaymentTx(app, gateway, b1, usdCur, gateway_seq++, 20000 * currencyMultiplier);
 
             uint32_t b1OfferSeq = b1_seq++;
 
             // offer is sell 40 USD for 80 IDR ; sell USD @ 2
-            applyOffer(app, b1, usdCur, idrCur, OFFER_PRICE_DIVISOR * 2, 40, b1OfferSeq);
+            applyOffer(app, b1,
+                usdCur, 40 * currencyMultiplier,
+                idrCur, 80 * currencyMultiplier,
+                b1OfferSeq);
 
             // verifies that the offer was created properly
             REQUIRE(OfferFrame::loadOffer(b1.getPublicKey(), b1OfferSeq, offer, app.getDatabase()));
-            REQUIRE(offer.getPrice() == OFFER_PRICE_DIVISOR * 2);
-            REQUIRE(offer.getAmount() == 40);
-            REQUIRE(offer.getTakerPays().isoCI().currencyCode == idrCur.isoCI().currencyCode);
-            REQUIRE(offer.getTakerGets().isoCI().currencyCode == usdCur.isoCI().currencyCode);
+
+            REQUIRE(offer.getSell().isoCI().currencyCode == usdCur.isoCI().currencyCode);
+            REQUIRE(offer.getSellAmount() == 40 * currencyMultiplier);
+
+            REQUIRE(offer.getBuy().isoCI().currencyCode == idrCur.isoCI().currencyCode);
+            REQUIRE(offer.getBuyAmount() == 80 * currencyMultiplier);
 
             // and that a1 offers were not touched
             for (auto a1Offer : a1OfferSeq)
             {
                 REQUIRE(OfferFrame::loadOffer(a1.getPublicKey(), a1Offer, offer, app.getDatabase()));
-                REQUIRE(offer.getPrice() == usdPriceOfferA);
-                REQUIRE(offer.getAmount() == 100);
-                REQUIRE(offer.getTakerPays().isoCI().currencyCode == usdCur.isoCI().currencyCode);
-                REQUIRE(offer.getTakerGets().isoCI().currencyCode == idrCur.isoCI().currencyCode);
+                REQUIRE(offer.getSell().isoCI().currencyCode == idrCur.isoCI().currencyCode);
+                REQUIRE(offer.getSellAmount() == 100 * currencyMultiplier);
+
+                REQUIRE(offer.getBuy().isoCI().currencyCode == usdCur.isoCI().currencyCode);
+                REQUIRE(offer.getBuyAmount() == 150 * currencyMultiplier);
             }
         }
 
@@ -193,74 +215,142 @@ TEST_CASE("create offer", "[tx][offers]")
 
         SECTION("Offer that takes multiple other offers and is cleared")
         {
-            applyCreditPaymentTx(app, gateway, b1, usdCur, gateway_seq++, 20000);
+            applyCreditPaymentTx(app, gateway, b1, usdCur, gateway_seq++, 20000 * currencyMultiplier);
 
-            REQUIRE(TrustFrame::loadTrustLine(a1.getPublicKey(), usdCur, line, app.getDatabase()));
+            REQUIRE(TrustFrame::loadTrustLine(b1.getPublicKey(), usdCur, line, app.getDatabase()));
             int64_t b1_usd = line.getBalance();
 
-            REQUIRE(TrustFrame::loadTrustLine(a1.getPublicKey(), idrCur, line, app.getDatabase()));
+            REQUIRE(TrustFrame::loadTrustLine(b1.getPublicKey(), idrCur, line, app.getDatabase()));
             int64_t b1_idr = line.getBalance();
 
             uint32_t b1OfferSeq = b1_seq++;
 
             // offer is sell 1010 USD for 505 IDR; sell USD @ 0.5
-            applyOffer(app, b1, usdCur, idrCur, OFFER_PRICE_DIVISOR / 2, 1010, b1OfferSeq);
+            applyOffer(app, b1,
+                usdCur, 1010 * currencyMultiplier,
+                idrCur, 505 * currencyMultiplier,
+                b1OfferSeq);
 
             // offer is cleared
-            // TODO: offer is not cleared because of rounding issues
-            //REQUIRE(!OfferFrame::loadOffer(b1.getPublicKey(), b1OfferSeq, offer, app.getDatabase()));
+            REQUIRE(!OfferFrame::loadOffer(b1.getPublicKey(), b1OfferSeq, offer, app.getDatabase()));
+
+            // Offers are: sell 100 IDR for 150 USD; sell IRD @ 0.66 -> buy USD @ 1.5
+            // first 6 offers get taken for 6*150=900 USD, gets 600 IDR in return
+            // offer #7 : has 110 USD available -> can claim partial offer 100*110/150 = 73 ; 27
+            // 8 .. untouched
 
             for (int i = 0; i < nbOffers; i++)
             {
                 int32_t a1Offer = a1OfferSeq[i];
 
-                if (i < 15)
+                if (i < 6)
                 {
-                    // first 5 offers are taken
+                    // first 6 offers are taken
                     REQUIRE(!OfferFrame::loadOffer(a1.getPublicKey(), a1Offer,
                         offer, app.getDatabase()));
                 }
                 else
                 {
-                    // others are untouched
                     REQUIRE(OfferFrame::loadOffer(a1.getPublicKey(), a1Offer, offer,
                         app.getDatabase()));
-                    REQUIRE(offer.getPrice() == usdPriceOfferA);
-                    REQUIRE(offer.getTakerPays().isoCI().currencyCode == usdCur.isoCI().currencyCode);
-                    REQUIRE(offer.getTakerGets().isoCI().currencyCode == idrCur.isoCI().currencyCode);
-                    if (i == 15)
+                    REQUIRE(offer.getSell().isoCI().currencyCode == idrCur.isoCI().currencyCode);
+                    REQUIRE(offer.getBuy().isoCI().currencyCode == usdCur.isoCI().currencyCode);
+                    if (i == 6)
                     {
-                        REQUIRE(offer.getAmount() == 70);
+                        REQUIRE(equalAmounts(offer.getBuyAmount(), (7*150-1010)*currencyMultiplier));
                     }
                     else
                     {
-                        REQUIRE(offer.getAmount() == 100);
+                        // others are untouched
+                        REQUIRE(offer.getSellAmount() == 100 * currencyMultiplier);
+                        REQUIRE(offer.getBuyAmount() == 150 * currencyMultiplier);
                     }
                 }
             }
 
-            // TODO: rounding issues prevent this code from working
-#if 0
             // check balances
             // the USDs were sold at the (better) rate found in the original offers
-            int64_t usdRecv = 1010;
+            int64_t usdRecv = 1010 * currencyMultiplier;
 
-            int64_t idrSend = usdRecv * 3 / 2;
+            int64_t idrSend = bigDivide(usdRecv, 2, 3);
 
             REQUIRE(TrustFrame::loadTrustLine(a1.getPublicKey(), usdCur, line, app.getDatabase()));
-            REQUIRE(line.getBalance() == a1_usd + usdRecv);
+            REQUIRE(equalAmounts(line.getBalance(), a1_usd + usdRecv));
 
             REQUIRE(TrustFrame::loadTrustLine(a1.getPublicKey(), idrCur, line, app.getDatabase()));
-            REQUIRE(line.getBalance() == a1_idr - idrSend);
+            REQUIRE(equalAmounts(line.getBalance(), a1_idr - idrSend));
 
             REQUIRE(TrustFrame::loadTrustLine(b1.getPublicKey(), usdCur, line, app.getDatabase()));
-            REQUIRE(line.getBalance() == b1_usd - usdRecv);
+            REQUIRE(equalAmounts(line.getBalance(), b1_usd - usdRecv));
 
             REQUIRE(TrustFrame::loadTrustLine(b1.getPublicKey(), idrCur, line, app.getDatabase()));
-            REQUIRE(line.getBalance() == b1_idr + idrSend);
-#endif
+            REQUIRE(equalAmounts(line.getBalance(), b1_idr + idrSend));
 
         }
+
+        SECTION("Offers being created to pick on a single offer")
+        {
+            applyCreditPaymentTx(app, gateway, b1, usdCur, gateway_seq++, 20000 * currencyMultiplier);
+
+            REQUIRE(TrustFrame::loadTrustLine(b1.getPublicKey(), usdCur, line, app.getDatabase()));
+            int64_t b1_usd = line.getBalance();
+
+            REQUIRE(TrustFrame::loadTrustLine(b1.getPublicKey(), idrCur, line, app.getDatabase()));
+            int64_t b1_idr = line.getBalance();
+
+            uint32_t b1OfferSeq = b1_seq++;
+
+            for (int j = 0; j < 10; j++)
+            {
+                // offer is sell 1 USD for 0.5 IDR; sell USD @ 0.5
+                applyOffer(app, b1,
+                    usdCur, 1 * currencyMultiplier,
+                    idrCur, bigDivide(5, currencyMultiplier, 10),
+                    b1OfferSeq++);
+                REQUIRE(!OfferFrame::loadOffer(b1.getPublicKey(), b1OfferSeq, offer, app.getDatabase()));
+            }
+
+            for (int i = 0; i < nbOffers; i++)
+            {
+                int32_t a1Offer = a1OfferSeq[i];
+
+                REQUIRE(OfferFrame::loadOffer(a1.getPublicKey(), a1Offer, offer,
+                    app.getDatabase()));
+                REQUIRE(offer.getSell().isoCI().currencyCode == idrCur.isoCI().currencyCode);
+                REQUIRE(offer.getBuy().isoCI().currencyCode == usdCur.isoCI().currencyCode);
+                if (i == 0)
+                {
+                    // TODO: is there a way to avoid 1 stroop deviation per transaction
+                    // 10 transactions -> 10 stroops distance
+                    REQUIRE(equalAmounts(offer.getBuyAmount(), (150 - 10)*currencyMultiplier, 10));
+                }
+                else
+                {
+                    // others are untouched
+                    REQUIRE(offer.getSellAmount() == 100 * currencyMultiplier);
+                    REQUIRE(offer.getBuyAmount() == 150 * currencyMultiplier);
+                }
+            }
+
+            // check balances
+            // the USDs were sold at the (better) rate found in the original offers
+            int64_t usdRecv = 10 * currencyMultiplier;
+
+            int64_t idrSend = bigDivide(usdRecv, 2, 3);
+
+            REQUIRE(TrustFrame::loadTrustLine(a1.getPublicKey(), usdCur, line, app.getDatabase()));
+            REQUIRE(equalAmounts(line.getBalance(), a1_usd + usdRecv, 10));
+
+            REQUIRE(TrustFrame::loadTrustLine(a1.getPublicKey(), idrCur, line, app.getDatabase()));
+            REQUIRE(equalAmounts(line.getBalance(), a1_idr - idrSend, 10));
+
+            REQUIRE(TrustFrame::loadTrustLine(b1.getPublicKey(), usdCur, line, app.getDatabase()));
+            REQUIRE(equalAmounts(line.getBalance(), b1_usd - usdRecv, 10));
+
+            REQUIRE(TrustFrame::loadTrustLine(b1.getPublicKey(), idrCur, line, app.getDatabase()));
+            REQUIRE(equalAmounts(line.getBalance(), b1_idr + idrSend, 10));
+        }
+
         // Offer that takes multiple other offers and remains
         // Offer selling STR
         // Offer buying STR
