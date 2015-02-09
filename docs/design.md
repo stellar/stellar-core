@@ -2,8 +2,7 @@
 - Bucket list
 - memo in txs
 - seq numbers 
-	- top buyte is the slot so we have 256 slots 
-- can we drop the idea of transaction rate?
+	- top byte is the slot so we have 256 slots 
 - what to do about inner ledger arbitrage?
 - should we make payments that go through the same orderbook in the same ledger cross each other?
 	- this will make things way more complicated but could potentially increase the liquidity a lot.
@@ -44,7 +43,7 @@ to avoid churn on the protocol front:
 
 #Later things
 - make a int128_t and use that for the math 
-
+- can we drop the idea of transaction rate?
 
 
 

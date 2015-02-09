@@ -80,7 +80,7 @@ struct SeqSorter
     operator () (const TransactionFramePtr & tx1, 
                  const TransactionFramePtr & tx2)
     {
-        return tx1->getSeqNum() < tx2->getSeqNum();
+        return tx1->getSeqNum() > tx2->getSeqNum();
     }
 };
 

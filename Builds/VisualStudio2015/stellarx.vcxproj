@@ -325,7 +325,7 @@
     <None Include="..\..\ChangeLog" />
     <None Include="..\..\COPYING" />
     <None Include="..\..\docs\design.md" />
-    <None Include="..\..\docs\entries.md" />
+    <None Include="..\..\docs\ledger.md" />
     <None Include="..\..\docs\hayashi_example.cfg" />
     <None Include="..\..\docs\multisig.md" />
     <None Include="..\..\docs\overview.md" />

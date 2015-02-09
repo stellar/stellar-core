@@ -1,7 +1,7 @@
 # Multisig
 Stellar accounts can be made multisig simply by adding additional signers to the account.
 
-Every account entry has a list of signers and their corresponding weights.
+Every Account has a list of signers and their corresponding weights. The public key of the account is always a signer with a weight specified in the first byte of the threshold field in the Account Entry. (see ledger.md)
 
 There are 3 categories of transactions. Each has a separate threshold that can be set and stored in the account entry.
 
