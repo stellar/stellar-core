@@ -98,15 +98,17 @@ TEST_CASE("bucket list shadowing", "[clf]")
         if (i % 100 == 0)
             LOG(DEBUG) << "Added batch " << i << ", hash=" << binToHex(bl.getHash());
 
-        // Alice and bob should be in either curr or snap of level 0
-        auto curr0 = bl.getLevel(0).getCurr();
-        auto snap0 = bl.getLevel(0).getSnap();
-        bool hasAlice = (curr0->containsCLFIdentity(CLFAlice) ||
-                         snap0->containsCLFIdentity(CLFAlice));
-        bool hasBob = (curr0->containsCLFIdentity(CLFBob) ||
-                       snap0->containsCLFIdentity(CLFBob));
-        CHECK(hasAlice);
-        CHECK(hasBob);
+        {
+            // Alice and bob should be in either curr or snap of level 0
+            auto curr0 = bl.getLevel(0).getCurr();
+            auto snap0 = bl.getLevel(0).getSnap();
+            bool hasAlice = (curr0->containsCLFIdentity(CLFAlice) ||
+                snap0->containsCLFIdentity(CLFAlice));
+            bool hasBob = (curr0->containsCLFIdentity(CLFBob) ||
+                snap0->containsCLFIdentity(CLFBob));
+            CHECK(hasAlice);
+            CHECK(hasBob);
+        }
 
         // Alice and Bob should never occur in level 1 .. N because they
         // were shadowed in level 0 continuously.
