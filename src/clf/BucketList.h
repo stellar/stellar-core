@@ -239,7 +239,7 @@ class Application;
  * merged in sorted order, and all elements are hashed while being added.
  */
 
-class Bucket
+class Bucket : public std::enable_shared_from_this<Bucket>
 {
 
   private:
@@ -274,6 +274,7 @@ class Bucket
     uint256 const& getHash() const;
     std::string const& getFilename() const;
     bool isSpilledToFile() const;
+    bool containsCLFIdentity(CLFEntry const& id) const;
 
     static std::shared_ptr<Bucket>
     fresh(std::string const& tmpDir,
@@ -283,7 +284,9 @@ class Bucket
     static std::shared_ptr<Bucket>
     merge(std::string const& tmpDir,
           std::shared_ptr<Bucket> const& oldBucket,
-          std::shared_ptr<Bucket> const& newBucket);
+          std::shared_ptr<Bucket> const& newBucket,
+          std::vector<std::shared_ptr<Bucket>> const& shadows =
+          std::vector<std::shared_ptr<Bucket>>());
 };
 
 class BucketLevel
@@ -296,11 +299,12 @@ class BucketLevel
   public:
     BucketLevel(size_t i);
     uint256 getHash() const;
-    Bucket const& getCurr() const;
-    Bucket const& getSnap() const;
+    std::shared_ptr<Bucket> getCurr() const;
+    std::shared_ptr<Bucket> getSnap() const;
     void commit();
     void prepare(Application& app, uint64_t currLedger,
-                 std::shared_ptr<Bucket> snap);
+                 std::shared_ptr<Bucket> snap,
+                 std::vector<std::shared_ptr<Bucket>> const& shadows);
     std::shared_ptr<Bucket> snap();
 };
 

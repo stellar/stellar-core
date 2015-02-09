@@ -41,8 +41,8 @@ TEST_CASE("bucket list", "[clf]")
             for (size_t j = 0; j < bl.numLevels(); ++j)
             {
                 auto const& lev = bl.getLevel(j);
-                auto currSz = lev.getCurr().getEntries().size();
-                auto snapSz = lev.getSnap().getEntries().size();
+                auto currSz = lev.getCurr()->getEntries().size();
+                auto snapSz = lev.getSnap()->getEntries().size();
                 // LOG(DEBUG) << "level " << j
                 //            << " curr=" << currSz
                 //            << " snap=" << snapSz;
@@ -58,6 +58,73 @@ TEST_CASE("bucket list", "[clf]")
     }
 }
 
+TEST_CASE("bucket list shadowing", "[clf]")
+{
+    VirtualClock clock;
+    Config const& cfg = getTestConfig();
+    Application app(clock, cfg);
+    BucketList bl;
+
+    // Alice and Bob change in every iteration.
+    autocheck::generator<AccountEntry> accountGen;
+    auto alice = accountGen(5);
+    auto bob = accountGen(5);
+
+    autocheck::generator<std::vector<LedgerEntry>> liveGen;
+    autocheck::generator<std::vector<LedgerKey>> deadGen;
+    LOG(DEBUG) << "Adding batches to bucket list";
+
+    for (uint64_t i = 1; !app.getMainIOService().stopped() && i < 1200; ++i)
+    {
+        app.crank(false);
+        auto liveBatch = liveGen(5);
+
+        CLFEntry CLFAlice, CLFBob;
+        alice.sequence++;
+        alice.balance++;
+        CLFAlice.entry.type(LIVEENTRY);
+        CLFAlice.entry.liveEntry().type(ACCOUNT);
+        CLFAlice.entry.liveEntry().account() = alice;
+        liveBatch.push_back(CLFAlice.entry.liveEntry());
+
+        bob.sequence++;
+        bob.balance++;
+        CLFBob.entry.type(LIVEENTRY);
+        CLFBob.entry.liveEntry().type(ACCOUNT);
+        CLFBob.entry.liveEntry().account() = bob;
+        liveBatch.push_back(CLFBob.entry.liveEntry());
+
+        bl.addBatch(app, i, liveBatch, deadGen(5));
+        if (i % 100 == 0)
+            LOG(DEBUG) << "Added batch " << i << ", hash=" << binToHex(bl.getHash());
+
+        // Alice and bob should be in either curr or snap of level 0
+        auto curr0 = bl.getLevel(0).getCurr();
+        auto snap0 = bl.getLevel(0).getSnap();
+        bool hasAlice = (curr0->containsCLFIdentity(CLFAlice) ||
+                         snap0->containsCLFIdentity(CLFAlice));
+        bool hasBob = (curr0->containsCLFIdentity(CLFBob) ||
+                       snap0->containsCLFIdentity(CLFBob));
+        CHECK(hasAlice);
+        CHECK(hasBob);
+
+        // Alice and Bob should never occur in level 1 .. N because they
+        // were shadowed in level 0 continuously.
+        for (size_t j = 1; j < bl.numLevels(); ++j)
+        {
+            auto const& lev = bl.getLevel(j);
+            auto curr = lev.getCurr();
+            auto snap = lev.getSnap();
+            bool hasAlice = (curr->containsCLFIdentity(CLFAlice) ||
+                             snap->containsCLFIdentity(CLFAlice));
+            bool hasBob = (curr->containsCLFIdentity(CLFBob) ||
+                           snap->containsCLFIdentity(CLFBob));
+            CHECK(!hasAlice);
+            CHECK(!hasBob);
+        }
+    }
+}
+
 static std::ifstream::pos_type
 fileSize(std::string const& name)
 {
@@ -67,8 +134,6 @@ fileSize(std::string const& name)
 
 TEST_CASE("file-backed buckets", "[clf]")
 {
-    TIMED_FUNC(timerObj);
-
     VirtualClock clock;
     Config const& cfg = getTestConfig();
     Application app(clock, cfg);
