@@ -4,15 +4,34 @@ Installation Instructions
 Build Dependencies
 ==================
 
-- Visual C++ 2015
-- PostgreSQL drivers (optional)
-  download from http://www.postgresql.org/download/windows/
+- Download and install `Visual C++ 2015 CTP 5 version 14.0.22512.0.DP` from http://support.microsoft.com/kb/2967191
+- Download and install PostgreSQL 9.4.1 from http://www.postgresql.org/download/windows/
+  This may be optional in some cases, but you probably want them
+       * Pick a directory for the database
+       * Set an admin password for the database
+       * Accept the default port (5432)
+       * Accept `default` for the locale (not clear if anything depends on this. The `default` locale will presumably depend on your
+         operating system's setting might cause inconsistencies)
+       * Add `c:\Program Files\PostgreSQL\9.4\bin` to the $PATH (else the test
+          will fail to find `libpq.dll`)
+
+  If the installation fails, look into `$TEMP/install-postgresql.log` for hints.
+  
+- Download and install cygwin from https://cygwin.com/install.html
+       * Get cygwin setup to install `Flex` and `Bison`
+       * Add `c:\cygwin\bin` to the end of `$PATH`
+  This is to compile `xdrc`'s `parse.yy` and `scan.ll` which have custom 
+  compilation commands referring to `bison` and `flex` via the `$PATH`
+
 
 Basic Installation
 ==================
 
-- Open the solution Builds\VisualStudio2015
-- pick the target architecture and flavor (e.g. x64, Release)
-- Hit "Build"
+- `git clone ...`
+- `git submodule init`
+- Open the solution Builds\VisualStudio2015\stellarx.sln
+- Visual Studio will offer to upgrade from v120 to v140. Agree.
+- Pick the target architecture and flavor (e.g. x64, Release)
+- Hit "Build Solution (F7)"
 
 

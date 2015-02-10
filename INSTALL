@@ -4,13 +4,17 @@ Installation Instructions
 Build Dependencies
 ==================
 
-- clang with C++11
-- libc++
-- pkg-config
+- `clang` with C++11
+- `libc++`
+- `pkg-config`
+- `bison` and `flex`
 
 Basic Installation
 ==================
 
-  1. Type `./autogen.sh`.
-  2. Type `./configure && make`.
-  3. Type `make install` to install.
+- `git clone ...`
+- `git submodule init`
+- `git submodule update`
+- Type `./autogen.sh`.
+- Type `./configure && make`.
+- Type `make install` to install.
