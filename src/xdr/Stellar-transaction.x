@@ -26,15 +26,17 @@ struct PaymentTx
     opaque sourceMemo<32>;        // used to return a payment
 };
 
+// Create an offer to sell amountSell of currency "sell"
+// in exchange to buy amountBuy of currency "buy"
 struct CreateOfferTx
 {
-    Currency takerGets;
-    Currency takerPays;
-    int64 amount;        // amount taker gets
-    int64 price;        // =takerPaysAmount/takerGetsAmount
+    Currency sell;
+    int64 amountSell;
+
+    Currency buy;
+    int64 amountBuy;
 
     uint32 sequence;    // set if you want to change an existing offer
-    uint32 flags;    // passive: only take offers that cross this. not offers that match it
 };
 
 struct SetOptionsTx

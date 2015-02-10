@@ -143,7 +143,7 @@ TEST_CASE("payment", "[tx][payment]")
         {
             LOG(INFO) << "with trust";
 
-            applyTrust(app, a1, root, 1, "IDR");
+            applyChangeTrust(app, a1, root, 1, "IDR", 1000);
             applyCreditPaymentTx(app, root, a1, currency, 2, 100);
 
             TrustFrame line;
@@ -152,7 +152,7 @@ TEST_CASE("payment", "[tx][payment]")
 
             // create b1 account
             applyPaymentTx(app,root, b1, 3, paymentAmount);
-            applyTrust(app,b1, root, 1, "IDR");
+            applyChangeTrust(app,b1, root, 1, "IDR", 100);
             applyCreditPaymentTx(app,a1, b1, currency, 2, 40);
                
             REQUIRE(TrustFrame::loadTrustLine(a1.getPublicKey(), currency, line, app.getDatabase()));

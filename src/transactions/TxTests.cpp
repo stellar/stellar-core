@@ -42,7 +42,8 @@ SecretKey getAccount(const char* n)
     return SecretKey::fromBase58Seed(b58SeedStr);
 }
 
-TransactionFramePtr setTrust(SecretKey& from, SecretKey& to, uint32_t seq, const std::string& currencyCode)
+TransactionFramePtr createChangeTrust(SecretKey& from, SecretKey& to, uint32_t seq,
+    const std::string& currencyCode, int64_t limit)
 {
     TransactionEnvelope txEnvelope;
     txEnvelope.tx.body.type(CHANGE_TRUST);
@@ -51,7 +52,7 @@ TransactionFramePtr setTrust(SecretKey& from, SecretKey& to, uint32_t seq, const
     txEnvelope.tx.maxLedger = 1000;
     txEnvelope.tx.minLedger = 0;
     txEnvelope.tx.seqNum = seq;
-    txEnvelope.tx.body.changeTrustTx().limit = 1000000;
+    txEnvelope.tx.body.changeTrustTx().limit = limit;
     txEnvelope.tx.body.changeTrustTx().line.type(ISO4217);
     strToCurrencyCode(txEnvelope.tx.body.changeTrustTx().line.isoCI().currencyCode,currencyCode);
     txEnvelope.tx.body.changeTrustTx().line.isoCI().issuer = to.getPublicKey();
@@ -95,11 +96,12 @@ void applyPaymentTx(Application& app, SecretKey& from, SecretKey& to, uint32_t s
     REQUIRE(Payment::getInnerCode(txFrame->getResult()) == result);
 }
 
-void applyTrust(Application& app, SecretKey& from, SecretKey& to, uint32_t seq, const std::string& currencyCode, ChangeTrust::ChangeTrustResultCode result)
+void applyChangeTrust(Application& app, SecretKey& from, SecretKey& to, uint32_t seq,
+    const std::string& currencyCode, int64_t limit, ChangeTrust::ChangeTrustResultCode result)
 {
     TransactionFramePtr txFrame;
 
-    txFrame = setTrust(from, to, seq, currencyCode);
+    txFrame = createChangeTrust(from, to, seq, currencyCode, limit);
 
     LedgerDelta delta;
     txFrame->apply(delta, app);
@@ -150,8 +152,8 @@ void applyCreditPaymentTx(Application& app, SecretKey& from, SecretKey& to, Curr
     REQUIRE(Payment::getInnerCode(txFrame->getResult()) == result);
 }
 
-TransactionFramePtr createOfferTx(SecretKey& source, Currency& takerGets,
-    Currency& takerPays, uint64_t price, int64_t amount, uint32_t seq)
+TransactionFramePtr createOfferTx(SecretKey& source, Currency& sell, int64_t amountSell,
+    Currency& buy, int64_t amountBuy, uint32_t seq)
 {
     TransactionEnvelope txEnvelope;
     txEnvelope.tx.body.type(CREATE_OFFER);
@@ -160,10 +162,12 @@ TransactionFramePtr createOfferTx(SecretKey& source, Currency& takerGets,
     txEnvelope.tx.maxLedger = 1000;
     txEnvelope.tx.minLedger = 0;
     txEnvelope.tx.seqNum = seq;
-    txEnvelope.tx.body.createOfferTx().amount = amount;
-    txEnvelope.tx.body.createOfferTx().takerGets = takerGets;
-    txEnvelope.tx.body.createOfferTx().takerPays = takerPays;
-    txEnvelope.tx.body.createOfferTx().price = price;
+    txEnvelope.tx.body.createOfferTx().sell = sell;
+    txEnvelope.tx.body.createOfferTx().amountSell = amountSell;
+
+    txEnvelope.tx.body.createOfferTx().buy = buy;
+    txEnvelope.tx.body.createOfferTx().amountBuy = amountBuy;
+
     txEnvelope.tx.body.createOfferTx().sequence = seq;
 
     TransactionFramePtr res = TransactionFrame::makeTransactionFromWire(txEnvelope);
@@ -173,12 +177,12 @@ TransactionFramePtr createOfferTx(SecretKey& source, Currency& takerGets,
     return res;
 }
 
-void applyOffer(Application& app, SecretKey& source, Currency& takerGets,
-    Currency& takerPays, uint64_t price, int64_t amount, uint32_t seq, CreateOffer::CreateOfferResultCode result)
+void applyOffer(Application& app, SecretKey& source, Currency& sell, int64_t amountSell,
+    Currency& buy, int64_t amountBuy, uint32_t seq, CreateOffer::CreateOfferResultCode result)
 {
     TransactionFramePtr txFrame;
 
-    txFrame = createOfferTx(source, takerGets,takerPays,price,amount, seq);
+    txFrame = createOfferTx(source, sell,amountSell, buy, amountBuy, seq);
 
     LedgerDelta delta;
     txFrame->apply(delta, app);

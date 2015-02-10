@@ -48,19 +48,17 @@ struct TrustLineEntry
     bool authorized;  // if the issuer has authorized this guy to hold its credit
 };
 
-// selling 10A @ 2B/A
+// selling 10A for 15B
 struct OfferEntry
 {
     uint256 accountID;
     uint32 sequence;
-    Currency takerGets;  // A
-    Currency takerPays;  // B
-    int64 amount;    // amount of A
-    int64 price;    // price of A in terms of B
-                    // price*10,000,000
-                    // price=AmountB/AmountA
-                    // price is after fees
-    int32 flags;
+
+    Currency sell;       // A
+    int64 amountSell;    // amount of A for sale
+
+    Currency buy;       // B
+    int64 amountBuy;    // amount of B seller wants
 };
 
 union LedgerEntry switch (LedgerEntryType type)

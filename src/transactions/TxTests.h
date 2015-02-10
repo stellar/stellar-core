@@ -14,11 +14,11 @@ SecretKey getRoot();
 
 SecretKey getAccount(const char* n);
 
-TransactionFramePtr setTrust(SecretKey& from, SecretKey& to, uint32_t seq,
-    const std::string& currencyCode);
+TransactionFramePtr createChangeTrust(SecretKey& from, SecretKey& to, uint32_t seq,
+    const std::string& currencyCode, int64_t limit);
 
-void applyTrust(Application& app, SecretKey& from, SecretKey& to, uint32_t seq,
-    const std::string& currencyCode, ChangeTrust::ChangeTrustResultCode result = ChangeTrust::SUCCESS);
+void applyChangeTrust(Application& app, SecretKey& from, SecretKey& to, uint32_t seq,
+    const std::string& currencyCode, int64_t limit, ChangeTrust::ChangeTrustResultCode result = ChangeTrust::SUCCESS);
 
 TransactionFramePtr createPaymentTx(SecretKey& from, SecretKey& to, uint32_t seq, int64_t amount);
 
@@ -31,11 +31,11 @@ TransactionFramePtr createCreditPaymentTx(SecretKey& from, SecretKey& to, Curren
 void applyCreditPaymentTx(Application& app, SecretKey& from, SecretKey& to,
     Currency& ci, uint32_t seq, int64_t amount, Payment::PaymentResultCode result = Payment::SUCCESS);
 
-TransactionFramePtr createOfferTx(SecretKey& source, Currency& takerGets, 
-    Currency& takerPays, uint64_t price,int64_t amount, uint32_t seq);
+TransactionFramePtr createOfferTx(SecretKey& source, Currency& sell, int64_t amountSell,
+    Currency& buy, int64_t amountBuy, uint32_t seq);
 
-void applyOffer(Application& app, SecretKey& source, Currency& takerGets,
-    Currency& takerPays, uint64_t price, int64_t amount, uint32_t seq, CreateOffer::CreateOfferResultCode result=CreateOffer::SUCCESS);
+void applyOffer(Application& app, SecretKey& source, Currency& sell, int64_t amountSell,
+    Currency& buy, int64_t amountBuy, uint32_t seq, CreateOffer::CreateOfferResultCode result=CreateOffer::SUCCESS);
 
 TransactionFramePtr createSetOptions(SecretKey& source, AccountID *inflationDest,
     uint32_t *setFlags, uint32_t *clearFlags, KeyValue *data,

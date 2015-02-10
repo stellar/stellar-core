@@ -17,8 +17,8 @@ namespace stellar
         int64_t maxWheatReceived, int64_t& numWheatReceived,
         int64_t maxSheepSend, int64_t& numSheepSend)
     {
-        Currency& sheep = sellingWheatOffer.mEntry.offer().takerPays;
-        Currency& wheat = sellingWheatOffer.mEntry.offer().takerGets;
+        Currency& sheep = sellingWheatOffer.mEntry.offer().buy;
+        Currency& wheat = sellingWheatOffer.mEntry.offer().sell;
         uint256& accountBID = sellingWheatOffer.mEntry.offer().accountID;
 
         Database &db = mLedgerMaster.getDatabase();
@@ -67,34 +67,29 @@ namespace stellar
             numWheatReceived = maxWheatReceived;
         }
 
-        if (numWheatReceived >= sellingWheatOffer.mEntry.offer().amount)
+        if (numWheatReceived >= sellingWheatOffer.mEntry.offer().amountSell)
         {
-            numWheatReceived = sellingWheatOffer.mEntry.offer().amount;
+            numWheatReceived = sellingWheatOffer.getSellAmount();
         }
         else
         {
             // update the offer based on the balance (to determine if it should be deleted or not)
             // note that we don't need to write into the db at this point as the actual update
             // is done further down
-            sellingWheatOffer.mEntry.offer().amount = numWheatReceived;
+            sellingWheatOffer.adjustSellAmount(numWheatReceived);
         }
 
-        // TODO: there are a bunch of rounding modes here
-        // this should be simplified as it may create situations where an offer
-        // can never be completely taken and sticks around (for example)
-
         // this guy can get X wheat to you. How many sheep does that get him?
-        numSheepSend = bigDivide(numWheatReceived, sellingWheatOffer.mEntry.offer().price, OFFER_PRICE_DIVISOR);
+        numSheepSend = sellingWheatOffer.getBuyAmount();
 
         if (numSheepSend > maxSheepSend)
         {
-            // reduce the number even more if there is a limit on Sheep
-            numWheatReceived = bigDivide(maxSheepSend, OFFER_PRICE_DIVISOR, sellingWheatOffer.mEntry.offer().price);
-
-            numSheepSend = bigDivide(numWheatReceived, sellingWheatOffer.mEntry.offer().price, OFFER_PRICE_DIVISOR);
-
-            assert(numSheepSend <= maxSheepSend);
+            numSheepSend = maxSheepSend;
         }
+        // bias towards seller
+        numWheatReceived = bigDivide(
+            numSheepSend, sellingWheatOffer.getSellAmount(),
+            sellingWheatOffer.getBuyAmount());
 
         if (numWheatReceived == 0 || numSheepSend == 0)
         {
@@ -102,7 +97,8 @@ namespace stellar
             return eOfferCantConvert;
         }
 
-        bool offerTaken = sellingWheatOffer.mEntry.offer().amount <= numWheatReceived;
+        bool offerTaken = sellingWheatOffer.getSellAmount() <= numWheatReceived ||
+            sellingWheatOffer.getBuyAmount() <= numSheepSend;
         if (offerTaken)
         {   // entire offer is taken
             sellingWheatOffer.storeDelete(mDelta, db);
@@ -111,7 +107,8 @@ namespace stellar
         }
         else
         {
-            sellingWheatOffer.mEntry.offer().amount -= numWheatReceived;
+            sellingWheatOffer.mEntry.offer().amountSell -= numWheatReceived;
+            sellingWheatOffer.mEntry.offer().amountBuy -= numSheepSend;
             sellingWheatOffer.storeChange(mDelta, db);
         }
 

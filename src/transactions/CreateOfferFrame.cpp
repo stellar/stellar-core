@@ -25,8 +25,8 @@ CreateOfferFrame::CreateOfferFrame(const TransactionEnvelope& envelope) : Transa
 // make sure these issuers exist and you can hold the ask currency
 bool CreateOfferFrame::checkOfferValid(Database &db)
 {
-    Currency& sheep = mEnvelope.tx.body.createOfferTx().takerGets;
-    Currency& wheat = mEnvelope.tx.body.createOfferTx().takerPays;
+    Currency& sheep = mEnvelope.tx.body.createOfferTx().sell;
+    Currency& wheat = mEnvelope.tx.body.createOfferTx().buy;
 
     if (sheep.type() != NATIVE)
     {
@@ -76,8 +76,8 @@ bool CreateOfferFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
     {
         return false;
     }
-    Currency& sheep = mEnvelope.tx.body.createOfferTx().takerGets;
-    Currency& wheat = mEnvelope.tx.body.createOfferTx().takerPays;
+    Currency& sheep = mEnvelope.tx.body.createOfferTx().sell;
+    Currency& wheat = mEnvelope.tx.body.createOfferTx().buy;
 
     bool creatingNewOffer = false;
     uint32_t offerSeq = mEnvelope.tx.body.createOfferTx().sequence;
@@ -94,8 +94,8 @@ bool CreateOfferFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
         if(OfferFrame::loadOffer(mEnvelope.tx.account, offerSeq, mSellSheepOffer, db))
         {
             // make sure the currencies are the same
-            if(!compareCurrency(mEnvelope.tx.body.createOfferTx().takerGets, mSellSheepOffer.mEntry.offer().takerGets) ||
-                !compareCurrency(mEnvelope.tx.body.createOfferTx().takerPays, mSellSheepOffer.mEntry.offer().takerPays))
+            if(!compareCurrency(mEnvelope.tx.body.createOfferTx().sell, mSellSheepOffer.mEntry.offer().sell) ||
+                !compareCurrency(mEnvelope.tx.body.createOfferTx().buy, mSellSheepOffer.mEntry.offer().buy))
             {
                 innerResult().result.code(CreateOffer::MALFORMED);
                 return false;
@@ -107,7 +107,7 @@ bool CreateOfferFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
         }
     }
 
-    int64_t maxSheepSend = mEnvelope.tx.body.createOfferTx().amount;
+    int64_t maxSheepSend = mEnvelope.tx.body.createOfferTx().amountSell;
 
     int64_t maxAmountOfSheepCanSell;
     if (sheep.type() == NATIVE)
@@ -127,8 +127,17 @@ bool CreateOfferFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
         maxSheepSend = maxAmountOfSheepCanSell;
     }
 
-    int64_t sheepPrice = mEnvelope.tx.body.createOfferTx().price;
+    // XXXXXXXXXXX TODO don't use price here
+
+    int64_t sheepPrice = bigDivide(mEnvelope.tx.body.createOfferTx().amountBuy,
+        OFFER_PRICE_DIVISOR, mEnvelope.tx.body.createOfferTx().amountSell);
     
+    // adjust offer
+    if (mSellSheepOffer.mEntry.offer().amountSell != maxSheepSend)
+    {
+        mSellSheepOffer.adjustSellAmount(maxSheepSend);
+    }
+
     {
         soci::transaction sqlTx(db.getSession());
         LedgerDelta tempDelta;
@@ -212,14 +221,13 @@ bool CreateOfferFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
         }
 
         // recomputes the amount of sheep for sale
-        mSellSheepOffer.mEntry.offer().amount = maxSheepSend - sheepSent;
+        mSellSheepOffer.adjustSellAmount(mSellSheepOffer.mEntry.offer().amountSell - sheepSent);
 
-        int64_t minAmount = 0;
-        {
-            // TODO: compute the minimum amount that can be represented in an offer
-        }
+        // or do they wanted to buy some amount?
+        // mSellSheepOffer.adjustBuyAmount(mSellSheepOffer.mEntry.offer().amountBuy - wheatReceived);
 
-        if (mSellSheepOffer.mEntry.offer().amount > minAmount)
+        if (mSellSheepOffer.mEntry.offer().amountSell > 0 &&
+            mSellSheepOffer.mEntry.offer().amountBuy > 0)
         { // we still have sheep to sell so leave an offer
 
             if (creatingNewOffer)
@@ -260,8 +268,8 @@ bool CreateOfferFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
 // makes sure the currencies are different 
 bool CreateOfferFrame::doCheckValid(Application& app)
 {
-    Currency& sheep = mEnvelope.tx.body.createOfferTx().takerGets;
-    Currency& wheat = mEnvelope.tx.body.createOfferTx().takerPays;
+    Currency& sheep = mEnvelope.tx.body.createOfferTx().sell;
+    Currency& wheat = mEnvelope.tx.body.createOfferTx().buy;
     if (compareCurrency(sheep, wheat))
     {
         return false;
@@ -269,6 +277,5 @@ bool CreateOfferFrame::doCheckValid(Application& app)
     
     return true;
 }
-
 
 }
