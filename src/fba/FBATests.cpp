@@ -3,8 +3,6 @@
 // this distribution or at http://opensource.org/licenses/ISC
 #include "util/asio.h"
 
-#include "util/asio.h"
-
 #include "lib/catch.hpp"
 #include "fba/FBA.h"
 #include "util/types.h"
