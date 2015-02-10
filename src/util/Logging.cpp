@@ -74,4 +74,41 @@ Logging::setLogLevel(el::Level level, const char* partition)
     else
         el::Loggers::reconfigureAllLoggers(config);
 }
+
+// default "info" if unrecognized
+el::Level Logging::getLLfromString(const char* ll)
+{
+    if(_stricmp(ll, "trace") == 0)
+    {
+        return el::Level::Trace;
+    }
+
+    if(_stricmp(ll, "debug") == 0)
+    {
+        return el::Level::Debug;
+    }
+
+    if(_stricmp(ll, "warning") == 0)
+    {
+        return el::Level::Warning;
+    }
+
+    if(_stricmp(ll, "fatal") == 0)
+    {
+        return el::Level::Fatal;
+    }
+
+    if(_stricmp(ll, "error") == 0)
+    {
+        return el::Level::Error;
+    }
+
+    if(_stricmp(ll, "none") == 0)
+    {
+        return el::Level::Unknown;
+    }
+
+    return el::Level::Info;
+}
+
 }
