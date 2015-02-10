@@ -53,9 +53,7 @@ TransactionFrame::pointer TransactionFrame::makeTransactionFromWire(TransactionE
     default:
         CLOG(WARNING, "Tx") << "Unknown Tx type: " << msg.tx.body.type();
     }
-    //mSignature = msg.signature;
 
-	// SANITY check sig
     return TransactionFrame::pointer();
 }
 
@@ -89,26 +87,8 @@ TransactionFrame::getEnvelope()
 }
 
 
-/*
-// returns true if this account can hold this currency
-bool Transaction::isAuthorizedToHold(const AccountEntry& account, 
-    const CurrencyIssuer& ci, LedgerMaster& ledgerMaster)
-{
-    LedgerEntry issuer;
-    if(ledgerMaster.getDatabase().loadAccount(ci.issuer,issuer))
-    {
-        if(issuer.account().flags && AccountEntry::AUTH_REQUIRED_FLAG)
-        {
-
-        } else return true;
-    } else return false;
-}
-*/
-    
-
 bool TransactionFrame::preApply(LedgerDelta& delta,LedgerMaster& ledgerMaster)
 {
-
     Database &db = ledgerMaster.getDatabase();
     int32_t fee = ledgerMaster.getTxFee();
 
@@ -134,9 +114,6 @@ bool TransactionFrame::preApply(LedgerDelta& delta,LedgerMaster& ledgerMaster)
 
 bool TransactionFrame::apply(LedgerDelta& delta, Application& app)
 {
-    // clear it in case it has change in the meantime
-    mSigningAccount = AccountFrame::pointer();
-
     bool res;
 
     mResult.body.code(txINTERNAL_ERROR);
@@ -231,21 +208,16 @@ bool TransactionFrame::checkSignature()
 bool TransactionFrame::loadAccount(Application& app)
 {
     bool res;
-    if (!mSigningAccount)
+    // OPTIMIZE: we could cache the AccountFrames so we don't have to 
+    //   keep looking them up for every tx
+    AccountFrame::pointer account = make_shared<AccountFrame>();
+    res = AccountFrame::loadAccount(mEnvelope.tx.account,
+        *account, app.getDatabase(), true);
+    if (res)
     {
-        AccountFrame::pointer account = make_shared<AccountFrame>();
-        res = AccountFrame::loadAccount(mEnvelope.tx.account,
-            *account, app.getDatabase(), true);
-
-        if (res)
-        {
-            mSigningAccount = account;
-        }
-    }
-    else
-    {
-        res = true;
-    }
+        mSigningAccount = account;
+    } else mSigningAccount = AccountFrame::pointer();
+   
     return res;
 }
 

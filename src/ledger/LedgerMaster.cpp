@@ -38,6 +38,7 @@ catching up to network:
     // TODO.1 need to make sure the CLF and the SQL Ledger are in sync on start up
     // TODO.1 make sure you validate incoming Deltas to see that it gives you the CLF you want
     // TODO.3 do we need to store some validation history?
+    // TODO.2 flag to set logging level when you startup. default to info
 
 */
 namespace stellar
@@ -173,10 +174,6 @@ void LedgerMaster::startCatchUp()
     mApp.setState(Application::CATCHING_UP_STATE);
 
 }
-
-
-// TODO.1 need to clean up the caches somehow
-// Make global tx cache for FBA closing
 
 void LedgerMaster::closeLedger(TxSetFramePtr txSet)
 {
