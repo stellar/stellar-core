@@ -112,15 +112,16 @@ CommandHandler::connect(const std::string& params, std::string& retStr)
 void
 CommandHandler::tx(const std::string& params, std::string& retStr)
 {
-    std::string blob = params.substr(4);
-    if(blob.size())
+    const std::string prefix("?blob=");
+    if (params.compare(0, prefix.size(), prefix) == 0)
     {
-        retStr = "Submitting Transaction...";
-        std::vector<uint8_t> binBlob=hexToBin(blob);
-
         TransactionEnvelope envelope;
         try
         {
+            std::string blob = params.substr(prefix.size());
+            retStr = "Submitting Transaction...";
+            std::vector<uint8_t> binBlob = hexToBin(blob);
+
             xdr::xdr_from_opaque(binBlob, envelope);
             TransactionFramePtr transaction =
                 TransactionFrame::makeTransactionFromWire(envelope);
@@ -137,13 +138,19 @@ CommandHandler::tx(const std::string& params, std::string& retStr)
                 }
             }
         }
+        catch (std::exception &e)
+        {
+            retStr = "Error : ";
+            retStr += e.what();
+        }
         catch(...)
         {
-            
+            retStr = "Error: generic";
         }
-    } else
+    }
+    else
     {
-        retStr = "Must specify a xt blob: submit&tx=<tx in xdr format>";
+        retStr = "Must specify a tx blob: tx?blob=<tx in xdr format>";
     }
 }
 }

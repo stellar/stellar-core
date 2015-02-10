@@ -55,7 +55,7 @@ usage(int err = 1)
           "                logrotate\n"
           "                peers\n"
           "                connect?ip=5.5.5.5&port=3424\n"
-          "                tx?tx_json='blah'\n"
+          "                tx?blob=TX_IN_HEX\n"
           "      --conf FILE   To specify a config file (default "
           "stellard.cfg)\n";
     exit(err);
