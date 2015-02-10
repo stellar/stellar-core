@@ -134,6 +134,9 @@ bool TransactionFrame::preApply(LedgerDelta& delta,LedgerMaster& ledgerMaster)
 
 bool TransactionFrame::apply(LedgerDelta& delta, Application& app)
 {
+    // clear it in case it has change in the meantime
+    mSigningAccount = AccountFrame::pointer();
+
     bool res;
 
     mResult.body.code(txINTERNAL_ERROR);

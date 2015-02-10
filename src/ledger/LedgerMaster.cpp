@@ -174,6 +174,10 @@ void LedgerMaster::startCatchUp()
 
 }
 
+
+// TODO.1 need to clean up the caches somehow
+// Make global tx cache for FBA closing
+
 void LedgerMaster::closeLedger(TxSetFramePtr txSet)
 {
     TxSetFrame successfulTX;

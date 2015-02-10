@@ -4,6 +4,7 @@
 - seq numbers 
 	- top byte is the slot so we have 256 slots 
 - what to do about inner ledger arbitrage?
+	- maybe solved by validators delaying what look to be arbitrage transactions
 - should we make payments that go through the same orderbook in the same ledger cross each other?
 	- this will make things way more complicated but could potentially increase the liquidity a lot.
 - Is this really the way we want to do paths/offers?
