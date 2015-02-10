@@ -90,7 +90,7 @@ void
 TxSetFrame::sortForApply(vector<TransactionFramePtr>& retList)
 {
     vector< vector<TransactionFramePtr>> txLevels(4);
-    map<uint256, int > accountTxCountMap;
+    map<uint256, size_t > accountTxCountMap;
     retList = mTransactions;
     // sort all the txs by seqnum
     std::sort(retList.begin(), retList.end(), SeqSorter());
