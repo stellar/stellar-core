@@ -7,6 +7,7 @@
 #include "main/Application.h"
 #include "main/Config.h"
 #include "main/test.h"
+#include "crypto/Hex.h"
 #include "util/Logging.h"
 #include "util/Timer.h"
 #include "lib/catch.hpp"
@@ -48,13 +49,37 @@ TEST_CASE("postgres smoketest", "[db]")
 
         auto& sql = app.getDatabase().getSession();
 
-        sql << "drop table if exists test";
-        sql << "create table test (x integer)";
-        sql << "insert into test (x) values (:aa)", soci::use(a, "aa");
-        sql << "select x from test", soci::into(b);
+        SECTION("round trip")
+        {
+            sql << "drop table if exists test";
+            sql << "create table test (x integer)";
+            sql << "insert into test (x) values (:aa)", soci::use(a, "aa");
+            sql << "select x from test", soci::into(b);
+            CHECK(a == b);
+            LOG(DEBUG) << "round trip with postgresql database: " << a << " == " << b;
+        }
 
-        CHECK(a == b);
-        LOG(DEBUG) << "round trip with postgresql database: " << a << " == " << b;
+        SECTION("blob storage")
+        {
+            soci::transaction tx(sql);
+            std::vector<uint8_t> x = { 0, 1, 2, 3, 4, 5, 6}, y;
+            soci::blob blobX(sql);
+            blobX.append(reinterpret_cast<char const*>(x.data()), x.size());
+            sql << "drop table if exists test";
+            sql << "create table test (a integer, b oid)";
+            sql << "insert into test (a, b) values (:aa, :bb)",
+                soci::use(a, "aa"), soci::use(blobX, "bb");
+
+            soci::blob blobY(sql);
+            sql << "select a, b from test", soci::into(b), soci::into(blobY);
+            y.resize(blobY.get_len());
+            blobY.read(0, reinterpret_cast<char*>(y.data()), y.size());
+            CHECK(x == y);
+            LOG(DEBUG) << "blob round trip with postgresql database: "
+                       << binToHex(x) << " == " << binToHex(y);
+            tx.commit();
+        }
+
     }
     catch(soci::soci_error& err)
     {

@@ -48,6 +48,7 @@ postgresql_session_backend::postgresql_session_backend(
     }
 
     conn_ = conn;
+    transactionLevel_ = 0;
 }
 
 postgresql_session_backend::~postgresql_session_backend()
@@ -68,16 +69,19 @@ void hard_exec(PGconn * conn, char const * query, char const * errMsg)
 
 void postgresql_session_backend::begin()
 {
+    ++transactionLevel_;
     hard_exec(conn_, "BEGIN", "Cannot begin transaction.");
 }
 
 void postgresql_session_backend::commit()
 {
+    --transactionLevel_;
     hard_exec(conn_, "COMMIT", "Cannot commit transaction.");
 }
 
 void postgresql_session_backend::rollback()
 {
+    --transactionLevel_;
     hard_exec(conn_, "ROLLBACK", "Cannot rollback transaction.");
 }
 
@@ -105,6 +109,7 @@ void postgresql_session_backend::clean_up()
         PQfinish(conn_);
         conn_ = 0;
     }
+    transactionLevel_ = 0;
 }
 
 std::string postgresql_session_backend::get_next_statement_name()
