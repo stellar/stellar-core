@@ -32,7 +32,7 @@ TEST_CASE("standalone", "[hrd]")
     SIMULATION_CREATE_NODE(0);
 
     Config cfg(getTestConfig());
-    
+
     cfg.RUN_STANDALONE = true;
     cfg.VALIDATION_KEY = v0SecretKey;
     cfg.START_NEW_NETWORK = true;
@@ -49,13 +49,13 @@ TEST_CASE("standalone", "[hrd]")
     SecretKey root = getRoot();
     SecretKey a1 = getAccount("A");
 
-    const uint64_t paymentAmount = 
+    const uint64_t paymentAmount =
         (uint64_t)app.getLedgerMaster().getMinBalance(0);
 
     AccountFrame rootAccount;
     REQUIRE(AccountFrame::loadAccount(
         root.getPublicKey(), rootAccount, app.getDatabase()));
-    
+
     SECTION("basic ledger close on valid tx")
     {
         bool stop = false;
@@ -85,7 +85,7 @@ TEST_CASE("standalone", "[hrd]")
         setupTimer.expires_from_now(std::chrono::seconds(0));
         setupTimer.async_wait(setup);
 
-        checkTimer.expires_from_now(std::chrono::seconds(2));
+        checkTimer.expires_from_now(std::chrono::seconds(5));
         checkTimer.async_wait(check);
 
         while(!stop && app.crank(false) > 0);
