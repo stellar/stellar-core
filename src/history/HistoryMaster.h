@@ -169,6 +169,19 @@ class HistoryMaster
                             std::function<void(asio::error_code const&,
                                                std::shared_ptr<T>)> handler);
 
+  public:
+
+    void verifyHash(std::string const& filename,
+                    uint256 const& hash,
+                    std::function<void(asio::error_code const&)> handler);
+
+    void decompress(std::string const& filename_gz,
+                    std::function<void(asio::error_code const&)> handler);
+
+    void compress(std::string const& filename_nogz,
+                  std::function<void(asio::error_code const&)> handler);
+
+
     void putFile(std::string const& filename,
                  std::string const& basename,
                  std::function<void(asio::error_code const&)> handler);

@@ -7,6 +7,7 @@
 #include "history/HistoryArchive.h"
 #include "main/test.h"
 #include "main/Config.h"
+#include "crypto/Hex.h"
 #include "lib/catch.hpp"
 #include "util/Logging.h"
 #include "util/Timer.h"
@@ -131,7 +132,71 @@ TEST_CASE("Archive and reload bucket", "[history]")
 #endif
 
 
-TEST_CASE("HistoryArchiveParams::save", "[history]")
+TEST_CASE("HistoryMaster::compress", "[history]")
+{
+    std::string s = "hello there";
+    VirtualClock clock;
+    Config cfg = getTestConfig();
+    Application app(clock, cfg);
+    HistoryMaster &hm = app.getHistoryMaster();
+    std::string fname = hm.localFilename("compressme");
+    {
+        std::ofstream out(fname, std::ofstream::binary);
+        out.write(s.data(), s.size());
+    }
+    bool done = false;
+    hm.compress(
+        fname,
+        [&done, &fname, &hm](asio::error_code const& ec)
+        {
+            std::string compressed = fname + ".gz";
+            CHECK(!TmpDir::exists(fname));
+            CHECK(TmpDir::exists(compressed));
+            hm.decompress(
+                compressed,
+                [&done, &fname, &compressed](asio::error_code const& ec)
+                {
+                    CHECK(TmpDir::exists(fname));
+                    CHECK(!TmpDir::exists(compressed));
+                    done = true;
+                });
+        });
+    while (!done && !app.getMainIOService().stopped())
+    {
+        app.crank();
+    }
+}
+
+
+TEST_CASE("HistoryMaster::verifyHash", "[history]")
+{
+    std::string s = "hello there";
+    VirtualClock clock;
+    Config cfg = getTestConfig();
+    Application app(clock, cfg);
+    HistoryMaster &hm = app.getHistoryMaster();
+    std::string fname = hm.localFilename("hashme");
+    {
+        std::ofstream out(fname, std::ofstream::binary);
+        out.write(s.data(), s.size());
+    }
+    bool done = false;
+    uint256 hash = hexToBin256("cb6980c876a1ecf3234867ef058206842267f67685bf9a03693748e5b87f0d0a");
+    hm.verifyHash(
+        fname, hash,
+        [&done](asio::error_code const& ec)
+        {
+            CHECK(!ec);
+            done = true;
+        });
+
+    while (!done && !app.getMainIOService().stopped())
+    {
+        app.crank();
+    }
+}
+
+
 TEST_CASE("HistoryArchiveState::get_put", "[history]")
 {
     VirtualClock clock;

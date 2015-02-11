@@ -16,6 +16,8 @@
 #include "util/make_unique.h"
 #include "util/Logging.h"
 #include "util/TmpDir.h"
+#include "crypto/SHA.h"
+#include "crypto/Hex.h"
 #include "lib/util/format.h"
 
 #include "xdrpp/marshal.h"
@@ -129,7 +131,7 @@ HistoryMaster::saveAndCompressAndPut(string const& basename,
         });
 }
 
-void
+static void
 checkGzipSuffix(string const& filename)
 {
     string suf(".gz");
@@ -138,6 +140,100 @@ checkGzipSuffix(string const& filename)
     {
         throw runtime_error("filename does not end in .gz");
     }
+}
+
+static void
+checkNoGzipSuffix(string const& filename)
+{
+    string suf(".gz");
+    if (filename.size() >= suf.size() &&
+        equal(suf.rbegin(), suf.rend(), filename.rbegin()))
+    {
+        throw runtime_error("filename ends in .gz");
+    }
+}
+
+
+void
+HistoryMaster::verifyHash(std::string const& filename,
+                          uint256 const& hash,
+                          std::function<void(asio::error_code const&)> handler)
+{
+    checkNoGzipSuffix(filename);
+    Application& app = this->mImpl->mApp;
+    app.getWorkerIOService().post(
+        [&app, filename, handler, hash]()
+        {
+            SHA512_256 hasher;
+            char buf[4096];
+            ifstream in(filename, ofstream::binary);
+            while (in)
+            {
+                in.read(buf, sizeof(buf));
+                hasher.add(ByteSlice(buf, in.gcount()));
+            }
+            uint256 vHash = hasher.finish();
+            asio::error_code ec;
+            if (vHash == hash)
+            {
+                LOG(DEBUG) << "Verified hash ("
+                           << hexAbbrev(hash)
+                           << ") for " << filename;
+            }
+            else
+            {
+                LOG(WARNING) << "FAILED verifying hash for " << filename;
+                ec = std::make_error_code(std::errc::io_error);
+            }
+            app.getMainIOService().post([ec, handler]() { handler(ec); });
+        });
+}
+
+void
+HistoryMaster::decompress(std::string const& filename_gz,
+                          std::function<void(asio::error_code const&)> handler)
+{
+    checkGzipSuffix(filename_gz);
+    Application& app = this->mImpl->mApp;
+    auto exit = app.getProcessGateway().runProcess("gunzip " + filename_gz);
+    exit.async_wait(
+        [&app, filename_gz, handler](asio::error_code const& ec)
+        {
+            std::string filename = filename_gz.substr(0, filename_gz.size() - 3);
+            if (ec)
+            {
+                LOG(WARNING) << "'gunzip " << filename_gz << "' failed,"
+                             << " removing " << filename_gz
+                             << " and " << filename;
+                std::remove(filename_gz.c_str());
+                std::remove(filename.c_str());
+            }
+            handler(ec);
+        });
+}
+
+
+void
+HistoryMaster::compress(std::string const& filename_nogz,
+                        std::function<void(asio::error_code const&)> handler)
+{
+    checkNoGzipSuffix(filename_nogz);
+    Application& app = this->mImpl->mApp;
+    auto exit = app.getProcessGateway().runProcess("gzip " + filename_nogz);
+    exit.async_wait(
+        [&app, filename_nogz, handler](asio::error_code const& ec)
+        {
+            if (ec)
+            {
+                std::string filename = filename_nogz + ".gz";
+                LOG(WARNING) << "'gzip " << filename_nogz << "' failed,"
+                             << " removing " << filename_nogz
+                             << " and " << filename;
+                std::remove(filename_nogz.c_str());
+                std::remove(filename.c_str());
+            }
+            handler(ec);
+        });
 }
 
 template<typename T> void
