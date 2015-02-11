@@ -33,9 +33,6 @@ void checkAmounts(int64_t a, int64_t b, int64_t maxd = 1)
     REQUIRE(a <= b);
 }
 
-// Offer that doesn't cross
-// Offer that crosses exactly
-// Offer that takes multiple other offers and is cleared
 // Offer that takes multiple other offers and remains
 // Offer selling STR
 // Offer buying STR
@@ -189,7 +186,7 @@ TEST_CASE("create offer", "[tx][offers]")
             }
         }
 
-        SECTION("Offer own offer")
+        SECTION("Offer crossing own offer")
         {
             applyCreditPaymentTx(app, gateway, a1, usdCur, gateway_seq++, 20000 * currencyMultiplier);
 
@@ -197,17 +194,9 @@ TEST_CASE("create offer", "[tx][offers]")
             Price exactCross(usdPriceOfferA.d, usdPriceOfferA.n);
             uint32_t ownA1Seq = a1_seq++;
 
-            // TODO: revisit this: we want to be able to create crossing offers
             applyOffer(app, a1, usdCur, idrCur, exactCross, 150 * currencyMultiplier,
-                ownA1Seq, CreateOffer::MALFORMED);
+                ownA1Seq, CreateOffer::CROSS_SELF);
             REQUIRE(!OfferFrame::loadOffer(a1.getPublicKey(), ownA1Seq, offer, app.getDatabase()));
-
-            /*
-            REQUIRE(offer.getPrice() == exactCross);
-            REQUIRE(offer.getAmount() == 150 * currencyMultiplier);
-            REQUIRE(offer.getTakerPays().isoCI().currencyCode == idrCur.isoCI().currencyCode);
-            REQUIRE(offer.getTakerGets().isoCI().currencyCode == usdCur.isoCI().currencyCode);
-            */
 
             for (auto a1Offer : a1OfferSeq)
             {

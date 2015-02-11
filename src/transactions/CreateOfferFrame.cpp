@@ -128,7 +128,9 @@ bool CreateOfferFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
     }
 
     Price sheepPrice = mEnvelope.tx.body.createOfferTx().price;
-    
+
+    innerResult().result.code(CreateOffer::SUCCESS);
+
     {
         soci::transaction sqlTx(db.getSession());
         LedgerDelta tempDelta;
@@ -147,31 +149,31 @@ bool CreateOfferFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
                 {
                     return OfferExchange::eStop;
                 }
-                // TODO: we should either just skip
-                // or not allow at all competing offers from the same account
-                // check below does not guarantee that those offers won't become
-                // the best offers later
                 if (o.getAccountID() == mSigningAccount->getID())
                 {
                     // we are crossing our own offer
-                    // TODO: revisit
-                    //mResultCode = txCROSS_SELF;
-                    innerResult().result.code(CreateOffer::MALFORMED);
-                    return OfferExchange::eFail;
+                    innerResult().result.code(CreateOffer::CROSS_SELF);
+                    return OfferExchange::eStop;
                 }
                 return OfferExchange::eKeep;
             });
+
+        bool offerIsValid = false;
+
         switch (r)
         {
         case OfferExchange::eOK:
-        case OfferExchange::ePartial:
-        case OfferExchange::eFilterStop:
-        case OfferExchange::eNotEnoughOffers:
+            offerIsValid = true;
             break;
-        case OfferExchange::eFilterFail:
-            return false;
-        case OfferExchange::eBadOffer:
-            throw std::runtime_error("Could not process offer");
+        case OfferExchange::ePartial:
+            break;
+        case OfferExchange::eFilterStop:
+            if (innerResult().result.code() != CreateOffer::SUCCESS)
+            {
+                return false;
+            }
+            offerIsValid = true;
+            break;
         }
 
         // updates the result with the offers that got taken on the way
@@ -215,12 +217,7 @@ bool CreateOfferFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
         // recomputes the amount of sheep for sale
         mSellSheepOffer.mEntry.offer().amount = maxSheepSend - sheepSent;
 
-        int64_t minAmount = 0;
-        {
-            // TODO: compute the minimum amount that can be represented in an offer
-        }
-
-        if (mSellSheepOffer.mEntry.offer().amount > minAmount)
+        if (offerIsValid && mSellSheepOffer.mEntry.offer().amount > 0)
         { // we still have sheep to sell so leave an offer
 
             if (creatingNewOffer)

@@ -174,10 +174,6 @@ namespace stellar
                     {
                     case eKeep:
                         break;
-                    case eSkip:
-                        continue;
-                    case eFail:
-                        return eFilterFail;
                     case eStop:
                         return eFilterStop;
                     }
@@ -192,8 +188,6 @@ namespace stellar
 
                 switch (cor)
                 {
-                case eOfferError:
-                    return eBadOffer;
                 case eOfferTaken:
                     offerOffset--; // adjust offset as an offer was deleted
                     assert(offerOffset >= 0);
@@ -215,11 +209,16 @@ namespace stellar
                 {
                     return eOK;
                 }
+                else if (cor == eOfferPartial)
+                {
+                    return ePartial;
+                }
             }
+
             // still stuff to fill but no more offers
             if (needMore && retList.size() < 5)
-            { // there isn't enough offer depth
-                return eNotEnoughOffers;
+            {
+                return eOK;
             }
             offerOffset += retList.size();
         }
