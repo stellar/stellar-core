@@ -179,7 +179,7 @@ class HistoryMaster
 
     std::string const& getTmpDir();
 
-  public:
+    std::string localFilename(std::string const& basename);
 
     void archiveBucket(std::shared_ptr<CLFBucket> bucket,
                        std::function<void(asio::error_code const&)> handler);

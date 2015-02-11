@@ -85,6 +85,12 @@ HistoryMaster::getTmpDir()
     return mImpl->mWorkDir->getName();
 }
 
+std::string
+HistoryMaster::localFilename(std::string const& basename)
+{
+    return this->getTmpDir() + "/" + basename;
+}
+
 template<typename T> void
 HistoryMaster::saveAndCompressAndPut(string const& basename,
                                      shared_ptr<T> xdrp,
@@ -94,7 +100,7 @@ HistoryMaster::saveAndCompressAndPut(string const& basename,
     this->mImpl->mApp.getWorkerIOService().post(
         [this, basename, handler, xdrp]()
         {
-            string fullname = this->getTmpDir() + "/" + basename;
+            string fullname = localFilename(basename);
             ofstream out(fullname, ofstream::binary);
             auto m = xdr::xdr_to_msg(*xdrp);
             out.write(m->raw_data(), m->raw_size());
@@ -140,7 +146,7 @@ HistoryMaster::getAndDecompressAndLoad(string const& basename,
                                                      shared_ptr<T>)> handler)
 {
 
-    string fullname = getTmpDir() + "/" + basename + ".gz";
+    string fullname = localFilename(basename + ".gz");
     getFile(
         basename + ".gz", fullname,
         [this, fullname, handler](asio::error_code const& ec)
