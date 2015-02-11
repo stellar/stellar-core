@@ -56,9 +56,11 @@ struct OfferEntry
     Currency takerGets;  // A
     Currency takerPays;  // B
     int64 amount;    // amount of A
-    int64 price;    // price of A in terms of B
+
+    Price price;
+                    // price of A in terms of B
                     // price*10,000,000
-                    // price=AmountB/AmountA
+                    // price=AmountB/AmountA=priceNumerator/priceDenominator
                     // price is after fees
     int32 flags;
 };

@@ -32,10 +32,10 @@ void applyCreditPaymentTx(Application& app, SecretKey& from, SecretKey& to,
     Currency& ci, uint32_t seq, int64_t amount, Payment::PaymentResultCode result = Payment::SUCCESS);
 
 TransactionFramePtr createOfferTx(SecretKey& source, Currency& takerGets, 
-    Currency& takerPays, uint64_t price,int64_t amount, uint32_t seq);
+    Currency& takerPays, Price const& price,int64_t amount, uint32_t seq);
 
 void applyOffer(Application& app, SecretKey& source, Currency& takerGets,
-    Currency& takerPays, uint64_t price, int64_t amount, uint32_t seq, CreateOffer::CreateOfferResultCode result=CreateOffer::SUCCESS);
+    Currency& takerPays, Price const& price, int64_t amount, uint32_t seq, CreateOffer::CreateOfferResultCode result=CreateOffer::SUCCESS);
 
 TransactionFramePtr createSetOptions(SecretKey& source, AccountID *inflationDest,
     uint32_t *setFlags, uint32_t *clearFlags, KeyValue *data,

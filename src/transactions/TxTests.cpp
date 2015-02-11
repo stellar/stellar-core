@@ -151,7 +151,7 @@ void applyCreditPaymentTx(Application& app, SecretKey& from, SecretKey& to, Curr
 }
 
 TransactionFramePtr createOfferTx(SecretKey& source, Currency& takerGets,
-    Currency& takerPays, uint64_t price, int64_t amount, uint32_t seq)
+    Currency& takerPays, Price const &price, int64_t amount, uint32_t seq)
 {
     TransactionEnvelope txEnvelope;
     txEnvelope.tx.body.type(CREATE_OFFER);
@@ -174,7 +174,7 @@ TransactionFramePtr createOfferTx(SecretKey& source, Currency& takerGets,
 }
 
 void applyOffer(Application& app, SecretKey& source, Currency& takerGets,
-    Currency& takerPays, uint64_t price, int64_t amount, uint32_t seq, CreateOffer::CreateOfferResultCode result)
+    Currency& takerPays, Price const& price, int64_t amount, uint32_t seq, CreateOffer::CreateOfferResultCode result)
 {
     TransactionFramePtr txFrame;
 

@@ -127,7 +127,7 @@ bool CreateOfferFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
         maxSheepSend = maxAmountOfSheepCanSell;
     }
 
-    int64_t sheepPrice = mEnvelope.tx.body.createOfferTx().price;
+    Price sheepPrice = mEnvelope.tx.body.createOfferTx().price;
     
     {
         soci::transaction sqlTx(db.getSession());
@@ -137,7 +137,7 @@ bool CreateOfferFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
 
         OfferExchange oe(tempDelta, ledgerMaster);
 
-        int64_t maxWheatPrice = bigDivide(OFFER_PRICE_DIVISOR, OFFER_PRICE_DIVISOR, sheepPrice);
+        Price maxWheatPrice(sheepPrice.d, sheepPrice.n);
 
         OfferExchange::ConvertResult r = oe.convertWithOffers(
             sheep, maxSheepSend, sheepSent,

@@ -37,4 +37,10 @@ union Currency switch(CurrencyType type)
     // add other currency types here in the future
 };
 
+struct Price
+{
+    int32 n;
+    int32 d;
+};
+
 }

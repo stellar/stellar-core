@@ -79,22 +79,21 @@ namespace stellar
             sellingWheatOffer.mEntry.offer().amount = numWheatReceived;
         }
 
-        // TODO: there are a bunch of rounding modes here
-        // this should be simplified as it may create situations where an offer
-        // can never be completely taken and sticks around (for example)
-
         // this guy can get X wheat to you. How many sheep does that get him?
-        numSheepSend = bigDivide(numWheatReceived, OFFER_PRICE_DIVISOR, sellingWheatOffer.mEntry.offer().price);
+        numSheepSend = bigDivide(
+            numWheatReceived, sellingWheatOffer.mEntry.offer().price.n,
+            sellingWheatOffer.mEntry.offer().price.d);
 
         if (numSheepSend > maxSheepSend)
         {
             // reduce the number even more if there is a limit on Sheep
-            numWheatReceived = bigDivide(maxSheepSend, sellingWheatOffer.mEntry.offer().price, OFFER_PRICE_DIVISOR);
-
-            numSheepSend = bigDivide(numWheatReceived, OFFER_PRICE_DIVISOR, sellingWheatOffer.mEntry.offer().price);
-
-            assert(numSheepSend <= maxSheepSend);
+            numSheepSend = maxSheepSend;
         }
+
+        // bias towards seller
+        numWheatReceived = bigDivide(
+            numSheepSend, sellingWheatOffer.mEntry.offer().price.d,
+            sellingWheatOffer.mEntry.offer().price.n);
 
         if (numWheatReceived == 0 || numSheepSend == 0)
         {

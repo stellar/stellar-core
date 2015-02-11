@@ -31,7 +31,7 @@ struct CreateOfferTx
     Currency takerGets;
     Currency takerPays;
     int64 amount;        // amount taker gets
-    int64 price;         // =takerPaysAmount/takerGetsAmount
+    Price price;         // =takerPaysAmount/takerGetsAmount
 
     uint32 sequence;     // set if you want to change an existing offer
     uint32 flags;        // passive: only take offers that cross this. not offers that match it

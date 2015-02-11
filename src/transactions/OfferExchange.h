@@ -36,5 +36,4 @@ namespace stellar
 
         std::vector<ClaimOfferAtom> getOfferTrail() { return mOfferTrail; }
     };
-
 }
