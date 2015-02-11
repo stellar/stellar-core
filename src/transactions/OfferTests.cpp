@@ -208,14 +208,6 @@ TEST_CASE("create offer", "[tx][offers]")
             }
         }
 
-        // Too small offers
-
-        // Unfunded offer getting cleaned up
-
-        // Offer that crosses with some left in the new offer
-        // Offer that crosses with none left in the new offer
-        // Offer that crosses and takes out both
-
         SECTION("Offer that crosses exactly")
         {
             applyCreditPaymentTx(app, gateway, b1, usdCur, gateway_seq++, 20000 * currencyMultiplier);
@@ -274,7 +266,6 @@ TEST_CASE("create offer", "[tx][offers]")
             applyOffer(app, b1, usdCur, idrCur, onetwo, 1010 * currencyMultiplier, b1OfferSeq);
 
             // offer is cleared
-            // TODO: offer is not cleared because of rounding issues
             REQUIRE(!OfferFrame::loadOffer(b1.getPublicKey(), b1OfferSeq, offer, app.getDatabase()));
 
             // Offers are: sell 100 IDR for 150 USD; sell IRD @ 0.66 -> buy USD @ 1.5
@@ -396,7 +387,75 @@ TEST_CASE("create offer", "[tx][offers]")
             checkAmounts(line.getBalance(), b1_idr + idrSend, 10);
         }
 
-        // Offer that takes multiple other offers and remains
+        SECTION("Offer that takes multiple other offers and remains")
+        {
+            applyCreditPaymentTx(app, gateway, b1, usdCur, gateway_seq++, 20000 * currencyMultiplier);
+
+            REQUIRE(TrustFrame::loadTrustLine(b1.getPublicKey(), usdCur, line, app.getDatabase()));
+            int64_t b1_usd = line.getBalance();
+
+            REQUIRE(TrustFrame::loadTrustLine(b1.getPublicKey(), idrCur, line, app.getDatabase()));
+            int64_t b1_idr = line.getBalance();
+
+            // inject also an offer that should get cleaned up
+            uint32_t c1OfferSeq;
+            SecretKey c1 = getAccount("C");
+            {
+                uint32_t c1_seq = 1;
+                applyPaymentTx(app, root, c1, root_seq++, minBalance3 + 10000);
+                applyChangeTrust(app, c1, gateway, c1_seq++, "IDR", trustLineLimit);
+                applyChangeTrust(app, c1, gateway, c1_seq++, "USD", trustLineLimit);
+                applyCreditPaymentTx(app, gateway, c1, idrCur, gateway_seq++, 20000 * currencyMultiplier);
+                c1OfferSeq = c1_seq++;
+                // matches the offer from A
+                applyOffer(app, c1, idrCur, usdCur, usdPriceOfferA, 100 * currencyMultiplier, c1OfferSeq);
+                // drain account
+                applyCreditPaymentTx(app, c1, gateway, idrCur, c1_seq++, 20000 * currencyMultiplier);
+                // offer should still be there
+                REQUIRE(OfferFrame::loadOffer(c1.getPublicKey(), c1OfferSeq, offer, app.getDatabase()));
+            }
+
+            // offer is sell 10000 USD for 5000 IDR; sell USD @ 0.5
+            uint32_t b1OfferSeq = b1_seq++;
+            int64_t usdBalanceForSale = 10000 * currencyMultiplier;
+            applyOffer(app, b1, usdCur, idrCur, onetwo, usdBalanceForSale, b1OfferSeq);
+
+            REQUIRE(OfferFrame::loadOffer(b1.getPublicKey(), b1OfferSeq, offer, app.getDatabase()));
+
+            // Offers are: sell 100 IDR for 150 USD; sell IRD @ 0.66 -> buy USD @ 1.5
+            int64_t usdRecv = 150 * currencyMultiplier * nbOffers;
+            int64_t idrSend = bigDivide(usdRecv, 2, 3);
+
+            int64_t expected = usdBalanceForSale - usdRecv;
+
+            checkAmounts(expected, offer.getAmount());
+
+            // check that the bogus offer was cleared
+            REQUIRE(!OfferFrame::loadOffer(c1.getPublicKey(), c1OfferSeq, offer, app.getDatabase()));
+
+            for (int i = 0; i < nbOffers; i++)
+            {
+                int32_t a1Offer = a1OfferSeq[i];
+                REQUIRE(!OfferFrame::loadOffer(a1.getPublicKey(), a1Offer,
+                    offer, app.getDatabase()));
+            }
+
+            // check balances
+            REQUIRE(TrustFrame::loadTrustLine(a1.getPublicKey(), usdCur, line, app.getDatabase()));
+            checkAmounts(a1_usd + usdRecv, line.getBalance());
+
+            REQUIRE(TrustFrame::loadTrustLine(a1.getPublicKey(), idrCur, line, app.getDatabase()));
+            checkAmounts(a1_idr - idrSend, line.getBalance());
+
+            // buyer may have paid a bit more to cross offers
+            REQUIRE(TrustFrame::loadTrustLine(b1.getPublicKey(), usdCur, line, app.getDatabase()));
+            checkAmounts(line.getBalance(), b1_usd - usdRecv);
+
+            REQUIRE(TrustFrame::loadTrustLine(b1.getPublicKey(), idrCur, line, app.getDatabase()));
+            checkAmounts(line.getBalance(), b1_idr + idrSend);
+
+        }
+
         // Offer selling STR
         // Offer buying STR
         // Offer for more than you have

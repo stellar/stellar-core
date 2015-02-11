@@ -346,7 +346,7 @@ enum TransactionResultCode
 
 struct TransactionResult
 {
-    uint64 feeCharged;
+    int64 feeCharged;
     union switch(TransactionResultCode code)
     {
         case txINNER:
