@@ -3,24 +3,61 @@
 #include <cereal/cereal.hpp>
 #include <string>
 
+namespace asio
+{
+typedef std::error_code error_code;
+};
+
 namespace stellar
 {
 
-struct HistoryArchiveParams
+class Application;
+
+struct HistoryStateBucket
+{
+    std::string curr;
+    std::string snap;
+
+    template <class Archive>
+    void serialize(Archive& ar) const
+    {
+        ar(CEREAL_NVP(curr),
+           CEREAL_NVP(snap));
+    }
+
+    template <class Archive>
+    void serialize(Archive& ar)
+    {
+        ar(CEREAL_NVP(curr),
+           CEREAL_NVP(snap));
+    }
+};
+
+struct HistoryArchiveState
 {
     unsigned version{0};
-    unsigned hotExponent{4};
-    unsigned coldExponent{12};
+    unsigned newestHistoryBlock;
+    std::vector<HistoryStateBucket> newestBucketList;
+
+    static std::string basename();
 
     template <class Archive>
     void serialize(Archive& ar)
     {
         ar(CEREAL_NVP(version),
-           CEREAL_NVP(hotExponent),
-           CEREAL_NVP(coldExponent));
+           CEREAL_NVP(newestHistoryBlock),
+           CEREAL_NVP(newestBucketList));
     }
 
-    void save(std::string const& outFile);
+    template <class Archive>
+    void serialize(Archive& ar) const
+    {
+        ar(CEREAL_NVP(version),
+           CEREAL_NVP(newestHistoryBlock),
+           CEREAL_NVP(newestBucketList));
+    }
+
+    void save(std::string const& outFile) const;
     void load(std::string const& inFile);
 };
 
@@ -34,7 +71,14 @@ public:
                    std::string const& getCmd,
                    std::string const& putCmd);
     ~HistoryArchive();
-    HistoryArchiveParams fetchParams();
+    std::string qualifiedFilename(Application& app,
+                                  std::string const& basename);
+    void getState(Application& app,
+                  std::function<void(asio::error_code const&,
+                                     HistoryArchiveState const&)> handler);
+    void putState(Application& app,
+                  HistoryArchiveState const& s,
+                  std::function<void(asio::error_code const&)> handler);
     std::string getFileCmd(std::string const& basename, std::string const& filename);
     std::string putFileCmd(std::string const& filename, std::string const& basename);
 };

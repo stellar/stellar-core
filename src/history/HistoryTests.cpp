@@ -22,14 +22,16 @@ namespace stellar {
 using xdr::operator==;
 };
 
-void
-addLocalDirHistoryArchive(TmpDir const& dir, Config &cfg)
+TmpDir
+addLocalDirHistoryArchive(Application& app, Config &cfg)
 {
+    TmpDir dir = app.getTmpDirMaster().tmpDir("archive");
     std::string d = dir.getName();
     cfg.HISTORY["test"] = std::make_shared<HistoryArchive>(
         "test",
         "cp " + d + "/{0} {1}",
         "cp {0} " + d + "/{1}");
+    return dir;
 }
 
 #if 0
@@ -38,9 +40,7 @@ TEST_CASE("Archive and reload history", "[history]")
     VirtualClock clock;
     Config cfg = getTestConfig();
     Application app(clock, cfg);
-
-    TmpDir dir(app, "archive");
-    addLocalDirHistoryArchive(dir, cfg);
+    TmpDir dir = addLocalDirHistoryArchive(app, cfg)
 
     autocheck::generator<History> gen;
     auto h1 = std::make_shared<History>(gen(10));
@@ -87,8 +87,7 @@ TEST_CASE("Archive and reload bucket", "[history]")
     VirtualClock clock;
     Config cfg = getTestConfig();
     Application app(clock, cfg);
-    TmpDir dir(app, "archive");
-    addLocalDirHistoryArchive(dir, cfg);
+    TmpDir dir = addLocalDirHistoryArchive(app, cfg)
 
     autocheck::generator<CLFBucket> gen;
     auto b1 = std::make_shared<CLFBucket>(gen(10));
@@ -133,19 +132,33 @@ TEST_CASE("Archive and reload bucket", "[history]")
 
 
 TEST_CASE("HistoryArchiveParams::save", "[history]")
+TEST_CASE("HistoryArchiveState::get_put", "[history]")
 {
     VirtualClock clock;
     Config cfg = getTestConfig();
     Application app(clock, cfg);
-    TmpDir dir(app, "historytest");
-    HistoryArchiveParams hap;
-    auto fname = dir.getName() + "/stellar-history.json";
-    hap.save(fname);
-    std::ifstream in(fname);
-    LOG(DEBUG) << "re-reading " << fname;
-    char buf[128];
-    while (in.getline(buf, sizeof(buf)))
+    TmpDir dir = addLocalDirHistoryArchive(app, cfg);
+    HistoryArchiveState has;
+    has.newestHistoryBlock = 0x1234;
+    bool done = false;
+    auto archive = cfg.HISTORY["test"];
+    archive->putState(
+        app, has,
+        [&done, &app, archive](asio::error_code const& ec)
+        {
+            CHECK(!ec);
+            archive->getState(
+                app,
+                [&done](asio::error_code const& ec,
+                        HistoryArchiveState const& has2)
+                {
+                    CHECK(has2.newestHistoryBlock == 0x1234);
+                    CHECK(!ec);
+                    done = true;
+                });
+        });
+    while (!done && !app.getMainIOService().stopped())
     {
-        LOG(DEBUG) << buf;
+        app.crank();
     }
 }
