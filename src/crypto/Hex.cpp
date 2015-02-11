@@ -25,6 +25,17 @@ binToHex(ByteSlice const& bin)
     return std::string(hex.begin(), hex.end()-1);
 }
 
+std::string
+hexAbbrev(ByteSlice const& bin)
+{
+    size_t sz = bin.size();
+    if (sz > 6)
+    {
+        sz = 6;
+    }
+    return binToHex(ByteSlice(bin.data(), sz));
+}
+
 std::vector<uint8_t>
 hexToBin(std::string const& hex)
 {
