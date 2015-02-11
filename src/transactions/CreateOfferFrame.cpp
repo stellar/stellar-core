@@ -233,7 +233,8 @@ bool CreateOfferFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
                     return false;
                 }
 
-                innerResult().result.success().offerCreated.activate() = mSellSheepOffer.mEntry.offer();
+                innerResult().result.success().offer.effect(CreateOffer::CREATED);
+                innerResult().result.success().offer.offerCreated() = mSellSheepOffer.mEntry.offer();
                 mSellSheepOffer.storeAdd(tempDelta, db);
 
                 mSigningAccount->mEntry.account().ownerCount++;
@@ -241,11 +242,14 @@ bool CreateOfferFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
             }
             else
             {
+                innerResult().result.success().offer.effect(CreateOffer::UPDATED);
                 mSellSheepOffer.storeChange(tempDelta, db);
             }
         }
         else
         {
+            innerResult().result.success().offer.effect(CreateOffer::EMPTY);
+
             if (!creatingNewOffer)
             {
                 mSellSheepOffer.storeDelete(tempDelta, db);

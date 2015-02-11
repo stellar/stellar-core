@@ -164,13 +164,28 @@ enum CreateOfferResultCode
     NOT_AUTHORIZED,
     MALFORMED,
     UNDERFUNDED,
+    CROSS_SELF,
     NOT_FOUND
+};
+
+enum CreateOfferEffect
+{
+    CREATED,
+    UPDATED,
+    EMPTY
 };
 
 struct CreateOfferSuccessResult
 {
     ClaimOfferAtom offersClaimed<>;
-    OfferEntry *offerCreated;
+
+    union switch(CreateOfferEffect effect)
+    {
+        case CREATED:
+            OfferEntry offerCreated;
+        default:
+            void;
+    } offer;
 };
 
 struct CreateOfferResult
