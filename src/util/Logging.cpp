@@ -4,6 +4,7 @@
 
 #include "main/Application.h"
 #include "util/Logging.h"
+#include "util/types.h"
 
 /*
 Levels:
@@ -76,34 +77,34 @@ Logging::setLogLevel(el::Level level, const char* partition)
 }
 
 // default "info" if unrecognized
-el::Level Logging::getLLfromString(const char* ll)
+el::Level Logging::getLLfromString(std::string const& levelName)
 {
-    if(_stricmp(ll, "trace") == 0)
+    if(iequals(levelName, "trace"))
     {
         return el::Level::Trace;
     }
 
-    if(_stricmp(ll, "debug") == 0)
+    if(iequals(levelName, "debug"))
     {
         return el::Level::Debug;
     }
 
-    if(_stricmp(ll, "warning") == 0)
+    if(iequals(levelName, "warning"))
     {
         return el::Level::Warning;
     }
 
-    if(_stricmp(ll, "fatal") == 0)
+    if(iequals(levelName, "fatal"))
     {
         return el::Level::Fatal;
     }
 
-    if(_stricmp(ll, "error") == 0)
+    if(iequals(levelName, "error"))
     {
         return el::Level::Error;
     }
 
-    if(_stricmp(ll, "none") == 0)
+    if(iequals(levelName, "none"))
     {
         return el::Level::Unknown;
     }

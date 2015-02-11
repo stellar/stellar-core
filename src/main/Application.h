@@ -130,6 +130,9 @@ class Application
     // force-stopped the io_services. Application can be safely destroyed
     // after this returns.
     void joinAllThreads();
+
+
+    void applyCfgCommands();
 };
 }
 

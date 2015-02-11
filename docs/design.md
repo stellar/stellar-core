@@ -12,6 +12,7 @@
 	- Taking an offer would just be A paying B followed by B paying A
 - we need some indicator of if a tx is successful in the ledger header. Otherwise people have to either replay the tx or trust someone to know if the payment worked
 	- Not sure we need this
+- how do we want to treat duplicate entries in the quorum set?
 
 
 #v.2 code public

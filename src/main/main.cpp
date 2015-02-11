@@ -128,7 +128,7 @@ main(int argc, char* const* argv)
             newNetwork = true;
             break;
         case OPT_LOGLEVEL:
-            logLevel = Logging::getLLfromString(optarg);
+            logLevel = Logging::getLLfromString(std::string(optarg));
             break;
         case OPT_GENSEED:
         {
@@ -146,7 +146,6 @@ main(int argc, char* const* argv)
     Logging::setUpLogging(cfg.LOG_FILE_PATH);
     Logging::setLogLevel(logLevel,nullptr);
 
-
     cfg.START_NEW_NETWORK = newNetwork;
     if (command.size())
     {
@@ -158,6 +157,7 @@ main(int argc, char* const* argv)
     LOG(INFO) << "Config from " << cfgFile;
     VirtualClock clock;
     Application app(clock, cfg);
+    app.applyCfgCommands(); 
 
     app.start();
     app.enableRealTimer();

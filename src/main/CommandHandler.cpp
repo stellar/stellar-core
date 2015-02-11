@@ -22,32 +22,46 @@ namespace stellar
 {
 CommandHandler::CommandHandler(Application& app) : mApp(app)
 {
-    if (!mApp.getConfig().RUN_STANDALONE && mApp.getConfig().HTTP_PORT)
+    if(!mApp.getConfig().RUN_STANDALONE && mApp.getConfig().HTTP_PORT)
     {
         std::string ipStr;
         ipStr = "127.0.0.1";
         LOG(INFO) << "Listening on " << ipStr << ":" << mApp.getConfig().HTTP_PORT
-                  << " for HTTP requests";
+            << " for HTTP requests";
 
         mServer = stellar::make_unique<http::server::server>(
             app.getMainIOService(), ipStr, mApp.getConfig().HTTP_PORT);
-
-        mServer->addRoute("stop",
-                          std::bind(&CommandHandler::stop, this, _1, _2));
-        mServer->addRoute("peers",
-                          std::bind(&CommandHandler::peers, this, _1, _2));
-        mServer->addRoute("info",
-                          std::bind(&CommandHandler::info, this, _1, _2));
-        mServer->addRoute("metrics",
-                          std::bind(&CommandHandler::metrics, this, _1, _2));
-        mServer->addRoute("reload_cfg",
-                          std::bind(&CommandHandler::reloadCfg, this, _1, _2));
-        mServer->addRoute("logrotate",
-                          std::bind(&CommandHandler::logRotate, this, _1, _2));
-        mServer->addRoute("connect",
-                          std::bind(&CommandHandler::connect, this, _1, _2));
-        mServer->addRoute("tx", std::bind(&CommandHandler::tx, this, _1, _2));
+    } else
+    {
+        mServer = stellar::make_unique<http::server::server>(app.getMainIOService());
     }
+
+    mServer->addRoute("stop",
+        std::bind(&CommandHandler::stop, this, _1, _2));
+    mServer->addRoute("peers",
+        std::bind(&CommandHandler::peers, this, _1, _2));
+    mServer->addRoute("info",
+        std::bind(&CommandHandler::info, this, _1, _2));
+    mServer->addRoute("metrics",
+        std::bind(&CommandHandler::metrics, this, _1, _2));
+    mServer->addRoute("reload_cfg",
+        std::bind(&CommandHandler::reloadCfg, this, _1, _2));
+    mServer->addRoute("logrotate",
+        std::bind(&CommandHandler::logRotate, this, _1, _2));
+    mServer->addRoute("connect",
+        std::bind(&CommandHandler::connect, this, _1, _2));
+    mServer->addRoute("tx", std::bind(&CommandHandler::tx, this, _1, _2));
+    mServer->addRoute("ll", std::bind(&CommandHandler::ll, this, _1, _2));
+   
+}
+
+void CommandHandler::manualCmd(const std::string& cmd)
+{
+    http::server::reply reply;
+    http::server::request request;
+    request.uri = cmd;
+    mServer->handle_request(request, reply);
+    LOG(INFO) << cmd << " -> " << reply.content;
 }
 
 void
@@ -62,17 +76,20 @@ CommandHandler::peers(const std::string& params, std::string& retStr)
 {
     retStr = "Peers...";
 }
+
 void
 CommandHandler::info(const std::string& params, std::string& retStr)
 {
     retStr = "Info...";
 }
+
 void
 CommandHandler::metrics(const std::string& params, std::string& retStr)
 {
     medida::reporting::JsonReporter jr(mApp.getMetrics());
     retStr = jr.Report();
 }
+
 void
 CommandHandler::reloadCfg(const std::string& params, std::string& retStr)
 {
@@ -107,6 +124,18 @@ CommandHandler::connect(const std::string& params, std::string& retStr)
     {
         retStr = "Must specify a peer: connect&peer=????";
     }
+}
+
+
+// "Must specify a log level: ll?level=<level>&partition=<name>";
+void CommandHandler::ll(const std::string& params, std::string& retStr)
+{
+    std::map<std::string, std::string> retMap;
+    http::server::server::parseParams(params, retMap);
+    el::Level level = Logging::getLLfromString(retMap["level"]);
+    std::string partition = retMap["partition"];
+    Logging::setLogLevel(level, partition.c_str());
+    retStr = "Log level set";
 }
 
 void
