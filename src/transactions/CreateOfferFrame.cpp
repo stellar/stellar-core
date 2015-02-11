@@ -149,7 +149,7 @@ bool CreateOfferFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
                 }
                 // TODO: we should either just skip
                 // or not allow at all competing offers from the same account
-                // check below does not garantee that those offers won't become
+                // check below does not guarantee that those offers won't become
                 // the best offers later
                 if (o.getAccountID() == mSigningAccount->getID())
                 {
@@ -164,6 +164,7 @@ bool CreateOfferFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
         switch (r)
         {
         case OfferExchange::eOK:
+        case OfferExchange::ePartial:
         case OfferExchange::eFilterStop:
         case OfferExchange::eNotEnoughOffers:
             break;

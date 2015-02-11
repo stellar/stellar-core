@@ -27,7 +27,7 @@ namespace stellar
 
         enum OfferFilterResult { eKeep, eSkip, eFail, eStop };
 
-        enum ConvertResult { eOK, eFilterFail, eFilterStop, eBadOffer, eNotEnoughOffers };
+        enum ConvertResult { eOK, ePartial, eFilterFail, eFilterStop, eBadOffer, eNotEnoughOffers };
         // buys wheat with sheep, crossing as many offers as necessary
         ConvertResult convertWithOffers(
             Currency& sheep, int64_t maxSheepSent, int64_t &sheepSend,

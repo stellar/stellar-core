@@ -22,14 +22,15 @@ using namespace stellar::txtest;
 
 typedef std::unique_ptr<Application> appPtr;
 
-void equalAmounts(int64_t a, int64_t b, int64_t maxd = 1)
+// checks that b-maxd <= a <= b
+// bias towards seller means
+//    * amount left in an offer should be higher than the exact calculation
+//    * amount received by a seller should be higher than the exact calculation
+void checkAmounts(int64_t a, int64_t b, int64_t maxd = 1)
 {
-    int64_t d = a - b;
-    if (d < 0)
-    {
-        d = -d;
-    }
-    REQUIRE(d <= maxd);
+    int64_t d = b - maxd;
+    REQUIRE(a >= d);
+    REQUIRE(a <= b);
 }
 
 // Offer that doesn't cross
@@ -128,7 +129,7 @@ TEST_CASE("create offer", "[tx][offers]")
 
         const int nbOffers = 22;
 
-        const int64_t minBalanceA = app.getLedgerMaster().getMinBalance(2+nbOffers);
+        const int64_t minBalanceA = app.getLedgerMaster().getMinBalance(3+nbOffers);
 
         applyPaymentTx(app, root, a1, root_seq++, minBalanceA + 10000);
 
@@ -188,17 +189,77 @@ TEST_CASE("create offer", "[tx][offers]")
             }
         }
 
-        // Crossing your own offer
+        SECTION("Offer own offer")
+        {
+            applyCreditPaymentTx(app, gateway, a1, usdCur, gateway_seq++, 20000 * currencyMultiplier);
+
+            // offer is sell 150 USD for 100 USD; sell USD @ 1.5 / buy IRD @ 0.66
+            Price exactCross(usdPriceOfferA.d, usdPriceOfferA.n);
+            uint32_t ownA1Seq = a1_seq++;
+
+            // TODO: revisit this: we want to be able to create crossing offers
+            applyOffer(app, a1, usdCur, idrCur, exactCross, 150 * currencyMultiplier,
+                ownA1Seq, CreateOffer::MALFORMED);
+            REQUIRE(!OfferFrame::loadOffer(a1.getPublicKey(), ownA1Seq, offer, app.getDatabase()));
+
+            /*
+            REQUIRE(offer.getPrice() == exactCross);
+            REQUIRE(offer.getAmount() == 150 * currencyMultiplier);
+            REQUIRE(offer.getTakerPays().isoCI().currencyCode == idrCur.isoCI().currencyCode);
+            REQUIRE(offer.getTakerGets().isoCI().currencyCode == usdCur.isoCI().currencyCode);
+            */
+
+            for (auto a1Offer : a1OfferSeq)
+            {
+                REQUIRE(OfferFrame::loadOffer(a1.getPublicKey(), a1Offer, offer, app.getDatabase()));
+                REQUIRE(offer.getPrice() == usdPriceOfferA);
+                REQUIRE(offer.getAmount() == 100 * currencyMultiplier);
+                REQUIRE(offer.getTakerPays().isoCI().currencyCode == usdCur.isoCI().currencyCode);
+                REQUIRE(offer.getTakerGets().isoCI().currencyCode == idrCur.isoCI().currencyCode);
+            }
+        }
 
         // Too small offers
-        // Trying to extract value from an offer
+
         // Unfunded offer getting cleaned up
 
         // Offer that crosses with some left in the new offer
         // Offer that crosses with none left in the new offer
         // Offer that crosses and takes out both
 
-        // Offer that crosses exactly
+        SECTION("Offer that crosses exactly")
+        {
+            applyCreditPaymentTx(app, gateway, b1, usdCur, gateway_seq++, 20000 * currencyMultiplier);
+
+            // offer is sell 150 USD for 100 USD; sell USD @ 1.5 / buy IRD @ 0.66
+            uint32_t b1OfferSeq = b1_seq++;
+            Price exactCross(usdPriceOfferA.d, usdPriceOfferA.n);
+            applyOffer(app, b1, usdCur, idrCur, exactCross, 150 * currencyMultiplier, b1OfferSeq);
+
+            // verifies that the offer was cleared
+            REQUIRE(!OfferFrame::loadOffer(b1.getPublicKey(), b1OfferSeq, offer, app.getDatabase()));
+
+            // and the state of a1 offers
+            for (int i = 0; i < nbOffers; i++)
+            {
+                int32_t a1Offer = a1OfferSeq[i];
+
+                if (i == 0)
+                {
+                    // first offer was taken
+                    REQUIRE(!OfferFrame::loadOffer(a1.getPublicKey(), a1Offer,
+                        offer, app.getDatabase()));
+                }
+                else
+                {
+                    REQUIRE(OfferFrame::loadOffer(a1.getPublicKey(), a1Offer, offer, app.getDatabase()));
+                    REQUIRE(offer.getPrice() == usdPriceOfferA);
+                    REQUIRE(offer.getAmount() == 100 * currencyMultiplier);
+                    REQUIRE(offer.getTakerPays().isoCI().currencyCode == usdCur.isoCI().currencyCode);
+                    REQUIRE(offer.getTakerGets().isoCI().currencyCode == idrCur.isoCI().currencyCode);
+                }
+            }
+        }
 
         TrustFrame line;
         REQUIRE(TrustFrame::loadTrustLine(a1.getPublicKey(), usdCur, line, app.getDatabase()));
@@ -259,7 +320,7 @@ TEST_CASE("create offer", "[tx][offers]")
                     {
                         int64_t expected = 100 * currencyMultiplier -
                             (idrSend - 6 * 100 * currencyMultiplier);
-                        equalAmounts(offer.getAmount(), expected);
+                        checkAmounts(expected, offer.getAmount());
                     }
                     else
                     {
@@ -270,20 +331,21 @@ TEST_CASE("create offer", "[tx][offers]")
 
             // check balances
             REQUIRE(TrustFrame::loadTrustLine(a1.getPublicKey(), usdCur, line, app.getDatabase()));
-            equalAmounts(line.getBalance(), a1_usd + usdRecv);
+            checkAmounts(a1_usd + usdRecv, line.getBalance());
 
             REQUIRE(TrustFrame::loadTrustLine(a1.getPublicKey(), idrCur, line, app.getDatabase()));
-            equalAmounts(line.getBalance(), a1_idr - idrSend);
+            checkAmounts(a1_idr - idrSend, line.getBalance());
 
+            // buyer may have paid a bit more to cross offers
             REQUIRE(TrustFrame::loadTrustLine(b1.getPublicKey(), usdCur, line, app.getDatabase()));
-            equalAmounts(line.getBalance(), b1_usd - usdRecv);
+            checkAmounts(line.getBalance(), b1_usd - usdRecv);
 
             REQUIRE(TrustFrame::loadTrustLine(b1.getPublicKey(), idrCur, line, app.getDatabase()));
-            equalAmounts(line.getBalance(), b1_idr + idrSend);
+            checkAmounts(line.getBalance(), b1_idr + idrSend);
 
         }
 
-        SECTION("Offers being created to pick on a single offer")
+        SECTION("Trying to extract value from an offer")
         {
             applyCreditPaymentTx(app, gateway, b1, usdCur, gateway_seq++, 20000 * currencyMultiplier);
 
@@ -321,8 +383,8 @@ TEST_CASE("create offer", "[tx][offers]")
                 if (i == 0)
                 {
                     int64_t expected = 100 * currencyMultiplier - idrSend;
-                    equalAmounts(offer.getAmount(),
-                        expected, 10);
+                    checkAmounts(expected,
+                        offer.getAmount(), 10);
                 }
                 else
                 {
@@ -333,16 +395,16 @@ TEST_CASE("create offer", "[tx][offers]")
             // check balances
 
             REQUIRE(TrustFrame::loadTrustLine(a1.getPublicKey(), usdCur, line, app.getDatabase()));
-            equalAmounts(line.getBalance(), a1_usd + usdRecv, 10);
+            checkAmounts(a1_usd + usdRecv, line.getBalance(), 10);
 
             REQUIRE(TrustFrame::loadTrustLine(a1.getPublicKey(), idrCur, line, app.getDatabase()));
-            equalAmounts(line.getBalance(), a1_idr - idrSend, 10);
+            checkAmounts(a1_idr - idrSend, line.getBalance(), 10);
 
             REQUIRE(TrustFrame::loadTrustLine(b1.getPublicKey(), usdCur, line, app.getDatabase()));
-            equalAmounts(line.getBalance(), b1_usd - usdRecv, 10);
+            checkAmounts(line.getBalance(), b1_usd - usdRecv, 10);
 
             REQUIRE(TrustFrame::loadTrustLine(b1.getPublicKey(), idrCur, line, app.getDatabase()));
-            equalAmounts(line.getBalance(), b1_idr + idrSend, 10);
+            checkAmounts(line.getBalance(), b1_idr + idrSend, 10);
         }
 
         // Offer that takes multiple other offers and remains

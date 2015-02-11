@@ -155,6 +155,7 @@ using namespace std;
                     break;
                 case OfferExchange::eBadOffer:
                     throw std::runtime_error("Could not process offer");
+                case OfferExchange::ePartial:
                 case OfferExchange::eNotEnoughOffers:
                     innerResult().result.code(Payment::OVERSENDMAX);
                     return false;

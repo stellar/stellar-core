@@ -159,7 +159,9 @@ namespace stellar
 
         size_t offerOffset = 0;
 
-        while (maxWheatReceive > 0 && maxSheepSend > 0)
+        bool needMore = (maxWheatReceive > 0 && maxSheepSend > 0);
+
+        while (needMore)
         {
             std::vector<OfferFrame> retList;
             OfferFrame::loadBestOffers(5, offerOffset, sheep, wheat, retList, db);
@@ -199,7 +201,7 @@ namespace stellar
                 case eOfferPartial:
                     break;
                 case eOfferCantConvert:
-                    return eOK;
+                    return ePartial;
                 }
 
                 sheepSend += numSheepSend;
@@ -207,9 +209,15 @@ namespace stellar
 
                 wheatReceived += numWheatReceived;
                 maxWheatReceive -= numWheatReceived;
+
+                needMore = (maxWheatReceive > 0 && maxSheepSend > 0);
+                if (!needMore)
+                {
+                    return eOK;
+                }
             }
             // still stuff to fill but no more offers
-            if ((maxWheatReceive > 0 || (maxSheepSend != 0)) && retList.size() < 5)
+            if (needMore && retList.size() < 5)
             { // there isn't enough offer depth
                 return eNotEnoughOffers;
             }
