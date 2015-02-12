@@ -309,7 +309,7 @@ Bucket::fresh(std::string const& tmpDir,
         CLFEntry ce;
         ce.entry.type(LIVEENTRY);
         ce.entry.liveEntry() = e;
-        ce.hash = sha512_256(xdr::xdr_to_msg(ce.entry));
+        ce.hash = sha256(xdr::xdr_to_msg(ce.entry));
         live.push_back(ce);
     }
 
@@ -318,7 +318,7 @@ Bucket::fresh(std::string const& tmpDir,
         CLFEntry ce;
         ce.entry.type(DEADENTRY);
         ce.entry.deadEntry() = e;
-        ce.hash = sha512_256(xdr::xdr_to_msg(ce.entry));
+        ce.hash = sha256(xdr::xdr_to_msg(ce.entry));
         dead.push_back(ce);
     }
 

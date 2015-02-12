@@ -1,5 +1,6 @@
 # Transactions
-Anything that changes the ledger is called a Transaction
+Anything that changes the ledger is called a Transaction. Transactions must be signed by the submitter. (see multisig.md)
+
 
 ## All transactions have
 - Source Account

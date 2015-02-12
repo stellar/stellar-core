@@ -4,13 +4,16 @@
 // under the ISC License. See the COPYING file at the top-level directory of
 // this distribution or at http://opensource.org/licenses/ISC
 
+#include "util/Logging.h"
+
 namespace stellar
 {
+
 
 class Config;
 
 Config& getTestConfig();
-int test(int argc, char* const* argv);
+int test(int argc, char* const* argv, el::Level logLevel);
 }
 
 

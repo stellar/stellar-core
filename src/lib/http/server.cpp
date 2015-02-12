@@ -18,6 +18,16 @@ namespace http
 namespace server
 {
 
+server::server(asio::io_service& io_service)
+    : io_service_(io_service)
+    , signals_(io_service_)
+    , acceptor_(io_service_)
+    , connection_manager_()
+    , socket_(io_service_)
+{
+    
+}
+
 server::server(asio::io_service& io_service, const std::string& address,
                const int port)
     : io_service_(io_service)
@@ -152,6 +162,36 @@ server::url_decode(const std::string& in, std::string& out)
         }
     }
     return true;
+}
+
+void server::parseParams(const std::string& params, std::map<std::string, std::string>& retMap)
+{
+    bool buildingName=true;
+    std::string name,value;
+    for(auto c : params)
+    {
+        if(c == '?')
+        {
+
+        }else if(c == '=')
+        {
+            buildingName = false;
+        }else if(c == '&')
+        {
+            buildingName = true;
+            retMap[name] = value;
+            name = "";
+            value = "";
+        } else
+        {
+            if(buildingName) name += c;
+            else value += c;
+        }
+    }
+    if(name.size() && value.size())
+    {
+        retMap[name] = value;
+    }
 }
 
 } // namespace server

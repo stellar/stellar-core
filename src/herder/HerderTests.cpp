@@ -32,7 +32,7 @@ TEST_CASE("standalone", "[hrd]")
     SIMULATION_CREATE_NODE(0);
 
     Config cfg(getTestConfig());
-
+    
     cfg.RUN_STANDALONE = true;
     cfg.VALIDATION_KEY = v0SecretKey;
     cfg.START_NEW_NETWORK = true;
@@ -48,15 +48,16 @@ TEST_CASE("standalone", "[hrd]")
     // set up world
     SecretKey root = getRoot();
     SecretKey a1 = getAccount("A");
+    SecretKey b1 = getAccount("B");
 
-    const uint64_t paymentAmount =
+    const uint64_t paymentAmount = 
         (uint64_t)app.getLedgerMaster().getMinBalance(0);
 
     AccountFrame rootAccount;
     REQUIRE(AccountFrame::loadAccount(
         root.getPublicKey(), rootAccount, app.getDatabase()));
-
-    SECTION("basic ledger close on valid tx")
+    
+    SECTION("basic ledger close on valid txs")
     {
         bool stop = false;
         VirtualTimer setupTimer(app.getClock());
@@ -66,30 +67,35 @@ TEST_CASE("standalone", "[hrd]")
         {
             stop = true;
 
-            AccountFrame a1Account;
+            AccountFrame a1Account, b1Account;
             REQUIRE(AccountFrame::loadAccount(
                 a1.getPublicKey(), a1Account, app.getDatabase()));
+            REQUIRE(AccountFrame::loadAccount(
+                b1.getPublicKey(), b1Account, app.getDatabase()));
 
             REQUIRE(a1Account.getBalance() == paymentAmount);
+            REQUIRE(b1Account.getBalance() == paymentAmount);
         };
 
         auto setup = [&] (const asio::error_code& error)
         {
-            // create account
-            TransactionFramePtr txFrameA1 = 
-                createPaymentTx(root, a1, 1, paymentAmount);
+            // create accounts
+            TransactionFramePtr txFrameA1 = createPaymentTx(root, a1, 1, paymentAmount);
+            TransactionFramePtr txFrameA2 = createPaymentTx(root, b1, 2, paymentAmount);
 
             REQUIRE(app.getHerderGateway().recvTransaction(txFrameA1));
+            REQUIRE(app.getHerderGateway().recvTransaction(txFrameA2));
         };
 
         setupTimer.expires_from_now(std::chrono::seconds(0));
         setupTimer.async_wait(setup);
 
-        checkTimer.expires_from_now(std::chrono::seconds(5));
+        checkTimer.expires_from_now(std::chrono::seconds(2));
         checkTimer.async_wait(check);
 
         while(!stop && app.crank(false) > 0);
     }
+
 }
 
 // see if we flood at the right times

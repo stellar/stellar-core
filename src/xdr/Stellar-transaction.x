@@ -17,13 +17,13 @@ enum TransactionType
 struct PaymentTx
 {
     AccountID destination;  
-    Currency currency;            // what they end up with
-    int64 amount;                // amount they end up with
-    Currency path<>;            // what hops it must go through to get there
-    int64 sendMax;                // the maximum amount of the source currency this
-                                // will send. The tx will fail if can't be met
+    Currency currency;         // what they end up with
+    int64 amount;              // amount they end up with
+    Currency path<>;           // what hops it must go through to get there
+    int64 sendMax;             // the maximum amount of the source currency this
+                               // will send. The tx will fail if can't be met
     opaque memo<32>;
-    opaque sourceMemo<32>;        // used to return a payment
+    opaque sourceMemo<32>;     // used to return a payment
 };
 
 struct CreateOfferTx
@@ -31,10 +31,10 @@ struct CreateOfferTx
     Currency takerGets;
     Currency takerPays;
     int64 amount;        // amount taker gets
-    int64 price;        // =takerPaysAmount/takerGetsAmount
+    int64 price;         // =takerPaysAmount/takerGetsAmount
 
-    uint32 sequence;    // set if you want to change an existing offer
-    uint32 flags;    // passive: only take offers that cross this. not offers that match it
+    uint32 sequence;     // set if you want to change an existing offer
+    uint32 flags;        // passive: only take offers that cross this. not offers that match it
 };
 
 struct SetOptionsTx
@@ -76,7 +76,7 @@ struct Transaction
     int32 maxFee;
     uint32 seqNum;
     uint64 maxLedger;    // maximum ledger this tx is valid to be applied in
-    uint64 minLedger;   // minimum ledger this tx is valid to be applied in
+    uint64 minLedger;    // minimum ledger this tx is valid to be applied in
 
     union switch (TransactionType type)
     {

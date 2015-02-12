@@ -586,9 +586,6 @@
     <None Include="..\..\docs\transactions.md">
       <Filter>docs</Filter>
     </None>
-    <None Include="..\..\docs\entries.md">
-      <Filter>docs</Filter>
-    </None>
     <None Include="..\..\AUTHORS" />
     <None Include="..\..\ChangeLog" />
     <None Include="..\..\COPYING" />
@@ -618,6 +615,9 @@
       <Filter>docs</Filter>
     </None>
     <None Include="..\..\docs\stellar_overview.md">
+      <Filter>docs</Filter>
+    </None>
+    <None Include="..\..\docs\ledger.md">
       <Filter>docs</Filter>
     </None>
   </ItemGroup>

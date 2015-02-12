@@ -115,6 +115,14 @@ Config::load(const std::string& filename)
             }
         }
 
+        if(g.contains("COMMANDS"))
+        {
+            for(auto v : g.get_array("COMMANDS")->array())
+            {
+                COMMANDS.push_back(v->as<std::string>()->value());
+            }
+        }
+
         if (g.contains("HISTORY"))
         {
             auto hist = g.get_group("HISTORY");
@@ -149,4 +157,7 @@ Config::load(const std::string& filename)
         LOG(ERROR) << "Failed to parse " << filename << ": " << ex.what();
     }
 }
+
+
+
 }

@@ -5,8 +5,8 @@
 #include "generated/StellardVersion.h"
 #include "main/Config.h"
 #include "util/make_unique.h"
-#include "util/Logging.h"
 #include <time.h>
+#include "util/Logging.h"
 
 #ifdef _MSC_VER
 #include <process.h>
@@ -52,10 +52,11 @@ getTestConfig()
 }
 
 int
-test(int argc, char* const* argv)
+test(int argc, char* const* argv, el::Level ll)
 {
     Config const& cfg = getTestConfig();
     Logging::setUpLogging(cfg.LOG_FILE_PATH);
+    Logging::setLogLevel(ll, nullptr);
     LOG(INFO) << "Testing stellard-hayashi " << STELLARD_VERSION;
     LOG(INFO) << "Logging to " << cfg.LOG_FILE_PATH;
 

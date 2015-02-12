@@ -84,6 +84,7 @@ struct Application::Impl
     void start();
     void gracefulStop();
     void joinAllThreads();
+    void applyCfgCommands();
 
     Impl(VirtualClock& clock, Config const& cfg);
     ~Impl();
@@ -353,6 +354,14 @@ Application::Impl::joinAllThreads()
     LOG(INFO) << "Joined all " << mWorkerThreads.size() << " threads";
 }
 
+void Application::Impl::applyCfgCommands()
+{
+    for(auto cmd : mConfig.COMMANDS)
+    {
+        mCommandHandler->manualCmd(cmd);
+    }
+}
+
 Config const&
 Application::getConfig()
 {
@@ -453,6 +462,11 @@ asio::io_service&
 Application::getWorkerIOService()
 {
     return mImpl->mWorkerIOService;
+}
+
+void Application::applyCfgCommands()
+{
+    mImpl->applyCfgCommands();
 }
 
 }

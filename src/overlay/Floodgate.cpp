@@ -46,7 +46,7 @@ Floodgate::clearBelow(uint64_t currentLedger)
 bool
 Floodgate::addRecord(StellarMessage const& msg, Peer::pointer peer)
 {
-    Hash index= sha512_256(xdr::xdr_to_msg(msg));
+    Hash index= sha256(xdr::xdr_to_msg(msg));
     auto result = mFloodMap.find(index);
     if(result == mFloodMap.end())
     { // we have never seen this message
@@ -63,7 +63,7 @@ Floodgate::addRecord(StellarMessage const& msg, Peer::pointer peer)
 // send message to anyone you haven't gotten it from
 void Floodgate::broadcast(StellarMessage const& msg)
 {
-    Hash index = sha512_256(xdr::xdr_to_msg(msg));
+    Hash index = sha256(xdr::xdr_to_msg(msg));
     auto result = mFloodMap.find(index);
     if(result == mFloodMap.end())
     {  // no one has sent us this message

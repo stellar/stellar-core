@@ -35,7 +35,7 @@ using namespace std;
         if (isZero(mHeader.hash))
         {
             // Hash is hash(header-with-hash-field-all-zero)
-            mHeader.hash = sha512_256(xdr::xdr_to_msg(mHeader));
+            mHeader.hash = sha256(xdr::xdr_to_msg(mHeader));
             assert(!isZero(mHeader.hash));
         }
     }

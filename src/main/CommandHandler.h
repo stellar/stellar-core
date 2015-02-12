@@ -24,6 +24,8 @@ class CommandHandler
   public:
     CommandHandler(Application& app);
 
+    void manualCmd(const std::string& cmd);
+
     void stop(const std::string& params, std::string& retStr);
     void peers(const std::string& params, std::string& retStr);
     void info(const std::string& params, std::string& retStr);
@@ -32,6 +34,7 @@ class CommandHandler
     void logRotate(const std::string& params, std::string& retStr);
     void connect(const std::string& params, std::string& retStr);
     void tx(const std::string& params, std::string& retStr);
+    void ll(const std::string& params, std::string& retStr);
 };
 }
 

@@ -4,6 +4,7 @@
 
 #include "main/Application.h"
 #include "util/Logging.h"
+#include "util/types.h"
 
 /*
 Levels:
@@ -31,6 +32,7 @@ Logging::setUpLogging(std::string const& filename)
     el::Loggers::getLogger("Overlay");
     el::Loggers::getLogger("Herder");
     el::Loggers::getLogger("Tx");
+    // TEMP el::Loggers::getLogger("performance");
 
     mDefaultConf.setToDefault();
 
@@ -74,4 +76,41 @@ Logging::setLogLevel(el::Level level, const char* partition)
     else
         el::Loggers::reconfigureAllLoggers(config);
 }
+
+// default "info" if unrecognized
+el::Level Logging::getLLfromString(std::string const& levelName)
+{
+    if(iequals(levelName, "trace"))
+    {
+        return el::Level::Trace;
+    }
+
+    if(iequals(levelName, "debug"))
+    {
+        return el::Level::Debug;
+    }
+
+    if(iequals(levelName, "warning"))
+    {
+        return el::Level::Warning;
+    }
+
+    if(iequals(levelName, "fatal"))
+    {
+        return el::Level::Fatal;
+    }
+
+    if(iequals(levelName, "error"))
+    {
+        return el::Level::Error;
+    }
+
+    if(iequals(levelName, "none"))
+    {
+        return el::Level::Unknown;
+    }
+
+    return el::Level::Info;
+}
+
 }

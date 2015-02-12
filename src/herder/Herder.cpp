@@ -311,7 +311,7 @@ Herder::validateBallot(const uint64& slotIndex,
     }
 
     uint256 valueHash = 
-        sha512_256(xdr::xdr_to_msg(ballot.value));
+        sha256(xdr::xdr_to_msg(ballot.value));
 
     CLOG(DEBUG, "Herder") << "Herder::validateBallot"
         << "@" << binToHex(getLocalNodeID()).substr(0,6)
@@ -574,12 +574,12 @@ Herder::recvFBAQuorumSet(FBAQuorumSetPtr qSet)
 {
     CLOG(DEBUG, "Herder") << "Herder::recvFBAQuorumSet"
         << "@" << binToHex(getLocalNodeID()).substr(0,6)
-        << " qSet: " << binToHex(sha512_256(xdr::xdr_to_msg(*qSet))).substr(0,6);
+        << " qSet: " << binToHex(sha256(xdr::xdr_to_msg(*qSet))).substr(0,6);
               
     if (mFBAQSetFetcher.recvItem(qSet))
     { 
         // someone cares about this set
-        uint256 qSetHash = sha512_256(xdr::xdr_to_msg(*qSet));
+        uint256 qSetHash = sha256(xdr::xdr_to_msg(*qSet));
 
         // Runs any pending retrievals on this qSet
         auto it = mFBAQSetFetches.find(qSetHash);
@@ -797,7 +797,7 @@ Herder::triggerNextLedger(const asio::error_code& error)
 
     mCurrentValue = xdr::xdr_to_opaque(b);
 
-    uint256 valueHash = sha512_256(xdr::xdr_to_msg(mCurrentValue));
+    uint256 valueHash = sha256(xdr::xdr_to_msg(mCurrentValue));
     CLOG(DEBUG, "Herder") << "Herder::triggerNextLedger"
         << "@" << binToHex(getLocalNodeID()).substr(0,6)
         << " txSet.size: " << proposedSet->mTransactions.size()

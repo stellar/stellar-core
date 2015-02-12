@@ -29,7 +29,6 @@ namespace stellar
         Application &mApp;
 
         void startCatchUp();
-
         
         // called on startup to get the last CLF we knew about
         void syncWithCLF();

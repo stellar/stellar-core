@@ -50,6 +50,8 @@ TxSetFrame::sortForHash()
     std::sort(mTransactions.begin(), mTransactions.end(), HashTxSorter());
 }
 
+// We want to XOR the tx hash with the set hash. 
+// This way people can't predict the order that txs will be applied in
 struct ApplyTxSorter
 {
     Hash const& mSetHash;
@@ -88,29 +90,22 @@ void
 TxSetFrame::sortForApply(vector<TransactionFramePtr>& retList)
 {
     vector< vector<TransactionFramePtr>> txLevels(4);
-    map<uint256, vector<TransactionFramePtr>> accountTxMap;
+    map<uint256, size_t > accountTxCountMap;
     retList = mTransactions;
     // sort all the txs by seqnum
     std::sort(retList.begin(), retList.end(), SeqSorter());
-    size_t maxLevel = 0;
+   
     for (auto tx : retList)
     {
-        auto &v = accountTxMap[tx->getSourceID()];
-
-        if (v.size() > maxLevel)
+        auto &v = accountTxCountMap[tx->getSourceID()];
+       
+        if (v >= txLevels.size())
         {
-            maxLevel = v.size();
+            txLevels.resize(v + 4);
         }
-
-        if (maxLevel >= txLevels.size())
-        {
-            txLevels.resize(maxLevel + 4);
-        }
-        txLevels[v.size()].push_back(tx);
-        v.push_back(tx);
+        txLevels[v].push_back(tx);
+        v++;
     }
-
-    txLevels.resize(maxLevel + 1);
 
     retList.clear();
    

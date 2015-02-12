@@ -1,14 +1,13 @@
 #pragma once
+// Copyright 2014 Stellar Development Foundation and contributors. Licensed
+// under the ISC License. See the COPYING file at the top-level directory of
+// this distribution or at http://opensource.org/licenses/ISC
 
 #include "generated/StellarXDR.h"
 #include <string>
 #include <memory>
 #include <map>
 #include "crypto/SecretKey.h"
-
-// Copyright 2014 Stellar Development Foundation and contributors. Licensed
-// under the ISC License. See the COPYING file at the top-level directory of
-// this distribution or at http://opensource.org/licenses/ISC
 
 #define DEFAULT_PEER_PORT 39133
 
@@ -54,9 +53,12 @@ class Config : public std::enable_shared_from_this<Config>
     // Database config
     std::string DATABASE;
 
+    std::vector<std::string> COMMANDS;
+
     Config();
     
     void load(const std::string& filename);
+    void applyCommands();
 };
 }
 

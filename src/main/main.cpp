@@ -24,7 +24,8 @@ enum opttag
     OPT_CONF,
     OPT_CMD,
     OPT_NEW,
-    OPT_GENSEED
+    OPT_GENSEED,
+    OPT_LOGLEVEL
 };
 
 static const struct option stellard_options[] = {
@@ -35,6 +36,7 @@ static const struct option stellard_options[] = {
     {"c", required_argument, nullptr, OPT_CMD},
     {"new", no_argument, nullptr, OPT_NEW },
     {"genseed", no_argument, nullptr, OPT_GENSEED },
+    {"ll", required_argument, nullptr, OPT_LOGLEVEL },
     {nullptr, 0, nullptr, 0}};
 
 static void
@@ -48,6 +50,8 @@ usage(int err = 1)
           "      --test        To run self-tests\n"
           "      --new         Start a brand new network to call your own.\n"
           "      --genseed     Generate and print a random node seed.\n"
+          "      --ll          Set the log level. options are:\n"
+          "                    [trace|debug|info|warning|error|fatal|none]\n"
           "      --c           Command to send to local hayashi\n"
           "                stop\n"
           "                info\n"
@@ -90,6 +94,7 @@ main(int argc, char* const* argv)
 
     std::string cfgFile("stellard.cfg");
     std::string command;
+    el::Level logLevel=el::Level::Info;
     std::vector<char*> rest;
 
     bool newNetwork = false;
@@ -104,7 +109,7 @@ main(int argc, char* const* argv)
         {
             rest.push_back(*argv);
             rest.insert(++rest.begin(), argv + optind, argv + argc);
-            return test(static_cast<int>(rest.size()), &rest[0]);
+            return test(static_cast<int>(rest.size()), &rest[0],logLevel);
         }
         case OPT_CONF:
             cfgFile = std::string(optarg);
@@ -122,6 +127,9 @@ main(int argc, char* const* argv)
         case OPT_NEW:
             newNetwork = true;
             break;
+        case OPT_LOGLEVEL:
+            logLevel = Logging::getLLfromString(std::string(optarg));
+            break;
         case OPT_GENSEED:
         {
             SecretKey key=SecretKey::random();
@@ -136,6 +144,7 @@ main(int argc, char* const* argv)
     Config cfg;
     cfg.load(cfgFile);
     Logging::setUpLogging(cfg.LOG_FILE_PATH);
+    Logging::setLogLevel(logLevel,nullptr);
 
     cfg.START_NEW_NETWORK = newNetwork;
     if (command.size())
@@ -148,6 +157,7 @@ main(int argc, char* const* argv)
     LOG(INFO) << "Config from " << cfgFile;
     VirtualClock clock;
     Application app(clock, cfg);
+    app.applyCfgCommands(); 
 
     app.start();
     app.enableRealTimer();

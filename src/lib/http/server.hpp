@@ -33,6 +33,9 @@ public:
     server(const server&) = delete;
     server& operator=(const server&) = delete;
 
+    // construct a server that just doesn't listen
+    server(asio::io_service& io_service);
+
     /// Construct the server to listen on the specified TCP address and port
     explicit server(asio::io_service& io_service,
                     const std::string& address, const int port);
@@ -41,6 +44,8 @@ public:
     void addRoute(const std::string& routeName, routeHandler callback);
 
     void handle_request(const request& req, reply& rep);
+
+    static void parseParams(const std::string& params, std::map<std::string, std::string>& retMap);
 
 private:
     /// Perform an asynchronous accept operation.
