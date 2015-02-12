@@ -26,131 +26,244 @@ using namespace stellar;
 using namespace stellar::txtest;
 using namespace std;
 
-typedef shared_ptr<Application> appPtr;
-
+using appPtr = shared_ptr<Application>;
 
 struct PeerInfo {
-	SecretKey peerKey;
-	SecretKey validationKey;
-	int peerPort;
+    SecretKey peerKey;
+    SecretKey validationKey;
+    int peerPort;
 };
 
 appPtr
-createApp(Config &baseConfig, VirtualClock &clock, int nValidationPeers, int i, PeerInfo &me, vector<PeerInfo> &peers) {
-	Config cfg = baseConfig;
-	cfg.PEER_KEY = me.peerKey;
-	cfg.PEER_PUBLIC_KEY = me.peerKey.getPublicKey();
-	cfg.VALIDATION_KEY = me.validationKey;
-	cfg.PEER_PORT = me.peerPort;
-	cfg.HTTP_PORT = me.peerPort + 1;
+createApp(Config &baseConfig, VirtualClock &clock, int nValidationPeers, int i, PeerInfo &me, vector<PeerInfo> &peers) 
+{
+    Config cfg = baseConfig;
+    cfg.PEER_KEY = me.peerKey;
+    cfg.PEER_PUBLIC_KEY = me.peerKey.getPublicKey();
+    cfg.VALIDATION_KEY = me.validationKey;
+    cfg.PEER_PORT = me.peerPort;
+    cfg.HTTP_PORT = me.peerPort + 1;
 
-	cfg.LOG_FILE_PATH = cfg.LOG_FILE_PATH.substr(0, cfg.LOG_FILE_PATH.size() - 4) + "-node-" + to_string(i) + ".cfg";
-	cfg.DATABASE = "sqlite3://stellar-hrd-test-node-" + to_string(i) + ".db";
+    auto nodeStr = "-node-" + to_string(i);
+    cfg.LOG_FILE_PATH = cfg.LOG_FILE_PATH.substr(0, cfg.LOG_FILE_PATH.size() - 4) + nodeStr + ".cfg";
+    cfg.DATABASE = "sqlite3://stellar-hrd-test" + nodeStr + ".db";
+    cfg.TMP_DIR_PATH = cfg.TMP_DIR_PATH + "/tmp" + nodeStr;
 
-	cfg.QUORUM_THRESHOLD = min(nValidationPeers / 2 + 4, nValidationPeers);
-	cfg.PREFERRED_PEERS.clear();
-	cfg.QUORUM_SET.clear();
-	for (auto peer : peers) {
-		cfg.PREFERRED_PEERS.push_back("127.0.0.1:" + to_string(peer.peerPort));
-		cfg.QUORUM_SET.push_back(peer.validationKey.getPublicKey());
-	}
-	cfg.KNOWN_PEERS.clear();
+    cfg.QUORUM_THRESHOLD = min(nValidationPeers / 2 + 4, nValidationPeers);
+    cfg.PREFERRED_PEERS.clear();
+    cfg.QUORUM_SET.clear();
+    for (auto peer : peers) 
+    {
+        cfg.PREFERRED_PEERS.push_back("127.0.0.1:" + to_string(peer.peerPort));
+        cfg.QUORUM_SET.push_back(peer.validationKey.getPublicKey());
+    }
+    cfg.KNOWN_PEERS.clear();
 
-	return	make_shared<Application>(clock, cfg);
+    return  make_shared<Application>(clock, cfg);
 }
 
 
 shared_ptr<vector<appPtr>>
-createApps(Config &baseConfig, VirtualClock &clock, int n, int nValidationPeers) {
-	vector<PeerInfo> peers;
+createApps(Config &baseConfig, VirtualClock &clock, int n, int quorumThresold) 
+{
+    vector<PeerInfo> peers;
 
-	for (int i = 0; i < n; i++) {
-		peers.push_back(PeerInfo { SecretKey::random(), SecretKey::random(), baseConfig.PEER_PORT + i * 2 });
-	}
+    for (int i = 0; i < n; i++) 
+    {
+        peers.push_back(PeerInfo { SecretKey::random(), SecretKey::random(), baseConfig.PEER_PORT + i * 2 });
+    }
 
-	auto result = make_shared<vector<appPtr>>();
+    auto result = make_shared<vector<appPtr>>();
 
-	for (int i = 0; i < n; i++) {
-		vector<PeerInfo> myPeers;
-		if (i < nValidationPeers) {
-			// The first few nodes depend on the next `nValidationPeers` ones.
-			myPeers = vector<PeerInfo>(peers.begin() + i + 1, peers.begin() + i + 1 + nValidationPeers);
-		}
-		else {
-			// The other nodes depend on the `nValidationPeers` previous ones.
-			myPeers = vector<PeerInfo>(peers.begin() + i - nValidationPeers, peers.begin() + i);
-		}
-		result->push_back(createApp(baseConfig, clock, nValidationPeers, i, peers[i], myPeers));
-	}
+    for (int i = 0; i < n; i++) 
+    {
+        vector<PeerInfo> myPeers;
+        if (i < quorumThresold) 
+        {
+            // The first few nodes depend on the next `nValidationPeers` ones.
+            myPeers = vector<PeerInfo>(peers.begin() + i + 1, peers.begin() + i + 1 + quorumThresold);
+        }
+        else {
+            // The other nodes depend on the `nValidationPeers` previous ones.
+            myPeers = vector<PeerInfo>(peers.begin() + i - quorumThresold, peers.begin() + i);
+        }
+        result->push_back(createApp(baseConfig, clock, quorumThresold, i, peers[i], myPeers));
+    }
 
-	return result;
+    return result;
 }
 
-TEST_CASE("stress", "[hrd]")
+struct AccountInfo {
+    SecretKey key;
+    uint64_t balance;
+    uint32_t seq;
+};
+using accountPtr = shared_ptr<AccountInfo>;
+
+
+accountPtr createRootAccount()
 {
-    VirtualClock clock;
-    Config cfg(getTestConfig());
-	createApps(cfg, clock, 20, 3);
+    return shared_ptr<AccountInfo>(new AccountInfo{ getRoot(), 0, 1 });
+}
+accountPtr createAccount(size_t i)
+{
+    auto accountName = "Account-" + to_string(i);
+    return shared_ptr<AccountInfo>(new AccountInfo{ getAccount(accountName.c_str()), 0, 1 });
+}
 
-	/*
-    SIMULATION_CREATE_NODE(0);
+struct TxInfo {
+    shared_ptr<AccountInfo> from;
+    shared_ptr<AccountInfo> to;
+    uint64_t amount;
+    void execute(Application &app)
+    {
+        TransactionFramePtr txFrame = createPaymentTx(from->key, to->key, 1, amount);
+        REQUIRE(app.getHerderGateway().recvTransaction(txFrame));
 
-    
-    cfg.RUN_STANDALONE = true;
-    cfg.VALIDATION_KEY = v0SecretKey;
-    cfg.START_NEW_NETWORK = true;
+        from->seq++;
+        from->balance -= amount;
+        to->balance += amount;
+    }
+};
 
-    cfg.QUORUM_THRESHOLD = 1;
-    cfg.QUORUM_SET.push_back(v0NodeID);
+float rand_fraction()
+{
+    return  static_cast<float>(rand()) / static_cast<float>(RAND_MAX + 1);
+}
 
-    Application app(clock, cfg);
+float rand_pareto(float alpha)
+{
+    // from http://www.pamvotis.org/vassis/RandGen.htm
+    return static_cast<float>(1) / static_cast<float>(pow(rand_fraction(), static_cast<float>(1) / alpha));
+}
 
-    app.start();
 
-    // set up world
-    SecretKey root = getRoot();
-    SecretKey a1 = getAccount("A");
+struct StressTest {
+    shared_ptr<vector<appPtr>> apps;
+    shared_ptr<vector<accountPtr>> accounts;
+    size_t nAccounts;
+    uint64_t initialFunds;
 
-    const uint64_t paymentAmount = 
-        (uint64_t)app.getLedgerMaster().getMinBalance(0);
+    void startApps()
+    {
+        for (auto app : *apps) {
+            app->start();
+        }
+    }
+    VirtualClock & getClock()
+    {
+        return (*apps)[0]->getClock();
+    }
+    TxInfo fundingTransaction(shared_ptr<AccountInfo> destination)
+    {
+        return TxInfo{ (*accounts)[0], destination, initialFunds };
+    }
+    TxInfo tranferTransaction(int iFrom, int iTo, uint64_t amount)
+    {
+        return TxInfo{ (*accounts)[iFrom], (*accounts)[iTo], amount };
+    }
+    TxInfo randomTransferTransaction(float alpha)
+    {
+        AccountInfo from, to;
+        int iFrom, iTo;
+        do
+        {
+            iFrom = static_cast<int>(rand_pareto(alpha) * accounts->size());
+            iTo = static_cast<int>(rand_pareto(alpha) * accounts->size());
+        } while (iFrom == iTo);
 
-    AccountFrame rootAccount;
-    REQUIRE(AccountFrame::loadAccount(
-        root.getPublicKey(), rootAccount, app.getDatabase()));
-    
-    SECTION("basic ledger close on valid tx")
+        uint64_t amount = static_cast<uint64_t>(rand_fraction() * (*accounts)[iFrom]->balance / 3);
+        return tranferTransaction(iFrom, iTo, amount);
+    }
+    TxInfo randomTransaction(float alpha)
+    {
+        if (accounts->size() < nAccounts && rand_fraction() > 0.5)
+        {
+            auto newAcc = createAccount(accounts->size());
+            accounts->push_back(newAcc);
+            return fundingTransaction(newAcc);
+        }
+        else
+        {
+            return randomTransferTransaction(alpha);
+        }
+    }
+    void crank(VirtualClock::duration d)
     {
         bool stop = false;
-        VirtualTimer setupTimer(app.getClock());
-        VirtualTimer checkTimer(app.getClock());
-
-        auto check = [&] (const asio::error_code& error)
+        VirtualTimer checkTimer(getClock());
+        checkTimer.expires_from_now(d * apps->size());
+        checkTimer.async_wait([&](const asio::error_code& error)
         {
             stop = true;
+        });
 
-            AccountFrame a1Account;
-            REQUIRE(AccountFrame::loadAccount(
-                a1.getPublicKey(), a1Account, app.getDatabase()));
-
-            REQUIRE(a1Account.getBalance() == paymentAmount);
-        };
-
-        auto setup = [&] (const asio::error_code& error)
+        while (!stop)
         {
-            // create account
-            TransactionFramePtr txFrameA1 = 
-                createPaymentTx(root, a1, 1, paymentAmount);
+            int nIdle = 0;
+            for (auto app : *apps)
+            {
+                if (stop)
+                    return;
 
-            REQUIRE(app.getHerderGateway().recvTransaction(txFrameA1));
-        };
-
-        setupTimer.expires_from_now(std::chrono::seconds(0));
-        setupTimer.async_wait(setup);
-
-        checkTimer.expires_from_now(std::chrono::seconds(2));
-        checkTimer.async_wait(check);
-
-        while(!stop && app.crank(false) > 0);
+                if (app->crank(false) == 0)
+                {
+                    nIdle++;
+                }
+            }
+            if (nIdle == apps->size())
+                return;
+        }
     }
-*/
+
+};
+TEST_CASE("stress", "[hrd-stress]")
+{
+    int nNodes = 4;
+    int quorumThresold = 2;
+    float paretoAlpha = 0.5;
+    uint64_t initialFunds = 1000;
+    size_t nAccounts = 100;
+    size_t nTransactions = 1000000000;
+    size_t injectionRate = 1000; // per sec
+
+    VirtualClock clock;
+    Config cfg(getTestConfig());
+    cfg.RUN_STANDALONE = true;
+    cfg.START_NEW_NETWORK = true;
+
+    StressTest test {
+        createApps(cfg, clock, nNodes, quorumThresold),
+        shared_ptr<vector<accountPtr>>(),
+        nAccounts,
+        initialFunds
+    };
+    test.accounts->push_back(createRootAccount());
+    test.startApps();
+
+    size_t iTransactions = 0;
+    auto begin = clock.now();
+    while (iTransactions < nTransactions)
+    {
+        test.crank(chrono::seconds(1));
+
+        auto elapsed = chrono::duration_cast<chrono::seconds>(clock.now() - begin);
+        auto targetTxs = elapsed.count() * injectionRate;
+        auto toInject = max(static_cast<size_t>(0), targetTxs - iTransactions);
+
+        if (toInject == 0)
+        {
+            LOG(INFO) << "Not injecting; sleeping for 100ms";
+            this_thread::sleep_for(chrono::milliseconds(100));
+        } else
+        {
+            LOG(INFO) << "Injecting " << toInject << " transactions";
+
+            for (int i = 0; i < toInject; i++)
+            {
+                test.randomTransaction(paretoAlpha).execute(*(*test.apps)[rand() % test.apps->size()]);
+            }
+        }
+    }
 }
+
