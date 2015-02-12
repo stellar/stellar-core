@@ -163,17 +163,20 @@ class HistoryMaster
 
   public:
 
+    // Verify that a file has a given hash.
     void verifyHash(std::string const& filename,
                     uint256 const& hash,
                     std::function<void(asio::error_code const&)> handler);
 
+    // Gunzip a file.
     void decompress(std::string const& filename_gz,
                     std::function<void(asio::error_code const&)> handler);
 
+    // Gzip a file.
     void compress(std::string const& filename_nogz,
                   std::function<void(asio::error_code const&)> handler);
 
-
+    // Put a file to all archives that have a `put` command.
     void putFile(std::string const& filename,
                  std::string const& basename,
                  std::function<void(asio::error_code const&)> handler);
