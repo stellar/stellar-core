@@ -223,13 +223,7 @@ HistoryMaster::putFile(string const& filename,
             commands->push_back(s);
         }
     }
-    runCommands(mImpl->mApp, commands,
-                [filename, handler](asio::error_code const& ec)
-                {
-                    LOG(DEBUG) << "Removing temporary file " << filename;
-                    std::remove(filename.c_str());
-                    handler(ec);
-                });
+    runCommands(mImpl->mApp, commands, handler);
 }
 
 void
