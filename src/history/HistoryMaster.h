@@ -159,16 +159,6 @@ class HistoryMaster
     class Impl;
     std::unique_ptr<Impl> mImpl;
 
-    template <typename T> void
-    saveAndCompressAndPut(std::string const& basename,
-                          std::shared_ptr<T> xdrp,
-                          std::function<void(asio::error_code const&)> handler);
-
-    template <typename T> void
-    getAndDecompressAndLoad(std::string const& basename,
-                            std::function<void(asio::error_code const&,
-                                               std::shared_ptr<T>)> handler);
-
   public:
 
     void verifyHash(std::string const& filename,
@@ -194,21 +184,9 @@ class HistoryMaster
 
     std::string localFilename(std::string const& basename);
 
-    void archiveBucket(std::shared_ptr<CLFBucket> bucket,
-                       std::function<void(asio::error_code const&)> handler);
 
-    void archiveHistory(std::shared_ptr<History> hist,
-                        std::function<void(asio::error_code const&)> handler);
 
-    void acquireBucket(uint64_t ledgerSeq,
-                       uint32_t ledgerCount,
-                       std::function<void(asio::error_code const&,
-                                          std::shared_ptr<CLFBucket>)> handler);
 
-    void acquireHistory(uint64_t fromLedger,
-                        uint64_t toLedger,
-                        std::function<void(asio::error_code const&,
-                                           std::shared_ptr<History>)> handler);
 
     HistoryMaster(Application& app);
     ~HistoryMaster();
