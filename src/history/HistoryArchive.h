@@ -71,6 +71,9 @@ public:
                    std::string const& getCmd,
                    std::string const& putCmd);
     ~HistoryArchive();
+    bool hasGetCmd() const;
+    bool hasPutCmd() const;
+    std::string const& getName() const;
     std::string qualifiedFilename(Application& app,
                                   std::string const& basename) const;
     void getState(Application& app,

@@ -67,6 +67,26 @@ HistoryArchive::~HistoryArchive()
 {
 }
 
+
+bool
+HistoryArchive::hasGetCmd() const
+{
+    return !mImpl->mGetCmd.empty();
+}
+
+bool
+HistoryArchive::hasPutCmd() const
+{
+    return !mImpl->mPutCmd.empty();
+}
+
+std::string const&
+HistoryArchive::getName() const
+{
+    return mImpl->mName;
+}
+
+
 std::string
 HistoryArchive::qualifiedFilename(Application& app,
                                   std::string const& basename) const
