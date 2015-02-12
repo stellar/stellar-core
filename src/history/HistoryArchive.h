@@ -72,15 +72,15 @@ public:
                    std::string const& putCmd);
     ~HistoryArchive();
     std::string qualifiedFilename(Application& app,
-                                  std::string const& basename);
+                                  std::string const& basename) const;
     void getState(Application& app,
                   std::function<void(asio::error_code const&,
-                                     HistoryArchiveState const&)> handler);
+                                     HistoryArchiveState const&)> handler) const;
     void putState(Application& app,
                   HistoryArchiveState const& s,
-                  std::function<void(asio::error_code const&)> handler);
-    std::string getFileCmd(std::string const& basename, std::string const& filename);
-    std::string putFileCmd(std::string const& filename, std::string const& basename);
+                  std::function<void(asio::error_code const&)> handler) const;
+    std::string getFileCmd(std::string const& basename, std::string const& filename) const;
+    std::string putFileCmd(std::string const& filename, std::string const& basename) const;
 };
 
 }

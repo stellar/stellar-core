@@ -69,7 +69,7 @@ HistoryArchive::~HistoryArchive()
 
 std::string
 HistoryArchive::qualifiedFilename(Application& app,
-                                  std::string const& basename)
+                                  std::string const& basename) const
 {
     return app.getHistoryMaster().localFilename(mImpl->mName + "-" + basename);
 }
@@ -77,7 +77,7 @@ HistoryArchive::qualifiedFilename(Application& app,
 void
 HistoryArchive::getState(Application& app,
                          std::function<void(asio::error_code const&,
-                                            HistoryArchiveState const&)> handler)
+                                            HistoryArchiveState const&)> handler) const
 {
     auto basename = HistoryArchiveState::basename();
     auto filename = qualifiedFilename(app, basename);
@@ -107,7 +107,7 @@ HistoryArchive::getState(Application& app,
 void
 HistoryArchive::putState(Application& app,
                          HistoryArchiveState const& s,
-                         std::function<void(asio::error_code const&)> handler)
+                         std::function<void(asio::error_code const&)> handler) const
 {
     auto basename = HistoryArchiveState::basename();
     auto filename = qualifiedFilename(app, basename);
@@ -134,7 +134,7 @@ HistoryArchive::putState(Application& app,
 }
 
 std::string
-HistoryArchive::getFileCmd(std::string const& basename, std::string const& filename)
+HistoryArchive::getFileCmd(std::string const& basename, std::string const& filename) const
 {
     if (mImpl->mGetCmd.empty())
         return "";
@@ -142,7 +142,7 @@ HistoryArchive::getFileCmd(std::string const& basename, std::string const& filen
 }
 
 std::string
-HistoryArchive::putFileCmd(std::string const& filename, std::string const& basename)
+HistoryArchive::putFileCmd(std::string const& filename, std::string const& basename) const
 {
     if (mImpl->mPutCmd.empty())
         return "";
