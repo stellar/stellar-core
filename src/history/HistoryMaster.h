@@ -6,6 +6,7 @@
 
 #include "generated/StellarXDR.h"
 #include <functional>
+#include <memory>
 
 /**
  * The history module is responsible for storing, mirroring, and retrieving
@@ -154,6 +155,7 @@ typedef std::error_code error_code;
 namespace stellar
 {
 class Application;
+class HistoryArchive;
 class HistoryMaster
 {
     class Impl;
@@ -176,7 +178,9 @@ class HistoryMaster
                  std::string const& basename,
                  std::function<void(asio::error_code const&)> handler);
 
-    void getFile(std::string const& basename,
+    // Get a file from a specific archive using it's `get` command.
+    void getFile(std::shared_ptr<HistoryArchive> archive,
+                 std::string const& basename,
                  std::string const& filename,
                  std::function<void(asio::error_code const&)> handler);
 

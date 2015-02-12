@@ -245,21 +245,15 @@ HistoryMaster::putFile(string const& filename,
 }
 
 void
-HistoryMaster::getFile(string const& basename,
+HistoryMaster::getFile(std::shared_ptr<HistoryArchive> archive,
+                       string const& basename,
                        string const& filename,
                        function<void(asio::error_code const& ec)> handler)
 {
-    auto const& hist = mImpl->mApp.getConfig().HISTORY;
-    auto commands = make_shared<vector<string>>();
-    for (auto const& pair : hist)
-    {
-        auto s = pair.second->getFileCmd(basename, filename);
-        if (!s.empty())
-        {
-            commands->push_back(s);
-        }
-    }
-    runCommands(mImpl->mApp, commands, handler);
+    assert(archive->hasGetCmd());
+    auto cmd = archive->getFileCmd(basename, filename);
+    auto exit = this->mImpl->mApp.getProcessGateway().runProcess(cmd);
+    exit.async_wait(handler);
 }
 
 }
