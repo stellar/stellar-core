@@ -36,8 +36,8 @@ struct HistoryStateBucket
 struct HistoryArchiveState
 {
     unsigned version{0};
-    unsigned newestHistoryBlock;
-    std::vector<HistoryStateBucket> newestBucketList;
+    unsigned currentLedger;
+    std::vector<HistoryStateBucket> currentBuckets;
 
     static std::string basename();
 
@@ -45,16 +45,16 @@ struct HistoryArchiveState
     void serialize(Archive& ar)
     {
         ar(CEREAL_NVP(version),
-           CEREAL_NVP(newestHistoryBlock),
-           CEREAL_NVP(newestBucketList));
+           CEREAL_NVP(currentLedger),
+           CEREAL_NVP(currentBuckets));
     }
 
     template <class Archive>
     void serialize(Archive& ar) const
     {
         ar(CEREAL_NVP(version),
-           CEREAL_NVP(newestHistoryBlock),
-           CEREAL_NVP(newestBucketList));
+           CEREAL_NVP(currentLedger),
+           CEREAL_NVP(currentBuckets));
     }
 
     void save(std::string const& outFile) const;

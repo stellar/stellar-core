@@ -204,7 +204,7 @@ TEST_CASE("HistoryArchiveState::get_put", "[history]")
     Application app(clock, cfg);
     TmpDir dir = addLocalDirHistoryArchive(app, cfg);
     HistoryArchiveState has;
-    has.newestHistoryBlock = 0x1234;
+    has.currentLedger = 0x1234;
     bool done = false;
     auto archive = cfg.HISTORY["test"];
     archive->putState(
@@ -217,7 +217,7 @@ TEST_CASE("HistoryArchiveState::get_put", "[history]")
                 [&done](asio::error_code const& ec,
                         HistoryArchiveState const& has2)
                 {
-                    CHECK(has2.newestHistoryBlock == 0x1234);
+                    CHECK(has2.currentLedger == 0x1234);
                     CHECK(!ec);
                     done = true;
                 });
