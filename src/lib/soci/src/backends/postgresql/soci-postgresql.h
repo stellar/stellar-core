@@ -300,6 +300,9 @@ struct postgresql_blob_backend : details::blob_backend
 
     postgresql_session_backend & session_;
 
+    void ensure_closed();
+    void ensure_open();
+
     unsigned long oid_; // oid of the large object
     int fd_;            // descriptor of the large object
 };
@@ -329,6 +332,7 @@ struct postgresql_session_backend : details::session_backend
 
     std::string get_next_statement_name();
 
+    int transactionLevel_;
     int statementCount_;
     PGconn * conn_;
 };
