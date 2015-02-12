@@ -65,7 +65,7 @@ Hash& TransactionFrame::getFullHash()
 {
     if(isZero(mFullHash))
     {
-        mFullHash = sha512_256(xdr::xdr_to_msg(mEnvelope));
+        mFullHash = sha256(xdr::xdr_to_msg(mEnvelope));
     }
     return(mFullHash);
 }
@@ -74,7 +74,7 @@ Hash& TransactionFrame::getContentsHash()
 {
     if(isZero(mContentsHash))
     {
-        mContentsHash = sha512_256(xdr::xdr_to_msg(mEnvelope.tx));
+        mContentsHash = sha256(xdr::xdr_to_msg(mEnvelope.tx));
 	}
 	return(mContentsHash);
 }

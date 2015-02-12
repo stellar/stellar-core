@@ -28,7 +28,7 @@ class TestFBA : public FBA
     }
     void storeQuorumSet(FBAQuorumSet qSet)
     {
-        Hash qSetHash = sha512_256(xdr::xdr_to_msg(qSet));
+        Hash qSetHash = sha256(xdr::xdr_to_msg(qSet));
         mQuorumSets[qSetHash] = qSet;
     }
 
@@ -141,7 +141,7 @@ signEnvelope(const SecretKey& secretKey,
 }
 
 #define CREATE_VALUE(X) \
-    const Hash X##ValueHash = sha512_256("SEED_VALUE_HASH_" #X); \
+    const Hash X##ValueHash = sha256("SEED_VALUE_HASH_" #X); \
     const Value X##Value = xdr::xdr_to_opaque(X##ValueHash);
 
 TEST_CASE("protocol core4", "[fba]")
@@ -158,7 +158,7 @@ TEST_CASE("protocol core4", "[fba]")
     qSet.validators.push_back(v2NodeID);
     qSet.validators.push_back(v3NodeID);
 
-    uint256 qSetHash = sha512_256(xdr::xdr_to_msg(qSet));
+    uint256 qSetHash = sha256(xdr::xdr_to_msg(qSet));
 
     TestFBA fba(v0SecretKey, qSet);
 

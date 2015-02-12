@@ -166,7 +166,7 @@ Node::retrieveQuorumSet(const uint256& qSetHash)
 void
 Node::cacheQuorumSet(const FBAQuorumSet& qSet)
 {
-    uint256 qSetHash = sha512_256(xdr::xdr_to_msg(qSet));
+    uint256 qSetHash = sha256(xdr::xdr_to_msg(qSet));
     CLOG(DEBUG, "FBA") << "Node::cacheQuorumSet"
         << "@" << binToHex(mNodeID).substr(0,6)
         << " qSet: "  << binToHex(qSetHash).substr(0,6);

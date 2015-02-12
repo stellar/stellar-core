@@ -5,8 +5,8 @@
 #include "generated/StellardVersion.h"
 #include "main/Config.h"
 #include "util/make_unique.h"
-#include "util/Logging.h"
 #include <time.h>
+#include "util/Logging.h"
 
 #ifdef _MSC_VER
 #include <process.h>

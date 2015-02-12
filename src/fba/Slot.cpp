@@ -25,7 +25,7 @@ ballotToStr(const FBABallot& ballot)
     std::ostringstream oss;
 
     uint256 valueHash = 
-      sha512_256(xdr::xdr_to_msg(ballot.value));
+        sha256(xdr::xdr_to_msg(ballot.value));
 
     oss << "(" << ballot.counter
         << "," << binToHex(valueHash).substr(0,6) << ")";
@@ -778,7 +778,7 @@ Slot::advanceSlot()
     {
         auto cb = [this,e] (const FBAQuorumSet& qSet)
         {
-            uint256 qSetHash = sha512_256(xdr::xdr_to_msg(qSet));
+            uint256 qSetHash = sha256(xdr::xdr_to_msg(qSet));
             if (e.qSetHash() == qSetHash)
             {
                 mFBA->getNode(e.nodeID())->cacheQuorumSet(qSet);

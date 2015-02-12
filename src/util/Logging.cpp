@@ -32,6 +32,7 @@ Logging::setUpLogging(std::string const& filename)
     el::Loggers::getLogger("Overlay");
     el::Loggers::getLogger("Herder");
     el::Loggers::getLogger("Tx");
+    // TEMP el::Loggers::getLogger("performance");
 
     mDefaultConf.setToDefault();
 

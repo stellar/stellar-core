@@ -7,6 +7,8 @@
 #define _ELPP_THREAD_SAFE
 #define _ELPP_DISABLE_DEFAULT_CRASH_HANDLING
 
+// NOTE: Nothing else should include easylogging directly
+//  include this file instead
 #include "lib/util/easylogging++.h"
 
 namespace stellar
