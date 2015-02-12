@@ -24,6 +24,7 @@
 
 #include <fstream>
 #include <system_error>
+#include <regex>
 
 namespace stellar
 {
@@ -65,14 +66,31 @@ HistoryMaster::getTmpDir()
     return mImpl->mWorkDir->getName();
 }
 
+
+std::string
+HistoryMaster::bucketBasename(std::string const& bucketHexHash)
+{
+    return "bucket-" + bucketHexHash + ".xdr";
+}
+
+std::string
+HistoryMaster::bucketHexHash(std::string const& bucketBasename)
+{
+    std::regex rx("bucket-([:xdigit:]{64})\\.xdr");
+    std::smatch sm;
+    if (!std::regex_match(bucketBasename, sm, rx))
+    {
+        throw std::runtime_error("Unknown form of bucket basename");
+    }
+    return sm[1];
+}
+
 std::string
 HistoryMaster::localFilename(std::string const& basename)
 {
     return this->getTmpDir() + "/" + basename;
 }
 
-{
-}
 
 static void
 checkGzipSuffix(string const& filename)
@@ -242,21 +260,6 @@ HistoryMaster::getFile(string const& basename,
         }
     }
     runCommands(mImpl->mApp, commands, handler);
-}
-
-static string
-bucketBasename(uint64_t ledgerSeq, uint32_t ledgerCount)
-{
-    return fmt::format("bucket_{:d}_{:d}.xdr",
-                       ledgerSeq, ledgerCount);
-}
-
-static string
-historyBasename(uint64_t fromLedger, uint64_t toLedger)
-{
-    return fmt::format("history_{:d}_{:d}.xdr",
-                       fromLedger, toLedger);
-
 }
 
 }
