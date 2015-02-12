@@ -14,6 +14,7 @@
 #include "main/test.h"
 #include "lib/catch.hpp"
 #include "util/Logging.h"
+#include "util/Math.h"
 #include "xdrpp/marshal.h"
 #include "xdrpp/printer.h"
 #include "crypto/Hex.h"
@@ -59,7 +60,9 @@ createApp(Config &baseConfig, VirtualClock &clock, int nValidationPeers, int i, 
     }
     cfg.KNOWN_PEERS.clear();
 
-    return  make_shared<Application>(clock, cfg);
+    auto result = make_shared<Application>(clock, cfg);
+    result->enableRealTimer();
+    return result;
 }
 
 
@@ -75,10 +78,14 @@ createApps(Config &baseConfig, VirtualClock &clock, int n, int quorumThresold)
 
     auto result = make_shared<vector<appPtr>>();
 
-    for (int i = 0; i < n; i++) 
+    for (int i = 0; i < n; i++)
     {
         vector<PeerInfo> myPeers;
-        if (i < quorumThresold) 
+        if (n == 1)
+        {
+            // no peers
+        }
+        else if (i < quorumThresold)
         {
             // The first few nodes depend on the next `nValidationPeers` ones.
             myPeers = vector<PeerInfo>(peers.begin() + i + 1, peers.begin() + i + 1 + quorumThresold);
@@ -94,61 +101,67 @@ createApps(Config &baseConfig, VirtualClock &clock, int n, int quorumThresold)
 }
 
 struct AccountInfo {
+    size_t id;
     SecretKey key;
     uint64_t balance;
     uint32_t seq;
+    chrono::time_point<chrono::system_clock> creationTime;
+
+    bool isCreated()
+    {
+        return (chrono::system_clock::now() - creationTime) > chrono::seconds(100);
+    }
+
 };
 using accountPtr = shared_ptr<AccountInfo>;
 
 
 accountPtr createRootAccount()
 {
-    return shared_ptr<AccountInfo>(new AccountInfo{ getRoot(), 0, 1 });
+    return shared_ptr<AccountInfo>(new AccountInfo{ 0, getRoot(), 1000000000, 1, chrono::system_clock::now() - chrono::seconds(100) });
 }
 accountPtr createAccount(size_t i)
 {
     auto accountName = "Account-" + to_string(i);
-    return shared_ptr<AccountInfo>(new AccountInfo{ getAccount(accountName.c_str()), 0, 1 });
+    return shared_ptr<AccountInfo>(new AccountInfo{ i, getAccount(accountName.c_str()), 0, 1, chrono::system_clock::now() });
 }
 
 struct TxInfo {
     shared_ptr<AccountInfo> from;
     shared_ptr<AccountInfo> to;
     uint64_t amount;
-    void execute(Application &app)
+    void execute(shared_ptr<Application> app)
     {
         TransactionFramePtr txFrame = createPaymentTx(from->key, to->key, 1, amount);
-        REQUIRE(app.getHerderGateway().recvTransaction(txFrame));
+        REQUIRE(app->getHerderGateway().recvTransaction(txFrame));
 
         from->seq++;
         from->balance -= amount;
         to->balance += amount;
     }
+    bool bothCreated()
+    {
+        return from->id == 0 || (from->isCreated() && to->isCreated());
+    }
 };
-
-float rand_fraction()
-{
-    return  static_cast<float>(rand()) / static_cast<float>(RAND_MAX + 1);
-}
-
-float rand_pareto(float alpha)
-{
-    // from http://www.pamvotis.org/vassis/RandGen.htm
-    return static_cast<float>(1) / static_cast<float>(pow(rand_fraction(), static_cast<float>(1) / alpha));
-}
 
 
 struct StressTest {
     shared_ptr<vector<appPtr>> apps;
-    shared_ptr<vector<accountPtr>> accounts;
+    vector<accountPtr> accounts;
     size_t nAccounts;
-    uint64_t initialFunds;
+    uint64_t minBalance;
 
     void startApps()
     {
-        for (auto app : *apps) {
+        for (auto app : *apps) 
+        {
             app->start();
+            AccountFrame rootAccount;
+            REQUIRE(AccountFrame::loadAccount(
+                accounts[0]->key.getPublicKey(), rootAccount, app->getDatabase()));
         }
+        minBalance = (*apps)[0]->getLedgerMaster().getMinBalance(0);
     }
     VirtualClock & getClock()
     {
@@ -156,31 +169,31 @@ struct StressTest {
     }
     TxInfo fundingTransaction(shared_ptr<AccountInfo> destination)
     {
-        return TxInfo{ (*accounts)[0], destination, initialFunds };
+        return TxInfo{ accounts[0], destination, 100*minBalance };
     }
-    TxInfo tranferTransaction(int iFrom, int iTo, uint64_t amount)
+    TxInfo tranferTransaction(size_t iFrom, size_t iTo, uint64_t amount)
     {
-        return TxInfo{ (*accounts)[iFrom], (*accounts)[iTo], amount };
+        return TxInfo{ accounts[iFrom], accounts[iTo], amount };
     }
     TxInfo randomTransferTransaction(float alpha)
     {
         AccountInfo from, to;
-        int iFrom, iTo;
+        size_t iFrom, iTo;
         do
         {
-            iFrom = static_cast<int>(rand_pareto(alpha) * accounts->size());
-            iTo = static_cast<int>(rand_pareto(alpha) * accounts->size());
+            iFrom = rand_pareto(alpha, accounts.size());
+            iTo = rand_pareto(alpha, accounts.size());
         } while (iFrom == iTo);
 
-        uint64_t amount = static_cast<uint64_t>(rand_fraction() * (*accounts)[iFrom]->balance / 3);
+        uint64_t amount = static_cast<uint64_t>(rand_fraction() * min(static_cast<uint64_t>(1000), (accounts[iFrom]->balance - minBalance) / 3));
         return tranferTransaction(iFrom, iTo, amount);
     }
     TxInfo randomTransaction(float alpha)
     {
-        if (accounts->size() < nAccounts && rand_fraction() > 0.5)
+        if (accounts.size() < nAccounts && (accounts.size() < 4 || rand_fraction() > 0.5))
         {
-            auto newAcc = createAccount(accounts->size());
-            accounts->push_back(newAcc);
+            auto newAcc = createAccount(accounts.size());
+            accounts.push_back(newAcc);
             return fundingTransaction(newAcc);
         }
         else
@@ -188,67 +201,80 @@ struct StressTest {
             return randomTransferTransaction(alpha);
         }
     }
-    void crank(VirtualClock::duration d)
+    void injectRandomTransactions(size_t n, float paretoAlpha)
+    {
+        for (int i = 0; i < n; )
+        {
+            auto tx = randomTransaction(paretoAlpha);
+            if (tx.bothCreated())
+            {
+                LOG(INFO) << "tx " << tx.from->id << " " << tx.to->id << "  $" << tx.amount;
+                tx.execute((*apps)[rand() % apps->size()]);
+                i++;
+            }
+        }
+    }
+    void crank(chrono::seconds t)
     {
         bool stop = false;
-        VirtualTimer checkTimer(getClock());
-        checkTimer.expires_from_now(d * apps->size());
-        checkTimer.async_wait([&](const asio::error_code& error)
-        {
-            stop = true;
-        });
 
-        while (!stop)
+        auto begin = chrono::system_clock::now();
+        while (chrono::system_clock::now() - begin < t)
         {
-            int nIdle = 0;
-            for (auto app : *apps)
+            auto nIdle = 0;
+            for (int i = 0; i < apps->size(); i++)
             {
                 if (stop)
                     return;
 
-                if (app->crank(false) == 0)
+                if ((*apps)[i]->crank(false) == 0)
                 {
+                    LOG(INFO) << "cranked " << i << "; now idle";
                     nIdle++;
                 }
+                else
+                    LOG(INFO) << "cranked " << i;
             }
-            if (nIdle == apps->size())
-                return;
+            if (nIdle == apps->size()) {
+                LOG(INFO) << "all idle; sleeping for 100ms";
+                this_thread::sleep_for(chrono::milliseconds(100));
+            }
         }
     }
 
 };
 TEST_CASE("stress", "[hrd-stress]")
 {
-    int nNodes = 4;
-    int quorumThresold = 2;
+    int nNodes = 1;
+    int quorumThresold = 1;
     float paretoAlpha = 0.5;
     uint64_t initialFunds = 1000;
     size_t nAccounts = 100;
     size_t nTransactions = 1000000000;
-    size_t injectionRate = 1000; // per sec
+    size_t injectionRate = 1; // per sec
 
     VirtualClock clock;
     Config cfg(getTestConfig());
     cfg.RUN_STANDALONE = true;
     cfg.START_NEW_NETWORK = true;
 
+
     StressTest test {
         createApps(cfg, clock, nNodes, quorumThresold),
-        shared_ptr<vector<accountPtr>>(),
+        vector<accountPtr>(),
         nAccounts,
-        initialFunds
     };
-    test.accounts->push_back(createRootAccount());
+    test.accounts.push_back(createRootAccount());
     test.startApps();
 
+
+
     size_t iTransactions = 0;
-    auto begin = clock.now();
+    auto begin = chrono::system_clock::now();
     while (iTransactions < nTransactions)
     {
-        test.crank(chrono::seconds(1));
-
-        auto elapsed = chrono::duration_cast<chrono::seconds>(clock.now() - begin);
-        auto targetTxs = elapsed.count() * injectionRate;
+        auto elapsed = chrono::duration_cast<chrono::microseconds>(chrono::system_clock::now() - begin);
+        auto targetTxs = elapsed.count() * injectionRate / 1000000;
         auto toInject = max(static_cast<size_t>(0), targetTxs - iTransactions);
 
         if (toInject == 0)
@@ -258,12 +284,11 @@ TEST_CASE("stress", "[hrd-stress]")
         } else
         {
             LOG(INFO) << "Injecting " << toInject << " transactions";
-
-            for (int i = 0; i < toInject; i++)
-            {
-                test.randomTransaction(paretoAlpha).execute(*(*test.apps)[rand() % test.apps->size()]);
-            }
+            test.injectRandomTransactions(toInject, paretoAlpha);
+            iTransactions += toInject;
         }
+
+        test.crank(chrono::seconds(1));
     }
 }
 
