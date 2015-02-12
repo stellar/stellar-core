@@ -25,8 +25,10 @@ namespace stellar
             getsIsoCurrency CHARACTER(4),           \
             getsIssuer CHARACTER(64),               \
             amount BIGINT NOT NULL,                 \
-            price BIGINT NOT NULL,                  \
+            priceN INT NOT NULL,                    \
+            priceD INT NOT NULL,                    \
             flags INT NOT NULL,                     \
+            price BIGINT NOT NULL,                  \
             PRIMARY KEY (accountID, sequence)       \
     );";
 
@@ -60,7 +62,7 @@ namespace stellar
         mIndex = hasher.finish();
     }
 
-    int64_t OfferFrame::getPrice() const
+    Price OfferFrame::getPrice() const
     {
         return mEntry.offer().price;
     }
@@ -91,7 +93,9 @@ namespace stellar
     
 
     // TODO: move this and related SQL code to OfferFrame
-    static const char *offerColumnSelector = "SELECT accountID,sequence,paysIsoCurrency,paysIssuer,getsIsoCurrency,getsIssuer,amount,price,flags FROM Offers";
+    static const char *offerColumnSelector =
+        "SELECT accountID,sequence,paysIsoCurrency,paysIssuer,"\
+        "getsIsoCurrency,getsIssuer,amount,priceN,priceD,flags FROM Offers";
 
     bool OfferFrame::loadOffer(const uint256& accountID, uint32_t seq,
         OfferFrame& retOffer, Database& db)
@@ -132,7 +136,7 @@ namespace stellar
             into(accountID), into(oe.sequence),
             into(paysIsoCurrency, paysIsoIndicator), into(paysIssuer),
             into(getsIsoCurrency, getsIsoIndicator), into(getsIssuer),
-            into(oe.amount), into(oe.price), into(oe.flags)
+            into(oe.amount), into(oe.price.n), into(oe.price.d), into(oe.flags)
             );
 
         st.execute(true);
@@ -232,14 +236,21 @@ namespace stellar
         delta.deleteEntry(*this);
     }
 
+    int64_t OfferFrame::computePrice() const
+    {
+        return bigDivide(mEntry.offer().price.n, OFFER_PRICE_DIVISOR,
+            mEntry.offer().price.d);
+    }
+
     void OfferFrame::storeChange(LedgerDelta &delta, Database& db)
     {
         std::string b58AccountID = toBase58Check(VER_ACCOUNT_ID, mEntry.offer().accountID);
 
         soci::statement st = (db.getSession().prepare <<
-            "UPDATE Offers SET amount=:a, price=:p WHERE accountID=:id AND sequence=:s",
-            use(mEntry.offer().amount), use(mEntry.offer().price),
-            use(b58AccountID), use(mEntry.offer().sequence));
+            "UPDATE Offers SET amount=:a, priceN=:n, priceD=:D, price=:p WHERE accountID=:id AND sequence=:s",
+            use(mEntry.offer().amount),
+            use(mEntry.offer().price.n), use(mEntry.offer().price.d),
+            use(computePrice()), use(b58AccountID), use(mEntry.offer().sequence));
 
         st.execute(true);
 
@@ -263,10 +274,13 @@ namespace stellar
             std::string currencyCode;
             currencyCodeToStr(mEntry.offer().takerPays.isoCI().currencyCode, currencyCode);
             st = (db.getSession().prepare <<
-                "INSERT into Offers (accountID,sequence,paysIsoCurrency,paysIssuer,amount,price,flags) values (:v1,:v2,:v3,:v4,:v5,:v6,:v7)",
+                "INSERT into Offers (accountID,sequence,paysIsoCurrency,paysIssuer,"\
+                "amount,priceN,priceP,price,flags) values"\
+                "(:v1,:v2,:v3,:v4,:v5,:v6,:v7,:v8,:v9)",
                 use(b58AccountID), use(mEntry.offer().sequence), 
                 use(b58issuer),use(currencyCode),use(mEntry.offer().amount),
-                use(mEntry.offer().price),use(mEntry.offer().flags));
+                use(mEntry.offer().price.n), use(mEntry.offer().price.d),
+                use(computePrice()),use(mEntry.offer().flags));
             st.execute(true);
         }
         else if(mEntry.offer().takerPays.type()==NATIVE)
@@ -275,10 +289,13 @@ namespace stellar
             std::string currencyCode;
             currencyCodeToStr(mEntry.offer().takerGets.isoCI().currencyCode, currencyCode);
             st = (db.getSession().prepare <<
-                "INSERT into Offers (accountID,sequence,getsIsoCurrency,getsIssuer,amount,price,flags) values (:v1,:v2,:v3,:v4,:v5,:v6,:v7)",
+                "INSERT into Offers (accountID,sequence,getsIsoCurrency,getsIssuer,"\
+                "amount,priceN,priceD,price,flags) values"\
+                "(:v1,:v2,:v3,:v4,:v5,:v6,:v7,:v8,:v9)",
                 use(b58AccountID), use(mEntry.offer().sequence),
                 use(b58issuer), use(currencyCode), use(mEntry.offer().amount),
-                use(mEntry.offer().price), use(mEntry.offer().flags));
+                use(mEntry.offer().price.n), use(mEntry.offer().price.d),
+                use(computePrice()), use(mEntry.offer().flags));
             st.execute(true);
         }
         else
@@ -291,10 +308,13 @@ namespace stellar
             st = (db.getSession().prepare <<
                 "INSERT into Offers (accountID,sequence,"\
                 "paysIsoCurrency,paysIssuer,getsIsoCurrency,getsIssuer,"\
-                "amount,price,flags) values (:v1,:v2,:v3,:v4,:v5,:v6,:v7,:v8,:v9)",
+                "amount,priceN,priceD,price,flags) values "\
+                "(:v1,:v2,:v3,:v4,:v5,:v6,:v7,:v8,:v9,:v10,:v11)",
                 use(b58AccountID), use(mEntry.offer().sequence),
                 use(paysIsoCurrency), use(b58PaysIssuer), use(getsIsoCurrency), use(b58GetsIssuer),
-                use(mEntry.offer().amount), use(mEntry.offer().price), use(mEntry.offer().flags));
+                use(mEntry.offer().amount),
+                use(mEntry.offer().price.n), use(mEntry.offer().price.d),
+                use(computePrice()), use(mEntry.offer().flags));
             st.execute(true);
         }
 

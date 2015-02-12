@@ -147,15 +147,16 @@ using namespace std;
                     nullptr);
                 switch (r)
                 {
-                case OfferExchange::eOK:
-                    break;
-                case OfferExchange::eFilterFail:
                 case OfferExchange::eFilterStop:
                     assert(false); // no filter -> should not happen
                     break;
-                case OfferExchange::eBadOffer:
-                    throw std::runtime_error("Could not process offer");
-                case OfferExchange::eNotEnoughOffers:
+                case OfferExchange::eOK:
+                    if (curBReceived == actualCurBReceived)
+                    {
+                        break;
+                    }
+                    // fall through
+                case OfferExchange::ePartial:
                     innerResult().result.code(Payment::OVERSENDMAX);
                     return false;
                 }

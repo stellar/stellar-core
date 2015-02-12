@@ -23,6 +23,8 @@ namespace stellar
     {
         void calculateIndex();
         static void loadOffers(soci::details::prepare_temp_type &prep, std::function<void(const OfferFrame&)> offerProcessor);
+
+        int64_t computePrice() const;
     public:
 
         enum OfferFlags
@@ -40,13 +42,12 @@ namespace stellar
         void storeChange(LedgerDelta &delta, Database& db);
         void storeAdd(LedgerDelta &delta, Database& db);
 
-        int64_t getPrice() const;
+        Price getPrice() const;
         int64_t getAmount() const;
         uint256 const& getAccountID() const;
         Currency& getTakerPays();
         Currency& getTakerGets();
         uint32 getSequence();
-
 
         // database utilities
         static bool loadOffer(const uint256& accountID, uint32_t seq, OfferFrame& retEntry,

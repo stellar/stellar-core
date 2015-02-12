@@ -62,11 +62,6 @@ namespace stellar
         // you can receive the lesser of the amount of wheat offered or
         // the amount the guy has
 
-        if (numWheatReceived > maxWheatReceived)
-        {
-            numWheatReceived = maxWheatReceived;
-        }
-
         if (numWheatReceived >= sellingWheatOffer.mEntry.offer().amount)
         {
             numWheatReceived = sellingWheatOffer.mEntry.offer().amount;
@@ -79,30 +74,49 @@ namespace stellar
             sellingWheatOffer.mEntry.offer().amount = numWheatReceived;
         }
 
-        // TODO: there are a bunch of rounding modes here
-        // this should be simplified as it may create situations where an offer
-        // can never be completely taken and sticks around (for example)
+        bool reducedOffer = false;
+
+        if (numWheatReceived > maxWheatReceived)
+        {
+            numWheatReceived = maxWheatReceived;
+            reducedOffer = true;
+        }
 
         // this guy can get X wheat to you. How many sheep does that get him?
-        numSheepSend = bigDivide(numWheatReceived, sellingWheatOffer.mEntry.offer().price, OFFER_PRICE_DIVISOR);
+        numSheepSend = bigDivide(
+            numWheatReceived, sellingWheatOffer.mEntry.offer().price.n,
+            sellingWheatOffer.mEntry.offer().price.d);
 
         if (numSheepSend > maxSheepSend)
         {
             // reduce the number even more if there is a limit on Sheep
-            numWheatReceived = bigDivide(maxSheepSend, OFFER_PRICE_DIVISOR, sellingWheatOffer.mEntry.offer().price);
-
-            numSheepSend = bigDivide(numWheatReceived, sellingWheatOffer.mEntry.offer().price, OFFER_PRICE_DIVISOR);
-
-            assert(numSheepSend <= maxSheepSend);
+            numSheepSend = maxSheepSend;
+            reducedOffer = true;
         }
+
+        // bias towards seller
+        numWheatReceived = bigDivide(
+            numSheepSend, sellingWheatOffer.mEntry.offer().price.d,
+            sellingWheatOffer.mEntry.offer().price.n);
+
+        bool offerTaken = false;
 
         if (numWheatReceived == 0 || numSheepSend == 0)
         {
-            // TODO: cleanup offers that result in this (offer amount too low to be converted)
-            return eOfferCantConvert;
+            if (reducedOffer)
+            {
+                return eOfferCantConvert;
+            }
+            else
+            {
+                // force delete the offer as it represents a bogus offer
+                numWheatReceived = 0;
+                numSheepSend = 0;
+                offerTaken = true;
+            }
         }
 
-        bool offerTaken = sellingWheatOffer.mEntry.offer().amount <= numWheatReceived;
+        offerTaken = offerTaken || sellingWheatOffer.mEntry.offer().amount <= numWheatReceived;
         if (offerTaken)
         {   // entire offer is taken
             sellingWheatOffer.storeDelete(mDelta, db);
@@ -160,7 +174,9 @@ namespace stellar
 
         size_t offerOffset = 0;
 
-        while (maxWheatReceive > 0 && maxSheepSend > 0)
+        bool needMore = (maxWheatReceive > 0 && maxSheepSend > 0);
+
+        while (needMore)
         {
             std::vector<OfferFrame> retList;
             OfferFrame::loadBestOffers(5, offerOffset, sheep, wheat, retList, db);
@@ -173,10 +189,6 @@ namespace stellar
                     {
                     case eKeep:
                         break;
-                    case eSkip:
-                        continue;
-                    case eFail:
-                        return eFilterFail;
                     case eStop:
                         return eFilterStop;
                     }
@@ -191,8 +203,6 @@ namespace stellar
 
                 switch (cor)
                 {
-                case eOfferError:
-                    return eBadOffer;
                 case eOfferTaken:
                     offerOffset--; // adjust offset as an offer was deleted
                     assert(offerOffset >= 0);
@@ -200,7 +210,7 @@ namespace stellar
                 case eOfferPartial:
                     break;
                 case eOfferCantConvert:
-                    return eOK;
+                    return ePartial;
                 }
 
                 sheepSend += numSheepSend;
@@ -208,11 +218,22 @@ namespace stellar
 
                 wheatReceived += numWheatReceived;
                 maxWheatReceive -= numWheatReceived;
+
+                needMore = (maxWheatReceive > 0 && maxSheepSend > 0);
+                if (!needMore)
+                {
+                    return eOK;
+                }
+                else if (cor == eOfferPartial)
+                {
+                    return ePartial;
+                }
             }
+
             // still stuff to fill but no more offers
-            if ((maxWheatReceive > 0 || (maxSheepSend != 0)) && retList.size() < 5)
-            { // there isn't enough offer depth
-                return eNotEnoughOffers;
+            if (needMore && retList.size() < 5)
+            {
+                return eOK;
             }
             offerOffset += retList.size();
         }

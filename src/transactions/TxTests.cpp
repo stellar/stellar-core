@@ -42,7 +42,7 @@ SecretKey getAccount(const char* n)
     return SecretKey::fromBase58Seed(b58SeedStr);
 }
 
-TransactionFramePtr setTrust(SecretKey& from, SecretKey& to, uint32_t seq, const std::string& currencyCode)
+TransactionFramePtr changeTrust(SecretKey& from, SecretKey& to, uint32_t seq, const std::string& currencyCode, int64_t limit)
 {
     TransactionEnvelope txEnvelope;
     txEnvelope.tx.body.type(CHANGE_TRUST);
@@ -51,7 +51,7 @@ TransactionFramePtr setTrust(SecretKey& from, SecretKey& to, uint32_t seq, const
     txEnvelope.tx.maxLedger = 1000;
     txEnvelope.tx.minLedger = 0;
     txEnvelope.tx.seqNum = seq;
-    txEnvelope.tx.body.changeTrustTx().limit = 1000000;
+    txEnvelope.tx.body.changeTrustTx().limit = limit;
     txEnvelope.tx.body.changeTrustTx().line.type(ISO4217);
     strToCurrencyCode(txEnvelope.tx.body.changeTrustTx().line.isoCI().currencyCode,currencyCode);
     txEnvelope.tx.body.changeTrustTx().line.isoCI().issuer = to.getPublicKey();
@@ -95,11 +95,11 @@ void applyPaymentTx(Application& app, SecretKey& from, SecretKey& to, uint32_t s
     REQUIRE(Payment::getInnerCode(txFrame->getResult()) == result);
 }
 
-void applyTrust(Application& app, SecretKey& from, SecretKey& to, uint32_t seq, const std::string& currencyCode, ChangeTrust::ChangeTrustResultCode result)
+void applyChangeTrust(Application& app, SecretKey& from, SecretKey& to, uint32_t seq, const std::string& currencyCode, int64_t limit, ChangeTrust::ChangeTrustResultCode result)
 {
     TransactionFramePtr txFrame;
 
-    txFrame = setTrust(from, to, seq, currencyCode);
+    txFrame = changeTrust(from, to, seq, currencyCode, limit);
 
     LedgerDelta delta;
     txFrame->apply(delta, app);
@@ -151,7 +151,7 @@ void applyCreditPaymentTx(Application& app, SecretKey& from, SecretKey& to, Curr
 }
 
 TransactionFramePtr createOfferTx(SecretKey& source, Currency& takerGets,
-    Currency& takerPays, uint64_t price, int64_t amount, uint32_t seq)
+    Currency& takerPays, Price const &price, int64_t amount, uint32_t seq)
 {
     TransactionEnvelope txEnvelope;
     txEnvelope.tx.body.type(CREATE_OFFER);
@@ -174,7 +174,7 @@ TransactionFramePtr createOfferTx(SecretKey& source, Currency& takerGets,
 }
 
 void applyOffer(Application& app, SecretKey& source, Currency& takerGets,
-    Currency& takerPays, uint64_t price, int64_t amount, uint32_t seq, CreateOffer::CreateOfferResultCode result)
+    Currency& takerPays, Price const& price, int64_t amount, uint32_t seq, CreateOffer::CreateOfferResultCode result)
 {
     TransactionFramePtr txFrame;
 

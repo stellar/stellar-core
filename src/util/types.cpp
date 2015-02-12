@@ -76,18 +76,36 @@ int64_t bigDivide(int64_t A, int64_t B, int64_t C)
     uint128_t b(B);
     uint128_t c(C);
     uint128_t x = (a*b)/c;
+    if (x > INT64_MAX)
+    {
+        throw std::overflow_error("cannot process value");
+    }
     return (uint64_t)x;
 }
 
 bool iequals(const std::string& a, const std::string& b)
 {
-    unsigned int sz = a.size();
+    size_t sz = a.size();
     if(b.size() != sz)
         return false;
-    for(unsigned int i = 0; i < sz; ++i)
+    for(size_t i = 0; i < sz; ++i)
         if(tolower(a[i]) != tolower(b[i]))
             return false;
     return true;
+}
+
+bool operator>(Price const& a, Price const& b)
+{
+    uint128_t l(a.n);
+    uint128_t r(a.d);
+    l *= b.d;
+    r *= b.n;
+    return l > r;
+}
+
+bool operator==(Price const& a, Price const& b)
+{
+    return (a.n == b.n) && (a.d == b.d);
 }
 
 }
