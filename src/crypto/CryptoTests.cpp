@@ -94,35 +94,6 @@ TEST_CASE("SHA256 tests", "[crypto]")
     }
 }
 
-
-static std::map<std::string, std::string>
-sha512_256TestVectors = {
-    {"",
-     "c672b8d1ef56ed28ab87c3622c5114069bdd3ad7b8f9737498d0c01ecef0967a"},
-
-    {"a",
-     "455e518824bc0601f9fb858ff5c37d417d67c2f8e0df2babe4808858aea830f8"},
-
-    {"abc",
-     "53048e2681941ef99b2e29b76b4c7dabe4c2d0c634fc6d46e0e2f13107e7af23"},
-
-    {"abcdefghbcdefghicdefghijdefghijkefghijklfghijklmghijklmnhijklmnoijklmnopjklmnopqklmnopqrlmnopqrsmnopqrstnopqrstu",
-     "3928e184fb8690f840da3988121d31be65cb9d3ef83ee6146feac861e19b563a"}
-};
-
-TEST_CASE("SHA512/256 tests", "[crypto]")
-{
-    // Do some fixed test vectors.
-    for (auto const& pair : sha512_256TestVectors)
-    {
-        LOG(DEBUG) << "fixed test vector SHA512/256: \"" << pair.second << "\"";
-
-        auto hash = binToHex(sha512_256(pair.first));
-        CHECK(hash.size() == pair.second.size());
-        CHECK(hash == pair.second);
-    }
-}
-
 // Note: the fixed test vectors are based on the bitcoin alphabet; the stellar /
 // ripple alphabet is a permutation of it. But these ought to test the algorithm
 // relatively well and have been cross-checked against several implementations

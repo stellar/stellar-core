@@ -186,7 +186,7 @@ TxSetFrame::getContentsHash()
     if (isZero(mHash))
     {
         sortForHash();
-        SHA512_256 hasher;
+        SHA256 hasher;
         for (unsigned int n = 0; n < mTransactions.size(); n++)
         {
             hasher.add(xdr::xdr_to_msg(mTransactions[n]->getEnvelope()));

@@ -55,7 +55,7 @@ namespace stellar
 
     void OfferFrame::calculateIndex()
     {
-        SHA512_256 hasher;
+        SHA256 hasher;
         hasher.add(mEntry.offer().accountID);
         // TODO: fix this (endian), or remove index altogether
         hasher.add(ByteSlice(&mEntry.offer().sequence, sizeof(mEntry.offer().sequence)));
