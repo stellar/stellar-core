@@ -234,7 +234,7 @@ Bucket::OutputIterator
     std::string mFilename;
     std::vector<CLFEntry> mEntries;
     XDROutputFileStream mOut;
-    SHA512_256 mHasher;
+    SHA256 mHasher;
 
 public:
 
@@ -386,7 +386,7 @@ Bucket::merge(std::string const& tmpDir,
                                oldBucket->isSpilledToFile() ||
                                newBucket->isSpilledToFile());
 
-    SHA512_256 hsh;
+    SHA256 hsh;
     CLFEntryIdCmp cmp;
     while (oi || ni)
     {
@@ -435,7 +435,7 @@ BucketLevel::BucketLevel(size_t i)
 uint256
 BucketLevel::getHash() const
 {
-    SHA512_256 hsh;
+    SHA256 hsh;
     hsh.add(mCurr->getHash());
     hsh.add(mSnap->getHash());
     return hsh.finish();
@@ -582,7 +582,7 @@ BucketList::numLevels(uint64_t ledger)
 uint256
 BucketList::getHash() const
 {
-    SHA512_256 hsh;
+    SHA256 hsh;
     for (auto const& lev : mLevels)
     {
         hsh.add(lev.getHash());

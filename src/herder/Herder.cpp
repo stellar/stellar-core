@@ -195,13 +195,13 @@ Herder::compareValues(const uint64& slotIndex,
     // function used, a new king is "coronated" for each round of FBA (ballot
     // counter) and each slotIndex.
     
-    SHA512_256 s1;
+    SHA256 s1;
     s1.add(xdr::xdr_to_msg(slotIndex));
     s1.add(xdr::xdr_to_msg(ballotCounter));
     s1.add(xdr::xdr_to_msg(b1.nodeID));
     auto h1 = s1.finish();
 
-    SHA512_256 s2;
+    SHA256 s2;
     s2.add(xdr::xdr_to_msg(slotIndex));
     s2.add(xdr::xdr_to_msg(ballotCounter));
     s2.add(xdr::xdr_to_msg(b2.nodeID));
@@ -290,13 +290,13 @@ Herder::validateBallot(const uint64& slotIndex,
             isTrusted = true;
         }
 
-        SHA512_256 sProposed;
+        SHA256 sProposed;
         sProposed.add(xdr::xdr_to_msg(slotIndex));
         sProposed.add(xdr::xdr_to_msg(ballot.counter));
         sProposed.add(xdr::xdr_to_msg(b.nodeID));
         auto hProposed = sProposed.finish();
 
-        SHA512_256 sContender;
+        SHA256 sContender;
         sContender.add(xdr::xdr_to_msg(slotIndex));
         sContender.add(xdr::xdr_to_msg(ballot.counter));
         sContender.add(xdr::xdr_to_msg(vID));

@@ -15,18 +15,14 @@ namespace stellar
 uint256
 sha256(ByteSlice const& bin);
 
-// SHA512/256: SHA512 truncated to 256 bits
-uint256
-sha512_256(ByteSlice const& bin);
-
-// SHA512/256 in incremental mode, for large inputs.
-class SHA512_256
+// SHA256 in incremental mode, for large inputs.
+class SHA256
 {
     struct Impl;
     std::unique_ptr<Impl> mImpl;
 public:
-    SHA512_256();
-    ~SHA512_256();
+    SHA256();
+    ~SHA256();
     void add(ByteSlice const& bin);
     uint256 finish();
 };

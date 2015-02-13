@@ -39,7 +39,7 @@ namespace stellar {
     void TrustFrame::calculateIndex()
     {
         // hash of accountID+issuer+currency
-        SHA512_256 hasher;
+        SHA256 hasher;
         hasher.add(mEntry.trustLine().accountID);
         hasher.add(mEntry.trustLine().currency.isoCI().issuer);
         hasher.add(mEntry.trustLine().currency.isoCI().currencyCode);
