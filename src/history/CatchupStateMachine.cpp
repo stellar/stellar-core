@@ -12,6 +12,7 @@
 #include "util/Logging.h"
 #include "util/XDRStream.h"
 
+#include <random>
 
 namespace stellar
 {
