@@ -125,7 +125,7 @@ HistoryMaster::verifyHash(std::string const& filename,
     app.getWorkerIOService().post(
         [&app, filename, handler, hash]()
         {
-            SHA512_256 hasher;
+            SHA256 hasher;
             char buf[4096];
             ifstream in(filename, ofstream::binary);
             while (in)

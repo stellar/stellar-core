@@ -181,7 +181,7 @@ TEST_CASE("HistoryMaster::verifyHash", "[history]")
         out.write(s.data(), s.size());
     }
     bool done = false;
-    uint256 hash = hexToBin256("cb6980c876a1ecf3234867ef058206842267f67685bf9a03693748e5b87f0d0a");
+    uint256 hash = hexToBin256("12998c017066eb0d2a70b94e6ed3192985855ce390f321bbdb832022888bd251");
     hm.verifyHash(
         fname, hash,
         [&done](asio::error_code const& ec)
