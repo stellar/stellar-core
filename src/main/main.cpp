@@ -121,9 +121,6 @@ main(int argc, char* const* argv)
         case OPT_VERSION:
             std::cout << STELLARD_VERSION;
             return 0;
-        case OPT_HELP:
-            usage(0);
-            return 0;
         case OPT_NEW:
             newNetwork = true;
             break;
@@ -137,6 +134,10 @@ main(int argc, char* const* argv)
             std::cout << "Public: " << key.getBase58Public() << std::endl;
             return 0;
         }
+
+        default:
+            usage(0);
+            return 0;
             
         }
     }
