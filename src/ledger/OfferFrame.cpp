@@ -16,21 +16,22 @@ using namespace soci;
 namespace stellar
 {
     const char *OfferFrame::kSQLCreateStatement = 
-            "CREATE TABLE IF NOT EXISTS Offers (    \
-            accountID       CHARACTER(64) NOT NULL, \
-            sequence        INT NOT NULL \
-                            CHECK (sequence >= 0),  \
-            paysIsoCurrency CHARACTER(4),           \
-            paysIssuer CHARACTER(64),               \
-            getsIsoCurrency CHARACTER(4),           \
-            getsIssuer CHARACTER(64),               \
-            amount BIGINT NOT NULL,                 \
-            priceN INT NOT NULL,                    \
-            priceD INT NOT NULL,                    \
-            flags INT NOT NULL,                     \
-            price BIGINT NOT NULL,                  \
-            PRIMARY KEY (accountID, sequence)       \
-    );";
+        "CREATE TABLE IF NOT EXISTS Offers                     \
+         (                                                     \
+         accountID       CHARACTER(64)  NOT NULL,              \
+         sequence        INT            NOT NULL               \
+                                        CHECK (sequence >= 0), \
+         paysIsoCurrency CHARACTER(4)   NOT NULL,              \
+         paysIssuer      CHARACTER(64)  NOT NULL,              \
+         getsIsoCurrency CHARACTER(4)   NOT NULL,              \
+         getsIssuer      CHARACTER(64)  NOT NULL,              \
+         amount          BIGINT         NOT NULL,              \
+         priceN          INT            NOT NULL,              \
+         priceD          INT            NOT NULL,              \
+         flags           INT            NOT NULL,              \
+         price           BIGINT         NOT NULL,              \
+         PRIMARY KEY (accountID, sequence)                     \
+         );";
 
     OfferFrame::OfferFrame()
     {

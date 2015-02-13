@@ -15,15 +15,19 @@ using namespace std;
 using namespace soci;
 
 namespace stellar {
-    const char *TrustFrame::kSQLCreateStatement = "CREATE TABLE IF NOT EXISTS TrustLines (					\
-		trustIndex CHARACTER(64) PRIMARY KEY,				\
-		accountID	CHARACTER(64),			\
-		issuer CHARACTER(64),				\
-		isoCurrency CHARACTER(4),    		\
-		tlimit BIGINT DEFAULT 0 CHECK (tlimit >= 0),		   		\
-		balance BIGINT DEFAULT 0 CHECK (balance >= 0),			\
-		authorized BOOL						\
-	); ";
+    const char *TrustFrame::kSQLCreateStatement =
+        "CREATE TABLE IF NOT EXISTS TrustLines              \
+         (                                                  \
+         trustIndex    CHARACTER(64)  PRIMARY KEY,          \
+         accountID     CHARACTER(64)  NOT NULL,             \
+         issuer        CHARACTER(64)  NOT NULL,             \
+         isoCurrency   CHARACTER(4)   NOT NULL,             \
+         tlimit        BIGINT         NOT NULL DEFAULT 0    \
+                                      CHECK (tlimit >= 0),  \
+         balance       BIGINT         NOT NULL DEFAULT 0    \
+                                      CHECK (balance >= 0), \
+         authorized    BOOL           NOT NULL              \
+         );";
 
     TrustFrame::TrustFrame()
     {
