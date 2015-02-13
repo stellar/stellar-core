@@ -2,6 +2,7 @@
 
 #include <cereal/cereal.hpp>
 #include <string>
+#include <system_error>
 
 namespace asio
 {
