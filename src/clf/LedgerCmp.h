@@ -9,6 +9,10 @@
 namespace stellar
 {
 
+// Helper for getting a LedgerKey from a LedgerEntry.
+LedgerKey
+LedgerEntryKey(LedgerEntry const& e);
+
 /**
  * Compare two LedgerEntries or LedgerKeys for 'identity', not content.
  *
