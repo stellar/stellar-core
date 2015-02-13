@@ -23,7 +23,6 @@ namespace stellar
 	{
 	protected:
         
-        bool mValid;
 		uint256 mIndex;
 
 		virtual void calculateIndex() = 0;
@@ -39,19 +38,15 @@ namespace stellar
 
         virtual EntryFrame::pointer copy() const=0;
 
-        bool isValid() { return mValid;  }
 		// calculate the index if you don't have it already
         uint256 getIndex();
 
-		// calculate the hash if you don't have it already
-        uint256 getHash();
 
 		
 		virtual void storeDelete(LedgerDelta &delta, Database& db)=0;
 		virtual void storeChange(LedgerDelta &delta, Database& db)=0;
 		virtual void storeAdd(LedgerDelta &delta, Database& db)=0;
 
-        static void dropAll(Database &db); // deletes all data from DB
 	};
 }
 

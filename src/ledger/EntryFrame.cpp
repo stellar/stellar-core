@@ -33,12 +33,10 @@ EntryFrame::pointer EntryFrame::FromXDR(LedgerEntry const &from)
 
 EntryFrame::EntryFrame()
 {
-    mValid = false;
 }
 
 EntryFrame::EntryFrame(const LedgerEntry& from) : mEntry(from)
 {
-    mValid = true;
 }
 
 uint256 EntryFrame::getIndex()
