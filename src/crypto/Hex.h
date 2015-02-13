@@ -13,6 +13,9 @@ namespace stellar
 std::string
 binToHex(ByteSlice const& bin);
 
+std::string
+hexAbbrev(ByteSlice const& bin);
+
 std::vector<uint8_t>
 hexToBin(std::string const& hex);
 

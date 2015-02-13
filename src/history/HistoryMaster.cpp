@@ -16,12 +16,15 @@
 #include "util/make_unique.h"
 #include "util/Logging.h"
 #include "util/TmpDir.h"
+#include "crypto/SHA.h"
+#include "crypto/Hex.h"
 #include "lib/util/format.h"
 
 #include "xdrpp/marshal.h"
 
 #include <fstream>
 #include <system_error>
+#include <regex>
 
 namespace stellar
 {
@@ -52,28 +55,6 @@ HistoryMaster::~HistoryMaster()
 {
 }
 
-/*
- * HistoryMaster behaves differently depending on application state.
- *
- * When application is in anything before CATCHING_UP_STATE, HistoryMaster
- * should be idle.
- *
- * When application is in CATCHING_UP_STATE, HistoryMaster picks an "anchor"
- * ledger X that it's trying to build a complete bucketlist for, as well as a
- * history-suffix from [X,current] as current advances. It downloads buckets
- * for X and accumulates history entries from X forward.
- *
- * Once it has a full set of buckets for X, it will force-apply them to the
- * database (overwrite objects) in order to acquire state X. If successful
- * it will then play transactions forward from X, as fast as it can, until
- * X==current. At that point it will switch to SYNCED_STATE.
- *
- * in SYNCED_STATE it accumulates history entries as they arrive, in the
- * database, periodically flushes those to a file on disk, copies it to s3 (or
- * wherever) and deletes the archived entries. It also flushes buckets to
- * s3 as they are evicted from the CLF.
- */
-
 string const&
 HistoryMaster::getTmpDir()
 {
@@ -85,45 +66,33 @@ HistoryMaster::getTmpDir()
     return mImpl->mWorkDir->getName();
 }
 
-template<typename T> void
-HistoryMaster::saveAndCompressAndPut(string const& basename,
-                                     shared_ptr<T> xdrp,
-                                     function<void(asio::error_code const&)>
-                                     handler)
+
+std::string
+HistoryMaster::bucketBasename(std::string const& bucketHexHash)
 {
-    this->mImpl->mApp.getWorkerIOService().post(
-        [this, basename, handler, xdrp]()
-        {
-            string fullname = this->getTmpDir() + "/" + basename;
-            ofstream out(fullname, ofstream::binary);
-            auto m = xdr::xdr_to_msg(*xdrp);
-            out.write(m->raw_data(), m->raw_size());
-            this->mImpl->mApp.getMainIOService().post(
-                [this, basename, fullname, handler]()
-                {
-                    auto& app = this->mImpl->mApp;
-                    auto exit = app.getProcessGateway().runProcess(
-                        "gzip " + fullname);
-                    exit.async_wait(
-                        [this, basename, fullname, handler](
-                            asio::error_code const& ec) {
-                            if (ec)
-                            {
-                                LOG(DEBUG) << "'gzip "
-                                           << fullname << "' failed";
-                                handler(ec);
-                            }
-                            else
-                            {
-                                this->putFile(fullname + ".gz",
-                                              basename  + ".gz", handler);
-                            }
-                        });
-                });
-        });
+    return "bucket-" + bucketHexHash + ".xdr";
 }
 
-void
+std::string
+HistoryMaster::bucketHexHash(std::string const& bucketBasename)
+{
+    std::regex rx("bucket-([:xdigit:]{64})\\.xdr");
+    std::smatch sm;
+    if (!std::regex_match(bucketBasename, sm, rx))
+    {
+        throw std::runtime_error("Unknown form of bucket basename");
+    }
+    return sm[1];
+}
+
+std::string
+HistoryMaster::localFilename(std::string const& basename)
+{
+    return this->getTmpDir() + "/" + basename;
+}
+
+
+static void
 checkGzipSuffix(string const& filename)
 {
     string suf(".gz");
@@ -134,74 +103,97 @@ checkGzipSuffix(string const& filename)
     }
 }
 
-template<typename T> void
-HistoryMaster::getAndDecompressAndLoad(string const& basename,
-                                       function<void(asio::error_code const&,
-                                                     shared_ptr<T>)> handler)
+static void
+checkNoGzipSuffix(string const& filename)
 {
+    string suf(".gz");
+    if (filename.size() >= suf.size() &&
+        equal(suf.rbegin(), suf.rend(), filename.rbegin()))
+    {
+        throw runtime_error("filename ends in .gz");
+    }
+}
 
-    string fullname = getTmpDir() + "/" + basename + ".gz";
-    getFile(
-        basename + ".gz", fullname,
-        [this, fullname, handler](asio::error_code const& ec)
+
+void
+HistoryMaster::verifyHash(std::string const& filename,
+                          uint256 const& hash,
+                          std::function<void(asio::error_code const&)> handler)
+{
+    checkNoGzipSuffix(filename);
+    Application& app = this->mImpl->mApp;
+    app.getWorkerIOService().post(
+        [&app, filename, handler, hash]()
+        {
+            SHA256 hasher;
+            char buf[4096];
+            ifstream in(filename, ofstream::binary);
+            while (in)
+            {
+                in.read(buf, sizeof(buf));
+                hasher.add(ByteSlice(buf, in.gcount()));
+            }
+            uint256 vHash = hasher.finish();
+            asio::error_code ec;
+            if (vHash == hash)
+            {
+                LOG(DEBUG) << "Verified hash ("
+                           << hexAbbrev(hash)
+                           << ") for " << filename;
+            }
+            else
+            {
+                LOG(WARNING) << "FAILED verifying hash for " << filename;
+                ec = std::make_error_code(std::errc::io_error);
+            }
+            app.getMainIOService().post([ec, handler]() { handler(ec); });
+        });
+}
+
+void
+HistoryMaster::decompress(std::string const& filename_gz,
+                          std::function<void(asio::error_code const&)> handler)
+{
+    checkGzipSuffix(filename_gz);
+    Application& app = this->mImpl->mApp;
+    auto exit = app.getProcessGateway().runProcess("gunzip " + filename_gz);
+    exit.async_wait(
+        [&app, filename_gz, handler](asio::error_code const& ec)
+        {
+            std::string filename = filename_gz.substr(0, filename_gz.size() - 3);
+            if (ec)
+            {
+                LOG(WARNING) << "'gunzip " << filename_gz << "' failed,"
+                             << " removing " << filename_gz
+                             << " and " << filename;
+                std::remove(filename_gz.c_str());
+                std::remove(filename.c_str());
+            }
+            handler(ec);
+        });
+}
+
+
+void
+HistoryMaster::compress(std::string const& filename_nogz,
+                        std::function<void(asio::error_code const&)> handler)
+{
+    checkNoGzipSuffix(filename_nogz);
+    Application& app = this->mImpl->mApp;
+    auto exit = app.getProcessGateway().runProcess("gzip " + filename_nogz);
+    exit.async_wait(
+        [&app, filename_nogz, handler](asio::error_code const& ec)
         {
             if (ec)
             {
-                handler(ec, shared_ptr<T>(nullptr));
-                return;
+                std::string filename = filename_nogz + ".gz";
+                LOG(WARNING) << "'gzip " << filename_nogz << "' failed,"
+                             << " removing " << filename_nogz
+                             << " and " << filename;
+                std::remove(filename_nogz.c_str());
+                std::remove(filename.c_str());
             }
-            checkGzipSuffix(fullname);
-            Application& app = this->mImpl->mApp;
-            auto exit = app.getProcessGateway().runProcess(
-                "gunzip " + fullname);
-            exit.async_wait(
-                [&app, fullname, handler](asio::error_code const& ec)
-                {
-                    if (ec)
-                    {
-                        LOG(DEBUG) << "Removing incoming file "
-                                   << fullname;
-                        handler(ec, shared_ptr<T>(nullptr));
-                        return;
-                    }
-                    app.getWorkerIOService().post(
-                        [&app, fullname, handler]()
-                        {
-                            asio::error_code ec2;
-                            shared_ptr<T> t;
-                            try
-                            {
-                                checkGzipSuffix(fullname);
-                                string stem =
-                                    fullname.substr(0, fullname.size() - 3);
-                                ifstream in(stem, ofstream::binary);
-                                in.exceptions(ifstream::failbit);
-                                in.seekg(0, in.end);
-                                ifstream::pos_type length = in.tellg();
-                                in.seekg(0, in.beg);
-                                xdr::msg_ptr m = xdr::message_t::alloc(
-                                    length -
-                                    static_cast<ifstream::pos_type>(4));
-                                in.read(m->raw_data(), m->raw_size());
-                                in.close();
-                                t = make_shared<T>();
-                                xdr::xdr_from_msg(m, *t);
-                                LOG(DEBUG) << "Removing decompressed file "
-                                           << stem;
-                                std::remove(stem.c_str());
-                            }
-                            catch (...)
-                            {
-                                ec2 = std::make_error_code(
-                                    std::errc::io_error);
-                            }
-                            app.getMainIOService().post(
-                                [ec2, handler, t]()
-                                {
-                                    handler(ec2, t);
-                                });
-                        });
-                });
+            handler(ec);
         });
 }
 
@@ -249,83 +241,19 @@ HistoryMaster::putFile(string const& filename,
             commands->push_back(s);
         }
     }
-    runCommands(mImpl->mApp, commands,
-                [filename, handler](asio::error_code const& ec)
-                {
-                    LOG(DEBUG) << "Removing temporary file " << filename;
-                    std::remove(filename.c_str());
-                    handler(ec);
-                });
-}
-
-void
-HistoryMaster::getFile(string const& basename,
-                       string const& filename,
-                       function<void(asio::error_code const& ec)> handler)
-{
-    auto const& hist = mImpl->mApp.getConfig().HISTORY;
-    auto commands = make_shared<vector<string>>();
-    for (auto const& pair : hist)
-    {
-        auto s = pair.second->getFileCmd(basename, filename);
-        if (!s.empty())
-        {
-            commands->push_back(s);
-        }
-    }
     runCommands(mImpl->mApp, commands, handler);
 }
 
-static string
-bucketBasename(uint64_t ledgerSeq, uint32_t ledgerCount)
-{
-    return fmt::format("bucket_{:d}_{:d}.xdr",
-                       ledgerSeq, ledgerCount);
-}
-
-static string
-historyBasename(uint64_t fromLedger, uint64_t toLedger)
-{
-    return fmt::format("history_{:d}_{:d}.xdr",
-                       fromLedger, toLedger);
-}
-
 void
-HistoryMaster::archiveBucket(shared_ptr<CLFBucket> bucket,
-                             function<void(asio::error_code const&)> handler)
+HistoryMaster::getFile(std::shared_ptr<HistoryArchive> archive,
+                       string const& basename,
+                       string const& filename,
+                       function<void(asio::error_code const& ec)> handler)
 {
-    string basename = bucketBasename(bucket->header.ledgerSeq,
-                                     bucket->header.ledgerCount);
-    saveAndCompressAndPut<CLFBucket>(basename, bucket, handler);
-}
-
-void
-HistoryMaster::archiveHistory(shared_ptr<History> hist,
-                              function<void(asio::error_code const&)> handler)
-{
-    string basename = historyBasename(hist->fromLedger,
-                                      hist->toLedger);
-    saveAndCompressAndPut<History>(basename, hist, handler);
-}
-
-void
-HistoryMaster::acquireBucket(uint64_t ledgerSeq,
-                             uint32_t ledgerCount,
-                             function<void(asio::error_code const&,
-                                           shared_ptr<CLFBucket>)> handler)
-{
-    string basename = bucketBasename(ledgerSeq, ledgerCount);
-    getAndDecompressAndLoad<CLFBucket>(basename, handler);
-}
-
-void
-HistoryMaster::acquireHistory(uint64_t fromLedger,
-                              uint64_t toLedger,
-                              function<void(asio::error_code const&,
-                                            shared_ptr<History>)> handler)
-{
-    string basename = historyBasename(fromLedger, toLedger);
-    getAndDecompressAndLoad<History>(basename, handler);
+    assert(archive->hasGetCmd());
+    auto cmd = archive->getFileCmd(basename, filename);
+    auto exit = this->mImpl->mApp.getProcessGateway().runProcess(cmd);
+    exit.async_wait(handler);
 }
 
 }

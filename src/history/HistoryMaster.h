@@ -6,6 +6,7 @@
 
 #include "generated/StellarXDR.h"
 #include <functional>
+#include <memory>
 
 /**
  * The history module is responsible for storing, mirroring, and retrieving
@@ -154,48 +155,44 @@ typedef std::error_code error_code;
 namespace stellar
 {
 class Application;
+class HistoryArchive;
 class HistoryMaster
 {
     class Impl;
     std::unique_ptr<Impl> mImpl;
 
-    template <typename T> void
-    saveAndCompressAndPut(std::string const& basename,
-                          std::shared_ptr<T> xdrp,
-                          std::function<void(asio::error_code const&)> handler);
+  public:
 
-    template <typename T> void
-    getAndDecompressAndLoad(std::string const& basename,
-                            std::function<void(asio::error_code const&,
-                                               std::shared_ptr<T>)> handler);
+    // Verify that a file has a given hash.
+    void verifyHash(std::string const& filename,
+                    uint256 const& hash,
+                    std::function<void(asio::error_code const&)> handler);
 
+    // Gunzip a file.
+    void decompress(std::string const& filename_gz,
+                    std::function<void(asio::error_code const&)> handler);
+
+    // Gzip a file.
+    void compress(std::string const& filename_nogz,
+                  std::function<void(asio::error_code const&)> handler);
+
+    // Put a file to all archives that have a `put` command.
     void putFile(std::string const& filename,
                  std::string const& basename,
                  std::function<void(asio::error_code const&)> handler);
 
-    void getFile(std::string const& basename,
+    // Get a file from a specific archive using it's `get` command.
+    void getFile(std::shared_ptr<HistoryArchive> archive,
+                 std::string const& basename,
                  std::string const& filename,
                  std::function<void(asio::error_code const&)> handler);
 
     std::string const& getTmpDir();
 
-  public:
+    static std::string bucketBasename(std::string const& bucketHexHash);
+    static std::string bucketHexHash(std::string const& bucketBasename);
 
-    void archiveBucket(std::shared_ptr<CLFBucket> bucket,
-                       std::function<void(asio::error_code const&)> handler);
-
-    void archiveHistory(std::shared_ptr<History> hist,
-                        std::function<void(asio::error_code const&)> handler);
-
-    void acquireBucket(uint64_t ledgerSeq,
-                       uint32_t ledgerCount,
-                       std::function<void(asio::error_code const&,
-                                          std::shared_ptr<CLFBucket>)> handler);
-
-    void acquireHistory(uint64_t fromLedger,
-                        uint64_t toLedger,
-                        std::function<void(asio::error_code const&,
-                                           std::shared_ptr<History>)> handler);
+    std::string localFilename(std::string const& basename);
 
     HistoryMaster(Application& app);
     ~HistoryMaster();

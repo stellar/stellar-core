@@ -90,7 +90,7 @@ TEST_CASE("standalone", "[hrd]")
         setupTimer.expires_from_now(std::chrono::seconds(0));
         setupTimer.async_wait(setup);
 
-        checkTimer.expires_from_now(std::chrono::seconds(2));
+        checkTimer.expires_from_now(std::chrono::seconds(5));
         checkTimer.async_wait(check);
 
         while(!stop && app.crank(false) > 0);
