@@ -21,7 +21,6 @@ namespace stellar {
 	
     class TrustFrame : public EntryFrame
     {
-        void calculateIndex();
         void getKeyFields(std::string& base58AccountID,
                           std::string& base58Issuer,
                           std::string& currencyCode) const;

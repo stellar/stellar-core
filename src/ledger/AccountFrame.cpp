@@ -67,11 +67,6 @@ AccountFrame::AccountFrame(uint256 const& id)
     mUpdateSigners = false;
 }
 
-void AccountFrame::calculateIndex()
-{
-    mIndex = mEntry.account().accountID;
-}
-
 bool AccountFrame::isAuthRequired()
 {
     return(mEntry.account().flags & AUTH_REQUIRED_FLAG);
@@ -174,7 +169,7 @@ bool AccountFrame::loadAccount(const uint256& accountID, AccountFrame& retAcc,
 
 void AccountFrame::storeDelete(LedgerDelta &delta, Database &db)
 {
-    std::string base58ID = toBase58Check(VER_ACCOUNT_ID, getIndex());
+    std::string base58ID = toBase58Check(VER_ACCOUNT_ID, mEntry.account().accountID);
 
     soci::session &session = db.getSession();
 
@@ -191,7 +186,7 @@ void AccountFrame::storeDelete(LedgerDelta &delta, Database &db)
 void AccountFrame::storeUpdate(LedgerDelta &delta, Database &db, bool insert)
 {
     AccountEntry& finalAccount = mEntry.account();
-    std::string base58ID = toBase58Check(VER_ACCOUNT_ID, getIndex());
+    std::string base58ID = toBase58Check(VER_ACCOUNT_ID, finalAccount.accountID);
 
     std::stringstream sql;
 

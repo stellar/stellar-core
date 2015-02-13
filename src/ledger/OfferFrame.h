@@ -21,7 +21,6 @@ namespace stellar
 {
     class OfferFrame : public EntryFrame
     {
-        void calculateIndex();
         static void loadOffers(soci::details::prepare_temp_type &prep, std::function<void(const OfferFrame&)> offerProcessor);
 
         int64_t computePrice() const;

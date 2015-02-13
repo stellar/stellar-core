@@ -2,14 +2,15 @@
 
 #include <map>
 #include "ledger/EntryFrame.h"
+#include "clf/LedgerCmp.h"
 
 namespace stellar
 {
     class LedgerDelta
     {
-        std::map<uint256, EntryFrame::pointer> mNew;
-        std::map<uint256, EntryFrame::pointer> mMod;
-        std::map<uint256, EntryFrame::pointer> mDelete;
+        std::map<LedgerKey, EntryFrame::pointer, LedgerEntryIdCmp> mNew;
+        std::map<LedgerKey, EntryFrame::pointer, LedgerEntryIdCmp> mMod;
+        std::map<LedgerKey, EntryFrame::pointer, LedgerEntryIdCmp> mDelete;
 
         void addEntry(EntryFrame::pointer entry);
         void deleteEntry(EntryFrame::pointer entry);

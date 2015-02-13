@@ -54,15 +54,6 @@ namespace stellar
         mEntry.offer().flags = tx.body.createOfferTx().flags;
     }
 
-    void OfferFrame::calculateIndex()
-    {
-        SHA256 hasher;
-        hasher.add(mEntry.offer().accountID);
-        // TODO: fix this (endian), or remove index altogether
-        hasher.add(ByteSlice(&mEntry.offer().sequence, sizeof(mEntry.offer().sequence)));
-        mIndex = hasher.finish();
-    }
-
     Price OfferFrame::getPrice() const
     {
         return mEntry.offer().price;

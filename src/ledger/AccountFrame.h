@@ -19,7 +19,6 @@ namespace stellar
 {
 	class AccountFrame : public EntryFrame
 	{
-		void calculateIndex();
         void storeUpdate(LedgerDelta &delta, Database& db, bool insert);
         bool mUpdateSigners;
 

@@ -19,26 +19,26 @@ namespace stellar
 
     void LedgerDelta::addEntry(EntryFrame::pointer entry)
     {
-        Hash index = entry->getIndex();
-        auto del_it = mDelete.find(index);
+        auto k = entry->getKey();
+        auto del_it = mDelete.find(k);
         if (del_it != mDelete.end())
         {
             // delete + new is an update
             mDelete.erase(del_it);
-            mMod[index] = entry;
+            mMod[k] = entry;
         }
         else
         {
-            assert(mNew.find(index) == mNew.end()); // double new
-            assert(mMod.find(index) == mMod.end()); // mod + new is invalid
-            mNew[index] = entry;
+            assert(mNew.find(k) == mNew.end()); // double new
+            assert(mMod.find(k) == mMod.end()); // mod + new is invalid
+            mNew[k] = entry;
         }
     }
 
     void LedgerDelta::deleteEntry(EntryFrame::pointer entry)
     {
-        Hash index = entry->getIndex();
-        auto new_it = mNew.find(index);
+        auto k = entry->getKey();
+        auto new_it = mNew.find(k);
         if (new_it != mNew.end())
         {
             // new + delete -> don't add it in the first place
@@ -46,17 +46,17 @@ namespace stellar
         }
         else
         {
-            assert(mDelete.find(index) == mDelete.end()); // double delete is invalid
+            assert(mDelete.find(k) == mDelete.end()); // double delete is invalid
             // only keep the delete
-            mMod.erase(index);
-            mDelete[index] = entry;
+            mMod.erase(k);
+            mDelete[k] = entry;
         }
     }
 
     void LedgerDelta::modEntry(EntryFrame::pointer entry)
     {
-        Hash index = entry->getIndex();
-        auto mod_it = mMod.find(index);
+        auto k = entry->getKey();
+        auto mod_it = mMod.find(k);
         if ( mod_it != mMod.end())
         {
             // collapse mod
@@ -64,7 +64,7 @@ namespace stellar
         }
         else
         {
-            auto new_it = mNew.find(index);
+            auto new_it = mNew.find(k);
             if (new_it != mNew.end())
             {
                 // new + mod = new (with latest value)
@@ -72,8 +72,8 @@ namespace stellar
             }
             else
             {
-                assert(mDelete.find(index) == mDelete.end()); // delete + mod is illegal
-                mMod[index] = entry;
+                assert(mDelete.find(k) == mDelete.end()); // delete + mod is illegal
+                mMod[k] = entry;
             }
         }
     }
