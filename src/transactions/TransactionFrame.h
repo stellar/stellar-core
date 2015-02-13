@@ -75,7 +75,7 @@ namespace stellar
         // returns true if successfully applied
         bool apply(LedgerDelta& delta, Application& app);
 
-        StellarMessage&& toStellarMessage();
+        StellarMessage toStellarMessage();
 
         // transaction history
 

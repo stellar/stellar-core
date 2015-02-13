@@ -62,7 +62,7 @@ createApp(Config &baseConfig, VirtualClock &clock, int nValidationPeers, int i, 
     cfg.KNOWN_PEERS.clear();
 
     auto result = make_shared<Application>(clock, cfg);
-    // result->enableRealTimer();
+    result->enableRealTimer();
     return result;
 }
 
@@ -251,8 +251,8 @@ TEST_CASE("stress", "[hrd-stress]")
     float paretoAlpha = 0.5;
 
     size_t nAccounts = 100;
-    size_t nTransactions = 100;
-    size_t injectionRate = 1; // per sec
+    size_t nTransactions = 1000;
+    size_t injectionRate = 10; // per sec
 
     VirtualClock clock;
     Config cfg(getTestConfig());
@@ -268,6 +268,11 @@ TEST_CASE("stress", "[hrd-stress]")
     test.accounts.push_back(createRootAccount());
     test.startApps();
 
+    // Dodge the bug in VirtualTime's implementation of syncing with the real clock
+    for (auto app : (*test.apps))
+    {
+        app->getMainIOService().post([]() { return; });
+    }
 
 
     size_t iTransactions = 0;
@@ -288,9 +293,10 @@ TEST_CASE("stress", "[hrd-stress]")
             test.injectRandomTransactions(toInject, paretoAlpha);
             iTransactions += toInject;
         }
-
+        
 
         test.crank(chrono::seconds(1));
     }
+    LOG(INFO) << "all done " << nTransactions << " transactions";
 }
 
