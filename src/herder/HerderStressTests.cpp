@@ -46,13 +46,14 @@ createApp(Config &baseConfig, VirtualClock &clock, int nValidationPeers, int i, 
     cfg.HTTP_PORT = me.peerPort + 1;
 
     auto nodeStr = "-node-" + to_string(i);
-    cfg.LOG_FILE_PATH = cfg.LOG_FILE_PATH.substr(0, cfg.LOG_FILE_PATH.size() - 4) + nodeStr + ".cfg";
-    cfg.DATABASE = "sqlite3://stellar-hrd-test" + nodeStr + ".db";
+    cfg.LOG_FILE_PATH = "tmp/" + cfg.LOG_FILE_PATH.substr(0, cfg.LOG_FILE_PATH.size() - 4) + nodeStr + ".cfg";
+    cfg.DATABASE = "sqlite3://tmp/stellar-hrd-test" + nodeStr + ".db";
     cfg.TMP_DIR_PATH = cfg.TMP_DIR_PATH + "/tmp" + nodeStr;
 
     cfg.QUORUM_THRESHOLD = min(nValidationPeers / 2 + 4, nValidationPeers);
     cfg.PREFERRED_PEERS.clear();
     cfg.QUORUM_SET.clear();
+    cfg.QUORUM_SET.push_back(me.validationKey.getPublicKey());
     for (auto peer : peers) 
     {
         cfg.PREFERRED_PEERS.push_back("127.0.0.1:" + to_string(peer.peerPort));
@@ -61,7 +62,7 @@ createApp(Config &baseConfig, VirtualClock &clock, int nValidationPeers, int i, 
     cfg.KNOWN_PEERS.clear();
 
     auto result = make_shared<Application>(clock, cfg);
-    result->enableRealTimer();
+    // result->enableRealTimer();
     return result;
 }
 
@@ -118,7 +119,7 @@ using accountPtr = shared_ptr<AccountInfo>;
 
 accountPtr createRootAccount()
 {
-    return shared_ptr<AccountInfo>(new AccountInfo{ 0, getRoot(), 1000000000, 1, chrono::system_clock::now() - chrono::seconds(100) });
+    return shared_ptr<AccountInfo>(new AccountInfo{ 0, getRoot(), 1000000000, 2, chrono::system_clock::now() - chrono::seconds(100) });
 }
 accountPtr createAccount(size_t i)
 {
@@ -132,7 +133,7 @@ struct TxInfo {
     uint64_t amount;
     void execute(shared_ptr<Application> app)
     {
-        TransactionFramePtr txFrame = createPaymentTx(from->key, to->key, 1, amount);
+        TransactionFramePtr txFrame = createPaymentTx(from->key, to->key, from->seq, amount);
         REQUIRE(app->getHerderGateway().recvTransaction(txFrame));
 
         from->seq++;
@@ -248,9 +249,9 @@ TEST_CASE("stress", "[hrd-stress]")
     int nNodes = 1;
     int quorumThresold = 1;
     float paretoAlpha = 0.5;
-    uint64_t initialFunds = 1000;
+
     size_t nAccounts = 100;
-    size_t nTransactions = 1000000000;
+    size_t nTransactions = 100;
     size_t injectionRate = 1; // per sec
 
     VirtualClock clock;
@@ -287,6 +288,7 @@ TEST_CASE("stress", "[hrd-stress]")
             test.injectRandomTransactions(toInject, paretoAlpha);
             iTransactions += toInject;
         }
+
 
         test.crank(chrono::seconds(1));
     }
