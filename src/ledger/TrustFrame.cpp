@@ -15,15 +15,19 @@ using namespace std;
 using namespace soci;
 
 namespace stellar {
-    const char *TrustFrame::kSQLCreateStatement = "CREATE TABLE IF NOT EXISTS TrustLines (					\
-		trustIndex CHARACTER(64) PRIMARY KEY,				\
-		accountID	CHARACTER(64),			\
-		issuer CHARACTER(64),				\
-		isoCurrency CHARACTER(4),    		\
-		tlimit BIGINT DEFAULT 0 CHECK (tlimit >= 0),		   		\
-		balance BIGINT DEFAULT 0 CHECK (balance >= 0),			\
-		authorized BOOL						\
-	); ";
+    const char *TrustFrame::kSQLCreateStatement =
+        "CREATE TABLE IF NOT EXISTS TrustLines              \
+         (                                                  \
+         accountID     CHARACTER(64)  NOT NULL,             \
+         issuer        CHARACTER(64)  NOT NULL,             \
+         isoCurrency   CHARACTER(4)   NOT NULL,             \
+         tlimit        BIGINT         NOT NULL DEFAULT 0    \
+                                      CHECK (tlimit >= 0),  \
+         balance       BIGINT         NOT NULL DEFAULT 0    \
+                                      CHECK (balance >= 0), \
+         authorized    BOOL           NOT NULL,             \
+         PRIMARY KEY (accountID, issuer, isoCurrency)       \
+         );";
 
     TrustFrame::TrustFrame()
     {
@@ -36,15 +40,14 @@ namespace stellar {
     }
 
     
-    void TrustFrame::calculateIndex()
-    {
-        // hash of accountID+issuer+currency
-        SHA256 hasher;
-        hasher.add(mEntry.trustLine().accountID);
-        hasher.add(mEntry.trustLine().currency.isoCI().issuer);
-        hasher.add(mEntry.trustLine().currency.isoCI().currencyCode);
-        mIndex = hasher.finish();
-    }
+void TrustFrame::getKeyFields(std::string& base58AccountID,
+                              std::string& base58Issuer,
+                              std::string& currencyCode) const
+{
+    base58AccountID = toBase58Check(VER_ACCOUNT_ID, mEntry.trustLine().accountID);
+    base58Issuer = toBase58Check(VER_ACCOUNT_ID, mEntry.trustLine().currency.isoCI().issuer);
+    currencyCodeToStr(mEntry.trustLine().currency.isoCI().currencyCode, currencyCode);
+}
 
     int64_t TrustFrame::getBalance()
     {
@@ -63,10 +66,13 @@ namespace stellar {
 
     void TrustFrame::storeDelete(LedgerDelta &delta, Database& db)
     {
-        std::string base58ID = toBase58Check(VER_ACCOUNT_ID, getIndex());
+        std::string b58AccountID, b58Issuer, currencyCode;
+        getKeyFields(b58AccountID, b58Issuer, currencyCode);
 
         db.getSession() <<
-            "DELETE from TrustLines where trustIndex= :v1", use(base58ID);
+            "DELETE from TrustLines \
+             WHERE accountID=:v1 and issuer=:v2 and isoCurrency=:v3",
+            use(b58AccountID), use(b58Issuer), use(currencyCode);
 
         delta.deleteEntry(*this);
     }
@@ -75,13 +81,18 @@ namespace stellar {
     {
         assert(isValid());
 
-        std::string base58ID = toBase58Check(VER_ACCOUNT_ID, getIndex());
+        std::string b58AccountID, b58Issuer, currencyCode;
+        getKeyFields(b58AccountID, b58Issuer, currencyCode);
 
-        statement st = (db.getSession().prepare <<
-            "UPDATE TrustLines set balance=:b, tlimit=:tl, "\
-            "authorized=:a WHERE trustIndex=:in",
-            use(mEntry.trustLine().balance), use(mEntry.trustLine().limit),
-            use((int)mEntry.trustLine().authorized), use(base58ID));
+        statement st =
+            (db.getSession().prepare <<
+             "UPDATE TrustLines \
+              SET balance=:b, tlimit=:tl, authorized=:a \
+              WHERE accountID=:v1 and issuer=:v2 and isoCurrency=:v3",
+             use(mEntry.trustLine().balance),
+             use(mEntry.trustLine().limit),
+             use((int)mEntry.trustLine().authorized),
+             use(b58AccountID), use(b58Issuer), use(currencyCode));
 
         st.execute(true);
 
@@ -97,17 +108,16 @@ namespace stellar {
     {
         assert(isValid());
 
-        std::string base58Index = toBase58Check(VER_ACCOUNT_ID, getIndex());
-        std::string b58AccountID = toBase58Check(VER_ACCOUNT_ID, mEntry.trustLine().accountID);
-        std::string b58Issuer = toBase58Check(VER_ACCOUNT_ID, mEntry.trustLine().currency.isoCI().issuer);
-        std::string currencyCode;
-        currencyCodeToStr(mEntry.trustLine().currency.isoCI().currencyCode,currencyCode);
+        std::string b58AccountID, b58Issuer, currencyCode;
+        getKeyFields(b58AccountID, b58Issuer, currencyCode);
 
-        statement st = (db.getSession().prepare <<
-            "INSERT into TrustLines (trustIndex,accountID,issuer,isoCurrency,tlimit,authorized) values (:v1,:v2,:v3,:v4,:v5,:v6)",
-            use(base58Index), use(b58AccountID), use(b58Issuer),
-            use(currencyCode), use(mEntry.trustLine().limit),
-            use((int)mEntry.trustLine().authorized));
+        statement st =
+            (db.getSession().prepare <<
+                "INSERT INTO TrustLines (accountID, issuer, isoCurrency, tlimit, authorized) \
+                 VALUES (:v1,:v2,:v3,:v4,:v5)",
+             use(b58AccountID), use(b58Issuer), use(currencyCode),
+             use(mEntry.trustLine().limit),
+             use((int)mEntry.trustLine().authorized));
 
         st.execute(true);
 

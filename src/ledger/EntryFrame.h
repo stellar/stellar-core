@@ -5,6 +5,7 @@
 // this distribution or at http://opensource.org/licenses/ISC
 
 #include "generated/StellarXDR.h"
+#include "clf/LedgerCmp.h"
 #include "lib/json/json-forwards.h"
 
 /*
@@ -23,10 +24,9 @@ namespace stellar
 	{
 	protected:
         
-        bool mValid;
-		uint256 mIndex;
+        bool mKeyCalculated;
+        LedgerKey mKey;
 
-		virtual void calculateIndex() = 0;
 	public:
 		typedef std::shared_ptr<EntryFrame> pointer;
 
@@ -39,19 +39,14 @@ namespace stellar
 
         virtual EntryFrame::pointer copy() const=0;
 
-        bool isValid() { return mValid;  }
-		// calculate the index if you don't have it already
-        uint256 getIndex();
+        LedgerKey const& getKey();
 
-		// calculate the hash if you don't have it already
-        uint256 getHash();
 
 		
 		virtual void storeDelete(LedgerDelta &delta, Database& db)=0;
 		virtual void storeChange(LedgerDelta &delta, Database& db)=0;
 		virtual void storeAdd(LedgerDelta &delta, Database& db)=0;
 
-        static void dropAll(Database &db); // deletes all data from DB
 	};
 }
 

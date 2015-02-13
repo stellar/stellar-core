@@ -11,6 +11,7 @@
 #include "xdrpp/autocheck.h"
 #include "clf/CLFMaster.h"
 #include "clf/BucketList.h"
+#include "clf/LedgerCmp.h"
 #include "main/test.h"
 #include "lib/catch.hpp"
 #include "util/Logging.h"

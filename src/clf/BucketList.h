@@ -330,9 +330,5 @@ class BucketList
                   std::vector<LedgerKey> const& deadEntries);
 };
 
-// Helper for getting a LedgerKey from a LedgerEntry.
-LedgerKey
-LedgerEntryKey(LedgerEntry const& e);
-
 }
 

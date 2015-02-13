@@ -32,22 +32,24 @@ EntryFrame::pointer EntryFrame::FromXDR(LedgerEntry const &from)
 }
 
 EntryFrame::EntryFrame()
+    : mKeyCalculated(false)
 {
-    mValid = false;
 }
 
-EntryFrame::EntryFrame(const LedgerEntry& from) : mEntry(from)
+EntryFrame::EntryFrame(const LedgerEntry& from)
+    : mKeyCalculated(false)
+    , mEntry(from)
 {
-    mValid = true;
 }
 
-uint256 EntryFrame::getIndex()
+LedgerKey const& EntryFrame::getKey()
 {
-    if(isZero(mIndex))
+    if (!mKeyCalculated)
     {
-        calculateIndex();
+        mKey = LedgerEntryKey(mEntry);
+        mKeyCalculated = true;
     }
-    return mIndex;
+    return mKey;
 }
 
 }

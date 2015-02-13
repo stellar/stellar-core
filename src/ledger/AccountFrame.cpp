@@ -15,30 +15,35 @@ using namespace std;
 namespace stellar
 {
 const char *AccountFrame::kSQLCreateStatement1 =
-"CREATE TABLE IF NOT EXISTS Accounts (                      \
-    accountID       CHARACTER(64) PRIMARY KEY,              \
-    balance         BIGINT NOT NULL,                        \
-    sequence        INT DEFAULT 1 CHECK (sequence >= 0),    \
-    ownerCount      INT DEFAULT 0 CHECK (ownercount >= 0),  \
-    inflationDest   CHARACTER(64),                          \
-    thresholds      TEXT,                                   \
-	flags           INT NOT NULL                            \
-);";
+    "CREATE TABLE IF NOT EXISTS Accounts                      \
+     (                                                        \
+     accountID       CHARACTER(64)  PRIMARY KEY,              \
+     balance         BIGINT         NOT NULL,                 \
+     sequence        INT            NOT NULL DEFAULT 1        \
+                                    CHECK (sequence >= 0),    \
+     ownerCount      INT            NOT NULL DEFAULT 0        \
+                                    CHECK (ownercount >= 0),  \
+     inflationDest   CHARACTER(64),                           \
+     thresholds      TEXT,                                    \
+     flags           INT            NOT NULL                  \
+     );";
 
 const char *AccountFrame::kSQLCreateStatement2 =
-    "CREATE TABLE IF NOT EXISTS Signers (       \
-    accountID       CHARACTER(64) NOT NULL,     \
-    publicKey       CHARACTER(64) NOT NULL,     \
-    weight          INT           NOT NULL,     \
-    PRIMARY KEY (accountID, publicKey)          \
-);";
+    "CREATE TABLE IF NOT EXISTS Signers         \
+     (                                          \
+     accountID       CHARACTER(64) NOT NULL,    \
+     publicKey       CHARACTER(64) NOT NULL,    \
+     weight          INT           NOT NULL,    \
+     PRIMARY KEY (accountID, publicKey)         \
+     );";
 
 const char *AccountFrame::kSQLCreateStatement3 =
-"CREATE TABLE IF NOT EXISTS AccountData (       \
-    accountID       CHARACTER(64) PRIMARY KEY,  \
-    key             INT NOT NULL,               \
-    value           TEXT NOT NULL               \
-);";
+    "CREATE TABLE IF NOT EXISTS AccountData         \
+     (                                              \
+     accountID       CHARACTER(64)  PRIMARY KEY,    \
+     key             INT            NOT NULL,       \
+     value           TEXT           NOT NULL        \
+     );";
 
 AccountFrame::AccountFrame()
 {
@@ -60,11 +65,6 @@ AccountFrame::AccountFrame(uint256 const& id)
     mEntry.account().sequence = 1;
     mEntry.account().thresholds[0] = 1; // by default, master key's weight is 1
     mUpdateSigners = false;
-}
-
-void AccountFrame::calculateIndex()
-{
-    mIndex = mEntry.account().accountID;
 }
 
 bool AccountFrame::isAuthRequired()
@@ -169,7 +169,7 @@ bool AccountFrame::loadAccount(const uint256& accountID, AccountFrame& retAcc,
 
 void AccountFrame::storeDelete(LedgerDelta &delta, Database &db)
 {
-    std::string base58ID = toBase58Check(VER_ACCOUNT_ID, getIndex());
+    std::string base58ID = toBase58Check(VER_ACCOUNT_ID, mEntry.account().accountID);
 
     soci::session &session = db.getSession();
 
@@ -186,7 +186,7 @@ void AccountFrame::storeDelete(LedgerDelta &delta, Database &db)
 void AccountFrame::storeUpdate(LedgerDelta &delta, Database &db, bool insert)
 {
     AccountEntry& finalAccount = mEntry.account();
-    std::string base58ID = toBase58Check(VER_ACCOUNT_ID, getIndex());
+    std::string base58ID = toBase58Check(VER_ACCOUNT_ID, finalAccount.accountID);
 
     std::stringstream sql;
 
