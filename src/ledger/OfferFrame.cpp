@@ -33,54 +33,69 @@ namespace stellar
          PRIMARY KEY (accountID, sequence)                     \
          );";
 
-    OfferFrame::OfferFrame()
+    OfferFrame::OfferFrame() : EntryFrame(OFFER), mOffer(mEntry.offer())
     {
-        mEntry.type(OFFER);
     }
-    OfferFrame::OfferFrame(const LedgerEntry& from) : EntryFrame(from)
-    {
 
+    OfferFrame::OfferFrame(LedgerEntry const& from) : EntryFrame(from), mOffer(mEntry.offer())
+    {
+    }
+
+    OfferFrame::OfferFrame(OfferFrame const& from) : OfferFrame(from.mEntry)
+    {
+    }
+
+    OfferFrame& OfferFrame::operator=(OfferFrame const& other)
+    {
+        if (&other != this)
+        {
+            mOffer = other.mOffer;
+            mKey = other.mKey;
+            mKeyCalculated = other.mKeyCalculated;
+        }
+        return *this;
     }
 
     void OfferFrame::from(const Transaction& tx) 
     {
-        mEntry.type(OFFER);
-        mEntry.offer().accountID = tx.account;
-        mEntry.offer().amount = tx.body.createOfferTx().amount;
-        mEntry.offer().price = tx.body.createOfferTx().price;
-        mEntry.offer().sequence = tx.body.createOfferTx().sequence;
-        mEntry.offer().takerGets = tx.body.createOfferTx().takerGets;
-        mEntry.offer().takerPays = tx.body.createOfferTx().takerPays;
-        mEntry.offer().flags = tx.body.createOfferTx().flags;
+        assert(mEntry.type() == OFFER);
+        mOffer.accountID = tx.account;
+        mOffer.amount = tx.body.createOfferTx().amount;
+        mOffer.price = tx.body.createOfferTx().price;
+        mOffer.sequence = tx.body.createOfferTx().sequence;
+        mOffer.takerGets = tx.body.createOfferTx().takerGets;
+        mOffer.takerPays = tx.body.createOfferTx().takerPays;
+        mOffer.flags = tx.body.createOfferTx().flags;
+        mKeyCalculated = false;
     }
 
     Price OfferFrame::getPrice() const
     {
-        return mEntry.offer().price;
+        return mOffer.price;
     }
     
     int64_t OfferFrame::getAmount() const
     {
-        return mEntry.offer().amount;
+        return mOffer.amount;
     }
 
     uint256 const& OfferFrame::getAccountID() const
     {
-        return mEntry.offer().accountID;
+        return mOffer.accountID;
     }
 
     Currency& OfferFrame::getTakerPays()
     {
-        return mEntry.offer().takerPays;
+        return mOffer.takerPays;
     }
     Currency& OfferFrame::getTakerGets()
     {
-        return mEntry.offer().takerGets;
+        return mOffer.takerGets;
     }
 
     uint32 OfferFrame::getSequence()
     {
-        return mEntry.offer().sequence;
+        return mOffer.sequence;
     }
     
 
@@ -122,7 +137,7 @@ namespace stellar
 
         OfferFrame offerFrame;
 
-        OfferEntry &oe = offerFrame.mEntry.offer();
+        OfferEntry &oe = offerFrame.mOffer;
 
         statement st = (prep,
             into(accountID), into(oe.sequence),
@@ -155,6 +170,7 @@ namespace stellar
             {
                 oe.takerGets.type(NATIVE);
             }
+            offerFrame.mKeyCalculated = false;
             offerProcessor(offerFrame);
             st.fetch();
         }
@@ -219,30 +235,30 @@ namespace stellar
 
     void OfferFrame::storeDelete(LedgerDelta &delta, Database& db)
     {
-        std::string b58AccountID = toBase58Check(VER_ACCOUNT_ID, mEntry.offer().accountID);
+        std::string b58AccountID = toBase58Check(VER_ACCOUNT_ID, mOffer.accountID);
 
         db.getSession() <<
             "DELETE FROM Offers WHERE accountID=:id AND sequence=:s",
-            use(b58AccountID), use(mEntry.offer().sequence);
+            use(b58AccountID), use(mOffer.sequence);
 
         delta.deleteEntry(*this);
     }
 
     int64_t OfferFrame::computePrice() const
     {
-        return bigDivide(mEntry.offer().price.n, OFFER_PRICE_DIVISOR,
-            mEntry.offer().price.d);
+        return bigDivide(mOffer.price.n, OFFER_PRICE_DIVISOR,
+            mOffer.price.d);
     }
 
     void OfferFrame::storeChange(LedgerDelta &delta, Database& db)
     {
-        std::string b58AccountID = toBase58Check(VER_ACCOUNT_ID, mEntry.offer().accountID);
+        std::string b58AccountID = toBase58Check(VER_ACCOUNT_ID, mOffer.accountID);
 
         soci::statement st = (db.getSession().prepare <<
             "UPDATE Offers SET amount=:a, priceN=:n, priceD=:D, price=:p WHERE accountID=:id AND sequence=:s",
-            use(mEntry.offer().amount),
-            use(mEntry.offer().price.n), use(mEntry.offer().price.d),
-            use(computePrice()), use(b58AccountID), use(mEntry.offer().sequence));
+            use(mOffer.amount),
+            use(mOffer.price.n), use(mOffer.price.d),
+            use(computePrice()), use(b58AccountID), use(mOffer.sequence));
 
         st.execute(true);
 
@@ -256,57 +272,57 @@ namespace stellar
 
     void OfferFrame::storeAdd(LedgerDelta &delta, Database& db)
     {
-        std::string b58AccountID = toBase58Check(VER_ACCOUNT_ID, mEntry.offer().accountID);
+        std::string b58AccountID = toBase58Check(VER_ACCOUNT_ID, mOffer.accountID);
 
         soci::statement st(db.getSession().prepare << "select 1");
 
-        if(mEntry.offer().takerGets.type()==NATIVE)
+        if(mOffer.takerGets.type()==NATIVE)
         {
-            std::string b58issuer = toBase58Check(VER_ACCOUNT_ID, mEntry.offer().takerPays.isoCI().issuer);
+            std::string b58issuer = toBase58Check(VER_ACCOUNT_ID, mOffer.takerPays.isoCI().issuer);
             std::string currencyCode;
-            currencyCodeToStr(mEntry.offer().takerPays.isoCI().currencyCode, currencyCode);
+            currencyCodeToStr(mOffer.takerPays.isoCI().currencyCode, currencyCode);
             st = (db.getSession().prepare <<
                 "INSERT into Offers (accountID,sequence,paysIsoCurrency,paysIssuer,"\
                 "amount,priceN,priceP,price,flags) values"\
                 "(:v1,:v2,:v3,:v4,:v5,:v6,:v7,:v8,:v9)",
-                use(b58AccountID), use(mEntry.offer().sequence), 
-                use(b58issuer),use(currencyCode),use(mEntry.offer().amount),
-                use(mEntry.offer().price.n), use(mEntry.offer().price.d),
-                use(computePrice()),use(mEntry.offer().flags));
+                use(b58AccountID), use(mOffer.sequence),
+                use(b58issuer),use(currencyCode),use(mOffer.amount),
+                use(mOffer.price.n), use(mOffer.price.d),
+                use(computePrice()),use(mOffer.flags));
             st.execute(true);
         }
-        else if(mEntry.offer().takerPays.type()==NATIVE)
+        else if(mOffer.takerPays.type()==NATIVE)
         {
-            std::string b58issuer = toBase58Check(VER_ACCOUNT_ID, mEntry.offer().takerGets.isoCI().issuer);
+            std::string b58issuer = toBase58Check(VER_ACCOUNT_ID, mOffer.takerGets.isoCI().issuer);
             std::string currencyCode;
-            currencyCodeToStr(mEntry.offer().takerGets.isoCI().currencyCode, currencyCode);
+            currencyCodeToStr(mOffer.takerGets.isoCI().currencyCode, currencyCode);
             st = (db.getSession().prepare <<
                 "INSERT into Offers (accountID,sequence,getsIsoCurrency,getsIssuer,"\
                 "amount,priceN,priceD,price,flags) values"\
                 "(:v1,:v2,:v3,:v4,:v5,:v6,:v7,:v8,:v9)",
-                use(b58AccountID), use(mEntry.offer().sequence),
-                use(b58issuer), use(currencyCode), use(mEntry.offer().amount),
-                use(mEntry.offer().price.n), use(mEntry.offer().price.d),
-                use(computePrice()), use(mEntry.offer().flags));
+                use(b58AccountID), use(mOffer.sequence),
+                use(b58issuer), use(currencyCode), use(mOffer.amount),
+                use(mOffer.price.n), use(mOffer.price.d),
+                use(computePrice()), use(mOffer.flags));
             st.execute(true);
         }
         else
         {
-            std::string b58PaysIssuer = toBase58Check(VER_ACCOUNT_ID, mEntry.offer().takerPays.isoCI().issuer);
+            std::string b58PaysIssuer = toBase58Check(VER_ACCOUNT_ID, mOffer.takerPays.isoCI().issuer);
             std::string paysIsoCurrency, getsIsoCurrency;
-            currencyCodeToStr(mEntry.offer().takerPays.isoCI().currencyCode, paysIsoCurrency);
-            std::string b58GetsIssuer = toBase58Check(VER_ACCOUNT_ID, mEntry.offer().takerGets.isoCI().issuer);
-            currencyCodeToStr(mEntry.offer().takerGets.isoCI().currencyCode, getsIsoCurrency);
+            currencyCodeToStr(mOffer.takerPays.isoCI().currencyCode, paysIsoCurrency);
+            std::string b58GetsIssuer = toBase58Check(VER_ACCOUNT_ID, mOffer.takerGets.isoCI().issuer);
+            currencyCodeToStr(mOffer.takerGets.isoCI().currencyCode, getsIsoCurrency);
             st = (db.getSession().prepare <<
                 "INSERT into Offers (accountID,sequence,"\
                 "paysIsoCurrency,paysIssuer,getsIsoCurrency,getsIssuer,"\
                 "amount,priceN,priceD,price,flags) values "\
                 "(:v1,:v2,:v3,:v4,:v5,:v6,:v7,:v8,:v9,:v10,:v11)",
-                use(b58AccountID), use(mEntry.offer().sequence),
+                use(b58AccountID), use(mOffer.sequence),
                 use(paysIsoCurrency), use(b58PaysIssuer), use(getsIsoCurrency), use(b58GetsIssuer),
-                use(mEntry.offer().amount),
-                use(mEntry.offer().price.n), use(mEntry.offer().price.d),
-                use(computePrice()), use(mEntry.offer().flags));
+                use(mOffer.amount),
+                use(mOffer.price.n), use(mOffer.price.d),
+                use(computePrice()), use(mOffer.flags));
             st.execute(true);
         }
 

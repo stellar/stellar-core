@@ -165,7 +165,7 @@ TxSetFrame::checkValid(Application& app)
             else
             {
                 // save us a DB load
-                tx->getSourceAccount() = first->getSourceAccount();
+                tx->setSourceAccountPtr(first->getSourceAccountPtr());
             }
             
             if (!tx->checkValid(app)) 

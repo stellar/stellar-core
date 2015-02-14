@@ -67,7 +67,7 @@ namespace stellar
             line.storeDelete(delta, db);
         }
 
-        otherAccount.mEntry.account().balance += mSigningAccount->mEntry.account().balance;
+        otherAccount.getAccount().balance += mSigningAccount->getAccount().balance;
         otherAccount.storeChange(delta, db);
         mSigningAccount->storeDelete(delta, db);
 

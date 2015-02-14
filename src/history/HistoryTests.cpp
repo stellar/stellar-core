@@ -154,7 +154,7 @@ TEST_CASE("HistoryMaster::compress", "[history]")
             CHECK(TmpDir::exists(compressed));
             hm.decompress(
                 compressed,
-                [&done, &fname, &compressed](asio::error_code const& ec)
+                [&done, &fname, compressed](asio::error_code const& ec)
                 {
                     CHECK(TmpDir::exists(fname));
                     CHECK(!TmpDir::exists(compressed));
@@ -217,8 +217,8 @@ TEST_CASE("HistoryArchiveState::get_put", "[history]")
                 [&done](asio::error_code const& ec,
                         HistoryArchiveState const& has2)
                 {
-                    CHECK(has2.currentLedger == 0x1234);
                     CHECK(!ec);
+                    CHECK(has2.currentLedger == 0x1234);
                     done = true;
                 });
         });

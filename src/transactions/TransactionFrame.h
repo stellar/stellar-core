@@ -53,6 +53,10 @@ namespace stellar
         uint32 getSeqNum() { return mEnvelope.tx.seqNum; }
         TransactionEnvelope& getEnvelope();
         AccountFrame& getSourceAccount() { assert(mSigningAccount); return *mSigningAccount; }
+
+        AccountFrame::pointer getSourceAccountPtr() { return mSigningAccount; }
+        void setSourceAccountPtr(AccountFrame::pointer signingAccount);
+
         void addSignature(const SecretKey& secretKey);
 
         uint256& getSourceID() { return mEnvelope.tx.account; }

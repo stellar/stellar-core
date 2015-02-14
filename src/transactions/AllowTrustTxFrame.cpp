@@ -17,7 +17,7 @@ namespace stellar
 
     bool AllowTrustTxFrame::doApply(LedgerDelta &delta, LedgerMaster& ledgerMaster)
     {
-        if(!(mSigningAccount->mEntry.account().flags & AUTH_REQUIRED_FLAG))
+        if(!(mSigningAccount->getAccount().flags & AUTH_REQUIRED_FLAG))
         {   // this account doesn't require authorization to hold credit
             innerResult().result.code(AllowTrust::MALFORMED);
             return false;
@@ -39,7 +39,7 @@ namespace stellar
 
         innerResult().result.code(AllowTrust::SUCCESS);
 
-        trustLine.mEntry.trustLine().authorized = mEnvelope.tx.body.allowTrustTx().authorize;
+        trustLine.getTrustLine().authorized = mEnvelope.tx.body.allowTrustTx().authorize;
         trustLine.storeChange(delta, db);
 
         return true;

@@ -45,8 +45,8 @@ using namespace std;
                 }
                 else
                 {
-                    destAccount.mEntry.account().accountID = mEnvelope.tx.body.paymentTx().destination;
-                    destAccount.mEntry.account().balance = 0;
+                    destAccount.getAccount().accountID = mEnvelope.tx.body.paymentTx().destination;
+                    destAccount.getAccount().balance = 0;
 
                     destAccount.storeAdd(delta, db);
                 }
@@ -89,7 +89,7 @@ using namespace std;
 
             if (curB.type() == NATIVE)
             {
-                destination.mEntry.account().balance += curBReceived;
+                destination.getAccount().balance += curBReceived;
                 destination.storeChange(delta, db);
             }
             else if (destination.getID() !=
@@ -104,20 +104,20 @@ using namespace std;
                     return false;
                 }
 
-                if (destLine.mEntry.trustLine().limit <
-                    curBReceived + destLine.mEntry.trustLine().balance)
+                if (destLine.getTrustLine().limit <
+                    curBReceived + destLine.getTrustLine().balance)
                 {
                     innerResult().result.code(Payment::LINE_FULL);
                     return false;
                 }
 
-                if (!destLine.mEntry.trustLine().authorized)
+                if (!destLine.getTrustLine().authorized)
                 {
                     innerResult().result.code(Payment::NOT_AUTHORIZED);
                     return false;
                 }
 
-                destLine.mEntry.trustLine().balance += curBReceived;
+                destLine.getTrustLine().balance += curBReceived;
                 destLine.storeChange(delta, db);
             }
 
@@ -186,15 +186,15 @@ using namespace std;
                 return false;
             }
 
-            int64_t minBalance = ledgerMaster.getMinBalance(mSigningAccount->mEntry.account().ownerCount);
+            int64_t minBalance = ledgerMaster.getMinBalance(mSigningAccount->getAccount().ownerCount);
 
-            if (mSigningAccount->mEntry.account().balance < (minBalance + curBSent))
+            if (mSigningAccount->getAccount().balance < (minBalance + curBSent))
             {   // they don't have enough to send
                 innerResult().result.code(Payment::UNDERFUNDED);
                 return false;
             }
 
-            mSigningAccount->mEntry.account().balance -= curBSent;
+            mSigningAccount->getAccount().balance -= curBSent;
             mSigningAccount->storeChange(delta, db);
         }
         else
@@ -218,13 +218,13 @@ using namespace std;
                     return false;
                 }
 
-                if(sourceLineFrame.mEntry.trustLine().balance < curBSent)
+                if(sourceLineFrame.getTrustLine().balance < curBSent)
                 {
                     innerResult().result.code(Payment::UNDERFUNDED);
                     return false;
                 }
                 
-                sourceLineFrame.mEntry.trustLine().balance -= curBSent;
+                sourceLineFrame.getTrustLine().balance -= curBSent;
                 sourceLineFrame.storeChange(delta, db);
 
             }

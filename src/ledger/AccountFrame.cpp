@@ -45,66 +45,65 @@ const char *AccountFrame::kSQLCreateStatement3 =
      value           TEXT           NOT NULL        \
      );";
 
-AccountFrame::AccountFrame()
+AccountFrame::AccountFrame() : EntryFrame(ACCOUNT), mAccountEntry(mEntry.account())
 {
-    mEntry.type(ACCOUNT);
-    mEntry.account().sequence = 1;
-    mEntry.account().thresholds[0] = 1; // by default, master key's weight is 1
+    mAccountEntry.sequence = 1;
+    mAccountEntry.thresholds[0] = 1; // by default, master key's weight is 1
     mUpdateSigners = false;
 }
 
-AccountFrame::AccountFrame(LedgerEntry const& from) : EntryFrame(from)
+AccountFrame::AccountFrame(LedgerEntry const& from) : EntryFrame(from), mAccountEntry(mEntry.account())
 {
     mUpdateSigners = false;
 }
 
-AccountFrame::AccountFrame(uint256 const& id)
+AccountFrame::AccountFrame(AccountFrame const &from) : AccountFrame(from.mEntry)
 {
-    mEntry.type(ACCOUNT);
-    mEntry.account().accountID = id;
-    mEntry.account().sequence = 1;
-    mEntry.account().thresholds[0] = 1; // by default, master key's weight is 1
-    mUpdateSigners = false;
+}
+
+AccountFrame::AccountFrame(uint256 const& id) : AccountFrame()
+{
+    mAccountEntry.accountID = id;
 }
 
 bool AccountFrame::isAuthRequired()
 {
-    return(mEntry.account().flags & AUTH_REQUIRED_FLAG);
+    return(mAccountEntry.flags & AUTH_REQUIRED_FLAG);
 }
 
 uint32_t AccountFrame::getSeqNum()
 {
-    return(mEntry.account().sequence);
+    return(mAccountEntry.sequence);
 }
 
 int64_t AccountFrame::getBalance()
 {
-    return(mEntry.account().balance);
+    return(mAccountEntry.balance);
 }
 uint256 const& AccountFrame::getID() const
 {
-    return(mEntry.account().accountID);
+    return(mAccountEntry.accountID);
 }
 uint32_t AccountFrame::getMasterWeight()
 {
-    return mEntry.account().thresholds[0];
+    return mAccountEntry.thresholds[0];
 }
 uint32_t AccountFrame::getHighThreshold()
 {
-    return mEntry.account().thresholds[3];
+    return mAccountEntry.thresholds[3];
 }
 uint32_t AccountFrame::getMidThreshold()
 {
-    return mEntry.account().thresholds[2];
+    return mAccountEntry.thresholds[2];
 }
 uint32_t AccountFrame::getLowThreshold()
 {
-    return mEntry.account().thresholds[1];
+    return mAccountEntry.thresholds[1];
 }
 
 xdr::xvector<Signer> &AccountFrame::getSigners()
 {
-    return mEntry.account().signers;
+    return mAccountEntry.signers;
 }
 
 bool AccountFrame::loadAccount(const uint256& accountID, AccountFrame& retAcc,
@@ -117,9 +116,8 @@ bool AccountFrame::loadAccount(const uint256& accountID, AccountFrame& retAcc,
 
     soci::session &session = db.getSession();
 
-    retAcc.mEntry.type(ACCOUNT);
-    retAcc.mEntry.account().accountID = accountID;
-    AccountEntry& account = retAcc.mEntry.account();
+    retAcc.getAccount().accountID = accountID;
+    AccountEntry& account = retAcc.getAccount();
     session << "SELECT balance,sequence,ownerCount, \
         inflationDest, thresholds,  flags from Accounts where accountID=:v1",
         into(account.balance), into(account.sequence), into(account.ownerCount),
@@ -135,7 +133,7 @@ bool AccountFrame::loadAccount(const uint256& accountID, AccountFrame& retAcc,
         std::vector<uint8_t> bin = hexToBin(thresholds);
         for (int n = 0; (n < 4) && (n < bin.size()); n++)
         {
-            retAcc.mEntry.account().thresholds[n] = bin[n];
+            retAcc.mAccountEntry.thresholds[n] = bin[n];
         }
     }
 
@@ -164,6 +162,7 @@ bool AccountFrame::loadAccount(const uint256& accountID, AccountFrame& retAcc,
             st.fetch();
         }
     }
+    retAcc.mKeyCalculated = false;
     return true;
 }
 
@@ -185,7 +184,7 @@ void AccountFrame::storeDelete(LedgerDelta &delta, Database &db)
 
 void AccountFrame::storeUpdate(LedgerDelta &delta, Database &db, bool insert)
 {
-    AccountEntry& finalAccount = mEntry.account();
+    AccountEntry& finalAccount = mAccountEntry;
     std::string base58ID = toBase58Check(VER_ACCOUNT_ID, finalAccount.accountID);
 
     std::stringstream sql;
@@ -248,7 +247,7 @@ void AccountFrame::storeUpdate(LedgerDelta &delta, Database &db, bool insert)
         {
             throw runtime_error("could not load account!");
         }
-        AccountEntry &startAccount = startAccountFrame.mEntry.account();
+        AccountEntry &startAccount = startAccountFrame.mAccountEntry;
 
         // deal with changes to Signers
         if (finalAccount.signers.size() < startAccount.signers.size())
@@ -342,7 +341,7 @@ void AccountFrame::storeChange(LedgerDelta &delta, Database &db)
 
 void AccountFrame::storeAdd(LedgerDelta &delta, Database &db)
 {
-    EntryFrame::pointer emptyAccount = make_shared<AccountFrame>(mEntry.account().accountID);
+    EntryFrame::pointer emptyAccount = make_shared<AccountFrame>(mAccountEntry.accountID);
     storeUpdate(delta, db, true);
 }
 

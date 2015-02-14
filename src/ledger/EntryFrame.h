@@ -32,7 +32,8 @@ namespace stellar
 
         LedgerEntry mEntry;
 
-        EntryFrame();
+        EntryFrame() = delete;
+        EntryFrame(LedgerEntryType type);
         EntryFrame(const LedgerEntry& from);
         
         static pointer FromXDR(LedgerEntry const& from);
@@ -40,9 +41,6 @@ namespace stellar
         virtual EntryFrame::pointer copy() const=0;
 
         LedgerKey const& getKey();
-
-
-		
 		virtual void storeDelete(LedgerDelta &delta, Database& db)=0;
 		virtual void storeChange(LedgerDelta &delta, Database& db)=0;
 		virtual void storeAdd(LedgerDelta &delta, Database& db)=0;

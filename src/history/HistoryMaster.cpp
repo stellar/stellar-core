@@ -156,7 +156,7 @@ HistoryMaster::decompress(std::string const& filename_gz,
 {
     checkGzipSuffix(filename_gz);
     Application& app = this->mImpl->mApp;
-    auto exit = app.getProcessGateway().runProcess("gunzip " + filename_gz);
+    auto exit = app.getProcessGateway().runProcess("gzip -d " + filename_gz);
     exit.async_wait(
         [&app, filename_gz, handler](asio::error_code const& ec)
         {

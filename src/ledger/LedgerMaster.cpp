@@ -59,14 +59,14 @@ void LedgerMaster::startNewLedger()
     std::string b58SeedStr = toBase58Check(VER_SEED, bytes);
     SecretKey skey = SecretKey::fromBase58Seed(b58SeedStr);
     AccountFrame masterAccount(skey.getPublicKey());
-    masterAccount.mEntry.account().balance = 100000000000000;
+    masterAccount.getAccount().balance = 100000000000000;
     LedgerDelta delta;
     masterAccount.storeAdd(delta, this->getDatabase());
 
     LedgerHeader genesisHeader;
     genesisHeader.baseFee = mApp.getConfig().DESIRED_BASE_FEE;
     genesisHeader.baseReserve = mApp.getConfig().DESIRED_BASE_RESERVE;
-    genesisHeader.totalCoins = masterAccount.mEntry.account().balance;
+    genesisHeader.totalCoins = masterAccount.getAccount().balance;
     genesisHeader.ledgerSeq = 1;
 
     mCurrentLedger = make_shared<LedgerHeaderFrame>(genesisHeader);
