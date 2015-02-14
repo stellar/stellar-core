@@ -28,11 +28,15 @@ namespace stellar {
         static void loadLines(soci::details::prepare_temp_type &prep,
             std::function<void(const TrustFrame&)> trustProcessor);
 
+        TrustLineEntry &mTrustLine;
 	public:
         typedef std::shared_ptr<TrustFrame> pointer;
 
         TrustFrame();
-        TrustFrame(const LedgerEntry& from);
+        TrustFrame(LedgerEntry const& from);
+        TrustFrame(TrustFrame const& from);
+
+        TrustFrame& operator=(TrustFrame const& other);
 
         EntryFrame::pointer copy()  const { return EntryFrame::pointer(new TrustFrame(*this)); }
 
@@ -47,6 +51,7 @@ namespace stellar {
             std::vector<TrustFrame>& retLines, Database& db);
 
         int64_t getBalance();
+        TrustLineEntry& getTrustLine() { return mTrustLine; }
 
         bool isValid() const;
 

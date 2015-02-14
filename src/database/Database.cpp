@@ -125,15 +125,15 @@ int64_t Database::getBalance(const uint256& accountID,const Currency& currency)
         AccountFrame account;
         if(AccountFrame::loadAccount(accountID, account, *this))
         {
-            amountFunded = account.mEntry.account().balance;
+            amountFunded = account.getAccount().balance;
         }
     } else
     {
         TrustFrame trustLine;
         if(TrustFrame::loadTrustLine(accountID, currency, trustLine, *this))
         {
-            if(trustLine.mEntry.trustLine().authorized)
-                amountFunded = trustLine.mEntry.trustLine().balance;
+            if(trustLine.getTrustLine().authorized)
+                amountFunded = trustLine.getTrustLine().balance;
         }
     }
 

@@ -31,8 +31,9 @@ EntryFrame::pointer EntryFrame::FromXDR(LedgerEntry const &from)
     return res;
 }
 
-EntryFrame::EntryFrame()
+EntryFrame::EntryFrame(LedgerEntryType type)
     : mKeyCalculated(false)
+    , mEntry(type)
 {
 }
 

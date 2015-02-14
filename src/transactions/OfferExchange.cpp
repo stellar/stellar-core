@@ -17,9 +17,9 @@ namespace stellar
         int64_t maxWheatReceived, int64_t& numWheatReceived,
         int64_t maxSheepSend, int64_t& numSheepSend)
     {
-        Currency& sheep = sellingWheatOffer.mEntry.offer().takerPays;
-        Currency& wheat = sellingWheatOffer.mEntry.offer().takerGets;
-        uint256& accountBID = sellingWheatOffer.mEntry.offer().accountID;
+        Currency& sheep = sellingWheatOffer.getOffer().takerPays;
+        Currency& wheat = sellingWheatOffer.getOffer().takerGets;
+        uint256& accountBID = sellingWheatOffer.getOffer().accountID;
 
         Database &db = mLedgerMaster.getDatabase();
 
@@ -52,26 +52,26 @@ namespace stellar
         // what the seller has
         if (wheat.type() == NATIVE)
         {
-            numWheatReceived = accountB.mEntry.account().balance;
+            numWheatReceived = accountB.getAccount().balance;
         }
         else
         {
-            numWheatReceived = wheatLineAccountB.mEntry.trustLine().balance;
+            numWheatReceived = wheatLineAccountB.getTrustLine().balance;
         }
 
         // you can receive the lesser of the amount of wheat offered or
         // the amount the guy has
 
-        if (numWheatReceived >= sellingWheatOffer.mEntry.offer().amount)
+        if (numWheatReceived >= sellingWheatOffer.getOffer().amount)
         {
-            numWheatReceived = sellingWheatOffer.mEntry.offer().amount;
+            numWheatReceived = sellingWheatOffer.getOffer().amount;
         }
         else
         {
             // update the offer based on the balance (to determine if it should be deleted or not)
             // note that we don't need to write into the db at this point as the actual update
             // is done further down
-            sellingWheatOffer.mEntry.offer().amount = numWheatReceived;
+            sellingWheatOffer.getOffer().amount = numWheatReceived;
         }
 
         bool reducedOffer = false;
@@ -84,8 +84,8 @@ namespace stellar
 
         // this guy can get X wheat to you. How many sheep does that get him?
         numSheepSend = bigDivide(
-            numWheatReceived, sellingWheatOffer.mEntry.offer().price.n,
-            sellingWheatOffer.mEntry.offer().price.d);
+            numWheatReceived, sellingWheatOffer.getOffer().price.n,
+            sellingWheatOffer.getOffer().price.d);
 
         if (numSheepSend > maxSheepSend)
         {
@@ -96,8 +96,8 @@ namespace stellar
 
         // bias towards seller
         numWheatReceived = bigDivide(
-            numSheepSend, sellingWheatOffer.mEntry.offer().price.d,
-            sellingWheatOffer.mEntry.offer().price.n);
+            numSheepSend, sellingWheatOffer.getOffer().price.d,
+            sellingWheatOffer.getOffer().price.n);
 
         bool offerTaken = false;
 
@@ -116,39 +116,39 @@ namespace stellar
             }
         }
 
-        offerTaken = offerTaken || sellingWheatOffer.mEntry.offer().amount <= numWheatReceived;
+        offerTaken = offerTaken || sellingWheatOffer.getOffer().amount <= numWheatReceived;
         if (offerTaken)
         {   // entire offer is taken
             sellingWheatOffer.storeDelete(mDelta, db);
-            accountB.mEntry.account().ownerCount--;
+            accountB.getAccount().ownerCount--;
             accountB.storeChange(mDelta, db);
         }
         else
         {
-            sellingWheatOffer.mEntry.offer().amount -= numWheatReceived;
+            sellingWheatOffer.getOffer().amount -= numWheatReceived;
             sellingWheatOffer.storeChange(mDelta, db);
         }
 
         // Adjust balances
         if (sheep.type() == NATIVE)
         {
-            accountB.mEntry.account().balance += numSheepSend;
+            accountB.getAccount().balance += numSheepSend;
             accountB.storeChange(mDelta, db);
         }
         else
         {
-            sheepLineAccountB.mEntry.trustLine().balance += numSheepSend;
+            sheepLineAccountB.getTrustLine().balance += numSheepSend;
             sheepLineAccountB.storeChange(mDelta, db);
         }
 
         if (wheat.type() == NATIVE)
         {
-            accountB.mEntry.account().balance -= numWheatReceived;
+            accountB.getAccount().balance -= numWheatReceived;
             accountB.storeChange(mDelta, db);
         }
         else
         {
-            wheatLineAccountB.mEntry.trustLine().balance -= numWheatReceived;
+            wheatLineAccountB.getTrustLine().balance -= numWheatReceived;
             wheatLineAccountB.storeChange(mDelta, db);
         }
 

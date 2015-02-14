@@ -50,7 +50,7 @@ bool CreateOfferFrame::checkOfferValid(Database &db)
             return false;
         }
 
-        if(!mWheatLineA.mEntry.trustLine().authorized)
+        if(!mWheatLineA.getTrustLine().authorized)
         {   // we are not authorized to hold what we are trying to buy
             innerResult().result.code(CreateOffer::NOT_AUTHORIZED);
             return false;
@@ -84,7 +84,7 @@ bool CreateOfferFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
 
     // TODO: why using account seq number instead of a different sequence number?
     // plus 1 since the account seq has already been incremented at this point
-    if(offerSeq + 1 == mSigningAccount->mEntry.account().sequence)
+    if(offerSeq + 1 == mSigningAccount->getAccount().sequence)
     { // creating a new Offer
         creatingNewOffer = true;
         mSellSheepOffer.from(mEnvelope.tx);
@@ -94,8 +94,8 @@ bool CreateOfferFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
         if(OfferFrame::loadOffer(mEnvelope.tx.account, offerSeq, mSellSheepOffer, db))
         {
             // make sure the currencies are the same
-            if(!compareCurrency(mEnvelope.tx.body.createOfferTx().takerGets, mSellSheepOffer.mEntry.offer().takerGets) ||
-                !compareCurrency(mEnvelope.tx.body.createOfferTx().takerPays, mSellSheepOffer.mEntry.offer().takerPays))
+            if(!compareCurrency(mEnvelope.tx.body.createOfferTx().takerGets, mSellSheepOffer.getOffer().takerGets) ||
+                !compareCurrency(mEnvelope.tx.body.createOfferTx().takerPays, mSellSheepOffer.getOffer().takerPays))
             {
                 innerResult().result.code(CreateOffer::MALFORMED);
                 return false;
@@ -112,12 +112,12 @@ bool CreateOfferFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
     int64_t maxAmountOfSheepCanSell;
     if (sheep.type() == NATIVE)
     {
-        maxAmountOfSheepCanSell = mSigningAccount->mEntry.account().balance -
-            ledgerMaster.getMinBalance(mSigningAccount->mEntry.account().ownerCount);
+        maxAmountOfSheepCanSell = mSigningAccount->getAccount().balance -
+            ledgerMaster.getMinBalance(mSigningAccount->getAccount().ownerCount);
     }
     else
     {
-        maxAmountOfSheepCanSell = mSheepLineA.mEntry.trustLine().balance;
+        maxAmountOfSheepCanSell = mSheepLineA.getTrustLine().balance;
     }
 
     // amount of sheep for sale is the lesser of amount we can sell and amount put in the offer
@@ -187,7 +187,7 @@ bool CreateOfferFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
         {
             if (wheat.type() == NATIVE)
             {
-                mSigningAccount->mEntry.account().balance += wheatReceived;
+                mSigningAccount->getAccount().balance += wheatReceived;
                 mSigningAccount->storeChange(delta, db);
             }
             else
@@ -198,43 +198,43 @@ bool CreateOfferFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
                 {
                     throw std::runtime_error("invalid database state: must have matching trust line");
                 }
-                wheatLineSigningAccount.mEntry.trustLine().balance += wheatReceived;
+                wheatLineSigningAccount.getTrustLine().balance += wheatReceived;
                 wheatLineSigningAccount.storeChange(delta, db);
             }
 
             if (sheep.type() == NATIVE)
             {
-                mSigningAccount->mEntry.account().balance -= sheepSent;
+                mSigningAccount->getAccount().balance -= sheepSent;
                 mSigningAccount->storeChange(delta, db);
             }
             else
             {
-                mSheepLineA.mEntry.trustLine().balance -= sheepSent;
+                mSheepLineA.getTrustLine().balance -= sheepSent;
                 mSheepLineA.storeChange(delta, db);
             }
         }
 
         // recomputes the amount of sheep for sale
-        mSellSheepOffer.mEntry.offer().amount = maxSheepSend - sheepSent;
+        mSellSheepOffer.getOffer().amount = maxSheepSend - sheepSent;
 
-        if (offerIsValid && mSellSheepOffer.mEntry.offer().amount > 0)
+        if (offerIsValid && mSellSheepOffer.getOffer().amount > 0)
         { // we still have sheep to sell so leave an offer
 
             if (creatingNewOffer)
             {
                 // make sure we don't allow us to add offers when we don't have the minbalance
-                if (mSigningAccount->mEntry.account().balance <
-                    ledgerMaster.getMinBalance(mSigningAccount->mEntry.account().ownerCount + 1))
+                if (mSigningAccount->getAccount().balance <
+                    ledgerMaster.getMinBalance(mSigningAccount->getAccount().ownerCount + 1))
                 {
                     innerResult().result.code(CreateOffer::UNDERFUNDED);
                     return false;
                 }
 
                 innerResult().result.success().offer.effect(CreateOffer::CREATED);
-                innerResult().result.success().offer.offerCreated() = mSellSheepOffer.mEntry.offer();
+                innerResult().result.success().offer.offerCreated() = mSellSheepOffer.getOffer();
                 mSellSheepOffer.storeAdd(tempDelta, db);
 
-                mSigningAccount->mEntry.account().ownerCount++;
+                mSigningAccount->getAccount().ownerCount++;
                 mSigningAccount->storeChange(tempDelta, db);
             }
             else

@@ -80,30 +80,40 @@ Hash& TransactionFrame::getContentsHash()
 }
 
 
-TransactionEnvelope&
-TransactionFrame::getEnvelope()
+TransactionEnvelope& TransactionFrame::getEnvelope()
 {
     return mEnvelope;
 }
 
+void TransactionFrame::setSourceAccountPtr(AccountFrame::pointer signingAccount)
+{
+    if (!signingAccount)
+    {
+        if (mEnvelope.tx.account != signingAccount->getID())
+        {
+            throw std::invalid_argument("wrong account");
+        }
+    }
+    mSigningAccount = signingAccount;
+}
 
 bool TransactionFrame::preApply(LedgerDelta& delta,LedgerMaster& ledgerMaster)
 {
     Database &db = ledgerMaster.getDatabase();
     int32_t fee = ledgerMaster.getTxFee();
 
-    if (mSigningAccount->mEntry.account().balance < fee)
+    if (mSigningAccount->getAccount().balance < fee)
     {
         mResult.body.code(txNO_FEE);
 
         // take all their balance to be safe
-        mSigningAccount->mEntry.account().balance = 0;
+        mSigningAccount->getAccount().balance = 0;
         mSigningAccount->storeChange(delta, db);
         return false;
     }
 
-    mSigningAccount->mEntry.account().balance -= fee;
-    mSigningAccount->mEntry.account().sequence += 1;
+    mSigningAccount->getAccount().balance -= fee;
+    mSigningAccount->getAccount().sequence += 1;
     mResult.feeCharged = fee;
     ledgerMaster.getCurrentLedgerHeader().feePool += fee;
 
@@ -122,7 +132,7 @@ bool TransactionFrame::apply(LedgerDelta& delta, Application& app)
     {
         // this can't be done in checkValid since we should still flood txs 
         // where seq != envelope.seq
-        if(mSigningAccount->mEntry.account().sequence != mEnvelope.tx.seqNum)
+        if(mSigningAccount->getAccount().sequence != mEnvelope.tx.seqNum)
         {
             mResult.body.code(txBAD_SEQ);
             return true;  // needs to return true since it will still claim a fee
@@ -170,10 +180,10 @@ int32_t TransactionFrame::getNeededThreshold()
 bool TransactionFrame::checkSignature()
 {
     vector<Signer> keyWeights;
-    if(mSigningAccount->mEntry.account().thresholds[0])
-        keyWeights.push_back(Signer(mSigningAccount->getID(),mSigningAccount->mEntry.account().thresholds[0]));
+    if(mSigningAccount->getAccount().thresholds[0])
+        keyWeights.push_back(Signer(mSigningAccount->getID(),mSigningAccount->getAccount().thresholds[0]));
 
-    keyWeights.insert(keyWeights.end(), mSigningAccount->mEntry.account().signers.begin(), mSigningAccount->mEntry.account().signers.end());
+    keyWeights.insert(keyWeights.end(), mSigningAccount->getAccount().signers.begin(), mSigningAccount->getAccount().signers.end());
 
     // make sure not too many signatures attached to the tx
     if(keyWeights.size() < mEnvelope.signatures.size())
@@ -272,7 +282,7 @@ bool TransactionFrame::checkValid(Application& app)
         return false;
     }
 
-    if (mSigningAccount->mEntry.account().balance < fee)
+    if (mSigningAccount->getAccount().balance < fee)
     {
         mResult.body.code(txNO_FEE);
         return false;

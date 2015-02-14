@@ -22,12 +22,14 @@ namespace stellar
         void storeUpdate(LedgerDelta &delta, Database& db, bool insert);
         bool mUpdateSigners;
 
+        AccountEntry &mAccountEntry;
 	public:
         typedef std::shared_ptr<AccountFrame> pointer;
 
         AccountFrame();
         AccountFrame(LedgerEntry const& from);
         AccountFrame(uint256 const& id);
+        AccountFrame(AccountFrame const &from);
 
         EntryFrame::pointer copy()  const  { return EntryFrame::pointer(new AccountFrame(*this)); }
 
@@ -41,6 +43,8 @@ namespace stellar
         uint32_t getLowThreshold();
         uint32_t getSeqNum();
         xdr::xvector<Signer> &getSigners();
+
+        AccountEntry &getAccount() { return mAccountEntry; }
 
         // database utilities
         static bool loadAccount(const uint256& accountID, AccountFrame& retEntry,

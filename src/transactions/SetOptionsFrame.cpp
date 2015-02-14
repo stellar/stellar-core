@@ -26,26 +26,26 @@ namespace stellar
         Database &db = ledgerMaster.getDatabase();
         if(mEnvelope.tx.body.setOptionsTx().inflationDest)
         {
-            mSigningAccount->mEntry.account().inflationDest.activate()=*mEnvelope.tx.body.setOptionsTx().inflationDest;
+            mSigningAccount->getAccount().inflationDest.activate()=*mEnvelope.tx.body.setOptionsTx().inflationDest;
         }
 
         if (mEnvelope.tx.body.setOptionsTx().clearFlags)
         {
-            mSigningAccount->mEntry.account().flags = mSigningAccount->mEntry.account().flags & ~*mEnvelope.tx.body.setOptionsTx().clearFlags;
+            mSigningAccount->getAccount().flags = mSigningAccount->getAccount().flags & ~*mEnvelope.tx.body.setOptionsTx().clearFlags;
         }
         if(mEnvelope.tx.body.setOptionsTx().setFlags)
         {   
-            mSigningAccount->mEntry.account().flags = mSigningAccount->mEntry.account().flags | *mEnvelope.tx.body.setOptionsTx().setFlags;
+            mSigningAccount->getAccount().flags = mSigningAccount->getAccount().flags | *mEnvelope.tx.body.setOptionsTx().setFlags;
         }
         
         if(mEnvelope.tx.body.setOptionsTx().thresholds)
         {
-            mSigningAccount->mEntry.account().thresholds = *mEnvelope.tx.body.setOptionsTx().thresholds;
+            mSigningAccount->getAccount().thresholds = *mEnvelope.tx.body.setOptionsTx().thresholds;
         }
         
         if(mEnvelope.tx.body.setOptionsTx().signer)
         {
-            xdr::xvector<Signer>& signers = mSigningAccount->mEntry.account().signers;
+            xdr::xvector<Signer>& signers = mSigningAccount->getAccount().signers;
             if(mEnvelope.tx.body.setOptionsTx().signer->weight)
             { // add or change signer
                 bool found = false;
@@ -58,13 +58,13 @@ namespace stellar
                 }
                 if(!found)
                 {
-                    if( mSigningAccount->mEntry.account().balance < 
-                        ledgerMaster.getMinBalance(mSigningAccount->mEntry.account().ownerCount + 1))
+                    if( mSigningAccount->getAccount().balance < 
+                        ledgerMaster.getMinBalance(mSigningAccount->getAccount().ownerCount + 1))
                     {
                         innerResult().result.code(SetOptions::BELOW_MIN_BALANCE);
                         return false;
                     }
-                    mSigningAccount->mEntry.account().ownerCount++;
+                    mSigningAccount->getAccount().ownerCount++;
                     signers.push_back(*mEnvelope.tx.body.setOptionsTx().signer);
                 }
             } else
@@ -76,7 +76,7 @@ namespace stellar
                     if(oldSigner.pubKey == mEnvelope.tx.body.setOptionsTx().signer->pubKey)
                     {
                         it = signers.erase(it);
-                        mSigningAccount->mEntry.account().ownerCount--;
+                        mSigningAccount->getAccount().ownerCount--;
                     }
                     else
                     {

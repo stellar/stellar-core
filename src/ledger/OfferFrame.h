@@ -24,6 +24,8 @@ namespace stellar
         static void loadOffers(soci::details::prepare_temp_type &prep, std::function<void(const OfferFrame&)> offerProcessor);
 
         int64_t computePrice() const;
+
+        OfferEntry& mOffer;
     public:
 
         enum OfferFlags
@@ -32,7 +34,10 @@ namespace stellar
         };
 
         OfferFrame();
-        OfferFrame(const LedgerEntry& from);
+        OfferFrame(LedgerEntry const& from);
+        OfferFrame(OfferFrame const& from);
+
+        OfferFrame& operator=(OfferFrame const& other);
         void from(const Transaction& tx);
 
         EntryFrame::pointer copy()  const { return EntryFrame::pointer(new OfferFrame(*this)); }
@@ -47,6 +52,8 @@ namespace stellar
         Currency& getTakerPays();
         Currency& getTakerGets();
         uint32 getSequence();
+
+        OfferEntry& getOffer() { return mOffer; }
 
         // database utilities
         static bool loadOffer(const uint256& accountID, uint32_t seq, OfferFrame& retEntry,

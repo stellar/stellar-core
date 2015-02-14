@@ -29,35 +29,47 @@ namespace stellar {
          PRIMARY KEY (accountID, issuer, isoCurrency)       \
          );";
 
-    TrustFrame::TrustFrame()
+    TrustFrame::TrustFrame() : EntryFrame(TRUSTLINE), mTrustLine(mEntry.trustLine())
     {
-        mEntry.type(TRUSTLINE);
     }
 
-    TrustFrame::TrustFrame(const LedgerEntry& from) : EntryFrame(from)
+    TrustFrame::TrustFrame(LedgerEntry const& from) : EntryFrame(from), mTrustLine(mEntry.trustLine())
     {
-
     }
 
-    
-void TrustFrame::getKeyFields(std::string& base58AccountID,
-                              std::string& base58Issuer,
-                              std::string& currencyCode) const
-{
-    base58AccountID = toBase58Check(VER_ACCOUNT_ID, mEntry.trustLine().accountID);
-    base58Issuer = toBase58Check(VER_ACCOUNT_ID, mEntry.trustLine().currency.isoCI().issuer);
-    currencyCodeToStr(mEntry.trustLine().currency.isoCI().currencyCode, currencyCode);
-}
+    TrustFrame::TrustFrame(TrustFrame const &from) : TrustFrame(from.mEntry)
+    {
+    }
+
+    TrustFrame& TrustFrame::operator=(TrustFrame const& other)
+    {
+        if (&other != this)
+        {
+            mTrustLine = other.mTrustLine;
+            mKey = other.mKey;
+            mKeyCalculated = other.mKeyCalculated;
+        }
+        return *this;
+    }
+
+    void TrustFrame::getKeyFields(std::string& base58AccountID,
+                                  std::string& base58Issuer,
+                                  std::string& currencyCode) const
+    {
+        base58AccountID = toBase58Check(VER_ACCOUNT_ID, mTrustLine.accountID);
+        base58Issuer = toBase58Check(VER_ACCOUNT_ID, mTrustLine.currency.isoCI().issuer);
+        currencyCodeToStr(mTrustLine.currency.isoCI().currencyCode, currencyCode);
+    }
 
     int64_t TrustFrame::getBalance()
     {
         assert(isValid());
-        return mEntry.trustLine().balance;
+        return mTrustLine.balance;
     }
 
     bool TrustFrame::isValid() const
     {
-        const TrustLineEntry &tl = mEntry.trustLine();
+        const TrustLineEntry &tl = mTrustLine;
         bool res = tl.currency.type() != NATIVE;
         res = res && (tl.balance >= 0);
         res = res && (tl.balance <= tl.limit);
@@ -89,9 +101,9 @@ void TrustFrame::getKeyFields(std::string& base58AccountID,
              "UPDATE TrustLines \
               SET balance=:b, tlimit=:tl, authorized=:a \
               WHERE accountID=:v1 and issuer=:v2 and isoCurrency=:v3",
-             use(mEntry.trustLine().balance),
-             use(mEntry.trustLine().limit),
-             use((int)mEntry.trustLine().authorized),
+             use(mTrustLine.balance),
+             use(mTrustLine.limit),
+             use((int)mTrustLine.authorized),
              use(b58AccountID), use(b58Issuer), use(currencyCode));
 
         st.execute(true);
@@ -116,8 +128,8 @@ void TrustFrame::getKeyFields(std::string& base58AccountID,
                 "INSERT INTO TrustLines (accountID, issuer, isoCurrency, tlimit, authorized) \
                  VALUES (:v1,:v2,:v3,:v4,:v5)",
              use(b58AccountID), use(b58Issuer), use(currencyCode),
-             use(mEntry.trustLine().limit),
-             use((int)mEntry.trustLine().authorized));
+             use(mTrustLine.limit),
+             use((int)mTrustLine.authorized));
 
         st.execute(true);
 
@@ -167,7 +179,7 @@ void TrustFrame::getKeyFields(std::string& base58AccountID,
 
         TrustFrame curTrustLine;
 
-        TrustLineEntry &tl = curTrustLine.mEntry.trustLine();
+        TrustLineEntry &tl = curTrustLine.mTrustLine;
 
         statement st = (prep,
             into(accountID), into(issuer), into(currency), into(tl.limit),
