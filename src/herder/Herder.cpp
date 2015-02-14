@@ -735,7 +735,7 @@ Herder::ledgerClosed(LedgerHeader& ledger)
 void
 Herder::removeReceivedTx(TransactionFramePtr dropTx)
 {
-    for (auto list : mReceivedTransactions)
+    for (auto& list : mReceivedTransactions)
     {
         for (auto iter = list.begin(); iter != list.end();)
         {
