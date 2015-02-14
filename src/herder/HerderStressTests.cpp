@@ -119,7 +119,7 @@ using accountPtr = shared_ptr<AccountInfo>;
 
 accountPtr createRootAccount()
 {
-    return shared_ptr<AccountInfo>(new AccountInfo{ 0, getRoot(), 1000000000, 2, chrono::system_clock::now() - chrono::seconds(100) });
+    return shared_ptr<AccountInfo>(new AccountInfo{ 0, getRoot(), 1000000000, 1, chrono::system_clock::now() - chrono::seconds(100) });
 }
 accountPtr createAccount(size_t i)
 {
@@ -195,7 +195,9 @@ struct StressTest {
         {
             auto newAcc = createAccount(accounts.size());
             accounts.push_back(newAcc);
-            return fundingTransaction(newAcc);
+            auto tx = fundingTransaction(newAcc);
+            tx.amount += accounts.size()-1;
+            return tx;
         }
         else
         {
@@ -237,8 +239,8 @@ struct StressTest {
                     LOG(INFO) << "cranked " << i;
             }
             if (nIdle == apps->size()) {
-                LOG(INFO) << "all idle; sleeping for 100ms";
-                this_thread::sleep_for(chrono::milliseconds(100));
+                LOG(INFO) << "all idle; sleeping for 10ms";
+                this_thread::sleep_for(chrono::milliseconds(10));
             }
         }
     }
@@ -251,8 +253,8 @@ TEST_CASE("stress", "[hrd-stress]")
     float paretoAlpha = 0.5;
 
     size_t nAccounts = 100;
-    size_t nTransactions = 1000;
-    size_t injectionRate = 10; // per sec
+    size_t nTransactions = 20;
+    size_t injectionRate = 1; // per sec
 
     VirtualClock clock;
     Config cfg(getTestConfig());
@@ -274,28 +276,45 @@ TEST_CASE("stress", "[hrd-stress]")
         app->getMainIOService().post([]() { return; });
     }
 
+    while ((*test.apps)[0]->crank(false) > 0);
+    while ((*test.apps)[0]->crank(false) > 0);
+    while ((*test.apps)[0]->crank(false) > 0);
+    while ((*test.apps)[0]->crank(false) > 0);
+    while ((*test.apps)[0]->crank(false) > 0);
 
     size_t iTransactions = 0;
-    auto begin = chrono::system_clock::now();
+    auto begin = chrono::system_clock::now() - chrono::seconds(1);
     while (iTransactions < nTransactions)
     {
-        auto elapsed = chrono::duration_cast<chrono::microseconds>(chrono::system_clock::now() - begin);
-        auto targetTxs = elapsed.count() * injectionRate / 1000000;
-        auto toInject = max(static_cast<size_t>(0), targetTxs - iTransactions);
+        test.injectRandomTransactions(1, paretoAlpha);
+        iTransactions += 1;
+        while ((*test.apps)[0]->crank(false) > 0);
+        this_thread::sleep_for(chrono::milliseconds(1000));
+        while ((*test.apps)[0]->crank(false) > 0);
+        this_thread::sleep_for(chrono::milliseconds(1000));
+        while ((*test.apps)[0]->crank(false) > 0);
+        this_thread::sleep_for(chrono::milliseconds(1000));
+        while ((*test.apps)[0]->crank(false) > 0);
+        this_thread::sleep_for(chrono::milliseconds(1000));
 
-        if (toInject == 0)
-        {
-            LOG(INFO) << "Not injecting; sleeping for 100ms";
-            this_thread::sleep_for(chrono::milliseconds(100));
-        } else
-        {
-            LOG(INFO) << "Injecting " << toInject << " transactions";
-            test.injectRandomTransactions(toInject, paretoAlpha);
-            iTransactions += toInject;
-        }
+        //auto elapsed = chrono::duration_cast<chrono::microseconds>(chrono::system_clock::now() - begin);
+        //auto targetTxs = elapsed.count() * injectionRate / 1000000;
+        //auto toInject = max(static_cast<size_t>(0), targetTxs - iTransactions);
+
+        //if (toInject == 0)
+        //{
+        //    LOG(INFO) << "Not injecting; sleeping for 10ms";
+        //    this_thread::sleep_for(chrono::milliseconds(10));
+        //} else
+        //{
+        //    LOG(INFO) << "Injecting " << toInject << " transactions";
+        //    test.injectRandomTransactions(toInject, paretoAlpha);
+        //    iTransactions += toInject;
+        //}
         
 
-        test.crank(chrono::seconds(1));
+        //test.crank(chrono::seconds(1));
+
     }
     LOG(INFO) << "all done " << nTransactions << " transactions";
 }
