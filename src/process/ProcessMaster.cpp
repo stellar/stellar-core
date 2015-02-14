@@ -41,25 +41,29 @@ ProcessMaster::handleSignalWait()
     // No-op on windows, uses waitable object handles
 }
 
-class ProcessExitEvent::Impl
+class ProcessExitEvent::Impl : public std::enable_shared_from_this<ProcessExitEvent::Impl>
 {
+public:
     std::shared_ptr<RealTimer> mOuterTimer;
     std::shared_ptr<asio::error_code> mOuterEc;
     asio::windows::object_handle mProcessHandle;
 
-  public:
     Impl(std::shared_ptr<RealTimer> const& outerTimer,
-         std::shared_ptr<asio::error_code> const& outerEc, HANDLE hProcess)
+        std::shared_ptr<asio::error_code> const& outerEc, HANDLE hProcess)
         : mOuterTimer(outerTimer)
         , mOuterEc(outerEc)
         , mProcessHandle(outerTimer->get_io_service(), hProcess)
     {
-        auto ot = mOuterTimer;
-        auto oe = mOuterEc;
-        mProcessHandle.async_wait([ot, oe](asio::error_code ec)
+    }
+
+    void go()
+    {
+        // capture a shared pointer to "this" to keep Impl alive until the end of the execution
+        auto sf = shared_from_this();
+        mProcessHandle.async_wait([sf](asio::error_code ec)
                               {
-                                  *oe = ec;
-                                  ot->cancel();
+                                  *(sf->mOuterEc) = ec;
+                                  sf->mOuterTimer->cancel();
                               });
     }
 };
@@ -98,6 +102,7 @@ ProcessMaster::runProcess(std::string const& cmdLine)
     ProcessExitEvent pe(svc);
     pe.mImpl = std::make_shared<ProcessExitEvent::Impl>(
         pe.mTimer, pe.mEc, pi.hProcess);
+    pe.mImpl->go();
     return pe;
 }
 
