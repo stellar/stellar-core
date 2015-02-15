@@ -1,6 +1,7 @@
 #pragma once
 
 #include <map>
+#include <set>
 #include "ledger/EntryFrame.h"
 #include "clf/LedgerCmp.h"
 
@@ -10,7 +11,7 @@ namespace stellar
     {
         std::map<LedgerKey, EntryFrame::pointer, LedgerEntryIdCmp> mNew;
         std::map<LedgerKey, EntryFrame::pointer, LedgerEntryIdCmp> mMod;
-        std::map<LedgerKey, EntryFrame::pointer, LedgerEntryIdCmp> mDelete;
+        std::set<LedgerKey, LedgerEntryIdCmp> mDelete;
 
         void addEntry(EntryFrame::pointer entry);
         void deleteEntry(EntryFrame::pointer entry);
@@ -20,6 +21,7 @@ namespace stellar
 
         void addEntry(EntryFrame const& entry);
         void deleteEntry(EntryFrame const& entry);
+        void deleteEntry(LedgerKey const& key);
         void modEntry(EntryFrame const& entry);
 
         // apply other on top of delta, collapsing entries as appropriate

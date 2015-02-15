@@ -38,6 +38,11 @@ namespace stellar
     void LedgerDelta::deleteEntry(EntryFrame::pointer entry)
     {
         auto k = entry->getKey();
+        deleteEntry(k);
+    }
+
+    void LedgerDelta::deleteEntry(LedgerKey const& k)
+    {
         auto new_it = mNew.find(k);
         if (new_it != mNew.end())
         {
@@ -49,7 +54,7 @@ namespace stellar
             assert(mDelete.find(k) == mDelete.end()); // double delete is invalid
             // only keep the delete
             mMod.erase(k);
-            mDelete[k] = entry;
+            mDelete.insert(k);
         }
     }
 
@@ -82,7 +87,7 @@ namespace stellar
     {
         for (auto &d : other.mDelete)
         {
-            deleteEntry(d.second);
+            deleteEntry(d);
         }
         for (auto &n : other.mNew)
         {
