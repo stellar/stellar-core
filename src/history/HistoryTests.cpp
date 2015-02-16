@@ -113,7 +113,11 @@ TEST_CASE("HistoryArchiveState::get_put", "[history]")
     HistoryArchiveState has;
     has.currentLedger = 0x1234;
     bool done = false;
-    auto archive = cfg.HISTORY["test"];
+
+    auto i = app.getConfig().HISTORY.find("test");
+    CHECK(i != app.getConfig().HISTORY.end());
+    auto archive = i->second;
+
     archive->putState(
         app, has,
         [&done, &app, archive](asio::error_code const& ec)
