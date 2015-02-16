@@ -46,14 +46,17 @@ namespace stellar
 
         AccountEntry &getAccount() { return mAccountEntry; }
 
+        // Instance-based overrides of EntryFrame.
+        void storeDelete(LedgerDelta &delta, Database& db) override;
+        void storeChange(LedgerDelta &delta, Database& db) override;
+        void storeAdd(LedgerDelta &delta, Database& db) override;
+
+        // Static helper that doesn't assume an instance.
+        static void storeDelete(LedgerDelta& delta, Database& db, LedgerKey const& key);
+
         // database utilities
         static bool loadAccount(const uint256& accountID, AccountFrame& retEntry,
             Database& db, bool withSig = false);
-
-        void storeDelete(LedgerDelta &delta, Database& db);
-        void storeChange(LedgerDelta &delta, Database& db);
-        void storeAdd(LedgerDelta &delta, Database& db);
-
         static void dropAll(Database &db);
         static const char *kSQLCreateStatement1;
         static const char *kSQLCreateStatement2;

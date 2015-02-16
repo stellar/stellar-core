@@ -40,9 +40,13 @@ namespace stellar {
 
         EntryFrame::pointer copy()  const { return EntryFrame::pointer(new TrustFrame(*this)); }
 
-        void storeDelete(LedgerDelta &delta, Database& db);
-        void storeChange(LedgerDelta &delta, Database& db);
-        void storeAdd(LedgerDelta &delta, Database& db);
+        // Instance-based overrides of EntryFrame.
+        void storeDelete(LedgerDelta &delta, Database& db) override;
+        void storeChange(LedgerDelta &delta, Database& db) override;
+        void storeAdd(LedgerDelta &delta, Database& db) override;
+
+        // Static helper that doesn't assume an instance.
+        static void storeDelete(LedgerDelta& delta, Database& db, LedgerKey const& key);
 
         static bool loadTrustLine(const uint256& accountID, const Currency& currency,
             TrustFrame& retEntry, Database& db);

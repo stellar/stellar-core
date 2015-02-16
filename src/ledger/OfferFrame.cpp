@@ -235,13 +235,18 @@ namespace stellar
 
     void OfferFrame::storeDelete(LedgerDelta &delta, Database& db)
     {
-        std::string b58AccountID = toBase58Check(VER_ACCOUNT_ID, mOffer.accountID);
+        storeDelete(delta, db, getKey());
+    }
+
+    void OfferFrame::storeDelete(LedgerDelta &delta, Database& db, LedgerKey const& key)
+    {
+        std::string b58AccountID = toBase58Check(VER_ACCOUNT_ID, key.offer().accountID);
 
         db.getSession() <<
             "DELETE FROM Offers WHERE accountID=:id AND sequence=:s",
-            use(b58AccountID), use(mOffer.sequence);
+            use(b58AccountID), use(key.offer().sequence);
 
-        delta.deleteEntry(*this);
+        delta.deleteEntry(key);
     }
 
     int64_t OfferFrame::computePrice() const

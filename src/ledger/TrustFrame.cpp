@@ -78,15 +78,23 @@ namespace stellar {
 
     void TrustFrame::storeDelete(LedgerDelta &delta, Database& db)
     {
+        storeDelete(delta, db, getKey());
+    }
+
+    void TrustFrame::storeDelete(LedgerDelta &delta, Database& db, LedgerKey const& key)
+    {
         std::string b58AccountID, b58Issuer, currencyCode;
-        getKeyFields(b58AccountID, b58Issuer, currencyCode);
+
+        b58AccountID = toBase58Check(VER_ACCOUNT_ID, key.trustLine().accountID);
+        b58Issuer = toBase58Check(VER_ACCOUNT_ID, key.trustLine().currency.isoCI().issuer);
+        currencyCodeToStr(key.trustLine().currency.isoCI().currencyCode, currencyCode);
 
         db.getSession() <<
             "DELETE from TrustLines \
              WHERE accountID=:v1 and issuer=:v2 and isoCurrency=:v3",
             use(b58AccountID), use(b58Issuer), use(currencyCode);
 
-        delta.deleteEntry(*this);
+        delta.deleteEntry(key);
     }
 
     void TrustFrame::storeChange(LedgerDelta &delta, Database& db)
