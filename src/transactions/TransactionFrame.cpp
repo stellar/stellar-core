@@ -22,7 +22,7 @@
 #include "transactions/SetOptionsFrame.h"
 #include "database/Database.h"
 #include "crypto/Hex.h"
-
+#include <cereal/external/base64.hpp>
 
 namespace stellar
 {
@@ -305,22 +305,24 @@ StellarMessage TransactionFrame::toStellarMessage()
 
 void TransactionFrame::storeTransaction(LedgerMaster &ledgerMaster)
 {
-    soci::blob txBlob(ledgerMaster.getDatabase().getSession());
-    soci::blob txResultBlob(ledgerMaster.getDatabase().getSession());
-
     xdr::msg_ptr txBytes(xdr::xdr_to_msg(mEnvelope));
     xdr::msg_ptr txResultBytes(xdr::xdr_to_msg(mResult));
 
-    txBlob.write(0, txBytes->raw_data(), txBytes->raw_size());
-    txResultBlob.write(0, txResultBytes->raw_data(), txResultBytes->raw_size());
+    std::string txBody = base64::encode(
+        reinterpret_cast<const unsigned char *>(txBytes->raw_data()),
+        txBytes->raw_size());
+
+    std::string txResult = base64::encode(
+        reinterpret_cast<const unsigned char *>(txResultBytes->raw_data()),
+        txResultBytes->raw_size());
 
     string txIDString(binToHex(getContentsHash()));
 
     soci::statement st = (ledgerMaster.getDatabase().getSession().prepare <<
-        "INSERT INTO TxHistory (txID, ledgerSeq, Tx, TxResult) VALUES "\
-        "(:id,:seq,:tx,:txres)",
+        "INSERT INTO TxHistory (txID, ledgerSeq, TxBody, TxResult) VALUES "\
+        "(:id,:seq,:txb,:txres)",
         soci::use(txIDString), soci::use(ledgerMaster.getCurrentLedgerHeader().ledgerSeq),
-        soci::use(txBlob), soci::use(txResultBlob));
+        soci::use(txBody), soci::use(txResult));
 
     st.execute(true);
 
@@ -338,8 +340,8 @@ void TransactionFrame::dropAll(Database &db)
         "CREATE TABLE IF NOT EXISTS TxHistory (" \
         "txID       CHARACTER(64) NOT NULL,"\
         "ledgerSeq  INT NOT NULL CHECK (ledgerSeq >= 0),"\
-        "Tx         OID NOT NULL,"\
-        "TxResult   OID NOT NULL,"\
+        "TxBody     TEXT NOT NULL,"\
+        "TxResult   TEXT NOT NULL,"\
         "PRIMARY KEY (txID, ledgerSeq)"\
         ")";
 
