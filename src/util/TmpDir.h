@@ -9,13 +9,11 @@
 
 namespace stellar
 {
-class Application;
 class TmpDir
 {
-    class Impl;
-    std::unique_ptr<Impl> mImpl;
+    std::unique_ptr<std::string> mPath;
 public:
-    TmpDir(Application& app, std::string const& prefix);
+    TmpDir(std::string const& prefix);
     TmpDir(TmpDir&&);
     ~TmpDir();
     std::string const& getName() const;
@@ -27,10 +25,10 @@ public:
 
 class TmpDirMaster
 {
-    Application& mApp;
+    std::string mRoot;
     void clean();
 public:
-    TmpDirMaster(Application& app);
+    TmpDirMaster(std::string const& root);
     ~TmpDirMaster();
     TmpDir tmpDir(std::string const& prefix);
 };

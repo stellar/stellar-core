@@ -23,16 +23,14 @@ namespace stellar {
 using xdr::operator==;
 };
 
-TmpDir
-addLocalDirHistoryArchive(Application& app, Config &cfg)
+void
+addLocalDirHistoryArchive(TmpDir const& dir, Config &cfg)
 {
-    TmpDir dir = app.getTmpDirMaster().tmpDir("archive");
     std::string d = dir.getName();
     cfg.HISTORY["test"] = std::make_shared<HistoryArchive>(
         "test",
         "cp " + d + "/{0} {1}",
         "cp {0} " + d + "/{1}");
-    return dir;
 }
 
 #if 0
@@ -40,8 +38,12 @@ TEST_CASE("Archive and reload history", "[history]")
 {
     VirtualClock clock;
     Config cfg = getTestConfig();
+
+    TmpDirMaster archtmp("archtmp");
+    TmpDir dir = archtmp.tmpDir("archive");
+    addLocalDirHistoryArchive(dir, cfg);
+
     Application app(clock, cfg);
-    TmpDir dir = addLocalDirHistoryArchive(app, cfg)
 
     autocheck::generator<History> gen;
     auto h1 = std::make_shared<History>(gen(10));
@@ -87,8 +89,12 @@ TEST_CASE("Archive and reload bucket", "[history]")
 {
     VirtualClock clock;
     Config cfg = getTestConfig();
+
+    TmpDirMaster archtmp("archtmp");
+    TmpDir dir = archtmp.tmpDir("archive");
+    addLocalDirHistoryArchive(dir, cfg);
+
     Application app(clock, cfg);
-    TmpDir dir = addLocalDirHistoryArchive(app, cfg)
 
     autocheck::generator<CLFBucket> gen;
     auto b1 = std::make_shared<CLFBucket>(gen(10));
@@ -130,7 +136,6 @@ TEST_CASE("Archive and reload bucket", "[history]")
     }
 }
 #endif
-
 
 TEST_CASE("HistoryMaster::compress", "[history]")
 {
@@ -201,8 +206,13 @@ TEST_CASE("HistoryArchiveState::get_put", "[history]")
 {
     VirtualClock clock;
     Config cfg = getTestConfig();
+
+    TmpDirMaster archtmp("archtmp");
+    TmpDir dir = archtmp.tmpDir("archive");
+    addLocalDirHistoryArchive(dir, cfg);
+
     Application app(clock, cfg);
-    TmpDir dir = addLocalDirHistoryArchive(app, cfg);
+
     HistoryArchiveState has;
     has.currentLedger = 0x1234;
     bool done = false;

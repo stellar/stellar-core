@@ -21,24 +21,16 @@
 namespace stellar
 {
 
-class TmpDir::Impl : public std::string
-{
-public:
-    Impl(std::string const& s) : std::string(s)
-    {
-    }
-};
-
-TmpDir::TmpDir(Application& app, std::string const& prefix)
+TmpDir::TmpDir(std::string const& prefix)
 {
     size_t attempts = 0;
     while (true)
     {
         std::string hex = binToHex(randomBytes(8));
-        std::string name = app.getConfig().TMP_DIR_PATH + "/" + prefix + "-" + hex;
+        std::string name = prefix + "-" + hex;
         if (TmpDir::mkdir(name))
         {
-            mImpl = make_unique<Impl>(name);
+            mPath = make_unique<std::string>(name);
             break;
         }
         if (++attempts > 100)
@@ -49,14 +41,14 @@ TmpDir::TmpDir(Application& app, std::string const& prefix)
 }
 
 TmpDir::TmpDir(TmpDir&& other)
-    : mImpl(std::move(other.mImpl))
+    : mPath(std::move(other.mPath))
 {
 }
 
 std::string const&
 TmpDir::getName() const
 {
-    return *mImpl;
+    return *mPath;
 }
 
 #ifdef _WIN32
@@ -176,19 +168,19 @@ TmpDir::deltree(std::string const& d)
 
 TmpDir::~TmpDir()
 {
-    if (mImpl)
+    if (mPath)
     {
-        deltree(*mImpl);
-        LOG(DEBUG) << "TmpDir deleted: " << *mImpl;
-        mImpl.reset();
+        deltree(*mPath);
+        LOG(DEBUG) << "TmpDir deleted: " << *mPath;
+        mPath.reset();
     }
 }
 
-TmpDirMaster::TmpDirMaster(Application& app)
-    : mApp(app)
+TmpDirMaster::TmpDirMaster(std::string const& root)
+    : mRoot(root)
 {
     clean();
-    TmpDir::mkdir(mApp.getConfig().TMP_DIR_PATH);
+    TmpDir::mkdir(root);
 }
 
 TmpDirMaster::~TmpDirMaster()
@@ -199,18 +191,17 @@ TmpDirMaster::~TmpDirMaster()
 void
 TmpDirMaster::clean()
 {
-    std::string const& tmpRoot = mApp.getConfig().TMP_DIR_PATH;
-    if (TmpDir::exists(tmpRoot))
+    if (TmpDir::exists(mRoot))
     {
-        LOG(DEBUG) << "TmpDirMaster cleaning: " << tmpRoot;
-        TmpDir::deltree(tmpRoot);
+        LOG(DEBUG) << "TmpDirMaster cleaning: " << mRoot;
+        TmpDir::deltree(mRoot);
     }
 }
 
 TmpDir
 TmpDirMaster::tmpDir(std::string const& prefix)
 {
-    return TmpDir(mApp, prefix);
+    return TmpDir(mRoot + "/" + prefix);
 }
 
 

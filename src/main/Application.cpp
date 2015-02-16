@@ -141,7 +141,7 @@ Application::Application(VirtualClock& clock, Config const& cfg)
     // These must be constructed _after_ mImpl points to a
     // full Impl object, because they frequently call back
     // into App.getFoo() to get information / start up.
-    mImpl->mTmpDirMaster = make_unique<TmpDirMaster>(*this);
+    mImpl->mTmpDirMaster = make_unique<TmpDirMaster>(cfg.TMP_DIR_PATH);
     mImpl->mPeerMaster = make_unique<PeerMaster>(*this);
     mImpl->mLedgerMaster = make_unique<LedgerMaster>(*this);
     mImpl->mHerder = make_unique<Herder>(*this);
