@@ -17,30 +17,30 @@ namespace stellar
 const char *AccountFrame::kSQLCreateStatement1 =
     "CREATE TABLE IF NOT EXISTS Accounts                      \
      (                                                        \
-     accountID       CHARACTER(64)  PRIMARY KEY,              \
+     accountID       VARCHAR(51)    PRIMARY KEY,              \
      balance         BIGINT         NOT NULL,                 \
      sequence        INT            NOT NULL DEFAULT 1        \
                                     CHECK (sequence >= 0),    \
      ownerCount      INT            NOT NULL DEFAULT 0        \
                                     CHECK (ownercount >= 0),  \
-     inflationDest   CHARACTER(64),                           \
+     inflationDest   VARCHAR(51),                             \
      thresholds      TEXT,                                    \
      flags           INT            NOT NULL                  \
      );";
 
 const char *AccountFrame::kSQLCreateStatement2 =
-    "CREATE TABLE IF NOT EXISTS Signers         \
-     (                                          \
-     accountID       CHARACTER(64) NOT NULL,    \
-     publicKey       CHARACTER(64) NOT NULL,    \
-     weight          INT           NOT NULL,    \
-     PRIMARY KEY (accountID, publicKey)         \
+    "CREATE TABLE IF NOT EXISTS Signers       \
+     (                                        \
+     accountID       VARCHAR(51) NOT NULL,    \
+     publicKey       VARCHAR(51) NOT NULL,    \
+     weight          INT         NOT NULL,    \
+     PRIMARY KEY (accountID, publicKey)       \
      );";
 
 const char *AccountFrame::kSQLCreateStatement3 =
     "CREATE TABLE IF NOT EXISTS AccountData         \
      (                                              \
-     accountID       CHARACTER(64)  PRIMARY KEY,    \
+     accountID       VARCHAR(51)    PRIMARY KEY,    \
      key             INT            NOT NULL,       \
      value           TEXT           NOT NULL        \
      );";
