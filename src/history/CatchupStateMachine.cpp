@@ -8,6 +8,7 @@
 #include "crypto/Hex.h"
 #include "main/Application.h"
 #include "main/Config.h"
+#include "ledger/LedgerDelta.h"
 #include "database/Database.h"
 #include "util/Logging.h"
 #include "util/XDRStream.h"
@@ -305,6 +306,7 @@ void CatchupStateMachine::enterApplyingState()
     CLFEntry entry;
     auto& sess = db.getSession();
     soci::transaction tx(sess);
+    LedgerDelta delta;
     for (auto const& bucket : mArchiveState.currentBuckets)
     {
         std::string basenames[] = { HistoryMaster::bucketBasename(bucket.snap),
@@ -323,7 +325,15 @@ void CatchupStateMachine::enterApplyingState()
             while (in)
             {
                 in.readOne(entry);
-                // TODO: Apply to DB.
+                if (entry.entry.type() == LIVEENTRY)
+                {
+                    EntryFrame::pointer ep = EntryFrame::FromXDR(entry.entry.liveEntry());
+                    ep->storeAddOrChange(delta, db);
+                }
+                else
+                {
+                    EntryFrame::storeDelete(delta, db, entry.entry.deadEntry());
+                }
             }
         }
     }
