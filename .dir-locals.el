@@ -23,6 +23,6 @@
                      (add-to-list 'c-offsets-alist '(innamespace . -))))
          (eval . (setq compile-command
                        (concat "make"
-                               " -C " (locate-dominating-file
+                               " -wC " (locate-dominating-file
                                        (or buffer-file-name ".") ".dir-locals.el")
                                " -j $(nproc)"))))))
