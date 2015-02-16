@@ -46,8 +46,9 @@ namespace stellar {
         void storeChange(LedgerDelta &delta, Database& db) override;
         void storeAdd(LedgerDelta &delta, Database& db) override;
 
-        // Static helper that doesn't assume an instance.
+        // Static helper that don't assume an instance.
         static void storeDelete(LedgerDelta& delta, Database& db, LedgerKey const& key);
+        static bool exists(Database& db, LedgerKey const& key);
 
         static bool loadTrustLine(const uint256& accountID, const Currency& currency,
             TrustFrame& retEntry, Database& db);

@@ -53,4 +53,17 @@ LedgerKey const& EntryFrame::getKey()
     return mKey;
 }
 
+bool
+EntryFrame::exists(Database& db, LedgerKey const& key)
+{
+    switch (key.type())
+    {
+    case ACCOUNT:
+        return AccountFrame::exists(db, key);
+    case TRUSTLINE:
+        return TrustFrame::exists(db, key);
+    case OFFER:
+        return OfferFrame::exists(db, key);
+    }
+}
 }

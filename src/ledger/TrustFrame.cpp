@@ -77,6 +77,20 @@ namespace stellar {
         return res;
     }
 
+    bool TrustFrame::exists(Database& db, LedgerKey const& key)
+    {
+        std::string b58AccountID, b58Issuer, currencyCode;
+        getKeyFields(key, b58AccountID, b58Issuer, currencyCode);
+        int exists = 0;
+        db.getSession() <<
+            "SELECT EXISTS (SELECT NULL FROM TrustLines \
+             WHERE accountID=:v1 and issuer=:v2 and isoCurrency=:v3)",
+            use(b58AccountID), use(b58Issuer), use(currencyCode),
+            into(exists);
+        return exists != 0;
+    }
+
+
     void TrustFrame::storeDelete(LedgerDelta &delta, Database& db)
     {
         storeDelete(delta, db, getKey());

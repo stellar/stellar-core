@@ -166,6 +166,18 @@ bool AccountFrame::loadAccount(const uint256& accountID, AccountFrame& retAcc,
     return true;
 }
 
+bool AccountFrame::exists(Database& db, LedgerKey const& key)
+{
+    std::string base58ID = toBase58Check(VER_ACCOUNT_ID, key.account().accountID);
+    int exists = 0;
+    db.getSession() <<
+        "SELECT EXISTS (SELECT NULL FROM Accounts \
+             WHERE accountID=:v1)",
+        use(base58ID),
+        into(exists);
+    return exists != 0;
+}
+
 void AccountFrame::storeDelete(LedgerDelta &delta, Database &db)
 {
     storeDelete(delta, db, getKey());

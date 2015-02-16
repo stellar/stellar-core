@@ -233,6 +233,18 @@ namespace stellar
         });
     }
 
+    bool OfferFrame::exists(Database& db, LedgerKey const& key)
+    {
+        std::string b58AccountID = toBase58Check(VER_ACCOUNT_ID, key.offer().accountID);
+        int exists = 0;
+        db.getSession() <<
+            "SELECT EXISTS (SELECT NULL FROM Offers \
+             WHERE accountID=:id AND sequence=:s)",
+            use(b58AccountID), use(key.offer().sequence),
+            into(exists);
+        return exists != 0;
+    }
+
     void OfferFrame::storeDelete(LedgerDelta &delta, Database& db)
     {
         storeDelete(delta, db, getKey());
