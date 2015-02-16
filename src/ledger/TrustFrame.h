@@ -21,9 +21,10 @@ namespace stellar {
 	
     class TrustFrame : public EntryFrame
     {
-        void getKeyFields(std::string& base58AccountID,
-                          std::string& base58Issuer,
-                          std::string& currencyCode) const;
+        static void getKeyFields(LedgerKey const& key,
+                                 std::string& base58AccountID,
+                                 std::string& base58Issuer,
+                                 std::string& currencyCode);
 
         static void loadLines(soci::details::prepare_temp_type &prep,
             std::function<void(const TrustFrame&)> trustProcessor);

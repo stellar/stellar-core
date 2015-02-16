@@ -52,13 +52,14 @@ namespace stellar {
         return *this;
     }
 
-    void TrustFrame::getKeyFields(std::string& base58AccountID,
+    void TrustFrame::getKeyFields(LedgerKey const& key,
+                                  std::string& base58AccountID,
                                   std::string& base58Issuer,
-                                  std::string& currencyCode) const
+                                  std::string& currencyCode)
     {
-        base58AccountID = toBase58Check(VER_ACCOUNT_ID, mTrustLine.accountID);
-        base58Issuer = toBase58Check(VER_ACCOUNT_ID, mTrustLine.currency.isoCI().issuer);
-        currencyCodeToStr(mTrustLine.currency.isoCI().currencyCode, currencyCode);
+        base58AccountID = toBase58Check(VER_ACCOUNT_ID, key.trustLine().accountID);
+        base58Issuer = toBase58Check(VER_ACCOUNT_ID, key.trustLine().currency.isoCI().issuer);
+        currencyCodeToStr(key.trustLine().currency.isoCI().currencyCode, currencyCode);
     }
 
     int64_t TrustFrame::getBalance()
@@ -84,10 +85,7 @@ namespace stellar {
     void TrustFrame::storeDelete(LedgerDelta &delta, Database& db, LedgerKey const& key)
     {
         std::string b58AccountID, b58Issuer, currencyCode;
-
-        b58AccountID = toBase58Check(VER_ACCOUNT_ID, key.trustLine().accountID);
-        b58Issuer = toBase58Check(VER_ACCOUNT_ID, key.trustLine().currency.isoCI().issuer);
-        currencyCodeToStr(key.trustLine().currency.isoCI().currencyCode, currencyCode);
+        getKeyFields(key, b58AccountID, b58Issuer, currencyCode);
 
         db.getSession() <<
             "DELETE from TrustLines \
@@ -102,7 +100,7 @@ namespace stellar {
         assert(isValid());
 
         std::string b58AccountID, b58Issuer, currencyCode;
-        getKeyFields(b58AccountID, b58Issuer, currencyCode);
+        getKeyFields(getKey(), b58AccountID, b58Issuer, currencyCode);
 
         statement st =
             (db.getSession().prepare <<
@@ -129,7 +127,7 @@ namespace stellar {
         assert(isValid());
 
         std::string b58AccountID, b58Issuer, currencyCode;
-        getKeyFields(b58AccountID, b58Issuer, currencyCode);
+        getKeyFields(getKey(), b58AccountID, b58Issuer, currencyCode);
 
         statement st =
             (db.getSession().prepare <<
