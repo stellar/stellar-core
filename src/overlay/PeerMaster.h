@@ -33,8 +33,10 @@ class PeerMaster : public OverlayGateway
 
     bool parseIPPort(const std::string& peerStr,std::string& retIP,int& retPort);
     void addConfigPeers();
-    void addPeerList(const std::vector<std::string>& list,int rank);
     bool isPeerPreferred(Peer::pointer peer);
+
+  protected:
+    void addPeerList(const std::vector<std::string>& list,int rank);
 
   public:
     Floodgate mFloodGate;
@@ -64,6 +66,8 @@ class PeerMaster : public OverlayGateway
 
     static void createTable(Database &db);
     static const char *kSQLCreateStatement;
+
+    void unitTest_addPeerList();
 };
 }
 

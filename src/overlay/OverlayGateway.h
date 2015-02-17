@@ -42,6 +42,9 @@ class OverlayGateway
     virtual Peer::pointer getRandomPeer() = 0;
     // returns NULL if the passed peer isn't found
     virtual Peer::pointer getNextPeer(Peer::pointer peer) = 0; 
+
+
+    virtual void unitTest_addPeerList() = 0;
 };
 }
 
