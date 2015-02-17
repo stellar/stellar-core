@@ -17,35 +17,37 @@ using namespace stellar;
 using namespace std;
 using namespace soci;
 
-void PeerMaster::test_addPeerList()
+namespace stellar 
 {
-    vector<string> peers10 { "127.0.0.1:2011", "127.0.0.1:2012", "127.0.0.1:2013", "127.0.0.1:2014" };
-    addPeerList(peers10, 10);
-
-    vector<string> peers3 { "127.0.0.1:201", "127.0.0.1:202", "127.0.0.1:203", "127.0.0.1:204" };
-    addPeerList(peers3, 3);
-}
-
-TEST_CASE("addPeerList() adds", "[peer]") {
-    Config cfg(getTestConfig());
-    TmpDir tmpDir { cfg.TMP_DIR_PATH };
-    cfg.DATABASE = "sqlite3://" + tmpDir.getName() + "/stellar.db";
-    cfg.RUN_STANDALONE = true;
+class PeerMasterTests 
+{
+protected:
     VirtualClock clock;
-    Application app(clock, cfg);
-    app.start();
+    Application app{ clock, getTestConfig() };
+    PeerMaster peerMaster{ app };
 
-    app.getOverlayGateway().test_addPeerList();
 
-    soci::session mSession;
-    mSession.open(app.getConfig().DATABASE);
+    void test_addPeerList()
+    {
+        vector<string> peers10{ "127.0.0.1:2011", "127.0.0.1:2012", "127.0.0.1:2013", "127.0.0.1:2014" };
+        peerMaster.addPeerList(peers10, 10);
 
-    rowset<row> rs = mSession.prepare << "SELECT ip,port from Peers order by rank limit 5 ";
-    vector<string> actual;
-    for (auto it = rs.begin(); it != rs.end(); ++it)
-        actual.push_back(it->get<string>(0) + ":" + to_string(it->get<int>(1)));
+        vector<string> peers3{ "127.0.0.1:201", "127.0.0.1:202", "127.0.0.1:203", "127.0.0.1:204" };
+        peerMaster.addPeerList(peers3, 3);
 
-    vector<string> expected{ "127.0.0.1:201", "127.0.0.1:202", "127.0.0.1:203", "127.0.0.1:204", "127.0.0.1:2011" };
-    REQUIRE(actual == expected);
+        rowset<row> rs = app.getDatabase().getSession().prepare << "SELECT ip,port from Peers order by rank limit 5 ";
+        vector<string> actual;
+        for (auto it = rs.begin(); it != rs.end(); ++it)
+            actual.push_back(it->get<string>(0) + ":" + to_string(it->get<int>(1)));
+
+        vector<string> expected{ "127.0.0.1:201", "127.0.0.1:202", "127.0.0.1:203", "127.0.0.1:204", "127.0.0.1:2011" };
+        REQUIRE(actual == expected);
+    }
+};
+
+TEST_CASE_METHOD(PeerMasterTests, "addPeerList() adds", "[peer]") 
+{
+    test_addPeerList();
 }
 
+}
