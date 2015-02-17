@@ -10,6 +10,7 @@
 #include "overlay/PeerMaster.h"
 #include "util/Timer.h"
 #include "database/Database.h"
+#include "util/TmpDir.h"
 #include <soci.h>
 
 using namespace stellar;
@@ -27,7 +28,8 @@ void PeerMaster::test_addPeerList()
 
 TEST_CASE("addPeerList() adds", "[peer]") {
     Config cfg(getTestConfig());
-    cfg.DATABASE = "sqlite3://stellar.db";
+    TmpDir tmpDir { cfg.TMP_DIR_PATH };
+    cfg.DATABASE = "sqlite3://" + tmpDir.getName() + "/stellar.db";
     cfg.RUN_STANDALONE = true;
     VirtualClock clock;
     Application app(clock, cfg);

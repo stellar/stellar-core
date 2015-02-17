@@ -10,6 +10,7 @@
 #include "simulation/Simulation.h"
 
 #include <cassert>
+#include <thread>
 #include "util/make_unique.h"
 #include "main/test.h"
 #include "lib/catch.hpp"
@@ -21,7 +22,7 @@
 #include "crypto/SHA.h"
 #include "transactions/TxTests.h"
 #include "database/Database.h"
-
+#include "util/TmpDir.h"
 
 using namespace stellar;
 using namespace stellar::txtest;
@@ -46,10 +47,10 @@ createApp(Config &baseConfig, VirtualClock &clock, int quorumThresold, int i, Pe
     cfg.PEER_PORT = me.peerPort;
     cfg.HTTP_PORT = me.peerPort + 1;
 
-    auto nodeStr = "-node-" + to_string(i);
-    cfg.LOG_FILE_PATH = "tmp/" + cfg.LOG_FILE_PATH.substr(0, cfg.LOG_FILE_PATH.size() - 4) + nodeStr + ".cfg";
-    cfg.DATABASE = "sqlite3://tmp/stellar-hrd-test" + nodeStr + ".db";
-    cfg.TMP_DIR_PATH = cfg.TMP_DIR_PATH + "/tmp" + nodeStr;
+    auto nodeStr = "node-" + to_string(i);
+    cfg.TMP_DIR_PATH = cfg.TMP_DIR_PATH + "/" + nodeStr;
+    cfg.LOG_FILE_PATH = cfg.TMP_DIR_PATH + "/" + cfg.LOG_FILE_PATH;
+    cfg.DATABASE = "sqlite3://" + cfg.TMP_DIR_PATH + "/stellar.db";
 
     cfg.QUORUM_THRESHOLD = min(quorumThresold / 2 + 4, quorumThresold);
     cfg.PREFERRED_PEERS.clear();
@@ -277,6 +278,7 @@ TEST_CASE("stress", "[hrd-stress]")
 
     VirtualClock clock;
     Config cfg(getTestConfig());
+    TmpDir tmpDir { cfg.TMP_DIR_PATH };
     cfg.RUN_STANDALONE = true;
     cfg.START_NEW_NETWORK = true;
 

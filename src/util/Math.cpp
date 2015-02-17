@@ -5,15 +5,17 @@
 #include <cstdlib>
 #include <cmath>
 #include "Math.h"
-
+#include <random>
 
 namespace stellar
 {
 
+std::default_random_engine generator;
+std::uniform_real_distribution<double> uniformFractionDistribution(0.0,1.0);
+
 float rand_fraction()
 {
-    auto result = static_cast<float>(rand()) / static_cast<float>(RAND_MAX + 1);
-    return result;
+    return uniformFractionDistribution(generator);
 }
 
 

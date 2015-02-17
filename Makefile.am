@@ -15,18 +15,23 @@ FMT_SRCS = src/clf/BucketList.cpp src/clf/CLFMaster.cpp src/clf/CLFTests.cpp    
     src/ledger/EntryFrame.cpp src/ledger/LedgerDelta.cpp                        \
     src/ledger/LedgerMaster.cpp src/ledger/OfferFrame.cpp                       \
     src/ledger/TrustFrame.cpp src/ledger/LedgerHeaderFrame.cpp                  \
+
     src/ledger/LedgerHeaderTests.cpp src/ledger/LedgerTests.cpp                 \
     src/main/Application.cpp src/main/CommandHandler.cpp src/main/Config.cpp    \
     src/main/main.cpp src/main/test.cpp src/overlay/Floodgate.cpp               \
     src/overlay/ItemFetcher.cpp src/overlay/LoopbackPeer.cpp                    \
     src/overlay/OverlayTests.cpp src/overlay/Peer.cpp src/overlay/PeerDoor.cpp  \
-    src/overlay/PeerMaster.cpp src/overlay/TCPPeer.cpp                          \
+    src/overlay/PeerMaster.cpp                                                  \
+    src/overlay/PeerMasterTests.cpp                                             \
+    src/overlay/TCPPeer.cpp                                                     \
     src/process/ProcessMaster.cpp src/process/ProcessTests.cpp                  \
     src/simulation/CycleTests.cpp src/simulation/CoreTests.cpp                  \
     src/simulation/Simulation.cpp src/herder/Herder.cpp                         \
-    src/herder/TxSetFrame.cpp src/herder/HerderTests.cpp src/util/Logging.cpp   \
-    src/util/Timer.cpp src/util/types.cpp src/util/TmpDir.cpp                   \
+    src/herder/TxSetFrame.cpp src/herder/HerderTests.cpp                        \
+    src/herder/HerderStressTests.cpp                                            \
+    src/util/Logging.cpp src/util/Timer.cpp src/util/types.cpp src/util/TmpDir.cpp                   \
     src/util/Uint128Tests.cpp src/util/TimerTests.cpp                           \
+    src/util/Math.cpp                                                           \
     src/transactions/AllowTrustTxFrame.cpp                                      \
     src/transactions/CancelOfferFrame.cpp                                       \
     src/transactions/ChangeTrustTxFrame.cpp                                     \
