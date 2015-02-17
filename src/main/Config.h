@@ -22,6 +22,7 @@ class Config : public std::enable_shared_from_this<Config>
 
     // application config
     bool START_NEW_NETWORK;
+    bool START_LOCAL_NETWORK;
     bool RUN_STANDALONE;
     int PROTOCOL_VERSION;
     std::string VERSION_STR;

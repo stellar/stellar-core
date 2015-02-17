@@ -291,8 +291,11 @@ Application::Impl::start()
     {
         mLedgerMaster->startNewLedger();
         mHerder->bootstrap();
-    }
-    else
+    }if(mConfig.START_LOCAL_NETWORK)
+    {
+        mLedgerMaster->loadLastKnownLedger();
+        mHerder->bootstrap();
+    }else
     {
         mLedgerMaster->loadLastKnownLedger();
     }
