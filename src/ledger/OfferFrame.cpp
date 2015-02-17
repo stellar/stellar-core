@@ -300,7 +300,7 @@ namespace stellar
             currencyCodeToStr(mOffer.takerPays.isoCI().currencyCode, currencyCode);
             st = (db.getSession().prepare <<
                 "INSERT into Offers (accountID,sequence,paysIsoCurrency,paysIssuer,"\
-                "amount,priceN,priceP,price,flags) values"\
+                "amount,priceN,priceD,price,flags) values"\
                 "(:v1,:v2,:v3,:v4,:v5,:v6,:v7,:v8,:v9)",
                 use(b58AccountID), use(mOffer.sequence),
                 use(b58issuer),use(currencyCode),use(mOffer.amount),
