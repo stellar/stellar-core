@@ -53,4 +53,49 @@ LedgerKey const& EntryFrame::getKey()
     return mKey;
 }
 
+void
+EntryFrame::storeAddOrChange(LedgerDelta &delta, Database& db)
+{
+    if (exists(db, getKey()))
+    {
+        storeChange(delta, db);
+    }
+    else
+    {
+        storeAdd(delta, db);
+    }
+}
+
+bool
+EntryFrame::exists(Database& db, LedgerKey const& key)
+{
+    switch (key.type())
+    {
+    case ACCOUNT:
+        return AccountFrame::exists(db, key);
+    case TRUSTLINE:
+        return TrustFrame::exists(db, key);
+    case OFFER:
+        return OfferFrame::exists(db, key);
+    }
+}
+
+void
+EntryFrame::storeDelete(LedgerDelta& delta, Database& db, LedgerKey const& key)
+{
+    switch (key.type())
+    {
+    case ACCOUNT:
+        AccountFrame::storeDelete(delta, db, key);
+        break;
+    case TRUSTLINE:
+        TrustFrame::storeDelete(delta, db, key);
+        break;
+    case OFFER:
+        OfferFrame::storeDelete(delta, db, key);
+        break;
+    }
+}
+
+
 }

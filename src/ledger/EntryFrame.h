@@ -45,6 +45,10 @@ namespace stellar
 		virtual void storeChange(LedgerDelta &delta, Database& db)=0;
 		virtual void storeAdd(LedgerDelta &delta, Database& db)=0;
 
+        void storeAddOrChange(LedgerDelta& delta, Database& db);
+        static bool exists(Database& db, LedgerKey const& key);
+        static void storeDelete(LedgerDelta& delta, Database& db, LedgerKey const& key);
+
 	};
 }
 

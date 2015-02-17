@@ -233,15 +233,32 @@ namespace stellar
         });
     }
 
+    bool OfferFrame::exists(Database& db, LedgerKey const& key)
+    {
+        std::string b58AccountID = toBase58Check(VER_ACCOUNT_ID, key.offer().accountID);
+        int exists = 0;
+        db.getSession() <<
+            "SELECT EXISTS (SELECT NULL FROM Offers \
+             WHERE accountID=:id AND sequence=:s)",
+            use(b58AccountID), use(key.offer().sequence),
+            into(exists);
+        return exists != 0;
+    }
+
     void OfferFrame::storeDelete(LedgerDelta &delta, Database& db)
     {
-        std::string b58AccountID = toBase58Check(VER_ACCOUNT_ID, mOffer.accountID);
+        storeDelete(delta, db, getKey());
+    }
+
+    void OfferFrame::storeDelete(LedgerDelta &delta, Database& db, LedgerKey const& key)
+    {
+        std::string b58AccountID = toBase58Check(VER_ACCOUNT_ID, key.offer().accountID);
 
         db.getSession() <<
             "DELETE FROM Offers WHERE accountID=:id AND sequence=:s",
-            use(b58AccountID), use(mOffer.sequence);
+            use(b58AccountID), use(key.offer().sequence);
 
-        delta.deleteEntry(*this);
+        delta.deleteEntry(key);
     }
 
     int64_t OfferFrame::computePrice() const
@@ -283,7 +300,7 @@ namespace stellar
             currencyCodeToStr(mOffer.takerPays.isoCI().currencyCode, currencyCode);
             st = (db.getSession().prepare <<
                 "INSERT into Offers (accountID,sequence,paysIsoCurrency,paysIssuer,"\
-                "amount,priceN,priceP,price,flags) values"\
+                "amount,priceN,priceD,price,flags) values"\
                 "(:v1,:v2,:v3,:v4,:v5,:v6,:v7,:v8,:v9)",
                 use(b58AccountID), use(mOffer.sequence),
                 use(b58issuer),use(currencyCode),use(mOffer.amount),

@@ -42,10 +42,6 @@ namespace stellar
 
         EntryFrame::pointer copy()  const { return EntryFrame::pointer(new OfferFrame(*this)); }
 
-        void storeDelete(LedgerDelta &delta, Database& db);
-        void storeChange(LedgerDelta &delta, Database& db);
-        void storeAdd(LedgerDelta &delta, Database& db);
-
         Price getPrice() const;
         int64_t getAmount() const;
         uint256 const& getAccountID() const;
@@ -54,6 +50,15 @@ namespace stellar
         uint32 getSequence();
 
         OfferEntry& getOffer() { return mOffer; }
+
+        // Instance-based overrides of EntryFrame.
+        void storeDelete(LedgerDelta &delta, Database& db) override;
+        void storeChange(LedgerDelta &delta, Database& db) override;
+        void storeAdd(LedgerDelta &delta, Database& db) override;
+
+        // Static helpers that don't assume an instance.
+        static void storeDelete(LedgerDelta& delta, Database& db, LedgerKey const& key);
+        static bool exists(Database& db, LedgerKey const& key);
 
         // database utilities
         static bool loadOffer(const uint256& accountID, uint32_t seq, OfferFrame& retEntry,

@@ -15,7 +15,6 @@
 #include <cstdio>
 #include <xdrpp/autocheck.h>
 #include <fstream>
-#include <cstdio>
 
 using namespace stellar;
 

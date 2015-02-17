@@ -166,20 +166,37 @@ bool AccountFrame::loadAccount(const uint256& accountID, AccountFrame& retAcc,
     return true;
 }
 
+bool AccountFrame::exists(Database& db, LedgerKey const& key)
+{
+    std::string base58ID = toBase58Check(VER_ACCOUNT_ID, key.account().accountID);
+    int exists = 0;
+    db.getSession() <<
+        "SELECT EXISTS (SELECT NULL FROM Accounts \
+             WHERE accountID=:v1)",
+        use(base58ID),
+        into(exists);
+    return exists != 0;
+}
+
 void AccountFrame::storeDelete(LedgerDelta &delta, Database &db)
 {
-    std::string base58ID = toBase58Check(VER_ACCOUNT_ID, mEntry.account().accountID);
+    storeDelete(delta, db, getKey());
+}
+
+void AccountFrame::storeDelete(LedgerDelta& delta, Database& db, LedgerKey const& key)
+{
+    std::string base58ID = toBase58Check(VER_ACCOUNT_ID, key.account().accountID);
 
     soci::session &session = db.getSession();
 
-    session << 
+    session <<
         "DELETE from Accounts where accountID= :v1", soci::use(base58ID);
     session <<
         "DELETE from AccountData where accountID= :v1", soci::use(base58ID);
     session <<
         "DELETE from Signers where accountID= :v1", soci::use(base58ID);
 
-    delta.deleteEntry(*this);
+    delta.deleteEntry(key);
 }
 
 void AccountFrame::storeUpdate(LedgerDelta &delta, Database &db, bool insert)
