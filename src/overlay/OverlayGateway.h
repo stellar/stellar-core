@@ -44,7 +44,8 @@ class OverlayGateway
     virtual Peer::pointer getNextPeer(Peer::pointer peer) = 0; 
 
 
-    virtual void unitTest_addPeerList() = 0;
+    // Tests
+    virtual void test_addPeerList() = 0;
 };
 }
 

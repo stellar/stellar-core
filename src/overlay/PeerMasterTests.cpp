@@ -16,7 +16,7 @@ using namespace stellar;
 using namespace std;
 using namespace soci;
 
-void PeerMaster::unitTest_addPeerList()
+void PeerMaster::test_addPeerList()
 {
     vector<string> peers10 { "127.0.0.1:2011", "127.0.0.1:2012", "127.0.0.1:2013", "127.0.0.1:2014" };
     addPeerList(peers10, 10);
@@ -33,7 +33,7 @@ TEST_CASE("addPeerList() adds", "[peer]") {
     Application app(clock, cfg);
     app.start();
 
-    app.getOverlayGateway().unitTest_addPeerList();
+    app.getOverlayGateway().test_addPeerList();
 
     soci::session mSession;
     mSession.open(app.getConfig().DATABASE);

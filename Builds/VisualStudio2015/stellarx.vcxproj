@@ -88,6 +88,14 @@
       <Message />
       <LinkObjects>false</LinkObjects>
     </CustomBuild>
+    <PostBuildEvent>
+      <Command>
+      </Command>
+    </PostBuildEvent>
+    <PostBuildEvent>
+      <Message>
+      </Message>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
@@ -148,6 +156,7 @@
     <ClCompile Include="..\..\src\fba\Node.cpp" />
     <ClCompile Include="..\..\src\fba\Slot.cpp" />
     <ClCompile Include="..\..\src\herder\Herder.cpp" />
+    <ClCompile Include="..\..\src\herder\HerderStressTests.cpp" />
     <ClCompile Include="..\..\src\herder\HerderTests.cpp" />
     <ClCompile Include="..\..\src\herder\TxSetFrame.cpp" />
     <ClCompile Include="..\..\src\history\HistoryArchive.cpp" />
@@ -211,6 +220,7 @@
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
     </ClCompile>
+    <ClCompile Include="..\..\src\overlay\PeerMasterTests.cpp" />
     <ClCompile Include="..\..\src\simulation\CycleTests.cpp" />
     <ClCompile Include="..\..\src\simulation\Simulation.cpp" />
     <ClCompile Include="..\..\src\transactions\AllowTrustTxFrame.cpp" />
@@ -228,6 +238,7 @@
     <ClCompile Include="..\..\src\transactions\SetOptionsTests.cpp" />
     <ClCompile Include="..\..\src\transactions\TxEnvelopeTests.cpp" />
     <ClCompile Include="..\..\src\transactions\TxTests.cpp" />
+    <ClCompile Include="..\..\src\util\Math.cpp" />
     <ClCompile Include="..\..\src\util\TmpDir.cpp" />
     <ClCompile Include="..\..\src\util\Timer.cpp" />
     <ClCompile Include="..\..\src\util\TimerTests.cpp" />
@@ -322,8 +333,10 @@
     <ClInclude Include="..\..\src\transactions\TransactionFrame.h" />
     <ClInclude Include="..\..\src\transactions\ChangeTrustTxFrame.h" />
     <ClInclude Include="..\..\src\transactions\TxTests.h" />
+    <ClInclude Include="..\..\src\util\asio.h" />
     <ClInclude Include="..\..\src\util\Logging.h" />
     <ClInclude Include="..\..\src\util\make_unique.h" />
+    <ClInclude Include="..\..\src\util\Math.h" />
     <ClInclude Include="..\..\src\util\must_use.h" />
     <ClInclude Include="..\..\src\util\TmpDir.h" />
     <ClInclude Include="..\..\src\util\Timer.h" />

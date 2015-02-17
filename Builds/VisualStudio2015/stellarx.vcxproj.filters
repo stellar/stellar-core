@@ -336,9 +336,6 @@
     <ClCompile Include="..\..\src\herder\Herder.cpp">
       <Filter>herder</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\herder\HerderTests.cpp">
-      <Filter>herder</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\herder\TxSetFrame.cpp">
       <Filter>herder</Filter>
     </ClCompile>
@@ -353,6 +350,18 @@
     </ClCompile>
     <ClCompile Include="..\..\src\transactions\OfferExchange.cpp">
       <Filter>transactions</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\herder\HerderStressTests.cpp">
+      <Filter>herder</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\herder\HerderTests.cpp">
+      <Filter>herder</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\util\Math.cpp">
+      <Filter>util</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\overlay\PeerMasterTests.cpp">
+      <Filter>overlay</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -580,6 +589,12 @@
     </ClInclude>
     <ClInclude Include="..\..\src\clf\LedgerCmp.h">
       <Filter>clf</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\util\Math.h">
+      <Filter>util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\util\asio.h">
+      <Filter>util</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

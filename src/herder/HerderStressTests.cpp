@@ -113,7 +113,7 @@ struct AccountInfo {
 
     bool isCreated()
     {
-        return (chrono::system_clock::now() - mCreationTime) > chrono::seconds(100);
+        return (chrono::system_clock::now() - mCreationTime) > chrono::seconds(10);
     }
 
 };
@@ -141,6 +141,7 @@ struct TxInfo {
 
         mFrom->mSeq++;
         mFrom->mBalance -= mAmount;
+        mFrom->mBalance -= app->getConfig().DESIRED_BASE_FEE;
         mTo->mBalance += mAmount;
     }
     bool bothCreated()
@@ -271,7 +272,7 @@ TEST_CASE("stress", "[hrd-stress]")
     float paretoAlpha = 0.5;
 
     size_t nAccounts = 5;
-    size_t nTransactions = 20;
+    size_t nTransactions = 40;
     size_t injectionRate = 3; // per sec
 
     VirtualClock clock;

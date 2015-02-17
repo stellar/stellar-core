@@ -67,7 +67,8 @@ class PeerMaster : public OverlayGateway
     static void createTable(Database &db);
     static const char *kSQLCreateStatement;
 
-    void unitTest_addPeerList();
+    // Tests
+    void test_addPeerList();
 };
 }
 
