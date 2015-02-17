@@ -279,6 +279,7 @@ TEST_CASE("stress", "[hrd-stress]")
     VirtualClock clock;
     Config cfg(getTestConfig());
     TmpDir tmpDir { cfg.TMP_DIR_PATH };
+    cfg.TMP_DIR_PATH = tmpDir.getName();
     cfg.RUN_STANDALONE = true;
     cfg.START_NEW_NETWORK = true;
 
