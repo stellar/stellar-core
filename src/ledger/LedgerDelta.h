@@ -4,6 +4,7 @@
 #include <set>
 #include "ledger/EntryFrame.h"
 #include "clf/LedgerCmp.h"
+#include "xdrpp/marshal.h"
 
 namespace stellar
 {
@@ -26,7 +27,8 @@ namespace stellar
 
         // apply other on top of delta, collapsing entries as appropriate
         void merge(LedgerDelta &other);
+
+        xdr::msg_ptr getTransactionMeta() const;
+
     };
 }
-
-

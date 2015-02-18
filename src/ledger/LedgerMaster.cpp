@@ -194,7 +194,8 @@ void LedgerMaster::closeLedger(TxSetFramePtr txSet)
             if(tx->apply(delta, mApp))
             {
                 successfulTX.add(tx);
-                tx->storeTransaction(*this);
+                tx->storeTransaction(*this, delta);
+                ledgerDelta.merge(delta);
             }
             else
             {
