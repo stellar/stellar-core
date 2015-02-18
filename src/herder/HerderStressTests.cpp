@@ -145,10 +145,6 @@ struct TxInfo {
         mFrom->mBalance -= app->getConfig().DESIRED_BASE_FEE;
         mTo->mBalance += mAmount;
     }
-    bool bothCreated()
-    {
-        return mFrom->mId == 0 || (mFrom->isCreated() && mTo->isCreated());
-    }
 };
 
 
@@ -183,7 +179,7 @@ struct StressTest {
     {
         return TxInfo{ mAccounts[iFrom], mAccounts[iTo], amount };
     }
-    TxInfo randomTransferTransaction(float alpha)
+    TxInfo randomTransaction(float alpha)
     {
         AccountInfo from, to;
         size_t iFrom, iTo;
@@ -196,29 +192,24 @@ struct StressTest {
         uint64_t amount = static_cast<uint64_t>(rand_fraction() * min(static_cast<uint64_t>(1000), (mAccounts[iFrom]->mBalance - mMinBalance) / 3));
         return tranferTransaction(iFrom, iTo, amount);
     }
-    TxInfo randomTransaction(float alpha)
+    void injectTransaction(TxInfo tx)
     {
-        if (mAccounts.size() < mNAccounts && (mAccounts.size() < 4 || rand_fraction() > 0.5))
-        {
-            return accountCreationTransaction();
-        }
-        else
-        {
-            return randomTransferTransaction(alpha);
-        }
+        //LOG(INFO) << "tx " << tx.mFrom->mId << " " << tx.mTo->mId << "  $" << tx.mAmount;
+        tx.execute((*mApps)[rand() % mApps->size()]);
     }
-
     void injectRandomTransactions(size_t n, float paretoAlpha)
     {
-        for (int i = 0; i < n; )
+        LOG(INFO) << "Injecting " << n << " transactions";
+        for (int i = 0; i < n; i++)
         {
-            auto tx = randomTransaction(paretoAlpha);
-            if (tx.bothCreated())
-            {
-                LOG(INFO) << "tx " << tx.mFrom->mId << " " << tx.mTo->mId << "  $" << tx.mAmount;
-                tx.execute((*mApps)[rand() % mApps->size()]);
-                i++;
-            }
+            injectTransaction(randomTransaction(paretoAlpha));
+        }
+    }
+    void crankAll()
+    {
+        for (auto app : *mApps)
+        {
+            while (app->crank(false) > 0);
         }
     }
     void crank(chrono::seconds atMost)
@@ -272,9 +263,9 @@ TEST_CASE("stress", "[hrd-stress]")
     int quorumThresold = 1;
     float paretoAlpha = 0.5;
 
-    size_t nAccounts = 5;
-    size_t nTransactions = 40;
-    size_t injectionRate = 3; // per sec
+    size_t nAccounts = 500;
+    size_t nTransactions = 1000;
+    size_t injectionRate = 100; // per sec
 
     VirtualClock clock;
     Config cfg(getTestConfig());
@@ -298,13 +289,19 @@ TEST_CASE("stress", "[hrd-stress]")
         app->getMainIOService().post([]() { return; });
     }
 
-    
+    LOG(INFO) << "Creating " << nAccounts << " accounts";
+    for (int i = 0; i < nAccounts; i++)
+    {
+        test.injectTransaction(test.accountCreationTransaction());
+    }
+    this_thread::sleep_for(chrono::seconds(10));
+    test.crankAll();
+
+
     size_t iTransactions = 0;
-    auto begin = chrono::system_clock::now() - chrono::seconds(1);
+    auto begin = chrono::system_clock::now();
     while (iTransactions < nTransactions)
     {
-        while ((*test.mApps)[0]->crank(false) > 0);
-        
         auto elapsed = chrono::duration_cast<chrono::microseconds>(chrono::system_clock::now() - begin);
         auto targetTxs = min(nTransactions, elapsed.count() * injectionRate / 1000000);
         auto toInject = max(static_cast<size_t>(0), targetTxs - iTransactions);
@@ -320,11 +317,13 @@ TEST_CASE("stress", "[hrd-stress]")
         
         test.crank(chrono::seconds(1));
     }
-    this_thread::sleep_for(chrono::seconds(10));
-    test.crank(chrono::seconds(10));
+    auto endTime = chrono::seconds(10);
+    this_thread::sleep_for(endTime);
+    test.crankAll();
 
     test.check();
 
-    LOG(INFO) << "all done " << nTransactions << " transactions";
+    auto secs = chrono::duration_cast<chrono::seconds>(chrono::system_clock::now() - begin).count() - endTime.count();
+    LOG(INFO) << "all done (" << static_cast<float>(nTransactions) / secs << " tx/sec)";
 }
 
