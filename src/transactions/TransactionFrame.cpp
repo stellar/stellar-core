@@ -295,12 +295,12 @@ bool TransactionFrame::checkValid(Application& app)
     return doCheckValid(app);
 }
 
-StellarMessage&& TransactionFrame::toStellarMessage()
+StellarMessage TransactionFrame::toStellarMessage()
 {
     StellarMessage msg;
     msg.type(TRANSACTION);
     msg.transaction()=mEnvelope;
-    return std::move(msg);
+    return msg;
 }
 
 void TransactionFrame::storeTransaction(LedgerMaster &ledgerMaster)

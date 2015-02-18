@@ -110,7 +110,7 @@ void PeerMaster::connectTo(const std::string& peerStr)
 
 void PeerMaster::addPeerList(const std::vector<std::string>& list, int rank)
 {
-    for(auto peerStr : mApp.getConfig().KNOWN_PEERS)
+    for(auto peerStr : list)
     {
         std::string ip;
         int port;

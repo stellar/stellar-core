@@ -20,6 +20,8 @@ Maintain the set of peers we are connected to
 namespace stellar
 {
 
+class PeerMasterTests;
+
 class PeerMaster : public OverlayGateway
 {
     Application& mApp;
@@ -32,9 +34,11 @@ class PeerMaster : public OverlayGateway
     VirtualTimer mTimer;
 
     bool parseIPPort(const std::string& peerStr,std::string& retIP,int& retPort);
-    void addConfigPeers();
     void addPeerList(const std::vector<std::string>& list,int rank);
+    void addConfigPeers();
     bool isPeerPreferred(Peer::pointer peer);
+
+    friend class PeerMasterTests;
 
   public:
     Floodgate mFloodGate;
@@ -64,6 +68,7 @@ class PeerMaster : public OverlayGateway
 
     static void createTable(Database &db);
     static const char *kSQLCreateStatement;
+
 };
 }
 
