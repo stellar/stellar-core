@@ -1,3 +1,4 @@
+## -*- fill-column: 30; -*-
 ## Process this file with automake to produce Makefile.in
 
 SUBDIRS =
