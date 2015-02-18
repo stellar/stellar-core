@@ -110,25 +110,18 @@ struct AccountInfo {
     SecretKey mKey;
     uint64_t mBalance;
     uint32_t mSeq;
-    chrono::time_point<chrono::system_clock> mCreationTime;
-
-    bool isCreated()
-    {
-        return (chrono::system_clock::now() - mCreationTime) > chrono::seconds(10);
-    }
-
 };
 using accountPtr = shared_ptr<AccountInfo>;
 
 
 accountPtr createRootAccount()
 {
-    return shared_ptr<AccountInfo>(new AccountInfo{ 0, getRoot(), 1000000000, 1, chrono::system_clock::now() - chrono::seconds(100) });
+    return shared_ptr<AccountInfo>(new AccountInfo{ 0, getRoot(), 1000000000, 1 });
 }
 accountPtr createAccount(size_t i)
 {
     auto accountName = "Account-" + to_string(i);
-    return shared_ptr<AccountInfo>(new AccountInfo{ i, getAccount(accountName.c_str()), 0, 1, chrono::system_clock::now() });
+    return shared_ptr<AccountInfo>(new AccountInfo{ i, getAccount(accountName.c_str()), 0, 1 });
 }
 
 struct TxInfo {
@@ -263,9 +256,9 @@ TEST_CASE("stress", "[hrd-stress]")
     int quorumThresold = 1;
     float paretoAlpha = 0.5;
 
-    size_t nAccounts = 500;
-    size_t nTransactions = 1000;
-    size_t injectionRate = 100; // per sec
+    size_t nAccounts = 50;
+    size_t nTransactions = 40;
+    size_t injectionRate = 4; // per sec
 
     VirtualClock clock;
     Config cfg(getTestConfig());
