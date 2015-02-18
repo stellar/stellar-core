@@ -289,7 +289,7 @@ void herderStressTest(int nNodes, int quorumThresold, size_t nAccounts, size_t n
     while (iTransactions < nTransactions)
     {
         auto elapsed = chrono::duration_cast<chrono::microseconds>(chrono::system_clock::now() - begin);
-        auto targetTxs = min(nTransactions, elapsed.count() * injectionRate / 1000000);
+        auto targetTxs = min(nTransactions, static_cast<size_t>(elapsed.count() * injectionRate / 1000000));
         auto toInject = max(static_cast<size_t>(0), targetTxs - iTransactions);
 
         if (toInject == 0)
