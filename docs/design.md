@@ -9,35 +9,13 @@
 	- this will make things way more complicated but could potentially increase the liquidity a lot.
 - Is this really the way we want to do paths/offers?
 	- what if we allow you to specify many paths in a given tx and the path includes the destination so it essentially makes an arbitray set of txs atomic
-	- def seems like there is some way we can break this stuff up a bit dfferently  
+	- def seems like there is some way we can break this stuff up a bit differently  
 - Is there a way to have payments be atomic units and express everything in terms of a batch of a smaller payments?
 	- Taking an offer would just be A paying B followed by B paying A
 - we need some indicator of if a tx is successful in the ledger header. Otherwise people have to either replay the tx or trust someone to know if the payment worked
 	- Not sure we need this
 - how do we want to treat duplicate entries in the quorum set?
 
-
-
-
-#v.2 code public
-- Syncing to the network (graydon)
-- storing history (graydon)
-- bucket list (graydon)
-- publish FBA (david)
-- Replaying transactions to catch up (graydon)
-  
-#v.3 beta
-- End to end tests, replaying a known set of tx 
-- inflation tx (nicolas)
-
-#v.4 switch to main network
-- fuzzer
-- stress test
-- deal with bad acting peers (jed)
-- store validations in the DB
-
-#v.5 before scale
-- tx set reconciliation. Do something smarter than send the whole list
 
 
 Things we know we probably want to add later but design earlier than later
