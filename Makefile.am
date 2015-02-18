@@ -4,75 +4,151 @@ SUBDIRS =
 noinst_LTLIBRARIES = libsoci.la
 bin_PROGRAMS = bin/stellard
 
-FMT_SRCS = src/clf/BucketList.cpp src/clf/CLFMaster.cpp src/clf/CLFTests.cpp    \
-    src/crypto/Base58.cpp src/crypto/Hex.cpp src/crypto/SHA.cpp                 \
-    src/crypto/SecretKey.cpp src/crypto/CryptoTests.cpp src/crypto/Random.cpp   \
-    src/database/Database.cpp src/database/DatabaseTests.cpp src/fba/FBA.cpp    \
-    src/fba/Slot.cpp src/fba/Node.cpp src/fba/LocalNode.cpp                     \
-    src/fba/FBATests.cpp src/history/HistoryArchive.cpp                         \
-    src/history/HistoryMaster.cpp src/history/HistoryTests.cpp                  \
-    src/history/CatchupStateMachine.cpp src/ledger/AccountFrame.cpp             \
-    src/ledger/EntryFrame.cpp src/ledger/LedgerDelta.cpp                        \
-    src/ledger/LedgerMaster.cpp src/ledger/OfferFrame.cpp                       \
-    src/ledger/TrustFrame.cpp src/ledger/LedgerHeaderFrame.cpp                  \
-
-    src/ledger/LedgerHeaderTests.cpp src/ledger/LedgerTests.cpp                 \
-    src/main/Application.cpp src/main/CommandHandler.cpp src/main/Config.cpp    \
-    src/main/main.cpp src/main/test.cpp src/overlay/Floodgate.cpp               \
-    src/overlay/ItemFetcher.cpp src/overlay/LoopbackPeer.cpp                    \
-    src/overlay/OverlayTests.cpp src/overlay/Peer.cpp src/overlay/PeerDoor.cpp  \
-    src/overlay/PeerMaster.cpp                                                  \
-    src/overlay/PeerMasterTests.cpp                                             \
-    src/overlay/TCPPeer.cpp                                                     \
-    src/process/ProcessMaster.cpp src/process/ProcessTests.cpp                  \
-    src/simulation/CycleTests.cpp src/simulation/CoreTests.cpp                  \
-    src/simulation/Simulation.cpp src/herder/Herder.cpp                         \
-    src/herder/TxSetFrame.cpp src/herder/HerderTests.cpp                        \
-    src/herder/HerderStressTests.cpp                                            \
-    src/util/Logging.cpp src/util/Timer.cpp src/util/types.cpp src/util/TmpDir.cpp                   \
-    src/util/Uint128Tests.cpp src/util/TimerTests.cpp                           \
-    src/util/Math.cpp                                                           \
-    src/transactions/AllowTrustTxFrame.cpp                                      \
-    src/transactions/CancelOfferFrame.cpp                                       \
-    src/transactions/ChangeTrustTxFrame.cpp                                     \
-    src/transactions/CreateOfferFrame.cpp src/transactions/InflationFrame.cpp   \
-    src/transactions/InflationTests.cpp src/transactions/MergeFrame.cpp         \
-    src/transactions/MergeTests.cpp src/transactions/OfferTests.cpp             \
-    src/transactions/OfferExchange.cpp src/transactions/PaymentFrame.cpp        \
-    src/transactions/PaymentTests.cpp src/transactions/SetOptionsFrame.cpp      \
-    src/transactions/SetOptionsTests.cpp src/transactions/TransactionFrame.cpp  \
+FMT_SRCS = \
+    src/clf/BucketList.cpp \
+    src/clf/CLFMaster.cpp \
+    src/clf/CLFTests.cpp \
+    src/crypto/Base58.cpp \
+    src/crypto/Hex.cpp \
+    src/crypto/SHA.cpp \
+    src/crypto/SecretKey.cpp \
+    src/crypto/CryptoTests.cpp \
+    src/crypto/Random.cpp \
+    src/database/Database.cpp \
+    src/database/DatabaseTests.cpp \
+    src/fba/FBA.cpp \
+    src/fba/Slot.cpp \
+    src/fba/Node.cpp \
+    src/fba/LocalNode.cpp \
+    src/fba/FBATests.cpp \
+    src/history/HistoryArchive.cpp \
+    src/history/HistoryMaster.cpp \
+    src/history/HistoryTests.cpp \
+    src/history/CatchupStateMachine.cpp \
+    src/ledger/AccountFrame.cpp \
+    src/ledger/EntryFrame.cpp \
+    src/ledger/LedgerDelta.cpp \
+    src/ledger/LedgerMaster.cpp \
+    src/ledger/OfferFrame.cpp \
+    src/ledger/TrustFrame.cpp \
+    src/ledger/LedgerHeaderFrame.cpp \
+    src/ledger/LedgerHeaderTests.cpp \
+    src/ledger/LedgerTests.cpp \
+    src/main/Application.cpp \
+    src/main/CommandHandler.cpp \
+    src/main/Config.cpp \
+    src/main/main.cpp \
+    src/main/test.cpp \
+    src/overlay/Floodgate.cpp \
+    src/overlay/ItemFetcher.cpp \
+    src/overlay/LoopbackPeer.cpp \
+    src/overlay/OverlayTests.cpp \
+    src/overlay/Peer.cpp \
+    src/overlay/PeerDoor.cpp \
+    src/overlay/PeerMaster.cpp \
+    src/overlay/PeerMasterTests.cpp \
+    src/overlay/TCPPeer.cpp \
+    src/process/ProcessMaster.cpp \
+    src/process/ProcessTests.cpp \
+    src/simulation/CycleTests.cpp \
+    src/simulation/CoreTests.cpp \
+    src/simulation/Simulation.cpp \
+    src/herder/Herder.cpp \
+    src/herder/TxSetFrame.cpp \
+    src/herder/HerderTests.cpp \
+    src/herder/HerderStressTests.cpp \
+    src/util/Logging.cpp \
+    src/util/Timer.cpp \
+    src/util/types.cpp \
+    src/util/TmpDir.cpp \
+    src/util/Uint128Tests.cpp \
+    src/util/TimerTests.cpp \
+    src/util/Math.cpp \
+    src/transactions/AllowTrustTxFrame.cpp \
+    src/transactions/CancelOfferFrame.cpp \
+    src/transactions/ChangeTrustTxFrame.cpp \
+    src/transactions/CreateOfferFrame.cpp \
+    src/transactions/InflationFrame.cpp \
+    src/transactions/InflationTests.cpp \
+    src/transactions/MergeFrame.cpp \
+    src/transactions/MergeTests.cpp \
+    src/transactions/OfferTests.cpp \
+    src/transactions/OfferExchange.cpp \
+    src/transactions/PaymentFrame.cpp \
+    src/transactions/PaymentTests.cpp \
+    src/transactions/SetOptionsFrame.cpp \
+    src/transactions/SetOptionsTests.cpp \
+    src/transactions/TransactionFrame.cpp \
     src/transactions/TxEnvelopeTests.cpp src/transactions/TxTests.cpp
 
 
-FMT_HDRS = src/clf/BucketList.h src/clf/LedgerCmp.h src/clf/CLFMaster.h         \
-    src/crypto/Base58.h src/crypto/Hex.h src/crypto/SHA.h                       \
-    src/crypto/SecretKey.h src/crypto/Random.h src/database/Database.h          \
-    src/fba/FBA.h src/fba/Slot.h src/fba/Node.h src/fba/LocalNode.h             \
-    src/history/HistoryArchive.h src/history/HistoryGateway.h                   \
-    src/history/HistoryMaster.h src/history/CatchupStateMachine.h               \
-    src/ledger/AccountFrame.h src/ledger/EntryFrame.h src/ledger/LedgerDelta.h  \
-    src/ledger/LedgerGateway.h src/ledger/LedgerMaster.h                        \
-    src/ledger/OfferFrame.h src/ledger/TrustFrame.h                             \
-    src/ledger/LedgerHeaderFrame.h src/main/Application.h                       \
-    src/main/CommandHandler.h src/main/Config.h src/main/test.h                 \
-    src/overlay/FetchableItem.h src/overlay/Floodgate.h                         \
-    src/overlay/ItemFetcher.h src/overlay/LoopbackPeer.h                        \
-    src/overlay/OverlayGateway.h src/overlay/Peer.h src/overlay/PeerDoor.h      \
-    src/overlay/PeerMaster.h src/overlay/TCPPeer.h src/process/ProcessGateway.h \
-    src/process/ProcessMaster.h src/simulation/Simulation.h src/herder/Herder.h \
-    src/herder/HerderGateway.h src/herder/TxSetFrame.h src/util/Logging.h       \
-    src/util/Timer.h src/util/Math.h                                            \
-    src/util/make_unique.h src/util/types.h src/util/TmpDir.h                   \
-    src/util/XDRStream.h src/transactions/AllowTrustTxFrame.h                   \
-    src/transactions/CancelOfferFrame.h src/transactions/ChangeTrustTxFrame.h   \
-    src/transactions/CreateOfferFrame.h src/transactions/InflationFrame.h       \
-    src/transactions/OfferExchange.h src/transactions/MergeFrame.h              \
-    src/transactions/PaymentFrame.h src/transactions/SetOptionsFrame.h          \
-    src/transactions/TransactionFrame.h src/transactions/TxTests.h
-
+FMT_HDRS = \
+    src/clf/BucketList.h \
+    src/clf/LedgerCmp.h \
+    src/clf/CLFMaster.h \
+    src/crypto/Base58.h \
+    src/crypto/Hex.h \
+    src/crypto/SHA.h \
+    src/crypto/SecretKey.h \
+    src/crypto/Random.h \
+    src/database/Database.h \
+    src/fba/FBA.h \
+    src/fba/Slot.h \
+    src/fba/Node.h \
+    src/fba/LocalNode.h \
+    src/history/HistoryArchive.h \
+    src/history/HistoryGateway.h \
+    src/history/HistoryMaster.h \
+    src/history/CatchupStateMachine.h \
+    src/ledger/AccountFrame.h \
+    src/ledger/EntryFrame.h \
+    src/ledger/LedgerDelta.h \
+    src/ledger/LedgerGateway.h \
+    src/ledger/LedgerMaster.h \
+    src/ledger/OfferFrame.h \
+    src/ledger/TrustFrame.h \
+    src/ledger/LedgerHeaderFrame.h \
+    src/main/Application.h \
+    src/main/CommandHandler.h \
+    src/main/Config.h \
+    src/main/test.h \
+    src/overlay/FetchableItem.h \
+    src/overlay/Floodgate.h \
+    src/overlay/ItemFetcher.h \
+    src/overlay/LoopbackPeer.h \
+    src/overlay/OverlayGateway.h \
+    src/overlay/Peer.h \
+    src/overlay/PeerDoor.h \
+    src/overlay/PeerMaster.h \
+    src/overlay/TCPPeer.h \
+    src/process/ProcessGateway.h \
+    src/process/ProcessMaster.h \
+    src/simulation/Simulation.h \
+    src/herder/Herder.h \
+    src/herder/HerderGateway.h \
+    src/herder/TxSetFrame.h \
+    src/util/Logging.h \
+    src/util/Timer.h \
+    src/util/Math.h \
+    src/util/make_unique.h \
+    src/util/types.h \
+    src/util/TmpDir.h \
+    src/util/XDRStream.h \
+    src/transactions/AllowTrustTxFrame.h \
+    src/transactions/CancelOfferFrame.h \
+    src/transactions/ChangeTrustTxFrame.h \
+    src/transactions/CreateOfferFrame.h \
+    src/transactions/InflationFrame.h \
+    src/transactions/OfferExchange.h \
+    src/transactions/MergeFrame.h \
+    src/transactions/PaymentFrame.h \
+    src/transactions/SetOptionsFrame.h \
+    src/transactions/TransactionFrame.h \
+    src/transactions/TxTests.h
 
 BUILT_SOURCES = src/generated/StellardVersion.h                                 \
-                src/generated/StellarXDR.h src/generated/FBAXDR.h
+                src/generated/StellarXDR.h                                      \
+                src/generated/FBAXDR.h
 
 bin_stellard_SOURCES = $(FMT_SRCS) \
                        $(BUILT_SOURCES) \
