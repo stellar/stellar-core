@@ -28,6 +28,8 @@ using namespace stellar;
 using namespace stellar::txtest;
 using namespace std;
 
+namespace stellar 
+{
 using appPtr = shared_ptr<Application>;
 
 struct PeerInfo {
@@ -249,26 +251,17 @@ struct StressTest {
 
 };
 
-
-TEST_CASE("stress", "[hrd-stress]")
+void herderStressTest(int nNodes, int quorumThresold, size_t nAccounts, size_t nTransactions, size_t injectionRate, float paretoAlpha)
 {
-    int nNodes = 1;
-    int quorumThresold = 1;
-    float paretoAlpha = 0.5;
-
-    size_t nAccounts = 50;
-    size_t nTransactions = 40;
-    size_t injectionRate = 4; // per sec
-
     VirtualClock clock;
     Config cfg(getTestConfig());
-    TmpDir tmpDir { cfg.TMP_DIR_PATH };
+    TmpDir tmpDir{ cfg.TMP_DIR_PATH };
     cfg.TMP_DIR_PATH = tmpDir.getName();
     cfg.RUN_STANDALONE = true;
     cfg.START_NEW_NETWORK = true;
 
 
-    StressTest test {
+    StressTest test{
         createApps(cfg, clock, nNodes, quorumThresold),
         vector<accountPtr>(),
         nAccounts,
@@ -302,12 +295,13 @@ TEST_CASE("stress", "[hrd-stress]")
         if (toInject == 0)
         {
             this_thread::sleep_for(chrono::milliseconds(50));
-        } else
+        }
+        else
         {
             test.injectRandomTransactions(toInject, paretoAlpha);
             iTransactions += toInject;
         }
-        
+
         test.crank(chrono::seconds(1));
     }
     auto endTime = chrono::seconds(10);
@@ -320,3 +314,31 @@ TEST_CASE("stress", "[hrd-stress]")
     LOG(INFO) << "all done (" << static_cast<float>(nTransactions) / secs << " tx/sec)";
 }
 
+TEST_CASE("Randomised test of Herder, 50 accounts, 40 transactions", "[hrd-random]")
+{
+    int nNodes = 1;
+    int quorumThresold = 1;
+    float paretoAlpha = 0.5;
+
+    size_t nAccounts = 50;
+    size_t nTransactions = 40;
+    size_t injectionRate = 4; // per sec
+
+    return herderStressTest(nNodes, quorumThresold, nAccounts, nTransactions, injectionRate, paretoAlpha);
+}
+
+TEST_CASE("Stress test of Herder, 1000 accounts, 100k transactions", "[hrd-stress][hide]")
+{
+    int nNodes = 1;
+    int quorumThresold = 1;
+    float paretoAlpha = 0.5;
+
+    size_t nAccounts = 1000;
+    size_t nTransactions = 100000;
+    size_t injectionRate = 300; // per sec
+
+    return herderStressTest(nNodes, quorumThresold, nAccounts, nTransactions, injectionRate, paretoAlpha);
+}
+
+
+}

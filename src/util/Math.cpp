@@ -13,7 +13,7 @@ namespace stellar
 std::default_random_engine generator;
 std::uniform_real_distribution<double> uniformFractionDistribution(0.0,1.0);
 
-float rand_fraction()
+double rand_fraction()
 {
     return uniformFractionDistribution(generator);
 }
