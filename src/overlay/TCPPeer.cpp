@@ -24,16 +24,6 @@ using namespace std;
 // TCPPeer
 ///////////////////////////////////////////////////////////////////////
 
-const char* TCPPeer::kSQLCreateStatement =
-    "CREATE TABLE IF NOT EXISTS Peers (                      \
-        peerID      INT PRIMARY KEY AUTO_INCREMENT, \
-        ip          varchar(16),            \
-        port        INT,                \
-        lastTry     timestamp,          \
-        lastConnect timestamp,      \
-        rank    INT     \
-    );";
-
 // make to be called
 TCPPeer::TCPPeer(Application& app, std::string& ip, int port)
     : Peer(app, ACCEPTOR), mHelloTimer(app.getClock())
@@ -189,6 +179,7 @@ TCPPeer::recvHello(StellarMessage const& msg)
     {  // this guy called us
         // make sure he is in the DB
         int peerID=0;
+
         dbSession << "SELECT peerID from Peers where ip=:v2 and port=:v3",
              into(peerID), use(getIP()), use(getRemoteListeningPort());
 

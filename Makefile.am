@@ -54,6 +54,7 @@ FMT_SRCS =                                      \
     src/overlay/PeerDoor.cpp                    \
     src/overlay/PeerMaster.cpp                  \
     src/overlay/PeerMasterTests.cpp             \
+    src/overlay/PeerRecord.cpp                  \
     src/overlay/TCPPeer.cpp                     \
     src/process/ProcessMaster.cpp               \
     src/process/ProcessTests.cpp                \
@@ -128,6 +129,7 @@ FMT_HDRS =                                      \
     src/overlay/Peer.h                          \
     src/overlay/PeerDoor.h                      \
     src/overlay/PeerMaster.h                    \
+    src/overlay/PeerRecord.h                    \
     src/overlay/TCPPeer.h                       \
     src/process/ProcessGateway.h                \
     src/process/ProcessMaster.h                 \

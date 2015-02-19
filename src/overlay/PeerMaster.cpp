@@ -10,11 +10,10 @@
 #include "util/Logging.h"
 #include "database/Database.h"
 #include "overlay/TCPPeer.h"
-
+#include "PeerRecord.h"
 
 using namespace soci;
 
-#define SECONDS_PER_BACKOFF 10
 
 // TODO.3 some tests
 // TODO.3 flood older msgs to people that connect to you
@@ -62,46 +61,18 @@ PeerMaster::~PeerMaster()
 {
 }
 
-// LATER: verify ip and port are valid
-bool PeerMaster::parseIPPort(const std::string& peerStr, std::string& retIP, int& retPort)
-{
-    std::string const innerStr(peerStr);
-    std::string::const_iterator splitPoint =
-        std::find(innerStr.rbegin(), innerStr.rend(), ':').base();
-    if(splitPoint == innerStr.end())
-    {
-        retIP = innerStr;
-        retPort = DEFAULT_PEER_PORT;
-    }else
-    {
-        splitPoint--;
-        retIP.assign(innerStr.begin(), splitPoint);
-        std::string portStr;
-        splitPoint++;
-        portStr.assign(splitPoint, innerStr.end());
-        retPort = atoi(portStr.c_str());
-        if(!retPort) return false;
-    }
-    return true;
-}
-
 void PeerMaster::connectTo(const std::string& peerStr)
 {
-    std::string ip;
-    int port;
-    if(parseIPPort(peerStr, ip, port))
+    PeerRecord pr;
+    if (PeerRecord::fromIPPort(peerStr, DEFAULT_PEER_PORT, mApp.getClock(), pr))
     {
-        PeerRecord pr{ 0, ip, port, mApp.getClock().now(), 0, 2};
         pr.storePeerRecord(mApp.getDatabase());
-        if(!getPeer(ip, port))
+        if(!getPeer(pr.mIP, pr.mPort))
         {
-            auto now = mApp.getClock().now();
-            now += 2 * std::chrono::seconds(2 * SECONDS_PER_BACKOFF);
-            std::tm nextAttempt = VirtualClock::pointToTm(now);
+            pr.backOff(mApp.getClock());
+            pr.storePeerRecord(mApp.getDatabase());
 
-            mApp.getDatabase().getSession() << "UPDATE Peers set numFailures=numFailures+1 and nextAttempt=:v1 where ip=:v2 and port=:v3",
-                use(nextAttempt), use(ip), use(port);
-            addPeer(Peer::pointer(new TCPPeer(mApp, ip, port)));
+            addPeer(Peer::pointer(new TCPPeer(mApp, pr.mIP, pr.mPort)));
         }
     } else
     {
@@ -113,11 +84,9 @@ void PeerMaster::addPeerList(const std::vector<std::string>& list, int rank)
 {
     for(auto peerStr : list)
     {
-        std::string ip;
-        int port;
-        if(parseIPPort(peerStr, ip, port))
+        PeerRecord pr;
+        if(PeerRecord::fromIPPort(peerStr, DEFAULT_PEER_PORT, mApp.getClock(), pr))
         {
-            PeerRecord pr(0, ip, port, mApp.getClock().now(), 0, rank);
             pr.storePeerRecord(mApp.getDatabase());
         } else
         {
@@ -143,18 +112,13 @@ PeerMaster::tick()
         // make some outbound connections if we can
         vector<PeerRecord> peers;
         PeerRecord::loadPeerRecords(mApp.getDatabase(), 100, mApp.getClock().now(), peers);
-        for(auto peerRecord : peers)
+        for(auto pr : peers)
         {
-            if(!getPeer(peerRecord.mIP, peerRecord.mPort))
+            if(!getPeer(pr.mIP, pr.mPort))
             {
-                auto now = mApp.getClock().now();
-                now += std::chrono::seconds(
-                    static_cast<int64_t>(
-                        pow(2, peerRecord.mNumFailures + 1) * SECONDS_PER_BACKOFF));
-                std::tm nextAttempt = VirtualClock::pointToTm(now);
-                mApp.getDatabase().getSession() << "UPDATE Peers set numFailures=numFailures+1 and nextAttempt=:v1 where peerID=:v2",
-                    use(nextAttempt), use(peerRecord.mPeerID);
-                addPeer(Peer::pointer(new TCPPeer(mApp, peerRecord.mIP, peerRecord.mPort)));
+                pr.backOff(mApp.getClock());
+                pr.storePeerRecord(mApp.getDatabase());
+                addPeer(Peer::pointer(new TCPPeer(mApp, pr.mIP, pr.mPort)));
                 if (mPeers.size() >= mApp.getConfig().TARGET_PEER_CONNECTIONS)
                 {
                     break;
@@ -274,35 +238,11 @@ PeerMaster::broadcastMessage(StellarMessage const& msg)
     mFloodGate.broadcast(msg);
 }
 
-
-
-
-void PeerMaster::createTable(Database &db)
+void 
+PeerMaster::createTable(Database &db)
 {
-    if (db.isSqlite())
-    {
-        // Horrendous hack: replace "SERIAL" with "INTEGER" when
-        // on SQLite:
-        std::string q(kSQLCreateStatement);
-        auto p = q.find("SERIAL");
-        assert(p != std::string::npos);
-        q.replace(p, 6, "INTEGER");
-        db.getSession() << q.c_str();
-    }
-    else
-    {
-        db.getSession() << kSQLCreateStatement;
-    }
+    PeerRecord::createTable(db);
 }
 
-const char* PeerMaster::kSQLCreateStatement = "CREATE TABLE IF NOT EXISTS Peers (						\
-	peerID	SERIAL PRIMARY KEY,	\
-    ip	    CHARACTER(11),		        \
-    port   	INT DEFAULT 0 CHECK (port >= 0),		\
-    nextAttempt   	TIMESTAMP,	    	\
-    numFailures     INT DEFAULT 0 CHECK (numFailures >= 0),      \
-    lastConnect   	TIMESTAMP,	    	\
-	rank	INT DEFAULT 0 CHECK (rank >= 0)  	\
-);";
 
 }

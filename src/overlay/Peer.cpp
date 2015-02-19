@@ -16,6 +16,7 @@
 #include "database/Database.h"
 #include "crypto/Hex.h"
 #include <time.h>
+#include "PeerRecord.h"
 
 // LATER: need to add some way of docking peers that are misbehaving by sending
 // you bad data
@@ -25,52 +26,6 @@ namespace stellar
 
 using namespace std;
 using namespace soci;
-
-void PeerRecord::storePeerRecord(Database& db)
-{
-    try {
-        int peerID;
-        db.getSession() << "SELECT peerID from Peers where ip=:v1 and port=:v2",
-            into(peerID), use(mIP), use(mPort);
-        if (!db.getSession().got_data())
-        {
-            db.getSession() << "INSERT INTO Peers (IP,Port,nextAttempt,numFailures,Rank) values (:v1, :v2, :v3, :v4, :v5)",
-                use(mIP), use(mPort), use(VirtualClock::pointToTm(mNextAttempt)), use(mNumFailures), use(mRank);
-        }
-        else
-        {
-            db.getSession() << "UPDATE Peers SET IP = :v1 and Port = :v2 and  nextAttempt = :v3, numFailures = :v4, Rank = :v5",
-                use(mIP), use(mPort), use(VirtualClock::pointToTm(mNextAttempt)), use(mNumFailures), use(mRank);
-        }
-    }
-    catch (soci_error& err)
-    {
-        LOG(ERROR) << "PeerRecord::storePeerRecord: " << err.what();
-    }
-}
-
-void PeerRecord::loadPeerRecords(Database &db, int max, VirtualClock::time_point nextAttemptCutoff, vector<PeerRecord>& retList)
-{
-    try {
-        rowset<row> rs =
-            (db.getSession().prepare <<
-            "SELECT peerID, ip, port, nextAttempt, numFailures, rank from Peers "
-            " where nextAttempt < :nextAttempt "
-            " order by rank limit :max ",
-            use(VirtualClock::pointToTm(nextAttemptCutoff)), use(max));
-        for (rowset<row>::const_iterator it = rs.begin(); it != rs.end(); ++it)
-        {
-            row const& row = *it;
-            retList.push_back(PeerRecord(row.get<int>(0), row.get<std::string>(1), row.get<int>(2), 
-                              VirtualClock::tmToPoint(row.get<tm>(3)),
-                              row.get<int>(4), row.get<int>(5)));
-        }
-    }
-    catch (soci_error& err)
-    {
-        LOG(ERROR) << "loadPeers Error: " << err.what();
-    }
-}
 
 
 Peer::Peer(Application& app, PeerRole role)
@@ -165,9 +120,7 @@ Peer::sendPeers()
     newMsg.peers().resize(xdr::size32(peerList.size()));
     for(int n = 0; n < peerList.size(); n++)
     {
-        ipFromStr(peerList[n].mIP, newMsg.peers()[n].ip);
-        newMsg.peers()[n].port = peerList[n].mPort;
-        newMsg.peers()[n].numFailures= peerList[n].mNumFailures;
+        peerList[n].toXdr(newMsg.peers()[n]);
     }
     sendMessage(newMsg);
 }
@@ -419,23 +372,6 @@ Peer::recvHello(StellarMessage const& msg)
         << mRemoteVersion << " " << mRemoteListeningPort;
     mState = GOT_HELLO;
     mPeerID = msg.hello().peerID;
-}
-
-// returns false if string is malformed
-bool Peer::ipFromStr(std::string ipStr,xdr::opaque_array<4U>& ret)
-{
-    std::stringstream ss(ipStr);
-    std::string item;
-    int n = 0;
-    while(std::getline(ss, item, '.') && n<4) 
-    {
-        ret[n] = atoi(item.c_str());
-        n++;
-    }
-    if(n==4)
-        return true;
-
-    return false;
 }
 
 void

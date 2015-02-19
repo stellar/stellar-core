@@ -20,30 +20,11 @@ typedef shared_ptr<FBAQuorumSet> FBAQuorumSetPtr;
 class Application;
 class LoopbackPeer;
 
-class PeerRecord
-{
-public:
-    int mPeerID;
-    string mIP;
-    int mPort;
-    VirtualClock::time_point mNextAttempt;
-    int mNumFailures;
-    int mRank;
-
-    PeerRecord(int id,const string& ip,int port, VirtualClock::time_point nextAttempt, int fails, int rank) : 
-        mPeerID(id), mIP(ip), mPort(port), mNextAttempt(nextAttempt), mNumFailures(fails), mRank(rank) { }
-
-    static void loadPeerRecords(Database &db, int max, VirtualClock::time_point nextAttemptCutoff, vector<PeerRecord>& retList);
-    void PeerRecord::storePeerRecord(Database& db);
-
-};
-
 /*
  * Another peer out there that we are connected to
  */
 class Peer : public enable_shared_from_this<Peer>
 {
-    static bool ipFromStr(string ipStr, xdr::opaque_array<4U>& ret);
 
   public:
     typedef shared_ptr<Peer> pointer;
