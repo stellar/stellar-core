@@ -91,7 +91,8 @@ void PeerMaster::connectTo(const std::string& peerStr)
     int port;
     if(parseIPPort(peerStr, ip, port))
     {
-        mApp.getDatabase().addPeer(ip, port, 0, 2);
+        PeerRecord pr{ 0, ip, port, mApp.getClock().now(), 0, 2};
+        pr.storePeerRecord(mApp.getDatabase());
         if(!getPeer(ip, port))
         {
             auto now = mApp.getClock().now();
@@ -116,7 +117,8 @@ void PeerMaster::addPeerList(const std::vector<std::string>& list, int rank)
         int port;
         if(parseIPPort(peerStr, ip, port))
         {
-            mApp.getDatabase().addPeer(ip, port, 0, rank);
+            PeerRecord pr(0, ip, port, mApp.getClock().now(), 0, rank);
+            pr.storePeerRecord(mApp.getDatabase());
         } else
         {
             CLOG(ERROR, "overlay") << "couldn't parse peer: " << peerStr;
@@ -139,9 +141,9 @@ PeerMaster::tick()
     if (mPeers.size() < mApp.getConfig().TARGET_PEER_CONNECTIONS)
     {
         // make some outbound connections if we can
-        vector<PeerRecord> retList;
-        mApp.getDatabase().loadPeers(100, retList);
-        for(auto peerRecord : retList)
+        vector<PeerRecord> peers;
+        PeerRecord::loadPeerRecords(mApp.getDatabase(), 100, mApp.getClock().now(), peers);
+        for(auto peerRecord : peers)
         {
             if(!getPeer(peerRecord.mIP, peerRecord.mPort))
             {

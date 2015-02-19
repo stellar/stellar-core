@@ -77,45 +77,6 @@ void Database::initialize()
     TransactionFrame::dropAll(*this);
 }
 
-void Database::addPeer(const std::string& ip, int port,int numFailures, int rank)
-{
-    try {
-        int peerID;
-        mSession << "SELECT peerID from Peers where ip=:v1 and port=:v2",
-            into(peerID), use(ip), use(port);
-        if(!mSession.got_data())
-        {
-            mSession << "INSERT INTO Peers (IP,Port,numFailures,Rank) values (:v1, :v2, :v3, :v4)",
-                use(ip), use(port), use(numFailures), use(rank);
-        }
-    }
-    catch(soci_error& err)
-    {
-        LOG(ERROR) << "DB addPeer: " << err.what();
-    }
-}
-
-void Database::loadPeers(int max, vector<PeerRecord>& retList)
-{
-    try {
-        std::tm nextAttempt = VirtualClock::pointToTm(mApp.getClock().now());
-        rowset<row> rs =
-            (mSession.prepare <<
-             "SELECT peerID,ip,port,numFailures from Peers "
-             " where nextAttempt < :nextAttempt "
-             " order by rank limit :max ",
-             use(nextAttempt), use(max));
-        for(rowset<row>::const_iterator it = rs.begin(); it != rs.end(); ++it)
-        {
-            row const& row = *it;
-            retList.push_back(PeerRecord(row.get<int>(0), row.get<std::string>(1), row.get<int>(2), row.get<int>(3)));
-        }
-    }
-    catch(soci_error& err)
-    {
-        LOG(ERROR) << "loadPeers Error: " << err.what();
-    }
-}
 
 int64_t Database::getBalance(const uint256& accountID,const Currency& currency)
 {

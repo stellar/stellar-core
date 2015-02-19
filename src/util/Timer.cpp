@@ -52,6 +52,13 @@ VirtualClock::pointToTm(time_point point)
     return out;
 }
 
+VirtualClock::time_point
+VirtualClock::tmToPoint(tm t)
+{
+    time_t tt = mktime(&t);
+    return VirtualClock::time_point() + std::chrono::seconds(tt);
+}
+
 std::string
 VirtualClock::tmToISOString(std::tm const& tm)
 {
