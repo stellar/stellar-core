@@ -180,6 +180,9 @@ namespace stellar
         {
             std::vector<OfferFrame> retList;
             OfferFrame::loadBestOffers(5, offerOffset, sheep, wheat, retList, db);
+
+            offerOffset += retList.size();
+
             for (auto wheatOffer : retList)
             {
                 if (filter)
@@ -204,8 +207,8 @@ namespace stellar
                 switch (cor)
                 {
                 case eOfferTaken:
+                    assert(offerOffset > 0);
                     offerOffset--; // adjust offset as an offer was deleted
-                    assert(offerOffset >= 0);
                     break;
                 case eOfferPartial:
                     break;
@@ -235,7 +238,6 @@ namespace stellar
             {
                 return eOK;
             }
-            offerOffset += retList.size();
         }
         return eOK;
     }

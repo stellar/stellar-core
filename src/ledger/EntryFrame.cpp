@@ -77,6 +77,8 @@ EntryFrame::exists(Database& db, LedgerKey const& key)
         return TrustFrame::exists(db, key);
     case OFFER:
         return OfferFrame::exists(db, key);
+    default:
+        abort();
     }
 }
 
