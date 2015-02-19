@@ -81,8 +81,8 @@ MUST_USE
 bool PeerRecord::loadPeerRecord(Database &db, string ip, int port, PeerRecord &ret)
 {
     tm t;
-    db.getSession() << "Select ip,port, nextAttempt, numFailures, Rank, FROM Peers WHERE ip = :v1 AND port = :v2",
-        use(ip), use(port), into(ret.mIP), into(ret.mPort), into(t), into(ret.mNumFailures), into(ret.mRank);
+    db.getSession() << "Select peerID, ip,port, nextAttempt, numFailures, rank FROM Peers WHERE ip = :v1 AND port = :v2",
+        into(ret.mPeerID), into(ret.mIP), into(ret.mPort), into(t), into(ret.mNumFailures), into(ret.mRank), use(ip), use(port);
     if (db.getSession().got_data())
     {
         ret.mNextAttempt = VirtualClock::tmToPoint(t);
@@ -117,18 +117,17 @@ void PeerRecord::loadPeerRecords(Database &db, int max, VirtualClock::time_point
 void PeerRecord::storePeerRecord(Database& db)
 {
     try {
-        int peerID;
-        db.getSession() << "SELECT peerID from Peers where ip=:v1 and port=:v2",
-            into(peerID), use(mIP), use(mPort);
+        int tmp;
+        db.getSession() << "SELECT peerID from Peers where ip=:v1 and port=:v2", into(tmp), use(mIP), use(mPort);
         if (!db.getSession().got_data())
         {
-            db.getSession() << "INSERT INTO Peers (IP,Port,nextAttempt,numFailures,Rank) values (:v1, :v2, :v3, :v4, :v5)",
-                use(mIP), use(mPort), use(VirtualClock::pointToTm(mNextAttempt)), use(mNumFailures), use(mRank);
+            db.getSession() << "INSERT INTO Peers (peerID, IP,Port,nextAttempt,numFailures,Rank) values (:v1, :v2, :v3, :v4, :v5, :v6)",
+                use(mPeerID), use(mIP), use(mPort), use(VirtualClock::pointToTm(mNextAttempt)), use(mNumFailures), use(mRank);
         }
         else
         {
-            db.getSession() << "UPDATE Peers SET IP = :v1 and Port = :v2 and  nextAttempt = :v3, numFailures = :v4, Rank = :v5",
-                use(mIP), use(mPort), use(VirtualClock::pointToTm(mNextAttempt)), use(mNumFailures), use(mRank);
+            db.getSession() << "UPDATE Peers SET peerID = :v1 and IP = :v2 and Port = :v3 and  nextAttempt = :v4, numFailures = :v5, Rank = :v6",
+                use(mPeerID), use(mIP), use(mPort), use(VirtualClock::pointToTm(mNextAttempt)), use(mNumFailures), use(mRank);
         }
     }
     catch (soci_error& err)

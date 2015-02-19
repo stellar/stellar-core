@@ -36,6 +36,16 @@ VirtualClock::pointToTimeT(time_point point)
                 point.time_since_epoch()).count());
 }
 
+#ifdef _WIN32
+time_t 
+timegm(struct tm *tm) {
+    time_t zero = 0;
+    time_t localEpoch = mktime(gmtime(&zero));
+    time_t local = mktime(tm);
+    return local - localEpoch;
+}
+#endif
+
 std::tm
 VirtualClock::pointToTm(time_point point)
 {
@@ -55,7 +65,7 @@ VirtualClock::pointToTm(time_point point)
 VirtualClock::time_point
 VirtualClock::tmToPoint(tm t)
 {
-    time_t tt = mktime(&t);
+    time_t tt = timegm(&t);
     return VirtualClock::time_point() + std::chrono::seconds(tt);
 }
 

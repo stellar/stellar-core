@@ -22,6 +22,16 @@ public:
     PeerRecord(int id,const string& ip,int port, VirtualClock::time_point nextAttempt, int fails, int rank) : 
         mPeerID(id), mIP(ip), mPort(port), mNextAttempt(nextAttempt), mNumFailures(fails), mRank(rank) { }
 
+    bool operator==(PeerRecord& other)
+    {
+        return mPeerID == other.mPeerID &&
+            mIP == other.mIP &&
+            mPort == other.mPort &&
+            mNextAttempt == other.mNextAttempt &&
+            mNumFailures == other.mNumFailures &&
+            mRank == other.mRank;
+    }
+
     static bool PeerRecord::fromIPPort(const string &ipPort, int defaultPort, VirtualClock &clock, PeerRecord &ret);
 
 
@@ -35,11 +45,11 @@ public:
     bool toXdr(PeerAddress &ret);
     
     static void createTable(Database &db);
-    static const char *kSQLCreateStatement;
 
 private:
     static bool ipToXdr(string ip, xdr::opaque_array<4U>& ret);
     static bool parseIPPort(const std::string& peerStr, int defaultPort, std::string& retIP, int& retPort);
+    static const char *kSQLCreateStatement;
 };
 
 }
