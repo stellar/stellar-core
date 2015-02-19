@@ -68,7 +68,7 @@ TEST_CASE("payment", "[tx][payment]")
     REQUIRE(a1Account.getHighThreshold() == 0);
     REQUIRE(a1Account.getLowThreshold() == 0);
     REQUIRE(a1Account.getMidThreshold() == 0);
-    REQUIRE(rootAccount.getBalance() == (100000000000000 - paymentAmount - txfee));
+    REQUIRE(rootAccount.getBalance() == (100000000000000000 - paymentAmount - txfee));
 
     const uint64_t morePayment = paymentAmount / 2;
 
