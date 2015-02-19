@@ -21,8 +21,18 @@ class Config : public std::enable_shared_from_this<Config>
     typedef std::shared_ptr<Config> pointer;
 
     // application config
-    bool START_NEW_NETWORK;
+    
+    // The default way hayashi starts is to load the state from disk and catch up to the network before starting FBA.
+    // If you need different behavior you need to use --new or --local which set the following flags:
+    
+    // Will start a brand new ledger. And FBA will start running immediately
+    // should only be used once to start a whole new network
+    bool START_NEW_NETWORK;  
+    // Will load the ledger/bucketlist from SQL/disk and FBA will start running immediately
+    // Useful for test networks
     bool START_LOCAL_NETWORK;
+    
+    // This is a mode for testing. It prevents you from trying to connect to other peers
     bool RUN_STANDALONE;
     int PROTOCOL_VERSION;
     std::string VERSION_STR;
