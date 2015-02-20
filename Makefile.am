@@ -31,6 +31,7 @@ FMT_SRCS =                                      \
     src/history/HistoryArchive.cpp              \
     src/history/HistoryMaster.cpp               \
     src/history/HistoryTests.cpp                \
+    src/history/PublishStateMachine.cpp         \
     src/ledger/AccountFrame.cpp                 \
     src/ledger/EntryFrame.cpp                   \
     src/ledger/LedgerDelta.cpp                  \
@@ -106,6 +107,7 @@ FMT_HDRS =                                      \
     src/history/HistoryArchive.h                \
     src/history/HistoryGateway.h                \
     src/history/HistoryMaster.h                 \
+    src/history/PublishStateMachine.h           \
     src/ledger/AccountFrame.h                   \
     src/ledger/EntryFrame.h                     \
     src/ledger/LedgerDelta.h                    \

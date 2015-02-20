@@ -86,6 +86,8 @@ typedef std::error_code error_code;
 namespace stellar
 {
 class Application;
+class Bucket;
+class BucketList;
 class HistoryArchive;
 class HistoryMaster
 {
@@ -119,12 +121,16 @@ class HistoryMaster
                  std::string const& filename,
                  std::function<void(asio::error_code const&)> handler);
 
+    // For each writable archive, put all buckets that have changed.
+    void checkpointBuckets(BucketList const& buckets);
+
     std::string const& getTmpDir();
 
     static std::string bucketBasename(std::string const& bucketHexHash);
     static std::string bucketHexHash(std::string const& bucketBasename);
 
     std::string localFilename(std::string const& basename);
+
 
     HistoryMaster(Application& app);
     ~HistoryMaster();

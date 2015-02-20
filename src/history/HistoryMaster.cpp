@@ -12,6 +12,8 @@
 #include "generated/StellarXDR.h"
 #include "history/HistoryMaster.h"
 #include "history/HistoryArchive.h"
+#include "history/PublishStateMachine.h"
+#include "history/CatchupStateMachine.h"
 #include "process/ProcessGateway.h"
 #include "util/make_unique.h"
 #include "util/Logging.h"
@@ -36,11 +38,15 @@ HistoryMaster::Impl
 {
     Application& mApp;
     unique_ptr<TmpDir> mWorkDir;
+    PublishStateMachine mPublish;
+    CatchupStateMachine mCatchup;
     friend class HistoryMaster;
 public:
     Impl(Application &app)
         : mApp(app)
         , mWorkDir(nullptr)
+        , mPublish(app)
+        , mCatchup(app)
         {}
 
 };
@@ -220,5 +226,13 @@ HistoryMaster::getFile(std::shared_ptr<HistoryArchive> archive,
     auto exit = this->mImpl->mApp.getProcessGateway().runProcess(cmd);
     exit.async_wait(handler);
 }
+
+
+void
+HistoryMaster::checkpointBuckets(BucketList const& buckets)
+{
+    mImpl->mPublish.publishCheckpoint(buckets);
+}
+
 
 }
