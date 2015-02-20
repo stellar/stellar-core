@@ -22,7 +22,7 @@ namespace stellar {
 using xdr::operator==;
 };
 
-void
+Config&
 addLocalDirHistoryArchive(TmpDir const& dir, Config &cfg)
 {
     std::string d = dir.getName();
@@ -30,15 +30,33 @@ addLocalDirHistoryArchive(TmpDir const& dir, Config &cfg)
         "test",
         "cp " + d + "/{0} {1}",
         "cp {0} " + d + "/{1}");
+    return cfg;
 }
 
 
-TEST_CASE("HistoryMaster::compress", "[history]")
+class HistoryTests
+{
+protected:
+
+    VirtualClock clock;
+    TmpDirMaster archtmp;
+    TmpDir dir;
+    Config cfg;
+    Application app;
+
+public:
+    HistoryTests()
+        : archtmp("archtmp")
+        , dir(archtmp.tmpDir("archive"))
+        , cfg(getTestConfig())
+        , app(clock, addLocalDirHistoryArchive(dir, cfg))
+        {}
+};
+
+
+TEST_CASE_METHOD(HistoryTests, "HistoryMaster::compress", "[history]")
 {
     std::string s = "hello there";
-    VirtualClock clock;
-    Config cfg = getTestConfig();
-    Application app(clock, cfg);
     HistoryMaster &hm = app.getHistoryMaster();
     std::string fname = hm.localFilename("compressme");
     {
@@ -69,12 +87,9 @@ TEST_CASE("HistoryMaster::compress", "[history]")
 }
 
 
-TEST_CASE("HistoryMaster::verifyHash", "[history]")
+TEST_CASE_METHOD(HistoryTests, "HistoryMaster::verifyHash", "[history]")
 {
     std::string s = "hello there";
-    VirtualClock clock;
-    Config cfg = getTestConfig();
-    Application app(clock, cfg);
     HistoryMaster &hm = app.getHistoryMaster();
     std::string fname = hm.localFilename("hashme");
     {
@@ -98,17 +113,8 @@ TEST_CASE("HistoryMaster::verifyHash", "[history]")
 }
 
 
-TEST_CASE("HistoryArchiveState::get_put", "[history]")
+TEST_CASE_METHOD(HistoryTests, "HistoryArchiveState::get_put", "[history]")
 {
-    VirtualClock clock;
-    Config cfg = getTestConfig();
-
-    TmpDirMaster archtmp("archtmp");
-    TmpDir dir = archtmp.tmpDir("archive");
-    addLocalDirHistoryArchive(dir, cfg);
-
-    Application app(clock, cfg);
-
     HistoryArchiveState has;
     has.currentLedger = 0x1234;
     bool done = false;
@@ -117,6 +123,7 @@ TEST_CASE("HistoryArchiveState::get_put", "[history]")
     CHECK(i != app.getConfig().HISTORY.end());
     auto archive = i->second;
 
+    auto& app = this->app;
     archive->putState(
         app, has,
         [&done, &app, archive](asio::error_code const& ec)
