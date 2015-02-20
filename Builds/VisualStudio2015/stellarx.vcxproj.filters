@@ -626,6 +626,9 @@
     <ClInclude Include="..\..\src\overlay\PeerRecord.h">
       <Filter>overlay</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\src\clf\CLFMaster.h">
+      <Filter>clf</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="..\..\docs\transactions.md">

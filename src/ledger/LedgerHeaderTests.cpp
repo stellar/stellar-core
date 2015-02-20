@@ -25,14 +25,19 @@ TEST_CASE("ledgerheader", "[ledger]")
 
     cfg.DATABASE = "sqlite3://test.db";
 
-    VirtualClock clock;
-    Application app(clock, cfg);
-    app.start();
+    Hash saved;
+    {
+        VirtualClock clock;
+        Application app(clock, cfg);
+        app.start();
 
-    TxSetFramePtr txSet = make_shared<TxSetFrame>();
+        TxSetFramePtr txSet = make_shared<TxSetFrame>();
 
-    // close this ledger
-    app.getLedgerMaster().closeLedger(txSet);
+        // close this ledger
+        app.getLedgerMaster().closeLedger(txSet);
+
+        saved = app.getLedgerMaster().getLastClosedLedgerHeader().hash;
+    }
 
     SECTION("load existing ledger")
     {
@@ -42,7 +47,7 @@ TEST_CASE("ledgerheader", "[ledger]")
         Application app2(clock2, cfg2);
         app2.start();
 
-        REQUIRE(app.getLedgerMaster().getLastClosedLedgerHeader().hash ==
+        REQUIRE(saved ==
             app2.getLedgerMaster().getLastClosedLedgerHeader().hash);
     }
 

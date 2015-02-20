@@ -23,7 +23,6 @@ class CLFMaster::Impl
 {
 public:
     Application& mApp;
-    LedgerHeader mHeader;
     BucketList mBucketList;
     std::unique_ptr<TmpDir> mWorkDir;
     std::map<std::string, std::shared_ptr<Bucket>> mSharedBuckets;
@@ -111,12 +110,6 @@ CLFMaster::~CLFMaster()
     }
 }
 
-LedgerHeader const&
-CLFMaster::getHeader()
-{
-    return mImpl->mHeader;
-}
-
 BucketList &
 CLFMaster::getBucketList()
 {
@@ -183,6 +176,20 @@ CLFMaster::forgetUnreferencedBuckets()
             mImpl->mSharedBuckets.erase(j);
         }
     }
+}
+
+
+void CLFMaster::addBatch(Application& app, uint64_t currLedger,
+    std::vector<LedgerEntry> const& liveEntries,
+    std::vector<LedgerKey> const& deadEntries)
+{
+    mImpl->mBucketList.addBatch(app, currLedger, liveEntries, deadEntries);
+}
+
+// updates the given LedgerHeader to reflect the current state of the bucket list
+void CLFMaster::snapshotLedger(LedgerHeader &currentHeader)
+{
+    currentHeader.clfHash = mImpl->mBucketList.getHash();
 }
 
 
