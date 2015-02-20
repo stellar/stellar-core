@@ -19,7 +19,7 @@ namespace stellar
     {
         inline SetOptions::SetOptionsResultCode getInnerCode(TransactionResult const & res)
         {
-            return res.body.tr().setOptionsResult().result.code();
+            return res.body.tr().setOptionsResult().code();
         }
     }
 

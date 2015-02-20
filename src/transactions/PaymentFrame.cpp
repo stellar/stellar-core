@@ -27,7 +27,7 @@ using namespace std;
         if (mEnvelope.tx.body.paymentTx().destination == mSigningAccount->getID()
             && mEnvelope.tx.body.paymentTx().path.empty())
         {
-            innerResult().result.code(Payment::SUCCESS);
+            innerResult().code(Payment::SUCCESS);
             return true;
         }
 
@@ -40,7 +40,7 @@ using namespace std;
             {
                 if (mEnvelope.tx.body.paymentTx().amount < ledgerMaster.getMinBalance(0))
                 {   // not over the minBalance to make an account
-                    innerResult().result.code(Payment::UNDERFUNDED);
+                    innerResult().code(Payment::UNDERFUNDED);
                     return false;
                 }
                 else
@@ -53,7 +53,7 @@ using namespace std;
             }
             else
             {   // trying to send credit to an unmade account
-                innerResult().result.code(Payment::NO_DESTINATION);
+                innerResult().code(Payment::NO_DESTINATION);
                 return false;
             }
         }
@@ -71,11 +71,11 @@ using namespace std;
         bool multi_mode = mEnvelope.tx.body.paymentTx().path.size();
         if (multi_mode)
         {
-            innerResult().result.code(Payment::SUCCESS_MULTI);
+            innerResult().code(Payment::SUCCESS_MULTI);
         }
         else
         {
-            innerResult().result.code(Payment::SUCCESS);
+            innerResult().code(Payment::SUCCESS);
         }
 
         // tracks the last amount that was traded
@@ -100,20 +100,20 @@ using namespace std;
                 if (!TrustFrame::loadTrustLine(destination.getID(),
                     curB, destLine, db))
                 {
-                    innerResult().result.code(Payment::NO_TRUST);
+                    innerResult().code(Payment::NO_TRUST);
                     return false;
                 }
 
                 if (destLine.getTrustLine().limit <
                     curBReceived + destLine.getTrustLine().balance)
                 {
-                    innerResult().result.code(Payment::LINE_FULL);
+                    innerResult().code(Payment::LINE_FULL);
                     return false;
                 }
 
                 if (!destLine.getTrustLine().authorized)
                 {
-                    innerResult().result.code(Payment::NOT_AUTHORIZED);
+                    innerResult().code(Payment::NOT_AUTHORIZED);
                     return false;
                 }
 
@@ -123,7 +123,7 @@ using namespace std;
 
             if (multi_mode)
             {
-                innerResult().result.multi().last = Payment::SimplePaymentResult(
+                innerResult().multi().last = Payment::SimplePaymentResult(
                     destination.getID(),
                     curB,
                     curBReceived);
@@ -157,7 +157,7 @@ using namespace std;
                     }
                     // fall through
                 case OfferExchange::ePartial:
-                    innerResult().result.code(Payment::OVERSENDMAX);
+                    innerResult().code(Payment::OVERSENDMAX);
                     return false;
                 }
                 assert(curBReceived == actualCurBReceived);
@@ -174,7 +174,7 @@ using namespace std;
 
         if (curBSent > mEnvelope.tx.body.paymentTx().sendMax)
         { // make sure not over the max
-            innerResult().result.code(Payment::OVERSENDMAX);
+            innerResult().code(Payment::OVERSENDMAX);
             return false;
         }
 
@@ -182,7 +182,7 @@ using namespace std;
         {
             if (mEnvelope.tx.body.paymentTx().path.size())
             {
-                innerResult().result.code(Payment::MALFORMED);
+                innerResult().code(Payment::MALFORMED);
                 return false;
             }
 
@@ -190,7 +190,7 @@ using namespace std;
 
             if (mSigningAccount->getAccount().balance < (minBalance + curBSent))
             {   // they don't have enough to send
-                innerResult().result.code(Payment::UNDERFUNDED);
+                innerResult().code(Payment::UNDERFUNDED);
                 return false;
             }
 
@@ -206,7 +206,7 @@ using namespace std;
                 if(!AccountFrame::loadAccount(curB.isoCI().issuer, issuer, db))
                 {
                     CLOG(ERROR, "Tx") << "PaymentTx::sendCredit Issuer not found";
-                    innerResult().result.code(Payment::MALFORMED);
+                    innerResult().code(Payment::MALFORMED);
                     return false;
                 }
 
@@ -214,13 +214,13 @@ using namespace std;
                 if(!TrustFrame::loadTrustLine(mEnvelope.tx.account,
                     curB, sourceLineFrame, db))
                 {
-                    innerResult().result.code(Payment::UNDERFUNDED);
+                    innerResult().code(Payment::UNDERFUNDED);
                     return false;
                 }
 
                 if(sourceLineFrame.getTrustLine().balance < curBSent)
                 {
-                    innerResult().result.code(Payment::UNDERFUNDED);
+                    innerResult().code(Payment::UNDERFUNDED);
                     return false;
                 }
                 
@@ -238,7 +238,7 @@ using namespace std;
     {
         if (mEnvelope.tx.body.paymentTx().path.size() > MAX_PAYMENT_PATH_LENGTH)
         {
-            innerResult().result.code(Payment::MALFORMED);
+            innerResult().code(Payment::MALFORMED);
             return false;
         }
 

@@ -18,7 +18,7 @@ namespace stellar
     {
         inline AccountMerge::AccountMergeResultCode getInnerCode(TransactionResult const & res)
         {
-            return res.body.tr().accountMergeResult().result.code();
+            return res.body.tr().accountMergeResult().code();
         }
     }
 

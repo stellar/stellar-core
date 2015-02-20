@@ -19,7 +19,7 @@ namespace stellar
     {
         if(!(mSigningAccount->getAccount().flags & AUTH_REQUIRED_FLAG))
         {   // this account doesn't require authorization to hold credit
-            innerResult().result.code(AllowTrust::MALFORMED);
+            innerResult().code(AllowTrust::MALFORMED);
             return false;
         }
 
@@ -33,11 +33,11 @@ namespace stellar
         if(!TrustFrame::loadTrustLine(mEnvelope.tx.body.allowTrustTx().trustor, ci,
             trustLine, db))
         {
-            innerResult().result.code(AllowTrust::NO_TRUST_LINE);
+            innerResult().code(AllowTrust::NO_TRUST_LINE);
             return false;
         }
 
-        innerResult().result.code(AllowTrust::SUCCESS);
+        innerResult().code(AllowTrust::SUCCESS);
 
         trustLine.getTrustLine().authorized = mEnvelope.tx.body.allowTrustTx().authorize;
         trustLine.storeChange(delta, db);
@@ -49,7 +49,7 @@ namespace stellar
     {
         if (mEnvelope.tx.body.allowTrustTx().code.type() != ISO4217)
         {
-            innerResult().result.code(AllowTrust::MALFORMED);
+            innerResult().code(AllowTrust::MALFORMED);
             return false;
         }
         return true;

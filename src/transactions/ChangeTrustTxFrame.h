@@ -22,7 +22,7 @@ namespace stellar
     {
         inline ChangeTrust::ChangeTrustResultCode getInnerCode(TransactionResult const & res)
         {
-            return res.body.tr().changeTrustResult().result.code();
+            return res.body.tr().changeTrustResult().code();
         }
     }
 
