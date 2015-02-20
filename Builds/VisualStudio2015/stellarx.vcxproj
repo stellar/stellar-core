@@ -269,6 +269,7 @@
   <ItemGroup>
     <ClInclude Include="..\..\src\clf\Bucket.h" />
     <ClInclude Include="..\..\src\clf\BucketList.h" />
+    <ClInclude Include="..\..\src\clf\CLFMaster.h" />
     <ClInclude Include="..\..\src\clf\LedgerCmp.h" />
     <ClInclude Include="..\..\src\crypto\Base58.h" />
     <ClInclude Include="..\..\src\crypto\ByteSlice.h" />

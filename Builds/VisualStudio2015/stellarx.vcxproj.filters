@@ -617,6 +617,9 @@
     <ClInclude Include="..\..\src\clf\Bucket.h">
       <Filter>clf</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\src\clf\CLFMaster.h">
+      <Filter>clf</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="..\..\docs\transactions.md">
