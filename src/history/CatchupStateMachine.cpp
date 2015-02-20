@@ -23,12 +23,12 @@ CatchupStateMachine::kRetryLimit = 16;
 
 CatchupStateMachine::CatchupStateMachine(Application& app)
     : mApp(app)
-    , mState(RETRYING)
+    , mState(CATCHUP_RETRYING)
     , mRetryCount(0)
     , mRetryTimer(app.getClock())
 {
-    // We start up in RETRYING as that's the only valid
-    // named pre-state for BEGIN.
+    // We start up in CATCHUP_RETRYING as that's the only valid
+    // named pre-state for CATCHUP_BEGIN.
 }
 
 /**
@@ -81,9 +81,9 @@ CatchupStateMachine::selectRandomReadableHistoryArchive()
 void
 CatchupStateMachine::enterBeginState()
 {
-    assert(mState == RETRYING);
+    assert(mState == CATCHUP_RETRYING);
     mRetryCount = 0;
-    mState = BEGIN;
+    mState = CATCHUP_BEGIN;
     CLOG(INFO, "History") << "Catchup BEGIN";
 
     mArchive = selectRandomReadableHistoryArchive();
@@ -95,9 +95,9 @@ CatchupStateMachine::enterBeginState()
             if (ec)
             {
                 CLOG(WARNING, "History")
-                    << "Failed to retrieve state from history archive '"
+                    << "Catchup failed to retrieve state from history archive '"
                     << this->mArchive->getName() << "', restarting catchup";
-                this->enterBeginState();
+                this->enterRetryingState();
             }
             else
             {
@@ -114,13 +114,13 @@ CatchupStateMachine::enterBeginState()
 void
 CatchupStateMachine::fileStateChange(asio::error_code const& ec,
                                      std::string const& basename,
-                                     HistoryFileState newGoodState)
+                                     FileCatchupState newGoodState)
 {
-    HistoryFileState newState = newGoodState;
+    FileCatchupState newState = newGoodState;
     if (ec)
     {
-        CLOG(INFO, "History") << "Action failed on " << basename;
-        newState = FILE_FAILED;
+        CLOG(INFO, "History") << "Catchup action failed on " << basename;
+        newState = FILE_CATCHUP_FAILED;
     }
     mFileStates[basename] = newState;
     enterFetchingState();
@@ -134,10 +134,10 @@ CatchupStateMachine::fileStateChange(asio::error_code const& ec,
 void
 CatchupStateMachine::enterFetchingState()
 {
-    assert(mState == ANCHORED || mState == FETCHING);
-    mState = FETCHING;
+    assert(mState == CATCHUP_ANCHORED || mState == CATCHUP_FETCHING);
+    mState = CATCHUP_FETCHING;
 
-    HistoryFileState minimumState = FILE_VERIFIED;
+    FileCatchupState minimumState = FILE_CATCHUP_VERIFIED;
     auto& hm = mApp.getHistoryMaster();
     for (auto& f : mFileStates)
     {
@@ -146,40 +146,40 @@ CatchupStateMachine::enterFetchingState()
         minimumState = std::min(f.second, minimumState);
         switch (f.second)
         {
-        case FILE_FAILED:
+        case FILE_CATCHUP_FAILED:
             break;
 
-        case FILE_NEEDED:
-            f.second = FILE_DOWNLOADING;
+        case FILE_CATCHUP_NEEDED:
+            f.second = FILE_CATCHUP_DOWNLOADING;
             CLOG(INFO, "History") << "Downloading " << basename;
             hm.getFile(
                 mArchive,
                 basename, filename,
                 [this, basename](asio::error_code const& ec)
                 {
-                    this->fileStateChange(ec, basename, FILE_DOWNLOADED);
+                    this->fileStateChange(ec, basename, FILE_CATCHUP_DOWNLOADED);
                 });
             break;
 
-        case FILE_DOWNLOADING:
+        case FILE_CATCHUP_DOWNLOADING:
             break;
 
-        case FILE_DOWNLOADED:
-            f.second = FILE_DECOMPRESSING;
+        case FILE_CATCHUP_DOWNLOADED:
+            f.second = FILE_CATCHUP_DECOMPRESSING;
             CLOG(INFO, "History") << "Decompressing " << basename;
             hm.decompress(
                 filename,
                 [this, basename](asio::error_code const& ec)
                 {
-                    this->fileStateChange(ec, basename, FILE_DECOMPRESSED);
+                    this->fileStateChange(ec, basename, FILE_CATCHUP_DECOMPRESSED);
                 });
             break;
 
-        case FILE_DECOMPRESSING:
+        case FILE_CATCHUP_DECOMPRESSING:
             break;
 
-        case FILE_DECOMPRESSED:
-            f.second = FILE_VERIFYING;
+        case FILE_CATCHUP_DECOMPRESSED:
+            f.second = FILE_CATCHUP_VERIFYING;
 
             // Note: verification here does not guarantee that the data is
             // _trustworthy_, merely that it's the data we were expecting
@@ -194,24 +194,24 @@ CatchupStateMachine::enterFetchingState()
                 hexToBin256(HistoryMaster::bucketHexHash(basename)),
                 [this, basename](asio::error_code const& ec)
                 {
-                    this->fileStateChange(ec, basename, FILE_VERIFIED);
+                    this->fileStateChange(ec, basename, FILE_CATCHUP_VERIFIED);
                 });
             break;
 
-        case FILE_VERIFYING:
+        case FILE_CATCHUP_VERIFYING:
             break;
 
-        case FILE_VERIFIED:
+        case FILE_CATCHUP_VERIFIED:
             break;
         }
     }
 
-    if (minimumState == FILE_FAILED)
+    if (minimumState == FILE_CATCHUP_FAILED)
     {
         CLOG(INFO, "History") << "Some fetches failed, retrying";
         enterRetryingState();
     }
-    else if (minimumState == FILE_VERIFIED)
+    else if (minimumState == FILE_CATCHUP_VERIFIED)
     {
         CLOG(INFO, "History") << "All fetches verified, applying";
         enterApplyingState();
@@ -227,8 +227,8 @@ CatchupStateMachine::enterFetchingState()
 void
 CatchupStateMachine::enterAnchoredState(HistoryArchiveState const& has)
 {
-    assert(mState == BEGIN);
-    mState = ANCHORED;
+    assert(mState == CATCHUP_BEGIN);
+    mState = CATCHUP_ANCHORED;
     mArchiveState = has;
 
     CLOG(INFO, "History") << "Catchup ANCHORED, anchor ledger = "
@@ -239,13 +239,13 @@ CatchupStateMachine::enterAnchoredState(HistoryArchiveState const& has)
     for (auto& f : mFileStates)
     {
         std::string filename = hm.localFilename(f.first);
-        if (f.second == FILE_FAILED)
+        if (f.second == FILE_CATCHUP_FAILED)
         {
             std::remove(filename.c_str());
             CLOG(INFO, "History")
                 << "Retrying fetch for " << f.first
                 << " from archive '" << mArchive->getName() << "'";
-            f.second = FILE_NEEDED;
+            f.second = FILE_CATCHUP_NEEDED;
         }
     }
 
@@ -266,7 +266,7 @@ CatchupStateMachine::enterAnchoredState(HistoryArchiveState const& has)
                 CLOG(INFO, "History")
                     << "Starting fetch for " << b
                     << " from archive '" << mArchive->getName() << "'";
-                mFileStates[b] = FILE_NEEDED;
+                mFileStates[b] = FILE_CATCHUP_NEEDED;
             }
         }
     }
@@ -277,8 +277,8 @@ CatchupStateMachine::enterAnchoredState(HistoryArchiveState const& has)
 void
 CatchupStateMachine::enterRetryingState()
 {
-    assert(mState == ANCHORED || mState == FETCHING || mState == APPLYING);
-    mState = RETRYING;
+    assert(mState == CATCHUP_ANCHORED || mState == CATCHUP_FETCHING || mState == CATCHUP_APPLYING);
+    mState = CATCHUP_RETRYING;
     mRetryTimer.expires_from_now(std::chrono::seconds(2));
     mRetryTimer.async_wait(
         [this](asio::error_code const& ec)
@@ -286,7 +286,7 @@ CatchupStateMachine::enterRetryingState()
             if (this->mRetryCount++ > kRetryLimit)
             {
                 CLOG(INFO, "History")
-                    << "Retry count " << kRetryLimit << " exceeded, restarting";
+                    << "Retry count " << kRetryLimit << " exceeded, restarting catchup";
                 this->enterBeginState();
             }
             else
@@ -318,7 +318,7 @@ void CatchupStateMachine::enterApplyingState()
             {
                 continue;
             }
-            assert(mFileStates[b] == FILE_VERIFIED);
+            assert(mFileStates[b] == FILE_CATCHUP_VERIFIED);
             std::string filename = hm.localFilename(b);
             XDRInputFileStream in;
             in.open(filename);
