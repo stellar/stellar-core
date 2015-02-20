@@ -139,6 +139,7 @@
     </CustomBuild>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\src\clf\Bucket.cpp" />
     <ClCompile Include="..\..\src\clf\BucketList.cpp" />
     <ClCompile Include="..\..\src\clf\CLFMaster.cpp" />
     <ClCompile Include="..\..\src\clf\CLFTests.cpp" />
@@ -159,9 +160,11 @@
     <ClCompile Include="..\..\src\herder\HerderStressTests.cpp" />
     <ClCompile Include="..\..\src\herder\HerderTests.cpp" />
     <ClCompile Include="..\..\src\herder\TxSetFrame.cpp" />
+    <ClCompile Include="..\..\src\history\CatchupStateMachine.cpp" />
     <ClCompile Include="..\..\src\history\HistoryArchive.cpp" />
     <ClCompile Include="..\..\src\history\HistoryMaster.cpp" />
     <ClCompile Include="..\..\src\history\HistoryTests.cpp" />
+    <ClCompile Include="..\..\src\history\PublishStateMachine.cpp" />
     <ClCompile Include="..\..\src\ledger\AccountFrame.cpp" />
     <ClCompile Include="..\..\src\ledger\LedgerDelta.cpp" />
     <ClCompile Include="..\..\src\ledger\EntryFrame.cpp" />
@@ -264,6 +267,7 @@
     <ClCompile Include="..\..\src\util\Uint128Tests.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\src\clf\Bucket.h" />
     <ClInclude Include="..\..\src\clf\BucketList.h" />
     <ClInclude Include="..\..\src\clf\LedgerCmp.h" />
     <ClInclude Include="..\..\src\crypto\Base58.h" />
@@ -281,8 +285,10 @@
     <ClInclude Include="..\..\src\herder\Herder.h" />
     <ClInclude Include="..\..\src\herder\HerderGateway.h" />
     <ClInclude Include="..\..\src\herder\TxSetFrame.h" />
+    <ClInclude Include="..\..\src\history\CatchupStateMachine.h" />
     <ClInclude Include="..\..\src\history\HistoryArchive.h" />
     <ClInclude Include="..\..\src\history\HistoryMaster.h" />
+    <ClInclude Include="..\..\src\history\PublishStateMachine.h" />
     <ClInclude Include="..\..\src\ledger\AccountFrame.h" />
     <ClInclude Include="..\..\src\ledger\LedgerDelta.h" />
     <ClInclude Include="..\..\src\ledger\EntryFrame.h" />

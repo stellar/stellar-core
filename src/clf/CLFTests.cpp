@@ -198,7 +198,7 @@ TEST_CASE("merging clf entries", "[clf]")
     autocheck::generator<OfferEntry> ofGen;
     autocheck::generator<bool> flip;
 
-    SECTION("dead account entry annaihilates live account entry")
+    SECTION("dead account entry annihilates live account entry")
     {
         liveEntry.type(ACCOUNT);
         liveEntry.account() = acGen(10);
@@ -210,7 +210,7 @@ TEST_CASE("merging clf entries", "[clf]")
         CHECK(countEntries(b1) == 1);
     }
 
-    SECTION("dead trustline entry annaihilates live trustline entry")
+    SECTION("dead trustline entry annihilates live trustline entry")
     {
         liveEntry.type(TRUSTLINE);
         liveEntry.trustLine() = tlGen(10);
@@ -223,7 +223,7 @@ TEST_CASE("merging clf entries", "[clf]")
         CHECK(countEntries(b1) == 1);
     }
 
-    SECTION("dead offer entry annaihilates live offer entry")
+    SECTION("dead offer entry annihilates live offer entry")
     {
         liveEntry.type(OFFER);
         liveEntry.offer() = ofGen(10);
@@ -236,7 +236,7 @@ TEST_CASE("merging clf entries", "[clf]")
         CHECK(countEntries(b1) == 1);
     }
 
-    SECTION("random dead entries annaihilate live entries")
+    SECTION("random dead entries annihilates live entries")
     {
         std::vector<LedgerEntry> live(100);
         std::vector<LedgerKey> dead;
@@ -281,7 +281,7 @@ TEST_CASE("merging clf entries", "[clf]")
 }
 
 
-TEST_CASE("clfmaster ownership", "[clf]")
+TEST_CASE("clfmaster ownership", "[clf][ownershipclf]")
 {
     VirtualClock clock;
     Config const& cfg = getTestConfig();

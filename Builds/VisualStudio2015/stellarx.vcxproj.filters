@@ -79,6 +79,9 @@
     <Filter Include="simulation">
       <UniqueIdentifier>{5da37d0f-0d0e-4f17-a7b4-5463b0ccc0a9}</UniqueIdentifier>
     </Filter>
+    <Filter Include="clf\tests">
+      <UniqueIdentifier>{86be4089-9cdf-49d8-9d3f-4f8712a6560c}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\src\ledger\LedgerMaster.cpp">
@@ -119,9 +122,6 @@
     </ClCompile>
     <ClCompile Include="..\..\src\overlay\TCPPeer.cpp">
       <Filter>overlay</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\clf\CLFTests.cpp">
-      <Filter>clf</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\overlay\OverlayTests.cpp">
       <Filter>overlay</Filter>
@@ -363,6 +363,18 @@
     <ClCompile Include="..\..\src\overlay\PeerMasterTests.cpp">
       <Filter>overlay</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\history\CatchupStateMachine.cpp">
+      <Filter>history</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\history\PublishStateMachine.cpp">
+      <Filter>history</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\clf\Bucket.cpp">
+      <Filter>clf</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\clf\CLFTests.cpp">
+      <Filter>clf\tests</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\ledger\LedgerGateway.h">
@@ -595,6 +607,15 @@
     </ClInclude>
     <ClInclude Include="..\..\src\util\asio.h">
       <Filter>util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\history\CatchupStateMachine.h">
+      <Filter>history</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\history\PublishStateMachine.h">
+      <Filter>history</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\clf\Bucket.h">
+      <Filter>clf</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
