@@ -71,7 +71,7 @@ void Database::initialize()
     AccountFrame::dropAll(*this);
     OfferFrame::dropAll(*this);
     TrustFrame::dropAll(*this);
-    PeerMaster::createTable(*this);
+    PeerMaster::dropAll(*this);
     LedgerMaster::dropAll(*this);
     LedgerHeaderFrame::dropAll(*this);
     TransactionFrame::dropAll(*this);

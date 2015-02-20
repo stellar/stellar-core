@@ -58,7 +58,7 @@ bool PeerRecord::parseIPPort(const std::string& peerStr, int defaultPort, std::s
 {
     std::string const innerStr(peerStr);
     std::string::const_iterator splitPoint =
-        std::find(innerStr.rbegin(), innerStr.rend(), ':').base();
+        std::find(innerStr.begin(), innerStr.end(), ':');
     if (splitPoint == innerStr.end())
     {
         retIP = innerStr;
@@ -66,7 +66,6 @@ bool PeerRecord::parseIPPort(const std::string& peerStr, int defaultPort, std::s
     }
     else
     {
-        splitPoint--;
         retIP.assign(innerStr.begin(), splitPoint);
         std::string portStr;
         splitPoint++;
@@ -80,12 +79,12 @@ bool PeerRecord::parseIPPort(const std::string& peerStr, int defaultPort, std::s
 MUST_USE
 bool PeerRecord::loadPeerRecord(Database &db, string ip, int port, PeerRecord &ret)
 {
-    tm t;
+    time_t t;
     db.getSession() << "Select peerID, ip,port, nextAttempt, numFailures, rank FROM Peers WHERE ip = :v1 AND port = :v2",
         into(ret.mPeerID), into(ret.mIP), into(ret.mPort), into(t), into(ret.mNumFailures), into(ret.mRank), use(ip), use(port);
     if (db.getSession().got_data())
     {
-        ret.mNextAttempt = VirtualClock::tmToPoint(t);
+        ret.mNextAttempt = VirtualClock::time_point() + std::chrono::seconds(t);
         return true;
     } else
         return false;
@@ -121,13 +120,20 @@ void PeerRecord::storePeerRecord(Database& db)
         db.getSession() << "SELECT peerID from Peers where ip=:v1 and port=:v2", into(tmp), use(mIP), use(mPort);
         if (!db.getSession().got_data())
         {
-            db.getSession() << "INSERT INTO Peers (peerID, IP,Port,nextAttempt,numFailures,Rank) values (:v1, :v2, :v3, :v4, :v5, :v6)",
-                use(mPeerID), use(mIP), use(mPort), use(VirtualClock::pointToTm(mNextAttempt)), use(mNumFailures), use(mRank);
+            //db.getSession() << "INSERT INTO Peers (peerID, IP,Port,nextAttempt,numFailures,Rank) values (:v1, :v2, :v3, :v4, :v5, :v6)",
+            //    use(mPeerID), use(mIP), use(mPort), use(VirtualClock::pointToTm(mNextAttempt)), use(mNumFailures), use(mRank);
+            string q = ("INSERT INTO Peers (peerID, IP,Port,nextAttempt,numFailures,Rank) VALUES (" +
+                to_string(mPeerID) + ", '" + mIP + "', " + to_string(mPort) + ", " +
+                to_string(VirtualClock::pointToTimeT(mNextAttempt)) + ", " + to_string(mNumFailures) + ", " + to_string(mRank) + ");");
+
+            db.getSession() << q;
+
         }
         else
         {
-            db.getSession() << "UPDATE Peers SET peerID = :v1 and IP = :v2 and Port = :v3 and  nextAttempt = :v4, numFailures = :v5, Rank = :v6",
-                use(mPeerID), use(mIP), use(mPort), use(VirtualClock::pointToTm(mNextAttempt)), use(mNumFailures), use(mRank);
+            string q = "UPDATE Peers SET peerID = " + to_string(mPeerID) + ", nextAttempt = " + to_string(VirtualClock::pointToTimeT(mNextAttempt)) + " , numFailures = " + to_string(mNumFailures) + ", Rank = " + to_string(mRank) +
+                " WHERE ip='" + mIP + "' AND port=" + to_string(mPort);
+            db.getSession() << q;
         }
     }
     catch (soci_error& err)
@@ -148,32 +154,32 @@ void PeerRecord::backOff(VirtualClock &clock)
 
 }
 
-void PeerRecord::createTable(Database &db)
+void PeerRecord::dropAll(Database &db)
 {
-    if (db.isSqlite())
-    {
+    //if (db.isSqlite())
+    //{
         // Horrendous hack: replace "SERIAL" with "INTEGER" when
         // on SQLite:
-        std::string q(kSQLCreateStatement);
-        auto p = q.find("SERIAL");
-        assert(p != std::string::npos);
-        q.replace(p, 6, "INTEGER");
-        db.getSession() << q.c_str();
-    }
-    else
+        //std::string q(kSQLCreateStatement);
+        //auto p = q.find("SERIAL");
+        //assert(p != std::string::npos);
+        //q.replace(p, 6, "INT DEFAULT 0 ");
+        //db.getSession() << q.c_str();
+    //}
+    //else
     {
+        db.getSession() << "DROP TABLE IF EXISTS Peers;";
         db.getSession() << kSQLCreateStatement;
     }
 }
 
 const char* PeerRecord::kSQLCreateStatement = "CREATE TABLE IF NOT EXISTS Peers (						\
-	peerID	SERIAL PRIMARY KEY,	\
-    ip	    CHARACTER(11),		        \
+	peerID	INT DEFAULT 0,	\
+    ip	    CHARACTER(11) PRIMARY KEY,		        \
     port   	INT DEFAULT 0 CHECK (port >= 0),		\
     nextAttempt   	TIMESTAMP,	    	\
     numFailures     INT DEFAULT 0 CHECK (numFailures >= 0),      \
-    lastConnect   	TIMESTAMP,	    	\
-	rank	INT DEFAULT 0 CHECK (rank >= 0)  	\
+    rank	INT DEFAULT 0 CHECK (rank >= 0)  	\
 );";
 
 }

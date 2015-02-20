@@ -19,7 +19,7 @@ public:
 
     PeerRecord() {};
 
-    PeerRecord(int id,const string& ip,int port, VirtualClock::time_point nextAttempt, int fails, int rank) : 
+    PeerRecord(int id,const string& ip,int port, VirtualClock::time_point nextAttempt, int fails, int rank) :
         mPeerID(id), mIP(ip), mPort(port), mNextAttempt(nextAttempt), mNumFailures(fails), mRank(rank) { }
 
     bool operator==(PeerRecord& other)
@@ -44,7 +44,7 @@ public:
     
     bool toXdr(PeerAddress &ret);
     
-    static void createTable(Database &db);
+    static void dropAll(Database &db);
 
 private:
     static bool ipToXdr(string ip, xdr::opaque_array<4U>& ret);

@@ -65,7 +65,7 @@ class PeerMaster : public OverlayGateway
     // returns NULL if the passed peer isn't found
     Peer::pointer getNextPeer(Peer::pointer peer);
 
-    static void createTable(Database &db);
+    static void dropAll(Database &db);
 
 };
 }

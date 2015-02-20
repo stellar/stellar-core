@@ -239,9 +239,9 @@ PeerMaster::broadcastMessage(StellarMessage const& msg)
 }
 
 void 
-PeerMaster::createTable(Database &db)
+PeerMaster::dropAll(Database &db)
 {
-    PeerRecord::createTable(db);
+    PeerRecord::dropAll(db);
 }
 
 
