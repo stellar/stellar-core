@@ -107,8 +107,9 @@ class HistoryMaster
     void compress(std::string const& filename_nogz,
                   std::function<void(asio::error_code const&)> handler);
 
-    // Put a file to all archives that have a `put` command.
-    void putFile(std::string const& filename,
+    // Put a file to a specific archive using it's `put` command.
+    void putFile(std::shared_ptr<HistoryArchive> archive,
+                 std::string const& filename,
                  std::string const& basename,
                  std::function<void(asio::error_code const&)> handler);
 

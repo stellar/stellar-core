@@ -197,51 +197,16 @@ HistoryMaster::compress(std::string const& filename_nogz,
         });
 }
 
-static void
-runCommands(Application &app,
-            shared_ptr<vector<string>> cmds,
-            function<void(asio::error_code const&)> handler,
-            size_t i = 0,
-            asio::error_code ec = asio::error_code())
-{
-    if (i < cmds->size())
-    {
-        auto exit = app.getProcessGateway().runProcess((*cmds)[i]);
-        exit.async_wait(
-            [&app, cmds, handler, i](asio::error_code const& ec)
-            {
-                if (ec)
-                {
-                    handler(ec);
-                }
-                else
-                {
-                    runCommands(app, cmds, handler, i+1, ec);
-                }
-            });
-    }
-    else
-    {
-        handler(ec);
-    }
-}
-
 void
-HistoryMaster::putFile(string const& filename,
+HistoryMaster::putFile(std::shared_ptr<HistoryArchive> archive,
+                       string const& filename,
                        string const& basename,
                        function<void(asio::error_code const& ec)> handler)
 {
-    auto const& hist = mImpl->mApp.getConfig().HISTORY;
-    auto commands = make_shared<vector<string>>();
-    for (auto const& pair : hist)
-    {
-        auto s = pair.second->putFileCmd(filename, basename);
-        if (!s.empty())
-        {
-            commands->push_back(s);
-        }
-    }
-    runCommands(mImpl->mApp, commands, handler);
+    assert(archive->hasPutCmd());
+    auto cmd = archive->putFileCmd(filename, basename);
+    auto exit = this->mImpl->mApp.getProcessGateway().runProcess(cmd);
+    exit.async_wait(handler);
 }
 
 void
