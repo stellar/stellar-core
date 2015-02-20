@@ -7,18 +7,20 @@
 // else.
 #include "util/asio.h"
 
-#include "main/Application.h"
-#include "xdrpp/autocheck.h"
-#include "clf/CLFMaster.h"
+#include "clf/Bucket.h"
 #include "clf/BucketList.h"
+#include "clf/CLFMaster.h"
 #include "clf/LedgerCmp.h"
-#include "main/test.h"
+#include "crypto/Hex.h"
 #include "lib/catch.hpp"
+#include "main/Application.h"
+#include "main/test.h"
 #include "util/Logging.h"
 #include "util/Timer.h"
-#include "crypto/Hex.h"
-#include <future>
+#include "util/TmpDir.h"
+#include "xdrpp/autocheck.h"
 #include <algorithm>
+#include <future>
 
 using namespace stellar;
 
@@ -49,19 +51,19 @@ TEST_CASE("bucket list", "[clf]")
         BucketList bl;
         autocheck::generator<std::vector<LedgerEntry>> liveGen;
         autocheck::generator<std::vector<LedgerKey>> deadGen;
-        LOG(DEBUG) << "Adding batches to bucket list";
+        CLOG(DEBUG, "CLF") << "Adding batches to bucket list";
         for (uint64_t i = 1; !app.getMainIOService().stopped() && i < 130; ++i)
         {
             app.crank(false);
             bl.addBatch(app, i, liveGen(8), deadGen(5));
             if (i % 10 == 0)
-                LOG(DEBUG) << "Added batch " << i << ", hash=" << binToHex(bl.getHash());
+                CLOG(DEBUG, "CLF") << "Added batch " << i << ", hash=" << binToHex(bl.getHash());
             for (size_t j = 0; j < bl.numLevels(); ++j)
             {
                 auto const& lev = bl.getLevel(j);
                 auto currSz = countEntries(lev.getCurr());
                 auto snapSz = countEntries(lev.getSnap());
-                // LOG(DEBUG) << "level " << j
+                // CLOG(DEBUG, "CLF") << "level " << j
                 //            << " curr=" << currSz
                 //            << " snap=" << snapSz;
                 CHECK(currSz <= BucketList::levelHalf(j) * 100);
@@ -71,7 +73,7 @@ TEST_CASE("bucket list", "[clf]")
     }
     catch (std::future_error& e)
     {
-        LOG(DEBUG) << "Test caught std::future_error " << e.code() << ": "
+        CLOG(DEBUG, "CLF") << "Test caught std::future_error " << e.code() << ": "
                    << e.what();
     }
 }
@@ -90,7 +92,7 @@ TEST_CASE("bucket list shadowing", "[clf]")
 
     autocheck::generator<std::vector<LedgerEntry>> liveGen;
     autocheck::generator<std::vector<LedgerKey>> deadGen;
-    LOG(DEBUG) << "Adding batches to bucket list";
+    CLOG(DEBUG, "CLF") << "Adding batches to bucket list";
 
     for (uint64_t i = 1; !app.getMainIOService().stopped() && i < 1200; ++i)
     {
@@ -154,18 +156,18 @@ TEST_CASE("file-backed buckets", "[clf]")
 
     autocheck::generator<LedgerEntry> liveGen;
     autocheck::generator<LedgerKey> deadGen;
-    LOG(DEBUG) << "Generating 10000 random ledger entries";
+    CLOG(DEBUG, "CLF") << "Generating 10000 random ledger entries";
     std::vector<LedgerEntry> live(9000);
     std::vector<LedgerKey> dead(1000);
     for (auto &e : live)
         e = liveGen(3);
     for (auto &e : dead)
         e = deadGen(3);
-    LOG(DEBUG) << "Hashing entries";
+    CLOG(DEBUG, "CLF") << "Hashing entries";
     std::shared_ptr<Bucket> b1 = Bucket::fresh(app.getCLFMaster(), live, dead);
     for (size_t i = 0; i < 5; ++i)
     {
-        LOG(DEBUG) << "Merging 10000 new ledger entries into "
+        CLOG(DEBUG, "CLF") << "Merging 10000 new ledger entries into "
                    << (i * 10000) << " entry bucket";
         for (auto &e : live)
             e = liveGen(3);
@@ -177,7 +179,7 @@ TEST_CASE("file-backed buckets", "[clf]")
                                Bucket::fresh(app.getCLFMaster(), live, dead));
         }
     }
-    LOG(DEBUG) << "Spill file size: " << fileSize(b1->getFilename());
+    CLOG(DEBUG, "CLF") << "Spill file size: " << fileSize(b1->getFilename());
 }
 
 

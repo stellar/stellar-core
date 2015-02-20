@@ -58,7 +58,7 @@ BucketLevel::commit()
         // NB: This might block if the worker thread is slow; might want to
         // use mNextCurr.wait_for(
         mCurr = mNextCurr.get();
-        // LOG(DEBUG) << "level " << mLevel << " set mCurr to "
+        // CLOG(DEBUG, "CLF") << "level " << mLevel << " set mCurr to "
         //            << mCurr->getEntries().size() << " elements";
     }
     assert(!mNextCurr.valid());
@@ -88,13 +88,13 @@ BucketLevel::prepare(Application& app, uint64_t currLedger,
             currLedger + BucketList::levelHalf(mLevel - 1);
         if (BucketList::levelShouldSpill(nextChangeLedger, mLevel))
         {
-            // LOG(DEBUG) << "level " << mLevel
+            // CLOG(DEBUG, "CLF") << "level " << mLevel
             //            << " skipping pending-snapshot curr";
             curr.reset();
         }
     }
 
-    // LOG(DEBUG) << "level " << mLevel << " preparing merge of mCurr="
+    // CLOG(DEBUG, "CLF") << "level " << mLevel << " preparing merge of mCurr="
     //            << (curr ? curr->getEntries().size() : 0) << " with snap="
     //            << snap->getEntries().size() << " elements";
     CLFMaster& clfMaster = app.getCLFMaster();
@@ -103,7 +103,7 @@ BucketLevel::prepare(Application& app, uint64_t currLedger,
         std::make_shared<task_t>(
             [curr, snap, &clfMaster, shadows]()
             {
-                // LOG(DEBUG)
+                // CLOG(DEBUG, "CLF")
                 //<< "Worker merging " <<
                 // snap->getEntries().size()
                 //<< " new elements with " <<
@@ -114,7 +114,7 @@ BucketLevel::prepare(Application& app, uint64_t currLedger,
                                          (curr ? curr :
                                           std::make_shared<Bucket>()),
                                          snap, shadows);
-                // LOG(DEBUG)
+                // CLOG(DEBUG, "CLF")
                 //<< "Worker finished merging " <<
                 // snap->getEntries().size()
                 //<< " new elements with " <<
@@ -135,9 +135,9 @@ BucketLevel::snap()
 {
     mSnap = mCurr;
     mCurr = std::make_shared<Bucket>();
-    // LOG(DEBUG) << "level " << mLevel << " set mSnap to "
+    // CLOG(DEBUG, "CLF") << "level " << mLevel << " set mSnap to "
     //            << mSnap->getEntries().size() << " elements";
-    // LOG(DEBUG) << "level " << mLevel << " reset mCurr to "
+    // CLOG(DEBUG, "CLF") << "level " << mLevel << " reset mCurr to "
     //            << mCurr->getEntries().size() << " elements";
     return mSnap;
 }
@@ -222,7 +222,7 @@ BucketList::addBatch(Application& app, uint64_t currLedger,
         shadows.pop_back();
 
         /*
-        LOG(DEBUG) << "curr=" << currLedger
+        CLOG(DEBUG, "CLF") << "curr=" << currLedger
                    << ", half(i-1)=" << levelHalf(i-1)
                    << ", size(i-1)=" << levelSize(i-1)
                    << ", mask(curr,half)=" << mask(currLedger, levelHalf(i-1))
@@ -246,7 +246,7 @@ BucketList::addBatch(Application& app, uint64_t currLedger,
              * else spilled/added to it.
              */
             auto snap = mLevels[i - 1].snap();
-            // LOG(DEBUG) << "Ledger " << currLedger
+            // CLOG(DEBUG, "CLF") << "Ledger " << currLedger
             //           << " causing commit on level " << i
             //           << " and prepare of "
             //           << snap->getEntries().size()
