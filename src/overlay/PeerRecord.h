@@ -1,3 +1,6 @@
+#ifndef __PEERRECORD__
+#define __PEERRECORD__
+
 #include "util/Timer.h"
 #include "database/Database.h"
 #include <string>
@@ -32,24 +35,28 @@ public:
             mRank == other.mRank;
     }
 
-    static bool fromIPPort(const string &ipPort, int defaultPort, VirtualClock &clock, PeerRecord &ret);
+    static void fromIPPort(const string &ipPort, int defaultPort, VirtualClock &clock, PeerRecord &ret);
 
 
     static bool loadPeerRecord(Database &db, string ip, int port, PeerRecord &ret);
     static void loadPeerRecords(Database &db, int max, VirtualClock::time_point nextAttemptCutoff, vector<PeerRecord>& retList);
 
+    bool isStored(Database &db);
     void storePeerRecord(Database& db);
 
     void backOff(VirtualClock &clock);
     
-    bool toXdr(PeerAddress &ret);
+    void toXdr(PeerAddress &ret);
     
     static void dropAll(Database &db);
+    string toString();
 
 private:
-    static bool ipToXdr(string ip, xdr::opaque_array<4U>& ret);
-    static bool parseIPPort(const std::string& peerStr, int defaultPort, std::string& retIP, int& retPort);
+    static void ipToXdr(string ip, xdr::opaque_array<4U>& ret);
+    static void parseIPPort(const std::string& peerStr, int defaultPort, std::string& retIP, int& retPort);
     static const char *kSQLCreateStatement;
 };
 
 }
+
+#endif

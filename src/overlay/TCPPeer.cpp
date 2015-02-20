@@ -9,6 +9,7 @@
 #include "xdrpp/marshal.h"
 #include "overlay/PeerMaster.h"
 #include "database/Database.h"
+#include "overlay/PeerRecord.h"
 
 #define MS_TO_WAIT_FOR_HELLO 2000
 
@@ -176,17 +177,12 @@ TCPPeer::recvHello(StellarMessage const& msg)
     session& dbSession = mApp.getDatabase().getSession();
 
     if(mRole==INITIATOR)
-    {  // this guy called us
-        // make sure he is in the DB
-        int peerID=0;
-
-        dbSession << "SELECT peerID from Peers where ip=:v2 and port=:v3",
-             into(peerID), use(getIP()), use(getRemoteListeningPort());
-
-        if(!dbSession.got_data())
+    {  
+        PeerRecord pr;
+        if (!PeerRecord::loadPeerRecord(mApp.getDatabase(), getIP(), getRemoteListeningPort(),  pr))
         {
-            dbSession << "INSERT into Peers (ip,port,rank) values (:v1,:v2,1)" ,
-                use(getIP()), use(getRemoteListeningPort());
+            PeerRecord::fromIPPort(getIP(), getRemoteListeningPort(), mApp.getClock(), pr);
+            pr.storePeerRecord(mApp.getDatabase());
         }
 
         if(mApp.getPeerMaster().isPeerAccepted(shared_from_this()))
@@ -200,14 +196,11 @@ TCPPeer::recvHello(StellarMessage const& msg)
     } else
     { // we called this guy
         // only lower numFailures if we were successful connecting out to him
-        time_t rawtime;
-        struct tm * nextAttempt;
-
-        time(&rawtime);
-        nextAttempt = gmtime(&rawtime);
-
-        mApp.getDatabase().getSession() << "UPDATE Peers set numFailures=0 and nextAttempt=:v1 where ip=:v2 and port=:v3",
-            use(*nextAttempt), use(getIP()), use(getRemoteListeningPort());
+        PeerRecord pr;
+        PeerRecord::loadPeerRecord(mApp.getDatabase(), getIP(), getRemoteListeningPort(), pr);
+        pr.mNumFailures = 0;
+        pr.mNextAttempt = mApp.getClock().now();
+        pr.storePeerRecord(mApp.getDatabase());
     } 
 }
 

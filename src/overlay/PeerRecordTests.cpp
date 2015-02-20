@@ -16,17 +16,17 @@ TEST_CASE("toXdr", "[overlay][PeerRecord]")
     VirtualClock clock;
     Application app{ clock, getTestConfig() };
     PeerRecord pr;
-    REQUIRE(PeerRecord::fromIPPort("1.25.50.200:256", 15, clock, pr));
+    PeerRecord::fromIPPort("1.25.50.200:256", 15, clock, pr);
     pr.mNumFailures = 2;
 
     SECTION("fromIPPort and toXdr")
     {
         REQUIRE(pr.mIP == "1.25.50.200");
         REQUIRE(pr.mPort == 256);
-        REQUIRE(pr.mRank == 2);
+        REQUIRE(pr.mRank == 1);
 
         PeerAddress xdr;
-        REQUIRE(pr.toXdr(xdr));
+        pr.toXdr(xdr);
         REQUIRE(xdr.port == 256);
         REQUIRE(xdr.ip[0] == 1);
         REQUIRE(xdr.ip[1] == 25);

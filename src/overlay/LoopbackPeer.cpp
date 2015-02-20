@@ -303,8 +303,8 @@ LoopbackPeerConnection::LoopbackPeerConnection(Application& initiator,
     mAcceptor->mRemote = mInitiator;
     mAcceptor->mState = Peer::CONNECTED;
 
-    initiator.getPeerMaster().addPeer(mInitiator);
-    acceptor.getPeerMaster().addPeer(mAcceptor);
+    initiator.getPeerMaster().addConnectedPeer(mInitiator);
+    acceptor.getPeerMaster().addConnectedPeer(mAcceptor);
 
     mAcceptor->connectHandler(asio::error_code());
 }

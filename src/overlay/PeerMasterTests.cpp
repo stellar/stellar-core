@@ -30,10 +30,10 @@ protected:
     void test_addPeerList()
     {
         vector<string> peers10{ "127.0.0.1:2011", "127.0.0.1:2012", "127.0.0.1:2013", "127.0.0.1:2014" };
-        peerMaster.addPeerList(peers10, 10);
+        peerMaster.storePeerList(peers10, 10);
 
         vector<string> peers3{ "127.0.0.1:201", "127.0.0.1:202", "127.0.0.1:203", "127.0.0.1:204" };
-        peerMaster.addPeerList(peers3, 3);
+        peerMaster.storePeerList(peers3, 3);
 
         rowset<row> rs = app.getDatabase().getSession().prepare << "SELECT ip,port from Peers order by rank limit 5 ";
         vector<string> actual;

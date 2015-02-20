@@ -50,7 +50,7 @@ PeerMaster::PeerMaster(Application& app)
                           {
                               if (!ec)
                               {
-                                  addConfigPeers();
+                                  storeConfigPeers();
                                   this->tick();
                               }
                           });
@@ -61,70 +61,74 @@ PeerMaster::~PeerMaster()
 {
 }
 
-void PeerMaster::connectTo(const std::string& peerStr)
+void 
+PeerMaster::connectTo(const std::string& peerStr)
 {
     PeerRecord pr;
-    if (PeerRecord::fromIPPort(peerStr, DEFAULT_PEER_PORT, mApp.getClock(), pr))
-    {
-        pr.storePeerRecord(mApp.getDatabase());
-        if(!getPeer(pr.mIP, pr.mPort))
-        {
-            pr.backOff(mApp.getClock());
-            pr.storePeerRecord(mApp.getDatabase());
+    PeerRecord::fromIPPort(peerStr, DEFAULT_PEER_PORT, mApp.getClock(), pr);
+    connectTo(pr);
+}
 
-            addPeer(Peer::pointer(new TCPPeer(mApp, pr.mIP, pr.mPort)));
-        }
+void
+PeerMaster::connectTo(PeerRecord &pr)
+{
+    if(!getConnectedPeer(pr.mIP, pr.mPort))
+    {
+        pr.backOff(mApp.getClock());
+        pr.storePeerRecord(mApp.getDatabase());
+
+        addConnectedPeer(Peer::pointer(new TCPPeer(mApp, pr.mIP, pr.mPort)));
     } else
     {
-        CLOG(ERROR, "overlay") << "couldn't parse peer: " << peerStr;
+        CLOG(ERROR, "overlay") << "couldn't parse peer: " << pr.toString();
     }
 }
 
-void PeerMaster::addPeerList(const std::vector<std::string>& list, int rank)
+void PeerMaster::storePeerList(const std::vector<std::string>& list, int rank)
 {
     for(auto peerStr : list)
     {
         PeerRecord pr;
-        if(PeerRecord::fromIPPort(peerStr, DEFAULT_PEER_PORT, mApp.getClock(), pr))
+        PeerRecord::fromIPPort(peerStr, DEFAULT_PEER_PORT, mApp.getClock(), pr);
+        if (!pr.isStored(mApp.getDatabase()))
         {
             pr.storePeerRecord(mApp.getDatabase());
-        } else
-        {
-            CLOG(ERROR, "overlay") << "couldn't parse peer: " << peerStr;
         }
     }
 }
 
-void PeerMaster::addConfigPeers()
+void PeerMaster::storeConfigPeers()
 {
-    addPeerList(mApp.getConfig().KNOWN_PEERS, 2);
-    addPeerList(mApp.getConfig().PREFERRED_PEERS, 10);
+    storePeerList(mApp.getConfig().KNOWN_PEERS, 2);
+    storePeerList(mApp.getConfig().PREFERRED_PEERS, 10);
+}
+
+void
+PeerMaster::connectToMorePeers(int max)
+{
+    vector<PeerRecord> peers;
+    PeerRecord::loadPeerRecords(mApp.getDatabase(), max, mApp.getClock().now(), peers);
+    for(auto pr : peers)
+    {
+        if(!getConnectedPeer(pr.mIP, pr.mPort))
+        {
+            connectTo(pr);
+            if (mPeers.size() >= mApp.getConfig().TARGET_PEER_CONNECTIONS)
+            {
+                break;
+            }
+        }
+    }
 }
 
 // called every 2 seconds
 void
 PeerMaster::tick()
 {
-    // if we have too few peers try to connect to more
     LOG(DEBUG) << "PeerMaster tick";
     if (mPeers.size() < mApp.getConfig().TARGET_PEER_CONNECTIONS)
     {
-        // make some outbound connections if we can
-        vector<PeerRecord> peers;
-        PeerRecord::loadPeerRecords(mApp.getDatabase(), 100, mApp.getClock().now(), peers);
-        for(auto pr : peers)
-        {
-            if(!getPeer(pr.mIP, pr.mPort))
-            {
-                pr.backOff(mApp.getClock());
-                pr.storePeerRecord(mApp.getDatabase());
-                addPeer(Peer::pointer(new TCPPeer(mApp, pr.mIP, pr.mPort)));
-                if (mPeers.size() >= mApp.getConfig().TARGET_PEER_CONNECTIONS)
-                {
-                    break;
-                }
-            }
-        }
+        connectToMorePeers(static_cast<size_t>(mApp.getConfig().TARGET_PEER_CONNECTIONS) - mPeers.size());
     }
 
 
@@ -138,7 +142,7 @@ PeerMaster::tick()
                       });
 }
 
-Peer::pointer PeerMaster::getPeer(const std::string& ip, int port)
+Peer::pointer PeerMaster::getConnectedPeer(const std::string& ip, int port)
 {
     for(auto peer : mPeers)
     {
@@ -157,7 +161,7 @@ PeerMaster::ledgerClosed(LedgerHeader& ledger)
 }
 
 void
-PeerMaster::addPeer(Peer::pointer peer)
+PeerMaster::addConnectedPeer(Peer::pointer peer)
 {
     mPeers.push_back(peer);
 }
