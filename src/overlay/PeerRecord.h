@@ -32,7 +32,7 @@ public:
             mRank == other.mRank;
     }
 
-    static bool PeerRecord::fromIPPort(const string &ipPort, int defaultPort, VirtualClock &clock, PeerRecord &ret);
+    static bool fromIPPort(const string &ipPort, int defaultPort, VirtualClock &clock, PeerRecord &ret);
 
 
     static bool loadPeerRecord(Database &db, string ip, int port, PeerRecord &ret);
