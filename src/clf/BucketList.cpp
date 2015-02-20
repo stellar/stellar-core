@@ -563,22 +563,6 @@ BucketList::mask(uint64_t v, uint64_t m)
     return v & ~(m - 1);
 }
 
-size_t
-BucketList::numLevels(uint64_t ledger)
-{
-    // Multiply ledger by 2 first, because we want the level-number to increment
-    // as soon as we're at the _half way_ point for each level.
-    ledger <<= 1;
-    size_t i = 0;
-    while (ledger)
-    {
-        i += 1;
-        ledger >>= 4;
-    }
-    assert(i <= 16);
-    return i;
-}
-
 uint256
 BucketList::getHash() const
 {
@@ -593,6 +577,12 @@ BucketList::getHash() const
 bool
 BucketList::levelShouldSpill(uint64_t ledger, size_t level)
 {
+    if (level == kNumLevels - 1)
+    {
+        // There's a max level, that never spills.
+        return false;
+    }
+
     return (ledger == mask(ledger, levelHalf(level)) ||
             ledger == mask(ledger, levelSize(level)));
 }
@@ -600,7 +590,7 @@ BucketList::levelShouldSpill(uint64_t ledger, size_t level)
 size_t
 BucketList::numLevels() const
 {
-    return mLevels.size();
+    return kNumLevels;
 }
 
 BucketLevel const&
@@ -615,15 +605,6 @@ BucketList::addBatch(Application& app, uint64_t currLedger,
                      std::vector<LedgerKey> const& deadEntries)
 {
     assert(currLedger > 0);
-    assert(numLevels(currLedger - 1) == mLevels.size());
-    size_t n = numLevels(currLedger);
-    // LOG(DEBUG) << "numlevels(" << currLedger << ") = " << n;
-    if (mLevels.size() < n)
-    {
-        // LOG(DEBUG) << "adding level!";
-        assert(n == mLevels.size() + 1);
-        mLevels.push_back(BucketLevel(n - 1));
-    }
 
     std::vector<std::shared_ptr<Bucket>> shadows;
     for (auto& level : mLevels)
@@ -688,4 +669,16 @@ BucketList::addBatch(Application& app, uint64_t currLedger,
                        shadows);
     mLevels[0].commit();
 }
+
+size_t const
+BucketList::kNumLevels = 5;
+
+BucketList::BucketList()
+{
+    for (size_t i = 0; i < kNumLevels; ++i)
+    {
+        mLevels.push_back(BucketLevel(i));
+    }
+}
+
 }

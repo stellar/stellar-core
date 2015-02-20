@@ -313,6 +313,9 @@ class BucketList
     std::vector<BucketLevel> mLevels;
 
   public:
+
+    static size_t const kNumLevels;
+
     static uint64_t levelSize(size_t level);
     static uint64_t levelHalf(size_t level);
     static bool levelShouldSpill(uint64_t ledger, size_t level);
@@ -322,6 +325,7 @@ class BucketList
     // BucketList _just_ stores a set of entries; anything else the CLF
     // wants to support should happen in another class. These operations form a
     // minimal, testable interface to BucketList.
+    BucketList();
     size_t numLevels() const;
     BucketLevel const& getLevel(size_t i) const;
     uint256 getHash() const;
