@@ -27,7 +27,7 @@ namespace stellar
     {
         inline CreateOffer::CreateOfferResultCode getInnerCode(TransactionResult const & res)
         {
-            return res.body.tr().createOfferResult().result.code();
+            return res.body.tr().createOfferResult().code();
         }
     }
 

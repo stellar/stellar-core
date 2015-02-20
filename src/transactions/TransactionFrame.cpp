@@ -6,7 +6,6 @@
 #include "main/Application.h"
 #include "xdrpp/marshal.h"
 #include <string>
-#include "lib/json/json.h"
 #include "util/Logging.h"
 #include "ledger/LedgerDelta.h"
 #include "ledger/OfferFrame.h"
@@ -22,7 +21,7 @@
 #include "transactions/SetOptionsFrame.h"
 #include "database/Database.h"
 #include "crypto/Hex.h"
-
+#include <cereal/external/base64.hpp>
 
 namespace stellar
 {
@@ -303,24 +302,32 @@ StellarMessage TransactionFrame::toStellarMessage()
     return msg;
 }
 
-void TransactionFrame::storeTransaction(LedgerMaster &ledgerMaster)
+void TransactionFrame::storeTransaction(LedgerMaster &ledgerMaster, LedgerDelta const& delta)
 {
-    soci::blob txBlob(ledgerMaster.getDatabase().getSession());
-    soci::blob txResultBlob(ledgerMaster.getDatabase().getSession());
-
     xdr::msg_ptr txBytes(xdr::xdr_to_msg(mEnvelope));
     xdr::msg_ptr txResultBytes(xdr::xdr_to_msg(mResult));
 
-    txBlob.write(0, txBytes->raw_data(), txBytes->raw_size());
-    txResultBlob.write(0, txResultBytes->raw_data(), txResultBytes->raw_size());
+    std::string txBody = base64::encode(
+        reinterpret_cast<const unsigned char *>(txBytes->raw_data()),
+        txBytes->raw_size());
+
+    std::string txResult = base64::encode(
+        reinterpret_cast<const unsigned char *>(txResultBytes->raw_data()),
+        txResultBytes->raw_size());
+
+    xdr::msg_ptr txMeta(delta.getTransactionMeta());
+
+    std::string meta = base64::encode(
+        reinterpret_cast<const unsigned char *>(txMeta->raw_data()),
+        txMeta->raw_size());
 
     string txIDString(binToHex(getContentsHash()));
 
     soci::statement st = (ledgerMaster.getDatabase().getSession().prepare <<
-        "INSERT INTO TxHistory (txID, ledgerSeq, Tx, TxResult) VALUES "\
-        "(:id,:seq,:tx,:txres)",
+        "INSERT INTO TxHistory (txID, ledgerSeq, TxBody, TxResult, TxMeta) VALUES "\
+        "(:id,:seq,:txb,:txres,:entries)",
         soci::use(txIDString), soci::use(ledgerMaster.getCurrentLedgerHeader().ledgerSeq),
-        soci::use(txBlob), soci::use(txResultBlob));
+        soci::use(txBody), soci::use(txResult), soci::use(meta));
 
     st.execute(true);
 
@@ -336,10 +343,11 @@ void TransactionFrame::dropAll(Database &db)
 
     db.getSession() <<
         "CREATE TABLE IF NOT EXISTS TxHistory (" \
-        "txID       CHARACTER(64) NOT NULL,"\
-        "ledgerSeq  INT NOT NULL CHECK (ledgerSeq >= 0),"\
-        "Tx         OID NOT NULL,"\
-        "TxResult   OID NOT NULL,"\
+        "txID          CHARACTER(64) NOT NULL,"\
+        "ledgerSeq     INT NOT NULL CHECK (ledgerSeq >= 0),"\
+        "TxBody        TEXT NOT NULL,"\
+        "TxResult      TEXT NOT NULL,"\
+        "TxMeta        TEXT NOT NULL,"\
         "PRIMARY KEY (txID, ledgerSeq)"\
         ")";
 

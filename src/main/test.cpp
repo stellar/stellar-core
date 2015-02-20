@@ -47,6 +47,7 @@ getTestConfig()
 
         // uncomment this when debugging test cases
         //gTestCfg->DATABASE = "sqlite3://test.db";
+        //gTestCfg->DATABASE = "postgresql://host=localhost dbname=test user=test password=test";
     }
     return *gTestCfg;
 }

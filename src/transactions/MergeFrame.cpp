@@ -25,7 +25,7 @@ namespace stellar
 
         if(!AccountFrame::loadAccount(mEnvelope.tx.body.destination(),otherAccount, db))
         {
-            innerResult().result.code(AccountMerge::NO_ACCOUNT);
+            innerResult().code(AccountMerge::NO_ACCOUNT);
             return false;
         }
 
@@ -38,7 +38,7 @@ namespace stellar
             use(b58Account);
         if(db.getSession().got_data())
         {
-            innerResult().result.code(AccountMerge::HAS_CREDIT);
+            innerResult().code(AccountMerge::HAS_CREDIT);
             return false;
         }
 
@@ -47,7 +47,7 @@ namespace stellar
             use(b58Account);
         if(db.getSession().got_data())
         {
-            innerResult().result.code(AccountMerge::HAS_CREDIT);
+            innerResult().code(AccountMerge::HAS_CREDIT);
             return false;
         }
         
@@ -71,7 +71,7 @@ namespace stellar
         otherAccount.storeChange(delta, db);
         mSigningAccount->storeDelete(delta, db);
 
-        innerResult().result.code(AccountMerge::SUCCESS);
+        innerResult().code(AccountMerge::SUCCESS);
         return true;
     }
 
@@ -80,7 +80,7 @@ namespace stellar
         // makes sure not merging into self
         if (mEnvelope.tx.account == mEnvelope.tx.body.destination())
         {
-            innerResult().result.code(AccountMerge::MALFORMED);
+            innerResult().code(AccountMerge::MALFORMED);
             return false;
         }
         return true;

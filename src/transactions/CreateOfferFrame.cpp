@@ -32,12 +32,12 @@ bool CreateOfferFrame::checkOfferValid(Database &db)
     {
         if (!TrustFrame::loadTrustLine(mEnvelope.tx.account, sheep, mSheepLineA, db))
         {   // we don't have what we are trying to sell
-            innerResult().result.code(CreateOffer::NO_TRUST);
+            innerResult().code(CreateOffer::NO_TRUST);
             return false;
         }
         if (mSheepLineA.getBalance() == 0)
         {
-            innerResult().result.code(CreateOffer::UNDERFUNDED);
+            innerResult().code(CreateOffer::UNDERFUNDED);
             return false;
         }
     }
@@ -46,13 +46,13 @@ bool CreateOfferFrame::checkOfferValid(Database &db)
     {
         if(!TrustFrame::loadTrustLine(mEnvelope.tx.account, wheat, mWheatLineA, db))
         {   // we can't hold what we are trying to buy
-            innerResult().result.code(CreateOffer::NO_TRUST);
+            innerResult().code(CreateOffer::NO_TRUST);
             return false;
         }
 
         if(!mWheatLineA.getTrustLine().authorized)
         {   // we are not authorized to hold what we are trying to buy
-            innerResult().result.code(CreateOffer::NOT_AUTHORIZED);
+            innerResult().code(CreateOffer::NOT_AUTHORIZED);
             return false;
         }
     }
@@ -97,12 +97,12 @@ bool CreateOfferFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
             if(!compareCurrency(mEnvelope.tx.body.createOfferTx().takerGets, mSellSheepOffer.getOffer().takerGets) ||
                 !compareCurrency(mEnvelope.tx.body.createOfferTx().takerPays, mSellSheepOffer.getOffer().takerPays))
             {
-                innerResult().result.code(CreateOffer::MALFORMED);
+                innerResult().code(CreateOffer::MALFORMED);
                 return false;
             }
         } else
         {
-            innerResult().result.code(CreateOffer::NOT_FOUND);
+            innerResult().code(CreateOffer::NOT_FOUND);
             return false;
         }
     }
@@ -129,7 +129,7 @@ bool CreateOfferFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
 
     Price sheepPrice = mEnvelope.tx.body.createOfferTx().price;
 
-    innerResult().result.code(CreateOffer::SUCCESS);
+    innerResult().code(CreateOffer::SUCCESS);
 
     {
         soci::transaction sqlTx(db.getSession());
@@ -152,7 +152,7 @@ bool CreateOfferFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
                 if (o.getAccountID() == mSigningAccount->getID())
                 {
                     // we are crossing our own offer
-                    innerResult().result.code(CreateOffer::CROSS_SELF);
+                    innerResult().code(CreateOffer::CROSS_SELF);
                     return OfferExchange::eStop;
                 }
                 return OfferExchange::eKeep;
@@ -168,7 +168,7 @@ bool CreateOfferFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
         case OfferExchange::ePartial:
             break;
         case OfferExchange::eFilterStop:
-            if (innerResult().result.code() != CreateOffer::SUCCESS)
+            if (innerResult().code() != CreateOffer::SUCCESS)
             {
                 return false;
             }
@@ -180,7 +180,7 @@ bool CreateOfferFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
 
         for (auto oatom : oe.getOfferTrail())
         {
-            innerResult().result.success().offersClaimed.push_back(oatom);
+            innerResult().success().offersClaimed.push_back(oatom);
         }
 
         if (wheatReceived > 0)
@@ -226,12 +226,12 @@ bool CreateOfferFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
                 if (mSigningAccount->getAccount().balance <
                     ledgerMaster.getMinBalance(mSigningAccount->getAccount().ownerCount + 1))
                 {
-                    innerResult().result.code(CreateOffer::UNDERFUNDED);
+                    innerResult().code(CreateOffer::UNDERFUNDED);
                     return false;
                 }
 
-                innerResult().result.success().offer.effect(CreateOffer::CREATED);
-                innerResult().result.success().offer.offerCreated() = mSellSheepOffer.getOffer();
+                innerResult().success().offer.effect(CreateOffer::CREATED);
+                innerResult().success().offer.offerCreated() = mSellSheepOffer.getOffer();
                 mSellSheepOffer.storeAdd(tempDelta, db);
 
                 mSigningAccount->getAccount().ownerCount++;
@@ -239,13 +239,13 @@ bool CreateOfferFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
             }
             else
             {
-                innerResult().result.success().offer.effect(CreateOffer::UPDATED);
+                innerResult().success().offer.effect(CreateOffer::UPDATED);
                 mSellSheepOffer.storeChange(tempDelta, db);
             }
         }
         else
         {
-            innerResult().result.success().offer.effect(CreateOffer::EMPTY);
+            innerResult().success().offer.effect(CreateOffer::EMPTY);
 
             if (!creatingNewOffer)
             {

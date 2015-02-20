@@ -79,7 +79,7 @@ namespace stellar
 
         // transaction history
 
-        void storeTransaction(LedgerMaster &ledgerMaster);
+        void storeTransaction(LedgerMaster &ledgerMaster, LedgerDelta const& delta);
         static void dropAll(Database &db);
 
     };

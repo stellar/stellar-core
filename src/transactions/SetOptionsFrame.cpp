@@ -61,7 +61,7 @@ namespace stellar
                     if( mSigningAccount->getAccount().balance < 
                         ledgerMaster.getMinBalance(mSigningAccount->getAccount().ownerCount + 1))
                     {
-                        innerResult().result.code(SetOptions::BELOW_MIN_BALANCE);
+                        innerResult().code(SetOptions::BELOW_MIN_BALANCE);
                         return false;
                     }
                     mSigningAccount->getAccount().ownerCount++;
@@ -87,7 +87,7 @@ namespace stellar
             mSigningAccount->setUpdateSigners();
         }
         
-        innerResult().result.code(SetOptions::SUCCESS);
+        innerResult().code(SetOptions::SUCCESS);
         mSigningAccount->storeChange(delta, db);
         return true;
     }
@@ -98,7 +98,7 @@ namespace stellar
         {
             if ((*mEnvelope.tx.body.setOptionsTx().setFlags & *mEnvelope.tx.body.setOptionsTx().clearFlags) != 0)
             {
-                innerResult().result.code(SetOptions::MALFORMED);
+                innerResult().code(SetOptions::MALFORMED);
                 return false;
             }
         }
