@@ -141,6 +141,7 @@ Application::Application(VirtualClock& clock, Config const& cfg)
     // These must be constructed _after_ mImpl points to a
     // full Impl object, because they frequently call back
     // into App.getFoo() to get information / start up.
+    mImpl->mMetrics = make_unique<medida::MetricsRegistry>();
     mImpl->mTmpDirMaster = make_unique<TmpDirMaster>(cfg.TMP_DIR_PATH);
     mImpl->mPeerMaster = make_unique<PeerMaster>(*this);
     mImpl->mLedgerMaster = make_unique<LedgerMaster>(*this);
