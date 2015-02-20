@@ -227,67 +227,7 @@ namespace stellar
 
 
 class Application;
-
-/**
- * Bucket is an immutable container for a sorted set of "Entries" (object ID,
- * hash, xdr-message tuples) which is designed to be held in a shared_ptr<>
- * which is referenced between threads, to minimize copying. It is therefore
- * imperative that it be _really_ immutable, not just faking it.
- *
- * Two buckets can be merged together efficiently (in a single pass): elements
- * from the newer bucket overwrite elements from the older bucket, the rest are
- * merged in sorted order, and all elements are hashed while being added.
- */
-
-class Bucket : public std::enable_shared_from_this<Bucket>
-{
-
-  private:
-
-    // Assuming an object is ~256 bytes and we might have as many as 100 buckets
-    // in memory at a time (due to history operations, hashing, and the
-    // naturally-occurring 10 buckets we get from 5 levels): Allocating a 1GB
-    // memory cap gives us 10MB per bucket. Rounding down a touch to 2^23 bytes
-    // (8MB) gives us 2^15 objects before we spill to disk.
-    static size_t const kMaxMemoryObjectsPerBucket = 1 << 15;
-
-    // If mSpilledToFile, then filename is empty, mEntries contains entries;
-    // else filename is non-empty, it names an XDR file with entries and
-    // mEntries is empty. In both cases mHash is valid.
-    bool const mSpilledToFile;
-    std::vector<CLFEntry> const mEntries;
-    uint256 const mHash;
-    std::string mFilename;
-
-  public:
-
-    class InputIterator;
-    class OutputIterator;
-
-    Bucket();
-    ~Bucket();
-    Bucket(std::string const& tmpDir,
-           std::vector<CLFEntry> const& entries,
-           uint256 const& hash);
-    Bucket(std::string const& filename, uint256 const& hash);
-    std::vector<CLFEntry> const& getEntries() const;
-    uint256 const& getHash() const;
-    std::string const& getFilename() const;
-    bool isSpilledToFile() const;
-    bool containsCLFIdentity(CLFEntry const& id) const;
-
-    static std::shared_ptr<Bucket>
-    fresh(std::string const& tmpDir,
-          std::vector<LedgerEntry> const& liveEntries,
-          std::vector<LedgerKey> const& deadEntries);
-
-    static std::shared_ptr<Bucket>
-    merge(std::string const& tmpDir,
-          std::shared_ptr<Bucket> const& oldBucket,
-          std::shared_ptr<Bucket> const& newBucket,
-          std::vector<std::shared_ptr<Bucket>> const& shadows =
-          std::vector<std::shared_ptr<Bucket>>());
-};
+class Bucket;
 
 class BucketLevel
 {

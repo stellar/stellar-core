@@ -22,6 +22,23 @@
 
 using namespace stellar;
 
+
+
+static std::ifstream::pos_type
+fileSize(std::string const& name)
+{
+    assert(TmpDir::exists(name));
+    std::ifstream in(name, std::ifstream::ate | std::ifstream::binary);
+    return in.tellg();
+}
+
+static size_t
+countEntries(std::shared_ptr<Bucket> bucket)
+{
+    auto pair = bucket->countLiveAndDeadEntries();
+    return pair.first + pair.second;
+}
+
 TEST_CASE("bucket list", "[clf]")
 {
     VirtualClock clock;
@@ -42,8 +59,8 @@ TEST_CASE("bucket list", "[clf]")
             for (size_t j = 0; j < bl.numLevels(); ++j)
             {
                 auto const& lev = bl.getLevel(j);
-                auto currSz = lev.getCurr()->getEntries().size();
-                auto snapSz = lev.getSnap()->getEntries().size();
+                auto currSz = countEntries(lev.getCurr());
+                auto snapSz = countEntries(lev.getSnap());
                 // LOG(DEBUG) << "level " << j
                 //            << " curr=" << currSz
                 //            << " snap=" << snapSz;
@@ -97,42 +114,36 @@ TEST_CASE("bucket list shadowing", "[clf]")
 
         bl.addBatch(app, i, liveBatch, deadGen(5));
         if (i % 100 == 0)
-            LOG(DEBUG) << "Added batch " << i << ", hash=" << binToHex(bl.getHash());
-
         {
-            // Alice and bob should be in either curr or snap of level 0
-            auto curr0 = bl.getLevel(0).getCurr();
-            auto snap0 = bl.getLevel(0).getSnap();
-            bool hasAlice = (curr0->containsCLFIdentity(CLFAlice) ||
-                snap0->containsCLFIdentity(CLFAlice));
-            bool hasBob = (curr0->containsCLFIdentity(CLFBob) ||
-                snap0->containsCLFIdentity(CLFBob));
-            CHECK(hasAlice);
-            CHECK(hasBob);
-        }
+            CLOG(DEBUG, "CLF") << "Added batch " << i << ", hash=" << binToHex(bl.getHash());
+            {
+                // Alice and bob should be in either curr or snap of level 0
+                auto curr0 = bl.getLevel(0).getCurr();
+                auto snap0 = bl.getLevel(0).getSnap();
+                bool hasAlice = (curr0->containsCLFIdentity(CLFAlice) ||
+                                 snap0->containsCLFIdentity(CLFAlice));
+                bool hasBob = (curr0->containsCLFIdentity(CLFBob) ||
+                               snap0->containsCLFIdentity(CLFBob));
+                CHECK(hasAlice);
+                CHECK(hasBob);
+            }
 
-        // Alice and Bob should never occur in level 1 .. N because they
-        // were shadowed in level 0 continuously.
-        for (size_t j = 1; j < bl.numLevels(); ++j)
-        {
-            auto const& lev = bl.getLevel(j);
-            auto curr = lev.getCurr();
-            auto snap = lev.getSnap();
-            bool hasAlice = (curr->containsCLFIdentity(CLFAlice) ||
-                             snap->containsCLFIdentity(CLFAlice));
-            bool hasBob = (curr->containsCLFIdentity(CLFBob) ||
-                           snap->containsCLFIdentity(CLFBob));
-            CHECK(!hasAlice);
-            CHECK(!hasBob);
+            // Alice and Bob should never occur in level 1 .. N because they
+            // were shadowed in level 0 continuously.
+            for (size_t j = 1; j < bl.numLevels(); ++j)
+            {
+                auto const& lev = bl.getLevel(j);
+                auto curr = lev.getCurr();
+                auto snap = lev.getSnap();
+                bool hasAlice = (curr->containsCLFIdentity(CLFAlice) ||
+                                 snap->containsCLFIdentity(CLFAlice));
+                bool hasBob = (curr->containsCLFIdentity(CLFBob) ||
+                               snap->containsCLFIdentity(CLFBob));
+                CHECK(!hasAlice);
+                CHECK(!hasBob);
+            }
         }
     }
-}
-
-static std::ifstream::pos_type
-fileSize(std::string const& name)
-{
-    std::ifstream in(name, std::ifstream::ate | std::ifstream::binary);
-    return in.tellg();
 }
 
 TEST_CASE("file-backed buckets", "[clf]")
@@ -140,7 +151,6 @@ TEST_CASE("file-backed buckets", "[clf]")
     VirtualClock clock;
     Config const& cfg = getTestConfig();
     Application app(clock, cfg);
-    std::string tmpDir = app.getCLFMaster().getTmpDir();
 
     autocheck::generator<LedgerEntry> liveGen;
     autocheck::generator<LedgerKey> deadGen;
@@ -152,7 +162,7 @@ TEST_CASE("file-backed buckets", "[clf]")
     for (auto &e : dead)
         e = deadGen(3);
     LOG(DEBUG) << "Hashing entries";
-    std::shared_ptr<Bucket> b1 = Bucket::fresh(tmpDir, live, dead);
+    std::shared_ptr<Bucket> b1 = Bucket::fresh(app.getCLFMaster(), live, dead);
     for (size_t i = 0; i < 5; ++i)
     {
         LOG(DEBUG) << "Merging 10000 new ledger entries into "
@@ -163,11 +173,10 @@ TEST_CASE("file-backed buckets", "[clf]")
             e = deadGen(3);
         {
             TIMED_SCOPE(timerObj2, "merge");
-            b1 = Bucket::merge(tmpDir, b1,
-                               Bucket::fresh(tmpDir, live, dead));
+            b1 = Bucket::merge(app.getCLFMaster(), b1,
+                               Bucket::fresh(app.getCLFMaster(), live, dead));
         }
     }
-    CHECK(b1->isSpilledToFile());
     LOG(DEBUG) << "Spill file size: " << fileSize(b1->getFilename());
 }
 
@@ -177,7 +186,6 @@ TEST_CASE("merging clf entries", "[clf]")
     VirtualClock clock;
     Config const& cfg = getTestConfig();
     Application app(clock, cfg);
-    std::string tmpDir = app.getCLFMaster().getTmpDir();
 
     LedgerEntry liveEntry;
     LedgerKey deadEntry;
@@ -196,8 +204,8 @@ TEST_CASE("merging clf entries", "[clf]")
         deadEntry.account().accountID = liveEntry.account().accountID;
         std::vector<LedgerEntry> live { liveEntry };
         std::vector<LedgerKey> dead { deadEntry };
-        std::shared_ptr<Bucket> b1 = Bucket::fresh(tmpDir, live, dead);
-        CHECK(b1->getEntries().size() == 1);
+        std::shared_ptr<Bucket> b1 = Bucket::fresh(app.getCLFMaster(), live, dead);
+        CHECK(countEntries(b1) == 1);
     }
 
     SECTION("dead trustline entry annaihilates live trustline entry")
@@ -209,8 +217,8 @@ TEST_CASE("merging clf entries", "[clf]")
         deadEntry.trustLine().currency = liveEntry.trustLine().currency;
         std::vector<LedgerEntry> live { liveEntry };
         std::vector<LedgerKey> dead { deadEntry };
-        std::shared_ptr<Bucket> b1 = Bucket::fresh(tmpDir, live, dead);
-        CHECK(b1->getEntries().size() == 1);
+        std::shared_ptr<Bucket> b1 = Bucket::fresh(app.getCLFMaster(), live, dead);
+        CHECK(countEntries(b1) == 1);
     }
 
     SECTION("dead offer entry annaihilates live offer entry")
@@ -222,8 +230,8 @@ TEST_CASE("merging clf entries", "[clf]")
         deadEntry.offer().sequence = liveEntry.offer().sequence;
         std::vector<LedgerEntry> live { liveEntry };
         std::vector<LedgerKey> dead { deadEntry };
-        std::shared_ptr<Bucket> b1 = Bucket::fresh(tmpDir, live, dead);
-        CHECK(b1->getEntries().size() == 1);
+        std::shared_ptr<Bucket> b1 = Bucket::fresh(app.getCLFMaster(), live, dead);
+        CHECK(countEntries(b1) == 1);
     }
 
     SECTION("random dead entries annaihilate live entries")
@@ -238,17 +246,10 @@ TEST_CASE("merging clf entries", "[clf]")
                 dead.push_back(LedgerEntryKey(e));
             }
         }
-        std::shared_ptr<Bucket> b1 = Bucket::fresh(tmpDir, live, dead);
-        CHECK(b1->getEntries().size() == live.size());
-        size_t liveCount = 0;
-        for (auto const& e : b1->getEntries())
-        {
-            if (e.entry.type() == LIVEENTRY)
-            {
-                liveCount++;
-            }
-        }
-        LOG(DEBUG) << "post-merge live count: " << liveCount << " of " << live.size();
+        std::shared_ptr<Bucket> b1 = Bucket::fresh(app.getCLFMaster(), live, dead);
+        CHECK(countEntries(b1) == live.size());
+        auto liveCount = b1->countLiveAndDeadEntries().first;
+        CLOG(DEBUG, "CLF") << "post-merge live count: " << liveCount << " of " << live.size();
         CHECK(liveCount == live.size() - dead.size());
     }
 
@@ -260,7 +261,7 @@ TEST_CASE("merging clf entries", "[clf]")
         {
             e = leGen(10);
         }
-        std::shared_ptr<Bucket> b1 = Bucket::fresh(tmpDir, live, dead);
+        std::shared_ptr<Bucket> b1 = Bucket::fresh(app.getCLFMaster(), live, dead);
         std::random_shuffle(live.begin(), live.end());
         size_t liveCount = live.size();
         for (auto& e : live)
@@ -271,8 +272,77 @@ TEST_CASE("merging clf entries", "[clf]")
                 ++liveCount;
             }
         }
-        std::shared_ptr<Bucket> b2 = Bucket::fresh(tmpDir, live, dead);
-        std::shared_ptr<Bucket> b3 = Bucket::merge(tmpDir, b1, b2);
-        CHECK(b3->getEntries().size() == liveCount);
+        std::shared_ptr<Bucket> b2 = Bucket::fresh(app.getCLFMaster(), live, dead);
+        std::shared_ptr<Bucket> b3 = Bucket::merge(app.getCLFMaster(), b1, b2);
+        CHECK(countEntries(b3) == liveCount);
     }
+}
+
+
+TEST_CASE("clfmaster ownership", "[clf]")
+{
+    VirtualClock clock;
+    Config const& cfg = getTestConfig();
+    Application app(clock, cfg);
+
+    autocheck::generator<LedgerEntry> leGen;
+    std::vector<LedgerEntry> live { leGen(10) };
+    std::vector<LedgerKey> dead { };
+
+    std::shared_ptr<Bucket> b1;
+
+    {
+        std::shared_ptr<Bucket> b2 = Bucket::fresh(app.getCLFMaster(), live, dead);
+        b1 = b2;
+
+        // Bucket is referenced by b1, b2 and the CLFMaster.
+        CHECK(b1.use_count() == 3);
+
+        std::shared_ptr<Bucket> b3 = Bucket::fresh(app.getCLFMaster(), live, dead);
+        std::shared_ptr<Bucket> b4 = Bucket::fresh(app.getCLFMaster(), live, dead);
+        // Bucket is referenced by b1, b2, b3, b4 and the CLFMaster.
+        CHECK(b1.use_count() == 5);
+    }
+
+    // Bucket is now only referenced by b1 and the CLFMaster.
+    CHECK(b1.use_count() == 2);
+
+    // Drop CLFMaster's reference, down to just b1.
+    app.getCLFMaster().forgetUnreferencedBuckets();
+    CHECK(b1.use_count() == 1);
+
+    // Drop it too.
+    std::string filename = b1->getFilename();
+    CHECK(TmpDir::exists(filename));
+    b1.reset();
+    CHECK(!TmpDir::exists(filename));
+
+    // Try adding a bucket to the CLFMaster's bucketlist
+    auto& bl = app.getCLFMaster().getBucketList();
+    bl.addBatch(app, 1, live, dead);
+    b1 = bl.getLevel(0).getCurr();
+
+    // Bucket should be referenced by bucketlist itself, CLFMaster cache and b1.
+    CHECK(b1.use_count() == 3);
+
+    // This shouldn't change if we forget unreferenced buckets since it's
+    // referenced by bucketlist.
+    app.getCLFMaster().forgetUnreferencedBuckets();
+    CHECK(b1.use_count() == 3);
+
+    // But if we mutate the curr bucket of the bucketlist, it should.
+    live[0] = leGen(10);
+    bl.addBatch(app, 1, live, dead);
+    CHECK(b1.use_count() == 2);
+    app.getCLFMaster().forgetUnreferencedBuckets();
+    CHECK(b1.use_count() == 1);
+
+    // Drop it again.
+    filename = b1->getFilename();
+    CHECK(TmpDir::exists(filename));
+    b1.reset();
+    CHECK(!TmpDir::exists(filename));
+
+
+
 }

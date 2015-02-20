@@ -6,6 +6,7 @@ noinst_LTLIBRARIES = libsoci.la
 bin_PROGRAMS = bin/stellard
 
 FMT_SRCS =                                      \
+    src/clf/Bucket.cpp                          \
     src/clf/BucketList.cpp                      \
     src/clf/CLFMaster.cpp                       \
     src/clf/CLFTests.cpp                        \
@@ -84,6 +85,7 @@ FMT_SRCS =                                      \
     src/util/types.cpp
 
 FMT_HDRS =                                      \
+    src/clf/Bucket.h                            \
     src/clf/BucketList.h                        \
     src/clf/CLFMaster.h                         \
     src/clf/LedgerCmp.h                         \
