@@ -375,12 +375,6 @@
     <ClCompile Include="..\..\src\clf\CLFTests.cpp">
       <Filter>clf\tests</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\overlay\PeerRecordTests.cpp">
-      <Filter>overlay</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\overlay\PeerRecord.cpp">
-      <Filter>overlay</Filter>
-    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\ledger\LedgerGateway.h">
@@ -622,9 +616,6 @@
     </ClInclude>
     <ClInclude Include="..\..\src\clf\Bucket.h">
       <Filter>clf</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\overlay\PeerRecord.h">
-      <Filter>overlay</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

@@ -175,11 +175,12 @@ void PeerRecord::dropAll(Database &db)
 
 const char* PeerRecord::kSQLCreateStatement = "CREATE TABLE IF NOT EXISTS Peers (						\
 	peerID	INT DEFAULT 0,	\
-    ip	    CHARACTER(11) PRIMARY KEY,		        \
+    ip	    CHARACTER(11),   \
     port   	INT DEFAULT 0 CHECK (port >= 0),		\
     nextAttempt   	TIMESTAMP,	    	\
     numFailures     INT DEFAULT 0 CHECK (numFailures >= 0),      \
-    rank	INT DEFAULT 0 CHECK (rank >= 0)  	\
+    rank	INT DEFAULT 0 CHECK (rank >= 0), 	\
+    UNIQUE (ip, port)                      \
 );";
 
 }
