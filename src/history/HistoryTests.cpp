@@ -7,6 +7,8 @@
 #include "history/HistoryArchive.h"
 #include "main/test.h"
 #include "main/Config.h"
+#include "clf/CLFMaster.h"
+#include "clf/BucketList.h"
 #include "crypto/Hex.h"
 #include "lib/catch.hpp"
 #include "util/Logging.h"
@@ -139,6 +141,44 @@ TEST_CASE_METHOD(HistoryTests, "HistoryArchiveState::get_put", "[history]")
                     done = true;
                 });
         });
+    while (!done && !app.getMainIOService().stopped())
+    {
+        app.crank();
+    }
+}
+
+
+TEST_CASE_METHOD(HistoryTests, "History publish", "[history]")
+{
+    HistoryMaster &hm = app.getHistoryMaster();
+
+    auto i = app.getConfig().HISTORY.find("test");
+    CHECK(i != app.getConfig().HISTORY.end());
+    auto archive = i->second;
+    HistoryArchiveState has;
+    has.currentLedger = 0;
+
+    bool done = false;
+    archive->putState(
+        app, has,
+        [&done, &hm, this](asio::error_code const& ec)
+        {
+            CHECK(!ec);
+
+            // Make some changes, then publish them.
+            autocheck::generator<LedgerEntry> leGen;
+            std::vector<LedgerEntry> live { leGen(10) };
+            std::vector<LedgerKey> dead { };
+            this->app.getCLFMaster().getBucketList().addBatch(app, 1, live, dead);
+
+            hm.publishHistory(
+                [&done](asio::error_code const& ec)
+                {
+                    CHECK(!ec);
+                    done = true;
+                });
+        });
+
     while (!done && !app.getMainIOService().stopped())
     {
         app.crank();
