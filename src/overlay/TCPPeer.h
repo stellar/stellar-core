@@ -34,8 +34,6 @@ class TCPPeer : public Peer
     void readBodyHandler(const asio::error_code& error,
                          std::size_t bytes_transferred);
 
-    static const char* kSQLCreateStatement;
-
   public:
     TCPPeer(Application& app, std::shared_ptr<asio::ip::tcp::socket> socket);
     TCPPeer(Application& app, std::string& ip, int port);

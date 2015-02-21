@@ -27,7 +27,7 @@ using namespace stellar::txtest;
 
 typedef std::unique_ptr<Application> appPtr;
 
-TEST_CASE("standalone", "[hrd]")
+TEST_CASE("standalone", "[herder]")
 {
     SIMULATION_CREATE_NODE(0);
 
@@ -105,7 +105,7 @@ TEST_CASE("standalone", "[hrd]")
 //  account can't pay for all the tx
 //  account has just enough for all the tx
 //  tx from account not in the DB
-TEST_CASE("recvTx", "[hrd]")
+TEST_CASE("recvTx", "[herder]")
 {
 }
 
@@ -117,7 +117,7 @@ TEST_CASE("recvTx", "[hrd]")
 //   account can't pay for all the tx
 //   account has just enough for all the tx
 //   tx from account not in the DB 
-TEST_CASE("txset", "[hrd]")
+TEST_CASE("txset", "[herder]")
 {
 }
 

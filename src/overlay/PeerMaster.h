@@ -6,6 +6,7 @@
 
 #include "Peer.h"
 #include "PeerDoor.h"
+#include "PeerRecord.h"
 #include "overlay/ItemFetcher.h"
 #include "overlay/Floodgate.h"
 #include <vector>
@@ -33,9 +34,8 @@ class PeerMaster : public OverlayGateway
     void tick();
     VirtualTimer mTimer;
 
-    bool parseIPPort(const std::string& peerStr,std::string& retIP,int& retPort);
-    void addPeerList(const std::vector<std::string>& list,int rank);
-    void addConfigPeers();
+    void storePeerList(const std::vector<std::string>& list,int rank);
+    void storeConfigPeers();
     bool isPeerPreferred(Peer::pointer peer);
 
     friend class PeerMasterTests;
@@ -56,18 +56,19 @@ class PeerMaster : public OverlayGateway
     //////
 
     void connectTo(const std::string& addr);
-    void addPeer(Peer::pointer peer);
+    void connectTo(PeerRecord &pr);
+    void connectToMorePeers(int max);
+    void addConnectedPeer(Peer::pointer peer);
     void dropPeer(Peer::pointer peer);
     bool isPeerAccepted(Peer::pointer peer);
     std::vector<Peer::pointer>& getPeers() { return mPeers;  }
 
-    Peer::pointer getPeer(const std::string& ip, int port);
+    Peer::pointer getConnectedPeer(const std::string& ip, int port);
     Peer::pointer getRandomPeer();
     // returns NULL if the passed peer isn't found
     Peer::pointer getNextPeer(Peer::pointer peer);
 
-    static void createTable(Database &db);
-    static const char *kSQLCreateStatement;
+    static void dropAll(Database &db);
 
 };
 }

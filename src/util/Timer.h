@@ -63,6 +63,7 @@ public:
 
     static std::time_t pointToTimeT(time_point);
     static std::tm pointToTm(time_point);
+    static VirtualClock::time_point tmToPoint(tm t);
     static std::string tmToISOString(std::tm const& tm);
     static std::string pointToISOString(time_point point);
 

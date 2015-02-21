@@ -326,7 +326,7 @@ TEST_CASE("Randomised test of Herder, 50 accounts, 40 transactions", "[hrd-rando
 
     return herderStressTest(nNodes, quorumThresold, nAccounts, nTransactions, injectionRate, paretoAlpha);
 }
-
+/*
 TEST_CASE("Stress test of Herder, 1000 accounts, 100k transactions", "[hrd-stress][hide]")
 {
     int nNodes = 1;
@@ -339,6 +339,6 @@ TEST_CASE("Stress test of Herder, 1000 accounts, 100k transactions", "[hrd-stres
 
     return herderStressTest(nNodes, quorumThresold, nAccounts, nTransactions, injectionRate, paretoAlpha);
 }
-
+*/
 
 }

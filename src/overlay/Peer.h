@@ -8,33 +8,26 @@
 #include "xdrpp/message.h"
 #include "generated/StellarXDR.h"
 #include "generated/FBAXDR.h"
+#include "util/Timer.h"
+#include "database/Database.h"
 
 namespace stellar
 {
-typedef std::shared_ptr<FBAQuorumSet> FBAQuorumSetPtr;
+
+using namespace std;
+typedef shared_ptr<FBAQuorumSet> FBAQuorumSetPtr;
 
 class Application;
 class LoopbackPeer;
 
-class PeerRecord
-{
-public:
-    int mPeerID;
-    std::string mIP;
-    int mPort;
-    int mNumFailures;
-    PeerRecord(int id,const std::string& ip,int port,int fails) : mPeerID(id), mIP(ip), mPort(port), mNumFailures(fails){ }
-};
-
 /*
  * Another peer out there that we are connected to
  */
-class Peer : public std::enable_shared_from_this<Peer>
+class Peer : public enable_shared_from_this<Peer>
 {
-    static bool ipFromStr(std::string ipStr, xdr::opaque_array<4U>& ret);
 
   public:
-    typedef std::shared_ptr<Peer> pointer;
+    typedef shared_ptr<Peer> pointer;
 
     enum PeerState
     {
@@ -57,7 +50,7 @@ class Peer : public std::enable_shared_from_this<Peer>
     PeerState mState;
     uint256 mPeerID;
 
-    std::string mRemoteVersion;
+    string mRemoteVersion;
     int mRemoteProtocolVersion;
     int mRemoteListeningPort;
     void recvMessage(StellarMessage const& msg);
@@ -124,7 +117,7 @@ class Peer : public std::enable_shared_from_this<Peer>
         return mState;
     }
 
-    std::string const&
+    string const&
     getRemoreVersion() const
     {
         return mRemoteVersion;
@@ -147,24 +140,24 @@ class Peer : public std::enable_shared_from_this<Peer>
     virtual void connectHandler(const asio::error_code& ec);
     
     virtual void
-    writeHandler(const asio::error_code& error, std::size_t bytes_transferred)
+    writeHandler(const asio::error_code& error, size_t bytes_transferred)
     {
     }
     
     virtual void
     readHeaderHandler(const asio::error_code& error,
-                      std::size_t bytes_transferred)
+                      size_t bytes_transferred)
     {
     }
 
     virtual void
     readBodyHandler(const asio::error_code& error,
-                    std::size_t bytes_transferred)
+                    size_t bytes_transferred)
     {
     }
 
     virtual void drop() = 0;
-    virtual std::string getIP() = 0;
+    virtual string getIP() = 0;
     virtual ~Peer()
     {
     }

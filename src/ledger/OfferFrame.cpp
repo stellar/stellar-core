@@ -99,7 +99,6 @@ namespace stellar
     }
     
 
-    // TODO: move this and related SQL code to OfferFrame
     static const char *offerColumnSelector =
         "SELECT accountID,sequence,paysIsoCurrency,paysIssuer,"\
         "getsIsoCurrency,getsIssuer,amount,priceN,priceD,flags FROM Offers";
