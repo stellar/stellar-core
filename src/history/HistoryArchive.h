@@ -40,6 +40,8 @@ struct HistoryArchiveState
     unsigned currentLedger;
     std::vector<HistoryStateBucket> currentBuckets;
 
+    HistoryArchiveState();
+
     static std::string basename();
 
     template <class Archive>

@@ -2,6 +2,8 @@
 // under the ISC License. See the COPYING file at the top-level directory of
 // this distribution or at http://opensource.org/licenses/ISC
 
+#include "clf/BucketList.h"
+#include "crypto/Hex.h"
 #include "history/HistoryArchive.h"
 #include "history/HistoryMaster.h"
 #include "process/ProcessGateway.h"
@@ -55,6 +57,20 @@ HistoryArchiveState::basename()
 {
     return std::string("stellar-history.json");
 }
+
+HistoryArchiveState::HistoryArchiveState()
+{
+    uint256 u;
+    std::string s = binToHex(u);
+    HistoryStateBucket b;
+    b.curr = s;
+    b.snap = s;
+    while (currentBuckets.size() < BucketList::kNumLevels)
+    {
+        currentBuckets.push_back(b);
+    }
+}
+
 
 HistoryArchive::HistoryArchive(std::string const& name,
                                std::string const& getCmd,
