@@ -158,18 +158,28 @@ HistoryMaster::verifyHash(std::string const& filename,
 
 void
 HistoryMaster::decompress(std::string const& filename_gz,
-                          std::function<void(asio::error_code const&)> handler)
+                          std::function<void(asio::error_code const&)> handler,
+                          bool keepExisting)
 {
     checkGzipSuffix(filename_gz);
+    std::string filename = filename_gz.substr(0, filename_gz.size() - 3);
     Application& app = this->mImpl->mApp;
-    auto exit = app.getProcessGateway().runProcess("gzip -d " + filename_gz);
+    std::string commandLine("gzip -d ");
+    std::string outputFile;
+    if (keepExisting)
+    {
+        // Leave input intact, write output to stdout.
+        commandLine += "-c ";
+        outputFile = filename;
+    }
+    commandLine += filename_gz;
+    auto exit = app.getProcessGateway().runProcess(commandLine, outputFile);
     exit.async_wait(
-        [&app, filename_gz, handler](asio::error_code const& ec)
+        [&app, filename_gz, filename, handler](asio::error_code const& ec)
         {
-            std::string filename = filename_gz.substr(0, filename_gz.size() - 3);
             if (ec)
             {
-                LOG(WARNING) << "'gunzip " << filename_gz << "' failed,"
+                LOG(WARNING) << "'gzip -d " << filename_gz << "' failed,"
                              << " removing " << filename_gz
                              << " and " << filename;
                 std::remove(filename_gz.c_str());
@@ -182,17 +192,27 @@ HistoryMaster::decompress(std::string const& filename_gz,
 
 void
 HistoryMaster::compress(std::string const& filename_nogz,
-                        std::function<void(asio::error_code const&)> handler)
+                        std::function<void(asio::error_code const&)> handler,
+                        bool keepExisting)
 {
     checkNoGzipSuffix(filename_nogz);
+    std::string filename = filename_nogz + ".gz";
     Application& app = this->mImpl->mApp;
-    auto exit = app.getProcessGateway().runProcess("gzip " + filename_nogz);
+    std::string commandLine("gzip ");
+    std::string outputFile;
+    if (keepExisting)
+    {
+        // Leave input intact, write output to stdout.
+        commandLine += "-c ";
+        outputFile = filename;
+    }
+    commandLine += filename_nogz;
+    auto exit = app.getProcessGateway().runProcess(commandLine, outputFile);
     exit.async_wait(
-        [&app, filename_nogz, handler](asio::error_code const& ec)
+        [&app, filename_nogz, filename, handler](asio::error_code const& ec)
         {
             if (ec)
             {
-                std::string filename = filename_nogz + ".gz";
                 LOG(WARNING) << "'gzip " << filename_nogz << "' failed,"
                              << " removing " << filename_nogz
                              << " and " << filename;

@@ -103,11 +103,13 @@ class HistoryMaster
 
     // Gunzip a file.
     void decompress(std::string const& filename_gz,
-                    std::function<void(asio::error_code const&)> handler);
+                    std::function<void(asio::error_code const&)> handler,
+                    bool keepExisting=false);
 
     // Gzip a file.
     void compress(std::string const& filename_nogz,
-                  std::function<void(asio::error_code const&)> handler);
+                  std::function<void(asio::error_code const&)> handler,
+                  bool keepExisting=false);
 
     // Put a file to a specific archive using it's `put` command.
     void putFile(std::shared_ptr<HistoryArchive> archive,
