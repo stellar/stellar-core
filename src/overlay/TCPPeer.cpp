@@ -174,8 +174,6 @@ TCPPeer::recvHello(StellarMessage const& msg)
     mHelloTimer.cancel();
     Peer::recvHello(msg);
    
-    session& dbSession = mApp.getDatabase().getSession();
-
     if(mRole==INITIATOR)
     {  
         PeerRecord pr;

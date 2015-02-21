@@ -83,7 +83,6 @@ bool PeerRecord::loadPeerRecord(Database &db, string ip, int port, PeerRecord &r
 void PeerRecord::loadPeerRecords(Database &db, int max, VirtualClock::time_point nextAttemptCutoff, vector<PeerRecord>& retList)
 {
     try {
-        auto tm_nextAttemptCutoff = VirtualClock::pointToTm(nextAttemptCutoff);
         tm tm;
         PeerRecord pr;
         statement st = (db.getSession().prepare <<
