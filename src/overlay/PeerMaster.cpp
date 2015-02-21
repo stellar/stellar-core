@@ -128,7 +128,7 @@ PeerMaster::tick()
     LOG(DEBUG) << "PeerMaster tick";
     if (mPeers.size() < mApp.getConfig().TARGET_PEER_CONNECTIONS)
     {
-        connectToMorePeers(static_cast<size_t>(mApp.getConfig().TARGET_PEER_CONNECTIONS) - mPeers.size());
+        connectToMorePeers(static_cast<int>(mApp.getConfig().TARGET_PEER_CONNECTIONS - mPeers.size()));
     }
 
 
