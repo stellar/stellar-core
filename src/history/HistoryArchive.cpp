@@ -110,13 +110,15 @@ HistoryArchive::getState(Application& app,
             HistoryArchiveState has;
             if (ec)
             {
-                LOG(WARNING) << "failed to get " << basename
-                             << " from history archive '" << archiveName << "'";
+                CLOG(WARNING, "History")
+                    << "failed to get " << basename
+                    << " from history archive '" << archiveName << "'";
             }
             else
             {
-                LOG(DEBUG) << "got " << basename
-                           << " from history archive '" << archiveName << "'";
+                CLOG(DEBUG, "History")
+                    << "got " << basename
+                    << " from history archive '" << archiveName << "'";
                 has.load(filename);
             }
             std::remove(filename.c_str());
@@ -140,13 +142,15 @@ HistoryArchive::putState(Application& app,
         {
             if (ec)
             {
-                LOG(WARNING) << "failed to put " << basename
-                             << " in history archive '" << archiveName << "'";
+                CLOG(WARNING, "History")
+                    << "failed to put " << basename
+                    << " in history archive '" << archiveName << "'";
             }
             else
             {
-                LOG(DEBUG) << "put " << basename
-                             << " in history archive '" << archiveName << "'";
+                CLOG(DEBUG, "History")
+                    << "put " << basename
+                    << " in history archive '" << archiveName << "'";
             }
             std::remove(filename.c_str());
             handler(ec);
