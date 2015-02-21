@@ -78,7 +78,7 @@ ProcessMaster::runProcess(std::string const& cmdLine)
     si.cb = sizeof(si);
     LPSTR cmd = (LPSTR)cmdLine.data();
 
-    LOG(DEBUG) << "Starting process: " << cmdLine;
+    CLOG(DEBUG, "Process") << "Starting process: " << cmdLine;
     if (!CreateProcess(NULL,    // No module name (use command line)
                        cmd,     // Command line
                        nullptr, // Process handle not inheritable
@@ -91,7 +91,7 @@ ProcessMaster::runProcess(std::string const& cmdLine)
                        &pi)     // Pointer to PROCESS_INFORMATION structure
         )
     {
-        LOG(DEBUG) << "CreateProcess() failed: " << GetLastError();
+        CLOG(DEBUG, "Process") << "CreateProcess() failed: " << GetLastError();
         throw std::runtime_error("CreateProcess() failed");
     }
 
@@ -213,14 +213,14 @@ ProcessMaster::runProcess(std::string const& cmdLine)
     char* env[1] = {nullptr};
     int pid;
 
-    LOG(DEBUG) << "Starting process: " << cmdLine;
+    CLOG(DEBUG, "Process") << "Starting process: " << cmdLine;
     int err = posix_spawnp(&pid, argv[0],
                            nullptr, // posix_spawn_file_actions_t
                            nullptr, // posix_spawnattr_t*
                            argv.data(), env);
     if (err)
     {
-        LOG(DEBUG) << "posix_spawn() failed: " << strerror(err);
+        CLOG(DEBUG, "Process") << "posix_spawn() failed: " << strerror(err);
         throw std::runtime_error("posix_spawn() failed");
     }
 

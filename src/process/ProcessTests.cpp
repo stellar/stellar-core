@@ -24,9 +24,11 @@ TEST_CASE("subprocess", "[process]")
     bool exited = false;
     evt.async_wait([&](asio::error_code ec)
                    {
-                       LOG(DEBUG) << "process exited: " << ec;
+                       CLOG(DEBUG, "Process") << "process exited: " << ec;
                        if (ec)
-                           LOG(DEBUG) << "error code: " << ec.message();
+                       {
+                           CLOG(DEBUG, "Process") << "error code: " << ec.message();
+                       }
                        exited = true;
                    });
 
