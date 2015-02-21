@@ -38,15 +38,15 @@ HistoryMaster::Impl
 {
     Application& mApp;
     unique_ptr<TmpDir> mWorkDir;
-    PublishStateMachine mPublish;
-    CatchupStateMachine mCatchup;
+    unique_ptr<PublishStateMachine> mPublish;
+    unique_ptr<CatchupStateMachine> mCatchup;
     friend class HistoryMaster;
 public:
     Impl(Application &app)
         : mApp(app)
         , mWorkDir(nullptr)
-        , mPublish(app)
-        , mCatchup(app)
+        , mPublish(nullptr)
+        , mCatchup(nullptr)
         {}
 
 };
@@ -247,11 +247,42 @@ HistoryMaster::getFile(std::shared_ptr<HistoryArchive> archive,
     exit.async_wait(handler);
 }
 
+void
+HistoryMaster::publishHistory(std::function<void(asio::error_code const&)> handler)
+{
+    if (mImpl->mPublish)
+    {
+        throw std::runtime_error("History publication already in progress");
+    }
+    mImpl->mPublish = make_unique<PublishStateMachine>(
+        mImpl->mApp,
+        [this, handler](asio::error_code const& ec)
+        {
+            // Tear down the publish state machine when complete then call our
+            // caller's handler. Must keep the state machine alive long enough
+            // for the callback, though, to avoid killing things living in lambdas.
+            std::unique_ptr<PublishStateMachine> m(std::move(this->mImpl->mPublish));
+            handler(ec);
+        });
+}
 
 void
-HistoryMaster::checkpointBuckets(BucketList const& buckets)
+HistoryMaster::catchupHistory(std::function<void(asio::error_code const&)> handler)
 {
-    mImpl->mPublish.publishCheckpoint(buckets);
+    if (mImpl->mCatchup)
+    {
+        throw std::runtime_error("Catchup already in progress");
+    }
+    mImpl->mCatchup = make_unique<CatchupStateMachine>(
+        mImpl->mApp,
+        [this, handler](asio::error_code const& ec)
+        {
+            // Tear down the catchup state machine when complete then call our
+            // caller's handler. Must keep the state machine alive long enough
+            // for the callback, though, to avoid killing things living in lambdas.
+            std::unique_ptr<CatchupStateMachine> m(std::move(this->mImpl->mCatchup));
+            handler(ec);
+        });
 }
 
 

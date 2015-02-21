@@ -21,8 +21,10 @@ namespace stellar
 const size_t
 CatchupStateMachine::kRetryLimit = 16;
 
-CatchupStateMachine::CatchupStateMachine(Application& app)
+CatchupStateMachine::CatchupStateMachine(Application& app,
+                                         std::function<void(asio::error_code const&)> handler)
     : mApp(app)
+    , mEndHandler(handler)
     , mState(CATCHUP_RETRYING)
     , mRetryCount(0)
     , mRetryTimer(app.getClock())

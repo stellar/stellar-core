@@ -83,6 +83,7 @@ CatchupStateMachine
     static const size_t kRetryLimit;
 
     Application& mApp;
+    std::function<void(asio::error_code const&)> mEndHandler;
     CatchupState mState;
     size_t mRetryCount;
     VirtualTimer mRetryTimer;
@@ -105,7 +106,8 @@ CatchupStateMachine
 
 public:
 
-    CatchupStateMachine(Application& app);
+    CatchupStateMachine(Application& app,
+                        std::function<void(asio::error_code const&)> handler);
 
 
 };

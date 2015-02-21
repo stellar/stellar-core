@@ -48,6 +48,8 @@ ArchivePublisher : public std::enable_shared_from_this<ArchivePublisher>
     static const size_t kRetryLimit;
 
     Application& mApp;
+    std::function<void(asio::error_code const&)> mEndHandler;
+    asio::error_code mError;
     PublishState mState;
     size_t mRetryCount;
     VirtualTimer mRetryTimer;
@@ -66,6 +68,7 @@ ArchivePublisher : public std::enable_shared_from_this<ArchivePublisher>
 
 public:
     ArchivePublisher(Application& app,
+                     std::function<void(asio::error_code const&)> handler,
                      std::shared_ptr<HistoryArchive> archive,
                      std::vector<std::pair<std::shared_ptr<Bucket>,
                      std::shared_ptr<Bucket>>> const& localBuckets);
@@ -86,10 +89,14 @@ class
 PublishStateMachine
 {
     Application& mApp;
+    std::function<void(asio::error_code const&)> mEndHandler;
+    asio::error_code mError;
     std::vector<std::shared_ptr<ArchivePublisher>> mPublishers;
 public:
-    PublishStateMachine(Application& app);
-    void publishCheckpoint(BucketList const& buckets);
+    PublishStateMachine(Application& app,
+                        std::function<void(asio::error_code const&)> handler);
+
+    void archiveComplete(asio::error_code const&);
 };
 
 

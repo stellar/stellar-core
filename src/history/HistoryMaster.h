@@ -123,8 +123,11 @@ class HistoryMaster
                  std::string const& filename,
                  std::function<void(asio::error_code const&)> handler);
 
-    // For each writable archive, put all buckets that have changed.
-    void checkpointBuckets(BucketList const& buckets);
+    // For each writable archive, put all buckets in the CLF that have changed
+    void publishHistory(std::function<void(asio::error_code const&)> handler);
+
+    // Pick a readable archive and set the bucketlist to its content.
+    void catchupHistory(std::function<void(asio::error_code const&)> handler);
 
     std::string const& getTmpDir();
 

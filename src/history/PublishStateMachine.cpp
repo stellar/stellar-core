@@ -20,10 +20,12 @@ const size_t
 ArchivePublisher::kRetryLimit = 16;
 
 ArchivePublisher::ArchivePublisher(Application& app,
+                                   std::function<void(asio::error_code const&)> handler,
                                    std::shared_ptr<HistoryArchive> archive,
                                    std::vector<std::pair<std::shared_ptr<Bucket>,
                                                          std::shared_ptr<Bucket>>> const& localBuckets)
     : mApp(app)
+    , mEndHandler(handler)
     , mState(PUBLISH_RETRYING)
     , mRetryCount(0)
     , mRetryTimer(app.getClock())
@@ -169,9 +171,10 @@ ArchivePublisher::enterCommittingState()
 void
 ArchivePublisher::enterEndState()
 {
-    CLOG(INFO, "History") << "Finished publishing to archive '"
-                          << this->mArchive->getName() << "'";
+    CLOG(DEBUG, "History") << "Finished publishing to archive '"
+                           << this->mArchive->getName() << "'";
     mState = PUBLISH_END;
+    mEndHandler(mError);
 }
 
 
@@ -181,8 +184,10 @@ ArchivePublisher::isDone() const
     return mState == PUBLISH_END;
 }
 
-PublishStateMachine::PublishStateMachine(Application& app)
+PublishStateMachine::PublishStateMachine(Application& app,
+                                         std::function<void(asio::error_code const&)> handler)
     : mApp(app)
+    , mEndHandler(handler)
 {
 }
 
@@ -214,12 +219,29 @@ PublishStateMachine::publishCheckpoint(BucketList const& buckets)
             mPublishers.push_back(p);
         }
     }
+}
 
-    std::remove_if(mPublishers.begin(), mPublishers.end(),
-                   [](std::shared_ptr<ArchivePublisher> p)
-                   {
-                       return p->isDone();
-                   });
+void
+PublishStateMachine::archiveComplete(asio::error_code const& ec)
+{
+    if (ec)
+    {
+        mError = ec;
+    }
+    mPublishers.erase(
+        std::remove_if(
+            mPublishers.begin(),
+            mPublishers.end(),
+            [](std::shared_ptr<ArchivePublisher> p)
+            {
+                return p->isDone();
+            }));
+    CLOG(DEBUG, "History") << "Completed publish to archive, "
+                           << mPublishers.size() << " remain";
+    if (mPublishers.empty())
+    {
+        mEndHandler(mError);
+    }
 }
 
 
