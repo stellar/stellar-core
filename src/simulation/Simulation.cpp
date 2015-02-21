@@ -14,7 +14,7 @@ namespace stellar
 
 using namespace std;
 
-Simulation::Simulation()
+Simulation::Simulation() : mConfigCount(0)
 {
 }
 
@@ -39,14 +39,11 @@ Simulation::addNode(uint256 validationSeed,
                     FBAQuorumSet qSet,
                     VirtualClock& clock)
 {
-    Config::pointer cfg = std::make_shared<Config>();
+    Config::pointer cfg = std::make_shared<Config>(getTestConfig(++mConfigCount));
 
-    cfg->LOG_FILE_PATH = getTestConfig().LOG_FILE_PATH;
     cfg->VALIDATION_KEY = SecretKey::fromSeed(validationSeed);
-    cfg->RUN_STANDALONE = true;
-    cfg->START_NEW_NETWORK = true;
-
     cfg->QUORUM_THRESHOLD = qSet.threshold;
+
     for (auto q : qSet.validators)
     {
         cfg->QUORUM_SET.push_back(q);

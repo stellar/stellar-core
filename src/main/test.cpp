@@ -2,18 +2,21 @@
 // under the ISC License. See the COPYING file at the top-level directory of
 // this distribution or at http://opensource.org/licenses/ISC
 
+#include "test.h"
 #include "generated/StellardVersion.h"
 #include "main/Config.h"
 #include "util/make_unique.h"
 #include <time.h>
 #include "util/Logging.h"
 
-#ifdef _MSC_VER
+#ifdef _WIN32
 #include <process.h>
 #define GETPID _getpid
+#include <direct.h>
 #else
 #include <unistd.h>
 #define GETPID getpid
+#include <sys/stat.h>
 #endif
 
 #define CATCH_CONFIG_RUNNER
@@ -22,34 +25,59 @@
 namespace stellar
 {
 
-static std::unique_ptr<Config> gTestCfg;
+static std::vector<std::unique_ptr<Config>> gTestCfg;
 
-Config&
-getTestConfig()
+Config const& getTestConfig(int instanceNumber)
 {
-    if (!gTestCfg)
+    if (gTestCfg.size() <= instanceNumber)
+    {
+        gTestCfg.resize(instanceNumber+1);
+    }
+
+    if (!gTestCfg[instanceNumber])
     {
         std::ostringstream oss;
-        oss << "stellard-test-" << time(nullptr) << "-" << GETPID() << ".log";
-        gTestCfg = stellar::make_unique<Config>();
-        gTestCfg->LOG_FILE_PATH = oss.str();
+
+        oss << "stellard-test-" << time(nullptr) << "-" << GETPID() <<
+            "-" << instanceNumber;
+
+        std::string rootDir = oss.str();
+
+#ifdef _WIN32
+        _mkdir(rootDir.c_str());
+#else
+        ::mkdir(rootDir.c_str(), 0700);
+#endif
+
+        rootDir += "/";
+
+        gTestCfg[instanceNumber] = stellar::make_unique<Config>();
+        Config &thisConfig = *gTestCfg[instanceNumber];
+
+        thisConfig.LOG_FILE_PATH = rootDir + "stellar.log";
+        thisConfig.BUCKET_DIR_PATH = rootDir + "bucket";
+        thisConfig.TMP_DIR_PATH = rootDir + "tmp";
 
         // Tests are run in standalone by default, meaning that no external
         // listening interfaces are opened (all sockets must be manually created
         // and connected loopback sockets), no external connections are
         // attempted.
-        gTestCfg->RUN_STANDALONE = true;
-        gTestCfg->START_NEW_NETWORK = true;
+        thisConfig.RUN_STANDALONE = true;
+        thisConfig.START_NEW_NETWORK = true;
+
+        thisConfig.PEER_PORT = DEFAULT_PEER_PORT + instanceNumber*2;
+        thisConfig.HTTP_PORT = DEFAULT_PEER_PORT + instanceNumber*2-1;
 
         // We set a secret key by default as START_NEW_NETWORK is true by
         // default and we do need a VALIDATION_KEY to start a new network
-        gTestCfg->VALIDATION_KEY = SecretKey::random();
+        thisConfig.VALIDATION_KEY = SecretKey::random();
 
         // uncomment this when debugging test cases
-        //gTestCfg->DATABASE = "sqlite3://test.db";
-        //gTestCfg->DATABASE = "postgresql://host=localhost dbname=test user=test password=test";
+        //thisConfig.DATABASE =
+        //"sqlite3://" + rootDir + "test.db";
+        //"postgresql://host=localhost dbname=test" + instanceNumber + "user=test password=test";
     }
-    return *gTestCfg;
+    return *gTestCfg[instanceNumber];
 }
 
 int
