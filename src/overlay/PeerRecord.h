@@ -13,7 +13,6 @@ using namespace std;
 class PeerRecord
 {
 public:
-    int mPeerID;
     string mIP;
     int mPort;
     VirtualClock::time_point mNextAttempt;
@@ -23,12 +22,11 @@ public:
     PeerRecord() {};
 
     PeerRecord(int id,const string& ip,int port, VirtualClock::time_point nextAttempt, int fails, int rank) :
-        mPeerID(id), mIP(ip), mPort(port), mNextAttempt(nextAttempt), mNumFailures(fails), mRank(rank) { }
+        mIP(ip), mPort(port), mNextAttempt(nextAttempt), mNumFailures(fails), mRank(rank) { }
 
     bool operator==(PeerRecord& other)
     {
-        return mPeerID == other.mPeerID &&
-            mIP == other.mIP &&
+        return mIP == other.mIP &&
             mPort == other.mPort &&
             mNextAttempt == other.mNextAttempt &&
             mNumFailures == other.mNumFailures &&

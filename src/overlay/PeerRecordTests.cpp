@@ -37,13 +37,12 @@ TEST_CASE("toXdr", "[overlay][PeerRecord]")
     SECTION("loadPeerRecord and storePeerRecord")
     {
         pr.mNextAttempt = pr.mNextAttempt + chrono::seconds(12);
-        pr.mPeerID = 17;
         pr.storePeerRecord(app.getDatabase());
         PeerRecord other;
         PeerRecord::fromIPPort("1.2.3.4", 15, clock, other);
-        other.storePeerRecord(app.getDatabase()); // two missing peerID
+        other.storePeerRecord(app.getDatabase());
 
-        pr.mPeerID = 128;
+        pr.mNextAttempt = pr.mNextAttempt + chrono::seconds(12);
         pr.storePeerRecord(app.getDatabase());
         PeerRecord actual1;
         PeerRecord::loadPeerRecord(app.getDatabase(), pr.mIP, pr.mPort, actual1);
