@@ -30,7 +30,6 @@ class CLFMaster
     ~CLFMaster();
     std::string const& getTmpDir();
     std::string const& getBucketDir();
-    LedgerHeader const& getHeader();
     BucketList& getBucketList();
 
     // Get a reference to a persistent bucket in the CLF-managed bucket
@@ -53,6 +52,14 @@ class CLFMaster
     // longer independently keep them alive.
     void forgetUnreferencedBuckets();
 
+
+    // feed a new batch of entries to the bucket list
+    void addBatch(Application& app, uint64_t currLedger,
+        std::vector<LedgerEntry> const& liveEntries,
+        std::vector<LedgerKey> const& deadEntries);
+
+    // updates the given LedgerHeader to reflect the current state of the bucket list
+    void snapshotLedger(LedgerHeader &currentHeader);
 };
 }
 

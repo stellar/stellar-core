@@ -224,6 +224,7 @@
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="..\..\src\overlay\PeerMasterTests.cpp" />
+    <ClCompile Include="..\..\src\simulation\CoreTests.cpp" />
     <ClCompile Include="..\..\src\simulation\CycleTests.cpp" />
     <ClCompile Include="..\..\src\simulation\Simulation.cpp" />
     <ClCompile Include="..\..\src\transactions\AllowTrustTxFrame.cpp" />
@@ -269,6 +270,7 @@
   <ItemGroup>
     <ClInclude Include="..\..\src\clf\Bucket.h" />
     <ClInclude Include="..\..\src\clf\BucketList.h" />
+    <ClInclude Include="..\..\src\clf\CLFMaster.h" />
     <ClInclude Include="..\..\src\clf\LedgerCmp.h" />
     <ClInclude Include="..\..\src\crypto\Base58.h" />
     <ClInclude Include="..\..\src\crypto\ByteSlice.h" />
