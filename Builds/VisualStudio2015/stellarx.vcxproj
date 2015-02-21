@@ -226,6 +226,7 @@
     <ClCompile Include="..\..\src\overlay\PeerMasterTests.cpp" />
     <ClCompile Include="..\..\src\overlay\PeerRecord.cpp" />
     <ClCompile Include="..\..\src\overlay\PeerRecordTests.cpp" />
+    <ClCompile Include="..\..\src\simulation\CoreTests.cpp" />
     <ClCompile Include="..\..\src\simulation\CycleTests.cpp" />
     <ClCompile Include="..\..\src\simulation\Simulation.cpp" />
     <ClCompile Include="..\..\src\transactions\AllowTrustTxFrame.cpp" />

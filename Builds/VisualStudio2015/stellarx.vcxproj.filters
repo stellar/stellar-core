@@ -82,6 +82,9 @@
     <Filter Include="clf\tests">
       <UniqueIdentifier>{86be4089-9cdf-49d8-9d3f-4f8712a6560c}</UniqueIdentifier>
     </Filter>
+    <Filter Include="herder\tests">
+      <UniqueIdentifier>{eda15f5e-847b-4167-93ae-e508b7fc009b}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\src\ledger\LedgerMaster.cpp">
@@ -351,12 +354,6 @@
     <ClCompile Include="..\..\src\transactions\OfferExchange.cpp">
       <Filter>transactions</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\herder\HerderStressTests.cpp">
-      <Filter>herder</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\herder\HerderTests.cpp">
-      <Filter>herder</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\util\Math.cpp">
       <Filter>util</Filter>
     </ClCompile>
@@ -374,6 +371,15 @@
     </ClCompile>
     <ClCompile Include="..\..\src\clf\CLFTests.cpp">
       <Filter>clf\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\simulation\CoreTests.cpp">
+      <Filter>simulation</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\herder\HerderStressTests.cpp">
+      <Filter>herder\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\herder\HerderTests.cpp">
+      <Filter>herder\tests</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\overlay\PeerRecordTests.cpp">
       <Filter>overlay</Filter>
