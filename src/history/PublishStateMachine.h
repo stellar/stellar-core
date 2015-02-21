@@ -61,7 +61,7 @@ ArchivePublisher : public std::enable_shared_from_this<ArchivePublisher>
     std::map<std::string, FilePublishState> mFileStates;
 
     void fileStateChange(asio::error_code const& ec,
-                         std::string const& basename,
+                         std::string const& hashname,
                          FilePublishState newGoodState);
 
 public:
