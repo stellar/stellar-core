@@ -17,6 +17,7 @@
 
 #include <iostream>
 #include <fstream>
+#include <set>
 
 namespace stellar
 {
@@ -57,6 +58,37 @@ HistoryArchiveState::basename()
 {
     return std::string("stellar-history.json");
 }
+
+std::vector<std::string>
+HistoryArchiveState::differingBuckets(HistoryArchiveState const& other) const
+{
+    std::set<std::string> inhibit;
+    uint256 zero;
+    inhibit.insert(binToHex(zero));
+    for (auto b : other.currentBuckets)
+    {
+        inhibit.insert(b.curr);
+        inhibit.insert(b.snap);
+    }
+    std::vector<std::string> ret;
+    for (size_t i = BucketList::kNumLevels; i != 0; --i)
+    {
+        auto const& s = currentBuckets[i-1].snap;
+        auto const& c = currentBuckets[i-1].curr;
+        if (inhibit.find(s) == inhibit.end())
+        {
+            ret.push_back(s);
+            inhibit.insert(s);
+        }
+        if (inhibit.find(c) == inhibit.end())
+        {
+            ret.push_back(c);
+            inhibit.insert(c);
+        }
+    }
+    return ret;
+}
+
 
 HistoryArchiveState::HistoryArchiveState()
 {
