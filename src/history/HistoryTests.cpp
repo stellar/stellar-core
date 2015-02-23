@@ -170,8 +170,10 @@ HistoryTests::generateAndPublishHistory()
             CHECK(!ec);
 
             // Make some changes, then publish them.
-            autocheck::generator<LedgerEntry> leGen;
-            std::vector<LedgerEntry> live { leGen(10) };
+            std::vector<LedgerEntry> live { generateValidLedgerEntry(),
+                    generateValidLedgerEntry(),
+                    generateValidLedgerEntry()
+            };
             std::vector<LedgerKey> dead { };
             this->app.getCLFMaster().getBucketList().addBatch(app, 1, live, dead);
 
