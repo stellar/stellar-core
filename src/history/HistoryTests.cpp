@@ -155,6 +155,7 @@ generateValidLedgerEntry();
 void
 HistoryTests::generateAndPublishHistory()
 {
+    app.start();
     HistoryMaster &hm = app.getHistoryMaster();
     auto i = app.getConfig().HISTORY.find("test");
     CHECK(i != app.getConfig().HISTORY.end());
