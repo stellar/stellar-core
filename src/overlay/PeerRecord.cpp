@@ -1,6 +1,7 @@
 #include "overlay/PeerRecord.h"
 #include <soci.h>
 #include <vector>
+#include <cmath>
 #include "util/Logging.h"
 #include "util/must_use.h"
 #include "generated/StellarXDR.h"
@@ -154,7 +155,7 @@ PeerRecord::backOff(VirtualClock &clock)
 
     mNextAttempt = clock.now() + std::chrono::seconds(
         static_cast<int64_t>(
-        pow(2, mNumFailures) * SECONDS_PER_BACKOFF));
+        std::pow(2, mNumFailures) * SECONDS_PER_BACKOFF));
 
 
 }

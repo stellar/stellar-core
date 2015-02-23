@@ -141,6 +141,8 @@ void CommandHandler::ll(const std::string& params, std::string& retStr)
 void
 CommandHandler::tx(const std::string& params, std::string& retStr)
 {
+    std::ostringstream output;
+
     const std::string prefix("?blob=");
     if (params.compare(0, prefix.size(), prefix) == 0)
     {
@@ -148,7 +150,6 @@ CommandHandler::tx(const std::string& params, std::string& retStr)
         try
         {
             std::string blob = params.substr(prefix.size());
-            retStr = "Submitting Transaction...";
             std::vector<uint8_t> binBlob = hexToBin(blob);
 
             xdr::xdr_from_opaque(binBlob, envelope);
@@ -165,21 +166,25 @@ CommandHandler::tx(const std::string& params, std::string& retStr)
                     msg.transaction() = envelope;
                     mApp.getOverlayGateway().broadcastMessage(msg);
                 }
+
+                std::string resultHex = binToHex(xdr::xdr_to_msg(transaction->getResult()));
+                output << "{\"result\": \"" << resultHex << "\"}";
             }
         }
         catch (std::exception &e)
         {
-            retStr = "Error : ";
-            retStr += e.what();
+            output << "{\"exception\": \"" << e.what() << "\"}";
         }
         catch(...)
         {
-            retStr = "Error: generic";
+            output << "{\"exception\": \"generic\"}";
         }
     }
     else
     {
-        retStr = "Must specify a tx blob: tx?blob=<tx in xdr format>";
+        output << "{\"exception\": \"Must specify a tx blob: tx?blob=<tx in xdr format>\"}";
     }
+
+    retStr = output.str();
 }
 }
