@@ -38,7 +38,7 @@ using namespace std;
 
 PeerMaster::PeerMaster(Application& app)
     : mApp(app)
-    , mDoor(mApp)
+    , mDoor(make_shared<PeerDoor>(mApp))
     , mTimer(app.getClock())
     , mFloodGate(app)
 {
@@ -186,15 +186,9 @@ PeerMaster::isPeerAccepted(Peer::pointer peer)
 
 bool PeerMaster::isPeerPreferred(Peer::pointer peer)
 {
-    int count = 0;
-    int port = peer->getRemoteListeningPort();
-    std::string const& ip = peer->getIP();
-   
-    mApp.getDatabase().getSession() <<
-        "SELECT count(*) from Peers where rank>9 and ip=:v1 and port=:v2",
-        into(count), use(ip), use(port);
-
-    return count;
+    PeerRecord pr;
+    PeerRecord::loadPeerRecord(mApp.getDatabase(), peer->getIP(), peer->getRemoteListeningPort(), pr);
+    return pr.mRank > 9;
 }
 
 Peer::pointer

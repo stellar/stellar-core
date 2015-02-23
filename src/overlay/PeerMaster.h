@@ -25,11 +25,12 @@ class PeerMasterTests;
 
 class PeerMaster : public OverlayGateway
 {
+protected:
     Application& mApp;
     // peers we are connected to
     std::vector<Peer::pointer> mPeers;
     
-    PeerDoor mDoor;
+    PeerDoor::pointer mDoor;
 
     void tick();
     VirtualTimer mTimer;
@@ -56,7 +57,7 @@ class PeerMaster : public OverlayGateway
     //////
 
     void connectTo(const std::string& addr);
-    void connectTo(PeerRecord &pr);
+    virtual void connectTo(PeerRecord &pr);
     void connectToMorePeers(int max);
     void addConnectedPeer(Peer::pointer peer);
     void dropPeer(Peer::pointer peer);
