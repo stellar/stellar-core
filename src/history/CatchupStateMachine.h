@@ -90,12 +90,13 @@ CatchupStateMachine
     VirtualTimer mRetryTimer;
 
     std::shared_ptr<HistoryArchive> mArchive;
+    HistoryArchiveState mLocalState;
     HistoryArchiveState mArchiveState;
     std::map<std::string, FileCatchupState> mFileStates;
 
     std::shared_ptr<HistoryArchive> selectRandomReadableHistoryArchive();
     void fileStateChange(asio::error_code const& ec,
-                         std::string const& basename,
+                         std::string const& hashname,
                          FileCatchupState newGoodState);
 
     void enterBeginState();
