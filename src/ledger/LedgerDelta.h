@@ -10,8 +10,10 @@ namespace stellar
 {
     class LedgerDelta
     {
-        std::map<LedgerKey, EntryFrame::pointer, LedgerEntryIdCmp> mNew;
-        std::map<LedgerKey, EntryFrame::pointer, LedgerEntryIdCmp> mMod;
+        typedef std::map<LedgerKey, EntryFrame::pointer, LedgerEntryIdCmp> KeyEntryMap;
+
+        KeyEntryMap mNew;
+        KeyEntryMap mMod;
         std::set<LedgerKey, LedgerEntryIdCmp> mDelete;
 
         void addEntry(EntryFrame::pointer entry);
@@ -27,6 +29,10 @@ namespace stellar
 
         // apply other on top of delta, collapsing entries as appropriate
         void merge(LedgerDelta &other);
+
+        std::vector<LedgerEntry> getLiveEntries() const;
+        std::vector<LedgerKey> getDeadEntries() const;
+
 
         xdr::msg_ptr getTransactionMeta() const;
 

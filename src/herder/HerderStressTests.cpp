@@ -39,9 +39,9 @@ struct PeerInfo {
 };
 
 appPtr
-createApp(Config &baseConfig, VirtualClock &clock, int quorumThresold, int i, PeerInfo &me, vector<PeerInfo> &peers) 
+createApp(VirtualClock &clock, int quorumThresold, int i, PeerInfo &me, vector<PeerInfo> &peers) 
 {
-    Config cfg = baseConfig;
+    Config cfg(getTestConfig(i));
     cfg.RUN_STANDALONE = false;
     cfg.PEER_KEY = me.peerKey;
     cfg.PEER_PUBLIC_KEY = me.peerKey.getPublicKey();
@@ -49,9 +49,6 @@ createApp(Config &baseConfig, VirtualClock &clock, int quorumThresold, int i, Pe
     cfg.PEER_PORT = me.peerPort;
     cfg.HTTP_PORT = me.peerPort + 1;
 
-    auto nodeStr = "node-" + to_string(i);
-    cfg.TMP_DIR_PATH = cfg.TMP_DIR_PATH + "/" + nodeStr;
-    cfg.LOG_FILE_PATH = cfg.TMP_DIR_PATH + "/" + cfg.LOG_FILE_PATH;
     cfg.DATABASE = "sqlite3://" + cfg.TMP_DIR_PATH + "/stellar.db";
 
     cfg.QUORUM_THRESHOLD = min(quorumThresold / 2 + 4, quorumThresold);
@@ -72,13 +69,13 @@ createApp(Config &baseConfig, VirtualClock &clock, int quorumThresold, int i, Pe
 
 
 shared_ptr<vector<appPtr>>
-createApps(Config &baseConfig, VirtualClock &clock, int n, int quorumThresold) 
+createApps(VirtualClock &clock, int n, int quorumThresold) 
 {
     vector<PeerInfo> peers;
 
     for (int i = 0; i < n; i++) 
     {
-        peers.push_back(PeerInfo { SecretKey::random(), SecretKey::random(), baseConfig.PEER_PORT + i * 2 });
+        peers.push_back(PeerInfo { SecretKey::random(), SecretKey::random(), getTestConfig(i).PEER_PORT });
     }
 
     auto result = make_shared<vector<appPtr>>();
@@ -101,7 +98,7 @@ createApps(Config &baseConfig, VirtualClock &clock, int n, int quorumThresold)
             // The other nodes depend on the `quorumThresold` previous ones.
             myPeers = vector<PeerInfo>(peers.begin() + i - quorumThresold, peers.begin() + i);
         }
-        result->push_back(createApp(baseConfig, clock, quorumThresold, i, peers[i], myPeers));
+        result->push_back(createApp(clock, quorumThresold, i, peers[i], myPeers));
     }
 
     return result;
@@ -254,15 +251,10 @@ struct StressTest {
 void herderStressTest(int nNodes, int quorumThresold, size_t nAccounts, size_t nTransactions, size_t injectionRate, float paretoAlpha)
 {
     VirtualClock clock;
-    Config cfg(getTestConfig());
-    TmpDir tmpDir{ cfg.TMP_DIR_PATH };
-    cfg.TMP_DIR_PATH = tmpDir.getName();
-    cfg.RUN_STANDALONE = true;
-    cfg.START_NEW_NETWORK = true;
 
 
     StressTest test{
-        createApps(cfg, clock, nNodes, quorumThresold),
+        createApps(clock, nNodes, quorumThresold),
         vector<accountPtr>(),
         nAccounts,
     };

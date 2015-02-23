@@ -122,4 +122,37 @@ namespace stellar
 
         return xdr::xdr_to_msg(tm);
     }
+
+    std::vector<LedgerEntry> LedgerDelta::getLiveEntries() const
+    {
+        std::vector<LedgerEntry> live;
+        
+        live.reserve(mNew.size() + mMod.size());
+
+        for (auto const &k : mNew)
+        {
+            live.push_back(k.second->mEntry);
+        }
+        for (auto const &k : mMod)
+        {
+            live.push_back(k.second->mEntry);
+        }
+
+        return live;
+    }
+
+    std::vector<LedgerKey> LedgerDelta::getDeadEntries() const
+    {
+        std::vector<LedgerKey> dead;
+        
+        dead.reserve(mDelete.size());
+
+        for (auto const &k : mDelete)
+        {
+            dead.push_back(k);
+        }
+        return dead;
+    }
+
+
 }

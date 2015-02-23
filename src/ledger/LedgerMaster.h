@@ -18,6 +18,7 @@ namespace stellar
 {
     class Application;
     class Database;
+    class LedgerDelta;
 
     class LedgerMaster : public LedgerGateway
     {
@@ -82,7 +83,7 @@ namespace stellar
         static void dropAll(Database &db);
     private:
         std::string getStoreStateName(StoreStateName n);
-        void closeLedgerHelper(bool updateCurrent);
+        void closeLedgerHelper(bool updateCurrent, LedgerDelta const& delta);
 
         static const char *kSQLCreateStatement;
 
