@@ -34,6 +34,7 @@ CatchupStateMachine::CatchupStateMachine(Application& app,
     // We start up in CATCHUP_RETRYING as that's the only valid
     // named pre-state for CATCHUP_BEGIN.
     mLocalState = app.getHistoryMaster().getCurrentHistoryArchiveState();
+    enterBeginState();
 }
 
 /**
@@ -313,6 +314,8 @@ CatchupStateMachine::enterRetryingState()
 
 void CatchupStateMachine::enterApplyingState()
 {
+    assert(mState == CATCHUP_FETCHING);
+    mState = CATCHUP_APPLYING;
     auto& hm = mApp.getHistoryMaster();
     auto& db = mApp.getDatabase();
     CLFEntry entry;
