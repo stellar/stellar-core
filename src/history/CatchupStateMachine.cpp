@@ -339,10 +339,16 @@ void CatchupStateMachine::enterApplyingState()
             }
         }
     }
+    enterEndState();
 }
 
 void CatchupStateMachine::enterEndState()
 {
+    assert(mState == CATCHUP_APPLYING);
+    mState = CATCHUP_END;
+    CLOG(DEBUG, "History")
+        << "Completed catchup from '" << mArchive->getName() << "'";
+    mEndHandler(mError);
 }
 
 

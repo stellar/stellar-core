@@ -84,6 +84,7 @@ CatchupStateMachine
 
     Application& mApp;
     std::function<void(asio::error_code const&)> mEndHandler;
+    asio::error_code mError;
     CatchupState mState;
     size_t mRetryCount;
     VirtualTimer mRetryTimer;
