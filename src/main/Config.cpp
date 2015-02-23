@@ -23,6 +23,7 @@ Config::Config() : PEER_KEY( SecretKey::random() )
     // configurable
     START_NEW_NETWORK = false;
     START_LOCAL_NETWORK = false;
+    REBUILD_DB = false;
     DESIRED_BASE_FEE = 10;
     DESIRED_BASE_RESERVE = 10000000;
     PEER_PORT = DEFAULT_PEER_PORT;

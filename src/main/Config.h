@@ -31,6 +31,8 @@ class Config : public std::enable_shared_from_this<Config>
     // Will load the ledger/bucketlist from SQL/disk and FBA will start running immediately
     // Useful for test networks
     bool START_LOCAL_NETWORK;
+
+    bool REBUILD_DB;
     
     // This is a mode for testing. It prevents you from trying to connect to other peers
     bool RUN_STANDALONE;
