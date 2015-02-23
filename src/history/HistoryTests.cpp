@@ -55,6 +55,7 @@ public:
         {}
 
     void crankTillDone(bool& done);
+    void generateAndPublishHistory();
 };
 
 void
@@ -148,10 +149,13 @@ TEST_CASE_METHOD(HistoryTests, "HistoryArchiveState::get_put", "[history]")
 }
 
 
-TEST_CASE_METHOD(HistoryTests, "History publish", "[history]")
+extern LedgerEntry
+generateValidLedgerEntry();
+
+void
+HistoryTests::generateAndPublishHistory()
 {
     HistoryMaster &hm = app.getHistoryMaster();
-
     auto i = app.getConfig().HISTORY.find("test");
     CHECK(i != app.getConfig().HISTORY.end());
     auto archive = i->second;
@@ -179,5 +183,9 @@ TEST_CASE_METHOD(HistoryTests, "History publish", "[history]")
                 });
         });
     crankTillDone(done);
+}
 
+TEST_CASE_METHOD(HistoryTests, "History publish", "[history]")
+{
+    generateAndPublishHistory();
 }
