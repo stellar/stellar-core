@@ -159,7 +159,10 @@ CommandHandler::tx(const std::string& params, std::string& retStr)
             {
                 // add it to our current set
                 // and make sure it is valid
-                if(mApp.getHerderGateway().recvTransaction(transaction))
+                bool wasReceived = 
+                    mApp.getHerderGateway().recvTransaction(transaction);
+                
+                if(wasReceived)
                 {
                     StellarMessage msg;
                     msg.type(TRANSACTION);
@@ -167,8 +170,17 @@ CommandHandler::tx(const std::string& params, std::string& retStr)
                     mApp.getOverlayGateway().broadcastMessage(msg);
                 }
 
-                std::string resultHex = binToHex(xdr::xdr_to_msg(transaction->getResult()));
-                output << "{\"result\": \"" << resultHex << "\"}";
+                std::string resultHex = 
+                    binToHex(xdr::xdr_to_msg(transaction->getResult()));
+
+                output << "{"
+
+                       << "\"wasReceived\": " 
+                       << (wasReceived ? "true" : "false") << ","
+
+                       << "\"result\": \"" << resultHex << "\""
+                       
+                       << "}";
             }
         }
         catch (std::exception &e)
