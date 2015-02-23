@@ -6,13 +6,12 @@
 #include "clf/BucketList.h"
 #include "clf/CLFMaster.h"
 #include "crypto/Hex.h"
+#include "history/HistoryArchive.h"
 #include "history/HistoryMaster.h"
 #include "history/PublishStateMachine.h"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "util/Logging.h"
-
-#include <set>
 
 namespace stellar
 {
@@ -23,14 +22,15 @@ ArchivePublisher::kRetryLimit = 16;
 ArchivePublisher::ArchivePublisher(Application& app,
                                    std::function<void(asio::error_code const&)> handler,
                                    std::shared_ptr<HistoryArchive> archive,
-                                   std::vector<std::pair<std::shared_ptr<Bucket>,
-                                                         std::shared_ptr<Bucket>>> const& localBuckets)
+                                   HistoryArchiveState const& localState,
+                                   std::vector<std::shared_ptr<Bucket>> const& localBuckets)
     : mApp(app)
     , mEndHandler(handler)
     , mState(PUBLISH_RETRYING)
     , mRetryCount(0)
     , mRetryTimer(app.getClock())
     , mArchive(archive)
+    , mLocalState(localState)
     , mBucketsToPublish(localBuckets)
 {
     enterBeginState();
@@ -93,58 +93,34 @@ ArchivePublisher::enterObservedState(HistoryArchiveState const& has)
     assert(mState == PUBLISH_BEGIN);
     mState = PUBLISH_OBSERVED;
 
-    mObservedArchiveState = has;
-    mIntendedArchiveState = has;
-
-    std::set<std::string> bucketsInArchive;
-    for (auto const& bucket : has.currentBuckets)
+    mArchiveState = has;
+    std::vector<std::string> toSend = mLocalState.differingBuckets(mArchiveState);
+    std::map<std::string, std::shared_ptr<Bucket>> bucketsByHash;
+    for (auto b : mBucketsToPublish)
     {
-        bucketsInArchive.insert(bucket.curr);
-        bucketsInArchive.insert(bucket.snap);
+        bucketsByHash[binToHex(b->getHash())] = b;
     }
-    size_t b = 0;
-    for (auto const& pair : mBucketsToPublish)
+    for (auto const& hash : toSend)
     {
-        mIntendedArchiveState.currentBuckets.at(b).curr = binToHex(pair.first->getHash());
-        mIntendedArchiveState.currentBuckets.at(b).snap = binToHex(pair.second->getHash());
-
-        size_t n = b++ * 2;
-
-        std::shared_ptr<Bucket> p[2] = { pair.first, pair.second };
-        for (auto const& b : p)
+        auto b = bucketsByHash[hash];
+        assert(b);
+        auto i = mFileStates.find(hash);
+        if (i == mFileStates.end() ||
+            i->second == FILE_PUBLISH_FAILED)
         {
-            auto hash = binToHex(b->getHash());
-            if (bucketsInArchive.find(hash) ==
-                bucketsInArchive.end())
-            {
-                auto i = mFileStates.find(hash);
-                if (i == mFileStates.end() ||
-                    i->second == FILE_PUBLISH_FAILED)
-                {
-                    CLOG(DEBUG, "History")
-                        << "Queueing bucket " << n
-                        << ": " << hexAbbrev(b->getHash())
-                        << " to send to archive '" << mArchive->getName() << "'";
-                    mFileStates[hash] = FILE_PUBLISH_NEEDED;
-                }
-                else
-                {
-                    CLOG(DEBUG, "History")
-                        << "Not queueing bucket " << n
-                        << ": " << hexAbbrev(b->getHash())
-                        << " to send to archive '" << mArchive->getName()
-                        << "'; bucket already queued";
-                }
-            }
-            else
-            {
-                CLOG(DEBUG, "History")
-                    << "Not queueing bucket " << n
-                    << ": " << hexAbbrev(b->getHash())
-                    << " to send to archive '" << mArchive->getName()
-                    << "', which already has it";
-            }
-            ++n;
+            CLOG(DEBUG, "History")
+                << "Queueing bucket "
+                << hexAbbrev(b->getHash())
+                << " to send to archive '" << mArchive->getName() << "'";
+            mFileStates[hash] = FILE_PUBLISH_NEEDED;
+        }
+        else
+        {
+            CLOG(DEBUG, "History")
+                << "Not queueing bucket "
+                << hexAbbrev(b->getHash())
+                << " to send to archive '" << mArchive->getName()
+                << "'; bucket already queued";
         }
     }
     enterSendingState();
@@ -256,7 +232,7 @@ ArchivePublisher::enterCommittingState()
     mState = PUBLISH_COMMITTING;
     mArchive->putState(
         mApp,
-        mIntendedArchiveState,
+        mLocalState,
         [this](asio::error_code const& ec)
         {
             if (ec)
@@ -296,16 +272,18 @@ PublishStateMachine::PublishStateMachine(Application& app,
 {
     BucketList& buckets = mApp.getCLFMaster().getBucketList();
 
-    // Capture the bucket pairs at this instant; these may be expired from the
-    // bucketlist while the subsequent put-callbacks are running but the buckets
-    // are immutable and we hold shared_ptrs to them here, include those in the
-    // callbacks themselves.
-    std::vector<std::pair<std::shared_ptr<Bucket>,
-                          std::shared_ptr<Bucket>>> localBuckets;
+    // Capture local state and _all_ the local buckets at this instant; these
+    // may be expired from the bucketlist while the subsequent put-callbacks are
+    // running but the buckets are immutable and we hold shared_ptrs to them
+    // here, include those in the callbacks themselves.
+
+    HistoryArchiveState localState = app.getHistoryMaster().getCurrentHistoryArchiveState();
+    std::vector<std::shared_ptr<Bucket>> localBuckets;
     for (size_t i = 0; i < buckets.numLevels(); ++i)
     {
         auto const& level = buckets.getLevel(i);
-        localBuckets.push_back(std::make_pair(level.getCurr(), level.getSnap()));
+        localBuckets.push_back(level.getCurr());
+        localBuckets.push_back(level.getSnap());
     }
 
     // Iterate over writable archives instantiating an ArchivePublisher for them
@@ -325,6 +303,7 @@ PublishStateMachine::PublishStateMachine(Application& app,
                     this->archiveComplete(ec);
                 },
                 pair.second,
+                localState,
                 localBuckets);
             mPublishers.push_back(p);
         }
