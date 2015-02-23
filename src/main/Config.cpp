@@ -22,6 +22,7 @@ Config::Config() : PEER_KEY( SecretKey::random() )
 
     // configurable
     START_NEW_NETWORK = false;
+    START_LOCAL_NETWORK = false;
     DESIRED_BASE_FEE = 10;
     DESIRED_BASE_RESERVE = 10000000;
     PEER_PORT = DEFAULT_PEER_PORT;
@@ -30,6 +31,7 @@ Config::Config() : PEER_KEY( SecretKey::random() )
     MAX_PEER_CONNECTIONS = 50;
     LOG_FILE_PATH = "stellard.log";
     TMP_DIR_PATH = "tmp";
+    BUCKET_DIR_PATH = "buckets";
     QUORUM_THRESHOLD = 1000;
     HTTP_PORT = 39132;
     PUBLIC_HTTP_PORT = false;
@@ -66,6 +68,8 @@ Config::load(const std::string& filename)
             LOG_FILE_PATH = g.get("LOG_FILE_PATH")->as<std::string>()->value();
         if (g.contains("TMP_DIR_PATH"))
             TMP_DIR_PATH = g.get("TMP_DIR_PATH")->as<std::string>()->value();
+        if (g.contains("BUCKET_DIR_PATH"))
+            TMP_DIR_PATH = g.get("BUCKET_DIR_PATH")->as<std::string>()->value();
 
         if(g.contains("VALIDATION_SEED"))
         {

@@ -18,7 +18,7 @@ namespace stellar
     {
         inline Inflation::InflationResultCode getInnerCode(TransactionResult const & res)
         {
-            return res.body.tr().inflationResult().result.code();
+            return res.body.tr().inflationResult().code();
         }
     }
 

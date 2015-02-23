@@ -78,7 +78,7 @@ void
 Herder::bootstrap()
 {
     assert(!getSecretKey().isZero());
-    assert(mApp.getConfig().START_NEW_NETWORK);
+    assert(mApp.getConfig().START_NEW_NETWORK || mApp.getConfig().START_LOCAL_NETWORK);
 
     mLastClosedLedger = mApp.getLedgerMaster().getLastClosedLedgerHeader();
     mLedgersToWaitToParticipate = 0;

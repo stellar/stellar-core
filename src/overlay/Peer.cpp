@@ -4,6 +4,7 @@
 
 #include "Peer.h"
 
+#include <soci.h>
 #include "util/Logging.h"
 #include "crypto/SHA.h"
 #include "main/Application.h"
@@ -14,6 +15,8 @@
 #include "herder/HerderGateway.h"
 #include "database/Database.h"
 #include "crypto/Hex.h"
+#include <time.h>
+#include "PeerRecord.h"
 
 // LATER: need to add some way of docking peers that are misbehaving by sending
 // you bad data
@@ -22,6 +25,8 @@ namespace stellar
 {
 
 using namespace std;
+using namespace soci;
+
 
 Peer::Peer(Application& app, PeerRole role)
     : mApp(app)
@@ -109,15 +114,13 @@ Peer::sendPeers()
 
     // send top 50 peers we know about
     vector<PeerRecord> peerList;
-    mApp.getDatabase().loadPeers(50, peerList);
+    PeerRecord::loadPeerRecords(mApp.getDatabase(), 50, mApp.getClock().now(), peerList);
     StellarMessage newMsg;
     newMsg.type(PEERS);
     newMsg.peers().resize(xdr::size32(peerList.size()));
     for(int n = 0; n < peerList.size(); n++)
     {
-        ipFromStr(peerList[n].mIP, newMsg.peers()[n].ip);
-        newMsg.peers()[n].port = peerList[n].mPort;
-        newMsg.peers()[n].numFailures= peerList[n].mNumFailures;
+        peerList[n].toXdr(newMsg.peers()[n]);
     }
     sendMessage(newMsg);
 }
@@ -371,23 +374,6 @@ Peer::recvHello(StellarMessage const& msg)
     mPeerID = msg.hello().peerID;
 }
 
-// returns false if string is malformed
-bool Peer::ipFromStr(std::string ipStr,xdr::opaque_array<4U>& ret)
-{
-    std::stringstream ss(ipStr);
-    std::string item;
-    int n = 0;
-    while(std::getline(ss, item, '.') && n<4) 
-    {
-        ret[n] = atoi(item.c_str());
-        n++;
-    }
-    if(n==4)
-        return true;
-
-    return false;
-}
-
 void
 Peer::recvGetPeers(StellarMessage const& msg)
 {
@@ -397,12 +383,18 @@ Peer::recvGetPeers(StellarMessage const& msg)
 void
 Peer::recvPeers(StellarMessage const& msg)
 {
-    for(auto peer : msg.peers())
+    for (auto peer : msg.peers())
     {
         // TODO.3 make sure they aren't sending us garbage
         stringstream ip;
+
         ip << (int)peer.ip[0] << "." << (int)peer.ip[1] << "." << (int)peer.ip[2] << "." << (int)peer.ip[3];
-        mApp.getDatabase().addPeer(ip.str(), peer.port, peer.numFailures, 1);
+
+        PeerRecord pr{0, ip.str(), static_cast<int>(peer.port),
+            mApp.getClock().now(),
+            static_cast<int>(peer.numFailures), 1 };
+
+        pr.storePeerRecord(mApp.getDatabase());
     }
 }
 

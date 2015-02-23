@@ -79,6 +79,9 @@
     <Filter Include="simulation">
       <UniqueIdentifier>{5da37d0f-0d0e-4f17-a7b4-5463b0ccc0a9}</UniqueIdentifier>
     </Filter>
+    <Filter Include="clf\tests">
+      <UniqueIdentifier>{86be4089-9cdf-49d8-9d3f-4f8712a6560c}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\src\ledger\LedgerMaster.cpp">
@@ -119,9 +122,6 @@
     </ClCompile>
     <ClCompile Include="..\..\src\overlay\TCPPeer.cpp">
       <Filter>overlay</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\clf\CLFTests.cpp">
-      <Filter>clf</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\overlay\OverlayTests.cpp">
       <Filter>overlay</Filter>
@@ -336,9 +336,6 @@
     <ClCompile Include="..\..\src\herder\Herder.cpp">
       <Filter>herder</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\herder\HerderTests.cpp">
-      <Filter>herder</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\herder\TxSetFrame.cpp">
       <Filter>herder</Filter>
     </ClCompile>
@@ -354,8 +351,35 @@
     <ClCompile Include="..\..\src\transactions\OfferExchange.cpp">
       <Filter>transactions</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\herder\HerderStressTests.cpp">
+      <Filter>herder</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\herder\HerderTests.cpp">
+      <Filter>herder</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\util\Math.cpp">
+      <Filter>util</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\overlay\PeerMasterTests.cpp">
+      <Filter>overlay</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\history\CatchupStateMachine.cpp">
       <Filter>history</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\history\PublishStateMachine.cpp">
+      <Filter>history</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\clf\Bucket.cpp">
+      <Filter>clf</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\clf\CLFTests.cpp">
+      <Filter>clf\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\overlay\PeerRecordTests.cpp">
+      <Filter>overlay</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\overlay\PeerRecord.cpp">
+      <Filter>overlay</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -584,8 +608,23 @@
     <ClInclude Include="..\..\src\clf\LedgerCmp.h">
       <Filter>clf</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\src\util\Math.h">
+      <Filter>util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\util\asio.h">
+      <Filter>util</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\src\history\CatchupStateMachine.h">
       <Filter>history</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\history\PublishStateMachine.h">
+      <Filter>history</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\clf\Bucket.h">
+      <Filter>clf</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\overlay\PeerRecord.h">
+      <Filter>overlay</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

@@ -19,7 +19,7 @@ namespace stellar
     {
         inline AllowTrust::AllowTrustResultCode getInnerCode(TransactionResult const & res)
         {
-            return res.body.tr().allowTrustResult().result.code();
+            return res.body.tr().allowTrustResult().code();
         }
     }
 }

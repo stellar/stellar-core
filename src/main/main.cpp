@@ -24,6 +24,7 @@ enum opttag
     OPT_CONF,
     OPT_CMD,
     OPT_NEW,
+    OPT_LOCAL,
     OPT_GENSEED,
     OPT_LOGLEVEL
 };
@@ -35,6 +36,7 @@ static const struct option stellard_options[] = {
     {"conf", required_argument, nullptr, OPT_CONF},
     {"c", required_argument, nullptr, OPT_CMD},
     {"new", no_argument, nullptr, OPT_NEW },
+    {"local", no_argument, nullptr, OPT_LOCAL },
     {"genseed", no_argument, nullptr, OPT_GENSEED },
     {"ll", required_argument, nullptr, OPT_LOGLEVEL },
     {nullptr, 0, nullptr, 0}};
@@ -49,6 +51,7 @@ usage(int err = 1)
           "      --version     To print version information\n"
           "      --test        To run self-tests\n"
           "      --new         Start a brand new network to call your own.\n"
+          "      --local       Resume from locally saved state.\n"
           "      --genseed     Generate and print a random node seed.\n"
           "      --ll          Set the log level. options are:\n"
           "                    [trace|debug|info|warning|error|fatal|none]\n"
@@ -98,6 +101,7 @@ main(int argc, char* const* argv)
     std::vector<char*> rest;
 
     bool newNetwork = false;
+    bool localNetwork = false;
 
     int opt;
     while ((opt = getopt_long_only(argc, argv, "", stellard_options,
@@ -124,6 +128,9 @@ main(int argc, char* const* argv)
         case OPT_NEW:
             newNetwork = true;
             break;
+        case OPT_LOCAL:
+            localNetwork = true;
+            break;
         case OPT_LOGLEVEL:
             logLevel = Logging::getLLfromString(std::string(optarg));
             break;
@@ -148,6 +155,7 @@ main(int argc, char* const* argv)
     Logging::setLogLevel(logLevel,nullptr);
 
     cfg.START_NEW_NETWORK = newNetwork;
+    cfg.START_LOCAL_NETWORK = localNetwork;
     if (command.size())
     {
         sendCommand(command, rest, cfg.HTTP_PORT);

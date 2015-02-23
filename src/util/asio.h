@@ -4,6 +4,12 @@
 // under the ISC License. See the COPYING file at the top-level directory of
 // this distribution or at http://opensource.org/licenses/ISC
 
+#if defined(ASIO_WINDOWS_RUNTIME)
+// Empty.
+#elif defined(_WINSOCKAPI_) && !defined(_WINSOCK2API_)
+#  error `asio.h` is somewhat particular about when it gets included -- it wants to be the first to include <windows.h>. Include it before everything else.
+#endif
+
 #ifndef ASIO_SEPARATE_COMPILATION
 #define ASIO_SEPARATE_COMPILATION
 #endif

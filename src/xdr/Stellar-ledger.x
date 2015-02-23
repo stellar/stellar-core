@@ -96,4 +96,18 @@ struct History
     HistoryEntry entries<>;
 };
 
+union CLFEntryBase switch (CLFType type)
+{
+    case LIVEENTRY:
+        LedgerEntry liveEntry;
+
+    case DEADENTRY:
+        LedgerKey deadEntry;
+};
+
+struct TransactionMeta
+{
+    CLFEntryBase entries<>;
+};
+
 }

@@ -9,12 +9,12 @@
 #include <memory>
 
 /**
- * The history module is responsible for storing, mirroring, and retrieving
- * "historical records" on disk and in longer-term (public, internet)
- * archives. These records take two forms:
+ * The history module is responsible for storing and retrieving "historical
+ * records" in longer-term (public, internet) archives. These records take two
+ * forms:
  *
- *   1. Buckets from the BucketList -- partial or full snapshots of "state"
- *   2. Ledger Headers + Transactions -- a sequential log of "changes"
+ *   1. Buckets from the BucketList -- checkpoints of "full ledger state".
+ *   2. History blocks -- a sequential log of ledger hashes and transactions.
  *
  * The module design attempts to satisfy several key constraints:
  *
@@ -30,121 +30,52 @@
  *     preferably without asking permission or consuming server resources.
  *
  *   - Resource efficiency. History should not consume unreasonable amounts of
- *     space. It should be practical to store truncated partial histories.  It
+ *     space. It should be practical to store truncated partial histories. It
  *     should employ large-chunk-size bulk transport over commodity bulk file
- *     service protocols whenever possible. It should include "cold" portions
- *     that are not rewritten, that can gradually be moved to (eg.) offline
- *     storage or glacier-class "slow" storage.
+ *     service protocols whenever possible. It should be write-once and permit
+ *     old / cold files to be moved to increasingly cheap (eg. glacier) storage
+ *     or deleted using server-side expiration/archival policies.
  *
  *   - Tolerable latency for two main scenarios: "new peer joins network"
  *     and "peer temporarily de-synchronized, needs to catch up".
  *
  * The history store is served to clients over HTTP. In the root of the history
- * store is a file identifying the history-store format version number, and
- * providing any parameters for it. As per RFC 5785, this information is stored
- * at /.well-known/stellar-history.json as a JSON file.
+ * store is a history archive state file (class HistoryArchiveState) which
+ * denotes the archive format version number, the most-recent bucket-state
+ * snapshot (as a set of bucket hashes) and the checkpoint number of the
+ * most-recent history block, and finally a flag indicating whether to
+ * numerically directory-prefix the various referenced files. As per RFC 5785,
+ * this information is stored at /.well-known/stellar-history.json as a JSON
+ * file.
  *
- * The history store is divided into two sections: hot and cold. They are served
- * through HTTP under the subdirectories /hot and /cold, and may be mapped by
- * HTTP redirects to entirely different servers. In this implementation, /hot is
- * provided from front-end servers dynamically pulling data out of the SQL
- * database, and /cold is from longer-term external (cloud) storage. In theory
- * both may be provided from the same repository, but in practice it is easier
- * for /hot to be updatd in an ACID fashion along with the current ledger.
+ * Checkpoints are made every 64 ledgers, which (at 5s ledger close time) is
+ * 320s or about 5m20s. There will be 11 checkpoints per hour, 270 per day, and
+ * 98,550 per year. Counting checkpoints within a 32bit value gives 43,581 years
+ * of service for the system.
  *
- * The hot section stores ledger/tx-block records only, at a fine enough
- * granularity to support the "temporarily de-synced, catching up"
- * scenario. Groups of hot records are periodically made redundant by
- * coarser-granularity records stored to the cold section. Once redundant, hot
- * records are deleted from the hot section (though they may persist for a
- * time). Cold records are never (automatically) deleted, though of course
- * someone operating a history archive may choose to delete whatever they like.
+ * When catching up, the system chooses an anchor ledger and attempts to download
+ * the state at that anchor as well as all history _after_ that anchor. The node
+ * catching-up might therefore have to wait as long as a single checkpoint cycle
+ * in order to acquire history it is missing. It simply waits and retries until
+ * the history becomes available.
  *
- * The granularity of the hot and cold sections is defined by two
- * per-history-store parameters, each defining a power-of-two, by default 0 (=1
- * ledger) and 8 (=256 ledgers). The first is the granularity of history blocks
- * written to the hot section. The second is the granularity of history blocks
- * written to the cold section. The cold-section granularity is also implicitly
- * the expiration threshold for the hot section.
+ * Each checkpoint is described by a history archive state file whose name
+ * includes the checkpoint number (as a 32-bit hex string) and stored in an
+ * optional 3-level deep directory tree of hex digit prefixes. For example,
+ * checkpoint number 0x12345678 will be described by file
+ * state/12/34/56/state-0x12345678.json and the associated history block will be
+ * written to history/12/34/56/history-0x12345678.xdr.gz
  *
- * Bucket snapshots are written to the cold section as they occur, always.  Only
- * the .snap side of each bucket level is written; the .curr side (which is
- * frequently-changing) is reconstructed on the fly when catching up to history,
- * downloading between 0 and 14 snapshots to reconstruct each .curr bucket. In
- * order to reconstruct the bucket list (and acquire the changed-objects, to
- * write to the database) for ledger 0x6789a, for example, the following bucket
- * snapshots need to be downloaded:
+ * Bucket files accompanying each checkpoint are stored by hash name, again
+ * optionally separated by 3-level-deep hex prefixing, though as the hash is
+ * random, the directories will fill up in random order, not sequentially: if
+ * the bucket's hex hash is <AABBCCDEFG...> then the bucket is stored as
+ * bucket/AA/BB/CC/bucket-<AABBCCDEFG...>.xdr.gz
  *
- *    For level 0: the L0 snap from 0x67890-0x67898 (for .snap)
- *                 txlog replay for 0x67898-0x6789a (for .curr)
- *
- *    For level 1: the L1 snap from 0x67800-0x67880 (for .snap)
- *                 the L0 snap from 0x67880-0x67888 (for .curr)
- *           and   the L0 snap from 0x67888-0x67890 (for .curr)
- *
- *    For level 2: the L2 snap from 0x67000-0x67800 (for .snap)
- *                 --- empty ---                    (for .curr)
- *
- *    For level 3: --- empty ---                    (for .snap)
- *                 the L2 snap from 0x60000-0x60800 (for .curr)
- *           and   the L2 snap from 0x60800-0x61000 (for .curr)
- *           and   the L2 snap from 0x61000-0x61800 (for .curr)
- *           and   the L2 snap from 0x61800-0x62000 (for .curr)
- *           and   the L2 snap from 0x62000-0x62800 (for .curr)
- *           and   the L2 snap from 0x62800-0x63000 (for .curr)
- *           and   the L2 snap from 0x63000-0x63800 (for .curr)
- *           and   the L2 snap from 0x63800-0x64000 (for .curr)
- *           and   the L2 snap from 0x64000-0x64800 (for .curr)
- *           and   the L2 snap from 0x64800-0x65000 (for .curr)
- *           and   the L2 snap from 0x65000-0x65800 (for .curr)
- *           and   the L2 snap from 0x65800-0x66000 (for .curr)
- *           and   the L2 snap from 0x66000-0x66800 (for .curr)
- *           and   the L2 snap from 0x66800-0x67000 (for .curr)
- *    (14 files)
- *
- *    For level 4: --- empty ---                    (for .snap)
- *                 the L3 snap from 0x00000-0x08000 (for .curr)
- *           and   the L3 snap from 0x08000-0x10000 (for .curr)
- *           and   the L3 snap from 0x10000-0x18000 (for .curr)
- *           and   the L3 snap from 0x18000-0x20000 (for .curr)
- *           and   the L3 snap from 0x20000-0x28000 (for .curr)
- *           and   the L3 snap from 0x28000-0x30000 (for .curr)
- *           and   the L3 snap from 0x30000-0x38000 (for .curr)
- *           and   the L3 snap from 0x38000-0x40000 (for .curr)
- *           and   the L3 snap from 0x40000-0x48000 (for .curr)
- *           and   the L3 snap from 0x48000-0x50000 (for .curr)
- *           and   the L3 snap from 0x50000-0x58000 (for .curr)
- *           and   the L3 snap from 0x58000-0x60000 (for .curr)
- *    (12 files)
- *
- * An alternative implementation could also replay everything from the txlog,
- * downloding no snapshots. We write both bucket snapshots and txlog to long
- * term storage as a form of redundant cross-checking.
- *
- * If we take 1000 transactions/second as our design target: each transaction is
- * (say) 256 bytes, and a ledger closes every 5s, then we have 1.28MB of
- * transactions per ledger, so hot blocks are "written" (made available by the
- * database) every ledger, and cold blocks are written every 256 ledgers (21min,
- * 327MB), and we accumulate 26,280 cold blocks totalling 8.6TB per year in long
- * term transaction storage. Plus bucket snapshots, which should *roughly* follow
- * the same size profile, times a scalar factor for difference in size between
- * a transaction and the objects it changes, but divided by a scalar factor
- * for the level of redundancy between transactions, where N txs affect the
- * same object.
- *
- * Buckets are stored by hash with 2-level 256-ary prefixing: if the bucket's
- * hex hash is <AABBCDEFGH...> then the bucket is stored as
- * /cold/state/AA/BB/<AABBCDE...>.xdr.gz
- *
- * History blocks are stored by ledger sequence number range, with 2-level
- * 256-ary prefixing based on the low-order 16 bits of the _block_ sequence
- * number, expressed as a 64bit hex filename. That is, if the block sequence
- * number (some power-of-two division of the first ledger sequence number in the
- * block) is 0x000000005432ABCD, then the block is stored as
- * /cold/history/CD/AB/0x000000005432ABCD.xdr.gz
- *
- * The first ledger-block in all history can therefore always be found as
- * /cold/history/00/00/0x0000000000000000.xdr.gz
+ * The first history block (containing the genesis ledger) can therefore always
+ * be found in history/00/00/history-0x00000000.xdr.gz and described by
+ * state/00/00/state-0x00000000.json. The buckets will all be empty in
+ * that state.
  */
 
 namespace asio
@@ -155,6 +86,8 @@ typedef std::error_code error_code;
 namespace stellar
 {
 class Application;
+class Bucket;
+class BucketList;
 class HistoryArchive;
 class HistoryMaster
 {
@@ -176,8 +109,9 @@ class HistoryMaster
     void compress(std::string const& filename_nogz,
                   std::function<void(asio::error_code const&)> handler);
 
-    // Put a file to all archives that have a `put` command.
-    void putFile(std::string const& filename,
+    // Put a file to a specific archive using it's `put` command.
+    void putFile(std::shared_ptr<HistoryArchive> archive,
+                 std::string const& filename,
                  std::string const& basename,
                  std::function<void(asio::error_code const&)> handler);
 
@@ -187,12 +121,16 @@ class HistoryMaster
                  std::string const& filename,
                  std::function<void(asio::error_code const&)> handler);
 
+    // For each writable archive, put all buckets that have changed.
+    void checkpointBuckets(BucketList const& buckets);
+
     std::string const& getTmpDir();
 
     static std::string bucketBasename(std::string const& bucketHexHash);
     static std::string bucketHexHash(std::string const& bucketBasename);
 
     std::string localFilename(std::string const& basename);
+
 
     HistoryMaster(Application& app);
     ~HistoryMaster();

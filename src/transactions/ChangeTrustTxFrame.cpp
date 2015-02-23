@@ -36,7 +36,7 @@ bool ChangeTrustTxFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
         {
             trustLine.storeChange(delta, db);
         }
-        innerResult().result.code(ChangeTrust::SUCCESS);
+        innerResult().code(ChangeTrust::SUCCESS);
         return true;
     } else
     { // new trust line
@@ -44,7 +44,7 @@ bool ChangeTrustTxFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
         if(!AccountFrame::loadAccount(mEnvelope.tx.body.changeTrustTx().line.isoCI().issuer,
             issuer, db))
         {
-            innerResult().result.code(ChangeTrust::NO_ACCOUNT);
+            innerResult().code(ChangeTrust::NO_ACCOUNT);
             return false;
         }
             
@@ -59,7 +59,7 @@ bool ChangeTrustTxFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
         mSigningAccount->storeChange(delta, db);
         trustLine.storeAdd(delta, db);
 
-        innerResult().result.code(ChangeTrust::SUCCESS);
+        innerResult().code(ChangeTrust::SUCCESS);
         return true;
     }
 }

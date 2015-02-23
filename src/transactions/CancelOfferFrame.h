@@ -18,7 +18,7 @@ namespace stellar
     {
         inline CancelOffer::CancelOfferResultCode getInnerCode(TransactionResult const & res)
         {
-            return res.body.tr().cancelOfferResult().result.code();
+            return res.body.tr().cancelOfferResult().code();
         }
     }
 

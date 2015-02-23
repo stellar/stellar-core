@@ -65,7 +65,7 @@ void LedgerMaster::startNewLedger()
     std::string b58SeedStr = toBase58Check(VER_SEED, bytes);
     SecretKey skey = SecretKey::fromBase58Seed(b58SeedStr);
     AccountFrame masterAccount(skey.getPublicKey());
-    masterAccount.getAccount().balance = 100000000000000;
+    masterAccount.getAccount().balance = 100000000000000000;
     LedgerDelta delta;
     masterAccount.storeAdd(delta, this->getDatabase());
 
@@ -200,7 +200,8 @@ void LedgerMaster::closeLedger(TxSetFramePtr txSet)
             if(tx->apply(delta, mApp))
             {
                 successfulTX.add(tx);
-                tx->storeTransaction(*this);
+                tx->storeTransaction(*this, delta);
+                ledgerDelta.merge(delta);
             }
             else
             {

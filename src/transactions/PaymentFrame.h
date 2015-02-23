@@ -24,7 +24,7 @@ namespace Payment
 {
     inline Payment::PaymentResultCode getInnerCode(TransactionResult const & res)
     {
-        return res.body.tr().paymentResult().result.code();
+        return res.body.tr().paymentResult().code();
     }
 }
 

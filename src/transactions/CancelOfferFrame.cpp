@@ -17,11 +17,11 @@ bool CancelOfferFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
     if(!OfferFrame::loadOffer(mSigningAccount->getAccount().accountID, 
         mEnvelope.tx.body.offerSeqNum(), offerFrame, db))
     {
-        innerResult().result.code(CancelOffer::NOT_FOUND);
+        innerResult().code(CancelOffer::NOT_FOUND);
         return false;
     }
 
-    innerResult().result.code(CancelOffer::SUCCESS);
+    innerResult().code(CancelOffer::SUCCESS);
     
     mSigningAccount->getAccount().ownerCount--;
     offerFrame.storeDelete(delta, db);

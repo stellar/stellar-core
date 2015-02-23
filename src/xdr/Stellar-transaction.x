@@ -141,18 +141,16 @@ struct SuccessMultiResult
     SimplePaymentResult last;
 };
 
-struct PaymentResult
+union PaymentResult switch(PaymentResultCode code) // ideally could collapse with TransactionResult
 {
-    union switch(PaymentResultCode code) // ideally could collapse with TransactionResult
-    {
-        case SUCCESS:
-            void;
-        case SUCCESS_MULTI:
-            SuccessMultiResult multi;
-        default:
-            void;
-    } result;
+    case SUCCESS:
+        void;
+    case SUCCESS_MULTI:
+        SuccessMultiResult multi;
+    default:
+        void;
 };
+
 }
 
 namespace CreateOffer
@@ -188,16 +186,14 @@ struct CreateOfferSuccessResult
     } offer;
 };
 
-struct CreateOfferResult
+union CreateOfferResult switch(CreateOfferResultCode code)
 {
-    union switch(CreateOfferResultCode code)
-    {
-        case SUCCESS:
-            CreateOfferSuccessResult success;
-        default:
-            void;
-    } result;
+    case SUCCESS:
+        CreateOfferSuccessResult success;
+    default:
+        void;
 };
+
 }
 
 namespace CancelOffer
@@ -208,16 +204,14 @@ enum CancelOfferResultCode
     NOT_FOUND
 };
 
-struct CancelOfferResult
+union CancelOfferResult switch(CancelOfferResultCode code)
 {
-    union switch(CancelOfferResultCode code)
-    {
-        case SUCCESS:
-            void;
-        default:
-            void;
-    } result;
+    case SUCCESS:
+        void;
+    default:
+        void;
 };
+
 }
 
 namespace SetOptions
@@ -231,16 +225,14 @@ enum SetOptionsResultCode
     MALFORMED
 };
 
-struct SetOptionsResult
+union SetOptionsResult switch(SetOptionsResultCode code)
 {
-    union switch(SetOptionsResultCode code)
-    {
-        case SUCCESS:
-            void;
-        default:
-            void;
-    } result;
+    case SUCCESS:
+        void;
+    default:
+        void;
 };
+
 }
 
 namespace ChangeTrust
@@ -251,16 +243,14 @@ enum ChangeTrustResultCode
     NO_ACCOUNT
 };
 
-struct ChangeTrustResult
+union ChangeTrustResult switch(ChangeTrustResultCode code)
 {
-    union switch(ChangeTrustResultCode code)
-    {
-        case SUCCESS:
-            void;
-        default:
-            void;
-    } result;
+    case SUCCESS:
+        void;
+    default:
+        void;
 };
+
 }
 
 namespace AllowTrust
@@ -272,16 +262,14 @@ enum AllowTrustResultCode
     NO_TRUST_LINE
 };
 
-struct AllowTrustResult
+union AllowTrustResult switch(AllowTrustResultCode code)
 {
-    union switch(AllowTrustResultCode code)
-    {
-        case SUCCESS:
-            void;
-        default:
-            void;
-    } result;
+    case SUCCESS:
+        void;
+    default:
+        void;
 };
+
 }
 
 namespace AccountMerge
@@ -294,16 +282,14 @@ enum AccountMergeResultCode
     HAS_CREDIT
 };
 
-struct AccountMergeResult
+union AccountMergeResult switch(AccountMergeResultCode code)
 {
-    union switch(AccountMergeResultCode code)
-    {
-        case SUCCESS:
-            void;
-        default:
-            void;
-    } result;
+    case SUCCESS:
+        void;
+    default:
+        void;
 };
+
 }
 
 namespace Inflation
@@ -320,16 +306,14 @@ struct inflationPayout // or use PaymentResultAtom to limit types?
     int64 amount;
 };
 
-struct InflationResult
+union InflationResult switch(InflationResultCode code)
 {
-    union switch(InflationResultCode code)
-    {
-        case SUCCESS:
-            inflationPayout payouts<>;
-        default:
-            void;
-    } result;
+    case SUCCESS:
+        inflationPayout payouts<>;
+    default:
+        void;
 };
+
 }
 
 enum TransactionResultCode

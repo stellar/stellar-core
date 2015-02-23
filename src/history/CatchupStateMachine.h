@@ -53,24 +53,24 @@ namespace stellar
  */
 enum CatchupState
 {
-    BEGIN,
-    RETRYING,
-    ANCHORED,
-    FETCHING,
-    APPLYING,
-    END
+    CATCHUP_BEGIN,
+    CATCHUP_RETRYING,
+    CATCHUP_ANCHORED,
+    CATCHUP_FETCHING,
+    CATCHUP_APPLYING,
+    CATCHUP_END
 };
 
-enum HistoryFileState
+enum FileCatchupState
 {
-    FILE_FAILED = 0,
-    FILE_NEEDED = 1,
-    FILE_DOWNLOADING = 2,
-    FILE_DOWNLOADED = 3,
-    FILE_DECOMPRESSING = 4,
-    FILE_DECOMPRESSED = 5,
-    FILE_VERIFYING = 6,
-    FILE_VERIFIED = 7
+    FILE_CATCHUP_FAILED = 0,
+    FILE_CATCHUP_NEEDED = 1,
+    FILE_CATCHUP_DOWNLOADING = 2,
+    FILE_CATCHUP_DOWNLOADED = 3,
+    FILE_CATCHUP_DECOMPRESSING = 4,
+    FILE_CATCHUP_DECOMPRESSED = 5,
+    FILE_CATCHUP_VERIFYING = 6,
+    FILE_CATCHUP_VERIFIED = 7
 };
 
 class HistoryArchive;
@@ -78,7 +78,7 @@ struct HistoryArchiveState;
 class Application;
 
 class
-CatchupStateMachine : std::enable_shared_from_this<CatchupStateMachine>
+CatchupStateMachine
 {
     static const size_t kRetryLimit;
 
@@ -89,12 +89,12 @@ CatchupStateMachine : std::enable_shared_from_this<CatchupStateMachine>
 
     std::shared_ptr<HistoryArchive> mArchive;
     HistoryArchiveState mArchiveState;
-    std::map<std::string, HistoryFileState> mFileStates;
+    std::map<std::string, FileCatchupState> mFileStates;
 
     std::shared_ptr<HistoryArchive> selectRandomReadableHistoryArchive();
     void fileStateChange(asio::error_code const& ec,
                          std::string const& basename,
-                         HistoryFileState newGoodState);
+                         FileCatchupState newGoodState);
 
     void enterBeginState();
     void enterAnchoredState(HistoryArchiveState const& has);

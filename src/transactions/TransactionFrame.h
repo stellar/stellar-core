@@ -75,11 +75,11 @@ namespace stellar
         // returns true if successfully applied
         bool apply(LedgerDelta& delta, Application& app);
 
-        StellarMessage&& toStellarMessage();
+        StellarMessage toStellarMessage();
 
         // transaction history
 
-        void storeTransaction(LedgerMaster &ledgerMaster);
+        void storeTransaction(LedgerMaster &ledgerMaster, LedgerDelta const& delta);
         static void dropAll(Database &db);
 
     };
