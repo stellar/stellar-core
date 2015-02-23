@@ -354,6 +354,9 @@
     <ClCompile Include="..\..\src\transactions\OfferExchange.cpp">
       <Filter>transactions</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\history\CatchupStateMachine.cpp">
+      <Filter>history</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\ledger\LedgerGateway.h">
@@ -580,6 +583,9 @@
     </ClInclude>
     <ClInclude Include="..\..\src\clf\LedgerCmp.h">
       <Filter>clf</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\history\CatchupStateMachine.h">
+      <Filter>history</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

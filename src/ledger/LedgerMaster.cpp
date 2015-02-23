@@ -39,6 +39,12 @@ catching up to network:
     // TODO.1 make sure you validate incoming Deltas to see that it gives you the CLF you want
     // TODO.3 do we need to store some validation history?
 
+    // TODO.1 wire up bucketlist. give it delta. hash bucketlist. 
+    // TODO.1 wire up catch up. turn off ledger close when catching up. 
+    // TODO.1 wire up replying txs from history blocks
+    // TODO.1 need way to build DB when you don't start it with --new
+    // TODO.1 better way to handle quorums when you are booting a network for instance if all nodes fail.
+
 */
 namespace stellar
 {

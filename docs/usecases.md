@@ -15,7 +15,8 @@ Things we might want to handle with payments:
 - or USD A part of it goes through one path and part goes through another path B gets the same amount you just pay less
 - create two offers at the same time
 - send a payment when you don't have enough of one source currency
-
+- A sends to B and B sends to C atomicaly
+- Gateway that requires itself to be a cosigner on any tx and includes a small fee
 
 Maybe there is a way to bundle some arbitrary set of txs into an atomic package.
 This could allow you to do cool things like I send you X if you send me Y. They either both succeed or both fail
