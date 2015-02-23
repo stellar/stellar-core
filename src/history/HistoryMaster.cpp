@@ -9,6 +9,9 @@
 
 #include "main/Application.h"
 #include "main/Config.h"
+#include "clf/BucketList.h"
+#include "clf/CLFMaster.h"
+#include "ledger/LedgerMaster.h"
 #include "generated/StellarXDR.h"
 #include "history/HistoryMaster.h"
 #include "history/HistoryArchive.h"
@@ -71,7 +74,6 @@ HistoryMaster::getTmpDir()
     }
     return mImpl->mWorkDir->getName();
 }
-
 
 std::string
 HistoryMaster::bucketBasename(std::string const& bucketHexHash)
@@ -150,6 +152,8 @@ HistoryMaster::verifyHash(std::string const& filename,
             else
             {
                 LOG(WARNING) << "FAILED verifying hash for " << filename;
+                LOG(WARNING) << "expected hash: " << binToHex(hash);
+                LOG(WARNING) << "computed hash: " << binToHex(vHash);
                 ec = std::make_error_code(std::errc::io_error);
             }
             app.getMainIOService().post([ec, handler]() { handler(ec); });
@@ -245,6 +249,20 @@ HistoryMaster::getFile(std::shared_ptr<HistoryArchive> archive,
     auto cmd = archive->getFileCmd(basename, filename);
     auto exit = this->mImpl->mApp.getProcessGateway().runProcess(cmd);
     exit.async_wait(handler);
+}
+
+HistoryArchiveState
+HistoryMaster::getCurrentHistoryArchiveState() const
+{
+    HistoryArchiveState has;
+    has.currentLedger = mImpl->mApp.getLedgerMaster().getLedgerNum();
+    auto &bl = mImpl->mApp.getCLFMaster().getBucketList();
+    for (size_t i = 0; i < BucketList::kNumLevels; ++i)
+    {
+        has.currentBuckets.at(i).curr = binToHex(bl.getLevel(i).getCurr()->getHash());
+        has.currentBuckets.at(i).snap = binToHex(bl.getLevel(i).getSnap()->getHash());
+    }
+    return has;
 }
 
 void

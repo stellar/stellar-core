@@ -5,6 +5,7 @@
 // this distribution or at http://opensource.org/licenses/ISC
 
 #include "generated/StellarXDR.h"
+#include "history/HistoryArchive.h"
 #include <functional>
 #include <memory>
 
@@ -128,6 +129,8 @@ class HistoryMaster
 
     // Pick a readable archive and set the bucketlist to its content.
     void catchupHistory(std::function<void(asio::error_code const&)> handler);
+
+    HistoryArchiveState getCurrentHistoryArchiveState() const;
 
     std::string const& getTmpDir();
 
