@@ -12,7 +12,7 @@ namespace stellar
 
 class Config;
 
-Config& getTestConfig();
+Config const& getTestConfig(int instanceNumber = 0);
 int test(int argc, char* const* argv, el::Level logLevel);
 }
 

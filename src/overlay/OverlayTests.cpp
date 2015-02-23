@@ -31,15 +31,12 @@ allStopped(std::vector<appPtr>& apps)
 
 TEST_CASE("loopback peer hello", "[overlay]")
 {
-    Config& cfg1 = getTestConfig();
+    Config const& cfg1 = getTestConfig(0);
     VirtualClock clock;
     std::vector<appPtr> apps;
     apps.emplace_back(stellar::make_unique<Application>(clock, cfg1));
 
-    Config cfg2;
-    cfg2.LOG_FILE_PATH = cfg1.LOG_FILE_PATH;
-    cfg2.RUN_STANDALONE = true;
-    cfg2.START_NEW_NETWORK = true;
+    Config const& cfg2 = getTestConfig(1);
     apps.emplace_back(stellar::make_unique<Application>(clock, cfg2));
 
     LoopbackPeerConnection conn(*apps[0], *apps[1]);

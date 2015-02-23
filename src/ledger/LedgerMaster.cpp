@@ -77,7 +77,7 @@ void LedgerMaster::startNewLedger()
 
     mCurrentLedger = make_shared<LedgerHeaderFrame>(genesisHeader);
 
-    closeLedgerHelper(true);
+    closeLedgerHelper(true, delta);
 
 }
 
@@ -103,7 +103,9 @@ void LedgerMaster::loadLastKnownLedger()
         throw std::runtime_error("Could not load ledger from database");
     }
 
-    closeLedgerHelper(false);
+    LedgerDelta delta;
+
+    closeLedgerHelper(false, delta);
 }
 
 Database &LedgerMaster::getDatabase()
@@ -139,9 +141,10 @@ LedgerHeader& LedgerMaster::getLastClosedLedgerHeader()
 // make sure our state is consistent with the CLF
 void LedgerMaster::syncWithCLF()
 {
-    LedgerHeader const& clfHeader = mApp.getCLFMaster().getHeader();
+    LedgerHeader clfHeader;
+    mApp.getCLFMaster().snapshotLedger(clfHeader);
 
-    if(clfHeader.hash == mCurrentLedger->mHeader.hash)
+    if(clfHeader.hash == mLastClosedLedger->mHeader.hash)
     {
         CLOG(DEBUG, "Ledger") << "CLF and SQL headers match.";
     } else
@@ -214,7 +217,7 @@ void LedgerMaster::closeLedger(TxSetFramePtr txSet)
         }
     }
 
-    closeLedgerHelper(true);
+    closeLedgerHelper(true, ledgerDelta);
     txscope.commit();
 
     // Notify ledger close to other components.
@@ -224,12 +227,16 @@ void LedgerMaster::closeLedger(TxSetFramePtr txSet)
 
 // helper function that updates the various hashes in the current ledger header
 // and switches to a new ledger
-void LedgerMaster::closeLedgerHelper(bool updateCurrent)
+void LedgerMaster::closeLedgerHelper(bool updateCurrent, LedgerDelta const& delta)
 {
     if (updateCurrent)
     {
-        // TODO: give the LedgerDelta to the Bucketlist to compute the new clfHash
-        mCurrentLedger->mHeader.clfHash.fill(1);
+        mApp.getCLFMaster().addBatch(mApp,
+            mCurrentLedger->mHeader.ledgerSeq,
+            delta.getLiveEntries(), delta.getDeadEntries());
+
+        mApp.getCLFMaster().snapshotLedger(mCurrentLedger->mHeader);
+
         // TODO: compute hashes in header
         mCurrentLedger->mHeader.txSetHash.fill(1);
         mCurrentLedger->computeHash();
