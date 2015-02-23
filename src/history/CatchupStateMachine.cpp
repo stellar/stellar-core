@@ -327,14 +327,14 @@ void CatchupStateMachine::enterApplyingState()
             while (in)
             {
                 in.readOne(entry);
-                if (entry.entry.type() == LIVEENTRY)
+                if (entry.type() == LIVEENTRY)
                 {
-                    EntryFrame::pointer ep = EntryFrame::FromXDR(entry.entry.liveEntry());
+                    EntryFrame::pointer ep = EntryFrame::FromXDR(entry.liveEntry());
                     ep->storeAddOrChange(delta, db);
                 }
                 else
                 {
-                    EntryFrame::storeDelete(delta, db, entry.entry.deadEntry());
+                    EntryFrame::storeDelete(delta, db, entry.deadEntry());
                 }
             }
         }

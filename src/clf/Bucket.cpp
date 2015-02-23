@@ -193,8 +193,7 @@ public:
     void
     put(CLFEntry const& e)
     {
-        mHasher.add(e.hash);
-        mOut.writeOne(e);
+        mOut.writeOne(e, &mHasher);
     }
 
     std::shared_ptr<Bucket>
@@ -231,7 +230,7 @@ Bucket::countLiveAndDeadEntries() const
     Bucket::InputIterator iter(shared_from_this());
     while(iter)
     {
-        if ((*iter).entry.type() == LIVEENTRY)
+        if ((*iter).type() == LIVEENTRY)
         {
             ++live;
         }
@@ -256,18 +255,16 @@ Bucket::fresh(CLFMaster& clfMaster,
     for (auto const& e : liveEntries)
     {
         CLFEntry ce;
-        ce.entry.type(LIVEENTRY);
-        ce.entry.liveEntry() = e;
-        ce.hash = sha256(xdr::xdr_to_msg(ce.entry));
+        ce.type(LIVEENTRY);
+        ce.liveEntry() = e;
         live.push_back(ce);
     }
 
     for (auto const& e : deadEntries)
     {
         CLFEntry ce;
-        ce.entry.type(DEADENTRY);
-        ce.entry.deadEntry() = e;
-        ce.hash = sha256(xdr::xdr_to_msg(ce.entry));
+        ce.type(DEADENTRY);
+        ce.deadEntry() = e;
         dead.push_back(ce);
     }
 

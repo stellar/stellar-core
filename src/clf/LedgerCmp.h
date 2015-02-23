@@ -91,29 +91,29 @@ CLFEntryIdCmp
     bool operator()(CLFEntry const& a,
                     CLFEntry const& b) const
     {
-        CLFType aty = a.entry.type();
-        CLFType bty = b.entry.type();
+        CLFType aty = a.type();
+        CLFType bty = b.type();
 
         if (aty == LIVEENTRY)
         {
             if (bty == LIVEENTRY)
             {
-                return mCmp(a.entry.liveEntry(), b.entry.liveEntry());
+                return mCmp(a.liveEntry(), b.liveEntry());
             }
             else
             {
-                return mCmp(a.entry.liveEntry(), b.entry.deadEntry());
+                return mCmp(a.liveEntry(), b.deadEntry());
             }
         }
         else
         {
             if (bty == LIVEENTRY)
             {
-                return mCmp(a.entry.deadEntry(), b.entry.liveEntry());
+                return mCmp(a.deadEntry(), b.liveEntry());
             }
             else
             {
-                return mCmp(a.entry.deadEntry(), b.entry.deadEntry());
+                return mCmp(a.deadEntry(), b.deadEntry());
             }
         }
     }
