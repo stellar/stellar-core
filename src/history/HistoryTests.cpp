@@ -53,8 +53,18 @@ public:
         , cfg(getTestConfig())
         , app(clock, addLocalDirHistoryArchive(dir, cfg))
         {}
+
+    void crankTillDone(bool& done);
 };
 
+void
+HistoryTests::crankTillDone(bool& done)
+{
+    while (!done && !app.getMainIOService().stopped())
+    {
+        app.crank();
+    }
+}
 
 TEST_CASE_METHOD(HistoryTests, "HistoryMaster::compress", "[history]")
 {
@@ -82,10 +92,7 @@ TEST_CASE_METHOD(HistoryTests, "HistoryMaster::compress", "[history]")
                     done = true;
                 });
         });
-    while (!done && !app.getMainIOService().stopped())
-    {
-        app.crank();
-    }
+    crankTillDone(done);
 }
 
 
@@ -107,11 +114,7 @@ TEST_CASE_METHOD(HistoryTests, "HistoryMaster::verifyHash", "[history]")
             CHECK(!ec);
             done = true;
         });
-
-    while (!done && !app.getMainIOService().stopped())
-    {
-        app.crank();
-    }
+    crankTillDone(done);
 }
 
 
@@ -141,10 +144,7 @@ TEST_CASE_METHOD(HistoryTests, "HistoryArchiveState::get_put", "[history]")
                     done = true;
                 });
         });
-    while (!done && !app.getMainIOService().stopped())
-    {
-        app.crank();
-    }
+    crankTillDone(done);
 }
 
 
@@ -178,9 +178,6 @@ TEST_CASE_METHOD(HistoryTests, "History publish", "[history]")
                     done = true;
                 });
         });
+    crankTillDone(done);
 
-    while (!done && !app.getMainIOService().stopped())
-    {
-        app.crank();
-    }
 }
