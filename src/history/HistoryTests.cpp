@@ -192,3 +192,21 @@ TEST_CASE_METHOD(HistoryTests, "History publish", "[history]")
 {
     generateAndPublishHistory();
 }
+
+TEST_CASE_METHOD(HistoryTests, "History catchup", "[history]")
+{
+    generateAndPublishHistory();
+
+    // Reset BucketList
+    app.getCLFMaster().getBucketList() = BucketList();
+
+    bool done = false;
+    app.getHistoryMaster().catchupHistory(
+        [&done](asio::error_code const& ec)
+        {
+            CHECK(!ec);
+            done = true;
+        });
+    crankTillDone(done);
+
+}
