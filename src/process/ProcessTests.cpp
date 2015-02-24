@@ -37,3 +37,35 @@ TEST_CASE("subprocess", "[process]")
         app.getMainIOService().poll_one();
     }
 }
+
+TEST_CASE("subprocess redirect to file", "[process]")
+{
+    VirtualClock clock;
+    Config const& cfg = getTestConfig();
+    Application app(clock, cfg);
+    std::string filename("hostname.txt");
+    auto evt = app.getProcessGateway().runProcess("hostname", filename);
+    bool exited = false;
+    evt.async_wait([&](asio::error_code ec)
+                   {
+                       CLOG(DEBUG, "Process") << "process exited: " << ec;
+                       if (ec)
+                       {
+                           CLOG(DEBUG, "Process") << "error code: " << ec.message();
+                       }
+                       exited = true;
+                   });
+
+    while (!exited && !app.getMainIOService().stopped())
+    {
+        app.crank(false);
+    }
+
+    std::ifstream in(filename);
+    CHECK(in);
+    std::string s;
+    in >> s;
+    CLOG(DEBUG, "Process") << "opened redirect file, read: " << s;
+    CHECK(!s.empty());
+    std::remove(filename.c_str());
+}

@@ -21,7 +21,8 @@ class ProcessMaster : public ProcessGateway
 
   public:
     ProcessMaster(Application& app);
-    ProcessExitEvent runProcess(std::string const& cmdLine);
+    ProcessExitEvent runProcess(std::string const& cmdLine,
+                                std::string outFile="");
 };
 }
 
