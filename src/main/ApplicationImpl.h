@@ -8,7 +8,6 @@
 
 namespace stellar
 {
-class medida::MetricsRegistry;
 class TmpDirMaster;
 class PeerMaster;
 class LedgerMaster;

@@ -120,14 +120,19 @@ protected:
         pm.storePeerList(threePeers, 2);
         pm.connectToMorePeers(5);
         REQUIRE(pm.mPeers.size() == 5);
-        StellarMessage AtoC = createPaymentTx(getAccount("a"), getAccount("b"), 1, 10)->toStellarMessage();
+        SecretKey a = getAccount("a");
+        SecretKey b = getAccount("b");
+        SecretKey c = getAccount("c");
+        SecretKey d = getAccount("d");
+        
+        StellarMessage AtoC = createPaymentTx(a, b, 1, 10)->toStellarMessage();
         pm.recvFloodedMsg(AtoC, *(pm.mPeers.begin()+2));
         pm.broadcastMessage(AtoC);
         vector<int> expected{ 1,1,0,1,1 };
         REQUIRE(sentCounts(pm) == expected);
         pm.broadcastMessage(AtoC);
         REQUIRE(sentCounts(pm) == expected);
-        StellarMessage CtoD = createPaymentTx(getAccount("c"), getAccount("d"), 1, 10)->toStellarMessage();
+        StellarMessage CtoD = createPaymentTx(c, d, 1, 10)->toStellarMessage();
         pm.broadcastMessage(CtoD);
         vector<int> expectedFinal{ 2,2,1,2,2 };
         REQUIRE(sentCounts(pm) == expectedFinal);
