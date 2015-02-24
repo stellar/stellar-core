@@ -45,10 +45,6 @@ class Database;
 
 class Application
 {
-
-    struct Impl;
-    std::unique_ptr<Impl> mImpl;
-
   public:
     typedef std::shared_ptr<Application> pointer;
 
@@ -88,51 +84,52 @@ class Application
         NUM_STATE
     };
 
-  private:
+    virtual ~Application() {};
 
-  public:
-    Application(VirtualClock& clock, Config const& config);
-    ~Application();
+    virtual void enableRealTimer() = 0;
+    virtual void disableRealTimer() = 0;
+    virtual size_t crank(bool block=true) = 0;
 
-    void enableRealTimer();
-    void disableRealTimer();
-    size_t crank(bool block=true);
+    virtual Config const& getConfig() = 0;
 
-    Config const& getConfig();
+    virtual State getState() = 0;
+    virtual void setState(State) = 0;
+    virtual VirtualClock& getClock() = 0;
+    virtual medida::MetricsRegistry& getMetrics() = 0;
+    virtual TmpDirMaster& getTmpDirMaster() = 0;
+    virtual LedgerGateway& getLedgerGateway() = 0;
+    virtual LedgerMaster& getLedgerMaster() = 0;
+    virtual CLFMaster& getCLFMaster() = 0;
+    virtual HistoryMaster& getHistoryMaster() = 0;
+    virtual ProcessGateway& getProcessGateway() = 0;
+    virtual HerderGateway& getHerderGateway() = 0;
+    virtual OverlayGateway& getOverlayGateway() = 0;
+    virtual PeerMaster& getPeerMaster() = 0;
+    virtual Database& getDatabase() = 0;
 
-    State getState();
-    void setState(State);
-    VirtualClock& getClock();
-    medida::MetricsRegistry& getMetrics();
-    TmpDirMaster& getTmpDirMaster();
-    LedgerGateway& getLedgerGateway();
-    LedgerMaster& getLedgerMaster();
-    CLFMaster& getCLFMaster();
-    HistoryMaster& getHistoryMaster();
-    ProcessGateway& getProcessGateway();
-    HerderGateway& getHerderGateway();
-    OverlayGateway& getOverlayGateway();
-    PeerMaster& getPeerMaster();
-    Database& getDatabase();
+    virtual asio::io_service& getMainIOService() = 0;
+    virtual asio::io_service& getWorkerIOService() = 0;
 
-    asio::io_service& getMainIOService();
-    asio::io_service& getWorkerIOService();
-
-    void start();
+    virtual void start() = 0;
 
     // Stops the io_services, which should cause the threads to exit
     // once they finish running any work-in-progress. If you want a
     // more abrupt exit than this, call exit() and hope for the best.
-    void gracefulStop();
+    virtual void gracefulStop() = 0;
 
     // Wait-on and join all the threads this application started; should
     // only return when there is no more work to do or someone has
     // force-stopped the io_services. Application can be safely destroyed
     // after this returns.
-    void joinAllThreads();
+    virtual void joinAllThreads() = 0;
 
 
-    void applyCfgCommands();
+    virtual void applyCfgCommands() = 0;
+
+    static pointer create(VirtualClock& clock, Config const& cfg);
+
+protected:
+    Application() {}
 };
 }
 

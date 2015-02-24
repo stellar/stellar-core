@@ -66,7 +66,8 @@ class PeerMasterTests
 {
 protected:
     VirtualClock clock;
-    Application app{ clock, getTestConfig() };
+    Application::pointer appPtr = Application::create(clock, getTestConfig());
+    Application &app = *appPtr;
 
     vector<string> fourPeers;
     vector<string> threePeers;

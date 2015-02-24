@@ -20,6 +20,7 @@ class PeerDoorStub;
 
 class PeerDoor
 {
+protected:
     Application& mApp;
     asio::ip::tcp::acceptor mAcceptor;
 

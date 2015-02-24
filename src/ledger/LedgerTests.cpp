@@ -79,10 +79,10 @@ TEST_CASE("Ledger entry db lifecycle", "[ledger]")
 {
     Config cfg(getTestConfig());
     VirtualClock clock;
-    Application app(clock, cfg);
+    Application::pointer app = Application::create(clock, cfg);
 
     LedgerDelta delta;
-    auto& db = app.getDatabase();
+    auto& db = app->getDatabase();
     for (size_t i = 0; i < 100; ++i)
     {
         auto le = EntryFrame::FromXDR(validLedgerEntryGenerator(3));

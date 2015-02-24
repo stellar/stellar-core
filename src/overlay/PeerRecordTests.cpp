@@ -14,7 +14,7 @@ using namespace std;
 TEST_CASE("toXdr", "[overlay][PeerRecord]")
 {
     VirtualClock clock;
-    Application app{ clock, getTestConfig() };
+    Application::pointer app = Application::create(clock, getTestConfig());
     PeerRecord pr;
     PeerRecord::fromIPPort("1.25.50.200:256", 15, clock, pr);
     pr.mNumFailures = 2;
@@ -37,19 +37,19 @@ TEST_CASE("toXdr", "[overlay][PeerRecord]")
     SECTION("loadPeerRecord and storePeerRecord")
     {
         pr.mNextAttempt = pr.mNextAttempt + chrono::seconds(12);
-        pr.storePeerRecord(app.getDatabase());
+        pr.storePeerRecord(app->getDatabase());
         PeerRecord other;
         PeerRecord::fromIPPort("1.2.3.4", 15, clock, other);
-        other.storePeerRecord(app.getDatabase());
+        other.storePeerRecord(app->getDatabase());
 
         pr.mNextAttempt = pr.mNextAttempt + chrono::seconds(12);
-        pr.storePeerRecord(app.getDatabase());
+        pr.storePeerRecord(app->getDatabase());
         PeerRecord actual1;
-        PeerRecord::loadPeerRecord(app.getDatabase(), pr.mIP, pr.mPort, actual1);
+        PeerRecord::loadPeerRecord(app->getDatabase(), pr.mIP, pr.mPort, actual1);
         REQUIRE(actual1 == pr);
 
         PeerRecord actual2;
-        PeerRecord::loadPeerRecord(app.getDatabase(), "1.2.3.4", 15, actual2);
+        PeerRecord::loadPeerRecord(app->getDatabase(), "1.2.3.4", 15, actual2);
         REQUIRE(actual2 == other);
     }
     

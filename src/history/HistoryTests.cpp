@@ -44,14 +44,16 @@ protected:
     TmpDirMaster archtmp;
     TmpDir dir;
     Config cfg;
-    Application app;
+    Application::pointer appPtr;
+    Application &app;
 
 public:
     HistoryTests()
         : archtmp("archtmp")
         , dir(archtmp.tmpDir("archive"))
         , cfg(getTestConfig())
-        , app(clock, addLocalDirHistoryArchive(dir, cfg))
+        , appPtr(Application::create(clock, addLocalDirHistoryArchive(dir, cfg)))
+        , app(*appPtr)
         {}
 
     void crankTillDone(bool& done);
@@ -129,14 +131,14 @@ TEST_CASE_METHOD(HistoryTests, "HistoryArchiveState::get_put", "[history]")
     CHECK(i != app.getConfig().HISTORY.end());
     auto archive = i->second;
 
-    auto& app = this->app;
+    auto& theApp = this->app; // need a local scope reference
     archive->putState(
         app, has,
-        [&done, &app, archive](asio::error_code const& ec)
+        [&done, &theApp, archive](asio::error_code const& ec)
         {
             CHECK(!ec);
             archive->getState(
-                app,
+                theApp,
                 [&done](asio::error_code const& ec,
                         HistoryArchiveState const& has2)
                 {

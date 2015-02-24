@@ -19,8 +19,8 @@ TEST_CASE("subprocess", "[process]")
 {
     VirtualClock clock;
     Config const& cfg = getTestConfig();
-    Application app(clock, cfg);
-    auto evt = app.getProcessGateway().runProcess("hostname");
+    Application::pointer app = Application::create(clock, cfg);
+    auto evt = app->getProcessGateway().runProcess("hostname");
     bool exited = false;
     evt.async_wait([&](asio::error_code ec)
                    {
@@ -32,9 +32,9 @@ TEST_CASE("subprocess", "[process]")
                        exited = true;
                    });
 
-    while (!exited && !app.getMainIOService().stopped())
+    while (!exited && !app->getMainIOService().stopped())
     {
-        app.getMainIOService().poll_one();
+        app->getMainIOService().poll_one();
     }
 }
 
@@ -42,7 +42,8 @@ TEST_CASE("subprocess redirect to file", "[process]")
 {
     VirtualClock clock;
     Config const& cfg = getTestConfig();
-    Application app(clock, cfg);
+    Application::pointer appPtr = Application::create(clock, cfg);
+    Application &app = *appPtr;
     std::string filename("hostname.txt");
     auto evt = app.getProcessGateway().runProcess("hostname", filename);
     bool exited = false;

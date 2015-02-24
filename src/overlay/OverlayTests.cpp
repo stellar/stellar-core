@@ -14,12 +14,10 @@
 
 using namespace stellar;
 
-typedef std::unique_ptr<Application> appPtr;
-
 static bool
-allStopped(std::vector<appPtr>& apps)
+allStopped(std::vector<Application::pointer>& apps)
 {
-    for (appPtr& app : apps)
+    for (auto app : apps)
     {
         if (!app->getMainIOService().stopped())
         {
@@ -33,18 +31,18 @@ TEST_CASE("loopback peer hello", "[overlay]")
 {
     Config const& cfg1 = getTestConfig(0);
     VirtualClock clock;
-    std::vector<appPtr> apps;
-    apps.emplace_back(stellar::make_unique<Application>(clock, cfg1));
+    std::vector<Application::pointer> apps;
+    apps.push_back(Application::create(clock, cfg1));
 
     Config const& cfg2 = getTestConfig(1);
-    apps.emplace_back(stellar::make_unique<Application>(clock, cfg2));
+    apps.push_back(Application::create(clock, cfg2));
 
     LoopbackPeerConnection conn(*apps[0], *apps[1]);
 
     size_t i = 0;
     while (!allStopped(apps))
     {
-        for (appPtr& app : apps)
+        for (auto app : apps)
         {
             app->getMainIOService().poll_one();
             if (++i > 100)

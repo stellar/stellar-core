@@ -35,7 +35,8 @@ TEST_CASE("txenvelope", "[tx][envelope]")
     Config const& cfg = getTestConfig();
 
     VirtualClock clock;
-    Application app(clock, cfg);
+    Application::pointer appPtr = Application::create(clock, cfg);
+    Application &app = *appPtr;
     app.start();
 
     // set up world

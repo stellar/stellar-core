@@ -33,7 +33,7 @@ TEST_CASE("merge", "[tx]")
     cfg.START_NEW_NETWORK = true;
 
     VirtualClock clock;
-    Application app(clock, cfg);
+    Application::pointer app = Application::create(clock, cfg);
 
     // set up world
 
