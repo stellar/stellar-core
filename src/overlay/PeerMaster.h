@@ -21,8 +21,6 @@ Maintain the set of peers we are connected to
 namespace stellar
 {
 
-class PeerMasterTests;
-
 class PeerMaster : public OverlayGateway
 {
 protected:

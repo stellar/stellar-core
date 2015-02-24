@@ -88,9 +88,9 @@ void PeerRecord::loadPeerRecords(Database &db, int max, VirtualClock::time_point
         PeerRecord pr;
         statement st = (db.getSession().prepare <<
             "SELECT ip, port, nextAttempt, numFailures, rank from Peers "
-            " where nextAttempt < :nextAttempt "
+            " where nextAttempt <= :nextAttempt "
             " order by rank limit :max ",
-            use(tm), into(pr.mIP), into(pr.mPort), into(tm), into(pr.mNumFailures), into(pr.mRank));
+            use(tm), use(max), into(pr.mIP), into(pr.mPort), into(tm), into(pr.mNumFailures), into(pr.mRank));
         st.execute();
         while(st.fetch())
         {
