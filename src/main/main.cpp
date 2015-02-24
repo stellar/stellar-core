@@ -52,7 +52,7 @@ usage(int err = 1)
           "      --help        To display this string\n"
           "      --version     To print version information\n"
           "      --test        To run self-tests\n"
-          "      --newdb       Setup the DB.\n"    
+          "      --newdb       Setup the DB.\n"
           "      --new         Start a brand new network to call your own.\n"
           "      --local       Resume from locally saved state.\n"
           "      --genseed     Generate and print a random node seed.\n"
@@ -66,8 +66,8 @@ usage(int err = 1)
           "                peers\n"
           "                connect?ip=5.5.5.5&port=3424\n"
           "                tx?blob=TX_IN_HEX\n"
-          "      --conf FILE   To specify a config file (default "
-          "stellard.cfg)\n";
+          "      --conf FILE   To specify a config file ('-' for STDIN, default "
+          "'stellard.cfg')\n";
     exit(err);
 }
 
