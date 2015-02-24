@@ -48,7 +48,16 @@ Config::load(const std::string& filename)
 {
     try
     {
-        cpptoml::toml_group g = cpptoml::parse_file(filename);
+        cpptoml::toml_group g;
+        if (filename == "-")
+        {
+            cpptoml::parser p(std::cin);
+            g = p.parse();
+        }
+        else
+        {
+            g = cpptoml::parse_file(filename);
+        }
         if (g.contains("PEER_PORT"))
             PEER_PORT = (int)g.get("PEER_PORT")->as<int64_t>()->value();
         if (g.contains("HTTP_PORT"))
