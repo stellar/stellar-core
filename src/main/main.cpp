@@ -26,7 +26,8 @@ enum opttag
     OPT_NEW,
     OPT_LOCAL,
     OPT_GENSEED,
-    OPT_LOGLEVEL
+    OPT_LOGLEVEL,
+    OPT_NEWDB
 };
 
 static const struct option stellard_options[] = {
@@ -38,6 +39,7 @@ static const struct option stellard_options[] = {
     {"new", no_argument, nullptr, OPT_NEW },
     {"local", no_argument, nullptr, OPT_LOCAL },
     {"genseed", no_argument, nullptr, OPT_GENSEED },
+    {"newdb", no_argument, nullptr, OPT_NEWDB },
     {"ll", required_argument, nullptr, OPT_LOGLEVEL },
     {nullptr, 0, nullptr, 0}};
 
@@ -50,6 +52,7 @@ usage(int err = 1)
           "      --help        To display this string\n"
           "      --version     To print version information\n"
           "      --test        To run self-tests\n"
+          "      --newdb       Setup the DB.\n"    
           "      --new         Start a brand new network to call your own.\n"
           "      --local       Resume from locally saved state.\n"
           "      --genseed     Generate and print a random node seed.\n"
@@ -102,6 +105,7 @@ main(int argc, char* const* argv)
 
     bool newNetwork = false;
     bool localNetwork = false;
+    bool newDB = false;
 
     int opt;
     while ((opt = getopt_long_only(argc, argv, "", stellard_options,
@@ -127,6 +131,9 @@ main(int argc, char* const* argv)
             return 0;
         case OPT_NEW:
             newNetwork = true;
+            break;
+        case OPT_NEWDB:
+            newDB = true;
             break;
         case OPT_LOCAL:
             localNetwork = true;
@@ -154,6 +161,7 @@ main(int argc, char* const* argv)
     Logging::setUpLogging(cfg.LOG_FILE_PATH);
     Logging::setLogLevel(logLevel,nullptr);
 
+    cfg.REBUILD_DB = newDB;
     cfg.START_NEW_NETWORK = newNetwork;
     cfg.START_LOCAL_NETWORK = localNetwork;
     if (command.size())
