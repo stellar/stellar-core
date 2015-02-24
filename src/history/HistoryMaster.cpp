@@ -9,6 +9,9 @@
 
 #include "main/Application.h"
 #include "main/Config.h"
+#include "clf/BucketList.h"
+#include "clf/CLFMaster.h"
+#include "ledger/LedgerMaster.h"
 #include "generated/StellarXDR.h"
 #include "history/HistoryMaster.h"
 #include "history/HistoryArchive.h"
@@ -38,15 +41,15 @@ HistoryMaster::Impl
 {
     Application& mApp;
     unique_ptr<TmpDir> mWorkDir;
-    PublishStateMachine mPublish;
-    CatchupStateMachine mCatchup;
+    unique_ptr<PublishStateMachine> mPublish;
+    unique_ptr<CatchupStateMachine> mCatchup;
     friend class HistoryMaster;
 public:
     Impl(Application &app)
         : mApp(app)
         , mWorkDir(nullptr)
-        , mPublish(app)
-        , mCatchup(app)
+        , mPublish(nullptr)
+        , mCatchup(nullptr)
         {}
 
 };
@@ -71,7 +74,6 @@ HistoryMaster::getTmpDir()
     }
     return mImpl->mWorkDir->getName();
 }
-
 
 std::string
 HistoryMaster::bucketBasename(std::string const& bucketHexHash)
@@ -150,6 +152,8 @@ HistoryMaster::verifyHash(std::string const& filename,
             else
             {
                 LOG(WARNING) << "FAILED verifying hash for " << filename;
+                LOG(WARNING) << "expected hash: " << binToHex(hash);
+                LOG(WARNING) << "computed hash: " << binToHex(vHash);
                 ec = std::make_error_code(std::errc::io_error);
             }
             app.getMainIOService().post([ec, handler]() { handler(ec); });
@@ -158,18 +162,28 @@ HistoryMaster::verifyHash(std::string const& filename,
 
 void
 HistoryMaster::decompress(std::string const& filename_gz,
-                          std::function<void(asio::error_code const&)> handler)
+                          std::function<void(asio::error_code const&)> handler,
+                          bool keepExisting)
 {
     checkGzipSuffix(filename_gz);
+    std::string filename = filename_gz.substr(0, filename_gz.size() - 3);
     Application& app = this->mImpl->mApp;
-    auto exit = app.getProcessGateway().runProcess("gzip -d " + filename_gz);
+    std::string commandLine("gzip -d ");
+    std::string outputFile;
+    if (keepExisting)
+    {
+        // Leave input intact, write output to stdout.
+        commandLine += "-c ";
+        outputFile = filename;
+    }
+    commandLine += filename_gz;
+    auto exit = app.getProcessGateway().runProcess(commandLine, outputFile);
     exit.async_wait(
-        [&app, filename_gz, handler](asio::error_code const& ec)
+        [&app, filename_gz, filename, handler](asio::error_code const& ec)
         {
-            std::string filename = filename_gz.substr(0, filename_gz.size() - 3);
             if (ec)
             {
-                LOG(WARNING) << "'gunzip " << filename_gz << "' failed,"
+                LOG(WARNING) << "'gzip -d " << filename_gz << "' failed,"
                              << " removing " << filename_gz
                              << " and " << filename;
                 std::remove(filename_gz.c_str());
@@ -182,17 +196,27 @@ HistoryMaster::decompress(std::string const& filename_gz,
 
 void
 HistoryMaster::compress(std::string const& filename_nogz,
-                        std::function<void(asio::error_code const&)> handler)
+                        std::function<void(asio::error_code const&)> handler,
+                        bool keepExisting)
 {
     checkNoGzipSuffix(filename_nogz);
+    std::string filename = filename_nogz + ".gz";
     Application& app = this->mImpl->mApp;
-    auto exit = app.getProcessGateway().runProcess("gzip " + filename_nogz);
+    std::string commandLine("gzip ");
+    std::string outputFile;
+    if (keepExisting)
+    {
+        // Leave input intact, write output to stdout.
+        commandLine += "-c ";
+        outputFile = filename;
+    }
+    commandLine += filename_nogz;
+    auto exit = app.getProcessGateway().runProcess(commandLine, outputFile);
     exit.async_wait(
-        [&app, filename_nogz, handler](asio::error_code const& ec)
+        [&app, filename_nogz, filename, handler](asio::error_code const& ec)
         {
             if (ec)
             {
-                std::string filename = filename_nogz + ".gz";
                 LOG(WARNING) << "'gzip " << filename_nogz << "' failed,"
                              << " removing " << filename_nogz
                              << " and " << filename;
@@ -227,11 +251,56 @@ HistoryMaster::getFile(std::shared_ptr<HistoryArchive> archive,
     exit.async_wait(handler);
 }
 
+HistoryArchiveState
+HistoryMaster::getCurrentHistoryArchiveState() const
+{
+    HistoryArchiveState has;
+    has.currentLedger = mImpl->mApp.getLedgerMaster().getLedgerNum();
+    auto &bl = mImpl->mApp.getCLFMaster().getBucketList();
+    for (size_t i = 0; i < BucketList::kNumLevels; ++i)
+    {
+        has.currentBuckets.at(i).curr = binToHex(bl.getLevel(i).getCurr()->getHash());
+        has.currentBuckets.at(i).snap = binToHex(bl.getLevel(i).getSnap()->getHash());
+    }
+    return has;
+}
 
 void
-HistoryMaster::checkpointBuckets(BucketList const& buckets)
+HistoryMaster::publishHistory(std::function<void(asio::error_code const&)> handler)
 {
-    mImpl->mPublish.publishCheckpoint(buckets);
+    if (mImpl->mPublish)
+    {
+        throw std::runtime_error("History publication already in progress");
+    }
+    mImpl->mPublish = make_unique<PublishStateMachine>(
+        mImpl->mApp,
+        [this, handler](asio::error_code const& ec)
+        {
+            // Tear down the publish state machine when complete then call our
+            // caller's handler. Must keep the state machine alive long enough
+            // for the callback, though, to avoid killing things living in lambdas.
+            std::unique_ptr<PublishStateMachine> m(std::move(this->mImpl->mPublish));
+            handler(ec);
+        });
+}
+
+void
+HistoryMaster::catchupHistory(std::function<void(asio::error_code const&)> handler)
+{
+    if (mImpl->mCatchup)
+    {
+        throw std::runtime_error("Catchup already in progress");
+    }
+    mImpl->mCatchup = make_unique<CatchupStateMachine>(
+        mImpl->mApp,
+        [this, handler](asio::error_code const& ec)
+        {
+            // Tear down the catchup state machine when complete then call our
+            // caller's handler. Must keep the state machine alive long enough
+            // for the callback, though, to avoid killing things living in lambdas.
+            std::unique_ptr<CatchupStateMachine> m(std::move(this->mImpl->mCatchup));
+            handler(ec);
+        });
 }
 
 

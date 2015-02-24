@@ -40,7 +40,14 @@ struct HistoryArchiveState
     unsigned currentLedger;
     std::vector<HistoryStateBucket> currentBuckets;
 
+    HistoryArchiveState();
+
     static std::string basename();
+
+    // Return vector of buckets to fetch/apply to turn 'other' into 'this'. Vector
+    // is sorted from largest/highest-numbered bucket to smallest/lowest, and
+    // with snap buckets occurring before curr buckets. Zero-buckets are omitted.
+    std::vector<std::string> differingBuckets(HistoryArchiveState const& other) const;
 
     template <class Archive>
     void serialize(Archive& ar)

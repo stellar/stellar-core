@@ -387,6 +387,9 @@
     <ClCompile Include="..\..\src\overlay\PeerRecord.cpp">
       <Filter>overlay</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\ledger\LedgerTests.cpp">
+      <Filter>ledger\tests</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\ledger\LedgerGateway.h">

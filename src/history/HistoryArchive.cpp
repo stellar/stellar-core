@@ -2,6 +2,8 @@
 // under the ISC License. See the COPYING file at the top-level directory of
 // this distribution or at http://opensource.org/licenses/ISC
 
+#include "clf/BucketList.h"
+#include "crypto/Hex.h"
 #include "history/HistoryArchive.h"
 #include "history/HistoryMaster.h"
 #include "process/ProcessGateway.h"
@@ -15,6 +17,7 @@
 
 #include <iostream>
 #include <fstream>
+#include <set>
 
 namespace stellar
 {
@@ -55,6 +58,51 @@ HistoryArchiveState::basename()
 {
     return std::string("stellar-history.json");
 }
+
+std::vector<std::string>
+HistoryArchiveState::differingBuckets(HistoryArchiveState const& other) const
+{
+    std::set<std::string> inhibit;
+    uint256 zero;
+    inhibit.insert(binToHex(zero));
+    for (auto b : other.currentBuckets)
+    {
+        inhibit.insert(b.curr);
+        inhibit.insert(b.snap);
+    }
+    std::vector<std::string> ret;
+    for (size_t i = BucketList::kNumLevels; i != 0; --i)
+    {
+        auto const& s = currentBuckets[i-1].snap;
+        auto const& c = currentBuckets[i-1].curr;
+        if (inhibit.find(s) == inhibit.end())
+        {
+            ret.push_back(s);
+            inhibit.insert(s);
+        }
+        if (inhibit.find(c) == inhibit.end())
+        {
+            ret.push_back(c);
+            inhibit.insert(c);
+        }
+    }
+    return ret;
+}
+
+
+HistoryArchiveState::HistoryArchiveState()
+{
+    uint256 u;
+    std::string s = binToHex(u);
+    HistoryStateBucket b;
+    b.curr = s;
+    b.snap = s;
+    while (currentBuckets.size() < BucketList::kNumLevels)
+    {
+        currentBuckets.push_back(b);
+    }
+}
+
 
 HistoryArchive::HistoryArchive(std::string const& name,
                                std::string const& getCmd,
@@ -110,13 +158,15 @@ HistoryArchive::getState(Application& app,
             HistoryArchiveState has;
             if (ec)
             {
-                LOG(WARNING) << "failed to get " << basename
-                             << " from history archive '" << archiveName << "'";
+                CLOG(WARNING, "History")
+                    << "failed to get " << basename
+                    << " from history archive '" << archiveName << "'";
             }
             else
             {
-                LOG(DEBUG) << "got " << basename
-                           << " from history archive '" << archiveName << "'";
+                CLOG(DEBUG, "History")
+                    << "got " << basename
+                    << " from history archive '" << archiveName << "'";
                 has.load(filename);
             }
             std::remove(filename.c_str());
@@ -140,13 +190,15 @@ HistoryArchive::putState(Application& app,
         {
             if (ec)
             {
-                LOG(WARNING) << "failed to put " << basename
-                             << " in history archive '" << archiveName << "'";
+                CLOG(WARNING, "History")
+                    << "failed to put " << basename
+                    << " in history archive '" << archiveName << "'";
             }
             else
             {
-                LOG(DEBUG) << "put " << basename
-                             << " in history archive '" << archiveName << "'";
+                CLOG(DEBUG, "History")
+                    << "put " << basename
+                    << " in history archive '" << archiveName << "'";
             }
             std::remove(filename.c_str());
             handler(ec);

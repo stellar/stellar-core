@@ -2,6 +2,7 @@
 // under the ISC License. See the COPYING file at the top-level directory of
 // this distribution or at http://opensource.org/licenses/ISC
 
+#include "util/Timer.h"
 #include "main/Application.h"
 #include "main/test.h"
 #include "main/Config.h"
@@ -9,7 +10,6 @@
 #include "ledger/LedgerDelta.h"
 #include "ledger/EntryFrame.h"
 #include "util/Logging.h"
-#include "util/Timer.h"
 #include "util/types.h"
 #include <xdrpp/autocheck.h>
 
@@ -67,6 +67,12 @@ validLedgerEntryGenerator =
 
             return le;
         }, autocheck::generator<LedgerEntry>());
+
+LedgerEntry
+generateValidLedgerEntry()
+{
+    return validLedgerEntryGenerator(10);
+}
 
 
 TEST_CASE("Ledger entry db lifecycle", "[ledger]")

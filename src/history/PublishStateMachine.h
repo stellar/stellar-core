@@ -34,8 +34,6 @@ enum FilePublishState
 {
     FILE_PUBLISH_FAILED = -1,
     FILE_PUBLISH_NEEDED = 0,
-    FILE_PUBLISH_WRITING = 1,
-    FILE_PUBLISH_WRITTEN = 2,
     FILE_PUBLISH_COMPRESSING = 3,
     FILE_PUBLISH_COMPRESSED = 4,
     FILE_PUBLISH_UPLOADING = 5,
@@ -48,27 +46,29 @@ ArchivePublisher : public std::enable_shared_from_this<ArchivePublisher>
     static const size_t kRetryLimit;
 
     Application& mApp;
+    std::function<void(asio::error_code const&)> mEndHandler;
+    asio::error_code mError;
     PublishState mState;
     size_t mRetryCount;
     VirtualTimer mRetryTimer;
 
     std::shared_ptr<HistoryArchive> mArchive;
-    std::vector<std::pair<std::shared_ptr<Bucket>,
-                          std::shared_ptr<Bucket>>> mBucketsToPublish;
+    HistoryArchiveState mLocalState;
+    HistoryArchiveState mArchiveState;
 
-    HistoryArchiveState mObservedArchiveState;
-    HistoryArchiveState mIntendedArchiveState;
+    std::vector<std::shared_ptr<Bucket>> mBucketsToPublish;
     std::map<std::string, FilePublishState> mFileStates;
 
     void fileStateChange(asio::error_code const& ec,
-                         std::string const& basename,
+                         std::string const& hashname,
                          FilePublishState newGoodState);
 
 public:
     ArchivePublisher(Application& app,
+                     std::function<void(asio::error_code const&)> handler,
                      std::shared_ptr<HistoryArchive> archive,
-                     std::vector<std::pair<std::shared_ptr<Bucket>,
-                     std::shared_ptr<Bucket>>> const& localBuckets);
+                     HistoryArchiveState const& localState,
+                     std::vector<std::shared_ptr<Bucket>> const& localBuckets);
 
     std::shared_ptr<HistoryArchive> getArchive();
 
@@ -86,10 +86,14 @@ class
 PublishStateMachine
 {
     Application& mApp;
+    std::function<void(asio::error_code const&)> mEndHandler;
+    asio::error_code mError;
     std::vector<std::shared_ptr<ArchivePublisher>> mPublishers;
 public:
-    PublishStateMachine(Application& app);
-    void publishCheckpoint(BucketList const& buckets);
+    PublishStateMachine(Application& app,
+                        std::function<void(asio::error_code const&)> handler);
+
+    void archiveComplete(asio::error_code const&);
 };
 
 

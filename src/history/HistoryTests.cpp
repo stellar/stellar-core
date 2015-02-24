@@ -7,6 +7,8 @@
 #include "history/HistoryArchive.h"
 #include "main/test.h"
 #include "main/Config.h"
+#include "clf/CLFMaster.h"
+#include "clf/BucketList.h"
 #include "crypto/Hex.h"
 #include "lib/catch.hpp"
 #include "util/Logging.h"
@@ -22,7 +24,7 @@ namespace stellar {
 using xdr::operator==;
 };
 
-void
+Config&
 addLocalDirHistoryArchive(TmpDir const& dir, Config &cfg)
 {
     std::string d = dir.getName();
@@ -30,15 +32,44 @@ addLocalDirHistoryArchive(TmpDir const& dir, Config &cfg)
         "test",
         "cp " + d + "/{0} {1}",
         "cp {0} " + d + "/{1}");
+    return cfg;
 }
 
 
-TEST_CASE("HistoryMaster::compress", "[history]")
+class HistoryTests
+{
+protected:
+
+    VirtualClock clock;
+    TmpDirMaster archtmp;
+    TmpDir dir;
+    Config cfg;
+    Application app;
+
+public:
+    HistoryTests()
+        : archtmp("archtmp")
+        , dir(archtmp.tmpDir("archive"))
+        , cfg(getTestConfig())
+        , app(clock, addLocalDirHistoryArchive(dir, cfg))
+        {}
+
+    void crankTillDone(bool& done);
+    void generateAndPublishHistory();
+};
+
+void
+HistoryTests::crankTillDone(bool& done)
+{
+    while (!done && !app.getMainIOService().stopped())
+    {
+        app.crank();
+    }
+}
+
+TEST_CASE_METHOD(HistoryTests, "HistoryMaster::compress", "[history]")
 {
     std::string s = "hello there";
-    VirtualClock clock;
-    Config cfg = getTestConfig();
-    Application app(clock, cfg);
     HistoryMaster &hm = app.getHistoryMaster();
     std::string fname = hm.localFilename("compressme");
     {
@@ -62,19 +93,13 @@ TEST_CASE("HistoryMaster::compress", "[history]")
                     done = true;
                 });
         });
-    while (!done && !app.getMainIOService().stopped())
-    {
-        app.crank();
-    }
+    crankTillDone(done);
 }
 
 
-TEST_CASE("HistoryMaster::verifyHash", "[history]")
+TEST_CASE_METHOD(HistoryTests, "HistoryMaster::verifyHash", "[history]")
 {
     std::string s = "hello there";
-    VirtualClock clock;
-    Config cfg = getTestConfig();
-    Application app(clock, cfg);
     HistoryMaster &hm = app.getHistoryMaster();
     std::string fname = hm.localFilename("hashme");
     {
@@ -90,25 +115,12 @@ TEST_CASE("HistoryMaster::verifyHash", "[history]")
             CHECK(!ec);
             done = true;
         });
-
-    while (!done && !app.getMainIOService().stopped())
-    {
-        app.crank();
-    }
+    crankTillDone(done);
 }
 
 
-TEST_CASE("HistoryArchiveState::get_put", "[history]")
+TEST_CASE_METHOD(HistoryTests, "HistoryArchiveState::get_put", "[history]")
 {
-    VirtualClock clock;
-    Config cfg = getTestConfig();
-
-    TmpDirMaster archtmp("archtmp");
-    TmpDir dir = archtmp.tmpDir("archive");
-    addLocalDirHistoryArchive(dir, cfg);
-
-    Application app(clock, cfg);
-
     HistoryArchiveState has;
     has.currentLedger = 0x1234;
     bool done = false;
@@ -117,6 +129,7 @@ TEST_CASE("HistoryArchiveState::get_put", "[history]")
     CHECK(i != app.getConfig().HISTORY.end());
     auto archive = i->second;
 
+    auto& app = this->app;
     archive->putState(
         app, has,
         [&done, &app, archive](asio::error_code const& ec)
@@ -132,8 +145,68 @@ TEST_CASE("HistoryArchiveState::get_put", "[history]")
                     done = true;
                 });
         });
-    while (!done && !app.getMainIOService().stopped())
-    {
-        app.crank();
-    }
+    crankTillDone(done);
+}
+
+
+extern LedgerEntry
+generateValidLedgerEntry();
+
+void
+HistoryTests::generateAndPublishHistory()
+{
+    app.start();
+    HistoryMaster &hm = app.getHistoryMaster();
+    auto i = app.getConfig().HISTORY.find("test");
+    CHECK(i != app.getConfig().HISTORY.end());
+    auto archive = i->second;
+    HistoryArchiveState has;
+    has.currentLedger = 0;
+
+    bool done = false;
+    archive->putState(
+        app, has,
+        [&done, &hm, this](asio::error_code const& ec)
+        {
+            CHECK(!ec);
+
+            // Make some changes, then publish them.
+            std::vector<LedgerEntry> live { generateValidLedgerEntry(),
+                    generateValidLedgerEntry(),
+                    generateValidLedgerEntry()
+            };
+            std::vector<LedgerKey> dead { };
+            this->app.getCLFMaster().getBucketList().addBatch(app, 1, live, dead);
+
+            hm.publishHistory(
+                [&done](asio::error_code const& ec)
+                {
+                    CHECK(!ec);
+                    done = true;
+                });
+        });
+    crankTillDone(done);
+}
+
+TEST_CASE_METHOD(HistoryTests, "History publish", "[history]")
+{
+    generateAndPublishHistory();
+}
+
+TEST_CASE_METHOD(HistoryTests, "History catchup", "[history]")
+{
+    generateAndPublishHistory();
+
+    // Reset BucketList
+    app.getCLFMaster().getBucketList() = BucketList();
+
+    bool done = false;
+    app.getHistoryMaster().catchupHistory(
+        [&done](asio::error_code const& ec)
+        {
+            CHECK(!ec);
+            done = true;
+        });
+    crankTillDone(done);
+
 }

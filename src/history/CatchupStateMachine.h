@@ -83,17 +83,20 @@ CatchupStateMachine
     static const size_t kRetryLimit;
 
     Application& mApp;
+    std::function<void(asio::error_code const&)> mEndHandler;
+    asio::error_code mError;
     CatchupState mState;
     size_t mRetryCount;
     VirtualTimer mRetryTimer;
 
     std::shared_ptr<HistoryArchive> mArchive;
+    HistoryArchiveState mLocalState;
     HistoryArchiveState mArchiveState;
     std::map<std::string, FileCatchupState> mFileStates;
 
     std::shared_ptr<HistoryArchive> selectRandomReadableHistoryArchive();
     void fileStateChange(asio::error_code const& ec,
-                         std::string const& basename,
+                         std::string const& hashname,
                          FileCatchupState newGoodState);
 
     void enterBeginState();
@@ -105,7 +108,8 @@ CatchupStateMachine
 
 public:
 
-    CatchupStateMachine(Application& app);
+    CatchupStateMachine(Application& app,
+                        std::function<void(asio::error_code const&)> handler);
 
 
 };

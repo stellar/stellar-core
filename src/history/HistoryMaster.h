@@ -5,6 +5,7 @@
 // this distribution or at http://opensource.org/licenses/ISC
 
 #include "generated/StellarXDR.h"
+#include "history/HistoryArchive.h"
 #include <functional>
 #include <memory>
 
@@ -103,11 +104,13 @@ class HistoryMaster
 
     // Gunzip a file.
     void decompress(std::string const& filename_gz,
-                    std::function<void(asio::error_code const&)> handler);
+                    std::function<void(asio::error_code const&)> handler,
+                    bool keepExisting=false);
 
     // Gzip a file.
     void compress(std::string const& filename_nogz,
-                  std::function<void(asio::error_code const&)> handler);
+                  std::function<void(asio::error_code const&)> handler,
+                  bool keepExisting=false);
 
     // Put a file to a specific archive using it's `put` command.
     void putFile(std::shared_ptr<HistoryArchive> archive,
@@ -121,8 +124,13 @@ class HistoryMaster
                  std::string const& filename,
                  std::function<void(asio::error_code const&)> handler);
 
-    // For each writable archive, put all buckets that have changed.
-    void checkpointBuckets(BucketList const& buckets);
+    // For each writable archive, put all buckets in the CLF that have changed
+    void publishHistory(std::function<void(asio::error_code const&)> handler);
+
+    // Pick a readable archive and set the bucketlist to its content.
+    void catchupHistory(std::function<void(asio::error_code const&)> handler);
+
+    HistoryArchiveState getCurrentHistoryArchiveState() const;
 
     std::string const& getTmpDir();
 

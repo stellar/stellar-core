@@ -28,11 +28,12 @@ Logging::setUpLogging(std::string const& filename)
 
     el::Loggers::getLogger("FBA");
     el::Loggers::getLogger("CLF");
+    el::Loggers::getLogger("History");
+    el::Loggers::getLogger("Process");
     el::Loggers::getLogger("Ledger");
     el::Loggers::getLogger("Overlay");
     el::Loggers::getLogger("Herder");
     el::Loggers::getLogger("Tx");
-    // TEMP el::Loggers::getLogger("performance");
 
     mDefaultConf.setToDefault();
 

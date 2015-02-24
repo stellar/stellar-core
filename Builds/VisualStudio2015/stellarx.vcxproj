@@ -171,6 +171,7 @@
     <ClCompile Include="..\..\src\ledger\LedgerHeaderFrame.cpp" />
     <ClCompile Include="..\..\src\ledger\LedgerHeaderTests.cpp" />
     <ClCompile Include="..\..\src\ledger\LedgerMaster.cpp" />
+    <ClCompile Include="..\..\src\ledger\LedgerTests.cpp" />
     <ClCompile Include="..\..\src\ledger\OfferFrame.cpp" />
     <ClCompile Include="..\..\src\ledger\TrustFrame.cpp" />
     <ClCompile Include="..\..\src\lib\asio\src\asio.cpp" />

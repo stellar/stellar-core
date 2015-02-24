@@ -69,7 +69,8 @@ public:
 };
 
 ProcessExitEvent
-ProcessMaster::runProcess(std::string const& cmdLine)
+ProcessMaster::runProcess(std::string const& cmdLine,
+                          std::string outFile)
 {
     STARTUPINFO si;
     PROCESS_INFORMATION pi;
@@ -78,12 +79,36 @@ ProcessMaster::runProcess(std::string const& cmdLine)
     si.cb = sizeof(si);
     LPSTR cmd = (LPSTR)cmdLine.data();
 
-    LOG(DEBUG) << "Starting process: " << cmdLine;
+    if (!outFile.empty())
+    {
+        SECURITY_ATTRIBUTES sa;
+        sa.nLength = sizeof(sa);
+        sa.lpSecurityDescriptor = NULL;
+        sa.bInheritHandle = TRUE;
+
+        si.cb = sizeof(STARTUPINFO);
+        si.dwFlags = STARTF_USESTDHANDLES;
+        si.hStdOutput =
+            CreateFile((LPCTSTR)outFile.c_str(),          // name of the file
+                       GENERIC_WRITE,                     // open for writing
+                       FILE_SHARE_WRITE|FILE_SHARE_READ,  // share r/w access
+                       &sa,                               // security attributes
+                       CREATE_ALWAYS,                     // overwrite if existing
+                       FILE_ATTRIBUTE_NORMAL,             // normal file
+                       NULL);                             // no attr. template
+        if (si.hStdOutput == INVALID_HANDLE_VALUE)
+        {
+            CLOG(DEBUG, "Process") << "CreateFile() failed: " << GetLastError();
+            throw std::runtime_error("CreateFile() failed");
+        }
+    }
+
+    CLOG(DEBUG, "Process") << "Starting process: " << cmdLine;
     if (!CreateProcess(NULL,    // No module name (use command line)
                        cmd,     // Command line
                        nullptr, // Process handle not inheritable
                        nullptr, // Thread handle not inheritable
-                       FALSE,   // Set handle inheritance to FALSE
+                       TRUE,    // Inherit file handles
                        0,       // No creation flags
                        nullptr, // Use parent's environment block
                        nullptr, // Use parent's starting directory
@@ -91,10 +116,10 @@ ProcessMaster::runProcess(std::string const& cmdLine)
                        &pi)     // Pointer to PROCESS_INFORMATION structure
         )
     {
-        LOG(DEBUG) << "CreateProcess() failed: " << GetLastError();
+        CLOG(DEBUG, "Process") << "CreateProcess() failed: " << GetLastError();
         throw std::runtime_error("CreateProcess() failed");
     }
-
+    CloseHandle(si.hStdOutput);
     CloseHandle(pi.hThread); // we don't need this handle
     pi.hThread = INVALID_HANDLE_VALUE;
 
@@ -201,7 +226,8 @@ split(const std::string& s)
 }
 
 ProcessExitEvent
-ProcessMaster::runProcess(std::string const& cmdLine)
+ProcessMaster::runProcess(std::string const& cmdLine,
+                          std::string outFile)
 {
     std::vector<std::string> args = split(cmdLine);
     std::vector<char*> argv;
@@ -211,17 +237,45 @@ ProcessMaster::runProcess(std::string const& cmdLine)
     }
     argv.push_back(nullptr);
     char* env[1] = {nullptr};
-    int pid;
+    int pid, err = 0;
 
-    LOG(DEBUG) << "Starting process: " << cmdLine;
-    int err = posix_spawnp(&pid, argv[0],
-                           nullptr, // posix_spawn_file_actions_t
-                           nullptr, // posix_spawnattr_t*
-                           argv.data(), env);
+    posix_spawn_file_actions_t fileActions;
+    if (!outFile.empty())
+    {
+        err = posix_spawn_file_actions_init(&fileActions);
+        if (err)
+        {
+            CLOG(DEBUG, "Process") << "posix_spawn_file_actions_init() failed: " << strerror(err);
+            throw std::runtime_error("posix_spawn_file_actions_init() failed");
+        }
+        err = posix_spawn_file_actions_addopen(&fileActions, 1, outFile.c_str(),
+                                               O_RDWR|O_CREAT, 0600);
+        if (err)
+        {
+            CLOG(DEBUG, "Process") << "posix_spawn_file_actions_addopen() failed: " << strerror(err);
+            throw std::runtime_error("posix_spawn_file_actions_addopen() failed");
+        }
+    }
+
+    CLOG(DEBUG, "Process") << "Starting process: " << cmdLine;
+    err = posix_spawnp(&pid, argv[0],
+                       outFile.empty() ? nullptr : &fileActions,
+                       nullptr, // posix_spawnattr_t*
+                       argv.data(), env);
     if (err)
     {
-        LOG(DEBUG) << "posix_spawn() failed: " << strerror(err);
+        CLOG(DEBUG, "Process") << "posix_spawn() failed: " << strerror(err);
         throw std::runtime_error("posix_spawn() failed");
+    }
+
+    if (!outFile.empty())
+    {
+        err = posix_spawn_file_actions_destroy(&fileActions);
+        if (err)
+        {
+            CLOG(DEBUG, "Process") << "posix_spawn_file_actions_destroy() failed: " << strerror(err);
+            throw std::runtime_error("posix_spawn_file_actions_destroy() failed");
+        }
     }
 
     auto& svc = mApp.getMainIOService();

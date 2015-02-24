@@ -8,6 +8,8 @@
 #include <fstream>
 #include <vector>
 #include "xdrpp/marshal.h"
+#include "crypto/SHA.h"
+#include "crypto/ByteSlice.h"
 
 namespace stellar
 {
@@ -108,7 +110,7 @@ public:
     }
 
     template <typename T> bool
-    writeOne(T const& t)
+    writeOne(T const& t, SHA256* hasher=nullptr)
     {
         uint32_t sz = (uint32_t)xdr::xdr_size(t);
         assert(sz < 0x80000000);
@@ -131,6 +133,10 @@ public:
         if (!mOut.write(mBuf.data(), sz + 4))
         {
             return false;
+        }
+        if (hasher)
+        {
+            hasher->add(ByteSlice(mBuf.data(), sz + 4));
         }
         return true;
     }

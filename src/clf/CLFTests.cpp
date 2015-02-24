@@ -102,17 +102,17 @@ TEST_CASE("bucket list shadowing", "[clf]")
         CLFEntry CLFAlice, CLFBob;
         alice.sequence++;
         alice.balance++;
-        CLFAlice.entry.type(LIVEENTRY);
-        CLFAlice.entry.liveEntry().type(ACCOUNT);
-        CLFAlice.entry.liveEntry().account() = alice;
-        liveBatch.push_back(CLFAlice.entry.liveEntry());
+        CLFAlice.type(LIVEENTRY);
+        CLFAlice.liveEntry().type(ACCOUNT);
+        CLFAlice.liveEntry().account() = alice;
+        liveBatch.push_back(CLFAlice.liveEntry());
 
         bob.sequence++;
         bob.balance++;
-        CLFBob.entry.type(LIVEENTRY);
-        CLFBob.entry.liveEntry().type(ACCOUNT);
-        CLFBob.entry.liveEntry().account() = bob;
-        liveBatch.push_back(CLFBob.entry.liveEntry());
+        CLFBob.type(LIVEENTRY);
+        CLFBob.liveEntry().type(ACCOUNT);
+        CLFBob.liveEntry().account() = bob;
+        liveBatch.push_back(CLFBob.liveEntry());
 
         bl.addBatch(app, i, liveBatch, deadGen(5));
         if (i % 100 == 0)
