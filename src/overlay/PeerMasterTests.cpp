@@ -74,13 +74,12 @@ class PeerMasterTests
     };
 protected:
     VirtualClock clock;
-    ApplicationStub app;
+    ApplicationStub app{ clock, getTestConfig() };
 
     vector<string> fourPeers;
     vector<string> threePeers;
 
     PeerMasterTests() :
-        app{clock, getTestConfig() },
         fourPeers(vector<string> { "127.0.0.1:2011", "127.0.0.1:2012", "127.0.0.1:2013", "127.0.0.1:2014" }),
         threePeers(vector<string> { "127.0.0.1:201", "127.0.0.1:202", "127.0.0.1:203", "127.0.0.1:204" })
     {
