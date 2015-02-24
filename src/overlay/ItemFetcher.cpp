@@ -11,6 +11,7 @@
 
 #define MS_TO_WAIT_FOR_FETCH_REPLY 3000
 
+// TODO.1 I think we need to add something that after some time it retries to fetch qsets that it really needs. (https://github.com/stellar/hayashi/issues/81)
 /*
 
 */
