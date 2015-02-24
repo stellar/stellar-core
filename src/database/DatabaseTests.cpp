@@ -20,11 +20,11 @@ TEST_CASE("database smoketest", "[db]")
     cfg.RUN_STANDALONE=true;
     VirtualClock clock;
     cfg.DATABASE = "sqlite3://:memory:";
-    Application app(clock, cfg);
+    Application::pointer app = Application::create(clock, cfg);
 
     int a = 10, b = 0;
 
-    auto& sql = app.getDatabase().getSession();
+    auto& sql = app->getDatabase().getSession();
 
     sql << "create table test (x integer)";
     sql << "insert into test (x) values (:aa)", soci::use(a, "aa");
@@ -43,11 +43,11 @@ TEST_CASE("postgres smoketest", "[db]")
     cfg.DATABASE = "postgresql://host=localhost dbname=test user=test password=test";
     try
     {
-        Application app(clock, cfg);
+        Application::pointer app = Application::create(clock, cfg);
 
         int a = 10, b = 0;
 
-        auto& sql = app.getDatabase().getSession();
+        auto& sql = app->getDatabase().getSession();
 
         SECTION("round trip")
         {

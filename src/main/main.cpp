@@ -173,16 +173,16 @@ main(int argc, char* const* argv)
     LOG(INFO) << "Starting stellard-hayashi " << STELLARD_VERSION;
     LOG(INFO) << "Config from " << cfgFile;
     VirtualClock clock;
-    Application app(clock, cfg);
-    app.applyCfgCommands(); 
+    Application::pointer app = Application::create(clock, cfg);
+    app->applyCfgCommands();
 
-    app.start();
-    app.enableRealTimer();
+    app->start();
+    app->enableRealTimer();
 
-    auto& io = app.getMainIOService();
+    auto& io = app->getMainIOService();
     asio::io_service::work mainWork(io);
     while (!io.stopped())
     {
-        app.crank();
+        app->crank();
     }
 }

@@ -31,7 +31,8 @@ TEST_CASE("set options", "[tx][setoptions]")
     Config const& cfg = getTestConfig();
 
     VirtualClock clock;
-    Application app(clock, cfg);
+    Application::pointer appPtr = Application::create(clock, cfg);
+    Application &app = *appPtr;
 
     app.start();
 

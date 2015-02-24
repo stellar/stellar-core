@@ -42,7 +42,7 @@ class TCPPeer : public Peer
     {
     }
 
-    void drop();
-    std::string getIP();
+    virtual void drop() override;
+    virtual std::string getIP() override;
 };
 }

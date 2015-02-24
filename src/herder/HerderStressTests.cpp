@@ -62,7 +62,7 @@ createApp(VirtualClock &clock, int quorumThresold, int i, PeerInfo &me, vector<P
     }
     cfg.KNOWN_PEERS.clear();
 
-    auto result = make_shared<Application>(clock, cfg);
+    auto result = Application::create(clock, cfg);
     result->enableRealTimer();
     return result;
 }

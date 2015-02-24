@@ -50,7 +50,8 @@ TEST_CASE("create offer", "[tx][offers]")
  
 
     VirtualClock clock;
-    Application app(clock, cfg2);
+    Application::pointer appPtr = Application::create(clock, cfg2);
+    Application &app = *appPtr;
     app.start();
 
     // set up world

@@ -28,15 +28,15 @@ TEST_CASE("ledgerheader", "[ledger]")
     Hash saved;
     {
         VirtualClock clock;
-        Application app(clock, cfg);
-        app.start();
+        Application::pointer app = Application::create(clock, cfg);
+        app->start();
 
         TxSetFramePtr txSet = make_shared<TxSetFrame>();
 
         // close this ledger
-        app.getLedgerMaster().closeLedger(txSet);
+        app->getLedgerMaster().closeLedger(txSet);
 
-        saved = app.getLedgerMaster().getLastClosedLedgerHeader().hash;
+        saved = app->getLedgerMaster().getLastClosedLedgerHeader().hash;
     }
 
     SECTION("load existing ledger")
@@ -44,11 +44,11 @@ TEST_CASE("ledgerheader", "[ledger]")
         Config cfg2(cfg);
         cfg2.START_NEW_NETWORK = false;
         VirtualClock clock2;
-        Application app2(clock2, cfg2);
-        app2.start();
+        Application::pointer app2 = Application::create(clock2, cfg2);
+        app2->start();
 
         REQUIRE(saved ==
-            app2.getLedgerMaster().getLastClosedLedgerHeader().hash);
+            app2->getLedgerMaster().getLastClosedLedgerHeader().hash);
     }
 
 }

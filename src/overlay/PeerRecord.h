@@ -1,5 +1,4 @@
-#ifndef __PEERRECORD__
-#define __PEERRECORD__
+#pragma once
 
 #include "util/Timer.h"
 #include "database/Database.h"
@@ -57,4 +56,3 @@ private:
 
 }
 
-#endif

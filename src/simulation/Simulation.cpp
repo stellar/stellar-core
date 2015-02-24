@@ -49,8 +49,7 @@ Simulation::addNode(uint256 validationSeed,
         cfg->QUORUM_SET.push_back(q);
     }
 
-    Application::pointer node = 
-          std::make_shared<Application>(clock, *cfg);
+    Application::pointer node = Application::create(clock, *cfg);
 
     uint256 nodeID = makePublicKey(validationSeed);
     mConfigs[nodeID] = cfg;

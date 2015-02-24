@@ -42,6 +42,7 @@ FMT_SRCS =                                      \
     src/ledger/OfferFrame.cpp                   \
     src/ledger/TrustFrame.cpp                   \
     src/main/Application.cpp                    \
+    src/main/ApplicationImpl.cpp                \
     src/main/CommandHandler.cpp                 \
     src/main/Config.cpp                         \
     src/main/main.cpp                           \
@@ -118,6 +119,7 @@ FMT_HDRS =                                      \
     src/ledger/OfferFrame.h                     \
     src/ledger/TrustFrame.h                     \
     src/main/Application.h                      \
+    src/main/ApplicationImpl.h                  \
     src/main/CommandHandler.h                   \
     src/main/Config.h                           \
     src/main/test.h                             \

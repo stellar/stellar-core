@@ -14,20 +14,25 @@ When found passes them to the PeerMaster
 
 namespace stellar
 {
+using namespace std;
 class Application;
+class PeerDoorStub;
 
 class PeerDoor
 {
+protected:
     Application& mApp;
     asio::ip::tcp::acceptor mAcceptor;
 
-    void acceptNextPeer();
-    void handleKnock(std::shared_ptr<asio::ip::tcp::socket> pSocket);
+    virtual void acceptNextPeer();
+    virtual void handleKnock(std::shared_ptr<asio::ip::tcp::socket> pSocket);
 
+    friend PeerDoorStub;
   public:
+    typedef shared_ptr<PeerDoor> pointer;
+      
     PeerDoor(Application&);
 
-    void start();
     void close();
 };
 }
