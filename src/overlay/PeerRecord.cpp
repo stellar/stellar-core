@@ -41,7 +41,7 @@ void PeerRecord::fromIPPort(const string &ipPort, int defaultPort, VirtualClock 
     string ip;
     int port;
     parseIPPort(ipPort, defaultPort, ip, port);
-    ret = PeerRecord { 0, ip, port, clock.now(), 0, 1 };
+    ret = PeerRecord { ip, port, clock.now(), 0, 1 };
 }
 
 // TODO: stricter verification that ip and port are valid

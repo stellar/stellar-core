@@ -40,7 +40,11 @@ Node::hasQuorum(const Hash& qSetHash,
         auto it = std::find(nodeSet.begin(), nodeSet.end(), n);
         count += (it != nodeSet.end()) ? 1 : 0;
     }
-    return (count >= qSet.threshold);
+    auto result = (count >= qSet.threshold);
+    CLOG(DEBUG, "FBA") << "Node::hasQuorum"
+        << "@" << binToHex(mNodeID).substr(0, 6)
+        << " is " << result;
+        return result;
 }
 
 bool 
@@ -66,7 +70,11 @@ Node::isVBlocking(const Hash& qSetHash,
         auto it = std::find(nodeSet.begin(), nodeSet.end(), n);
         count += (it != nodeSet.end()) ? 1 : 0;
     }
-    return (qSet.validators.size() - count < qSet.threshold);
+    auto result = (qSet.validators.size() - count < qSet.threshold);
+    CLOG(DEBUG, "FBA") << "Node::isVBlocking"
+        << "@" << binToHex(mNodeID).substr(0, 6)
+        << " is " << result;
+    return result;
 }
 
 template <class T> bool 

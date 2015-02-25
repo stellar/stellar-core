@@ -85,10 +85,10 @@ PeerMaster::connectTo(PeerRecord &pr)
         pr.backOff(mApp.getClock());
         pr.storePeerRecord(mApp.getDatabase());
 
-        addConnectedPeer(Peer::pointer(new TCPPeer(mApp, pr.mIP, pr.mPort)));
+        addConnectedPeer(TCPPeer::initiate(mApp, pr.mIP, pr.mPort));
     } else
     {
-        CLOG(ERROR, "overlay") << "couldn't parse peer: " << pr.toString();
+        CLOG(ERROR, "overlay") << "trying to connect to a node we're already connected to" << pr.toString();
     }
 }
 

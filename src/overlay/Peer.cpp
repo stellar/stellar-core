@@ -40,6 +40,9 @@ Peer::Peer(Application& app, PeerRole role)
 void
 Peer::sendHello()
 {
+    LOG(DEBUG) << "Peer::sendHello "
+        << "@" << mApp.getConfig().PEER_PORT;
+        
     StellarMessage msg;
     msg.type(HELLO);
     msg.hello().protocolVersion = mApp.getConfig().PROTOCOL_VERSION;
@@ -390,7 +393,7 @@ Peer::recvPeers(StellarMessage const& msg)
 
         ip << (int)peer.ip[0] << "." << (int)peer.ip[1] << "." << (int)peer.ip[2] << "." << (int)peer.ip[3];
 
-        PeerRecord pr{0, ip.str(), static_cast<int>(peer.port),
+        PeerRecord pr{ip.str(), static_cast<int>(peer.port),
             mApp.getClock().now(),
             static_cast<int>(peer.numFailures), 1 };
 

@@ -2,7 +2,7 @@
 // under the ISC License. See the COPYING file at the top-level directory of
 // this distribution or at http://opensource.org/licenses/ISC
 
-#include "simulation/Simulations.h"
+#include "simulation/Topologies.h"
 #include "lib/catch.hpp"
 #include "generated/StellarXDR.h"
 #include "main/Application.h"
@@ -19,7 +19,7 @@ typedef std::unique_ptr<Application> appPtr;
 
 TEST_CASE("core4 topology", "[simulation]")
 {
-    Simulation::pointer simulation = Simulations::core4();
+    Simulation::pointer simulation = Topologies::core4();
     simulation->startAllNodes();
 
     simulation->crankForAtMost(std::chrono::seconds(2));
@@ -29,7 +29,7 @@ TEST_CASE("core4 topology", "[simulation]")
 
 TEST_CASE("cycle4 topology", "[simulation]")
 {
-    Simulation::pointer simulation = Simulations::cycle4();
+    Simulation::pointer simulation = Topologies::cycle4();
     simulation->startAllNodes();
 
     simulation->crankForAtMost(std::chrono::seconds(20));
@@ -38,13 +38,13 @@ TEST_CASE("cycle4 topology", "[simulation]")
     CHECK(simulation->haveAllExternalized(2));
 }
 
-TEST_CASE("pair with transactions", "[simulation")
+TEST_CASE("pair with transactions", "[simulation]")
 {
-    Simulation::pointer simulation = Simulations::pair();
+    Simulation::pointer simulation = Topologies::pair(false);
 
     simulation->startAllNodes();
 
-    simulation->crankForAtMost(std::chrono::seconds(2));
-
+    simulation->crankForAtMost(std::chrono::seconds(20));
+ 
     REQUIRE(simulation->haveAllExternalized(2));
 }

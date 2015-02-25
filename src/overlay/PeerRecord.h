@@ -20,7 +20,7 @@ public:
 
     PeerRecord() {};
 
-    PeerRecord(int id,const string& ip,int port, VirtualClock::time_point nextAttempt, int fails, int rank) :
+    PeerRecord(const string& ip,int port, VirtualClock::time_point nextAttempt, int fails, int rank) :
         mIP(ip), mPort(port), mNextAttempt(nextAttempt), mNumFailures(fails), mRank(rank) { }
 
     bool operator==(PeerRecord& other)
