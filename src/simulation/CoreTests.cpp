@@ -2,7 +2,7 @@
 // under the ISC License. See the COPYING file at the top-level directory of
 // this distribution or at http://opensource.org/licenses/ISC
 
-#include "simulation/Simulation.h"
+#include "simulation/Simulations.h"
 #include "lib/catch.hpp"
 #include "generated/StellarXDR.h"
 #include "main/Application.h"
@@ -19,52 +19,32 @@ typedef std::unique_ptr<Application> appPtr;
 
 TEST_CASE("core4 topology", "[simulation]")
 {
-    Simulation simulation;
+    Simulation::pointer simulation = Simulations::core4();
+    simulation->startAllNodes();
 
-    SIMULATION_CREATE_NODE(0);
-    SIMULATION_CREATE_NODE(1);
-    SIMULATION_CREATE_NODE(2);
-    SIMULATION_CREATE_NODE(3);
+    simulation->crankForAtMost(std::chrono::seconds(2));
 
-    FBAQuorumSet qSet; 
-    qSet.threshold = 3; 
-    qSet.validators.push_back(v0NodeID);
-    qSet.validators.push_back(v1NodeID);
-    qSet.validators.push_back(v2NodeID);
-    qSet.validators.push_back(v3NodeID);
+    REQUIRE(simulation->haveAllExternalized(3));
+}
 
-    uint256 n0 = simulation.addNode(v0VSeed, qSet, simulation.getClock());
-    uint256 n1 = simulation.addNode(v1VSeed, qSet, simulation.getClock());
-    uint256 n2 = simulation.addNode(v2VSeed, qSet, simulation.getClock());
-    uint256 n3 = simulation.addNode(v3VSeed, qSet, simulation.getClock());
-    
-    std::shared_ptr<LoopbackPeerConnection> n0n1 = 
-        simulation.addConnection(n0, n1);
-    std::shared_ptr<LoopbackPeerConnection> n0n2 = 
-        simulation.addConnection(n0, n2);
-    std::shared_ptr<LoopbackPeerConnection> n0n3 = 
-        simulation.addConnection(n0, n3);
-    std::shared_ptr<LoopbackPeerConnection> n1n2 = 
-        simulation.addConnection(n1, n2);
-    std::shared_ptr<LoopbackPeerConnection> n1n3 = 
-        simulation.addConnection(n1, n3);
-    std::shared_ptr<LoopbackPeerConnection> n2n3 = 
-        simulation.addConnection(n2, n3);
+TEST_CASE("cycle4 topology", "[simulation]")
+{
+    Simulation::pointer simulation = Simulations::cycle4();
+    simulation->startAllNodes();
 
-    simulation.startAllNodes();
+    simulation->crankForAtMost(std::chrono::seconds(20));
 
-    bool stop = false;
-    auto check = [&] (const asio::error_code& error)
-    {
-        stop = true;
-        REQUIRE(simulation.haveAllExternalized(3));
-        LOG(DEBUG) << "Simulation complete";
-    };
+    // Still transiently does not work (quorum retrieval)
+    CHECK(simulation->haveAllExternalized(2));
+}
 
-    VirtualTimer checkTimer(simulation.getClock());
+TEST_CASE("pair with transactions", "[simulation")
+{
+    Simulation::pointer simulation = Simulations::pair();
 
-    checkTimer.expires_from_now(std::chrono::seconds(2));
-    checkTimer.async_wait(check);
+    simulation->startAllNodes();
 
-    while(!stop && simulation.crankAllNodes() > 0);
+    simulation->crankForAtMost(std::chrono::seconds(2));
+
+    REQUIRE(simulation->haveAllExternalized(2));
 }

@@ -128,4 +128,25 @@ bool Simulation::haveAllExternalized(int num)
     return true;
 }
 
+void
+Simulation::crankForAtMost(VirtualClock::duration seconds)
+{
+    bool stop = false;
+    auto stopIt = [&](const asio::error_code& error)
+    {
+        stop = true;
+    };
+
+    VirtualTimer checkTimer(mClock);
+
+    checkTimer.expires_from_now(seconds);
+    checkTimer.async_wait(stopIt);
+
+    while (!stop && crankAllNodes() > 0);
+
+    if (stop)
+        LOG(DEBUG) << "Simulation timed out";
+    else LOG(DEBUG) << "Simulation complete";
+}
+
 }

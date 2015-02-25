@@ -230,8 +230,8 @@
     <ClCompile Include="..\..\src\overlay\PeerRecord.cpp" />
     <ClCompile Include="..\..\src\overlay\PeerRecordTests.cpp" />
     <ClCompile Include="..\..\src\simulation\CoreTests.cpp" />
-    <ClCompile Include="..\..\src\simulation\CycleTests.cpp" />
     <ClCompile Include="..\..\src\simulation\Simulation.cpp" />
+    <ClCompile Include="..\..\src\simulation\Simulations.cpp" />
     <ClCompile Include="..\..\src\transactions\AllowTrustTxFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\CancelOfferFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\CreateOfferFrame.cpp" />
@@ -336,6 +336,7 @@
     <ClInclude Include="..\..\src\process\ProcessGateway.h" />
     <ClInclude Include="..\..\src\process\ProcessMaster.h" />
     <ClInclude Include="..\..\src\simulation\Simulation.h" />
+    <ClInclude Include="..\..\src\simulation\Simulations.h" />
     <ClInclude Include="..\..\src\transactions\AllowTrustTxFrame.h" />
     <ClInclude Include="..\..\src\transactions\CancelOfferFrame.h" />
     <ClInclude Include="..\..\src\transactions\CreateOfferFrame.h" />

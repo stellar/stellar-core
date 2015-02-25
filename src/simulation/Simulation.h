@@ -27,6 +27,8 @@ class Simulation
     std::vector<std::shared_ptr<LoopbackPeerConnection>> mConnections;
   
   public:
+    typedef shared_ptr<Simulation> pointer;
+
     Simulation();
     ~Simulation();
 
@@ -47,6 +49,7 @@ class Simulation
 
     std::size_t crankNode(uint256 nodeID, int nbTicks=1);
     std::size_t crankAllNodes(int nbTicks=1);
+    void crankForAtMost(VirtualClock::duration seconds);
 };
 }
 
