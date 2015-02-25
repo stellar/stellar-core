@@ -7,6 +7,8 @@
 #include "overlay/Peer.h"
 #include "util/Timer.h"
 
+namespace medida { class Meter; }
+
 namespace stellar
 {
 // Peer that communicates via a TCP socket.
@@ -16,6 +18,11 @@ class TCPPeer : public Peer
     VirtualTimer mHelloTimer;
     uint8_t mIncomingHeader[4];
     std::vector<uint8_t> mIncomingBody;
+
+    medida::Meter& mMessageRead;
+    medida::Meter& mMessageWrite;
+    medida::Meter& mByteRead;
+    medida::Meter& mByteWrite;
 
     void recvMessage();
     void recvHello(StellarMessage const& msg);
