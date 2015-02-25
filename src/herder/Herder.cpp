@@ -470,7 +470,7 @@ Herder::valueExternalized(const uint64& slotIndex,
         }
         // rebroadcast those left in set 1
         assert(mReceivedTransactions.size() >= 2);
-        for (auto tx : mReceivedTransactions[1])
+        for (auto& tx : mReceivedTransactions[1])
         {
             auto msg = tx->toStellarMessage();
             mApp.getOverlayGateway().broadcastMessage(msg);
@@ -497,7 +497,7 @@ Herder::valueExternalized(const uint64& slotIndex,
         // largest array.
         for (size_t n = mReceivedTransactions.size() - 1; n > 0; n--)
         {
-            for (auto tx : mReceivedTransactions[n-1])
+            for (auto& tx : mReceivedTransactions[n-1])
             {
                 mReceivedTransactions[n].push_back(tx);
             }
@@ -657,7 +657,7 @@ Herder::recvTransaction(TransactionFramePtr tx)
     // determine if we have seen this tx before and if not if it has the right
     // seq num
     int numOthers=0;
-    for (auto list : mReceivedTransactions)
+    for (auto& list : mReceivedTransactions)
     {
         for (auto oldTX : list)
         {
@@ -815,7 +815,7 @@ Herder::triggerNextLedger(const asio::error_code& error)
     // our first choice for this round's set is all the tx we have collected
     // during last ledger close
     TxSetFramePtr proposedSet = std::make_shared<TxSetFrame>();
-    for (auto list : mReceivedTransactions)
+    for (auto& list : mReceivedTransactions)
     {
         for (auto tx : list)
         {
