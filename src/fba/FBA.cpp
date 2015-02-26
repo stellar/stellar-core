@@ -137,13 +137,16 @@ FBA::signEnvelope(FBAEnvelope& envelope)
     assert(envelope.nodeID == getSecretKey().getPublicKey());
     envelope.signature = 
         getSecretKey().sign(xdr::xdr_to_msg(envelope.statement));
+    envelopeSigned();
 }
 
 bool 
 FBA::verifyEnvelope(const FBAEnvelope& envelope)
 {
-    return PublicKey::verifySig(envelope.nodeID, envelope.signature, 
-                                xdr::xdr_to_msg(envelope.statement));
+    bool b = PublicKey::verifySig(envelope.nodeID, envelope.signature, 
+                                  xdr::xdr_to_msg(envelope.statement));
+    envelopeVerified(b);
+    return b;
 }
 
 const SecretKey& 

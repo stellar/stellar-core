@@ -25,6 +25,7 @@
 // How many ledger in past/future we consider an envelope viable.
 #define LEDGER_VALIDITY_BRACKET 10
 
+namespace medida { class Meter; }
 
 namespace stellar
 {
@@ -72,6 +73,15 @@ class Herder : public HerderGateway,
                            const Hash& qSetHash,
                            std::function<void(const FBAQuorumSet&)> const& cb);
     void emitEnvelope(const FBAEnvelope& envelope);
+
+    // Extra FBA methods overridden solely to increment metrics.
+    void ballotDidPrepare(const uint64& slotIndex, const FBABallot& ballot) override;
+    void ballotDidPrepared(const uint64& slotIndex, const FBABallot& ballot) override;
+    void ballotDidCommit(const uint64& slotIndex, const FBABallot& ballot) override;
+    void ballotDidCommitted(const uint64& slotIndex, const FBABallot& ballot) override;
+    void envelopeSigned() override;
+    void envelopeVerified(bool) override;
+
     
     // HerderGateway methods
     TxSetFramePtr fetchTxSet(const uint256& txSetHash, bool askNetwork);
@@ -142,5 +152,31 @@ class Herder : public HerderGateway,
     Value                                          mCurrentValue;
 
     Application&                                   mApp;
+
+    medida::Meter& mValueValid;
+    medida::Meter& mValueInvalid;
+    medida::Meter& mValuePrepare;
+    medida::Meter& mValueExternalize;
+
+    medida::Meter& mBallotValid;
+    medida::Meter& mBallotInvalid;
+    medida::Meter& mBallotPrepare;
+    medida::Meter& mBallotPrepared;
+    medida::Meter& mBallotCommit;
+    medida::Meter& mBallotCommitted;
+    medida::Meter& mBallotSign;
+    medida::Meter& mBallotValidSig;
+    medida::Meter& mBallotInvalidSig;
+    medida::Meter& mBallotExpire;
+
+    medida::Meter& mQuorumHeard;
+    medida::Meter& mQsetRetrieve;
+
+    medida::Meter& mEnvelopeEmit;
+    medida::Meter& mEnvelopeReceive;
+    medida::Meter& mEnvelopeSign;
+    medida::Meter& mEnvelopeValidSig;
+    medida::Meter& mEnvelopeInvalidSig;
+
 };
 }

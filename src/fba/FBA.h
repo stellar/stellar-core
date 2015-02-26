@@ -178,6 +178,10 @@ class FBA
     // be used in ballot validation decisions.
     bool isVBlocking(const std::vector<uint256>& nodes);
 
+    // Hooks for subclasses to note signatures and verification pass/fail.
+    virtual void envelopeSigned() { }
+    virtual void envelopeVerified(bool) { }
+
   private:
     // Node getters
     Node* getNode(const uint256& nodeID);
