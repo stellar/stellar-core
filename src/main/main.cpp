@@ -12,6 +12,7 @@
 #include "main/Config.h"
 #include "lib/http/HttpClient.h"
 #include "crypto/SecretKey.h"
+#include "history/HistoryMaster.h"
 #include <sodium.h>
 
 
@@ -28,7 +29,8 @@ enum opttag
     OPT_LOCAL,
     OPT_GENSEED,
     OPT_LOGLEVEL,
-    OPT_NEWDB
+    OPT_NEWDB,
+    OPT_NEWHIST
 };
 
 static const struct option stellard_options[] = {
@@ -41,6 +43,7 @@ static const struct option stellard_options[] = {
     {"local", no_argument, nullptr, OPT_LOCAL },
     {"genseed", no_argument, nullptr, OPT_GENSEED },
     {"newdb", no_argument, nullptr, OPT_NEWDB },
+    {"newhist", required_argument, nullptr, OPT_NEWHIST },
     {"ll", required_argument, nullptr, OPT_LOGLEVEL },
     {nullptr, 0, nullptr, 0}};
 
@@ -50,16 +53,17 @@ usage(int err = 1)
     std::ostream& os = err ? std::cerr : std::cout;
     os << "usage: stellard [OPTIONS]\n"
           "where OPTIONS can be any of:\n"
-          "      --help        To display this string\n"
-          "      --version     To print version information\n"
-          "      --test        To run self-tests\n"
-          "      --newdb       Setup the DB.\n"
-          "      --new         Start a brand new network to call your own.\n"
-          "      --local       Resume from locally saved state.\n"
-          "      --genseed     Generate and print a random node seed.\n"
-          "      --ll          Set the log level. options are:\n"
-          "                    [trace|debug|info|warning|error|fatal|none]\n"
-          "      --c           Command to send to local hayashi\n"
+          "      --help          To display this string\n"
+          "      --version       To print version information\n"
+          "      --test          To run self-tests\n"
+          "      --newdb         Setup the DB.\n"
+          "      --newhist ARCH  Initialize the named history archive ARCH.\n"
+          "      --new           Start a brand new network to call your own.\n"
+          "      --local         Resume from locally saved state.\n"
+          "      --genseed       Generate and print a random node seed.\n"
+          "      --ll LEVEL      Set the log level. LEVEL can be:\n"
+          "                      [trace|debug|info|warning|error|fatal|none]\n"
+          "      --c             Command to send to local hayashi\n"
           "                stop\n"
           "                info\n"
           "                reload_cfg?file=newconfig.cfg\n"
@@ -67,7 +71,7 @@ usage(int err = 1)
           "                peers\n"
           "                connect?ip=5.5.5.5&port=3424\n"
           "                tx?blob=TX_IN_HEX\n"
-          "      --conf FILE   To specify a config file ('-' for STDIN, default "
+          "      --conf FILE     To specify a config file ('-' for STDIN, default "
           "'stellard.cfg')\n";
     exit(err);
 }
@@ -108,6 +112,7 @@ main(int argc, char* const* argv)
     bool newNetwork = false;
     bool localNetwork = false;
     bool newDB = false;
+    std::vector<std::string> newHist;
 
     int opt;
     while ((opt = getopt_long_only(argc, argv, "", stellard_options,
@@ -136,6 +141,9 @@ main(int argc, char* const* argv)
             break;
         case OPT_NEWDB:
             newDB = true;
+            break;
+        case OPT_NEWHIST:
+            newHist.push_back(std::string(optarg));
             break;
         case OPT_LOCAL:
             localNetwork = true;
@@ -188,6 +196,18 @@ main(int argc, char* const* argv)
 
     app->start();
     app->enableRealTimer();
+
+    // Run any history-archive initializations synchronously, then exit.
+    if (!newHist.empty())
+    {
+        for (auto const& arch : newHist)
+        {
+            if (!HistoryMaster::initializeHistoryArchive(*app, arch))
+                return 1;
+        }
+        return 0;
+    }
+
 
     auto& io = app->getMainIOService();
     asio::io_service::work mainWork(io);

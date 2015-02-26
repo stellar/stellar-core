@@ -54,7 +54,9 @@ public:
         , cfg(getTestConfig())
         , appPtr(Application::create(clock, addLocalDirHistoryArchive(dir, cfg)))
         , app(*appPtr)
-        {}
+        {
+            CHECK(HistoryMaster::initializeHistoryArchive(app, "test"));
+        }
 
     void crankTillDone(bool& done);
     void generateAndPublishHistory();
@@ -157,35 +159,20 @@ generateValidLedgerEntry();
 void
 HistoryTests::generateAndPublishHistory()
 {
+    // Make some changes, then publish them.
     app.start();
-    HistoryMaster &hm = app.getHistoryMaster();
-    auto i = app.getConfig().HISTORY.find("test");
-    CHECK(i != app.getConfig().HISTORY.end());
-    auto archive = i->second;
-    HistoryArchiveState has;
-    has.currentLedger = 0;
-
+    std::vector<LedgerEntry> live { generateValidLedgerEntry(),
+            generateValidLedgerEntry(),
+            generateValidLedgerEntry()
+            };
+    std::vector<LedgerKey> dead { };
+    app.getCLFMaster().getBucketList().addBatch(app, 1, live, dead);
     bool done = false;
-    archive->putState(
-        app, has,
-        [&done, &hm, this](asio::error_code const& ec)
+    app.getHistoryMaster().publishHistory(
+        [&done](asio::error_code const& ec)
         {
             CHECK(!ec);
-
-            // Make some changes, then publish them.
-            std::vector<LedgerEntry> live { generateValidLedgerEntry(),
-                    generateValidLedgerEntry(),
-                    generateValidLedgerEntry()
-            };
-            std::vector<LedgerKey> dead { };
-            this->app.getCLFMaster().getBucketList().addBatch(app, 1, live, dead);
-
-            hm.publishHistory(
-                [&done](asio::error_code const& ec)
-                {
-                    CHECK(!ec);
-                    done = true;
-                });
+            done = true;
         });
     crankTillDone(done);
 }
