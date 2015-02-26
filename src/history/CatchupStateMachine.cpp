@@ -149,6 +149,7 @@ CatchupStateMachine::enterFetchingState()
     for (auto& f : mFileStates)
     {
         std::string hashname = f.first;
+        uint256 hash = hexToBin256(hashname);
         std::string basename = HistoryMaster::bucketBasename(hashname);
         std::string filename = hm.localFilename(basename);
 
@@ -203,9 +204,14 @@ CatchupStateMachine::enterFetchingState()
             CLOG(INFO, "History") << "Verifying " << basename;
             hm.verifyHash(
                 filename,
-                hexToBin256(hashname),
-                [this, hashname](asio::error_code const& ec)
+                hash,
+                [this, filename, hashname, hash](asio::error_code const& ec)
                 {
+                    if (!ec)
+                    {
+                        auto b = this->mApp.getCLFMaster().adoptFileAsBucket(filename, hash);
+                        this->mBuckets[hashname] = b;
+                    }
                     this->fileStateChange(ec, hashname, FILE_CATCHUP_VERIFIED);
                 });
             break;
