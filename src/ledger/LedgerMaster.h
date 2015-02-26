@@ -14,6 +14,8 @@ Applies the tx set to the last ledger to get the next one
 Hands the old ledger off to the history
 */
 
+namespace medida { class Timer; }
+
 namespace stellar
 {
     class Application;
@@ -28,6 +30,8 @@ namespace stellar
         LedgerHeaderFrame::pointer mCurrentLedger;
 
         Application &mApp;
+        medida::Timer& mTransactionApply;
+        medida::Timer& mLedgerClose;
 
         void startCatchUp();
         

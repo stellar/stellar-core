@@ -18,6 +18,9 @@
 #include "herder/HerderGateway.h"
 #include "herder/TxSetFrame.h"
 #include "overlay/OverlayGateway.h"
+#include "medida/metrics_registry.h"
+#include "medida/meter.h"
+#include "medida/timer.h"
 
 /*
 The ledger module:
@@ -51,9 +54,12 @@ namespace stellar
 
 using namespace std;
 
-LedgerMaster::LedgerMaster(Application& app) : mApp(app)
+LedgerMaster::LedgerMaster(Application& app)
+    : mApp(app)
+    , mTransactionApply(app.getMetrics().NewTimer({"ledger", "transaction", "apply"}))
+    , mLedgerClose(app.getMetrics().NewTimer({"ledger", "ledger", "close"}))
 {
-	mCaughtUp = false;
+    mCaughtUp = false;
     //syncWithCLF();
 }
 
@@ -61,6 +67,7 @@ void LedgerMaster::startNewLedger()
 {
     LOG(INFO) << "Creating the genesis ledger.";
 
+    auto ledgerTime = mLedgerClose.TimeScope();
     ByteSlice bytes("masterpassphrasemasterpassphrase");
     std::string b58SeedStr = toBase58Check(VER_SEED, bytes);
     SecretKey skey = SecretKey::fromBase58Seed(b58SeedStr);
@@ -84,6 +91,7 @@ void LedgerMaster::startNewLedger()
 void LedgerMaster::loadLastKnownLedger()
 {
     LOG(INFO) << "Loading last known ledger";
+    auto ledgerTime = mLedgerClose.TimeScope();
 
     string lastLedger = getState(StoreStateName::kLastClosedLedger);
 
@@ -189,10 +197,13 @@ void LedgerMaster::closeLedger(TxSetFramePtr txSet)
 
     soci::transaction txscope(getDatabase().getSession());
 
+    auto ledgerTime = mLedgerClose.TimeScope();
+
     vector<TransactionFramePtr> txs;
     txSet->sortForApply(txs);
     for(auto tx : txs)
     {
+        auto txTime = mTransactionApply.TimeScope();
         try {
             LedgerDelta delta;
 
@@ -227,6 +238,7 @@ void LedgerMaster::closeLedger(TxSetFramePtr txSet)
 // and switches to a new ledger
 void LedgerMaster::closeLedgerHelper(bool updateCurrent, LedgerDelta const& delta)
 {
+    delta.markMeters(mApp);
     if (updateCurrent)
     {
         mApp.getCLFMaster().addBatch(mApp,
