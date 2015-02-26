@@ -16,6 +16,11 @@
 #include <map>
 #include <set>
 
+#ifdef _MSC_VER
+#undef min
+#undef max
+#endif
+
 #include "medida/metrics_registry.h"
 #include "medida/meter.h"
 #include "medida/timer.h"

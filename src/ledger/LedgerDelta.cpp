@@ -1,5 +1,9 @@
 #include "ledger/LedgerDelta.h"
 #include "main/Application.h"
+#ifdef _MSC_VER
+#undef min
+#undef max
+#endif
 #include "medida/metrics_registry.h"
 #include "medida/meter.h"
 
