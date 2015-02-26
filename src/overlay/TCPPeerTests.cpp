@@ -21,8 +21,8 @@ TEST_CASE("TCPPeer can communicate", "[overlay]")
 
     auto n0 = s->addNode(v0VSeed, FBAQuorumSet(), s->getClock());
     auto n1 = s->addNode(v1VSeed, FBAQuorumSet(), s->getClock());
-
-    auto b = TCPPeer::initiate(*s->getNode(n0), string("127.0.0.1"), s->getNode(n1)->getConfig().PEER_PORT);
+    auto const localhost = std::string("127.0.0.1");
+    auto b = TCPPeer::initiate(*s->getNode(n0), localhost, s->getNode(n1)->getConfig().PEER_PORT);
 
     while (s->crankAllNodes(1) > 0);
     //s->crankForAtMost(std::chrono::seconds(20));

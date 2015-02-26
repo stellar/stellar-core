@@ -46,7 +46,7 @@ class TCPPeer : public Peer
         std::shared_ptr<asio::ip::tcp::socket> socket,
         VirtualTimer helloTimer); // hollow constuctor; use `initiate` or `accept` instead
 
-    static pointer initiate(Application& app, std::string& ip, int port);
+    static pointer initiate(Application& app, const std::string& ip, int port);
     static pointer accept(Application& app, shared_ptr<asio::ip::tcp::socket> socket);
 
 

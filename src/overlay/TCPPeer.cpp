@@ -42,7 +42,7 @@ TCPPeer::TCPPeer(Application& app, Peer::PeerRole role,
 {}
 
 TCPPeer::pointer
-TCPPeer::initiate(Application& app, std::string& ip, int port)
+TCPPeer::initiate(Application& app, const std::string& ip, int port)
 {
     LOG(DEBUG) << "TCPPeer:initiate"
         << "@" << app.getConfig().PEER_PORT
@@ -69,7 +69,7 @@ TCPPeer::accept(Application& app, shared_ptr<asio::ip::tcp::socket> socket)
 
 TCPPeer::~TCPPeer()
 {
-    cout << "TCPPeer::~TCPPeer @" << mApp.getConfig().PEER_PORT;
+//    cout << "TCPPeer::~TCPPeer @" << mApp.getConfig().PEER_PORT;
 }
 
 void TCPPeer::timerExpired(const asio::error_code& error)
