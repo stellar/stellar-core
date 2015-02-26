@@ -3,12 +3,6 @@
 // this distribution or at http://opensource.org/licenses/ISC
 
 
-#if _WIN32
-// Tell windef.h not to define max() as a macro; the token is used as a
-// qualified name in autocheck.
-#define NOMINMAX
-#endif
-
 #include "main/test.h"
 #include "util/Logging.h"
 #include "lib/catch.hpp"
