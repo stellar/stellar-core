@@ -172,4 +172,29 @@ Simulation::crankForAtMost(VirtualClock::duration seconds)
     else LOG(INFO) << "Simulation complete";
 }
 
+void
+Simulation::crankForAtLeast(VirtualClock::duration seconds)
+{
+    bool stop = false;
+    auto stopIt = [&](const asio::error_code& error)
+    {
+        stop = true;
+    };
+
+    VirtualTimer checkTimer(mClock);
+
+    checkTimer.expires_from_now(seconds);
+    checkTimer.async_wait(stopIt);
+
+    while (!stop)
+    {
+        if (crankAllNodes() == 0)
+            this_thread::sleep_for(chrono::milliseconds(50));
+    }
+
+    if (stop)
+        LOG(INFO) << "Simulation timed out";
+    else LOG(INFO) << "Simulation complete";
+}
+
 }

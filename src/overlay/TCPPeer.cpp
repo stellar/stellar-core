@@ -49,6 +49,7 @@ TCPPeer::initiate(Application& app, const std::string& ip, int port)
         << " to " << ip << ":" << port;
     auto socket = make_shared<asio::ip::tcp::socket>(app.getMainIOService());
     auto result = make_shared<TCPPeer>(app, ACCEPTOR, socket, app.getClock()); // We are initiating; new `newed` TCPPeer is accepting
+    result->mRemoteListeningPort = port;
     asio::ip::tcp::endpoint endpoint(asio::ip::address::from_string(ip), port);
     socket->async_connect(endpoint, [result](const asio::error_code& error) { result->connectHandler(error);  });
     return result;
@@ -74,10 +75,6 @@ TCPPeer::~TCPPeer()
 
 void TCPPeer::timerExpired(const asio::error_code& error)
 {
-    LOG(DEBUG) << "TCPPeer:timerExpired"
-        << "@" << mApp.getConfig().PEER_PORT
-        << " to " << mSocket->remote_endpoint().port();
-
     drop();
 }
 
@@ -250,7 +247,10 @@ TCPPeer::recvHello(StellarMessage const& msg)
     { // we called this guy
         // only lower numFailures if we were successful connecting out to him
         PeerRecord pr;
-        PeerRecord::loadPeerRecord(mApp.getDatabase(), getIP(), getRemoteListeningPort(), pr);
+        if (!PeerRecord::loadPeerRecord(mApp.getDatabase(), getIP(), getRemoteListeningPort(), pr))
+        {
+            PeerRecord::fromIPPort(getIP() + ":" + to_string(getRemoteListeningPort()), DEFAULT_PEER_PORT, mApp.getClock(), pr);
+        }
         pr.mNumFailures = 0;
         pr.mNextAttempt = mApp.getClock().now();
         pr.storePeerRecord(mApp.getDatabase());

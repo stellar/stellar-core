@@ -55,6 +55,7 @@ class Simulation
     std::size_t crankNode(uint256 nodeID, int nbTicks=1);
     std::size_t crankAllNodes(int nbTicks=1);
     void crankForAtMost(VirtualClock::duration seconds);
+    void crankForAtLeast(VirtualClock::duration seconds);
 };
 }
 

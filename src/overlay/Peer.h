@@ -32,7 +32,6 @@ class Peer : public enable_shared_from_this<Peer>
     enum PeerState
     {
         CONNECTING,
-        FAILED_CONNECTING,
         CONNECTED,
         GOT_HELLO,
         CLOSING
