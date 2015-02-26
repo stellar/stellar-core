@@ -47,7 +47,8 @@ using namespace std;
         string hash(binToHex(mHeader.hash)), prevHash(binToHex(mHeader.previousLedgerHash)),
             txSetHash(binToHex(mHeader.txSetHash)), clfHash(binToHex(mHeader.clfHash));
 
-        soci::statement st = (ledgerMaster.getDatabase().getSession().prepare <<
+        auto& db = ledgerMaster.getDatabase();
+        soci::statement st = (db.getSession().prepare <<
             "INSERT INTO LedgerHeaders (hash, prevHash, txSetHash, clfHash, totCoins, "\
             "feePool, ledgerSeq,inflationSeq,baseFee,baseReserve,closeTime) VALUES"\
             "(:h,:ph,:tx,:clf,:coins,"\
@@ -58,9 +59,10 @@ using namespace std;
             use(mHeader.totalCoins), use(mHeader.feePool), use(mHeader.ledgerSeq),
             use(mHeader.inflationSeq), use(mHeader.baseFee), use(mHeader.baseReserve),
             use(mHeader.closeTime));
-
-        st.execute(true);
-
+        {
+            auto timer = db.getInsertTimer("ledger-header");
+            st.execute(true);
+        }
         if (st.get_affected_rows() != 1)
         {
             throw std::runtime_error("Could not update data in SQL");
@@ -77,16 +79,19 @@ using namespace std;
 
         string hash_s(binToHex(hash));
         string prevHash, txSetHash, clfHash;
-
-        ledgerMaster.getDatabase().getSession() <<
-            "SELECT prevHash, txSetHash, clfHash, totCoins, "\
-            "feePool, ledgerSeq,inflationSeq,baseFee,"\
-            "baseReserve,closeTime FROM LedgerHeaders "\
-            "WHERE hash = :h",
-            into(prevHash), into(txSetHash), into(clfHash), into(lh.totalCoins),
-            into(lh.feePool), into(lh.ledgerSeq), into(lh.inflationSeq), into(lh.baseFee),
-            into(lh.baseReserve), into(lh.closeTime),
-            use(hash_s);
+        {
+            auto& db = ledgerMaster.getDatabase();
+            auto timer = db.getSelectTimer("ledger-header");
+            db.getSession() <<
+                "SELECT prevHash, txSetHash, clfHash, totCoins, "   \
+                "feePool, ledgerSeq,inflationSeq,baseFee,"          \
+                "baseReserve,closeTime FROM LedgerHeaders "         \
+                "WHERE hash = :h",
+                into(prevHash), into(txSetHash), into(clfHash), into(lh.totalCoins),
+                into(lh.feePool), into(lh.ledgerSeq), into(lh.inflationSeq), into(lh.baseFee),
+                into(lh.baseReserve), into(lh.closeTime),
+                use(hash_s);
+        }
         if (ledgerMaster.getDatabase().getSession().got_data())
         {
             lh.hash = hash;
@@ -107,12 +112,15 @@ using namespace std;
         LedgerHeaderFrame::pointer lhf;
 
         lhf = make_shared<LedgerHeaderFrame>();
-        
+
         LedgerHeader &lh = lhf->mHeader;
 
         string hash, prevHash, txSetHash, clfHash;
+        auto& db = ledgerMaster.getDatabase();
 
-        ledgerMaster.getDatabase().getSession() <<
+        {
+            auto timer = db.getSelectTimer("ledger-header");
+            db.getSession() <<
             "SELECT hash, prevHash, txSetHash, clfHash, totCoins, "\
             "feePool, inflationSeq,baseFee,"\
             "baseReserve,closeTime FROM LedgerHeaders "\
@@ -121,6 +129,7 @@ using namespace std;
             into(lh.feePool), into(lh.inflationSeq), into(lh.baseFee),
             into(lh.baseReserve), into(lh.closeTime),
             use(seq);
+        }
         if (ledgerMaster.getDatabase().getSession().got_data())
         {
             lh.ledgerSeq = seq;

@@ -118,12 +118,15 @@ bool AccountFrame::loadAccount(const uint256& accountID, AccountFrame& retAcc,
 
     retAcc.getAccount().accountID = accountID;
     AccountEntry& account = retAcc.getAccount();
-    session << "SELECT balance,sequence,ownerCount, \
+    {
+        auto timer = db.getSelectTimer("account");
+        session << "SELECT balance,sequence,ownerCount, \
         inflationDest, thresholds,  flags from Accounts where accountID=:v1",
-        into(account.balance), into(account.sequence), into(account.ownerCount),
-        into(inflationDest, inflationDestInd),
-        into(thresholds, thresholdsInd), into(account.flags),
-        use(base58ID);
+            into(account.balance), into(account.sequence), into(account.ownerCount),
+            into(inflationDest, inflationDestInd),
+            into(thresholds, thresholdsInd), into(account.flags),
+            use(base58ID);
+    }
 
     if (!session.got_data())
         return false;
@@ -152,11 +155,14 @@ bool AccountFrame::loadAccount(const uint256& accountID, AccountFrame& retAcc,
         statement st = (session.prepare <<
             "SELECT publicKey, weight from Signers where accountID =:id",
             use(base58ID), into(pubKey), into(signer.weight));
-        st.execute(true);
+        {
+            auto timer = db.getSelectTimer("signer");
+            st.execute(true);
+        }
         while(st.got_data())
         {
             signer.pubKey = fromBase58Check256(VER_ACCOUNT_ID, pubKey);
-            
+
             account.signers.push_back(signer);
 
             st.fetch();
@@ -170,11 +176,14 @@ bool AccountFrame::exists(Database& db, LedgerKey const& key)
 {
     std::string base58ID = toBase58Check(VER_ACCOUNT_ID, key.account().accountID);
     int exists = 0;
-    db.getSession() <<
-        "SELECT EXISTS (SELECT NULL FROM Accounts \
+    {
+        auto timer = db.getSelectTimer("account-exists");
+        db.getSession() <<
+            "SELECT EXISTS (SELECT NULL FROM Accounts \
              WHERE accountID=:v1)",
-        use(base58ID),
-        into(exists);
+            use(base58ID),
+            into(exists);
+    }
     return exists != 0;
 }
 
@@ -188,14 +197,21 @@ void AccountFrame::storeDelete(LedgerDelta& delta, Database& db, LedgerKey const
     std::string base58ID = toBase58Check(VER_ACCOUNT_ID, key.account().accountID);
 
     soci::session &session = db.getSession();
-
-    session <<
-        "DELETE from Accounts where accountID= :v1", soci::use(base58ID);
-    session <<
-        "DELETE from AccountData where accountID= :v1", soci::use(base58ID);
-    session <<
-        "DELETE from Signers where accountID= :v1", soci::use(base58ID);
-
+    {
+        auto timer = db.getDeleteTimer("account");
+        session <<
+            "DELETE from Accounts where accountID= :v1", soci::use(base58ID);
+    }
+    {
+        auto timer = db.getDeleteTimer("account-data");
+        session <<
+            "DELETE from AccountData where accountID= :v1", soci::use(base58ID);
+    }
+    {
+        auto timer = db.getDeleteTimer("signer");
+        session <<
+            "DELETE from Signers where accountID= :v1", soci::use(base58ID);
+    }
     delta.deleteEntry(key);
 }
 
@@ -239,7 +255,10 @@ void AccountFrame::storeUpdate(LedgerDelta &delta, Database &db, bool insert)
             use(finalAccount.ownerCount, "v3"),
             use(inflationDestStr, inflation_ind, "v4"),
             use(thresholds, "v5"), use(finalAccount.flags, "v6"));
-        st.execute(true);
+        {
+            auto timer = insert ? db.getInsertTimer("account") : db.getUpdateTimer("account");
+            st.execute(true);
+        }
 
         if (st.get_affected_rows() != 1)
         {
@@ -279,8 +298,11 @@ void AccountFrame::storeUpdate(LedgerDelta &delta, Database &db, bool insert)
                         if (finalSigner.weight != startSigner.weight)
                         {
                             std::string b58signKey = toBase58Check(VER_ACCOUNT_ID, finalSigner.pubKey);
-                            db.getSession() << "UPDATE Signers set weight=:v1 where accountID=:v2 and publicKey=:v3",
-                                use(finalSigner.weight), use(base58ID), use(b58signKey);
+                            {
+                                auto timer = db.getUpdateTimer("signer");
+                                db.getSession() << "UPDATE Signers set weight=:v1 where accountID=:v2 and publicKey=:v3",
+                                    use(finalSigner.weight), use(base58ID), use(b58signKey);
+                            }
                         }
                         found = true;
                         break;
@@ -294,7 +316,10 @@ void AccountFrame::storeUpdate(LedgerDelta &delta, Database &db, bool insert)
                         "DELETE from Signers where accountID=:v2 and publicKey=:v3",
                         use(base58ID), use(b58signKey));
 
-                    st.execute(true);
+                    {
+                        auto timer = db.getDeleteTimer("signer");
+                        st.execute(true);
+                    }
 
                     if (st.get_affected_rows() != 1)
                     {

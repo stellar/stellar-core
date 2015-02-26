@@ -175,8 +175,6 @@ void LedgerMaster::externalizeValue(TxSetFramePtr txSet)
     }
 }
 
-// we have some last ledger that is in the DB
-// we need to 
 void LedgerMaster::startCatchUp()
 {
     mApp.setState(Application::CATCHING_UP_STATE);
@@ -188,7 +186,7 @@ void LedgerMaster::closeLedger(TxSetFramePtr txSet)
     TxSetFrame successfulTX;
 
     LedgerDelta ledgerDelta;
-    
+
     soci::transaction txscope(getDatabase().getSession());
 
     vector<TransactionFramePtr> txs;
@@ -210,7 +208,7 @@ void LedgerMaster::closeLedger(TxSetFramePtr txSet)
             {
                 CLOG(ERROR, "Tx") << "invalid tx. This should never happen";
             }
-            
+
         }catch(...)
         {
             CLOG(ERROR, "Ledger") << "Exception during tx->apply";
@@ -277,8 +275,12 @@ string LedgerMaster::getState(StoreStateName stateName) {
 
     string sn(getStoreStateName(stateName));
 
-    getDatabase().getSession() << "SELECT State FROM StoreState WHERE StateName = :n;",
-        soci::use(sn), soci::into(res);
+    auto& db = getDatabase();
+    {
+        auto timer = db.getSelectTimer("state");
+        db.getSession() << "SELECT State FROM StoreState WHERE StateName = :n;",
+            soci::use(sn), soci::into(res);
+    }
 
     if (!getDatabase().getSession().got_data())
     {
@@ -295,10 +297,14 @@ void LedgerMaster::setState(StoreStateName stateName, const string &value) {
         "UPDATE StoreState SET State = :v WHERE StateName = :n;",
         soci::use(value), soci::use(sn));
 
-    st.execute(true);
+    {
+        auto timer = getDatabase().getUpdateTimer("state");
+        st.execute(true);
+    }
 
     if (st.get_affected_rows() != 1)
     {
+        auto timer = getDatabase().getInsertTimer("state");
         st = (getDatabase().getSession().prepare <<
             "INSERT INTO StoreState (StateName, State) VALUES (:n, :v );",
             soci::use(sn), soci::use(value));

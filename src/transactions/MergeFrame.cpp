@@ -33,18 +33,24 @@ namespace stellar
         // TODO: remove direct SQL statements, use *Frame objects instead
 
         std::string b58Account = toBase58Check(VER_ACCOUNT_ID, mSigningAccount->getID());
-        db.getSession() <<
-            "SELECT trustIndex from TrustLines where issuer=:v1 and balance>0 limit 1",
-            use(b58Account);
+        {
+            auto timer = db.getSelectTimer("trust");
+            db.getSession() <<
+                "SELECT trustIndex from TrustLines where issuer=:v1 and balance>0 limit 1",
+                use(b58Account);
+        }
         if(db.getSession().got_data())
         {
             innerResult().code(AccountMerge::HAS_CREDIT);
             return false;
         }
 
-        db.getSession() <<
-            "SELECT trustIndex from TrustLines where accountID=:v1 and balance>0 limit 1",
-            use(b58Account);
+        {
+            auto timer = db.getSelectTimer("trust");
+            db.getSession() <<
+                "SELECT trustIndex from TrustLines where accountID=:v1 and balance>0 limit 1",
+                use(b58Account);
+        }
         if(db.getSession().got_data())
         {
             innerResult().code(AccountMerge::HAS_CREDIT);

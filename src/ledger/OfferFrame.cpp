@@ -117,6 +117,7 @@ namespace stellar
 
         bool res = false;
 
+        auto timer = db.getSelectTimer("offer");
         loadOffers(sql, [&retOffer, &res](OfferFrame const& offer) {
             retOffer = offer;
             res = true;
@@ -210,6 +211,7 @@ namespace stellar
         }
         sql << " ORDER BY price,sequence,accountID LIMIT :n OFFSET :o", use(numOffers), use(offset);
 
+        auto timer = db.getSelectTimer("offer");
         loadOffers(sql, [&retOffers](OfferFrame const &of)
         {
             retOffers.push_back(of);
@@ -226,6 +228,7 @@ namespace stellar
         soci::details::prepare_temp_type sql = (session.prepare <<
             offerColumnSelector << " WHERE accountID=:id", use(accStr));
 
+        auto timer = db.getSelectTimer("offer");
         loadOffers(sql, [&retOffers](OfferFrame const &of)
         {
             retOffers.push_back(of);
@@ -236,6 +239,7 @@ namespace stellar
     {
         std::string b58AccountID = toBase58Check(VER_ACCOUNT_ID, key.offer().accountID);
         int exists = 0;
+        auto timer = db.getSelectTimer("offer-exists");
         db.getSession() <<
             "SELECT EXISTS (SELECT NULL FROM Offers \
              WHERE accountID=:id AND sequence=:s)",
@@ -253,6 +257,7 @@ namespace stellar
     {
         std::string b58AccountID = toBase58Check(VER_ACCOUNT_ID, key.offer().accountID);
 
+        auto timer = db.getDeleteTimer("offer");
         db.getSession() <<
             "DELETE FROM Offers WHERE accountID=:id AND sequence=:s",
             use(b58AccountID), use(key.offer().sequence);
@@ -270,6 +275,7 @@ namespace stellar
     {
         std::string b58AccountID = toBase58Check(VER_ACCOUNT_ID, mOffer.accountID);
 
+        auto timer = db.getUpdateTimer("offer");
         soci::statement st = (db.getSession().prepare <<
             "UPDATE Offers SET amount=:a, priceN=:n, priceD=:D, price=:p WHERE accountID=:id AND sequence=:s",
             use(mOffer.amount),
@@ -291,6 +297,8 @@ namespace stellar
         std::string b58AccountID = toBase58Check(VER_ACCOUNT_ID, mOffer.accountID);
 
         soci::statement st(db.getSession().prepare << "select 1");
+
+        auto timer = db.getInsertTimer("offer");
 
         if(mOffer.takerGets.type()==NATIVE)
         {

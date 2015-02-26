@@ -323,6 +323,7 @@ void TransactionFrame::storeTransaction(LedgerMaster &ledgerMaster, LedgerDelta 
 
     string txIDString(binToHex(getContentsHash()));
 
+    auto timer = ledgerMaster.getDatabase().getInsertTimer("txhistory");
     soci::statement st = (ledgerMaster.getDatabase().getSession().prepare <<
         "INSERT INTO TxHistory (txID, ledgerSeq, TxBody, TxResult, TxMeta) VALUES "\
         "(:id,:seq,:txb,:txres,:entries)",

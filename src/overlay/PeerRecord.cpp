@@ -70,6 +70,7 @@ void PeerRecord::parseIPPort(const std::string& peerStr, int defaultPort, std::s
 MUST_USE
 bool PeerRecord::loadPeerRecord(Database &db, string ip, int port, PeerRecord &ret)
 {
+    auto timer = db.getSelectTimer("peer");
     tm tm;
     db.getSession() << "Select ip,port, nextAttempt, numFailures, rank FROM Peers WHERE ip = :v1 AND port = :v2",
         into(ret.mIP), into(ret.mPort), into(tm), into(ret.mNumFailures), into(ret.mRank), use(ip), use(port);
@@ -84,6 +85,7 @@ bool PeerRecord::loadPeerRecord(Database &db, string ip, int port, PeerRecord &r
 void PeerRecord::loadPeerRecords(Database &db, int max, VirtualClock::time_point nextAttemptCutoff, vector<PeerRecord>& retList)
 {
     try {
+        auto timer = db.getSelectTimer("peer");
         tm tm = VirtualClock::pointToTm(nextAttemptCutoff);
         PeerRecord pr;
         statement st = (db.getSession().prepare <<
@@ -113,6 +115,7 @@ bool PeerRecord::isStored(Database &db)
 void PeerRecord::storePeerRecord(Database& db)
 {
     try {
+        auto timer = db.getUpdateTimer("peer");
         auto tm = VirtualClock::pointToTm(mNextAttempt);
         statement stUp = (db.getSession().prepare <<
             "UPDATE Peers SET nextAttempt=:v1,numFailures=:v2,Rank=:v3 WHERE IP=:v4 AND Port=:v5",
@@ -121,6 +124,7 @@ void PeerRecord::storePeerRecord(Database& db)
         stUp.execute(true);
         if (stUp.get_affected_rows() != 1)
         {
+            auto timer = db.getInsertTimer("peer");
             tm = VirtualClock::pointToTm(mNextAttempt);
 
             statement stIn = (db.getSession().prepare << "INSERT INTO Peers (IP,Port,nextAttempt,numFailures,Rank) values (:v1, :v2, :v3, :v4, :v5)",
