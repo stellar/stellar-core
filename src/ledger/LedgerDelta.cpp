@@ -1,4 +1,7 @@
 #include "ledger/LedgerDelta.h"
+#include "main/Application.h"
+#include "medida/metrics_registry.h"
+#include "medida/meter.h"
 
 namespace stellar
 {
@@ -154,5 +157,58 @@ namespace stellar
         return dead;
     }
 
+
+    void
+    LedgerDelta::markMeters(Application& app) const
+    {
+        for (auto const& ke : mNew)
+        {
+            switch (ke.first.type())
+            {
+            case ACCOUNT:
+                app.getMetrics().NewMeter({"ledger", "account", "add"}, "entry").Mark();
+                break;
+            case TRUSTLINE:
+                app.getMetrics().NewMeter({"ledger", "trust", "add"}, "entry").Mark();
+                break;
+            case OFFER:
+                app.getMetrics().NewMeter({"ledger", "offer", "add"}, "entry").Mark();
+                break;
+            }
+        }
+
+        for (auto const& ke : mMod)
+        {
+            switch (ke.first.type())
+            {
+            case ACCOUNT:
+                app.getMetrics().NewMeter({"ledger", "account", "modify"}, "entry").Mark();
+                break;
+            case TRUSTLINE:
+                app.getMetrics().NewMeter({"ledger", "trust", "modify"}, "entry").Mark();
+                break;
+            case OFFER:
+                app.getMetrics().NewMeter({"ledger", "offer", "modify"}, "entry").Mark();
+                break;
+            }
+        }
+
+        for (auto const& ke : mDelete)
+        {
+            switch (ke.type())
+            {
+            case ACCOUNT:
+                app.getMetrics().NewMeter({"ledger", "account", "delete"}, "entry").Mark();
+                break;
+            case TRUSTLINE:
+                app.getMetrics().NewMeter({"ledger", "trust", "delete"}, "entry").Mark();
+                break;
+            case OFFER:
+                app.getMetrics().NewMeter({"ledger", "offer", "delete"}, "entry").Mark();
+                break;
+            }
+        }
+
+    }
 
 }

@@ -110,7 +110,7 @@ public:
     }
 
     template <typename T> bool
-    writeOne(T const& t, SHA256* hasher=nullptr)
+    writeOne(T const& t, SHA256* hasher=nullptr, size_t* bytesPut=nullptr)
     {
         uint32_t sz = (uint32_t)xdr::xdr_size(t);
         assert(sz < 0x80000000);
@@ -137,6 +137,10 @@ public:
         if (hasher)
         {
             hasher->add(ByteSlice(mBuf.data(), sz + 4));
+        }
+        if (bytesPut)
+        {
+            *bytesPut += (sz + 4);
         }
         return true;
     }

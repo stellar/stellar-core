@@ -82,6 +82,7 @@ namespace stellar {
         std::string b58AccountID, b58Issuer, currencyCode;
         getKeyFields(key, b58AccountID, b58Issuer, currencyCode);
         int exists = 0;
+        auto timer = db.getSelectTimer("trust-exists");
         db.getSession() <<
             "SELECT EXISTS (SELECT NULL FROM TrustLines \
              WHERE accountID=:v1 and issuer=:v2 and isoCurrency=:v3)",
@@ -101,6 +102,7 @@ namespace stellar {
         std::string b58AccountID, b58Issuer, currencyCode;
         getKeyFields(key, b58AccountID, b58Issuer, currencyCode);
 
+        auto timer = db.getDeleteTimer("trust");
         db.getSession() <<
             "DELETE from TrustLines \
              WHERE accountID=:v1 and issuer=:v2 and isoCurrency=:v3",
@@ -116,6 +118,7 @@ namespace stellar {
         std::string b58AccountID, b58Issuer, currencyCode;
         getKeyFields(getKey(), b58AccountID, b58Issuer, currencyCode);
 
+        auto timer = db.getUpdateTimer("trust");
         statement st =
             (db.getSession().prepare <<
              "UPDATE TrustLines \
@@ -143,6 +146,7 @@ namespace stellar {
         std::string b58AccountID, b58Issuer, currencyCode;
         getKeyFields(getKey(), b58AccountID, b58Issuer, currencyCode);
 
+        auto timer = db.getInsertTimer("trust");
         statement st =
             (db.getSession().prepare <<
                 "INSERT INTO TrustLines (accountID, issuer, isoCurrency, tlimit, authorized) \
@@ -182,6 +186,7 @@ namespace stellar {
 
         bool res = false;
 
+        auto timer = db.getSelectTimer("trust");
         loadLines(sql, [&retLine, &res](TrustFrame const &trust)
         {
             retLine = trust;
@@ -232,6 +237,7 @@ namespace stellar {
             trustLineColumnSelector << " WHERE accountID=:id",
             use(accStr));
 
+        auto timer = db.getSelectTimer("trust");
         loadLines(sql, [&retLines](TrustFrame const &cur)
         {
             retLines.push_back(cur);

@@ -8,6 +8,8 @@
 #include "generated/StellarXDR.h"
 #include "clf/Bucket.h"
 
+#include "medida/timer_context.h"
+
 namespace stellar
 {
 
@@ -32,6 +34,8 @@ class CLFMaster
     std::string const& getBucketDir();
     BucketList& getBucketList();
 
+    medida::TimerContext getMergeTimer();
+
     // Get a reference to a persistent bucket in the CLF-managed bucket
     // directory, from the CLF's shared bucket-set.
     //
@@ -43,7 +47,9 @@ class CLFMaster
     // CLFMaster mid-call -- and is intended to be called from both main and
     // worker threads. Very carefully.
     std::shared_ptr<Bucket> adoptFileAsBucket(std::string const& filename,
-                                              uint256 const& hash);
+                                              uint256 const& hash,
+                                              size_t nObjects = 0,
+                                              size_t nBytes = 0);
 
 
     // Forget any buckets not referenced by the current BucketList. This

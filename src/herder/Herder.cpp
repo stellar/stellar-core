@@ -16,6 +16,8 @@
 #include "crypto/Hex.h"
 #include "util/Logging.h"
 #include "lib/util/easylogging++.h"
+#include "medida/metrics_registry.h"
+#include "medida/meter.h"
 
 namespace stellar
 {
@@ -63,6 +65,32 @@ Herder::Herder(Application& app)
     , mTriggerTimer(app.getClock())
     , mBumpTimer(app.getClock())
     , mApp(app)
+
+    , mValueValid(app.getMetrics().NewMeter({"fba", "value", "valid"}, "value"))
+    , mValueInvalid(app.getMetrics().NewMeter({"fba", "value", "invalid"}, "value"))
+    , mValuePrepare(app.getMetrics().NewMeter({"fba", "value", "prepare"}, "value"))
+    , mValueExternalize(app.getMetrics().NewMeter({"fba", "value", "externalize"}, "value"))
+
+    , mBallotValid(app.getMetrics().NewMeter({"fba", "ballot", "valid"}, "ballot"))
+    , mBallotInvalid(app.getMetrics().NewMeter({"fba", "ballot", "invalid"}, "ballot"))
+    , mBallotPrepare(app.getMetrics().NewMeter({"fba", "ballot", "prepare"}, "ballot"))
+    , mBallotPrepared(app.getMetrics().NewMeter({"fba", "ballot", "prepared"}, "ballot"))
+    , mBallotCommit(app.getMetrics().NewMeter({"fba", "ballot", "commit"}, "ballot"))
+    , mBallotCommitted(app.getMetrics().NewMeter({"fba", "ballot", "committed"}, "ballot"))
+    , mBallotSign(app.getMetrics().NewMeter({"fba", "ballot", "sign"}, "ballot"))
+    , mBallotValidSig(app.getMetrics().NewMeter({"fba", "ballot", "validsig"}, "ballot"))
+    , mBallotInvalidSig(app.getMetrics().NewMeter({"fba", "ballot", "invalidsig"}, "ballot"))
+    , mBallotExpire(app.getMetrics().NewMeter({"fba", "ballot", "expire"}, "ballot"))
+
+    , mQuorumHeard(app.getMetrics().NewMeter({"fba", "quorum", "heard"}, "quorum"))
+    , mQsetRetrieve(app.getMetrics().NewMeter({"fba", "qset", "retrieve"}, "qset"))
+
+    , mEnvelopeEmit(app.getMetrics().NewMeter({"fba", "envelope", "emit"}, "envelope"))
+    , mEnvelopeReceive(app.getMetrics().NewMeter({"fba", "envelope", "receive"}, "envelope"))
+    , mEnvelopeSign(app.getMetrics().NewMeter({"fba", "envelope", "sign"}, "envelope"))
+    , mEnvelopeValidSig(app.getMetrics().NewMeter({"fba", "envelope", "validsig"}, "envelope"))
+    , mEnvelopeInvalidSig(app.getMetrics().NewMeter({"fba", "envelope", "invalidsig"}, "envelope"))
+
 {
     // Inject our local qSet in the FBAQSetFetcher.
     FBAQuorumSetPtr qSet = 
@@ -98,6 +126,7 @@ Herder::validateValue(const uint64& slotIndex,
     }
     catch (...)
     {
+        mValueInvalid.Mark();
         return cb(false);
     }
 
@@ -105,6 +134,7 @@ Herder::validateValue(const uint64& slotIndex,
     // correct.
     if (!verifyStellarBallot(b))
     {
+        mValueInvalid.Mark();
         return cb(false);
     }
 
@@ -115,11 +145,13 @@ Herder::validateValue(const uint64& slotIndex,
         // Check slotIndex.
         if (mLastClosedLedger.ledgerSeq + 1 != slotIndex)
         {
+            mValueInvalid.Mark();
             return cb(false);
         }
         // Check closeTime (not too old)
         if (b.value.closeTime <= mLastClosedLedger.closeTime)
         {
+            mValueInvalid.Mark();
             return cb(false);
         }
     }
@@ -136,6 +168,7 @@ Herder::validateValue(const uint64& slotIndex,
                 << " v: " << binToHex(nodeID).substr(0,6)
                 << " Invalid txSet:"
                 << " " << binToHex(txSet->getContentsHash()).substr(0,6);
+            this->mValueInvalid.Mark();
             return cb(false);
         }
         
@@ -146,6 +179,7 @@ Herder::validateValue(const uint64& slotIndex,
             << " txSet:"
             << " " << binToHex(txSet->getContentsHash()).substr(0,6)
             << " OK";
+        this->mValueValid.Mark();
         return cb(true);
     };
     
@@ -229,6 +263,7 @@ Herder::validateBallot(const uint64& slotIndex,
     }
     catch (...)
     {
+        mBallotInvalid.Mark();
         return cb(false);
     }
 
@@ -236,6 +271,7 @@ Herder::validateBallot(const uint64& slotIndex,
     uint64_t timeNow = VirtualClock::pointToTimeT(mApp.getClock().now());
     if (b.value.closeTime > timeNow + MAX_TIME_SLIP_SECONDS)
     {
+        mBallotInvalid.Mark();
         return cb(false);
     }
 
@@ -257,22 +293,26 @@ Herder::validateBallot(const uint64& slotIndex,
     // This inequality is effectively a limitation on `ballot.counter`
     if ((timeNow + MAX_TIME_SLIP_SECONDS) < (lastTrigger + sumTimeouts))
     {
+        mBallotInvalid.Mark();
         return cb(false);
     }
 
     // Check baseFee (within range of desired fee).
     if (b.value.baseFee < mApp.getConfig().DESIRED_BASE_FEE * .5)
     {
+        mBallotInvalid.Mark();
         return cb(false);
     }
     if (b.value.baseFee > mApp.getConfig().DESIRED_BASE_FEE * 2)
     {
+        mBallotInvalid.Mark();
         return cb(false);
     }
 
     // Ignore ourselves if we're just watching FBA.
     if (getSecretKey().isZero() && nodeID == getLocalNodeID())
     {
+        mBallotInvalid.Mark();
         return cb(false);
     }
 
@@ -327,6 +367,7 @@ Herder::validateBallot(const uint64& slotIndex,
     
     if(isKing && isTrusted)
     {
+        mBallotValid.Mark();
         return cb(true); 
     }
     else
@@ -338,8 +379,9 @@ Herder::validateBallot(const uint64& slotIndex,
             std::chrono::milliseconds(
                 (int)(1000*pow(2.0, ballot.counter)/2)));
         ballotTimer.async_wait(
-            [cb] (const asio::error_code& error)
+            [cb,this] (const asio::error_code& error)
             {
+                this->mBallotValid.Mark();
                 return cb(true);
             });
         mBallotValidationTimers[ballot][nodeID].push_back(ballotTimer);
@@ -363,6 +405,7 @@ void
 Herder::ballotDidHearFromQuorum(const uint64& slotIndex,
                                 const FBABallot& ballot)
 {
+    mQuorumHeard.Mark();
     // If we're not fully synced, we just don't timeout FBA.
     if (mLedgersToWaitToParticipate > 0)
     {
@@ -387,6 +430,7 @@ void
 Herder::valueExternalized(const uint64& slotIndex,
                           const Value& value)
 {
+    mValueExternalize.Mark();
     mBumpTimer.cancel();
     StellarBallot b;
     try
@@ -483,6 +527,7 @@ Herder::retrieveQuorumSet(const uint256& nodeID,
                           const Hash& qSetHash,
                           std::function<void(const FBAQuorumSet&)> const& cb)
 {
+    mQsetRetrieve.Mark();
     CLOG(DEBUG, "Herder") << "Herder::retrieveQuorumSet"
         << "@" << binToHex(getLocalNodeID()).substr(0,6)
         << " qSet: " << binToHex(qSetHash).substr(0,6);
@@ -515,7 +560,8 @@ Herder::emitEnvelope(const FBAEnvelope& envelope)
     {
         return;
     }
-    
+
+    mEnvelopeEmit.Mark();
     StellarMessage msg;
     msg.type(FBA_MESSAGE);
     msg.envelope() = envelope;
@@ -673,6 +719,7 @@ Herder::recvFBAEnvelope(FBAEnvelope envelope,
         }
     }
 
+    mEnvelopeReceive.Mark();
     return receiveEnvelope(envelope, cb);
 }
 
@@ -807,6 +854,7 @@ Herder::triggerNextLedger(const asio::error_code& error)
 
     // We prepare that value. If we're king, the ballot will be validated, and
     // if we're not it'll just get ignored.
+    mValuePrepare.Mark();
     prepareValue(slotIndex, mCurrentValue);
 
     for (auto p : mFutureEnvelopes[slotIndex])
@@ -828,16 +876,19 @@ Herder::expireBallot(const asio::error_code& error,
         return;
     }
 
+    mBallotExpire.Mark();
     assert(slotIndex == mLastClosedLedger.ledgerSeq + 1);
 
     // We prepare the value while bumping the ballot counter. If we're king,
     // this prepare will go through. If not, we will have bumped our ballot.
+    mValuePrepare.Mark();
     prepareValue(slotIndex, mCurrentValue, true);
 }
 
 void 
 Herder::signStellarBallot(StellarBallot& b)
 {
+    mBallotSign.Mark();
     b.nodeID = getSecretKey().getPublicKey();
     b.signature = getSecretKey().sign(xdr::xdr_to_msg(b.value));
 }
@@ -845,8 +896,63 @@ Herder::signStellarBallot(StellarBallot& b)
 bool 
 Herder::verifyStellarBallot(const StellarBallot& b)
 {
-    return PublicKey::verifySig(b.nodeID, b.signature, 
-                                xdr::xdr_to_msg(b.value));
+    auto v = PublicKey::verifySig(b.nodeID, b.signature,
+                                  xdr::xdr_to_msg(b.value));
+    if (v)
+    {
+        mBallotValidSig.Mark();
+    }
+    else
+    {
+        mBallotInvalidSig.Mark();
+    }
+    return v;
 }
+
+// Extra FBA methods overridden solely to increment metrics.
+void
+Herder::ballotDidPrepare(const uint64& slotIndex, const FBABallot& ballot)
+{
+    mBallotPrepare.Mark();
+}
+
+void
+Herder::ballotDidPrepared(const uint64& slotIndex, const FBABallot& ballot)
+{
+    mBallotPrepared.Mark();
+}
+
+void
+Herder::ballotDidCommit(const uint64& slotIndex, const FBABallot& ballot)
+{
+    mBallotCommit.Mark();
+}
+
+void
+Herder::ballotDidCommitted(const uint64& slotIndex, const FBABallot& ballot)
+{
+    mBallotCommitted.Mark();
+}
+
+void
+Herder::envelopeSigned()
+{
+    mEnvelopeSign.Mark();
+}
+
+void
+Herder::envelopeVerified(bool valid)
+{
+    if (valid)
+    {
+        mEnvelopeValidSig.Mark();
+    }
+    else
+    {
+        mEnvelopeInvalidSig.Mark();
+    }
+}
+
+
 
 }

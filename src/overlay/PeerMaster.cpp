@@ -11,6 +11,8 @@
 #include "database/Database.h"
 #include "overlay/TCPPeer.h"
 #include "PeerRecord.h"
+#include "medida/metrics_registry.h"
+#include "medida/meter.h"
 
 using namespace soci;
 
@@ -26,7 +28,7 @@ connection is established
 A sends HELLO to B
 B now has IP and listening port of A
 B either:
-    sends HELLO back, or 
+    sends HELLO back, or
     sends list of other peers to connect to and disconnects
 */
 
@@ -39,11 +41,16 @@ using namespace std;
 PeerMaster::PeerMaster(Application& app)
     : mApp(app)
     , mDoor(make_shared<PeerDoor>(mApp))
+    , mMessagesReceived(app.getMetrics().NewMeter({"overlay", "message", "receive"}, "message"))
+    , mMessagesBroadcast(app.getMetrics().NewMeter({"overlay", "message", "broadcast"}, "message"))
+    , mConnectionsAttempted(app.getMetrics().NewMeter({"overlay", "connection", "attempt"}, "connection"))
+    , mConnectionsEstablished(app.getMetrics().NewMeter({"overlay", "connection", "establish"}, "connection"))
+    , mConnectionsDropped(app.getMetrics().NewMeter({"overlay", "connection", "drop"}, "connection"))
     , mTimer(app.getClock())
     , mFloodGate(app)
 {
     mTimer.expires_from_now(std::chrono::seconds(2));
-    
+
     if (!mApp.getConfig().RUN_STANDALONE)
     {
         mTimer.async_wait([this](asio::error_code const& ec)
@@ -61,7 +68,7 @@ PeerMaster::~PeerMaster()
 {
 }
 
-void 
+void
 PeerMaster::connectTo(const std::string& peerStr)
 {
     PeerRecord pr;
@@ -72,6 +79,7 @@ PeerMaster::connectTo(const std::string& peerStr)
 void
 PeerMaster::connectTo(PeerRecord &pr)
 {
+    mConnectionsAttempted.Mark();
     if(!getConnectedPeer(pr.mIP, pr.mPort))
     {
         pr.backOff(mApp.getClock());
@@ -163,12 +171,14 @@ PeerMaster::ledgerClosed(LedgerHeader& ledger)
 void
 PeerMaster::addConnectedPeer(Peer::pointer peer)
 {
+    mConnectionsEstablished.Mark();
     mPeers.push_back(peer);
 }
 
 void
 PeerMaster::dropPeer(Peer::pointer peer)
 {
+    mConnectionsDropped.Mark();
     auto iter = find(mPeers.begin(), mPeers.end(), peer);
     if (iter != mPeers.end())
         mPeers.erase(iter);
@@ -223,9 +233,10 @@ PeerMaster::getNextPeer(Peer::pointer peer)
 
 
 
-void 
+void
 PeerMaster::recvFloodedMsg(StellarMessage const& msg,Peer::pointer peer)
 {
+    mMessagesReceived.Mark();
     mFloodGate.addRecord(msg, peer);
 }
 
@@ -233,10 +244,11 @@ PeerMaster::recvFloodedMsg(StellarMessage const& msg,Peer::pointer peer)
 void
 PeerMaster::broadcastMessage(StellarMessage const& msg)
 {
+    mMessagesBroadcast.Mark();
     mFloodGate.broadcast(msg);
 }
 
-void 
+void
 PeerMaster::dropAll(Database &db)
 {
     PeerRecord::dropAll(db);

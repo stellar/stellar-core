@@ -19,7 +19,8 @@ class Logging
     static el::Configurations mDefaultConf;
 
   public:
-    static void setUpLogging(std::string const& filename);
+    static void init();
+    static void setLoggingToFile(std::string const& filename);
     static void setLogLevel(el::Level level, const char* partition);
     static el::Level getLLfromString(std::string const& levelName);
 };

@@ -8,6 +8,8 @@
 
 namespace stellar
 {
+class Application;
+
     class LedgerDelta
     {
         typedef std::map<LedgerKey, EntryFrame::pointer, LedgerEntryIdCmp> KeyEntryMap;
@@ -29,6 +31,8 @@ namespace stellar
 
         // apply other on top of delta, collapsing entries as appropriate
         void merge(LedgerDelta &other);
+
+        void markMeters(Application& app) const;
 
         std::vector<LedgerEntry> getLiveEntries() const;
         std::vector<LedgerKey> getDeadEntries() const;

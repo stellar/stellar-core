@@ -10,6 +10,9 @@
 #include "ledger/AccountFrame.h"
 #include "ledger/OfferFrame.h"
 #include "ledger/TrustFrame.h"
+#include "medida/timer_context.h"
+
+namespace medida { class Meter; class Timer; }
 
 namespace stellar
 {
@@ -25,6 +28,11 @@ class Database
 
   public:
     Database(Application& app);
+
+    medida::TimerContext getInsertTimer(std::string const& entityName);
+    medida::TimerContext getSelectTimer(std::string const& entityName);
+    medida::TimerContext getDeleteTimer(std::string const& entityName);
+    medida::TimerContext getUpdateTimer(std::string const& entityName);
 
     bool isSqlite();
 

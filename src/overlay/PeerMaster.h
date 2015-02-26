@@ -15,6 +15,8 @@
 #include "overlay/OverlayGateway.h"
 #include "util/Timer.h"
 
+namespace medida { class Meter; }
+
 /*
 Maintain the set of peers we are connected to
 */
@@ -27,8 +29,13 @@ protected:
     Application& mApp;
     // peers we are connected to
     std::vector<Peer::pointer> mPeers;
-    
     PeerDoor::pointer mDoor;
+
+    medida::Meter& mMessagesReceived;
+    medida::Meter& mMessagesBroadcast;
+    medida::Meter& mConnectionsAttempted;
+    medida::Meter& mConnectionsEstablished;
+    medida::Meter& mConnectionsDropped;
 
     void tick();
     VirtualTimer mTimer;

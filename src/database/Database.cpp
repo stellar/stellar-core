@@ -14,6 +14,8 @@
 #include "ledger/LedgerMaster.h"
 #include "ledger/LedgerHeaderFrame.h"
 #include "util/types.h"
+#include "medida/metrics_registry.h"
+#include "medida/timer.h"
 
 #include <stdexcept>
 #include <vector>
@@ -59,6 +61,31 @@ Database::Database(Application& app)
     if( (mApp.getConfig().REBUILD_DB) ||
         (mApp.getConfig().START_NEW_NETWORK) ||
         (app.getConfig().DATABASE == "sqlite3://:memory:"))  initialize();
+}
+
+
+medida::TimerContext
+Database::getInsertTimer(std::string const& entityName)
+{
+    return mApp.getMetrics().NewTimer({"database", "insert", entityName}).TimeScope();
+}
+
+medida::TimerContext
+Database::getSelectTimer(std::string const& entityName)
+{
+    return mApp.getMetrics().NewTimer({"database", "select", entityName}).TimeScope();
+}
+
+medida::TimerContext
+Database::getDeleteTimer(std::string const& entityName)
+{
+    return mApp.getMetrics().NewTimer({"database", "delete", entityName}).TimeScope();
+}
+
+medida::TimerContext
+Database::getUpdateTimer(std::string const& entityName)
+{
+    return mApp.getMetrics().NewTimer({"database", "update", entityName}).TimeScope();
 }
 
 bool

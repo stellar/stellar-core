@@ -6,6 +6,7 @@
 #include "generated/StellardVersion.h"
 #include "util/Logging.h"
 #include "util/Timer.h"
+#include "util/TmpDir.h"
 #include "lib/util/getopt.h"
 #include "main/test.h"
 #include "main/Config.h"
@@ -97,6 +98,7 @@ main(int argc, char* const* argv)
     using namespace stellar;
 
     sodium_init();
+    Logging::init();
 
     std::string cfgFile("stellard.cfg");
     std::string command;
@@ -152,13 +154,21 @@ main(int argc, char* const* argv)
         default:
             usage(0);
             return 0;
-            
+
         }
     }
 
     Config cfg;
-    cfg.load(cfgFile);
-    Logging::setUpLogging(cfg.LOG_FILE_PATH);
+    if (TmpDir::exists(cfgFile))
+    {
+        cfg.load(cfgFile);
+        Logging::setLoggingToFile(cfg.LOG_FILE_PATH);
+    }
+    else
+    {
+        LOG(WARNING) << "No config file " << cfgFile << " found";
+        cfgFile = ":default-settings:";
+    }
     Logging::setLogLevel(logLevel,nullptr);
 
     cfg.REBUILD_DB = newDB;

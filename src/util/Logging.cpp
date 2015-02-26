@@ -21,7 +21,7 @@ namespace stellar
 el::Configurations Logging::mDefaultConf;
 
 void
-Logging::setUpLogging(std::string const& filename)
+Logging::init()
 {
     // el::Loggers::addFlag(el::LoggingFlag::HierarchicalLogging);
     el::Loggers::addFlag(el::LoggingFlag::DisableApplicationAbortOnFatalLog);
@@ -40,7 +40,6 @@ Logging::setUpLogging(std::string const& filename)
     mDefaultConf.setGlobally(
         el::ConfigurationType::Format,
         "%datetime{%d/%M/%y %H:%m:%s} [%logger] %level %msg");
-    mDefaultConf.setGlobally(el::ConfigurationType::Filename, filename);
     mDefaultConf.set(
         el::Level::Error, el::ConfigurationType::Format,
         "%datetime{%d/%M/%y %H:%m:%s} [%logger] %level %msg [%fbase:%line]");
@@ -50,7 +49,16 @@ Logging::setUpLogging(std::string const& filename)
     mDefaultConf.set(
         el::Level::Fatal, el::ConfigurationType::Format,
         "%datetime{%d/%M/%y %H:%m:%s} [%logger] %level %msg [%fbase:%line]");
+    mDefaultConf.setGlobally(el::ConfigurationType::ToStandardOutput, "true");
+    mDefaultConf.setGlobally(el::ConfigurationType::ToFile, "false");
+    el::Loggers::reconfigureAllLoggers(mDefaultConf);
+}
 
+void
+Logging::setLoggingToFile(std::string const& filename)
+{
+    mDefaultConf.setGlobally(el::ConfigurationType::ToFile, "true");
+    mDefaultConf.setGlobally(el::ConfigurationType::Filename, filename);
     el::Loggers::reconfigureAllLoggers(mDefaultConf);
 }
 

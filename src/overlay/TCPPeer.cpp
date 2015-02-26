@@ -10,6 +10,8 @@
 #include "overlay/PeerMaster.h"
 #include "database/Database.h"
 #include "overlay/PeerRecord.h"
+#include "medida/metrics_registry.h"
+#include "medida/meter.h"
 
 #define MS_TO_WAIT_FOR_HELLO 2000
 
@@ -28,6 +30,10 @@ using namespace std;
 // make to be called
 TCPPeer::TCPPeer(Application& app, std::string& ip, int port)
     : Peer(app, ACCEPTOR), mHelloTimer(app.getClock())
+    , mMessageRead(app.getMetrics().NewMeter({"overlay", "message", "read"}, "message"))
+    , mMessageWrite(app.getMetrics().NewMeter({"overlay", "message", "write"}, "message"))
+    , mByteRead(app.getMetrics().NewMeter({"overlay", "byte", "read"}, "byte"))
+    , mByteWrite(app.getMetrics().NewMeter({"overlay", "byte", "write"}, "byte"))
 {
     mSocket=make_shared<asio::ip::tcp::socket>(mApp.getMainIOService());
     asio::ip::tcp::endpoint endpoint(asio::ip::address::from_string(ip),
@@ -39,6 +45,10 @@ TCPPeer::TCPPeer(Application& app, std::string& ip, int port)
 // make from door
 TCPPeer::TCPPeer(Application& app, shared_ptr<asio::ip::tcp::socket> socket)
     : Peer(app, INITIATOR), mSocket(socket), mHelloTimer(app.getClock())
+    , mMessageRead(app.getMetrics().NewMeter({"overlay", "message", "read"}, "message"))
+    , mMessageWrite(app.getMetrics().NewMeter({"overlay", "message", "write"}, "message"))
+    , mByteRead(app.getMetrics().NewMeter({"overlay", "byte", "read"}, "byte"))
+    , mByteWrite(app.getMetrics().NewMeter({"overlay", "byte", "write"}, "byte"))
 {
     mHelloTimer.expires_from_now(
         std::chrono::milliseconds(MS_TO_WAIT_FOR_HELLO));
@@ -95,6 +105,11 @@ TCPPeer::writeHandler(const asio::error_code& error,
         CLOG(WARNING, "Overlay") << "writeHandler error: " << error;
         drop();
     }
+    else
+    {
+        mMessageWrite.Mark();
+        mByteWrite.Mark(bytes_transferred);
+    }
 }
 
 void
@@ -127,6 +142,7 @@ TCPPeer::readHeaderHandler(const asio::error_code& error,
 {
     if (!error)
     {
+        mByteRead.Mark(bytes_transferred);
         mIncomingBody.resize(getIncomingMsgLength());
         auto self = shared_from_this();
         asio::async_read(*mSocket.get(), asio::buffer(mIncomingBody),
@@ -148,6 +164,7 @@ TCPPeer::readBodyHandler(const asio::error_code& error,
 {
     if (!error)
     {
+        mByteRead.Mark(bytes_transferred);
         recvMessage();
         startRead();
     }
@@ -163,6 +180,7 @@ TCPPeer::recvMessage()
 {
     xdr::xdr_get g(mIncomingBody.data(),
                    mIncomingBody.data() + mIncomingBody.size());
+    mMessageRead.Mark();
     StellarMessage sm;
     xdr::xdr_argpack_archive(g, sm);
     Peer::recvMessage(sm);
