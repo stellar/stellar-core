@@ -106,7 +106,7 @@ main(int argc, char* const* argv)
 
     std::string cfgFile("stellard.cfg");
     std::string command;
-    el::Level logLevel=el::Level::Info;
+    el::Level logLevel=el::Level::Fatal;
     std::vector<char*> rest;
 
     bool newNetwork = false;
