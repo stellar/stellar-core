@@ -179,6 +179,8 @@ Bucket::OutputIterator
     std::string mFilename;
     XDROutputFileStream mOut;
     SHA256 mHasher;
+    size_t mBytesPut{0};
+    size_t mObjectsPut{0};
 
 public:
 
@@ -193,7 +195,8 @@ public:
     void
     put(CLFEntry const& e)
     {
-        mOut.writeOne(e, &mHasher);
+        mOut.writeOne(e, &mHasher, &mBytesPut);
+        mObjectsPut++;
     }
 
     std::shared_ptr<Bucket>
@@ -201,7 +204,8 @@ public:
     {
         assert(mOut);
         mOut.close();
-        return clfMaster.adoptFileAsBucket(mFilename, mHasher.finish());
+        return clfMaster.adoptFileAsBucket(mFilename, mHasher.finish(),
+                                           mObjectsPut, mBytesPut);
     }
 
 };
@@ -338,6 +342,7 @@ Bucket::merge(CLFMaster& clfMaster,
     std::vector<Bucket::InputIterator> shadowIterators(shadows.begin(),
                                                        shadows.end());
 
+    auto timer = clfMaster.getMergeTimer();
     Bucket::OutputIterator out(clfMaster.getTmpDir());
 
     SHA256 hsh;

@@ -16,6 +16,10 @@
 #include <map>
 #include <set>
 
+#include "medida/metrics_registry.h"
+#include "medida/meter.h"
+#include "medida/timer.h"
+
 namespace stellar
 {
 
@@ -28,10 +32,18 @@ public:
     std::map<std::string, std::shared_ptr<Bucket>> mSharedBuckets;
     std::mutex mBucketMutex;
     std::unique_ptr<std::string> lockedBucketDir;
+    medida::Meter& mBucketObjectInsert;
+    medida::Meter& mBucketByteInsert;
+    medida::Timer& mBucketAddBatch;
+    medida::Timer& mBucketSnapMerge;
     Impl(Application &app)
         : mApp(app)
         , mWorkDir(nullptr)
         , lockedBucketDir(nullptr)
+        , mBucketObjectInsert(app.getMetrics().NewMeter({"bucket", "object", "insert"}, "object"))
+        , mBucketByteInsert(app.getMetrics().NewMeter({"bucket", "byte", "insert"}, "byte"))
+        , mBucketAddBatch(app.getMetrics().NewTimer({"bucket", "batch", "add"}))
+        , mBucketSnapMerge(app.getMetrics().NewTimer({"bucket", "snap", "merge"}))
         {}
 };
 
@@ -117,11 +129,21 @@ CLFMaster::getBucketList()
 }
 
 
+medida::TimerContext
+CLFMaster::getMergeTimer()
+{
+    return mImpl->mBucketSnapMerge.TimeScope();
+}
+
 std::shared_ptr<Bucket>
 CLFMaster::adoptFileAsBucket(std::string const& filename,
-                             uint256 const& hash)
+                             uint256 const& hash,
+                             size_t nObjects,
+                             size_t nBytes)
 {
     std::lock_guard<std::mutex> lock(mImpl->mBucketMutex);
+    mImpl->mBucketObjectInsert.Mark(nObjects);
+    mImpl->mBucketByteInsert.Mark(nBytes);
     std::string basename = HistoryMaster::bucketBasename(binToHex(hash));
     std::shared_ptr<Bucket> b;
     if (mImpl->mSharedBuckets.find(basename) ==
@@ -183,6 +205,7 @@ void CLFMaster::addBatch(Application& app, uint64_t currLedger,
     std::vector<LedgerEntry> const& liveEntries,
     std::vector<LedgerKey> const& deadEntries)
 {
+    auto timer = mImpl->mBucketAddBatch.TimeScope();
     mImpl->mBucketList.addBatch(app, currLedger, liveEntries, deadEntries);
 }
 
