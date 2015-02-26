@@ -14,6 +14,10 @@
 #include "ledger/LedgerMaster.h"
 #include "ledger/LedgerHeaderFrame.h"
 #include "util/types.h"
+#ifdef _MSC_VER
+#undef min
+#undef max
+#endif
 #include "medida/metrics_registry.h"
 #include "medida/timer.h"
 

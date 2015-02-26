@@ -115,13 +115,15 @@ bool PeerRecord::isStored(Database &db)
 void PeerRecord::storePeerRecord(Database& db)
 {
     try {
-        auto timer = db.getUpdateTimer("peer");
         auto tm = VirtualClock::pointToTm(mNextAttempt);
         statement stUp = (db.getSession().prepare <<
             "UPDATE Peers SET nextAttempt=:v1,numFailures=:v2,Rank=:v3 WHERE IP=:v4 AND Port=:v5",
             use(tm), use(mNumFailures), use(mRank), use(mIP), use(mPort));
 
-        stUp.execute(true);
+        {
+            auto timer = db.getUpdateTimer("peer");
+            stUp.execute(true);
+        }
         if (stUp.get_affected_rows() != 1)
         {
             auto timer = db.getInsertTimer("peer");

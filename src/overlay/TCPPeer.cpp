@@ -10,6 +10,10 @@
 #include "overlay/PeerMaster.h"
 #include "database/Database.h"
 #include "overlay/PeerRecord.h"
+#ifdef _MSC_VER
+#undef min
+#undef max
+#endif
 #include "medida/metrics_registry.h"
 #include "medida/meter.h"
 

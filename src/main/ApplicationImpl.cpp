@@ -19,6 +19,10 @@
 #include "database/Database.h"
 #include "process/ProcessMaster.h"
 #include "main/CommandHandler.h"
+#ifdef _MSC_VER
+#undef min
+#undef max
+#endif
 #include "medida/metrics_registry.h"
 
 #include "util/TmpDir.h"
