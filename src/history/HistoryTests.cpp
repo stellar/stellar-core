@@ -199,7 +199,33 @@ TEST_CASE_METHOD(HistoryTests, "History catchup", "[history]")
 {
     generateAndPublishHistory();
 
-    // Reset BucketList
+    auto hash = app.getCLFMaster().getBucketList().getLevel(0).getCurr()->getHash();
+
+    // Reset BucketList and drop buckets
+    app.getCLFMaster().getBucketList() = BucketList();
+    app.getCLFMaster().forgetUnreferencedBuckets();
+
+    bool done = false;
+    app.getHistoryMaster().catchupHistory(
+        [&done](asio::error_code const& ec)
+        {
+            CHECK(!ec);
+            done = true;
+        });
+    crankTillDone(done);
+    CHECK(app.getCLFMaster().getBucketByHash(hash));
+    auto hash2 = app.getCLFMaster().getBucketList().getLevel(0).getCurr()->getHash();
+    CHECK(hash == hash2);
+}
+
+
+TEST_CASE_METHOD(HistoryTests, "History catchup 2", "[history]")
+{
+    generateAndPublishHistory();
+
+    auto hash = app.getCLFMaster().getBucketList().getLevel(0).getCurr()->getHash();
+
+    // Reset BucketList, don't drop buckets.
     app.getCLFMaster().getBucketList() = BucketList();
 
     bool done = false;
@@ -210,5 +236,7 @@ TEST_CASE_METHOD(HistoryTests, "History catchup", "[history]")
             done = true;
         });
     crankTillDone(done);
-
+    CHECK(app.getCLFMaster().getBucketByHash(hash));
+    auto hash2 = app.getCLFMaster().getBucketList().getLevel(0).getCurr()->getHash();
+    CHECK(hash == hash2);
 }
