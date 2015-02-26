@@ -9,6 +9,7 @@
 #include "overlay/LoopbackPeer.h"
 #include "generated/StellarXDR.h"
 #include "util/Timer.h"
+#include "crypto/SHA.h"
 
 #define SIMULATION_CREATE_NODE(N) \
     const Hash v##N##VSeed = sha256("SEED_VALIDATION_SEED_" #N);    \

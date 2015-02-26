@@ -15,6 +15,7 @@
 #include "main/Config.h"
 
 #define MS_TO_WAIT_FOR_HELLO 2000
+#define MAX_MESSAGE_SIZE 0x1000000
 
 using namespace soci;
 
@@ -136,7 +137,7 @@ TCPPeer::startRead()
     asio::async_read(*(mSocket.get()), asio::buffer(mIncomingHeader),
                      [self](asio::error_code ec, std::size_t length)
                      {
-                         LOG(DEBUG) << "TCPPeer::startRead calledback";
+                         LOG(DEBUG) << "TCPPeer::startRead calledback " << ec << " length:" << length;
                          self->readHeaderHandler(ec, length);
     });
 }
@@ -145,12 +146,18 @@ int
 TCPPeer::getIncomingMsgLength()
 {
     int length = mIncomingHeader[0];
+    length &= 0x7f; // clear the XDR 'continuation' bit
     length <<= 8;
     length |= mIncomingHeader[1];
     length <<= 8;
     length |= mIncomingHeader[2];
     length <<= 8;
     length |= mIncomingHeader[3];
+    if (length < 0 || length > MAX_MESSAGE_SIZE)
+    {
+        LOG(WARNING) << "TCP::Peer::getIncomingMsgLength message size unacceptable: " << length;
+        drop();
+    }
     return (length);
 }
 

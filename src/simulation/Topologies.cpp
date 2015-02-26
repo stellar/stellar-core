@@ -15,8 +15,8 @@ Simulation::pointer Topologies::pair(bool standAlone)
     FBAQuorumSet qSet0; qSet0.threshold = 1; qSet0.validators.push_back(v1NodeID);
     FBAQuorumSet qSet1; qSet1.threshold = 1; qSet1.validators.push_back(v0NodeID);
 
-    uint256 n0 = simulation->addNode(v0VSeed, qSet0, simulation->getClock());
-    uint256 n1 = simulation->addNode(v1VSeed, qSet1, simulation->getClock());
+    auto n0 = simulation->addNode(v0VSeed, qSet0, simulation->getClock());
+    auto n1 = simulation->addNode(v1VSeed, qSet1, simulation->getClock());
 
     if (standAlone)
         simulation->addLoopbackConnection(n0, n1);
@@ -39,10 +39,10 @@ Simulation::pointer Topologies::cycle4()
     FBAQuorumSet qSet2; qSet2.threshold = 1; qSet2.validators.push_back(v3NodeID);
     FBAQuorumSet qSet3; qSet3.threshold = 1; qSet3.validators.push_back(v0NodeID);
 
-    uint256 n0 = simulation->addNode(v0VSeed, qSet0, simulation->getClock());
-    uint256 n1 = simulation->addNode(v1VSeed, qSet1, simulation->getClock());
-    uint256 n2 = simulation->addNode(v2VSeed, qSet2, simulation->getClock());
-    uint256 n3 = simulation->addNode(v3VSeed, qSet3, simulation->getClock());
+    auto n0 = simulation->addNode(v0VSeed, qSet0, simulation->getClock());
+    auto n1 = simulation->addNode(v1VSeed, qSet1, simulation->getClock());
+    auto n2 = simulation->addNode(v2VSeed, qSet2, simulation->getClock());
+    auto n3 = simulation->addNode(v3VSeed, qSet3, simulation->getClock());
 
     std::shared_ptr<LoopbackPeerConnection> n0n1 =
         simulation->addLoopbackConnection(n0, n1);
@@ -77,10 +77,10 @@ Simulation::pointer Topologies::core4()
     qSet.validators.push_back(v2NodeID);
     qSet.validators.push_back(v3NodeID);
 
-    uint256 n0 = simulation->addNode(v0VSeed, qSet, simulation->getClock());
-    uint256 n1 = simulation->addNode(v1VSeed, qSet, simulation->getClock());
-    uint256 n2 = simulation->addNode(v2VSeed, qSet, simulation->getClock());
-    uint256 n3 = simulation->addNode(v3VSeed, qSet, simulation->getClock());
+    auto n0 = simulation->addNode(v0VSeed, qSet, simulation->getClock());
+    auto n1 = simulation->addNode(v1VSeed, qSet, simulation->getClock());
+    auto n2 = simulation->addNode(v2VSeed, qSet, simulation->getClock());
+    auto n3 = simulation->addNode(v3VSeed, qSet, simulation->getClock());
 
     std::shared_ptr<LoopbackPeerConnection> n0n1 =
         simulation->addLoopbackConnection(n0, n1);
