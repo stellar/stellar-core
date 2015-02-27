@@ -72,7 +72,7 @@ void
 PeerMaster::connectTo(const std::string& peerStr)
 {
     PeerRecord pr;
-    PeerRecord::fromIPPort(peerStr, DEFAULT_PEER_PORT, mApp.getClock(), pr);
+    PeerRecord::parseIPPort(peerStr, mApp.getClock(), pr);
     connectTo(pr);
 }
 
@@ -97,7 +97,7 @@ void PeerMaster::storePeerList(const std::vector<std::string>& list, int rank)
     for(auto peerStr : list)
     {
         PeerRecord pr;
-        PeerRecord::fromIPPort(peerStr, DEFAULT_PEER_PORT, mApp.getClock(), pr);
+        PeerRecord::parseIPPort(peerStr, mApp.getClock(), pr);
         if (!pr.isStored(mApp.getDatabase()))
         {
             pr.storePeerRecord(mApp.getDatabase());

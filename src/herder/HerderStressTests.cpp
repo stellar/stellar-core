@@ -155,7 +155,7 @@ struct StressTest {
             for (auto ipPort : app->getConfig().PREFERRED_PEERS)
             {
                 PeerRecord pr;
-                PeerRecord::fromIPPort(ipPort, 0, app->getClock(), pr);
+                PeerRecord::parseIPPort(ipPort, app->getClock(), pr);
                 if (pr.mPort < app->getConfig().PEER_PORT)
                 {
                     appPtr other;
