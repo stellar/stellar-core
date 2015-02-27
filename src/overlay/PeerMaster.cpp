@@ -46,7 +46,7 @@ PeerMaster::PeerMaster(Application& app)
     , mConnectionsAttempted(app.getMetrics().NewMeter({"overlay", "connection", "attempt"}, "connection"))
     , mConnectionsEstablished(app.getMetrics().NewMeter({"overlay", "connection", "establish"}, "connection"))
     , mConnectionsDropped(app.getMetrics().NewMeter({"overlay", "connection", "drop"}, "connection"))
-    , mTimer(app.getClock())
+    , mTimer(app)
     , mFloodGate(app)
 {
     mTimer.expires_from_now(std::chrono::seconds(2));
@@ -72,7 +72,7 @@ void
 PeerMaster::connectTo(const std::string& peerStr)
 {
     PeerRecord pr;
-    PeerRecord::fromIPPort(peerStr, DEFAULT_PEER_PORT, mApp.getClock(), pr);
+    PeerRecord::parseIPPort(peerStr, mApp.getClock(), pr);
     connectTo(pr);
 }
 
@@ -85,10 +85,10 @@ PeerMaster::connectTo(PeerRecord &pr)
         pr.backOff(mApp.getClock());
         pr.storePeerRecord(mApp.getDatabase());
 
-        addConnectedPeer(Peer::pointer(new TCPPeer(mApp, pr.mIP, pr.mPort)));
+        addConnectedPeer(TCPPeer::initiate(mApp, pr.mIP, pr.mPort));
     } else
     {
-        CLOG(ERROR, "overlay") << "couldn't parse peer: " << pr.toString();
+        CLOG(ERROR, "overlay") << "trying to connect to a node we're already connected to" << pr.toString();
     }
 }
 
@@ -97,7 +97,7 @@ void PeerMaster::storePeerList(const std::vector<std::string>& list, int rank)
     for(auto peerStr : list)
     {
         PeerRecord pr;
-        PeerRecord::fromIPPort(peerStr, DEFAULT_PEER_PORT, mApp.getClock(), pr);
+        PeerRecord::parseIPPort(peerStr, mApp.getClock(), pr);
         if (!pr.isStored(mApp.getDatabase()))
         {
             pr.storePeerRecord(mApp.getDatabase());
@@ -196,9 +196,8 @@ PeerMaster::isPeerAccepted(Peer::pointer peer)
 
 bool PeerMaster::isPeerPreferred(Peer::pointer peer)
 {
-    PeerRecord pr;
-    PeerRecord::loadPeerRecord(mApp.getDatabase(), peer->getIP(), peer->getRemoteListeningPort(), pr);
-    return pr.mRank > 9;
+    auto pr = PeerRecord::loadPeerRecord(mApp.getDatabase(), peer->getIP(), peer->getRemoteListeningPort());
+    return pr->mRank > 9;
 }
 
 Peer::pointer

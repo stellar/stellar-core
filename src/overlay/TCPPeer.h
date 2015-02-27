@@ -14,6 +14,7 @@ namespace stellar
 // Peer that communicates via a TCP socket.
 class TCPPeer : public Peer
 {
+    string mIP;
     std::shared_ptr<asio::ip::tcp::socket> mSocket;
     VirtualTimer mHelloTimer;
     uint8_t mIncomingHeader[4];
@@ -24,15 +25,13 @@ class TCPPeer : public Peer
     medida::Meter& mByteRead;
     medida::Meter& mByteWrite;
 
+    void timerExpired(const asio::error_code & error);
     void recvMessage();
     void recvHello(StellarMessage const& msg);
     void sendMessage(xdr::msg_ptr&& xdrBytes);
     int getIncomingMsgLength();
+    virtual void connected() override;
     void startRead();
-
-    void connected();
-
-    void timerExpired(const asio::error_code& error);
 
     void writeHandler(const asio::error_code& error,
                       std::size_t bytes_transferred);
@@ -42,12 +41,16 @@ class TCPPeer : public Peer
                          std::size_t bytes_transferred);
 
   public:
-    TCPPeer(Application& app, std::shared_ptr<asio::ip::tcp::socket> socket);
-    TCPPeer(Application& app, std::string& ip, int port);
+    typedef shared_ptr<TCPPeer> pointer;
 
-    virtual ~TCPPeer()
-    {
-    }
+    TCPPeer(Application& app, Peer::PeerRole role,
+        std::shared_ptr<asio::ip::tcp::socket> socket); // hollow constuctor; use `initiate` or `accept` instead
+
+    static pointer initiate(Application& app, const std::string& ip, int port);
+    static pointer accept(Application& app, shared_ptr<asio::ip::tcp::socket> socket);
+
+
+    virtual ~TCPPeer();
 
     virtual void drop() override;
     virtual std::string getIP() override;

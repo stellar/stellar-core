@@ -18,7 +18,7 @@ namespace stellar
 using xdr::operator==;
 using xdr::operator<;
 
-// Static helper to stringify bellot for logging
+// Static helper to stringify ballot for logging
 static std::string
 ballotToStr(const FBABallot& ballot)
 {

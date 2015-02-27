@@ -8,13 +8,19 @@
 #include "util/Logging.h"
 #include "util/types.h"
 #include "ledger/LedgerMaster.h"
+#include "overlay/PeerRecord.h"
+#include "main/Application.h"
+#include "overlay/PeerMaster.h"
 
 namespace stellar
 {
 
 using namespace std;
 
-Simulation::Simulation() : mConfigCount(0)
+Simulation::Simulation(bool isStandalone) :
+    mIsStandAlone(isStandalone)
+  , mConfigCount(0)
+  , mIdleApp(Application::create(mClock, getTestConfig(++mConfigCount)))
 {
 }
 
@@ -43,17 +49,21 @@ Simulation::addNode(uint256 validationSeed,
 
     cfg->VALIDATION_KEY = SecretKey::fromSeed(validationSeed);
     cfg->QUORUM_THRESHOLD = qSet.threshold;
+    cfg->RUN_STANDALONE = mIsStandAlone;
 
     for (auto q : qSet.validators)
     {
         cfg->QUORUM_SET.push_back(q);
     }
 
-    Application::pointer node = Application::create(clock, *cfg);
+    Application::pointer result = Application::create(clock, *cfg);
+
+    if (!mIsStandAlone) 
+        result->enableRealTimer();
 
     uint256 nodeID = makePublicKey(validationSeed);
     mConfigs[nodeID] = cfg;
-    mNodes[nodeID] = node;
+    mNodes[nodeID] = result;
 
     return nodeID;
 }
@@ -65,7 +75,7 @@ Simulation::getNode(uint256 nodeID)
 }
 
 std::shared_ptr<LoopbackPeerConnection>
-Simulation::addConnection(uint256 initiator, 
+Simulation::addLoopbackConnection(uint256 initiator, 
                           uint256 acceptor)
 {
     std::shared_ptr<LoopbackPeerConnection> connection;
@@ -76,6 +86,20 @@ Simulation::addConnection(uint256 initiator,
         mConnections.emplace_back(connection);
     }
     return connection;
+}
+
+void
+Simulation::addTCPConnection(uint256 initiator,
+                             uint256 acceptor)
+{
+    if (mIsStandAlone)
+    {
+        throw new runtime_error("Cannot add a TCP connection to a standalone network");
+    }
+    auto from = getNode(initiator);
+    auto to = getNode(acceptor);
+    PeerRecord pr{"127.0.0.1", to->getConfig().PEER_PORT, from->getClock().now(), 0, 10};
+    from->getPeerMaster().connectTo(pr);
 }
 
 void 
@@ -118,14 +142,62 @@ Simulation::crankAllNodes(int nbTicks)
 
 bool Simulation::haveAllExternalized(int num)
 {
+    uint64_t min = INT_MAX;
     for(auto it = mNodes.begin(); it != mNodes.end(); ++it) 
     {
-        LOG(DEBUG) << "Ledger#: " << it->second->getLedgerMaster().getLedgerNum();
+        auto n = it->second->getLedgerMaster().getLedgerNum();
+        LOG(DEBUG) << "Ledger#: " << n;
 
-        if(it->second->getLedgerMaster().getLedgerNum() != num)
-            return(false);
+        if (n < min)
+            min = n;
     }
-    return true;
+    return num <= min;
+}
+
+void
+Simulation::crankForAtMost(VirtualClock::duration seconds)
+{
+    bool stop = false;
+    auto stopIt = [&](const asio::error_code& error)
+    {
+        stop = true;
+    };
+
+    VirtualTimer checkTimer(*mIdleApp);
+
+    checkTimer.expires_from_now(seconds);
+    checkTimer.async_wait(stopIt);
+
+    while (!stop && crankAllNodes() > 0);
+
+    if (stop)
+        LOG(INFO) << "Simulation timed out";
+    else LOG(INFO) << "Simulation complete";
+}
+
+void
+Simulation::crankForAtLeast(VirtualClock::duration seconds)
+{
+    bool stop = false;
+    auto stopIt = [&](const asio::error_code& error)
+    {
+        stop = true;
+    };
+
+    VirtualTimer checkTimer(*mIdleApp);
+
+    checkTimer.expires_from_now(seconds);
+    checkTimer.async_wait(stopIt);
+
+    while (!stop)
+    {
+        if (crankAllNodes() == 0)
+            this_thread::sleep_for(chrono::milliseconds(50));
+    }
+
+    if (stop)
+        LOG(INFO) << "Simulation timed out";
+    else LOG(INFO) << "Simulation complete";
 }
 
 }

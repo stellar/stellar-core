@@ -16,7 +16,7 @@ TEST_CASE("toXdr", "[overlay][PeerRecord]")
     VirtualClock clock;
     Application::pointer app = Application::create(clock, getTestConfig());
     PeerRecord pr;
-    PeerRecord::fromIPPort("1.25.50.200:256", 15, clock, pr);
+    PeerRecord::parseIPPort("1.25.50.200:256", clock, pr);
     pr.mNumFailures = 2;
 
     SECTION("fromIPPort and toXdr")
@@ -44,13 +44,11 @@ TEST_CASE("toXdr", "[overlay][PeerRecord]")
 
         pr.mNextAttempt = pr.mNextAttempt + chrono::seconds(12);
         pr.storePeerRecord(app->getDatabase());
-        PeerRecord actual1;
-        PeerRecord::loadPeerRecord(app->getDatabase(), pr.mIP, pr.mPort, actual1);
-        REQUIRE(actual1 == pr);
+        auto actual1 = PeerRecord::loadPeerRecord(app->getDatabase(), pr.mIP, pr.mPort);
+        REQUIRE(*actual1 == pr);
 
-        PeerRecord actual2;
-        PeerRecord::loadPeerRecord(app->getDatabase(), "1.2.3.4", 15, actual2);
-        REQUIRE(actual2 == other);
+        auto actual2 = PeerRecord::loadPeerRecord(app->getDatabase(), "1.2.3.4", 15);
+        REQUIRE(*actual2 == other);
     }
     
 }

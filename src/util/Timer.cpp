@@ -1,4 +1,5 @@
 #include <chrono>
+#include "main/Application.h"
 #include "util/Timer.h"
 #include "util/Logging.h"
 
@@ -17,14 +18,18 @@ VirtualClock::now() noexcept
 VirtualClock::time_point
 VirtualClock::next()
 {
-    if (mEvents.empty())
+    VirtualClock::time_point least = time_point::max();
+    for (auto& pair : mEvents)
     {
-        return time_point::max();
+        auto& events = *pair.second;
+        if (events.empty())
+            continue;
+        if (events.top().mWhen < least)
+        {
+            least = events.top().mWhen;
+        }
     }
-    else
-    {
-        return mEvents.top().mWhen;
-    }
+    return least;
 }
 
 std::time_t 
@@ -85,14 +90,19 @@ VirtualClock::pointToISOString(time_point point)
 }
 
 void
-VirtualClock::enqueue(VirtualClockEvent const& ve)
+VirtualClock::enqueue(Application& app, VirtualClockEvent const& ve)
 {
     // LOG(DEBUG) << "VirtualClock::enqueue";
-    mEvents.emplace(ve);
+    if (mEvents.find(&app) == mEvents.end())
+    {
+        mEvents.insert(std::make_pair(&app, std::make_shared<std::priority_queue<VirtualClockEvent>>()));
+    }
+    mEvents[&app]->emplace(ve);
 }
 
-void
-VirtualClock::cancelAllEventsFrom(VirtualTimer *v)
+bool
+VirtualClock::cancelAllEventsFrom(Application& a,
+                                  std::function<bool(VirtualClockEvent const&)> pred)
 {
     // LOG(DEBUG) << "VirtualClock::cancelAllEventsFrom";
     // Brute force approach; could be done better with a linked list
@@ -100,69 +110,121 @@ VirtualClock::cancelAllEventsFrom(VirtualTimer *v)
     // be tolerable.
     vector<VirtualClockEvent> toCancel;
     vector<VirtualClockEvent> toKeep;
-    toCancel.reserve(mEvents.size());
-    toKeep.reserve(mEvents.size());
-    while (!mEvents.empty())
+    auto i = mEvents.find(&a);
+    if (i == mEvents.end())
     {
-        if (mEvents.top().mTimer == v)
+        // No events for this application
+        return false;
+    }
+    auto& events = *i->second;
+    toCancel.reserve(events.size());
+    toKeep.reserve(events.size());
+    bool changed = false;
+    while (!events.empty())
+    {
+        auto const& e = events.top();
+        if (e.live())
         {
-            toCancel.emplace_back(mEvents.top());
+            if (pred(e))
+            {
+                changed = true;
+                toCancel.emplace_back(e);
+            }
+            else
+            {
+                toKeep.emplace_back(e);
+            }
         }
         else
         {
-            toKeep.emplace_back(mEvents.top());
+            changed = true;
         }
-        mEvents.pop();
+        events.pop();
     }
-
     for (auto& e : toCancel)
     {
         e.mCallback(asio::error::operation_aborted);
     }
-    mEvents =
+    events =
         priority_queue<VirtualClockEvent>(toKeep.begin(),
                                           toKeep.end());
+    return changed;
+}
+
+bool
+VirtualClock::cancelAllEventsFrom(Application& a)
+{
+    return cancelAllEventsFrom(a, [](VirtualClockEvent const&) { return true; });
+}
+
+bool
+VirtualClock::cancelAllEventsFrom(Application& a, VirtualTimer& v)
+{
+    return cancelAllEventsFrom(a, [&v](VirtualClockEvent const& e) { return e.mTimer == &v; });
 }
 
 size_t
 VirtualClock::advanceTo(time_point n) 
 {
-    vector<VirtualClockEvent> toDispatch;
-    toDispatch.reserve(mEvents.size());
+    priority_queue<VirtualClockEvent> toDispatch;
     // LOG(DEBUG) << "VirtualClock::advanceTo("
     //            << n.time_since_epoch().count() << ")";
     mNow = n;
-    while (!mEvents.empty())
+    for (auto& pair : mEvents)
     {
-        if (mEvents.top().mWhen > mNow)
-            break;
-        toDispatch.emplace_back(mEvents.top());
-        mEvents.pop();
+        auto& events = *pair.second;
+        while (!events.empty())
+        {
+            if (events.top().mWhen > mNow)
+                break;
+            toDispatch.emplace(events.top());
+            events.pop();
+        }
     }
     // LOG(DEBUG) << "VirtualClock::advanceTo running "
     //            << toDispatch.size() << " events";
-    for (auto& e : toDispatch) {
+    size_t c = toDispatch.size();
+    while (!toDispatch.empty())
+    {
+        auto& e = toDispatch.top();
         // LOG(DEBUG) << "VirtualClock::advanceTo callback set for @ "
         //            << e->mWhen.time_since_epoch().count();
         e.mCallback(asio::error_code());
+        toDispatch.pop();
     }
     // LOG(DEBUG) << "VirtualClock::advanceTo done";
-    return toDispatch.size();
+    return c;
 }
 
 size_t
 VirtualClock::advanceToNext() 
 {
-    if (mEvents.empty())
+    bool allEmpty = true;
+    for (auto& pair : mEvents)
+    {
+        allEmpty = allEmpty && pair.second->empty();
+    }
+    if (allEmpty)
     {
         return 0;
     }
     return advanceTo(next());
 }
 
-VirtualTimer::VirtualTimer(VirtualClock &c)
-    : mClock(c)
-    , mExpiryTime(mClock.now())
+VirtualClockEvent::~VirtualClockEvent()
+{
+    mTimer = nullptr;
+}
+
+bool
+VirtualClockEvent::live() const
+{
+    return mTimer;
+}
+
+VirtualTimer::VirtualTimer(Application& app)
+    : mApp(app)
+    , mExpiryTime(app.getClock().now())
     , mCancelled(false)
 {
 }
@@ -178,7 +240,7 @@ VirtualTimer::cancel()
     if (!mCancelled)
     {
         mCancelled = true;
-        mClock.cancelAllEventsFrom(this);
+        mApp.getClock().cancelAllEventsFrom(mApp, *this);
     }
 }
 
@@ -194,7 +256,7 @@ void
 VirtualTimer::expires_from_now(VirtualClock::duration d)
 {
     cancel();
-    mExpiryTime = mClock.now() + d;
+    mExpiryTime = mApp.getClock().now() + d;
     mCancelled = false;
 }
 
@@ -203,7 +265,7 @@ VirtualTimer::async_wait(function<void(asio::error_code)> const& fn)
 {
     if (!mCancelled)
     {
-        mClock.enqueue(VirtualClockEvent{mExpiryTime, fn, this});
+        mApp.getClock().enqueue(mApp, VirtualClockEvent{mExpiryTime, fn, this});
     }
 }
 

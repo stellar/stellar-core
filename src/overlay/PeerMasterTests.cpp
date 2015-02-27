@@ -138,12 +138,12 @@ protected:
     }
 };
 
-TEST_CASE_METHOD(PeerMasterTests, "addPeerList() adds", "[peer]") 
+TEST_CASE_METHOD(PeerMasterTests, "addPeerList() adds", "[overlay]") 
 {
     test_addPeerList();
 }
 
-TEST_CASE_METHOD(PeerMasterTests, "broadcast() broadcasts", "[peer]")
+TEST_CASE_METHOD(PeerMasterTests, "broadcast() broadcasts", "[overlay]")
 {
     test_broadcast();
 }

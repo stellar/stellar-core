@@ -60,8 +60,8 @@ TEST_CASE("standalone", "[herder]")
     SECTION("basic ledger close on valid txs")
     {
         bool stop = false;
-        VirtualTimer setupTimer(app->getClock());
-        VirtualTimer checkTimer(app->getClock());
+        VirtualTimer setupTimer(*app);
+        VirtualTimer checkTimer(*app);
 
         auto check = [&] (const asio::error_code& error)
         {

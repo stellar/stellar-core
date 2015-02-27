@@ -23,6 +23,7 @@
 #include "transactions/TxTests.h"
 #include "database/Database.h"
 #include "util/TmpDir.h"
+#include "overlay/PeerRecord.h"
 
 using namespace stellar;
 using namespace stellar::txtest;
@@ -67,7 +68,6 @@ createApp(VirtualClock &clock, int quorumThresold, int i, PeerInfo &me, vector<P
     return result;
 }
 
-
 shared_ptr<vector<appPtr>>
 createApps(VirtualClock &clock, int n, int quorumThresold) 
 {
@@ -75,7 +75,7 @@ createApps(VirtualClock &clock, int n, int quorumThresold)
 
     for (int i = 0; i < n; i++) 
     {
-        peers.push_back(PeerInfo { SecretKey::random(), SecretKey::random(), getTestConfig(i).PEER_PORT });
+        peers.push_back(PeerInfo { SecretKey::random(), SecretKey::random(), getTestConfig(i).PEER_PORT+30 });
     }
 
     auto result = make_shared<vector<appPtr>>();
@@ -145,6 +145,33 @@ struct StressTest {
     vector<accountPtr> mAccounts;
     size_t mNAccounts;
     uint64_t mMinBalance;
+    vector<shared_ptr<LoopbackPeerConnection>> mConnections;
+
+    void
+    connectViaLoopback()
+    {
+        for (auto &app : *mApps)
+        {
+            for (auto ipPort : app->getConfig().PREFERRED_PEERS)
+            {
+                PeerRecord pr;
+                PeerRecord::parseIPPort(ipPort, app->getClock(), pr);
+                if (pr.mPort < app->getConfig().PEER_PORT)
+                {
+                    appPtr other;
+                    for (auto i : *mApps)
+                    {
+                        if (i->getConfig().PEER_PORT == pr.mPort)
+                        {
+                            other = i;
+                            break;
+                        }
+                    }
+                    mConnections.push_back(make_shared<LoopbackPeerConnection>(*app, *other ));
+                }
+            }
+        }
+    }
 
     void startApps()
     {
@@ -187,7 +214,8 @@ struct StressTest {
     void injectTransaction(TxInfo tx)
     {
         //LOG(INFO) << "tx " << tx.mFrom->mId << " " << tx.mTo->mId << "  $" << tx.mAmount;
-        tx.execute((*mApps)[rand() % mApps->size()]);
+        //tx.execute((*mApps)[rand() % mApps->size()]);
+        tx.execute((*mApps)[0]);
     }
     void injectRandomTransactions(size_t n, float paretoAlpha)
     {
@@ -259,6 +287,7 @@ void herderStressTest(int nNodes, int quorumThresold, size_t nAccounts, size_t n
         nAccounts,
     };
     test.mAccounts.push_back(createRootAccount());
+    test.connectViaLoopback();
     test.startApps();
 
     // Dodge the bug in VirtualTime's implementation of syncing with the real clock
@@ -266,12 +295,14 @@ void herderStressTest(int nNodes, int quorumThresold, size_t nAccounts, size_t n
     {
         app->getMainIOService().post([]() { return; });
     }
+    test.crankAll();
 
     LOG(INFO) << "Creating " << nAccounts << " accounts";
     for (int i = 0; i < nAccounts; i++)
     {
         test.injectTransaction(test.accountCreationTransaction());
     }
+    //(*test.mApps)[0]->getHerderGateway().triggerNextLedger(error_code());
     this_thread::sleep_for(chrono::seconds(10));
     test.crankAll();
 
@@ -305,11 +336,11 @@ void herderStressTest(int nNodes, int quorumThresold, size_t nAccounts, size_t n
     auto secs = chrono::duration_cast<chrono::seconds>(chrono::system_clock::now() - begin).count() - endTime.count();
     LOG(INFO) << "all done (" << static_cast<float>(nTransactions) / secs << " tx/sec)";
 }
-
+/*
 TEST_CASE("Randomised test of Herder, 50 accounts, 40 transactions", "[hrd-random]")
 {
-    int nNodes = 1;
-    int quorumThresold = 1;
+    int nNodes = 2;
+    int quorumThresold = 2;
     float paretoAlpha = 0.5;
 
     size_t nAccounts = 50;
@@ -318,6 +349,7 @@ TEST_CASE("Randomised test of Herder, 50 accounts, 40 transactions", "[hrd-rando
 
     return herderStressTest(nNodes, quorumThresold, nAccounts, nTransactions, injectionRate, paretoAlpha);
 }
+*/
 /*
 TEST_CASE("Stress test of Herder, 1000 accounts, 100k transactions", "[hrd-stress][hide]")
 {

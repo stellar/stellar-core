@@ -40,6 +40,9 @@ Peer::Peer(Application& app, PeerRole role)
 void
 Peer::sendHello()
 {
+    LOG(DEBUG) << "Peer::sendHello "
+               << "@" << mApp.getConfig().PEER_PORT << " to " << mRemoteListeningPort;
+        
     StellarMessage msg;
     msg.type(HELLO);
     msg.hello().protocolVersion = mApp.getConfig().PROTOCOL_VERSION;
@@ -55,7 +58,7 @@ Peer::connectHandler(const asio::error_code& error)
 {
     if(error)
     {
-        CLOG(WARNING, "Overlay") << "connectHandler error: " << error;
+        CLOG(WARNING, "Overlay") << "@" << mApp.getConfig().PEER_PORT << " connectHandler error: " << error;
         drop();
     } else
     {
@@ -368,7 +371,7 @@ Peer::recvHello(StellarMessage const& msg)
     mRemoteProtocolVersion = msg.hello().protocolVersion;
     mRemoteVersion = msg.hello().versionStr;
     mRemoteListeningPort = msg.hello().listeningPort;
-    CLOG(INFO, "Overlay") << "recvHello: " << mRemoteProtocolVersion << " "
+    CLOG(INFO, "Overlay") << "recvHello " << "@" << mApp.getConfig().PEER_PORT << " from: " << mRemoteProtocolVersion << " "
         << mRemoteVersion << " " << mRemoteListeningPort;
     mState = GOT_HELLO;
     mPeerID = msg.hello().peerID;
@@ -390,7 +393,7 @@ Peer::recvPeers(StellarMessage const& msg)
 
         ip << (int)peer.ip[0] << "." << (int)peer.ip[1] << "." << (int)peer.ip[2] << "." << (int)peer.ip[3];
 
-        PeerRecord pr{0, ip.str(), static_cast<int>(peer.port),
+        PeerRecord pr{ip.str(), static_cast<int>(peer.port),
             mApp.getClock().now(),
             static_cast<int>(peer.numFailures), 1 };
 

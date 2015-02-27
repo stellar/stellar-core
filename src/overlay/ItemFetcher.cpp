@@ -181,7 +181,7 @@ FBAQSetFetcher::recvItem(FBAQuorumSetPtr qSet)
 //////////////////////////////////////////////////////////////////////////
 
 TrackingCollar::TrackingCollar(uint256 const& id, Application& app)
-    : mApp(app), mTimer(app.getClock()), mItemID(id)
+    : mApp(app), mTimer(app), mItemID(id)
 {
     mCantFind = false;
     mRefCount = 1;
