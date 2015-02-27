@@ -23,7 +23,6 @@ class LedgerGateway
     virtual uint64_t getLedgerNum() = 0;
     virtual uint64_t getCloseTime() = 0;
     virtual int32_t getTxFee() = 0;
-    virtual bool hasTxBeenApplied(Hash& hash) = 0;
 };
 }
 

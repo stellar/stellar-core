@@ -52,7 +52,7 @@ const char *AccountFrame::kSQLCreateStatement4 =
      accountID       VARCHAR(51) NOT NULL,    \
      seqSlot         INT         NOT NULL,    \
      seqNum          INT         NOT NULL,    \
-     PRIMARY KEY (accountID, slotIndex)       \
+     PRIMARY KEY (accountID, seqSlot)       \
      );";
 
 AccountFrame::AccountFrame() : EntryFrame(ACCOUNT), mAccountEntry(mEntry.account())

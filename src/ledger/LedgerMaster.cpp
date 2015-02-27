@@ -238,8 +238,6 @@ void LedgerMaster::closeLedger(TxSetFramePtr txSet, uint64_t closeTime, int32_t 
     mCurrentLedger->mHeader.closeTime = closeTime;
     closeLedgerHelper(true, ledgerDelta);
     txscope.commit();
-
-    mRecentFilter.addTxSet(txSet, closeTime);
     
 
     // Notify ledger close to other components.
