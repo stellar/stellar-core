@@ -9,14 +9,14 @@ Simulation::pointer Topologies::pair(bool standAlone)
 {
     Simulation::pointer simulation = make_shared<Simulation>(standAlone);
 
-    SIMULATION_CREATE_NODE(0);
-    SIMULATION_CREATE_NODE(1);
+    SIMULATION_CREATE_NODE(10);
+    SIMULATION_CREATE_NODE(11);
 
-    FBAQuorumSet qSet0; qSet0.threshold = 1; qSet0.validators.push_back(v1NodeID);
-    FBAQuorumSet qSet1; qSet1.threshold = 1; qSet1.validators.push_back(v0NodeID);
+    FBAQuorumSet qSet0; qSet0.threshold = 1; qSet0.validators.push_back(v11NodeID);
+    FBAQuorumSet qSet1; qSet1.threshold = 1; qSet1.validators.push_back(v10NodeID);
 
-    auto n0 = simulation->addNode(v0VSeed, qSet0, simulation->getClock());
-    auto n1 = simulation->addNode(v1VSeed, qSet1, simulation->getClock());
+    auto n0 = simulation->addNode(v10VSeed, qSet0, simulation->getClock());
+    auto n1 = simulation->addNode(v11VSeed, qSet1, simulation->getClock());
 
     if (standAlone)
         simulation->addLoopbackConnection(n0, n1);

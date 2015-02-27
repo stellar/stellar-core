@@ -276,7 +276,13 @@ TCPPeer::drop()
         [self, sock]()
         {
             self->getApp().getPeerMaster().dropPeer(self);
-            // sock->shutdown(asio::socket_base::shutdown_both); TODO
+            try
+            {
+                sock->shutdown(asio::socket_base::shutdown_both);
+            } catch(...)
+            {
+                LOG(WARNING) << "TCPPeer::drop failed to shutdown socket";
+            }
             sock->close();
         });
 }
