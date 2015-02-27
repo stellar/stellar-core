@@ -17,7 +17,9 @@ namespace stellar
 
 using namespace std;
 
-Simulation::Simulation(bool isStandalone) : mConfigCount(0), mIsStandAlone(isStandalone)
+Simulation::Simulation(bool isStandalone) :
+    mIsStandAlone(isStandalone)
+  , mConfigCount(0)
 {
 }
 

@@ -20,8 +20,8 @@ TEST_CASE("TCPPeer can communicate", "[overlay]")
     SIMULATION_CREATE_NODE(0);
     SIMULATION_CREATE_NODE(1);
 
-    auto& n0 = s->getNode(s->addNode(v0VSeed, FBAQuorumSet(), s->getClock()));
-    auto& n1 = s->getNode(s->addNode(v1VSeed, FBAQuorumSet(), s->getClock()));
+    auto n0 = s->getNode(s->addNode(v0VSeed, FBAQuorumSet(), s->getClock()));
+    auto n1 = s->getNode(s->addNode(v1VSeed, FBAQuorumSet(), s->getClock()));
     auto b = TCPPeer::initiate(*n0, "127.0.0.1", n1->getConfig().PEER_PORT);
 
     n0->enableRealTimer();
