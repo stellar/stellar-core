@@ -127,9 +127,9 @@ TCPPeer::writeHandler(const asio::error_code& error,
 void
 TCPPeer::startRead()
 {
-    LOG(DEBUG) << "TCPPeer::startRead"
-        << "@" << mApp.getConfig().PEER_PORT
-        << " to " << mRemoteListeningPort;
+    // LOG(DEBUG) << "TCPPeer::startRead"
+    //     << "@" << mApp.getConfig().PEER_PORT
+    //     << " to " << mSocket->remote_endpoint().port();
 
     auto self = shared_from_this();
     asio::async_read(*(mSocket.get()), asio::buffer(mIncomingHeader),
@@ -168,10 +168,10 @@ void
 TCPPeer::readHeaderHandler(const asio::error_code& error,
                            std::size_t bytes_transferred)
 {
-    LOG(DEBUG) << "TCPPeer::readHeaderHandler "
-        << "@" << mApp.getConfig().PEER_PORT
-        << " to " << mRemoteListeningPort
-        << (error ? "error " : "") << " bytes:" << bytes_transferred;
+    // LOG(DEBUG) << "TCPPeer::readHeaderHandler "
+    //     << "@" << mApp.getConfig().PEER_PORT
+    //     << " to " << mRemoteListeningPort
+    //     << (error ? "error " : "") << " bytes:" << bytes_transferred;
 
     if (!error)
     {
@@ -194,10 +194,10 @@ void
 TCPPeer::readBodyHandler(const asio::error_code& error,
                          std::size_t bytes_transferred)
 {
-    LOG(DEBUG) << "TCPPeer::readBodyHandler "
-        << "@" << mApp.getConfig().PEER_PORT
-        << " to " << mRemoteListeningPort
-        << (error ? "error " : "") << " bytes:" << bytes_transferred;
+    // LOG(DEBUG) << "TCPPeer::readBodyHandler "
+    //     << "@" << mApp.getConfig().PEER_PORT
+    //     << " to " << mRemoteListeningPort
+    //     << (error ? "error " : "") << " bytes:" << bytes_transferred;
 
     if (!error)
     {
@@ -276,7 +276,7 @@ TCPPeer::drop()
         [self, sock]()
         {
             self->getApp().getPeerMaster().dropPeer(self);
-            sock->shutdown(asio::socket_base::shutdown_both);
+            // sock->shutdown(asio::socket_base::shutdown_both); TODO
             sock->close();
         });
 }

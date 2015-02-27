@@ -75,7 +75,7 @@ createApps(VirtualClock &clock, int n, int quorumThresold)
 
     for (int i = 0; i < n; i++) 
     {
-        peers.push_back(PeerInfo { SecretKey::random(), SecretKey::random(), getTestConfig(i).PEER_PORT });
+        peers.push_back(PeerInfo { SecretKey::random(), SecretKey::random(), getTestConfig(i).PEER_PORT+30 });
     }
 
     auto result = make_shared<vector<appPtr>>();
@@ -295,6 +295,7 @@ void herderStressTest(int nNodes, int quorumThresold, size_t nAccounts, size_t n
     {
         app->getMainIOService().post([]() { return; });
     }
+    test.crankAll();
 
     LOG(INFO) << "Creating " << nAccounts << " accounts";
     for (int i = 0; i < nAccounts; i++)
@@ -335,7 +336,7 @@ void herderStressTest(int nNodes, int quorumThresold, size_t nAccounts, size_t n
     auto secs = chrono::duration_cast<chrono::seconds>(chrono::system_clock::now() - begin).count() - endTime.count();
     LOG(INFO) << "all done (" << static_cast<float>(nTransactions) / secs << " tx/sec)";
 }
-
+/*
 TEST_CASE("Randomised test of Herder, 50 accounts, 40 transactions", "[hrd-random]")
 {
     int nNodes = 2;
@@ -348,6 +349,7 @@ TEST_CASE("Randomised test of Herder, 50 accounts, 40 transactions", "[hrd-rando
 
     return herderStressTest(nNodes, quorumThresold, nAccounts, nTransactions, injectionRate, paretoAlpha);
 }
+*/
 /*
 TEST_CASE("Stress test of Herder, 1000 accounts, 100k transactions", "[hrd-stress][hide]")
 {
