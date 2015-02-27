@@ -29,7 +29,7 @@ CatchupStateMachine::CatchupStateMachine(Application& app,
     , mEndHandler(handler)
     , mState(CATCHUP_RETRYING)
     , mRetryCount(0)
-    , mRetryTimer(app.getClock())
+    , mRetryTimer(app)
 {
     // We start up in CATCHUP_RETRYING as that's the only valid
     // named pre-state for CATCHUP_BEGIN.

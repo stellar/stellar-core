@@ -20,6 +20,7 @@ using namespace std;
 Simulation::Simulation(bool isStandalone) :
     mIsStandAlone(isStandalone)
   , mConfigCount(0)
+  , mIdleApp(Application::create(mClock, getTestConfig(++mConfigCount)))
 {
 }
 
@@ -162,7 +163,7 @@ Simulation::crankForAtMost(VirtualClock::duration seconds)
         stop = true;
     };
 
-    VirtualTimer checkTimer(mClock);
+    VirtualTimer checkTimer(*mIdleApp);
 
     checkTimer.expires_from_now(seconds);
     checkTimer.async_wait(stopIt);
@@ -183,7 +184,7 @@ Simulation::crankForAtLeast(VirtualClock::duration seconds)
         stop = true;
     };
 
-    VirtualTimer checkTimer(mClock);
+    VirtualTimer checkTimer(*mIdleApp);
 
     checkTimer.expires_from_now(seconds);
     checkTimer.async_wait(stopIt);

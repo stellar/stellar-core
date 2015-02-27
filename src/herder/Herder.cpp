@@ -62,8 +62,8 @@ Herder::Herder(Application& app)
     , mFBAQSetFetcher(app)
     , mLedgersToWaitToParticipate(3)
     , mLastTrigger(app.getClock().now())
-    , mTriggerTimer(app.getClock())
-    , mBumpTimer(app.getClock())
+    , mTriggerTimer(app)
+    , mBumpTimer(app)
     , mApp(app)
 
     , mValueValid(app.getMetrics().NewMeter({"fba", "value", "valid"}, "value"))
@@ -374,7 +374,7 @@ Herder::validateBallot(const uint64& slotIndex,
     {
         // Create a timer to wait for current FBA timeout / 2 before accepting
         // that ballot.
-        VirtualTimer ballotTimer(mApp.getClock());
+        VirtualTimer ballotTimer(mApp);
         ballotTimer.expires_from_now(
             std::chrono::milliseconds(
                 (int)(1000*pow(2.0, ballot.counter)/2)));

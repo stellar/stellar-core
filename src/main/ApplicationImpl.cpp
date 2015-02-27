@@ -222,6 +222,9 @@ ApplicationImpl::runWorkerThread(unsigned i)
 void
 ApplicationImpl::gracefulStop()
 {
+    // Drain all events queued to fire on this app.
+    while (mVirtualClock.cancelAllEventsFrom(*this));
+
     if (!mMainIOService.stopped())
     {
         LOG(INFO) << "Stopping main IO service";

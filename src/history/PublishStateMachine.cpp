@@ -28,7 +28,7 @@ ArchivePublisher::ArchivePublisher(Application& app,
     , mEndHandler(handler)
     , mState(PUBLISH_RETRYING)
     , mRetryCount(0)
-    , mRetryTimer(app.getClock())
+    , mRetryTimer(app)
     , mArchive(archive)
     , mLocalState(localState)
     , mBucketsToPublish(localBuckets)

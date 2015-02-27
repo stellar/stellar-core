@@ -30,11 +30,10 @@ using namespace std;
 ///////////////////////////////////////////////////////////////////////
 
 TCPPeer::TCPPeer(Application& app, Peer::PeerRole role,
-    std::shared_ptr<asio::ip::tcp::socket> socket,
-    VirtualTimer helloTimer)
+    std::shared_ptr<asio::ip::tcp::socket> socket)
     : Peer(app, role)
     , mSocket(socket)
-    , mHelloTimer(app.getClock())
+    , mHelloTimer(app)
     , mMessageRead(app.getMetrics().NewMeter({"overlay", "message", "read"}, "message"))
     , mMessageWrite(app.getMetrics().NewMeter({"overlay", "message", "write"}, "message"))
     , mByteRead(app.getMetrics().NewMeter({"overlay", "byte", "read"}, "byte"))
@@ -48,7 +47,7 @@ TCPPeer::initiate(Application& app, const std::string& ip, int port)
         << "@" << app.getConfig().PEER_PORT
         << " to " << ip << ":" << port;
     auto socket = make_shared<asio::ip::tcp::socket>(app.getMainIOService());
-    auto result = make_shared<TCPPeer>(app, ACCEPTOR, socket, app.getClock()); // We are initiating; new `newed` TCPPeer is accepting
+    auto result = make_shared<TCPPeer>(app, ACCEPTOR, socket); // We are initiating; new `newed` TCPPeer is accepting
     result->mRemoteListeningPort = port;
     asio::ip::tcp::endpoint endpoint(asio::ip::address::from_string(ip), port);
     socket->async_connect(endpoint, [result](const asio::error_code& error) { result->connectHandler(error);  });
@@ -60,7 +59,7 @@ TCPPeer::accept(Application& app, shared_ptr<asio::ip::tcp::socket> socket)
 {
     LOG(DEBUG) << "TCPPeer:accept"
         << "@" << app.getConfig().PEER_PORT;
-    auto result = make_shared<TCPPeer>(app, INITIATOR, socket, app.getClock()); // We are accepting; new `newed` TCPPeer initiated
+    auto result = make_shared<TCPPeer>(app, INITIATOR, socket); // We are accepting; new `newed` TCPPeer initiated
     result->mHelloTimer.expires_from_now(
         std::chrono::milliseconds(MS_TO_WAIT_FOR_HELLO));
     result->mHelloTimer.async_wait([result](const asio::error_code& error) { if (!error) result->timerExpired(error); });

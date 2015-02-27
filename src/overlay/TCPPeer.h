@@ -43,8 +43,7 @@ class TCPPeer : public Peer
     typedef shared_ptr<TCPPeer> pointer;
 
     TCPPeer(Application& app, Peer::PeerRole role,
-        std::shared_ptr<asio::ip::tcp::socket> socket,
-        VirtualTimer helloTimer); // hollow constuctor; use `initiate` or `accept` instead
+        std::shared_ptr<asio::ip::tcp::socket> socket); // hollow constuctor; use `initiate` or `accept` instead
 
     static pointer initiate(Application& app, const std::string& ip, int port);
     static pointer accept(Application& app, shared_ptr<asio::ip::tcp::socket> socket);

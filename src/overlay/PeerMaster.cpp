@@ -46,7 +46,7 @@ PeerMaster::PeerMaster(Application& app)
     , mConnectionsAttempted(app.getMetrics().NewMeter({"overlay", "connection", "attempt"}, "connection"))
     , mConnectionsEstablished(app.getMetrics().NewMeter({"overlay", "connection", "establish"}, "connection"))
     , mConnectionsDropped(app.getMetrics().NewMeter({"overlay", "connection", "drop"}, "connection"))
-    , mTimer(app.getClock())
+    , mTimer(app)
     , mFloodGate(app)
 {
     mTimer.expires_from_now(std::chrono::seconds(2));

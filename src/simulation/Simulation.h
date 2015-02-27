@@ -24,6 +24,7 @@ class Simulation
     VirtualClock mClock;
     bool mIsStandAlone;
     int mConfigCount;
+    Application::pointer mIdleApp;
     std::map<uint256, Config::pointer> mConfigs;
     std::map<uint256, Application::pointer> mNodes;
     std::vector<std::shared_ptr<LoopbackPeerConnection>> mConnections;

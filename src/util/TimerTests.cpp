@@ -40,10 +40,10 @@ TEST_CASE("virtual event dispatch order and times", "[timer]")
     Application::pointer appPtr = Application::create(clock, cfg);
     Application &app = *appPtr;
 
-    VirtualTimer timer1(app.getClock());
-    VirtualTimer timer20(app.getClock());
-    VirtualTimer timer21(app.getClock());
-    VirtualTimer timer200(app.getClock());
+    VirtualTimer timer1(app);
+    VirtualTimer timer20(app);
+    VirtualTimer timer21(app);
+    VirtualTimer timer200(app);
 
     size_t eventsDispatched = 0;
 

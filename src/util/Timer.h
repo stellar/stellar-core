@@ -11,6 +11,7 @@
 
 #include <chrono>
 #include <queue>
+#include <map>
 #include <memory>
 #include <functional>
 #include <ctime>
@@ -43,6 +44,7 @@ namespace stellar
  */
 
 class VirtualTimer;
+class Application;
 struct VirtualClockEvent;
 
 /**
@@ -69,7 +71,8 @@ public:
 
 private:
     time_point mNow;
-    std::priority_queue<VirtualClockEvent> mEvents;
+    std::map<Application*,
+             std::shared_ptr<std::priority_queue<VirtualClockEvent>>> mEvents;
 
 public:
     // Note: this is not a static method, which means that VirtualClock is
@@ -77,8 +80,11 @@ public:
     // virtual time. Each virtual clock has its own time.
     time_point now() noexcept;
     time_point next();
-    void enqueue(VirtualClockEvent const& ve);
-    void cancelAllEventsFrom(VirtualTimer *timer);
+    void enqueue(Application& app, VirtualClockEvent const& ve);
+    bool cancelAllEventsFrom(Application& a,
+                             std::function<bool(VirtualClockEvent const&)> pred);
+    bool cancelAllEventsFrom(Application& a);
+    bool cancelAllEventsFrom(Application& a, VirtualTimer& v);
     size_t advanceTo(time_point n);
     size_t advanceToNext();
 };
@@ -89,6 +95,8 @@ struct VirtualClockEvent
     VirtualClock::time_point mWhen;
     std::function<void(asio::error_code)> mCallback;
     VirtualTimer *mTimer;
+    ~VirtualClockEvent();
+    bool live() const;
     bool operator<(VirtualClockEvent const& other) const
     {
         // For purposes of priority queue, a timer is "less than"
@@ -100,17 +108,17 @@ struct VirtualClockEvent
 
 
 /**
- * This is the class you probably want to use: it is coupled with a
- * (per-Application) VirtualClock, so advances with per-Application simulated
+ * This is the class you probably want to use: it is coupled with an Application
+ * (thus the app's VirtualClock), so advances with per-Application simulated
  * time, and therefore runs at full speed during simulation/testing.
  */
 class VirtualTimer
 {
-    VirtualClock &mClock;
+    Application &mApp;
     VirtualClock::time_point mExpiryTime;
     bool mCancelled;
 public:
-    VirtualTimer(VirtualClock &c);
+    VirtualTimer(Application& app);
     ~VirtualTimer();
     void expires_at(VirtualClock::time_point t);
     void expires_from_now(VirtualClock::duration d);
