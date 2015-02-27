@@ -70,6 +70,11 @@ BucketLevel::commit()
         // NB: This might block if the worker thread is slow; might want to
         // use mNextCurr.wait_for(
         mCurr = mNextCurr.get();
+
+        // NB: MSVC future<> implementation doesn't purge the task lambda (and
+        // its captures) on invalidation (due to get()); must explicitly reset.
+        mNextCurr = std::future<std::shared_ptr<Bucket>>();
+
         // CLOG(DEBUG, "CLF") << "level " << mLevel << " set mCurr to "
         //            << mCurr->getEntries().size() << " elements";
     }
