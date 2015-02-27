@@ -48,6 +48,7 @@ TCPPeer::initiate(Application& app, const std::string& ip, int port)
         << " to " << ip << ":" << port;
     auto socket = make_shared<asio::ip::tcp::socket>(app.getMainIOService());
     auto result = make_shared<TCPPeer>(app, ACCEPTOR, socket); // We are initiating; new `newed` TCPPeer is accepting
+    result->mIP = ip;
     result->mRemoteListeningPort = port;
     asio::ip::tcp::endpoint endpoint(asio::ip::address::from_string(ip), port);
     socket->async_connect(endpoint, [result](const asio::error_code& error) { result->connectHandler(error);  });
@@ -60,6 +61,7 @@ TCPPeer::accept(Application& app, shared_ptr<asio::ip::tcp::socket> socket)
     LOG(DEBUG) << "TCPPeer:accept"
         << "@" << app.getConfig().PEER_PORT;
     auto result = make_shared<TCPPeer>(app, INITIATOR, socket); // We are accepting; new `newed` TCPPeer initiated
+    result->mIP = socket->remote_endpoint().address().to_string();
     result->mHelloTimer.expires_from_now(
         std::chrono::milliseconds(MS_TO_WAIT_FOR_HELLO));
     result->mHelloTimer.async_wait([result](const asio::error_code& error) { if (!error) result->timerExpired(error); });
@@ -80,7 +82,7 @@ void TCPPeer::timerExpired(const asio::error_code& error)
 std::string
 TCPPeer::getIP()
 {
-    return mSocket->remote_endpoint().address().to_string();
+    return mIP;
 }
 
 
@@ -96,7 +98,7 @@ TCPPeer::sendMessage(xdr::msg_ptr&& xdrBytes)
 
     LOG(DEBUG) << "TCPPeer:sendMessage"
         << "@" << mApp.getConfig().PEER_PORT
-        << " to " << mSocket->remote_endpoint().port();
+        << " to " << mRemoteListeningPort;
 
     auto self = shared_from_this();
     auto buf = std::make_shared<xdr::msg_ptr>(std::move(xdrBytes));
@@ -117,7 +119,7 @@ TCPPeer::writeHandler(const asio::error_code& error,
     {
         LOG(DEBUG) << "TCPPeer::writeHandler error"
             << "@" << mApp.getConfig().PEER_PORT
-            << " to " << mSocket->remote_endpoint().port();
+            << " to " << mRemoteListeningPort;
         drop();
     }
 }
@@ -127,7 +129,7 @@ TCPPeer::startRead()
 {
     LOG(DEBUG) << "TCPPeer::startRead"
         << "@" << mApp.getConfig().PEER_PORT
-        << " to " << mSocket->remote_endpoint().port();
+        << " to " << mRemoteListeningPort;
 
     auto self = shared_from_this();
     asio::async_read(*(mSocket.get()), asio::buffer(mIncomingHeader),
@@ -168,7 +170,7 @@ TCPPeer::readHeaderHandler(const asio::error_code& error,
 {
     LOG(DEBUG) << "TCPPeer::readHeaderHandler "
         << "@" << mApp.getConfig().PEER_PORT
-        << " to " << mSocket->remote_endpoint().port()
+        << " to " << mRemoteListeningPort
         << (error ? "error " : "") << " bytes:" << bytes_transferred;
 
     if (!error)
@@ -194,7 +196,7 @@ TCPPeer::readBodyHandler(const asio::error_code& error,
 {
     LOG(DEBUG) << "TCPPeer::readBodyHandler "
         << "@" << mApp.getConfig().PEER_PORT
-        << " to " << mSocket->remote_endpoint().port()
+        << " to " << mRemoteListeningPort
         << (error ? "error " : "") << " bytes:" << bytes_transferred;
 
     if (!error)
@@ -263,8 +265,10 @@ void
 TCPPeer::drop()
 {
     LOG(DEBUG) << "TCPPeer:drop"
-        << "@" << mApp.getConfig().PEER_PORT
-        << " to " << mSocket->remote_endpoint().port();
+               << "@" << mApp.getConfig().PEER_PORT << " to " << mRemoteListeningPort;
+    
+
+    
 
     auto self = shared_from_this();
     auto sock = mSocket;

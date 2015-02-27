@@ -14,6 +14,7 @@ namespace stellar
 // Peer that communicates via a TCP socket.
 class TCPPeer : public Peer
 {
+    string mIP;
     std::shared_ptr<asio::ip::tcp::socket> mSocket;
     VirtualTimer mHelloTimer;
     uint8_t mIncomingHeader[4];
