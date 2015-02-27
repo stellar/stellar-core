@@ -49,7 +49,7 @@ using namespace std;
 
         auto& db = ledgerMaster.getDatabase();
         soci::statement st = (db.getSession().prepare <<
-            "INSERT INTO LedgerHeaders (hash, prevHash, txSetHash, clfHash, totCoins, "\
+            "INSERT INTO LedgerHeaders (ledgerHash, prevHash, txSetHash, clfHash, totCoins, "\
             "feePool, ledgerSeq,inflationSeq,baseFee,baseReserve,closeTime) VALUES"\
             "(:h,:ph,:tx,:clf,:coins,"\
             ":feeP,:seq,:inf,:Bfee,:res,"\
@@ -86,7 +86,7 @@ using namespace std;
                 "SELECT prevHash, txSetHash, clfHash, totCoins, "   \
                 "feePool, ledgerSeq,inflationSeq,baseFee,"          \
                 "baseReserve,closeTime FROM LedgerHeaders "         \
-                "WHERE hash = :h",
+                "WHERE ledgerHash = :h",
                 into(prevHash), into(txSetHash), into(clfHash), into(lh.totalCoins),
                 into(lh.feePool), into(lh.ledgerSeq), into(lh.inflationSeq), into(lh.baseFee),
                 into(lh.baseReserve), into(lh.closeTime),
@@ -121,7 +121,7 @@ using namespace std;
         {
             auto timer = db.getSelectTimer("ledger-header");
             db.getSession() <<
-            "SELECT hash, prevHash, txSetHash, clfHash, totCoins, "\
+            "SELECT ledgerHash, prevHash, txSetHash, clfHash, totCoins, "\
             "feePool, inflationSeq,baseFee,"\
             "baseReserve,closeTime FROM LedgerHeaders "\
             "WHERE ledgerSeq = :s",
@@ -152,7 +152,7 @@ using namespace std;
 
         db.getSession() <<
             "CREATE TABLE IF NOT EXISTS LedgerHeaders ("\
-            "hash            CHARACTER(64) PRIMARY KEY,"\
+            "ledgerHash      CHARACTER(64) PRIMARY KEY,"\
             "prevHash        CHARACTER(64) NOT NULL,"\
             "txSetHash       CHARACTER(64) NOT NULL,"\
             "clfHash         CHARACTER(64) NOT NULL,"\
