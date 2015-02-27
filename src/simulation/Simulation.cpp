@@ -17,8 +17,8 @@ namespace stellar
 
 using namespace std;
 
-Simulation::Simulation(bool isStandalone) :
-    mIsStandAlone(isStandalone)
+Simulation::Simulation(Mode mode) :
+    mMode(mode)
   , mConfigCount(0)
   , mIdleApp(Application::create(mClock, getTestConfig(++mConfigCount)))
 {
@@ -49,8 +49,8 @@ Simulation::addNode(uint256 validationSeed,
 
     cfg->VALIDATION_KEY = SecretKey::fromSeed(validationSeed);
     cfg->QUORUM_THRESHOLD = qSet.threshold;
-    cfg->RUN_STANDALONE = mIsStandAlone;
     cfg->START_NEW_NETWORK = true;
+    cfg->RUN_STANDALONE = (mMode == OVER_LOOPBACK);
 
     for (auto q : qSet.validators)
     {
@@ -59,7 +59,7 @@ Simulation::addNode(uint256 validationSeed,
 
     Application::pointer result = Application::create(clock, *cfg);
 
-    if (!mIsStandAlone) 
+    if (mMode == OVER_TCP) 
         result->enableRealTimer();
 
     uint256 nodeID = makePublicKey(validationSeed);
@@ -74,6 +74,17 @@ Simulation::getNode(uint256 nodeID)
 {
     return mNodes[nodeID];
 }
+
+void
+Simulation::addConnection(uint256 initiator,
+                          uint256 acceptor)
+{
+    if (mMode == OVER_LOOPBACK)
+        addLoopbackConnection(initiator, acceptor);
+    else addTCPConnection(initiator, acceptor);
+}
+
+
 
 std::shared_ptr<LoopbackPeerConnection>
 Simulation::addLoopbackConnection(uint256 initiator, 
@@ -93,9 +104,9 @@ void
 Simulation::addTCPConnection(uint256 initiator,
                              uint256 acceptor)
 {
-    if (mIsStandAlone)
+    if (mMode != OVER_TCP)
     {
-        throw new runtime_error("Cannot add a TCP connection to a standalone network");
+        throw new runtime_error("Cannot add a TCP connection");
     }
     auto from = getNode(initiator);
     auto to = getNode(acceptor);

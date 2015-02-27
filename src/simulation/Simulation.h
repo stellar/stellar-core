@@ -23,7 +23,7 @@ class Simulation
 {
   private:
     VirtualClock mClock;
-    bool mIsStandAlone;
+    bool mMode;
     int mConfigCount;
     Application::pointer mIdleApp;
     std::map<uint256, Config::pointer> mConfigs;
@@ -31,9 +31,15 @@ class Simulation
     std::vector<std::shared_ptr<LoopbackPeerConnection>> mConnections;
   
   public:
+      enum Mode
+      {
+          OVER_TCP,
+          OVER_LOOPBACK
+      };
+
     typedef shared_ptr<Simulation> pointer;
 
-    Simulation(bool isStandalone);
+    Simulation(Mode mode);
     ~Simulation();
 
     VirtualClock& getClock();
@@ -43,7 +49,11 @@ class Simulation
                     VirtualClock& clock);
     Application::pointer getNode(uint256 nodeID);
 
-    std::shared_ptr<LoopbackPeerConnection> 
+    void
+        addConnection(uint256 initiator,
+        uint256 acceptor);
+        
+    std::shared_ptr<LoopbackPeerConnection>
         addLoopbackConnection(uint256 initiator, 
                       uint256 acceptor);
 

@@ -40,11 +40,11 @@ TEST_CASE("cycle4 topology", "[simulation]")
 
 TEST_CASE("pair with transactions", "[simulation]")
 {
-    Simulation::pointer simulation = Topologies::pair(true);
+    Simulation::pointer simulation = Topologies::pair(Simulation::OVER_LOOPBACK);
 
     simulation->startAllNodes();
 
-    simulation->crankForAtMost(std::chrono::seconds(5));
+    simulation->crankForAtMost(std::chrono::seconds(6));
  
-    REQUIRE(simulation->haveAllExternalized(2));
+    REQUIRE(simulation->haveAllExternalized(3));
 }
