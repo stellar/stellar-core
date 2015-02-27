@@ -12,6 +12,9 @@
 using namespace soci;
 using namespace std;
 
+// TODO.1 limit the number of slots you can have. increase numsubentries for each slot
+
+
 namespace stellar
 {
 const char *AccountFrame::kSQLCreateStatement1 =
@@ -41,6 +44,15 @@ const char *AccountFrame::kSQLCreateStatement3 =
      accountID       VARCHAR(51)    PRIMARY KEY,    \
      key             INT            NOT NULL,       \
      value           TEXT           NOT NULL        \
+     );";
+
+const char *AccountFrame::kSQLCreateStatement4 =
+    "CREATE TABLE IF NOT EXISTS SeqSlots      \
+     (                                        \
+     accountID       VARCHAR(51) NOT NULL,    \
+     seqSlot         INT         NOT NULL,    \
+     seqNum          INT         NOT NULL,    \
+     PRIMARY KEY (accountID, slotIndex)       \
      );";
 
 AccountFrame::AccountFrame() : EntryFrame(ACCOUNT), mAccountEntry(mEntry.account())
@@ -166,6 +178,32 @@ bool AccountFrame::loadAccount(const uint256& accountID, AccountFrame& retAcc,
     return true;
 }
 
+uint32_t AccountFrame::getSeq(uint32_t slot,Database& db)
+{
+    std::string base58ID = toBase58Check(VER_ACCOUNT_ID, getID());
+
+    soci::session &session = db.getSession();
+    uint32_t retNum = 0;
+  
+    session << "SELECT seqNum from SeqSlots where accountID=:v1",
+        into(retNum);
+
+    return retNum;
+}
+
+uint32_t AccountFrame::getMaxSeqSlot(Database& db)
+{
+    std::string base58ID = toBase58Check(VER_ACCOUNT_ID, getID());
+
+    soci::session &session = db.getSession();
+    uint32_t retNum = 0;
+
+    session << "SELECT max(seqNum) from SeqSlots where accountID=:v1",
+        into(retNum);
+
+    return retNum;
+}
+
 bool AccountFrame::exists(Database& db, LedgerKey const& key)
 {
     std::string base58ID = toBase58Check(VER_ACCOUNT_ID, key.account().accountID);
@@ -253,6 +291,7 @@ void AccountFrame::storeUpdate(LedgerDelta &delta, Database &db, bool insert)
             auto timer = insert ? db.getInsertTimer("account") : db.getUpdateTimer("account");
             st.execute(true);
         }
+
 
         if (st.get_affected_rows() != 1)
         {
@@ -386,10 +425,12 @@ void AccountFrame::dropAll(Database &db)
     db.getSession() << "DROP TABLE IF EXISTS Accounts;";
     db.getSession() << "DROP TABLE IF EXISTS Signers;";
     db.getSession() << "DROP TABLE IF EXISTS AccountData;";
+    db.getSession() << "DROP TABLE IF EXISTS SeqSlots;";
 
     db.getSession() << kSQLCreateStatement1;
     db.getSession() << kSQLCreateStatement2;
     db.getSession() << kSQLCreateStatement3;
+    db.getSession() << kSQLCreateStatement4;
 }
 }
 

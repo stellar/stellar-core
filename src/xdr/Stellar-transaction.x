@@ -11,6 +11,7 @@ enum TransactionType
     CHANGE_TRUST,
     ALLOW_TRUST,
     ACCOUNT_MERGE,
+	SET_SEQ_SLOT,
     INFLATION
 };
 
@@ -35,6 +36,12 @@ struct CreateOfferTx
 
     uint64 offerID;		 // set if you want to change an existing offer
     uint32 flags;        // passive: only take offers that cross this. not offers that match it
+};
+
+struct SetSeqSlotTx
+{
+	int32 slotIndex;
+	int32 slotValue;
 };
 
 struct SetOptionsTx
@@ -74,7 +81,10 @@ struct Transaction
 {
     AccountID account;
     int32 maxFee;
-    uint64 submitTime;    // time this tx was created. Will only be applied if between submitTime and submitTime + 5 min
+    uint32 seqSlot;
+	uint32 seqNum;
+	uint64 minLedger;
+	uint64 maxLedger;
 
     union switch (TransactionType type)
     {
@@ -92,6 +102,8 @@ struct Transaction
             AllowTrustTx allowTrustTx;
         case ACCOUNT_MERGE:
             uint256 destination;
+		case SET_SEQ_SLOT:
+			SetSeqSlotTx setSeqSlotTx;
         case INFLATION:
             uint32 inflationSeq;
     } body;
@@ -270,6 +282,25 @@ union AllowTrustResult switch(AllowTrustResultCode code)
 
 }
 
+namespace SetSeqSlot
+{
+enum SetSeqSlotResultCode
+{
+    SUCCESS,
+    MALFORMED,
+    INVALID_SLOT,
+    INVALID_SEQ_NUM
+};
+
+union SetSeqSlotResult switch(SetSeqSlotResultCode code)
+{
+    case SUCCESS:
+        void;
+    default:
+        void;
+};
+}
+
 namespace AccountMerge
 {
 enum AccountMergeResultCode
@@ -319,8 +350,7 @@ enum TransactionResultCode
     txINNER,
     txINTERNAL_ERROR,
     txBAD_AUTH,
-    txSUBMITTED_TOO_EARLY,
-	txSUBMITTED_TOO_LATE,
+    txBAD_SEQ,
 	txALREADY,
     txBAD_LEDGER,
     txNO_FEE,
@@ -350,6 +380,8 @@ struct TransactionResult
                     AllowTrust::AllowTrustResult allowTrustResult;
                 case ACCOUNT_MERGE:
                     AccountMerge::AccountMergeResult accountMergeResult;
+				case SET_SEQ_SLOT:
+					SetSeqSlot::SetSeqSlotResult setSeqSlotResult;
                 case INFLATION:
                     Inflation::InflationResult inflationResult;
             } tr;

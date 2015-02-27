@@ -76,13 +76,13 @@ struct ApplyTxSorter
     }
 };
 
-struct SubmitTimeSorter
+struct SeqSorter
 {
     bool 
     operator () (const TransactionFramePtr & tx1, 
                  const TransactionFramePtr & tx2)
     {
-        return tx1->getSubmitTime() < tx2->getSubmitTime();
+        return tx1->getSeqNum() < tx2->getSeqNum();
     }
 };
 
@@ -92,8 +92,8 @@ TxSetFrame::sortForApply(vector<TransactionFramePtr>& retList)
     vector< vector<TransactionFramePtr>> txLevels(4);
     map<uint256, size_t > accountTxCountMap;
     retList = mTransactions;
-    // sort all the txs by submit time
-    std::sort(retList.begin(), retList.end(), SubmitTimeSorter());
+    // sort all the txs by seqnum
+    std::sort(retList.begin(), retList.end(), SeqSorter());
    
     for (auto tx : retList)
     {

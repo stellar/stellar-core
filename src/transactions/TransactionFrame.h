@@ -50,7 +50,7 @@ namespace stellar
         static TransactionFrame::pointer makeTransactionFromWire(TransactionEnvelope const& msg);
         Hash& getFullHash();
         Hash& getContentsHash();
-        uint64 getSubmitTime() { return mEnvelope.tx.submitTime; }
+        uint64 getSeqNum() { return mEnvelope.tx.seqNum; }
         TransactionEnvelope& getEnvelope();
         AccountFrame& getSourceAccount() { assert(mSigningAccount); return *mSigningAccount; }
 

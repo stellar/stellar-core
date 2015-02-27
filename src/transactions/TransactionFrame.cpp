@@ -250,22 +250,9 @@ bool TransactionFrame::checkValid(Application& app)
     }
 
     // don't flood any tx not in the correct submit window
-    if(mEnvelope.tx.submitTime > app.getLedgerGateway().getCloseTime())
+    if(mSigningAccount->getSeq(mEnvelope.tx.seqSlot,app.getDatabase())<mEnvelope.tx.seqNum)
     {
-        mResult.body.code(txSUBMITTED_TOO_EARLY);
-        return false;
-    }
-
-    if(mEnvelope.tx.submitTime < app.getLedgerGateway().getCloseTime()+60*5)
-    {
-        mResult.body.code(txSUBMITTED_TOO_LATE);
-        return false;
-    }
-
-    // don't flood txs that were already applied in this window
-    if(app.getLedgerGateway().hasTxBeenApplied(getFullHash()))
-    {
-        mResult.body.code(txALREADY);
+        mResult.body.code(txBAD_SEQ);
         return false;
     }
 

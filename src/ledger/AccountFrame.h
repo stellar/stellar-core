@@ -42,6 +42,8 @@ namespace stellar
         uint32_t getMidThreshold();
         uint32_t getLowThreshold();
         xdr::xvector<Signer> &getSigners();
+        uint32_t getSeq(uint32_t slot, Database& db);
+        uint32_t getMaxSeqSlot(Database& db);
 
         AccountEntry &getAccount() { return mAccountEntry; }
 
@@ -61,6 +63,7 @@ namespace stellar
         static const char *kSQLCreateStatement1;
         static const char *kSQLCreateStatement2;
         static const char *kSQLCreateStatement3;
+        static const char *kSQLCreateStatement4;
 	};
 }
 

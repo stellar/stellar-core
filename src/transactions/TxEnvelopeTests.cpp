@@ -27,7 +27,10 @@ typedef std::unique_ptr<Application> appPtr;
   Things like:
     authz/authn
     double spend
+
+// TODO.2 test making slots and trying to make a tx on an unknown slot
 */
+
 TEST_CASE("txenvelope", "[tx][envelope]")
 {
     LOG(INFO) << "************ Starting envelope test";
@@ -134,11 +137,11 @@ TEST_CASE("txenvelope", "[tx][envelope]")
     {
         TxSetFramePtr txSet = std::make_shared<TxSetFrame>();
 
-        TransactionFramePtr txFrame = createPaymentTx(root, a1, 10010, paymentAmount);
+        TransactionFramePtr txFrame = createPaymentTx(root, a1, 1, paymentAmount);
         txSet->add(txFrame);
 
         // close this ledger
-        app.getLedgerMaster().closeLedger(txSet,10000,10);
+        app.getLedgerMaster().closeLedger(txSet,1,10);
 
         REQUIRE(app.getLedgerGateway().getLedgerNum() == 3);
 
@@ -159,25 +162,16 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
                 txFrame->apply(delta, app);
 
-                REQUIRE(txFrame->getResultCode() == txALREADY);
+                REQUIRE(txFrame->getResultCode() == txBAD_SEQ);
             }
-            
-            SECTION("in future")
+
+            SECTION("transaction gap")
             {
-                txFrame = createPaymentTx(root, a1, 30000, paymentAmount);
+                txFrame = createPaymentTx(root, a1, 3, paymentAmount);
 
                 txFrame->apply(delta, app);
 
-                REQUIRE(txFrame->getResultCode() == txSUBMITTED_TOO_EARLY);
-            }
-
-            SECTION("in past")
-            {
-                txFrame = createPaymentTx(root, a1, 200, paymentAmount);
-
-                txFrame->apply(delta, app);
-
-                REQUIRE(txFrame->getResultCode() == txSUBMITTED_TOO_LATE);
+                REQUIRE(txFrame->getResultCode() == txBAD_SEQ);
             }
 
             
