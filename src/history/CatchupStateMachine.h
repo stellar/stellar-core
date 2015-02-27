@@ -6,6 +6,7 @@
 
 #include "util/Timer.h"
 #include "history/HistoryArchive.h"
+#include "clf/Bucket.h"
 
 #include <map>
 #include <memory>
@@ -93,6 +94,7 @@ CatchupStateMachine
     HistoryArchiveState mLocalState;
     HistoryArchiveState mArchiveState;
     std::map<std::string, FileCatchupState> mFileStates;
+    std::map<std::string, std::shared_ptr<Bucket>> mBuckets;
 
     std::shared_ptr<HistoryArchive> selectRandomReadableHistoryArchive();
     void fileStateChange(asio::error_code const& ec,

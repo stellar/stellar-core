@@ -149,29 +149,43 @@ CatchupStateMachine::enterFetchingState()
     for (auto& f : mFileStates)
     {
         std::string hashname = f.first;
+        uint256 hash = hexToBin256(hashname);
         std::string basename = HistoryMaster::bucketBasename(hashname);
         std::string filename = hm.localFilename(basename);
 
         std::string basename_gz = basename + ".gz";
         std::string filename_gz = filename + ".gz";
 
-        minimumState = std::min(f.second, minimumState);
         switch (f.second)
         {
         case FILE_CATCHUP_FAILED:
             break;
 
         case FILE_CATCHUP_NEEDED:
-            f.second = FILE_CATCHUP_DOWNLOADING;
-            CLOG(INFO, "History") << "Downloading " << basename_gz;
-            hm.getFile(
-                mArchive,
-                basename_gz, filename_gz,
-                [this, hashname](asio::error_code const& ec)
-                {
-                    this->fileStateChange(ec, hashname, FILE_CATCHUP_DOWNLOADED);
-                });
-            break;
+        {
+            auto b = mApp.getCLFMaster().getBucketByHash(hash);
+            if (b)
+            {
+                // If for some reason this bucket exists and is live in the CLF,
+                // just grab a copy of it.
+                CLOG(INFO, "History") << "Existing bucket found in CLF: " << basename;
+                mBuckets[hashname] = b;
+                f.second = FILE_CATCHUP_VERIFIED;
+            }
+            else
+            {
+                f.second = FILE_CATCHUP_DOWNLOADING;
+                CLOG(INFO, "History") << "Downloading " << basename_gz;
+                hm.getFile(
+                    mArchive,
+                    basename_gz, filename_gz,
+                    [this, hashname](asio::error_code const& ec)
+                    {
+                        this->fileStateChange(ec, hashname, FILE_CATCHUP_DOWNLOADED);
+                    });
+            }
+        }
+        break;
 
         case FILE_CATCHUP_DOWNLOADING:
             break;
@@ -203,9 +217,14 @@ CatchupStateMachine::enterFetchingState()
             CLOG(INFO, "History") << "Verifying " << basename;
             hm.verifyHash(
                 filename,
-                hexToBin256(hashname),
-                [this, hashname](asio::error_code const& ec)
+                hash,
+                [this, filename, hashname, hash](asio::error_code const& ec)
                 {
+                    if (!ec)
+                    {
+                        auto b = this->mApp.getCLFMaster().adoptFileAsBucket(filename, hash);
+                        this->mBuckets[hashname] = b;
+                    }
                     this->fileStateChange(ec, hashname, FILE_CATCHUP_VERIFIED);
                 });
             break;
@@ -216,6 +235,8 @@ CatchupStateMachine::enterFetchingState()
         case FILE_CATCHUP_VERIFIED:
             break;
         }
+
+        minimumState = std::min(f.second, minimumState);
     }
 
     if (minimumState == FILE_CATCHUP_FAILED)
@@ -316,7 +337,6 @@ void CatchupStateMachine::enterApplyingState()
 {
     assert(mState == CATCHUP_FETCHING);
     mState = CATCHUP_APPLYING;
-    auto& hm = mApp.getHistoryMaster();
     auto& db = mApp.getDatabase();
     CLFEntry entry;
     auto& sess = db.getSession();
@@ -326,48 +346,50 @@ void CatchupStateMachine::enterApplyingState()
     auto& bl = mApp.getCLFMaster().getBucketList();
 
     auto n = BucketList::kNumLevels;
+    bool applying = false;
 
-    // Apply in reverse order, oldest bucket to new.
+    // Apply in reverse order, oldest bucket to new. Once we
+    // apply one bucket, apply all buckets newer as well.
     for (auto i = mArchiveState.currentBuckets.rbegin();
          i != mArchiveState.currentBuckets.rend(); i++)
     {
         --n;
-        BucketLevel const& existingLevel = bl.getLevel(n);
-        std::vector<std::string> toApply;
-        if (i->curr != binToHex(existingLevel.getCurr()->getHash()))
+        BucketLevel& existingLevel = bl.getLevel(n);
+
+        if (applying ||
+            i->snap != binToHex(existingLevel.getSnap()->getHash()))
         {
-            toApply.push_back(i->curr);
-        }
-        if (i->curr != binToHex(existingLevel.getSnap()->getHash()))
-        {
-            toApply.push_back(i->snap);
-        }
-        for (auto const& h : toApply)
-        {
-            if (h.find_first_not_of('0') == std::string::npos)
+            std::shared_ptr<Bucket> b;
+            if (i->snap.find_first_not_of('0') == std::string::npos)
             {
-                continue;
+                b = std::make_shared<Bucket>();
             }
-            CLOG(INFO, "History")
-                << "applying entries in bucket " << h;
-            assert(mFileStates[h] == FILE_CATCHUP_VERIFIED);
-            std::string basename = HistoryMaster::bucketBasename(h);
-            std::string filename = hm.localFilename(basename);
-            XDRInputFileStream in;
-            in.open(filename);
-            while (in)
+            else
             {
-                in.readOne(entry);
-                if (entry.type() == LIVEENTRY)
-                {
-                    EntryFrame::pointer ep = EntryFrame::FromXDR(entry.liveEntry());
-                    ep->storeAddOrChange(delta, db);
-                }
-                else
-                {
-                    EntryFrame::storeDelete(delta, db, entry.deadEntry());
-                }
+                b = mBuckets[i->snap];
             }
+            assert(b);
+            b->apply(db);
+            existingLevel.setSnap(b);
+            applying = true;
+        }
+
+        if (applying ||
+            i->curr != binToHex(existingLevel.getCurr()->getHash()))
+        {
+            std::shared_ptr<Bucket> b;
+            if (i->curr.find_first_not_of('0') == std::string::npos)
+            {
+                b = std::make_shared<Bucket>();
+            }
+            else
+            {
+                b = mBuckets[i->curr];
+            }
+            assert(b);
+            b->apply(db);
+            existingLevel.setCurr(b);
+            applying = true;
         }
     }
     enterEndState();

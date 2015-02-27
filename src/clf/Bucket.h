@@ -22,6 +22,7 @@ namespace stellar
  */
 
 class CLFMaster;
+class Database;
 
 class Bucket : public std::enable_shared_from_this<Bucket>
 {
@@ -44,6 +45,8 @@ class Bucket : public std::enable_shared_from_this<Bucket>
 
     bool containsCLFIdentity(CLFEntry const& id) const;
     std::pair<size_t, size_t> countLiveAndDeadEntries() const;
+
+    void apply(Database& db) const;
 
     static std::shared_ptr<Bucket>
     fresh(CLFMaster& clfMaster,

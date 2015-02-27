@@ -54,10 +54,46 @@ public:
 
 };
 
-
 HistoryMaster::HistoryMaster(Application& app)
     : mImpl(make_unique<Impl>(app))
 {
+}
+
+bool
+HistoryMaster::initializeHistoryArchive(Application& app, std::string arch)
+{
+    auto const& cfg = app.getConfig();
+    auto i = cfg.HISTORY.find(arch);
+    if (i == cfg.HISTORY.end())
+    {
+        CLOG(WARNING, "History") << "Can't initialize unknown history archive '" << arch << "'";
+        return false;
+    }
+    HistoryArchiveState has;
+    CLOG(INFO, "History") << "Initializing history archive '" << arch << "'";
+    bool ok = true;
+    bool done = false;
+    i->second->putState(
+        app, has,
+        [arch, &done, &ok](asio::error_code const& ec)
+        {
+            if (ec)
+            {
+                ok = false;
+                CLOG(WARNING, "History") << "Failed to initialize history archive '" << arch << "'";
+            }
+            else
+            {
+                CLOG(INFO, "History") << "Initialized history archive '" << arch << "'";
+            }
+            done = true;
+        });
+
+    while (!done && !app.getMainIOService().stopped())
+    {
+        app.crank();
+    }
+    return ok;
 }
 
 HistoryMaster::~HistoryMaster()

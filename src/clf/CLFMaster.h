@@ -52,6 +52,9 @@ class CLFMaster
                                               size_t nBytes = 0);
 
 
+    // Return a bucket by hash if we have it, else return nullptr.
+    std::shared_ptr<Bucket> getBucketByHash(uint256 const& hash) const;
+
     // Forget any buckets not referenced by the current BucketList. This
     // will not immediately cause the buckets to delete themselves, if
     // someone else is using them via a shared_ptr<>, but the CLF will no

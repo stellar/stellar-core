@@ -172,6 +172,20 @@ CLFMaster::adoptFileAsBucket(std::string const& filename,
     return mImpl->mSharedBuckets[basename];
 }
 
+std::shared_ptr<Bucket>
+CLFMaster::getBucketByHash(uint256 const& hash) const
+{
+    std::lock_guard<std::mutex> lock(mImpl->mBucketMutex);
+    std::string basename = HistoryMaster::bucketBasename(binToHex(hash));
+    auto i = mImpl->mSharedBuckets.find(basename);
+    if (i != mImpl->mSharedBuckets.end())
+    {
+        return i->second;
+    }
+    return std::shared_ptr<Bucket>();
+}
+
+
 void
 CLFMaster::forgetUnreferencedBuckets()
 {

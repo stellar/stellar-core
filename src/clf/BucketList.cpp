@@ -51,6 +51,18 @@ BucketLevel::getSnap() const
 }
 
 void
+BucketLevel::setCurr(std::shared_ptr<Bucket> b)
+{
+    mCurr = b;
+}
+
+void
+BucketLevel::setSnap(std::shared_ptr<Bucket> b)
+{
+    mSnap = b;
+}
+
+void
 BucketLevel::commit()
 {
     if (mNextCurr.valid())
@@ -190,8 +202,8 @@ BucketList::numLevels() const
     return kNumLevels;
 }
 
-BucketLevel const&
-BucketList::getLevel(size_t i) const
+BucketLevel&
+BucketList::getLevel(size_t i)
 {
     return mLevels.at(i);
 }

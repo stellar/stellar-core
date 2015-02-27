@@ -241,6 +241,8 @@ class BucketLevel
     uint256 getHash() const;
     std::shared_ptr<Bucket> getCurr() const;
     std::shared_ptr<Bucket> getSnap() const;
+    void setCurr(std::shared_ptr<Bucket>);
+    void setSnap(std::shared_ptr<Bucket>);
     void commit();
     void prepare(Application& app, uint64_t currLedger,
                  std::shared_ptr<Bucket> snap,
@@ -267,7 +269,7 @@ class BucketList
     // minimal, testable interface to BucketList.
     BucketList();
     size_t numLevels() const;
-    BucketLevel const& getLevel(size_t i) const;
+    BucketLevel& getLevel(size_t i);
     uint256 getHash() const;
     void addBatch(Application& app, uint64_t currLedger,
                   std::vector<LedgerEntry> const& liveEntries,

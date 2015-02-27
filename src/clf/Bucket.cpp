@@ -18,6 +18,9 @@
 #include "util/TmpDir.h"
 #include "util/XDRStream.h"
 #include "xdrpp/message.h"
+#include "database/Database.h"
+#include "ledger/EntryFrame.h"
+#include "ledger/LedgerDelta.h"
 
 #include <cassert>
 #include <future>
@@ -246,6 +249,30 @@ Bucket::countLiveAndDeadEntries() const
     }
     return std::make_pair(live, dead);
 }
+
+
+void
+Bucket::apply(Database& db) const
+{
+    CLFEntry entry;
+    LedgerDelta delta;
+    XDRInputFileStream in;
+    in.open(getFilename());
+    while (in)
+    {
+        in.readOne(entry);
+        if (entry.type() == LIVEENTRY)
+        {
+            EntryFrame::pointer ep = EntryFrame::FromXDR(entry.liveEntry());
+            ep->storeAddOrChange(delta, db);
+        }
+        else
+        {
+            EntryFrame::storeDelete(delta, db, entry.deadEntry());
+        }
+    }
+}
+
 
 std::shared_ptr<Bucket>
 Bucket::fresh(CLFMaster& clfMaster,
