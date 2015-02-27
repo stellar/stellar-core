@@ -36,6 +36,7 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
     , mMainIOService()
     , mWorkerIOService(std::thread::hardware_concurrency())
     , mWork(make_unique<asio::io_service::work>(mWorkerIOService))
+    , mWorkerThreads()
     , mStopSignals(mMainIOService, SIGINT)
     , mRealTimerCancelCallbacks(0)
 {
@@ -55,13 +56,6 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
             << ", shutting down";
         this->gracefulStop();
     });
-    while(t--)
-    {
-        mWorkerThreads.emplace_back([this, t]()
-        {
-            this->runWorkerThread(t);
-        });
-    }
 
     // These must be constructed _after_ because they frequently call back
     // into App.getFoo() to get information / start up.
@@ -75,6 +69,14 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
     mProcessMaster = make_unique<ProcessMaster>(*this);
     mCommandHandler = make_unique<CommandHandler>(*this);
     mDatabase = make_unique<Database>(*this);
+
+    while(t--)
+    {
+        mWorkerThreads.emplace_back([this, t]()
+        {
+            this->runWorkerThread(t);
+        });
+    }
 
     LOG(INFO) << "Application constructed";
 
