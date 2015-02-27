@@ -10,6 +10,7 @@
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
 #include "crypto/SecretKey.h"
+#include "crypto/Random.h"
 #include <autocheck/autocheck.hpp>
 #include <sodium.h>
 #include <map>
@@ -258,4 +259,57 @@ TEST_CASE("sign tests", "[crypto]")
     LOG(DEBUG) << "checking verify-failure on bad signature";
     sig[4] ^= 1;
     CHECK(!pk.verify(sig, msg));
+}
+
+struct
+SignVerifyTestcase
+{
+    SecretKey key;
+    PublicKey pub;
+    std::vector<uint8_t> msg;
+    uint512 sig;
+    void sign()
+    {
+        sig = key.sign(msg);
+    }
+    void verify()
+    {
+        CHECK(pub.verify(sig, msg));
+    }
+    static SignVerifyTestcase create()
+    {
+        SignVerifyTestcase st;
+        st.key = SecretKey::random();
+        st.pub = st.key.getPublicKey();
+        st.msg = randomBytes(256);
+        return st;
+    }
+};
+
+TEST_CASE("sign and verify benchmarking", "[crypto-bench][bench][hide]")
+{
+    size_t n = 100000;
+    std::vector<SignVerifyTestcase> cases;
+    for (size_t i = 0; i < n; ++i)
+    {
+        cases.push_back(SignVerifyTestcase::create());
+    }
+
+    LOG(INFO) << "Benchmarking " << n << " signatures and verifications";
+    {
+        TIMED_SCOPE(timerBlkObj, "signing");
+        for (auto& c : cases)
+        {
+            c.sign();
+        }
+    }
+
+    {
+        TIMED_SCOPE(timerBlkObj, "verifying");
+        for (auto& c : cases)
+        {
+            c.verify();
+        }
+    }
+
 }
