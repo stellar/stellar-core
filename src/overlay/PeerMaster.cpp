@@ -196,9 +196,8 @@ PeerMaster::isPeerAccepted(Peer::pointer peer)
 
 bool PeerMaster::isPeerPreferred(Peer::pointer peer)
 {
-    PeerRecord pr;
-    PeerRecord::loadPeerRecord(mApp.getDatabase(), peer->getIP(), peer->getRemoteListeningPort(), pr);
-    return pr.mRank > 9;
+    auto pr = PeerRecord::loadPeerRecord(mApp.getDatabase(), peer->getIP(), peer->getRemoteListeningPort());
+    return pr->mRank > 9;
 }
 
 Peer::pointer

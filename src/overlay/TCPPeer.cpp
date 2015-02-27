@@ -228,9 +228,9 @@ TCPPeer::recvHello(StellarMessage const& msg)
    
     if(mRole==INITIATOR)
     {  
-        PeerRecord pr;
-        if (!PeerRecord::loadPeerRecord(mApp.getDatabase(), getIP(), getRemoteListeningPort(),  pr))
+        if (!PeerRecord::loadPeerRecord(mApp.getDatabase(), getIP(), getRemoteListeningPort()))
         {
+            PeerRecord pr;
             PeerRecord::fromIPPort(getIP(), getRemoteListeningPort(), mApp.getClock(), pr);
             pr.storePeerRecord(mApp.getDatabase());
         }
@@ -246,14 +246,15 @@ TCPPeer::recvHello(StellarMessage const& msg)
     } else
     { // we called this guy
         // only lower numFailures if we were successful connecting out to him
-        PeerRecord pr;
-        if (!PeerRecord::loadPeerRecord(mApp.getDatabase(), getIP(), getRemoteListeningPort(), pr))
+        auto pr = PeerRecord::loadPeerRecord(mApp.getDatabase(), getIP(), getRemoteListeningPort());
+        if (!pr)
         {
-            PeerRecord::fromIPPort(getIP() + ":" + to_string(getRemoteListeningPort()), DEFAULT_PEER_PORT, mApp.getClock(), pr);
+            pr = make_optional<PeerRecord>();
+            PeerRecord::fromIPPort(getIP(), getRemoteListeningPort(), mApp.getClock(), *pr);
         }
-        pr.mNumFailures = 0;
-        pr.mNextAttempt = mApp.getClock().now();
-        pr.storePeerRecord(mApp.getDatabase());
+        pr->mNumFailures = 0;
+        pr->mNextAttempt = mApp.getClock().now();
+        pr->storePeerRecord(mApp.getDatabase());
     } 
 }
 

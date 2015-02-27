@@ -653,6 +653,9 @@
     <ClInclude Include="..\..\src\simulation\Topologies.h">
       <Filter>simulation</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\src\util\optional.h">
+      <Filter>util</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="..\..\docs\transactions.md">

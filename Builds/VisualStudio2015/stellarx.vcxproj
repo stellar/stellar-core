@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" ToolsVersion="14.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|x64">
@@ -354,6 +354,7 @@
     <ClInclude Include="..\..\src\util\make_unique.h" />
     <ClInclude Include="..\..\src\util\Math.h" />
     <ClInclude Include="..\..\src\util\must_use.h" />
+    <ClInclude Include="..\..\src\util\optional.h" />
     <ClInclude Include="..\..\src\util\TmpDir.h" />
     <ClInclude Include="..\..\src\util\Timer.h" />
     <ClInclude Include="..\..\src\util\types.h" />

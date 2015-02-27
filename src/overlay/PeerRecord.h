@@ -3,11 +3,12 @@
 #include "util/Timer.h"
 #include "database/Database.h"
 #include <string>
+#include "util/optional.h"
+#include "main/Config.h"
 
 namespace stellar
 {
 using namespace std;
-
 
 class PeerRecord
 {
@@ -32,10 +33,11 @@ public:
             mRank == other.mRank;
     }
 
-    static void fromIPPort(const string &ipPort, int defaultPort, VirtualClock &clock, PeerRecord &ret);
+    static void fromIPPort(const string &ip, int port, VirtualClock &clock, PeerRecord &ret);
+    static void parseIPPort(const string &ipPort, VirtualClock &clock, PeerRecord &ret, int defaultPort = DEFAULT_PEER_PORT);
 
 
-    static bool loadPeerRecord(Database &db, string ip, int port, PeerRecord &ret);
+    static optional<PeerRecord> loadPeerRecord(Database &db, string ip, int port);
     static void loadPeerRecords(Database &db, int max, VirtualClock::time_point nextAttemptCutoff, vector<PeerRecord>& retList);
 
     bool isStored(Database &db);
@@ -50,7 +52,6 @@ public:
 
 private:
     static void ipToXdr(string ip, xdr::opaque_array<4U>& ret);
-    static void parseIPPort(const std::string& peerStr, int defaultPort, std::string& retIP, int& retPort);
     static const char *kSQLCreateStatement;
 };
 

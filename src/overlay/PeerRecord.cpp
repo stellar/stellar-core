@@ -11,9 +11,8 @@
 namespace stellar
 {
 
-    using namespace std;
-    using namespace soci;
-
+using namespace std;
+using namespace soci;
 
 void PeerRecord::ipToXdr(string ip, xdr::opaque_array<4U>& ret)
 {
@@ -36,50 +35,51 @@ void PeerRecord::toXdr(PeerAddress &ret)
     ipToXdr(mIP, ret.ip);
 }
 
-void PeerRecord::fromIPPort(const string &ipPort, int defaultPort, VirtualClock &clock, PeerRecord &ret)
+void PeerRecord::fromIPPort(const string &ip, int port, VirtualClock &clock, PeerRecord &ret)
 {
-    string ip;
-    int port;
-    parseIPPort(ipPort, defaultPort, ip, port);
-    ret = PeerRecord { ip, port, clock.now(), 0, 1 };
+    ret = PeerRecord{ ip, port, clock.now(), 0, 1 };
 }
 
 // TODO: stricter verification that ip and port are valid
-void PeerRecord::parseIPPort(const std::string& peerStr, int defaultPort, std::string& retIP, int& retPort)
+void PeerRecord::parseIPPort(const string &ipPort, VirtualClock &clock, PeerRecord &ret, int defaultPort)
 {
-    std::string const innerStr(peerStr);
+    string ip;
+    int port;
+    std::string const innerStr(ipPort);
     std::string::const_iterator splitPoint =
         std::find(innerStr.begin(), innerStr.end(), ':');
     if (splitPoint == innerStr.end())
     {
-        retIP = innerStr;
-        retPort = defaultPort;
+        ip = innerStr;
+        port = defaultPort;
     }
     else
     {
-        retIP.assign(innerStr.begin(), splitPoint);
+        ip.assign(innerStr.begin(), splitPoint);
         std::string portStr;
         splitPoint++;
         portStr.assign(splitPoint, innerStr.end());
-        retPort = atoi(portStr.c_str());
-        if (!retPort) 
-            throw runtime_error("PeerRecord::perseIPPort: failed on " + peerStr);
+        port = atoi(portStr.c_str());
+        if (!port) 
+            throw runtime_error("PeerRecord::perseIPPort: failed on " + ipPort);
     }
+
+    ret = PeerRecord{ ip, port, clock.now(), 0, 1 };
 }
 
-MUST_USE
-bool PeerRecord::loadPeerRecord(Database &db, string ip, int port, PeerRecord &ret)
+optional<PeerRecord> PeerRecord::loadPeerRecord(Database &db, string ip, int port)
 {
+    auto ret = make_optional<PeerRecord>();
     auto timer = db.getSelectTimer("peer");
     tm tm;
     db.getSession() << "Select ip,port, nextAttempt, numFailures, rank FROM Peers WHERE ip = :v1 AND port = :v2",
-        into(ret.mIP), into(ret.mPort), into(tm), into(ret.mNumFailures), into(ret.mRank), use(ip), use(port);
+        into(ret->mIP), into(ret->mPort), into(tm), into(ret->mNumFailures), into(ret->mRank), use(ip), use(port);
     if (db.getSession().got_data())
     {
-        ret.mNextAttempt = VirtualClock::tmToPoint(tm);
-        return true;
+        ret->mNextAttempt = VirtualClock::tmToPoint(tm);
+        return ret;
     } else
-        return false;
+        return nullopt<PeerRecord>();
 }
 
 void PeerRecord::loadPeerRecords(Database &db, int max, VirtualClock::time_point nextAttemptCutoff, vector<PeerRecord>& retList)
@@ -108,8 +108,7 @@ void PeerRecord::loadPeerRecords(Database &db, int max, VirtualClock::time_point
 
 bool PeerRecord::isStored(Database &db)
 {
-    PeerRecord pr;
-    return loadPeerRecord(db, mIP, mPort, pr);
+    return loadPeerRecord(db, mIP, mPort) != nullopt<PeerRecord>();
 }
 
 void PeerRecord::storePeerRecord(Database& db)
