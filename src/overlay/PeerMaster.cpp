@@ -133,7 +133,7 @@ PeerMaster::connectToMorePeers(int max)
 void
 PeerMaster::tick()
 {
-    LOG(DEBUG) << "PeerMaster tick";
+    LOG(DEBUG) << "PeerMaster tick @" << mApp.getConfig().PEER_PORT;
     if (mPeers.size() < mApp.getConfig().TARGET_PEER_CONNECTIONS)
     {
         connectToMorePeers(static_cast<int>(mApp.getConfig().TARGET_PEER_CONNECTIONS - mPeers.size()));

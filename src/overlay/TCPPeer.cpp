@@ -127,9 +127,9 @@ TCPPeer::writeHandler(const asio::error_code& error,
 void
 TCPPeer::startRead()
 {
-    // LOG(DEBUG) << "TCPPeer::startRead"
-    //     << "@" << mApp.getConfig().PEER_PORT
-    //     << " to " << mSocket->remote_endpoint().port();
+     LOG(DEBUG) << "TCPPeer::startRead"
+         << "@" << mApp.getConfig().PEER_PORT
+         << " to " << mSocket->remote_endpoint().port();
 
     auto self = shared_from_this();
     asio::async_read(*(mSocket.get()), asio::buffer(mIncomingHeader),
