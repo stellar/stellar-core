@@ -173,7 +173,6 @@
     <ClCompile Include="..\..\src\ledger\LedgerMaster.cpp" />
     <ClCompile Include="..\..\src\ledger\LedgerTests.cpp" />
     <ClCompile Include="..\..\src\ledger\OfferFrame.cpp" />
-    <ClCompile Include="..\..\src\ledger\RecentFilter.cpp" />
     <ClCompile Include="..\..\src\ledger\TrustFrame.cpp" />
     <ClCompile Include="..\..\src\lib\asio\src\asio.cpp" />
     <ClCompile Include="..\..\src\lib\http\connection.cpp" />
@@ -306,7 +305,6 @@
     <ClInclude Include="..\..\src\ledger\LedgerHeaderFrame.h" />
     <ClInclude Include="..\..\src\ledger\LedgerMaster.h" />
     <ClInclude Include="..\..\src\ledger\OfferFrame.h" />
-    <ClInclude Include="..\..\src\ledger\RecentFilter.h" />
     <ClInclude Include="..\..\src\ledger\TrustFrame.h" />
     <ClInclude Include="..\..\src\lib\http\connection.hpp" />
     <ClInclude Include="..\..\src\lib\http\connection_manager.hpp" />

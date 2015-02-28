@@ -110,7 +110,7 @@ bool TransactionFrame::preApply(LedgerDelta& delta,LedgerMaster& ledgerMaster)
         mSigningAccount->storeChange(delta, db);
         return false;
     }
-
+    mSigningAccount->setSeqSlot(mEnvelope.tx.seqSlot, mEnvelope.tx.seqNum);
     mSigningAccount->getAccount().balance -= fee;
     mResult.feeCharged = fee;
     ledgerMaster.getCurrentLedgerHeader().feePool += fee;
@@ -249,8 +249,7 @@ bool TransactionFrame::checkValid(Application& app)
         return false;
     }
 
-    // don't flood any tx not in the correct submit window
-    if(mSigningAccount->getSeq(mEnvelope.tx.seqSlot,app.getDatabase())<mEnvelope.tx.seqNum)
+    if(mSigningAccount->getSeq(mEnvelope.tx.seqSlot,app.getDatabase())>=mEnvelope.tx.seqNum)
     {
         mResult.body.code(txBAD_SEQ);
         return false;

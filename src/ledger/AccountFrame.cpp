@@ -180,15 +180,20 @@ bool AccountFrame::loadAccount(const uint256& accountID, AccountFrame& retAcc,
 
 uint32_t AccountFrame::getSeq(uint32_t slot,Database& db)
 {
-    std::string base58ID = toBase58Check(VER_ACCOUNT_ID, getID());
+    auto i = mUpdatedSeqNums.find(slot);
+    if(i == mUpdatedSeqNums.end())
+    { // seq num not changed
+        std::string base58ID = toBase58Check(VER_ACCOUNT_ID, getID());
 
-    soci::session &session = db.getSession();
-    uint32_t retNum = 0;
-  
-    session << "SELECT seqNum from SeqSlots where accountID=:v1",
-        into(retNum);
+        soci::session &session = db.getSession();
+        uint32_t retNum = 0;
 
-    return retNum;
+        session << "SELECT seqNum from SeqSlots where accountID=:v1",
+            into(retNum);
+
+        return retNum;
+    }return mUpdatedSeqNums[slot];
+   
 }
 
 uint32_t AccountFrame::getMaxSeqSlot(Database& db)
@@ -202,6 +207,11 @@ uint32_t AccountFrame::getMaxSeqSlot(Database& db)
         into(retNum);
 
     return retNum;
+}
+
+void AccountFrame::setSeqSlot(uint32_t slot, uint32_t seq)
+{
+    mUpdatedSeqNums[slot] = seq;
 }
 
 bool AccountFrame::exists(Database& db, LedgerKey const& key)
@@ -244,6 +254,11 @@ void AccountFrame::storeDelete(LedgerDelta& delta, Database& db, LedgerKey const
         session <<
             "DELETE from Signers where accountID= :v1", soci::use(base58ID);
     }
+    {
+        auto timer = db.getDeleteTimer("slot");
+        session <<
+            "DELETE from SeqSlots where accountID= :v1", soci::use(base58ID);
+    }
     delta.deleteEntry(key);
 }
 
@@ -259,6 +274,13 @@ void AccountFrame::storeUpdate(LedgerDelta &delta, Database &db, bool insert)
         sql << "INSERT INTO Accounts ( accountID, balance,   \
             numSubEntries, inflationDest, thresholds, flags) \
             VALUES ( :id, :v1, :v2, :v3, :v4, :v5 )";
+
+        {
+            auto timer = db.getInsertTimer("slot");
+            db.getSession() << "INSERT into SeqSlots (accountID,seqSlot,seqNum) values (:v1,0,0)",
+                use(base58ID);
+        }
+
     }
     else
     {
@@ -304,6 +326,18 @@ void AccountFrame::storeUpdate(LedgerDelta &delta, Database &db, bool insert)
         else
         {
             delta.modEntry(*this);
+        }
+    }
+
+    if(mUpdatedSeqNums.size())
+    {
+        for(auto slot : mUpdatedSeqNums)
+        {
+            {
+                auto timer = db.getUpdateTimer("slot");
+                db.getSession() << "UPDATE SeqSlots set seqNum=:v1 where accountID=:v2 and seqSlot=:v3",
+                    use(slot.first), use(base58ID), use(slot.second);
+            }
         }
     }
 

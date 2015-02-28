@@ -396,9 +396,6 @@
     <ClCompile Include="..\..\src\main\Application.cpp">
       <Filter>main</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\ledger\RecentFilter.cpp">
-      <Filter>ledger</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\simulation\Topologies.cpp">
       <Filter>simulation</Filter>
     </ClCompile>
@@ -652,9 +649,6 @@
     </ClInclude>
     <ClInclude Include="..\..\src\main\ApplicationImpl.h">
       <Filter>main</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\ledger\RecentFilter.h">
-      <Filter>ledger</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\simulation\Topologies.h">
       <Filter>simulation</Filter>
