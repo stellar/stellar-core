@@ -203,7 +203,7 @@ uint32_t AccountFrame::getMaxSeqSlot(Database& db)
     soci::session &session = db.getSession();
     uint32_t retNum = 0;
 
-    session << "SELECT max(seqNum) from SeqSlots where accountID=:v1",
+    session << "SELECT max(seqSlot) from SeqSlots where accountID=:v1",
         into(retNum);
 
     return retNum;

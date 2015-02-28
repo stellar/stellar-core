@@ -13,13 +13,15 @@
 using namespace std;
 using namespace soci;
 
+// TODO.1 work out code for grabbing an ID from the id pool
+
 namespace stellar
 {
     const char *OfferFrame::kSQLCreateStatement = 
         "CREATE TABLE IF NOT EXISTS Offers                   \
          (                                                   \
          accountID       VARCHAR(51)  NOT NULL,              \
-         offerID         INT          NOT NULL               \
+         offerID         BIGINT       NOT NULL               \
                                       CHECK (offerID >= 0),  \
          paysIsoCurrency VARCHAR(4)   NOT NULL,              \
          paysIssuer      VARCHAR(51)  NOT NULL,              \

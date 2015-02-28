@@ -33,7 +33,7 @@ struct AccountEntry
     uint256 *inflationDest;
     opaque thresholds[4]; // weight of master/threshold1/threshold2/threshold3
     Signer signers<>; // do we want some max or just increase the min balance
-	uint32 seqSlots<>;
+    uint32 seqSlots<>;
     KeyValue data<>;
 
     uint32 flags; // require dt, require auth,

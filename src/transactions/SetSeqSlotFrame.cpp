@@ -2,6 +2,7 @@
 #include "crypto/Base58.h"
 #include "database/Database.h"
 
+// TODO.1 check for minBalance
 
 namespace stellar
 {

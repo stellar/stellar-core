@@ -174,7 +174,25 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                 REQUIRE(txFrame->getResultCode() == txBAD_SEQ);
             }
 
+            SECTION("min ledger seq")
+            {
+                txFrame = createPaymentTx(root, a1, 1, paymentAmount);
+                txFrame->getEnvelope().tx.minLedger = 4;
+                
+                txFrame->apply(delta, app);
+                
+                REQUIRE(txFrame->getResultCode() == txBAD_LEDGER);
+            }
             
+            SECTION("max ledger seq")
+            {
+                txFrame = createPaymentTx(root, a1, 1, paymentAmount);
+                txFrame->getEnvelope().tx.maxLedger = 2;
+                
+                txFrame->apply(delta, app);
+                
+                REQUIRE(txFrame->getResultCode() == txBAD_LEDGER);
+            }
         }
     }
 

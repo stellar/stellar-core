@@ -11,7 +11,7 @@ enum TransactionType
     CHANGE_TRUST,
     ALLOW_TRUST,
     ACCOUNT_MERGE,
-	SET_SEQ_SLOT,
+    SET_SEQ_SLOT,
     INFLATION
 };
 
@@ -40,8 +40,8 @@ struct CreateOfferTx
 
 struct SetSeqSlotTx
 {
-	int32 slotIndex;
-	int32 slotValue;
+    uint32 slotIndex;
+    uint32 slotValue;
 };
 
 struct SetOptionsTx
@@ -351,7 +351,6 @@ enum TransactionResultCode
     txINTERNAL_ERROR,
     txBAD_AUTH,
     txBAD_SEQ,
-	txALREADY,
     txBAD_LEDGER,
     txNO_FEE,
     txNO_ACCOUNT,

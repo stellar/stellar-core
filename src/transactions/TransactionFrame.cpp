@@ -243,6 +243,17 @@ bool TransactionFrame::checkValid(Application& app)
         return false;
     }
 
+    if(mEnvelope.tx.maxLedger < app.getLedgerGateway().getLedgerNum())
+    {
+        mResult.body.code(txBAD_LEDGER);
+        return false;
+    }
+    if(mEnvelope.tx.minLedger > app.getLedgerGateway().getLedgerNum())
+    {
+        mResult.body.code(txBAD_LEDGER);
+        return false;
+    }
+
     if (!loadAccount(app))
     {
         mResult.body.code(txNO_ACCOUNT);

@@ -399,6 +399,9 @@
     <ClCompile Include="..\..\src\simulation\Topologies.cpp">
       <Filter>simulation</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\transactions\SetSeqSlotFrame.cpp">
+      <Filter>transactions</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\ledger\LedgerGateway.h">
@@ -652,6 +655,9 @@
     </ClInclude>
     <ClInclude Include="..\..\src\simulation\Topologies.h">
       <Filter>simulation</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\transactions\SetSeqSlotFrame.h">
+      <Filter>transactions</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
