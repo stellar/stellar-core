@@ -112,7 +112,6 @@ bool TransactionFrame::preApply(LedgerDelta& delta,LedgerMaster& ledgerMaster)
     }
 
     mSigningAccount->getAccount().balance -= fee;
-    mSigningAccount->getAccount().sequence += 1;
     mResult.feeCharged = fee;
     ledgerMaster.getCurrentLedgerHeader().feePool += fee;
 
@@ -129,14 +128,6 @@ bool TransactionFrame::apply(LedgerDelta& delta, Application& app)
 
     if(checkValid(app))
     {
-        // this can't be done in checkValid since we should still flood txs 
-        // where seq != envelope.seq
-        if(mSigningAccount->getAccount().sequence != mEnvelope.tx.seqNum)
-        {
-            mResult.body.code(txBAD_SEQ);
-            return true;  // needs to return true since it will still claim a fee
-        }
-
         res = true;
 
         LedgerMaster &lm = app.getLedgerMaster();
@@ -251,16 +242,6 @@ bool TransactionFrame::checkValid(Application& app)
         mResult.body.code(txINSUFFICIENT_FEE);
         return false;
     }
-    if (mEnvelope.tx.maxLedger < app.getLedgerGateway().getLedgerNum())
-    {
-        mResult.body.code(txBAD_LEDGER);
-        return false;
-    }
-    if (mEnvelope.tx.minLedger > app.getLedgerGateway().getLedgerNum())
-    {
-        mResult.body.code(txBAD_LEDGER);
-        return false;
-    }
 
     if (!loadAccount(app))
     {
@@ -268,10 +249,23 @@ bool TransactionFrame::checkValid(Application& app)
         return false;
     }
 
-    // don't flood any tx with a too old seq num
-    if(mEnvelope.tx.seqNum < mSigningAccount->getSeqNum())
+    // don't flood any tx not in the correct submit window
+    if(mEnvelope.tx.submitTime > app.getLedgerGateway().getCloseTime())
     {
-        mResult.body.code(txBAD_SEQ);
+        mResult.body.code(txSUBMITTED_TOO_EARLY);
+        return false;
+    }
+
+    if(mEnvelope.tx.submitTime < app.getLedgerGateway().getCloseTime()+60*5)
+    {
+        mResult.body.code(txSUBMITTED_TOO_LATE);
+        return false;
+    }
+
+    // don't flood txs that were already applied in this window
+    if(app.getLedgerGateway().hasTxBeenApplied(getFullHash()))
+    {
+        mResult.body.code(txALREADY);
         return false;
     }
 

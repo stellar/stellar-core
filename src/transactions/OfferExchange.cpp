@@ -120,7 +120,7 @@ namespace stellar
         if (offerTaken)
         {   // entire offer is taken
             sellingWheatOffer.storeDelete(mDelta, db);
-            accountB.getAccount().ownerCount--;
+            accountB.getAccount().numSubEntries--;
             accountB.storeChange(mDelta, db);
         }
         else
@@ -154,7 +154,7 @@ namespace stellar
 
         mOfferTrail.push_back(ClaimOfferAtom(
             accountB.getID(),
-            sellingWheatOffer.getSequence(),
+            sellingWheatOffer.getOfferID(),
             wheat,
             numWheatReceived
             ));

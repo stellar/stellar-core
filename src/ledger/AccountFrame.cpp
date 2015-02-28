@@ -19,10 +19,8 @@ const char *AccountFrame::kSQLCreateStatement1 =
      (                                                        \
      accountID       VARCHAR(51)    PRIMARY KEY,              \
      balance         BIGINT         NOT NULL,                 \
-     sequence        INT            NOT NULL DEFAULT 1        \
-                                    CHECK (sequence >= 0),    \
-     ownerCount      INT            NOT NULL DEFAULT 0        \
-                                    CHECK (ownercount >= 0),  \
+     numSubEntries   INT            NOT NULL DEFAULT 0        \
+                                    CHECK (numSubEntries >= 0),  \
      inflationDest   VARCHAR(51),                             \
      thresholds      TEXT,                                    \
      flags           INT            NOT NULL                  \
@@ -47,7 +45,6 @@ const char *AccountFrame::kSQLCreateStatement3 =
 
 AccountFrame::AccountFrame() : EntryFrame(ACCOUNT), mAccountEntry(mEntry.account())
 {
-    mAccountEntry.sequence = 1;
     mAccountEntry.thresholds[0] = 1; // by default, master key's weight is 1
     mUpdateSigners = false;
 }
@@ -71,10 +68,6 @@ bool AccountFrame::isAuthRequired()
     return(mAccountEntry.flags & AUTH_REQUIRED_FLAG);
 }
 
-uint32_t AccountFrame::getSeqNum()
-{
-    return(mAccountEntry.sequence);
-}
 
 int64_t AccountFrame::getBalance()
 {
@@ -120,13 +113,14 @@ bool AccountFrame::loadAccount(const uint256& accountID, AccountFrame& retAcc,
     AccountEntry& account = retAcc.getAccount();
     {
         auto timer = db.getSelectTimer("account");
-        session << "SELECT balance,sequence,ownerCount, \
-        inflationDest, thresholds,  flags from Accounts where accountID=:v1",
-            into(account.balance), into(account.sequence), into(account.ownerCount),
+        session << "SELECT balance,numSubEntries, \
+            inflationDest, thresholds,  flags from Accounts where accountID=:v1",
+            into(account.balance), into(account.numSubEntries),
             into(inflationDest, inflationDestInd),
             into(thresholds, thresholdsInd), into(account.flags),
             use(base58ID);
     }
+
 
     if (!session.got_data())
         return false;
@@ -224,15 +218,15 @@ void AccountFrame::storeUpdate(LedgerDelta &delta, Database &db, bool insert)
 
     if (insert)
     {
-        sql << "INSERT INTO Accounts ( accountID, balance, sequence,    \
-            ownerCount, inflationDest, thresholds, flags) \
-            VALUES ( :id, :v1, :v2, :v3, :v4, :v5, :v6 )";
+        sql << "INSERT INTO Accounts ( accountID, balance,   \
+            numSubEntries, inflationDest, thresholds, flags) \
+            VALUES ( :id, :v1, :v2, :v3, :v4, :v5 )";
     }
     else
     {
-        sql << "UPDATE Accounts SET balance = :v1, sequence = :v2, ownerCount = :v3, \
-                inflationDest = :v4, thresholds = :v5, \
-                flags = :v6 WHERE accountID = :id";
+        sql << "UPDATE Accounts SET balance = :v1, numSubEntries = :v2, \
+                inflationDest = :v3, thresholds = :v4, \
+                flags = :v5 WHERE accountID = :id";
     }
 
     soci::indicator inflation_ind = soci::i_null;
@@ -251,10 +245,10 @@ void AccountFrame::storeUpdate(LedgerDelta &delta, Database &db, bool insert)
     {
         soci::statement st = (db.getSession().prepare <<
             sql.str(), use(base58ID, "id"),
-            use(finalAccount.balance, "v1"), use(finalAccount.sequence, "v2"),
-            use(finalAccount.ownerCount, "v3"),
-            use(inflationDestStr, inflation_ind, "v4"),
-            use(thresholds, "v5"), use(finalAccount.flags, "v6"));
+            use(finalAccount.balance, "v1"), 
+            use(finalAccount.numSubEntries, "v2"),
+            use(inflationDestStr, inflation_ind, "v3"),
+            use(thresholds, "v4"), use(finalAccount.flags, "v5"));
         {
             auto timer = insert ? db.getInsertTimer("account") : db.getUpdateTimer("account");
             st.execute(true);

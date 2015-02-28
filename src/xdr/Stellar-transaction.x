@@ -33,7 +33,7 @@ struct CreateOfferTx
     int64 amount;        // amount taker gets
     Price price;         // =takerPaysAmount/takerGetsAmount
 
-    uint32 sequence;     // set if you want to change an existing offer
+    uint64 offerID;		 // set if you want to change an existing offer
     uint32 flags;        // passive: only take offers that cross this. not offers that match it
 };
 
@@ -74,9 +74,7 @@ struct Transaction
 {
     AccountID account;
     int32 maxFee;
-    uint32 seqNum;
-    uint64 maxLedger;    // maximum ledger this tx is valid to be applied in
-    uint64 minLedger;    // minimum ledger this tx is valid to be applied in
+    uint64 submitTime;    // time this tx was created. Will only be applied if between submitTime and submitTime + 5 min
 
     union switch (TransactionType type)
     {
@@ -85,7 +83,7 @@ struct Transaction
         case CREATE_OFFER:
             CreateOfferTx createOfferTx;
         case CANCEL_OFFER:
-            uint32 offerSeqNum;
+            uint64 offerID;
         case SET_OPTIONS:
             SetOptionsTx setOptionsTx;
         case CHANGE_TRUST:
@@ -108,7 +106,7 @@ struct TransactionEnvelope
 struct ClaimOfferAtom
 {
     AccountID offerOwner;
-    uint32 offerSequence;
+    uint64 offerID;
     Currency currencyClaimed; // redundant but emited for clarity
     int64 amountClaimed;
     // should we also include the amount that the owner gets in return?
@@ -321,7 +319,9 @@ enum TransactionResultCode
     txINNER,
     txINTERNAL_ERROR,
     txBAD_AUTH,
-    txBAD_SEQ, // maybe PRE_SEQ, PAST_SEQ
+    txSUBMITTED_TOO_EARLY,
+	txSUBMITTED_TOO_LATE,
+	txALREADY,
     txBAD_LEDGER,
     txNO_FEE,
     txNO_ACCOUNT,

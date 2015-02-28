@@ -89,6 +89,7 @@ class Application
     virtual void enableRealTimer() = 0;
     virtual void disableRealTimer() = 0;
     virtual size_t crank(bool block=true) = 0;
+    virtual uint64_t timeNow() = 0;
 
     virtual Config const& getConfig() = 0;
 

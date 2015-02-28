@@ -29,8 +29,7 @@ struct AccountEntry
 {
     uint256 accountID;
     int64 balance;
-    uint32 sequence;
-    uint32 ownerCount;
+    uint32 numSubEntries;
     uint256 *inflationDest;
     opaque thresholds[4]; // weight of master/threshold1/threshold2/threshold3
     Signer signers<>; // do we want some max or just increase the min balance
@@ -52,7 +51,7 @@ struct TrustLineEntry
 struct OfferEntry
 {
     uint256 accountID;
-    uint32 sequence;
+    uint64 offerID;
     Currency takerGets;  // A
     Currency takerPays;  // B
     int64 amount;    // amount of A

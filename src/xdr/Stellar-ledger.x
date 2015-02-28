@@ -26,6 +26,7 @@ struct LedgerHeader
     int64 totalCoins;
     int64 feePool;
     uint64 ledgerSeq;
+    uint64 idPool;
     uint32 inflationSeq;
     int32 baseFee;
     int32 baseReserve;
@@ -52,8 +53,8 @@ union LedgerKey switch (LedgerEntryType type)
 
     case OFFER:
         struct {
-            uint256 accountID;
-            uint32 sequence;
+            uint256 accountID; // GRAYDON: ok to drop this since offerID is unique now?
+            uint64 offerID;
         } offer;
 };
 

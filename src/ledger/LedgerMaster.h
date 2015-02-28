@@ -7,6 +7,7 @@
 #include <string>
 #include "ledger/LedgerGateway.h"
 #include "ledger/LedgerHeaderFrame.h"
+#include "ledger/RecentFilter.h"
 
 /*
 Holds the current ledger
@@ -38,6 +39,8 @@ namespace stellar
         // called on startup to get the last CLF we knew about
         void syncWithCLF();
 
+        RecentFilter mRecentFilter;
+
     public:
 
         typedef std::shared_ptr<LedgerMaster>           pointer;
@@ -47,11 +50,13 @@ namespace stellar
 
         //////// GATEWAY FUNCTIONS
         // called by txherder
-        void externalizeValue(TxSetFramePtr txSet);
+        void externalizeValue(TxSetFramePtr txSet, uint64_t closeTime, int32_t baseFee);
 
         uint64_t getLedgerNum();
         int64_t getMinBalance(uint32_t ownerCount);
         int32_t getTxFee();
+        uint64_t getCloseTime();
+        bool hasTxBeenApplied(Hash& hash) { return mRecentFilter.hasTxBeenApplied(hash);  }
 
         ///////
 
@@ -73,7 +78,7 @@ namespace stellar
 
         Database& getDatabase();
 
-		void closeLedger(TxSetFramePtr txSet);
+		void closeLedger(TxSetFramePtr txSet, uint64_t closeTime, int32_t baseFee);
 
         // state store
         enum StoreStateName {

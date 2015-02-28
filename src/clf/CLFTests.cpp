@@ -100,14 +100,12 @@ TEST_CASE("bucket list shadowing", "[clf]")
         auto liveBatch = liveGen(5);
 
         CLFEntry CLFAlice, CLFBob;
-        alice.sequence++;
         alice.balance++;
         CLFAlice.type(LIVEENTRY);
         CLFAlice.liveEntry().type(ACCOUNT);
         CLFAlice.liveEntry().account() = alice;
         liveBatch.push_back(CLFAlice.liveEntry());
 
-        bob.sequence++;
         bob.balance++;
         CLFBob.type(LIVEENTRY);
         CLFBob.liveEntry().type(ACCOUNT);
@@ -229,7 +227,7 @@ TEST_CASE("merging clf entries", "[clf]")
         liveEntry.offer() = ofGen(10);
         deadEntry.type(OFFER);
         deadEntry.offer().accountID = liveEntry.offer().accountID;
-        deadEntry.offer().sequence = liveEntry.offer().sequence;
+        deadEntry.offer().offerID = liveEntry.offer().offerID;
         std::vector<LedgerEntry> live { liveEntry };
         std::vector<LedgerKey> dead { deadEntry };
         std::shared_ptr<Bucket> b1 = Bucket::fresh(app->getCLFMaster(), live, dead);

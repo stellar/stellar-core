@@ -134,11 +134,11 @@ TEST_CASE("txenvelope", "[tx][envelope]")
     {
         TxSetFramePtr txSet = std::make_shared<TxSetFrame>();
 
-        TransactionFramePtr txFrame = createPaymentTx(root, a1, 1, paymentAmount);
+        TransactionFramePtr txFrame = createPaymentTx(root, a1, 10010, paymentAmount);
         txSet->add(txFrame);
 
         // close this ledger
-        app.getLedgerMaster().closeLedger(txSet);
+        app.getLedgerMaster().closeLedger(txSet,10000,10);
 
         REQUIRE(app.getLedgerGateway().getLedgerNum() == 3);
 
@@ -159,37 +159,28 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
                 txFrame->apply(delta, app);
 
-                REQUIRE(txFrame->getResultCode() == txBAD_SEQ);
+                REQUIRE(txFrame->getResultCode() == txALREADY);
             }
-
-            SECTION("transaction gap")
+            
+            SECTION("in future")
             {
-                txFrame = createPaymentTx(root, a1, 3, paymentAmount);
+                txFrame = createPaymentTx(root, a1, 30000, paymentAmount);
 
                 txFrame->apply(delta, app);
 
-                REQUIRE(txFrame->getResultCode() == txBAD_SEQ);
+                REQUIRE(txFrame->getResultCode() == txSUBMITTED_TOO_EARLY);
             }
 
-            SECTION("min ledger seq")
+            SECTION("in past")
             {
-                txFrame = createPaymentTx(root, a1, 1, paymentAmount);
-                txFrame->getEnvelope().tx.minLedger = 4;
+                txFrame = createPaymentTx(root, a1, 200, paymentAmount);
 
                 txFrame->apply(delta, app);
 
-                REQUIRE(txFrame->getResultCode() == txBAD_LEDGER);
+                REQUIRE(txFrame->getResultCode() == txSUBMITTED_TOO_LATE);
             }
 
-            SECTION("max ledger seq")
-            {
-                txFrame = createPaymentTx(root, a1, 1, paymentAmount);
-                txFrame->getEnvelope().tx.maxLedger = 2;
-
-                txFrame->apply(delta, app);
-
-                REQUIRE(txFrame->getResultCode() == txBAD_LEDGER);
-            }
+            
         }
     }
 

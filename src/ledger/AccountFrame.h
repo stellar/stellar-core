@@ -41,7 +41,6 @@ namespace stellar
         uint32_t getHighThreshold();
         uint32_t getMidThreshold();
         uint32_t getLowThreshold();
-        uint32_t getSeqNum();
         xdr::xvector<Signer> &getSigners();
 
         AccountEntry &getAccount() { return mAccountEntry; }

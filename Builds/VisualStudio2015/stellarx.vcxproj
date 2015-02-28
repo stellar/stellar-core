@@ -173,6 +173,7 @@
     <ClCompile Include="..\..\src\ledger\LedgerMaster.cpp" />
     <ClCompile Include="..\..\src\ledger\LedgerTests.cpp" />
     <ClCompile Include="..\..\src\ledger\OfferFrame.cpp" />
+    <ClCompile Include="..\..\src\ledger\RecentFilter.cpp" />
     <ClCompile Include="..\..\src\ledger\TrustFrame.cpp" />
     <ClCompile Include="..\..\src\lib\asio\src\asio.cpp" />
     <ClCompile Include="..\..\src\lib\http\connection.cpp" />
@@ -229,8 +230,10 @@
     <ClCompile Include="..\..\src\overlay\PeerMasterTests.cpp" />
     <ClCompile Include="..\..\src\overlay\PeerRecord.cpp" />
     <ClCompile Include="..\..\src\overlay\PeerRecordTests.cpp" />
-    <ClCompile Include="..\..\src\overlay\TCPPeerTests.cpp" />
     <ClCompile Include="..\..\src\simulation\CoreTests.cpp" />
+    <ClCompile Include="..\..\src\simulation\CycleTests.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+    </ClCompile>
     <ClCompile Include="..\..\src\simulation\Simulation.cpp" />
     <ClCompile Include="..\..\src\simulation\Topologies.cpp" />
     <ClCompile Include="..\..\src\transactions\AllowTrustTxFrame.cpp" />
@@ -303,6 +306,7 @@
     <ClInclude Include="..\..\src\ledger\LedgerHeaderFrame.h" />
     <ClInclude Include="..\..\src\ledger\LedgerMaster.h" />
     <ClInclude Include="..\..\src\ledger\OfferFrame.h" />
+    <ClInclude Include="..\..\src\ledger\RecentFilter.h" />
     <ClInclude Include="..\..\src\ledger\TrustFrame.h" />
     <ClInclude Include="..\..\src\lib\http\connection.hpp" />
     <ClInclude Include="..\..\src\lib\http\connection_manager.hpp" />
@@ -354,7 +358,6 @@
     <ClInclude Include="..\..\src\util\make_unique.h" />
     <ClInclude Include="..\..\src\util\Math.h" />
     <ClInclude Include="..\..\src\util\must_use.h" />
-    <ClInclude Include="..\..\src\util\optional.h" />
     <ClInclude Include="..\..\src\util\TmpDir.h" />
     <ClInclude Include="..\..\src\util\Timer.h" />
     <ClInclude Include="..\..\src\util\types.h" />

@@ -18,10 +18,12 @@ class LedgerGateway
 {
   public:
     // called by txherder
-    virtual void externalizeValue(TxSetFramePtr txSet)=0;
+    virtual void externalizeValue(TxSetFramePtr txSet, uint64_t closeTime, int32_t baseFee)=0;
 
     virtual uint64_t getLedgerNum() = 0;
+    virtual uint64_t getCloseTime() = 0;
     virtual int32_t getTxFee() = 0;
+    virtual bool hasTxBeenApplied(Hash& hash) = 0;
 };
 }
 

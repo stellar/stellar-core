@@ -34,6 +34,7 @@ TEST_CASE("database smoketest", "[db]")
     LOG(DEBUG) << "round trip with in-memory database: " << a << " == " << b;
 }
 
+#ifndef _WIN32
 #ifdef USE_POSTGRES
 TEST_CASE("postgres smoketest", "[db]")
 {
@@ -96,4 +97,5 @@ TEST_CASE("postgres smoketest", "[db]")
         }
     }
 }
+#endif
 #endif

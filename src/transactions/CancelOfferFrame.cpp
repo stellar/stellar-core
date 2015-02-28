@@ -15,7 +15,7 @@ bool CancelOfferFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
     OfferFrame offerFrame;
     Database &db = ledgerMaster.getDatabase();
     if(!OfferFrame::loadOffer(mSigningAccount->getAccount().accountID, 
-        mEnvelope.tx.body.offerSeqNum(), offerFrame, db))
+        mEnvelope.tx.body.offerID(), offerFrame, db))
     {
         innerResult().code(CancelOffer::NOT_FOUND);
         return false;
@@ -23,7 +23,7 @@ bool CancelOfferFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
 
     innerResult().code(CancelOffer::SUCCESS);
     
-    mSigningAccount->getAccount().ownerCount--;
+    mSigningAccount->getAccount().numSubEntries--;
     offerFrame.storeDelete(delta, db);
     mSigningAccount->storeChange(delta, db);
 

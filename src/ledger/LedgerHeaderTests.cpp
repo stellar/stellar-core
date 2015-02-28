@@ -34,7 +34,7 @@ TEST_CASE("ledgerheader", "[ledger]")
         TxSetFramePtr txSet = make_shared<TxSetFrame>();
 
         // close this ledger
-        app->getLedgerMaster().closeLedger(txSet);
+        app->getLedgerMaster().closeLedger(txSet,1,10);
 
         saved = app->getLedgerMaster().getLastClosedLedgerHeader().hash;
     }

@@ -109,6 +109,11 @@ ApplicationImpl::disableRealTimer()
     }
 }
 
+uint64_t ApplicationImpl::timeNow()
+{
+    return getClock().now().time_since_epoch().count() * std::chrono::system_clock::period::num / std::chrono::system_clock::period::den;
+}
+
 void
 ApplicationImpl::realTimerTick()
 {
