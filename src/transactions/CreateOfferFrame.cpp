@@ -80,21 +80,14 @@ bool CreateOfferFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
     Currency& wheat = mEnvelope.tx.body.createOfferTx().takerPays;
 
     bool creatingNewOffer = false;
-    uint32_t offerSeq = mEnvelope.tx.body.createOfferTx().sequence;
+    uint64_t offerID = mEnvelope.tx.body.createOfferTx().offerID;
 
-    // TODO: why using account seq number instead of a different sequence number?
-    // plus 1 since the account seq has already been incremented at this point
-    if(offerSeq + 1 == mSigningAccount->getAccount().sequence)
-    { // creating a new Offer
-        creatingNewOffer = true;
-        mSellSheepOffer.from(mEnvelope.tx);
-    } else
+    if(offerID)
     { // modifying an old offer
-        
-        if(OfferFrame::loadOffer(mEnvelope.tx.account, offerSeq, mSellSheepOffer, db))
+        if(OfferFrame::loadOffer(mEnvelope.tx.account, offerID, mSellSheepOffer, db))
         {
             // make sure the currencies are the same
-            if(!compareCurrency(mEnvelope.tx.body.createOfferTx().takerGets, mSellSheepOffer.getOffer().takerGets) ||
+            if( !compareCurrency(mEnvelope.tx.body.createOfferTx().takerGets, mSellSheepOffer.getOffer().takerGets) ||
                 !compareCurrency(mEnvelope.tx.body.createOfferTx().takerPays, mSellSheepOffer.getOffer().takerPays))
             {
                 innerResult().code(CreateOffer::MALFORMED);
@@ -105,6 +98,10 @@ bool CreateOfferFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
             innerResult().code(CreateOffer::NOT_FOUND);
             return false;
         }
+    } else
+    { // creating a new Offer
+        creatingNewOffer = true;
+        mSellSheepOffer.from(mEnvelope.tx);
     }
 
     int64_t maxSheepSend = mEnvelope.tx.body.createOfferTx().amount;
@@ -113,7 +110,7 @@ bool CreateOfferFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
     if (sheep.type() == NATIVE)
     {
         maxAmountOfSheepCanSell = mSigningAccount->getAccount().balance -
-            ledgerMaster.getMinBalance(mSigningAccount->getAccount().ownerCount);
+            ledgerMaster.getMinBalance(mSigningAccount->getAccount().numSubEntries);
     }
     else
     {
@@ -133,7 +130,7 @@ bool CreateOfferFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
 
     {
         soci::transaction sqlTx(db.getSession());
-        LedgerDelta tempDelta;
+        LedgerDelta tempDelta(delta.getCurrentID());
 
         int64_t sheepSent, wheatReceived;
 
@@ -224,17 +221,17 @@ bool CreateOfferFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
             {
                 // make sure we don't allow us to add offers when we don't have the minbalance
                 if (mSigningAccount->getAccount().balance <
-                    ledgerMaster.getMinBalance(mSigningAccount->getAccount().ownerCount + 1))
+                    ledgerMaster.getMinBalance(mSigningAccount->getAccount().numSubEntries + 1))
                 {
                     innerResult().code(CreateOffer::UNDERFUNDED);
                     return false;
                 }
-
+                mSellSheepOffer.mEntry.offer().offerID = tempDelta.getNextID();
                 innerResult().success().offer.effect(CreateOffer::CREATED);
                 innerResult().success().offer.offerCreated() = mSellSheepOffer.getOffer();
                 mSellSheepOffer.storeAdd(tempDelta, db);
 
-                mSigningAccount->getAccount().ownerCount++;
+                mSigningAccount->getAccount().numSubEntries++;
                 mSigningAccount->storeChange(tempDelta, db);
             }
             else

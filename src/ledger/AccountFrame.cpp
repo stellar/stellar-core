@@ -12,6 +12,9 @@
 using namespace soci;
 using namespace std;
 
+// TODO.1 limit the number of slots you can have. increase numsubentries for each slot
+
+
 namespace stellar
 {
 const char *AccountFrame::kSQLCreateStatement1 =
@@ -19,10 +22,8 @@ const char *AccountFrame::kSQLCreateStatement1 =
      (                                                        \
      accountID       VARCHAR(51)    PRIMARY KEY,              \
      balance         BIGINT         NOT NULL,                 \
-     sequence        INT            NOT NULL DEFAULT 1        \
-                                    CHECK (sequence >= 0),    \
-     ownerCount      INT            NOT NULL DEFAULT 0        \
-                                    CHECK (ownercount >= 0),  \
+     numSubEntries   INT            NOT NULL DEFAULT 0        \
+                                    CHECK (numSubEntries >= 0),  \
      inflationDest   VARCHAR(51),                             \
      thresholds      TEXT,                                    \
      flags           INT            NOT NULL                  \
@@ -45,9 +46,17 @@ const char *AccountFrame::kSQLCreateStatement3 =
      value           TEXT           NOT NULL        \
      );";
 
+const char *AccountFrame::kSQLCreateStatement4 =
+    "CREATE TABLE IF NOT EXISTS SeqSlots      \
+     (                                        \
+     accountID       VARCHAR(51) NOT NULL,    \
+     seqSlot         INT         NOT NULL,    \
+     seqNum          INT         NOT NULL,    \
+     PRIMARY KEY (accountID, seqSlot)       \
+     );";
+
 AccountFrame::AccountFrame() : EntryFrame(ACCOUNT), mAccountEntry(mEntry.account())
 {
-    mAccountEntry.sequence = 1;
     mAccountEntry.thresholds[0] = 1; // by default, master key's weight is 1
     mUpdateSigners = false;
 }
@@ -71,10 +80,6 @@ bool AccountFrame::isAuthRequired()
     return(mAccountEntry.flags & AUTH_REQUIRED_FLAG);
 }
 
-uint32_t AccountFrame::getSeqNum()
-{
-    return(mAccountEntry.sequence);
-}
 
 int64_t AccountFrame::getBalance()
 {
@@ -120,13 +125,14 @@ bool AccountFrame::loadAccount(const uint256& accountID, AccountFrame& retAcc,
     AccountEntry& account = retAcc.getAccount();
     {
         auto timer = db.getSelectTimer("account");
-        session << "SELECT balance,sequence,ownerCount, \
-        inflationDest, thresholds,  flags from Accounts where accountID=:v1",
-            into(account.balance), into(account.sequence), into(account.ownerCount),
+        session << "SELECT balance,numSubEntries, \
+            inflationDest, thresholds,  flags from Accounts where accountID=:v1",
+            into(account.balance), into(account.numSubEntries),
             into(inflationDest, inflationDestInd),
             into(thresholds, thresholdsInd), into(account.flags),
             use(base58ID);
     }
+
 
     if (!session.got_data())
         return false;
@@ -172,6 +178,43 @@ bool AccountFrame::loadAccount(const uint256& accountID, AccountFrame& retAcc,
     return true;
 }
 
+uint32_t AccountFrame::getSeq(uint32_t slot,Database& db)
+{
+    auto i = mUpdatedSeqNums.find(slot);
+    if(i == mUpdatedSeqNums.end())
+    { // seq num not changed
+        std::string base58ID = toBase58Check(VER_ACCOUNT_ID, getID());
+
+        soci::session &session = db.getSession();
+        uint32_t retNum = 0;
+
+        session << "SELECT seqNum from SeqSlots where accountID=:v1 and seqSlot=:v2",
+            into(retNum),use(base58ID),use(slot);
+
+        return retNum;
+    }
+    
+    return mUpdatedSeqNums[slot];
+}
+
+uint32_t AccountFrame::getMaxSeqSlot(Database& db)
+{
+    std::string base58ID = toBase58Check(VER_ACCOUNT_ID, getID());
+
+    soci::session &session = db.getSession();
+    uint32_t retNum = 0;
+
+    session << "SELECT max(seqSlot) from SeqSlots where accountID=:v1",
+        into(retNum);
+
+    return retNum;
+}
+
+void AccountFrame::setSeqSlot(uint32_t slot, uint32_t seq)
+{
+    mUpdatedSeqNums[slot] = seq;
+}
+
 bool AccountFrame::exists(Database& db, LedgerKey const& key)
 {
     std::string base58ID = toBase58Check(VER_ACCOUNT_ID, key.account().accountID);
@@ -212,6 +255,11 @@ void AccountFrame::storeDelete(LedgerDelta& delta, Database& db, LedgerKey const
         session <<
             "DELETE from Signers where accountID= :v1", soci::use(base58ID);
     }
+    {
+        auto timer = db.getDeleteTimer("slot");
+        session <<
+            "DELETE from SeqSlots where accountID= :v1", soci::use(base58ID);
+    }
     delta.deleteEntry(key);
 }
 
@@ -224,15 +272,22 @@ void AccountFrame::storeUpdate(LedgerDelta &delta, Database &db, bool insert)
 
     if (insert)
     {
-        sql << "INSERT INTO Accounts ( accountID, balance, sequence,    \
-            ownerCount, inflationDest, thresholds, flags) \
-            VALUES ( :id, :v1, :v2, :v3, :v4, :v5, :v6 )";
+        sql << "INSERT INTO Accounts ( accountID, balance,   \
+            numSubEntries, inflationDest, thresholds, flags) \
+            VALUES ( :id, :v1, :v2, :v3, :v4, :v5 )";
+
+        {
+            auto timer = db.getInsertTimer("slot");
+            db.getSession() << "INSERT into SeqSlots (accountID,seqSlot,seqNum) values (:v1,0,0)",
+                use(base58ID);
+        }
+
     }
     else
     {
-        sql << "UPDATE Accounts SET balance = :v1, sequence = :v2, ownerCount = :v3, \
-                inflationDest = :v4, thresholds = :v5, \
-                flags = :v6 WHERE accountID = :id";
+        sql << "UPDATE Accounts SET balance = :v1, numSubEntries = :v2, \
+                inflationDest = :v3, thresholds = :v4, \
+                flags = :v5 WHERE accountID = :id";
     }
 
     soci::indicator inflation_ind = soci::i_null;
@@ -251,14 +306,15 @@ void AccountFrame::storeUpdate(LedgerDelta &delta, Database &db, bool insert)
     {
         soci::statement st = (db.getSession().prepare <<
             sql.str(), use(base58ID, "id"),
-            use(finalAccount.balance, "v1"), use(finalAccount.sequence, "v2"),
-            use(finalAccount.ownerCount, "v3"),
-            use(inflationDestStr, inflation_ind, "v4"),
-            use(thresholds, "v5"), use(finalAccount.flags, "v6"));
+            use(finalAccount.balance, "v1"), 
+            use(finalAccount.numSubEntries, "v2"),
+            use(inflationDestStr, inflation_ind, "v3"),
+            use(thresholds, "v4"), use(finalAccount.flags, "v5"));
         {
             auto timer = insert ? db.getInsertTimer("account") : db.getUpdateTimer("account");
             st.execute(true);
         }
+
 
         if (st.get_affected_rows() != 1)
         {
@@ -271,6 +327,18 @@ void AccountFrame::storeUpdate(LedgerDelta &delta, Database &db, bool insert)
         else
         {
             delta.modEntry(*this);
+        }
+    }
+
+    if(mUpdatedSeqNums.size())
+    {
+        for(auto slot : mUpdatedSeqNums)
+        {
+            {
+                auto timer = db.getUpdateTimer("slot");
+                db.getSession() << "UPDATE SeqSlots set seqNum=:v1 where accountID=:v2 and seqSlot=:v3",
+                    use(slot.second), use(base58ID), use(slot.first);
+            }
         }
     }
 
@@ -392,10 +460,12 @@ void AccountFrame::dropAll(Database &db)
     db.getSession() << "DROP TABLE IF EXISTS Accounts;";
     db.getSession() << "DROP TABLE IF EXISTS Signers;";
     db.getSession() << "DROP TABLE IF EXISTS AccountData;";
+    db.getSession() << "DROP TABLE IF EXISTS SeqSlots;";
 
     db.getSession() << kSQLCreateStatement1;
     db.getSession() << kSQLCreateStatement2;
     db.getSession() << kSQLCreateStatement3;
+    db.getSession() << kSQLCreateStatement4;
 }
 }
 

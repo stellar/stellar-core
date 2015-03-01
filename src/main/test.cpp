@@ -74,7 +74,7 @@ Config const& getTestConfig(int instanceNumber)
 
         // uncomment this when debugging test cases
         //thisConfig.DATABASE =
-        //"sqlite3://" + rootDir + "test.db";
+        //"sqlite3://test2.db";
         //"postgresql://host=localhost dbname=test" + instanceNumber + "user=test password=test";
     }
     return *gTestCfg[instanceNumber];

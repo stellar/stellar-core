@@ -64,7 +64,7 @@ LedgerEntryKey(LedgerEntry const& e)
         case OFFER:
             k.type(OFFER);
             k.offer().accountID = e.offer().accountID;
-            k.offer().sequence = e.offer().sequence;
+            k.offer().offerID = e.offer().offerID;
             break;
         }
     return k;

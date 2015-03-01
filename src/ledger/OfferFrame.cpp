@@ -13,14 +13,16 @@
 using namespace std;
 using namespace soci;
 
+// TODO.1 work out code for grabbing an ID from the id pool
+
 namespace stellar
 {
     const char *OfferFrame::kSQLCreateStatement = 
         "CREATE TABLE IF NOT EXISTS Offers                   \
          (                                                   \
          accountID       VARCHAR(51)  NOT NULL,              \
-         sequence        INT          NOT NULL               \
-                                      CHECK (sequence >= 0), \
+         offerID         BIGINT       NOT NULL               \
+                                      CHECK (offerID >= 0),  \
          paysIsoCurrency VARCHAR(4)   NOT NULL,              \
          paysIssuer      VARCHAR(51)  NOT NULL,              \
          getsIsoCurrency VARCHAR(4)   NOT NULL,              \
@@ -30,7 +32,7 @@ namespace stellar
          priceD          INT          NOT NULL,              \
          flags           INT          NOT NULL,              \
          price           BIGINT       NOT NULL,              \
-         PRIMARY KEY (accountID, sequence)                   \
+         PRIMARY KEY (offerID)                               \
          );";
 
     OfferFrame::OfferFrame() : EntryFrame(OFFER), mOffer(mEntry.offer())
@@ -62,7 +64,7 @@ namespace stellar
         mOffer.accountID = tx.account;
         mOffer.amount = tx.body.createOfferTx().amount;
         mOffer.price = tx.body.createOfferTx().price;
-        mOffer.sequence = tx.body.createOfferTx().sequence;
+        mOffer.offerID = tx.body.createOfferTx().offerID;
         mOffer.takerGets = tx.body.createOfferTx().takerGets;
         mOffer.takerPays = tx.body.createOfferTx().takerPays;
         mOffer.flags = tx.body.createOfferTx().flags;
@@ -93,17 +95,17 @@ namespace stellar
         return mOffer.takerGets;
     }
 
-    uint32 OfferFrame::getSequence()
+    uint64 OfferFrame::getOfferID()
     {
-        return mOffer.sequence;
+        return mOffer.offerID;
     }
     
 
     static const char *offerColumnSelector =
-        "SELECT accountID,sequence,paysIsoCurrency,paysIssuer,"\
+        "SELECT accountID,offerID,paysIsoCurrency,paysIssuer,"\
         "getsIsoCurrency,getsIssuer,amount,priceN,priceD,flags FROM Offers";
 
-    bool OfferFrame::loadOffer(const uint256& accountID, uint32_t seq,
+    bool OfferFrame::loadOffer(const uint256& accountID, uint64_t offerID,
         OfferFrame& retOffer, Database& db)
     {
         std::string accStr;
@@ -112,8 +114,8 @@ namespace stellar
         soci::session &session = db.getSession();
 
         soci::details::prepare_temp_type sql = (session.prepare <<
-            offerColumnSelector << " where accountID=:id and sequence=:seq",
-            use(accStr), use(seq));
+            offerColumnSelector << " where accountID=:id and offerID=:offerID",
+            use(accStr), use(offerID));
 
         bool res = false;
 
@@ -140,7 +142,7 @@ namespace stellar
         OfferEntry &oe = offerFrame.mOffer;
 
         statement st = (prep,
-            into(accountID), into(oe.sequence),
+            into(accountID), into(oe.offerID),
             into(paysIsoCurrency, paysIsoIndicator), into(paysIssuer),
             into(getsIsoCurrency, getsIsoIndicator), into(getsIssuer),
             into(oe.amount), into(oe.price.n), into(oe.price.d), into(oe.flags)
@@ -209,7 +211,7 @@ namespace stellar
 
             sql << " AND getsIsoCurrency=:gcur AND getsIssuer = :gi", use(getCurrencyCode), use(b58GIssuer);
         }
-        sql << " ORDER BY price,sequence,accountID LIMIT :n OFFSET :o", use(numOffers), use(offset);
+        sql << " ORDER BY price,offerID,accountID LIMIT :n OFFSET :o", use(numOffers), use(offset);
 
         auto timer = db.getSelectTimer("offer");
         loadOffers(sql, [&retOffers](OfferFrame const &of)
@@ -242,8 +244,8 @@ namespace stellar
         auto timer = db.getSelectTimer("offer-exists");
         db.getSession() <<
             "SELECT EXISTS (SELECT NULL FROM Offers \
-             WHERE accountID=:id AND sequence=:s)",
-            use(b58AccountID), use(key.offer().sequence),
+             WHERE accountID=:id AND offerID=:s)",
+            use(b58AccountID), use(key.offer().offerID),
             into(exists);
         return exists != 0;
     }
@@ -255,12 +257,11 @@ namespace stellar
 
     void OfferFrame::storeDelete(LedgerDelta &delta, Database& db, LedgerKey const& key)
     {
-        std::string b58AccountID = toBase58Check(VER_ACCOUNT_ID, key.offer().accountID);
-
         auto timer = db.getDeleteTimer("offer");
+
         db.getSession() <<
-            "DELETE FROM Offers WHERE accountID=:id AND sequence=:s",
-            use(b58AccountID), use(key.offer().sequence);
+            "DELETE FROM Offers WHERE offerID=:s",
+             use(key.offer().offerID);
 
         delta.deleteEntry(key);
     }
@@ -273,14 +274,14 @@ namespace stellar
 
     void OfferFrame::storeChange(LedgerDelta &delta, Database& db)
     {
-        std::string b58AccountID = toBase58Check(VER_ACCOUNT_ID, mOffer.accountID);
 
         auto timer = db.getUpdateTimer("offer");
+
         soci::statement st = (db.getSession().prepare <<
-            "UPDATE Offers SET amount=:a, priceN=:n, priceD=:D, price=:p WHERE accountID=:id AND sequence=:s",
+            "UPDATE Offers SET amount=:a, priceN=:n, priceD=:D, price=:p WHERE offerID=:s",
             use(mOffer.amount),
             use(mOffer.price.n), use(mOffer.price.d),
-            use(computePrice()), use(b58AccountID), use(mOffer.sequence));
+            use(computePrice()), use(mOffer.offerID));
 
         st.execute(true);
 
@@ -306,10 +307,10 @@ namespace stellar
             std::string currencyCode;
             currencyCodeToStr(mOffer.takerPays.isoCI().currencyCode, currencyCode);
             st = (db.getSession().prepare <<
-                "INSERT into Offers (accountID,sequence,paysIsoCurrency,paysIssuer,"\
+                "INSERT into Offers (accountID,offerID,paysIsoCurrency,paysIssuer,"\
                 "amount,priceN,priceD,price,flags) values"\
                 "(:v1,:v2,:v3,:v4,:v5,:v6,:v7,:v8,:v9)",
-                use(b58AccountID), use(mOffer.sequence),
+                use(b58AccountID), use(mOffer.offerID),
                 use(b58issuer),use(currencyCode),use(mOffer.amount),
                 use(mOffer.price.n), use(mOffer.price.d),
                 use(computePrice()),use(mOffer.flags));
@@ -321,10 +322,10 @@ namespace stellar
             std::string currencyCode;
             currencyCodeToStr(mOffer.takerGets.isoCI().currencyCode, currencyCode);
             st = (db.getSession().prepare <<
-                "INSERT into Offers (accountID,sequence,getsIsoCurrency,getsIssuer,"\
+                "INSERT into Offers (accountID,offerID,getsIsoCurrency,getsIssuer,"\
                 "amount,priceN,priceD,price,flags) values"\
                 "(:v1,:v2,:v3,:v4,:v5,:v6,:v7,:v8,:v9)",
-                use(b58AccountID), use(mOffer.sequence),
+                use(b58AccountID), use(mOffer.offerID),
                 use(b58issuer), use(currencyCode), use(mOffer.amount),
                 use(mOffer.price.n), use(mOffer.price.d),
                 use(computePrice()), use(mOffer.flags));
@@ -338,11 +339,11 @@ namespace stellar
             std::string b58GetsIssuer = toBase58Check(VER_ACCOUNT_ID, mOffer.takerGets.isoCI().issuer);
             currencyCodeToStr(mOffer.takerGets.isoCI().currencyCode, getsIsoCurrency);
             st = (db.getSession().prepare <<
-                "INSERT into Offers (accountID,sequence,"\
+                "INSERT into Offers (accountID,offerID,"\
                 "paysIsoCurrency,paysIssuer,getsIsoCurrency,getsIssuer,"\
                 "amount,priceN,priceD,price,flags) values "\
                 "(:v1,:v2,:v3,:v4,:v5,:v6,:v7,:v8,:v9,:v10,:v11)",
-                use(b58AccountID), use(mOffer.sequence),
+                use(b58AccountID), use(mOffer.offerID),
                 use(paysIsoCurrency), use(b58PaysIssuer), use(getsIsoCurrency), use(b58GetsIssuer),
                 use(mOffer.amount),
                 use(mOffer.price.n), use(mOffer.price.d),

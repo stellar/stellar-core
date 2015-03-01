@@ -27,6 +27,7 @@ public:
     virtual void enableRealTimer() override;
     virtual void disableRealTimer() override;
     virtual size_t crank(bool block = true) override;
+    virtual uint64_t timeNow() override;
 
     virtual Config const& getConfig() override;
 

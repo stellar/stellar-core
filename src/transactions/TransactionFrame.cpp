@@ -110,9 +110,8 @@ bool TransactionFrame::preApply(LedgerDelta& delta,LedgerMaster& ledgerMaster)
         mSigningAccount->storeChange(delta, db);
         return false;
     }
-
+    mSigningAccount->setSeqSlot(mEnvelope.tx.seqSlot, mEnvelope.tx.seqNum);
     mSigningAccount->getAccount().balance -= fee;
-    mSigningAccount->getAccount().sequence += 1;
     mResult.feeCharged = fee;
     ledgerMaster.getCurrentLedgerHeader().feePool += fee;
 
@@ -131,7 +130,7 @@ bool TransactionFrame::apply(LedgerDelta& delta, Application& app)
     {
         // this can't be done in checkValid since we should still flood txs 
         // where seq != envelope.seq
-        if(mSigningAccount->getAccount().sequence != mEnvelope.tx.seqNum)
+        if(mSigningAccount->getSeq(mEnvelope.tx.seqSlot, app.getDatabase())+1 != mEnvelope.tx.seqNum)
         {
             mResult.body.code(txBAD_SEQ);
             return true;  // needs to return true since it will still claim a fee
@@ -146,7 +145,7 @@ bool TransactionFrame::apply(LedgerDelta& delta, Application& app)
         if (pre_res)
         {
             soci::transaction sqlTx(lm.getDatabase().getSession());
-            LedgerDelta txDelta;
+            LedgerDelta txDelta(delta.getCurrentID());
 
             bool apply_res = doApply(txDelta, lm);
             if (apply_res)
@@ -251,12 +250,13 @@ bool TransactionFrame::checkValid(Application& app)
         mResult.body.code(txINSUFFICIENT_FEE);
         return false;
     }
-    if (mEnvelope.tx.maxLedger < app.getLedgerGateway().getLedgerNum())
+
+    if(mEnvelope.tx.maxLedger < app.getLedgerGateway().getLedgerNum())
     {
         mResult.body.code(txBAD_LEDGER);
         return false;
     }
-    if (mEnvelope.tx.minLedger > app.getLedgerGateway().getLedgerNum())
+    if(mEnvelope.tx.minLedger > app.getLedgerGateway().getLedgerNum())
     {
         mResult.body.code(txBAD_LEDGER);
         return false;
@@ -268,8 +268,7 @@ bool TransactionFrame::checkValid(Application& app)
         return false;
     }
 
-    // don't flood any tx with a too old seq num
-    if(mEnvelope.tx.seqNum < mSigningAccount->getSeqNum())
+    if(mSigningAccount->getSeq(mEnvelope.tx.seqSlot,app.getDatabase())>=mEnvelope.tx.seqNum)
     {
         mResult.body.code(txBAD_SEQ);
         return false;

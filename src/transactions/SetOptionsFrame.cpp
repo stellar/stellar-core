@@ -59,12 +59,12 @@ namespace stellar
                 if(!found)
                 {
                     if( mSigningAccount->getAccount().balance < 
-                        ledgerMaster.getMinBalance(mSigningAccount->getAccount().ownerCount + 1))
+                        ledgerMaster.getMinBalance(mSigningAccount->getAccount().numSubEntries + 1))
                     {
                         innerResult().code(SetOptions::BELOW_MIN_BALANCE);
                         return false;
                     }
-                    mSigningAccount->getAccount().ownerCount++;
+                    mSigningAccount->getAccount().numSubEntries++;
                     signers.push_back(*mEnvelope.tx.body.setOptionsTx().signer);
                 }
             } else
@@ -76,7 +76,7 @@ namespace stellar
                     if(oldSigner.pubKey == mEnvelope.tx.body.setOptionsTx().signer->pubKey)
                     {
                         it = signers.erase(it);
-                        mSigningAccount->getAccount().ownerCount--;
+                        mSigningAccount->getAccount().numSubEntries--;
                     }
                     else
                     {

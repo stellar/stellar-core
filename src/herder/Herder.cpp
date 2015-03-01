@@ -19,6 +19,11 @@
 #include "medida/metrics_registry.h"
 #include "medida/meter.h"
 
+
+#define MAX_TIME_IN_FUTURE_VALID 10
+
+// TODO.1 drop mLedgersToWaitToParticipate
+
 namespace stellar
 {
 
@@ -148,10 +153,19 @@ Herder::validateValue(const uint64& slotIndex,
             mValueInvalid.Mark();
             return cb(false);
         }
+
         // Check closeTime (not too old)
         if (b.value.closeTime <= mLastClosedLedger.closeTime)
         {
             mValueInvalid.Mark();
+            return cb(false);
+        }
+
+        // Check closeTime (not too far in future)
+        int64_t maxTime=mApp.getClock().now().time_since_epoch().count() * std::chrono::system_clock::period::num / std::chrono::system_clock::period::den;
+        maxTime += MAX_TIME_IN_FUTURE_VALID;
+        if(b.value.closeTime > maxTime)
+        {
             return cb(false);
         }
     }
@@ -461,7 +475,7 @@ Herder::valueExternalized(const uint64& slotIndex,
         mTxSetFetcher[mCurrentTxSetFetcher].clear();
 
         // Triggers sync if not already syncing.
-        mApp.getLedgerGateway().externalizeValue(externalizedSet);
+        mApp.getLedgerGateway().externalizeValue(externalizedSet, b.value.closeTime, b.value.baseFee);
 
         // remove all these tx from mReceivedTransactions
         for (auto tx : externalizedSet->mTransactions)

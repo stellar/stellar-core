@@ -47,7 +47,7 @@ namespace stellar
         uint256 const& getAccountID() const;
         Currency& getTakerPays();
         Currency& getTakerGets();
-        uint32 getSequence();
+        uint64 getOfferID();
 
         OfferEntry& getOffer() { return mOffer; }
 
@@ -61,7 +61,7 @@ namespace stellar
         static bool exists(Database& db, LedgerKey const& key);
 
         // database utilities
-        static bool loadOffer(const uint256& accountID, uint32_t seq, OfferFrame& retEntry,
+        static bool loadOffer(const uint256& accountID, uint64_t seq, OfferFrame& retEntry,
             Database& db);
 
         static void loadBestOffers(size_t numOffers, size_t offset, const Currency& pays,

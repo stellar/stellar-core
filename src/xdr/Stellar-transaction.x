@@ -11,6 +11,7 @@ enum TransactionType
     CHANGE_TRUST,
     ALLOW_TRUST,
     ACCOUNT_MERGE,
+    SET_SEQ_SLOT,
     INFLATION
 };
 
@@ -33,8 +34,14 @@ struct CreateOfferTx
     int64 amount;        // amount taker gets
     Price price;         // =takerPaysAmount/takerGetsAmount
 
-    uint32 sequence;     // set if you want to change an existing offer
+    uint64 offerID;		 // set if you want to change an existing offer
     uint32 flags;        // passive: only take offers that cross this. not offers that match it
+};
+
+struct SetSeqSlotTx
+{
+    uint32 slotIndex;
+    uint32 slotValue;
 };
 
 struct SetOptionsTx
@@ -74,9 +81,10 @@ struct Transaction
 {
     AccountID account;
     int32 maxFee;
-    uint32 seqNum;
-    uint64 maxLedger;    // maximum ledger this tx is valid to be applied in
-    uint64 minLedger;    // minimum ledger this tx is valid to be applied in
+    uint32 seqSlot;
+	uint32 seqNum;
+	uint64 minLedger;
+	uint64 maxLedger;
 
     union switch (TransactionType type)
     {
@@ -85,7 +93,7 @@ struct Transaction
         case CREATE_OFFER:
             CreateOfferTx createOfferTx;
         case CANCEL_OFFER:
-            uint32 offerSeqNum;
+            uint64 offerID;
         case SET_OPTIONS:
             SetOptionsTx setOptionsTx;
         case CHANGE_TRUST:
@@ -94,6 +102,8 @@ struct Transaction
             AllowTrustTx allowTrustTx;
         case ACCOUNT_MERGE:
             uint256 destination;
+		case SET_SEQ_SLOT:
+			SetSeqSlotTx setSeqSlotTx;
         case INFLATION:
             uint32 inflationSeq;
     } body;
@@ -108,7 +118,7 @@ struct TransactionEnvelope
 struct ClaimOfferAtom
 {
     AccountID offerOwner;
-    uint32 offerSequence;
+    uint64 offerID;
     Currency currencyClaimed; // redundant but emited for clarity
     int64 amountClaimed;
     // should we also include the amount that the owner gets in return?
@@ -272,6 +282,25 @@ union AllowTrustResult switch(AllowTrustResultCode code)
 
 }
 
+namespace SetSeqSlot
+{
+enum SetSeqSlotResultCode
+{
+    SUCCESS,
+    MALFORMED,
+    INVALID_SLOT,
+    INVALID_SEQ_NUM
+};
+
+union SetSeqSlotResult switch(SetSeqSlotResultCode code)
+{
+    case SUCCESS:
+        void;
+    default:
+        void;
+};
+}
+
 namespace AccountMerge
 {
 enum AccountMergeResultCode
@@ -321,7 +350,7 @@ enum TransactionResultCode
     txINNER,
     txINTERNAL_ERROR,
     txBAD_AUTH,
-    txBAD_SEQ, // maybe PRE_SEQ, PAST_SEQ
+    txBAD_SEQ,
     txBAD_LEDGER,
     txNO_FEE,
     txNO_ACCOUNT,
@@ -350,6 +379,8 @@ struct TransactionResult
                     AllowTrust::AllowTrustResult allowTrustResult;
                 case ACCOUNT_MERGE:
                     AccountMerge::AccountMergeResult accountMergeResult;
+				case SET_SEQ_SLOT:
+					SetSeqSlot::SetSeqSlotResult setSeqSlotResult;
                 case INFLATION:
                     Inflation::InflationResult inflationResult;
             } tr;

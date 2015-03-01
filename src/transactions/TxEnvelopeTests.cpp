@@ -27,7 +27,10 @@ typedef std::unique_ptr<Application> appPtr;
   Things like:
     authz/authn
     double spend
+
+// TODO.2 test making slots and trying to make a tx on an unknown slot
 */
+
 TEST_CASE("txenvelope", "[tx][envelope]")
 {
     LOG(INFO) << "************ Starting envelope test";
@@ -44,7 +47,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
     SecretKey a1 = getAccount("A");
 
     const uint64_t paymentAmount = app.getLedgerMaster().getCurrentLedgerHeader().baseReserve*10;
-
+    
     SECTION("outer envelope")
     {
         TransactionFramePtr txFrame;
@@ -128,7 +131,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
             REQUIRE(Payment::getInnerCode(tx->getResult()) == Payment::SUCCESS);
         }
 
-    }
+    } 
 
     SECTION("common transaction")
     {
@@ -138,13 +141,13 @@ TEST_CASE("txenvelope", "[tx][envelope]")
         txSet->add(txFrame);
 
         // close this ledger
-        app.getLedgerMaster().closeLedger(txSet);
+        app.getLedgerMaster().closeLedger(txSet,1,10);
 
         REQUIRE(app.getLedgerGateway().getLedgerNum() == 3);
 
         {
             LedgerDelta delta;
-
+            
             SECTION("Insufficient fee")
             {
                 txFrame->getEnvelope().tx.maxFee = app.getLedgerMaster().getTxFee() - 1;
@@ -153,7 +156,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
                 REQUIRE(txFrame->getResultCode() == txINSUFFICIENT_FEE);
             }
-
+            
             SECTION("duplicate payment")
             {
 
@@ -175,19 +178,19 @@ TEST_CASE("txenvelope", "[tx][envelope]")
             {
                 txFrame = createPaymentTx(root, a1, 1, paymentAmount);
                 txFrame->getEnvelope().tx.minLedger = 4;
-
+                
                 txFrame->apply(delta, app);
-
+                
                 REQUIRE(txFrame->getResultCode() == txBAD_LEDGER);
             }
-
+            
             SECTION("max ledger seq")
             {
                 txFrame = createPaymentTx(root, a1, 1, paymentAmount);
                 txFrame->getEnvelope().tx.maxLedger = 2;
-
+                
                 txFrame->apply(delta, app);
-
+                
                 REQUIRE(txFrame->getResultCode() == txBAD_LEDGER);
             }
         }

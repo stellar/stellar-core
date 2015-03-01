@@ -72,7 +72,7 @@ LedgerEntryIdCmp
                 return true;
             if (aof.accountID > bof.accountID)
                 return false;
-            return aof.sequence < bof.sequence;
+            return aof.offerID < bof.offerID;
         }
         }
         return false;

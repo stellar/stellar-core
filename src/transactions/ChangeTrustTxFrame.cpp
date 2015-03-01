@@ -28,7 +28,7 @@ bool ChangeTrustTxFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
             trustLine.getTrustLine().balance == 0)
         {
             // line gets deleted
-            mSigningAccount->getAccount().ownerCount--;
+            mSigningAccount->getAccount().numSubEntries--;
             trustLine.storeDelete(delta, db);
             mSigningAccount->storeChange(delta, db);
         }
@@ -54,7 +54,7 @@ bool ChangeTrustTxFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
         trustLine.getTrustLine().balance = 0;
         trustLine.getTrustLine().authorized = !issuer.isAuthRequired();
 
-        mSigningAccount->getAccount().ownerCount++;
+        mSigningAccount->getAccount().numSubEntries++;
 
         mSigningAccount->storeChange(delta, db);
         trustLine.storeAdd(delta, db);

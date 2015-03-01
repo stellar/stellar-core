@@ -21,6 +21,7 @@
 #include "medida/metrics_registry.h"
 #include "medida/meter.h"
 #include "medida/timer.h"
+#include <chrono>
 
 /*
 The ledger module:
@@ -45,8 +46,7 @@ catching up to network:
     // TODO.1 wire up bucketlist. give it delta. hash bucketlist. 
     // TODO.1 wire up catch up. turn off ledger close when catching up. 
     // TODO.1 wire up replying txs from history blocks
-    // TODO.1 need way to build DB when you don't start it with --new
-    // TODO.1 better way to handle quorums when you are booting a network for instance if all nodes fail.
+    // TODO.3 better way to handle quorums when you are booting a network for instance if all nodes fail.
 
 */
 namespace stellar
@@ -80,6 +80,7 @@ void LedgerMaster::startNewLedger()
     genesisHeader.baseFee = mApp.getConfig().DESIRED_BASE_FEE;
     genesisHeader.baseReserve = mApp.getConfig().DESIRED_BASE_RESERVE;
     genesisHeader.totalCoins = masterAccount.getAccount().balance;
+    genesisHeader.closeTime = mApp.getClock().now().time_since_epoch().count() * std::chrono::system_clock::period::num / std::chrono::system_clock::period::den;
     genesisHeader.ledgerSeq = 1;
 
     mCurrentLedger = make_shared<LedgerHeaderFrame>(genesisHeader);
@@ -136,6 +137,11 @@ uint64_t LedgerMaster::getLedgerNum()
     return mCurrentLedger->mHeader.ledgerSeq;
 }
 
+uint64_t LedgerMaster::getCloseTime()
+{
+    return mCurrentLedger->mHeader.closeTime;
+}
+
 LedgerHeader& LedgerMaster::getCurrentLedgerHeader()
 {
     return mCurrentLedger->mHeader;
@@ -145,6 +151,8 @@ LedgerHeader& LedgerMaster::getLastClosedLedgerHeader()
 {
     return mLastClosedLedger->mHeader;
 }
+
+
 
 // make sure our state is consistent with the CLF
 void LedgerMaster::syncWithCLF()
@@ -163,12 +171,12 @@ void LedgerMaster::syncWithCLF()
 }
 
 // called by txherder
-void LedgerMaster::externalizeValue(TxSetFramePtr txSet)
+void LedgerMaster::externalizeValue(TxSetFramePtr txSet, uint64_t closeTime, int32_t baseFee)
 {
     if(mLastClosedLedger->mHeader.hash == txSet->getPreviousLedgerHash())
     {
         mCaughtUp = true;
-        closeLedger(txSet);
+        closeLedger(txSet,closeTime,baseFee);
     }
     else
     { // we need to catch up
@@ -189,11 +197,12 @@ void LedgerMaster::startCatchUp()
 
 }
 
-void LedgerMaster::closeLedger(TxSetFramePtr txSet)
+// called by txherder
+void LedgerMaster::closeLedger(TxSetFramePtr txSet, uint64_t closeTime, int32_t baseFee)
 {
     TxSetFrame successfulTX;
 
-    LedgerDelta ledgerDelta;
+    LedgerDelta ledgerDelta(mCurrentLedger->mHeader.idPool);
 
     soci::transaction txscope(getDatabase().getSession());
 
@@ -205,7 +214,7 @@ void LedgerMaster::closeLedger(TxSetFramePtr txSet)
     {
         auto txTime = mTransactionApply.TimeScope();
         try {
-            LedgerDelta delta;
+            LedgerDelta delta(ledgerDelta.getCurrentID());
 
             // note that successfulTX here just means it got processed
             // a failed transaction collecting a fee is successful at this layer
@@ -225,15 +234,19 @@ void LedgerMaster::closeLedger(TxSetFramePtr txSet)
             CLOG(ERROR, "Ledger") << "Exception during tx->apply";
         }
     }
-
+    mCurrentLedger->mHeader.baseFee = baseFee;
+    mCurrentLedger->mHeader.closeTime = closeTime;
     closeLedgerHelper(true, ledgerDelta);
     txscope.commit();
+    
 
     // Notify ledger close to other components.
     mApp.getHerderGateway().ledgerClosed(mLastClosedLedger->mHeader);
     mApp.getOverlayGateway().ledgerClosed(mLastClosedLedger->mHeader);
 }
 
+
+// LATER: maybe get rid of the updateCurrent condition unless more happens if it is false
 // helper function that updates the various hashes in the current ledger header
 // and switches to a new ledger
 void LedgerMaster::closeLedgerHelper(bool updateCurrent, LedgerDelta const& delta)
@@ -250,12 +263,12 @@ void LedgerMaster::closeLedgerHelper(bool updateCurrent, LedgerDelta const& delt
         // TODO: compute hashes in header
         mCurrentLedger->mHeader.txSetHash.fill(1);
         mCurrentLedger->computeHash();
-
+        mCurrentLedger->mHeader.idPool = delta.getCurrentID();
         mCurrentLedger->storeInsert(*this);
 
         setState(StoreStateName::kLastClosedLedger, binToHex(mCurrentLedger->mHeader.hash));
     }
-
+  
     mLastClosedLedger = mCurrentLedger;
 
     mCurrentLedger = make_shared<LedgerHeaderFrame>(mLastClosedLedger);

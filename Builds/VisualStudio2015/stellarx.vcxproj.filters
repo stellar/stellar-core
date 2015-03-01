@@ -348,6 +348,9 @@
     <ClCompile Include="..\..\src\simulation\Simulation.cpp">
       <Filter>simulation</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\simulation\CycleTests.cpp">
+      <Filter>simulation</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\transactions\OfferExchange.cpp">
       <Filter>transactions</Filter>
     </ClCompile>
@@ -396,8 +399,8 @@
     <ClCompile Include="..\..\src\simulation\Topologies.cpp">
       <Filter>simulation</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\overlay\TCPPeerTests.cpp">
-      <Filter>overlay</Filter>
+    <ClCompile Include="..\..\src\transactions\SetSeqSlotFrame.cpp">
+      <Filter>transactions</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -653,8 +656,8 @@
     <ClInclude Include="..\..\src\simulation\Topologies.h">
       <Filter>simulation</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\util\optional.h">
-      <Filter>util</Filter>
+    <ClInclude Include="..\..\src\transactions\SetSeqSlotFrame.h">
+      <Filter>transactions</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

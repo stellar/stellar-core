@@ -6,6 +6,7 @@
 
 #include "ledger/EntryFrame.h"
 #include <functional>
+#include <map>
 
 namespace soci
 {
@@ -21,6 +22,8 @@ namespace stellar
 	{
         void storeUpdate(LedgerDelta &delta, Database& db, bool insert);
         bool mUpdateSigners;
+
+        std::map<uint32_t, uint32_t> mUpdatedSeqNums;
 
         AccountEntry &mAccountEntry;
 	public:
@@ -41,8 +44,10 @@ namespace stellar
         uint32_t getHighThreshold();
         uint32_t getMidThreshold();
         uint32_t getLowThreshold();
-        uint32_t getSeqNum();
         xdr::xvector<Signer> &getSigners();
+        uint32_t getSeq(uint32_t slot, Database& db);
+        uint32_t getMaxSeqSlot(Database& db);
+        void setSeqSlot(uint32_t slot, uint32_t seq);
 
         AccountEntry &getAccount() { return mAccountEntry; }
 
@@ -62,6 +67,7 @@ namespace stellar
         static const char *kSQLCreateStatement1;
         static const char *kSQLCreateStatement2;
         static const char *kSQLCreateStatement3;
+        static const char *kSQLCreateStatement4;
 	};
 }
 
