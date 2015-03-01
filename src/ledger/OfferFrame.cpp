@@ -211,7 +211,7 @@ namespace stellar
 
             sql << " AND getsIsoCurrency=:gcur AND getsIssuer = :gi", use(getCurrencyCode), use(b58GIssuer);
         }
-        sql << " ORDER BY price,sequence,accountID LIMIT :n OFFSET :o", use(numOffers), use(offset);
+        sql << " ORDER BY price,offerID,accountID LIMIT :n OFFSET :o", use(numOffers), use(offset);
 
         auto timer = db.getSelectTimer("offer");
         loadOffers(sql, [&retOffers](OfferFrame const &of)
@@ -244,7 +244,7 @@ namespace stellar
         auto timer = db.getSelectTimer("offer-exists");
         db.getSession() <<
             "SELECT EXISTS (SELECT NULL FROM Offers \
-             WHERE accountID=:id AND sequence=:s)",
+             WHERE accountID=:id AND offerID=:s)",
             use(b58AccountID), use(key.offer().offerID),
             into(exists);
         return exists != 0;

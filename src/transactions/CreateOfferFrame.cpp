@@ -130,7 +130,7 @@ bool CreateOfferFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
 
     {
         soci::transaction sqlTx(db.getSession());
-        LedgerDelta tempDelta;
+        LedgerDelta tempDelta(delta.getCurrentID());
 
         int64_t sheepSent, wheatReceived;
 
@@ -226,7 +226,7 @@ bool CreateOfferFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
                     innerResult().code(CreateOffer::UNDERFUNDED);
                     return false;
                 }
-
+                mSellSheepOffer.mEntry.offer().offerID = tempDelta.getNextID();
                 innerResult().success().offer.effect(CreateOffer::CREATED);
                 innerResult().success().offer.offerCreated() = mSellSheepOffer.getOffer();
                 mSellSheepOffer.storeAdd(tempDelta, db);

@@ -128,6 +128,14 @@ bool TransactionFrame::apply(LedgerDelta& delta, Application& app)
 
     if(checkValid(app))
     {
+        // this can't be done in checkValid since we should still flood txs 
+        // where seq != envelope.seq
+        if(mSigningAccount->getSeq(mEnvelope.tx.seqSlot, app.getDatabase())+1 != mEnvelope.tx.seqNum)
+        {
+            mResult.body.code(txBAD_SEQ);
+            return true;  // needs to return true since it will still claim a fee
+        }
+
         res = true;
 
         LedgerMaster &lm = app.getLedgerMaster();
@@ -137,7 +145,7 @@ bool TransactionFrame::apply(LedgerDelta& delta, Application& app)
         if (pre_res)
         {
             soci::transaction sqlTx(lm.getDatabase().getSession());
-            LedgerDelta txDelta;
+            LedgerDelta txDelta(delta.getCurrentID());
 
             bool apply_res = doApply(txDelta, lm);
             if (apply_res)

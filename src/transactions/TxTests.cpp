@@ -177,7 +177,7 @@ TransactionFramePtr createOfferTx(SecretKey& source, Currency& takerGets,
     return res;
 }
 
-void applyOffer(Application& app, SecretKey& source, Currency& takerGets,
+void applyOffer(Application& app, LedgerDelta& delta, SecretKey& source, Currency& takerGets,
     Currency& takerPays, Price const& price, int64_t amount, uint32_t seq, 
     CreateOffer::CreateOfferResultCode result)
 {
@@ -185,7 +185,6 @@ void applyOffer(Application& app, SecretKey& source, Currency& takerGets,
 
     txFrame = createOfferTx(source, takerGets,takerPays,price,amount, seq);
 
-    LedgerDelta delta;
     txFrame->apply(delta, app);
 
     REQUIRE(CreateOffer::getInnerCode(txFrame->getResult()) == result);

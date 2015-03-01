@@ -47,7 +47,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
     SecretKey a1 = getAccount("A");
 
     const uint64_t paymentAmount = app.getLedgerMaster().getCurrentLedgerHeader().baseReserve*10;
-
+    
     SECTION("outer envelope")
     {
         TransactionFramePtr txFrame;
@@ -131,7 +131,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
             REQUIRE(Payment::getInnerCode(tx->getResult()) == Payment::SUCCESS);
         }
 
-    }
+    } 
 
     SECTION("common transaction")
     {
@@ -147,7 +147,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
         {
             LedgerDelta delta;
-
+            
             SECTION("Insufficient fee")
             {
                 txFrame->getEnvelope().tx.maxFee = app.getLedgerMaster().getTxFee() - 1;
@@ -156,7 +156,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
                 REQUIRE(txFrame->getResultCode() == txINSUFFICIENT_FEE);
             }
-
+            
             SECTION("duplicate payment")
             {
 

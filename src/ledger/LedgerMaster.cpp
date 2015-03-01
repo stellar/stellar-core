@@ -202,7 +202,7 @@ void LedgerMaster::closeLedger(TxSetFramePtr txSet, uint64_t closeTime, int32_t 
 {
     TxSetFrame successfulTX;
 
-    LedgerDelta ledgerDelta;
+    LedgerDelta ledgerDelta(mCurrentLedger->mHeader.idPool);
 
     soci::transaction txscope(getDatabase().getSession());
 
@@ -214,7 +214,7 @@ void LedgerMaster::closeLedger(TxSetFramePtr txSet, uint64_t closeTime, int32_t 
     {
         auto txTime = mTransactionApply.TimeScope();
         try {
-            LedgerDelta delta;
+            LedgerDelta delta(ledgerDelta.getCurrentID());
 
             // note that successfulTX here just means it got processed
             // a failed transaction collecting a fee is successful at this layer
@@ -263,7 +263,7 @@ void LedgerMaster::closeLedgerHelper(bool updateCurrent, LedgerDelta const& delt
         // TODO: compute hashes in header
         mCurrentLedger->mHeader.txSetHash.fill(1);
         mCurrentLedger->computeHash();
-
+        mCurrentLedger->mHeader.idPool = delta.getCurrentID();
         mCurrentLedger->storeInsert(*this);
 
         setState(StoreStateName::kLastClosedLedger, binToHex(mCurrentLedger->mHeader.hash));

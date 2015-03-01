@@ -188,12 +188,13 @@ uint32_t AccountFrame::getSeq(uint32_t slot,Database& db)
         soci::session &session = db.getSession();
         uint32_t retNum = 0;
 
-        session << "SELECT seqNum from SeqSlots where accountID=:v1",
-            into(retNum);
+        session << "SELECT seqNum from SeqSlots where accountID=:v1 and seqSlot=:v2",
+            into(retNum),use(base58ID),use(slot);
 
         return retNum;
-    }return mUpdatedSeqNums[slot];
-   
+    }
+    
+    return mUpdatedSeqNums[slot];
 }
 
 uint32_t AccountFrame::getMaxSeqSlot(Database& db)
@@ -336,7 +337,7 @@ void AccountFrame::storeUpdate(LedgerDelta &delta, Database &db, bool insert)
             {
                 auto timer = db.getUpdateTimer("slot");
                 db.getSession() << "UPDATE SeqSlots set seqNum=:v1 where accountID=:v2 and seqSlot=:v3",
-                    use(slot.first), use(base58ID), use(slot.second);
+                    use(slot.second), use(base58ID), use(slot.first);
             }
         }
     }

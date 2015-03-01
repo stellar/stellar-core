@@ -5,6 +5,16 @@
 
 namespace stellar
 {
+    LedgerDelta::LedgerDelta() : mCurrentID(0)
+    {
+
+    }
+    LedgerDelta::LedgerDelta(uint64_t startID) : mCurrentID(startID)
+    {
+
+    }
+    uint64_t LedgerDelta::getNextID() { return mCurrentID++; }
+
     void LedgerDelta::addEntry(EntryFrame const& entry)
     {
         addEntry(entry.copy());
@@ -100,6 +110,7 @@ namespace stellar
         {
             modEntry(m.second);
         }
+        mCurrentID = other.getCurrentID();
     }
 
     xdr::msg_ptr LedgerDelta::getTransactionMeta() const
