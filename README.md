@@ -24,3 +24,5 @@ run one test category with:
   `bin/stellard --test '[categoryName]'`
 
 
+# Running stress tests
+You can invoke on the command-line with multiple tags as either AND-ed (by juxtaposition) or OR-ed (by comma-listing). Tests tagged as [.] or [hide] are not part of the default test test. We adopt the convention of tagging a stress-test for subsystem foo as [foo-stress][stress][hide], then running stellard --test [stress] will run all the stress tests, stellard --test [foo-stress] will run the stress tests for subsystem foo alone, and neither stellard --test nor stellard --test [foo] will run stress tests. 

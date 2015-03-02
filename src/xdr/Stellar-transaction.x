@@ -354,7 +354,9 @@ enum TransactionResultCode
     txBAD_LEDGER,
     txNO_FEE,
     txNO_ACCOUNT,
-    txINSUFFICIENT_FEE
+    txINSUFFICIENT_FEE,
+    txBELOW_MIN_BALANCE,
+    txDUPLICATE
 };
 
 struct TransactionResult
