@@ -37,7 +37,7 @@ struct HistoryStateBucket
 struct HistoryArchiveState
 {
     unsigned version{0};
-    unsigned currentLedger;
+    uint64_t currentLedger;
     std::vector<HistoryStateBucket> currentBuckets;
 
     HistoryArchiveState();
