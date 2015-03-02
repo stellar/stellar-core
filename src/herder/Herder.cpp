@@ -677,6 +677,7 @@ Herder::recvTransaction(TransactionFramePtr tx)
         {
             if (txID == oldTX->getFullHash())
             {
+                tx->getResult().body.code(txDUPLICATE);
                 return false;
             }
             if (oldTX->getSourceID() == tx->getSourceID())
@@ -696,6 +697,7 @@ Herder::recvTransaction(TransactionFramePtr tx)
     if (tx->getSourceAccount().getBalance() < 
         (numOthers + 1) * mApp.getLedgerGateway().getTxFee())
     {
+        tx->getResult().body.code(txBELOW_MIN_BALANCE);
         return false;
     }
 
