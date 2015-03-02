@@ -14,6 +14,7 @@
 #include "ledger/LedgerMaster.h"
 #include "ledger/LedgerHeaderFrame.h"
 #include "util/types.h"
+#include "util/make_unique.h"
 #include "medida/metrics_registry.h"
 #include "medida/timer.h"
 
@@ -89,9 +90,15 @@ Database::getUpdateTimer(std::string const& entityName)
 }
 
 bool
-Database::isSqlite()
+Database::isSqlite() const
 {
     return mApp.getConfig().DATABASE.find("sqlite3:") != std::string::npos;
+}
+
+bool
+Database::canUsePool() const
+{
+    return !(mApp.getConfig().DATABASE == ("sqlite3://:memory:"));
 }
 
 void Database::initialize()
@@ -105,6 +112,30 @@ void Database::initialize()
     TransactionFrame::dropAll(*this);
 }
 
+soci::connection_pool&
+Database::getPool()
+{
+    if (!mPool)
+    {
+        std::string const& c = mApp.getConfig().DATABASE;
+        if (!canUsePool())
+        {
+            std::string s("Can't create connection pool to ");
+            s += c;
+            throw std::runtime_error(s);
+        }
+        size_t n = std::thread::hardware_concurrency();
+        LOG(INFO) << "Establishing " << n << "-entry connection pool to: " << c;
+        mPool = make_unique<soci::connection_pool>(n);
+        for (size_t i = 0; i < n; ++i)
+        {
+            LOG(DEBUG) << "Opening pool entry " << i;
+            mPool->at(i).open(c);
+        }
+    }
+    assert(mPool);
+    return *mPool;
+}
 
 int64_t Database::getBalance(const uint256& accountID,const Currency& currency)
 {

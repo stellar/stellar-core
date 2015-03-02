@@ -22,6 +22,7 @@ class Database
 {
     Application& mApp;
     soci::session mSession;
+    std::unique_ptr<soci::connection_pool> mPool;
 
     static bool gDriversRegistered;
     static void registerDrivers();
@@ -34,13 +35,15 @@ class Database
     medida::TimerContext getDeleteTimer(std::string const& entityName);
     medida::TimerContext getUpdateTimer(std::string const& entityName);
 
-    bool isSqlite();
+    bool isSqlite() const;
+    bool canUsePool() const;
 
     void initialize();
 
     int64_t getBalance(const uint256& accountID, const Currency& currency);
 
     soci::session& getSession() { return mSession; }
+    soci::connection_pool& getPool();
 };
 }
 
