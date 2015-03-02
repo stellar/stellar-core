@@ -33,11 +33,6 @@ struct LedgerHeader
     uint64 closeTime;
 };
 
-enum CLFType {
-    LIVEENTRY,
-    DEADENTRY
-};
-
 union LedgerKey switch (LedgerEntryType type)
 {
     case ACCOUNT:
@@ -58,23 +53,9 @@ union LedgerKey switch (LedgerEntryType type)
         } offer;
 };
 
-struct TransactionSet
-{
-    Hash previousLedgerHash;
-    TransactionEnvelope txs<>;
-};
-
-struct HistoryEntry
-{
-    LedgerHeader header;
-    TransactionSet txSet;
-};
-
-struct History
-{
-    uint64 fromLedger;
-    uint64 toLedger;
-    HistoryEntry entries<>;
+enum CLFType {
+    LIVEENTRY,
+    DEADENTRY
 };
 
 union CLFEntry switch (CLFType type)
@@ -86,9 +67,22 @@ union CLFEntry switch (CLFType type)
         LedgerKey deadEntry;
 };
 
+struct TransactionSet
+{
+    Hash previousLedgerHash;
+    TransactionEnvelope txs<>;
+};
+
 struct TransactionMeta
 {
     CLFEntry entries<>;
+};
+
+struct TransactionHistoryEntry
+{
+    uint64 ledgerSeq;
+    TransactionEnvelope envelope;
+    TransactionResult result;
 };
 
 }
