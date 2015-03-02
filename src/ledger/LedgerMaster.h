@@ -3,6 +3,7 @@
 // Copyright 2014 Stellar Development Foundation and contributors. Licensed
 // under the ISC License. See the COPYING file at the top-level directory of
 // this distribution or at http://opensource.org/licenses/ISC
+#include "util/asio.h"
 
 #include <string>
 #include "ledger/LedgerGateway.h"
@@ -22,10 +23,10 @@ namespace stellar
     class Database;
     class LedgerDelta;
 
+    
+
     class LedgerMaster : public LedgerGateway
     {
-        bool mCaughtUp;
-
         LedgerHeaderFrame::pointer mLastClosedLedger;
         LedgerHeaderFrame::pointer mCurrentLedger;
 
@@ -35,8 +36,9 @@ namespace stellar
 
         void startCatchUp();
         
-        // called on startup to get the last CLF we knew about
-        void syncWithCLF();
+        std::vector<LedgerCloseData> mSyncingLedgers;
+
+        void historyCaughtup(asio::error_code const& ec);
 
     public:
 
@@ -47,7 +49,7 @@ namespace stellar
 
         //////// GATEWAY FUNCTIONS
         // called by txherder
-        void externalizeValue(TxSetFramePtr txSet, uint64_t closeTime, int32_t baseFee);
+        void externalizeValue(LedgerCloseData ledgerData);
 
         uint64_t getLedgerNum();
         int64_t getMinBalance(uint32_t ownerCount);
@@ -74,7 +76,7 @@ namespace stellar
 
         Database& getDatabase();
 
-		void closeLedger(TxSetFramePtr txSet, uint64_t closeTime, int32_t baseFee);
+		void closeLedger(LedgerCloseData ledgerData);
 
         // state store
         enum StoreStateName {

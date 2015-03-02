@@ -1,10 +1,10 @@
 // Copyright 2014 Stellar Development Foundation and contributors. Licensed
 // under the ISC License. See the COPYING file at the top-level directory of
 // this distribution or at http://opensource.org/licenses/ISC
-#include "util/asio.h"
 
-#include "main/Application.h"
+
 #include "LedgerMaster.h"
+#include "main/Application.h"
 #include "main/Config.h"
 #include "clf/CLFMaster.h"
 #include "util/Logging.h"
@@ -18,6 +18,7 @@
 #include "herder/HerderGateway.h"
 #include "herder/TxSetFrame.h"
 #include "overlay/OverlayGateway.h"
+#include "history/HistoryMaster.h"
 #include "medida/metrics_registry.h"
 #include "medida/meter.h"
 #include "medida/timer.h"
@@ -49,18 +50,18 @@ catching up to network:
     // TODO.3 better way to handle quorums when you are booting a network for instance if all nodes fail.
 
 */
+using std::placeholders::_1;
+using namespace std;
+
 namespace stellar
 {
-
-using namespace std;
 
 LedgerMaster::LedgerMaster(Application& app)
     : mApp(app)
     , mTransactionApply(app.getMetrics().NewTimer({"ledger", "transaction", "apply"}))
     , mLedgerClose(app.getMetrics().NewTimer({"ledger", "ledger", "close"}))
 {
-    mCaughtUp = false;
-    //syncWithCLF();
+   
 }
 
 void LedgerMaster::startNewLedger()
@@ -153,34 +154,16 @@ LedgerHeader& LedgerMaster::getLastClosedLedgerHeader()
 }
 
 
-
-// make sure our state is consistent with the CLF
-void LedgerMaster::syncWithCLF()
-{
-    LedgerHeader clfHeader;
-    mApp.getCLFMaster().snapshotLedger(clfHeader);
-
-    if(clfHeader.hash == mLastClosedLedger->mHeader.hash)
-    {
-        CLOG(DEBUG, "Ledger") << "CLF and SQL headers match.";
-    } else
-    {  // ledgers don't match
-        // TODO.3 try to sync them
-        CLOG(ERROR, "Ledger") << "CLF and SQL headers don't match. Aborting";
-    }
-}
-
 // called by txherder
-void LedgerMaster::externalizeValue(TxSetFramePtr txSet, uint64_t closeTime, int32_t baseFee)
+void LedgerMaster::externalizeValue(LedgerCloseData ledgerData)
 {
-    if(mLastClosedLedger->mHeader.hash == txSet->getPreviousLedgerHash())
+    if(mLastClosedLedger->mHeader.hash == ledgerData.mTxSet->getPreviousLedgerHash())
     {
-        mCaughtUp = true;
-        closeLedger(txSet,closeTime,baseFee);
+        closeLedger(ledgerData);
     }
     else
     { // we need to catch up
-        mCaughtUp = false;
+        mSyncingLedgers.push_back(ledgerData);
         if(mApp.getState() == Application::CATCHING_UP_STATE)
         {  // we are already trying to catch up
             CLOG(DEBUG, "Ledger") << "Missed a ledger while trying to catch up.";
@@ -191,14 +174,39 @@ void LedgerMaster::externalizeValue(TxSetFramePtr txSet, uint64_t closeTime, int
     }
 }
 
+
 void LedgerMaster::startCatchUp()
 {
     mApp.setState(Application::CATCHING_UP_STATE);
+    mApp.getHistoryMaster().catchupHistory(
+        std::bind(&LedgerMaster::historyCaughtup, this, _1));
 
 }
 
+void LedgerMaster::historyCaughtup(asio::error_code const& ec)
+{
+    if(ec)
+    {
+        CLOG(ERROR, "Ledger") << "Error catching up" << ec;
+    } else
+    {   
+        bool applied = false;
+        for(auto lcd : mSyncingLedgers)
+        {
+            if(lcd.mLedgerIndex == mLastClosedLedger->mHeader.ledgerSeq + 1)
+            {
+                closeLedger(lcd);
+                applied = true;
+            }
+        }
+        if(applied) mSyncingLedgers.clear();
+
+        mApp.setState(Application::SYNCED_STATE);
+    }
+}
+
 // called by txherder
-void LedgerMaster::closeLedger(TxSetFramePtr txSet, uint64_t closeTime, int32_t baseFee)
+void LedgerMaster::closeLedger(LedgerCloseData ledgerData)
 {
     TxSetFrame successfulTX;
 
@@ -209,7 +217,7 @@ void LedgerMaster::closeLedger(TxSetFramePtr txSet, uint64_t closeTime, int32_t 
     auto ledgerTime = mLedgerClose.TimeScope();
 
     vector<TransactionFramePtr> txs;
-    txSet->sortForApply(txs);
+    ledgerData.mTxSet->sortForApply(txs);
     for(auto tx : txs)
     {
         auto txTime = mTransactionApply.TimeScope();
@@ -234,8 +242,8 @@ void LedgerMaster::closeLedger(TxSetFramePtr txSet, uint64_t closeTime, int32_t 
             CLOG(ERROR, "Ledger") << "Exception during tx->apply";
         }
     }
-    mCurrentLedger->mHeader.baseFee = baseFee;
-    mCurrentLedger->mHeader.closeTime = closeTime;
+    mCurrentLedger->mHeader.baseFee = ledgerData.mBaseFee;
+    mCurrentLedger->mHeader.closeTime = ledgerData.mCloseTime;
     closeLedgerHelper(true, ledgerDelta);
     txscope.commit();
     

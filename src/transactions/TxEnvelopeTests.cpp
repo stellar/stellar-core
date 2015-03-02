@@ -141,7 +141,8 @@ TEST_CASE("txenvelope", "[tx][envelope]")
         txSet->add(txFrame);
 
         // close this ledger
-        app.getLedgerMaster().closeLedger(txSet,1,10);
+        LedgerCloseData ledgerData(1, txSet, 1, 10);
+        app.getLedgerMaster().closeLedger(ledgerData);
 
         REQUIRE(app.getLedgerGateway().getLedgerNum() == 3);
 

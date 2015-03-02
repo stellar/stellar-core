@@ -142,7 +142,7 @@ class Herder : public HerderGateway,
         std::map<uint256, 
             std::vector<VirtualTimer>>>            mBallotValidationTimers;
 
-    unsigned                                       mLedgersToWaitToParticipate;
+    
     LedgerHeader                                   mLastClosedLedger;
 
     VirtualClock::time_point                       mLastTrigger;
