@@ -22,16 +22,14 @@ ArchivePublisher::kRetryLimit = 16;
 ArchivePublisher::ArchivePublisher(Application& app,
                                    std::function<void(asio::error_code const&)> handler,
                                    std::shared_ptr<HistoryArchive> archive,
-                                   HistoryArchiveState const& localState,
-                                   std::vector<std::shared_ptr<Bucket>> const& localBuckets)
+                                   StateSnapshot const& snap)
     : mApp(app)
     , mEndHandler(handler)
     , mState(PUBLISH_RETRYING)
     , mRetryCount(0)
     , mRetryTimer(app)
     , mArchive(archive)
-    , mLocalState(localState)
-    , mBucketsToPublish(localBuckets)
+    , mSnap(snap)
 {
     enterBeginState();
 }
@@ -94,9 +92,9 @@ ArchivePublisher::enterObservedState(HistoryArchiveState const& has)
     mState = PUBLISH_OBSERVED;
 
     mArchiveState = has;
-    std::vector<std::string> toSend = mLocalState.differingBuckets(mArchiveState);
+    std::vector<std::string> toSend = mSnap.localState.differingBuckets(mArchiveState);
     std::map<std::string, std::shared_ptr<Bucket>> bucketsByHash;
-    for (auto b : mBucketsToPublish)
+    for (auto b : mSnap.localBuckets)
     {
         bucketsByHash[binToHex(b->getHash())] = b;
     }
@@ -232,7 +230,7 @@ ArchivePublisher::enterCommittingState()
     mState = PUBLISH_COMMITTING;
     mArchive->putState(
         mApp,
-        mLocalState,
+        mSnap.localState,
         [this](asio::error_code const& ec)
         {
             if (ec)
@@ -270,6 +268,12 @@ PublishStateMachine::PublishStateMachine(Application& app,
     : mApp(app)
     , mEndHandler(handler)
 {
+    takeSnapshot();
+}
+
+void
+PublishStateMachine::takeSnapshot()
+{
     BucketList& buckets = mApp.getCLFMaster().getBucketList();
 
     // Capture local state and _all_ the local buckets at this instant; these
@@ -277,13 +281,28 @@ PublishStateMachine::PublishStateMachine(Application& app,
     // running but the buckets are immutable and we hold shared_ptrs to them
     // here, include those in the callbacks themselves.
 
-    HistoryArchiveState localState = app.getHistoryMaster().getCurrentHistoryArchiveState();
-    std::vector<std::shared_ptr<Bucket>> localBuckets;
+    StateSnapshot snap;
+    snap.localState = mApp.getHistoryMaster().getCurrentHistoryArchiveState();
     for (size_t i = 0; i < buckets.numLevels(); ++i)
     {
         auto const& level = buckets.getLevel(i);
-        localBuckets.push_back(level.getCurr());
-        localBuckets.push_back(level.getSnap());
+        snap.localBuckets.push_back(level.getCurr());
+        snap.localBuckets.push_back(level.getSnap());
+    }
+
+    asio::error_code ec;
+    snapshotTaken(snap, ec);
+}
+
+void
+PublishStateMachine::snapshotTaken(StateSnapshot const& snap,
+                                   asio::error_code const& ec)
+{
+    if (ec)
+    {
+        CLOG(WARNING, "History") << "Failed to snapshot state, abandoning publication";
+        mEndHandler(ec);
+        return;
     }
 
     // Iterate over writable archives instantiating an ArchivePublisher for them
@@ -300,18 +319,17 @@ PublishStateMachine::PublishStateMachine(Application& app,
                 mApp,
                 [this](asio::error_code const& ec)
                 {
-                    this->archiveComplete(ec);
+                    this->snapshotPublished(ec);
                 },
                 pair.second,
-                localState,
-                localBuckets);
+                snap);
             mPublishers.push_back(p);
         }
     }
 }
 
 void
-PublishStateMachine::archiveComplete(asio::error_code const& ec)
+PublishStateMachine::snapshotPublished(asio::error_code const& ec)
 {
     if (ec)
     {
