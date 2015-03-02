@@ -14,6 +14,7 @@
 #include "transactions/TxTests.h"
 #include "herder/HerderGateway.h"
 #include "medida/medida.h"
+#include "util/Math.h"
 
 namespace stellar
 {
@@ -231,6 +232,51 @@ Simulation::crankForAtLeast(VirtualClock::duration seconds)
     }
 }
 
+void 
+Simulation::crankUntil(function<bool()> const & predicate, VirtualClock::duration timeout)
+{
+    bool stop = false;
+    auto stopIt = [&](const asio::error_code& error)
+    {
+        stop = true;
+    };
+
+    VirtualTimer checkTimer(*mIdleApp);
+
+    checkTimer.expires_from_now(timeout);
+    checkTimer.async_wait(stopIt);
+
+    while (!stop)
+    {
+        if (crankAllNodes() == 0)
+            this_thread::sleep_for(chrono::milliseconds(50));
+        if (predicate())
+            return;
+    }
+    throw new runtime_error("Simulation timed out");
+}
+
+
+Simulation::TxInfo
+Simulation::createTranferTransaction(size_t iFrom, size_t iTo, uint64_t amount)
+{
+    return TxInfo{ mAccounts[iFrom], mAccounts[iTo], amount };
+}
+
+Simulation::TxInfo
+Simulation::createRandomTransaction(float alpha)
+{
+    size_t iFrom, iTo;
+    do
+    {
+        iFrom = rand_pareto(alpha, mAccounts.size());
+        iTo = rand_pareto(alpha, mAccounts.size());
+    } while (iFrom == iTo);
+
+    uint64_t amount = static_cast<uint64_t>(rand_fraction() * min(static_cast<uint64_t>(1000), (mAccounts[iFrom]->mBalance - getMinBalance()) / 3));
+    return createTranferTransaction(iFrom, iTo, amount);
+}
+
 void
 Simulation::TxInfo::execute(shared_ptr<Application> app)
 {
@@ -242,6 +288,17 @@ Simulation::TxInfo::execute(shared_ptr<Application> app)
     mFrom->mBalance -= mAmount;
     mFrom->mBalance -= app->getConfig().DESIRED_BASE_FEE;
     mTo->mBalance += mAmount;
+}
+
+vector<Simulation::TxInfo>
+Simulation::createRandomTransactions(size_t n, float paretoAlpha)
+{
+    vector<TxInfo> result;
+    for (int i = 0; i < n; i++)
+    {
+        result.push_back(createRandomTransaction(paretoAlpha));
+    }
+    return result;
 }
 
 
@@ -287,7 +344,7 @@ Simulation::executeAll(vector<TxInfo> const& transactions)
 }
 
 vector<Simulation::accountInfoPtr> 
-Simulation::checkAgainstDbs()
+Simulation::accountOutOfSyncWithDb()
 {
     vector<accountInfoPtr> result;
     for (auto pair : mNodes)
@@ -306,7 +363,8 @@ Simulation::checkAgainstDbs()
     return result;
 }
 
-void Simulation::printMetrics(string domain)
+string
+Simulation::metricsSummary(string domain)
 {
     auto& registry = getNodes().front()->getMetrics();
     auto const& metrics = registry.GetAllMetrics();
@@ -322,8 +380,7 @@ void Simulation::printMetrics(string domain)
             kv.second->Process(reporter);
         }
     }
-    LOG(INFO) << out.str();
-
+    return out.str();
 }
 
 }

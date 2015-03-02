@@ -43,17 +43,24 @@ TEST_CASE("pair of node creating 50 accounts", "[simulation]")
     Simulation::pointer simulation = Topologies::pair(Simulation::OVER_LOOPBACK);
 
     simulation->startAllNodes();
-    simulation->crankForAtLeast(std::chrono::seconds(10));
-
-    REQUIRE(simulation->haveAllExternalized(3));
+    simulation->crankUntil([&]() { return simulation->haveAllExternalized(3); }, std::chrono::seconds(10));
 
     simulation->executeAll(simulation->createAccounts(50));
-    simulation->crankForAtLeast(std::chrono::seconds(60));
- 
-    REQUIRE(simulation->haveAllExternalized(4));
-    auto problemAccounts = simulation->checkAgainstDbs();
-    REQUIRE(problemAccounts.empty());
+    simulation->crankUntil([&]() 
+        { 
+            return simulation->haveAllExternalized(4) &&
+                simulation->accountOutOfSyncWithDb().empty();
+        }, 
+        std::chrono::seconds(60));
 
-    simulation->printMetrics("database");
+    simulation->execute(simulation->createTranferTransaction(1, 2, 50));
+    simulation->crankUntil([&]() 
+        {
+            return simulation->haveAllExternalized(5) &&
+                 simulation->accountOutOfSyncWithDb().empty();
+        }, 
+        std::chrono::seconds(60));
+
+    LOG(INFO) << simulation->metricsSummary("database");
 }
 
