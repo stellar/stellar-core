@@ -348,9 +348,6 @@
     <ClCompile Include="..\..\src\simulation\Simulation.cpp">
       <Filter>simulation</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\simulation\CycleTests.cpp">
-      <Filter>simulation</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\transactions\OfferExchange.cpp">
       <Filter>transactions</Filter>
     </ClCompile>
