@@ -50,6 +50,7 @@ Simulation::addNode(uint256 validationSeed,
     cfg->VALIDATION_KEY = SecretKey::fromSeed(validationSeed);
     cfg->QUORUM_THRESHOLD = qSet.threshold;
     cfg->RUN_STANDALONE = mIsStandAlone;
+    cfg->START_NEW_NETWORK = true;
 
     for (auto q : qSet.validators)
     {

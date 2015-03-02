@@ -22,7 +22,6 @@
 
 #define MAX_TIME_IN_FUTURE_VALID 10
 
-// TODO.1 drop mLedgersToWaitToParticipate
 
 namespace stellar
 {
@@ -65,7 +64,6 @@ Herder::Herder(Application& app)
 #endif
     , mCurrentTxSetFetcher(0)
     , mFBAQSetFetcher(app)
-    , mLedgersToWaitToParticipate(3)
     , mLastTrigger(app.getClock().now())
     , mTriggerTimer(app)
     , mBumpTimer(app)
@@ -113,8 +111,8 @@ Herder::bootstrap()
     assert(!getSecretKey().isZero());
     assert(mApp.getConfig().START_NEW_NETWORK || mApp.getConfig().START_LOCAL_NETWORK);
 
+    mApp.setState(Application::SYNCED_STATE);
     mLastClosedLedger = mApp.getLedgerMaster().getLastClosedLedgerHeader();
-    mLedgersToWaitToParticipate = 0;
     triggerNextLedger(asio::error_code());
 }
 
@@ -124,6 +122,11 @@ Herder::validateValue(const uint64& slotIndex,
                       const Value& value,
                       std::function<void(bool)> const& cb)
 {
+    if(mApp.getState() != Application::SYNCED_STATE)
+    { // if we aren't synced to the network we can't validate
+        return cb(true);
+    }
+
     StellarBallot b;
     try
     {
@@ -145,8 +148,7 @@ Herder::validateValue(const uint64& slotIndex,
 
     // All tests that are relative to mLastClosedLedger are executed only once
     // we are fully synced up
-    if (mLedgersToWaitToParticipate == 0)
-    {
+    
         // Check slotIndex.
         if (mLastClosedLedger.ledgerSeq + 1 != slotIndex)
         {
@@ -168,13 +170,13 @@ Herder::validateValue(const uint64& slotIndex,
         {
             return cb(false);
         }
-    }
+    
 
     // make sure all the tx we have in the old set are included
     auto validate = [cb,b,slotIndex,nodeID,this] (TxSetFramePtr txSet)
     {
         // Check txSet (only if we're fully synced)
-        if(mLedgersToWaitToParticipate == 0 && !txSet->checkValid(mApp))
+        if(!txSet->checkValid(mApp))
         {
             CLOG(DEBUG, "Herder") << "Herder::validateValue"
                 << "@" << binToHex(getLocalNodeID()).substr(0,6)
@@ -420,11 +422,7 @@ Herder::ballotDidHearFromQuorum(const uint64& slotIndex,
                                 const FBABallot& ballot)
 {
     mQuorumHeard.Mark();
-    // If we're not fully synced, we just don't timeout FBA.
-    if (mLedgersToWaitToParticipate > 0)
-    {
-        return;
-    }
+   
     // Only validated values (current) values should trigger this.
     assert(slotIndex == mLastClosedLedger.ledgerSeq + 1);
 
@@ -475,7 +473,8 @@ Herder::valueExternalized(const uint64& slotIndex,
         mTxSetFetcher[mCurrentTxSetFetcher].clear();
 
         // Triggers sync if not already syncing.
-        mApp.getLedgerGateway().externalizeValue(externalizedSet, b.value.closeTime, b.value.baseFee);
+        LedgerCloseData ledgerData(slotIndex, externalizedSet, b.value.closeTime, b.value.baseFee);
+        mApp.getLedgerGateway().externalizeValue(ledgerData);
 
         // remove all these tx from mReceivedTransactions
         for (auto tx : externalizedSet->mTransactions)
@@ -567,10 +566,9 @@ void
 Herder::emitEnvelope(const FBAEnvelope& envelope)
 {
     CLOG(DEBUG, "Herder") << "Herder:emitEnvelope"
-        << "@" << binToHex(getLocalNodeID()).substr(0,6)
-        << " mLedgersToWaitToParticipate: " << mLedgersToWaitToParticipate;
+        << "@" << binToHex(getLocalNodeID()).substr(0,6);
     // We don't emit any envelope as long as we're not fully synced
-    if (mLedgersToWaitToParticipate > 0)
+    if (mApp.getState() != Application::SYNCED_STATE)
     {
         return;
     }
@@ -708,7 +706,7 @@ void
 Herder::recvFBAEnvelope(FBAEnvelope envelope,
                         std::function<void(bool)> const& cb)
 {
-    if (mLedgersToWaitToParticipate == 0)
+    if(mApp.getState() == Application::SYNCED_STATE)
     {
         uint64 minLedgerSeq = ((int)mLastClosedLedger.ledgerSeq -
             LEDGER_VALIDITY_BRACKET) < 0 ? 0 :
@@ -751,23 +749,9 @@ Herder::ledgerClosed(LedgerHeader& ledger)
     // wont' have any impact.
     mBallotValidationTimers.clear();
 
-    // We start skipping ledgers only after we're in SYNCED_STATE
-    if (mLedgersToWaitToParticipate > 0 &&
-        mApp.getState() != Application::State::SYNCED_STATE)
-    {
-        mLedgersToWaitToParticipate--;
-    }
-
     // If we are not a validating not and just watching FBA we don't call
     // triggerNextLedger
     if (getSecretKey().isZero())
-    {
-        return;
-    }
-
-    // If we haven't waited for a couple ledgers after we got in SYNCED_STATE
-    // we consider ourselves not fully synced so we don't push any value.
-    if (mLedgersToWaitToParticipate > 0)
     {
         return;
     }

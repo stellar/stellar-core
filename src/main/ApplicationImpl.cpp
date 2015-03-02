@@ -210,7 +210,7 @@ ApplicationImpl::start()
     {
         mLedgerMaster->startNewLedger();
         mHerder->bootstrap();
-    }if(mConfig.START_LOCAL_NETWORK)
+    }else if(mConfig.START_LOCAL_NETWORK)
     {
         mLedgerMaster->loadLastKnownLedger();
         mHerder->bootstrap();
