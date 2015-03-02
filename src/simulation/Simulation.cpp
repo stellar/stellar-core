@@ -11,11 +11,26 @@
 #include "overlay/PeerRecord.h"
 #include "main/Application.h"
 #include "overlay/PeerMaster.h"
+#include "transactions/TxTests.h"
+#include "herder/HerderGateway.h"
+#include "medida/medida.h"
 
 namespace stellar
 {
 
 using namespace std;
+
+uint64 
+Simulation::getMinBalance()
+{
+    int64_t mx = 0;
+    for (auto n : mNodes)
+    {
+        auto b = n.second->getLedgerMaster().getMinBalance(0);
+        mx = (b > mx ? b : mx);
+    }
+    return mx;
+}
 
 Simulation::Simulation(Mode mode) :
     mMode(mode)
@@ -73,6 +88,14 @@ Application::pointer
 Simulation::getNode(uint256 nodeID)
 {
     return mNodes[nodeID];
+}
+vector<Application::pointer> 
+Simulation::getNodes()
+{
+    vector<Application::pointer> result;
+    for (auto app : mNodes)
+        result.push_back(app.second);
+    return result;
 }
 
 void
@@ -206,10 +229,101 @@ Simulation::crankForAtLeast(VirtualClock::duration seconds)
         if (crankAllNodes() == 0)
             this_thread::sleep_for(chrono::milliseconds(50));
     }
+}
 
-    if (stop)
-        LOG(INFO) << "Simulation timed out";
-    else LOG(INFO) << "Simulation complete";
+void
+Simulation::TxInfo::execute(shared_ptr<Application> app)
+{
+    TransactionFramePtr txFrame = txtest::createPaymentTx(mFrom->mKey, mTo->mKey, mFrom->mSeq, mAmount);
+    
+    app->getHerderGateway().recvTransaction(txFrame);
+
+    mFrom->mSeq++;
+    mFrom->mBalance -= mAmount;
+    mFrom->mBalance -= app->getConfig().DESIRED_BASE_FEE;
+    mTo->mBalance += mAmount;
+}
+
+
+vector<Simulation::TxInfo>
+Simulation::createAccounts(int n)
+{
+    auto root = make_shared<AccountInfo>(0, txtest::getRoot(), 1000000000, *this);
+    mAccounts.push_back(root);
+
+    for (int i = 0; i < n; i++)
+    {
+        auto accountName = "Account-" + to_string(i);
+        mAccounts.push_back(make_shared<AccountInfo>(i, txtest::getAccount(accountName.c_str()), 0, *this));
+    }
+    vector<TxInfo> result;
+    for(auto account : mAccounts)
+    {
+        result.push_back(account->creationTransaction());
+    }
+    return result;
+}
+
+Simulation::TxInfo 
+Simulation::AccountInfo::creationTransaction()
+{
+    return TxInfo{ mSimulation.mAccounts[0], shared_from_this(), 100 * mSimulation.getMinBalance() + mSimulation.mAccounts.size() - 1 };
+}
+
+void 
+Simulation::execute(TxInfo transaction)
+{
+    // Execute on the first node
+    transaction.execute(mNodes.begin()->second);
+}
+
+void
+Simulation::executeAll(vector<TxInfo>& transactions)
+{
+    for (auto tx : transactions)
+    {
+        execute(tx);
+    }
+}
+
+vector<Simulation::accountInfoPtr> 
+Simulation::checkAgainstDbs()
+{
+    vector<accountInfoPtr> result;
+    for (auto pair : mNodes)
+    {
+        auto app = pair.second;
+        for (auto accountIt = mAccounts.begin() + 1; accountIt != mAccounts.end(); accountIt++)
+        {
+            auto account = *accountIt;
+            AccountFrame accountFrame;
+            AccountFrame::loadAccount(account->mKey.getPublicKey(), accountFrame, app->getDatabase());
+
+            if (accountFrame.getBalance() != account->mBalance)
+                result.push_back(account);
+        }
+    }
+    return result;
+}
+
+void Simulation::printMetrics(string domain)
+{
+    auto& registry = getNodes().front()->getMetrics();
+    auto& metrics = registry.GetAllMetrics();
+    std::stringstream out;
+
+    medida::reporting::ConsoleReporter reporter{ registry, out };
+    for (auto kv : metrics)
+    {
+        auto metric = kv.first;
+        if (metric.domain() == domain)
+        {
+            out << "Metric " << metric.domain() << "." << metric.type() << "." << metric.name() << "\n";
+            kv.second->Process(reporter);
+        }
+    }
+    LOG(INFO) << out.str();
+
 }
 
 }
