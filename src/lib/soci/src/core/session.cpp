@@ -123,6 +123,7 @@ void session::open(connection_parameters const & parameters)
         backEnd_ = factory->make_session(parameters);
         lastConnectParameters_ = parameters;
     }
+    transaction_level = 0;
 }
 
 void session::open(backend_factory const & factory,
@@ -178,27 +179,67 @@ void session::reconnect()
 
         backEnd_ = lastFactory->make_session(lastConnectParameters_);
     }
+    transaction_level = 0;
 }
 
 void session::begin()
 {
     ensureConnected(backEnd_);
 
-    backEnd_->begin();
+    std::string sql;
+    if (transaction_level == 0)
+    {
+        sql = "BEGIN";
+    }
+    else
+    {
+        std::ostringstream ss;
+        ss << "SAVEPOINT SOCI_L" << transaction_level;
+        sql = ss.str();
+    }
+
+    backEnd_->begin(sql.c_str());
+
+    ++transaction_level;
 }
 
 void session::commit()
 {
     ensureConnected(backEnd_);
 
-    backEnd_->commit();
+    std::string sql;
+    transaction_commit_helper(true, sql);
+
+    backEnd_->commit(sql.c_str());
 }
 
 void session::rollback()
 {
     ensureConnected(backEnd_);
 
-    backEnd_->rollback();
+    std::string sql;
+    transaction_commit_helper(false, sql);
+
+    backEnd_->rollback(sql.c_str());
+}
+
+void session::transaction_commit_helper(bool commit, std::string &sql)
+{
+    if (transaction_level <= 0)
+    {
+        throw soci_error("invalid transaction state");
+    }
+    if (--transaction_level == 0)
+    {
+        sql = commit ? "COMMIT" : "ROLLBACK";
+    }
+    else
+    {
+        std::ostringstream ss;
+        ss << (commit ? "RELEASE SAVEPOINT " : "ROLLBACK TO SAVEPOINT ") << " SOCI_L" << transaction_level;
+
+        sql = ss.str();
+    }
 }
 
 std::ostringstream & session::get_query_stream()

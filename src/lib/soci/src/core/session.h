@@ -143,6 +143,9 @@ private:
     bool isFromPool_;
     std::size_t poolPosition_;
     connection_pool * pool_;
+
+    void transaction_commit_helper(bool commit, std::string &sql);
+    int transaction_level;
 };
 
 } // namespace soci

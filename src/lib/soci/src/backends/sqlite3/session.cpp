@@ -56,7 +56,6 @@ sqlite3_session_backend::sqlite3_session_backend(
     connection_parameters const & parameters)
 {
     int timeout = 0;
-    transaction_level = 0;
     int connection_flags = SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE;
     std::string synchronous;
     std::string const & connectString = parameters.get_connect_string();
@@ -126,53 +125,19 @@ sqlite3_session_backend::~sqlite3_session_backend()
     clean_up();
 }
 
-void sqlite3_session_backend::begin()
+void sqlite3_session_backend::begin(const char* beginTx)
 {
-    std::string sql;
-    if (transaction_level == 0)
-    {
-        sql = "BEGIN";
-    }
-    else
-    {
-        std::ostringstream ss;
-        ss << "SAVEPOINT SOCI_L" << transaction_level;
-        sql = ss.str();
-    }
-
-    execude_hardcoded(conn_, sql.c_str(), "Cannot begin transaction.");
-
-    ++transaction_level;
+    execude_hardcoded(conn_, beginTx, "Cannot begin transaction.");
 }
 
-void sqlite3_session_backend::commit()
+void sqlite3_session_backend::commit(const char* commitTx)
 {
-    transaction_commit_helper(true);
+    execude_hardcoded(conn_, commitTx, "Cannot commit transaction.");
 }
 
-void sqlite3_session_backend::rollback()
+void sqlite3_session_backend::rollback(const char* rollbackTx)
 {
-    transaction_commit_helper(false);
-}
-
-void sqlite3_session_backend::transaction_commit_helper(bool commit)
-{
-    std::string sql;
-    if (transaction_level <= 0)
-    {
-        throw soci_error("invalid transaction state");
-    }
-    if (--transaction_level == 0) {
-        sql = commit ? "COMMIT" : "ROLLBACK";
-    }
-    else {
-        std::ostringstream ss;
-        ss << (commit ? "RELEASE SAVEPOINT " : "ROLLBACK TO SAVEPOINT ") << " SOCI_L" << transaction_level;
-
-        sql = ss.str();
-    }
-
-    execude_hardcoded(conn_, sql.c_str(), "Cannot commit transaction.");
+    execude_hardcoded(conn_, rollbackTx, "Cannot rollback transaction.");
 }
 
 void sqlite3_session_backend::clean_up()

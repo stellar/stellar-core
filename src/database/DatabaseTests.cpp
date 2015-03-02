@@ -14,6 +14,50 @@
 
 using namespace stellar;
 
+void transactionTest(Application::pointer app)
+{
+    int a = 10, b = 0;
+    int a0 = a + 1;
+    int a1 = a + 2;
+
+    auto& session = app->getDatabase().getSession();
+
+    session << "drop table if exists test";
+    session << "create table test (x integer)";
+
+    {
+        soci::transaction tx(session);
+
+        session << "insert into test (x) values (:aa)", soci::use(a0, "aa");
+
+        session << "select x from test", soci::into(b);
+        CHECK(a0 == b);
+
+        {
+            soci::transaction tx2(session);
+            session << "update test set x = :v", soci::use(a1, "v");
+            tx2.rollback();
+        }
+
+        session << "select x from test", soci::into(b);
+        CHECK(a0 == b);
+
+        {
+            soci::transaction tx3(session);
+            session << "update test set x = :v", soci::use(a, "v");
+            tx3.commit();
+        }
+        session << "select x from test", soci::into(b);
+        CHECK(a == b);
+
+
+        tx.commit();
+    }
+
+    session << "select x from test", soci::into(b);
+    CHECK(a == b);
+}
+
 TEST_CASE("database smoketest", "[db]")
 {
     Config cfg;
@@ -21,20 +65,9 @@ TEST_CASE("database smoketest", "[db]")
     VirtualClock clock;
     cfg.DATABASE = "sqlite3://:memory:";
     Application::pointer app = Application::create(clock, cfg);
-
-    int a = 10, b = 0;
-
-    auto& sql = app->getDatabase().getSession();
-
-    sql << "create table test (x integer)";
-    sql << "insert into test (x) values (:aa)", soci::use(a, "aa");
-    sql << "select x from test", soci::into(b);
-
-    CHECK(a == b);
-    LOG(DEBUG) << "round trip with in-memory database: " << a << " == " << b;
+    transactionTest(app);
 }
 
-#ifndef _WIN32
 #ifdef USE_POSTGRES
 TEST_CASE("postgres smoketest", "[db]")
 {
@@ -48,31 +81,26 @@ TEST_CASE("postgres smoketest", "[db]")
 
         int a = 10, b = 0;
 
-        auto& sql = app->getDatabase().getSession();
+        auto& session = app->getDatabase().getSession();
 
         SECTION("round trip")
         {
-            sql << "drop table if exists test";
-            sql << "create table test (x integer)";
-            sql << "insert into test (x) values (:aa)", soci::use(a, "aa");
-            sql << "select x from test", soci::into(b);
-            CHECK(a == b);
-            LOG(DEBUG) << "round trip with postgresql database: " << a << " == " << b;
+            transactionTest(app);
         }
 
         SECTION("blob storage")
         {
-            soci::transaction tx(sql);
+            soci::transaction tx(session);
             std::vector<uint8_t> x = { 0, 1, 2, 3, 4, 5, 6}, y;
-            soci::blob blobX(sql);
+            soci::blob blobX(session);
             blobX.append(reinterpret_cast<char const*>(x.data()), x.size());
-            sql << "drop table if exists test";
-            sql << "create table test (a integer, b oid)";
-            sql << "insert into test (a, b) values (:aa, :bb)",
+            session << "drop table if exists test";
+            session << "create table test (a integer, b oid)";
+            session << "insert into test (a, b) values (:aa, :bb)",
                 soci::use(a, "aa"), soci::use(blobX, "bb");
 
-            soci::blob blobY(sql);
-            sql << "select a, b from test", soci::into(b), soci::into(blobY);
+            soci::blob blobY(session);
+            session << "select a, b from test", soci::into(b), soci::into(blobY);
             y.resize(blobY.get_len());
             blobY.read(0, reinterpret_cast<char*>(y.data()), y.size());
             CHECK(x == y);
@@ -97,5 +125,4 @@ TEST_CASE("postgres smoketest", "[db]")
         }
     }
 }
-#endif
 #endif

@@ -67,22 +67,22 @@ void hard_exec(PGconn * conn, char const * query, char const * errMsg)
 
 } // namespace unnamed
 
-void postgresql_session_backend::begin()
+void postgresql_session_backend::begin(const char* beginTx)
 {
-    ++transactionLevel_;
-    hard_exec(conn_, "BEGIN", "Cannot begin transaction.");
+    hard_exec(conn_, beginTx, "Cannot begin transaction.");
+    transactionLevel_++;
 }
 
-void postgresql_session_backend::commit()
+void postgresql_session_backend::commit(const char* commitTx)
 {
-    --transactionLevel_;
-    hard_exec(conn_, "COMMIT", "Cannot commit transaction.");
+    transactionLevel_--;
+    hard_exec(conn_, commitTx, "Cannot commit transaction.");
 }
 
-void postgresql_session_backend::rollback()
+void postgresql_session_backend::rollback(const char* rollbackTx)
 {
-    --transactionLevel_;
-    hard_exec(conn_, "ROLLBACK", "Cannot rollback transaction.");
+    transactionLevel_--;
+    hard_exec(conn_, rollbackTx, "Cannot rollback transaction.");
 }
 
 void postgresql_session_backend::deallocate_prepared_statement(
