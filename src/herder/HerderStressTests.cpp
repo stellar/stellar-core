@@ -24,6 +24,7 @@
 #include "database/Database.h"
 #include "util/TmpDir.h"
 #include "overlay/PeerRecord.h"
+#include "medida/medida.h"
 
 using namespace stellar;
 using namespace stellar::txtest;
@@ -61,10 +62,10 @@ createApp(VirtualClock &clock, int quorumThresold, int i, PeerInfo &me, vector<P
         cfg.PREFERRED_PEERS.push_back("127.0.0.1:" + to_string(peer.peerPort));
         cfg.QUORUM_SET.push_back(peer.validationKey.getPublicKey());
     }
+    cfg.TARGET_PEER_CONNECTIONS = peers.size();
     cfg.KNOWN_PEERS.clear();
 
     auto result = Application::create(clock, cfg);
-    result->enableRealTimer();
     return result;
 }
 
@@ -225,6 +226,25 @@ struct StressTest {
             injectTransaction(randomTransaction(paretoAlpha));
         }
     }
+    void crankUntilLedger(int n) 
+    {
+        while(true) 
+        {
+            bool done = true;
+            for (auto app : *mApps)
+            {
+                if (app->getLedgerMaster().getLedgerNum() < n)
+                {
+                    done = false;
+                    break;
+                }
+            }
+            if (done)
+                return;
+
+            crankAll();
+        }
+    }
     void crankAll()
     {
         for (auto app : *mApps)
@@ -274,6 +294,26 @@ struct StressTest {
         REQUIRE(accountFrame.getBalance() == account.mBalance);
     }
 
+    class OneTimeConsoleReporter : public medida::reporting::ConsoleReporter, public medida::MetricProcessor 
+    {
+    public:
+        OneTimeConsoleReporter(medida::MetricsRegistry& registry) : medida::reporting::ConsoleReporter(registry) {}
+    };
+    void printDatabaseMetrics()
+    {
+        auto& registry = (*mApps)[0]->getMetrics();
+        auto& metrics = registry.GetAllMetrics();
+        OneTimeConsoleReporter consoleMetricPrinter{ registry };
+        for (auto m : metrics)
+        {
+            if (m.first.domain() == "database")
+            {
+                m.second->Process(consoleMetricPrinter);
+            }
+        }
+
+    }
+
 };
 
 void herderStressTest(int nNodes, int quorumThresold, size_t nAccounts, size_t nTransactions, size_t injectionRate, float paretoAlpha)
@@ -288,6 +328,8 @@ void herderStressTest(int nNodes, int quorumThresold, size_t nAccounts, size_t n
     };
     test.mAccounts.push_back(createRootAccount());
     test.connectViaLoopback();
+    for(auto app: *test.mApps) 
+        app->enableRealTimer();
     test.startApps();
 
     // Dodge the bug in VirtualTime's implementation of syncing with the real clock
@@ -295,16 +337,14 @@ void herderStressTest(int nNodes, int quorumThresold, size_t nAccounts, size_t n
     {
         app->getMainIOService().post([]() { return; });
     }
-    test.crankAll();
+    test.crankUntilLedger(3);
 
     LOG(INFO) << "Creating " << nAccounts << " accounts";
     for (int i = 0; i < nAccounts; i++)
     {
         test.injectTransaction(test.accountCreationTransaction());
     }
-    //(*test.mApps)[0]->getHerderGateway().triggerNextLedger(error_code());
-    this_thread::sleep_for(chrono::seconds(10));
-    test.crankAll();
+    test.crankUntilLedger(5);
 
 
     size_t iTransactions = 0;
@@ -334,9 +374,11 @@ void herderStressTest(int nNodes, int quorumThresold, size_t nAccounts, size_t n
     test.check();
 
     auto secs = chrono::duration_cast<chrono::seconds>(chrono::system_clock::now() - begin).count() - endTime.count();
+    test.printDatabaseMetrics();
+
     LOG(INFO) << "all done (" << static_cast<float>(nTransactions) / secs << " tx/sec)";
 }
-/*
+
 TEST_CASE("Randomised test of Herder, 50 accounts, 40 transactions", "[hrd-random]")
 {
     int nNodes = 2;
@@ -349,7 +391,7 @@ TEST_CASE("Randomised test of Herder, 50 accounts, 40 transactions", "[hrd-rando
 
     return herderStressTest(nNodes, quorumThresold, nAccounts, nTransactions, injectionRate, paretoAlpha);
 }
-*/
+
 /*
 TEST_CASE("Stress test of Herder, 1000 accounts, 100k transactions", "[hrd-stress][hide]")
 {
