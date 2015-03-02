@@ -11,7 +11,13 @@
 #include "history/PublishStateMachine.h"
 #include "main/Application.h"
 #include "main/Config.h"
+#include "database/Database.h"
+#include "ledger/LedgerHeaderFrame.h"
+#include "transactions/TransactionFrame.h"
 #include "util/Logging.h"
+#include "util/make_unique.h"
+#include "util/XDRStream.h"
+#include <soci.h>
 
 namespace stellar
 {
@@ -19,10 +25,27 @@ namespace stellar
 const size_t
 ArchivePublisher::kRetryLimit = 16;
 
+struct
+StateSnapshot
+{
+    Application &mApp;
+    HistoryArchiveState mLocalState;
+    std::vector<std::shared_ptr<Bucket>> mLocalBuckets;
+    TmpDir mSnapDir;
+    std::unique_ptr<soci::session> mSnapSess;
+    soci::session& mSess;
+    soci::transaction mTx;
+
+    StateSnapshot(Application& app);
+    std::string ledgerSnapFilename() const;
+    std::string txSnapFilename() const;
+    bool writeHistoryBlocks() const;
+};
+
 ArchivePublisher::ArchivePublisher(Application& app,
                                    std::function<void(asio::error_code const&)> handler,
                                    std::shared_ptr<HistoryArchive> archive,
-                                   StateSnapshot const& snap)
+                                   std::shared_ptr<StateSnapshot> snap)
     : mApp(app)
     , mEndHandler(handler)
     , mState(PUBLISH_RETRYING)
@@ -92,9 +115,9 @@ ArchivePublisher::enterObservedState(HistoryArchiveState const& has)
     mState = PUBLISH_OBSERVED;
 
     mArchiveState = has;
-    std::vector<std::string> toSend = mSnap.localState.differingBuckets(mArchiveState);
+    std::vector<std::string> toSend = mSnap->mLocalState.differingBuckets(mArchiveState);
     std::map<std::string, std::shared_ptr<Bucket>> bucketsByHash;
-    for (auto b : mSnap.localBuckets)
+    for (auto b : mSnap->mLocalBuckets)
     {
         bucketsByHash[binToHex(b->getHash())] = b;
     }
@@ -230,7 +253,7 @@ ArchivePublisher::enterCommittingState()
     mState = PUBLISH_COMMITTING;
     mArchive->putState(
         mApp,
-        mSnap.localState,
+        mSnap->mLocalState,
         [this](asio::error_code const& ec)
         {
             if (ec)
@@ -256,7 +279,6 @@ ArchivePublisher::enterEndState()
     mEndHandler(mError);
 }
 
-
 bool
 ArchivePublisher::isDone() const
 {
@@ -271,32 +293,110 @@ PublishStateMachine::PublishStateMachine(Application& app,
     takeSnapshot();
 }
 
+StateSnapshot::StateSnapshot(Application& app)
+    : mApp(app)
+    , mLocalState(app.getHistoryMaster().getCurrentHistoryArchiveState())
+    , mSnapDir(app.getTmpDirMaster().tmpDir("snapshot"))
+    , mSnapSess(app.getDatabase().canUsePool()
+               ? make_unique<soci::session>(app.getDatabase().getPool())
+               : nullptr)
+    , mSess(mSnapSess ? *mSnapSess : app.getDatabase().getSession())
+    , mTx(mSess)
+{
+    BucketList& buckets = app.getCLFMaster().getBucketList();
+    for (size_t i = 0; i < buckets.numLevels(); ++i)
+    {
+        auto const& level = buckets.getLevel(i);
+        mLocalBuckets.push_back(level.getCurr());
+        mLocalBuckets.push_back(level.getSnap());
+    }
+}
+
+std::string
+StateSnapshot::ledgerSnapFilename() const
+{
+    return mSnapDir.getName() + "/ledger-history.xdr";
+}
+
+std::string
+StateSnapshot::txSnapFilename() const
+{
+    return mSnapDir.getName() + "/transaction-history.xdr";
+}
+
+bool
+StateSnapshot::writeHistoryBlocks() const
+{
+    // The current "history block" is stored in _two_ files, one just ledger
+    // headers, and one TransactionHistoryEntry structs (which contain txs,
+    // results, and metas that describe the changed objects). Both files are
+    // streamed out of the database, entry-by-entry.
+    XDROutputFileStream ledgerOut, txOut;
+    ledgerOut.open(ledgerSnapFilename());
+    txOut.open(txSnapFilename());
+    uint64_t count = HistoryMaster::kCheckpointFrequency;
+    uint64_t begin = mLocalState.currentLedger - count;
+    size_t nHeaders = LedgerHeaderFrame::copyLedgerHeadersToStream(mApp.getDatabase(), mSess,
+                                                                   begin, count, ledgerOut);
+    size_t nTxs = TransactionFrame::copyTransactionsToStream(mApp.getDatabase(), mSess,
+                                                             begin, count, txOut);
+    CLOG(DEBUG, "History") << "Wrote " << nHeaders << " ledger headers to " << ledgerSnapFilename();
+    CLOG(DEBUG, "History") << "Wrote " << nTxs << " transactions to " << txSnapFilename();
+    return true;
+}
+
+
 void
 PublishStateMachine::takeSnapshot()
 {
-    BucketList& buckets = mApp.getCLFMaster().getBucketList();
 
     // Capture local state and _all_ the local buckets at this instant; these
     // may be expired from the bucketlist while the subsequent put-callbacks are
     // running but the buckets are immutable and we hold shared_ptrs to them
-    // here, include those in the callbacks themselves.
+    // here, include those in the callbacks themselves. Also establish a local
+    // read tx against the current DB so we can grab the history log from it.
 
-    StateSnapshot snap;
-    snap.localState = mApp.getHistoryMaster().getCurrentHistoryArchiveState();
-    for (size_t i = 0; i < buckets.numLevels(); ++i)
+    std::shared_ptr<StateSnapshot> snap = std::make_shared<StateSnapshot>(mApp);
+
+    // Once we've taken a (synchronous) snapshot of the buckets and db, we then
+    // run writeHistoryBlocks() to get the tx and ledger history files written
+    // out from the db. This may run synchronously (if we're not using a
+    // thread-pool-friendly db backend) or asynchronously on the worker pool if
+    // we're on, say, postgres). In either case, when complete it will call back
+    // to snapshotTaken(), at which point we can begin the actual publishing
+    // work.
+
+    if (snap->mSnapSess)
     {
-        auto const& level = buckets.getLevel(i);
-        snap.localBuckets.push_back(level.getCurr());
-        snap.localBuckets.push_back(level.getSnap());
+        mApp.getWorkerIOService().post(
+            [snap]()
+            {
+                asio::error_code ec;
+                if (!snap->writeHistoryBlocks())
+                {
+                    ec = std::make_error_code(std::errc::io_error);
+                }
+                snap->mApp.getMainIOService().post(
+                    [ec, snap]()
+                    {
+                        snap->mApp.getHistoryMaster().snapshotTaken(ec, snap);
+                    });
+            });
     }
-
-    asio::error_code ec;
-    snapshotTaken(snap, ec);
+    else
+    {
+        asio::error_code ec;
+        if (!snap->writeHistoryBlocks())
+        {
+            ec = std::make_error_code(std::errc::io_error);
+        }
+        this->snapshotTaken(ec, snap);
+    }
 }
 
 void
-PublishStateMachine::snapshotTaken(StateSnapshot const& snap,
-                                   asio::error_code const& ec)
+PublishStateMachine::snapshotTaken(asio::error_code const& ec,
+                                   std::shared_ptr<StateSnapshot> snap)
 {
     if (ec)
     {

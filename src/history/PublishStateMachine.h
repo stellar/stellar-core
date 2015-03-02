@@ -6,17 +6,24 @@
 
 
 #include "util/Timer.h"
+#include "util/TmpDir.h"
 #include "history/HistoryArchive.h"
 
 #include <map>
 #include <memory>
 #include <vector>
 
-namespace stellar
+namespace soci
+{
+class transaction;
+class session;
+}
 
+namespace stellar
 {
 
 class Application;
+class Database;
 class Bucket;
 class BucketList;
 
@@ -40,12 +47,7 @@ enum FilePublishState
     FILE_PUBLISH_UPLOADED = 6,
 };
 
-struct
-StateSnapshot
-{
-    HistoryArchiveState localState;
-    std::vector<std::shared_ptr<Bucket>> localBuckets;
-};
+struct StateSnapshot;
 
 class
 ArchivePublisher : public std::enable_shared_from_this<ArchivePublisher>
@@ -61,7 +63,7 @@ ArchivePublisher : public std::enable_shared_from_this<ArchivePublisher>
 
     std::shared_ptr<HistoryArchive> mArchive;
     HistoryArchiveState mArchiveState;
-    StateSnapshot mSnap;
+    std::shared_ptr<StateSnapshot> mSnap;
 
     std::map<std::string, FilePublishState> mFileStates;
 
@@ -73,7 +75,7 @@ public:
     ArchivePublisher(Application& app,
                      std::function<void(asio::error_code const&)> handler,
                      std::shared_ptr<HistoryArchive> archive,
-                     StateSnapshot const& snap);
+                     std::shared_ptr<StateSnapshot> snap);
 
     std::shared_ptr<HistoryArchive> getArchive();
 
@@ -99,8 +101,8 @@ public:
     PublishStateMachine(Application& app,
                         std::function<void(asio::error_code const&)> handler);
 
-    void snapshotTaken(StateSnapshot const& snap,
-                       asio::error_code const&);
+    void snapshotTaken(asio::error_code const&,
+                       std::shared_ptr<StateSnapshot>);
     void snapshotPublished(asio::error_code const&);
 };
 
