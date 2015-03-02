@@ -118,13 +118,13 @@ PeerMaster::connectToMorePeers(int max)
     PeerRecord::loadPeerRecords(mApp.getDatabase(), max, mApp.getClock().now(), peers);
     for(auto pr : peers)
     {
+        if (mPeers.size() >= mApp.getConfig().TARGET_PEER_CONNECTIONS)
+        {
+            break;
+        }
         if(!getConnectedPeer(pr.mIP, pr.mPort))
         {
             connectTo(pr);
-            if (mPeers.size() >= mApp.getConfig().TARGET_PEER_CONNECTIONS)
-            {
-                break;
-            }
         }
     }
 }

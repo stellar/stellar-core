@@ -294,21 +294,16 @@ struct StressTest {
         REQUIRE(accountFrame.getBalance() == account.mBalance);
     }
 
-    class OneTimeConsoleReporter : public medida::reporting::ConsoleReporter, public medida::MetricProcessor 
-    {
-    public:
-        OneTimeConsoleReporter(medida::MetricsRegistry& registry) : medida::reporting::ConsoleReporter(registry) {}
-    };
     void printDatabaseMetrics()
     {
         auto& registry = (*mApps)[0]->getMetrics();
         auto& metrics = registry.GetAllMetrics();
-        OneTimeConsoleReporter consoleMetricPrinter{ registry };
+        medida::reporting::JsonReporter reporter{ registry };
         for (auto m : metrics)
         {
             if (m.first.domain() == "database")
             {
-                m.second->Process(consoleMetricPrinter);
+                m.second->Process(reporter);
             }
         }
 
