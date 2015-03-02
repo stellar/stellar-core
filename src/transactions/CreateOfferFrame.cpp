@@ -25,8 +25,9 @@ CreateOfferFrame::CreateOfferFrame(const TransactionEnvelope& envelope) : Transa
 // make sure these issuers exist and you can hold the ask currency
 bool CreateOfferFrame::checkOfferValid(Database &db)
 {
-    Currency& sheep = mEnvelope.tx.body.createOfferTx().takerGets;
-    Currency& wheat = mEnvelope.tx.body.createOfferTx().takerPays;
+    CreateOfferTx const& createOffer = mEnvelope.tx.body.createOfferTx();
+    Currency const& sheep = createOffer.takerGets;
+    Currency const& wheat = createOffer.takerPays;
 
     if (sheep.type() != NATIVE)
     {
@@ -76,19 +77,22 @@ bool CreateOfferFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
     {
         return false;
     }
-    Currency& sheep = mEnvelope.tx.body.createOfferTx().takerGets;
-    Currency& wheat = mEnvelope.tx.body.createOfferTx().takerPays;
+
+    CreateOfferTx const& createOffer = mEnvelope.tx.body.createOfferTx();
+
+    Currency const& sheep = createOffer.takerGets;
+    Currency const& wheat = createOffer.takerPays;
 
     bool creatingNewOffer = false;
-    uint64_t offerID = mEnvelope.tx.body.createOfferTx().offerID;
+    uint64_t offerID = createOffer.offerID;
 
     if(offerID)
     { // modifying an old offer
         if(OfferFrame::loadOffer(mEnvelope.tx.account, offerID, mSellSheepOffer, db))
         {
             // make sure the currencies are the same
-            if( !compareCurrency(mEnvelope.tx.body.createOfferTx().takerGets, mSellSheepOffer.getOffer().takerGets) ||
-                !compareCurrency(mEnvelope.tx.body.createOfferTx().takerPays, mSellSheepOffer.getOffer().takerPays))
+            if( !compareCurrency(createOffer.takerGets, mSellSheepOffer.getOffer().takerGets) ||
+                !compareCurrency(createOffer.takerPays, mSellSheepOffer.getOffer().takerPays))
             {
                 innerResult().code(CreateOffer::MALFORMED);
                 return false;
@@ -104,7 +108,7 @@ bool CreateOfferFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
         mSellSheepOffer.from(mEnvelope.tx);
     }
 
-    int64_t maxSheepSend = mEnvelope.tx.body.createOfferTx().amount;
+    int64_t maxSheepSend = createOffer.amount;
 
     int64_t maxAmountOfSheepCanSell;
     if (sheep.type() == NATIVE)
@@ -124,7 +128,7 @@ bool CreateOfferFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
         maxSheepSend = maxAmountOfSheepCanSell;
     }
 
-    Price sheepPrice = mEnvelope.tx.body.createOfferTx().price;
+    Price sheepPrice = createOffer.price;
 
     innerResult().code(CreateOffer::SUCCESS);
 
@@ -259,8 +263,9 @@ bool CreateOfferFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
 // makes sure the currencies are different 
 bool CreateOfferFrame::doCheckValid(Application& app)
 {
-    Currency& sheep = mEnvelope.tx.body.createOfferTx().takerGets;
-    Currency& wheat = mEnvelope.tx.body.createOfferTx().takerPays;
+    CreateOfferTx const& createOffer = mEnvelope.tx.body.createOfferTx();
+    Currency const& sheep = createOffer.takerGets;
+    Currency const& wheat = createOffer.takerPays;
     if (compareCurrency(sheep, wheat))
     {
         return false;

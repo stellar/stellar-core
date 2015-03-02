@@ -23,13 +23,15 @@ namespace stellar
     {
         Database &db = ledgerMaster.getDatabase();
 
-        uint32_t slotIndex = mEnvelope.tx.body.setSeqSlotTx().slotIndex;
+        SetSeqSlotTx const& setSlot = mEnvelope.tx.body.setSeqSlotTx();
+
+        uint32_t slotIndex = setSlot.slotIndex;
 
         uint32_t maxSlot = mSigningAccount->getMaxSeqSlot(db);
         if(slotIndex <= maxSlot)
         {  // changing old slot
             uint32_t curNum = mSigningAccount->getSeq(slotIndex,db);
-            if(curNum >= mEnvelope.tx.body.setSeqSlotTx().slotValue)
+            if(curNum >= setSlot.slotValue)
             {
                 innerResult().code(SetSeqSlot::INVALID_SEQ_NUM);
                 return false;

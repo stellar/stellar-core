@@ -13,10 +13,12 @@ namespace stellar
 
     int32_t SetOptionsFrame::getNeededThreshold()
     {
+        SetOptionsTx const& options = mEnvelope.tx.body.setOptionsTx();
         // updating thresholds or signer requires high threshold
-        if(mEnvelope.tx.body.setOptionsTx().thresholds ||
-            mEnvelope.tx.body.setOptionsTx().signer)
+        if (options.thresholds || options.signer)
+        {
             return mSigningAccount->getHighThreshold();
+        }
         return mSigningAccount->getMidThreshold();
     }
 
@@ -24,36 +26,37 @@ namespace stellar
     bool SetOptionsFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
     {
         Database &db = ledgerMaster.getDatabase();
-        if(mEnvelope.tx.body.setOptionsTx().inflationDest)
+        SetOptionsTx const& options = mEnvelope.tx.body.setOptionsTx();
+        if(options.inflationDest)
         {
-            mSigningAccount->getAccount().inflationDest.activate()=*mEnvelope.tx.body.setOptionsTx().inflationDest;
+            mSigningAccount->getAccount().inflationDest.activate()=*options.inflationDest;
         }
 
-        if (mEnvelope.tx.body.setOptionsTx().clearFlags)
+        if (options.clearFlags)
         {
-            mSigningAccount->getAccount().flags = mSigningAccount->getAccount().flags & ~*mEnvelope.tx.body.setOptionsTx().clearFlags;
+            mSigningAccount->getAccount().flags = mSigningAccount->getAccount().flags & ~*options.clearFlags;
         }
-        if(mEnvelope.tx.body.setOptionsTx().setFlags)
+        if(options.setFlags)
         {   
-            mSigningAccount->getAccount().flags = mSigningAccount->getAccount().flags | *mEnvelope.tx.body.setOptionsTx().setFlags;
+            mSigningAccount->getAccount().flags = mSigningAccount->getAccount().flags | *options.setFlags;
         }
         
-        if(mEnvelope.tx.body.setOptionsTx().thresholds)
+        if(options.thresholds)
         {
-            mSigningAccount->getAccount().thresholds = *mEnvelope.tx.body.setOptionsTx().thresholds;
+            mSigningAccount->getAccount().thresholds = *options.thresholds;
         }
         
-        if(mEnvelope.tx.body.setOptionsTx().signer)
+        if(options.signer)
         {
             xdr::xvector<Signer>& signers = mSigningAccount->getAccount().signers;
-            if(mEnvelope.tx.body.setOptionsTx().signer->weight)
+            if(options.signer->weight)
             { // add or change signer
                 bool found = false;
                 for(auto oldSigner : signers)
                 {
-                    if(oldSigner.pubKey == mEnvelope.tx.body.setOptionsTx().signer->pubKey)
+                    if(oldSigner.pubKey == options.signer->pubKey)
                     {
-                        oldSigner.weight = mEnvelope.tx.body.setOptionsTx().signer->weight;
+                        oldSigner.weight = options.signer->weight;
                     }
                 }
                 if(!found)
@@ -65,7 +68,7 @@ namespace stellar
                         return false;
                     }
                     mSigningAccount->getAccount().numSubEntries++;
-                    signers.push_back(*mEnvelope.tx.body.setOptionsTx().signer);
+                    signers.push_back(*options.signer);
                 }
             } else
             { // delete signer
@@ -73,7 +76,7 @@ namespace stellar
                 while (it != signers.end())
                 {
                     Signer& oldSigner = *it;
-                    if(oldSigner.pubKey == mEnvelope.tx.body.setOptionsTx().signer->pubKey)
+                    if(oldSigner.pubKey == options.signer->pubKey)
                     {
                         it = signers.erase(it);
                         mSigningAccount->getAccount().numSubEntries--;
@@ -94,9 +97,10 @@ namespace stellar
 
     bool SetOptionsFrame::doCheckValid(Application& app)
     {
-        if (mEnvelope.tx.body.setOptionsTx().setFlags && mEnvelope.tx.body.setOptionsTx().clearFlags)
+        SetOptionsTx const& options = mEnvelope.tx.body.setOptionsTx();
+        if (options.setFlags && options.clearFlags)
         {
-            if ((*mEnvelope.tx.body.setOptionsTx().setFlags & *mEnvelope.tx.body.setOptionsTx().clearFlags) != 0)
+            if ((*options.setFlags & *options.clearFlags) != 0)
             {
                 innerResult().code(SetOptions::MALFORMED);
                 return false;

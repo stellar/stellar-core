@@ -30,9 +30,9 @@ namespace stellar
         enum ConvertResult { eOK, ePartial, eFilterStop };
         // buys wheat with sheep, crossing as many offers as necessary
         ConvertResult convertWithOffers(
-            Currency& sheep, int64_t maxSheepSent, int64_t &sheepSend,
-            Currency& wheat, int64_t maxWheatReceive, int64_t &weatReceived,
-            std::function<OfferFilterResult(const OfferFrame &)> filter);
+            Currency const& sheep, int64_t maxSheepSent, int64_t &sheepSend,
+            Currency const& wheat, int64_t maxWheatReceive, int64_t &weatReceived,
+            std::function<OfferFilterResult(OfferFrame const&)> filter);
 
         std::vector<ClaimOfferAtom> getOfferTrail() { return mOfferTrail; }
     };

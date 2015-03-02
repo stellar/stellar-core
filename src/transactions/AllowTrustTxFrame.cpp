@@ -23,15 +23,16 @@ namespace stellar
             return false;
         }
 
+        AllowTrustTx const& allowTrust = mEnvelope.tx.body.allowTrustTx();
+
         Currency ci;
         ci.type(ISO4217);
-        ci.isoCI().currencyCode = mEnvelope.tx.body.allowTrustTx().code.currencyCode();
+        ci.isoCI().currencyCode = allowTrust.code.currencyCode();
         ci.isoCI().issuer=mEnvelope.tx.account;
 
         Database &db = ledgerMaster.getDatabase();
         TrustFrame trustLine;
-        if(!TrustFrame::loadTrustLine(mEnvelope.tx.body.allowTrustTx().trustor, ci,
-            trustLine, db))
+        if(!TrustFrame::loadTrustLine(allowTrust.trustor, ci, trustLine, db))
         {
             innerResult().code(AllowTrust::NO_TRUST_LINE);
             return false;
@@ -39,7 +40,7 @@ namespace stellar
 
         innerResult().code(AllowTrust::SUCCESS);
 
-        trustLine.getTrustLine().authorized = mEnvelope.tx.body.allowTrustTx().authorize;
+        trustLine.getTrustLine().authorized = allowTrust.authorize;
         trustLine.storeChange(delta, db);
 
         return true;

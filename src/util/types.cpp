@@ -28,7 +28,7 @@ makePublicKey(uint256 const& b)
     return (ret);
 }
 
-bool compareCurrency(Currency& first, Currency& second)
+bool compareCurrency(Currency const& first, Currency const& second)
 {
     if(first.type() != second.type()) return false;
 
