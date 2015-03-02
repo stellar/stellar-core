@@ -355,8 +355,8 @@ enum TransactionResultCode
     txNO_FEE,
     txNO_ACCOUNT,
     txINSUFFICIENT_FEE,
-	txBELOW_MIN_BALANCE,
-	txDUPLICATE
+    txBELOW_MIN_BALANCE,
+    txDUPLICATE
 };
 
 struct TransactionResult
