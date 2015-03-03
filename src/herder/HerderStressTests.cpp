@@ -297,7 +297,7 @@ struct StressTest {
     void printDatabaseMetrics()
     {
         auto& registry = (*mApps)[0]->getMetrics();
-        auto& metrics = registry.GetAllMetrics();
+        auto const& metrics = registry.GetAllMetrics();
         medida::reporting::JsonReporter reporter{ registry };
         for (auto m : metrics)
         {

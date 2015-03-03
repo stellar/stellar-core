@@ -278,7 +278,7 @@ Simulation::execute(TxInfo transaction)
 }
 
 void
-Simulation::executeAll(vector<TxInfo>& transactions)
+Simulation::executeAll(vector<TxInfo> const& transactions)
 {
     for (auto tx : transactions)
     {
@@ -309,7 +309,7 @@ Simulation::checkAgainstDbs()
 void Simulation::printMetrics(string domain)
 {
     auto& registry = getNodes().front()->getMetrics();
-    auto& metrics = registry.GetAllMetrics();
+    auto const& metrics = registry.GetAllMetrics();
     std::stringstream out;
 
     medida::reporting::ConsoleReporter reporter{ registry, out };

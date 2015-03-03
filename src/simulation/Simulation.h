@@ -104,7 +104,7 @@ class Simulation
 
     vector<Simulation::TxInfo> createAccounts(int n);
     void execute(TxInfo transaction);
-    void executeAll(vector<TxInfo>& transaction);
+    void executeAll(vector<TxInfo> const& transaction);
     vector<accountInfoPtr> checkAgainstDbs(); // returns the accounts that don't match
 
     void printMetrics(string domain);
