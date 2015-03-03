@@ -47,6 +47,26 @@ public:
         , mLocalPath(snapDir.getName() + "/" + baseName_nogz())
         {}
 
+    FileTransferInfo(T state,
+                     TmpDir const& snapDir,
+                     std::string const& snapType,
+                     std::string const& hexDigits)
+        : mTransferState(state)
+        , mType(snapType)
+        , mHexDigits(hexDigits)
+        , mLocalPath(snapDir.getName() + "/" + baseName_nogz())
+        {}
+
+    bool getBucketHashName(std::string& hash) const
+    {
+        if (mHexDigits.size() == 64 && mType == HISTORY_FILE_TYPE_BUCKET)
+        {
+            hash = mHexDigits;
+            return true;
+        }
+        return false;
+    }
+
     std::string hexDir() const {
         std::regex rx("([:xdigit:]{2))([:xdigit:]{2))([:xdigit:]{2))");
         std::smatch sm;
