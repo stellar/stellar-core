@@ -16,18 +16,16 @@ using namespace soci;
 
 namespace stellar {
     const char *TrustFrame::kSQLCreateStatement =
-        "CREATE TABLE IF NOT EXISTS TrustLines            \
-         (                                                \
-         accountID     VARCHAR(51)  NOT NULL,             \
-         issuer        VARCHAR(51)  NOT NULL,             \
-         isoCurrency   VARCHAR(4)   NOT NULL,             \
-         tlimit        BIGINT       NOT NULL DEFAULT 0    \
-                                    CHECK (tlimit >= 0),  \
-         balance       BIGINT       NOT NULL DEFAULT 0    \
-                                    CHECK (balance >= 0), \
-         authorized    BOOL         NOT NULL,             \
-         PRIMARY KEY (accountID, issuer, isoCurrency)     \
-         );";
+        "CREATE TABLE TrustLines"
+         "("
+         "accountID     VARCHAR(51)  NOT NULL,"
+         "issuer        VARCHAR(51)  NOT NULL,"
+         "isoCurrency   VARCHAR(4)   NOT NULL,"
+         "tlimit        BIGINT       NOT NULL DEFAULT 0 CHECK (tlimit >= 0),"
+         "balance       BIGINT       NOT NULL DEFAULT 0 CHECK (balance >= 0),"
+         "authorized    BOOL         NOT NULL,"
+         "PRIMARY KEY (accountID, issuer, isoCurrency)"
+         ");";
 
     TrustFrame::TrustFrame() : EntryFrame(TRUSTLINE), mTrustLine(mEntry.trustLine())
     {

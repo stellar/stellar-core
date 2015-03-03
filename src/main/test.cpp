@@ -73,9 +73,12 @@ Config const& getTestConfig(int instanceNumber)
         thisConfig.VALIDATION_KEY = SecretKey::random();
 
         // uncomment this when debugging test cases
-        //thisConfig.DATABASE =
-        //"sqlite3://test2.db";
-        //"postgresql://host=localhost dbname=test" + instanceNumber + "user=test password=test";
+        //std::ostringstream dbname;
+        //dbname << "sqlite3://test" << instanceNumber << ".db";
+        //dbname << "postgresql://host=localhost dbname=test" << instanceNumber << " user=test password=test";
+        //thisConfig.DATABASE = dbname.str();
+        
+        
     }
     return *gTestCfg[instanceNumber];
 }

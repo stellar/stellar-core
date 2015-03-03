@@ -18,42 +18,41 @@ using namespace std;
 namespace stellar
 {
 const char *AccountFrame::kSQLCreateStatement1 =
-    "CREATE TABLE IF NOT EXISTS Accounts                      \
-     (                                                        \
-     accountID       VARCHAR(51)    PRIMARY KEY,              \
-     balance         BIGINT         NOT NULL,                 \
-     numSubEntries   INT            NOT NULL DEFAULT 0        \
-                                    CHECK (numSubEntries >= 0),  \
-     inflationDest   VARCHAR(51),                             \
-     thresholds      TEXT,                                    \
-     flags           INT            NOT NULL                  \
-     );";
+    "CREATE TABLE Accounts"
+     "("
+     "accountID       VARCHAR(51)  PRIMARY KEY,"
+     "balance         BIGINT       NOT NULL,"
+     "numSubEntries   INT          NOT NULL DEFAULT 0 CHECK (numSubEntries >= 0),"
+     "inflationDest   VARCHAR(51),"
+     "thresholds      TEXT,"
+     "flags           INT          NOT NULL"
+     ");";
 
 const char *AccountFrame::kSQLCreateStatement2 =
-    "CREATE TABLE IF NOT EXISTS Signers       \
-     (                                        \
-     accountID       VARCHAR(51) NOT NULL,    \
-     publicKey       VARCHAR(51) NOT NULL,    \
-     weight          INT         NOT NULL,    \
-     PRIMARY KEY (accountID, publicKey)       \
-     );";
+    "CREATE TABLE Signers"
+     "("
+     "accountID       VARCHAR(51) NOT NULL,"
+     "publicKey       VARCHAR(51) NOT NULL,"
+     "weight          INT         NOT NULL,"
+     "PRIMARY KEY (accountID, publicKey)"
+     ");";
 
 const char *AccountFrame::kSQLCreateStatement3 =
-    "CREATE TABLE IF NOT EXISTS AccountData         \
-     (                                              \
-     accountID       VARCHAR(51)    PRIMARY KEY,    \
-     key             INT            NOT NULL,       \
-     value           TEXT           NOT NULL        \
-     );";
+    "CREATE TABLE AccountData"
+     "("
+     "accountID       VARCHAR(51)    PRIMARY KEY,"
+     "key             INT            NOT NULL,"
+     "value           TEXT           NOT NULL"
+     ");";
 
 const char *AccountFrame::kSQLCreateStatement4 =
-    "CREATE TABLE IF NOT EXISTS SeqSlots      \
-     (                                        \
-     accountID       VARCHAR(51) NOT NULL,    \
-     seqSlot         INT         NOT NULL,    \
-     seqNum          INT         NOT NULL,    \
-     PRIMARY KEY (accountID, seqSlot)       \
-     );";
+    "CREATE TABLE SeqSlots"
+    "("
+    "accountID       VARCHAR(51) NOT NULL,"
+    "seqSlot         INT         NOT NULL,"
+    "seqNum          INT         NOT NULL,"
+    "PRIMARY KEY (accountID, seqSlot)"
+     ");";
 
 AccountFrame::AccountFrame() : EntryFrame(ACCOUNT), mAccountEntry(mEntry.account())
 {

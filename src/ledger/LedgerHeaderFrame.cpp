@@ -151,18 +151,18 @@ using namespace std;
         db.getSession() << "DROP TABLE IF EXISTS LedgerHeaders;";
 
         db.getSession() <<
-            "CREATE TABLE IF NOT EXISTS LedgerHeaders ("\
-            "ledgerHash      CHARACTER(64) PRIMARY KEY,"\
-            "prevHash        CHARACTER(64) NOT NULL,"\
-            "txSetHash       CHARACTER(64) NOT NULL,"\
-            "clfHash         CHARACTER(64) NOT NULL,"\
-            "totCoins        BIGINT NOT NULL CHECK (totCoins >= 0),"\
-            "feePool         BIGINT NOT NULL CHECK (feePool >= 0),"\
-            "ledgerSeq       BIGINT UNIQUE CHECK (ledgerSeq >= 0),"\
-            "inflationSeq    INT NOT NULL CHECK (inflationSeq >= 0),"\
-            "baseFee         INT NOT NULL CHECK (baseFee >= 0),"\
-            "baseReserve     INT NOT NULL CHECK (baseReserve >= 0),"\
-            "closeTime       BIGINT NOT NULL CHECK (closeTime >= 0)"\
+            "CREATE TABLE LedgerHeaders ("
+            "ledgerHash      CHARACTER(64) PRIMARY KEY,"
+            "prevHash        CHARACTER(64) NOT NULL,"
+            "txSetHash       CHARACTER(64) NOT NULL,"
+            "clfHash         CHARACTER(64) NOT NULL,"
+            "totCoins        BIGINT NOT NULL CHECK (totCoins >= 0),"
+            "feePool         BIGINT NOT NULL CHECK (feePool >= 0),"
+            "ledgerSeq       BIGINT UNIQUE CHECK (ledgerSeq >= 0),"
+            "inflationSeq    INT NOT NULL CHECK (inflationSeq >= 0),"
+            "baseFee         INT NOT NULL CHECK (baseFee >= 0),"
+            "baseReserve     INT NOT NULL CHECK (baseReserve >= 0),"
+            "closeTime       BIGINT NOT NULL CHECK (closeTime >= 0)"
             ");";
 
         db.getSession() <<

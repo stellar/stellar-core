@@ -342,13 +342,13 @@ void TransactionFrame::dropAll(Database &db)
     db.getSession() << "DROP TABLE IF EXISTS TxHistory";
 
     db.getSession() <<
-        "CREATE TABLE IF NOT EXISTS TxHistory (" \
-        "txID          CHARACTER(64) NOT NULL,"\
-        "ledgerSeq     INT NOT NULL CHECK (ledgerSeq >= 0),"\
-        "TxBody        TEXT NOT NULL,"\
-        "TxResult      TEXT NOT NULL,"\
-        "TxMeta        TEXT NOT NULL,"\
-        "PRIMARY KEY (txID, ledgerSeq)"\
+        "CREATE TABLE TxHistory ("
+        "txID          CHARACTER(64) NOT NULL,"
+        "ledgerSeq     INT NOT NULL CHECK (ledgerSeq >= 0),"
+        "TxBody        TEXT NOT NULL,"
+        "TxResult      TEXT NOT NULL,"
+        "TxMeta        TEXT NOT NULL,"
+        "PRIMARY KEY (txID, ledgerSeq)"
         ")";
 
 }
