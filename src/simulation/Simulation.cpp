@@ -305,17 +305,19 @@ Simulation::createRandomTransactions(size_t n, float paretoAlpha)
 vector<Simulation::TxInfo>
 Simulation::createAccounts(int n)
 {
-    auto root = make_shared<AccountInfo>(0, txtest::getRoot(), 1000000000, *this);
-    mAccounts.push_back(root);
+    vector<TxInfo> result;
+    if (mAccounts.empty())
+    {
+        auto root = make_shared<AccountInfo>(0, txtest::getRoot(), 1000000000, *this);
+        mAccounts.push_back(root);
+        result.push_back(root->creationTransaction());
+    }
 
     for (int i = 0; i < n; i++)
     {
-        auto accountName = "Account-" + to_string(i);
-        mAccounts.push_back(make_shared<AccountInfo>(i, txtest::getAccount(accountName.c_str()), 0, *this));
-    }
-    vector<TxInfo> result;
-    for(auto account : mAccounts)
-    {
+        auto accountName = "Account-" + to_string(mAccounts.size());
+        auto account = make_shared<AccountInfo>(mAccounts.size(), txtest::getAccount(accountName.c_str()), 0, *this);
+        mAccounts.push_back(account);
         result.push_back(account->creationTransaction());
     }
     return result;

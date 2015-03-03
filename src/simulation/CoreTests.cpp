@@ -53,14 +53,16 @@ TEST_CASE("pair of node creating 50 accounts", "[simulation]")
         }, 
         std::chrono::seconds(60));
 
-    simulation->execute(simulation->createTranferTransaction(1, 2, 50));
+    simulation->executeAll(simulation->createAccounts(1));
     simulation->crankUntil([&]() 
         {
-            return simulation->haveAllExternalized(5) &&
+            return simulation->haveAllExternalized(6) &&
                  simulation->accountOutOfSyncWithDb().empty();
         }, 
-        std::chrono::seconds(60));
+        std::chrono::seconds(160));
 
+    auto problems = simulation->accountOutOfSyncWithDb();
+    REQUIRE(problems.empty());
     LOG(INFO) << simulation->metricsSummary("database");
 }
 

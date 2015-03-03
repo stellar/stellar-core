@@ -24,18 +24,6 @@ using namespace std;
     
 class Simulation
 {
-  private:
-    VirtualClock mClock;
-    enum Mode;
-    Mode mMode;
-    int mConfigCount;
-    Application::pointer mIdleApp;
-    map<uint256, Config::pointer> mConfigs;
-    map<uint256, Application::pointer> mNodes;
-    vector<shared_ptr<LoopbackPeerConnection>> mConnections;
-
-    uint64 getMinBalance();
-
   public:
       enum Mode
       {
@@ -116,6 +104,17 @@ class Simulation
     vector<accountInfoPtr> accountOutOfSyncWithDb(); // returns the accounts that don't match
 
     string metricsSummary(string domain);
+
+private:
+    VirtualClock mClock;
+    Mode mMode;
+    int mConfigCount;
+    Application::pointer mIdleApp;
+    map<uint256, Config::pointer> mConfigs;
+    map<uint256, Application::pointer> mNodes;
+    vector<shared_ptr<LoopbackPeerConnection>> mConnections;
+
+    uint64 getMinBalance();
 };
 }
 
