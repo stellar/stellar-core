@@ -27,6 +27,7 @@ FMT_SRCS =                                      \
     src/herder/HerderStressTests.cpp            \
     src/herder/HerderTests.cpp                  \
     src/herder/TxSetFrame.cpp                   \
+    src/history/FileTransferInfo.cpp            \
     src/history/CatchupStateMachine.cpp         \
     src/history/HistoryArchive.cpp              \
     src/history/HistoryMaster.cpp               \
@@ -106,6 +107,7 @@ FMT_HDRS =                                      \
     src/herder/Herder.h                         \
     src/herder/HerderGateway.h                  \
     src/herder/TxSetFrame.h                     \
+    src/history/FileTransferInfo.h              \
     src/history/CatchupStateMachine.h           \
     src/history/HistoryArchive.h                \
     src/history/HistoryGateway.h                \
