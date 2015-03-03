@@ -168,13 +168,14 @@ PeerRecord::dropAll(Database &db)
     db.getSession() << kSQLCreateStatement;
 }
 
-const char* PeerRecord::kSQLCreateStatement = "CREATE TABLE IF NOT EXISTS Peers (						\
-    ip	    CHARACTER(11) NOT NULL,   \
-    port   	INT DEFAULT 0 CHECK (port >= 0) NOT NULL,		\
-    nextAttempt   	TIMESTAMP NOT NULL,	    	\
-    numFailures     INT DEFAULT 0 CHECK (numFailures >= 0) NOT NULL,      \
-    rank	INT DEFAULT 0 CHECK (rank >= 0) NOT NULL, 	\
-    PRIMARY KEY (ip, port)                      \
+const char* PeerRecord::kSQLCreateStatement =
+    "CREATE TABLE Peers (                                                   \
+    ip              VARCHAR(11) NOT NULL,                                   \
+    port            INT DEFAULT 0 CHECK (port >= 0) NOT NULL,               \
+    nextAttempt     TIMESTAMP NOT NULL,                                     \
+    numFailures     INT DEFAULT 0 CHECK (numFailures >= 0) NOT NULL,        \
+    rank            INT DEFAULT 0 CHECK (rank >= 0) NOT NULL,               \
+    PRIMARY KEY (ip, port)                                                  \
 );";
 
 }

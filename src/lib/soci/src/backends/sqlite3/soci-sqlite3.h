@@ -241,9 +241,9 @@ struct sqlite3_session_backend : details::session_backend
 
     ~sqlite3_session_backend();
 
-    virtual void begin();
-    virtual void commit();
-    virtual void rollback();
+    virtual void begin(const char* beginTx);
+    virtual void commit(const char* commitTx);
+    virtual void rollback(const char* rollbackTx);
 
     virtual std::string get_backend_name() const { return "sqlite3"; }
 
@@ -254,10 +254,6 @@ struct sqlite3_session_backend : details::session_backend
     virtual sqlite3_blob_backend * make_blob_backend();
 
     sqlite_api::sqlite3 *conn_;
-
-protected:
-    void transaction_commit_helper(bool commit);
-    int transaction_level;
 };
 
 struct sqlite3_backend_factory : backend_factory

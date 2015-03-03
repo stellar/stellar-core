@@ -164,7 +164,8 @@ Herder::validateValue(const uint64& slotIndex,
         }
 
         // Check closeTime (not too far in future)
-        int64_t maxTime=mApp.getClock().now().time_since_epoch().count() * std::chrono::system_clock::period::num / std::chrono::system_clock::period::den;
+        uint64_t maxTime=(uint64_t)(mApp.getClock().now().time_since_epoch().count() *
+			std::chrono::system_clock::period::num / std::chrono::system_clock::period::den);
         maxTime += MAX_TIME_IN_FUTURE_VALID;
         if(b.value.closeTime > maxTime)
         {

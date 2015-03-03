@@ -225,9 +225,9 @@ public:
     session_backend() {}
     virtual ~session_backend() {}
 
-    virtual void begin() = 0;
-    virtual void commit() = 0;
-    virtual void rollback() = 0;
+    virtual void begin(const char* beginTx) = 0;
+    virtual void commit(const char* commitTx) = 0;
+    virtual void rollback(const char* rollbackTx) = 0;
 
     // At least one of these functions is usually not implemented for any given
     // backend as RDBMS support either sequences or auto-generated values, so

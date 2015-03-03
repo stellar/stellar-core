@@ -283,10 +283,10 @@ void LedgerMaster::closeLedgerHelper(bool updateCurrent, LedgerDelta const& delt
 }
 
 const char *LedgerMaster::kSQLCreateStatement =
-"CREATE TABLE IF NOT EXISTS StoreState (        \
-        StateName   CHARACTER(32) PRIMARY KEY,  \
-        State       TEXT                        \
-);";
+"CREATE TABLE StoreState ("
+"StateName   CHARACTER(32) PRIMARY KEY,"
+"State       TEXT"
+");";
 
 void LedgerMaster::dropAll(Database &db)
 {
