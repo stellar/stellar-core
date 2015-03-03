@@ -12,11 +12,13 @@ Simulation::pointer Topologies::pair(Simulation::Mode mode)
     SIMULATION_CREATE_NODE(10);
     SIMULATION_CREATE_NODE(11);
 
-    FBAQuorumSet qSet0; qSet0.threshold = 1; qSet0.validators.push_back(v11NodeID);
-    FBAQuorumSet qSet1; qSet1.threshold = 1; qSet1.validators.push_back(v10NodeID);
+    FBAQuorumSet qSet0; 
+    qSet0.threshold = 1; 
+    qSet0.validators.push_back(v10NodeID);
+    qSet0.validators.push_back(v11NodeID);
 
     auto n0 = simulation->addNode(v10VSeed, qSet0, simulation->getClock());
-    auto n1 = simulation->addNode(v11VSeed, qSet1, simulation->getClock());
+    auto n1 = simulation->addNode(v11VSeed, qSet0, simulation->getClock());
 
     simulation->addConnection(n0, n1);
     return simulation;

@@ -371,7 +371,7 @@ Herder::validateBallot(const uint64& slotIndex,
     uint256 valueHash = 
         sha256(xdr::xdr_to_msg(ballot.value));
 
-    CLOG(DEBUG, "Herder") << "Herder::validateBallot"
+    CLOG(INFO, "Herder") << "Herder::validateBallot"
         << "@" << binToHex(getLocalNodeID()).substr(0,6)
         << " i: " << slotIndex
         << " v: " << binToHex(nodeID).substr(0,6)
@@ -837,6 +837,7 @@ Herder::removeReceivedTx(TransactionFramePtr dropTx)
     }
 }
 
+// called to start the next round of SCP
 void
 Herder::triggerNextLedger(const asio::error_code& error)
 {
@@ -889,7 +890,7 @@ Herder::triggerNextLedger(const asio::error_code& error)
         << binToHex(proposedSet->mPreviousLedgerHash).substr(0,6)
         << " value: " << binToHex(valueHash).substr(0,6);
 
-    // We prepare that value. If we're king, the ballot will be validated, and
+    // We prepare that value. If we're monarch, the ballot will be validated, and
     // if we're not it'll just get ignored.
     mValuePrepare.Mark();
     prepareValue(slotIndex, mCurrentValue);
