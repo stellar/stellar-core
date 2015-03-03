@@ -280,14 +280,13 @@ Simulation::createRandomTransaction(float alpha)
 void
 Simulation::TxInfo::execute(shared_ptr<Application> app)
 {
-    TransactionFramePtr txFrame = txtest::createPaymentTx(mFrom->mKey, mTo->mKey, mFrom->mSeq, mAmount);
-    
-    app->getHerderGateway().recvTransaction(txFrame);
-
     mFrom->mSeq++;
     mFrom->mBalance -= mAmount;
     mFrom->mBalance -= app->getConfig().DESIRED_BASE_FEE;
     mTo->mBalance += mAmount;
+
+    TransactionFramePtr txFrame = txtest::createPaymentTx(mFrom->mKey, mTo->mKey, mFrom->mSeq, mAmount);
+    app->getHerderGateway().recvTransaction(txFrame);
 }
 
 vector<Simulation::TxInfo>
@@ -357,7 +356,7 @@ Simulation::accountOutOfSyncWithDb()
             auto account = *accountIt;
             AccountFrame accountFrame;
             AccountFrame::loadAccount(account->mKey.getPublicKey(), accountFrame, app->getDatabase());
-
+            LOG(INFO) << account->mId << " has " << accountFrame.getBalance() << " and " << account->mBalance;
             if (accountFrame.getBalance() != account->mBalance)
                 result.push_back(account);
         }

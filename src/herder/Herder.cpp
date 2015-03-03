@@ -882,7 +882,7 @@ Herder::triggerNextLedger(const asio::error_code& error)
     mCurrentValue = xdr::xdr_to_opaque(b);
 
     uint256 valueHash = sha256(xdr::xdr_to_msg(mCurrentValue));
-    CLOG(DEBUG, "Herder") << "Herder::triggerNextLedger"
+    CLOG(INFO, "Herder") << "Herder::triggerNextLedger"
         << "@" << binToHex(getLocalNodeID()).substr(0,6)
         << " txSet.size: " << proposedSet->mTransactions.size()
         << " previousLedgerHash: " 
