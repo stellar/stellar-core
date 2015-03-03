@@ -5,9 +5,9 @@ namespace stellar
 {
 
 
-Simulation::pointer Topologies::pair(bool standAlone)
+Simulation::pointer Topologies::pair(Simulation::Mode mode)
 {
-    Simulation::pointer simulation = make_shared<Simulation>(standAlone);
+    Simulation::pointer simulation = make_shared<Simulation>(mode);
 
     SIMULATION_CREATE_NODE(10);
     SIMULATION_CREATE_NODE(11);
@@ -18,16 +18,13 @@ Simulation::pointer Topologies::pair(bool standAlone)
     auto n0 = simulation->addNode(v10VSeed, qSet0, simulation->getClock());
     auto n1 = simulation->addNode(v11VSeed, qSet1, simulation->getClock());
 
-    if (standAlone)
-        simulation->addLoopbackConnection(n0, n1);
-    else simulation->addTCPConnection(n0, n1);
-
+    simulation->addConnection(n0, n1);
     return simulation;
 }
 
 Simulation::pointer Topologies::cycle4()
 {
-    Simulation::pointer simulation = make_shared<Simulation>(true);
+    Simulation::pointer simulation = make_shared<Simulation>(Simulation::OVER_LOOPBACK);
 
     SIMULATION_CREATE_NODE(0);
     SIMULATION_CREATE_NODE(1);
@@ -63,7 +60,7 @@ Simulation::pointer Topologies::cycle4()
 
 Simulation::pointer Topologies::core4()
 {
-    Simulation::pointer simulation = make_shared<Simulation>(true);
+    Simulation::pointer simulation = make_shared<Simulation>(Simulation::OVER_LOOPBACK);
 
     SIMULATION_CREATE_NODE(0);
     SIMULATION_CREATE_NODE(1);

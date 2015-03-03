@@ -15,7 +15,7 @@ namespace stellar
 
 TEST_CASE("TCPPeer can communicate", "[overlay]")
 {
-    Simulation::pointer s = make_shared<Simulation>(false);
+    Simulation::pointer s = make_shared<Simulation>(Simulation::OVER_TCP);
 
     SIMULATION_CREATE_NODE(10);
     SIMULATION_CREATE_NODE(11);

@@ -38,13 +38,22 @@ TEST_CASE("cycle4 topology", "[simulation]")
     CHECK(simulation->haveAllExternalized(2));
 }
 
-TEST_CASE("pair with transactions", "[simulation]")
+TEST_CASE("pair of node creating 50 accounts", "[simulation]")
 {
-    Simulation::pointer simulation = Topologies::pair(true);
+    Simulation::pointer simulation = Topologies::pair(Simulation::OVER_LOOPBACK);
 
     simulation->startAllNodes();
+    simulation->crankForAtLeast(std::chrono::seconds(10));
 
-    simulation->crankForAtMost(std::chrono::seconds(5));
+    REQUIRE(simulation->haveAllExternalized(3));
+
+    simulation->executeAll(simulation->createAccounts(50));
+    simulation->crankForAtLeast(std::chrono::seconds(60));
  
-    REQUIRE(simulation->haveAllExternalized(2));
+    REQUIRE(simulation->haveAllExternalized(4));
+    auto problemAccounts = simulation->checkAgainstDbs();
+    REQUIRE(problemAccounts.empty());
+
+    simulation->printMetrics("database");
 }
+
