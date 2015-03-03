@@ -372,9 +372,6 @@
     <ClCompile Include="..\..\src\simulation\CoreTests.cpp">
       <Filter>simulation</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\herder\HerderStressTests.cpp">
-      <Filter>herder\tests</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\herder\HerderTests.cpp">
       <Filter>herder\tests</Filter>
     </ClCompile>

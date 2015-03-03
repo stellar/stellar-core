@@ -157,7 +157,6 @@
     <ClCompile Include="..\..\src\fba\Node.cpp" />
     <ClCompile Include="..\..\src\fba\Slot.cpp" />
     <ClCompile Include="..\..\src\herder\Herder.cpp" />
-    <ClCompile Include="..\..\src\herder\HerderStressTests.cpp" />
     <ClCompile Include="..\..\src\herder\HerderTests.cpp" />
     <ClCompile Include="..\..\src\herder\TxSetFrame.cpp" />
     <ClCompile Include="..\..\src\history\CatchupStateMachine.cpp" />

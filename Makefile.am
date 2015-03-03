@@ -24,7 +24,6 @@ FMT_SRCS =                                      \
     src/fba/Node.cpp                            \
     src/fba/Slot.cpp                            \
     src/herder/Herder.cpp                       \
-    src/herder/HerderStressTests.cpp            \
     src/herder/HerderTests.cpp                  \
     src/herder/TxSetFrame.cpp                   \
     src/history/CatchupStateMachine.cpp         \
