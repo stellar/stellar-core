@@ -48,6 +48,7 @@ enum FilePublishState
 };
 
 struct StateSnapshot;
+template <typename T> class FileTransferInfo;
 
 class
 ArchivePublisher : public std::enable_shared_from_this<ArchivePublisher>
@@ -65,7 +66,7 @@ ArchivePublisher : public std::enable_shared_from_this<ArchivePublisher>
     HistoryArchiveState mArchiveState;
     std::shared_ptr<StateSnapshot> mSnap;
 
-    std::map<std::string, FilePublishState> mFileStates;
+    std::map<std::string, std::shared_ptr<FileTransferInfo<FilePublishState>>> mFileInfos;
 
     void fileStateChange(asio::error_code const& ec,
                          std::string const& hashname,

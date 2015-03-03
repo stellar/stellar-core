@@ -9,6 +9,7 @@
 #include "history/HistoryArchive.h"
 #include "history/HistoryMaster.h"
 #include "history/PublishStateMachine.h"
+#include "history/FileTransferInfo.h"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "database/Database.h"
@@ -25,6 +26,8 @@ namespace stellar
 const size_t
 ArchivePublisher::kRetryLimit = 16;
 
+typedef FileTransferInfo<FilePublishState> FilePublishInfo;
+
 struct
 StateSnapshot
 {
@@ -35,12 +38,13 @@ StateSnapshot
     std::unique_ptr<soci::session> mSnapSess;
     soci::session& mSess;
     soci::transaction mTx;
+    std::shared_ptr<FilePublishInfo> mLedgerSnapFile;
+    std::shared_ptr<FilePublishInfo> mTransactionSnapFile;
 
     StateSnapshot(Application& app);
-    std::string ledgerSnapFilename() const;
-    std::string txSnapFilename() const;
     bool writeHistoryBlocks() const;
 };
+
 
 ArchivePublisher::ArchivePublisher(Application& app,
                                    std::function<void(asio::error_code const&)> handler,
@@ -115,33 +119,46 @@ ArchivePublisher::enterObservedState(HistoryArchiveState const& has)
     mState = PUBLISH_OBSERVED;
 
     mArchiveState = has;
-    std::vector<std::string> toSend = mSnap->mLocalState.differingBuckets(mArchiveState);
+    std::vector<std::string> bucketsToSend = mSnap->mLocalState.differingBuckets(mArchiveState);
     std::map<std::string, std::shared_ptr<Bucket>> bucketsByHash;
     for (auto b : mSnap->mLocalBuckets)
     {
         bucketsByHash[binToHex(b->getHash())] = b;
     }
-    for (auto const& hash : toSend)
+
+    std::vector<std::shared_ptr<FilePublishInfo>> filePublishInfos =
+        {
+            mSnap->mLedgerSnapFile,
+            mSnap->mTransactionSnapFile
+        };
+
+    for (auto const& hash : bucketsToSend)
     {
         auto b = bucketsByHash[hash];
         assert(b);
-        auto i = mFileStates.find(hash);
-        if (i == mFileStates.end() ||
-            i->second == FILE_PUBLISH_FAILED)
+        filePublishInfos.push_back(std::make_shared<FilePublishInfo>(FILE_PUBLISH_NEEDED, *b));
+    }
+
+    for (auto pi : filePublishInfos)
+    {
+        auto name = pi->baseName_nogz();
+        auto i = mFileInfos.find(name);
+        if (i == mFileInfos.end() ||
+            i->second->getState() == FILE_PUBLISH_FAILED)
         {
             CLOG(DEBUG, "History")
-                << "Queueing bucket "
-                << hexAbbrev(b->getHash())
+                << "Queueing file "
+                << name
                 << " to send to archive '" << mArchive->getName() << "'";
-            mFileStates[hash] = FILE_PUBLISH_NEEDED;
+            mFileInfos[name] = pi;
         }
         else
         {
             CLOG(DEBUG, "History")
-                << "Not queueing bucket "
-                << hexAbbrev(b->getHash())
+                << "Not queueing file "
+                << name
                 << " to send to archive '" << mArchive->getName()
-                << "'; bucket already queued";
+                << "'; file already queued";
         }
     }
     enterSendingState();
@@ -154,17 +171,17 @@ ArchivePublisher::enterObservedState(HistoryArchiveState const& has)
  */
 void
 ArchivePublisher::fileStateChange(asio::error_code const& ec,
-                                  std::string const& hashname,
+                                  std::string const& name,
                                   FilePublishState newGoodState)
 {
     FilePublishState newState = newGoodState;
     if (ec)
     {
-        CLOG(WARNING, "History") << "Publish action failed on " << hashname;
+        CLOG(WARNING, "History") << "Publish action failed on " << name;
         newState = FILE_PUBLISH_FAILED;
         mError = ec;
     }
-    mFileStates[hashname] = newState;
+    mFileInfos[name]->setState(newState);
     enterSendingState();
 }
 
@@ -176,29 +193,25 @@ ArchivePublisher::enterSendingState()
 
     FilePublishState minimumState = FILE_PUBLISH_UPLOADED;
     auto& hm = mApp.getHistoryMaster();
-    for (auto& f : mFileStates)
+    for (auto& pair : mFileInfos)
     {
-        std::string hashname = f.first;
-        std::string basename = hm.bucketBasename(hashname);
-        std::string filename = mApp.getCLFMaster().getBucketDir() + "/" + basename;
+        auto fi = pair.second;
+        std::string name = fi->baseName_nogz();
 
-        std::string basename_gz = basename + ".gz";
-        std::string filename_gz = filename + ".gz";
-
-        minimumState = std::min(f.second, minimumState);
-        switch (f.second)
+        minimumState = std::min(fi->getState(), minimumState);
+        switch (fi->getState())
         {
         case FILE_PUBLISH_FAILED:
             break;
 
         case FILE_PUBLISH_NEEDED:
-            f.second = FILE_PUBLISH_COMPRESSING;
-            CLOG(DEBUG, "History") << "Compressing " << basename;
+            fi->setState(FILE_PUBLISH_COMPRESSING);
+            CLOG(DEBUG, "History") << "Compressing " << name;
             hm.compress(
-                filename,
-                [this, hashname](asio::error_code const& ec)
+                fi->localPath_nogz(),
+                [this, name](asio::error_code const& ec)
                 {
-                    this->fileStateChange(ec, hashname, FILE_PUBLISH_COMPRESSED);
+                    this->fileStateChange(ec, name, FILE_PUBLISH_COMPRESSED);
                 }, true);
             break;
 
@@ -207,15 +220,15 @@ ArchivePublisher::enterSendingState()
             break;
 
         case FILE_PUBLISH_COMPRESSED:
-            f.second = FILE_PUBLISH_UPLOADING;
-            CLOG(INFO, "History") << "Publishing " << basename_gz;
+            fi->setState(FILE_PUBLISH_UPLOADING);
+            CLOG(INFO, "History") << "Publishing " << name;
             hm.putFile(
                 mArchive,
-                filename_gz,
-                basename_gz,
-                [this, hashname](asio::error_code const& ec)
+                fi->localPath_gz(),
+                fi->baseName_gz(),
+                [this, name](asio::error_code const& ec)
                 {
-                    this->fileStateChange(ec, hashname, FILE_PUBLISH_UPLOADED);
+                    this->fileStateChange(ec, name, FILE_PUBLISH_UPLOADED);
                 });
             break;
 
@@ -223,7 +236,7 @@ ArchivePublisher::enterSendingState()
             break;
 
         case FILE_PUBLISH_UPLOADED:
-            std::remove(filename_gz.c_str());
+            std::remove(fi->localPath_gz().c_str());
             break;
         }
     }
@@ -302,6 +315,14 @@ StateSnapshot::StateSnapshot(Application& app)
                : nullptr)
     , mSess(mSnapSess ? *mSnapSess : app.getDatabase().getSession())
     , mTx(mSess)
+    , mLedgerSnapFile(
+        std::make_shared<FilePublishInfo>(
+            FILE_PUBLISH_NEEDED, mSnapDir, HISTORY_FILE_TYPE_LEDGER,
+            mLocalState.currentLedger / HistoryMaster::kCheckpointFrequency))
+    , mTransactionSnapFile(
+        std::make_shared<FilePublishInfo>(
+            FILE_PUBLISH_NEEDED, mSnapDir, HISTORY_FILE_TYPE_TRANSACTION,
+            mLocalState.currentLedger / HistoryMaster::kCheckpointFrequency))
 {
     BucketList& buckets = app.getCLFMaster().getBucketList();
     for (size_t i = 0; i < buckets.numLevels(); ++i)
@@ -312,36 +333,25 @@ StateSnapshot::StateSnapshot(Application& app)
     }
 }
 
-std::string
-StateSnapshot::ledgerSnapFilename() const
-{
-    return mSnapDir.getName() + "/ledger-history.xdr";
-}
-
-std::string
-StateSnapshot::txSnapFilename() const
-{
-    return mSnapDir.getName() + "/transaction-history.xdr";
-}
-
 bool
 StateSnapshot::writeHistoryBlocks() const
 {
     // The current "history block" is stored in _two_ files, one just ledger
-    // headers, and one TransactionHistoryEntry structs (which contain txs,
-    // results, and metas that describe the changed objects). Both files are
-    // streamed out of the database, entry-by-entry.
+    // headers, and one TransactionHistoryEntry structs (which contain txs and
+    // results). Both files are streamed out of the database, entry-by-entry.
     XDROutputFileStream ledgerOut, txOut;
-    ledgerOut.open(ledgerSnapFilename());
-    txOut.open(txSnapFilename());
+    ledgerOut.open(mLedgerSnapFile->localPath_nogz());
+    txOut.open(mTransactionSnapFile->localPath_nogz());
     uint64_t count = HistoryMaster::kCheckpointFrequency;
     uint64_t begin = mLocalState.currentLedger - count;
     size_t nHeaders = LedgerHeaderFrame::copyLedgerHeadersToStream(mApp.getDatabase(), mSess,
                                                                    begin, count, ledgerOut);
     size_t nTxs = TransactionFrame::copyTransactionsToStream(mApp.getDatabase(), mSess,
                                                              begin, count, txOut);
-    CLOG(DEBUG, "History") << "Wrote " << nHeaders << " ledger headers to " << ledgerSnapFilename();
-    CLOG(DEBUG, "History") << "Wrote " << nTxs << " transactions to " << txSnapFilename();
+    CLOG(DEBUG, "History")
+        << "Wrote " << nHeaders << " ledger headers to " << mLedgerSnapFile->localPath_nogz();
+    CLOG(DEBUG, "History")
+        << "Wrote " << nTxs << " transactions to " << mTransactionSnapFile->localPath_nogz();
     return true;
 }
 
