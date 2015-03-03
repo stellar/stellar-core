@@ -344,8 +344,40 @@ Simulation::executeAll(vector<TxInfo> const& transactions)
     }
 }
 
+chrono::seconds
+Simulation::executeStressTest(size_t nTransactions, int injectionRatePerSec)
+{
+    size_t iTransactions = 0;
+    auto startTime = chrono::system_clock::now();
+    chrono::system_clock::duration crankingTime(0);
+    while (iTransactions < nTransactions)
+    {
+        auto elapsed = chrono::duration_cast<chrono::microseconds>(chrono::system_clock::now() - startTime);
+        auto targetTxs = min(nTransactions, static_cast<size_t>(elapsed.count() * injectionRatePerSec / 1000000));
+        auto toInject = max(static_cast<size_t>(0), targetTxs - iTransactions);
+
+        if (toInject == 0)
+        {
+            this_thread::sleep_for(chrono::milliseconds(50));
+        }
+        else {
+            LOG(INFO) << "Injecting txs " << iTransactions << "..." << (iTransactions + toInject) << " out of " << nTransactions;
+            //auto tx = createRandomTransactions(toInject, 0.5);
+            auto tx = createTranferTransaction(2, 3, 10000);
+            execute(tx);
+            iTransactions += toInject;
+        }
+
+        auto crankingStart = chrono::system_clock::now();
+        crankAllNodes(1);
+        auto t = (chrono::system_clock::now() - crankingStart);
+        crankingTime += t;
+    }
+    return chrono::duration_cast<chrono::seconds>(crankingTime);
+}
+
 vector<Simulation::accountInfoPtr> 
-Simulation::accountOutOfSyncWithDb()
+Simulation::accountsOutOfSyncWithDb()
 {
     vector<accountInfoPtr> result;
     for (auto pair : mNodes)

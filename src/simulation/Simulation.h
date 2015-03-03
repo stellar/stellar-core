@@ -100,8 +100,9 @@ class Simulation
 
     void execute(TxInfo transaction);
     void executeAll(vector<TxInfo> const& transaction);
+    chrono::seconds executeStressTest(size_t nTransactions, int injectionRatePerSec);
 
-    vector<accountInfoPtr> accountOutOfSyncWithDb(); // returns the accounts that don't match
+    vector<accountInfoPtr> accountsOutOfSyncWithDb(); // returns the accounts that don't match
 
     string metricsSummary(string domain);
 
