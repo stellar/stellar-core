@@ -38,7 +38,7 @@ TEST_CASE("cycle4 topology", "[simulation]")
     CHECK(simulation->haveAllExternalized(2));
 }
 
-TEST_CASE("pair of node creating 50 accounts", "[simulation]")
+TEST_CASE("Stress test on a pair of node, 3 accounts, 100 transactions, 10tx/sec", "[simulation][stress]")
 {
     Simulation::pointer simulation = Topologies::pair(Simulation::OVER_LOOPBACK);
 
@@ -54,8 +54,6 @@ TEST_CASE("pair of node creating 50 accounts", "[simulation]")
         std::chrono::seconds(60));
 
     auto crankingTime = simulation->executeStressTest(100, 10);
-    //auto tx = simulation->createTranferTransaction(2, 3, 10000);
-    //simulation->execute(tx);
 
     try
     {
