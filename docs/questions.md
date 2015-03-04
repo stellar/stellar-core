@@ -1,39 +1,26 @@
+OPEN QUESTIONS
+==============
+- How are we going to handle Tx Memos?
+	- we allow a 32byte memo field that can be attached to a tx
+	- This can be interpreted as a hash and there is some way to look up the contents
+	- Maybe accounts have a some value stored that tells people where to look for the memo contents
+
+- How are we going to do reverse federation?
 
 
-
-Some people are asking that quasi paranoid group of people 
-
-Options for tx results
-- implementation specific
-- standardize some API
-- canonical version that is hashed and becomes part of the ledger header
-- store just success or failure in the header
+- Is it ok to drop the transfer fee?
+	- Do we want to make a maxTransferRate for moving credit around?
 
 
-
-
-Do we want to make a maxTransferRate for moving credit around?
-
-Do we keep full entries in the BucketList?
-
-What is the file format for the history?
-
-Are we charging enough for storage?
+- Are we charging enough for storage?
 	Right now you can make a few million offers and greatly increase 
 		the ledger size and get it all back at somepoint
 	Maybe it should be more than a bond. Like some part is destroyed permanently.
 
-How does the network start up?
-	validator starts with --new
-	DB is cleared
-	Hash genesis ledger
-	Start FBA with empty txSet
-	FBA will hang until a quorum is also started with --new
+- Are we charging enough for tx?
 
+- How do we boot a network when most or all the nodes have cashed? 
 
-Is simple bool success or failure enough for to put in the ledger for tx?
-	What about later when there are more complicated scripts?
-	Maybe we should make everything composable of simpler tx.
 
 If we id txs by hash of contents then there are multiple txs that could match
  maybe same contents were submitted too early and failed without consuming the seq num
@@ -47,6 +34,11 @@ If we id txs by hash of contents then there are multiple txs that could match
 
 ANSWERED
 =======
+- What do we do about txs with extra signatures?
+	- We don't really want to enforce or check if there are extra signatures. Seems like an easy mistake to make.
+	- But we don't want to allow a crap load of useless signatures.
+Do we keep full entries in the BucketList?
+What is the file format for the history?
 What do we do about tx that make it into the applied txset but have too low a max fee? 
 	Do we consume the seq num?
 	Do we charge the max fee and not apply them? 
