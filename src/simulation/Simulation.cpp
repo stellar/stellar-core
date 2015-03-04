@@ -356,7 +356,7 @@ Simulation::executeStressTest(size_t nTransactions, int injectionRatePerSec, fun
 {
     size_t iTransactions = 0;
     auto startTime = chrono::system_clock::now();
-    chrono::system_clock::duration crankingTime(0);
+    chrono::system_clock::duration signingTime(0);
     while (iTransactions < nTransactions)
     {
         auto elapsed = chrono::duration_cast<chrono::microseconds>(chrono::system_clock::now() - startTime);
@@ -368,16 +368,20 @@ Simulation::executeStressTest(size_t nTransactions, int injectionRatePerSec, fun
         }
         else {
             LOG(INFO) << "Injecting txs " << (targetTxs - iTransactions) << " transactions (" << iTransactions << "..." << targetTxs << " out of " << nTransactions << ")";
+            auto tBegin = chrono::system_clock::now();
+
             for (; iTransactions < targetTxs; iTransactions++)
                 execute(generatorFn(iTransactions));
+
+            auto t = (chrono::system_clock::now() - tBegin);
+            signingTime += t;
         }
 
-        auto crankingStart = chrono::system_clock::now();
         crankAllNodes(1);
-        auto t = (chrono::system_clock::now() - crankingStart);
-        crankingTime += t;
     }
-    return chrono::duration_cast<chrono::seconds>(crankingTime);
+
+    LOG(INFO) << "executeStressTest signingTime: " << chrono::duration_cast<chrono::seconds>(signingTime).count();
+    return chrono::duration_cast<chrono::seconds>(signingTime);
 }
 
 vector<Simulation::accountInfoPtr> 
