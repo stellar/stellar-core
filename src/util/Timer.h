@@ -73,6 +73,7 @@ private:
     time_point mNow;
     std::map<Application*,
              std::shared_ptr<std::priority_queue<VirtualClockEvent>>> mEvents;
+    std::map<Application*, bool> mIdleFlags;
 
 public:
     // Note: this is not a static method, which means that VirtualClock is
@@ -86,7 +87,11 @@ public:
     bool cancelAllEventsFrom(Application& a);
     bool cancelAllEventsFrom(Application& a, VirtualTimer& v);
     size_t advanceTo(time_point n);
-    size_t advanceToNext();
+    bool allIdle() const;
+    bool allEmpty() const;
+    void setNoneIdle();
+    void setIdle(Application& app, bool isIdle);
+    size_t advanceToNextIfAllIdle();
 };
 
 

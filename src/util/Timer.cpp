@@ -98,6 +98,7 @@ VirtualClock::enqueue(Application& app, VirtualClockEvent const& ve)
         mEvents.insert(std::make_pair(&app, std::make_shared<std::priority_queue<VirtualClockEvent>>()));
     }
     mEvents[&app]->emplace(ve);
+    setNoneIdle();
 }
 
 bool
@@ -148,6 +149,7 @@ VirtualClock::cancelAllEventsFrom(Application& a,
     events =
         priority_queue<VirtualClockEvent>(toKeep.begin(),
                                           toKeep.end());
+    setNoneIdle();
     return changed;
 }
 
@@ -161,6 +163,43 @@ bool
 VirtualClock::cancelAllEventsFrom(Application& a, VirtualTimer& v)
 {
     return cancelAllEventsFrom(a, [&v](VirtualClockEvent const& e) { return e.mTimer == &v; });
+}
+
+bool
+VirtualClock::allIdle() const
+{
+    bool allIdle = true;
+    for (auto const& pair : mIdleFlags)
+    {
+        allIdle = allIdle && pair.second;
+    }
+    return allIdle;
+}
+
+bool
+VirtualClock::allEmpty() const
+{
+    bool allEmpty = true;
+    for (auto const& pair : mEvents)
+    {
+        allEmpty = allEmpty && pair.second->empty();
+    }
+    return allEmpty;
+}
+
+void
+VirtualClock::setNoneIdle()
+{
+    for (auto& pair : mIdleFlags)
+    {
+        pair.second = false;
+    }
+}
+
+void
+VirtualClock::setIdle(Application& app, bool isIdle)
+{
+    mIdleFlags[&app] = isIdle;
 }
 
 size_t
@@ -193,18 +232,18 @@ VirtualClock::advanceTo(time_point n)
         toDispatch.pop();
     }
     // LOG(DEBUG) << "VirtualClock::advanceTo done";
+    setNoneIdle();
     return c;
 }
 
 size_t
-VirtualClock::advanceToNext() 
+VirtualClock::advanceToNextIfAllIdle()
 {
-    bool allEmpty = true;
-    for (auto& pair : mEvents)
+    if (allEmpty())
     {
-        allEmpty = allEmpty && pair.second->empty();
+        return 0;
     }
-    if (allEmpty)
+    if (!allIdle())
     {
         return 0;
     }
