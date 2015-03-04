@@ -24,17 +24,6 @@ using namespace std;
     
 class Simulation
 {
-  private:
-    VirtualClock mClock;
-    bool mMode;
-    int mConfigCount;
-    Application::pointer mIdleApp;
-    map<uint256, Config::pointer> mConfigs;
-    map<uint256, Application::pointer> mNodes;
-    vector<shared_ptr<LoopbackPeerConnection>> mConnections;
-
-    uint64 getMinBalance();
-
   public:
       enum Mode
       {
@@ -74,6 +63,7 @@ class Simulation
     size_t crankAllNodes(int nbTicks=1);
     void crankForAtMost(VirtualClock::duration seconds);
     void crankForAtLeast(VirtualClock::duration seconds);
+    void crankUntil(function<bool()> const& fn, VirtualClock::duration timeout);
 
     //////////
 
@@ -102,12 +92,30 @@ class Simulation
     };
 
 
+
     vector<Simulation::TxInfo> createAccounts(int n);
+    TxInfo createTranferTransaction(size_t iFrom, size_t iTo, uint64_t amount);
+    TxInfo createRandomTransaction(float alpha);
+    vector<Simulation::TxInfo> createRandomTransactions(size_t n, float paretoAlpha);
+
     void execute(TxInfo transaction);
     void executeAll(vector<TxInfo> const& transaction);
-    vector<accountInfoPtr> checkAgainstDbs(); // returns the accounts that don't match
+    chrono::seconds executeStressTest(size_t nTransactions, int injectionRatePerSec, function<TxInfo(size_t)> generatorFn);
 
-    void printMetrics(string domain);
+    vector<accountInfoPtr> accountsOutOfSyncWithDb(); // returns the accounts that don't match
+
+    string metricsSummary(string domain);
+
+private:
+    VirtualClock mClock;
+    Mode mMode;
+    int mConfigCount;
+    Application::pointer mIdleApp;
+    map<uint256, Config::pointer> mConfigs;
+    map<uint256, Application::pointer> mNodes;
+    vector<shared_ptr<LoopbackPeerConnection>> mConnections;
+
+    uint64 getMinBalance();
 };
 }
 

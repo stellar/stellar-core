@@ -38,22 +38,40 @@ TEST_CASE("cycle4 topology", "[simulation]")
     CHECK(simulation->haveAllExternalized(2));
 }
 
-TEST_CASE("pair of node creating 50 accounts", "[simulation]")
+TEST_CASE("Stress test on 2 nodes, 3 accounts, 100 random transactions, 10tx/sec", "[simulation][stress]")
 {
     Simulation::pointer simulation = Topologies::pair(Simulation::OVER_LOOPBACK);
 
     simulation->startAllNodes();
-    simulation->crankForAtLeast(std::chrono::seconds(10));
+    simulation->crankUntil([&]() { return simulation->haveAllExternalized(3); }, std::chrono::seconds(60000));
 
-    REQUIRE(simulation->haveAllExternalized(3));
+    simulation->executeAll(simulation->createAccounts(3));
 
-    simulation->executeAll(simulation->createAccounts(50));
-    simulation->crankForAtLeast(std::chrono::seconds(60));
- 
-    REQUIRE(simulation->haveAllExternalized(4));
-    auto problemAccounts = simulation->checkAgainstDbs();
-    REQUIRE(problemAccounts.empty());
+    try
+    {
+        simulation->crankUntil([&]()
+        { 
+            return simulation->haveAllExternalized(4) &&
+                simulation->accountsOutOfSyncWithDb().empty();
+        }, 
+        std::chrono::seconds(60000));
 
-    simulation->printMetrics("database");
+        auto crankingTime = simulation->executeStressTest(100, 10, [&simulation](size_t i)
+        {
+            return simulation->createRandomTransaction(0.5);
+        });
+
+        simulation->crankUntil([&]() 
+            {
+                return simulation->accountsOutOfSyncWithDb().empty();
+            }, 
+            std::chrono::seconds(60000));
+    } catch(...)
+    {
+        auto problems = simulation->accountsOutOfSyncWithDb();
+        REQUIRE(problems.empty());
+    }
+
+    LOG(INFO) << simulation->metricsSummary("database");
 }
 

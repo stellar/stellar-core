@@ -19,7 +19,7 @@ using xdr::operator==;
 using xdr::operator<;
 
 // Static helper to stringify ballot for logging
-static std::string
+std::string
 ballotToStr(const FBABallot& ballot)
 {
     std::ostringstream oss;
@@ -33,7 +33,7 @@ ballotToStr(const FBABallot& ballot)
 }
 
 // Static helper to stringify envelope for logging
-static std::string
+std::string
 envToStr(const FBAEnvelope& envelope)
 {
     std::ostringstream oss;
@@ -237,14 +237,14 @@ Slot::bumpToBallot(const FBABallot& ballot)
         << " i: " << mSlotIndex
         << " b: " << ballotToStr(ballot);
 
-    // We shouldnt have emitted any prepare message for this ballot or any
+    // We shouldn't have emitted any prepare message for this ballot or any
     // other higher ballot.
     for (auto s : getNodeStatements(mFBA->getLocalNodeID(), 
                                     FBAStatementType::PREPARE))
     {
         assert(compareBallots(ballot, s.ballot) >= 0);
     }
-    // We should move mBallot monotically only
+    // We should move mBallot monotonically only
     assert(mIsPristine || compareBallots(ballot, mBallot) >= 0);
 
     mBallot = ballot;
@@ -627,7 +627,7 @@ Slot::compareBallots(const FBABallot& b1,
 void
 Slot::advanceSlot()
 {
-    // `advanceSlot` suopports reentrant calls by setting and checking
+    // `advanceSlot` supports reentrant calls by setting and checking
     // `mInAdvanceSlot`. If a reentrant call is made, `mRunAdvanceSlot` will be
     // set and `advanceSlot` will be called again after it is done executing.
     if(mInAdvanceSlot)
@@ -639,7 +639,7 @@ Slot::advanceSlot()
 
     try
     {
-        CLOG(DEBUG, "FBA") << "Slot::advanceSlot" 
+        CLOG(INFO, "FBA") << "Slot::advanceSlot" 
             << "@" << binToHex(mFBA->getLocalNodeID()).substr(0,6)
             << " i: " << mSlotIndex
             << " b: " << ballotToStr(mBallot);
@@ -675,10 +675,26 @@ Slot::advanceSlot()
                 // value then we externalize
                 if (isCommittedConfirmed(mBallot.value)) 
                 {
+                    CLOG(INFO, "FBA") << "cc "
+                        << "@" << binToHex(mFBA->getLocalNodeID()).substr(0, 6)
+                        << " i: " << mSlotIndex
+                        << " b: " << ballotToStr(mBallot);
                     attemptExternalize(); 
+                } else
+                {
+                    CLOG(INFO, "FBA") << "not cc "
+                        << "@" << binToHex(mFBA->getLocalNodeID()).substr(0, 6)
+                        << " i: " << mSlotIndex
+                        << " b: " << ballotToStr(mBallot);
                 }
             }
 
+        } else
+        {
+            CLOG(INFO, "FBA") << "pristine "
+                << "@" << binToHex(mFBA->getLocalNodeID()).substr(0, 6)
+                << " i: " << mSlotIndex
+                << " b: " << ballotToStr(mBallot);
         }
 
         // We loop on all known ballots to check if there are conditions that
@@ -699,7 +715,7 @@ Slot::advanceSlot()
                 << " b: " << ballotToStr(mBallot);
 
             // If we could externalize by moving on to a given value we bump
-            // our ballot to the apporpriate one
+            // our ballot to the appropriate one
             if (isCommittedConfirmed(b.value)) 
             { 
                 assert(!mIsCommitted || mBallot.value == b.value);
@@ -745,7 +761,7 @@ Slot::advanceSlot()
                 }
                 // If it's a smaller ballot we must emit a PREPARED for it.
                 // We can't and we won't COMMIT b as `mBallot` only moves
-                // monotically.
+                // monotonically.
                 else
                 {
                     attemptPrepared(b);

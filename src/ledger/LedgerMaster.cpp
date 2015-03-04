@@ -81,7 +81,7 @@ void LedgerMaster::startNewLedger()
     genesisHeader.baseFee = mApp.getConfig().DESIRED_BASE_FEE;
     genesisHeader.baseReserve = mApp.getConfig().DESIRED_BASE_RESERVE;
     genesisHeader.totalCoins = masterAccount.getAccount().balance;
-    genesisHeader.closeTime = mApp.getClock().now().time_since_epoch().count() * std::chrono::system_clock::period::num / std::chrono::system_clock::period::den;
+    genesisHeader.closeTime = VirtualClock::pointToTimeT(mApp.getClock().now());
     genesisHeader.ledgerSeq = 1;
 
     mCurrentLedger = make_shared<LedgerHeaderFrame>(genesisHeader);

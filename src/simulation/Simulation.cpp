@@ -14,6 +14,7 @@
 #include "transactions/TxTests.h"
 #include "herder/HerderGateway.h"
 #include "medida/medida.h"
+#include "util/Math.h"
 
 namespace stellar
 {
@@ -195,7 +196,8 @@ Simulation::crankForAtMost(VirtualClock::duration seconds)
     bool stop = false;
     auto stopIt = [&](const asio::error_code& error)
     {
-        stop = true;
+        if (!error)
+            stop = true;
     };
 
     VirtualTimer checkTimer(*mIdleApp);
@@ -216,7 +218,8 @@ Simulation::crankForAtLeast(VirtualClock::duration seconds)
     bool stop = false;
     auto stopIt = [&](const asio::error_code& error)
     {
-        stop = true;
+        if (!error)
+            stop = true;
     };
 
     VirtualTimer checkTimer(*mIdleApp);
@@ -231,34 +234,96 @@ Simulation::crankForAtLeast(VirtualClock::duration seconds)
     }
 }
 
+void 
+Simulation::crankUntil(function<bool()> const & predicate, VirtualClock::duration timeout)
+{
+    bool stop = false;
+    auto stopIt = [&](const asio::error_code& error)
+    {
+        // TODO: the VirtualTimer triggers the timeout event even when
+        //       additional events remain on the event loop.
+        /*
+        if (!error)
+            stop = true;
+        */
+    };
+
+    VirtualTimer checkTimer(*mIdleApp);
+
+    checkTimer.expires_from_now(timeout);
+    checkTimer.async_wait(stopIt);
+
+    while (!stop)
+    {
+        if (crankAllNodes() == 0)
+            this_thread::sleep_for(chrono::milliseconds(50));
+        if (predicate())
+            return;
+    }
+    throw new runtime_error("Simulation timed out");
+}
+
+
+Simulation::TxInfo
+Simulation::createTranferTransaction(size_t iFrom, size_t iTo, uint64_t amount)
+{
+    return TxInfo{ mAccounts[iFrom], mAccounts[iTo], amount };
+}
+
+Simulation::TxInfo
+Simulation::createRandomTransaction(float alpha)
+{
+    size_t iFrom, iTo;
+    do
+    {
+        iFrom = rand_pareto(alpha, mAccounts.size());
+        iTo = rand_pareto(alpha, mAccounts.size());
+    } while (iFrom == iTo);
+
+    uint64_t amount = static_cast<uint64_t>(rand_fraction() * min(static_cast<uint64_t>(1000), (mAccounts[iFrom]->mBalance - getMinBalance()) / 3));
+    return createTranferTransaction(iFrom, iTo, amount);
+}
+
 void
 Simulation::TxInfo::execute(shared_ptr<Application> app)
 {
-    TransactionFramePtr txFrame = txtest::createPaymentTx(mFrom->mKey, mTo->mKey, mFrom->mSeq, mAmount);
-    
-    app->getHerderGateway().recvTransaction(txFrame);
-
     mFrom->mSeq++;
     mFrom->mBalance -= mAmount;
     mFrom->mBalance -= app->getConfig().DESIRED_BASE_FEE;
     mTo->mBalance += mAmount;
+
+    TransactionFramePtr txFrame = txtest::createPaymentTx(mFrom->mKey, mTo->mKey, mFrom->mSeq, mAmount);
+    app->getHerderGateway().recvTransaction(txFrame);
+}
+
+vector<Simulation::TxInfo>
+Simulation::createRandomTransactions(size_t n, float paretoAlpha)
+{
+    vector<TxInfo> result;
+    for (int i = 0; i < n; i++)
+    {
+        result.push_back(createRandomTransaction(paretoAlpha));
+    }
+    return result;
 }
 
 
 vector<Simulation::TxInfo>
 Simulation::createAccounts(int n)
 {
-    auto root = make_shared<AccountInfo>(0, txtest::getRoot(), 1000000000, *this);
-    mAccounts.push_back(root);
+    vector<TxInfo> result;
+    if (mAccounts.empty())
+    {
+        auto root = make_shared<AccountInfo>(0, txtest::getRoot(), 1000000000, *this);
+        mAccounts.push_back(root);
+        result.push_back(root->creationTransaction());
+    }
 
     for (int i = 0; i < n; i++)
     {
-        auto accountName = "Account-" + to_string(i);
-        mAccounts.push_back(make_shared<AccountInfo>(i, txtest::getAccount(accountName.c_str()), 0, *this));
-    }
-    vector<TxInfo> result;
-    for(auto account : mAccounts)
-    {
+        auto accountName = "Account-" + to_string(mAccounts.size());
+        auto account = make_shared<AccountInfo>(mAccounts.size(), txtest::getAccount(accountName.c_str()), 0, *this);
+        mAccounts.push_back(account);
         result.push_back(account->creationTransaction());
     }
     return result;
@@ -286,27 +351,73 @@ Simulation::executeAll(vector<TxInfo> const& transactions)
     }
 }
 
+chrono::seconds
+Simulation::executeStressTest(size_t nTransactions, int injectionRatePerSec, function<TxInfo(size_t)> generatorFn)
+{
+    size_t iTransactions = 0;
+    auto startTime = chrono::system_clock::now();
+    chrono::system_clock::duration signingTime(0);
+    while (iTransactions < nTransactions)
+    {
+        auto elapsed = chrono::duration_cast<chrono::microseconds>(chrono::system_clock::now() - startTime);
+        auto targetTxs = min(nTransactions, static_cast<size_t>(elapsed.count() * injectionRatePerSec / 1000000));
+
+        if (iTransactions == targetTxs)
+        {
+            // When running on a real clock, this is a spin loop that waits for 
+            // the next event to trigger, or for the next network message.
+            //
+            // When running on virtual time, this line is never hit unless the injection 
+            // is below what the network can absorb, and there is nothing do to but
+            // wait for the next injection.
+            this_thread::sleep_for(chrono::milliseconds(50));
+        }
+        else {
+            LOG(INFO) << "Injecting txs " << (targetTxs - iTransactions) << " transactions (" << iTransactions << "..." << targetTxs << " out of " << nTransactions << ")";
+            auto tBegin = chrono::system_clock::now();
+
+            for (; iTransactions < targetTxs; iTransactions++)
+                execute(generatorFn(iTransactions));
+
+            auto t = (chrono::system_clock::now() - tBegin);
+            signingTime += t;
+        }
+
+        crankAllNodes(1);
+    }
+
+    LOG(INFO) << "executeStressTest signingTime: " << chrono::duration_cast<chrono::seconds>(signingTime).count();
+    return chrono::duration_cast<chrono::seconds>(signingTime);
+}
+
 vector<Simulation::accountInfoPtr> 
-Simulation::checkAgainstDbs()
+Simulation::accountsOutOfSyncWithDb()
 {
     vector<accountInfoPtr> result;
+    int iApp = 0;
     for (auto pair : mNodes)
     {
-        auto app = pair.second;
+        iApp++;
+        auto app = pair.second; 
         for (auto accountIt = mAccounts.begin() + 1; accountIt != mAccounts.end(); accountIt++)
         {
             auto account = *accountIt;
             AccountFrame accountFrame;
             AccountFrame::loadAccount(account->mKey.getPublicKey(), accountFrame, app->getDatabase());
-
             if (accountFrame.getBalance() != account->mBalance)
+            {
+                LOG(INFO) << "On node " << iApp << ", account " << account->mId
+                    << " is off by " << (accountFrame.getBalance() - static_cast<int64_t>(account->mBalance))
+                    << "\t(has " << accountFrame.getBalance() << " should have " << account->mBalance << ")";
                 result.push_back(account);
+            }
         }
     }
     return result;
 }
 
-void Simulation::printMetrics(string domain)
+string
+Simulation::metricsSummary(string domain)
 {
     auto& registry = getNodes().front()->getMetrics();
     auto const& metrics = registry.GetAllMetrics();
@@ -322,8 +433,7 @@ void Simulation::printMetrics(string domain)
             kv.second->Process(reporter);
         }
     }
-    LOG(INFO) << out.str();
-
+    return out.str();
 }
 
 }

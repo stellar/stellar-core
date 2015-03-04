@@ -18,7 +18,7 @@
 #include "lib/util/easylogging++.h"
 #include "medida/metrics_registry.h"
 #include "medida/meter.h"
-
+#include "fba/Slot.h"
 
 #define MAX_TIME_IN_FUTURE_VALID 10
 
@@ -371,7 +371,7 @@ Herder::validateBallot(const uint64& slotIndex,
     uint256 valueHash = 
         sha256(xdr::xdr_to_msg(ballot.value));
 
-    CLOG(DEBUG, "Herder") << "Herder::validateBallot"
+    CLOG(INFO, "Herder") << "Herder::validateBallot"
         << "@" << binToHex(getLocalNodeID()).substr(0,6)
         << " i: " << slotIndex
         << " v: " << binToHex(nodeID).substr(0,6)
@@ -445,9 +445,12 @@ Herder::ballotDidHearFromQuorum(const uint64& slotIndex,
     mBumpTimer.expires_from_now(
         std::chrono::seconds((int)pow(2.0, ballot.counter)));
 
+    // TODO: Bumping on a timeout disabled for now, tends to stall fba
+    /*
     mBumpTimer.async_wait(std::bind(&Herder::expireBallot, this, 
                                     std::placeholders::_1, 
                                     slotIndex, ballot));
+                                    */
 }
 
 void 
@@ -598,7 +601,6 @@ void Herder::startRebroadcastTimer()
 void 
 Herder::emitEnvelope(const FBAEnvelope& envelope)
 {
-   
     // We don't emit any envelope as long as we're not fully synced
     if (mApp.getState() != Application::SYNCED_STATE)
     {
@@ -837,6 +839,7 @@ Herder::removeReceivedTx(TransactionFramePtr dropTx)
     }
 }
 
+// called to start the next round of SCP
 void
 Herder::triggerNextLedger(const asio::error_code& error)
 {
@@ -882,14 +885,14 @@ Herder::triggerNextLedger(const asio::error_code& error)
     mCurrentValue = xdr::xdr_to_opaque(b);
 
     uint256 valueHash = sha256(xdr::xdr_to_msg(mCurrentValue));
-    CLOG(DEBUG, "Herder") << "Herder::triggerNextLedger"
+    CLOG(INFO, "Herder") << "Herder::triggerNextLedger"
         << "@" << binToHex(getLocalNodeID()).substr(0,6)
         << " txSet.size: " << proposedSet->mTransactions.size()
         << " previousLedgerHash: " 
         << binToHex(proposedSet->mPreviousLedgerHash).substr(0,6)
         << " value: " << binToHex(valueHash).substr(0,6);
 
-    // We prepare that value. If we're king, the ballot will be validated, and
+    // We prepare that value. If we're monarch, the ballot will be validated, and
     // if we're not it'll just get ignored.
     mValuePrepare.Mark();
     prepareValue(slotIndex, mCurrentValue);
