@@ -180,6 +180,7 @@ using namespace std;
             lh.clfHash = hexToBin256(clfHash);
             out.writeOne(lh);
             ++n;
+            st.fetch();
         }
         return n;
     }

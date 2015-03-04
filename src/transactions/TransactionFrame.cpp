@@ -372,6 +372,7 @@ TransactionFrame::copyTransactionsToStream(Database& db,
 
         out.writeOne(e);
         ++n;
+        st.fetch();
     }
     return n;
 }
