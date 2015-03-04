@@ -12,8 +12,6 @@
 using namespace soci;
 using namespace std;
 
-// TODO.1 limit the number of slots you can have. increase numsubentries for each slot
-
 
 namespace stellar
 {

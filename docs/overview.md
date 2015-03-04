@@ -2,13 +2,13 @@
 
 Hayashi is a C++ implementation of the Stellar protocol. (see stellar_overview.md)
 
-The goal is to be able to scale to 1B accounts and 1000 transactions a second on reasonable hardware.
+The goal is to be able to scale to 500M accounts and 2000 transactions/second on reasonable hardware.
 
 There are a few major components of the system:
 
-##FBA
-This is our implementation of the FBA algorithm.
-see http://www.scs.stanford.edu/~dm/noindex/fba.pdf
+##SCP
+This is our implementation of the SCP algorithm.
+see http://www.scs.stanford.edu/~dm/noindex/scp.pdf
 It has no knowledge of the rest of the system. 
 
 ##Herder

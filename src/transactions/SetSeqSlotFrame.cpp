@@ -2,7 +2,6 @@
 #include "crypto/Base58.h"
 #include "database/Database.h"
 
-// TODO.1 check for minBalance
 
 namespace stellar
 {
@@ -36,12 +35,12 @@ namespace stellar
                 return false;
             } else
             {
-                // TODO.1
+                
             }
 
         } else if(slotIndex == maxSlot + 1)
         { // creating a new slot
-            // TODO.1
+           
         } else
         { 
             innerResult().code(SetSeqSlot::INVALID_SLOT);

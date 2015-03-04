@@ -27,8 +27,6 @@ typedef std::unique_ptr<Application> appPtr;
   Things like:
     authz/authn
     double spend
-
-// TODO.2 test making slots and trying to make a tx on an unknown slot
 */
 
 TEST_CASE("txenvelope", "[tx][envelope]")
