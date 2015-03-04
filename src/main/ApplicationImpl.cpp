@@ -69,6 +69,7 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
     mProcessMaster = make_unique<ProcessMaster>(*this);
     mCommandHandler = make_unique<CommandHandler>(*this);
     mDatabase = make_unique<Database>(*this);
+    mPersistentState = make_unique<PersistentState>(*this);
 
     while(t--)
     {
@@ -355,6 +356,12 @@ Database&
 ApplicationImpl::getDatabase()
 {
     return *mDatabase;
+}
+
+PersistentState&
+ApplicationImpl::getPersistentState()
+{
+    return *mPersistentState;
 }
 
 asio::io_service&

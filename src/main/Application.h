@@ -24,6 +24,7 @@ class HerderGateway;
 class OverlayGateway;
 class PeerMaster;
 class Database;
+class PersistentState;
 
 
 /*
@@ -107,6 +108,7 @@ class Application
     virtual OverlayGateway& getOverlayGateway() = 0;
     virtual PeerMaster& getPeerMaster() = 0;
     virtual Database& getDatabase() = 0;
+    virtual PersistentState& getPersistentState() = 0;
 
     virtual asio::io_service& getMainIOService() = 0;
     virtual asio::io_service& getWorkerIOService() = 0;

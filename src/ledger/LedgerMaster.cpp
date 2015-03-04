@@ -90,7 +90,7 @@ void LedgerMaster::loadLastKnownLedger()
     LOG(INFO) << "Loading last known ledger";
     auto ledgerTime = mLedgerClose.TimeScope();
 
-    string lastLedger = getState(StoreStateName::kLastClosedLedger);
+    string lastLedger = mApp.getPersistentState().getState(PersistentState::kLastClosedLedger);
 
     if (lastLedger.empty())
     {  // we don't have any ledger in the DB so put the ledger 0 in there
@@ -269,7 +269,7 @@ void LedgerMaster::closeLedgerHelper(bool updateCurrent, LedgerDelta const& delt
         mCurrentLedger->mHeader.idPool = delta.getCurrentID();
         mCurrentLedger->storeInsert(*this);
 
-        setState(StoreStateName::kLastClosedLedger, binToHex(mCurrentLedger->mHeader.hash));
+        mApp.getPersistentState().setState(PersistentState::kLastClosedLedger, binToHex(mCurrentLedger->mHeader.hash));
     }
   
     mLastClosedLedger = mCurrentLedger;
@@ -277,73 +277,5 @@ void LedgerMaster::closeLedgerHelper(bool updateCurrent, LedgerDelta const& delt
     mCurrentLedger = make_shared<LedgerHeaderFrame>(mLastClosedLedger);
 }
 
-const char *LedgerMaster::kSQLCreateStatement =
-"CREATE TABLE StoreState ("
-"StateName   CHARACTER(32) PRIMARY KEY,"
-"State       TEXT"
-");";
-
-void LedgerMaster::dropAll(Database &db)
-{
-    db.getSession() << "DROP TABLE IF EXISTS StoreState;";
-
-    db.getSession() << kSQLCreateStatement;
-}
-
-string LedgerMaster::getStoreStateName(StoreStateName n) {
-    static const char *mapping[kLastEntry] = { "lastClosedLedger" };
-    if (n < 0 || n >= kLastEntry) {
-        throw out_of_range("unknown entry");
-    }
-    return mapping[n];
-}
-
-string LedgerMaster::getState(StoreStateName stateName) {
-    string res;
-
-    string sn(getStoreStateName(stateName));
-
-    auto& db = getDatabase();
-    {
-        auto timer = db.getSelectTimer("state");
-        db.getSession() << "SELECT State FROM StoreState WHERE StateName = :n;",
-            soci::use(sn), soci::into(res);
-    }
-
-    if (!getDatabase().getSession().got_data())
-    {
-        res.clear();
-    }
-
-    return res;
-}
-
-void LedgerMaster::setState(StoreStateName stateName, const string &value) {
-    string sn(getStoreStateName(stateName));
-
-    soci::statement st = (getDatabase().getSession().prepare <<
-        "UPDATE StoreState SET State = :v WHERE StateName = :n;",
-        soci::use(value), soci::use(sn));
-
-    {
-        auto timer = getDatabase().getUpdateTimer("state");
-        st.execute(true);
-    }
-
-    if (st.get_affected_rows() != 1)
-    {
-        auto timer = getDatabase().getInsertTimer("state");
-        st = (getDatabase().getSession().prepare <<
-            "INSERT INTO StoreState (StateName, State) VALUES (:n, :v );",
-            soci::use(sn), soci::use(value));
-
-            st.execute(true);
-
-            if (st.get_affected_rows() != 1)
-            {
-                throw std::runtime_error("Could not insert data in SQL");
-            }
-    }
-}
-
+ 
 }

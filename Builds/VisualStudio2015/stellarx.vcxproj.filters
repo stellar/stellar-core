@@ -399,6 +399,9 @@
     <ClCompile Include="..\..\src\history\FileTransferInfo.cpp">
       <Filter>history</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\main\PersistentState.cpp">
+      <Filter>main</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\ledger\LedgerGateway.h">
@@ -658,6 +661,9 @@
     </ClInclude>
     <ClInclude Include="..\..\src\history\FileTransferInfo.h">
       <Filter>history</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\main\PersistentState.h">
+      <Filter>main</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

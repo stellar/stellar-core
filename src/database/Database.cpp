@@ -107,7 +107,7 @@ void Database::initialize()
     OfferFrame::dropAll(*this);
     TrustFrame::dropAll(*this);
     PeerMaster::dropAll(*this);
-    LedgerMaster::dropAll(*this);
+    PersistentState::dropAll(*this);
     LedgerHeaderFrame::dropAll(*this);
     TransactionFrame::dropAll(*this);
 }
