@@ -82,3 +82,58 @@ TEST_CASE("virtual event dispatch order and times", "[timer]")
     while(app.crank(false) > 0);
     CHECK(eventsDispatched == 4);
 }
+
+
+TEST_CASE("shared virtual time advances only when all apps idle", "[timer][sharedtimer]")
+{
+    Config cfg(getTestConfig());
+    VirtualClock clock;
+    Application::pointer app1 = Application::create(clock, cfg);
+    Application::pointer app2 = Application::create(clock, cfg);
+
+    size_t app1Event = 0;
+    size_t app2Event = 0;
+    size_t timerFired = 0;
+
+    // Fire one event on the app's queue
+    app1->getMainIOService().post([&]() { ++app1Event; });
+    app1->crank(false);
+    CHECK(app1Event == 1);
+
+    // Fire one timer
+    VirtualTimer timer(*app1);
+    timer.expires_from_now(std::chrono::seconds(1));
+    timer.async_wait( [&](asio::error_code const& e) { ++timerFired; });
+    app1->crank(false);
+    CHECK(timerFired == 1);
+
+    // Queue 2 new events and 1 new timer
+    app1->getMainIOService().post([&]() { ++app1Event; });
+    app2->getMainIOService().post([&]() { ++app2Event; });
+    timer.expires_from_now(std::chrono::seconds(1));
+    timer.async_wait( [&](asio::error_code const& e) { ++timerFired; });
+
+    // Check app2's crank fires app2's event but doesn't advance timer
+    app2->crank(false);
+    CHECK(app2Event == 1);
+    CHECK(app1Event == 1);
+    CHECK(timerFired == 1);
+
+    // Check app2's final (idle) crank doesn't advance timer
+    app2->crank(false);
+    CHECK(app2Event == 1);
+    CHECK(app1Event == 1);
+    CHECK(timerFired == 1);
+
+    // Check app1's crank fires app1's event, not app2 and not timer
+    app1->crank(false);
+    CHECK(app2Event == 1);
+    CHECK(app1Event == 2);
+    CHECK(timerFired == 1);
+
+    // Check app1's final (idle) crank fires timer
+    app1->crank(false);
+    CHECK(app2Event == 1);
+    CHECK(app1Event == 2);
+    CHECK(timerFired == 2);
+}

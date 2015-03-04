@@ -179,6 +179,8 @@ ApplicationImpl::crank(bool block)
     nWorkDone -= mRealTimerCancelCallbacks;
     mRealTimerCancelCallbacks = 0;
 
+    mVirtualClock.setIdle(*this, nWorkDone == 0);
+
     // LOG(DEBUG) << "ApplicationImpl::cranked: " << nWorkDone;
     if (mRealTimer && nWorkDone != 0)
     {
@@ -198,7 +200,7 @@ ApplicationImpl::crank(bool block)
         // to do; this means that in simulated-time all I/O and computation
         // happens "instantly" between two time steps and then virtual time skips
         // forward to the next scheduled event as soon as we're idle.
-        return mVirtualClock.advanceToNext();
+        return mVirtualClock.advanceToNextIfAllIdle();
     }
     return nWorkDone;
 }
