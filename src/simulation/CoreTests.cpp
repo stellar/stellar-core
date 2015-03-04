@@ -40,7 +40,7 @@ TEST_CASE("cycle4 topology", "[simulation]")
 
 TEST_CASE("Stress test on 2 nodes, 3 accounts, 100 random transactions, 10tx/sec", "[simulation][stress]")
 {
-    Simulation::pointer simulation = Topologies::pair(Simulation::OVER_TCP);
+    Simulation::pointer simulation = Topologies::pair(Simulation::OVER_LOOPBACK);
 
     simulation->startAllNodes();
     simulation->crankUntil([&]() { return simulation->haveAllExternalized(3); }, std::chrono::seconds(60000));
