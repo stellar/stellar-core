@@ -8,6 +8,9 @@
 
 namespace stellar 
 {
+std::string ballotToStr(const FBABallot& ballot);
+std::string envToStr(const FBAEnvelope& envelope);
+    
 class Node;
 
 /**

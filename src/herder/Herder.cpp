@@ -18,7 +18,7 @@
 #include "lib/util/easylogging++.h"
 #include "medida/metrics_registry.h"
 #include "medida/meter.h"
-
+#include "fba/Slot.h"
 
 #define MAX_TIME_IN_FUTURE_VALID 10
 
@@ -601,7 +601,6 @@ void Herder::startRebroadcastTimer()
 void 
 Herder::emitEnvelope(const FBAEnvelope& envelope)
 {
-   
     // We don't emit any envelope as long as we're not fully synced
     if (mApp.getState() != Application::SYNCED_STATE)
     {

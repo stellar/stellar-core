@@ -19,7 +19,7 @@ using xdr::operator==;
 using xdr::operator<;
 
 // Static helper to stringify ballot for logging
-static std::string
+std::string
 ballotToStr(const FBABallot& ballot)
 {
     std::ostringstream oss;
@@ -33,7 +33,7 @@ ballotToStr(const FBABallot& ballot)
 }
 
 // Static helper to stringify envelope for logging
-static std::string
+std::string
 envToStr(const FBAEnvelope& envelope)
 {
     std::ostringstream oss;

@@ -364,6 +364,12 @@ Simulation::executeStressTest(size_t nTransactions, int injectionRatePerSec, fun
 
         if (iTransactions == targetTxs)
         {
+            // When running on a real clock, this is a spin loop that waits for 
+            // the next event to trigger, or for the next network message.
+            //
+            // When running on virtual time, this line is never hit unless the injection 
+            // is below what the network can absorb, and there is nothing do to but
+            // wait for the next injection.
             this_thread::sleep_for(chrono::milliseconds(50));
         }
         else {

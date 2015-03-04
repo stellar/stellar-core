@@ -61,7 +61,7 @@ VirtualClock::pointToTm(time_point point)
     std::tm *tmPtr = gmtime(&rawtime);
     out = *tmPtr;
 #else
-    // On unix the _r variant uses a local output, so is threadsafe.
+    // On Unix the _r variant uses a local output, so is thread safe.
     gmtime_r(&rawtime, &out);
 #endif
     return out;
