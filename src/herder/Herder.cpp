@@ -736,8 +736,6 @@ Herder::recvTransaction(TransactionFramePtr tx)
     return true;
 }
 
-// TODO.1 we are rebroadcasting but FBA isn't proceeding
-
 void
 Herder::recvFBAEnvelope(FBAEnvelope envelope,
                         std::function<void(bool)> const& cb)

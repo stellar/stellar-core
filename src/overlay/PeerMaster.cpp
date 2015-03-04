@@ -16,8 +16,6 @@
 
 using namespace soci;
 
-
-// TODO.3 some tests
 // TODO.3 flood older msgs to people that connect to you
 
 /*
