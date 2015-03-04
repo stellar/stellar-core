@@ -49,7 +49,7 @@ class Floodgate
     // returns true if this is a new record
     bool addRecord(StellarMessage const& msg, Peer::pointer fromPeer);
 
-    void broadcast(StellarMessage const& msg);
+    void broadcast(StellarMessage const& msg,bool force);
 };
 }
 

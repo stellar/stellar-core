@@ -58,7 +58,7 @@ protected:
     void recvFloodedMsg(StellarMessage const& msg, 
                         Peer::pointer peer);
 
-    void broadcastMessage(StellarMessage const& msg);
+    void broadcastMessage(StellarMessage const& msg, bool force=false);
     //////
 
     void connectTo(const std::string& addr);
