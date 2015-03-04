@@ -34,7 +34,7 @@ class OverlayGateway
     virtual void ledgerClosed(LedgerHeader& ledger) = 0;
 
     // called by Herder
-    virtual void broadcastMessage(StellarMessage const& msg) = 0;
+    virtual void broadcastMessage(StellarMessage const& msg, bool force=false) = 0;
 
     // called internally
     virtual void recvFloodedMsg(StellarMessage const& msg,

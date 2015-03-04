@@ -241,10 +241,10 @@ PeerMaster::recvFloodedMsg(StellarMessage const& msg,Peer::pointer peer)
 
 
 void
-PeerMaster::broadcastMessage(StellarMessage const& msg)
+PeerMaster::broadcastMessage(StellarMessage const& msg,bool force)
 {
     mMessagesBroadcast.Mark();
-    mFloodGate.broadcast(msg);
+    mFloodGate.broadcast(msg,force);
 }
 
 void

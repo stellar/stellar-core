@@ -67,6 +67,7 @@ Herder::Herder(Application& app)
     , mLastTrigger(app.getClock().now())
     , mTriggerTimer(app)
     , mBumpTimer(app)
+    , mRebroadcastTimer(app)
     , mApp(app)
 
     , mValueValid(app.getMetrics().NewMeter({"fba", "value", "valid"}, "value"))
@@ -227,7 +228,7 @@ Herder::compareValues(const uint64& slotIndex,
     }
     catch (...)
     {
-        // This should not be possible are valuies are validated before they
+        // This should not be possible are values are validated before they
         // are compared.
         CLOG(ERROR, "Herder") << "Herder::compareValues"
             << "@" << binToHex(getLocalNodeID()).substr(0,6)
@@ -242,7 +243,7 @@ Herder::compareValues(const uint64& slotIndex,
     assert(verifyStellarBallot(b2));
 
     // Ordering is based on H(slotIndex, ballotCounter, nodeID). Such that the
-    // round king value gets priviledged over other values. Given the hash
+    // round king value gets privileged over other values. Given the hash
     // function used, a new king is "coronated" for each round of FBA (ballot
     // counter) and each slotIndex.
     
@@ -389,6 +390,16 @@ Herder::validateBallot(const uint64& slotIndex,
     }
     else
     {
+        CLOG(INFO, "Herder") << "start timer"
+            << "@" << binToHex(getLocalNodeID()).substr(0, 6)
+            << " i: " << slotIndex
+            << " v: " << binToHex(nodeID).substr(0, 6)
+            << " o: " << binToHex(b.nodeID).substr(0, 6)
+            << " b: (" << ballot.counter
+            << "," << binToHex(valueHash).substr(0, 6) << ")"
+            << " isTrusted: " << isTrusted
+            << " isKing: " << isKing
+            << " timeout: " << pow(2.0, ballot.counter) / 2;
         // Create a timer to wait for current FBA timeout / 2 before accepting
         // that ballot.
         VirtualTimer ballotTimer(mApp);
@@ -404,7 +415,7 @@ Herder::validateBallot(const uint64& slotIndex,
         mBallotValidationTimers[ballot][nodeID].push_back(ballotTimer);
 
         // Check if the nodes that have requested validation for this ballot
-        // is a v-blocking. If so, rush validation by cancelling all timers.
+        // is a v-blocking. If so, rush validation by canceling all timers.
         std::vector<uint256> nodes;
         for (auto it : mBallotValidationTimers[ballot])
         {
@@ -563,23 +574,41 @@ Herder::retrieveQuorumSet(const uint256& nodeID,
     }
 }
 
+void Herder::rebroadcast(const asio::error_code& ec)
+{
+    if(!ec)
+    {
+        CLOG(INFO, "Herder") << "Herder:rebroadcast"
+            << "@" << binToHex(getLocalNodeID()).substr(0, 6);
+
+        mEnvelopeEmit.Mark();
+        mApp.getOverlayGateway().broadcastMessage(mLastSentMessage,true);
+        startRebroadcastTimer();
+    }
+}
+
+void Herder::startRebroadcastTimer()
+{
+    mRebroadcastTimer.expires_from_now(std::chrono::seconds(2));
+
+    mRebroadcastTimer.async_wait(std::bind(&Herder::rebroadcast, this,
+        std::placeholders::_1));
+}
+
 void 
 Herder::emitEnvelope(const FBAEnvelope& envelope)
 {
-    CLOG(DEBUG, "Herder") << "Herder:emitEnvelope"
-        << "@" << binToHex(getLocalNodeID()).substr(0,6);
+   
     // We don't emit any envelope as long as we're not fully synced
     if (mApp.getState() != Application::SYNCED_STATE)
     {
         return;
     }
 
-    mEnvelopeEmit.Mark();
-    StellarMessage msg;
-    msg.type(FBA_MESSAGE);
-    msg.envelope() = envelope;
+    mLastSentMessage.type(FBA_MESSAGE);
+    mLastSentMessage.envelope() = envelope;
 
-    mApp.getOverlayGateway().broadcastMessage(msg);
+    rebroadcast(asio::error_code());    
 }
 
 TxSetFramePtr
@@ -705,10 +734,15 @@ Herder::recvTransaction(TransactionFramePtr tx)
     return true;
 }
 
+// TODO.1 we are rebroadcasting but FBA isn't proceeding
+
 void
 Herder::recvFBAEnvelope(FBAEnvelope envelope,
                         std::function<void(bool)> const& cb)
 {
+    CLOG(INFO, "Herder") << "Herder::recvFBAEnvelope@"
+        << "@" << binToHex(getLocalNodeID()).substr(0, 6);
+
     if(mApp.getState() == Application::SYNCED_STATE)
     {
         uint64 minLedgerSeq = ((int)mLastClosedLedger.ledgerSeq -
@@ -733,6 +767,8 @@ Herder::recvFBAEnvelope(FBAEnvelope envelope,
                 .push_back(std::make_pair(envelope, cb));
         }
     }
+
+    startRebroadcastTimer();
 
     mEnvelopeReceive.Mark();
     return receiveEnvelope(envelope, cb);
@@ -871,7 +907,7 @@ Herder::expireBallot(const asio::error_code& error,
                      const FBABallot& ballot)
                      
 {
-    // The timer was simply cancelled, nothing to do.
+    // The timer was simply canceled, nothing to do.
     if (error == asio::error::operation_aborted)
     {
         return;
@@ -880,7 +916,7 @@ Herder::expireBallot(const asio::error_code& error,
     mBallotExpire.Mark();
     assert(slotIndex == mLastClosedLedger.ledgerSeq + 1);
 
-    // We prepare the value while bumping the ballot counter. If we're king,
+    // We prepare the value while bumping the ballot counter. If we're monarch,
     // this prepare will go through. If not, we will have bumped our ballot.
     mValuePrepare.Mark();
     prepareValue(slotIndex, mCurrentValue, true);

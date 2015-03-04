@@ -107,7 +107,10 @@ class Herder : public HerderGateway,
                       const uint64& slotIndex,
                       const FBABallot& ballot);
 
-    // StellarBallot internal signature/verifiaction
+    void startRebroadcastTimer();
+    void rebroadcast(const asio::error_code& ec);
+
+    // StellarBallot internal signature/verification
     void signStellarBallot(StellarBallot& b);
     bool verifyStellarBallot(const StellarBallot& b);
 
@@ -149,7 +152,9 @@ class Herder : public HerderGateway,
     VirtualTimer                                   mTriggerTimer;
 
     VirtualTimer                                   mBumpTimer;
+    VirtualTimer                                   mRebroadcastTimer;
     Value                                          mCurrentValue;
+    StellarMessage                                 mLastSentMessage;
 
     Application&                                   mApp;
 

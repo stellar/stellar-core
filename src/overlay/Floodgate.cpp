@@ -61,11 +61,11 @@ Floodgate::addRecord(StellarMessage const& msg, Peer::pointer peer)
 }
 
 // send message to anyone you haven't gotten it from
-void Floodgate::broadcast(StellarMessage const& msg)
+void Floodgate::broadcast(StellarMessage const& msg,bool force)
 {
     Hash index = sha256(xdr::xdr_to_msg(msg));
     auto result = mFloodMap.find(index);
-    if(result == mFloodMap.end())
+    if(result == mFloodMap.end() || force)
     {  // no one has sent us this message
         FloodRecord::pointer record = std::make_shared<FloodRecord>(msg,
             mApp.getLedgerMaster().getLedgerNum(), Peer::pointer() );
@@ -74,8 +74,11 @@ void Floodgate::broadcast(StellarMessage const& msg)
         mFloodMap[index]= record;
         for(auto peer : mApp.getPeerMaster().getPeers())
         {
-            if(peer->getState()==Peer::GOT_HELLO)
+            if(peer->getState() == Peer::GOT_HELLO)
+            {
                 peer->sendMessage(msg);
+                record->mPeersTold.push_back(peer);
+            } 
         }
     } else
     { // send it to people that haven't sent it to us
