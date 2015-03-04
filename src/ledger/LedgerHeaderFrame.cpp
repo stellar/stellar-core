@@ -5,6 +5,7 @@
 #include "LedgerHeaderFrame.h"
 #include "LedgerMaster.h"
 #include "lib/json/json.h"
+#include "util/XDRStream.h"
 #include "crypto/Base58.h"
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
@@ -145,6 +146,45 @@ using namespace std;
 
         return lhf;
     }
+
+    size_t LedgerHeaderFrame::copyLedgerHeadersToStream(Database& db,
+                                                        soci::session& sess,
+                                                        uint64_t ledgerSeq,
+                                                        uint64_t ledgerCount,
+                                                        XDROutputFileStream& out)
+    {
+        auto timer = db.getSelectTimer("ledger-header-history");
+        uint64_t begin = ledgerSeq, end = ledgerSeq + ledgerCount;
+        size_t n = 0;
+
+        LedgerHeader lh;
+        string hash, prevHash, txSetHash, clfHash;
+
+        soci::statement st =
+            (sess.prepare <<
+             "SELECT ledgerSeq, ledgerHash, prevHash, txSetHash, clfHash, totCoins, " \
+             "feePool, inflationSeq, baseFee,"                           \
+             "baseReserve, closeTime FROM LedgerHeaders "                \
+             "WHERE ledgerSeq >= :begin AND ledgerSeq < :end",
+             into(lh.ledgerSeq), into(hash), into(prevHash), into(txSetHash), into(clfHash),
+             into(lh.totalCoins), into(lh.feePool), into(lh.inflationSeq), into(lh.baseFee),
+             into(lh.baseReserve), into(lh.closeTime),
+             use(begin), use(end));
+
+        st.execute(true);
+        while (st.got_data())
+        {
+            lh.hash = hexToBin256(hash);
+            lh.previousLedgerHash = hexToBin256(prevHash);
+            lh.txSetHash = hexToBin256(txSetHash);
+            lh.clfHash = hexToBin256(clfHash);
+            out.writeOne(lh);
+            ++n;
+            st.fetch();
+        }
+        return n;
+    }
+
 
     void LedgerHeaderFrame::dropAll(Database &db)
     {

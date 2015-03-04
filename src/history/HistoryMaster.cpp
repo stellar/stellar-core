@@ -36,6 +36,9 @@ namespace stellar
 
 using namespace std;
 
+const size_t
+HistoryMaster::kCheckpointFrequency = 64;
+
 class
 HistoryMaster::Impl
 {
@@ -318,6 +321,20 @@ HistoryMaster::publishHistory(std::function<void(asio::error_code const&)> handl
             std::unique_ptr<PublishStateMachine> m(std::move(this->mImpl->mPublish));
             handler(ec);
         });
+}
+
+void
+HistoryMaster::snapshotTaken(asio::error_code const& ec,
+                             std::shared_ptr<StateSnapshot> snap)
+{
+    if (mImpl->mPublish)
+    {
+        mImpl->mPublish->snapshotTaken(ec, snap);
+    }
+    else
+    {
+        CLOG(WARNING, "History") << "Publish state machine torn down while taking snapshot";
+    }
 }
 
 void

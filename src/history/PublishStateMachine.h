@@ -6,17 +6,24 @@
 
 
 #include "util/Timer.h"
+#include "util/TmpDir.h"
 #include "history/HistoryArchive.h"
 
 #include <map>
 #include <memory>
 #include <vector>
 
-namespace stellar
+namespace soci
+{
+class transaction;
+class session;
+}
 
+namespace stellar
 {
 
 class Application;
+class Database;
 class Bucket;
 class BucketList;
 
@@ -40,6 +47,9 @@ enum FilePublishState
     FILE_PUBLISH_UPLOADED = 6,
 };
 
+struct StateSnapshot;
+template <typename T> class FileTransferInfo;
+
 class
 ArchivePublisher : public std::enable_shared_from_this<ArchivePublisher>
 {
@@ -53,11 +63,10 @@ ArchivePublisher : public std::enable_shared_from_this<ArchivePublisher>
     VirtualTimer mRetryTimer;
 
     std::shared_ptr<HistoryArchive> mArchive;
-    HistoryArchiveState mLocalState;
     HistoryArchiveState mArchiveState;
+    std::shared_ptr<StateSnapshot> mSnap;
 
-    std::vector<std::shared_ptr<Bucket>> mBucketsToPublish;
-    std::map<std::string, FilePublishState> mFileStates;
+    std::map<std::string, std::shared_ptr<FileTransferInfo<FilePublishState>>> mFileInfos;
 
     void fileStateChange(asio::error_code const& ec,
                          std::string const& hashname,
@@ -67,8 +76,7 @@ public:
     ArchivePublisher(Application& app,
                      std::function<void(asio::error_code const&)> handler,
                      std::shared_ptr<HistoryArchive> archive,
-                     HistoryArchiveState const& localState,
-                     std::vector<std::shared_ptr<Bucket>> const& localBuckets);
+                     std::shared_ptr<StateSnapshot> snap);
 
     std::shared_ptr<HistoryArchive> getArchive();
 
@@ -89,11 +97,14 @@ PublishStateMachine
     std::function<void(asio::error_code const&)> mEndHandler;
     asio::error_code mError;
     std::vector<std::shared_ptr<ArchivePublisher>> mPublishers;
+    void takeSnapshot();
 public:
     PublishStateMachine(Application& app,
                         std::function<void(asio::error_code const&)> handler);
 
-    void archiveComplete(asio::error_code const&);
+    void snapshotTaken(asio::error_code const&,
+                       std::shared_ptr<StateSnapshot>);
+    void snapshotPublished(asio::error_code const&);
 };
 
 

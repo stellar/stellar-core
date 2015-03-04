@@ -7,6 +7,7 @@
 #include "xdrpp/marshal.h"
 #include <string>
 #include "util/Logging.h"
+#include "util/XDRStream.h"
 #include "ledger/LedgerDelta.h"
 #include "ledger/OfferFrame.h"
 #include "crypto/SHA.h"
@@ -335,6 +336,45 @@ void TransactionFrame::storeTransaction(LedgerMaster &ledgerMaster, LedgerDelta 
     {
         throw std::runtime_error("Could not update data in SQL");
     }
+}
+
+size_t
+TransactionFrame::copyTransactionsToStream(Database& db,
+                                           soci::session& sess,
+                                           uint64_t ledgerSeq,
+                                           uint64_t ledgerCount,
+                                           XDROutputFileStream &out)
+{
+    auto timer = db.getSelectTimer("txhistory");
+    std::string txBody, txResult, txMeta;
+    uint64_t begin = ledgerSeq, end = ledgerSeq + ledgerCount;
+    size_t n = 0;
+    TransactionHistoryEntry e;
+    soci::statement st =
+        (sess.prepare <<
+         "SELECT ledgerSeq, TxBody, TxResult FROM TxHistory "\
+          "WHERE ledgerSeq >= :begin AND ledgerSeq < :end ",
+         soci::into(e.ledgerSeq),
+         soci::into(txBody), soci::into(txResult),
+         soci::use(begin), soci::use(end));
+
+    st.execute(true);
+    while (st.got_data())
+    {
+        std::string body = base64::decode(txBody);
+        std::string result = base64::decode(txResult);
+
+        xdr::xdr_get g1(body.data(), body.data() + body.size());
+        xdr_argpack_archive(g1, e.envelope);
+
+        xdr::xdr_get g2(result.data(), result.data() + result.size());
+        xdr_argpack_archive(g2, e.result);
+
+        out.writeOne(e);
+        ++n;
+        st.fetch();
+    }
+    return n;
 }
 
 void TransactionFrame::dropAll(Database &db)
