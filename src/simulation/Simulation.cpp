@@ -196,7 +196,8 @@ Simulation::crankForAtMost(VirtualClock::duration seconds)
     bool stop = false;
     auto stopIt = [&](const asio::error_code& error)
     {
-        stop = true;
+        if (!error)
+            stop = true;
     };
 
     VirtualTimer checkTimer(*mIdleApp);
@@ -217,7 +218,8 @@ Simulation::crankForAtLeast(VirtualClock::duration seconds)
     bool stop = false;
     auto stopIt = [&](const asio::error_code& error)
     {
-        stop = true;
+        if (!error)
+            stop = true;
     };
 
     VirtualTimer checkTimer(*mIdleApp);
@@ -238,7 +240,12 @@ Simulation::crankUntil(function<bool()> const & predicate, VirtualClock::duratio
     bool stop = false;
     auto stopIt = [&](const asio::error_code& error)
     {
-        stop = true;
+        // TODO: the VirtualTimer triggers the timeout event even when
+        //       additional events remain on the event loop.
+        /*
+        if (!error)
+            stop = true;
+        */
     };
 
     VirtualTimer checkTimer(*mIdleApp);
@@ -345,7 +352,7 @@ Simulation::executeAll(vector<TxInfo> const& transactions)
 }
 
 chrono::seconds
-Simulation::executeStressTest(size_t nTransactions, int injectionRatePerSec)
+Simulation::executeStressTest(size_t nTransactions, int injectionRatePerSec, function<TxInfo(size_t)> generatorFn)
 {
     size_t iTransactions = 0;
     auto startTime = chrono::system_clock::now();
@@ -354,18 +361,15 @@ Simulation::executeStressTest(size_t nTransactions, int injectionRatePerSec)
     {
         auto elapsed = chrono::duration_cast<chrono::microseconds>(chrono::system_clock::now() - startTime);
         auto targetTxs = min(nTransactions, static_cast<size_t>(elapsed.count() * injectionRatePerSec / 1000000));
-        auto toInject = max(static_cast<size_t>(0), targetTxs - iTransactions);
 
-        if (toInject == 0)
+        if (iTransactions == targetTxs)
         {
             this_thread::sleep_for(chrono::milliseconds(50));
         }
         else {
-            LOG(INFO) << "Injecting txs " << iTransactions << "..." << (iTransactions + toInject) << " out of " << nTransactions;
-            //auto tx = createRandomTransactions(toInject, 0.5);
-            auto tx = createTranferTransaction(2, 3, 10000);
-            execute(tx);
-            iTransactions += toInject;
+            LOG(INFO) << "Injecting txs " << (targetTxs - iTransactions) << " transactions (" << iTransactions << "..." << targetTxs << " out of " << nTransactions << ")";
+            for (; iTransactions < targetTxs; iTransactions++)
+                execute(generatorFn(iTransactions));
         }
 
         auto crankingStart = chrono::system_clock::now();
@@ -380,17 +384,23 @@ vector<Simulation::accountInfoPtr>
 Simulation::accountsOutOfSyncWithDb()
 {
     vector<accountInfoPtr> result;
+    int iApp = 0;
     for (auto pair : mNodes)
     {
-        auto app = pair.second;
+        iApp++;
+        auto app = pair.second; 
         for (auto accountIt = mAccounts.begin() + 1; accountIt != mAccounts.end(); accountIt++)
         {
             auto account = *accountIt;
             AccountFrame accountFrame;
             AccountFrame::loadAccount(account->mKey.getPublicKey(), accountFrame, app->getDatabase());
-            LOG(INFO) << account->mId << " has " << accountFrame.getBalance() << " and " << account->mBalance;
             if (accountFrame.getBalance() != account->mBalance)
+            {
+                LOG(INFO) << "On node " << iApp << ", account " << account->mId
+                    << " is off by " << (accountFrame.getBalance() - static_cast<int64_t>(account->mBalance))
+                    << "\t(has " << accountFrame.getBalance() << " should have " << account->mBalance << ")";
                 result.push_back(account);
+            }
         }
     }
     return result;

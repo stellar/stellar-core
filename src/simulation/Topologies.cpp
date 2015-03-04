@@ -13,7 +13,7 @@ Simulation::pointer Topologies::pair(Simulation::Mode mode)
     SIMULATION_CREATE_NODE(11);
 
     FBAQuorumSet qSet0; 
-    qSet0.threshold = 1; 
+    qSet0.threshold = 2; 
     qSet0.validators.push_back(v10NodeID);
     qSet0.validators.push_back(v11NodeID);
 

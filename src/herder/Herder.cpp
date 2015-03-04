@@ -445,9 +445,12 @@ Herder::ballotDidHearFromQuorum(const uint64& slotIndex,
     mBumpTimer.expires_from_now(
         std::chrono::seconds((int)pow(2.0, ballot.counter)));
 
+    // TODO: Bumping on a timeout disabled for now, tends to stall fba
+    /*
     mBumpTimer.async_wait(std::bind(&Herder::expireBallot, this, 
                                     std::placeholders::_1, 
                                     slotIndex, ballot));
+                                    */
 }
 
 void 
