@@ -9,7 +9,7 @@ using namespace std;
 class PersistentState
 {
 public:
-    PersistentState(Application &app) : mApp(app) {}
+    PersistentState(Application &app);
 
     enum Entry {
         kLastClosedLedger = 0,

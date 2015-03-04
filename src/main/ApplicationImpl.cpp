@@ -209,15 +209,26 @@ ApplicationImpl::crank(bool block)
 void
 ApplicationImpl::start()
 {
-    if(mConfig.START_NEW_NETWORK)
+
+    if ((mConfig.REBUILD_DB) ||
+        (mConfig.DATABASE == "sqlite3://:memory:"))
     {
+        mDatabase->initialize();
+    }
+
+    mConfig.START_NEW_NETWORK = mConfig.START_NEW_NETWORK
+        || mPersistentState->getState(PersistentState::kNewNetworkOnNextLunch) == "true";
+            
+    if (mConfig.START_NEW_NETWORK)
+    {
+        mDatabase->initialize();
         mLedgerMaster->startNewLedger();
         mHerder->bootstrap();
-    }else if(mConfig.START_LOCAL_NETWORK)
+    } else if(mConfig.START_LOCAL_NETWORK)
     {
         mLedgerMaster->loadLastKnownLedger();
         mHerder->bootstrap();
-    }else
+    } else
     {
         mLedgerMaster->loadLastKnownLedger();
     }

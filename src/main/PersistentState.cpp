@@ -8,10 +8,15 @@ namespace stellar
 
 
 const char *PersistentState::kSQLCreateStatement =
-"CREATE TABLE StoreState ("
+"CREATE TABLE IF NOT EXISTS StoreState ("
 "StateName   CHARACTER(32) PRIMARY KEY,"
 "State       TEXT"
 ");";
+
+PersistentState::PersistentState(Application &app) : mApp(app)
+{
+    mApp.getDatabase().getSession() << kSQLCreateStatement;
+}
 
 void PersistentState::dropAll(Database &db)
 {
@@ -24,7 +29,7 @@ string PersistentState::getStoreStateName(PersistentState::Entry n) {
     static const char *mapping[kLastEntry] = 
     {
         "lastClosedLedger",
-        "genesisLedgerForANewNetworkOnNextLunch"
+        "newNetworkOnNextLunch"
     };
     if (n < 0 || n >= kLastEntry) {
         throw out_of_range("unknown entry");

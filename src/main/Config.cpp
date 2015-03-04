@@ -19,13 +19,13 @@ Config::Config() : PEER_KEY( SecretKey::random() )
     // non configurable
     PROTOCOL_VERSION = 1;
     VERSION_STR = STELLARD_VERSION;
-
-    // configurable
     START_NEW_NETWORK = false;
     START_LOCAL_NETWORK = false;
     REBUILD_DB = false;
-    DESIRED_BASE_FEE = 10;
     DESIRED_BASE_RESERVE = 10000000;
+
+    // configurable
+    DESIRED_BASE_FEE = 10;
     PEER_PORT = DEFAULT_PEER_PORT;
     RUN_STANDALONE = false;
     TARGET_PEER_CONNECTIONS = 20;
@@ -39,7 +39,6 @@ Config::Config() : PEER_KEY( SecretKey::random() )
     PEER_PUBLIC_KEY = PEER_KEY.getPublicKey();
 
     DATABASE = "sqlite3://:memory:";
-
 }
 
 

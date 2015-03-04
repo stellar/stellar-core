@@ -13,10 +13,15 @@
 #include "lib/http/HttpClient.h"
 #include "crypto/SecretKey.h"
 #include "history/HistoryMaster.h"
+#include "main/PersistentState.h"
 #include <sodium.h>
 
 
 _INITIALIZE_EASYLOGGINGPP
+
+namespace stellar 
+{
+
 
 enum opttag
 {
@@ -25,7 +30,7 @@ enum opttag
     OPT_TEST,
     OPT_CONF,
     OPT_CMD,
-    OPT_NEW,
+    OPT_NEWNETWORK,
     OPT_LOCAL,
     OPT_GENSEED,
     OPT_LOGLEVEL,
@@ -39,11 +44,11 @@ static const struct option stellard_options[] = {
     {"test", no_argument, nullptr, OPT_TEST},
     {"conf", required_argument, nullptr, OPT_CONF},
     {"c", required_argument, nullptr, OPT_CMD},
-    {"new", no_argument, nullptr, OPT_NEW },
     {"local", no_argument, nullptr, OPT_LOCAL },
     {"genseed", no_argument, nullptr, OPT_GENSEED },
     {"newdb", no_argument, nullptr, OPT_NEWDB },
     {"newhist", required_argument, nullptr, OPT_NEWHIST },
+    {"newnetwork", no_argument, nullptr, OPT_NEWNETWORK },
     {"ll", required_argument, nullptr, OPT_LOGLEVEL },
     {nullptr, 0, nullptr, 0}};
 
@@ -58,7 +63,7 @@ usage(int err = 1)
           "      --test          To run self-tests\n"
           "      --newdb         Setup the DB.\n"
           "      --newhist ARCH  Initialize the named history archive ARCH.\n"
-          "      --new           Start a brand new network to call your own.\n"
+          "      --newnetwork    Start a brand new network to call your own.\n"
           "      --local         Resume from locally saved state.\n"
           "      --genseed       Generate and print a random node seed.\n"
           "      --ll LEVEL      Set the log level. LEVEL can be:\n"
@@ -76,7 +81,7 @@ usage(int err = 1)
     exit(err);
 }
 
-void
+static void
 sendCommand(const std::string& command, const std::vector<char*>& rest,
             int port)
 {
@@ -96,98 +101,36 @@ sendCommand(const std::string& command, const std::vector<char*>& rest,
     }
 }
 
-int
-main(int argc, char* const* argv)
+void
+setNewNetworkFlag(Config& cfg)
 {
-    using namespace stellar;
+    VirtualClock clock;
+    Application::pointer app = Application::create(clock, cfg);
 
-    sodium_init();
-    Logging::init();
+    app->getPersistentState().setState(PersistentState::kNewNetworkOnNextLunch, "true");
+    LOG(INFO) << "* ";
+    LOG(INFO) << "* The new network flag has been set in the db. The next launch will";
+    LOG(INFO) << "* wipe the database clean and start a new network.";
+    LOG(INFO) << "* ";
+}
 
-    std::string cfgFile("stellard.cfg");
-    std::string command;
-    el::Level logLevel=el::Level::Fatal;
-    std::vector<char*> rest;
+int
+initializeHistories(Config& cfg, vector<string> newHistories)
+{
+    VirtualClock clock;
+    Application::pointer app = Application::create(clock, cfg);
 
-    bool newNetwork = false;
-    bool localNetwork = false;
-    bool newDB = false;
-    std::vector<std::string> newHist;
-
-    int opt;
-    while ((opt = getopt_long_only(argc, argv, "", stellard_options,
-                                   nullptr)) != -1)
+    for (auto const& arch : newHistories)
     {
-        switch (opt)
-        {
-        case OPT_TEST:
-        {
-            rest.push_back(*argv);
-            rest.insert(++rest.begin(), argv + optind, argv + argc);
-            return test(static_cast<int>(rest.size()), &rest[0],logLevel);
-        }
-        case OPT_CONF:
-            cfgFile = std::string(optarg);
-            break;
-        case OPT_CMD:
-            command = optarg;
-            rest.insert(rest.begin(), argv + optind, argv + argc);
-            break;
-        case OPT_VERSION:
-            std::cout << STELLARD_VERSION;
-            return 0;
-        case OPT_NEW:
-            newNetwork = true;
-            break;
-        case OPT_NEWDB:
-            newDB = true;
-            break;
-        case OPT_NEWHIST:
-            newHist.push_back(std::string(optarg));
-            break;
-        case OPT_LOCAL:
-            localNetwork = true;
-            break;
-        case OPT_LOGLEVEL:
-            logLevel = Logging::getLLfromString(std::string(optarg));
-            break;
-        case OPT_GENSEED:
-        {
-            SecretKey key=SecretKey::random();
-            std::cout << "Secret seed: " << key.getBase58Seed() << std::endl;
-            std::cout << "Public: " << key.getBase58Public() << std::endl;
-            return 0;
-        }
-
-        default:
-            usage(0);
-            return 0;
-
-        }
+        if (!HistoryMaster::initializeHistoryArchive(*app, arch))
+            return 1;
     }
+    return 0;
+}
 
-    Config cfg;
-    if (TmpDir::exists(cfgFile))
-    {
-        cfg.load(cfgFile);
-        Logging::setLoggingToFile(cfg.LOG_FILE_PATH);
-    }
-    else
-    {
-        LOG(WARNING) << "No config file " << cfgFile << " found";
-        cfgFile = ":default-settings:";
-    }
-    Logging::setLogLevel(logLevel,nullptr);
-
-    cfg.REBUILD_DB = newDB;
-    cfg.START_NEW_NETWORK = newNetwork;
-    cfg.START_LOCAL_NETWORK = localNetwork;
-    if (command.size())
-    {
-        sendCommand(command, rest, cfg.HTTP_PORT);
-        return 0;
-    }
-
+void
+startApp(string cfgFile, Config& cfg)
+{
     LOG(INFO) << "Starting stellard-hayashi " << STELLARD_VERSION;
     LOG(INFO) << "Config from " << cfgFile;
     VirtualClock clock;
@@ -197,18 +140,6 @@ main(int argc, char* const* argv)
     app->start();
     app->enableRealTimer();
 
-    // Run any history-archive initializations synchronously, then exit.
-    if (!newHist.empty())
-    {
-        for (auto const& arch : newHist)
-        {
-            if (!HistoryMaster::initializeHistoryArchive(*app, arch))
-                return 1;
-        }
-        return 0;
-    }
-
-
     auto& io = app->getMainIOService();
     asio::io_service::work mainWork(io);
     while (!io.stopped())
@@ -216,3 +147,120 @@ main(int argc, char* const* argv)
         app->crank();
     }
 }
+
+}
+
+int
+main(int argc, char* const* argv)
+{
+    using namespace stellar;
+
+    try
+    {
+        sodium_init();
+        Logging::init();
+
+        std::string cfgFile("stellard.cfg");
+        std::string command;
+        el::Level logLevel = el::Level::Fatal;
+        std::vector<char*> rest;
+
+        bool newNetwork = false;
+        bool localNetwork = false;
+        bool newDB = false;
+        std::vector<std::string> newHistories;
+
+        int opt;
+        while ((opt = getopt_long_only(argc, argv, "", stellard_options,
+            nullptr)) != -1)
+        {
+            switch (opt)
+            {
+            case OPT_TEST:
+            {
+                rest.push_back(*argv);
+                rest.insert(++rest.begin(), argv + optind, argv + argc);
+                return test(static_cast<int>(rest.size()), &rest[0], logLevel);
+            }
+            case OPT_CONF:
+                cfgFile = std::string(optarg);
+                break;
+            case OPT_CMD:
+                command = optarg;
+                rest.insert(rest.begin(), argv + optind, argv + argc);
+                break;
+            case OPT_VERSION:
+                std::cout << STELLARD_VERSION;
+                return 0;
+            case OPT_NEWNETWORK:
+                newNetwork = true;
+                break;
+            case OPT_NEWDB:
+                newDB = true;
+                break;
+            case OPT_NEWHIST:
+                newHistories.push_back(std::string(optarg));
+                break;
+            case OPT_LOCAL:
+                localNetwork = true;
+                break;
+            case OPT_LOGLEVEL:
+                logLevel = Logging::getLLfromString(std::string(optarg));
+                break;
+            case OPT_GENSEED:
+            {
+                SecretKey key = SecretKey::random();
+                std::cout << "Secret seed: " << key.getBase58Seed() << std::endl;
+                std::cout << "Public: " << key.getBase58Public() << std::endl;
+                return 0;
+            }
+
+            default:
+                usage(0);
+                return 0;
+
+            }
+        }
+
+        Config cfg;
+        if (TmpDir::exists(cfgFile))
+        {
+            cfg.load(cfgFile);
+            Logging::setLoggingToFile(cfg.LOG_FILE_PATH);
+        }
+        else
+        {
+            LOG(WARNING) << "No config file " << cfgFile << " found";
+            cfgFile = ":default-settings:";
+        }
+        Logging::setLogLevel(logLevel, nullptr);
+
+        cfg.REBUILD_DB = newDB;
+        cfg.START_NEW_NETWORK = newNetwork;
+        cfg.START_LOCAL_NETWORK = localNetwork;
+        if (command.size())
+        {
+            sendCommand(command, rest, cfg.HTTP_PORT);
+            return 0;
+        }
+        else if (newNetwork)
+        {
+            setNewNetworkFlag(cfg);
+            return 0;
+        }
+        else if (!newHistories.empty())
+        {
+            return initializeHistories(cfg, newHistories);
+        }
+        else
+        {
+            startApp(cfgFile, cfg);
+        }
+
+    } catch (std::runtime_error e) 
+    {
+        LOG(FATAL) << e.what();
+        return 1;
+    }
+}
+
