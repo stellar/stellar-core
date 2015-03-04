@@ -90,12 +90,16 @@ class Application;
 class Bucket;
 class BucketList;
 class HistoryArchive;
+struct StateSnapshot;
+
 class HistoryMaster
 {
     class Impl;
     std::unique_ptr<Impl> mImpl;
 
   public:
+
+    static const size_t kCheckpointFrequency;
 
     // Verify that a file has a given hash.
     void verifyHash(std::string const& filename,
@@ -129,6 +133,11 @@ class HistoryMaster
 
     // Pick a readable archive and set the bucketlist to its content.
     void catchupHistory(std::function<void(asio::error_code const&)> handler);
+
+    // Call posted after a worker thread has finished taking a snapshot; calls
+    // PublishStateMachine::snapshotTaken iff state machine is live.
+    void snapshotTaken(asio::error_code const&,
+                       std::shared_ptr<StateSnapshot>);
 
     HistoryArchiveState getCurrentHistoryArchiveState() const;
 

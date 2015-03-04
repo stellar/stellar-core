@@ -7,10 +7,16 @@
 #include "generated/StellarXDR.h"
 #include "lib/json/json.h"
 
+namespace soci
+{
+class session;
+}
+
 namespace stellar
 {
     class LedgerMaster;
     class Database;
+    class XDROutputFileStream;
 
     class LedgerHeaderFrame
     {
@@ -29,6 +35,12 @@ namespace stellar
 
         static LedgerHeaderFrame::pointer loadByHash(const uint256 &hash, LedgerMaster& ledgerMaster);
         static LedgerHeaderFrame::pointer loadBySequence(uint64_t seq, LedgerMaster& ledgerMaster);
+
+        static size_t copyLedgerHeadersToStream(Database& db,
+                                                soci::session& sess,
+                                                uint64_t ledgerSeq,
+                                                uint64_t ledgerCount,
+                                                XDROutputFileStream& txOut);
 
         static void dropAll(Database &db);
         static const char *kSQLCreateStatement;

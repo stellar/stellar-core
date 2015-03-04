@@ -4,9 +4,10 @@
 // under the ISC License. See the COPYING file at the top-level directory of
 // this distribution or at http://opensource.org/licenses/ISC
 
-#include "util/Timer.h"
 #include "history/HistoryArchive.h"
 #include "clf/Bucket.h"
+#include "util/Timer.h"
+#include "util/TmpDir.h"
 
 #include <map>
 #include <memory>
@@ -74,6 +75,8 @@ enum FileCatchupState
     FILE_CATCHUP_VERIFIED = 7
 };
 
+template <typename T> class FileTransferInfo;
+
 class HistoryArchive;
 struct HistoryArchiveState;
 class Application;
@@ -89,11 +92,12 @@ CatchupStateMachine
     CatchupState mState;
     size_t mRetryCount;
     VirtualTimer mRetryTimer;
+    TmpDir mDownloadDir;
 
     std::shared_ptr<HistoryArchive> mArchive;
     HistoryArchiveState mLocalState;
     HistoryArchiveState mArchiveState;
-    std::map<std::string, FileCatchupState> mFileStates;
+    std::map<std::string, std::shared_ptr<FileTransferInfo<FileCatchupState>>> mFileInfos;
     std::map<std::string, std::shared_ptr<Bucket>> mBuckets;
 
     std::shared_ptr<HistoryArchive> selectRandomReadableHistoryArchive();

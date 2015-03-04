@@ -4,6 +4,7 @@
 
 #include "history/CatchupStateMachine.h"
 #include "history/HistoryMaster.h"
+#include "history/FileTransferInfo.h"
 
 #include "clf/CLFMaster.h"
 #include "clf/BucketList.h"
@@ -16,12 +17,15 @@
 #include "util/XDRStream.h"
 
 #include <random>
+#include <memory>
 
 namespace stellar
 {
 
 const size_t
 CatchupStateMachine::kRetryLimit = 16;
+
+typedef FileTransferInfo<FileCatchupState> FileCatchupInfo;
 
 CatchupStateMachine::CatchupStateMachine(Application& app,
                                          std::function<void(asio::error_code const&)> handler)
@@ -30,6 +34,7 @@ CatchupStateMachine::CatchupStateMachine(Application& app,
     , mState(CATCHUP_RETRYING)
     , mRetryCount(0)
     , mRetryTimer(app)
+    , mDownloadDir(app.getTmpDirMaster().tmpDir("catchup"))
 {
     // We start up in CATCHUP_RETRYING as that's the only valid
     // named pre-state for CATCHUP_BEGIN.
@@ -119,17 +124,16 @@ CatchupStateMachine::enterBeginState()
  */
 void
 CatchupStateMachine::fileStateChange(asio::error_code const& ec,
-                                     std::string const& hashname,
+                                     std::string const& name,
                                      FileCatchupState newGoodState)
 {
     FileCatchupState newState = newGoodState;
     if (ec)
     {
-        std::string basename = HistoryMaster::bucketBasename(hashname);
-        CLOG(INFO, "History") << "Catchup action failed on " << basename;
+        CLOG(INFO, "History") << "Catchup action failed on " << name;
         newState = FILE_CATCHUP_FAILED;
     }
-    mFileStates[hashname] = newState;
+    mFileInfos[name]->setState(newState);
     enterFetchingState();
 }
 
@@ -146,42 +150,48 @@ CatchupStateMachine::enterFetchingState()
 
     FileCatchupState minimumState = FILE_CATCHUP_VERIFIED;
     auto& hm = mApp.getHistoryMaster();
-    for (auto& f : mFileStates)
+    for (auto& pair : mFileInfos)
     {
-        std::string hashname = f.first;
-        uint256 hash = hexToBin256(hashname);
-        std::string basename = HistoryMaster::bucketBasename(hashname);
-        std::string filename = hm.localFilename(basename);
+        auto fi = pair.second;
+        auto name = fi->baseName_nogz();
 
-        std::string basename_gz = basename + ".gz";
-        std::string filename_gz = filename + ".gz";
+        std::string hashname;
+        uint256 hash;
+        if (fi->getBucketHashName(hashname))
+        {
+            hash = hexToBin256(hashname);
+        }
 
-        switch (f.second)
+        switch (fi->getState())
         {
         case FILE_CATCHUP_FAILED:
             break;
 
         case FILE_CATCHUP_NEEDED:
         {
-            auto b = mApp.getCLFMaster().getBucketByHash(hash);
+            std::shared_ptr<Bucket> b;
+            if (!hashname.empty())
+            {
+                b = mApp.getCLFMaster().getBucketByHash(hash);
+            }
             if (b)
             {
                 // If for some reason this bucket exists and is live in the CLF,
                 // just grab a copy of it.
-                CLOG(INFO, "History") << "Existing bucket found in CLF: " << basename;
+                CLOG(INFO, "History") << "Existing bucket found in CLF: " << hashname;
                 mBuckets[hashname] = b;
-                f.second = FILE_CATCHUP_VERIFIED;
+                fi->setState(FILE_CATCHUP_VERIFIED);
             }
             else
             {
-                f.second = FILE_CATCHUP_DOWNLOADING;
-                CLOG(INFO, "History") << "Downloading " << basename_gz;
+                fi->setState(FILE_CATCHUP_DOWNLOADING);
+                CLOG(INFO, "History") << "Downloading " << name;
                 hm.getFile(
                     mArchive,
-                    basename_gz, filename_gz,
-                    [this, hashname](asio::error_code const& ec)
+                    fi->baseName_gz(), fi->localPath_gz(),
+                    [this, name](asio::error_code const& ec)
                     {
-                        this->fileStateChange(ec, hashname, FILE_CATCHUP_DOWNLOADED);
+                        this->fileStateChange(ec, name, FILE_CATCHUP_DOWNLOADED);
                     });
             }
         }
@@ -191,13 +201,13 @@ CatchupStateMachine::enterFetchingState()
             break;
 
         case FILE_CATCHUP_DOWNLOADED:
-            f.second = FILE_CATCHUP_DECOMPRESSING;
-            CLOG(INFO, "History") << "Decompressing " << basename_gz;
+            fi->setState(FILE_CATCHUP_DECOMPRESSING);
+            CLOG(INFO, "History") << "Decompressing " << fi->baseName_gz();
             hm.decompress(
-                filename_gz,
-                [this, hashname](asio::error_code const& ec)
+                fi->localPath_gz(),
+                [this, name](asio::error_code const& ec)
                 {
-                    this->fileStateChange(ec, hashname, FILE_CATCHUP_DECOMPRESSED);
+                    this->fileStateChange(ec, name, FILE_CATCHUP_DECOMPRESSED);
                 });
             break;
 
@@ -205,7 +215,7 @@ CatchupStateMachine::enterFetchingState()
             break;
 
         case FILE_CATCHUP_DECOMPRESSED:
-            f.second = FILE_CATCHUP_VERIFYING;
+            fi->setState(FILE_CATCHUP_VERIFYING);
 
             // Note: verification here does not guarantee that the data is
             // _trustworthy_, merely that it's the data we were expecting
@@ -214,19 +224,27 @@ CatchupStateMachine::enterFetchingState()
             // corrupt. Trusting that hash name is a whole other issue, the data
             // might still be full of lies and attacks at the ledger-level.
 
-            CLOG(INFO, "History") << "Verifying " << basename;
-            hm.verifyHash(
-                filename,
-                hash,
-                [this, filename, hashname, hash](asio::error_code const& ec)
-                {
-                    if (!ec)
+            if (hashname.empty())
+            {
+                CLOG(INFO, "History") << "Not verifying " << name << ", no hash";
+                fi->setState(FILE_CATCHUP_VERIFIED);
+            }
+            else
+            {
+                CLOG(INFO, "History") << "Verifying " << name;
+                auto filename = fi->localPath_nogz();
+                hm.verifyHash(
+                    filename, hash,
+                    [this, name, filename, hashname, hash](asio::error_code const& ec)
                     {
-                        auto b = this->mApp.getCLFMaster().adoptFileAsBucket(filename, hash);
-                        this->mBuckets[hashname] = b;
-                    }
-                    this->fileStateChange(ec, hashname, FILE_CATCHUP_VERIFIED);
-                });
+                        if (!ec)
+                        {
+                            auto b = this->mApp.getCLFMaster().adoptFileAsBucket(filename, hash);
+                            this->mBuckets[hashname] = b;
+                        }
+                        this->fileStateChange(ec, name, FILE_CATCHUP_VERIFIED);
+                    });
+            }
             break;
 
         case FILE_CATCHUP_VERIFYING:
@@ -236,7 +254,7 @@ CatchupStateMachine::enterFetchingState()
             break;
         }
 
-        minimumState = std::min(f.second, minimumState);
+        minimumState = std::min(fi->getState(), minimumState);
     }
 
     if (minimumState == FILE_CATCHUP_FAILED)
@@ -268,24 +286,21 @@ CatchupStateMachine::enterAnchoredState(HistoryArchiveState const& has)
                           << mArchiveState.currentLedger;
 
     // First clear out any previous failed files, so we retry them.
-    auto& hm = mApp.getHistoryMaster();
-    for (auto& f : mFileStates)
+    for (auto& pair : mFileInfos)
     {
-        std::string hashname = f.first;
-        std::string basename = HistoryMaster::bucketBasename(hashname);
-        std::string filename = hm.localFilename(basename);
+        auto fi = pair.second;
 
-        std::string basename_gz = basename + ".gz";
-        std::string filename_gz = filename + ".gz";
-
-        if (f.second == FILE_CATCHUP_FAILED)
+        if (fi->getState() == FILE_CATCHUP_FAILED)
         {
-            std::remove(filename.c_str());
+            auto filename_nogz = fi->localPath_nogz();
+            auto filename_gz = fi->localPath_gz();
+
+            std::remove(filename_nogz.c_str());
             std::remove(filename_gz.c_str());
             CLOG(INFO, "History")
-                << "Retrying fetch for " << basename_gz
+                << "Retrying fetch for " << fi->baseName_gz()
                 << " from archive '" << mArchive->getName() << "'";
-            f.second = FILE_CATCHUP_NEEDED;
+            fi->setState(FILE_CATCHUP_NEEDED);
         }
     }
 
@@ -294,14 +309,15 @@ CatchupStateMachine::enterAnchoredState(HistoryArchiveState const& has)
     std::vector<std::string> toFetch = mArchiveState.differingBuckets(mLocalState);
     for (auto const& h : toFetch)
     {
-        if (mFileStates.find(h) == mFileStates.end())
+        if (mFileInfos.find(h) == mFileInfos.end())
         {
-            std::string basename = HistoryMaster::bucketBasename(h);
-            std::string basename_gz = basename + ".gz";
+            auto fi = std::make_shared<FileCatchupInfo>(
+                FILE_CATCHUP_NEEDED, mDownloadDir,
+                HISTORY_FILE_TYPE_BUCKET, h);
             CLOG(INFO, "History")
-                << "Starting fetch for " << basename_gz
+                << "Starting fetch for " << fi->baseName_gz()
                 << " from archive '" << mArchive->getName() << "'";
-            mFileStates[h] = FILE_CATCHUP_NEEDED;
+            mFileInfos[fi->baseName_nogz()] = fi;
         }
     }
 

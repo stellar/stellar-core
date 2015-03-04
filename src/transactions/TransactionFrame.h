@@ -12,6 +12,11 @@
 #include "util/types.h"
 #include "lib/json/json-forwards.h"
 
+namespace soci
+{
+class session;
+}
+
 /*
 A transaction in its exploded form.
 We can get it in from the DB or from the wire
@@ -22,6 +27,7 @@ namespace stellar
     class LedgerMaster;
     class LedgerDelta;
     class SecretKey;
+    class XDROutputFileStream;
 
     class TransactionFrame
     {
@@ -80,6 +86,11 @@ namespace stellar
         // transaction history
 
         void storeTransaction(LedgerMaster &ledgerMaster, LedgerDelta const& delta);
+        static size_t copyTransactionsToStream(Database& db,
+                                               soci::session& sess,
+                                               uint64_t ledgerSeq,
+                                               uint64_t ledgerCount,
+                                               XDROutputFileStream& txOut);
         static void dropAll(Database &db);
 
     };
