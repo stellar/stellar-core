@@ -18,6 +18,7 @@
 #include "transactions/TransactionFrame.h"
 #include "util/Logging.h"
 #include "util/XDRStream.h"
+#include "xdrpp/printer.h"
 
 #include <random>
 #include <memory>
@@ -501,6 +502,9 @@ void CatchupStateMachine::enterApplyingState()
                                       header.baseFee);
             auto& lm = mApp.getLedgerMaster();
             lm.closeLedger(closeData);
+
+            CLOG(DEBUG, "History") << "LedgerMaster LCL: " << xdr::xdr_to_string(lm.getLastClosedLedgerHeader());
+            CLOG(DEBUG, "History") << "Replay header: " << xdr::xdr_to_string(header);
             if (lm.getLastClosedLedgerHeader().hash != header.hash)
             {
                 throw std::runtime_error("replay produced mismatched ledger hash");
