@@ -75,6 +75,11 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
     {
         mDatabase->initialize();
     }
+    else if (mPersistentState->getState(PersistentState::kDatabaseInitialized) != "true")
+    {
+        throw new runtime_error("Database not initialized and REBUID_DB is false.");
+    }
+
 
     mTmpDirMaster = make_unique<TmpDirMaster>(cfg.TMP_DIR_PATH);
     mPeerMaster = make_unique<PeerMaster>(*this);
@@ -228,17 +233,23 @@ ApplicationImpl::start()
 
     if (mConfig.START_NEW_NETWORK)
     {
-        mPersistentState->setState(PersistentState::kForceSCPOnNextLaunch, "false");
+        string flagClearedMsg = "";
+        if (mPersistentState->getState(PersistentState::kForceSCPOnNextLaunch) == "true")
+        {
+            flagClearedMsg = " (`force scp` flag cleared in the db)";
+            mPersistentState->setState(PersistentState::kForceSCPOnNextLaunch, "false");
+        }
+
         if (!hasLedger)
         {
             LOG(INFO) << "* ";
-            LOG(INFO) << "* Force-starting scp from scratch, creating the genesis ledger. (`force scp` flag cleared in the db)";
+            LOG(INFO) << "* Force-starting scp from scratch, creating the genesis ledger." << flagClearedMsg;
             LOG(INFO) << "* ";
             mLedgerMaster->startNewLedger();
         } else
         {
             LOG(INFO) << "* ";
-            LOG(INFO) << "* Force-starting scp from the current db state. (`force scp` flag cleared in the db)";
+            LOG(INFO) << "* Force-starting scp from the current db state." << flagClearedMsg;
             LOG(INFO) << "* ";
             mLedgerMaster->loadLastKnownLedger();
         }
