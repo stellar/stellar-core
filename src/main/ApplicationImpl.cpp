@@ -60,6 +60,12 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
     // These must be constructed _after_ because they frequently call back
     // into App.getFoo() to get information / start up.
     mMetrics = make_unique<medida::MetricsRegistry>();
+    mDatabase = make_unique<Database>(*this);
+    mPersistentState = make_unique<PersistentState>(*this);
+
+    mConfig.START_NEW_NETWORK = mConfig.START_NEW_NETWORK
+        || mPersistentState->getState(PersistentState::kNewNetworkOnNextLunch) == "true";
+
     mTmpDirMaster = make_unique<TmpDirMaster>(cfg.TMP_DIR_PATH);
     mPeerMaster = make_unique<PeerMaster>(*this);
     mLedgerMaster = make_unique<LedgerMaster>(*this);
@@ -68,8 +74,6 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
     mHistoryMaster = make_unique<HistoryMaster>(*this);
     mProcessMaster = make_unique<ProcessMaster>(*this);
     mCommandHandler = make_unique<CommandHandler>(*this);
-    mDatabase = make_unique<Database>(*this);
-    mPersistentState = make_unique<PersistentState>(*this);
 
     while(t--)
     {
@@ -210,18 +214,15 @@ void
 ApplicationImpl::start()
 {
 
-    if ((mConfig.REBUILD_DB) ||
+    if (mConfig.REBUILD_DB ||
+        mConfig.START_NEW_NETWORK ||
         (mConfig.DATABASE == "sqlite3://:memory:"))
     {
         mDatabase->initialize();
     }
 
-    mConfig.START_NEW_NETWORK = mConfig.START_NEW_NETWORK
-        || mPersistentState->getState(PersistentState::kNewNetworkOnNextLunch) == "true";
-            
     if (mConfig.START_NEW_NETWORK)
     {
-        mDatabase->initialize();
         mLedgerMaster->startNewLedger();
         mHerder->bootstrap();
     } else if(mConfig.START_LOCAL_NETWORK)
