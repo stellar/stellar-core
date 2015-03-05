@@ -396,6 +396,9 @@
     <ClCompile Include="..\..\src\transactions\SetSeqSlotFrame.cpp">
       <Filter>transactions</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\history\FileTransferInfo.cpp">
+      <Filter>history</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\ledger\LedgerGateway.h">
@@ -652,6 +655,9 @@
     </ClInclude>
     <ClInclude Include="..\..\src\transactions\SetSeqSlotFrame.h">
       <Filter>transactions</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\history\FileTransferInfo.h">
+      <Filter>history</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

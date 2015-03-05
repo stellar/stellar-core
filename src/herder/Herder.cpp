@@ -371,7 +371,7 @@ Herder::validateBallot(const uint64& slotIndex,
     uint256 valueHash = 
         sha256(xdr::xdr_to_msg(ballot.value));
 
-    CLOG(INFO, "Herder") << "Herder::validateBallot"
+    CLOG(DEBUG, "Herder") << "Herder::validateBallot"
         << "@" << binToHex(getLocalNodeID()).substr(0,6)
         << " i: " << slotIndex
         << " v: " << binToHex(nodeID).substr(0,6)
@@ -390,7 +390,7 @@ Herder::validateBallot(const uint64& slotIndex,
     }
     else
     {
-        CLOG(INFO, "Herder") << "start timer"
+        CLOG(DEBUG, "Herder") << "start timer"
             << "@" << binToHex(getLocalNodeID()).substr(0, 6)
             << " i: " << slotIndex
             << " v: " << binToHex(nodeID).substr(0, 6)
@@ -581,7 +581,7 @@ void Herder::rebroadcast(const asio::error_code& ec)
 {
     if(!ec)
     {
-        CLOG(INFO, "Herder") << "Herder:rebroadcast"
+        CLOG(DEBUG, "Herder") << "Herder:rebroadcast"
             << "@" << binToHex(getLocalNodeID()).substr(0, 6);
 
         mEnvelopeEmit.Mark();
@@ -740,7 +740,7 @@ void
 Herder::recvFBAEnvelope(FBAEnvelope envelope,
                         std::function<void(bool)> const& cb)
 {
-    CLOG(INFO, "Herder") << "Herder::recvFBAEnvelope@"
+    CLOG(DEBUG, "Herder") << "Herder::recvFBAEnvelope@"
         << "@" << binToHex(getLocalNodeID()).substr(0, 6);
 
     if(mApp.getState() == Application::SYNCED_STATE)
