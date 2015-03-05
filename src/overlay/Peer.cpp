@@ -393,9 +393,9 @@ Peer::recvPeers(StellarMessage const& msg)
 
         ip << (int)peer.ip[0] << "." << (int)peer.ip[1] << "." << (int)peer.ip[2] << "." << (int)peer.ip[3];
 
-        PeerRecord pr{ip.str(), static_cast<int>(peer.port),
+        PeerRecord pr{ip.str(), peer.port,
             mApp.getClock().now(),
-            static_cast<int>(peer.numFailures), 1 };
+            peer.numFailures, 1 };
 
         pr.storePeerRecord(mApp.getDatabase());
     }

@@ -36,18 +36,18 @@ class Config : public std::enable_shared_from_this<Config>
     
     // This is a mode for testing. It prevents you from trying to connect to other peers
     bool RUN_STANDALONE;
-    int PROTOCOL_VERSION;
+    uint32_t PROTOCOL_VERSION;
     std::string VERSION_STR;
     std::string LOG_FILE_PATH;
     std::string TMP_DIR_PATH;
     std::string BUCKET_DIR_PATH;
     uint32_t DESIRED_BASE_FEE; // in stroops
     uint32_t DESIRED_BASE_RESERVE; // in stroops
-    int HTTP_PORT;         // what port to listen for commands on. 0 for don't
+    uint32_t HTTP_PORT;         // what port to listen for commands on. 0 for don't
     bool PUBLIC_HTTP_PORT; // if you accept commands from not localhost
 
     // overlay config
-    int PEER_PORT;
+    uint32_t PEER_PORT;
     SecretKey PEER_KEY;
     PublicKey PEER_PUBLIC_KEY;
     unsigned TARGET_PEER_CONNECTIONS;
@@ -58,7 +58,7 @@ class Config : public std::enable_shared_from_this<Config>
 
     // FBA config
     SecretKey VALIDATION_KEY;
-    int QUORUM_THRESHOLD;
+    uint32_t QUORUM_THRESHOLD;
     std::vector<uint256> QUORUM_SET;
 
     // History config

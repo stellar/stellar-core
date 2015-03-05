@@ -232,7 +232,7 @@ Slot::bumpToBallot(const FBABallot& ballot)
     // `bumpToBallot` should be never called once we committed.
     assert(!mIsCommitted && !mIsExternalized);
 
-    CLOG(INFO, "FBA") << "Slot::bumpToBallot" 
+    CLOG(DEBUG, "FBA") << "Slot::bumpToBallot" 
         << "@" << binToHex(mFBA->getLocalNodeID()).substr(0,6)
         << " i: " << mSlotIndex
         << " b: " << ballotToStr(ballot);
@@ -289,7 +289,7 @@ Slot::attemptPrepare()
     {
         return;
     }
-    CLOG(INFO, "FBA") << "Slot::attemptPrepare" 
+    CLOG(DEBUG, "FBA") << "Slot::attemptPrepare" 
         << "@" << binToHex(mFBA->getLocalNodeID()).substr(0,6)
         << " i: " << mSlotIndex
         << " b: " << ballotToStr(mBallot);
@@ -339,7 +339,7 @@ Slot::attemptPrepared(const FBABallot& ballot)
     {
         return;
     }
-    CLOG(INFO, "FBA") << "Slot::attemptPrepared" 
+    CLOG(DEBUG, "FBA") << "Slot::attemptPrepared" 
         << "@" << binToHex(mFBA->getLocalNodeID()).substr(0,6)
         << " i: " << mSlotIndex
         << " b: " << ballotToStr(ballot);
@@ -368,7 +368,7 @@ Slot::attemptCommit()
     {
         return;
     }
-    CLOG(INFO, "FBA") << "Slot::attemptCommit" 
+    CLOG(DEBUG, "FBA") << "Slot::attemptCommit" 
         << "@" << binToHex(mFBA->getLocalNodeID()).substr(0,6)
         << " i: " << mSlotIndex
         << " b: " << ballotToStr(mBallot);
@@ -398,7 +398,7 @@ Slot::attemptCommitted()
     {
         return;
     }
-    CLOG(INFO, "FBA") << "Slot::attemptCommitted" 
+    CLOG(DEBUG, "FBA") << "Slot::attemptCommitted" 
         << "@" << binToHex(mFBA->getLocalNodeID()).substr(0,6)
         << " i: " << mSlotIndex
         << " b: " << ballotToStr(mBallot);
@@ -426,7 +426,7 @@ Slot::attemptExternalize()
     {
         return;
     }
-    CLOG(INFO, "FBA") << "Slot::attemptExternalize" 
+    CLOG(DEBUG, "FBA") << "Slot::attemptExternalize" 
         << "@" << binToHex(mFBA->getLocalNodeID()).substr(0,6)
         << " i: " << mSlotIndex
         << " b: " << ballotToStr(mBallot);
@@ -675,26 +675,9 @@ Slot::advanceSlot()
                 // value then we externalize
                 if (isCommittedConfirmed(mBallot.value)) 
                 {
-                    CLOG(INFO, "FBA") << "cc "
-                        << "@" << binToHex(mFBA->getLocalNodeID()).substr(0, 6)
-                        << " i: " << mSlotIndex
-                        << " b: " << ballotToStr(mBallot);
                     attemptExternalize(); 
-                } else
-                {
-                    CLOG(INFO, "FBA") << "not cc "
-                        << "@" << binToHex(mFBA->getLocalNodeID()).substr(0, 6)
-                        << " i: " << mSlotIndex
-                        << " b: " << ballotToStr(mBallot);
-                }
+                } 
             }
-
-        } else
-        {
-            CLOG(INFO, "FBA") << "pristine "
-                << "@" << binToHex(mFBA->getLocalNodeID()).substr(0, 6)
-                << " i: " << mSlotIndex
-                << " b: " << ballotToStr(mBallot);
         }
 
         // We loop on all known ballots to check if there are conditions that

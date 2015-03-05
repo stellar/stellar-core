@@ -35,16 +35,16 @@ void PeerRecord::toXdr(PeerAddress &ret)
     ipToXdr(mIP, ret.ip);
 }
 
-void PeerRecord::fromIPPort(const string &ip, int port, VirtualClock &clock, PeerRecord &ret)
+void PeerRecord::fromIPPort(const string &ip, uint32_t port, VirtualClock &clock, PeerRecord &ret)
 {
     ret = PeerRecord{ ip, port, clock.now(), 0, 1 };
 }
 
 // TODO: stricter verification that ip and port are valid
-void PeerRecord::parseIPPort(const string &ipPort, VirtualClock &clock, PeerRecord &ret, int defaultPort)
+void PeerRecord::parseIPPort(const string &ipPort, VirtualClock &clock, PeerRecord &ret, uint32_t defaultPort)
 {
     string ip;
-    int port;
+    uint32_t port;
     std::string const innerStr(ipPort);
     std::string::const_iterator splitPoint =
         std::find(innerStr.begin(), innerStr.end(), ':');
@@ -67,7 +67,7 @@ void PeerRecord::parseIPPort(const string &ipPort, VirtualClock &clock, PeerReco
     ret = PeerRecord{ ip, port, clock.now(), 0, 1 };
 }
 
-optional<PeerRecord> PeerRecord::loadPeerRecord(Database &db, string ip, int port)
+optional<PeerRecord> PeerRecord::loadPeerRecord(Database &db, string ip, uint32_t port)
 {
     auto ret = make_optional<PeerRecord>();
     auto timer = db.getSelectTimer("peer");
@@ -82,7 +82,7 @@ optional<PeerRecord> PeerRecord::loadPeerRecord(Database &db, string ip, int por
         return nullopt<PeerRecord>();
 }
 
-void PeerRecord::loadPeerRecords(Database &db, int max, VirtualClock::time_point nextAttemptCutoff, vector<PeerRecord>& retList)
+void PeerRecord::loadPeerRecords(Database &db, uint32_t max, VirtualClock::time_point nextAttemptCutoff, vector<PeerRecord>& retList)
 {
     try {
         auto timer = db.getSelectTimer("peer");
@@ -170,7 +170,7 @@ PeerRecord::dropAll(Database &db)
 
 const char* PeerRecord::kSQLCreateStatement =
     "CREATE TABLE Peers (                                                   \
-    ip              VARCHAR(11) NOT NULL,                                   \
+    ip              VARCHAR(15) NOT NULL,                                   \
     port            INT DEFAULT 0 CHECK (port >= 0) NOT NULL,               \
     nextAttempt     TIMESTAMP NOT NULL,                                     \
     numFailures     INT DEFAULT 0 CHECK (numFailures >= 0) NOT NULL,        \

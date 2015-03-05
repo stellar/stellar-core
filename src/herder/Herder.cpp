@@ -228,11 +228,13 @@ Herder::compareValues(const uint64& slotIndex,
     }
     catch (...)
     {
-        // This should not be possible are values are validated before they
+        // This should not be possible. Values are validated before they
         // are compared.
         CLOG(ERROR, "Herder") << "Herder::compareValues"
             << "@" << binToHex(getLocalNodeID()).substr(0,6)
-            << " Unexpected invalid value format";
+            << " Unexpected invalid value format. v1:" << binToHex(v1) <<
+            " v2:" << binToHex(v2);
+
         assert(false);
         return 0;
     }
@@ -244,7 +246,7 @@ Herder::compareValues(const uint64& slotIndex,
 
     // Ordering is based on H(slotIndex, ballotCounter, nodeID). Such that the
     // round king value gets privileged over other values. Given the hash
-    // function used, a new king is "coronated" for each round of FBA (ballot
+    // function used, a new monarch is coronated for each round of FBA (ballot
     // counter) and each slotIndex.
     
     SHA256 s1;
