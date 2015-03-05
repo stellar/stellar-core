@@ -40,7 +40,7 @@ public:
     FileTransferInfo(T state,
                      TmpDir const& snapDir,
                      std::string const& snapType,
-                     uint64_t checkpointNum)
+                     uint32_t checkpointNum)
         : mTransferState(state)
         , mType(snapType)
         , mHexDigits(fmt::format("{:08x}", checkpointNum))
@@ -86,7 +86,7 @@ public:
     void setState(T state)
     {
         CLOG(DEBUG, "History")
-            << "Setting " << baseName_nogz() << "to state " << state;
+            << "Setting " << baseName_nogz() << " to state " << state;
         mTransferState = state;
     }
 
