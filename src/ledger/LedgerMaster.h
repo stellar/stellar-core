@@ -8,6 +8,7 @@
 #include <string>
 #include "ledger/LedgerGateway.h"
 #include "ledger/LedgerHeaderFrame.h"
+#include "main/PersistentState.h"
 
 /*
 Holds the current ledger
@@ -78,21 +79,9 @@ namespace stellar
 
 		void closeLedger(LedgerCloseData ledgerData);
 
-        // state store
-        enum StoreStateName {
-            kLastClosedLedger = 0,
-            kLastEntry
-        };
-
-        std::string getState(StoreStateName stateName);
-        void setState(StoreStateName stateName, const std::string &value);
-
-        static void dropAll(Database &db);
     private:
-        std::string getStoreStateName(StoreStateName n);
         void closeLedgerHelper(bool updateCurrent, LedgerDelta const& delta);
 
-        static const char *kSQLCreateStatement;
 
     };
 }

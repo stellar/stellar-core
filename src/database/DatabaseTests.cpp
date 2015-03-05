@@ -75,6 +75,7 @@ TEST_CASE("postgres smoketest", "[db]")
     cfg.RUN_STANDALONE = true;
     VirtualClock clock;
     cfg.DATABASE = "postgresql://host=localhost dbname=test user=test password=test";
+    cfg.REBUILD_DB = true;
     try
     {
         Application::pointer app = Application::create(clock, cfg);

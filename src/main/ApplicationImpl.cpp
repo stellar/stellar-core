@@ -60,6 +60,27 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
     // These must be constructed _after_ because they frequently call back
     // into App.getFoo() to get information / start up.
     mMetrics = make_unique<medida::MetricsRegistry>();
+    mDatabase = make_unique<Database>(*this);
+    mPersistentState = make_unique<PersistentState>(*this);
+
+    if (mPersistentState->getState(PersistentState::kForceSCPOnNextLaunch) == "true")
+    {
+        mConfig.START_NEW_NETWORK = true;
+    }
+
+    // Initialize the db as early as possible, namely as soon as metrics, 
+    // database and persistentState are instantiated.
+    if (mConfig.REBUILD_DB ||
+        mConfig.DATABASE == "sqlite3://:memory:")
+    {
+        mDatabase->initialize();
+    }
+    else if (mPersistentState->getState(PersistentState::kDatabaseInitialized) != "true")
+    {
+        throw new runtime_error("Database not initialized and REBUID_DB is false.");
+    }
+
+
     mTmpDirMaster = make_unique<TmpDirMaster>(cfg.TMP_DIR_PATH);
     mPeerMaster = make_unique<PeerMaster>(*this);
     mLedgerMaster = make_unique<LedgerMaster>(*this);
@@ -68,7 +89,7 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
     mHistoryMaster = make_unique<HistoryMaster>(*this);
     mProcessMaster = make_unique<ProcessMaster>(*this);
     mCommandHandler = make_unique<CommandHandler>(*this);
-    mDatabase = make_unique<Database>(*this);
+
 
     while(t--)
     {
@@ -208,15 +229,36 @@ ApplicationImpl::crank(bool block)
 void
 ApplicationImpl::start()
 {
-    if(mConfig.START_NEW_NETWORK)
+    bool hasLedger = !mPersistentState->getState(PersistentState::kLastClosedLedger).empty();
+
+    if (mConfig.START_NEW_NETWORK)
     {
-        mLedgerMaster->startNewLedger();
+        string flagClearedMsg = "";
+        if (mPersistentState->getState(PersistentState::kForceSCPOnNextLaunch) == "true")
+        {
+            flagClearedMsg = " (`force scp` flag cleared in the db)";
+            mPersistentState->setState(PersistentState::kForceSCPOnNextLaunch, "false");
+        }
+
+        if (!hasLedger)
+        {
+            LOG(INFO) << "* ";
+            LOG(INFO) << "* Force-starting scp from scratch, creating the genesis ledger." << flagClearedMsg;
+            LOG(INFO) << "* ";
+            mLedgerMaster->startNewLedger();
+        } else
+        {
+            LOG(INFO) << "* ";
+            LOG(INFO) << "* Force-starting scp from the current db state." << flagClearedMsg;
+            LOG(INFO) << "* ";
+            mLedgerMaster->loadLastKnownLedger();
+        }
         mHerder->bootstrap();
-    }else if(mConfig.START_LOCAL_NETWORK)
+    } else if(mConfig.START_LOCAL_NETWORK)
     {
         mLedgerMaster->loadLastKnownLedger();
         mHerder->bootstrap();
-    }else
+    } else
     {
         mLedgerMaster->loadLastKnownLedger();
     }
@@ -355,6 +397,12 @@ Database&
 ApplicationImpl::getDatabase()
 {
     return *mDatabase;
+}
+
+PersistentState&
+ApplicationImpl::getPersistentState()
+{
+    return *mPersistentState;
 }
 
 asio::io_service&

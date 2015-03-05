@@ -59,9 +59,6 @@ Database::Database(Application& app)
     registerDrivers();
     LOG(INFO) << "Connecting to: " << app.getConfig().DATABASE;
     mSession.open(app.getConfig().DATABASE);
-    if( (mApp.getConfig().REBUILD_DB) ||
-        (mApp.getConfig().START_NEW_NETWORK) ||
-        (app.getConfig().DATABASE == "sqlite3://:memory:"))  initialize();
 }
 
 
@@ -107,7 +104,7 @@ void Database::initialize()
     OfferFrame::dropAll(*this);
     TrustFrame::dropAll(*this);
     PeerMaster::dropAll(*this);
-    LedgerMaster::dropAll(*this);
+    PersistentState::dropAll(*this);
     LedgerHeaderFrame::dropAll(*this);
     TransactionFrame::dropAll(*this);
 }

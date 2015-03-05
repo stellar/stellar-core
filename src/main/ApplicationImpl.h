@@ -4,6 +4,7 @@
 #include "util/Timer.h"
 #include "Application.h"
 #include "main/Config.h"
+#include "main/PersistentState.h"
 #include <thread>
 
 namespace stellar
@@ -45,6 +46,7 @@ public:
     virtual OverlayGateway& getOverlayGateway() override;
     virtual PeerMaster& getPeerMaster() override;
     virtual Database& getDatabase() override;
+    virtual PersistentState& getPersistentState() override;
 
     virtual asio::io_service& getMainIOService() override;
     virtual asio::io_service& getWorkerIOService() override;
@@ -99,6 +101,7 @@ private:
     std::unique_ptr<ProcessMaster> mProcessMaster;
     std::unique_ptr<CommandHandler> mCommandHandler;
     std::unique_ptr<Database> mDatabase;
+    std::unique_ptr<PersistentState> mPersistentState;
 
     std::vector<std::thread> mWorkerThreads;
 

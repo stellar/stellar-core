@@ -45,6 +45,7 @@ FMT_SRCS =                                      \
     src/main/ApplicationImpl.cpp                \
     src/main/CommandHandler.cpp                 \
     src/main/Config.cpp                         \
+    src/main/PersistentState.cpp                \
     src/main/main.cpp                           \
     src/main/test.cpp                           \
     src/overlay/Floodgate.cpp                   \
@@ -124,6 +125,7 @@ FMT_HDRS =                                      \
     src/main/ApplicationImpl.h                  \
     src/main/CommandHandler.h                   \
     src/main/Config.h                           \
+    src/main/PersistentState.h                  \
     src/main/test.h                             \
     src/overlay/FetchableItem.h                 \
     src/overlay/Floodgate.h                     \
