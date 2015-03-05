@@ -395,6 +395,7 @@ Simulation::accountsOutOfSyncWithDb()
 {
     vector<accountInfoPtr> result;
     int iApp = 0;
+    int64_t totalOffsets = 0;
     for (auto pair : mNodes)
     {
         iApp++;
@@ -404,15 +405,18 @@ Simulation::accountsOutOfSyncWithDb()
             auto account = *accountIt;
             AccountFrame accountFrame;
             AccountFrame::loadAccount(account->mKey.getPublicKey(), accountFrame, app->getDatabase());
-            if (accountFrame.getBalance() != account->mBalance)
+            int64_t offset = accountFrame.getBalance() - static_cast<int64_t>(account->mBalance);
+            if (offset != 0)
             {
-                LOG(INFO) << "On node " << iApp << ", account " << account->mId
-                    << " is off by " << (accountFrame.getBalance() - static_cast<int64_t>(account->mBalance))
+                LOG(DEBUG) << "On node " << iApp << ", account " << account->mId
+                    << " is off by " << (offset)
                     << "\t(has " << accountFrame.getBalance() << " should have " << account->mBalance << ")";
+                totalOffsets += abs(offset);
                 result.push_back(account);
             }
         }
     }
+    LOG(INFO) << "Ledger has not yet caught up to the simulation. totalOffsets: " << totalOffsets;
     return result;
 }
 

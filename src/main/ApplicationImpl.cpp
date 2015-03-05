@@ -66,6 +66,15 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
     mConfig.START_NEW_NETWORK = mConfig.START_NEW_NETWORK
         || mPersistentState->getState(PersistentState::kNewNetworkOnNextLunch) == "true";
 
+    // Initialize the db as early as possible, namely as soon as metrics, 
+    // database and persistentState are instantiated.
+    if (mConfig.REBUILD_DB ||
+        mConfig.START_NEW_NETWORK ||
+        (mConfig.DATABASE == "sqlite3://:memory:"))
+    {
+        mDatabase->initialize();
+    }
+
     mTmpDirMaster = make_unique<TmpDirMaster>(cfg.TMP_DIR_PATH);
     mPeerMaster = make_unique<PeerMaster>(*this);
     mLedgerMaster = make_unique<LedgerMaster>(*this);
@@ -74,6 +83,7 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
     mHistoryMaster = make_unique<HistoryMaster>(*this);
     mProcessMaster = make_unique<ProcessMaster>(*this);
     mCommandHandler = make_unique<CommandHandler>(*this);
+
 
     while(t--)
     {
@@ -213,13 +223,6 @@ ApplicationImpl::crank(bool block)
 void
 ApplicationImpl::start()
 {
-
-    if (mConfig.REBUILD_DB ||
-        mConfig.START_NEW_NETWORK ||
-        (mConfig.DATABASE == "sqlite3://:memory:"))
-    {
-        mDatabase->initialize();
-    }
 
     if (mConfig.START_NEW_NETWORK)
     {
