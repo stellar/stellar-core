@@ -63,14 +63,15 @@ LoopbackPeer::drop()
     }
 }
 
-void LoopbackPeer::recvHello(StellarMessage const& msg)
+bool LoopbackPeer::recvHello(StellarMessage const& msg)
 {
-    Peer::recvHello(msg);
+    if(!Peer::recvHello(msg)) return false;
 
     if(mRole == INITIATOR)
     {  // this guy called us
        sendHello();
     } 
+    return true;
 }
 
 static bool

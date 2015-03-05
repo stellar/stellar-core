@@ -32,7 +32,8 @@ Peer::Peer(Application& app, PeerRole role)
     : mApp(app)
     , mRole(role)
     , mState(role == ACCEPTOR ? CONNECTED : CONNECTING)
-    , mRemoteListeningPort(-1)
+    , mRemoteListeningPort(0)
+    , mRemoteProtocolVersion(0)
 {
     
 }
@@ -358,14 +359,14 @@ Peer::recvError(StellarMessage const& msg)
     // TODO.4
 }
 
-void
+bool
 Peer::recvHello(StellarMessage const& msg)
 {
     if(msg.hello().peerID == mApp.getConfig().PEER_PUBLIC_KEY)
     {
         CLOG(INFO, "Overlay") << "connecting to self";
         drop();
-        return;
+        return false;
     }
 
     mRemoteProtocolVersion = msg.hello().protocolVersion;
@@ -375,6 +376,7 @@ Peer::recvHello(StellarMessage const& msg)
         << mRemoteVersion << " " << mRemoteListeningPort;
     mState = GOT_HELLO;
     mPeerID = msg.hello().peerID;
+    return true;
 }
 
 void

@@ -41,7 +41,7 @@ TCPPeer::TCPPeer(Application& app, Peer::PeerRole role,
 {}
 
 TCPPeer::pointer
-TCPPeer::initiate(Application& app, const std::string& ip, int port)
+TCPPeer::initiate(Application& app, const std::string& ip, uint32_t port)
 {
     LOG(DEBUG) << "TCPPeer:initiate"
         << "@" << app.getConfig().PEER_PORT
@@ -221,11 +221,11 @@ TCPPeer::recvMessage()
     Peer::recvMessage(sm);
 }
 
-void
+bool
 TCPPeer::recvHello(StellarMessage const& msg)
 {
     mHelloTimer.cancel();
-    Peer::recvHello(msg);
+    if(!Peer::recvHello(msg)) return false;
    
     if(mRole==INITIATOR)
     {  
@@ -257,6 +257,7 @@ TCPPeer::recvHello(StellarMessage const& msg)
         pr->mNextAttempt = mApp.getClock().now();
         pr->storePeerRecord(mApp.getDatabase());
     } 
+    return true;
 }
 
 
