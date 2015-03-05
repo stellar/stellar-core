@@ -107,7 +107,7 @@ setNewNetworkFlag(Config& cfg)
     VirtualClock clock;
     Application::pointer app = Application::create(clock, cfg);
 
-    app->getPersistentState().setState(PersistentState::kNewNetworkOnNextLunch, "true");
+    app->getPersistentState().setState(PersistentState::kNewNetworkOnNextLaunch, "true");
     LOG(INFO) << "* ";
     LOG(INFO) << "* The new network flag has been set in the db. The next launch will";
     LOG(INFO) << "* wipe the database clean and start a new network.";

@@ -13,7 +13,7 @@ public:
 
     enum Entry {
         kLastClosedLedger = 0,
-        kNewNetworkOnNextLunch,
+        kNewNetworkOnNextLaunch,
         kLastEntry
     };
 

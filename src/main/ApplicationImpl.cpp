@@ -64,7 +64,7 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
     mPersistentState = make_unique<PersistentState>(*this);
 
     mConfig.START_NEW_NETWORK = mConfig.START_NEW_NETWORK
-        || mPersistentState->getState(PersistentState::kNewNetworkOnNextLunch) == "true";
+        || mPersistentState->getState(PersistentState::kNewNetworkOnNextLaunch) == "true";
 
     // Initialize the db as early as possible, namely as soon as metrics, 
     // database and persistentState are instantiated.

@@ -29,7 +29,7 @@ string PersistentState::getStoreStateName(PersistentState::Entry n) {
     static const char *mapping[kLastEntry] = 
     {
         "lastClosedLedger",
-        "newNetworkOnNextLunch"
+        "newNetworkOnNextLaunch"
     };
     if (n < 0 || n >= kLastEntry) {
         throw out_of_range("unknown entry");
