@@ -639,7 +639,7 @@ Slot::advanceSlot()
 
     try
     {
-        CLOG(INFO, "FBA") << "Slot::advanceSlot" 
+        CLOG(DEBUG, "FBA") << "Slot::advanceSlot" 
             << "@" << binToHex(mFBA->getLocalNodeID()).substr(0,6)
             << " i: " << mSlotIndex
             << " b: " << ballotToStr(mBallot);
