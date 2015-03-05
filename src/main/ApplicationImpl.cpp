@@ -278,7 +278,7 @@ ApplicationImpl::gracefulStop()
 
     if (!mMainIOService.stopped())
     {
-        LOG(INFO) << "Stopping main IO service";
+        LOG(DEBUG) << "Stopping main IO service";
         mMainIOService.stop();
     }
 }
@@ -293,12 +293,12 @@ ApplicationImpl::joinAllThreads()
     {
         mWork.reset();
     }
-    LOG(INFO) << "Joining " << mWorkerThreads.size() << " worker threads";
+    LOG(DEBUG) << "Joining " << mWorkerThreads.size() << " worker threads";
     for (auto& w : mWorkerThreads)
     {
         w.join();
     }
-    LOG(INFO) << "Joined all " << mWorkerThreads.size() << " threads";
+    LOG(DEBUG) << "Joined all " << mWorkerThreads.size() << " threads";
 }
 
 void ApplicationImpl::applyCfgCommands()

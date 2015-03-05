@@ -77,7 +77,7 @@ CLFMaster::getBucketDir()
         {
             if (TmpDir::exists(d))
             {
-                CLOG(INFO, "CLF") << "Deleting bucket directory for new network: " << d;
+                CLOG(DEBUG, "CLF") << "Deleting bucket directory for new network: " << d;
                 TmpDir::deltree(d);
             }
         }
