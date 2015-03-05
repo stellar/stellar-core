@@ -11,10 +11,14 @@
 #include "crypto/Hex.h"
 #include "main/Application.h"
 #include "main/Config.h"
-#include "ledger/LedgerDelta.h"
 #include "database/Database.h"
+#include "herder/TxSetFrame.h"
+#include "ledger/LedgerDelta.h"
+#include "ledger/LedgerGateway.h"
+#include "transactions/TransactionFrame.h"
 #include "util/Logging.h"
 #include "util/XDRStream.h"
+#include "xdrpp/printer.h"
 
 #include <random>
 #include <memory>
@@ -306,18 +310,54 @@ CatchupStateMachine::enterAnchoredState(HistoryArchiveState const& has)
 
     // Then make sure all the files we _want_ are either present
     // or queued to be requested.
-    std::vector<std::string> toFetch = mArchiveState.differingBuckets(mLocalState);
-    for (auto const& h : toFetch)
+    std::vector<std::string> bucketsToFetch = mArchiveState.differingBuckets(mLocalState);
+    std::vector<std::shared_ptr<FileCatchupInfo>> fileCatchupInfos;
+
+    for (auto const& h : bucketsToFetch)
     {
-        if (mFileInfos.find(h) == mFileInfos.end())
-        {
-            auto fi = std::make_shared<FileCatchupInfo>(
+        fileCatchupInfos.push_back(
+            std::make_shared<FileCatchupInfo>(
                 FILE_CATCHUP_NEEDED, mDownloadDir,
-                HISTORY_FILE_TYPE_BUCKET, h);
+                HISTORY_FILE_TYPE_BUCKET, h));
+    }
+
+    for (uint64_t i = mLocalState.currentLedger / HistoryMaster::kCheckpointFrequency;
+         i <= mArchiveState.currentLedger / HistoryMaster::kCheckpointFrequency;
+         ++i)
+    {
+        if (i > 0xffffffff)
+        {
+            throw std::runtime_error("Catchup to checkpoint beyond limit of history format");
+        }
+        uint32_t snap = static_cast<uint32>(i);
+        auto fi = std::make_shared<FileCatchupInfo>(
+            FILE_CATCHUP_NEEDED, mDownloadDir,
+            HISTORY_FILE_TYPE_TRANSACTION, snap);
+        fileCatchupInfos.push_back(fi);
+        if (mTransactionInfos.find(snap) == mTransactionInfos.end())
+        {
+            mTransactionInfos[snap] = fi;
+        }
+
+        fi = std::make_shared<FileCatchupInfo>(
+            FILE_CATCHUP_NEEDED, mDownloadDir,
+            HISTORY_FILE_TYPE_LEDGER, snap);
+        fileCatchupInfos.push_back(fi);
+        if (mHeaderInfos.find(snap) == mHeaderInfos.end())
+        {
+            mHeaderInfos[snap] = fi;
+        }
+    }
+
+    for (auto const& fi : fileCatchupInfos)
+    {
+        auto name = fi->baseName_nogz();
+        if (mFileInfos.find(name) == mFileInfos.end())
+        {
             CLOG(INFO, "History")
-                << "Starting fetch for " << fi->baseName_gz()
+                << "Starting fetch for " << name
                 << " from archive '" << mArchive->getName() << "'";
-            mFileInfos[fi->baseName_nogz()] = fi;
+            mFileInfos[name] = fi;
         }
     }
 
@@ -364,6 +404,10 @@ void CatchupStateMachine::enterApplyingState()
     auto n = BucketList::kNumLevels;
     bool applying = false;
 
+    // FIXME: this should do a "pre-apply scan" of the incoming contents
+    // to confirm that it's part of the trusted chain of history we want
+    // to catch up with. Currently it applies blindly.
+
     // Apply in reverse order, oldest bucket to new. Once we
     // apply one bucket, apply all buckets newer as well.
     for (auto i = mArchiveState.currentBuckets.rbegin();
@@ -385,6 +429,8 @@ void CatchupStateMachine::enterApplyingState()
                 b = mBuckets[i->snap];
             }
             assert(b);
+            CLOG(DEBUG, "History") << "Applying bucket " << b->getFilename()
+                                   << " to ledger as CLF 'snap' for level " << n;
             b->apply(db);
             existingLevel.setSnap(b);
             applying = true;
@@ -403,11 +449,69 @@ void CatchupStateMachine::enterApplyingState()
                 b = mBuckets[i->curr];
             }
             assert(b);
+            CLOG(DEBUG, "History") << "Applying bucket " << b->getFilename()
+                                   << " to ledger as CLF 'curr' for level " << n;
             b->apply(db);
             existingLevel.setCurr(b);
             applying = true;
         }
     }
+
+    // Now apply any history log entries after the bucket-state ledger
+    CLOG(DEBUG, "History") << "Replaying contents of " << mHeaderInfos.size()
+                           << " transaction-history files";
+    for (auto pair : mHeaderInfos)
+    {
+        auto checkpoint = pair.first;
+        auto hi = pair.second;
+        assert(mTransactionInfos.find(checkpoint) != mTransactionInfos.end());
+        auto ti = mTransactionInfos[checkpoint];
+
+        XDRInputFileStream hdrIn;
+        XDRInputFileStream txIn;
+
+        hdrIn.open(hi->localPath_nogz());
+        txIn.open(ti->localPath_nogz());
+
+        LedgerHeader header;
+        TransactionHistoryEntry txHistoryEntry;
+        while (hdrIn && hdrIn.readOne(header))
+        {
+            TxSetFramePtr txset = std::make_shared<TxSetFrame>();
+            bool readTx = txIn.readOne(txHistoryEntry);
+
+            CLOG(DEBUG, "History") << "Replaying ledger " << header.ledgerSeq;
+            while (readTx && txHistoryEntry.ledgerSeq < header.ledgerSeq)
+            {
+                CLOG(DEBUG, "History") << "Skipping tx for ledger " << txHistoryEntry.ledgerSeq;
+                readTx = txIn.readOne(txHistoryEntry);
+            }
+            while (readTx && txHistoryEntry.ledgerSeq == header.ledgerSeq)
+            {
+                CLOG(DEBUG, "History") << "Preparing tx for ledger " << txHistoryEntry.ledgerSeq;
+                TransactionFramePtr tx =
+                    TransactionFrame::makeTransactionFromWire(txHistoryEntry.envelope);
+                txset->add(tx);
+                readTx = txIn.readOne(txHistoryEntry);
+            }
+            CLOG(DEBUG, "History") << "Ledger " << header.ledgerSeq
+                                   << " has " << txset->size() << " transactions";
+            LedgerCloseData closeData(header.ledgerSeq,
+                                      txset,
+                                      header.closeTime,
+                                      header.baseFee);
+            auto& lm = mApp.getLedgerMaster();
+            lm.closeLedger(closeData);
+
+            CLOG(DEBUG, "History") << "LedgerMaster LCL: " << xdr::xdr_to_string(lm.getLastClosedLedgerHeader());
+            CLOG(DEBUG, "History") << "Replay header: " << xdr::xdr_to_string(header);
+            if (lm.getLastClosedLedgerHeader().hash != header.hash)
+            {
+                throw std::runtime_error("replay produced mismatched ledger hash");
+            }
+        }
+    }
+
     enterEndState();
 }
 
