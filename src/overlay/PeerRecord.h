@@ -14,14 +14,14 @@ class PeerRecord
 {
 public:
     string mIP;
-    int mPort;
+    uint32_t mPort;
     VirtualClock::time_point mNextAttempt;
-    int mNumFailures;
-    int mRank;
+    uint32_t mNumFailures;
+    uint32_t mRank;
 
     PeerRecord() {};
 
-    PeerRecord(const string& ip,int port, VirtualClock::time_point nextAttempt, int fails, int rank) :
+    PeerRecord(const string& ip, uint32_t port, VirtualClock::time_point nextAttempt, uint32_t fails, uint32_t rank) :
         mIP(ip), mPort(port), mNextAttempt(nextAttempt), mNumFailures(fails), mRank(rank) { }
 
     bool operator==(PeerRecord& other)
@@ -33,12 +33,12 @@ public:
             mRank == other.mRank;
     }
 
-    static void fromIPPort(const string &ip, int port, VirtualClock &clock, PeerRecord &ret);
-    static void parseIPPort(const string &ipPort, VirtualClock &clock, PeerRecord &ret, int defaultPort = DEFAULT_PEER_PORT);
+    static void fromIPPort(const string &ip, uint32_t port, VirtualClock &clock, PeerRecord &ret);
+    static void parseIPPort(const string &ipPort, VirtualClock &clock, PeerRecord &ret, uint32_t defaultPort = DEFAULT_PEER_PORT);
 
 
-    static optional<PeerRecord> loadPeerRecord(Database &db, string ip, int port);
-    static void loadPeerRecords(Database &db, int max, VirtualClock::time_point nextAttemptCutoff, vector<PeerRecord>& retList);
+    static optional<PeerRecord> loadPeerRecord(Database &db, string ip, uint32_t port);
+    static void loadPeerRecords(Database &db, uint32_t max, VirtualClock::time_point nextAttemptCutoff, vector<PeerRecord>& retList);
 
     bool isStored(Database &db);
     void storePeerRecord(Database& db);

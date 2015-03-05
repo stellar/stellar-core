@@ -77,6 +77,12 @@ PeerMaster::connectTo(const std::string& peerStr)
 void
 PeerMaster::connectTo(PeerRecord &pr)
 {
+    if(pr.mPort == 0)
+    {
+        CLOG(INFO, "Overlay") << "Invalid port: " << pr.toString();
+        return;
+    }
+
     mConnectionsAttempted.Mark();
     if(!getConnectedPeer(pr.mIP, pr.mPort))
     {
@@ -86,7 +92,7 @@ PeerMaster::connectTo(PeerRecord &pr)
         addConnectedPeer(TCPPeer::initiate(mApp, pr.mIP, pr.mPort));
     } else
     {
-        CLOG(ERROR, "overlay") << "trying to connect to a node we're already connected to" << pr.toString();
+        CLOG(ERROR, "Overlay") << "trying to connect to a node we're already connected to" << pr.toString();
     }
 }
 

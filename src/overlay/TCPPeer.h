@@ -27,7 +27,7 @@ class TCPPeer : public Peer
 
     void timerExpired(const asio::error_code & error);
     void recvMessage();
-    void recvHello(StellarMessage const& msg);
+    bool recvHello(StellarMessage const& msg);
     void sendMessage(xdr::msg_ptr&& xdrBytes);
     int getIncomingMsgLength();
     virtual void connected() override;
@@ -46,7 +46,7 @@ class TCPPeer : public Peer
     TCPPeer(Application& app, Peer::PeerRole role,
         std::shared_ptr<asio::ip::tcp::socket> socket); // hollow constuctor; use `initiate` or `accept` instead
 
-    static pointer initiate(Application& app, const std::string& ip, int port);
+    static pointer initiate(Application& app, const std::string& ip, uint32_t port);
     static pointer accept(Application& app, shared_ptr<asio::ip::tcp::socket> socket);
 
 

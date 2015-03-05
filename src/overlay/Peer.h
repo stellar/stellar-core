@@ -51,13 +51,14 @@ class Peer : public enable_shared_from_this<Peer>
     uint256 mPeerID;
 
     string mRemoteVersion;
-    int mRemoteProtocolVersion;
-    int mRemoteListeningPort;
+    uint32_t mRemoteProtocolVersion;
+    uint32_t mRemoteListeningPort;
     void recvMessage(StellarMessage const& msg);
     void recvMessage(xdr::msg_ptr const& xdrBytes);
 
     virtual void recvError(StellarMessage const& msg);
-    virtual void recvHello(StellarMessage const& msg);
+    // returns false if we should drop this peer
+    virtual bool recvHello(StellarMessage const& msg);
     void recvDontHave(StellarMessage const& msg);
     void recvGetPeers(StellarMessage const& msg);
     void recvPeers(StellarMessage const& msg);
