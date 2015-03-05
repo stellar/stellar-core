@@ -57,7 +57,7 @@ Database::Database(Application& app)
     : mApp(app)
 {
     registerDrivers();
-    LOG(INFO) << "Connecting to: " << app.getConfig().DATABASE;
+    CLOG(INFO, "Database") << "Connecting to: " << app.getConfig().DATABASE;
     mSession.open(app.getConfig().DATABASE);
     if( (mApp.getConfig().REBUILD_DB) ||
         (mApp.getConfig().START_NEW_NETWORK) ||

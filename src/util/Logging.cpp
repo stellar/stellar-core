@@ -28,6 +28,7 @@ Logging::init()
 
     el::Loggers::getLogger("FBA");
     el::Loggers::getLogger("CLF");
+    el::Loggers::getLogger("Database");
     el::Loggers::getLogger("History");
     el::Loggers::getLogger("Process");
     el::Loggers::getLogger("Ledger");

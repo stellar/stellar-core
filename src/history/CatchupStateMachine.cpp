@@ -130,7 +130,7 @@ CatchupStateMachine::fileStateChange(asio::error_code const& ec,
     FileCatchupState newState = newGoodState;
     if (ec)
     {
-        CLOG(INFO, "History") << "Catchup action failed on " << name;
+        CLOG(WARNING, "History") << "Catchup action failed on " << name;
         newState = FILE_CATCHUP_FAILED;
     }
     mFileInfos[name]->setState(newState);
@@ -259,7 +259,7 @@ CatchupStateMachine::enterFetchingState()
 
     if (minimumState == FILE_CATCHUP_FAILED)
     {
-        CLOG(INFO, "History") << "Some fetches failed, retrying";
+        CLOG(WARNING, "History") << "Some fetches failed, retrying";
         enterRetryingState();
     }
     else if (minimumState == FILE_CATCHUP_VERIFIED)
@@ -269,7 +269,7 @@ CatchupStateMachine::enterFetchingState()
     }
     else
     {
-        CLOG(INFO, "History") << "Some fetches still in progress";
+        CLOG(DEBUG, "History") << "Some fetches still in progress";
         // Do nothing here; in-progress states have callbacks set up already
         // which will fire when they complete.
     }
@@ -335,7 +335,7 @@ CatchupStateMachine::enterRetryingState()
         {
             if (this->mRetryCount++ > kRetryLimit)
             {
-                CLOG(INFO, "History")
+                CLOG(WARNING, "History")
                     << "Retry count " << kRetryLimit << " exceeded, restarting catchup";
                 this->enterBeginState();
             }
