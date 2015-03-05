@@ -10,7 +10,7 @@ namespace stellar
 string PersistentState::mapping[kLastEntry] =
 {
     "lastClosedLedger",
-    "newFBABlockchainOnNextLaunch",
+    "forceSCPOnNextLaunch",
     "databaseInitialized"
 };
 

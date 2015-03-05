@@ -63,7 +63,7 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
     mDatabase = make_unique<Database>(*this);
     mPersistentState = make_unique<PersistentState>(*this);
 
-    if (mPersistentState->getState(PersistentState::kNewFBABlockchainOnNextLaunch) == "true")
+    if (mPersistentState->getState(PersistentState::kForceSCPOnNextLaunch) == "true")
     {
         mConfig.START_NEW_NETWORK = true;
     }
@@ -228,17 +228,17 @@ ApplicationImpl::start()
 
     if (mConfig.START_NEW_NETWORK)
     {
-        mPersistentState->setState(PersistentState::kNewFBABlockchainOnNextLaunch, "false");
+        mPersistentState->setState(PersistentState::kForceSCPOnNextLaunch, "false");
         if (!hasLedger)
         {
             LOG(INFO) << "* ";
-            LOG(INFO) << "* Starting a new fba blockchain from scratch, creating its genesis ledger. (`new fba` flag cleared in the db)";
+            LOG(INFO) << "* Force-starting scp from scratch, creating the genesis ledger. (`force scp` flag cleared in the db)";
             LOG(INFO) << "* ";
             mLedgerMaster->startNewLedger();
         } else
         {
             LOG(INFO) << "* ";
-            LOG(INFO) << "* Starting a new fba blockchain from the current db state. (`new fba` flag cleared in the db)";
+            LOG(INFO) << "* Force-starting scp from the current db state. (`force scp` flag cleared in the db)";
             LOG(INFO) << "* ";
             mLedgerMaster->loadLastKnownLedger();
         }

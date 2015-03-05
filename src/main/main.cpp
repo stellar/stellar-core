@@ -30,7 +30,7 @@ enum opttag
     OPT_TEST,
     OPT_CONF,
     OPT_CMD,
-    OPT_NEWFBA,
+    OPT_FORCESCP,
     OPT_LOCAL,
     OPT_GENSEED,
     OPT_LOGLEVEL,
@@ -48,7 +48,7 @@ static const struct option stellard_options[] = {
     {"genseed", no_argument, nullptr, OPT_GENSEED },
     {"newdb", no_argument, nullptr, OPT_NEWDB },
     {"newhist", required_argument, nullptr, OPT_NEWHIST },
-    {"newfba", no_argument, nullptr, OPT_NEWFBA },
+    {"forcescp", no_argument, nullptr, OPT_FORCESCP },
     {"ll", required_argument, nullptr, OPT_LOGLEVEL },
     {nullptr, 0, nullptr, 0}};
 
@@ -63,7 +63,7 @@ usage(int err = 1)
           "      --test          To run self-tests\n"
           "      --newdb         Setup the DB.\n"
           "      --newhist ARCH  Initialize the named history archive ARCH.\n"
-          "      --newfba        Start a brand new fba blockchain to call your own.\n"
+          "      --forcescp      Force SCP to start before you hear a ledger close next time stellard is run.\n"
           "      --local         Resume from locally saved state.\n"
           "      --genseed       Generate and print a random node seed.\n"
           "      --ll LEVEL      Set the log level. LEVEL can be:\n"
@@ -115,18 +115,18 @@ checkInitialized(Application::pointer app)
 }
 
 void
-setNewFBAFlag(Config& cfg)
+setForceSCPFlag(Config& cfg)
 {
     VirtualClock clock;
     Application::pointer app = Application::create(clock, cfg);
 
     if (checkInitialized(app))
     {
-        app->getPersistentState().setState(PersistentState::kNewFBABlockchainOnNextLaunch, "true");
+        app->getPersistentState().setState(PersistentState::kForceSCPOnNextLaunch, "true");
         LOG(INFO) << "* ";
-        LOG(INFO) << "* The `new fba` flag has been set in the db. The next launch will";
-        LOG(INFO) << "* and start a new fba blockchain from the account balances as they stand";
-        LOG(INFO) << "* in the db now.";
+        LOG(INFO) << "* The `force scp` flag has been set in the db. The next launch will";
+        LOG(INFO) << "* and start scp from the account balances as they stand";
+        LOG(INFO) << "* in the db now, without waiting to hear from the network.";
         LOG(INFO) << "* ";
     }
 }
@@ -237,7 +237,7 @@ main(int argc, char* const* argv)
             case OPT_VERSION:
                 std::cout << STELLARD_VERSION;
                 return 0;
-            case OPT_NEWFBA:
+            case OPT_FORCESCP:
                 newNetwork = true;
                 break;
             case OPT_NEWDB:
@@ -290,7 +290,7 @@ main(int argc, char* const* argv)
         }
         else if (newNetwork)
         {
-            setNewFBAFlag(cfg);
+            setForceSCPFlag(cfg);
             return 0;
         }
         else if (newDB)
