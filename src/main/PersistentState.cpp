@@ -1,17 +1,25 @@
 #include "PersistentState.h"
 
 #include "database/Database.h"
+#include "util/Logging.h"
 
 namespace stellar
 {
 
 
+string PersistentState::mapping[kLastEntry] =
+{
+    "lastClosedLedger",
+    "newFBABlockchainOnNextLaunch",
+    "databaseInitialized"
+};
 
-const char *PersistentState::kSQLCreateStatement =
+string PersistentState::kSQLCreateStatement =
 "CREATE TABLE IF NOT EXISTS StoreState ("
 "StateName   CHARACTER(32) PRIMARY KEY,"
 "State       TEXT"
-");";
+"); ";
+
 
 PersistentState::PersistentState(Application &app) : mApp(app)
 {
@@ -22,15 +30,15 @@ void PersistentState::dropAll(Database &db)
 {
     db.getSession() << "DROP TABLE IF EXISTS StoreState;";
 
-    db.getSession() << kSQLCreateStatement;
+    soci::statement st = db.getSession().prepare << kSQLCreateStatement;
+    st.execute(true);
+ 
+    soci::statement st2 = db.getSession().prepare 
+        << "INSERT INTO StoreState (StateName, State) VALUES ('" + mapping[kDatabaseInitialized] + "', 'true');";
+    st2.execute(true);
 }
 
 string PersistentState::getStoreStateName(PersistentState::Entry n) {
-    static const char *mapping[kLastEntry] = 
-    {
-        "lastClosedLedger",
-        "newNetworkOnNextLaunch"
-    };
     if (n < 0 || n >= kLastEntry) {
         throw out_of_range("unknown entry");
     }

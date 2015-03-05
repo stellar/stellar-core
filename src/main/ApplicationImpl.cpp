@@ -63,14 +63,15 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
     mDatabase = make_unique<Database>(*this);
     mPersistentState = make_unique<PersistentState>(*this);
 
-    mConfig.START_NEW_NETWORK = mConfig.START_NEW_NETWORK
-        || mPersistentState->getState(PersistentState::kNewNetworkOnNextLaunch) == "true";
+    if (mPersistentState->getState(PersistentState::kNewFBABlockchainOnNextLaunch) == "true")
+    {
+        mConfig.START_NEW_NETWORK = true;
+    }
 
     // Initialize the db as early as possible, namely as soon as metrics, 
     // database and persistentState are instantiated.
     if (mConfig.REBUILD_DB ||
-        mConfig.START_NEW_NETWORK ||
-        (mConfig.DATABASE == "sqlite3://:memory:"))
+        mConfig.DATABASE == "sqlite3://:memory:")
     {
         mDatabase->initialize();
     }
@@ -223,10 +224,24 @@ ApplicationImpl::crank(bool block)
 void
 ApplicationImpl::start()
 {
+    bool hasLedger = !mPersistentState->getState(PersistentState::kLastClosedLedger).empty();
 
     if (mConfig.START_NEW_NETWORK)
     {
-        mLedgerMaster->startNewLedger();
+        mPersistentState->setState(PersistentState::kNewFBABlockchainOnNextLaunch, "false");
+        if (!hasLedger)
+        {
+            LOG(INFO) << "* ";
+            LOG(INFO) << "* Starting a new fba blockchain from scratch, creating its genesis ledger. (`new fba` flag cleared in the db)";
+            LOG(INFO) << "* ";
+            mLedgerMaster->startNewLedger();
+        } else
+        {
+            LOG(INFO) << "* ";
+            LOG(INFO) << "* Starting a new fba blockchain from the current db state. (`new fba` flag cleared in the db)";
+            LOG(INFO) << "* ";
+            mLedgerMaster->loadLastKnownLedger();
+        }
         mHerder->bootstrap();
     } else if(mConfig.START_LOCAL_NETWORK)
     {

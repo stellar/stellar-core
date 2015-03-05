@@ -15,7 +15,7 @@
 #include "history/HistoryMaster.h"
 #include "main/PersistentState.h"
 #include <sodium.h>
-
+#include "database/Database.h"
 
 _INITIALIZE_EASYLOGGINGPP
 
@@ -30,7 +30,7 @@ enum opttag
     OPT_TEST,
     OPT_CONF,
     OPT_CMD,
-    OPT_NEWNETWORK,
+    OPT_NEWFBA,
     OPT_LOCAL,
     OPT_GENSEED,
     OPT_LOGLEVEL,
@@ -48,7 +48,7 @@ static const struct option stellard_options[] = {
     {"genseed", no_argument, nullptr, OPT_GENSEED },
     {"newdb", no_argument, nullptr, OPT_NEWDB },
     {"newhist", required_argument, nullptr, OPT_NEWHIST },
-    {"newnetwork", no_argument, nullptr, OPT_NEWNETWORK },
+    {"newfba", no_argument, nullptr, OPT_NEWFBA },
     {"ll", required_argument, nullptr, OPT_LOGLEVEL },
     {nullptr, 0, nullptr, 0}};
 
@@ -63,7 +63,7 @@ usage(int err = 1)
           "      --test          To run self-tests\n"
           "      --newdb         Setup the DB.\n"
           "      --newhist ARCH  Initialize the named history archive ARCH.\n"
-          "      --newnetwork    Start a brand new network to call your own.\n"
+          "      --newfba        Start a brand new fba blockchain to call your own.\n"
           "      --local         Resume from locally saved state.\n"
           "      --genseed       Generate and print a random node seed.\n"
           "      --ll LEVEL      Set the log level. LEVEL can be:\n"
@@ -101,18 +101,55 @@ sendCommand(const std::string& command, const std::vector<char*>& rest,
     }
 }
 
+bool
+checkInitialized(Application::pointer app)
+{
+    if (app->getPersistentState().getState(PersistentState::kDatabaseInitialized) != "true")
+    {
+        LOG(INFO) << "* ";
+        LOG(INFO) << "* The database has not yet been initialized. Try --newdb";
+        LOG(INFO) << "* ";
+        return false;
+    }
+    return true;
+}
+
 void
-setNewNetworkFlag(Config& cfg)
+setNewFBAFlag(Config& cfg)
 {
     VirtualClock clock;
     Application::pointer app = Application::create(clock, cfg);
 
-    app->getPersistentState().setState(PersistentState::kNewNetworkOnNextLaunch, "true");
+    if (checkInitialized(app))
+    {
+        app->getPersistentState().setState(PersistentState::kNewFBABlockchainOnNextLaunch, "true");
+        LOG(INFO) << "* ";
+        LOG(INFO) << "* The `new fba` flag has been set in the db. The next launch will";
+        LOG(INFO) << "* and start a new fba blockchain from the account balances as they stand";
+        LOG(INFO) << "* in the db now.";
+        LOG(INFO) << "* ";
+    }
+}
+
+void            
+initializeDatabase(Config &cfg) 
+{
+    cfg.REBUILD_DB = false; // don't wipe the db until we read whether it was already initialized
+    VirtualClock clock;
+    Application::pointer app = Application::create(clock, cfg);
+
+    auto wipeMsg = (app->getPersistentState().getState(PersistentState::kDatabaseInitialized) == "true"
+        ? " wiped and initialized"
+        : " initialized");
+
+    app->getDatabase().initialize();
+
     LOG(INFO) << "* ";
-    LOG(INFO) << "* The new network flag has been set in the db. The next launch will";
-    LOG(INFO) << "* wipe the database clean and start a new network.";
+    LOG(INFO) << "* The database has been" << wipeMsg << ". The next launch will catchup from the";
+    LOG(INFO) << "* network afresh.";
     LOG(INFO) << "* ";
 }
+
 
 int
 initializeHistories(Config& cfg, vector<string> newHistories)
@@ -128,23 +165,31 @@ initializeHistories(Config& cfg, vector<string> newHistories)
     return 0;
 }
 
-void
+int
 startApp(string cfgFile, Config& cfg)
 {
     LOG(INFO) << "Starting stellard-hayashi " << STELLARD_VERSION;
     LOG(INFO) << "Config from " << cfgFile;
     VirtualClock clock;
     Application::pointer app = Application::create(clock, cfg);
-    app->applyCfgCommands();
 
-    app->start();
-    app->enableRealTimer();
-
-    auto& io = app->getMainIOService();
-    asio::io_service::work mainWork(io);
-    while (!io.stopped())
+    if (!checkInitialized(app))
     {
-        app->crank();
+        return 1;
+    } else
+    {
+        app->applyCfgCommands();
+
+        app->start();
+        app->enableRealTimer();
+
+        auto& io = app->getMainIOService();
+        asio::io_service::work mainWork(io);
+        while (!io.stopped())
+        {
+            app->crank();
+        }
+        return 1;
     }
 }
 
@@ -192,7 +237,7 @@ main(int argc, char* const* argv)
             case OPT_VERSION:
                 std::cout << STELLARD_VERSION;
                 return 0;
-            case OPT_NEWNETWORK:
+            case OPT_NEWFBA:
                 newNetwork = true;
                 break;
             case OPT_NEWDB:
@@ -245,7 +290,12 @@ main(int argc, char* const* argv)
         }
         else if (newNetwork)
         {
-            setNewNetworkFlag(cfg);
+            setNewFBAFlag(cfg);
+            return 0;
+        }
+        else if (newDB)
+        {
+            initializeDatabase(cfg);
             return 0;
         }
         else if (!newHistories.empty())
@@ -254,7 +304,7 @@ main(int argc, char* const* argv)
         }
         else
         {
-            startApp(cfgFile, cfg);
+            return startApp(cfgFile, cfg);
         }
 
     } catch (std::runtime_error e) 

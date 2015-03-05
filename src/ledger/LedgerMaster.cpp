@@ -61,8 +61,6 @@ LedgerMaster::LedgerMaster(Application& app)
 
 void LedgerMaster::startNewLedger()
 {
-    LOG(INFO) << "Creating the genesis ledger.";
-
     auto ledgerTime = mLedgerClose.TimeScope();
     ByteSlice bytes("masterpassphrasemasterpassphrase");
     std::string b58SeedStr = toBase58Check(VER_SEED, bytes);
@@ -87,30 +85,30 @@ void LedgerMaster::startNewLedger()
 
 void LedgerMaster::loadLastKnownLedger()
 {
-    LOG(INFO) << "Loading last known ledger";
     auto ledgerTime = mLedgerClose.TimeScope();
 
     string lastLedger = mApp.getPersistentState().getState(PersistentState::kLastClosedLedger);
 
     if (lastLedger.empty())
-    {  // we don't have any ledger in the DB so put the ledger 0 in there
-        // and then catch up with the network
+    {  
+        LOG(INFO) << "No ledger in the DB. Storing ledger 0.";
         startNewLedger();
-        return;
-    }
-
-    Hash lastLedgerHash = hexToBin256(lastLedger);
-
-    mCurrentLedger = LedgerHeaderFrame::loadByHash(lastLedgerHash, *this);
-
-    if (!mCurrentLedger)
+    } else 
     {
-        throw std::runtime_error("Could not load ledger from database");
+        LOG(INFO) << "Loading last known ledger";
+        Hash lastLedgerHash = hexToBin256(lastLedger);
+
+        mCurrentLedger = LedgerHeaderFrame::loadByHash(lastLedgerHash, *this);
+
+        if (!mCurrentLedger)
+        {
+            throw std::runtime_error("Could not load ledger from database");
+        }
+
+        LedgerDelta delta;
+
+        closeLedgerHelper(false, delta);
     }
-
-    LedgerDelta delta;
-
-    closeLedgerHelper(false, delta);
 }
 
 Database &LedgerMaster::getDatabase()

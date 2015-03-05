@@ -13,7 +13,8 @@ public:
 
     enum Entry {
         kLastClosedLedger = 0,
-        kNewNetworkOnNextLaunch,
+        kNewFBABlockchainOnNextLaunch,
+        kDatabaseInitialized,
         kLastEntry
     };
 
@@ -26,7 +27,8 @@ public:
     void setState(Entry stateName, const string &value);
 
 private:
-    static const char *kSQLCreateStatement;
+    static string kSQLCreateStatement;
+    static string mapping[kLastEntry];
 
     Application &mApp;
 };
