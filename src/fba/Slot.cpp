@@ -80,7 +80,7 @@ Slot::processEnvelope(const FBAEnvelope& envelope,
 {
     assert(envelope.statement.slotIndex == mSlotIndex);
 
-    CLOG(INFO, "FBA") << "Slot::processEnvelope" 
+    CLOG(DEBUG, "FBA") << "Slot::processEnvelope" 
         << "@" << binToHex(mFBA->getLocalNodeID()).substr(0,6)
         << " i: " << mSlotIndex
         << " " << envToStr(envelope);
