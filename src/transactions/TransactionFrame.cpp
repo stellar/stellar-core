@@ -350,6 +350,7 @@ TransactionFrame::copyTransactionsToStream(Database& db,
     uint64_t begin = ledgerSeq, end = ledgerSeq + ledgerCount;
     size_t n = 0;
     TransactionHistoryEntry e;
+    assert(begin <= end);
     soci::statement st =
         (sess.prepare <<
          "SELECT ledgerSeq, TxBody, TxResult FROM TxHistory "\

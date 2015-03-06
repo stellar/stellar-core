@@ -343,7 +343,11 @@ StateSnapshot::writeHistoryBlocks() const
     ledgerOut.open(mLedgerSnapFile->localPath_nogz());
     txOut.open(mTransactionSnapFile->localPath_nogz());
     uint64_t count = HistoryMaster::kCheckpointFrequency;
-    uint64_t begin = mLocalState.currentLedger - count;
+    uint64_t begin = mLocalState.currentLedger > count ? mLocalState.currentLedger  - count : 0;
+
+    CLOG(DEBUG, "History")
+        << "Streaming " << count << " ledgers worth of history, from " << begin;
+
     size_t nHeaders = LedgerHeaderFrame::copyLedgerHeadersToStream(mApp.getDatabase(), mSess,
                                                                    begin, count, ledgerOut);
     size_t nTxs = TransactionFrame::copyTransactionsToStream(mApp.getDatabase(), mSess,
