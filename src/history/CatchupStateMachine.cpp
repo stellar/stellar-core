@@ -18,6 +18,7 @@
 #include "transactions/TransactionFrame.h"
 #include "util/Logging.h"
 #include "util/XDRStream.h"
+#include "xdrpp/printer.h"
 
 #include <random>
 #include <memory>
@@ -393,72 +394,79 @@ void CatchupStateMachine::enterApplyingState()
     assert(mState == CATCHUP_FETCHING);
     mState = CATCHUP_APPLYING;
     auto& db = mApp.getDatabase();
-    CLFEntry entry;
     auto& sess = db.getSession();
     soci::transaction tx(sess);
-    LedgerDelta delta;
-
-    auto& bl = mApp.getCLFMaster().getBucketList();
-
-    auto n = BucketList::kNumLevels;
-    bool applying = false;
 
     // FIXME: this should do a "pre-apply scan" of the incoming contents
     // to confirm that it's part of the trusted chain of history we want
     // to catch up with. Currently it applies blindly.
 
-    // Apply in reverse order, oldest bucket to new. Once we
-    // apply one bucket, apply all buckets newer as well.
-    for (auto i = mArchiveState.currentBuckets.rbegin();
-         i != mArchiveState.currentBuckets.rend(); i++)
+
+    // FIXME seriously: buckets should be directly applied iff we're doing
+    // catchup in a way that loses history; at the moment (wip) we only support
+    // full history-replay catchup.
+
+    if (false)
     {
-        --n;
-        BucketLevel& existingLevel = bl.getLevel(n);
+        auto& bl = mApp.getCLFMaster().getBucketList();
+        auto n = BucketList::kNumLevels;
+        bool applying = false;
 
-        if (applying ||
-            i->snap != binToHex(existingLevel.getSnap()->getHash()))
+        // Apply buckets in reverse order, oldest bucket to new. Once we apply
+        // one bucket, apply all buckets newer as well.
+        for (auto i = mArchiveState.currentBuckets.rbegin();
+             i != mArchiveState.currentBuckets.rend(); i++)
         {
-            std::shared_ptr<Bucket> b;
-            if (i->snap.find_first_not_of('0') == std::string::npos)
-            {
-                b = std::make_shared<Bucket>();
-            }
-            else
-            {
-                b = mBuckets[i->snap];
-            }
-            assert(b);
-            CLOG(DEBUG, "History") << "Applying bucket " << b->getFilename()
-                                   << " to ledger as CLF 'snap' for level " << n;
-            b->apply(db);
-            existingLevel.setSnap(b);
-            applying = true;
-        }
+            --n;
+            BucketLevel& existingLevel = bl.getLevel(n);
 
-        if (applying ||
-            i->curr != binToHex(existingLevel.getCurr()->getHash()))
-        {
-            std::shared_ptr<Bucket> b;
-            if (i->curr.find_first_not_of('0') == std::string::npos)
+            if (applying ||
+                i->snap != binToHex(existingLevel.getSnap()->getHash()))
             {
-                b = std::make_shared<Bucket>();
+                std::shared_ptr<Bucket> b;
+                if (i->snap.find_first_not_of('0') == std::string::npos)
+                {
+                    b = std::make_shared<Bucket>();
+                }
+                else
+                {
+                    b = mBuckets[i->snap];
+                }
+                assert(b);
+                CLOG(DEBUG, "History") << "Applying bucket " << b->getFilename()
+                                       << " to ledger as CLF 'snap' for level " << n;
+                b->apply(db);
+                existingLevel.setSnap(b);
+                applying = true;
             }
-            else
+
+            if (applying ||
+                i->curr != binToHex(existingLevel.getCurr()->getHash()))
             {
-                b = mBuckets[i->curr];
+                std::shared_ptr<Bucket> b;
+                if (i->curr.find_first_not_of('0') == std::string::npos)
+                {
+                    b = std::make_shared<Bucket>();
+                }
+                else
+                {
+                    b = mBuckets[i->curr];
+                }
+                assert(b);
+                CLOG(DEBUG, "History") << "Applying bucket " << b->getFilename()
+                                       << " to ledger as CLF 'curr' for level " << n;
+                b->apply(db);
+                existingLevel.setCurr(b);
+                applying = true;
             }
-            assert(b);
-            CLOG(DEBUG, "History") << "Applying bucket " << b->getFilename()
-                                   << " to ledger as CLF 'curr' for level " << n;
-            b->apply(db);
-            existingLevel.setCurr(b);
-            applying = true;
         }
     }
 
     // Now apply any history log entries after the bucket-state ledger
     CLOG(DEBUG, "History") << "Replaying contents of " << mHeaderInfos.size()
                            << " transaction-history files";
+
+    auto& lm = mApp.getLedgerMaster();
     for (auto pair : mHeaderInfos)
     {
         auto checkpoint = pair.first;
@@ -474,10 +482,52 @@ void CatchupStateMachine::enterApplyingState()
 
         LedgerHeader header;
         TransactionHistoryEntry txHistoryEntry;
+        bool readTx = false;
+
         while (hdrIn && hdrIn.readOne(header))
         {
+
+            // If we are >1 before LCL, skip
+            if (header.ledgerSeq + 1 < lm.getLastClosedLedgerHeader().ledgerSeq)
+            {
+                CLOG(DEBUG, "History") << "Catchup skipping old ledger " << header.ledgerSeq;
+                continue;
+            }
+
+
+            // If we are one before LCL, check that we knit up with it
+            if (header.ledgerSeq + 1 == lm.getLastClosedLedgerHeader().ledgerSeq)
+            {
+                if (header.hash != lm.getLastClosedLedgerHeader().previousLedgerHash)
+                {
+                    throw std::runtime_error("replay failed to connect on hash of LCL predecessor");
+                }
+                CLOG(DEBUG, "History") << "Catchup at 1-before LCL (" << header.ledgerSeq << "), hash correct";
+                continue;
+            }
+
+            // If we are at LCL, check that we knit up with it
+            if (header.ledgerSeq == lm.getLastClosedLedgerHeader().ledgerSeq)
+            {
+                if (header.hash != lm.getLastClosedLedgerHeader().hash)
+                {
+                    throw std::runtime_error("replay failed to connect on hash of LCL");
+                }
+                CLOG(DEBUG, "History") << "Catchup at LCL=" << header.ledgerSeq << ", hash correct";
+                continue;
+            }
+
+            // If we are past current, we can't catch up: fail.
+            if (header.ledgerSeq > lm.getCurrentLedgerHeader().ledgerSeq)
+            {
+                throw std::runtime_error("replay failed due to overshooting current ledger");
+            }
+
             TxSetFramePtr txset = std::make_shared<TxSetFrame>();
-            bool readTx = txIn.readOne(txHistoryEntry);
+            if (!readTx)
+            {
+                readTx = txIn.readOne(txHistoryEntry);
+            }
 
             CLOG(DEBUG, "History") << "Replaying ledger " << header.ledgerSeq;
             while (readTx && txHistoryEntry.ledgerSeq < header.ledgerSeq)
@@ -499,8 +549,10 @@ void CatchupStateMachine::enterApplyingState()
                                       txset,
                                       header.closeTime,
                                       header.baseFee);
-            auto& lm = mApp.getLedgerMaster();
             lm.closeLedger(closeData);
+
+            CLOG(DEBUG, "History") << "LedgerMaster LCL:\n" << xdr::xdr_to_string(lm.getLastClosedLedgerHeader());
+            CLOG(DEBUG, "History") << "Replay header:\n" << xdr::xdr_to_string(header);
             if (lm.getLastClosedLedgerHeader().hash != header.hash)
             {
                 throw std::runtime_error("replay produced mismatched ledger hash");
