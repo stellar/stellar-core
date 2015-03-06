@@ -104,7 +104,7 @@ class LoopbackPeerConnection
   public:
     LoopbackPeerConnection(Application& initiator, Application& acceptor);
     ~LoopbackPeerConnection();
-    std::shared_ptr<LoopbackPeer> const& getInitiator() const;
-    std::shared_ptr<LoopbackPeer> const& getAcceptor() const;
+    std::shared_ptr<LoopbackPeer> getInitiator() const;
+    std::shared_ptr<LoopbackPeer> getAcceptor() const;
 };
 }
