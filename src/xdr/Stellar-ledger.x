@@ -2,26 +2,12 @@
 
 namespace stellar {
 
-struct CLFBucketHeader
-{
-    uint64 ledgerSeq;
-    uint32 ledgerCount;
-    Hash hash;
-};
-
-struct CLFLevel
-{
-    CLFBucketHeader curr;
-    CLFBucketHeader snap;
-};
-
 struct LedgerHeader
 {
     Hash hash;
     Hash previousLedgerHash;
     Hash txSetHash;            // the tx set that was FBA confirmed
     Hash clfHash;
-    CLFLevel clfLevels[5];
 
     int64 totalCoins;
     int64 feePool;
