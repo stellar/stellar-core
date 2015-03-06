@@ -7,6 +7,7 @@ $ stellard --forcescp
 That will set state in the DB and then exit. The next time you start stellard SCP will start immediately rather than waiting.
 
 
+
 For each server in the cluster you need to do:
 ```sh
 $ stellard --newdb
