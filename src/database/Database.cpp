@@ -40,6 +40,12 @@ using namespace std;
 bool
 Database::gDriversRegistered = false;
 
+static void
+setSerializable(soci::session& sess)
+{
+    sess << "SET SESSION CHARACTERISTICS AS TRANSACTION ISOLATION LEVEL SERIALIZABLE";
+}
+
 void
 Database::registerDrivers()
 {
@@ -59,6 +65,14 @@ Database::Database(Application& app)
     registerDrivers();
     CLOG(INFO, "Database") << "Connecting to: " << app.getConfig().DATABASE;
     mSession.open(app.getConfig().DATABASE);
+    if (isSqlite())
+    {
+        mSession << "PRAGMA journal_mode = WAL";
+    }
+    else
+    {
+        setSerializable(mSession);
+    }
 }
 
 
@@ -127,7 +141,12 @@ Database::getPool()
         for (size_t i = 0; i < n; ++i)
         {
             LOG(DEBUG) << "Opening pool entry " << i;
-            mPool->at(i).open(c);
+            soci::session &sess = mPool->at(i);
+            sess.open(c);
+            if (!isSqlite())
+            {
+                setSerializable(sess);
+            }
         }
     }
     assert(mPool);

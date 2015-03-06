@@ -75,10 +75,6 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
     {
         mDatabase->initialize();
     }
-    else if (mPersistentState->getState(PersistentState::kDatabaseInitialized) != "true")
-    {
-        throw new runtime_error("Database not initialized and REBUID_DB is false.");
-    }
 
 
     mTmpDirMaster = make_unique<TmpDirMaster>(cfg.TMP_DIR_PATH);
@@ -229,6 +225,11 @@ ApplicationImpl::crank(bool block)
 void
 ApplicationImpl::start()
 {
+    if (mPersistentState->getState(PersistentState::kDatabaseInitialized) != "true")
+    {
+        throw runtime_error("Database not initialized and REBUID_DB is false.");
+    }
+
     bool hasLedger = !mPersistentState->getState(PersistentState::kLastClosedLedger).empty();
 
     if (mConfig.START_NEW_NETWORK)
