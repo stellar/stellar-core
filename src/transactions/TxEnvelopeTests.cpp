@@ -14,8 +14,8 @@
 #include "TxTests.h"
 #include "ledger/LedgerMaster.h"
 #include "ledger/LedgerDelta.h"
-#include "transactions/PaymentFrame.h"
-#include "transactions/CreateOfferFrame.h"
+#include "transactions/PaymentOpFrame.h"
+#include "transactions/CreateOfferOpFrame.h"
 
 using namespace stellar;
 using namespace stellar::txtest;

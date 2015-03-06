@@ -1,4 +1,4 @@
-#include "transactions/MergeFrame.h"
+#include "transactions/MergeOpFrame.h"
 #include "crypto/Base58.h"
 #include "database/Database.h"
 #include "ledger/TrustFrame.h"

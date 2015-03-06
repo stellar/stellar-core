@@ -14,11 +14,11 @@
 #include "util/types.h"
 #include "transactions/TransactionFrame.h"
 #include "ledger/LedgerDelta.h"
-#include "transactions/PaymentFrame.h"
-#include "transactions/ChangeTrustTxFrame.h"
-#include "transactions/CreateOfferFrame.h"
-#include "transactions/SetOptionsFrame.h"
-#include "transactions/AllowTrustTxFrame.h"
+#include "transactions/PaymentOpFrame.h"
+#include "transactions/ChangeTrustOpFrame.h"
+#include "transactions/CreateOfferOpFrame.h"
+#include "transactions/SetOptionsOpFrame.h"
+#include "transactions/AllowTrustOpFrame.h"
 
 using namespace stellar;
 using namespace stellar::txtest;

@@ -1,4 +1,4 @@
-#include "transactions/SetOptionsFrame.h"
+#include "transactions/SetOptionsOpFrame.h"
 #include "crypto/Base58.h"
 #include "database/Database.h"
 

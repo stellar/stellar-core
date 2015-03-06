@@ -15,8 +15,8 @@
 #include "database/Database.h"
 #include "ledger/LedgerMaster.h"
 #include "ledger/LedgerDelta.h"
-#include "transactions/PaymentFrame.h"
-#include "transactions/ChangeTrustTxFrame.h"
+#include "transactions/PaymentOpFrame.h"
+#include "transactions/ChangeTrustOpFrame.h"
 
 using namespace stellar;
 using namespace stellar::txtest;

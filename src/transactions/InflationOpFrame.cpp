@@ -1,4 +1,4 @@
-#include "transactions/InflationFrame.h"
+#include "transactions/InflationOpFrame.h"
 
 
 namespace stellar

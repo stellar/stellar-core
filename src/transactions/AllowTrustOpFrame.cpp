@@ -1,5 +1,5 @@
 #include "ledger/LedgerMaster.h"
-#include "transactions/AllowTrustTxFrame.h"
+#include "transactions/AllowTrustOpFrame.h"
 #include "ledger/TrustFrame.h"
 #include "database/Database.h"
 

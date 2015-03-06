@@ -228,28 +228,28 @@
     <ClCompile Include="..\..\src\transactions\TransactionFrame.cpp">
       <Filter>transactions</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\transactions\CancelOfferFrame.cpp">
+    <ClCompile Include="..\..\src\transactions\CancelOfferOpFrame.cpp">
       <Filter>transactions</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\transactions\CreateOfferFrame.cpp">
+    <ClCompile Include="..\..\src\transactions\CreateOfferOpFrame.cpp">
       <Filter>transactions</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\transactions\InflationFrame.cpp">
+    <ClCompile Include="..\..\src\transactions\InflationOpFrame.cpp">
       <Filter>transactions</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\transactions\MergeFrame.cpp">
+    <ClCompile Include="..\..\src\transactions\MergeOpFrame.cpp">
       <Filter>transactions</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\transactions\PaymentFrame.cpp">
+    <ClCompile Include="..\..\src\transactions\PaymentOpFrame.cpp">
       <Filter>transactions</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\transactions\SetOptionsFrame.cpp">
+    <ClCompile Include="..\..\src\transactions\SetOptionsOpFrame.cpp">
       <Filter>transactions</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\transactions\AllowTrustTxFrame.cpp">
+    <ClCompile Include="..\..\src\transactions\AllowTrustOpFrame.cpp">
       <Filter>transactions</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\transactions\ChangeTrustTxFrame.cpp">
+    <ClCompile Include="..\..\src\transactions\ChangeTrustOpFrame.cpp">
       <Filter>transactions</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\crypto\Base58.cpp">
@@ -393,7 +393,7 @@
     <ClCompile Include="..\..\src\simulation\Topologies.cpp">
       <Filter>simulation</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\transactions\SetSeqSlotFrame.cpp">
+    <ClCompile Include="..\..\src\transactions\SetSeqSlotOpFrame.cpp">
       <Filter>transactions</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\history\FileTransferInfo.cpp">
@@ -527,28 +527,28 @@
     <ClInclude Include="..\..\src\transactions\TransactionFrame.h">
       <Filter>transactions</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\transactions\CancelOfferFrame.h">
+    <ClInclude Include="..\..\src\transactions\CancelOfferOpFrame.h">
       <Filter>transactions</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\transactions\CreateOfferFrame.h">
+    <ClInclude Include="..\..\src\transactions\CreateOfferOpFrame.h">
       <Filter>transactions</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\transactions\InflationFrame.h">
+    <ClInclude Include="..\..\src\transactions\InflationOpFrame.h">
       <Filter>transactions</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\transactions\MergeFrame.h">
+    <ClInclude Include="..\..\src\transactions\MergeOpFrame.h">
       <Filter>transactions</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\transactions\PaymentFrame.h">
+    <ClInclude Include="..\..\src\transactions\PaymentOpFrame.h">
       <Filter>transactions</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\transactions\SetOptionsFrame.h">
+    <ClInclude Include="..\..\src\transactions\SetOptionsOpFrame.h">
       <Filter>transactions</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\transactions\AllowTrustTxFrame.h">
+    <ClInclude Include="..\..\src\transactions\AllowTrustOpFrame.h">
       <Filter>transactions</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\transactions\ChangeTrustTxFrame.h">
+    <ClInclude Include="..\..\src\transactions\ChangeTrustOpFrame.h">
       <Filter>transactions</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\crypto\Base58.h">
@@ -653,7 +653,7 @@
     <ClInclude Include="..\..\src\simulation\Topologies.h">
       <Filter>simulation</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\transactions\SetSeqSlotFrame.h">
+    <ClInclude Include="..\..\src\transactions\SetSeqSlotOpFrame.h">
       <Filter>transactions</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\history\FileTransferInfo.h">

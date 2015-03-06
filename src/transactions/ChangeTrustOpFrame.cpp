@@ -3,7 +3,7 @@
 // this distribution or at http://opensource.org/licenses/ISC
 
 
-#include "ChangeTrustTxFrame.h"
+#include "ChangeTrustOpFrame.h"
 #include "ledger/TrustFrame.h"
 #include "ledger/LedgerMaster.h"
 #include "database/Database.h"

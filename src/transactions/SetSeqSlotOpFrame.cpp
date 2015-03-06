@@ -1,4 +1,4 @@
-#include "transactions/SetSeqSlotFrame.h"
+#include "transactions/SetSeqSlotOpFrame.h"
 #include "crypto/Base58.h"
 #include "database/Database.h"
 

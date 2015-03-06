@@ -1,4 +1,4 @@
-#include "transactions/CancelOfferFrame.h"
+#include "transactions/CancelOfferOpFrame.h"
 #include "ledger/OfferFrame.h"
 #include "ledger/LedgerMaster.h"
 #include "database/Database.h"

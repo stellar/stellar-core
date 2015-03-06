@@ -8,14 +8,14 @@
 #include <string>
 #include "util/Logging.h"
 #include "ledger/LedgerDelta.h"
-#include "transactions/AllowTrustTxFrame.h"
-#include "transactions/CancelOfferFrame.h"
-#include "transactions/CreateOfferFrame.h"
-#include "transactions/ChangeTrustTxFrame.h"
-#include "transactions/InflationFrame.h"
-#include "transactions/MergeFrame.h"
-#include "transactions/PaymentFrame.h"
-#include "transactions/SetOptionsFrame.h"
+#include "transactions/AllowTrustOpFrame.h"
+#include "transactions/CancelOfferOpFrame.h"
+#include "transactions/CreateOfferOpFrame.h"
+#include "transactions/ChangeTrustOpFrame.h"
+#include "transactions/InflationOpFrame.h"
+#include "transactions/MergeOpFrame.h"
+#include "transactions/PaymentOpFrame.h"
+#include "transactions/SetOptionsOpFrame.h"
 #include "database/Database.h"
 
 namespace stellar
