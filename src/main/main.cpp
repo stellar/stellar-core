@@ -31,7 +31,6 @@ enum opttag
     OPT_CONF,
     OPT_CMD,
     OPT_FORCESCP,
-    OPT_LOCAL,
     OPT_GENSEED,
     OPT_LOGLEVEL,
     OPT_NEWDB,
@@ -44,7 +43,6 @@ static const struct option stellard_options[] = {
     {"test", no_argument, nullptr, OPT_TEST},
     {"conf", required_argument, nullptr, OPT_CONF},
     {"c", required_argument, nullptr, OPT_CMD},
-    {"local", no_argument, nullptr, OPT_LOCAL },
     {"genseed", no_argument, nullptr, OPT_GENSEED },
     {"newdb", no_argument, nullptr, OPT_NEWDB },
     {"newhist", required_argument, nullptr, OPT_NEWHIST },
@@ -64,7 +62,6 @@ usage(int err = 1)
           "      --newdb         Setup the DB.\n"
           "      --newhist ARCH  Initialize the named history archive ARCH.\n"
           "      --forcescp      Force SCP to start before you hear a ledger close next time stellard is run.\n"
-          "      --local         Resume from locally saved state.\n"
           "      --genseed       Generate and print a random node seed.\n"
           "      --ll LEVEL      Set the log level. LEVEL can be:\n"
           "                      [trace|debug|info|warning|error|fatal|none]\n"
@@ -212,7 +209,6 @@ main(int argc, char* const* argv)
         std::vector<char*> rest;
 
         bool newNetwork = false;
-        bool localNetwork = false;
         bool newDB = false;
         std::vector<std::string> newHistories;
 
@@ -247,9 +243,6 @@ main(int argc, char* const* argv)
             case OPT_NEWHIST:
                 newHistories.push_back(std::string(optarg));
                 break;
-            case OPT_LOCAL:
-                localNetwork = true;
-                break;
             case OPT_LOGLEVEL:
                 logLevel = Logging::getLLfromString(std::string(optarg));
                 break;
@@ -283,7 +276,6 @@ main(int argc, char* const* argv)
 
         cfg.REBUILD_DB = newDB;
         cfg.START_NEW_NETWORK = newNetwork;
-        cfg.START_LOCAL_NETWORK = localNetwork;
         if (command.size())
         {
             sendCommand(command, rest, cfg.HTTP_PORT);

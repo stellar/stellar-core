@@ -110,7 +110,7 @@ void
 Herder::bootstrap()
 {
     assert(!getSecretKey().isZero());
-    assert(mApp.getConfig().START_NEW_NETWORK || mApp.getConfig().START_LOCAL_NETWORK);
+    assert(mApp.getConfig().START_NEW_NETWORK);
 
     mApp.setState(Application::SYNCED_STATE);
     mLastClosedLedger = mApp.getLedgerMaster().getLastClosedLedgerHeader();

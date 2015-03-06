@@ -255,11 +255,7 @@ ApplicationImpl::start()
             mLedgerMaster->loadLastKnownLedger();
         }
         mHerder->bootstrap();
-    } else if(mConfig.START_LOCAL_NETWORK)
-    {
-        mLedgerMaster->loadLastKnownLedger();
-        mHerder->bootstrap();
-    } else
+    }  else
     {
         mLedgerMaster->loadLastKnownLedger();
     }
