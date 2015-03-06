@@ -64,6 +64,7 @@ Config const& getTestConfig(int instanceNumber)
         // attempted.
         thisConfig.RUN_STANDALONE = true;
         thisConfig.START_NEW_NETWORK = true;
+        thisConfig.REBUILD_DB = true;
 
         thisConfig.PEER_PORT = DEFAULT_PEER_PORT + instanceNumber*2;
         thisConfig.HTTP_PORT = DEFAULT_PEER_PORT + instanceNumber*2-1;
