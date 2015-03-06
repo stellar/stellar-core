@@ -25,6 +25,7 @@ PeerDoor::PeerDoor(Application& app)
         tcp::endpoint endpoint(tcp::v4(), mApp.getConfig().PEER_PORT);
         CLOG(DEBUG, "Overlay") << "PeerDoor binding to endpoint " << endpoint;
         mAcceptor.open(endpoint.protocol());
+        mAcceptor.set_option(asio::ip::tcp::acceptor::reuse_address(true));
         mAcceptor.bind(endpoint);
         mAcceptor.listen();
         acceptNextPeer();
