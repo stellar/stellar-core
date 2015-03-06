@@ -14,14 +14,14 @@ namespace stellar
 
 using namespace std;
 
-    PaymentFrame::PaymentFrame(Operation const& op, OperationResult &res,
+    PaymentOpFrame::PaymentOpFrame(Operation const& op, OperationResult &res,
         TransactionFrame &parentTx) :
         OperationFrame(op, res, parentTx), mPayment(mOperation.body.paymentOp())
     {
 
     }
 
-    bool PaymentFrame::doApply(LedgerDelta& delta,LedgerMaster& ledgerMaster)
+    bool PaymentOpFrame::doApply(LedgerDelta& delta,LedgerMaster& ledgerMaster)
     {
         AccountFrame destAccount;
 
@@ -66,7 +66,7 @@ using namespace std;
 
     // work backward to determine how much they need to send to get the 
     // specified amount of currency to the recipient
-    bool PaymentFrame::sendNoCreate(AccountFrame& destination, LedgerDelta& delta, LedgerMaster& ledgerMaster)
+    bool PaymentOpFrame::sendNoCreate(AccountFrame& destination, LedgerDelta& delta, LedgerMaster& ledgerMaster)
     {
         Database &db = ledgerMaster.getDatabase();
 
@@ -236,7 +236,7 @@ using namespace std;
         return true;
     }
 
-    bool PaymentFrame::doCheckValid(Application& app)
+    bool PaymentOpFrame::doCheckValid(Application& app)
     {
         if (mPayment.path.size() > MAX_PAYMENT_PATH_LENGTH)
         {

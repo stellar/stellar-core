@@ -7,7 +7,7 @@ using namespace soci;
 
 namespace stellar
 {
-    MergeFrame::MergeFrame(Operation const& op, OperationResult &res,
+    MergeOpFrame::MergeOpFrame(Operation const& op, OperationResult &res,
         TransactionFrame &parentTx) :
         OperationFrame(op, res, parentTx)
     {
@@ -19,7 +19,7 @@ namespace stellar
     // make sure the we delete all the offers
     // make sure the we delete all the trustlines
     // move the STR to the new account
-    bool MergeFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
+    bool MergeOpFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
     {
         AccountFrame otherAccount;
         Database &db = ledgerMaster.getDatabase();
@@ -82,7 +82,7 @@ namespace stellar
         return true;
     }
 
-    bool MergeFrame::doCheckValid(Application& app)
+    bool MergeOpFrame::doCheckValid(Application& app)
     {
         // makes sure not merging into self
         if (getSourceID() == mOperation.body.destination())

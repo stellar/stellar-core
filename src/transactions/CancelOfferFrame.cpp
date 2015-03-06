@@ -6,13 +6,13 @@
 namespace stellar
 {
 
-CancelOfferFrame::CancelOfferFrame(Operation const& op, OperationResult &res,
+CancelOfferOpFrame::CancelOfferOpFrame(Operation const& op, OperationResult &res,
     TransactionFrame &parentTx) :
     OperationFrame(op, res, parentTx)
 {
 }
 
-bool CancelOfferFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
+bool CancelOfferOpFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
 {
     OfferFrame offerFrame;
     Database &db = ledgerMaster.getDatabase();
@@ -32,7 +32,7 @@ bool CancelOfferFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
     return true;
 }
 
-bool CancelOfferFrame::doCheckValid(Application& app)
+bool CancelOfferOpFrame::doCheckValid(Application& app)
 {
     return true;
 }

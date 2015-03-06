@@ -17,14 +17,14 @@ namespace stellar
 
 using namespace std;
 
-CreateOfferFrame::CreateOfferFrame(Operation const& op, OperationResult &res,
+CreateOfferOpFrame::CreateOfferOpFrame(Operation const& op, OperationResult &res,
     TransactionFrame &parentTx) :
     OperationFrame(op, res, parentTx), mCreateOffer(mOperation.body.createOfferOp())
 {
 }
 
 // make sure these issuers exist and you can hold the ask currency
-bool CreateOfferFrame::checkOfferValid(Database &db)
+bool CreateOfferOpFrame::checkOfferValid(Database &db)
 {
     Currency const& sheep = mCreateOffer.takerGets;
     Currency const& wheat = mCreateOffer.takerPays;
@@ -69,7 +69,7 @@ bool CreateOfferFrame::checkOfferValid(Database &db)
 
 // TODO: revisit this, offer code should share logic with payment code
 //      to keep the code working, I ended up duplicating the error codes
-bool CreateOfferFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
+bool CreateOfferOpFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
 {
     Database &db = ledgerMaster.getDatabase();
 
@@ -259,7 +259,7 @@ bool CreateOfferFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
 }
 
 // makes sure the currencies are different 
-bool CreateOfferFrame::doCheckValid(Application& app)
+bool CreateOfferOpFrame::doCheckValid(Application& app)
 {
     Currency const& sheep = mCreateOffer.takerGets;
     Currency const& wheat = mCreateOffer.takerPays;

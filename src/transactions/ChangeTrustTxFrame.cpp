@@ -12,13 +12,13 @@ namespace stellar
 { 
 
 
-ChangeTrustTxFrame::ChangeTrustTxFrame(Operation const& op, OperationResult &res,
+ChangeTrustOpFrame::ChangeTrustOpFrame(Operation const& op, OperationResult &res,
     TransactionFrame &parentTx) :
     OperationFrame(op, res, parentTx), mChangeTrust(mOperation.body.changeTrustOp())
 {
 
 }
-bool ChangeTrustTxFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
+bool ChangeTrustOpFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
 {
     TrustFrame trustLine;
     Database &db = ledgerMaster.getDatabase();
@@ -66,7 +66,7 @@ bool ChangeTrustTxFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
     }
 }
 
-bool ChangeTrustTxFrame::doCheckValid(Application& app)
+bool ChangeTrustOpFrame::doCheckValid(Application& app)
 {
     return true;
 }

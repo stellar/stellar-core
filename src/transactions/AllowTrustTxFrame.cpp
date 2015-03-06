@@ -5,18 +5,18 @@
 
 namespace stellar
 {
-    AllowTrustTxFrame::AllowTrustTxFrame(Operation const& op, OperationResult &res,
+    AllowTrustOpFrame::AllowTrustOpFrame(Operation const& op, OperationResult &res,
         TransactionFrame &parentTx) :
         OperationFrame(op, res, parentTx), mAllowTrust(mOperation.body.allowTrustOp())
     {
     }
 
-    int32_t AllowTrustTxFrame::getNeededThreshold()
+    int32_t AllowTrustOpFrame::getNeededThreshold()
     {
         return mSourceAccount->getLowThreshold();
     }
 
-    bool AllowTrustTxFrame::doApply(LedgerDelta &delta, LedgerMaster& ledgerMaster)
+    bool AllowTrustOpFrame::doApply(LedgerDelta &delta, LedgerMaster& ledgerMaster)
     {
         if(!(mSourceAccount->getAccount().flags & AUTH_REQUIRED_FLAG))
         {   // this account doesn't require authorization to hold credit
@@ -45,7 +45,7 @@ namespace stellar
         return true;
     }
 
-    bool AllowTrustTxFrame::doCheckValid(Application& app)
+    bool AllowTrustOpFrame::doCheckValid(Application& app)
     {
         if (mAllowTrust.currency.type() != ISO4217)
         {

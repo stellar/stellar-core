@@ -4,11 +4,11 @@
 
 namespace stellar
 {
-    class CancelOfferFrame : public OperationFrame
+    class CancelOfferOpFrame : public OperationFrame
     {
         CancelOffer::CancelOfferResult &innerResult() { return mResult.tr().cancelOfferResult(); }
     public:
-        CancelOfferFrame(Operation const& op, OperationResult &res, TransactionFrame &parentTx);
+        CancelOfferOpFrame(Operation const& op, OperationResult &res, TransactionFrame &parentTx);
 
         bool doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster);
         bool doCheckValid(Application& app);

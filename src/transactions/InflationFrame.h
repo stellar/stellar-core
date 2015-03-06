@@ -4,11 +4,11 @@
 
 namespace stellar
 {
-    class InflationFrame : public OperationFrame
+    class InflationOpFrame : public OperationFrame
     {
         Inflation::InflationResult &innerResult() { return mResult.tr().inflationResult(); }
     public:
-        InflationFrame(Operation const& op, OperationResult &res, TransactionFrame &parentTx);
+        InflationOpFrame(Operation const& op, OperationResult &res, TransactionFrame &parentTx);
 
         bool doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster);
         bool doCheckValid(Application& app);

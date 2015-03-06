@@ -4,11 +4,11 @@
 
 namespace stellar
 {
-    class MergeFrame : public OperationFrame
+    class MergeOpFrame : public OperationFrame
     {
         AccountMerge::AccountMergeResult &innerResult() { return mResult.tr().accountMergeResult(); }
     public:
-        MergeFrame(Operation const& op, OperationResult &res, TransactionFrame &parentTx);
+        MergeOpFrame(Operation const& op, OperationResult &res, TransactionFrame &parentTx);
 
         bool doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster);
         bool doCheckValid(Application& app);

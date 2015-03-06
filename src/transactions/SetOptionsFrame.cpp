@@ -5,13 +5,13 @@
 // TODO.2 Handle all SQL exceptions
 namespace stellar
 {
-    SetOptionsFrame::SetOptionsFrame(Operation const& op, OperationResult &res,
+    SetOptionsOpFrame::SetOptionsOpFrame(Operation const& op, OperationResult &res,
         TransactionFrame &parentTx) :
         OperationFrame(op, res, parentTx), mSetOptions(mOperation.body.setOptionsOp())
     {
     }
 
-    int32_t SetOptionsFrame::getNeededThreshold()
+    int32_t SetOptionsOpFrame::getNeededThreshold()
     {
         // updating thresholds or signer requires high threshold
         if (mSetOptions.thresholds || mSetOptions.signer)
@@ -22,7 +22,7 @@ namespace stellar
     }
 
     // make sure it doesn't allow us to add signers when we don't have the minbalance
-    bool SetOptionsFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
+    bool SetOptionsOpFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
     {
         Database &db = ledgerMaster.getDatabase();
         AccountEntry &account = mSourceAccount->getAccount();
@@ -94,7 +94,7 @@ namespace stellar
         return true;
     }
 
-    bool SetOptionsFrame::doCheckValid(Application& app)
+    bool SetOptionsOpFrame::doCheckValid(Application& app)
     {
         if (mSetOptions.setFlags && mSetOptions.clearFlags)
         {

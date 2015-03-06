@@ -8,12 +8,12 @@
 
 namespace stellar
 {
-	class ChangeTrustTxFrame : public OperationFrame
+	class ChangeTrustOpFrame : public OperationFrame
 	{
         ChangeTrust::ChangeTrustResult &innerResult() { return mResult.tr().changeTrustResult(); }
         ChangeTrustOp const& mChangeTrust;
 	public:
-        ChangeTrustTxFrame(Operation const& op, OperationResult &res, TransactionFrame &parentTx);
+        ChangeTrustOpFrame(Operation const& op, OperationResult &res, TransactionFrame &parentTx);
 
         bool doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster);
         bool doCheckValid(Application& app);

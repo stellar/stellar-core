@@ -35,21 +35,21 @@ shared_ptr<OperationFrame> OperationFrame::makeHelper(Operation const& op,
     switch (op.body.type())
     {
     case PAYMENT:
-        return shared_ptr<OperationFrame>(new PaymentFrame(op, res, tx));
+        return shared_ptr<OperationFrame>(new PaymentOpFrame(op, res, tx));
     case CREATE_OFFER:
-        return shared_ptr<OperationFrame>(new CreateOfferFrame(op, res, tx));
+        return shared_ptr<OperationFrame>(new CreateOfferOpFrame(op, res, tx));
     case CANCEL_OFFER:
-        return shared_ptr<OperationFrame>(new CancelOfferFrame(op, res, tx));
+        return shared_ptr<OperationFrame>(new CancelOfferOpFrame(op, res, tx));
     case SET_OPTIONS:
-        return shared_ptr<OperationFrame>(new SetOptionsFrame(op, res, tx));
+        return shared_ptr<OperationFrame>(new SetOptionsOpFrame(op, res, tx));
     case CHANGE_TRUST:
-        return shared_ptr<OperationFrame>(new ChangeTrustTxFrame(op, res, tx));
+        return shared_ptr<OperationFrame>(new ChangeTrustOpFrame(op, res, tx));
     case ALLOW_TRUST:
-        return shared_ptr<OperationFrame>(new AllowTrustTxFrame(op, res, tx));
+        return shared_ptr<OperationFrame>(new AllowTrustOpFrame(op, res, tx));
     case ACCOUNT_MERGE:
-        return shared_ptr<OperationFrame>(new MergeFrame(op, res, tx));
+        return shared_ptr<OperationFrame>(new MergeOpFrame(op, res, tx));
     case INFLATION:
-        return shared_ptr<OperationFrame>(new InflationFrame(op, res, tx));
+        return shared_ptr<OperationFrame>(new InflationOpFrame(op, res, tx));
 
     default:
         ostringstream err;

@@ -5,14 +5,14 @@
 
 namespace stellar
 {
-    SetSeqSlotFrame::SetSeqSlotFrame(Operation const& op, OperationResult &res,
+    SetSeqSlotOpFrame::SetSeqSlotOpFrame(Operation const& op, OperationResult &res,
         TransactionFrame &parentTx) :
         OperationFrame(op, res, parentTx), mSetSlot(mOperation.body.setSeqSlotOp())
     {
 
     }
 
-    bool SetSeqSlotFrame::doCheckValid(Application& app)
+    bool SetSeqSlotOpFrame::doCheckValid(Application& app)
     {
         return false;
     }
@@ -20,7 +20,7 @@ namespace stellar
 
     // change the seq of an existing slot or create a new slot
     // make sure a new slot has the correct slot index
-    bool SetSeqSlotFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
+    bool SetSeqSlotOpFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
     {
         Database &db = ledgerMaster.getDatabase();
 

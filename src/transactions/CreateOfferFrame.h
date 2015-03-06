@@ -6,7 +6,7 @@
 
 namespace stellar
 {
-    class CreateOfferFrame : public OperationFrame
+    class CreateOfferOpFrame : public OperationFrame
     {
         TrustFrame mSheepLineA;
         TrustFrame mWheatLineA;
@@ -19,7 +19,7 @@ namespace stellar
 
         CreateOfferOp const& mCreateOffer;
     public:
-        CreateOfferFrame(Operation const& op, OperationResult &res, TransactionFrame &parentTx);
+        CreateOfferOpFrame(Operation const& op, OperationResult &res, TransactionFrame &parentTx);
 
         bool doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster);
         bool doCheckValid(Application& app);

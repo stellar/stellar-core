@@ -4,13 +4,13 @@
 
 namespace stellar
 {
-    class SetSeqSlotFrame : public OperationFrame
+    class SetSeqSlotOpFrame : public OperationFrame
     {
         
         SetSeqSlot::SetSeqSlotResult &innerResult() { return mResult.tr().setSeqSlotResult(); }
         SetSeqSlotOp const& mSetSlot;
     public:
-        SetSeqSlotFrame(Operation const& op, OperationResult &res, TransactionFrame &parentTx);
+        SetSeqSlotOpFrame(Operation const& op, OperationResult &res, TransactionFrame &parentTx);
 
         bool doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster);
         bool doCheckValid(Application& app);

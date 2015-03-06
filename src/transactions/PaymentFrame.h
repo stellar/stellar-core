@@ -6,7 +6,7 @@
 namespace stellar
 {
 
-class PaymentFrame : public OperationFrame
+class PaymentOpFrame : public OperationFrame
 {
     // destination must exist
     bool sendNoCreate(AccountFrame& destination, LedgerDelta& delta, LedgerMaster& ledgerMaster);
@@ -14,7 +14,7 @@ class PaymentFrame : public OperationFrame
     Payment::PaymentResult &innerResult() { return mResult.tr().paymentResult(); }
     PaymentOp const& mPayment;
 public:
-    PaymentFrame(Operation const& op, OperationResult &res, TransactionFrame &parentTx);
+    PaymentOpFrame(Operation const& op, OperationResult &res, TransactionFrame &parentTx);
 
     bool doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster);
     bool doCheckValid(Application& app);
