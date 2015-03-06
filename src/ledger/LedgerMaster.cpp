@@ -59,6 +59,8 @@ LedgerMaster::LedgerMaster(Application& app)
    
 }
 
+
+
 void LedgerMaster::startNewLedger()
 {
     auto ledgerTime = mLedgerClose.TimeScope();
@@ -74,7 +76,7 @@ void LedgerMaster::startNewLedger()
     genesisHeader.baseFee = mApp.getConfig().DESIRED_BASE_FEE;
     genesisHeader.baseReserve = mApp.getConfig().DESIRED_BASE_RESERVE;
     genesisHeader.totalCoins = masterAccount.getAccount().balance;
-    genesisHeader.closeTime = VirtualClock::pointToTimeT(mApp.getClock().now());
+    genesisHeader.closeTime = 0; // the genesis ledger has close time of 0 so it always has the same hash
     genesisHeader.ledgerSeq = 1;
 
     mCurrentLedger = make_shared<LedgerHeaderFrame>(genesisHeader);
