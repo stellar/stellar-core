@@ -365,10 +365,15 @@ TransactionFrame::copyTransactionsToStream(Database& db,
         std::string body = base64::decode(txBody);
         std::string result = base64::decode(txResult);
 
-        xdr::xdr_get g1(body.data(), body.data() + body.size());
+        // FIXME: this +4 business is a bit embarassing.
+
+        assert(body.size() >= 4);
+        assert(result.size() >= 4);
+
+        xdr::xdr_get g1(body.data() + 4, body.data() + body.size());
         xdr_argpack_archive(g1, e.envelope);
 
-        xdr::xdr_get g2(result.data(), result.data() + result.size());
+        xdr::xdr_get g2(result.data() + 4, result.data() + result.size());
         xdr_argpack_archive(g2, e.result);
 
         out.writeOne(e);
