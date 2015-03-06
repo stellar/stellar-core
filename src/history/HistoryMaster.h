@@ -99,7 +99,7 @@ class HistoryMaster
 
   public:
 
-    static const size_t kCheckpointFrequency;
+    static const uint32_t kCheckpointFrequency;
 
     // Verify that a file has a given hash.
     void verifyHash(std::string const& filename,

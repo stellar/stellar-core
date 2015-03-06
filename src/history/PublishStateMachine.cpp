@@ -318,11 +318,12 @@ StateSnapshot::StateSnapshot(Application& app)
     , mLedgerSnapFile(
         std::make_shared<FilePublishInfo>(
             FILE_PUBLISH_NEEDED, mSnapDir, HISTORY_FILE_TYPE_LEDGER,
-            mLocalState.currentLedger / HistoryMaster::kCheckpointFrequency))
+            uint32_t(mLocalState.currentLedger / HistoryMaster::kCheckpointFrequency)))
+
     , mTransactionSnapFile(
         std::make_shared<FilePublishInfo>(
             FILE_PUBLISH_NEEDED, mSnapDir, HISTORY_FILE_TYPE_TRANSACTION,
-            mLocalState.currentLedger / HistoryMaster::kCheckpointFrequency))
+            uint32_t(mLocalState.currentLedger / HistoryMaster::kCheckpointFrequency)))
 {
     BucketList& buckets = app.getCLFMaster().getBucketList();
     for (size_t i = 0; i < buckets.numLevels(); ++i)

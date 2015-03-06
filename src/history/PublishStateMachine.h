@@ -78,8 +78,6 @@ public:
                      std::shared_ptr<HistoryArchive> archive,
                      std::shared_ptr<StateSnapshot> snap);
 
-    std::shared_ptr<HistoryArchive> getArchive();
-
     void enterRetryingState();
     void enterBeginState();
     void enterObservedState(HistoryArchiveState const& has);
