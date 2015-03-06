@@ -49,7 +49,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
     SECTION("outer envelope")
     {
         TransactionFramePtr txFrame;
-        LedgerDelta delta;
+        LedgerDelta delta(app.getLedgerMaster().getCurrentLedgerHeader());
 
         SECTION("no signature")
         {
@@ -109,7 +109,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
             tx->getEnvelope().signatures.clear();
             tx->addSignature(s1);
 
-            LedgerDelta delta;
+            LedgerDelta delta(app.getLedgerMaster().getCurrentLedgerHeader());
 
             tx->apply(delta, app);
             REQUIRE(tx->getResultCode() == txBAD_AUTH);
@@ -123,7 +123,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
             tx->addSignature(s1);
             tx->addSignature(s2);
 
-            LedgerDelta delta;
+            LedgerDelta delta(app.getLedgerMaster().getCurrentLedgerHeader());
 
             tx->apply(delta, app);
             REQUIRE(Payment::getInnerCode(tx->getResult()) == Payment::SUCCESS);
@@ -145,7 +145,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
         REQUIRE(app.getLedgerGateway().getLedgerNum() == 3);
 
         {
-            LedgerDelta delta;
+            LedgerDelta delta(app.getLedgerMaster().getCurrentLedgerHeader());
             
             SECTION("Insufficient fee")
             {

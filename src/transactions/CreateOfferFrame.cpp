@@ -134,7 +134,7 @@ bool CreateOfferFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
 
     {
         soci::transaction sqlTx(db.getSession());
-        LedgerDelta tempDelta(delta.getCurrentID());
+        LedgerDelta tempDelta(delta);
 
         int64_t sheepSent, wheatReceived;
 
@@ -255,7 +255,7 @@ bool CreateOfferFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
         }
 
         sqlTx.commit();
-        delta.merge(tempDelta);
+        tempDelta.commit();
     }
     return true;
 }

@@ -1,19 +1,36 @@
 #include "ledger/LedgerDelta.h"
+#include "generated/Stellar-ledger.h"
 #include "main/Application.h"
 #include "medida/metrics_registry.h"
 #include "medida/meter.h"
 
 namespace stellar
 {
-    LedgerDelta::LedgerDelta() : mCurrentID(0)
+    LedgerDelta::LedgerDelta(LedgerDelta& outerDelta) :
+        mOuterDelta(&outerDelta), mHeader(nullptr), mCurrentID(outerDelta.getCurrentID())
     {
 
     }
-    LedgerDelta::LedgerDelta(uint64_t startID) : mCurrentID(startID)
+
+    LedgerDelta::LedgerDelta(LedgerHeader& header) :
+        mOuterDelta(nullptr), mHeader(&header), mCurrentID(header.idPool)
     {
 
     }
-    uint64_t LedgerDelta::getNextID() { return mCurrentID++; }
+
+    void LedgerDelta::checkState()
+    {
+        if (mHeader == nullptr && mOuterDelta == nullptr)
+        {
+            throw std::runtime_error("Invalid operation: delta is already committed");
+        }
+    }
+
+    uint64_t LedgerDelta::getNextID()
+    {
+        checkState();
+        return mCurrentID++;
+    }
 
     void LedgerDelta::addEntry(EntryFrame const& entry)
     {
@@ -32,6 +49,7 @@ namespace stellar
 
     void LedgerDelta::addEntry(EntryFrame::pointer entry)
     {
+        checkState();
         auto k = entry->getKey();
         auto del_it = mDelete.find(k);
         if (del_it != mDelete.end())
@@ -56,6 +74,7 @@ namespace stellar
 
     void LedgerDelta::deleteEntry(LedgerKey const& k)
     {
+        checkState();
         auto new_it = mNew.find(k);
         if (new_it != mNew.end())
         {
@@ -73,6 +92,7 @@ namespace stellar
 
     void LedgerDelta::modEntry(EntryFrame::pointer entry)
     {
+        checkState();
         auto k = entry->getKey();
         auto mod_it = mMod.find(k);
         if ( mod_it != mMod.end())
@@ -98,6 +118,7 @@ namespace stellar
 
     void LedgerDelta::merge(LedgerDelta &other)
     {
+        checkState();
         for (auto &d : other.mDelete)
         {
             deleteEntry(d);
@@ -111,6 +132,21 @@ namespace stellar
             modEntry(m.second);
         }
         mCurrentID = other.getCurrentID();
+    }
+
+    void LedgerDelta::commit()
+    {
+        checkState();
+        if (mOuterDelta)
+        {
+            mOuterDelta->merge(*this);
+            mOuterDelta = nullptr;
+        }
+        else if (mHeader)
+        {
+            mHeader->idPool = mCurrentID;
+            mHeader = nullptr;
+        }
     }
 
     xdr::msg_ptr LedgerDelta::getTransactionMeta() const

@@ -8,6 +8,7 @@
 #include "main/Config.h"
 #include "lib/catch.hpp"
 #include "ledger/LedgerDelta.h"
+#include "ledger/LedgerMaster.h"
 #include "ledger/EntryFrame.h"
 #include "util/Logging.h"
 #include "util/types.h"
@@ -81,7 +82,8 @@ TEST_CASE("Ledger entry db lifecycle", "[ledger]")
     VirtualClock clock;
     Application::pointer app = Application::create(clock, cfg);
 
-    LedgerDelta delta;
+    app->start();
+    LedgerDelta delta(app->getLedgerMaster().getCurrentLedgerHeader());
     auto& db = app->getDatabase();
     for (size_t i = 0; i < 100; ++i)
     {

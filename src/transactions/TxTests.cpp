@@ -91,7 +91,7 @@ void applyPaymentTx(Application& app, SecretKey& from, SecretKey& to, uint32_t s
 
     txFrame = createPaymentTx(from, to, seq, amount);
 
-    LedgerDelta delta;
+    LedgerDelta delta(app.getLedgerMaster().getCurrentLedgerHeader());
     txFrame->apply(delta, app);
 
     REQUIRE(Payment::getInnerCode(txFrame->getResult()) == result);
@@ -103,7 +103,7 @@ void applyChangeTrust(Application& app, SecretKey& from, SecretKey& to, uint32_t
 
     txFrame = changeTrust(from, to, seq, currencyCode, limit);
 
-    LedgerDelta delta;
+    LedgerDelta delta(app.getLedgerMaster().getCurrentLedgerHeader());
     txFrame->apply(delta, app);
 
     REQUIRE(ChangeTrust::getInnerCode(txFrame->getResult()) == result);
@@ -148,7 +148,7 @@ void applyCreditPaymentTx(Application& app, SecretKey& from, SecretKey& to,
 
     txFrame = createCreditPaymentTx(from,to,ci,seq,amount);
 
-    LedgerDelta delta;
+    LedgerDelta delta(app.getLedgerMaster().getCurrentLedgerHeader());
     txFrame->apply(delta, app);
 
     REQUIRE(Payment::getInnerCode(txFrame->getResult()) == result);
@@ -250,7 +250,7 @@ void applySetOptions(Application& app, SecretKey& source, AccountID *inflationDe
         setFlags, clearFlags, data, thrs,
         signer, seq);
 
-    LedgerDelta delta;
+    LedgerDelta delta(app.getLedgerMaster().getCurrentLedgerHeader());
     txFrame->apply(delta, app);
 
     REQUIRE(SetOptions::getInnerCode(txFrame->getResult()) == result);
