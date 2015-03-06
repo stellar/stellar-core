@@ -142,8 +142,9 @@ class Herder : public HerderGateway,
                       std::function<void(bool)>>>> mFutureEnvelopes;
 
     std::map<SCPBallot,
-        std::map<uint256, 
-            std::vector<VirtualTimer>>>            mBallotValidationTimers;
+        std::map<uint256,
+             std::vector<
+                 std::shared_ptr<VirtualTimer>>>>  mBallotValidationTimers;
 
     
     LedgerHeader                                   mLastClosedLedger;

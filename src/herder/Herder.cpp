@@ -404,11 +404,12 @@ Herder::validateBallot(const uint64& slotIndex,
             << " timeout: " << pow(2.0, ballot.counter) / 2;
         // Create a timer to wait for current SCP timeout / 2 before accepting
         // that ballot.
-        VirtualTimer ballotTimer(mApp);
-        ballotTimer.expires_from_now(
+        std::shared_ptr<VirtualTimer> ballotTimer =
+            std::make_shared<VirtualTimer>(mApp);
+        ballotTimer->expires_from_now(
             std::chrono::milliseconds(
                 (int)(1000*pow(2.0, ballot.counter)/2)));
-        ballotTimer.async_wait(
+        ballotTimer->async_wait(
             [cb,this] (const asio::error_code& error)
             {
                 this->mBallotValid.Mark();
