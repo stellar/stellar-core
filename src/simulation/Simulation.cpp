@@ -170,6 +170,10 @@ Simulation::crankAllNodes(int nbTicks)
     {
         std::map<uint256, Application::pointer>::iterator it;
         for (it = mNodes.begin(); it != mNodes.end(); ++it) {
+            if (it->second->getMainIOService().stopped())
+            {
+                throw std::runtime_error("Simulation node shut down");
+            }
             count += it->second->crank(false);
         }
     }
