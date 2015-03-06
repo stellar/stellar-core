@@ -74,6 +74,7 @@ FMT_SRCS =                                      \
     src/transactions/MergeTests.cpp             \
     src/transactions/OfferExchange.cpp          \
     src/transactions/OfferTests.cpp             \
+    src/transactions/OperationFrame.cpp         \
     src/transactions/PaymentFrame.cpp           \
     src/transactions/PaymentTests.cpp           \
     src/transactions/SetOptionsFrame.cpp        \
@@ -148,6 +149,7 @@ FMT_HDRS =                                      \
     src/transactions/InflationFrame.h           \
     src/transactions/MergeFrame.h               \
     src/transactions/OfferExchange.h            \
+    src/transactions/OperationFrame.h           \
     src/transactions/PaymentFrame.h             \
     src/transactions/SetOptionsFrame.h          \
     src/transactions/TransactionFrame.h         \

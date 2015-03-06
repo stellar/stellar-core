@@ -3,7 +3,7 @@
 // this distribution or at http://opensource.org/licenses/ISC
 
 #include "ledger/OfferFrame.h"
-#include "transactions/TransactionFrame.h"
+#include "transactions/OperationFrame.h"
 #include "database/Database.h"
 #include "crypto/Base58.h"
 #include "crypto/SHA.h"

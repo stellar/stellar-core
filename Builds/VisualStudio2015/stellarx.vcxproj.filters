@@ -402,6 +402,9 @@
     <ClCompile Include="..\..\src\main\PersistentState.cpp">
       <Filter>main</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\transactions\OperationFrame.cpp">
+      <Filter>transactions</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\ledger\LedgerGateway.h">
@@ -658,6 +661,9 @@
     </ClInclude>
     <ClInclude Include="..\..\src\main\PersistentState.h">
       <Filter>main</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\transactions\OperationFrame.h">
+      <Filter>transactions</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\lib\json\json.h">
       <Filter>lib\json</Filter>

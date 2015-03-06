@@ -1,7 +1,6 @@
 #pragma once
 
-#include "transactions/TransactionFrame.h"
-#include "ledger/OfferFrame.h"
+#include "transactions/OperationFrame.h"
 
 namespace stellar
 {

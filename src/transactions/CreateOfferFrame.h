@@ -1,6 +1,6 @@
 #pragma once
 
-#include "transactions/TransactionFrame.h"
+#include "transactions/OperationFrame.h"
 #include "ledger/TrustFrame.h"
 #include "ledger/OfferFrame.h"
 
