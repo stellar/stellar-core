@@ -56,7 +56,7 @@ LedgerMaster::LedgerMaster(Application& app)
     , mTransactionApply(app.getMetrics().NewTimer({"ledger", "transaction", "apply"}))
     , mLedgerClose(app.getMetrics().NewTimer({"ledger", "ledger", "close"}))
 {
-   
+    mLastCloseTime = mApp.timeNow(); // this is 0 at this point
 }
 
 
@@ -200,6 +200,11 @@ void LedgerMaster::historyCaughtup(asio::error_code const& ec)
     }
 }
 
+uint64_t LedgerMaster::secondsSinceLastLedgerClose()
+{
+    return mApp.timeNow() - mLastCloseTime;
+}
+
 // called by txherder
 void LedgerMaster::closeLedger(LedgerCloseData ledgerData)
 {
@@ -258,6 +263,8 @@ void LedgerMaster::closeLedger(LedgerCloseData ledgerData)
 // and switches to a new ledger
 void LedgerMaster::closeLedgerHelper(bool updateCurrent, LedgerDelta const& delta)
 {
+    mLastCloseTime = mApp.timeNow();
+
     delta.markMeters(mApp);
     if (updateCurrent)
     {

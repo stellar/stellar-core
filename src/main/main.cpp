@@ -180,8 +180,9 @@ startApp(string cfgFile, Config& cfg)
     {
         app->applyCfgCommands();
 
-        app->start();
         app->enableRealTimer();
+        app->start();
+        
 
         auto& io = app->getMainIOService();
         asio::io_service::work mainWork(io);

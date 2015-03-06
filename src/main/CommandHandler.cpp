@@ -69,15 +69,15 @@ void CommandHandler::manualCmd(const std::string& cmd)
 
 void CommandHandler::fileNotFound(const std::string& params, std::string& retStr)
 {
-    retStr  = "Welcome to Hayashi!  <p>";
+    retStr  = "<b>Welcome to Hayashi!</b><p>";
     retStr += "supported commands:  <p><ul>";
-    retStr += "<li>stop</li>";
-    retStr += "<li>peers</li>";
-    retStr += "<li>info</li>";
-    retStr += "<li>metrics</li>";
-    retStr += "<li>connect</li>";
-    retStr += "<li>tx</li>";
-    retStr += "<li>ll</li>";
+    retStr += "<li>/stop</li>";
+    retStr += "<li><a href='/peers'>peers</a> see list of peers we are connected to.</li>";
+    retStr += "<li><a href='/info'>info</a></li>";
+    retStr += "<li><a href='/metrics'>/metrics</a></li>";
+    retStr += "<li>/connect?peer=###.###.###.###&port=###  connect to a particular peer.</li>";
+    retStr += "<li>/tx?blob=[tx in xdr] submit a transaction.</li>";
+    retStr += "<li>/ll?level=[level]&partition=[name]  set the log level. partition is optional.</li>";
     retStr += "</ul><p>Have fun!";
 }
 
@@ -113,7 +113,21 @@ CommandHandler::peers(const std::string& params, std::string& retStr)
 void
 CommandHandler::info(const std::string& params, std::string& retStr)
 {
-    retStr = "Info...";
+
+    std::string stateStrTable[] = { "Booting","Connecting","Connected","Catching up","Synced" };
+    Json::Value root;
+
+    LedgerMaster& lm = mApp.getLedgerMaster();
+    
+    root["info"]["state"] = stateStrTable[mApp.getState()];
+    root["info"]["ledger"]["num"]=lm.getLedgerNum();
+    root["info"]["ledger"]["hash"] = binToHex(lm.getLastClosedLedgerHeader().hash);
+    root["info"]["ledger"]["closeTime"] = lm.getLastClosedLedgerHeader().closeTime;
+    root["info"]["ledger"]["age"] = lm.secondsSinceLastLedgerClose();
+    root["info"]["numPeers"] = mApp.getPeerMaster().getPeers().size();
+
+
+    retStr = root.toStyledString();
 }
 
 void
