@@ -6,7 +6,7 @@ Every Account has a list of signers and their corresponding weights. The public 
 There are 3 categories of transactions. Each has a separate threshold that can be set and stored in the account entry.
 
 * Low Security:
- * AllowTrustTx
+ * AllowTrustOp
  * allowing other keys to allow people to hold your credit but not issue it
 * Medium Secruity:
  * All else

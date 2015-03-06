@@ -7,7 +7,7 @@ namespace stellar
 {
     AllowTrustTxFrame::AllowTrustTxFrame(Operation const& op, OperationResult &res,
         TransactionFrame &parentTx) :
-        OperationFrame(op, res, parentTx), mAllowTrust(mOperation.body.allowTrustTx())
+        OperationFrame(op, res, parentTx), mAllowTrust(mOperation.body.allowTrustOp())
     {
     }
 

@@ -9,7 +9,7 @@ namespace stellar
         int32_t getNeededThreshold();
         AllowTrust::AllowTrustResult &innerResult() { return mResult.tr().allowTrustResult(); }
 
-        AllowTrustTx const& mAllowTrust;
+        AllowTrustOp const& mAllowTrust;
     public:
         AllowTrustTxFrame(Operation const& op, OperationResult &res, TransactionFrame &parentTx);
 

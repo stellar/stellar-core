@@ -19,7 +19,7 @@ using namespace std;
 
 CreateOfferFrame::CreateOfferFrame(Operation const& op, OperationResult &res,
     TransactionFrame &parentTx) :
-    OperationFrame(op, res, parentTx), mCreateOffer(mOperation.body.createOfferTx())
+    OperationFrame(op, res, parentTx), mCreateOffer(mOperation.body.createOfferOp())
 {
 }
 

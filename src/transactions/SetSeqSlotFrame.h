@@ -8,7 +8,7 @@ namespace stellar
     {
         
         SetSeqSlot::SetSeqSlotResult &innerResult() { return mResult.tr().setSeqSlotResult(); }
-        SetSeqSlotTx const& mSetSlot;
+        SetSeqSlotOp const& mSetSlot;
     public:
         SetSeqSlotFrame(Operation const& op, OperationResult &res, TransactionFrame &parentTx);
 

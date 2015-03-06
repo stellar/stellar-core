@@ -7,7 +7,7 @@ namespace stellar
 {
     SetSeqSlotFrame::SetSeqSlotFrame(Operation const& op, OperationResult &res,
         TransactionFrame &parentTx) :
-        OperationFrame(op, res, parentTx), mSetSlot(mOperation.body.setSeqSlotTx())
+        OperationFrame(op, res, parentTx), mSetSlot(mOperation.body.setSeqSlotOp())
     {
 
     }

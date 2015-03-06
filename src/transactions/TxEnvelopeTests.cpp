@@ -215,7 +215,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                 {
                     Currency idrCur = makeCurrency(b1, "IDR");
                     Price price(1, 1);
-                    TransactionFramePtr tx_b = createOfferTx(b1, idrCur, idrCur, price, 1000, b1Seq);
+                    TransactionFramePtr tx_b = createOfferOp(b1, idrCur, idrCur, price, 1000, b1Seq);
 
                     // build a new tx based off tx_a and tx_b
                     tx_a->getEnvelope().tx.operations.push_back(tx_b->getEnvelope().tx.operations[0]);

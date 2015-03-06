@@ -80,7 +80,7 @@ TEST_CASE("create offer", "[tx][offers]")
 
     SECTION("account a1 does not exist")
     {
-        auto txFrame = createOfferTx(a1, idrCur, usdCur, oneone, 100, a1_seq);
+        auto txFrame = createOfferOp(a1, idrCur, usdCur, oneone, 100, a1_seq);
 
        
         txFrame->apply(delta, app);

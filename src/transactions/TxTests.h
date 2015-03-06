@@ -39,7 +39,7 @@ TransactionFramePtr createCreditPaymentTx(SecretKey& from, SecretKey& to, Curren
 void applyCreditPaymentTx(Application& app, SecretKey& from, SecretKey& to,
     Currency& ci, uint32_t seq, int64_t amount, Payment::PaymentResultCode result = Payment::SUCCESS);
 
-TransactionFramePtr createOfferTx(SecretKey& source, Currency& takerGets, 
+TransactionFramePtr createOfferOp(SecretKey& source, Currency& takerGets, 
     Currency& takerPays, Price const& price,int64_t amount, uint32_t seq);
 
 void applyCreateOffer(Application& app, LedgerDelta& delta, SecretKey& source, Currency& takerGets,

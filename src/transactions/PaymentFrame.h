@@ -12,7 +12,7 @@ class PaymentFrame : public OperationFrame
     bool sendNoCreate(AccountFrame& destination, LedgerDelta& delta, LedgerMaster& ledgerMaster);
 
     Payment::PaymentResult &innerResult() { return mResult.tr().paymentResult(); }
-    PaymentTx const& mPayment;
+    PaymentOp const& mPayment;
 public:
     PaymentFrame(Operation const& op, OperationResult &res, TransactionFrame &parentTx);
 

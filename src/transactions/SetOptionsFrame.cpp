@@ -7,7 +7,7 @@ namespace stellar
 {
     SetOptionsFrame::SetOptionsFrame(Operation const& op, OperationResult &res,
         TransactionFrame &parentTx) :
-        OperationFrame(op, res, parentTx), mSetOptions(mOperation.body.setOptionsTx())
+        OperationFrame(op, res, parentTx), mSetOptions(mOperation.body.setOptionsOp())
     {
     }
 

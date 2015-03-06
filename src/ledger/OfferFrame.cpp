@@ -62,7 +62,7 @@ namespace stellar
     {
         assert(mEntry.type() == OFFER);
         mOffer.accountID = op.getSourceID();
-        CreateOfferTx const& create = op.getOperation().body.createOfferTx();
+        CreateOfferOp const& create = op.getOperation().body.createOfferOp();
         mOffer.amount = create.amount;
         mOffer.price = create.price;
         mOffer.offerID = create.offerID;

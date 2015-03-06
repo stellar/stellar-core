@@ -14,7 +14,7 @@ namespace stellar
 
 ChangeTrustTxFrame::ChangeTrustTxFrame(Operation const& op, OperationResult &res,
     TransactionFrame &parentTx) :
-    OperationFrame(op, res, parentTx), mChangeTrust(mOperation.body.changeTrustTx())
+    OperationFrame(op, res, parentTx), mChangeTrust(mOperation.body.changeTrustOp())
 {
 
 }

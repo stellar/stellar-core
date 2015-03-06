@@ -8,7 +8,7 @@ namespace stellar
     {
         int32_t getNeededThreshold();
         SetOptions::SetOptionsResult &innerResult() { return mResult.tr().setOptionsResult(); }
-        SetOptionsTx const& mSetOptions;
+        SetOptionsOp const& mSetOptions;
     public:
         SetOptionsFrame(Operation const& op, OperationResult &res, TransactionFrame &parentTx);
 

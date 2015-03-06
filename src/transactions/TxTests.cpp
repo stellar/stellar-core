@@ -74,10 +74,10 @@ TransactionFramePtr createChangeTrust(SecretKey& from, SecretKey& to, uint32_t s
     Operation op;
 
     op.body.type(CHANGE_TRUST);
-    op.body.changeTrustTx().limit = limit;
-    op.body.changeTrustTx().line.type(ISO4217);
-    strToCurrencyCode(op.body.changeTrustTx().line.isoCI().currencyCode,currencyCode);
-    op.body.changeTrustTx().line.isoCI().issuer = to.getPublicKey();
+    op.body.changeTrustOp().limit = limit;
+    op.body.changeTrustOp().line.type(ISO4217);
+    strToCurrencyCode(op.body.changeTrustOp().line.isoCI().currencyCode,currencyCode);
+    op.body.changeTrustOp().line.isoCI().issuer = to.getPublicKey();
 
     return transactionFromOperation(from, seq, op);
 }
@@ -88,10 +88,10 @@ TransactionFramePtr createAllowTrust(SecretKey& from, SecretKey& trustor, uint32
     Operation op;
 
     op.body.type(ALLOW_TRUST);
-    op.body.allowTrustTx().trustor = trustor.getPublicKey();
-    op.body.allowTrustTx().currency.type(ISO4217);
-    strToCurrencyCode(op.body.allowTrustTx().currency.currencyCode(), currencyCode);
-    op.body.allowTrustTx().authorize = authorize;
+    op.body.allowTrustOp().trustor = trustor.getPublicKey();
+    op.body.allowTrustOp().currency.type(ISO4217);
+    strToCurrencyCode(op.body.allowTrustOp().currency.currencyCode(), currencyCode);
+    op.body.allowTrustOp().authorize = authorize;
 
     return transactionFromOperation(from, seq, op);
 }
@@ -114,10 +114,10 @@ TransactionFramePtr createPaymentTx(SecretKey& from, SecretKey& to, uint32_t seq
 {
     Operation op;
     op.body.type(PAYMENT);
-    op.body.paymentTx().amount = amount;
-    op.body.paymentTx().destination = to.getPublicKey();
-    op.body.paymentTx().sendMax = INT64_MAX;
-    op.body.paymentTx().currency.type(NATIVE);
+    op.body.paymentOp().amount = amount;
+    op.body.paymentOp().destination = to.getPublicKey();
+    op.body.paymentOp().sendMax = INT64_MAX;
+    op.body.paymentOp().currency.type(NATIVE);
 
     return transactionFromOperation(from, seq, op);
 }
@@ -152,10 +152,10 @@ TransactionFramePtr createCreditPaymentTx(SecretKey& from, SecretKey& to, Curren
 {
     Operation op;
     op.body.type(PAYMENT);
-    op.body.paymentTx().amount = amount;
-    op.body.paymentTx().currency = ci;
-    op.body.paymentTx().destination = to.getPublicKey();
-    op.body.paymentTx().sendMax = INT64_MAX;
+    op.body.paymentOp().amount = amount;
+    op.body.paymentOp().currency = ci;
+    op.body.paymentOp().destination = to.getPublicKey();
+    op.body.paymentOp().sendMax = INT64_MAX;
 
     return transactionFromOperation(from, seq, op);
 }
@@ -184,15 +184,15 @@ void applyCreditPaymentTx(Application& app, SecretKey& from, SecretKey& to,
     REQUIRE(Payment::getInnerCode(txFrame->getResult().result.results()[0]) == result);
 }
 
-TransactionFramePtr createOfferTx(SecretKey& source, Currency& takerGets,
+TransactionFramePtr createOfferOp(SecretKey& source, Currency& takerGets,
     Currency& takerPays, Price const &price, int64_t amount, uint32_t seq)
 {
     Operation op;
     op.body.type(CREATE_OFFER);
-    op.body.createOfferTx().amount = amount;
-    op.body.createOfferTx().takerGets = takerGets;
-    op.body.createOfferTx().takerPays = takerPays;
-    op.body.createOfferTx().price = price;
+    op.body.createOfferOp().amount = amount;
+    op.body.createOfferOp().takerGets = takerGets;
+    op.body.createOfferOp().takerPays = takerPays;
+    op.body.createOfferOp().price = price;
 
     return transactionFromOperation(source, seq, op);
 }
@@ -203,7 +203,7 @@ void applyCreateOffer(Application& app, LedgerDelta& delta, SecretKey& source, C
 {
     TransactionFramePtr txFrame;
 
-    txFrame = createOfferTx(source, takerGets,takerPays,price,amount, seq);
+    txFrame = createOfferOp(source, takerGets,takerPays,price,amount, seq);
 
     txFrame->apply(delta, app);
 
@@ -220,32 +220,32 @@ TransactionFramePtr createSetOptions(SecretKey& source, AccountID *inflationDest
 
     if (inflationDest)
     {
-        op.body.setOptionsTx().inflationDest.activate() = *inflationDest;
+        op.body.setOptionsOp().inflationDest.activate() = *inflationDest;
     }
 
     if (setFlags)
     {
-        op.body.setOptionsTx().setFlags.activate() = *setFlags;
+        op.body.setOptionsOp().setFlags.activate() = *setFlags;
     }
 
     if (clearFlags)
     {
-        op.body.setOptionsTx().clearFlags.activate() = *clearFlags;
+        op.body.setOptionsOp().clearFlags.activate() = *clearFlags;
     }
 
     if (data)
     {
-        op.body.setOptionsTx().data.activate() = *data;
+        op.body.setOptionsOp().data.activate() = *data;
     }
 
     if (thrs)
     {
-        op.body.setOptionsTx().thresholds.activate() = *thrs;
+        op.body.setOptionsOp().thresholds.activate() = *thrs;
     }
 
     if (signer)
     {
-        op.body.setOptionsTx().signer.activate() = *signer;
+        op.body.setOptionsOp().signer.activate() = *signer;
     }
 
     return transactionFromOperation(source, seq, op);

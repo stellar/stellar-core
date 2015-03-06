@@ -16,7 +16,7 @@ using namespace std;
 
     PaymentFrame::PaymentFrame(Operation const& op, OperationResult &res,
         TransactionFrame &parentTx) :
-        OperationFrame(op, res, parentTx), mPayment(mOperation.body.paymentTx())
+        OperationFrame(op, res, parentTx), mPayment(mOperation.body.paymentOp())
     {
 
     }
@@ -207,7 +207,7 @@ using namespace std;
                 AccountFrame issuer;
                 if(!AccountFrame::loadAccount(curB.isoCI().issuer, issuer, db))
                 {
-                    CLOG(ERROR, "Tx") << "PaymentTx::sendCredit Issuer not found";
+                    CLOG(ERROR, "Tx") << "PaymentOp::sendCredit Issuer not found";
                     innerResult().code(Payment::MALFORMED);
                     return false;
                 }

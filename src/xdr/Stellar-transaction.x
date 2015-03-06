@@ -15,7 +15,7 @@ enum OperationType
     INFLATION
 };
 
-struct PaymentTx
+struct PaymentOp
 {
     AccountID destination;  
     Currency currency;         // what they end up with
@@ -27,7 +27,7 @@ struct PaymentTx
     opaque sourceMemo<32>;     // used to return a payment
 };
 
-struct CreateOfferTx
+struct CreateOfferOp
 {
     Currency takerGets;
     Currency takerPays;
@@ -38,13 +38,13 @@ struct CreateOfferTx
     uint32 flags;        // passive: only take offers that cross this. not offers that match it
 };
 
-struct SetSeqSlotTx
+struct SetSeqSlotOp
 {
     uint32 slotIndex;
     uint32 slotValue;
 };
 
-struct SetOptionsTx
+struct SetOptionsOp
 {
     AccountID* inflationDest;
     uint32*    clearFlags;
@@ -54,13 +54,13 @@ struct SetOptionsTx
     Signer* signer;
 };
 
-struct ChangeTrustTx
+struct ChangeTrustOp
 {
     Currency line;
     int64 limit;
 };
 
-struct AllowTrustTx
+struct AllowTrustOp
 {
     AccountID trustor;
     union switch(CurrencyType type)
@@ -81,21 +81,21 @@ struct Operation
     union switch (OperationType type)
     {
         case PAYMENT:
-            PaymentTx paymentTx;
+            PaymentOp paymentOp;
         case CREATE_OFFER:
-            CreateOfferTx createOfferTx;
+            CreateOfferOp createOfferOp;
         case CANCEL_OFFER:
             uint64 offerID;
         case SET_OPTIONS:
-            SetOptionsTx setOptionsTx;
+            SetOptionsOp setOptionsOp;
         case CHANGE_TRUST:
-            ChangeTrustTx changeTrustTx;
+            ChangeTrustOp changeTrustOp;
         case ALLOW_TRUST:
-            AllowTrustTx allowTrustTx;
+            AllowTrustOp allowTrustOp;
         case ACCOUNT_MERGE:
             uint256 destination;
         case SET_SEQ_SLOT:
-            SetSeqSlotTx setSeqSlotTx;
+            SetSeqSlotOp setSeqSlotOp;
         case INFLATION:
             uint32 inflationSeq;
     } body;

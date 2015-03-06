@@ -17,7 +17,7 @@ namespace stellar
         
         CreateOffer::CreateOfferResult &innerResult() { return mResult.tr().createOfferResult(); }
 
-        CreateOfferTx const& mCreateOffer;
+        CreateOfferOp const& mCreateOffer;
     public:
         CreateOfferFrame(Operation const& op, OperationResult &res, TransactionFrame &parentTx);
 

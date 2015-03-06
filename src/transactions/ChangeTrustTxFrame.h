@@ -11,7 +11,7 @@ namespace stellar
 	class ChangeTrustTxFrame : public OperationFrame
 	{
         ChangeTrust::ChangeTrustResult &innerResult() { return mResult.tr().changeTrustResult(); }
-        ChangeTrustTx const& mChangeTrust;
+        ChangeTrustOp const& mChangeTrust;
 	public:
         ChangeTrustTxFrame(Operation const& op, OperationResult &res, TransactionFrame &parentTx);
 
