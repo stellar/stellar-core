@@ -767,6 +767,7 @@ Herder::recvFBAEnvelope(FBAEnvelope envelope,
         {
             mFutureEnvelopes[envelope.statement.slotIndex]
                 .push_back(std::make_pair(envelope, cb));
+            return;
         }
     }
 

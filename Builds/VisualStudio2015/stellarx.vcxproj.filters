@@ -704,6 +704,9 @@
     <None Include="..\..\docs\ledger.md">
       <Filter>docs</Filter>
     </None>
+    <None Include="..\..\docs\testnet.md">
+      <Filter>docs</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="..\..\src\overlay\StellarXDR.x">

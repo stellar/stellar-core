@@ -373,6 +373,7 @@
     <None Include="..\..\docs\overview.md" />
     <None Include="..\..\docs\questions.md" />
     <None Include="..\..\docs\stellar_overview.md" />
+    <None Include="..\..\docs\testnet.md" />
     <None Include="..\..\docs\transactions.md" />
     <None Include="..\..\docs\usecases.md" />
     <None Include="..\..\INSTALL" />

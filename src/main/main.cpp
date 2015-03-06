@@ -134,7 +134,7 @@ setForceSCPFlag(Config& cfg)
 void            
 initializeDatabase(Config &cfg) 
 {
-    cfg.REBUILD_DB = true; // don't wipe the db until we read whether it was already initialized
+    cfg.REBUILD_DB = false; // don't wipe the db until we read whether it was already initialized
     VirtualClock clock;
     Application::pointer app = Application::create(clock, cfg);
 
