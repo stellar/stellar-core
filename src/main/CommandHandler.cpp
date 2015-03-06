@@ -13,7 +13,8 @@
 #include "crypto/Hex.h"
 #include "xdrpp/marshal.h"
 #include "herder/HerderGateway.h"
-
+#include "lib/json/json.h"
+#include "crypto/Base58.h"
 
 using std::placeholders::_1;
 using std::placeholders::_2;
@@ -90,7 +91,23 @@ CommandHandler::stop(const std::string& params, std::string& retStr)
 void
 CommandHandler::peers(const std::string& params, std::string& retStr)
 {
-    retStr = "Peers...";
+    Json::Value root;
+    
+    root["peers"];
+    int counter = 0;
+    for(auto peer : mApp.getPeerMaster().getPeers())
+    {
+        binToHex(peer->getPeerID());
+        root["peers"][counter]["ip"] = peer->getIP();
+        root["peers"][counter]["port"] = peer->getRemoteListeningPort();
+        root["peers"][counter]["ver"] = peer->getRemoteVersion();
+        root["peers"][counter]["pver"] = peer->getRemoteProtocolVersion();
+        root["peers"][counter]["id"]= toBase58Check(VER_ACCOUNT_ID,peer->getPeerID());
+
+        counter++;
+    }
+    
+    retStr = root.toStyledString();
 }
 
 void

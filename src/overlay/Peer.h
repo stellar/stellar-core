@@ -119,22 +119,23 @@ class Peer : public enable_shared_from_this<Peer>
     }
 
     string const&
-    getRemoreVersion() const
+    getRemoteVersion() const
     {
         return mRemoteVersion;
     }
     
-    int
+    uint32_t
     getRemoteProtocolVersion() const
     {
         return mRemoteProtocolVersion;
     }
     
-    int
+    uint32_t
     getRemoteListeningPort()
     {
         return mRemoteListeningPort;
     }
+    uint256 getPeerID() { return mPeerID;  }
 
     // These exist mostly to be overridden in TCPPeer and callable via
     // shared_ptr<Peer> as a captured shared_from_this().
