@@ -2,7 +2,7 @@
 
 namespace stellar {
 
-enum TransactionType
+enum OperationType
 {
     PAYMENT,
     CREATE_OFFER,
@@ -34,7 +34,7 @@ struct CreateOfferTx
     int64 amount;        // amount taker gets
     Price price;         // =takerPaysAmount/takerGetsAmount
 
-    uint64 offerID;		 // set if you want to change an existing offer
+    uint64 offerID;      // set if you want to change an existing offer
     uint32 flags;        // passive: only take offers that cross this. not offers that match it
 };
 
@@ -65,28 +65,20 @@ struct AllowTrustTx
     AccountID trustor;
     union switch(CurrencyType type)
     {
-        case NATIVE:
-            void;
-
+        // NATIVE is not allowed
         case ISO4217:
             opaque currencyCode[4];
 
         // add other currency types here in the future
-    } code;
+    } currency;
 
     bool authorize;
 };
 
-struct Transaction
+struct Operation
 {
-    AccountID account;
-    int32 maxFee;
-    uint32 seqSlot;
-	uint32 seqNum;
-	uint64 minLedger;
-	uint64 maxLedger;
-
-    union switch (TransactionType type)
+    AccountID* sourceAccount; // defaults to the account from the transaction
+    union switch (OperationType type)
     {
         case PAYMENT:
             PaymentTx paymentTx;
@@ -102,11 +94,23 @@ struct Transaction
             AllowTrustTx allowTrustTx;
         case ACCOUNT_MERGE:
             uint256 destination;
-		case SET_SEQ_SLOT:
-			SetSeqSlotTx setSeqSlotTx;
+        case SET_SEQ_SLOT:
+            SetSeqSlotTx setSeqSlotTx;
         case INFLATION:
             uint32 inflationSeq;
     } body;
+};
+
+struct Transaction
+{
+    AccountID account;
+    int32 maxFee;
+    uint32 seqSlot;
+    uint32 seqNum;
+    uint64 minLedger;
+    uint64 maxLedger;
+
+    Operation operations<>;
 };
 
 struct TransactionEnvelope
@@ -151,7 +155,7 @@ struct SuccessMultiResult
     SimplePaymentResult last;
 };
 
-union PaymentResult switch(PaymentResultCode code) // ideally could collapse with TransactionResult
+union PaymentResult switch(PaymentResultCode code)
 {
     case SUCCESS:
         void;
@@ -345,50 +349,70 @@ union InflationResult switch(InflationResultCode code)
 
 }
 
+enum OperationResultCode
+{
+    opSKIP,
+    opINNER,
+
+    opBAD_AUTH, // not enough signatures to perform operation
+    opNO_ACCOUNT,
+};
+
+union OperationResult switch(OperationResultCode code)
+{
+    case opINNER:
+        union switch(OperationType type)
+        {
+            case PAYMENT:
+                Payment::PaymentResult paymentResult;
+            case CREATE_OFFER:
+                CreateOffer::CreateOfferResult createOfferResult;
+            case CANCEL_OFFER:
+                CancelOffer::CancelOfferResult cancelOfferResult;
+            case SET_OPTIONS:
+                SetOptions::SetOptionsResult setOptionsResult;
+            case CHANGE_TRUST:
+                ChangeTrust::ChangeTrustResult changeTrustResult;
+            case ALLOW_TRUST:
+                AllowTrust::AllowTrustResult allowTrustResult;
+            case ACCOUNT_MERGE:
+                AccountMerge::AccountMergeResult accountMergeResult;
+            case SET_SEQ_SLOT:
+                SetSeqSlot::SetSeqSlotResult setSeqSlotResult;
+            case INFLATION:
+                Inflation::InflationResult inflationResult;
+        } tr;
+    default:
+        void;
+};
+
 enum TransactionResultCode
 {
-    txINNER,
-    txINTERNAL_ERROR,
-    txBAD_AUTH,
-    txBAD_SEQ,
+    txSUCCESS,
+    txFAILED,
     txBAD_LEDGER,
-    txNO_FEE,
+    txDUPLICATE,
+    txMALFORMED,
+    txBAD_SEQ,
+
+    txBAD_AUTH, // not enough signatures to perform transaction
+    txINSUFFICIENT_BALANCE,
     txNO_ACCOUNT,
-    txINSUFFICIENT_FEE,
-    txBELOW_MIN_BALANCE,
-    txDUPLICATE
+    txINSUFFICIENT_FEE // max fee is too small
 };
 
 struct TransactionResult
 {
     int64 feeCharged;
+
     union switch(TransactionResultCode code)
     {
-        case txINNER:
-            union switch(TransactionType type)
-            {
-                case PAYMENT:
-                    Payment::PaymentResult paymentResult;
-                case CREATE_OFFER:
-                    CreateOffer::CreateOfferResult createOfferResult;
-                case CANCEL_OFFER:
-                    CancelOffer::CancelOfferResult cancelOfferResult;
-                case SET_OPTIONS:
-                    SetOptions::SetOptionsResult setOptionsResult;
-                case CHANGE_TRUST:
-                    ChangeTrust::ChangeTrustResult changeTrustResult;
-                case ALLOW_TRUST:
-                    AllowTrust::AllowTrustResult allowTrustResult;
-                case ACCOUNT_MERGE:
-                    AccountMerge::AccountMergeResult accountMergeResult;
-				case SET_SEQ_SLOT:
-					SetSeqSlot::SetSeqSlotResult setSeqSlotResult;
-                case INFLATION:
-                    Inflation::InflationResult inflationResult;
-            } tr;
+        case txSUCCESS:
+        case txFAILED:
+            OperationResult results<>;
         default:
             void;
-    } body;
+    } result;
 };
 
 }

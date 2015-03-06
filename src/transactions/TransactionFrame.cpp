@@ -28,39 +28,52 @@ namespace stellar
 {
 
 using namespace std;
-   
-TransactionFrame::pointer TransactionFrame::makeTransactionFromWire(TransactionEnvelope const& msg)
+
+shared_ptr<OperationFrame> OperationFrame::makeHelper(Operation const& op,
+    OperationResult &res, TransactionFrame &tx)
 {
-    switch(msg.tx.body.type())
+    switch (op.body.type())
     {
     case PAYMENT:
-        return TransactionFrame::pointer(new PaymentFrame(msg));
+        return shared_ptr<OperationFrame>(new PaymentFrame(op, res, tx));
     case CREATE_OFFER:
-        return TransactionFrame::pointer(new CreateOfferFrame(msg));
+        return shared_ptr<OperationFrame>(new CreateOfferFrame(op, res, tx));
     case CANCEL_OFFER:
-        return TransactionFrame::pointer(new CancelOfferFrame(msg));
+        return shared_ptr<OperationFrame>(new CancelOfferFrame(op, res, tx));
     case SET_OPTIONS:
-        return TransactionFrame::pointer(new SetOptionsFrame(msg));
+        return shared_ptr<OperationFrame>(new SetOptionsFrame(op, res, tx));
     case CHANGE_TRUST:
-        return TransactionFrame::pointer(new ChangeTrustTxFrame(msg));
+        return shared_ptr<OperationFrame>(new ChangeTrustTxFrame(op, res, tx));
     case ALLOW_TRUST:
-        return TransactionFrame::pointer(new AllowTrustTxFrame(msg));
+        return shared_ptr<OperationFrame>(new AllowTrustTxFrame(op, res, tx));
     case ACCOUNT_MERGE:
-        return TransactionFrame::pointer(new MergeFrame(msg));
+        return shared_ptr<OperationFrame>(new MergeFrame(op, res, tx));
     case INFLATION:
-        return TransactionFrame::pointer(new InflationFrame(msg));
+        return shared_ptr<OperationFrame>(new InflationFrame(op, res, tx));
 
     default:
-        CLOG(WARNING, "Tx") << "Unknown Tx type: " << msg.tx.body.type();
+        ostringstream err;
+        err << "Unknown Tx type: " << op.body.type();
+        throw std::invalid_argument(err.str());
     }
+}
 
-    return TransactionFrame::pointer();
+TransactionFrame::pointer TransactionFrame::makeTransactionFromWire(TransactionEnvelope const& msg)
+{
+    TransactionFrame::pointer res = make_shared<TransactionFrame>(msg);
+    return res;
+}
+
+
+OperationFrame::OperationFrame(Operation const& op, OperationResult &res, TransactionFrame & parentTx)
+    : mOperation(op), mParentTx(parentTx), mResult(res)
+{
 }
 
 TransactionFrame::TransactionFrame(const TransactionEnvelope& envelope) : mEnvelope(envelope)
 {
 }
-    
+
 Hash& TransactionFrame::getFullHash()
 {
     if(isZero(mFullHash))
@@ -85,80 +98,13 @@ TransactionEnvelope& TransactionFrame::getEnvelope()
     return mEnvelope;
 }
 
-void TransactionFrame::setSourceAccountPtr(AccountFrame::pointer signingAccount)
-{
-    if (!signingAccount)
-    {
-        if (mEnvelope.tx.account != signingAccount->getID())
-        {
-            throw std::invalid_argument("wrong account");
-        }
-    }
-    mSigningAccount = signingAccount;
-}
-
-bool TransactionFrame::preApply(LedgerDelta& delta,LedgerMaster& ledgerMaster)
-{
-    Database &db = ledgerMaster.getDatabase();
-    int32_t fee = ledgerMaster.getTxFee();
-
-    if (mSigningAccount->getAccount().balance < fee)
-    {
-        mResult.body.code(txNO_FEE);
-
-        // take all their balance to be safe
-        mSigningAccount->getAccount().balance = 0;
-        mSigningAccount->storeChange(delta, db);
-        return false;
-    }
-    mSigningAccount->setSeqSlot(mEnvelope.tx.seqSlot, mEnvelope.tx.seqNum);
-    mSigningAccount->getAccount().balance -= fee;
-    mResult.feeCharged = fee;
-    ledgerMaster.getCurrentLedgerHeader().feePool += fee;
-
-    mSigningAccount->storeChange(delta, db);
-
-    return true;
-}
-
-bool TransactionFrame::apply(LedgerDelta& delta, Application& app)
+bool OperationFrame::apply(LedgerDelta& delta, Application& app)
 {
     bool res;
-
-    mResult.body.code(txINTERNAL_ERROR);
-
-    if(checkValid(app))
+    res = checkValid(app);
+    if(res)
     {
-        // this can't be done in checkValid since we should still flood txs 
-        // where seq != envelope.seq
-        if(mSigningAccount->getSeq(mEnvelope.tx.seqSlot, app.getDatabase())+1 != mEnvelope.tx.seqNum)
-        {
-            mResult.body.code(txBAD_SEQ);
-            return true;  // needs to return true since it will still claim a fee
-        }
-
-        res = true;
-
-        LedgerMaster &lm = app.getLedgerMaster();
-
-        bool pre_res = preApply(delta, lm);
-
-        if (pre_res)
-        {
-            soci::transaction sqlTx(lm.getDatabase().getSession());
-            LedgerDelta txDelta(delta.getCurrentID());
-
-            bool apply_res = doApply(txDelta, lm);
-            if (apply_res)
-            {
-                sqlTx.commit();
-                delta.merge(txDelta);
-            }
-        }
-    }
-    else
-    {
-        res = false;
+        res = doApply(delta, app.getLedgerMaster());
     }
 
     return res;
@@ -171,68 +117,89 @@ void TransactionFrame::addSignature(const SecretKey& secretKey)
 }
 
 
-int32_t TransactionFrame::getNeededThreshold()
+int32_t OperationFrame::getNeededThreshold()
 {
-    return mSigningAccount->getMidThreshold();
+    return mSourceAccount->getMidThreshold();
 }
 
-bool TransactionFrame::checkSignature()
+bool OperationFrame::checkSignature()
+{
+    return mParentTx.checkSignature(*mSourceAccount, getNeededThreshold());
+}
+
+bool TransactionFrame::checkSignature(AccountFrame& account, int32_t neededWeight)
 {
     vector<Signer> keyWeights;
-    if(mSigningAccount->getAccount().thresholds[0])
-        keyWeights.push_back(Signer(mSigningAccount->getID(),mSigningAccount->getAccount().thresholds[0]));
+    if(account.getAccount().thresholds[0])
+        keyWeights.push_back(Signer(account.getID(), account.getAccount().thresholds[0]));
 
-    keyWeights.insert(keyWeights.end(), mSigningAccount->getAccount().signers.begin(), mSigningAccount->getAccount().signers.end());
+    keyWeights.insert(keyWeights.end(), account.getAccount().signers.begin(), account.getAccount().signers.end());
 
-    // make sure not too many signatures attached to the tx
-    if(keyWeights.size() < mEnvelope.signatures.size())
-        return false;
-
-    getContentsHash();
+    Hash const& contentsHash = getContentsHash();
 
     // calculate the weight of the signatures
     int totalWeight = 0;
-    for(auto sig : mEnvelope.signatures)
+    for(auto sig : getEnvelope().signatures)
     {
-        bool found = false;
         for(auto it = keyWeights.begin(); it != keyWeights.end(); it++)
         {
-            if(PublicKey::verifySig((*it).pubKey, sig, mContentsHash))
+            if(PublicKey::verifySig((*it).pubKey, sig, contentsHash))
             {
                 totalWeight += (*it).weight;
-                if(totalWeight >= getNeededThreshold())
+                if(totalWeight >= neededWeight)
                     return true;
 
                 keyWeights.erase(it);  // can't sign twice
-                found = true;
                 break;
             }
         }
-        if(!found) return false;  // some random person signed it
     }
 
     return false;
 }
 
-bool TransactionFrame::loadAccount(Application& app)
+uint256 const& OperationFrame::getSourceID()
 {
-    bool res;
-    // OPTIMIZE: we could cache the AccountFrames so we don't have to 
-    //   keep looking them up for every tx
-    AccountFrame::pointer account = make_shared<AccountFrame>();
-    res = AccountFrame::loadAccount(mEnvelope.tx.account,
-        *account, app.getDatabase(), true);
-    if (res)
+    return mOperation.sourceAccount ?
+        *mOperation.sourceAccount : mParentTx.getEnvelope().tx.account;
+}
+
+bool OperationFrame::loadAccount(Application& app)
+{
+    mSourceAccount = mParentTx.loadAccount(app, getSourceID());
+    return !!mSourceAccount;
+}
+
+AccountFrame::pointer TransactionFrame::loadAccount(Application& app, uint256 const& accountID)
+{
+    AccountFrame::pointer res;
+
+    if (mSigningAccount && mSigningAccount->getID() == accountID)
     {
-        mSigningAccount = account;
-    } else mSigningAccount = AccountFrame::pointer();
-   
+        res = mSigningAccount;
+    }
+    else
+    {
+        res = make_shared<AccountFrame>();
+        bool ok = AccountFrame::loadAccount(accountID, *res, app.getDatabase(), true);
+        if (!ok)
+        {
+            res.reset();
+        }
+    }
     return res;
 }
 
-TransactionResultCode TransactionFrame::getResultCode()
+bool TransactionFrame::loadAccount(Application& app)
 {
-    return mResult.body.code();
+    mSigningAccount = loadAccount(app, getSourceID());
+    return !!mSigningAccount;
+}
+
+
+OperationResultCode OperationFrame::getResultCode()
+{
+    return mResult.code();
 }
 
 // called when determining if we should accept this tx.
@@ -242,57 +209,214 @@ TransactionResultCode TransactionFrame::getResultCode()
 // make sure it is in the correct ledger bounds
 // don't consider minBalance since you want to allow them to still send
 // around credit etc
-bool TransactionFrame::checkValid(Application& app)
+bool OperationFrame::checkValid(Application& app)
 {
-    int32_t fee = app.getLedgerGateway().getTxFee();
-
-    if (mEnvelope.tx.maxFee < app.getLedgerGateway().getTxFee())
-    {
-        mResult.body.code(txINSUFFICIENT_FEE);
-        return false;
-    }
-
-    if(mEnvelope.tx.maxLedger < app.getLedgerGateway().getLedgerNum())
-    {
-        mResult.body.code(txBAD_LEDGER);
-        return false;
-    }
-    if(mEnvelope.tx.minLedger > app.getLedgerGateway().getLedgerNum())
-    {
-        mResult.body.code(txBAD_LEDGER);
-        return false;
-    }
-
     if (!loadAccount(app))
     {
-        mResult.body.code(txNO_ACCOUNT);
-        return false;
-    }
-
-    if(mSigningAccount->getSeq(mEnvelope.tx.seqSlot,app.getDatabase())>=mEnvelope.tx.seqNum)
-    {
-        mResult.body.code(txBAD_SEQ);
+        mResult.code(opNO_ACCOUNT);
         return false;
     }
 
     if (!checkSignature())
     {
-        mResult.body.code(txBAD_AUTH);
+        mResult.code(opBAD_AUTH);
+        return false;
+    }
+
+    mResult.code(opINNER);
+    mResult.tr().type(
+        mOperation.body.type());
+
+    return doCheckValid(app);
+}
+
+
+bool TransactionFrame::checkValid(Application &app, bool applying)
+{
+    // pre-allocates the results for all operations
+    mResult.result.code(txSUCCESS);
+    mResult.result.results().resize((uint32_t)mEnvelope.tx.operations.size());
+
+    mOperations.clear();
+
+    // bind operations to the results
+    for (size_t i = 0; i < mEnvelope.tx.operations.size(); i++)
+    {
+        mOperations.push_back(OperationFrame::makeHelper(mEnvelope.tx.operations[i],
+            mResult.result.results()[i], *this));
+    }
+
+    // feeCharged is updated accordingly to represent the cost of the transaction
+    // regardless of the failure modes.
+    mResult.feeCharged = 0;
+
+    if (mOperations.size() == 0)
+    {
+        mResult.result.code(txMALFORMED);
+        return false;
+    }
+
+    if(mEnvelope.tx.maxLedger < app.getLedgerGateway().getLedgerNum())
+    {
+        mResult.result.code(txBAD_LEDGER);
+        return false;
+    }
+    if(mEnvelope.tx.minLedger > app.getLedgerGateway().getLedgerNum())
+    {
+        mResult.result.code(txBAD_LEDGER);
+        return false;
+    }
+
+    // fee we'd like to charge for this transaction
+    int64_t fee = app.getLedgerGateway().getTxFee() * mOperations.size();
+
+    if (mEnvelope.tx.maxFee < fee)
+    {
+        mResult.result.code(txINSUFFICIENT_FEE);
+        return false;
+    }
+
+    if (!loadAccount(app))
+    {
+        mResult.result.code(txNO_ACCOUNT);
         return false;
     }
 
     if (mSigningAccount->getAccount().balance < fee)
     {
-        mResult.body.code(txNO_FEE);
+        mResult.result.code(txINSUFFICIENT_BALANCE);
         return false;
     }
 
-    mResult.body.code(txINNER);
-    mResult.body.tr().type(
-        mEnvelope.tx.body.type());
+    if (applying)
+    {
+        // where seq != envelope.seq
+        if (mSigningAccount->getSeq(mEnvelope.tx.seqSlot, app.getDatabase()) + 1 != mEnvelope.tx.seqNum)
+        {
+            mResult.result.code(txBAD_SEQ);
+            return false;
+        }
+    }
+    else
+    {
+        if (mSigningAccount->getSeq(mEnvelope.tx.seqSlot, app.getDatabase()) >= mEnvelope.tx.seqNum)
+        {
+            mResult.result.code(txBAD_SEQ);
+            return false;
+        }
+    }
 
-    return doCheckValid(app);
+    if (!checkSignature(*mSigningAccount, mSigningAccount->getLowThreshold()))
+    {
+        mResult.result.code(txBAD_AUTH);
+        return false;
+    }
+
+    // failures after this point will end up charging a fee if attempting to run "apply"
+    mResult.feeCharged = fee;
+
+    if (!applying)
+    {
+        for (auto &op : mOperations)
+        {
+            if (!op->checkValid(app))
+            {
+                return false;
+            }
+        }
+    }
+
+    return true;
 }
+
+void TransactionFrame::prepareResult(LedgerDelta& delta, LedgerMaster& ledgerMaster)
+{
+    Database &db = ledgerMaster.getDatabase();
+    int64_t fee = mResult.feeCharged;
+
+    if (fee > 0)
+    {
+        if (mSigningAccount->getAccount().balance < fee)
+        {
+            // take all their balance to be safe
+            fee = mSigningAccount->getAccount().balance;
+        }
+        mSigningAccount->setSeqSlot(mEnvelope.tx.seqSlot, mEnvelope.tx.seqNum);
+        mSigningAccount->getAccount().balance -= fee;
+        ledgerMaster.getCurrentLedgerHeader().feePool += fee;
+
+        mSigningAccount->storeChange(delta, db);
+    }
+}
+
+void TransactionFrame::setSourceAccountPtr(AccountFrame::pointer signingAccount)
+{
+    if (!signingAccount)
+    {
+        if (mEnvelope.tx.account != signingAccount->getID())
+        {
+            throw std::invalid_argument("wrong account");
+        }
+    }
+    mSigningAccount = signingAccount;
+}
+
+bool TransactionFrame::checkValid(Application& app)
+{
+    mSigningAccount.reset();
+    return checkValid(app, false);
+}
+
+bool TransactionFrame::apply(LedgerDelta& delta, Application& app)
+{
+    mSigningAccount.reset();
+    LedgerMaster &lm = app.getLedgerMaster();
+    if (!checkValid(app, true))
+    {
+        prepareResult(delta, lm);
+        return false;
+    }
+    // full fee charged at this point
+    prepareResult(delta, lm);
+
+    bool errorEncountered = false;
+
+    {
+        soci::transaction sqlTx(app.getDatabase().getSession());
+        LedgerDelta thisTxDelta(delta);
+
+        for (auto &op : mOperations)
+        {
+            bool txRes = op->apply(thisTxDelta, app);
+
+            if (!txRes)
+            {
+                errorEncountered = true;
+            }
+        }
+
+        if (!errorEncountered)
+        {
+            sqlTx.commit();
+            thisTxDelta.commit();
+        }
+    }
+
+    if (errorEncountered)
+    {
+        // changing "code" causes the xdr struct to be deleted/re-created
+        // As we want to preserve the results, we save them inside a temp object
+        // Also, note that because we're using move operators
+        // mOperations are still valid (they have pointers to the individual results elements)
+        xdr::xvector<OperationResult> t(std::move(mResult.result.results()));
+        mResult.result.code(txFAILED);
+        mResult.result.results() = std::move(t);
+    }
+
+    // return true as the transaction executed and collected a fee
+    return true;
+}
+
 
 StellarMessage TransactionFrame::toStellarMessage()
 {

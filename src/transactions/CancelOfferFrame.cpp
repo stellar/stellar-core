@@ -5,17 +5,19 @@
 
 namespace stellar
 {
-    CancelOfferFrame::CancelOfferFrame(const TransactionEnvelope& envelope) : TransactionFrame(envelope)
-    {
 
-    }
-// look up this Offer
+CancelOfferFrame::CancelOfferFrame(Operation const& op, OperationResult &res,
+    TransactionFrame &parentTx) :
+    OperationFrame(op, res, parentTx)
+{
+}
+
 bool CancelOfferFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
 {
     OfferFrame offerFrame;
     Database &db = ledgerMaster.getDatabase();
-    if(!OfferFrame::loadOffer(mSigningAccount->getAccount().accountID, 
-        mEnvelope.tx.body.offerID(), offerFrame, db))
+    if(!OfferFrame::loadOffer(getSourceID(),
+        mOperation.body.offerID(), offerFrame, db))
     {
         innerResult().code(CancelOffer::NOT_FOUND);
         return false;
@@ -23,9 +25,9 @@ bool CancelOfferFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
 
     innerResult().code(CancelOffer::SUCCESS);
     
-    mSigningAccount->getAccount().numSubEntries--;
+    mSourceAccount->getAccount().numSubEntries--;
     offerFrame.storeDelete(delta, db);
-    mSigningAccount->storeChange(delta, db);
+    mSourceAccount->storeChange(delta, db);
 
     return true;
 }

@@ -6,7 +6,7 @@
 
 namespace stellar
 {
-    class CreateOfferFrame : public TransactionFrame
+    class CreateOfferFrame : public OperationFrame
     {
         TrustFrame mSheepLineA;
         TrustFrame mWheatLineA;
@@ -15,9 +15,11 @@ namespace stellar
 
         bool checkOfferValid(Database& db); 
         
-        CreateOffer::CreateOfferResult &innerResult() { return mResult.body.tr().createOfferResult(); }
+        CreateOffer::CreateOfferResult &innerResult() { return mResult.tr().createOfferResult(); }
+
+        CreateOfferTx const& mCreateOffer;
     public:
-        CreateOfferFrame(const TransactionEnvelope& envelope);
+        CreateOfferFrame(Operation const& op, OperationResult &res, TransactionFrame &parentTx);
 
         bool doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster);
         bool doCheckValid(Application& app);
@@ -25,9 +27,9 @@ namespace stellar
 
     namespace CreateOffer
     {
-        inline CreateOffer::CreateOfferResultCode getInnerCode(TransactionResult const & res)
+        inline CreateOffer::CreateOfferResultCode getInnerCode(OperationResult const & res)
         {
-            return res.body.tr().createOfferResult().code();
+            return res.tr().createOfferResult().code();
         }
     }
 

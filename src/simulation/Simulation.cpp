@@ -300,7 +300,7 @@ vector<Simulation::TxInfo>
 Simulation::createRandomTransactions(size_t n, float paretoAlpha)
 {
     vector<TxInfo> result;
-    for (int i = 0; i < n; i++)
+    for (size_t i = 0; i < n; i++)
     {
         result.push_back(createRandomTransaction(paretoAlpha));
     }

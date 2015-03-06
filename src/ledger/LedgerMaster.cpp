@@ -120,7 +120,7 @@ Database &LedgerMaster::getDatabase()
     return mApp.getDatabase();
 }
 
-int32_t LedgerMaster::getTxFee()
+int64_t LedgerMaster::getTxFee()
 {
     return mCurrentLedger->mHeader.baseFee; 
 }
@@ -227,7 +227,8 @@ void LedgerMaster::closeLedger(LedgerCloseData ledgerData)
     for(auto tx : txs)
     {
         auto txTime = mTransactionApply.TimeScope();
-        try {
+        try
+        {
             LedgerDelta delta(ledgerDelta);
 
             // note that successfulTX here just means it got processed
@@ -243,7 +244,8 @@ void LedgerMaster::closeLedger(LedgerCloseData ledgerData)
                 CLOG(ERROR, "Tx") << "invalid tx. This should never happen";
             }
 
-        }catch(...)
+        }
+        catch(...)
         {
             CLOG(ERROR, "Ledger") << "Exception during tx->apply";
         }
@@ -253,7 +255,6 @@ void LedgerMaster::closeLedger(LedgerCloseData ledgerData)
     mCurrentLedger->mHeader.closeTime = ledgerData.mCloseTime;
     closeLedgerHelper(true, ledgerDelta);
     txscope.commit();
-    
 
     // Notify ledger close to other components.
     mApp.getHerderGateway().ledgerClosed(mLastClosedLedger->mHeader);

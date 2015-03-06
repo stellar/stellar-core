@@ -4,12 +4,13 @@
 
 namespace stellar
 {
-    class SetSeqSlotFrame : public TransactionFrame
+    class SetSeqSlotFrame : public OperationFrame
     {
         
-        SetSeqSlot::SetSeqSlotResult &innerResult() { return mResult.body.tr().setSeqSlotResult(); }
+        SetSeqSlot::SetSeqSlotResult &innerResult() { return mResult.tr().setSeqSlotResult(); }
+        SetSeqSlotTx const& mSetSlot;
     public:
-        SetSeqSlotFrame(const TransactionEnvelope& envelope);
+        SetSeqSlotFrame(Operation const& op, OperationResult &res, TransactionFrame &parentTx);
 
         bool doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster);
         bool doCheckValid(Application& app);
@@ -17,9 +18,9 @@ namespace stellar
 
     namespace SetSeqSlot
     {
-        inline SetSeqSlot::SetSeqSlotResultCode getInnerCode(TransactionResult const & res)
+        inline SetSeqSlot::SetSeqSlotResultCode getInnerCode(OperationResult const & res)
         {
-            return res.body.tr().setSeqSlotResult().code();
+            return res.tr().setSeqSlotResult().code();
         }
     }
 

@@ -137,7 +137,7 @@ bool AccountFrame::loadAccount(const uint256& accountID, AccountFrame& retAcc,
     if (thresholdsInd == soci::i_ok)
     {
         std::vector<uint8_t> bin = hexToBin(thresholds);
-        for (int n = 0; (n < 4) && (n < bin.size()); n++)
+        for (size_t n = 0; (n < 4) && (n < bin.size()); n++)
         {
             retAcc.mAccountEntry.thresholds[n] = bin[n];
         }

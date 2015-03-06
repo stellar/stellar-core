@@ -3,7 +3,9 @@
 
 namespace stellar
 {
-    InflationFrame::InflationFrame(const TransactionEnvelope& envelope) : TransactionFrame(envelope)
+    InflationFrame::InflationFrame(Operation const& op, OperationResult &res,
+        TransactionFrame &parentTx) :
+        OperationFrame(op, res, parentTx)
     {
 
     }

@@ -5,70 +5,69 @@
 // TODO.2 Handle all SQL exceptions
 namespace stellar
 {
-    SetOptionsFrame::SetOptionsFrame(const TransactionEnvelope& envelope) :
-        TransactionFrame(envelope)
+    SetOptionsFrame::SetOptionsFrame(Operation const& op, OperationResult &res,
+        TransactionFrame &parentTx) :
+        OperationFrame(op, res, parentTx), mSetOptions(mOperation.body.setOptionsTx())
     {
-
     }
 
     int32_t SetOptionsFrame::getNeededThreshold()
     {
-        SetOptionsTx const& options = mEnvelope.tx.body.setOptionsTx();
         // updating thresholds or signer requires high threshold
-        if (options.thresholds || options.signer)
+        if (mSetOptions.thresholds || mSetOptions.signer)
         {
-            return mSigningAccount->getHighThreshold();
+            return mSourceAccount->getHighThreshold();
         }
-        return mSigningAccount->getMidThreshold();
+        return mSourceAccount->getMidThreshold();
     }
 
     // make sure it doesn't allow us to add signers when we don't have the minbalance
     bool SetOptionsFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
     {
         Database &db = ledgerMaster.getDatabase();
-        SetOptionsTx const& options = mEnvelope.tx.body.setOptionsTx();
-        if(options.inflationDest)
+        AccountEntry &account = mSourceAccount->getAccount();
+
+        if(mSetOptions.inflationDest)
         {
-            mSigningAccount->getAccount().inflationDest.activate()=*options.inflationDest;
+            account.inflationDest.activate()=*mSetOptions.inflationDest;
         }
 
-        if (options.clearFlags)
+        if (mSetOptions.clearFlags)
         {
-            mSigningAccount->getAccount().flags = mSigningAccount->getAccount().flags & ~*options.clearFlags;
+            account.flags = account.flags & ~*mSetOptions.clearFlags;
         }
-        if(options.setFlags)
+        if(mSetOptions.setFlags)
         {   
-            mSigningAccount->getAccount().flags = mSigningAccount->getAccount().flags | *options.setFlags;
+            account.flags = account.flags | *mSetOptions.setFlags;
         }
         
-        if(options.thresholds)
+        if(mSetOptions.thresholds)
         {
-            mSigningAccount->getAccount().thresholds = *options.thresholds;
+            account.thresholds = *mSetOptions.thresholds;
         }
         
-        if(options.signer)
+        if(mSetOptions.signer)
         {
-            xdr::xvector<Signer>& signers = mSigningAccount->getAccount().signers;
-            if(options.signer->weight)
+            xdr::xvector<Signer>& signers = account.signers;
+            if(mSetOptions.signer->weight)
             { // add or change signer
                 bool found = false;
                 for(auto oldSigner : signers)
                 {
-                    if(oldSigner.pubKey == options.signer->pubKey)
+                    if(oldSigner.pubKey == mSetOptions.signer->pubKey)
                     {
-                        oldSigner.weight = options.signer->weight;
+                        oldSigner.weight = mSetOptions.signer->weight;
                     }
                 }
                 if(!found)
                 {
-                    if( mSigningAccount->getAccount().balance < 
-                        ledgerMaster.getMinBalance(mSigningAccount->getAccount().numSubEntries + 1))
+                    if(account.balance < ledgerMaster.getMinBalance(account.numSubEntries + 1))
                     {
                         innerResult().code(SetOptions::BELOW_MIN_BALANCE);
                         return false;
                     }
-                    mSigningAccount->getAccount().numSubEntries++;
-                    signers.push_back(*options.signer);
+                    account.numSubEntries++;
+                    signers.push_back(*mSetOptions.signer);
                 }
             } else
             { // delete signer
@@ -76,10 +75,10 @@ namespace stellar
                 while (it != signers.end())
                 {
                     Signer& oldSigner = *it;
-                    if(oldSigner.pubKey == options.signer->pubKey)
+                    if(oldSigner.pubKey == mSetOptions.signer->pubKey)
                     {
                         it = signers.erase(it);
-                        mSigningAccount->getAccount().numSubEntries--;
+                        account.numSubEntries--;
                     }
                     else
                     {
@@ -87,20 +86,19 @@ namespace stellar
                     }
                 }
             }
-            mSigningAccount->setUpdateSigners();
+            mSourceAccount->setUpdateSigners();
         }
         
         innerResult().code(SetOptions::SUCCESS);
-        mSigningAccount->storeChange(delta, db);
+        mSourceAccount->storeChange(delta, db);
         return true;
     }
 
     bool SetOptionsFrame::doCheckValid(Application& app)
     {
-        SetOptionsTx const& options = mEnvelope.tx.body.setOptionsTx();
-        if (options.setFlags && options.clearFlags)
+        if (mSetOptions.setFlags && mSetOptions.clearFlags)
         {
-            if ((*options.setFlags & *options.clearFlags) != 0)
+            if ((*mSetOptions.setFlags & *mSetOptions.clearFlags) != 0)
             {
                 innerResult().code(SetOptions::MALFORMED);
                 return false;

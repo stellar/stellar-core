@@ -4,12 +4,14 @@
 
 namespace stellar
 {
-    class AllowTrustTxFrame : public TransactionFrame
+    class AllowTrustTxFrame : public OperationFrame
     {
         int32_t getNeededThreshold();
-        AllowTrust::AllowTrustResult &innerResult() { return mResult.body.tr().allowTrustResult(); }
+        AllowTrust::AllowTrustResult &innerResult() { return mResult.tr().allowTrustResult(); }
+
+        AllowTrustTx const& mAllowTrust;
     public:
-        AllowTrustTxFrame(const TransactionEnvelope& envelope);
+        AllowTrustTxFrame(Operation const& op, OperationResult &res, TransactionFrame &parentTx);
 
         bool doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster);
         bool doCheckValid(Application& app);
@@ -17,9 +19,9 @@ namespace stellar
 
     namespace AllowTrust
     {
-        inline AllowTrust::AllowTrustResultCode getInnerCode(TransactionResult const & res)
+        inline AllowTrust::AllowTrustResultCode getInnerCode(OperationResult const & res)
         {
-            return res.body.tr().allowTrustResult().code();
+            return res.tr().allowTrustResult().code();
         }
     }
 }

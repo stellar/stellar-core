@@ -120,11 +120,11 @@ TEST_CASE("payment", "[tx][payment]")
         {
             LOG(INFO) << "send STR with path";
             TransactionFramePtr txFrame2 = createPaymentTx(root, a1, 2, morePayment);
-            txFrame2->getEnvelope().tx.body.paymentTx().path.push_back(currency);
+            getFirstOperation(*txFrame2).body.paymentTx().path.push_back(currency);
             LedgerDelta delta2(app.getLedgerMaster().getCurrentLedgerHeader());
             txFrame2->apply(delta2, app);
 
-            REQUIRE(Payment::getInnerCode(txFrame2->getResult()) == Payment::OVERSENDMAX);
+            REQUIRE(Payment::getInnerCode(getFirstResult(*txFrame2)) == Payment::OVERSENDMAX);
             AccountFrame account;
             REQUIRE(AccountFrame::loadAccount(a1.getPublicKey(), account, app.getDatabase()));
             

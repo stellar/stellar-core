@@ -4,12 +4,13 @@
 
 namespace stellar
 {
-    class SetOptionsFrame : public TransactionFrame
+    class SetOptionsFrame : public OperationFrame
     {
         int32_t getNeededThreshold();
-        SetOptions::SetOptionsResult &innerResult() { return mResult.body.tr().setOptionsResult(); }
+        SetOptions::SetOptionsResult &innerResult() { return mResult.tr().setOptionsResult(); }
+        SetOptionsTx const& mSetOptions;
     public:
-        SetOptionsFrame(const TransactionEnvelope& envelope);
+        SetOptionsFrame(Operation const& op, OperationResult &res, TransactionFrame &parentTx);
 
         bool doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster);
         bool doCheckValid(Application& app);
@@ -17,9 +18,9 @@ namespace stellar
 
     namespace SetOptions
     {
-        inline SetOptions::SetOptionsResultCode getInnerCode(TransactionResult const & res)
+        inline SetOptions::SetOptionsResultCode getInnerCode(OperationResult const & res)
         {
-            return res.body.tr().setOptionsResult().code();
+            return res.tr().setOptionsResult().code();
         }
     }
 

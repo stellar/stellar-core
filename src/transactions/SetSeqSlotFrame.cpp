@@ -5,8 +5,9 @@
 
 namespace stellar
 {
-    SetSeqSlotFrame::SetSeqSlotFrame(const TransactionEnvelope& envelope) :
-        TransactionFrame(envelope)
+    SetSeqSlotFrame::SetSeqSlotFrame(Operation const& op, OperationResult &res,
+        TransactionFrame &parentTx) :
+        OperationFrame(op, res, parentTx), mSetSlot(mOperation.body.setSeqSlotTx())
     {
 
     }
@@ -23,15 +24,13 @@ namespace stellar
     {
         Database &db = ledgerMaster.getDatabase();
 
-        SetSeqSlotTx const& setSlot = mEnvelope.tx.body.setSeqSlotTx();
+        uint32_t slotIndex = mSetSlot.slotIndex;
 
-        uint32_t slotIndex = setSlot.slotIndex;
-
-        uint32_t maxSlot = mSigningAccount->getMaxSeqSlot(db);
+        uint32_t maxSlot = mSourceAccount->getMaxSeqSlot(db);
         if(slotIndex <= maxSlot)
         {  // changing old slot
-            uint32_t curNum = mSigningAccount->getSeq(slotIndex,db);
-            if(curNum >= setSlot.slotValue)
+            uint32_t curNum = mSourceAccount->getSeq(slotIndex,db);
+            if(curNum >= mSetSlot.slotValue)
             {
                 innerResult().code(SetSeqSlot::INVALID_SEQ_NUM);
                 return false;

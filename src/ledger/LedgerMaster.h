@@ -56,7 +56,7 @@ namespace stellar
 
         uint64_t getLedgerNum();
         int64_t getMinBalance(uint32_t ownerCount);
-        int32_t getTxFee();
+        int64_t getTxFee(); // fee is a 32 bit but we use 64 to avoid overflow when doing math
         uint64_t getCloseTime();
 
         ///////

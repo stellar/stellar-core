@@ -146,35 +146,32 @@ TxSetFrame::checkValid(Application& app)
         lastHash = tx->getFullHash();
     }
 
-    for (auto item : accountTxMap)
+    for (auto &item : accountTxMap)
     {
         TransactionFramePtr first;
-        for (auto tx : item.second)
+        for (auto &tx : item.second)
         {
-            if (!first)
-            {    
-                if(!tx->loadAccount(app)) return false;
-                // make sure account can pay the fee for all these tx
-                if (tx->getSourceAccount().getBalance() < 
-                    (static_cast<int64_t>(xdr::size32(item.second.size())) * 
-                                          app.getLedgerGateway().getTxFee()))
-                {
-                    return false;
-                }
-            } 
-            else
+            if (first)
             {
-                // save us a DB load
                 tx->setSourceAccountPtr(first->getSourceAccountPtr());
+
             }
-            
-            if (!tx->checkValid(app)) 
+
+            if (!tx->checkValid(app))
             {
                 return false;
             }
-            
-            
-            first = tx;
+
+            if (!first)
+            {
+                first = tx;
+                // make sure account can pay the fee for all these tx
+                if (tx->getSourceAccount().getBalance() <
+                    xdr::size32(item.second.size()) * app.getLedgerGateway().getTxFee())
+                {
+                    return false;
+                }
+            }
         }
     }
     return true;

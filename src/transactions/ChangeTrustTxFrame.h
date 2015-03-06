@@ -8,11 +8,12 @@
 
 namespace stellar
 {
-	class ChangeTrustTxFrame : public TransactionFrame
+	class ChangeTrustTxFrame : public OperationFrame
 	{
-        ChangeTrust::ChangeTrustResult &innerResult() { return mResult.body.tr().changeTrustResult(); }
+        ChangeTrust::ChangeTrustResult &innerResult() { return mResult.tr().changeTrustResult(); }
+        ChangeTrustTx const& mChangeTrust;
 	public:
-        ChangeTrustTxFrame(const TransactionEnvelope& envelope);
+        ChangeTrustTxFrame(Operation const& op, OperationResult &res, TransactionFrame &parentTx);
 
         bool doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster);
         bool doCheckValid(Application& app);
@@ -20,9 +21,9 @@ namespace stellar
 
     namespace ChangeTrust
     {
-        inline ChangeTrust::ChangeTrustResultCode getInnerCode(TransactionResult const & res)
+        inline ChangeTrust::ChangeTrustResultCode getInnerCode(OperationResult const & res)
         {
-            return res.body.tr().changeTrustResult().code();
+            return res.tr().changeTrustResult().code();
         }
     }
 

@@ -5,34 +5,33 @@
 
 namespace stellar
 {
-    AllowTrustTxFrame::AllowTrustTxFrame(const TransactionEnvelope& envelope) : TransactionFrame(envelope)
+    AllowTrustTxFrame::AllowTrustTxFrame(Operation const& op, OperationResult &res,
+        TransactionFrame &parentTx) :
+        OperationFrame(op, res, parentTx), mAllowTrust(mOperation.body.allowTrustTx())
     {
-
     }
 
     int32_t AllowTrustTxFrame::getNeededThreshold()
     {
-        return mSigningAccount->getLowThreshold();
+        return mSourceAccount->getLowThreshold();
     }
 
     bool AllowTrustTxFrame::doApply(LedgerDelta &delta, LedgerMaster& ledgerMaster)
     {
-        if(!(mSigningAccount->getAccount().flags & AUTH_REQUIRED_FLAG))
+        if(!(mSourceAccount->getAccount().flags & AUTH_REQUIRED_FLAG))
         {   // this account doesn't require authorization to hold credit
             innerResult().code(AllowTrust::MALFORMED);
             return false;
         }
 
-        AllowTrustTx const& allowTrust = mEnvelope.tx.body.allowTrustTx();
-
         Currency ci;
         ci.type(ISO4217);
-        ci.isoCI().currencyCode = allowTrust.code.currencyCode();
-        ci.isoCI().issuer=mEnvelope.tx.account;
+        ci.isoCI().currencyCode = mAllowTrust.currency.currencyCode();
+        ci.isoCI().issuer = getSourceID();
 
         Database &db = ledgerMaster.getDatabase();
         TrustFrame trustLine;
-        if(!TrustFrame::loadTrustLine(allowTrust.trustor, ci, trustLine, db))
+        if(!TrustFrame::loadTrustLine(mAllowTrust.trustor, ci, trustLine, db))
         {
             innerResult().code(AllowTrust::NO_TRUST_LINE);
             return false;
@@ -40,7 +39,7 @@ namespace stellar
 
         innerResult().code(AllowTrust::SUCCESS);
 
-        trustLine.getTrustLine().authorized = allowTrust.authorize;
+        trustLine.getTrustLine().authorized = mAllowTrust.authorize;
         trustLine.storeChange(delta, db);
 
         return true;
@@ -48,7 +47,7 @@ namespace stellar
 
     bool AllowTrustTxFrame::doCheckValid(Application& app)
     {
-        if (mEnvelope.tx.body.allowTrustTx().code.type() != ISO4217)
+        if (mAllowTrust.currency.type() != ISO4217)
         {
             innerResult().code(AllowTrust::MALFORMED);
             return false;

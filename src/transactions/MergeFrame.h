@@ -4,11 +4,11 @@
 
 namespace stellar
 {
-    class MergeFrame : public TransactionFrame
+    class MergeFrame : public OperationFrame
     {
-        AccountMerge::AccountMergeResult &innerResult() { return mResult.body.tr().accountMergeResult(); }
+        AccountMerge::AccountMergeResult &innerResult() { return mResult.tr().accountMergeResult(); }
     public:
-        MergeFrame(const TransactionEnvelope& envelope);
+        MergeFrame(Operation const& op, OperationResult &res, TransactionFrame &parentTx);
 
         bool doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster);
         bool doCheckValid(Application& app);
@@ -16,9 +16,9 @@ namespace stellar
 
     namespace AccountMerge
     {
-        inline AccountMerge::AccountMergeResultCode getInnerCode(TransactionResult const & res)
+        inline AccountMerge::AccountMergeResultCode getInnerCode(OperationResult const & res)
         {
-            return res.body.tr().accountMergeResult().code();
+            return res.tr().accountMergeResult().code();
         }
     }
 

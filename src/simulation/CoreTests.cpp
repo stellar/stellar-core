@@ -38,7 +38,7 @@ TEST_CASE("cycle4 topology", "[simulation]")
     CHECK(simulation->haveAllExternalized(2));
 }
 
-TEST_CASE("Stress test on 2 nodes, 3 accounts, 10 random transactions, 10tx/sec", "[simulation][stress]")
+TEST_CASE("Stress test on 2 nodes, 3 accounts, 10 random transactions, 10tx/sec", "[stress100][simulation][stress]")
 {
     Simulation::pointer simulation = Topologies::pair(Simulation::OVER_LOOPBACK);
 
