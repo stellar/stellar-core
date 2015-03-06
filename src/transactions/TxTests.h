@@ -6,6 +6,7 @@
 namespace stellar
 {
 class TransactionFrame;
+class LedgerDelta;
 typedef std::shared_ptr<TransactionFrame> TransactionFramePtr;
 namespace txtest
 {

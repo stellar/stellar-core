@@ -160,6 +160,8 @@ using namespace std;
         LedgerHeader lh;
         string hash, prevHash, txSetHash, clfHash;
 
+        assert(begin <= end);
+
         soci::statement st =
             (sess.prepare <<
              "SELECT ledgerSeq, ledgerHash, prevHash, txSetHash, clfHash, totCoins, " \

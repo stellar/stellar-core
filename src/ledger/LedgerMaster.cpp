@@ -201,6 +201,10 @@ void LedgerMaster::historyCaughtup(asio::error_code const& ec)
 // called by txherder
 void LedgerMaster::closeLedger(LedgerCloseData ledgerData)
 {
+    CLOG(INFO, "Ledger")
+        << "starting closeLedger() on ledgerSeq="
+        << mCurrentLedger->mHeader.ledgerSeq;
+
     TxSetFrame successfulTX;
 
     LedgerDelta ledgerDelta(mCurrentLedger->mHeader.idPool);
@@ -269,6 +273,12 @@ void LedgerMaster::closeLedgerHelper(bool updateCurrent, LedgerDelta const& delt
 
         mApp.getPersistentState().setState(PersistentState::kLastClosedLedger, binToHex(mCurrentLedger->mHeader.hash));
     }
+
+    CLOG(INFO, "Ledger")
+        << "closeLedgerHelper() closed ledgerSeq="
+        << mCurrentLedger->mHeader.ledgerSeq
+        << " with hash="
+        << binToHex(mCurrentLedger->mHeader.hash);
   
     mLastClosedLedger = mCurrentLedger;
 

@@ -14,6 +14,8 @@
 #include "util/Logging.h"
 #include "util/Timer.h"
 #include "util/TmpDir.h"
+#include "transactions/TxTests.h"
+#include "ledger/LedgerMaster.h"
 #include <cstdio>
 #include <xdrpp/autocheck.h>
 #include <fstream>
@@ -161,12 +163,32 @@ HistoryTests::generateAndPublishHistory()
 {
     // Make some changes, then publish them.
     app.start();
-    std::vector<LedgerEntry> live { generateValidLedgerEntry(),
-            generateValidLedgerEntry(),
-            generateValidLedgerEntry()
-            };
-    std::vector<LedgerKey> dead { };
-    app.getCLFMaster().getBucketList().addBatch(app, 1, live, dead);
+
+    auto& lm = app.getLedgerMaster();
+
+    // At this point LCL should be 1, current ledger should be 2
+    assert(lm.getLastClosedLedgerHeader().ledgerSeq == 1);
+    assert(lm.getCurrentLedgerHeader().ledgerSeq == 2);
+
+    SecretKey root = txtest::getRoot();
+    SecretKey bob = txtest::getAccount("bob");
+
+    TxSetFramePtr txSet2 = std::make_shared<TxSetFrame>();
+    TxSetFramePtr txSet3 = std::make_shared<TxSetFrame>();
+    TxSetFramePtr txSet4 = std::make_shared<TxSetFrame>();
+
+    txSet2->add(txtest::createPaymentTx(root, bob, 1, 1000));
+    txSet3->add(txtest::createPaymentTx(root, bob, 2, 1000));
+    txSet4->add(txtest::createPaymentTx(root, bob, 3, 1000));
+
+    lm.closeLedger(LedgerCloseData(2, txSet2, 2, 10));
+    lm.closeLedger(LedgerCloseData(3, txSet3, 3, 10));
+    lm.closeLedger(LedgerCloseData(4, txSet4, 4, 10));
+
+    // At this point LCL should be 4, current ledger should be 5
+    assert(lm.getLastClosedLedgerHeader().ledgerSeq == 4);
+    assert(lm.getCurrentLedgerHeader().ledgerSeq == 5);
+
     bool done = false;
     app.getHistoryMaster().publishHistory(
         [&done](asio::error_code const& ec)
@@ -188,42 +210,22 @@ TEST_CASE_METHOD(HistoryTests, "History catchup", "[history]")
 
     auto hash = app.getCLFMaster().getBucketList().getLevel(0).getCurr()->getHash();
 
-    // Reset BucketList and drop buckets
-    app.getCLFMaster().getBucketList() = BucketList();
-    app.getCLFMaster().forgetUnreferencedBuckets();
+    Config cfg2(getTestConfig(1));
+    Application::pointer app2 = Application::create(clock, addLocalDirHistoryArchive(dir, cfg2));
+    app2->start();
 
     bool done = false;
-    app.getHistoryMaster().catchupHistory(
+    app2->getHistoryMaster().catchupHistory(
         [&done](asio::error_code const& ec)
         {
             CHECK(!ec);
             done = true;
         });
-    crankTillDone(done);
-    CHECK(app.getCLFMaster().getBucketByHash(hash));
-    auto hash2 = app.getCLFMaster().getBucketList().getLevel(0).getCurr()->getHash();
-    CHECK(hash == hash2);
-}
-
-
-TEST_CASE_METHOD(HistoryTests, "History catchup 2", "[history]")
-{
-    generateAndPublishHistory();
-
-    auto hash = app.getCLFMaster().getBucketList().getLevel(0).getCurr()->getHash();
-
-    // Reset BucketList, don't drop buckets.
-    app.getCLFMaster().getBucketList() = BucketList();
-
-    bool done = false;
-    app.getHistoryMaster().catchupHistory(
-        [&done](asio::error_code const& ec)
-        {
-            CHECK(!ec);
-            done = true;
-        });
-    crankTillDone(done);
-    CHECK(app.getCLFMaster().getBucketByHash(hash));
-    auto hash2 = app.getCLFMaster().getBucketList().getLevel(0).getCurr()->getHash();
+    while (!done && !app2->getMainIOService().stopped())
+    {
+        app2->crank();
+    }
+    CHECK(app2->getCLFMaster().getBucketByHash(hash));
+    auto hash2 = app2->getCLFMaster().getBucketList().getLevel(0).getCurr()->getHash();
     CHECK(hash == hash2);
 }
