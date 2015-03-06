@@ -98,11 +98,11 @@ CommandHandler::peers(const std::string& params, std::string& retStr)
     for(auto peer : mApp.getPeerMaster().getPeers())
     {
         binToHex(peer->getPeerID());
-        root["peers"][counter]["ip"] = peer->getIP();
-        root["peers"][counter]["port"] = peer->getRemoteListeningPort();
-        root["peers"][counter]["ver"] = peer->getRemoteVersion();
-        root["peers"][counter]["pver"] = peer->getRemoteProtocolVersion();
-        root["peers"][counter]["id"]= toBase58Check(VER_ACCOUNT_ID,peer->getPeerID());
+        root["peers"][counter]["ip"] = Json::Value(peer->getIP());
+        root["peers"][counter]["port"] = Json::Value(peer->getRemoteListeningPort());
+        root["peers"][counter]["ver"] = Json::Value(peer->getRemoteVersion());
+        root["peers"][counter]["pver"] = Json::Value(peer->getRemoteProtocolVersion());
+        root["peers"][counter]["id"]= Json::Value(toBase58Check(VER_ACCOUNT_ID,peer->getPeerID()));
 
         counter++;
     }
@@ -120,11 +120,11 @@ CommandHandler::info(const std::string& params, std::string& retStr)
     LedgerMaster& lm = mApp.getLedgerMaster();
     
     root["info"]["state"] = stateStrTable[mApp.getState()];
-    root["info"]["ledger"]["num"]=lm.getLedgerNum();
-    root["info"]["ledger"]["hash"] = binToHex(lm.getLastClosedLedgerHeader().hash);
-    root["info"]["ledger"]["closeTime"] = lm.getLastClosedLedgerHeader().closeTime;
-    root["info"]["ledger"]["age"] = lm.secondsSinceLastLedgerClose();
-    root["info"]["numPeers"] = mApp.getPeerMaster().getPeers().size();
+    root["info"]["ledger"]["num"]= Json::Value(lm.getLedgerNum());
+    root["info"]["ledger"]["hash"] = Json::Value(binToHex(lm.getLastClosedLedgerHeader().hash));
+    root["info"]["ledger"]["closeTime"] = Json::Value(lm.getLastClosedLedgerHeader().closeTime);
+    root["info"]["ledger"]["age"] = Json::Value(lm.secondsSinceLastLedgerClose());
+    root["info"]["numPeers"] = Json::Value(mApp.getPeerMaster().getPeers().size());
 
 
     retStr = root.toStyledString();
