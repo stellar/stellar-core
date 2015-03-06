@@ -47,6 +47,11 @@ server::server(asio::io_service& io_service, const std::string& address,
     do_accept();
 }
 
+void server::add404(routeHandler callback)
+{
+    addRoute("404", callback);
+}
+
 void
 server::addRoute(const std::string& routeName, routeHandler callback)
 {
@@ -119,8 +124,21 @@ server::handle_request(const request& req, reply& rep)
     }
     else
     {
-        rep = reply::stock_reply(reply::not_found);
-        return;
+        if(mRoutes.find("404") != mRoutes.end())
+        {
+            mRoutes["404"](params, rep.content);
+
+            rep.status = reply::ok;
+            rep.headers.resize(2);
+            rep.headers[0].name = "Content-Length";
+            rep.headers[0].value = std::to_string(rep.content.size());
+            rep.headers[1].name = "Content-Type";
+            rep.headers[1].value = "text/html";
+        } else
+        {
+            rep = reply::stock_reply(reply::not_found);
+            return;
+        }
     }
 }
 

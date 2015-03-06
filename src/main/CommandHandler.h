@@ -35,6 +35,7 @@ class CommandHandler
     void connect(const std::string& params, std::string& retStr);
     void tx(const std::string& params, std::string& retStr);
     void ll(const std::string& params, std::string& retStr);
+    void fileNotFound(const std::string& params, std::string& retStr);
 };
 }
 

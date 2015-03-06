@@ -36,6 +36,8 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
         mServer = stellar::make_unique<http::server::server>(app.getMainIOService());
     }
 
+    mServer->add404(std::bind(&CommandHandler::fileNotFound, this, _1, _2));
+
     mServer->addRoute("stop",
         std::bind(&CommandHandler::stop, this, _1, _2));
     mServer->addRoute("peers",
@@ -62,6 +64,20 @@ void CommandHandler::manualCmd(const std::string& cmd)
     request.uri = cmd;
     mServer->handle_request(request, reply);
     LOG(INFO) << cmd << " -> " << reply.content;
+}
+
+void CommandHandler::fileNotFound(const std::string& params, std::string& retStr)
+{
+    retStr  = "Welcome to Hayashi!  <p>";
+    retStr += "supported commands:  <p><ul>";
+    retStr += "<li>stop</li>";
+    retStr += "<li>peers</li>";
+    retStr += "<li>info</li>";
+    retStr += "<li>metrics</li>";
+    retStr += "<li>connect</li>";
+    retStr += "<li>tx</li>";
+    retStr += "<li>ll</li>";
+    retStr += "</ul><p>Have fun!";
 }
 
 void

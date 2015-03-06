@@ -27,7 +27,6 @@ namespace server {
 class server
 {
     
-    
 public:
     typedef std::function<void(const std::string&, std::string&)> routeHandler;
     server(const server&) = delete;
@@ -42,6 +41,7 @@ public:
     ~server();
 
     void addRoute(const std::string& routeName, routeHandler callback);
+    void add404(routeHandler callback);
 
     void handle_request(const request& req, reply& rep);
 
