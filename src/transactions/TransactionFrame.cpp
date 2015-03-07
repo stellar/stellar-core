@@ -178,7 +178,7 @@ bool TransactionFrame::checkValid(Application &app, bool applying)
     if (applying)
     {
         // where seq != envelope.seq
-        if (mSigningAccount->getSeq(mEnvelope.tx.seqSlot, app.getDatabase()) + 1 != mEnvelope.tx.seqNum)
+        if (mSigningAccount->getSeqNum(app.getDatabase()) + 1 != mEnvelope.tx.seqNum)
         {
             mResult.result.code(txBAD_SEQ);
             return false;
@@ -186,7 +186,7 @@ bool TransactionFrame::checkValid(Application &app, bool applying)
     }
     else
     {
-        if (mSigningAccount->getSeq(mEnvelope.tx.seqSlot, app.getDatabase()) >= mEnvelope.tx.seqNum)
+        if (mSigningAccount->getSeqNum(app.getDatabase()) >= mEnvelope.tx.seqNum)
         {
             mResult.result.code(txBAD_SEQ);
             return false;
@@ -228,7 +228,7 @@ void TransactionFrame::prepareResult(LedgerDelta& delta, LedgerMaster& ledgerMas
             // take all their balance to be safe
             fee = mSigningAccount->getAccount().balance;
         }
-        mSigningAccount->setSeqSlot(mEnvelope.tx.seqSlot, mEnvelope.tx.seqNum);
+        mSigningAccount->setSeqNum(mEnvelope.tx.seqNum);
         mSigningAccount->getAccount().balance -= fee;
         ledgerMaster.getCurrentLedgerHeader().feePool += fee;
 

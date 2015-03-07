@@ -11,7 +11,6 @@ enum OperationType
     CHANGE_TRUST,
     ALLOW_TRUST,
     ACCOUNT_MERGE,
-    SET_SEQ_SLOT,
     INFLATION
 };
 
@@ -36,12 +35,6 @@ struct CreateOfferOp
 
     uint64 offerID;      // set if you want to change an existing offer
     uint32 flags;        // passive: only take offers that cross this. not offers that match it
-};
-
-struct SetSeqSlotOp
-{
-    uint32 slotIndex;
-    uint32 slotValue;
 };
 
 struct SetOptionsOp
@@ -94,8 +87,6 @@ struct Operation
             AllowTrustOp allowTrustOp;
         case ACCOUNT_MERGE:
             uint256 destination;
-        case SET_SEQ_SLOT:
-            SetSeqSlotOp setSeqSlotOp;
         case INFLATION:
             uint32 inflationSeq;
     } body;
@@ -286,25 +277,6 @@ union AllowTrustResult switch(AllowTrustResultCode code)
 
 }
 
-namespace SetSeqSlot
-{
-enum SetSeqSlotResultCode
-{
-    SUCCESS,
-    MALFORMED,
-    INVALID_SLOT,
-    INVALID_SEQ_NUM
-};
-
-union SetSeqSlotResult switch(SetSeqSlotResultCode code)
-{
-    case SUCCESS:
-        void;
-    default:
-        void;
-};
-}
-
 namespace AccountMerge
 {
 enum AccountMergeResultCode
@@ -377,8 +349,6 @@ union OperationResult switch(OperationResultCode code)
                 AllowTrust::AllowTrustResult allowTrustResult;
             case ACCOUNT_MERGE:
                 AccountMerge::AccountMergeResult accountMergeResult;
-            case SET_SEQ_SLOT:
-                SetSeqSlot::SetSeqSlotResult setSeqSlotResult;
             case INFLATION:
                 Inflation::InflationResult inflationResult;
         } tr;

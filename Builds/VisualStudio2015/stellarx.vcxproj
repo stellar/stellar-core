@@ -247,7 +247,6 @@
     <ClCompile Include="..\..\src\transactions\PaymentTests.cpp" />
     <ClCompile Include="..\..\src\transactions\SetOptionsOpFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\SetOptionsTests.cpp" />
-    <ClCompile Include="..\..\src\transactions\SetSeqSlotOpFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\TxEnvelopeTests.cpp" />
     <ClCompile Include="..\..\src\transactions\TxTests.cpp" />
     <ClCompile Include="..\..\src\util\Math.cpp" />
@@ -351,7 +350,6 @@
     <ClInclude Include="..\..\src\transactions\OperationFrame.h" />
     <ClInclude Include="..\..\src\transactions\PaymentOpFrame.h" />
     <ClInclude Include="..\..\src\transactions\SetOptionsOpFrame.h" />
-    <ClInclude Include="..\..\src\transactions\SetSeqSlotOpFrame.h" />
     <ClInclude Include="..\..\src\transactions\TransactionFrame.h" />
     <ClInclude Include="..\..\src\transactions\ChangeTrustOpFrame.h" />
     <ClInclude Include="..\..\src\transactions\TxTests.h" />
