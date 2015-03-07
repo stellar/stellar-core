@@ -47,12 +47,6 @@ class VirtualTimer;
 class Application;
 struct VirtualClockEvent;
 
-/**
- * There should be one virtual clock per application / main event loop, so that
- * the virtual clock can be advanced any time the event loop is cranked and
- * fails to do any work.
- */
-
 class VirtualClock
 {
 public:
@@ -69,29 +63,49 @@ public:
     static std::string tmToISOString(std::tm const& tm);
     static std::string pointToISOString(time_point point);
 
+    enum Mode
+    {
+        REAL_TIME,
+        VIRTUAL_TIME
+    };
+
 private:
+    asio::io_service mIOService;
+    asio::basic_waitable_timer<std::chrono::steady_clock> mRealTimer;
+    Mode mMode;
+
+    size_t nRealTimerCancelEvents;
     time_point mNow;
     std::map<Application*,
              std::shared_ptr<std::priority_queue<VirtualClockEvent>>> mEvents;
-    std::map<Application*, bool> mIdleFlags;
+
+    time_point next();
+    bool cancelAllEventsFrom(Application& a,
+                             std::function<bool(VirtualClockEvent const&)> pred);
+    void maybeSetRealtimer();
+    size_t advanceTo(time_point n);
+    bool allEmpty() const;
+    size_t advanceToNext();
+    size_t advanceToNow();
 
 public:
+
+    // A VirtualClock is instantiated in either real or virtual mode. In real
+    // mode, crank() sleeps until the next event, either timer or IO; in virtual
+    // mode it processes IO events until IO is idle then advances to the time of
+    // the next virtual event instantly.
+
+    VirtualClock(Mode mode=VIRTUAL_TIME);
+    size_t crank(bool block=true);
+    asio::io_service& getIOService();
+
     // Note: this is not a static method, which means that VirtualClock is
     // not an implementation of the C++ `Clock` concept; there is no global
     // virtual time. Each virtual clock has its own time.
     time_point now() noexcept;
-    time_point next();
     void enqueue(Application& app, VirtualClockEvent const& ve);
-    bool cancelAllEventsFrom(Application& a,
-                             std::function<bool(VirtualClockEvent const&)> pred);
     bool cancelAllEventsFrom(Application& a);
     bool cancelAllEventsFrom(Application& a, VirtualTimer& v);
-    size_t advanceTo(time_point n);
-    bool allIdle() const;
-    bool allEmpty() const;
-    void setNoneIdle();
-    void setIdle(Application& app, bool isIdle);
-    size_t advanceToNextIfAllIdle();
 };
 
 

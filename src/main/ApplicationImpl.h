@@ -25,9 +25,6 @@ public:
     ApplicationImpl(VirtualClock& clock, Config const& cfg);
     virtual ~ApplicationImpl() override;
 
-    virtual void enableRealTimer() override;
-    virtual void disableRealTimer() override;
-    virtual size_t crank(bool block = true) override;
     virtual uint64_t timeNow() override;
 
     virtual Config const& getConfig() override;
@@ -48,7 +45,6 @@ public:
     virtual Database& getDatabase() override;
     virtual PersistentState& getPersistentState() override;
 
-    virtual asio::io_service& getMainIOService() override;
     virtual asio::io_service& getWorkerIOService() override;
 
     virtual void start() override;
@@ -86,10 +82,8 @@ private:
     // 'master' sub-objects contain various IO objects that refer
     // directly to the io_services.
 
-    asio::io_service mMainIOService;
     asio::io_service mWorkerIOService;
     std::unique_ptr<asio::io_service::work> mWork;
-    std::unique_ptr<RealTimer> mRealTimer;
 
     std::unique_ptr<medida::MetricsRegistry> mMetrics;
     std::unique_ptr<TmpDirMaster> mTmpDirMaster;
@@ -106,13 +100,8 @@ private:
     std::vector<std::thread> mWorkerThreads;
 
     asio::signal_set mStopSignals;
-    size_t mRealTimerCancelCallbacks;
 
     void runWorkerThread(unsigned i);
-    void scheduleRealTimerFromNextVirtualEvent();
-    size_t advanceVirtualTimeToRealTime();
-    void realTimerTick();
-
 };
 
 }

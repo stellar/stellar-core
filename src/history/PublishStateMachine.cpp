@@ -390,7 +390,7 @@ PublishStateMachine::takeSnapshot()
                 {
                     ec = std::make_error_code(std::errc::io_error);
                 }
-                snap->mApp.getMainIOService().post(
+                snap->mApp.getClock().getIOService().post(
                     [ec, snap]()
                     {
                         snap->mApp.getHistoryMaster().snapshotTaken(ec, snap);

@@ -32,8 +32,8 @@ Peer::Peer(Application& app, PeerRole role)
     : mApp(app)
     , mRole(role)
     , mState(role == ACCEPTOR ? CONNECTED : CONNECTING)
-    , mRemoteListeningPort(0)
     , mRemoteProtocolVersion(0)
+    , mRemoteListeningPort(0)
 {
     
 }

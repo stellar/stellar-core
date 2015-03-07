@@ -14,19 +14,6 @@
 
 using namespace stellar;
 
-static bool
-allStopped(std::vector<Application::pointer>& apps)
-{
-    for (auto app : apps)
-    {
-        if (!app->getMainIOService().stopped())
-        {
-            return false;
-        }
-    }
-    return true;
-}
-
 TEST_CASE("loopback peer hello", "[overlay]")
 {
     Config const& cfg1 = getTestConfig(0);
@@ -40,13 +27,14 @@ TEST_CASE("loopback peer hello", "[overlay]")
     LoopbackPeerConnection conn(*apps[0], *apps[1]);
 
     size_t i = 0;
-    while (!allStopped(apps))
+    auto& io = clock.getIOService();
+    while (!io.stopped())
     {
         for (auto app : apps)
         {
-            app->getMainIOService().poll_one();
+            io.poll_one();
             if (++i > 100)
-                app->getMainIOService().stop();
+                io.stop();
         }
     }
 }

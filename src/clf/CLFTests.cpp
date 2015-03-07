@@ -52,9 +52,9 @@ TEST_CASE("bucket list", "[clf]")
         autocheck::generator<std::vector<LedgerEntry>> liveGen;
         autocheck::generator<std::vector<LedgerKey>> deadGen;
         CLOG(DEBUG, "CLF") << "Adding batches to bucket list";
-        for (uint64_t i = 1; !app->getMainIOService().stopped() && i < 130; ++i)
+        for (uint64_t i = 1; !app->getClock().getIOService().stopped() && i < 130; ++i)
         {
-            app->crank(false);
+            app->getClock().crank(false);
             bl.addBatch(*app, i, liveGen(8), deadGen(5));
             if (i % 10 == 0)
                 CLOG(DEBUG, "CLF") << "Added batch " << i << ", hash=" << binToHex(bl.getHash());
@@ -94,9 +94,9 @@ TEST_CASE("bucket list shadowing", "[clf]")
     autocheck::generator<std::vector<LedgerKey>> deadGen;
     CLOG(DEBUG, "CLF") << "Adding batches to bucket list";
 
-    for (uint64_t i = 1; !app->getMainIOService().stopped() && i < 1200; ++i)
+    for (uint64_t i = 1; !app->getClock().getIOService().stopped() && i < 1200; ++i)
     {
-        app->crank(false);
+        app->getClock().crank(false);
         auto liveBatch = liveGen(5);
 
         CLFEntry CLFAlice, CLFBob;

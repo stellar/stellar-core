@@ -92,9 +92,9 @@ HistoryMaster::initializeHistoryArchive(Application& app, std::string arch)
             done = true;
         });
 
-    while (!done && !app.getMainIOService().stopped())
+    while (!done && !app.getClock().getIOService().stopped())
     {
-        app.crank();
+        app.getClock().crank(false);
     }
     return ok;
 }
@@ -195,7 +195,7 @@ HistoryMaster::verifyHash(std::string const& filename,
                 LOG(WARNING) << "computed hash: " << binToHex(vHash);
                 ec = std::make_error_code(std::errc::io_error);
             }
-            app.getMainIOService().post([ec, handler]() { handler(ec); });
+            app.getClock().getIOService().post([ec, handler]() { handler(ec); });
         });
 }
 

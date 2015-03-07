@@ -31,10 +31,10 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
             << " for HTTP requests";
 
         mServer = stellar::make_unique<http::server::server>(
-            app.getMainIOService(), ipStr, mApp.getConfig().HTTP_PORT);
+            app.getClock().getIOService(), ipStr, mApp.getConfig().HTTP_PORT);
     } else
     {
-        mServer = stellar::make_unique<http::server::server>(app.getMainIOService());
+        mServer = stellar::make_unique<http::server::server>(app.getClock().getIOService());
     }
 
     mServer->add404(std::bind(&CommandHandler::fileNotFound, this, _1, _2));

@@ -45,7 +45,7 @@ void
 LoopbackPeer::drop()
 {
     auto self = shared_from_this();
-    mApp.getMainIOService().post(
+    mApp.getClock().getIOService().post(
         [self]()
         {
             self->getApp().getPeerMaster().dropPeer(self);
@@ -53,7 +53,7 @@ LoopbackPeer::drop()
     if (mRemote)
     {
         auto remote = mRemote;
-        mRemote->getApp().getMainIOService().post(
+        mRemote->getApp().getClock().getIOService().post(
             [remote]()
             {
                 remote->getApp().getPeerMaster().dropPeer(remote);
@@ -161,7 +161,7 @@ LoopbackPeer::deliverOne()
         // Peer's io_service.
         auto remote = mRemote;
         auto m = std::make_shared<xdr::msg_ptr>(std::move(msg));
-        remote->getApp().getMainIOService().post([remote, m]()
+        remote->getApp().getClock().getIOService().post([remote, m]()
             {
                 remote->recvMessage(std::move(*m));
             });
