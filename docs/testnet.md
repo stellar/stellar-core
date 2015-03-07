@@ -17,11 +17,11 @@ $ stellard
 
 This will start a new ledger on each server and cause them to move ahead with SCP. They will still wait to hear from a quorum of nodes before closing a ledger.
 
-# Bringing a test network backup
-If you need to bring this netowrk down and restart it. Do:
+# Bringing a test network back up
+If you need to restart the network after bringing it down. Do the following on all the nodes:
 ```sh
 $ stellard --forcescp
 $ stellard
 ```
 
-This will start from the last saved state of each server. It is important that a quorum of them all stopped while on the same ledger.
+This will start from the last saved state of each server. It is important that a quorum of them all have the same laste ledger as their saved state before they are restarted.
