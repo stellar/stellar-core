@@ -8,6 +8,7 @@
 // first to include <windows.h> -- so we try to include it before everything
 // else.
 #include "util/asio.h"
+#include "util/NonCopyable.h"
 
 #include <chrono>
 #include <queue>
@@ -117,7 +118,7 @@ struct VirtualClockEvent
  * (thus the app's VirtualClock), so advances with per-Application simulated
  * time, and therefore runs at full speed during simulation/testing.
  */
-class VirtualTimer
+class VirtualTimer : private NonMovableOrCopyable
 {
     Application &mApp;
     VirtualClock::time_point mExpiryTime;
@@ -125,6 +126,7 @@ class VirtualTimer
 public:
     VirtualTimer(Application& app);
     ~VirtualTimer();
+
     void expires_at(VirtualClock::time_point t);
     void expires_from_now(VirtualClock::duration d);
     void async_wait(std::function<void(asio::error_code)> const& fn);
