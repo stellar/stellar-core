@@ -1,4 +1,4 @@
-#include "transactions/MergeFrame.h"
+#include "transactions/MergeOpFrame.h"
 #include "crypto/Base58.h"
 #include "database/Database.h"
 #include "ledger/TrustFrame.h"
@@ -7,8 +7,9 @@ using namespace soci;
 
 namespace stellar
 {
-
-    MergeFrame::MergeFrame(const TransactionEnvelope& envelope) : TransactionFrame(envelope)
+    MergeOpFrame::MergeOpFrame(Operation const& op, OperationResult &res,
+        TransactionFrame &parentTx) :
+        OperationFrame(op, res, parentTx)
     {
 
     }
@@ -18,12 +19,12 @@ namespace stellar
     // make sure the we delete all the offers
     // make sure the we delete all the trustlines
     // move the STR to the new account
-    bool MergeFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
+    bool MergeOpFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
     {
         AccountFrame otherAccount;
         Database &db = ledgerMaster.getDatabase();
 
-        if(!AccountFrame::loadAccount(mEnvelope.tx.body.destination(),otherAccount, db))
+        if(!AccountFrame::loadAccount(mOperation.body.destination(),otherAccount, db))
         {
             innerResult().code(AccountMerge::NO_ACCOUNT);
             return false;
@@ -32,7 +33,7 @@ namespace stellar
 
         // TODO: remove direct SQL statements, use *Frame objects instead
 
-        std::string b58Account = toBase58Check(VER_ACCOUNT_ID, mSigningAccount->getID());
+        std::string b58Account = toBase58Check(VER_ACCOUNT_ID, getSourceID());
         {
             auto timer = db.getSelectTimer("trust");
             db.getSession() <<
@@ -59,7 +60,7 @@ namespace stellar
         
         // delete offers
         std::vector<OfferFrame> retOffers;
-        OfferFrame::loadOffers(mSigningAccount->getID(), retOffers, db);
+        OfferFrame::loadOffers(getSourceID(), retOffers, db);
         for(auto offer : retOffers)
         {
             offer.storeDelete(delta, db);
@@ -67,24 +68,24 @@ namespace stellar
 
         // delete trust lines
         std::vector<TrustFrame> retLines;
-        TrustFrame::loadLines(mSigningAccount->getID(), retLines, db);
+        TrustFrame::loadLines(getSourceID(), retLines, db);
         for(auto line : retLines)
         {
             line.storeDelete(delta, db);
         }
 
-        otherAccount.getAccount().balance += mSigningAccount->getAccount().balance;
+        otherAccount.getAccount().balance += mSourceAccount->getAccount().balance;
         otherAccount.storeChange(delta, db);
-        mSigningAccount->storeDelete(delta, db);
+        mSourceAccount->storeDelete(delta, db);
 
         innerResult().code(AccountMerge::SUCCESS);
         return true;
     }
 
-    bool MergeFrame::doCheckValid(Application& app)
+    bool MergeOpFrame::doCheckValid(Application& app)
     {
         // makes sure not merging into self
-        if (mEnvelope.tx.account == mEnvelope.tx.body.destination())
+        if (getSourceID() == mOperation.body.destination())
         {
             innerResult().code(AccountMerge::MALFORMED);
             return false;

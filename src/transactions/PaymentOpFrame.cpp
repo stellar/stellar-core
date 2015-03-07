@@ -1,4 +1,4 @@
-#include "transactions/PaymentFrame.h"
+#include "transactions/PaymentOpFrame.h"
 #include "util/Logging.h"
 #include "ledger/LedgerDelta.h"
 #include "ledger/TrustFrame.h"
@@ -14,18 +14,20 @@ namespace stellar
 
 using namespace std;
 
-    PaymentFrame::PaymentFrame(const TransactionEnvelope& envelope) : TransactionFrame(envelope)
+    PaymentOpFrame::PaymentOpFrame(Operation const& op, OperationResult &res,
+        TransactionFrame &parentTx) :
+        OperationFrame(op, res, parentTx), mPayment(mOperation.body.paymentOp())
     {
 
     }
 
-    bool PaymentFrame::doApply(LedgerDelta& delta,LedgerMaster& ledgerMaster)
+    bool PaymentOpFrame::doApply(LedgerDelta& delta,LedgerMaster& ledgerMaster)
     {
         AccountFrame destAccount;
 
         // if sending to self directly, just mark as success
-        if (mEnvelope.tx.body.paymentTx().destination == mSigningAccount->getID()
-            && mEnvelope.tx.body.paymentTx().path.empty())
+        if (mPayment.destination == getSourceID()
+            && mPayment.path.empty())
         {
             innerResult().code(Payment::SUCCESS);
             return true;
@@ -33,19 +35,19 @@ using namespace std;
 
         Database &db = ledgerMaster.getDatabase();
 
-        if (!AccountFrame::loadAccount(mEnvelope.tx.body.paymentTx().destination,
+        if (!AccountFrame::loadAccount(mPayment.destination,
             destAccount, db))
         {   // this tx is creating an account
-            if (mEnvelope.tx.body.paymentTx().currency.type() == NATIVE)
+            if (mPayment.currency.type() == NATIVE)
             {
-                if (mEnvelope.tx.body.paymentTx().amount < ledgerMaster.getMinBalance(0))
+                if (mPayment.amount < ledgerMaster.getMinBalance(0))
                 {   // not over the minBalance to make an account
                     innerResult().code(Payment::UNDERFUNDED);
                     return false;
                 }
                 else
                 {
-                    destAccount.getAccount().accountID = mEnvelope.tx.body.paymentTx().destination;
+                    destAccount.getAccount().accountID = mPayment.destination;
                     destAccount.getAccount().balance = 0;
 
                     destAccount.storeAdd(delta, db);
@@ -64,11 +66,11 @@ using namespace std;
 
     // work backward to determine how much they need to send to get the 
     // specified amount of currency to the recipient
-    bool PaymentFrame::sendNoCreate(AccountFrame& destination, LedgerDelta& delta, LedgerMaster& ledgerMaster)
+    bool PaymentOpFrame::sendNoCreate(AccountFrame& destination, LedgerDelta& delta, LedgerMaster& ledgerMaster)
     {
         Database &db = ledgerMaster.getDatabase();
 
-        bool multi_mode = mEnvelope.tx.body.paymentTx().path.size();
+        bool multi_mode = mPayment.path.size();
         if (multi_mode)
         {
             innerResult().code(Payment::SUCCESS_MULTI);
@@ -79,8 +81,8 @@ using namespace std;
         }
 
         // tracks the last amount that was traded
-        int64_t curBReceived = mEnvelope.tx.body.paymentTx().amount;
-        Currency curB = mEnvelope.tx.body.paymentTx().currency;
+        int64_t curBReceived = mPayment.amount;
+        Currency curB = mPayment.currency;
 
         // update balances, walks backwards
 
@@ -133,10 +135,10 @@ using namespace std;
         if (multi_mode)
         {
             // now, walk the path backwards
-            for(int i = (int)mEnvelope.tx.body.paymentTx().path.size()-1; i >= 0;  i--)
+            for(int i = (int)mPayment.path.size()-1; i >= 0;  i--)
             {
                 int64_t curASent, actualCurBReceived;
-                Currency &curA = mEnvelope.tx.body.paymentTx().path[i];
+                Currency const& curA = mPayment.path[i];
 
                 OfferExchange oe(delta, ledgerMaster);
 
@@ -172,7 +174,7 @@ using namespace std;
 
         curBSent = curBReceived;
 
-        if (curBSent > mEnvelope.tx.body.paymentTx().sendMax)
+        if (curBSent > mPayment.sendMax)
         { // make sure not over the max
             innerResult().code(Payment::OVERSENDMAX);
             return false;
@@ -180,22 +182,22 @@ using namespace std;
 
         if(curB.type() == NATIVE)
         {
-            if (mEnvelope.tx.body.paymentTx().path.size())
+            if (mPayment.path.size())
             {
                 innerResult().code(Payment::MALFORMED);
                 return false;
             }
 
-            int64_t minBalance = ledgerMaster.getMinBalance(mSigningAccount->getAccount().numSubEntries);
+            int64_t minBalance = ledgerMaster.getMinBalance(mSourceAccount->getAccount().numSubEntries);
 
-            if (mSigningAccount->getAccount().balance < (minBalance + curBSent))
+            if (mSourceAccount->getAccount().balance < (minBalance + curBSent))
             {   // they don't have enough to send
                 innerResult().code(Payment::UNDERFUNDED);
                 return false;
             }
 
-            mSigningAccount->getAccount().balance -= curBSent;
-            mSigningAccount->storeChange(delta, db);
+            mSourceAccount->getAccount().balance -= curBSent;
+            mSourceAccount->storeChange(delta, db);
         }
         else
         {
@@ -205,13 +207,13 @@ using namespace std;
                 AccountFrame issuer;
                 if(!AccountFrame::loadAccount(curB.isoCI().issuer, issuer, db))
                 {
-                    CLOG(ERROR, "Tx") << "PaymentTx::sendCredit Issuer not found";
+                    CLOG(ERROR, "Tx") << "PaymentOp::sendCredit Issuer not found";
                     innerResult().code(Payment::MALFORMED);
                     return false;
                 }
 
                 TrustFrame sourceLineFrame;
-                if(!TrustFrame::loadTrustLine(mEnvelope.tx.account,
+                if(!TrustFrame::loadTrustLine(getSourceID(),
                     curB, sourceLineFrame, db))
                 {
                     innerResult().code(Payment::UNDERFUNDED);
@@ -234,9 +236,9 @@ using namespace std;
         return true;
     }
 
-    bool PaymentFrame::doCheckValid(Application& app)
+    bool PaymentOpFrame::doCheckValid(Application& app)
     {
-        if (mEnvelope.tx.body.paymentTx().path.size() > MAX_PAYMENT_PATH_LENGTH)
+        if (mPayment.path.size() > MAX_PAYMENT_PATH_LENGTH)
         {
             innerResult().code(Payment::MALFORMED);
             return false;

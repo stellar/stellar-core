@@ -163,9 +163,9 @@ namespace stellar
     }
 
     OfferExchange::ConvertResult OfferExchange::convertWithOffers(
-        Currency& sheep, int64_t maxSheepSend, int64_t &sheepSend,
-        Currency& wheat, int64_t maxWheatReceive, int64_t &wheatReceived,
-        std::function<OfferFilterResult(const OfferFrame &)> filter)
+        Currency const& sheep, int64_t maxSheepSend, int64_t &sheepSend,
+        Currency const& wheat, int64_t maxWheatReceive, int64_t &wheatReceived,
+        std::function<OfferFilterResult(OfferFrame const&)> filter)
     {
         sheepSend = 0;
         wheatReceived = 0;

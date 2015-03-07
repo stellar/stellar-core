@@ -17,7 +17,7 @@ bool isZero(uint256 const& b);
 uint256 makePublicKey(uint256 const& b);
 
 // returns true if the currencies are the same
-bool compareCurrency(Currency& first, Currency& second);
+bool compareCurrency(Currency const& first, Currency const& second);
 
 void currencyCodeToStr(const xdr::opaque_array<4U>& code, std::string& retStr);
 

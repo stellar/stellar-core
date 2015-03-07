@@ -10,7 +10,6 @@
 #include "ledger/AccountFrame.h"
 #include "generated/StellarXDR.h"
 #include "util/types.h"
-#include "lib/json/json-forwards.h"
 
 namespace soci
 {
@@ -25,6 +24,7 @@ namespace stellar
 {
     class Application;
     class LedgerMaster;
+    class OperationFrame;
     class LedgerDelta;
     class SecretKey;
     class XDROutputFileStream;
@@ -32,59 +32,58 @@ namespace stellar
     class TransactionFrame
     {
     protected:
+        AccountFrame::pointer mSigningAccount;
         TransactionEnvelope mEnvelope;
-        AccountFrame::pointer mSigningAccount;	
-        Hash mContentsHash;  // the hash of the contents
-        Hash mFullHash;    // the hash of the contents and the sig. 
         TransactionResult mResult;
 
-        // common side effects to all transactions (fees)
-        // returns true if we should proceed with the transaction
-        bool preApply(LedgerDelta& delta, LedgerMaster& ledgerMaster);
+        Hash mContentsHash;  // the hash of the contents
+        Hash mFullHash;    // the hash of the contents and the sig. 
 
-        bool checkSignature();
+        std::vector<std::shared_ptr<OperationFrame>> mOperations;
 
-        virtual bool doCheckValid(Application& app) = 0;
-        virtual bool doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster) = 0;
-        virtual int32_t getNeededThreshold();
+        // collect fee, consume sequence number
+        void prepareResult(LedgerDelta& delta, LedgerMaster& ledgerMaster);
 
+        bool loadAccount(Application& app);
+        bool checkValid(Application& app, bool applying);
     public:
         typedef std::shared_ptr<TransactionFrame> pointer;
 
         TransactionFrame(const TransactionEnvelope& envelope);
+        TransactionFrame(TransactionFrame const&) = delete;
+        TransactionFrame() = delete;
 
         static TransactionFrame::pointer makeTransactionFromWire(TransactionEnvelope const& msg);
+
         Hash& getFullHash();
         Hash& getContentsHash();
-        uint32 getSeqNum() { return mEnvelope.tx.seqNum; }
-        TransactionEnvelope& getEnvelope();
-        AccountFrame& getSourceAccount() { assert(mSigningAccount); return *mSigningAccount; }
 
         AccountFrame::pointer getSourceAccountPtr() { return mSigningAccount; }
         void setSourceAccountPtr(AccountFrame::pointer signingAccount);
+        std::vector<std::shared_ptr<OperationFrame>> const& getOperations() { return mOperations; }
 
+        TransactionResult &getResult() { return mResult; }
+        TransactionResultCode getResultCode() { return mResult.result.code(); }
+
+        TransactionEnvelope& getEnvelope();
+
+        uint32 getSeqNum() { return mEnvelope.tx.seqNum; }
+        AccountFrame& getSourceAccount() { assert(mSigningAccount); return *mSigningAccount; }
+        uint256 const& getSourceID() { return mEnvelope.tx.account; }
         void addSignature(const SecretKey& secretKey);
-
-        uint256& getSourceID() { return mEnvelope.tx.account; }
-
-        // load account if needed
-        // returns true on success
-        bool loadAccount(Application& app);
-
-        TransactionResult &getResult() { return mResult;  }
-        TransactionResultCode getResultCode();
+        bool checkSignature(AccountFrame& account, int32_t neededWeight);
 
         bool checkValid(Application& app);
 
         // apply this transaction to the current ledger
-        // LATER: how will applying historical txs work?
         // returns true if successfully applied
         bool apply(LedgerDelta& delta, Application& app);
 
         StellarMessage toStellarMessage();
 
-        // transaction history
+        AccountFrame::pointer loadAccount(Application& app, uint256 const& accountID);
 
+        // transaction history
         void storeTransaction(LedgerMaster &ledgerMaster, LedgerDelta const& delta);
         static size_t copyTransactionsToStream(Database& db,
                                                soci::session& sess,

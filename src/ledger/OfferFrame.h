@@ -19,6 +19,8 @@ namespace details
 
 namespace stellar
 {
+    class OperationFrame;
+
     class OfferFrame : public EntryFrame
     {
         static void loadOffers(soci::details::prepare_temp_type &prep, std::function<void(const OfferFrame&)> offerProcessor);
@@ -38,11 +40,11 @@ namespace stellar
         OfferFrame(OfferFrame const& from);
 
         OfferFrame& operator=(OfferFrame const& other);
-        void from(const Transaction& tx);
+        void from(OperationFrame& op);
 
         EntryFrame::pointer copy()  const { return EntryFrame::pointer(new OfferFrame(*this)); }
 
-        Price getPrice() const;
+        Price const& getPrice() const;
         int64_t getAmount() const;
         uint256 const& getAccountID() const;
         Currency& getTakerPays();

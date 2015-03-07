@@ -64,19 +64,20 @@ FMT_SRCS =                                      \
     src/simulation/CoreTests.cpp                \
     src/simulation/Simulation.cpp               \
     src/simulation/Topologies.cpp               \
-    src/transactions/AllowTrustTxFrame.cpp      \
-    src/transactions/CancelOfferFrame.cpp       \
-    src/transactions/ChangeTrustTxFrame.cpp     \
-    src/transactions/CreateOfferFrame.cpp       \
-    src/transactions/InflationFrame.cpp         \
+    src/transactions/AllowTrustOpFrame.cpp      \
+    src/transactions/CancelOfferOpFrame.cpp     \
+    src/transactions/ChangeTrustOpFrame.cpp     \
+    src/transactions/CreateOfferOpFrame.cpp     \
+    src/transactions/InflationOpFrame.cpp       \
     src/transactions/InflationTests.cpp         \
-    src/transactions/MergeFrame.cpp             \
+    src/transactions/MergeOpFrame.cpp           \
     src/transactions/MergeTests.cpp             \
     src/transactions/OfferExchange.cpp          \
     src/transactions/OfferTests.cpp             \
-    src/transactions/PaymentFrame.cpp           \
+    src/transactions/OperationFrame.cpp         \
+    src/transactions/PaymentOpFrame.cpp         \
     src/transactions/PaymentTests.cpp           \
-    src/transactions/SetOptionsFrame.cpp        \
+    src/transactions/SetOptionsOpFrame.cpp      \
     src/transactions/SetOptionsTests.cpp        \
     src/transactions/TransactionFrame.cpp       \
     src/transactions/TxEnvelopeTests.cpp        \
@@ -141,15 +142,16 @@ FMT_HDRS =                                      \
     src/process/ProcessMaster.h                 \
     src/simulation/Simulation.h                 \
     src/simulation/Topologies.h                 \
-    src/transactions/AllowTrustTxFrame.h        \
-    src/transactions/CancelOfferFrame.h         \
-    src/transactions/ChangeTrustTxFrame.h       \
-    src/transactions/CreateOfferFrame.h         \
-    src/transactions/InflationFrame.h           \
-    src/transactions/MergeFrame.h               \
+    src/transactions/AllowTrustOpFrame.h        \
+    src/transactions/CancelOfferOpFrame.h         \
+    src/transactions/ChangeTrustOpFrame.h       \
+    src/transactions/CreateOfferOpFrame.h         \
+    src/transactions/InflationOpFrame.h           \
+    src/transactions/MergeOpFrame.h               \
     src/transactions/OfferExchange.h            \
-    src/transactions/PaymentFrame.h             \
-    src/transactions/SetOptionsFrame.h          \
+    src/transactions/OperationFrame.h           \
+    src/transactions/PaymentOpFrame.h             \
+    src/transactions/SetOptionsOpFrame.h          \
     src/transactions/TransactionFrame.h         \
     src/transactions/TxTests.h                  \
     src/util/Logging.h                          \

@@ -395,7 +395,7 @@ void CatchupStateMachine::enterApplyingState()
     mState = CATCHUP_APPLYING;
     auto& db = mApp.getDatabase();
     auto& sess = db.getSession();
-    soci::transaction tx(sess);
+    soci::transaction sqltx(sess);
 
     // FIXME: this should do a "pre-apply scan" of the incoming contents
     // to confirm that it's part of the trusted chain of history we want
@@ -559,6 +559,8 @@ void CatchupStateMachine::enterApplyingState()
             }
         }
     }
+
+    sqltx.commit();
 
     enterEndState();
 }

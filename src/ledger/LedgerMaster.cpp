@@ -69,15 +69,17 @@ void LedgerMaster::startNewLedger()
     SecretKey skey = SecretKey::fromBase58Seed(b58SeedStr);
     AccountFrame masterAccount(skey.getPublicKey());
     masterAccount.getAccount().balance = 100000000000000000;
-    LedgerDelta delta;
-    masterAccount.storeAdd(delta, this->getDatabase());
-
     LedgerHeader genesisHeader;
+
+    LedgerDelta delta(genesisHeader);
+    masterAccount.storeAdd(delta, this->getDatabase());
+    
     genesisHeader.baseFee = mApp.getConfig().DESIRED_BASE_FEE;
     genesisHeader.baseReserve = mApp.getConfig().DESIRED_BASE_RESERVE;
     genesisHeader.totalCoins = masterAccount.getAccount().balance;
     genesisHeader.closeTime = 0; // the genesis ledger has close time of 0 so it always has the same hash
     genesisHeader.ledgerSeq = 1;
+    delta.commit();
 
     mCurrentLedger = make_shared<LedgerHeaderFrame>(genesisHeader);
 
@@ -107,7 +109,7 @@ void LedgerMaster::loadLastKnownLedger()
             throw std::runtime_error("Could not load ledger from database");
         }
 
-        LedgerDelta delta;
+    LedgerDelta delta(mCurrentLedger->mHeader);
 
         closeLedgerHelper(false, delta);
     }
@@ -118,7 +120,7 @@ Database &LedgerMaster::getDatabase()
     return mApp.getDatabase();
 }
 
-int32_t LedgerMaster::getTxFee()
+int64_t LedgerMaster::getTxFee()
 {
     return mCurrentLedger->mHeader.baseFee; 
 }
@@ -214,7 +216,7 @@ void LedgerMaster::closeLedger(LedgerCloseData ledgerData)
 
     TxSetFrame successfulTX;
 
-    LedgerDelta ledgerDelta(mCurrentLedger->mHeader.idPool);
+    LedgerDelta ledgerDelta(mCurrentLedger->mHeader);
 
     soci::transaction txscope(getDatabase().getSession());
 
@@ -225,8 +227,9 @@ void LedgerMaster::closeLedger(LedgerCloseData ledgerData)
     for(auto tx : txs)
     {
         auto txTime = mTransactionApply.TimeScope();
-        try {
-            LedgerDelta delta(ledgerDelta.getCurrentID());
+        try
+        {
+            LedgerDelta delta(ledgerDelta);
 
             // note that successfulTX here just means it got processed
             // a failed transaction collecting a fee is successful at this layer
@@ -234,23 +237,24 @@ void LedgerMaster::closeLedger(LedgerCloseData ledgerData)
             {
                 successfulTX.add(tx);
                 tx->storeTransaction(*this, delta);
-                ledgerDelta.merge(delta);
+                delta.commit();
             }
             else
             {
                 CLOG(ERROR, "Tx") << "invalid tx. This should never happen";
             }
 
-        }catch(...)
+        }
+        catch(...)
         {
             CLOG(ERROR, "Ledger") << "Exception during tx->apply";
         }
     }
+    ledgerDelta.commit();
     mCurrentLedger->mHeader.baseFee = ledgerData.mBaseFee;
     mCurrentLedger->mHeader.closeTime = ledgerData.mCloseTime;
     closeLedgerHelper(true, ledgerDelta);
     txscope.commit();
-    
 
     // Notify ledger close to other components.
     mApp.getHerderGateway().ledgerClosed(mLastClosedLedger->mHeader);
@@ -277,7 +281,6 @@ void LedgerMaster::closeLedgerHelper(bool updateCurrent, LedgerDelta const& delt
         // TODO: compute hashes in header
         mCurrentLedger->mHeader.txSetHash.fill(1);
         mCurrentLedger->computeHash();
-        mCurrentLedger->mHeader.idPool = delta.getCurrentID();
         mCurrentLedger->storeInsert(*this);
 
         mApp.getPersistentState().setState(PersistentState::kLastClosedLedger, binToHex(mCurrentLedger->mHeader.hash));

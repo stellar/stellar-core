@@ -3,6 +3,7 @@
 // this distribution or at http://opensource.org/licenses/ISC
 
 #include "ledger/OfferFrame.h"
+#include "transactions/OperationFrame.h"
 #include "database/Database.h"
 #include "crypto/Base58.h"
 #include "crypto/SHA.h"
@@ -57,20 +58,21 @@ namespace stellar
         return *this;
     }
 
-    void OfferFrame::from(const Transaction& tx) 
+    void OfferFrame::from(OperationFrame& op) 
     {
         assert(mEntry.type() == OFFER);
-        mOffer.accountID = tx.account;
-        mOffer.amount = tx.body.createOfferTx().amount;
-        mOffer.price = tx.body.createOfferTx().price;
-        mOffer.offerID = tx.body.createOfferTx().offerID;
-        mOffer.takerGets = tx.body.createOfferTx().takerGets;
-        mOffer.takerPays = tx.body.createOfferTx().takerPays;
-        mOffer.flags = tx.body.createOfferTx().flags;
+        mOffer.accountID = op.getSourceID();
+        CreateOfferOp const& create = op.getOperation().body.createOfferOp();
+        mOffer.amount = create.amount;
+        mOffer.price = create.price;
+        mOffer.offerID = create.offerID;
+        mOffer.takerGets = create.takerGets;
+        mOffer.takerPays = create.takerPays;
+        mOffer.flags = create.flags;
         mKeyCalculated = false;
     }
 
-    Price OfferFrame::getPrice() const
+    Price const& OfferFrame::getPrice() const
     {
         return mOffer.price;
     }

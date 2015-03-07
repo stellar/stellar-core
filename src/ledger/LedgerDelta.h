@@ -17,15 +17,20 @@ class Application;
         KeyEntryMap mNew;
         KeyEntryMap mMod;
         std::set<LedgerKey, LedgerEntryIdCmp> mDelete;
+
+        LedgerDelta *mOuterDelta;
+        LedgerHeader *mHeader;
         uint64_t mCurrentID;
 
+        void checkState();
         void addEntry(EntryFrame::pointer entry);
         void deleteEntry(EntryFrame::pointer entry);
         void modEntry(EntryFrame::pointer entry);
 
+        void merge(LedgerDelta &other);
     public:
-        LedgerDelta();
-        LedgerDelta(uint64_t startID);
+        explicit LedgerDelta(LedgerDelta& outerDelta);
+        LedgerDelta(LedgerHeader& ledgerHeader);
 
         void addEntry(EntryFrame const& entry);
         void deleteEntry(EntryFrame const& entry);
@@ -35,8 +40,8 @@ class Application;
         uint64_t getCurrentID() const  { return mCurrentID;  }
         uint64_t getNextID();
 
-        // apply other on top of delta, collapsing entries as appropriate
-        void merge(LedgerDelta &other);
+        // commits this delta into parent delta
+        void commit();
 
         void markMeters(Application& app) const;
 

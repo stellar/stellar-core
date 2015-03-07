@@ -1,4 +1,4 @@
-#include "transactions/CreateOfferFrame.h"
+#include "transactions/CreateOfferOpFrame.h"
 #include "ledger/OfferFrame.h"
 #include "util/Logging.h"
 #include "util/types.h"
@@ -17,20 +17,21 @@ namespace stellar
 
 using namespace std;
 
-CreateOfferFrame::CreateOfferFrame(const TransactionEnvelope& envelope) : TransactionFrame(envelope)
+CreateOfferOpFrame::CreateOfferOpFrame(Operation const& op, OperationResult &res,
+    TransactionFrame &parentTx) :
+    OperationFrame(op, res, parentTx), mCreateOffer(mOperation.body.createOfferOp())
 {
-
 }
 
 // make sure these issuers exist and you can hold the ask currency
-bool CreateOfferFrame::checkOfferValid(Database &db)
+bool CreateOfferOpFrame::checkOfferValid(Database &db)
 {
-    Currency& sheep = mEnvelope.tx.body.createOfferTx().takerGets;
-    Currency& wheat = mEnvelope.tx.body.createOfferTx().takerPays;
+    Currency const& sheep = mCreateOffer.takerGets;
+    Currency const& wheat = mCreateOffer.takerPays;
 
     if (sheep.type() != NATIVE)
     {
-        if (!TrustFrame::loadTrustLine(mEnvelope.tx.account, sheep, mSheepLineA, db))
+        if (!TrustFrame::loadTrustLine(getSourceID(), sheep, mSheepLineA, db))
         {   // we don't have what we are trying to sell
             innerResult().code(CreateOffer::NO_TRUST);
             return false;
@@ -44,7 +45,7 @@ bool CreateOfferFrame::checkOfferValid(Database &db)
 
     if(wheat.type()!=NATIVE)
     {
-        if(!TrustFrame::loadTrustLine(mEnvelope.tx.account, wheat, mWheatLineA, db))
+        if(!TrustFrame::loadTrustLine(getSourceID(), wheat, mWheatLineA, db))
         {   // we can't hold what we are trying to buy
             innerResult().code(CreateOffer::NO_TRUST);
             return false;
@@ -68,7 +69,7 @@ bool CreateOfferFrame::checkOfferValid(Database &db)
 
 // TODO: revisit this, offer code should share logic with payment code
 //      to keep the code working, I ended up duplicating the error codes
-bool CreateOfferFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
+bool CreateOfferOpFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
 {
     Database &db = ledgerMaster.getDatabase();
 
@@ -76,19 +77,20 @@ bool CreateOfferFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
     {
         return false;
     }
-    Currency& sheep = mEnvelope.tx.body.createOfferTx().takerGets;
-    Currency& wheat = mEnvelope.tx.body.createOfferTx().takerPays;
+
+    Currency const& sheep = mCreateOffer.takerGets;
+    Currency const& wheat = mCreateOffer.takerPays;
 
     bool creatingNewOffer = false;
-    uint64_t offerID = mEnvelope.tx.body.createOfferTx().offerID;
+    uint64_t offerID = mCreateOffer.offerID;
 
     if(offerID)
     { // modifying an old offer
-        if(OfferFrame::loadOffer(mEnvelope.tx.account, offerID, mSellSheepOffer, db))
+        if(OfferFrame::loadOffer(getSourceID(), offerID, mSellSheepOffer, db))
         {
             // make sure the currencies are the same
-            if( !compareCurrency(mEnvelope.tx.body.createOfferTx().takerGets, mSellSheepOffer.getOffer().takerGets) ||
-                !compareCurrency(mEnvelope.tx.body.createOfferTx().takerPays, mSellSheepOffer.getOffer().takerPays))
+            if( !compareCurrency(mCreateOffer.takerGets, mSellSheepOffer.getOffer().takerGets) ||
+                !compareCurrency(mCreateOffer.takerPays, mSellSheepOffer.getOffer().takerPays))
             {
                 innerResult().code(CreateOffer::MALFORMED);
                 return false;
@@ -101,16 +103,16 @@ bool CreateOfferFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
     } else
     { // creating a new Offer
         creatingNewOffer = true;
-        mSellSheepOffer.from(mEnvelope.tx);
+        mSellSheepOffer.from(*this);
     }
 
-    int64_t maxSheepSend = mEnvelope.tx.body.createOfferTx().amount;
+    int64_t maxSheepSend = mCreateOffer.amount;
 
     int64_t maxAmountOfSheepCanSell;
     if (sheep.type() == NATIVE)
     {
-        maxAmountOfSheepCanSell = mSigningAccount->getAccount().balance -
-            ledgerMaster.getMinBalance(mSigningAccount->getAccount().numSubEntries);
+        maxAmountOfSheepCanSell = mSourceAccount->getAccount().balance -
+            ledgerMaster.getMinBalance(mSourceAccount->getAccount().numSubEntries);
     }
     else
     {
@@ -124,13 +126,13 @@ bool CreateOfferFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
         maxSheepSend = maxAmountOfSheepCanSell;
     }
 
-    Price sheepPrice = mEnvelope.tx.body.createOfferTx().price;
+    Price sheepPrice = mCreateOffer.price;
 
     innerResult().code(CreateOffer::SUCCESS);
 
     {
         soci::transaction sqlTx(db.getSession());
-        LedgerDelta tempDelta(delta.getCurrentID());
+        LedgerDelta tempDelta(delta);
 
         int64_t sheepSent, wheatReceived;
 
@@ -146,7 +148,7 @@ bool CreateOfferFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
                 {
                     return OfferExchange::eStop;
                 }
-                if (o.getAccountID() == mSigningAccount->getID())
+                if (o.getAccountID() == getSourceID())
                 {
                     // we are crossing our own offer
                     innerResult().code(CreateOffer::CROSS_SELF);
@@ -184,13 +186,13 @@ bool CreateOfferFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
         {
             if (wheat.type() == NATIVE)
             {
-                mSigningAccount->getAccount().balance += wheatReceived;
-                mSigningAccount->storeChange(delta, db);
+                mSourceAccount->getAccount().balance += wheatReceived;
+                mSourceAccount->storeChange(delta, db);
             }
             else
             {
                 TrustFrame wheatLineSigningAccount;
-                if (!TrustFrame::loadTrustLine(mSigningAccount->getID(),
+                if (!TrustFrame::loadTrustLine(getSourceID(),
                     wheat, wheatLineSigningAccount, db))
                 {
                     throw std::runtime_error("invalid database state: must have matching trust line");
@@ -201,8 +203,8 @@ bool CreateOfferFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
 
             if (sheep.type() == NATIVE)
             {
-                mSigningAccount->getAccount().balance -= sheepSent;
-                mSigningAccount->storeChange(delta, db);
+                mSourceAccount->getAccount().balance -= sheepSent;
+                mSourceAccount->storeChange(delta, db);
             }
             else
             {
@@ -220,8 +222,8 @@ bool CreateOfferFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
             if (creatingNewOffer)
             {
                 // make sure we don't allow us to add offers when we don't have the minbalance
-                if (mSigningAccount->getAccount().balance <
-                    ledgerMaster.getMinBalance(mSigningAccount->getAccount().numSubEntries + 1))
+                if (mSourceAccount->getAccount().balance <
+                    ledgerMaster.getMinBalance(mSourceAccount->getAccount().numSubEntries + 1))
                 {
                     innerResult().code(CreateOffer::UNDERFUNDED);
                     return false;
@@ -231,8 +233,8 @@ bool CreateOfferFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
                 innerResult().success().offer.offerCreated() = mSellSheepOffer.getOffer();
                 mSellSheepOffer.storeAdd(tempDelta, db);
 
-                mSigningAccount->getAccount().numSubEntries++;
-                mSigningAccount->storeChange(tempDelta, db);
+                mSourceAccount->getAccount().numSubEntries++;
+                mSourceAccount->storeChange(tempDelta, db);
             }
             else
             {
@@ -251,18 +253,19 @@ bool CreateOfferFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
         }
 
         sqlTx.commit();
-        delta.merge(tempDelta);
+        tempDelta.commit();
     }
     return true;
 }
 
 // makes sure the currencies are different 
-bool CreateOfferFrame::doCheckValid(Application& app)
+bool CreateOfferOpFrame::doCheckValid(Application& app)
 {
-    Currency& sheep = mEnvelope.tx.body.createOfferTx().takerGets;
-    Currency& wheat = mEnvelope.tx.body.createOfferTx().takerPays;
+    Currency const& sheep = mCreateOffer.takerGets;
+    Currency const& wheat = mCreateOffer.takerPays;
     if (compareCurrency(sheep, wheat))
     {
+        innerResult().code(CreateOffer::MALFORMED);
         return false;
     }
     

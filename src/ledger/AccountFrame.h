@@ -18,15 +18,13 @@ namespace soci
 
 namespace stellar
 {
-	class AccountFrame : public EntryFrame
-	{
+    class AccountFrame : public EntryFrame
+    {
         void storeUpdate(LedgerDelta &delta, Database& db, bool insert);
         bool mUpdateSigners;
 
-        std::map<uint32_t, uint32_t> mUpdatedSeqNums;
-
         AccountEntry &mAccountEntry;
-	public:
+    public:
         typedef std::shared_ptr<AccountFrame> pointer;
 
         AccountFrame();
@@ -45,9 +43,8 @@ namespace stellar
         uint32_t getMidThreshold();
         uint32_t getLowThreshold();
         xdr::xvector<Signer> &getSigners();
-        uint32_t getSeq(uint32_t slot, Database& db);
-        uint32_t getMaxSeqSlot(Database& db);
-        void setSeqSlot(uint32_t slot, uint32_t seq);
+        void setSeqNum(uint32_t seq) { mAccountEntry.seqNum = seq; }
+        uint32_t getSeqNum(Database& db) { return mAccountEntry.seqNum; }
 
         AccountEntry &getAccount() { return mAccountEntry; }
 
@@ -66,9 +63,7 @@ namespace stellar
         static void dropAll(Database &db);
         static const char *kSQLCreateStatement1;
         static const char *kSQLCreateStatement2;
-        static const char *kSQLCreateStatement3;
-        static const char *kSQLCreateStatement4;
-	};
+    };
 }
 
 

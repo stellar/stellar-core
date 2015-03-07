@@ -138,7 +138,20 @@ checkMVCCIsolation(Application::pointer app)
             // this just blocks, so we only check on sqlite.
 
             CLOG(DEBUG, "Database") << "Checking failure to upgrade read lock to conflicting write lock";
-            CHECK_THROWS((sess2 << "UPDATE test SET x=:v", soci::use(tx2v1)));
+            try
+            {
+                soci::statement st = (sess2.prepare << "UPDATE test SET x=:v", soci::use(tx2v1));
+                st.execute(true);
+                REQUIRE(false);
+            }
+            catch (soci::soci_error &e)
+            {
+                CLOG(DEBUG, "Database") << "Got " << e.what();
+            }
+            catch (...)
+            {
+                REQUIRE(false);
+            }
 
             // Check that sess1 didn't see a write via sess2
             CLOG(DEBUG, "Database") << "Checking sess1 did not observe write on failed sess2 write-lock upgrade";
@@ -220,6 +233,11 @@ TEST_CASE("postgres smoketest", "[db]")
             tx.commit();
         }
 
+        SECTION("postgres MVCC test")
+        {
+            app->getDatabase().getSession() << "drop table if exists test";
+            checkMVCCIsolation(app);
+        }
     }
     catch(soci::soci_error& err)
     {
@@ -236,18 +254,6 @@ TEST_CASE("postgres smoketest", "[db]")
         }
     }
 }
-
-TEST_CASE("postgres MVCC test", "[db]")
-{
-    Config cfg;
-    cfg.RUN_STANDALONE=true;
-    VirtualClock clock;
-    cfg.DATABASE = "postgresql://host=localhost dbname=test user=test password=test";
-    Application::pointer app = Application::create(clock, cfg);
-    app->getDatabase().getSession() << "drop table if exists test";
-    checkMVCCIsolation(app);
-}
-
 
 #endif
 

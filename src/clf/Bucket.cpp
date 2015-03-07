@@ -255,7 +255,8 @@ void
 Bucket::apply(Database& db) const
 {
     CLFEntry entry;
-    LedgerDelta delta;
+    LedgerHeader lh;
+    LedgerDelta delta(lh);
     XDRInputFileStream in;
     in.open(getFilename());
     while (in)

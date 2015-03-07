@@ -15,8 +15,8 @@
 #include "database/Database.h"
 #include "ledger/LedgerMaster.h"
 #include "ledger/LedgerDelta.h"
-#include "transactions/PaymentFrame.h"
-#include "transactions/ChangeTrustTxFrame.h"
+#include "transactions/PaymentOpFrame.h"
+#include "transactions/ChangeTrustOpFrame.h"
 
 using namespace stellar;
 using namespace stellar::txtest;
@@ -120,11 +120,11 @@ TEST_CASE("payment", "[tx][payment]")
         {
             LOG(INFO) << "send STR with path";
             TransactionFramePtr txFrame2 = createPaymentTx(root, a1, 2, morePayment);
-            txFrame2->getEnvelope().tx.body.paymentTx().path.push_back(currency);
-            LedgerDelta delta2;
+            getFirstOperation(*txFrame2).body.paymentOp().path.push_back(currency);
+            LedgerDelta delta2(app.getLedgerMaster().getCurrentLedgerHeader());
             txFrame2->apply(delta2, app);
 
-            REQUIRE(Payment::getInnerCode(txFrame2->getResult()) == Payment::OVERSENDMAX);
+            REQUIRE(Payment::getInnerCode(getFirstResult(*txFrame2)) == Payment::OVERSENDMAX);
             AccountFrame account;
             REQUIRE(AccountFrame::loadAccount(a1.getPublicKey(), account, app.getDatabase()));
             

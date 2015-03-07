@@ -36,7 +36,7 @@ namespace stellar
 
 using namespace std;
 
-const size_t
+const uint32_t
 HistoryMaster::kCheckpointFrequency = 64;
 
 class
