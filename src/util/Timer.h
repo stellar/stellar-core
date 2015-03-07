@@ -63,14 +63,29 @@ public:
     static std::string tmToISOString(std::tm const& tm);
     static std::string pointToISOString(time_point point);
 
+    enum Mode
+    {
+        REAL_TIME,
+        VIRTUAL_TIME
+    };
+
 private:
     asio::io_service mIOService;
     asio::basic_waitable_timer<std::chrono::steady_clock> mRealTimer;
-    bool mRealTime;
+    Mode mMode;
 
     time_point mNow;
     std::map<Application*,
              std::shared_ptr<std::priority_queue<VirtualClockEvent>>> mEvents;
+
+    time_point next();
+    bool cancelAllEventsFrom(Application& a,
+                             std::function<bool(VirtualClockEvent const&)> pred);
+    void maybeSetRealtimer();
+    size_t advanceTo(time_point n);
+    bool allEmpty() const;
+    size_t advanceToNext();
+    size_t advanceToNow();
 
 public:
 
@@ -79,25 +94,17 @@ public:
     // mode it processes IO events until IO is idle then advances to the time of
     // the next virtual event instantly.
 
-    VirtualClock(bool realTime=false);
-    size_t crank(bool block);
-    void maybeSetRealtimer();
+    VirtualClock(Mode mode=VIRTUAL_TIME);
+    size_t crank(bool block=true);
     asio::io_service& getIOService();
 
     // Note: this is not a static method, which means that VirtualClock is
     // not an implementation of the C++ `Clock` concept; there is no global
     // virtual time. Each virtual clock has its own time.
     time_point now() noexcept;
-    time_point next();
     void enqueue(Application& app, VirtualClockEvent const& ve);
-    bool cancelAllEventsFrom(Application& a,
-                             std::function<bool(VirtualClockEvent const&)> pred);
     bool cancelAllEventsFrom(Application& a);
     bool cancelAllEventsFrom(Application& a, VirtualTimer& v);
-    size_t advanceTo(time_point n);
-    bool allEmpty() const;
-    size_t advanceToNext();
-    size_t advanceToNow();
 };
 
 

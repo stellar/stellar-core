@@ -32,9 +32,9 @@ TEST_CASE("subprocess", "[process]")
                        exited = true;
                    });
 
-    while (!exited && !app->getMainIOService().stopped())
+    while (!exited && !clock.getIOService().stopped())
     {
-        app->getMainIOService().poll_one();
+        clock.crank(false);
     }
 }
 
@@ -57,9 +57,9 @@ TEST_CASE("subprocess redirect to file", "[process]")
                        exited = true;
                    });
 
-    while (!exited && !app.getMainIOService().stopped())
+    while (!exited && !clock.getIOService().stopped())
     {
-        app.crank(false);
+        clock.crank(false);
     }
 
     std::ifstream in(filename);

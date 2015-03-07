@@ -25,7 +25,6 @@ public:
     ApplicationImpl(VirtualClock& clock, Config const& cfg);
     virtual ~ApplicationImpl() override;
 
-    virtual size_t crank(bool block = true) override;
     virtual uint64_t timeNow() override;
 
     virtual Config const& getConfig() override;
@@ -46,7 +45,6 @@ public:
     virtual Database& getDatabase() override;
     virtual PersistentState& getPersistentState() override;
 
-    virtual asio::io_service& getMainIOService() override;
     virtual asio::io_service& getWorkerIOService() override;
 
     virtual void start() override;

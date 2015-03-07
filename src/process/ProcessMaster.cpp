@@ -25,7 +25,7 @@ namespace stellar
 #include <tchar.h>
 
 ProcessMaster::ProcessMaster(Application& app)
-    : mApp(app), mSigChild(app.getMainIOService())
+    : mApp(app), mSigChild(app.getClock().getIOService())
 {
 }
 
@@ -123,7 +123,7 @@ ProcessMaster::runProcess(std::string const& cmdLine,
     CloseHandle(pi.hThread); // we don't need this handle
     pi.hThread = INVALID_HANDLE_VALUE;
 
-    auto& svc = mApp.getMainIOService();
+    auto& svc = mApp.getClock().getIOService();
     ProcessExitEvent pe(svc);
     pe.mImpl = std::make_shared<ProcessExitEvent::Impl>(
         pe.mTimer, pe.mEc, pi.hProcess);
@@ -149,7 +149,7 @@ class ProcessExitEvent::Impl
 };
 
 ProcessMaster::ProcessMaster(Application& app)
-    : mApp(app), mSigChild(app.getMainIOService(), SIGCHLD)
+    : mApp(app), mSigChild(app.getClock().getIOService(), SIGCHLD)
 {
     startSignalWait();
 }
@@ -278,7 +278,7 @@ ProcessMaster::runProcess(std::string const& cmdLine,
         }
     }
 
-    auto& svc = mApp.getMainIOService();
+    auto& svc = mApp.getClock().getIOService();
     ProcessExitEvent pe(svc);
     pe.mImpl = std::make_shared<ProcessExitEvent::Impl>(pe.mTimer, pe.mEc);
     mImpls[pid] = pe.mImpl;

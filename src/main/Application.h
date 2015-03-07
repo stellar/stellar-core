@@ -87,7 +87,6 @@ class Application
 
     virtual ~Application() {};
 
-    virtual size_t crank(bool block=true) = 0;
     // in seconds
     virtual uint64_t timeNow() = 0;
 
@@ -109,7 +108,6 @@ class Application
     virtual Database& getDatabase() = 0;
     virtual PersistentState& getPersistentState() = 0;
 
-    virtual asio::io_service& getMainIOService() = 0;
     virtual asio::io_service& getWorkerIOService() = 0;
 
     virtual void start() = 0;

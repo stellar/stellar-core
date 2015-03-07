@@ -34,7 +34,7 @@ Simulation::getMinBalance()
 }
 
 Simulation::Simulation(Mode mode)
-    : mClock(mode == OVER_TCP)
+    : mClock(mode == OVER_TCP ? VirtualClock::REAL_TIME : VirtualClock::VIRTUAL_TIME)
     , mMode(mode)
     , mConfigCount(0)
     , mIdleApp(Application::create(mClock, getTestConfig(++mConfigCount)))
@@ -44,11 +44,8 @@ Simulation::Simulation(Mode mode)
 Simulation::~Simulation()
 {
     // tear down
-    std::map<uint256, Application::pointer>::iterator it;
-    for (it = mNodes.begin(); it != mNodes.end(); ++it) {
-        it->second->getMainIOService().poll_one();
-        it->second->getMainIOService().stop();
-    }
+    mClock.getIOService().poll_one();
+    mClock.getIOService().stop();
 }
 
 VirtualClock& 
@@ -146,18 +143,6 @@ Simulation::startAllNodes()
     {
         it.second->start();
     }
-}
-
-std::size_t
-Simulation::crankNode(uint256 nodeID, int nbTicks)
-{
-    std::size_t count = 0;
-    if (mNodes[nodeID])
-    {
-        for (int i = 0; i < nbTicks && nbTicks > 0; i ++)
-            count += mNodes[nodeID]->crank(false);
-    }
-    return count;
 }
 
 std::size_t

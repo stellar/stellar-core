@@ -93,7 +93,7 @@ TEST_CASE("standalone", "[herder]")
         checkTimer.expires_from_now(std::chrono::seconds(5));
         checkTimer.async_wait(check);
 
-        while(!stop && app->crank(false) > 0);
+        while(!stop && app->getClock().crank(false) > 0);
     }
 
 }

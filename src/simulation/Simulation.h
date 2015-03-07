@@ -59,7 +59,6 @@ class Simulation
 
     bool haveAllExternalized(int num);
 
-    size_t crankNode(uint256 nodeID, int nbTicks=1);
     size_t crankAllNodes(int nbTicks=1);
     void crankForAtMost(VirtualClock::duration seconds);
     void crankForAtLeast(VirtualClock::duration seconds);

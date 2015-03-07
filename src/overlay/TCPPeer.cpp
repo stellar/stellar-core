@@ -46,7 +46,7 @@ TCPPeer::initiate(Application& app, const std::string& ip, uint32_t port)
     LOG(DEBUG) << "TCPPeer:initiate"
         << "@" << app.getConfig().PEER_PORT
         << " to " << ip << ":" << port;
-    auto socket = make_shared<asio::ip::tcp::socket>(app.getMainIOService());
+    auto socket = make_shared<asio::ip::tcp::socket>(app.getClock().getIOService());
     auto result = make_shared<TCPPeer>(app, ACCEPTOR, socket); // We are initiating; new `newed` TCPPeer is accepting
     result->mIP = ip;
     result->mRemoteListeningPort = port;
@@ -267,13 +267,10 @@ TCPPeer::drop()
 {
     LOG(DEBUG) << "TCPPeer:drop"
                << "@" << mApp.getConfig().PEER_PORT << " to " << mRemoteListeningPort;
-    
-
-    
 
     auto self = shared_from_this();
     auto sock = mSocket;
-    mApp.getMainIOService().post(
+    mApp.getClock().getIOService().post(
         [self, sock]()
         {
             self->getApp().getPeerMaster().dropPeer(self);

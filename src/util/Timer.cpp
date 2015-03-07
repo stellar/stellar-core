@@ -8,11 +8,11 @@ namespace stellar
 
 using namespace std;
 
-VirtualClock::VirtualClock(bool realTIme)
+VirtualClock::VirtualClock(Mode mode)
     : mRealTimer(mIOService)
-    , mRealTime(realTIme)
+    , mMode(mode)
 {
-    if (mRealTime)
+    if (mMode == REAL_TIME)
     {
         mNow = std::chrono::steady_clock::now();
     }
@@ -21,7 +21,7 @@ VirtualClock::VirtualClock(bool realTIme)
 VirtualClock::time_point
 VirtualClock::now() noexcept
 {
-    if (mRealTime)
+    if (mMode == REAL_TIME)
     {
         mNow = std::chrono::steady_clock::now();
     }
@@ -31,7 +31,7 @@ VirtualClock::now() noexcept
 void
 VirtualClock::maybeSetRealtimer()
 {
-    if (mRealTime)
+    if (mMode == REAL_TIME)
     {
         mRealTimer.expires_at(next());
         mRealTimer.async_wait(
@@ -207,7 +207,7 @@ VirtualClock::allEmpty() const
 size_t
 VirtualClock::advanceToNow()
 {
-    assert(mRealTime);
+    assert(mMode == REAL_TIME);
     return advanceTo(now());
 }
 
@@ -215,7 +215,7 @@ size_t
 VirtualClock::crank(bool block)
 {
     size_t nWorkDone = 0;
-    if (mRealTime)
+    if (mMode == REAL_TIME)
     {
         // Fire all pending timers.
         nWorkDone += advanceToNow();
@@ -230,7 +230,7 @@ VirtualClock::crank(bool block)
         nWorkDone += mIOService.poll_one();
     }
 
-    if (!mRealTime && nWorkDone == 0)
+    if (mMode == VIRTUAL_TIME && nWorkDone == 0)
     {
         // If we did nothing and we're in virtual mode,
         // we're idle and can skip time forward.
@@ -283,7 +283,7 @@ VirtualClock::advanceTo(time_point n)
 size_t
 VirtualClock::advanceToNext()
 {
-    assert(!mRealTime);
+    assert(mMode == VIRTUAL_TIME);
     if (allEmpty())
     {
         return 0;

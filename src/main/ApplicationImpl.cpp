@@ -110,12 +110,6 @@ uint64_t ApplicationImpl::timeNow()
     return VirtualClock::pointToTimeT(getClock().now());
 }
 
-size_t
-ApplicationImpl::crank(bool block)
-{
-    return getClock().crank(block);
-}
-
 void
 ApplicationImpl::start()
 {
@@ -289,12 +283,6 @@ PersistentState&
 ApplicationImpl::getPersistentState()
 {
     return *mPersistentState;
-}
-
-asio::io_service&
-ApplicationImpl::getMainIOService()
-{
-    return mVirtualClock.getIOService();
 }
 
 asio::io_service&
