@@ -119,18 +119,15 @@ TEST_CASE("shared virtual time advances only when all apps idle", "[timer][share
     timer.expires_from_now(std::chrono::seconds(1));
     timer.async_wait( [&](asio::error_code const& e) { ++timerFired; });
 
-    // Check that cranking the clock twice advances both events but doesn't
-    // fire the timer.
-    clock.crank(false);
+    // Check that cranking the clock advances both events and does not fire the timer.
     clock.crank(false);
     CHECK(app1Event == 2);
     CHECK(app2Event == 1);
     CHECK(timerFired == 1);
 
-    // Check that the _next_ crank will advance to the timer and fire it
+    // Check that one last crank fires the timer.
     clock.crank(false);
     CHECK(app1Event == 2);
     CHECK(app2Event == 1);
     CHECK(timerFired == 2);
-
 }

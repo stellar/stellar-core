@@ -74,6 +74,7 @@ private:
     asio::basic_waitable_timer<std::chrono::steady_clock> mRealTimer;
     Mode mMode;
 
+    size_t nRealTimerCancelEvents;
     time_point mNow;
     std::map<Application*,
              std::shared_ptr<std::priority_queue<VirtualClockEvent>>> mEvents;

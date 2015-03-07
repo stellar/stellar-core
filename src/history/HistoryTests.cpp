@@ -69,7 +69,7 @@ HistoryTests::crankTillDone(bool& done)
 {
     while (!done && !app.getClock().getIOService().stopped())
     {
-        app.getClock().crank();
+        app.getClock().crank(false);
     }
 }
 
@@ -223,7 +223,7 @@ TEST_CASE_METHOD(HistoryTests, "History catchup", "[history]")
         });
     while (!done && !app2->getClock().getIOService().stopped())
     {
-        app2->getClock().crank();
+        app2->getClock().crank(false);
     }
     CHECK(app2->getCLFMaster().getBucketByHash(hash));
     auto hash2 = app2->getCLFMaster().getBucketList().getLevel(0).getCurr()->getHash();

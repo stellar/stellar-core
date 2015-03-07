@@ -94,7 +94,7 @@ HistoryMaster::initializeHistoryArchive(Application& app, std::string arch)
 
     while (!done && !app.getClock().getIOService().stopped())
     {
-        app.getClock().crank();
+        app.getClock().crank(false);
     }
     return ok;
 }

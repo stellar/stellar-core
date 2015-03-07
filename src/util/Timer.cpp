@@ -37,7 +37,11 @@ VirtualClock::maybeSetRealtimer()
         mRealTimer.async_wait(
             [this](asio::error_code const& ec)
             {
-                if (ec != asio::error::operation_aborted)
+                if (ec == asio::error::operation_aborted)
+                {
+                    ++this->nRealTimerCancelEvents;
+                }
+                else
                 {
                     this->advanceToNow();
                 }
@@ -214,6 +218,7 @@ VirtualClock::advanceToNow()
 size_t
 VirtualClock::crank(bool block)
 {
+    nRealTimerCancelEvents = 0;
     size_t nWorkDone = 0;
     if (mMode == REAL_TIME)
     {
@@ -223,13 +228,14 @@ VirtualClock::crank(bool block)
 
     if (block)
     {
-        nWorkDone += mIOService.run_one();
+        nWorkDone += mIOService.run();
     }
     else
     {
-        nWorkDone += mIOService.poll_one();
+        nWorkDone += mIOService.poll();
     }
 
+    nWorkDone -= nRealTimerCancelEvents;
     if (mMode == VIRTUAL_TIME && nWorkDone == 0)
     {
         // If we did nothing and we're in virtual mode,
