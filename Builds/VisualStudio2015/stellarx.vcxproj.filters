@@ -497,12 +497,6 @@
     <ClInclude Include="..\..\src\util\Timer.h">
       <Filter>util</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\lib\json\json\json.h">
-      <Filter>lib\json</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\lib\json\json\json-forwards.h">
-      <Filter>lib\json</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\src\ledger\LedgerDelta.h">
       <Filter>ledger</Filter>
     </ClInclude>
@@ -665,6 +659,12 @@
     <ClInclude Include="..\..\src\main\PersistentState.h">
       <Filter>main</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\src\lib\json\json.h">
+      <Filter>lib\json</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\lib\json\json-forwards.h">
+      <Filter>lib\json</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="..\..\docs\transactions.md">
@@ -702,6 +702,9 @@
       <Filter>docs</Filter>
     </None>
     <None Include="..\..\docs\ledger.md">
+      <Filter>docs</Filter>
+    </None>
+    <None Include="..\..\docs\testnet.md">
       <Filter>docs</Filter>
     </None>
   </ItemGroup>

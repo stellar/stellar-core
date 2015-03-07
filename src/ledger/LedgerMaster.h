@@ -35,6 +35,8 @@ namespace stellar
         medida::Timer& mTransactionApply;
         medida::Timer& mLedgerClose;
 
+        uint64_t mLastCloseTime;
+
         void startCatchUp();
         
         std::vector<LedgerCloseData> mSyncingLedgers;
@@ -58,6 +60,8 @@ namespace stellar
         uint64_t getCloseTime();
 
         ///////
+
+        uint64_t secondsSinceLastLedgerClose();
 
         void startNewLedger();
         void loadLastKnownLedger();

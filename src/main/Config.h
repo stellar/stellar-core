@@ -28,9 +28,6 @@ class Config : public std::enable_shared_from_this<Config>
     // Will start a brand new ledger. And FBA will start running immediately
     // should only be used once to start a whole new network
     bool START_NEW_NETWORK;  
-    // Will load the ledger/bucketlist from SQL/disk and FBA will start running immediately
-    // Useful for test networks
-    bool START_LOCAL_NETWORK;
 
     bool REBUILD_DB;
     

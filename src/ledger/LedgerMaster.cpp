@@ -56,8 +56,10 @@ LedgerMaster::LedgerMaster(Application& app)
     , mTransactionApply(app.getMetrics().NewTimer({"ledger", "transaction", "apply"}))
     , mLedgerClose(app.getMetrics().NewTimer({"ledger", "ledger", "close"}))
 {
-   
+    mLastCloseTime = mApp.timeNow(); // this is 0 at this point
 }
+
+
 
 void LedgerMaster::startNewLedger()
 {
@@ -74,7 +76,7 @@ void LedgerMaster::startNewLedger()
     genesisHeader.baseFee = mApp.getConfig().DESIRED_BASE_FEE;
     genesisHeader.baseReserve = mApp.getConfig().DESIRED_BASE_RESERVE;
     genesisHeader.totalCoins = masterAccount.getAccount().balance;
-    genesisHeader.closeTime = VirtualClock::pointToTimeT(mApp.getClock().now());
+    genesisHeader.closeTime = 0; // the genesis ledger has close time of 0 so it always has the same hash
     genesisHeader.ledgerSeq = 1;
 
     mCurrentLedger = make_shared<LedgerHeaderFrame>(genesisHeader);
@@ -198,6 +200,11 @@ void LedgerMaster::historyCaughtup(asio::error_code const& ec)
     }
 }
 
+uint64_t LedgerMaster::secondsSinceLastLedgerClose()
+{
+    return mApp.timeNow() - mLastCloseTime;
+}
+
 // called by txherder
 void LedgerMaster::closeLedger(LedgerCloseData ledgerData)
 {
@@ -256,6 +263,8 @@ void LedgerMaster::closeLedger(LedgerCloseData ledgerData)
 // and switches to a new ledger
 void LedgerMaster::closeLedgerHelper(bool updateCurrent, LedgerDelta const& delta)
 {
+    mLastCloseTime = mApp.timeNow();
+
     delta.markMeters(mApp);
     if (updateCurrent)
     {

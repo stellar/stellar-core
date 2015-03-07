@@ -19,8 +19,6 @@ Config::Config() : PEER_KEY( SecretKey::random() )
     // non configurable
     PROTOCOL_VERSION = 1;
     VERSION_STR = STELLARD_VERSION;
-    START_NEW_NETWORK = false;
-    START_LOCAL_NETWORK = false;
     REBUILD_DB = false;
     DESIRED_BASE_RESERVE = 10000000;
 

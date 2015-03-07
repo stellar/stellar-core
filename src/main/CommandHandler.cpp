@@ -13,7 +13,8 @@
 #include "crypto/Hex.h"
 #include "xdrpp/marshal.h"
 #include "herder/HerderGateway.h"
-
+#include "lib/json/json.h"
+#include "crypto/Base58.h"
 
 using std::placeholders::_1;
 using std::placeholders::_2;
@@ -35,6 +36,8 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
     {
         mServer = stellar::make_unique<http::server::server>(app.getMainIOService());
     }
+
+    mServer->add404(std::bind(&CommandHandler::fileNotFound, this, _1, _2));
 
     mServer->addRoute("stop",
         std::bind(&CommandHandler::stop, this, _1, _2));
@@ -64,6 +67,20 @@ void CommandHandler::manualCmd(const std::string& cmd)
     LOG(INFO) << cmd << " -> " << reply.content;
 }
 
+void CommandHandler::fileNotFound(const std::string& params, std::string& retStr)
+{
+    retStr  = "<b>Welcome to Hayashi!</b><p>";
+    retStr += "supported commands:  <p><ul>";
+    retStr += "<li>/stop</li>";
+    retStr += "<li><a href='/peers'>peers</a> see list of peers we are connected to.</li>";
+    retStr += "<li><a href='/info'>info</a></li>";
+    retStr += "<li><a href='/metrics'>/metrics</a></li>";
+    retStr += "<li>/connect?peer=###.###.###.###&port=###  connect to a particular peer.</li>";
+    retStr += "<li>/tx?blob=[tx in xdr] submit a transaction.</li>";
+    retStr += "<li>/ll?level=[level]&partition=[name]  set the log level. partition is optional.</li>";
+    retStr += "</ul><p>Have fun!";
+}
+
 void
 CommandHandler::stop(const std::string& params, std::string& retStr)
 {
@@ -74,13 +91,43 @@ CommandHandler::stop(const std::string& params, std::string& retStr)
 void
 CommandHandler::peers(const std::string& params, std::string& retStr)
 {
-    retStr = "Peers...";
+    Json::Value root;
+    
+    root["peers"];
+    int counter = 0;
+    for(auto peer : mApp.getPeerMaster().getPeers())
+    {
+        binToHex(peer->getPeerID());
+        root["peers"][counter]["ip"] = peer->getIP();
+        root["peers"][counter]["port"] = (int)peer->getRemoteListeningPort();
+        root["peers"][counter]["ver"] = peer->getRemoteVersion();
+        root["peers"][counter]["pver"] = (int)peer->getRemoteProtocolVersion();
+        root["peers"][counter]["id"]= toBase58Check(VER_ACCOUNT_ID,peer->getPeerID());
+
+        counter++;
+    }
+    
+    retStr = root.toStyledString();
 }
 
 void
 CommandHandler::info(const std::string& params, std::string& retStr)
 {
-    retStr = "Info...";
+
+    std::string stateStrTable[] = { "Booting","Connecting","Connected","Catching up","Synced" };
+    Json::Value root;
+
+    LedgerMaster& lm = mApp.getLedgerMaster();
+    
+    root["info"]["state"] = stateStrTable[mApp.getState()];
+    root["info"]["ledger"]["num"]= (int)lm.getLedgerNum();
+    root["info"]["ledger"]["hash"] = binToHex(lm.getLastClosedLedgerHeader().hash);
+    root["info"]["ledger"]["closeTime"] = (int)lm.getLastClosedLedgerHeader().closeTime;
+    root["info"]["ledger"]["age"] = (int)lm.secondsSinceLastLedgerClose();
+    root["info"]["numPeers"] = (int)mApp.getPeerMaster().getPeers().size();
+
+
+    retStr = root.toStyledString();
 }
 
 void

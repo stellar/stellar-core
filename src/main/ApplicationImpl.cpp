@@ -128,7 +128,7 @@ ApplicationImpl::disableRealTimer()
 
 uint64_t ApplicationImpl::timeNow()
 {
-    return getClock().now().time_since_epoch().count() * std::chrono::system_clock::period::num / std::chrono::system_clock::period::den;
+    return VirtualClock::pointToTimeT(getClock().now());
 }
 
 void
@@ -255,11 +255,7 @@ ApplicationImpl::start()
             mLedgerMaster->loadLastKnownLedger();
         }
         mHerder->bootstrap();
-    } else if(mConfig.START_LOCAL_NETWORK)
-    {
-        mLedgerMaster->loadLastKnownLedger();
-        mHerder->bootstrap();
-    } else
+    }  else
     {
         mLedgerMaster->loadLastKnownLedger();
     }
