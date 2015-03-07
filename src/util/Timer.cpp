@@ -8,11 +8,41 @@ namespace stellar
 
 using namespace std;
 
+VirtualClock::VirtualClock(bool realTIme)
+    : mRealTimer(mIOService)
+    , mRealTime(realTIme)
+{
+    if (mRealTime)
+    {
+        mNow = std::chrono::steady_clock::now();
+    }
+}
 
 VirtualClock::time_point
 VirtualClock::now() noexcept
 {
+    if (mRealTime)
+    {
+        mNow = std::chrono::steady_clock::now();
+    }
     return mNow;
+}
+
+void
+VirtualClock::maybeSetRealtimer()
+{
+    if (mRealTime)
+    {
+        mRealTimer.expires_at(next());
+        mRealTimer.async_wait(
+            [this](asio::error_code const& ec)
+            {
+                if (ec != asio::error::operation_aborted)
+                {
+                    this->advanceToNow();
+                }
+            });
+    }
 }
 
 VirtualClock::time_point
@@ -32,7 +62,7 @@ VirtualClock::next()
     return least;
 }
 
-std::time_t 
+std::time_t
 VirtualClock::pointToTimeT(time_point point)
 {
     return
@@ -42,7 +72,7 @@ VirtualClock::pointToTimeT(time_point point)
 }
 
 #ifdef _WIN32
-time_t 
+time_t
 timegm(struct tm *tm) {
     time_t zero = 0;
     time_t localEpoch = mktime(gmtime(&zero));
@@ -98,7 +128,6 @@ VirtualClock::enqueue(Application& app, VirtualClockEvent const& ve)
         mEvents.insert(std::make_pair(&app, std::make_shared<std::priority_queue<VirtualClockEvent>>()));
     }
     mEvents[&app]->emplace(ve);
-    setNoneIdle();
 }
 
 bool
@@ -149,7 +178,6 @@ VirtualClock::cancelAllEventsFrom(Application& a,
     events =
         priority_queue<VirtualClockEvent>(toKeep.begin(),
                                           toKeep.end());
-    setNoneIdle();
     return changed;
 }
 
@@ -166,17 +194,6 @@ VirtualClock::cancelAllEventsFrom(Application& a, VirtualTimer& v)
 }
 
 bool
-VirtualClock::allIdle() const
-{
-    bool allIdle = true;
-    for (auto const& pair : mIdleFlags)
-    {
-        allIdle = allIdle && pair.second;
-    }
-    return allIdle;
-}
-
-bool
 VirtualClock::allEmpty() const
 {
     bool allEmpty = true;
@@ -187,23 +204,50 @@ VirtualClock::allEmpty() const
     return allEmpty;
 }
 
-void
-VirtualClock::setNoneIdle()
+size_t
+VirtualClock::advanceToNow()
 {
-    for (auto& pair : mIdleFlags)
-    {
-        pair.second = false;
-    }
-}
-
-void
-VirtualClock::setIdle(Application& app, bool isIdle)
-{
-    mIdleFlags[&app] = isIdle;
+    assert(mRealTime);
+    return advanceTo(now());
 }
 
 size_t
-VirtualClock::advanceTo(time_point n) 
+VirtualClock::crank(bool block)
+{
+    size_t nWorkDone = 0;
+    if (mRealTime)
+    {
+        // Fire all pending timers.
+        nWorkDone += advanceToNow();
+    }
+
+    if (block)
+    {
+        nWorkDone += mIOService.run_one();
+    }
+    else
+    {
+        nWorkDone += mIOService.poll_one();
+    }
+
+    if (!mRealTime && nWorkDone == 0)
+    {
+        // If we did nothing and we're in virtual mode,
+        // we're idle and can skip time forward.
+        nWorkDone += advanceToNext();
+    }
+
+    return nWorkDone;
+}
+
+asio::io_service&
+VirtualClock::getIOService()
+{
+    return mIOService;
+}
+
+size_t
+VirtualClock::advanceTo(time_point n)
 {
     priority_queue<VirtualClockEvent> toDispatch;
     // LOG(DEBUG) << "VirtualClock::advanceTo("
@@ -232,18 +276,15 @@ VirtualClock::advanceTo(time_point n)
         toDispatch.pop();
     }
     // LOG(DEBUG) << "VirtualClock::advanceTo done";
-    setNoneIdle();
+    maybeSetRealtimer();
     return c;
 }
 
 size_t
-VirtualClock::advanceToNextIfAllIdle()
+VirtualClock::advanceToNext()
 {
+    assert(!mRealTime);
     if (allEmpty())
-    {
-        return 0;
-    }
-    if (!allIdle())
     {
         return 0;
     }

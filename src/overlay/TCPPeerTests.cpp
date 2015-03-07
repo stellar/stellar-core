@@ -24,9 +24,6 @@ TEST_CASE("TCPPeer can communicate", "[overlay]")
     auto n1 = s->getNode(s->addNode(v11VSeed, FBAQuorumSet(), s->getClock()));
     auto b = TCPPeer::initiate(*n0, "127.0.0.1", n1->getConfig().PEER_PORT);
 
-    n0->enableRealTimer();
-    n1->enableRealTimer();
-
     s->crankForAtLeast(std::chrono::seconds(3));
 
     REQUIRE(n0->getPeerMaster().getConnectedPeer("127.0.0.1", n1->getConfig().PEER_PORT)->getState() == Peer::GOT_HELLO);

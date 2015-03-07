@@ -33,10 +33,11 @@ Simulation::getMinBalance()
     return mx;
 }
 
-Simulation::Simulation(Mode mode) :
-    mMode(mode)
-  , mConfigCount(0)
-  , mIdleApp(Application::create(mClock, getTestConfig(++mConfigCount)))
+Simulation::Simulation(Mode mode)
+    : mClock(mode == OVER_TCP)
+    , mMode(mode)
+    , mConfigCount(0)
+    , mIdleApp(Application::create(mClock, getTestConfig(++mConfigCount)))
 {
 }
 
@@ -74,9 +75,6 @@ Simulation::addNode(uint256 validationSeed,
     }
 
     Application::pointer result = Application::create(clock, *cfg);
-
-    if (mMode == OVER_TCP) 
-        result->enableRealTimer();
 
     uint256 nodeID = makePublicKey(validationSeed);
     mConfigs[nodeID] = cfg;
@@ -168,14 +166,11 @@ Simulation::crankAllNodes(int nbTicks)
     std::size_t count = 0;
     for (int i = 0; i < nbTicks && nbTicks > 0; i ++)
     {
-        std::map<uint256, Application::pointer>::iterator it;
-        for (it = mNodes.begin(); it != mNodes.end(); ++it) {
-            if (it->second->getMainIOService().stopped())
-            {
-                throw std::runtime_error("Simulation node shut down");
-            }
-            count += it->second->crank(false);
+        if (mClock.getIOService().stopped())
+        {
+            throw std::runtime_error("Simulation shut down");
         }
+        count += mClock.crank(false);
     }
     return count;
 }

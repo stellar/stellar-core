@@ -33,12 +33,10 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
     : mState(Application::State::BOOTING_STATE)
     , mVirtualClock(clock)
     , mConfig(cfg)
-    , mMainIOService()
     , mWorkerIOService(std::thread::hardware_concurrency())
     , mWork(make_unique<asio::io_service::work>(mWorkerIOService))
     , mWorkerThreads()
-    , mStopSignals(mMainIOService, SIGINT)
-    , mRealTimerCancelCallbacks(0)
+    , mStopSignals(clock.getIOService(), SIGINT)
 {
 #ifdef SIGQUIT
     mStopSignals.add(SIGQUIT);
@@ -107,119 +105,15 @@ ApplicationImpl::~ApplicationImpl()
     LOG(INFO) << "Application destroyed";
 }
 
-void
-ApplicationImpl::enableRealTimer()
-{
-    if (!mRealTimer)
-    {
-        mRealTimer = make_unique<RealTimer>(mMainIOService);
-        realTimerTick();
-    }
-}
-
-void
-ApplicationImpl::disableRealTimer()
-{
-    if (mRealTimer)
-    {
-        mRealTimer.reset();
-    }
-}
-
 uint64_t ApplicationImpl::timeNow()
 {
     return VirtualClock::pointToTimeT(getClock().now());
 }
 
-void
-ApplicationImpl::realTimerTick()
-{
-    // LOG(DEBUG) << "realTimerTick";
-    advanceVirtualTimeToRealTime();
-    scheduleRealTimerFromNextVirtualEvent();
-}
-
-void
-ApplicationImpl::scheduleRealTimerFromNextVirtualEvent()
-{
-    if (mRealTimer)
-    {
-        auto nxt = mVirtualClock.next();
-        // Cancels any pending wait, and sets a new one.
-        // LOG(DEBUG) << "ApplicationImpl::scheduleRealTimerFromNextVirtualEvent "
-        //           << "sleeping realTimer until "
-        //           << nxt.time_since_epoch().count();
-        mRealTimer->expires_at(nxt);
-        mRealTimer->async_wait([this](asio::error_code ec)
-                                      {
-                                          if (ec == asio::error::operation_aborted)
-                                          {
-                                              this->mRealTimerCancelCallbacks++;
-                                          }
-                                          else
-                                          {
-                                              this->realTimerTick();
-                                          }
-                                      });
-    }
-}
-
-size_t
-ApplicationImpl::advanceVirtualTimeToRealTime()
-{
-    auto n = std::chrono::steady_clock::now();
-    // LOG(DEBUG) << "ApplicationImpl::advanceVirtualTimeToRealTime";
-    return mVirtualClock.advanceTo(n);
-}
-
 size_t
 ApplicationImpl::crank(bool block)
 {
-    // LOG(DEBUG) << "ApplicationImpl::crank(block=" << block << ")";
-    mRealTimerCancelCallbacks = 0;
-    size_t nWorkDone = 0;
-    if (block)
-    {
-        nWorkDone = mMainIOService.run_one();
-    }
-    else
-    {
-        nWorkDone = mMainIOService.poll_one();
-    }
-
-    // NB: We do not consider "canceling the realtimer" as a form of "real
-    // work", partly because it's just plain uninteresting work, and partly
-    // because we actually queue up such a cancellation below _as part of_
-    // rescheduling the realtimer, when there _was_ "real work" done; if we
-    // consider the cancellation as work, we get a feedback loop chasing
-    // cancellation events.
-    nWorkDone -= mRealTimerCancelCallbacks;
-    mRealTimerCancelCallbacks = 0;
-
-    mVirtualClock.setIdle(*this, nWorkDone == 0);
-
-    // LOG(DEBUG) << "ApplicationImpl::cranked: " << nWorkDone;
-    if (mRealTimer && nWorkDone != 0)
-    {
-        // If we have a real timer, we let its sleep events _primarily_ drive
-        // the sleeping-and-waking of the main loop; but any time we did real
-        // work in an event-loop crank we treat it as a timer tick to give
-        // virtual time the opportunity to catch up (in case real time overshot
-        // it while we were doing slow work), and to ensure that the real timer
-        // is (re)scheduled for the next virtual-time wakeup (in case some new
-        // virtual timers were scheduled during the most recent work).
-        realTimerTick();
-    }
-    else if (!mRealTimer && nWorkDone == 0)
-    {
-        // If we have no real-timer driving virtual time, then we advance
-        // virtual time whenever we run out of immediate (I/O event loop) work
-        // to do; this means that in simulated-time all I/O and computation
-        // happens "instantly" between two time steps and then virtual time skips
-        // forward to the next scheduled event as soon as we're idle.
-        return mVirtualClock.advanceToNextIfAllIdle();
-    }
-    return nWorkDone;
+    return getClock().crank(block);
 }
 
 void
@@ -272,12 +166,7 @@ ApplicationImpl::gracefulStop()
 {
     // Drain all events queued to fire on this app.
     while (mVirtualClock.cancelAllEventsFrom(*this));
-
-    if (!mMainIOService.stopped())
-    {
-        LOG(DEBUG) << "Stopping main IO service";
-        mMainIOService.stop();
-    }
+    mVirtualClock.getIOService().stop();
 }
 
 void
@@ -405,7 +294,7 @@ ApplicationImpl::getPersistentState()
 asio::io_service&
 ApplicationImpl::getMainIOService()
 {
-    return mMainIOService;
+    return mVirtualClock.getIOService();
 }
 
 asio::io_service&

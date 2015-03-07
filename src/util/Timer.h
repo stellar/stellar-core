@@ -47,12 +47,6 @@ class VirtualTimer;
 class Application;
 struct VirtualClockEvent;
 
-/**
- * There should be one virtual clock per application / main event loop, so that
- * the virtual clock can be advanced any time the event loop is cranked and
- * fails to do any work.
- */
-
 class VirtualClock
 {
 public:
@@ -70,12 +64,26 @@ public:
     static std::string pointToISOString(time_point point);
 
 private:
+    asio::io_service mIOService;
+    asio::basic_waitable_timer<std::chrono::steady_clock> mRealTimer;
+    bool mRealTime;
+
     time_point mNow;
     std::map<Application*,
              std::shared_ptr<std::priority_queue<VirtualClockEvent>>> mEvents;
-    std::map<Application*, bool> mIdleFlags;
 
 public:
+
+    // A VirtualClock is instantiated in either real or virtual mode. In real
+    // mode, crank() sleeps until the next event, either timer or IO; in virtual
+    // mode it processes IO events until IO is idle then advances to the time of
+    // the next virtual event instantly.
+
+    VirtualClock(bool realTime=false);
+    size_t crank(bool block);
+    void maybeSetRealtimer();
+    asio::io_service& getIOService();
+
     // Note: this is not a static method, which means that VirtualClock is
     // not an implementation of the C++ `Clock` concept; there is no global
     // virtual time. Each virtual clock has its own time.
@@ -87,11 +95,9 @@ public:
     bool cancelAllEventsFrom(Application& a);
     bool cancelAllEventsFrom(Application& a, VirtualTimer& v);
     size_t advanceTo(time_point n);
-    bool allIdle() const;
     bool allEmpty() const;
-    void setNoneIdle();
-    void setIdle(Application& app, bool isIdle);
-    size_t advanceToNextIfAllIdle();
+    size_t advanceToNext();
+    size_t advanceToNow();
 };
 
 

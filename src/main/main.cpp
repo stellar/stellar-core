@@ -167,7 +167,7 @@ startApp(string cfgFile, Config& cfg)
 {
     LOG(INFO) << "Starting stellard-hayashi " << STELLARD_VERSION;
     LOG(INFO) << "Config from " << cfgFile;
-    VirtualClock clock;
+    VirtualClock clock(true);
     Application::pointer app = Application::create(clock, cfg);
 
     if (!checkInitialized(app))
@@ -177,9 +177,7 @@ startApp(string cfgFile, Config& cfg)
     {
         app->applyCfgCommands();
 
-        app->enableRealTimer();
         app->start();
-        
 
         auto& io = app->getMainIOService();
         asio::io_service::work mainWork(io);
