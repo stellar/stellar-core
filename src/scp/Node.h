@@ -7,7 +7,7 @@
 #include <memory>
 #include <vector>
 
-#include "fba/FBA.h"
+#include "scp/SCP.h"
 
 namespace stellar
 {
@@ -19,7 +19,7 @@ class Node
 
   public:
     Node(const uint256& nodeID,
-         FBA* FBA,
+         SCP* SCP,
          int cacheCapacity = 4);
 
     // Tests this node against nodeSet for the specified qSethash. Triggers the
@@ -56,7 +56,7 @@ class Node
     /**
      * Exception used to trigger the retrieval of a quorum set based on its
      * hash when it was not cached yet. This exception should not escape the
-     * FBA module.
+     * SCP module.
      */
     class QuorumSetNotFound : public std::exception
     {
@@ -79,21 +79,21 @@ class Node
 
     // Retrieves the cached quorum set associated with this hash or throws a
     // QuorumSetNotFound exception otherwise. The exception shall not escape
-    // the FBA module
-    const FBAQuorumSet& retrieveQuorumSet(const Hash& qSetHash);
+    // the SCP module
+    const SCPQuorumSet& retrieveQuorumSet(const Hash& qSetHash);
 
     // Cache a quorumSet for this node.
-    void cacheQuorumSet(const FBAQuorumSet& qSet);
+    void cacheQuorumSet(const SCPQuorumSet& qSet);
 
     const uint256& getNodeID();
 
   protected:
     const uint256                          mNodeID;
-    FBA*                                   mFBA;
+    SCP*                                   mSCP;
 
   private:
     int                                    mCacheCapacity;
-    std::map<Hash, FBAQuorumSet>           mCache;
+    std::map<Hash, SCPQuorumSet>           mCache;
     std::vector<Hash>                      mCacheLRU;
 };
 }

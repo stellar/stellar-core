@@ -7,8 +7,8 @@
 #include <memory>
 #include <vector>
 
-#include "fba/FBA.h"
-#include "fba/Node.h"
+#include "scp/SCP.h"
+#include "scp/Node.h"
 
 namespace stellar
 {
@@ -19,18 +19,18 @@ class LocalNode : public Node
 {
   public:
     LocalNode(const SecretKey& secretKey,
-              const FBAQuorumSet& qSet,
-              FBA* FBA);
+              const SCPQuorumSet& qSet,
+              SCP* SCP);
 
-    void updateQuorumSet(const FBAQuorumSet& qSet);
+    void updateQuorumSet(const SCPQuorumSet& qSet);
 
-    const FBAQuorumSet& getQuorumSet();
+    const SCPQuorumSet& getQuorumSet();
     const Hash& getQuorumSetHash();
     const SecretKey& getSecretKey();
 
   private:
     const SecretKey                 mSecretKey;
-    FBAQuorumSet                    mQSet;
+    SCPQuorumSet                    mQSet;
     Hash                            mQSetHash;
 };
 }

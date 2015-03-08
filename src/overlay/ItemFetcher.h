@@ -6,7 +6,7 @@
 // this distribution or at http://opensource.org/licenses/ISC
 
 #include <map>
-#include "generated/FBAXDR.h"
+#include "generated/SCPXDR.h"
 #include "overlay/OverlayGateway.h"
 #include "herder/TxSetFrame.h"
 #include "overlay/Peer.h"
@@ -18,7 +18,7 @@ Manages asking for Transaction or Quorum sets from Peers
 LATER: This abstraction can be cleaned up it is a bit wonky
 
 Asks for TransactionSets from our Peers
-We need to get these for FBA.
+We need to get these for SCP.
 Anywhere else? If someone asked you you can late reply to them
 
 */
@@ -93,17 +93,17 @@ class TxSetFetcher : public ItemFetcher
     bool recvItem(TxSetFramePtr txSet);
 };
 
-class FBAQSetFetcher : public ItemFetcher
+class SCPQSetFetcher : public ItemFetcher
 {
   public:
-    FBAQSetFetcher(Application& app) : ItemFetcher(app)
+    SCPQSetFetcher(Application& app) : ItemFetcher(app)
     {
     }
-    FBAQuorumSetPtr fetchItem(uint256 const& qSetHash,
+    SCPQuorumSetPtr fetchItem(uint256 const& qSetHash,
                               bool askNetwork);
     // looks to see if we know about it but doesn't ask the network
-    FBAQuorumSetPtr findItem(uint256 const& itemID);
-    bool recvItem(FBAQuorumSetPtr qSet);
+    SCPQuorumSetPtr findItem(uint256 const& itemID);
+    bool recvItem(SCPQuorumSetPtr qSet);
 };
 
 class TxSetTrackingCollar : public TrackingCollar
@@ -127,9 +127,9 @@ class QSetTrackingCollar : public TrackingCollar
     void askPeer(Peer::pointer peer);
 
   public:
-    FBAQuorumSetPtr mQSet;
+    SCPQuorumSetPtr mQSet;
 
-    QSetTrackingCollar(uint256 const& id, FBAQuorumSetPtr qSet, Application& app);
+    QSetTrackingCollar(uint256 const& id, SCPQuorumSetPtr qSet, Application& app);
     bool
     isItemFound()
     {

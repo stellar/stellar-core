@@ -3,7 +3,7 @@
 // this distribution or at http://opensource.org/licenses/ISC
 
 #include "herder/Herder.h"
-#include "fba/FBA.h"
+#include "scp/SCP.h"
 #include "overlay/ItemFetcher.h"
 #include "main/Application.h"
 #include "main/Config.h"

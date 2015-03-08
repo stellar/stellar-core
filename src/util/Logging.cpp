@@ -26,7 +26,7 @@ Logging::init()
     // el::Loggers::addFlag(el::LoggingFlag::HierarchicalLogging);
     el::Loggers::addFlag(el::LoggingFlag::DisableApplicationAbortOnFatalLog);
 
-    el::Loggers::getLogger("FBA");
+    el::Loggers::getLogger("SCP");
     el::Loggers::getLogger("CLF");
     el::Loggers::getLogger("Database");
     el::Loggers::getLogger("History");

@@ -2,26 +2,26 @@
 // under the ISC License. See the COPYING file at the top-level directory of
 // this distribution or at http://opensource.org/licenses/ISC
 
-#include "FBA.h"
+#include "SCP.h"
 
 #include <algorithm>
 
 #include "xdrpp/marshal.h"
 #include "crypto/SHA.h"
-#include "fba/LocalNode.h"
-#include "fba/Slot.h"
+#include "scp/LocalNode.h"
+#include "scp/Slot.h"
 
 namespace stellar
 {
 
-FBA::FBA(const SecretKey& secretKey,
-         const FBAQuorumSet& qSetLocal)
+SCP::SCP(const SecretKey& secretKey,
+         const SCPQuorumSet& qSetLocal)
 {
     mLocalNode = new LocalNode(secretKey, qSetLocal, this);
     mKnownNodes[mLocalNode->getNodeID()] = mLocalNode;
 }
 
-FBA::~FBA()
+SCP::~SCP()
 {
     for (auto it : mKnownNodes)
     {
@@ -34,13 +34,13 @@ FBA::~FBA()
 }
 
 void
-FBA::receiveEnvelope(const FBAEnvelope& envelope,
+SCP::receiveEnvelope(const SCPEnvelope& envelope,
                      std::function<void(EnvelopeState)> const& cb)
 {
     // If the envelope is not correctly signed, we ignore it.
     if (!verifyEnvelope(envelope))
     {
-        return cb(FBA::EnvelopeState::INVALID);
+        return cb(SCP::EnvelopeState::INVALID);
     }
 
     uint64 slotIndex = envelope.statement.slotIndex;
@@ -48,7 +48,7 @@ FBA::receiveEnvelope(const FBAEnvelope& envelope,
 }
 
 bool
-FBA::prepareValue(const uint64& slotIndex,
+SCP::prepareValue(const uint64& slotIndex,
                   const Value& value,
                   bool forceBump)
 {
@@ -57,25 +57,25 @@ FBA::prepareValue(const uint64& slotIndex,
 }
 
 void 
-FBA::updateLocalQuorumSet(const FBAQuorumSet& qSet)
+SCP::updateLocalQuorumSet(const SCPQuorumSet& qSet)
 {
     mLocalNode->updateQuorumSet(qSet);
 }
 
-const FBAQuorumSet& 
-FBA::getLocalQuorumSet()
+const SCPQuorumSet& 
+SCP::getLocalQuorumSet()
 {
     return mLocalNode->getQuorumSet();
 }
 
 const uint256& 
-FBA::getLocalNodeID()
+SCP::getLocalNodeID()
 {
   return mLocalNode->getNodeID();
 }
 
 void 
-FBA::purgeNode(const uint256& nodeID)
+SCP::purgeNode(const uint256& nodeID)
 {
     auto it = mKnownNodes.find(nodeID);
     if (it != mKnownNodes.end())
@@ -86,7 +86,7 @@ FBA::purgeNode(const uint256& nodeID)
 }
 
 void 
-FBA::purgeSlots(const uint64& maxSlotIndex)
+SCP::purgeSlots(const uint64& maxSlotIndex)
 {
     auto it = mKnownSlots.begin();
     while(it != mKnownSlots.end())
@@ -104,7 +104,7 @@ FBA::purgeSlots(const uint64& maxSlotIndex)
 }
 
 Node* 
-FBA::getNode(const uint256& nodeID)
+SCP::getNode(const uint256& nodeID)
 {
     auto it = mKnownNodes.find(nodeID);
     if (it == mKnownNodes.end())
@@ -115,13 +115,13 @@ FBA::getNode(const uint256& nodeID)
 }
 
 LocalNode* 
-FBA::getLocalNode()
+SCP::getLocalNode()
 {
   return mLocalNode;
 }
 
 Slot*
-FBA::getSlot(const uint64& slotIndex)
+SCP::getSlot(const uint64& slotIndex)
 {
     auto it = mKnownSlots.find(slotIndex);
     if (it == mKnownSlots.end())
@@ -132,7 +132,7 @@ FBA::getSlot(const uint64& slotIndex)
 }
 
 void
-FBA::signEnvelope(FBAEnvelope& envelope)
+SCP::signEnvelope(SCPEnvelope& envelope)
 {
     assert(envelope.nodeID == getSecretKey().getPublicKey());
     envelope.signature = 
@@ -141,7 +141,7 @@ FBA::signEnvelope(FBAEnvelope& envelope)
 }
 
 bool 
-FBA::verifyEnvelope(const FBAEnvelope& envelope)
+SCP::verifyEnvelope(const SCPEnvelope& envelope)
 {
     bool b = PublicKey::verifySig(envelope.nodeID, envelope.signature, 
                                   xdr::xdr_to_msg(envelope.statement));
@@ -150,13 +150,13 @@ FBA::verifyEnvelope(const FBAEnvelope& envelope)
 }
 
 const SecretKey& 
-FBA::getSecretKey()
+SCP::getSecretKey()
 {
     return mLocalNode->getSecretKey();
 }
 
 bool 
-FBA::isVBlocking(const std::vector<uint256>& nodes)
+SCP::isVBlocking(const std::vector<uint256>& nodes)
 {
     std::map<uint256, bool> map;
     for (auto v : nodes)

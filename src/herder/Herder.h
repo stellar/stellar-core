@@ -7,14 +7,14 @@
 #include <vector>
 #include "herder/HerderGateway.h"
 #include "overlay/ItemFetcher.h"
-#include "fba/FBA.h"
+#include "scp/SCP.h"
 #include "util/Timer.h"
 
 // Expected time between two ledger close.
 #define EXP_LEDGER_TIMESPAN_SECONDS 2
 
-// Maximum timeout for FBA consensus.
-#define MAX_FBA_TIMEOUT_SECONDS 240
+// Maximum timeout for SCP consensus.
+#define MAX_SCP_TIMEOUT_SECONDS 240
 
 // Maximum time slip between nodes.
 #define MAX_TIME_SLIP_SECONDS 60
@@ -35,11 +35,11 @@ using xdr::operator<;
 using xdr::operator==;
 
 /*
- * Drives the FBA protocol (is an FBA::Client). It is also incharge of
+ * Drives the SCP protocol (is an SCP::Client). It is also incharge of
  * receiving transactions from the network.
  */
 class Herder : public HerderGateway,
-               public FBA
+               public SCP
 {
   public:
     Herder(Application& app);
@@ -48,7 +48,7 @@ class Herder : public HerderGateway,
     // Bootstraps the Herder if we're creating a new Network
     void bootstrap();
     
-    // FBA methods
+    // SCP methods
     void validateValue(const uint64& slotIndex,
                        const uint256& nodeID,
                        const Value& value,
@@ -59,11 +59,11 @@ class Herder : public HerderGateway,
 
     void validateBallot(const uint64& slotIndex,
                         const uint256& nodeID,
-                        const FBABallot& ballot,
+                        const SCPBallot& ballot,
                         std::function<void(bool)> const& cb);
 
     void ballotDidHearFromQuorum(const uint64& slotIndex,
-                                 const FBABallot& ballot);
+                                 const SCPBallot& ballot);
     void valueExternalized(const uint64& slotIndex,
                            const Value& value);
 
@@ -71,14 +71,14 @@ class Herder : public HerderGateway,
 
     void retrieveQuorumSet(const uint256& nodeID,
                            const Hash& qSetHash,
-                           std::function<void(const FBAQuorumSet&)> const& cb);
-    void emitEnvelope(const FBAEnvelope& envelope);
+                           std::function<void(const SCPQuorumSet&)> const& cb);
+    void emitEnvelope(const SCPEnvelope& envelope);
 
-    // Extra FBA methods overridden solely to increment metrics.
-    void ballotDidPrepare(const uint64& slotIndex, const FBABallot& ballot) override;
-    void ballotDidPrepared(const uint64& slotIndex, const FBABallot& ballot) override;
-    void ballotDidCommit(const uint64& slotIndex, const FBABallot& ballot) override;
-    void ballotDidCommitted(const uint64& slotIndex, const FBABallot& ballot) override;
+    // Extra SCP methods overridden solely to increment metrics.
+    void ballotDidPrepare(const uint64& slotIndex, const SCPBallot& ballot) override;
+    void ballotDidPrepared(const uint64& slotIndex, const SCPBallot& ballot) override;
+    void ballotDidCommit(const uint64& slotIndex, const SCPBallot& ballot) override;
+    void ballotDidCommitted(const uint64& slotIndex, const SCPBallot& ballot) override;
     void envelopeSigned() override;
     void envelopeVerified(bool) override;
 
@@ -88,14 +88,14 @@ class Herder : public HerderGateway,
     void recvTxSet(TxSetFramePtr txSet);
     void doesntHaveTxSet(uint256 const& txSethash, PeerPtr peer);
 
-    FBAQuorumSetPtr fetchFBAQuorumSet(const uint256& qSetHash, bool askNetwork);
-    void recvFBAQuorumSet(FBAQuorumSetPtr qSet);
-    void doesntHaveFBAQuorumSet(uint256 const& qSetHash, PeerPtr peer);
+    SCPQuorumSetPtr fetchSCPQuorumSet(const uint256& qSetHash, bool askNetwork);
+    void recvSCPQuorumSet(SCPQuorumSetPtr qSet);
+    void doesntHaveSCPQuorumSet(uint256 const& qSetHash, PeerPtr peer);
 
     // returns whether the transaction should be flooded
     bool recvTransaction(TransactionFramePtr tx);
 
-    void recvFBAEnvelope(FBAEnvelope envelope,
+    void recvSCPEnvelope(SCPEnvelope envelope,
                          std::function<void(bool)> const& cb = [] (bool) { });
 
     void ledgerClosed(LedgerHeader& ledger);
@@ -105,7 +105,7 @@ class Herder : public HerderGateway,
     void triggerNextLedger(const asio::error_code& ec);
     void expireBallot(const asio::error_code& ec, 
                       const uint64& slotIndex,
-                      const FBABallot& ballot);
+                      const SCPBallot& ballot);
 
     void startRebroadcastTimer();
     void rebroadcast(const asio::error_code& ec);
@@ -131,17 +131,17 @@ class Herder : public HerderGateway,
         std::vector<
             std::function<void(TxSetFramePtr)>>>   mTxSetFetches;
 
-    FBAQSetFetcher                                 mFBAQSetFetcher;
+    SCPQSetFetcher                                 mSCPQSetFetcher;
     std::map<Hash,
         std::vector<
-            std::function<void(FBAQuorumSetPtr)>>> mFBAQSetFetches;
+            std::function<void(SCPQuorumSetPtr)>>> mSCPQSetFetches;
 
     std::map<uint64,
         std::vector<
-            std::pair<FBAEnvelope, 
+            std::pair<SCPEnvelope, 
                       std::function<void(bool)>>>> mFutureEnvelopes;
 
-    std::map<FBABallot,
+    std::map<SCPBallot,
         std::map<uint256, 
             std::vector<VirtualTimer>>>            mBallotValidationTimers;
 

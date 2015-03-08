@@ -56,10 +56,10 @@ enum MessageType
     TRANSACTION=9, //pass on a tx you have heard about        
     JSON_TRANSACTION=10,
 
-    // FBA        
-    GET_FBA_QUORUMSET=11,        
-    FBA_QUORUMSET=12,    
-    FBA_MESSAGE=13
+    // SCP        
+    GET_SCP_QUORUMSET=11,        
+    SCP_QUORUMSET=12,    
+    SCP_MESSAGE=13
 };
 
 struct DontHave
@@ -88,18 +88,18 @@ union StellarMessage switch (MessageType type) {
     case GET_VALIDATIONS:    
         uint256 ledgerHash;    
     case VALIDATIONS:
-        FBAEnvelope validations<>;
+        SCPEnvelope validations<>;
 
     case TRANSACTION:
         TransactionEnvelope transaction;
 
-    // FBA
-    case GET_FBA_QUORUMSET:
+    // SCP
+    case GET_SCP_QUORUMSET:
         uint256 qSetHash;
-    case FBA_QUORUMSET:
-        FBAQuorumSet qSet;
-    case FBA_MESSAGE:
-        FBAEnvelope envelope;
+    case SCP_QUORUMSET:
+        SCPQuorumSet qSet;
+    case SCP_MESSAGE:
+        SCPEnvelope envelope;
 };
 
 }

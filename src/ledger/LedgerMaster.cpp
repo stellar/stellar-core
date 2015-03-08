@@ -37,7 +37,7 @@ The ledger module:
     
 
 catching up to network:
-    1) Wait for FBA to tell us what the network is on now
+    1) Wait for SCP to tell us what the network is on now
     2) Ask network for the the delta between what it has now and our ledger last ledger  
 
     // TODO.3 we need to store some validation history?

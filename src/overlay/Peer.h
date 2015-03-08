@@ -7,7 +7,7 @@
 #include "util/asio.h"
 #include "xdrpp/message.h"
 #include "generated/StellarXDR.h"
-#include "generated/FBAXDR.h"
+#include "generated/SCPXDR.h"
 #include "util/Timer.h"
 #include "database/Database.h"
 
@@ -15,7 +15,7 @@ namespace stellar
 {
 
 using namespace std;
-typedef shared_ptr<FBAQuorumSet> FBAQuorumSetPtr;
+typedef shared_ptr<SCPQuorumSet> SCPQuorumSetPtr;
 
 class Application;
 class LoopbackPeer;
@@ -71,12 +71,12 @@ class Peer : public enable_shared_from_this<Peer>
     void recvGetValidations(StellarMessage const& msg);
     void recvValidations(StellarMessage const& msg);
     void recvTransaction(StellarMessage const& msg);
-    void recvGetFBAQuorumSet(StellarMessage const& msg);
-    void recvFBAQuorumSet(StellarMessage const& msg);
-    void recvFBAMessage(StellarMessage const& msg);
+    void recvGetSCPQuorumSet(StellarMessage const& msg);
+    void recvSCPQuorumSet(StellarMessage const& msg);
+    void recvSCPMessage(StellarMessage const& msg);
 
     void sendHello();
-    void sendFBAQuorumSet(FBAQuorumSetPtr qSet);
+    void sendSCPQuorumSet(SCPQuorumSetPtr qSet);
     void sendDontHave(MessageType type,
                       uint256 const& itemID);
     void sendPeers();

@@ -12,7 +12,7 @@ see http://www.scs.stanford.edu/~dm/noindex/scp.pdf
 It has no knowledge of the rest of the system. 
 
 ##Herder
-This is responsible for interfacing between FBA and th rest of Hayashi. It determines if FBA ballot values are valid or not. 
+This is responsible for interfacing between SCP and th rest of Hayashi. It determines if SCP ballot values are valid or not. 
 
 ##Overlay
 This is the connection layer. It handles things like: 
@@ -22,7 +22,7 @@ This is the connection layer. It handles things like:
 - Trying to keep you connected to the number of peers set in the .cfg 
 
 ##Ledger
-Handles applying the transaction set that is externalized by FBA. Hands off the resulting changed ledger entries to the CLF.
+Handles applying the transaction set that is externalized by SCP. Hands off the resulting changed ledger entries to the CLF.
 
 ##CLF
 Cannonical Ledger Form. 

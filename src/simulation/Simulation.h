@@ -39,7 +39,7 @@ class Simulation
     VirtualClock& getClock();
 
     uint256 addNode(uint256 validationSeed, 
-                    FBAQuorumSet qSet,
+                    SCPQuorumSet qSet,
                     VirtualClock& clock);
     Application::pointer getNode(uint256 nodeID);
     vector<Application::pointer> getNodes();

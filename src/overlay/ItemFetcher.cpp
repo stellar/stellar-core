@@ -99,7 +99,7 @@ TxSetFetcher::recvItem(TxSetFramePtr txSet)
             ((TxSetTrackingCollar*)result->second.get())->mTxSet = txSet;
             if (refCount)
             { // someone was still interested in
-                // this tx set so tell FBA
+                // this tx set so tell SCP
                 // LATER: maybe change this to pub/sub
                 return true;
             }
@@ -118,8 +118,8 @@ TxSetFetcher::recvItem(TxSetFramePtr txSet)
 
 ////////////////////////////////////////
 
-FBAQuorumSetPtr
-FBAQSetFetcher::fetchItem(uint256 const& qSetHash, bool askNetwork)
+SCPQuorumSetPtr
+SCPQSetFetcher::fetchItem(uint256 const& qSetHash, bool askNetwork)
 {
     // look it up in the map
     // if not found then start fetching
@@ -140,17 +140,17 @@ FBAQSetFetcher::fetchItem(uint256 const& qSetHash, bool askNetwork)
         if (askNetwork)
         {
             TrackingCollar::pointer collar =
-                std::make_shared<QSetTrackingCollar>(qSetHash, FBAQuorumSetPtr(), mApp);
+                std::make_shared<QSetTrackingCollar>(qSetHash, SCPQuorumSetPtr(), mApp);
             mItemMap[qSetHash] = collar;
             collar->tryNextPeer(); // start asking
         }
     }
-    return (FBAQuorumSetPtr());
+    return (SCPQuorumSetPtr());
 }
 
 // returns true if we were waiting for this qSet
 bool
-FBAQSetFetcher::recvItem(FBAQuorumSetPtr qSet)
+SCPQSetFetcher::recvItem(SCPQuorumSetPtr qSet)
 {
     if (qSet)
     {
@@ -163,7 +163,7 @@ FBAQSetFetcher::recvItem(FBAQuorumSetPtr qSet)
             ((QSetTrackingCollar*)result->second.get())->mQSet = qSet;
             if (refCount)
             { // someone was still interested in
-                // this quorum set so tell FBA
+                // this quorum set so tell SCP
                 // LATER: maybe change this to pub/sub
                 return true;
             }
@@ -270,7 +270,7 @@ TrackingCollar::tryNextPeer()
     }
 }
 
-QSetTrackingCollar::QSetTrackingCollar(uint256 const& id, FBAQuorumSetPtr qSet,
+QSetTrackingCollar::QSetTrackingCollar(uint256 const& id, SCPQuorumSetPtr qSet,
                                        Application& app)
     : TrackingCollar(id, app), mQSet(qSet)
 {

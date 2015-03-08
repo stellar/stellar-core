@@ -4,31 +4,31 @@
 // under the ISC License. See the COPYING file at the top-level directory of
 // this distribution or at http://opensource.org/licenses/ISC
 
-#include "fba/FBA.h"
+#include "scp/SCP.h"
 
 namespace stellar 
 {
-std::string ballotToStr(const FBABallot& ballot);
-std::string envToStr(const FBAEnvelope& envelope);
+std::string ballotToStr(const SCPBallot& ballot);
+std::string envToStr(const SCPEnvelope& envelope);
     
 class Node;
 
 /**
- * The Slot object is in charge of maintaining the state of the FBA protocol
+ * The Slot object is in charge of maintaining the state of the SCP protocol
  * for a given slot index.
  */
 class Slot
 {
   public:
     // Constructor
-    Slot(const uint64& slotIndex, FBA* FBA);
+    Slot(const uint64& slotIndex, SCP* SCP);
 
     // Process a newly received envelope for this slot and update the state of
     // the slot accordingly. `cb` asynchronously returns wether the envelope
     // was validated or not. Must exclusively receive envelopes whose payload
     // type is STATEMENT
-    void processEnvelope(const FBAEnvelope& envelope,
-                         std::function<void(FBA::EnvelopeState)> const& cb);
+    void processEnvelope(const SCPEnvelope& envelope,
+                         std::function<void(SCP::EnvelopeState)> const& cb);
 
     // Prepares a new ballot with the provided value for this slot. If the
     // value is less or equal to the current ballot value, and forceBump is
@@ -39,11 +39,11 @@ class Slot
 
   private:
     // bumps to the specified ballot
-    void bumpToBallot(const FBABallot& ballot);
+    void bumpToBallot(const SCPBallot& ballot);
 
     // Helper methods to generate a new envelopes
-    FBAStatement createStatement(const FBAStatementType& type);
-    FBAEnvelope createEnvelope(const FBAStatement& statement);
+    SCPStatement createStatement(const SCPStatementType& type);
+    SCPEnvelope createEnvelope(const SCPStatement& statement);
 
     // `attempt*` methods progress the slot to the specified state if it was
     // not already reached previously. They are in charge of emitting events
@@ -51,7 +51,7 @@ class Slot
     // ballot argument as we can emit PREPARED messages for ballots different
     // than our current `mBallot`.
     void attemptPrepare();
-    void attemptPrepared(const FBABallot& ballot);
+    void attemptPrepared(const SCPBallot& ballot);
     void attemptCommit();
     void attemptCommitted();
     void attemptExternalize();
@@ -61,17 +61,17 @@ class Slot
     // the `attempt*` methods. `isCommittedConfirmed` does not take a ballot
     // but a `Value` as it is determined across ballot rounds
     bool isPristine();
-    bool isPrepared(const FBABallot& ballot);
-    bool isPreparedConfirmed(const FBABallot& ballot);
-    bool isCommitted(const FBABallot& ballot);
+    bool isPrepared(const SCPBallot& ballot);
+    bool isPreparedConfirmed(const SCPBallot& ballot);
+    bool isCommitted(const SCPBallot& ballot);
     bool isCommittedConfirmed(const Value& value);
 
     // Retrieve all the statements of a given type for a given node
-    std::vector<FBAStatement> getNodeStatements(const uint256& nodeID,
-                                                const FBAStatementType& type);
+    std::vector<SCPStatement> getNodeStatements(const uint256& nodeID,
+                                                const SCPStatementType& type);
 
     // Helper method to compare two ballots
-    int compareBallots(const FBABallot& b1, const FBABallot& b2);
+    int compareBallots(const SCPBallot& b1, const SCPBallot& b2);
                                           
     // `advanceSlot` can be called as many time as needed. It attempts to
     // advance the slot to a next state if possible given the current
@@ -79,10 +79,10 @@ class Slot
     void advanceSlot();
 
     const uint64                                            mSlotIndex;
-    FBA*                                                    mFBA;
+    SCP*                                                    mSCP;
 
     // mBallot is the current ballot (monotically increasing). 
-    FBABallot                                               mBallot;
+    SCPBallot                                               mBallot;
     // mIsPristine is true while we never bump our ballot (mBallot invalid)
     bool                                                    mIsPristine;
 
@@ -94,12 +94,12 @@ class Slot
     bool                                                    mRunAdvanceSlot;
 
     // mStatements keep track of all statements seen so far for this slot.
-    // FBABallot -> FBAStatementType -> uint256 -> FBAStatement
+    // SCPBallot -> SCPStatementType -> uint256 -> SCPStatement
     struct StatementMap : 
-        public std::map<uint256, FBAStatement> {};
+        public std::map<uint256, SCPStatement> {};
     struct StatementTypeMap : 
-        public std::map<FBAStatementType, StatementMap> {};
-    std::map<FBABallot, StatementTypeMap>                   mStatements;
+        public std::map<SCPStatementType, StatementMap> {};
+    std::map<SCPBallot, StatementTypeMap>                   mStatements;
 
     friend class Node;
 };

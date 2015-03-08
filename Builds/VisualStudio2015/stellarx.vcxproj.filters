@@ -1,9 +1,6 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
-    <Filter Include="fba">
-      <UniqueIdentifier>{0cf920e3-5232-4c4e-8b79-25ec2c8f86ce}</UniqueIdentifier>
-    </Filter>
     <Filter Include="overlay">
       <UniqueIdentifier>{b26ed986-c240-4b44-a1cd-ec2a40b3c7f3}</UniqueIdentifier>
     </Filter>
@@ -55,9 +52,6 @@
     <Filter Include="transactions\tests">
       <UniqueIdentifier>{fde6dbe4-621c-41ab-b1fc-cc28d741966a}</UniqueIdentifier>
     </Filter>
-    <Filter Include="fba\tests">
-      <UniqueIdentifier>{14929285-728b-426c-b124-e5c899081f36}</UniqueIdentifier>
-    </Filter>
     <Filter Include="history\tests">
       <UniqueIdentifier>{3ad6e2f5-3afc-44cb-87a4-8ef0780ec071}</UniqueIdentifier>
     </Filter>
@@ -84,6 +78,9 @@
     </Filter>
     <Filter Include="herder\tests">
       <UniqueIdentifier>{eda15f5e-847b-4167-93ae-e508b7fc009b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="scp">
+      <UniqueIdentifier>{0cf920e3-5232-4c4e-8b79-25ec2c8f86ce}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -300,21 +297,6 @@
     <ClCompile Include="..\..\src\util\Uint128Tests.cpp">
       <Filter>util</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\fba\FBA.cpp">
-      <Filter>fba</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\fba\FBATests.cpp">
-      <Filter>fba</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\fba\LocalNode.cpp">
-      <Filter>fba</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\fba\Node.cpp">
-      <Filter>fba</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\fba\Slot.cpp">
-      <Filter>fba</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\ledger\LedgerHeaderFrame.cpp">
       <Filter>ledger</Filter>
     </ClCompile>
@@ -401,6 +383,21 @@
     </ClCompile>
     <ClCompile Include="..\..\src\transactions\OperationFrame.cpp">
       <Filter>transactions</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\scp\LocalNode.cpp">
+      <Filter>scp</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\scp\Node.cpp">
+      <Filter>scp</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\scp\SCP.cpp">
+      <Filter>scp</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\scp\SCPTests.cpp">
+      <Filter>scp</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\scp\Slot.cpp">
+      <Filter>scp</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -581,18 +578,6 @@
     <ClInclude Include="..\..\src\util\must_use.h">
       <Filter>util</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\fba\FBA.h">
-      <Filter>fba</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\fba\LocalNode.h">
-      <Filter>fba</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\fba\Node.h">
-      <Filter>fba</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\fba\Slot.h">
-      <Filter>fba</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\src\ledger\LedgerHeaderFrame.h">
       <Filter>ledger</Filter>
     </ClInclude>
@@ -665,6 +650,18 @@
     <ClInclude Include="..\..\src\lib\json\json-forwards.h">
       <Filter>lib\json</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\src\scp\LocalNode.h">
+      <Filter>scp</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\scp\Node.h">
+      <Filter>scp</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\scp\SCP.h">
+      <Filter>scp</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\scp\Slot.h">
+      <Filter>scp</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="..\..\docs\transactions.md">
@@ -712,9 +709,6 @@
     <CustomBuild Include="..\..\src\overlay\StellarXDR.x">
       <Filter>overlay</Filter>
     </CustomBuild>
-    <CustomBuild Include="..\..\src\fba\FBAXDR.x">
-      <Filter>fba</Filter>
-    </CustomBuild>
     <CustomBuild Include="..\..\src\xdr\Stellar-ledger.x">
       <Filter>xdr</Filter>
     </CustomBuild>
@@ -729,6 +723,9 @@
     </CustomBuild>
     <CustomBuild Include="..\..\src\xdr\Stellar-ledger-entries.x">
       <Filter>xdr</Filter>
+    </CustomBuild>
+    <CustomBuild Include="..\..\src\scp\SCPXDR.x">
+      <Filter>scp</Filter>
     </CustomBuild>
   </ItemGroup>
 </Project>
