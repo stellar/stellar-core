@@ -399,6 +399,9 @@
     <ClCompile Include="..\..\src\scp\Slot.cpp">
       <Filter>scp</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\overlay\TCPPeerTests.cpp">
+      <Filter>overlay</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\ledger\LedgerGateway.h">
@@ -704,6 +707,8 @@
     <None Include="..\..\docs\testnet.md">
       <Filter>docs</Filter>
     </None>
+    <None Include="..\..\autogen.sh" />
+    <None Include="..\..\Makefile.am" />
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="..\..\src\overlay\StellarXDR.x">

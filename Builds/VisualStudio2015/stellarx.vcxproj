@@ -225,6 +225,7 @@
     <ClCompile Include="..\..\src\overlay\PeerMasterTests.cpp" />
     <ClCompile Include="..\..\src\overlay\PeerRecord.cpp" />
     <ClCompile Include="..\..\src\overlay\PeerRecordTests.cpp" />
+    <ClCompile Include="..\..\src\overlay\TCPPeerTests.cpp" />
     <ClCompile Include="..\..\src\scp\LocalNode.cpp" />
     <ClCompile Include="..\..\src\scp\Node.cpp" />
     <ClCompile Include="..\..\src\scp\SCP.cpp" />
@@ -364,6 +365,7 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="..\..\AUTHORS" />
+    <None Include="..\..\autogen.sh" />
     <None Include="..\..\ChangeLog" />
     <None Include="..\..\COPYING" />
     <None Include="..\..\docs\design.md" />
@@ -377,6 +379,7 @@
     <None Include="..\..\docs\transactions.md" />
     <None Include="..\..\docs\usecases.md" />
     <None Include="..\..\INSTALL" />
+    <None Include="..\..\Makefile.am" />
     <None Include="..\..\NEWS" />
     <CustomBuild Include="..\..\src\overlay\StellarXDR.x">
       <FileType>Document</FileType>

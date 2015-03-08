@@ -3,7 +3,7 @@
 - memo in txs
 - should we make payments that go through the same orderbook in the same ledger cross each other?
 	- this will make things way more complicated but could potentially increase the liquidity a lot.
-
+- freezing credit
 
 
 Things we know we probably want to add later but design earlier than later
