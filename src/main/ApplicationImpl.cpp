@@ -2,14 +2,13 @@
 // under the ISC License. See the COPYING file at the top-level directory of
 // this distribution or at http://opensource.org/licenses/ISC
 
+#define STELLARD_REAL_TIMER_FOR_CERTAIN_NOT_JUST_VIRTUAL_TIME
+#include "ApplicationImpl.h"
+
 // ASIO is somewhat particular about when it gets included -- it wants to be the
 // first to include <windows.h> -- so we try to include it before everything
 // else.
 #include "util/asio.h"
-
-#define STELLARD_REAL_TIMER_FOR_CERTAIN_NOT_JUST_VIRTUAL_TIME
-#include "ApplicationImpl.h"
-
 #include "ledger/LedgerMaster.h"
 #include "herder/Herder.h"
 #include "overlay/OverlayGateway.h"

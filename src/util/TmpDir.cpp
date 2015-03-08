@@ -2,9 +2,9 @@
 // under the ISC License. See the COPYING file at the top-level directory of
 // this distribution or at http://opensource.org/licenses/ISC
 
+#include "util/TmpDir.h"
 #include "main/Application.h"
 #include "main/Config.h"
-#include "util/TmpDir.h"
 #include "util/Logging.h"
 #include "util/make_unique.h"
 #include "crypto/Random.h"

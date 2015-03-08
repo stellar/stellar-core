@@ -2,8 +2,8 @@
 // under the ISC License. See the COPYING file at the top-level directory of
 // this distribution or at http://opensource.org/licenses/ISC
 
-#include <memory>
 #include "PeerDoor.h"
+#include <memory>
 #include "main/Application.h"
 #include "main/Config.h"
 #include "Peer.h"

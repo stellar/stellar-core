@@ -2,9 +2,9 @@
 // under the ISC License. See the COPYING file at the top-level directory of
 // this distribution or at http://opensource.org/licenses/ISC
 
+#include "history/HistoryArchive.h"
 #include "clf/BucketList.h"
 #include "crypto/Hex.h"
-#include "history/HistoryArchive.h"
 #include "history/HistoryMaster.h"
 #include "process/ProcessGateway.h"
 #include "main/Application.h"

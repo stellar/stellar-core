@@ -2,10 +2,10 @@
 // under the ISC License. See the COPYING file at the top-level directory of
 // this distribution or at http://opensource.org/licenses/ISC
 
+#include "clf/CLFMaster.h"
 #include "generated/StellarXDR.h"
 #include "main/Application.h"
 #include "main/Config.h"
-#include "clf/CLFMaster.h"
 #include "clf/BucketList.h"
 #include "history/HistoryMaster.h"
 #include "util/make_unique.h"
