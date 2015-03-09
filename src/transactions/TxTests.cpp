@@ -59,7 +59,6 @@ TransactionFramePtr transactionFromOperation(SecretKey& from, uint32_t seq, Oper
     e.tx.minLedger = 0;
     e.tx.maxFee = 12;
     e.tx.seqNum = seq;
-    e.tx.seqSlot = 0;
     e.tx.operations.push_back(op);
 
     TransactionFramePtr res = TransactionFrame::makeTransactionFromWire(e);

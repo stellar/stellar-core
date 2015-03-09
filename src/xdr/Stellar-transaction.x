@@ -96,7 +96,6 @@ struct Transaction
 {
     AccountID account;
     int32 maxFee;
-    uint32 seqSlot;
     uint32 seqNum;
     uint64 minLedger;
     uint64 maxLedger;
