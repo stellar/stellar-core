@@ -15,7 +15,8 @@
  * forms:
  *
  *   1. Buckets from the BucketList -- checkpoints of "full ledger state".
- *   2. History blocks -- a sequential log of ledger hashes and transactions.
+ *   2. History blocks -- a sequential log of ledger hashes and transactions,
+ *      stored as separate ledger and transaction files.
  *
  * The module design attempts to satisfy several key constraints:
  *
@@ -61,16 +62,17 @@
  * the history becomes available.
  *
  * Each checkpoint is described by a history archive state file whose name
- * includes the checkpoint number (as a 32-bit hex string) and stored in an
- * optional 3-level deep directory tree of hex digit prefixes. For example,
- * checkpoint number 0x12345678 will be described by file
+ * includes the checkpoint number (as a 32-bit hex string) and stored in a
+ * 3-level deep directory tree of hex digit prefixes. For example, checkpoint
+ * number 0x12345678 will be described by file
  * state/12/34/56/state-0x12345678.json and the associated history block will be
- * written to history/12/34/56/history-0x12345678.xdr.gz
+ * written to the two files ledger/12/34/56/ledger-0x12345678.xdr.gz and
+ * transaction/12/34/56/transaction-0x12345678.xdr.gz
  *
  * Bucket files accompanying each checkpoint are stored by hash name, again
- * optionally separated by 3-level-deep hex prefixing, though as the hash is
- * random, the directories will fill up in random order, not sequentially: if
- * the bucket's hex hash is <AABBCCDEFG...> then the bucket is stored as
+ * separated by 3-level-deep hex prefixing, though as the hash is random, the
+ * directories will fill up in random order, not sequentially: if the bucket's
+ * hex hash is <AABBCCDEFG...> then the bucket is stored as
  * bucket/AA/BB/CC/bucket-<AABBCCDEFG...>.xdr.gz
  *
  * The first history block (containing the genesis ledger) can therefore always
