@@ -8,6 +8,7 @@
 #include "util/make_unique.h"
 #include <time.h>
 #include "util/Logging.h"
+#include "util/TmpDir.h"
 
 #ifdef _WIN32
 #include <process.h>
@@ -26,6 +27,7 @@ namespace stellar
 {
 
 static std::vector<std::unique_ptr<Config>> gTestCfg;
+static std::vector<TmpDir> gTestRoots;
 
 Config const& getTestConfig(int instanceNumber)
 {
@@ -36,19 +38,9 @@ Config const& getTestConfig(int instanceNumber)
 
     if (!gTestCfg[instanceNumber])
     {
-        std::ostringstream oss;
+        gTestRoots.emplace_back("stellard-test");
 
-        oss << "stellard-test-" << time(nullptr) << "-" << GETPID() <<
-            "-" << instanceNumber;
-
-        std::string rootDir = oss.str();
-
-#ifdef _WIN32
-        _mkdir(rootDir.c_str());
-#else
-        ::mkdir(rootDir.c_str(), 0700);
-#endif
-
+        std::string rootDir = gTestRoots.back().getName();
         rootDir += "/";
 
         gTestCfg[instanceNumber] = stellar::make_unique<Config>();
