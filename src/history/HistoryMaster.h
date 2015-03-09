@@ -55,11 +55,7 @@
  * 98,550 per year. Counting checkpoints within a 32bit value gives 43,581 years
  * of service for the system.
  *
- * When catching up, the system chooses an anchor ledger and attempts to download
- * the state at that anchor as well as all history _after_ that anchor. The node
- * catching-up might therefore have to wait as long as a single checkpoint cycle
- * in order to acquire history it is missing. It simply waits and retries until
- * the history becomes available.
+ *
  *
  * Each checkpoint is described by a history archive state file whose name
  * includes the checkpoint number (as a 32-bit hex string) and stored in a
@@ -79,6 +75,71 @@
  * be found in history/00/00/history-0x00000000.xdr.gz and described by
  * state/00/00/state-0x00000000.json. The buckets will all be empty in
  * that state.
+ *
+ *
+ *
+ * The catchup algorithm:
+ * ----------------------
+ *
+ * When catching up, it's useful to denote the ledgers involved symbolically.
+ * Consider the following timeline:
+ *
+ *
+ *       [==========|.......|========|=======|......]
+ *    GENESIS     LAST    RESUME   INIT    NEXT    TIP
+ *                                   |              |
+ *                                   [-- buffered --]
+ *                                       (in mem)
+ *
+ * The network's view of time begins at ledger GENESIS and, sometime thereafter,
+ * we assume this peer lost synchronization with its neighbour peers at ledger
+ * LAST. Catchup is then concerned with the points that happen after then:
+ * RESUME, INIT, NEXT and TIP. The following explains the logic involving these
+ * 4 points:
+ *
+ * The desynchronized peer commences catchup at some ledger INIT, when it
+ * realizes INIT > LAST+1 and that it is "out of sync". This begins "catchup
+ * mode", but we expect that during catchup TIP -- the consensus view of the
+ * other peers -- will continue advancing beyond INIT. The peer therefore
+ * buffers new ledger-close events during catchup, as TIP advances. This set of
+ * ledgers -- the segment [INIT, TIP] -- is stored in memory, in the
+ * LedgerMaster (::mSyncingLedgers) and extended as SCP hears of new closes,
+ * until catchup is complete.
+ *
+ * The catchup system then rounds up from INIT to NEXT, which is the next
+ * checkpoint after INIT that it can find on a history archive. It will pause
+ * until it can find one; this accounts for a delay up to the duration of a
+ * checkpoint (~5 minutes).
+ *
+ * Depending on how it's invoked, the catchup system will then usually define
+ * RESUME as either equal to NEXT or LAST, or in unusual cases some ledger
+ * between the two. RESUME is the ledger at which the ledger state is
+ * reconstituted "directly" from the bucket list, and from which hisory blocks
+ * are replayed thereafter. It is therefore, practically, a kind of "new
+ * beginning of history". At least the history that will be contiguously seen
+ * on-hand on this peer.
+ *
+ * Therefore: if the peer is serving public API consumers that expect a
+ * complete, uninterrupted view of history from LAST to the present, it will
+ * define RESUME=LAST and replay all history blocks since LAST. If on the other
+ * hand the peer is interested in a quick catchup and does not want to serve
+ * contiguous history records to its clients, or if too much time has passed
+ * since LAST for this to be reasonable, it may define RESUME=NEXT and replay
+ * the absolute least history it can, probably only the stuff buffered in
+ * memory during catchup.
+ *
+ * If RESUME=LAST, no buckets need to be downloaded and the system can simply
+ * download history blocks; if RESUME=NEXT, no history blocks need to be
+ * downloaded and the system it can simply download buckets. In theory the
+ * system can be invoked with RESUME at some other value between LAST and NEXT
+ * but in practice we expect these two modes to be the majority of uses.
+ *
+ * Once the blocks and/or buckets required are obtained, history is
+ * reconstituted and/or replayed as required, and control calls back the
+ * provided handler, with the value of NEXT as an argument. The handler should
+ * then drop any ledgers <= NEXT that it has buffered, replay those ledgers
+ * between NEXT and TIP exclusive, and declare itself "caught up".
+ *
  */
 
 namespace asio
