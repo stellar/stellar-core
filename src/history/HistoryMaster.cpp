@@ -142,6 +142,14 @@ checkNoGzipSuffix(string const& filename)
 }
 
 
+uint64_t
+HistoryMaster::nextCheckpointLedger(uint64_t ledger)
+{
+    uint64_t res = static_cast<uint64_t>(kCheckpointFrequency);
+    return ((ledger + res - 1) / res) * res;
+}
+
+
 void
 HistoryMaster::verifyHash(std::string const& filename,
                           uint256 const& hash,
@@ -331,7 +339,11 @@ HistoryMaster::snapshotTaken(asio::error_code const& ec,
 }
 
 void
-HistoryMaster::catchupHistory(std::function<void(asio::error_code const&)> handler)
+HistoryMaster::catchupHistory(uint64_t lastLedger,
+                              uint64_t initLedger,
+                              ResumeMode mode,
+                              std::function<void(asio::error_code const& ec,
+                                                 uint64_t nextLedger)> handler)
 {
     if (mImpl->mCatchup)
     {
@@ -339,13 +351,16 @@ HistoryMaster::catchupHistory(std::function<void(asio::error_code const&)> handl
     }
     mImpl->mCatchup = make_unique<CatchupStateMachine>(
         mImpl->mApp,
-        [this, handler](asio::error_code const& ec)
+        lastLedger,
+        initLedger,
+        mode,
+        [this, handler](asio::error_code const& ec, uint64_t nextLedger)
         {
             // Tear down the catchup state machine when complete then call our
             // caller's handler. Must keep the state machine alive long enough
             // for the callback, though, to avoid killing things living in lambdas.
             std::unique_ptr<CatchupStateMachine> m(std::move(this->mImpl->mCatchup));
-            handler(ec);
+            handler(ec, nextLedger);
         });
 }
 

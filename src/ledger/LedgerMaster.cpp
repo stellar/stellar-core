@@ -46,6 +46,7 @@ catching up to network:
 
 */
 using std::placeholders::_1;
+using std::placeholders::_2;
 using namespace std;
 
 namespace stellar
@@ -171,21 +172,25 @@ void LedgerMaster::externalizeValue(LedgerCloseData ledgerData)
             CLOG(DEBUG, "Ledger") << "Missed a ledger while trying to catch up.";
         } else
         {  // start trying to catchup
-            startCatchUp();
+            startCatchUp(ledgerData.mLedgerSeq);
         }
     }
 }
 
 
-void LedgerMaster::startCatchUp()
+void LedgerMaster::startCatchUp(uint64_t initLedger)
 {
     mApp.setState(Application::CATCHING_UP_STATE);
     mApp.getHistoryMaster().catchupHistory(
-        std::bind(&LedgerMaster::historyCaughtup, this, _1));
+        mLastClosedLedger.header.ledgerSeq,
+        initLedger,
+        HistoryMaster::RESUME_AT_LAST,
+        std::bind(&LedgerMaster::historyCaughtup, this, _1, _2));
 
 }
 
-void LedgerMaster::historyCaughtup(asio::error_code const& ec)
+void LedgerMaster::historyCaughtup(asio::error_code const& ec,
+                                   uint64_t nextLedger)
 {
     if(ec)
     {
@@ -195,7 +200,13 @@ void LedgerMaster::historyCaughtup(asio::error_code const& ec)
         bool applied = false;
         for(auto lcd : mSyncingLedgers)
         {
-            if(lcd.mLedgerSeq == mLastClosedLedger.header.ledgerSeq + 1)
+            if (lcd.mLedgerSeq <= nextLedger)
+            {
+                assert(lcd.mLedgerSeq != mLastClosedLedger.header.ledgerSeq + 1);
+                continue;
+            }
+
+            if (lcd.mLedgerSeq == mLastClosedLedger.header.ledgerSeq + 1)
             {
                 closeLedger(lcd);
                 applied = true;

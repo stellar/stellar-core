@@ -218,7 +218,10 @@ TEST_CASE_METHOD(HistoryTests, "History catchup", "[history]")
 
     bool done = false;
     app2->getHistoryMaster().catchupHistory(
-        [&done](asio::error_code const& ec)
+        0,
+        app.getLedgerMaster().getCurrentLedgerHeader().ledgerSeq,
+        HistoryMaster::RESUME_AT_LAST,
+        [&done](asio::error_code const& ec, uint64_t nextLedger)
         {
             CHECK(!ec);
             done = true;
