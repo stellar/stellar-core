@@ -33,7 +33,7 @@ struct AccountEntry
     uint32 numSubEntries;
     uint256 *inflationDest;
     opaque thresholds[4]; // [weight of master|threshold1|threshold2|threshold3]
-    Signer signers<>; // do we want some max or just increase the min balance
+    Signer signers<20>;
     KeyValue data<>;
 
     uint32 flags; // see AccountFlags

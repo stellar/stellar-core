@@ -19,7 +19,7 @@ struct PaymentOp
     AccountID destination;
     Currency currency;      // what they end up with
     int64 amount;           // amount they end up with
-    Currency path<>;        // what hops it must go through to get there
+    Currency path<5>;        // what hops it must go through to get there
     int64 sendMax;          // the maximum amount of the source currency to
                             // send (excluding fees).
                             // The operation will fail if can't be met
@@ -101,13 +101,13 @@ struct Transaction
     uint64 minLedger;
     uint64 maxLedger;
 
-    Operation operations<>;
+    Operation operations<100>;
 };
 
 struct TransactionEnvelope
 {
     Transaction tx;
-    uint512 signatures<>;
+    uint512 signatures<20>;
 };
 
 struct ClaimOfferAtom

@@ -87,11 +87,6 @@ uint32_t AccountFrame::getLowThreshold()
     return mAccountEntry.thresholds[1];
 }
 
-xdr::xvector<Signer> &AccountFrame::getSigners()
-{
-    return mAccountEntry.signers;
-}
-
 bool AccountFrame::loadAccount(const uint256& accountID, AccountFrame& retAcc,
     Database &db, bool withSig)
 {

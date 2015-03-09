@@ -71,8 +71,8 @@ TEST_CASE("set options", "[tx][setoptions]")
         AccountFrame a1Account;
 
         REQUIRE(AccountFrame::loadAccount(a1.getPublicKey(), a1Account, app.getDatabase(), true));
-        REQUIRE(a1Account.getSigners().size() == 1);
-        Signer &a_sk1 = a1Account.getSigners()[0];
+        REQUIRE(a1Account.getAccount().signers.size() == 1);
+        Signer &a_sk1 = a1Account.getAccount().signers[0];
         REQUIRE(a_sk1.pubKey == sk1.pubKey);
         REQUIRE(a_sk1.weight == sk1.weight);
 
@@ -83,7 +83,7 @@ TEST_CASE("set options", "[tx][setoptions]")
             nullptr, nullptr, nullptr, nullptr, &sk2, a1seq++);
 
         REQUIRE(AccountFrame::loadAccount(a1.getPublicKey(), a1Account, app.getDatabase(), true));
-        REQUIRE(a1Account.getSigners().size() == 2);
+        REQUIRE(a1Account.getAccount().signers.size() == 2);
 
         // update signer 2
         sk2.weight = 11;
@@ -101,8 +101,8 @@ TEST_CASE("set options", "[tx][setoptions]")
             nullptr, nullptr, nullptr, nullptr, &sk1, a1seq++);
 
         REQUIRE(AccountFrame::loadAccount(a1.getPublicKey(), a1Account, app.getDatabase(), true));
-        REQUIRE(a1Account.getSigners().size() == 1);
-        Signer &a_sk2 = a1Account.getSigners()[0];
+        REQUIRE(a1Account.getAccount().signers.size() == 1);
+        Signer &a_sk2 = a1Account.getAccount().signers[0];
         REQUIRE(a_sk2.pubKey == sk2.pubKey);
         REQUIRE(a_sk2.weight == sk2.weight);
     }

@@ -38,11 +38,12 @@ namespace stellar
         int64_t getBalance();
         bool isAuthRequired();
         uint256 const& getID() const;
+
         uint32_t getMasterWeight();
         uint32_t getHighThreshold();
         uint32_t getMidThreshold();
         uint32_t getLowThreshold();
-        xdr::xvector<Signer> &getSigners();
+
         void setSeqNum(uint32_t seq) { mAccountEntry.seqNum = seq; }
         uint32_t getSeqNum(Database& db) { return mAccountEntry.seqNum; }
 
