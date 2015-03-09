@@ -28,7 +28,6 @@
 
 #include <fstream>
 #include <system_error>
-#include <regex>
 
 namespace stellar
 {
@@ -111,24 +110,6 @@ HistoryMaster::getTmpDir()
         mImpl->mWorkDir = make_unique<TmpDir>(std::move(t));
     }
     return mImpl->mWorkDir->getName();
-}
-
-std::string
-HistoryMaster::bucketBasename(std::string const& bucketHexHash)
-{
-    return "bucket-" + bucketHexHash + ".xdr";
-}
-
-std::string
-HistoryMaster::bucketHexHash(std::string const& bucketBasename)
-{
-    std::regex rx("bucket-([:xdigit:]{64})\\.xdr");
-    std::smatch sm;
-    if (!std::regex_match(bucketBasename, sm, rx))
-    {
-        throw std::runtime_error("Unknown form of bucket basename");
-    }
-    return sm[1];
 }
 
 std::string
@@ -288,6 +269,19 @@ HistoryMaster::getFile(std::shared_ptr<HistoryArchive> archive,
     auto exit = this->mImpl->mApp.getProcessGateway().runProcess(cmd);
     exit.async_wait(handler);
 }
+
+
+void
+HistoryMaster::mkdir(std::shared_ptr<HistoryArchive> archive,
+                     std::string const& hexdir,
+                     std::function<void(asio::error_code const&)> handler)
+{
+    assert(archive->hasMkdirCmd());
+    auto cmd = archive->mkdirCmd(hexdir);
+    auto exit = this->mImpl->mApp.getProcessGateway().runProcess(cmd);
+    exit.async_wait(handler);
+}
+
 
 HistoryArchiveState
 HistoryMaster::getCurrentHistoryArchiveState() const

@@ -192,7 +192,7 @@ CatchupStateMachine::enterFetchingState()
                 CLOG(INFO, "History") << "Downloading " << name;
                 hm.getFile(
                     mArchive,
-                    fi->baseName_gz(), fi->localPath_gz(),
+                    fi->remoteName(), fi->localPath_gz(),
                     [this, name](asio::error_code const& ec)
                     {
                         this->fileStateChange(ec, name, FILE_CATCHUP_DOWNLOADED);
@@ -206,7 +206,7 @@ CatchupStateMachine::enterFetchingState()
 
         case FILE_CATCHUP_DOWNLOADED:
             fi->setState(FILE_CATCHUP_DECOMPRESSING);
-            CLOG(INFO, "History") << "Decompressing " << fi->baseName_gz();
+            CLOG(INFO, "History") << "Decompressing " << fi->localPath_gz();
             hm.decompress(
                 fi->localPath_gz(),
                 [this, name](asio::error_code const& ec)
@@ -302,7 +302,7 @@ CatchupStateMachine::enterAnchoredState(HistoryArchiveState const& has)
             std::remove(filename_nogz.c_str());
             std::remove(filename_gz.c_str());
             CLOG(INFO, "History")
-                << "Retrying fetch for " << fi->baseName_gz()
+                << "Retrying fetch for " << fi->remoteName()
                 << " from archive '" << mArchive->getName() << "'";
             fi->setState(FILE_CATCHUP_NEEDED);
         }

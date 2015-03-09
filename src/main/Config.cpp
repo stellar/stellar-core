@@ -144,17 +144,20 @@ Config::load(const std::string& filename)
                     auto tab = archive.second->as_group();
                     if (!tab)
                         continue;
-                    std::string get, put;
+                    std::string get, put, mkdir;
                     auto gg = tab->get_as<std::string>("get");
                     auto pp = tab->get_as<std::string>("put");
+                    auto mm = tab->get_as<std::string>("mkdir");
                     if (gg)
                         get = *gg;
                     if (pp)
                         put = *pp;
+                    if (mm)
+                        mkdir = *mm;
                     HISTORY[archive.first] =
                         std::make_shared<HistoryArchive>(
                             archive.first,
-                            get, put);
+                            get, put, mkdir);
                 }
             }
         }

@@ -68,7 +68,7 @@ public:
     }
 
     std::string hexDir() const {
-        std::regex rx("([:xdigit:]{2))([:xdigit:]{2))([:xdigit:]{2))");
+        std::regex rx("([[:xdigit:]]{2})([[:xdigit:]]{2})([[:xdigit:]]{2}).*");
         std::smatch sm;
         assert(std::regex_match(mHexDigits, sm, rx));
         return (std::string(sm[1]) + "/" + std::string(sm[2]) + "/" + std::string(sm[3]));
