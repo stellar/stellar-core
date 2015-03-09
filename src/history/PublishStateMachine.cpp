@@ -198,7 +198,6 @@ ArchivePublisher::enterSendingState()
         auto fi = pair.second;
         std::string name = fi->baseName_nogz();
 
-        minimumState = std::min(fi->getState(), minimumState);
         switch (fi->getState())
         {
         case FILE_PUBLISH_FAILED:
@@ -220,12 +219,38 @@ ArchivePublisher::enterSendingState()
             break;
 
         case FILE_PUBLISH_COMPRESSED:
+            if (!mArchive->hasMkdirCmd())
+            {
+                mApp.getClock().getIOService().post(
+                    [this, name]()
+                    {
+                        asio::error_code ec;
+                        this->fileStateChange(ec, name, FILE_PUBLISH_MADE_DIR);
+                    });
+            }
+            else
+            {
+                fi->setState(FILE_PUBLISH_MAKING_DIR);
+                CLOG(INFO, "History") << "Making remote directory " << fi->remoteDir();
+                hm.mkdir(
+                    mArchive, fi->remoteDir(),
+                    [this, name](asio::error_code const& ec)
+                    {
+                        this->fileStateChange(ec, name, FILE_PUBLISH_MADE_DIR);
+                    });
+            }
+            break;
+
+        case FILE_PUBLISH_MAKING_DIR:
+            break;
+
+        case FILE_PUBLISH_MADE_DIR:
             fi->setState(FILE_PUBLISH_UPLOADING);
             CLOG(INFO, "History") << "Publishing " << name;
             hm.putFile(
                 mArchive,
                 fi->localPath_gz(),
-                fi->baseName_gz(),
+                fi->remoteName(),
                 [this, name](asio::error_code const& ec)
                 {
                     this->fileStateChange(ec, name, FILE_PUBLISH_UPLOADED);
@@ -239,6 +264,8 @@ ArchivePublisher::enterSendingState()
             std::remove(fi->localPath_gz().c_str());
             break;
         }
+
+        minimumState = std::min(fi->getState(), minimumState);
     }
 
     if (minimumState == FILE_PUBLISH_FAILED)
