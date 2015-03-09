@@ -28,7 +28,6 @@
 
 #include <fstream>
 #include <system_error>
-#include <regex>
 
 namespace stellar
 {
@@ -111,24 +110,6 @@ HistoryMaster::getTmpDir()
         mImpl->mWorkDir = make_unique<TmpDir>(std::move(t));
     }
     return mImpl->mWorkDir->getName();
-}
-
-std::string
-HistoryMaster::bucketBasename(std::string const& bucketHexHash)
-{
-    return "bucket-" + bucketHexHash + ".xdr";
-}
-
-std::string
-HistoryMaster::bucketHexHash(std::string const& bucketBasename)
-{
-    std::regex rx("bucket-([:xdigit:]{64})\\.xdr");
-    std::smatch sm;
-    if (!std::regex_match(bucketBasename, sm, rx))
-    {
-        throw std::runtime_error("Unknown form of bucket basename");
-    }
-    return sm[1];
 }
 
 std::string

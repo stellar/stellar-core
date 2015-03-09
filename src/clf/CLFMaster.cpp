@@ -50,6 +50,12 @@ public:
 const std::string
 CLFMaster::kLockFilename = "stellard.lock";
 
+static std::string
+bucketBasename(std::string const& bucketHexHash)
+{
+    return "bucket-" + bucketHexHash + ".xdr";
+}
+
 CLFMaster::CLFMaster(Application& app)
     : mImpl(make_unique<Impl>(app))
 {
@@ -144,7 +150,7 @@ CLFMaster::adoptFileAsBucket(std::string const& filename,
     std::lock_guard<std::mutex> lock(mImpl->mBucketMutex);
     mImpl->mBucketObjectInsert.Mark(nObjects);
     mImpl->mBucketByteInsert.Mark(nBytes);
-    std::string basename = HistoryMaster::bucketBasename(binToHex(hash));
+    std::string basename = bucketBasename(binToHex(hash));
     std::shared_ptr<Bucket> b;
     if (mImpl->mSharedBuckets.find(basename) ==
         mImpl->mSharedBuckets.end())
@@ -176,7 +182,7 @@ std::shared_ptr<Bucket>
 CLFMaster::getBucketByHash(uint256 const& hash) const
 {
     std::lock_guard<std::mutex> lock(mImpl->mBucketMutex);
-    std::string basename = HistoryMaster::bucketBasename(binToHex(hash));
+    std::string basename = bucketBasename(binToHex(hash));
     auto i = mImpl->mSharedBuckets.find(basename);
     if (i != mImpl->mSharedBuckets.end())
     {
@@ -197,7 +203,7 @@ CLFMaster::forgetUnreferencedBuckets()
         uint256 hashes[2] = { level.getCurr()->getHash(), level.getSnap()->getHash() };
         for (auto const& hash : hashes)
         {
-            std::string basename = HistoryMaster::bucketBasename(binToHex(hash));
+            std::string basename = bucketBasename(binToHex(hash));
             referenced.insert(basename);
         }
     }

@@ -143,8 +143,6 @@ class HistoryMaster
 
     std::string const& getTmpDir();
 
-    static std::string bucketBasename(std::string const& bucketHexHash);
-    static std::string bucketHexHash(std::string const& bucketBasename);
     static bool initializeHistoryArchive(Application& app, std::string arch);
 
     std::string localFilename(std::string const& basename);
