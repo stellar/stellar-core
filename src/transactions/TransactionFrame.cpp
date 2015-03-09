@@ -315,16 +315,16 @@ StellarMessage TransactionFrame::toStellarMessage()
 
 void TransactionFrame::storeTransaction(LedgerMaster &ledgerMaster, LedgerDelta const& delta)
 {
-    xdr::msg_ptr txBytes(xdr::xdr_to_msg(mEnvelope));
-    xdr::msg_ptr txResultBytes(xdr::xdr_to_msg(mResult));
+    auto txBytes(xdr::xdr_to_opaque(mEnvelope));
+    auto txResultBytes(xdr::xdr_to_opaque(mResult));
 
     std::string txBody = base64::encode(
-        reinterpret_cast<const unsigned char *>(txBytes->raw_data()),
-        txBytes->raw_size());
+        reinterpret_cast<const unsigned char *>(txBytes.data()),
+        txBytes.size());
 
     std::string txResult = base64::encode(
-        reinterpret_cast<const unsigned char *>(txResultBytes->raw_data()),
-        txResultBytes->raw_size());
+        reinterpret_cast<const unsigned char *>(txResultBytes.data()),
+        txResultBytes.size());
 
     xdr::msg_ptr txMeta(delta.getTransactionMeta());
 
@@ -376,15 +376,10 @@ TransactionFrame::copyTransactionsToStream(Database& db,
         std::string body = base64::decode(txBody);
         std::string result = base64::decode(txResult);
 
-        // FIXME: this +4 business is a bit embarassing.
-
-        assert(body.size() >= 4);
-        assert(result.size() >= 4);
-
-        xdr::xdr_get g1(body.data() + 4, body.data() + body.size());
+        xdr::xdr_get g1(body.data(), body.data() + body.size());
         xdr_argpack_archive(g1, e.envelope);
 
-        xdr::xdr_get g2(result.data() + 4, result.data() + result.size());
+        xdr::xdr_get g2(result.data(), result.data() + result.size());
         xdr_argpack_archive(g2, e.result);
 
         out.writeOne(e);
