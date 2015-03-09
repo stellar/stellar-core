@@ -16,14 +16,15 @@ enum OperationType
 
 struct PaymentOp
 {
-    AccountID destination;  
-    Currency currency;         // what they end up with
-    int64 amount;              // amount they end up with
-    Currency path<>;           // what hops it must go through to get there
-    int64 sendMax;             // the maximum amount of the source currency this
-                               // will send. The tx will fail if can't be met
+    AccountID destination;
+    Currency currency;      // what they end up with
+    int64 amount;           // amount they end up with
+    Currency path<>;        // what hops it must go through to get there
+    int64 sendMax;          // the maximum amount of the source currency to
+                            // send (excluding fees).
+                            // The operation will fail if can't be met
     opaque memo<32>;
-    opaque sourceMemo<32>;     // used to return a payment
+    opaque sourceMemo<32>;  // used to return a payment
 };
 
 struct CreateOfferOp
@@ -326,7 +327,7 @@ enum OperationResultCode
     opINNER,
 
     opBAD_AUTH, // not enough signatures to perform operation
-    opNO_ACCOUNT,
+    opNO_ACCOUNT
 };
 
 union OperationResult switch(OperationResultCode code)

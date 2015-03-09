@@ -32,11 +32,11 @@ struct AccountEntry
     uint32 seqNum;  // last sequence number used for this account
     uint32 numSubEntries;
     uint256 *inflationDest;
-    opaque thresholds[4]; // weight of master/threshold1/threshold2/threshold3
+    opaque thresholds[4]; // [weight of master|threshold1|threshold2|threshold3]
     Signer signers<>; // do we want some max or just increase the min balance
     KeyValue data<>;
 
-    uint32 flags; // require dt, require auth,
+    uint32 flags; // see AccountFlags
 };
 
 struct TrustLineEntry
