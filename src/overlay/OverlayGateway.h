@@ -31,7 +31,7 @@ class OverlayGateway
 {
   public:
     // called by Ledger
-    virtual void ledgerClosed(LedgerHeader& ledger) = 0;
+    virtual void ledgerClosed(LedgerHeaderHistoryEntry const& ledger) = 0;
 
     // called by Herder
     virtual void broadcastMessage(StellarMessage const& msg, bool force=false) = 0;

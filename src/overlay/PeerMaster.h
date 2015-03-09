@@ -53,7 +53,7 @@ protected:
     ~PeerMaster();
 
     //////// GATEWAY FUNCTIONS
-    void ledgerClosed(LedgerHeader& ledger);
+    void ledgerClosed(LedgerHeaderHistoryEntry const& ledger);
 
     void recvFloodedMsg(StellarMessage const& msg, 
                         Peer::pointer peer);

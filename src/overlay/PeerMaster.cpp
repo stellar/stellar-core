@@ -167,9 +167,9 @@ Peer::pointer PeerMaster::getConnectedPeer(const std::string& ip, int port)
 }
 
 void
-PeerMaster::ledgerClosed(LedgerHeader& ledger)
+PeerMaster::ledgerClosed(LedgerHeaderHistoryEntry const& ledger)
 {
-    mFloodGate.clearBelow(ledger.ledgerSeq);
+    mFloodGate.clearBelow(ledger.header.ledgerSeq);
 }
 
 void

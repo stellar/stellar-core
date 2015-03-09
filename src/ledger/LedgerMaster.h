@@ -28,7 +28,7 @@ namespace stellar
 
     class LedgerMaster : public LedgerGateway
     {
-        LedgerHeaderFrame::pointer mLastClosedLedger;
+        LedgerHeaderHistoryEntry mLastClosedLedger;
         LedgerHeaderFrame::pointer mCurrentLedger;
 
         Application &mApp;
@@ -77,7 +77,7 @@ namespace stellar
         void abortLedgerClose();
 
         LedgerHeader& getCurrentLedgerHeader();
-        LedgerHeader& getLastClosedLedgerHeader();
+        LedgerHeaderHistoryEntry& getLastClosedLedgerHeader();
 
         Database& getDatabase();
 

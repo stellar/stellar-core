@@ -168,7 +168,7 @@ HistoryTests::generateAndPublishHistory()
     auto& lm = app.getLedgerMaster();
 
     // At this point LCL should be 1, current ledger should be 2
-    assert(lm.getLastClosedLedgerHeader().ledgerSeq == 1);
+    assert(lm.getLastClosedLedgerHeader().header.ledgerSeq == 1);
     assert(lm.getCurrentLedgerHeader().ledgerSeq == 2);
 
     SecretKey root = txtest::getRoot();
@@ -187,7 +187,7 @@ HistoryTests::generateAndPublishHistory()
     lm.closeLedger(LedgerCloseData(4, txSet4, 4, 10));
 
     // At this point LCL should be 4, current ledger should be 5
-    assert(lm.getLastClosedLedgerHeader().ledgerSeq == 4);
+    assert(lm.getLastClosedLedgerHeader().header.ledgerSeq == 4);
     assert(lm.getCurrentLedgerHeader().ledgerSeq == 5);
 
     bool done = false;

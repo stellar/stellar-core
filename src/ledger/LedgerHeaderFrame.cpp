@@ -18,34 +18,38 @@ namespace stellar
 using namespace soci;
 using namespace std;
 
-    LedgerHeaderFrame::LedgerHeaderFrame(LedgerHeader lh) : mHeader(lh)
+    LedgerHeaderFrame::LedgerHeaderFrame(LedgerHeader const& lh) : mHeader(lh)
     {
-
+        mHash.fill(0);
     }
 
-    LedgerHeaderFrame::LedgerHeaderFrame(LedgerHeaderFrame::pointer lastClosedLedger) :
-        mHeader(lastClosedLedger->mHeader)
+    LedgerHeaderFrame::LedgerHeaderFrame(LedgerHeaderHistoryEntry const& lastClosed) : mHeader(lastClosed.header)
     {
-        mHeader.hash.fill(0); // hashes are invalid and need to be recomputed
+        if (getHash() != lastClosed.hash)
+        {
+            throw std::invalid_argument("provided ledger header is invalid");
+        }
         mHeader.ledgerSeq++;
-        mHeader.previousLedgerHash = lastClosedLedger->mHeader.hash;
+        mHeader.previousLedgerHash = lastClosed.hash;
+        mHash.fill(0);
     }
 
-    void LedgerHeaderFrame::computeHash()
+    Hash const& LedgerHeaderFrame::getHash()
     {
-        if (isZero(mHeader.hash))
+        if (isZero(mHash))
         {
             // Hash is hash(header-with-hash-field-all-zero)
-            mHeader.hash = sha256(xdr::xdr_to_msg(mHeader));
-            assert(!isZero(mHeader.hash));
+            mHash = sha256(xdr::xdr_to_msg(mHeader));
+            assert(!isZero(mHash));
         }
+        return mHash;
     }
 
     void LedgerHeaderFrame::storeInsert(LedgerMaster& ledgerMaster)
     {
-        assert(!isZero(mHeader.hash));
+        getHash();
 
-        string hash(binToHex(mHeader.hash)), prevHash(binToHex(mHeader.previousLedgerHash)),
+        string hash(binToHex(mHash)), prevHash(binToHex(mHeader.previousLedgerHash)),
             txSetHash(binToHex(mHeader.txSetHash)), clfHash(binToHex(mHeader.clfHash));
 
         auto& db = ledgerMaster.getDatabase();
@@ -70,13 +74,11 @@ using namespace std;
         }
     }
 
-    LedgerHeaderFrame::pointer LedgerHeaderFrame::loadByHash(const uint256 &hash, LedgerMaster& ledgerMaster)
+    LedgerHeaderFrame::pointer LedgerHeaderFrame::loadByHash(Hash const& hash, LedgerMaster& ledgerMaster)
     {
         LedgerHeaderFrame::pointer lhf;
 
-        lhf = make_shared<LedgerHeaderFrame>();
-
-        LedgerHeader &lh = lhf->mHeader;
+        LedgerHeader lh;
 
         string hash_s(binToHex(hash));
         string prevHash, txSetHash, clfHash;
@@ -95,14 +97,16 @@ using namespace std;
         }
         if (ledgerMaster.getDatabase().getSession().got_data())
         {
-            lh.hash = hash;
             lh.previousLedgerHash = hexToBin256(prevHash);
             lh.txSetHash = hexToBin256(txSetHash);
             lh.clfHash = hexToBin256(clfHash);
-        }
-        else
-        {
-            lhf = LedgerHeaderFrame::pointer();
+
+            lhf = make_shared<LedgerHeaderFrame>(lh);
+            if (lhf->getHash() != hash)
+            {
+                // wrong hash
+                lhf.reset();
+            }
         }
 
         return lhf;
@@ -112,9 +116,7 @@ using namespace std;
     {
         LedgerHeaderFrame::pointer lhf;
 
-        lhf = make_shared<LedgerHeaderFrame>();
-
-        LedgerHeader &lh = lhf->mHeader;
+        LedgerHeader lh;
 
         string hash, prevHash, txSetHash, clfHash;
         auto& db = ledgerMaster.getDatabase();
@@ -134,14 +136,16 @@ using namespace std;
         if (ledgerMaster.getDatabase().getSession().got_data())
         {
             lh.ledgerSeq = seq;
-            lh.hash = hexToBin256(hash);
             lh.previousLedgerHash = hexToBin256(prevHash);
             lh.txSetHash = hexToBin256(txSetHash);
             lh.clfHash = hexToBin256(clfHash);
-        }
-        else
-        {
-            lhf = LedgerHeaderFrame::pointer();
+
+            lhf = make_shared<LedgerHeaderFrame>(lh);
+            if (lhf->getHash() != hexToBin256(hash))
+            {
+                // wrong hash
+                lhf.reset();
+            }
         }
 
         return lhf;
@@ -157,7 +161,8 @@ using namespace std;
         uint64_t begin = ledgerSeq, end = ledgerSeq + ledgerCount;
         size_t n = 0;
 
-        LedgerHeader lh;
+        LedgerHeaderHistoryEntry lhe;
+        LedgerHeader &lh = lhe.header;
         string hash, prevHash, txSetHash, clfHash;
 
         assert(begin <= end);
@@ -176,11 +181,11 @@ using namespace std;
         st.execute(true);
         while (st.got_data())
         {
-            lh.hash = hexToBin256(hash);
+            lhe.hash = hexToBin256(hash);
             lh.previousLedgerHash = hexToBin256(prevHash);
             lh.txSetHash = hexToBin256(txSetHash);
             lh.clfHash = hexToBin256(clfHash);
-            out.writeOne(lh);
+            out.writeOne(lhe);
             ++n;
             st.fetch();
         }

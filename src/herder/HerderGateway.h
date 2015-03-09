@@ -61,6 +61,6 @@ class HerderGateway
         std::function<void(bool)> const& cb = [] (bool) { }) = 0;
 
     // Called by Ledger once the ledger closes.
-    virtual void ledgerClosed(LedgerHeader& ledger) = 0;
+    virtual void ledgerClosed(LedgerHeaderHistoryEntry const& ledger) = 0;
 };
 }

@@ -4,7 +4,6 @@ namespace stellar {
 
 struct LedgerHeader
 {
-    Hash hash;
     Hash previousLedgerHash;// hash of the previous ledger header
     Hash txSetHash;         // the tx set that was SCP confirmed
     Hash clfHash;           // hash of the ledger state
@@ -74,6 +73,12 @@ struct TransactionHistoryEntry
     uint64 ledgerSeq;
     TransactionEnvelope envelope;
     TransactionResult result;
+};
+
+struct LedgerHeaderHistoryEntry
+{
+    Hash hash;
+    LedgerHeader header;
 };
 
 }
