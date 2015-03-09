@@ -33,7 +33,8 @@ addLocalDirHistoryArchive(TmpDir const& dir, Config &cfg)
     cfg.HISTORY["test"] = std::make_shared<HistoryArchive>(
         "test",
         "cp " + d + "/{0} {1}",
-        "cp {0} " + d + "/{1}");
+        "cp {0} " + d + "/{1}",
+        "mkdir -p " + d + "/{0}");
     return cfg;
 }
 

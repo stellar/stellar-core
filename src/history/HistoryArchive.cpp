@@ -28,12 +28,15 @@ public:
     std::string mName;
     std::string mGetCmd;
     std::string mPutCmd;
+    std::string mMkdirCmd;
     Impl(std::string const& name,
          std::string const& getCmd,
-         std::string const& putCmd)
+         std::string const& putCmd,
+         std::string const& mkdirCmd)
         : mName(name)
         , mGetCmd(getCmd)
         , mPutCmd(putCmd)
+        , mMkdirCmd(mkdirCmd)
         {}
 };
 
@@ -106,8 +109,9 @@ HistoryArchiveState::HistoryArchiveState()
 
 HistoryArchive::HistoryArchive(std::string const& name,
                                std::string const& getCmd,
-                               std::string const& putCmd)
-    : mImpl(make_unique<Impl>(name, getCmd, putCmd))
+                               std::string const& putCmd,
+                               std::string const& mkdirCmd)
+    : mImpl(make_unique<Impl>(name, getCmd, putCmd, mkdirCmd))
 {
 }
 
@@ -126,6 +130,12 @@ bool
 HistoryArchive::hasPutCmd() const
 {
     return !mImpl->mPutCmd.empty();
+}
+
+bool
+HistoryArchive::hasMkdirCmd() const
+{
+    return !mImpl->mMkdirCmd.empty();
 }
 
 std::string const&
@@ -219,6 +229,14 @@ HistoryArchive::putFileCmd(std::string const& filename, std::string const& basen
     if (mImpl->mPutCmd.empty())
         return "";
     return fmt::format(mImpl->mPutCmd, filename, basename);
+}
+
+std::string
+HistoryArchive::mkdirCmd(std::string const& dirname) const
+{
+    if (mImpl->mMkdirCmd.empty())
+        return "";
+    return fmt::format(mImpl->mMkdirCmd, dirname);
 }
 
 

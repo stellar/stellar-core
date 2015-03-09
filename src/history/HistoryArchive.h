@@ -77,10 +77,12 @@ class HistoryArchive
 public:
     HistoryArchive(std::string const& name,
                    std::string const& getCmd,
-                   std::string const& putCmd);
+                   std::string const& putCmd,
+                   std::string const& mkdirCmd);
     ~HistoryArchive();
     bool hasGetCmd() const;
     bool hasPutCmd() const;
+    bool hasMkdirCmd() const;
     std::string const& getName() const;
     std::string qualifiedFilename(Application& app,
                                   std::string const& basename) const;
@@ -92,6 +94,7 @@ public:
                   std::function<void(asio::error_code const&)> handler) const;
     std::string getFileCmd(std::string const& basename, std::string const& filename) const;
     std::string putFileCmd(std::string const& filename, std::string const& basename) const;
+    std::string mkdirCmd(std::string const& dirname) const;
 };
 
 }
