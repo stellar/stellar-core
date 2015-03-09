@@ -11,6 +11,7 @@
 #include "crypto/SHA.h"
 #include "xdrpp/marshal.h"
 #include "database/Database.h"
+#include <cereal/external/base64.hpp>
 
 namespace stellar
 {
@@ -50,20 +51,24 @@ using namespace std;
         getHash();
 
         string hash(binToHex(mHash)), prevHash(binToHex(mHeader.previousLedgerHash)),
-            txSetHash(binToHex(mHeader.txSetHash)), clfHash(binToHex(mHeader.clfHash));
+            clfHash(binToHex(mHeader.clfHash));
+
+        auto headerBytes(xdr::xdr_to_opaque(mHeader));
+
+        std::string headerEncoded = base64::encode(
+            reinterpret_cast<const unsigned char *>(headerBytes.data()),
+            headerBytes.size());
 
         auto& db = ledgerMaster.getDatabase();
+
+        // note: columns other than "data" are there to faciliate lookup/processing
         soci::statement st = (db.getSession().prepare <<
-            "INSERT INTO LedgerHeaders (ledgerHash, prevHash, txSetHash, clfHash, totCoins, "\
-            "feePool, ledgerSeq,inflationSeq,baseFee,baseReserve,closeTime) VALUES"\
-            "(:h,:ph,:tx,:clf,:coins,"\
-            ":feeP,:seq,:inf,:Bfee,:res,"\
-            ":ct )",
-            use(hash), use(prevHash),
-            use(txSetHash), use(clfHash),
-            use(mHeader.totalCoins), use(mHeader.feePool), use(mHeader.ledgerSeq),
-            use(mHeader.inflationSeq), use(mHeader.baseFee), use(mHeader.baseReserve),
-            use(mHeader.closeTime));
+            "INSERT INTO LedgerHeaders (ledgerHash,prevHash,clfHash, "\
+            "ledgerSeq,closeTime,data) VALUES"\
+            "(:h,:ph,:clf,"\
+            ":seq,:ct,:data)",
+            use(hash), use(prevHash), use(clfHash),
+            use(mHeader.ledgerSeq), use(mHeader.closeTime), use(headerEncoded));
         {
             auto timer = db.getInsertTimer("ledger-header");
             st.execute(true);
@@ -74,34 +79,36 @@ using namespace std;
         }
     }
 
+    LedgerHeaderFrame::pointer LedgerHeaderFrame::decodeFromData(std::string const& data)
+    {
+        LedgerHeader lh;
+        string decoded(base64::decode(data));
+
+        xdr::xdr_get g(decoded.c_str(), decoded.c_str() + decoded.length());
+        xdr::xdr_argpack_archive(g, lh);
+        g.done();
+
+        return make_shared<LedgerHeaderFrame>(lh);
+    }
+
     LedgerHeaderFrame::pointer LedgerHeaderFrame::loadByHash(Hash const& hash, LedgerMaster& ledgerMaster)
     {
         LedgerHeaderFrame::pointer lhf;
 
-        LedgerHeader lh;
-
         string hash_s(binToHex(hash));
-        string prevHash, txSetHash, clfHash;
+        string headerEncoded;
         {
             auto& db = ledgerMaster.getDatabase();
             auto timer = db.getSelectTimer("ledger-header");
             db.getSession() <<
-                "SELECT prevHash, txSetHash, clfHash, totCoins, "   \
-                "feePool, ledgerSeq,inflationSeq,baseFee,"          \
-                "baseReserve,closeTime FROM LedgerHeaders "         \
+                "SELECT data FROM LedgerHeaders "\
                 "WHERE ledgerHash = :h",
-                into(prevHash), into(txSetHash), into(clfHash), into(lh.totalCoins),
-                into(lh.feePool), into(lh.ledgerSeq), into(lh.inflationSeq), into(lh.baseFee),
-                into(lh.baseReserve), into(lh.closeTime),
+                into(headerEncoded),
                 use(hash_s);
         }
         if (ledgerMaster.getDatabase().getSession().got_data())
         {
-            lh.previousLedgerHash = hexToBin256(prevHash);
-            lh.txSetHash = hexToBin256(txSetHash);
-            lh.clfHash = hexToBin256(clfHash);
-
-            lhf = make_shared<LedgerHeaderFrame>(lh);
+            lhf = decodeFromData(headerEncoded);
             if (lhf->getHash() != hash)
             {
                 // wrong hash
@@ -116,34 +123,24 @@ using namespace std;
     {
         LedgerHeaderFrame::pointer lhf;
 
-        LedgerHeader lh;
-
-        string hash, prevHash, txSetHash, clfHash;
+        string headerEncoded;
         auto& db = ledgerMaster.getDatabase();
 
         {
             auto timer = db.getSelectTimer("ledger-header");
             db.getSession() <<
-            "SELECT ledgerHash, prevHash, txSetHash, clfHash, totCoins, "\
-            "feePool, inflationSeq,baseFee,"\
-            "baseReserve,closeTime FROM LedgerHeaders "\
+            "SELECT data FROM LedgerHeaders "\
             "WHERE ledgerSeq = :s",
-            into(hash), into(prevHash), into(txSetHash), into(clfHash), into(lh.totalCoins),
-            into(lh.feePool), into(lh.inflationSeq), into(lh.baseFee),
-            into(lh.baseReserve), into(lh.closeTime),
+            into(headerEncoded),
             use(seq);
         }
         if (ledgerMaster.getDatabase().getSession().got_data())
         {
-            lh.ledgerSeq = seq;
-            lh.previousLedgerHash = hexToBin256(prevHash);
-            lh.txSetHash = hexToBin256(txSetHash);
-            lh.clfHash = hexToBin256(clfHash);
+            lhf = decodeFromData(headerEncoded);
 
-            lhf = make_shared<LedgerHeaderFrame>(lh);
-            if (lhf->getHash() != hexToBin256(hash))
+            if (lhf->mHeader.ledgerSeq != seq)
             {
-                // wrong hash
+                // wrong sequence number
                 lhf.reset();
             }
         }
@@ -161,30 +158,25 @@ using namespace std;
         uint64_t begin = ledgerSeq, end = ledgerSeq + ledgerCount;
         size_t n = 0;
 
-        LedgerHeaderHistoryEntry lhe;
-        LedgerHeader &lh = lhe.header;
-        string hash, prevHash, txSetHash, clfHash;
+        string headerEncoded;
 
         assert(begin <= end);
 
         soci::statement st =
             (sess.prepare <<
-             "SELECT ledgerSeq, ledgerHash, prevHash, txSetHash, clfHash, totCoins, " \
-             "feePool, inflationSeq, baseFee,"                           \
-             "baseReserve, closeTime FROM LedgerHeaders "                \
+             "SELECT data FROM LedgerHeaders "
              "WHERE ledgerSeq >= :begin AND ledgerSeq < :end",
-             into(lh.ledgerSeq), into(hash), into(prevHash), into(txSetHash), into(clfHash),
-             into(lh.totalCoins), into(lh.feePool), into(lh.inflationSeq), into(lh.baseFee),
-             into(lh.baseReserve), into(lh.closeTime),
+             into(headerEncoded),
              use(begin), use(end));
 
         st.execute(true);
         while (st.got_data())
         {
-            lhe.hash = hexToBin256(hash);
-            lh.previousLedgerHash = hexToBin256(prevHash);
-            lh.txSetHash = hexToBin256(txSetHash);
-            lh.clfHash = hexToBin256(clfHash);
+            LedgerHeaderHistoryEntry lhe;
+            LedgerHeaderFrame::pointer lhf = decodeFromData(headerEncoded);
+            lhe.hash = lhf->getHash();
+            lhe.header = lhf->mHeader;
+
             out.writeOne(lhe);
             ++n;
             st.fetch();
@@ -201,15 +193,10 @@ using namespace std;
             "CREATE TABLE LedgerHeaders ("
             "ledgerHash      CHARACTER(64) PRIMARY KEY,"
             "prevHash        CHARACTER(64) NOT NULL,"
-            "txSetHash       CHARACTER(64) NOT NULL,"
             "clfHash         CHARACTER(64) NOT NULL,"
-            "totCoins        BIGINT NOT NULL CHECK (totCoins >= 0),"
-            "feePool         BIGINT NOT NULL CHECK (feePool >= 0),"
             "ledgerSeq       BIGINT UNIQUE CHECK (ledgerSeq >= 0),"
-            "inflationSeq    INT NOT NULL CHECK (inflationSeq >= 0),"
-            "baseFee         INT NOT NULL CHECK (baseFee >= 0),"
-            "baseReserve     INT NOT NULL CHECK (baseReserve >= 0),"
-            "closeTime       BIGINT NOT NULL CHECK (closeTime >= 0)"
+            "closeTime       BIGINT NOT NULL CHECK (closeTime >= 0),"
+            "data            TEXT NOT NULL"
             ");";
 
         db.getSession() <<

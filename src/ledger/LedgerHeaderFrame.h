@@ -44,6 +44,8 @@ namespace stellar
 
         static void dropAll(Database &db);
         static const char *kSQLCreateStatement;
+    private:
+        static LedgerHeaderFrame::pointer decodeFromData(std::string const& data);
     };
 }
 
