@@ -270,6 +270,19 @@ HistoryMaster::getFile(std::shared_ptr<HistoryArchive> archive,
     exit.async_wait(handler);
 }
 
+
+void
+HistoryMaster::mkdir(std::shared_ptr<HistoryArchive> archive,
+                     std::string const& hexdir,
+                     std::function<void(asio::error_code const&)> handler)
+{
+    assert(archive->hasMkdirCmd());
+    auto cmd = archive->mkdirCmd(hexdir);
+    auto exit = this->mImpl->mApp.getProcessGateway().runProcess(cmd);
+    exit.async_wait(handler);
+}
+
+
 HistoryArchiveState
 HistoryMaster::getCurrentHistoryArchiveState() const
 {

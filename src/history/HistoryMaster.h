@@ -130,6 +130,11 @@ class HistoryMaster
                  std::string const& filename,
                  std::function<void(asio::error_code const&)> handler);
 
+    // Make a directory on a specific archive using its `mkdir` command.
+    void mkdir(std::shared_ptr<HistoryArchive> archive,
+               std::string const& hexdir,
+               std::function<void(asio::error_code const&)> handler);
+
     // For each writable archive, put all buckets in the CLF that have changed
     void publishHistory(std::function<void(asio::error_code const&)> handler);
 
