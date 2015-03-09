@@ -86,6 +86,7 @@ private:
     std::unique_ptr<asio::io_service::work> mWork;
 
     std::unique_ptr<medida::MetricsRegistry> mMetrics;
+    std::unique_ptr<Database> mDatabase;
     std::unique_ptr<TmpDirMaster> mTmpDirMaster;
     std::unique_ptr<PeerMaster> mPeerMaster;
     std::unique_ptr<LedgerMaster> mLedgerMaster;
@@ -94,7 +95,6 @@ private:
     std::unique_ptr<HistoryMaster> mHistoryMaster;
     std::unique_ptr<ProcessMaster> mProcessMaster;
     std::unique_ptr<CommandHandler> mCommandHandler;
-    std::unique_ptr<Database> mDatabase;
     std::unique_ptr<PersistentState> mPersistentState;
 
     std::vector<std::thread> mWorkerThreads;
