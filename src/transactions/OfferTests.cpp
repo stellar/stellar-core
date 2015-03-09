@@ -138,8 +138,8 @@ TEST_CASE("create offer", "[tx][offers]")
         applyCreditPaymentTx(app, gateway, a1, idrCur, gateway_seq++, trustLineLimit);
 
         // create nbOffers
-        std::vector<uint32_t> a1OfferID;
-        uint32_t offerIDCounter=0;
+        std::vector<uint64_t> a1OfferID;
+        uint64_t offerIDCounter=0;
         const Price usdPriceOfferA(3, 2);
 
         for (int i = 0; i < nbOffers; i++)
@@ -226,7 +226,7 @@ TEST_CASE("create offer", "[tx][offers]")
             // and the state of a1 offers
             for (int i = 0; i < nbOffers; i++)
             {
-                int32_t a1Offer = a1OfferID[i];
+                uint64_t a1Offer = a1OfferID[i];
 
                 if (i == 0)
                 {
@@ -284,7 +284,7 @@ TEST_CASE("create offer", "[tx][offers]")
 
             for (int i = 0; i < nbOffers; i++)
             {
-                int32_t a1Offer = a1OfferID[i];
+                uint64_t a1Offer = a1OfferID[i];
 
                 if (i < 6)
                 {
@@ -357,7 +357,7 @@ TEST_CASE("create offer", "[tx][offers]")
 
             for (int i = 0; i < nbOffers; i++)
             {
-                int32_t a1Offer = a1OfferID[i];
+                uint64_t a1Offer = a1OfferID[i];
 
                 REQUIRE(OfferFrame::loadOffer(a1.getPublicKey(), a1Offer, offer,
                     app.getDatabase()));
@@ -441,7 +441,7 @@ TEST_CASE("create offer", "[tx][offers]")
 
             for (int i = 0; i < nbOffers; i++)
             {
-                int32_t a1Offer = a1OfferID[i];
+                uint64_t a1Offer = a1OfferID[i];
                 REQUIRE(!OfferFrame::loadOffer(a1.getPublicKey(), a1Offer,
                     offer, app.getDatabase()));
             }
