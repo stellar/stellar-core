@@ -9,13 +9,13 @@ typedef unsigned hyper uint64;
 typedef opaque Value<>;
 typedef opaque Evidence<>;
 
-struct FBABallot
+struct SCPBallot
 {
     uint32 counter;     // n
     Value value;        // x
 };
 
-enum FBAStatementType
+enum SCPStatementType
 {
     PREPARE,
     PREPARED,
@@ -23,19 +23,19 @@ enum FBAStatementType
     COMMITTED
 };
 
-struct FBAStatement
+struct SCPStatement
 {
     uint64 slotIndex;      // i
-    FBABallot ballot;      // b
+    SCPBallot ballot;      // b
     Hash quorumSetHash;    // D
 	
-    union switch (FBAStatementType type)
+    union switch (SCPStatementType type)
     {
         case PREPARE:
             struct 
             {
-                FBABallot excepted<>;  // B_c
-                FBABallot* prepared;   // p
+                SCPBallot excepted<>;  // B_c
+                SCPBallot* prepared;   // p
             } prepare;
         case PREPARED:
         case COMMIT:
@@ -44,14 +44,14 @@ struct FBAStatement
     } pledges;
 };
 
-struct FBAEnvelope
+struct SCPEnvelope
 {
     uint256 nodeID;         // v
-    FBAStatement statement;
+    SCPStatement statement;
     Signature signature;
 };
 
-struct FBAQuorumSet
+struct SCPQuorumSet
 {
     uint32 threshold;
     Hash validators<>;

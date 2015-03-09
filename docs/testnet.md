@@ -10,8 +10,7 @@ That will set state in the DB and then exit. The next time you start stellard SC
 
 For each server in the cluster you need to do:
 ```sh
-$ stellard --newdb
-$ stellard --forcescp
+$ stellard --newdb --forcescp
 $ stellard
 ```
 

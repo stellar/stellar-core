@@ -18,11 +18,11 @@ FMT_SRCS =                                      \
     src/crypto/SecretKey.cpp                    \
     src/database/Database.cpp                   \
     src/database/DatabaseTests.cpp              \
-    src/fba/FBA.cpp                             \
-    src/fba/FBATests.cpp                        \
-    src/fba/LocalNode.cpp                       \
-    src/fba/Node.cpp                            \
-    src/fba/Slot.cpp                            \
+    src/scp/SCP.cpp                             \
+    src/scp/SCPTests.cpp                        \
+    src/scp/LocalNode.cpp                       \
+    src/scp/Node.cpp                            \
+    src/scp/Slot.cpp                            \
     src/herder/Herder.cpp                       \
     src/herder/HerderTests.cpp                  \
     src/herder/TxSetFrame.cpp                   \
@@ -101,10 +101,10 @@ FMT_HDRS =                                      \
     src/crypto/SHA.h                            \
     src/crypto/SecretKey.h                      \
     src/database/Database.h                     \
-    src/fba/FBA.h                               \
-    src/fba/LocalNode.h                         \
-    src/fba/Node.h                              \
-    src/fba/Slot.h                              \
+    src/scp/SCP.h                               \
+    src/scp/LocalNode.h                         \
+    src/scp/Node.h                              \
+    src/scp/Slot.h                              \
     src/herder/Herder.h                         \
     src/herder/HerderGateway.h                  \
     src/herder/TxSetFrame.h                     \
@@ -164,7 +164,7 @@ FMT_HDRS =                                      \
 
 BUILT_SOURCES = src/generated/StellardVersion.h                                 \
                 src/generated/StellarXDR.h                                      \
-                src/generated/FBAXDR.h
+                src/generated/SCPXDR.h
 
 bin_stellard_SOURCES = $(FMT_SRCS) \
                        $(BUILT_SOURCES) \
@@ -333,7 +333,7 @@ src/generated/StellardVersion.h: Makefile
        echo "#define STELLARD_VERSION \"unknown\"" >$@;                     \
     fi
 
-src/generated/Stellar-types.h: src/xdr/Stellar-types.x src/generated/FBAXDR.h Makefile $(XDRC)
+src/generated/Stellar-types.h: src/xdr/Stellar-types.x src/generated/SCPXDR.h Makefile $(XDRC)
 	$(AM_V_GEN)mkdir -p src/generated; \
 	$(XDRC) -hh -o $@ $<
 
@@ -357,7 +357,7 @@ src/generated/StellarXDR.h: src/overlay/StellarXDR.x src/generated/Stellar-overl
 	$(AM_V_GEN)mkdir -p src/generated; \
 	$(XDRC) -hh -o $@ $<
 
-src/generated/FBAXDR.h: src/fba/FBAXDR.x Makefile $(XDRC)
+src/generated/SCPXDR.h: src/scp/SCPXDR.x Makefile $(XDRC)
 	$(AM_V_GEN)mkdir -p src/generated
 	$(XDRC) -hh -o $@ $<
 

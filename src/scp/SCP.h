@@ -10,7 +10,7 @@
 
 #include "crypto/SecretKey.h"
 
-#include "generated/FBAXDR.h"
+#include "generated/SCPXDR.h"
 
 namespace stellar
 {
@@ -18,29 +18,29 @@ class Node;
 class Slot;
 class LocalNode;
 
-class FBA
+class SCP
 {
 
   public:
-    FBA(const SecretKey& secretKey,
-        const FBAQuorumSet& qSetLocal);
-    ~FBA();
+    SCP(const SecretKey& secretKey,
+        const SCPQuorumSet& qSetLocal);
+    ~SCP();
 
-    // Users of the FBA library should inherit from FBA and implement the
-    // following virtual methods which are called by the FBA implementation to:
+    // Users of the SCP library should inherit from SCP and implement the
+    // following virtual methods which are called by the SCP implementation to:
     //
     // 1) hand over the validation and ordering of values and ballots.
     //    (`validateValue`, `compareValues`, `validateBallot`)
     // 2) inform about events happening within the consensus algorithm.
     //    ( `ballotDidPrepare`, `ballotDidPrepared`, `ballotDidCommit`,
     //      `ballotDidCommitted`, `valueExternalized`)
-    // 3) retrieve data required by the FBA protocol.
+    // 3) retrieve data required by the SCP protocol.
     //    (`retrieveQuorumSet`)
     // 4) trigger the broadcast of Envelopes to other nodes in the network.
     //    (`emitEnvelope`) 
     //
     // Thes methods are designed to abstract the transport layer used from the
-    // implementation of the FBA protocol.
+    // implementation of the SCP protocol.
     
     // `validateValue` is called on each message received before any processing
     // is done. It should be used to filter out values that are not compatible
@@ -75,7 +75,7 @@ class FBA
     // nodes PREARED and subsequently COMMITTED such ballot. 
     virtual void validateBallot(const uint64& slotIndex,
                                 const uint256& nodeID,
-                                const FBABallot& ballot,
+                                const SCPBallot& ballot,
                                 std::function<void(bool)> const& cb)
     {
         return cb(true);
@@ -84,28 +84,28 @@ class FBA
     // `ballotDidPrepare` is called each time the local node PREPARE a ballot.
     // It is always called on the internally monotically increasing `mBallot`.
     virtual void ballotDidPrepare(const uint64& slotIndex,
-                                  const FBABallot& ballot) {}
+                                  const SCPBallot& ballot) {}
     // `ballotDidPrepared` is called each time the local node PREPARED a
     // ballot. It can be called on ballots lower than `mBallot`.
     virtual void ballotDidPrepared(const uint64& slotIndex,
-                                  const FBABallot& ballot) {}
+                                  const SCPBallot& ballot) {}
     // `ballotDidCommit` is called each time the local node COMMIT a ballot.
     // It is always called on the internally monotically increasing `mBallot`.
     virtual void ballotDidCommit(const uint64& slotIndex,
-                                 const FBABallot& ballot) {}
+                                 const SCPBallot& ballot) {}
     // `ballotDidCommitted` is called each time the local node COMMITTED a
     // ballot. It is always called on the internally monotically increasing
     // `mBallot`. Once COMMITTED, a slot cannot switch to another value. That
     // does not mean that the network agress on it yet though, but if the slot
     // later externalize on this node, it will necessarily be on this value.
     virtual void ballotDidCommitted(const uint64& slotIndex,
-                                    const FBABallot& ballot) {}
+                                    const SCPBallot& ballot) {}
 
     // `ballotDidHearFromQuorum` is called when we received messages related to
     // the current `mBallot` from a set of node that is a transitive quorum for 
     // the local node. It should be used to start ballot expiration timer.
     virtual void ballotDidHearFromQuorum(const uint64& slotIndex,
-                                         const FBABallot& ballot) {}
+                                         const SCPBallot& ballot) {}
 
     // `valueExternalized` is called at most once per slot when the slot
     // externalize its value.
@@ -113,23 +113,23 @@ class FBA
                                    const Value& value) {}
 
 
-    // `nodeTouched` is call whenever a node is used within the FBA consensus
-    // protocol. It lets implementor of FBA evict nodes that haven't been
+    // `nodeTouched` is call whenever a node is used within the SCP consensus
+    // protocol. It lets implementor of SCP evict nodes that haven't been
     // touched for a long time (because it died or the quorum structure was
     // updated).
     virtual void nodeTouched(const uint256& nodeID) {}
 
     // Delegates the retrieval of the quorum set designated by `qSetHash` to
-    // the user of FBA.
+    // the user of SCP.
     virtual void retrieveQuorumSet(
         const uint256& nodeID,
         const Hash& qSetHash,
-        std::function<void(const FBAQuorumSet&)> const& cb) = 0;
+        std::function<void(const SCPQuorumSet&)> const& cb) = 0;
 
 
-    // Delegates the emission of an FBAEnvelope to the user of FBA. Envelopes
+    // Delegates the emission of an SCPEnvelope to the user of SCP. Envelopes
     // should be flooded to the network.
-    virtual void emitEnvelope(const FBAEnvelope& envelope) = 0;
+    virtual void emitEnvelope(const SCPEnvelope& envelope) = 0;
 
     // Receives an envelope. `cb` asynchronously returns with a status for the
     // envelope:
@@ -142,20 +142,20 @@ class FBA
     // If evidences are missing, a retransmisison should take place for that
     // slot. see `procudeSlotEvidence` to implement such retransmission
     // mechanism on the other side of the wire.
-    void receiveEnvelope(const FBAEnvelope& envelope,
+    void receiveEnvelope(const SCPEnvelope& envelope,
                          std::function<void(EnvelopeState)> const& cb = 
                          [] (EnvelopeState) { });
 
 
-    // Submit a value for the FBA consensus phase
+    // Submit a value for the SCP consensus phase
     bool prepareValue(const uint64& slotIndex,
                       const Value& value,
                       bool forceBump = false);
                        
 
     // Local QuorumSet interface (can be dynamically updated)
-    void updateLocalQuorumSet(const FBAQuorumSet& qSet);
-    const FBAQuorumSet& getLocalQuorumSet();
+    void updateLocalQuorumSet(const SCPQuorumSet& qSet);
+    const SCPQuorumSet& getLocalQuorumSet();
 
     // Local nodeID getter
     const uint256& getLocalNodeID();
@@ -191,8 +191,8 @@ class FBA
     Slot* getSlot(const uint64& slotIndex);
 
     // Envelope signature/verification
-    void signEnvelope(FBAEnvelope& envelope);
-    bool verifyEnvelope(const FBAEnvelope& envelope);
+    void signEnvelope(SCPEnvelope& envelope);
+    bool verifyEnvelope(const SCPEnvelope& envelope);
 
     LocalNode*                     mLocalNode;
     std::map<uint256, Node*>       mKnownNodes;

@@ -15,10 +15,10 @@ namespace stellar
 {
 
 Node::Node(const uint256& nodeID,
-           FBA* FBA,
+           SCP* SCP,
            int cacheCapacity)
     : mNodeID(nodeID)
-    , mFBA(FBA)
+    , mSCP(SCP)
     , mCacheCapacity(cacheCapacity)
 {
 }
@@ -27,12 +27,12 @@ bool
 Node::hasQuorum(const Hash& qSetHash,
                 const std::vector<uint256>& nodeSet)
 {
-    CLOG(DEBUG, "FBA") << "Node::hasQuorum" 
+    CLOG(DEBUG, "SCP") << "Node::hasQuorum" 
         << "@" << binToHex(mNodeID).substr(0,6)
         << " qSet: " << binToHex(qSetHash).substr(0,6)
         << " nodeSet.size: " << nodeSet.size();
     // This call can throw a `QuorumSetNotFound` if the quorumSet is unknown.
-    const FBAQuorumSet& qSet = retrieveQuorumSet(qSetHash);
+    const SCPQuorumSet& qSet = retrieveQuorumSet(qSetHash);
 
     uint32 count = 0;
     for (auto n : qSet.validators)
@@ -41,7 +41,7 @@ Node::hasQuorum(const Hash& qSetHash,
         count += (it != nodeSet.end()) ? 1 : 0;
     }
     auto result = (count >= qSet.threshold);
-    CLOG(DEBUG, "FBA") << "Node::hasQuorum"
+    CLOG(DEBUG, "SCP") << "Node::hasQuorum"
         << "@" << binToHex(mNodeID).substr(0, 6)
         << " is " << result;
         return result;
@@ -51,12 +51,12 @@ bool
 Node::isVBlocking(const Hash& qSetHash,
                   const std::vector<uint256>& nodeSet)
 {
-    CLOG(DEBUG, "FBA") << "Node::isVBlocking" 
+    CLOG(DEBUG, "SCP") << "Node::isVBlocking" 
         << "@" << binToHex(mNodeID).substr(0,6)
         << " qSet: " << binToHex(qSetHash).substr(0,6)
         << " nodeSet.size: " << nodeSet.size();
     // This call can throw a `QuorumSetNotFound` if the quorumSet is unknown.
-    const FBAQuorumSet& qSet = retrieveQuorumSet(qSetHash);
+    const SCPQuorumSet& qSet = retrieveQuorumSet(qSetHash);
 
     // There is no v-blocking set for {\empty}
     if(qSet.threshold == 0)
@@ -71,7 +71,7 @@ Node::isVBlocking(const Hash& qSetHash,
         count += (it != nodeSet.end()) ? 1 : 0;
     }
     auto result = (qSet.validators.size() - count < qSet.threshold);
-    CLOG(DEBUG, "FBA") << "Node::isVBlocking"
+    CLOG(DEBUG, "SCP") << "Node::isVBlocking"
         << "@" << binToHex(mNodeID).substr(0, 6)
         << " is " << result;
     return result;
@@ -95,10 +95,10 @@ Node::isVBlocking(const Hash& qSetHash,
 }
 
 template bool 
-Node::isVBlocking<FBAStatement>(
+Node::isVBlocking<SCPStatement>(
     const Hash& qSetHash,
-    const std::map<uint256, FBAStatement>& map,
-    std::function<bool(const uint256&, const FBAStatement&)> const& filter);
+    const std::map<uint256, SCPStatement>& map,
+    std::function<bool(const uint256&, const SCPStatement&)> const& filter);
 
 template bool 
 Node::isVBlocking<bool>(
@@ -130,7 +130,7 @@ Node::isQuorumTransitive(const Hash& qSetHash,
         std::vector<uint256> fNodes(pNodes.size());
         auto quorumFilter = [&] (uint256 nodeID) -> bool 
         {
-            return mFBA->getNode(nodeID)->hasQuorum(
+            return mSCP->getNode(nodeID)->hasQuorum(
                 qfun(map.find(nodeID)->second),
                 pNodes);
         };
@@ -144,18 +144,18 @@ Node::isQuorumTransitive(const Hash& qSetHash,
 }
 
 template bool 
-Node::isQuorumTransitive<FBAStatement>(
+Node::isQuorumTransitive<SCPStatement>(
     const Hash& qSetHash,
-    const std::map<uint256, FBAStatement>& map,
-    std::function<Hash(const FBAStatement&)> const& qfun,
-    std::function<bool(const uint256&, const FBAStatement&)> const& filter);
+    const std::map<uint256, SCPStatement>& map,
+    std::function<Hash(const SCPStatement&)> const& qfun,
+    std::function<bool(const uint256&, const SCPStatement&)> const& filter);
 
 
-const FBAQuorumSet& 
+const SCPQuorumSet& 
 Node::retrieveQuorumSet(const uint256& qSetHash)
 {
     // Notify that we touched this node.
-    mFBA->nodeTouched(mNodeID);
+    mSCP->nodeTouched(mNodeID);
 
     assert(mCacheLRU.size() == mCache.size());
     auto it = mCache.find(qSetHash);
@@ -164,7 +164,7 @@ Node::retrieveQuorumSet(const uint256& qSetHash)
         return it->second;
     }
 
-    CLOG(DEBUG, "FBA") << "Node::retrieveQuorumSet"
+    CLOG(DEBUG, "SCP") << "Node::retrieveQuorumSet"
         << "@" << binToHex(mNodeID).substr(0,6)
         << " qSet: "  << binToHex(qSetHash).substr(0,6);
 
@@ -172,10 +172,10 @@ Node::retrieveQuorumSet(const uint256& qSetHash)
 }
 
 void
-Node::cacheQuorumSet(const FBAQuorumSet& qSet)
+Node::cacheQuorumSet(const SCPQuorumSet& qSet)
 {
     uint256 qSetHash = sha256(xdr::xdr_to_msg(qSet));
-    CLOG(DEBUG, "FBA") << "Node::cacheQuorumSet"
+    CLOG(DEBUG, "SCP") << "Node::cacheQuorumSet"
         << "@" << binToHex(mNodeID).substr(0,6)
         << " qSet: "  << binToHex(qSetHash).substr(0,6);
 

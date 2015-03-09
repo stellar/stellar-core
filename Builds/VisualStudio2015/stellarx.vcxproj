@@ -151,11 +151,6 @@
     <ClCompile Include="..\..\src\crypto\SecretKey.cpp" />
     <ClCompile Include="..\..\src\database\Database.cpp" />
     <ClCompile Include="..\..\src\database\DatabaseTests.cpp" />
-    <ClCompile Include="..\..\src\fba\FBA.cpp" />
-    <ClCompile Include="..\..\src\fba\FBATests.cpp" />
-    <ClCompile Include="..\..\src\fba\LocalNode.cpp" />
-    <ClCompile Include="..\..\src\fba\Node.cpp" />
-    <ClCompile Include="..\..\src\fba\Slot.cpp" />
     <ClCompile Include="..\..\src\herder\Herder.cpp" />
     <ClCompile Include="..\..\src\herder\HerderTests.cpp" />
     <ClCompile Include="..\..\src\herder\TxSetFrame.cpp" />
@@ -230,6 +225,12 @@
     <ClCompile Include="..\..\src\overlay\PeerMasterTests.cpp" />
     <ClCompile Include="..\..\src\overlay\PeerRecord.cpp" />
     <ClCompile Include="..\..\src\overlay\PeerRecordTests.cpp" />
+    <ClCompile Include="..\..\src\overlay\TCPPeerTests.cpp" />
+    <ClCompile Include="..\..\src\scp\LocalNode.cpp" />
+    <ClCompile Include="..\..\src\scp\Node.cpp" />
+    <ClCompile Include="..\..\src\scp\SCP.cpp" />
+    <ClCompile Include="..\..\src\scp\SCPTests.cpp" />
+    <ClCompile Include="..\..\src\scp\Slot.cpp" />
     <ClCompile Include="..\..\src\simulation\CoreTests.cpp" />
     <ClCompile Include="..\..\src\simulation\Simulation.cpp" />
     <ClCompile Include="..\..\src\simulation\Topologies.cpp" />
@@ -285,10 +286,6 @@
     <ClInclude Include="..\..\src\crypto\SHA.h" />
     <ClInclude Include="..\..\src\crypto\SecretKey.h" />
     <ClInclude Include="..\..\src\database\Database.h" />
-    <ClInclude Include="..\..\src\fba\FBA.h" />
-    <ClInclude Include="..\..\src\fba\LocalNode.h" />
-    <ClInclude Include="..\..\src\fba\Node.h" />
-    <ClInclude Include="..\..\src\fba\Slot.h" />
     <ClInclude Include="..\..\src\generated\StellarXDR.h" />
     <ClInclude Include="..\..\src\herder\Herder.h" />
     <ClInclude Include="..\..\src\herder\HerderGateway.h" />
@@ -339,6 +336,10 @@
     <ClInclude Include="..\..\src\overlay\TCPPeer.h" />
     <ClInclude Include="..\..\src\process\ProcessGateway.h" />
     <ClInclude Include="..\..\src\process\ProcessMaster.h" />
+    <ClInclude Include="..\..\src\scp\LocalNode.h" />
+    <ClInclude Include="..\..\src\scp\Node.h" />
+    <ClInclude Include="..\..\src\scp\SCP.h" />
+    <ClInclude Include="..\..\src\scp\Slot.h" />
     <ClInclude Include="..\..\src\simulation\Simulation.h" />
     <ClInclude Include="..\..\src\simulation\Topologies.h" />
     <ClInclude Include="..\..\src\transactions\AllowTrustOpFrame.h" />
@@ -364,6 +365,7 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="..\..\AUTHORS" />
+    <None Include="..\..\autogen.sh" />
     <None Include="..\..\ChangeLog" />
     <None Include="..\..\COPYING" />
     <None Include="..\..\docs\design.md" />
@@ -377,6 +379,7 @@
     <None Include="..\..\docs\transactions.md" />
     <None Include="..\..\docs\usecases.md" />
     <None Include="..\..\INSTALL" />
+    <None Include="..\..\Makefile.am" />
     <None Include="..\..\NEWS" />
     <CustomBuild Include="..\..\src\overlay\StellarXDR.x">
       <FileType>Document</FileType>
@@ -392,17 +395,6 @@ $(SolutionDir)$(Platform)\$(Configuration)\xdrc.exe -hh -o ../../src/generated/S
       </ExcludedFromBuild>
       <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">../../src/overlay/StellarXDR.x;../../src/generated/Stellar-types.h;../../src/generated/Stellar-ledger-entries.h;../../src/generated/Stellar-transaction.h;../../src/generated/Stellar-ledger.h;../../src/generated/Stellar-overlay.h</AdditionalInputs>
       <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">../../src/overlay/StellarXDR.x;../../src/generated/Stellar-types.h;../../src/generated/Stellar-ledger-entries.h;../../src/generated/Stellar-transaction.h;../../src/generated/Stellar-ledger.h;../../src/generated/Stellar-overlay.h</AdditionalInputs>
-    </CustomBuild>
-    <CustomBuild Include="..\..\src\fba\FBAXDR.x">
-      <FileType>Document</FileType>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(SolutionDir)$(Platform)\$(Configuration)\xdrc.exe -hh -o ../../src/generated/FBAXDR.h ../../src/fba/FBAXDR.x</Command>
-      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">../../src/fba/FBAXDR.x</AdditionalInputs>
-      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">fba xdr</Message>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">../../src/generated/FBAXDR.h</Outputs>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(SolutionDir)$(Platform)\$(Configuration)\xdrc.exe -hh -o ../../src/generated/FBAXDR.h ../../src/fba/FBAXDR.x</Command>
-      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">fba xdr</Message>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">../../src/generated/FBAXDR.h</Outputs>
-      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">../../src/fba/FBAXDR.x</AdditionalInputs>
     </CustomBuild>
     <None Include="..\..\README.md" />
     <None Include="..\..\src\lib\xdrpp\tests\xdrtest.x" />
@@ -460,6 +452,12 @@ $(SolutionDir)$(Platform)\$(Configuration)\xdrc.exe -hh -o ../../src/generated/S
       <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">../../src/generated/Stellar-ledger-entries.h</Outputs>
       <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">../../src/xdr/Stellar-ledger.x;../../src/generated/Stellar-types.h</AdditionalInputs>
       <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">../../src/xdr/Stellar-ledger.x;../../src/generated/Stellar-types.h</AdditionalInputs>
+    </CustomBuild>
+    <CustomBuild Include="..\..\src\scp\SCPXDR.x">
+      <FileType>Document</FileType>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(SolutionDir)$(Platform)\$(Configuration)\xdrc.exe -hh -o ../../src/generated/SCPXDR.h ../../src/scp/SCPXDR.x</Command>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">running xdrc</Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">../../src/generated/SCPXDR.h</Outputs>
     </CustomBuild>
     <None Include="libmedida\libmedida.vcxproj" />
   </ItemGroup>

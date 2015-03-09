@@ -22,10 +22,10 @@ class Config : public std::enable_shared_from_this<Config>
 
     // application config
     
-    // The default way hayashi starts is to load the state from disk and catch up to the network before starting FBA.
+    // The default way hayashi starts is to load the state from disk and catch up to the network before starting SCP.
     // If you need different behavior you need to use --new or --local which set the following flags:
     
-    // Will start a brand new ledger. And FBA will start running immediately
+    // Will start a brand new ledger. And SCP will start running immediately
     // should only be used once to start a whole new network
     bool START_NEW_NETWORK;  
 
@@ -53,7 +53,7 @@ class Config : public std::enable_shared_from_this<Config>
     std::vector<std::string> PREFERRED_PEERS;
     std::vector<std::string> KNOWN_PEERS;
 
-    // FBA config
+    // SCP config
     SecretKey VALIDATION_KEY;
     uint32_t QUORUM_THRESHOLD;
     std::vector<uint256> QUORUM_SET;

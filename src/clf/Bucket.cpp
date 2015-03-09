@@ -2,12 +2,11 @@
 // under the ISC License. See the COPYING file at the top-level directory of
 // this distribution or at http://opensource.org/licenses/ISC
 
+#include "clf/Bucket.h"
 // ASIO is somewhat particular about when it gets included -- it wants to be the
 // first to include <windows.h> -- so we try to include it before everything
 // else.
 #include "util/asio.h"
-
-#include "clf/Bucket.h"
 #include "clf/CLFMaster.h"
 #include "clf/LedgerCmp.h"
 #include "crypto/Hex.h"

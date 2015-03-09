@@ -18,7 +18,7 @@
 #include "lib/util/easylogging++.h"
 #include "medida/metrics_registry.h"
 #include "medida/meter.h"
-#include "fba/Slot.h"
+#include "scp/Slot.h"
 
 #define MAX_TIME_IN_FUTURE_VALID 10
 
@@ -26,11 +26,11 @@
 namespace stellar
 {
 
-// Static helper for Herder's FBA constructor
-static FBAQuorumSet
+// Static helper for Herder's SCP constructor
+static SCPQuorumSet
 quorumSetFromApp(Application& app)
 {
-    FBAQuorumSet qSet;
+    SCPQuorumSet qSet;
     qSet.threshold = app.getConfig().QUORUM_THRESHOLD;
     for (auto q : app.getConfig().QUORUM_SET)
     {
@@ -40,7 +40,7 @@ quorumSetFromApp(Application& app)
 }
 
 Herder::Herder(Application& app)
-    : FBA(app.getConfig().VALIDATION_KEY,
+    : SCP(app.getConfig().VALIDATION_KEY,
           quorumSetFromApp(app))
     , mReceivedTransactions(4)
 #ifdef _MSC_VER
@@ -63,43 +63,43 @@ Herder::Herder(Application& app)
     }
 #endif
     , mCurrentTxSetFetcher(0)
-    , mFBAQSetFetcher(app)
+    , mSCPQSetFetcher(app)
     , mLastTrigger(app.getClock().now())
     , mTriggerTimer(app)
     , mBumpTimer(app)
     , mRebroadcastTimer(app)
     , mApp(app)
 
-    , mValueValid(app.getMetrics().NewMeter({"fba", "value", "valid"}, "value"))
-    , mValueInvalid(app.getMetrics().NewMeter({"fba", "value", "invalid"}, "value"))
-    , mValuePrepare(app.getMetrics().NewMeter({"fba", "value", "prepare"}, "value"))
-    , mValueExternalize(app.getMetrics().NewMeter({"fba", "value", "externalize"}, "value"))
+    , mValueValid(app.getMetrics().NewMeter({"scp", "value", "valid"}, "value"))
+    , mValueInvalid(app.getMetrics().NewMeter({"scp", "value", "invalid"}, "value"))
+    , mValuePrepare(app.getMetrics().NewMeter({"scp", "value", "prepare"}, "value"))
+    , mValueExternalize(app.getMetrics().NewMeter({"scp", "value", "externalize"}, "value"))
 
-    , mBallotValid(app.getMetrics().NewMeter({"fba", "ballot", "valid"}, "ballot"))
-    , mBallotInvalid(app.getMetrics().NewMeter({"fba", "ballot", "invalid"}, "ballot"))
-    , mBallotPrepare(app.getMetrics().NewMeter({"fba", "ballot", "prepare"}, "ballot"))
-    , mBallotPrepared(app.getMetrics().NewMeter({"fba", "ballot", "prepared"}, "ballot"))
-    , mBallotCommit(app.getMetrics().NewMeter({"fba", "ballot", "commit"}, "ballot"))
-    , mBallotCommitted(app.getMetrics().NewMeter({"fba", "ballot", "committed"}, "ballot"))
-    , mBallotSign(app.getMetrics().NewMeter({"fba", "ballot", "sign"}, "ballot"))
-    , mBallotValidSig(app.getMetrics().NewMeter({"fba", "ballot", "validsig"}, "ballot"))
-    , mBallotInvalidSig(app.getMetrics().NewMeter({"fba", "ballot", "invalidsig"}, "ballot"))
-    , mBallotExpire(app.getMetrics().NewMeter({"fba", "ballot", "expire"}, "ballot"))
+    , mBallotValid(app.getMetrics().NewMeter({"scp", "ballot", "valid"}, "ballot"))
+    , mBallotInvalid(app.getMetrics().NewMeter({"scp", "ballot", "invalid"}, "ballot"))
+    , mBallotPrepare(app.getMetrics().NewMeter({"scp", "ballot", "prepare"}, "ballot"))
+    , mBallotPrepared(app.getMetrics().NewMeter({"scp", "ballot", "prepared"}, "ballot"))
+    , mBallotCommit(app.getMetrics().NewMeter({"scp", "ballot", "commit"}, "ballot"))
+    , mBallotCommitted(app.getMetrics().NewMeter({"scp", "ballot", "committed"}, "ballot"))
+    , mBallotSign(app.getMetrics().NewMeter({"scp", "ballot", "sign"}, "ballot"))
+    , mBallotValidSig(app.getMetrics().NewMeter({"scp", "ballot", "validsig"}, "ballot"))
+    , mBallotInvalidSig(app.getMetrics().NewMeter({"scp", "ballot", "invalidsig"}, "ballot"))
+    , mBallotExpire(app.getMetrics().NewMeter({"scp", "ballot", "expire"}, "ballot"))
 
-    , mQuorumHeard(app.getMetrics().NewMeter({"fba", "quorum", "heard"}, "quorum"))
-    , mQsetRetrieve(app.getMetrics().NewMeter({"fba", "qset", "retrieve"}, "qset"))
+    , mQuorumHeard(app.getMetrics().NewMeter({"scp", "quorum", "heard"}, "quorum"))
+    , mQsetRetrieve(app.getMetrics().NewMeter({"scp", "qset", "retrieve"}, "qset"))
 
-    , mEnvelopeEmit(app.getMetrics().NewMeter({"fba", "envelope", "emit"}, "envelope"))
-    , mEnvelopeReceive(app.getMetrics().NewMeter({"fba", "envelope", "receive"}, "envelope"))
-    , mEnvelopeSign(app.getMetrics().NewMeter({"fba", "envelope", "sign"}, "envelope"))
-    , mEnvelopeValidSig(app.getMetrics().NewMeter({"fba", "envelope", "validsig"}, "envelope"))
-    , mEnvelopeInvalidSig(app.getMetrics().NewMeter({"fba", "envelope", "invalidsig"}, "envelope"))
+    , mEnvelopeEmit(app.getMetrics().NewMeter({"scp", "envelope", "emit"}, "envelope"))
+    , mEnvelopeReceive(app.getMetrics().NewMeter({"scp", "envelope", "receive"}, "envelope"))
+    , mEnvelopeSign(app.getMetrics().NewMeter({"scp", "envelope", "sign"}, "envelope"))
+    , mEnvelopeValidSig(app.getMetrics().NewMeter({"scp", "envelope", "validsig"}, "envelope"))
+    , mEnvelopeInvalidSig(app.getMetrics().NewMeter({"scp", "envelope", "invalidsig"}, "envelope"))
 
 {
-    // Inject our local qSet in the FBAQSetFetcher.
-    FBAQuorumSetPtr qSet = 
-        std::make_shared<FBAQuorumSet>(std::move(quorumSetFromApp(mApp)));
-    recvFBAQuorumSet(qSet);
+    // Inject our local qSet in the SCPQSetFetcher.
+    SCPQuorumSetPtr qSet = 
+        std::make_shared<SCPQuorumSet>(std::move(quorumSetFromApp(mApp)));
+    recvSCPQuorumSet(qSet);
 }
 
 Herder::~Herder()
@@ -246,7 +246,7 @@ Herder::compareValues(const uint64& slotIndex,
 
     // Ordering is based on H(slotIndex, ballotCounter, nodeID). Such that the
     // round king value gets privileged over other values. Given the hash
-    // function used, a new monarch is coronated for each round of FBA (ballot
+    // function used, a new monarch is coronated for each round of SCP (ballot
     // counter) and each slotIndex.
     
     SHA256 s1;
@@ -273,7 +273,7 @@ Herder::compareValues(const uint64& slotIndex,
 void 
 Herder::validateBallot(const uint64& slotIndex,
                        const uint256& nodeID,
-                       const FBABallot& ballot,
+                       const SCPBallot& ballot,
                        std::function<void(bool)> const& cb)
 {
     StellarBallot b;
@@ -308,7 +308,7 @@ Herder::validateBallot(const uint64& slotIndex,
          (timeNow + MAX_TIME_SLIP_SECONDS) >= (lastTrigger + sumTimeouts); 
          i ++)
     {
-        sumTimeouts += std::min(MAX_FBA_TIMEOUT_SECONDS, (int)pow(2.0, i));
+        sumTimeouts += std::min(MAX_SCP_TIMEOUT_SECONDS, (int)pow(2.0, i));
     }
     // This inequality is effectively a limitation on `ballot.counter`
     if ((timeNow + MAX_TIME_SLIP_SECONDS) < (lastTrigger + sumTimeouts))
@@ -329,7 +329,7 @@ Herder::validateBallot(const uint64& slotIndex,
         return cb(false);
     }
 
-    // Ignore ourselves if we're just watching FBA.
+    // Ignore ourselves if we're just watching SCP.
     if (getSecretKey().isZero() && nodeID == getLocalNodeID())
     {
         mBallotInvalid.Mark();
@@ -402,7 +402,7 @@ Herder::validateBallot(const uint64& slotIndex,
             << " isTrusted: " << isTrusted
             << " isKing: " << isKing
             << " timeout: " << pow(2.0, ballot.counter) / 2;
-        // Create a timer to wait for current FBA timeout / 2 before accepting
+        // Create a timer to wait for current SCP timeout / 2 before accepting
         // that ballot.
         VirtualTimer ballotTimer(mApp);
         ballotTimer.expires_from_now(
@@ -433,7 +433,7 @@ Herder::validateBallot(const uint64& slotIndex,
 
 void
 Herder::ballotDidHearFromQuorum(const uint64& slotIndex,
-                                const FBABallot& ballot)
+                                const SCPBallot& ballot)
 {
     mQuorumHeard.Mark();
    
@@ -442,12 +442,12 @@ Herder::ballotDidHearFromQuorum(const uint64& slotIndex,
 
     mBumpTimer.cancel();
 
-    // Once we hear from a transitive quorum, we start a timer in case FBA
+    // Once we hear from a transitive quorum, we start a timer in case SCP
     // timeouts.
     mBumpTimer.expires_from_now(
         std::chrono::seconds((int)pow(2.0, ballot.counter)));
 
-    // TODO: Bumping on a timeout disabled for now, tends to stall fba
+    // TODO: Bumping on a timeout disabled for now, tends to stall scp
     /*
     mBumpTimer.async_wait(std::bind(&Herder::expireBallot, this, 
                                     std::placeholders::_1, 
@@ -537,7 +537,7 @@ Herder::valueExternalized(const uint64& slotIndex,
     else
     {
         // This may not be possible as all messages are validated and should
-        // therefore fetch the txSet before being considered by FBA.
+        // therefore fetch the txSet before being considered by SCP.
         CLOG(ERROR, "Herder") << "Herder::valueExternalized"
             << "@" << binToHex(getLocalNodeID()).substr(0,6)
             << " Externalized txSet not found";
@@ -548,30 +548,30 @@ void
 Herder::nodeTouched(const uint256& nodeID)
 {
     // We simply store the time of last access each time a node is touched by
-    // FBA. That way we can evict old irrelevant nodes at each round.
+    // SCP. That way we can evict old irrelevant nodes at each round.
     mNodeLastAccess[nodeID] = mApp.getClock().now();
 }
 
 void 
 Herder::retrieveQuorumSet(const uint256& nodeID,
                           const Hash& qSetHash,
-                          std::function<void(const FBAQuorumSet&)> const& cb)
+                          std::function<void(const SCPQuorumSet&)> const& cb)
 {
     mQsetRetrieve.Mark();
     CLOG(DEBUG, "Herder") << "Herder::retrieveQuorumSet"
         << "@" << binToHex(getLocalNodeID()).substr(0,6)
         << " qSet: " << binToHex(qSetHash).substr(0,6);
-    auto retrieve = [cb, this] (FBAQuorumSetPtr qSet)
+    auto retrieve = [cb, this] (SCPQuorumSetPtr qSet)
     {
         return cb(*qSet);
     };
 
     // Peer Overlays and nodeIDs have no relationship for now. Sow we just
     // retrieve qSetHash by asking the whole overlay.
-    FBAQuorumSetPtr qSet = fetchFBAQuorumSet(qSetHash, true);
+    SCPQuorumSetPtr qSet = fetchSCPQuorumSet(qSetHash, true);
     if (!qSet)
     {
-        mFBAQSetFetches[qSetHash].push_back(retrieve);
+        mSCPQSetFetches[qSetHash].push_back(retrieve);
     }
     else
     {
@@ -601,7 +601,7 @@ void Herder::startRebroadcastTimer()
 }
 
 void 
-Herder::emitEnvelope(const FBAEnvelope& envelope)
+Herder::emitEnvelope(const SCPEnvelope& envelope)
 {
     // We don't emit any envelope as long as we're not fully synced
     if (mApp.getState() != Application::SYNCED_STATE)
@@ -609,7 +609,7 @@ Herder::emitEnvelope(const FBAEnvelope& envelope)
         return;
     }
 
-    mLastSentMessage.type(FBA_MESSAGE);
+    mLastSentMessage.type(SCP_MESSAGE);
     mLastSentMessage.envelope() = envelope;
 
     rebroadcast(asio::error_code());    
@@ -654,43 +654,43 @@ Herder::doesntHaveTxSet(uint256 const& txSetHash,
 }
 
 
-FBAQuorumSetPtr
-Herder::fetchFBAQuorumSet(uint256 const& qSetHash, 
+SCPQuorumSetPtr
+Herder::fetchSCPQuorumSet(uint256 const& qSetHash, 
                           bool askNetwork)
 {
-    return mFBAQSetFetcher.fetchItem(qSetHash, askNetwork);
+    return mSCPQSetFetcher.fetchItem(qSetHash, askNetwork);
 }
 
 void 
-Herder::recvFBAQuorumSet(FBAQuorumSetPtr qSet)
+Herder::recvSCPQuorumSet(SCPQuorumSetPtr qSet)
 {
-    CLOG(DEBUG, "Herder") << "Herder::recvFBAQuorumSet"
+    CLOG(DEBUG, "Herder") << "Herder::recvSCPQuorumSet"
         << "@" << binToHex(getLocalNodeID()).substr(0,6)
         << " qSet: " << binToHex(sha256(xdr::xdr_to_msg(*qSet))).substr(0,6);
               
-    if (mFBAQSetFetcher.recvItem(qSet))
+    if (mSCPQSetFetcher.recvItem(qSet))
     { 
         // someone cares about this set
         uint256 qSetHash = sha256(xdr::xdr_to_msg(*qSet));
 
         // Runs any pending retrievals on this qSet
-        auto it = mFBAQSetFetches.find(qSetHash);
-        if (it != mFBAQSetFetches.end())
+        auto it = mSCPQSetFetches.find(qSetHash);
+        if (it != mSCPQSetFetches.end())
         {
             for (auto retrieve : it->second)
             {
                 retrieve(qSet);
             }
-            mFBAQSetFetches.erase(it);
+            mSCPQSetFetches.erase(it);
         }
     }
 }
 
 void 
-Herder::doesntHaveFBAQuorumSet(uint256 const& qSetHash, 
+Herder::doesntHaveSCPQuorumSet(uint256 const& qSetHash, 
                                PeerPtr peer)
 {
-    mFBAQSetFetcher.doesntHave(qSetHash, peer);
+    mSCPQSetFetcher.doesntHave(qSetHash, peer);
 }
 
 
@@ -739,10 +739,10 @@ Herder::recvTransaction(TransactionFramePtr tx)
 }
 
 void
-Herder::recvFBAEnvelope(FBAEnvelope envelope,
+Herder::recvSCPEnvelope(SCPEnvelope envelope,
                         std::function<void(bool)> const& cb)
 {
-    CLOG(DEBUG, "Herder") << "Herder::recvFBAEnvelope@"
+    CLOG(DEBUG, "Herder") << "Herder::recvSCPEnvelope@"
         << "@" << binToHex(getLocalNodeID()).substr(0, 6);
 
     if(mApp.getState() == Application::SYNCED_STATE)
@@ -791,7 +791,7 @@ Herder::ledgerClosed(LedgerHeader& ledger)
     // wont' have any impact.
     mBallotValidationTimers.clear();
 
-    // If we are not a validating not and just watching FBA we don't call
+    // If we are not a validating not and just watching SCP we don't call
     // triggerNextLedger
     if (getSecretKey().isZero())
     {
@@ -900,7 +900,7 @@ Herder::triggerNextLedger(const asio::error_code& error)
 
     for (auto p : mFutureEnvelopes[slotIndex])
     {
-        recvFBAEnvelope(p.first, p.second);
+        recvSCPEnvelope(p.first, p.second);
     }
     mFutureEnvelopes.erase(slotIndex);
 }
@@ -908,7 +908,7 @@ Herder::triggerNextLedger(const asio::error_code& error)
 void
 Herder::expireBallot(const asio::error_code& error,
                      const uint64& slotIndex,
-                     const FBABallot& ballot)
+                     const SCPBallot& ballot)
                      
 {
     // The timer was simply canceled, nothing to do.
@@ -950,27 +950,27 @@ Herder::verifyStellarBallot(const StellarBallot& b)
     return v;
 }
 
-// Extra FBA methods overridden solely to increment metrics.
+// Extra SCP methods overridden solely to increment metrics.
 void
-Herder::ballotDidPrepare(const uint64& slotIndex, const FBABallot& ballot)
+Herder::ballotDidPrepare(const uint64& slotIndex, const SCPBallot& ballot)
 {
     mBallotPrepare.Mark();
 }
 
 void
-Herder::ballotDidPrepared(const uint64& slotIndex, const FBABallot& ballot)
+Herder::ballotDidPrepared(const uint64& slotIndex, const SCPBallot& ballot)
 {
     mBallotPrepared.Mark();
 }
 
 void
-Herder::ballotDidCommit(const uint64& slotIndex, const FBABallot& ballot)
+Herder::ballotDidCommit(const uint64& slotIndex, const SCPBallot& ballot)
 {
     mBallotCommit.Mark();
 }
 
 void
-Herder::ballotDidCommitted(const uint64& slotIndex, const FBABallot& ballot)
+Herder::ballotDidCommitted(const uint64& slotIndex, const SCPBallot& ballot)
 {
     mBallotCommitted.Mark();
 }

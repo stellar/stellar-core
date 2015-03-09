@@ -6,7 +6,7 @@ struct LedgerHeader
 {
     Hash hash;
     Hash previousLedgerHash;
-    Hash txSetHash;            // the tx set that was FBA confirmed
+    Hash txSetHash;            // the tx set that was SCP confirmed
     Hash clfHash;
 
     int64 totalCoins;

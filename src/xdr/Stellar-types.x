@@ -1,4 +1,4 @@
-%#include "generated/FBAXDR.h"
+%#include "generated/SCPXDR.h"
 
 namespace stellar {
 

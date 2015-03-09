@@ -1,3 +1,7 @@
+// Copyright 2014 Stellar Development Foundation and contributors. Licensed
+// under the ISC License. See the COPYING file at the top-level directory of
+// this distribution or at http://opensource.org/licenses/ISC
+
 #include "transactions/CreateOfferOpFrame.h"
 #include "ledger/OfferFrame.h"
 #include "util/Logging.h"
@@ -6,8 +10,6 @@
 #include "ledger/LedgerDelta.h"
 #include "OfferExchange.h"
 
-// This is pretty gnarly still. I'll clean it up as I write the tests
-//
 // convert from sheep to wheat
 // selling sheep
 // buying wheat

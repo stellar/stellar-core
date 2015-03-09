@@ -2,12 +2,12 @@
 // under the ISC License. See the COPYING file at the top-level directory of
 // this distribution or at http://opensource.org/licenses/ISC
 
+
+#include "BucketList.h"
 // ASIO is somewhat particular about when it gets included -- it wants to be the
 // first to include <windows.h> -- so we try to include it before everything
 // else.
 #include "util/asio.h"
-
-#include "BucketList.h"
 #include "main/Application.h"
 #include "util/Logging.h"
 #include "crypto/SHA.h"

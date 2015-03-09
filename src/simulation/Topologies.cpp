@@ -1,3 +1,7 @@
+// Copyright 2014 Stellar Development Foundation and contributors. Licensed
+// under the ISC License. See the COPYING file at the top-level directory of
+// this distribution or at http://opensource.org/licenses/ISC
+
 #include "Topologies.h"
 #include "crypto/SHA.h"
 
@@ -12,7 +16,7 @@ Simulation::pointer Topologies::pair(Simulation::Mode mode)
     SIMULATION_CREATE_NODE(10);
     SIMULATION_CREATE_NODE(11);
 
-    FBAQuorumSet qSet0; 
+    SCPQuorumSet qSet0; 
     qSet0.threshold = 2; 
     qSet0.validators.push_back(v10NodeID);
     qSet0.validators.push_back(v11NodeID);
@@ -33,10 +37,10 @@ Simulation::pointer Topologies::cycle4()
     SIMULATION_CREATE_NODE(2);
     SIMULATION_CREATE_NODE(3);
 
-    FBAQuorumSet qSet0; qSet0.threshold = 1; qSet0.validators.push_back(v1NodeID);
-    FBAQuorumSet qSet1; qSet1.threshold = 1; qSet1.validators.push_back(v2NodeID);
-    FBAQuorumSet qSet2; qSet2.threshold = 1; qSet2.validators.push_back(v3NodeID);
-    FBAQuorumSet qSet3; qSet3.threshold = 1; qSet3.validators.push_back(v0NodeID);
+    SCPQuorumSet qSet0; qSet0.threshold = 1; qSet0.validators.push_back(v1NodeID);
+    SCPQuorumSet qSet1; qSet1.threshold = 1; qSet1.validators.push_back(v2NodeID);
+    SCPQuorumSet qSet2; qSet2.threshold = 1; qSet2.validators.push_back(v3NodeID);
+    SCPQuorumSet qSet3; qSet3.threshold = 1; qSet3.validators.push_back(v0NodeID);
 
     auto n0 = simulation->addNode(v0VSeed, qSet0, simulation->getClock());
     auto n1 = simulation->addNode(v1VSeed, qSet1, simulation->getClock());
@@ -69,7 +73,7 @@ Simulation::pointer Topologies::core4()
     SIMULATION_CREATE_NODE(2);
     SIMULATION_CREATE_NODE(3);
 
-    FBAQuorumSet qSet;
+    SCPQuorumSet qSet;
     qSet.threshold = 3;
     qSet.validators.push_back(v0NodeID);
     qSet.validators.push_back(v1NodeID);

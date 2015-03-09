@@ -82,10 +82,10 @@ Peer::sendDontHave(MessageType type,
 }
 
 void
-Peer::sendFBAQuorumSet(FBAQuorumSetPtr qSet)
+Peer::sendSCPQuorumSet(SCPQuorumSetPtr qSet)
 {
     StellarMessage msg;
-    msg.type(FBA_QUORUMSET);
+    msg.type(SCP_QUORUMSET);
     msg.qSet() = *qSet;
 
     sendMessage(msg);
@@ -105,7 +105,7 @@ Peer::sendGetQuorumSet(uint256 const& setID)
     CLOG(TRACE, "Overlay") << "Get quorum set: " << binToHex(setID).substr(0, 6);
 
     StellarMessage newMsg;
-    newMsg.type(GET_FBA_QUORUMSET);
+    newMsg.type(GET_SCP_QUORUMSET);
     newMsg.qSetHash() = setID;
 
     sendMessage(newMsg);
@@ -224,21 +224,21 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
     }
     break;
 
-    case GET_FBA_QUORUMSET:
+    case GET_SCP_QUORUMSET:
     {
-        recvGetFBAQuorumSet(stellarMsg);
+        recvGetSCPQuorumSet(stellarMsg);
     }
     break;
 
-    case FBA_QUORUMSET:
+    case SCP_QUORUMSET:
     {
-        recvFBAQuorumSet(stellarMsg);
+        recvSCPQuorumSet(stellarMsg);
     }
     break;
 
-    case FBA_MESSAGE:
+    case SCP_MESSAGE:
     {
-        recvFBAMessage(stellarMsg);
+        recvSCPMessage(stellarMsg);
     }
     break;
     case JSON_TRANSACTION:
@@ -258,8 +258,8 @@ Peer::recvDontHave(StellarMessage const& msg)
         mApp.getHerderGateway().doesntHaveTxSet(msg.dontHave().reqHash,
                                                 shared_from_this());
         break;
-    case FBA_QUORUMSET:
-        mApp.getHerderGateway().doesntHaveFBAQuorumSet(msg.dontHave().reqHash,
+    case SCP_QUORUMSET:
+        mApp.getHerderGateway().doesntHaveSCPQuorumSet(msg.dontHave().reqHash,
                                                        shared_from_this());
         break;
     case VALIDATIONS:
@@ -312,33 +312,33 @@ Peer::recvTransaction(StellarMessage const& msg)
 }
 
 void
-Peer::recvGetFBAQuorumSet(StellarMessage const& msg)
+Peer::recvGetSCPQuorumSet(StellarMessage const& msg)
 {
-    FBAQuorumSetPtr qSet = 
-        mApp.getHerderGateway().fetchFBAQuorumSet(msg.qSetHash(), false);
+    SCPQuorumSetPtr qSet = 
+        mApp.getHerderGateway().fetchSCPQuorumSet(msg.qSetHash(), false);
     if (qSet)
     {
-        sendFBAQuorumSet(qSet);
+        sendSCPQuorumSet(qSet);
     }
     else
     {
         CLOG(TRACE, "Overlay") << "No quorum set: " << binToHex(msg.qSetHash()).substr(0, 6);
-        sendDontHave(FBA_QUORUMSET, msg.qSetHash());
+        sendDontHave(SCP_QUORUMSET, msg.qSetHash());
         // do we want to ask other people for it?
     }
 }
 void
-Peer::recvFBAQuorumSet(StellarMessage const& msg)
+Peer::recvSCPQuorumSet(StellarMessage const& msg)
 {
-    FBAQuorumSetPtr qSet = std::make_shared<FBAQuorumSet>(msg.qSet());
-    mApp.getHerderGateway().recvFBAQuorumSet(qSet);
+    SCPQuorumSetPtr qSet = std::make_shared<SCPQuorumSet>(msg.qSet());
+    mApp.getHerderGateway().recvSCPQuorumSet(qSet);
 }
 
 void
-Peer::recvFBAMessage(StellarMessage const& msg)
+Peer::recvSCPMessage(StellarMessage const& msg)
 {
-    FBAEnvelope envelope = msg.envelope();
-    CLOG(TRACE, "Overlay") << "recvFBAMessage qset: " << binToHex(msg.envelope().statement.quorumSetHash).substr(0, 6);
+    SCPEnvelope envelope = msg.envelope();
+    CLOG(TRACE, "Overlay") << "recvSCPMessage qset: " << binToHex(msg.envelope().statement.quorumSetHash).substr(0, 6);
 
     mApp.getOverlayGateway()
         .recvFloodedMsg(msg, shared_from_this());
@@ -350,7 +350,7 @@ Peer::recvFBAMessage(StellarMessage const& msg)
             mApp.getOverlayGateway().broadcastMessage(msg);
         }
     };
-    mApp.getHerderGateway().recvFBAEnvelope(envelope, cb);
+    mApp.getHerderGateway().recvSCPEnvelope(envelope, cb);
 }
 
 void

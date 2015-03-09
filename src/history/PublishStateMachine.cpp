@@ -2,13 +2,13 @@
 // under the ISC License. See the COPYING file at the top-level directory of
 // this distribution or at http://opensource.org/licenses/ISC
 
+#include "history/PublishStateMachine.h"
 #include "clf/Bucket.h"
 #include "clf/BucketList.h"
 #include "clf/CLFMaster.h"
 #include "crypto/Hex.h"
 #include "history/HistoryArchive.h"
 #include "history/HistoryMaster.h"
-#include "history/PublishStateMachine.h"
 #include "history/FileTransferInfo.h"
 #include "main/Application.h"
 #include "main/Config.h"

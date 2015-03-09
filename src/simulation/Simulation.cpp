@@ -56,7 +56,7 @@ Simulation::getClock()
 
 uint256
 Simulation::addNode(uint256 validationSeed, 
-                    FBAQuorumSet qSet,
+                    SCPQuorumSet qSet,
                     VirtualClock& clock)
 {
     Config::pointer cfg = std::make_shared<Config>(getTestConfig(++mConfigCount));

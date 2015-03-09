@@ -10,8 +10,8 @@
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
 #include "util/Logging.h"
-#include "fba/Node.h"
-#include "fba/LocalNode.h"
+#include "scp/Node.h"
+#include "scp/LocalNode.h"
 
 namespace stellar
 {
@@ -20,7 +20,7 @@ using xdr::operator<;
 
 // Static helper to stringify ballot for logging
 std::string
-ballotToStr(const FBABallot& ballot)
+ballotToStr(const SCPBallot& ballot)
 {
     std::ostringstream oss;
 
@@ -34,22 +34,22 @@ ballotToStr(const FBABallot& ballot)
 
 // Static helper to stringify envelope for logging
 std::string
-envToStr(const FBAEnvelope& envelope)
+envToStr(const SCPEnvelope& envelope)
 {
     std::ostringstream oss;
     oss << "{ENV@" << binToHex(envelope.nodeID).substr(0,6) << "|";
     switch(envelope.statement.pledges.type())
     {
-        case FBAStatementType::PREPARE:
+        case SCPStatementType::PREPARE:
             oss << "PREPARE";
             break;
-        case FBAStatementType::PREPARED:
+        case SCPStatementType::PREPARED:
             oss << "PREPARED";
             break;
-        case FBAStatementType::COMMIT:
+        case SCPStatementType::COMMIT:
             oss << "COMMIT";
             break;
-        case FBAStatementType::COMMITTED:
+        case SCPStatementType::COMMITTED:
             oss << "COMMITTED";
             break;
     }
@@ -61,9 +61,9 @@ envToStr(const FBAEnvelope& envelope)
 }
 
 Slot::Slot(const uint64& slotIndex,
-           FBA* FBA)
+           SCP* SCP)
     : mSlotIndex(slotIndex)
-    , mFBA(FBA)
+    , mSCP(SCP)
     , mIsPristine(true)
     , mHeardFromQuorum(true)
     , mIsCommitted(false)
@@ -75,20 +75,20 @@ Slot::Slot(const uint64& slotIndex,
 }
 
 void
-Slot::processEnvelope(const FBAEnvelope& envelope,
-                      std::function<void(FBA::EnvelopeState)> const& cb)
+Slot::processEnvelope(const SCPEnvelope& envelope,
+                      std::function<void(SCP::EnvelopeState)> const& cb)
 {
     assert(envelope.statement.slotIndex == mSlotIndex);
 
-    CLOG(DEBUG, "FBA") << "Slot::processEnvelope" 
-        << "@" << binToHex(mFBA->getLocalNodeID()).substr(0,6)
+    CLOG(DEBUG, "SCP") << "Slot::processEnvelope" 
+        << "@" << binToHex(mSCP->getLocalNodeID()).substr(0,6)
         << " i: " << mSlotIndex
         << " " << envToStr(envelope);
 
     uint256 nodeID = envelope.nodeID;
-    FBAStatement statement = envelope.statement;
-    FBABallot b = statement.ballot;
-    FBAStatementType t = statement.pledges.type();
+    SCPStatement statement = envelope.statement;
+    SCPBallot b = statement.ballot;
+    SCPStatementType t = statement.pledges.type();
 
     // We copy everything we need as this can be async (no reference).
     auto value_cb = [b,t,nodeID,statement,cb,this] (bool valid)
@@ -96,17 +96,17 @@ Slot::processEnvelope(const FBAEnvelope& envelope,
         // If the value is not valid, we just ignore it.
         if (!valid)
         {
-            return cb(FBA::EnvelopeState::INVALID);
+            return cb(SCP::EnvelopeState::INVALID);
         }
 
-        if (!mIsCommitted && t == FBAStatementType::PREPARE)
+        if (!mIsCommitted && t == SCPStatementType::PREPARE)
         {
             auto ballot_cb = [b,t,nodeID,statement,cb,this] (bool valid)
             {
                 // If the ballot is not valid, we just ignore it.
                 if(!valid)
                 {
-                    return cb(FBA::EnvelopeState::INVALID);
+                    return cb(SCP::EnvelopeState::INVALID);
                 }
 
                 // If a new higher ballot has been issued, let's move on to it.
@@ -120,17 +120,17 @@ Slot::processEnvelope(const FBAEnvelope& envelope,
                 advanceSlot();
             };
 
-            mFBA->validateBallot(mSlotIndex, nodeID, b,
+            mSCP->validateBallot(mSlotIndex, nodeID, b,
                                  ballot_cb);
         }
-        else if (!mIsCommitted && t == FBAStatementType::PREPARED)
+        else if (!mIsCommitted && t == SCPStatementType::PREPARED)
         {
             // A PREPARED statement does not imply any PREPARE so we can go
             // ahead and store it if its value is valid.
             mStatements[b][t][nodeID] = statement;
             advanceSlot();
         }
-        else if (!mIsCommitted && t == FBAStatementType::COMMIT)
+        else if (!mIsCommitted && t == SCPStatementType::COMMIT)
         {
             // We accept COMMIT statements only if we previously saw a valid
             // PREPARED statement for that ballot and all the PREPARE we saw so
@@ -139,14 +139,14 @@ Slot::processEnvelope(const FBAEnvelope& envelope,
             // easily.
             bool isPrepared = false;
             for (auto s : getNodeStatements(nodeID, 
-                                            FBAStatementType::PREPARED))
+                                            SCPStatementType::PREPARED))
             {
                 if (compareBallots(b, s.ballot) == 0)
                 {
                     isPrepared = true;
                 }
             }
-            for (auto s : getNodeStatements(nodeID, FBAStatementType::PREPARE))
+            for (auto s : getNodeStatements(nodeID, SCPStatementType::PREPARE))
             {
                 if (compareBallots(b, s.ballot) < 0)
                 {
@@ -154,7 +154,7 @@ Slot::processEnvelope(const FBAEnvelope& envelope,
                     auto it = std::find(excepted.begin(), excepted.end(), b);
                     if (it == excepted.end())
                     {
-                        return cb(FBA::EnvelopeState::INVALID);
+                        return cb(SCP::EnvelopeState::INVALID);
                     }
                 }
             }
@@ -167,18 +167,18 @@ Slot::processEnvelope(const FBAEnvelope& envelope,
             }
             else
             {
-                return cb(FBA::EnvelopeState::STATEMENTS_MISSING);
+                return cb(SCP::EnvelopeState::STATEMENTS_MISSING);
             }
             
         }
-        else if (t == FBAStatementType::COMMITTED)
+        else if (t == SCPStatementType::COMMITTED)
         {
             // If we already have a COMMITTED statements for this node, we just
             // ignore this one as it is illegal.
             if (getNodeStatements(nodeID, 
-                                  FBAStatementType::COMMITTED).size() > 0)
+                                  SCPStatementType::COMMITTED).size() > 0)
             {
-                return cb(FBA::EnvelopeState::INVALID);
+                return cb(SCP::EnvelopeState::INVALID);
             }
 
             // Finally store the statement and advance the slot if possible.
@@ -189,18 +189,18 @@ Slot::processEnvelope(const FBAEnvelope& envelope,
         {
             // If the slot already COMMITTED and we received another statement,
             // we resend our own COMMITTED message.
-            FBAStatement stmt =
-                createStatement(FBAStatementType::COMMITTED);
+            SCPStatement stmt =
+                createStatement(SCPStatementType::COMMITTED);
 
-            FBAEnvelope env = createEnvelope(stmt);
-            mFBA->emitEnvelope(env);
+            SCPEnvelope env = createEnvelope(stmt);
+            mSCP->emitEnvelope(env);
         }
 
         // Finally call the callback saying that this was a valid envelope
-        return cb(FBA::EnvelopeState::VALID);
+        return cb(SCP::EnvelopeState::VALID);
     };
 
-    mFBA->validateValue(mSlotIndex, nodeID, b.value, value_cb);
+    mSCP->validateValue(mSlotIndex, nodeID, b.value, value_cb);
 }
 
 bool
@@ -212,14 +212,14 @@ Slot::prepareValue(const Value& value,
         return false;
     }
     if (forceBump || 
-        (!mIsPristine && mFBA->compareValues(mSlotIndex, mBallot.counter, 
+        (!mIsPristine && mSCP->compareValues(mSlotIndex, mBallot.counter, 
                                              mBallot.value, value) > 0))
     {
-        bumpToBallot(FBABallot(mBallot.counter + 1, value));
+        bumpToBallot(SCPBallot(mBallot.counter + 1, value));
     }
     else
     {
-        bumpToBallot(FBABallot(mBallot.counter, value));
+        bumpToBallot(SCPBallot(mBallot.counter, value));
     }
 
     advanceSlot();
@@ -227,20 +227,20 @@ Slot::prepareValue(const Value& value,
 }
 
 void 
-Slot::bumpToBallot(const FBABallot& ballot)
+Slot::bumpToBallot(const SCPBallot& ballot)
 {
     // `bumpToBallot` should be never called once we committed.
     assert(!mIsCommitted && !mIsExternalized);
 
-    CLOG(DEBUG, "FBA") << "Slot::bumpToBallot" 
-        << "@" << binToHex(mFBA->getLocalNodeID()).substr(0,6)
+    CLOG(DEBUG, "SCP") << "Slot::bumpToBallot" 
+        << "@" << binToHex(mSCP->getLocalNodeID()).substr(0,6)
         << " i: " << mSlotIndex
         << " b: " << ballotToStr(ballot);
 
     // We shouldn't have emitted any prepare message for this ballot or any
     // other higher ballot.
-    for (auto s : getNodeStatements(mFBA->getLocalNodeID(), 
-                                    FBAStatementType::PREPARE))
+    for (auto s : getNodeStatements(mSCP->getLocalNodeID(), 
+                                    SCPStatementType::PREPARE))
     {
         assert(compareBallots(ballot, s.ballot) >= 0);
     }
@@ -254,27 +254,27 @@ Slot::bumpToBallot(const FBABallot& ballot)
 }
 
 
-FBAStatement
-Slot::createStatement(const FBAStatementType& type)
+SCPStatement
+Slot::createStatement(const SCPStatementType& type)
 {
-    FBAStatement statement;
+    SCPStatement statement;
 
     statement.slotIndex = mSlotIndex;
     statement.ballot = mBallot;
-    statement.quorumSetHash = mFBA->getLocalNode()->getQuorumSetHash();
+    statement.quorumSetHash = mSCP->getLocalNode()->getQuorumSetHash();
     statement.pledges.type(type);
 
     return statement;
 }
 
-FBAEnvelope
-Slot::createEnvelope(const FBAStatement& statement)
+SCPEnvelope
+Slot::createEnvelope(const SCPStatement& statement)
 {
-    FBAEnvelope envelope;
+    SCPEnvelope envelope;
 
-    envelope.nodeID = mFBA->getLocalNodeID();
+    envelope.nodeID = mSCP->getLocalNodeID();
     envelope.statement = statement;
-    mFBA->signEnvelope(envelope);
+    mSCP->signEnvelope(envelope);
 
     return envelope;
 }
@@ -283,21 +283,21 @@ void
 Slot::attemptPrepare()
 {
     auto it = 
-        mStatements[mBallot][FBAStatementType::PREPARE]
-            .find(mFBA->getLocalNodeID());
-    if (it != mStatements[mBallot][FBAStatementType::PREPARE].end())
+        mStatements[mBallot][SCPStatementType::PREPARE]
+            .find(mSCP->getLocalNodeID());
+    if (it != mStatements[mBallot][SCPStatementType::PREPARE].end())
     {
         return;
     }
-    CLOG(DEBUG, "FBA") << "Slot::attemptPrepare" 
-        << "@" << binToHex(mFBA->getLocalNodeID()).substr(0,6)
+    CLOG(DEBUG, "SCP") << "Slot::attemptPrepare" 
+        << "@" << binToHex(mSCP->getLocalNodeID()).substr(0,6)
         << " i: " << mSlotIndex
         << " b: " << ballotToStr(mBallot);
 
-    FBAStatement statement = createStatement(FBAStatementType::PREPARE);
+    SCPStatement statement = createStatement(SCPStatementType::PREPARE);
 
-    for (auto s : getNodeStatements(mFBA->getLocalNodeID(), 
-                                    FBAStatementType::PREPARED))
+    for (auto s : getNodeStatements(mSCP->getLocalNodeID(), 
+                                    SCPStatementType::PREPARED))
     {
         if(s.ballot.value == mBallot.value)
         {
@@ -309,20 +309,20 @@ Slot::attemptPrepare()
             }
         }
     }
-    for (auto s : getNodeStatements(mFBA->getLocalNodeID(), 
-                                    FBAStatementType::COMMIT))
+    for (auto s : getNodeStatements(mSCP->getLocalNodeID(), 
+                                    SCPStatementType::COMMIT))
     {
         statement.pledges.prepare().excepted.push_back(s.ballot);
     }
 
-    mFBA->ballotDidPrepare(mSlotIndex, mBallot);
+    mSCP->ballotDidPrepare(mSlotIndex, mBallot);
 
-    FBAEnvelope envelope = createEnvelope(statement);
-    auto cb = [envelope,this] (const FBA::EnvelopeState& s)
+    SCPEnvelope envelope = createEnvelope(statement);
+    auto cb = [envelope,this] (const SCP::EnvelopeState& s)
     {
-        if (s == FBA::EnvelopeState::VALID)
+        if (s == SCP::EnvelopeState::VALID)
         {
-            mFBA->emitEnvelope(envelope);
+            mSCP->emitEnvelope(envelope);
         }
     };
     processEnvelope(envelope, cb);
@@ -330,29 +330,29 @@ Slot::attemptPrepare()
 }
 
 void 
-Slot::attemptPrepared(const FBABallot& ballot)
+Slot::attemptPrepared(const SCPBallot& ballot)
 {
     auto it = 
-        mStatements[ballot][FBAStatementType::PREPARED]
-            .find(mFBA->getLocalNodeID());
-    if (it != mStatements[ballot][FBAStatementType::PREPARED].end())
+        mStatements[ballot][SCPStatementType::PREPARED]
+            .find(mSCP->getLocalNodeID());
+    if (it != mStatements[ballot][SCPStatementType::PREPARED].end())
     {
         return;
     }
-    CLOG(DEBUG, "FBA") << "Slot::attemptPrepared" 
-        << "@" << binToHex(mFBA->getLocalNodeID()).substr(0,6)
+    CLOG(DEBUG, "SCP") << "Slot::attemptPrepared" 
+        << "@" << binToHex(mSCP->getLocalNodeID()).substr(0,6)
         << " i: " << mSlotIndex
         << " b: " << ballotToStr(ballot);
 
-    FBAStatement statement = createStatement(FBAStatementType::PREPARED);
+    SCPStatement statement = createStatement(SCPStatementType::PREPARED);
     statement.ballot = ballot;
 
-    FBAEnvelope envelope = createEnvelope(statement);
-    auto cb = [envelope,this] (FBA::EnvelopeState s)
+    SCPEnvelope envelope = createEnvelope(statement);
+    auto cb = [envelope,this] (SCP::EnvelopeState s)
     {
-        if (s == FBA::EnvelopeState::VALID)
+        if (s == SCP::EnvelopeState::VALID)
         {
-            mFBA->emitEnvelope(envelope);
+            mSCP->emitEnvelope(envelope);
         }
     };
     processEnvelope(envelope, cb);
@@ -362,27 +362,27 @@ void
 Slot::attemptCommit()
 {
     auto it = 
-        mStatements[mBallot][FBAStatementType::COMMIT]
-            .find(mFBA->getLocalNodeID());
-    if (it != mStatements[mBallot][FBAStatementType::COMMIT].end())
+        mStatements[mBallot][SCPStatementType::COMMIT]
+            .find(mSCP->getLocalNodeID());
+    if (it != mStatements[mBallot][SCPStatementType::COMMIT].end())
     {
         return;
     }
-    CLOG(DEBUG, "FBA") << "Slot::attemptCommit" 
-        << "@" << binToHex(mFBA->getLocalNodeID()).substr(0,6)
+    CLOG(DEBUG, "SCP") << "Slot::attemptCommit" 
+        << "@" << binToHex(mSCP->getLocalNodeID()).substr(0,6)
         << " i: " << mSlotIndex
         << " b: " << ballotToStr(mBallot);
 
-    FBAStatement statement = createStatement(FBAStatementType::COMMIT);
+    SCPStatement statement = createStatement(SCPStatementType::COMMIT);
 
-    mFBA->ballotDidCommit(mSlotIndex, mBallot);
+    mSCP->ballotDidCommit(mSlotIndex, mBallot);
 
-    FBAEnvelope envelope = createEnvelope(statement);
-    auto cb = [envelope,this] (FBA::EnvelopeState s)
+    SCPEnvelope envelope = createEnvelope(statement);
+    auto cb = [envelope,this] (SCP::EnvelopeState s)
     {
-        if (s == FBA::EnvelopeState::VALID)
+        if (s == SCP::EnvelopeState::VALID)
         {
-            mFBA->emitEnvelope(envelope);
+            mSCP->emitEnvelope(envelope);
         }
     };
     processEnvelope(envelope, cb);
@@ -392,28 +392,28 @@ void
 Slot::attemptCommitted()
 {
     auto it = 
-        mStatements[mBallot][FBAStatementType::COMMITTED]
-            .find(mFBA->getLocalNodeID());
-    if (it != mStatements[mBallot][FBAStatementType::COMMITTED].end())
+        mStatements[mBallot][SCPStatementType::COMMITTED]
+            .find(mSCP->getLocalNodeID());
+    if (it != mStatements[mBallot][SCPStatementType::COMMITTED].end())
     {
         return;
     }
-    CLOG(DEBUG, "FBA") << "Slot::attemptCommitted" 
-        << "@" << binToHex(mFBA->getLocalNodeID()).substr(0,6)
+    CLOG(DEBUG, "SCP") << "Slot::attemptCommitted" 
+        << "@" << binToHex(mSCP->getLocalNodeID()).substr(0,6)
         << " i: " << mSlotIndex
         << " b: " << ballotToStr(mBallot);
 
-    FBAStatement statement = createStatement(FBAStatementType::COMMITTED);
+    SCPStatement statement = createStatement(SCPStatementType::COMMITTED);
 
     mIsCommitted = true;
-    mFBA->ballotDidCommitted(mSlotIndex, mBallot);
+    mSCP->ballotDidCommitted(mSlotIndex, mBallot);
 
-    FBAEnvelope envelope = createEnvelope(statement);
-    auto cb = [envelope,this] (FBA::EnvelopeState s)
+    SCPEnvelope envelope = createEnvelope(statement);
+    auto cb = [envelope,this] (SCP::EnvelopeState s)
     {
-        if (s == FBA::EnvelopeState::VALID)
+        if (s == SCP::EnvelopeState::VALID)
         {
-            mFBA->emitEnvelope(envelope);
+            mSCP->emitEnvelope(envelope);
         }
     };
     processEnvelope(envelope, cb);
@@ -426,40 +426,40 @@ Slot::attemptExternalize()
     {
         return;
     }
-    CLOG(DEBUG, "FBA") << "Slot::attemptExternalize" 
-        << "@" << binToHex(mFBA->getLocalNodeID()).substr(0,6)
+    CLOG(DEBUG, "SCP") << "Slot::attemptExternalize" 
+        << "@" << binToHex(mSCP->getLocalNodeID()).substr(0,6)
         << " i: " << mSlotIndex
         << " b: " << ballotToStr(mBallot);
 
     mIsExternalized = true;
 
-    mFBA->valueExternalized(mSlotIndex, mBallot.value);
+    mSCP->valueExternalized(mSlotIndex, mBallot.value);
 }
 
 bool 
-Slot::isPrepared(const FBABallot& ballot)
+Slot::isPrepared(const SCPBallot& ballot)
 {
     // Checks if we haven't already emitted PREPARED b
     auto it = 
-        mStatements[ballot][FBAStatementType::PREPARED]
-            .find(mFBA->getLocalNodeID());
-    if (it != mStatements[ballot][FBAStatementType::PREPARED].end())
+        mStatements[ballot][SCPStatementType::PREPARED]
+            .find(mSCP->getLocalNodeID());
+    if (it != mStatements[ballot][SCPStatementType::PREPARED].end())
     {
         return true;
     }
 
     // Checks if there is a v-blocking set of nodes that accepted the PREPARE
     // statements (this is an optimization).
-    if (mFBA->getLocalNode()->isVBlocking<FBAStatement>(
-            mFBA->getLocalNode()->getQuorumSetHash(),
-            mStatements[ballot][FBAStatementType::PREPARED]))
+    if (mSCP->getLocalNode()->isVBlocking<SCPStatement>(
+            mSCP->getLocalNode()->getQuorumSetHash(),
+            mStatements[ballot][SCPStatementType::PREPARED]))
     {
         return true;
     }
 
     // Check if we can establish the pledges for a transitive quorum.
     auto ratifyFilter = [&] (const uint256& nIDR, 
-                             const FBAStatement& stR) -> bool
+                             const SCPStatement& stR) -> bool
     {
         // Either the ratifying node has no excepted B_c ballot
         if (stR.pledges.prepare().excepted.size() == 0)
@@ -479,11 +479,11 @@ Slot::isPrepared(const FBABallot& ballot)
             }
             
             auto abortedFilter = [&] (const uint256& nIDA,
-                                      const FBAStatement& stA) -> bool
+                                      const SCPStatement& stA) -> bool
             {
                 if (stA.pledges.prepare().prepared) 
                 {
-                    FBABallot p = *(stA.pledges.prepare().prepared);
+                    SCPBallot p = *(stA.pledges.prepare().prepared);
                     if (compareBallots(p, c) > 0)
                     {
                         return true;
@@ -492,9 +492,9 @@ Slot::isPrepared(const FBABallot& ballot)
                 return false;
             };
 
-            if (mFBA->getNode(nIDR)->isVBlocking<FBAStatement>(
+            if (mSCP->getNode(nIDR)->isVBlocking<SCPStatement>(
                     stR.quorumSetHash,
-                    mStatements[ballot][FBAStatementType::PREPARE],
+                    mStatements[ballot][SCPStatementType::PREPARE],
                     abortedFilter))
             {
                 continue;
@@ -506,10 +506,10 @@ Slot::isPrepared(const FBABallot& ballot)
         return compOrAborted;
     };
 
-    if (mFBA->getLocalNode()->isQuorumTransitive<FBAStatement>(
-            mFBA->getLocalNode()->getQuorumSetHash(),
-            mStatements[ballot][FBAStatementType::PREPARE],
-            [] (const FBAStatement& s) { return s.quorumSetHash; },
+    if (mSCP->getLocalNode()->isQuorumTransitive<SCPStatement>(
+            mSCP->getLocalNode()->getQuorumSetHash(),
+            mStatements[ballot][SCPStatementType::PREPARE],
+            [] (const SCPStatement& s) { return s.quorumSetHash; },
             ratifyFilter))
     {
         return true;
@@ -519,23 +519,23 @@ Slot::isPrepared(const FBABallot& ballot)
 }
 
 bool
-Slot::isPreparedConfirmed(const FBABallot& ballot)
+Slot::isPreparedConfirmed(const SCPBallot& ballot)
 {
     // Checks if we haven't already emitted COMMIT b
     auto it = 
-        mStatements[ballot][FBAStatementType::COMMIT]
-            .find(mFBA->getLocalNodeID());
-    if (it != mStatements[ballot][FBAStatementType::COMMIT].end())
+        mStatements[ballot][SCPStatementType::COMMIT]
+            .find(mSCP->getLocalNodeID());
+    if (it != mStatements[ballot][SCPStatementType::COMMIT].end())
     {
         return true;
     }
 
     // Checks if there is a transitive quorum that accepted the PREPARE
     // statements for the local node.
-    if (mFBA->getLocalNode()->isQuorumTransitive<FBAStatement>(
-            mFBA->getLocalNode()->getQuorumSetHash(),
-            mStatements[ballot][FBAStatementType::PREPARED],
-            [] (const FBAStatement& s) { return s.quorumSetHash; }))
+    if (mSCP->getLocalNode()->isQuorumTransitive<SCPStatement>(
+            mSCP->getLocalNode()->getQuorumSetHash(),
+            mStatements[ballot][SCPStatementType::PREPARED],
+            [] (const SCPStatement& s) { return s.quorumSetHash; }))
     {
         return true;
     }
@@ -543,22 +543,22 @@ Slot::isPreparedConfirmed(const FBABallot& ballot)
 }
 
 bool 
-Slot::isCommitted(const FBABallot& ballot)
+Slot::isCommitted(const SCPBallot& ballot)
 {
     // Checks if we haven't already emitted COMMITTED b
     auto it = 
-        mStatements[ballot][FBAStatementType::COMMITTED]
-            .find(mFBA->getLocalNodeID());
-    if (it != mStatements[ballot][FBAStatementType::COMMITTED].end())
+        mStatements[ballot][SCPStatementType::COMMITTED]
+            .find(mSCP->getLocalNodeID());
+    if (it != mStatements[ballot][SCPStatementType::COMMITTED].end())
     {
         return true;
     }
 
     // Check if we can establish the pledges for a transitive quorum.
-    if (mFBA->getLocalNode()->isQuorumTransitive<FBAStatement>(
-            mFBA->getLocalNode()->getQuorumSetHash(),
-            mStatements[ballot][FBAStatementType::COMMIT],
-            [] (const FBAStatement& s) { return s.quorumSetHash; }))
+    if (mSCP->getLocalNode()->isQuorumTransitive<SCPStatement>(
+            mSCP->getLocalNode()->getQuorumSetHash(),
+            mStatements[ballot][SCPStatementType::COMMIT],
+            [] (const SCPStatement& s) { return s.quorumSetHash; }))
     {
         return true;
     }
@@ -569,12 +569,12 @@ Slot::isCommitted(const FBABallot& ballot)
 bool 
 Slot::isCommittedConfirmed(const Value& value)
 {
-    std::map<uint256, FBAStatement> statements;
+    std::map<uint256, SCPStatement> statements;
     for (auto it : mStatements)
     {
         if (it.first.value == value)
         {
-            for(auto sit : it.second[FBAStatementType::COMMITTED])
+            for(auto sit : it.second[SCPStatementType::COMMITTED])
             {
                 statements[sit.first] = sit.second;
             }
@@ -583,21 +583,21 @@ Slot::isCommittedConfirmed(const Value& value)
 
     // Checks if there is a transitive quorum that accepted the COMMIT
     // statement for the local node.
-    if (mFBA->getLocalNode()->isQuorumTransitive<FBAStatement>(
-            mFBA->getLocalNode()->getQuorumSetHash(),
+    if (mSCP->getLocalNode()->isQuorumTransitive<SCPStatement>(
+            mSCP->getLocalNode()->getQuorumSetHash(),
             statements,
-            [] (const FBAStatement& s) { return s.quorumSetHash; }))
+            [] (const SCPStatement& s) { return s.quorumSetHash; }))
     {
         return true;
     }
     return false;
 }
 
-std::vector<FBAStatement> 
+std::vector<SCPStatement> 
 Slot::getNodeStatements(const uint256& nodeID,
-                        const FBAStatementType& type)
+                        const SCPStatementType& type)
 {
-    std::vector<FBAStatement> statements;
+    std::vector<SCPStatement> statements;
     for (auto it : mStatements)
     {
         if (it.second[type].find(nodeID) != it.second[type].end())
@@ -609,8 +609,8 @@ Slot::getNodeStatements(const uint256& nodeID,
 }
 
 int 
-Slot::compareBallots(const FBABallot& b1, 
-                     const FBABallot& b2)
+Slot::compareBallots(const SCPBallot& b1, 
+                     const SCPBallot& b2)
 {
     if (b1.counter < b2.counter)
     {
@@ -620,7 +620,7 @@ Slot::compareBallots(const FBABallot& b1,
     {
         return 1;
     }
-    return mFBA->compareValues(mSlotIndex, b1.counter, 
+    return mSCP->compareValues(mSlotIndex, b1.counter, 
                                b1.value, b2.value);
 }
 
@@ -639,8 +639,8 @@ Slot::advanceSlot()
 
     try
     {
-        CLOG(DEBUG, "FBA") << "Slot::advanceSlot" 
-            << "@" << binToHex(mFBA->getLocalNodeID()).substr(0,6)
+        CLOG(DEBUG, "SCP") << "Slot::advanceSlot" 
+            << "@" << binToHex(mSCP->getLocalNodeID()).substr(0,6)
             << " i: " << mSlotIndex
             << " b: " << ballotToStr(mBallot);
 
@@ -690,10 +690,10 @@ Slot::advanceSlot()
                 break;
             }
 
-            FBABallot b = it.first;
+            SCPBallot b = it.first;
 
-            CLOG(DEBUG, "FBA") << "Slot::advanceSlot::tryBumping" 
-                << "@" << binToHex(mFBA->getLocalNodeID()).substr(0,6)
+            CLOG(DEBUG, "SCP") << "Slot::advanceSlot::tryBumping" 
+                << "@" << binToHex(mSCP->getLocalNodeID()).substr(0,6)
                 << " i: " << mSlotIndex
                 << " b: " << ballotToStr(mBallot);
 
@@ -706,7 +706,7 @@ Slot::advanceSlot()
                 // We look for the smallest ballot that is bigger than all the
                 // COMMITTED message we saw for the value and our own current
                 // ballot.
-                FBABallot bext = FBABallot(mBallot.counter, b.value);
+                SCPBallot bext = SCPBallot(mBallot.counter, b.value);
                 if(compareBallots(bext, mBallot) < 0)
                 {
                     bext.counter += 1;
@@ -719,7 +719,7 @@ Slot::advanceSlot()
                     {
                         // If we have a COMMITTED statement for this ballot and
                         // it is bigger than bext, we bump bext to it.
-                        if (!sit.second[FBAStatementType::COMMITTED].empty())
+                        if (!sit.second[SCPStatementType::COMMITTED].empty())
                         {
                             if(compareBallots(bext, sit.first) < 0)
                             {
@@ -755,7 +755,7 @@ Slot::advanceSlot()
         // Check if we can call `ballotDidHearFromQuorum`
         if (!mHeardFromQuorum)
         {
-            std::map<uint256, FBAStatement> allStatements;
+            std::map<uint256, SCPStatement> allStatements;
             for (auto tp : mStatements[mBallot])
             {
                 for (auto np : tp.second)
@@ -763,28 +763,28 @@ Slot::advanceSlot()
                     allStatements[np.first] = np.second;
                 }
             }
-            if (mFBA->getLocalNode()->isQuorumTransitive<FBAStatement>(
-                    mFBA->getLocalNode()->getQuorumSetHash(),
+            if (mSCP->getLocalNode()->isQuorumTransitive<SCPStatement>(
+                    mSCP->getLocalNode()->getQuorumSetHash(),
                     allStatements,
-                    [] (const FBAStatement& s) { return s.quorumSetHash; }))
+                    [] (const SCPStatement& s) { return s.quorumSetHash; }))
             {
                 mHeardFromQuorum = true;
-                mFBA->ballotDidHearFromQuorum(mSlotIndex, mBallot);
+                mSCP->ballotDidHearFromQuorum(mSlotIndex, mBallot);
             }
         }
     }
     catch(Node::QuorumSetNotFound e)
     {
-        auto cb = [this,e] (const FBAQuorumSet& qSet)
+        auto cb = [this,e] (const SCPQuorumSet& qSet)
         {
             uint256 qSetHash = sha256(xdr::xdr_to_msg(qSet));
             if (e.qSetHash() == qSetHash)
             {
-                mFBA->getNode(e.nodeID())->cacheQuorumSet(qSet);
+                mSCP->getNode(e.nodeID())->cacheQuorumSet(qSet);
                 advanceSlot();
             }
         };
-        mFBA->retrieveQuorumSet(e.nodeID(), e.qSetHash(), cb);
+        mSCP->retrieveQuorumSet(e.nodeID(), e.qSetHash(), cb);
     }
 
     mInAdvanceSlot = false;

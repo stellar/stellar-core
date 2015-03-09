@@ -59,7 +59,7 @@ usage(int err = 1)
           "      --help          To display this string\n"
           "      --version       To print version information\n"
           "      --test          To run self-tests\n"
-          "      --newdb         Setup the DB.\n"
+          "      --newdb         Setup the DB and then exit.\n"
           "      --newhist ARCH  Initialize the named history archive ARCH.\n"
           "      --forcescp      Force SCP to start before you hear a ledger close next time stellard is run.\n"
           "      --genseed       Generate and print a random node seed.\n"
@@ -278,18 +278,12 @@ main(int argc, char* const* argv)
         {
             sendCommand(command, rest, cfg.HTTP_PORT);
             return 0;
-        }
-        else if (newNetwork)
+        } else if(newNetwork || newDB)
         {
-            setForceSCPFlag(cfg);
+            if(newDB) initializeDatabase(cfg);
+            if(newNetwork) setForceSCPFlag(cfg);
             return 0;
-        }
-        else if (newDB)
-        {
-            initializeDatabase(cfg);
-            return 0;
-        }
-        else if (!newHistories.empty())
+        }else if (!newHistories.empty())
         {
             return initializeHistories(cfg, newHistories);
         }
