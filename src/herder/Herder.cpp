@@ -114,7 +114,7 @@ Herder::bootstrap()
 
     mApp.setState(Application::SYNCED_STATE);
     mLastClosedLedger = mApp.getLedgerMaster().getLastClosedLedgerHeader();
-    triggerNextLedger(asio::error_code());
+    triggerNextLedger();
 }
 
 void 
@@ -404,16 +404,19 @@ Herder::validateBallot(const uint64& slotIndex,
             << " timeout: " << pow(2.0, ballot.counter) / 2;
         // Create a timer to wait for current SCP timeout / 2 before accepting
         // that ballot.
-        VirtualTimer ballotTimer(mApp);
-        ballotTimer.expires_from_now(
+        std::shared_ptr<VirtualTimer> ballotTimer =
+            std::make_shared<VirtualTimer>(mApp);
+        ballotTimer->expires_from_now(
             std::chrono::milliseconds(
                 (int)(1000*pow(2.0, ballot.counter)/2)));
-        ballotTimer.async_wait(
-            [cb,this] (const asio::error_code& error)
+        ballotTimer->async_wait(
+            [cb,this]()
             {
                 this->mBallotValid.Mark();
                 return cb(true);
-            });
+            },
+            VirtualTimer::onFailureNoop
+            );
         mBallotValidationTimers[ballot][nodeID].push_back(ballotTimer);
 
         // Check if the nodes that have requested validation for this ballot
@@ -448,11 +451,7 @@ Herder::ballotDidHearFromQuorum(const uint64& slotIndex,
         std::chrono::seconds((int)pow(2.0, ballot.counter)));
 
     // TODO: Bumping on a timeout disabled for now, tends to stall scp
-    /*
-    mBumpTimer.async_wait(std::bind(&Herder::expireBallot, this, 
-                                    std::placeholders::_1, 
-                                    slotIndex, ballot));
-                                    */
+    // mBumpTimer.async_wait([&]() { expireBallot(slotIndex, ballot); }, &VirtualTimer::onFailureNoop);
 }
 
 void 
@@ -579,25 +578,21 @@ Herder::retrieveQuorumSet(const uint256& nodeID,
     }
 }
 
-void Herder::rebroadcast(const asio::error_code& ec)
+void Herder::rebroadcast()
 {
-    if(!ec)
-    {
-        CLOG(DEBUG, "Herder") << "Herder:rebroadcast"
-            << "@" << binToHex(getLocalNodeID()).substr(0, 6);
-
-        mEnvelopeEmit.Mark();
-        mApp.getOverlayGateway().broadcastMessage(mLastSentMessage,true);
-        startRebroadcastTimer();
-    }
+    CLOG(DEBUG, "Herder") << "Herder:rebroadcast"
+                          << "@" << binToHex(getLocalNodeID()).substr(0, 6);
+    
+    mEnvelopeEmit.Mark();
+    mApp.getOverlayGateway().broadcastMessage(mLastSentMessage,true);
+    startRebroadcastTimer();
 }
 
 void Herder::startRebroadcastTimer()
 {
     mRebroadcastTimer.expires_from_now(std::chrono::seconds(2));
 
-    mRebroadcastTimer.async_wait(std::bind(&Herder::rebroadcast, this,
-        std::placeholders::_1));
+    mRebroadcastTimer.async_wait(std::bind(&Herder::rebroadcast, this), &VirtualTimer::onFailureNoop);
 }
 
 void 
@@ -612,7 +607,7 @@ Herder::emitEnvelope(const SCPEnvelope& envelope)
     mLastSentMessage.type(SCP_MESSAGE);
     mLastSentMessage.envelope() = envelope;
 
-    rebroadcast(asio::error_code());    
+    rebroadcast();    
 }
 
 TxSetFramePtr
@@ -815,8 +810,7 @@ Herder::ledgerClosed(LedgerHeader& ledger)
         mTriggerTimer.expires_from_now(std::chrono::nanoseconds(0));
     }
 
-    mTriggerTimer.async_wait(std::bind(&Herder::triggerNextLedger, this,
-                                       std::placeholders::_1));
+    mTriggerTimer.async_wait(std::bind(&Herder::triggerNextLedger, this), &VirtualTimer::onFailureNoop);
 }
 
 void
@@ -842,14 +836,8 @@ Herder::removeReceivedTx(TransactionFramePtr dropTx)
 
 // called to start the next round of SCP
 void
-Herder::triggerNextLedger(const asio::error_code& error)
+Herder::triggerNextLedger()
 {
-    if (error)
-    {
-        // This probably means we're shutting down.
-        return;
-    }
-    
     // We store at which time we triggered consensus
     mLastTrigger = mApp.getClock().now();
 
@@ -906,17 +894,10 @@ Herder::triggerNextLedger(const asio::error_code& error)
 }
 
 void
-Herder::expireBallot(const asio::error_code& error,
-                     const uint64& slotIndex,
+Herder::expireBallot(const uint64& slotIndex,
                      const SCPBallot& ballot)
                      
 {
-    // The timer was simply canceled, nothing to do.
-    if (error == asio::error::operation_aborted)
-    {
-        return;
-    }
-
     mBallotExpire.Mark();
     assert(slotIndex == mLastClosedLedger.ledgerSeq + 1);
 

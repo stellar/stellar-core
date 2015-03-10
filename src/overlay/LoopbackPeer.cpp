@@ -124,24 +124,24 @@ LoopbackPeer::deliverOne()
         // Possibly duplicate the message and requeue it at the front.
         if (mDuplicateProb(mGenerator))
         {
-            CLOG(TRACE, "Overlay") << "LoopbackPeer duplicated message";
+            CLOG(INFO, "Overlay") << "LoopbackPeer duplicated message";
             mQueue.emplace_front(std::move(duplicateMessage(msg)));
             mStats.messagesDuplicated++;
         }
 
         // Possibly requeue it at the back and return, reordering.
-        if (mReorderProb(mGenerator))
+        if (mReorderProb(mGenerator) && mQueue.size() > 0)
         {
-            CLOG(TRACE, "Overlay") << "LoopbackPeer reordered message";
-            mQueue.emplace_back(std::move(msg));
+            CLOG(INFO, "Overlay") << "LoopbackPeer reordered message";
             mStats.messagesReordered++;
+            mQueue.emplace_back(std::move(msg));
             return;
         }
 
         // Possibly flip some bits in the message.
         if (mDamageProb(mGenerator))
         {
-            CLOG(TRACE, "Overlay") << "LoopbackPeer damaged message";
+            CLOG(INFO, "Overlay") << "LoopbackPeer damaged message";
             if (damageMessage(mGenerator, msg))
                 mStats.messagesDamaged++;
         }
@@ -149,7 +149,7 @@ LoopbackPeer::deliverOne()
         // Possibly just drop the message on the floor.
         if (mDropProb(mGenerator))
         {
-            CLOG(TRACE, "Overlay") << "LoopbackPeer dropped message";
+            CLOG(INFO, "Overlay") << "LoopbackPeer dropped message";
             mStats.messagesDropped++;
             return;
         }
@@ -264,7 +264,7 @@ void
 LoopbackPeer::setDropProbability(double d)
 {
     checkProbRange(d);
-    mDamageProb = bernoulli_distribution(d);
+    mDropProb = bernoulli_distribution(d);
 }
 
 double
@@ -277,7 +277,7 @@ void
 LoopbackPeer::setDuplicateProbability(double d)
 {
     checkProbRange(d);
-    mDamageProb = bernoulli_distribution(d);
+    mDuplicateProb = bernoulli_distribution(d);
 }
 
 double
@@ -290,7 +290,7 @@ void
 LoopbackPeer::setReorderProbability(double d)
 {
     checkProbRange(d);
-    mDamageProb = bernoulli_distribution(d);
+    mReorderProb = bernoulli_distribution(d);
 }
 
 LoopbackPeerConnection::LoopbackPeerConnection(Application& initiator,
@@ -315,5 +315,16 @@ LoopbackPeerConnection::~LoopbackPeerConnection()
     // NB: Dropping the peer from one side will automatically drop the
     // other.
     mInitiator->drop();
+}
+
+std::shared_ptr<LoopbackPeer> 
+LoopbackPeerConnection::getInitiator() const
+{
+    return mInitiator;
+}
+std::shared_ptr<LoopbackPeer>
+LoopbackPeerConnection::getAcceptor() const
+{
+    return mAcceptor;
 }
 }

@@ -359,4 +359,23 @@ VirtualTimer::async_wait(function<void(asio::error_code)> const& fn)
     }
 }
 
+void
+VirtualTimer::async_wait(std::function<void()> const& onSuccess, std::function<void(asio::error_code)> const& onFailure)
+{
+    if (!mCancelled)
+    {
+        mApp.getClock().enqueue(mApp, VirtualClockEvent{
+                mExpiryTime,
+                    [onSuccess, onFailure](asio::error_code error)
+                    {
+                        if (error)
+                            onFailure(error);
+                        else
+                            onSuccess();    
+                    },
+                    this});
+    }
+}
+
+
 }
