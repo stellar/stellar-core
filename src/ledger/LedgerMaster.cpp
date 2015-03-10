@@ -109,7 +109,7 @@ void LedgerMaster::loadLastKnownLedger()
             throw std::runtime_error("Could not load ledger from database");
         }
 
-    LedgerDelta delta(mCurrentLedger->mHeader);
+        LedgerDelta delta(mCurrentLedger->mHeader);
 
         closeLedgerHelper(false, delta);
     }
@@ -130,7 +130,7 @@ int64_t LedgerMaster::getMinBalance(uint32_t ownerCount)
     return (2 + ownerCount) * mCurrentLedger->mHeader.baseReserve;
 }
 
-uint64_t LedgerMaster::getLedgerNum()
+uint32_t LedgerMaster::getLedgerNum()
 {
     return mCurrentLedger->mHeader.ledgerSeq;
 }
@@ -145,16 +145,21 @@ LedgerHeader& LedgerMaster::getCurrentLedgerHeader()
     return mCurrentLedger->mHeader;
 }
 
-LedgerHeader& LedgerMaster::getLastClosedLedgerHeader()
+LedgerHeaderFrame& LedgerMaster::getCurrentLedgerHeaderFrame()
 {
-    return mLastClosedLedger->mHeader;
+    return *mCurrentLedger;
+}
+
+LedgerHeaderHistoryEntry& LedgerMaster::getLastClosedLedgerHeader()
+{
+    return mLastClosedLedger;
 }
 
 
 // called by txherder
 void LedgerMaster::externalizeValue(LedgerCloseData ledgerData)
 {
-    if(mLastClosedLedger->mHeader.hash == ledgerData.mTxSet->getPreviousLedgerHash())
+    if(mLastClosedLedger.hash == ledgerData.mTxSet->getPreviousLedgerHash())
     {
         closeLedger(ledgerData);
     }
@@ -190,7 +195,7 @@ void LedgerMaster::historyCaughtup(asio::error_code const& ec)
         bool applied = false;
         for(auto lcd : mSyncingLedgers)
         {
-            if(lcd.mLedgerIndex == mLastClosedLedger->mHeader.ledgerSeq + 1)
+            if(lcd.mLedgerSeq == mLastClosedLedger.header.ledgerSeq + 1)
             {
                 closeLedger(lcd);
                 applied = true;
@@ -257,8 +262,8 @@ void LedgerMaster::closeLedger(LedgerCloseData ledgerData)
     txscope.commit();
 
     // Notify ledger close to other components.
-    mApp.getHerderGateway().ledgerClosed(mLastClosedLedger->mHeader);
-    mApp.getOverlayGateway().ledgerClosed(mLastClosedLedger->mHeader);
+    mApp.getHerderGateway().ledgerClosed(mLastClosedLedger);
+    mApp.getOverlayGateway().ledgerClosed(mLastClosedLedger);
 }
 
 
@@ -280,19 +285,19 @@ void LedgerMaster::closeLedgerHelper(bool updateCurrent, LedgerDelta const& delt
 
         // TODO: compute hashes in header
         mCurrentLedger->mHeader.txSetHash.fill(1);
-        mCurrentLedger->computeHash();
         mCurrentLedger->storeInsert(*this);
 
-        mApp.getPersistentState().setState(PersistentState::kLastClosedLedger, binToHex(mCurrentLedger->mHeader.hash));
+        mApp.getPersistentState().setState(PersistentState::kLastClosedLedger, binToHex(mCurrentLedger->getHash()));
     }
 
     CLOG(INFO, "Ledger")
         << "closeLedgerHelper() closed ledgerSeq="
         << mCurrentLedger->mHeader.ledgerSeq
         << " with hash="
-        << binToHex(mCurrentLedger->mHeader.hash);
+        << binToHex(mCurrentLedger->getHash());
   
-    mLastClosedLedger = mCurrentLedger;
+    mLastClosedLedger.hash = mCurrentLedger->getHash();
+    mLastClosedLedger.header = mCurrentLedger->mHeader;
 
     mCurrentLedger = make_shared<LedgerHeaderFrame>(mLastClosedLedger);
 }

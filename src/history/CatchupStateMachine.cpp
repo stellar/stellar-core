@@ -480,15 +480,16 @@ void CatchupStateMachine::enterApplyingState()
         hdrIn.open(hi->localPath_nogz());
         txIn.open(ti->localPath_nogz());
 
-        LedgerHeader header;
+        LedgerHeaderHistoryEntry hHeader;
+        LedgerHeader &header = hHeader.header;
         TransactionHistoryEntry txHistoryEntry;
         bool readTx = false;
 
-        while (hdrIn && hdrIn.readOne(header))
+        while (hdrIn && hdrIn.readOne(hHeader))
         {
-
+            LedgerHeader const& previousHeader = lm.getLastClosedLedgerHeader().header;
             // If we are >1 before LCL, skip
-            if (header.ledgerSeq + 1 < lm.getLastClosedLedgerHeader().ledgerSeq)
+            if (header.ledgerSeq + 1 < previousHeader.ledgerSeq)
             {
                 CLOG(DEBUG, "History") << "Catchup skipping old ledger " << header.ledgerSeq;
                 continue;
@@ -496,9 +497,9 @@ void CatchupStateMachine::enterApplyingState()
 
 
             // If we are one before LCL, check that we knit up with it
-            if (header.ledgerSeq + 1 == lm.getLastClosedLedgerHeader().ledgerSeq)
+            if (header.ledgerSeq + 1 == previousHeader.ledgerSeq)
             {
-                if (header.hash != lm.getLastClosedLedgerHeader().previousLedgerHash)
+                if (hHeader.hash != previousHeader.previousLedgerHash)
                 {
                     throw std::runtime_error("replay failed to connect on hash of LCL predecessor");
                 }
@@ -507,9 +508,9 @@ void CatchupStateMachine::enterApplyingState()
             }
 
             // If we are at LCL, check that we knit up with it
-            if (header.ledgerSeq == lm.getLastClosedLedgerHeader().ledgerSeq)
+            if (header.ledgerSeq == previousHeader.ledgerSeq)
             {
-                if (header.hash != lm.getLastClosedLedgerHeader().hash)
+                if (hHeader.hash != lm.getLastClosedLedgerHeader().hash)
                 {
                     throw std::runtime_error("replay failed to connect on hash of LCL");
                 }
@@ -552,8 +553,8 @@ void CatchupStateMachine::enterApplyingState()
             lm.closeLedger(closeData);
 
             CLOG(DEBUG, "History") << "LedgerMaster LCL:\n" << xdr::xdr_to_string(lm.getLastClosedLedgerHeader());
-            CLOG(DEBUG, "History") << "Replay header:\n" << xdr::xdr_to_string(header);
-            if (lm.getLastClosedLedgerHeader().hash != header.hash)
+            CLOG(DEBUG, "History") << "Replay header:\n" << xdr::xdr_to_string(hHeader);
+            if (lm.getLastClosedLedgerHeader().hash != hHeader.hash)
             {
                 throw std::runtime_error("replay produced mismatched ledger hash");
             }

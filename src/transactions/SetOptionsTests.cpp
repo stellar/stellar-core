@@ -40,9 +40,11 @@ TEST_CASE("set options", "[tx][setoptions]")
     SecretKey root = getRoot();
     SecretKey a1 = getAccount("A");
 
-    applyPaymentTx(app, root, a1, 1, app.getLedgerMaster().getMinBalance(0)+1000);
+    SequenceNumber rootSeq = getAccountSeqNum(root, app) + 1;
 
-    uint32_t a1seq = 1;
+    applyPaymentTx(app, root, a1, rootSeq++, app.getLedgerMaster().getMinBalance(0)+1000);
+
+    SequenceNumber a1seq = getAccountSeqNum(a1, app)+1;
     
     SECTION("Signers")
     {
@@ -62,7 +64,7 @@ TEST_CASE("set options", "[tx][setoptions]")
                 nullptr, nullptr, nullptr, &th, &sk1, a1seq++, SetOptions::BELOW_MIN_BALANCE);
         }
 
-        applyPaymentTx(app, root, a1, 2, app.getLedgerMaster().getMinBalance(2));
+        applyPaymentTx(app, root, a1, rootSeq++, app.getLedgerMaster().getMinBalance(2));
 
         applySetOptions(app, a1, nullptr,
             nullptr, nullptr, nullptr, &th, &sk1, a1seq++);
@@ -71,8 +73,8 @@ TEST_CASE("set options", "[tx][setoptions]")
         AccountFrame a1Account;
 
         REQUIRE(AccountFrame::loadAccount(a1.getPublicKey(), a1Account, app.getDatabase(), true));
-        REQUIRE(a1Account.getSigners().size() == 1);
-        Signer &a_sk1 = a1Account.getSigners()[0];
+        REQUIRE(a1Account.getAccount().signers.size() == 1);
+        Signer &a_sk1 = a1Account.getAccount().signers[0];
         REQUIRE(a_sk1.pubKey == sk1.pubKey);
         REQUIRE(a_sk1.weight == sk1.weight);
 
@@ -83,7 +85,7 @@ TEST_CASE("set options", "[tx][setoptions]")
             nullptr, nullptr, nullptr, nullptr, &sk2, a1seq++);
 
         REQUIRE(AccountFrame::loadAccount(a1.getPublicKey(), a1Account, app.getDatabase(), true));
-        REQUIRE(a1Account.getSigners().size() == 2);
+        REQUIRE(a1Account.getAccount().signers.size() == 2);
 
         // update signer 2
         sk2.weight = 11;
@@ -101,8 +103,8 @@ TEST_CASE("set options", "[tx][setoptions]")
             nullptr, nullptr, nullptr, nullptr, &sk1, a1seq++);
 
         REQUIRE(AccountFrame::loadAccount(a1.getPublicKey(), a1Account, app.getDatabase(), true));
-        REQUIRE(a1Account.getSigners().size() == 1);
-        Signer &a_sk2 = a1Account.getSigners()[0];
+        REQUIRE(a1Account.getAccount().signers.size() == 1);
+        Signer &a_sk2 = a1Account.getAccount().signers[0];
         REQUIRE(a_sk2.pubKey == sk2.pubKey);
         REQUIRE(a_sk2.weight == sk2.weight);
     }

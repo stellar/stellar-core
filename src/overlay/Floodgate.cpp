@@ -12,11 +12,9 @@
 namespace stellar
 {
 
-FloodRecord::FloodRecord(StellarMessage const& msg, uint64_t ledger,
-                         Peer::pointer peer)
+FloodRecord::FloodRecord(StellarMessage const& msg, uint32_t ledger, Peer::pointer peer)
+    : mLedgerSeq(ledger), mMessage(msg)
 {
-    mMessage = msg;
-    mLedgerIndex = ledger;
     if(peer) mPeersTold.push_back(peer);
 }
 
@@ -27,12 +25,12 @@ Floodgate::Floodgate(Application& app) : mApp(app)
 
 // remove old flood records
 void
-Floodgate::clearBelow(uint64_t currentLedger)
+Floodgate::clearBelow(uint32_t currentLedger)
 {
     for (auto it = mFloodMap.cbegin(); it != mFloodMap.cend();)
     {
         // give one ledger of leeway
-        if (it->second->mLedgerIndex+1 < currentLedger)  
+        if (it->second->mLedgerSeq+1 < currentLedger)  
         {
             mFloodMap.erase(it++);
         }

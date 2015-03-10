@@ -82,7 +82,7 @@ BucketLevel::commit()
 }
 
 void
-BucketLevel::prepare(Application& app, uint64_t currLedger,
+BucketLevel::prepare(Application& app, uint32_t currLedger,
                      std::shared_ptr<Bucket> snap,
                      std::vector<std::shared_ptr<Bucket>> const& shadows)
 {
@@ -101,7 +101,7 @@ BucketLevel::prepare(Application& app, uint64_t currLedger,
     // next snap).
     if (mLevel > 0)
     {
-        uint64_t nextChangeLedger =
+        uint32_t nextChangeLedger =
             currLedger + BucketList::levelHalf(mLevel - 1);
         if (BucketList::levelShouldSpill(nextChangeLedger, mLevel))
         {
@@ -159,20 +159,21 @@ BucketLevel::snap()
     return mSnap;
 }
 
-uint64_t
+uint32_t
 BucketList::levelSize(size_t level)
 {
-    return 1ULL << (4 * (static_cast<uint64_t>(level) + 1));
+    assert(level < 8);
+    return 1UL << (4 * (static_cast<uint32_t>(level) + 1));
 }
 
-uint64_t
+uint32_t
 BucketList::levelHalf(size_t level)
 {
     return levelSize(level) >> 1;
 }
 
-uint64_t
-BucketList::mask(uint64_t v, uint64_t m)
+uint32_t
+BucketList::mask(uint32_t v, uint32_t m)
 {
     return v & ~(m - 1);
 }
@@ -189,7 +190,7 @@ BucketList::getHash() const
 }
 
 bool
-BucketList::levelShouldSpill(uint64_t ledger, size_t level)
+BucketList::levelShouldSpill(uint32_t ledger, size_t level)
 {
     if (level == kNumLevels - 1)
     {
@@ -214,7 +215,7 @@ BucketList::getLevel(size_t i)
 }
 
 void
-BucketList::addBatch(Application& app, uint64_t currLedger,
+BucketList::addBatch(Application& app, uint32_t currLedger,
                      std::vector<LedgerEntry> const& liveEntries,
                      std::vector<LedgerKey> const& deadEntries)
 {

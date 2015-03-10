@@ -151,14 +151,14 @@ Herder::validateValue(const uint64& slotIndex,
     // we are fully synced up
     
         // Check slotIndex.
-        if (mLastClosedLedger.ledgerSeq + 1 != slotIndex)
+        if (mLastClosedLedger.header.ledgerSeq + 1 != slotIndex)
         {
             mValueInvalid.Mark();
             return cb(false);
         }
 
         // Check closeTime (not too old)
-        if (b.value.closeTime <= mLastClosedLedger.closeTime)
+        if (b.value.closeTime <= mLastClosedLedger.header.closeTime)
         {
             mValueInvalid.Mark();
             return cb(false);
@@ -441,7 +441,7 @@ Herder::ballotDidHearFromQuorum(const uint64& slotIndex,
     mQuorumHeard.Mark();
    
     // Only validated values (current) values should trigger this.
-    assert(slotIndex == mLastClosedLedger.ledgerSeq + 1);
+    assert(slotIndex == mLastClosedLedger.header.ledgerSeq + 1);
 
     mBumpTimer.cancel();
 
@@ -489,7 +489,7 @@ Herder::valueExternalized(const uint64& slotIndex,
         mTxSetFetcher[mCurrentTxSetFetcher].clear();
 
         // Triggers sync if not already syncing.
-        LedgerCloseData ledgerData(slotIndex, externalizedSet, b.value.closeTime, b.value.baseFee);
+        LedgerCloseData ledgerData(static_cast<uint32_t>(slotIndex), externalizedSet, b.value.closeTime, b.value.baseFee);
         mApp.getLedgerGateway().externalizeValue(ledgerData);
 
         // remove all these tx from mReceivedTransactions
@@ -742,10 +742,10 @@ Herder::recvSCPEnvelope(SCPEnvelope envelope,
 
     if(mApp.getState() == Application::SYNCED_STATE)
     {
-        uint64 minLedgerSeq = ((int)mLastClosedLedger.ledgerSeq -
-            LEDGER_VALIDITY_BRACKET) < 0 ? 0 :
-            (mLastClosedLedger.ledgerSeq - LEDGER_VALIDITY_BRACKET);
-        uint64 maxLedgerSeq = mLastClosedLedger.ledgerSeq +
+        uint32_t minLedgerSeq = (mLastClosedLedger.header.ledgerSeq < LEDGER_VALIDITY_BRACKET) ?
+            0 :
+            (mLastClosedLedger.header.ledgerSeq - LEDGER_VALIDITY_BRACKET);
+        uint32_t maxLedgerSeq = mLastClosedLedger.header.ledgerSeq +
             LEDGER_VALIDITY_BRACKET;
 
         // If we are fully synced and the envelopes are out of our validity
@@ -758,7 +758,7 @@ Herder::recvSCPEnvelope(SCPEnvelope envelope,
 
         // If we are fully synced and we see envelopes that are from future
         // ledgers we store them for later replay.
-        if (envelope.statement.slotIndex > mLastClosedLedger.ledgerSeq + 1)
+        if (envelope.statement.slotIndex > mLastClosedLedger.header.ledgerSeq + 1)
         {
             mFutureEnvelopes[envelope.statement.slotIndex]
                 .push_back(std::make_pair(envelope, cb));
@@ -773,7 +773,7 @@ Herder::recvSCPEnvelope(SCPEnvelope envelope,
 }
 
 void
-Herder::ledgerClosed(LedgerHeader& ledger)
+Herder::ledgerClosed(LedgerHeaderHistoryEntry const& ledger)
 {
     CLOG(TRACE, "Herder") << "Herder::ledgerClosed@"
         << "@" << binToHex(getLocalNodeID()).substr(0,6)
@@ -854,15 +854,15 @@ Herder::triggerNextLedger()
     proposedSet->mPreviousLedgerHash = mLastClosedLedger.hash;
     recvTxSet(proposedSet);
 
-    uint64_t slotIndex = mLastClosedLedger.ledgerSeq + 1;
+    uint64_t slotIndex = mLastClosedLedger.header.ledgerSeq + 1;
 
     // We pick as next close time the current time unless it's before the last
     // close time. We don't know how much time it will take to reach consensus
     // so this is the most appropriate value to use as closeTime.
     uint64_t nextCloseTime = VirtualClock::pointToTimeT(mLastTrigger);
-    if (nextCloseTime <= mLastClosedLedger.closeTime)
+    if (nextCloseTime <= mLastClosedLedger.header.closeTime)
     {
-        nextCloseTime = mLastClosedLedger.closeTime + 1;
+        nextCloseTime = mLastClosedLedger.header.closeTime + 1;
     }
 
     StellarBallot b;
@@ -899,7 +899,7 @@ Herder::expireBallot(const uint64& slotIndex,
                      
 {
     mBallotExpire.Mark();
-    assert(slotIndex == mLastClosedLedger.ledgerSeq + 1);
+    assert(slotIndex == mLastClosedLedger.header.ledgerSeq + 1);
 
     // We prepare the value while bumping the ballot counter. If we're monarch,
     // this prepare will go through. If not, we will have bumped our ballot.

@@ -14,13 +14,13 @@ typedef std::shared_ptr<TxSetFrame> TxSetFramePtr;
 class LedgerCloseData
 {
 public:
-    uint64_t mLedgerIndex;
+    uint32_t mLedgerSeq;
     TxSetFramePtr mTxSet;
     uint64_t mCloseTime;
     int32_t mBaseFee;
 
-    LedgerCloseData(uint64_t ledgerIndex, TxSetFramePtr txSet, uint64_t closeTime, int32_t baseFee) :
-        mLedgerIndex(ledgerIndex), mTxSet(txSet), mCloseTime(closeTime), mBaseFee(baseFee) { }
+    LedgerCloseData(uint32_t ledgerSeq, TxSetFramePtr txSet, uint64_t closeTime, int32_t baseFee) :
+        mLedgerSeq(ledgerSeq), mTxSet(txSet), mCloseTime(closeTime), mBaseFee(baseFee) { }
 };
 
 /*
@@ -32,7 +32,7 @@ class LedgerGateway
     // called by txherder
     virtual void externalizeValue(LedgerCloseData ledgerData)=0;
 
-    virtual uint64_t getLedgerNum() = 0;
+    virtual uint32_t getLedgerNum() = 0;
     virtual uint64_t getCloseTime() = 0;
     virtual int64_t getTxFee() = 0;
 };

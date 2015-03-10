@@ -244,7 +244,7 @@ class BucketLevel
     void setCurr(std::shared_ptr<Bucket>);
     void setSnap(std::shared_ptr<Bucket>);
     void commit();
-    void prepare(Application& app, uint64_t currLedger,
+    void prepare(Application& app, uint32_t currLedger,
                  std::shared_ptr<Bucket> snap,
                  std::vector<std::shared_ptr<Bucket>> const& shadows);
     std::shared_ptr<Bucket> snap();
@@ -258,11 +258,11 @@ class BucketList
 
     static size_t const kNumLevels;
 
-    static uint64_t levelSize(size_t level);
-    static uint64_t levelHalf(size_t level);
-    static bool levelShouldSpill(uint64_t ledger, size_t level);
-    static uint64_t mask(uint64_t v, uint64_t m);
-    static size_t numLevels(uint64_t ledger);
+    static uint32_t levelSize(size_t level);
+    static uint32_t levelHalf(size_t level);
+    static bool levelShouldSpill(uint32_t ledger, size_t level);
+    static uint32_t mask(uint32_t v, uint32_t m);
+    static size_t numLevels(uint32_t ledger);
 
     // BucketList _just_ stores a set of entries; anything else the CLF
     // wants to support should happen in another class. These operations form a
@@ -271,7 +271,7 @@ class BucketList
     size_t numLevels() const;
     BucketLevel& getLevel(size_t i);
     uint256 getHash() const;
-    void addBatch(Application& app, uint64_t currLedger,
+    void addBatch(Application& app, uint32_t currLedger,
                   std::vector<LedgerEntry> const& liveEntries,
                   std::vector<LedgerKey> const& deadEntries);
 };

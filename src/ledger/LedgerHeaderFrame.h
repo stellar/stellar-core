@@ -20,30 +20,34 @@ namespace stellar
 
     class LedgerHeaderFrame
     {
+        Hash mHash;
     public:
         typedef std::shared_ptr<LedgerHeaderFrame> pointer;
 
         LedgerHeader mHeader;
 
-        LedgerHeaderFrame() {}
-        LedgerHeaderFrame(LedgerHeader lh);
-        LedgerHeaderFrame(LedgerHeaderFrame::pointer previousLedger);
+        LedgerHeaderFrame(LedgerHeader const& lh);
+        LedgerHeaderFrame(LedgerHeaderHistoryEntry const& lastClosed); // creates a new ledger based on the given closed ledger
 
-        void computeHash();
+        Hash const& getHash();
+
+        SequenceNumber getStartingSequenceNumber(); // returns the first sequence number to use for new accounts
 
         void storeInsert(LedgerMaster& ledgerMaster);
 
-        static LedgerHeaderFrame::pointer loadByHash(const uint256 &hash, LedgerMaster& ledgerMaster);
-        static LedgerHeaderFrame::pointer loadBySequence(uint64_t seq, LedgerMaster& ledgerMaster);
+        static LedgerHeaderFrame::pointer loadByHash(Hash const& hash, LedgerMaster& ledgerMaster);
+        static LedgerHeaderFrame::pointer loadBySequence(uint32_t seq, LedgerMaster& ledgerMaster);
 
         static size_t copyLedgerHeadersToStream(Database& db,
                                                 soci::session& sess,
-                                                uint64_t ledgerSeq,
-                                                uint64_t ledgerCount,
+                                                uint32_t ledgerSeq,
+                                                uint32_t ledgerCount,
                                                 XDROutputFileStream& txOut);
 
         static void dropAll(Database &db);
         static const char *kSQLCreateStatement;
+    private:
+        static LedgerHeaderFrame::pointer decodeFromData(std::string const& data);
     };
 }
 

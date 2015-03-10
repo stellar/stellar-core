@@ -388,8 +388,16 @@ Simulation::accountsOutOfSyncWithDb()
         {
             auto account = *accountIt;
             AccountFrame accountFrame;
-            AccountFrame::loadAccount(account->mKey.getPublicKey(), accountFrame, app->getDatabase());
-            int64_t offset = accountFrame.getBalance() - static_cast<int64_t>(account->mBalance);
+            bool res = AccountFrame::loadAccount(account->mKey.getPublicKey(), accountFrame, app->getDatabase());
+            int64_t offset;
+            if (res)
+            {
+                offset = accountFrame.getBalance() - static_cast<int64_t>(account->mBalance);
+            }
+            else
+            {
+                offset = -1;
+            }
             if (offset != 0)
             {
                 LOG(DEBUG) << "On node " << iApp << ", account " << account->mId
@@ -403,6 +411,24 @@ Simulation::accountsOutOfSyncWithDb()
     LOG(INFO) << "Ledger has not yet caught up to the simulation. totalOffsets: " << totalOffsets;
     return result;
 }
+
+void
+Simulation::SyncSequenceNumbers()
+{
+    // assumes all nodes are in sync
+    auto app = mNodes.begin()->second;
+
+    for (auto& it : mAccounts)
+    {
+        AccountFrame accountFrame;
+        bool res = AccountFrame::loadAccount(it->mKey.getPublicKey(), accountFrame, app->getDatabase());
+        if (res)
+        {
+            it->mSeq = accountFrame.getSeqNum(app->getDatabase());
+        }
+    }
+}
+
 
 string
 Simulation::metricsSummary(string domain)

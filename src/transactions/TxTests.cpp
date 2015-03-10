@@ -43,6 +43,13 @@ SecretKey getAccount(const char* n)
     return SecretKey::fromBase58Seed(b58SeedStr);
 }
 
+SequenceNumber getAccountSeqNum(SecretKey const& k, Application &app)
+{
+    AccountFrame account;
+    REQUIRE(AccountFrame::loadAccount(k.getPublicKey(), account, app.getDatabase()));
+    return account.getSeqNum(app.getDatabase());
+}
+
 void checkTransaction(TransactionFrame& txFrame)
 {
     REQUIRE(txFrame.getResult().feeCharged == 10); // default fee
@@ -50,7 +57,7 @@ void checkTransaction(TransactionFrame& txFrame)
         txFrame.getResultCode() == txFAILED));
 }
 
-TransactionFramePtr transactionFromOperation(SecretKey& from, uint32_t seq, Operation const& op)
+TransactionFramePtr transactionFromOperation(SecretKey& from, SequenceNumber seq, Operation const& op)
 {
     TransactionEnvelope e;
 
@@ -59,7 +66,6 @@ TransactionFramePtr transactionFromOperation(SecretKey& from, uint32_t seq, Oper
     e.tx.minLedger = 0;
     e.tx.maxFee = 12;
     e.tx.seqNum = seq;
-    e.tx.seqSlot = 0;
     e.tx.operations.push_back(op);
 
     TransactionFramePtr res = TransactionFrame::makeTransactionFromWire(e);
@@ -69,7 +75,7 @@ TransactionFramePtr transactionFromOperation(SecretKey& from, uint32_t seq, Oper
     return res;
 }
 
-TransactionFramePtr createChangeTrust(SecretKey& from, SecretKey& to, uint32_t seq, const std::string& currencyCode, int64_t limit)
+TransactionFramePtr createChangeTrust(SecretKey& from, SecretKey& to, SequenceNumber seq, const std::string& currencyCode, int64_t limit)
 {
     Operation op;
 
@@ -82,7 +88,7 @@ TransactionFramePtr createChangeTrust(SecretKey& from, SecretKey& to, uint32_t s
     return transactionFromOperation(from, seq, op);
 }
 
-TransactionFramePtr createAllowTrust(SecretKey& from, SecretKey& trustor, uint32_t seq,
+TransactionFramePtr createAllowTrust(SecretKey& from, SecretKey& trustor, SequenceNumber seq,
     const std::string& currencyCode, bool authorize)
 {
     Operation op;
@@ -96,7 +102,7 @@ TransactionFramePtr createAllowTrust(SecretKey& from, SecretKey& trustor, uint32
     return transactionFromOperation(from, seq, op);
 }
 
-void applyAllowTrust(Application& app, SecretKey& from, SecretKey& trustor, uint32_t seq,
+void applyAllowTrust(Application& app, SecretKey& from, SecretKey& trustor, SequenceNumber seq,
     const std::string& currencyCode, bool authorize, AllowTrust::AllowTrustResultCode result)
 {
     TransactionFramePtr txFrame;
@@ -110,7 +116,7 @@ void applyAllowTrust(Application& app, SecretKey& from, SecretKey& trustor, uint
 
 }
 
-TransactionFramePtr createPaymentTx(SecretKey& from, SecretKey& to, uint32_t seq, int64_t amount)
+TransactionFramePtr createPaymentTx(SecretKey& from, SecretKey& to, SequenceNumber seq, int64_t amount)
 {
     Operation op;
     op.body.type(PAYMENT);
@@ -122,7 +128,7 @@ TransactionFramePtr createPaymentTx(SecretKey& from, SecretKey& to, uint32_t seq
     return transactionFromOperation(from, seq, op);
 }
 
-void applyPaymentTx(Application& app, SecretKey& from, SecretKey& to, uint32_t seq, int64_t amount, Payment::PaymentResultCode result)
+void applyPaymentTx(Application& app, SecretKey& from, SecretKey& to, SequenceNumber seq, int64_t amount, Payment::PaymentResultCode result)
 {
     TransactionFramePtr txFrame;
 
@@ -135,7 +141,7 @@ void applyPaymentTx(Application& app, SecretKey& from, SecretKey& to, uint32_t s
     REQUIRE(Payment::getInnerCode(txFrame->getResult().result.results()[0]) == result);
 }
 
-void applyChangeTrust(Application& app, SecretKey& from, SecretKey& to, uint32_t seq, const std::string& currencyCode, int64_t limit, ChangeTrust::ChangeTrustResultCode result)
+void applyChangeTrust(Application& app, SecretKey& from, SecretKey& to, SequenceNumber seq, const std::string& currencyCode, int64_t limit, ChangeTrust::ChangeTrustResultCode result)
 {
     TransactionFramePtr txFrame;
 
@@ -148,7 +154,7 @@ void applyChangeTrust(Application& app, SecretKey& from, SecretKey& to, uint32_t
     REQUIRE(ChangeTrust::getInnerCode(txFrame->getResult().result.results()[0]) == result);
 }
 
-TransactionFramePtr createCreditPaymentTx(SecretKey& from, SecretKey& to, Currency& ci,uint32_t seq, int64_t amount)
+TransactionFramePtr createCreditPaymentTx(SecretKey& from, SecretKey& to, Currency& ci, SequenceNumber seq, int64_t amount)
 {
     Operation op;
     op.body.type(PAYMENT);
@@ -170,7 +176,7 @@ Currency makeCurrency(SecretKey& issuer, const std::string& code)
 }
 
 void applyCreditPaymentTx(Application& app, SecretKey& from, SecretKey& to, 
-    Currency& ci, uint32_t seq,
+    Currency& ci, SequenceNumber seq,
     int64_t amount, Payment::PaymentResultCode result)
 {
     TransactionFramePtr txFrame;
@@ -185,7 +191,7 @@ void applyCreditPaymentTx(Application& app, SecretKey& from, SecretKey& to,
 }
 
 TransactionFramePtr createOfferOp(SecretKey& source, Currency& takerGets,
-    Currency& takerPays, Price const &price, int64_t amount, uint32_t seq)
+    Currency& takerPays, Price const &price, int64_t amount, SequenceNumber seq)
 {
     Operation op;
     op.body.type(CREATE_OFFER);
@@ -198,7 +204,7 @@ TransactionFramePtr createOfferOp(SecretKey& source, Currency& takerGets,
 }
 
 void applyCreateOffer(Application& app, LedgerDelta& delta, SecretKey& source, Currency& takerGets,
-    Currency& takerPays, Price const& price, int64_t amount, uint32_t seq, 
+    Currency& takerPays, Price const& price, int64_t amount, SequenceNumber seq,
     CreateOffer::CreateOfferResultCode result)
 {
     TransactionFramePtr txFrame;
@@ -213,7 +219,7 @@ void applyCreateOffer(Application& app, LedgerDelta& delta, SecretKey& source, C
 
 TransactionFramePtr createSetOptions(SecretKey& source, AccountID *inflationDest,
     uint32_t *setFlags, uint32_t *clearFlags, KeyValue *data, Thresholds *thrs,
-    Signer *signer, uint32_t seq)
+    Signer *signer, SequenceNumber seq)
 {
     Operation op;
     op.body.type(SET_OPTIONS);
@@ -253,7 +259,7 @@ TransactionFramePtr createSetOptions(SecretKey& source, AccountID *inflationDest
 
 void applySetOptions(Application& app, SecretKey& source, AccountID *inflationDest,
     uint32_t *setFlags, uint32_t *clearFlags, KeyValue *data, Thresholds *thrs,
-    Signer *signer, uint32_t seq, SetOptions::SetOptionsResultCode result)
+    Signer *signer, SequenceNumber seq, SetOptions::SetOptionsResultCode result)
 {
     TransactionFramePtr txFrame;
 

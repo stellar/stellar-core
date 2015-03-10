@@ -10,7 +10,6 @@
 #include "database/Database.h"
 #include "OfferExchange.h"
 
-#define MAX_PAYMENT_PATH_LENGTH 5
 // TODO.2 handle sending to and from an issuer and with offers
 // TODO.2 clean up trustlines 
 namespace stellar
@@ -52,6 +51,7 @@ using namespace std;
                 else
                 {
                     destAccount.getAccount().accountID = mPayment.destination;
+                    destAccount.getAccount().seqNum = ledgerMaster.getCurrentLedgerHeaderFrame().getStartingSequenceNumber();
                     destAccount.getAccount().balance = 0;
 
                     destAccount.storeAdd(delta, db);
@@ -242,12 +242,6 @@ using namespace std;
 
     bool PaymentOpFrame::doCheckValid(Application& app)
     {
-        if (mPayment.path.size() > MAX_PAYMENT_PATH_LENGTH)
-        {
-            innerResult().code(Payment::MALFORMED);
-            return false;
-        }
-
         return true;
     }
 }

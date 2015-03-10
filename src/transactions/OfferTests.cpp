@@ -66,7 +66,8 @@ TEST_CASE("create offer", "[tx][offers]")
 
     uint64_t txfee = app.getLedgerMaster().getTxFee();
 
-    uint32_t a1_seq=1, b1_seq=1, root_seq=1, gateway_seq=1;
+    SequenceNumber root_seq = getAccountSeqNum(root, app) + 1;;
+
 
     // minimum balance necessary to hold 2 trust lines
     const int64_t minBalance2 = app.getLedgerMaster().getMinBalance(2);
@@ -80,7 +81,7 @@ TEST_CASE("create offer", "[tx][offers]")
 
     SECTION("account a1 does not exist")
     {
-        auto txFrame = createOfferOp(a1, idrCur, usdCur, oneone, 100, a1_seq);
+        auto txFrame = createOfferOp(a1, idrCur, usdCur, oneone, 100, 1);
 
        
         txFrame->apply(delta, app);
@@ -89,11 +90,13 @@ TEST_CASE("create offer", "[tx][offers]")
 
     // sets up gateway account
     applyPaymentTx(app, root, gateway, root_seq++, minBalance2);
+    SequenceNumber gateway_seq = getAccountSeqNum(gateway, app)+1;
 
     SECTION("negative offer creation tests")
     {
         applyPaymentTx(app, root, a1, root_seq++, minBalance2 + 10000);
-       
+        SequenceNumber a1_seq = getAccountSeqNum(a1, app)+1;
+
         // missing USD trust
         applyCreateOffer(app, delta, a1, idrCur, usdCur, oneone, 100, a1_seq++, CreateOffer::NO_TRUST);
 
@@ -132,14 +135,15 @@ TEST_CASE("create offer", "[tx][offers]")
         const int64_t minBalanceA = app.getLedgerMaster().getMinBalance(3+nbOffers);
 
         applyPaymentTx(app, root, a1, root_seq++, minBalanceA + 10000);
+        SequenceNumber a1_seq = getAccountSeqNum(a1, app) + 1;
 
         applyChangeTrust(app, a1, gateway, a1_seq++, "USD", trustLineLimit);
         applyChangeTrust(app, a1, gateway, a1_seq++, "IDR", trustLineLimit);
         applyCreditPaymentTx(app, gateway, a1, idrCur, gateway_seq++, trustLineLimit);
 
         // create nbOffers
-        std::vector<uint32_t> a1OfferID;
-        uint32_t offerIDCounter=0;
+        std::vector<uint64_t> a1OfferID;
+        uint64_t offerIDCounter=0;
         const Price usdPriceOfferA(3, 2);
 
         for (int i = 0; i < nbOffers; i++)
@@ -158,6 +162,7 @@ TEST_CASE("create offer", "[tx][offers]")
         }
 
         applyPaymentTx(app, root, b1, root_seq++, minBalance3 + 10000);
+        SequenceNumber b1_seq = getAccountSeqNum(b1, app) + 1;
         applyChangeTrust(app, b1, gateway, b1_seq++, "IDR", trustLineLimit);
         applyChangeTrust(app, b1, gateway, b1_seq++, "USD", trustLineLimit);
 
@@ -226,7 +231,7 @@ TEST_CASE("create offer", "[tx][offers]")
             // and the state of a1 offers
             for (int i = 0; i < nbOffers; i++)
             {
-                int32_t a1Offer = a1OfferID[i];
+                uint64_t a1Offer = a1OfferID[i];
 
                 if (i == 0)
                 {
@@ -284,7 +289,7 @@ TEST_CASE("create offer", "[tx][offers]")
 
             for (int i = 0; i < nbOffers; i++)
             {
-                int32_t a1Offer = a1OfferID[i];
+                uint64_t a1Offer = a1OfferID[i];
 
                 if (i < 6)
                 {
@@ -357,7 +362,7 @@ TEST_CASE("create offer", "[tx][offers]")
 
             for (int i = 0; i < nbOffers; i++)
             {
-                int32_t a1Offer = a1OfferID[i];
+                uint64_t a1Offer = a1OfferID[i];
 
                 REQUIRE(OfferFrame::loadOffer(a1.getPublicKey(), a1Offer, offer,
                     app.getDatabase()));
@@ -406,8 +411,8 @@ TEST_CASE("create offer", "[tx][offers]")
             uint64_t cOfferID = 0;
             SecretKey c1 = getAccount("C");
             {
-                uint32_t c1_seq = 1;
                 applyPaymentTx(app, root, c1, root_seq++, minBalance3 + 10000);
+                SequenceNumber c1_seq = getAccountSeqNum(c1, app) + 1;
                 applyChangeTrust(app, c1, gateway, c1_seq++, "IDR", trustLineLimit);
                 applyChangeTrust(app, c1, gateway, c1_seq++, "USD", trustLineLimit);
                 applyCreditPaymentTx(app, gateway, c1, idrCur, gateway_seq++, 20000 * currencyMultiplier);
@@ -441,7 +446,7 @@ TEST_CASE("create offer", "[tx][offers]")
 
             for (int i = 0; i < nbOffers; i++)
             {
-                int32_t a1Offer = a1OfferID[i];
+                uint64_t a1Offer = a1OfferID[i];
                 REQUIRE(!OfferFrame::loadOffer(a1.getPublicKey(), a1Offer,
                     offer, app.getDatabase()));
             }

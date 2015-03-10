@@ -122,7 +122,7 @@ CommandHandler::info(const std::string& params, std::string& retStr)
     root["info"]["state"] = stateStrTable[mApp.getState()];
     root["info"]["ledger"]["num"]= (int)lm.getLedgerNum();
     root["info"]["ledger"]["hash"] = binToHex(lm.getLastClosedLedgerHeader().hash);
-    root["info"]["ledger"]["closeTime"] = (int)lm.getLastClosedLedgerHeader().closeTime;
+    root["info"]["ledger"]["closeTime"] = (int)lm.getLastClosedLedgerHeader().header.closeTime;
     root["info"]["ledger"]["age"] = (int)lm.secondsSinceLastLedgerClose();
     root["info"]["numPeers"] = (int)mApp.getPeerMaster().getPeers().size();
 

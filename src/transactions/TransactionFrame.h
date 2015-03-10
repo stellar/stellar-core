@@ -67,7 +67,7 @@ namespace stellar
 
         TransactionEnvelope& getEnvelope();
 
-        uint32 getSeqNum() { return mEnvelope.tx.seqNum; }
+        SequenceNumber getSeqNum() { return mEnvelope.tx.seqNum; }
         AccountFrame& getSourceAccount() { assert(mSigningAccount); return *mSigningAccount; }
         uint256 const& getSourceID() { return mEnvelope.tx.account; }
         void addSignature(const SecretKey& secretKey);
@@ -87,8 +87,8 @@ namespace stellar
         void storeTransaction(LedgerMaster &ledgerMaster, LedgerDelta const& delta);
         static size_t copyTransactionsToStream(Database& db,
                                                soci::session& sess,
-                                               uint64_t ledgerSeq,
-                                               uint64_t ledgerCount,
+                                               uint32_t ledgerSeq,
+                                               uint32_t ledgerCount,
                                                XDROutputFileStream& txOut);
         static void dropAll(Database &db);
 

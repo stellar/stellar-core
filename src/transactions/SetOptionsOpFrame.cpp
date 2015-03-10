@@ -52,7 +52,7 @@ namespace stellar
         
         if(mSetOptions.signer)
         {
-            xdr::xvector<Signer>& signers = account.signers;
+            auto& signers = account.signers;
             if(mSetOptions.signer->weight)
             { // add or change signer
                 bool found = false;

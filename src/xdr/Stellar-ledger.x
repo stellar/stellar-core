@@ -4,19 +4,23 @@ namespace stellar {
 
 struct LedgerHeader
 {
-    Hash hash;
-    Hash previousLedgerHash;
-    Hash txSetHash;            // the tx set that was SCP confirmed
-    Hash clfHash;
+    Hash previousLedgerHash;// hash of the previous ledger header
+    Hash txSetHash;         // the tx set that was SCP confirmed
+    Hash clfHash;           // hash of the ledger state
 
-    int64 totalCoins;
-    int64 feePool;
-    uint64 ledgerSeq;
-    uint64 idPool;
-    uint32 inflationSeq;
-    int32 baseFee;
-    int32 baseReserve;
-    uint64 closeTime;
+    uint32 ledgerSeq;       // sequence number of this ledger
+    uint64 closeTime;       // network close time
+
+    int64 totalCoins;       // total number of stroops in existence
+
+    int64 feePool;          // fees burned since last inflation run
+    uint32 inflationSeq;    // inflation sequence number
+
+    uint64 idPool;          // last used global ID, used for generating objects
+
+    int32 baseFee;          // base fee per operation in stroops
+    int32 baseReserve;      // account base reserve in stroops
+
 };
 
 union LedgerKey switch (LedgerEntryType type)
@@ -66,9 +70,15 @@ struct TransactionMeta
 
 struct TransactionHistoryEntry
 {
-    uint64 ledgerSeq;
+    uint32 ledgerSeq;
     TransactionEnvelope envelope;
     TransactionResult result;
+};
+
+struct LedgerHeaderHistoryEntry
+{
+    Hash hash;
+    LedgerHeader header;
 };
 
 }

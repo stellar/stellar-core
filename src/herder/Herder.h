@@ -98,7 +98,7 @@ class Herder : public HerderGateway,
     void recvSCPEnvelope(SCPEnvelope envelope,
                          std::function<void(bool)> const& cb = [] (bool) { });
 
-    void ledgerClosed(LedgerHeader& ledger);
+    void ledgerClosed(LedgerHeaderHistoryEntry const& ledger);
     
   private:
     void removeReceivedTx(TransactionFramePtr tx);
@@ -146,7 +146,7 @@ class Herder : public HerderGateway,
                  std::shared_ptr<VirtualTimer>>>>  mBallotValidationTimers;
 
     
-    LedgerHeader                                   mLastClosedLedger;
+    LedgerHeaderHistoryEntry                       mLastClosedLedger;
 
     VirtualClock::time_point                       mLastTrigger;
     VirtualTimer                                   mTriggerTimer;
