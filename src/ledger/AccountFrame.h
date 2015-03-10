@@ -44,8 +44,8 @@ namespace stellar
         uint32_t getMidThreshold();
         uint32_t getLowThreshold();
 
-        void setSeqNum(uint32_t seq) { mAccountEntry.seqNum = seq; }
-        uint32_t getSeqNum(Database& db) { return mAccountEntry.seqNum; }
+        void setSeqNum(SequenceNumber seq) { mAccountEntry.seqNum = seq; }
+        SequenceNumber getSeqNum(Database& db) { return mAccountEntry.seqNum; }
 
         AccountEntry &getAccount() { return mAccountEntry; }
 

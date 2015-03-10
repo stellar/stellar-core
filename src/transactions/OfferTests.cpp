@@ -66,7 +66,7 @@ TEST_CASE("create offer", "[tx][offers]")
 
     uint64_t txfee = app.getLedgerMaster().getTxFee();
 
-    uint32_t a1_seq=1, b1_seq=1, root_seq=1, gateway_seq=1;
+    SequenceNumber a1_seq=1, b1_seq=1, root_seq=1, gateway_seq=1;
 
     // minimum balance necessary to hold 2 trust lines
     const int64_t minBalance2 = app.getLedgerMaster().getMinBalance(2);
@@ -406,7 +406,7 @@ TEST_CASE("create offer", "[tx][offers]")
             uint64_t cOfferID = 0;
             SecretKey c1 = getAccount("C");
             {
-                uint32_t c1_seq = 1;
+                SequenceNumber c1_seq = 1;
                 applyPaymentTx(app, root, c1, root_seq++, minBalance3 + 10000);
                 applyChangeTrust(app, c1, gateway, c1_seq++, "IDR", trustLineLimit);
                 applyChangeTrust(app, c1, gateway, c1_seq++, "USD", trustLineLimit);

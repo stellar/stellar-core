@@ -42,7 +42,7 @@ TEST_CASE("set options", "[tx][setoptions]")
 
     applyPaymentTx(app, root, a1, 1, app.getLedgerMaster().getMinBalance(0)+1000);
 
-    uint32_t a1seq = 1;
+    SequenceNumber a1seq = 1;
     
     SECTION("Signers")
     {

@@ -67,7 +67,7 @@ namespace stellar
 
         TransactionEnvelope& getEnvelope();
 
-        uint32 getSeqNum() { return mEnvelope.tx.seqNum; }
+        SequenceNumber getSeqNum() { return mEnvelope.tx.seqNum; }
         AccountFrame& getSourceAccount() { assert(mSigningAccount); return *mSigningAccount; }
         uint256 const& getSourceID() { return mEnvelope.tx.account; }
         void addSignature(const SecretKey& secretKey);

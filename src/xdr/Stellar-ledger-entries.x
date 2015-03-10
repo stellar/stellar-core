@@ -29,7 +29,7 @@ struct AccountEntry
 {
     uint256 accountID;
     int64 balance;
-    uint32 seqNum;  // last sequence number used for this account
+    SequenceNumber seqNum;  // last sequence number used for this account
     uint32 numSubEntries;
     uint256 *inflationDest;
     opaque thresholds[4]; // [weight of master|threshold1|threshold2|threshold3]

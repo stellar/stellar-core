@@ -16,42 +16,42 @@ SecretKey getRoot();
 
 SecretKey getAccount(const char* n);
 
-TransactionFramePtr createChangeTrust(SecretKey& from, SecretKey& to, uint32_t seq,
+TransactionFramePtr createChangeTrust(SecretKey& from, SecretKey& to, SequenceNumber seq,
     const std::string& currencyCode, int64_t limit);
 
-void applyChangeTrust(Application& app, SecretKey& from, SecretKey& to, uint32_t seq,
+void applyChangeTrust(Application& app, SecretKey& from, SecretKey& to, SequenceNumber seq,
     const std::string& currencyCode, int64_t limit, ChangeTrust::ChangeTrustResultCode result = ChangeTrust::SUCCESS);
 
-TransactionFramePtr createAllowTrust(SecretKey& from, SecretKey& trustor, uint32_t seq,
+TransactionFramePtr createAllowTrust(SecretKey& from, SecretKey& trustor, SequenceNumber seq,
     const std::string& currencyCode, bool authorize);
 
-void applyAllowTrust(Application& app, SecretKey& from, SecretKey& trustor, uint32_t seq,
+void applyAllowTrust(Application& app, SecretKey& from, SecretKey& trustor, SequenceNumber seq,
     const std::string& currencyCode, bool authorize, AllowTrust::AllowTrustResultCode result = AllowTrust::SUCCESS);
 
-TransactionFramePtr createPaymentTx(SecretKey& from, SecretKey& to, uint32_t seq, int64_t amount);
+TransactionFramePtr createPaymentTx(SecretKey& from, SecretKey& to, SequenceNumber seq, int64_t amount);
 
-void applyPaymentTx(Application& app, SecretKey& from, SecretKey& to, uint32_t seq,
+void applyPaymentTx(Application& app, SecretKey& from, SecretKey& to, SequenceNumber seq,
     int64_t amount, Payment::PaymentResultCode result = Payment::SUCCESS);
 
 TransactionFramePtr createCreditPaymentTx(SecretKey& from, SecretKey& to, Currency& ci,
-    uint32_t seq, int64_t amount);
+    SequenceNumber seq, int64_t amount);
 
 void applyCreditPaymentTx(Application& app, SecretKey& from, SecretKey& to,
-    Currency& ci, uint32_t seq, int64_t amount, Payment::PaymentResultCode result = Payment::SUCCESS);
+    Currency& ci, SequenceNumber seq, int64_t amount, Payment::PaymentResultCode result = Payment::SUCCESS);
 
 TransactionFramePtr createOfferOp(SecretKey& source, Currency& takerGets, 
-    Currency& takerPays, Price const& price,int64_t amount, uint32_t seq);
+    Currency& takerPays, Price const& price,int64_t amount, SequenceNumber seq);
 
 void applyCreateOffer(Application& app, LedgerDelta& delta, SecretKey& source, Currency& takerGets,
-    Currency& takerPays, Price const& price, int64_t amount, uint32_t seq, CreateOffer::CreateOfferResultCode result=CreateOffer::SUCCESS);
+    Currency& takerPays, Price const& price, int64_t amount, SequenceNumber seq, CreateOffer::CreateOfferResultCode result=CreateOffer::SUCCESS);
 
 TransactionFramePtr createSetOptions(SecretKey& source, AccountID *inflationDest,
     uint32_t *setFlags, uint32_t *clearFlags, KeyValue *data,
-    Thresholds *thrs, Signer *signer, uint32_t seq);
+    Thresholds *thrs, Signer *signer, SequenceNumber seq);
 
 void applySetOptions(Application& app, SecretKey& source, AccountID *inflationDest,
     uint32_t *setFlags, uint32_t *clearFlags, KeyValue *data, Thresholds *thrs,
-    Signer *signer, uint32_t seq, SetOptions::SetOptionsResultCode result = SetOptions::SUCCESS);
+    Signer *signer, SequenceNumber seq, SetOptions::SetOptionsResultCode result = SetOptions::SUCCESS);
 
 
 Currency makeCurrency(SecretKey& issuer, const std::string& code);
