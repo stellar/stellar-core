@@ -98,8 +98,8 @@ struct Transaction
     AccountID account;
     int32 maxFee;
     uint32 seqNum;
-    uint64 minLedger;
-    uint64 maxLedger;
+    uint32 minLedger;
+    uint32 maxLedger;
 
     Operation operations<100>;
 };

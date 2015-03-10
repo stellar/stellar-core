@@ -221,7 +221,7 @@ CLFMaster::forgetUnreferencedBuckets()
 }
 
 
-void CLFMaster::addBatch(Application& app, uint64_t currLedger,
+void CLFMaster::addBatch(Application& app, uint32_t currLedger,
     std::vector<LedgerEntry> const& liveEntries,
     std::vector<LedgerKey> const& deadEntries)
 {

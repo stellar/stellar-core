@@ -130,7 +130,7 @@ int64_t LedgerMaster::getMinBalance(uint32_t ownerCount)
     return (2 + ownerCount) * mCurrentLedger->mHeader.baseReserve;
 }
 
-uint64_t LedgerMaster::getLedgerNum()
+uint32_t LedgerMaster::getLedgerNum()
 {
     return mCurrentLedger->mHeader.ledgerSeq;
 }
@@ -190,7 +190,7 @@ void LedgerMaster::historyCaughtup(asio::error_code const& ec)
         bool applied = false;
         for(auto lcd : mSyncingLedgers)
         {
-            if(lcd.mLedgerIndex == mLastClosedLedger.header.ledgerSeq + 1)
+            if(lcd.mLedgerSeq == mLastClosedLedger.header.ledgerSeq + 1)
             {
                 closeLedger(lcd);
                 applied = true;

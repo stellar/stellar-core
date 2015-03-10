@@ -352,13 +352,13 @@ void TransactionFrame::storeTransaction(LedgerMaster &ledgerMaster, LedgerDelta 
 size_t
 TransactionFrame::copyTransactionsToStream(Database& db,
                                            soci::session& sess,
-                                           uint64_t ledgerSeq,
-                                           uint64_t ledgerCount,
+                                           uint32_t ledgerSeq,
+                                           uint32_t ledgerCount,
                                            XDROutputFileStream &out)
 {
     auto timer = db.getSelectTimer("txhistory");
     std::string txBody, txResult, txMeta;
-    uint64_t begin = ledgerSeq, end = ledgerSeq + ledgerCount;
+    uint32_t begin = ledgerSeq, end = ledgerSeq + ledgerCount;
     size_t n = 0;
     TransactionHistoryEntry e;
     assert(begin <= end);

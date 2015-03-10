@@ -8,7 +8,7 @@ struct LedgerHeader
     Hash txSetHash;         // the tx set that was SCP confirmed
     Hash clfHash;           // hash of the ledger state
 
-    uint64 ledgerSeq;       // sequence number of this ledger
+    uint32 ledgerSeq;       // sequence number of this ledger
     uint64 closeTime;       // network close time
 
     int64 totalCoins;       // total number of stroops in existence
@@ -70,7 +70,7 @@ struct TransactionMeta
 
 struct TransactionHistoryEntry
 {
-    uint64 ledgerSeq;
+    uint32 ledgerSeq;
     TransactionEnvelope envelope;
     TransactionResult result;
 };

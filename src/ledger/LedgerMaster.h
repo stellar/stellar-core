@@ -52,12 +52,12 @@ namespace stellar
 
         //////// GATEWAY FUNCTIONS
         // called by txherder
-        void externalizeValue(LedgerCloseData ledgerData);
+        void externalizeValue(LedgerCloseData ledgerData) override;
 
-        uint64_t getLedgerNum();
+        uint32_t getLedgerNum() override;
         int64_t getMinBalance(uint32_t ownerCount);
-        int64_t getTxFee(); // fee is a 32 bit but we use 64 to avoid overflow when doing math
-        uint64_t getCloseTime();
+        int64_t getTxFee() override; // fee is a 32 bit but we use 64 to avoid overflow when doing math
+        uint64_t getCloseTime() override;
 
         ///////
 

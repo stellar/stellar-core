@@ -119,7 +119,7 @@ using namespace std;
         return lhf;
     }
 
-    LedgerHeaderFrame::pointer LedgerHeaderFrame::loadBySequence(uint64_t seq, LedgerMaster& ledgerMaster)
+    LedgerHeaderFrame::pointer LedgerHeaderFrame::loadBySequence(uint32_t seq, LedgerMaster& ledgerMaster)
     {
         LedgerHeaderFrame::pointer lhf;
 
@@ -150,12 +150,12 @@ using namespace std;
 
     size_t LedgerHeaderFrame::copyLedgerHeadersToStream(Database& db,
                                                         soci::session& sess,
-                                                        uint64_t ledgerSeq,
-                                                        uint64_t ledgerCount,
+                                                        uint32_t ledgerSeq,
+                                                        uint32_t ledgerCount,
                                                         XDROutputFileStream& out)
     {
         auto timer = db.getSelectTimer("ledger-header-history");
-        uint64_t begin = ledgerSeq, end = ledgerSeq + ledgerCount;
+        uint32_t begin = ledgerSeq, end = ledgerSeq + ledgerCount;
         size_t n = 0;
 
         string headerEncoded;
@@ -194,7 +194,7 @@ using namespace std;
             "ledgerHash      CHARACTER(64) PRIMARY KEY,"
             "prevHash        CHARACTER(64) NOT NULL,"
             "clfHash         CHARACTER(64) NOT NULL,"
-            "ledgerSeq       BIGINT UNIQUE CHECK (ledgerSeq >= 0),"
+            "ledgerSeq       INT UNIQUE CHECK (ledgerSeq >= 0),"
             "closeTime       BIGINT NOT NULL CHECK (closeTime >= 0),"
             "data            TEXT NOT NULL"
             ");";

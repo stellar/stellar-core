@@ -34,12 +34,12 @@ namespace stellar
         void storeInsert(LedgerMaster& ledgerMaster);
 
         static LedgerHeaderFrame::pointer loadByHash(Hash const& hash, LedgerMaster& ledgerMaster);
-        static LedgerHeaderFrame::pointer loadBySequence(uint64_t seq, LedgerMaster& ledgerMaster);
+        static LedgerHeaderFrame::pointer loadBySequence(uint32_t seq, LedgerMaster& ledgerMaster);
 
         static size_t copyLedgerHeadersToStream(Database& db,
                                                 soci::session& sess,
-                                                uint64_t ledgerSeq,
-                                                uint64_t ledgerCount,
+                                                uint32_t ledgerSeq,
+                                                uint32_t ledgerCount,
                                                 XDROutputFileStream& txOut);
 
         static void dropAll(Database &db);

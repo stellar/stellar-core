@@ -489,7 +489,7 @@ Herder::valueExternalized(const uint64& slotIndex,
         mTxSetFetcher[mCurrentTxSetFetcher].clear();
 
         // Triggers sync if not already syncing.
-        LedgerCloseData ledgerData(slotIndex, externalizedSet, b.value.closeTime, b.value.baseFee);
+        LedgerCloseData ledgerData(static_cast<uint32_t>(slotIndex), externalizedSet, b.value.closeTime, b.value.baseFee);
         mApp.getLedgerGateway().externalizeValue(ledgerData);
 
         // remove all these tx from mReceivedTransactions
@@ -742,10 +742,10 @@ Herder::recvSCPEnvelope(SCPEnvelope envelope,
 
     if(mApp.getState() == Application::SYNCED_STATE)
     {
-        uint64 minLedgerSeq = ((int)mLastClosedLedger.header.ledgerSeq -
-            LEDGER_VALIDITY_BRACKET) < 0 ? 0 :
+        uint32_t minLedgerSeq = (mLastClosedLedger.header.ledgerSeq < LEDGER_VALIDITY_BRACKET) ?
+            0 :
             (mLastClosedLedger.header.ledgerSeq - LEDGER_VALIDITY_BRACKET);
-        uint64 maxLedgerSeq = mLastClosedLedger.header.ledgerSeq +
+        uint32_t maxLedgerSeq = mLastClosedLedger.header.ledgerSeq +
             LEDGER_VALIDITY_BRACKET;
 
         // If we are fully synced and the envelopes are out of our validity

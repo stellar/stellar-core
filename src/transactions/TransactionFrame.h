@@ -87,8 +87,8 @@ namespace stellar
         void storeTransaction(LedgerMaster &ledgerMaster, LedgerDelta const& delta);
         static size_t copyTransactionsToStream(Database& db,
                                                soci::session& sess,
-                                               uint64_t ledgerSeq,
-                                               uint64_t ledgerCount,
+                                               uint32_t ledgerSeq,
+                                               uint32_t ledgerCount,
                                                XDROutputFileStream& txOut);
         static void dropAll(Database &db);
 

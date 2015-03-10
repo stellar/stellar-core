@@ -63,7 +63,7 @@ class CLFMaster
 
 
     // feed a new batch of entries to the bucket list
-    void addBatch(Application& app, uint64_t currLedger,
+    void addBatch(Application& app, uint32_t currLedger,
         std::vector<LedgerEntry> const& liveEntries,
         std::vector<LedgerKey> const& deadEntries);
 

@@ -370,8 +370,8 @@ StateSnapshot::writeHistoryBlocks() const
     XDROutputFileStream ledgerOut, txOut;
     ledgerOut.open(mLedgerSnapFile->localPath_nogz());
     txOut.open(mTransactionSnapFile->localPath_nogz());
-    uint64_t count = HistoryMaster::kCheckpointFrequency;
-    uint64_t begin = mLocalState.currentLedger > count ? mLocalState.currentLedger  - count : 0;
+    uint32_t count = HistoryMaster::kCheckpointFrequency;
+    uint32_t begin = mLocalState.currentLedger > count ? mLocalState.currentLedger  - count : 0;
 
     CLOG(DEBUG, "History")
         << "Streaming " << count << " ledgers worth of history, from " << begin;
