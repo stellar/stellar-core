@@ -57,6 +57,7 @@ TEST_CASE("standalone", "[herder]")
     REQUIRE(AccountFrame::loadAccount(
         root.getPublicKey(), rootAccount, app->getDatabase()));
     
+    SequenceNumber rootSeq = getAccountSeqNum(root, *app) + 1;
     SECTION("basic ledger close on valid txs")
     {
         bool stop = false;
@@ -80,8 +81,8 @@ TEST_CASE("standalone", "[herder]")
         auto setup = [&] (const asio::error_code& error)
         {
             // create accounts
-            TransactionFramePtr txFrameA1 = createPaymentTx(root, a1, 1, paymentAmount);
-            TransactionFramePtr txFrameA2 = createPaymentTx(root, b1, 2, paymentAmount);
+            TransactionFramePtr txFrameA1 = createPaymentTx(root, a1, rootSeq++, paymentAmount);
+            TransactionFramePtr txFrameA2 = createPaymentTx(root, b1, rootSeq++, paymentAmount);
 
             REQUIRE(app->getHerderGateway().recvTransaction(txFrameA1));
             REQUIRE(app->getHerderGateway().recvTransaction(txFrameA2));

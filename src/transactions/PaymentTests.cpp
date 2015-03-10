@@ -54,8 +54,12 @@ TEST_CASE("payment", "[tx][payment]")
 
     const uint64_t paymentAmount = (uint64_t)app.getLedgerMaster().getMinBalance(0);
 
+
+    SequenceNumber rootSeq = getAccountSeqNum(root, app)+1;
     // create an account
-    applyPaymentTx(app, root, a1, 1, paymentAmount);
+    applyPaymentTx(app, root, a1, rootSeq++, paymentAmount);
+
+    SequenceNumber a1Seq = getAccountSeqNum(a1, app)+1;
     
     AccountFrame a1Account, rootAccount;
     REQUIRE(AccountFrame::loadAccount(root.getPublicKey(), rootAccount, app.getDatabase()));
@@ -75,7 +79,7 @@ TEST_CASE("payment", "[tx][payment]")
 
     SECTION("send STR to an existing account")
     {
-        applyPaymentTx(app, root, a1, 2, morePayment);
+        applyPaymentTx(app, root, a1, rootSeq++, morePayment);
         
         AccountFrame a1Account2, rootAccount2;
         REQUIRE(AccountFrame::loadAccount(root.getPublicKey(), rootAccount2, app.getDatabase()));
@@ -86,7 +90,7 @@ TEST_CASE("payment", "[tx][payment]")
 
     SECTION("send to self")
     {
-        applyPaymentTx(app, root, root, 2, morePayment);
+        applyPaymentTx(app, root, root, rootSeq++, morePayment);
 
         AccountFrame rootAccount2;
         REQUIRE(AccountFrame::loadAccount(root.getPublicKey(), rootAccount2, app.getDatabase()));
@@ -96,7 +100,7 @@ TEST_CASE("payment", "[tx][payment]")
     SECTION("send too little STR to new account (below reserve)")
     {
         LOG(INFO) << "send too little STR to new account (below reserve)";
-        applyPaymentTx(app,root, b1, 2,
+        applyPaymentTx(app,root, b1, rootSeq++,
             app.getLedgerMaster().getCurrentLedgerHeader().baseReserve -1,Payment::UNDERFUNDED);
 
         AccountFrame bAccount;
@@ -110,7 +114,7 @@ TEST_CASE("payment", "[tx][payment]")
         SECTION("credit sent to new account (no account error)")
         {
             LOG(INFO) << "credit sent to new account (no account error)";
-            applyCreditPaymentTx(app,root, b1, currency, 2, 100, Payment::NO_DESTINATION);
+            applyCreditPaymentTx(app,root, b1, currency, rootSeq++, 100, Payment::NO_DESTINATION);
 
             AccountFrame bAccount;
             REQUIRE(!AccountFrame::loadAccount(b1.getPublicKey(), bAccount, app.getDatabase()));
@@ -119,7 +123,7 @@ TEST_CASE("payment", "[tx][payment]")
         SECTION("send STR with path (not enough offers)")
         {
             LOG(INFO) << "send STR with path";
-            TransactionFramePtr txFrame2 = createPaymentTx(root, a1, 2, morePayment);
+            TransactionFramePtr txFrame2 = createPaymentTx(root, a1, rootSeq++, morePayment);
             getFirstOperation(*txFrame2).body.paymentOp().path.push_back(currency);
             LedgerDelta delta2(app.getLedgerMaster().getCurrentLedgerHeader());
             txFrame2->apply(delta2, app);
@@ -134,7 +138,7 @@ TEST_CASE("payment", "[tx][payment]")
         SECTION("credit payment with no trust")
         {
             LOG(INFO) << "credit payment with no trust";
-            applyCreditPaymentTx(app,root, a1, currency, 2, 100, Payment::NO_TRUST);
+            applyCreditPaymentTx(app,root, a1, currency, rootSeq++, 100, Payment::NO_TRUST);
             AccountFrame account;
             REQUIRE(AccountFrame::loadAccount(a1.getPublicKey(), account, app.getDatabase()));
            
@@ -144,23 +148,26 @@ TEST_CASE("payment", "[tx][payment]")
         {
             LOG(INFO) << "with trust";
 
-            applyChangeTrust(app, a1, root, 1, "IDR", 1000);
-            applyCreditPaymentTx(app, root, a1, currency, 2, 100);
+            applyChangeTrust(app, a1, root, a1Seq++, "IDR", 1000);
+            applyCreditPaymentTx(app, root, a1, currency, rootSeq++, 100);
 
             TrustFrame line;
             REQUIRE(TrustFrame::loadTrustLine(a1.getPublicKey(), currency, line, app.getDatabase()));
             REQUIRE(line.getBalance() == 100);
 
             // create b1 account
-            applyPaymentTx(app,root, b1, 3, paymentAmount);
-            applyChangeTrust(app,b1, root, 1, "IDR", 100);
-            applyCreditPaymentTx(app,a1, b1, currency, 2, 40);
-               
+            applyPaymentTx(app,root, b1, rootSeq++, paymentAmount);
+
+            SequenceNumber b1Seq = getAccountSeqNum(b1, app) + 1;
+
+            applyChangeTrust(app,b1, root, b1Seq++, "IDR", 100);
+            applyCreditPaymentTx(app,a1, b1, currency, a1Seq++, 40);
+
             REQUIRE(TrustFrame::loadTrustLine(a1.getPublicKey(), currency, line, app.getDatabase()));
             REQUIRE(line.getBalance() == 60);
             REQUIRE(TrustFrame::loadTrustLine(b1.getPublicKey(), currency, line, app.getDatabase()));
             REQUIRE(line.getBalance() == 40);
-            applyCreditPaymentTx(app,b1, root, currency, 2, 40);
+            applyCreditPaymentTx(app,b1, root, currency, b1Seq++, 40);
             REQUIRE(TrustFrame::loadTrustLine(b1.getPublicKey(), currency, line, app.getDatabase()));
             REQUIRE(line.getBalance() == 0);
         }

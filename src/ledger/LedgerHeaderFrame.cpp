@@ -46,6 +46,11 @@ using namespace std;
         return mHash;
     }
 
+    SequenceNumber LedgerHeaderFrame::getStartingSequenceNumber()
+    {
+        return static_cast<uint64_t>(mHeader.ledgerSeq) << 32;
+    }
+
     void LedgerHeaderFrame::storeInsert(LedgerMaster& ledgerMaster)
     {
         getHash();

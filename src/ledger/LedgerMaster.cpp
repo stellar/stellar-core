@@ -145,6 +145,11 @@ LedgerHeader& LedgerMaster::getCurrentLedgerHeader()
     return mCurrentLedger->mHeader;
 }
 
+LedgerHeaderFrame& LedgerMaster::getCurrentLedgerHeaderFrame()
+{
+    return *mCurrentLedger;
+}
+
 LedgerHeaderHistoryEntry& LedgerMaster::getLastClosedLedgerHeader()
 {
     return mLastClosedLedger;

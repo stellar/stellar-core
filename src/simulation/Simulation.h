@@ -74,7 +74,7 @@ class Simulation
         size_t mId;
         SecretKey mKey;
         uint64_t mBalance;
-        uint32_t mSeq;
+        SequenceNumber mSeq;
 
         TxInfo creationTransaction();
     private:
@@ -102,6 +102,7 @@ class Simulation
     chrono::seconds executeStressTest(size_t nTransactions, int injectionRatePerSec, function<TxInfo(size_t)> generatorFn);
 
     vector<accountInfoPtr> accountsOutOfSyncWithDb(); // returns the accounts that don't match
+    void SyncSequenceNumbers();
 
     string metricsSummary(string domain);
 

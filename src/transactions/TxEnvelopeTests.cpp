@@ -44,7 +44,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
     // set up world
     SecretKey root = getRoot();
     SecretKey a1 = getAccount("A");
-    int rootSeq = 1;
+    SequenceNumber rootSeq = getAccountSeqNum(root, app)+1;;
 
     const uint64_t paymentAmount = app.getLedgerMaster().getCurrentLedgerHeader().baseReserve*10;
     
@@ -80,7 +80,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
     SECTION("multisig")
     {
         applyPaymentTx(app, root, a1, rootSeq++, paymentAmount);
-        SequenceNumber a1Seq = 1;
+        SequenceNumber a1Seq = getAccountSeqNum(a1, app)+1;
 
         SecretKey s1 = getAccount("S1");
         Signer sk1(s1.getPublicKey(), 5); // below low rights
@@ -174,8 +174,8 @@ TEST_CASE("txenvelope", "[tx][envelope]")
             applyPaymentTx(app, root, a1, rootSeq++, paymentAmount);
             applyPaymentTx(app, root, b1, rootSeq++, paymentAmount);
 
-            SequenceNumber a1Seq = 1;
-            SequenceNumber b1Seq = 1;
+            SequenceNumber a1Seq = getAccountSeqNum(a1, app) + 1;
+            SequenceNumber b1Seq = getAccountSeqNum(b1, app) + 1;
 
             SECTION("single tx wrapped by different account")
             {

@@ -40,9 +40,11 @@ TEST_CASE("set options", "[tx][setoptions]")
     SecretKey root = getRoot();
     SecretKey a1 = getAccount("A");
 
-    applyPaymentTx(app, root, a1, 1, app.getLedgerMaster().getMinBalance(0)+1000);
+    SequenceNumber rootSeq = getAccountSeqNum(root, app) + 1;
 
-    SequenceNumber a1seq = 1;
+    applyPaymentTx(app, root, a1, rootSeq++, app.getLedgerMaster().getMinBalance(0)+1000);
+
+    SequenceNumber a1seq = getAccountSeqNum(a1, app)+1;
     
     SECTION("Signers")
     {
@@ -62,7 +64,7 @@ TEST_CASE("set options", "[tx][setoptions]")
                 nullptr, nullptr, nullptr, &th, &sk1, a1seq++, SetOptions::BELOW_MIN_BALANCE);
         }
 
-        applyPaymentTx(app, root, a1, 2, app.getLedgerMaster().getMinBalance(2));
+        applyPaymentTx(app, root, a1, rootSeq++, app.getLedgerMaster().getMinBalance(2));
 
         applySetOptions(app, a1, nullptr,
             nullptr, nullptr, nullptr, &th, &sk1, a1seq++);

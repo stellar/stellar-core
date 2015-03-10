@@ -51,6 +51,7 @@ using namespace std;
                 else
                 {
                     destAccount.getAccount().accountID = mPayment.destination;
+                    destAccount.getAccount().seqNum = ledgerMaster.getCurrentLedgerHeaderFrame().getStartingSequenceNumber();
                     destAccount.getAccount().balance = 0;
 
                     destAccount.storeAdd(delta, db);

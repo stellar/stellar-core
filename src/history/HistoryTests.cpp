@@ -178,13 +178,14 @@ HistoryTests::generateAndPublishHistory()
     TxSetFramePtr txSet3 = std::make_shared<TxSetFrame>();
     TxSetFramePtr txSet4 = std::make_shared<TxSetFrame>();
 
-    txSet2->add(txtest::createPaymentTx(root, bob, 1, 1000));
-    txSet3->add(txtest::createPaymentTx(root, bob, 2, 1000));
-    txSet4->add(txtest::createPaymentTx(root, bob, 3, 1000));
+    SequenceNumber rootSeq = txtest::getAccountSeqNum(root, app) + 1;
 
     lm.closeLedger(LedgerCloseData(2, txSet2, 2, 10));
     lm.closeLedger(LedgerCloseData(3, txSet3, 3, 10));
     lm.closeLedger(LedgerCloseData(4, txSet4, 4, 10));
+    txSet2->add(txtest::createPaymentTx(root, bob, rootSeq++, 1000));
+    txSet3->add(txtest::createPaymentTx(root, bob, rootSeq++, 1000));
+    txSet4->add(txtest::createPaymentTx(root, bob, rootSeq++, 1000));
 
     // At this point LCL should be 4, current ledger should be 5
     assert(lm.getLastClosedLedgerHeader().header.ledgerSeq == 4);

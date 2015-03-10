@@ -31,6 +31,8 @@ namespace stellar
 
         Hash const& getHash();
 
+        SequenceNumber getStartingSequenceNumber(); // returns the first sequence number to use for new accounts
+
         void storeInsert(LedgerMaster& ledgerMaster);
 
         static LedgerHeaderFrame::pointer loadByHash(Hash const& hash, LedgerMaster& ledgerMaster);

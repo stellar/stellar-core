@@ -43,6 +43,13 @@ SecretKey getAccount(const char* n)
     return SecretKey::fromBase58Seed(b58SeedStr);
 }
 
+SequenceNumber getAccountSeqNum(SecretKey const& k, Application &app)
+{
+    AccountFrame account;
+    REQUIRE(AccountFrame::loadAccount(k.getPublicKey(), account, app.getDatabase()));
+    return account.getSeqNum(app.getDatabase());
+}
+
 void checkTransaction(TransactionFrame& txFrame)
 {
     REQUIRE(txFrame.getResult().feeCharged == 10); // default fee

@@ -56,6 +56,8 @@ TEST_CASE("Stress test on 2 nodes, 3 accounts, 10 random transactions, 10tx/sec"
         }, 
         std::chrono::seconds(60));
 
+        simulation->SyncSequenceNumbers();
+
         auto crankingTime = simulation->executeStressTest(10, 10, [&simulation](size_t i)
         {
             return simulation->createRandomTransaction(0.5);

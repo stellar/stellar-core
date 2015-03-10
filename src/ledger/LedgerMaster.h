@@ -77,6 +77,8 @@ namespace stellar
         void abortLedgerClose();
 
         LedgerHeader& getCurrentLedgerHeader();
+        LedgerHeaderFrame& getCurrentLedgerHeaderFrame();
+
         LedgerHeaderHistoryEntry& getLastClosedLedgerHeader();
 
         Database& getDatabase();

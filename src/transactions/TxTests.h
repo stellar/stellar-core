@@ -16,6 +16,8 @@ SecretKey getRoot();
 
 SecretKey getAccount(const char* n);
 
+SequenceNumber getAccountSeqNum(SecretKey const& k, Application &app);
+
 TransactionFramePtr createChangeTrust(SecretKey& from, SecretKey& to, SequenceNumber seq,
     const std::string& currencyCode, int64_t limit);
 
