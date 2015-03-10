@@ -144,7 +144,10 @@ public:
     void expires_at(VirtualClock::time_point t);
     void expires_from_now(VirtualClock::duration d);
     void async_wait(std::function<void(asio::error_code)> const& fn);
+    void async_wait(std::function<void()> const& onSuccess, std::function<void(asio::error_code)> const& onFailure);
     void cancel();
+
+    static void onFailureNoop(const asio::error_code& error) { };
 };
 
 

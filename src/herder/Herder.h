@@ -102,13 +102,12 @@ class Herder : public HerderGateway,
     
   private:
     void removeReceivedTx(TransactionFramePtr tx);
-    void triggerNextLedger(const asio::error_code& ec);
-    void expireBallot(const asio::error_code& ec, 
-                      const uint64& slotIndex,
+    void triggerNextLedger();
+    void expireBallot(const uint64& slotIndex,
                       const SCPBallot& ballot);
 
     void startRebroadcastTimer();
-    void rebroadcast(const asio::error_code& ec);
+    void rebroadcast();
 
     // StellarBallot internal signature/verification
     void signStellarBallot(StellarBallot& b);
