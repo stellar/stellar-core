@@ -377,7 +377,8 @@ CatchupStateMachine::enterAnchoredState(HistoryArchiveState const& has)
 void
 CatchupStateMachine::enterRetryingState()
 {
-    assert(mState == CATCHUP_ANCHORED || mState == CATCHUP_FETCHING || mState == CATCHUP_APPLYING);
+    assert(mState == CATCHUP_BEGIN || mState == CATCHUP_ANCHORED ||
+           mState == CATCHUP_FETCHING || mState == CATCHUP_APPLYING);
     mState = CATCHUP_RETRYING;
     mRetryTimer.expires_from_now(std::chrono::seconds(2));
     mRetryTimer.async_wait(
