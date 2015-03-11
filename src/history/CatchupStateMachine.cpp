@@ -148,7 +148,10 @@ CatchupStateMachine::fileStateChange(asio::error_code const& ec,
         newState = FILE_CATCHUP_FAILED;
     }
     mFileInfos[name]->setState(newState);
-    enterFetchingState();
+    if (mState == CATCHUP_FETCHING)
+    {
+        enterFetchingState();
+    }
 }
 
 /**
