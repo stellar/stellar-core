@@ -341,6 +341,7 @@ LedgerMaster::closeLedgerHelper(LedgerDelta const& delta)
     mApp.getPersistentState().setState(PersistentState::kLastClosedLedger, binToHex(mCurrentLedger->getHash()));
     CLOG(INFO, "Ledger") << "Closed " << ledgerAbbrev(mCurrentLedger);
     advanceLedgerPointers();
+    mApp.getHistoryMaster().maybePublishHistory([](asio::error_code const&) {});
 }
 
 }

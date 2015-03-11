@@ -327,6 +327,26 @@ HistoryMaster::getLastClosedHistoryArchiveState() const
     return has;
 }
 
+bool
+HistoryMaster::maybePublishHistory(std::function<void(asio::error_code const&)> handler)
+{
+    uint64_t seq = mImpl->mApp.getLedgerMaster().getCurrentLedgerHeader().ledgerSeq;
+    if (seq != nextCheckpointLedger(seq))
+    {
+        return false;
+    }
+
+    if (mImpl->mPublish)
+    {
+        mImpl->mPublishSkip.Mark();
+        CLOG(WARNING, "History") << "Skipping checkpoint, publish already in progress";
+        return false;
+    }
+
+    publishHistory(handler);
+    return true;
+}
+
 void
 HistoryMaster::publishHistory(std::function<void(asio::error_code const&)> handler)
 {

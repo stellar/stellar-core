@@ -219,6 +219,13 @@ class HistoryMaster
                std::string const& hexdir,
                std::function<void(asio::error_code const&)> handler);
 
+    // Publish history if the current ledger is a multiple of
+    // kCheckpointFrequency -- equivalently, the LCL is one _less_ than a
+    // multiple of kCheckpointFrequency -- and no publish action is currently in
+    // progress. Returns true if checkpoint publication of the LCL was started
+    // (and the completion-handler queued), otherwise false.
+    bool maybePublishHistory(std::function<void(asio::error_code const&)> handler);
+
     // Checkpoint the LCL -- both the log of history from the previous checkpoint to it,
     // as well as the bucketlist of its state -- to all writable history archives.
     void publishHistory(std::function<void(asio::error_code const&)> handler);
