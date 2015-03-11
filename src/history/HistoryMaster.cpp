@@ -306,10 +306,17 @@ HistoryMaster::mkdir(std::shared_ptr<HistoryArchive const> archive,
                      std::string const& dir,
                      std::function<void(asio::error_code const&)> handler) const
 {
-    assert(archive->hasMkdirCmd());
-    auto cmd = archive->mkdirCmd(hexdir);
-    auto exit = this->mImpl->mApp.getProcessGateway().runProcess(cmd);
-    exit.async_wait(handler);
+    if (archive->hasMkdirCmd())
+    {
+        auto cmd = archive->mkdirCmd(dir);
+        auto exit = this->mImpl->mApp.getProcessGateway().runProcess(cmd);
+        exit.async_wait(handler);
+    }
+    else
+    {
+        asio::error_code ec;
+        handler(ec);
+    }
 }
 
 
