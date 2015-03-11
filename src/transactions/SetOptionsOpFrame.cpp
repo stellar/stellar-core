@@ -65,6 +65,11 @@ namespace stellar
                 }
                 if(!found)
                 {
+                    if (signers.size() == signers.max_size())
+                    {
+                        innerResult().code(SetOptions::MALFORMED);
+                        return false;
+                    }
                     if(account.balance < ledgerMaster.getMinBalance(account.numSubEntries + 1))
                     {
                         innerResult().code(SetOptions::BELOW_MIN_BALANCE);
