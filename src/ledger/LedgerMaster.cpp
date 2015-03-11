@@ -23,6 +23,7 @@
 #include "medida/meter.h"
 #include "medida/timer.h"
 #include <chrono>
+#include <sstream>
 
 /*
 The ledger module:
@@ -51,6 +52,21 @@ using namespace std;
 
 namespace stellar
 {
+
+static std::string
+ledgerAbbrev(LedgerHeaderFrame::pointer p)
+{
+    if (!p)
+    {
+        return "[empty]";
+    }
+
+    std::ostringstream oss;
+    oss << "[seq=" << p->mHeader.ledgerSeq
+        << ", hash=" << hexAbbrev(p->mHeader.hash)
+        << "]";
+    return oss.str();
+}
 
 LedgerMaster::LedgerMaster(Application& app)
     : mApp(app)
@@ -83,6 +99,7 @@ void LedgerMaster::startNewLedger()
     delta.commit();
 
     mCurrentLedger = make_shared<LedgerHeaderFrame>(genesisHeader);
+    CLOG(INFO, "Ledger") << "Established genesis ledger: " << ledgerAbbrev(mCurrentLedger);
 
     closeLedgerHelper(true, delta);
 
@@ -104,6 +121,7 @@ void LedgerMaster::loadLastKnownLedger()
         Hash lastLedgerHash = hexToBin256(lastLedger);
 
         mCurrentLedger = LedgerHeaderFrame::loadByHash(lastLedgerHash, *this);
+        CLOG(INFO, "Ledger") << "Loaded last known ledger: " << ledgerAbbrev(mCurrentLedger);
 
         if (!mCurrentLedger)
         {
