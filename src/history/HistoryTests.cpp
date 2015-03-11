@@ -183,6 +183,7 @@ HistoryTests::generateAndPublishHistory()
     app.start();
 
     auto& lm = app.getLedgerMaster();
+    auto& hm = app.getHistoryMaster();
 
     // At this point LCL should be 1, current ledger should be 2
     assert(lm.getLastClosedLedgerHeader().header.ledgerSeq == 1);
@@ -191,31 +192,29 @@ HistoryTests::generateAndPublishHistory()
     SecretKey root = txtest::getRoot();
     SecretKey bob = txtest::getAccount("bob");
 
-    TxSetFramePtr txSet2 = std::make_shared<TxSetFrame>();
-    TxSetFramePtr txSet3 = std::make_shared<TxSetFrame>();
-    TxSetFramePtr txSet4 = std::make_shared<TxSetFrame>();
+    uint32_t seq = 1;
+    uint64_t ledgerIndex = 1;
+    uint64_t closeTime = 1;
+    while (hm.getPublishStartCount() == 0)
+    {
+        // Keep sending money to bob until we have published some history about it.
+        TxSetFramePtr txSet = std::make_shared<TxSetFrame>();
+        txSet->add(txtest::createPaymentTx(root, bob, seq++, 1000));
+        lm.closeLedger(LedgerCloseData(ledgerIndex++, txSet, closeTime++, 10));
+    }
 
-    SequenceNumber rootSeq = txtest::getAccountSeqNum(root, app) + 1;
+    // At this point LCL should be 63 and we should be starting in on ledger 64...
+    assert(lm.getCurrentLedgerHeader().ledgerSeq == HistoryMaster::kCheckpointFrequency);
 
-    lm.closeLedger(LedgerCloseData(2, txSet2, 2, 10));
-    lm.closeLedger(LedgerCloseData(3, txSet3, 3, 10));
-    lm.closeLedger(LedgerCloseData(4, txSet4, 4, 10));
-    txSet2->add(txtest::createPaymentTx(root, bob, rootSeq++, 1000));
-    txSet3->add(txtest::createPaymentTx(root, bob, rootSeq++, 1000));
-    txSet4->add(txtest::createPaymentTx(root, bob, rootSeq++, 1000));
+    // Advance until we've published (or failed to!)
+    while (hm.getPublishSuccessCount() == 0)
+    {
+        CHECK(hm.getPublishFailureCount() == 0);
+        app.getClock().crank(false);
+    }
 
-    // At this point LCL should be 4, current ledger should be 5
-    assert(lm.getLastClosedLedgerHeader().header.ledgerSeq == 4);
-    assert(lm.getCurrentLedgerHeader().ledgerSeq == 5);
-
-    bool done = false;
-    app.getHistoryMaster().publishHistory(
-        [&done](asio::error_code const& ec)
-        {
-            CHECK(!ec);
-            done = true;
-        });
-    crankTillDone(done);
+    CHECK(hm.getPublishFailureCount() == 0);
+    CHECK(hm.getPublishSuccessCount() == 1);
 }
 
 TEST_CASE_METHOD(HistoryTests, "History publish", "[history]")
@@ -227,7 +226,9 @@ TEST_CASE_METHOD(HistoryTests, "History catchup", "[history]")
 {
     generateAndPublishHistory();
 
-    auto hash = app.getCLFMaster().getBucketList().getLevel(0).getCurr()->getHash();
+    auto lclSeq = app.getLedgerMaster().getLastClosedLedgerHeader().header.ledgerSeq;
+    auto lclHash = app.getLedgerMaster().getLastClosedLedgerHeader().hash;
+    auto bucket0hash = app.getCLFMaster().getBucketList().getLevel(0).getCurr()->getHash();
 
     Config cfg2(getTestConfig(1));
     Application::pointer app2 = Application::create(clock, addLocalDirHistoryArchive(dir, cfg2));
@@ -236,10 +237,11 @@ TEST_CASE_METHOD(HistoryTests, "History catchup", "[history]")
     bool done = false;
     app2->getHistoryMaster().catchupHistory(
         0,
-        app.getLedgerMaster().getCurrentLedgerHeader().ledgerSeq,
+        app2->getLedgerMaster().getCurrentLedgerHeader().ledgerSeq,
         HistoryMaster::RESUME_AT_LAST,
         [&done](asio::error_code const& ec, uint64_t nextLedger)
         {
+            LOG(INFO) << "Caught up: nextLedger = " << nextLedger;
             CHECK(!ec);
             done = true;
         });
@@ -247,7 +249,12 @@ TEST_CASE_METHOD(HistoryTests, "History catchup", "[history]")
     {
         app2->getClock().crank(false);
     }
-    CHECK(app2->getCLFMaster().getBucketByHash(hash));
-    auto hash2 = app2->getCLFMaster().getBucketList().getLevel(0).getCurr()->getHash();
-    CHECK(hash == hash2);
+
+    auto lclSeq2 = app2->getLedgerMaster().getLastClosedLedgerHeader().header.ledgerSeq;
+    auto lclHash2 = app2->getLedgerMaster().getLastClosedLedgerHeader().hash;
+    auto bucket0hash2 = app2->getCLFMaster().getBucketList().getLevel(0).getCurr()->getHash();
+
+    CHECK(lclHash == lclHash2);
+    CHECK(app2->getCLFMaster().getBucketByHash(bucket0hash));
+    CHECK(bucket0hash == bucket0hash2);
 }
