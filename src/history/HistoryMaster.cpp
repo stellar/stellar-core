@@ -295,7 +295,7 @@ HistoryArchiveState
 HistoryMaster::getLastClosedHistoryArchiveState() const
 {
     HistoryArchiveState has;
-    has.currentLedger = mImpl->mApp.getLedgerMaster().getLastClosedLedgerHeader().ledgerSeq;
+    has.currentLedger = mImpl->mApp.getLedgerMaster().getLastClosedLedgerHeader().header.ledgerSeq;
     auto &bl = mImpl->mApp.getCLFMaster().getBucketList();
     for (size_t i = 0; i < BucketList::kNumLevels; ++i)
     {

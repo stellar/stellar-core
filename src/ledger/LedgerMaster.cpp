@@ -133,21 +133,25 @@ int64_t LedgerMaster::getMinBalance(uint32_t ownerCount)
 
 uint32_t LedgerMaster::getLedgerNum()
 {
+    assert(mCurrentLedger);
     return mCurrentLedger->mHeader.ledgerSeq;
 }
 
 uint64_t LedgerMaster::getCloseTime()
 {
+    assert(mCurrentLedger);
     return mCurrentLedger->mHeader.closeTime;
 }
 
 LedgerHeader& LedgerMaster::getCurrentLedgerHeader()
 {
+    assert(mCurrentLedger);
     return mCurrentLedger->mHeader;
 }
 
 LedgerHeaderFrame& LedgerMaster::getCurrentLedgerHeaderFrame()
 {
+    assert(mCurrentLedger);
     return *mCurrentLedger;
 }
 
