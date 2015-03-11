@@ -283,7 +283,7 @@ HistoryMaster::putFile(std::shared_ptr<HistoryArchive const> archive,
                        function<void(asio::error_code const& ec)> handler) const
 {
     assert(archive->hasPutCmd());
-    auto cmd = archive->putFileCmd(filename, basename);
+    auto cmd = archive->putFileCmd(local, remote);
     auto exit = this->mImpl->mApp.getProcessGateway().runProcess(cmd);
     exit.async_wait(handler);
 }
@@ -295,7 +295,7 @@ HistoryMaster::getFile(std::shared_ptr<HistoryArchive const> archive,
                        function<void(asio::error_code const& ec)> handler) const
 {
     assert(archive->hasGetCmd());
-    auto cmd = archive->getFileCmd(basename, filename);
+    auto cmd = archive->getFileCmd(remote, local);
     auto exit = this->mImpl->mApp.getProcessGateway().runProcess(cmd);
     exit.async_wait(handler);
 }

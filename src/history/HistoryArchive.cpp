@@ -216,27 +216,27 @@ HistoryArchive::putState(Application& app,
 }
 
 std::string
-HistoryArchive::getFileCmd(std::string const& basename, std::string const& filename) const
+HistoryArchive::getFileCmd(std::string const& remote, std::string const& local) const
 {
     if (mImpl->mGetCmd.empty())
         return "";
-    return fmt::format(mImpl->mGetCmd, basename, filename);
+    return fmt::format(mImpl->mGetCmd, remote, local);
 }
 
 std::string
-HistoryArchive::putFileCmd(std::string const& filename, std::string const& basename) const
+HistoryArchive::putFileCmd(std::string const& local, std::string const& remote) const
 {
     if (mImpl->mPutCmd.empty())
         return "";
-    return fmt::format(mImpl->mPutCmd, filename, basename);
+    return fmt::format(mImpl->mPutCmd, local, remote);
 }
 
 std::string
-HistoryArchive::mkdirCmd(std::string const& dirname) const
+HistoryArchive::mkdirCmd(std::string const& remoteDir) const
 {
     if (mImpl->mMkdirCmd.empty())
         return "";
-    return fmt::format(mImpl->mMkdirCmd, dirname);
+    return fmt::format(mImpl->mMkdirCmd, remoteDir);
 }
 
 
