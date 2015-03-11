@@ -246,7 +246,12 @@ TEST_CASE_METHOD(HistoryTests, "History catchup", "[history]")
             CHECK(!ec);
             done = true;
         });
-    while (!done && !app2->getClock().getIOService().stopped())
+    while (!done &&
+           !app2->getClock().getIOService().stopped() &&
+
+           // Amusingly, app2 will also publish, when it catches up.
+           (app2->getHistoryMaster().getPublishSuccessCount() +
+            app2->getHistoryMaster().getPublishFailureCount() == 0))
     {
         app2->getClock().crank(false);
     }
