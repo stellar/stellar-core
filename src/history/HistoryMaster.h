@@ -190,34 +190,34 @@ class HistoryMaster
     // Verify that a file has a given hash.
     void verifyHash(std::string const& filename,
                     uint256 const& hash,
-                    std::function<void(asio::error_code const&)> handler);
+                    std::function<void(asio::error_code const&)> handler) const;
 
     // Gunzip a file.
     void decompress(std::string const& filename_gz,
                     std::function<void(asio::error_code const&)> handler,
-                    bool keepExisting=false);
+                    bool keepExisting=false) const;
 
     // Gzip a file.
     void compress(std::string const& filename_nogz,
                   std::function<void(asio::error_code const&)> handler,
-                  bool keepExisting=false);
+                  bool keepExisting=false) const;
 
     // Put a file to a specific archive using it's `put` command.
-    void putFile(std::shared_ptr<HistoryArchive> archive,
-                 std::string const& filename,
-                 std::string const& basename,
-                 std::function<void(asio::error_code const&)> handler);
+    void putFile(std::shared_ptr<HistoryArchive const> archive,
+                 std::string const& local,
+                 std::string const& remote,
+                 std::function<void(asio::error_code const&)> handler) const;
 
     // Get a file from a specific archive using it's `get` command.
-    void getFile(std::shared_ptr<HistoryArchive> archive,
-                 std::string const& basename,
-                 std::string const& filename,
-                 std::function<void(asio::error_code const&)> handler);
+    void getFile(std::shared_ptr<HistoryArchive const> archive,
+                 std::string const& remote,
+                 std::string const& local,
+                 std::function<void(asio::error_code const&)> handler) const;
 
     // Make a directory on a specific archive using its `mkdir` command.
-    void mkdir(std::shared_ptr<HistoryArchive> archive,
-               std::string const& hexdir,
-               std::function<void(asio::error_code const&)> handler);
+    void mkdir(std::shared_ptr<HistoryArchive const> archive,
+               std::string const& dir,
+               std::function<void(asio::error_code const&)> handler) const;
 
     // Publish history if the current ledger is a multiple of
     // kCheckpointFrequency -- equivalently, the LCL is one _less_ than a
