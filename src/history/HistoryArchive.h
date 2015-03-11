@@ -98,6 +98,14 @@ public:
     void putState(Application& app,
                   HistoryArchiveState const& s,
                   std::function<void(asio::error_code const&)> handler) const;
+
+    void putStateInDir(Application& app,
+                       HistoryArchiveState const& s,
+                       std::string const& local,
+                       std::string const& remoteDir,
+                       std::string const& remoteName,
+                       std::function<void(asio::error_code const&)> handler) const;
+
     std::string getFileCmd(std::string const& remote, std::string const& local) const;
     std::string putFileCmd(std::string const& local, std::string const& remote) const;
     std::string mkdirCmd(std::string const& remoteDir) const;
