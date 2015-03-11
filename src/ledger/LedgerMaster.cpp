@@ -102,7 +102,7 @@ void LedgerMaster::startNewLedger()
 
     LedgerDelta delta(genesisHeader);
     masterAccount.storeAdd(delta, this->getDatabase());
-    
+
     genesisHeader.baseFee = mApp.getConfig().DESIRED_BASE_FEE;
     genesisHeader.baseReserve = mApp.getConfig().DESIRED_BASE_RESERVE;
     genesisHeader.totalCoins = masterAccount.getAccount().balance;
@@ -122,10 +122,11 @@ void LedgerMaster::loadLastKnownLedger()
     string lastLedger = mApp.getPersistentState().getState(PersistentState::kLastClosedLedger);
 
     if (lastLedger.empty())
-    {  
+    {
         LOG(INFO) << "No ledger in the DB. Storing ledger 0.";
         startNewLedger();
-    } else 
+    }
+    else
     {
         LOG(INFO) << "Loading last known ledger";
         Hash lastLedgerHash = hexToBin256(lastLedger);
@@ -149,7 +150,7 @@ Database &LedgerMaster::getDatabase()
 
 int64_t LedgerMaster::getTxFee()
 {
-    return mCurrentLedger->mHeader.baseFee; 
+    return mCurrentLedger->mHeader.baseFee;
 }
 
 int64_t LedgerMaster::getMinBalance(uint32_t ownerCount)
@@ -222,11 +223,12 @@ void LedgerMaster::startCatchUp(uint64_t initLedger)
 void LedgerMaster::historyCaughtup(asio::error_code const& ec,
                                    uint64_t nextLedger)
 {
-    if(ec)
+    if (ec)
     {
-        CLOG(ERROR, "Ledger") << "Error catching up" << ec;
-    } else
-    {   
+        CLOG(ERROR, "Ledger") << "Error catching up: " << ec;
+    }
+    else
+    {
         bool applied = false;
         for(auto lcd : mSyncingLedgers)
         {
@@ -256,7 +258,7 @@ uint64_t LedgerMaster::secondsSinceLastLedgerClose()
 // called by txherder
 void LedgerMaster::closeLedger(LedgerCloseData ledgerData)
 {
-    CLOG(INFO, "Ledger")
+    CLOG(DEBUG, "Ledger")
         << "starting closeLedger() on ledgerSeq="
         << mCurrentLedger->mHeader.ledgerSeq;
 

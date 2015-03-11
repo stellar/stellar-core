@@ -447,6 +447,10 @@ PublishStateMachine::snapshotTaken(asio::error_code const& ec,
         return;
     }
 
+    CLOG(DEBUG, "History")
+        << "Publishing snapshot of ledger "
+        << snap->mLocalState.currentLedger;
+
     // Iterate over writable archives instantiating an ArchivePublisher for them
     // with a callback that returns to the PublishStateMachine and possibly
     // fires its own callback when they are all done.

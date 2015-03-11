@@ -24,8 +24,6 @@ namespace stellar
     class Database;
     class LedgerDelta;
 
-    
-
     class LedgerMaster : public LedgerGateway
     {
         LedgerHeaderHistoryEntry mLastClosedLedger;
@@ -38,7 +36,7 @@ namespace stellar
         uint64_t mLastCloseTime;
 
         void startCatchUp(uint64_t initLedger);
-        
+
         std::vector<LedgerCloseData> mSyncingLedgers;
 
         void historyCaughtup(asio::error_code const& ec, uint64_t nextLedger);
@@ -83,13 +81,11 @@ namespace stellar
 
         Database& getDatabase();
 
-		void closeLedger(LedgerCloseData ledgerData);
+        void closeLedger(LedgerCloseData ledgerData);
 
     private:
         void closeLedgerHelper(LedgerDelta const& delta);
         void advanceLedgerPointers();
-
-
     };
 }
 

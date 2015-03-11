@@ -107,7 +107,9 @@ CatchupStateMachine::enterBeginState()
     assert(mState == CATCHUP_RETRYING);
     mRetryCount = 0;
     mState = CATCHUP_BEGIN;
-    CLOG(INFO, "History") << "Catchup BEGIN";
+    CLOG(INFO, "History")
+        << "Catchup BEGIN, initLedger=" << mInitLedger
+        << ", guessed nextLedger=" << mNextLedger;
 
     mArchive = selectRandomReadableHistoryArchive();
     mArchive->getState(

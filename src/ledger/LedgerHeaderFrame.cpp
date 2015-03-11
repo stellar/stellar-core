@@ -6,6 +6,7 @@
 #include "LedgerMaster.h"
 #include "lib/json/json.h"
 #include "util/XDRStream.h"
+#include "util/Logging.h"
 #include "crypto/Base58.h"
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
@@ -180,7 +181,7 @@ using namespace std;
             LedgerHeaderFrame::pointer lhf = decodeFromData(headerEncoded);
             lhe.hash = lhf->getHash();
             lhe.header = lhf->mHeader;
-
+            CLOG(DEBUG, "Ledger") << "Streaming ledger-header " << lhe.header.ledgerSeq;
             out.writeOne(lhe);
             ++n;
             st.fetch();

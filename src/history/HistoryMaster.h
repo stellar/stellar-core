@@ -55,8 +55,6 @@
  * 98,550 per year. Counting checkpoints within a 32bit value gives 43,581 years
  * of service for the system.
  *
- *
- *
  * Each checkpoint is described by a history archive state file whose name
  * includes the checkpoint number (as a 32-bit hex string) and stored in a
  * 3-level deep directory tree of hex digit prefixes. For example, checkpoint
@@ -72,9 +70,10 @@
  * bucket/AA/BB/CC/bucket-<AABBCCDEFG...>.xdr.gz
  *
  * The first history block (containing the genesis ledger) can therefore always
- * be found in history/00/00/history-0x00000000.xdr.gz and described by
- * state/00/00/state-0x00000000.json. The buckets will all be empty in
+ * be found in history/00/00/00/history-0x00000000.xdr.gz and described by
+ * state/00/00/00/state-0x00000000.json. The buckets will all be empty in
  * that state.
+ *
  *
  * Boundary conditions and counts:
  * -------------------------------
@@ -90,7 +89,6 @@
  * now. So all ledger blocks _start on_ a multiple of 64 and run until
  * one-less-than the next multiple of 64, inclusive: [0,63], [64,127],
  * [128,191], etc.
- *
  *
  *
  * The catchup algorithm:
@@ -221,7 +219,8 @@ class HistoryMaster
                std::string const& hexdir,
                std::function<void(asio::error_code const&)> handler);
 
-    // For each writable archive, put all buckets in the CLF that have changed
+    // Checkpoint the LCL -- both the log of history from the previous checkpoint to it,
+    // as well as the bucketlist of its state -- to all writable history archives.
     void publishHistory(std::function<void(asio::error_code const&)> handler);
 
     // Run catchup, assuming `lastLedger` was the last ledger we were in sync
@@ -248,12 +247,6 @@ class HistoryMaster
 
     std::string localFilename(std::string const& basename);
 
-
-    HistoryMaster(Application& app);
-    ~HistoryMaster();
-};
-}
-
     uint64_t getPublishSkipCount();
     uint64_t getPublishStartCount();
     uint64_t getPublishSuccessCount();
@@ -263,3 +256,7 @@ class HistoryMaster
     uint64_t getCatchupSuccessCount();
     uint64_t getCatchupFailureCount();
 
+    HistoryMaster(Application& app);
+    ~HistoryMaster();
+};
+}
