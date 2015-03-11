@@ -8,6 +8,7 @@
 #include "main/Config.h"
 #include "clf/BucketList.h"
 #include "history/HistoryMaster.h"
+#include "util/Fs.h"
 #include "util/make_unique.h"
 #include "util/TmpDir.h"
 #include "util/Logging.h"
@@ -81,23 +82,23 @@ CLFMaster::getBucketDir()
 
         if (mImpl->mApp.getConfig().START_NEW_NETWORK)
         {
-            if (TmpDir::exists(d))
+            if (fs::exists(d))
             {
                 CLOG(DEBUG, "CLF") << "Deleting bucket directory for new network: " << d;
-                TmpDir::deltree(d);
+                fs::deltree(d);
             }
         }
 
-        if (!TmpDir::exists(d))
+        if (!fs::exists(d))
         {
-            if (!TmpDir::mkdir(d))
+            if (!fs::mkdir(d))
             {
                 throw std::runtime_error("Unable to create bucket directory: " + d);
             }
         }
 
         std::string lock = d + "/" + kLockFilename;
-        if (TmpDir::exists(lock))
+        if (fs::exists(lock))
         {
             std::string msg("Found existing lockfile '");
             msg += lock;
@@ -105,12 +106,12 @@ CLFMaster::getBucketDir()
             throw std::runtime_error(msg);
         }
 
-        assert(!TmpDir::exists(lock));
+        assert(!fs::exists(lock));
         {
             std::ofstream lockfile(lock);
             lockfile << 1;
         }
-        assert(TmpDir::exists(lock));
+        assert(fs::exists(lock));
         mImpl->lockedBucketDir = make_unique<std::string>(d);
     }
     return *(mImpl->lockedBucketDir);
@@ -122,9 +123,9 @@ CLFMaster::~CLFMaster()
     {
         std::string d = mImpl->mApp.getConfig().BUCKET_DIR_PATH;
         std::string lock = d + "/" + kLockFilename;
-        assert(TmpDir::exists(lock));
+        assert(fs::exists(lock));
         std::remove(lock.c_str());
-        assert(!TmpDir::exists(lock));
+        assert(!fs::exists(lock));
     }
 }
 

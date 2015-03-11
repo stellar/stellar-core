@@ -9,14 +9,7 @@
 #include "util/make_unique.h"
 #include "crypto/Random.h"
 #include "crypto/Hex.h"
-
-#ifdef _WIN32
-#include <direct.h>
-#else
-#include <sys/stat.h>
-#endif
-
-#include <cstdio>
+#include "util/Fs.h"
 
 namespace stellar
 {
@@ -28,7 +21,7 @@ TmpDir::TmpDir(std::string const& prefix)
     {
         std::string hex = binToHex(randomBytes(8));
         std::string name = prefix + "-" + hex;
-        if (TmpDir::mkdir(name))
+        if (fs::mkdir(name))
         {
             mPath = make_unique<std::string>(name);
             break;
@@ -51,126 +44,11 @@ TmpDir::getName() const
     return *mPath;
 }
 
-#ifdef _WIN32
-#include <Windows.h>
-#include <Shellapi.h>
-
-bool
-TmpDir::exists(std::string const& name)
-{
-    if(name.empty()) return false;
-
-    if (GetFileAttributes(name.c_str()) == INVALID_FILE_ATTRIBUTES)
-    {
-        if (GetLastError() == ERROR_FILE_NOT_FOUND)
-        {
-            return false;
-        }
-        else
-        {
-            std::string msg("error accessing path: ");
-            throw std::runtime_error(msg + name);
-        }
-    }
-    return true;
-}
-
-bool
-TmpDir::mkdir(std::string const& name)
-{
-    bool b = _mkdir(name.c_str()) == 0;
-    LOG(DEBUG) << "TmpDir " << (b ? "created " : "failed to create ") << name;
-    return b;
-}
-
-void
-TmpDir::deltree(std::string const& d)
-{
-    SHFILEOPSTRUCT s = {0};
-    std::string from = d;
-    from.push_back('\0');
-    from.push_back('\0');
-    s.wFunc = FO_DELETE;
-    s.pFrom = from.data();
-    s.fFlags = FOF_NO_UI;
-    if (SHFileOperation(&s) != 0)
-    {
-        throw std::runtime_error("SHFileOperation failed in deltree");
-    }
-}
-
-#else
-#include <ftw.h>
-#include <unistd.h>
-#include <sys/stat.h>
-#include <cerrno>
-
-bool
-TmpDir::exists(std::string const& name)
-{
-    struct stat buf;
-    if (stat(name.c_str(), &buf) == -1)
-    {
-        if (errno == ENOENT)
-        {
-            return false;
-        }
-        else
-        {
-            std::string msg("error accessing path: ");
-            throw std::runtime_error(msg + name);
-        }
-    }
-    return true;
-}
-
-bool
-TmpDir::mkdir(std::string const& name)
-{
-    bool b = ::mkdir(name.c_str(), 0700) == 0;
-    LOG(DEBUG) << "TmpDir " << (b ? "created " : "failed to create ") << name;
-    return b;
-}
-
-int
-callback(char const* name,
-         struct stat const* st,
-         int flag,
-         struct FTW *ftw)
-{
-    LOG(DEBUG) << "TmpDir deleting: " << name;
-    if (flag == FTW_DP)
-    {
-        if (rmdir(name) != 0)
-        {
-            throw std::runtime_error("rmdir failed");
-        }
-    }
-    else
-    {
-        if (std::remove(name) != 0)
-        {
-            throw std::runtime_error("std::remove failed");
-        }
-    }
-    return 0;
-}
-
-void
-TmpDir::deltree(std::string const& d)
-{
-    if (nftw(d.c_str(), callback, FOPEN_MAX, FTW_DEPTH) != 0)
-    {
-        throw std::runtime_error("nftw failed in deltree");
-    }
-}
-#endif
-
 TmpDir::~TmpDir()
 {
     if (mPath)
     {
-        deltree(*mPath);
+        fs::deltree(*mPath);
         LOG(DEBUG) << "TmpDir deleted: " << *mPath;
         mPath.reset();
     }
@@ -180,7 +58,7 @@ TmpDirMaster::TmpDirMaster(std::string const& root)
     : mRoot(root)
 {
     clean();
-    TmpDir::mkdir(root);
+    fs::mkdir(root);
 }
 
 TmpDirMaster::~TmpDirMaster()
@@ -191,10 +69,10 @@ TmpDirMaster::~TmpDirMaster()
 void
 TmpDirMaster::clean()
 {
-    if (TmpDir::exists(mRoot))
+    if (fs::exists(mRoot))
     {
         LOG(DEBUG) << "TmpDirMaster cleaning: " << mRoot;
-        TmpDir::deltree(mRoot);
+        fs::deltree(mRoot);
     }
 }
 

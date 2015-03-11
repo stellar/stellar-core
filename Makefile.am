@@ -82,6 +82,7 @@ FMT_SRCS =                                      \
     src/transactions/TransactionFrame.cpp       \
     src/transactions/TxEnvelopeTests.cpp        \
     src/transactions/TxTests.cpp                \
+    src/util/Fs.cpp                             \
     src/util/Logging.cpp                        \
     src/util/Math.cpp                           \
     src/util/Timer.cpp                          \
@@ -154,6 +155,7 @@ FMT_HDRS =                                      \
     src/transactions/SetOptionsOpFrame.h          \
     src/transactions/TransactionFrame.h         \
     src/transactions/TxTests.h                  \
+    src/util/Fs.h                               \
     src/util/Logging.h                          \
     src/util/Math.h                             \
     src/util/Timer.h                            \

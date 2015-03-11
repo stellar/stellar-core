@@ -6,7 +6,7 @@
 #include "generated/StellardVersion.h"
 #include "util/Logging.h"
 #include "util/Timer.h"
-#include "util/TmpDir.h"
+#include "util/Fs.h"
 #include "lib/util/getopt.h"
 #include "main/test.h"
 #include "main/Config.h"
@@ -260,7 +260,7 @@ main(int argc, char* const* argv)
         }
 
         Config cfg;
-        if (TmpDir::exists(cfgFile))
+        if (fs::exists(cfgFile))
         {
             cfg.load(cfgFile);
             Logging::setLoggingToFile(cfg.LOG_FILE_PATH);

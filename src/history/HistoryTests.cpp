@@ -11,6 +11,7 @@
 #include "clf/BucketList.h"
 #include "crypto/Hex.h"
 #include "lib/catch.hpp"
+#include "util/Fs.h"
 #include "util/Logging.h"
 #include "util/Timer.h"
 #include "util/TmpDir.h"
@@ -106,14 +107,14 @@ TEST_CASE_METHOD(HistoryTests, "HistoryMaster::compress", "[history]")
         [&done, &fname, &hm](asio::error_code const& ec)
         {
             std::string compressed = fname + ".gz";
-            CHECK(!TmpDir::exists(fname));
-            CHECK(TmpDir::exists(compressed));
+            CHECK(!fs::exists(fname));
+            CHECK(fs::exists(compressed));
             hm.decompress(
                 compressed,
                 [&done, &fname, compressed](asio::error_code const& ec)
                 {
-                    CHECK(TmpDir::exists(fname));
-                    CHECK(!TmpDir::exists(compressed));
+                    CHECK(fs::exists(fname));
+                    CHECK(!fs::exists(compressed));
                     done = true;
                 });
         });
@@ -245,7 +246,12 @@ TEST_CASE_METHOD(HistoryTests, "History catchup", "[history]")
             CHECK(!ec);
             done = true;
         });
-    while (!done && !app2->getClock().getIOService().stopped())
+    while (!done &&
+           !app2->getClock().getIOService().stopped() &&
+
+           // Amusingly, app2 will also publish, when it catches up.
+           (app2->getHistoryMaster().getPublishSuccessCount() +
+            app2->getHistoryMaster().getPublishFailureCount() == 0))
     {
         app2->getClock().crank(false);
     }

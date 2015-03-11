@@ -6,8 +6,10 @@
 #include "clf/BucketList.h"
 #include "crypto/Hex.h"
 #include "history/HistoryMaster.h"
+#include "history/FileTransferInfo.h"
 #include "process/ProcessGateway.h"
 #include "main/Application.h"
+#include "util/Fs.h"
 #include "util/make_unique.h"
 #include "util/Logging.h"
 #include <cereal/cereal.hpp>
@@ -57,9 +59,43 @@ HistoryArchiveState::load(std::string const& inFile)
 }
 
 std::string
-HistoryArchiveState::basename()
+HistoryArchiveState::baseName()
 {
     return std::string("stellar-history.json");
+}
+
+std::string
+HistoryArchiveState::wellKnownRemoteDir()
+{
+    // The RFC 5785 dir
+    return std::string(".well-known");
+}
+
+std::string
+HistoryArchiveState::wellKnownRemoteName()
+{
+    return wellKnownRemoteDir() + "/" + baseName();
+}
+
+std::string
+HistoryArchiveState::remoteDir(uint32_t snapshotNumber)
+{
+    return fs::remoteDir("history",
+                         fs::hexStr(snapshotNumber));
+}
+
+std::string
+HistoryArchiveState::remoteName(uint32_t snapshotNumber)
+{
+    return fs::remoteName("history",
+                          fs::hexStr(snapshotNumber),
+                          "json");
+}
+
+std::string
+HistoryArchiveState::localName(Application& app, std::string const& archiveName)
+{
+    return app.getHistoryMaster().localFilename(archiveName + "-" + baseName());
 }
 
 std::vector<std::string>
@@ -144,42 +180,34 @@ HistoryArchive::getName() const
     return mImpl->mName;
 }
 
-
-std::string
-HistoryArchive::qualifiedFilename(Application& app,
-                                  std::string const& basename) const
-{
-    return app.getHistoryMaster().localFilename(mImpl->mName + "-" + basename);
-}
-
 void
 HistoryArchive::getState(Application& app,
                          std::function<void(asio::error_code const&,
                                             HistoryArchiveState const&)> handler) const
 {
-    auto basename = HistoryArchiveState::basename();
-    auto filename = qualifiedFilename(app, basename);
-    auto cmd = getFileCmd(basename, filename);
+    auto remote = HistoryArchiveState::wellKnownRemoteName();
+    auto local = HistoryArchiveState::localName(app, mImpl->mName);
+    auto cmd = getFileCmd(remote, local);
     auto exit = app.getProcessGateway().runProcess(cmd);
     auto archiveName = mImpl->mName;
     exit.async_wait(
-        [handler, filename, basename, archiveName](asio::error_code const& ec)
+        [handler, local, remote, archiveName](asio::error_code const& ec)
         {
             HistoryArchiveState has;
             if (ec)
             {
                 CLOG(WARNING, "History")
-                    << "failed to get " << basename
+                    << "failed to get " << remote
                     << " from history archive '" << archiveName << "'";
             }
             else
             {
                 CLOG(DEBUG, "History")
-                    << "got " << basename
+                    << "got " << remote
                     << " from history archive '" << archiveName << "'";
-                has.load(filename);
+                has.load(local);
             }
-            std::remove(filename.c_str());
+            std::remove(local.c_str());
             handler(ec, has);
         });
 }
@@ -189,54 +217,107 @@ HistoryArchive::putState(Application& app,
                          HistoryArchiveState const& s,
                          std::function<void(asio::error_code const&)> handler) const
 {
-    auto basename = HistoryArchiveState::basename();
-    auto filename = qualifiedFilename(app, basename);
-    s.save(filename);
-    auto cmd = putFileCmd(filename, basename);
-    auto exit = app.getProcessGateway().runProcess(cmd);
+    auto local = HistoryArchiveState::localName(app, mImpl->mName);
+    s.save(local);
+    uint32_t snap = s.currentLedger / HistoryMaster::kCheckpointFrequency;
+    auto self = shared_from_this();
+    putStateInDir(
+        app, s, local,
+        HistoryArchiveState::remoteDir(snap),
+        HistoryArchiveState::remoteName(snap),
+        [&app, s, self, local, handler](asio::error_code const& ec)
+        {
+            if (ec)
+            {
+                std::remove(local.c_str());
+                handler(ec);
+            }
+            else
+            {
+                self->putStateInDir(app, s, local,
+                                    HistoryArchiveState::wellKnownRemoteDir(),
+                                    HistoryArchiveState::wellKnownRemoteName(),
+                                    [local, handler](asio::error_code const& ec2)
+                                    {
+                                        std::remove(local.c_str());
+                                        handler(ec2);
+                                    });
+            }
+        });
+}
+
+void
+HistoryArchive::putStateInDir(Application& app,
+                              HistoryArchiveState const& s,
+                              std::string const& local,
+                              std::string const& remoteDir,
+                              std::string const& remoteName,
+                              std::function<void(asio::error_code const&)> handler) const
+{
+    auto &hm = app.getHistoryMaster();
     auto archiveName = mImpl->mName;
-    exit.async_wait(
-        [handler, basename, filename, archiveName](asio::error_code const& ec)
+    auto self = shared_from_this();
+
+    hm.mkdir(
+        self, remoteDir,
+        [&hm, self, local,
+         remoteDir, remoteName,
+         handler, archiveName](asio::error_code const& ec)
         {
             if (ec)
             {
                 CLOG(WARNING, "History")
-                    << "failed to put " << basename
+                    << "failed to make directory "
+                    << remoteDir
                     << " in history archive '" << archiveName << "'";
+                handler(ec);
             }
             else
             {
-                CLOG(DEBUG, "History")
-                    << "put " << basename
-                    << " in history archive '" << archiveName << "'";
+                hm.putFile(
+                    self, local, remoteName,
+                    [remoteName, archiveName, handler](asio::error_code const& ec2)
+                    {
+                        if (ec2)
+                        {
+                            CLOG(DEBUG, "History")
+                                << "failed to put " << remoteName
+                                << " in history archive '" << archiveName << "'";
+                        }
+                        else
+                        {
+                            CLOG(DEBUG, "History")
+                                << "put " << remoteName
+                                << " in history archive '" << archiveName << "'";
+                        }
+                        handler(ec2);
+                    });
             }
-            std::remove(filename.c_str());
-            handler(ec);
         });
 }
 
 std::string
-HistoryArchive::getFileCmd(std::string const& basename, std::string const& filename) const
+HistoryArchive::getFileCmd(std::string const& remote, std::string const& local) const
 {
     if (mImpl->mGetCmd.empty())
         return "";
-    return fmt::format(mImpl->mGetCmd, basename, filename);
+    return fmt::format(mImpl->mGetCmd, remote, local);
 }
 
 std::string
-HistoryArchive::putFileCmd(std::string const& filename, std::string const& basename) const
+HistoryArchive::putFileCmd(std::string const& local, std::string const& remote) const
 {
     if (mImpl->mPutCmd.empty())
         return "";
-    return fmt::format(mImpl->mPutCmd, filename, basename);
+    return fmt::format(mImpl->mPutCmd, local, remote);
 }
 
 std::string
-HistoryArchive::mkdirCmd(std::string const& dirname) const
+HistoryArchive::mkdirCmd(std::string const& remoteDir) const
 {
     if (mImpl->mMkdirCmd.empty())
         return "";
-    return fmt::format(mImpl->mMkdirCmd, dirname);
+    return fmt::format(mImpl->mMkdirCmd, remoteDir);
 }
 
 

@@ -17,10 +17,6 @@ public:
     TmpDir(TmpDir&&);
     ~TmpDir();
     std::string const& getName() const;
-
-    static bool exists(std::string const& path);
-    static void deltree(std::string const& path);
-    static bool mkdir(std::string const& path);
 };
 
 class TmpDirMaster

@@ -15,6 +15,7 @@
 #include "lib/catch.hpp"
 #include "main/Application.h"
 #include "main/test.h"
+#include "util/Fs.h"
 #include "util/Logging.h"
 #include "util/Timer.h"
 #include "util/TmpDir.h"
@@ -29,7 +30,7 @@ using namespace stellar;
 static std::ifstream::pos_type
 fileSize(std::string const& name)
 {
-    assert(TmpDir::exists(name));
+    assert(fs::exists(name));
     std::ifstream in(name, std::ifstream::ate | std::ifstream::binary);
     return in.tellg();
 }
@@ -313,9 +314,9 @@ TEST_CASE("clfmaster ownership", "[clf][ownershipclf]")
 
     // Drop it too.
     std::string filename = b1->getFilename();
-    CHECK(TmpDir::exists(filename));
+    CHECK(fs::exists(filename));
     b1.reset();
-    CHECK(!TmpDir::exists(filename));
+    CHECK(!fs::exists(filename));
 
     // Try adding a bucket to the CLFMaster's bucketlist
     auto& bl = app->getCLFMaster().getBucketList();
@@ -339,9 +340,9 @@ TEST_CASE("clfmaster ownership", "[clf][ownershipclf]")
 
     // Drop it again.
     filename = b1->getFilename();
-    CHECK(TmpDir::exists(filename));
+    CHECK(fs::exists(filename));
     b1.reset();
-    CHECK(!TmpDir::exists(filename));
+    CHECK(!fs::exists(filename));
 
 
 

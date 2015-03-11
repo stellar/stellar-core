@@ -175,7 +175,7 @@ HistoryMaster::nextCheckpointLedger(uint64_t ledger)
 void
 HistoryMaster::verifyHash(std::string const& filename,
                           uint256 const& hash,
-                          std::function<void(asio::error_code const&)> handler)
+                          std::function<void(asio::error_code const&)> handler) const
 {
     checkNoGzipSuffix(filename);
     Application& app = this->mImpl->mApp;
@@ -212,7 +212,7 @@ HistoryMaster::verifyHash(std::string const& filename,
 void
 HistoryMaster::decompress(std::string const& filename_gz,
                           std::function<void(asio::error_code const&)> handler,
-                          bool keepExisting)
+                          bool keepExisting) const
 {
     checkGzipSuffix(filename_gz);
     std::string filename = filename_gz.substr(0, filename_gz.size() - 3);
@@ -246,7 +246,7 @@ HistoryMaster::decompress(std::string const& filename_gz,
 void
 HistoryMaster::compress(std::string const& filename_nogz,
                         std::function<void(asio::error_code const&)> handler,
-                        bool keepExisting)
+                        bool keepExisting) const
 {
     checkNoGzipSuffix(filename_nogz);
     std::string filename = filename_nogz + ".gz";
@@ -277,39 +277,46 @@ HistoryMaster::compress(std::string const& filename_nogz,
 }
 
 void
-HistoryMaster::putFile(std::shared_ptr<HistoryArchive> archive,
-                       string const& filename,
-                       string const& basename,
-                       function<void(asio::error_code const& ec)> handler)
+HistoryMaster::putFile(std::shared_ptr<HistoryArchive const> archive,
+                       string const& local,
+                       string const& remote,
+                       function<void(asio::error_code const& ec)> handler) const
 {
     assert(archive->hasPutCmd());
-    auto cmd = archive->putFileCmd(filename, basename);
+    auto cmd = archive->putFileCmd(local, remote);
     auto exit = this->mImpl->mApp.getProcessGateway().runProcess(cmd);
     exit.async_wait(handler);
 }
 
 void
-HistoryMaster::getFile(std::shared_ptr<HistoryArchive> archive,
-                       string const& basename,
-                       string const& filename,
-                       function<void(asio::error_code const& ec)> handler)
+HistoryMaster::getFile(std::shared_ptr<HistoryArchive const> archive,
+                       string const& remote,
+                       string const& local,
+                       function<void(asio::error_code const& ec)> handler) const
 {
     assert(archive->hasGetCmd());
-    auto cmd = archive->getFileCmd(basename, filename);
+    auto cmd = archive->getFileCmd(remote, local);
     auto exit = this->mImpl->mApp.getProcessGateway().runProcess(cmd);
     exit.async_wait(handler);
 }
 
 
 void
-HistoryMaster::mkdir(std::shared_ptr<HistoryArchive> archive,
-                     std::string const& hexdir,
-                     std::function<void(asio::error_code const&)> handler)
+HistoryMaster::mkdir(std::shared_ptr<HistoryArchive const> archive,
+                     std::string const& dir,
+                     std::function<void(asio::error_code const&)> handler) const
 {
-    assert(archive->hasMkdirCmd());
-    auto cmd = archive->mkdirCmd(hexdir);
-    auto exit = this->mImpl->mApp.getProcessGateway().runProcess(cmd);
-    exit.async_wait(handler);
+    if (archive->hasMkdirCmd())
+    {
+        auto cmd = archive->mkdirCmd(dir);
+        auto exit = this->mImpl->mApp.getProcessGateway().runProcess(cmd);
+        exit.async_wait(handler);
+    }
+    else
+    {
+        asio::error_code ec;
+        handler(ec);
+    }
 }
 
 

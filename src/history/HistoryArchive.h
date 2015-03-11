@@ -3,6 +3,7 @@
 #include <cereal/cereal.hpp>
 #include <string>
 #include <system_error>
+#include <memory>
 
 namespace asio
 {
@@ -42,7 +43,12 @@ struct HistoryArchiveState
 
     HistoryArchiveState();
 
-    static std::string basename();
+    static std::string baseName();
+    static std::string wellKnownRemoteDir();
+    static std::string wellKnownRemoteName();
+    static std::string remoteDir(uint32_t snapshotNumber);
+    static std::string remoteName(uint32_t snapshotNumber);
+    static std::string localName(Application& app, std::string const& archiveName);
 
     // Return vector of buckets to fetch/apply to turn 'other' into 'this'. Vector
     // is sorted from largest/highest-numbered bucket to smallest/lowest, and
@@ -69,7 +75,7 @@ struct HistoryArchiveState
     void load(std::string const& inFile);
 };
 
-class HistoryArchive
+class HistoryArchive : public std::enable_shared_from_this<HistoryArchive>
 {
     class Impl;
     std::unique_ptr<Impl> mImpl;
@@ -92,9 +98,17 @@ public:
     void putState(Application& app,
                   HistoryArchiveState const& s,
                   std::function<void(asio::error_code const&)> handler) const;
-    std::string getFileCmd(std::string const& basename, std::string const& filename) const;
-    std::string putFileCmd(std::string const& filename, std::string const& basename) const;
-    std::string mkdirCmd(std::string const& dirname) const;
+
+    void putStateInDir(Application& app,
+                       HistoryArchiveState const& s,
+                       std::string const& local,
+                       std::string const& remoteDir,
+                       std::string const& remoteName,
+                       std::function<void(asio::error_code const&)> handler) const;
+
+    std::string getFileCmd(std::string const& remote, std::string const& local) const;
+    std::string putFileCmd(std::string const& local, std::string const& remote) const;
+    std::string mkdirCmd(std::string const& remoteDir) const;
 };
 
 }
