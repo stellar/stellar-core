@@ -57,7 +57,9 @@ TransactionEnvelope& TransactionFrame::getEnvelope()
 
 void TransactionFrame::addSignature(const SecretKey& secretKey)
 {
-    uint512 sig = secretKey.sign(getContentsHash());
+    DecoratedSignature sig;
+    sig.signature = secretKey.sign(getContentsHash());
+    memcpy(&sig.hint, secretKey.getPublicKey().data(), sizeof(sig.hint));
     mEnvelope.signatures.push_back(sig);
 }
 
@@ -73,12 +75,17 @@ bool TransactionFrame::checkSignature(AccountFrame& account, int32_t neededWeigh
 
     // calculate the weight of the signatures
     int totalWeight = 0;
-    for(auto sig : getEnvelope().signatures)
+
+    for (int i = 0; i < getEnvelope().signatures.size(); i++)
     {
+        auto const& sig = getEnvelope().signatures[i];
+
         for(auto it = keyWeights.begin(); it != keyWeights.end(); it++)
         {
-            if(PublicKey::verifySig((*it).pubKey, sig, contentsHash))
+            if((std::memcmp(sig.hint.data(), (*it).pubKey.data(), sizeof(sig.hint)) == 0) &&
+                PublicKey::verifySig((*it).pubKey, sig.signature, contentsHash))
             {
+                mUsedSignatures[i] = true;
                 totalWeight += (*it).weight;
                 if(totalWeight >= neededWeight)
                     return true;
@@ -211,6 +218,7 @@ bool TransactionFrame::checkValid(Application &app, bool applying)
                 return false;
             }
         }
+        return checkAllSignaturesUsed();
     }
 
     return true;
@@ -248,15 +256,34 @@ void TransactionFrame::setSourceAccountPtr(AccountFrame::pointer signingAccount)
     mSigningAccount = signingAccount;
 }
 
-bool TransactionFrame::checkValid(Application& app)
+void TransactionFrame::resetState()
 {
     mSigningAccount.reset();
+    mUsedSignatures = std::vector<bool>(mEnvelope.signatures.size());
+}
+
+bool TransactionFrame::checkAllSignaturesUsed()
+{
+    for (auto sigb : mUsedSignatures)
+    {
+        if (!sigb)
+        {
+            mResult.result.code(txBAD_AUTH);
+            return false;
+        }
+    }
+    return true;
+}
+
+bool TransactionFrame::checkValid(Application& app)
+{
+    resetState();
     return checkValid(app, false);
 }
 
 bool TransactionFrame::apply(LedgerDelta& delta, Application& app)
 {
-    mSigningAccount.reset();
+    resetState();
     LedgerMaster &lm = app.getLedgerMaster();
     if (!checkValid(app, true))
     {
@@ -284,6 +311,12 @@ bool TransactionFrame::apply(LedgerDelta& delta, Application& app)
 
         if (!errorEncountered)
         {
+            if (!checkAllSignaturesUsed())
+            {
+                // this should never happen: malformed transaction should not be accepted by nodes
+                return false;
+            }
+
             sqlTx.commit();
             thisTxDelta.commit();
         }

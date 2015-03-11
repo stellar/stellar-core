@@ -2,6 +2,12 @@
 
 namespace stellar {
 
+struct DecoratedSignature
+{
+    opaque hint[4];     // first 4 bytes of the public key, used as a hint
+    uint512 signature;  // actual signature
+};
+
 enum OperationType
 {
     PAYMENT,
@@ -107,7 +113,7 @@ struct Transaction
 struct TransactionEnvelope
 {
     Transaction tx;
-    uint512 signatures<20>;
+    DecoratedSignature signatures<20>;
 };
 
 struct ClaimOfferAtom

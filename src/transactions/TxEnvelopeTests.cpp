@@ -65,11 +65,35 @@ TEST_CASE("txenvelope", "[tx][envelope]")
         SECTION("bad signature")
         {
             txFrame = createPaymentTx(root, a1, rootSeq++, paymentAmount);
-            {
-                uint512 badSig;
-                badSig.fill(123);
-                txFrame->getEnvelope().signatures[0] = badSig;
-            }
+            txFrame->getEnvelope().signatures[0].signature.fill(123);
+
+            txFrame->apply(delta, app);
+
+            REQUIRE(txFrame->getResultCode() == txBAD_AUTH);
+        }
+        SECTION("bad signature (wrong hint)")
+        {
+            txFrame = createPaymentTx(root, a1, rootSeq++, paymentAmount);
+            txFrame->getEnvelope().signatures[0].hint.fill(1);
+
+            txFrame->apply(delta, app);
+
+            REQUIRE(txFrame->getResultCode() == txBAD_AUTH);
+        }
+        SECTION("too many signatures (signed twice)")
+        {
+            txFrame = createPaymentTx(root, a1, rootSeq++, paymentAmount);
+            txFrame->addSignature(a1);
+
+            txFrame->apply(delta, app);
+
+            REQUIRE(txFrame->getResultCode() == txBAD_AUTH);
+        }
+        SECTION("too many signatures (unused signature)")
+        {
+            txFrame = createPaymentTx(root, a1, rootSeq++, paymentAmount);
+            SecretKey bogus = getAccount("bogus");
+            txFrame->addSignature(bogus);
 
             txFrame->apply(delta, app);
 
@@ -218,6 +242,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                     TransactionFramePtr tx_b = createOfferOp(b1, idrCur, idrCur, price, 1000, b1Seq);
 
                     // build a new tx based off tx_a and tx_b
+                    tx_b->getEnvelope().tx.operations[0].sourceAccount.activate() = b1.getPublicKey();
                     tx_a->getEnvelope().tx.operations.push_back(tx_b->getEnvelope().tx.operations[0]);
                     tx_a->getEnvelope().tx.maxFee *= 2;
                     TransactionFramePtr tx = TransactionFrame::makeTransactionFromWire(tx_a->getEnvelope());
@@ -245,8 +270,9 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                     // this payment is too large
                     TransactionFramePtr tx_b = createPaymentTx(b1, root, b1Seq++, paymentAmount);
 
+                    tx_b->getEnvelope().tx.operations[0].sourceAccount.activate() = b1.getPublicKey();
                     tx_a->getEnvelope().tx.operations.push_back(tx_b->getEnvelope().tx.operations[0]);
-                    tx_a->getEnvelope().tx.maxFee *= 2; 
+                    tx_a->getEnvelope().tx.maxFee *= 2;
                     TransactionFramePtr tx = TransactionFrame::makeTransactionFromWire(tx_a->getEnvelope());
 
                     tx->getEnvelope().signatures.clear();
@@ -272,6 +298,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                 {
                     TransactionFramePtr tx_b = createPaymentTx(b1, root, b1Seq++, 1000);
 
+                    tx_b->getEnvelope().tx.operations[0].sourceAccount.activate() = b1.getPublicKey();
                     tx_a->getEnvelope().tx.operations.push_back(tx_b->getEnvelope().tx.operations[0]);
                     tx_a->getEnvelope().tx.maxFee *= 2; 
                     TransactionFramePtr tx = TransactionFrame::makeTransactionFromWire(tx_a->getEnvelope());
