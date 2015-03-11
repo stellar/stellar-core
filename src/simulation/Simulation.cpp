@@ -221,30 +221,42 @@ Simulation::crankForAtLeast(VirtualClock::duration seconds)
 void 
 Simulation::crankUntil(function<bool()> const & predicate, VirtualClock::duration timeout)
 {
-    bool stop = false;
-    auto stopIt = [&](const asio::error_code& error)
+    bool timedOut = false;
+    VirtualTimer timeoutTimer(*mIdleApp);
+    timeoutTimer.expires_from_now(timeout);
+    timeoutTimer.async_wait([&]()
     {
-        // TODO: the VirtualTimer triggers the timeout event even when
-        //       additional events remain on the event loop.
-        /*
-        if (!error)
-            stop = true;
-        */
+        timedOut = true;
+    }, &VirtualTimer::onFailureNoop);
+
+    bool done = false;
+    VirtualTimer checkTimer(*mIdleApp);
+    function<void()> checkDone = [&]()
+    {
+        if (predicate())
+            done = true;
+        else
+        {
+            checkTimer.expires_from_now(chrono::seconds(5));
+            checkTimer.async_wait(checkDone, &VirtualTimer::onFailureNoop);
+        }
     };
 
-    VirtualTimer checkTimer(*mIdleApp);
+    checkTimer.expires_from_now(chrono::seconds(5));
+    checkTimer.async_wait(checkDone, &VirtualTimer::onFailureNoop);
 
-    checkTimer.expires_from_now(timeout);
-    checkTimer.async_wait(stopIt);
-
-    while (!stop)
+    while (true)
     {
         if (crankAllNodes() == 0)
+        {
+            checkDone();
             this_thread::sleep_for(chrono::milliseconds(50));
-        if (predicate())
+        }
+        if (timedOut)
+            throw runtime_error("Simulation timed out");
+        if (done)
             return;
     }
-    throw new runtime_error("Simulation timed out");
 }
 
 
