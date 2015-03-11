@@ -272,6 +272,7 @@ void LedgerMaster::closeLedger(LedgerCloseData ledgerData)
 
     vector<TransactionFramePtr> txs;
     ledgerData.mTxSet->sortForApply(txs);
+    int index = 0;
     for(auto tx : txs)
     {
         auto txTime = mTransactionApply.TimeScope();
@@ -284,7 +285,7 @@ void LedgerMaster::closeLedger(LedgerCloseData ledgerData)
             if(tx->apply(delta, mApp))
             {
                 successfulTX.add(tx);
-                tx->storeTransaction(*this, delta);
+                tx->storeTransaction(*this, delta, ++index);
                 delta.commit();
             }
             else

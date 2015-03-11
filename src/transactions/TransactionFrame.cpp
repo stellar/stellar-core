@@ -346,7 +346,7 @@ StellarMessage TransactionFrame::toStellarMessage()
     return msg;
 }
 
-void TransactionFrame::storeTransaction(LedgerMaster &ledgerMaster, LedgerDelta const& delta)
+void TransactionFrame::storeTransaction(LedgerMaster &ledgerMaster, LedgerDelta const& delta, int txindex)
 {
     auto txBytes(xdr::xdr_to_opaque(mEnvelope));
     auto txResultBytes(xdr::xdr_to_opaque(mResult));
@@ -369,10 +369,10 @@ void TransactionFrame::storeTransaction(LedgerMaster &ledgerMaster, LedgerDelta 
 
     auto timer = ledgerMaster.getDatabase().getInsertTimer("txhistory");
     soci::statement st = (ledgerMaster.getDatabase().getSession().prepare <<
-        "INSERT INTO TxHistory (txID, ledgerSeq, TxBody, TxResult, TxMeta) VALUES "\
-        "(:id,:seq,:txb,:txres,:entries)",
+        "INSERT INTO TxHistory (txID, ledgerSeq, txindex, TxBody, TxResult, TxMeta) VALUES "
+        "(:id,:seq,:txindex,:txb,:txres,:meta)",
         soci::use(txIDString), soci::use(ledgerMaster.getCurrentLedgerHeader().ledgerSeq),
-        soci::use(txBody), soci::use(txResult), soci::use(meta));
+        soci::use(txindex), soci::use(txBody), soci::use(txResult), soci::use(meta));
 
     st.execute(true);
 
@@ -398,7 +398,7 @@ TransactionFrame::copyTransactionsToStream(Database& db,
     soci::statement st =
         (sess.prepare <<
          "SELECT ledgerSeq, TxBody, TxResult FROM TxHistory "\
-          "WHERE ledgerSeq >= :begin AND ledgerSeq < :end ",
+          "WHERE ledgerSeq >= :begin AND ledgerSeq < :end ORDER BY ledgerSeq ASC, txID ASC",
          soci::into(e.ledgerSeq),
          soci::into(txBody), soci::into(txResult),
          soci::use(begin), soci::use(end));
@@ -430,10 +430,12 @@ void TransactionFrame::dropAll(Database &db)
         "CREATE TABLE TxHistory ("
         "txID          CHARACTER(64) NOT NULL,"
         "ledgerSeq     INT NOT NULL CHECK (ledgerSeq >= 0),"
+        "txindex         INT NOT NULL,"
         "TxBody        TEXT NOT NULL,"
         "TxResult      TEXT NOT NULL,"
         "TxMeta        TEXT NOT NULL,"
-        "PRIMARY KEY (txID, ledgerSeq)"
+        "PRIMARY KEY (txID, ledgerSeq),"
+        "UNIQUE      (ledgerSeq, txindex)"
         ")";
 
 }
