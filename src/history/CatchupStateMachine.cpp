@@ -32,8 +32,16 @@ CatchupStateMachine::kRetryLimit = 16;
 typedef FileTransferInfo<FileCatchupState> FileCatchupInfo;
 
 CatchupStateMachine::CatchupStateMachine(Application& app,
-                                         std::function<void(asio::error_code const&)> handler)
+                                         uint64_t lastLedger,
+                                         uint64_t initLedger,
+                                         HistoryMaster::ResumeMode mode,
+                                         std::function<void(asio::error_code const& ec,
+                                                            uint64_t nextLedger)> handler)
     : mApp(app)
+    , mLastLedger(lastLedger)
+    , mInitLedger(initLedger)
+    , mNextLedger(HistoryMaster::nextCheckpointLedger(initLedger))
+    , mMode(mode)
     , mEndHandler(handler)
     , mState(CATCHUP_RETRYING)
     , mRetryCount(0)
@@ -42,7 +50,7 @@ CatchupStateMachine::CatchupStateMachine(Application& app,
 {
     // We start up in CATCHUP_RETRYING as that's the only valid
     // named pre-state for CATCHUP_BEGIN.
-    mLocalState = app.getHistoryMaster().getCurrentHistoryArchiveState();
+    mLocalState = app.getHistoryMaster().getLastClosedHistoryArchiveState();
     enterBeginState();
 }
 
@@ -99,7 +107,9 @@ CatchupStateMachine::enterBeginState()
     assert(mState == CATCHUP_RETRYING);
     mRetryCount = 0;
     mState = CATCHUP_BEGIN;
-    CLOG(INFO, "History") << "Catchup BEGIN";
+    CLOG(INFO, "History")
+        << "Catchup BEGIN, initLedger=" << mInitLedger
+        << ", guessed nextLedger=" << mNextLedger;
 
     mArchive = selectRandomReadableHistoryArchive();
     mArchive->getState(
@@ -282,7 +292,7 @@ CatchupStateMachine::enterFetchingState()
 void
 CatchupStateMachine::enterAnchoredState(HistoryArchiveState const& has)
 {
-    assert(mState == CATCHUP_BEGIN);
+    assert(mState == CATCHUP_BEGIN || mState == CATCHUP_RETRYING);
     mState = CATCHUP_ANCHORED;
     mArchiveState = has;
 
@@ -389,7 +399,8 @@ CatchupStateMachine::enterRetryingState()
         });
 }
 
-void CatchupStateMachine::enterApplyingState()
+void
+CatchupStateMachine::enterApplyingState()
 {
     assert(mState == CATCHUP_FETCHING);
     mState = CATCHUP_APPLYING;
@@ -401,70 +412,90 @@ void CatchupStateMachine::enterApplyingState()
     // to confirm that it's part of the trusted chain of history we want
     // to catch up with. Currently it applies blindly.
 
-
-    // FIXME seriously: buckets should be directly applied iff we're doing
-    // catchup in a way that loses history; at the moment (wip) we only support
-    // full history-replay catchup.
-
-    if (false)
+    if (mMode == HistoryMaster::RESUME_AT_NEXT)
     {
-        auto& bl = mApp.getCLFMaster().getBucketList();
-        auto n = BucketList::kNumLevels;
-        bool applying = false;
+        // In RESUME_AT_NEXT mode we're applying the _state_ at mNextLedger
+        // without any history replay.
+        applyBucketsAtLedger(mNextLedger);
+    }
+    else
+    {
+        // In RESUME_AT_LAST mode we're applying the _log_ of history from
+        // mLastLedger through mNextLedger, without any reconstitution.
+        assert(mMode == HistoryMaster::RESUME_AT_LAST);
+        applyHistoryFromLedger(mLastLedger);
 
-        // Apply buckets in reverse order, oldest bucket to new. Once we apply
-        // one bucket, apply all buckets newer as well.
-        for (auto i = mArchiveState.currentBuckets.rbegin();
-             i != mArchiveState.currentBuckets.rend(); i++)
-        {
-            --n;
-            BucketLevel& existingLevel = bl.getLevel(n);
-
-            if (applying ||
-                i->snap != binToHex(existingLevel.getSnap()->getHash()))
-            {
-                std::shared_ptr<Bucket> b;
-                if (i->snap.find_first_not_of('0') == std::string::npos)
-                {
-                    b = std::make_shared<Bucket>();
-                }
-                else
-                {
-                    b = mBuckets[i->snap];
-                }
-                assert(b);
-                CLOG(DEBUG, "History") << "Applying bucket " << b->getFilename()
-                                       << " to ledger as CLF 'snap' for level " << n;
-                b->apply(db);
-                existingLevel.setSnap(b);
-                applying = true;
-            }
-
-            if (applying ||
-                i->curr != binToHex(existingLevel.getCurr()->getHash()))
-            {
-                std::shared_ptr<Bucket> b;
-                if (i->curr.find_first_not_of('0') == std::string::npos)
-                {
-                    b = std::make_shared<Bucket>();
-                }
-                else
-                {
-                    b = mBuckets[i->curr];
-                }
-                assert(b);
-                CLOG(DEBUG, "History") << "Applying bucket " << b->getFilename()
-                                       << " to ledger as CLF 'curr' for level " << n;
-                b->apply(db);
-                existingLevel.setCurr(b);
-                applying = true;
-            }
-        }
     }
 
-    // Now apply any history log entries after the bucket-state ledger
-    CLOG(DEBUG, "History") << "Replaying contents of " << mHeaderInfos.size()
-                           << " transaction-history files";
+    sqltx.commit();
+    enterEndState();
+}
+
+void
+CatchupStateMachine::applyBucketsAtLedger(uint64_t ledgerNum)
+{
+    auto& db = mApp.getDatabase();
+    auto& bl = mApp.getCLFMaster().getBucketList();
+    auto n = BucketList::kNumLevels;
+    bool applying = false;
+
+    CLOG(INFO, "History") << "Applying buckets at ledger " << ledgerNum;
+
+    // Apply buckets in reverse order, oldest bucket to new. Once we apply
+    // one bucket, apply all buckets newer as well.
+    for (auto i = mArchiveState.currentBuckets.rbegin();
+         i != mArchiveState.currentBuckets.rend(); i++)
+    {
+        --n;
+        BucketLevel& existingLevel = bl.getLevel(n);
+
+        if (applying ||
+            i->snap != binToHex(existingLevel.getSnap()->getHash()))
+        {
+            std::shared_ptr<Bucket> b;
+            if (i->snap.find_first_not_of('0') == std::string::npos)
+            {
+                b = std::make_shared<Bucket>();
+            }
+            else
+            {
+                b = mBuckets[i->snap];
+            }
+            assert(b);
+            CLOG(DEBUG, "History") << "Applying bucket " << b->getFilename()
+                                   << " to ledger as CLF 'snap' for level " << n;
+            b->apply(db);
+            existingLevel.setSnap(b);
+            applying = true;
+        }
+
+        if (applying ||
+            i->curr != binToHex(existingLevel.getCurr()->getHash()))
+        {
+            std::shared_ptr<Bucket> b;
+            if (i->curr.find_first_not_of('0') == std::string::npos)
+            {
+                b = std::make_shared<Bucket>();
+            }
+            else
+            {
+                b = mBuckets[i->curr];
+            }
+            assert(b);
+            CLOG(DEBUG, "History") << "Applying bucket " << b->getFilename()
+                                   << " to ledger as CLF 'curr' for level " << n;
+            b->apply(db);
+            existingLevel.setCurr(b);
+            applying = true;
+        }
+    }
+}
+
+void
+CatchupStateMachine::applyHistoryFromLedger(uint64_t ledgerNum)
+{
+    CLOG(INFO, "History") << "Replaying contents of " << mHeaderInfos.size()
+                          << " transaction-history files from ledger " << ledgerNum;
 
     auto& lm = mApp.getLedgerMaster();
     for (auto pair : mHeaderInfos)
@@ -560,10 +591,6 @@ void CatchupStateMachine::enterApplyingState()
             }
         }
     }
-
-    sqltx.commit();
-
-    enterEndState();
 }
 
 void CatchupStateMachine::enterEndState()
@@ -571,8 +598,8 @@ void CatchupStateMachine::enterEndState()
     assert(mState == CATCHUP_APPLYING);
     mState = CATCHUP_END;
     CLOG(DEBUG, "History")
-        << "Completed catchup from '" << mArchive->getName() << "'";
-    mEndHandler(mError);
+        << "Completed catchup from '" << mArchive->getName() << "', at nextLedger=" << mNextLedger;
+    mEndHandler(mError, mNextLedger);
 }
 
 

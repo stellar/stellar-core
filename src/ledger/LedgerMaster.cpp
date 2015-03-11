@@ -23,6 +23,7 @@
 #include "medida/meter.h"
 #include "medida/timer.h"
 #include <chrono>
+#include <sstream>
 
 /*
 The ledger module:
@@ -46,10 +47,38 @@ catching up to network:
 
 */
 using std::placeholders::_1;
+using std::placeholders::_2;
 using namespace std;
 
 namespace stellar
 {
+
+static std::string
+ledgerAbbrev(LedgerHeader const& header, uint256 const& hash)
+{
+    std::ostringstream oss;
+    oss << "[seq=" << header.ledgerSeq
+        << ", hash=" << hexAbbrev(hash)
+        << "]";
+    return oss.str();
+}
+
+static std::string
+ledgerAbbrev(LedgerHeaderFrame::pointer p)
+{
+    if (!p)
+    {
+        return "[empty]";
+    }
+    return ledgerAbbrev(p->mHeader, p->getHash());
+}
+
+static std::string
+ledgerAbbrev(LedgerHeaderHistoryEntry he)
+{
+    return ledgerAbbrev(he.header, he.hash);
+}
+
 
 LedgerMaster::LedgerMaster(Application& app)
     : mApp(app)
@@ -73,7 +102,7 @@ void LedgerMaster::startNewLedger()
 
     LedgerDelta delta(genesisHeader);
     masterAccount.storeAdd(delta, this->getDatabase());
-    
+
     genesisHeader.baseFee = mApp.getConfig().DESIRED_BASE_FEE;
     genesisHeader.baseReserve = mApp.getConfig().DESIRED_BASE_RESERVE;
     genesisHeader.totalCoins = masterAccount.getAccount().balance;
@@ -82,9 +111,8 @@ void LedgerMaster::startNewLedger()
     delta.commit();
 
     mCurrentLedger = make_shared<LedgerHeaderFrame>(genesisHeader);
-
-    closeLedgerHelper(true, delta);
-
+    CLOG(INFO, "Ledger") << "Established genesis ledger, closing";
+    closeLedgerHelper(delta);
 }
 
 void LedgerMaster::loadLastKnownLedger()
@@ -94,24 +122,24 @@ void LedgerMaster::loadLastKnownLedger()
     string lastLedger = mApp.getPersistentState().getState(PersistentState::kLastClosedLedger);
 
     if (lastLedger.empty())
-    {  
+    {
         LOG(INFO) << "No ledger in the DB. Storing ledger 0.";
         startNewLedger();
-    } else 
+    }
+    else
     {
         LOG(INFO) << "Loading last known ledger";
         Hash lastLedgerHash = hexToBin256(lastLedger);
 
         mCurrentLedger = LedgerHeaderFrame::loadByHash(lastLedgerHash, *this);
+        CLOG(INFO, "Ledger") << "Loaded last known ledger: " << ledgerAbbrev(mCurrentLedger);
 
         if (!mCurrentLedger)
         {
             throw std::runtime_error("Could not load ledger from database");
         }
 
-        LedgerDelta delta(mCurrentLedger->mHeader);
-
-        closeLedgerHelper(false, delta);
+        advanceLedgerPointers();
     }
 }
 
@@ -122,7 +150,7 @@ Database &LedgerMaster::getDatabase()
 
 int64_t LedgerMaster::getTxFee()
 {
-    return mCurrentLedger->mHeader.baseFee; 
+    return mCurrentLedger->mHeader.baseFee;
 }
 
 int64_t LedgerMaster::getMinBalance(uint32_t ownerCount)
@@ -132,21 +160,25 @@ int64_t LedgerMaster::getMinBalance(uint32_t ownerCount)
 
 uint32_t LedgerMaster::getLedgerNum()
 {
+    assert(mCurrentLedger);
     return mCurrentLedger->mHeader.ledgerSeq;
 }
 
 uint64_t LedgerMaster::getCloseTime()
 {
+    assert(mCurrentLedger);
     return mCurrentLedger->mHeader.closeTime;
 }
 
 LedgerHeader& LedgerMaster::getCurrentLedgerHeader()
 {
+    assert(mCurrentLedger);
     return mCurrentLedger->mHeader;
 }
 
 LedgerHeaderFrame& LedgerMaster::getCurrentLedgerHeaderFrame()
 {
+    assert(mCurrentLedger);
     return *mCurrentLedger;
 }
 
@@ -171,31 +203,42 @@ void LedgerMaster::externalizeValue(LedgerCloseData ledgerData)
             CLOG(DEBUG, "Ledger") << "Missed a ledger while trying to catch up.";
         } else
         {  // start trying to catchup
-            startCatchUp();
+            startCatchUp(ledgerData.mLedgerSeq);
         }
     }
 }
 
 
-void LedgerMaster::startCatchUp()
+void LedgerMaster::startCatchUp(uint64_t initLedger)
 {
     mApp.setState(Application::CATCHING_UP_STATE);
     mApp.getHistoryMaster().catchupHistory(
-        std::bind(&LedgerMaster::historyCaughtup, this, _1));
+        mLastClosedLedger.header.ledgerSeq,
+        initLedger,
+        HistoryMaster::RESUME_AT_LAST,
+        std::bind(&LedgerMaster::historyCaughtup, this, _1, _2));
 
 }
 
-void LedgerMaster::historyCaughtup(asio::error_code const& ec)
+void LedgerMaster::historyCaughtup(asio::error_code const& ec,
+                                   uint64_t nextLedger)
 {
-    if(ec)
+    if (ec)
     {
-        CLOG(ERROR, "Ledger") << "Error catching up" << ec;
-    } else
-    {   
+        CLOG(ERROR, "Ledger") << "Error catching up: " << ec;
+    }
+    else
+    {
         bool applied = false;
         for(auto lcd : mSyncingLedgers)
         {
-            if(lcd.mLedgerSeq == mLastClosedLedger.header.ledgerSeq + 1)
+            if (lcd.mLedgerSeq <= nextLedger)
+            {
+                assert(lcd.mLedgerSeq != mLastClosedLedger.header.ledgerSeq + 1);
+                continue;
+            }
+
+            if (lcd.mLedgerSeq == mLastClosedLedger.header.ledgerSeq + 1)
             {
                 closeLedger(lcd);
                 applied = true;
@@ -215,7 +258,7 @@ uint64_t LedgerMaster::secondsSinceLastLedgerClose()
 // called by txherder
 void LedgerMaster::closeLedger(LedgerCloseData ledgerData)
 {
-    CLOG(INFO, "Ledger")
+    CLOG(DEBUG, "Ledger")
         << "starting closeLedger() on ledgerSeq="
         << mCurrentLedger->mHeader.ledgerSeq;
 
@@ -258,7 +301,7 @@ void LedgerMaster::closeLedger(LedgerCloseData ledgerData)
     ledgerDelta.commit();
     mCurrentLedger->mHeader.baseFee = ledgerData.mBaseFee;
     mCurrentLedger->mHeader.closeTime = ledgerData.mCloseTime;
-    closeLedgerHelper(true, ledgerDelta);
+    closeLedgerHelper(ledgerDelta);
     txscope.commit();
 
     // Notify ledger close to other components.
@@ -266,41 +309,39 @@ void LedgerMaster::closeLedger(LedgerCloseData ledgerData)
     mApp.getOverlayGateway().ledgerClosed(mLastClosedLedger);
 }
 
-
-// LATER: maybe get rid of the updateCurrent condition unless more happens if it is false
-// helper function that updates the various hashes in the current ledger header
-// and switches to a new ledger
-void LedgerMaster::closeLedgerHelper(bool updateCurrent, LedgerDelta const& delta)
+void
+LedgerMaster::advanceLedgerPointers()
 {
-    mLastCloseTime = mApp.timeNow();
-
-    delta.markMeters(mApp);
-    if (updateCurrent)
-    {
-        mApp.getCLFMaster().addBatch(mApp,
-            mCurrentLedger->mHeader.ledgerSeq,
-            delta.getLiveEntries(), delta.getDeadEntries());
-
-        mApp.getCLFMaster().snapshotLedger(mCurrentLedger->mHeader);
-
-        // TODO: compute hashes in header
-        mCurrentLedger->mHeader.txSetHash.fill(1);
-        mCurrentLedger->storeInsert(*this);
-
-        mApp.getPersistentState().setState(PersistentState::kLastClosedLedger, binToHex(mCurrentLedger->getHash()));
-    }
-
     CLOG(INFO, "Ledger")
-        << "closeLedgerHelper() closed ledgerSeq="
-        << mCurrentLedger->mHeader.ledgerSeq
-        << " with hash="
-        << binToHex(mCurrentLedger->getHash());
-  
+        << "Advancing LCL: " << ledgerAbbrev(mLastClosedLedger)
+        << " -> " << ledgerAbbrev(mCurrentLedger);
+
     mLastClosedLedger.hash = mCurrentLedger->getHash();
     mLastClosedLedger.header = mCurrentLedger->mHeader;
-
     mCurrentLedger = make_shared<LedgerHeaderFrame>(mLastClosedLedger);
+    CLOG(INFO, "Ledger")
+        << "New current ledger: seq=" << mCurrentLedger->mHeader.ledgerSeq;
 }
 
- 
+void
+LedgerMaster::closeLedgerHelper(LedgerDelta const& delta)
+{
+    mLastCloseTime = mApp.timeNow();
+    delta.markMeters(mApp);
+    mApp.getCLFMaster().addBatch(mApp,
+                                 mCurrentLedger->mHeader.ledgerSeq,
+                                 delta.getLiveEntries(), delta.getDeadEntries());
+
+    mApp.getCLFMaster().snapshotLedger(mCurrentLedger->mHeader);
+
+    // TODO: compute hashes in header
+    mCurrentLedger->mHeader.txSetHash.fill(1);
+    mCurrentLedger->storeInsert(*this);
+
+    mApp.getPersistentState().setState(PersistentState::kLastClosedLedger, binToHex(mCurrentLedger->getHash()));
+    CLOG(INFO, "Ledger") << "Closed " << ledgerAbbrev(mCurrentLedger);
+    advanceLedgerPointers();
+    mApp.getHistoryMaster().maybePublishHistory([](asio::error_code const&) {});
+}
+
 }

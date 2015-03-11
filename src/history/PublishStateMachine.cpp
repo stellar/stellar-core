@@ -335,7 +335,7 @@ PublishStateMachine::PublishStateMachine(Application& app,
 
 StateSnapshot::StateSnapshot(Application& app)
     : mApp(app)
-    , mLocalState(app.getHistoryMaster().getCurrentHistoryArchiveState())
+    , mLocalState(app.getHistoryMaster().getLastClosedHistoryArchiveState())
     , mSnapDir(app.getTmpDirMaster().tmpDir("snapshot"))
     , mSnapSess(app.getDatabase().canUsePool()
                ? make_unique<soci::session>(app.getDatabase().getPool())
@@ -446,6 +446,10 @@ PublishStateMachine::snapshotTaken(asio::error_code const& ec,
         mEndHandler(ec);
         return;
     }
+
+    CLOG(DEBUG, "History")
+        << "Publishing snapshot of ledger "
+        << snap->mLocalState.currentLedger;
 
     // Iterate over writable archives instantiating an ArchivePublisher for them
     // with a callback that returns to the PublishStateMachine and possibly

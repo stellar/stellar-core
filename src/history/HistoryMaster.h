@@ -55,12 +55,6 @@
  * 98,550 per year. Counting checkpoints within a 32bit value gives 43,581 years
  * of service for the system.
  *
- * When catching up, the system chooses an anchor ledger and attempts to download
- * the state at that anchor as well as all history _after_ that anchor. The node
- * catching-up might therefore have to wait as long as a single checkpoint cycle
- * in order to acquire history it is missing. It simply waits and retries until
- * the history becomes available.
- *
  * Each checkpoint is described by a history archive state file whose name
  * includes the checkpoint number (as a 32-bit hex string) and stored in a
  * 3-level deep directory tree of hex digit prefixes. For example, checkpoint
@@ -76,9 +70,89 @@
  * bucket/AA/BB/CC/bucket-<AABBCCDEFG...>.xdr.gz
  *
  * The first history block (containing the genesis ledger) can therefore always
- * be found in history/00/00/history-0x00000000.xdr.gz and described by
- * state/00/00/state-0x00000000.json. The buckets will all be empty in
+ * be found in history/00/00/00/history-0x00000000.xdr.gz and described by
+ * state/00/00/00/state-0x00000000.json. The buckets will all be empty in
  * that state.
+ *
+ *
+ * Boundary conditions and counts:
+ * -------------------------------
+ *
+ * There is no ledger 0 -- that's the sequence number of a _fictional_ ledger
+ * with no content, before "ledger 1, the genesis ledger" -- so the initial
+ * ledger block (block 0x00000000) has 63 "real" ledger objects in it, not 64 as
+ * in all subsequent blocks. We could, instead, shift all arithmetic in the
+ * system to "count from 1" and have ledger blocks run from [1,64] and [65,128]
+ * and so forth; but the disadvantages of propagating counts-from-1 arithmetic
+ * all through the system seem worse than the disadvantage of having to
+ * special-case the first history block, so we stick with "counting from 0" for
+ * now. So all ledger blocks _start on_ a multiple of 64 and run until
+ * one-less-than the next multiple of 64, inclusive: [0,63], [64,127],
+ * [128,191], etc.
+ *
+ *
+ * The catchup algorithm:
+ * ----------------------
+ *
+ * When catching up, it's useful to denote the ledgers involved symbolically.
+ * Consider the following timeline:
+ *
+ *
+ *       [==========|.......|========|=======|......]
+ *    GENESIS     LAST    RESUME   INIT    NEXT    TIP
+ *                                   |              |
+ *                                   [-- buffered --]
+ *                                       (in mem)
+ *
+ * The network's view of time begins at ledger GENESIS and, sometime thereafter,
+ * we assume this peer lost synchronization with its neighbour peers at ledger
+ * LAST. Catchup is then concerned with the points that happen after then:
+ * RESUME, INIT, NEXT and TIP. The following explains the logic involving these
+ * 4 points:
+ *
+ * The desynchronized peer commences catchup at some ledger INIT, when it
+ * realizes INIT > LAST+1 and that it is "out of sync". This begins "catchup
+ * mode", but we expect that during catchup TIP -- the consensus view of the
+ * other peers -- will continue advancing beyond INIT. The peer therefore
+ * buffers new ledger-close events during catchup, as TIP advances. This set of
+ * ledgers -- the segment [INIT, TIP] -- is stored in memory, in the
+ * LedgerMaster (::mSyncingLedgers) and extended as SCP hears of new closes,
+ * until catchup is complete.
+ *
+ * The catchup system then rounds up from INIT to NEXT, which is the next
+ * checkpoint after INIT that it can find on a history archive. It will pause
+ * until it can find one; this accounts for a delay up to the duration of a
+ * checkpoint (~5 minutes).
+ *
+ * Depending on how it's invoked, the catchup system will then usually define
+ * RESUME as either equal to NEXT or LAST, or in unusual cases some ledger
+ * between the two. RESUME is the ledger at which the ledger state is
+ * reconstituted "directly" from the bucket list, and from which hisory blocks
+ * are replayed thereafter. It is therefore, practically, a kind of "new
+ * beginning of history". At least the history that will be contiguously seen
+ * on-hand on this peer.
+ *
+ * Therefore: if the peer is serving public API consumers that expect a
+ * complete, uninterrupted view of history from LAST to the present, it will
+ * define RESUME=LAST and replay all history blocks since LAST. If on the other
+ * hand the peer is interested in a quick catchup and does not want to serve
+ * contiguous history records to its clients, or if too much time has passed
+ * since LAST for this to be reasonable, it may define RESUME=NEXT and replay
+ * the absolute least history it can, probably only the stuff buffered in
+ * memory during catchup.
+ *
+ * If RESUME=LAST, no buckets need to be downloaded and the system can simply
+ * download history blocks; if RESUME=NEXT, no history blocks need to be
+ * downloaded and the system it can simply download buckets. In theory the
+ * system can be invoked with RESUME at some other value between LAST and NEXT
+ * but in practice we expect these two modes to be the majority of uses.
+ *
+ * Once the blocks and/or buckets required are obtained, history is
+ * reconstituted and/or replayed as required, and control calls back the
+ * provided handler, with the value of NEXT as an argument. The handler should
+ * then drop any ledgers <= NEXT that it has buffered, replay those ledgers
+ * between NEXT and TIP exclusive, and declare itself "caught up".
+ *
  */
 
 namespace asio
@@ -101,7 +175,17 @@ class HistoryMaster
 
   public:
 
+    enum ResumeMode
+    {
+        RESUME_AT_LAST,
+        RESUME_AT_NEXT
+    };
+
+    // Checkpoints are made every kCheckpointFrequency ledgers.
     static const uint32_t kCheckpointFrequency;
+
+    // Given a ledger, tell when the next checkpoint will occur.
+    static uint64_t nextCheckpointLedger(uint64_t ledger);
 
     // Verify that a file has a given hash.
     void verifyHash(std::string const& filename,
@@ -135,18 +219,34 @@ class HistoryMaster
                std::string const& hexdir,
                std::function<void(asio::error_code const&)> handler);
 
-    // For each writable archive, put all buckets in the CLF that have changed
+    // Publish history if the current ledger is a multiple of
+    // kCheckpointFrequency -- equivalently, the LCL is one _less_ than a
+    // multiple of kCheckpointFrequency -- and no publish action is currently in
+    // progress. Returns true if checkpoint publication of the LCL was started
+    // (and the completion-handler queued), otherwise false.
+    bool maybePublishHistory(std::function<void(asio::error_code const&)> handler);
+
+    // Checkpoint the LCL -- both the log of history from the previous checkpoint to it,
+    // as well as the bucketlist of its state -- to all writable history archives.
     void publishHistory(std::function<void(asio::error_code const&)> handler);
 
-    // Pick a readable archive and set the bucketlist to its content.
-    void catchupHistory(std::function<void(asio::error_code const&)> handler);
+    // Run catchup, assuming `lastLedger` was the last ledger we were in sync
+    // for and we've just heard `initLedger` from the network. Mode can be
+    // RESUME_AT_LAST, meaning replay history from last to present, or
+    // RESUME_AT_NEXT, meaning snap to the next state possible and discard
+    // history. See larger comment above for more detail.
+    void catchupHistory(uint64_t lastLedger,
+                        uint64_t initLedger,
+                        ResumeMode mode,
+                        std::function<void(asio::error_code const& ec,
+                                           uint64_t nextLedger)> handler);
 
     // Call posted after a worker thread has finished taking a snapshot; calls
     // PublishStateMachine::snapshotTaken iff state machine is live.
     void snapshotTaken(asio::error_code const&,
                        std::shared_ptr<StateSnapshot>);
 
-    HistoryArchiveState getCurrentHistoryArchiveState() const;
+    HistoryArchiveState getLastClosedHistoryArchiveState() const;
 
     std::string const& getTmpDir();
 
@@ -154,10 +254,16 @@ class HistoryMaster
 
     std::string localFilename(std::string const& basename);
 
+    uint64_t getPublishSkipCount();
+    uint64_t getPublishStartCount();
+    uint64_t getPublishSuccessCount();
+    uint64_t getPublishFailureCount();
+
+    uint64_t getCatchupStartCount();
+    uint64_t getCatchupSuccessCount();
+    uint64_t getCatchupFailureCount();
 
     HistoryMaster(Application& app);
     ~HistoryMaster();
 };
 }
-
-
