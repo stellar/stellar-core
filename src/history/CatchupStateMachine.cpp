@@ -50,7 +50,7 @@ CatchupStateMachine::CatchupStateMachine(Application& app,
 {
     // We start up in CATCHUP_RETRYING as that's the only valid
     // named pre-state for CATCHUP_BEGIN.
-    mLocalState = app.getHistoryMaster().getCurrentHistoryArchiveState();
+    mLocalState = app.getHistoryMaster().getLastClosedHistoryArchiveState();
     enterBeginState();
 }
 

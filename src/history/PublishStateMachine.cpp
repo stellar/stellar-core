@@ -335,7 +335,7 @@ PublishStateMachine::PublishStateMachine(Application& app,
 
 StateSnapshot::StateSnapshot(Application& app)
     : mApp(app)
-    , mLocalState(app.getHistoryMaster().getCurrentHistoryArchiveState())
+    , mLocalState(app.getHistoryMaster().getLastClosedHistoryArchiveState())
     , mSnapDir(app.getTmpDirMaster().tmpDir("snapshot"))
     , mSnapSess(app.getDatabase().canUsePool()
                ? make_unique<soci::session>(app.getDatabase().getPool())

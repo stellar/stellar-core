@@ -292,10 +292,10 @@ HistoryMaster::mkdir(std::shared_ptr<HistoryArchive> archive,
 
 
 HistoryArchiveState
-HistoryMaster::getCurrentHistoryArchiveState() const
+HistoryMaster::getLastClosedHistoryArchiveState() const
 {
     HistoryArchiveState has;
-    has.currentLedger = mImpl->mApp.getLedgerMaster().getLedgerNum();
+    has.currentLedger = mImpl->mApp.getLedgerMaster().getLastClosedLedgerHeader().ledgerSeq;
     auto &bl = mImpl->mApp.getCLFMaster().getBucketList();
     for (size_t i = 0; i < BucketList::kNumLevels; ++i)
     {

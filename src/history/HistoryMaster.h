@@ -225,7 +225,7 @@ class HistoryMaster
     void snapshotTaken(asio::error_code const&,
                        std::shared_ptr<StateSnapshot>);
 
-    HistoryArchiveState getCurrentHistoryArchiveState() const;
+    HistoryArchiveState getLastClosedHistoryArchiveState() const;
 
     std::string const& getTmpDir();
 
