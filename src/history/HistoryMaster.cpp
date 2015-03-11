@@ -45,6 +45,16 @@ HistoryMaster::Impl
     unique_ptr<TmpDir> mWorkDir;
     unique_ptr<PublishStateMachine> mPublish;
     unique_ptr<CatchupStateMachine> mCatchup;
+
+    medida::Meter& mPublishSkip;
+    medida::Meter& mPublishStart;
+    medida::Meter& mPublishSuccess;
+    medida::Meter& mPublishFailure;
+
+    medida::Meter& mCatchupStart;
+    medida::Meter& mCatchupSuccess;
+    medida::Meter& mCatchupFailure;
+
     friend class HistoryMaster;
 public:
     Impl(Application &app)
@@ -52,6 +62,15 @@ public:
         , mWorkDir(nullptr)
         , mPublish(nullptr)
         , mCatchup(nullptr)
+
+        , mPublishSkip(app.getMetrics().NewMeter({"history", "publish", "skip"}, "event"))
+        , mPublishStart(app.getMetrics().NewMeter({"history", "publish", "start"}, "event"))
+        , mPublishSuccess(app.getMetrics().NewMeter({"history", "publish", "success"}, "event"))
+        , mPublishFailure(app.getMetrics().NewMeter({"history", "publish", "failure"}, "event"))
+
+        , mCatchupStart(app.getMetrics().NewMeter({"history", "catchup", "start"}, "event"))
+        , mCatchupSuccess(app.getMetrics().NewMeter({"history", "catchup", "success"}, "event"))
+        , mCatchupFailure(app.getMetrics().NewMeter({"history", "catchup", "failure"}, "event"))
         {}
 
 };
@@ -315,10 +334,19 @@ HistoryMaster::publishHistory(std::function<void(asio::error_code const&)> handl
     {
         throw std::runtime_error("History publication already in progress");
     }
+    mImpl->mPublishStart.Mark();
     mImpl->mPublish = make_unique<PublishStateMachine>(
         mImpl->mApp,
         [this, handler](asio::error_code const& ec)
         {
+            if (ec)
+            {
+                this->mImpl->mPublishFailure.Mark();
+            }
+            else
+            {
+                this->mImpl->mPublishSuccess.Mark();
+            }
             // Tear down the publish state machine when complete then call our
             // caller's handler. Must keep the state machine alive long enough
             // for the callback, though, to avoid killing things living in lambdas.
@@ -352,6 +380,7 @@ HistoryMaster::catchupHistory(uint64_t lastLedger,
     {
         throw std::runtime_error("Catchup already in progress");
     }
+    mImpl->mCatchupStart.Mark();
     mImpl->mCatchup = make_unique<CatchupStateMachine>(
         mImpl->mApp,
         lastLedger,
@@ -359,6 +388,14 @@ HistoryMaster::catchupHistory(uint64_t lastLedger,
         mode,
         [this, handler](asio::error_code const& ec, uint64_t nextLedger)
         {
+            if (ec)
+            {
+                this->mImpl->mCatchupFailure.Mark();
+            }
+            else
+            {
+                this->mImpl->mCatchupSuccess.Mark();
+            }
             // Tear down the catchup state machine when complete then call our
             // caller's handler. Must keep the state machine alive long enough
             // for the callback, though, to avoid killing things living in lambdas.
@@ -367,5 +404,46 @@ HistoryMaster::catchupHistory(uint64_t lastLedger,
         });
 }
 
+uint64_t
+HistoryMaster::getPublishSkipCount()
+{
+    return mImpl->mPublishSkip.count();
+}
+
+uint64_t
+HistoryMaster::getPublishStartCount()
+{
+    return mImpl->mPublishStart.count();
+}
+
+uint64_t
+HistoryMaster::getPublishSuccessCount()
+{
+    return mImpl->mPublishSuccess.count();
+}
+
+uint64_t
+HistoryMaster::getPublishFailureCount()
+{
+    return mImpl->mPublishFailure.count();
+}
+
+uint64_t
+HistoryMaster::getCatchupStartCount()
+{
+    return mImpl->mCatchupStart.count();
+}
+
+uint64_t
+HistoryMaster::getCatchupSuccessCount()
+{
+    return mImpl->mCatchupSuccess.count();
+}
+
+uint64_t
+HistoryMaster::getCatchupFailureCount()
+{
+    return mImpl->mCatchupFailure.count();
+}
 
 }

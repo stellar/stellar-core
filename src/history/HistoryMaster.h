@@ -254,4 +254,12 @@ class HistoryMaster
 };
 }
 
+    uint64_t getPublishSkipCount();
+    uint64_t getPublishStartCount();
+    uint64_t getPublishSuccessCount();
+    uint64_t getPublishFailureCount();
+
+    uint64_t getCatchupStartCount();
+    uint64_t getCatchupSuccessCount();
+    uint64_t getCatchupFailureCount();
 
