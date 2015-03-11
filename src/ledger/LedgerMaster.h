@@ -86,7 +86,8 @@ namespace stellar
 		void closeLedger(LedgerCloseData ledgerData);
 
     private:
-        void closeLedgerHelper(bool updateCurrent, LedgerDelta const& delta);
+        void closeLedgerHelper(LedgerDelta const& delta);
+        void advanceLedgerPointers();
 
 
     };

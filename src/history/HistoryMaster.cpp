@@ -23,7 +23,8 @@
 #include "crypto/SHA.h"
 #include "crypto/Hex.h"
 #include "lib/util/format.h"
-
+#include "medida/metrics_registry.h"
+#include "medida/meter.h"
 #include "xdrpp/marshal.h"
 
 #include <fstream>

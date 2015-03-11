@@ -54,19 +54,31 @@ namespace stellar
 {
 
 static std::string
+ledgerAbbrev(LedgerHeader const& header, uint256 const& hash)
+{
+    std::ostringstream oss;
+    oss << "[seq=" << header.ledgerSeq
+        << ", hash=" << hexAbbrev(hash)
+        << "]";
+    return oss.str();
+}
+
+static std::string
 ledgerAbbrev(LedgerHeaderFrame::pointer p)
 {
     if (!p)
     {
         return "[empty]";
     }
-
-    std::ostringstream oss;
-    oss << "[seq=" << p->mHeader.ledgerSeq
-        << ", hash=" << hexAbbrev(p->mHeader.hash)
-        << "]";
-    return oss.str();
+    return ledgerAbbrev(p->mHeader, p->getHash());
 }
+
+static std::string
+ledgerAbbrev(LedgerHeaderHistoryEntry he)
+{
+    return ledgerAbbrev(he.header, he.hash);
+}
+
 
 LedgerMaster::LedgerMaster(Application& app)
     : mApp(app)
@@ -99,10 +111,8 @@ void LedgerMaster::startNewLedger()
     delta.commit();
 
     mCurrentLedger = make_shared<LedgerHeaderFrame>(genesisHeader);
-    CLOG(INFO, "Ledger") << "Established genesis ledger: " << ledgerAbbrev(mCurrentLedger);
-
-    closeLedgerHelper(true, delta);
-
+    CLOG(INFO, "Ledger") << "Established genesis ledger, closing";
+    closeLedgerHelper(delta);
 }
 
 void LedgerMaster::loadLastKnownLedger()
@@ -128,9 +138,7 @@ void LedgerMaster::loadLastKnownLedger()
             throw std::runtime_error("Could not load ledger from database");
         }
 
-        LedgerDelta delta(mCurrentLedger->mHeader);
-
-        closeLedgerHelper(false, delta);
+        advanceLedgerPointers();
     }
 }
 
@@ -291,7 +299,7 @@ void LedgerMaster::closeLedger(LedgerCloseData ledgerData)
     ledgerDelta.commit();
     mCurrentLedger->mHeader.baseFee = ledgerData.mBaseFee;
     mCurrentLedger->mHeader.closeTime = ledgerData.mCloseTime;
-    closeLedgerHelper(true, ledgerDelta);
+    closeLedgerHelper(ledgerDelta);
     txscope.commit();
 
     // Notify ledger close to other components.
@@ -299,41 +307,38 @@ void LedgerMaster::closeLedger(LedgerCloseData ledgerData)
     mApp.getOverlayGateway().ledgerClosed(mLastClosedLedger);
 }
 
-
-// LATER: maybe get rid of the updateCurrent condition unless more happens if it is false
-// helper function that updates the various hashes in the current ledger header
-// and switches to a new ledger
-void LedgerMaster::closeLedgerHelper(bool updateCurrent, LedgerDelta const& delta)
+void
+LedgerMaster::advanceLedgerPointers()
 {
-    mLastCloseTime = mApp.timeNow();
-
-    delta.markMeters(mApp);
-    if (updateCurrent)
-    {
-        mApp.getCLFMaster().addBatch(mApp,
-            mCurrentLedger->mHeader.ledgerSeq,
-            delta.getLiveEntries(), delta.getDeadEntries());
-
-        mApp.getCLFMaster().snapshotLedger(mCurrentLedger->mHeader);
-
-        // TODO: compute hashes in header
-        mCurrentLedger->mHeader.txSetHash.fill(1);
-        mCurrentLedger->storeInsert(*this);
-
-        mApp.getPersistentState().setState(PersistentState::kLastClosedLedger, binToHex(mCurrentLedger->getHash()));
-    }
-
     CLOG(INFO, "Ledger")
-        << "closeLedgerHelper() closed ledgerSeq="
-        << mCurrentLedger->mHeader.ledgerSeq
-        << " with hash="
-        << binToHex(mCurrentLedger->getHash());
-  
+        << "Advancing LCL: " << ledgerAbbrev(mLastClosedLedger)
+        << " -> " << ledgerAbbrev(mCurrentLedger);
+
     mLastClosedLedger.hash = mCurrentLedger->getHash();
     mLastClosedLedger.header = mCurrentLedger->mHeader;
-
     mCurrentLedger = make_shared<LedgerHeaderFrame>(mLastClosedLedger);
+    CLOG(INFO, "Ledger")
+        << "New current ledger: seq=" << mCurrentLedger->mHeader.ledgerSeq;
 }
 
- 
+void
+LedgerMaster::closeLedgerHelper(LedgerDelta const& delta)
+{
+    mLastCloseTime = mApp.timeNow();
+    delta.markMeters(mApp);
+    mApp.getCLFMaster().addBatch(mApp,
+                                 mCurrentLedger->mHeader.ledgerSeq,
+                                 delta.getLiveEntries(), delta.getDeadEntries());
+
+    mApp.getCLFMaster().snapshotLedger(mCurrentLedger->mHeader);
+
+    // TODO: compute hashes in header
+    mCurrentLedger->mHeader.txSetHash.fill(1);
+    mCurrentLedger->storeInsert(*this);
+
+    mApp.getPersistentState().setState(PersistentState::kLastClosedLedger, binToHex(mCurrentLedger->getHash()));
+    CLOG(INFO, "Ledger") << "Closed " << ledgerAbbrev(mCurrentLedger);
+    advanceLedgerPointers();
+}
+
 }
