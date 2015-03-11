@@ -292,7 +292,7 @@ CatchupStateMachine::enterFetchingState()
 void
 CatchupStateMachine::enterAnchoredState(HistoryArchiveState const& has)
 {
-    assert(mState == CATCHUP_BEGIN);
+    assert(mState == CATCHUP_BEGIN || mState == CATCHUP_RETRYING);
     mState = CATCHUP_ANCHORED;
     mArchiveState = has;
 
