@@ -43,7 +43,12 @@ struct HistoryArchiveState
 
     HistoryArchiveState();
 
-    static std::string basename();
+    static std::string baseName();
+    static std::string wellKnownRemoteDir();
+    static std::string wellKnownRemoteName();
+    static std::string remoteDir(uint32_t snapshotNumber);
+    static std::string remoteName(uint32_t snapshotNumber);
+    static std::string localName(Application& app, std::string const& archiveName);
 
     // Return vector of buckets to fetch/apply to turn 'other' into 'this'. Vector
     // is sorted from largest/highest-numbered bucket to smallest/lowest, and
