@@ -76,6 +76,21 @@
  * state/00/00/state-0x00000000.json. The buckets will all be empty in
  * that state.
  *
+ * Boundary conditions and counts:
+ * -------------------------------
+ *
+ * There is no ledger 0 -- that's the sequence number of a _fictional_ ledger
+ * with no content, before "ledger 1, the genesis ledger" -- so the initial
+ * ledger block (block 0x00000000) has 63 "real" ledger objects in it, not 64 as
+ * in all subsequent blocks. We could, instead, shift all arithmetic in the
+ * system to "count from 1" and have ledger blocks run from [1,64] and [65,128]
+ * and so forth; but the disadvantages of propagating counts-from-1 arithmetic
+ * all through the system seem worse than the disadvantage of having to
+ * special-case the first history block, so we stick with "counting from 0" for
+ * now. So all ledger blocks _start on_ a multiple of 64 and run until
+ * one-less-than the next multiple of 64, inclusive: [0,63], [64,127],
+ * [128,191], etc.
+ *
  *
  *
  * The catchup algorithm:

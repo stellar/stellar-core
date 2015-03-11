@@ -74,6 +74,23 @@ HistoryTests::crankTillDone(bool& done)
     }
 }
 
+TEST_CASE("next checkpoint ledger", "[history]")
+{
+    CHECK(HistoryMaster::nextCheckpointLedger(0) == 64);
+    CHECK(HistoryMaster::nextCheckpointLedger(1) == 64);
+    CHECK(HistoryMaster::nextCheckpointLedger(32) == 64);
+    CHECK(HistoryMaster::nextCheckpointLedger(62) == 64);
+    CHECK(HistoryMaster::nextCheckpointLedger(63) == 64);
+    CHECK(HistoryMaster::nextCheckpointLedger(64) == 64);
+    CHECK(HistoryMaster::nextCheckpointLedger(65) == 128);
+    CHECK(HistoryMaster::nextCheckpointLedger(66) == 128);
+    CHECK(HistoryMaster::nextCheckpointLedger(126) == 128);
+    CHECK(HistoryMaster::nextCheckpointLedger(127) == 128);
+    CHECK(HistoryMaster::nextCheckpointLedger(128) == 128);
+    CHECK(HistoryMaster::nextCheckpointLedger(129) == 192);
+    CHECK(HistoryMaster::nextCheckpointLedger(130) == 192);
+}
+
 TEST_CASE_METHOD(HistoryTests, "HistoryMaster::compress", "[history]")
 {
     std::string s = "hello there";

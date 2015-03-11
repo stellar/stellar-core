@@ -146,6 +146,8 @@ checkNoGzipSuffix(string const& filename)
 uint64_t
 HistoryMaster::nextCheckpointLedger(uint64_t ledger)
 {
+    if (ledger == 0)
+        return kCheckpointFrequency;
     uint64_t res = static_cast<uint64_t>(kCheckpointFrequency);
     return ((ledger + res - 1) / res) * res;
 }
