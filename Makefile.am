@@ -38,6 +38,7 @@ FMT_SRCS =                                      \
     src/ledger/LedgerHeaderFrame.cpp            \
     src/ledger/LedgerHeaderTests.cpp            \
     src/ledger/LedgerMaster.cpp                 \
+    src/ledger/LedgerPerformanceTests.cpp       \
     src/ledger/LedgerTests.cpp                  \
     src/ledger/OfferFrame.cpp                   \
     src/ledger/TrustFrame.cpp                   \
@@ -198,15 +199,15 @@ bin_stellard_CPPFLAGS = -I$(top_srcdir)/src \
                         $(libsodium_CFLAGS) \
                         $(xdrpp_CFLAGS) \
                         $(sqlite_CFLAGS) \
-                        $(libpq_CFLAGS) \
-                        $(libmedida_CFLAGS)
+                        $(libpq_CFLAGS) -fno-omit-frame-pointer \
+                        $(libmedida_CFLAGS) -g
 
 bin_stellard_LDADD = libsoci.la \
                      $(libsodium_LIBS) \
                      $(xdrpp_LIBS) \
                      $(sqlite_LIBS) \
                      $(libpq_LIBS) \
-                     $(libmedida_LIBS)
+                     $(libmedida_LIBS) 
 bin_stellard_DEPENDENCIES =
 
 if LIBSODIUM_INTERNAL

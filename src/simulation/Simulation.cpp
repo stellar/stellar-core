@@ -481,7 +481,7 @@ Simulation::metricsSummary(string domain)
     for (auto kv : metrics)
     {
         auto metric = kv.first;
-        if (metric.domain() == domain)
+        if (domain == "" || metric.domain() == domain)
         {
             out << "Metric " << metric.domain() << "." << metric.type() << "."
                 << metric.name() << "\n";
