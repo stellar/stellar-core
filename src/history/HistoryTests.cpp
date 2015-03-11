@@ -11,6 +11,7 @@
 #include "clf/BucketList.h"
 #include "crypto/Hex.h"
 #include "lib/catch.hpp"
+#include "util/Fs.h"
 #include "util/Logging.h"
 #include "util/Timer.h"
 #include "util/TmpDir.h"
@@ -106,14 +107,14 @@ TEST_CASE_METHOD(HistoryTests, "HistoryMaster::compress", "[history]")
         [&done, &fname, &hm](asio::error_code const& ec)
         {
             std::string compressed = fname + ".gz";
-            CHECK(!TmpDir::exists(fname));
-            CHECK(TmpDir::exists(compressed));
+            CHECK(!fs::exists(fname));
+            CHECK(fs::exists(compressed));
             hm.decompress(
                 compressed,
                 [&done, &fname, compressed](asio::error_code const& ec)
                 {
-                    CHECK(TmpDir::exists(fname));
-                    CHECK(!TmpDir::exists(compressed));
+                    CHECK(fs::exists(fname));
+                    CHECK(!fs::exists(compressed));
                     done = true;
                 });
         });

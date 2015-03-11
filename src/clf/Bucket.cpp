@@ -13,6 +13,7 @@
 #include "crypto/Random.h"
 #include "crypto/SHA.h"
 #include "main/Application.h"
+#include "util/Fs.h"
 #include "util/Logging.h"
 #include "util/TmpDir.h"
 #include "util/XDRStream.h"
@@ -73,7 +74,7 @@ Bucket::Bucket(std::string const& filename, uint256 const& hash)
     : mFilename(filename)
     , mHash(hash)
 {
-    assert(filename.empty() || TmpDir::exists(filename));
+    assert(filename.empty() || fs::exists(filename));
 }
 
 Bucket::~Bucket()
