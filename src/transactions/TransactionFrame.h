@@ -32,9 +32,11 @@ namespace stellar
     class TransactionFrame
     {
     protected:
-        AccountFrame::pointer mSigningAccount;
         TransactionEnvelope mEnvelope;
         TransactionResult mResult;
+
+        AccountFrame::pointer mSigningAccount;
+        std::vector<bool> mUsedSignatures;
 
         Hash mContentsHash;  // the hash of the contents
         Hash mFullHash;    // the hash of the contents and the sig. 
@@ -46,6 +48,9 @@ namespace stellar
 
         bool loadAccount(Application& app);
         bool checkValid(Application& app, bool applying);
+
+        void resetState();
+        bool checkAllSignaturesUsed();
     public:
         typedef std::shared_ptr<TransactionFrame> pointer;
 
@@ -91,7 +96,6 @@ namespace stellar
                                                uint32_t ledgerCount,
                                                XDROutputFileStream& txOut);
         static void dropAll(Database &db);
-
     };
 
 }
