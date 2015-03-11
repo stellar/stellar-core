@@ -166,7 +166,7 @@ ArchivePublisher::enterObservedState(HistoryArchiveState const& has)
 
 
 /**
- * If `ec` is an error, set the state for `basename` to FILE_FAILED, otherwise
+ * If `ec` is an error, set the state for `name` to FILE_FAILED, otherwise
  * set it to `newGoodState`. In either case, re-enter FETCHING state.
  */
 void

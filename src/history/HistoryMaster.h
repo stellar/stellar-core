@@ -15,7 +15,7 @@
  * forms:
  *
  *   1. Buckets from the BucketList -- checkpoints of "full ledger state".
- *   2. History blocks -- a sequential log of ledger hashes and transactions,
+ *   2. History blocks -- a sequential log of ledger headers and transactions,
  *      stored as separate ledger and transaction files.
  *
  * The module design attempts to satisfy several key constraints:
@@ -43,35 +43,34 @@
  *
  * The history store is served to clients over HTTP. In the root of the history
  * store is a history archive state file (class HistoryArchiveState) which
- * denotes the archive format version number, the most-recent bucket-state
- * snapshot (as a set of bucket hashes) and the checkpoint number of the
- * most-recent history block, and finally a flag indicating whether to
- * numerically directory-prefix the various referenced files. As per RFC 5785,
- * this information is stored at /.well-known/stellar-history.json as a JSON
- * file.
+ * stores the most recent checkpoint (including version info, most recent ledger
+ * number and most recent bucket hashes). As per RFC 5785, this checkpoint is
+ * stored at .well-known/stellar-history.json as a JSON file.
  *
  * Checkpoints are made every 64 ledgers, which (at 5s ledger close time) is
  * 320s or about 5m20s. There will be 11 checkpoints per hour, 270 per day, and
  * 98,550 per year. Counting checkpoints within a 32bit value gives 43,581 years
  * of service for the system.
  *
- * Each checkpoint is described by a history archive state file whose name
- * includes the checkpoint number (as a 32-bit hex string) and stored in a
- * 3-level deep directory tree of hex digit prefixes. For example, checkpoint
- * number 0x12345678 will be described by file
- * state/12/34/56/state-0x12345678.json and the associated history block will be
- * written to the two files ledger/12/34/56/ledger-0x12345678.xdr.gz and
+ * While the _most recent_ checkpoint is in .well-known/stellar-history.json,
+ * each checkpoint is also stored permanently at a path whose name includes the
+ * checkpoint number (as a 32-bit hex string) and stored in a 3-level deep
+ * directory tree of hex digit prefixes. For example, checkpoint number
+ * 0x12345678 will be described by file history/12/34/56/history-0x12345678.json
+ * and the associated history block will be written to the two files
+ * ledger/12/34/56/ledger-0x12345678.xdr.gz and
  * transaction/12/34/56/transaction-0x12345678.xdr.gz
  *
  * Bucket files accompanying each checkpoint are stored by hash name, again
- * separated by 3-level-deep hex prefixing, though as the hash is random, the
- * directories will fill up in random order, not sequentially: if the bucket's
- * hex hash is <AABBCCDEFG...> then the bucket is stored as
+ * separated by 3-level-deep hex prefixing, though as the hash is unpredictable,
+ * the directories will fill up in unpredictable order, not sequentially: if the
+ * bucket's hex hash is <AABBCCDEFG...> then the bucket is stored as
  * bucket/AA/BB/CC/bucket-<AABBCCDEFG...>.xdr.gz
  *
- * The first history block (containing the genesis ledger) can therefore always
- * be found in history/00/00/00/history-0x00000000.xdr.gz and described by
- * state/00/00/00/state-0x00000000.json. The buckets will all be empty in
+ * The first ledger and transaction files (containing the genesis ledger) can
+ * therefore always be found in ledger/00/00/00/ledger-0x00000000.xdr.gz and
+ * transaction/00/00/00/transaction-0x00000000.xdr.gz and described by
+ * history/00/00/00/history-0x00000000.json. The buckets will all be empty in
  * that state.
  *
  *
