@@ -3,6 +3,7 @@
 #include <cereal/cereal.hpp>
 #include <string>
 #include <system_error>
+#include <memory>
 
 namespace asio
 {
@@ -69,7 +70,7 @@ struct HistoryArchiveState
     void load(std::string const& inFile);
 };
 
-class HistoryArchive
+class HistoryArchive : public std::enable_shared_from_this<HistoryArchive>
 {
     class Impl;
     std::unique_ptr<Impl> mImpl;
