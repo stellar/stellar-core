@@ -194,14 +194,14 @@ HistoryTests::generateAndPublishHistory()
     SecretKey bob = txtest::getAccount("bob");
 
     uint32_t seq = 1;
-    uint64_t ledgerIndex = 1;
+    uint32_t ledgerSeq = 1;
     uint64_t closeTime = 1;
     while (hm.getPublishStartCount() == 0)
     {
         // Keep sending money to bob until we have published some history about it.
         TxSetFramePtr txSet = std::make_shared<TxSetFrame>();
         txSet->add(txtest::createPaymentTx(root, bob, seq++, 1000));
-        lm.closeLedger(LedgerCloseData(ledgerIndex++, txSet, closeTime++, 10));
+        lm.closeLedger(LedgerCloseData(ledgerSeq++, txSet, closeTime++, 10));
     }
 
     // At this point LCL should be 63 and we should be starting in on ledger 64...
