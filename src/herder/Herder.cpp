@@ -623,7 +623,7 @@ Herder::recvTxSet(TxSetFramePtr txSet)
     if (mTxSetFetcher[mCurrentTxSetFetcher].recvItem(txSet))
     { 
         // someone cares about this set
-        for (auto tx : txSet->mTransactions)
+        for (auto tx : txSet->sortForApply())
         {
             recvTransaction(tx);
         }
@@ -698,6 +698,7 @@ Herder::recvTransaction(TransactionFramePtr tx)
     // determine if we have seen this tx before and if not if it has the right
     // seq num
     int numOthers=0;
+    SequenceNumber highSeq = 0;
     for (auto& list : mReceivedTransactions)
     {
         for (auto oldTX : list)
@@ -710,11 +711,12 @@ Herder::recvTransaction(TransactionFramePtr tx)
             if (oldTX->getSourceID() == tx->getSourceID())
             {
                 numOthers++;
+                highSeq = oldTX->getSeqNum();
             }
         }
     }
     
-    if (!tx->checkValid(mApp)) 
+    if (!tx->checkValid(mApp, highSeq))
     {
         return false;
     }
@@ -846,11 +848,12 @@ Herder::triggerNextLedger()
     TxSetFramePtr proposedSet = std::make_shared<TxSetFrame>();
     for (auto& list : mReceivedTransactions)
     {
-        for (auto tx : list)
+        for (auto &tx : list)
         {
             proposedSet->add(tx);
         }
     }
+
     proposedSet->mPreviousLedgerHash = mLastClosedLedger.hash;
     recvTxSet(proposedSet);
 

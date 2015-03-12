@@ -436,7 +436,7 @@ Simulation::SyncSequenceNumbers()
         bool res = AccountFrame::loadAccount(it->mKey.getPublicKey(), accountFrame, app->getDatabase());
         if (res)
         {
-            it->mSeq = accountFrame.getSeqNum(app->getDatabase());
+            it->mSeq = accountFrame.getSeqNum();
         }
     }
 }

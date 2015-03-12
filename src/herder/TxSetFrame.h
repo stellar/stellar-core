@@ -35,18 +35,16 @@ class TxSetFrame
 
     void sortForHash();
 
-    void sortForApply(std::vector<TransactionFramePtr>& retList);
+    std::vector<TransactionFramePtr> sortForApply();
 
     bool checkValid(Application& app);
 
-    void
-    add(TransactionFramePtr tx)
+    void add(TransactionFramePtr tx)
     {
         mTransactions.push_back(tx);
     }
 
-    size_t
-    size()
+    size_t size()
     {
         return mTransactions.size();
     }

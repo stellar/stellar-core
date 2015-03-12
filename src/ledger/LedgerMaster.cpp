@@ -270,8 +270,7 @@ void LedgerMaster::closeLedger(LedgerCloseData ledgerData)
 
     auto ledgerTime = mLedgerClose.TimeScope();
 
-    vector<TransactionFramePtr> txs;
-    ledgerData.mTxSet->sortForApply(txs);
+    vector<TransactionFramePtr> txs = ledgerData.mTxSet->sortForApply();
     int index = 0;
     for(auto tx : txs)
     {
