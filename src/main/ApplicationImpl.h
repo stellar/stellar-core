@@ -60,6 +60,8 @@ public:
     // after this returns.
     virtual void joinAllThreads() override;
 
+    virtual bool manualClose() override;
+
 
     virtual void applyCfgCommands() override;
 

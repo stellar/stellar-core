@@ -810,7 +810,7 @@ Herder::ledgerClosed(LedgerHeaderHistoryEntry const& ledger)
         mTriggerTimer.expires_from_now(std::chrono::nanoseconds(0));
     }
 
-    mTriggerTimer.async_wait(std::bind(&Herder::triggerNextLedger, this), &VirtualTimer::onFailureNoop);
+    if(!mApp.getConfig().MANUAL_CLOSE) mTriggerTimer.async_wait(std::bind(&Herder::triggerNextLedger, this), &VirtualTimer::onFailureNoop);
 }
 
 void

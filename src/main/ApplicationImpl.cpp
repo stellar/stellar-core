@@ -180,6 +180,16 @@ ApplicationImpl::joinAllThreads()
     LOG(DEBUG) << "Joined all " << mWorkerThreads.size() << " threads";
 }
 
+bool ApplicationImpl::manualClose()
+{
+    if(mConfig.MANUAL_CLOSE)
+    {
+        mHerder->triggerNextLedger();
+        return true;
+    }
+    return false;
+}
+
 void ApplicationImpl::applyCfgCommands()
 {
     for(auto cmd : mConfig.COMMANDS)
