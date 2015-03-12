@@ -160,7 +160,7 @@ Simulation::crankAllNodes(int nbTicks)
     return count;
 }
 
-bool Simulation::haveAllExternalized(int num)
+bool Simulation::haveAllExternalized(uint32_t num)
 {
     uint32_t min = UINT_MAX;
     for(auto it = mNodes.begin(); it != mNodes.end(); ++it) 

@@ -740,7 +740,7 @@ Herder::recvTransaction(TransactionFramePtr tx)
 
 void
 Herder::recvSCPEnvelope(SCPEnvelope envelope,
-                        std::function<void(bool)> const& cb)
+                        std::function<void(EnvelopeState)> const& cb)
 {
     CLOG(DEBUG, "Herder") << "Herder::recvSCPEnvelope@"
         << "@" << binToHex(getLocalNodeID()).substr(0, 6);
@@ -892,7 +892,7 @@ Herder::triggerNextLedger()
     mValuePrepare.Mark();
     prepareValue(slotIndex, mCurrentValue);
 
-    for (auto p : mFutureEnvelopes[slotIndex])
+    for (auto &p : mFutureEnvelopes[slotIndex])
     {
         recvSCPEnvelope(p.first, p.second);
     }

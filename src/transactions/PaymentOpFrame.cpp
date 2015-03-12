@@ -74,7 +74,7 @@ using namespace std;
     {
         Database &db = ledgerMaster.getDatabase();
 
-        bool multi_mode = mPayment.path.size();
+        bool multi_mode = mPayment.path.size() != 0;
         if (multi_mode)
         {
             innerResult().code(Payment::SUCCESS_MULTI);

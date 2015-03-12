@@ -7,7 +7,7 @@
 #include <memory>
 #include <functional>
 #include "generated/StellarXDR.h"
-#include "generated/SCPXDR.h"
+#include "scp/SCP.h"
 
 namespace stellar
 {
@@ -58,7 +58,7 @@ class HerderGateway
     // envelope should be flooded or not.
     virtual void recvSCPEnvelope(
         SCPEnvelope envelope,
-        std::function<void(bool)> const& cb = [] (bool) { }) = 0;
+        std::function<void(SCP::EnvelopeState)> const& cb = [] (SCP::EnvelopeState) { }) = 0;
 
     // Called by Ledger once the ledger closes.
     virtual void ledgerClosed(LedgerHeaderHistoryEntry const& ledger) = 0;

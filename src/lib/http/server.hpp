@@ -17,6 +17,7 @@
 
 #include <string>
 #include <map>
+#include <functional>
 #include "connection.hpp"
 #include "connection_manager.hpp"
 
