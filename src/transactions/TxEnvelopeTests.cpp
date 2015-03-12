@@ -186,7 +186,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
             tx.addSignature(root);
             LedgerDelta delta(app.getLedgerMaster().getCurrentLedgerHeader());
 
-            REQUIRE(!tx.checkValid(app));
+            REQUIRE(!tx.checkValid(app,0));
 
             tx.apply(delta, app);
             REQUIRE(tx.getResultCode() == txMALFORMED);
@@ -215,7 +215,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                 {
                     LedgerDelta delta(app.getLedgerMaster().getCurrentLedgerHeader());
 
-                    REQUIRE(!tx->checkValid(app));
+                    REQUIRE(!tx->checkValid(app,0));
                     tx->apply(delta, app);
                     REQUIRE(tx->getResultCode() == txFAILED);
                     REQUIRE(tx->getOperations()[0]->getResultCode() == opBAD_AUTH);
@@ -226,7 +226,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                     tx->addSignature(b1);
                     LedgerDelta delta(app.getLedgerMaster().getCurrentLedgerHeader());
 
-                    REQUIRE(tx->checkValid(app));
+                    REQUIRE(tx->checkValid(app,0));
                     tx->apply(delta, app);
                     REQUIRE(tx->getResultCode() == txSUCCESS);
                     REQUIRE(Payment::getInnerCode(getFirstResult(*tx)) == Payment::SUCCESS);
@@ -253,7 +253,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
                     LedgerDelta delta(app.getLedgerMaster().getCurrentLedgerHeader());
 
-                    REQUIRE(!tx->checkValid(app));
+                    REQUIRE(!tx->checkValid(app,0));
 
                     tx->apply(delta, app);
 
@@ -281,7 +281,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
                     LedgerDelta delta(app.getLedgerMaster().getCurrentLedgerHeader());
 
-                    REQUIRE(tx->checkValid(app));
+                    REQUIRE(tx->checkValid(app,0));
 
                     tx->apply(delta, app);
 
@@ -309,7 +309,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
                     LedgerDelta delta(app.getLedgerMaster().getCurrentLedgerHeader());
 
-                    REQUIRE(tx->checkValid(app));
+                    REQUIRE(tx->checkValid(app,0));
 
                     tx->apply(delta, app);
 
@@ -328,8 +328,13 @@ TEST_CASE("txenvelope", "[tx][envelope]")
     {
         TxSetFramePtr txSet = std::make_shared<TxSetFrame>();
 
-        TransactionFramePtr txFrame = createPaymentTx(root, a1, rootSeq++, paymentAmount);
-        txSet->add(txFrame);
+        TransactionFramePtr txFrame;
+        
+        for (int i = 0; i < 10; i++)
+        {
+            txFrame = createPaymentTx(root, a1, rootSeq++, paymentAmount);
+            txSet->add(txFrame);
+        }
 
         // close this ledger
         LedgerCloseData ledgerData(1, txSet, 1, 10);

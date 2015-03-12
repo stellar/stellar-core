@@ -125,7 +125,7 @@ bool TransactionFrame::loadAccount(Application& app)
     return !!mSigningAccount;
 }
 
-bool TransactionFrame::checkValid(Application &app, bool applying)
+bool TransactionFrame::checkValid(Application &app, bool applying, SequenceNumber current)
 {
     // pre-allocates the results for all operations
     mResult.result.code(txSUCCESS);
@@ -176,25 +176,15 @@ bool TransactionFrame::checkValid(Application &app, bool applying)
         return false;
     }
 
+    if (current == 0)
     {
+        current = mSigningAccount->getSeqNum();
     }
 
-    if (applying)
+    if (current + 1 != mEnvelope.tx.seqNum)
     {
-        // where seq != envelope.seq
-        if (mSigningAccount->getSeqNum(app.getDatabase()) + 1 != mEnvelope.tx.seqNum)
-        {
-            mResult.result.code(txBAD_SEQ);
-            return false;
-        }
-    }
-    else
-    {
-        if (mSigningAccount->getSeqNum(app.getDatabase()) >= mEnvelope.tx.seqNum)
-        {
-            mResult.result.code(txBAD_SEQ);
-            return false;
-        }
+        mResult.result.code(txBAD_SEQ);
+        return false;
     }
 
     if (!checkSignature(*mSigningAccount, mSigningAccount->getLowThreshold()))
@@ -279,17 +269,17 @@ bool TransactionFrame::checkAllSignaturesUsed()
     return true;
 }
 
-bool TransactionFrame::checkValid(Application& app)
+bool TransactionFrame::checkValid(Application& app, SequenceNumber current)
 {
     resetState();
-    return checkValid(app, false);
+    return checkValid(app, false, current);
 }
 
 bool TransactionFrame::apply(LedgerDelta& delta, Application& app)
 {
     resetState();
     LedgerMaster &lm = app.getLedgerMaster();
-    if (!checkValid(app, true))
+    if (!checkValid(app, true, 0))
     {
         prepareResult(delta, lm);
         return false;
