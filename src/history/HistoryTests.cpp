@@ -223,7 +223,7 @@ TEST_CASE_METHOD(HistoryTests, "History publish", "[history]")
     generateAndPublishHistory();
 }
 
-TEST_CASE_METHOD(HistoryTests, "History catchup", "[history]")
+TEST_CASE_METHOD(HistoryTests, "History catchup", "[history][historycatchup]")
 {
     generateAndPublishHistory();
 
@@ -240,7 +240,7 @@ TEST_CASE_METHOD(HistoryTests, "History catchup", "[history]")
         0,
         app2->getLedgerMaster().getCurrentLedgerHeader().ledgerSeq,
         HistoryMaster::RESUME_AT_LAST,
-        [&done](asio::error_code const& ec, uint64_t nextLedger)
+        [&done](asio::error_code const& ec, uint32_t nextLedger)
         {
             LOG(INFO) << "Caught up: nextLedger = " << nextLedger;
             CHECK(!ec);

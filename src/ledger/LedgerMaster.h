@@ -35,11 +35,11 @@ namespace stellar
 
         uint64_t mLastCloseTime;
 
-        void startCatchUp(uint64_t initLedger);
+        void startCatchUp(uint32_t initLedger);
 
         std::vector<LedgerCloseData> mSyncingLedgers;
 
-        void historyCaughtup(asio::error_code const& ec, uint64_t nextLedger);
+        void historyCaughtup(asio::error_code const& ec, uint32_t nextLedger);
 
     public:
 

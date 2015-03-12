@@ -209,7 +209,7 @@ void LedgerMaster::externalizeValue(LedgerCloseData ledgerData)
 }
 
 
-void LedgerMaster::startCatchUp(uint64_t initLedger)
+void LedgerMaster::startCatchUp(uint32_t initLedger)
 {
     mApp.setState(Application::CATCHING_UP_STATE);
     mApp.getHistoryMaster().catchupHistory(
@@ -221,7 +221,7 @@ void LedgerMaster::startCatchUp(uint64_t initLedger)
 }
 
 void LedgerMaster::historyCaughtup(asio::error_code const& ec,
-                                   uint64_t nextLedger)
+                                    uint32_t nextLedger)
 {
     if (ec)
     {

@@ -32,11 +32,11 @@ CatchupStateMachine::kRetryLimit = 16;
 typedef FileTransferInfo<FileCatchupState> FileCatchupInfo;
 
 CatchupStateMachine::CatchupStateMachine(Application& app,
-                                         uint64_t lastLedger,
-                                         uint64_t initLedger,
+                                         uint32_t lastLedger,
+                                         uint32_t initLedger,
                                          HistoryMaster::ResumeMode mode,
                                          std::function<void(asio::error_code const& ec,
-                                                            uint64_t nextLedger)> handler)
+                                                            uint32_t nextLedger)> handler)
     : mApp(app)
     , mLastLedger(lastLedger)
     , mInitLedger(initLedger)
@@ -334,7 +334,7 @@ CatchupStateMachine::enterAnchoredState(HistoryArchiveState const& has)
                 HISTORY_FILE_TYPE_BUCKET, h));
     }
 
-    for (uint64_t i = mLocalState.currentLedger / HistoryMaster::kCheckpointFrequency;
+    for (uint32_t i = mLocalState.currentLedger / HistoryMaster::kCheckpointFrequency;
          i <= mArchiveState.currentLedger / HistoryMaster::kCheckpointFrequency;
          ++i)
     {
@@ -436,7 +436,7 @@ CatchupStateMachine::enterApplyingState()
 }
 
 void
-CatchupStateMachine::applyBucketsAtLedger(uint64_t ledgerNum)
+CatchupStateMachine::applyBucketsAtLedger(uint32_t ledgerNum)
 {
     auto& db = mApp.getDatabase();
     auto& bl = mApp.getCLFMaster().getBucketList();
@@ -496,7 +496,7 @@ CatchupStateMachine::applyBucketsAtLedger(uint64_t ledgerNum)
 }
 
 void
-CatchupStateMachine::applyHistoryFromLedger(uint64_t ledgerNum)
+CatchupStateMachine::applyHistoryFromLedger(uint32_t ledgerNum)
 {
     CLOG(INFO, "History") << "Replaying contents of " << mHeaderInfos.size()
                           << " transaction-history files from ledger " << ledgerNum;
