@@ -46,7 +46,10 @@ Config const& getTestConfig(int instanceNumber)
         gTestCfg[instanceNumber] = stellar::make_unique<Config>();
         Config &thisConfig = *gTestCfg[instanceNumber];
 
-        thisConfig.LOG_FILE_PATH = rootDir + "stellar.log";
+        std::ostringstream sstream;
+        
+        sstream << "stellar" << instanceNumber << ".log";
+        thisConfig.LOG_FILE_PATH = sstream.str();
         thisConfig.BUCKET_DIR_PATH = rootDir + "bucket";
         thisConfig.TMP_DIR_PATH = rootDir + "tmp";
 
