@@ -166,8 +166,9 @@ TxSetFrame::checkValid(Application& app)
             {
                 first = tx;
                 // make sure account can pay the fee for all these tx
-                if (tx->getSourceAccount().getBalance() <
-                    xdr::size32(item.second.size()) * app.getLedgerGateway().getTxFee())
+                int64_t newBalance = tx->getSourceAccount().getBalance() -
+                    xdr::size32(item.second.size()) * app.getLedgerGateway().getTxFee();
+                if (newBalance < tx->getSourceAccount().getMinimumBalance(app.getLedgerMaster()))
                 {
                     return false;
                 }

@@ -53,7 +53,7 @@ namespace stellar
         void externalizeValue(LedgerCloseData ledgerData) override;
 
         uint32_t getLedgerNum() override;
-        int64_t getMinBalance(uint32_t ownerCount);
+        int64_t getMinBalance(uint32_t ownerCount) const;
         int64_t getTxFee() override; // fee is a 32 bit but we use 64 to avoid overflow when doing math
         uint64_t getCloseTime() override;
 

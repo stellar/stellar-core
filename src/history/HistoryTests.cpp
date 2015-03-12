@@ -196,11 +196,12 @@ HistoryTests::generateAndPublishHistory()
     uint32_t seq = 1;
     uint32_t ledgerSeq = 1;
     uint64_t closeTime = 1;
+    int64_t paymentAmount = lm.getMinBalance(0);
     while (hm.getPublishStartCount() == 0)
     {
         // Keep sending money to bob until we have published some history about it.
         TxSetFramePtr txSet = std::make_shared<TxSetFrame>();
-        txSet->add(txtest::createPaymentTx(root, bob, seq++, 1000));
+        txSet->add(txtest::createPaymentTx(root, bob, seq++, paymentAmount));
         lm.closeLedger(LedgerCloseData(ledgerSeq++, txSet, closeTime++, 10));
     }
 

@@ -153,7 +153,7 @@ int64_t LedgerMaster::getTxFee()
     return mCurrentLedger->mHeader.baseFee;
 }
 
-int64_t LedgerMaster::getMinBalance(uint32_t ownerCount)
+int64_t LedgerMaster::getMinBalance(uint32_t ownerCount) const
 {
     return (2 + ownerCount) * mCurrentLedger->mHeader.baseReserve;
 }

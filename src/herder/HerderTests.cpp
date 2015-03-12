@@ -50,8 +50,7 @@ TEST_CASE("standalone", "[herder]")
     SecretKey a1 = getAccount("A");
     SecretKey b1 = getAccount("B");
 
-    const uint64_t paymentAmount = 
-        (uint64_t)app->getLedgerMaster().getMinBalance(0);
+    const int64_t paymentAmount = app->getLedgerMaster().getMinBalance(0);
 
     AccountFrame rootAccount;
     REQUIRE(AccountFrame::loadAccount(

@@ -176,10 +176,7 @@ bool TransactionFrame::checkValid(Application &app, bool applying)
         return false;
     }
 
-    if (mSigningAccount->getAccount().balance < fee)
     {
-        mResult.result.code(txINSUFFICIENT_BALANCE);
-        return false;
     }
 
     if (applying)
@@ -208,6 +205,13 @@ bool TransactionFrame::checkValid(Application &app, bool applying)
 
     // failures after this point will end up charging a fee if attempting to run "apply"
     mResult.feeCharged = fee;
+
+    // don't let the account go below the reserve
+    if (mSigningAccount->getAccount().balance - fee < mSigningAccount->getMinimumBalance(app.getLedgerMaster()))
+    {
+        mResult.result.code(txINSUFFICIENT_BALANCE);
+        return false;
+    }
 
     if (!applying)
     {

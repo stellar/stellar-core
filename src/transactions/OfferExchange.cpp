@@ -56,7 +56,12 @@ namespace stellar
         // what the seller has
         if (wheat.type() == NATIVE)
         {
-            numWheatReceived = accountB.getAccount().balance;
+            // can only send above the minimum balance
+            numWheatReceived = accountB.getAccount().balance-accountB.getMinimumBalance(mLedgerMaster);
+            if (numWheatReceived < 0)
+            {
+                numWheatReceived = 0;
+            }
         }
         else
         {
