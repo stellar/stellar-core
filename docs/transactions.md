@@ -45,9 +45,8 @@ When a server receives a transaction it should send it on to all of its peers.
 ## Rules for what txs are not flooded
 - malformed
 - sum signature weight not above the necessary threshold for each operation
-- source account doesn't have enough balance to pay the fee for all the operations in this set
-- seq num is too low
-- *Note: we still flood seq numbers that are the same as another in this tx set since we don't want to have a situation where you flood or don't flood depending on the order you recieved a tx.*
+- source account doesn't have enough balance to pay the fee for all the operations in this set (above the minimum balance)
+- sequence number doesn't extend the locally accumulated set of transactions (or if empty, doesn't match the source account sequence number)
 - duplicate signatures
 - signatures that don't match any of the signers on the accounts used in the operations.
 

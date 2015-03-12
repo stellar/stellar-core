@@ -300,9 +300,6 @@
     <ClCompile Include="..\..\src\ledger\LedgerHeaderFrame.cpp">
       <Filter>ledger</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\fba\FBATests.cpp">
-      <Filter>fba\tests</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\history\HistoryTests.cpp">
       <Filter>history\tests</Filter>
     </ClCompile>
@@ -401,6 +398,9 @@
     </ClCompile>
     <ClCompile Include="..\..\src\overlay\TCPPeerTests.cpp">
       <Filter>overlay</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\util\Fs.cpp">
+      <Filter>util</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -664,6 +664,9 @@
     </ClInclude>
     <ClInclude Include="..\..\src\scp\Slot.h">
       <Filter>scp</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\util\Fs.h">
+      <Filter>util</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

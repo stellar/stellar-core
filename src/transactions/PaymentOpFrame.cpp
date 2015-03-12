@@ -192,7 +192,7 @@ using namespace std;
                 return false;
             }
 
-            int64_t minBalance = ledgerMaster.getMinBalance(mSourceAccount->getAccount().numSubEntries);
+            int64_t minBalance = mSourceAccount->getMinimumBalance(ledgerMaster);
 
             if (mSourceAccount->getAccount().balance < (minBalance + curBSent))
             {   // they don't have enough to send

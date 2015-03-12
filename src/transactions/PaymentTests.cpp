@@ -52,7 +52,7 @@ TEST_CASE("payment", "[tx][payment]")
 
     uint64_t txfee = app.getLedgerMaster().getTxFee();
 
-    const uint64_t paymentAmount = (uint64_t)app.getLedgerMaster().getMinBalance(0);
+    const uint64_t paymentAmount = (uint64_t)app.getLedgerMaster().getMinBalance(1)+txfee*10;
 
 
     SequenceNumber rootSeq = getAccountSeqNum(root, app)+1;

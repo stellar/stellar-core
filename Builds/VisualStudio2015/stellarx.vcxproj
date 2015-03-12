@@ -250,6 +250,7 @@
     <ClCompile Include="..\..\src\transactions\SetOptionsTests.cpp" />
     <ClCompile Include="..\..\src\transactions\TxEnvelopeTests.cpp" />
     <ClCompile Include="..\..\src\transactions\TxTests.cpp" />
+    <ClCompile Include="..\..\src\util\Fs.cpp" />
     <ClCompile Include="..\..\src\util\Math.cpp" />
     <ClCompile Include="..\..\src\util\TmpDir.cpp" />
     <ClCompile Include="..\..\src\util\Timer.cpp" />
@@ -355,6 +356,7 @@
     <ClInclude Include="..\..\src\transactions\ChangeTrustOpFrame.h" />
     <ClInclude Include="..\..\src\transactions\TxTests.h" />
     <ClInclude Include="..\..\src\util\asio.h" />
+    <ClInclude Include="..\..\src\util\Fs.h" />
     <ClInclude Include="..\..\src\util\Logging.h" />
     <ClInclude Include="..\..\src\util\make_unique.h" />
     <ClInclude Include="..\..\src\util\Math.h" />

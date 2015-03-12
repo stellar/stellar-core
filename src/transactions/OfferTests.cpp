@@ -70,7 +70,7 @@ TEST_CASE("create offer", "[tx][offers]")
 
 
     // minimum balance necessary to hold 2 trust lines
-    const int64_t minBalance2 = app.getLedgerMaster().getMinBalance(2);
+    const int64_t minBalance2 = app.getLedgerMaster().getMinBalance(2)+10*txfee;
 
     Currency idrCur=makeCurrency(gateway,"IDR");
     Currency usdCur = makeCurrency(gateway, "USD");
@@ -293,7 +293,7 @@ TEST_CASE("create offer", "[tx][offers]")
 
                 if (i < 6)
                 {
-                    // firs tmaps6 offers are taken
+                    // first 6 offers are taken
                     REQUIRE(!OfferFrame::loadOffer(a1.getPublicKey(), a1Offer,
                         offer, app.getDatabase()));
                 }

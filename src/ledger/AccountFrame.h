@@ -18,6 +18,8 @@ namespace soci
 
 namespace stellar
 {
+    class LedgerMaster;
+
     class AccountFrame : public EntryFrame
     {
         void storeUpdate(LedgerDelta &delta, Database& db, bool insert);
@@ -36,6 +38,7 @@ namespace stellar
 
         void setUpdateSigners() { mUpdateSigners = true; }
         int64_t getBalance();
+        int64_t getMinimumBalance(LedgerMaster const& lm) const;
         bool isAuthRequired();
         uint256 const& getID() const;
 
@@ -45,7 +48,7 @@ namespace stellar
         uint32_t getLowThreshold();
 
         void setSeqNum(SequenceNumber seq) { mAccountEntry.seqNum = seq; }
-        SequenceNumber getSeqNum(Database& db) { return mAccountEntry.seqNum; }
+        SequenceNumber getSeqNum() { return mAccountEntry.seqNum; }
 
         AccountEntry &getAccount() { return mAccountEntry; }
 

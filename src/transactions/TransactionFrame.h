@@ -47,7 +47,7 @@ namespace stellar
         void prepareResult(LedgerDelta& delta, LedgerMaster& ledgerMaster);
 
         bool loadAccount(Application& app);
-        bool checkValid(Application& app, bool applying);
+        bool checkValid(Application& app, bool applying, SequenceNumber current);
 
         void resetState();
         bool checkAllSignaturesUsed();
@@ -78,7 +78,7 @@ namespace stellar
         void addSignature(const SecretKey& secretKey);
         bool checkSignature(AccountFrame& account, int32_t neededWeight);
 
-        bool checkValid(Application& app);
+        bool checkValid(Application& app, SequenceNumber current);
 
         // apply this transaction to the current ledger
         // returns true if successfully applied
@@ -89,7 +89,7 @@ namespace stellar
         AccountFrame::pointer loadAccount(Application& app, uint256 const& accountID);
 
         // transaction history
-        void storeTransaction(LedgerMaster &ledgerMaster, LedgerDelta const& delta);
+        void storeTransaction(LedgerMaster &ledgerMaster, LedgerDelta const& delta, int txindex);
         static size_t copyTransactionsToStream(Database& db,
                                                soci::session& sess,
                                                uint32_t ledgerSeq,

@@ -125,7 +125,7 @@ bool TransactionFrame::loadAccount(Application& app)
     return !!mSigningAccount;
 }
 
-bool TransactionFrame::checkValid(Application &app, bool applying)
+bool TransactionFrame::checkValid(Application &app, bool applying, SequenceNumber current)
 {
     // pre-allocates the results for all operations
     mResult.result.code(txSUCCESS);
@@ -176,28 +176,15 @@ bool TransactionFrame::checkValid(Application &app, bool applying)
         return false;
     }
 
-    if (mSigningAccount->getAccount().balance < fee)
+    if (current == 0)
     {
-        mResult.result.code(txINSUFFICIENT_BALANCE);
-        return false;
+        current = mSigningAccount->getSeqNum();
     }
 
-    if (applying)
+    if (current + 1 != mEnvelope.tx.seqNum)
     {
-        // where seq != envelope.seq
-        if (mSigningAccount->getSeqNum(app.getDatabase()) + 1 != mEnvelope.tx.seqNum)
-        {
-            mResult.result.code(txBAD_SEQ);
-            return false;
-        }
-    }
-    else
-    {
-        if (mSigningAccount->getSeqNum(app.getDatabase()) >= mEnvelope.tx.seqNum)
-        {
-            mResult.result.code(txBAD_SEQ);
-            return false;
-        }
+        mResult.result.code(txBAD_SEQ);
+        return false;
     }
 
     if (!checkSignature(*mSigningAccount, mSigningAccount->getLowThreshold()))
@@ -208,6 +195,13 @@ bool TransactionFrame::checkValid(Application &app, bool applying)
 
     // failures after this point will end up charging a fee if attempting to run "apply"
     mResult.feeCharged = fee;
+
+    // don't let the account go below the reserve
+    if (mSigningAccount->getAccount().balance - fee < mSigningAccount->getMinimumBalance(app.getLedgerMaster()))
+    {
+        mResult.result.code(txINSUFFICIENT_BALANCE);
+        return false;
+    }
 
     if (!applying)
     {
@@ -275,17 +269,17 @@ bool TransactionFrame::checkAllSignaturesUsed()
     return true;
 }
 
-bool TransactionFrame::checkValid(Application& app)
+bool TransactionFrame::checkValid(Application& app, SequenceNumber current)
 {
     resetState();
-    return checkValid(app, false);
+    return checkValid(app, false, current);
 }
 
 bool TransactionFrame::apply(LedgerDelta& delta, Application& app)
 {
     resetState();
     LedgerMaster &lm = app.getLedgerMaster();
-    if (!checkValid(app, true))
+    if (!checkValid(app, true, 0))
     {
         prepareResult(delta, lm);
         return false;
@@ -346,7 +340,7 @@ StellarMessage TransactionFrame::toStellarMessage()
     return msg;
 }
 
-void TransactionFrame::storeTransaction(LedgerMaster &ledgerMaster, LedgerDelta const& delta)
+void TransactionFrame::storeTransaction(LedgerMaster &ledgerMaster, LedgerDelta const& delta, int txindex)
 {
     auto txBytes(xdr::xdr_to_opaque(mEnvelope));
     auto txResultBytes(xdr::xdr_to_opaque(mResult));
@@ -369,10 +363,10 @@ void TransactionFrame::storeTransaction(LedgerMaster &ledgerMaster, LedgerDelta 
 
     auto timer = ledgerMaster.getDatabase().getInsertTimer("txhistory");
     soci::statement st = (ledgerMaster.getDatabase().getSession().prepare <<
-        "INSERT INTO TxHistory (txID, ledgerSeq, TxBody, TxResult, TxMeta) VALUES "\
-        "(:id,:seq,:txb,:txres,:entries)",
+        "INSERT INTO TxHistory (txID, ledgerSeq, txindex, TxBody, TxResult, TxMeta) VALUES "
+        "(:id,:seq,:txindex,:txb,:txres,:meta)",
         soci::use(txIDString), soci::use(ledgerMaster.getCurrentLedgerHeader().ledgerSeq),
-        soci::use(txBody), soci::use(txResult), soci::use(meta));
+        soci::use(txindex), soci::use(txBody), soci::use(txResult), soci::use(meta));
 
     st.execute(true);
 
@@ -398,7 +392,7 @@ TransactionFrame::copyTransactionsToStream(Database& db,
     soci::statement st =
         (sess.prepare <<
          "SELECT ledgerSeq, TxBody, TxResult FROM TxHistory "\
-          "WHERE ledgerSeq >= :begin AND ledgerSeq < :end ",
+          "WHERE ledgerSeq >= :begin AND ledgerSeq < :end ORDER BY ledgerSeq ASC, txID ASC",
          soci::into(e.ledgerSeq),
          soci::into(txBody), soci::into(txResult),
          soci::use(begin), soci::use(end));
@@ -430,10 +424,12 @@ void TransactionFrame::dropAll(Database &db)
         "CREATE TABLE TxHistory ("
         "txID          CHARACTER(64) NOT NULL,"
         "ledgerSeq     INT NOT NULL CHECK (ledgerSeq >= 0),"
+        "txindex         INT NOT NULL,"
         "TxBody        TEXT NOT NULL,"
         "TxResult      TEXT NOT NULL,"
         "TxMeta        TEXT NOT NULL,"
-        "PRIMARY KEY (txID, ledgerSeq)"
+        "PRIMARY KEY (txID, ledgerSeq),"
+        "UNIQUE      (ledgerSeq, txindex)"
         ")";
 
 }
