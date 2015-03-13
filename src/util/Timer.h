@@ -65,7 +65,6 @@ public:
                                         time_point;
     static const bool is_steady       = true;
 
-    static std::time_t pointToTimeT(time_point);
     /**
      * NB: Please please please use these helpers for date-time conversions
      * against the application's view of time (VirtualClock::time_point); and if
@@ -78,8 +77,14 @@ public:
      * VirtualClock::time_point and ::duration into the units you're interested
      * in.
      */
+
+    // These two are named to mimic the std::chrono::system_clock methods
+    static std::time_t to_time_t(time_point);
+    static time_point from_time_t(std::time_t);
+
     static std::tm pointToTm(time_point);
     static VirtualClock::time_point tmToPoint(tm t);
+
     static std::string tmToISOString(std::tm const& tm);
     static std::string pointToISOString(time_point point);
 

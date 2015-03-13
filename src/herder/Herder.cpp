@@ -15,6 +15,7 @@
 #include "crypto/SHA.h"
 #include "crypto/Hex.h"
 #include "util/Logging.h"
+#include "util/Timer.h"
 #include "lib/util/easylogging++.h"
 #include "medida/metrics_registry.h"
 #include "medida/meter.h"
@@ -288,7 +289,7 @@ Herder::validateBallot(const uint64& slotIndex,
     }
 
     // Check closeTime (not too far in the future)
-    uint64_t timeNow = VirtualClock::pointToTimeT(mApp.getClock().now());
+    uint64_t timeNow = mApp.timeNow();
     if (b.value.closeTime > timeNow + MAX_TIME_SLIP_SECONDS)
     {
         mBallotInvalid.Mark();
@@ -299,7 +300,7 @@ Herder::validateBallot(const uint64& slotIndex,
     // that were triggered before the expected series of timeouts (accepting
     // MAX_TIME_SLIP_SECONDS as error). This prevents ballot counter
     // exhaustion attacks.
-    uint64_t lastTrigger = VirtualClock::pointToTimeT(mLastTrigger);
+    uint64_t lastTrigger = VirtualClock::to_time_t(mLastTrigger);
     uint64_t sumTimeouts = 0;
     // The second condition is to prevent attackers from emitting ballots whose
     // verification would busy lock us.
@@ -865,7 +866,7 @@ Herder::triggerNextLedger()
     // We pick as next close time the current time unless it's before the last
     // close time. We don't know how much time it will take to reach consensus
     // so this is the most appropriate value to use as closeTime.
-    uint64_t nextCloseTime = VirtualClock::pointToTimeT(mLastTrigger);
+    uint64_t nextCloseTime = VirtualClock::to_time_t(mLastTrigger);
     if (nextCloseTime <= mLastClosedLedger.header.closeTime)
     {
         nextCloseTime = mLastClosedLedger.header.closeTime + 1;

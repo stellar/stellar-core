@@ -70,8 +70,15 @@ VirtualClock::next()
     return least;
 }
 
+VirtualClock::time_point
+VirtualClock::from_time_t(std::time_t timet)
+{
+    time_point epoch;
+    return epoch + std::chrono::seconds(timet);
+}
+
 std::time_t
-VirtualClock::pointToTimeT(time_point point)
+VirtualClock::to_time_t(time_point point)
 {
     return
         static_cast<std::time_t>(
@@ -92,7 +99,7 @@ timegm(struct tm *tm) {
 std::tm
 VirtualClock::pointToTm(time_point point)
 {
-    std::time_t rawtime = pointToTimeT(point);
+    std::time_t rawtime = to_time_t(point);
     std::tm out;
 #ifdef _WIN32
     // On Win32 this is returns a thread-local and there's no _r variant.
