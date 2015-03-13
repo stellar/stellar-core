@@ -123,6 +123,10 @@ class Application
     // after this returns.
     virtual void joinAllThreads() = 0;
 
+    // only works if config.MANUAL_MODE=true;
+    // forces the ledger to close
+    virtual bool manualClose() = 0;
+
 
     virtual void applyCfgCommands() = 0;
 

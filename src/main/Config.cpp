@@ -26,6 +26,7 @@ Config::Config() : PEER_KEY( SecretKey::random() )
     DESIRED_BASE_FEE = 10;
     PEER_PORT = DEFAULT_PEER_PORT;
     RUN_STANDALONE = false;
+    MANUAL_CLOSE = false;
     TARGET_PEER_CONNECTIONS = 20;
     MAX_PEER_CONNECTIONS = 50;
     LOG_FILE_PATH = "stellard.log";
@@ -71,6 +72,8 @@ Config::load(const std::string& filename)
 
         if (g.contains("RUN_STANDALONE"))
             RUN_STANDALONE = g.get("RUN_STANDALONE")->as<bool>()->value();
+        if(g.contains("MANUAL_CLOSE"))
+            MANUAL_CLOSE = g.get("MANUAL_CLOSE")->as<bool>()->value();
         if (g.contains("LOG_FILE_PATH"))
             LOG_FILE_PATH = g.get("LOG_FILE_PATH")->as<std::string>()->value();
         if (g.contains("TMP_DIR_PATH"))

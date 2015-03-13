@@ -100,9 +100,10 @@ class Herder : public HerderGateway,
 
     void ledgerClosed(LedgerHeaderHistoryEntry const& ledger);
     
+    void triggerNextLedger(); 
+
   private:
     void removeReceivedTx(TransactionFramePtr tx);
-    void triggerNextLedger();
     void expireBallot(const uint64& slotIndex,
                       const SCPBallot& ballot);
 

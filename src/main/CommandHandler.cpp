@@ -72,13 +72,25 @@ void CommandHandler::fileNotFound(const std::string& params, std::string& retStr
     retStr  = "<b>Welcome to Hayashi!</b><p>";
     retStr += "supported commands:  <p><ul>";
     retStr += "<li>/stop</li>";
-    retStr += "<li><a href='/peers'>peers</a> see list of peers we are connected to.</li>";
-    retStr += "<li><a href='/info'>info</a></li>";
+    retStr += "<li><a href='/peers'>/peers</a> see list of peers we are connected to.</li>";
+    retStr += "<li><a href='/info'>/info</a></li>";
     retStr += "<li><a href='/metrics'>/metrics</a></li>";
+    retStr += "<li><a href='/manualClose'>/manualClose</a>  if in manual mode will force the ledger to close.</li>";
     retStr += "<li>/connect?peer=###.###.###.###&port=###  connect to a particular peer.</li>";
     retStr += "<li>/tx?blob=[tx in xdr] submit a transaction.</li>";
     retStr += "<li>/ll?level=[level]&partition=[name]  set the log level. partition is optional.</li>";
     retStr += "</ul><p>Have fun!";
+}
+
+void CommandHandler::manualClose(const std::string& params, std::string& retStr)
+{
+    if(mApp.manualClose())
+    {
+        retStr = "Forcing ledger to close...";
+    } else
+    {
+        retStr = "Set MANUAL_CLOSE=true in the stellard.cfg if you want this behavior";
+    }
 }
 
 void
