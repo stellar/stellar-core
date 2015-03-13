@@ -21,16 +21,16 @@ class Config : public std::enable_shared_from_this<Config>
     typedef std::shared_ptr<Config> pointer;
 
     // application config
-    
+
     // The default way hayashi starts is to load the state from disk and catch up to the network before starting SCP.
     // If you need different behavior you need to use --new or --local which set the following flags:
-    
+
     // Will start a brand new ledger. And SCP will start running immediately
     // should only be used once to start a whole new network
-    bool START_NEW_NETWORK;  
+    bool START_NEW_NETWORK;
 
     bool REBUILD_DB;
-    
+
     // This is a mode for testing. It prevents you from trying to connect to other peers
     bool RUN_STANDALONE;
     // Mode for testing. Ledger will only close when told to over http
@@ -69,7 +69,7 @@ class Config : public std::enable_shared_from_this<Config>
     std::vector<std::string> COMMANDS;
 
     Config();
-    
+
     void load(const std::string& filename);
     void applyCommands();
 };

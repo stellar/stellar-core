@@ -47,7 +47,7 @@ Config const& getTestConfig(int instanceNumber)
         Config &thisConfig = *gTestCfg[instanceNumber];
 
         std::ostringstream sstream;
-        
+
         sstream << "stellar" << instanceNumber << ".log";
         thisConfig.LOG_FILE_PATH = sstream.str();
         thisConfig.BUCKET_DIR_PATH = rootDir + "bucket";
