@@ -33,6 +33,41 @@ TEST_CASE("VirtualClock::pointToISOString", "[timer]")
           std::string("1970-01-02T13:10:18Z"));
 }
 
+
+TEST_CASE("VirtualClock::to_time_t", "[timer]")
+{
+    VirtualClock clock;
+
+    VirtualClock::time_point now = clock.now();
+    CHECK(VirtualClock::to_time_t(now) == 0);
+
+    now += std::chrono::hours(36);
+    CHECK(VirtualClock::to_time_t(now) == 129600);
+
+    now += std::chrono::minutes(10);
+    CHECK(VirtualClock::to_time_t(now) == 130200);
+
+    now += std::chrono::seconds(3618);
+    CHECK(VirtualClock::to_time_t(now) == 133818);
+}
+
+TEST_CASE("VirtualClock::from_time_t", "[timer]")
+{
+    VirtualClock clock;
+
+    VirtualClock::time_point now = clock.now();
+    CHECK(now == VirtualClock::from_time_t(0));
+
+    now += std::chrono::hours(36);
+    CHECK(now == VirtualClock::from_time_t(129600));
+
+    now += std::chrono::minutes(10);
+    CHECK(now == VirtualClock::from_time_t(130200));
+
+    now += std::chrono::seconds(3618);
+    CHECK(now == VirtualClock::from_time_t(133818));
+}
+
 TEST_CASE("virtual event dispatch order and times", "[timer]")
 {
     Config cfg(getTestConfig());

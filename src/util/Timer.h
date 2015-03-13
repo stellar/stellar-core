@@ -51,6 +51,13 @@ struct VirtualClockEvent;
 class VirtualClock
 {
 public:
+
+    // We don't want to deal with systems that have not moved to 64bit time_t yet.
+    static_assert(sizeof(uint64_t) == sizeof(std::time_t),
+                  "Require 64bit time_t");
+
+    // These model most of the std::chrono clock concept, with the exception of now()
+    // which is non-static.
     typedef std::chrono::nanoseconds    duration;
     typedef duration::rep               rep;
     typedef duration::period            period;
@@ -58,9 +65,26 @@ public:
                                         time_point;
     static const bool is_steady       = true;
 
-    static std::time_t pointToTimeT(time_point);
+    /**
+     * NB: Please please please use these helpers for date-time conversions
+     * against the application's view of time (VirtualClock::time_point); and if
+     * you need to do manual arithmetic on time, use the std::chrono types
+     * (time_point and duration) as far as possible, only converting to a
+     * unit-less number when absolutely required.
+     *
+     * In particular, prefer std::duration_cast<>() over any manual
+     * multiplication or division of units. It will convert
+     * VirtualClock::time_point and ::duration into the units you're interested
+     * in.
+     */
+
+    // These two are named to mimic the std::chrono::system_clock methods
+    static std::time_t to_time_t(time_point);
+    static time_point from_time_t(std::time_t);
+
     static std::tm pointToTm(time_point);
     static VirtualClock::time_point tmToPoint(tm t);
+
     static std::string tmToISOString(std::tm const& tm);
     static std::string pointToISOString(time_point point);
 

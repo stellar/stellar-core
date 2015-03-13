@@ -106,7 +106,7 @@ ApplicationImpl::~ApplicationImpl()
 
 uint64_t ApplicationImpl::timeNow()
 {
-    return VirtualClock::pointToTimeT(getClock().now());
+    return VirtualClock::to_time_t(getClock().now());
 }
 
 void
