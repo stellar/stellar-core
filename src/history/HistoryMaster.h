@@ -225,6 +225,8 @@ class HistoryMaster
     // (and the completion-handler queued), otherwise false.
     bool maybePublishHistory(std::function<void(asio::error_code const&)> handler);
 
+    bool hasAnyWritableHistoryArchive();
+
     // Checkpoint the LCL -- both the log of history from the previous checkpoint to it,
     // as well as the bucketlist of its state -- to all writable history archives.
     void publishHistory(std::function<void(asio::error_code const&)> handler);

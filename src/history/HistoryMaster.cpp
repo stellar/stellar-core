@@ -335,11 +335,30 @@ HistoryMaster::getLastClosedHistoryArchiveState() const
 }
 
 bool
+HistoryMaster::hasAnyWritableHistoryArchive()
+{
+    auto const& hist = mImpl->mApp.getConfig().HISTORY;
+    for (auto const& pair : hist)
+    {
+        if (pair.second->hasGetCmd() &&
+            pair.second->hasPutCmd())
+            return true;
+    }
+    return false;
+}
+
+bool
 HistoryMaster::maybePublishHistory(std::function<void(asio::error_code const&)> handler)
 {
     uint32_t seq = mImpl->mApp.getLedgerMaster().getCurrentLedgerHeader().ledgerSeq;
     if (seq != nextCheckpointLedger(seq))
     {
+        return false;
+    }
+
+    if (!hasAnyWritableHistoryArchive())
+    {
+        CLOG(WARNING, "History") << "Skipping checkpoint, no writable history archives";
         return false;
     }
 
