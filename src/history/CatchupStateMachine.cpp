@@ -550,16 +550,22 @@ CatchupStateMachine::applyHistoryFromLedger(uint32_t ledgerNum)
             {
                 if (hHeader.hash != lm.getLastClosedLedgerHeader().hash)
                 {
-                    throw std::runtime_error("replay failed to connect on hash of LCL");
+                    throw std::runtime_error("replay at LCL disagreed on hash");
                 }
                 CLOG(DEBUG, "History") << "Catchup at LCL=" << header.ledgerSeq << ", hash correct";
                 continue;
             }
 
             // If we are past current, we can't catch up: fail.
-            if (header.ledgerSeq > lm.getCurrentLedgerHeader().ledgerSeq)
+            if (header.ledgerSeq != lm.getCurrentLedgerHeader().ledgerSeq)
             {
-                throw std::runtime_error("replay failed due to overshooting current ledger");
+                throw std::runtime_error("replay overshot current ledger");
+            }
+
+            // If we do not agree about LCL hash, we can't catch up: fail.
+            if (header.previousLedgerHash != lm.getLastClosedLedgerHeader().hash)
+            {
+                throw std::runtime_error("replay at current ledger disagreed on LCL hash");
             }
 
             TxSetFramePtr txset = std::make_shared<TxSetFrame>();
