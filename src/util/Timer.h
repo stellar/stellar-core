@@ -51,6 +51,10 @@ struct VirtualClockEvent;
 class VirtualClock
 {
 public:
+
+    // We don't want to deal with systems that have not moved to 64bit time_t yet.
+    static_assert(sizeof(uint64_t) == sizeof(std::time_t),
+                  "Require 64bit time_t");
     typedef std::chrono::nanoseconds    duration;
     typedef duration::rep               rep;
     typedef duration::period            period;
