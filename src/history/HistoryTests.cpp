@@ -298,7 +298,7 @@ HistoryTests::catchupNewApplication(uint32_t lastLedger,
 
     if (!app2)
     {
-        mCfgs.emplace_back(getTestConfig(mCfgs.size() + 1, dbMode));
+        mCfgs.emplace_back(getTestConfig(static_cast<int>(mCfgs.size()) + 1, dbMode));
         app2 = Application::create(clock, addLocalDirHistoryArchive(dir, mCfgs.back(), false));
         app2->start();
     }
