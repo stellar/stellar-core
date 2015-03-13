@@ -128,8 +128,8 @@ bool TransactionFrame::loadAccount(Application& app)
 bool TransactionFrame::checkValid(Application &app, bool applying, SequenceNumber current)
 {
     // pre-allocates the results for all operations
-    mResult.result.code(txSUCCESS);
-    mResult.result.results().resize((uint32_t)mEnvelope.tx.operations.size());
+    getResult().result.code(txSUCCESS);
+    getResult().result.results().resize((uint32_t)mEnvelope.tx.operations.size());
 
     mOperations.clear();
 
@@ -137,27 +137,27 @@ bool TransactionFrame::checkValid(Application &app, bool applying, SequenceNumbe
     for (size_t i = 0; i < mEnvelope.tx.operations.size(); i++)
     {
         mOperations.push_back(OperationFrame::makeHelper(mEnvelope.tx.operations[i],
-            mResult.result.results()[i], *this));
+            getResult().result.results()[i], *this));
     }
 
     // feeCharged is updated accordingly to represent the cost of the transaction
     // regardless of the failure modes.
-    mResult.feeCharged = 0;
+    getResult().feeCharged = 0;
 
     if (mOperations.size() == 0)
     {
-        mResult.result.code(txMALFORMED);
+        getResult().result.code(txMALFORMED);
         return false;
     }
 
     if(mEnvelope.tx.maxLedger < app.getLedgerGateway().getLedgerNum())
     {
-        mResult.result.code(txBAD_LEDGER);
+        getResult().result.code(txBAD_LEDGER);
         return false;
     }
     if(mEnvelope.tx.minLedger > app.getLedgerGateway().getLedgerNum())
     {
-        mResult.result.code(txBAD_LEDGER);
+        getResult().result.code(txBAD_LEDGER);
         return false;
     }
 
@@ -166,13 +166,13 @@ bool TransactionFrame::checkValid(Application &app, bool applying, SequenceNumbe
 
     if (mEnvelope.tx.maxFee < fee)
     {
-        mResult.result.code(txINSUFFICIENT_FEE);
+        getResult().result.code(txINSUFFICIENT_FEE);
         return false;
     }
 
     if (!loadAccount(app))
     {
-        mResult.result.code(txNO_ACCOUNT);
+        getResult().result.code(txNO_ACCOUNT);
         return false;
     }
 
@@ -183,23 +183,23 @@ bool TransactionFrame::checkValid(Application &app, bool applying, SequenceNumbe
 
     if (current + 1 != mEnvelope.tx.seqNum)
     {
-        mResult.result.code(txBAD_SEQ);
+        getResult().result.code(txBAD_SEQ);
         return false;
     }
 
     if (!checkSignature(*mSigningAccount, mSigningAccount->getLowThreshold()))
     {
-        mResult.result.code(txBAD_AUTH);
+        getResult().result.code(txBAD_AUTH);
         return false;
     }
 
     // failures after this point will end up charging a fee if attempting to run "apply"
-    mResult.feeCharged = fee;
+    getResult().feeCharged = fee;
 
     // don't let the account go below the reserve
     if (mSigningAccount->getAccount().balance - fee < mSigningAccount->getMinimumBalance(app.getLedgerMaster()))
     {
-        mResult.result.code(txINSUFFICIENT_BALANCE);
+        getResult().result.code(txINSUFFICIENT_BALANCE);
         return false;
     }
 
@@ -221,7 +221,7 @@ bool TransactionFrame::checkValid(Application &app, bool applying, SequenceNumbe
 void TransactionFrame::prepareResult(LedgerDelta& delta, LedgerMaster& ledgerMaster)
 {
     Database &db = ledgerMaster.getDatabase();
-    int64_t fee = mResult.feeCharged;
+    int64_t fee = getResult().feeCharged;
 
     if (fee > 0)
     {
@@ -262,7 +262,7 @@ bool TransactionFrame::checkAllSignaturesUsed()
     {
         if (!sigb)
         {
-            mResult.result.code(txBAD_AUTH);
+            getResult().result.code(txBAD_AUTH);
             return false;
         }
     }
@@ -322,9 +322,9 @@ bool TransactionFrame::apply(LedgerDelta& delta, Application& app)
         // As we want to preserve the results, we save them inside a temp object
         // Also, note that because we're using move operators
         // mOperations are still valid (they have pointers to the individual results elements)
-        xdr::xvector<OperationResult> t(std::move(mResult.result.results()));
-        mResult.result.code(txFAILED);
-        mResult.result.results() = std::move(t);
+        xdr::xvector<OperationResult> t(std::move(getResult().result.results()));
+        getResult().result.code(txFAILED);
+        getResult().result.results() = std::move(t);
     }
 
     // return true as the transaction executed and collected a fee
@@ -343,7 +343,7 @@ StellarMessage TransactionFrame::toStellarMessage()
 void TransactionFrame::storeTransaction(LedgerMaster &ledgerMaster, LedgerDelta const& delta, int txindex)
 {
     auto txBytes(xdr::xdr_to_opaque(mEnvelope));
-    auto txResultBytes(xdr::xdr_to_opaque(mResult));
+    auto txResultBytes(xdr::xdr_to_opaque(getResult()));
 
     std::string txBody = base64::encode(
         reinterpret_cast<const unsigned char *>(txBytes.data()),
