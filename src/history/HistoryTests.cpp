@@ -28,14 +28,21 @@ using xdr::operator==;
 };
 
 Config&
-addLocalDirHistoryArchive(TmpDir const& dir, Config &cfg)
+addLocalDirHistoryArchive(TmpDir const& dir, Config &cfg, bool writable=true)
 {
     std::string d = dir.getName();
-    cfg.HISTORY["test"] = std::make_shared<HistoryArchive>(
-        "test",
-        "cp " + d + "/{0} {1}",
-        "cp {0} " + d + "/{1}",
-        "mkdir -p " + d + "/{0}");
+    std::string getCmd = "cp " + d + "/{0} {1}";
+    std::string putCmd = "";
+    std::string mkdirCmd = "";
+
+    if (writable)
+    {
+        putCmd = "cp {0} " + d + "/{1}";
+        mkdirCmd = "mkdir -p " + d + "/{0}";
+    }
+
+    cfg.HISTORY["test"] =
+        std::make_shared<HistoryArchive>("test", getCmd, putCmd, mkdirCmd);
     return cfg;
 }
 
