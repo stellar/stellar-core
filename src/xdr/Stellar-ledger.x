@@ -60,7 +60,7 @@ union CLFEntry switch (CLFType type)
 struct TransactionSet
 {
     Hash previousLedgerHash;
-    TransactionEnvelope txs<>;
+    TransactionEnvelope txs<5000>;
 };
 
 struct TransactionMeta
