@@ -17,13 +17,15 @@ typedef std::shared_ptr<TransactionFrame> TransactionFramePtr;
 
 class TxSetFrame
 {
+    bool mHashIsValid;
     Hash mHash;
+
+    Hash mPreviousLedgerHash;
 
   public:
     typedef std::shared_ptr<TxSetFrame> pointer;
 
     std::vector<TransactionFramePtr> mTransactions;
-    Hash                             mPreviousLedgerHash;
 
     TxSetFrame();
     // make it from the wire
@@ -31,7 +33,9 @@ class TxSetFrame
 
     // returns the hash of this tx set
     Hash getContentsHash();
-    Hash getPreviousLedgerHash();
+
+    Hash &previousLedgerHash();
+    Hash const& previousLedgerHash() const;
 
     void sortForHash();
 
@@ -42,6 +46,7 @@ class TxSetFrame
     void add(TransactionFramePtr tx)
     {
         mTransactions.push_back(tx);
+        mHashIsValid = false;
     }
 
     size_t size()

@@ -15,11 +15,11 @@ namespace stellar
 
 using namespace std;
 
-TxSetFrame::TxSetFrame()
+TxSetFrame::TxSetFrame() : mHashIsValid(false)
 {
 }
 
-TxSetFrame::TxSetFrame(TransactionSet const& xdrSet)
+TxSetFrame::TxSetFrame(TransactionSet const& xdrSet) : mHashIsValid(false)
 {
     for (auto txEnvelope : xdrSet.txs)
     {
@@ -45,6 +45,7 @@ void
 TxSetFrame::sortForHash()
 {
     std::sort(mTransactions.begin(), mTransactions.end(), HashTxSorter);
+    mHashIsValid = false;
 }
 
 // We want to XOR the tx hash with the set hash. 
@@ -126,8 +127,7 @@ TxSetFrame::checkValid(Application& app)
     using xdr::operator==;
 
     // Start by checking previousLedgerHash
-    if (app.getLedgerMaster().getLastClosedLedgerHeader().hash !=
-        mPreviousLedgerHash)
+    if (app.getLedgerMaster().getLastClosedLedgerHeader().hash != mPreviousLedgerHash)
     {
         return false;
     }
@@ -181,7 +181,7 @@ TxSetFrame::checkValid(Application& app)
 Hash
 TxSetFrame::getContentsHash()
 {
-    if (isZero(mHash))
+    if (!mHashIsValid)
     {
         sortForHash();
         SHA256 hasher;
@@ -190,14 +190,22 @@ TxSetFrame::getContentsHash()
             hasher.add(xdr::xdr_to_msg(mTransactions[n]->getEnvelope()));
         }
         mHash = hasher.finish();
+        mHashIsValid = true;
     }
     return mHash;
 }
 
 
 
-Hash
-TxSetFrame::getPreviousLedgerHash()
+Hash&
+TxSetFrame::previousLedgerHash()
+{
+    mHashIsValid = false;
+    return mPreviousLedgerHash;
+}
+
+Hash const&
+TxSetFrame::previousLedgerHash() const
 {
     return mPreviousLedgerHash;
 }

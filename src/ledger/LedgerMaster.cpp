@@ -192,7 +192,7 @@ LedgerHeaderHistoryEntry& LedgerMaster::getLastClosedLedgerHeader()
 // called by txherder
 void LedgerMaster::externalizeValue(LedgerCloseData ledgerData)
 {
-    if(mLastClosedLedger.hash == ledgerData.mTxSet->getPreviousLedgerHash())
+    if(mLastClosedLedger.hash == ledgerData.mTxSet->previousLedgerHash())
     {
         closeLedger(ledgerData);
     }

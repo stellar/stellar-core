@@ -159,7 +159,7 @@ TEST_CASE("txset", "[herder]")
 
     TxSetFramePtr txSet = std::make_shared<TxSetFrame>();
 
-    txSet->mPreviousLedgerHash = app->getLedgerMaster().getLastClosedLedgerHeader().hash;
+    txSet->previousLedgerHash() = app->getLedgerMaster().getLastClosedLedgerHeader().hash;
 
     for (auto &txs : transactions)
     {
