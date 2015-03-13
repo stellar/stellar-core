@@ -172,6 +172,7 @@ ProcessMaster::handleSignalWait()
             asio::error_code ec;
             if (WIFEXITED(status))
             {
+                CLOG(DEBUG, "Process") << "process " << pid << " exited " << WEXITSTATUS(status);
                 // FIXME: this doesn't _quite_ do the right thing; it conveys
                 // the exit status back to the caller but it puts it in "system
                 // category" which on POSIX means if you call .message() on it
