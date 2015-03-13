@@ -21,9 +21,6 @@
 #include "medida/meter.h"
 #include "scp/Slot.h"
 
-#define MAX_TIME_IN_FUTURE_VALID 10
-
-
 namespace stellar
 {
 
@@ -166,11 +163,10 @@ Herder::validateValue(const uint64& slotIndex,
         }
 
         // Check closeTime (not too far in future)
-        uint64_t maxTime=(uint64_t)(mApp.getClock().now().time_since_epoch().count() *
-			std::chrono::system_clock::period::num / std::chrono::system_clock::period::den);
-        maxTime += MAX_TIME_IN_FUTURE_VALID;
-        if(b.value.closeTime > maxTime)
+        uint64_t timeNow = mApp.timeNow();
+        if(b.value.closeTime > timeNow + MAX_TIME_SLIP_SECONDS)
         {
+            mValueInvalid.Mark();
             return cb(false);
         }
     
