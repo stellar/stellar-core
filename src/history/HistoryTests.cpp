@@ -399,6 +399,34 @@ TEST_CASE_METHOD(HistoryTests, "History publish", "[history]")
     generateAndPublishHistory(1);
 }
 
+static std::string
+resumeModeName(HistoryMaster::ResumeMode mode)
+{
+    switch (mode)
+    {
+    case HistoryMaster::RESUME_AT_NEXT:
+        return "RESUME_AT_NEXT";
+    case HistoryMaster::RESUME_AT_LAST:
+        return "RESUME_AT_LAST";
+    }
+}
+
+static std::string
+dbModeName(Config::TestDbMode mode)
+{
+    switch (mode)
+    {
+    case Config::TESTDB_IN_MEMORY_SQLITE:
+        return "TESTDB_IN_MEMORY_SQLITE";
+    case Config::TESTDB_ON_DISK_SQLITE:
+        return "TESTDB_ON_DISK_SQLITE";
+    case Config::TESTDB_UNIX_LOCAL_POSTGRESQL:
+        return "TESTDB_UNIX_LOCAL_POSTGRESQL";
+    case Config::TESTDB_TCP_LOCALHOST_POSTGRESQL:
+        return "TESTDB_TCP_LOCALHOST_POSTGRESQL";
+    }
+}
+
 TEST_CASE_METHOD(HistoryTests, "History catchup", "[history][historycatchup]")
 {
     generateAndPublishHistory(3);
@@ -408,36 +436,33 @@ TEST_CASE_METHOD(HistoryTests, "History catchup", "[history][historycatchup]")
 
     std::vector<Application::pointer> apps;
 
-    SECTION("full, RESUME_AT_LAST, IN_MEMORY_SQLITE")
-    {
-        apps.push_back(
-            catchupNewApplication(
-                lastLedger, initLedger,
-                Config::TESTDB_IN_MEMORY_SQLITE,
-                HistoryMaster::RESUME_AT_LAST,
-                "full, RESUME_AT_LAST, IN_MEMORY_SQLITE"));
-    }
+    std::vector<HistoryMaster::ResumeMode> resumeModes = {
+        HistoryMaster::RESUME_AT_NEXT,
+        HistoryMaster::RESUME_AT_LAST
+    };
 
-    SECTION("full, RESUME_AT_LAST, ON_DISK_SQLITE")
-    {
-        apps.push_back(
-            catchupNewApplication(
-                lastLedger, initLedger,
-                Config::TESTDB_ON_DISK_SQLITE,
-                HistoryMaster::RESUME_AT_LAST,
-                "full, RESUME_AT_LAST, ON_DISK_SQLITE"));
-    }
-
+    std::vector<Config::TestDbMode> dbModes = {
 #ifdef USE_POSTGRES
-    SECTION("full, RESUME_AT_LAST, TCP_LOCALHOST_POSTGRESQL")
-    {
-        apps.push_back(
-            catchupNewApplication(
-                lastLedger, initLedger,
-                Config::TESTDB_TCP_LOCALHOST_POSTGRESQL,
-                HistoryMaster::RESUME_AT_LAST,
-                "full, RESUME_AT_LAST, TCP_LOCALHOST_POSTGRESQL"));
-    }
+        Config::TESTDB_TCP_LOCALHOST_POSTGRESQL,
 #endif
+        Config::TESTDB_IN_MEMORY_SQLITE,
+        Config::TESTDB_ON_DISK_SQLITE
+    };
 
+
+    for (auto dbMode : dbModes)
+    {
+        for (auto resumeMode : resumeModes)
+        {
+            apps.push_back(
+                catchupNewApplication(
+                    lastLedger,
+                    initLedger,
+                    dbMode,
+                    resumeMode,
+                    std::string("full, ")
+                    + resumeModeName(resumeMode) + ", "
+                    + dbModeName(dbMode)));
+        }
+    }
 }
