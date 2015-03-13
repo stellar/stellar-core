@@ -5,6 +5,7 @@
 // this distribution or at http://opensource.org/licenses/ISC
 
 #include "util/Logging.h"
+#include "main/Config.h"
 
 namespace stellar
 {
@@ -12,7 +13,8 @@ namespace stellar
 
 class Config;
 
-Config const& getTestConfig(int instanceNumber = 0);
+Config const& getTestConfig(int instanceNumber = 0,
+                            Config::TestDbMode mode = Config::TESTDB_IN_MEMORY_SQLITE);
 int test(int argc, char* const* argv, el::Level logLevel);
 }
 

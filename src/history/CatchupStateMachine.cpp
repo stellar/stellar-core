@@ -321,47 +321,47 @@ CatchupStateMachine::enterAnchoredState(HistoryArchiveState const& has)
         }
     }
 
-    // Then make sure all the files we _want_ are either present
-    // or queued to be requested.
-    std::vector<std::string> bucketsToFetch = mArchiveState.differingBuckets(mLocalState);
     std::vector<std::shared_ptr<FileCatchupInfo>> fileCatchupInfos;
 
-    for (auto const& h : bucketsToFetch)
+    // Then make sure all the files we _want_ are either present
+    // or queued to be requested.
+    if (mMode == HistoryMaster::RESUME_AT_NEXT)
     {
-        fileCatchupInfos.push_back(
-            std::make_shared<FileCatchupInfo>(
+        std::vector<std::string> bucketsToFetch = mArchiveState.differingBuckets(mLocalState);
+        for (auto const& h : bucketsToFetch)
+        {
+            fileCatchupInfos.push_back(
+                std::make_shared<FileCatchupInfo>(
+                    FILE_CATCHUP_NEEDED, mDownloadDir,
+                    HISTORY_FILE_TYPE_BUCKET, h));
+        }
+    }
+    else
+    {
+        for (uint32_t i = mLocalState.currentLedger / HistoryMaster::kCheckpointFrequency;
+             i <= mArchiveState.currentLedger / HistoryMaster::kCheckpointFrequency;
+             ++i)
+        {
+            uint32_t snap = static_cast<uint32>(i);
+            auto fi = std::make_shared<FileCatchupInfo>(
                 FILE_CATCHUP_NEEDED, mDownloadDir,
-                HISTORY_FILE_TYPE_BUCKET, h));
-    }
+                HISTORY_FILE_TYPE_TRANSACTION, snap);
+            fileCatchupInfos.push_back(fi);
+            if (mTransactionInfos.find(snap) == mTransactionInfos.end())
+            {
+                mTransactionInfos[snap] = fi;
+            }
 
-    for (uint32_t i = mLocalState.currentLedger / HistoryMaster::kCheckpointFrequency;
-         i <= mArchiveState.currentLedger / HistoryMaster::kCheckpointFrequency;
-         ++i)
-    {
-        if (i > 0xffffffff)
-        {
-            throw std::runtime_error("Catchup to checkpoint beyond limit of history format");
-        }
-        uint32_t snap = static_cast<uint32>(i);
-        auto fi = std::make_shared<FileCatchupInfo>(
-            FILE_CATCHUP_NEEDED, mDownloadDir,
-            HISTORY_FILE_TYPE_TRANSACTION, snap);
-        fileCatchupInfos.push_back(fi);
-        if (mTransactionInfos.find(snap) == mTransactionInfos.end())
-        {
-            mTransactionInfos[snap] = fi;
-        }
-
-        fi = std::make_shared<FileCatchupInfo>(
-            FILE_CATCHUP_NEEDED, mDownloadDir,
-            HISTORY_FILE_TYPE_LEDGER, snap);
-        fileCatchupInfos.push_back(fi);
-        if (mHeaderInfos.find(snap) == mHeaderInfos.end())
-        {
-            mHeaderInfos[snap] = fi;
+            fi = std::make_shared<FileCatchupInfo>(
+                FILE_CATCHUP_NEEDED, mDownloadDir,
+                HISTORY_FILE_TYPE_LEDGER, snap);
+            fileCatchupInfos.push_back(fi);
+            if (mHeaderInfos.find(snap) == mHeaderInfos.end())
+            {
+                mHeaderInfos[snap] = fi;
+            }
         }
     }
-
     for (auto const& fi : fileCatchupInfos)
     {
         auto name = fi->baseName_nogz();
@@ -512,6 +512,9 @@ CatchupStateMachine::applyHistoryFromLedger(uint32_t ledgerNum)
         XDRInputFileStream hdrIn;
         XDRInputFileStream txIn;
 
+        CLOG(INFO, "History") << "Replaying ledger headers from " << hi->localPath_nogz();
+        CLOG(INFO, "History") << "Replaying transactions from " << ti->localPath_nogz();
+
         hdrIn.open(hi->localPath_nogz());
         txIn.open(ti->localPath_nogz());
 
@@ -547,16 +550,22 @@ CatchupStateMachine::applyHistoryFromLedger(uint32_t ledgerNum)
             {
                 if (hHeader.hash != lm.getLastClosedLedgerHeader().hash)
                 {
-                    throw std::runtime_error("replay failed to connect on hash of LCL");
+                    throw std::runtime_error("replay at LCL disagreed on hash");
                 }
                 CLOG(DEBUG, "History") << "Catchup at LCL=" << header.ledgerSeq << ", hash correct";
                 continue;
             }
 
             // If we are past current, we can't catch up: fail.
-            if (header.ledgerSeq > lm.getCurrentLedgerHeader().ledgerSeq)
+            if (header.ledgerSeq != lm.getCurrentLedgerHeader().ledgerSeq)
             {
-                throw std::runtime_error("replay failed due to overshooting current ledger");
+                throw std::runtime_error("replay overshot current ledger");
+            }
+
+            // If we do not agree about LCL hash, we can't catch up: fail.
+            if (header.previousLedgerHash != lm.getLastClosedLedgerHeader().hash)
+            {
+                throw std::runtime_error("replay at current ledger disagreed on LCL hash");
             }
 
             TxSetFramePtr txset = std::make_shared<TxSetFrame>();

@@ -231,7 +231,7 @@ ArchivePublisher::enterSendingState()
             else
             {
                 fi->setState(FILE_PUBLISH_MAKING_DIR);
-                CLOG(INFO, "History") << "Making remote directory " << fi->remoteDir();
+                CLOG(DEBUG, "History") << "Making remote directory " << fi->remoteDir();
                 hm.mkdir(
                     mArchive, fi->remoteDir(),
                     [this, name](asio::error_code const& ec)
@@ -370,8 +370,13 @@ StateSnapshot::writeHistoryBlocks() const
     XDROutputFileStream ledgerOut, txOut;
     ledgerOut.open(mLedgerSnapFile->localPath_nogz());
     txOut.open(mTransactionSnapFile->localPath_nogz());
+
     uint32_t count = HistoryMaster::kCheckpointFrequency;
-    uint32_t begin = mLocalState.currentLedger > count ? mLocalState.currentLedger  - count : 0;
+
+    // 'mLocalState' describes the LCL, so its currentLedger will be 63, 127, 191, etc.
+    // We want to start our snapshot at 64-before the _next_ ledger: 0, 64, 128, etc.
+    assert(mLocalState.currentLedger + 1 >= count);
+    uint32_t begin = mLocalState.currentLedger + 1 - count;
 
     CLOG(DEBUG, "History")
         << "Streaming " << count << " ledgers worth of history, from " << begin;
