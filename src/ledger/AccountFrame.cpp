@@ -21,7 +21,7 @@ const char *AccountFrame::kSQLCreateStatement1 =
      "("
      "accountID       VARCHAR(51)  PRIMARY KEY,"
      "balance         BIGINT       NOT NULL,"
-     "seqNum          INT          NOT NULL,"
+     "seqNum          BIGINT       NOT NULL,"
      "numSubEntries   INT          NOT NULL CHECK (numSubEntries >= 0),"
      "inflationDest   VARCHAR(51),"
      "thresholds      TEXT,"
