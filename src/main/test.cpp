@@ -29,7 +29,8 @@ namespace stellar
 static std::vector<std::unique_ptr<Config>> gTestCfg;
 static std::vector<TmpDir> gTestRoots;
 
-Config const& getTestConfig(int instanceNumber)
+Config const& getTestConfig(int instanceNumber,
+                            Config::TestDbMode mode)
 {
     if (gTestCfg.size() <= instanceNumber)
     {
@@ -68,13 +69,23 @@ Config const& getTestConfig(int instanceNumber)
         // default and we do need a VALIDATION_KEY to start a new network
         thisConfig.VALIDATION_KEY = SecretKey::random();
 
-        // uncomment this when debugging test cases
-        //std::ostringstream dbname;
-        //dbname << "sqlite3://test" << instanceNumber << ".db";
-        //dbname << "postgresql://host=localhost dbname=test" << instanceNumber << " user=test password=test";
-        //thisConfig.DATABASE = dbname.str();
-        
-        
+        std::ostringstream dbname;
+        switch (mode)
+        {
+        case Config::TESTDB_IN_MEMORY_SQLITE:
+            dbname << "sqlite3://:memory:";
+            break;
+        case Config::TESTDB_ON_DISK_SQLITE:
+            dbname << "sqlite3://" << rootDir << "test" << instanceNumber << ".db";
+            break;
+        case Config::TESTDB_UNIX_LOCAL_POSTGRESQL:
+            dbname << "postgresql://dbname=test" << instanceNumber;
+            break;
+        case Config::TESTDB_TCP_LOCALHOST_POSTGRESQL:
+            dbname << "postgresql://host=localhost dbname=test" << instanceNumber << " user=test password=test";
+            break;
+        }
+        thisConfig.DATABASE = dbname.str();
     }
     return *gTestCfg[instanceNumber];
 }

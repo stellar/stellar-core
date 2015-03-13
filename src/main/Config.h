@@ -20,6 +20,14 @@ class Config : public std::enable_shared_from_this<Config>
   public:
     typedef std::shared_ptr<Config> pointer;
 
+    enum TestDbMode
+    {
+        TESTDB_IN_MEMORY_SQLITE,
+        TESTDB_ON_DISK_SQLITE,
+        TESTDB_UNIX_LOCAL_POSTGRESQL,
+        TESTDB_TCP_LOCALHOST_POSTGRESQL
+    };
+
     // application config
 
     // The default way hayashi starts is to load the state from disk and catch up to the network before starting SCP.
