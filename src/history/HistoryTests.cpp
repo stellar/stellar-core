@@ -20,6 +20,7 @@
 #include <cstdio>
 #include <xdrpp/autocheck.h>
 #include <fstream>
+#include <random>
 
 using namespace stellar;
 
@@ -57,6 +58,8 @@ protected:
     Config cfg;
     Application::pointer appPtr;
     Application &app;
+    std::default_random_engine mGenerator;
+    std::bernoulli_distribution mFlip{0.5};
 
 public:
     HistoryTests()
@@ -71,6 +74,8 @@ public:
 
     void crankTillDone(bool& done);
     void generateAndPublishHistory();
+
+    bool flip() { return mFlip(mGenerator); }
 };
 
 void
