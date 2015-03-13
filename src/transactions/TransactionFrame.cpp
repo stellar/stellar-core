@@ -359,7 +359,7 @@ void TransactionFrame::storeTransaction(LedgerMaster &ledgerMaster, LedgerDelta 
         reinterpret_cast<const unsigned char *>(txMeta->raw_data()),
         txMeta->raw_size());
 
-    string txIDString(binToHex(getContentsHash()));
+    string txIDString(binToHex(getFullHash()));
 
     auto timer = ledgerMaster.getDatabase().getInsertTimer("txhistory");
     soci::statement st = (ledgerMaster.getDatabase().getSession().prepare <<
