@@ -317,6 +317,7 @@ void LedgerMaster::closeLedger(LedgerCloseData ledgerData)
     // Notify ledger close to other components.
     mApp.getHerderGateway().ledgerClosed(mLastClosedLedger);
     mApp.getOverlayGateway().ledgerClosed(mLastClosedLedger);
+    mApp.getHistoryMaster().maybePublishHistory([](asio::error_code const&) {});
 }
 
 void
@@ -350,7 +351,6 @@ LedgerMaster::closeLedgerHelper(LedgerDelta const& delta)
 
     mApp.getPersistentState().setState(PersistentState::kLastClosedLedger, binToHex(mCurrentLedger->getHash()));
     advanceLedgerPointers();
-    mApp.getHistoryMaster().maybePublishHistory([](asio::error_code const&) {});
 }
 
 }
