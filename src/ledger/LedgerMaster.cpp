@@ -22,6 +22,7 @@
 #include "medida/metrics_registry.h"
 #include "medida/meter.h"
 #include "medida/timer.h"
+#include "xdrpp/printer.h"
 #include <chrono>
 #include <sstream>
 
@@ -279,6 +280,9 @@ void LedgerMaster::closeLedger(LedgerCloseData ledgerData)
         {
             LedgerDelta delta(ledgerDelta);
 
+            CLOG(DEBUG, "Tx") << "APPLY: ledger " << mCurrentLedger->mHeader.ledgerSeq
+                              << " tx#" << index << " = " << hexAbbrev(tx->getFullHash())
+                              << " txseq=" << tx->getSeqNum() << " (@ " << hexAbbrev(tx->getSourceID()) <<  ")";
             // note that successfulTX here just means it got processed
             // a failed transaction collecting a fee is successful at this layer
             if(tx->apply(delta, mApp))
@@ -290,12 +294,18 @@ void LedgerMaster::closeLedger(LedgerCloseData ledgerData)
             else
             {
                 CLOG(ERROR, "Tx") << "invalid tx. This should never happen";
+                CLOG(ERROR, "Tx") << "Transaction: " << xdr::xdr_to_string(tx->getEnvelope());
+                CLOG(ERROR, "Tx") << "Result: " << xdr::xdr_to_string(tx->getResult());
             }
 
         }
+        catch(std::runtime_error &e)
+        {
+            CLOG(ERROR, "Ledger") << "Exception during tx->apply: " << e.what();
+        }
         catch(...)
         {
-            CLOG(ERROR, "Ledger") << "Exception during tx->apply";
+            CLOG(ERROR, "Ledger") << "Unknown exception during tx->apply";
         }
     }
     ledgerDelta.commit();
@@ -319,7 +329,7 @@ LedgerMaster::advanceLedgerPointers()
     mLastClosedLedger.hash = mCurrentLedger->getHash();
     mLastClosedLedger.header = mCurrentLedger->mHeader;
     mCurrentLedger = make_shared<LedgerHeaderFrame>(mLastClosedLedger);
-    CLOG(INFO, "Ledger")
+    CLOG(DEBUG, "Ledger")
         << "New current ledger: seq=" << mCurrentLedger->mHeader.ledgerSeq;
 }
 
@@ -339,7 +349,6 @@ LedgerMaster::closeLedgerHelper(LedgerDelta const& delta)
     mCurrentLedger->storeInsert(*this);
 
     mApp.getPersistentState().setState(PersistentState::kLastClosedLedger, binToHex(mCurrentLedger->getHash()));
-    CLOG(INFO, "Ledger") << "Closed " << ledgerAbbrev(mCurrentLedger);
     advanceLedgerPointers();
     mApp.getHistoryMaster().maybePublishHistory([](asio::error_code const&) {});
 }

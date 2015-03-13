@@ -231,7 +231,7 @@ ArchivePublisher::enterSendingState()
             else
             {
                 fi->setState(FILE_PUBLISH_MAKING_DIR);
-                CLOG(INFO, "History") << "Making remote directory " << fi->remoteDir();
+                CLOG(DEBUG, "History") << "Making remote directory " << fi->remoteDir();
                 hm.mkdir(
                     mArchive, fi->remoteDir(),
                     [this, name](asio::error_code const& ec)

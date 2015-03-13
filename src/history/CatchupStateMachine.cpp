@@ -512,6 +512,9 @@ CatchupStateMachine::applyHistoryFromLedger(uint32_t ledgerNum)
         XDRInputFileStream hdrIn;
         XDRInputFileStream txIn;
 
+        CLOG(INFO, "History") << "Replaying ledger headers from " << hi->localPath_nogz();
+        CLOG(INFO, "History") << "Replaying transactions from " << ti->localPath_nogz();
+
         hdrIn.open(hi->localPath_nogz());
         txIn.open(ti->localPath_nogz());
 
