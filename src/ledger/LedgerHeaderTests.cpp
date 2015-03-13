@@ -32,7 +32,8 @@ TEST_CASE("ledgerheader", "[ledger]")
         Application::pointer app = Application::create(clock, cfg);
         app->start();
 
-        TxSetFramePtr txSet = make_shared<TxSetFrame>();
+        TxSetFramePtr txSet = make_shared<TxSetFrame>(
+            app->getLedgerMaster().getLastClosedLedgerHeader().hash);
 
         // close this ledger
         LedgerCloseData ledgerData(1, txSet, 1, 10);

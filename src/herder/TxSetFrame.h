@@ -27,7 +27,7 @@ class TxSetFrame
 
     std::vector<TransactionFramePtr> mTransactions;
 
-    TxSetFrame();
+    TxSetFrame(Hash const& previousLedgerHash);
     // make it from the wire
     TxSetFrame(TransactionSet const& xdrSet);
 

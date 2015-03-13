@@ -848,7 +848,7 @@ Herder::triggerNextLedger()
 
     // our first choice for this round's set is all the tx we have collected
     // during last ledger close
-    TxSetFramePtr proposedSet = std::make_shared<TxSetFrame>();
+    TxSetFramePtr proposedSet = std::make_shared<TxSetFrame>(mLastClosedLedger.hash);
     for (auto& list : mReceivedTransactions)
     {
         for (auto &tx : list)
@@ -857,7 +857,6 @@ Herder::triggerNextLedger()
         }
     }
 
-    proposedSet->previousLedgerHash() = mLastClosedLedger.hash;
     recvTxSet(proposedSet);
 
     uint64_t slotIndex = mLastClosedLedger.header.ledgerSeq + 1;

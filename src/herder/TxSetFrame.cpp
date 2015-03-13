@@ -15,7 +15,8 @@ namespace stellar
 
 using namespace std;
 
-TxSetFrame::TxSetFrame() : mHashIsValid(false)
+TxSetFrame::TxSetFrame(Hash const& previousLedgerHash) :
+    mHashIsValid(false), mPreviousLedgerHash(previousLedgerHash)
 {
 }
 

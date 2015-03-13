@@ -326,7 +326,8 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
     SECTION("common transaction")
     {
-        TxSetFramePtr txSet = std::make_shared<TxSetFrame>();
+        TxSetFramePtr txSet = std::make_shared<TxSetFrame>(
+            app.getLedgerMaster().getLastClosedLedgerHeader().hash);
 
         TransactionFramePtr txFrame;
         

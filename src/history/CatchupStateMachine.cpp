@@ -568,7 +568,7 @@ CatchupStateMachine::applyHistoryFromLedger(uint32_t ledgerNum)
                 throw std::runtime_error("replay at current ledger disagreed on LCL hash");
             }
 
-            TxSetFramePtr txset = std::make_shared<TxSetFrame>();
+            TxSetFramePtr txset = std::make_shared<TxSetFrame>(lm.getLastClosedLedgerHeader().hash);
             if (!readTx)
             {
                 readTx = txIn.readOne(txHistoryEntry);
