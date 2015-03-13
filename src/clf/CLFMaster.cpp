@@ -12,6 +12,7 @@
 #include "util/make_unique.h"
 #include "util/TmpDir.h"
 #include "util/Logging.h"
+#include "util/types.h"
 #include "crypto/Hex.h"
 #include <fstream>
 #include <map>
@@ -182,6 +183,10 @@ CLFMaster::adoptFileAsBucket(std::string const& filename,
 std::shared_ptr<Bucket>
 CLFMaster::getBucketByHash(uint256 const& hash) const
 {
+    if (isZero(hash))
+    {
+        return std::make_shared<Bucket>();
+    }
     std::lock_guard<std::mutex> lock(mImpl->mBucketMutex);
     std::string basename = bucketBasename(binToHex(hash));
     auto i = mImpl->mSharedBuckets.find(basename);
