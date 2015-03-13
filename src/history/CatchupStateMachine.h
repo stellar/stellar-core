@@ -88,12 +88,12 @@ CatchupStateMachine
     static const size_t kRetryLimit;
 
     Application& mApp;
-    uint64_t mLastLedger;
-    uint64_t mInitLedger;
-    uint64_t mNextLedger;
+    uint32_t mLastLedger;
+    uint32_t mInitLedger;
+    uint32_t mNextLedger;
     HistoryMaster::ResumeMode mMode;
     std::function<void(asio::error_code const& ec,
-                       uint64_t nextLedger)> mEndHandler;
+                    uint32_t nextLedger)> mEndHandler;
     asio::error_code mError;
     CatchupState mState;
     size_t mRetryCount;
@@ -120,17 +120,17 @@ CatchupStateMachine
     void enterApplyingState();
     void enterEndState();
 
-    void applyBucketsAtLedger(uint64_t ledgerNum);
-    void applyHistoryFromLedger(uint64_t ledgerNum);
+    void applyBucketsAtLedger(uint32_t ledgerNum);
+    void applyHistoryFromLedger(uint32_t ledgerNum);
 
 public:
 
     CatchupStateMachine(Application& app,
-                        uint64_t lastLedger,
-                        uint64_t initLedger,
+                        uint32_t lastLedger,
+                        uint32_t initLedger,
                         HistoryMaster::ResumeMode mode,
                         std::function<void(asio::error_code const& ec,
-                                           uint64_t nextLedger)> handler);
+                                            uint32_t nextLedger)> handler);
 
 
 };

@@ -47,7 +47,7 @@ SequenceNumber getAccountSeqNum(SecretKey const& k, Application &app)
 {
     AccountFrame account;
     REQUIRE(AccountFrame::loadAccount(k.getPublicKey(), account, app.getDatabase()));
-    return account.getSeqNum(app.getDatabase());
+    return account.getSeqNum();
 }
 
 void checkTransaction(TransactionFrame& txFrame)

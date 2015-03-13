@@ -343,9 +343,9 @@ Peer::recvSCPMessage(StellarMessage const& msg)
     mApp.getOverlayGateway()
         .recvFloodedMsg(msg, shared_from_this());
 
-    auto cb = [msg,this] (bool valid)
+    auto cb = [msg,this] (SCP::EnvelopeState state)
     {
-        if (valid)
+        if (state == SCP::EnvelopeState::VALID)
         {
             mApp.getOverlayGateway().broadcastMessage(msg);
         }

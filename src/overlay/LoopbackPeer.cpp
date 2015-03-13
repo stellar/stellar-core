@@ -97,7 +97,7 @@ damageMessage(default_random_engine& gen, xdr::msg_ptr& msg)
     return bitsFlipped != 0;
 }
 
-static xdr::msg_ptr&&
+static xdr::msg_ptr
 duplicateMessage(xdr::msg_ptr const& msg)
 {
     xdr::msg_ptr msg2 = xdr::message_t::alloc(msg->size());

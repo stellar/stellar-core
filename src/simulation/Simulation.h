@@ -57,7 +57,7 @@ class Simulation
         
     void startAllNodes();
 
-    bool haveAllExternalized(int num);
+    bool haveAllExternalized(uint32_t num);
 
     size_t crankAllNodes(int nbTicks=1);
     void crankForAtMost(VirtualClock::duration seconds);

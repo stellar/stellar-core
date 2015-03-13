@@ -184,7 +184,7 @@ class HistoryMaster
     static const uint32_t kCheckpointFrequency;
 
     // Given a ledger, tell when the next checkpoint will occur.
-    static uint64_t nextCheckpointLedger(uint64_t ledger);
+    static uint32_t nextCheckpointLedger(uint32_t ledger);
 
     // Verify that a file has a given hash.
     void verifyHash(std::string const& filename,
@@ -234,11 +234,11 @@ class HistoryMaster
     // RESUME_AT_LAST, meaning replay history from last to present, or
     // RESUME_AT_NEXT, meaning snap to the next state possible and discard
     // history. See larger comment above for more detail.
-    void catchupHistory(uint64_t lastLedger,
-                        uint64_t initLedger,
+    void catchupHistory(uint32_t lastLedger,
+                        uint32_t initLedger,
                         ResumeMode mode,
                         std::function<void(asio::error_code const& ec,
-                                           uint64_t nextLedger)> handler);
+                                            uint32_t nextLedger)> handler);
 
     // Call posted after a worker thread has finished taking a snapshot; calls
     // PublishStateMachine::snapshotTaken iff state machine is live.

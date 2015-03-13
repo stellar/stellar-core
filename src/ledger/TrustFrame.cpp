@@ -216,7 +216,7 @@ namespace stellar {
             tl.currency.type(ISO4217);
             tl.currency.isoCI().issuer = fromBase58Check256(VER_ACCOUNT_ID, issuer);
             strToCurrencyCode(tl.currency.isoCI().currencyCode, currency);
-            tl.authorized = authorized;
+            tl.authorized = (authorized != 0);
             trustProcessor(curTrustLine);
 
             st.fetch();

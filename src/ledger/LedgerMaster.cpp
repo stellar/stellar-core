@@ -153,7 +153,7 @@ int64_t LedgerMaster::getTxFee()
     return mCurrentLedger->mHeader.baseFee;
 }
 
-int64_t LedgerMaster::getMinBalance(uint32_t ownerCount)
+int64_t LedgerMaster::getMinBalance(uint32_t ownerCount) const
 {
     return (2 + ownerCount) * mCurrentLedger->mHeader.baseReserve;
 }
@@ -209,7 +209,7 @@ void LedgerMaster::externalizeValue(LedgerCloseData ledgerData)
 }
 
 
-void LedgerMaster::startCatchUp(uint64_t initLedger)
+void LedgerMaster::startCatchUp(uint32_t initLedger)
 {
     mApp.setState(Application::CATCHING_UP_STATE);
     mApp.getHistoryMaster().catchupHistory(
@@ -221,7 +221,7 @@ void LedgerMaster::startCatchUp(uint64_t initLedger)
 }
 
 void LedgerMaster::historyCaughtup(asio::error_code const& ec,
-                                   uint64_t nextLedger)
+                                    uint32_t nextLedger)
 {
     if (ec)
     {
@@ -270,8 +270,8 @@ void LedgerMaster::closeLedger(LedgerCloseData ledgerData)
 
     auto ledgerTime = mLedgerClose.TimeScope();
 
-    vector<TransactionFramePtr> txs;
-    ledgerData.mTxSet->sortForApply(txs);
+    vector<TransactionFramePtr> txs = ledgerData.mTxSet->sortForApply();
+    int index = 0;
     for(auto tx : txs)
     {
         auto txTime = mTransactionApply.TimeScope();
@@ -284,7 +284,7 @@ void LedgerMaster::closeLedger(LedgerCloseData ledgerData)
             if(tx->apply(delta, mApp))
             {
                 successfulTX.add(tx);
-                tx->storeTransaction(*this, delta);
+                tx->storeTransaction(*this, delta, ++index);
                 delta.commit();
             }
             else

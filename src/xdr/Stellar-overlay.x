@@ -7,7 +7,7 @@ struct StellarBallotValue
 {
     Hash txSetHash;
     uint64 closeTime;
-    int32 baseFee;
+    uint32 baseFee;
 };
 
 struct StellarBallot

@@ -96,7 +96,7 @@ class Herder : public HerderGateway,
     bool recvTransaction(TransactionFramePtr tx);
 
     void recvSCPEnvelope(SCPEnvelope envelope,
-                         std::function<void(bool)> const& cb = [] (bool) { });
+                         std::function<void(EnvelopeState)> const& cb = [] (bool) { });
 
     void ledgerClosed(LedgerHeaderHistoryEntry const& ledger);
     
@@ -138,7 +138,7 @@ class Herder : public HerderGateway,
     std::map<uint64,
         std::vector<
             std::pair<SCPEnvelope, 
-                      std::function<void(bool)>>>> mFutureEnvelopes;
+                      std::function<void(EnvelopeState)>>>> mFutureEnvelopes;
 
     std::map<SCPBallot,
         std::map<uint256,

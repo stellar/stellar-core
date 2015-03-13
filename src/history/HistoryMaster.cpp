@@ -162,13 +162,13 @@ checkNoGzipSuffix(string const& filename)
 }
 
 
-uint64_t
-HistoryMaster::nextCheckpointLedger(uint64_t ledger)
+uint32_t
+HistoryMaster::nextCheckpointLedger(uint32_t ledger)
 {
     if (ledger == 0)
         return kCheckpointFrequency;
     uint64_t res = static_cast<uint64_t>(kCheckpointFrequency);
-    return ((ledger + res - 1) / res) * res;
+    return static_cast<uint32_t>(((ledger + res - 1) / res) * res);
 }
 
 
@@ -337,7 +337,7 @@ HistoryMaster::getLastClosedHistoryArchiveState() const
 bool
 HistoryMaster::maybePublishHistory(std::function<void(asio::error_code const&)> handler)
 {
-    uint64_t seq = mImpl->mApp.getLedgerMaster().getCurrentLedgerHeader().ledgerSeq;
+    uint32_t seq = mImpl->mApp.getLedgerMaster().getCurrentLedgerHeader().ledgerSeq;
     if (seq != nextCheckpointLedger(seq))
     {
         return false;
@@ -397,11 +397,11 @@ HistoryMaster::snapshotTaken(asio::error_code const& ec,
 }
 
 void
-HistoryMaster::catchupHistory(uint64_t lastLedger,
-                              uint64_t initLedger,
+HistoryMaster::catchupHistory(uint32_t lastLedger,
+                              uint32_t initLedger,
                               ResumeMode mode,
                               std::function<void(asio::error_code const& ec,
-                                                 uint64_t nextLedger)> handler)
+                                                 uint32_t nextLedger)> handler)
 {
     if (mImpl->mCatchup)
     {
@@ -413,7 +413,7 @@ HistoryMaster::catchupHistory(uint64_t lastLedger,
         lastLedger,
         initLedger,
         mode,
-        [this, handler](asio::error_code const& ec, uint64_t nextLedger)
+        [this, handler](asio::error_code const& ec, uint32_t nextLedger)
         {
             if (ec)
             {

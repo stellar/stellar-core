@@ -309,7 +309,7 @@ VirtualClockEvent::~VirtualClockEvent()
 bool
 VirtualClockEvent::live() const
 {
-    return mTimer;
+    return mTimer != nullptr;
 }
 
 VirtualTimer::VirtualTimer(Application& app)

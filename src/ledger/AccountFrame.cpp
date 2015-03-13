@@ -8,6 +8,7 @@
 #include "crypto/Hex.h"
 #include "database/Database.h"
 #include "LedgerDelta.h"
+#include "ledger/LedgerMaster.h"
 
 using namespace soci;
 using namespace std;
@@ -66,22 +67,32 @@ int64_t AccountFrame::getBalance()
 {
     return(mAccountEntry.balance);
 }
+
+int64_t AccountFrame::getMinimumBalance(LedgerMaster const& lm) const
+{
+    return lm.getMinBalance(mAccountEntry.numSubEntries);
+}
+
 uint256 const& AccountFrame::getID() const
 {
     return(mAccountEntry.accountID);
 }
+
 uint32_t AccountFrame::getMasterWeight()
 {
     return mAccountEntry.thresholds[0];
 }
+
 uint32_t AccountFrame::getHighThreshold()
 {
     return mAccountEntry.thresholds[3];
 }
+
 uint32_t AccountFrame::getMidThreshold()
 {
     return mAccountEntry.thresholds[2];
 }
+
 uint32_t AccountFrame::getLowThreshold()
 {
     return mAccountEntry.thresholds[1];

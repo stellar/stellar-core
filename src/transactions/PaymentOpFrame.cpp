@@ -74,7 +74,7 @@ using namespace std;
     {
         Database &db = ledgerMaster.getDatabase();
 
-        bool multi_mode = mPayment.path.size();
+        bool multi_mode = mPayment.path.size() != 0;
         if (multi_mode)
         {
             innerResult().code(Payment::SUCCESS_MULTI);
@@ -192,7 +192,7 @@ using namespace std;
                 return false;
             }
 
-            int64_t minBalance = ledgerMaster.getMinBalance(mSourceAccount->getAccount().numSubEntries);
+            int64_t minBalance = mSourceAccount->getMinimumBalance(ledgerMaster);
 
             if (mSourceAccount->getAccount().balance < (minBalance + curBSent))
             {   // they don't have enough to send
