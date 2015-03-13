@@ -170,7 +170,7 @@ using namespace std;
         soci::statement st =
             (sess.prepare <<
              "SELECT data FROM LedgerHeaders "
-             "WHERE ledgerSeq >= :begin AND ledgerSeq < :end",
+             "WHERE ledgerSeq >= :begin AND ledgerSeq < :end ORDER BY ledgerSeq ASC",
              into(headerEncoded),
              use(begin), use(end));
 
