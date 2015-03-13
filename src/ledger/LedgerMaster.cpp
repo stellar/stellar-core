@@ -132,7 +132,7 @@ void LedgerMaster::loadLastKnownLedger()
         LOG(INFO) << "Loading last known ledger";
         Hash lastLedgerHash = hexToBin256(lastLedger);
 
-        mCurrentLedger = LedgerHeaderFrame::loadByHash(lastLedgerHash, *this);
+        mCurrentLedger = LedgerHeaderFrame::loadByHash(lastLedgerHash, getDatabase());
         CLOG(INFO, "Ledger") << "Loaded last known ledger: " << ledgerAbbrev(mCurrentLedger);
 
         if (!mCurrentLedger)

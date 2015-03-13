@@ -96,14 +96,13 @@ using namespace std;
         return make_shared<LedgerHeaderFrame>(lh);
     }
 
-    LedgerHeaderFrame::pointer LedgerHeaderFrame::loadByHash(Hash const& hash, LedgerMaster& ledgerMaster)
+    LedgerHeaderFrame::pointer LedgerHeaderFrame::loadByHash(Hash const& hash, Database& db)
     {
         LedgerHeaderFrame::pointer lhf;
 
         string hash_s(binToHex(hash));
         string headerEncoded;
         {
-            auto& db = ledgerMaster.getDatabase();
             auto timer = db.getSelectTimer("ledger-header");
             db.getSession() <<
                 "SELECT data FROM LedgerHeaders "\
@@ -111,7 +110,7 @@ using namespace std;
                 into(headerEncoded),
                 use(hash_s);
         }
-        if (ledgerMaster.getDatabase().getSession().got_data())
+        if (db.getSession().got_data())
         {
             lhf = decodeFromData(headerEncoded);
             if (lhf->getHash() != hash)
@@ -124,13 +123,11 @@ using namespace std;
         return lhf;
     }
 
-    LedgerHeaderFrame::pointer LedgerHeaderFrame::loadBySequence(uint32_t seq, LedgerMaster& ledgerMaster)
+    LedgerHeaderFrame::pointer LedgerHeaderFrame::loadBySequence(uint32_t seq, Database& db)
     {
         LedgerHeaderFrame::pointer lhf;
 
         string headerEncoded;
-        auto& db = ledgerMaster.getDatabase();
-
         {
             auto timer = db.getSelectTimer("ledger-header");
             db.getSession() <<
@@ -139,7 +136,7 @@ using namespace std;
             into(headerEncoded),
             use(seq);
         }
-        if (ledgerMaster.getDatabase().getSession().got_data())
+        if (db.getSession().got_data())
         {
             lhf = decodeFromData(headerEncoded);
 
