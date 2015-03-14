@@ -24,6 +24,15 @@ before_install:
 before_script:
 - psql -c "create user test with password 'test';" -U postgres
 - psql -c "create database test;" -U postgres
+- psql -c "create database test0;" -U postgres
+- psql -c "create database test1;" -U postgres
+- psql -c "create database test2;" -U postgres
+- psql -c "create database test3;" -U postgres
+- psql -c "create database test4;" -U postgres
+- psql -c "create database test5;" -U postgres
+- psql -c "create database test6;" -U postgres
+- psql -c "create database test7;" -U postgres
+- psql -c "create database test8;" -U postgres
 script:
 - set -e
 - ./autogen.sh
