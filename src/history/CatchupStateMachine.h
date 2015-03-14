@@ -127,6 +127,7 @@ CatchupStateMachine
     void enterEndState();
 
     void applyBucketsAtLedger(uint32_t ledgerNum);
+    void acquireFinalLedgerState(uint32_t ledgerNum);
     void applyHistoryFromLedger(uint32_t ledgerNum);
 
 public:

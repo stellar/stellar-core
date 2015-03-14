@@ -353,6 +353,7 @@ CatchupStateMachine::enterAnchoredState(HistoryArchiveState const& has)
     // or queued to be requested.
     if (mMode == HistoryMaster::RESUME_AT_NEXT)
     {
+        // in RESUME_AT_NEXT mode we need all the buckets...
         std::vector<std::string> bucketsToFetch = mArchiveState.differingBuckets(mLocalState);
         for (auto const& h : bucketsToFetch)
         {
@@ -361,6 +362,10 @@ CatchupStateMachine::enterAnchoredState(HistoryArchiveState const& has)
                     FILE_CATCHUP_NEEDED, mDownloadDir,
                     HISTORY_FILE_TYPE_BUCKET, h));
         }
+
+        // ...and _the last_ history ledger file (to get its final state).
+        uint32_t snap = mArchiveState.currentLedger / HistoryMaster::kCheckpointFrequency;
+        fileCatchupInfos.push_back(queueLedgerFile(snap));
     }
     else
     {
@@ -433,6 +438,7 @@ CatchupStateMachine::enterApplyingState()
         // In RESUME_AT_NEXT mode we're applying the _state_ at mNextLedger
         // without any history replay.
         applyBucketsAtLedger(mNextLedger);
+        acquireFinalLedgerState(mNextLedger);
     }
     else
     {
@@ -440,7 +446,6 @@ CatchupStateMachine::enterApplyingState()
         // mLastLedger through mNextLedger, without any reconstitution.
         assert(mMode == HistoryMaster::RESUME_AT_LAST);
         applyHistoryFromLedger(mLastLedger);
-
     }
 
     sqltx.commit();
@@ -506,6 +511,39 @@ CatchupStateMachine::applyBucketsAtLedger(uint32_t ledgerNum)
         }
     }
 }
+
+void
+CatchupStateMachine::acquireFinalLedgerState(uint32_t ledgerNum)
+{
+    CLOG(INFO, "History") << "Seeking ledger state preceding " << ledgerNum;
+    assert(mHeaderInfos.size() == 1);
+    auto hi = mHeaderInfos.begin()->second;
+    XDRInputFileStream hdrIn;
+    CLOG(INFO, "History") << "Scanning to last-ledger in " << hi->localPath_nogz();
+    hdrIn.open(hi->localPath_nogz());
+    LedgerHeaderHistoryEntry hHeader;
+
+    // Scan to end.
+    bool readOne = false;
+    while (hdrIn && hdrIn.readOne(hHeader))
+    {
+        readOne = true;
+    }
+
+    if (!readOne)
+    {
+        throw std::runtime_error("no ledgers in last-ledger file");
+    }
+
+    CLOG(INFO, "History") << "Catchup last-ledger header: " << LedgerMaster::ledgerAbbrev(hHeader);
+    if (hHeader.header.ledgerSeq + 1 != ledgerNum)
+    {
+        throw std::runtime_error("catchup last-ledger state mismatch");
+    }
+
+    mLastClosed = hHeader;
+}
+
 
 void
 CatchupStateMachine::applyHistoryFromLedger(uint32_t ledgerNum)
