@@ -73,6 +73,16 @@ protected:
     std::vector<uint256> mBucket0Hashes;
     std::vector<uint256> mBucket1Hashes;
 
+    uint64_t mRootBalance{0};
+    uint64_t mAliceBalance{0};
+    uint64_t mBobBalance{0};
+    uint64_t mCarolBalance{0};
+
+    SequenceNumber mRootSeq{0};
+    SequenceNumber mAliceSeq{0};
+    SequenceNumber mBobSeq{0};
+    SequenceNumber mCarolSeq{0};
+
 public:
     HistoryTests()
         : archtmp("archtmp")
@@ -280,6 +290,16 @@ HistoryTests::generateAndPublishHistory(size_t nPublishes)
         }
     }
 
+    mRootBalance = txtest::getAccountBalance(mRoot, app);
+    mAliceBalance = txtest::getAccountBalance(mAlice, app);
+    mBobBalance = txtest::getAccountBalance(mBob, app);
+    mCarolBalance = txtest::getAccountBalance(mCarol, app);
+
+    mRootSeq = txtest::getAccountSeqNum(mRoot, app);
+    mAliceSeq = txtest::getAccountSeqNum(mAlice, app);
+    mBobSeq = txtest::getAccountSeqNum(mBob, app);
+    mCarolSeq = txtest::getAccountSeqNum(mCarol, app);
+
     // At this point LCL (modulo checkpoint frequency) should be 63 and we
     // should be starting in on ledger 0 (a.k.a. 64)...
     CHECK(lm.getCurrentLedgerHeader().ledgerSeq == (nPublishes * HistoryMaster::kCheckpointFrequency));
@@ -368,6 +388,16 @@ HistoryTests::catchupNewApplication(uint32_t lastLedger,
     CHECK(app2->getCLFMaster().getBucketByHash(wantBucket1Hash));
     CHECK(wantBucket0Hash == haveBucket0Hash);
     CHECK(wantBucket1Hash == haveBucket1Hash);
+
+    CHECK(mRootBalance == txtest::getAccountBalance(mRoot, *app2));
+    CHECK(mAliceBalance == txtest::getAccountBalance(mAlice, *app2));
+    CHECK(mBobBalance == txtest::getAccountBalance(mBob, *app2));
+    CHECK(mCarolBalance == txtest::getAccountBalance(mCarol, *app2));
+
+    CHECK(mRootSeq == txtest::getAccountSeqNum(mRoot, *app2));
+    CHECK(mAliceSeq == txtest::getAccountSeqNum(mAlice, *app2));
+    CHECK(mBobSeq == txtest::getAccountSeqNum(mBob, *app2));
+    CHECK(mCarolSeq == txtest::getAccountSeqNum(mCarol, *app2));
 
     return app2;
 }
