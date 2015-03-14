@@ -107,15 +107,21 @@ CatchupStateMachine::enterBeginState()
     assert(mState == CATCHUP_RETRYING);
     mRetryCount = 0;
     mState = CATCHUP_BEGIN;
+
+    assert(mNextLedger > 0);
+    uint32_t blockEnd = mNextLedger - 1;
+    uint32_t snap = blockEnd / HistoryMaster::kCheckpointFrequency;
+
     CLOG(INFO, "History")
         << "Catchup BEGIN, initLedger=" << mInitLedger
-        << ", guessed nextLedger=" << mNextLedger;
+        << ", guessed nextLedger=" << mNextLedger
+        << ", anchor checkpoint=" << snap;
 
     mArchive = selectRandomReadableHistoryArchive();
     mArchive->getSnapState(
         mApp,
-        mInitLedger / HistoryMaster::kCheckpointFrequency,
-        [this](asio::error_code const& ec,
+        snap,
+        [this, blockEnd, snap](asio::error_code const& ec,
                HistoryArchiveState const& has)
         {
             if (ec)
