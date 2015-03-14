@@ -99,6 +99,7 @@ public:
         }
 
     void crankTillDone(bool& done);
+    void generateRandomLedger();
     void generateAndPublishHistory(size_t nPublishes);
     Application::pointer catchupNewApplication(uint32_t lastLedger,
                                                uint32_t initLedger,
@@ -222,9 +223,64 @@ extern LedgerEntry
 generateValidLedgerEntry();
 
 void
+HistoryTests::generateRandomLedger()
+{
+    auto& lm = app.getLedgerMaster();
+    TxSetFramePtr txSet = std::make_shared<TxSetFrame>(lm.getLastClosedLedgerHeader().hash);
+
+    uint32_t ledgerSeq = lm.getLedgerNum();
+    uint64_t minBalance = lm.getMinBalance(5);
+    uint64_t big = minBalance + ledgerSeq;
+    uint64_t small = 100 + ledgerSeq;
+    uint64_t closeTime = 60 * 5 * ledgerSeq;
+
+    SequenceNumber rseq = txtest::getAccountSeqNum(mRoot, app) + 1;
+
+    // Root sends to alice every tx, bob every other tx, carol every 4rd tx.
+    txSet->add(txtest::createPaymentTx(mRoot, mAlice, rseq++, big));
+    txSet->add(txtest::createPaymentTx(mRoot, mBob, rseq++, big));
+    txSet->add(txtest::createPaymentTx(mRoot, mCarol, rseq++, big));
+
+    // They all randomly send a little to one another every ledger after #4
+    if (ledgerSeq > 4)
+    {
+        SequenceNumber aseq = txtest::getAccountSeqNum(mAlice, app) + 1;
+        SequenceNumber bseq = txtest::getAccountSeqNum(mBob, app) + 1;
+        SequenceNumber cseq = txtest::getAccountSeqNum(mCarol, app) + 1;
+
+        if (flip()) txSet->add(txtest::createPaymentTx(mAlice, mBob, aseq++, small));
+        if (flip()) txSet->add(txtest::createPaymentTx(mAlice, mCarol, aseq++, small));
+
+        if (flip()) txSet->add(txtest::createPaymentTx(mBob, mAlice, bseq++, small));
+        if (flip()) txSet->add(txtest::createPaymentTx(mBob, mCarol, bseq++, small));
+
+        if (flip()) txSet->add(txtest::createPaymentTx(mCarol, mAlice, cseq++, small));
+        if (flip()) txSet->add(txtest::createPaymentTx(mCarol, mBob, cseq++, small));
+    }
+    CLOG(DEBUG, "History") << "Closing synthetic ledger with " << txSet->size() << " txs";
+    lm.closeLedger(LedgerCloseData(ledgerSeq, txSet, closeTime, 10));
+
+    mLedgerSeqs.push_back(lm.getLastClosedLedgerHeader().header.ledgerSeq);
+    mLedgerHashes.push_back(lm.getLastClosedLedgerHeader().hash);
+    mBucket0Hashes.push_back(app.getCLFMaster().getBucketList().getLevel(0).getCurr()->getHash());
+    mBucket1Hashes.push_back(app.getCLFMaster().getBucketList().getLevel(2).getCurr()->getHash());
+
+
+    mRootBalances.push_back(txtest::getAccountBalance(mRoot, app));
+    mAliceBalances.push_back(txtest::getAccountBalance(mAlice, app));
+    mBobBalances.push_back(txtest::getAccountBalance(mBob, app));
+    mCarolBalances.push_back(txtest::getAccountBalance(mCarol, app));
+
+    mRootSeqs.push_back(txtest::getAccountSeqNum(mRoot, app));
+    mAliceSeqs.push_back(txtest::getAccountSeqNum(mAlice, app));
+    mBobSeqs.push_back(txtest::getAccountSeqNum(mBob, app));
+    mCarolSeqs.push_back(txtest::getAccountSeqNum(mCarol, app));
+}
+
+
+void
 HistoryTests::generateAndPublishHistory(size_t nPublishes)
 {
-
     app.start();
 
     auto& lm = app.getLedgerMaster();
@@ -234,60 +290,15 @@ HistoryTests::generateAndPublishHistory(size_t nPublishes)
     assert(lm.getLastClosedLedgerHeader().header.ledgerSeq == 1);
     assert(lm.getCurrentLedgerHeader().ledgerSeq == 2);
 
-    uint32_t ledgerSeq = 1;
-    uint64_t closeTime = 1;
-    uint64_t minBalance = lm.getMinBalance(5);
-    SequenceNumber rseq = txtest::getAccountSeqNum(mRoot, app) + 1;
+    SequenceNumber ledgerSeq = 1;
 
     while (hm.getPublishSuccessCount() < nPublishes)
     {
         uint64_t startCount = hm.getPublishStartCount();
         while (hm.getPublishStartCount() == startCount)
         {
-            TxSetFramePtr txSet = std::make_shared<TxSetFrame>(lm.getLastClosedLedgerHeader().hash);
-
-            uint64_t big = minBalance + ledgerSeq;
-            uint64_t small = 100 + ledgerSeq;
-
-            // Root sends to alice every tx, bob every other tx, carol every 4rd tx.
-            txSet->add(txtest::createPaymentTx(mRoot, mAlice, rseq++, big));
-            txSet->add(txtest::createPaymentTx(mRoot, mBob, rseq++, big));
-            txSet->add(txtest::createPaymentTx(mRoot, mCarol, rseq++, big));
-
-            // They all randomly send a little to one another every ledger after #4
-            if (ledgerSeq > 4)
-            {
-                SequenceNumber aseq = txtest::getAccountSeqNum(mAlice, app) + 1;
-                SequenceNumber bseq = txtest::getAccountSeqNum(mBob, app) + 1;
-                SequenceNumber cseq = txtest::getAccountSeqNum(mCarol, app) + 1;
-
-                if (flip()) txSet->add(txtest::createPaymentTx(mAlice, mBob, aseq++, small));
-                if (flip()) txSet->add(txtest::createPaymentTx(mAlice, mCarol, aseq++, small));
-
-                if (flip()) txSet->add(txtest::createPaymentTx(mBob, mAlice, bseq++, small));
-                if (flip()) txSet->add(txtest::createPaymentTx(mBob, mCarol, bseq++, small));
-
-                if (flip()) txSet->add(txtest::createPaymentTx(mCarol, mAlice, cseq++, small));
-                if (flip()) txSet->add(txtest::createPaymentTx(mCarol, mBob, cseq++, small));
-            }
-            CLOG(DEBUG, "History") << "Closing synthetic ledger with " << txSet->size() << " txs";
-            lm.closeLedger(LedgerCloseData(ledgerSeq++, txSet, closeTime++, 10));
-
-            mLedgerSeqs.push_back(lm.getLastClosedLedgerHeader().header.ledgerSeq);
-            mLedgerHashes.push_back(lm.getLastClosedLedgerHeader().hash);
-            mBucket0Hashes.push_back(app.getCLFMaster().getBucketList().getLevel(0).getCurr()->getHash());
-            mBucket1Hashes.push_back(app.getCLFMaster().getBucketList().getLevel(2).getCurr()->getHash());
-
-
-            mRootBalances.push_back(txtest::getAccountBalance(mRoot, app));
-            mAliceBalances.push_back(txtest::getAccountBalance(mAlice, app));
-            mBobBalances.push_back(txtest::getAccountBalance(mBob, app));
-            mCarolBalances.push_back(txtest::getAccountBalance(mCarol, app));
-
-            mRootSeqs.push_back(txtest::getAccountSeqNum(mRoot, app));
-            mAliceSeqs.push_back(txtest::getAccountSeqNum(mAlice, app));
-            mBobSeqs.push_back(txtest::getAccountSeqNum(mBob, app));
-            mCarolSeqs.push_back(txtest::getAccountSeqNum(mCarol, app));
+            generateRandomLedger();
+            ++ledgerSeq;
         }
 
         CHECK(lm.getCurrentLedgerHeader().ledgerSeq == ledgerSeq + 1);
