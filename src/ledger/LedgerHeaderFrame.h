@@ -42,7 +42,7 @@ namespace stellar
                                                 soci::session& sess,
                                                 uint32_t ledgerSeq,
                                                 uint32_t ledgerCount,
-                                                XDROutputFileStream& txOut);
+                                                XDROutputFileStream& headersOut);
 
         static void dropAll(Database &db);
         static const char *kSQLCreateStatement;

@@ -154,7 +154,7 @@ using namespace std;
                                                         soci::session& sess,
                                                         uint32_t ledgerSeq,
                                                         uint32_t ledgerCount,
-                                                        XDROutputFileStream& out)
+                                                        XDROutputFileStream& headersOut)
     {
         auto timer = db.getSelectTimer("ledger-header-history");
         uint32_t begin = ledgerSeq, end = ledgerSeq + ledgerCount;
@@ -179,7 +179,7 @@ using namespace std;
             lhe.hash = lhf->getHash();
             lhe.header = lhf->mHeader;
             CLOG(DEBUG, "Ledger") << "Streaming ledger-header " << lhe.header.ledgerSeq;
-            out.writeOne(lhe);
+            headersOut.writeOne(lhe);
             ++n;
             st.fetch();
         }

@@ -40,6 +40,7 @@ StateSnapshot
     soci::transaction mTx;
     std::shared_ptr<FilePublishInfo> mLedgerSnapFile;
     std::shared_ptr<FilePublishInfo> mTransactionSnapFile;
+    std::shared_ptr<FilePublishInfo> mTransactionResultSnapFile;
 
     StateSnapshot(Application& app);
     bool writeHistoryBlocks() const;
@@ -129,7 +130,8 @@ ArchivePublisher::enterObservedState(HistoryArchiveState const& has)
     std::vector<std::shared_ptr<FilePublishInfo>> filePublishInfos =
         {
             mSnap->mLedgerSnapFile,
-            mSnap->mTransactionSnapFile
+            mSnap->mTransactionSnapFile,
+            mSnap->mTransactionResultSnapFile
         };
 
     for (auto const& hash : bucketsToSend)
@@ -349,7 +351,12 @@ StateSnapshot::StateSnapshot(Application& app)
 
     , mTransactionSnapFile(
         std::make_shared<FilePublishInfo>(
-            FILE_PUBLISH_NEEDED, mSnapDir, HISTORY_FILE_TYPE_TRANSACTION,
+            FILE_PUBLISH_NEEDED, mSnapDir, HISTORY_FILE_TYPE_TRANSACTIONS,
+            uint32_t(mLocalState.currentLedger / HistoryMaster::kCheckpointFrequency)))
+
+    , mTransactionResultSnapFile(
+            std::make_shared<FilePublishInfo>(
+            FILE_PUBLISH_NEEDED, mSnapDir, HISTORY_FILE_TYPE_RESULTS,
             uint32_t(mLocalState.currentLedger / HistoryMaster::kCheckpointFrequency)))
 {
     BucketList& buckets = app.getCLFMaster().getBucketList();
@@ -364,12 +371,14 @@ StateSnapshot::StateSnapshot(Application& app)
 bool
 StateSnapshot::writeHistoryBlocks() const
 {
-    // The current "history block" is stored in _two_ files, one just ledger
-    // headers, and one TransactionHistoryEntry structs (which contain txs and
-    // results). Both files are streamed out of the database, entry-by-entry.
-    XDROutputFileStream ledgerOut, txOut;
+    // The current "history block" is stored in _three_ files, one just ledger
+    // headers, one TransactionHistoryEntry (which contain txSets) and
+    // one TransactionHistoryResultEntry containing transaction set results.
+    // All files are streamed out of the database, entry-by-entry.
+    XDROutputFileStream ledgerOut, txOut, txResultOut;
     ledgerOut.open(mLedgerSnapFile->localPath_nogz());
     txOut.open(mTransactionSnapFile->localPath_nogz());
+    txResultOut.open(mTransactionResultSnapFile->localPath_nogz());
 
     uint32_t count = HistoryMaster::kCheckpointFrequency;
 
@@ -384,11 +393,13 @@ StateSnapshot::writeHistoryBlocks() const
     size_t nHeaders = LedgerHeaderFrame::copyLedgerHeadersToStream(mApp.getDatabase(), mSess,
                                                                    begin, count, ledgerOut);
     size_t nTxs = TransactionFrame::copyTransactionsToStream(mApp.getDatabase(), mSess,
-                                                             begin, count, txOut);
+                                                             begin, count, txOut, txResultOut);
     CLOG(DEBUG, "History")
         << "Wrote " << nHeaders << " ledger headers to " << mLedgerSnapFile->localPath_nogz();
     CLOG(DEBUG, "History")
-        << "Wrote " << nTxs << " transactions to " << mTransactionSnapFile->localPath_nogz();
+        << "Wrote " << nTxs << " transactions to " << mTransactionSnapFile->localPath_nogz()
+        << " and " << mTransactionResultSnapFile->localPath_nogz();
+
     return true;
 }
 

@@ -28,12 +28,13 @@ namespace stellar
     class LedgerDelta;
     class SecretKey;
     class XDROutputFileStream;
+    class SHA256;
 
     class TransactionFrame
     {
     protected:
         TransactionEnvelope mEnvelope;
-        TransactionResult mResult;
+        TransactionResultPair mResultPair;
 
         AccountFrame::pointer mSigningAccount;
         std::vector<bool> mUsedSignatures;
@@ -67,9 +68,10 @@ namespace stellar
         void setSourceAccountPtr(AccountFrame::pointer signingAccount);
         std::vector<std::shared_ptr<OperationFrame>> const& getOperations() { return mOperations; }
 
-        TransactionResult &getResult() { return mResult; }
-        TransactionResultCode getResultCode() { return mResult.result.code(); }
+        TransactionResult &getResult() { return mResultPair.result; }
+        TransactionResultCode getResultCode() { return getResult().result.code(); }
 
+        TransactionResultPair &getResultPair();
         TransactionEnvelope& getEnvelope();
 
         SequenceNumber getSeqNum() { return mEnvelope.tx.seqNum; }
@@ -89,12 +91,18 @@ namespace stellar
         AccountFrame::pointer loadAccount(Application& app, uint256 const& accountID);
 
         // transaction history
-        void storeTransaction(LedgerMaster &ledgerMaster, LedgerDelta const& delta, int txindex);
+        void storeTransaction(LedgerMaster &ledgerMaster, LedgerDelta const& delta, int txindex, SHA256 &resultHasher);
+
+        /*
+        txOut: stream of TransactionHistoryEntry
+        txResultOut: stream of TransactionHistoryResultEntry
+        */
         static size_t copyTransactionsToStream(Database& db,
                                                soci::session& sess,
                                                uint32_t ledgerSeq,
                                                uint32_t ledgerCount,
-                                               XDROutputFileStream& txOut);
+                                               XDROutputFileStream& txOut,
+                                               XDROutputFileStream& txResultOut);
         static void dropAll(Database &db);
     };
 

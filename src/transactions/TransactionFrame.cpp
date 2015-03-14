@@ -50,6 +50,12 @@ Hash& TransactionFrame::getContentsHash()
 }
 
 
+TransactionResultPair &TransactionFrame::getResultPair()
+{
+    mResultPair.transactionHash = getFullHash();
+    return mResultPair;
+}
+
 TransactionEnvelope& TransactionFrame::getEnvelope()
 {
     return mEnvelope;
@@ -340,10 +346,12 @@ StellarMessage TransactionFrame::toStellarMessage()
     return msg;
 }
 
-void TransactionFrame::storeTransaction(LedgerMaster &ledgerMaster, LedgerDelta const& delta, int txindex)
+void TransactionFrame::storeTransaction(LedgerMaster &ledgerMaster, LedgerDelta const& delta, int txindex, SHA256 &resultHasher)
 {
     auto txBytes(xdr::xdr_to_opaque(mEnvelope));
-    auto txResultBytes(xdr::xdr_to_opaque(getResult()));
+    auto txResultBytes(xdr::xdr_to_opaque(getResultPair()));
+
+    resultHasher.add(txResultBytes);
 
     std::string txBody = base64::encode(
         reinterpret_cast<const unsigned char *>(txBytes.data()),
@@ -376,42 +384,101 @@ void TransactionFrame::storeTransaction(LedgerMaster &ledgerMaster, LedgerDelta 
     }
 }
 
+static void saveTransactionHelper(Database& db,
+    uint32 ledgerSeq,
+    TxSetFrame& txSet,
+    TransactionHistoryResultEntry& results,
+    XDROutputFileStream& txOut,
+    XDROutputFileStream& txResultOut)
+{
+    // prepare the txset for saving
+    LedgerHeaderFrame::pointer lh = LedgerHeaderFrame::loadBySequence(ledgerSeq, db);
+    if (!lh)
+    {
+        throw std::runtime_error("Could not find ledger");
+    }
+    txSet.previousLedgerHash() = lh->mHeader.previousLedgerHash;
+    txSet.sortForHash();
+    TransactionHistoryEntry hist;
+    hist.ledgerSeq = ledgerSeq;
+    txSet.toXDR(hist.txSet);
+    txOut.writeOne(hist);
+
+    txResultOut.writeOne(results);
+}
+
 size_t
 TransactionFrame::copyTransactionsToStream(Database& db,
                                            soci::session& sess,
                                            uint32_t ledgerSeq,
                                            uint32_t ledgerCount,
-                                           XDROutputFileStream &out)
+                                           XDROutputFileStream &txOut,
+                                           XDROutputFileStream& txResultOut)
 {
     auto timer = db.getSelectTimer("txhistory");
     std::string txBody, txResult, txMeta;
     uint32_t begin = ledgerSeq, end = ledgerSeq + ledgerCount;
     size_t n = 0;
-    TransactionHistoryEntry e;
+    
+    TransactionEnvelope tx;
+    uint32_t curLedgerSeq;
+
     assert(begin <= end);
     soci::statement st =
         (sess.prepare <<
          "SELECT ledgerSeq, TxBody, TxResult FROM TxHistory "\
-          "WHERE ledgerSeq >= :begin AND ledgerSeq < :end ORDER BY ledgerSeq ASC, txID ASC",
-         soci::into(e.ledgerSeq),
+          "WHERE ledgerSeq >= :begin AND ledgerSeq < :end ORDER BY ledgerSeq ASC, txindex ASC",
+         soci::into(curLedgerSeq),
          soci::into(txBody), soci::into(txResult),
          soci::use(begin), soci::use(end));
 
+    Hash h;
+    TxSetFrame txSet(h); // we're setting the hash later
+    TransactionHistoryResultEntry results;
+
     st.execute(true);
+
+    uint32_t lastLedgerSeq = curLedgerSeq;
+    results.ledgerSeq = curLedgerSeq;
+
     while (st.got_data())
     {
+        if (curLedgerSeq != lastLedgerSeq)
+        {
+            saveTransactionHelper(db, lastLedgerSeq, txSet, results, txOut, txResultOut);
+            // reset state
+            txSet.mTransactions.clear();
+            results.ledgerSeq = ledgerSeq;
+            results.txResultSet.results.clear();
+            lastLedgerSeq = curLedgerSeq;
+        }
+        
         std::string body = base64::decode(txBody);
         std::string result = base64::decode(txResult);
 
         xdr::xdr_get g1(body.data(), body.data() + body.size());
-        xdr_argpack_archive(g1, e.envelope);
+        xdr_argpack_archive(g1, tx);
+
+        TransactionFramePtr txFrame = make_shared<TransactionFrame>(tx);
+        txSet.add(txFrame);
 
         xdr::xdr_get g2(result.data(), result.data() + result.size());
-        xdr_argpack_archive(g2, e.result);
+        results.txResultSet.results.emplace_back();
 
-        out.writeOne(e);
+        TransactionResultPair &p = results.txResultSet.results.back();
+        xdr_argpack_archive(g2, p);
+
+        if (p.transactionHash != txFrame->getFullHash())
+        {
+            throw std::runtime_error("transaction mismatch");
+        }
+
         ++n;
         st.fetch();
+    }
+    if (n != 0)
+    {
+        saveTransactionHelper(db, lastLedgerSeq, txSet, results, txOut, txResultOut);
     }
     return n;
 }
