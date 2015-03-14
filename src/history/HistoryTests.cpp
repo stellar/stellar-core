@@ -458,7 +458,7 @@ dbModeName(Config::TestDbMode mode)
     }
 }
 
-TEST_CASE_METHOD(HistoryTests, "History catchup", "[history][historycatchup]")
+TEST_CASE_METHOD(HistoryTests, "Full history catchup", "[history][historycatchup]")
 {
     generateAndPublishHistory(3);
 
