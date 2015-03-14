@@ -55,8 +55,8 @@ using namespace std;
 namespace stellar
 {
 
-static std::string
-ledgerAbbrev(LedgerHeader const& header, uint256 const& hash)
+std::string
+LedgerMaster::ledgerAbbrev(LedgerHeader const& header, uint256 const& hash)
 {
     std::ostringstream oss;
     oss << "[seq=" << header.ledgerSeq
@@ -65,8 +65,8 @@ ledgerAbbrev(LedgerHeader const& header, uint256 const& hash)
     return oss.str();
 }
 
-static std::string
-ledgerAbbrev(LedgerHeaderFrame::pointer p)
+std::string
+LedgerMaster::ledgerAbbrev(LedgerHeaderFrame::pointer p)
 {
     if (!p)
     {
@@ -75,8 +75,8 @@ ledgerAbbrev(LedgerHeaderFrame::pointer p)
     return ledgerAbbrev(p->mHeader, p->getHash());
 }
 
-static std::string
-ledgerAbbrev(LedgerHeaderHistoryEntry he)
+std::string
+LedgerMaster::ledgerAbbrev(LedgerHeaderHistoryEntry he)
 {
     return ledgerAbbrev(he.header, he.hash);
 }

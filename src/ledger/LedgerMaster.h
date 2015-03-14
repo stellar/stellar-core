@@ -46,6 +46,11 @@ namespace stellar
         typedef std::shared_ptr<LedgerMaster>           pointer;
         typedef const std::shared_ptr<LedgerMaster>&    ref;
 
+        // Logging helpers
+        static std::string ledgerAbbrev(LedgerHeader const& header, uint256 const& hash);
+        static std::string ledgerAbbrev(LedgerHeaderFrame::pointer p);
+        static std::string ledgerAbbrev(LedgerHeaderHistoryEntry he);
+
         LedgerMaster(Application& app);
 
         //////// GATEWAY FUNCTIONS
