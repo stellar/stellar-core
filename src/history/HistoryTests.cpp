@@ -73,15 +73,15 @@ protected:
     std::vector<uint256> mBucket0Hashes;
     std::vector<uint256> mBucket1Hashes;
 
-    uint64_t mRootBalance{0};
-    uint64_t mAliceBalance{0};
-    uint64_t mBobBalance{0};
-    uint64_t mCarolBalance{0};
+    std::vector<uint64_t> mRootBalances;
+    std::vector<uint64_t> mAliceBalances;
+    std::vector<uint64_t> mBobBalances;
+    std::vector<uint64_t> mCarolBalances;
 
-    SequenceNumber mRootSeq{0};
-    SequenceNumber mAliceSeq{0};
-    SequenceNumber mBobSeq{0};
-    SequenceNumber mCarolSeq{0};
+    std::vector<SequenceNumber> mRootSeqs;
+    std::vector<SequenceNumber> mAliceSeqs;
+    std::vector<SequenceNumber> mBobSeqs;
+    std::vector<SequenceNumber> mCarolSeqs;
 
 public:
     HistoryTests()
@@ -278,6 +278,16 @@ HistoryTests::generateAndPublishHistory(size_t nPublishes)
             mBucket0Hashes.push_back(app.getCLFMaster().getBucketList().getLevel(0).getCurr()->getHash());
             mBucket1Hashes.push_back(app.getCLFMaster().getBucketList().getLevel(2).getCurr()->getHash());
 
+
+            mRootBalances.push_back(txtest::getAccountBalance(mRoot, app));
+            mAliceBalances.push_back(txtest::getAccountBalance(mAlice, app));
+            mBobBalances.push_back(txtest::getAccountBalance(mBob, app));
+            mCarolBalances.push_back(txtest::getAccountBalance(mCarol, app));
+
+            mRootSeqs.push_back(txtest::getAccountSeqNum(mRoot, app));
+            mAliceSeqs.push_back(txtest::getAccountSeqNum(mAlice, app));
+            mBobSeqs.push_back(txtest::getAccountSeqNum(mBob, app));
+            mCarolSeqs.push_back(txtest::getAccountSeqNum(mCarol, app));
         }
 
         CHECK(lm.getCurrentLedgerHeader().ledgerSeq == ledgerSeq + 1);
@@ -289,16 +299,6 @@ HistoryTests::generateAndPublishHistory(size_t nPublishes)
             app.getClock().crank(false);
         }
     }
-
-    mRootBalance = txtest::getAccountBalance(mRoot, app);
-    mAliceBalance = txtest::getAccountBalance(mAlice, app);
-    mBobBalance = txtest::getAccountBalance(mBob, app);
-    mCarolBalance = txtest::getAccountBalance(mCarol, app);
-
-    mRootSeq = txtest::getAccountSeqNum(mRoot, app);
-    mAliceSeq = txtest::getAccountSeqNum(mAlice, app);
-    mBobSeq = txtest::getAccountSeqNum(mBob, app);
-    mCarolSeq = txtest::getAccountSeqNum(mCarol, app);
 
     // At this point LCL (modulo checkpoint frequency) should be 63 and we
     // should be starting in on ledger 0 (a.k.a. 64)...
@@ -341,10 +341,20 @@ HistoryTests::catchupNewApplication(uint32_t lastLedger,
 
     nextLedger = app2->getLedgerMaster().getLastClosedLedgerHeader().header.ledgerSeq + 1;
 
+    CLOG(INFO, "History") << "Caught up: lastLedger = " << lastLedger;
     CLOG(INFO, "History") << "Caught up: initLedger = " << initLedger;
-    CLOG(INFO, "History") << "Caught up: " << mLedgerSeqs.size()
+    CLOG(INFO, "History") << "Caught up: nextLedger = " << nextLedger;
+    CLOG(INFO, "History") << "Caught up: published range is " << mLedgerSeqs.size()
                           << " ledgers, covering "
                           << "[" << mLedgerSeqs.front() << ", " << mLedgerSeqs.back() << "]" ;
+
+
+    // Assuming we caught up to nextLedger 128 (say), LCL will be 127, so we must subtract 1.
+    //
+    // The local history vectors are built starting from ledger 2 (put at vector-entry 0), so
+    // to access slot 127 we must subtract 2 more.
+    //
+    // So cumulatively: we want to probe local history slot i = nextLedger - 3.
 
     assert(nextLedger != 0);
     size_t i = nextLedger - 3;
@@ -380,15 +390,36 @@ HistoryTests::catchupNewApplication(uint32_t lastLedger,
     CHECK(wantBucket0Hash == haveBucket0Hash);
     CHECK(wantBucket1Hash == haveBucket1Hash);
 
-    CHECK(mRootBalance == txtest::getAccountBalance(mRoot, *app2));
-    CHECK(mAliceBalance == txtest::getAccountBalance(mAlice, *app2));
-    CHECK(mBobBalance == txtest::getAccountBalance(mBob, *app2));
-    CHECK(mCarolBalance == txtest::getAccountBalance(mCarol, *app2));
 
-    CHECK(mRootSeq == txtest::getAccountSeqNum(mRoot, *app2));
-    CHECK(mAliceSeq == txtest::getAccountSeqNum(mAlice, *app2));
-    CHECK(mBobSeq == txtest::getAccountSeqNum(mBob, *app2));
-    CHECK(mCarolSeq == txtest::getAccountSeqNum(mCarol, *app2));
+    auto haveRootBalance = mRootBalances.at(i);
+    auto haveAliceBalance = mAliceBalances.at(i);
+    auto haveBobBalance = mBobBalances.at(i);
+    auto haveCarolBalance = mCarolBalances.at(i);
+
+    auto haveRootSeq = mRootSeqs.at(i);
+    auto haveAliceSeq = mAliceSeqs.at(i);
+    auto haveBobSeq = mBobSeqs.at(i);
+    auto haveCarolSeq = mCarolSeqs.at(i);
+
+    auto wantRootBalance = txtest::getAccountBalance(mRoot, *app2);
+    auto wantAliceBalance = txtest::getAccountBalance(mAlice, *app2);
+    auto wantBobBalance = txtest::getAccountBalance(mBob, *app2);
+    auto wantCarolBalance = txtest::getAccountBalance(mCarol, *app2);
+
+    auto wantRootSeq = txtest::getAccountSeqNum(mRoot, *app2);
+    auto wantAliceSeq = txtest::getAccountSeqNum(mAlice, *app2);
+    auto wantBobSeq = txtest::getAccountSeqNum(mBob, *app2);
+    auto wantCarolSeq = txtest::getAccountSeqNum(mCarol, *app2);
+
+    CHECK(haveRootBalance == wantRootBalance);
+    CHECK(haveAliceBalance == wantAliceBalance);
+    CHECK(haveBobBalance == wantBobBalance);
+    CHECK(haveCarolBalance == wantCarolBalance);
+
+    CHECK(haveRootSeq == wantRootSeq);
+    CHECK(haveAliceSeq == wantAliceSeq);
+    CHECK(haveBobSeq == wantBobSeq);
+    CHECK(haveCarolSeq == wantCarolSeq);
 
     return app2;
 }
