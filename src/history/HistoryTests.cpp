@@ -497,3 +497,34 @@ TEST_CASE_METHOD(HistoryTests, "History catchup", "[history][historycatchup]")
         }
     }
 }
+
+TEST_CASE_METHOD(HistoryTests, "Partial history catchup",
+                 "[history][historycatchup][partialcatchup]")
+{
+    generateAndPublishHistory(3);
+    std::vector<Application::pointer> apps;
+
+    SECTION("Catchup to prefix of published history")
+    {
+        apps.push_back(
+            catchupNewApplication(
+                0, 10,
+                Config::TESTDB_IN_MEMORY_SQLITE,
+                HistoryMaster::RESUME_AT_LAST,
+                std::string("Catchup to prefix of published history")));
+        CHECK(apps.back()->getLedgerMaster().getLedgerNum() ==
+              HistoryMaster::kCheckpointFrequency);
+    }
+
+    SECTION("Catchup to second prefix of published history")
+    {
+        apps.push_back(
+            catchupNewApplication(
+                0, HistoryMaster::kCheckpointFrequency + 10,
+                Config::TESTDB_IN_MEMORY_SQLITE,
+                HistoryMaster::RESUME_AT_LAST,
+                std::string("Catchup to second prefix of published history")));
+        CHECK(apps.back()->getLedgerMaster().getLedgerNum() ==
+              2 * HistoryMaster::kCheckpointFrequency);
+    }
+}
