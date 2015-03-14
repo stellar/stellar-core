@@ -59,6 +59,12 @@ protected:
     std::vector<Config> mCfgs;
     Application::pointer appPtr;
     Application &app;
+
+    SecretKey mRoot;
+    SecretKey mAlice;
+    SecretKey mBob;
+    SecretKey mCarol;
+
     std::default_random_engine mGenerator;
     std::bernoulli_distribution mFlip{0.5};
 
@@ -67,6 +73,16 @@ protected:
     std::vector<uint256> mBucket0Hashes;
     std::vector<uint256> mBucket1Hashes;
 
+    std::vector<uint64_t> mRootBalances;
+    std::vector<uint64_t> mAliceBalances;
+    std::vector<uint64_t> mBobBalances;
+    std::vector<uint64_t> mCarolBalances;
+
+    std::vector<SequenceNumber> mRootSeqs;
+    std::vector<SequenceNumber> mAliceSeqs;
+    std::vector<SequenceNumber> mBobSeqs;
+    std::vector<SequenceNumber> mCarolSeqs;
+
 public:
     HistoryTests()
         : archtmp("archtmp")
@@ -74,11 +90,16 @@ public:
         , cfg(getTestConfig())
         , appPtr(Application::create(clock, addLocalDirHistoryArchive(dir, cfg)))
         , app(*appPtr)
+        , mRoot(txtest::getRoot())
+        , mAlice(txtest::getAccount("alice"))
+        , mBob(txtest::getAccount("bob"))
+        , mCarol(txtest::getAccount("carol"))
         {
             CHECK(HistoryMaster::initializeHistoryArchive(app, "test"));
         }
 
     void crankTillDone(bool& done);
+    void generateRandomLedger();
     void generateAndPublishHistory(size_t nPublishes);
     Application::pointer catchupNewApplication(uint32_t lastLedger,
                                                uint32_t initLedger,
@@ -184,7 +205,7 @@ TEST_CASE_METHOD(HistoryTests, "HistoryArchiveState::get_put", "[history]")
         [&done, &theApp, archive](asio::error_code const& ec)
         {
             CHECK(!ec);
-            archive->getState(
+            archive->getMostRecentState(
                 theApp,
                 [&done](asio::error_code const& ec,
                         HistoryArchiveState const& has2)
@@ -202,9 +223,64 @@ extern LedgerEntry
 generateValidLedgerEntry();
 
 void
+HistoryTests::generateRandomLedger()
+{
+    auto& lm = app.getLedgerMaster();
+    TxSetFramePtr txSet = std::make_shared<TxSetFrame>(lm.getLastClosedLedgerHeader().hash);
+
+    uint32_t ledgerSeq = lm.getLedgerNum();
+    uint64_t minBalance = lm.getMinBalance(5);
+    uint64_t big = minBalance + ledgerSeq;
+    uint64_t small = 100 + ledgerSeq;
+    uint64_t closeTime = 60 * 5 * ledgerSeq;
+
+    SequenceNumber rseq = txtest::getAccountSeqNum(mRoot, app) + 1;
+
+    // Root sends to alice every tx, bob every other tx, carol every 4rd tx.
+    txSet->add(txtest::createPaymentTx(mRoot, mAlice, rseq++, big));
+    txSet->add(txtest::createPaymentTx(mRoot, mBob, rseq++, big));
+    txSet->add(txtest::createPaymentTx(mRoot, mCarol, rseq++, big));
+
+    // They all randomly send a little to one another every ledger after #4
+    if (ledgerSeq > 4)
+    {
+        SequenceNumber aseq = txtest::getAccountSeqNum(mAlice, app) + 1;
+        SequenceNumber bseq = txtest::getAccountSeqNum(mBob, app) + 1;
+        SequenceNumber cseq = txtest::getAccountSeqNum(mCarol, app) + 1;
+
+        if (flip()) txSet->add(txtest::createPaymentTx(mAlice, mBob, aseq++, small));
+        if (flip()) txSet->add(txtest::createPaymentTx(mAlice, mCarol, aseq++, small));
+
+        if (flip()) txSet->add(txtest::createPaymentTx(mBob, mAlice, bseq++, small));
+        if (flip()) txSet->add(txtest::createPaymentTx(mBob, mCarol, bseq++, small));
+
+        if (flip()) txSet->add(txtest::createPaymentTx(mCarol, mAlice, cseq++, small));
+        if (flip()) txSet->add(txtest::createPaymentTx(mCarol, mBob, cseq++, small));
+    }
+    CLOG(DEBUG, "History") << "Closing synthetic ledger with " << txSet->size() << " txs";
+    lm.closeLedger(LedgerCloseData(ledgerSeq, txSet, closeTime, 10));
+
+    mLedgerSeqs.push_back(lm.getLastClosedLedgerHeader().header.ledgerSeq);
+    mLedgerHashes.push_back(lm.getLastClosedLedgerHeader().hash);
+    mBucket0Hashes.push_back(app.getCLFMaster().getBucketList().getLevel(0).getCurr()->getHash());
+    mBucket1Hashes.push_back(app.getCLFMaster().getBucketList().getLevel(2).getCurr()->getHash());
+
+
+    mRootBalances.push_back(txtest::getAccountBalance(mRoot, app));
+    mAliceBalances.push_back(txtest::getAccountBalance(mAlice, app));
+    mBobBalances.push_back(txtest::getAccountBalance(mBob, app));
+    mCarolBalances.push_back(txtest::getAccountBalance(mCarol, app));
+
+    mRootSeqs.push_back(txtest::getAccountSeqNum(mRoot, app));
+    mAliceSeqs.push_back(txtest::getAccountSeqNum(mAlice, app));
+    mBobSeqs.push_back(txtest::getAccountSeqNum(mBob, app));
+    mCarolSeqs.push_back(txtest::getAccountSeqNum(mCarol, app));
+}
+
+
+void
 HistoryTests::generateAndPublishHistory(size_t nPublishes)
 {
-
     app.start();
 
     auto& lm = app.getLedgerMaster();
@@ -214,55 +290,15 @@ HistoryTests::generateAndPublishHistory(size_t nPublishes)
     assert(lm.getLastClosedLedgerHeader().header.ledgerSeq == 1);
     assert(lm.getCurrentLedgerHeader().ledgerSeq == 2);
 
-    SecretKey root = txtest::getRoot();
-    SecretKey alice = txtest::getAccount("alice");
-    SecretKey bob = txtest::getAccount("bob");
-    SecretKey carol = txtest::getAccount("carol");
-
-    uint32_t ledgerSeq = 1;
-    uint64_t closeTime = 1;
-    uint64_t minBalance = lm.getMinBalance(5);
-    SequenceNumber rseq = txtest::getAccountSeqNum(root, app) + 1;
+    SequenceNumber ledgerSeq = 1;
 
     while (hm.getPublishSuccessCount() < nPublishes)
     {
         uint64_t startCount = hm.getPublishStartCount();
         while (hm.getPublishStartCount() == startCount)
         {
-            TxSetFramePtr txSet = std::make_shared<TxSetFrame>(lm.getLastClosedLedgerHeader().hash);
-
-            uint64_t big = minBalance + ledgerSeq;
-            uint64_t small = 100 + ledgerSeq;
-
-            // Root sends to alice every tx, bob every other tx, carol every 4rd tx.
-            txSet->add(txtest::createPaymentTx(root, alice, rseq++, big));
-            txSet->add(txtest::createPaymentTx(root, bob, rseq++, big));
-            txSet->add(txtest::createPaymentTx(root, carol, rseq++, big));
-
-            // They all randomly send a little to one another every ledger after #4
-            if (ledgerSeq > 4)
-            {
-                SequenceNumber aseq = txtest::getAccountSeqNum(alice, app) + 1;
-                SequenceNumber bseq = txtest::getAccountSeqNum(bob, app) + 1;
-                SequenceNumber cseq = txtest::getAccountSeqNum(carol, app) + 1;
-
-                if (flip()) txSet->add(txtest::createPaymentTx(alice, bob, aseq++, small));
-                if (flip()) txSet->add(txtest::createPaymentTx(alice, carol, aseq++, small));
-
-                if (flip()) txSet->add(txtest::createPaymentTx(bob, alice, bseq++, small));
-                if (flip()) txSet->add(txtest::createPaymentTx(bob, carol, bseq++, small));
-
-                if (flip()) txSet->add(txtest::createPaymentTx(carol, alice, cseq++, small));
-                if (flip()) txSet->add(txtest::createPaymentTx(carol, bob, cseq++, small));
-            }
-            CLOG(DEBUG, "History") << "Closing synthetic ledger with " << txSet->size() << " txs";
-            lm.closeLedger(LedgerCloseData(ledgerSeq++, txSet, closeTime++, 10));
-
-            mLedgerSeqs.push_back(lm.getLastClosedLedgerHeader().header.ledgerSeq);
-            mLedgerHashes.push_back(lm.getLastClosedLedgerHeader().hash);
-            mBucket0Hashes.push_back(app.getCLFMaster().getBucketList().getLevel(0).getCurr()->getHash());
-            mBucket1Hashes.push_back(app.getCLFMaster().getBucketList().getLevel(2).getCurr()->getHash());
-
+            generateRandomLedger();
+            ++ledgerSeq;
         }
 
         CHECK(lm.getCurrentLedgerHeader().ledgerSeq == ledgerSeq + 1);
@@ -305,30 +341,31 @@ HistoryTests::catchupNewApplication(uint32_t lastLedger,
 
     bool done = false;
     uint32_t nextLedger = 0;
-    app2->getHistoryMaster().catchupHistory(
-        lastLedger,
-        initLedger,
-        resumeMode,
-        [&done, &nextLedger](asio::error_code const& ec, uint32_t next)
-        {
-            CLOG(INFO, "History") << "Caught up: nextLedger = " << next;
-            nextLedger = next;
-            CHECK(!ec);
-            done = true;
-        });
-
+    app2->getLedgerMaster().startCatchUp(lastLedger, initLedger, resumeMode);
     assert(!app2->getClock().getIOService().stopped());
 
-    while (!done &&
+    while ((app2->getState() == Application::CATCHING_UP_STATE) &&
            !app2->getClock().getIOService().stopped())
     {
         app2->getClock().crank(false);
     }
 
+    nextLedger = app2->getLedgerMaster().getLastClosedLedgerHeader().header.ledgerSeq + 1;
+
+    CLOG(INFO, "History") << "Caught up: lastLedger = " << lastLedger;
     CLOG(INFO, "History") << "Caught up: initLedger = " << initLedger;
-    CLOG(INFO, "History") << "Caught up: " << mLedgerSeqs.size()
+    CLOG(INFO, "History") << "Caught up: nextLedger = " << nextLedger;
+    CLOG(INFO, "History") << "Caught up: published range is " << mLedgerSeqs.size()
                           << " ledgers, covering "
                           << "[" << mLedgerSeqs.front() << ", " << mLedgerSeqs.back() << "]" ;
+
+
+    // Assuming we caught up to nextLedger 128 (say), LCL will be 127, so we must subtract 1.
+    //
+    // The local history vectors are built starting from ledger 2 (put at vector-entry 0), so
+    // to access slot 127 we must subtract 2 more.
+    //
+    // So cumulatively: we want to probe local history slot i = nextLedger - 3.
 
     assert(nextLedger != 0);
     size_t i = nextLedger - 3;
@@ -364,6 +401,37 @@ HistoryTests::catchupNewApplication(uint32_t lastLedger,
     CHECK(wantBucket0Hash == haveBucket0Hash);
     CHECK(wantBucket1Hash == haveBucket1Hash);
 
+
+    auto haveRootBalance = mRootBalances.at(i);
+    auto haveAliceBalance = mAliceBalances.at(i);
+    auto haveBobBalance = mBobBalances.at(i);
+    auto haveCarolBalance = mCarolBalances.at(i);
+
+    auto haveRootSeq = mRootSeqs.at(i);
+    auto haveAliceSeq = mAliceSeqs.at(i);
+    auto haveBobSeq = mBobSeqs.at(i);
+    auto haveCarolSeq = mCarolSeqs.at(i);
+
+    auto wantRootBalance = txtest::getAccountBalance(mRoot, *app2);
+    auto wantAliceBalance = txtest::getAccountBalance(mAlice, *app2);
+    auto wantBobBalance = txtest::getAccountBalance(mBob, *app2);
+    auto wantCarolBalance = txtest::getAccountBalance(mCarol, *app2);
+
+    auto wantRootSeq = txtest::getAccountSeqNum(mRoot, *app2);
+    auto wantAliceSeq = txtest::getAccountSeqNum(mAlice, *app2);
+    auto wantBobSeq = txtest::getAccountSeqNum(mBob, *app2);
+    auto wantCarolSeq = txtest::getAccountSeqNum(mCarol, *app2);
+
+    CHECK(haveRootBalance == wantRootBalance);
+    CHECK(haveAliceBalance == wantAliceBalance);
+    CHECK(haveBobBalance == wantBobBalance);
+    CHECK(haveCarolBalance == wantCarolBalance);
+
+    CHECK(haveRootSeq == wantRootSeq);
+    CHECK(haveAliceSeq == wantAliceSeq);
+    CHECK(haveBobSeq == wantBobSeq);
+    CHECK(haveCarolSeq == wantCarolSeq);
+
     return app2;
 }
 
@@ -373,7 +441,35 @@ TEST_CASE_METHOD(HistoryTests, "History publish", "[history]")
     generateAndPublishHistory(1);
 }
 
-TEST_CASE_METHOD(HistoryTests, "History catchup", "[history][historycatchup]")
+static std::string
+resumeModeName(HistoryMaster::ResumeMode mode)
+{
+    switch (mode)
+    {
+    case HistoryMaster::RESUME_AT_NEXT:
+        return "RESUME_AT_NEXT";
+    case HistoryMaster::RESUME_AT_LAST:
+        return "RESUME_AT_LAST";
+    }
+}
+
+static std::string
+dbModeName(Config::TestDbMode mode)
+{
+    switch (mode)
+    {
+    case Config::TESTDB_IN_MEMORY_SQLITE:
+        return "TESTDB_IN_MEMORY_SQLITE";
+    case Config::TESTDB_ON_DISK_SQLITE:
+        return "TESTDB_ON_DISK_SQLITE";
+    case Config::TESTDB_UNIX_LOCAL_POSTGRESQL:
+        return "TESTDB_UNIX_LOCAL_POSTGRESQL";
+    case Config::TESTDB_TCP_LOCALHOST_POSTGRESQL:
+        return "TESTDB_TCP_LOCALHOST_POSTGRESQL";
+    }
+}
+
+TEST_CASE_METHOD(HistoryTests, "Full history catchup", "[history][historycatchup]")
 {
     generateAndPublishHistory(3);
 
@@ -382,36 +478,64 @@ TEST_CASE_METHOD(HistoryTests, "History catchup", "[history][historycatchup]")
 
     std::vector<Application::pointer> apps;
 
-    SECTION("full, RESUME_AT_LAST, IN_MEMORY_SQLITE")
+    std::vector<HistoryMaster::ResumeMode> resumeModes = {
+        HistoryMaster::RESUME_AT_NEXT,
+        HistoryMaster::RESUME_AT_LAST
+    };
+
+    std::vector<Config::TestDbMode> dbModes = {
+#ifdef USE_POSTGRES
+        Config::TESTDB_TCP_LOCALHOST_POSTGRESQL,
+#endif
+        Config::TESTDB_IN_MEMORY_SQLITE,
+        Config::TESTDB_ON_DISK_SQLITE
+    };
+
+
+    for (auto dbMode : dbModes)
+    {
+        for (auto resumeMode : resumeModes)
+        {
+            apps.push_back(
+                catchupNewApplication(
+                    lastLedger,
+                    initLedger,
+                    dbMode,
+                    resumeMode,
+                    std::string("full, ")
+                    + resumeModeName(resumeMode) + ", "
+                    + dbModeName(dbMode)));
+        }
+    }
+}
+
+TEST_CASE_METHOD(HistoryTests, "Partial history catchup",
+                 "[history][historycatchup][partialcatchup]")
+{
+    generateAndPublishHistory(3);
+    std::vector<Application::pointer> apps;
+
+    SECTION("Catchup to prefix of published history")
     {
         apps.push_back(
             catchupNewApplication(
-                lastLedger, initLedger,
+                0, 10,
                 Config::TESTDB_IN_MEMORY_SQLITE,
                 HistoryMaster::RESUME_AT_LAST,
-                "full, RESUME_AT_LAST, IN_MEMORY_SQLITE"));
+                std::string("Catchup to prefix of published history")));
+        CHECK(apps.back()->getLedgerMaster().getLedgerNum() ==
+              HistoryMaster::kCheckpointFrequency);
     }
 
-    SECTION("full, RESUME_AT_LAST, ON_DISK_SQLITE")
+    SECTION("Catchup to second prefix of published history")
     {
         apps.push_back(
             catchupNewApplication(
-                lastLedger, initLedger,
-                Config::TESTDB_ON_DISK_SQLITE,
+                0, HistoryMaster::kCheckpointFrequency + 10,
+                Config::TESTDB_IN_MEMORY_SQLITE,
                 HistoryMaster::RESUME_AT_LAST,
-                "full, RESUME_AT_LAST, ON_DISK_SQLITE"));
+                std::string("Catchup to second prefix of published history")));
+        CHECK(apps.back()->getLedgerMaster().getLedgerNum() ==
+              2 * HistoryMaster::kCheckpointFrequency);
     }
-
-#ifdef USE_POSTGRES
-    SECTION("full, RESUME_AT_LAST, TCP_LOCALHOST_POSTGRESQL")
-    {
-        apps.push_back(
-            catchupNewApplication(
-                lastLedger, initLedger,
-                Config::TESTDB_TCP_LOCALHOST_POSTGRESQL,
-                HistoryMaster::RESUME_AT_LAST,
-                "full, RESUME_AT_LAST, TCP_LOCALHOST_POSTGRESQL"));
-    }
-#endif
-
 }

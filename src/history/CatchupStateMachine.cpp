@@ -29,14 +29,14 @@ namespace stellar
 const size_t
 CatchupStateMachine::kRetryLimit = 16;
 
-typedef FileTransferInfo<FileCatchupState> FileCatchupInfo;
-
-CatchupStateMachine::CatchupStateMachine(Application& app,
-                                         uint32_t lastLedger,
-                                         uint32_t initLedger,
-                                         HistoryMaster::ResumeMode mode,
-                                         std::function<void(asio::error_code const& ec,
-                                                            uint32_t nextLedger)> handler)
+CatchupStateMachine::CatchupStateMachine(
+    Application& app,
+    uint32_t lastLedger,
+    uint32_t initLedger,
+    HistoryMaster::ResumeMode mode,
+    std::function<void(asio::error_code const& ec,
+                       HistoryMaster::ResumeMode mode,
+                       LedgerHeaderHistoryEntry const& lastClosed)> handler)
     : mApp(app)
     , mLastLedger(lastLedger)
     , mInitLedger(initLedger)
@@ -107,14 +107,21 @@ CatchupStateMachine::enterBeginState()
     assert(mState == CATCHUP_RETRYING);
     mRetryCount = 0;
     mState = CATCHUP_BEGIN;
+
+    assert(mNextLedger > 0);
+    uint32_t blockEnd = mNextLedger - 1;
+    uint32_t snap = blockEnd / HistoryMaster::kCheckpointFrequency;
+
     CLOG(INFO, "History")
         << "Catchup BEGIN, initLedger=" << mInitLedger
-        << ", guessed nextLedger=" << mNextLedger;
+        << ", guessed nextLedger=" << mNextLedger
+        << ", anchor checkpoint=" << snap;
 
     mArchive = selectRandomReadableHistoryArchive();
-    mArchive->getState(
+    mArchive->getSnapState(
         mApp,
-        [this](asio::error_code const& ec,
+        snap,
+        [this, blockEnd, snap](asio::error_code const& ec,
                HistoryArchiveState const& has)
         {
             if (ec)
@@ -126,7 +133,20 @@ CatchupStateMachine::enterBeginState()
             }
             else
             {
-                this->enterAnchoredState(has);
+                if (blockEnd != has.currentLedger)
+                {
+                    CLOG(WARNING, "History")
+                        << "History archive '"
+                        << this->mArchive->getName()
+                        << "', hasn't yet received checkpoint "
+                        << snap
+                        << ", retrying catchup";
+                    this->enterRetryingState();
+                }
+                else
+                {
+                    this->enterAnchoredState(has);
+                }
             }
         });
 }
@@ -148,7 +168,7 @@ CatchupStateMachine::fileStateChange(asio::error_code const& ec,
         newState = FILE_CATCHUP_FAILED;
     }
     mFileInfos[name]->setState(newState);
-    if (mState == CATCHUP_FETCHING)
+    if (mState != CATCHUP_RETRYING)
     {
         enterFetchingState();
     }
@@ -292,6 +312,32 @@ CatchupStateMachine::enterFetchingState()
     }
 }
 
+std::shared_ptr<FileCatchupInfo>
+CatchupStateMachine::queueTransactionsFile(uint32_t snap)
+{
+    auto fi = std::make_shared<FileCatchupInfo>(
+        FILE_CATCHUP_NEEDED, mDownloadDir,
+        HISTORY_FILE_TYPE_TRANSACTIONS, snap);
+    if (mTransactionInfos.find(snap) == mTransactionInfos.end())
+    {
+        mTransactionInfos[snap] = fi;
+    }
+    return fi;
+}
+
+std::shared_ptr<FileCatchupInfo>
+CatchupStateMachine::queueLedgerFile(uint32_t snap)
+{
+    auto fi = std::make_shared<FileCatchupInfo>(
+        FILE_CATCHUP_NEEDED, mDownloadDir,
+        HISTORY_FILE_TYPE_LEDGER, snap);
+    if (mHeaderInfos.find(snap) == mHeaderInfos.end())
+    {
+        mHeaderInfos[snap] = fi;
+    }
+    return fi;
+}
+
 void
 CatchupStateMachine::enterAnchoredState(HistoryArchiveState const& has)
 {
@@ -327,6 +373,7 @@ CatchupStateMachine::enterAnchoredState(HistoryArchiveState const& has)
     // or queued to be requested.
     if (mMode == HistoryMaster::RESUME_AT_NEXT)
     {
+        // in RESUME_AT_NEXT mode we need all the buckets...
         std::vector<std::string> bucketsToFetch = mArchiveState.differingBuckets(mLocalState);
         for (auto const& h : bucketsToFetch)
         {
@@ -335,31 +382,21 @@ CatchupStateMachine::enterAnchoredState(HistoryArchiveState const& has)
                     FILE_CATCHUP_NEEDED, mDownloadDir,
                     HISTORY_FILE_TYPE_BUCKET, h));
         }
+
+        // ...and _the last_ history ledger file (to get its final state).
+        uint32_t snap = mArchiveState.currentLedger / HistoryMaster::kCheckpointFrequency;
+        fileCatchupInfos.push_back(queueLedgerFile(snap));
     }
     else
     {
-        for (uint32_t i = mLocalState.currentLedger / HistoryMaster::kCheckpointFrequency;
-             i <= mArchiveState.currentLedger / HistoryMaster::kCheckpointFrequency;
-             ++i)
+        assert(mMode == HistoryMaster::RESUME_AT_LAST);
+        // In RESUME_AT_LAST mode we need all the transaction and ledger files.
+        for (uint32_t snap = mLocalState.currentLedger / HistoryMaster::kCheckpointFrequency;
+             snap <= mArchiveState.currentLedger / HistoryMaster::kCheckpointFrequency;
+             ++snap)
         {
-            uint32_t snap = static_cast<uint32>(i);
-            auto fi = std::make_shared<FileCatchupInfo>(
-                FILE_CATCHUP_NEEDED, mDownloadDir,
-                HISTORY_FILE_TYPE_TRANSACTIONS, snap);
-            fileCatchupInfos.push_back(fi);
-            if (mTransactionInfos.find(snap) == mTransactionInfos.end())
-            {
-                mTransactionInfos[snap] = fi;
-            }
-
-            fi = std::make_shared<FileCatchupInfo>(
-                FILE_CATCHUP_NEEDED, mDownloadDir,
-                HISTORY_FILE_TYPE_LEDGER, snap);
-            fileCatchupInfos.push_back(fi);
-            if (mHeaderInfos.find(snap) == mHeaderInfos.end())
-            {
-                mHeaderInfos[snap] = fi;
-            }
+            fileCatchupInfos.push_back(queueTransactionsFile(snap));
+            fileCatchupInfos.push_back(queueLedgerFile(snap));
         }
     }
     for (auto const& fi : fileCatchupInfos)
@@ -421,6 +458,7 @@ CatchupStateMachine::enterApplyingState()
         // In RESUME_AT_NEXT mode we're applying the _state_ at mNextLedger
         // without any history replay.
         applyBucketsAtLedger(mNextLedger);
+        acquireFinalLedgerState(mNextLedger);
     }
     else
     {
@@ -428,7 +466,6 @@ CatchupStateMachine::enterApplyingState()
         // mLastLedger through mNextLedger, without any reconstitution.
         assert(mMode == HistoryMaster::RESUME_AT_LAST);
         applyHistoryFromLedger(mLastLedger);
-
     }
 
     sqltx.commit();
@@ -494,6 +531,39 @@ CatchupStateMachine::applyBucketsAtLedger(uint32_t ledgerNum)
         }
     }
 }
+
+void
+CatchupStateMachine::acquireFinalLedgerState(uint32_t ledgerNum)
+{
+    CLOG(INFO, "History") << "Seeking ledger state preceding " << ledgerNum;
+    assert(mHeaderInfos.size() == 1);
+    auto hi = mHeaderInfos.begin()->second;
+    XDRInputFileStream hdrIn;
+    CLOG(INFO, "History") << "Scanning to last-ledger in " << hi->localPath_nogz();
+    hdrIn.open(hi->localPath_nogz());
+    LedgerHeaderHistoryEntry hHeader;
+
+    // Scan to end.
+    bool readOne = false;
+    while (hdrIn && hdrIn.readOne(hHeader))
+    {
+        readOne = true;
+    }
+
+    if (!readOne)
+    {
+        throw std::runtime_error("no ledgers in last-ledger file");
+    }
+
+    CLOG(INFO, "History") << "Catchup last-ledger header: " << LedgerMaster::ledgerAbbrev(hHeader);
+    if (hHeader.header.ledgerSeq + 1 != ledgerNum)
+    {
+        throw std::runtime_error("catchup last-ledger state mismatch");
+    }
+
+    mLastClosed = hHeader;
+}
+
 
 void
 CatchupStateMachine::applyHistoryFromLedger(uint32_t ledgerNum)
@@ -599,6 +669,7 @@ CatchupStateMachine::applyHistoryFromLedger(uint32_t ledgerNum)
             {
                 throw std::runtime_error("replay produced mismatched ledger hash");
             }
+            mLastClosed = hHeader;
         }
     }
 }
@@ -609,7 +680,7 @@ void CatchupStateMachine::enterEndState()
     mState = CATCHUP_END;
     CLOG(DEBUG, "History")
         << "Completed catchup from '" << mArchive->getName() << "', at nextLedger=" << mNextLedger;
-    mEndHandler(mError, mNextLedger);
+    mEndHandler(mError, mMode, mLastClosed);
 }
 
 

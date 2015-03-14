@@ -77,6 +77,7 @@ enum FileCatchupState
 };
 
 template <typename T> class FileTransferInfo;
+typedef FileTransferInfo<FileCatchupState> FileCatchupInfo;
 
 class HistoryArchive;
 struct HistoryArchiveState;
@@ -91,9 +92,11 @@ CatchupStateMachine
     uint32_t mLastLedger;
     uint32_t mInitLedger;
     uint32_t mNextLedger;
+    LedgerHeaderHistoryEntry mLastClosed;
     HistoryMaster::ResumeMode mMode;
     std::function<void(asio::error_code const& ec,
-                    uint32_t nextLedger)> mEndHandler;
+                       HistoryMaster::ResumeMode mode,
+                       LedgerHeaderHistoryEntry const& lastClosed)> mEndHandler;
     asio::error_code mError;
     CatchupState mState;
     size_t mRetryCount;
@@ -113,6 +116,9 @@ CatchupStateMachine
                          std::string const& hashname,
                          FileCatchupState newGoodState);
 
+    std::shared_ptr<FileCatchupInfo> queueTransactionsFile(uint32_t snap);
+    std::shared_ptr<FileCatchupInfo> queueLedgerFile(uint32_t snap);
+
     void enterBeginState();
     void enterAnchoredState(HistoryArchiveState const& has);
     void enterRetryingState();
@@ -121,6 +127,7 @@ CatchupStateMachine
     void enterEndState();
 
     void applyBucketsAtLedger(uint32_t ledgerNum);
+    void acquireFinalLedgerState(uint32_t ledgerNum);
     void applyHistoryFromLedger(uint32_t ledgerNum);
 
 public:
@@ -130,7 +137,8 @@ public:
                         uint32_t initLedger,
                         HistoryMaster::ResumeMode mode,
                         std::function<void(asio::error_code const& ec,
-                                            uint32_t nextLedger)> handler);
+                                           HistoryMaster::ResumeMode mode,
+                                           LedgerHeaderHistoryEntry const& lastClosed)> handler);
 
 
 };

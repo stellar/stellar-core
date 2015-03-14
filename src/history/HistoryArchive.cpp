@@ -185,29 +185,52 @@ HistoryArchive::getName() const
 }
 
 void
-HistoryArchive::getState(Application& app,
-                         std::function<void(asio::error_code const&,
-                                            HistoryArchiveState const&)> handler) const
+HistoryArchive::getMostRecentState(Application& app,
+                                   std::function<void(asio::error_code const&,
+                                                      HistoryArchiveState const&)> handler) const
 {
-    auto remote = HistoryArchiveState::wellKnownRemoteName();
+    getStateFromPath(app,
+                     HistoryArchiveState::wellKnownRemoteName(),
+                     handler);
+}
+
+void
+HistoryArchive::getSnapState(Application& app,
+                             uint32_t snap,
+                             std::function<void(asio::error_code const&,
+                                                HistoryArchiveState const&)> handler) const
+{
+    getStateFromPath(app,
+                     HistoryArchiveState::remoteName(snap),
+                     handler);
+}
+
+
+void
+HistoryArchive::getStateFromPath(Application& app,
+                                 std::string const& remoteName,
+                                 std::function<void(asio::error_code const&,
+                                                    HistoryArchiveState const&)> handler) const
+{
     auto local = HistoryArchiveState::localName(app, mImpl->mName);
-    auto cmd = getFileCmd(remote, local);
-    auto exit = app.getProcessGateway().runProcess(cmd);
     auto archiveName = mImpl->mName;
-    exit.async_wait(
-        [handler, local, remote, archiveName](asio::error_code const& ec)
+    auto &hm = app.getHistoryMaster();
+    auto self = shared_from_this();
+    hm.getFile(
+        self, remoteName, local,
+        [handler, remoteName, archiveName, local](asio::error_code const& ec)
         {
             HistoryArchiveState has;
             if (ec)
             {
                 CLOG(WARNING, "History")
-                    << "failed to get " << remote
+                    << "failed to get " << remoteName
                     << " from history archive '" << archiveName << "'";
             }
             else
             {
                 CLOG(DEBUG, "History")
-                    << "got " << remote
+                    << "got " << remoteName
                     << " from history archive '" << archiveName << "'";
                 has.load(local);
             }
@@ -284,13 +307,13 @@ HistoryArchive::putStateInDir(Application& app,
                     {
                         if (ec2)
                         {
-                            CLOG(DEBUG, "History")
+                            CLOG(WARNING, "History")
                                 << "failed to put " << remoteName
                                 << " in history archive '" << archiveName << "'";
                         }
                         else
                         {
-                            CLOG(DEBUG, "History")
+                            CLOG(INFO, "History")
                                 << "put " << remoteName
                                 << " in history archive '" << archiveName << "'";
                         }
