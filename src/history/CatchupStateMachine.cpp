@@ -292,6 +292,32 @@ CatchupStateMachine::enterFetchingState()
     }
 }
 
+std::shared_ptr<FileCatchupInfo>
+CatchupStateMachine::queueTransactionsFile(uint32_t snap)
+{
+    auto fi = std::make_shared<FileCatchupInfo>(
+        FILE_CATCHUP_NEEDED, mDownloadDir,
+        HISTORY_FILE_TYPE_TRANSACTIONS, snap);
+    if (mTransactionInfos.find(snap) == mTransactionInfos.end())
+    {
+        mTransactionInfos[snap] = fi;
+    }
+    return fi;
+}
+
+std::shared_ptr<FileCatchupInfo>
+CatchupStateMachine::queueLedgerFile(uint32_t snap)
+{
+    auto fi = std::make_shared<FileCatchupInfo>(
+        FILE_CATCHUP_NEEDED, mDownloadDir,
+        HISTORY_FILE_TYPE_LEDGER, snap);
+    if (mHeaderInfos.find(snap) == mHeaderInfos.end())
+    {
+        mHeaderInfos[snap] = fi;
+    }
+    return fi;
+}
+
 void
 CatchupStateMachine::enterAnchoredState(HistoryArchiveState const& has)
 {
@@ -338,28 +364,14 @@ CatchupStateMachine::enterAnchoredState(HistoryArchiveState const& has)
     }
     else
     {
-        for (uint32_t i = mLocalState.currentLedger / HistoryMaster::kCheckpointFrequency;
-             i <= mArchiveState.currentLedger / HistoryMaster::kCheckpointFrequency;
-             ++i)
+        assert(mMode == HistoryMaster::RESUME_AT_LAST);
+        // In RESUME_AT_LAST mode we need all the transaction and ledger files.
+        for (uint32_t snap = mLocalState.currentLedger / HistoryMaster::kCheckpointFrequency;
+             snap <= mArchiveState.currentLedger / HistoryMaster::kCheckpointFrequency;
+             ++snap)
         {
-            uint32_t snap = static_cast<uint32>(i);
-            auto fi = std::make_shared<FileCatchupInfo>(
-                FILE_CATCHUP_NEEDED, mDownloadDir,
-                HISTORY_FILE_TYPE_TRANSACTIONS, snap);
-            fileCatchupInfos.push_back(fi);
-            if (mTransactionInfos.find(snap) == mTransactionInfos.end())
-            {
-                mTransactionInfos[snap] = fi;
-            }
-
-            fi = std::make_shared<FileCatchupInfo>(
-                FILE_CATCHUP_NEEDED, mDownloadDir,
-                HISTORY_FILE_TYPE_LEDGER, snap);
-            fileCatchupInfos.push_back(fi);
-            if (mHeaderInfos.find(snap) == mHeaderInfos.end())
-            {
-                mHeaderInfos[snap] = fi;
-            }
+            fileCatchupInfos.push_back(queueTransactionsFile(snap));
+            fileCatchupInfos.push_back(queueLedgerFile(snap));
         }
     }
     for (auto const& fi : fileCatchupInfos)

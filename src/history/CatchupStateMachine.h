@@ -116,6 +116,9 @@ CatchupStateMachine
                          std::string const& hashname,
                          FileCatchupState newGoodState);
 
+    std::shared_ptr<FileCatchupInfo> queueTransactionsFile(uint32_t snap);
+    std::shared_ptr<FileCatchupInfo> queueLedgerFile(uint32_t snap);
+
     void enterBeginState();
     void enterAnchoredState(HistoryArchiveState const& has);
     void enterRetryingState();
