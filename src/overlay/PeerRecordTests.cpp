@@ -20,7 +20,7 @@ TEST_CASE("toXdr", "[overlay][PeerRecord]")
     VirtualClock clock;
     Application::pointer app = Application::create(clock, getTestConfig());
     PeerRecord pr;
-    PeerRecord::parseIPPort("1.25.50.200:256", clock, pr);
+    PeerRecord::parseIPPort("1.25.50.200:256", *app, pr);
     pr.mNumFailures = 2;
 
     SECTION("fromIPPort and toXdr")

@@ -34,7 +34,7 @@ public:
     }
 
     static void fromIPPort(const string &ip, uint32_t port, VirtualClock &clock, PeerRecord &ret);
-    static void parseIPPort(const string &ipPort, VirtualClock &clock, PeerRecord &ret, uint32_t defaultPort = DEFAULT_PEER_PORT);
+    static bool parseIPPort(const string &ipPort, Application& app, PeerRecord &ret, uint32_t defaultPort = DEFAULT_PEER_PORT);
 
 
     static optional<PeerRecord> loadPeerRecord(Database &db, string ip, uint32_t port);
