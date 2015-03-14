@@ -94,7 +94,7 @@ ArchivePublisher::enterBeginState()
 {
     assert(mState == PUBLISH_RETRYING);
     mState = PUBLISH_BEGIN;
-    mArchive->getState(
+    mArchive->getMostRecentState(
         mApp,
         [this](asio::error_code const& ec,
                HistoryArchiveState const& has)

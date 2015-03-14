@@ -92,9 +92,21 @@ public:
     std::string const& getName() const;
     std::string qualifiedFilename(Application& app,
                                   std::string const& basename) const;
-    void getState(Application& app,
-                  std::function<void(asio::error_code const&,
-                                     HistoryArchiveState const&)> handler) const;
+
+    void getMostRecentState(Application& app,
+                            std::function<void(asio::error_code const&,
+                                               HistoryArchiveState const&)> handler) const;
+
+    void getSnapState(Application& app,
+                      uint32_t snap,
+                      std::function<void(asio::error_code const&,
+                                         HistoryArchiveState const&)> handler) const;
+
+    void getStateFromPath(Application& app,
+                          std::string const& remoteName,
+                          std::function<void(asio::error_code const&,
+                                             HistoryArchiveState const&)> handler) const;
+
     void putState(Application& app,
                   HistoryArchiveState const& s,
                   std::function<void(asio::error_code const&)> handler) const;

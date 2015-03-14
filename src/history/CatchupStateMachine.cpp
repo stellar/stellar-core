@@ -112,8 +112,9 @@ CatchupStateMachine::enterBeginState()
         << ", guessed nextLedger=" << mNextLedger;
 
     mArchive = selectRandomReadableHistoryArchive();
-    mArchive->getState(
+    mArchive->getSnapState(
         mApp,
+        mInitLedger / HistoryMaster::kCheckpointFrequency,
         [this](asio::error_code const& ec,
                HistoryArchiveState const& has)
         {

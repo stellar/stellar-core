@@ -204,7 +204,7 @@ TEST_CASE_METHOD(HistoryTests, "HistoryArchiveState::get_put", "[history]")
         [&done, &theApp, archive](asio::error_code const& ec)
         {
             CHECK(!ec);
-            archive->getState(
+            archive->getMostRecentState(
                 theApp,
                 [&done](asio::error_code const& ec,
                         HistoryArchiveState const& has2)
