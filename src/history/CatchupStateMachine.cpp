@@ -133,7 +133,20 @@ CatchupStateMachine::enterBeginState()
             }
             else
             {
-                this->enterAnchoredState(has);
+                if (blockEnd != has.currentLedger)
+                {
+                    CLOG(WARNING, "History")
+                        << "History archive '"
+                        << this->mArchive->getName()
+                        << "', hasn't yet received checkpoint "
+                        << snap
+                        << ", retrying catchup";
+                    this->enterRetryingState();
+                }
+                else
+                {
+                    this->enterAnchoredState(has);
+                }
             }
         });
 }
