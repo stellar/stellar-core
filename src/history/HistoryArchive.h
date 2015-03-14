@@ -21,17 +21,17 @@ struct HistoryStateBucket
     std::string snap;
 
     template <class Archive>
-    void serialize(Archive& ar) const
+    void
+    serialize(Archive& ar) const
     {
-        ar(CEREAL_NVP(curr),
-           CEREAL_NVP(snap));
+        ar(CEREAL_NVP(curr), CEREAL_NVP(snap));
     }
 
     template <class Archive>
-    void serialize(Archive& ar)
+    void
+    serialize(Archive& ar)
     {
-        ar(CEREAL_NVP(curr),
-           CEREAL_NVP(snap));
+        ar(CEREAL_NVP(curr), CEREAL_NVP(snap));
     }
 };
 
@@ -48,26 +48,30 @@ struct HistoryArchiveState
     static std::string wellKnownRemoteName();
     static std::string remoteDir(uint32_t snapshotNumber);
     static std::string remoteName(uint32_t snapshotNumber);
-    static std::string localName(Application& app, std::string const& archiveName);
+    static std::string localName(Application& app,
+                                 std::string const& archiveName);
 
-    // Return vector of buckets to fetch/apply to turn 'other' into 'this'. Vector
+    // Return vector of buckets to fetch/apply to turn 'other' into 'this'.
+    // Vector
     // is sorted from largest/highest-numbered bucket to smallest/lowest, and
-    // with snap buckets occurring before curr buckets. Zero-buckets are omitted.
-    std::vector<std::string> differingBuckets(HistoryArchiveState const& other) const;
+    // with snap buckets occurring before curr buckets. Zero-buckets are
+    // omitted.
+    std::vector<std::string>
+    differingBuckets(HistoryArchiveState const& other) const;
 
     template <class Archive>
-    void serialize(Archive& ar)
+    void
+    serialize(Archive& ar)
     {
-        ar(CEREAL_NVP(version),
-           CEREAL_NVP(currentLedger),
+        ar(CEREAL_NVP(version), CEREAL_NVP(currentLedger),
            CEREAL_NVP(currentBuckets));
     }
 
     template <class Archive>
-    void serialize(Archive& ar) const
+    void
+    serialize(Archive& ar) const
     {
-        ar(CEREAL_NVP(version),
-           CEREAL_NVP(currentLedger),
+        ar(CEREAL_NVP(version), CEREAL_NVP(currentLedger),
            CEREAL_NVP(currentBuckets));
     }
 
@@ -80,11 +84,9 @@ class HistoryArchive : public std::enable_shared_from_this<HistoryArchive>
     class Impl;
     std::unique_ptr<Impl> mImpl;
 
-public:
-    HistoryArchive(std::string const& name,
-                   std::string const& getCmd,
-                   std::string const& putCmd,
-                   std::string const& mkdirCmd);
+  public:
+    HistoryArchive(std::string const& name, std::string const& getCmd,
+                   std::string const& putCmd, std::string const& mkdirCmd);
     ~HistoryArchive();
     bool hasGetCmd() const;
     bool hasPutCmd() const;
@@ -93,36 +95,34 @@ public:
     std::string qualifiedFilename(Application& app,
                                   std::string const& basename) const;
 
-    void getMostRecentState(Application& app,
-                            std::function<void(asio::error_code const&,
-                                               HistoryArchiveState const&)> handler) const;
+    void getMostRecentState(
+        Application& app,
+        std::function<void(asio::error_code const&, HistoryArchiveState const&)>
+            handler) const;
 
-    void getSnapState(Application& app,
-                      uint32_t snap,
-                      std::function<void(asio::error_code const&,
-                                         HistoryArchiveState const&)> handler) const;
+    void
+    getSnapState(Application& app, uint32_t snap,
+                 std::function<void(asio::error_code const&,
+                                    HistoryArchiveState const&)> handler) const;
 
-    void getStateFromPath(Application& app,
-                          std::string const& remoteName,
-                          std::function<void(asio::error_code const&,
-                                             HistoryArchiveState const&)> handler) const;
+    void getStateFromPath(
+        Application& app, std::string const& remoteName,
+        std::function<void(asio::error_code const&, HistoryArchiveState const&)>
+            handler) const;
 
-    void putState(Application& app,
-                  HistoryArchiveState const& s,
+    void putState(Application& app, HistoryArchiveState const& s,
                   std::function<void(asio::error_code const&)> handler) const;
 
-    void putStateInDir(Application& app,
-                       HistoryArchiveState const& s,
-                       std::string const& local,
-                       std::string const& remoteDir,
-                       std::string const& remoteName,
-                       std::function<void(asio::error_code const&)> handler) const;
+    void
+    putStateInDir(Application& app, HistoryArchiveState const& s,
+                  std::string const& local, std::string const& remoteDir,
+                  std::string const& remoteName,
+                  std::function<void(asio::error_code const&)> handler) const;
 
-    std::string getFileCmd(std::string const& remote, std::string const& local) const;
-    std::string putFileCmd(std::string const& local, std::string const& remote) const;
+    std::string getFileCmd(std::string const& remote,
+                           std::string const& local) const;
+    std::string putFileCmd(std::string const& local,
+                           std::string const& remote) const;
     std::string mkdirCmd(std::string const& remoteDir) const;
 };
-
 }
-
-

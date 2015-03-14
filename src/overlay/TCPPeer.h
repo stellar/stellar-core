@@ -7,7 +7,10 @@
 #include "overlay/Peer.h"
 #include "util/Timer.h"
 
-namespace medida { class Meter; }
+namespace medida
+{
+class Meter;
+}
 
 namespace stellar
 {
@@ -25,7 +28,7 @@ class TCPPeer : public Peer
     medida::Meter& mByteRead;
     medida::Meter& mByteWrite;
 
-    void timerExpired(const asio::error_code & error);
+    void timerExpired(const asio::error_code& error);
     void recvMessage();
     bool recvHello(StellarMessage const& msg);
     void sendMessage(xdr::msg_ptr&& xdrBytes);
@@ -44,11 +47,15 @@ class TCPPeer : public Peer
     typedef shared_ptr<TCPPeer> pointer;
 
     TCPPeer(Application& app, Peer::PeerRole role,
-        std::shared_ptr<asio::ip::tcp::socket> socket); // hollow constuctor; use `initiate` or `accept` instead
+            std::shared_ptr<asio::ip::tcp::socket> socket); // hollow
+                                                            // constuctor; use
+                                                            // `initiate` or
+                                                            // `accept` instead
 
-    static pointer initiate(Application& app, const std::string& ip, uint32_t port);
-    static pointer accept(Application& app, shared_ptr<asio::ip::tcp::socket> socket);
-
+    static pointer initiate(Application& app, const std::string& ip,
+                            uint32_t port);
+    static pointer accept(Application& app,
+                          shared_ptr<asio::ip::tcp::socket> socket);
 
     virtual ~TCPPeer();
 

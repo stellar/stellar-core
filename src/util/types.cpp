@@ -28,28 +28,33 @@ makePublicKey(uint256 const& b)
     return (ret);
 }
 
-bool compareCurrency(Currency const& first, Currency const& second)
+bool
+compareCurrency(Currency const& first, Currency const& second)
 {
-    if(first.type() != second.type()) return false;
+    if (first.type() != second.type())
+        return false;
 
-    if(first.type()==NATIVE)
+    if (first.type() == NATIVE)
     {
-        if(second.type() == NATIVE) return true;
-    } else if(second.type() == ISO4217)
+        if (second.type() == NATIVE)
+            return true;
+    }
+    else if (second.type() == ISO4217)
     {
-        if((first.isoCI().issuer == second.isoCI().issuer) &&
-            (first.isoCI().currencyCode == second.isoCI().currencyCode)) return true;
-
+        if ((first.isoCI().issuer == second.isoCI().issuer) &&
+            (first.isoCI().currencyCode == second.isoCI().currencyCode))
+            return true;
     }
     return false;
 }
 
-void currencyCodeToStr(const xdr::opaque_array<4U>& code, std::string& retStr)
+void
+currencyCodeToStr(const xdr::opaque_array<4U>& code, std::string& retStr)
 {
     retStr = "    ";
-    for(int n = 0; n < 4; n++)
+    for (int n = 0; n < 4; n++)
     {
-        if(code[n])
+        if (code[n])
             retStr[n] = code[n];
         else
         {
@@ -61,21 +66,22 @@ void currencyCodeToStr(const xdr::opaque_array<4U>& code, std::string& retStr)
 
 void strToCurrencyCode(xdr::opaque_array<4U>& ret, const std::string& str)
 {
-    for(int n = 0; (n < str.size()) && (n < 4); n++)
+    for (int n = 0; (n < str.size()) && (n < 4); n++)
     {
         ret[n] = str[n];
     }
 }
 
 // calculates A*B/C when A*B overflows 64bits
-int64_t bigDivide(int64_t A, int64_t B, int64_t C)
+int64_t
+bigDivide(int64_t A, int64_t B, int64_t C)
 {
     // update when moving to (signed) int128
     assert((A >= 0) && (B >= 0) && (C > 0));
     uint128_t a(A);
     uint128_t b(B);
     uint128_t c(C);
-    uint128_t x = (a*b)/c;
+    uint128_t x = (a * b) / c;
     if (x > INT64_MAX)
     {
         throw std::overflow_error("cannot process value");
@@ -83,13 +89,14 @@ int64_t bigDivide(int64_t A, int64_t B, int64_t C)
     return (uint64_t)x;
 }
 
-bool iequals(const std::string& a, const std::string& b)
+bool
+iequals(const std::string& a, const std::string& b)
 {
     size_t sz = a.size();
-    if(b.size() != sz)
+    if (b.size() != sz)
         return false;
-    for(size_t i = 0; i < sz; ++i)
-        if(tolower(a[i]) != tolower(b[i]))
+    for (size_t i = 0; i < sz; ++i)
+        if (tolower(a[i]) != tolower(b[i]))
             return false;
     return true;
 }
@@ -107,5 +114,4 @@ bool operator==(Price const& a, Price const& b)
 {
     return (a.n == b.n) && (a.d == b.d);
 }
-
 }

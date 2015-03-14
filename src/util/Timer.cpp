@@ -12,9 +12,7 @@ namespace stellar
 
 using namespace std;
 
-VirtualClock::VirtualClock(Mode mode)
-    : mRealTimer(mIOService)
-    , mMode(mode)
+VirtualClock::VirtualClock(Mode mode) : mRealTimer(mIOService), mMode(mode)
 {
     if (mMode == REAL_TIME)
     {
@@ -38,18 +36,17 @@ VirtualClock::maybeSetRealtimer()
     if (mMode == REAL_TIME)
     {
         mRealTimer.expires_at(next());
-        mRealTimer.async_wait(
-            [this](asio::error_code const& ec)
-            {
-                if (ec == asio::error::operation_aborted)
-                {
-                    ++this->nRealTimerCancelEvents;
-                }
-                else
-                {
-                    this->advanceToNow();
-                }
-            });
+        mRealTimer.async_wait([this](asio::error_code const& ec)
+                              {
+                                  if (ec == asio::error::operation_aborted)
+                                  {
+                                      ++this->nRealTimerCancelEvents;
+                                  }
+                                  else
+                                  {
+                                      this->advanceToNow();
+                                  }
+                              });
     }
 }
 
@@ -80,15 +77,15 @@ VirtualClock::from_time_t(std::time_t timet)
 std::time_t
 VirtualClock::to_time_t(time_point point)
 {
-    return
-        static_cast<std::time_t>(
-            std::chrono::duration_cast<std::chrono::seconds>(
-                point.time_since_epoch()).count());
+    return static_cast<std::time_t>(
+        std::chrono::duration_cast<std::chrono::seconds>(
+            point.time_since_epoch()).count());
 }
 
 #ifdef _WIN32
 time_t
-timegm(struct tm *tm) {
+timegm(struct tm* tm)
+{
     time_t zero = 0;
     time_t localEpoch = mktime(gmtime(&zero));
     time_t local = mktime(tm);
@@ -103,7 +100,7 @@ VirtualClock::pointToTm(time_point point)
     std::tm out;
 #ifdef _WIN32
     // On Win32 this is returns a thread-local and there's no _r variant.
-    std::tm *tmPtr = gmtime(&rawtime);
+    std::tm* tmPtr = gmtime(&rawtime);
     out = *tmPtr;
 #else
     // On Unix the _r variant uses a local output, so is thread safe.
@@ -140,14 +137,15 @@ VirtualClock::enqueue(Application& app, VirtualClockEvent const& ve)
     // LOG(DEBUG) << "VirtualClock::enqueue";
     if (mEvents.find(&app) == mEvents.end())
     {
-        mEvents.insert(std::make_pair(&app, std::make_shared<std::priority_queue<VirtualClockEvent>>()));
+        mEvents.insert(std::make_pair(
+            &app, std::make_shared<std::priority_queue<VirtualClockEvent>>()));
     }
     mEvents[&app]->emplace(ve);
 }
 
 bool
-VirtualClock::cancelAllEventsFrom(Application& a,
-                                  std::function<bool(VirtualClockEvent const&)> pred)
+VirtualClock::cancelAllEventsFrom(
+    Application& a, std::function<bool(VirtualClockEvent const&)> pred)
 {
     // LOG(DEBUG) << "VirtualClock::cancelAllEventsFrom";
     // Brute force approach; could be done better with a linked list
@@ -190,22 +188,26 @@ VirtualClock::cancelAllEventsFrom(Application& a,
     {
         e.mCallback(asio::error::operation_aborted);
     }
-    events =
-        priority_queue<VirtualClockEvent>(toKeep.begin(),
-                                          toKeep.end());
+    events = priority_queue<VirtualClockEvent>(toKeep.begin(), toKeep.end());
     return changed;
 }
 
 bool
 VirtualClock::cancelAllEventsFrom(Application& a)
 {
-    return cancelAllEventsFrom(a, [](VirtualClockEvent const&) { return true; });
+    return cancelAllEventsFrom(a, [](VirtualClockEvent const&)
+                               {
+        return true;
+    });
 }
 
 bool
 VirtualClock::cancelAllEventsFrom(Application& a, VirtualTimer& v)
 {
-    return cancelAllEventsFrom(a, [&v](VirtualClockEvent const& e) { return e.mTimer == &v; });
+    return cancelAllEventsFrom(a, [&v](VirtualClockEvent const& e)
+                               {
+        return e.mTimer == &v;
+    });
 }
 
 bool
@@ -320,9 +322,7 @@ VirtualClockEvent::live() const
 }
 
 VirtualTimer::VirtualTimer(Application& app)
-    : mApp(app)
-    , mExpiryTime(app.getClock().now())
-    , mCancelled(false)
+    : mApp(app), mExpiryTime(app.getClock().now()), mCancelled(false)
 {
 }
 
@@ -367,22 +367,22 @@ VirtualTimer::async_wait(function<void(asio::error_code)> const& fn)
 }
 
 void
-VirtualTimer::async_wait(std::function<void()> const& onSuccess, std::function<void(asio::error_code)> const& onFailure)
+VirtualTimer::async_wait(std::function<void()> const& onSuccess,
+                         std::function<void(asio::error_code)> const& onFailure)
 {
     if (!mCancelled)
     {
-        mApp.getClock().enqueue(mApp, VirtualClockEvent{
-                mExpiryTime,
-                    [onSuccess, onFailure](asio::error_code error)
-                    {
-                        if (error)
-                            onFailure(error);
-                        else
-                            onSuccess();    
-                    },
-                    this});
+        mApp.getClock().enqueue(
+            mApp,
+            VirtualClockEvent{mExpiryTime,
+                              [onSuccess, onFailure](asio::error_code error)
+                              {
+                                  if (error)
+                                      onFailure(error);
+                                  else
+                                      onSuccess();
+                              },
+                              this});
     }
 }
-
-
 }

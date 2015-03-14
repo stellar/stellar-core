@@ -11,7 +11,7 @@ namespace stellar
 
 // Plain SHA256
 uint256
-sha256(ByteSlice const &bin)
+sha256(ByteSlice const& bin)
 {
     uint256 out;
     if (crypto_hash_sha256(out.data(), bin.data(), bin.size()) != 0)
@@ -21,14 +21,12 @@ sha256(ByteSlice const &bin)
     return out;
 }
 
-
 struct SHA256::Impl
 {
     crypto_hash_sha256_state mState;
     bool mFinished;
 
-    Impl()
-    : mFinished(false)
+    Impl() : mFinished(false)
     {
         if (crypto_hash_sha256_init(&mState) != 0)
         {
@@ -37,8 +35,7 @@ struct SHA256::Impl
     }
 };
 
-SHA256::SHA256()
-    : mImpl(new Impl())
+SHA256::SHA256() : mImpl(new Impl())
 {
 }
 
@@ -72,8 +69,7 @@ SHA256::finish()
         throw std::runtime_error("error from crypto_hash_sha256_final");
     }
     uint256 trunc;
-    std::copy(out, out+crypto_hash_sha256_BYTES, trunc.begin());
+    std::copy(out, out + crypto_hash_sha256_BYTES, trunc.begin());
     return trunc;
 }
-
 }

@@ -23,15 +23,13 @@
 namespace stellar
 {
 
-const size_t
-ArchivePublisher::kRetryLimit = 16;
+const size_t ArchivePublisher::kRetryLimit = 16;
 
 typedef FileTransferInfo<FilePublishState> FilePublishInfo;
 
-struct
-StateSnapshot
+struct StateSnapshot
 {
-    Application &mApp;
+    Application& mApp;
     HistoryArchiveState mLocalState;
     std::vector<std::shared_ptr<Bucket>> mLocalBuckets;
     TmpDir mSnapDir;
@@ -46,11 +44,10 @@ StateSnapshot
     bool writeHistoryBlocks() const;
 };
 
-
-ArchivePublisher::ArchivePublisher(Application& app,
-                                   std::function<void(asio::error_code const&)> handler,
-                                   std::shared_ptr<HistoryArchive> archive,
-                                   std::shared_ptr<StateSnapshot> snap)
+ArchivePublisher::ArchivePublisher(
+    Application& app, std::function<void(asio::error_code const&)> handler,
+    std::shared_ptr<HistoryArchive> archive,
+    std::shared_ptr<StateSnapshot> snap)
     : mApp(app)
     , mEndHandler(handler)
     , mState(PUBLISH_RETRYING)
@@ -65,7 +62,8 @@ ArchivePublisher::ArchivePublisher(Application& app,
 void
 ArchivePublisher::enterRetryingState()
 {
-    assert(mState == PUBLISH_BEGIN || mState == PUBLISH_SENDING || mState == PUBLISH_COMMITTING);
+    assert(mState == PUBLISH_BEGIN || mState == PUBLISH_SENDING ||
+           mState == PUBLISH_COMMITTING);
     mState = PUBLISH_RETRYING;
     mRetryTimer.expires_from_now(std::chrono::seconds(2));
     mRetryTimer.async_wait(
@@ -81,9 +79,8 @@ ArchivePublisher::enterRetryingState()
             }
             else
             {
-                CLOG(INFO, "History")
-                    << "Retrying publish to archive '"
-                    << this->mArchive->getName() << "'";
+                CLOG(INFO, "History") << "Retrying publish to archive '"
+                                      << this->mArchive->getName() << "'";
                 this->enterBeginState();
             }
         });
@@ -94,23 +91,21 @@ ArchivePublisher::enterBeginState()
 {
     assert(mState == PUBLISH_RETRYING);
     mState = PUBLISH_BEGIN;
-    mArchive->getMostRecentState(
-        mApp,
-        [this](asio::error_code const& ec,
-               HistoryArchiveState const& has)
+    mArchive->getMostRecentState(mApp, [this](asio::error_code const& ec,
+                                              HistoryArchiveState const& has)
+                                 {
+        if (ec)
         {
-            if (ec)
-            {
-                CLOG(WARNING, "History")
-                    << "Publisher failed to retrieve state from history archive '"
-                    << this->mArchive->getName() << "', restarting publish";
-                this->enterRetryingState();
-            }
-            else
-            {
-                this->enterObservedState(has);
-            }
-        });
+            CLOG(WARNING, "History")
+                << "Publisher failed to retrieve state from history archive '"
+                << this->mArchive->getName() << "', restarting publish";
+            this->enterRetryingState();
+        }
+        else
+        {
+            this->enterObservedState(has);
+        }
+    });
 }
 
 void
@@ -120,25 +115,24 @@ ArchivePublisher::enterObservedState(HistoryArchiveState const& has)
     mState = PUBLISH_OBSERVED;
 
     mArchiveState = has;
-    std::vector<std::string> bucketsToSend = mSnap->mLocalState.differingBuckets(mArchiveState);
+    std::vector<std::string> bucketsToSend =
+        mSnap->mLocalState.differingBuckets(mArchiveState);
     std::map<std::string, std::shared_ptr<Bucket>> bucketsByHash;
     for (auto b : mSnap->mLocalBuckets)
     {
         bucketsByHash[binToHex(b->getHash())] = b;
     }
 
-    std::vector<std::shared_ptr<FilePublishInfo>> filePublishInfos =
-        {
-            mSnap->mLedgerSnapFile,
-            mSnap->mTransactionSnapFile,
-            mSnap->mTransactionResultSnapFile
-        };
+    std::vector<std::shared_ptr<FilePublishInfo>> filePublishInfos = {
+        mSnap->mLedgerSnapFile, mSnap->mTransactionSnapFile,
+        mSnap->mTransactionResultSnapFile};
 
     for (auto const& hash : bucketsToSend)
     {
         auto b = bucketsByHash[hash];
         assert(b);
-        filePublishInfos.push_back(std::make_shared<FilePublishInfo>(FILE_PUBLISH_NEEDED, *b));
+        filePublishInfos.push_back(
+            std::make_shared<FilePublishInfo>(FILE_PUBLISH_NEEDED, *b));
     }
 
     for (auto pi : filePublishInfos)
@@ -148,24 +142,20 @@ ArchivePublisher::enterObservedState(HistoryArchiveState const& has)
         if (i == mFileInfos.end() ||
             i->second->getState() == FILE_PUBLISH_FAILED)
         {
-            CLOG(DEBUG, "History")
-                << "Queueing file "
-                << name
-                << " to send to archive '" << mArchive->getName() << "'";
+            CLOG(DEBUG, "History") << "Queueing file " << name
+                                   << " to send to archive '"
+                                   << mArchive->getName() << "'";
             mFileInfos[name] = pi;
         }
         else
         {
             CLOG(DEBUG, "History")
-                << "Not queueing file "
-                << name
-                << " to send to archive '" << mArchive->getName()
-                << "'; file already queued";
+                << "Not queueing file " << name << " to send to archive '"
+                << mArchive->getName() << "'; file already queued";
         }
     }
     enterSendingState();
 }
-
 
 /**
  * If `ec` is an error, set the state for `name` to FILE_FAILED, otherwise
@@ -208,14 +198,14 @@ ArchivePublisher::enterSendingState()
         case FILE_PUBLISH_NEEDED:
             fi->setState(FILE_PUBLISH_COMPRESSING);
             CLOG(DEBUG, "History") << "Compressing " << name;
-            hm.compress(
-                fi->localPath_nogz(),
-                [this, name](asio::error_code const& ec)
-                {
-                    this->fileStateChange(ec, name, FILE_PUBLISH_COMPRESSED);
-                }, true);
+            hm.compress(fi->localPath_nogz(),
+                        [this, name](asio::error_code const& ec)
+                        {
+                            this->fileStateChange(ec, name,
+                                                  FILE_PUBLISH_COMPRESSED);
+                        },
+                        true);
             break;
-
 
         case FILE_PUBLISH_COMPRESSING:
             break;
@@ -233,13 +223,13 @@ ArchivePublisher::enterSendingState()
             else
             {
                 fi->setState(FILE_PUBLISH_MAKING_DIR);
-                CLOG(DEBUG, "History") << "Making remote directory " << fi->remoteDir();
-                hm.mkdir(
-                    mArchive, fi->remoteDir(),
-                    [this, name](asio::error_code const& ec)
-                    {
-                        this->fileStateChange(ec, name, FILE_PUBLISH_MADE_DIR);
-                    });
+                CLOG(DEBUG, "History") << "Making remote directory "
+                                       << fi->remoteDir();
+                hm.mkdir(mArchive, fi->remoteDir(),
+                         [this, name](asio::error_code const& ec)
+                         {
+                    this->fileStateChange(ec, name, FILE_PUBLISH_MADE_DIR);
+                });
             }
             break;
 
@@ -249,14 +239,11 @@ ArchivePublisher::enterSendingState()
         case FILE_PUBLISH_MADE_DIR:
             fi->setState(FILE_PUBLISH_UPLOADING);
             CLOG(INFO, "History") << "Publishing " << name;
-            hm.putFile(
-                mArchive,
-                fi->localPath_gz(),
-                fi->remoteName(),
-                [this, name](asio::error_code const& ec)
-                {
-                    this->fileStateChange(ec, name, FILE_PUBLISH_UPLOADED);
-                });
+            hm.putFile(mArchive, fi->localPath_gz(), fi->remoteName(),
+                       [this, name](asio::error_code const& ec)
+                       {
+                this->fileStateChange(ec, name, FILE_PUBLISH_UPLOADED);
+            });
             break;
 
         case FILE_PUBLISH_UPLOADING:
@@ -293,23 +280,21 @@ ArchivePublisher::enterCommittingState()
 {
     assert(mState == PUBLISH_SENDING);
     mState = PUBLISH_COMMITTING;
-    mArchive->putState(
-        mApp,
-        mSnap->mLocalState,
-        [this](asio::error_code const& ec)
+    mArchive->putState(mApp, mSnap->mLocalState,
+                       [this](asio::error_code const& ec)
+                       {
+        if (ec)
         {
-            if (ec)
-            {
-                CLOG(WARNING, "History")
-                    << "Publisher failed to update state in history archive '"
-                    << this->mArchive->getName() << "', restarting publish";
-                this->enterRetryingState();
-            }
-            else
-            {
-                this->enterEndState();
-            }
-        });
+            CLOG(WARNING, "History")
+                << "Publisher failed to update state in history archive '"
+                << this->mArchive->getName() << "', restarting publish";
+            this->enterRetryingState();
+        }
+        else
+        {
+            this->enterEndState();
+        }
+    });
 }
 
 void
@@ -327,10 +312,9 @@ ArchivePublisher::isDone() const
     return mState == PUBLISH_END;
 }
 
-PublishStateMachine::PublishStateMachine(Application& app,
-                                         std::function<void(asio::error_code const&)> handler)
-    : mApp(app)
-    , mEndHandler(handler)
+PublishStateMachine::PublishStateMachine(
+    Application& app, std::function<void(asio::error_code const&)> handler)
+    : mApp(app), mEndHandler(handler)
 {
     takeSnapshot();
 }
@@ -340,24 +324,24 @@ StateSnapshot::StateSnapshot(Application& app)
     , mLocalState(app.getHistoryMaster().getLastClosedHistoryArchiveState())
     , mSnapDir(app.getTmpDirMaster().tmpDir("snapshot"))
     , mSnapSess(app.getDatabase().canUsePool()
-               ? make_unique<soci::session>(app.getDatabase().getPool())
-               : nullptr)
+                    ? make_unique<soci::session>(app.getDatabase().getPool())
+                    : nullptr)
     , mSess(mSnapSess ? *mSnapSess : app.getDatabase().getSession())
     , mTx(mSess)
-    , mLedgerSnapFile(
-        std::make_shared<FilePublishInfo>(
-            FILE_PUBLISH_NEEDED, mSnapDir, HISTORY_FILE_TYPE_LEDGER,
-            uint32_t(mLocalState.currentLedger / HistoryMaster::kCheckpointFrequency)))
+    , mLedgerSnapFile(std::make_shared<FilePublishInfo>(
+          FILE_PUBLISH_NEEDED, mSnapDir, HISTORY_FILE_TYPE_LEDGER,
+          uint32_t(mLocalState.currentLedger /
+                   HistoryMaster::kCheckpointFrequency)))
 
-    , mTransactionSnapFile(
-        std::make_shared<FilePublishInfo>(
-            FILE_PUBLISH_NEEDED, mSnapDir, HISTORY_FILE_TYPE_TRANSACTIONS,
-            uint32_t(mLocalState.currentLedger / HistoryMaster::kCheckpointFrequency)))
+    , mTransactionSnapFile(std::make_shared<FilePublishInfo>(
+          FILE_PUBLISH_NEEDED, mSnapDir, HISTORY_FILE_TYPE_TRANSACTIONS,
+          uint32_t(mLocalState.currentLedger /
+                   HistoryMaster::kCheckpointFrequency)))
 
-    , mTransactionResultSnapFile(
-            std::make_shared<FilePublishInfo>(
-            FILE_PUBLISH_NEEDED, mSnapDir, HISTORY_FILE_TYPE_RESULTS,
-            uint32_t(mLocalState.currentLedger / HistoryMaster::kCheckpointFrequency)))
+    , mTransactionResultSnapFile(std::make_shared<FilePublishInfo>(
+          FILE_PUBLISH_NEEDED, mSnapDir, HISTORY_FILE_TYPE_RESULTS,
+          uint32_t(mLocalState.currentLedger /
+                   HistoryMaster::kCheckpointFrequency)))
 {
     BucketList& buckets = app.getCLFMaster().getBucketList();
     for (size_t i = 0; i < buckets.numLevels(); ++i)
@@ -382,27 +366,28 @@ StateSnapshot::writeHistoryBlocks() const
 
     uint32_t count = HistoryMaster::kCheckpointFrequency;
 
-    // 'mLocalState' describes the LCL, so its currentLedger will be 63, 127, 191, etc.
-    // We want to start our snapshot at 64-before the _next_ ledger: 0, 64, 128, etc.
+    // 'mLocalState' describes the LCL, so its currentLedger will be 63, 127,
+    // 191, etc.
+    // We want to start our snapshot at 64-before the _next_ ledger: 0, 64, 128,
+    // etc.
     assert(mLocalState.currentLedger + 1 >= count);
     uint32_t begin = mLocalState.currentLedger + 1 - count;
 
-    CLOG(DEBUG, "History")
-        << "Streaming " << count << " ledgers worth of history, from " << begin;
+    CLOG(DEBUG, "History") << "Streaming " << count
+                           << " ledgers worth of history, from " << begin;
 
-    size_t nHeaders = LedgerHeaderFrame::copyLedgerHeadersToStream(mApp.getDatabase(), mSess,
-                                                                   begin, count, ledgerOut);
-    size_t nTxs = TransactionFrame::copyTransactionsToStream(mApp.getDatabase(), mSess,
-                                                             begin, count, txOut, txResultOut);
-    CLOG(DEBUG, "History")
-        << "Wrote " << nHeaders << " ledger headers to " << mLedgerSnapFile->localPath_nogz();
-    CLOG(DEBUG, "History")
-        << "Wrote " << nTxs << " transactions to " << mTransactionSnapFile->localPath_nogz()
-        << " and " << mTransactionResultSnapFile->localPath_nogz();
+    size_t nHeaders = LedgerHeaderFrame::copyLedgerHeadersToStream(
+        mApp.getDatabase(), mSess, begin, count, ledgerOut);
+    size_t nTxs = TransactionFrame::copyTransactionsToStream(
+        mApp.getDatabase(), mSess, begin, count, txOut, txResultOut);
+    CLOG(DEBUG, "History") << "Wrote " << nHeaders << " ledger headers to "
+                           << mLedgerSnapFile->localPath_nogz();
+    CLOG(DEBUG, "History") << "Wrote " << nTxs << " transactions to "
+                           << mTransactionSnapFile->localPath_nogz() << " and "
+                           << mTransactionResultSnapFile->localPath_nogz();
 
     return true;
 }
-
 
 void
 PublishStateMachine::takeSnapshot()
@@ -458,14 +443,14 @@ PublishStateMachine::snapshotTaken(asio::error_code const& ec,
 {
     if (ec)
     {
-        CLOG(WARNING, "History") << "Failed to snapshot state, abandoning publication";
+        CLOG(WARNING, "History")
+            << "Failed to snapshot state, abandoning publication";
         mEndHandler(ec);
         return;
     }
 
-    CLOG(DEBUG, "History")
-        << "Publishing snapshot of ledger "
-        << snap->mLocalState.currentLedger;
+    CLOG(DEBUG, "History") << "Publishing snapshot of ledger "
+                           << snap->mLocalState.currentLedger;
 
     // Iterate over writable archives instantiating an ArchivePublisher for them
     // with a callback that returns to the PublishStateMachine and possibly
@@ -474,8 +459,7 @@ PublishStateMachine::snapshotTaken(asio::error_code const& ec,
     std::vector<std::shared_ptr<HistoryArchive>> writableArchives;
     for (auto const& pair : hist)
     {
-        if (pair.second->hasGetCmd() &&
-            pair.second->hasPutCmd())
+        if (pair.second->hasGetCmd() && pair.second->hasPutCmd())
         {
             auto p = std::make_shared<ArchivePublisher>(
                 mApp,
@@ -483,8 +467,7 @@ PublishStateMachine::snapshotTaken(asio::error_code const& ec,
                 {
                     this->snapshotPublished(ec);
                 },
-                pair.second,
-                snap);
+                pair.second, snap);
             mPublishers.push_back(p);
         }
     }
@@ -497,14 +480,11 @@ PublishStateMachine::snapshotPublished(asio::error_code const& ec)
     {
         mError = ec;
     }
-    mPublishers.erase(
-        std::remove_if(
-            mPublishers.begin(),
-            mPublishers.end(),
-            [](std::shared_ptr<ArchivePublisher> p)
-            {
-                return p->isDone();
-            }));
+    mPublishers.erase(std::remove_if(mPublishers.begin(), mPublishers.end(),
+                                     [](std::shared_ptr<ArchivePublisher> p)
+                                     {
+        return p->isDone();
+    }));
     CLOG(DEBUG, "History") << "Completed publish to archive, "
                            << mPublishers.size() << " remain";
     if (mPublishers.empty())
@@ -512,6 +492,4 @@ PublishStateMachine::snapshotPublished(asio::error_code const& ec)
         mEndHandler(mError);
     }
 }
-
-
 }

@@ -10,46 +10,50 @@ namespace stellar
 {
 class Application;
 
-    class LedgerDelta
+class LedgerDelta
+{
+    typedef std::map<LedgerKey, EntryFrame::pointer, LedgerEntryIdCmp>
+        KeyEntryMap;
+
+    KeyEntryMap mNew;
+    KeyEntryMap mMod;
+    std::set<LedgerKey, LedgerEntryIdCmp> mDelete;
+
+    LedgerDelta* mOuterDelta;
+    LedgerHeader* mHeader;
+    uint64_t mCurrentID;
+
+    void checkState();
+    void addEntry(EntryFrame::pointer entry);
+    void deleteEntry(EntryFrame::pointer entry);
+    void modEntry(EntryFrame::pointer entry);
+
+    void merge(LedgerDelta& other);
+
+  public:
+    explicit LedgerDelta(LedgerDelta& outerDelta);
+    LedgerDelta(LedgerHeader& ledgerHeader);
+
+    void addEntry(EntryFrame const& entry);
+    void deleteEntry(EntryFrame const& entry);
+    void deleteEntry(LedgerKey const& key);
+    void modEntry(EntryFrame const& entry);
+
+    uint64_t
+    getCurrentID() const
     {
-        typedef std::map<LedgerKey, EntryFrame::pointer, LedgerEntryIdCmp> KeyEntryMap;
+        return mCurrentID;
+    }
+    uint64_t getNextID();
 
-        KeyEntryMap mNew;
-        KeyEntryMap mMod;
-        std::set<LedgerKey, LedgerEntryIdCmp> mDelete;
+    // commits this delta into parent delta
+    void commit();
 
-        LedgerDelta *mOuterDelta;
-        LedgerHeader *mHeader;
-        uint64_t mCurrentID;
+    void markMeters(Application& app) const;
 
-        void checkState();
-        void addEntry(EntryFrame::pointer entry);
-        void deleteEntry(EntryFrame::pointer entry);
-        void modEntry(EntryFrame::pointer entry);
+    std::vector<LedgerEntry> getLiveEntries() const;
+    std::vector<LedgerKey> getDeadEntries() const;
 
-        void merge(LedgerDelta &other);
-    public:
-        explicit LedgerDelta(LedgerDelta& outerDelta);
-        LedgerDelta(LedgerHeader& ledgerHeader);
-
-        void addEntry(EntryFrame const& entry);
-        void deleteEntry(EntryFrame const& entry);
-        void deleteEntry(LedgerKey const& key);
-        void modEntry(EntryFrame const& entry);
-
-        uint64_t getCurrentID() const  { return mCurrentID;  }
-        uint64_t getNextID();
-
-        // commits this delta into parent delta
-        void commit();
-
-        void markMeters(Application& app) const;
-
-        std::vector<LedgerEntry> getLiveEntries() const;
-        std::vector<LedgerKey> getDeadEntries() const;
-
-
-        xdr::msg_ptr getTransactionMeta() const;
-
-    };
+    xdr::msg_ptr getTransactionMeta() const;
+};
 }

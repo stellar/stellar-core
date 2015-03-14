@@ -14,40 +14,49 @@ class session;
 
 namespace stellar
 {
-    class LedgerMaster;
-    class Database;
-    class XDROutputFileStream;
+class LedgerMaster;
+class Database;
+class XDROutputFileStream;
 
-    class LedgerHeaderFrame
-    {
-        Hash mHash;
-    public:
-        typedef std::shared_ptr<LedgerHeaderFrame> pointer;
+class LedgerHeaderFrame
+{
+    Hash mHash;
 
-        LedgerHeader mHeader;
+  public:
+    typedef std::shared_ptr<LedgerHeaderFrame> pointer;
 
-        LedgerHeaderFrame(LedgerHeader const& lh);
-        LedgerHeaderFrame(LedgerHeaderHistoryEntry const& lastClosed); // creates a new ledger based on the given closed ledger
+    LedgerHeader mHeader;
 
-        Hash const& getHash();
+    LedgerHeaderFrame(LedgerHeader const& lh);
+    LedgerHeaderFrame(LedgerHeaderHistoryEntry const& lastClosed); // creates a
+                                                                   // new ledger
+                                                                   // based on
+                                                                   // the given
+                                                                   // closed
+                                                                   // ledger
 
-        SequenceNumber getStartingSequenceNumber(); // returns the first sequence number to use for new accounts
+    Hash const& getHash();
 
-        void storeInsert(LedgerMaster& ledgerMaster);
+    SequenceNumber getStartingSequenceNumber(); // returns the first sequence
+                                                // number to use for new
+                                                // accounts
 
-        static LedgerHeaderFrame::pointer loadByHash(Hash const& hash, Database& ledgerMaster);
-        static LedgerHeaderFrame::pointer loadBySequence(uint32_t seq, Database& ledgerMaster);
+    void storeInsert(LedgerMaster& ledgerMaster);
 
-        static size_t copyLedgerHeadersToStream(Database& db,
-                                                soci::session& sess,
-                                                uint32_t ledgerSeq,
-                                                uint32_t ledgerCount,
-                                                XDROutputFileStream& headersOut);
+    static LedgerHeaderFrame::pointer loadByHash(Hash const& hash,
+                                                 Database& ledgerMaster);
+    static LedgerHeaderFrame::pointer loadBySequence(uint32_t seq,
+                                                     Database& ledgerMaster);
 
-        static void dropAll(Database &db);
-        static const char *kSQLCreateStatement;
-    private:
-        static LedgerHeaderFrame::pointer decodeFromData(std::string const& data);
-    };
+    static size_t copyLedgerHeadersToStream(Database& db, soci::session& sess,
+                                            uint32_t ledgerSeq,
+                                            uint32_t ledgerCount,
+                                            XDROutputFileStream& headersOut);
+
+    static void dropAll(Database& db);
+    static const char* kSQLCreateStatement;
+
+  private:
+    static LedgerHeaderFrame::pointer decodeFromData(std::string const& data);
+};
 }
-

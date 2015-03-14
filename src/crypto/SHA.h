@@ -12,19 +12,18 @@ namespace stellar
 {
 
 // Plain SHA256
-uint256
-sha256(ByteSlice const& bin);
+uint256 sha256(ByteSlice const& bin);
 
 // SHA256 in incremental mode, for large inputs.
 class SHA256
 {
     struct Impl;
     std::unique_ptr<Impl> mImpl;
-public:
+
+  public:
     SHA256();
     ~SHA256();
     void add(ByteSlice const& bin);
     uint256 finish();
 };
-
 }

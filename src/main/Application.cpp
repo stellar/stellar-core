@@ -9,11 +9,9 @@ namespace stellar
 {
 using namespace std;
 
-Application::pointer Application::create(VirtualClock& clock, Config const&cfg)
+Application::pointer
+Application::create(VirtualClock& clock, Config const& cfg)
 {
-  return make_shared<ApplicationImpl>(clock, cfg);
+    return make_shared<ApplicationImpl>(clock, cfg);
 }
-
-
-
 }

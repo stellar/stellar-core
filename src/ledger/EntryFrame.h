@@ -17,39 +17,36 @@ These just hold the xdr LedgerEntry objects and have some associated functions
 
 namespace stellar
 {
-    class Database;
-    class LedgerDelta;
+class Database;
+class LedgerDelta;
 
-	class EntryFrame
-	{
-	protected:
-        
-        bool mKeyCalculated;
-        LedgerKey mKey;
+class EntryFrame
+{
+  protected:
+    bool mKeyCalculated;
+    LedgerKey mKey;
 
-	public:
-		typedef std::shared_ptr<EntryFrame> pointer;
+  public:
+    typedef std::shared_ptr<EntryFrame> pointer;
 
-        LedgerEntry mEntry;
+    LedgerEntry mEntry;
 
-        EntryFrame() = delete;
-        EntryFrame(LedgerEntryType type);
-        EntryFrame(const LedgerEntry& from);
-        
-        static pointer FromXDR(LedgerEntry const& from);
+    EntryFrame() = delete;
+    EntryFrame(LedgerEntryType type);
+    EntryFrame(const LedgerEntry& from);
 
-        virtual EntryFrame::pointer copy() const=0;
+    static pointer FromXDR(LedgerEntry const& from);
 
-        LedgerKey const& getKey();
-		virtual void storeDelete(LedgerDelta &delta, Database& db)=0;
-		virtual void storeChange(LedgerDelta &delta, Database& db)=0;
-		virtual void storeAdd(LedgerDelta &delta, Database& db)=0;
+    virtual EntryFrame::pointer copy() const = 0;
 
-        void storeAddOrChange(LedgerDelta& delta, Database& db);
-        static bool exists(Database& db, LedgerKey const& key);
-        static void storeDelete(LedgerDelta& delta, Database& db, LedgerKey const& key);
+    LedgerKey const& getKey();
+    virtual void storeDelete(LedgerDelta& delta, Database& db) = 0;
+    virtual void storeChange(LedgerDelta& delta, Database& db) = 0;
+    virtual void storeAdd(LedgerDelta& delta, Database& db) = 0;
 
-	};
+    void storeAddOrChange(LedgerDelta& delta, Database& db);
+    static bool exists(Database& db, LedgerKey const& key);
+    static void storeDelete(LedgerDelta& delta, Database& db,
+                            LedgerKey const& key);
+};
 }
-
-

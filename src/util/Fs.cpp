@@ -15,7 +15,6 @@
 
 #include <cstdio>
 
-
 namespace stellar
 {
 
@@ -29,7 +28,8 @@ namespace fs
 bool
 exists(std::string const& name)
 {
-    if(name.empty()) return false;
+    if (name.empty())
+        return false;
 
     if (GetFileAttributes(name.c_str()) == INVALID_FILE_ATTRIBUTES)
     {
@@ -104,10 +104,7 @@ mkdir(std::string const& name)
 }
 
 int
-callback(char const* name,
-         struct stat const* st,
-         int flag,
-         struct FTW *ftw)
+callback(char const* name, struct stat const* st, int flag, struct FTW* ftw)
 {
     CLOG(DEBUG, "Fs") << "deleting: " << name;
     if (flag == FTW_DP)
@@ -137,8 +134,6 @@ deltree(std::string const& d)
 }
 #endif
 
-
-
 std::string
 hexStr(uint32_t checkpointNum)
 {
@@ -151,31 +146,28 @@ hexDir(std::string const& hexStr)
     std::regex rx("([[:xdigit:]]{2})([[:xdigit:]]{2})([[:xdigit:]]{2}).*");
     std::smatch sm;
     assert(std::regex_match(hexStr, sm, rx));
-    return (std::string(sm[1]) + "/" + std::string(sm[2]) + "/" + std::string(sm[3]));
+    return (std::string(sm[1]) + "/" + std::string(sm[2]) + "/" +
+            std::string(sm[3]));
 }
 
 std::string
-baseName(std::string const& type,
-         std::string const& hexStr,
+baseName(std::string const& type, std::string const& hexStr,
          std::string const& suffix)
 {
     return type + "-" + hexStr + "." + suffix;
 }
 
 std::string
-remoteDir(std::string const& type,
-          std::string const& hexStr)
+remoteDir(std::string const& type, std::string const& hexStr)
 {
     return type + "/" + hexDir(hexStr);
 }
 
 std::string
-remoteName(std::string const& type,
-           std::string const& hexStr,
+remoteName(std::string const& type, std::string const& hexStr,
            std::string const& suffix)
 {
     return remoteDir(type, hexStr) + "/" + baseName(type, hexStr, suffix);
 }
-
 }
 }

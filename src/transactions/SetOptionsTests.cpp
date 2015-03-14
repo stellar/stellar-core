@@ -19,20 +19,20 @@
 using namespace stellar;
 using namespace stellar::txtest;
 
-
 typedef std::unique_ptr<Application> appPtr;
 
 // Try setting each option to make sure it works
 // try setting all at once
 // try setting high threshold ones without the correct sigs
-// make sure it doesn't allow us to add signers when we don't have the minbalance
+// make sure it doesn't allow us to add signers when we don't have the
+// minbalance
 TEST_CASE("set options", "[tx][setoptions]")
 {
     Config const& cfg = getTestConfig();
 
     VirtualClock clock;
     Application::pointer appPtr = Application::create(clock, cfg);
-    Application &app = *appPtr;
+    Application& app = *appPtr;
 
     app.start();
 
@@ -42,14 +42,15 @@ TEST_CASE("set options", "[tx][setoptions]")
 
     SequenceNumber rootSeq = getAccountSeqNum(root, app) + 1;
 
-    applyPaymentTx(app, root, a1, rootSeq++, app.getLedgerMaster().getMinBalance(0)+1000);
+    applyPaymentTx(app, root, a1, rootSeq++,
+                   app.getLedgerMaster().getMinBalance(0) + 1000);
 
-    SequenceNumber a1seq = getAccountSeqNum(a1, app)+1;
-    
+    SequenceNumber a1seq = getAccountSeqNum(a1, app) + 1;
+
     SECTION("Signers")
     {
         SecretKey s1 = getAccount("S1");
-        Signer sk1(s1.getPublicKey(), 1 ); // low right account
+        Signer sk1(s1.getPublicKey(), 1); // low right account
 
         Thresholds th;
 
@@ -60,51 +61,54 @@ TEST_CASE("set options", "[tx][setoptions]")
 
         SECTION("insufficient balance")
         {
-            applySetOptions(app, a1, nullptr,
-                nullptr, nullptr, nullptr, &th, &sk1, a1seq++, SetOptions::BELOW_MIN_BALANCE);
+            applySetOptions(app, a1, nullptr, nullptr, nullptr, nullptr, &th,
+                            &sk1, a1seq++, SetOptions::BELOW_MIN_BALANCE);
         }
 
-        applyPaymentTx(app, root, a1, rootSeq++, app.getLedgerMaster().getMinBalance(2));
+        applyPaymentTx(app, root, a1, rootSeq++,
+                       app.getLedgerMaster().getMinBalance(2));
 
-        applySetOptions(app, a1, nullptr,
-            nullptr, nullptr, nullptr, &th, &sk1, a1seq++);
-
+        applySetOptions(app, a1, nullptr, nullptr, nullptr, nullptr, &th, &sk1,
+                        a1seq++);
 
         AccountFrame a1Account;
 
-        REQUIRE(AccountFrame::loadAccount(a1.getPublicKey(), a1Account, app.getDatabase(), true));
+        REQUIRE(AccountFrame::loadAccount(a1.getPublicKey(), a1Account,
+                                          app.getDatabase(), true));
         REQUIRE(a1Account.getAccount().signers.size() == 1);
-        Signer &a_sk1 = a1Account.getAccount().signers[0];
+        Signer& a_sk1 = a1Account.getAccount().signers[0];
         REQUIRE(a_sk1.pubKey == sk1.pubKey);
         REQUIRE(a_sk1.weight == sk1.weight);
 
         // add signer 2
         SecretKey s2 = getAccount("S2");
         Signer sk2(s2.getPublicKey(), 100);
-        applySetOptions(app, a1, nullptr,
-            nullptr, nullptr, nullptr, nullptr, &sk2, a1seq++);
+        applySetOptions(app, a1, nullptr, nullptr, nullptr, nullptr, nullptr,
+                        &sk2, a1seq++);
 
-        REQUIRE(AccountFrame::loadAccount(a1.getPublicKey(), a1Account, app.getDatabase(), true));
+        REQUIRE(AccountFrame::loadAccount(a1.getPublicKey(), a1Account,
+                                          app.getDatabase(), true));
         REQUIRE(a1Account.getAccount().signers.size() == 2);
 
         // update signer 2
         sk2.weight = 11;
-        applySetOptions(app, a1, nullptr,
-            nullptr, nullptr, nullptr, nullptr, &sk2, a1seq++);
+        applySetOptions(app, a1, nullptr, nullptr, nullptr, nullptr, nullptr,
+                        &sk2, a1seq++);
 
         // update signer 1
         sk1.weight = 11;
-        applySetOptions(app, a1, nullptr,
-            nullptr, nullptr, nullptr, nullptr, &sk1, a1seq++);
+        applySetOptions(app, a1, nullptr, nullptr, nullptr, nullptr, nullptr,
+                        &sk1, a1seq++);
 
         // remove signer 1
         sk1.weight = 0;
-        applySetOptions(app, a1, nullptr,
-            nullptr, nullptr, nullptr, nullptr, &sk1, a1seq++);
+        applySetOptions(app, a1, nullptr, nullptr, nullptr, nullptr, nullptr,
+                        &sk1, a1seq++);
 
-        REQUIRE(AccountFrame::loadAccount(a1.getPublicKey(), a1Account, app.getDatabase(), true));
+        REQUIRE(AccountFrame::loadAccount(a1.getPublicKey(), a1Account,
+                                          app.getDatabase(), true));
         REQUIRE(a1Account.getAccount().signers.size() == 1);
-        Signer &a_sk2 = a1Account.getAccount().signers[0];
+        Signer& a_sk2 = a1Account.getAccount().signers[0];
         REQUIRE(a_sk2.pubKey == sk2.pubKey);
         REQUIRE(a_sk2.weight == sk2.weight);
     }
@@ -113,9 +117,8 @@ TEST_CASE("set options", "[tx][setoptions]")
     {
         uint32_t setFlags = AUTH_REQUIRED_FLAG;
         uint32_t clearFlags = AUTH_REQUIRED_FLAG;
-        applySetOptions(app, a1, nullptr,
-            &setFlags, &clearFlags, nullptr, nullptr, nullptr, a1seq++,
-            SetOptions::MALFORMED);
+        applySetOptions(app, a1, nullptr, &setFlags, &clearFlags, nullptr,
+                        nullptr, nullptr, a1seq++, SetOptions::MALFORMED);
     }
 
     // these are all tested by other tests
@@ -125,6 +128,4 @@ TEST_CASE("set options", "[tx][setoptions]")
     // set data
     // set thresholds
     // set signer
-
-    
 }

@@ -5,7 +5,7 @@
 // this distribution or at http://opensource.org/licenses/ISC
 
 #ifndef __has_attribute
-  #define __has_attribute(x) 0
+#define __has_attribute(x) 0
 #endif
 
 #if __has_attribute(warn_unused_result)
@@ -13,5 +13,3 @@
 #else
 #define MUST_USE
 #endif
-
-

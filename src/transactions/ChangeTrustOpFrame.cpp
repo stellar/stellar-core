@@ -8,25 +8,26 @@
 #include "database/Database.h"
 
 namespace stellar
-{ 
-
-
-ChangeTrustOpFrame::ChangeTrustOpFrame(Operation const& op, OperationResult &res,
-    TransactionFrame &parentTx) :
-    OperationFrame(op, res, parentTx), mChangeTrust(mOperation.body.changeTrustOp())
 {
 
+ChangeTrustOpFrame::ChangeTrustOpFrame(Operation const& op,
+                                       OperationResult& res,
+                                       TransactionFrame& parentTx)
+    : OperationFrame(op, res, parentTx)
+    , mChangeTrust(mOperation.body.changeTrustOp())
+{
 }
-bool ChangeTrustOpFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
+bool
+ChangeTrustOpFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
 {
     TrustFrame trustLine;
-    Database &db = ledgerMaster.getDatabase();
+    Database& db = ledgerMaster.getDatabase();
 
-    if(TrustFrame::loadTrustLine(getSourceID(),
-        mChangeTrust.line, trustLine, db))
+    if (TrustFrame::loadTrustLine(getSourceID(), mChangeTrust.line, trustLine,
+                                  db))
     { // we are modifying an old trustline
-        trustLine.getTrustLine().limit= mChangeTrust.limit;
-        if(trustLine.getTrustLine().limit == 0 &&
+        trustLine.getTrustLine().limit = mChangeTrust.limit;
+        if (trustLine.getTrustLine().limit == 0 &&
             trustLine.getTrustLine().balance == 0)
         {
             // line gets deleted
@@ -40,15 +41,17 @@ bool ChangeTrustOpFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
         }
         innerResult().code(ChangeTrust::SUCCESS);
         return true;
-    } else
+    }
+    else
     { // new trust line
         AccountFrame issuer;
-        if(!AccountFrame::loadAccount(mChangeTrust.line.isoCI().issuer, issuer, db))
+        if (!AccountFrame::loadAccount(mChangeTrust.line.isoCI().issuer, issuer,
+                                       db))
         {
             innerResult().code(ChangeTrust::NO_ACCOUNT);
             return false;
         }
-            
+
         trustLine.getTrustLine().accountID = getSourceID();
         trustLine.getTrustLine().currency = mChangeTrust.line;
         trustLine.getTrustLine().limit = mChangeTrust.limit;
@@ -65,10 +68,9 @@ bool ChangeTrustOpFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
     }
 }
 
-bool ChangeTrustOpFrame::doCheckValid(Application& app)
+bool
+ChangeTrustOpFrame::doCheckValid(Application& app)
 {
     return true;
 }
-
 }
-

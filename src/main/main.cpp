@@ -19,9 +19,8 @@
 
 _INITIALIZE_EASYLOGGINGPP
 
-namespace stellar 
+namespace stellar
 {
-
 
 enum opttag
 {
@@ -43,11 +42,11 @@ static const struct option stellard_options[] = {
     {"test", no_argument, nullptr, OPT_TEST},
     {"conf", required_argument, nullptr, OPT_CONF},
     {"c", required_argument, nullptr, OPT_CMD},
-    {"genseed", no_argument, nullptr, OPT_GENSEED },
-    {"newdb", no_argument, nullptr, OPT_NEWDB },
-    {"newhist", required_argument, nullptr, OPT_NEWHIST },
-    {"forcescp", no_argument, nullptr, OPT_FORCESCP },
-    {"ll", required_argument, nullptr, OPT_LOGLEVEL },
+    {"genseed", no_argument, nullptr, OPT_GENSEED},
+    {"newdb", no_argument, nullptr, OPT_NEWDB},
+    {"newhist", required_argument, nullptr, OPT_NEWHIST},
+    {"forcescp", no_argument, nullptr, OPT_FORCESCP},
+    {"ll", required_argument, nullptr, OPT_LOGLEVEL},
     {nullptr, 0, nullptr, 0}};
 
 static void
@@ -61,7 +60,8 @@ usage(int err = 1)
           "      --test          To run self-tests\n"
           "      --newdb         Setup the DB and then exit.\n"
           "      --newhist ARCH  Initialize the named history archive ARCH.\n"
-          "      --forcescp      Force SCP to start before you hear a ledger close next time stellard is run.\n"
+          "      --forcescp      Force SCP to start before you hear a ledger "
+          "close next time stellard is run.\n"
           "      --genseed       Generate and print a random node seed.\n"
           "      --ll LEVEL      Set the log level. LEVEL can be:\n"
           "                      [trace|debug|info|warning|error|fatal|none]\n"
@@ -73,7 +73,8 @@ usage(int err = 1)
           "                peers\n"
           "                connect?ip=5.5.5.5&port=3424\n"
           "                tx?blob=TX_IN_HEX\n"
-          "      --conf FILE     To specify a config file ('-' for STDIN, default "
+          "      --conf FILE     To specify a config file ('-' for STDIN, "
+          "default "
           "'stellard.cfg')\n";
     exit(err);
 }
@@ -101,7 +102,8 @@ sendCommand(const std::string& command, const std::vector<char*>& rest,
 bool
 checkInitialized(Application::pointer app)
 {
-    if (app->getPersistentState().getState(PersistentState::kDatabaseInitialized) != "true")
+    if (app->getPersistentState().getState(
+            PersistentState::kDatabaseInitialized) != "true")
     {
         LOG(INFO) << "* ";
         LOG(INFO) << "* The database has not yet been initialized. Try --newdb";
@@ -119,34 +121,39 @@ setForceSCPFlag(Config& cfg)
 
     if (checkInitialized(app))
     {
-        app->getPersistentState().setState(PersistentState::kForceSCPOnNextLaunch, "true");
+        app->getPersistentState().setState(
+            PersistentState::kForceSCPOnNextLaunch, "true");
         LOG(INFO) << "* ";
-        LOG(INFO) << "* The `force scp` flag has been set in the db. The next launch will";
+        LOG(INFO) << "* The `force scp` flag has been set in the db. The next "
+                     "launch will";
         LOG(INFO) << "* and start scp from the account balances as they stand";
-        LOG(INFO) << "* in the db now, without waiting to hear from the network.";
+        LOG(INFO)
+            << "* in the db now, without waiting to hear from the network.";
         LOG(INFO) << "* ";
     }
 }
 
-void            
-initializeDatabase(Config &cfg) 
+void
+initializeDatabase(Config& cfg)
 {
-    cfg.REBUILD_DB = false; // don't wipe the db until we read whether it was already initialized
+    cfg.REBUILD_DB = false; // don't wipe the db until we read whether it was
+                            // already initialized
     VirtualClock clock;
     Application::pointer app = Application::create(clock, cfg);
 
-    auto wipeMsg = (app->getPersistentState().getState(PersistentState::kDatabaseInitialized) == "true"
-        ? " wiped and initialized"
-        : " initialized");
+    auto wipeMsg = (app->getPersistentState().getState(
+                        PersistentState::kDatabaseInitialized) == "true"
+                        ? " wiped and initialized"
+                        : " initialized");
 
     app->getDatabase().initialize();
 
     LOG(INFO) << "* ";
-    LOG(INFO) << "* The database has been" << wipeMsg << ". The next launch will catchup from the";
+    LOG(INFO) << "* The database has been" << wipeMsg
+              << ". The next launch will catchup from the";
     LOG(INFO) << "* network afresh.";
     LOG(INFO) << "* ";
 }
-
 
 int
 initializeHistories(Config& cfg, vector<string> newHistories)
@@ -173,7 +180,8 @@ startApp(string cfgFile, Config& cfg)
     if (!checkInitialized(app))
     {
         return 1;
-    } else
+    }
+    else
     {
         app->applyCfgCommands();
 
@@ -188,7 +196,6 @@ startApp(string cfgFile, Config& cfg)
         return 1;
     }
 }
-
 }
 
 int
@@ -212,7 +219,7 @@ main(int argc, char* const* argv)
 
         int opt;
         while ((opt = getopt_long_only(argc, argv, "", stellard_options,
-            nullptr)) != -1)
+                                       nullptr)) != -1)
         {
             switch (opt)
             {
@@ -247,7 +254,8 @@ main(int argc, char* const* argv)
             case OPT_GENSEED:
             {
                 SecretKey key = SecretKey::random();
-                std::cout << "Secret seed: " << key.getBase58Seed() << std::endl;
+                std::cout << "Secret seed: " << key.getBase58Seed()
+                          << std::endl;
                 std::cout << "Public: " << key.getBase58Public() << std::endl;
                 return 0;
             }
@@ -255,7 +263,6 @@ main(int argc, char* const* argv)
             default:
                 usage(0);
                 return 0;
-
             }
         }
 
@@ -278,12 +285,16 @@ main(int argc, char* const* argv)
         {
             sendCommand(command, rest, cfg.HTTP_PORT);
             return 0;
-        } else if(newNetwork || newDB)
+        }
+        else if (newNetwork || newDB)
         {
-            if(newDB) initializeDatabase(cfg);
-            if(newNetwork) setForceSCPFlag(cfg);
+            if (newDB)
+                initializeDatabase(cfg);
+            if (newNetwork)
+                setForceSCPFlag(cfg);
             return 0;
-        }else if (!newHistories.empty())
+        }
+        else if (!newHistories.empty())
         {
             return initializeHistories(cfg, newHistories);
         }
@@ -291,11 +302,10 @@ main(int argc, char* const* argv)
         {
             return startApp(cfgFile, cfg);
         }
-
-    } catch (std::runtime_error e) 
+    }
+    catch (std::runtime_error e)
     {
         LOG(FATAL) << e.what();
         return 1;
     }
 }
-

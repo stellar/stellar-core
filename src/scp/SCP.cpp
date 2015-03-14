@@ -14,8 +14,7 @@
 namespace stellar
 {
 
-SCP::SCP(const SecretKey& secretKey,
-         const SCPQuorumSet& qSetLocal)
+SCP::SCP(const SecretKey& secretKey, const SCPQuorumSet& qSetLocal)
 {
     mLocalNode = new LocalNode(secretKey, qSetLocal, this);
     mKnownNodes[mLocalNode->getNodeID()] = mLocalNode;
@@ -48,33 +47,31 @@ SCP::receiveEnvelope(const SCPEnvelope& envelope,
 }
 
 bool
-SCP::prepareValue(const uint64& slotIndex,
-                  const Value& value,
-                  bool forceBump)
+SCP::prepareValue(const uint64& slotIndex, const Value& value, bool forceBump)
 {
     assert(!getSecretKey().isZero());
     return getSlot(slotIndex)->prepareValue(value, forceBump);
 }
 
-void 
+void
 SCP::updateLocalQuorumSet(const SCPQuorumSet& qSet)
 {
     mLocalNode->updateQuorumSet(qSet);
 }
 
-const SCPQuorumSet& 
+const SCPQuorumSet&
 SCP::getLocalQuorumSet()
 {
     return mLocalNode->getQuorumSet();
 }
 
-const uint256& 
+const uint256&
 SCP::getLocalNodeID()
 {
-  return mLocalNode->getNodeID();
+    return mLocalNode->getNodeID();
 }
 
-void 
+void
 SCP::purgeNode(const uint256& nodeID)
 {
     auto it = mKnownNodes.find(nodeID);
@@ -85,25 +82,25 @@ SCP::purgeNode(const uint256& nodeID)
     }
 }
 
-void 
+void
 SCP::purgeSlots(const uint64& maxSlotIndex)
 {
     auto it = mKnownSlots.begin();
-    while(it != mKnownSlots.end())
+    while (it != mKnownSlots.end())
     {
-        if(it->first < maxSlotIndex)
+        if (it->first < maxSlotIndex)
         {
             delete it->second;
             it = mKnownSlots.erase(it);
         }
-        else 
+        else
         {
             ++it;
         }
     }
 }
 
-Node* 
+Node*
 SCP::getNode(const uint256& nodeID)
 {
     auto it = mKnownNodes.find(nodeID);
@@ -114,10 +111,10 @@ SCP::getNode(const uint256& nodeID)
     return mKnownNodes[nodeID];
 }
 
-LocalNode* 
+LocalNode*
 SCP::getLocalNode()
 {
-  return mLocalNode;
+    return mLocalNode;
 }
 
 Slot*
@@ -135,27 +132,27 @@ void
 SCP::signEnvelope(SCPEnvelope& envelope)
 {
     assert(envelope.nodeID == getSecretKey().getPublicKey());
-    envelope.signature = 
+    envelope.signature =
         getSecretKey().sign(xdr::xdr_to_msg(envelope.statement));
     envelopeSigned();
 }
 
-bool 
+bool
 SCP::verifyEnvelope(const SCPEnvelope& envelope)
 {
-    bool b = PublicKey::verifySig(envelope.nodeID, envelope.signature, 
+    bool b = PublicKey::verifySig(envelope.nodeID, envelope.signature,
                                   xdr::xdr_to_msg(envelope.statement));
     envelopeVerified(b);
     return b;
 }
 
-const SecretKey& 
+const SecretKey&
 SCP::getSecretKey()
 {
     return mLocalNode->getSecretKey();
 }
 
-bool 
+bool
 SCP::isVBlocking(const std::vector<uint256>& nodes)
 {
     std::map<uint256, bool> map;
@@ -163,9 +160,7 @@ SCP::isVBlocking(const std::vector<uint256>& nodes)
     {
         map[v] = true;
     }
-    return getLocalNode()->isVBlocking<bool>( 
-        getLocalNode()->getQuorumSetHash(), 
-        map);
+    return getLocalNode()->isVBlocking<bool>(getLocalNode()->getQuorumSetHash(),
+                                             map);
 }
-
 }

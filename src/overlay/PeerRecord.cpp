@@ -19,7 +19,8 @@ namespace stellar
 using namespace std;
 using namespace soci;
 
-void PeerRecord::ipToXdr(string ip, xdr::opaque_array<4U>& ret)
+void
+PeerRecord::ipToXdr(string ip, xdr::opaque_array<4U>& ret)
 {
     stringstream ss(ip);
     string item;
@@ -33,20 +34,25 @@ void PeerRecord::ipToXdr(string ip, xdr::opaque_array<4U>& ret)
         throw runtime_error("PeerRecord::ipToXdr: failed on `" + ip + "`");
 }
 
-void PeerRecord::toXdr(PeerAddress &ret)
+void
+PeerRecord::toXdr(PeerAddress& ret)
 {
     ret.port = mPort;
     ret.numFailures = mNumFailures;
     ipToXdr(mIP, ret.ip);
 }
 
-void PeerRecord::fromIPPort(const string &ip, uint32_t port, VirtualClock &clock, PeerRecord &ret)
+void
+PeerRecord::fromIPPort(const string& ip, uint32_t port, VirtualClock& clock,
+                       PeerRecord& ret)
 {
-    ret = PeerRecord{ ip, port, clock.now(), 0, 1 };
+    ret = PeerRecord{ip, port, clock.now(), 0, 1};
 }
 
 // TODO.2 stricter verification that ip and port are valid
-bool PeerRecord::parseIPPort(const string &ipPort, Application& app, PeerRecord &ret, uint32_t defaultPort)
+bool
+PeerRecord::parseIPPort(const string& ipPort, Application& app, PeerRecord& ret,
+                        uint32_t defaultPort)
 {
     string ip;
     uint32_t port;
@@ -65,56 +71,69 @@ bool PeerRecord::parseIPPort(const string &ipPort, Application& app, PeerRecord 
         splitPoint++;
         portStr.assign(splitPoint, innerStr.end());
         port = atoi(portStr.c_str());
-        if (!port) 
+        if (!port)
             throw runtime_error("PeerRecord::perseIPPort: failed on " + ipPort);
     }
 
-    if(ip.size() && !isdigit(ip[ip.size() - 1]) )
-    {       
+    if (ip.size() && !isdigit(ip[ip.size() - 1]))
+    {
         asio::ip::tcp::resolver resolver(app.getWorkerIOService());
         asio::ip::tcp::resolver::query query(ip, "");
         asio::ip::tcp::resolver::iterator i = resolver.resolve(query);
-        if(i != asio::ip::tcp::resolver::iterator())
+        if (i != asio::ip::tcp::resolver::iterator())
         {
             asio::ip::tcp::endpoint end = *i;
             ip = end.address().to_string();
-        } else return false;
+        }
+        else
+            return false;
     }
 
-    if(port < 1 || port> 65535) return false;
+    if (port < 1 || port > 65535)
+        return false;
 
-    ret = PeerRecord{ ip, port, app.getClock().now(), 0, 1 };
+    ret = PeerRecord{ip, port, app.getClock().now(), 0, 1};
     return true;
 }
 
-optional<PeerRecord> PeerRecord::loadPeerRecord(Database &db, string ip, uint32_t port)
+optional<PeerRecord>
+PeerRecord::loadPeerRecord(Database& db, string ip, uint32_t port)
 {
     auto ret = make_optional<PeerRecord>();
     auto timer = db.getSelectTimer("peer");
     tm tm;
-    db.getSession() << "Select ip,port, nextAttempt, numFailures, rank FROM Peers WHERE ip = :v1 AND port = :v2",
-        into(ret->mIP), into(ret->mPort), into(tm), into(ret->mNumFailures), into(ret->mRank), use(ip), use(port);
+    db.getSession() << "Select ip,port, nextAttempt, numFailures, rank FROM "
+                       "Peers WHERE ip = :v1 AND port = :v2",
+        into(ret->mIP), into(ret->mPort), into(tm), into(ret->mNumFailures),
+        into(ret->mRank), use(ip), use(port);
     if (db.getSession().got_data())
     {
         ret->mNextAttempt = VirtualClock::tmToPoint(tm);
         return ret;
-    } else
+    }
+    else
         return nullopt<PeerRecord>();
 }
 
-void PeerRecord::loadPeerRecords(Database &db, uint32_t max, VirtualClock::time_point nextAttemptCutoff, vector<PeerRecord>& retList)
+void
+PeerRecord::loadPeerRecords(Database& db, uint32_t max,
+                            VirtualClock::time_point nextAttemptCutoff,
+                            vector<PeerRecord>& retList)
 {
-    try {
+    try
+    {
         auto timer = db.getSelectTimer("peer");
         tm tm = VirtualClock::pointToTm(nextAttemptCutoff);
         PeerRecord pr;
-        statement st = (db.getSession().prepare <<
-            "SELECT ip, port, nextAttempt, numFailures, rank from Peers "
-            " where nextAttempt <= :nextAttempt "
-            " order by rank limit :max ",
-            use(tm), use(max), into(pr.mIP), into(pr.mPort), into(tm), into(pr.mNumFailures), into(pr.mRank));
+        statement st =
+            (db.getSession().prepare << "SELECT ip, port, nextAttempt, "
+                                        "numFailures, rank from Peers "
+                                        " where nextAttempt <= :nextAttempt "
+                                        " order by rank limit :max ",
+             use(tm), use(max), into(pr.mIP), into(pr.mPort), into(tm),
+             into(pr.mNumFailures), into(pr.mRank));
         st.execute();
-        while(st.fetch())
+        while (st.fetch())
         {
             pr.mNextAttempt = VirtualClock::tmToPoint(tm);
             retList.push_back(pr);
@@ -126,18 +145,23 @@ void PeerRecord::loadPeerRecords(Database &db, uint32_t max, VirtualClock::time_
     }
 }
 
-bool PeerRecord::isStored(Database &db)
+bool
+PeerRecord::isStored(Database& db)
 {
     return loadPeerRecord(db, mIP, mPort) != nullopt<PeerRecord>();
 }
 
-void PeerRecord::storePeerRecord(Database& db)
+void
+PeerRecord::storePeerRecord(Database& db)
 {
-    try {
+    try
+    {
         auto tm = VirtualClock::pointToTm(mNextAttempt);
-        statement stUp = (db.getSession().prepare <<
-            "UPDATE Peers SET nextAttempt=:v1,numFailures=:v2,Rank=:v3 WHERE IP=:v4 AND Port=:v5",
-            use(tm), use(mNumFailures), use(mRank), use(mIP), use(mPort));
+        statement stUp =
+            (db.getSession().prepare << "UPDATE Peers SET "
+                                        "nextAttempt=:v1,numFailures=:v2,Rank=:"
+                                        "v3 WHERE IP=:v4 AND Port=:v5",
+             use(tm), use(mNumFailures), use(mRank), use(mIP), use(mPort));
         {
             auto timer = db.getUpdateTimer("peer");
             stUp.execute(true);
@@ -147,13 +171,17 @@ void PeerRecord::storePeerRecord(Database& db)
             auto timer = db.getInsertTimer("peer");
             tm = VirtualClock::pointToTm(mNextAttempt);
 
-            statement stIn = (db.getSession().prepare << "INSERT INTO Peers (IP,Port,nextAttempt,numFailures,Rank) values (:v1, :v2, :v3, :v4, :v5)",
-                use(mIP), use(mPort), use(tm), use(mNumFailures), use(mRank));
+            statement stIn =
+                (db.getSession().prepare << "INSERT INTO Peers "
+                                            "(IP,Port,nextAttempt,numFailures,"
+                                            "Rank) values (:v1, :v2, :v3, :v4, "
+                                            ":v5)",
+                 use(mIP), use(mPort), use(tm), use(mNumFailures), use(mRank));
 
             stIn.execute(true);
             if (stIn.get_affected_rows() != 1)
-                throw runtime_error("PeerRecord::storePeerRecord: failed on " + toString());
-
+                throw runtime_error("PeerRecord::storePeerRecord: failed on " +
+                                    toString());
         }
     }
     catch (soci_error& err)
@@ -162,27 +190,24 @@ void PeerRecord::storePeerRecord(Database& db)
     }
 }
 
-
-void 
-PeerRecord::backOff(VirtualClock &clock)
+void
+PeerRecord::backOff(VirtualClock& clock)
 {
     mNumFailures++;
 
-    mNextAttempt = clock.now() + std::chrono::seconds(
-        static_cast<int64_t>(
-        std::pow(2, mNumFailures) * SECONDS_PER_BACKOFF));
-
-
+    mNextAttempt =
+        clock.now() + std::chrono::seconds(static_cast<int64_t>(
+                          std::pow(2, mNumFailures) * SECONDS_PER_BACKOFF));
 }
 
-string 
+string
 PeerRecord::toString()
 {
     return mIP + ":" + to_string(mPort);
 }
 
-void 
-PeerRecord::dropAll(Database &db)
+void
+PeerRecord::dropAll(Database& db)
 {
     db.getSession() << "DROP TABLE IF EXISTS Peers;";
     db.getSession() << kSQLCreateStatement;
@@ -197,5 +222,4 @@ const char* PeerRecord::kSQLCreateStatement =
     rank            INT DEFAULT 0 CHECK (rank >= 0) NOT NULL,               \
     PRIMARY KEY (ip, port)                                                  \
 );";
-
 }

@@ -10,46 +10,47 @@
 namespace stellar
 {
 
-
-string PersistentState::mapping[kLastEntry] =
-{
-    "lastClosedLedger",
-    "forceSCPOnNextLaunch",
-    "databaseInitialized"
-};
+string PersistentState::mapping[kLastEntry] = {
+    "lastClosedLedger", "forceSCPOnNextLaunch", "databaseInitialized"};
 
 string PersistentState::kSQLCreateStatement =
-"CREATE TABLE IF NOT EXISTS StoreState ("
-"StateName   CHARACTER(32) PRIMARY KEY,"
-"State       TEXT"
-"); ";
+    "CREATE TABLE IF NOT EXISTS StoreState ("
+    "StateName   CHARACTER(32) PRIMARY KEY,"
+    "State       TEXT"
+    "); ";
 
-
-PersistentState::PersistentState(Application &app) : mApp(app)
+PersistentState::PersistentState(Application& app) : mApp(app)
 {
     mApp.getDatabase().getSession() << kSQLCreateStatement;
 }
 
-void PersistentState::dropAll(Database &db)
+void
+PersistentState::dropAll(Database& db)
 {
     db.getSession() << "DROP TABLE IF EXISTS StoreState;";
 
     soci::statement st = db.getSession().prepare << kSQLCreateStatement;
     st.execute(true);
- 
-    soci::statement st2 = db.getSession().prepare 
+
+    soci::statement st2 =
+        db.getSession().prepare
         << "INSERT INTO StoreState (StateName, State) VALUES ('" + mapping[kDatabaseInitialized] + "', 'true');";
     st2.execute(true);
 }
 
-string PersistentState::getStoreStateName(PersistentState::Entry n) {
-    if (n < 0 || n >= kLastEntry) {
+string
+PersistentState::getStoreStateName(PersistentState::Entry n)
+{
+    if (n < 0 || n >= kLastEntry)
+    {
         throw out_of_range("unknown entry");
     }
     return mapping[n];
 }
 
-string PersistentState::getState(PersistentState::Entry entry) {
+string
+PersistentState::getState(PersistentState::Entry entry)
+{
     string res;
 
     string sn(getStoreStateName(entry));
@@ -69,12 +70,15 @@ string PersistentState::getState(PersistentState::Entry entry) {
     return res;
 }
 
-void PersistentState::setState(PersistentState::Entry entry, const string &value) {
+void
+PersistentState::setState(PersistentState::Entry entry, const string& value)
+{
     string sn(getStoreStateName(entry));
 
-    soci::statement st = (mApp.getDatabase().getSession().prepare <<
-        "UPDATE StoreState SET State = :v WHERE StateName = :n;",
-        soci::use(value), soci::use(sn));
+    soci::statement st =
+        (mApp.getDatabase().getSession().prepare
+             << "UPDATE StoreState SET State = :v WHERE StateName = :n;",
+         soci::use(value), soci::use(sn));
 
     {
         auto timer = mApp.getDatabase().getUpdateTimer("state");
@@ -84,18 +88,17 @@ void PersistentState::setState(PersistentState::Entry entry, const string &value
     if (st.get_affected_rows() != 1)
     {
         auto timer = mApp.getDatabase().getInsertTimer("state");
-        st = (mApp.getDatabase().getSession().prepare <<
-            "INSERT INTO StoreState (StateName, State) VALUES (:n, :v );",
-            soci::use(sn), soci::use(value));
+        st = (mApp.getDatabase().getSession().prepare
+                  << "INSERT INTO StoreState (StateName, State) VALUES (:n, :v "
+                     ");",
+              soci::use(sn), soci::use(value));
 
-            st.execute(true);
+        st.execute(true);
 
-            if (st.get_affected_rows() != 1)
-            {
-                throw std::runtime_error("Could not insert data in SQL");
-            }
+        if (st.get_affected_rows() != 1)
+        {
+            throw std::runtime_error("Could not insert data in SQL");
+        }
     }
 }
-
-
 }

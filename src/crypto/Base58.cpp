@@ -15,9 +15,9 @@ std::string const bitcoinBase58Alphabet =
 std::string const stellarBase58Alphabet =
     "gsphnaf39wBUDNEGHJKLM4PQRST7VWXYZ2bcdeCr65jkm8oFqi1tuvAxyz";
 
-
 // Non-bignum base58 encoding routines adapted from bs58.js which in turn
-// was adapted from https://github.com/bitcoin/bitcoin/blob/master/src/base58.cpp
+// was adapted from
+// https://github.com/bitcoin/bitcoin/blob/master/src/base58.cpp
 
 std::string
 baseEncode(std::string const& alphabet, ByteSlice const& bytes)
@@ -28,7 +28,7 @@ baseEncode(std::string const& alphabet, ByteSlice const& bytes)
     }
 
     uint16_t base = static_cast<uint16_t>(alphabet.size());
-    std::vector<uint16_t> digits {0};
+    std::vector<uint16_t> digits{0};
 
     // Propagate each byte + carry.
     for (auto byte : bytes)
@@ -64,10 +64,12 @@ baseEncode(std::string const& alphabet, ByteSlice const& bytes)
     // Alphabet-ize and reverse.
     std::string ret(digits.size(), ' ');
     std::transform(digits.rbegin(), digits.rend(), ret.begin(),
-                   [&alphabet](uint8_t digit) { return alphabet.at(digit); });
+                   [&alphabet](uint8_t digit)
+                   {
+        return alphabet.at(digit);
+    });
     return ret;
 }
-
 
 std::vector<uint8_t>
 baseDecode(std::string const& alphabet, std::string const& encoded)
@@ -82,7 +84,8 @@ baseDecode(std::string const& alphabet, std::string const& encoded)
 
     std::vector<uint16_t> alphabetMap(256, 0xffff);
     for (size_t i = 0; i < alphabet.size(); ++i)
-        alphabetMap.at(static_cast<uint8_t>(alphabet.at(i))) = static_cast<uint16_t>(i);
+        alphabetMap.at(static_cast<uint8_t>(alphabet.at(i))) =
+            static_cast<uint16_t>(i);
     uint16_t base = static_cast<uint16_t>(alphabet.size());
 
     // Propagate each character + carry.
@@ -96,7 +99,8 @@ baseDecode(std::string const& alphabet, std::string const& encoded)
         auto n = alphabetMap.at(static_cast<uint8_t>(c));
         if (n == 0xffff)
         {
-            throw std::runtime_error("unknown character in stellar::baseDecode");
+            throw std::runtime_error(
+                "unknown character in stellar::baseDecode");
         }
 
         bytes[0] += n;
@@ -117,21 +121,24 @@ baseDecode(std::string const& alphabet, std::string const& encoded)
     }
 
     // Append leading zeroes.
-    for (size_t i = 0; encoded.at(i) == alphabet.at(0) && i < encoded.size() - 1; i++)
+    for (size_t i = 0;
+         encoded.at(i) == alphabet.at(0) && i < encoded.size() - 1; i++)
     {
         bytes.push_back(0);
     }
 
     // Trim to real bytes and reverse.
     std::vector<uint8_t> ret(bytes.size(), 0);
-    std::transform(bytes.rbegin(), bytes.rend(), ret.begin(),
-                   [](uint16_t i) { return static_cast<uint8_t>(i); });
+    std::transform(bytes.rbegin(), bytes.rend(), ret.begin(), [](uint16_t i)
+                   {
+        return static_cast<uint8_t>(i);
+    });
     return ret;
 }
 
-
 std::string
-baseCheckEncode(std::string const& alphabet, uint8_t ver, ByteSlice const& bytes)
+baseCheckEncode(std::string const& alphabet, uint8_t ver,
+                ByteSlice const& bytes)
 {
     std::vector<uint8_t> vb(bytes.size() + 1, 0);
     vb.at(0) = ver;
@@ -150,27 +157,29 @@ baseCheckDecode(std::string const& alphabet, std::string const& encoded)
         throw std::runtime_error("baseCheckDecode decoded to <5 bytes");
     }
     uint256 hash = sha256(sha256(ByteSlice(bytes.data(), bytes.size() - 4)));
-    if (! std::equal(hash.begin(), hash.begin() + 4,
-                     bytes.begin() + (bytes.size() - 4)))
+    if (!std::equal(hash.begin(), hash.begin() + 4,
+                    bytes.begin() + (bytes.size() - 4)))
     {
         throw std::runtime_error("baseCheckDecode checksum failed");
     }
-    return std::make_pair(bytes[0],
-                          std::vector<uint8_t>(bytes.begin() + 1,
-                                               bytes.begin() + (bytes.size() - 4)));
+    return std::make_pair(
+        bytes[0], std::vector<uint8_t>(bytes.begin() + 1,
+                                       bytes.begin() + (bytes.size() - 4)));
 }
 
 std::string
 toBase58Check(Base58CheckVersionByte ver, ByteSlice const& bytes)
 {
-    return baseCheckEncode(stellarBase58Alphabet, static_cast<uint8_t>(ver), bytes);
+    return baseCheckEncode(stellarBase58Alphabet, static_cast<uint8_t>(ver),
+                           bytes);
 }
 
 std::pair<Base58CheckVersionByte, std::vector<uint8_t>>
 fromBase58Check(std::string const& encoded)
 {
     auto pair = baseCheckDecode(stellarBase58Alphabet, encoded);
-    return std::make_pair(static_cast<Base58CheckVersionByte>(pair.first), pair.second);
+    return std::make_pair(static_cast<Base58CheckVersionByte>(pair.first),
+                          pair.second);
 }
 
 uint256
@@ -184,10 +193,10 @@ fromBase58Check256(Base58CheckVersionByte expect, std::string const& encoded)
     }
     if (p.second.size() != out.size())
     {
-        throw std::runtime_error("unexpected base58 length when decoding uint256");
+        throw std::runtime_error(
+            "unexpected base58 length when decoding uint256");
     }
     std::copy(p.second.begin(), p.second.end(), out.begin());
     return out;
 }
-
 }

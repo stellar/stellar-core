@@ -8,5 +8,4 @@
 #include <cstdint>
 #include <cstddef>
 
-std::vector<uint8_t>
-randomBytes(size_t length);
+std::vector<uint8_t> randomBytes(size_t length);

@@ -27,7 +27,6 @@
 namespace stellar
 {
 
-
 ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
     : mState(Application::State::BOOTING_STATE)
     , mVirtualClock(clock)
@@ -48,11 +47,11 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
     LOG(INFO) << "Application constructing "
               << "(worker threads: " << t << ")";
     mStopSignals.async_wait([this](asio::error_code const& ec, int sig)
-    {
-        LOG(INFO) << "got signal " << sig
-            << ", shutting down";
-        this->gracefulStop();
-    });
+                            {
+                                LOG(INFO) << "got signal " << sig
+                                          << ", shutting down";
+                                this->gracefulStop();
+                            });
 
     // These must be constructed _after_ because they frequently call back
     // into App.getFoo() to get information / start up.
@@ -60,19 +59,18 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
     mDatabase = make_unique<Database>(*this);
     mPersistentState = make_unique<PersistentState>(*this);
 
-    if (mPersistentState->getState(PersistentState::kForceSCPOnNextLaunch) == "true")
+    if (mPersistentState->getState(PersistentState::kForceSCPOnNextLaunch) ==
+        "true")
     {
         mConfig.START_NEW_NETWORK = true;
     }
 
-    // Initialize the db as early as possible, namely as soon as metrics, 
+    // Initialize the db as early as possible, namely as soon as metrics,
     // database and persistentState are instantiated.
-    if (mConfig.REBUILD_DB ||
-        mConfig.DATABASE == "sqlite3://:memory:")
+    if (mConfig.REBUILD_DB || mConfig.DATABASE == "sqlite3://:memory:")
     {
         mDatabase->initialize();
     }
-
 
     mTmpDirMaster = make_unique<TmpDirMaster>(cfg.TMP_DIR_PATH);
     mPeerMaster = make_unique<PeerMaster>(*this);
@@ -83,17 +81,15 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
     mProcessMaster = make_unique<ProcessMaster>(*this);
     mCommandHandler = make_unique<CommandHandler>(*this);
 
-
-    while(t--)
+    while (t--)
     {
         mWorkerThreads.emplace_back([this, t]()
-        {
-            this->runWorkerThread(t);
-        });
+                                    {
+                                        this->runWorkerThread(t);
+                                    });
     }
 
     LOG(INFO) << "Application constructed";
-
 }
 
 ApplicationImpl::~ApplicationImpl()
@@ -104,7 +100,8 @@ ApplicationImpl::~ApplicationImpl()
     LOG(INFO) << "Application destroyed";
 }
 
-uint64_t ApplicationImpl::timeNow()
+uint64_t
+ApplicationImpl::timeNow()
 {
     return VirtualClock::to_time_t(getClock().now());
 }
@@ -112,37 +109,45 @@ uint64_t ApplicationImpl::timeNow()
 void
 ApplicationImpl::start()
 {
-    if (mPersistentState->getState(PersistentState::kDatabaseInitialized) != "true")
+    if (mPersistentState->getState(PersistentState::kDatabaseInitialized) !=
+        "true")
     {
         throw runtime_error("Database not initialized and REBUID_DB is false.");
     }
 
-    bool hasLedger = !mPersistentState->getState(PersistentState::kLastClosedLedger).empty();
+    bool hasLedger =
+        !mPersistentState->getState(PersistentState::kLastClosedLedger).empty();
 
     if (mConfig.START_NEW_NETWORK)
     {
         string flagClearedMsg = "";
-        if (mPersistentState->getState(PersistentState::kForceSCPOnNextLaunch) == "true")
+        if (mPersistentState->getState(
+                PersistentState::kForceSCPOnNextLaunch) == "true")
         {
             flagClearedMsg = " (`force scp` flag cleared in the db)";
-            mPersistentState->setState(PersistentState::kForceSCPOnNextLaunch, "false");
+            mPersistentState->setState(PersistentState::kForceSCPOnNextLaunch,
+                                       "false");
         }
 
         if (!hasLedger)
         {
             LOG(INFO) << "* ";
-            LOG(INFO) << "* Force-starting scp from scratch, creating the genesis ledger." << flagClearedMsg;
+            LOG(INFO) << "* Force-starting scp from scratch, creating the "
+                         "genesis ledger." << flagClearedMsg;
             LOG(INFO) << "* ";
             mLedgerMaster->startNewLedger();
-        } else
+        }
+        else
         {
             LOG(INFO) << "* ";
-            LOG(INFO) << "* Force-starting scp from the current db state." << flagClearedMsg;
+            LOG(INFO) << "* Force-starting scp from the current db state."
+                      << flagClearedMsg;
             LOG(INFO) << "* ";
             mLedgerMaster->loadLastKnownLedger();
         }
         mHerder->bootstrap();
-    }  else
+    }
+    else
     {
         mLedgerMaster->loadLastKnownLedger();
     }
@@ -158,7 +163,8 @@ void
 ApplicationImpl::gracefulStop()
 {
     // Drain all events queued to fire on this app.
-    while (mVirtualClock.cancelAllEventsFrom(*this));
+    while (mVirtualClock.cancelAllEventsFrom(*this))
+        ;
     mVirtualClock.getIOService().stop();
 }
 
@@ -180,9 +186,10 @@ ApplicationImpl::joinAllThreads()
     LOG(DEBUG) << "Joined all " << mWorkerThreads.size() << " threads";
 }
 
-bool ApplicationImpl::manualClose()
+bool
+ApplicationImpl::manualClose()
 {
-    if(mConfig.MANUAL_CLOSE)
+    if (mConfig.MANUAL_CLOSE)
     {
         mHerder->triggerNextLedger();
         return true;
@@ -190,9 +197,10 @@ bool ApplicationImpl::manualClose()
     return false;
 }
 
-void ApplicationImpl::applyCfgCommands()
+void
+ApplicationImpl::applyCfgCommands()
 {
-    for(auto cmd : mConfig.COMMANDS)
+    for (auto cmd : mConfig.COMMANDS)
     {
         mCommandHandler->manualCmd(cmd);
     }
@@ -299,5 +307,4 @@ ApplicationImpl::getWorkerIOService()
 {
     return mWorkerIOService;
 }
-
 }

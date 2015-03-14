@@ -6,11 +6,11 @@
 
 #include "scp/SCP.h"
 
-namespace stellar 
+namespace stellar
 {
 std::string ballotToStr(const SCPBallot& ballot);
 std::string envToStr(const SCPEnvelope& envelope);
-    
+
 class Node;
 
 /**
@@ -34,8 +34,7 @@ class Slot
     // value is less or equal to the current ballot value, and forceBump is
     // false, the current ballot counter is used. Otherwise a new ballot is
     // generated with an increased counter value.
-    bool prepareValue(const Value& value, 
-                      bool forceBump = false);
+    bool prepareValue(const Value& value, bool forceBump = false);
 
   private:
     // bumps to the specified ballot
@@ -72,37 +71,37 @@ class Slot
 
     // Helper method to compare two ballots
     int compareBallots(const SCPBallot& b1, const SCPBallot& b2);
-                                          
+
     // `advanceSlot` can be called as many time as needed. It attempts to
     // advance the slot to a next state if possible given the current
-    // knownledge of this node. 
+    // knownledge of this node.
     void advanceSlot();
 
-    const uint64                                            mSlotIndex;
-    SCP*                                                    mSCP;
+    const uint64 mSlotIndex;
+    SCP* mSCP;
 
-    // mBallot is the current ballot (monotically increasing). 
-    SCPBallot                                               mBallot;
+    // mBallot is the current ballot (monotically increasing).
+    SCPBallot mBallot;
     // mIsPristine is true while we never bump our ballot (mBallot invalid)
-    bool                                                    mIsPristine;
+    bool mIsPristine;
 
-    bool                                                    mHeardFromQuorum;
-    bool                                                    mIsCommitted;
-    bool                                                    mIsExternalized;
+    bool mHeardFromQuorum;
+    bool mIsCommitted;
+    bool mIsExternalized;
 
-    bool                                                    mInAdvanceSlot;
-    bool                                                    mRunAdvanceSlot;
+    bool mInAdvanceSlot;
+    bool mRunAdvanceSlot;
 
     // mStatements keep track of all statements seen so far for this slot.
     // SCPBallot -> SCPStatementType -> uint256 -> SCPStatement
-    struct StatementMap : 
-        public std::map<uint256, SCPStatement> {};
-    struct StatementTypeMap : 
-        public std::map<SCPStatementType, StatementMap> {};
-    std::map<SCPBallot, StatementTypeMap>                   mStatements;
+    struct StatementMap : public std::map<uint256, SCPStatement>
+    {
+    };
+    struct StatementTypeMap : public std::map<SCPStatementType, StatementMap>
+    {
+    };
+    std::map<SCPBallot, StatementTypeMap> mStatements;
 
     friend class Node;
 };
-
 }
-

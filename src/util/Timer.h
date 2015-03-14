@@ -50,20 +50,21 @@ struct VirtualClockEvent;
 
 class VirtualClock
 {
-public:
-
-    // We don't want to deal with systems that have not moved to 64bit time_t yet.
+  public:
+    // We don't want to deal with systems that have not moved to 64bit time_t
+    // yet.
     static_assert(sizeof(uint64_t) == sizeof(std::time_t),
                   "Require 64bit time_t");
 
-    // These model most of the std::chrono clock concept, with the exception of now()
+    // These model most of the std::chrono clock concept, with the exception of
+    // now()
     // which is non-static.
-    typedef std::chrono::nanoseconds    duration;
-    typedef duration::rep               rep;
-    typedef duration::period            period;
+    typedef std::chrono::nanoseconds duration;
+    typedef duration::rep rep;
+    typedef duration::period period;
     typedef std::chrono::time_point<std::chrono::steady_clock, duration>
-                                        time_point;
-    static const bool is_steady       = true;
+        time_point;
+    static const bool is_steady = true;
 
     /**
      * NB: Please please please use these helpers for date-time conversions
@@ -94,7 +95,7 @@ public:
         VIRTUAL_TIME
     };
 
-private:
+  private:
     asio::io_service mIOService;
     asio::basic_waitable_timer<std::chrono::steady_clock> mRealTimer;
     Mode mMode;
@@ -105,23 +106,23 @@ private:
              std::shared_ptr<std::priority_queue<VirtualClockEvent>>> mEvents;
 
     time_point next();
-    bool cancelAllEventsFrom(Application& a,
-                             std::function<bool(VirtualClockEvent const&)> pred);
+    bool
+    cancelAllEventsFrom(Application& a,
+                        std::function<bool(VirtualClockEvent const&)> pred);
     void maybeSetRealtimer();
     size_t advanceTo(time_point n);
     bool allEmpty() const;
     size_t advanceToNext();
     size_t advanceToNow();
 
-public:
-
+  public:
     // A VirtualClock is instantiated in either real or virtual mode. In real
     // mode, crank() sleeps until the next event, either timer or IO; in virtual
     // mode it processes IO events until IO is idle then advances to the time of
     // the next virtual event instantly.
 
-    VirtualClock(Mode mode=VIRTUAL_TIME);
-    size_t crank(bool block=true);
+    VirtualClock(Mode mode = VIRTUAL_TIME);
+    size_t crank(bool block = true);
     asio::io_service& getIOService();
 
     // Note: this is not a static method, which means that VirtualClock is
@@ -133,12 +134,11 @@ public:
     bool cancelAllEventsFrom(Application& a, VirtualTimer& v);
 };
 
-
 struct VirtualClockEvent
 {
     VirtualClock::time_point mWhen;
     std::function<void(asio::error_code)> mCallback;
-    VirtualTimer *mTimer;
+    VirtualTimer* mTimer;
     ~VirtualClockEvent();
     bool live() const;
     bool operator<(VirtualClockEvent const& other) const
@@ -150,7 +150,6 @@ struct VirtualClockEvent
     }
 };
 
-
 /**
  * This is the class you probably want to use: it is coupled with an Application
  * (thus the app's VirtualClock), so advances with per-Application simulated
@@ -158,22 +157,23 @@ struct VirtualClockEvent
  */
 class VirtualTimer : private NonMovableOrCopyable
 {
-    Application &mApp;
+    Application& mApp;
     VirtualClock::time_point mExpiryTime;
     bool mCancelled;
-public:
+
+  public:
     VirtualTimer(Application& app);
     ~VirtualTimer();
 
     void expires_at(VirtualClock::time_point t);
     void expires_from_now(VirtualClock::duration d);
     void async_wait(std::function<void(asio::error_code)> const& fn);
-    void async_wait(std::function<void()> const& onSuccess, std::function<void(asio::error_code)> const& onFailure);
+    void async_wait(std::function<void()> const& onSuccess,
+                    std::function<void(asio::error_code)> const& onFailure);
     void cancel();
 
-    static void onFailureNoop(const asio::error_code& error) { };
+    static void onFailureNoop(const asio::error_code& error){};
 };
-
 
 // This is almost certainly not the type you want to use. So much so
 // that we will not even show it to you unless you define an unwieldy
@@ -181,13 +181,11 @@ public:
 #ifdef STELLARD_REAL_TIMER_FOR_CERTAIN_NOT_JUST_VIRTUAL_TIME
 class RealTimer : public asio::basic_waitable_timer<std::chrono::steady_clock>
 {
-public:
-    RealTimer(asio::io_service &io)
+  public:
+    RealTimer(asio::io_service& io)
         : asio::basic_waitable_timer<std::chrono::steady_clock>(io)
-        {}
+    {
+    }
 };
 #endif
-
 }
-
-

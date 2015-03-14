@@ -30,20 +30,16 @@ namespace stellar
 
 class HistoryArchive::Impl
 {
-public:
+  public:
     std::string mName;
     std::string mGetCmd;
     std::string mPutCmd;
     std::string mMkdirCmd;
-    Impl(std::string const& name,
-         std::string const& getCmd,
-         std::string const& putCmd,
-         std::string const& mkdirCmd)
-        : mName(name)
-        , mGetCmd(getCmd)
-        , mPutCmd(putCmd)
-        , mMkdirCmd(mkdirCmd)
-        {}
+    Impl(std::string const& name, std::string const& getCmd,
+         std::string const& putCmd, std::string const& mkdirCmd)
+        : mName(name), mGetCmd(getCmd), mPutCmd(putCmd), mMkdirCmd(mkdirCmd)
+    {
+    }
 };
 
 void
@@ -84,16 +80,13 @@ HistoryArchiveState::wellKnownRemoteName()
 std::string
 HistoryArchiveState::remoteDir(uint32_t snapshotNumber)
 {
-    return fs::remoteDir("history",
-                         fs::hexStr(snapshotNumber));
+    return fs::remoteDir("history", fs::hexStr(snapshotNumber));
 }
 
 std::string
 HistoryArchiveState::remoteName(uint32_t snapshotNumber)
 {
-    return fs::remoteName("history",
-                          fs::hexStr(snapshotNumber),
-                          "json");
+    return fs::remoteName("history", fs::hexStr(snapshotNumber), "json");
 }
 
 std::string
@@ -116,8 +109,8 @@ HistoryArchiveState::differingBuckets(HistoryArchiveState const& other) const
     std::vector<std::string> ret;
     for (size_t i = BucketList::kNumLevels; i != 0; --i)
     {
-        auto const& s = currentBuckets[i-1].snap;
-        auto const& c = currentBuckets[i-1].curr;
+        auto const& s = currentBuckets[i - 1].snap;
+        auto const& c = currentBuckets[i - 1].curr;
         if (inhibit.find(s) == inhibit.end())
         {
             ret.push_back(s);
@@ -132,7 +125,6 @@ HistoryArchiveState::differingBuckets(HistoryArchiveState const& other) const
     return ret;
 }
 
-
 HistoryArchiveState::HistoryArchiveState()
 {
     uint256 u;
@@ -146,7 +138,6 @@ HistoryArchiveState::HistoryArchiveState()
     }
 }
 
-
 HistoryArchive::HistoryArchive(std::string const& name,
                                std::string const& getCmd,
                                std::string const& putCmd,
@@ -158,7 +149,6 @@ HistoryArchive::HistoryArchive(std::string const& name,
 HistoryArchive::~HistoryArchive()
 {
 }
-
 
 bool
 HistoryArchive::hasGetCmd() const
@@ -185,36 +175,32 @@ HistoryArchive::getName() const
 }
 
 void
-HistoryArchive::getMostRecentState(Application& app,
-                                   std::function<void(asio::error_code const&,
-                                                      HistoryArchiveState const&)> handler) const
+HistoryArchive::getMostRecentState(
+    Application& app,
+    std::function<void(asio::error_code const&, HistoryArchiveState const&)>
+        handler) const
 {
-    getStateFromPath(app,
-                     HistoryArchiveState::wellKnownRemoteName(),
-                     handler);
+    getStateFromPath(app, HistoryArchiveState::wellKnownRemoteName(), handler);
 }
 
 void
-HistoryArchive::getSnapState(Application& app,
-                             uint32_t snap,
-                             std::function<void(asio::error_code const&,
-                                                HistoryArchiveState const&)> handler) const
+HistoryArchive::getSnapState(
+    Application& app, uint32_t snap,
+    std::function<void(asio::error_code const&, HistoryArchiveState const&)>
+        handler) const
 {
-    getStateFromPath(app,
-                     HistoryArchiveState::remoteName(snap),
-                     handler);
+    getStateFromPath(app, HistoryArchiveState::remoteName(snap), handler);
 }
 
-
 void
-HistoryArchive::getStateFromPath(Application& app,
-                                 std::string const& remoteName,
-                                 std::function<void(asio::error_code const&,
-                                                    HistoryArchiveState const&)> handler) const
+HistoryArchive::getStateFromPath(
+    Application& app, std::string const& remoteName,
+    std::function<void(asio::error_code const&, HistoryArchiveState const&)>
+        handler) const
 {
     auto local = HistoryArchiveState::localName(app, mImpl->mName);
     auto archiveName = mImpl->mName;
-    auto &hm = app.getHistoryMaster();
+    auto& hm = app.getHistoryMaster();
     auto self = shared_from_this();
     hm.getFile(
         self, remoteName, local,
@@ -223,15 +209,15 @@ HistoryArchive::getStateFromPath(Application& app,
             HistoryArchiveState has;
             if (ec)
             {
-                CLOG(WARNING, "History")
-                    << "failed to get " << remoteName
-                    << " from history archive '" << archiveName << "'";
+                CLOG(WARNING, "History") << "failed to get " << remoteName
+                                         << " from history archive '"
+                                         << archiveName << "'";
             }
             else
             {
-                CLOG(DEBUG, "History")
-                    << "got " << remoteName
-                    << " from history archive '" << archiveName << "'";
+                CLOG(DEBUG, "History") << "got " << remoteName
+                                       << " from history archive '"
+                                       << archiveName << "'";
                 has.load(local);
             }
             std::remove(local.c_str());
@@ -240,91 +226,85 @@ HistoryArchive::getStateFromPath(Application& app,
 }
 
 void
-HistoryArchive::putState(Application& app,
-                         HistoryArchiveState const& s,
-                         std::function<void(asio::error_code const&)> handler) const
+HistoryArchive::putState(
+    Application& app, HistoryArchiveState const& s,
+    std::function<void(asio::error_code const&)> handler) const
 {
     auto local = HistoryArchiveState::localName(app, mImpl->mName);
     s.save(local);
     uint32_t snap = s.currentLedger / HistoryMaster::kCheckpointFrequency;
     auto self = shared_from_this();
-    putStateInDir(
-        app, s, local,
-        HistoryArchiveState::remoteDir(snap),
-        HistoryArchiveState::remoteName(snap),
-        [&app, s, self, local, handler](asio::error_code const& ec)
+    putStateInDir(app, s, local, HistoryArchiveState::remoteDir(snap),
+                  HistoryArchiveState::remoteName(snap),
+                  [&app, s, self, local, handler](asio::error_code const& ec)
+                  {
+        if (ec)
         {
-            if (ec)
-            {
+            std::remove(local.c_str());
+            handler(ec);
+        }
+        else
+        {
+            self->putStateInDir(app, s, local,
+                                HistoryArchiveState::wellKnownRemoteDir(),
+                                HistoryArchiveState::wellKnownRemoteName(),
+                                [local, handler](asio::error_code const& ec2)
+                                {
                 std::remove(local.c_str());
-                handler(ec);
-            }
-            else
-            {
-                self->putStateInDir(app, s, local,
-                                    HistoryArchiveState::wellKnownRemoteDir(),
-                                    HistoryArchiveState::wellKnownRemoteName(),
-                                    [local, handler](asio::error_code const& ec2)
-                                    {
-                                        std::remove(local.c_str());
-                                        handler(ec2);
-                                    });
-            }
-        });
+                handler(ec2);
+            });
+        }
+    });
 }
 
 void
-HistoryArchive::putStateInDir(Application& app,
-                              HistoryArchiveState const& s,
-                              std::string const& local,
-                              std::string const& remoteDir,
-                              std::string const& remoteName,
-                              std::function<void(asio::error_code const&)> handler) const
+HistoryArchive::putStateInDir(
+    Application& app, HistoryArchiveState const& s, std::string const& local,
+    std::string const& remoteDir, std::string const& remoteName,
+    std::function<void(asio::error_code const&)> handler) const
 {
-    auto &hm = app.getHistoryMaster();
+    auto& hm = app.getHistoryMaster();
     auto archiveName = mImpl->mName;
     auto self = shared_from_this();
 
-    hm.mkdir(
-        self, remoteDir,
-        [&hm, self, local,
-         remoteDir, remoteName,
-         handler, archiveName](asio::error_code const& ec)
+    hm.mkdir(self, remoteDir,
+             [&hm, self, local, remoteDir, remoteName, handler, archiveName](
+                 asio::error_code const& ec)
+             {
+        if (ec)
         {
-            if (ec)
-            {
-                CLOG(WARNING, "History")
-                    << "failed to make directory "
-                    << remoteDir
-                    << " in history archive '" << archiveName << "'";
-                handler(ec);
-            }
-            else
-            {
-                hm.putFile(
-                    self, local, remoteName,
-                    [remoteName, archiveName, handler](asio::error_code const& ec2)
+            CLOG(WARNING, "History") << "failed to make directory " << remoteDir
+                                     << " in history archive '" << archiveName
+                                     << "'";
+            handler(ec);
+        }
+        else
+        {
+            hm.putFile(
+                self, local, remoteName,
+                [remoteName, archiveName, handler](asio::error_code const& ec2)
+                {
+                    if (ec2)
                     {
-                        if (ec2)
-                        {
-                            CLOG(WARNING, "History")
-                                << "failed to put " << remoteName
-                                << " in history archive '" << archiveName << "'";
-                        }
-                        else
-                        {
-                            CLOG(INFO, "History")
-                                << "put " << remoteName
-                                << " in history archive '" << archiveName << "'";
-                        }
-                        handler(ec2);
-                    });
-            }
-        });
+                        CLOG(WARNING, "History")
+                            << "failed to put " << remoteName
+                            << " in history archive '" << archiveName << "'";
+                    }
+                    else
+                    {
+                        CLOG(INFO, "History") << "put " << remoteName
+                                              << " in history archive '"
+                                              << archiveName << "'";
+                    }
+                    handler(ec2);
+                });
+        }
+    });
 }
 
 std::string
-HistoryArchive::getFileCmd(std::string const& remote, std::string const& local) const
+HistoryArchive::getFileCmd(std::string const& remote,
+                           std::string const& local) const
 {
     if (mImpl->mGetCmd.empty())
         return "";
@@ -332,7 +312,8 @@ HistoryArchive::getFileCmd(std::string const& remote, std::string const& local) 
 }
 
 std::string
-HistoryArchive::putFileCmd(std::string const& local, std::string const& remote) const
+HistoryArchive::putFileCmd(std::string const& local,
+                           std::string const& remote) const
 {
     if (mImpl->mPutCmd.empty())
         return "";
@@ -346,6 +327,4 @@ HistoryArchive::mkdirCmd(std::string const& remoteDir) const
         return "";
     return fmt::format(mImpl->mMkdirCmd, remoteDir);
 }
-
-
 }

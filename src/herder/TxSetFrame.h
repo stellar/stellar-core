@@ -7,7 +7,6 @@
 #include "generated/StellarXDR.h"
 #include "transactions/TransactionFrame.h"
 
-
 namespace stellar
 {
 class Application;
@@ -34,7 +33,7 @@ class TxSetFrame
     // returns the hash of this tx set
     Hash getContentsHash();
 
-    Hash &previousLedgerHash();
+    Hash& previousLedgerHash();
     Hash const& previousLedgerHash() const;
 
     void sortForHash();
@@ -43,13 +42,15 @@ class TxSetFrame
 
     bool checkValid(Application& app);
 
-    void add(TransactionFramePtr tx)
+    void
+    add(TransactionFramePtr tx)
     {
         mTransactions.push_back(tx);
         mHashIsValid = false;
     }
 
-    size_t size()
+    size_t
+    size()
     {
         return mTransactions.size();
     }

@@ -173,7 +173,6 @@ class HistoryMaster
     std::unique_ptr<Impl> mImpl;
 
   public:
-
     enum ResumeMode
     {
         RESUME_AT_LAST,
@@ -187,30 +186,27 @@ class HistoryMaster
     static uint32_t nextCheckpointLedger(uint32_t ledger);
 
     // Verify that a file has a given hash.
-    void verifyHash(std::string const& filename,
-                    uint256 const& hash,
+    void verifyHash(std::string const& filename, uint256 const& hash,
                     std::function<void(asio::error_code const&)> handler) const;
 
     // Gunzip a file.
     void decompress(std::string const& filename_gz,
                     std::function<void(asio::error_code const&)> handler,
-                    bool keepExisting=false) const;
+                    bool keepExisting = false) const;
 
     // Gzip a file.
     void compress(std::string const& filename_nogz,
                   std::function<void(asio::error_code const&)> handler,
-                  bool keepExisting=false) const;
+                  bool keepExisting = false) const;
 
     // Put a file to a specific archive using it's `put` command.
     void putFile(std::shared_ptr<HistoryArchive const> archive,
-                 std::string const& local,
-                 std::string const& remote,
+                 std::string const& local, std::string const& remote,
                  std::function<void(asio::error_code const&)> handler) const;
 
     // Get a file from a specific archive using it's `get` command.
     void getFile(std::shared_ptr<HistoryArchive const> archive,
-                 std::string const& remote,
-                 std::string const& local,
+                 std::string const& remote, std::string const& local,
                  std::function<void(asio::error_code const&)> handler) const;
 
     // Make a directory on a specific archive using its `mkdir` command.
@@ -223,12 +219,15 @@ class HistoryMaster
     // multiple of kCheckpointFrequency -- and no publish action is currently in
     // progress. Returns true if checkpoint publication of the LCL was started
     // (and the completion-handler queued), otherwise false.
-    bool maybePublishHistory(std::function<void(asio::error_code const&)> handler);
+    bool
+    maybePublishHistory(std::function<void(asio::error_code const&)> handler);
 
     bool hasAnyWritableHistoryArchive();
 
-    // Checkpoint the LCL -- both the log of history from the previous checkpoint to it,
-    // as well as the bucketlist of its state -- to all writable history archives.
+    // Checkpoint the LCL -- both the log of history from the previous
+    // checkpoint to it,
+    // as well as the bucketlist of its state -- to all writable history
+    // archives.
     void publishHistory(std::function<void(asio::error_code const&)> handler);
 
     // Run catchup, assuming `lastLedger` was the last ledger we were in sync
@@ -236,17 +235,15 @@ class HistoryMaster
     // RESUME_AT_LAST, meaning replay history from last to present, or
     // RESUME_AT_NEXT, meaning snap to the next state possible and discard
     // history. See larger comment above for more detail.
-    void catchupHistory(uint32_t lastLedger,
-                        uint32_t initLedger,
-                        ResumeMode mode,
-                        std::function<void(asio::error_code const& ec,
-                                           ResumeMode mode,
-                                           LedgerHeaderHistoryEntry const& lastClosed)> handler);
+    void catchupHistory(
+        uint32_t lastLedger, uint32_t initLedger, ResumeMode mode,
+        std::function<void(asio::error_code const& ec, ResumeMode mode,
+                           LedgerHeaderHistoryEntry const& lastClosed)>
+            handler);
 
     // Call posted after a worker thread has finished taking a snapshot; calls
     // PublishStateMachine::snapshotTaken iff state machine is live.
-    void snapshotTaken(asio::error_code const&,
-                       std::shared_ptr<StateSnapshot>);
+    void snapshotTaken(asio::error_code const&, std::shared_ptr<StateSnapshot>);
 
     HistoryArchiveState getLastClosedHistoryArchiveState() const;
 

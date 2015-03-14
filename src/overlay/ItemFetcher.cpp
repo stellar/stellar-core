@@ -11,7 +11,9 @@
 
 #define MS_TO_WAIT_FOR_FETCH_REPLY 3000
 
-// TODO.1 I think we need to add something that after some time it retries to fetch qsets that it really needs. (https://github.com/stellar/hayashi/issues/81)
+// TODO.1 I think we need to add something that after some time it retries to
+// fetch qsets that it really needs.
+// (https://github.com/stellar/hayashi/issues/81)
 /*
 
 */
@@ -77,7 +79,8 @@ TxSetFetcher::fetchItem(uint256 const& txSetHash, bool askNetwork)
         if (askNetwork)
         {
             TrackingCollar::pointer collar =
-                std::make_shared<TxSetTrackingCollar>(txSetHash, TxSetFramePtr(), mApp);
+                std::make_shared<TxSetTrackingCollar>(txSetHash,
+                                                      TxSetFramePtr(), mApp);
             mItemMap[txSetHash] = collar;
             collar->tryNextPeer();
         }
@@ -107,10 +110,9 @@ TxSetFetcher::recvItem(TxSetFramePtr txSet)
         else
         { // doesn't seem like we were looking for it. Maybe just add it for
             // now
-            mItemMap[txSet->getContentsHash()] = 
+            mItemMap[txSet->getContentsHash()] =
                 std::make_shared<TxSetTrackingCollar>(txSet->getContentsHash(),
-                       txSet, mApp);
-                
+                                                      txSet, mApp);
         }
     }
     return false;
@@ -140,7 +142,8 @@ SCPQSetFetcher::fetchItem(uint256 const& qSetHash, bool askNetwork)
         if (askNetwork)
         {
             TrackingCollar::pointer collar =
-                std::make_shared<QSetTrackingCollar>(qSetHash, SCPQuorumSetPtr(), mApp);
+                std::make_shared<QSetTrackingCollar>(qSetHash,
+                                                     SCPQuorumSetPtr(), mApp);
             mItemMap[qSetHash] = collar;
             collar->tryNextPeer(); // start asking
         }
@@ -177,7 +180,6 @@ SCPQSetFetcher::recvItem(SCPQuorumSetPtr qSet)
     }
     return false;
 }
-
 
 //////////////////////////////////////////////////////////////////////////
 

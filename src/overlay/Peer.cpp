@@ -27,7 +27,6 @@ namespace stellar
 using namespace std;
 using namespace soci;
 
-
 Peer::Peer(Application& app, PeerRole role)
     : mApp(app)
     , mRole(role)
@@ -35,15 +34,15 @@ Peer::Peer(Application& app, PeerRole role)
     , mRemoteProtocolVersion(0)
     , mRemoteListeningPort(0)
 {
-    
 }
 
 void
 Peer::sendHello()
 {
     LOG(DEBUG) << "Peer::sendHello "
-               << "@" << mApp.getConfig().PEER_PORT << " to " << mRemoteListeningPort;
-        
+               << "@" << mApp.getConfig().PEER_PORT << " to "
+               << mRemoteListeningPort;
+
     StellarMessage msg;
     msg.type(HELLO);
     msg.hello().protocolVersion = mApp.getConfig().PROTOCOL_VERSION;
@@ -57,11 +56,13 @@ Peer::sendHello()
 void
 Peer::connectHandler(const asio::error_code& error)
 {
-    if(error)
+    if (error)
     {
-        CLOG(WARNING, "Overlay") << "@" << mApp.getConfig().PEER_PORT << " connectHandler error: " << error;
+        CLOG(WARNING, "Overlay") << "@" << mApp.getConfig().PEER_PORT
+                                 << " connectHandler error: " << error;
         drop();
-    } else
+    }
+    else
     {
         connected();
         mState = CONNECTED;
@@ -70,8 +71,7 @@ Peer::connectHandler(const asio::error_code& error)
 }
 
 void
-Peer::sendDontHave(MessageType type,
-                   uint256 const& itemID)
+Peer::sendDontHave(MessageType type, uint256 const& itemID)
 {
     StellarMessage msg;
     msg.type(DONT_HAVE);
@@ -102,7 +102,8 @@ Peer::sendGetTxSet(uint256 const& setID)
 void
 Peer::sendGetQuorumSet(uint256 const& setID)
 {
-    CLOG(TRACE, "Overlay") << "Get quorum set: " << binToHex(setID).substr(0, 6);
+    CLOG(TRACE, "Overlay") << "Get quorum set: "
+                           << binToHex(setID).substr(0, 6);
 
     StellarMessage newMsg;
     newMsg.type(GET_SCP_QUORUMSET);
@@ -118,11 +119,12 @@ Peer::sendPeers()
 
     // send top 50 peers we know about
     vector<PeerRecord> peerList;
-    PeerRecord::loadPeerRecords(mApp.getDatabase(), 50, mApp.getClock().now(), peerList);
+    PeerRecord::loadPeerRecords(mApp.getDatabase(), 50, mApp.getClock().now(),
+                                peerList);
     StellarMessage newMsg;
     newMsg.type(PEERS);
     newMsg.peers().resize(xdr::size32(peerList.size()));
-    for(int n = 0; n < peerList.size(); n++)
+    for (int n = 0; n < peerList.size(); n++)
     {
         peerList[n].toXdr(newMsg.peers()[n]);
     }
@@ -132,8 +134,10 @@ Peer::sendPeers()
 void
 Peer::sendMessage(StellarMessage const& msg)
 {
-    CLOG(TRACE, "Overlay") << "(" << binToHex(mApp.getConfig().PEER_PUBLIC_KEY).substr(0, 6) <<
-        ")send: " << msg.type() << " to : " << binToHex(mPeerID).substr(0, 6);
+    CLOG(TRACE, "Overlay") << "("
+                           << binToHex(mApp.getConfig().PEER_PUBLIC_KEY)
+                                  .substr(0, 6) << ")send: " << msg.type()
+                           << " to : " << binToHex(mPeerID).substr(0, 6);
     xdr::msg_ptr xdrBytes(xdr::xdr_to_msg(msg));
     this->sendMessage(std::move(xdrBytes));
 }
@@ -150,11 +154,14 @@ Peer::recvMessage(xdr::msg_ptr const& msg)
 void
 Peer::recvMessage(StellarMessage const& stellarMsg)
 {
-    CLOG(TRACE, "Overlay") << "(" << binToHex(mApp.getConfig().PEER_PUBLIC_KEY).substr(0, 6) << 
-        ")recv: " << stellarMsg.type() << " from:" << binToHex(mPeerID).substr(0, 6);
+    CLOG(TRACE, "Overlay") << "("
+                           << binToHex(mApp.getConfig().PEER_PUBLIC_KEY)
+                                  .substr(0, 6)
+                           << ")recv: " << stellarMsg.type()
+                           << " from:" << binToHex(mPeerID).substr(0, 6);
 
-    if ( mState < GOT_HELLO && 
-        ((stellarMsg.type() != HELLO) && (stellarMsg.type() != PEERS)) )
+    if (mState < GOT_HELLO &&
+        ((stellarMsg.type() != HELLO) && (stellarMsg.type() != PEERS)))
     {
         CLOG(WARNING, "Overlay") << "recv: " << stellarMsg.type()
                                  << " before hello";
@@ -289,8 +296,7 @@ Peer::recvGetTxSet(StellarMessage const& msg)
 void
 Peer::recvTxSet(StellarMessage const& msg)
 {
-    TxSetFramePtr txSet =
-        std::make_shared<TxSetFrame>(msg.txSet());
+    TxSetFramePtr txSet = std::make_shared<TxSetFrame>(msg.txSet());
     mApp.getHerderGateway().recvTxSet(txSet);
 }
 
@@ -300,13 +306,13 @@ Peer::recvTransaction(StellarMessage const& msg)
     TransactionFramePtr transaction =
         TransactionFrame::makeTransactionFromWire(msg.transaction());
     if (transaction)
-    { 
+    {
         // add it to our current set
         // and make sure it is valid
         if (mApp.getHerderGateway().recvTransaction(transaction))
         {
             mApp.getOverlayGateway().recvFloodedMsg(msg, shared_from_this());
-            mApp.getOverlayGateway().broadcastMessage(msg); 
+            mApp.getOverlayGateway().broadcastMessage(msg);
         }
     }
 }
@@ -314,7 +320,7 @@ Peer::recvTransaction(StellarMessage const& msg)
 void
 Peer::recvGetSCPQuorumSet(StellarMessage const& msg)
 {
-    SCPQuorumSetPtr qSet = 
+    SCPQuorumSetPtr qSet =
         mApp.getHerderGateway().fetchSCPQuorumSet(msg.qSetHash(), false);
     if (qSet)
     {
@@ -322,7 +328,8 @@ Peer::recvGetSCPQuorumSet(StellarMessage const& msg)
     }
     else
     {
-        CLOG(TRACE, "Overlay") << "No quorum set: " << binToHex(msg.qSetHash()).substr(0, 6);
+        CLOG(TRACE, "Overlay")
+            << "No quorum set: " << binToHex(msg.qSetHash()).substr(0, 6);
         sendDontHave(SCP_QUORUMSET, msg.qSetHash());
         // do we want to ask other people for it?
     }
@@ -338,12 +345,13 @@ void
 Peer::recvSCPMessage(StellarMessage const& msg)
 {
     SCPEnvelope envelope = msg.envelope();
-    CLOG(TRACE, "Overlay") << "recvSCPMessage qset: " << binToHex(msg.envelope().statement.quorumSetHash).substr(0, 6);
+    CLOG(TRACE, "Overlay") << "recvSCPMessage qset: "
+                           << binToHex(msg.envelope().statement.quorumSetHash)
+                                  .substr(0, 6);
 
-    mApp.getOverlayGateway()
-        .recvFloodedMsg(msg, shared_from_this());
+    mApp.getOverlayGateway().recvFloodedMsg(msg, shared_from_this());
 
-    auto cb = [msg,this] (SCP::EnvelopeState state)
+    auto cb = [msg, this](SCP::EnvelopeState state)
     {
         if (state == SCP::EnvelopeState::VALID)
         {
@@ -362,7 +370,7 @@ Peer::recvError(StellarMessage const& msg)
 bool
 Peer::recvHello(StellarMessage const& msg)
 {
-    if(msg.hello().peerID == mApp.getConfig().PEER_PUBLIC_KEY)
+    if (msg.hello().peerID == mApp.getConfig().PEER_PUBLIC_KEY)
     {
         CLOG(INFO, "Overlay") << "connecting to self";
         drop();
@@ -372,8 +380,10 @@ Peer::recvHello(StellarMessage const& msg)
     mRemoteProtocolVersion = msg.hello().protocolVersion;
     mRemoteVersion = msg.hello().versionStr;
     mRemoteListeningPort = msg.hello().listeningPort;
-    CLOG(INFO, "Overlay") << "recvHello " << "@" << mApp.getConfig().PEER_PORT << " from: " << mRemoteProtocolVersion << " "
-        << mRemoteVersion << " " << mRemoteListeningPort;
+    CLOG(INFO, "Overlay") << "recvHello "
+                          << "@" << mApp.getConfig().PEER_PORT
+                          << " from: " << mRemoteProtocolVersion << " "
+                          << mRemoteVersion << " " << mRemoteListeningPort;
     mState = GOT_HELLO;
     mPeerID = msg.hello().peerID;
     return true;
@@ -393,11 +403,11 @@ Peer::recvPeers(StellarMessage const& msg)
         // TODO.3 make sure they aren't sending us garbage
         stringstream ip;
 
-        ip << (int)peer.ip[0] << "." << (int)peer.ip[1] << "." << (int)peer.ip[2] << "." << (int)peer.ip[3];
+        ip << (int)peer.ip[0] << "." << (int)peer.ip[1] << "."
+           << (int)peer.ip[2] << "." << (int)peer.ip[3];
 
-        PeerRecord pr{ip.str(), peer.port,
-            mApp.getClock().now(),
-            peer.numFailures, 1 };
+        PeerRecord pr{ip.str(), peer.port, mApp.getClock().now(),
+                      peer.numFailures, 1};
 
         pr.storePeerRecord(mApp.getDatabase());
     }

@@ -10,65 +10,84 @@
 
 namespace soci
 {
-    namespace details
-    {
-        class prepare_temp_type;
-    }
+namespace details
+{
+class prepare_temp_type;
+}
 }
 
 namespace stellar
 {
-    class LedgerMaster;
+class LedgerMaster;
 
-    class AccountFrame : public EntryFrame
+class AccountFrame : public EntryFrame
+{
+    void storeUpdate(LedgerDelta& delta, Database& db, bool insert);
+    bool mUpdateSigners;
+
+    AccountEntry& mAccountEntry;
+
+  public:
+    typedef std::shared_ptr<AccountFrame> pointer;
+
+    AccountFrame();
+    AccountFrame(LedgerEntry const& from);
+    AccountFrame(uint256 const& id);
+    AccountFrame(AccountFrame const& from);
+
+    EntryFrame::pointer
+    copy() const
     {
-        void storeUpdate(LedgerDelta &delta, Database& db, bool insert);
-        bool mUpdateSigners;
+        return EntryFrame::pointer(new AccountFrame(*this));
+    }
 
-        AccountEntry &mAccountEntry;
-    public:
-        typedef std::shared_ptr<AccountFrame> pointer;
+    void
+    setUpdateSigners()
+    {
+        mUpdateSigners = true;
+    }
+    int64_t getBalance();
+    int64_t getMinimumBalance(LedgerMaster const& lm) const;
+    bool isAuthRequired();
+    uint256 const& getID() const;
 
-        AccountFrame();
-        AccountFrame(LedgerEntry const& from);
-        AccountFrame(uint256 const& id);
-        AccountFrame(AccountFrame const &from);
+    uint32_t getMasterWeight();
+    uint32_t getHighThreshold();
+    uint32_t getMidThreshold();
+    uint32_t getLowThreshold();
 
-        EntryFrame::pointer copy()  const  { return EntryFrame::pointer(new AccountFrame(*this)); }
+    void
+    setSeqNum(SequenceNumber seq)
+    {
+        mAccountEntry.seqNum = seq;
+    }
+    SequenceNumber
+    getSeqNum()
+    {
+        return mAccountEntry.seqNum;
+    }
 
-        void setUpdateSigners() { mUpdateSigners = true; }
-        int64_t getBalance();
-        int64_t getMinimumBalance(LedgerMaster const& lm) const;
-        bool isAuthRequired();
-        uint256 const& getID() const;
+    AccountEntry&
+    getAccount()
+    {
+        return mAccountEntry;
+    }
 
-        uint32_t getMasterWeight();
-        uint32_t getHighThreshold();
-        uint32_t getMidThreshold();
-        uint32_t getLowThreshold();
+    // Instance-based overrides of EntryFrame.
+    void storeDelete(LedgerDelta& delta, Database& db) override;
+    void storeChange(LedgerDelta& delta, Database& db) override;
+    void storeAdd(LedgerDelta& delta, Database& db) override;
 
-        void setSeqNum(SequenceNumber seq) { mAccountEntry.seqNum = seq; }
-        SequenceNumber getSeqNum() { return mAccountEntry.seqNum; }
+    // Static helper that don't assume an instance.
+    static void storeDelete(LedgerDelta& delta, Database& db,
+                            LedgerKey const& key);
+    static bool exists(Database& db, LedgerKey const& key);
 
-        AccountEntry &getAccount() { return mAccountEntry; }
-
-        // Instance-based overrides of EntryFrame.
-        void storeDelete(LedgerDelta &delta, Database& db) override;
-        void storeChange(LedgerDelta &delta, Database& db) override;
-        void storeAdd(LedgerDelta &delta, Database& db) override;
-
-        // Static helper that don't assume an instance.
-        static void storeDelete(LedgerDelta& delta, Database& db, LedgerKey const& key);
-        static bool exists(Database& db, LedgerKey const& key);
-
-        // database utilities
-        static bool loadAccount(const uint256& accountID, AccountFrame& retEntry,
-            Database& db, bool withSig = false);
-        static void dropAll(Database &db);
-        static const char *kSQLCreateStatement1;
-        static const char *kSQLCreateStatement2;
-    };
+    // database utilities
+    static bool loadAccount(const uint256& accountID, AccountFrame& retEntry,
+                            Database& db, bool withSig = false);
+    static void dropAll(Database& db);
+    static const char* kSQLCreateStatement1;
+    static const char* kSQLCreateStatement2;
+};
 }
-
-
-

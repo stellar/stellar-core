@@ -39,5 +39,3 @@ class CommandHandler
     void fileNotFound(const std::string& params, std::string& retStr);
 };
 }
-
-

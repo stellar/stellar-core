@@ -89,39 +89,39 @@ Logging::setLogLevel(el::Level level, const char* partition)
 }
 
 // default "info" if unrecognized
-el::Level Logging::getLLfromString(std::string const& levelName)
+el::Level
+Logging::getLLfromString(std::string const& levelName)
 {
-    if(iequals(levelName, "trace"))
+    if (iequals(levelName, "trace"))
     {
         return el::Level::Trace;
     }
 
-    if(iequals(levelName, "debug"))
+    if (iequals(levelName, "debug"))
     {
         return el::Level::Debug;
     }
 
-    if(iequals(levelName, "warning"))
+    if (iequals(levelName, "warning"))
     {
         return el::Level::Warning;
     }
 
-    if(iequals(levelName, "fatal"))
+    if (iequals(levelName, "fatal"))
     {
         return el::Level::Fatal;
     }
 
-    if(iequals(levelName, "error"))
+    if (iequals(levelName, "error"))
     {
         return el::Level::Error;
     }
 
-    if(iequals(levelName, "none"))
+    if (iequals(levelName, "none"))
     {
         return el::Level::Unknown;
     }
 
     return el::Level::Info;
 }
-
 }

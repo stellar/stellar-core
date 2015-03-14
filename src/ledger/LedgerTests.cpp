@@ -16,7 +16,8 @@
 
 using namespace stellar;
 
-template<typename T> void
+template <typename T>
+void
 clampLow(T low, T& v)
 {
     if (v < low)
@@ -25,7 +26,8 @@ clampLow(T low, T& v)
     }
 }
 
-template<typename T> void
+template <typename T>
+void
 clampHigh(T high, T& v)
 {
     if (v > high)
@@ -34,47 +36,48 @@ clampHigh(T high, T& v)
     }
 }
 
-auto
-validLedgerEntryGenerator =
-    autocheck::map([](LedgerEntry&& le, size_t s) {
-            switch (le.type())
-            {
-            case TRUSTLINE:
-            {
-                le.trustLine().currency.type(ISO4217);
-                strToCurrencyCode(le.trustLine().currency.isoCI().currencyCode, "USD");
-                clampLow<int64_t>(0, le.trustLine().balance);
-                clampLow<int64_t>(0, le.trustLine().limit);
-                clampHigh<int64_t>(le.trustLine().limit, le.trustLine().balance);
-            }
+auto validLedgerEntryGenerator = autocheck::map(
+    [](LedgerEntry&& le, size_t s)
+    {
+        switch (le.type())
+        {
+        case TRUSTLINE:
+        {
+            le.trustLine().currency.type(ISO4217);
+            strToCurrencyCode(le.trustLine().currency.isoCI().currencyCode,
+                              "USD");
+            clampLow<int64_t>(0, le.trustLine().balance);
+            clampLow<int64_t>(0, le.trustLine().limit);
+            clampHigh<int64_t>(le.trustLine().limit, le.trustLine().balance);
+        }
+        break;
+
+        case OFFER:
+        {
+            le.offer().takerGets.type(ISO4217);
+            strToCurrencyCode(le.offer().takerGets.isoCI().currencyCode, "CAD");
+
+            le.offer().takerPays.type(ISO4217);
+            strToCurrencyCode(le.offer().takerPays.isoCI().currencyCode, "EUR");
+
+            clampLow(0, le.offer().price.n);
+            clampLow(1, le.offer().price.d);
+        }
+        break;
+
+        case ACCOUNT:
             break;
+        }
 
-            case OFFER:
-            {
-                le.offer().takerGets.type(ISO4217);
-                strToCurrencyCode(le.offer().takerGets.isoCI().currencyCode, "CAD");
-
-                le.offer().takerPays.type(ISO4217);
-                strToCurrencyCode(le.offer().takerPays.isoCI().currencyCode, "EUR");
-
-                clampLow(0, le.offer().price.n);
-                clampLow(1, le.offer().price.d);
-            }
-            break;
-
-            case ACCOUNT:
-            break;
-            }
-
-            return le;
-        }, autocheck::generator<LedgerEntry>());
+        return le;
+    },
+    autocheck::generator<LedgerEntry>());
 
 LedgerEntry
 generateValidLedgerEntry()
 {
     return validLedgerEntryGenerator(10);
 }
-
 
 TEST_CASE("Ledger entry db lifecycle", "[ledger]")
 {

@@ -2,7 +2,6 @@
 // under the ISC License. See the COPYING file at the top-level directory of
 // this distribution or at http://opensource.org/licenses/ISC
 
-
 #include "LedgerMaster.h"
 #include "main/Application.h"
 #include "main/Config.h"
@@ -38,15 +37,17 @@ The ledger module:
     6) saves the ledger hash and header to SQL
     7) sends the new ledger hash and the tx set to the history
     8) sends the new ledger hash and header to the Herder
-    
+
 
 catching up to network:
     1) Wait for SCP to tell us what the network is on now
-    2) Ask network for the the delta between what it has now and our ledger last ledger  
+    2) Ask network for the the delta between what it has now and our ledger last
+ledger
 
     // TODO.3 we need to store some validation history?
-    // TODO.1 wire up catch up. turn off ledger close when catching up. 
-    // TODO.3 better way to handle quorums when you are booting a network for instance if all nodes fail.
+    // TODO.1 wire up catch up. turn off ledger close when catching up.
+    // TODO.3 better way to handle quorums when you are booting a network for
+instance if all nodes fail.
 
 */
 using std::placeholders::_1;
@@ -61,9 +62,7 @@ std::string
 LedgerMaster::ledgerAbbrev(LedgerHeader const& header, uint256 const& hash)
 {
     std::ostringstream oss;
-    oss << "[seq=" << header.ledgerSeq
-        << ", hash=" << hexAbbrev(hash)
-        << "]";
+    oss << "[seq=" << header.ledgerSeq << ", hash=" << hexAbbrev(hash) << "]";
     return oss.str();
 }
 
@@ -83,18 +82,17 @@ LedgerMaster::ledgerAbbrev(LedgerHeaderHistoryEntry he)
     return ledgerAbbrev(he.header, he.hash);
 }
 
-
 LedgerMaster::LedgerMaster(Application& app)
     : mApp(app)
-    , mTransactionApply(app.getMetrics().NewTimer({"ledger", "transaction", "apply"}))
+    , mTransactionApply(
+          app.getMetrics().NewTimer({"ledger", "transaction", "apply"}))
     , mLedgerClose(app.getMetrics().NewTimer({"ledger", "ledger", "close"}))
 {
     mLastCloseTime = mApp.timeNow(); // this is 0 at this point
 }
 
-
-
-void LedgerMaster::startNewLedger()
+void
+LedgerMaster::startNewLedger()
 {
     auto ledgerTime = mLedgerClose.TimeScope();
     ByteSlice bytes("masterpassphrasemasterpassphrase");
@@ -110,7 +108,8 @@ void LedgerMaster::startNewLedger()
     genesisHeader.baseFee = mApp.getConfig().DESIRED_BASE_FEE;
     genesisHeader.baseReserve = mApp.getConfig().DESIRED_BASE_RESERVE;
     genesisHeader.totalCoins = masterAccount.getAccount().balance;
-    genesisHeader.closeTime = 0; // the genesis ledger has close time of 0 so it always has the same hash
+    genesisHeader.closeTime = 0; // the genesis ledger has close time of 0 so it
+                                 // always has the same hash
     genesisHeader.ledgerSeq = 1;
     delta.commit();
 
@@ -119,11 +118,13 @@ void LedgerMaster::startNewLedger()
     closeLedgerHelper(delta);
 }
 
-void LedgerMaster::loadLastKnownLedger()
+void
+LedgerMaster::loadLastKnownLedger()
 {
     auto ledgerTime = mLedgerClose.TimeScope();
 
-    string lastLedger = mApp.getPersistentState().getState(PersistentState::kLastClosedLedger);
+    string lastLedger =
+        mApp.getPersistentState().getState(PersistentState::kLastClosedLedger);
 
     if (lastLedger.empty())
     {
@@ -135,8 +136,10 @@ void LedgerMaster::loadLastKnownLedger()
         LOG(INFO) << "Loading last known ledger";
         Hash lastLedgerHash = hexToBin256(lastLedger);
 
-        mCurrentLedger = LedgerHeaderFrame::loadByHash(lastLedgerHash, getDatabase());
-        CLOG(INFO, "Ledger") << "Loaded last known ledger: " << ledgerAbbrev(mCurrentLedger);
+        mCurrentLedger =
+            LedgerHeaderFrame::loadByHash(lastLedgerHash, getDatabase());
+        CLOG(INFO, "Ledger")
+            << "Loaded last known ledger: " << ledgerAbbrev(mCurrentLedger);
 
         if (!mCurrentLedger)
         {
@@ -147,55 +150,63 @@ void LedgerMaster::loadLastKnownLedger()
     }
 }
 
-Database &LedgerMaster::getDatabase()
+Database&
+LedgerMaster::getDatabase()
 {
     return mApp.getDatabase();
 }
 
-int64_t LedgerMaster::getTxFee()
+int64_t
+LedgerMaster::getTxFee()
 {
     return mCurrentLedger->mHeader.baseFee;
 }
 
-int64_t LedgerMaster::getMinBalance(uint32_t ownerCount) const
+int64_t
+LedgerMaster::getMinBalance(uint32_t ownerCount) const
 {
     return (2 + ownerCount) * mCurrentLedger->mHeader.baseReserve;
 }
 
-uint32_t LedgerMaster::getLedgerNum()
+uint32_t
+LedgerMaster::getLedgerNum()
 {
     assert(mCurrentLedger);
     return mCurrentLedger->mHeader.ledgerSeq;
 }
 
-uint64_t LedgerMaster::getCloseTime()
+uint64_t
+LedgerMaster::getCloseTime()
 {
     assert(mCurrentLedger);
     return mCurrentLedger->mHeader.closeTime;
 }
 
-LedgerHeader& LedgerMaster::getCurrentLedgerHeader()
+LedgerHeader&
+LedgerMaster::getCurrentLedgerHeader()
 {
     assert(mCurrentLedger);
     return mCurrentLedger->mHeader;
 }
 
-LedgerHeaderFrame& LedgerMaster::getCurrentLedgerHeaderFrame()
+LedgerHeaderFrame&
+LedgerMaster::getCurrentLedgerHeaderFrame()
 {
     assert(mCurrentLedger);
     return *mCurrentLedger;
 }
 
-LedgerHeaderHistoryEntry& LedgerMaster::getLastClosedLedgerHeader()
+LedgerHeaderHistoryEntry&
+LedgerMaster::getLastClosedLedgerHeader()
 {
     return mLastClosedLedger;
 }
 
-
 // called by txherder
-void LedgerMaster::externalizeValue(LedgerCloseData ledgerData)
+void
+LedgerMaster::externalizeValue(LedgerCloseData ledgerData)
 {
-    if(mLastClosedLedger.hash == ledgerData.mTxSet->previousLedgerHash())
+    if (mLastClosedLedger.hash == ledgerData.mTxSet->previousLedgerHash())
     {
         closeLedger(ledgerData);
     }
@@ -203,8 +214,8 @@ void LedgerMaster::externalizeValue(LedgerCloseData ledgerData)
     {
         // Out of sync, buffer what we just heard.
         CLOG(DEBUG, "Ledger")
-            << "Out of sync with network, buffering externalized value for ledgerSeq="
-            << ledgerData.mLedgerSeq;
+            << "Out of sync with network, buffering externalized value for "
+               "ledgerSeq=" << ledgerData.mLedgerSeq;
 
         mSyncingLedgers.push_back(ledgerData);
 
@@ -218,16 +229,14 @@ void LedgerMaster::externalizeValue(LedgerCloseData ledgerData)
             // Start trying to catchup.
             CLOG(DEBUG, "Ledger") << "Starting catchup";
             startCatchUp(mLastClosedLedger.header.ledgerSeq,
-                         ledgerData.mLedgerSeq,
-                         HistoryMaster::RESUME_AT_LAST);
+                         ledgerData.mLedgerSeq, HistoryMaster::RESUME_AT_LAST);
         }
     }
 }
 
-
-void LedgerMaster::startCatchUp(uint32_t lastLedger,
-                                uint32_t initLedger,
-                                HistoryMaster::ResumeMode resume)
+void
+LedgerMaster::startCatchUp(uint32_t lastLedger, uint32_t initLedger,
+                           HistoryMaster::ResumeMode resume)
 {
     mApp.setState(Application::CATCHING_UP_STATE);
     mApp.getHistoryMaster().catchupHistory(
@@ -235,9 +244,10 @@ void LedgerMaster::startCatchUp(uint32_t lastLedger,
         std::bind(&LedgerMaster::historyCaughtup, this, _1, _2, _3));
 }
 
-void LedgerMaster::historyCaughtup(asio::error_code const& ec,
-                                   HistoryMaster::ResumeMode mode,
-                                   LedgerHeaderHistoryEntry const& lastClosed)
+void
+LedgerMaster::historyCaughtup(asio::error_code const& ec,
+                              HistoryMaster::ResumeMode mode,
+                              LedgerHeaderHistoryEntry const& lastClosed)
 {
     if (ec)
     {
@@ -265,16 +275,17 @@ void LedgerMaster::historyCaughtup(asio::error_code const& ec,
             assert(lastClosed.header == mLastClosedLedger.header);
         }
 
-        CLOG(INFO, "Ledger")
-            << "Caught up to LCL from history: " << ledgerAbbrev(mLastClosedLedger);
+        CLOG(INFO, "Ledger") << "Caught up to LCL from history: "
+                             << ledgerAbbrev(mLastClosedLedger);
 
         // Now replay remaining txs from buffered local network history.
         bool applied = false;
-        for(auto lcd : mSyncingLedgers)
+        for (auto lcd : mSyncingLedgers)
         {
             if (lcd.mLedgerSeq <= nextLedger)
             {
-                assert(lcd.mLedgerSeq != mLastClosedLedger.header.ledgerSeq + 1);
+                assert(lcd.mLedgerSeq !=
+                       mLastClosedLedger.header.ledgerSeq + 1);
                 continue;
             }
 
@@ -284,7 +295,8 @@ void LedgerMaster::historyCaughtup(asio::error_code const& ec,
                 applied = true;
             }
         }
-        if(applied) mSyncingLedgers.clear();
+        if (applied)
+            mSyncingLedgers.clear();
 
         CLOG(INFO, "Ledger")
             << "Caught up to LCL including recent network activity: "
@@ -294,19 +306,21 @@ void LedgerMaster::historyCaughtup(asio::error_code const& ec,
     }
 }
 
-uint64_t LedgerMaster::secondsSinceLastLedgerClose()
+uint64_t
+LedgerMaster::secondsSinceLastLedgerClose()
 {
     return mApp.timeNow() - mLastCloseTime;
 }
 
 // called by txherder
-void LedgerMaster::closeLedger(LedgerCloseData ledgerData)
+void
+LedgerMaster::closeLedger(LedgerCloseData ledgerData)
 {
-    CLOG(DEBUG, "Ledger")
-        << "starting closeLedger() on ledgerSeq="
-        << mCurrentLedger->mHeader.ledgerSeq;
+    CLOG(DEBUG, "Ledger") << "starting closeLedger() on ledgerSeq="
+                          << mCurrentLedger->mHeader.ledgerSeq;
 
-    if (ledgerData.mTxSet->previousLedgerHash() != getLastClosedLedgerHeader().hash)
+    if (ledgerData.mTxSet->previousLedgerHash() !=
+        getLastClosedLedgerHeader().hash)
     {
         throw std::runtime_error("txset mismatch");
     }
@@ -321,19 +335,21 @@ void LedgerMaster::closeLedger(LedgerCloseData ledgerData)
     int index = 0;
 
     SHA256 txResultHasher;
-    for(auto tx : txs)
+    for (auto tx : txs)
     {
         auto txTime = mTransactionApply.TimeScope();
         try
         {
             LedgerDelta delta(ledgerDelta);
 
-            CLOG(DEBUG, "Tx") << "APPLY: ledger " << mCurrentLedger->mHeader.ledgerSeq
-                              << " tx#" << index << " = " << hexAbbrev(tx->getFullHash())
-                              << " txseq=" << tx->getSeqNum() << " (@ " << hexAbbrev(tx->getSourceID()) <<  ")";
+            CLOG(DEBUG, "Tx") << "APPLY: ledger "
+                              << mCurrentLedger->mHeader.ledgerSeq << " tx#"
+                              << index << " = " << hexAbbrev(tx->getFullHash())
+                              << " txseq=" << tx->getSeqNum() << " (@ "
+                              << hexAbbrev(tx->getSourceID()) << ")";
             // note that success here just means it got processed
             // a failed transaction collecting a fee is successful at this layer
-            if(tx->apply(delta, mApp))
+            if (tx->apply(delta, mApp))
             {
                 delta.commit();
             }
@@ -343,16 +359,18 @@ void LedgerMaster::closeLedger(LedgerCloseData ledgerData)
                 // need delta.rollback
 
                 CLOG(ERROR, "Tx") << "invalid tx. This should never happen";
-                CLOG(ERROR, "Tx") << "Transaction: " << xdr::xdr_to_string(tx->getEnvelope());
-                CLOG(ERROR, "Tx") << "Result: " << xdr::xdr_to_string(tx->getResult());
+                CLOG(ERROR, "Tx")
+                    << "Transaction: " << xdr::xdr_to_string(tx->getEnvelope());
+                CLOG(ERROR, "Tx")
+                    << "Result: " << xdr::xdr_to_string(tx->getResult());
             }
             tx->storeTransaction(*this, delta, ++index, txResultHasher);
         }
-        catch(std::runtime_error &e)
+        catch (std::runtime_error& e)
         {
             CLOG(ERROR, "Ledger") << "Exception during tx->apply: " << e.what();
         }
-        catch(...)
+        catch (...)
         {
             CLOG(ERROR, "Ledger") << "Unknown exception during tx->apply";
         }
@@ -368,21 +386,22 @@ void LedgerMaster::closeLedger(LedgerCloseData ledgerData)
     // Notify ledger close to other components.
     mApp.getHerderGateway().ledgerClosed(mLastClosedLedger);
     mApp.getOverlayGateway().ledgerClosed(mLastClosedLedger);
-    mApp.getHistoryMaster().maybePublishHistory([](asio::error_code const&) {});
+    mApp.getHistoryMaster().maybePublishHistory([](asio::error_code const&)
+                                                {
+                                                });
 }
 
 void
 LedgerMaster::advanceLedgerPointers()
 {
-    CLOG(INFO, "Ledger")
-        << "Advancing LCL: " << ledgerAbbrev(mLastClosedLedger)
-        << " -> " << ledgerAbbrev(mCurrentLedger);
+    CLOG(INFO, "Ledger") << "Advancing LCL: " << ledgerAbbrev(mLastClosedLedger)
+                         << " -> " << ledgerAbbrev(mCurrentLedger);
 
     mLastClosedLedger.hash = mCurrentLedger->getHash();
     mLastClosedLedger.header = mCurrentLedger->mHeader;
     mCurrentLedger = make_shared<LedgerHeaderFrame>(mLastClosedLedger);
-    CLOG(DEBUG, "Ledger")
-        << "New current ledger: seq=" << mCurrentLedger->mHeader.ledgerSeq;
+    CLOG(DEBUG, "Ledger") << "New current ledger: seq="
+                          << mCurrentLedger->mHeader.ledgerSeq;
 }
 
 void
@@ -390,16 +409,16 @@ LedgerMaster::closeLedgerHelper(LedgerDelta const& delta)
 {
     mLastCloseTime = mApp.timeNow();
     delta.markMeters(mApp);
-    mApp.getCLFMaster().addBatch(mApp,
-                                 mCurrentLedger->mHeader.ledgerSeq,
-                                 delta.getLiveEntries(), delta.getDeadEntries());
+    mApp.getCLFMaster().addBatch(mApp, mCurrentLedger->mHeader.ledgerSeq,
+                                 delta.getLiveEntries(),
+                                 delta.getDeadEntries());
 
     mApp.getCLFMaster().snapshotLedger(mCurrentLedger->mHeader);
 
     mCurrentLedger->storeInsert(*this);
 
-    mApp.getPersistentState().setState(PersistentState::kLastClosedLedger, binToHex(mCurrentLedger->getHash()));
+    mApp.getPersistentState().setState(PersistentState::kLastClosedLedger,
+                                       binToHex(mCurrentLedger->getHash()));
     advanceLedgerPointers();
 }
-
 }

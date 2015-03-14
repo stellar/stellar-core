@@ -12,7 +12,7 @@
 
 namespace stellar
 {
-Config::Config() : PEER_KEY( SecretKey::random() )
+Config::Config() : PEER_KEY(SecretKey::random())
 {
     // fill in defaults
 
@@ -39,7 +39,6 @@ Config::Config() : PEER_KEY( SecretKey::random() )
 
     DATABASE = "sqlite3://:memory:";
 }
-
 
 void
 Config::load(const std::string& filename)
@@ -72,7 +71,7 @@ Config::load(const std::string& filename)
 
         if (g.contains("RUN_STANDALONE"))
             RUN_STANDALONE = g.get("RUN_STANDALONE")->as<bool>()->value();
-        if(g.contains("MANUAL_CLOSE"))
+        if (g.contains("MANUAL_CLOSE"))
             MANUAL_CLOSE = g.get("MANUAL_CLOSE")->as<bool>()->value();
         if (g.contains("LOG_FILE_PATH"))
             LOG_FILE_PATH = g.get("LOG_FILE_PATH")->as<std::string>()->value();
@@ -81,21 +80,19 @@ Config::load(const std::string& filename)
         if (g.contains("BUCKET_DIR_PATH"))
             TMP_DIR_PATH = g.get("BUCKET_DIR_PATH")->as<std::string>()->value();
 
-        if(g.contains("VALIDATION_SEED"))
+        if (g.contains("VALIDATION_SEED"))
         {
-            std::string seed= g.get("VALIDATION_SEED")->as<std::string>()->value();
-            VALIDATION_KEY=SecretKey::fromBase58Seed(seed);
+            std::string seed =
+                g.get("VALIDATION_SEED")->as<std::string>()->value();
+            VALIDATION_KEY = SecretKey::fromBase58Seed(seed);
         }
 
-        if(g.contains("PEER_SEED"))
+        if (g.contains("PEER_SEED"))
         {
             std::string seed = g.get("PEER_SEED")->as<std::string>()->value();
             PEER_KEY = SecretKey::fromBase58Seed(seed);
             PEER_PUBLIC_KEY = PEER_KEY.getPublicKey();
         }
-
-
-       
 
         if (g.contains("TARGET_PEER_CONNECTIONS"))
             TARGET_PEER_CONNECTIONS =
@@ -129,9 +126,9 @@ Config::load(const std::string& filename)
             }
         }
 
-        if(g.contains("COMMANDS"))
+        if (g.contains("COMMANDS"))
         {
-            for(auto v : g.get_array("COMMANDS")->array())
+            for (auto v : g.get_array("COMMANDS")->array())
             {
                 COMMANDS.push_back(v->as<std::string>()->value());
             }
@@ -157,24 +154,18 @@ Config::load(const std::string& filename)
                         put = *pp;
                     if (mm)
                         mkdir = *mm;
-                    HISTORY[archive.first] =
-                        std::make_shared<HistoryArchive>(
-                            archive.first,
-                            get, put, mkdir);
+                    HISTORY[archive.first] = std::make_shared<HistoryArchive>(
+                        archive.first, get, put, mkdir);
                 }
             }
         }
 
         if (g.contains("DATABASE"))
             DATABASE = g.get("DATABASE")->as<std::string>()->value();
-
     }
     catch (cpptoml::toml_parse_exception& ex)
     {
         LOG(ERROR) << "Failed to parse " << filename << ": " << ex.what();
     }
 }
-
-
-
 }

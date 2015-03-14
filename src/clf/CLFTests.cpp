@@ -25,8 +25,6 @@
 
 using namespace stellar;
 
-
-
 static std::ifstream::pos_type
 fileSize(std::string const& name)
 {
@@ -53,12 +51,14 @@ TEST_CASE("bucket list", "[clf]")
         autocheck::generator<std::vector<LedgerEntry>> liveGen;
         autocheck::generator<std::vector<LedgerKey>> deadGen;
         CLOG(DEBUG, "CLF") << "Adding batches to bucket list";
-        for (uint32_t i = 1; !app->getClock().getIOService().stopped() && i < 130; ++i)
+        for (uint32_t i = 1;
+             !app->getClock().getIOService().stopped() && i < 130; ++i)
         {
             app->getClock().crank(false);
             bl.addBatch(*app, i, liveGen(8), deadGen(5));
             if (i % 10 == 0)
-                CLOG(DEBUG, "CLF") << "Added batch " << i << ", hash=" << binToHex(bl.getHash());
+                CLOG(DEBUG, "CLF") << "Added batch " << i
+                                   << ", hash=" << binToHex(bl.getHash());
             for (size_t j = 0; j < bl.numLevels(); ++j)
             {
                 auto const& lev = bl.getLevel(j);
@@ -74,8 +74,8 @@ TEST_CASE("bucket list", "[clf]")
     }
     catch (std::future_error& e)
     {
-        CLOG(DEBUG, "CLF") << "Test caught std::future_error " << e.code() << ": "
-                   << e.what();
+        CLOG(DEBUG, "CLF") << "Test caught std::future_error " << e.code()
+                           << ": " << e.what();
     }
 }
 
@@ -95,7 +95,8 @@ TEST_CASE("bucket list shadowing", "[clf]")
     autocheck::generator<std::vector<LedgerKey>> deadGen;
     CLOG(DEBUG, "CLF") << "Adding batches to bucket list";
 
-    for (uint32_t i = 1; !app->getClock().getIOService().stopped() && i < 1200; ++i)
+    for (uint32_t i = 1; !app->getClock().getIOService().stopped() && i < 1200;
+         ++i)
     {
         app->getClock().crank(false);
         auto liveBatch = liveGen(5);
@@ -116,7 +117,8 @@ TEST_CASE("bucket list shadowing", "[clf]")
         bl.addBatch(*app, i, liveBatch, deadGen(5));
         if (i % 100 == 0)
         {
-            CLOG(DEBUG, "CLF") << "Added batch " << i << ", hash=" << binToHex(bl.getHash());
+            CLOG(DEBUG, "CLF") << "Added batch " << i
+                               << ", hash=" << binToHex(bl.getHash());
             {
                 // Alice and bob should be in either curr or snap of level 0
                 auto curr0 = bl.getLevel(0).getCurr();
@@ -158,19 +160,19 @@ TEST_CASE("file-backed buckets", "[clf]")
     CLOG(DEBUG, "CLF") << "Generating 10000 random ledger entries";
     std::vector<LedgerEntry> live(9000);
     std::vector<LedgerKey> dead(1000);
-    for (auto &e : live)
+    for (auto& e : live)
         e = liveGen(3);
-    for (auto &e : dead)
+    for (auto& e : dead)
         e = deadGen(3);
     CLOG(DEBUG, "CLF") << "Hashing entries";
     std::shared_ptr<Bucket> b1 = Bucket::fresh(app->getCLFMaster(), live, dead);
     for (size_t i = 0; i < 5; ++i)
     {
         CLOG(DEBUG, "CLF") << "Merging 10000 new ledger entries into "
-                   << (i * 10000) << " entry bucket";
-        for (auto &e : live)
+                           << (i * 10000) << " entry bucket";
+        for (auto& e : live)
             e = liveGen(3);
-        for (auto &e : dead)
+        for (auto& e : dead)
             e = deadGen(3);
         {
             TIMED_SCOPE(timerObj2, "merge");
@@ -180,7 +182,6 @@ TEST_CASE("file-backed buckets", "[clf]")
     }
     CLOG(DEBUG, "CLF") << "Spill file size: " << fileSize(b1->getFilename());
 }
-
 
 TEST_CASE("merging clf entries", "[clf]")
 {
@@ -203,9 +204,10 @@ TEST_CASE("merging clf entries", "[clf]")
         liveEntry.account() = acGen(10);
         deadEntry.type(ACCOUNT);
         deadEntry.account().accountID = liveEntry.account().accountID;
-        std::vector<LedgerEntry> live { liveEntry };
-        std::vector<LedgerKey> dead { deadEntry };
-        std::shared_ptr<Bucket> b1 = Bucket::fresh(app->getCLFMaster(), live, dead);
+        std::vector<LedgerEntry> live{liveEntry};
+        std::vector<LedgerKey> dead{deadEntry};
+        std::shared_ptr<Bucket> b1 =
+            Bucket::fresh(app->getCLFMaster(), live, dead);
         CHECK(countEntries(b1) == 1);
     }
 
@@ -216,9 +218,10 @@ TEST_CASE("merging clf entries", "[clf]")
         deadEntry.type(TRUSTLINE);
         deadEntry.trustLine().accountID = liveEntry.trustLine().accountID;
         deadEntry.trustLine().currency = liveEntry.trustLine().currency;
-        std::vector<LedgerEntry> live { liveEntry };
-        std::vector<LedgerKey> dead { deadEntry };
-        std::shared_ptr<Bucket> b1 = Bucket::fresh(app->getCLFMaster(), live, dead);
+        std::vector<LedgerEntry> live{liveEntry};
+        std::vector<LedgerKey> dead{deadEntry};
+        std::shared_ptr<Bucket> b1 =
+            Bucket::fresh(app->getCLFMaster(), live, dead);
         CHECK(countEntries(b1) == 1);
     }
 
@@ -229,9 +232,10 @@ TEST_CASE("merging clf entries", "[clf]")
         deadEntry.type(OFFER);
         deadEntry.offer().accountID = liveEntry.offer().accountID;
         deadEntry.offer().offerID = liveEntry.offer().offerID;
-        std::vector<LedgerEntry> live { liveEntry };
-        std::vector<LedgerKey> dead { deadEntry };
-        std::shared_ptr<Bucket> b1 = Bucket::fresh(app->getCLFMaster(), live, dead);
+        std::vector<LedgerEntry> live{liveEntry};
+        std::vector<LedgerKey> dead{deadEntry};
+        std::shared_ptr<Bucket> b1 =
+            Bucket::fresh(app->getCLFMaster(), live, dead);
         CHECK(countEntries(b1) == 1);
     }
 
@@ -239,7 +243,7 @@ TEST_CASE("merging clf entries", "[clf]")
     {
         std::vector<LedgerEntry> live(100);
         std::vector<LedgerKey> dead;
-        for (auto &e : live)
+        for (auto& e : live)
         {
             e = leGen(10);
             if (flip())
@@ -247,10 +251,12 @@ TEST_CASE("merging clf entries", "[clf]")
                 dead.push_back(LedgerEntryKey(e));
             }
         }
-        std::shared_ptr<Bucket> b1 = Bucket::fresh(app->getCLFMaster(), live, dead);
+        std::shared_ptr<Bucket> b1 =
+            Bucket::fresh(app->getCLFMaster(), live, dead);
         CHECK(countEntries(b1) == live.size());
         auto liveCount = b1->countLiveAndDeadEntries().first;
-        CLOG(DEBUG, "CLF") << "post-merge live count: " << liveCount << " of " << live.size();
+        CLOG(DEBUG, "CLF") << "post-merge live count: " << liveCount << " of "
+                           << live.size();
         CHECK(liveCount == live.size() - dead.size());
     }
 
@@ -258,11 +264,12 @@ TEST_CASE("merging clf entries", "[clf]")
     {
         std::vector<LedgerEntry> live(100);
         std::vector<LedgerKey> dead;
-        for (auto &e : live)
+        for (auto& e : live)
         {
             e = leGen(10);
         }
-        std::shared_ptr<Bucket> b1 = Bucket::fresh(app->getCLFMaster(), live, dead);
+        std::shared_ptr<Bucket> b1 =
+            Bucket::fresh(app->getCLFMaster(), live, dead);
         std::random_shuffle(live.begin(), live.end());
         size_t liveCount = live.size();
         for (auto& e : live)
@@ -273,12 +280,12 @@ TEST_CASE("merging clf entries", "[clf]")
                 ++liveCount;
             }
         }
-        std::shared_ptr<Bucket> b2 = Bucket::fresh(app->getCLFMaster(), live, dead);
+        std::shared_ptr<Bucket> b2 =
+            Bucket::fresh(app->getCLFMaster(), live, dead);
         std::shared_ptr<Bucket> b3 = Bucket::merge(app->getCLFMaster(), b1, b2);
         CHECK(countEntries(b3) == liveCount);
     }
 }
-
 
 TEST_CASE("clfmaster ownership", "[clf][ownershipclf]")
 {
@@ -287,20 +294,23 @@ TEST_CASE("clfmaster ownership", "[clf][ownershipclf]")
     Application::pointer app = Application::create(clock, cfg);
 
     autocheck::generator<LedgerEntry> leGen;
-    std::vector<LedgerEntry> live { leGen(10) };
-    std::vector<LedgerKey> dead { };
+    std::vector<LedgerEntry> live{leGen(10)};
+    std::vector<LedgerKey> dead{};
 
     std::shared_ptr<Bucket> b1;
 
     {
-        std::shared_ptr<Bucket> b2 = Bucket::fresh(app->getCLFMaster(), live, dead);
+        std::shared_ptr<Bucket> b2 =
+            Bucket::fresh(app->getCLFMaster(), live, dead);
         b1 = b2;
 
         // Bucket is referenced by b1, b2 and the CLFMaster.
         CHECK(b1.use_count() == 3);
 
-        std::shared_ptr<Bucket> b3 = Bucket::fresh(app->getCLFMaster(), live, dead);
-        std::shared_ptr<Bucket> b4 = Bucket::fresh(app->getCLFMaster(), live, dead);
+        std::shared_ptr<Bucket> b3 =
+            Bucket::fresh(app->getCLFMaster(), live, dead);
+        std::shared_ptr<Bucket> b4 =
+            Bucket::fresh(app->getCLFMaster(), live, dead);
         // Bucket is referenced by b1, b2, b3, b4 and the CLFMaster.
         CHECK(b1.use_count() == 5);
     }
@@ -343,7 +353,4 @@ TEST_CASE("clfmaster ownership", "[clf][ownershipclf]")
     CHECK(fs::exists(filename));
     b1.reset();
     CHECK(!fs::exists(filename));
-
-
-
 }

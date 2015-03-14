@@ -33,7 +33,8 @@ randomBucketName(std::string const& tmpDir)
 {
     while (true)
     {
-        std::string name = tmpDir + "/tmp-bucket-" + binToHex(randomBytes(8)) + ".xdr";
+        std::string name =
+            tmpDir + "/tmp-bucket-" + binToHex(randomBytes(8)) + ".xdr";
         std::ifstream ifile(name);
         if (!ifile)
         {
@@ -42,37 +43,35 @@ randomBucketName(std::string const& tmpDir)
     }
 }
 
-
 LedgerKey
 LedgerEntryKey(LedgerEntry const& e)
 {
     LedgerKey k;
     switch (e.type())
-        {
+    {
 
-        case ACCOUNT:
-            k.type(ACCOUNT);
-            k.account().accountID = e.account().accountID;
-            break;
+    case ACCOUNT:
+        k.type(ACCOUNT);
+        k.account().accountID = e.account().accountID;
+        break;
 
-        case TRUSTLINE:
-            k.type(TRUSTLINE);
-            k.trustLine().accountID = e.trustLine().accountID;
-            k.trustLine().currency = e.trustLine().currency;
-            break;
+    case TRUSTLINE:
+        k.type(TRUSTLINE);
+        k.trustLine().accountID = e.trustLine().accountID;
+        k.trustLine().currency = e.trustLine().currency;
+        break;
 
-        case OFFER:
-            k.type(OFFER);
-            k.offer().accountID = e.offer().accountID;
-            k.offer().offerID = e.offer().offerID;
-            break;
-        }
+    case OFFER:
+        k.type(OFFER);
+        k.offer().accountID = e.offer().accountID;
+        k.offer().offerID = e.offer().offerID;
+        break;
+    }
     return k;
 }
 
 Bucket::Bucket(std::string const& filename, uint256 const& hash)
-    : mFilename(filename)
-    , mHash(hash)
+    : mFilename(filename), mHash(hash)
 {
     assert(filename.empty() || fs::exists(filename));
 }
@@ -105,8 +104,7 @@ Bucket::getFilename() const
  * Helper class that reads from the file underlying a bucket, keeping the bucket
  * alive for the duration of its existence.
  */
-class
-Bucket::InputIterator
+class Bucket::InputIterator
 {
     std::shared_ptr<Bucket const> mBucket;
 
@@ -116,7 +114,8 @@ Bucket::InputIterator
     XDRInputFileStream mIn;
     CLFEntry mEntry;
 
-    void loadEntry()
+    void
+    loadEntry()
     {
         if (mIn.readOne(mEntry))
         {
@@ -128,8 +127,7 @@ Bucket::InputIterator
         }
     }
 
-public:
-
+  public:
     operator bool() const
     {
         return mEntryPtr != nullptr;
@@ -141,8 +139,7 @@ public:
     }
 
     InputIterator(std::shared_ptr<Bucket const> bucket)
-        : mBucket(bucket)
-        , mEntryPtr(nullptr)
+        : mBucket(bucket), mEntryPtr(nullptr)
     {
         if (!mBucket->mFilename.empty())
         {
@@ -176,8 +173,7 @@ public:
  * Helper class that points to an output tempfile. Absorbs CLFEntries and hashes
  * them while writing to either destination. Produces a Bucket when done.
  */
-class
-Bucket::OutputIterator
+class Bucket::OutputIterator
 {
     std::string mFilename;
     XDROutputFileStream mOut;
@@ -185,8 +181,7 @@ Bucket::OutputIterator
     size_t mBytesPut{0};
     size_t mObjectsPut{0};
 
-public:
-
+  public:
     OutputIterator(std::string const& tmpDir)
     {
         mFilename = randomBucketName(tmpDir);
@@ -210,7 +205,6 @@ public:
         return clfMaster.adoptFileAsBucket(mFilename, mHasher.finish(),
                                            mObjectsPut, mBytesPut);
     }
-
 };
 
 bool
@@ -220,7 +214,7 @@ Bucket::containsCLFIdentity(CLFEntry const& id) const
     Bucket::InputIterator iter(shared_from_this());
     while (iter)
     {
-        if (! (cmp(*iter, id) || cmp(id, *iter)))
+        if (!(cmp(*iter, id) || cmp(id, *iter)))
         {
             return true;
         }
@@ -229,13 +223,12 @@ Bucket::containsCLFIdentity(CLFEntry const& id) const
     return false;
 }
 
-
 std::pair<size_t, size_t>
 Bucket::countLiveAndDeadEntries() const
 {
     size_t live = 0, dead = 0;
     Bucket::InputIterator iter(shared_from_this());
-    while(iter)
+    while (iter)
     {
         if ((*iter).type() == LIVEENTRY)
         {
@@ -249,7 +242,6 @@ Bucket::countLiveAndDeadEntries() const
     }
     return std::make_pair(live, dead);
 }
-
 
 void
 Bucket::apply(Database& db) const
@@ -274,10 +266,8 @@ Bucket::apply(Database& db) const
     }
 }
 
-
 std::shared_ptr<Bucket>
-Bucket::fresh(CLFMaster& clfMaster,
-              std::vector<LedgerEntry> const& liveEntries,
+Bucket::fresh(CLFMaster& clfMaster, std::vector<LedgerEntry> const& liveEntries,
               std::vector<LedgerKey> const& deadEntries)
 {
     std::vector<CLFEntry> live, dead, combined;
@@ -300,11 +290,9 @@ Bucket::fresh(CLFMaster& clfMaster,
         dead.push_back(ce);
     }
 
-    std::sort(live.begin(), live.end(),
-              CLFEntryIdCmp());
+    std::sort(live.begin(), live.end(), CLFEntryIdCmp());
 
-    std::sort(dead.begin(), dead.end(),
-              CLFEntryIdCmp());
+    std::sort(dead.begin(), dead.end(), CLFEntryIdCmp());
 
     OutputIterator liveOut(clfMaster.getTmpDir());
     OutputIterator deadOut(clfMaster.getTmpDir());
@@ -323,8 +311,7 @@ Bucket::fresh(CLFMaster& clfMaster,
 }
 
 inline void
-maybe_put(CLFEntryIdCmp& cmp,
-          Bucket::OutputIterator& out,
+maybe_put(CLFEntryIdCmp& cmp, Bucket::OutputIterator& out,
           Bucket::InputIterator& in,
           std::vector<Bucket::InputIterator>& shadowIterators)
 {
@@ -341,8 +328,10 @@ maybe_put(CLFEntryIdCmp& cmp,
         if (si && !cmp(*in, *si))
         {
             // If so, then *in is shadowed in at least one level and we will
-            // not be doing a 'put'; we return early. There is no need to advance
-            // the other iterators, they will advance as and if necessary in future
+            // not be doing a 'put'; we return early. There is no need to
+            // advance
+            // the other iterators, they will advance as and if necessary in
+            // future
             // calls to maybe_put.
             return;
         }
@@ -352,8 +341,7 @@ maybe_put(CLFEntryIdCmp& cmp,
 }
 
 std::shared_ptr<Bucket>
-Bucket::merge(CLFMaster& clfMaster,
-              std::shared_ptr<Bucket> const& oldBucket,
+Bucket::merge(CLFMaster& clfMaster, std::shared_ptr<Bucket> const& oldBucket,
               std::shared_ptr<Bucket> const& newBucket,
               std::vector<std::shared_ptr<Bucket>> const& shadows)
 {
@@ -411,5 +399,4 @@ Bucket::merge(CLFMaster& clfMaster,
     }
     return out.getBucket(clfMaster);
 }
-
 }

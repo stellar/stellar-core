@@ -18,10 +18,10 @@ class HistoryMaster;
 class ProcessMaster;
 class CommandHandler;
 class Database;
-    
+
 class ApplicationImpl : public Application
 {
-public:
+  public:
     ApplicationImpl(VirtualClock& clock, Config const& cfg);
     virtual ~ApplicationImpl() override;
 
@@ -62,10 +62,9 @@ public:
 
     virtual bool manualClose() override;
 
-
     virtual void applyCfgCommands() override;
 
-private:
+  private:
     Application::State mState;
     VirtualClock& mVirtualClock;
     Config mConfig;
@@ -105,5 +104,4 @@ private:
 
     void runWorkerThread(unsigned i);
 };
-
 }

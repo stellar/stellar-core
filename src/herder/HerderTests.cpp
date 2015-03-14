@@ -21,7 +21,6 @@
 #include "transactions/TxTests.h"
 #include "database/Database.h"
 
-
 using namespace stellar;
 using namespace stellar::txtest;
 
@@ -32,7 +31,7 @@ TEST_CASE("standalone", "[herder]")
     SIMULATION_CREATE_NODE(0);
 
     Config cfg(getTestConfig());
-    
+
     cfg.RUN_STANDALONE = true;
     cfg.VALIDATION_KEY = v0SecretKey;
     cfg.START_NEW_NETWORK = true;
@@ -53,9 +52,9 @@ TEST_CASE("standalone", "[herder]")
     const int64_t paymentAmount = app->getLedgerMaster().getMinBalance(0);
 
     AccountFrame rootAccount;
-    REQUIRE(AccountFrame::loadAccount(
-        root.getPublicKey(), rootAccount, app->getDatabase()));
-    
+    REQUIRE(AccountFrame::loadAccount(root.getPublicKey(), rootAccount,
+                                      app->getDatabase()));
+
     SequenceNumber rootSeq = getAccountSeqNum(root, *app) + 1;
     SECTION("basic ledger close on valid txs")
     {
@@ -63,25 +62,27 @@ TEST_CASE("standalone", "[herder]")
         VirtualTimer setupTimer(*app);
         VirtualTimer checkTimer(*app);
 
-        auto check = [&] (const asio::error_code& error)
+        auto check = [&](const asio::error_code& error)
         {
             stop = true;
 
             AccountFrame a1Account, b1Account;
-            REQUIRE(AccountFrame::loadAccount(
-                a1.getPublicKey(), a1Account, app->getDatabase()));
-            REQUIRE(AccountFrame::loadAccount(
-                b1.getPublicKey(), b1Account, app->getDatabase()));
+            REQUIRE(AccountFrame::loadAccount(a1.getPublicKey(), a1Account,
+                                              app->getDatabase()));
+            REQUIRE(AccountFrame::loadAccount(b1.getPublicKey(), b1Account,
+                                              app->getDatabase()));
 
             REQUIRE(a1Account.getBalance() == paymentAmount);
             REQUIRE(b1Account.getBalance() == paymentAmount);
         };
 
-        auto setup = [&] (const asio::error_code& error)
+        auto setup = [&](const asio::error_code& error)
         {
             // create accounts
-            TransactionFramePtr txFrameA1 = createPaymentTx(root, a1, rootSeq++, paymentAmount);
-            TransactionFramePtr txFrameA2 = createPaymentTx(root, b1, rootSeq++, paymentAmount);
+            TransactionFramePtr txFrameA1 =
+                createPaymentTx(root, a1, rootSeq++, paymentAmount);
+            TransactionFramePtr txFrameA2 =
+                createPaymentTx(root, b1, rootSeq++, paymentAmount);
 
             REQUIRE(app->getHerderGateway().recvTransaction(txFrameA1));
             REQUIRE(app->getHerderGateway().recvTransaction(txFrameA2));
@@ -93,9 +94,9 @@ TEST_CASE("standalone", "[herder]")
         checkTimer.expires_from_now(std::chrono::seconds(5));
         checkTimer.async_wait(check);
 
-        while(!stop && app->getClock().crank(false) > 0);
+        while (!stop && app->getClock().crank(false) > 0)
+            ;
     }
-
 }
 
 // see if we flood at the right times
@@ -129,14 +130,16 @@ TEST_CASE("txset", "[herder]")
 
     AccountFrame rootAccount;
 
-    REQUIRE(AccountFrame::loadAccount(
-        root.getPublicKey(), rootAccount, app->getDatabase()));
+    REQUIRE(AccountFrame::loadAccount(root.getPublicKey(), rootAccount,
+                                      app->getDatabase()));
 
     SequenceNumber rootSeq = getAccountSeqNum(root, *app) + 1;
 
     SecretKey sourceAccount = getAccount("source");
 
-    int64_t amountPop = nbAccounts*nbTransactions*app->getLedgerMaster().getTxFee()+paymentAmount;
+    int64_t amountPop =
+        nbAccounts * nbTransactions * app->getLedgerMaster().getTxFee() +
+        paymentAmount;
 
     applyPaymentTx(*app, root, sourceAccount, rootSeq++, amountPop);
 
@@ -147,22 +150,21 @@ TEST_CASE("txset", "[herder]")
     for (int i = 0; i < nbAccounts; i++)
     {
         string accountName = "A";
-        accountName += '0'+i;
+        accountName += '0' + i;
         accounts[i] = getAccount(accountName.c_str());
         for (int j = 0; j < nbTransactions; j++)
         {
-            transactions[i].emplace_back(
-                createPaymentTx(sourceAccount, accounts[i], sourceSeq++, paymentAmount));
+            transactions[i].emplace_back(createPaymentTx(
+                sourceAccount, accounts[i], sourceSeq++, paymentAmount));
         }
     }
-
 
     TxSetFramePtr txSet = std::make_shared<TxSetFrame>(
         app->getLedgerMaster().getLastClosedLedgerHeader().hash);
 
-    for (auto &txs : transactions)
+    for (auto& txs : transactions)
     {
-        for (auto &tx : txs)
+        for (auto& tx : txs)
         {
             txSet->add(tx);
         }
@@ -194,8 +196,8 @@ TEST_CASE("txset", "[herder]")
         {
             SECTION("gap after")
             {
-                txSet->add(
-                    createPaymentTx(sourceAccount, accounts[0], sourceSeq + 5, paymentAmount));
+                txSet->add(createPaymentTx(sourceAccount, accounts[0],
+                                           sourceSeq + 5, paymentAmount));
                 txSet->sortForHash();
                 REQUIRE(!txSet->checkValid(*app));
             }
@@ -215,10 +217,10 @@ TEST_CASE("txset", "[herder]")
         SECTION("insuficient balance")
         {
             // extra transaction would push the account below the reserve
-            txSet->add(createPaymentTx(sourceAccount, accounts[0], sourceSeq++, paymentAmount));
+            txSet->add(createPaymentTx(sourceAccount, accounts[0], sourceSeq++,
+                                       paymentAmount));
             txSet->sortForHash();
             REQUIRE(!txSet->checkValid(*app));
         }
     }
 }
-

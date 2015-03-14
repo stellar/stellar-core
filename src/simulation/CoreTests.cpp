@@ -38,37 +38,49 @@ TEST_CASE("cycle4 topology", "[simulation]")
     CHECK(simulation->haveAllExternalized(2));
 }
 
-TEST_CASE("Stress test on 2 nodes, 3 accounts, 10 random transactions, 10tx/sec", "[stress100][simulation][stress]")
+TEST_CASE(
+    "Stress test on 2 nodes, 3 accounts, 10 random transactions, 10tx/sec",
+    "[stress100][simulation][stress]")
 {
-    Simulation::pointer simulation = Topologies::pair(Simulation::OVER_LOOPBACK);
+    Simulation::pointer simulation =
+        Topologies::pair(Simulation::OVER_LOOPBACK);
 
     simulation->startAllNodes();
-    simulation->crankUntil([&]() { return simulation->haveAllExternalized(3); }, std::chrono::seconds(60000));
+    simulation->crankUntil(
+        [&]()
+        {
+            return simulation->haveAllExternalized(3);
+        },
+        std::chrono::seconds(60000));
 
     simulation->executeAll(simulation->createAccounts(3));
 
     try
     {
-        simulation->crankUntil([&]()
-        { 
-            return simulation->haveAllExternalized(4) &&
-                simulation->accountsOutOfSyncWithDb().empty();
-        }, 
-        std::chrono::seconds(60));
+        simulation->crankUntil(
+            [&]()
+            {
+                return simulation->haveAllExternalized(4) &&
+                       simulation->accountsOutOfSyncWithDb().empty();
+            },
+            std::chrono::seconds(60));
 
         simulation->SyncSequenceNumbers();
 
-        auto crankingTime = simulation->executeStressTest(10, 10, [&simulation](size_t i)
-        {
+        auto crankingTime =
+            simulation->executeStressTest(10, 10, [&simulation](size_t i)
+                                          {
             return simulation->createRandomTransaction(0.5);
         });
 
-        simulation->crankUntil([&]() 
+        simulation->crankUntil(
+            [&]()
             {
                 return simulation->accountsOutOfSyncWithDb().empty();
-            }, 
+            },
             std::chrono::seconds(60));
-    } catch(...)
+    }
+    catch (...)
     {
         auto problems = simulation->accountsOutOfSyncWithDb();
         REQUIRE(problems.empty());
@@ -76,4 +88,3 @@ TEST_CASE("Stress test on 2 nodes, 3 accounts, 10 random transactions, 10tx/sec"
 
     LOG(INFO) << simulation->metricsSummary("database");
 }
-

@@ -35,11 +35,9 @@ namespace stellar
 
 using namespace std;
 
-const uint32_t
-HistoryMaster::kCheckpointFrequency = 64;
+const uint32_t HistoryMaster::kCheckpointFrequency = 64;
 
-class
-HistoryMaster::Impl
+class HistoryMaster::Impl
 {
     Application& mApp;
     unique_ptr<TmpDir> mWorkDir;
@@ -56,27 +54,34 @@ HistoryMaster::Impl
     medida::Meter& mCatchupFailure;
 
     friend class HistoryMaster;
-public:
-    Impl(Application &app)
+
+  public:
+    Impl(Application& app)
         : mApp(app)
         , mWorkDir(nullptr)
         , mPublish(nullptr)
         , mCatchup(nullptr)
 
-        , mPublishSkip(app.getMetrics().NewMeter({"history", "publish", "skip"}, "event"))
-        , mPublishStart(app.getMetrics().NewMeter({"history", "publish", "start"}, "event"))
-        , mPublishSuccess(app.getMetrics().NewMeter({"history", "publish", "success"}, "event"))
-        , mPublishFailure(app.getMetrics().NewMeter({"history", "publish", "failure"}, "event"))
+        , mPublishSkip(app.getMetrics().NewMeter({"history", "publish", "skip"},
+                                                 "event"))
+        , mPublishStart(app.getMetrics().NewMeter(
+              {"history", "publish", "start"}, "event"))
+        , mPublishSuccess(app.getMetrics().NewMeter(
+              {"history", "publish", "success"}, "event"))
+        , mPublishFailure(app.getMetrics().NewMeter(
+              {"history", "publish", "failure"}, "event"))
 
-        , mCatchupStart(app.getMetrics().NewMeter({"history", "catchup", "start"}, "event"))
-        , mCatchupSuccess(app.getMetrics().NewMeter({"history", "catchup", "success"}, "event"))
-        , mCatchupFailure(app.getMetrics().NewMeter({"history", "catchup", "failure"}, "event"))
-        {}
-
+        , mCatchupStart(app.getMetrics().NewMeter(
+              {"history", "catchup", "start"}, "event"))
+        , mCatchupSuccess(app.getMetrics().NewMeter(
+              {"history", "catchup", "success"}, "event"))
+        , mCatchupFailure(app.getMetrics().NewMeter(
+              {"history", "catchup", "failure"}, "event"))
+    {
+    }
 };
 
-HistoryMaster::HistoryMaster(Application& app)
-    : mImpl(make_unique<Impl>(app))
+HistoryMaster::HistoryMaster(Application& app) : mImpl(make_unique<Impl>(app))
 {
 }
 
@@ -87,28 +92,29 @@ HistoryMaster::initializeHistoryArchive(Application& app, std::string arch)
     auto i = cfg.HISTORY.find(arch);
     if (i == cfg.HISTORY.end())
     {
-        CLOG(WARNING, "History") << "Can't initialize unknown history archive '" << arch << "'";
+        CLOG(WARNING, "History") << "Can't initialize unknown history archive '"
+                                 << arch << "'";
         return false;
     }
     HistoryArchiveState has;
     CLOG(INFO, "History") << "Initializing history archive '" << arch << "'";
     bool ok = true;
     bool done = false;
-    i->second->putState(
-        app, has,
-        [arch, &done, &ok](asio::error_code const& ec)
+    i->second->putState(app, has, [arch, &done, &ok](asio::error_code const& ec)
+                        {
+        if (ec)
         {
-            if (ec)
-            {
-                ok = false;
-                CLOG(WARNING, "History") << "Failed to initialize history archive '" << arch << "'";
-            }
-            else
-            {
-                CLOG(INFO, "History") << "Initialized history archive '" << arch << "'";
-            }
-            done = true;
-        });
+            ok = false;
+            CLOG(WARNING, "History") << "Failed to initialize history archive '"
+                                     << arch << "'";
+        }
+        else
+        {
+            CLOG(INFO, "History") << "Initialized history archive '" << arch
+                                  << "'";
+        }
+        done = true;
+    });
 
     while (!done && !app.getClock().getIOService().stopped())
     {
@@ -138,7 +144,6 @@ HistoryMaster::localFilename(std::string const& basename)
     return this->getTmpDir() + "/" + basename;
 }
 
-
 static void
 checkGzipSuffix(string const& filename)
 {
@@ -161,7 +166,6 @@ checkNoGzipSuffix(string const& filename)
     }
 }
 
-
 uint32_t
 HistoryMaster::nextCheckpointLedger(uint32_t ledger)
 {
@@ -171,11 +175,10 @@ HistoryMaster::nextCheckpointLedger(uint32_t ledger)
     return static_cast<uint32_t>(((ledger + res - 1) / res) * res);
 }
 
-
 void
-HistoryMaster::verifyHash(std::string const& filename,
-                          uint256 const& hash,
-                          std::function<void(asio::error_code const&)> handler) const
+HistoryMaster::verifyHash(
+    std::string const& filename, uint256 const& hash,
+    std::function<void(asio::error_code const&)> handler) const
 {
     checkNoGzipSuffix(filename);
     Application& app = this->mImpl->mApp;
@@ -194,9 +197,8 @@ HistoryMaster::verifyHash(std::string const& filename,
             asio::error_code ec;
             if (vHash == hash)
             {
-                LOG(DEBUG) << "Verified hash ("
-                           << hexAbbrev(hash)
-                           << ") for " << filename;
+                LOG(DEBUG) << "Verified hash (" << hexAbbrev(hash) << ") for "
+                           << filename;
             }
             else
             {
@@ -205,7 +207,10 @@ HistoryMaster::verifyHash(std::string const& filename,
                 LOG(WARNING) << "computed hash: " << binToHex(vHash);
                 ec = std::make_error_code(std::errc::io_error);
             }
-            app.getClock().getIOService().post([ec, handler]() { handler(ec); });
+            app.getClock().getIOService().post([ec, handler]()
+                                               {
+                                                   handler(ec);
+                                               });
         });
 }
 
@@ -233,15 +238,14 @@ HistoryMaster::decompress(std::string const& filename_gz,
             if (ec)
             {
                 LOG(WARNING) << "'gzip -d " << filename_gz << "' failed,"
-                             << " removing " << filename_gz
-                             << " and " << filename;
+                             << " removing " << filename_gz << " and "
+                             << filename;
                 std::remove(filename_gz.c_str());
                 std::remove(filename.c_str());
             }
             handler(ec);
         });
 }
-
 
 void
 HistoryMaster::compress(std::string const& filename_nogz,
@@ -267,8 +271,8 @@ HistoryMaster::compress(std::string const& filename_nogz,
             if (ec)
             {
                 LOG(WARNING) << "'gzip " << filename_nogz << "' failed,"
-                             << " removing " << filename_nogz
-                             << " and " << filename;
+                             << " removing " << filename_nogz << " and "
+                             << filename;
                 std::remove(filename_nogz.c_str());
                 std::remove(filename.c_str());
             }
@@ -278,8 +282,7 @@ HistoryMaster::compress(std::string const& filename_nogz,
 
 void
 HistoryMaster::putFile(std::shared_ptr<HistoryArchive const> archive,
-                       string const& local,
-                       string const& remote,
+                       string const& local, string const& remote,
                        function<void(asio::error_code const& ec)> handler) const
 {
     assert(archive->hasPutCmd());
@@ -290,8 +293,7 @@ HistoryMaster::putFile(std::shared_ptr<HistoryArchive const> archive,
 
 void
 HistoryMaster::getFile(std::shared_ptr<HistoryArchive const> archive,
-                       string const& remote,
-                       string const& local,
+                       string const& remote, string const& local,
                        function<void(asio::error_code const& ec)> handler) const
 {
     assert(archive->hasGetCmd());
@@ -299,7 +301,6 @@ HistoryMaster::getFile(std::shared_ptr<HistoryArchive const> archive,
     auto exit = this->mImpl->mApp.getProcessGateway().runProcess(cmd);
     exit.async_wait(handler);
 }
-
 
 void
 HistoryMaster::mkdir(std::shared_ptr<HistoryArchive const> archive,
@@ -319,17 +320,20 @@ HistoryMaster::mkdir(std::shared_ptr<HistoryArchive const> archive,
     }
 }
 
-
 HistoryArchiveState
 HistoryMaster::getLastClosedHistoryArchiveState() const
 {
     HistoryArchiveState has;
-    has.currentLedger = mImpl->mApp.getLedgerMaster().getLastClosedLedgerHeader().header.ledgerSeq;
-    auto &bl = mImpl->mApp.getCLFMaster().getBucketList();
+    has.currentLedger = mImpl->mApp.getLedgerMaster()
+                            .getLastClosedLedgerHeader()
+                            .header.ledgerSeq;
+    auto& bl = mImpl->mApp.getCLFMaster().getBucketList();
     for (size_t i = 0; i < BucketList::kNumLevels; ++i)
     {
-        has.currentBuckets.at(i).curr = binToHex(bl.getLevel(i).getCurr()->getHash());
-        has.currentBuckets.at(i).snap = binToHex(bl.getLevel(i).getSnap()->getHash());
+        has.currentBuckets.at(i).curr =
+            binToHex(bl.getLevel(i).getCurr()->getHash());
+        has.currentBuckets.at(i).snap =
+            binToHex(bl.getLevel(i).getSnap()->getHash());
     }
     return has;
 }
@@ -340,17 +344,18 @@ HistoryMaster::hasAnyWritableHistoryArchive()
     auto const& hist = mImpl->mApp.getConfig().HISTORY;
     for (auto const& pair : hist)
     {
-        if (pair.second->hasGetCmd() &&
-            pair.second->hasPutCmd())
+        if (pair.second->hasGetCmd() && pair.second->hasPutCmd())
             return true;
     }
     return false;
 }
 
 bool
-HistoryMaster::maybePublishHistory(std::function<void(asio::error_code const&)> handler)
+HistoryMaster::maybePublishHistory(
+    std::function<void(asio::error_code const&)> handler)
 {
-    uint32_t seq = mImpl->mApp.getLedgerMaster().getCurrentLedgerHeader().ledgerSeq;
+    uint32_t seq =
+        mImpl->mApp.getLedgerMaster().getCurrentLedgerHeader().ledgerSeq;
     if (seq != nextCheckpointLedger(seq))
     {
         return false;
@@ -358,14 +363,16 @@ HistoryMaster::maybePublishHistory(std::function<void(asio::error_code const&)> 
 
     if (!hasAnyWritableHistoryArchive())
     {
-        CLOG(WARNING, "History") << "Skipping checkpoint, no writable history archives";
+        CLOG(WARNING, "History")
+            << "Skipping checkpoint, no writable history archives";
         return false;
     }
 
     if (mImpl->mPublish)
     {
         mImpl->mPublishSkip.Mark();
-        CLOG(WARNING, "History") << "Skipping checkpoint, publish already in progress";
+        CLOG(WARNING, "History")
+            << "Skipping checkpoint, publish already in progress";
         return false;
     }
 
@@ -374,7 +381,8 @@ HistoryMaster::maybePublishHistory(std::function<void(asio::error_code const&)> 
 }
 
 void
-HistoryMaster::publishHistory(std::function<void(asio::error_code const&)> handler)
+HistoryMaster::publishHistory(
+    std::function<void(asio::error_code const&)> handler)
 {
     if (mImpl->mPublish)
     {
@@ -382,8 +390,7 @@ HistoryMaster::publishHistory(std::function<void(asio::error_code const&)> handl
     }
     mImpl->mPublishStart.Mark();
     mImpl->mPublish = make_unique<PublishStateMachine>(
-        mImpl->mApp,
-        [this, handler](asio::error_code const& ec)
+        mImpl->mApp, [this, handler](asio::error_code const& ec)
         {
             if (ec)
             {
@@ -395,8 +402,10 @@ HistoryMaster::publishHistory(std::function<void(asio::error_code const&)> handl
             }
             // Tear down the publish state machine when complete then call our
             // caller's handler. Must keep the state machine alive long enough
-            // for the callback, though, to avoid killing things living in lambdas.
-            std::unique_ptr<PublishStateMachine> m(std::move(this->mImpl->mPublish));
+            // for the callback, though, to avoid killing things living in
+            // lambdas.
+            std::unique_ptr<PublishStateMachine> m(
+                std::move(this->mImpl->mPublish));
             handler(ec);
         });
 }
@@ -411,17 +420,16 @@ HistoryMaster::snapshotTaken(asio::error_code const& ec,
     }
     else
     {
-        CLOG(WARNING, "History") << "Publish state machine torn down while taking snapshot";
+        CLOG(WARNING, "History")
+            << "Publish state machine torn down while taking snapshot";
     }
 }
 
 void
-HistoryMaster::catchupHistory(uint32_t lastLedger,
-                              uint32_t initLedger,
-                              ResumeMode mode,
-                              std::function<void(asio::error_code const& ec,
-                                                 ResumeMode mode,
-                                                 LedgerHeaderHistoryEntry const& lastClosed)> handler)
+HistoryMaster::catchupHistory(
+    uint32_t lastLedger, uint32_t initLedger, ResumeMode mode,
+    std::function<void(asio::error_code const& ec, ResumeMode mode,
+                       LedgerHeaderHistoryEntry const& lastClosed)> handler)
 {
     if (mImpl->mCatchup)
     {
@@ -429,10 +437,7 @@ HistoryMaster::catchupHistory(uint32_t lastLedger,
     }
     mImpl->mCatchupStart.Mark();
     mImpl->mCatchup = make_unique<CatchupStateMachine>(
-        mImpl->mApp,
-        lastLedger,
-        initLedger,
-        mode,
+        mImpl->mApp, lastLedger, initLedger, mode,
         [this, handler](asio::error_code const& ec,
                         HistoryMaster::ResumeMode mode,
                         LedgerHeaderHistoryEntry const& lastClosed)
@@ -447,8 +452,10 @@ HistoryMaster::catchupHistory(uint32_t lastLedger,
             }
             // Tear down the catchup state machine when complete then call our
             // caller's handler. Must keep the state machine alive long enough
-            // for the callback, though, to avoid killing things living in lambdas.
-            std::unique_ptr<CatchupStateMachine> m(std::move(this->mImpl->mCatchup));
+            // for the callback, though, to avoid killing things living in
+            // lambdas.
+            std::unique_ptr<CatchupStateMachine> m(
+                std::move(this->mImpl->mCatchup));
             handler(ec, mode, lastClosed);
         });
 }
@@ -494,5 +501,4 @@ HistoryMaster::getCatchupFailureCount()
 {
     return mImpl->mCatchupFailure.count();
 }
-
 }

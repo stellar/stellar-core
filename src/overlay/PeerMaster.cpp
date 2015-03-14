@@ -39,11 +39,16 @@ using namespace std;
 PeerMaster::PeerMaster(Application& app)
     : mApp(app)
     , mDoor(make_shared<PeerDoor>(mApp))
-    , mMessagesReceived(app.getMetrics().NewMeter({"overlay", "message", "receive"}, "message"))
-    , mMessagesBroadcast(app.getMetrics().NewMeter({"overlay", "message", "broadcast"}, "message"))
-    , mConnectionsAttempted(app.getMetrics().NewMeter({"overlay", "connection", "attempt"}, "connection"))
-    , mConnectionsEstablished(app.getMetrics().NewMeter({"overlay", "connection", "establish"}, "connection"))
-    , mConnectionsDropped(app.getMetrics().NewMeter({"overlay", "connection", "drop"}, "connection"))
+    , mMessagesReceived(app.getMetrics().NewMeter(
+          {"overlay", "message", "receive"}, "message"))
+    , mMessagesBroadcast(app.getMetrics().NewMeter(
+          {"overlay", "message", "broadcast"}, "message"))
+    , mConnectionsAttempted(app.getMetrics().NewMeter(
+          {"overlay", "connection", "attempt"}, "connection"))
+    , mConnectionsEstablished(app.getMetrics().NewMeter(
+          {"overlay", "connection", "establish"}, "connection"))
+    , mConnectionsDropped(app.getMetrics().NewMeter(
+          {"overlay", "connection", "drop"}, "connection"))
     , mTimer(app)
     , mFloodGate(app)
 {
@@ -70,7 +75,7 @@ void
 PeerMaster::connectTo(const std::string& peerStr)
 {
     PeerRecord pr;
-    if(PeerRecord::parseIPPort(peerStr, mApp, pr))
+    if (PeerRecord::parseIPPort(peerStr, mApp, pr))
         connectTo(pr);
     else
     {
@@ -79,48 +84,53 @@ PeerMaster::connectTo(const std::string& peerStr)
 }
 
 void
-PeerMaster::connectTo(PeerRecord &pr)
+PeerMaster::connectTo(PeerRecord& pr)
 {
-    if(pr.mPort == 0)
+    if (pr.mPort == 0)
     {
         CLOG(INFO, "Overlay") << "Invalid port: " << pr.toString();
         return;
     }
 
     mConnectionsAttempted.Mark();
-    if(!getConnectedPeer(pr.mIP, pr.mPort))
+    if (!getConnectedPeer(pr.mIP, pr.mPort))
     {
         pr.backOff(mApp.getClock());
         pr.storePeerRecord(mApp.getDatabase());
 
         addConnectedPeer(TCPPeer::initiate(mApp, pr.mIP, pr.mPort));
-    } else
+    }
+    else
     {
-        CLOG(ERROR, "Overlay") << "trying to connect to a node we're already connected to" << pr.toString();
+        CLOG(ERROR, "Overlay")
+            << "trying to connect to a node we're already connected to"
+            << pr.toString();
     }
 }
 
-void PeerMaster::storePeerList(const std::vector<std::string>& list, int rank)
+void
+PeerMaster::storePeerList(const std::vector<std::string>& list, int rank)
 {
-    for(auto peerStr : list)
+    for (auto peerStr : list)
     {
-        
+
         PeerRecord pr;
-        if(PeerRecord::parseIPPort(peerStr, mApp, pr))
+        if (PeerRecord::parseIPPort(peerStr, mApp, pr))
         {
             if (!pr.isStored(mApp.getDatabase()))
             {
                 pr.storePeerRecord(mApp.getDatabase());
             }
-        } else
+        }
+        else
         {
             CLOG(ERROR, "Overlay") << "Unable to parse: " << peerStr;
         }
-       
     }
 }
 
-void PeerMaster::storeConfigPeers()
+void
+PeerMaster::storeConfigPeers()
 {
     storePeerList(mApp.getConfig().KNOWN_PEERS, 2);
     storePeerList(mApp.getConfig().PREFERRED_PEERS, 10);
@@ -130,14 +140,15 @@ void
 PeerMaster::connectToMorePeers(int max)
 {
     vector<PeerRecord> peers;
-    PeerRecord::loadPeerRecords(mApp.getDatabase(), max, mApp.getClock().now(), peers);
-    for(auto pr : peers)
+    PeerRecord::loadPeerRecords(mApp.getDatabase(), max, mApp.getClock().now(),
+                                peers);
+    for (auto pr : peers)
     {
         if (mPeers.size() >= mApp.getConfig().TARGET_PEER_CONNECTIONS)
         {
             break;
         }
-        if(!getConnectedPeer(pr.mIP, pr.mPort))
+        if (!getConnectedPeer(pr.mIP, pr.mPort))
         {
             connectTo(pr);
         }
@@ -151,9 +162,9 @@ PeerMaster::tick()
     LOG(DEBUG) << "PeerMaster tick @" << mApp.getConfig().PEER_PORT;
     if (mPeers.size() < mApp.getConfig().TARGET_PEER_CONNECTIONS)
     {
-        connectToMorePeers(static_cast<int>(mApp.getConfig().TARGET_PEER_CONNECTIONS - mPeers.size()));
+        connectToMorePeers(static_cast<int>(
+            mApp.getConfig().TARGET_PEER_CONNECTIONS - mPeers.size()));
     }
-
 
     mTimer.expires_from_now(std::chrono::seconds(2));
     mTimer.async_wait([this](asio::error_code const& ec)
@@ -165,11 +176,12 @@ PeerMaster::tick()
                       });
 }
 
-Peer::pointer PeerMaster::getConnectedPeer(const std::string& ip, int port)
+Peer::pointer
+PeerMaster::getConnectedPeer(const std::string& ip, int port)
 {
-    for(auto peer : mPeers)
+    for (auto peer : mPeers)
     {
-        if(peer->getIP() == ip && peer->getRemoteListeningPort() == port)
+        if (peer->getIP() == ip && peer->getRemoteListeningPort() == port)
         {
             return peer;
         }
@@ -209,9 +221,11 @@ PeerMaster::isPeerAccepted(Peer::pointer peer)
     return isPeerPreferred(peer);
 }
 
-bool PeerMaster::isPeerPreferred(Peer::pointer peer)
+bool
+PeerMaster::isPeerPreferred(Peer::pointer peer)
 {
-    auto pr = PeerRecord::loadPeerRecord(mApp.getDatabase(), peer->getIP(), peer->getRemoteListeningPort());
+    auto pr = PeerRecord::loadPeerRecord(mApp.getDatabase(), peer->getIP(),
+                                         peer->getRemoteListeningPort());
     return pr->mRank > 9;
 }
 
@@ -245,28 +259,23 @@ PeerMaster::getNextPeer(Peer::pointer peer)
     return Peer::pointer();
 }
 
-
-
 void
-PeerMaster::recvFloodedMsg(StellarMessage const& msg,Peer::pointer peer)
+PeerMaster::recvFloodedMsg(StellarMessage const& msg, Peer::pointer peer)
 {
     mMessagesReceived.Mark();
     mFloodGate.addRecord(msg, peer);
 }
 
-
 void
-PeerMaster::broadcastMessage(StellarMessage const& msg,bool force)
+PeerMaster::broadcastMessage(StellarMessage const& msg, bool force)
 {
     mMessagesBroadcast.Mark();
-    mFloodGate.broadcast(msg,force);
+    mFloodGate.broadcast(msg, force);
 }
 
 void
-PeerMaster::dropAll(Database &db)
+PeerMaster::dropAll(Database& db)
 {
     PeerRecord::dropAll(db);
 }
-
-
 }

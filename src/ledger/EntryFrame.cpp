@@ -11,8 +11,8 @@
 namespace stellar
 {
 
-
-EntryFrame::pointer EntryFrame::FromXDR(LedgerEntry const &from)
+EntryFrame::pointer
+EntryFrame::FromXDR(LedgerEntry const& from)
 {
     EntryFrame::pointer res;
 
@@ -32,18 +32,17 @@ EntryFrame::pointer EntryFrame::FromXDR(LedgerEntry const &from)
 }
 
 EntryFrame::EntryFrame(LedgerEntryType type)
-    : mKeyCalculated(false)
-    , mEntry(type)
+    : mKeyCalculated(false), mEntry(type)
 {
 }
 
 EntryFrame::EntryFrame(const LedgerEntry& from)
-    : mKeyCalculated(false)
-    , mEntry(from)
+    : mKeyCalculated(false), mEntry(from)
 {
 }
 
-LedgerKey const& EntryFrame::getKey()
+LedgerKey const&
+EntryFrame::getKey()
 {
     if (!mKeyCalculated)
     {
@@ -54,7 +53,7 @@ LedgerKey const& EntryFrame::getKey()
 }
 
 void
-EntryFrame::storeAddOrChange(LedgerDelta &delta, Database& db)
+EntryFrame::storeAddOrChange(LedgerDelta& delta, Database& db)
 {
     if (exists(db, getKey()))
     {
@@ -98,6 +97,4 @@ EntryFrame::storeDelete(LedgerDelta& delta, Database& db, LedgerKey const& key)
         break;
     }
 }
-
-
 }
