@@ -14,8 +14,10 @@
 #include "main/Application.h"
 #include "util/Logging.h"
 #include "process/ProcessGateway.h"
+#include "process/ProcessMaster.h"
 #include <string>
 #include <functional>
+#include <mutex>
 
 namespace stellar
 {
@@ -148,21 +150,31 @@ class ProcessExitEvent::Impl
     }
 };
 
+std::recursive_mutex
+ProcessMaster::gImplsMutex;
+
+std::map<int, std::shared_ptr<ProcessExitEvent::Impl>>
+ProcessMaster::gImpls;
+
 ProcessMaster::ProcessMaster(Application& app)
-    : mApp(app), mSigChild(app.getClock().getIOService(), SIGCHLD)
+    : mApp(app)
+    , mSigChild(app.getClock().getIOService(), SIGCHLD)
 {
+    std::lock_guard<std::recursive_mutex> guard(gImplsMutex);
     startSignalWait();
 }
 
 void
 ProcessMaster::startSignalWait()
 {
+    std::lock_guard<std::recursive_mutex> guard(gImplsMutex);
     mSigChild.async_wait(std::bind(&ProcessMaster::handleSignalWait, this));
 }
 
 void
 ProcessMaster::handleSignalWait()
 {
+    std::lock_guard<std::recursive_mutex> guard(gImplsMutex);
     while (true)
     {
         int status = 0;
@@ -192,14 +204,14 @@ ProcessMaster::handleSignalWait()
                 // the child.
                 ec = asio::error_code(1, asio::system_category());
             }
-            auto pair = mImpls.find(pid);
-            if (pair != mImpls.end())
-            {
-                auto impl = pair->second;
-                mImpls.erase(pair);
-                *(impl->mOuterEc) = ec;
-                impl->mOuterTimer->cancel();
-            }
+
+            auto pair = gImpls.find(pid);
+            assert(pair != gImpls.end());
+
+            auto impl = pair->second;
+            gImpls.erase(pair);
+            *(impl->mOuterEc) = ec;
+            impl->mOuterTimer->cancel();
         }
         else
         {
@@ -230,6 +242,7 @@ ProcessExitEvent
 ProcessMaster::runProcess(std::string const& cmdLine,
                           std::string outFile)
 {
+    std::lock_guard<std::recursive_mutex> guard(gImplsMutex);
     std::vector<std::string> args = split(cmdLine);
     std::vector<char*> argv;
     for (auto& a : args)
@@ -282,7 +295,7 @@ ProcessMaster::runProcess(std::string const& cmdLine,
     auto& svc = mApp.getClock().getIOService();
     ProcessExitEvent pe(svc);
     pe.mImpl = std::make_shared<ProcessExitEvent::Impl>(pe.mTimer, pe.mEc);
-    mImpls[pid] = pe.mImpl;
+    gImpls[pid] = pe.mImpl;
     return pe;
 }
 
@@ -304,19 +317,17 @@ void
 ProcessExitEvent::async_wait(std::function<void(asio::error_code)>
                              const& handler)
 {
-    {
-        // Unfortunately when you cancel a timer, asio delivers
-        // asio::error::operation_aborted to all the waiters, even if you pass a
-        // different error_code to the cancel() call. So we have to route the
-        // _actual_ process-exit condition through _another_ variable shared
-        // between ProcessExitEvent and the per-platform handlers.
-        auto ec = mEc;
-        std::function<void(asio::error_code)> h(handler);
+    // Unfortunately when you cancel a timer, asio delivers
+    // asio::error::operation_aborted to all the waiters, even if you pass a
+    // different error_code to the cancel() call. So we have to route the
+    // _actual_ process-exit condition through _another_ variable shared
+    // between ProcessExitEvent and the per-platform handlers.
+    auto ec = mEc;
+    std::function<void(asio::error_code)> h(handler);
         mTimer->async_wait([ec, h](asio::error_code)
                            {
                                h(*ec);
                            });
-    }
 }
 
 
