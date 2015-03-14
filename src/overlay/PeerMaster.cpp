@@ -70,8 +70,12 @@ void
 PeerMaster::connectTo(const std::string& peerStr)
 {
     PeerRecord pr;
-    PeerRecord::parseIPPort(peerStr, mApp.getClock(), pr);
-    connectTo(pr);
+    if(PeerRecord::parseIPPort(peerStr, mApp, pr))
+        connectTo(pr);
+    else
+    {
+        CLOG(ERROR, "Overlay") << "Unable to parse: " << peerStr;
+    }
 }
 
 void
@@ -100,12 +104,19 @@ void PeerMaster::storePeerList(const std::vector<std::string>& list, int rank)
 {
     for(auto peerStr : list)
     {
+        
         PeerRecord pr;
-        PeerRecord::parseIPPort(peerStr, mApp.getClock(), pr);
-        if (!pr.isStored(mApp.getDatabase()))
+        if(PeerRecord::parseIPPort(peerStr, mApp, pr))
         {
-            pr.storePeerRecord(mApp.getDatabase());
+            if (!pr.isStored(mApp.getDatabase()))
+            {
+                pr.storePeerRecord(mApp.getDatabase());
+            }
+        } else
+        {
+            CLOG(ERROR, "Overlay") << "Unable to parse: " << peerStr;
         }
+       
     }
 }
 

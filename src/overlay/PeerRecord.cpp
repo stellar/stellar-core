@@ -9,6 +9,7 @@
 #include "util/Logging.h"
 #include "util/must_use.h"
 #include "generated/StellarXDR.h"
+#include "main/Application.h"
 
 #define SECONDS_PER_BACKOFF 10
 
@@ -44,8 +45,8 @@ void PeerRecord::fromIPPort(const string &ip, uint32_t port, VirtualClock &clock
     ret = PeerRecord{ ip, port, clock.now(), 0, 1 };
 }
 
-// TODO: stricter verification that ip and port are valid
-void PeerRecord::parseIPPort(const string &ipPort, VirtualClock &clock, PeerRecord &ret, uint32_t defaultPort)
+// TODO.2 stricter verification that ip and port are valid
+bool PeerRecord::parseIPPort(const string &ipPort, Application& app, PeerRecord &ret, uint32_t defaultPort)
 {
     string ip;
     uint32_t port;
@@ -68,7 +69,22 @@ void PeerRecord::parseIPPort(const string &ipPort, VirtualClock &clock, PeerReco
             throw runtime_error("PeerRecord::perseIPPort: failed on " + ipPort);
     }
 
-    ret = PeerRecord{ ip, port, clock.now(), 0, 1 };
+    if(ip.size() && !isdigit(ip[ip.size() - 1]) )
+    {       
+        asio::ip::tcp::resolver resolver(app.getWorkerIOService());
+        asio::ip::tcp::resolver::query query(ip, "");
+        asio::ip::tcp::resolver::iterator i = resolver.resolve(query);
+        if(i != asio::ip::tcp::resolver::iterator())
+        {
+            asio::ip::tcp::endpoint end = *i;
+            ip = end.address().to_string();
+        } else return false;
+    }
+
+    if(port < 1 || port> 65535) return false;
+
+    ret = PeerRecord{ ip, port, app.getClock().now(), 0, 1 };
+    return true;
 }
 
 optional<PeerRecord> PeerRecord::loadPeerRecord(Database &db, string ip, uint32_t port)
