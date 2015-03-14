@@ -59,6 +59,12 @@ protected:
     std::vector<Config> mCfgs;
     Application::pointer appPtr;
     Application &app;
+
+    SecretKey mRoot;
+    SecretKey mAlice;
+    SecretKey mBob;
+    SecretKey mCarol;
+
     std::default_random_engine mGenerator;
     std::bernoulli_distribution mFlip{0.5};
 
@@ -74,6 +80,10 @@ public:
         , cfg(getTestConfig())
         , appPtr(Application::create(clock, addLocalDirHistoryArchive(dir, cfg)))
         , app(*appPtr)
+        , mRoot(txtest::getRoot())
+        , mAlice(txtest::getAccount("alice"))
+        , mBob(txtest::getAccount("bob"))
+        , mCarol(txtest::getAccount("carol"))
         {
             CHECK(HistoryMaster::initializeHistoryArchive(app, "test"));
         }
@@ -214,15 +224,10 @@ HistoryTests::generateAndPublishHistory(size_t nPublishes)
     assert(lm.getLastClosedLedgerHeader().header.ledgerSeq == 1);
     assert(lm.getCurrentLedgerHeader().ledgerSeq == 2);
 
-    SecretKey root = txtest::getRoot();
-    SecretKey alice = txtest::getAccount("alice");
-    SecretKey bob = txtest::getAccount("bob");
-    SecretKey carol = txtest::getAccount("carol");
-
     uint32_t ledgerSeq = 1;
     uint64_t closeTime = 1;
     uint64_t minBalance = lm.getMinBalance(5);
-    SequenceNumber rseq = txtest::getAccountSeqNum(root, app) + 1;
+    SequenceNumber rseq = txtest::getAccountSeqNum(mRoot, app) + 1;
 
     while (hm.getPublishSuccessCount() < nPublishes)
     {
@@ -235,25 +240,25 @@ HistoryTests::generateAndPublishHistory(size_t nPublishes)
             uint64_t small = 100 + ledgerSeq;
 
             // Root sends to alice every tx, bob every other tx, carol every 4rd tx.
-            txSet->add(txtest::createPaymentTx(root, alice, rseq++, big));
-            txSet->add(txtest::createPaymentTx(root, bob, rseq++, big));
-            txSet->add(txtest::createPaymentTx(root, carol, rseq++, big));
+            txSet->add(txtest::createPaymentTx(mRoot, mAlice, rseq++, big));
+            txSet->add(txtest::createPaymentTx(mRoot, mBob, rseq++, big));
+            txSet->add(txtest::createPaymentTx(mRoot, mCarol, rseq++, big));
 
             // They all randomly send a little to one another every ledger after #4
             if (ledgerSeq > 4)
             {
-                SequenceNumber aseq = txtest::getAccountSeqNum(alice, app) + 1;
-                SequenceNumber bseq = txtest::getAccountSeqNum(bob, app) + 1;
-                SequenceNumber cseq = txtest::getAccountSeqNum(carol, app) + 1;
+                SequenceNumber aseq = txtest::getAccountSeqNum(mAlice, app) + 1;
+                SequenceNumber bseq = txtest::getAccountSeqNum(mBob, app) + 1;
+                SequenceNumber cseq = txtest::getAccountSeqNum(mCarol, app) + 1;
 
-                if (flip()) txSet->add(txtest::createPaymentTx(alice, bob, aseq++, small));
-                if (flip()) txSet->add(txtest::createPaymentTx(alice, carol, aseq++, small));
+                if (flip()) txSet->add(txtest::createPaymentTx(mAlice, mBob, aseq++, small));
+                if (flip()) txSet->add(txtest::createPaymentTx(mAlice, mCarol, aseq++, small));
 
-                if (flip()) txSet->add(txtest::createPaymentTx(bob, alice, bseq++, small));
-                if (flip()) txSet->add(txtest::createPaymentTx(bob, carol, bseq++, small));
+                if (flip()) txSet->add(txtest::createPaymentTx(mBob, mAlice, bseq++, small));
+                if (flip()) txSet->add(txtest::createPaymentTx(mBob, mCarol, bseq++, small));
 
-                if (flip()) txSet->add(txtest::createPaymentTx(carol, alice, cseq++, small));
-                if (flip()) txSet->add(txtest::createPaymentTx(carol, bob, cseq++, small));
+                if (flip()) txSet->add(txtest::createPaymentTx(mCarol, mAlice, cseq++, small));
+                if (flip()) txSet->add(txtest::createPaymentTx(mCarol, mBob, cseq++, small));
             }
             CLOG(DEBUG, "History") << "Closing synthetic ledger with " << txSet->size() << " txs";
             lm.closeLedger(LedgerCloseData(ledgerSeq++, txSet, closeTime++, 10));
