@@ -20,7 +20,6 @@
 using namespace stellar;
 using namespace stellar::txtest;
 
-
 typedef std::unique_ptr<Application> appPtr;
 
 /*
@@ -38,16 +37,18 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
     VirtualClock clock;
     Application::pointer appPtr = Application::create(clock, cfg);
-    Application &app = *appPtr;
+    Application& app = *appPtr;
     app.start();
 
     // set up world
     SecretKey root = getRoot();
     SecretKey a1 = getAccount("A");
-    SequenceNumber rootSeq = getAccountSeqNum(root, app)+1;;
+    SequenceNumber rootSeq = getAccountSeqNum(root, app) + 1;
+    ;
 
-    const uint64_t paymentAmount = app.getLedgerMaster().getCurrentLedgerHeader().baseReserve*10;
-    
+    const uint64_t paymentAmount =
+        app.getLedgerMaster().getCurrentLedgerHeader().baseReserve * 10;
+
     SECTION("outer envelope")
     {
         TransactionFramePtr txFrame;
@@ -104,7 +105,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
     SECTION("multisig")
     {
         applyPaymentTx(app, root, a1, rootSeq++, paymentAmount);
-        SequenceNumber a1Seq = getAccountSeqNum(a1, app)+1;
+        SequenceNumber a1Seq = getAccountSeqNum(a1, app) + 1;
 
         SecretKey s1 = getAccount("S1");
         Signer sk1(s1.getPublicKey(), 5); // below low rights
@@ -116,14 +117,14 @@ TEST_CASE("txenvelope", "[tx][envelope]")
         th[2] = 50;
         th[3] = 100;
 
-        applySetOptions(app, a1, nullptr, nullptr, nullptr, nullptr,
-            &th, &sk1, a1Seq++);
+        applySetOptions(app, a1, nullptr, nullptr, nullptr, nullptr, &th, &sk1,
+                        a1Seq++);
 
         SecretKey s2 = getAccount("S2");
         Signer sk2(s2.getPublicKey(), 95); // med rights account
 
-        applySetOptions(app, a1, nullptr, nullptr, nullptr, nullptr,
-            nullptr, &sk2, a1Seq++);
+        applySetOptions(app, a1, nullptr, nullptr, nullptr, nullptr, nullptr,
+                        &sk2, a1Seq++);
 
         SECTION("not enough rights (envelope)")
         {
@@ -142,8 +143,8 @@ TEST_CASE("txenvelope", "[tx][envelope]")
         SECTION("not enough rights (operation)")
         {
             // updating thresholds requires high
-            TransactionFramePtr tx = createSetOptions(a1, nullptr,
-                nullptr, nullptr, nullptr, &th, &sk1, a1Seq);
+            TransactionFramePtr tx = createSetOptions(
+                a1, nullptr, nullptr, nullptr, nullptr, &th, &sk1, a1Seq);
 
             // only sign with s1 (med)
             tx->getEnvelope().signatures.clear();
@@ -168,7 +169,8 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
             tx->apply(delta, app);
             REQUIRE(tx->getResultCode() == txSUCCESS);
-            REQUIRE(Payment::getInnerCode(getFirstResult(*tx)) == Payment::SUCCESS);
+            REQUIRE(Payment::getInnerCode(getFirstResult(*tx)) ==
+                    Payment::SUCCESS);
         }
     }
 
@@ -186,7 +188,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
             tx.addSignature(root);
             LedgerDelta delta(app.getLedgerMaster().getCurrentLedgerHeader());
 
-            REQUIRE(!tx.checkValid(app,0));
+            REQUIRE(!tx.checkValid(app, 0));
 
             tx.apply(delta, app);
             REQUIRE(tx.getResultCode() == txMALFORMED);
@@ -203,122 +205,158 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
             SECTION("single tx wrapped by different account")
             {
-                TransactionFramePtr tx = createPaymentTx(a1, root, a1Seq++, 1000);
+                TransactionFramePtr tx =
+                    createPaymentTx(a1, root, a1Seq++, 1000);
 
                 // change inner payment to be b->root
-                tx->getEnvelope().tx.operations[0].sourceAccount.activate() = b1.getPublicKey();
+                tx->getEnvelope().tx.operations[0].sourceAccount.activate() =
+                    b1.getPublicKey();
 
                 tx->getEnvelope().signatures.clear();
                 tx->addSignature(a1);
 
                 SECTION("missing signature")
                 {
-                    LedgerDelta delta(app.getLedgerMaster().getCurrentLedgerHeader());
+                    LedgerDelta delta(
+                        app.getLedgerMaster().getCurrentLedgerHeader());
 
-                    REQUIRE(!tx->checkValid(app,0));
+                    REQUIRE(!tx->checkValid(app, 0));
                     tx->apply(delta, app);
                     REQUIRE(tx->getResultCode() == txFAILED);
-                    REQUIRE(tx->getOperations()[0]->getResultCode() == opBAD_AUTH);
+                    REQUIRE(tx->getOperations()[0]->getResultCode() ==
+                            opBAD_AUTH);
                 }
 
                 SECTION("success")
                 {
                     tx->addSignature(b1);
-                    LedgerDelta delta(app.getLedgerMaster().getCurrentLedgerHeader());
+                    LedgerDelta delta(
+                        app.getLedgerMaster().getCurrentLedgerHeader());
 
-                    REQUIRE(tx->checkValid(app,0));
+                    REQUIRE(tx->checkValid(app, 0));
                     tx->apply(delta, app);
                     REQUIRE(tx->getResultCode() == txSUCCESS);
-                    REQUIRE(Payment::getInnerCode(getFirstResult(*tx)) == Payment::SUCCESS);
+                    REQUIRE(Payment::getInnerCode(getFirstResult(*tx)) ==
+                            Payment::SUCCESS);
                 }
             }
             SECTION("multiple tx")
             {
-                TransactionFramePtr tx_a = createPaymentTx(a1, root, a1Seq++, 1000);
+                TransactionFramePtr tx_a =
+                    createPaymentTx(a1, root, a1Seq++, 1000);
                 SECTION("one invalid tx")
                 {
                     Currency idrCur = makeCurrency(b1, "IDR");
                     Price price(1, 1);
-                    TransactionFramePtr tx_b = createOfferOp(b1, idrCur, idrCur, price, 1000, b1Seq);
+                    TransactionFramePtr tx_b =
+                        createOfferOp(b1, idrCur, idrCur, price, 1000, b1Seq);
 
                     // build a new tx based off tx_a and tx_b
-                    tx_b->getEnvelope().tx.operations[0].sourceAccount.activate() = b1.getPublicKey();
-                    tx_a->getEnvelope().tx.operations.push_back(tx_b->getEnvelope().tx.operations[0]);
+                    tx_b->getEnvelope()
+                        .tx.operations[0]
+                        .sourceAccount.activate() = b1.getPublicKey();
+                    tx_a->getEnvelope().tx.operations.push_back(
+                        tx_b->getEnvelope().tx.operations[0]);
                     tx_a->getEnvelope().tx.maxFee *= 2;
-                    TransactionFramePtr tx = TransactionFrame::makeTransactionFromWire(tx_a->getEnvelope());
+                    TransactionFramePtr tx =
+                        TransactionFrame::makeTransactionFromWire(
+                            tx_a->getEnvelope());
 
                     tx->getEnvelope().signatures.clear();
                     tx->addSignature(a1);
                     tx->addSignature(b1);
 
-                    LedgerDelta delta(app.getLedgerMaster().getCurrentLedgerHeader());
+                    LedgerDelta delta(
+                        app.getLedgerMaster().getCurrentLedgerHeader());
 
-                    REQUIRE(!tx->checkValid(app,0));
+                    REQUIRE(!tx->checkValid(app, 0));
 
                     tx->apply(delta, app);
 
-                    REQUIRE(tx->getResult().feeCharged == 2 * app.getLedgerGateway().getTxFee());
+                    REQUIRE(tx->getResult().feeCharged ==
+                            2 * app.getLedgerGateway().getTxFee());
                     REQUIRE(tx->getResultCode() == txFAILED);
                     // first operation was success
-                    REQUIRE(Payment::getInnerCode(getFirstResult(*tx)) == Payment::SUCCESS);
-                    // second 
-                    REQUIRE(CreateOffer::getInnerCode(tx->getOperations()[1]->getResult()) ==
-                        CreateOffer::MALFORMED);
+                    REQUIRE(Payment::getInnerCode(getFirstResult(*tx)) ==
+                            Payment::SUCCESS);
+                    // second
+                    REQUIRE(CreateOffer::getInnerCode(
+                                tx->getOperations()[1]->getResult()) ==
+                            CreateOffer::MALFORMED);
                 }
                 SECTION("one failed tx")
                 {
                     // this payment is too large
-                    TransactionFramePtr tx_b = createPaymentTx(b1, root, b1Seq++, paymentAmount);
+                    TransactionFramePtr tx_b =
+                        createPaymentTx(b1, root, b1Seq++, paymentAmount);
 
-                    tx_b->getEnvelope().tx.operations[0].sourceAccount.activate() = b1.getPublicKey();
-                    tx_a->getEnvelope().tx.operations.push_back(tx_b->getEnvelope().tx.operations[0]);
+                    tx_b->getEnvelope()
+                        .tx.operations[0]
+                        .sourceAccount.activate() = b1.getPublicKey();
+                    tx_a->getEnvelope().tx.operations.push_back(
+                        tx_b->getEnvelope().tx.operations[0]);
                     tx_a->getEnvelope().tx.maxFee *= 2;
-                    TransactionFramePtr tx = TransactionFrame::makeTransactionFromWire(tx_a->getEnvelope());
+                    TransactionFramePtr tx =
+                        TransactionFrame::makeTransactionFromWire(
+                            tx_a->getEnvelope());
 
                     tx->getEnvelope().signatures.clear();
                     tx->addSignature(a1);
                     tx->addSignature(b1);
 
-                    LedgerDelta delta(app.getLedgerMaster().getCurrentLedgerHeader());
+                    LedgerDelta delta(
+                        app.getLedgerMaster().getCurrentLedgerHeader());
 
-                    REQUIRE(tx->checkValid(app,0));
+                    REQUIRE(tx->checkValid(app, 0));
 
                     tx->apply(delta, app);
 
-                    REQUIRE(tx->getResult().feeCharged == 2 * app.getLedgerGateway().getTxFee());
+                    REQUIRE(tx->getResult().feeCharged ==
+                            2 * app.getLedgerGateway().getTxFee());
                     REQUIRE(tx->getResultCode() == txFAILED);
                     // first operation was success
-                    REQUIRE(Payment::getInnerCode(getFirstResult(*tx)) == Payment::SUCCESS);
-                    // second 
-                    REQUIRE(Payment::getInnerCode(tx->getOperations()[1]->getResult()) ==
-                        Payment::UNDERFUNDED);
-
+                    REQUIRE(Payment::getInnerCode(getFirstResult(*tx)) ==
+                            Payment::SUCCESS);
+                    // second
+                    REQUIRE(Payment::getInnerCode(
+                                tx->getOperations()[1]->getResult()) ==
+                            Payment::UNDERFUNDED);
                 }
                 SECTION("both success")
                 {
-                    TransactionFramePtr tx_b = createPaymentTx(b1, root, b1Seq++, 1000);
+                    TransactionFramePtr tx_b =
+                        createPaymentTx(b1, root, b1Seq++, 1000);
 
-                    tx_b->getEnvelope().tx.operations[0].sourceAccount.activate() = b1.getPublicKey();
-                    tx_a->getEnvelope().tx.operations.push_back(tx_b->getEnvelope().tx.operations[0]);
-                    tx_a->getEnvelope().tx.maxFee *= 2; 
-                    TransactionFramePtr tx = TransactionFrame::makeTransactionFromWire(tx_a->getEnvelope());
+                    tx_b->getEnvelope()
+                        .tx.operations[0]
+                        .sourceAccount.activate() = b1.getPublicKey();
+                    tx_a->getEnvelope().tx.operations.push_back(
+                        tx_b->getEnvelope().tx.operations[0]);
+                    tx_a->getEnvelope().tx.maxFee *= 2;
+                    TransactionFramePtr tx =
+                        TransactionFrame::makeTransactionFromWire(
+                            tx_a->getEnvelope());
 
                     tx->getEnvelope().signatures.clear();
                     tx->addSignature(a1);
                     tx->addSignature(b1);
 
-                    LedgerDelta delta(app.getLedgerMaster().getCurrentLedgerHeader());
+                    LedgerDelta delta(
+                        app.getLedgerMaster().getCurrentLedgerHeader());
 
-                    REQUIRE(tx->checkValid(app,0));
+                    REQUIRE(tx->checkValid(app, 0));
 
                     tx->apply(delta, app);
 
-                    REQUIRE(tx->getResult().feeCharged == 2 * app.getLedgerGateway().getTxFee());
+                    REQUIRE(tx->getResult().feeCharged ==
+                            2 * app.getLedgerGateway().getTxFee());
                     REQUIRE(tx->getResultCode() == txSUCCESS);
 
-                    REQUIRE(Payment::getInnerCode(getFirstResult(*tx)) == Payment::SUCCESS);
-                    REQUIRE(Payment::getInnerCode(tx->getOperations()[1]->getResult()) ==
-                        Payment::SUCCESS);
+                    REQUIRE(Payment::getInnerCode(getFirstResult(*tx)) ==
+                            Payment::SUCCESS);
+                    REQUIRE(Payment::getInnerCode(
+                                tx->getOperations()[1]->getResult()) ==
+                            Payment::SUCCESS);
                 }
             }
         }
@@ -330,7 +368,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
             app.getLedgerMaster().getLastClosedLedgerHeader().hash);
 
         TransactionFramePtr txFrame;
-        
+
         for (int i = 0; i < 10; i++)
         {
             txFrame = createPaymentTx(root, a1, rootSeq++, paymentAmount);
@@ -345,17 +383,18 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
         {
             LedgerDelta delta(app.getLedgerMaster().getCurrentLedgerHeader());
-            
+
             SECTION("Insufficient fee")
             {
                 txFrame = createPaymentTx(root, a1, rootSeq++, paymentAmount);
-                txFrame->getEnvelope().tx.maxFee = static_cast<uint32_t>(app.getLedgerMaster().getTxFee() - 1);
+                txFrame->getEnvelope().tx.maxFee =
+                    static_cast<uint32_t>(app.getLedgerMaster().getTxFee() - 1);
 
                 txFrame->apply(delta, app);
 
                 REQUIRE(txFrame->getResultCode() == txINSUFFICIENT_FEE);
             }
-            
+
             SECTION("duplicate payment")
             {
 
@@ -366,7 +405,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
             SECTION("transaction gap")
             {
-                txFrame = createPaymentTx(root, a1, rootSeq+1, paymentAmount);
+                txFrame = createPaymentTx(root, a1, rootSeq + 1, paymentAmount);
 
                 txFrame->apply(delta, app);
 
@@ -377,19 +416,19 @@ TEST_CASE("txenvelope", "[tx][envelope]")
             {
                 txFrame = createPaymentTx(root, a1, rootSeq++, paymentAmount);
                 txFrame->getEnvelope().tx.minLedger = 4;
-                
+
                 txFrame->apply(delta, app);
-                
+
                 REQUIRE(txFrame->getResultCode() == txBAD_LEDGER);
             }
-            
+
             SECTION("max ledger seq")
             {
                 txFrame = createPaymentTx(root, a1, rootSeq++, paymentAmount);
                 txFrame->getEnvelope().tx.maxLedger = 2;
-                
+
                 txFrame->apply(delta, app);
-                
+
                 REQUIRE(txFrame->getResultCode() == txBAD_LEDGER);
             }
         }
@@ -397,7 +436,3 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
     LOG(INFO) << "************ Ending envelope test";
 }
-
-
-
-

@@ -83,8 +83,7 @@ class HistoryArchive;
 struct HistoryArchiveState;
 class Application;
 
-class
-CatchupStateMachine
+class CatchupStateMachine
 {
     static const size_t kRetryLimit;
 
@@ -106,9 +105,12 @@ CatchupStateMachine
     std::shared_ptr<HistoryArchive> mArchive;
     HistoryArchiveState mLocalState;
     HistoryArchiveState mArchiveState;
-    std::map<std::string, std::shared_ptr<FileTransferInfo<FileCatchupState>>> mFileInfos;
-    std::map<uint32_t, std::shared_ptr<FileTransferInfo<FileCatchupState>>> mHeaderInfos;
-    std::map<uint32_t, std::shared_ptr<FileTransferInfo<FileCatchupState>>> mTransactionInfos;
+    std::map<std::string, std::shared_ptr<FileTransferInfo<FileCatchupState>>>
+        mFileInfos;
+    std::map<uint32_t, std::shared_ptr<FileTransferInfo<FileCatchupState>>>
+        mHeaderInfos;
+    std::map<uint32_t, std::shared_ptr<FileTransferInfo<FileCatchupState>>>
+        mTransactionInfos;
     std::map<std::string, std::shared_ptr<Bucket>> mBuckets;
 
     std::shared_ptr<HistoryArchive> selectRandomReadableHistoryArchive();
@@ -130,17 +132,12 @@ CatchupStateMachine
     void acquireFinalLedgerState(uint32_t ledgerNum);
     void applyHistoryFromLedger(uint32_t ledgerNum);
 
-public:
-
-    CatchupStateMachine(Application& app,
-                        uint32_t lastLedger,
-                        uint32_t initLedger,
-                        HistoryMaster::ResumeMode mode,
-                        std::function<void(asio::error_code const& ec,
-                                           HistoryMaster::ResumeMode mode,
-                                           LedgerHeaderHistoryEntry const& lastClosed)> handler);
-
-
+  public:
+    CatchupStateMachine(
+        Application& app, uint32_t lastLedger, uint32_t initLedger,
+        HistoryMaster::ResumeMode mode,
+        std::function<
+            void(asio::error_code const& ec, HistoryMaster::ResumeMode mode,
+                 LedgerHeaderHistoryEntry const& lastClosed)> handler);
 };
-
 }

@@ -30,7 +30,4 @@ bool iequals(const std::string& a, const std::string& b);
 
 bool operator>(Price const& a, Price const& b);
 bool operator==(Price const& a, Price const& b);
-
 }
-
-

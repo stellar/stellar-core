@@ -6,8 +6,14 @@
 
 #include <memory>
 
-namespace asio { class io_service; }
-namespace medida { class MetricsRegistry; }
+namespace asio
+{
+class io_service;
+}
+namespace medida
+{
+class MetricsRegistry;
+}
 
 namespace stellar
 {
@@ -25,7 +31,6 @@ class OverlayGateway;
 class PeerMaster;
 class Database;
 class PersistentState;
-
 
 /*
  * State of a single instance of the application.
@@ -85,7 +90,7 @@ class Application
         NUM_STATE
     };
 
-    virtual ~Application() {};
+    virtual ~Application(){};
 
     // in seconds
     virtual uint64_t timeNow() = 0;
@@ -127,14 +132,13 @@ class Application
     // forces the ledger to close
     virtual bool manualClose() = 0;
 
-
     virtual void applyCfgCommands() = 0;
 
     static pointer create(VirtualClock& clock, Config const& cfg);
 
-protected:
-    Application() {}
+  protected:
+    Application()
+    {
+    }
 };
 }
-
-

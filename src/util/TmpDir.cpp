@@ -33,8 +33,7 @@ TmpDir::TmpDir(std::string const& prefix)
     }
 }
 
-TmpDir::TmpDir(TmpDir&& other)
-    : mPath(std::move(other.mPath))
+TmpDir::TmpDir(TmpDir&& other) : mPath(std::move(other.mPath))
 {
 }
 
@@ -54,8 +53,7 @@ TmpDir::~TmpDir()
     }
 }
 
-TmpDirMaster::TmpDirMaster(std::string const& root)
-    : mRoot(root)
+TmpDirMaster::TmpDirMaster(std::string const& root) : mRoot(root)
 {
     clean();
     fs::mkdir(root);
@@ -81,6 +79,4 @@ TmpDirMaster::tmpDir(std::string const& prefix)
 {
     return TmpDir(mRoot + "/" + prefix);
 }
-
-
 }

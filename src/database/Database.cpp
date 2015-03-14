@@ -27,7 +27,7 @@ extern "C" void register_factory_sqlite3();
 extern "C" void register_factory_postgresql();
 #endif
 
-// NOTE: soci will just crash and not throw 
+// NOTE: soci will just crash and not throw
 //  if you misname a column in a query. yay!
 
 namespace stellar
@@ -36,13 +36,13 @@ namespace stellar
 using namespace soci;
 using namespace std;
 
-bool
-Database::gDriversRegistered = false;
+bool Database::gDriversRegistered = false;
 
 static void
 setSerializable(soci::session& sess)
 {
-    sess << "SET SESSION CHARACTERISTICS AS TRANSACTION ISOLATION LEVEL SERIALIZABLE";
+    sess << "SET SESSION CHARACTERISTICS AS TRANSACTION ISOLATION LEVEL "
+            "SERIALIZABLE";
 }
 
 void
@@ -58,8 +58,7 @@ Database::registerDrivers()
     }
 }
 
-Database::Database(Application& app)
-    : mApp(app)
+Database::Database(Application& app) : mApp(app)
 {
     registerDrivers();
     CLOG(INFO, "Database") << "Connecting to: " << app.getConfig().DATABASE;
@@ -74,29 +73,36 @@ Database::Database(Application& app)
     }
 }
 
-
 medida::TimerContext
 Database::getInsertTimer(std::string const& entityName)
 {
-    return mApp.getMetrics().NewTimer({"database", "insert", entityName}).TimeScope();
+    return mApp.getMetrics()
+        .NewTimer({"database", "insert", entityName})
+        .TimeScope();
 }
 
 medida::TimerContext
 Database::getSelectTimer(std::string const& entityName)
 {
-    return mApp.getMetrics().NewTimer({"database", "select", entityName}).TimeScope();
+    return mApp.getMetrics()
+        .NewTimer({"database", "select", entityName})
+        .TimeScope();
 }
 
 medida::TimerContext
 Database::getDeleteTimer(std::string const& entityName)
 {
-    return mApp.getMetrics().NewTimer({"database", "delete", entityName}).TimeScope();
+    return mApp.getMetrics()
+        .NewTimer({"database", "delete", entityName})
+        .TimeScope();
 }
 
 medida::TimerContext
 Database::getUpdateTimer(std::string const& entityName)
 {
-    return mApp.getMetrics().NewTimer({"database", "update", entityName}).TimeScope();
+    return mApp.getMetrics()
+        .NewTimer({"database", "update", entityName})
+        .TimeScope();
 }
 
 bool
@@ -111,7 +117,8 @@ Database::canUsePool() const
     return !(mApp.getConfig().DATABASE == ("sqlite3://:memory:"));
 }
 
-void Database::initialize()
+void
+Database::initialize()
 {
     AccountFrame::dropAll(*this);
     OfferFrame::dropAll(*this);
@@ -140,7 +147,7 @@ Database::getPool()
         for (size_t i = 0; i < n; ++i)
         {
             LOG(DEBUG) << "Opening pool entry " << i;
-            soci::session &sess = mPool->at(i);
+            soci::session& sess = mPool->at(i);
             sess.open(c);
             if (!isSqlite())
             {
@@ -152,27 +159,28 @@ Database::getPool()
     return *mPool;
 }
 
-int64_t Database::getBalance(const uint256& accountID,const Currency& currency)
+int64_t
+Database::getBalance(const uint256& accountID, const Currency& currency)
 {
     int64_t amountFunded = 0;
-    if(currency.type()==NATIVE)
+    if (currency.type() == NATIVE)
     {
         AccountFrame account;
-        if(AccountFrame::loadAccount(accountID, account, *this))
+        if (AccountFrame::loadAccount(accountID, account, *this))
         {
             amountFunded = account.getAccount().balance;
         }
-    } else
+    }
+    else
     {
         TrustFrame trustLine;
-        if(TrustFrame::loadTrustLine(accountID, currency, trustLine, *this))
+        if (TrustFrame::loadTrustLine(accountID, currency, trustLine, *this))
         {
-            if(trustLine.getTrustLine().authorized)
+            if (trustLine.getTrustLine().authorized)
                 amountFunded = trustLine.getTrustLine().balance;
         }
     }
 
     return amountFunded;
 }
-
 }

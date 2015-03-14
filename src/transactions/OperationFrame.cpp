@@ -21,107 +21,114 @@
 namespace stellar
 {
 
-    using namespace std;
+using namespace std;
 
-    shared_ptr<OperationFrame> OperationFrame::makeHelper(Operation const& op,
-        OperationResult &res, TransactionFrame &tx)
+shared_ptr<OperationFrame>
+OperationFrame::makeHelper(Operation const& op, OperationResult& res,
+                           TransactionFrame& tx)
+{
+    switch (op.body.type())
     {
-        switch (op.body.type())
-        {
-        case PAYMENT:
-            return shared_ptr<OperationFrame>(new PaymentOpFrame(op, res, tx));
-        case CREATE_OFFER:
-            return shared_ptr<OperationFrame>(new CreateOfferOpFrame(op, res, tx));
-        case CANCEL_OFFER:
-            return shared_ptr<OperationFrame>(new CancelOfferOpFrame(op, res, tx));
-        case SET_OPTIONS:
-            return shared_ptr<OperationFrame>(new SetOptionsOpFrame(op, res, tx));
-        case CHANGE_TRUST:
-            return shared_ptr<OperationFrame>(new ChangeTrustOpFrame(op, res, tx));
-        case ALLOW_TRUST:
-            return shared_ptr<OperationFrame>(new AllowTrustOpFrame(op, res, tx));
-        case ACCOUNT_MERGE:
-            return shared_ptr<OperationFrame>(new MergeOpFrame(op, res, tx));
-        case INFLATION:
-            return shared_ptr<OperationFrame>(new InflationOpFrame(op, res, tx));
+    case PAYMENT:
+        return shared_ptr<OperationFrame>(new PaymentOpFrame(op, res, tx));
+    case CREATE_OFFER:
+        return shared_ptr<OperationFrame>(new CreateOfferOpFrame(op, res, tx));
+    case CANCEL_OFFER:
+        return shared_ptr<OperationFrame>(new CancelOfferOpFrame(op, res, tx));
+    case SET_OPTIONS:
+        return shared_ptr<OperationFrame>(new SetOptionsOpFrame(op, res, tx));
+    case CHANGE_TRUST:
+        return shared_ptr<OperationFrame>(new ChangeTrustOpFrame(op, res, tx));
+    case ALLOW_TRUST:
+        return shared_ptr<OperationFrame>(new AllowTrustOpFrame(op, res, tx));
+    case ACCOUNT_MERGE:
+        return shared_ptr<OperationFrame>(new MergeOpFrame(op, res, tx));
+    case INFLATION:
+        return shared_ptr<OperationFrame>(new InflationOpFrame(op, res, tx));
 
-        default:
-            ostringstream err;
-            err << "Unknown Tx type: " << op.body.type();
-            throw std::invalid_argument(err.str());
-        }
+    default:
+        ostringstream err;
+        err << "Unknown Tx type: " << op.body.type();
+        throw std::invalid_argument(err.str());
+    }
+}
+
+OperationFrame::OperationFrame(Operation const& op, OperationResult& res,
+                               TransactionFrame& parentTx)
+    : mOperation(op), mParentTx(parentTx), mResult(res)
+{
+}
+
+bool
+OperationFrame::apply(LedgerDelta& delta, Application& app)
+{
+    bool res;
+    res = checkValid(app);
+    if (res)
+    {
+        res = doApply(delta, app.getLedgerMaster());
     }
 
-    OperationFrame::OperationFrame(Operation const& op, OperationResult &res, TransactionFrame & parentTx)
-        : mOperation(op), mParentTx(parentTx), mResult(res)
+    return res;
+}
+
+int32_t
+OperationFrame::getNeededThreshold()
+{
+    return mSourceAccount->getMidThreshold();
+}
+
+bool
+OperationFrame::checkSignature()
+{
+    return mParentTx.checkSignature(*mSourceAccount, getNeededThreshold());
+}
+
+uint256 const&
+OperationFrame::getSourceID()
+{
+    return mOperation.sourceAccount ? *mOperation.sourceAccount
+                                    : mParentTx.getEnvelope().tx.account;
+}
+
+bool
+OperationFrame::loadAccount(Application& app)
+{
+    mSourceAccount = mParentTx.loadAccount(app, getSourceID());
+    return !!mSourceAccount;
+}
+
+OperationResultCode
+OperationFrame::getResultCode()
+{
+    return mResult.code();
+}
+
+// called when determining if we should accept this tx.
+// called when determining if we should flood
+// make sure sig is correct
+// make sure maxFee is above the current fee
+// make sure it is in the correct ledger bounds
+// don't consider minBalance since you want to allow them to still send
+// around credit etc
+bool
+OperationFrame::checkValid(Application& app)
+{
+    if (!loadAccount(app))
     {
+        mResult.code(opNO_ACCOUNT);
+        return false;
     }
 
-    bool OperationFrame::apply(LedgerDelta& delta, Application& app)
+    if (!checkSignature())
     {
-        bool res;
-        res = checkValid(app);
-        if (res)
-        {
-            res = doApply(delta, app.getLedgerMaster());
-        }
-
-        return res;
+        mResult.code(opBAD_AUTH);
+        return false;
     }
 
-    int32_t OperationFrame::getNeededThreshold()
-    {
-        return mSourceAccount->getMidThreshold();
-    }
+    mResult.code(opINNER);
+    mResult.tr().type(mOperation.body.type());
 
-    bool OperationFrame::checkSignature()
-    {
-        return mParentTx.checkSignature(*mSourceAccount, getNeededThreshold());
-    }
-
-    uint256 const& OperationFrame::getSourceID()
-    {
-        return mOperation.sourceAccount ?
-            *mOperation.sourceAccount : mParentTx.getEnvelope().tx.account;
-    }
-
-    bool OperationFrame::loadAccount(Application& app)
-    {
-        mSourceAccount = mParentTx.loadAccount(app, getSourceID());
-        return !!mSourceAccount;
-    }
-
-    OperationResultCode OperationFrame::getResultCode()
-    {
-        return mResult.code();
-    }
-
-    // called when determining if we should accept this tx.
-    // called when determining if we should flood
-    // make sure sig is correct
-    // make sure maxFee is above the current fee
-    // make sure it is in the correct ledger bounds
-    // don't consider minBalance since you want to allow them to still send
-    // around credit etc
-    bool OperationFrame::checkValid(Application& app)
-    {
-        if (!loadAccount(app))
-        {
-            mResult.code(opNO_ACCOUNT);
-            return false;
-        }
-
-        if (!checkSignature())
-        {
-            mResult.code(opBAD_AUTH);
-            return false;
-        }
-
-        mResult.code(opINNER);
-        mResult.tr().type(
-            mOperation.body.type());
-
-        return doCheckValid(app);
-    }
-
+    return doCheckValid(app);
+}
 }

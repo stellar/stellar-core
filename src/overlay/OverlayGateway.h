@@ -34,15 +34,14 @@ class OverlayGateway
     virtual void ledgerClosed(LedgerHeaderHistoryEntry const& ledger) = 0;
 
     // called by Herder
-    virtual void broadcastMessage(StellarMessage const& msg, bool force=false) = 0;
+    virtual void broadcastMessage(StellarMessage const& msg,
+                                  bool force = false) = 0;
 
     // called internally
     virtual void recvFloodedMsg(StellarMessage const& msg,
                                 Peer::pointer peer) = 0;
     virtual Peer::pointer getRandomPeer() = 0;
     // returns NULL if the passed peer isn't found
-    virtual Peer::pointer getNextPeer(Peer::pointer peer) = 0; 
+    virtual Peer::pointer getNextPeer(Peer::pointer peer) = 0;
 };
 }
-
-

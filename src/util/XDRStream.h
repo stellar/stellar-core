@@ -18,13 +18,12 @@ namespace stellar
  * Helper for loading a sequence of XDR objects from a file one at a time,
  * rather than all at once.
  */
-class
-XDRInputFileStream
+class XDRInputFileStream
 {
     std::ifstream mIn;
     std::vector<char> mBuf;
-public:
 
+  public:
     void
     close()
     {
@@ -47,7 +46,8 @@ public:
         return mIn.good();
     }
 
-    template <typename T> bool
+    template <typename T>
+    bool
     readOne(T& out)
     {
         char szBuf[4];
@@ -59,9 +59,12 @@ public:
         // Read 4 bytes of size, big-endian, with XDR 'continuation' bit cleared
         // (high bit of high byte).
         uint32_t sz = 0;
-        sz |= static_cast<uint8_t>(szBuf[0] & '\x7f'); sz <<= 8;
-        sz |= static_cast<uint8_t>(szBuf[1]); sz <<= 8;
-        sz |= static_cast<uint8_t>(szBuf[2]); sz <<= 8;
+        sz |= static_cast<uint8_t>(szBuf[0] & '\x7f');
+        sz <<= 8;
+        sz |= static_cast<uint8_t>(szBuf[1]);
+        sz <<= 8;
+        sz |= static_cast<uint8_t>(szBuf[2]);
+        sz <<= 8;
         sz |= static_cast<uint8_t>(szBuf[3]);
 
         if (sz > mBuf.size())
@@ -78,13 +81,12 @@ public:
     }
 };
 
-class
-XDROutputFileStream
+class XDROutputFileStream
 {
     std::ofstream mOut;
     std::vector<char> mBuf;
-public:
 
+  public:
     void
     close()
     {
@@ -94,9 +96,7 @@ public:
     void
     open(std::string const& filename)
     {
-        mOut.open(filename,
-                  std::ofstream::binary|
-                  std::ofstream::trunc);
+        mOut.open(filename, std::ofstream::binary | std::ofstream::trunc);
         if (!mOut)
         {
             std::string msg("failed to open XDR file: ");
@@ -109,8 +109,9 @@ public:
         return mOut.good();
     }
 
-    template <typename T> bool
-    writeOne(T const& t, SHA256* hasher=nullptr, size_t* bytesPut=nullptr)
+    template <typename T>
+    bool
+    writeOne(T const& t, SHA256* hasher = nullptr, size_t* bytesPut = nullptr)
     {
         uint32_t sz = (uint32_t)xdr::xdr_size(t);
         assert(sz < 0x80000000);
@@ -145,6 +146,4 @@ public:
         return true;
     }
 };
-
-
 }

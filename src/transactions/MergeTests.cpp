@@ -17,9 +17,7 @@
 using namespace stellar;
 using namespace stellar::txtest;
 
-
 typedef std::unique_ptr<Application> appPtr;
-
 
 // Merging when you are holding credit
 // Merging when others are holding your credit
@@ -36,5 +34,4 @@ TEST_CASE("merge", "[tx]")
     Application::pointer app = Application::create(clock, cfg);
 
     // set up world
-
 }

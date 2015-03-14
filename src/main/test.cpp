@@ -29,12 +29,12 @@ namespace stellar
 static std::vector<std::unique_ptr<Config>> gTestCfg;
 static std::vector<TmpDir> gTestRoots;
 
-Config const& getTestConfig(int instanceNumber,
-                            Config::TestDbMode mode)
+Config const&
+getTestConfig(int instanceNumber, Config::TestDbMode mode)
 {
     if (gTestCfg.size() <= instanceNumber)
     {
-        gTestCfg.resize(instanceNumber+1);
+        gTestCfg.resize(instanceNumber + 1);
     }
 
     if (!gTestCfg[instanceNumber])
@@ -45,7 +45,7 @@ Config const& getTestConfig(int instanceNumber,
         rootDir += "/";
 
         gTestCfg[instanceNumber] = stellar::make_unique<Config>();
-        Config &thisConfig = *gTestCfg[instanceNumber];
+        Config& thisConfig = *gTestCfg[instanceNumber];
 
         std::ostringstream sstream;
 
@@ -62,8 +62,8 @@ Config const& getTestConfig(int instanceNumber,
         thisConfig.START_NEW_NETWORK = true;
         thisConfig.REBUILD_DB = true;
 
-        thisConfig.PEER_PORT = DEFAULT_PEER_PORT + instanceNumber*2;
-        thisConfig.HTTP_PORT = DEFAULT_PEER_PORT + instanceNumber*2-1;
+        thisConfig.PEER_PORT = DEFAULT_PEER_PORT + instanceNumber * 2;
+        thisConfig.HTTP_PORT = DEFAULT_PEER_PORT + instanceNumber * 2 - 1;
 
         // We set a secret key by default as START_NEW_NETWORK is true by
         // default and we do need a VALIDATION_KEY to start a new network
@@ -76,13 +76,15 @@ Config const& getTestConfig(int instanceNumber,
             dbname << "sqlite3://:memory:";
             break;
         case Config::TESTDB_ON_DISK_SQLITE:
-            dbname << "sqlite3://" << rootDir << "test" << instanceNumber << ".db";
+            dbname << "sqlite3://" << rootDir << "test" << instanceNumber
+                   << ".db";
             break;
         case Config::TESTDB_UNIX_LOCAL_POSTGRESQL:
             dbname << "postgresql://dbname=test" << instanceNumber;
             break;
         case Config::TESTDB_TCP_LOCALHOST_POSTGRESQL:
-            dbname << "postgresql://host=localhost dbname=test" << instanceNumber << " user=test password=test";
+            dbname << "postgresql://host=localhost dbname=test"
+                   << instanceNumber << " user=test password=test";
             break;
         }
         thisConfig.DATABASE = dbname.str();

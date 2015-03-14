@@ -15,7 +15,10 @@
 #include "overlay/OverlayGateway.h"
 #include "util/Timer.h"
 
-namespace medida { class Meter; }
+namespace medida
+{
+class Meter;
+}
 
 /*
 Maintain the set of peers we are connected to
@@ -25,7 +28,7 @@ namespace stellar
 
 class PeerMaster : public OverlayGateway
 {
-protected:
+  protected:
     Application& mApp;
     // peers we are connected to
     std::vector<Peer::pointer> mPeers;
@@ -40,7 +43,7 @@ protected:
     void tick();
     VirtualTimer mTimer;
 
-    void storePeerList(const std::vector<std::string>& list,int rank);
+    void storePeerList(const std::vector<std::string>& list, int rank);
     void storeConfigPeers();
     bool isPeerPreferred(Peer::pointer peer);
 
@@ -55,28 +58,28 @@ protected:
     //////// GATEWAY FUNCTIONS
     void ledgerClosed(LedgerHeaderHistoryEntry const& ledger);
 
-    void recvFloodedMsg(StellarMessage const& msg, 
-                        Peer::pointer peer);
+    void recvFloodedMsg(StellarMessage const& msg, Peer::pointer peer);
 
-    void broadcastMessage(StellarMessage const& msg, bool force=false);
+    void broadcastMessage(StellarMessage const& msg, bool force = false);
     //////
 
     void connectTo(const std::string& addr);
-    virtual void connectTo(PeerRecord &pr);
+    virtual void connectTo(PeerRecord& pr);
     void connectToMorePeers(int max);
     void addConnectedPeer(Peer::pointer peer);
     void dropPeer(Peer::pointer peer);
     bool isPeerAccepted(Peer::pointer peer);
-    std::vector<Peer::pointer>& getPeers() { return mPeers;  }
+    std::vector<Peer::pointer>&
+    getPeers()
+    {
+        return mPeers;
+    }
 
     Peer::pointer getConnectedPeer(const std::string& ip, int port);
     Peer::pointer getRandomPeer();
     // returns NULL if the passed peer isn't found
     Peer::pointer getNextPeer(Peer::pointer peer);
 
-    static void dropAll(Database &db);
-
+    static void dropAll(Database& db);
 };
 }
-
-

@@ -15,8 +15,8 @@ namespace stellar
 
 using namespace std;
 
-TxSetFrame::TxSetFrame(Hash const& previousLedgerHash) :
-    mHashIsValid(false), mPreviousLedgerHash(previousLedgerHash)
+TxSetFrame::TxSetFrame(Hash const& previousLedgerHash)
+    : mHashIsValid(false), mPreviousLedgerHash(previousLedgerHash)
 {
 }
 
@@ -31,9 +31,8 @@ TxSetFrame::TxSetFrame(TransactionSet const& xdrSet) : mHashIsValid(false)
     mPreviousLedgerHash = xdrSet.previousLedgerHash;
 }
 
-
 static bool
-HashTxSorter(const TransactionFramePtr & tx1, const TransactionFramePtr & tx2)
+HashTxSorter(const TransactionFramePtr& tx1, const TransactionFramePtr& tx2)
 {
     // need to use the hash of whole tx here since multiple txs could have
     // the same Contents
@@ -42,30 +41,31 @@ HashTxSorter(const TransactionFramePtr & tx1, const TransactionFramePtr & tx2)
 
 // order the txset correctly
 // must take into account multiple tx from same account
-void 
+void
 TxSetFrame::sortForHash()
 {
     std::sort(mTransactions.begin(), mTransactions.end(), HashTxSorter);
     mHashIsValid = false;
 }
 
-// We want to XOR the tx hash with the set hash. 
+// We want to XOR the tx hash with the set hash.
 // This way people can't predict the order that txs will be applied in
 struct ApplyTxSorter
 {
     Hash const& mSetHash;
-    ApplyTxSorter(Hash const& h) : mSetHash(h) {}
+    ApplyTxSorter(Hash const& h) : mSetHash(h)
+    {
+    }
 
-    bool 
-    operator () (const TransactionFramePtr & tx1, 
-                 const TransactionFramePtr & tx2)
+    bool operator()(const TransactionFramePtr& tx1,
+                    const TransactionFramePtr& tx2)
     {
         // need to use the hash of whole tx here since multiple txs could have
         // the same Contents
         Hash h1 = tx1->getFullHash();
         Hash h2 = tx2->getFullHash();
-        Hash v1,v2;
-        for(int n = 0; n < 32; n++)
+        Hash v1, v2;
+        for (int n = 0; n < 32; n++)
         {
             v1[n] = mSetHash[n] ^ h1[n];
             v2[n] = mSetHash[n] ^ h2[n];
@@ -86,16 +86,16 @@ TxSetFrame::sortForApply()
 {
     vector<TransactionFramePtr> retList;
 
-    vector< vector<TransactionFramePtr>> txLevels(4);
-    map<uint256, size_t > accountTxCountMap;
+    vector<vector<TransactionFramePtr>> txLevels(4);
+    map<uint256, size_t> accountTxCountMap;
     retList = mTransactions;
     // sort all the txs by seqnum
     std::sort(retList.begin(), retList.end(), SeqSorter);
-   
+
     for (auto tx : retList)
     {
-        auto &v = accountTxCountMap[tx->getSourceID()];
-       
+        auto& v = accountTxCountMap[tx->getSourceID()];
+
         if (v >= txLevels.size())
         {
             txLevels.resize(v + 4);
@@ -105,7 +105,7 @@ TxSetFrame::sortForApply()
     }
 
     retList.clear();
-   
+
     for (auto level : txLevels)
     {
         ApplyTxSorter s(getContentsHash());
@@ -119,20 +119,21 @@ TxSetFrame::sortForApply()
     return retList;
 }
 
-// need to make sure every account that is submitting a tx has enough to pay 
+// need to make sure every account that is submitting a tx has enough to pay
 // the fees of all the tx it has submitted in this set
 // check seq num
-bool 
+bool
 TxSetFrame::checkValid(Application& app)
 {
     using xdr::operator==;
 
     // Start by checking previousLedgerHash
-    if (app.getLedgerMaster().getLastClosedLedgerHeader().hash != mPreviousLedgerHash)
+    if (app.getLedgerMaster().getLastClosedLedgerHeader().hash !=
+        mPreviousLedgerHash)
     {
         return false;
     }
-    
+
     map<uint256, vector<TransactionFramePtr>> accountTxMap;
 
     Hash lastHash;
@@ -147,14 +148,14 @@ TxSetFrame::checkValid(Application& app)
         lastHash = tx->getFullHash();
     }
 
-    for (auto &item : accountTxMap)
+    for (auto& item : accountTxMap)
     {
         // order by sequence number
         std::sort(item.second.begin(), item.second.end(), SeqSorter);
 
         TransactionFramePtr lastEncountered;
         SequenceNumber lastSeq = 0;
-        for (auto &tx : item.second)
+        for (auto& tx : item.second)
         {
             if (!tx->checkValid(app, lastSeq))
             {
@@ -165,8 +166,10 @@ TxSetFrame::checkValid(Application& app)
             {
                 // make sure account can pay the fee for all these tx
                 int64_t newBalance = tx->getSourceAccount().getBalance() -
-                    xdr::size32(item.second.size()) * app.getLedgerGateway().getTxFee();
-                if (newBalance < tx->getSourceAccount().getMinimumBalance(app.getLedgerMaster()))
+                                     xdr::size32(item.second.size()) *
+                                         app.getLedgerGateway().getTxFee();
+                if (newBalance < tx->getSourceAccount().getMinimumBalance(
+                                     app.getLedgerMaster()))
                 {
                     return false;
                 }
@@ -196,8 +199,6 @@ TxSetFrame::getContentsHash()
     return mHash;
 }
 
-
-
 Hash&
 TxSetFrame::previousLedgerHash()
 {
@@ -217,9 +218,8 @@ TxSetFrame::toXDR(TransactionSet& txSet)
     txSet.txs.resize(xdr::size32(mTransactions.size()));
     for (unsigned int n = 0; n < mTransactions.size(); n++)
     {
-        txSet.txs[n]=mTransactions[n]->getEnvelope();
+        txSet.txs[n] = mTransactions[n]->getEnvelope();
     }
     txSet.previousLedgerHash = mPreviousLedgerHash;
 }
-
 }

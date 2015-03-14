@@ -12,7 +12,11 @@
 #include "ledger/TrustFrame.h"
 #include "medida/timer_context.h"
 
-namespace medida { class Meter; class Timer; }
+namespace medida
+{
+class Meter;
+class Timer;
+}
 
 namespace stellar
 {
@@ -42,9 +46,11 @@ class Database
 
     int64_t getBalance(const uint256& accountID, const Currency& currency);
 
-    soci::session& getSession() { return mSession; }
+    soci::session&
+    getSession()
+    {
+        return mSession;
+    }
     soci::connection_pool& getPool();
 };
 }
-
-

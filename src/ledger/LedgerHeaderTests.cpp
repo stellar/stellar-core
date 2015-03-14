@@ -52,7 +52,6 @@ TEST_CASE("ledgerheader", "[ledger]")
         app2->start();
 
         REQUIRE(saved ==
-            app2->getLedgerMaster().getLastClosedLedgerHeader().hash);
+                app2->getLedgerMaster().getLastClosedLedgerHeader().hash);
     }
-
 }

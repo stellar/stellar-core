@@ -4,22 +4,28 @@
 
 namespace stellar
 {
-    class CancelOfferOpFrame : public OperationFrame
+class CancelOfferOpFrame : public OperationFrame
+{
+    CancelOffer::CancelOfferResult&
+    innerResult()
     {
-        CancelOffer::CancelOfferResult &innerResult() { return mResult.tr().cancelOfferResult(); }
-    public:
-        CancelOfferOpFrame(Operation const& op, OperationResult &res, TransactionFrame &parentTx);
-
-        bool doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster);
-        bool doCheckValid(Application& app);
-    };
-
-    namespace CancelOffer
-    {
-        inline CancelOffer::CancelOfferResultCode getInnerCode(OperationResult const & res)
-        {
-            return res.tr().cancelOfferResult().code();
-        }
+        return mResult.tr().cancelOfferResult();
     }
 
+  public:
+    CancelOfferOpFrame(Operation const& op, OperationResult& res,
+                       TransactionFrame& parentTx);
+
+    bool doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster);
+    bool doCheckValid(Application& app);
+};
+
+namespace CancelOffer
+{
+inline CancelOffer::CancelOfferResultCode
+getInnerCode(OperationResult const& res)
+{
+    return res.tr().cancelOfferResult().code();
+}
+}
 }

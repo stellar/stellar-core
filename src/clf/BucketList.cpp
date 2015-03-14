@@ -2,7 +2,6 @@
 // under the ISC License. See the COPYING file at the top-level directory of
 // this distribution or at http://opensource.org/licenses/ISC
 
-
 #include "BucketList.h"
 // ASIO is somewhat particular about when it gets included -- it wants to be the
 // first to include <windows.h> -- so we try to include it before everything
@@ -116,30 +115,28 @@ BucketLevel::prepare(Application& app, uint32_t currLedger,
     //            << snap->getEntries().size() << " elements";
     CLFMaster& clfMaster = app.getCLFMaster();
     using task_t = std::packaged_task<std::shared_ptr<Bucket>()>;
-    std::shared_ptr<task_t> task =
-        std::make_shared<task_t>(
-            [curr, snap, &clfMaster, shadows]()
-            {
-                // CLOG(DEBUG, "CLF")
-                //<< "Worker merging " <<
-                // snap->getEntries().size()
-                //<< " new elements with " <<
-                // curr->getEntries().size()
-                //<< " existing";
-                // TIMED_SCOPE(timer, "merge + hash");
-                auto res = Bucket::merge(clfMaster,
-                                         (curr ? curr :
-                                          std::make_shared<Bucket>()),
-                                         snap, shadows);
-                // CLOG(DEBUG, "CLF")
-                //<< "Worker finished merging " <<
-                // snap->getEntries().size()
-                //<< " new elements with " <<
-                // curr->getEntries().size()
-                //<< " existing (new size: " <<
-                // res->getEntries().size() << ")";
-                return res;
-            });
+    std::shared_ptr<task_t> task = std::make_shared<task_t>(
+        [curr, snap, &clfMaster, shadows]()
+        {
+            // CLOG(DEBUG, "CLF")
+            //<< "Worker merging " <<
+            // snap->getEntries().size()
+            //<< " new elements with " <<
+            // curr->getEntries().size()
+            //<< " existing";
+            // TIMED_SCOPE(timer, "merge + hash");
+            auto res = Bucket::merge(clfMaster,
+                                     (curr ? curr : std::make_shared<Bucket>()),
+                                     snap, shadows);
+            // CLOG(DEBUG, "CLF")
+            //<< "Worker finished merging " <<
+            // snap->getEntries().size()
+            //<< " new elements with " <<
+            // curr->getEntries().size()
+            //<< " existing (new size: " <<
+            // res->getEntries().size() << ")";
+            return res;
+        });
 
     mNextCurr = task->get_future();
     app.getWorkerIOService().post(bind(&task_t::operator(), task));
@@ -278,15 +275,13 @@ BucketList::addBatch(Application& app, uint32_t currLedger,
     assert(shadows.size() == 2);
     shadows.pop_back();
     shadows.pop_back();
-    mLevels[0].prepare(app, currLedger,
-                       Bucket::fresh(app.getCLFMaster(),
-                                     liveEntries, deadEntries),
-                       shadows);
+    mLevels[0].prepare(
+        app, currLedger,
+        Bucket::fresh(app.getCLFMaster(), liveEntries, deadEntries), shadows);
     mLevels[0].commit();
 }
 
-size_t const
-BucketList::kNumLevels = 5;
+size_t const BucketList::kNumLevels = 5;
 
 BucketList::BucketList()
 {
@@ -295,5 +290,4 @@ BucketList::BucketList()
         mLevels.push_back(BucketLevel(i));
     }
 }
-
 }

@@ -24,7 +24,6 @@ void deltree(std::string const& path);
 // Make a single dir; not mkdir-p, i.e. non-recursive
 bool mkdir(std::string const& path);
 
-
 ////
 // Utility functions for constructing path names
 ////
@@ -36,18 +35,14 @@ std::string hexStr(uint32_t checkpointNum);
 std::string hexDir(std::string const& hexStr);
 
 // Construct the string <type>-<hexstr>.<suffix>
-std::string baseName(std::string const& type,
-                     std::string const& hexStr,
+std::string baseName(std::string const& type, std::string const& hexStr,
                      std::string const& suffix);
 
 // Construct the string <type>/hexdir(hexStr)
-std::string remoteDir(std::string const& type,
-                      std::string const& hexStr);
+std::string remoteDir(std::string const& type, std::string const& hexStr);
 
 // Construct the string <type>/hexdir(hexStr)/<type>-<hexstr>.<suffix>
-std::string remoteName(std::string const& type,
-                       std::string const& hexStr,
+std::string remoteName(std::string const& type, std::string const& hexStr,
                        std::string const& suffix);
-
 }
 }

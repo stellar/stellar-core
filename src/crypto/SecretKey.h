@@ -14,12 +14,13 @@ class ByteSlice;
 struct PublicKey : public uint256
 {
     bool verify(uint512 const& signature, ByteSlice const& bin) const;
-    static bool verifySig(const uint256& key, uint512 const& signature, ByteSlice const& bin);
+    static bool verifySig(const uint256& key, uint512 const& signature,
+                          ByteSlice const& bin);
 };
 
 class SecretKey : public uint512
 {
-public:
+  public:
     PublicKey getPublicKey() const;
     uint256 getSeed() const;
     std::string getBase58Seed() const;
@@ -32,5 +33,4 @@ public:
     static SecretKey fromBase58Seed(std::string const& base58Seed);
     static SecretKey fromSeed(const uint256& seed);
 };
-
 }

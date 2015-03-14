@@ -27,7 +27,8 @@ TEST_CASE("subprocess", "[process]")
                        CLOG(DEBUG, "Process") << "process exited: " << ec;
                        if (ec)
                        {
-                           CLOG(DEBUG, "Process") << "error code: " << ec.message();
+                           CLOG(DEBUG, "Process")
+                               << "error code: " << ec.message();
                        }
                        exited = true;
                    });
@@ -43,7 +44,7 @@ TEST_CASE("subprocess redirect to file", "[process]")
     VirtualClock clock;
     Config const& cfg = getTestConfig();
     Application::pointer appPtr = Application::create(clock, cfg);
-    Application &app = *appPtr;
+    Application& app = *appPtr;
     std::string filename("hostname.txt");
     auto evt = app.getProcessGateway().runProcess("hostname", filename);
     bool exited = false;
@@ -52,7 +53,8 @@ TEST_CASE("subprocess redirect to file", "[process]")
                        CLOG(DEBUG, "Process") << "process exited: " << ec;
                        if (ec)
                        {
-                           CLOG(DEBUG, "Process") << "error code: " << ec.message();
+                           CLOG(DEBUG, "Process")
+                               << "error code: " << ec.message();
                        }
                        exited = true;
                    });

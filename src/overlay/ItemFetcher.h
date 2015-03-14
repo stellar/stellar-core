@@ -86,8 +86,7 @@ class TxSetFetcher : public ItemFetcher
     TxSetFetcher(Application& app) : ItemFetcher(app)
     {
     }
-    TxSetFramePtr fetchItem(uint256 const& txSetHash,
-                            bool askNetwork);
+    TxSetFramePtr fetchItem(uint256 const& txSetHash, bool askNetwork);
     // looks to see if we know about it but doesn't ask the network
     TxSetFramePtr findItem(uint256 const& itemID);
     bool recvItem(TxSetFramePtr txSet);
@@ -99,8 +98,7 @@ class SCPQSetFetcher : public ItemFetcher
     SCPQSetFetcher(Application& app) : ItemFetcher(app)
     {
     }
-    SCPQuorumSetPtr fetchItem(uint256 const& qSetHash,
-                              bool askNetwork);
+    SCPQuorumSetPtr fetchItem(uint256 const& qSetHash, bool askNetwork);
     // looks to see if we know about it but doesn't ask the network
     SCPQuorumSetPtr findItem(uint256 const& itemID);
     bool recvItem(SCPQuorumSetPtr qSet);
@@ -114,7 +112,8 @@ class TxSetTrackingCollar : public TrackingCollar
   public:
     TxSetFramePtr mTxSet;
 
-    TxSetTrackingCollar(uint256 const& id, TxSetFramePtr txSet, Application& app);
+    TxSetTrackingCollar(uint256 const& id, TxSetFramePtr txSet,
+                        Application& app);
     bool
     isItemFound()
     {
@@ -129,7 +128,8 @@ class QSetTrackingCollar : public TrackingCollar
   public:
     SCPQuorumSetPtr mQSet;
 
-    QSetTrackingCollar(uint256 const& id, SCPQuorumSetPtr qSet, Application& app);
+    QSetTrackingCollar(uint256 const& id, SCPQuorumSetPtr qSet,
+                       Application& app);
     bool
     isItemFound()
     {

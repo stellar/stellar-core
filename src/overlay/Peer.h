@@ -46,7 +46,7 @@ class Peer : public enable_shared_from_this<Peer>
   protected:
     Application& mApp;
 
-    PeerRole mRole;  // from point of view of the other end
+    PeerRole mRole; // from point of view of the other end
     PeerState mState;
     uint256 mPeerID;
 
@@ -77,8 +77,7 @@ class Peer : public enable_shared_from_this<Peer>
 
     void sendHello();
     void sendSCPQuorumSet(SCPQuorumSetPtr qSet);
-    void sendDontHave(MessageType type,
-                      uint256 const& itemID);
+    void sendDontHave(MessageType type, uint256 const& itemID);
     void sendPeers();
 
     // NB: This is a move-argument because the write-buffer has to travel
@@ -89,10 +88,14 @@ class Peer : public enable_shared_from_this<Peer>
     // messages somewhere else. The async write request will point _into_
     // this owned buffer. This is really the best we can do.
     virtual void sendMessage(xdr::msg_ptr&& xdrBytes) = 0;
-    virtual void connected() {}
+    virtual void
+    connected()
+    {
+    }
+
   public:
     Peer(Application& app, PeerRole role);
-    
+
     Application&
     getApp()
     {
@@ -110,8 +113,6 @@ class Peer : public enable_shared_from_this<Peer>
         return mRole;
     }
 
-
-    
     PeerState
     getState() const
     {
@@ -123,38 +124,40 @@ class Peer : public enable_shared_from_this<Peer>
     {
         return mRemoteVersion;
     }
-    
+
     uint32_t
     getRemoteProtocolVersion() const
     {
         return mRemoteProtocolVersion;
     }
-    
+
     uint32_t
     getRemoteListeningPort()
     {
         return mRemoteListeningPort;
     }
-    uint256 getPeerID() { return mPeerID;  }
+    uint256
+    getPeerID()
+    {
+        return mPeerID;
+    }
 
     // These exist mostly to be overridden in TCPPeer and callable via
     // shared_ptr<Peer> as a captured shared_from_this().
     virtual void connectHandler(const asio::error_code& ec);
-    
+
     virtual void
     writeHandler(const asio::error_code& error, size_t bytes_transferred)
     {
     }
-    
+
     virtual void
-    readHeaderHandler(const asio::error_code& error,
-                      size_t bytes_transferred)
+    readHeaderHandler(const asio::error_code& error, size_t bytes_transferred)
     {
     }
 
     virtual void
-    readBodyHandler(const asio::error_code& error,
-                    size_t bytes_transferred)
+    readBodyHandler(const asio::error_code& error, size_t bytes_transferred)
     {
     }
 
@@ -167,5 +170,3 @@ class Peer : public enable_shared_from_this<Peer>
     friend class LoopbackPeer;
 };
 }
-
-

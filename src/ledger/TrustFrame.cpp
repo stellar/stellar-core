@@ -14,238 +14,243 @@
 using namespace std;
 using namespace soci;
 
-namespace stellar {
-    const char *TrustFrame::kSQLCreateStatement =
-        "CREATE TABLE TrustLines"
-         "("
-         "accountID     VARCHAR(51)  NOT NULL,"
-         "issuer        VARCHAR(51)  NOT NULL,"
-         "isoCurrency   VARCHAR(4)   NOT NULL,"
-         "tlimit        BIGINT       NOT NULL DEFAULT 0 CHECK (tlimit >= 0),"
-         "balance       BIGINT       NOT NULL DEFAULT 0 CHECK (balance >= 0),"
-         "authorized    BOOL         NOT NULL,"
-         "PRIMARY KEY (accountID, issuer, isoCurrency)"
-         ");";
+namespace stellar
+{
+const char* TrustFrame::kSQLCreateStatement =
+    "CREATE TABLE TrustLines"
+    "("
+    "accountID     VARCHAR(51)  NOT NULL,"
+    "issuer        VARCHAR(51)  NOT NULL,"
+    "isoCurrency   VARCHAR(4)   NOT NULL,"
+    "tlimit        BIGINT       NOT NULL DEFAULT 0 CHECK (tlimit >= 0),"
+    "balance       BIGINT       NOT NULL DEFAULT 0 CHECK (balance >= 0),"
+    "authorized    BOOL         NOT NULL,"
+    "PRIMARY KEY (accountID, issuer, isoCurrency)"
+    ");";
 
-    TrustFrame::TrustFrame() : EntryFrame(TRUSTLINE), mTrustLine(mEntry.trustLine())
+TrustFrame::TrustFrame() : EntryFrame(TRUSTLINE), mTrustLine(mEntry.trustLine())
+{
+}
+
+TrustFrame::TrustFrame(LedgerEntry const& from)
+    : EntryFrame(from), mTrustLine(mEntry.trustLine())
+{
+}
+
+TrustFrame::TrustFrame(TrustFrame const& from) : TrustFrame(from.mEntry)
+{
+}
+
+TrustFrame& TrustFrame::operator=(TrustFrame const& other)
+{
+    if (&other != this)
     {
+        mTrustLine = other.mTrustLine;
+        mKey = other.mKey;
+        mKeyCalculated = other.mKeyCalculated;
     }
+    return *this;
+}
 
-    TrustFrame::TrustFrame(LedgerEntry const& from) : EntryFrame(from), mTrustLine(mEntry.trustLine())
-    {
-    }
+void
+TrustFrame::getKeyFields(LedgerKey const& key, std::string& base58AccountID,
+                         std::string& base58Issuer, std::string& currencyCode)
+{
+    base58AccountID = toBase58Check(VER_ACCOUNT_ID, key.trustLine().accountID);
+    base58Issuer =
+        toBase58Check(VER_ACCOUNT_ID, key.trustLine().currency.isoCI().issuer);
+    currencyCodeToStr(key.trustLine().currency.isoCI().currencyCode,
+                      currencyCode);
+}
 
-    TrustFrame::TrustFrame(TrustFrame const &from) : TrustFrame(from.mEntry)
-    {
-    }
+int64_t
+TrustFrame::getBalance()
+{
+    assert(isValid());
+    return mTrustLine.balance;
+}
 
-    TrustFrame& TrustFrame::operator=(TrustFrame const& other)
-    {
-        if (&other != this)
-        {
-            mTrustLine = other.mTrustLine;
-            mKey = other.mKey;
-            mKeyCalculated = other.mKeyCalculated;
-        }
-        return *this;
-    }
+bool
+TrustFrame::isValid() const
+{
+    const TrustLineEntry& tl = mTrustLine;
+    bool res = tl.currency.type() != NATIVE;
+    res = res && (tl.balance >= 0);
+    res = res && (tl.balance <= tl.limit);
+    return res;
+}
 
-    void TrustFrame::getKeyFields(LedgerKey const& key,
-                                  std::string& base58AccountID,
-                                  std::string& base58Issuer,
-                                  std::string& currencyCode)
-    {
-        base58AccountID = toBase58Check(VER_ACCOUNT_ID, key.trustLine().accountID);
-        base58Issuer = toBase58Check(VER_ACCOUNT_ID, key.trustLine().currency.isoCI().issuer);
-        currencyCodeToStr(key.trustLine().currency.isoCI().currencyCode, currencyCode);
-    }
-
-    int64_t TrustFrame::getBalance()
-    {
-        assert(isValid());
-        return mTrustLine.balance;
-    }
-
-    bool TrustFrame::isValid() const
-    {
-        const TrustLineEntry &tl = mTrustLine;
-        bool res = tl.currency.type() != NATIVE;
-        res = res && (tl.balance >= 0);
-        res = res && (tl.balance <= tl.limit);
-        return res;
-    }
-
-    bool TrustFrame::exists(Database& db, LedgerKey const& key)
-    {
-        std::string b58AccountID, b58Issuer, currencyCode;
-        getKeyFields(key, b58AccountID, b58Issuer, currencyCode);
-        int exists = 0;
-        auto timer = db.getSelectTimer("trust-exists");
-        db.getSession() <<
-            "SELECT EXISTS (SELECT NULL FROM TrustLines \
+bool
+TrustFrame::exists(Database& db, LedgerKey const& key)
+{
+    std::string b58AccountID, b58Issuer, currencyCode;
+    getKeyFields(key, b58AccountID, b58Issuer, currencyCode);
+    int exists = 0;
+    auto timer = db.getSelectTimer("trust-exists");
+    db.getSession() << "SELECT EXISTS (SELECT NULL FROM TrustLines \
              WHERE accountID=:v1 and issuer=:v2 and isoCurrency=:v3)",
-            use(b58AccountID), use(b58Issuer), use(currencyCode),
-            into(exists);
-        return exists != 0;
-    }
+        use(b58AccountID), use(b58Issuer), use(currencyCode), into(exists);
+    return exists != 0;
+}
 
+void
+TrustFrame::storeDelete(LedgerDelta& delta, Database& db)
+{
+    storeDelete(delta, db, getKey());
+}
 
-    void TrustFrame::storeDelete(LedgerDelta &delta, Database& db)
-    {
-        storeDelete(delta, db, getKey());
-    }
+void
+TrustFrame::storeDelete(LedgerDelta& delta, Database& db, LedgerKey const& key)
+{
+    std::string b58AccountID, b58Issuer, currencyCode;
+    getKeyFields(key, b58AccountID, b58Issuer, currencyCode);
 
-    void TrustFrame::storeDelete(LedgerDelta &delta, Database& db, LedgerKey const& key)
-    {
-        std::string b58AccountID, b58Issuer, currencyCode;
-        getKeyFields(key, b58AccountID, b58Issuer, currencyCode);
-
-        auto timer = db.getDeleteTimer("trust");
-        db.getSession() <<
-            "DELETE from TrustLines \
+    auto timer = db.getDeleteTimer("trust");
+    db.getSession() << "DELETE from TrustLines \
              WHERE accountID=:v1 and issuer=:v2 and isoCurrency=:v3",
-            use(b58AccountID), use(b58Issuer), use(currencyCode);
+        use(b58AccountID), use(b58Issuer), use(currencyCode);
 
-        delta.deleteEntry(key);
-    }
+    delta.deleteEntry(key);
+}
 
-    void TrustFrame::storeChange(LedgerDelta &delta, Database& db)
-    {
-        assert(isValid());
+void
+TrustFrame::storeChange(LedgerDelta& delta, Database& db)
+{
+    assert(isValid());
 
-        std::string b58AccountID, b58Issuer, currencyCode;
-        getKeyFields(getKey(), b58AccountID, b58Issuer, currencyCode);
+    std::string b58AccountID, b58Issuer, currencyCode;
+    getKeyFields(getKey(), b58AccountID, b58Issuer, currencyCode);
 
-        auto timer = db.getUpdateTimer("trust");
-        statement st =
-            (db.getSession().prepare <<
-             "UPDATE TrustLines \
+    auto timer = db.getUpdateTimer("trust");
+    statement st = (db.getSession().prepare << "UPDATE TrustLines \
               SET balance=:b, tlimit=:tl, authorized=:a \
               WHERE accountID=:v1 and issuer=:v2 and isoCurrency=:v3",
-             use(mTrustLine.balance),
-             use(mTrustLine.limit),
-             use((int)mTrustLine.authorized),
-             use(b58AccountID), use(b58Issuer), use(currencyCode));
+                    use(mTrustLine.balance), use(mTrustLine.limit),
+                    use((int)mTrustLine.authorized), use(b58AccountID),
+                    use(b58Issuer), use(currencyCode));
 
-        st.execute(true);
+    st.execute(true);
 
-        if (st.get_affected_rows() != 1)
-        {
-            throw std::runtime_error("Could not update data in SQL");
-        }
-
-        delta.modEntry(*this);
+    if (st.get_affected_rows() != 1)
+    {
+        throw std::runtime_error("Could not update data in SQL");
     }
 
-    void TrustFrame::storeAdd(LedgerDelta &delta, Database& db)
-    {
-        assert(isValid());
+    delta.modEntry(*this);
+}
 
-        std::string b58AccountID, b58Issuer, currencyCode;
-        getKeyFields(getKey(), b58AccountID, b58Issuer, currencyCode);
+void
+TrustFrame::storeAdd(LedgerDelta& delta, Database& db)
+{
+    assert(isValid());
 
-        auto timer = db.getInsertTimer("trust");
-        statement st =
-            (db.getSession().prepare <<
-                "INSERT INTO TrustLines (accountID, issuer, isoCurrency, tlimit, authorized) \
+    std::string b58AccountID, b58Issuer, currencyCode;
+    getKeyFields(getKey(), b58AccountID, b58Issuer, currencyCode);
+
+    auto timer = db.getInsertTimer("trust");
+    statement st =
+        (db.getSession().prepare
+             << "INSERT INTO TrustLines (accountID, issuer, isoCurrency, tlimit, authorized) \
                  VALUES (:v1,:v2,:v3,:v4,:v5)",
-             use(b58AccountID), use(b58Issuer), use(currencyCode),
-             use(mTrustLine.limit),
-             use((int)mTrustLine.authorized));
+         use(b58AccountID), use(b58Issuer), use(currencyCode),
+         use(mTrustLine.limit), use((int)mTrustLine.authorized));
 
-        st.execute(true);
+    st.execute(true);
 
-        if (st.get_affected_rows() != 1)
-        {
-            throw std::runtime_error("Could not update data in SQL");
-        }
-
-        delta.addEntry(*this);
-    }
-
-    static const char *trustLineColumnSelector = "SELECT accountID, issuer, isoCurrency, tlimit,balance,authorized FROM TrustLines";
-
-    bool TrustFrame::loadTrustLine(const uint256& accountID,
-        const Currency& currency,
-        TrustFrame& retLine, Database& db)
+    if (st.get_affected_rows() != 1)
     {
-        std::string accStr, issuerStr, currencyStr;
-
-        accStr = toBase58Check(VER_ACCOUNT_ID, accountID);
-        currencyCodeToStr(currency.isoCI().currencyCode, currencyStr);
-        issuerStr = toBase58Check(VER_ACCOUNT_ID, currency.isoCI().issuer);
-
-        session &session = db.getSession();
-
-        details::prepare_temp_type sql = (session.prepare <<
-            trustLineColumnSelector << " WHERE accountID=:id AND "\
-            "issuer=:issuer AND isoCurrency=:currency",
-            use(accStr), use(issuerStr), use(currencyStr));
-
-        bool res = false;
-
-        auto timer = db.getSelectTimer("trust");
-        loadLines(sql, [&retLine, &res](TrustFrame const &trust)
-        {
-            retLine = trust;
-            res = true;
-        });
-        return res;
+        throw std::runtime_error("Could not update data in SQL");
     }
 
-    void TrustFrame::loadLines(details::prepare_temp_type &prep,
-        std::function<void(const TrustFrame&)> trustProcessor)
+    delta.addEntry(*this);
+}
+
+static const char* trustLineColumnSelector =
+    "SELECT accountID, issuer, isoCurrency, tlimit,balance,authorized FROM "
+    "TrustLines";
+
+bool
+TrustFrame::loadTrustLine(const uint256& accountID, const Currency& currency,
+                          TrustFrame& retLine, Database& db)
+{
+    std::string accStr, issuerStr, currencyStr;
+
+    accStr = toBase58Check(VER_ACCOUNT_ID, accountID);
+    currencyCodeToStr(currency.isoCI().currencyCode, currencyStr);
+    issuerStr = toBase58Check(VER_ACCOUNT_ID, currency.isoCI().issuer);
+
+    session& session = db.getSession();
+
+    details::prepare_temp_type sql =
+        (session.prepare << trustLineColumnSelector
+                         << " WHERE accountID=:id AND "
+                            "issuer=:issuer AND isoCurrency=:currency",
+         use(accStr), use(issuerStr), use(currencyStr));
+
+    bool res = false;
+
+    auto timer = db.getSelectTimer("trust");
+    loadLines(sql, [&retLine, &res](TrustFrame const& trust)
+              {
+        retLine = trust;
+        res = true;
+    });
+    return res;
+}
+
+void
+TrustFrame::loadLines(details::prepare_temp_type& prep,
+                      std::function<void(const TrustFrame&)> trustProcessor)
+{
+    string accountID;
+    std::string issuer, currency;
+    int authorized;
+
+    TrustFrame curTrustLine;
+
+    TrustLineEntry& tl = curTrustLine.mTrustLine;
+
+    statement st = (prep, into(accountID), into(issuer), into(currency),
+                    into(tl.limit), into(tl.balance), into(authorized));
+
+    st.execute(true);
+    while (st.got_data())
     {
-        string accountID;
-        std::string issuer, currency;
-        int authorized;
+        tl.accountID = fromBase58Check256(VER_ACCOUNT_ID, accountID);
+        tl.currency.type(ISO4217);
+        tl.currency.isoCI().issuer = fromBase58Check256(VER_ACCOUNT_ID, issuer);
+        strToCurrencyCode(tl.currency.isoCI().currencyCode, currency);
+        tl.authorized = (authorized != 0);
+        trustProcessor(curTrustLine);
 
-        TrustFrame curTrustLine;
-
-        TrustLineEntry &tl = curTrustLine.mTrustLine;
-
-        statement st = (prep,
-            into(accountID), into(issuer), into(currency), into(tl.limit),
-            into(tl.balance), into(authorized)
-            );
-
-        st.execute(true);
-        while (st.got_data())
-        {
-            tl.accountID = fromBase58Check256(VER_ACCOUNT_ID, accountID);
-            tl.currency.type(ISO4217);
-            tl.currency.isoCI().issuer = fromBase58Check256(VER_ACCOUNT_ID, issuer);
-            strToCurrencyCode(tl.currency.isoCI().currencyCode, currency);
-            tl.authorized = (authorized != 0);
-            trustProcessor(curTrustLine);
-
-            st.fetch();
-        }
+        st.fetch();
     }
+}
 
-    void TrustFrame::loadLines(const uint256& accountID,
-        std::vector<TrustFrame>& retLines, Database& db)
-    {
-        std::string accStr;
-        accStr = toBase58Check(VER_ACCOUNT_ID, accountID);
+void
+TrustFrame::loadLines(const uint256& accountID,
+                      std::vector<TrustFrame>& retLines, Database& db)
+{
+    std::string accStr;
+    accStr = toBase58Check(VER_ACCOUNT_ID, accountID);
 
-        session &session = db.getSession();
+    session& session = db.getSession();
 
-        details::prepare_temp_type sql = (session.prepare <<
-            trustLineColumnSelector << " WHERE accountID=:id",
-            use(accStr));
+    details::prepare_temp_type sql =
+        (session.prepare << trustLineColumnSelector << " WHERE accountID=:id",
+         use(accStr));
 
-        auto timer = db.getSelectTimer("trust");
-        loadLines(sql, [&retLines](TrustFrame const &cur)
-        {
-            retLines.push_back(cur);
-        });
-    }
+    auto timer = db.getSelectTimer("trust");
+    loadLines(sql, [&retLines](TrustFrame const& cur)
+              {
+        retLines.push_back(cur);
+    });
+}
 
-
-    void TrustFrame::dropAll(Database &db)
-    {
-        db.getSession() << "DROP TABLE IF EXISTS TrustLines;";
-        db.getSession() << kSQLCreateStatement;
-    }
+void
+TrustFrame::dropAll(Database& db)
+{
+    db.getSession() << "DROP TABLE IF EXISTS TrustLines;";
+    db.getSession() << kSQLCreateStatement;
+}
 }

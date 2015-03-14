@@ -164,7 +164,8 @@ namespace stellar
 // take ~46 minutes, giving us a safety margin of ~3x.
 //
 // It _does_ mean that at this scale, we will be _doing_ an 83GB sequential
-// read/merge/hash/write every 2.8 hours. That might cause a noticeable I/O spike
+// read/merge/hash/write every 2.8 hours. That might cause a noticeable I/O
+// spike
 // and/or some degree of I/O wear. But the hardware should keep up and this is,
 // after all, the 1000 tx/s "great success" situation where we're doing some
 // substantial tuning, having scaled through three orders of magnitude.
@@ -225,7 +226,6 @@ namespace stellar
 // peer to artificially degenerate to "new peer syncing for the first time"
 // behavior, which ought to be tolerably fast anyways.
 
-
 class Application;
 class Bucket;
 
@@ -255,7 +255,6 @@ class BucketList
     std::vector<BucketLevel> mLevels;
 
   public:
-
     static size_t const kNumLevels;
 
     static uint32_t levelSize(size_t level);
@@ -275,6 +274,4 @@ class BucketList
                   std::vector<LedgerEntry> const& liveEntries,
                   std::vector<LedgerKey> const& deadEntries);
 };
-
 }
-

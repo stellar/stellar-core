@@ -48,14 +48,13 @@ TEST_CASE("toXdr", "[overlay][PeerRecord]")
 
         pr.mNextAttempt = pr.mNextAttempt + chrono::seconds(12);
         pr.storePeerRecord(app->getDatabase());
-        auto actual1 = PeerRecord::loadPeerRecord(app->getDatabase(), pr.mIP, pr.mPort);
+        auto actual1 =
+            PeerRecord::loadPeerRecord(app->getDatabase(), pr.mIP, pr.mPort);
         REQUIRE(*actual1 == pr);
 
-        auto actual2 = PeerRecord::loadPeerRecord(app->getDatabase(), "1.2.3.4", 15);
+        auto actual2 =
+            PeerRecord::loadPeerRecord(app->getDatabase(), "1.2.3.4", 15);
         REQUIRE(*actual2 == other);
     }
-    
 }
-
-
 }

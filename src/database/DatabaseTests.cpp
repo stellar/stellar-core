@@ -15,7 +15,8 @@
 
 using namespace stellar;
 
-void transactionTest(Application::pointer app)
+void
+transactionTest(Application::pointer app)
 {
     int a = 10, b = 0;
     int a0 = a + 1;
@@ -51,7 +52,6 @@ void transactionTest(Application::pointer app)
         session << "select x from test", soci::into(b);
         CHECK(a == b);
 
-
         tx.commit();
     }
 
@@ -62,13 +62,12 @@ void transactionTest(Application::pointer app)
 TEST_CASE("database smoketest", "[db]")
 {
     Config cfg;
-    cfg.RUN_STANDALONE=true;
+    cfg.RUN_STANDALONE = true;
     VirtualClock clock;
     cfg.DATABASE = "sqlite3://:memory:";
     Application::pointer app = Application::create(clock, cfg);
     transactionTest(app);
 }
-
 
 void
 checkMVCCIsolation(Application::pointer app)
@@ -77,20 +76,14 @@ checkMVCCIsolation(Application::pointer app)
     int v0 = 1;
 
     // Values we insert/update in different txs
-    int tx1v1 = 11,
-        tx1v2 = 12;
+    int tx1v1 = 11, tx1v2 = 12;
 
     int tx2v1 = 21;
 
     // Values we read back out of different sessions
-    int s1r1 = 0,
-        s1r2 = 0,
-        s1r3 = 0;
+    int s1r1 = 0, s1r2 = 0, s1r3 = 0;
 
-    int s2r1 = 0,
-        s2r2 = 0,
-        s2r3 = 0,
-        s2r4 = 0;
+    int s2r1 = 0, s2r2 = 0, s2r3 = 0, s2r4 = 0;
 
     auto& sess1 = app->getDatabase().getSession();
 
@@ -126,7 +119,8 @@ checkMVCCIsolation(Application::pointer app)
         soci::transaction tx2(sess2);
 
         // First select upgrades us from deferred to a read-lock.
-        CLOG(DEBUG, "Database") << "Issuing select to acquire read lock for sess2/tx2";
+        CLOG(DEBUG, "Database")
+            << "Issuing select to acquire read lock for sess2/tx2";
         sess2 << "SELECT x FROM test", soci::into(s2r3);
         CHECK(s2r3 == v0);
 
@@ -134,17 +128,20 @@ checkMVCCIsolation(Application::pointer app)
         {
             // Try to modify through sess2; this _would_ upgrade the read-lock
             // on the row or page in question to a write lock, but that would
-            // collide with tx1's write-lock via sess1, so it throws. On postgres
+            // collide with tx1's write-lock via sess1, so it throws. On
+            // postgres
             // this just blocks, so we only check on sqlite.
 
-            CLOG(DEBUG, "Database") << "Checking failure to upgrade read lock to conflicting write lock";
+            CLOG(DEBUG, "Database") << "Checking failure to upgrade read lock "
+                                       "to conflicting write lock";
             try
             {
-                soci::statement st = (sess2.prepare << "UPDATE test SET x=:v", soci::use(tx2v1));
+                soci::statement st =
+                    (sess2.prepare << "UPDATE test SET x=:v", soci::use(tx2v1));
                 st.execute(true);
                 REQUIRE(false);
             }
-            catch (soci::soci_error &e)
+            catch (soci::soci_error& e)
             {
                 CLOG(DEBUG, "Database") << "Got " << e.what();
             }
@@ -154,7 +151,8 @@ checkMVCCIsolation(Application::pointer app)
             }
 
             // Check that sess1 didn't see a write via sess2
-            CLOG(DEBUG, "Database") << "Checking sess1 did not observe write on failed sess2 write-lock upgrade";
+            CLOG(DEBUG, "Database") << "Checking sess1 did not observe write "
+                                       "on failed sess2 write-lock upgrade";
             sess1 << "SELECT x FROM test", soci::into(s1r2);
             CHECK(s1r2 == tx1v1);
         }
@@ -183,7 +181,7 @@ checkMVCCIsolation(Application::pointer app)
 TEST_CASE("sqlite MVCC test", "[db]")
 {
     Config cfg;
-    cfg.RUN_STANDALONE=true;
+    cfg.RUN_STANDALONE = true;
     VirtualClock clock;
     TmpDir tmp("sqlite-mvcc");
     cfg.DATABASE = "sqlite3://" + tmp.getName() + "/test.db";
@@ -197,7 +195,8 @@ TEST_CASE("postgres smoketest", "[db]")
     Config cfg;
     cfg.RUN_STANDALONE = true;
     VirtualClock clock;
-    cfg.DATABASE = "postgresql://host=localhost dbname=test user=test password=test";
+    cfg.DATABASE =
+        "postgresql://host=localhost dbname=test user=test password=test";
     cfg.REBUILD_DB = true;
     try
     {
@@ -215,7 +214,7 @@ TEST_CASE("postgres smoketest", "[db]")
         SECTION("blob storage")
         {
             soci::transaction tx(session);
-            std::vector<uint8_t> x = { 0, 1, 2, 3, 4, 5, 6}, y;
+            std::vector<uint8_t> x = {0, 1, 2, 3, 4, 5, 6}, y;
             soci::blob blobX(session);
             blobX.append(reinterpret_cast<char const*>(x.data()), x.size());
             session << "drop table if exists test";
@@ -224,7 +223,8 @@ TEST_CASE("postgres smoketest", "[db]")
                 soci::use(a, "aa"), soci::use(blobX, "bb");
 
             soci::blob blobY(session);
-            session << "select a, b from test", soci::into(b), soci::into(blobY);
+            session << "select a, b from test", soci::into(b),
+                soci::into(blobY);
             y.resize(blobY.get_len());
             blobY.read(0, reinterpret_cast<char*>(y.data()), y.size());
             CHECK(x == y);
@@ -239,7 +239,7 @@ TEST_CASE("postgres smoketest", "[db]")
             checkMVCCIsolation(app);
         }
     }
-    catch(soci::soci_error& err)
+    catch (soci::soci_error& err)
     {
         std::string what(err.what());
 
@@ -256,4 +256,3 @@ TEST_CASE("postgres smoketest", "[db]")
 }
 
 #endif
-

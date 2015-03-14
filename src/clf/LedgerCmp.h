@@ -10,8 +10,7 @@ namespace stellar
 {
 
 // Helper for getting a LedgerKey from a LedgerEntry.
-LedgerKey
-LedgerEntryKey(LedgerEntry const& e);
+LedgerKey LedgerEntryKey(LedgerEntry const& e);
 
 /**
  * Compare two LedgerEntries or LedgerKeys for 'identity', not content.
@@ -28,12 +27,10 @@ LedgerEntryKey(LedgerEntry const& e);
  * implemented in terms of extracting 2 LedgerKeys from 2 LedgerEntries and
  * doing operator< on them, but that would be comparatively inefficient.
  */
-struct
-LedgerEntryIdCmp
+struct LedgerEntryIdCmp
 {
     template <typename T, typename U>
-    bool operator()(T const& a,
-                    U const& b) const
+    bool operator()(T const& a, U const& b) const
     {
         LedgerEntryType aty = a.type();
         LedgerEntryType bty = b.type();
@@ -84,12 +81,10 @@ LedgerEntryIdCmp
  * LedgerEntries (ignoring their hashes, as the LedgerEntryIdCmp ignores their
  * bodies).
  */
-struct
-CLFEntryIdCmp
+struct CLFEntryIdCmp
 {
     LedgerEntryIdCmp mCmp;
-    bool operator()(CLFEntry const& a,
-                    CLFEntry const& b) const
+    bool operator()(CLFEntry const& a, CLFEntry const& b) const
     {
         CLFType aty = a.type();
         CLFType bty = b.type();
@@ -118,5 +113,4 @@ CLFEntryIdCmp
         }
     }
 };
-
 }

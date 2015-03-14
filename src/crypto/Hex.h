@@ -10,17 +10,12 @@
 namespace stellar
 {
 
-std::string
-binToHex(ByteSlice const& bin);
+std::string binToHex(ByteSlice const& bin);
 
-std::string
-hexAbbrev(ByteSlice const& bin);
+std::string hexAbbrev(ByteSlice const& bin);
 
-std::vector<uint8_t>
-hexToBin(std::string const& hex);
+std::vector<uint8_t> hexToBin(std::string const& hex);
 
 // Variant that throws when there's not 32 bytes encoded.
-uint256
-hexToBin256(std::string const& encoded);
-
+uint256 hexToBin256(std::string const& encoded);
 }

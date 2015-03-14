@@ -48,8 +48,6 @@ class ProcessGateway
 {
   public:
     virtual ProcessExitEvent runProcess(std::string const& cmdLine,
-                                        std::string outputFile="") = 0;
+                                        std::string outputFile = "") = 0;
 };
 }
-
-

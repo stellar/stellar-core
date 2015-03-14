@@ -28,43 +28,54 @@ namespace stellar
 {
 namespace txtest
 {
-SecretKey getRoot()
+SecretKey
+getRoot()
 {
-    std::string b58SeedStr = toBase58Check(VER_SEED, "masterpassphrasemasterpassphrase");
+    std::string b58SeedStr =
+        toBase58Check(VER_SEED, "masterpassphrasemasterpassphrase");
     return SecretKey::fromBase58Seed(b58SeedStr);
 }
 
-SecretKey getAccount(const char* n)
+SecretKey
+getAccount(const char* n)
 {
     // stretch name to 32 bytes
     std::string name(n);
-    while(name.size() < 32) name += '.';
+    while (name.size() < 32)
+        name += '.';
     std::string b58SeedStr = toBase58Check(VER_SEED, name);
     return SecretKey::fromBase58Seed(b58SeedStr);
 }
 
-SequenceNumber getAccountSeqNum(SecretKey const& k, Application &app)
+SequenceNumber
+getAccountSeqNum(SecretKey const& k, Application& app)
 {
     AccountFrame account;
-    REQUIRE(AccountFrame::loadAccount(k.getPublicKey(), account, app.getDatabase()));
+    REQUIRE(AccountFrame::loadAccount(k.getPublicKey(), account,
+                                      app.getDatabase()));
     return account.getSeqNum();
 }
 
-uint64_t getAccountBalance(SecretKey const& k, Application &app)
+uint64_t
+getAccountBalance(SecretKey const& k, Application& app)
 {
     AccountFrame account;
-    REQUIRE(AccountFrame::loadAccount(k.getPublicKey(), account, app.getDatabase()));
+    REQUIRE(AccountFrame::loadAccount(k.getPublicKey(), account,
+                                      app.getDatabase()));
     return account.getBalance();
 }
 
-void checkTransaction(TransactionFrame& txFrame)
+void
+checkTransaction(TransactionFrame& txFrame)
 {
     REQUIRE(txFrame.getResult().feeCharged == 10); // default fee
     REQUIRE((txFrame.getResultCode() == txSUCCESS ||
-        txFrame.getResultCode() == txFAILED));
+             txFrame.getResultCode() == txFAILED));
 }
 
-TransactionFramePtr transactionFromOperation(SecretKey& from, SequenceNumber seq, Operation const& op)
+TransactionFramePtr
+transactionFromOperation(SecretKey& from, SequenceNumber seq,
+                         Operation const& op)
 {
     TransactionEnvelope e;
 
@@ -82,35 +93,42 @@ TransactionFramePtr transactionFromOperation(SecretKey& from, SequenceNumber seq
     return res;
 }
 
-TransactionFramePtr createChangeTrust(SecretKey& from, SecretKey& to, SequenceNumber seq, const std::string& currencyCode, int64_t limit)
+TransactionFramePtr
+createChangeTrust(SecretKey& from, SecretKey& to, SequenceNumber seq,
+                  const std::string& currencyCode, int64_t limit)
 {
     Operation op;
 
     op.body.type(CHANGE_TRUST);
     op.body.changeTrustOp().limit = limit;
     op.body.changeTrustOp().line.type(ISO4217);
-    strToCurrencyCode(op.body.changeTrustOp().line.isoCI().currencyCode,currencyCode);
+    strToCurrencyCode(op.body.changeTrustOp().line.isoCI().currencyCode,
+                      currencyCode);
     op.body.changeTrustOp().line.isoCI().issuer = to.getPublicKey();
 
     return transactionFromOperation(from, seq, op);
 }
 
-TransactionFramePtr createAllowTrust(SecretKey& from, SecretKey& trustor, SequenceNumber seq,
-    const std::string& currencyCode, bool authorize)
+TransactionFramePtr
+createAllowTrust(SecretKey& from, SecretKey& trustor, SequenceNumber seq,
+                 const std::string& currencyCode, bool authorize)
 {
     Operation op;
 
     op.body.type(ALLOW_TRUST);
     op.body.allowTrustOp().trustor = trustor.getPublicKey();
     op.body.allowTrustOp().currency.type(ISO4217);
-    strToCurrencyCode(op.body.allowTrustOp().currency.currencyCode(), currencyCode);
+    strToCurrencyCode(op.body.allowTrustOp().currency.currencyCode(),
+                      currencyCode);
     op.body.allowTrustOp().authorize = authorize;
 
     return transactionFromOperation(from, seq, op);
 }
 
-void applyAllowTrust(Application& app, SecretKey& from, SecretKey& trustor, SequenceNumber seq,
-    const std::string& currencyCode, bool authorize, AllowTrust::AllowTrustResultCode result)
+void
+applyAllowTrust(Application& app, SecretKey& from, SecretKey& trustor,
+                SequenceNumber seq, const std::string& currencyCode,
+                bool authorize, AllowTrust::AllowTrustResultCode result)
 {
     TransactionFramePtr txFrame;
     txFrame = createAllowTrust(from, trustor, seq, currencyCode, authorize);
@@ -119,11 +137,13 @@ void applyAllowTrust(Application& app, SecretKey& from, SecretKey& trustor, Sequ
     txFrame->apply(delta, app);
 
     checkTransaction(*txFrame);
-    REQUIRE(AllowTrust::getInnerCode(txFrame->getResult().result.results()[0]) == result);
-
+    REQUIRE(AllowTrust::getInnerCode(
+                txFrame->getResult().result.results()[0]) == result);
 }
 
-TransactionFramePtr createPaymentTx(SecretKey& from, SecretKey& to, SequenceNumber seq, int64_t amount)
+TransactionFramePtr
+createPaymentTx(SecretKey& from, SecretKey& to, SequenceNumber seq,
+                int64_t amount)
 {
     Operation op;
     op.body.type(PAYMENT);
@@ -135,7 +155,10 @@ TransactionFramePtr createPaymentTx(SecretKey& from, SecretKey& to, SequenceNumb
     return transactionFromOperation(from, seq, op);
 }
 
-void applyPaymentTx(Application& app, SecretKey& from, SecretKey& to, SequenceNumber seq, int64_t amount, Payment::PaymentResultCode result)
+void
+applyPaymentTx(Application& app, SecretKey& from, SecretKey& to,
+               SequenceNumber seq, int64_t amount,
+               Payment::PaymentResultCode result)
 {
     TransactionFramePtr txFrame;
 
@@ -145,10 +168,14 @@ void applyPaymentTx(Application& app, SecretKey& from, SecretKey& to, SequenceNu
     txFrame->apply(delta, app);
 
     checkTransaction(*txFrame);
-    REQUIRE(Payment::getInnerCode(txFrame->getResult().result.results()[0]) == result);
+    REQUIRE(Payment::getInnerCode(txFrame->getResult().result.results()[0]) ==
+            result);
 }
 
-void applyChangeTrust(Application& app, SecretKey& from, SecretKey& to, SequenceNumber seq, const std::string& currencyCode, int64_t limit, ChangeTrust::ChangeTrustResultCode result)
+void
+applyChangeTrust(Application& app, SecretKey& from, SecretKey& to,
+                 SequenceNumber seq, const std::string& currencyCode,
+                 int64_t limit, ChangeTrust::ChangeTrustResultCode result)
 {
     TransactionFramePtr txFrame;
 
@@ -158,10 +185,13 @@ void applyChangeTrust(Application& app, SecretKey& from, SecretKey& to, Sequence
     txFrame->apply(delta, app);
 
     checkTransaction(*txFrame);
-    REQUIRE(ChangeTrust::getInnerCode(txFrame->getResult().result.results()[0]) == result);
+    REQUIRE(ChangeTrust::getInnerCode(
+                txFrame->getResult().result.results()[0]) == result);
 }
 
-TransactionFramePtr createCreditPaymentTx(SecretKey& from, SecretKey& to, Currency& ci, SequenceNumber seq, int64_t amount)
+TransactionFramePtr
+createCreditPaymentTx(SecretKey& from, SecretKey& to, Currency& ci,
+                      SequenceNumber seq, int64_t amount)
 {
     Operation op;
     op.body.type(PAYMENT);
@@ -173,7 +203,8 @@ TransactionFramePtr createCreditPaymentTx(SecretKey& from, SecretKey& to, Curren
     return transactionFromOperation(from, seq, op);
 }
 
-Currency makeCurrency(SecretKey& issuer, const std::string& code)
+Currency
+makeCurrency(SecretKey& issuer, const std::string& code)
 {
     Currency currency;
     currency.type(ISO4217);
@@ -182,23 +213,26 @@ Currency makeCurrency(SecretKey& issuer, const std::string& code)
     return currency;
 }
 
-void applyCreditPaymentTx(Application& app, SecretKey& from, SecretKey& to, 
-    Currency& ci, SequenceNumber seq,
-    int64_t amount, Payment::PaymentResultCode result)
+void
+applyCreditPaymentTx(Application& app, SecretKey& from, SecretKey& to,
+                     Currency& ci, SequenceNumber seq, int64_t amount,
+                     Payment::PaymentResultCode result)
 {
     TransactionFramePtr txFrame;
 
-    txFrame = createCreditPaymentTx(from,to,ci,seq,amount);
+    txFrame = createCreditPaymentTx(from, to, ci, seq, amount);
 
     LedgerDelta delta(app.getLedgerMaster().getCurrentLedgerHeader());
     txFrame->apply(delta, app);
 
     checkTransaction(*txFrame);
-    REQUIRE(Payment::getInnerCode(txFrame->getResult().result.results()[0]) == result);
+    REQUIRE(Payment::getInnerCode(txFrame->getResult().result.results()[0]) ==
+            result);
 }
 
-TransactionFramePtr createOfferOp(SecretKey& source, Currency& takerGets,
-    Currency& takerPays, Price const &price, int64_t amount, SequenceNumber seq)
+TransactionFramePtr
+createOfferOp(SecretKey& source, Currency& takerGets, Currency& takerPays,
+              Price const& price, int64_t amount, SequenceNumber seq)
 {
     Operation op;
     op.body.type(CREATE_OFFER);
@@ -210,23 +244,27 @@ TransactionFramePtr createOfferOp(SecretKey& source, Currency& takerGets,
     return transactionFromOperation(source, seq, op);
 }
 
-void applyCreateOffer(Application& app, LedgerDelta& delta, SecretKey& source, Currency& takerGets,
-    Currency& takerPays, Price const& price, int64_t amount, SequenceNumber seq,
-    CreateOffer::CreateOfferResultCode result)
+void
+applyCreateOffer(Application& app, LedgerDelta& delta, SecretKey& source,
+                 Currency& takerGets, Currency& takerPays, Price const& price,
+                 int64_t amount, SequenceNumber seq,
+                 CreateOffer::CreateOfferResultCode result)
 {
     TransactionFramePtr txFrame;
 
-    txFrame = createOfferOp(source, takerGets,takerPays,price,amount, seq);
+    txFrame = createOfferOp(source, takerGets, takerPays, price, amount, seq);
 
     txFrame->apply(delta, app);
 
     checkTransaction(*txFrame);
-    REQUIRE(CreateOffer::getInnerCode(txFrame->getResult().result.results()[0]) == result);
+    REQUIRE(CreateOffer::getInnerCode(
+                txFrame->getResult().result.results()[0]) == result);
 }
 
-TransactionFramePtr createSetOptions(SecretKey& source, AccountID *inflationDest,
-    uint32_t *setFlags, uint32_t *clearFlags, KeyValue *data, Thresholds *thrs,
-    Signer *signer, SequenceNumber seq)
+TransactionFramePtr
+createSetOptions(SecretKey& source, AccountID* inflationDest,
+                 uint32_t* setFlags, uint32_t* clearFlags, KeyValue* data,
+                 Thresholds* thrs, Signer* signer, SequenceNumber seq)
 {
     Operation op;
     op.body.type(SET_OPTIONS);
@@ -264,43 +302,47 @@ TransactionFramePtr createSetOptions(SecretKey& source, AccountID *inflationDest
     return transactionFromOperation(source, seq, op);
 }
 
-void applySetOptions(Application& app, SecretKey& source, AccountID *inflationDest,
-    uint32_t *setFlags, uint32_t *clearFlags, KeyValue *data, Thresholds *thrs,
-    Signer *signer, SequenceNumber seq, SetOptions::SetOptionsResultCode result)
+void
+applySetOptions(Application& app, SecretKey& source, AccountID* inflationDest,
+                uint32_t* setFlags, uint32_t* clearFlags, KeyValue* data,
+                Thresholds* thrs, Signer* signer, SequenceNumber seq,
+                SetOptions::SetOptionsResultCode result)
 {
     TransactionFramePtr txFrame;
 
-    txFrame = createSetOptions(source, inflationDest,
-        setFlags, clearFlags, data, thrs,
-        signer, seq);
+    txFrame = createSetOptions(source, inflationDest, setFlags, clearFlags,
+                               data, thrs, signer, seq);
 
     LedgerDelta delta(app.getLedgerMaster().getCurrentLedgerHeader());
     txFrame->apply(delta, app);
 
     checkTransaction(*txFrame);
-    REQUIRE(SetOptions::getInnerCode(txFrame->getResult().result.results()[0]) == result);
+    REQUIRE(SetOptions::getInnerCode(
+                txFrame->getResult().result.results()[0]) == result);
 }
 
-OperationFrame& getFirstOperationFrame(TransactionFrame& tx)
+OperationFrame&
+getFirstOperationFrame(TransactionFrame& tx)
 {
     return *(tx.getOperations()[0]);
 }
 
-OperationResult& getFirstResult(TransactionFrame& tx)
+OperationResult&
+getFirstResult(TransactionFrame& tx)
 {
     return getFirstOperationFrame(tx).getResult();
 }
 
-OperationResultCode getFirstResultCode(TransactionFrame& tx)
+OperationResultCode
+getFirstResultCode(TransactionFrame& tx)
 {
     return getFirstOperationFrame(tx).getResultCode();
 }
 
-Operation& getFirstOperation(TransactionFrame& tx)
+Operation&
+getFirstOperation(TransactionFrame& tx)
 {
     return tx.getEnvelope().tx.operations[0];
 }
-
 }
 }
-

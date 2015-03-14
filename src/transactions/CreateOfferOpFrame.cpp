@@ -19,14 +19,17 @@ namespace stellar
 
 using namespace std;
 
-CreateOfferOpFrame::CreateOfferOpFrame(Operation const& op, OperationResult &res,
-    TransactionFrame &parentTx) :
-    OperationFrame(op, res, parentTx), mCreateOffer(mOperation.body.createOfferOp())
+CreateOfferOpFrame::CreateOfferOpFrame(Operation const& op,
+                                       OperationResult& res,
+                                       TransactionFrame& parentTx)
+    : OperationFrame(op, res, parentTx)
+    , mCreateOffer(mOperation.body.createOfferOp())
 {
 }
 
 // make sure these issuers exist and you can hold the ask currency
-bool CreateOfferOpFrame::checkOfferValid(Database &db)
+bool
+CreateOfferOpFrame::checkOfferValid(Database& db)
 {
     Currency const& sheep = mCreateOffer.takerGets;
     Currency const& wheat = mCreateOffer.takerPays;
@@ -34,7 +37,7 @@ bool CreateOfferOpFrame::checkOfferValid(Database &db)
     if (sheep.type() != NATIVE)
     {
         if (!TrustFrame::loadTrustLine(getSourceID(), sheep, mSheepLineA, db))
-        {   // we don't have what we are trying to sell
+        { // we don't have what we are trying to sell
             innerResult().code(CreateOffer::NO_TRUST);
             return false;
         }
@@ -45,24 +48,22 @@ bool CreateOfferOpFrame::checkOfferValid(Database &db)
         }
     }
 
-    if(wheat.type()!=NATIVE)
+    if (wheat.type() != NATIVE)
     {
-        if(!TrustFrame::loadTrustLine(getSourceID(), wheat, mWheatLineA, db))
-        {   // we can't hold what we are trying to buy
+        if (!TrustFrame::loadTrustLine(getSourceID(), wheat, mWheatLineA, db))
+        { // we can't hold what we are trying to buy
             innerResult().code(CreateOffer::NO_TRUST);
             return false;
         }
 
-        if(!mWheatLineA.getTrustLine().authorized)
-        {   // we are not authorized to hold what we are trying to buy
+        if (!mWheatLineA.getTrustLine().authorized)
+        { // we are not authorized to hold what we are trying to buy
             innerResult().code(CreateOffer::NOT_AUTHORIZED);
             return false;
         }
     }
     return true;
 }
-
-
 
 // you are selling sheep for wheat
 // need to check the counter offers selling wheat for sheep
@@ -71,9 +72,10 @@ bool CreateOfferOpFrame::checkOfferValid(Database &db)
 
 // TODO: revisit this, offer code should share logic with payment code
 //      to keep the code working, I ended up duplicating the error codes
-bool CreateOfferOpFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
+bool
+CreateOfferOpFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
 {
-    Database &db = ledgerMaster.getDatabase();
+    Database& db = ledgerMaster.getDatabase();
 
     if (!checkOfferValid(db))
     {
@@ -86,23 +88,27 @@ bool CreateOfferOpFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
     bool creatingNewOffer = false;
     uint64_t offerID = mCreateOffer.offerID;
 
-    if(offerID)
+    if (offerID)
     { // modifying an old offer
-        if(OfferFrame::loadOffer(getSourceID(), offerID, mSellSheepOffer, db))
+        if (OfferFrame::loadOffer(getSourceID(), offerID, mSellSheepOffer, db))
         {
             // make sure the currencies are the same
-            if( !compareCurrency(mCreateOffer.takerGets, mSellSheepOffer.getOffer().takerGets) ||
-                !compareCurrency(mCreateOffer.takerPays, mSellSheepOffer.getOffer().takerPays))
+            if (!compareCurrency(mCreateOffer.takerGets,
+                                 mSellSheepOffer.getOffer().takerGets) ||
+                !compareCurrency(mCreateOffer.takerPays,
+                                 mSellSheepOffer.getOffer().takerPays))
             {
                 innerResult().code(CreateOffer::MALFORMED);
                 return false;
             }
-        } else
+        }
+        else
         {
             innerResult().code(CreateOffer::NOT_FOUND);
             return false;
         }
-    } else
+    }
+    else
     { // creating a new Offer
         creatingNewOffer = true;
         mSellSheepOffer.from(*this);
@@ -113,16 +119,20 @@ bool CreateOfferOpFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
     int64_t maxAmountOfSheepCanSell;
     if (sheep.type() == NATIVE)
     {
-        maxAmountOfSheepCanSell = mSourceAccount->getAccount().balance -
-            ledgerMaster.getMinBalance(mSourceAccount->getAccount().numSubEntries);
+        maxAmountOfSheepCanSell =
+            mSourceAccount->getAccount().balance -
+            ledgerMaster.getMinBalance(
+                mSourceAccount->getAccount().numSubEntries);
     }
     else
     {
         maxAmountOfSheepCanSell = mSheepLineA.getTrustLine().balance;
     }
 
-    // amount of sheep for sale is the lesser of amount we can sell and amount put in the offer
-    //int64_t amountOfSheepForSale = amountOfWheat*OFFER_PRICE_DIVISOR / sheepPrice;
+    // amount of sheep for sale is the lesser of amount we can sell and amount
+    // put in the offer
+    // int64_t amountOfSheepForSale = amountOfWheat*OFFER_PRICE_DIVISOR /
+    // sheepPrice;
     if (maxAmountOfSheepCanSell < maxSheepSend)
     {
         maxSheepSend = maxAmountOfSheepCanSell;
@@ -143,9 +153,9 @@ bool CreateOfferOpFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
         Price maxWheatPrice(sheepPrice.d, sheepPrice.n);
 
         OfferExchange::ConvertResult r = oe.convertWithOffers(
-            sheep, maxSheepSend, sheepSent,
-            wheat, INT64_MAX, wheatReceived,
-            [this, maxWheatPrice](OfferFrame const& o) {
+            sheep, maxSheepSend, sheepSent, wheat, INT64_MAX, wheatReceived,
+            [this, maxWheatPrice](OfferFrame const& o)
+            {
                 if (o.getPrice() > maxWheatPrice)
                 {
                     return OfferExchange::eStop;
@@ -194,10 +204,11 @@ bool CreateOfferOpFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
             else
             {
                 TrustFrame wheatLineSigningAccount;
-                if (!TrustFrame::loadTrustLine(getSourceID(),
-                    wheat, wheatLineSigningAccount, db))
+                if (!TrustFrame::loadTrustLine(getSourceID(), wheat,
+                                               wheatLineSigningAccount, db))
                 {
-                    throw std::runtime_error("invalid database state: must have matching trust line");
+                    throw std::runtime_error("invalid database state: must "
+                                             "have matching trust line");
                 }
                 wheatLineSigningAccount.getTrustLine().balance += wheatReceived;
                 wheatLineSigningAccount.storeChange(delta, db);
@@ -223,16 +234,19 @@ bool CreateOfferOpFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
 
             if (creatingNewOffer)
             {
-                // make sure we don't allow us to add offers when we don't have the minbalance
+                // make sure we don't allow us to add offers when we don't have
+                // the minbalance
                 if (mSourceAccount->getAccount().balance <
-                    ledgerMaster.getMinBalance(mSourceAccount->getAccount().numSubEntries + 1))
+                    ledgerMaster.getMinBalance(
+                        mSourceAccount->getAccount().numSubEntries + 1))
                 {
                     innerResult().code(CreateOffer::UNDERFUNDED);
                     return false;
                 }
                 mSellSheepOffer.mEntry.offer().offerID = tempDelta.getNextID();
                 innerResult().success().offer.effect(CreateOffer::CREATED);
-                innerResult().success().offer.offerCreated() = mSellSheepOffer.getOffer();
+                innerResult().success().offer.offerCreated() =
+                    mSellSheepOffer.getOffer();
                 mSellSheepOffer.storeAdd(tempDelta, db);
 
                 mSourceAccount->getAccount().numSubEntries++;
@@ -260,8 +274,9 @@ bool CreateOfferOpFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
     return true;
 }
 
-// makes sure the currencies are different 
-bool CreateOfferOpFrame::doCheckValid(Application& app)
+// makes sure the currencies are different
+bool
+CreateOfferOpFrame::doCheckValid(Application& app)
 {
     Currency const& sheep = mCreateOffer.takerGets;
     Currency const& wheat = mCreateOffer.takerPays;
@@ -270,9 +285,7 @@ bool CreateOfferOpFrame::doCheckValid(Application& app)
         innerResult().code(CreateOffer::MALFORMED);
         return false;
     }
-    
+
     return true;
 }
-
-
 }

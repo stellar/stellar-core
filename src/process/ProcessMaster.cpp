@@ -9,7 +9,6 @@
 // else.
 #include "util/asio.h"
 
-
 #include "util/Timer.h"
 #include "main/Application.h"
 #include "util/Logging.h"
@@ -43,36 +42,38 @@ ProcessMaster::handleSignalWait()
     // No-op on windows, uses waitable object handles
 }
 
-class ProcessExitEvent::Impl : public std::enable_shared_from_this<ProcessExitEvent::Impl>
+class ProcessExitEvent::Impl
+    : public std::enable_shared_from_this<ProcessExitEvent::Impl>
 {
-public:
+  public:
     std::shared_ptr<RealTimer> mOuterTimer;
     std::shared_ptr<asio::error_code> mOuterEc;
     asio::windows::object_handle mProcessHandle;
 
     Impl(std::shared_ptr<RealTimer> const& outerTimer,
-        std::shared_ptr<asio::error_code> const& outerEc, HANDLE hProcess)
+         std::shared_ptr<asio::error_code> const& outerEc, HANDLE hProcess)
         : mOuterTimer(outerTimer)
         , mOuterEc(outerEc)
         , mProcessHandle(outerTimer->get_io_service(), hProcess)
     {
     }
 
-    void go()
+    void
+    go()
     {
-        // capture a shared pointer to "this" to keep Impl alive until the end of the execution
+        // capture a shared pointer to "this" to keep Impl alive until the end
+        // of the execution
         auto sf = shared_from_this();
         mProcessHandle.async_wait([sf](asio::error_code ec)
-                              {
-                                  *(sf->mOuterEc) = ec;
-                                  sf->mOuterTimer->cancel();
-                              });
+                                  {
+                                      *(sf->mOuterEc) = ec;
+                                      sf->mOuterTimer->cancel();
+                                  });
     }
 };
 
 ProcessExitEvent
-ProcessMaster::runProcess(std::string const& cmdLine,
-                          std::string outFile)
+ProcessMaster::runProcess(std::string const& cmdLine, std::string outFile)
 {
     STARTUPINFO si;
     PROCESS_INFORMATION pi;
@@ -91,13 +92,13 @@ ProcessMaster::runProcess(std::string const& cmdLine,
         si.cb = sizeof(STARTUPINFO);
         si.dwFlags = STARTF_USESTDHANDLES;
         si.hStdOutput =
-            CreateFile((LPCTSTR)outFile.c_str(),          // name of the file
-                       GENERIC_WRITE,                     // open for writing
-                       FILE_SHARE_WRITE|FILE_SHARE_READ,  // share r/w access
-                       &sa,                               // security attributes
-                       CREATE_ALWAYS,                     // overwrite if existing
-                       FILE_ATTRIBUTE_NORMAL,             // normal file
-                       NULL);                             // no attr. template
+            CreateFile((LPCTSTR)outFile.c_str(),           // name of the file
+                       GENERIC_WRITE,                      // open for writing
+                       FILE_SHARE_WRITE | FILE_SHARE_READ, // share r/w access
+                       &sa,                   // security attributes
+                       CREATE_ALWAYS,         // overwrite if existing
+                       FILE_ATTRIBUTE_NORMAL, // normal file
+                       NULL);                 // no attr. template
         if (si.hStdOutput == INVALID_HANDLE_VALUE)
         {
             CLOG(DEBUG, "Process") << "CreateFile() failed: " << GetLastError();
@@ -127,8 +128,8 @@ ProcessMaster::runProcess(std::string const& cmdLine,
 
     auto& svc = mApp.getClock().getIOService();
     ProcessExitEvent pe(svc);
-    pe.mImpl = std::make_shared<ProcessExitEvent::Impl>(
-        pe.mTimer, pe.mEc, pi.hProcess);
+    pe.mImpl = std::make_shared<ProcessExitEvent::Impl>(pe.mTimer, pe.mEc,
+                                                        pi.hProcess);
     pe.mImpl->go();
     return pe;
 }
@@ -150,15 +151,12 @@ class ProcessExitEvent::Impl
     }
 };
 
-std::recursive_mutex
-ProcessMaster::gImplsMutex;
+std::recursive_mutex ProcessMaster::gImplsMutex;
 
-std::map<int, std::shared_ptr<ProcessExitEvent::Impl>>
-ProcessMaster::gImpls;
+std::map<int, std::shared_ptr<ProcessExitEvent::Impl>> ProcessMaster::gImpls;
 
 ProcessMaster::ProcessMaster(Application& app)
-    : mApp(app)
-    , mSigChild(app.getClock().getIOService(), SIGCHLD)
+    : mApp(app), mSigChild(app.getClock().getIOService(), SIGCHLD)
 {
     std::lock_guard<std::recursive_mutex> guard(gImplsMutex);
     startSignalWait();
@@ -184,7 +182,8 @@ ProcessMaster::handleSignalWait()
             asio::error_code ec;
             if (WIFEXITED(status))
             {
-                CLOG(DEBUG, "Process") << "process " << pid << " exited " << WEXITSTATUS(status);
+                CLOG(DEBUG, "Process") << "process " << pid << " exited "
+                                       << WEXITSTATUS(status);
                 // FIXME: this doesn't _quite_ do the right thing; it conveys
                 // the exit status back to the caller but it puts it in "system
                 // category" which on POSIX means if you call .message() on it
@@ -239,8 +238,7 @@ split(const std::string& s)
 }
 
 ProcessExitEvent
-ProcessMaster::runProcess(std::string const& cmdLine,
-                          std::string outFile)
+ProcessMaster::runProcess(std::string const& cmdLine, std::string outFile)
 {
     std::lock_guard<std::recursive_mutex> guard(gImplsMutex);
     std::vector<std::string> args = split(cmdLine);
@@ -259,21 +257,24 @@ ProcessMaster::runProcess(std::string const& cmdLine,
         err = posix_spawn_file_actions_init(&fileActions);
         if (err)
         {
-            CLOG(DEBUG, "Process") << "posix_spawn_file_actions_init() failed: " << strerror(err);
+            CLOG(DEBUG, "Process")
+                << "posix_spawn_file_actions_init() failed: " << strerror(err);
             throw std::runtime_error("posix_spawn_file_actions_init() failed");
         }
         err = posix_spawn_file_actions_addopen(&fileActions, 1, outFile.c_str(),
-                                               O_RDWR|O_CREAT, 0600);
+                                               O_RDWR | O_CREAT, 0600);
         if (err)
         {
-            CLOG(DEBUG, "Process") << "posix_spawn_file_actions_addopen() failed: " << strerror(err);
-            throw std::runtime_error("posix_spawn_file_actions_addopen() failed");
+            CLOG(DEBUG, "Process")
+                << "posix_spawn_file_actions_addopen() failed: "
+                << strerror(err);
+            throw std::runtime_error(
+                "posix_spawn_file_actions_addopen() failed");
         }
     }
 
     CLOG(DEBUG, "Process") << "Starting process: " << cmdLine;
-    err = posix_spawnp(&pid, argv[0],
-                       outFile.empty() ? nullptr : &fileActions,
+    err = posix_spawnp(&pid, argv[0], outFile.empty() ? nullptr : &fileActions,
                        nullptr, // posix_spawnattr_t*
                        argv.data(), env);
     if (err)
@@ -287,8 +288,11 @@ ProcessMaster::runProcess(std::string const& cmdLine,
         err = posix_spawn_file_actions_destroy(&fileActions);
         if (err)
         {
-            CLOG(DEBUG, "Process") << "posix_spawn_file_actions_destroy() failed: " << strerror(err);
-            throw std::runtime_error("posix_spawn_file_actions_destroy() failed");
+            CLOG(DEBUG, "Process")
+                << "posix_spawn_file_actions_destroy() failed: "
+                << strerror(err);
+            throw std::runtime_error(
+                "posix_spawn_file_actions_destroy() failed");
         }
     }
 
@@ -314,8 +318,8 @@ ProcessExitEvent::~ProcessExitEvent()
 }
 
 void
-ProcessExitEvent::async_wait(std::function<void(asio::error_code)>
-                             const& handler)
+ProcessExitEvent::async_wait(
+    std::function<void(asio::error_code)> const& handler)
 {
     // Unfortunately when you cancel a timer, asio delivers
     // asio::error::operation_aborted to all the waiters, even if you pass a
@@ -324,11 +328,9 @@ ProcessExitEvent::async_wait(std::function<void(asio::error_code)>
     // between ProcessExitEvent and the per-platform handlers.
     auto ec = mEc;
     std::function<void(asio::error_code)> h(handler);
-        mTimer->async_wait([ec, h](asio::error_code)
-                           {
-                               h(*ec);
-                           });
+    mTimer->async_wait([ec, h](asio::error_code)
+                       {
+                           h(*ec);
+                       });
 }
-
-
 }

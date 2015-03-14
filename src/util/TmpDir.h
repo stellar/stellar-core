@@ -12,7 +12,8 @@ namespace stellar
 class TmpDir
 {
     std::unique_ptr<std::string> mPath;
-public:
+
+  public:
     TmpDir(std::string const& prefix);
     TmpDir(TmpDir&&);
     ~TmpDir();
@@ -23,10 +24,10 @@ class TmpDirMaster
 {
     std::string mRoot;
     void clean();
-public:
+
+  public:
     TmpDirMaster(std::string const& root);
     ~TmpDirMaster();
     TmpDir tmpDir(std::string const& prefix);
 };
-
 }

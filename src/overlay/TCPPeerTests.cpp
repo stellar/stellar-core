@@ -12,7 +12,6 @@
 namespace stellar
 {
 
-
 TEST_CASE("TCPPeer can communicate", "[overlay]")
 {
     Simulation::pointer s = make_shared<Simulation>(Simulation::OVER_TCP);
@@ -26,9 +25,11 @@ TEST_CASE("TCPPeer can communicate", "[overlay]")
 
     s->crankForAtLeast(std::chrono::seconds(3));
 
-    REQUIRE(n0->getPeerMaster().getConnectedPeer("127.0.0.1", n1->getConfig().PEER_PORT)->getState() == Peer::GOT_HELLO);
-    REQUIRE(n1->getPeerMaster().getConnectedPeer("127.0.0.1", n0->getConfig().PEER_PORT)->getState() == Peer::GOT_HELLO);
-
+    REQUIRE(n0->getPeerMaster()
+                .getConnectedPeer("127.0.0.1", n1->getConfig().PEER_PORT)
+                ->getState() == Peer::GOT_HELLO);
+    REQUIRE(n1->getPeerMaster()
+                .getConnectedPeer("127.0.0.1", n0->getConfig().PEER_PORT)
+                ->getState() == Peer::GOT_HELLO);
 }
-
 }

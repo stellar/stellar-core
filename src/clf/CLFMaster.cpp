@@ -27,7 +27,7 @@ namespace stellar
 
 class CLFMaster::Impl
 {
-public:
+  public:
     Application& mApp;
     BucketList mBucketList;
     std::unique_ptr<TmpDir> mWorkDir;
@@ -38,19 +38,22 @@ public:
     medida::Meter& mBucketByteInsert;
     medida::Timer& mBucketAddBatch;
     medida::Timer& mBucketSnapMerge;
-    Impl(Application &app)
+    Impl(Application& app)
         : mApp(app)
         , mWorkDir(nullptr)
         , lockedBucketDir(nullptr)
-        , mBucketObjectInsert(app.getMetrics().NewMeter({"bucket", "object", "insert"}, "object"))
-        , mBucketByteInsert(app.getMetrics().NewMeter({"bucket", "byte", "insert"}, "byte"))
+        , mBucketObjectInsert(app.getMetrics().NewMeter(
+              {"bucket", "object", "insert"}, "object"))
+        , mBucketByteInsert(
+              app.getMetrics().NewMeter({"bucket", "byte", "insert"}, "byte"))
         , mBucketAddBatch(app.getMetrics().NewTimer({"bucket", "batch", "add"}))
-        , mBucketSnapMerge(app.getMetrics().NewTimer({"bucket", "snap", "merge"}))
-        {}
+        , mBucketSnapMerge(
+              app.getMetrics().NewTimer({"bucket", "snap", "merge"}))
+    {
+    }
 };
 
-const std::string
-CLFMaster::kLockFilename = "stellard.lock";
+const std::string CLFMaster::kLockFilename = "stellard.lock";
 
 static std::string
 bucketBasename(std::string const& bucketHexHash)
@@ -58,8 +61,7 @@ bucketBasename(std::string const& bucketHexHash)
     return "bucket-" + bucketHexHash + ".xdr";
 }
 
-CLFMaster::CLFMaster(Application& app)
-    : mImpl(make_unique<Impl>(app))
+CLFMaster::CLFMaster(Application& app) : mImpl(make_unique<Impl>(app))
 {
 }
 
@@ -85,7 +87,8 @@ CLFMaster::getBucketDir()
         {
             if (fs::exists(d))
             {
-                CLOG(DEBUG, "CLF") << "Deleting bucket directory for new network: " << d;
+                CLOG(DEBUG, "CLF")
+                    << "Deleting bucket directory for new network: " << d;
                 fs::deltree(d);
             }
         }
@@ -94,7 +97,8 @@ CLFMaster::getBucketDir()
         {
             if (!fs::mkdir(d))
             {
-                throw std::runtime_error("Unable to create bucket directory: " + d);
+                throw std::runtime_error("Unable to create bucket directory: " +
+                                         d);
             }
         }
 
@@ -130,12 +134,11 @@ CLFMaster::~CLFMaster()
     }
 }
 
-BucketList &
+BucketList&
 CLFMaster::getBucketList()
 {
     return mImpl->mBucketList;
 }
-
 
 medida::TimerContext
 CLFMaster::getMergeTimer()
@@ -144,24 +147,21 @@ CLFMaster::getMergeTimer()
 }
 
 std::shared_ptr<Bucket>
-CLFMaster::adoptFileAsBucket(std::string const& filename,
-                             uint256 const& hash,
-                             size_t nObjects,
-                             size_t nBytes)
+CLFMaster::adoptFileAsBucket(std::string const& filename, uint256 const& hash,
+                             size_t nObjects, size_t nBytes)
 {
     std::lock_guard<std::mutex> lock(mImpl->mBucketMutex);
     mImpl->mBucketObjectInsert.Mark(nObjects);
     mImpl->mBucketByteInsert.Mark(nBytes);
     std::string basename = bucketBasename(binToHex(hash));
     std::shared_ptr<Bucket> b;
-    if (mImpl->mSharedBuckets.find(basename) ==
-        mImpl->mSharedBuckets.end())
+    if (mImpl->mSharedBuckets.find(basename) == mImpl->mSharedBuckets.end())
     {
         // We do not yet have this file under its canonical name,
         // so we'll move it into place.
         std::string canonicalName = getBucketDir() + "/" + basename;
-        CLOG(DEBUG, "CLF") << "Adopting bucket file " << filename
-                           << " as " << canonicalName;
+        CLOG(DEBUG, "CLF") << "Adopting bucket file " << filename << " as "
+                           << canonicalName;
         if (rename(filename.c_str(), canonicalName.c_str()) != 0)
         {
             throw std::runtime_error("Failed to rename bucket");
@@ -174,7 +174,7 @@ CLFMaster::adoptFileAsBucket(std::string const& filename,
         // We already have a bucket with this hash, so just kill the
         // source file.
         CLOG(DEBUG, "CLF") << "Deleting bucket file " << filename
-                          << " that is redundant with existing bucket";
+                           << " that is redundant with existing bucket";
         std::remove(filename.c_str());
     }
     return mImpl->mSharedBuckets[basename];
@@ -197,7 +197,6 @@ CLFMaster::getBucketByHash(uint256 const& hash) const
     return std::shared_ptr<Bucket>();
 }
 
-
 void
 CLFMaster::forgetUnreferencedBuckets()
 {
@@ -206,7 +205,8 @@ CLFMaster::forgetUnreferencedBuckets()
     for (size_t i = 0; i < BucketList::kNumLevels; ++i)
     {
         auto const& level = mImpl->mBucketList.getLevel(i);
-        uint256 hashes[2] = { level.getCurr()->getHash(), level.getSnap()->getHash() };
+        uint256 hashes[2] = {level.getCurr()->getHash(),
+                             level.getSnap()->getHash()};
         for (auto const& hash : hashes)
         {
             std::string basename = bucketBasename(binToHex(hash));
@@ -214,9 +214,11 @@ CLFMaster::forgetUnreferencedBuckets()
         }
     }
 
-    for (auto i = mImpl->mSharedBuckets.begin(); i != mImpl->mSharedBuckets.end();)
+    for (auto i = mImpl->mSharedBuckets.begin();
+         i != mImpl->mSharedBuckets.end();)
     {
-        // Standard says map iterators other than the one you're erasing remain valid.
+        // Standard says map iterators other than the one you're erasing remain
+        // valid.
         auto j = i;
         ++i;
         if (referenced.find(j->first) == referenced.end())
@@ -226,20 +228,20 @@ CLFMaster::forgetUnreferencedBuckets()
     }
 }
 
-
-void CLFMaster::addBatch(Application& app, uint32_t currLedger,
-    std::vector<LedgerEntry> const& liveEntries,
-    std::vector<LedgerKey> const& deadEntries)
+void
+CLFMaster::addBatch(Application& app, uint32_t currLedger,
+                    std::vector<LedgerEntry> const& liveEntries,
+                    std::vector<LedgerKey> const& deadEntries)
 {
     auto timer = mImpl->mBucketAddBatch.TimeScope();
     mImpl->mBucketList.addBatch(app, currLedger, liveEntries, deadEntries);
 }
 
-// updates the given LedgerHeader to reflect the current state of the bucket list
-void CLFMaster::snapshotLedger(LedgerHeader &currentHeader)
+// updates the given LedgerHeader to reflect the current state of the bucket
+// list
+void
+CLFMaster::snapshotLedger(LedgerHeader& currentHeader)
 {
     currentHeader.clfHash = mImpl->mBucketList.getHash();
 }
-
-
 }

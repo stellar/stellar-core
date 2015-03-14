@@ -30,8 +30,10 @@ class Config : public std::enable_shared_from_this<Config>
 
     // application config
 
-    // The default way hayashi starts is to load the state from disk and catch up to the network before starting SCP.
-    // If you need different behavior you need to use --new or --local which set the following flags:
+    // The default way hayashi starts is to load the state from disk and catch
+    // up to the network before starting SCP.
+    // If you need different behavior you need to use --new or --local which set
+    // the following flags:
 
     // Will start a brand new ledger. And SCP will start running immediately
     // should only be used once to start a whole new network
@@ -39,7 +41,8 @@ class Config : public std::enable_shared_from_this<Config>
 
     bool REBUILD_DB;
 
-    // This is a mode for testing. It prevents you from trying to connect to other peers
+    // This is a mode for testing. It prevents you from trying to connect to
+    // other peers
     bool RUN_STANDALONE;
     // Mode for testing. Ledger will only close when told to over http
     bool MANUAL_CLOSE;
@@ -48,9 +51,9 @@ class Config : public std::enable_shared_from_this<Config>
     std::string LOG_FILE_PATH;
     std::string TMP_DIR_PATH;
     std::string BUCKET_DIR_PATH;
-    uint32_t DESIRED_BASE_FEE; // in stroops
+    uint32_t DESIRED_BASE_FEE;     // in stroops
     uint32_t DESIRED_BASE_RESERVE; // in stroops
-    uint32_t HTTP_PORT;         // what port to listen for commands on. 0 for don't
+    uint32_t HTTP_PORT;    // what port to listen for commands on. 0 for don't
     bool PUBLIC_HTTP_PORT; // if you accept commands from not localhost
 
     // overlay config
@@ -69,7 +72,7 @@ class Config : public std::enable_shared_from_this<Config>
     std::vector<uint256> QUORUM_SET;
 
     // History config
-    std::map<std::string,std::shared_ptr<HistoryArchive>> HISTORY;
+    std::map<std::string, std::shared_ptr<HistoryArchive>> HISTORY;
 
     // Database config
     std::string DATABASE;
@@ -82,5 +85,3 @@ class Config : public std::enable_shared_from_this<Config>
     void applyCommands();
 };
 }
-
-

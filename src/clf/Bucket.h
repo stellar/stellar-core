@@ -31,7 +31,6 @@ class Bucket : public std::enable_shared_from_this<Bucket>
     uint256 const mHash;
 
   public:
-
     class InputIterator;
     class OutputIterator;
 
@@ -49,16 +48,13 @@ class Bucket : public std::enable_shared_from_this<Bucket>
     void apply(Database& db) const;
 
     static std::shared_ptr<Bucket>
-    fresh(CLFMaster& clfMaster,
-          std::vector<LedgerEntry> const& liveEntries,
+    fresh(CLFMaster& clfMaster, std::vector<LedgerEntry> const& liveEntries,
           std::vector<LedgerKey> const& deadEntries);
 
     static std::shared_ptr<Bucket>
-    merge(CLFMaster& clfMaster,
-          std::shared_ptr<Bucket> const& oldBucket,
+    merge(CLFMaster& clfMaster, std::shared_ptr<Bucket> const& oldBucket,
           std::shared_ptr<Bucket> const& newBucket,
           std::vector<std::shared_ptr<Bucket>> const& shadows =
-          std::vector<std::shared_ptr<Bucket>>());
+              std::vector<std::shared_ptr<Bucket>>());
 };
-
 }

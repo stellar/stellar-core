@@ -1,7 +1,6 @@
 #pragma once
 #include <cstdlib>
 
-
 namespace stellar
 {
 double rand_fraction();

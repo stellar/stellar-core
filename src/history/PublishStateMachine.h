@@ -4,7 +4,6 @@
 // under the ISC License. See the COPYING file at the top-level directory of
 // this distribution or at http://opensource.org/licenses/ISC
 
-
 #include "util/Timer.h"
 #include "util/TmpDir.h"
 #include "history/HistoryArchive.h"
@@ -52,8 +51,7 @@ enum FilePublishState
 struct StateSnapshot;
 template <typename T> class FileTransferInfo;
 
-class
-ArchivePublisher : public std::enable_shared_from_this<ArchivePublisher>
+class ArchivePublisher : public std::enable_shared_from_this<ArchivePublisher>
 {
     static const size_t kRetryLimit;
 
@@ -68,13 +66,14 @@ ArchivePublisher : public std::enable_shared_from_this<ArchivePublisher>
     HistoryArchiveState mArchiveState;
     std::shared_ptr<StateSnapshot> mSnap;
 
-    std::map<std::string, std::shared_ptr<FileTransferInfo<FilePublishState>>> mFileInfos;
+    std::map<std::string, std::shared_ptr<FileTransferInfo<FilePublishState>>>
+        mFileInfos;
 
     void fileStateChange(asio::error_code const& ec,
                          std::string const& hashname,
                          FilePublishState newGoodState);
 
-public:
+  public:
     ArchivePublisher(Application& app,
                      std::function<void(asio::error_code const&)> handler,
                      std::shared_ptr<HistoryArchive> archive,
@@ -90,22 +89,19 @@ public:
     bool isDone() const;
 };
 
-class
-PublishStateMachine
+class PublishStateMachine
 {
     Application& mApp;
     std::function<void(asio::error_code const&)> mEndHandler;
     asio::error_code mError;
     std::vector<std::shared_ptr<ArchivePublisher>> mPublishers;
     void takeSnapshot();
-public:
+
+  public:
     PublishStateMachine(Application& app,
                         std::function<void(asio::error_code const&)> handler);
 
-    void snapshotTaken(asio::error_code const&,
-                       std::shared_ptr<StateSnapshot>);
+    void snapshotTaken(asio::error_code const&, std::shared_ptr<StateSnapshot>);
     void snapshotPublished(asio::error_code const&);
 };
-
-
 }

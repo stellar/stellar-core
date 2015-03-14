@@ -39,7 +39,8 @@ class CLFMaster
     // Get a reference to a persistent bucket in the CLF-managed bucket
     // directory, from the CLF's shared bucket-set.
     //
-    // Concretely: if `hash` names an existing bucket, delete `filename` and return
+    // Concretely: if `hash` names an existing bucket, delete `filename` and
+    // return
     // the existing bucket; otherwise move `filename` to the bucket directory,
     // stored under `hash`, and return a new bucket pointing to that.
     //
@@ -51,7 +52,6 @@ class CLFMaster
                                               size_t nObjects = 0,
                                               size_t nBytes = 0);
 
-
     // Return a bucket by hash if we have it, else return nullptr.
     std::shared_ptr<Bucket> getBucketByHash(uint256 const& hash) const;
 
@@ -61,15 +61,13 @@ class CLFMaster
     // longer independently keep them alive.
     void forgetUnreferencedBuckets();
 
-
     // feed a new batch of entries to the bucket list
     void addBatch(Application& app, uint32_t currLedger,
-        std::vector<LedgerEntry> const& liveEntries,
-        std::vector<LedgerKey> const& deadEntries);
+                  std::vector<LedgerEntry> const& liveEntries,
+                  std::vector<LedgerKey> const& deadEntries);
 
-    // updates the given LedgerHeader to reflect the current state of the bucket list
-    void snapshotLedger(LedgerHeader &currentHeader);
+    // updates the given LedgerHeader to reflect the current state of the bucket
+    // list
+    void snapshotLedger(LedgerHeader& currentHeader);
 };
 }
-
-

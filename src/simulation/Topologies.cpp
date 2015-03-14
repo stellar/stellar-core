@@ -8,16 +8,16 @@
 namespace stellar
 {
 
-
-Simulation::pointer Topologies::pair(Simulation::Mode mode)
+Simulation::pointer
+Topologies::pair(Simulation::Mode mode)
 {
     Simulation::pointer simulation = make_shared<Simulation>(mode);
 
     SIMULATION_CREATE_NODE(10);
     SIMULATION_CREATE_NODE(11);
 
-    SCPQuorumSet qSet0; 
-    qSet0.threshold = 2; 
+    SCPQuorumSet qSet0;
+    qSet0.threshold = 2;
     qSet0.validators.push_back(v10NodeID);
     qSet0.validators.push_back(v11NodeID);
 
@@ -28,19 +28,29 @@ Simulation::pointer Topologies::pair(Simulation::Mode mode)
     return simulation;
 }
 
-Simulation::pointer Topologies::cycle4()
+Simulation::pointer
+Topologies::cycle4()
 {
-    Simulation::pointer simulation = make_shared<Simulation>(Simulation::OVER_LOOPBACK);
+    Simulation::pointer simulation =
+        make_shared<Simulation>(Simulation::OVER_LOOPBACK);
 
     SIMULATION_CREATE_NODE(0);
     SIMULATION_CREATE_NODE(1);
     SIMULATION_CREATE_NODE(2);
     SIMULATION_CREATE_NODE(3);
 
-    SCPQuorumSet qSet0; qSet0.threshold = 1; qSet0.validators.push_back(v1NodeID);
-    SCPQuorumSet qSet1; qSet1.threshold = 1; qSet1.validators.push_back(v2NodeID);
-    SCPQuorumSet qSet2; qSet2.threshold = 1; qSet2.validators.push_back(v3NodeID);
-    SCPQuorumSet qSet3; qSet3.threshold = 1; qSet3.validators.push_back(v0NodeID);
+    SCPQuorumSet qSet0;
+    qSet0.threshold = 1;
+    qSet0.validators.push_back(v1NodeID);
+    SCPQuorumSet qSet1;
+    qSet1.threshold = 1;
+    qSet1.validators.push_back(v2NodeID);
+    SCPQuorumSet qSet2;
+    qSet2.threshold = 1;
+    qSet2.validators.push_back(v3NodeID);
+    SCPQuorumSet qSet3;
+    qSet3.threshold = 1;
+    qSet3.validators.push_back(v0NodeID);
 
     auto n0 = simulation->addNode(v0VSeed, qSet0, simulation->getClock());
     auto n1 = simulation->addNode(v1VSeed, qSet1, simulation->getClock());
@@ -64,9 +74,11 @@ Simulation::pointer Topologies::cycle4()
     return simulation;
 }
 
-Simulation::pointer Topologies::core4()
+Simulation::pointer
+Topologies::core4()
 {
-    Simulation::pointer simulation = make_shared<Simulation>(Simulation::OVER_LOOPBACK);
+    Simulation::pointer simulation =
+        make_shared<Simulation>(Simulation::OVER_LOOPBACK);
 
     SIMULATION_CREATE_NODE(0);
     SIMULATION_CREATE_NODE(1);
@@ -100,5 +112,4 @@ Simulation::pointer Topologies::core4()
 
     return simulation;
 }
-
 }

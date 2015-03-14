@@ -20,5 +20,3 @@ class FetchableItem
     virtual Message::pointer createMessage() = 0;
 };
 }
-
-

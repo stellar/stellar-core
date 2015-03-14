@@ -25,5 +25,3 @@ class Logging
     static el::Level getLLfromString(std::string const& levelName);
 };
 }
-
-

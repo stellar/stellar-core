@@ -20,7 +20,7 @@ class PeerDoorStub;
 
 class PeerDoor
 {
-protected:
+  protected:
     Application& mApp;
     asio::ip::tcp::acceptor mAcceptor;
 
@@ -28,13 +28,12 @@ protected:
     virtual void handleKnock(std::shared_ptr<asio::ip::tcp::socket> pSocket);
 
     friend PeerDoorStub;
+
   public:
     typedef shared_ptr<PeerDoor> pointer;
-      
+
     PeerDoor(Application&);
 
     void close();
 };
 }
-
-
