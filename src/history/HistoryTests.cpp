@@ -229,7 +229,7 @@ HistoryTests::generateAndPublishHistory(size_t nPublishes)
         uint64_t startCount = hm.getPublishStartCount();
         while (hm.getPublishStartCount() == startCount)
         {
-            TxSetFramePtr txSet = std::make_shared<TxSetFrame>();
+            TxSetFramePtr txSet = std::make_shared<TxSetFrame>(lm.getLastClosedLedgerHeader().hash);
 
             uint64_t big = minBalance + ledgerSeq;
             uint64_t small = 100 + ledgerSeq;
@@ -298,7 +298,7 @@ HistoryTests::catchupNewApplication(uint32_t lastLedger,
 
     if (!app2)
     {
-        mCfgs.emplace_back(getTestConfig(mCfgs.size() + 1, dbMode));
+        mCfgs.emplace_back(getTestConfig(static_cast<int>(mCfgs.size()) + 1, dbMode));
         app2 = Application::create(clock, addLocalDirHistoryArchive(dir, mCfgs.back(), false));
         app2->start();
     }

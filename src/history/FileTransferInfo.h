@@ -16,7 +16,8 @@ namespace stellar
 
 extern char const* HISTORY_FILE_TYPE_BUCKET;
 extern char const* HISTORY_FILE_TYPE_LEDGER;
-extern char const* HISTORY_FILE_TYPE_TRANSACTION;
+extern char const* HISTORY_FILE_TYPE_TRANSACTIONS;
+extern char const* HISTORY_FILE_TYPE_RESULTS;
 
 template <typename T>
 class

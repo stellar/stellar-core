@@ -6,6 +6,7 @@ struct LedgerHeader
 {
     Hash previousLedgerHash;// hash of the previous ledger header
     Hash txSetHash;         // the tx set that was SCP confirmed
+    Hash txSetResultHash;   // the TransactionResultSet that led to this ledger
     Hash clfHash;           // hash of the ledger state
 
     uint32 ledgerSeq;       // sequence number of this ledger
@@ -60,7 +61,18 @@ union CLFEntry switch (CLFType type)
 struct TransactionSet
 {
     Hash previousLedgerHash;
-    TransactionEnvelope txs<>;
+    TransactionEnvelope txs<5000>;
+};
+
+struct TransactionResultPair
+{
+    Hash transactionHash;
+    TransactionResult result;   // result for the transaction
+};
+
+struct TransactionResultSet
+{
+    TransactionResultPair results<5000>;
 };
 
 struct TransactionMeta
@@ -71,8 +83,13 @@ struct TransactionMeta
 struct TransactionHistoryEntry
 {
     uint32 ledgerSeq;
-    TransactionEnvelope envelope;
-    TransactionResult result;
+    TransactionSet txSet;
+};
+
+struct TransactionHistoryResultEntry
+{
+    uint32 ledgerSeq;
+    TransactionResultSet txResultSet;
 };
 
 struct LedgerHeaderHistoryEntry

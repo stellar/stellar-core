@@ -845,7 +845,7 @@ Herder::triggerNextLedger()
 
     // our first choice for this round's set is all the tx we have collected
     // during last ledger close
-    TxSetFramePtr proposedSet = std::make_shared<TxSetFrame>();
+    TxSetFramePtr proposedSet = std::make_shared<TxSetFrame>(mLastClosedLedger.hash);
     for (auto& list : mReceivedTransactions)
     {
         for (auto &tx : list)
@@ -854,7 +854,6 @@ Herder::triggerNextLedger()
         }
     }
 
-    proposedSet->mPreviousLedgerHash = mLastClosedLedger.hash;
     recvTxSet(proposedSet);
 
     uint64_t slotIndex = mLastClosedLedger.header.ledgerSeq + 1;
@@ -881,7 +880,7 @@ Herder::triggerNextLedger()
         << "@" << binToHex(getLocalNodeID()).substr(0,6)
         << " txSet.size: " << proposedSet->mTransactions.size()
         << " previousLedgerHash: " 
-        << binToHex(proposedSet->mPreviousLedgerHash).substr(0,6)
+        << binToHex(proposedSet->previousLedgerHash()).substr(0,6)
         << " value: " << binToHex(valueHash).substr(0,6);
 
     // We prepare that value. If we're monarch, the ballot will be validated, and

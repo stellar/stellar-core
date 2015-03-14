@@ -13,6 +13,7 @@
 #include "crypto/Hex.h"
 #include "crypto/SecretKey.h"
 #include "crypto/Base58.h"
+#include "crypto/SHA.h"
 #include "database/Database.h"
 #include "ledger/LedgerHeaderFrame.h"
 #include "herder/HerderGateway.h"
@@ -132,7 +133,7 @@ void LedgerMaster::loadLastKnownLedger()
         LOG(INFO) << "Loading last known ledger";
         Hash lastLedgerHash = hexToBin256(lastLedger);
 
-        mCurrentLedger = LedgerHeaderFrame::loadByHash(lastLedgerHash, *this);
+        mCurrentLedger = LedgerHeaderFrame::loadByHash(lastLedgerHash, getDatabase());
         CLOG(INFO, "Ledger") << "Loaded last known ledger: " << ledgerAbbrev(mCurrentLedger);
 
         if (!mCurrentLedger)
@@ -192,7 +193,7 @@ LedgerHeaderHistoryEntry& LedgerMaster::getLastClosedLedgerHeader()
 // called by txherder
 void LedgerMaster::externalizeValue(LedgerCloseData ledgerData)
 {
-    if(mLastClosedLedger.hash == ledgerData.mTxSet->getPreviousLedgerHash())
+    if(mLastClosedLedger.hash == ledgerData.mTxSet->previousLedgerHash())
     {
         closeLedger(ledgerData);
     }
@@ -263,7 +264,10 @@ void LedgerMaster::closeLedger(LedgerCloseData ledgerData)
         << "starting closeLedger() on ledgerSeq="
         << mCurrentLedger->mHeader.ledgerSeq;
 
-    TxSetFrame successfulTX;
+    if (ledgerData.mTxSet->previousLedgerHash() != getLastClosedLedgerHeader().hash)
+    {
+        throw std::runtime_error("txset mismatch");
+    }
 
     LedgerDelta ledgerDelta(mCurrentLedger->mHeader);
 
@@ -273,6 +277,8 @@ void LedgerMaster::closeLedger(LedgerCloseData ledgerData)
 
     vector<TransactionFramePtr> txs = ledgerData.mTxSet->sortForApply();
     int index = 0;
+
+    SHA256 txResultHasher;
     for(auto tx : txs)
     {
         auto txTime = mTransactionApply.TimeScope();
@@ -283,21 +289,22 @@ void LedgerMaster::closeLedger(LedgerCloseData ledgerData)
             CLOG(DEBUG, "Tx") << "APPLY: ledger " << mCurrentLedger->mHeader.ledgerSeq
                               << " tx#" << index << " = " << hexAbbrev(tx->getFullHash())
                               << " txseq=" << tx->getSeqNum() << " (@ " << hexAbbrev(tx->getSourceID()) <<  ")";
-            // note that successfulTX here just means it got processed
+            // note that success here just means it got processed
             // a failed transaction collecting a fee is successful at this layer
             if(tx->apply(delta, mApp))
             {
-                successfulTX.add(tx);
-                tx->storeTransaction(*this, delta, ++index);
                 delta.commit();
             }
             else
             {
+                tx->getResult().feeCharged = 0;
+                // need delta.rollback
+
                 CLOG(ERROR, "Tx") << "invalid tx. This should never happen";
                 CLOG(ERROR, "Tx") << "Transaction: " << xdr::xdr_to_string(tx->getEnvelope());
                 CLOG(ERROR, "Tx") << "Result: " << xdr::xdr_to_string(tx->getResult());
             }
-
+            tx->storeTransaction(*this, delta, ++index, txResultHasher);
         }
         catch(std::runtime_error &e)
         {
@@ -311,6 +318,8 @@ void LedgerMaster::closeLedger(LedgerCloseData ledgerData)
     ledgerDelta.commit();
     mCurrentLedger->mHeader.baseFee = ledgerData.mBaseFee;
     mCurrentLedger->mHeader.closeTime = ledgerData.mCloseTime;
+    mCurrentLedger->mHeader.txSetHash = ledgerData.mTxSet->getContentsHash();
+    mCurrentLedger->mHeader.txSetResultHash = txResultHasher.finish();
     closeLedgerHelper(ledgerDelta);
     txscope.commit();
 
@@ -345,8 +354,6 @@ LedgerMaster::closeLedgerHelper(LedgerDelta const& delta)
 
     mApp.getCLFMaster().snapshotLedger(mCurrentLedger->mHeader);
 
-    // TODO: compute hashes in header
-    mCurrentLedger->mHeader.txSetHash.fill(1);
     mCurrentLedger->storeInsert(*this);
 
     mApp.getPersistentState().setState(PersistentState::kLastClosedLedger, binToHex(mCurrentLedger->getHash()));

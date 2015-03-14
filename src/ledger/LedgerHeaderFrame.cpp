@@ -96,14 +96,13 @@ using namespace std;
         return make_shared<LedgerHeaderFrame>(lh);
     }
 
-    LedgerHeaderFrame::pointer LedgerHeaderFrame::loadByHash(Hash const& hash, LedgerMaster& ledgerMaster)
+    LedgerHeaderFrame::pointer LedgerHeaderFrame::loadByHash(Hash const& hash, Database& db)
     {
         LedgerHeaderFrame::pointer lhf;
 
         string hash_s(binToHex(hash));
         string headerEncoded;
         {
-            auto& db = ledgerMaster.getDatabase();
             auto timer = db.getSelectTimer("ledger-header");
             db.getSession() <<
                 "SELECT data FROM LedgerHeaders "\
@@ -111,7 +110,7 @@ using namespace std;
                 into(headerEncoded),
                 use(hash_s);
         }
-        if (ledgerMaster.getDatabase().getSession().got_data())
+        if (db.getSession().got_data())
         {
             lhf = decodeFromData(headerEncoded);
             if (lhf->getHash() != hash)
@@ -124,13 +123,11 @@ using namespace std;
         return lhf;
     }
 
-    LedgerHeaderFrame::pointer LedgerHeaderFrame::loadBySequence(uint32_t seq, LedgerMaster& ledgerMaster)
+    LedgerHeaderFrame::pointer LedgerHeaderFrame::loadBySequence(uint32_t seq, Database& db)
     {
         LedgerHeaderFrame::pointer lhf;
 
         string headerEncoded;
-        auto& db = ledgerMaster.getDatabase();
-
         {
             auto timer = db.getSelectTimer("ledger-header");
             db.getSession() <<
@@ -139,7 +136,7 @@ using namespace std;
             into(headerEncoded),
             use(seq);
         }
-        if (ledgerMaster.getDatabase().getSession().got_data())
+        if (db.getSession().got_data())
         {
             lhf = decodeFromData(headerEncoded);
 
@@ -157,7 +154,7 @@ using namespace std;
                                                         soci::session& sess,
                                                         uint32_t ledgerSeq,
                                                         uint32_t ledgerCount,
-                                                        XDROutputFileStream& out)
+                                                        XDROutputFileStream& headersOut)
     {
         auto timer = db.getSelectTimer("ledger-header-history");
         uint32_t begin = ledgerSeq, end = ledgerSeq + ledgerCount;
@@ -170,7 +167,7 @@ using namespace std;
         soci::statement st =
             (sess.prepare <<
              "SELECT data FROM LedgerHeaders "
-             "WHERE ledgerSeq >= :begin AND ledgerSeq < :end",
+             "WHERE ledgerSeq >= :begin AND ledgerSeq < :end ORDER BY ledgerSeq ASC",
              into(headerEncoded),
              use(begin), use(end));
 
@@ -182,7 +179,7 @@ using namespace std;
             lhe.hash = lhf->getHash();
             lhe.header = lhf->mHeader;
             CLOG(DEBUG, "Ledger") << "Streaming ledger-header " << lhe.header.ledgerSeq;
-            out.writeOne(lhe);
+            headersOut.writeOne(lhe);
             ++n;
             st.fetch();
         }

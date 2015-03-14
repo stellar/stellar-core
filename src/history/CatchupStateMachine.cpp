@@ -345,7 +345,7 @@ CatchupStateMachine::enterAnchoredState(HistoryArchiveState const& has)
             uint32_t snap = static_cast<uint32>(i);
             auto fi = std::make_shared<FileCatchupInfo>(
                 FILE_CATCHUP_NEEDED, mDownloadDir,
-                HISTORY_FILE_TYPE_TRANSACTION, snap);
+                HISTORY_FILE_TYPE_TRANSACTIONS, snap);
             fileCatchupInfos.push_back(fi);
             if (mTransactionInfos.find(snap) == mTransactionInfos.end())
             {
@@ -521,7 +521,7 @@ CatchupStateMachine::applyHistoryFromLedger(uint32_t ledgerNum)
         LedgerHeaderHistoryEntry hHeader;
         LedgerHeader &header = hHeader.header;
         TransactionHistoryEntry txHistoryEntry;
-        bool readTx = false;
+        bool readTxSet = false;
 
         while (hdrIn && hdrIn.readOne(hHeader))
         {
@@ -532,7 +532,6 @@ CatchupStateMachine::applyHistoryFromLedger(uint32_t ledgerNum)
                 CLOG(DEBUG, "History") << "Catchup skipping old ledger " << header.ledgerSeq;
                 continue;
             }
-
 
             // If we are one before LCL, check that we knit up with it
             if (header.ledgerSeq + 1 == previousHeader.ledgerSeq)
@@ -568,25 +567,23 @@ CatchupStateMachine::applyHistoryFromLedger(uint32_t ledgerNum)
                 throw std::runtime_error("replay at current ledger disagreed on LCL hash");
             }
 
-            TxSetFramePtr txset = std::make_shared<TxSetFrame>();
-            if (!readTx)
+            TxSetFramePtr txset = std::make_shared<TxSetFrame>(lm.getLastClosedLedgerHeader().hash);
+            if (!readTxSet)
             {
-                readTx = txIn.readOne(txHistoryEntry);
+                readTxSet = txIn.readOne(txHistoryEntry);
             }
 
             CLOG(DEBUG, "History") << "Replaying ledger " << header.ledgerSeq;
-            while (readTx && txHistoryEntry.ledgerSeq < header.ledgerSeq)
+            while (readTxSet && txHistoryEntry.ledgerSeq < header.ledgerSeq)
             {
                 CLOG(DEBUG, "History") << "Skipping tx for ledger " << txHistoryEntry.ledgerSeq;
-                readTx = txIn.readOne(txHistoryEntry);
+                readTxSet = txIn.readOne(txHistoryEntry);
             }
-            while (readTx && txHistoryEntry.ledgerSeq == header.ledgerSeq)
+            if (readTxSet && txHistoryEntry.ledgerSeq == header.ledgerSeq)
             {
                 CLOG(DEBUG, "History") << "Preparing tx for ledger " << txHistoryEntry.ledgerSeq;
-                TransactionFramePtr tx =
-                    TransactionFrame::makeTransactionFromWire(txHistoryEntry.envelope);
-                txset->add(tx);
-                readTx = txIn.readOne(txHistoryEntry);
+                txset = make_shared<TxSetFrame>(txHistoryEntry.txSet);
+                readTxSet = txIn.readOne(txHistoryEntry);
             }
             CLOG(DEBUG, "History") << "Ledger " << header.ledgerSeq
                                    << " has " << txset->size() << " transactions";

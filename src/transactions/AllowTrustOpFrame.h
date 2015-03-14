@@ -7,7 +7,7 @@ namespace stellar
     class AllowTrustOpFrame : public OperationFrame
     {
         int32_t getNeededThreshold();
-        AllowTrust::AllowTrustResult &innerResult() { return mResult.tr().allowTrustResult(); }
+        AllowTrust::AllowTrustResult &innerResult() { return getResult().tr().allowTrustResult(); }
 
         AllowTrustOp const& mAllowTrust;
     public:

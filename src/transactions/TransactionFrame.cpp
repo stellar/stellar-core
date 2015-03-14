@@ -50,6 +50,12 @@ Hash& TransactionFrame::getContentsHash()
 }
 
 
+TransactionResultPair &TransactionFrame::getResultPair()
+{
+    mResultPair.transactionHash = getFullHash();
+    return mResultPair;
+}
+
 TransactionEnvelope& TransactionFrame::getEnvelope()
 {
     return mEnvelope;
@@ -128,8 +134,8 @@ bool TransactionFrame::loadAccount(Application& app)
 bool TransactionFrame::checkValid(Application &app, bool applying, SequenceNumber current)
 {
     // pre-allocates the results for all operations
-    mResult.result.code(txSUCCESS);
-    mResult.result.results().resize((uint32_t)mEnvelope.tx.operations.size());
+    getResult().result.code(txSUCCESS);
+    getResult().result.results().resize((uint32_t)mEnvelope.tx.operations.size());
 
     mOperations.clear();
 
@@ -137,27 +143,27 @@ bool TransactionFrame::checkValid(Application &app, bool applying, SequenceNumbe
     for (size_t i = 0; i < mEnvelope.tx.operations.size(); i++)
     {
         mOperations.push_back(OperationFrame::makeHelper(mEnvelope.tx.operations[i],
-            mResult.result.results()[i], *this));
+            getResult().result.results()[i], *this));
     }
 
     // feeCharged is updated accordingly to represent the cost of the transaction
     // regardless of the failure modes.
-    mResult.feeCharged = 0;
+    getResult().feeCharged = 0;
 
     if (mOperations.size() == 0)
     {
-        mResult.result.code(txMALFORMED);
+        getResult().result.code(txMALFORMED);
         return false;
     }
 
     if(mEnvelope.tx.maxLedger < app.getLedgerGateway().getLedgerNum())
     {
-        mResult.result.code(txBAD_LEDGER);
+        getResult().result.code(txBAD_LEDGER);
         return false;
     }
     if(mEnvelope.tx.minLedger > app.getLedgerGateway().getLedgerNum())
     {
-        mResult.result.code(txBAD_LEDGER);
+        getResult().result.code(txBAD_LEDGER);
         return false;
     }
 
@@ -166,13 +172,13 @@ bool TransactionFrame::checkValid(Application &app, bool applying, SequenceNumbe
 
     if (mEnvelope.tx.maxFee < fee)
     {
-        mResult.result.code(txINSUFFICIENT_FEE);
+        getResult().result.code(txINSUFFICIENT_FEE);
         return false;
     }
 
     if (!loadAccount(app))
     {
-        mResult.result.code(txNO_ACCOUNT);
+        getResult().result.code(txNO_ACCOUNT);
         return false;
     }
 
@@ -183,23 +189,23 @@ bool TransactionFrame::checkValid(Application &app, bool applying, SequenceNumbe
 
     if (current + 1 != mEnvelope.tx.seqNum)
     {
-        mResult.result.code(txBAD_SEQ);
+        getResult().result.code(txBAD_SEQ);
         return false;
     }
 
     if (!checkSignature(*mSigningAccount, mSigningAccount->getLowThreshold()))
     {
-        mResult.result.code(txBAD_AUTH);
+        getResult().result.code(txBAD_AUTH);
         return false;
     }
 
     // failures after this point will end up charging a fee if attempting to run "apply"
-    mResult.feeCharged = fee;
+    getResult().feeCharged = fee;
 
     // don't let the account go below the reserve
     if (mSigningAccount->getAccount().balance - fee < mSigningAccount->getMinimumBalance(app.getLedgerMaster()))
     {
-        mResult.result.code(txINSUFFICIENT_BALANCE);
+        getResult().result.code(txINSUFFICIENT_BALANCE);
         return false;
     }
 
@@ -221,7 +227,7 @@ bool TransactionFrame::checkValid(Application &app, bool applying, SequenceNumbe
 void TransactionFrame::prepareResult(LedgerDelta& delta, LedgerMaster& ledgerMaster)
 {
     Database &db = ledgerMaster.getDatabase();
-    int64_t fee = mResult.feeCharged;
+    int64_t fee = getResult().feeCharged;
 
     if (fee > 0)
     {
@@ -262,7 +268,7 @@ bool TransactionFrame::checkAllSignaturesUsed()
     {
         if (!sigb)
         {
-            mResult.result.code(txBAD_AUTH);
+            getResult().result.code(txBAD_AUTH);
             return false;
         }
     }
@@ -322,9 +328,9 @@ bool TransactionFrame::apply(LedgerDelta& delta, Application& app)
         // As we want to preserve the results, we save them inside a temp object
         // Also, note that because we're using move operators
         // mOperations are still valid (they have pointers to the individual results elements)
-        xdr::xvector<OperationResult> t(std::move(mResult.result.results()));
-        mResult.result.code(txFAILED);
-        mResult.result.results() = std::move(t);
+        xdr::xvector<OperationResult> t(std::move(getResult().result.results()));
+        getResult().result.code(txFAILED);
+        getResult().result.results() = std::move(t);
     }
 
     // return true as the transaction executed and collected a fee
@@ -340,10 +346,12 @@ StellarMessage TransactionFrame::toStellarMessage()
     return msg;
 }
 
-void TransactionFrame::storeTransaction(LedgerMaster &ledgerMaster, LedgerDelta const& delta, int txindex)
+void TransactionFrame::storeTransaction(LedgerMaster &ledgerMaster, LedgerDelta const& delta, int txindex, SHA256 &resultHasher)
 {
     auto txBytes(xdr::xdr_to_opaque(mEnvelope));
-    auto txResultBytes(xdr::xdr_to_opaque(mResult));
+    auto txResultBytes(xdr::xdr_to_opaque(getResultPair()));
+
+    resultHasher.add(txResultBytes);
 
     std::string txBody = base64::encode(
         reinterpret_cast<const unsigned char *>(txBytes.data()),
@@ -359,7 +367,7 @@ void TransactionFrame::storeTransaction(LedgerMaster &ledgerMaster, LedgerDelta 
         reinterpret_cast<const unsigned char *>(txMeta->raw_data()),
         txMeta->raw_size());
 
-    string txIDString(binToHex(getContentsHash()));
+    string txIDString(binToHex(getFullHash()));
 
     auto timer = ledgerMaster.getDatabase().getInsertTimer("txhistory");
     soci::statement st = (ledgerMaster.getDatabase().getSession().prepare <<
@@ -376,42 +384,101 @@ void TransactionFrame::storeTransaction(LedgerMaster &ledgerMaster, LedgerDelta 
     }
 }
 
+static void saveTransactionHelper(Database& db,
+    uint32 ledgerSeq,
+    TxSetFrame& txSet,
+    TransactionHistoryResultEntry& results,
+    XDROutputFileStream& txOut,
+    XDROutputFileStream& txResultOut)
+{
+    // prepare the txset for saving
+    LedgerHeaderFrame::pointer lh = LedgerHeaderFrame::loadBySequence(ledgerSeq, db);
+    if (!lh)
+    {
+        throw std::runtime_error("Could not find ledger");
+    }
+    txSet.previousLedgerHash() = lh->mHeader.previousLedgerHash;
+    txSet.sortForHash();
+    TransactionHistoryEntry hist;
+    hist.ledgerSeq = ledgerSeq;
+    txSet.toXDR(hist.txSet);
+    txOut.writeOne(hist);
+
+    txResultOut.writeOne(results);
+}
+
 size_t
 TransactionFrame::copyTransactionsToStream(Database& db,
                                            soci::session& sess,
                                            uint32_t ledgerSeq,
                                            uint32_t ledgerCount,
-                                           XDROutputFileStream &out)
+                                           XDROutputFileStream &txOut,
+                                           XDROutputFileStream& txResultOut)
 {
     auto timer = db.getSelectTimer("txhistory");
     std::string txBody, txResult, txMeta;
     uint32_t begin = ledgerSeq, end = ledgerSeq + ledgerCount;
     size_t n = 0;
-    TransactionHistoryEntry e;
+    
+    TransactionEnvelope tx;
+    uint32_t curLedgerSeq;
+
     assert(begin <= end);
     soci::statement st =
         (sess.prepare <<
          "SELECT ledgerSeq, TxBody, TxResult FROM TxHistory "\
-          "WHERE ledgerSeq >= :begin AND ledgerSeq < :end ORDER BY ledgerSeq ASC, txID ASC",
-         soci::into(e.ledgerSeq),
+          "WHERE ledgerSeq >= :begin AND ledgerSeq < :end ORDER BY ledgerSeq ASC, txindex ASC",
+         soci::into(curLedgerSeq),
          soci::into(txBody), soci::into(txResult),
          soci::use(begin), soci::use(end));
 
+    Hash h;
+    TxSetFrame txSet(h); // we're setting the hash later
+    TransactionHistoryResultEntry results;
+
     st.execute(true);
+
+    uint32_t lastLedgerSeq = curLedgerSeq;
+    results.ledgerSeq = curLedgerSeq;
+
     while (st.got_data())
     {
+        if (curLedgerSeq != lastLedgerSeq)
+        {
+            saveTransactionHelper(db, lastLedgerSeq, txSet, results, txOut, txResultOut);
+            // reset state
+            txSet.mTransactions.clear();
+            results.ledgerSeq = ledgerSeq;
+            results.txResultSet.results.clear();
+            lastLedgerSeq = curLedgerSeq;
+        }
+        
         std::string body = base64::decode(txBody);
         std::string result = base64::decode(txResult);
 
         xdr::xdr_get g1(body.data(), body.data() + body.size());
-        xdr_argpack_archive(g1, e.envelope);
+        xdr_argpack_archive(g1, tx);
+
+        TransactionFramePtr txFrame = make_shared<TransactionFrame>(tx);
+        txSet.add(txFrame);
 
         xdr::xdr_get g2(result.data(), result.data() + result.size());
-        xdr_argpack_archive(g2, e.result);
+        results.txResultSet.results.emplace_back();
 
-        out.writeOne(e);
+        TransactionResultPair &p = results.txResultSet.results.back();
+        xdr_argpack_archive(g2, p);
+
+        if (p.transactionHash != txFrame->getFullHash())
+        {
+            throw std::runtime_error("transaction mismatch");
+        }
+
         ++n;
         st.fetch();
+    }
+    if (n != 0)
+    {
+        saveTransactionHelper(db, lastLedgerSeq, txSet, results, txOut, txResultOut);
     }
     return n;
 }
