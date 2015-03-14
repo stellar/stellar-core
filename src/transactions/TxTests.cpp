@@ -50,6 +50,13 @@ SequenceNumber getAccountSeqNum(SecretKey const& k, Application &app)
     return account.getSeqNum();
 }
 
+uint64_t getAccountBalance(SecretKey const& k, Application &app)
+{
+    AccountFrame account;
+    REQUIRE(AccountFrame::loadAccount(k.getPublicKey(), account, app.getDatabase()));
+    return account.getBalance();
+}
+
 void checkTransaction(TransactionFrame& txFrame)
 {
     REQUIRE(txFrame.getResult().feeCharged == 10); // default fee
