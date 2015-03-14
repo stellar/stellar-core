@@ -43,6 +43,7 @@ FMT_SRCS =                                      \
     src/ledger/TrustFrame.cpp                   \
     src/main/Application.cpp                    \
     src/main/ApplicationImpl.cpp                \
+    src/main/ApplicationTests.cpp               \
     src/main/CommandHandler.cpp                 \
     src/main/Config.cpp                         \
     src/main/PersistentState.cpp                \
@@ -57,6 +58,7 @@ FMT_SRCS =                                      \
     src/overlay/PeerMaster.cpp                  \
     src/overlay/PeerMasterTests.cpp             \
     src/overlay/PeerRecord.cpp                  \
+    src/overlay/PeerRecordTests.cpp             \
     src/overlay/TCPPeer.cpp                     \
     src/overlay/TCPPeerTests.cpp                \
     src/process/ProcessMaster.cpp               \
@@ -97,6 +99,7 @@ FMT_HDRS =                                      \
     src/clf/CLFMaster.h                         \
     src/clf/LedgerCmp.h                         \
     src/crypto/Base58.h                         \
+    src/crypto/ByteSlice.h                      \
     src/crypto/Hex.h                            \
     src/crypto/Random.h                         \
     src/crypto/SHA.h                            \
@@ -112,7 +115,6 @@ FMT_HDRS =                                      \
     src/history/FileTransferInfo.h              \
     src/history/CatchupStateMachine.h           \
     src/history/HistoryArchive.h                \
-    src/history/HistoryGateway.h                \
     src/history/HistoryMaster.h                 \
     src/history/PublishStateMachine.h           \
     src/ledger/AccountFrame.h                   \
@@ -144,24 +146,27 @@ FMT_HDRS =                                      \
     src/simulation/Simulation.h                 \
     src/simulation/Topologies.h                 \
     src/transactions/AllowTrustOpFrame.h        \
-    src/transactions/CancelOfferOpFrame.h         \
+    src/transactions/CancelOfferOpFrame.h       \
     src/transactions/ChangeTrustOpFrame.h       \
-    src/transactions/CreateOfferOpFrame.h         \
-    src/transactions/InflationOpFrame.h           \
-    src/transactions/MergeOpFrame.h               \
+    src/transactions/CreateOfferOpFrame.h       \
+    src/transactions/InflationOpFrame.h         \
+    src/transactions/MergeOpFrame.h             \
     src/transactions/OfferExchange.h            \
     src/transactions/OperationFrame.h           \
-    src/transactions/PaymentOpFrame.h             \
-    src/transactions/SetOptionsOpFrame.h          \
+    src/transactions/PaymentOpFrame.h           \
+    src/transactions/SetOptionsOpFrame.h        \
     src/transactions/TransactionFrame.h         \
     src/transactions/TxTests.h                  \
     src/util/Fs.h                               \
     src/util/Logging.h                          \
     src/util/Math.h                             \
+    src/util/NonCopyable.h                      \
     src/util/Timer.h                            \
     src/util/TmpDir.h                           \
     src/util/XDRStream.h                        \
     src/util/make_unique.h                      \
+    src/util/must_use.h                         \
+    src/util/optional.h                         \
     src/util/types.h
 
 BUILT_SOURCES = src/generated/StellardVersion.h                                 \
