@@ -330,25 +330,16 @@ HistoryTests::catchupNewApplication(uint32_t lastLedger,
 
     bool done = false;
     uint32_t nextLedger = 0;
-    app2->getHistoryMaster().catchupHistory(
-        lastLedger,
-        initLedger,
-        resumeMode,
-        [&done, &nextLedger](asio::error_code const& ec, uint32_t next)
-        {
-            CLOG(INFO, "History") << "Caught up: nextLedger = " << next;
-            nextLedger = next;
-            CHECK(!ec);
-            done = true;
-        });
-
+    app2->getLedgerMaster().startCatchUp(lastLedger, initLedger, resumeMode);
     assert(!app2->getClock().getIOService().stopped());
 
-    while (!done &&
+    while ((app2->getState() == Application::CATCHING_UP_STATE) &&
            !app2->getClock().getIOService().stopped())
     {
         app2->getClock().crank(false);
     }
+
+    nextLedger = app2->getLedgerMaster().getLastClosedLedgerHeader().header.ledgerSeq + 1;
 
     CLOG(INFO, "History") << "Caught up: initLedger = " << initLedger;
     CLOG(INFO, "History") << "Caught up: " << mLedgerSeqs.size()

@@ -29,14 +29,14 @@ namespace stellar
 const size_t
 CatchupStateMachine::kRetryLimit = 16;
 
-typedef FileTransferInfo<FileCatchupState> FileCatchupInfo;
-
-CatchupStateMachine::CatchupStateMachine(Application& app,
-                                         uint32_t lastLedger,
-                                         uint32_t initLedger,
-                                         HistoryMaster::ResumeMode mode,
-                                         std::function<void(asio::error_code const& ec,
-                                                            uint32_t nextLedger)> handler)
+CatchupStateMachine::CatchupStateMachine(
+    Application& app,
+    uint32_t lastLedger,
+    uint32_t initLedger,
+    HistoryMaster::ResumeMode mode,
+    std::function<void(asio::error_code const& ec,
+                       HistoryMaster::ResumeMode mode,
+                       LedgerHeaderHistoryEntry const& lastClosed)> handler)
     : mApp(app)
     , mLastLedger(lastLedger)
     , mInitLedger(initLedger)
@@ -599,6 +599,7 @@ CatchupStateMachine::applyHistoryFromLedger(uint32_t ledgerNum)
             {
                 throw std::runtime_error("replay produced mismatched ledger hash");
             }
+            mLastClosed = hHeader;
         }
     }
 }
@@ -609,7 +610,7 @@ void CatchupStateMachine::enterEndState()
     mState = CATCHUP_END;
     CLOG(DEBUG, "History")
         << "Completed catchup from '" << mArchive->getName() << "', at nextLedger=" << mNextLedger;
-    mEndHandler(mError, mNextLedger);
+    mEndHandler(mError, mMode, mLastClosed);
 }
 
 

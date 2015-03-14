@@ -9,6 +9,7 @@
 #include "ledger/LedgerGateway.h"
 #include "ledger/LedgerHeaderFrame.h"
 #include "main/PersistentState.h"
+#include "history/HistoryMaster.h"
 
 /*
 Holds the current ledger
@@ -35,11 +36,11 @@ namespace stellar
 
         uint64_t mLastCloseTime;
 
-        void startCatchUp(uint32_t initLedger);
-
         std::vector<LedgerCloseData> mSyncingLedgers;
 
-        void historyCaughtup(asio::error_code const& ec, uint32_t nextLedger);
+        void historyCaughtup(asio::error_code const& ec,
+                             HistoryMaster::ResumeMode mode,
+                             LedgerHeaderHistoryEntry const& lastClosed);
 
     public:
 
@@ -87,6 +88,10 @@ namespace stellar
         Database& getDatabase();
 
         void closeLedger(LedgerCloseData ledgerData);
+
+        void startCatchUp(uint32_t lastLedger,
+                          uint32_t initLedger,
+                          HistoryMaster::ResumeMode resume);
 
     private:
         void closeLedgerHelper(LedgerDelta const& delta);

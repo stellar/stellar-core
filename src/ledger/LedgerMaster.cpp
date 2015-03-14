@@ -24,6 +24,7 @@
 #include "medida/meter.h"
 #include "medida/timer.h"
 #include "xdrpp/printer.h"
+#include "xdrpp/types.h"
 #include <chrono>
 #include <sstream>
 
@@ -50,6 +51,7 @@ catching up to network:
 */
 using std::placeholders::_1;
 using std::placeholders::_2;
+using std::placeholders::_3;
 using namespace std;
 
 namespace stellar
@@ -198,32 +200,44 @@ void LedgerMaster::externalizeValue(LedgerCloseData ledgerData)
         closeLedger(ledgerData);
     }
     else
-    { // we need to catch up
+    {
+        // Out of sync, buffer what we just heard.
+        CLOG(DEBUG, "Ledger")
+            << "Out of sync with network, buffering externalized value for ledgerSeq="
+            << ledgerData.mLedgerSeq;
+
         mSyncingLedgers.push_back(ledgerData);
-        if(mApp.getState() == Application::CATCHING_UP_STATE)
-        {  // we are already trying to catch up
-            CLOG(DEBUG, "Ledger") << "Missed a ledger while trying to catch up.";
-        } else
-        {  // start trying to catchup
-            startCatchUp(ledgerData.mLedgerSeq);
+
+        if (mApp.getState() == Application::CATCHING_UP_STATE)
+        {
+            // We are already trying to catch up.
+            CLOG(DEBUG, "Ledger") << "Catchup in progress";
+        }
+        else
+        {
+            // Start trying to catchup.
+            CLOG(DEBUG, "Ledger") << "Starting catchup";
+            startCatchUp(mLastClosedLedger.header.ledgerSeq,
+                         ledgerData.mLedgerSeq,
+                         HistoryMaster::RESUME_AT_LAST);
         }
     }
 }
 
 
-void LedgerMaster::startCatchUp(uint32_t initLedger)
+void LedgerMaster::startCatchUp(uint32_t lastLedger,
+                                uint32_t initLedger,
+                                HistoryMaster::ResumeMode resume)
 {
     mApp.setState(Application::CATCHING_UP_STATE);
     mApp.getHistoryMaster().catchupHistory(
-        mLastClosedLedger.header.ledgerSeq,
-        initLedger,
-        HistoryMaster::RESUME_AT_LAST,
-        std::bind(&LedgerMaster::historyCaughtup, this, _1, _2));
-
+        lastLedger, initLedger, resume,
+        std::bind(&LedgerMaster::historyCaughtup, this, _1, _2, _3));
 }
 
 void LedgerMaster::historyCaughtup(asio::error_code const& ec,
-                                    uint32_t nextLedger)
+                                   HistoryMaster::ResumeMode mode,
+                                   LedgerHeaderHistoryEntry const& lastClosed)
 {
     if (ec)
     {
@@ -231,6 +245,30 @@ void LedgerMaster::historyCaughtup(asio::error_code const& ec,
     }
     else
     {
+        uint32_t nextLedger = lastClosed.header.ledgerSeq + 1;
+
+        // If we were in RESUME_AT_NEXT mode, LCL has not been updated
+        // and we need to pick it up here.
+        if (mode == HistoryMaster::RESUME_AT_NEXT)
+        {
+            mLastClosedLedger = lastClosed;
+            mCurrentLedger = make_shared<LedgerHeaderFrame>(lastClosed);
+        }
+        else
+        {
+            // In this case we should actually have been caught-up during the
+            // replay process and, if judged successful, our LCL should be the
+            // one provided as well.
+            using xdr::operator==;
+            assert(mode == HistoryMaster::RESUME_AT_LAST);
+            assert(lastClosed.hash == mLastClosedLedger.hash);
+            assert(lastClosed.header == mLastClosedLedger.header);
+        }
+
+        CLOG(INFO, "Ledger")
+            << "Caught up to LCL from history: " << ledgerAbbrev(mLastClosedLedger);
+
+        // Now replay remaining txs from buffered local network history.
         bool applied = false;
         for(auto lcd : mSyncingLedgers)
         {
@@ -247,6 +285,10 @@ void LedgerMaster::historyCaughtup(asio::error_code const& ec,
             }
         }
         if(applied) mSyncingLedgers.clear();
+
+        CLOG(INFO, "Ledger")
+            << "Caught up to LCL including recent network activity: "
+            << ledgerAbbrev(mLastClosedLedger);
 
         mApp.setState(Application::SYNCED_STATE);
     }

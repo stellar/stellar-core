@@ -240,7 +240,8 @@ class HistoryMaster
                         uint32_t initLedger,
                         ResumeMode mode,
                         std::function<void(asio::error_code const& ec,
-                                            uint32_t nextLedger)> handler);
+                                           ResumeMode mode,
+                                           LedgerHeaderHistoryEntry const& lastClosed)> handler);
 
     // Call posted after a worker thread has finished taking a snapshot; calls
     // PublishStateMachine::snapshotTaken iff state machine is live.

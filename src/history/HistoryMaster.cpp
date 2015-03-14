@@ -420,7 +420,8 @@ HistoryMaster::catchupHistory(uint32_t lastLedger,
                               uint32_t initLedger,
                               ResumeMode mode,
                               std::function<void(asio::error_code const& ec,
-                                                 uint32_t nextLedger)> handler)
+                                                 ResumeMode mode,
+                                                 LedgerHeaderHistoryEntry const& lastClosed)> handler)
 {
     if (mImpl->mCatchup)
     {
@@ -432,7 +433,9 @@ HistoryMaster::catchupHistory(uint32_t lastLedger,
         lastLedger,
         initLedger,
         mode,
-        [this, handler](asio::error_code const& ec, uint32_t nextLedger)
+        [this, handler](asio::error_code const& ec,
+                        HistoryMaster::ResumeMode mode,
+                        LedgerHeaderHistoryEntry const& lastClosed)
         {
             if (ec)
             {
@@ -446,7 +449,7 @@ HistoryMaster::catchupHistory(uint32_t lastLedger,
             // caller's handler. Must keep the state machine alive long enough
             // for the callback, though, to avoid killing things living in lambdas.
             std::unique_ptr<CatchupStateMachine> m(std::move(this->mImpl->mCatchup));
-            handler(ec, nextLedger);
+            handler(ec, mode, lastClosed);
         });
 }
 
