@@ -155,7 +155,7 @@ CatchupStateMachine::fileStateChange(asio::error_code const& ec,
         newState = FILE_CATCHUP_FAILED;
     }
     mFileInfos[name]->setState(newState);
-    if (mState == CATCHUP_FETCHING)
+    if (mState != CATCHUP_RETRYING)
     {
         enterFetchingState();
     }
