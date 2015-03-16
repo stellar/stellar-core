@@ -49,8 +49,8 @@ class OfferExchange
         Currency const& wheat, int64_t maxWheatReceive, int64_t& weatReceived,
         std::function<OfferFilterResult(OfferFrame const&)> filter);
 
-    std::vector<ClaimOfferAtom>
-    getOfferTrail()
+    std::vector<ClaimOfferAtom> const&
+    getOfferTrail() const
     {
         return mOfferTrail;
     }

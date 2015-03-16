@@ -20,7 +20,7 @@ class XDROutputFileStream;
 
 class LedgerHeaderFrame
 {
-    Hash mHash;
+    mutable Hash mHash;
 
   public:
     typedef std::shared_ptr<LedgerHeaderFrame> pointer;
@@ -28,20 +28,16 @@ class LedgerHeaderFrame
     LedgerHeader mHeader;
 
     LedgerHeaderFrame(LedgerHeader const& lh);
-    LedgerHeaderFrame(LedgerHeaderHistoryEntry const& lastClosed); // creates a
-                                                                   // new ledger
-                                                                   // based on
-                                                                   // the given
-                                                                   // closed
-                                                                   // ledger
 
-    Hash const& getHash();
+    // creates a new, _subsequent_ ledger, following the provided closed ledger
+    LedgerHeaderFrame(LedgerHeaderHistoryEntry const& lastClosed);
 
-    SequenceNumber getStartingSequenceNumber(); // returns the first sequence
-                                                // number to use for new
-                                                // accounts
+    Hash const& getHash() const;
 
-    void storeInsert(LedgerMaster& ledgerMaster);
+    // returns the first sequence number to use for new accounts
+    SequenceNumber getStartingSequenceNumber() const;
+
+    void storeInsert(LedgerMaster& ledgerMaster) const;
 
     static LedgerHeaderFrame::pointer loadByHash(Hash const& hash,
                                                  Database& ledgerMaster);

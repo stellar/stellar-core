@@ -23,8 +23,9 @@ class LedgerDelta;
 class EntryFrame
 {
   protected:
-    bool mKeyCalculated;
-    LedgerKey mKey;
+    mutable bool mKeyCalculated;
+    mutable LedgerKey mKey;
+    void clearCached() { mKeyCalculated = false; }
 
   public:
     typedef std::shared_ptr<EntryFrame> pointer;
@@ -39,12 +40,12 @@ class EntryFrame
 
     virtual EntryFrame::pointer copy() const = 0;
 
-    LedgerKey const& getKey();
-    virtual void storeDelete(LedgerDelta& delta, Database& db) = 0;
-    virtual void storeChange(LedgerDelta& delta, Database& db) = 0;
-    virtual void storeAdd(LedgerDelta& delta, Database& db) = 0;
+    LedgerKey const& getKey() const;
+    virtual void storeDelete(LedgerDelta& delta, Database& db) const = 0;
+    virtual void storeChange(LedgerDelta& delta, Database& db) const = 0;
+    virtual void storeAdd(LedgerDelta& delta, Database& db) const = 0;
 
-    void storeAddOrChange(LedgerDelta& delta, Database& db);
+    void storeAddOrChange(LedgerDelta& delta, Database& db) const;
     static bool exists(Database& db, LedgerKey const& key);
     static void storeDelete(LedgerDelta& delta, Database& db,
                             LedgerKey const& key);

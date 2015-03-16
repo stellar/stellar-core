@@ -157,7 +157,7 @@ LedgerMaster::getDatabase()
 }
 
 int64_t
-LedgerMaster::getTxFee()
+LedgerMaster::getTxFee() const
 {
     return mCurrentLedger->mHeader.baseFee;
 }
@@ -169,17 +169,24 @@ LedgerMaster::getMinBalance(uint32_t ownerCount) const
 }
 
 uint32_t
-LedgerMaster::getLedgerNum()
+LedgerMaster::getLedgerNum() const
 {
     assert(mCurrentLedger);
     return mCurrentLedger->mHeader.ledgerSeq;
 }
 
 uint64_t
-LedgerMaster::getCloseTime()
+LedgerMaster::getCloseTime() const
 {
     assert(mCurrentLedger);
     return mCurrentLedger->mHeader.closeTime;
+}
+
+LedgerHeader const&
+LedgerMaster::getCurrentLedgerHeader() const
+{
+    assert(mCurrentLedger);
+    return mCurrentLedger->mHeader;
 }
 
 LedgerHeader&
@@ -189,15 +196,15 @@ LedgerMaster::getCurrentLedgerHeader()
     return mCurrentLedger->mHeader;
 }
 
-LedgerHeaderFrame&
-LedgerMaster::getCurrentLedgerHeaderFrame()
+LedgerHeaderFrame const&
+LedgerMaster::getCurrentLedgerHeaderFrame() const
 {
     assert(mCurrentLedger);
     return *mCurrentLedger;
 }
 
-LedgerHeaderHistoryEntry&
-LedgerMaster::getLastClosedLedgerHeader()
+LedgerHeaderHistoryEntry const&
+LedgerMaster::getLastClosedLedgerHeader() const
 {
     return mLastClosedLedger;
 }
@@ -307,7 +314,7 @@ LedgerMaster::historyCaughtup(asio::error_code const& ec,
 }
 
 uint64_t
-LedgerMaster::secondsSinceLastLedgerClose()
+LedgerMaster::secondsSinceLastLedgerClose() const
 {
     return mApp.timeNow() - mLastCloseTime;
 }

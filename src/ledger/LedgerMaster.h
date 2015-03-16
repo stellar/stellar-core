@@ -61,15 +61,15 @@ class LedgerMaster : public LedgerGateway
     // called by txherder
     void externalizeValue(LedgerCloseData ledgerData) override;
 
-    uint32_t getLedgerNum() override;
+    uint32_t getLedgerNum() const override;
     int64_t getMinBalance(uint32_t ownerCount) const;
-    int64_t getTxFee() override; // fee is a 32 bit but we use 64 to avoid
-                                 // overflow when doing math
-    uint64_t getCloseTime() override;
+    int64_t getTxFee() const override; // fee is a 32 bit but we use 64 to avoid
+                                       // overflow when doing math
+    uint64_t getCloseTime() const override;
 
     ///////
 
-    uint64_t secondsSinceLastLedgerClose();
+    uint64_t secondsSinceLastLedgerClose() const;
 
     void startNewLedger();
     void loadLastKnownLedger();
@@ -86,9 +86,10 @@ class LedgerMaster : public LedgerGateway
     void abortLedgerClose();
 
     LedgerHeader& getCurrentLedgerHeader();
-    LedgerHeaderFrame& getCurrentLedgerHeaderFrame();
+    LedgerHeader const& getCurrentLedgerHeader() const;
+    LedgerHeaderFrame const& getCurrentLedgerHeaderFrame() const;
 
-    LedgerHeaderHistoryEntry& getLastClosedLedgerHeader();
+    LedgerHeaderHistoryEntry const& getLastClosedLedgerHeader() const;
 
     Database& getDatabase();
 

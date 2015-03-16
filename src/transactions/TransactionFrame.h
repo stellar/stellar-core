@@ -33,13 +33,14 @@ class TransactionFrame
 {
   protected:
     TransactionEnvelope mEnvelope;
-    TransactionResultPair mResultPair;
+    TransactionResult mResult;
 
     AccountFrame::pointer mSigningAccount;
     std::vector<bool> mUsedSignatures;
 
-    Hash mContentsHash; // the hash of the contents
-    Hash mFullHash;     // the hash of the contents and the sig.
+    void clearCached();
+    mutable Hash mContentsHash; // the hash of the contents
+    mutable Hash mFullHash;     // the hash of the contents and the sig.
 
     std::vector<std::shared_ptr<OperationFrame>> mOperations;
 
@@ -62,48 +63,54 @@ class TransactionFrame
     static TransactionFrame::pointer
     makeTransactionFromWire(TransactionEnvelope const& msg);
 
-    Hash& getFullHash();
-    Hash& getContentsHash();
+    Hash const& getFullHash() const;
+    Hash const& getContentsHash() const;
 
     AccountFrame::pointer
-    getSourceAccountPtr()
+    getSourceAccountPtr() const
     {
         return mSigningAccount;
     }
     void setSourceAccountPtr(AccountFrame::pointer signingAccount);
     std::vector<std::shared_ptr<OperationFrame>> const&
-    getOperations()
+    getOperations() const
     {
         return mOperations;
     }
 
+    TransactionResult const&
+    getResult() const
+    {
+        return mResult;
+    }
     TransactionResult&
     getResult()
     {
-        return mResultPair.result;
+        return mResult;
     }
     TransactionResultCode
-    getResultCode()
+    getResultCode() const
     {
         return getResult().result.code();
     }
 
-    TransactionResultPair& getResultPair();
+    TransactionResultPair getResultPair() const;
+    TransactionEnvelope const& getEnvelope() const;
     TransactionEnvelope& getEnvelope();
 
     SequenceNumber
-    getSeqNum()
+    getSeqNum() const
     {
         return mEnvelope.tx.seqNum;
     }
-    AccountFrame&
-    getSourceAccount()
+    AccountFrame const&
+    getSourceAccount() const
     {
         assert(mSigningAccount);
         return *mSigningAccount;
     }
     uint256 const&
-    getSourceID()
+    getSourceID() const
     {
         return mEnvelope.tx.account;
     }
@@ -116,14 +123,14 @@ class TransactionFrame
     // returns true if successfully applied
     bool apply(LedgerDelta& delta, Application& app);
 
-    StellarMessage toStellarMessage();
+    StellarMessage toStellarMessage() const;
 
     AccountFrame::pointer loadAccount(Application& app,
                                       uint256 const& accountID);
 
     // transaction history
     void storeTransaction(LedgerMaster& ledgerMaster, LedgerDelta const& delta,
-                          int txindex, SHA256& resultHasher);
+                          int txindex, SHA256& resultHasher) const;
 
     /*
     txOut: stream of TransactionHistoryEntry

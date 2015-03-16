@@ -48,9 +48,9 @@ class TrustFrame : public EntryFrame
     }
 
     // Instance-based overrides of EntryFrame.
-    void storeDelete(LedgerDelta& delta, Database& db) override;
-    void storeChange(LedgerDelta& delta, Database& db) override;
-    void storeAdd(LedgerDelta& delta, Database& db) override;
+    void storeDelete(LedgerDelta& delta, Database& db) const override;
+    void storeChange(LedgerDelta& delta, Database& db) const override;
+    void storeAdd(LedgerDelta& delta, Database& db) const override;
 
     // Static helper that don't assume an instance.
     static void storeDelete(LedgerDelta& delta, Database& db,
@@ -64,7 +64,12 @@ class TrustFrame : public EntryFrame
     static void loadLines(const uint256& accountID,
                           std::vector<TrustFrame>& retLines, Database& db);
 
-    int64_t getBalance();
+    int64_t getBalance() const;
+    TrustLineEntry const&
+    getTrustLine() const
+    {
+        return mTrustLine;
+    }
     TrustLineEntry&
     getTrustLine()
     {

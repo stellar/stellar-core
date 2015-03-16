@@ -702,7 +702,7 @@ Herder::doesntHaveSCPQuorumSet(uint256 const& qSetHash, PeerPtr peer)
 bool
 Herder::recvTransaction(TransactionFramePtr tx)
 {
-    Hash& txID = tx->getFullHash();
+    Hash const& txID = tx->getFullHash();
 
     // determine if we have seen this tx before and if not if it has the right
     // seq num

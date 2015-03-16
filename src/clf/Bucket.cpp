@@ -311,7 +311,8 @@ Bucket::fresh(CLFMaster& clfMaster, std::vector<LedgerEntry> const& liveEntries,
 }
 
 inline void
-maybe_put(CLFEntryIdCmp& cmp, Bucket::OutputIterator& out,
+maybe_put(CLFEntryIdCmp const& cmp,
+          Bucket::OutputIterator& out,
           Bucket::InputIterator& in,
           std::vector<Bucket::InputIterator>& shadowIterators)
 {

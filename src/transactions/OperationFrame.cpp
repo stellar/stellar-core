@@ -73,19 +73,19 @@ OperationFrame::apply(LedgerDelta& delta, Application& app)
 }
 
 int32_t
-OperationFrame::getNeededThreshold()
+OperationFrame::getNeededThreshold() const
 {
     return mSourceAccount->getMidThreshold();
 }
 
 bool
-OperationFrame::checkSignature()
+OperationFrame::checkSignature() const
 {
     return mParentTx.checkSignature(*mSourceAccount, getNeededThreshold());
 }
 
 uint256 const&
-OperationFrame::getSourceID()
+OperationFrame::getSourceID() const
 {
     return mOperation.sourceAccount ? *mOperation.sourceAccount
                                     : mParentTx.getEnvelope().tx.account;
@@ -99,7 +99,7 @@ OperationFrame::loadAccount(Application& app)
 }
 
 OperationResultCode
-OperationFrame::getResultCode()
+OperationFrame::getResultCode() const
 {
     return mResult.code();
 }

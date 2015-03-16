@@ -64,7 +64,7 @@ TrustFrame::getKeyFields(LedgerKey const& key, std::string& base58AccountID,
 }
 
 int64_t
-TrustFrame::getBalance()
+TrustFrame::getBalance() const
 {
     assert(isValid());
     return mTrustLine.balance;
@@ -94,7 +94,7 @@ TrustFrame::exists(Database& db, LedgerKey const& key)
 }
 
 void
-TrustFrame::storeDelete(LedgerDelta& delta, Database& db)
+TrustFrame::storeDelete(LedgerDelta& delta, Database& db) const
 {
     storeDelete(delta, db, getKey());
 }
@@ -114,7 +114,7 @@ TrustFrame::storeDelete(LedgerDelta& delta, Database& db, LedgerKey const& key)
 }
 
 void
-TrustFrame::storeChange(LedgerDelta& delta, Database& db)
+TrustFrame::storeChange(LedgerDelta& delta, Database& db) const
 {
     assert(isValid());
 
@@ -140,7 +140,7 @@ TrustFrame::storeChange(LedgerDelta& delta, Database& db)
 }
 
 void
-TrustFrame::storeAdd(LedgerDelta& delta, Database& db)
+TrustFrame::storeAdd(LedgerDelta& delta, Database& db) const
 {
     assert(isValid());
 

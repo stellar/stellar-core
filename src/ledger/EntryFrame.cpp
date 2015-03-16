@@ -42,7 +42,7 @@ EntryFrame::EntryFrame(const LedgerEntry& from)
 }
 
 LedgerKey const&
-EntryFrame::getKey()
+EntryFrame::getKey() const
 {
     if (!mKeyCalculated)
     {
@@ -53,7 +53,7 @@ EntryFrame::getKey()
 }
 
 void
-EntryFrame::storeAddOrChange(LedgerDelta& delta, Database& db)
+EntryFrame::storeAddOrChange(LedgerDelta& delta, Database& db) const
 {
     if (exists(db, getKey()))
     {

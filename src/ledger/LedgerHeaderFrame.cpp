@@ -38,7 +38,7 @@ LedgerHeaderFrame::LedgerHeaderFrame(LedgerHeaderHistoryEntry const& lastClosed)
 }
 
 Hash const&
-LedgerHeaderFrame::getHash()
+LedgerHeaderFrame::getHash() const
 {
     if (isZero(mHash))
     {
@@ -49,13 +49,13 @@ LedgerHeaderFrame::getHash()
 }
 
 SequenceNumber
-LedgerHeaderFrame::getStartingSequenceNumber()
+LedgerHeaderFrame::getStartingSequenceNumber() const
 {
     return static_cast<uint64_t>(mHeader.ledgerSeq) << 32;
 }
 
 void
-LedgerHeaderFrame::storeInsert(LedgerMaster& ledgerMaster)
+LedgerHeaderFrame::storeInsert(LedgerMaster& ledgerMaster) const
 {
     getHash();
 
