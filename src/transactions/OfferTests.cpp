@@ -97,28 +97,28 @@ TEST_CASE("create offer", "[tx][offers]")
         SequenceNumber a1_seq = getAccountSeqNum(a1, app) + 1;
 
         // missing USD trust
-        applyCreateOffer(app, delta, a1, idrCur, usdCur, oneone, 100, a1_seq++,
-                         CreateOffer::NO_TRUST);
+        applyCreateOfferWithResult(app, delta, a1, idrCur, usdCur, oneone, 100,
+                                   a1_seq++, CreateOffer::NO_TRUST);
 
         applyChangeTrust(app, a1, gateway, a1_seq++, "USD", trustLineLimit);
 
         // missing IDR trust
-        applyCreateOffer(app, delta, a1, idrCur, usdCur, oneone, 100, a1_seq++,
-                         CreateOffer::NO_TRUST);
+        applyCreateOfferWithResult(app, delta, a1, idrCur, usdCur, oneone, 100,
+                                   a1_seq++, CreateOffer::NO_TRUST);
 
         applyChangeTrust(app, a1, gateway, a1_seq++, "IDR", trustLineLimit);
 
         // can't sell IDR if account doesn't have any
-        applyCreateOffer(app, delta, a1, idrCur, usdCur, oneone, 100, a1_seq++,
-                         CreateOffer::UNDERFUNDED);
+        applyCreateOfferWithResult(app, delta, a1, idrCur, usdCur, oneone, 100,
+                                   a1_seq++, CreateOffer::UNDERFUNDED);
 
         // fund a1 with some IDR
         applyCreditPaymentTx(app, gateway, a1, idrCur, gateway_seq++,
                              trustLineLimit);
 
         // need sufficient STR funds to create an offer
-        applyCreateOffer(app, delta, a1, idrCur, usdCur, oneone, 100, a1_seq++,
-                         CreateOffer::UNDERFUNDED);
+        applyCreateOfferWithResult(app, delta, a1, idrCur, usdCur, oneone, 100,
+                                   a1_seq++, CreateOffer::UNDERFUNDED);
 
         // there should be no pending offer at this point in the system
         OfferFrame offer;
@@ -150,19 +150,21 @@ TEST_CASE("create offer", "[tx][offers]")
 
         // create nbOffers
         std::vector<uint64_t> a1OfferID;
-        uint64_t offerIDCounter = 0;
         const Price usdPriceOfferA(3, 2);
 
         for (int i = 0; i < nbOffers; i++)
         {
-            a1OfferID.push_back(offerIDCounter++);
 
             // offer is sell 100 IDR for 150 USD; sell IRD @ 0.66 -> buy USD @
             // 1.5
-            applyCreateOffer(app, delta, a1, idrCur, usdCur, usdPriceOfferA,
-                             100 * currencyMultiplier, a1_seq++);
-            REQUIRE(OfferFrame::loadOffer(a1.getPublicKey(), a1OfferID[i],
-                                          offer, app.getDatabase()));
+            uint64_t newOfferID =
+                applyCreateOffer(app, delta, a1, idrCur, usdCur, usdPriceOfferA,
+                                 100 * currencyMultiplier, a1_seq++);
+
+            REQUIRE(OfferFrame::loadOffer(a1.getPublicKey(), newOfferID, offer,
+                                          app.getDatabase()));
+
+            a1OfferID.push_back(newOfferID);
 
             // verifies that the offer was created as expected
             REQUIRE(offer.getPrice() == usdPriceOfferA);
@@ -187,12 +189,12 @@ TEST_CASE("create offer", "[tx][offers]")
 
             // offer is sell 40 USD for 80 IDR ; sell USD @ 2
 
-            applyCreateOffer(app, delta, b1, usdCur, idrCur, twoone,
-                             40 * currencyMultiplier, b1_seq++);
+            uint64_t offerID =
+                applyCreateOffer(app, delta, b1, usdCur, idrCur, twoone,
+                                 40 * currencyMultiplier, b1_seq++);
 
             // verifies that the offer was created properly
-            REQUIRE(OfferFrame::loadOffer(b1.getPublicKey(),
-                                          delta.getCurrentID() - 1, offer,
+            REQUIRE(OfferFrame::loadOffer(b1.getPublicKey(), offerID, offer,
                                           app.getDatabase()));
             REQUIRE(offer.getPrice() == twoone);
             REQUIRE(offer.getAmount() == 40 * currencyMultiplier);
@@ -225,9 +227,9 @@ TEST_CASE("create offer", "[tx][offers]")
             Price exactCross(usdPriceOfferA.d, usdPriceOfferA.n);
 
             uint64_t beforeID = delta.getCurrentID();
-            applyCreateOffer(app, delta, a1, usdCur, idrCur, exactCross,
-                             150 * currencyMultiplier, a1_seq++,
-                             CreateOffer::CROSS_SELF);
+            applyCreateOfferWithResult(app, delta, a1, usdCur, idrCur,
+                                       exactCross, 150 * currencyMultiplier,
+                                       a1_seq++, CreateOffer::CROSS_SELF);
             REQUIRE(beforeID == delta.getCurrentID());
 
             for (auto a1Offer : a1OfferID)
@@ -252,12 +254,15 @@ TEST_CASE("create offer", "[tx][offers]")
             // 0.66
             Price exactCross(usdPriceOfferA.d, usdPriceOfferA.n);
 
-            applyCreateOffer(app, delta, b1, usdCur, idrCur, exactCross,
-                             150 * currencyMultiplier, b1_seq++);
+            uint64_t offerID = delta.getCurrentID();
+            auto const& res = applyCreateOfferWithResult(
+                app, delta, b1, usdCur, idrCur, exactCross,
+                150 * currencyMultiplier, b1_seq++);
 
-            // verifies that the offer was cleared
-            REQUIRE(!OfferFrame::loadOffer(b1.getPublicKey(),
-                                           delta.getCurrentID() - 1, offer,
+            REQUIRE(res.success().offer.effect() == CreateOffer::EMPTY);
+
+            // verifies that the offer was not created
+            REQUIRE(!OfferFrame::loadOffer(b1.getPublicKey(), offerID, offer,
                                            app.getDatabase()));
 
             // and the state of a1 offers
@@ -309,13 +314,15 @@ TEST_CASE("create offer", "[tx][offers]")
                                               app.getDatabase()));
             int64_t b1_idr = line.getBalance();
 
+            uint64_t offerID = delta.getCurrentID();
             // offer is sell 1010 USD for 505 IDR; sell USD @ 0.5
-            applyCreateOffer(app, delta, b1, usdCur, idrCur, onetwo,
-                             1010 * currencyMultiplier, b1_seq++);
+            auto const& res = applyCreateOfferWithResult(
+                app, delta, b1, usdCur, idrCur, onetwo,
+                1010 * currencyMultiplier, b1_seq++);
 
-            // offer is cleared
-            REQUIRE(!OfferFrame::loadOffer(b1.getPublicKey(),
-                                           delta.getCurrentID() - 1, offer,
+            REQUIRE(res.success().offer.effect() == CreateOffer::EMPTY);
+            // verify that the offer was not created
+            REQUIRE(!OfferFrame::loadOffer(b1.getPublicKey(), offerID, offer,
                                            app.getDatabase()));
 
             // Offers are: sell 100 IDR for 150 USD; sell IRD @ 0.66 -> buy USD
@@ -408,12 +415,14 @@ TEST_CASE("create offer", "[tx][offers]")
             {
                 // offer is sell 1 USD for 0.5 IDR; sell USD @ 0.5
 
-                applyCreateOffer(app, delta, b1, usdCur, idrCur, onetwo,
-                                 1 * currencyMultiplier, b1_seq++);
+                uint64_t wouldCreateID = delta.getCurrentID();
+                auto const& res = applyCreateOfferWithResult(
+                    app, delta, b1, usdCur, idrCur, onetwo,
+                    1 * currencyMultiplier, b1_seq++);
 
-                REQUIRE(!OfferFrame::loadOffer(b1.getPublicKey(),
-                                               delta.getCurrentID() - 1, offer,
-                                               app.getDatabase()));
+                REQUIRE(res.success().offer.effect() == CreateOffer::EMPTY);
+                REQUIRE(!OfferFrame::loadOffer(b1.getPublicKey(), wouldCreateID,
+                                               offer, app.getDatabase()));
             }
 
             for (int i = 0; i < nbOffers; i++)
@@ -485,13 +494,13 @@ TEST_CASE("create offer", "[tx][offers]")
                                      20000 * currencyMultiplier);
 
                 // matches the offer from A
-                applyCreateOffer(app, delta, c1, idrCur, usdCur, usdPriceOfferA,
-                                 100 * currencyMultiplier, c1_seq++);
+                cOfferID = applyCreateOffer(app, delta, c1, idrCur, usdCur,
+                                            usdPriceOfferA,
+                                            100 * currencyMultiplier, c1_seq++);
                 // drain account
                 applyCreditPaymentTx(app, c1, gateway, idrCur, c1_seq++,
                                      20000 * currencyMultiplier);
                 // offer should still be there
-                cOfferID = delta.getCurrentID() - 1;
                 REQUIRE(OfferFrame::loadOffer(c1.getPublicKey(), cOfferID,
                                               offer, app.getDatabase()));
             }
@@ -499,11 +508,11 @@ TEST_CASE("create offer", "[tx][offers]")
             // offer is sell 10000 USD for 5000 IDR; sell USD @ 0.5
 
             int64_t usdBalanceForSale = 10000 * currencyMultiplier;
-            applyCreateOffer(app, delta, b1, usdCur, idrCur, onetwo,
-                             usdBalanceForSale, b1_seq++);
+            uint64_t offerID =
+                applyCreateOffer(app, delta, b1, usdCur, idrCur, onetwo,
+                                 usdBalanceForSale, b1_seq++);
 
-            REQUIRE(OfferFrame::loadOffer(b1.getPublicKey(),
-                                          delta.getCurrentID() - 1, offer,
+            REQUIRE(OfferFrame::loadOffer(b1.getPublicKey(), offerID, offer,
                                           app.getDatabase()));
 
             // Offers are: sell 100 IDR for 150 USD; sell IRD @ 0.66 -> buy USD

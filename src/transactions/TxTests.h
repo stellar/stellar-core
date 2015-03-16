@@ -60,7 +60,15 @@ TransactionFramePtr createOfferOp(SecretKey& source, Currency& takerGets,
                                   Currency& takerPays, Price const& price,
                                   int64_t amount, SequenceNumber seq);
 
-void applyCreateOffer(
+// expects success
+// expects a new offer to be created
+// returns the ID of the new offer
+uint64_t applyCreateOffer(Application& app, LedgerDelta& delta,
+                          SecretKey& source, Currency& takerGets,
+                          Currency& takerPays, Price const& price,
+                          int64_t amount, SequenceNumber seq);
+
+CreateOffer::CreateOfferResult applyCreateOfferWithResult(
     Application& app, LedgerDelta& delta, SecretKey& source,
     Currency& takerGets, Currency& takerPays, Price const& price,
     int64_t amount, SequenceNumber seq,

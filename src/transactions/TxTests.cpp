@@ -244,11 +244,10 @@ createOfferOp(SecretKey& source, Currency& takerGets, Currency& takerPays,
     return transactionFromOperation(source, seq, op);
 }
 
-void
-applyCreateOffer(Application& app, LedgerDelta& delta, SecretKey& source,
-                 Currency& takerGets, Currency& takerPays, Price const& price,
-                 int64_t amount, SequenceNumber seq,
-                 CreateOffer::CreateOfferResultCode result)
+static CreateOffer::CreateOfferResult
+applyCreateOfferHelper(Application& app, LedgerDelta& delta, SecretKey& source,
+                       Currency& takerGets, Currency& takerPays,
+                       Price const& price, int64_t amount, SequenceNumber seq)
 {
     TransactionFramePtr txFrame;
 
@@ -257,8 +256,56 @@ applyCreateOffer(Application& app, LedgerDelta& delta, SecretKey& source,
     txFrame->apply(delta, app);
 
     checkTransaction(*txFrame);
-    REQUIRE(CreateOffer::getInnerCode(
-                txFrame->getResult().result.results()[0]) == result);
+
+    auto& results = txFrame->getResult().result.results();
+
+    REQUIRE(results.size() == 1);
+
+    return results[0].tr().createOfferResult();
+}
+
+uint64_t
+applyCreateOffer(Application& app, LedgerDelta& delta, SecretKey& source,
+                 Currency& takerGets, Currency& takerPays, Price const& price,
+                 int64_t amount, SequenceNumber seq)
+{
+    uint64_t expectedOfferID = delta.getCurrentID();
+
+    CreateOffer::CreateOfferResult const& createOfferRes =
+        applyCreateOfferHelper(app, delta, source, takerGets, takerPays, price,
+                               amount, seq);
+
+    REQUIRE(createOfferRes.code() == CreateOffer::SUCCESS);
+
+    auto& success = createOfferRes.success().offer;
+
+    REQUIRE(success.effect() == CreateOffer::CREATED);
+
+    auto& offerRes = success.offerCreated();
+    REQUIRE(offerRes.offerID == expectedOfferID);
+
+    // verify that the created offer is in the database
+    OfferFrame offer;
+    REQUIRE(OfferFrame::loadOffer(source.getPublicKey(), expectedOfferID, offer,
+                                  app.getDatabase()));
+
+    return offerRes.offerID;
+}
+
+CreateOffer::CreateOfferResult
+applyCreateOfferWithResult(Application& app, LedgerDelta& delta,
+                           SecretKey& source, Currency& takerGets,
+                           Currency& takerPays, Price const& price,
+                           int64_t amount, SequenceNumber seq,
+                           CreateOffer::CreateOfferResultCode result)
+{
+    CreateOffer::CreateOfferResult const& createOfferRes =
+        applyCreateOfferHelper(app, delta, source, takerGets, takerPays, price,
+                               amount, seq);
+
+    REQUIRE(createOfferRes.code() == result);
+
+    return createOfferRes;
 }
 
 TransactionFramePtr
