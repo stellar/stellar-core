@@ -508,6 +508,8 @@ resumeModeName(HistoryMaster::ResumeMode mode)
         return "RESUME_AT_NEXT";
     case HistoryMaster::RESUME_AT_LAST:
         return "RESUME_AT_LAST";
+    default:
+        abort();
     }
 }
 
@@ -524,6 +526,8 @@ dbModeName(Config::TestDbMode mode)
         return "TESTDB_UNIX_LOCAL_POSTGRESQL";
     case Config::TESTDB_TCP_LOCALHOST_POSTGRESQL:
         return "TESTDB_TCP_LOCALHOST_POSTGRESQL";
+    default:
+        abort();
     }
 }
 

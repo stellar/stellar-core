@@ -86,6 +86,8 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
             dbname << "postgresql://host=localhost dbname=test"
                    << instanceNumber << " user=test password=test";
             break;
+        default:
+            abort();
         }
         thisConfig.DATABASE = dbname.str();
     }
