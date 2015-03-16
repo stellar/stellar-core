@@ -6,7 +6,7 @@ namespace stellar
 {
 class SetOptionsOpFrame : public OperationFrame
 {
-    int32_t getNeededThreshold();
+    int32_t getNeededThreshold() const;
     SetOptions::SetOptionsResult&
     innerResult()
     {

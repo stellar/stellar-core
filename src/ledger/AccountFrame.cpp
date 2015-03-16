@@ -59,13 +59,13 @@ AccountFrame::AccountFrame(uint256 const& id) : AccountFrame()
 }
 
 bool
-AccountFrame::isAuthRequired()
+AccountFrame::isAuthRequired() const
 {
     return (mAccountEntry.flags & AUTH_REQUIRED_FLAG);
 }
 
 int64_t
-AccountFrame::getBalance()
+AccountFrame::getBalance() const
 {
     return (mAccountEntry.balance);
 }
@@ -83,25 +83,25 @@ AccountFrame::getID() const
 }
 
 uint32_t
-AccountFrame::getMasterWeight()
+AccountFrame::getMasterWeight() const
 {
     return mAccountEntry.thresholds[0];
 }
 
 uint32_t
-AccountFrame::getHighThreshold()
+AccountFrame::getHighThreshold() const
 {
     return mAccountEntry.thresholds[3];
 }
 
 uint32_t
-AccountFrame::getMidThreshold()
+AccountFrame::getMidThreshold() const
 {
     return mAccountEntry.thresholds[2];
 }
 
 uint32_t
-AccountFrame::getLowThreshold()
+AccountFrame::getLowThreshold() const
 {
     return mAccountEntry.thresholds[1];
 }
@@ -117,6 +117,7 @@ AccountFrame::loadAccount(const uint256& accountID, AccountFrame& retAcc,
 
     soci::session& session = db.getSession();
 
+    retAcc.clearCached();
     retAcc.getAccount().accountID = accountID;
     AccountEntry& account = retAcc.getAccount();
     {
@@ -189,7 +190,7 @@ AccountFrame::exists(Database& db, LedgerKey const& key)
 }
 
 void
-AccountFrame::storeDelete(LedgerDelta& delta, Database& db)
+AccountFrame::storeDelete(LedgerDelta& delta, Database& db) const
 {
     storeDelete(delta, db, getKey());
 }
@@ -216,7 +217,7 @@ AccountFrame::storeDelete(LedgerDelta& delta, Database& db,
 }
 
 void
-AccountFrame::storeUpdate(LedgerDelta& delta, Database& db, bool insert)
+AccountFrame::storeUpdate(LedgerDelta& delta, Database& db, bool insert) const
 {
     std::string base58ID =
         toBase58Check(VER_ACCOUNT_ID, mAccountEntry.accountID);
@@ -399,13 +400,13 @@ AccountFrame::storeUpdate(LedgerDelta& delta, Database& db, bool insert)
 }
 
 void
-AccountFrame::storeChange(LedgerDelta& delta, Database& db)
+AccountFrame::storeChange(LedgerDelta& delta, Database& db) const
 {
     storeUpdate(delta, db, false);
 }
 
 void
-AccountFrame::storeAdd(LedgerDelta& delta, Database& db)
+AccountFrame::storeAdd(LedgerDelta& delta, Database& db) const
 {
     EntryFrame::pointer emptyAccount =
         make_shared<AccountFrame>(mAccountEntry.accountID);

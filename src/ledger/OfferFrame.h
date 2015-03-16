@@ -42,7 +42,7 @@ class OfferFrame : public EntryFrame
     OfferFrame(OfferFrame const& from);
 
     OfferFrame& operator=(OfferFrame const& other);
-    void from(OperationFrame& op);
+    void from(OperationFrame const& op);
 
     EntryFrame::pointer
     copy() const
@@ -53,10 +53,15 @@ class OfferFrame : public EntryFrame
     Price const& getPrice() const;
     int64_t getAmount() const;
     uint256 const& getAccountID() const;
-    Currency& getTakerPays();
-    Currency& getTakerGets();
-    uint64 getOfferID();
+    Currency const& getTakerPays() const;
+    Currency const& getTakerGets() const;
+    uint64 getOfferID() const;
 
+    OfferEntry const&
+    getOffer() const
+    {
+        return mOffer;
+    }
     OfferEntry&
     getOffer()
     {
@@ -64,9 +69,9 @@ class OfferFrame : public EntryFrame
     }
 
     // Instance-based overrides of EntryFrame.
-    void storeDelete(LedgerDelta& delta, Database& db) override;
-    void storeChange(LedgerDelta& delta, Database& db) override;
-    void storeAdd(LedgerDelta& delta, Database& db) override;
+    void storeDelete(LedgerDelta& delta, Database& db) const override;
+    void storeChange(LedgerDelta& delta, Database& db) const override;
+    void storeAdd(LedgerDelta& delta, Database& db) const override;
 
     // Static helpers that don't assume an instance.
     static void storeDelete(LedgerDelta& delta, Database& db,

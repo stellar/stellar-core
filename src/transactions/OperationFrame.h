@@ -26,11 +26,11 @@ class OperationFrame
     AccountFrame::pointer mSourceAccount;
     OperationResult& mResult;
 
-    bool checkSignature();
+    bool checkSignature() const;
 
     virtual bool doCheckValid(Application& app) = 0;
     virtual bool doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster) = 0;
-    virtual int32_t getNeededThreshold();
+    virtual int32_t getNeededThreshold() const;
 
   public:
     static std::shared_ptr<OperationFrame>
@@ -42,24 +42,24 @@ class OperationFrame
     OperationFrame(OperationFrame const&) = delete;
 
     AccountFrame&
-    getSourceAccount()
+    getSourceAccount() const
     {
         assert(mSourceAccount);
         return *mSourceAccount;
     }
 
-    uint256 const& getSourceID();
+    uint256 const& getSourceID() const;
 
     // load account if needed
     // returns true on success
     bool loadAccount(Application& app);
 
     OperationResult&
-    getResult()
+    getResult() const
     {
         return mResult;
     }
-    OperationResultCode getResultCode();
+    OperationResultCode getResultCode() const;
 
     bool checkValid(Application& app);
 

@@ -38,8 +38,8 @@ class LedgerGateway
     // called by txherder
     virtual void externalizeValue(LedgerCloseData ledgerData) = 0;
 
-    virtual uint32_t getLedgerNum() = 0;
-    virtual uint64_t getCloseTime() = 0;
-    virtual int64_t getTxFee() = 0;
+    virtual uint32_t getLedgerNum() const = 0;
+    virtual uint64_t getCloseTime() const = 0;
+    virtual int64_t getTxFee() const = 0;
 };
 }

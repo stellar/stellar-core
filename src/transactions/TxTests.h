@@ -80,9 +80,9 @@ applySetOptions(Application& app, SecretKey& source, AccountID* inflationDest,
 
 Currency makeCurrency(SecretKey& issuer, const std::string& code);
 
-OperationFrame& getFirstOperationFrame(TransactionFrame& tx);
-OperationResult& getFirstResult(TransactionFrame& tx);
-OperationResultCode getFirstResultCode(TransactionFrame& tx);
+OperationFrame const& getFirstOperationFrame(TransactionFrame const& tx);
+OperationResult const& getFirstResult(TransactionFrame const& tx);
+OperationResultCode getFirstResultCode(TransactionFrame const& tx);
 
 // modifying the type of the operation will lead to undefined behavior
 Operation& getFirstOperation(TransactionFrame& tx);

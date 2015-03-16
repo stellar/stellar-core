@@ -17,7 +17,7 @@ SetOptionsOpFrame::SetOptionsOpFrame(Operation const& op, OperationResult& res,
 }
 
 int32_t
-SetOptionsOpFrame::getNeededThreshold()
+SetOptionsOpFrame::getNeededThreshold() const
 {
     // updating thresholds or signer requires high threshold
     if (mSetOptions.thresholds || mSetOptions.signer)

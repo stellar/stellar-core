@@ -321,20 +321,20 @@ applySetOptions(Application& app, SecretKey& source, AccountID* inflationDest,
                 txFrame->getResult().result.results()[0]) == result);
 }
 
-OperationFrame&
-getFirstOperationFrame(TransactionFrame& tx)
+OperationFrame const&
+getFirstOperationFrame(TransactionFrame const& tx)
 {
     return *(tx.getOperations()[0]);
 }
 
-OperationResult&
-getFirstResult(TransactionFrame& tx)
+OperationResult const&
+getFirstResult(TransactionFrame const& tx)
 {
     return getFirstOperationFrame(tx).getResult();
 }
 
 OperationResultCode
-getFirstResultCode(TransactionFrame& tx)
+getFirstResultCode(TransactionFrame const& tx)
 {
     return getFirstOperationFrame(tx).getResultCode();
 }

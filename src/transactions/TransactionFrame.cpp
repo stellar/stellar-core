@@ -33,8 +33,8 @@ TransactionFrame::TransactionFrame(const TransactionEnvelope& envelope)
 {
 }
 
-Hash&
-TransactionFrame::getFullHash()
+Hash const&
+TransactionFrame::getFullHash() const
 {
     if (isZero(mFullHash))
     {
@@ -43,8 +43,8 @@ TransactionFrame::getFullHash()
     return (mFullHash);
 }
 
-Hash&
-TransactionFrame::getContentsHash()
+Hash const&
+TransactionFrame::getContentsHash() const
 {
     if (isZero(mContentsHash))
     {
@@ -53,11 +53,27 @@ TransactionFrame::getContentsHash()
     return (mContentsHash);
 }
 
-TransactionResultPair&
-TransactionFrame::getResultPair()
+void
+TransactionFrame::clearCached()
 {
-    mResultPair.transactionHash = getFullHash();
-    return mResultPair;
+    Hash zero;
+    mContentsHash = zero;
+    mFullHash = zero;
+}
+
+TransactionResultPair
+TransactionFrame::getResultPair() const
+{
+    TransactionResultPair trp;
+    trp.transactionHash = getFullHash();
+    trp.result = mResult;
+    return trp;
+}
+
+TransactionEnvelope const&
+TransactionFrame::getEnvelope() const
+{
+    return mEnvelope;
 }
 
 TransactionEnvelope&
@@ -69,6 +85,7 @@ TransactionFrame::getEnvelope()
 void
 TransactionFrame::addSignature(const SecretKey& secretKey)
 {
+    clearCached();
     DecoratedSignature sig;
     sig.signature = secretKey.sign(getContentsHash());
     memcpy(&sig.hint, secretKey.getPublicKey().data(), sizeof(sig.hint));
@@ -367,7 +384,7 @@ TransactionFrame::apply(LedgerDelta& delta, Application& app)
 }
 
 StellarMessage
-TransactionFrame::toStellarMessage()
+TransactionFrame::toStellarMessage() const
 {
     StellarMessage msg;
     msg.type(TRANSACTION);
@@ -378,7 +395,7 @@ TransactionFrame::toStellarMessage()
 void
 TransactionFrame::storeTransaction(LedgerMaster& ledgerMaster,
                                    LedgerDelta const& delta, int txindex,
-                                   SHA256& resultHasher)
+                                   SHA256& resultHasher) const
 {
     auto txBytes(xdr::xdr_to_opaque(mEnvelope));
     auto txResultBytes(xdr::xdr_to_opaque(getResultPair()));

@@ -60,7 +60,7 @@ OfferFrame& OfferFrame::operator=(OfferFrame const& other)
 }
 
 void
-OfferFrame::from(OperationFrame& op)
+OfferFrame::from(OperationFrame const& op)
 {
     assert(mEntry.type() == OFFER);
     mOffer.accountID = op.getSourceID();
@@ -71,7 +71,7 @@ OfferFrame::from(OperationFrame& op)
     mOffer.takerGets = create.takerGets;
     mOffer.takerPays = create.takerPays;
     mOffer.flags = create.flags;
-    mKeyCalculated = false;
+    clearCached();
 }
 
 Price const&
@@ -92,19 +92,19 @@ OfferFrame::getAccountID() const
     return mOffer.accountID;
 }
 
-Currency&
-OfferFrame::getTakerPays()
+Currency const&
+OfferFrame::getTakerPays() const
 {
     return mOffer.takerPays;
 }
-Currency&
-OfferFrame::getTakerGets()
+Currency const&
+OfferFrame::getTakerGets() const
 {
     return mOffer.takerGets;
 }
 
 uint64
-OfferFrame::getOfferID()
+OfferFrame::getOfferID() const
 {
     return mOffer.offerID;
 }
@@ -130,6 +130,7 @@ OfferFrame::loadOffer(const uint256& accountID, uint64_t offerID,
     bool res = false;
 
     auto timer = db.getSelectTimer("offer");
+    retOffer.clearCached();
     loadOffers(sql, [&retOffer, &res](OfferFrame const& offer)
                {
         retOffer = offer;
@@ -150,6 +151,7 @@ OfferFrame::loadOffers(soci::details::prepare_temp_type& prep,
 
     OfferFrame offerFrame;
 
+    offerFrame.clearCached();
     OfferEntry& oe = offerFrame.mOffer;
 
     statement st =
@@ -273,7 +275,7 @@ OfferFrame::exists(Database& db, LedgerKey const& key)
 }
 
 void
-OfferFrame::storeDelete(LedgerDelta& delta, Database& db)
+OfferFrame::storeDelete(LedgerDelta& delta, Database& db) const
 {
     storeDelete(delta, db, getKey());
 }
@@ -296,7 +298,7 @@ OfferFrame::computePrice() const
 }
 
 void
-OfferFrame::storeChange(LedgerDelta& delta, Database& db)
+OfferFrame::storeChange(LedgerDelta& delta, Database& db) const
 {
 
     auto timer = db.getUpdateTimer("offer");
@@ -318,7 +320,7 @@ OfferFrame::storeChange(LedgerDelta& delta, Database& db)
 }
 
 void
-OfferFrame::storeAdd(LedgerDelta& delta, Database& db)
+OfferFrame::storeAdd(LedgerDelta& delta, Database& db) const
 {
     std::string b58AccountID = toBase58Check(VER_ACCOUNT_ID, mOffer.accountID);
 

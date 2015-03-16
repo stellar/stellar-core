@@ -22,7 +22,7 @@ class LedgerMaster;
 
 class AccountFrame : public EntryFrame
 {
-    void storeUpdate(LedgerDelta& delta, Database& db, bool insert);
+    void storeUpdate(LedgerDelta& delta, Database& db, bool insert) const;
     bool mUpdateSigners;
 
     AccountEntry& mAccountEntry;
@@ -46,37 +46,45 @@ class AccountFrame : public EntryFrame
     {
         mUpdateSigners = true;
     }
-    int64_t getBalance();
+    int64_t getBalance() const;
     int64_t getMinimumBalance(LedgerMaster const& lm) const;
-    bool isAuthRequired();
+    bool isAuthRequired() const;
     uint256 const& getID() const;
 
-    uint32_t getMasterWeight();
-    uint32_t getHighThreshold();
-    uint32_t getMidThreshold();
-    uint32_t getLowThreshold();
+    uint32_t getMasterWeight() const;
+    uint32_t getHighThreshold() const;
+    uint32_t getMidThreshold() const;
+    uint32_t getLowThreshold() const;
 
     void
     setSeqNum(SequenceNumber seq)
     {
+        clearCached();
         mAccountEntry.seqNum = seq;
     }
     SequenceNumber
-    getSeqNum()
+    getSeqNum() const
     {
         return mAccountEntry.seqNum;
+    }
+
+    AccountEntry const&
+    getAccount() const
+    {
+        return mAccountEntry;
     }
 
     AccountEntry&
     getAccount()
     {
+        clearCached();
         return mAccountEntry;
     }
 
     // Instance-based overrides of EntryFrame.
-    void storeDelete(LedgerDelta& delta, Database& db) override;
-    void storeChange(LedgerDelta& delta, Database& db) override;
-    void storeAdd(LedgerDelta& delta, Database& db) override;
+    void storeDelete(LedgerDelta& delta, Database& db) const override;
+    void storeChange(LedgerDelta& delta, Database& db) const override;
+    void storeAdd(LedgerDelta& delta, Database& db) const override;
 
     // Static helper that don't assume an instance.
     static void storeDelete(LedgerDelta& delta, Database& db,
