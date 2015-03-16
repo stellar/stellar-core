@@ -40,7 +40,7 @@ TEST_CASE("cycle4 topology", "[simulation]")
 
 TEST_CASE(
     "Stress test on 2 nodes, 3 accounts, 10 random transactions, 10tx/sec",
-    "[stress100][simulation][stress]")
+    "[stress100][simulation][stress][hide]")
 {
     Simulation::pointer simulation =
         Topologies::pair(Simulation::OVER_LOOPBACK);
@@ -64,8 +64,6 @@ TEST_CASE(
                        simulation->accountsOutOfSyncWithDb().empty();
             },
             std::chrono::seconds(60));
-
-        simulation->SyncSequenceNumbers();
 
         auto crankingTime =
             simulation->executeStressTest(10, 10, [&simulation](size_t i)

@@ -11,7 +11,6 @@
 #include "overlay/PeerRecord.h"
 #include "main/Application.h"
 #include "overlay/PeerMaster.h"
-#include "transactions/TxTests.h"
 #include "herder/HerderGateway.h"
 #include "medida/medida.h"
 #include "util/Math.h"
@@ -56,12 +55,12 @@ Simulation::getClock()
 }
 
 uint256
-Simulation::addNode(uint256 validationSeed, SCPQuorumSet qSet,
-                    VirtualClock& clock)
+Simulation::addNode(uint256 validationSeed, SCPQuorumSet qSet, VirtualClock& clock, Config::pointer cfg)
 {
-    Config::pointer cfg =
-        std::make_shared<Config>(getTestConfig(++mConfigCount));
-
+    if (!cfg)
+    {
+        cfg = std::make_shared<Config>(getTestConfig(++mConfigCount));
+    }
     cfg->VALIDATION_KEY = SecretKey::fromSeed(validationSeed);
     cfg->QUORUM_THRESHOLD = qSet.threshold;
     cfg->START_NEW_NETWORK = true;
@@ -221,6 +220,12 @@ Simulation::crankForAtLeast(VirtualClock::duration seconds)
 }
 
 void
+Simulation::crankUntilSync(VirtualClock::duration timeout)
+{
+    crankUntil([&]() { return this->accountsOutOfSyncWithDb().empty(); }, timeout);
+}
+
+void
 Simulation::crankUntil(function<bool()> const& predicate,
                        VirtualClock::duration timeout)
 {
@@ -288,16 +293,25 @@ Simulation::createRandomTransaction(float alpha)
 }
 
 void
-Simulation::TxInfo::execute(shared_ptr<Application> app)
+Simulation::TxInfo::execute(Application& app)
+{
+    app.getHerderGateway().recvTransaction(createPaymentTx());
+    recordExecution(app.getConfig().DESIRED_BASE_FEE);
+}
+
+TransactionFramePtr
+Simulation::TxInfo::createPaymentTx()
+{
+    return txtest::createPaymentTx(mFrom->mKey, mTo->mKey, mFrom->mSeq+1, mAmount);
+}
+
+void 
+Simulation::TxInfo::recordExecution(uint64_t baseFee)
 {
     mFrom->mSeq++;
     mFrom->mBalance -= mAmount;
-    mFrom->mBalance -= app->getConfig().DESIRED_BASE_FEE;
+    mFrom->mBalance -= baseFee;
     mTo->mBalance += mAmount;
-
-    TransactionFramePtr txFrame =
-        txtest::createPaymentTx(mFrom->mKey, mTo->mKey, mFrom->mSeq, mAmount);
-    app->getHerderGateway().recvTransaction(txFrame);
 }
 
 vector<Simulation::TxInfo>
@@ -312,22 +326,27 @@ Simulation::createRandomTransactions(size_t n, float paretoAlpha)
 }
 
 vector<Simulation::TxInfo>
-Simulation::createAccounts(int n)
+Simulation::createAccounts(size_t n)
 {
     vector<TxInfo> result;
     if (mAccounts.empty())
     {
         auto root =
-            make_shared<AccountInfo>(0, txtest::getRoot(), 1000000000, *this);
+            make_shared<AccountInfo>(0, txtest::getRoot(), 1000000000, 0, *this);
         mAccounts.push_back(root);
-        result.push_back(root->creationTransaction());
     }
 
     for (int i = 0; i < n; i++)
     {
         auto accountName = "Account-" + to_string(mAccounts.size());
         auto account = make_shared<AccountInfo>(
-            mAccounts.size(), txtest::getAccount(accountName.c_str()), 0,
+            mAccounts.size(), txtest::getAccount(accountName.c_str()),
+            0,
+            getNodes()
+                .front()
+                ->getLedgerMaster()
+                .getCurrentLedgerHeaderFrame()
+                .getStartingSequenceNumber(),
             *this);
         mAccounts.push_back(account);
         result.push_back(account->creationTransaction());
@@ -347,7 +366,7 @@ void
 Simulation::execute(TxInfo transaction)
 {
     // Execute on the first node
-    transaction.execute(mNodes.begin()->second);
+    transaction.execute(*mNodes.begin()->second);
 }
 
 void
@@ -452,21 +471,29 @@ Simulation::accountsOutOfSyncWithDb()
     return result;
 }
 
-void
-Simulation::SyncSequenceNumbers()
+bool 
+Simulation::loadAccount(AccountInfo &account)
 {
     // assumes all nodes are in sync
     auto app = mNodes.begin()->second;
 
+    AccountFrame ret;
+    if (!AccountFrame::loadAccount(account.mKey.getPublicKey(), ret, app->getDatabase()))
+    {
+        return false;
+    }
+
+    account.mBalance = ret.getBalance();
+    account.mSeq = ret.getSeqNum();
+    return true;
+}
+
+void
+Simulation::loadAccounts()
+{
     for (auto& it : mAccounts)
     {
-        AccountFrame accountFrame;
-        bool res = AccountFrame::loadAccount(it->mKey.getPublicKey(),
-                                             accountFrame, app->getDatabase());
-        if (res)
-        {
-            it->mSeq = accountFrame.getSeqNum();
-        }
+        loadAccount(*it);
     }
 }
 

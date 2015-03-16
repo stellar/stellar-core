@@ -11,45 +11,98 @@
 #include "crypto/Base58.h"
 #include "ledger/LedgerMaster.h"
 #include "transactions/TxTests.h"
-
+#include "database/Database.h"
 #include "main/Config.h"
+#include "simulation/Simulation.h"
+#include <soci.h>
 
 using namespace stellar;
 using namespace std;
+using namespace soci;
 
 typedef std::unique_ptr<Application> appPtr;
 
-TEST_CASE("ledger performance test", "[ledger][performance]")
+namespace stellar
 {
+class LedgerPerformanceTests : public Simulation
+{
+public:
+    size_t nAccounts = 10;
 
-    Config cfg(getTestConfig());
+    Application::pointer mApp;
 
-    cfg.DATABASE = "sqlite3://test.db";
+    LedgerPerformanceTests()
+        : Simulation(Simulation::OVER_LOOPBACK) {}
 
-    cfg.REBUILD_DB = true;
-    VirtualClock clock;
-    Application::pointer app = Application::create(clock, cfg);
-    app->start();
-
-            
-    int seq = 1;
-    LOG(INFO) << "Signing #";
-    TxSetFramePtr txSet = make_shared<TxSetFrame>(app->getLedgerMaster().getLastClosedLedgerHeader().hash);
-    for (int iTx = 0; iTx < 1000; iTx++)
+    void ensureNAccounts(size_t n)
     {
-        auto accountName = "Account-" + to_string(txSet->size());
-        auto from = txtest::getRoot();
-        auto to =  txtest::getAccount(accountName.c_str());
-        txSet->add(txtest::createPaymentTx(from, to, seq++, 20000000));
-    }
+        auto creationTransactions = createAccounts(n);
+        bool loading = true;
+        bool needToCrank = false;
 
-    for (int i = 1; i < 10; i++)
+        loadAccount(*mAccounts.front());
+        for(auto &tx : creationTransactions)
+        {
+            if (loading && !loadAccount(*tx.mTo))
+            {
+                // Could not load this account since it hasn't been created yet. 
+                // Start creating them.
+                loading = false;
+            }
+            if (!loading)
+            {
+                execute(tx);
+                needToCrank = true;
+            }
+        }
+        if (needToCrank)
+        {
+            crankUntilSync(chrono::seconds(10));
+        }
+    }
+    void closeLedgerWithRandomTransactions(size_t n)
     {
+        auto baseFee = mApp->getConfig().DESIRED_BASE_FEE;
+        auto txs = createRandomTransactions(n, 0.5);
+        TxSetFramePtr txSet = make_shared<TxSetFrame>(mApp->getLedgerMaster().getLastClosedLedgerHeader().hash);
+        for(auto& tx: txs)
+        {
+            txSet->add(tx.createPaymentTx());
+            tx.recordExecution(baseFee);
+        }
 
-        LOG(INFO) << "Closing #" << i;
-        LedgerCloseData ledgerData(i, txSet, 1, 10);
-        app->getLedgerMaster().closeLedger(ledgerData);
+        LedgerCloseData ledgerData(mApp->getLedgerMaster().getLedgerNum(), 
+            txSet, 
+            VirtualClock::to_time_t(mApp->getClock().now()), 
+            baseFee);
+
+        mApp->getLedgerMaster().closeLedger(ledgerData);
     }
+};
+
+}
 
 
+TEST_CASE("ledger performance test", "[ledger][performance][hide]")
+{
+    LedgerPerformanceTests sim;
+
+    SIMULATION_CREATE_NODE(10);
+
+    SCPQuorumSet qSet0;
+    qSet0.threshold = 1;
+    qSet0.validators.push_back(v10NodeID);
+
+    auto cfg = getTestConfig(1);
+    cfg.DATABASE = "sqlite3://performance-test.db";
+    cfg.REBUILD_DB = !ifstream("performance-test.db"); //  rebuild if the file doesn't exists
+    
+    auto n0 = sim.addNode(v10VSeed, qSet0, sim.getClock(), make_shared<Config>(cfg));
+    sim.mApp = sim.getNodes().front();
+
+    sim.startAllNodes();
+    sim.ensureNAccounts(100);
+    sim.closeLedgerWithRandomTransactions(1000);
+
+    LOG(INFO) << "Done.";
 }
