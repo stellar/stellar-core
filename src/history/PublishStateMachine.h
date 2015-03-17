@@ -28,12 +28,12 @@ class BucketList;
 
 enum PublishState
 {
-    PUBLISH_RETRYING,
-    PUBLISH_BEGIN,
-    PUBLISH_OBSERVED,
-    PUBLISH_SENDING,
-    PUBLISH_COMMITTING,
-    PUBLISH_END
+    PUBLISH_RETRYING = 0,
+    PUBLISH_BEGIN = 1,
+    PUBLISH_OBSERVED = 2,
+    PUBLISH_SENDING = 3,
+    PUBLISH_COMMITTING = 4,
+    PUBLISH_END = 5
 };
 
 enum FilePublishState
