@@ -390,7 +390,9 @@ HistoryMaster::publishHistory(
     }
     mImpl->mPublishStart.Mark();
     mImpl->mPublish = make_unique<PublishStateMachine>(
-        mImpl->mApp, [this, handler](asio::error_code const& ec)
+        mImpl->mApp,
+        PublishStateMachine::takeSnapshot(mImpl->mApp),
+        [this, handler](asio::error_code const& ec)
         {
             if (ec)
             {
@@ -411,17 +413,17 @@ HistoryMaster::publishHistory(
 }
 
 void
-HistoryMaster::snapshotTaken(asio::error_code const& ec,
-                             std::shared_ptr<StateSnapshot> snap)
+HistoryMaster::snapshotWritten(asio::error_code const& ec,
+                               std::shared_ptr<StateSnapshot> snap)
 {
     if (mImpl->mPublish)
     {
-        mImpl->mPublish->snapshotTaken(ec, snap);
+        mImpl->mPublish->snapshotWritten(ec, snap);
     }
     else
     {
         CLOG(WARNING, "History")
-            << "Publish state machine torn down while taking snapshot";
+            << "Publish state machine torn down while writing snapshot";
     }
 }
 

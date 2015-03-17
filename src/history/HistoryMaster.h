@@ -242,8 +242,8 @@ class HistoryMaster
             handler);
 
     // Call posted after a worker thread has finished taking a snapshot; calls
-    // PublishStateMachine::snapshotTaken iff state machine is live.
-    void snapshotTaken(asio::error_code const&, std::shared_ptr<StateSnapshot>);
+    // PublishStateMachine::snapshotWritten iff state machine is live.
+    void snapshotWritten(asio::error_code const&, std::shared_ptr<StateSnapshot>);
 
     HistoryArchiveState getLastClosedHistoryArchiveState() const;
 

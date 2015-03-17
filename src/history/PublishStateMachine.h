@@ -95,13 +95,15 @@ class PublishStateMachine
     std::function<void(asio::error_code const&)> mEndHandler;
     asio::error_code mError;
     std::vector<std::shared_ptr<ArchivePublisher>> mPublishers;
-    void takeSnapshot();
 
   public:
     PublishStateMachine(Application& app,
+                        std::shared_ptr<StateSnapshot>,
                         std::function<void(asio::error_code const&)> handler);
 
-    void snapshotTaken(asio::error_code const&, std::shared_ptr<StateSnapshot>);
+    static std::shared_ptr<StateSnapshot> takeSnapshot(Application& app);
+    void writeSnapshot(std::shared_ptr<StateSnapshot> snap);
+    void snapshotWritten(asio::error_code const&, std::shared_ptr<StateSnapshot>);
     void snapshotPublished(asio::error_code const&);
 };
 }
