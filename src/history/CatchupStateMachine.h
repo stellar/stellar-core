@@ -113,6 +113,8 @@ class CatchupStateMachine
         mTransactionInfos;
     std::map<std::string, std::shared_ptr<Bucket>> mBuckets;
 
+    std::shared_ptr<Bucket> getBucketToApply(std::string const& hash);
+
     std::shared_ptr<HistoryArchive> selectRandomReadableHistoryArchive();
     void fileStateChange(asio::error_code const& ec,
                          std::string const& hashname,
