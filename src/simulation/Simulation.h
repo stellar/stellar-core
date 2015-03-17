@@ -12,6 +12,8 @@
 #include "util/Timer.h"
 #include "crypto/SHA.h"
 #include "medida/medida.h"
+#include "transactions/TxTests.h"
+
 
 #define SIMULATION_CREATE_NODE(N)                                              \
     const Hash v##N##VSeed = sha256("SEED_VALIDATION_SEED_" #N);               \
@@ -38,8 +40,7 @@ class Simulation
 
     VirtualClock& getClock();
 
-    uint256 addNode(uint256 validationSeed, SCPQuorumSet qSet,
-                    VirtualClock& clock);
+    uint256 addNode(uint256 validationSeed, SCPQuorumSet qSet, VirtualClock& clock, Config::pointer cfg = shared_ptr<Config>());
     Application::pointer getNode(uint256 nodeID);
     vector<Application::pointer> getNodes();
 
@@ -57,6 +58,7 @@ class Simulation
     size_t crankAllNodes(int nbTicks = 1);
     void crankForAtMost(VirtualClock::duration seconds);
     void crankForAtLeast(VirtualClock::duration seconds);
+    void crankUntilSync(VirtualClock::duration timeout);
     void crankUntil(function<bool()> const& fn, VirtualClock::duration timeout);
 
     //////////
@@ -66,12 +68,13 @@ class Simulation
     class AccountInfo : public enable_shared_from_this<AccountInfo>
     {
       public:
-        AccountInfo(size_t id, SecretKey key, uint64_t balance,
+        AccountInfo(Simulation& simulation) : mSimulation(simulation) {}
+        AccountInfo(size_t id, SecretKey key, uint64_t balance, SequenceNumber seq,
                     Simulation& simulation)
             : mId(id)
             , mKey(key)
             , mBalance(balance)
-            , mSeq(0)
+            , mSeq(seq)
             , mSimulation(simulation)
         {
         }
@@ -93,10 +96,12 @@ class Simulation
         accountInfoPtr mFrom;
         accountInfoPtr mTo;
         uint64_t mAmount;
-        void execute(shared_ptr<Application> app);
+        void execute(Application& app);
+        TransactionFramePtr createPaymentTx();
+        void recordExecution(uint64_t baseFee);
     };
 
-    vector<Simulation::TxInfo> createAccounts(int n);
+    vector<Simulation::TxInfo> createAccounts(size_t n);
     TxInfo createTranferTransaction(size_t iFrom, size_t iTo, uint64_t amount);
     TxInfo createRandomTransaction(float alpha);
     vector<Simulation::TxInfo> createRandomTransactions(size_t n,
@@ -108,9 +113,9 @@ class Simulation
                                       int injectionRatePerSec,
                                       function<TxInfo(size_t)> generatorFn);
 
-    vector<accountInfoPtr>
-    accountsOutOfSyncWithDb(); // returns the accounts that don't match
-    void SyncSequenceNumbers();
+    vector<accountInfoPtr> accountsOutOfSyncWithDb(); // returns the accounts that don't match
+    bool loadAccount(AccountInfo &account);
+    void loadAccounts();
 
     string metricsSummary(string domain);
 
