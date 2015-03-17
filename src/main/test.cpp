@@ -26,26 +26,27 @@
 namespace stellar
 {
 
-static std::vector<std::unique_ptr<Config>> gTestCfg;
+static std::vector<std::unique_ptr<Config>> gTestCfg[Config::TESTDB_MODES];
 static std::vector<TmpDir> gTestRoots;
 
 Config const&
 getTestConfig(int instanceNumber, Config::TestDbMode mode)
 {
-    if (gTestCfg.size() <= instanceNumber)
+    auto& cfgs = gTestCfg[mode];
+    if (cfgs.size() <= instanceNumber)
     {
-        gTestCfg.resize(instanceNumber + 1);
+        cfgs.resize(instanceNumber + 1);
     }
 
-    if (!gTestCfg[instanceNumber])
+    if (!cfgs[instanceNumber])
     {
         gTestRoots.emplace_back("stellard-test");
 
         std::string rootDir = gTestRoots.back().getName();
         rootDir += "/";
 
-        gTestCfg[instanceNumber] = stellar::make_unique<Config>();
-        Config& thisConfig = *gTestCfg[instanceNumber];
+        cfgs[instanceNumber] = stellar::make_unique<Config>();
+        Config& thisConfig = *cfgs[instanceNumber];
 
         std::ostringstream sstream;
 
@@ -91,7 +92,7 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
         }
         thisConfig.DATABASE = dbname.str();
     }
-    return *gTestCfg[instanceNumber];
+    return *cfgs[instanceNumber];
 }
 
 int
