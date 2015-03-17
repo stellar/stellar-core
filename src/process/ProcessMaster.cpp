@@ -64,11 +64,27 @@ class ProcessExitEvent::Impl
         // capture a shared pointer to "this" to keep Impl alive until the end
         // of the execution
         auto sf = shared_from_this();
-        mProcessHandle.async_wait([sf](asio::error_code ec)
-                                  {
-                                      *(sf->mOuterEc) = ec;
-                                      sf->mOuterTimer->cancel();
-                                  });
+        mProcessHandle.async_wait(
+            [sf](asio::error_code ec)
+            {
+                if (ec)
+                {
+                    *(sf->mOuterEc) = ec;
+                }
+                else
+                {
+                    DWORD exitCode;
+                    BOOL res = GetExitCodeProcess(
+                        sf->mProcessHandle.native_handle(), &exitCode);
+                    if (!res)
+                    {
+                        exitCode = 1;
+                    }
+                    *(sf->mOuterEc) =
+                        asio::error_code(exitCode, asio::system_category());
+                }
+                sf->mOuterTimer->cancel();
+            });
     }
 };
 
