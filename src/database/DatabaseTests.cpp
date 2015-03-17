@@ -12,6 +12,7 @@
 #include "util/Timer.h"
 #include "util/TmpDir.h"
 #include "lib/catch.hpp"
+#include <random>
 
 using namespace stellar;
 
@@ -237,6 +238,86 @@ TEST_CASE("postgres smoketest", "[db]")
         {
             app->getDatabase().getSession() << "drop table if exists test";
             checkMVCCIsolation(app);
+        }
+    }
+    catch (soci::soci_error& err)
+    {
+        std::string what(err.what());
+
+        if (what.find("Cannot establish connection") != std::string::npos)
+        {
+            LOG(WARNING) << "Cannot connect to postgres server " << what;
+        }
+        else
+        {
+            LOG(ERROR) << "DB error: " << what;
+            REQUIRE(0);
+        }
+    }
+}
+
+TEST_CASE("postgres performance", "[db][pgperf][hide]")
+{
+    Config cfg;
+    cfg.RUN_STANDALONE = true;
+    VirtualClock clock;
+    cfg.DATABASE =
+        "postgresql://host=localhost dbname=test user=test password=test";
+    cfg.REBUILD_DB = true;
+    std::default_random_engine gen;
+    std::uniform_int_distribution<uint64_t> dist;
+
+    try
+    {
+        Application::pointer app = Application::create(clock, cfg);
+        auto& session = app->getDatabase().getSession();
+
+        session << "drop table if exists txtest;";
+        session << "create table txtest (a bigint, b bigint, c bigint, primary key (a, b));";
+
+        uint64_t pk = 0;
+        size_t sz = 10000;
+        size_t div = 100;
+
+        LOG(INFO) << "timing 10 inserts of " << sz << " rows";
+        {
+            for (size_t i = 0; i < 10; ++i)
+            {
+                TIMED_SCOPE(bulkinsert, "single large-tx insert");
+                soci::transaction sqltx(session);
+                for (uint64_t j = 0; j < sz; ++j)
+                {
+                    uint64_t r = dist(gen);
+                    session << "insert into txtest (a,b,c) values (:a,:b,:c)",
+                        soci::use(r), soci::use(pk), soci::use(j);
+                }
+                sqltx.commit();
+            }
+        }
+
+        LOG(INFO) << "retiming 10 inserts of " << sz << " rows"
+                  << " batched into " << sz/div
+                  << " subtransactions of " << div << " inserts each";
+        soci::transaction sqltx(session);
+        for (size_t i = 0; i < 10; ++i)
+        {
+            TIMED_SCOPE(timerobj, "many small-tx insert");
+            for (size_t j = 0; j < sz/div; ++j)
+            {
+                soci::transaction subtx(session);
+                for (uint64_t k = 0; k < div; ++k)
+                {
+                    uint64_t r = dist(gen);
+                    pk++;
+                    session << "insert into txtest (a,b,c) values (:a,:b,:c)",
+                        soci::use(r), soci::use(pk), soci::use(k);
+                }
+                subtx.commit();
+            }
+        }
+        {
+            TIMED_SCOPE(timerobj, "outer commit");
+            sqltx.commit();
         }
     }
     catch (soci::soci_error& err)
