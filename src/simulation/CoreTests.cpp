@@ -65,11 +65,11 @@ TEST_CASE(
             },
             std::chrono::seconds(60));
 
-        auto crankingTime =
-            simulation->executeStressTest(10, 10, [&simulation](size_t i)
-                                          {
-            return simulation->createRandomTransaction(0.5);
-        });
+        auto crankingTime = simulation->executeStressTest(
+            10, 10, [&simulation](size_t i)
+            {
+                return simulation->createRandomTransaction(0.5);
+            });
 
         simulation->crankUntil(
             [&]()
