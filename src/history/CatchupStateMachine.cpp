@@ -411,15 +411,28 @@ CatchupStateMachine::enterRetryingState()
 {
     assert(mState == CATCHUP_BEGIN || mState == CATCHUP_ANCHORED ||
            mState == CATCHUP_FETCHING || mState == CATCHUP_APPLYING);
+    bool anchored = mState >= CATCHUP_ANCHORED;
     mState = CATCHUP_RETRYING;
     mRetryTimer.expires_from_now(std::chrono::seconds(2));
     mRetryTimer.async_wait(
-        [this](asio::error_code const& ec)
+        [this, anchored](asio::error_code const& ec)
         {
+            if (ec)
+            {
+                CLOG(WARNING, "History")
+                    << "Retry timer cancelled while waiting";
+                return;
+            }
+
             if (this->mRetryCount++ > kRetryLimit)
             {
                 CLOG(WARNING, "History") << "Retry count " << kRetryLimit
                                          << " exceeded, restarting catchup";
+                this->enterBeginState();
+            }
+            else if (!anchored)
+            {
+                CLOG(WARNING, "History") << "Unable to anchor, restarting catchup";
                 this->enterBeginState();
             }
             else
@@ -463,6 +476,37 @@ CatchupStateMachine::enterApplyingState()
     enterEndState();
 }
 
+std::shared_ptr<Bucket>
+CatchupStateMachine::getBucketToApply(std::string const& hash)
+{
+    // Any apply-able bucket is _either_ the empty bucket, or one we downloaded,
+    // or one we tried to download but found we already had in the CLF, or one
+    // we didn't even bother trying to download because
+    // mArchiveState.differingBuckets(mLocalState) didn't mention it (in which
+    // case it ought to still be in the CLF).
+
+    std::shared_ptr<Bucket> b;
+    CLOG(DEBUG, "History") << "Searching for bucket to apply: " << hash;
+    if (hash.find_first_not_of('0') == std::string::npos)
+    {
+        b = std::make_shared<Bucket>();
+    }
+    else
+    {
+        auto i = mBuckets.find(hash);
+        if (i != mBuckets.end())
+        {
+            b = i->second;
+        }
+        else
+        {
+            b = mApp.getCLFMaster().getBucketByHash(hexToBin256(hash));
+        }
+    }
+    assert(b);
+    return b;
+}
+
 void
 CatchupStateMachine::applyBucketsAtLedger(uint32_t ledgerNum)
 {
@@ -483,16 +527,7 @@ CatchupStateMachine::applyBucketsAtLedger(uint32_t ledgerNum)
 
         if (applying || i->snap != binToHex(existingLevel.getSnap()->getHash()))
         {
-            std::shared_ptr<Bucket> b;
-            if (i->snap.find_first_not_of('0') == std::string::npos)
-            {
-                b = std::make_shared<Bucket>();
-            }
-            else
-            {
-                b = mBuckets[i->snap];
-            }
-            assert(b);
+            std::shared_ptr<Bucket> b = getBucketToApply(i->snap);
             CLOG(DEBUG, "History") << "Applying bucket " << b->getFilename()
                                    << " to ledger as CLF 'snap' for level "
                                    << n;
@@ -503,16 +538,7 @@ CatchupStateMachine::applyBucketsAtLedger(uint32_t ledgerNum)
 
         if (applying || i->curr != binToHex(existingLevel.getCurr()->getHash()))
         {
-            std::shared_ptr<Bucket> b;
-            if (i->curr.find_first_not_of('0') == std::string::npos)
-            {
-                b = std::make_shared<Bucket>();
-            }
-            else
-            {
-                b = mBuckets[i->curr];
-            }
-            assert(b);
+            std::shared_ptr<Bucket> b = getBucketToApply(i->curr);
             CLOG(DEBUG, "History") << "Applying bucket " << b->getFilename()
                                    << " to ledger as CLF 'curr' for level "
                                    << n;
