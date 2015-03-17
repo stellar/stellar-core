@@ -342,11 +342,7 @@ Simulation::createAccounts(size_t n)
         auto account = make_shared<AccountInfo>(
             mAccounts.size(), txtest::getAccount(accountName.c_str()),
             0,
-            getNodes()
-                .front()
-                ->getLedgerMaster()
-                .getCurrentLedgerHeaderFrame()
-                .getStartingSequenceNumber(),
+            0,
             *this);
         mAccounts.push_back(account);
         result.push_back(account->creationTransaction());
@@ -449,6 +445,7 @@ Simulation::accountsOutOfSyncWithDb()
             {
                 offset = accountFrame.getBalance() -
                          static_cast<int64_t>(account->mBalance);
+                account->mSeq = accountFrame.getSeqNum();
             }
             else
             {
