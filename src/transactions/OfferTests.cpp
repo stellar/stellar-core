@@ -63,7 +63,7 @@ TEST_CASE("create offer", "[tx][offers]")
 
     int64_t trustLineLimit = 1000000 * currencyMultiplier;
 
-    uint64_t txfee = app.getLedgerMaster().getTxFee();
+    int64_t txfee = app.getLedgerMaster().getTxFee();
 
     SequenceNumber root_seq = getAccountSeqNum(root, app) + 1;
     ;

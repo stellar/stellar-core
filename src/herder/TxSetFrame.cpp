@@ -153,30 +153,30 @@ TxSetFrame::checkValid(Application& app)
         // order by sequence number
         std::sort(item.second.begin(), item.second.end(), SeqSorter);
 
-        TransactionFramePtr lastEncountered;
+        TransactionFramePtr lastTx;
         SequenceNumber lastSeq = 0;
+        int64_t totFee = 0;
         for (auto& tx : item.second)
         {
             if (!tx->checkValid(app, lastSeq))
             {
                 return false;
             }
+            totFee += tx->getFee(app);
 
-            if (!lastEncountered)
-            {
-                // make sure account can pay the fee for all these tx
-                int64_t newBalance = tx->getSourceAccount().getBalance() -
-                                     xdr::size32(item.second.size()) *
-                                         app.getLedgerGateway().getTxFee();
-                if (newBalance < tx->getSourceAccount().getMinimumBalance(
-                                     app.getLedgerMaster()))
-                {
-                    return false;
-                }
-            }
-
-            lastEncountered = tx;
+            lastTx = tx;
             lastSeq = tx->getSeqNum();
+        }
+        if (lastTx)
+        {
+            // make sure account can pay the fee for all these tx
+            int64_t newBalance =
+                lastTx->getSourceAccount().getBalance() - totFee;
+            if (newBalance < lastTx->getSourceAccount().getMinimumBalance(
+                                 app.getLedgerMaster()))
+            {
+                return false;
+            }
         }
     }
     return true;

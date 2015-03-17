@@ -82,6 +82,19 @@ TransactionFrame::getEnvelope()
     return mEnvelope;
 }
 
+int64_t
+TransactionFrame::getFee(Application& app) const
+{
+    size_t count = mOperations.size();
+
+    if (count == 0)
+    {
+        count = 1;
+    }
+
+    return app.getLedgerGateway().getTxFee() * count;
+}
+
 void
 TransactionFrame::addSignature(const SecretKey& secretKey)
 {
@@ -203,7 +216,7 @@ TransactionFrame::checkValid(Application& app, bool applying,
     }
 
     // fee we'd like to charge for this transaction
-    int64_t fee = app.getLedgerGateway().getTxFee() * mOperations.size();
+    int64_t fee = getFee(app);
 
     if (mEnvelope.tx.maxFee < fee)
     {

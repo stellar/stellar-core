@@ -48,7 +48,7 @@ TEST_CASE("payment", "[tx][payment]")
     SecretKey a1 = getAccount("A");
     SecretKey b1 = getAccount("B");
 
-    uint64_t txfee = app.getLedgerMaster().getTxFee();
+    int64_t txfee = app.getLedgerMaster().getTxFee();
 
     const uint64_t paymentAmount =
         (uint64_t)app.getLedgerMaster().getMinBalance(1) + txfee * 10;

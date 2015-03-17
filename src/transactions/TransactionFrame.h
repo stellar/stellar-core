@@ -71,7 +71,9 @@ class TransactionFrame
     {
         return mSigningAccount;
     }
+
     void setSourceAccountPtr(AccountFrame::pointer signingAccount);
+
     std::vector<std::shared_ptr<OperationFrame>> const&
     getOperations() const
     {
@@ -83,11 +85,13 @@ class TransactionFrame
     {
         return mResult;
     }
+
     TransactionResult&
     getResult()
     {
         return mResult;
     }
+
     TransactionResultCode
     getResultCode() const
     {
@@ -103,18 +107,24 @@ class TransactionFrame
     {
         return mEnvelope.tx.seqNum;
     }
+
     AccountFrame const&
     getSourceAccount() const
     {
         assert(mSigningAccount);
         return *mSigningAccount;
     }
+
     uint256 const&
     getSourceID() const
     {
         return mEnvelope.tx.account;
     }
+
+    int64_t getFee(Application& app) const;
+
     void addSignature(const SecretKey& secretKey);
+
     bool checkSignature(AccountFrame& account, int32_t neededWeight);
 
     bool checkValid(Application& app, SequenceNumber current);

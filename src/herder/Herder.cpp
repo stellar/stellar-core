@@ -706,8 +706,9 @@ Herder::recvTransaction(TransactionFramePtr tx)
 
     // determine if we have seen this tx before and if not if it has the right
     // seq num
-    int numOthers = 0;
+    int64_t totFee = tx->getFee(mApp);
     SequenceNumber highSeq = 0;
+
     for (auto& list : mReceivedTransactions)
     {
         for (auto oldTX : list)
@@ -719,7 +720,7 @@ Herder::recvTransaction(TransactionFramePtr tx)
             }
             if (oldTX->getSourceID() == tx->getSourceID())
             {
-                numOthers++;
+                totFee += oldTX->getFee(mApp);
                 if (oldTX->getSeqNum() > highSeq)
                 {
                     highSeq = oldTX->getSeqNum();
@@ -735,8 +736,7 @@ Herder::recvTransaction(TransactionFramePtr tx)
 
     // don't consider minBalance since you want to allow them to still send
     // around credit etc
-    if (tx->getSourceAccount().getBalance() <
-        (numOthers + 1) * mApp.getLedgerGateway().getTxFee())
+    if (tx->getSourceAccount().getBalance() < totFee)
     {
         tx->getResult().result.code(txINSUFFICIENT_BALANCE);
         return false;
