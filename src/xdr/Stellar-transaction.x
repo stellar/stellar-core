@@ -10,14 +10,14 @@ struct DecoratedSignature
 
 enum OperationType
 {
-    PAYMENT,
-    CREATE_OFFER,
-    CANCEL_OFFER,
-    SET_OPTIONS,
-    CHANGE_TRUST,
-    ALLOW_TRUST,
-    ACCOUNT_MERGE,
-    INFLATION
+    PAYMENT = 0,
+    CREATE_OFFER = 1,
+    CANCEL_OFFER = 2,
+    SET_OPTIONS = 3,
+    CHANGE_TRUST = 4,
+    ALLOW_TRUST = 5,
+    ACCOUNT_MERGE = 6,
+    INFLATION = 7
 };
 
 struct PaymentOp
@@ -128,15 +128,15 @@ struct ClaimOfferAtom
 namespace Payment {
 enum PaymentResultCode
 {
-    SUCCESS,
-    SUCCESS_MULTI,
-    UNDERFUNDED,
-    NO_DESTINATION,
-    MALFORMED,
-    NO_TRUST,
-    NOT_AUTHORIZED,
-    LINE_FULL,
-    OVERSENDMAX
+    SUCCESS = 0,
+    SUCCESS_MULTI = 1,
+    UNDERFUNDED = 2,
+    NO_DESTINATION = 3,
+    MALFORMED = 4,
+    NO_TRUST = 5,
+    NOT_AUTHORIZED = 6,
+    LINE_FULL = 7,
+    OVERSENDMAX = 8
 };
 
 struct SimplePaymentResult
@@ -168,20 +168,20 @@ namespace CreateOffer
 {
 enum CreateOfferResultCode
 {
-    SUCCESS,
-    NO_TRUST,
-    NOT_AUTHORIZED,
-    MALFORMED,
-    UNDERFUNDED,
-    CROSS_SELF,
-    NOT_FOUND
+    SUCCESS = 0,
+    NO_TRUST = 1,
+    NOT_AUTHORIZED = 2,
+    MALFORMED = 3,
+    UNDERFUNDED = 4,
+    CROSS_SELF = 5,
+    NOT_FOUND = 6
 };
 
 enum CreateOfferEffect
 {
-    CREATED,
-    UPDATED,
-    EMPTY
+    CREATED = 0,
+    UPDATED = 1,
+    EMPTY = 2
 };
 
 struct CreateOfferSuccessResult
@@ -211,8 +211,8 @@ namespace CancelOffer
 {
 enum CancelOfferResultCode
 {
-    SUCCESS,
-    NOT_FOUND
+    SUCCESS = 0,
+    NOT_FOUND = 1
 };
 
 union CancelOfferResult switch(CancelOfferResultCode code)
@@ -229,11 +229,11 @@ namespace SetOptions
 {
 enum SetOptionsResultCode
 {
-    SUCCESS,
-    RATE_FIXED,
-    RATE_TOO_HIGH,
-    BELOW_MIN_BALANCE,
-    MALFORMED
+    SUCCESS = 0,
+    RATE_FIXED = 1,
+    RATE_TOO_HIGH = 2,
+    BELOW_MIN_BALANCE = 3,
+    MALFORMED = 4
 };
 
 union SetOptionsResult switch(SetOptionsResultCode code)
@@ -250,8 +250,8 @@ namespace ChangeTrust
 {
 enum ChangeTrustResultCode
 {
-    SUCCESS,
-    NO_ACCOUNT
+    SUCCESS = 0,
+    NO_ACCOUNT = 1
 };
 
 union ChangeTrustResult switch(ChangeTrustResultCode code)
@@ -268,9 +268,9 @@ namespace AllowTrust
 {
 enum AllowTrustResultCode
 {
-    SUCCESS,
-    MALFORMED,
-    NO_TRUST_LINE
+    SUCCESS = 0,
+    MALFORMED = 1,
+    NO_TRUST_LINE = 2
 };
 
 union AllowTrustResult switch(AllowTrustResultCode code)
@@ -287,10 +287,10 @@ namespace AccountMerge
 {
 enum AccountMergeResultCode
 {
-    SUCCESS,
-    MALFORMED,
-    NO_ACCOUNT,
-    HAS_CREDIT
+    SUCCESS = 0,
+    MALFORMED = 1,
+    NO_ACCOUNT = 2,
+    HAS_CREDIT = 3
 };
 
 union AccountMergeResult switch(AccountMergeResultCode code)
@@ -307,8 +307,8 @@ namespace Inflation
 {
 enum InflationResultCode
 {
-    SUCCESS,
-    NOT_TIME
+    SUCCESS = 0,
+    NOT_TIME = 1
 };
 
 struct inflationPayout // or use PaymentResultAtom to limit types?
@@ -329,11 +329,11 @@ union InflationResult switch(InflationResultCode code)
 
 enum OperationResultCode
 {
-    opSKIP,
-    opINNER,
+    opSKIP = 0,
+    opINNER = 1,
 
-    opBAD_AUTH, // not enough signatures to perform operation
-    opNO_ACCOUNT
+    opBAD_AUTH = 2, // not enough signatures to perform operation
+    opNO_ACCOUNT = 3
 };
 
 union OperationResult switch(OperationResultCode code)
@@ -364,17 +364,17 @@ union OperationResult switch(OperationResultCode code)
 
 enum TransactionResultCode
 {
-    txSUCCESS,
-    txFAILED,
-    txBAD_LEDGER,
-    txDUPLICATE,
-    txMALFORMED,
-    txBAD_SEQ,
+    txSUCCESS = 0,
+    txFAILED = 1,
+    txBAD_LEDGER = 2,
+    txDUPLICATE = 3,
+    txMALFORMED = 4,
+    txBAD_SEQ = 5,
 
-    txBAD_AUTH, // not enough signatures to perform transaction
-    txINSUFFICIENT_BALANCE,
-    txNO_ACCOUNT,
-    txINSUFFICIENT_FEE // max fee is too small
+    txBAD_AUTH = 6, // not enough signatures to perform transaction
+    txINSUFFICIENT_BALANCE = 7,
+    txNO_ACCOUNT = 8,
+    txINSUFFICIENT_FEE = 9 // max fee is too small
 };
 
 struct TransactionResult

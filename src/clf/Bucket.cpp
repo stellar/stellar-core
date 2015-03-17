@@ -247,7 +247,7 @@ void
 Bucket::apply(Database& db) const
 {
     CLFEntry entry;
-    LedgerHeader lh;
+    LedgerHeader lh; // buckets, by definition are independent from the header
     LedgerDelta delta(lh);
     XDRInputFileStream in;
     in.open(getFilename());
@@ -311,8 +311,7 @@ Bucket::fresh(CLFMaster& clfMaster, std::vector<LedgerEntry> const& liveEntries,
 }
 
 inline void
-maybe_put(CLFEntryIdCmp const& cmp,
-          Bucket::OutputIterator& out,
+maybe_put(CLFEntryIdCmp const& cmp, Bucket::OutputIterator& out,
           Bucket::InputIterator& in,
           std::vector<Bucket::InputIterator>& shadowIterators)
 {

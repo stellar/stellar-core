@@ -102,15 +102,15 @@ LedgerMaster::startNewLedger()
     masterAccount.getAccount().balance = 100000000000000000;
     LedgerHeader genesisHeader;
 
-    LedgerDelta delta(genesisHeader);
-    masterAccount.storeAdd(delta, this->getDatabase());
-
     genesisHeader.baseFee = mApp.getConfig().DESIRED_BASE_FEE;
     genesisHeader.baseReserve = mApp.getConfig().DESIRED_BASE_RESERVE;
     genesisHeader.totalCoins = masterAccount.getAccount().balance;
     genesisHeader.closeTime = 0; // the genesis ledger has close time of 0 so it
                                  // always has the same hash
     genesisHeader.ledgerSeq = 1;
+
+    LedgerDelta delta(genesisHeader);
+    masterAccount.storeAdd(delta, this->getDatabase());
     delta.commit();
 
     mCurrentLedger = make_shared<LedgerHeaderFrame>(genesisHeader);
@@ -194,13 +194,6 @@ LedgerMaster::getCurrentLedgerHeader()
 {
     assert(mCurrentLedger);
     return mCurrentLedger->mHeader;
-}
-
-LedgerHeaderFrame const&
-LedgerMaster::getCurrentLedgerHeaderFrame() const
-{
-    assert(mCurrentLedger);
-    return *mCurrentLedger;
 }
 
 LedgerHeaderHistoryEntry const&
@@ -363,7 +356,8 @@ LedgerMaster::closeLedger(LedgerCloseData ledgerData)
             else
             {
                 tx->getResult().feeCharged = 0;
-                // need delta.rollback
+                // ensures that this transaction doesn't have any side effects
+                delta.rollback();
 
                 CLOG(ERROR, "Tx") << "invalid tx. This should never happen";
                 CLOG(ERROR, "Tx")

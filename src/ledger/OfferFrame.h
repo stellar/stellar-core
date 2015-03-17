@@ -79,7 +79,7 @@ class OfferFrame : public EntryFrame
     static bool exists(Database& db, LedgerKey const& key);
 
     // database utilities
-    static bool loadOffer(const uint256& accountID, uint64_t seq,
+    static bool loadOffer(const uint256& accountID, uint64_t offerID,
                           OfferFrame& retEntry, Database& db);
 
     static void loadBestOffers(size_t numOffers, size_t offset,

@@ -62,10 +62,9 @@ transactionTest(Application::pointer app)
 
 TEST_CASE("database smoketest", "[db]")
 {
-    Config cfg;
-    cfg.RUN_STANDALONE = true;
+    Config const& cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY_SQLITE);
+
     VirtualClock clock;
-    cfg.DATABASE = "sqlite3://:memory:";
     Application::pointer app = Application::create(clock, cfg);
     transactionTest(app);
 }
@@ -181,11 +180,8 @@ checkMVCCIsolation(Application::pointer app)
 
 TEST_CASE("sqlite MVCC test", "[db]")
 {
-    Config cfg;
-    cfg.RUN_STANDALONE = true;
+    Config const& cfg = getTestConfig(0, Config::TESTDB_ON_DISK_SQLITE);
     VirtualClock clock;
-    TmpDir tmp("sqlite-mvcc");
-    cfg.DATABASE = "sqlite3://" + tmp.getName() + "/test.db";
     Application::pointer app = Application::create(clock, cfg);
     checkMVCCIsolation(app);
 }
@@ -193,12 +189,9 @@ TEST_CASE("sqlite MVCC test", "[db]")
 #ifdef USE_POSTGRES
 TEST_CASE("postgres smoketest", "[db]")
 {
-    Config cfg;
-    cfg.RUN_STANDALONE = true;
+    Config const& cfg =
+        getTestConfig(0, Config::TESTDB_TCP_LOCALHOST_POSTGRESQL);
     VirtualClock clock;
-    cfg.DATABASE =
-        "postgresql://host=localhost dbname=test user=test password=test";
-    cfg.REBUILD_DB = true;
     try
     {
         Application::pointer app = Application::create(clock, cfg);

@@ -22,6 +22,7 @@ TEST_CASE("subprocess", "[process]")
     Application::pointer app = Application::create(clock, cfg);
     auto evt = app->getProcessGateway().runProcess("hostname");
     bool exited = false;
+    bool failed = false;
     evt.async_wait([&](asio::error_code ec)
                    {
                        CLOG(DEBUG, "Process") << "process exited: " << ec;
@@ -30,6 +31,7 @@ TEST_CASE("subprocess", "[process]")
                            CLOG(DEBUG, "Process")
                                << "error code: " << ec.message();
                        }
+                       failed = !!ec;
                        exited = true;
                    });
 
@@ -37,6 +39,34 @@ TEST_CASE("subprocess", "[process]")
     {
         clock.crank(false);
     }
+    REQUIRE(!failed);
+}
+
+TEST_CASE("subprocess fails", "[process]")
+{
+    VirtualClock clock;
+    Config const& cfg = getTestConfig();
+    Application::pointer app = Application::create(clock, cfg);
+    auto evt = app->getProcessGateway().runProcess("hostname -xsomeinvalid");
+    bool exited = false;
+    bool failed = false;
+    evt.async_wait([&](asio::error_code ec)
+                   {
+                       CLOG(DEBUG, "Process") << "process exited: " << ec;
+                       if (ec)
+                       {
+                           CLOG(DEBUG, "Process")
+                               << "error code: " << ec.message();
+                       }
+                       failed = !!ec;
+                       exited = true;
+                   });
+
+    while (!exited && !clock.getIOService().stopped())
+    {
+        clock.crank(false);
+    }
+    REQUIRE(failed);
 }
 
 TEST_CASE("subprocess redirect to file", "[process]")

@@ -3,9 +3,9 @@
 namespace stellar {
 
 enum LedgerEntryType {
-    ACCOUNT,
-    TRUSTLINE,
-    OFFER
+    ACCOUNT = 0,
+    TRUSTLINE = 1,
+    OFFER = 2
 };
 
 struct Signer

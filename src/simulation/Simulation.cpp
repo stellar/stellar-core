@@ -55,7 +55,8 @@ Simulation::getClock()
 }
 
 uint256
-Simulation::addNode(uint256 validationSeed, SCPQuorumSet qSet, VirtualClock& clock, Config::pointer cfg)
+Simulation::addNode(uint256 validationSeed, SCPQuorumSet qSet,
+                    VirtualClock& clock, Config::pointer cfg)
 {
     if (!cfg)
     {
@@ -222,7 +223,12 @@ Simulation::crankForAtLeast(VirtualClock::duration seconds)
 void
 Simulation::crankUntilSync(VirtualClock::duration timeout)
 {
-    crankUntil([&]() { return this->accountsOutOfSyncWithDb().empty(); }, timeout);
+    crankUntil(
+        [&]()
+        {
+            return this->accountsOutOfSyncWithDb().empty();
+        },
+        timeout);
 }
 
 void
@@ -302,10 +308,11 @@ Simulation::TxInfo::execute(Application& app)
 TransactionFramePtr
 Simulation::TxInfo::createPaymentTx()
 {
-    return txtest::createPaymentTx(mFrom->mKey, mTo->mKey, mFrom->mSeq+1, mAmount);
+    return txtest::createPaymentTx(mFrom->mKey, mTo->mKey, mFrom->mSeq + 1,
+                                   mAmount);
 }
 
-void 
+void
 Simulation::TxInfo::recordExecution(uint64_t baseFee)
 {
     mFrom->mSeq++;
@@ -331,8 +338,8 @@ Simulation::createAccounts(size_t n)
     vector<TxInfo> result;
     if (mAccounts.empty())
     {
-        auto root =
-            make_shared<AccountInfo>(0, txtest::getRoot(), 1000000000, 0, *this);
+        auto root = make_shared<AccountInfo>(0, txtest::getRoot(), 1000000000,
+                                             0, *this);
         mAccounts.push_back(root);
     }
 
@@ -340,13 +347,7 @@ Simulation::createAccounts(size_t n)
     {
         auto accountName = "Account-" + to_string(mAccounts.size());
         auto account = make_shared<AccountInfo>(
-            mAccounts.size(), txtest::getAccount(accountName.c_str()),
-            0,
-            getNodes()
-                .front()
-                ->getLedgerMaster()
-                .getCurrentLedgerHeaderFrame()
-                .getStartingSequenceNumber(),
+            mAccounts.size(), txtest::getAccount(accountName.c_str()), 0, 0,
             *this);
         mAccounts.push_back(account);
         result.push_back(account->creationTransaction());
@@ -449,6 +450,7 @@ Simulation::accountsOutOfSyncWithDb()
             {
                 offset = accountFrame.getBalance() -
                          static_cast<int64_t>(account->mBalance);
+                account->mSeq = accountFrame.getSeqNum();
             }
             else
             {
@@ -471,14 +473,15 @@ Simulation::accountsOutOfSyncWithDb()
     return result;
 }
 
-bool 
-Simulation::loadAccount(AccountInfo &account)
+bool
+Simulation::loadAccount(AccountInfo& account)
 {
     // assumes all nodes are in sync
     auto app = mNodes.begin()->second;
 
     AccountFrame ret;
-    if (!AccountFrame::loadAccount(account.mKey.getPublicKey(), ret, app->getDatabase()))
+    if (!AccountFrame::loadAccount(account.mKey.getPublicKey(), ret,
+                                   app->getDatabase()))
     {
         return false;
     }

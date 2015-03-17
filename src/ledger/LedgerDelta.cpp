@@ -12,31 +12,40 @@ namespace stellar
 {
 LedgerDelta::LedgerDelta(LedgerDelta& outerDelta)
     : mOuterDelta(&outerDelta)
-    , mHeader(nullptr)
-    , mCurrentID(outerDelta.getCurrentID())
+    , mHeader(&outerDelta.getHeader())
+    , mCurrentHeader(outerDelta.getHeader())
+    , mPreviousHeaderValue(outerDelta.getHeader())
 {
 }
 
 LedgerDelta::LedgerDelta(LedgerHeader& header)
-    : mOuterDelta(nullptr), mHeader(&header), mCurrentID(header.idPool)
+    : mOuterDelta(nullptr)
+    , mHeader(&header)
+    , mCurrentHeader(header)
+    , mPreviousHeaderValue(header)
 {
+}
+
+LedgerHeader&
+LedgerDelta::getHeader()
+{
+    return mCurrentHeader.mHeader;
+}
+
+LedgerHeaderFrame&
+LedgerDelta::getHeaderFrame()
+{
+    return mCurrentHeader;
 }
 
 void
 LedgerDelta::checkState()
 {
-    if (mHeader == nullptr && mOuterDelta == nullptr)
+    if (mHeader == nullptr)
     {
         throw std::runtime_error(
             "Invalid operation: delta is already committed");
     }
-}
-
-uint64_t
-LedgerDelta::getNextID()
-{
-    checkState();
-    return mCurrentID++;
 }
 
 void
@@ -131,7 +140,7 @@ LedgerDelta::modEntry(EntryFrame::pointer entry)
 }
 
 void
-LedgerDelta::merge(LedgerDelta& other)
+LedgerDelta::mergeEntries(LedgerDelta& other)
 {
     checkState();
     for (auto& d : other.mDelete)
@@ -146,26 +155,34 @@ LedgerDelta::merge(LedgerDelta& other)
     {
         modEntry(m.second);
     }
-    mCurrentID = other.getCurrentID();
 }
 
 void
 LedgerDelta::commit()
 {
     checkState();
+    // checks if we're not about to override changes
+    if (std::memcmp(&mPreviousHeaderValue, mHeader, sizeof(LedgerHeader)) != 0)
+    {
+        throw std::runtime_error("unexpected header state");
+    }
     if (mOuterDelta)
     {
-        mOuterDelta->merge(*this);
+        mOuterDelta->mergeEntries(*this);
         mOuterDelta = nullptr;
     }
-    else if (mHeader)
-    {
-        mHeader->idPool = mCurrentID;
-        mHeader = nullptr;
-    }
+    *mHeader = mCurrentHeader.mHeader;
+    mHeader = nullptr;
 }
 
-xdr::msg_ptr
+void
+LedgerDelta::rollback()
+{
+    checkState();
+    mHeader = nullptr;
+}
+
+xdr::opaque_vec<>
 LedgerDelta::getTransactionMeta() const
 {
     TransactionMeta tm;
@@ -187,7 +204,7 @@ LedgerDelta::getTransactionMeta() const
         tm.entries.back().deadEntry() = k;
     }
 
-    return xdr::xdr_to_msg(tm);
+    return xdr::xdr_to_opaque(tm);
 }
 
 std::vector<LedgerEntry>

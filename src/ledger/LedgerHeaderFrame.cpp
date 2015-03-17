@@ -42,7 +42,7 @@ LedgerHeaderFrame::getHash() const
 {
     if (isZero(mHash))
     {
-        mHash = sha256(xdr::xdr_to_msg(mHeader));
+        mHash = sha256(xdr::xdr_to_opaque(mHeader));
         assert(!isZero(mHash));
     }
     return mHash;
@@ -52,6 +52,18 @@ SequenceNumber
 LedgerHeaderFrame::getStartingSequenceNumber() const
 {
     return static_cast<uint64_t>(mHeader.ledgerSeq) << 32;
+}
+
+uint64_t
+LedgerHeaderFrame::getLastGeneratedID() const
+{
+    return mHeader.idPool;
+}
+
+uint64_t
+LedgerHeaderFrame::generateID()
+{
+    return ++mHeader.idPool;
 }
 
 void

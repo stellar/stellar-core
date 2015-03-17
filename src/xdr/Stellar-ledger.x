@@ -45,8 +45,8 @@ union LedgerKey switch (LedgerEntryType type)
 };
 
 enum CLFType {
-    LIVEENTRY,
-    DEADENTRY
+    LIVEENTRY = 0,
+    DEADENTRY = 1
 };
 
 union CLFEntry switch (CLFType type)

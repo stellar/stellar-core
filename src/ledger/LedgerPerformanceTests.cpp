@@ -26,26 +26,28 @@ namespace stellar
 {
 class LedgerPerformanceTests : public Simulation
 {
-public:
+  public:
     size_t nAccounts = 10;
 
     Application::pointer mApp;
 
-    LedgerPerformanceTests()
-        : Simulation(Simulation::OVER_LOOPBACK) {}
+    LedgerPerformanceTests() : Simulation(Simulation::OVER_LOOPBACK)
+    {
+    }
 
-    void ensureNAccounts(size_t n)
+    void
+    ensureNAccounts(size_t n)
     {
         auto creationTransactions = createAccounts(n);
         bool loading = true;
         bool needToCrank = false;
 
         loadAccount(*mAccounts.front());
-        for(auto &tx : creationTransactions)
+        for (auto& tx : creationTransactions)
         {
             if (loading && !loadAccount(*tx.mTo))
             {
-                // Could not load this account since it hasn't been created yet. 
+                // Could not load this account since it hasn't been created yet.
                 // Start creating them.
                 loading = false;
             }
@@ -60,28 +62,27 @@ public:
             crankUntilSync(chrono::seconds(10));
         }
     }
-    void closeLedgerWithRandomTransactions(size_t n)
+    void
+    closeLedgerWithRandomTransactions(size_t n)
     {
         auto baseFee = mApp->getConfig().DESIRED_BASE_FEE;
         auto txs = createRandomTransactions(n, 0.5);
-        TxSetFramePtr txSet = make_shared<TxSetFrame>(mApp->getLedgerMaster().getLastClosedLedgerHeader().hash);
-        for(auto& tx: txs)
+        TxSetFramePtr txSet = make_shared<TxSetFrame>(
+            mApp->getLedgerMaster().getLastClosedLedgerHeader().hash);
+        for (auto& tx : txs)
         {
             txSet->add(tx.createPaymentTx());
             tx.recordExecution(baseFee);
         }
 
-        LedgerCloseData ledgerData(mApp->getLedgerMaster().getLedgerNum(), 
-            txSet, 
-            VirtualClock::to_time_t(mApp->getClock().now()), 
-            baseFee);
+        LedgerCloseData ledgerData(
+            mApp->getLedgerMaster().getLedgerNum(), txSet,
+            VirtualClock::to_time_t(mApp->getClock().now()), baseFee);
 
         mApp->getLedgerMaster().closeLedger(ledgerData);
     }
 };
-
 }
-
 
 TEST_CASE("ledger performance test", "[ledger][performance][hide]")
 {
@@ -95,9 +96,11 @@ TEST_CASE("ledger performance test", "[ledger][performance][hide]")
 
     auto cfg = getTestConfig(1);
     cfg.DATABASE = "sqlite3://performance-test.db";
-    cfg.REBUILD_DB = !ifstream("performance-test.db"); //  rebuild if the file doesn't exists
-    
-    auto n0 = sim.addNode(v10VSeed, qSet0, sim.getClock(), make_shared<Config>(cfg));
+    cfg.REBUILD_DB =
+        !ifstream("performance-test.db"); //  rebuild if the file doesn't exists
+
+    auto n0 =
+        sim.addNode(v10VSeed, qSet0, sim.getClock(), make_shared<Config>(cfg));
     sim.mApp = sim.getNodes().front();
 
     sim.startAllNodes();

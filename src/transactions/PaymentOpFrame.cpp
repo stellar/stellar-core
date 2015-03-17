@@ -50,8 +50,7 @@ PaymentOpFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
             {
                 destAccount.getAccount().accountID = mPayment.destination;
                 destAccount.getAccount().seqNum =
-                    ledgerMaster.getCurrentLedgerHeaderFrame()
-                        .getStartingSequenceNumber();
+                    delta.getHeaderFrame().getStartingSequenceNumber();
                 destAccount.getAccount().balance = 0;
 
                 destAccount.storeAdd(delta, db);

@@ -18,8 +18,8 @@ typedef uint64 SequenceNumber;
 
 enum CurrencyType
 {
-    NATIVE,
-    ISO4217
+    NATIVE = 0,
+    ISO4217 = 1
 };
 
 struct ISOCurrencyIssuer
@@ -39,10 +39,11 @@ union Currency switch(CurrencyType type)
     // add other currency types here in the future
 };
 
+// price in fractional representation
 struct Price
 {
-    int32 n;
-    int32 d;
+    int32 n;  // numerator
+    int32 d;  // denominator
 };
 
 }

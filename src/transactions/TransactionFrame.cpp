@@ -38,7 +38,7 @@ TransactionFrame::getFullHash() const
 {
     if (isZero(mFullHash))
     {
-        mFullHash = sha256(xdr::xdr_to_msg(mEnvelope));
+        mFullHash = sha256(xdr::xdr_to_opaque(mEnvelope));
     }
     return (mFullHash);
 }
@@ -48,7 +48,7 @@ TransactionFrame::getContentsHash() const
 {
     if (isZero(mContentsHash))
     {
-        mContentsHash = sha256(xdr::xdr_to_msg(mEnvelope.tx));
+        mContentsHash = sha256(xdr::xdr_to_opaque(mEnvelope.tx));
     }
     return (mContentsHash);
 }
@@ -65,7 +65,7 @@ TransactionResultPair
 TransactionFrame::getResultPair() const
 {
     TransactionResultPair trp;
-    trp.transactionHash = getFullHash();
+    trp.transactionHash = getContentsHash();
     trp.result = mResult;
     return trp;
 }
@@ -80,6 +80,19 @@ TransactionEnvelope&
 TransactionFrame::getEnvelope()
 {
     return mEnvelope;
+}
+
+int64_t
+TransactionFrame::getFee(Application& app) const
+{
+    size_t count = mOperations.size();
+
+    if (count == 0)
+    {
+        count = 1;
+    }
+
+    return app.getLedgerGateway().getTxFee() * count;
 }
 
 void
@@ -203,7 +216,7 @@ TransactionFrame::checkValid(Application& app, bool applying,
     }
 
     // fee we'd like to charge for this transaction
-    int64_t fee = app.getLedgerGateway().getTxFee() * mOperations.size();
+    int64_t fee = getFee(app);
 
     if (mEnvelope.tx.maxFee < fee)
     {
@@ -276,7 +289,7 @@ TransactionFrame::prepareResult(LedgerDelta& delta, LedgerMaster& ledgerMaster)
         }
         mSigningAccount->setSeqNum(mEnvelope.tx.seqNum);
         mSigningAccount->getAccount().balance -= fee;
-        ledgerMaster.getCurrentLedgerHeader().feePool += fee;
+        delta.getHeader().feePool += fee;
 
         mSigningAccount->storeChange(delta, db);
     }
@@ -409,13 +422,12 @@ TransactionFrame::storeTransaction(LedgerMaster& ledgerMaster,
         reinterpret_cast<const unsigned char*>(txResultBytes.data()),
         txResultBytes.size());
 
-    xdr::msg_ptr txMeta(delta.getTransactionMeta());
+    xdr::opaque_vec<> txMeta(delta.getTransactionMeta());
 
     std::string meta = base64::encode(
-        reinterpret_cast<const unsigned char*>(txMeta->raw_data()),
-        txMeta->raw_size());
+        reinterpret_cast<const unsigned char*>(txMeta.data()), txMeta.size());
 
-    string txIDString(binToHex(getFullHash()));
+    string txIDString(binToHex(getContentsHash()));
 
     auto timer = ledgerMaster.getDatabase().getInsertTimer("txhistory");
     soci::statement st =
@@ -519,7 +531,7 @@ TransactionFrame::copyTransactionsToStream(Database& db, soci::session& sess,
         TransactionResultPair& p = results.txResultSet.results.back();
         xdr_argpack_archive(g2, p);
 
-        if (p.transactionHash != txFrame->getFullHash())
+        if (p.transactionHash != txFrame->getContentsHash())
         {
             throw std::runtime_error("transaction mismatch");
         }

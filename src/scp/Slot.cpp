@@ -24,7 +24,7 @@ ballotToStr(const SCPBallot& ballot)
 {
     std::ostringstream oss;
 
-    uint256 valueHash = sha256(xdr::xdr_to_msg(ballot.value));
+    uint256 valueHash = sha256(xdr::xdr_to_opaque(ballot.value));
 
     oss << "(" << ballot.counter << "," << binToHex(valueHash).substr(0, 6)
         << ")";
@@ -769,7 +769,7 @@ Slot::advanceSlot()
     {
         auto cb = [this, e](const SCPQuorumSet& qSet)
         {
-            uint256 qSetHash = sha256(xdr::xdr_to_msg(qSet));
+            uint256 qSetHash = sha256(xdr::xdr_to_opaque(qSet));
             if (e.qSetHash() == qSetHash)
             {
                 mSCP->getNode(e.nodeID())->cacheQuorumSet(qSet);

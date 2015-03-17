@@ -88,7 +88,6 @@ class LedgerMaster : public LedgerGateway
 
     LedgerHeader& getCurrentLedgerHeader();
     LedgerHeader const& getCurrentLedgerHeader() const;
-    LedgerHeaderFrame const& getCurrentLedgerHeaderFrame() const;
 
     LedgerHeaderHistoryEntry const& getLastClosedLedgerHeader() const;
 

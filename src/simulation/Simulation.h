@@ -14,7 +14,6 @@
 #include "medida/medida.h"
 #include "transactions/TxTests.h"
 
-
 #define SIMULATION_CREATE_NODE(N)                                              \
     const Hash v##N##VSeed = sha256("SEED_VALIDATION_SEED_" #N);               \
     const SecretKey v##N##SecretKey = SecretKey::fromSeed(v##N##VSeed);        \
@@ -40,7 +39,9 @@ class Simulation
 
     VirtualClock& getClock();
 
-    uint256 addNode(uint256 validationSeed, SCPQuorumSet qSet, VirtualClock& clock, Config::pointer cfg = shared_ptr<Config>());
+    uint256 addNode(uint256 validationSeed, SCPQuorumSet qSet,
+                    VirtualClock& clock,
+                    Config::pointer cfg = shared_ptr<Config>());
     Application::pointer getNode(uint256 nodeID);
     vector<Application::pointer> getNodes();
 
@@ -68,9 +69,11 @@ class Simulation
     class AccountInfo : public enable_shared_from_this<AccountInfo>
     {
       public:
-        AccountInfo(Simulation& simulation) : mSimulation(simulation) {}
-        AccountInfo(size_t id, SecretKey key, uint64_t balance, SequenceNumber seq,
-                    Simulation& simulation)
+        AccountInfo(Simulation& simulation) : mSimulation(simulation)
+        {
+        }
+        AccountInfo(size_t id, SecretKey key, uint64_t balance,
+                    SequenceNumber seq, Simulation& simulation)
             : mId(id)
             , mKey(key)
             , mBalance(balance)
@@ -113,8 +116,9 @@ class Simulation
                                       int injectionRatePerSec,
                                       function<TxInfo(size_t)> generatorFn);
 
-    vector<accountInfoPtr> accountsOutOfSyncWithDb(); // returns the accounts that don't match
-    bool loadAccount(AccountInfo &account);
+    vector<accountInfoPtr>
+    accountsOutOfSyncWithDb(); // returns the accounts that don't match
+    bool loadAccount(AccountInfo& account);
     void loadAccounts();
 
     string metricsSummary(string domain);

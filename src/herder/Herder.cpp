@@ -262,15 +262,15 @@ Herder::compareValues(const uint64& slotIndex, const uint32& ballotCounter,
     // counter) and each slotIndex.
 
     SHA256 s1;
-    s1.add(xdr::xdr_to_msg(slotIndex));
-    s1.add(xdr::xdr_to_msg(ballotCounter));
-    s1.add(xdr::xdr_to_msg(b1.nodeID));
+    s1.add(xdr::xdr_to_opaque(slotIndex));
+    s1.add(xdr::xdr_to_opaque(ballotCounter));
+    s1.add(xdr::xdr_to_opaque(b1.nodeID));
     auto h1 = s1.finish();
 
     SHA256 s2;
-    s2.add(xdr::xdr_to_msg(slotIndex));
-    s2.add(xdr::xdr_to_msg(ballotCounter));
-    s2.add(xdr::xdr_to_msg(b2.nodeID));
+    s2.add(xdr::xdr_to_opaque(slotIndex));
+    s2.add(xdr::xdr_to_opaque(ballotCounter));
+    s2.add(xdr::xdr_to_opaque(b2.nodeID));
     auto h2 = s2.finish();
 
     if (h1 < h2)
@@ -366,15 +366,15 @@ Herder::validateBallot(const uint64& slotIndex, const uint256& nodeID,
         }
 
         SHA256 sProposed;
-        sProposed.add(xdr::xdr_to_msg(slotIndex));
-        sProposed.add(xdr::xdr_to_msg(ballot.counter));
-        sProposed.add(xdr::xdr_to_msg(b.nodeID));
+        sProposed.add(xdr::xdr_to_opaque(slotIndex));
+        sProposed.add(xdr::xdr_to_opaque(ballot.counter));
+        sProposed.add(xdr::xdr_to_opaque(b.nodeID));
         auto hProposed = sProposed.finish();
 
         SHA256 sContender;
-        sContender.add(xdr::xdr_to_msg(slotIndex));
-        sContender.add(xdr::xdr_to_msg(ballot.counter));
-        sContender.add(xdr::xdr_to_msg(vID));
+        sContender.add(xdr::xdr_to_opaque(slotIndex));
+        sContender.add(xdr::xdr_to_opaque(ballot.counter));
+        sContender.add(xdr::xdr_to_opaque(vID));
         auto hContender = sContender.finish();
 
         // A ballot is king (locally) only if it is higher than any potential
@@ -385,7 +385,7 @@ Herder::validateBallot(const uint64& slotIndex, const uint256& nodeID,
         }
     }
 
-    uint256 valueHash = sha256(xdr::xdr_to_msg(ballot.value));
+    uint256 valueHash = sha256(xdr::xdr_to_opaque(ballot.value));
 
     CLOG(DEBUG, "Herder") << "Herder::validateBallot"
                           << "@" << binToHex(getLocalNodeID()).substr(0, 6)
@@ -672,13 +672,13 @@ Herder::recvSCPQuorumSet(SCPQuorumSetPtr qSet)
     CLOG(DEBUG, "Herder") << "Herder::recvSCPQuorumSet"
                           << "@" << binToHex(getLocalNodeID()).substr(0, 6)
                           << " qSet: "
-                          << binToHex(sha256(xdr::xdr_to_msg(*qSet)))
+                          << binToHex(sha256(xdr::xdr_to_opaque(*qSet)))
                                  .substr(0, 6);
 
     if (mSCPQSetFetcher.recvItem(qSet))
     {
         // someone cares about this set
-        uint256 qSetHash = sha256(xdr::xdr_to_msg(*qSet));
+        uint256 qSetHash = sha256(xdr::xdr_to_opaque(*qSet));
 
         // Runs any pending retrievals on this qSet
         auto it = mSCPQSetFetches.find(qSetHash);
@@ -706,8 +706,9 @@ Herder::recvTransaction(TransactionFramePtr tx)
 
     // determine if we have seen this tx before and if not if it has the right
     // seq num
-    int numOthers = 0;
+    int64_t totFee = tx->getFee(mApp);
     SequenceNumber highSeq = 0;
+
     for (auto& list : mReceivedTransactions)
     {
         for (auto oldTX : list)
@@ -719,7 +720,7 @@ Herder::recvTransaction(TransactionFramePtr tx)
             }
             if (oldTX->getSourceID() == tx->getSourceID())
             {
-                numOthers++;
+                totFee += oldTX->getFee(mApp);
                 if (oldTX->getSeqNum() > highSeq)
                 {
                     highSeq = oldTX->getSeqNum();
@@ -735,8 +736,7 @@ Herder::recvTransaction(TransactionFramePtr tx)
 
     // don't consider minBalance since you want to allow them to still send
     // around credit etc
-    if (tx->getSourceAccount().getBalance() <
-        (numOthers + 1) * mApp.getLedgerGateway().getTxFee())
+    if (tx->getSourceAccount().getBalance() < totFee)
     {
         tx->getResult().result.code(txINSUFFICIENT_BALANCE);
         return false;
@@ -893,7 +893,7 @@ Herder::triggerNextLedger()
 
     mCurrentValue = xdr::xdr_to_opaque(b);
 
-    uint256 valueHash = sha256(xdr::xdr_to_msg(mCurrentValue));
+    uint256 valueHash = sha256(xdr::xdr_to_opaque(mCurrentValue));
     CLOG(INFO, "Herder") << "Herder::triggerNextLedger"
                          << "@" << binToHex(getLocalNodeID()).substr(0, 6)
                          << " txSet.size: " << proposedSet->mTransactions.size()
@@ -933,14 +933,14 @@ Herder::signStellarBallot(StellarBallot& b)
 {
     mBallotSign.Mark();
     b.nodeID = getSecretKey().getPublicKey();
-    b.signature = getSecretKey().sign(xdr::xdr_to_msg(b.value));
+    b.signature = getSecretKey().sign(xdr::xdr_to_opaque(b.value));
 }
 
 bool
 Herder::verifyStellarBallot(const StellarBallot& b)
 {
     auto v =
-        PublicKey::verifySig(b.nodeID, b.signature, xdr::xdr_to_msg(b.value));
+        PublicKey::verifySig(b.nodeID, b.signature, xdr::xdr_to_opaque(b.value));
     if (v)
     {
         mBallotValidSig.Mark();

@@ -241,7 +241,7 @@ CommandHandler::tx(const std::string& params, std::string& retStr)
                 }
 
                 std::string resultHex =
-                    binToHex(xdr::xdr_to_msg(transaction->getResult()));
+                    binToHex(xdr::xdr_to_opaque(transaction->getResult()));
 
                 output << "{"
 

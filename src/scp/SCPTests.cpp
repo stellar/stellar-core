@@ -28,7 +28,7 @@ class TestSCP : public SCP
     void
     storeQuorumSet(SCPQuorumSet qSet)
     {
-        Hash qSetHash = sha256(xdr::xdr_to_msg(qSet));
+        Hash qSetHash = sha256(xdr::xdr_to_opaque(qSet));
         mQuorumSets[qSetHash] = qSet;
     }
 
@@ -122,7 +122,7 @@ makeEnvelope(const SecretKey& secretKey, const Hash& qSetHash,
     envelope.statement.ballot = ballot;
     envelope.statement.quorumSetHash = qSetHash;
     envelope.statement.pledges.type(type);
-    envelope.signature = secretKey.sign(xdr::xdr_to_msg(envelope.statement));
+    envelope.signature = secretKey.sign(xdr::xdr_to_opaque(envelope.statement));
 
     return envelope;
 }
@@ -130,7 +130,7 @@ makeEnvelope(const SecretKey& secretKey, const Hash& qSetHash,
 void
 signEnvelope(const SecretKey& secretKey, SCPEnvelope& envelope)
 {
-    envelope.signature = secretKey.sign(xdr::xdr_to_msg(envelope.statement));
+    envelope.signature = secretKey.sign(xdr::xdr_to_opaque(envelope.statement));
 }
 
 #define CREATE_VALUE(X)                                                        \
@@ -151,7 +151,7 @@ TEST_CASE("protocol core4", "[scp]")
     qSet.validators.push_back(v2NodeID);
     qSet.validators.push_back(v3NodeID);
 
-    uint256 qSetHash = sha256(xdr::xdr_to_msg(qSet));
+    uint256 qSetHash = sha256(xdr::xdr_to_opaque(qSet));
 
     TestSCP scp(v0SecretKey, qSet);
 
