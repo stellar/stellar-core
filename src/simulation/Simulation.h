@@ -13,6 +13,7 @@
 #include "crypto/SHA.h"
 #include "medida/medida.h"
 #include "transactions/TxTests.h"
+#include "generated/Stellar-types.h"
 
 #define SIMULATION_CREATE_NODE(N)                                              \
     const Hash v##N##VSeed = sha256("SEED_VALIDATION_SEED_" #N);               \
@@ -54,7 +55,7 @@ class Simulation
 
     void startAllNodes();
 
-    bool haveAllExternalized(uint32_t num);
+    bool haveAllExternalized(SequenceNumber num);
 
     size_t crankAllNodes(int nbTicks = 1);
     void crankForAtMost(VirtualClock::duration seconds);
@@ -91,20 +92,21 @@ class Simulation
       private:
         Simulation& mSimulation;
     };
-    using accountInfoPtr = shared_ptr<AccountInfo>;
-    vector<accountInfoPtr> mAccounts;
+    using AccountInfoPtr = shared_ptr<AccountInfo>;
+    vector<AccountInfoPtr> mAccounts;
 
     struct TxInfo
     {
-        accountInfoPtr mFrom;
-        accountInfoPtr mTo;
+        AccountInfoPtr mFrom;
+        AccountInfoPtr mTo;
         uint64_t mAmount;
         void execute(Application& app);
         TransactionFramePtr createPaymentTx();
         void recordExecution(uint64_t baseFee);
     };
 
-    vector<Simulation::TxInfo> createAccounts(size_t n);
+    vector<Simulation::TxInfo> accountCreationTransactions(size_t n);
+    vector<Simulation::AccountInfoPtr> createAccounts(size_t n);
     TxInfo createTranferTransaction(size_t iFrom, size_t iTo, uint64_t amount);
     TxInfo createRandomTransaction(float alpha);
     vector<Simulation::TxInfo> createRandomTransactions(size_t n,
@@ -116,14 +118,14 @@ class Simulation
                                       int injectionRatePerSec,
                                       function<TxInfo(size_t)> generatorFn);
 
-    vector<accountInfoPtr>
+    vector<AccountInfoPtr> 
     accountsOutOfSyncWithDb(); // returns the accounts that don't match
-    bool loadAccount(AccountInfo& account);
+    bool loadAccount(AccountInfo &account);
     void loadAccounts();
 
     string metricsSummary(string domain);
 
-  private:
+private:
     VirtualClock mClock;
     Mode mMode;
     int mConfigCount;

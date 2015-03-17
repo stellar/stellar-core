@@ -53,7 +53,7 @@ TEST_CASE(
         },
         std::chrono::seconds(60000));
 
-    simulation->executeAll(simulation->createAccounts(3));
+    simulation->executeAll(simulation->accountCreationTransactions(3));
 
     try
     {

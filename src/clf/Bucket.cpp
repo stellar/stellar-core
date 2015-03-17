@@ -21,7 +21,7 @@
 #include "database/Database.h"
 #include "ledger/EntryFrame.h"
 #include "ledger/LedgerDelta.h"
-
+#include "medida/medida.h"
 #include <cassert>
 #include <future>
 
@@ -358,7 +358,7 @@ Bucket::merge(CLFMaster& clfMaster, std::shared_ptr<Bucket> const& oldBucket,
     std::vector<Bucket::InputIterator> shadowIterators(shadows.begin(),
                                                        shadows.end());
 
-    auto timer = clfMaster.getMergeTimer();
+    auto timer = clfMaster.getMergeTimer().TimeScope();
     Bucket::OutputIterator out(clfMaster.getTmpDir());
 
     SHA256 hsh;

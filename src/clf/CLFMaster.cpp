@@ -140,10 +140,10 @@ CLFMaster::getBucketList()
     return mImpl->mBucketList;
 }
 
-medida::TimerContext
+medida::Timer&
 CLFMaster::getMergeTimer()
 {
-    return mImpl->mBucketSnapMerge.TimeScope();
+    return mImpl->mBucketSnapMerge;
 }
 
 std::shared_ptr<Bucket>

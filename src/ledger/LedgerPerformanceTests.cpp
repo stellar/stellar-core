@@ -15,10 +15,13 @@
 #include "main/Config.h"
 #include "simulation/Simulation.h"
 #include <soci.h>
+#include "crypto/Base58.h"
+#include "clf/CLFMaster.h"
 
 using namespace stellar;
 using namespace std;
 using namespace soci;
+using namespace medida;
 
 typedef std::unique_ptr<Application> appPtr;
 
@@ -26,66 +29,81 @@ namespace stellar
 {
 class LedgerPerformanceTests : public Simulation
 {
-  public:
+public:
     size_t nAccounts = 10;
 
     Application::pointer mApp;
 
-    LedgerPerformanceTests() : Simulation(Simulation::OVER_LOOPBACK)
-    {
-    }
+    LedgerPerformanceTests()
+        : Simulation(Simulation::OVER_LOOPBACK) {}
 
-    void
-    ensureNAccounts(size_t n)
+    void ensureNAccounts(size_t n, size_t batchSize = 1000)
     {
-        auto creationTransactions = createAccounts(n);
-        bool loading = true;
-        bool needToCrank = false;
-
         loadAccount(*mAccounts.front());
-        for (auto& tx : creationTransactions)
+
+        auto newAccounts = createAccounts(max<size_t>(0, n - mAccounts.size() + 1));
+
+        vector<TxInfo> txs;
+        for (int i = 0; i < newAccounts.size(); i++)
         {
-            if (loading && !loadAccount(*tx.mTo))
+            if (loadAccount(*newAccounts[i]))
             {
-                // Could not load this account since it hasn't been created yet.
-                // Start creating them.
-                loading = false;
+                if (newAccounts[i]->mId % batchSize == 0)
+                    LOG(INFO) << "... loaded up to account " << newAccounts[i]->mId;
+            } else
+            {
+                txs.push_back(newAccounts[i]->creationTransaction());
+                newAccounts[i]->mSeq = LedgerHeaderFrame(mApp->getLedgerMaster()
+                    .getCurrentLedgerHeader())
+                    .getStartingSequenceNumber();
             }
-            if (!loading)
+            if (txs.size() == batchSize)
             {
-                execute(tx);
-                needToCrank = true;
+                closeLedger(txs);
+                LOG(INFO) << "...created up to account " << newAccounts[i]->mId;
+                txs.clear();
             }
         }
-        if (needToCrank)
+        if (txs.size() > 0 )
         {
-            crankUntilSync(chrono::seconds(10));
+            closeLedger(txs);
         }
     }
-    void
-    closeLedgerWithRandomTransactions(size_t n)
+    void closeLedgerWithRandomTransactions(size_t n)
+    {
+        auto txs = createRandomTransactions(n, 0.5);
+        closeLedger(txs);
+    }
+
+    void closeLedger(vector<Simulation::TxInfo> txs)
     {
         auto baseFee = mApp->getConfig().DESIRED_BASE_FEE;
-        auto txs = createRandomTransactions(n, 0.5);
-        TxSetFramePtr txSet = make_shared<TxSetFrame>(
-            mApp->getLedgerMaster().getLastClosedLedgerHeader().hash);
+        TxSetFramePtr txSet = make_shared<TxSetFrame>(mApp->getLedgerMaster().getLastClosedLedgerHeader().hash);
         for (auto& tx : txs)
         {
             txSet->add(tx.createPaymentTx());
             tx.recordExecution(baseFee);
         }
 
-        LedgerCloseData ledgerData(
-            mApp->getLedgerMaster().getLedgerNum(), txSet,
-            VirtualClock::to_time_t(mApp->getClock().now()), baseFee);
+        LedgerCloseData ledgerData(mApp->getLedgerMaster().getLedgerNum(),
+            txSet,
+            VirtualClock::to_time_t(mApp->getClock().now()),
+            baseFee);
 
         mApp->getLedgerMaster().closeLedger(ledgerData);
     }
+
 };
+
 }
 
 TEST_CASE("ledger performance test", "[ledger][performance][hide]")
 {
+    int nAccounts = 10000000;
+    int nLedgers = 1000;
+    int nTransactionsPerLedger = 3;
+
+
     LedgerPerformanceTests sim;
 
     SIMULATION_CREATE_NODE(10);
@@ -95,17 +113,43 @@ TEST_CASE("ledger performance test", "[ledger][performance][hide]")
     qSet0.validators.push_back(v10NodeID);
 
     auto cfg = getTestConfig(1);
-    cfg.DATABASE = "sqlite3://performance-test.db";
-    cfg.REBUILD_DB =
-        !ifstream("performance-test.db"); //  rebuild if the file doesn't exists
-
-    auto n0 =
-        sim.addNode(v10VSeed, qSet0, sim.getClock(), make_shared<Config>(cfg));
+    cfg.REBUILD_DB = false;
+    cfg.DATABASE = "postgresql://host=localhost dbname=performance_test user=test password=test";
+    cfg.BUCKET_DIR_PATH = "performance-test.db.buckets";
+    cfg.MANUAL_CLOSE = true;
+    auto n0 = sim.addNode(v10VSeed, qSet0, sim.getClock(), make_shared<Config>(cfg));
     sim.mApp = sim.getNodes().front();
+    if (sim.mApp->getPersistentState().getState(PersistentState::kDatabaseInitialized) != "true")
+    {
+        sim.mApp->getDatabase().initialize();
+    }
 
     sim.startAllNodes();
-    sim.ensureNAccounts(100);
-    sim.closeLedgerWithRandomTransactions(1000);
 
-    LOG(INFO) << "Done.";
+
+        
+    Timer& ledgerTimer = sim.mApp->getMetrics().NewTimer({ "performance-test", "ledger", "close" });
+    Timer& mergeTimer = sim.mApp->getCLFMaster().getMergeTimer();
+    for (int iAccounts = 1000; iAccounts < nAccounts; iAccounts *= 10)
+    {
+        ledgerTimer.Clear();
+        mergeTimer.Clear();
+
+        LOG(INFO) << "Performance test with " << iAccounts << ", loading/creating accounts";
+        sim.ensureNAccounts(iAccounts);
+        LOG(INFO) << "Performance test with " << iAccounts << ", running";
+
+        for (int iLedgers = 0; iLedgers < nLedgers; iLedgers++)
+        {
+            auto txs = sim.createRandomTransactions(nTransactionsPerLedger, 0.5);
+
+            auto scope = ledgerTimer.TimeScope();
+            sim.closeLedger(txs);
+            while (sim.crankAllNodes() > 0);
+        }
+        LOG(INFO) << "Performance test with " << iAccounts << ", done";
+        LOG(INFO) << endl << sim.metricsSummary("performance-test");
+        LOG(INFO) << endl << sim.metricsSummary("bucket");
+        LOG(INFO) << "done";
+    }
 }
