@@ -17,6 +17,7 @@
 #include "util/TmpDir.h"
 #include "transactions/TxTests.h"
 #include "ledger/LedgerMaster.h"
+#include "util/NonCopyable.h"
 #include <cstdio>
 #include <xdrpp/autocheck.h>
 #include <fstream>
@@ -29,31 +30,47 @@ namespace stellar
 using xdr::operator==;
 };
 
-Config&
-addLocalDirHistoryArchive(TmpDir const& dir, Config& cfg, bool writable = true)
+class Configurator : NonCopyable
 {
-    std::string d = dir.getName();
-    std::string getCmd = "cp " + d + "/{0} {1}";
-    std::string putCmd = "";
-    std::string mkdirCmd = "";
+public:
+    virtual Config& configure(Config& cfg, bool writable) const = 0;
+};
 
-    if (writable)
+class
+TmpDirConfigurator : public Configurator
+{
+    TmpDirMaster mArchtmp;
+    TmpDir mDir;
+public:
+    TmpDirConfigurator()
+        : mArchtmp("archtmp")
+        , mDir(mArchtmp.tmpDir("archive"))
+        {}
+
+    Config& configure(Config& cfg, bool writable) const override
     {
-        putCmd = "cp {0} " + d + "/{1}";
-        mkdirCmd = "mkdir -p " + d + "/{0}";
-    }
+        std::string d = mDir.getName();
+        std::string getCmd = "cp " + d + "/{0} {1}";
+        std::string putCmd = "";
+        std::string mkdirCmd = "";
 
-    cfg.HISTORY["test"] =
-        std::make_shared<HistoryArchive>("test", getCmd, putCmd, mkdirCmd);
-    return cfg;
-}
+        if (writable)
+        {
+            putCmd = "cp {0} " + d + "/{1}";
+            mkdirCmd = "mkdir -p " + d + "/{0}";
+        }
+
+        cfg.HISTORY["test"] =
+            std::make_shared<HistoryArchive>("test", getCmd, putCmd, mkdirCmd);
+        return cfg;
+    }
+};
 
 class HistoryTests
 {
   protected:
     VirtualClock clock;
-    TmpDirMaster archtmp;
-    TmpDir dir;
+    std::shared_ptr<Configurator> mConfigurator;
     Config cfg;
     std::vector<Config> mCfgs;
     Application::pointer appPtr;
@@ -83,12 +100,11 @@ class HistoryTests
     std::vector<SequenceNumber> mCarolSeqs;
 
   public:
-    HistoryTests()
-        : archtmp("archtmp")
-        , dir(archtmp.tmpDir("archive"))
+    HistoryTests(std::shared_ptr<Configurator> cg
+                 = std::make_shared<TmpDirConfigurator>())
+        : mConfigurator(cg)
         , cfg(getTestConfig())
-        , appPtr(
-              Application::create(clock, addLocalDirHistoryArchive(dir, cfg)))
+        , appPtr(Application::create(clock, mConfigurator->configure(cfg, true)))
         , app(*appPtr)
         , mRoot(txtest::getRoot())
         , mAlice(txtest::getAccount("alice"))
@@ -349,8 +365,8 @@ HistoryTests::catchupNewApplication(uint32_t lastLedger, uint32_t initLedger,
 
     mCfgs.emplace_back(
         getTestConfig(static_cast<int>(mCfgs.size()) + 1, dbMode));
-    Application::pointer app2 = Application::create(
-        clock, addLocalDirHistoryArchive(dir, mCfgs.back(), false));
+    Application::pointer app2 =
+        Application::create(clock, mConfigurator->configure(mCfgs.back(), false));
     app2->start();
     CHECK(catchupApplication(lastLedger, initLedger, resumeMode, app2) == true);
     return app2;
@@ -648,4 +664,52 @@ TEST_CASE_METHOD(HistoryTests, "Publish/catchup alternation, with stall",
     caughtup = catchupApplication(lastLedger, initLedger,
                                   HistoryMaster::RESUME_AT_NEXT, app3, false);
     CHECK(caughtup);
+}
+
+
+class
+S3Configurator : public Configurator
+{
+public:
+    Config& configure(Config& cfg, bool writable) const override
+    {
+        char const* s3bucket = getenv("S3BUCKET");
+        if (!s3bucket)
+        {
+            throw std::runtime_error("s3 test requires S3BUCKET env var");
+        }
+        std::string s3b(s3bucket);
+        if (s3b.find("s3://") != 0)
+        {
+            s3b = std::string("s3://") + s3b;
+        }
+        std::string getCmd = "aws s3 cp " + s3b + "/{0} {1}";
+        std::string putCmd = "";
+        std::string mkdirCmd = "";
+        if (writable)
+        {
+            putCmd = "aws s3 cp {0} " + s3b + "/{1}";
+        }
+        cfg.HISTORY["test"] =
+            std::make_shared<HistoryArchive>("test", getCmd, putCmd, mkdirCmd);
+        return cfg;
+    }
+};
+
+class S3HistoryTests : public HistoryTests
+{
+public:
+    S3HistoryTests()
+        : HistoryTests(std::make_shared<S3Configurator>())
+        {}
+};
+
+TEST_CASE_METHOD(S3HistoryTests, "Publish/catchup via s3",
+                 "[hide][s3]")
+{
+    generateAndPublishInitialHistory(3);
+    auto app2 = catchupNewApplication(
+        0, app.getLedgerMaster().getCurrentLedgerHeader().ledgerSeq,
+        Config::TESTDB_IN_MEMORY_SQLITE,
+        HistoryMaster::RESUME_AT_LAST, "s3");
 }
