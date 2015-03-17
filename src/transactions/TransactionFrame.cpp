@@ -65,7 +65,7 @@ TransactionResultPair
 TransactionFrame::getResultPair() const
 {
     TransactionResultPair trp;
-    trp.transactionHash = getFullHash();
+    trp.transactionHash = getContentsHash();
     trp.result = mResult;
     return trp;
 }
@@ -427,7 +427,7 @@ TransactionFrame::storeTransaction(LedgerMaster& ledgerMaster,
     std::string meta = base64::encode(
         reinterpret_cast<const unsigned char*>(txMeta.data()), txMeta.size());
 
-    string txIDString(binToHex(getFullHash()));
+    string txIDString(binToHex(getContentsHash()));
 
     auto timer = ledgerMaster.getDatabase().getInsertTimer("txhistory");
     soci::statement st =
@@ -531,7 +531,7 @@ TransactionFrame::copyTransactionsToStream(Database& db, soci::session& sess,
         TransactionResultPair& p = results.txResultSet.results.back();
         xdr_argpack_archive(g2, p);
 
-        if (p.transactionHash != txFrame->getFullHash())
+        if (p.transactionHash != txFrame->getContentsHash())
         {
             throw std::runtime_error("transaction mismatch");
         }
