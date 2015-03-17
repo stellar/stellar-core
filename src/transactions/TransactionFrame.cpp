@@ -38,7 +38,7 @@ TransactionFrame::getFullHash() const
 {
     if (isZero(mFullHash))
     {
-        mFullHash = sha256(xdr::xdr_to_msg(mEnvelope));
+        mFullHash = sha256(xdr::xdr_to_opaque(mEnvelope));
     }
     return (mFullHash);
 }
@@ -48,7 +48,7 @@ TransactionFrame::getContentsHash() const
 {
     if (isZero(mContentsHash))
     {
-        mContentsHash = sha256(xdr::xdr_to_msg(mEnvelope.tx));
+        mContentsHash = sha256(xdr::xdr_to_opaque(mEnvelope.tx));
     }
     return (mContentsHash);
 }
@@ -409,11 +409,10 @@ TransactionFrame::storeTransaction(LedgerMaster& ledgerMaster,
         reinterpret_cast<const unsigned char*>(txResultBytes.data()),
         txResultBytes.size());
 
-    xdr::msg_ptr txMeta(delta.getTransactionMeta());
+    xdr::opaque_vec<> txMeta(delta.getTransactionMeta());
 
     std::string meta = base64::encode(
-        reinterpret_cast<const unsigned char*>(txMeta->raw_data()),
-        txMeta->raw_size());
+        reinterpret_cast<const unsigned char*>(txMeta.data()), txMeta.size());
 
     string txIDString(binToHex(getFullHash()));
 

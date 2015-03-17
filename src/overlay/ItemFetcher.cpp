@@ -157,7 +157,7 @@ SCPQSetFetcher::recvItem(SCPQuorumSetPtr qSet)
 {
     if (qSet)
     {
-        uint256 qSetHash = sha256(xdr::xdr_to_msg(*qSet));
+        uint256 qSetHash = sha256(xdr::xdr_to_opaque(*qSet));
         auto result = mItemMap.find(qSetHash);
         if (result != mItemMap.end())
         {

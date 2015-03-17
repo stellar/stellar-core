@@ -42,7 +42,7 @@ LedgerHeaderFrame::getHash() const
 {
     if (isZero(mHash))
     {
-        mHash = sha256(xdr::xdr_to_msg(mHeader));
+        mHash = sha256(xdr::xdr_to_opaque(mHeader));
         assert(!isZero(mHash));
     }
     return mHash;

@@ -18,7 +18,7 @@ LocalNode::LocalNode(const SecretKey& secretKey, const SCPQuorumSet& qSet,
     : Node(secretKey.getPublicKey(), SCP, -1)
     , mSecretKey(secretKey)
     , mQSet(qSet)
-    , mQSetHash(sha256(xdr::xdr_to_msg(qSet)))
+    , mQSetHash(sha256(xdr::xdr_to_opaque(qSet)))
 {
     cacheQuorumSet(qSet);
 
@@ -32,7 +32,7 @@ LocalNode::updateQuorumSet(const SCPQuorumSet& qSet)
 {
     cacheQuorumSet(qSet);
 
-    mQSetHash = sha256(xdr::xdr_to_msg(qSet));
+    mQSetHash = sha256(xdr::xdr_to_opaque(qSet));
     mQSet = qSet;
 }
 

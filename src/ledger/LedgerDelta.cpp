@@ -182,7 +182,7 @@ LedgerDelta::rollback()
     mHeader = nullptr;
 }
 
-xdr::msg_ptr
+xdr::opaque_vec<>
 LedgerDelta::getTransactionMeta() const
 {
     TransactionMeta tm;
@@ -204,7 +204,7 @@ LedgerDelta::getTransactionMeta() const
         tm.entries.back().deadEntry() = k;
     }
 
-    return xdr::xdr_to_msg(tm);
+    return xdr::xdr_to_opaque(tm);
 }
 
 std::vector<LedgerEntry>

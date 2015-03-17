@@ -65,6 +65,6 @@ class LedgerDelta
     std::vector<LedgerEntry> getLiveEntries() const;
     std::vector<LedgerKey> getDeadEntries() const;
 
-    xdr::msg_ptr getTransactionMeta() const;
+    xdr::opaque_vec<> getTransactionMeta() const;
 };
 }

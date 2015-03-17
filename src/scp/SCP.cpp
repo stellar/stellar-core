@@ -133,7 +133,7 @@ SCP::signEnvelope(SCPEnvelope& envelope)
 {
     assert(envelope.nodeID == getSecretKey().getPublicKey());
     envelope.signature =
-        getSecretKey().sign(xdr::xdr_to_msg(envelope.statement));
+        getSecretKey().sign(xdr::xdr_to_opaque(envelope.statement));
     envelopeSigned();
 }
 
@@ -141,7 +141,7 @@ bool
 SCP::verifyEnvelope(const SCPEnvelope& envelope)
 {
     bool b = PublicKey::verifySig(envelope.nodeID, envelope.signature,
-                                  xdr::xdr_to_msg(envelope.statement));
+                                  xdr::xdr_to_opaque(envelope.statement));
     envelopeVerified(b);
     return b;
 }
