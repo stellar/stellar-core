@@ -243,7 +243,8 @@ CreateOfferOpFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
                     innerResult().code(CreateOffer::UNDERFUNDED);
                     return false;
                 }
-                mSellSheepOffer.mEntry.offer().offerID = tempDelta.getNextID();
+                mSellSheepOffer.mEntry.offer().offerID =
+                    tempDelta.getHeaderFrame().generateID();
                 innerResult().success().offer.effect(CreateOffer::CREATED);
                 innerResult().success().offer.offerCreated() =
                     mSellSheepOffer.getOffer();

@@ -54,6 +54,18 @@ LedgerHeaderFrame::getStartingSequenceNumber() const
     return static_cast<uint64_t>(mHeader.ledgerSeq) << 32;
 }
 
+uint64_t
+LedgerHeaderFrame::getLastGeneratedID() const
+{
+    return mHeader.idPool;
+}
+
+uint64_t
+LedgerHeaderFrame::generateID()
+{
+    return ++mHeader.idPool;
+}
+
 void
 LedgerHeaderFrame::storeInsert(LedgerMaster& ledgerMaster) const
 {

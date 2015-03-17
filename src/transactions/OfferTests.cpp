@@ -226,11 +226,11 @@ TEST_CASE("create offer", "[tx][offers]")
             // 0.66
             Price exactCross(usdPriceOfferA.d, usdPriceOfferA.n);
 
-            uint64_t beforeID = delta.getCurrentID();
+            uint64_t beforeID = delta.getHeaderFrame().getLastGeneratedID();
             applyCreateOfferWithResult(app, delta, a1, usdCur, idrCur,
                                        exactCross, 150 * currencyMultiplier,
                                        a1_seq++, CreateOffer::CROSS_SELF);
-            REQUIRE(beforeID == delta.getCurrentID());
+            REQUIRE(beforeID == delta.getHeaderFrame().getLastGeneratedID());
 
             for (auto a1Offer : a1OfferID)
             {
@@ -254,7 +254,8 @@ TEST_CASE("create offer", "[tx][offers]")
             // 0.66
             Price exactCross(usdPriceOfferA.d, usdPriceOfferA.n);
 
-            uint64_t offerID = delta.getCurrentID();
+            uint64_t expectedID =
+                delta.getHeaderFrame().getLastGeneratedID() + 1;
             auto const& res = applyCreateOfferWithResult(
                 app, delta, b1, usdCur, idrCur, exactCross,
                 150 * currencyMultiplier, b1_seq++);
@@ -262,7 +263,7 @@ TEST_CASE("create offer", "[tx][offers]")
             REQUIRE(res.success().offer.effect() == CreateOffer::EMPTY);
 
             // verifies that the offer was not created
-            REQUIRE(!OfferFrame::loadOffer(b1.getPublicKey(), offerID, offer,
+            REQUIRE(!OfferFrame::loadOffer(b1.getPublicKey(), expectedID, offer,
                                            app.getDatabase()));
 
             // and the state of a1 offers
@@ -314,7 +315,8 @@ TEST_CASE("create offer", "[tx][offers]")
                                               app.getDatabase()));
             int64_t b1_idr = line.getBalance();
 
-            uint64_t offerID = delta.getCurrentID();
+            uint64_t expectedID =
+                delta.getHeaderFrame().getLastGeneratedID() + 1;
             // offer is sell 1010 USD for 505 IDR; sell USD @ 0.5
             auto const& res = applyCreateOfferWithResult(
                 app, delta, b1, usdCur, idrCur, onetwo,
@@ -322,7 +324,7 @@ TEST_CASE("create offer", "[tx][offers]")
 
             REQUIRE(res.success().offer.effect() == CreateOffer::EMPTY);
             // verify that the offer was not created
-            REQUIRE(!OfferFrame::loadOffer(b1.getPublicKey(), offerID, offer,
+            REQUIRE(!OfferFrame::loadOffer(b1.getPublicKey(), expectedID, offer,
                                            app.getDatabase()));
 
             // Offers are: sell 100 IDR for 150 USD; sell IRD @ 0.66 -> buy USD
@@ -415,7 +417,8 @@ TEST_CASE("create offer", "[tx][offers]")
             {
                 // offer is sell 1 USD for 0.5 IDR; sell USD @ 0.5
 
-                uint64_t wouldCreateID = delta.getCurrentID();
+                uint64_t wouldCreateID =
+                    delta.getHeaderFrame().getLastGeneratedID() + 1;
                 auto const& res = applyCreateOfferWithResult(
                     app, delta, b1, usdCur, idrCur, onetwo,
                     1 * currencyMultiplier, b1_seq++);

@@ -3,6 +3,7 @@
 #include <map>
 #include <set>
 #include "ledger/EntryFrame.h"
+#include "ledger/LedgerHeaderFrame.h"
 #include "clf/LedgerCmp.h"
 #include "xdrpp/marshal.h"
 
@@ -15,39 +16,49 @@ class LedgerDelta
     typedef std::map<LedgerKey, EntryFrame::pointer, LedgerEntryIdCmp>
         KeyEntryMap;
 
+    LedgerDelta*
+        mOuterDelta;       // set when this delta is nested inside another delta
+    LedgerHeader* mHeader; // LedgerHeader to commit changes to
+
+    // objects to keep track of changes
+    // ledger header itself
+    LedgerHeaderFrame mCurrentHeader;
+    LedgerHeader mPreviousHeaderValue;
+    // ledger entries
     KeyEntryMap mNew;
     KeyEntryMap mMod;
     std::set<LedgerKey, LedgerEntryIdCmp> mDelete;
-
-    LedgerDelta* mOuterDelta;
-    LedgerHeader* mHeader;
-    uint64_t mCurrentID;
 
     void checkState();
     void addEntry(EntryFrame::pointer entry);
     void deleteEntry(EntryFrame::pointer entry);
     void modEntry(EntryFrame::pointer entry);
 
-    void merge(LedgerDelta& other);
+    // merge "other" into current ledgerDelta
+    void mergeEntries(LedgerDelta& other);
 
   public:
+    // keeps an internal reference to the outerDelta,
+    // will apply changes to the outer scope on commit
     explicit LedgerDelta(LedgerDelta& outerDelta);
+
+    // keeps an internal reference to ledgerHeader,
+    // will apply changes to ledgerHeader on commit
     LedgerDelta(LedgerHeader& ledgerHeader);
 
+    LedgerHeader& getHeader();
+    LedgerHeaderFrame& getHeaderFrame();
+
+    // methods to register changes in the ledger entries
     void addEntry(EntryFrame const& entry);
     void deleteEntry(EntryFrame const& entry);
     void deleteEntry(LedgerKey const& key);
     void modEntry(EntryFrame const& entry);
 
-    uint64_t
-    getCurrentID() const
-    {
-        return mCurrentID;
-    }
-    uint64_t getNextID();
-
-    // commits this delta into parent delta
+    // commits this delta into outer delta
     void commit();
+    // aborts any changes pending
+    void rollback();
 
     void markMeters(Application& app) const;
 

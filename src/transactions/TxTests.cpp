@@ -269,7 +269,7 @@ applyCreateOffer(Application& app, LedgerDelta& delta, SecretKey& source,
                  Currency& takerGets, Currency& takerPays, Price const& price,
                  int64_t amount, SequenceNumber seq)
 {
-    uint64_t expectedOfferID = delta.getCurrentID();
+    uint64_t expectedOfferID = delta.getHeaderFrame().getLastGeneratedID() + 1;
 
     CreateOffer::CreateOfferResult const& createOfferRes =
         applyCreateOfferHelper(app, delta, source, takerGets, takerPays, price,

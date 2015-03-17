@@ -27,15 +27,21 @@ class LedgerHeaderFrame
 
     LedgerHeader mHeader;
 
+    // wraps the given ledger as is
     LedgerHeaderFrame(LedgerHeader const& lh);
 
     // creates a new, _subsequent_ ledger, following the provided closed ledger
-    LedgerHeaderFrame(LedgerHeaderHistoryEntry const& lastClosed);
+    explicit LedgerHeaderFrame(LedgerHeaderHistoryEntry const& lastClosed);
 
     Hash const& getHash() const;
 
     // returns the first sequence number to use for new accounts
     SequenceNumber getStartingSequenceNumber() const;
+
+    // methods to generate IDs
+    uint64_t getLastGeneratedID() const;
+    // generates a new ID and returns it
+    uint64_t generateID();
 
     void storeInsert(LedgerMaster& ledgerMaster) const;
 

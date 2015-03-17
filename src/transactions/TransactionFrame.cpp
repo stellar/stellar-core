@@ -276,7 +276,7 @@ TransactionFrame::prepareResult(LedgerDelta& delta, LedgerMaster& ledgerMaster)
         }
         mSigningAccount->setSeqNum(mEnvelope.tx.seqNum);
         mSigningAccount->getAccount().balance -= fee;
-        ledgerMaster.getCurrentLedgerHeader().feePool += fee;
+        delta.getHeader().feePool += fee;
 
         mSigningAccount->storeChange(delta, db);
     }
