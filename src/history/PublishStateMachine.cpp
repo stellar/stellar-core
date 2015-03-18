@@ -297,13 +297,25 @@ ArchivePublisher::isDone() const
     return mState == PUBLISH_END;
 }
 
-PublishStateMachine::PublishStateMachine(
-    Application& app,
-    std::shared_ptr<StateSnapshot> snap,
-    std::function<void(asio::error_code const&)> handler)
-    : mApp(app), mEndHandler(handler)
+PublishStateMachine::PublishStateMachine(Application& app)
+    : mApp(app)
 {
-    writeSnapshot(snap);
+}
+
+bool
+PublishStateMachine::queueSnapshot(SnapshotPtr snap, PublishCallback handler)
+{
+    bool delayed = !mPendingSnaps.empty();
+    mPendingSnaps.push_back(std::make_pair(snap, handler));
+    if (delayed)
+    {
+        CLOG(WARNING, "History") << "Snapshot queued while already publishing";
+    }
+    else
+    {
+        writeNextSnapshot();
+    }
+    return delayed;
 }
 
 StateSnapshot::StateSnapshot(Application& app)
@@ -390,7 +402,7 @@ PublishStateMachine::takeSnapshot(Application& app)
 }
 
 void
-PublishStateMachine::writeSnapshot(std::shared_ptr<StateSnapshot> snap)
+PublishStateMachine::writeNextSnapshot()
 {
     // Once we've taken a (synchronous) snapshot of the buckets and db, we then
     // run writeHistoryBlocks() to get the tx and ledger history files written
@@ -399,6 +411,11 @@ PublishStateMachine::writeSnapshot(std::shared_ptr<StateSnapshot> snap)
     // we're on, say, postgres). In either case, when complete it will call back
     // to snapshotWritten(), at which point we can begin the actual publishing
     // work.
+
+    if (mPendingSnaps.empty())
+        return;
+
+    auto snap = mPendingSnaps.front().first;
 
     if (mApp.getDatabase().canUsePool())
     {
@@ -411,9 +428,9 @@ PublishStateMachine::writeSnapshot(std::shared_ptr<StateSnapshot> snap)
                     ec = std::make_error_code(std::errc::io_error);
                 }
                 snap->mApp.getClock().getIOService().post(
-                    [ec, snap]()
+                    [snap, ec]()
                     {
-                        snap->mApp.getHistoryMaster().snapshotWritten(ec, snap);
+                        snap->mApp.getHistoryMaster().snapshotWritten(ec);
                     });
             });
     }
@@ -424,22 +441,23 @@ PublishStateMachine::writeSnapshot(std::shared_ptr<StateSnapshot> snap)
         {
             ec = std::make_error_code(std::errc::io_error);
         }
-        this->snapshotWritten(ec, snap);
+        mApp.getHistoryMaster().snapshotWritten(ec);
     }
 }
 
 void
-PublishStateMachine::snapshotWritten(asio::error_code const& ec,
-                                     std::shared_ptr<StateSnapshot> snap)
+PublishStateMachine::snapshotWritten(asio::error_code const& ec)
 {
+    auto& pair = mPendingSnaps.front();
+    auto snap = pair.first;
+
     if (ec)
     {
         CLOG(WARNING, "History")
             << "Failed to snapshot state, abandoning publication";
-        mEndHandler(ec);
+        finishOne(ec);
         return;
     }
-
     CLOG(DEBUG, "History") << "Publishing snapshot of ledger "
                            << snap->mLocalState.currentLedger;
 
@@ -467,10 +485,6 @@ PublishStateMachine::snapshotWritten(asio::error_code const& ec,
 void
 PublishStateMachine::snapshotPublished(asio::error_code const& ec)
 {
-    if (ec)
-    {
-        mError = ec;
-    }
     mPublishers.erase(std::remove_if(mPublishers.begin(), mPublishers.end(),
                                      [](std::shared_ptr<ArchivePublisher> p)
                                      {
@@ -480,7 +494,17 @@ PublishStateMachine::snapshotPublished(asio::error_code const& ec)
                            << mPublishers.size() << " remain";
     if (mPublishers.empty())
     {
-        mEndHandler(mError);
+        finishOne(ec);
     }
 }
+
+void
+PublishStateMachine::finishOne(asio::error_code const& ec)
+{
+    assert(!mPendingSnaps.empty());
+    mPendingSnaps.front().second(ec);
+    mPendingSnaps.pop_front();
+    writeNextSnapshot();
+}
+
 }

@@ -312,8 +312,8 @@ HistoryTests::generateAndPublishHistory(size_t nPublishes)
 
     while (hm.getPublishSuccessCount() < (publishSuccesses + nPublishes))
     {
-        uint64_t startCount = hm.getPublishStartCount();
-        while (hm.getPublishStartCount() == startCount)
+        uint64_t queueCount = hm.getPublishQueueCount();
+        while (hm.getPublishQueueCount() == queueCount)
         {
             generateRandomLedger();
             ++ledgerSeq;
@@ -322,7 +322,7 @@ HistoryTests::generateAndPublishHistory(size_t nPublishes)
         CHECK(lm.getCurrentLedgerHeader().ledgerSeq == ledgerSeq);
 
         // Advance until we've published (or failed to!)
-        while (hm.getPublishSuccessCount() < hm.getPublishStartCount())
+        while (hm.getPublishSuccessCount() < hm.getPublishQueueCount())
         {
             CHECK(hm.getPublishFailureCount() == 0);
             app.getClock().crank(false);
@@ -562,6 +562,40 @@ TEST_CASE_METHOD(HistoryTests, "Full history catchup",
         }
     }
 }
+
+TEST_CASE_METHOD(HistoryTests, "History publish queueing",
+                 "[history][historydelay][historycatchup]")
+{
+    generateAndPublishInitialHistory(1);
+
+    auto& lm = app.getLedgerMaster();
+    auto& hm = app.getHistoryMaster();
+
+    while (hm.getPublishDelayCount() < 2)
+    {
+        generateRandomLedger();
+    }
+    CLOG(INFO, "History") << "publish-delay count: " << hm.getPublishDelayCount();
+
+    while (hm.getPublishSuccessCount() < hm.getPublishQueueCount())
+    {
+        CHECK(hm.getPublishFailureCount() == 0);
+        app.getClock().crank(false);
+    }
+
+    // We should have 1 inital publish, 1 subsequent publish, and
+    // 2 delayed publishes, making 4 total.
+    CHECK(hm.getPublishSuccessCount() == 4);
+
+    auto n = app.getLedgerMaster().getLedgerNum();
+    auto app2 = catchupNewApplication(
+        0, n,
+        Config::TESTDB_IN_MEMORY_SQLITE,
+        HistoryMaster::RESUME_AT_LAST,
+        std::string("Catchup to delayed history"));
+    CHECK(app2->getLedgerMaster().getLedgerNum() == n);
+}
+
 
 TEST_CASE_METHOD(HistoryTests, "History prefix catchup",
                  "[history][historycatchup][prefixcatchup]")

@@ -242,8 +242,8 @@ class HistoryMaster
             handler);
 
     // Call posted after a worker thread has finished taking a snapshot; calls
-    // PublishStateMachine::snapshotWritten iff state machine is live.
-    void snapshotWritten(asio::error_code const&, std::shared_ptr<StateSnapshot>);
+    // PublishStateMachine::snapshotWritten after bumping counter.
+    void snapshotWritten(asio::error_code const&);
 
     HistoryArchiveState getLastClosedHistoryArchiveState() const;
 
@@ -254,6 +254,8 @@ class HistoryMaster
     std::string localFilename(std::string const& basename);
 
     uint64_t getPublishSkipCount();
+    uint64_t getPublishQueueCount();
+    uint64_t getPublishDelayCount();
     uint64_t getPublishStartCount();
     uint64_t getPublishSuccessCount();
     uint64_t getPublishFailureCount();
