@@ -79,6 +79,7 @@ class Config : public std::enable_shared_from_this<Config>
     std::string DATABASE;
 
     std::vector<std::string> COMMANDS;
+    std::vector<std::string> REPORT_METRICS;
 
     Config();
 

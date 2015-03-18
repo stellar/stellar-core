@@ -19,10 +19,14 @@
 #include "process/ProcessMaster.h"
 #include "main/CommandHandler.h"
 #include "medida/metrics_registry.h"
+#include "medida/reporting/console_reporter.h"
 
 #include "util/TmpDir.h"
 #include "util/Logging.h"
 #include "util/make_unique.h"
+
+#include <set>
+#include <string>
 
 namespace stellar
 {
@@ -92,9 +96,66 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
     LOG(INFO) << "Application constructed";
 }
 
+void
+ApplicationImpl::reportCfgMetrics()
+{
+    std::set<std::string> metricsToReport;
+    std::set<std::string> allMetrics;
+    for (auto& kv : mMetrics->GetAllMetrics())
+    {
+        allMetrics.insert(kv.first.ToString());
+    }
+
+    bool reportAvailableMetrics = false;
+    for (auto const& name : mConfig.REPORT_METRICS)
+    {
+        if (allMetrics.find(name) == allMetrics.end())
+        {
+            LOG(INFO) << "";
+            LOG(WARNING) << "Metric not found: " << name;
+            reportAvailableMetrics = true;
+        }
+        metricsToReport.insert(name);
+    }
+
+    if (reportAvailableMetrics)
+    {
+        LOG(INFO) << "Available metrics: ";
+        for (auto const& n : allMetrics)
+        {
+            LOG(INFO) << "    " << n;
+        }
+        LOG(INFO) << "";
+    }
+
+    std::ostringstream oss;
+    medida::reporting::ConsoleReporter reporter(*mMetrics, oss);
+    for (auto& kv : mMetrics->GetAllMetrics())
+    {
+        auto name = kv.first;
+        auto metric = kv.second;
+        auto nstr = name.ToString();
+        if (metricsToReport.find(nstr) != metricsToReport.end())
+        {
+            LOG(INFO) << "";
+            LOG(INFO) << "metric '" << nstr << "':";
+            metric->Process(reporter);
+            std::istringstream iss(oss.str());
+            char buf[128];
+            while (iss.getline(buf, 128))
+            {
+                LOG(INFO) << std::string(buf);
+            }
+            oss.str("");
+            LOG(INFO) << "";
+        }
+    }
+}
+
 ApplicationImpl::~ApplicationImpl()
 {
     LOG(INFO) << "Application destructing";
+    reportCfgMetrics();
     gracefulStop();
     joinAllThreads();
     LOG(INFO) << "Application destroyed";
