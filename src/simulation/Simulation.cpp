@@ -13,6 +13,7 @@
 #include "overlay/PeerMaster.h"
 #include "herder/HerderGateway.h"
 #include "medida/medida.h"
+#include "medida/reporting/console_reporter.h"
 #include "util/Math.h"
 
 namespace stellar
@@ -39,6 +40,9 @@ Simulation::Simulation(Mode mode)
     , mConfigCount(0)
     , mIdleApp(Application::create(mClock, getTestConfig(++mConfigCount)))
 {
+    auto root =
+        make_shared<AccountInfo>(0, txtest::getRoot(), 1000000000, 0, *this);
+    mAccounts.push_back(root);
 }
 
 Simulation::~Simulation()
@@ -160,7 +164,7 @@ Simulation::crankAllNodes(int nbTicks)
 }
 
 bool
-Simulation::haveAllExternalized(uint32_t num)
+Simulation::haveAllExternalized(SequenceNumber num)
 {
     uint32_t min = UINT_MAX;
     for (auto it = mNodes.begin(); it != mNodes.end(); ++it)
@@ -287,8 +291,10 @@ Simulation::createRandomTransaction(float alpha)
     size_t iFrom, iTo;
     do
     {
-        iFrom = rand_pareto(alpha, mAccounts.size());
-        iTo = rand_pareto(alpha, mAccounts.size());
+        //iFrom = rand_pareto(alpha, mAccounts.size());
+        //iTo = rand_pareto(alpha, mAccounts.size());
+        iFrom = static_cast<int>(rand_fraction() * mAccounts.size());
+        iTo = static_cast<int>(rand_fraction() * mAccounts.size());
     } while (iFrom == iTo);
 
     uint64_t amount = static_cast<uint64_t>(
@@ -333,16 +339,20 @@ Simulation::createRandomTransactions(size_t n, float paretoAlpha)
 }
 
 vector<Simulation::TxInfo>
-Simulation::createAccounts(size_t n)
+Simulation::accountCreationTransactions(size_t n)
 {
     vector<TxInfo> result;
-    if (mAccounts.empty())
+    for(auto account : createAccounts(n))
     {
-        auto root = make_shared<AccountInfo>(0, txtest::getRoot(), 1000000000,
-                                             0, *this);
-        mAccounts.push_back(root);
+        result.push_back(account->creationTransaction());
     }
+    return result;
+}
 
+vector<Simulation::AccountInfoPtr>
+Simulation::createAccounts(size_t n)
+{
+    vector<AccountInfoPtr> result;
     for (int i = 0; i < n; i++)
     {
         auto accountName = "Account-" + to_string(mAccounts.size());
@@ -350,7 +360,7 @@ Simulation::createAccounts(size_t n)
             mAccounts.size(), txtest::getAccount(accountName.c_str()), 0, 0,
             *this);
         mAccounts.push_back(account);
-        result.push_back(account->creationTransaction());
+        result.push_back(account);
     }
     return result;
 }
@@ -400,10 +410,8 @@ Simulation::executeStressTest(size_t nTransactions, int injectionRatePerSec,
             // the next event to trigger, or for the next network message.
             //
             // When running on virtual time, this line is never hit unless the
-            // injection
-            // is below what the network can absorb, and there is nothing do to
-            // but
-            // wait for the next injection.
+            // injection is below what the network can absorb, and there is 
+            // nothing do to but wait for the next injection.
             this_thread::sleep_for(chrono::milliseconds(50));
         }
         else
@@ -428,10 +436,10 @@ Simulation::executeStressTest(size_t nTransactions, int injectionRatePerSec,
     return chrono::duration_cast<chrono::seconds>(signingTime);
 }
 
-vector<Simulation::accountInfoPtr>
+vector<Simulation::AccountInfoPtr>
 Simulation::accountsOutOfSyncWithDb()
 {
-    vector<accountInfoPtr> result;
+    vector<AccountInfoPtr> result;
     int iApp = 0;
     int64_t totalOffsets = 0;
     for (auto pair : mNodes)
@@ -500,6 +508,28 @@ Simulation::loadAccounts()
     }
 }
 
+class ConsoleReporterWithSum : public medida::reporting::ConsoleReporter 
+{
+    std::ostream& out_;
+
+public:
+    ConsoleReporterWithSum(medida::MetricsRegistry &registry, std::ostream& out = std::cerr) 
+        : medida::reporting::ConsoleReporter(registry, out), out_(out) {} 
+
+    void Process(medida::Timer& timer) override {
+        auto snapshot = timer.GetSnapshot();
+        auto unit = "ms";
+        out_
+            << "           count = " << timer.count() << endl
+            << "             sum = " << timer.count() * timer.mean() << unit << endl
+            << "             min = " << timer.min() << unit << endl
+            << "             max = " << timer.max() << unit << endl
+            << "            mean = " << timer.mean() << unit << endl
+            << "          stddev = " << timer.std_dev() << unit << endl;
+    }
+};
+
+
 string
 Simulation::metricsSummary(string domain)
 {
@@ -507,7 +537,7 @@ Simulation::metricsSummary(string domain)
     auto const& metrics = registry.GetAllMetrics();
     std::stringstream out;
 
-    medida::reporting::ConsoleReporter reporter{registry, out};
+    ConsoleReporterWithSum reporter{registry, out};
     for (auto kv : metrics)
     {
         auto metric = kv.first;

@@ -34,7 +34,7 @@ class CLFMaster
     std::string const& getBucketDir();
     BucketList& getBucketList();
 
-    medida::TimerContext getMergeTimer();
+    medida::Timer & getMergeTimer();
 
     // Get a reference to a persistent bucket in the CLF-managed bucket
     // directory, from the CLF's shared bucket-set.

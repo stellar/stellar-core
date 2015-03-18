@@ -603,10 +603,13 @@ Herder::rebroadcast()
 void
 Herder::startRebroadcastTimer()
 {
-    mRebroadcastTimer.expires_from_now(std::chrono::seconds(2));
+    if (!mApp.getConfig().MANUAL_CLOSE)
+    {
+        mRebroadcastTimer.expires_from_now(std::chrono::seconds(2));
 
-    mRebroadcastTimer.async_wait(std::bind(&Herder::rebroadcast, this),
-                                 &VirtualTimer::onFailureNoop);
+        mRebroadcastTimer.async_wait(std::bind(&Herder::rebroadcast, this),
+                                     &VirtualTimer::onFailureNoop);
+    }
 }
 
 void

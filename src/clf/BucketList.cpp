@@ -110,32 +110,24 @@ BucketLevel::prepare(Application& app, uint32_t currLedger,
         }
     }
 
-    // CLOG(DEBUG, "CLF") << "level " << mLevel << " preparing merge of mCurr="
-    //            << (curr ? curr->getEntries().size() : 0) << " with snap="
-    //            << snap->getEntries().size() << " elements";
+    //CLOG(INFO, "CLF")
+    //    << "Worker preparing merge of " << snap->getFilename() << " with " << snap->getFilename();
+
     CLFMaster& clfMaster = app.getCLFMaster();
     using task_t = std::packaged_task<std::shared_ptr<Bucket>()>;
     std::shared_ptr<task_t> task = std::make_shared<task_t>(
         [curr, snap, &clfMaster, shadows]()
         {
-            // CLOG(DEBUG, "CLF")
-            //<< "Worker merging " <<
-            // snap->getEntries().size()
-            //<< " new elements with " <<
-            // curr->getEntries().size()
-            //<< " existing";
-            // TIMED_SCOPE(timer, "merge + hash");
-            auto res = Bucket::merge(clfMaster,
+            //CLOG(INFO, "CLF")
+            //    << "Worker merging " << snap->getFilename() << " with " << snap->getFilename();
+
+             auto res = Bucket::merge(clfMaster,
                                      (curr ? curr : std::make_shared<Bucket>()),
                                      snap, shadows);
-            // CLOG(DEBUG, "CLF")
-            //<< "Worker finished merging " <<
-            // snap->getEntries().size()
-            //<< " new elements with " <<
-            // curr->getEntries().size()
-            //<< " existing (new size: " <<
-            // res->getEntries().size() << ")";
-            return res;
+             //CLOG(INFO, "CLF")
+             //    << "Worker finished merging " << snap->getFilename() << " with " << snap->getFilename();
+             
+             return res;
         });
 
     mNextCurr = task->get_future();
