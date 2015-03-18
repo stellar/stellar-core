@@ -134,6 +134,8 @@ class Application
 
     virtual void applyCfgCommands() = 0;
 
+    virtual void reportCfgMetrics() = 0;
+
     static pointer create(VirtualClock& clock, Config const& cfg);
 
   protected:

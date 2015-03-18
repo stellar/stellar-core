@@ -32,6 +32,7 @@ enum opttag
     OPT_FORCESCP,
     OPT_GENSEED,
     OPT_LOGLEVEL,
+    OPT_METRIC,
     OPT_NEWDB,
     OPT_NEWHIST
 };
@@ -43,6 +44,7 @@ static const struct option stellard_options[] = {
     {"conf", required_argument, nullptr, OPT_CONF},
     {"c", required_argument, nullptr, OPT_CMD},
     {"genseed", no_argument, nullptr, OPT_GENSEED},
+    {"metric", required_argument, nullptr, OPT_METRIC},
     {"newdb", no_argument, nullptr, OPT_NEWDB},
     {"newhist", required_argument, nullptr, OPT_NEWHIST},
     {"forcescp", no_argument, nullptr, OPT_FORCESCP},
@@ -58,6 +60,7 @@ usage(int err = 1)
           "      --help          To display this string\n"
           "      --version       To print version information\n"
           "      --test          To run self-tests\n"
+          "      --metric METRIC Report metric METRIC on exit.\n"
           "      --newdb         Setup the DB and then exit.\n"
           "      --newhist ARCH  Initialize the named history archive ARCH.\n"
           "      --forcescp      Force SCP to start before you hear a ledger "
@@ -216,6 +219,7 @@ main(int argc, char* const* argv)
         bool newNetwork = false;
         bool newDB = false;
         std::vector<std::string> newHistories;
+        std::vector<std::string> metrics;
 
         int opt;
         while ((opt = getopt_long_only(argc, argv, "", stellard_options,
@@ -227,7 +231,7 @@ main(int argc, char* const* argv)
             {
                 rest.push_back(*argv);
                 rest.insert(++rest.begin(), argv + optind, argv + argc);
-                return test(static_cast<int>(rest.size()), &rest[0], logLevel);
+                return test(static_cast<int>(rest.size()), &rest[0], logLevel, metrics);
             }
             case OPT_CONF:
                 cfgFile = std::string(optarg);
@@ -241,6 +245,9 @@ main(int argc, char* const* argv)
                 return 0;
             case OPT_FORCESCP:
                 newNetwork = true;
+                break;
+            case OPT_METRIC:
+                metrics.push_back(std::string(optarg));
                 break;
             case OPT_NEWDB:
                 newDB = true;
@@ -281,6 +288,7 @@ main(int argc, char* const* argv)
 
         cfg.REBUILD_DB = newDB;
         cfg.START_NEW_NETWORK = newNetwork;
+        cfg.REPORT_METRICS = metrics;
         if (command.size())
         {
             sendCommand(command, rest, cfg.HTTP_PORT);

@@ -64,6 +64,8 @@ class ApplicationImpl : public Application
 
     virtual void applyCfgCommands() override;
 
+    virtual void reportCfgMetrics() override;
+
   private:
     Application::State mState;
     VirtualClock& mVirtualClock;

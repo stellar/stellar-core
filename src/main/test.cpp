@@ -26,6 +26,7 @@
 namespace stellar
 {
 
+static std::vector<std::string> gTestMetrics;
 static std::vector<std::unique_ptr<Config>> gTestCfg[Config::TESTDB_MODES];
 static std::vector<TmpDir> gTestRoots;
 
@@ -91,13 +92,15 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
             abort();
         }
         thisConfig.DATABASE = dbname.str();
+        thisConfig.REPORT_METRICS = gTestMetrics;
     }
     return *cfgs[instanceNumber];
 }
 
 int
-test(int argc, char* const* argv, el::Level ll)
+test(int argc, char* const* argv, el::Level ll, std::vector<std::string> const& metrics)
 {
+    gTestMetrics = metrics;
     Config const& cfg = getTestConfig();
     Logging::setLoggingToFile(cfg.LOG_FILE_PATH);
     Logging::setLogLevel(ll, nullptr);
