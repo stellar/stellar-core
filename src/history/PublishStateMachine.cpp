@@ -33,9 +33,6 @@ struct StateSnapshot
     HistoryArchiveState mLocalState;
     std::vector<std::shared_ptr<Bucket>> mLocalBuckets;
     TmpDir mSnapDir;
-    std::unique_ptr<soci::session> mSnapSess;
-    soci::session& mSess;
-    soci::transaction mTx;
     std::shared_ptr<FilePublishInfo> mLedgerSnapFile;
     std::shared_ptr<FilePublishInfo> mTransactionSnapFile;
     std::shared_ptr<FilePublishInfo> mTransactionResultSnapFile;
@@ -300,22 +297,31 @@ ArchivePublisher::isDone() const
     return mState == PUBLISH_END;
 }
 
-PublishStateMachine::PublishStateMachine(
-    Application& app, std::function<void(asio::error_code const&)> handler)
-    : mApp(app), mEndHandler(handler)
+PublishStateMachine::PublishStateMachine(Application& app)
+    : mApp(app)
 {
-    takeSnapshot();
+}
+
+bool
+PublishStateMachine::queueSnapshot(SnapshotPtr snap, PublishCallback handler)
+{
+    bool delayed = !mPendingSnaps.empty();
+    mPendingSnaps.push_back(std::make_pair(snap, handler));
+    if (delayed)
+    {
+        CLOG(WARNING, "History") << "Snapshot queued while already publishing";
+    }
+    else
+    {
+        writeNextSnapshot();
+    }
+    return delayed;
 }
 
 StateSnapshot::StateSnapshot(Application& app)
     : mApp(app)
     , mLocalState(app.getHistoryMaster().getLastClosedHistoryArchiveState())
     , mSnapDir(app.getTmpDirMaster().tmpDir("snapshot"))
-    , mSnapSess(app.getDatabase().canUsePool()
-                    ? make_unique<soci::session>(app.getDatabase().getPool())
-                    : nullptr)
-    , mSess(mSnapSess ? *mSnapSess : app.getDatabase().getSession())
-    , mTx(mSess)
     , mLedgerSnapFile(std::make_shared<FilePublishInfo>(
           FILE_PUBLISH_NEEDED, mSnapDir, HISTORY_FILE_TYPE_LEDGER,
           uint32_t(mLocalState.currentLedger /
@@ -343,6 +349,14 @@ StateSnapshot::StateSnapshot(Application& app)
 bool
 StateSnapshot::writeHistoryBlocks() const
 {
+
+    std::unique_ptr<soci::session> snapSess(
+        mApp.getDatabase().canUsePool()
+        ? make_unique<soci::session>(mApp.getDatabase().getPool())
+        : nullptr);
+    soci::session& sess(snapSess ? *snapSess : mApp.getDatabase().getSession());
+    soci::transaction tx(sess);
+
     // The current "history block" is stored in _three_ files, one just ledger
     // headers, one TransactionHistoryEntry (which contain txSets) and
     // one TransactionHistoryResultEntry containing transaction set results.
@@ -365,9 +379,9 @@ StateSnapshot::writeHistoryBlocks() const
                            << " ledgers worth of history, from " << begin;
 
     size_t nHeaders = LedgerHeaderFrame::copyLedgerHeadersToStream(
-        mApp.getDatabase(), mSess, begin, count, ledgerOut);
+        mApp.getDatabase(), sess, begin, count, ledgerOut);
     size_t nTxs = TransactionFrame::copyTransactionsToStream(
-        mApp.getDatabase(), mSess, begin, count, txOut, txResultOut);
+        mApp.getDatabase(), sess, begin, count, txOut, txResultOut);
     CLOG(DEBUG, "History") << "Wrote " << nHeaders << " ledger headers to "
                            << mLedgerSnapFile->localPath_nogz();
     CLOG(DEBUG, "History") << "Wrote " << nTxs << " transactions to "
@@ -377,27 +391,33 @@ StateSnapshot::writeHistoryBlocks() const
     return true;
 }
 
-void
-PublishStateMachine::takeSnapshot()
+std::shared_ptr<StateSnapshot>
+PublishStateMachine::takeSnapshot(Application& app)
 {
-
     // Capture local state and _all_ the local buckets at this instant; these
     // may be expired from the bucketlist while the subsequent put-callbacks are
     // running but the buckets are immutable and we hold shared_ptrs to them
-    // here, include those in the callbacks themselves. Also establish a local
-    // read tx against the current DB so we can grab the history log from it.
+    // here, include those in the callbacks themselves.
+    return std::make_shared<StateSnapshot>(app);
+}
 
-    std::shared_ptr<StateSnapshot> snap = std::make_shared<StateSnapshot>(mApp);
-
+void
+PublishStateMachine::writeNextSnapshot()
+{
     // Once we've taken a (synchronous) snapshot of the buckets and db, we then
     // run writeHistoryBlocks() to get the tx and ledger history files written
     // out from the db. This may run synchronously (if we're not using a
     // thread-pool-friendly db backend) or asynchronously on the worker pool if
     // we're on, say, postgres). In either case, when complete it will call back
-    // to snapshotTaken(), at which point we can begin the actual publishing
+    // to snapshotWritten(), at which point we can begin the actual publishing
     // work.
 
-    if (snap->mSnapSess)
+    if (mPendingSnaps.empty())
+        return;
+
+    auto snap = mPendingSnaps.front().first;
+
+    if (mApp.getDatabase().canUsePool())
     {
         mApp.getWorkerIOService().post(
             [snap]()
@@ -408,9 +428,9 @@ PublishStateMachine::takeSnapshot()
                     ec = std::make_error_code(std::errc::io_error);
                 }
                 snap->mApp.getClock().getIOService().post(
-                    [ec, snap]()
+                    [snap, ec]()
                     {
-                        snap->mApp.getHistoryMaster().snapshotTaken(ec, snap);
+                        snap->mApp.getHistoryMaster().snapshotWritten(ec);
                     });
             });
     }
@@ -421,22 +441,23 @@ PublishStateMachine::takeSnapshot()
         {
             ec = std::make_error_code(std::errc::io_error);
         }
-        this->snapshotTaken(ec, snap);
+        mApp.getHistoryMaster().snapshotWritten(ec);
     }
 }
 
 void
-PublishStateMachine::snapshotTaken(asio::error_code const& ec,
-                                   std::shared_ptr<StateSnapshot> snap)
+PublishStateMachine::snapshotWritten(asio::error_code const& ec)
 {
+    auto& pair = mPendingSnaps.front();
+    auto snap = pair.first;
+
     if (ec)
     {
         CLOG(WARNING, "History")
             << "Failed to snapshot state, abandoning publication";
-        mEndHandler(ec);
+        finishOne(ec);
         return;
     }
-
     CLOG(DEBUG, "History") << "Publishing snapshot of ledger "
                            << snap->mLocalState.currentLedger;
 
@@ -464,10 +485,6 @@ PublishStateMachine::snapshotTaken(asio::error_code const& ec,
 void
 PublishStateMachine::snapshotPublished(asio::error_code const& ec)
 {
-    if (ec)
-    {
-        mError = ec;
-    }
     mPublishers.erase(std::remove_if(mPublishers.begin(), mPublishers.end(),
                                      [](std::shared_ptr<ArchivePublisher> p)
                                      {
@@ -477,7 +494,17 @@ PublishStateMachine::snapshotPublished(asio::error_code const& ec)
                            << mPublishers.size() << " remain";
     if (mPublishers.empty())
     {
-        mEndHandler(mError);
+        finishOne(ec);
     }
 }
+
+void
+PublishStateMachine::finishOne(asio::error_code const& ec)
+{
+    assert(!mPendingSnaps.empty());
+    mPendingSnaps.front().second(ec);
+    mPendingSnaps.pop_front();
+    writeNextSnapshot();
+}
+
 }

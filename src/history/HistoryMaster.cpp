@@ -45,6 +45,8 @@ class HistoryMaster::Impl
     unique_ptr<CatchupStateMachine> mCatchup;
 
     medida::Meter& mPublishSkip;
+    medida::Meter& mPublishQueue;
+    medida::Meter& mPublishDelay;
     medida::Meter& mPublishStart;
     medida::Meter& mPublishSuccess;
     medida::Meter& mPublishFailure;
@@ -64,6 +66,10 @@ class HistoryMaster::Impl
 
         , mPublishSkip(app.getMetrics().NewMeter({"history", "publish", "skip"},
                                                  "event"))
+        , mPublishQueue(app.getMetrics().NewMeter({"history", "publish", "queue"},
+                                                  "event"))
+        , mPublishDelay(app.getMetrics().NewMeter({"history", "publish", "delay"},
+                                                  "event"))
         , mPublishStart(app.getMetrics().NewMeter(
               {"history", "publish", "start"}, "event"))
         , mPublishSuccess(app.getMetrics().NewMeter(
@@ -363,16 +369,9 @@ HistoryMaster::maybePublishHistory(
 
     if (!hasAnyWritableHistoryArchive())
     {
-        CLOG(WARNING, "History")
-            << "Skipping checkpoint, no writable history archives";
-        return false;
-    }
-
-    if (mImpl->mPublish)
-    {
         mImpl->mPublishSkip.Mark();
         CLOG(WARNING, "History")
-            << "Skipping checkpoint, publish already in progress";
+            << "Skipping checkpoint, no writable history archives";
         return false;
     }
 
@@ -384,13 +383,15 @@ void
 HistoryMaster::publishHistory(
     std::function<void(asio::error_code const&)> handler)
 {
-    if (mImpl->mPublish)
+    if (!mImpl->mPublish)
     {
-        throw std::runtime_error("History publication already in progress");
+        mImpl->mPublish = make_unique<PublishStateMachine>(mImpl->mApp);
     }
-    mImpl->mPublishStart.Mark();
-    mImpl->mPublish = make_unique<PublishStateMachine>(
-        mImpl->mApp, [this, handler](asio::error_code const& ec)
+    mImpl->mPublishQueue.Mark();
+    auto snap = PublishStateMachine::takeSnapshot(mImpl->mApp);
+    if (mImpl->mPublish->queueSnapshot(
+        snap,
+        [this, handler](asio::error_code const& ec)
         {
             if (ec)
             {
@@ -400,29 +401,20 @@ HistoryMaster::publishHistory(
             {
                 this->mImpl->mPublishSuccess.Mark();
             }
-            // Tear down the publish state machine when complete then call our
-            // caller's handler. Must keep the state machine alive long enough
-            // for the callback, though, to avoid killing things living in
-            // lambdas.
-            std::unique_ptr<PublishStateMachine> m(
-                std::move(this->mImpl->mPublish));
             handler(ec);
-        });
+        }))
+    {
+        // Only bump this counter if there's a delay building up.
+        mImpl->mPublishDelay.Mark();
+    }
 }
 
 void
-HistoryMaster::snapshotTaken(asio::error_code const& ec,
-                             std::shared_ptr<StateSnapshot> snap)
+HistoryMaster::snapshotWritten(asio::error_code const& ec)
 {
-    if (mImpl->mPublish)
-    {
-        mImpl->mPublish->snapshotTaken(ec, snap);
-    }
-    else
-    {
-        CLOG(WARNING, "History")
-            << "Publish state machine torn down while taking snapshot";
-    }
+    assert(mImpl->mPublish);
+    mImpl->mPublishStart.Mark();
+    mImpl->mPublish->snapshotWritten(ec);
 }
 
 void
@@ -464,6 +456,18 @@ uint64_t
 HistoryMaster::getPublishSkipCount()
 {
     return mImpl->mPublishSkip.count();
+}
+
+uint64_t
+HistoryMaster::getPublishQueueCount()
+{
+    return mImpl->mPublishQueue.count();
+}
+
+uint64_t
+HistoryMaster::getPublishDelayCount()
+{
+    return mImpl->mPublishDelay.count();
 }
 
 uint64_t

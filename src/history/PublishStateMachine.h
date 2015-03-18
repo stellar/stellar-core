@@ -89,19 +89,25 @@ class ArchivePublisher : public std::enable_shared_from_this<ArchivePublisher>
     bool isDone() const;
 };
 
+typedef std::function<void(asio::error_code const&)> PublishCallback;
+typedef std::shared_ptr<StateSnapshot> SnapshotPtr;
+
 class PublishStateMachine
 {
     Application& mApp;
-    std::function<void(asio::error_code const&)> mEndHandler;
-    asio::error_code mError;
     std::vector<std::shared_ptr<ArchivePublisher>> mPublishers;
-    void takeSnapshot();
+    std::deque<std::pair<SnapshotPtr, PublishCallback>> mPendingSnaps;
+    void writeNextSnapshot();
+    void finishOne(asio::error_code const&);
 
   public:
-    PublishStateMachine(Application& app,
-                        std::function<void(asio::error_code const&)> handler);
+    PublishStateMachine(Application& app);
+    static SnapshotPtr takeSnapshot(Application& app);
 
-    void snapshotTaken(asio::error_code const&, std::shared_ptr<StateSnapshot>);
+    // Returns true if delayed, false if immediately dispatched.
+    bool queueSnapshot(SnapshotPtr snap, PublishCallback handler);
+
+    void snapshotWritten(asio::error_code const&);
     void snapshotPublished(asio::error_code const&);
 };
 }
