@@ -34,8 +34,8 @@ checkAmounts(int64_t a, int64_t b, int64_t maxd = 1)
 }
 
 // Offer that takes multiple other offers and remains
-// Offer selling STR
-// Offer buying STR
+// Offer selling XLM
+// Offer buying XLM
 // Offer with transfer rate
 // Offer for more than you have
 // Offer for something you can't hold
@@ -116,7 +116,7 @@ TEST_CASE("create offer", "[tx][offers]")
         applyCreditPaymentTx(app, gateway, a1, idrCur, gateway_seq++,
                              trustLineLimit);
 
-        // need sufficient STR funds to create an offer
+        // need sufficient XLM funds to create an offer
         applyCreateOfferWithResult(app, delta, a1, idrCur, usdCur, oneone, 100,
                                    a1_seq++, CreateOffer::UNDERFUNDED);
 
@@ -133,7 +133,7 @@ TEST_CASE("create offer", "[tx][offers]")
     SECTION("a1 setup properly")
     {
         OfferFrame offer;
-        // fund a1 with some IDR and STR
+        // fund a1 with some IDR and XLM
 
         const int nbOffers = 22;
 
@@ -557,8 +557,8 @@ TEST_CASE("create offer", "[tx][offers]")
             checkAmounts(line.getBalance(), b1_idr + idrSend);
         }
 
-        // Offer selling STR
-        // Offer buying STR
+        // Offer selling XLM
+        // Offer buying XLM
         // Offer for more than you have
         // Offer for something you can't hold
         // Passive offer

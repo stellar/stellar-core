@@ -10,8 +10,6 @@
 #include "database/Database.h"
 #include "OfferExchange.h"
 
-// TODO.2 handle sending to and from an issuer and with offers
-// TODO.2 clean up trustlines
 namespace stellar
 {
 
