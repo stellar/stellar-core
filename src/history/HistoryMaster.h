@@ -179,6 +179,13 @@ class HistoryMaster
         RESUME_AT_NEXT
     };
 
+    enum VerifyHashStatus
+    {
+        VERIFY_HASH_OK,
+        VERIFY_HASH_BAD,
+        VERIFY_HASH_UNKNOWN
+    };
+
     // Checkpoints are made every kCheckpointFrequency ledgers.
     static const uint32_t kCheckpointFrequency;
 
