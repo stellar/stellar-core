@@ -53,6 +53,14 @@ Peer::sendHello()
     sendMessage(msg);
 }
 
+std::string
+Peer::toString()
+{
+    std::stringstream s;
+    s << getIP() << ":" << mRemoteListeningPort;
+    return s.str();
+}
+
 void
 Peer::connectHandler(const asio::error_code& error)
 {
@@ -64,6 +72,7 @@ Peer::connectHandler(const asio::error_code& error)
     }
     else
     {
+        CLOG(DEBUG, "Overlay") << "connected @" << toString();
         connected();
         mState = CONNECTED;
         sendHello();
