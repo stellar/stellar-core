@@ -242,14 +242,9 @@ Simulation::crankUntil(function<bool()> const& predicate,
     bool timedOut = false;
     VirtualTimer timeoutTimer(*mIdleApp);
     timeoutTimer.expires_from_now(timeout);
-    timeoutTimer.async_wait(
-        [&]()
-        {
-            timedOut = true;
-        },
-        &VirtualTimer::onFailureNoop);
 
     bool done = false;
+
     VirtualTimer checkTimer(*mIdleApp);
     function<void()> checkDone = [&]()
     {
@@ -262,6 +257,14 @@ Simulation::crankUntil(function<bool()> const& predicate,
         }
     };
 
+    timeoutTimer.async_wait(
+        [&]()
+    {
+        checkDone();
+        timedOut = true;
+    },
+        &VirtualTimer::onFailureNoop);
+
     checkTimer.expires_from_now(chrono::seconds(5));
     checkTimer.async_wait(checkDone, &VirtualTimer::onFailureNoop);
 
@@ -272,10 +275,10 @@ Simulation::crankUntil(function<bool()> const& predicate,
             checkDone();
             this_thread::sleep_for(chrono::milliseconds(50));
         }
-        if (timedOut)
-            throw runtime_error("Simulation timed out");
         if (done)
             return;
+        if (timedOut)
+            throw runtime_error("Simulation timed out");
     }
 }
 
