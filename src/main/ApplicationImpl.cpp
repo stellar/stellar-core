@@ -99,6 +99,11 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
 void
 ApplicationImpl::reportCfgMetrics()
 {
+    if (!mMetrics)
+    {
+        return;
+    }
+
     std::set<std::string> metricsToReport;
     std::set<std::string> allMetrics;
     for (auto& kv : mMetrics->GetAllMetrics())
