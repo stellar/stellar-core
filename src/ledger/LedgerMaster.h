@@ -98,6 +98,8 @@ class LedgerMaster : public LedgerGateway
     void startCatchUp(uint32_t lastLedger, uint32_t initLedger,
                       HistoryMaster::ResumeMode resume);
 
+    HistoryMaster::VerifyHashStatus verifyCatchupCandidate(LedgerHeaderHistoryEntry const&) const;
+
   private:
     void closeLedgerHelper(LedgerDelta const& delta);
     void advanceLedgerPointers();

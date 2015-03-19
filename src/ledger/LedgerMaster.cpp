@@ -244,6 +244,48 @@ LedgerMaster::startCatchUp(uint32_t lastLedger, uint32_t initLedger,
         std::bind(&LedgerMaster::historyCaughtup, this, _1, _2, _3));
 }
 
+HistoryMaster::VerifyHashStatus
+LedgerMaster::verifyCatchupCandidate(LedgerHeaderHistoryEntry const& candidate) const
+{
+    // This is a callback from CatchupStateMachine when it's considering whether
+    // to treat a retrieved history block as legitimate. It asks LedgerMaster if
+    // it's seen (in its previous, current, or buffer of ledgers-to-close that
+    // have queued up since catchup began) whether it believes the candidate is a
+    // legitimate part of history. LedgerMaster is allowed to answer "unknown"
+    // here, which causes CatchupStateMachine to pause and retry later.
+
+#define CHECK_PAIR(aseq,bseq,ahash,bhash)                               \
+    if ((aseq) == (bseq))                                               \
+    {                                                                   \
+        if ((ahash) == (bhash))                                         \
+        {                                                               \
+            return HistoryMaster::VERIFY_HASH_OK;                       \
+        }                                                               \
+        else                                                            \
+        {                                                               \
+            return HistoryMaster::VERIFY_HASH_BAD;                      \
+        }                                                               \
+    }
+
+    CHECK_PAIR(mLastClosedLedger.header.ledgerSeq, candidate.header.ledgerSeq,
+               mLastClosedLedger.hash, candidate.hash);
+
+    CHECK_PAIR(mLastClosedLedger.header.ledgerSeq, candidate.header.ledgerSeq + 1,
+               mLastClosedLedger.header.previousLedgerHash, candidate.hash);
+
+    CHECK_PAIR(mCurrentLedger->mHeader.ledgerSeq, candidate.header.ledgerSeq + 1,
+               mCurrentLedger->mHeader.previousLedgerHash, candidate.hash);
+
+    for (auto const& ld : mSyncingLedgers)
+    {
+        CHECK_PAIR(ld.mLedgerSeq, candidate.header.ledgerSeq + 1,
+                   ld.mTxSet->previousLedgerHash(), candidate.hash);
+    }
+
+#undef CHECK_PAIR
+    return HistoryMaster::VERIFY_HASH_UNKNOWN;
+}
+
 void
 LedgerMaster::historyCaughtup(asio::error_code const& ec,
                               HistoryMaster::ResumeMode mode,
