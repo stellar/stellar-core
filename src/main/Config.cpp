@@ -78,7 +78,7 @@ Config::load(const std::string& filename)
         if (g.contains("TMP_DIR_PATH"))
             TMP_DIR_PATH = g.get("TMP_DIR_PATH")->as<std::string>()->value();
         if (g.contains("BUCKET_DIR_PATH"))
-            TMP_DIR_PATH = g.get("BUCKET_DIR_PATH")->as<std::string>()->value();
+            BUCKET_DIR_PATH = g.get("BUCKET_DIR_PATH")->as<std::string>()->value();
 
         if (g.contains("VALIDATION_SEED"))
         {
