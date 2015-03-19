@@ -55,117 +55,122 @@ Config::load(const std::string& filename)
         {
             g = cpptoml::parse_file(filename);
         }
-        if (g.contains("PEER_PORT"))
-            PEER_PORT = (int)g.get("PEER_PORT")->as<int64_t>()->value();
-        if (g.contains("HTTP_PORT"))
-            HTTP_PORT = (int)g.get("HTTP_PORT")->as<int64_t>()->value();
-        if (g.contains("PUBLIC_HTTP_PORT"))
-            PUBLIC_HTTP_PORT = g.get("PUBLIC_HTTP_PORT")->as<bool>()->value();
 
-        if (g.contains("QUORUM_THRESHOLD"))
-            QUORUM_THRESHOLD =
-                (int)g.get("QUORUM_THRESHOLD")->as<int64_t>()->value();
-        if (g.contains("DESIRED_BASE_FEE"))
-            DESIRED_BASE_FEE =
-                (uint32_t)g.get("DESIRED_BASE_FEE")->as<int64_t>()->value();
-
-        if (g.contains("RUN_STANDALONE"))
-            RUN_STANDALONE = g.get("RUN_STANDALONE")->as<bool>()->value();
-        if (g.contains("MANUAL_CLOSE"))
-            MANUAL_CLOSE = g.get("MANUAL_CLOSE")->as<bool>()->value();
-        if (g.contains("LOG_FILE_PATH"))
-            LOG_FILE_PATH = g.get("LOG_FILE_PATH")->as<std::string>()->value();
-        if (g.contains("TMP_DIR_PATH"))
-            TMP_DIR_PATH = g.get("TMP_DIR_PATH")->as<std::string>()->value();
-        if (g.contains("BUCKET_DIR_PATH"))
-            BUCKET_DIR_PATH = g.get("BUCKET_DIR_PATH")->as<std::string>()->value();
-
-        if (g.contains("VALIDATION_SEED"))
+        for (auto& item : g)
         {
-            std::string seed =
-                g.get("VALIDATION_SEED")->as<std::string>()->value();
-            VALIDATION_KEY = SecretKey::fromBase58Seed(seed);
-        }
-
-        if (g.contains("PEER_SEED"))
-        {
-            std::string seed = g.get("PEER_SEED")->as<std::string>()->value();
-            PEER_KEY = SecretKey::fromBase58Seed(seed);
-            PEER_PUBLIC_KEY = PEER_KEY.getPublicKey();
-        }
-
-        if (g.contains("TARGET_PEER_CONNECTIONS"))
-            TARGET_PEER_CONNECTIONS =
-                (int)g.get("TARGET_PEER_CONNECTIONS")->as<int64_t>()->value();
-        if (g.contains("MAX_PEER_CONNECTIONS"))
-            MAX_PEER_CONNECTIONS =
-                (int)g.get("MAX_PEER_CONNECTIONS")->as<int64_t>()->value();
-        if (g.contains("PREFERRED_PEERS"))
-        {
-            for (auto v : g.get_array("PREFERRED_PEERS")->array())
+            if (item.first == "PEER_PORT")
+                PEER_PORT = (int)item.second->as<int64_t>()->value();
+            else if (item.first == "HTTP_PORT")
+                HTTP_PORT = (int)item.second->as<int64_t>()->value();
+            else if (item.first == "PUBLIC_HTTP_PORT")
+                PUBLIC_HTTP_PORT = item.second->as<bool>()->value();
+            else if (item.first == "QUORUM_THRESHOLD")
+                QUORUM_THRESHOLD = (int)item.second->as<int64_t>()->value();
+            else if (item.first == "DESIRED_BASE_FEE")
+                DESIRED_BASE_FEE =
+                    (uint32_t)item.second->as<int64_t>()->value();
+            else if (item.first == "RUN_STANDALONE")
+                RUN_STANDALONE = item.second->as<bool>()->value();
+            else if (item.first == "MANUAL_CLOSE")
+                MANUAL_CLOSE = item.second->as<bool>()->value();
+            else if (item.first == "LOG_FILE_PATH")
+                LOG_FILE_PATH = item.second->as<std::string>()->value();
+            else if (item.first == "TMP_DIR_PATH")
+                TMP_DIR_PATH = item.second->as<std::string>()->value();
+            else if (item.first == "BUCKET_DIR_PATH")
+                BUCKET_DIR_PATH = item.second->as<std::string>()->value();
+            else if (item.first == "VALIDATION_SEED")
             {
-                PREFERRED_PEERS.push_back(v->as<std::string>()->value());
+                std::string seed = item.second->as<std::string>()->value();
+                VALIDATION_KEY = SecretKey::fromBase58Seed(seed);
             }
-        }
-
-        if (g.contains("KNOWN_PEERS"))
-        {
-            for (auto v : g.get_array("KNOWN_PEERS")->array())
+            else if (item.first == "PEER_SEED")
             {
-                KNOWN_PEERS.push_back(v->as<std::string>()->value());
+                std::string seed = item.second->as<std::string>()->value();
+                PEER_KEY = SecretKey::fromBase58Seed(seed);
+                PEER_PUBLIC_KEY = PEER_KEY.getPublicKey();
             }
-        }
-
-        if (g.contains("QUORUM_SET"))
-        {
-            for (auto v : g.get_array("QUORUM_SET")->array())
+            else if (item.first == "TARGET_PEER_CONNECTIONS")
+                TARGET_PEER_CONNECTIONS =
+                    (int)item.second->as<int64_t>()->value();
+            else if (item.first == "MAX_PEER_CONNECTIONS")
+                MAX_PEER_CONNECTIONS = (int)item.second->as<int64_t>()->value();
+            else if (item.first == "PREFERRED_PEERS")
             {
-                uint256 p = fromBase58Check256(VER_ACCOUNT_ID,
-                                               v->as<std::string>()->value());
-                QUORUM_SET.push_back(p);
-            }
-        }
-
-        if (g.contains("COMMANDS"))
-        {
-            for (auto v : g.get_array("COMMANDS")->array())
-            {
-                COMMANDS.push_back(v->as<std::string>()->value());
-            }
-        }
-
-        if (g.contains("HISTORY"))
-        {
-            auto hist = g.get_group("HISTORY");
-            if (hist)
-            {
-                for (auto const& archive : *hist)
+                for (auto v : item.second->as_array()->array())
                 {
-                    auto tab = archive.second->as_group();
-                    if (!tab)
-                        continue;
-                    std::string get, put, mkdir;
-                    auto gg = tab->get_as<std::string>("get");
-                    auto pp = tab->get_as<std::string>("put");
-                    auto mm = tab->get_as<std::string>("mkdir");
-                    if (gg)
-                        get = *gg;
-                    if (pp)
-                        put = *pp;
-                    if (mm)
-                        mkdir = *mm;
-                    HISTORY[archive.first] = std::make_shared<HistoryArchive>(
-                        archive.first, get, put, mkdir);
+                    PREFERRED_PEERS.push_back(v->as<std::string>()->value());
                 }
             }
+            else if (item.first == "KNOWN_PEERS")
+            {
+                for (auto v : item.second->as_array()->array())
+                {
+                    KNOWN_PEERS.push_back(v->as<std::string>()->value());
+                }
+            }
+            else if (item.first == "QUORUM_SET")
+            {
+                for (auto v : item.second->as_array()->array())
+                {
+                    uint256 p = fromBase58Check256(
+                        VER_ACCOUNT_ID, v->as<std::string>()->value());
+                    QUORUM_SET.push_back(p);
+                }
+            }
+            else if (item.first == "COMMANDS")
+            {
+                for (auto v : item.second->as_array()->array())
+                {
+                    COMMANDS.push_back(v->as<std::string>()->value());
+                }
+            }
+            else if (item.first == "HISTORY")
+            {
+                auto hist = item.second->as_group();
+                if (hist)
+                {
+                    for (auto const& archive : *hist)
+                    {
+                        auto tab = archive.second->as_group();
+                        if (!tab)
+                        {
+                            throw std::invalid_argument("malformed HISTORY config block");
+                        }
+                        std::string get, put, mkdir;
+                        auto gg = tab->get_as<std::string>("get");
+                        auto pp = tab->get_as<std::string>("put");
+                        auto mm = tab->get_as<std::string>("mkdir");
+                        if (gg)
+                            get = *gg;
+                        if (pp)
+                            put = *pp;
+                        if (mm)
+                            mkdir = *mm;
+                        HISTORY[archive.first] =
+                            std::make_shared<HistoryArchive>(archive.first, get,
+                                                             put, mkdir);
+                    }
+                }
+            }
+            else if (item.first == "DATABASE")
+                DATABASE = item.second->as<std::string>()->value();
+            else
+            {
+                std::string err("Unknown configuration entry: '");
+                err += item.first;
+                err += "'";
+                throw std::invalid_argument(err);
+            }
         }
-
-        if (g.contains("DATABASE"))
-            DATABASE = g.get("DATABASE")->as<std::string>()->value();
     }
     catch (cpptoml::toml_parse_exception& ex)
     {
-        LOG(ERROR) << "Failed to parse " << filename << ": " << ex.what();
+        std::string err("Failed to parse '");
+        err += filename;
+        err += "' :";
+        err += ex.what();
+        throw std::invalid_argument(err);
     }
 }
 }

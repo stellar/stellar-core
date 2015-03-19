@@ -206,74 +206,73 @@ main(int argc, char* const* argv)
 {
     using namespace stellar;
 
-    try
+    sodium_init();
+    Logging::init();
+
+    std::string cfgFile("stellard.cfg");
+    std::string command;
+    el::Level logLevel = el::Level::Fatal;
+    std::vector<char*> rest;
+
+    bool newNetwork = false;
+    bool newDB = false;
+    std::vector<std::string> newHistories;
+    std::vector<std::string> metrics;
+
+    int opt;
+    while ((opt = getopt_long_only(argc, argv, "", stellard_options,
+                                   nullptr)) != -1)
     {
-        sodium_init();
-        Logging::init();
-
-        std::string cfgFile("stellard.cfg");
-        std::string command;
-        el::Level logLevel = el::Level::Fatal;
-        std::vector<char*> rest;
-
-        bool newNetwork = false;
-        bool newDB = false;
-        std::vector<std::string> newHistories;
-        std::vector<std::string> metrics;
-
-        int opt;
-        while ((opt = getopt_long_only(argc, argv, "", stellard_options,
-                                       nullptr)) != -1)
+        switch (opt)
         {
-            switch (opt)
-            {
-            case OPT_TEST:
-            {
-                rest.push_back(*argv);
-                rest.insert(++rest.begin(), argv + optind, argv + argc);
-                return test(static_cast<int>(rest.size()), &rest[0], logLevel, metrics);
-            }
-            case OPT_CONF:
-                cfgFile = std::string(optarg);
-                break;
-            case OPT_CMD:
-                command = optarg;
-                rest.insert(rest.begin(), argv + optind, argv + argc);
-                break;
-            case OPT_VERSION:
-                std::cout << STELLARD_VERSION;
-                return 0;
-            case OPT_FORCESCP:
-                newNetwork = true;
-                break;
-            case OPT_METRIC:
-                metrics.push_back(std::string(optarg));
-                break;
-            case OPT_NEWDB:
-                newDB = true;
-                break;
-            case OPT_NEWHIST:
-                newHistories.push_back(std::string(optarg));
-                break;
-            case OPT_LOGLEVEL:
-                logLevel = Logging::getLLfromString(std::string(optarg));
-                break;
-            case OPT_GENSEED:
-            {
-                SecretKey key = SecretKey::random();
-                std::cout << "Secret seed: " << key.getBase58Seed()
-                          << std::endl;
-                std::cout << "Public: " << key.getBase58Public() << std::endl;
-                return 0;
-            }
-
-            default:
-                usage(0);
-                return 0;
-            }
+        case OPT_TEST:
+        {
+            rest.push_back(*argv);
+            rest.insert(++rest.begin(), argv + optind, argv + argc);
+            return test(static_cast<int>(rest.size()), &rest[0], logLevel, metrics);
+        }
+        case OPT_CONF:
+            cfgFile = std::string(optarg);
+            break;
+        case OPT_CMD:
+            command = optarg;
+            rest.insert(rest.begin(), argv + optind, argv + argc);
+            break;
+        case OPT_VERSION:
+            std::cout << STELLARD_VERSION;
+            return 0;
+        case OPT_FORCESCP:
+            newNetwork = true;
+            break;
+        case OPT_METRIC:
+            metrics.push_back(std::string(optarg));
+            break;
+        case OPT_NEWDB:
+            newDB = true;
+            break;
+        case OPT_NEWHIST:
+            newHistories.push_back(std::string(optarg));
+            break;
+        case OPT_LOGLEVEL:
+            logLevel = Logging::getLLfromString(std::string(optarg));
+            break;
+        case OPT_GENSEED:
+        {
+            SecretKey key = SecretKey::random();
+            std::cout << "Secret seed: " << key.getBase58Seed() << std::endl;
+            std::cout << "Public: " << key.getBase58Public() << std::endl;
+            return 0;
         }
 
-        Config cfg;
+        default:
+            usage(0);
+            return 0;
+        }
+    }
+
+    Config cfg;
+    try
+    {
         if (fs::exists(cfgFile))
         {
             cfg.load(cfgFile);
@@ -306,14 +305,12 @@ main(int argc, char* const* argv)
         {
             return initializeHistories(cfg, newHistories);
         }
-        else
-        {
-            return startApp(cfgFile, cfg);
-        }
     }
-    catch (std::runtime_error e)
+    catch (std::invalid_argument e)
     {
         LOG(FATAL) << e.what();
         return 1;
     }
+    // run outside of catch block so that we properly capture crashes
+    return startApp(cfgFile, cfg);
 }
