@@ -485,6 +485,7 @@ PublishStateMachine::snapshotWritten(asio::error_code const& ec)
 void
 PublishStateMachine::snapshotPublished(asio::error_code const& ec)
 {
+    asio::error_code ecSaved(ec); // make a copy of ec as it could be deleted by following statement
     mPublishers.erase(std::remove_if(mPublishers.begin(), mPublishers.end(),
                                      [](std::shared_ptr<ArchivePublisher> p)
                                      {
@@ -494,7 +495,7 @@ PublishStateMachine::snapshotPublished(asio::error_code const& ec)
                            << mPublishers.size() << " remain";
     if (mPublishers.empty())
     {
-        finishOne(ec);
+        finishOne(ecSaved);
     }
 }
 
