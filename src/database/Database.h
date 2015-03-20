@@ -21,6 +21,7 @@ class Timer;
 namespace stellar
 {
 class Application;
+class SQLLogContext;
 
 class Database
 {
@@ -33,6 +34,8 @@ class Database
 
   public:
     Database(Application& app);
+
+    std::shared_ptr<SQLLogContext> captureAndLogSQL(std::string contextName);
 
     medida::TimerContext getInsertTimer(std::string const& entityName);
     medida::TimerContext getSelectTimer(std::string const& entityName);
