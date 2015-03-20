@@ -234,19 +234,17 @@ LedgerMaster::externalizeValue(LedgerCloseData ledgerData)
         {
             // Start trying to catchup.
             CLOG(DEBUG, "Ledger") << "Starting catchup";
-            startCatchUp(mLastClosedLedger.header.ledgerSeq,
-                         ledgerData.mLedgerSeq, HistoryMaster::RESUME_AT_LAST);
+            startCatchUp(ledgerData.mLedgerSeq, HistoryMaster::RESUME_AT_LAST);
         }
     }
 }
 
 void
-LedgerMaster::startCatchUp(uint32_t lastLedger, uint32_t initLedger,
-                           HistoryMaster::ResumeMode resume)
+LedgerMaster::startCatchUp(uint32_t initLedger, HistoryMaster::ResumeMode resume)
 {
     mApp.setState(Application::CATCHING_UP_STATE);
     mApp.getHistoryMaster().catchupHistory(
-        lastLedger, initLedger, resume,
+        initLedger, resume,
         std::bind(&LedgerMaster::historyCaughtup, this, _1, _2, _3));
 }
 

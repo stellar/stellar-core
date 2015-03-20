@@ -29,13 +29,12 @@ namespace stellar
 const size_t CatchupStateMachine::kRetryLimit = 16;
 
 CatchupStateMachine::CatchupStateMachine(
-    Application& app, uint32_t lastLedger, uint32_t initLedger,
+    Application& app, uint32_t initLedger,
     HistoryMaster::ResumeMode mode,
     std::function<void(asio::error_code const& ec,
                        HistoryMaster::ResumeMode mode,
                        LedgerHeaderHistoryEntry const& lastClosed)> handler)
     : mApp(app)
-    , mLastLedger(lastLedger)
     , mInitLedger(initLedger)
     , mNextLedger(HistoryMaster::nextCheckpointLedger(initLedger))
     , mMode(mode)
@@ -467,9 +466,9 @@ CatchupStateMachine::enterApplyingState()
     else
     {
         // In RESUME_AT_LAST mode we're applying the _log_ of history from
-        // mLastLedger through mNextLedger, without any reconstitution.
+        // HistoryMaster's LCL through mNextLedger, without any reconstitution.
         assert(mMode == HistoryMaster::RESUME_AT_LAST);
-        applyHistoryFromLedger(mLastLedger);
+        applyHistoryFromLastClosedLedger();
     }
 
     sqltx.commit();
@@ -584,13 +583,14 @@ CatchupStateMachine::acquireFinalLedgerState(uint32_t ledgerNum)
 }
 
 void
-CatchupStateMachine::applyHistoryFromLedger(uint32_t ledgerNum)
+CatchupStateMachine::applyHistoryFromLastClosedLedger()
 {
-    CLOG(INFO, "History") << "Replaying contents of " << mHeaderInfos.size()
-                          << " transaction-history files from ledger "
-                          << ledgerNum;
-
     auto& lm = mApp.getLedgerMaster();
+    CLOG(INFO, "History")
+        << "Replaying contents of " << mHeaderInfos.size()
+        << " transaction-history files from LCL "
+        << LedgerMaster::ledgerAbbrev(lm.getLastClosedLedgerHeader());
+
     for (auto pair : mHeaderInfos)
     {
         auto checkpoint = pair.first;
