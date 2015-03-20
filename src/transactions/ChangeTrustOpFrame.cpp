@@ -26,6 +26,14 @@ ChangeTrustOpFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
     if (TrustFrame::loadTrustLine(getSourceID(), mChangeTrust.line, trustLine,
                                   db))
     { // we are modifying an old trustline
+        
+        if( mChangeTrust.limit < 0 || 
+            mChangeTrust.limit < trustLine.getTrustLine().balance)
+        { // Can't drop the limit below the balance you are holding with them
+            innerResult().code(ChangeTrust::INVALID_LIMIT);
+            return false;
+        }
+
         trustLine.getTrustLine().limit = mChangeTrust.limit;
         if (trustLine.getTrustLine().limit == 0 &&
             trustLine.getTrustLine().balance == 0)

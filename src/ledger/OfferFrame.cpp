@@ -14,7 +14,6 @@
 using namespace std;
 using namespace soci;
 
-// TODO.1 work out code for grabbing an ID from the id pool
 
 namespace stellar
 {

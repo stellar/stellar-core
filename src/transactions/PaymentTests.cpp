@@ -23,11 +23,11 @@ using namespace stellar::txtest;
 
 typedef std::unique_ptr<Application> appPtr;
 
-// *STR Payment
+// *XLM Payment
 // *Credit Payment
-// STR -> Credit Payment
-// Credit -> STR Payment
-// Credit -> STR -> Credit Payment
+// XLM -> Credit Payment
+// Credit -> XLM Payment
+// Credit -> XLM -> Credit Payment
 // Credit -> Credit -> Credit -> Credit Payment
 // path payment where there isn't enough in the path
 // path payment with a transfer rate
@@ -78,7 +78,7 @@ TEST_CASE("payment", "[tx][payment]")
 
     const uint64_t morePayment = paymentAmount / 2;
 
-    SECTION("send STR to an existing account")
+    SECTION("send XLM to an existing account")
     {
         applyPaymentTx(app, root, a1, rootSeq++, morePayment);
 
@@ -104,9 +104,9 @@ TEST_CASE("payment", "[tx][payment]")
                 (rootAccount.getBalance() - txfee));
     }
 
-    SECTION("send too little STR to new account (below reserve)")
+    SECTION("send too little XLM to new account (below reserve)")
     {
-        LOG(INFO) << "send too little STR to new account (below reserve)";
+        LOG(INFO) << "send too little XLM to new account (below reserve)";
         applyPaymentTx(
             app, root, b1, rootSeq++,
             app.getLedgerMaster().getCurrentLedgerHeader().baseReserve - 1,
@@ -132,9 +132,9 @@ TEST_CASE("payment", "[tx][payment]")
                                                app.getDatabase()));
         }
 
-        SECTION("send STR with path (not enough offers)")
+        SECTION("send XLM with path (not enough offers)")
         {
-            LOG(INFO) << "send STR with path";
+            LOG(INFO) << "send XLM with path";
             TransactionFramePtr txFrame2 =
                 createPaymentTx(root, a1, rootSeq++, morePayment);
             getFirstOperation(*txFrame2).body.paymentOp().path.push_back(

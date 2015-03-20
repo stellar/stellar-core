@@ -21,7 +21,7 @@ MergeOpFrame::MergeOpFrame(Operation const& op, OperationResult& res,
 // make sure we aren't holding any credit
 // make sure the we delete all the offers
 // make sure the we delete all the trustlines
-// move the STR to the new account
+// move the XLM to the new account
 bool
 MergeOpFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
 {
