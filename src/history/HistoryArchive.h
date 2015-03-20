@@ -87,8 +87,10 @@ struct HistoryArchiveState
 
 class HistoryArchive : public std::enable_shared_from_this<HistoryArchive>
 {
-    class Impl;
-    std::unique_ptr<Impl> mImpl;
+    std::string mName;
+    std::string mGetCmd;
+    std::string mPutCmd;
+    std::string mMkdirCmd;
 
   public:
     HistoryArchive(std::string const& name, std::string const& getCmd,
