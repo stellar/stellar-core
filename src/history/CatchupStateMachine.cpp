@@ -99,7 +99,7 @@ CatchupStateMachine::selectRandomReadableHistoryArchive()
 void
 CatchupStateMachine::enterBeginState()
 {
-    assert(mState == CATCHUP_RETRYING);
+    assert(mState == CATCHUP_RETRYING || mState == CATCHUP_VERIFYING);
     mRetryCount = 0;
     mState = CATCHUP_BEGIN;
 
@@ -290,8 +290,8 @@ CatchupStateMachine::enterFetchingState()
     }
     else if (minimumState == FILE_CATCHUP_VERIFIED)
     {
-        CLOG(INFO, "History") << "All fetches verified, applying";
-        enterApplyingState();
+        CLOG(INFO, "History") << "All files verified, verifying combination";
+        enterVerifyingState();
     }
     else
     {
@@ -409,12 +409,14 @@ void
 CatchupStateMachine::enterRetryingState()
 {
     assert(mState == CATCHUP_BEGIN || mState == CATCHUP_ANCHORED ||
-           mState == CATCHUP_FETCHING || mState == CATCHUP_APPLYING);
+           mState == CATCHUP_FETCHING || mState == CATCHUP_APPLYING ||
+           mState == CATCHUP_VERIFYING);
     bool anchored = mState >= CATCHUP_ANCHORED;
+    bool verifying = mState >= CATCHUP_VERIFYING;
     mState = CATCHUP_RETRYING;
     mRetryTimer.expires_from_now(std::chrono::seconds(2));
     mRetryTimer.async_wait(
-        [this, anchored](asio::error_code const& ec)
+        [this, anchored, verifying](asio::error_code const& ec)
         {
             if (ec)
             {
@@ -422,7 +424,6 @@ CatchupStateMachine::enterRetryingState()
                     << "Retry timer cancelled while waiting";
                 return;
             }
-
             if (this->mRetryCount++ > kRetryLimit)
             {
                 CLOG(WARNING, "History") << "Retry count " << kRetryLimit
@@ -434,19 +435,160 @@ CatchupStateMachine::enterRetryingState()
                 CLOG(WARNING, "History") << "Unable to anchor, restarting catchup";
                 this->enterBeginState();
             }
-            else
+            else if (!verifying)
             {
                 CLOG(INFO, "History") << "Retrying catchup with archive '"
                                       << this->mArchive->getName() << "'";
                 this->enterAnchoredState(this->mArchiveState);
             }
+            else
+            {
+                CLOG(INFO, "History") << "Retrying verify of catchup candidate "
+                                      << this->mNextLedger;
+                this->enterVerifyingState();
+            }
         });
+}
+
+void
+CatchupStateMachine::enterVerifyingState()
+{
+    assert(mState == CATCHUP_RETRYING ||
+           mState == CATCHUP_FETCHING);
+
+    mState = CATCHUP_VERIFYING;
+
+    HistoryMaster::VerifyHashStatus status = HistoryMaster::VERIFY_HASH_UNKNOWN;
+    if (mMode == HistoryMaster::RESUME_AT_LAST)
+    {
+        // In RESUME_AT_LAST mode we need to verify he whole history chain;
+        // this includes checking the final LCL of the chain with LedgerMaster.
+        status = verifyHistoryFromLastClosedLedger();
+    }
+    else
+    {
+        // In RESUME_AT_NEXT mode we just need to acquire the LCL before mNextLedger
+        // and check to see if it's acceptable.
+        assert(mMode == HistoryMaster::RESUME_AT_NEXT);
+        acquireFinalLedgerState(mNextLedger);
+        status = mApp.getLedgerMaster().verifyCatchupCandidate(mLastClosed);
+    }
+
+    switch (status)
+    {
+    case HistoryMaster::VERIFY_HASH_OK:
+        CLOG(INFO, "History") << "Catchup material verified, applying";
+        enterApplyingState();
+        break;
+    case HistoryMaster::VERIFY_HASH_BAD:
+        CLOG(INFO, "History") << "Catchup material failed verification, restarting";
+        enterBeginState();
+        break;
+    case HistoryMaster::VERIFY_HASH_UNKNOWN:
+        CLOG(INFO, "History") << "Catchup material verification inconclusive, pausing";
+        enterRetryingState();
+        break;
+    default:
+        assert(false);
+    }
+}
+
+static HistoryMaster::VerifyHashStatus
+verifyLedgerHistoryEntry(LedgerHeaderHistoryEntry const& hhe)
+{
+    LedgerHeaderFrame lFrame(hhe.header);
+    Hash calculated = lFrame.getHash();
+    if (calculated != hhe.hash)
+    {
+        CLOG(ERROR, "History")
+            << "Bad ledger-header history entry: claimed ledger "
+            << LedgerMaster::ledgerAbbrev(hhe)
+            << " actually hashes to "
+            << hexAbbrev(calculated);
+        return HistoryMaster::VERIFY_HASH_BAD;
+    }
+    return HistoryMaster::VERIFY_HASH_OK;
+}
+
+static HistoryMaster::VerifyHashStatus
+verifyLedgerHistoryLink(Hash const& prev,
+                        LedgerHeaderHistoryEntry const& curr)
+{
+    if (verifyLedgerHistoryEntry(curr) !=
+        HistoryMaster::VERIFY_HASH_OK)
+    {
+        return HistoryMaster::VERIFY_HASH_BAD;
+    }
+    if (prev != curr.header.previousLedgerHash)
+    {
+        CLOG(ERROR, "History")
+            << "Bad hash-chain: "
+            << LedgerMaster::ledgerAbbrev(curr)
+            << " wants prev hash "
+            << hexAbbrev(curr.header.previousLedgerHash)
+            << " but actual prev hash is "
+            << hexAbbrev(prev);
+        return HistoryMaster::VERIFY_HASH_BAD;
+    }
+    return HistoryMaster::VERIFY_HASH_OK;
+}
+
+HistoryMaster::VerifyHashStatus
+CatchupStateMachine::verifyHistoryFromLastClosedLedger()
+{
+    auto& lm = mApp.getLedgerMaster();
+    LedgerHeaderHistoryEntry prev = lm.getLastClosedLedgerHeader();
+    CLOG(INFO, "History") << "Verifying ledger-history chain of "
+                          << mHeaderInfos.size()
+                          << " transaction-history files from LCL "
+                          << LedgerMaster::ledgerAbbrev(prev);
+
+    for (auto& pair : mHeaderInfos)
+    {
+        auto hi = pair.second;
+        XDRInputFileStream hdrIn;
+        CLOG(INFO, "History") << "Verifying ledger headers from "
+                              << hi->localPath_nogz()
+                              << " starting from ledger "
+                              << LedgerMaster::ledgerAbbrev(prev);
+        hdrIn.open(hi->localPath_nogz());
+        LedgerHeaderHistoryEntry curr;
+        while (hdrIn && hdrIn.readOne(curr))
+        {
+            uint32_t expectedSeq = prev.header.ledgerSeq + 1;
+            if (curr.header.ledgerSeq < expectedSeq)
+            {
+                // Harmless prehistory
+                continue;
+            }
+            else if (curr.header.ledgerSeq > expectedSeq)
+            {
+                CLOG(ERROR, "History")
+                    << "History chain overshot expected ledger seq "
+                    << expectedSeq;
+                return HistoryMaster::VERIFY_HASH_BAD;
+            }
+            if (verifyLedgerHistoryLink(prev.hash, curr) !=
+                HistoryMaster::VERIFY_HASH_OK)
+            {
+                return HistoryMaster::VERIFY_HASH_BAD;
+            }
+            prev = curr;
+        }
+    }
+    if (prev.header.ledgerSeq + 1 != mNextLedger)
+    {
+        CLOG(INFO, "History") << "Insufficient history to connect chain to ledger"
+                              << mNextLedger;
+        return HistoryMaster::VERIFY_HASH_BAD;
+    }
+    return lm.verifyCatchupCandidate(prev);
 }
 
 void
 CatchupStateMachine::enterApplyingState()
 {
-    assert(mState == CATCHUP_FETCHING);
+    assert(mState == CATCHUP_VERIFYING);
     mState = CATCHUP_APPLYING;
     auto& db = mApp.getDatabase();
     auto& sess = db.getSession();
@@ -461,7 +603,6 @@ CatchupStateMachine::enterApplyingState()
         // In RESUME_AT_NEXT mode we're applying the _state_ at mNextLedger
         // without any history replay.
         applyBucketsAtLedger(mNextLedger);
-        acquireFinalLedgerState(mNextLedger);
     }
     else
     {
