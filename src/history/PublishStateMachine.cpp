@@ -449,8 +449,7 @@ PublishStateMachine::writeNextSnapshot()
 void
 PublishStateMachine::snapshotWritten(asio::error_code const& ec)
 {
-    auto& pair = mPendingSnaps.front();
-    auto snap = pair.first;
+    auto snap = mPendingSnaps.front().first;
 
     if (ec)
     {
