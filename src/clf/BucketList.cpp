@@ -31,10 +31,10 @@ BucketLevel::BucketLevel(size_t i)
 uint256
 BucketLevel::getHash() const
 {
-    SHA256 hsh;
-    hsh.add(mCurr->getHash());
-    hsh.add(mSnap->getHash());
-    return hsh.finish();
+    auto hsh = SHA256::create();
+    hsh->add(mCurr->getHash());
+    hsh->add(mSnap->getHash());
+    return hsh->finish();
 }
 
 std::shared_ptr<Bucket>
@@ -170,12 +170,12 @@ BucketList::mask(uint32_t v, uint32_t m)
 uint256
 BucketList::getHash() const
 {
-    SHA256 hsh;
+    auto hsh = SHA256::create();
     for (auto const& lev : mLevels)
     {
-        hsh.add(lev.getHash());
+        hsh->add(lev.getHash());
     }
-    return hsh.finish();
+    return hsh->finish();
 }
 
 bool

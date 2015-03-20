@@ -191,15 +191,15 @@ HistoryMaster::verifyHash(
     app.getWorkerIOService().post(
         [&app, filename, handler, hash]()
         {
-            SHA256 hasher;
+            auto hasher = SHA256::create();
             char buf[4096];
             ifstream in(filename, ofstream::binary);
             while (in)
             {
                 in.read(buf, sizeof(buf));
-                hasher.add(ByteSlice(buf, in.gcount()));
+                hasher->add(ByteSlice(buf, in.gcount()));
             }
-            uint256 vHash = hasher.finish();
+            uint256 vHash = hasher->finish();
             asio::error_code ec;
             if (vHash == hash)
             {

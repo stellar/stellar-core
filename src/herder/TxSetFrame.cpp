@@ -188,12 +188,12 @@ TxSetFrame::getContentsHash()
     if (!mHashIsValid)
     {
         sortForHash();
-        SHA256 hasher;
+        auto hasher = SHA256::create();
         for (unsigned int n = 0; n < mTransactions.size(); n++)
         {
-            hasher.add(xdr::xdr_to_opaque(mTransactions[n]->getEnvelope()));
+            hasher->add(xdr::xdr_to_opaque(mTransactions[n]->getEnvelope()));
         }
-        mHash = hasher.finish();
+        mHash = hasher->finish();
         mHashIsValid = true;
     }
     return mHash;

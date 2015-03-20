@@ -177,14 +177,15 @@ class Bucket::OutputIterator
 {
     std::string mFilename;
     XDROutputFileStream mOut;
-    SHA256 mHasher;
+    std::unique_ptr<SHA256> mHasher;
     size_t mBytesPut{0};
     size_t mObjectsPut{0};
 
   public:
     OutputIterator(std::string const& tmpDir)
+        : mFilename(randomBucketName(tmpDir))
+        , mHasher(SHA256::create())
     {
-        mFilename = randomBucketName(tmpDir);
         CLOG(TRACE, "CLF") << "Bucket::OutputIterator opening file to write: "
                            << mFilename;
         mOut.open(mFilename);
@@ -193,7 +194,7 @@ class Bucket::OutputIterator
     void
     put(CLFEntry const& e)
     {
-        mOut.writeOne(e, &mHasher, &mBytesPut);
+        mOut.writeOne(e, mHasher.get(), &mBytesPut);
         mObjectsPut++;
     }
 
@@ -210,7 +211,7 @@ class Bucket::OutputIterator
             std::remove(mFilename.c_str());
             return std::make_shared<Bucket>();
         }
-        return clfMaster.adoptFileAsBucket(mFilename, mHasher.finish(),
+        return clfMaster.adoptFileAsBucket(mFilename, mHasher->finish(),
                                            mObjectsPut, mBytesPut);
     }
 };
@@ -369,7 +370,6 @@ Bucket::merge(CLFMaster& clfMaster, std::shared_ptr<Bucket> const& oldBucket,
     auto timer = clfMaster.getMergeTimer().TimeScope();
     Bucket::OutputIterator out(clfMaster.getTmpDir());
 
-    SHA256 hsh;
     CLFEntryIdCmp cmp;
     while (oi || ni)
     {
