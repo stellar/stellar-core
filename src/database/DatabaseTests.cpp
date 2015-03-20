@@ -268,19 +268,19 @@ TEST_CASE("postgres performance", "[db][pgperf][hide]")
         session << "drop table if exists txtest;";
         session << "create table txtest (a bigint, b bigint, c bigint, primary key (a, b));";
 
-        uint64_t pk = 0;
-        size_t sz = 10000;
-        size_t div = 100;
+        int64_t pk = 0;
+        int64_t sz = 10000;
+        int64_t div = 100;
 
         LOG(INFO) << "timing 10 inserts of " << sz << " rows";
         {
-            for (size_t i = 0; i < 10; ++i)
+            for (int64_t i = 0; i < 10; ++i)
             {
                 TIMED_SCOPE(bulkinsert, "single large-tx insert");
                 soci::transaction sqltx(session);
-                for (uint64_t j = 0; j < sz; ++j)
+                for (int64_t j = 0; j < sz; ++j)
                 {
-                    uint64_t r = dist(gen);
+                    int64_t r = dist(gen);
                     session << "insert into txtest (a,b,c) values (:a,:b,:c)",
                         soci::use(r), soci::use(pk), soci::use(j);
                 }
@@ -292,15 +292,15 @@ TEST_CASE("postgres performance", "[db][pgperf][hide]")
                   << " batched into " << sz/div
                   << " subtransactions of " << div << " inserts each";
         soci::transaction sqltx(session);
-        for (size_t i = 0; i < 10; ++i)
+        for (int64_t i = 0; i < 10; ++i)
         {
             TIMED_SCOPE(timerobj, "many small-tx insert");
-            for (size_t j = 0; j < sz/div; ++j)
+            for (int64_t j = 0; j < sz/div; ++j)
             {
                 soci::transaction subtx(session);
-                for (uint64_t k = 0; k < div; ++k)
+                for (int64_t k = 0; k < div; ++k)
                 {
-                    uint64_t r = dist(gen);
+                    int64_t r = dist(gen);
                     pk++;
                     session << "insert into txtest (a,b,c) values (:a,:b,:c)",
                         soci::use(r), soci::use(pk), soci::use(k);
