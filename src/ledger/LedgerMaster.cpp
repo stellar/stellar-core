@@ -202,6 +202,12 @@ LedgerMaster::getLastClosedLedgerHeader() const
     return mLastClosedLedger;
 }
 
+uint32_t
+LedgerMaster::getLastClosedLedgerNum() const
+{
+    return mLastClosedLedger.header.ledgerSeq;
+}
+
 // called by txherder
 void
 LedgerMaster::externalizeValue(LedgerCloseData ledgerData)

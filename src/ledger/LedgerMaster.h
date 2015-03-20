@@ -90,6 +90,7 @@ class LedgerMaster : public LedgerGateway
     LedgerHeader const& getCurrentLedgerHeader() const;
 
     LedgerHeaderHistoryEntry const& getLastClosedLedgerHeader() const;
+    uint32_t getLastClosedLedgerNum() const;
 
     Database& getDatabase();
 
