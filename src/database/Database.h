@@ -11,6 +11,7 @@
 #include "ledger/OfferFrame.h"
 #include "ledger/TrustFrame.h"
 #include "medida/timer_context.h"
+#include "util/NonCopyable.h"
 
 namespace medida
 {
@@ -21,6 +22,31 @@ class Timer;
 namespace stellar
 {
 class Application;
+class SQLLogContext;
+
+class StatementContext : NonCopyable
+{
+    std::shared_ptr<soci::statement> mStmt;
+public:
+    StatementContext(std::shared_ptr<soci::statement> stmt)
+        : mStmt(stmt)
+        {
+            mStmt->clean_up(false);
+        }
+    StatementContext(StatementContext&& other)
+    {
+        mStmt = other.mStmt;
+        other.mStmt.reset();
+    }
+    ~StatementContext()
+    {
+        mStmt->clean_up(false);
+    }
+    soci::statement& statement()
+    {
+        return *mStmt;
+    }
+};
 
 class Database
 {
@@ -28,11 +54,17 @@ class Database
     soci::session mSession;
     std::unique_ptr<soci::connection_pool> mPool;
 
+    std::map<std::string, std::shared_ptr<soci::statement>> mStatements;
+
     static bool gDriversRegistered;
     static void registerDrivers();
 
   public:
     Database(Application& app);
+
+    std::shared_ptr<SQLLogContext> captureAndLogSQL(std::string contextName);
+
+    StatementContext getPreparedStatement(std::string const& query);
 
     medida::TimerContext getInsertTimer(std::string const& entityName);
     medida::TimerContext getSelectTimer(std::string const& entityName);

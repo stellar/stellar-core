@@ -193,3 +193,28 @@ TEST_CASE("payment", "[tx][payment]")
         }
     }
 }
+
+TEST_CASE("single payment tx SQL", "[singlesql][paymentsql][hide]")
+{
+    Config::TestDbMode mode = Config::TESTDB_ON_DISK_SQLITE;
+#ifdef USE_POSTGRES
+    mode = Config::TESTDB_TCP_LOCALHOST_POSTGRESQL;
+#endif
+
+    VirtualClock clock;
+    Application::pointer app = Application::create(clock, getTestConfig(0, mode));
+    app->start();
+
+    SecretKey root = getRoot();
+    SecretKey a1 = getAccount("A");
+    int64_t txfee = app->getLedgerMaster().getTxFee();
+    const uint64_t paymentAmount =
+        (uint64_t)app->getLedgerMaster().getMinBalance(1) + txfee * 10;
+
+    SequenceNumber rootSeq = getAccountSeqNum(root, *app) + 1;
+
+    {
+        auto ctx = app->getDatabase().captureAndLogSQL("payment");
+        applyPaymentTx(*app, root, a1, rootSeq++, paymentAmount);
+    }
+}

@@ -183,4 +183,68 @@ Database::getBalance(const uint256& accountID, const Currency& currency)
 
     return amountFunded;
 }
+
+class SQLLogContext : NonCopyable
+{
+    std::string mName;
+    soci::session& mSess;
+    std::ostringstream mCapture;
+public:
+    SQLLogContext(std::string const& name,
+                  soci::session& sess)
+        : mName(name)
+        , mSess(sess)
+    {
+        mSess.set_log_stream(&mCapture);
+    }
+    ~SQLLogContext()
+    {
+        mSess.set_log_stream(nullptr);
+        std::string captured = mCapture.str();
+        std::istringstream rd(captured);
+        std::string buf;
+        CLOG(INFO, "Database") << "";
+        CLOG(INFO, "Database") << "";
+        CLOG(INFO, "Database") << "[SQL] -----------------------";
+        CLOG(INFO, "Database") << "[SQL] begin capture: " << mName;
+        CLOG(INFO, "Database") << "[SQL] -----------------------";
+        while (std::getline(rd, buf))
+        {
+            CLOG(INFO, "Database") << "[SQL:" << mName << "] " << buf;
+            buf.clear();
+        }
+        CLOG(INFO, "Database") << "[SQL] -----------------------";
+        CLOG(INFO, "Database") << "[SQL] end capture: " << mName;
+        CLOG(INFO, "Database") << "[SQL] -----------------------";
+        CLOG(INFO, "Database") << "";
+        CLOG(INFO, "Database") << "";
+    }
+};
+
+StatementContext
+Database::getPreparedStatement(std::string const& query)
+{
+    auto i = mStatements.find(query);
+    std::shared_ptr<soci::statement> p;
+    if (i == mStatements.end())
+    {
+        p = std::make_shared<soci::statement>(mSession);
+        p->alloc();
+        p->prepare(query);
+        mStatements.insert(std::make_pair(query, p));
+    }
+    else
+    {
+        p = i->second;
+    }
+    StatementContext sc(p);
+    return sc;
+}
+
+std::shared_ptr<SQLLogContext>
+Database::captureAndLogSQL(std::string contextName)
+{
+    return make_shared<SQLLogContext>(contextName, mSession);
+}
+
 }

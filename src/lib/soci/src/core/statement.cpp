@@ -185,7 +185,7 @@ void statement_impl::exchange(use_type_ptr const & u)
     u.release();
 }
 
-void statement_impl::clean_up()
+void statement_impl::clean_up(bool freeBackend)
 {
     // deallocate all bind and define objects
     std::size_t const isize = intos_.size();
@@ -219,7 +219,7 @@ void statement_impl::clean_up()
         indicators_[i] = NULL;
     }
 
-    if (backEnd_ != NULL)
+    if (freeBackend && backEnd_ != NULL)
     {
         backEnd_->clean_up();
         delete backEnd_;

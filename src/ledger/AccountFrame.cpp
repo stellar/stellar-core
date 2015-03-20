@@ -154,9 +154,13 @@ AccountFrame::loadAccount(const uint256& accountID, AccountFrame& retAcc,
         string pubKey;
         Signer signer;
 
-        statement st = (session.prepare << "SELECT publicKey, weight from "
-                                           "Signers where accountID =:id",
-                        use(base58ID), into(pubKey), into(signer.weight));
+        auto prep = db.getPreparedStatement("SELECT publicKey, weight from "
+                                            "Signers where accountID =:id");
+        auto& st = prep.statement();
+        st.exchange(use(base58ID));
+        st.exchange(into(pubKey));
+        st.exchange(into(signer.weight));
+        st.define_and_bind();
         {
             auto timer = db.getSelectTimer("signer");
             st.execute(true);
@@ -222,20 +226,22 @@ AccountFrame::storeUpdate(LedgerDelta& delta, Database& db, bool insert) const
     std::string base58ID =
         toBase58Check(VER_ACCOUNT_ID, mAccountEntry.accountID);
 
-    std::stringstream sql;
+    std::string sql;
 
     if (insert)
     {
-        sql << "INSERT INTO Accounts ( accountID, balance, seqNum, \
-            numSubEntries, inflationDest, thresholds, flags) \
-            VALUES ( :id, :v1, :v2, :v3, :v4, :v5, :v6 )";
+        sql = std::string("INSERT INTO Accounts ( accountID, balance, seqNum, \
+            numSubEntries, inflationDest, thresholds, flags)            \
+            VALUES ( :id, :v1, :v2, :v3, :v4, :v5, :v6 )");
     }
     else
     {
-        sql << "UPDATE Accounts SET balance = :v1, seqNum = :v2, numSubEntries = :v3, \
-                inflationDest = :v4, thresholds = :v5, \
-                flags = :v6 WHERE accountID = :id";
+        sql = std::string("UPDATE Accounts SET balance = :v1, seqNum = :v2, numSubEntries = :v3, \
+                inflationDest = :v4, thresholds = :v5,                  \
+                flags = :v6 WHERE accountID = :id");
     }
+
+    auto prep = db.getPreparedStatement(sql);
 
     soci::indicator inflation_ind = soci::i_null;
     string inflationDestStr;
@@ -252,12 +258,15 @@ AccountFrame::storeUpdate(LedgerDelta& delta, Database& db, bool insert) const
     string thresholds(binToHex(mAccountEntry.thresholds));
 
     {
-        soci::statement st =
-            (db.getSession().prepare << sql.str(), use(base58ID, "id"),
-             use(mAccountEntry.balance, "v1"), use(mAccountEntry.seqNum, "v2"),
-             use(mAccountEntry.numSubEntries, "v3"),
-             use(inflationDestStr, inflation_ind, "v4"), use(thresholds, "v5"),
-             use(mAccountEntry.flags, "v6"));
+        soci::statement& st = prep.statement();
+        st.exchange(use(base58ID, "id"));
+        st.exchange(use(mAccountEntry.balance, "v1"));
+        st.exchange(use(mAccountEntry.seqNum, "v2"));
+        st.exchange(use(mAccountEntry.numSubEntries, "v3"));
+        st.exchange(use(inflationDestStr, inflation_ind, "v4"));
+        st.exchange(use(thresholds, "v5"));
+        st.exchange(use(mAccountEntry.flags, "v6"));
+        st.define_and_bind();
         {
             auto timer = insert ? db.getInsertTimer("account")
                                 : db.getUpdateTimer("account");
