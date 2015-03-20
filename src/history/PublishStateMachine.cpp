@@ -88,21 +88,22 @@ ArchivePublisher::enterBeginState()
 {
     assert(mState == PUBLISH_RETRYING);
     mState = PUBLISH_BEGIN;
-    mArchive->getMostRecentState(mApp, [this](asio::error_code const& ec,
-                                              HistoryArchiveState const& has)
-                                 {
-        if (ec)
+    mArchive->getMostRecentState(
+        mApp, [this](asio::error_code const& ec, HistoryArchiveState const& has)
         {
-            CLOG(WARNING, "History")
-                << "Publisher failed to retrieve state from history archive '"
-                << this->mArchive->getName() << "', restarting publish";
-            this->enterRetryingState();
-        }
-        else
-        {
-            this->enterObservedState(has);
-        }
-    });
+            if (ec)
+            {
+                CLOG(WARNING, "History") << "Publisher failed to retrieve "
+                                            "state from history archive '"
+                                         << this->mArchive->getName()
+                                         << "', restarting publish";
+                this->enterRetryingState();
+            }
+            else
+            {
+                this->enterObservedState(has);
+            }
+        });
 }
 
 void
@@ -227,8 +228,9 @@ ArchivePublisher::enterSendingState()
             hm.putFile(mArchive, fi->localPath_gz(), fi->remoteName(),
                        [this, name](asio::error_code const& ec)
                        {
-                this->fileStateChange(ec, name, FILE_PUBLISH_UPLOADED);
-            });
+                           this->fileStateChange(ec, name,
+                                                 FILE_PUBLISH_UPLOADED);
+                       });
             break;
 
         case FILE_PUBLISH_UPLOADING:
@@ -265,21 +267,21 @@ ArchivePublisher::enterCommittingState()
 {
     assert(mState == PUBLISH_SENDING);
     mState = PUBLISH_COMMITTING;
-    mArchive->putState(mApp, mSnap->mLocalState,
-                       [this](asio::error_code const& ec)
-                       {
-        if (ec)
+    mArchive->putState(
+        mApp, mSnap->mLocalState, [this](asio::error_code const& ec)
         {
-            CLOG(WARNING, "History")
-                << "Publisher failed to update state in history archive '"
-                << this->mArchive->getName() << "', restarting publish";
-            this->enterRetryingState();
-        }
-        else
-        {
-            this->enterEndState();
-        }
-    });
+            if (ec)
+            {
+                CLOG(WARNING, "History")
+                    << "Publisher failed to update state in history archive '"
+                    << this->mArchive->getName() << "', restarting publish";
+                this->enterRetryingState();
+            }
+            else
+            {
+                this->enterEndState();
+            }
+        });
 }
 
 void
@@ -297,8 +299,7 @@ ArchivePublisher::isDone() const
     return mState == PUBLISH_END;
 }
 
-PublishStateMachine::PublishStateMachine(Application& app)
-    : mApp(app)
+PublishStateMachine::PublishStateMachine(Application& app) : mApp(app)
 {
 }
 
@@ -352,8 +353,8 @@ StateSnapshot::writeHistoryBlocks() const
 
     std::unique_ptr<soci::session> snapSess(
         mApp.getDatabase().canUsePool()
-        ? make_unique<soci::session>(mApp.getDatabase().getPool())
-        : nullptr);
+            ? make_unique<soci::session>(mApp.getDatabase().getPool())
+            : nullptr);
     soci::session& sess(snapSess ? *snapSess : mApp.getDatabase().getSession());
     soci::transaction tx(sess);
 
@@ -448,8 +449,7 @@ PublishStateMachine::writeNextSnapshot()
 void
 PublishStateMachine::snapshotWritten(asio::error_code const& ec)
 {
-    auto& pair = mPendingSnaps.front();
-    auto snap = pair.first;
+    auto snap = mPendingSnaps.front().first;
 
     if (ec)
     {
@@ -485,6 +485,7 @@ PublishStateMachine::snapshotWritten(asio::error_code const& ec)
 void
 PublishStateMachine::snapshotPublished(asio::error_code const& ec)
 {
+    asio::error_code ecSaved(ec); // make a copy of ec as it could be deleted by following statement
     mPublishers.erase(std::remove_if(mPublishers.begin(), mPublishers.end(),
                                      [](std::shared_ptr<ArchivePublisher> p)
                                      {
@@ -494,7 +495,7 @@ PublishStateMachine::snapshotPublished(asio::error_code const& ec)
                            << mPublishers.size() << " remain";
     if (mPublishers.empty())
     {
-        finishOne(ec);
+        finishOne(ecSaved);
     }
 }
 
@@ -506,5 +507,4 @@ PublishStateMachine::finishOne(asio::error_code const& ec)
     mPendingSnaps.pop_front();
     writeNextSnapshot();
 }
-
 }

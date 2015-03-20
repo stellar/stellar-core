@@ -40,7 +40,10 @@ public:
     }
     ~StatementContext()
     {
-        mStmt->clean_up(false);
+        if (mStmt)
+        {
+            mStmt->clean_up(false);
+        }
     }
     soci::statement& statement()
     {
