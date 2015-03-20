@@ -7,6 +7,7 @@
 #include "main/test.h"
 #include "main/Config.h"
 #include "lib/catch.hpp"
+#include "database/Database.h"
 #include "ledger/LedgerDelta.h"
 #include "ledger/LedgerMaster.h"
 #include "ledger/EntryFrame.h"
@@ -97,4 +98,22 @@ TEST_CASE("Ledger entry db lifecycle", "[ledger]")
         le->storeDelete(delta, db);
         CHECK(!EntryFrame::exists(db, le->getKey()));
     }
+}
+
+TEST_CASE("single ledger entry insert SQL", "[singlesql][entrysql][hide]")
+{
+    Config::TestDbMode mode = Config::TESTDB_ON_DISK_SQLITE;
+#ifdef USE_POSTGRES
+    mode = Config::TESTDB_TCP_LOCALHOST_POSTGRESQL;
+#endif
+
+    VirtualClock clock;
+    Application::pointer app = Application::create(clock, getTestConfig(0, mode));
+    app->start();
+
+    LedgerDelta delta(app->getLedgerMaster().getCurrentLedgerHeader());
+    auto& db = app->getDatabase();
+    auto le = EntryFrame::FromXDR(validLedgerEntryGenerator(3));
+    auto ctx = db.captureAndLogSQL("ledger-insert");
+    le->storeAddOrChange(delta, db);
 }
