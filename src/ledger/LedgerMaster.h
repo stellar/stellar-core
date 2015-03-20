@@ -90,13 +90,15 @@ class LedgerMaster : public LedgerGateway
     LedgerHeader const& getCurrentLedgerHeader() const;
 
     LedgerHeaderHistoryEntry const& getLastClosedLedgerHeader() const;
+    uint32_t getLastClosedLedgerNum() const;
 
     Database& getDatabase();
 
     void closeLedger(LedgerCloseData ledgerData);
 
-    void startCatchUp(uint32_t lastLedger, uint32_t initLedger,
-                      HistoryMaster::ResumeMode resume);
+    void startCatchUp(uint32_t initLedger, HistoryMaster::ResumeMode resume);
+
+    HistoryMaster::VerifyHashStatus verifyCatchupCandidate(LedgerHeaderHistoryEntry const&) const;
 
   private:
     void closeLedgerHelper(LedgerDelta const& delta);

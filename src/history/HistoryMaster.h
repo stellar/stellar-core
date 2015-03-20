@@ -179,6 +179,13 @@ class HistoryMaster
         RESUME_AT_NEXT
     };
 
+    enum VerifyHashStatus
+    {
+        VERIFY_HASH_OK,
+        VERIFY_HASH_BAD,
+        VERIFY_HASH_UNKNOWN
+    };
+
     // Checkpoints are made every kCheckpointFrequency ledgers.
     static const uint32_t kCheckpointFrequency;
 
@@ -230,13 +237,12 @@ class HistoryMaster
     // archives.
     void publishHistory(std::function<void(asio::error_code const&)> handler);
 
-    // Run catchup, assuming `lastLedger` was the last ledger we were in sync
-    // for and we've just heard `initLedger` from the network. Mode can be
+    // Run catchup, we've just heard `initLedger` from the network. Mode can be
     // RESUME_AT_LAST, meaning replay history from last to present, or
     // RESUME_AT_NEXT, meaning snap to the next state possible and discard
     // history. See larger comment above for more detail.
     void catchupHistory(
-        uint32_t lastLedger, uint32_t initLedger, ResumeMode mode,
+        uint32_t initLedger, ResumeMode mode,
         std::function<void(asio::error_code const& ec, ResumeMode mode,
                            LedgerHeaderHistoryEntry const& lastClosed)>
             handler);

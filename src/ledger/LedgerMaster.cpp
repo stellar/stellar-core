@@ -202,6 +202,12 @@ LedgerMaster::getLastClosedLedgerHeader() const
     return mLastClosedLedger;
 }
 
+uint32_t
+LedgerMaster::getLastClosedLedgerNum() const
+{
+    return mLastClosedLedger.header.ledgerSeq;
+}
+
 // called by txherder
 void
 LedgerMaster::externalizeValue(LedgerCloseData ledgerData)
@@ -228,20 +234,60 @@ LedgerMaster::externalizeValue(LedgerCloseData ledgerData)
         {
             // Start trying to catchup.
             CLOG(DEBUG, "Ledger") << "Starting catchup";
-            startCatchUp(mLastClosedLedger.header.ledgerSeq,
-                         ledgerData.mLedgerSeq, HistoryMaster::RESUME_AT_LAST);
+            startCatchUp(ledgerData.mLedgerSeq, HistoryMaster::RESUME_AT_LAST);
         }
     }
 }
 
 void
-LedgerMaster::startCatchUp(uint32_t lastLedger, uint32_t initLedger,
-                           HistoryMaster::ResumeMode resume)
+LedgerMaster::startCatchUp(uint32_t initLedger, HistoryMaster::ResumeMode resume)
 {
     mApp.setState(Application::CATCHING_UP_STATE);
     mApp.getHistoryMaster().catchupHistory(
-        lastLedger, initLedger, resume,
+        initLedger, resume,
         std::bind(&LedgerMaster::historyCaughtup, this, _1, _2, _3));
+}
+
+HistoryMaster::VerifyHashStatus
+LedgerMaster::verifyCatchupCandidate(LedgerHeaderHistoryEntry const& candidate) const
+{
+    // This is a callback from CatchupStateMachine when it's considering whether
+    // to treat a retrieved history block as legitimate. It asks LedgerMaster if
+    // it's seen (in its previous, current, or buffer of ledgers-to-close that
+    // have queued up since catchup began) whether it believes the candidate is a
+    // legitimate part of history. LedgerMaster is allowed to answer "unknown"
+    // here, which causes CatchupStateMachine to pause and retry later.
+
+#define CHECK_PAIR(aseq,bseq,ahash,bhash)                               \
+    if ((aseq) == (bseq))                                               \
+    {                                                                   \
+        if ((ahash) == (bhash))                                         \
+        {                                                               \
+            return HistoryMaster::VERIFY_HASH_OK;                       \
+        }                                                               \
+        else                                                            \
+        {                                                               \
+            return HistoryMaster::VERIFY_HASH_BAD;                      \
+        }                                                               \
+    }
+
+    CHECK_PAIR(mLastClosedLedger.header.ledgerSeq, candidate.header.ledgerSeq,
+               mLastClosedLedger.hash, candidate.hash);
+
+    CHECK_PAIR(mLastClosedLedger.header.ledgerSeq, candidate.header.ledgerSeq + 1,
+               mLastClosedLedger.header.previousLedgerHash, candidate.hash);
+
+    CHECK_PAIR(mCurrentLedger->mHeader.ledgerSeq, candidate.header.ledgerSeq + 1,
+               mCurrentLedger->mHeader.previousLedgerHash, candidate.hash);
+
+    for (auto const& ld : mSyncingLedgers)
+    {
+        CHECK_PAIR(ld.mLedgerSeq, candidate.header.ledgerSeq + 1,
+                   ld.mTxSet->previousLedgerHash(), candidate.hash);
+    }
+
+#undef CHECK_PAIR
+    return HistoryMaster::VERIFY_HASH_UNKNOWN;
 }
 
 void
@@ -255,8 +301,6 @@ LedgerMaster::historyCaughtup(asio::error_code const& ec,
     }
     else
     {
-        uint32_t nextLedger = lastClosed.header.ledgerSeq + 1;
-
         // If we were in RESUME_AT_NEXT mode, LCL has not been updated
         // and we need to pick it up here.
         if (mode == HistoryMaster::RESUME_AT_NEXT)
@@ -282,17 +326,62 @@ LedgerMaster::historyCaughtup(asio::error_code const& ec,
         bool applied = false;
         for (auto lcd : mSyncingLedgers)
         {
-            if (lcd.mLedgerSeq <= nextLedger)
+            if (lcd.mLedgerSeq < mLastClosedLedger.header.ledgerSeq + 1)
             {
-                assert(lcd.mLedgerSeq !=
-                       mLastClosedLedger.header.ledgerSeq + 1);
-                continue;
-            }
+                // We may have buffered lots of stuff between the consensus
+                // ledger when we started catchup and the final ledger applied
+                // during catchup replay. We can just drop these, they're
+                // redundant with what catchup did.
 
-            if (lcd.mLedgerSeq == mLastClosedLedger.header.ledgerSeq + 1)
+                if (lcd.mLedgerSeq == mLastClosedLedger.header.ledgerSeq)
+                {
+                    // At the knit-up point between history-replay and
+                    // buffer-replay, we should have identity between the
+                    // contents of the consensus LCD and the last ledger catchup
+                    // closed (which was proposed as a candidate, and we
+                    // approved in verifyCatchupCandidate).
+                    assert(lcd.mTxSet->getContentsHash() == mLastClosedLedger.header.txSetHash);
+                    assert(lcd.mBaseFee == mLastClosedLedger.header.baseFee);
+                    assert(lcd.mCloseTime == mLastClosedLedger.header.closeTime);
+                }
+
+                continue;
+
+            }
+            else if (lcd.mLedgerSeq == mLastClosedLedger.header.ledgerSeq + 1)
             {
+                CLOG(INFO, "Ledger")
+                    << "Replaying buffered ledger-close for " << lcd.mLedgerSeq;
                 closeLedger(lcd);
                 applied = true;
+            }
+            else
+            {
+                // We should never _overshoot_ the last ledger. The whole point
+                // of rounding the initLedger value up to the next history
+                // boundary is that there should always be some overlap between
+                // the buffered LedgerCloseDatas and the history block we catch
+                // up with.
+                //
+                // So if we ever get here, something was seriously wrong and we
+                // should either fail the process or, at very least, flush
+                // everything we did during catchup and restart the process
+                // anew.
+
+                assert(lcd.mLedgerSeq > mLastClosedLedger.header.ledgerSeq + 1);
+                auto const& lastBuffered = mSyncingLedgers.back();
+                CLOG(ERROR, "Ledger")
+                    << "Catchup failed to buffer contiguous ledger chain";
+                CLOG(ERROR, "Ledger")
+                    << "LCL is " << ledgerAbbrev(mLastClosedLedger)
+                    << ", trying to apply buffered close " << lcd.mLedgerSeq
+                    << " with txhash " << hexAbbrev(lcd.mTxSet->getContentsHash());
+                CLOG(ERROR, "Ledger")
+                    << "Flushing buffer and restarting at ledger "
+                    << lastBuffered.mLedgerSeq;
+                mSyncingLedgers.clear();
+                startCatchUp(lastBuffered.mLedgerSeq,
+                             HistoryMaster::RESUME_AT_LAST);
             }
         }
         if (applied)

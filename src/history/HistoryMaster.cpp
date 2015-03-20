@@ -419,7 +419,7 @@ HistoryMaster::snapshotWritten(asio::error_code const& ec)
 
 void
 HistoryMaster::catchupHistory(
-    uint32_t lastLedger, uint32_t initLedger, ResumeMode mode,
+    uint32_t initLedger, ResumeMode mode,
     std::function<void(asio::error_code const& ec, ResumeMode mode,
                        LedgerHeaderHistoryEntry const& lastClosed)> handler)
 {
@@ -429,7 +429,7 @@ HistoryMaster::catchupHistory(
     }
     mImpl->mCatchupStart.Mark();
     mImpl->mCatchup = make_unique<CatchupStateMachine>(
-        mImpl->mApp, lastLedger, initLedger, mode,
+        mImpl->mApp, initLedger, mode,
         [this, handler](asio::error_code const& ec,
                         HistoryMaster::ResumeMode mode,
                         LedgerHeaderHistoryEntry const& lastClosed)

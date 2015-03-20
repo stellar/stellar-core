@@ -32,19 +32,28 @@ namespace stellar
  *  --> BEGIN (initial state) <--- (retries > R)-\
  *        |                                      |
  *    (ask history archive for state,            |
- *     define this as "anchor ledger")           |
+ *     define this as "anchor ledger")           ^
  *        |                                      |
  *        V                                      |
- *      ANCHORED <----- (retries < R) -------- RETRYING (time-delay state)
+ *      ANCHORED <--(anchored && -----<--- RETRYING (time-delay state)
+ *        |          retries < R)                |      |
+ *        |                                      |      |
+ *        |                                      ^      V
+ *    (download, decompress, verify              |      |
+ *     missing buckets and history)              |      |
+ *        |                                      |      (verifying &&
+ *        V                                      |      |retries < R)
+ *     FETCHING ---- (>0 fetches failed) -->-----/      |
+ *        |                                      |      V
+ *    (all fetches ok)                           ^      |
+ *        |                                      |      |
+ *        /--------------------------------<---- | --<--/
+ *        |
+ *        V                                      |
+ *     VERIFYING ------(VERIFY_HASH_UNKNOWN)-----/
+ *        |                                      |
+ *    (VERIFY_HASH_OK)                           |
  *        |                                      ^
- *    (download, decompress, verify              |
- *     missing buckets and history)              |
- *        |                                      |
- *        V                                      |
- *     FETCHING ---- (>0 fetches failed) --------/
- *        |                                      |
- *    (all fetches ok)                           |
- *        |                                      |
  *        V                                      |
  *     APPLYING ----- (DB errors) ---------------/
  *        |
@@ -60,6 +69,7 @@ enum CatchupState
     CATCHUP_RETRYING,
     CATCHUP_ANCHORED,
     CATCHUP_FETCHING,
+    CATCHUP_VERIFYING,
     CATCHUP_APPLYING,
     CATCHUP_END
 };
@@ -88,7 +98,6 @@ class CatchupStateMachine
     static const size_t kRetryLimit;
 
     Application& mApp;
-    uint32_t mLastLedger;
     uint32_t mInitLedger;
     uint32_t mNextLedger;
     LedgerHeaderHistoryEntry mLastClosed;
@@ -127,16 +136,18 @@ class CatchupStateMachine
     void enterAnchoredState(HistoryArchiveState const& has);
     void enterRetryingState();
     void enterFetchingState();
+    void enterVerifyingState();
     void enterApplyingState();
     void enterEndState();
 
+    HistoryMaster::VerifyHashStatus verifyHistoryFromLastClosedLedger();
     void applyBucketsAtLedger(uint32_t ledgerNum);
     void acquireFinalLedgerState(uint32_t ledgerNum);
-    void applyHistoryFromLedger(uint32_t ledgerNum);
+    void applyHistoryFromLastClosedLedger();
 
   public:
     CatchupStateMachine(
-        Application& app, uint32_t lastLedger, uint32_t initLedger,
+        Application& app, uint32_t initLedger,
         HistoryMaster::ResumeMode mode,
         std::function<
             void(asio::error_code const& ec, HistoryMaster::ResumeMode mode,
