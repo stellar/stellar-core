@@ -235,7 +235,7 @@ BucketList::addBatch(Application& app, uint32_t currLedger,
                    << ", mask(curr,half)=" << mask(currLedger, levelHalf(i-1))
                    << ", mask(curr,size)=" << mask(currLedger, levelSize(i-1));
         */
-        if (levelShouldSpill(currLedger, i - 1))
+        if (i != 0 && levelShouldSpill(currLedger, i - 1))
         {
             /**
              * At every ledger, level[0] prepares the new batch and commits
@@ -259,8 +259,18 @@ BucketList::addBatch(Application& app, uint32_t currLedger,
             //           << snap->getEntries().size()
             //           << " element snap from level " << i-1
             //           << " to level " << i;
+
+            // capture the shadow elements from level_0..level_i-2
+            // level_i-1's shadow elements need to be discarded:
+            //    shadow[L_i-1].cur (snap in this scope) is what
+            //         we're trying to merge into level_i
+            //    shadow[L_i-1].snap was already merged into
+            //         level_i (commit below)
+            auto endL_2 = shadows.end();
+            endL_2 -= 2;
+            std::vector<std::shared_ptr<Bucket>> shadowsL_2(shadows.begin(), endL_2);
             mLevels[i].commit();
-            mLevels[i].prepare(app, currLedger, snap, shadows);
+            mLevels[i].prepare(app, currLedger, snap, shadowsL_2);
         }
     }
 
