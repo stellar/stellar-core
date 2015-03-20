@@ -202,6 +202,14 @@ class Bucket::OutputIterator
     {
         assert(mOut);
         mOut.close();
+        if (mObjectsPut == 0 || mBytesPut == 0)
+        {
+            assert(mObjectsPut == 0);
+            assert(mBytesPut == 0);
+            CLOG(DEBUG, "CLF") << "Deleting empty bucket file " << mFilename;
+            std::remove(mFilename.c_str());
+            return std::make_shared<Bucket>();
+        }
         return clfMaster.adoptFileAsBucket(mFilename, mHasher.finish(),
                                            mObjectsPut, mBytesPut);
     }
