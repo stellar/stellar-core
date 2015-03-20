@@ -657,6 +657,16 @@ CatchupStateMachine::applyBucketsAtLedger(uint32_t ledgerNum)
 
     CLOG(INFO, "History") << "Applying buckets at ledger " << ledgerNum;
 
+
+    // We've verified mLastClosed (in the "trusted part of history" sense) in
+    // CATCHUP_VERIFY phase; we now need to check that the CLF hash we're
+    // about to apply is the one denoted by that ledger header.
+    if (mLastClosed.header.clfHash != mArchiveState.getBucketListHash())
+    {
+        throw std::runtime_error(
+            "catchup CLF hash differs from CLF hash in catchup ledger");
+    }
+
     // Apply buckets in reverse order, oldest bucket to new. Once we apply
     // one bucket, apply all buckets newer as well.
     for (auto i = mArchiveState.currentBuckets.rbegin();
