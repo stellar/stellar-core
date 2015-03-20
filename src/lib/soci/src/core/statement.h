@@ -43,7 +43,7 @@ public:
     void bind(values & v);
     void exchange(into_type_ptr const & i);
     void exchange(use_type_ptr const & u);
-    void clean_up();
+    void clean_up(bool freeBackend=true);
 
     void prepare(std::string const & query,
                     statement_type eType = st_repeatable_query);
@@ -155,7 +155,7 @@ public:
     void bind(values & v)                { impl_->bind(v);    }
     void exchange(details::into_type_ptr const & i);
     void exchange(details::use_type_ptr const & u);
-    void clean_up()                      { impl_->clean_up(); }
+    void clean_up(bool freeBackend=true) { impl_->clean_up(freeBackend); }
 
     void prepare(std::string const & query,
         details::statement_type eType = details::st_repeatable_query)

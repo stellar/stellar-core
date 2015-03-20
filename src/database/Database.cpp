@@ -221,6 +221,26 @@ public:
     }
 };
 
+StatementContext
+Database::getPreparedStatement(std::string const& query)
+{
+    auto i = mStatements.find(query);
+    std::shared_ptr<soci::statement> p;
+    if (i == mStatements.end())
+    {
+        p = std::make_shared<soci::statement>(mSession);
+        p->alloc();
+        p->prepare(query);
+        mStatements.insert(std::make_pair(query, p));
+    }
+    else
+    {
+        p = i->second;
+    }
+    StatementContext sc(p);
+    return sc;
+}
+
 std::shared_ptr<SQLLogContext>
 Database::captureAndLogSQL(std::string contextName)
 {
