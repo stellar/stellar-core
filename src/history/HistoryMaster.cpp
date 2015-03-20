@@ -10,7 +10,7 @@
 #include "main/Application.h"
 #include "main/Config.h"
 #include "clf/BucketList.h"
-#include "clf/CLFMaster.h"
+#include "clf/CLFManager.h"
 #include "ledger/LedgerMaster.h"
 #include "generated/StellarXDR.h"
 #include "history/HistoryArchive.h"
@@ -333,7 +333,7 @@ HistoryMaster::getLastClosedHistoryArchiveState() const
     has.currentLedger = mImpl->mApp.getLedgerMaster()
                             .getLastClosedLedgerHeader()
                             .header.ledgerSeq;
-    auto& bl = mImpl->mApp.getCLFMaster().getBucketList();
+    auto& bl = mImpl->mApp.getCLFManager().getBucketList();
     for (size_t i = 0; i < BucketList::kNumLevels; ++i)
     {
         has.currentBuckets.at(i).curr =

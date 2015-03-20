@@ -14,7 +14,7 @@
 #include "crypto/Random.h"
 #include "util/XDRStream.h"
 #include "clf/Bucket.h"
-#include "clf/CLFMaster.h"
+#include "clf/CLFManager.h"
 #include "clf/LedgerCmp.h"
 #include <cassert>
 
@@ -114,15 +114,15 @@ BucketLevel::prepare(Application& app, uint32_t currLedger,
     //CLOG(INFO, "CLF")
     //    << "Worker preparing merge of " << snap->getFilename() << " with " << snap->getFilename();
 
-    CLFMaster& clfMaster = app.getCLFMaster();
+    CLFManager& clfManager = app.getCLFManager();
     using task_t = std::packaged_task<std::shared_ptr<Bucket>()>;
     std::shared_ptr<task_t> task = std::make_shared<task_t>(
-        [curr, snap, &clfMaster, shadows]()
+        [curr, snap, &clfManager, shadows]()
         {
             //CLOG(INFO, "CLF")
             //    << "Worker merging " << snap->getFilename() << " with " << snap->getFilename();
 
-             auto res = Bucket::merge(clfMaster,
+             auto res = Bucket::merge(clfManager,
                                      (curr ? curr : std::make_shared<Bucket>()),
                                      snap, shadows);
              //CLOG(INFO, "CLF")
@@ -269,7 +269,7 @@ BucketList::addBatch(Application& app, uint32_t currLedger,
     shadows.pop_back();
     mLevels[0].prepare(
         app, currLedger,
-        Bucket::fresh(app.getCLFMaster(), liveEntries, deadEntries), shadows);
+        Bucket::fresh(app.getCLFManager(), liveEntries, deadEntries), shadows);
     mLevels[0].commit();
 }
 

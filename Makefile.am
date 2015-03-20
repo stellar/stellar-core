@@ -8,7 +8,7 @@ bin_PROGRAMS = bin/stellard
 FMT_SRCS =                                      \
     src/clf/Bucket.cpp                          \
     src/clf/BucketList.cpp                      \
-    src/clf/CLFMaster.cpp                       \
+    src/clf/CLFManagerImpl.cpp                  \
     src/clf/CLFTests.cpp                        \
     src/crypto/Base58.cpp                       \
     src/crypto/CryptoTests.cpp                  \
@@ -97,7 +97,8 @@ FMT_SRCS =                                      \
 FMT_HDRS =                                      \
     src/clf/Bucket.h                            \
     src/clf/BucketList.h                        \
-    src/clf/CLFMaster.h                         \
+    src/clf/CLFManager.h                        \
+    src/clf/CLFManagerImpl.h                    \
     src/clf/LedgerCmp.h                         \
     src/crypto/Base58.h                         \
     src/crypto/ByteSlice.h                      \

@@ -7,7 +7,7 @@
 // first to include <windows.h> -- so we try to include it before everything
 // else.
 #include "util/asio.h"
-#include "clf/CLFMaster.h"
+#include "clf/CLFManager.h"
 #include "clf/LedgerCmp.h"
 #include "crypto/Hex.h"
 #include "crypto/Random.h"
@@ -199,7 +199,7 @@ class Bucket::OutputIterator
     }
 
     std::shared_ptr<Bucket>
-    getBucket(CLFMaster& clfMaster)
+    getBucket(CLFManager& clfManager)
     {
         assert(mOut);
         mOut.close();
@@ -211,8 +211,8 @@ class Bucket::OutputIterator
             std::remove(mFilename.c_str());
             return std::make_shared<Bucket>();
         }
-        return clfMaster.adoptFileAsBucket(mFilename, mHasher->finish(),
-                                           mObjectsPut, mBytesPut);
+        return clfManager.adoptFileAsBucket(mFilename, mHasher->finish(),
+                                            mObjectsPut, mBytesPut);
     }
 };
 
@@ -276,7 +276,7 @@ Bucket::apply(Database& db) const
 }
 
 std::shared_ptr<Bucket>
-Bucket::fresh(CLFMaster& clfMaster, std::vector<LedgerEntry> const& liveEntries,
+Bucket::fresh(CLFManager& clfManager, std::vector<LedgerEntry> const& liveEntries,
               std::vector<LedgerKey> const& deadEntries)
 {
     std::vector<CLFEntry> live, dead, combined;
@@ -303,8 +303,8 @@ Bucket::fresh(CLFMaster& clfMaster, std::vector<LedgerEntry> const& liveEntries,
 
     std::sort(dead.begin(), dead.end(), CLFEntryIdCmp());
 
-    OutputIterator liveOut(clfMaster.getTmpDir());
-    OutputIterator deadOut(clfMaster.getTmpDir());
+    OutputIterator liveOut(clfManager.getTmpDir());
+    OutputIterator deadOut(clfManager.getTmpDir());
     for (auto const& e : live)
     {
         liveOut.put(e);
@@ -314,9 +314,9 @@ Bucket::fresh(CLFMaster& clfMaster, std::vector<LedgerEntry> const& liveEntries,
         deadOut.put(e);
     }
 
-    auto liveBucket = liveOut.getBucket(clfMaster);
-    auto deadBucket = deadOut.getBucket(clfMaster);
-    return Bucket::merge(clfMaster, liveBucket, deadBucket);
+    auto liveBucket = liveOut.getBucket(clfManager);
+    auto deadBucket = deadOut.getBucket(clfManager);
+    return Bucket::merge(clfManager, liveBucket, deadBucket);
 }
 
 inline void
@@ -350,7 +350,7 @@ maybe_put(CLFEntryIdCmp const& cmp, Bucket::OutputIterator& out,
 }
 
 std::shared_ptr<Bucket>
-Bucket::merge(CLFMaster& clfMaster, std::shared_ptr<Bucket> const& oldBucket,
+Bucket::merge(CLFManager& clfManager, std::shared_ptr<Bucket> const& oldBucket,
               std::shared_ptr<Bucket> const& newBucket,
               std::vector<std::shared_ptr<Bucket>> const& shadows)
 {
@@ -367,8 +367,8 @@ Bucket::merge(CLFMaster& clfMaster, std::shared_ptr<Bucket> const& oldBucket,
     std::vector<Bucket::InputIterator> shadowIterators(shadows.begin(),
                                                        shadows.end());
 
-    auto timer = clfMaster.getMergeTimer().TimeScope();
-    Bucket::OutputIterator out(clfMaster.getTmpDir());
+    auto timer = clfManager.getMergeTimer().TimeScope();
+    Bucket::OutputIterator out(clfManager.getTmpDir());
 
     CLFEntryIdCmp cmp;
     while (oi || ni)
@@ -405,6 +405,6 @@ Bucket::merge(CLFMaster& clfMaster, std::shared_ptr<Bucket> const& oldBucket,
             ++ni;
         }
     }
-    return out.getBucket(clfMaster);
+    return out.getBucket(clfManager);
 }
 }

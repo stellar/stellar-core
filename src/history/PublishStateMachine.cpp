@@ -5,7 +5,7 @@
 #include "history/PublishStateMachine.h"
 #include "clf/Bucket.h"
 #include "clf/BucketList.h"
-#include "clf/CLFMaster.h"
+#include "clf/CLFManager.h"
 #include "crypto/Hex.h"
 #include "history/HistoryArchive.h"
 #include "history/HistoryMaster.h"
@@ -337,7 +337,7 @@ StateSnapshot::StateSnapshot(Application& app)
           uint32_t(mLocalState.currentLedger /
                    HistoryMaster::kCheckpointFrequency)))
 {
-    BucketList& buckets = app.getCLFMaster().getBucketList();
+    BucketList& buckets = app.getCLFManager().getBucketList();
     for (size_t i = 0; i < buckets.numLevels(); ++i)
     {
         auto const& level = buckets.getLevel(i);

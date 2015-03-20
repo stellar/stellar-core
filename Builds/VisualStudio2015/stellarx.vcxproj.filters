@@ -288,7 +288,7 @@
     <ClCompile Include="..\..\src\lib\asio\src\asio.cpp">
       <Filter>lib</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\clf\CLFMaster.cpp">
+    <ClCompile Include="..\..\src\clf\CLFManagerImpl.cpp">
       <Filter>clf</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\lib\util\uint128_t.cpp">
@@ -632,7 +632,10 @@
     <ClInclude Include="..\..\src\overlay\PeerRecord.h">
       <Filter>overlay</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\clf\CLFMaster.h">
+    <ClInclude Include="..\..\src\clf\CLFManager.h">
+      <Filter>clf</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\clf\CLFManagerImpl.h">
       <Filter>clf</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\main\ApplicationImpl.h">

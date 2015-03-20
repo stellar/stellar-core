@@ -5,7 +5,7 @@
 #include "LedgerMaster.h"
 #include "main/Application.h"
 #include "main/Config.h"
-#include "clf/CLFMaster.h"
+#include "clf/CLFManager.h"
 #include "util/Logging.h"
 #include "lib/json/json.h"
 #include "ledger/LedgerDelta.h"
@@ -498,11 +498,11 @@ LedgerMaster::closeLedgerHelper(LedgerDelta const& delta)
 {
     mLastCloseTime = mApp.timeNow();
     delta.markMeters(mApp);
-    mApp.getCLFMaster().addBatch(mApp, mCurrentLedger->mHeader.ledgerSeq,
-                                 delta.getLiveEntries(),
-                                 delta.getDeadEntries());
+    mApp.getCLFManager().addBatch(mApp, mCurrentLedger->mHeader.ledgerSeq,
+                                  delta.getLiveEntries(),
+                                  delta.getDeadEntries());
 
-    mApp.getCLFMaster().snapshotLedger(mCurrentLedger->mHeader);
+    mApp.getCLFManager().snapshotLedger(mCurrentLedger->mHeader);
 
     mCurrentLedger->storeInsert(*this);
 

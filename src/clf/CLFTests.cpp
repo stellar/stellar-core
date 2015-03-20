@@ -9,7 +9,7 @@
 
 #include "clf/Bucket.h"
 #include "clf/BucketList.h"
-#include "clf/CLFMaster.h"
+#include "clf/CLFManager.h"
 #include "clf/LedgerCmp.h"
 #include "crypto/Hex.h"
 #include "lib/catch.hpp"
@@ -165,7 +165,7 @@ TEST_CASE("file-backed buckets", "[clf]")
     for (auto& e : dead)
         e = deadGen(3);
     CLOG(DEBUG, "CLF") << "Hashing entries";
-    std::shared_ptr<Bucket> b1 = Bucket::fresh(app->getCLFMaster(), live, dead);
+    std::shared_ptr<Bucket> b1 = Bucket::fresh(app->getCLFManager(), live, dead);
     for (size_t i = 0; i < 5; ++i)
     {
         CLOG(DEBUG, "CLF") << "Merging 10000 new ledger entries into "
@@ -176,8 +176,8 @@ TEST_CASE("file-backed buckets", "[clf]")
             e = deadGen(3);
         {
             TIMED_SCOPE(timerObj2, "merge");
-            b1 = Bucket::merge(app->getCLFMaster(), b1,
-                               Bucket::fresh(app->getCLFMaster(), live, dead));
+            b1 = Bucket::merge(app->getCLFManager(), b1,
+                               Bucket::fresh(app->getCLFManager(), live, dead));
         }
     }
     CLOG(DEBUG, "CLF") << "Spill file size: " << fileSize(b1->getFilename());
@@ -207,7 +207,7 @@ TEST_CASE("merging clf entries", "[clf]")
         std::vector<LedgerEntry> live{liveEntry};
         std::vector<LedgerKey> dead{deadEntry};
         std::shared_ptr<Bucket> b1 =
-            Bucket::fresh(app->getCLFMaster(), live, dead);
+            Bucket::fresh(app->getCLFManager(), live, dead);
         CHECK(countEntries(b1) == 1);
     }
 
@@ -221,7 +221,7 @@ TEST_CASE("merging clf entries", "[clf]")
         std::vector<LedgerEntry> live{liveEntry};
         std::vector<LedgerKey> dead{deadEntry};
         std::shared_ptr<Bucket> b1 =
-            Bucket::fresh(app->getCLFMaster(), live, dead);
+            Bucket::fresh(app->getCLFManager(), live, dead);
         CHECK(countEntries(b1) == 1);
     }
 
@@ -235,7 +235,7 @@ TEST_CASE("merging clf entries", "[clf]")
         std::vector<LedgerEntry> live{liveEntry};
         std::vector<LedgerKey> dead{deadEntry};
         std::shared_ptr<Bucket> b1 =
-            Bucket::fresh(app->getCLFMaster(), live, dead);
+            Bucket::fresh(app->getCLFManager(), live, dead);
         CHECK(countEntries(b1) == 1);
     }
 
@@ -252,7 +252,7 @@ TEST_CASE("merging clf entries", "[clf]")
             }
         }
         std::shared_ptr<Bucket> b1 =
-            Bucket::fresh(app->getCLFMaster(), live, dead);
+            Bucket::fresh(app->getCLFManager(), live, dead);
         CHECK(countEntries(b1) == live.size());
         auto liveCount = b1->countLiveAndDeadEntries().first;
         CLOG(DEBUG, "CLF") << "post-merge live count: " << liveCount << " of "
@@ -269,7 +269,7 @@ TEST_CASE("merging clf entries", "[clf]")
             e = leGen(10);
         }
         std::shared_ptr<Bucket> b1 =
-            Bucket::fresh(app->getCLFMaster(), live, dead);
+            Bucket::fresh(app->getCLFManager(), live, dead);
         std::random_shuffle(live.begin(), live.end());
         size_t liveCount = live.size();
         for (auto& e : live)
@@ -281,8 +281,8 @@ TEST_CASE("merging clf entries", "[clf]")
             }
         }
         std::shared_ptr<Bucket> b2 =
-            Bucket::fresh(app->getCLFMaster(), live, dead);
-        std::shared_ptr<Bucket> b3 = Bucket::merge(app->getCLFMaster(), b1, b2);
+            Bucket::fresh(app->getCLFManager(), live, dead);
+        std::shared_ptr<Bucket> b3 = Bucket::merge(app->getCLFManager(), b1, b2);
         CHECK(countEntries(b3) == liveCount);
     }
 }
@@ -301,25 +301,25 @@ TEST_CASE("clfmaster ownership", "[clf][ownershipclf]")
 
     {
         std::shared_ptr<Bucket> b2 =
-            Bucket::fresh(app->getCLFMaster(), live, dead);
+            Bucket::fresh(app->getCLFManager(), live, dead);
         b1 = b2;
 
-        // Bucket is referenced by b1, b2 and the CLFMaster.
+        // Bucket is referenced by b1, b2 and the CLFManager.
         CHECK(b1.use_count() == 3);
 
         std::shared_ptr<Bucket> b3 =
-            Bucket::fresh(app->getCLFMaster(), live, dead);
+            Bucket::fresh(app->getCLFManager(), live, dead);
         std::shared_ptr<Bucket> b4 =
-            Bucket::fresh(app->getCLFMaster(), live, dead);
-        // Bucket is referenced by b1, b2, b3, b4 and the CLFMaster.
+            Bucket::fresh(app->getCLFManager(), live, dead);
+        // Bucket is referenced by b1, b2, b3, b4 and the CLFManager.
         CHECK(b1.use_count() == 5);
     }
 
-    // Bucket is now only referenced by b1 and the CLFMaster.
+    // Bucket is now only referenced by b1 and the CLFManager.
     CHECK(b1.use_count() == 2);
 
-    // Drop CLFMaster's reference, down to just b1.
-    app->getCLFMaster().forgetUnreferencedBuckets();
+    // Drop CLFManager's reference, down to just b1.
+    app->getCLFManager().forgetUnreferencedBuckets();
     CHECK(b1.use_count() == 1);
 
     // Drop it too.
@@ -328,24 +328,24 @@ TEST_CASE("clfmaster ownership", "[clf][ownershipclf]")
     b1.reset();
     CHECK(!fs::exists(filename));
 
-    // Try adding a bucket to the CLFMaster's bucketlist
-    auto& bl = app->getCLFMaster().getBucketList();
+    // Try adding a bucket to the CLFManager's bucketlist
+    auto& bl = app->getCLFManager().getBucketList();
     bl.addBatch(*app, 1, live, dead);
     b1 = bl.getLevel(0).getCurr();
 
-    // Bucket should be referenced by bucketlist itself, CLFMaster cache and b1.
+    // Bucket should be referenced by bucketlist itself, CLFManager cache and b1.
     CHECK(b1.use_count() == 3);
 
     // This shouldn't change if we forget unreferenced buckets since it's
     // referenced by bucketlist.
-    app->getCLFMaster().forgetUnreferencedBuckets();
+    app->getCLFManager().forgetUnreferencedBuckets();
     CHECK(b1.use_count() == 3);
 
     // But if we mutate the curr bucket of the bucketlist, it should.
     live[0] = leGen(10);
     bl.addBatch(*app, 1, live, dead);
     CHECK(b1.use_count() == 2);
-    app->getCLFMaster().forgetUnreferencedBuckets();
+    app->getCLFManager().forgetUnreferencedBuckets();
     CHECK(b1.use_count() == 1);
 
     // Drop it again.

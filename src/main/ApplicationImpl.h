@@ -13,7 +13,7 @@ class TmpDirMaster;
 class PeerMaster;
 class LedgerMaster;
 class Herder;
-class CLFMaster;
+class CLFManager;
 class HistoryMaster;
 class ProcessMaster;
 class CommandHandler;
@@ -36,7 +36,7 @@ class ApplicationImpl : public Application
     virtual TmpDirMaster& getTmpDirMaster() override;
     virtual LedgerGateway& getLedgerGateway() override;
     virtual LedgerMaster& getLedgerMaster() override;
-    virtual CLFMaster& getCLFMaster() override;
+    virtual CLFManager& getCLFManager() override;
     virtual HistoryMaster& getHistoryMaster() override;
     virtual ProcessGateway& getProcessGateway() override;
     virtual HerderGateway& getHerderGateway() override;
@@ -94,7 +94,7 @@ class ApplicationImpl : public Application
     std::unique_ptr<PeerMaster> mPeerMaster;
     std::unique_ptr<LedgerMaster> mLedgerMaster;
     std::unique_ptr<Herder> mHerder;
-    std::unique_ptr<CLFMaster> mCLFMaster;
+    std::unique_ptr<CLFManager> mCLFManager;
     std::unique_ptr<HistoryMaster> mHistoryMaster;
     std::unique_ptr<ProcessMaster> mProcessMaster;
     std::unique_ptr<CommandHandler> mCommandHandler;

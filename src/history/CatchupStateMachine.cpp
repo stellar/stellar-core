@@ -6,7 +6,7 @@
 #include "history/HistoryMaster.h"
 #include "history/FileTransferInfo.h"
 
-#include "clf/CLFMaster.h"
+#include "clf/CLFManager.h"
 #include "clf/BucketList.h"
 #include "crypto/Hex.h"
 #include "main/Application.h"
@@ -198,7 +198,7 @@ CatchupStateMachine::enterFetchingState()
             std::shared_ptr<Bucket> b;
             if (!hashname.empty())
             {
-                b = mApp.getCLFMaster().getBucketByHash(hash);
+                b = mApp.getCLFManager().getBucketByHash(hash);
             }
             if (b)
             {
@@ -264,7 +264,7 @@ CatchupStateMachine::enterFetchingState()
                               {
                     if (!ec)
                     {
-                        auto b = this->mApp.getCLFMaster().adoptFileAsBucket(
+                        auto b = this->mApp.getCLFManager().adoptFileAsBucket(
                             filename, hash);
                         this->mBuckets[hashname] = b;
                     }
@@ -640,7 +640,7 @@ CatchupStateMachine::getBucketToApply(std::string const& hash)
         }
         else
         {
-            b = mApp.getCLFMaster().getBucketByHash(hexToBin256(hash));
+            b = mApp.getCLFManager().getBucketByHash(hexToBin256(hash));
         }
     }
     assert(b);
@@ -651,7 +651,7 @@ void
 CatchupStateMachine::applyBucketsAtLedger(uint32_t ledgerNum)
 {
     auto& db = mApp.getDatabase();
-    auto& bl = mApp.getCLFMaster().getBucketList();
+    auto& bl = mApp.getCLFManager().getBucketList();
     auto n = BucketList::kNumLevels;
     bool applying = false;
 
