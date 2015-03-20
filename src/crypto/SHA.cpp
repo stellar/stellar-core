@@ -5,6 +5,8 @@
 #include "crypto/SHA.h"
 #include "crypto/ByteSlice.h"
 #include <sodium.h>
+#include "util/make_unique.h"
+#include "util/NonCopyable.h"
 
 namespace stellar
 {
@@ -21,55 +23,57 @@ sha256(ByteSlice const& bin)
     return out;
 }
 
-struct SHA256::Impl
+class SHA256Impl : public SHA256, NonCopyable
 {
     crypto_hash_sha256_state mState;
     bool mFinished;
-
-    Impl() : mFinished(false)
-    {
-        if (crypto_hash_sha256_init(&mState) != 0)
-        {
-            throw std::runtime_error("error from crypto_hash_sha256_init");
-        }
-    }
+public:
+    SHA256Impl();
+    void add(ByteSlice const& bin) override;
+    uint256 finish() override;
 };
 
-SHA256::SHA256() : mImpl(new Impl())
+std::unique_ptr<SHA256>
+SHA256::create()
 {
+    return make_unique<SHA256Impl>();
 }
 
-SHA256::~SHA256()
+SHA256Impl::SHA256Impl()
+    : mFinished(false)
 {
+    if (crypto_hash_sha256_init(&mState) != 0)
+    {
+        throw std::runtime_error("error from crypto_hash_sha256_init");
+    }
 }
 
 void
-SHA256::add(ByteSlice const& bin)
+SHA256Impl::add(ByteSlice const& bin)
 {
-    if (mImpl->mFinished)
+    if (mFinished)
     {
         throw std::runtime_error("adding bytes to finished SHA256");
     }
-    if (crypto_hash_sha256_update(&mImpl->mState, bin.data(), bin.size()) != 0)
+    if (crypto_hash_sha256_update(&mState, bin.data(), bin.size()) != 0)
     {
         throw std::runtime_error("error from crypto_hash_sha256_update");
     }
 }
 
 uint256
-SHA256::finish()
+SHA256Impl::finish()
 {
-    unsigned char out[crypto_hash_sha256_BYTES];
-    if (mImpl->mFinished)
+    uint256 out;
+    assert(out.size() == crypto_hash_sha256_BYTES);
+    if (mFinished)
     {
         throw std::runtime_error("finishing already-finished SHA256");
     }
-    if (crypto_hash_sha256_final(&mImpl->mState, out) != 0)
+    if (crypto_hash_sha256_final(&mState, out.data()) != 0)
     {
         throw std::runtime_error("error from crypto_hash_sha256_final");
     }
-    uint256 trunc;
-    std::copy(out, out + crypto_hash_sha256_BYTES, trunc.begin());
-    return trunc;
+    return out;
 }
 }

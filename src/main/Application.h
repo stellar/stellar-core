@@ -23,7 +23,7 @@ class Config;
 class TmpDirMaster;
 class LedgerGateway;
 class LedgerMaster;
-class CLFMaster;
+class CLFManager;
 class HistoryMaster;
 class ProcessGateway;
 class HerderGateway;
@@ -104,7 +104,7 @@ class Application
     virtual TmpDirMaster& getTmpDirMaster() = 0;
     virtual LedgerGateway& getLedgerGateway() = 0;
     virtual LedgerMaster& getLedgerMaster() = 0;
-    virtual CLFMaster& getCLFMaster() = 0;
+    virtual CLFManager& getCLFManager() = 0;
     virtual HistoryMaster& getHistoryMaster() = 0;
     virtual ProcessGateway& getProcessGateway() = 0;
     virtual HerderGateway& getHerderGateway() = 0;

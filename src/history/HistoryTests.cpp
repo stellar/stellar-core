@@ -7,7 +7,7 @@
 #include "history/HistoryArchive.h"
 #include "main/test.h"
 #include "main/Config.h"
-#include "clf/CLFMaster.h"
+#include "clf/CLFManager.h"
 #include "clf/BucketList.h"
 #include "crypto/Hex.h"
 #include "lib/catch.hpp"
@@ -296,9 +296,9 @@ HistoryTests::generateRandomLedger()
     mLedgerSeqs.push_back(lm.getLastClosedLedgerHeader().header.ledgerSeq);
     mLedgerHashes.push_back(lm.getLastClosedLedgerHeader().hash);
     mBucket0Hashes.push_back(
-        app.getCLFMaster().getBucketList().getLevel(0).getCurr()->getHash());
+        app.getCLFManager().getBucketList().getLevel(0).getCurr()->getHash());
     mBucket1Hashes.push_back(
-        app.getCLFMaster().getBucketList().getLevel(2).getCurr()->getHash());
+        app.getCLFManager().getBucketList().getLevel(2).getCurr()->getHash());
 
     mRootBalances.push_back(txtest::getAccountBalance(mRoot, app));
     mAliceBalances.push_back(txtest::getAccountBalance(mAlice, app));
@@ -490,9 +490,9 @@ HistoryTests::catchupApplication(uint32_t initLedger,
     auto haveSeq = lm.getLastClosedLedgerHeader().header.ledgerSeq;
     auto haveHash = lm.getLastClosedLedgerHeader().hash;
     auto haveBucket0Hash =
-        app2->getCLFMaster().getBucketList().getLevel(0).getCurr()->getHash();
+        app2->getCLFManager().getBucketList().getLevel(0).getCurr()->getHash();
     auto haveBucket1Hash =
-        app2->getCLFMaster().getBucketList().getLevel(2).getCurr()->getHash();
+        app2->getCLFManager().getBucketList().getLevel(2).getCurr()->getHash();
 
     CLOG(INFO, "History") << "Caught up: want Seq[" << i << "] = " << wantSeq;
     CLOG(INFO, "History") << "Caught up: have Seq[" << i << "] = " << haveSeq;
@@ -516,8 +516,8 @@ HistoryTests::catchupApplication(uint32_t initLedger,
     CHECK(wantSeq == haveSeq);
     CHECK(wantHash == haveHash);
 
-    CHECK(app2->getCLFMaster().getBucketByHash(wantBucket0Hash));
-    CHECK(app2->getCLFMaster().getBucketByHash(wantBucket1Hash));
+    CHECK(app2->getCLFManager().getBucketByHash(wantBucket0Hash));
+    CHECK(app2->getCLFManager().getBucketByHash(wantBucket1Hash));
     CHECK(wantBucket0Hash == haveBucket0Hash);
     CHECK(wantBucket1Hash == haveBucket1Hash);
 

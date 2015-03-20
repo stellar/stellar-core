@@ -17,13 +17,10 @@ uint256 sha256(ByteSlice const& bin);
 // SHA256 in incremental mode, for large inputs.
 class SHA256
 {
-    struct Impl;
-    std::unique_ptr<Impl> mImpl;
-
   public:
-    SHA256();
-    ~SHA256();
-    void add(ByteSlice const& bin);
-    uint256 finish();
+    static std::unique_ptr<SHA256> create();
+    virtual ~SHA256() {};
+    virtual void add(ByteSlice const& bin) = 0;
+    virtual uint256 finish() = 0;
 };
 }

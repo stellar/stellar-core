@@ -21,7 +21,7 @@ namespace stellar
  * merged in sorted order, and all elements are hashed while being added.
  */
 
-class CLFMaster;
+class CLFManager;
 class Database;
 
 class Bucket : public std::enable_shared_from_this<Bucket>
@@ -48,11 +48,11 @@ class Bucket : public std::enable_shared_from_this<Bucket>
     void apply(Database& db) const;
 
     static std::shared_ptr<Bucket>
-    fresh(CLFMaster& clfMaster, std::vector<LedgerEntry> const& liveEntries,
+    fresh(CLFManager& clfManager, std::vector<LedgerEntry> const& liveEntries,
           std::vector<LedgerKey> const& deadEntries);
 
     static std::shared_ptr<Bucket>
-    merge(CLFMaster& clfMaster, std::shared_ptr<Bucket> const& oldBucket,
+    merge(CLFManager& clfManager, std::shared_ptr<Bucket> const& oldBucket,
           std::shared_ptr<Bucket> const& newBucket,
           std::vector<std::shared_ptr<Bucket>> const& shadows =
               std::vector<std::shared_ptr<Bucket>>());

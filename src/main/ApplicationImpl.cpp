@@ -13,7 +13,7 @@
 #include "herder/Herder.h"
 #include "overlay/OverlayGateway.h"
 #include "overlay/PeerMaster.h"
-#include "clf/CLFMaster.h"
+#include "clf/CLFManager.h"
 #include "history/HistoryMaster.h"
 #include "database/Database.h"
 #include "process/ProcessMaster.h"
@@ -80,7 +80,7 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
     mPeerMaster = make_unique<PeerMaster>(*this);
     mLedgerMaster = make_unique<LedgerMaster>(*this);
     mHerder = make_unique<Herder>(*this);
-    mCLFMaster = make_unique<CLFMaster>(*this);
+    mCLFManager = CLFManager::create(*this);
     mHistoryMaster = make_unique<HistoryMaster>(*this);
     mProcessMaster = make_unique<ProcessMaster>(*this);
     mCommandHandler = make_unique<CommandHandler>(*this);
@@ -320,10 +320,10 @@ ApplicationImpl::getLedgerMaster()
     return *mLedgerMaster;
 }
 
-CLFMaster&
-ApplicationImpl::getCLFMaster()
+CLFManager&
+ApplicationImpl::getCLFManager()
 {
-    return *mCLFMaster;
+    return *mCLFManager;
 }
 
 HistoryMaster&

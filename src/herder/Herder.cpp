@@ -261,17 +261,17 @@ Herder::compareValues(const uint64& slotIndex, const uint32& ballotCounter,
     // function used, a new monarch is coronated for each round of SCP (ballot
     // counter) and each slotIndex.
 
-    SHA256 s1;
-    s1.add(xdr::xdr_to_opaque(slotIndex));
-    s1.add(xdr::xdr_to_opaque(ballotCounter));
-    s1.add(xdr::xdr_to_opaque(b1.nodeID));
-    auto h1 = s1.finish();
+    auto s1 = SHA256::create();
+    s1->add(xdr::xdr_to_opaque(slotIndex));
+    s1->add(xdr::xdr_to_opaque(ballotCounter));
+    s1->add(xdr::xdr_to_opaque(b1.nodeID));
+    auto h1 = s1->finish();
 
-    SHA256 s2;
-    s2.add(xdr::xdr_to_opaque(slotIndex));
-    s2.add(xdr::xdr_to_opaque(ballotCounter));
-    s2.add(xdr::xdr_to_opaque(b2.nodeID));
-    auto h2 = s2.finish();
+    auto s2 = SHA256::create();
+    s2->add(xdr::xdr_to_opaque(slotIndex));
+    s2->add(xdr::xdr_to_opaque(ballotCounter));
+    s2->add(xdr::xdr_to_opaque(b2.nodeID));
+    auto h2 = s2->finish();
 
     if (h1 < h2)
         return -1;
@@ -365,17 +365,17 @@ Herder::validateBallot(const uint64& slotIndex, const uint256& nodeID,
             isTrusted = true;
         }
 
-        SHA256 sProposed;
-        sProposed.add(xdr::xdr_to_opaque(slotIndex));
-        sProposed.add(xdr::xdr_to_opaque(ballot.counter));
-        sProposed.add(xdr::xdr_to_opaque(b.nodeID));
-        auto hProposed = sProposed.finish();
+        auto sProposed = SHA256::create();
+        sProposed->add(xdr::xdr_to_opaque(slotIndex));
+        sProposed->add(xdr::xdr_to_opaque(ballot.counter));
+        sProposed->add(xdr::xdr_to_opaque(b.nodeID));
+        auto hProposed = sProposed->finish();
 
-        SHA256 sContender;
-        sContender.add(xdr::xdr_to_opaque(slotIndex));
-        sContender.add(xdr::xdr_to_opaque(ballot.counter));
-        sContender.add(xdr::xdr_to_opaque(vID));
-        auto hContender = sContender.finish();
+        auto sContender = SHA256::create();
+        sContender->add(xdr::xdr_to_opaque(slotIndex));
+        sContender->add(xdr::xdr_to_opaque(ballot.counter));
+        sContender->add(xdr::xdr_to_opaque(vID));
+        auto hContender = sContender->finish();
 
         // A ballot is king (locally) only if it is higher than any potential
         // ballots from nodes in our qSet.

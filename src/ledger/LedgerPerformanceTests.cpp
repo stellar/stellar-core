@@ -16,7 +16,7 @@
 #include "simulation/Simulation.h"
 #include <soci.h>
 #include "crypto/Base58.h"
-#include "clf/CLFMaster.h"
+#include "clf/CLFManager.h"
 
 using namespace stellar;
 using namespace std;
@@ -129,7 +129,7 @@ TEST_CASE("ledger performance test", "[ledger][performance][hide]")
 
         
     Timer& ledgerTimer = sim.mApp->getMetrics().NewTimer({ "performance-test", "ledger", "close" });
-    Timer& mergeTimer = sim.mApp->getCLFMaster().getMergeTimer();
+    Timer& mergeTimer = sim.mApp->getCLFManager().getMergeTimer();
     for (int iAccounts = 1000; iAccounts < nAccounts; iAccounts *= 10)
     {
         ledgerTimer.Clear();

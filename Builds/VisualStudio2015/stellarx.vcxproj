@@ -141,7 +141,7 @@
   <ItemGroup>
     <ClCompile Include="..\..\src\clf\Bucket.cpp" />
     <ClCompile Include="..\..\src\clf\BucketList.cpp" />
-    <ClCompile Include="..\..\src\clf\CLFMaster.cpp" />
+    <ClCompile Include="..\..\src\clf\CLFManagerImpl.cpp" />
     <ClCompile Include="..\..\src\clf\CLFTests.cpp" />
     <ClCompile Include="..\..\src\crypto\Base58.cpp" />
     <ClCompile Include="..\..\src\crypto\CryptoTests.cpp" />
@@ -279,7 +279,8 @@
   <ItemGroup>
     <ClInclude Include="..\..\src\clf\Bucket.h" />
     <ClInclude Include="..\..\src\clf\BucketList.h" />
-    <ClInclude Include="..\..\src\clf\CLFMaster.h" />
+    <ClInclude Include="..\..\src\clf\CLFManager.h" />
+    <ClInclude Include="..\..\src\clf\CLFManagerImpl.h" />
     <ClInclude Include="..\..\src\clf\LedgerCmp.h" />
     <ClInclude Include="..\..\src\crypto\Base58.h" />
     <ClInclude Include="..\..\src\crypto\ByteSlice.h" />

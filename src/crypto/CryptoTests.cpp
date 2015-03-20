@@ -84,6 +84,20 @@ TEST_CASE("SHA256 tests", "[crypto]")
     }
 }
 
+TEST_CASE("Stateful SHA256 tests", "[crypto]")
+{
+    // Do some fixed test vectors.
+    for (auto const& pair : sha256TestVectors)
+    {
+        LOG(DEBUG) << "fixed test vector SHA256: \"" << pair.second << "\"";
+        auto h = SHA256::create();
+        h->add(pair.first);
+        auto hash = binToHex(h->finish());
+        CHECK(hash.size() == pair.second.size());
+        CHECK(hash == pair.second);
+    }
+}
+
 // Note: the fixed test vectors are based on the bitcoin alphabet; the stellar /
 // ripple alphabet is a permutation of it. But these ought to test the algorithm
 // relatively well and have been cross-checked against several implementations

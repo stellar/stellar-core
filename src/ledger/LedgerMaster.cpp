@@ -5,7 +5,7 @@
 #include "LedgerMaster.h"
 #include "main/Application.h"
 #include "main/Config.h"
-#include "clf/CLFMaster.h"
+#include "clf/CLFManager.h"
 #include "util/Logging.h"
 #include "lib/json/json.h"
 #include "ledger/LedgerDelta.h"
@@ -422,7 +422,7 @@ LedgerMaster::closeLedger(LedgerCloseData ledgerData)
     vector<TransactionFramePtr> txs = ledgerData.mTxSet->sortForApply();
     int index = 0;
 
-    SHA256 txResultHasher;
+    auto txResultHasher = SHA256::create();
     for (auto tx : txs)
     {
         auto txTime = mTransactionApply.TimeScope();
@@ -453,7 +453,7 @@ LedgerMaster::closeLedger(LedgerCloseData ledgerData)
                 CLOG(ERROR, "Tx")
                     << "Result: " << xdr::xdr_to_string(tx->getResult());
             }
-            tx->storeTransaction(*this, delta, ++index, txResultHasher);
+            tx->storeTransaction(*this, delta, ++index, *txResultHasher);
         }
         catch (std::runtime_error& e)
         {
@@ -468,7 +468,7 @@ LedgerMaster::closeLedger(LedgerCloseData ledgerData)
     mCurrentLedger->mHeader.baseFee = ledgerData.mBaseFee;
     mCurrentLedger->mHeader.closeTime = ledgerData.mCloseTime;
     mCurrentLedger->mHeader.txSetHash = ledgerData.mTxSet->getContentsHash();
-    mCurrentLedger->mHeader.txSetResultHash = txResultHasher.finish();
+    mCurrentLedger->mHeader.txSetResultHash = txResultHasher->finish();
     closeLedgerHelper(ledgerDelta);
     txscope.commit();
 
@@ -498,11 +498,11 @@ LedgerMaster::closeLedgerHelper(LedgerDelta const& delta)
 {
     mLastCloseTime = mApp.timeNow();
     delta.markMeters(mApp);
-    mApp.getCLFMaster().addBatch(mApp, mCurrentLedger->mHeader.ledgerSeq,
-                                 delta.getLiveEntries(),
-                                 delta.getDeadEntries());
+    mApp.getCLFManager().addBatch(mApp, mCurrentLedger->mHeader.ledgerSeq,
+                                  delta.getLiveEntries(),
+                                  delta.getDeadEntries());
 
-    mApp.getCLFMaster().snapshotLedger(mCurrentLedger->mHeader);
+    mApp.getCLFManager().snapshotLedger(mCurrentLedger->mHeader);
 
     mCurrentLedger->storeInsert(*this);
 
