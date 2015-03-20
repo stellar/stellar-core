@@ -329,19 +329,19 @@ HistoryTests::generateAndPublishHistory(size_t nPublishes)
             ++ledgerSeq;
         }
 
-        CHECK(lm.getCurrentLedgerHeader().ledgerSeq == ledgerSeq);
+        REQUIRE(lm.getCurrentLedgerHeader().ledgerSeq == ledgerSeq);
 
         // Advance until we've published (or failed to!)
         while (hm.getPublishSuccessCount() < hm.getPublishQueueCount())
         {
-            CHECK(hm.getPublishFailureCount() == 0);
+            REQUIRE(hm.getPublishFailureCount() == 0);
             app.getClock().crank(false);
         }
     }
 
-    CHECK(hm.getPublishFailureCount() == 0);
-    CHECK(hm.getPublishSuccessCount() == publishSuccesses + nPublishes);
-    CHECK(lm.getLedgerNum() ==
+    REQUIRE(hm.getPublishFailureCount() == 0);
+    REQUIRE(hm.getPublishSuccessCount() == publishSuccesses + nPublishes);
+    REQUIRE(lm.getLedgerNum() ==
           ((publishSuccesses + nPublishes) * HistoryMaster::kCheckpointFrequency));
 }
 
