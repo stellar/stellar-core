@@ -657,6 +657,16 @@ CatchupStateMachine::applyBucketsAtLedger(uint32_t ledgerNum)
 
     CLOG(INFO, "History") << "Applying buckets at ledger " << ledgerNum;
 
+
+    // We've verified mLastClosed (in the "trusted part of history" sense) in
+    // CATCHUP_VERIFY phase; we now need to check that the CLF hash we're
+    // about to apply is the one denoted by that ledger header.
+    if (mLastClosed.header.clfHash != mArchiveState.getBucketListHash())
+    {
+        throw std::runtime_error(
+            "catchup CLF hash differs from CLF hash in catchup ledger");
+    }
+
     // Apply buckets in reverse order, oldest bucket to new. Once we apply
     // one bucket, apply all buckets newer as well.
     for (auto i = mArchiveState.currentBuckets.rbegin();
@@ -805,7 +815,6 @@ CatchupStateMachine::applyHistoryFromLastClosedLedger()
                 throw std::runtime_error(
                     "replay at current ledger disagreed on LCL hash");
             }
-
             TxSetFramePtr txset = std::make_shared<TxSetFrame>(
                 lm.getLastClosedLedgerHeader().hash);
             if (!readTxSet)
@@ -829,6 +838,17 @@ CatchupStateMachine::applyHistoryFromLastClosedLedger()
             }
             CLOG(DEBUG, "History") << "Ledger " << header.ledgerSeq << " has "
                                    << txset->size() << " transactions";
+
+            // We've verified the ledgerHeader (in the "trusted part of history"
+            // sense) in CATCHUP_VERIFY phase; we now need to check that the
+            // txhash we're about to apply is the one denoted by that ledger
+            // header.
+            if (header.txSetHash != txset->getContentsHash())
+            {
+                throw std::runtime_error(
+                    "replay txset hash differs from txset hash in replay ledger");
+            }
+
             LedgerCloseData closeData(header.ledgerSeq, txset, header.closeTime,
                                       header.baseFee);
             lm.closeLedger(closeData);

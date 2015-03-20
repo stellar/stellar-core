@@ -9,6 +9,7 @@
 #include "history/HistoryArchive.h"
 #include "clf/BucketList.h"
 #include "crypto/Hex.h"
+#include "crypto/SHA.h"
 #include "history/HistoryMaster.h"
 #include "history/FileTransferInfo.h"
 #include "process/ProcessGateway.h"
@@ -93,6 +94,29 @@ std::string
 HistoryArchiveState::localName(Application& app, std::string const& archiveName)
 {
     return app.getHistoryMaster().localFilename(archiveName + "-" + baseName());
+}
+
+Hash
+HistoryArchiveState::getBucketListHash()
+{
+    // NB: This hash algorithm has to match "what the CLF does" to calculate its
+    // BucketList hash exactly. It's not a particularly complex algorithm --
+    // just hash all the hashes of all the bucket levels, in order, with each
+    // level-hash being the hash of its curr bucket then its snap bucket -- but
+    // we duplicate the logic here because it honestly seems like it'd be less
+    // readable to try to abstract the code between the two relatively-different
+    // representations. Everything will explode if there is any difference in
+    // these algorithms anyways, so..
+
+    SHA256 totalHash;
+    for (auto const& level : currentBuckets)
+    {
+        SHA256 levelHash;
+        levelHash.add(hexToBin(level.curr));
+        levelHash.add(hexToBin(level.snap));
+        totalHash.add(levelHash.finish());
+    }
+    return totalHash.finish();
 }
 
 std::vector<std::string>

@@ -4,6 +4,7 @@
 #include <string>
 #include <system_error>
 #include <memory>
+#include "generated/Stellar-types.h"
 
 namespace asio
 {
@@ -50,6 +51,11 @@ struct HistoryArchiveState
     static std::string remoteName(uint32_t snapshotNumber);
     static std::string localName(Application& app,
                                  std::string const& archiveName);
+
+
+    // Return cumulative hash of the bucketlist (a.k.a. clfHash) for this
+    // archive state.
+    Hash getBucketListHash();
 
     // Return vector of buckets to fetch/apply to turn 'other' into 'this'.
     // Vector
