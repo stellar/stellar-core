@@ -52,6 +52,7 @@ BucketLevel::getSnap() const
 void
 BucketLevel::setCurr(std::shared_ptr<Bucket> b)
 {
+    mNextCurr = std::future<std::shared_ptr<Bucket>>();
     mCurr = b;
 }
 
@@ -126,7 +127,6 @@ BucketLevel::prepare(Application& app, uint32_t currLedger,
                                      snap, shadows);
              //CLOG(INFO, "CLF")
              //    << "Worker finished merging " << snap->getFilename() << " with " << snap->getFilename();
-             
              return res;
         });
 
