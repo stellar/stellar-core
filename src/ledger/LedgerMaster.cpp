@@ -45,7 +45,6 @@ catching up to network:
 ledger
 
     // TODO.3 we need to store some validation history?
-    // TODO.1 wire up catch up. turn off ledger close when catching up.
     // TODO.3 better way to handle quorums when you are booting a network for
 instance if all nodes fail.
 

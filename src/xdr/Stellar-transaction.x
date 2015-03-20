@@ -251,7 +251,8 @@ namespace ChangeTrust
 enum ChangeTrustResultCode
 {
     SUCCESS = 0,
-    NO_ACCOUNT = 1
+    NO_ACCOUNT = 1,
+    INVALID_LIMIT =2
 };
 
 union ChangeTrustResult switch(ChangeTrustResultCode code)
