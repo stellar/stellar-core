@@ -600,9 +600,9 @@ CatchupStateMachine::enterApplyingState()
 
     if (mMode == HistoryMaster::RESUME_AT_NEXT)
     {
-        // In RESUME_AT_NEXT mode we're applying the _state_ at mNextLedger
+        // In RESUME_AT_NEXT mode we're applying the _state_ at mLastClosed
         // without any history replay.
-        applyBucketsAtLedger(mNextLedger);
+        applyBucketsAtLastClosedLedger();
     }
     else
     {
@@ -648,14 +648,15 @@ CatchupStateMachine::getBucketToApply(std::string const& hash)
 }
 
 void
-CatchupStateMachine::applyBucketsAtLedger(uint32_t ledgerNum)
+CatchupStateMachine::applyBucketsAtLastClosedLedger()
 {
     auto& db = mApp.getDatabase();
     auto& bl = mApp.getCLFManager().getBucketList();
     auto n = BucketList::kNumLevels;
     bool applying = false;
 
-    CLOG(INFO, "History") << "Applying buckets at ledger " << ledgerNum;
+    CLOG(INFO, "History") << "Applying buckets at ledger "
+                          << mLastClosed.header.ledgerSeq;
 
 
     // We've verified mLastClosed (in the "trusted part of history" sense) in
@@ -666,6 +667,11 @@ CatchupStateMachine::applyBucketsAtLedger(uint32_t ledgerNum)
         throw std::runtime_error(
             "catchup CLF hash differs from CLF hash in catchup ledger");
     }
+
+    assert(mArchiveState.currentLedger == mLastClosed.header.ledgerSeq);
+
+    CLOG(INFO, "History") << "Archive clfHash: " << hexAbbrev(mArchiveState.getBucketListHash());
+    CLOG(INFO, "History") << "mLastClosed clfHash: " << hexAbbrev(mLastClosed.header.clfHash);
 
     // Apply buckets in reverse order, oldest bucket to new. Once we apply
     // one bucket, apply all buckets newer as well.
@@ -697,6 +703,9 @@ CatchupStateMachine::applyBucketsAtLedger(uint32_t ledgerNum)
             applying = true;
         }
     }
+
+    // Start the merges we need to have completed to resume running at LCL
+    bl.restartMerges(mApp, mLastClosed.header.ledgerSeq);
 }
 
 void
@@ -764,6 +773,9 @@ CatchupStateMachine::applyHistoryFromLastClosedLedger()
         LedgerHeader& header = hHeader.header;
         TransactionHistoryEntry txHistoryEntry;
         bool readTxSet = false;
+
+        // Start the merges we need to have completed to play transactions forward from LCL
+        mApp.getCLFManager().getBucketList().restartMerges(mApp, lm.getLastClosedLedgerNum());
 
         while (hdrIn && hdrIn.readOne(hHeader))
         {
