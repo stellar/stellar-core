@@ -18,7 +18,7 @@
 #include "herder/HerderGateway.h"
 #include "herder/TxSetFrame.h"
 #include "overlay/OverlayGateway.h"
-#include "history/HistoryMaster.h"
+#include "history/HistoryManager.h"
 #include "medida/metrics_registry.h"
 #include "medida/meter.h"
 #include "medida/timer.h"
@@ -233,21 +233,21 @@ LedgerMaster::externalizeValue(LedgerCloseData ledgerData)
         {
             // Start trying to catchup.
             CLOG(DEBUG, "Ledger") << "Starting catchup";
-            startCatchUp(ledgerData.mLedgerSeq, HistoryMaster::RESUME_AT_LAST);
+            startCatchUp(ledgerData.mLedgerSeq, HistoryManager::RESUME_AT_LAST);
         }
     }
 }
 
 void
-LedgerMaster::startCatchUp(uint32_t initLedger, HistoryMaster::ResumeMode resume)
+LedgerMaster::startCatchUp(uint32_t initLedger, HistoryManager::ResumeMode resume)
 {
     mApp.setState(Application::CATCHING_UP_STATE);
-    mApp.getHistoryMaster().catchupHistory(
+    mApp.getHistoryManager().catchupHistory(
         initLedger, resume,
         std::bind(&LedgerMaster::historyCaughtup, this, _1, _2, _3));
 }
 
-HistoryMaster::VerifyHashStatus
+HistoryManager::VerifyHashStatus
 LedgerMaster::verifyCatchupCandidate(LedgerHeaderHistoryEntry const& candidate) const
 {
     // This is a callback from CatchupStateMachine when it's considering whether
@@ -262,11 +262,11 @@ LedgerMaster::verifyCatchupCandidate(LedgerHeaderHistoryEntry const& candidate) 
     {                                                                   \
         if ((ahash) == (bhash))                                         \
         {                                                               \
-            return HistoryMaster::VERIFY_HASH_OK;                       \
+            return HistoryManager::VERIFY_HASH_OK;                       \
         }                                                               \
         else                                                            \
         {                                                               \
-            return HistoryMaster::VERIFY_HASH_BAD;                      \
+            return HistoryManager::VERIFY_HASH_BAD;                      \
         }                                                               \
     }
 
@@ -286,12 +286,12 @@ LedgerMaster::verifyCatchupCandidate(LedgerHeaderHistoryEntry const& candidate) 
     }
 
 #undef CHECK_PAIR
-    return HistoryMaster::VERIFY_HASH_UNKNOWN;
+    return HistoryManager::VERIFY_HASH_UNKNOWN;
 }
 
 void
 LedgerMaster::historyCaughtup(asio::error_code const& ec,
-                              HistoryMaster::ResumeMode mode,
+                              HistoryManager::ResumeMode mode,
                               LedgerHeaderHistoryEntry const& lastClosed)
 {
     if (ec)
@@ -302,7 +302,7 @@ LedgerMaster::historyCaughtup(asio::error_code const& ec,
     {
         // If we were in RESUME_AT_NEXT mode, LCL has not been updated
         // and we need to pick it up here.
-        if (mode == HistoryMaster::RESUME_AT_NEXT)
+        if (mode == HistoryManager::RESUME_AT_NEXT)
         {
             mLastClosedLedger = lastClosed;
             mCurrentLedger = make_shared<LedgerHeaderFrame>(lastClosed);
@@ -313,7 +313,7 @@ LedgerMaster::historyCaughtup(asio::error_code const& ec,
             // replay process and, if judged successful, our LCL should be the
             // one provided as well.
             using xdr::operator==;
-            assert(mode == HistoryMaster::RESUME_AT_LAST);
+            assert(mode == HistoryManager::RESUME_AT_LAST);
             assert(lastClosed.hash == mLastClosedLedger.hash);
             assert(lastClosed.header == mLastClosedLedger.header);
         }
@@ -380,7 +380,7 @@ LedgerMaster::historyCaughtup(asio::error_code const& ec,
                     << lastBuffered.mLedgerSeq;
                 mSyncingLedgers.clear();
                 startCatchUp(lastBuffered.mLedgerSeq,
-                             HistoryMaster::RESUME_AT_LAST);
+                             HistoryManager::RESUME_AT_LAST);
             }
         }
         if (applied)
@@ -475,7 +475,7 @@ LedgerMaster::closeLedger(LedgerCloseData ledgerData)
     // Notify ledger close to other components.
     mApp.getHerderGateway().ledgerClosed(mLastClosedLedger);
     mApp.getOverlayGateway().ledgerClosed(mLastClosedLedger);
-    mApp.getHistoryMaster().maybePublishHistory([](asio::error_code const&)
+    mApp.getHistoryManager().maybePublishHistory([](asio::error_code const&)
                                                 {
                                                 });
 }

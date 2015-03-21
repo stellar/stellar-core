@@ -3,7 +3,7 @@
 // this distribution or at http://opensource.org/licenses/ISC
 
 #include "history/CatchupStateMachine.h"
-#include "history/HistoryMaster.h"
+#include "history/HistoryManager.h"
 #include "history/FileTransferInfo.h"
 
 #include "clf/CLFManager.h"
@@ -30,13 +30,13 @@ const size_t CatchupStateMachine::kRetryLimit = 16;
 
 CatchupStateMachine::CatchupStateMachine(
     Application& app, uint32_t initLedger,
-    HistoryMaster::ResumeMode mode,
+    HistoryManager::ResumeMode mode,
     std::function<void(asio::error_code const& ec,
-                       HistoryMaster::ResumeMode mode,
+                       HistoryManager::ResumeMode mode,
                        LedgerHeaderHistoryEntry const& lastClosed)> handler)
     : mApp(app)
     , mInitLedger(initLedger)
-    , mNextLedger(HistoryMaster::nextCheckpointLedger(initLedger))
+    , mNextLedger(HistoryManager::nextCheckpointLedger(initLedger))
     , mMode(mode)
     , mEndHandler(handler)
     , mState(CATCHUP_RETRYING)
@@ -46,7 +46,7 @@ CatchupStateMachine::CatchupStateMachine(
 {
     // We start up in CATCHUP_RETRYING as that's the only valid
     // named pre-state for CATCHUP_BEGIN.
-    mLocalState = app.getHistoryMaster().getLastClosedHistoryArchiveState();
+    mLocalState = app.getHistoryManager().getLastClosedHistoryArchiveState();
     enterBeginState();
 }
 
@@ -105,7 +105,7 @@ CatchupStateMachine::enterBeginState()
 
     assert(mNextLedger > 0);
     uint32_t blockEnd = mNextLedger - 1;
-    uint32_t snap = blockEnd / HistoryMaster::kCheckpointFrequency;
+    uint32_t snap = blockEnd / HistoryManager::kCheckpointFrequency;
 
     CLOG(INFO, "History") << "Catchup BEGIN, initLedger=" << mInitLedger
                           << ", guessed nextLedger=" << mNextLedger
@@ -175,7 +175,7 @@ CatchupStateMachine::enterFetchingState()
     mState = CATCHUP_FETCHING;
 
     FileCatchupState minimumState = FILE_CATCHUP_VERIFIED;
-    auto& hm = mApp.getHistoryMaster();
+    auto& hm = mApp.getHistoryManager();
     for (auto& pair : mFileInfos)
     {
         auto fi = pair.second;
@@ -359,7 +359,7 @@ CatchupStateMachine::enterAnchoredState(HistoryArchiveState const& has)
 
     // Then make sure all the files we _want_ are either present
     // or queued to be requested.
-    if (mMode == HistoryMaster::RESUME_AT_NEXT)
+    if (mMode == HistoryManager::RESUME_AT_NEXT)
     {
         // in RESUME_AT_NEXT mode we need all the buckets...
         std::vector<std::string> bucketsToFetch =
@@ -373,17 +373,17 @@ CatchupStateMachine::enterAnchoredState(HistoryArchiveState const& has)
 
         // ...and _the last_ history ledger file (to get its final state).
         uint32_t snap =
-            mArchiveState.currentLedger / HistoryMaster::kCheckpointFrequency;
+            mArchiveState.currentLedger / HistoryManager::kCheckpointFrequency;
         fileCatchupInfos.push_back(queueLedgerFile(snap));
     }
     else
     {
-        assert(mMode == HistoryMaster::RESUME_AT_LAST);
+        assert(mMode == HistoryManager::RESUME_AT_LAST);
         // In RESUME_AT_LAST mode we need all the transaction and ledger files.
         for (uint32_t snap = mLocalState.currentLedger /
-                             HistoryMaster::kCheckpointFrequency;
+                             HistoryManager::kCheckpointFrequency;
              snap <= mArchiveState.currentLedger /
-                         HistoryMaster::kCheckpointFrequency;
+                         HistoryManager::kCheckpointFrequency;
              ++snap)
         {
             fileCatchupInfos.push_back(queueTransactionsFile(snap));
@@ -458,8 +458,8 @@ CatchupStateMachine::enterVerifyingState()
 
     mState = CATCHUP_VERIFYING;
 
-    HistoryMaster::VerifyHashStatus status = HistoryMaster::VERIFY_HASH_UNKNOWN;
-    if (mMode == HistoryMaster::RESUME_AT_LAST)
+    HistoryManager::VerifyHashStatus status = HistoryManager::VERIFY_HASH_UNKNOWN;
+    if (mMode == HistoryManager::RESUME_AT_LAST)
     {
         // In RESUME_AT_LAST mode we need to verify he whole history chain;
         // this includes checking the final LCL of the chain with LedgerMaster.
@@ -469,22 +469,22 @@ CatchupStateMachine::enterVerifyingState()
     {
         // In RESUME_AT_NEXT mode we just need to acquire the LCL before mNextLedger
         // and check to see if it's acceptable.
-        assert(mMode == HistoryMaster::RESUME_AT_NEXT);
+        assert(mMode == HistoryManager::RESUME_AT_NEXT);
         acquireFinalLedgerState(mNextLedger);
         status = mApp.getLedgerMaster().verifyCatchupCandidate(mLastClosed);
     }
 
     switch (status)
     {
-    case HistoryMaster::VERIFY_HASH_OK:
+    case HistoryManager::VERIFY_HASH_OK:
         CLOG(INFO, "History") << "Catchup material verified, applying";
         enterApplyingState();
         break;
-    case HistoryMaster::VERIFY_HASH_BAD:
+    case HistoryManager::VERIFY_HASH_BAD:
         CLOG(INFO, "History") << "Catchup material failed verification, restarting";
         enterBeginState();
         break;
-    case HistoryMaster::VERIFY_HASH_UNKNOWN:
+    case HistoryManager::VERIFY_HASH_UNKNOWN:
         CLOG(INFO, "History") << "Catchup material verification inconclusive, pausing";
         enterRetryingState();
         break;
@@ -493,7 +493,7 @@ CatchupStateMachine::enterVerifyingState()
     }
 }
 
-static HistoryMaster::VerifyHashStatus
+static HistoryManager::VerifyHashStatus
 verifyLedgerHistoryEntry(LedgerHeaderHistoryEntry const& hhe)
 {
     LedgerHeaderFrame lFrame(hhe.header);
@@ -505,19 +505,19 @@ verifyLedgerHistoryEntry(LedgerHeaderHistoryEntry const& hhe)
             << LedgerMaster::ledgerAbbrev(hhe)
             << " actually hashes to "
             << hexAbbrev(calculated);
-        return HistoryMaster::VERIFY_HASH_BAD;
+        return HistoryManager::VERIFY_HASH_BAD;
     }
-    return HistoryMaster::VERIFY_HASH_OK;
+    return HistoryManager::VERIFY_HASH_OK;
 }
 
-static HistoryMaster::VerifyHashStatus
+static HistoryManager::VerifyHashStatus
 verifyLedgerHistoryLink(Hash const& prev,
                         LedgerHeaderHistoryEntry const& curr)
 {
     if (verifyLedgerHistoryEntry(curr) !=
-        HistoryMaster::VERIFY_HASH_OK)
+        HistoryManager::VERIFY_HASH_OK)
     {
-        return HistoryMaster::VERIFY_HASH_BAD;
+        return HistoryManager::VERIFY_HASH_BAD;
     }
     if (prev != curr.header.previousLedgerHash)
     {
@@ -528,12 +528,12 @@ verifyLedgerHistoryLink(Hash const& prev,
             << hexAbbrev(curr.header.previousLedgerHash)
             << " but actual prev hash is "
             << hexAbbrev(prev);
-        return HistoryMaster::VERIFY_HASH_BAD;
+        return HistoryManager::VERIFY_HASH_BAD;
     }
-    return HistoryMaster::VERIFY_HASH_OK;
+    return HistoryManager::VERIFY_HASH_OK;
 }
 
-HistoryMaster::VerifyHashStatus
+HistoryManager::VerifyHashStatus
 CatchupStateMachine::verifyHistoryFromLastClosedLedger()
 {
     auto& lm = mApp.getLedgerMaster();
@@ -566,12 +566,12 @@ CatchupStateMachine::verifyHistoryFromLastClosedLedger()
                 CLOG(ERROR, "History")
                     << "History chain overshot expected ledger seq "
                     << expectedSeq;
-                return HistoryMaster::VERIFY_HASH_BAD;
+                return HistoryManager::VERIFY_HASH_BAD;
             }
             if (verifyLedgerHistoryLink(prev.hash, curr) !=
-                HistoryMaster::VERIFY_HASH_OK)
+                HistoryManager::VERIFY_HASH_OK)
             {
-                return HistoryMaster::VERIFY_HASH_BAD;
+                return HistoryManager::VERIFY_HASH_BAD;
             }
             prev = curr;
         }
@@ -580,7 +580,7 @@ CatchupStateMachine::verifyHistoryFromLastClosedLedger()
     {
         CLOG(INFO, "History") << "Insufficient history to connect chain to ledger"
                               << mNextLedger;
-        return HistoryMaster::VERIFY_HASH_BAD;
+        return HistoryManager::VERIFY_HASH_BAD;
     }
     return lm.verifyCatchupCandidate(prev);
 }
@@ -598,7 +598,7 @@ CatchupStateMachine::enterApplyingState()
     // to confirm that it's part of the trusted chain of history we want
     // to catch up with. Currently it applies blindly.
 
-    if (mMode == HistoryMaster::RESUME_AT_NEXT)
+    if (mMode == HistoryManager::RESUME_AT_NEXT)
     {
         // In RESUME_AT_NEXT mode we're applying the _state_ at mLastClosed
         // without any history replay.
@@ -607,8 +607,8 @@ CatchupStateMachine::enterApplyingState()
     else
     {
         // In RESUME_AT_LAST mode we're applying the _log_ of history from
-        // HistoryMaster's LCL through mNextLedger, without any reconstitution.
-        assert(mMode == HistoryMaster::RESUME_AT_LAST);
+        // HistoryManager's LCL through mNextLedger, without any reconstitution.
+        assert(mMode == HistoryManager::RESUME_AT_LAST);
         applyHistoryFromLastClosedLedger();
     }
 

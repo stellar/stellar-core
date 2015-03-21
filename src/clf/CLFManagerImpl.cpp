@@ -7,7 +7,7 @@
 #include "main/Application.h"
 #include "main/Config.h"
 #include "clf/BucketList.h"
-#include "history/HistoryMaster.h"
+#include "history/HistoryManager.h"
 #include "util/Fs.h"
 #include "util/make_unique.h"
 #include "util/TmpDir.h"

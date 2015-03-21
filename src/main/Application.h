@@ -24,7 +24,7 @@ class TmpDirMaster;
 class LedgerGateway;
 class LedgerMaster;
 class CLFManager;
-class HistoryMaster;
+class HistoryManager;
 class ProcessGateway;
 class HerderGateway;
 class OverlayGateway;
@@ -105,7 +105,7 @@ class Application
     virtual LedgerGateway& getLedgerGateway() = 0;
     virtual LedgerMaster& getLedgerMaster() = 0;
     virtual CLFManager& getCLFManager() = 0;
-    virtual HistoryMaster& getHistoryMaster() = 0;
+    virtual HistoryManager& getHistoryManager() = 0;
     virtual ProcessGateway& getProcessGateway() = 0;
     virtual HerderGateway& getHerderGateway() = 0;
     virtual OverlayGateway& getOverlayGateway() = 0;

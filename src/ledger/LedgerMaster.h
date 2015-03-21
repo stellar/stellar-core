@@ -9,7 +9,7 @@
 #include "ledger/LedgerGateway.h"
 #include "ledger/LedgerHeaderFrame.h"
 #include "main/PersistentState.h"
-#include "history/HistoryMaster.h"
+#include "history/HistoryManager.h"
 #include "generated/Stellar-ledger.h"
 
 /*
@@ -43,7 +43,7 @@ class LedgerMaster : public LedgerGateway
     std::vector<LedgerCloseData> mSyncingLedgers;
 
     void historyCaughtup(asio::error_code const& ec,
-                         HistoryMaster::ResumeMode mode,
+                         HistoryManager::ResumeMode mode,
                          LedgerHeaderHistoryEntry const& lastClosed);
 
   public:
@@ -96,9 +96,9 @@ class LedgerMaster : public LedgerGateway
 
     void closeLedger(LedgerCloseData ledgerData);
 
-    void startCatchUp(uint32_t initLedger, HistoryMaster::ResumeMode resume);
+    void startCatchUp(uint32_t initLedger, HistoryManager::ResumeMode resume);
 
-    HistoryMaster::VerifyHashStatus verifyCatchupCandidate(LedgerHeaderHistoryEntry const&) const;
+    HistoryManager::VerifyHashStatus verifyCatchupCandidate(LedgerHeaderHistoryEntry const&) const;
 
   private:
     void closeLedgerHelper(LedgerDelta const& delta);

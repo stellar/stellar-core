@@ -147,7 +147,7 @@
     <ClCompile Include="..\..\src\main\CommandHandler.cpp">
       <Filter>main</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\history\HistoryMaster.cpp">
+    <ClCompile Include="..\..\src\history\HistoryManagerImpl.cpp">
       <Filter>history</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\process\ProcessMaster.cpp">
@@ -488,7 +488,10 @@
     <ClInclude Include="..\..\src\main\CommandHandler.h">
       <Filter>main</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\history\HistoryMaster.h">
+    <ClInclude Include="..\..\src\history\HistoryManager.h">
+      <Filter>history</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\history\HistoryManagerImpl.h">
       <Filter>history</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\process\ProcessGateway.h">

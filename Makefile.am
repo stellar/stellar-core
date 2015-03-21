@@ -29,7 +29,7 @@ FMT_SRCS =                                      \
     src/history/FileTransferInfo.cpp            \
     src/history/CatchupStateMachine.cpp         \
     src/history/HistoryArchive.cpp              \
-    src/history/HistoryMaster.cpp               \
+    src/history/HistoryManagerImpl.cpp          \
     src/history/HistoryTests.cpp                \
     src/history/PublishStateMachine.cpp         \
     src/ledger/AccountFrame.cpp                 \
@@ -117,7 +117,8 @@ FMT_HDRS =                                      \
     src/history/FileTransferInfo.h              \
     src/history/CatchupStateMachine.h           \
     src/history/HistoryArchive.h                \
-    src/history/HistoryMaster.h                 \
+    src/history/HistoryManager.h                \
+    src/history/HistoryManagerImpl.h            \
     src/history/PublishStateMachine.h           \
     src/ledger/AccountFrame.h                   \
     src/ledger/EntryFrame.h                     \

@@ -14,7 +14,7 @@ class PeerMaster;
 class LedgerMaster;
 class Herder;
 class CLFManager;
-class HistoryMaster;
+class HistoryManager;
 class ProcessMaster;
 class CommandHandler;
 class Database;
@@ -37,7 +37,7 @@ class ApplicationImpl : public Application
     virtual LedgerGateway& getLedgerGateway() override;
     virtual LedgerMaster& getLedgerMaster() override;
     virtual CLFManager& getCLFManager() override;
-    virtual HistoryMaster& getHistoryMaster() override;
+    virtual HistoryManager& getHistoryManager() override;
     virtual ProcessGateway& getProcessGateway() override;
     virtual HerderGateway& getHerderGateway() override;
     virtual OverlayGateway& getOverlayGateway() override;
@@ -95,7 +95,7 @@ class ApplicationImpl : public Application
     std::unique_ptr<LedgerMaster> mLedgerMaster;
     std::unique_ptr<Herder> mHerder;
     std::unique_ptr<CLFManager> mCLFManager;
-    std::unique_ptr<HistoryMaster> mHistoryMaster;
+    std::unique_ptr<HistoryManager> mHistoryManager;
     std::unique_ptr<ProcessMaster> mProcessMaster;
     std::unique_ptr<CommandHandler> mCommandHandler;
     std::unique_ptr<PersistentState> mPersistentState;

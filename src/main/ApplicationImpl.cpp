@@ -14,7 +14,7 @@
 #include "overlay/OverlayGateway.h"
 #include "overlay/PeerMaster.h"
 #include "clf/CLFManager.h"
-#include "history/HistoryMaster.h"
+#include "history/HistoryManager.h"
 #include "database/Database.h"
 #include "process/ProcessMaster.h"
 #include "main/CommandHandler.h"
@@ -81,7 +81,7 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
     mLedgerMaster = make_unique<LedgerMaster>(*this);
     mHerder = make_unique<Herder>(*this);
     mCLFManager = CLFManager::create(*this);
-    mHistoryMaster = make_unique<HistoryMaster>(*this);
+    mHistoryManager = HistoryManager::create(*this);
     mProcessMaster = make_unique<ProcessMaster>(*this);
     mCommandHandler = make_unique<CommandHandler>(*this);
 
@@ -326,10 +326,10 @@ ApplicationImpl::getCLFManager()
     return *mCLFManager;
 }
 
-HistoryMaster&
-ApplicationImpl::getHistoryMaster()
+HistoryManager&
+ApplicationImpl::getHistoryManager()
 {
-    return *mHistoryMaster;
+    return *mHistoryManager;
 }
 
 ProcessGateway&

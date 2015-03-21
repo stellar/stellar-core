@@ -10,7 +10,7 @@
 #include "clf/BucketList.h"
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
-#include "history/HistoryMaster.h"
+#include "history/HistoryManager.h"
 #include "history/FileTransferInfo.h"
 #include "process/ProcessGateway.h"
 #include "main/Application.h"
@@ -79,7 +79,7 @@ HistoryArchiveState::remoteName(uint32_t snapshotNumber)
 std::string
 HistoryArchiveState::localName(Application& app, std::string const& archiveName)
 {
-    return app.getHistoryMaster().localFilename(archiveName + "-" + baseName());
+    return app.getHistoryManager().localFilename(archiveName + "-" + baseName());
 }
 
 Hash
@@ -210,7 +210,7 @@ HistoryArchive::getStateFromPath(
 {
     auto local = HistoryArchiveState::localName(app, mName);
     auto archiveName = mName;
-    auto& hm = app.getHistoryMaster();
+    auto& hm = app.getHistoryManager();
     auto self = shared_from_this();
     hm.getFile(
         self, remoteName, local,
@@ -242,7 +242,7 @@ HistoryArchive::putState(
 {
     auto local = HistoryArchiveState::localName(app, mName);
     s.save(local);
-    uint32_t snap = s.currentLedger / HistoryMaster::kCheckpointFrequency;
+    uint32_t snap = s.currentLedger / HistoryManager::kCheckpointFrequency;
     auto self = shared_from_this();
     putStateInDir(app, s, local, HistoryArchiveState::remoteDir(snap),
                   HistoryArchiveState::remoteName(snap),
@@ -273,7 +273,7 @@ HistoryArchive::putStateInDir(
     std::string const& remoteDir, std::string const& remoteName,
     std::function<void(asio::error_code const&)> handler) const
 {
-    auto& hm = app.getHistoryMaster();
+    auto& hm = app.getHistoryManager();
     auto archiveName = mName;
     auto self = shared_from_this();
 

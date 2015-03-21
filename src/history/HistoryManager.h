@@ -167,11 +167,8 @@ class BucketList;
 class HistoryArchive;
 struct StateSnapshot;
 
-class HistoryMaster
+class HistoryManager
 {
-    class Impl;
-    std::unique_ptr<Impl> mImpl;
-
   public:
     enum ResumeMode
     {
@@ -192,85 +189,88 @@ class HistoryMaster
     // Given a ledger, tell when the next checkpoint will occur.
     static uint32_t nextCheckpointLedger(uint32_t ledger);
 
+    // Initialize a named history archive by writing
+    // .well-known/stellar-history.json to it.
+    static bool initializeHistoryArchive(Application& app, std::string arch);
+
+    static std::unique_ptr<HistoryManager> create(Application& app);
+
     // Verify that a file has a given hash.
-    void verifyHash(std::string const& filename, uint256 const& hash,
-                    std::function<void(asio::error_code const&)> handler) const;
+    virtual void verifyHash(std::string const& filename, uint256 const& hash,
+                            std::function<void(asio::error_code const&)> handler) const = 0;
 
     // Gunzip a file.
-    void decompress(std::string const& filename_gz,
-                    std::function<void(asio::error_code const&)> handler,
-                    bool keepExisting = false) const;
+    virtual void decompress(std::string const& filename_gz,
+                            std::function<void(asio::error_code const&)> handler,
+                            bool keepExisting = false) const = 0;
 
     // Gzip a file.
-    void compress(std::string const& filename_nogz,
-                  std::function<void(asio::error_code const&)> handler,
-                  bool keepExisting = false) const;
+    virtual void compress(std::string const& filename_nogz,
+                          std::function<void(asio::error_code const&)> handler,
+                          bool keepExisting = false) const = 0;
 
     // Put a file to a specific archive using it's `put` command.
-    void putFile(std::shared_ptr<HistoryArchive const> archive,
-                 std::string const& local, std::string const& remote,
-                 std::function<void(asio::error_code const&)> handler) const;
+    virtual void putFile(std::shared_ptr<HistoryArchive const> archive,
+                         std::string const& local, std::string const& remote,
+                         std::function<void(asio::error_code const&)> handler) const = 0;
 
     // Get a file from a specific archive using it's `get` command.
-    void getFile(std::shared_ptr<HistoryArchive const> archive,
-                 std::string const& remote, std::string const& local,
-                 std::function<void(asio::error_code const&)> handler) const;
+    virtual void getFile(std::shared_ptr<HistoryArchive const> archive,
+                         std::string const& remote, std::string const& local,
+                         std::function<void(asio::error_code const&)> handler) const = 0;
 
     // Make a directory on a specific archive using its `mkdir` command.
-    void mkdir(std::shared_ptr<HistoryArchive const> archive,
-               std::string const& dir,
-               std::function<void(asio::error_code const&)> handler) const;
+    virtual void mkdir(std::shared_ptr<HistoryArchive const> archive,
+                       std::string const& dir,
+                       std::function<void(asio::error_code const&)> handler) const = 0;
 
     // Publish history if the current ledger is a multiple of
     // kCheckpointFrequency -- equivalently, the LCL is one _less_ than a
     // multiple of kCheckpointFrequency -- and no publish action is currently in
     // progress. Returns true if checkpoint publication of the LCL was started
     // (and the completion-handler queued), otherwise false.
-    bool
-    maybePublishHistory(std::function<void(asio::error_code const&)> handler);
+    virtual bool
+    maybePublishHistory(std::function<void(asio::error_code const&)> handler) = 0;
 
-    bool hasAnyWritableHistoryArchive();
+    virtual bool hasAnyWritableHistoryArchive() = 0;
 
     // Checkpoint the LCL -- both the log of history from the previous
     // checkpoint to it,
     // as well as the bucketlist of its state -- to all writable history
     // archives.
-    void publishHistory(std::function<void(asio::error_code const&)> handler);
+    virtual void publishHistory(std::function<void(asio::error_code const&)> handler) = 0;
 
     // Run catchup, we've just heard `initLedger` from the network. Mode can be
     // RESUME_AT_LAST, meaning replay history from last to present, or
     // RESUME_AT_NEXT, meaning snap to the next state possible and discard
     // history. See larger comment above for more detail.
-    void catchupHistory(
+    virtual void catchupHistory(
         uint32_t initLedger, ResumeMode mode,
         std::function<void(asio::error_code const& ec, ResumeMode mode,
                            LedgerHeaderHistoryEntry const& lastClosed)>
-            handler);
+        handler) = 0;
 
     // Call posted after a worker thread has finished taking a snapshot; calls
     // PublishStateMachine::snapshotWritten after bumping counter.
-    void snapshotWritten(asio::error_code const&);
+    virtual void snapshotWritten(asio::error_code const&) = 0;
 
-    HistoryArchiveState getLastClosedHistoryArchiveState() const;
+    virtual HistoryArchiveState getLastClosedHistoryArchiveState() const = 0;
 
-    std::string const& getTmpDir();
+    virtual std::string const& getTmpDir() = 0;
 
-    static bool initializeHistoryArchive(Application& app, std::string arch);
+    virtual std::string localFilename(std::string const& basename) = 0;
 
-    std::string localFilename(std::string const& basename);
+    virtual uint64_t getPublishSkipCount() = 0;
+    virtual uint64_t getPublishQueueCount() = 0;
+    virtual uint64_t getPublishDelayCount() = 0;
+    virtual uint64_t getPublishStartCount() = 0;
+    virtual uint64_t getPublishSuccessCount() = 0;
+    virtual uint64_t getPublishFailureCount() = 0;
 
-    uint64_t getPublishSkipCount();
-    uint64_t getPublishQueueCount();
-    uint64_t getPublishDelayCount();
-    uint64_t getPublishStartCount();
-    uint64_t getPublishSuccessCount();
-    uint64_t getPublishFailureCount();
+    virtual uint64_t getCatchupStartCount() = 0;
+    virtual uint64_t getCatchupSuccessCount() = 0;
+    virtual uint64_t getCatchupFailureCount() = 0;
 
-    uint64_t getCatchupStartCount();
-    uint64_t getCatchupSuccessCount();
-    uint64_t getCatchupFailureCount();
-
-    HistoryMaster(Application& app);
-    ~HistoryMaster();
+    virtual ~HistoryManager() {};
 };
 }
