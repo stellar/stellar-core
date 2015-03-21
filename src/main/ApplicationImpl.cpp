@@ -11,8 +11,8 @@
 #include "util/asio.h"
 #include "ledger/LedgerMaster.h"
 #include "herder/Herder.h"
-#include "overlay/OverlayGateway.h"
-#include "overlay/PeerMaster.h"
+#include "overlay/OverlayManager.h"
+#include "overlay/OverlayManagerImpl.h"
 #include "clf/CLFManager.h"
 #include "history/HistoryManager.h"
 #include "database/Database.h"
@@ -77,7 +77,7 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
     }
 
     mTmpDirMaster = make_unique<TmpDirMaster>(cfg.TMP_DIR_PATH);
-    mPeerMaster = make_unique<PeerMaster>(*this);
+    mOverlayManagerImpl = make_unique<OverlayManagerImpl>(*this);
     mLedgerMaster = make_unique<LedgerMaster>(*this);
     mHerder = make_unique<Herder>(*this);
     mCLFManager = CLFManager::create(*this);
@@ -344,16 +344,16 @@ ApplicationImpl::getHerderGateway()
     return *mHerder;
 }
 
-OverlayGateway&
-ApplicationImpl::getOverlayGateway()
+OverlayManager&
+ApplicationImpl::getOverlayManager()
 {
-    return *mPeerMaster;
+    return *mOverlayManagerImpl;
 }
 
-PeerMaster&
-ApplicationImpl::getPeerMaster()
+OverlayManagerImpl&
+ApplicationImpl::getOverlayManagerImpl()
 {
-    return *mPeerMaster;
+    return *mOverlayManagerImpl;
 }
 
 Database&

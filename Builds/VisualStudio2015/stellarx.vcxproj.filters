@@ -105,7 +105,7 @@
     <ClCompile Include="..\..\src\overlay\PeerDoor.cpp">
       <Filter>overlay</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\overlay\PeerMaster.cpp">
+    <ClCompile Include="..\..\src\overlay\OverlayManagerImpl.cpp">
       <Filter>overlay</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\clf\BucketList.cpp">
@@ -333,7 +333,7 @@
     <ClCompile Include="..\..\src\util\Math.cpp">
       <Filter>util</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\overlay\PeerMasterTests.cpp">
+    <ClCompile Include="..\..\src\overlay\OverlayManagerImplTests.cpp">
       <Filter>overlay</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\history\CatchupStateMachine.cpp">
@@ -425,7 +425,7 @@
     <ClInclude Include="..\..\src\overlay\ItemFetcher.h">
       <Filter>overlay</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\overlay\OverlayGateway.h">
+    <ClInclude Include="..\..\src\overlay\OverlayManager.h">
       <Filter>overlay</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\overlay\Peer.h">
@@ -434,7 +434,7 @@
     <ClInclude Include="..\..\src\overlay\PeerDoor.h">
       <Filter>overlay</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\overlay\PeerMaster.h">
+    <ClInclude Include="..\..\src\overlay\OverlayManagerImpl.h">
       <Filter>overlay</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\generated\StellarXDR.h">

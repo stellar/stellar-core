@@ -27,8 +27,8 @@ class CLFManager;
 class HistoryManager;
 class ProcessGateway;
 class HerderGateway;
-class OverlayGateway;
-class PeerMaster;
+class OverlayManager;
+class OverlayManagerImpl;
 class Database;
 class PersistentState;
 
@@ -108,8 +108,8 @@ class Application
     virtual HistoryManager& getHistoryManager() = 0;
     virtual ProcessGateway& getProcessGateway() = 0;
     virtual HerderGateway& getHerderGateway() = 0;
-    virtual OverlayGateway& getOverlayGateway() = 0;
-    virtual PeerMaster& getPeerMaster() = 0;
+    virtual OverlayManager& getOverlayManager() = 0;
+    virtual OverlayManagerImpl& getOverlayManagerImpl() = 0;
     virtual Database& getDatabase() = 0;
     virtual PersistentState& getPersistentState() = 0;
 

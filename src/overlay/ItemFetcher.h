@@ -7,7 +7,7 @@
 
 #include <map>
 #include "generated/SCPXDR.h"
-#include "overlay/OverlayGateway.h"
+#include "overlay/OverlayManager.h"
 #include "herder/TxSetFrame.h"
 #include "overlay/Peer.h"
 #include "util/Timer.h"

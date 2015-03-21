@@ -2,7 +2,7 @@
 // under the ISC License. See the COPYING file at the top-level directory of
 // this distribution or at http://opensource.org/licenses/ISC
 
-#include "PeerMaster.h"
+#include "OverlayManagerImpl.h"
 #include "main/Application.h"
 #include "main/Config.h"
 #include <thread>
@@ -36,7 +36,7 @@ namespace stellar
 using namespace soci;
 using namespace std;
 
-PeerMaster::PeerMaster(Application& app)
+OverlayManagerImpl::OverlayManagerImpl(Application& app)
     : mApp(app)
     , mDoor(make_shared<PeerDoor>(mApp))
     , mMessagesReceived(app.getMetrics().NewMeter(
@@ -67,12 +67,12 @@ PeerMaster::PeerMaster(Application& app)
     }
 }
 
-PeerMaster::~PeerMaster()
+OverlayManagerImpl::~OverlayManagerImpl()
 {
 }
 
 void
-PeerMaster::connectTo(const std::string& peerStr)
+OverlayManagerImpl::connectTo(const std::string& peerStr)
 {
     PeerRecord pr;
     if (PeerRecord::parseIPPort(peerStr, mApp, pr))
@@ -84,7 +84,7 @@ PeerMaster::connectTo(const std::string& peerStr)
 }
 
 void
-PeerMaster::connectTo(PeerRecord& pr)
+OverlayManagerImpl::connectTo(PeerRecord& pr)
 {
     if (pr.mPort == 0)
     {
@@ -109,7 +109,7 @@ PeerMaster::connectTo(PeerRecord& pr)
 }
 
 void
-PeerMaster::storePeerList(const std::vector<std::string>& list, int rank)
+OverlayManagerImpl::storePeerList(const std::vector<std::string>& list, int rank)
 {
     for (auto peerStr : list)
     {
@@ -130,14 +130,14 @@ PeerMaster::storePeerList(const std::vector<std::string>& list, int rank)
 }
 
 void
-PeerMaster::storeConfigPeers()
+OverlayManagerImpl::storeConfigPeers()
 {
     storePeerList(mApp.getConfig().KNOWN_PEERS, 2);
     storePeerList(mApp.getConfig().PREFERRED_PEERS, 10);
 }
 
 void
-PeerMaster::connectToMorePeers(int max)
+OverlayManagerImpl::connectToMorePeers(int max)
 {
     vector<PeerRecord> peers;
     PeerRecord::loadPeerRecords(mApp.getDatabase(), max, mApp.getClock().now(),
@@ -157,9 +157,9 @@ PeerMaster::connectToMorePeers(int max)
 
 // called every 2 seconds
 void
-PeerMaster::tick()
+OverlayManagerImpl::tick()
 {
-    LOG(DEBUG) << "PeerMaster tick @" << mApp.getConfig().PEER_PORT;
+    LOG(DEBUG) << "OverlayManagerImpl tick @" << mApp.getConfig().PEER_PORT;
     if (mPeers.size() < mApp.getConfig().TARGET_PEER_CONNECTIONS)
     {
         connectToMorePeers(static_cast<int>(
@@ -177,7 +177,7 @@ PeerMaster::tick()
 }
 
 Peer::pointer
-PeerMaster::getConnectedPeer(const std::string& ip, int port)
+OverlayManagerImpl::getConnectedPeer(const std::string& ip, int port)
 {
     for (auto peer : mPeers)
     {
@@ -190,20 +190,20 @@ PeerMaster::getConnectedPeer(const std::string& ip, int port)
 }
 
 void
-PeerMaster::ledgerClosed(LedgerHeaderHistoryEntry const& ledger)
+OverlayManagerImpl::ledgerClosed(LedgerHeaderHistoryEntry const& ledger)
 {
     mFloodGate.clearBelow(ledger.header.ledgerSeq);
 }
 
 void
-PeerMaster::addConnectedPeer(Peer::pointer peer)
+OverlayManagerImpl::addConnectedPeer(Peer::pointer peer)
 {
     mConnectionsEstablished.Mark();
     mPeers.push_back(peer);
 }
 
 void
-PeerMaster::dropPeer(Peer::pointer peer)
+OverlayManagerImpl::dropPeer(Peer::pointer peer)
 {
     mConnectionsDropped.Mark();
     auto iter = find(mPeers.begin(), mPeers.end(), peer);
@@ -214,7 +214,7 @@ PeerMaster::dropPeer(Peer::pointer peer)
 }
 
 bool
-PeerMaster::isPeerAccepted(Peer::pointer peer)
+OverlayManagerImpl::isPeerAccepted(Peer::pointer peer)
 {
     if (mPeers.size() < mApp.getConfig().MAX_PEER_CONNECTIONS)
         return true;
@@ -222,7 +222,7 @@ PeerMaster::isPeerAccepted(Peer::pointer peer)
 }
 
 bool
-PeerMaster::isPeerPreferred(Peer::pointer peer)
+OverlayManagerImpl::isPeerPreferred(Peer::pointer peer)
 {
     auto pr = PeerRecord::loadPeerRecord(mApp.getDatabase(), peer->getIP(),
                                          peer->getRemoteListeningPort());
@@ -230,7 +230,7 @@ PeerMaster::isPeerPreferred(Peer::pointer peer)
 }
 
 Peer::pointer
-PeerMaster::getRandomPeer()
+OverlayManagerImpl::getRandomPeer()
 {
     if (mPeers.size())
     {
@@ -245,7 +245,7 @@ PeerMaster::getRandomPeer()
 
 // returns NULL if the passed peer isn't found
 Peer::pointer
-PeerMaster::getNextPeer(Peer::pointer peer)
+OverlayManagerImpl::getNextPeer(Peer::pointer peer)
 {
     for (unsigned int n = 0; n < mPeers.size(); n++)
     {
@@ -260,21 +260,21 @@ PeerMaster::getNextPeer(Peer::pointer peer)
 }
 
 void
-PeerMaster::recvFloodedMsg(StellarMessage const& msg, Peer::pointer peer)
+OverlayManagerImpl::recvFloodedMsg(StellarMessage const& msg, Peer::pointer peer)
 {
     mMessagesReceived.Mark();
     mFloodGate.addRecord(msg, peer);
 }
 
 void
-PeerMaster::broadcastMessage(StellarMessage const& msg, bool force)
+OverlayManagerImpl::broadcastMessage(StellarMessage const& msg, bool force)
 {
     mMessagesBroadcast.Mark();
     mFloodGate.broadcast(msg, force);
 }
 
 void
-PeerMaster::dropAll(Database& db)
+OverlayManagerImpl::dropAll(Database& db)
 {
     PeerRecord::dropAll(db);
 }

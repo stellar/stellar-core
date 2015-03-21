@@ -10,7 +10,7 @@
 #include "ledger/LedgerMaster.h"
 #include "overlay/PeerRecord.h"
 #include "main/Application.h"
-#include "overlay/PeerMaster.h"
+#include "overlay/OverlayManagerImpl.h"
 #include "herder/HerderGateway.h"
 #include "medida/medida.h"
 #include "medida/reporting/console_reporter.h"
@@ -132,7 +132,7 @@ Simulation::addTCPConnection(uint256 initiator, uint256 acceptor)
     auto to = getNode(acceptor);
     PeerRecord pr{"127.0.0.1", to->getConfig().PEER_PORT,
                   from->getClock().now(), 0, 10};
-    from->getPeerMaster().connectTo(pr);
+    from->getOverlayManagerImpl().connectTo(pr);
 }
 
 void

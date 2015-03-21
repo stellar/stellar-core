@@ -7,7 +7,7 @@
 #include "main/Application.h"
 #include "generated/StellarXDR.h"
 #include "xdrpp/marshal.h"
-#include "overlay/PeerMaster.h"
+#include "overlay/OverlayManagerImpl.h"
 #include "database/Database.h"
 #include "overlay/PeerRecord.h"
 #include "medida/metrics_registry.h"
@@ -258,7 +258,7 @@ TCPPeer::recvHello(StellarMessage const& msg)
             pr.storePeerRecord(mApp.getDatabase());
         }
 
-        if (mApp.getPeerMaster().isPeerAccepted(shared_from_this()))
+        if (mApp.getOverlayManagerImpl().isPeerAccepted(shared_from_this()))
         {
             sendHello();
         }
@@ -298,7 +298,7 @@ TCPPeer::drop()
     mApp.getClock().getIOService().post(
         [self, sock]()
         {
-            self->getApp().getPeerMaster().dropPeer(self);
+            self->getApp().getOverlayManagerImpl().dropPeer(self);
             try
             {
                 sock->shutdown(asio::socket_base::shutdown_both);

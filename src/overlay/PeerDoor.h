@@ -9,7 +9,7 @@
 
 /*
 listens for peer connections.
-When found passes them to the PeerMaster
+When found passes them to the OverlayManagerImpl
 */
 
 namespace stellar

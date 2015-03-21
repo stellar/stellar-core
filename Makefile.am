@@ -56,8 +56,8 @@ FMT_SRCS =                                      \
     src/overlay/OverlayTests.cpp                \
     src/overlay/Peer.cpp                        \
     src/overlay/PeerDoor.cpp                    \
-    src/overlay/PeerMaster.cpp                  \
-    src/overlay/PeerMasterTests.cpp             \
+    src/overlay/OverlayManagerImpl.cpp          \
+    src/overlay/OverlayManagerImplTests.cpp     \
     src/overlay/PeerRecord.cpp                  \
     src/overlay/PeerRecordTests.cpp             \
     src/overlay/TCPPeer.cpp                     \
@@ -138,10 +138,10 @@ FMT_HDRS =                                      \
     src/overlay/Floodgate.h                     \
     src/overlay/ItemFetcher.h                   \
     src/overlay/LoopbackPeer.h                  \
-    src/overlay/OverlayGateway.h                \
+    src/overlay/OverlayManager.h                \
+    src/overlay/OverlayManagerImpl.h            \
     src/overlay/Peer.h                          \
     src/overlay/PeerDoor.h                      \
-    src/overlay/PeerMaster.h                    \
     src/overlay/PeerRecord.h                    \
     src/overlay/TCPPeer.h                       \
     src/process/ProcessGateway.h                \

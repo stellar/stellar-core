@@ -223,7 +223,7 @@
     <ClCompile Include="..\..\src\main\Application.cpp" />
     <ClCompile Include="..\..\src\main\ApplicationImpl.cpp" />
     <ClCompile Include="..\..\src\main\PersistentState.cpp" />
-    <ClCompile Include="..\..\src\overlay\PeerMasterTests.cpp" />
+    <ClCompile Include="..\..\src\overlay\OverlayManagerImplTests.cpp" />
     <ClCompile Include="..\..\src\overlay\PeerRecord.cpp" />
     <ClCompile Include="..\..\src\overlay\PeerRecordTests.cpp" />
     <ClCompile Include="..\..\src\overlay\TCPPeerTests.cpp" />
@@ -267,7 +267,7 @@
     <ClCompile Include="..\..\src\overlay\OverlayTests.cpp" />
     <ClCompile Include="..\..\src\overlay\Peer.cpp" />
     <ClCompile Include="..\..\src\overlay\PeerDoor.cpp" />
-    <ClCompile Include="..\..\src\overlay\PeerMaster.cpp" />
+    <ClCompile Include="..\..\src\overlay\OverlayManagerImpl.cpp" />
     <ClCompile Include="..\..\src\overlay\TCPPeer.cpp" />
     <ClCompile Include="..\..\src\process\ProcessMaster.cpp" />
     <ClCompile Include="..\..\src\process\ProcessTests.cpp" />
@@ -332,10 +332,10 @@
     <ClInclude Include="..\..\src\overlay\Floodgate.h" />
     <ClInclude Include="..\..\src\overlay\ItemFetcher.h" />
     <ClInclude Include="..\..\src\overlay\LoopbackPeer.h" />
-    <ClInclude Include="..\..\src\overlay\OverlayGateway.h" />
+    <ClInclude Include="..\..\src\overlay\OverlayManager.h" />
     <ClInclude Include="..\..\src\overlay\Peer.h" />
     <ClInclude Include="..\..\src\overlay\PeerDoor.h" />
-    <ClInclude Include="..\..\src\overlay\PeerMaster.h" />
+    <ClInclude Include="..\..\src\overlay\OverlayManagerImpl.h" />
     <ClInclude Include="..\..\src\overlay\PeerRecord.h" />
     <ClInclude Include="..\..\src\overlay\TCPPeer.h" />
     <ClInclude Include="..\..\src\process\ProcessGateway.h" />

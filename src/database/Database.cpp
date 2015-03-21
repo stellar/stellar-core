@@ -4,7 +4,7 @@
 
 #include "database/Database.h"
 #include "generated/StellarXDR.h"
-#include "overlay/PeerMaster.h"
+#include "overlay/OverlayManagerImpl.h"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "crypto/Hex.h"
@@ -123,7 +123,7 @@ Database::initialize()
     AccountFrame::dropAll(*this);
     OfferFrame::dropAll(*this);
     TrustFrame::dropAll(*this);
-    PeerMaster::dropAll(*this);
+    OverlayManagerImpl::dropAll(*this);
     PersistentState::dropAll(*this);
     LedgerHeaderFrame::dropAll(*this);
     TransactionFrame::dropAll(*this);

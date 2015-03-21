@@ -9,7 +9,7 @@
 #include "util/Logging.h"
 #include "util/make_unique.h"
 #include "medida/reporting/json_reporter.h"
-#include "overlay/PeerMaster.h"
+#include "overlay/OverlayManagerImpl.h"
 #include "crypto/Hex.h"
 #include "xdrpp/marshal.h"
 #include "herder/HerderGateway.h"
@@ -115,7 +115,7 @@ CommandHandler::peers(const std::string& params, std::string& retStr)
 
     root["peers"];
     int counter = 0;
-    for (auto peer : mApp.getPeerMaster().getPeers())
+    for (auto peer : mApp.getOverlayManagerImpl().getPeers())
     {
         binToHex(peer->getPeerID());
         root["peers"][counter]["ip"] = peer->getIP();
@@ -148,7 +148,7 @@ CommandHandler::info(const std::string& params, std::string& retStr)
     root["info"]["ledger"]["closeTime"] =
         (int)lm.getLastClosedLedgerHeader().header.closeTime;
     root["info"]["ledger"]["age"] = (int)lm.secondsSinceLastLedgerClose();
-    root["info"]["numPeers"] = (int)mApp.getPeerMaster().getPeers().size();
+    root["info"]["numPeers"] = (int)mApp.getOverlayManagerImpl().getPeers().size();
 
     retStr = root.toStyledString();
 }
@@ -193,7 +193,7 @@ CommandHandler::connect(const std::string& params, std::string& retStr)
         std::stringstream str;
         str << m[1] << ":" << m[2];
         retStr = "Connect to";
-        mApp.getPeerMaster().connectTo(str.str());
+        mApp.getOverlayManagerImpl().connectTo(str.str());
     }
     else
     {
@@ -242,7 +242,7 @@ CommandHandler::tx(const std::string& params, std::string& retStr)
                     StellarMessage msg;
                     msg.type(TRANSACTION);
                     msg.transaction() = envelope;
-                    mApp.getOverlayGateway().broadcastMessage(msg);
+                    mApp.getOverlayManager().broadcastMessage(msg);
                 }
 
                 std::string resultHex =

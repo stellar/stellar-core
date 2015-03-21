@@ -17,7 +17,7 @@
 #include "ledger/LedgerHeaderFrame.h"
 #include "herder/HerderGateway.h"
 #include "herder/TxSetFrame.h"
-#include "overlay/OverlayGateway.h"
+#include "overlay/OverlayManager.h"
 #include "history/HistoryManager.h"
 #include "medida/metrics_registry.h"
 #include "medida/meter.h"
@@ -474,7 +474,7 @@ LedgerMaster::closeLedger(LedgerCloseData ledgerData)
 
     // Notify ledger close to other components.
     mApp.getHerderGateway().ledgerClosed(mLastClosedLedger);
-    mApp.getOverlayGateway().ledgerClosed(mLastClosedLedger);
+    mApp.getOverlayManager().ledgerClosed(mLastClosedLedger);
     mApp.getHistoryManager().maybePublishHistory([](asio::error_code const&)
                                                 {
                                                 });

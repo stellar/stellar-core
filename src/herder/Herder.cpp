@@ -8,7 +8,7 @@
 #include "math.h"
 #include "herder/TxSetFrame.h"
 #include "ledger/LedgerMaster.h"
-#include "overlay/PeerMaster.h"
+#include "overlay/OverlayManagerImpl.h"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "xdrpp/marshal.h"
@@ -514,7 +514,7 @@ Herder::valueExternalized(const uint64& slotIndex, const Value& value)
         for (auto& tx : mReceivedTransactions[1])
         {
             auto msg = tx->toStellarMessage();
-            mApp.getOverlayGateway().broadcastMessage(msg);
+            mApp.getOverlayManager().broadcastMessage(msg);
         }
 
         // Evict nodes that weren't touched for more than
@@ -596,7 +596,7 @@ Herder::rebroadcast()
                           << "@" << binToHex(getLocalNodeID()).substr(0, 6);
 
     mEnvelopeEmit.Mark();
-    mApp.getOverlayGateway().broadcastMessage(mLastSentMessage, true);
+    mApp.getOverlayManager().broadcastMessage(mLastSentMessage, true);
     startRebroadcastTimer();
 }
 

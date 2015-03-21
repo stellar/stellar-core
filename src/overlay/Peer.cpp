@@ -11,7 +11,7 @@
 #include "main/Config.h"
 #include "generated/StellarXDR.h"
 #include "xdrpp/marshal.h"
-#include "overlay/PeerMaster.h"
+#include "overlay/OverlayManagerImpl.h"
 #include "herder/HerderGateway.h"
 #include "database/Database.h"
 #include "crypto/Hex.h"
@@ -320,8 +320,8 @@ Peer::recvTransaction(StellarMessage const& msg)
         // and make sure it is valid
         if (mApp.getHerderGateway().recvTransaction(transaction))
         {
-            mApp.getOverlayGateway().recvFloodedMsg(msg, shared_from_this());
-            mApp.getOverlayGateway().broadcastMessage(msg);
+            mApp.getOverlayManager().recvFloodedMsg(msg, shared_from_this());
+            mApp.getOverlayManager().broadcastMessage(msg);
         }
     }
 }
@@ -358,13 +358,13 @@ Peer::recvSCPMessage(StellarMessage const& msg)
                            << binToHex(msg.envelope().statement.quorumSetHash)
                                   .substr(0, 6);
 
-    mApp.getOverlayGateway().recvFloodedMsg(msg, shared_from_this());
+    mApp.getOverlayManager().recvFloodedMsg(msg, shared_from_this());
 
     auto cb = [msg, this](SCP::EnvelopeState state)
     {
         if (state == SCP::EnvelopeState::VALID)
         {
-            mApp.getOverlayGateway().broadcastMessage(msg);
+            mApp.getOverlayManager().broadcastMessage(msg);
         }
     };
     mApp.getHerderGateway().recvSCPEnvelope(envelope, cb);
