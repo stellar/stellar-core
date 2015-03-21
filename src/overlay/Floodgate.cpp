@@ -3,10 +3,10 @@
 // this distribution or at http://opensource.org/licenses/ISC
 
 #include "Floodgate.h"
-#include "overlay/PeerMaster.h"
+#include "overlay/OverlayManagerImpl.h"
 #include "xdrpp/marshal.h"
 #include "crypto/SHA.h"
-#include "ledger/LedgerMaster.h"
+#include "ledger/LedgerManagerImpl.h"
 #include "main/Application.h"
 
 namespace stellar
@@ -50,7 +50,7 @@ Floodgate::addRecord(StellarMessage const& msg, Peer::pointer peer)
     if (result == mFloodMap.end())
     { // we have never seen this message
         mFloodMap[index] = std::make_shared<FloodRecord>(
-            msg, mApp.getLedgerMaster().getLedgerNum(), peer);
+            msg, mApp.getLedgerManagerImpl().getLedgerNum(), peer);
         return true;
     }
     else
@@ -69,11 +69,11 @@ Floodgate::broadcast(StellarMessage const& msg, bool force)
     if (result == mFloodMap.end() || force)
     { // no one has sent us this message
         FloodRecord::pointer record = std::make_shared<FloodRecord>(
-            msg, mApp.getLedgerMaster().getLedgerNum(), Peer::pointer());
-        record->mPeersTold = mApp.getPeerMaster().getPeers();
+            msg, mApp.getLedgerManagerImpl().getLedgerNum(), Peer::pointer());
+        record->mPeersTold = mApp.getOverlayManagerImpl().getPeers();
 
         mFloodMap[index] = record;
-        for (auto peer : mApp.getPeerMaster().getPeers())
+        for (auto peer : mApp.getOverlayManagerImpl().getPeers())
         {
             if (peer->getState() == Peer::GOT_HELLO)
             {
@@ -85,7 +85,7 @@ Floodgate::broadcast(StellarMessage const& msg, bool force)
     else
     { // send it to people that haven't sent it to us
         std::vector<Peer::pointer>& peersTold = result->second->mPeersTold;
-        for (auto peer : mApp.getPeerMaster().getPeers())
+        for (auto peer : mApp.getOverlayManagerImpl().getPeers())
         {
             if (find(peersTold.begin(), peersTold.end(), peer) ==
                 peersTold.end())

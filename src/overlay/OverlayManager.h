@@ -27,7 +27,7 @@ Should keep rotating peers till you get an answer:
 namespace stellar
 {
 
-class OverlayGateway
+class OverlayManager
 {
   public:
     // called by Ledger

@@ -36,7 +36,7 @@ class ProcessExitEvent
     std::shared_ptr<Impl> mImpl;
     std::shared_ptr<asio::error_code> mEc;
     ProcessExitEvent(asio::io_service& io_service);
-    friend class ProcessMaster;
+    friend class ProcessManagerImpl;
 
   public:
     ProcessExitEvent();
@@ -44,7 +44,7 @@ class ProcessExitEvent
     void async_wait(std::function<void(asio::error_code)> const& handler);
 };
 
-class ProcessGateway
+class ProcessManager
 {
   public:
     virtual ProcessExitEvent runProcess(std::string const& cmdLine,

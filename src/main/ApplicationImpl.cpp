@@ -9,14 +9,14 @@
 // first to include <windows.h> -- so we try to include it before everything
 // else.
 #include "util/asio.h"
-#include "ledger/LedgerMaster.h"
-#include "herder/Herder.h"
-#include "overlay/OverlayGateway.h"
-#include "overlay/PeerMaster.h"
+#include "ledger/LedgerManagerImpl.h"
+#include "herder/HerderImpl.h"
+#include "overlay/OverlayManager.h"
+#include "overlay/OverlayManagerImpl.h"
 #include "clf/CLFManager.h"
-#include "history/HistoryMaster.h"
+#include "history/HistoryManager.h"
 #include "database/Database.h"
-#include "process/ProcessMaster.h"
+#include "process/ProcessManagerImpl.h"
 #include "main/CommandHandler.h"
 #include "medida/metrics_registry.h"
 #include "medida/reporting/console_reporter.h"
@@ -77,12 +77,12 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
     }
 
     mTmpDirMaster = make_unique<TmpDirMaster>(cfg.TMP_DIR_PATH);
-    mPeerMaster = make_unique<PeerMaster>(*this);
-    mLedgerMaster = make_unique<LedgerMaster>(*this);
-    mHerder = make_unique<Herder>(*this);
+    mOverlayManagerImpl = make_unique<OverlayManagerImpl>(*this);
+    mLedgerManagerImpl = make_unique<LedgerManagerImpl>(*this);
+    mHerderImpl = make_unique<HerderImpl>(*this);
     mCLFManager = CLFManager::create(*this);
-    mHistoryMaster = make_unique<HistoryMaster>(*this);
-    mProcessMaster = make_unique<ProcessMaster>(*this);
+    mHistoryManager = HistoryManager::create(*this);
+    mProcessManagerImpl = make_unique<ProcessManagerImpl>(*this);
     mCommandHandler = make_unique<CommandHandler>(*this);
 
     while (t--)
@@ -201,7 +201,7 @@ ApplicationImpl::start()
             LOG(INFO) << "* Force-starting scp from scratch, creating the "
                          "genesis ledger." << flagClearedMsg;
             LOG(INFO) << "* ";
-            mLedgerMaster->startNewLedger();
+            mLedgerManagerImpl->startNewLedger();
         }
         else
         {
@@ -209,13 +209,13 @@ ApplicationImpl::start()
             LOG(INFO) << "* Force-starting scp from the current db state."
                       << flagClearedMsg;
             LOG(INFO) << "* ";
-            mLedgerMaster->loadLastKnownLedger();
+            mLedgerManagerImpl->loadLastKnownLedger();
         }
-        mHerder->bootstrap();
+        mHerderImpl->bootstrap();
     }
     else
     {
-        mLedgerMaster->loadLastKnownLedger();
+        mLedgerManagerImpl->loadLastKnownLedger();
     }
 }
 
@@ -257,7 +257,7 @@ ApplicationImpl::manualClose()
 {
     if (mConfig.MANUAL_CLOSE)
     {
-        mHerder->triggerNextLedger();
+        mHerderImpl->triggerNextLedger();
         return true;
     }
     return false;
@@ -308,16 +308,16 @@ ApplicationImpl::getTmpDirMaster()
     return *mTmpDirMaster;
 }
 
-LedgerGateway&
-ApplicationImpl::getLedgerGateway()
+LedgerManager&
+ApplicationImpl::getLedgerManager()
 {
-    return *mLedgerMaster;
+    return *mLedgerManagerImpl;
 }
 
-LedgerMaster&
-ApplicationImpl::getLedgerMaster()
+LedgerManagerImpl&
+ApplicationImpl::getLedgerManagerImpl()
 {
-    return *mLedgerMaster;
+    return *mLedgerManagerImpl;
 }
 
 CLFManager&
@@ -326,34 +326,34 @@ ApplicationImpl::getCLFManager()
     return *mCLFManager;
 }
 
-HistoryMaster&
-ApplicationImpl::getHistoryMaster()
+HistoryManager&
+ApplicationImpl::getHistoryManager()
 {
-    return *mHistoryMaster;
+    return *mHistoryManager;
 }
 
-ProcessGateway&
-ApplicationImpl::getProcessGateway()
+ProcessManager&
+ApplicationImpl::getProcessManager()
 {
-    return *mProcessMaster;
+    return *mProcessManagerImpl;
 }
 
-HerderGateway&
-ApplicationImpl::getHerderGateway()
+Herder&
+ApplicationImpl::getHerder()
 {
-    return *mHerder;
+    return *mHerderImpl;
 }
 
-OverlayGateway&
-ApplicationImpl::getOverlayGateway()
+OverlayManager&
+ApplicationImpl::getOverlayManager()
 {
-    return *mPeerMaster;
+    return *mOverlayManagerImpl;
 }
 
-PeerMaster&
-ApplicationImpl::getPeerMaster()
+OverlayManagerImpl&
+ApplicationImpl::getOverlayManagerImpl()
 {
-    return *mPeerMaster;
+    return *mOverlayManagerImpl;
 }
 
 Database&

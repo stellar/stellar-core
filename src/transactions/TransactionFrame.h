@@ -5,7 +5,7 @@
 // this distribution or at http://opensource.org/licenses/ISC
 
 #include <memory>
-#include "ledger/LedgerMaster.h"
+#include "ledger/LedgerManagerImpl.h"
 #include "ledger/AccountFrame.h"
 #include "generated/StellarXDR.h"
 #include "util/types.h"
@@ -22,7 +22,7 @@ We can get it in from the DB or from the wire
 namespace stellar
 {
 class Application;
-class LedgerMaster;
+class LedgerManagerImpl;
 class OperationFrame;
 class LedgerDelta;
 class SecretKey;
@@ -45,7 +45,7 @@ class TransactionFrame
     std::vector<std::shared_ptr<OperationFrame>> mOperations;
 
     // collect fee, consume sequence number
-    void prepareResult(LedgerDelta& delta, LedgerMaster& ledgerMaster);
+    void prepareResult(LedgerDelta& delta, LedgerManagerImpl& ledgerMaster);
 
     bool loadAccount(Application& app);
     bool checkValid(Application& app, bool applying, SequenceNumber current);
@@ -139,7 +139,7 @@ class TransactionFrame
                                       uint256 const& accountID);
 
     // transaction history
-    void storeTransaction(LedgerMaster& ledgerMaster, LedgerDelta const& delta,
+    void storeTransaction(LedgerManagerImpl& ledgerMaster, LedgerDelta const& delta,
                           int txindex, SHA256& resultHasher) const;
 
     /*

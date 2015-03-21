@@ -7,7 +7,7 @@
 #include "main/Application.h"
 #include "main/Config.h"
 #include "Peer.h"
-#include "overlay/PeerMaster.h"
+#include "overlay/OverlayManagerImpl.h"
 #include "util/Logging.h"
 #include "overlay/TCPPeer.h"
 
@@ -58,7 +58,7 @@ PeerDoor::handleKnock(shared_ptr<tcp::socket> socket)
     CLOG(DEBUG, "Overlay") << "PeerDoor handleKnock() @"
                            << mApp.getConfig().PEER_PORT;
     Peer::pointer peer = TCPPeer::accept(mApp, socket);
-    mApp.getPeerMaster().addConnectedPeer(peer);
+    mApp.getOverlayManagerImpl().addConnectedPeer(peer);
     acceptNextPeer();
 }
 }

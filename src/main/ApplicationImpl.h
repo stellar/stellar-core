@@ -10,12 +10,12 @@
 namespace stellar
 {
 class TmpDirMaster;
-class PeerMaster;
-class LedgerMaster;
-class Herder;
+class OverlayManagerImpl;
+class LedgerManagerImpl;
+class HerderImpl;
 class CLFManager;
-class HistoryMaster;
-class ProcessMaster;
+class HistoryManager;
+class ProcessManagerImpl;
 class CommandHandler;
 class Database;
 
@@ -34,14 +34,14 @@ class ApplicationImpl : public Application
     virtual VirtualClock& getClock() override;
     virtual medida::MetricsRegistry& getMetrics() override;
     virtual TmpDirMaster& getTmpDirMaster() override;
-    virtual LedgerGateway& getLedgerGateway() override;
-    virtual LedgerMaster& getLedgerMaster() override;
+    virtual LedgerManager& getLedgerManager() override;
+    virtual LedgerManagerImpl& getLedgerManagerImpl() override;
     virtual CLFManager& getCLFManager() override;
-    virtual HistoryMaster& getHistoryMaster() override;
-    virtual ProcessGateway& getProcessGateway() override;
-    virtual HerderGateway& getHerderGateway() override;
-    virtual OverlayGateway& getOverlayGateway() override;
-    virtual PeerMaster& getPeerMaster() override;
+    virtual HistoryManager& getHistoryManager() override;
+    virtual ProcessManager& getProcessManager() override;
+    virtual Herder& getHerder() override;
+    virtual OverlayManager& getOverlayManager() override;
+    virtual OverlayManagerImpl& getOverlayManagerImpl() override;
     virtual Database& getDatabase() override;
     virtual PersistentState& getPersistentState() override;
 
@@ -91,12 +91,12 @@ class ApplicationImpl : public Application
     std::unique_ptr<medida::MetricsRegistry> mMetrics;
     std::unique_ptr<Database> mDatabase;
     std::unique_ptr<TmpDirMaster> mTmpDirMaster;
-    std::unique_ptr<PeerMaster> mPeerMaster;
-    std::unique_ptr<LedgerMaster> mLedgerMaster;
-    std::unique_ptr<Herder> mHerder;
+    std::unique_ptr<OverlayManagerImpl> mOverlayManagerImpl;
+    std::unique_ptr<LedgerManagerImpl> mLedgerManagerImpl;
+    std::unique_ptr<HerderImpl> mHerderImpl;
     std::unique_ptr<CLFManager> mCLFManager;
-    std::unique_ptr<HistoryMaster> mHistoryMaster;
-    std::unique_ptr<ProcessMaster> mProcessMaster;
+    std::unique_ptr<HistoryManager> mHistoryManager;
+    std::unique_ptr<ProcessManagerImpl> mProcessManagerImpl;
     std::unique_ptr<CommandHandler> mCommandHandler;
     std::unique_ptr<PersistentState> mPersistentState;
 

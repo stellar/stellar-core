@@ -84,7 +84,7 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\src\ledger\LedgerMaster.cpp">
+    <ClCompile Include="..\..\src\ledger\LedgerManagerImpl.cpp">
       <Filter>ledger</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\main\Application.cpp">
@@ -105,7 +105,7 @@
     <ClCompile Include="..\..\src\overlay\PeerDoor.cpp">
       <Filter>overlay</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\overlay\PeerMaster.cpp">
+    <ClCompile Include="..\..\src\overlay\OverlayManagerImpl.cpp">
       <Filter>overlay</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\clf\BucketList.cpp">
@@ -147,10 +147,10 @@
     <ClCompile Include="..\..\src\main\CommandHandler.cpp">
       <Filter>main</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\history\HistoryMaster.cpp">
+    <ClCompile Include="..\..\src\history\HistoryManagerImpl.cpp">
       <Filter>history</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\process\ProcessMaster.cpp">
+    <ClCompile Include="..\..\src\process\ProcessManagerImpl.cpp">
       <Filter>process</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\process\ProcessTests.cpp">
@@ -315,7 +315,7 @@
     <ClCompile Include="..\..\src\crypto\Random.cpp">
       <Filter>crypto</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\herder\Herder.cpp">
+    <ClCompile Include="..\..\src\herder\HerderImpl.cpp">
       <Filter>herder</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\herder\TxSetFrame.cpp">
@@ -333,7 +333,7 @@
     <ClCompile Include="..\..\src\util\Math.cpp">
       <Filter>util</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\overlay\PeerMasterTests.cpp">
+    <ClCompile Include="..\..\src\overlay\OverlayManagerImplTests.cpp">
       <Filter>overlay</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\history\CatchupStateMachine.cpp">
@@ -407,10 +407,10 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\src\ledger\LedgerGateway.h">
+    <ClInclude Include="..\..\src\ledger\LedgerManager.h">
       <Filter>ledger</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\ledger\LedgerMaster.h">
+    <ClInclude Include="..\..\src\ledger\LedgerManagerImpl.h">
       <Filter>ledger</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\main\Application.h">
@@ -425,7 +425,7 @@
     <ClInclude Include="..\..\src\overlay\ItemFetcher.h">
       <Filter>overlay</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\overlay\OverlayGateway.h">
+    <ClInclude Include="..\..\src\overlay\OverlayManager.h">
       <Filter>overlay</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\overlay\Peer.h">
@@ -434,7 +434,7 @@
     <ClInclude Include="..\..\src\overlay\PeerDoor.h">
       <Filter>overlay</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\overlay\PeerMaster.h">
+    <ClInclude Include="..\..\src\overlay\OverlayManagerImpl.h">
       <Filter>overlay</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\generated\StellarXDR.h">
@@ -488,13 +488,16 @@
     <ClInclude Include="..\..\src\main\CommandHandler.h">
       <Filter>main</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\history\HistoryMaster.h">
+    <ClInclude Include="..\..\src\history\HistoryManager.h">
       <Filter>history</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\process\ProcessGateway.h">
+    <ClInclude Include="..\..\src\history\HistoryManagerImpl.h">
+      <Filter>history</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\process\ProcessManager.h">
       <Filter>process</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\process\ProcessMaster.h">
+    <ClInclude Include="..\..\src\process\ProcessManagerImpl.h">
       <Filter>process</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\util\Timer.h">
@@ -596,10 +599,10 @@
     <ClInclude Include="..\..\src\crypto\Random.h">
       <Filter>crypto</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\herder\Herder.h">
+    <ClInclude Include="..\..\src\herder\HerderImpl.h">
       <Filter>herder</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\herder\HerderGateway.h">
+    <ClInclude Include="..\..\src\herder\Herder.h">
       <Filter>herder</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\herder\TxSetFrame.h">

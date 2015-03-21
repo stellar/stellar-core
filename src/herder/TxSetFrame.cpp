@@ -128,7 +128,7 @@ TxSetFrame::checkValid(Application& app)
     using xdr::operator==;
 
     // Start by checking previousLedgerHash
-    if (app.getLedgerMaster().getLastClosedLedgerHeader().hash !=
+    if (app.getLedgerManagerImpl().getLastClosedLedgerHeader().hash !=
         mPreviousLedgerHash)
     {
         return false;
@@ -173,7 +173,7 @@ TxSetFrame::checkValid(Application& app)
             int64_t newBalance =
                 lastTx->getSourceAccount().getBalance() - totFee;
             if (newBalance < lastTx->getSourceAccount().getMinimumBalance(
-                                 app.getLedgerMaster()))
+                                 app.getLedgerManagerImpl()))
             {
                 return false;
             }

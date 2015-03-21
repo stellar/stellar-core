@@ -5,7 +5,7 @@
 // this distribution or at http://opensource.org/licenses/ISC
 
 #include "history/HistoryArchive.h"
-#include "history/HistoryMaster.h"
+#include "history/HistoryManager.h"
 #include "clf/Bucket.h"
 #include "util/Timer.h"
 #include "util/TmpDir.h"
@@ -101,9 +101,9 @@ class CatchupStateMachine
     uint32_t mInitLedger;
     uint32_t mNextLedger;
     LedgerHeaderHistoryEntry mLastClosed;
-    HistoryMaster::ResumeMode mMode;
+    HistoryManager::ResumeMode mMode;
     std::function<void(asio::error_code const& ec,
-                       HistoryMaster::ResumeMode mode,
+                       HistoryManager::ResumeMode mode,
                        LedgerHeaderHistoryEntry const& lastClosed)> mEndHandler;
     asio::error_code mError;
     CatchupState mState;
@@ -140,7 +140,7 @@ class CatchupStateMachine
     void enterApplyingState();
     void enterEndState();
 
-    HistoryMaster::VerifyHashStatus verifyHistoryFromLastClosedLedger();
+    HistoryManager::VerifyHashStatus verifyHistoryFromLastClosedLedger();
     void applyBucketsAtLastClosedLedger();
     void acquireFinalLedgerState(uint32_t ledgerNum);
     void applyHistoryFromLastClosedLedger();
@@ -148,9 +148,9 @@ class CatchupStateMachine
   public:
     CatchupStateMachine(
         Application& app, uint32_t initLedger,
-        HistoryMaster::ResumeMode mode,
+        HistoryManager::ResumeMode mode,
         std::function<
-            void(asio::error_code const& ec, HistoryMaster::ResumeMode mode,
+            void(asio::error_code const& ec, HistoryManager::ResumeMode mode,
                  LedgerHeaderHistoryEntry const& lastClosed)> handler);
 };
 }

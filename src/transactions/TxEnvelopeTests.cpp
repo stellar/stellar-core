@@ -12,7 +12,7 @@
 #include "crypto/Base58.h"
 #include "lib/json/json.h"
 #include "TxTests.h"
-#include "ledger/LedgerMaster.h"
+#include "ledger/LedgerManagerImpl.h"
 #include "ledger/LedgerDelta.h"
 #include "transactions/PaymentOpFrame.h"
 #include "transactions/CreateOfferOpFrame.h"
@@ -47,12 +47,12 @@ TEST_CASE("txenvelope", "[tx][envelope]")
     ;
 
     const uint64_t paymentAmount =
-        app.getLedgerMaster().getCurrentLedgerHeader().baseReserve * 10;
+        app.getLedgerManagerImpl().getCurrentLedgerHeader().baseReserve * 10;
 
     SECTION("outer envelope")
     {
         TransactionFramePtr txFrame;
-        LedgerDelta delta(app.getLedgerMaster().getCurrentLedgerHeader());
+        LedgerDelta delta(app.getLedgerManagerImpl().getCurrentLedgerHeader());
 
         SECTION("no signature")
         {
@@ -134,7 +134,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
             tx->getEnvelope().signatures.clear();
             tx->addSignature(s1);
 
-            LedgerDelta delta(app.getLedgerMaster().getCurrentLedgerHeader());
+            LedgerDelta delta(app.getLedgerManagerImpl().getCurrentLedgerHeader());
 
             tx->apply(delta, app);
             REQUIRE(tx->getResultCode() == txBAD_AUTH);
@@ -150,7 +150,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
             tx->getEnvelope().signatures.clear();
             tx->addSignature(s2);
 
-            LedgerDelta delta(app.getLedgerMaster().getCurrentLedgerHeader());
+            LedgerDelta delta(app.getLedgerManagerImpl().getCurrentLedgerHeader());
 
             tx->apply(delta, app);
             REQUIRE(tx->getResultCode() == txFAILED);
@@ -165,7 +165,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
             tx->addSignature(s1);
             tx->addSignature(s2);
 
-            LedgerDelta delta(app.getLedgerMaster().getCurrentLedgerHeader());
+            LedgerDelta delta(app.getLedgerManagerImpl().getCurrentLedgerHeader());
 
             tx->apply(delta, app);
             REQUIRE(tx->getResultCode() == txSUCCESS);
@@ -186,7 +186,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
             te.tx.seqNum = rootSeq++;
             TransactionFrame tx(te);
             tx.addSignature(root);
-            LedgerDelta delta(app.getLedgerMaster().getCurrentLedgerHeader());
+            LedgerDelta delta(app.getLedgerManagerImpl().getCurrentLedgerHeader());
 
             REQUIRE(!tx.checkValid(app, 0));
 
@@ -218,7 +218,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                 SECTION("missing signature")
                 {
                     LedgerDelta delta(
-                        app.getLedgerMaster().getCurrentLedgerHeader());
+                        app.getLedgerManagerImpl().getCurrentLedgerHeader());
 
                     REQUIRE(!tx->checkValid(app, 0));
                     tx->apply(delta, app);
@@ -231,7 +231,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                 {
                     tx->addSignature(b1);
                     LedgerDelta delta(
-                        app.getLedgerMaster().getCurrentLedgerHeader());
+                        app.getLedgerManagerImpl().getCurrentLedgerHeader());
 
                     REQUIRE(tx->checkValid(app, 0));
                     tx->apply(delta, app);
@@ -267,14 +267,14 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                     tx->addSignature(b1);
 
                     LedgerDelta delta(
-                        app.getLedgerMaster().getCurrentLedgerHeader());
+                        app.getLedgerManagerImpl().getCurrentLedgerHeader());
 
                     REQUIRE(!tx->checkValid(app, 0));
 
                     tx->apply(delta, app);
 
                     REQUIRE(tx->getResult().feeCharged ==
-                            2 * app.getLedgerGateway().getTxFee());
+                            2 * app.getLedgerManager().getTxFee());
                     REQUIRE(tx->getResultCode() == txFAILED);
                     // first operation was success
                     REQUIRE(Payment::getInnerCode(getFirstResult(*tx)) ==
@@ -305,14 +305,14 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                     tx->addSignature(b1);
 
                     LedgerDelta delta(
-                        app.getLedgerMaster().getCurrentLedgerHeader());
+                        app.getLedgerManagerImpl().getCurrentLedgerHeader());
 
                     REQUIRE(tx->checkValid(app, 0));
 
                     tx->apply(delta, app);
 
                     REQUIRE(tx->getResult().feeCharged ==
-                            2 * app.getLedgerGateway().getTxFee());
+                            2 * app.getLedgerManager().getTxFee());
                     REQUIRE(tx->getResultCode() == txFAILED);
                     // first operation was success
                     REQUIRE(Payment::getInnerCode(getFirstResult(*tx)) ==
@@ -342,14 +342,14 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                     tx->addSignature(b1);
 
                     LedgerDelta delta(
-                        app.getLedgerMaster().getCurrentLedgerHeader());
+                        app.getLedgerManagerImpl().getCurrentLedgerHeader());
 
                     REQUIRE(tx->checkValid(app, 0));
 
                     tx->apply(delta, app);
 
                     REQUIRE(tx->getResult().feeCharged ==
-                            2 * app.getLedgerGateway().getTxFee());
+                            2 * app.getLedgerManager().getTxFee());
                     REQUIRE(tx->getResultCode() == txSUCCESS);
 
                     REQUIRE(Payment::getInnerCode(getFirstResult(*tx)) ==
@@ -365,7 +365,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
     SECTION("common transaction")
     {
         TxSetFramePtr txSet = std::make_shared<TxSetFrame>(
-            app.getLedgerMaster().getLastClosedLedgerHeader().hash);
+            app.getLedgerManagerImpl().getLastClosedLedgerHeader().hash);
 
         TransactionFramePtr txFrame;
 
@@ -377,18 +377,18 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
         // close this ledger
         LedgerCloseData ledgerData(1, txSet, 1, 10);
-        app.getLedgerMaster().closeLedger(ledgerData);
+        app.getLedgerManagerImpl().closeLedger(ledgerData);
 
-        REQUIRE(app.getLedgerGateway().getLedgerNum() == 3);
+        REQUIRE(app.getLedgerManager().getLedgerNum() == 3);
 
         {
-            LedgerDelta delta(app.getLedgerMaster().getCurrentLedgerHeader());
+            LedgerDelta delta(app.getLedgerManagerImpl().getCurrentLedgerHeader());
 
             SECTION("Insufficient fee")
             {
                 txFrame = createPaymentTx(root, a1, rootSeq++, paymentAmount);
                 txFrame->getEnvelope().tx.maxFee =
-                    static_cast<uint32_t>(app.getLedgerMaster().getTxFee() - 1);
+                    static_cast<uint32_t>(app.getLedgerManagerImpl().getTxFee() - 1);
 
                 txFrame->apply(delta, app);
 

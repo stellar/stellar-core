@@ -8,7 +8,7 @@
 #include "clf/CLFManager.h"
 #include "crypto/Hex.h"
 #include "history/HistoryArchive.h"
-#include "history/HistoryMaster.h"
+#include "history/HistoryManager.h"
 #include "history/FileTransferInfo.h"
 #include "main/Application.h"
 #include "main/Config.h"
@@ -182,7 +182,7 @@ ArchivePublisher::enterSendingState()
     mState = PUBLISH_SENDING;
 
     FilePublishState minimumState = FILE_PUBLISH_UPLOADED;
-    auto& hm = mApp.getHistoryMaster();
+    auto& hm = mApp.getHistoryManager();
     for (auto& pair : mFileInfos)
     {
         auto fi = pair.second;
@@ -321,22 +321,22 @@ PublishStateMachine::queueSnapshot(SnapshotPtr snap, PublishCallback handler)
 
 StateSnapshot::StateSnapshot(Application& app)
     : mApp(app)
-    , mLocalState(app.getHistoryMaster().getLastClosedHistoryArchiveState())
+    , mLocalState(app.getHistoryManager().getLastClosedHistoryArchiveState())
     , mSnapDir(app.getTmpDirMaster().tmpDir("snapshot"))
     , mLedgerSnapFile(std::make_shared<FilePublishInfo>(
           FILE_PUBLISH_NEEDED, mSnapDir, HISTORY_FILE_TYPE_LEDGER,
           uint32_t(mLocalState.currentLedger /
-                   HistoryMaster::kCheckpointFrequency)))
+                   HistoryManager::kCheckpointFrequency)))
 
     , mTransactionSnapFile(std::make_shared<FilePublishInfo>(
           FILE_PUBLISH_NEEDED, mSnapDir, HISTORY_FILE_TYPE_TRANSACTIONS,
           uint32_t(mLocalState.currentLedger /
-                   HistoryMaster::kCheckpointFrequency)))
+                   HistoryManager::kCheckpointFrequency)))
 
     , mTransactionResultSnapFile(std::make_shared<FilePublishInfo>(
           FILE_PUBLISH_NEEDED, mSnapDir, HISTORY_FILE_TYPE_RESULTS,
           uint32_t(mLocalState.currentLedger /
-                   HistoryMaster::kCheckpointFrequency)))
+                   HistoryManager::kCheckpointFrequency)))
 {
     BucketList& buckets = app.getCLFManager().getBucketList();
     for (size_t i = 0; i < buckets.numLevels(); ++i)
@@ -367,7 +367,7 @@ StateSnapshot::writeHistoryBlocks() const
     txOut.open(mTransactionSnapFile->localPath_nogz());
     txResultOut.open(mTransactionResultSnapFile->localPath_nogz());
 
-    uint32_t count = HistoryMaster::kCheckpointFrequency;
+    uint32_t count = HistoryManager::kCheckpointFrequency;
 
     // 'mLocalState' describes the LCL, so its currentLedger will be 63, 127,
     // 191, etc.
@@ -431,7 +431,7 @@ PublishStateMachine::writeNextSnapshot()
                 snap->mApp.getClock().getIOService().post(
                     [snap, ec]()
                     {
-                        snap->mApp.getHistoryMaster().snapshotWritten(ec);
+                        snap->mApp.getHistoryManager().snapshotWritten(ec);
                     });
             });
     }
@@ -442,7 +442,7 @@ PublishStateMachine::writeNextSnapshot()
         {
             ec = std::make_error_code(std::errc::io_error);
         }
-        mApp.getHistoryMaster().snapshotWritten(ec);
+        mApp.getHistoryManager().snapshotWritten(ec);
     }
 }
 

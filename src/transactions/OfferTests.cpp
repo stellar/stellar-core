@@ -2,7 +2,7 @@
 // under the ISC License. See the COPYING file at the top-level directory of
 // this distribution or at http://opensource.org/licenses/ISC
 #include "main/Application.h"
-#include "ledger/LedgerMaster.h"
+#include "ledger/LedgerManagerImpl.h"
 #include "main/Config.h"
 #include "overlay/LoopbackPeer.h"
 #include "util/make_unique.h"
@@ -63,21 +63,21 @@ TEST_CASE("create offer", "[tx][offers]")
 
     int64_t trustLineLimit = 1000000 * currencyMultiplier;
 
-    int64_t txfee = app.getLedgerMaster().getTxFee();
+    int64_t txfee = app.getLedgerManagerImpl().getTxFee();
 
     SequenceNumber root_seq = getAccountSeqNum(root, app) + 1;
     ;
 
     // minimum balance necessary to hold 2 trust lines
     const int64_t minBalance2 =
-        app.getLedgerMaster().getMinBalance(2) + 10 * txfee;
+        app.getLedgerManagerImpl().getMinBalance(2) + 10 * txfee;
 
     Currency idrCur = makeCurrency(gateway, "IDR");
     Currency usdCur = makeCurrency(gateway, "USD");
 
     const Price oneone(1, 1);
 
-    LedgerDelta delta(app.getLedgerMaster().getCurrentLedgerHeader());
+    LedgerDelta delta(app.getLedgerManagerImpl().getCurrentLedgerHeader());
 
     SECTION("account a1 does not exist")
     {
@@ -128,7 +128,7 @@ TEST_CASE("create offer", "[tx][offers]")
 
     // minimum balance to hold
     // 2 trust lines and one offer
-    const int64_t minBalance3 = app.getLedgerMaster().getMinBalance(3);
+    const int64_t minBalance3 = app.getLedgerManagerImpl().getMinBalance(3);
 
     SECTION("a1 setup properly")
     {
@@ -138,7 +138,7 @@ TEST_CASE("create offer", "[tx][offers]")
         const int nbOffers = 22;
 
         const int64_t minBalanceA =
-            app.getLedgerMaster().getMinBalance(3 + nbOffers);
+            app.getLedgerManagerImpl().getMinBalance(3 + nbOffers);
 
         applyPaymentTx(app, root, a1, root_seq++, minBalanceA + 10000);
         SequenceNumber a1_seq = getAccountSeqNum(a1, app) + 1;

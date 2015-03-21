@@ -10,9 +10,9 @@
 #include "clf/BucketList.h"
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
-#include "history/HistoryMaster.h"
+#include "history/HistoryManager.h"
 #include "history/FileTransferInfo.h"
-#include "process/ProcessGateway.h"
+#include "process/ProcessManager.h"
 #include "main/Application.h"
 #include "util/Fs.h"
 #include "util/make_unique.h"
@@ -28,20 +28,6 @@
 
 namespace stellar
 {
-
-class HistoryArchive::Impl
-{
-  public:
-    std::string mName;
-    std::string mGetCmd;
-    std::string mPutCmd;
-    std::string mMkdirCmd;
-    Impl(std::string const& name, std::string const& getCmd,
-         std::string const& putCmd, std::string const& mkdirCmd)
-        : mName(name), mGetCmd(getCmd), mPutCmd(putCmd), mMkdirCmd(mkdirCmd)
-    {
-    }
-};
 
 void
 HistoryArchiveState::save(std::string const& outFile) const
@@ -93,7 +79,7 @@ HistoryArchiveState::remoteName(uint32_t snapshotNumber)
 std::string
 HistoryArchiveState::localName(Application& app, std::string const& archiveName)
 {
-    return app.getHistoryMaster().localFilename(archiveName + "-" + baseName());
+    return app.getHistoryManager().localFilename(archiveName + "-" + baseName());
 }
 
 Hash
@@ -166,7 +152,7 @@ HistoryArchive::HistoryArchive(std::string const& name,
                                std::string const& getCmd,
                                std::string const& putCmd,
                                std::string const& mkdirCmd)
-    : mImpl(make_unique<Impl>(name, getCmd, putCmd, mkdirCmd))
+    : mName(name), mGetCmd(getCmd), mPutCmd(putCmd), mMkdirCmd(mkdirCmd)
 {
 }
 
@@ -177,25 +163,25 @@ HistoryArchive::~HistoryArchive()
 bool
 HistoryArchive::hasGetCmd() const
 {
-    return !mImpl->mGetCmd.empty();
+    return !mGetCmd.empty();
 }
 
 bool
 HistoryArchive::hasPutCmd() const
 {
-    return !mImpl->mPutCmd.empty();
+    return !mPutCmd.empty();
 }
 
 bool
 HistoryArchive::hasMkdirCmd() const
 {
-    return !mImpl->mMkdirCmd.empty();
+    return !mMkdirCmd.empty();
 }
 
 std::string const&
 HistoryArchive::getName() const
 {
-    return mImpl->mName;
+    return mName;
 }
 
 void
@@ -222,9 +208,9 @@ HistoryArchive::getStateFromPath(
     std::function<void(asio::error_code const&, HistoryArchiveState const&)>
         handler) const
 {
-    auto local = HistoryArchiveState::localName(app, mImpl->mName);
-    auto archiveName = mImpl->mName;
-    auto& hm = app.getHistoryMaster();
+    auto local = HistoryArchiveState::localName(app, mName);
+    auto archiveName = mName;
+    auto& hm = app.getHistoryManager();
     auto self = shared_from_this();
     hm.getFile(
         self, remoteName, local,
@@ -254,9 +240,9 @@ HistoryArchive::putState(
     Application& app, HistoryArchiveState const& s,
     std::function<void(asio::error_code const&)> handler) const
 {
-    auto local = HistoryArchiveState::localName(app, mImpl->mName);
+    auto local = HistoryArchiveState::localName(app, mName);
     s.save(local);
-    uint32_t snap = s.currentLedger / HistoryMaster::kCheckpointFrequency;
+    uint32_t snap = s.currentLedger / HistoryManager::kCheckpointFrequency;
     auto self = shared_from_this();
     putStateInDir(app, s, local, HistoryArchiveState::remoteDir(snap),
                   HistoryArchiveState::remoteName(snap),
@@ -287,8 +273,8 @@ HistoryArchive::putStateInDir(
     std::string const& remoteDir, std::string const& remoteName,
     std::function<void(asio::error_code const&)> handler) const
 {
-    auto& hm = app.getHistoryMaster();
-    auto archiveName = mImpl->mName;
+    auto& hm = app.getHistoryManager();
+    auto archiveName = mName;
     auto self = shared_from_this();
 
     hm.mkdir(self, remoteDir,
@@ -330,25 +316,25 @@ std::string
 HistoryArchive::getFileCmd(std::string const& remote,
                            std::string const& local) const
 {
-    if (mImpl->mGetCmd.empty())
+    if (mGetCmd.empty())
         return "";
-    return fmt::format(mImpl->mGetCmd, remote, local);
+    return fmt::format(mGetCmd, remote, local);
 }
 
 std::string
 HistoryArchive::putFileCmd(std::string const& local,
                            std::string const& remote) const
 {
-    if (mImpl->mPutCmd.empty())
+    if (mPutCmd.empty())
         return "";
-    return fmt::format(mImpl->mPutCmd, local, remote);
+    return fmt::format(mPutCmd, local, remote);
 }
 
 std::string
 HistoryArchive::mkdirCmd(std::string const& remoteDir) const
 {
-    if (mImpl->mMkdirCmd.empty())
+    if (mMkdirCmd.empty())
         return "";
-    return fmt::format(mImpl->mMkdirCmd, remoteDir);
+    return fmt::format(mMkdirCmd, remoteDir);
 }
 }

@@ -7,7 +7,7 @@
 #include "xdrpp/marshal.h"
 #include "crypto/SHA.h"
 #include "util/Logging.h"
-#include "overlay/OverlayGateway.h"
+#include "overlay/OverlayManager.h"
 
 #define MS_TO_WAIT_FOR_FETCH_REPLY 3000
 
@@ -228,7 +228,7 @@ TrackingCollar::tryNextPeer()
             while (!peer && mPeersAsked.size())
             { // keep looping till we find a peer
                 // we are still connected to
-                peer = mApp.getOverlayGateway().getNextPeer(
+                peer = mApp.getOverlayManager().getNextPeer(
                     mPeersAsked[mPeersAsked.size() - 1]);
                 if (!peer)
                     mPeersAsked.pop_back();
@@ -236,7 +236,7 @@ TrackingCollar::tryNextPeer()
         }
         else
         {
-            peer = mApp.getOverlayGateway().getRandomPeer();
+            peer = mApp.getOverlayManager().getRandomPeer();
         }
 
         if (peer)

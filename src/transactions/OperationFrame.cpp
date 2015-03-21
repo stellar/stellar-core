@@ -66,7 +66,7 @@ OperationFrame::apply(LedgerDelta& delta, Application& app)
     res = checkValid(app);
     if (res)
     {
-        res = doApply(delta, app.getLedgerMaster());
+        res = doApply(delta, app.getLedgerManagerImpl());
     }
 
     return res;

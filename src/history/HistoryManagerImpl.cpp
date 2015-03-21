@@ -2,21 +2,22 @@
 // under the ISC License. See the COPYING file at the top-level directory of
 // this distribution or at http://opensource.org/licenses/ISC
 
-#include "history/HistoryMaster.h"
 // ASIO is somewhat particular about when it gets included -- it wants to be the
 // first to include <windows.h> -- so we try to include it before everything
 // else.
 #include "util/asio.h"
+
 #include "main/Application.h"
 #include "main/Config.h"
 #include "clf/BucketList.h"
 #include "clf/CLFManager.h"
-#include "ledger/LedgerMaster.h"
+#include "ledger/LedgerManagerImpl.h"
 #include "generated/StellarXDR.h"
 #include "history/HistoryArchive.h"
+#include "history/HistoryManagerImpl.h"
 #include "history/PublishStateMachine.h"
 #include "history/CatchupStateMachine.h"
-#include "process/ProcessGateway.h"
+#include "process/ProcessManager.h"
 #include "util/make_unique.h"
 #include "util/Logging.h"
 #include "util/TmpDir.h"
@@ -35,64 +36,10 @@ namespace stellar
 
 using namespace std;
 
-const uint32_t HistoryMaster::kCheckpointFrequency = 64;
-
-class HistoryMaster::Impl
-{
-    Application& mApp;
-    unique_ptr<TmpDir> mWorkDir;
-    unique_ptr<PublishStateMachine> mPublish;
-    unique_ptr<CatchupStateMachine> mCatchup;
-
-    medida::Meter& mPublishSkip;
-    medida::Meter& mPublishQueue;
-    medida::Meter& mPublishDelay;
-    medida::Meter& mPublishStart;
-    medida::Meter& mPublishSuccess;
-    medida::Meter& mPublishFailure;
-
-    medida::Meter& mCatchupStart;
-    medida::Meter& mCatchupSuccess;
-    medida::Meter& mCatchupFailure;
-
-    friend class HistoryMaster;
-
-  public:
-    Impl(Application& app)
-        : mApp(app)
-        , mWorkDir(nullptr)
-        , mPublish(nullptr)
-        , mCatchup(nullptr)
-
-        , mPublishSkip(app.getMetrics().NewMeter({"history", "publish", "skip"},
-                                                 "event"))
-        , mPublishQueue(app.getMetrics().NewMeter({"history", "publish", "queue"},
-                                                  "event"))
-        , mPublishDelay(app.getMetrics().NewMeter({"history", "publish", "delay"},
-                                                  "event"))
-        , mPublishStart(app.getMetrics().NewMeter(
-              {"history", "publish", "start"}, "event"))
-        , mPublishSuccess(app.getMetrics().NewMeter(
-              {"history", "publish", "success"}, "event"))
-        , mPublishFailure(app.getMetrics().NewMeter(
-              {"history", "publish", "failure"}, "event"))
-
-        , mCatchupStart(app.getMetrics().NewMeter(
-              {"history", "catchup", "start"}, "event"))
-        , mCatchupSuccess(app.getMetrics().NewMeter(
-              {"history", "catchup", "success"}, "event"))
-        , mCatchupFailure(app.getMetrics().NewMeter(
-              {"history", "catchup", "failure"}, "event"))
-    {
-    }
-};
-
-HistoryMaster::HistoryMaster(Application& app) : mImpl(make_unique<Impl>(app))
-{
-}
+const uint32_t HistoryManager::kCheckpointFrequency = 64;
 
 bool
-HistoryMaster::initializeHistoryArchive(Application& app, std::string arch)
+HistoryManager::initializeHistoryArchive(Application& app, std::string arch)
 {
     auto const& cfg = app.getConfig();
     auto i = cfg.HISTORY.find(arch);
@@ -131,23 +78,66 @@ HistoryMaster::initializeHistoryArchive(Application& app, std::string arch)
     return ok;
 }
 
-HistoryMaster::~HistoryMaster()
+uint32_t
+HistoryManager::nextCheckpointLedger(uint32_t ledger)
+{
+    if (ledger == 0)
+        return kCheckpointFrequency;
+    uint64_t res = static_cast<uint64_t>(kCheckpointFrequency);
+    return static_cast<uint32_t>(((ledger + res - 1) / res) * res);
+}
+
+std::unique_ptr<HistoryManager>
+HistoryManager::create(Application& app)
+{
+    return make_unique<HistoryManagerImpl>(app);
+}
+
+
+HistoryManagerImpl::HistoryManagerImpl(Application& app)
+    : mApp(app)
+    , mWorkDir(nullptr)
+    , mPublish(nullptr)
+    , mCatchup(nullptr)
+
+    , mPublishSkip(app.getMetrics().NewMeter({"history", "publish", "skip"},
+                                             "event"))
+    , mPublishQueue(app.getMetrics().NewMeter({"history", "publish", "queue"},
+                                              "event"))
+    , mPublishDelay(app.getMetrics().NewMeter({"history", "publish", "delay"},
+                                              "event"))
+    , mPublishStart(app.getMetrics().NewMeter(
+                        {"history", "publish", "start"}, "event"))
+    , mPublishSuccess(app.getMetrics().NewMeter(
+                          {"history", "publish", "success"}, "event"))
+    , mPublishFailure(app.getMetrics().NewMeter(
+                          {"history", "publish", "failure"}, "event"))
+    , mCatchupStart(app.getMetrics().NewMeter(
+                        {"history", "catchup", "start"}, "event"))
+    , mCatchupSuccess(app.getMetrics().NewMeter(
+                          {"history", "catchup", "success"}, "event"))
+    , mCatchupFailure(app.getMetrics().NewMeter(
+                          {"history", "catchup", "failure"}, "event"))
+{
+}
+
+HistoryManagerImpl::~HistoryManagerImpl()
 {
 }
 
 string const&
-HistoryMaster::getTmpDir()
+HistoryManagerImpl::getTmpDir()
 {
-    if (!mImpl->mWorkDir)
+    if (!mWorkDir)
     {
-        TmpDir t = mImpl->mApp.getTmpDirMaster().tmpDir("history");
-        mImpl->mWorkDir = make_unique<TmpDir>(std::move(t));
+        TmpDir t = mApp.getTmpDirMaster().tmpDir("history");
+        mWorkDir = make_unique<TmpDir>(std::move(t));
     }
-    return mImpl->mWorkDir->getName();
+    return mWorkDir->getName();
 }
 
 std::string
-HistoryMaster::localFilename(std::string const& basename)
+HistoryManagerImpl::localFilename(std::string const& basename)
 {
     return this->getTmpDir() + "/" + basename;
 }
@@ -174,22 +164,13 @@ checkNoGzipSuffix(string const& filename)
     }
 }
 
-uint32_t
-HistoryMaster::nextCheckpointLedger(uint32_t ledger)
-{
-    if (ledger == 0)
-        return kCheckpointFrequency;
-    uint64_t res = static_cast<uint64_t>(kCheckpointFrequency);
-    return static_cast<uint32_t>(((ledger + res - 1) / res) * res);
-}
-
 void
-HistoryMaster::verifyHash(
+HistoryManagerImpl::verifyHash(
     std::string const& filename, uint256 const& hash,
     std::function<void(asio::error_code const&)> handler) const
 {
     checkNoGzipSuffix(filename);
-    Application& app = this->mImpl->mApp;
+    Application& app = this->mApp;
     app.getWorkerIOService().post(
         [&app, filename, handler, hash]()
         {
@@ -223,13 +204,13 @@ HistoryMaster::verifyHash(
 }
 
 void
-HistoryMaster::decompress(std::string const& filename_gz,
+HistoryManagerImpl::decompress(std::string const& filename_gz,
                           std::function<void(asio::error_code const&)> handler,
                           bool keepExisting) const
 {
     checkGzipSuffix(filename_gz);
     std::string filename = filename_gz.substr(0, filename_gz.size() - 3);
-    Application& app = this->mImpl->mApp;
+    Application& app = this->mApp;
     std::string commandLine("gzip -d ");
     std::string outputFile;
     if (keepExisting)
@@ -239,7 +220,7 @@ HistoryMaster::decompress(std::string const& filename_gz,
         outputFile = filename;
     }
     commandLine += filename_gz;
-    auto exit = app.getProcessGateway().runProcess(commandLine, outputFile);
+    auto exit = app.getProcessManager().runProcess(commandLine, outputFile);
     exit.async_wait(
         [&app, filename_gz, filename, handler](asio::error_code const& ec)
         {
@@ -256,13 +237,13 @@ HistoryMaster::decompress(std::string const& filename_gz,
 }
 
 void
-HistoryMaster::compress(std::string const& filename_nogz,
+HistoryManagerImpl::compress(std::string const& filename_nogz,
                         std::function<void(asio::error_code const&)> handler,
                         bool keepExisting) const
 {
     checkNoGzipSuffix(filename_nogz);
     std::string filename = filename_nogz + ".gz";
-    Application& app = this->mImpl->mApp;
+    Application& app = this->mApp;
     std::string commandLine("gzip ");
     std::string outputFile;
     if (keepExisting)
@@ -272,7 +253,7 @@ HistoryMaster::compress(std::string const& filename_nogz,
         outputFile = filename;
     }
     commandLine += filename_nogz;
-    auto exit = app.getProcessGateway().runProcess(commandLine, outputFile);
+    auto exit = app.getProcessManager().runProcess(commandLine, outputFile);
     exit.async_wait(
         [&app, filename_nogz, filename, handler](asio::error_code const& ec)
         {
@@ -289,36 +270,36 @@ HistoryMaster::compress(std::string const& filename_nogz,
 }
 
 void
-HistoryMaster::putFile(std::shared_ptr<HistoryArchive const> archive,
+HistoryManagerImpl::putFile(std::shared_ptr<HistoryArchive const> archive,
                        string const& local, string const& remote,
                        function<void(asio::error_code const& ec)> handler) const
 {
     assert(archive->hasPutCmd());
     auto cmd = archive->putFileCmd(local, remote);
-    auto exit = this->mImpl->mApp.getProcessGateway().runProcess(cmd);
+    auto exit = this->mApp.getProcessManager().runProcess(cmd);
     exit.async_wait(handler);
 }
 
 void
-HistoryMaster::getFile(std::shared_ptr<HistoryArchive const> archive,
+HistoryManagerImpl::getFile(std::shared_ptr<HistoryArchive const> archive,
                        string const& remote, string const& local,
                        function<void(asio::error_code const& ec)> handler) const
 {
     assert(archive->hasGetCmd());
     auto cmd = archive->getFileCmd(remote, local);
-    auto exit = this->mImpl->mApp.getProcessGateway().runProcess(cmd);
+    auto exit = this->mApp.getProcessManager().runProcess(cmd);
     exit.async_wait(handler);
 }
 
 void
-HistoryMaster::mkdir(std::shared_ptr<HistoryArchive const> archive,
+HistoryManagerImpl::mkdir(std::shared_ptr<HistoryArchive const> archive,
                      std::string const& dir,
                      std::function<void(asio::error_code const&)> handler) const
 {
     if (archive->hasMkdirCmd())
     {
         auto cmd = archive->mkdirCmd(dir);
-        auto exit = this->mImpl->mApp.getProcessGateway().runProcess(cmd);
+        auto exit = this->mApp.getProcessManager().runProcess(cmd);
         exit.async_wait(handler);
     }
     else
@@ -329,13 +310,13 @@ HistoryMaster::mkdir(std::shared_ptr<HistoryArchive const> archive,
 }
 
 HistoryArchiveState
-HistoryMaster::getLastClosedHistoryArchiveState() const
+HistoryManagerImpl::getLastClosedHistoryArchiveState() const
 {
     HistoryArchiveState has;
-    has.currentLedger = mImpl->mApp.getLedgerMaster()
+    has.currentLedger = mApp.getLedgerManagerImpl()
                             .getLastClosedLedgerHeader()
                             .header.ledgerSeq;
-    auto& bl = mImpl->mApp.getCLFManager().getBucketList();
+    auto& bl = mApp.getCLFManager().getBucketList();
     for (size_t i = 0; i < BucketList::kNumLevels; ++i)
     {
         has.currentBuckets.at(i).curr =
@@ -347,9 +328,9 @@ HistoryMaster::getLastClosedHistoryArchiveState() const
 }
 
 bool
-HistoryMaster::hasAnyWritableHistoryArchive()
+HistoryManagerImpl::hasAnyWritableHistoryArchive()
 {
-    auto const& hist = mImpl->mApp.getConfig().HISTORY;
+    auto const& hist = mApp.getConfig().HISTORY;
     for (auto const& pair : hist)
     {
         if (pair.second->hasGetCmd() && pair.second->hasPutCmd())
@@ -359,11 +340,11 @@ HistoryMaster::hasAnyWritableHistoryArchive()
 }
 
 bool
-HistoryMaster::maybePublishHistory(
+HistoryManagerImpl::maybePublishHistory(
     std::function<void(asio::error_code const&)> handler)
 {
     uint32_t seq =
-        mImpl->mApp.getLedgerMaster().getCurrentLedgerHeader().ledgerSeq;
+        mApp.getLedgerManagerImpl().getCurrentLedgerHeader().ledgerSeq;
     if (seq != nextCheckpointLedger(seq))
     {
         return false;
@@ -371,7 +352,7 @@ HistoryMaster::maybePublishHistory(
 
     if (!hasAnyWritableHistoryArchive())
     {
-        mImpl->mPublishSkip.Mark();
+        mPublishSkip.Mark();
         CLOG(WARNING, "History")
             << "Skipping checkpoint, no writable history archives";
         return false;
@@ -382,129 +363,129 @@ HistoryMaster::maybePublishHistory(
 }
 
 void
-HistoryMaster::publishHistory(
+HistoryManagerImpl::publishHistory(
     std::function<void(asio::error_code const&)> handler)
 {
-    if (!mImpl->mPublish)
+    if (!mPublish)
     {
-        mImpl->mPublish = make_unique<PublishStateMachine>(mImpl->mApp);
+        mPublish = make_unique<PublishStateMachine>(mApp);
     }
-    mImpl->mPublishQueue.Mark();
-    auto snap = PublishStateMachine::takeSnapshot(mImpl->mApp);
-    if (mImpl->mPublish->queueSnapshot(
+    mPublishQueue.Mark();
+    auto snap = PublishStateMachine::takeSnapshot(mApp);
+    if (mPublish->queueSnapshot(
         snap,
         [this, handler](asio::error_code const& ec)
         {
             if (ec)
             {
-                this->mImpl->mPublishFailure.Mark();
+                this->mPublishFailure.Mark();
             }
             else
             {
-                this->mImpl->mPublishSuccess.Mark();
+                this->mPublishSuccess.Mark();
             }
             handler(ec);
         }))
     {
         // Only bump this counter if there's a delay building up.
-        mImpl->mPublishDelay.Mark();
+        mPublishDelay.Mark();
     }
 }
 
 void
-HistoryMaster::snapshotWritten(asio::error_code const& ec)
+HistoryManagerImpl::snapshotWritten(asio::error_code const& ec)
 {
-    assert(mImpl->mPublish);
-    mImpl->mPublishStart.Mark();
-    mImpl->mPublish->snapshotWritten(ec);
+    assert(mPublish);
+    mPublishStart.Mark();
+    mPublish->snapshotWritten(ec);
 }
 
 void
-HistoryMaster::catchupHistory(
+HistoryManagerImpl::catchupHistory(
     uint32_t initLedger, ResumeMode mode,
     std::function<void(asio::error_code const& ec, ResumeMode mode,
                        LedgerHeaderHistoryEntry const& lastClosed)> handler)
 {
-    if (mImpl->mCatchup)
+    if (mCatchup)
     {
         throw std::runtime_error("Catchup already in progress");
     }
-    mImpl->mCatchupStart.Mark();
-    mImpl->mCatchup = make_unique<CatchupStateMachine>(
-        mImpl->mApp, initLedger, mode,
+    mCatchupStart.Mark();
+    mCatchup = make_unique<CatchupStateMachine>(
+        mApp, initLedger, mode,
         [this, handler](asio::error_code const& ec,
-                        HistoryMaster::ResumeMode mode,
+                        HistoryManagerImpl::ResumeMode mode,
                         LedgerHeaderHistoryEntry const& lastClosed)
         {
             if (ec)
             {
-                this->mImpl->mCatchupFailure.Mark();
+                this->mCatchupFailure.Mark();
             }
             else
             {
-                this->mImpl->mCatchupSuccess.Mark();
+                this->mCatchupSuccess.Mark();
             }
             // Tear down the catchup state machine when complete then call our
             // caller's handler. Must keep the state machine alive long enough
             // for the callback, though, to avoid killing things living in
             // lambdas.
             std::unique_ptr<CatchupStateMachine> m(
-                std::move(this->mImpl->mCatchup));
+                std::move(this->mCatchup));
             handler(ec, mode, lastClosed);
         });
 }
 
 uint64_t
-HistoryMaster::getPublishSkipCount()
+HistoryManagerImpl::getPublishSkipCount()
 {
-    return mImpl->mPublishSkip.count();
+    return mPublishSkip.count();
 }
 
 uint64_t
-HistoryMaster::getPublishQueueCount()
+HistoryManagerImpl::getPublishQueueCount()
 {
-    return mImpl->mPublishQueue.count();
+    return mPublishQueue.count();
 }
 
 uint64_t
-HistoryMaster::getPublishDelayCount()
+HistoryManagerImpl::getPublishDelayCount()
 {
-    return mImpl->mPublishDelay.count();
+    return mPublishDelay.count();
 }
 
 uint64_t
-HistoryMaster::getPublishStartCount()
+HistoryManagerImpl::getPublishStartCount()
 {
-    return mImpl->mPublishStart.count();
+    return mPublishStart.count();
 }
 
 uint64_t
-HistoryMaster::getPublishSuccessCount()
+HistoryManagerImpl::getPublishSuccessCount()
 {
-    return mImpl->mPublishSuccess.count();
+    return mPublishSuccess.count();
 }
 
 uint64_t
-HistoryMaster::getPublishFailureCount()
+HistoryManagerImpl::getPublishFailureCount()
 {
-    return mImpl->mPublishFailure.count();
+    return mPublishFailure.count();
 }
 
 uint64_t
-HistoryMaster::getCatchupStartCount()
+HistoryManagerImpl::getCatchupStartCount()
 {
-    return mImpl->mCatchupStart.count();
+    return mCatchupStart.count();
 }
 
 uint64_t
-HistoryMaster::getCatchupSuccessCount()
+HistoryManagerImpl::getCatchupSuccessCount()
 {
-    return mImpl->mCatchupSuccess.count();
+    return mCatchupSuccess.count();
 }
 
 uint64_t
-HistoryMaster::getCatchupFailureCount()
+HistoryManagerImpl::getCatchupFailureCount()
 {
-    return mImpl->mCatchupFailure.count();
+    return mCatchupFailure.count();
 }
 }

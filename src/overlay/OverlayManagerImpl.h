@@ -12,7 +12,7 @@
 #include <vector>
 #include <thread>
 #include "generated/StellarXDR.h"
-#include "overlay/OverlayGateway.h"
+#include "overlay/OverlayManager.h"
 #include "util/Timer.h"
 
 namespace medida
@@ -26,7 +26,7 @@ Maintain the set of peers we are connected to
 namespace stellar
 {
 
-class PeerMaster : public OverlayGateway
+class OverlayManagerImpl : public OverlayManager
 {
   protected:
     Application& mApp;
@@ -47,13 +47,13 @@ class PeerMaster : public OverlayGateway
     void storeConfigPeers();
     bool isPeerPreferred(Peer::pointer peer);
 
-    friend class PeerMasterTests;
+    friend class OverlayManagerImplTests;
 
   public:
     Floodgate mFloodGate;
 
-    PeerMaster(Application& app);
-    ~PeerMaster();
+    OverlayManagerImpl(Application& app);
+    ~OverlayManagerImpl();
 
     //////// GATEWAY FUNCTIONS
     void ledgerClosed(LedgerHeaderHistoryEntry const& ledger);

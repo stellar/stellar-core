@@ -133,7 +133,7 @@ applyAllowTrust(Application& app, SecretKey& from, SecretKey& trustor,
     TransactionFramePtr txFrame;
     txFrame = createAllowTrust(from, trustor, seq, currencyCode, authorize);
 
-    LedgerDelta delta(app.getLedgerMaster().getCurrentLedgerHeader());
+    LedgerDelta delta(app.getLedgerManagerImpl().getCurrentLedgerHeader());
     txFrame->apply(delta, app);
 
     checkTransaction(*txFrame);
@@ -164,7 +164,7 @@ applyPaymentTx(Application& app, SecretKey& from, SecretKey& to,
 
     txFrame = createPaymentTx(from, to, seq, amount);
 
-    LedgerDelta delta(app.getLedgerMaster().getCurrentLedgerHeader());
+    LedgerDelta delta(app.getLedgerManagerImpl().getCurrentLedgerHeader());
     txFrame->apply(delta, app);
 
     checkTransaction(*txFrame);
@@ -181,7 +181,7 @@ applyChangeTrust(Application& app, SecretKey& from, SecretKey& to,
 
     txFrame = createChangeTrust(from, to, seq, currencyCode, limit);
 
-    LedgerDelta delta(app.getLedgerMaster().getCurrentLedgerHeader());
+    LedgerDelta delta(app.getLedgerManagerImpl().getCurrentLedgerHeader());
     txFrame->apply(delta, app);
 
     checkTransaction(*txFrame);
@@ -222,7 +222,7 @@ applyCreditPaymentTx(Application& app, SecretKey& from, SecretKey& to,
 
     txFrame = createCreditPaymentTx(from, to, ci, seq, amount);
 
-    LedgerDelta delta(app.getLedgerMaster().getCurrentLedgerHeader());
+    LedgerDelta delta(app.getLedgerManagerImpl().getCurrentLedgerHeader());
     txFrame->apply(delta, app);
 
     checkTransaction(*txFrame);
@@ -360,7 +360,7 @@ applySetOptions(Application& app, SecretKey& source, AccountID* inflationDest,
     txFrame = createSetOptions(source, inflationDest, setFlags, clearFlags,
                                data, thrs, signer, seq);
 
-    LedgerDelta delta(app.getLedgerMaster().getCurrentLedgerHeader());
+    LedgerDelta delta(app.getLedgerManagerImpl().getCurrentLedgerHeader());
     txFrame->apply(delta, app);
 
     checkTransaction(*txFrame);

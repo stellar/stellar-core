@@ -11,7 +11,7 @@
 #include "util/make_unique.h"
 #include "main/test.h"
 #include "lib/catch.hpp"
-#include "overlay/PeerMaster.h"
+#include "overlay/OverlayManagerImpl.h"
 #include "util/Timer.h"
 #include "database/Database.h"
 #include "util/TmpDir.h"
@@ -52,10 +52,10 @@ class PeerStub : public Peer
     }
 };
 
-class PeerMasterStub : public PeerMaster
+class OverlayManagerImplStub : public OverlayManagerImpl
 {
   public:
-    PeerMasterStub(Application& app) : PeerMaster(app)
+    OverlayManagerImplStub(Application& app) : OverlayManagerImpl(app)
     {
     }
 
@@ -72,21 +72,21 @@ class PeerMasterStub : public PeerMaster
     }
 };
 
-class PeerMasterTests
+class OverlayManagerImplTests
 {
     class ApplicationStub : public ApplicationImpl
     {
       public:
-        shared_ptr<PeerMasterStub> mPeerMaster;
+        shared_ptr<OverlayManagerImplStub> mOverlayManagerImpl;
         ApplicationStub(VirtualClock& clock, Config const& cfg)
             : ApplicationImpl(clock, cfg)
         {
-            mPeerMaster = make_shared<PeerMasterStub>(*this);
+            mOverlayManagerImpl = make_shared<OverlayManagerImplStub>(*this);
         }
-        virtual PeerMasterStub&
-        getPeerMaster() override
+        virtual OverlayManagerImplStub&
+        getOverlayManagerImpl() override
         {
-            return *mPeerMaster;
+            return *mOverlayManagerImpl;
         }
     };
 
@@ -97,7 +97,7 @@ class PeerMasterTests
     vector<string> fourPeers;
     vector<string> threePeers;
 
-    PeerMasterTests()
+    OverlayManagerImplTests()
         : fourPeers(vector<string>{"127.0.0.1:2011", "127.0.0.1:2012",
                                    "127.0.0.1:2013", "127.0.0.1:2014"})
         , threePeers(vector<string>{"127.0.0.1:201", "127.0.0.1:202",
@@ -108,7 +108,7 @@ class PeerMasterTests
     void
     test_addPeerList()
     {
-        PeerMasterStub& pm = app.getPeerMaster();
+        OverlayManagerImplStub& pm = app.getOverlayManagerImpl();
 
         pm.storePeerList(fourPeers, 10);
         pm.storePeerList(threePeers, 3);
@@ -126,7 +126,7 @@ class PeerMasterTests
     }
 
     vector<int>
-    sentCounts(PeerMaster& pm)
+    sentCounts(OverlayManagerImpl& pm)
     {
         vector<int> result;
         for (auto p : pm.mPeers)
@@ -137,8 +137,8 @@ class PeerMasterTests
     void
     test_broadcast()
     {
-        PeerMasterStub& pm = app.getPeerMaster();
-        app.getLedgerMaster().startNewLedger();
+        OverlayManagerImplStub& pm = app.getOverlayManagerImpl();
+        app.getLedgerManagerImpl().startNewLedger();
 
         pm.storePeerList(fourPeers, 3);
         pm.storePeerList(threePeers, 2);
@@ -163,12 +163,12 @@ class PeerMasterTests
     }
 };
 
-TEST_CASE_METHOD(PeerMasterTests, "addPeerList() adds", "[overlay]")
+TEST_CASE_METHOD(OverlayManagerImplTests, "addPeerList() adds", "[overlay]")
 {
     test_addPeerList();
 }
 
-TEST_CASE_METHOD(PeerMasterTests, "broadcast() broadcasts", "[overlay]")
+TEST_CASE_METHOD(OverlayManagerImplTests, "broadcast() broadcasts", "[overlay]")
 {
     test_broadcast();
 }

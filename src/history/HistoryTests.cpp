@@ -3,7 +3,7 @@
 // this distribution or at http://opensource.org/licenses/ISC
 #include "util/asio.h"
 #include "main/Application.h"
-#include "history/HistoryMaster.h"
+#include "history/HistoryManager.h"
 #include "history/HistoryArchive.h"
 #include "main/test.h"
 #include "main/Config.h"
@@ -16,7 +16,7 @@
 #include "util/Timer.h"
 #include "util/TmpDir.h"
 #include "transactions/TxTests.h"
-#include "ledger/LedgerMaster.h"
+#include "ledger/LedgerManagerImpl.h"
 #include "util/NonCopyable.h"
 #include <cstdio>
 #include <xdrpp/autocheck.h>
@@ -114,7 +114,7 @@ class HistoryTests
         , mBob(txtest::getAccount("bob"))
         , mCarol(txtest::getAccount("carol"))
     {
-        CHECK(HistoryMaster::initializeHistoryArchive(app, "test"));
+        CHECK(HistoryManager::initializeHistoryArchive(app, "test"));
     }
 
     void crankTillDone(bool& done);
@@ -124,10 +124,10 @@ class HistoryTests
 
     Application::pointer catchupNewApplication(
         uint32_t initLedger, Config::TestDbMode dbMode,
-        HistoryMaster::ResumeMode resumeMode, std::string const& appName);
+        HistoryManager::ResumeMode resumeMode, std::string const& appName);
 
     bool catchupApplication(uint32_t initLedger,
-                            HistoryMaster::ResumeMode resumeMode,
+                            HistoryManager::ResumeMode resumeMode,
                             Application::pointer app2,
                             bool doStart = true,
                             uint32_t maxCranks = 0xffffffff);
@@ -150,25 +150,25 @@ HistoryTests::crankTillDone(bool& done)
 
 TEST_CASE("next checkpoint ledger", "[history]")
 {
-    CHECK(HistoryMaster::nextCheckpointLedger(0) == 64);
-    CHECK(HistoryMaster::nextCheckpointLedger(1) == 64);
-    CHECK(HistoryMaster::nextCheckpointLedger(32) == 64);
-    CHECK(HistoryMaster::nextCheckpointLedger(62) == 64);
-    CHECK(HistoryMaster::nextCheckpointLedger(63) == 64);
-    CHECK(HistoryMaster::nextCheckpointLedger(64) == 64);
-    CHECK(HistoryMaster::nextCheckpointLedger(65) == 128);
-    CHECK(HistoryMaster::nextCheckpointLedger(66) == 128);
-    CHECK(HistoryMaster::nextCheckpointLedger(126) == 128);
-    CHECK(HistoryMaster::nextCheckpointLedger(127) == 128);
-    CHECK(HistoryMaster::nextCheckpointLedger(128) == 128);
-    CHECK(HistoryMaster::nextCheckpointLedger(129) == 192);
-    CHECK(HistoryMaster::nextCheckpointLedger(130) == 192);
+    CHECK(HistoryManager::nextCheckpointLedger(0) == 64);
+    CHECK(HistoryManager::nextCheckpointLedger(1) == 64);
+    CHECK(HistoryManager::nextCheckpointLedger(32) == 64);
+    CHECK(HistoryManager::nextCheckpointLedger(62) == 64);
+    CHECK(HistoryManager::nextCheckpointLedger(63) == 64);
+    CHECK(HistoryManager::nextCheckpointLedger(64) == 64);
+    CHECK(HistoryManager::nextCheckpointLedger(65) == 128);
+    CHECK(HistoryManager::nextCheckpointLedger(66) == 128);
+    CHECK(HistoryManager::nextCheckpointLedger(126) == 128);
+    CHECK(HistoryManager::nextCheckpointLedger(127) == 128);
+    CHECK(HistoryManager::nextCheckpointLedger(128) == 128);
+    CHECK(HistoryManager::nextCheckpointLedger(129) == 192);
+    CHECK(HistoryManager::nextCheckpointLedger(130) == 192);
 }
 
-TEST_CASE_METHOD(HistoryTests, "HistoryMaster::compress", "[history]")
+TEST_CASE_METHOD(HistoryTests, "HistoryManager::compress", "[history]")
 {
     std::string s = "hello there";
-    HistoryMaster& hm = app.getHistoryMaster();
+    HistoryManager& hm = app.getHistoryManager();
     std::string fname = hm.localFilename("compressme");
     {
         std::ofstream out(fname, std::ofstream::binary);
@@ -191,10 +191,10 @@ TEST_CASE_METHOD(HistoryTests, "HistoryMaster::compress", "[history]")
     crankTillDone(done);
 }
 
-TEST_CASE_METHOD(HistoryTests, "HistoryMaster::verifyHash", "[history]")
+TEST_CASE_METHOD(HistoryTests, "HistoryManager::verifyHash", "[history]")
 {
     std::string s = "hello there";
-    HistoryMaster& hm = app.getHistoryMaster();
+    HistoryManager& hm = app.getHistoryManager();
     std::string fname = hm.localFilename("hashme");
     {
         std::ofstream out(fname, std::ofstream::binary);
@@ -243,7 +243,7 @@ extern LedgerEntry generateValidLedgerEntry();
 void
 HistoryTests::generateRandomLedger()
 {
-    auto& lm = app.getLedgerMaster();
+    auto& lm = app.getLedgerManagerImpl();
     TxSetFramePtr txSet =
         std::make_shared<TxSetFrame>(lm.getLastClosedLedgerHeader().hash);
 
@@ -316,8 +316,8 @@ HistoryTests::generateRandomLedger()
 void
 HistoryTests::generateAndPublishHistory(size_t nPublishes)
 {
-    auto& lm = app.getLedgerMaster();
-    auto& hm = app.getHistoryMaster();
+    auto& lm = app.getLedgerManagerImpl();
+    auto& hm = app.getHistoryManager();
 
     size_t publishSuccesses = hm.getPublishSuccessCount();
     SequenceNumber ledgerSeq = lm.getCurrentLedgerHeader().ledgerSeq;
@@ -344,7 +344,7 @@ HistoryTests::generateAndPublishHistory(size_t nPublishes)
     REQUIRE(hm.getPublishFailureCount() == 0);
     REQUIRE(hm.getPublishSuccessCount() == publishSuccesses + nPublishes);
     REQUIRE(lm.getLedgerNum() ==
-          ((publishSuccesses + nPublishes) * HistoryMaster::kCheckpointFrequency));
+          ((publishSuccesses + nPublishes) * HistoryManager::kCheckpointFrequency));
 }
 
 
@@ -353,8 +353,8 @@ HistoryTests::generateAndPublishInitialHistory(size_t nPublishes)
 {
     app.start();
 
-    auto& lm = app.getLedgerMaster();
-    auto& hm = app.getHistoryMaster();
+    auto& lm = app.getLedgerManagerImpl();
+    auto& hm = app.getHistoryManager();
 
     // At this point LCL should be 1, current ledger should be 2
     assert(lm.getLastClosedLedgerHeader().header.ledgerSeq == 1);
@@ -366,7 +366,7 @@ HistoryTests::generateAndPublishInitialHistory(size_t nPublishes)
 Application::pointer
 HistoryTests::catchupNewApplication(uint32_t initLedger,
                                     Config::TestDbMode dbMode,
-                                    HistoryMaster::ResumeMode resumeMode,
+                                    HistoryManager::ResumeMode resumeMode,
                                     std::string const& appName)
 {
 
@@ -386,17 +386,17 @@ HistoryTests::catchupNewApplication(uint32_t initLedger,
 
 bool
 HistoryTests::catchupApplication(uint32_t initLedger,
-                                 HistoryMaster::ResumeMode resumeMode,
+                                 HistoryManager::ResumeMode resumeMode,
                                  Application::pointer app2,
                                  bool doStart, uint32_t maxCranks)
 {
 
 
     bool done = false;
-    auto& lm = app2->getLedgerMaster();
+    auto& lm = app2->getLedgerManagerImpl();
     if (doStart)
     {
-        // Normally Herder calls LedgerMaster.externalizeValue(initLedger) and
+        // Normally Herder calls LedgerManagerImpl.externalizeValue(initLedger) and
         // this _triggers_ catchup within the LM. However, we do this
         // out-of-order because we want to control the catchup mode rather than
         // let the LM pick it (it does RESUME_AT_LAST automatically), and
@@ -417,13 +417,13 @@ HistoryTests::catchupApplication(uint32_t initLedger,
     // Push publishing side forward one-ledger into a history block if it's
     // sitting on the boundary of it. This will ensure there's something
     // externalizable to knit-up with on the catchup side.
-    if (HistoryMaster::nextCheckpointLedger(
-            app.getLedgerMaster().getLastClosedLedgerNum())
-        == app.getLedgerMaster().getLedgerNum())
+    if (HistoryManager::nextCheckpointLedger(
+            app.getLedgerManagerImpl().getLastClosedLedgerNum())
+        == app.getLedgerManagerImpl().getLedgerNum())
     {
         CLOG(INFO, "History")
             << "force-publishing first ledger in next history block, ledger="
-            << app.getLedgerMaster().getLedgerNum();
+            << app.getLedgerManagerImpl().getLedgerNum();
         generateRandomLedger();
     }
 
@@ -431,7 +431,7 @@ HistoryTests::catchupApplication(uint32_t initLedger,
     // and as near as we can get to the first ledger of the block after
     // initLedger (inclusive), so that there's something to knit-up with. Do not
     // externalize anything we haven't yet published, of course.
-    uint32_t nextBlockStart = HistoryMaster::nextCheckpointLedger(initLedger);
+    uint32_t nextBlockStart = HistoryManager::nextCheckpointLedger(initLedger);
     for (uint32_t n = initLedger; n <= nextBlockStart; ++n)
     {
         if (n-2 >= mLedgerCloseDatas.size())
@@ -569,13 +569,13 @@ TEST_CASE_METHOD(HistoryTests, "History publish", "[history]")
 }
 
 static std::string
-resumeModeName(HistoryMaster::ResumeMode mode)
+resumeModeName(HistoryManager::ResumeMode mode)
 {
     switch (mode)
     {
-    case HistoryMaster::RESUME_AT_NEXT:
+    case HistoryManager::RESUME_AT_NEXT:
         return "RESUME_AT_NEXT";
-    case HistoryMaster::RESUME_AT_LAST:
+    case HistoryManager::RESUME_AT_LAST:
         return "RESUME_AT_LAST";
     default:
         abort();
@@ -606,12 +606,12 @@ TEST_CASE_METHOD(HistoryTests, "Full history catchup",
     generateAndPublishInitialHistory(3);
 
     uint32_t lastLedger = 0;
-    uint32_t initLedger = app.getLedgerMaster().getLastClosedLedgerNum();
+    uint32_t initLedger = app.getLedgerManagerImpl().getLastClosedLedgerNum();
 
     std::vector<Application::pointer> apps;
 
-    std::vector<HistoryMaster::ResumeMode> resumeModes = {
-        HistoryMaster::RESUME_AT_NEXT, HistoryMaster::RESUME_AT_LAST};
+    std::vector<HistoryManager::ResumeMode> resumeModes = {
+        HistoryManager::RESUME_AT_NEXT, HistoryManager::RESUME_AT_LAST};
 
     std::vector<Config::TestDbMode> dbModes = {
 #ifdef USE_POSTGRES
@@ -636,8 +636,8 @@ TEST_CASE_METHOD(HistoryTests, "History publish queueing",
 {
     generateAndPublishInitialHistory(1);
 
-    auto& lm = app.getLedgerMaster();
-    auto& hm = app.getHistoryMaster();
+    auto& lm = app.getLedgerManagerImpl();
+    auto& hm = app.getHistoryManager();
 
     while (hm.getPublishDelayCount() < 2)
     {
@@ -655,14 +655,14 @@ TEST_CASE_METHOD(HistoryTests, "History publish queueing",
     // 2 delayed publishes, making 4 total.
     CHECK(hm.getPublishSuccessCount() == 4);
 
-    auto initLedger = app.getLedgerMaster().getLastClosedLedgerNum();
+    auto initLedger = app.getLedgerManagerImpl().getLastClosedLedgerNum();
     auto app2 = catchupNewApplication(
         initLedger,
         Config::TESTDB_IN_MEMORY_SQLITE,
-        HistoryMaster::RESUME_AT_LAST,
+        HistoryManager::RESUME_AT_LAST,
         std::string("Catchup to delayed history"));
-    CHECK(app2->getLedgerMaster().getLedgerNum() ==
-          app.getLedgerMaster().getLedgerNum());
+    CHECK(app2->getLedgerManagerImpl().getLedgerNum() ==
+          app.getLedgerManagerImpl().getLedgerNum());
 }
 
 
@@ -676,19 +676,19 @@ TEST_CASE_METHOD(HistoryTests, "History prefix catchup",
     // Should replay the 64th (since it gets externalized) and land on 65.
     apps.push_back(catchupNewApplication(
                        10, Config::TESTDB_IN_MEMORY_SQLITE,
-                       HistoryMaster::RESUME_AT_LAST,
+                       HistoryManager::RESUME_AT_LAST,
                        std::string("Catchup to prefix of published history")));
-    CHECK(apps.back()->getLedgerMaster().getLedgerNum() ==
-          HistoryMaster::kCheckpointFrequency + 1);
+    CHECK(apps.back()->getLedgerManagerImpl().getLedgerNum() ==
+          HistoryManager::kCheckpointFrequency + 1);
 
     // Then attempt catchup to 74, prefix of 128. Should round up to 128.
     // Should replay the 64th (since it gets externalized) and land on 129.
     apps.push_back(catchupNewApplication(
-                       HistoryMaster::kCheckpointFrequency + 10,
-                       Config::TESTDB_IN_MEMORY_SQLITE, HistoryMaster::RESUME_AT_LAST,
+                       HistoryManager::kCheckpointFrequency + 10,
+                       Config::TESTDB_IN_MEMORY_SQLITE, HistoryManager::RESUME_AT_LAST,
                        std::string("Catchup to second prefix of published history")));
-    CHECK(apps.back()->getLedgerMaster().getLedgerNum() ==
-          2 * HistoryMaster::kCheckpointFrequency + 1);
+    CHECK(apps.back()->getLedgerManagerImpl().getLedgerNum() ==
+          2 * HistoryManager::kCheckpointFrequency + 1);
 }
 
 TEST_CASE_METHOD(HistoryTests, "Publish/catchup alternation, with stall",
@@ -700,22 +700,22 @@ TEST_CASE_METHOD(HistoryTests, "Publish/catchup alternation, with stall",
 
     Application::pointer app2, app3;
 
-    auto& lm = app.getLedgerMaster();
+    auto& lm = app.getLedgerManagerImpl();
 
     uint32_t initLedger = lm.getLastClosedLedgerNum();
 
     app2 = catchupNewApplication(initLedger,
                                  Config::TESTDB_IN_MEMORY_SQLITE,
-                                 HistoryMaster::RESUME_AT_LAST,
+                                 HistoryManager::RESUME_AT_LAST,
                                  std::string("app2"));
 
     app3 = catchupNewApplication(initLedger,
                                  Config::TESTDB_IN_MEMORY_SQLITE,
-                                 HistoryMaster::RESUME_AT_NEXT,
+                                 HistoryManager::RESUME_AT_NEXT,
                                  std::string("app3"));
 
-    CHECK(app2->getLedgerMaster().getLedgerNum() == lm.getLedgerNum());
-    CHECK(app3->getLedgerMaster().getLedgerNum() == lm.getLedgerNum());
+    CHECK(app2->getLedgerManagerImpl().getLedgerNum() == lm.getLedgerNum());
+    CHECK(app3->getLedgerManagerImpl().getLedgerNum() == lm.getLedgerNum());
 
     for (size_t i = 1; i < 4; ++i)
     {
@@ -724,19 +724,19 @@ TEST_CASE_METHOD(HistoryTests, "Publish/catchup alternation, with stall",
 
         initLedger = lm.getLastClosedLedgerNum();
 
-        catchupApplication(initLedger, HistoryMaster::RESUME_AT_LAST, app2);
-        catchupApplication(initLedger, HistoryMaster::RESUME_AT_NEXT, app3);
+        catchupApplication(initLedger, HistoryManager::RESUME_AT_LAST, app2);
+        catchupApplication(initLedger, HistoryManager::RESUME_AT_NEXT, app3);
 
-        CHECK(app2->getLedgerMaster().getLedgerNum() == lm.getLedgerNum());
-        CHECK(app3->getLedgerMaster().getLedgerNum() == lm.getLedgerNum());
+        CHECK(app2->getLedgerManagerImpl().getLedgerNum() == lm.getLedgerNum());
+        CHECK(app3->getLedgerManagerImpl().getLedgerNum() == lm.getLedgerNum());
     }
 
     // By now we should have had 3 + 1 + 2 + 3 = 9 publishes, and should
     // have advanced 1-ledger in to the 9th block.
-    CHECK(app2->getLedgerMaster().getLedgerNum() ==
-          9 * HistoryMaster::kCheckpointFrequency + 1);
-    CHECK(app3->getLedgerMaster().getLedgerNum() ==
-          9 * HistoryMaster::kCheckpointFrequency + 1);
+    CHECK(app2->getLedgerManagerImpl().getLedgerNum() ==
+          9 * HistoryManager::kCheckpointFrequency + 1);
+    CHECK(app3->getLedgerManagerImpl().getLedgerNum() ==
+          9 * HistoryManager::kCheckpointFrequency + 1);
 
     // Finally, publish a little more history than the last publish-point
     // but not enough to get to the _next_ publish-point:
@@ -753,10 +753,10 @@ TEST_CASE_METHOD(HistoryTests, "Publish/catchup alternation, with stall",
     bool caughtup = false;
     initLedger = lm.getLastClosedLedgerNum();
 
-    caughtup = catchupApplication(initLedger, HistoryMaster::RESUME_AT_LAST,
+    caughtup = catchupApplication(initLedger, HistoryManager::RESUME_AT_LAST,
                                   app2, true, 30);
     CHECK(!caughtup);
-    caughtup = catchupApplication(initLedger, HistoryMaster::RESUME_AT_NEXT,
+    caughtup = catchupApplication(initLedger, HistoryManager::RESUME_AT_NEXT,
                                   app3, true, 30);
     CHECK(!caughtup);
 
@@ -764,10 +764,10 @@ TEST_CASE_METHOD(HistoryTests, "Publish/catchup alternation, with stall",
     // Now complete this publish cycle and confirm that the stalled apps
     // will catch up.
     generateAndPublishHistory(1);
-    caughtup = catchupApplication(initLedger, HistoryMaster::RESUME_AT_LAST,
+    caughtup = catchupApplication(initLedger, HistoryManager::RESUME_AT_LAST,
                                   app2, false);
     CHECK(caughtup);
-    caughtup = catchupApplication(initLedger, HistoryMaster::RESUME_AT_NEXT,
+    caughtup = catchupApplication(initLedger, HistoryManager::RESUME_AT_NEXT,
                                   app3, false);
     CHECK(caughtup);
 }
@@ -815,7 +815,7 @@ TEST_CASE_METHOD(S3HistoryTests, "Publish/catchup via s3",
 {
     generateAndPublishInitialHistory(3);
     auto app2 = catchupNewApplication(
-        app.getLedgerMaster().getCurrentLedgerHeader().ledgerSeq,
+        app.getLedgerManagerImpl().getCurrentLedgerHeader().ledgerSeq,
         Config::TESTDB_IN_MEMORY_SQLITE,
-        HistoryMaster::RESUME_AT_LAST, "s3");
+        HistoryManager::RESUME_AT_LAST, "s3");
 }

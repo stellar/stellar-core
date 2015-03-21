@@ -4,7 +4,7 @@
 
 #include "ChangeTrustOpFrame.h"
 #include "ledger/TrustFrame.h"
-#include "ledger/LedgerMaster.h"
+#include "ledger/LedgerManagerImpl.h"
 #include "database/Database.h"
 
 namespace stellar
@@ -18,7 +18,7 @@ ChangeTrustOpFrame::ChangeTrustOpFrame(Operation const& op,
 {
 }
 bool
-ChangeTrustOpFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
+ChangeTrustOpFrame::doApply(LedgerDelta& delta, LedgerManagerImpl& ledgerMaster)
 {
     TrustFrame trustLine;
     Database& db = ledgerMaster.getDatabase();

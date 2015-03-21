@@ -22,7 +22,7 @@ Committed
 
 namespace stellar
 {
-class PeerMaster;
+class OverlayManagerImpl;
 
 class FloodRecord
 {

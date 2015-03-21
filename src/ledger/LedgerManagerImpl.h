@@ -6,10 +6,10 @@
 #include "util/asio.h"
 
 #include <string>
-#include "ledger/LedgerGateway.h"
+#include "ledger/LedgerManager.h"
 #include "ledger/LedgerHeaderFrame.h"
 #include "main/PersistentState.h"
-#include "history/HistoryMaster.h"
+#include "history/HistoryManager.h"
 #include "generated/Stellar-ledger.h"
 
 /*
@@ -29,7 +29,7 @@ class Application;
 class Database;
 class LedgerDelta;
 
-class LedgerMaster : public LedgerGateway
+class LedgerManagerImpl : public LedgerManager
 {
     LedgerHeaderHistoryEntry mLastClosedLedger;
     LedgerHeaderFrame::pointer mCurrentLedger;
@@ -43,12 +43,12 @@ class LedgerMaster : public LedgerGateway
     std::vector<LedgerCloseData> mSyncingLedgers;
 
     void historyCaughtup(asio::error_code const& ec,
-                         HistoryMaster::ResumeMode mode,
+                         HistoryManager::ResumeMode mode,
                          LedgerHeaderHistoryEntry const& lastClosed);
 
   public:
-    typedef std::shared_ptr<LedgerMaster> pointer;
-    typedef const std::shared_ptr<LedgerMaster>& ref;
+    typedef std::shared_ptr<LedgerManagerImpl> pointer;
+    typedef const std::shared_ptr<LedgerManagerImpl>& ref;
 
     // Logging helpers
     static std::string ledgerAbbrev(LedgerHeader const& header,
@@ -56,7 +56,7 @@ class LedgerMaster : public LedgerGateway
     static std::string ledgerAbbrev(LedgerHeaderFrame::pointer p);
     static std::string ledgerAbbrev(LedgerHeaderHistoryEntry he);
 
-    LedgerMaster(Application& app);
+    LedgerManagerImpl(Application& app);
 
     //////// GATEWAY FUNCTIONS
     // called by txherder
@@ -96,9 +96,9 @@ class LedgerMaster : public LedgerGateway
 
     void closeLedger(LedgerCloseData ledgerData);
 
-    void startCatchUp(uint32_t initLedger, HistoryMaster::ResumeMode resume);
+    void startCatchUp(uint32_t initLedger, HistoryManager::ResumeMode resume);
 
-    HistoryMaster::VerifyHashStatus verifyCatchupCandidate(LedgerHeaderHistoryEntry const&) const;
+    HistoryManager::VerifyHashStatus verifyCatchupCandidate(LedgerHeaderHistoryEntry const&) const;
 
   private:
     void closeLedgerHelper(LedgerDelta const& delta);

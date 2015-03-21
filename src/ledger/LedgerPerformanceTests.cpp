@@ -9,7 +9,7 @@
 #include "lib/catch.hpp"
 #include "util/Logging.h"
 #include "crypto/Base58.h"
-#include "ledger/LedgerMaster.h"
+#include "ledger/LedgerManagerImpl.h"
 #include "transactions/TxTests.h"
 #include "database/Database.h"
 #include "main/Config.h"
@@ -53,7 +53,7 @@ public:
             } else
             {
                 txs.push_back(newAccounts[i]->creationTransaction());
-                newAccounts[i]->mSeq = LedgerHeaderFrame(mApp->getLedgerMaster()
+                newAccounts[i]->mSeq = LedgerHeaderFrame(mApp->getLedgerManagerImpl()
                     .getCurrentLedgerHeader())
                     .getStartingSequenceNumber();
             }
@@ -78,19 +78,19 @@ public:
     void closeLedger(vector<Simulation::TxInfo> txs)
     {
         auto baseFee = mApp->getConfig().DESIRED_BASE_FEE;
-        TxSetFramePtr txSet = make_shared<TxSetFrame>(mApp->getLedgerMaster().getLastClosedLedgerHeader().hash);
+        TxSetFramePtr txSet = make_shared<TxSetFrame>(mApp->getLedgerManagerImpl().getLastClosedLedgerHeader().hash);
         for (auto& tx : txs)
         {
             txSet->add(tx.createPaymentTx());
             tx.recordExecution(baseFee);
         }
 
-        LedgerCloseData ledgerData(mApp->getLedgerMaster().getLedgerNum(),
+        LedgerCloseData ledgerData(mApp->getLedgerManagerImpl().getLedgerNum(),
             txSet,
             VirtualClock::to_time_t(mApp->getClock().now()),
             baseFee);
 
-        mApp->getLedgerMaster().closeLedger(ledgerData);
+        mApp->getLedgerManagerImpl().closeLedger(ledgerData);
     }
 
 };

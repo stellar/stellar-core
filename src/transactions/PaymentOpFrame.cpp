@@ -22,7 +22,7 @@ PaymentOpFrame::PaymentOpFrame(Operation const& op, OperationResult& res,
 }
 
 bool
-PaymentOpFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
+PaymentOpFrame::doApply(LedgerDelta& delta, LedgerManagerImpl& ledgerMaster)
 {
     AccountFrame destAccount;
 
@@ -68,7 +68,7 @@ PaymentOpFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
 // specified amount of currency to the recipient
 bool
 PaymentOpFrame::sendNoCreate(AccountFrame& destination, LedgerDelta& delta,
-                             LedgerMaster& ledgerMaster)
+                             LedgerManagerImpl& ledgerMaster)
 {
     Database& db = ledgerMaster.getDatabase();
 

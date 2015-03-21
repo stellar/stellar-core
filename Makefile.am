@@ -23,13 +23,13 @@ FMT_SRCS =                                      \
     src/scp/LocalNode.cpp                       \
     src/scp/Node.cpp                            \
     src/scp/Slot.cpp                            \
-    src/herder/Herder.cpp                       \
+    src/herder/HerderImpl.cpp                   \
     src/herder/HerderTests.cpp                  \
     src/herder/TxSetFrame.cpp                   \
     src/history/FileTransferInfo.cpp            \
     src/history/CatchupStateMachine.cpp         \
     src/history/HistoryArchive.cpp              \
-    src/history/HistoryMaster.cpp               \
+    src/history/HistoryManagerImpl.cpp          \
     src/history/HistoryTests.cpp                \
     src/history/PublishStateMachine.cpp         \
     src/ledger/AccountFrame.cpp                 \
@@ -37,7 +37,7 @@ FMT_SRCS =                                      \
     src/ledger/LedgerDelta.cpp                  \
     src/ledger/LedgerHeaderFrame.cpp            \
     src/ledger/LedgerHeaderTests.cpp            \
-    src/ledger/LedgerMaster.cpp                 \
+    src/ledger/LedgerManagerImpl.cpp            \
     src/ledger/LedgerPerformanceTests.cpp       \
     src/ledger/LedgerTests.cpp                  \
     src/ledger/OfferFrame.cpp                   \
@@ -56,13 +56,13 @@ FMT_SRCS =                                      \
     src/overlay/OverlayTests.cpp                \
     src/overlay/Peer.cpp                        \
     src/overlay/PeerDoor.cpp                    \
-    src/overlay/PeerMaster.cpp                  \
-    src/overlay/PeerMasterTests.cpp             \
+    src/overlay/OverlayManagerImpl.cpp          \
+    src/overlay/OverlayManagerImplTests.cpp     \
     src/overlay/PeerRecord.cpp                  \
     src/overlay/PeerRecordTests.cpp             \
     src/overlay/TCPPeer.cpp                     \
     src/overlay/TCPPeerTests.cpp                \
-    src/process/ProcessMaster.cpp               \
+    src/process/ProcessManagerImpl.cpp          \
     src/process/ProcessTests.cpp                \
     src/simulation/CoreTests.cpp                \
     src/simulation/Simulation.cpp               \
@@ -112,19 +112,20 @@ FMT_HDRS =                                      \
     src/scp/Node.h                              \
     src/scp/Slot.h                              \
     src/herder/Herder.h                         \
-    src/herder/HerderGateway.h                  \
+    src/herder/HerderImpl.h                     \
     src/herder/TxSetFrame.h                     \
     src/history/FileTransferInfo.h              \
     src/history/CatchupStateMachine.h           \
     src/history/HistoryArchive.h                \
-    src/history/HistoryMaster.h                 \
+    src/history/HistoryManager.h                \
+    src/history/HistoryManagerImpl.h            \
     src/history/PublishStateMachine.h           \
     src/ledger/AccountFrame.h                   \
     src/ledger/EntryFrame.h                     \
     src/ledger/LedgerDelta.h                    \
-    src/ledger/LedgerGateway.h                  \
+    src/ledger/LedgerManager.h                  \
+    src/ledger/LedgerManagerImpl.h              \
     src/ledger/LedgerHeaderFrame.h              \
-    src/ledger/LedgerMaster.h                   \
     src/ledger/OfferFrame.h                     \
     src/ledger/TrustFrame.h                     \
     src/main/Application.h                      \
@@ -137,14 +138,14 @@ FMT_HDRS =                                      \
     src/overlay/Floodgate.h                     \
     src/overlay/ItemFetcher.h                   \
     src/overlay/LoopbackPeer.h                  \
-    src/overlay/OverlayGateway.h                \
+    src/overlay/OverlayManager.h                \
+    src/overlay/OverlayManagerImpl.h            \
     src/overlay/Peer.h                          \
     src/overlay/PeerDoor.h                      \
-    src/overlay/PeerMaster.h                    \
     src/overlay/PeerRecord.h                    \
     src/overlay/TCPPeer.h                       \
-    src/process/ProcessGateway.h                \
-    src/process/ProcessMaster.h                 \
+    src/process/ProcessManager.h                \
+    src/process/ProcessManagerImpl.h            \
     src/simulation/Simulation.h                 \
     src/simulation/Topologies.h                 \
     src/transactions/AllowTrustOpFrame.h        \

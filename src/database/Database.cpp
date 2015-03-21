@@ -4,13 +4,13 @@
 
 #include "database/Database.h"
 #include "generated/StellarXDR.h"
-#include "overlay/PeerMaster.h"
+#include "overlay/OverlayManagerImpl.h"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "crypto/Hex.h"
 #include "crypto/Base58.h"
 #include "util/Logging.h"
-#include "ledger/LedgerMaster.h"
+#include "ledger/LedgerManagerImpl.h"
 #include "ledger/LedgerHeaderFrame.h"
 #include "util/types.h"
 #include "util/make_unique.h"
@@ -123,7 +123,7 @@ Database::initialize()
     AccountFrame::dropAll(*this);
     OfferFrame::dropAll(*this);
     TrustFrame::dropAll(*this);
-    PeerMaster::dropAll(*this);
+    OverlayManagerImpl::dropAll(*this);
     PersistentState::dropAll(*this);
     LedgerHeaderFrame::dropAll(*this);
     TransactionFrame::dropAll(*this);

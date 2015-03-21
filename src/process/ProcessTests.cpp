@@ -11,7 +11,7 @@
 #include "util/Logging.h"
 #include "util/Timer.h"
 #include <future>
-#include "process/ProcessGateway.h"
+#include "process/ProcessManager.h"
 
 using namespace stellar;
 
@@ -20,7 +20,7 @@ TEST_CASE("subprocess", "[process]")
     VirtualClock clock;
     Config const& cfg = getTestConfig();
     Application::pointer app = Application::create(clock, cfg);
-    auto evt = app->getProcessGateway().runProcess("hostname");
+    auto evt = app->getProcessManager().runProcess("hostname");
     bool exited = false;
     bool failed = false;
     evt.async_wait([&](asio::error_code ec)
@@ -47,7 +47,7 @@ TEST_CASE("subprocess fails", "[process]")
     VirtualClock clock;
     Config const& cfg = getTestConfig();
     Application::pointer app = Application::create(clock, cfg);
-    auto evt = app->getProcessGateway().runProcess("hostname -xsomeinvalid");
+    auto evt = app->getProcessManager().runProcess("hostname -xsomeinvalid");
     bool exited = false;
     bool failed = false;
     evt.async_wait([&](asio::error_code ec)
@@ -76,7 +76,7 @@ TEST_CASE("subprocess redirect to file", "[process]")
     Application::pointer appPtr = Application::create(clock, cfg);
     Application& app = *appPtr;
     std::string filename("hostname.txt");
-    auto evt = app.getProcessGateway().runProcess("hostname", filename);
+    auto evt = app.getProcessManager().runProcess("hostname", filename);
     bool exited = false;
     evt.async_wait([&](asio::error_code ec)
                    {

@@ -12,7 +12,7 @@
 #include "main/Config.h"
 #include "lib/http/HttpClient.h"
 #include "crypto/SecretKey.h"
-#include "history/HistoryMaster.h"
+#include "history/HistoryManager.h"
 #include "main/PersistentState.h"
 #include <sodium.h>
 #include "database/Database.h"
@@ -166,7 +166,7 @@ initializeHistories(Config& cfg, vector<string> newHistories)
 
     for (auto const& arch : newHistories)
     {
-        if (!HistoryMaster::initializeHistoryArchive(*app, arch))
+        if (!HistoryManager::initializeHistoryArchive(*app, arch))
             return 1;
     }
     return 0;
