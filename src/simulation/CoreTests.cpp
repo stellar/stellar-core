@@ -12,6 +12,7 @@
 #include "main/test.h"
 #include "util/Logging.h"
 #include "util/types.h"
+#include "herder/Herder.h"
 
 using namespace stellar;
 
@@ -22,7 +23,12 @@ TEST_CASE("core4 topology", "[simulation]")
     Simulation::pointer simulation = Topologies::core4();
     simulation->startAllNodes();
 
-    simulation->crankForAtMost(std::chrono::seconds(2));
+    simulation->crankUntil(
+        [&simulation]()
+        {
+            return simulation->haveAllExternalized(3);
+        },
+        std::chrono::seconds(2* EXP_LEDGER_TIMESPAN_SECONDS));
 
     REQUIRE(simulation->haveAllExternalized(3));
 }
@@ -32,7 +38,12 @@ TEST_CASE("cycle4 topology", "[simulation]")
     Simulation::pointer simulation = Topologies::cycle4();
     simulation->startAllNodes();
 
-    simulation->crankForAtMost(std::chrono::seconds(20));
+    simulation->crankUntil(
+        [&simulation]()
+        {
+            return simulation->haveAllExternalized(2);
+        },
+        std::chrono::seconds(20));
 
     // Still transiently does not work (quorum retrieval)
     CHECK(simulation->haveAllExternalized(2));
@@ -51,7 +62,7 @@ TEST_CASE(
         {
             return simulation->haveAllExternalized(3);
         },
-        std::chrono::seconds(60000));
+        std::chrono::seconds(2 * EXP_LEDGER_TIMESPAN_SECONDS));
 
     simulation->executeAll(simulation->accountCreationTransactions(3));
 
@@ -63,7 +74,7 @@ TEST_CASE(
                 return simulation->haveAllExternalized(4) &&
                        simulation->accountsOutOfSyncWithDb().empty();
             },
-            std::chrono::seconds(60));
+            std::chrono::seconds(2 * EXP_LEDGER_TIMESPAN_SECONDS));
 
         auto crankingTime = simulation->executeStressTest(
             10, 10, [&simulation](size_t i)

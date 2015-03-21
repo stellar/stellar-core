@@ -320,7 +320,7 @@ Herder::validateBallot(const uint64& slotIndex, const uint256& nodeID,
     // verification would busy lock us.
     for (int unsigned i = 0;
          i < ballot.counter &&
-             (timeNow + MAX_TIME_SLIP_SECONDS) >= (lastTrigger + sumTimeouts);
+         (timeNow + MAX_TIME_SLIP_SECONDS) >= (lastTrigger + sumTimeouts);
          i++)
     {
         sumTimeouts += std::min(MAX_SCP_TIMEOUT_SECONDS, (int)pow(2.0, i));
@@ -777,15 +777,18 @@ Herder::recvSCPEnvelope(SCPEnvelope envelope,
 
         // If we are fully synced and we see envelopes that are from future
         // ledgers we store them for later replay.
-        if (envelope.statement.slotIndex >
-            mLastClosedLedger.header.ledgerSeq + 1)
+        // we also need to store envelopes for the upcoming SCP round if needed
+        uint32_t nextLedger = mLastClosedLedger.header.ledgerSeq + 1;
+
+        if (envelope.statement.slotIndex > nextLedger ||
+            (envelope.statement.slotIndex == nextLedger &&
+             mCurrentValue.empty()))
         {
             mFutureEnvelopes[envelope.statement.slotIndex].push_back(
                 std::make_pair(envelope, cb));
             return;
         }
     }
-
     startRebroadcastTimer();
 
     mEnvelopeReceive.Mark();
@@ -798,6 +801,9 @@ Herder::ledgerClosed(LedgerHeaderHistoryEntry const& ledger)
     CLOG(TRACE, "Herder") << "Herder::ledgerClosed@"
                           << "@" << binToHex(getLocalNodeID()).substr(0, 6)
                           << " ledger: " << binToHex(ledger.hash).substr(0, 6);
+
+    // we're not running SCP anymore
+    mCurrentValue.clear();
 
     mLastClosedLedger = ledger;
 
@@ -942,8 +948,8 @@ Herder::signStellarBallot(StellarBallot& b)
 bool
 Herder::verifyStellarBallot(const StellarBallot& b)
 {
-    auto v =
-        PublicKey::verifySig(b.nodeID, b.signature, xdr::xdr_to_opaque(b.value));
+    auto v = PublicKey::verifySig(b.nodeID, b.signature,
+                                  xdr::xdr_to_opaque(b.value));
     if (v)
     {
         mBallotValidSig.Mark();

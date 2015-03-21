@@ -15,6 +15,7 @@
 #include "herder/HerderGateway.h"
 #include "lib/json/json.h"
 #include "crypto/Base58.h"
+#include <regex>
 
 using std::placeholders::_1;
 using std::placeholders::_2;
@@ -184,15 +185,19 @@ CommandHandler::logRotate(const std::string& params, std::string& retStr)
 void
 CommandHandler::connect(const std::string& params, std::string& retStr)
 {
-    std::string addr = params.substr(6);
-    if (addr.size())
+    static std::regex re("\\?peer=([[:alnum:].]+)&port=([0-9]+)");
+    std::smatch m;
+
+    if (std::regex_search(params, m, re) && !m.empty())
     {
+        std::stringstream str;
+        str << m[1] << ":" << m[2];
         retStr = "Connect to";
-        mApp.getPeerMaster().connectTo(addr);
+        mApp.getPeerMaster().connectTo(str.str());
     }
     else
     {
-        retStr = "Must specify a peer: connect&peer=????";
+        retStr = "Must specify a peer and port: connect&peer=PEER&port=PORT";
     }
 }
 

@@ -142,6 +142,8 @@ class Peer : public enable_shared_from_this<Peer>
         return mPeerID;
     }
 
+    std::string toString();
+
     // These exist mostly to be overridden in TCPPeer and callable via
     // shared_ptr<Peer> as a captured shared_from_this().
     virtual void connectHandler(const asio::error_code& ec);

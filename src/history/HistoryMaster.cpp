@@ -98,8 +98,8 @@ HistoryMaster::initializeHistoryArchive(Application& app, std::string arch)
     auto i = cfg.HISTORY.find(arch);
     if (i == cfg.HISTORY.end())
     {
-        CLOG(WARNING, "History") << "Can't initialize unknown history archive '"
-                                 << arch << "'";
+        CLOG(FATAL, "History") << "Can't initialize unknown history archive '"
+                               << arch << "'";
         return false;
     }
     HistoryArchiveState has;
@@ -108,19 +108,21 @@ HistoryMaster::initializeHistoryArchive(Application& app, std::string arch)
     bool done = false;
     i->second->putState(app, has, [arch, &done, &ok](asio::error_code const& ec)
                         {
-        if (ec)
-        {
-            ok = false;
-            CLOG(WARNING, "History") << "Failed to initialize history archive '"
-                                     << arch << "'";
-        }
-        else
-        {
-            CLOG(INFO, "History") << "Initialized history archive '" << arch
-                                  << "'";
-        }
-        done = true;
-    });
+                            if (ec)
+                            {
+                                ok = false;
+                                CLOG(FATAL, "History")
+                                    << "Failed to initialize history archive '"
+                                    << arch << "'";
+                            }
+                            else
+                            {
+                                CLOG(INFO, "History")
+                                    << "Initialized history archive '" << arch
+                                    << "'";
+                            }
+                            done = true;
+                        });
 
     while (!done && !app.getClock().getIOService().stopped())
     {
