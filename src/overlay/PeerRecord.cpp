@@ -10,6 +10,7 @@
 #include "util/must_use.h"
 #include "generated/StellarXDR.h"
 #include "main/Application.h"
+#include <regex>
 
 #define SECONDS_PER_BACKOFF 10
 
@@ -49,44 +50,51 @@ PeerRecord::fromIPPort(const string& ip, uint32_t port, VirtualClock& clock,
     ret = PeerRecord{ip, port, clock.now(), 0, 1};
 }
 
-// TODO.2 stricter verification that ip and port are valid
 bool
 PeerRecord::parseIPPort(const string& ipPort, Application& app, PeerRecord& ret,
                         uint32_t defaultPort)
 {
-    string ip;
-    uint32_t port;
-    std::string const innerStr(ipPort);
-    std::string::const_iterator splitPoint =
-        std::find(innerStr.begin(), innerStr.end(), ':');
-    if (splitPoint == innerStr.end())
-    {
-        ip = innerStr;
-        port = defaultPort;
-    }
-    else
-    {
-        ip.assign(innerStr.begin(), splitPoint);
-        std::string portStr;
-        splitPoint++;
-        portStr.assign(splitPoint, innerStr.end());
-        port = atoi(portStr.c_str());
-        if (!port)
-            throw runtime_error("PeerRecord::perseIPPort: failed on " + ipPort);
-    }
+    static std::regex re("^(\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3})|([[:alnum:].]+)"
+                  "(?:\\:(\\d{1,5}))?$");
+    std::smatch m;
 
-    if (ip.size() && !isdigit(ip[ip.size() - 1]))
+    string ip;
+    uint32_t port = defaultPort;
+
+    if (std::regex_search(ipPort, m, re) && !m.empty())
     {
-        asio::ip::tcp::resolver resolver(app.getWorkerIOService());
-        asio::ip::tcp::resolver::query query(ip, "");
-        asio::ip::tcp::resolver::iterator i = resolver.resolve(query);
-        if (i != asio::ip::tcp::resolver::iterator())
+        asio::ip::tcp::resolver::query::flags resolveflags;
+        std::string toResolve;
+        if (m[1].matched)
         {
-            asio::ip::tcp::endpoint end = *i;
-            ip = end.address().to_string();
+            resolveflags = asio::ip::tcp::resolver::query::flags::numeric_host;
+            toResolve = m[1].str();
         }
         else
+        {
+            resolveflags = asio::ip::tcp::resolver::query::flags::v4_mapped;
+            toResolve = m[2].str();
+        }
+
+        asio::ip::tcp::resolver resolver(app.getWorkerIOService());
+        asio::ip::tcp::resolver::query query(toResolve, "", resolveflags);
+        asio::ip::tcp::resolver::iterator i = resolver.resolve(query);
+        while(i != asio::ip::tcp::resolver::iterator())
+        {
+            asio::ip::tcp::endpoint end = *i;
+            if (end.address().is_v4())
+            {
+                ip = end.address().to_v4().to_string();
+            }
+            i++;
+        }
+        if (ip.empty())
             return false;
+
+        if (m[3].matched)
+        {
+            port = atoi(m[3].str().c_str());
+        }
     }
 
     if (port < 1 || port > 65535)
