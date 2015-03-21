@@ -243,6 +243,7 @@ class BucketLevel
     std::shared_ptr<Bucket> getSnap() const;
     void setCurr(std::shared_ptr<Bucket>);
     void setSnap(std::shared_ptr<Bucket>);
+    void clearPendingMerge();
     void commit();
     void prepare(Application& app, uint32_t currLedger,
                  std::shared_ptr<Bucket> snap,

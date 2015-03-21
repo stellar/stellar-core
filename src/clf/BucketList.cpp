@@ -63,6 +63,12 @@ BucketLevel::setSnap(std::shared_ptr<Bucket> b)
 }
 
 void
+BucketLevel::clearPendingMerge()
+{
+    mNextCurr = std::future<std::shared_ptr<Bucket>>();
+}
+
+void
 BucketLevel::commit()
 {
     if (mNextCurr.valid())
@@ -73,7 +79,7 @@ BucketLevel::commit()
 
         // NB: MSVC future<> implementation doesn't purge the task lambda (and
         // its captures) on invalidation (due to get()); must explicitly reset.
-        mNextCurr = std::future<std::shared_ptr<Bucket>>();
+        clearPendingMerge();
 
         // CLOG(DEBUG, "CLF") << "level " << mLevel << " set mCurr to "
         //            << mCurr->getEntries().size() << " elements";
