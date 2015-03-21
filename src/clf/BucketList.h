@@ -271,6 +271,7 @@ class BucketList
     size_t numLevels() const;
     BucketLevel& getLevel(size_t i);
     uint256 getHash() const;
+    void restartMerges(Application& app, uint32_t currLedger);
     void addBatch(Application& app, uint32_t currLedger,
                   std::vector<LedgerEntry> const& liveEntries,
                   std::vector<LedgerKey> const& deadEntries);

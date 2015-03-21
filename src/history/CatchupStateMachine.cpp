@@ -703,6 +703,9 @@ CatchupStateMachine::applyBucketsAtLastClosedLedger()
             applying = true;
         }
     }
+
+    // Start the merges we need to have completed to resume running at LCL
+    bl.restartMerges(mApp, mLastClosed.header.ledgerSeq);
 }
 
 void
@@ -770,6 +773,9 @@ CatchupStateMachine::applyHistoryFromLastClosedLedger()
         LedgerHeader& header = hHeader.header;
         TransactionHistoryEntry txHistoryEntry;
         bool readTxSet = false;
+
+        // Start the merges we need to have completed to play transactions forward from LCL
+        mApp.getCLFManager().getBucketList().restartMerges(mApp, lm.getLastClosedLedgerNum());
 
         while (hdrIn && hdrIn.readOne(hHeader))
         {

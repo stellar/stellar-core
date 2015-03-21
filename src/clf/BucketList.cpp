@@ -9,6 +9,7 @@
 #include "util/asio.h"
 #include "main/Application.h"
 #include "util/Logging.h"
+#include "util/types.h"
 #include "crypto/SHA.h"
 #include "crypto/Hex.h"
 #include "crypto/Random.h"
@@ -303,6 +304,41 @@ BucketList::addBatch(Application& app, uint32_t currLedger,
         app, currLedger,
         Bucket::fresh(app.getCLFManager(), liveEntries, deadEntries), shadows);
     mLevels[0].commit();
+}
+
+void
+BucketList::restartMerges(Application& app, uint32_t currLedger)
+{
+    // Scan the bucketlist, kill all existing merges and start a new merge between any
+    // nonzero snap and its subsequent level.
+
+    std::vector<std::shared_ptr<Bucket>> shadows;
+    for (auto& level : mLevels)
+    {
+        shadows.push_back(level.getCurr());
+        shadows.push_back(level.getSnap());
+    }
+
+    assert(shadows.size() >= 2);
+    shadows.pop_back();
+    shadows.pop_back();
+
+    for (size_t i = mLevels.size() - 1; i > 0; --i)
+    {
+        assert(shadows.size() >= 2);
+        shadows.pop_back();
+        shadows.pop_back();
+
+        mLevels[i].clearPendingMerge();
+
+        // Restart merges on _all_ nonzero-snap levels, assuming
+        // they should already have been running.
+        auto snap = mLevels[i - 1].getSnap();
+        if (!isZero(snap->getHash()))
+        {
+            mLevels[i].prepare(app, currLedger, snap, shadows);
+        }
+    }
 }
 
 size_t const BucketList::kNumLevels = 5;
