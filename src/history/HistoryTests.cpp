@@ -88,6 +88,7 @@ class HistoryTests
 
     std::vector<uint32_t> mLedgerSeqs;
     std::vector<uint256> mLedgerHashes;
+    std::vector<uint256> mCLFHashes;
     std::vector<uint256> mBucket0Hashes;
     std::vector<uint256> mBucket1Hashes;
 
@@ -295,6 +296,7 @@ HistoryTests::generateRandomLedger()
 
     mLedgerSeqs.push_back(lm.getLastClosedLedgerHeader().header.ledgerSeq);
     mLedgerHashes.push_back(lm.getLastClosedLedgerHeader().hash);
+    mCLFHashes.push_back(lm.getLastClosedLedgerHeader().header.clfHash);
     mBucket0Hashes.push_back(
         app.getCLFManager().getBucketList().getLevel(0).getCurr()->getHash());
     mBucket1Hashes.push_back(
@@ -484,11 +486,13 @@ HistoryTests::catchupApplication(uint32_t initLedger,
 
     auto wantSeq = mLedgerSeqs.at(i);
     auto wantHash = mLedgerHashes.at(i);
+    auto wantCLFHash = mCLFHashes.at(i);
     auto wantBucket0Hash = mBucket0Hashes.at(i);
     auto wantBucket1Hash = mBucket1Hashes.at(i);
 
     auto haveSeq = lm.getLastClosedLedgerHeader().header.ledgerSeq;
     auto haveHash = lm.getLastClosedLedgerHeader().hash;
+    auto haveCLFHash = lm.getLastClosedLedgerHeader().header.clfHash;
     auto haveBucket0Hash =
         app2->getCLFManager().getBucketList().getLevel(0).getCurr()->getHash();
     auto haveBucket1Hash =
@@ -502,6 +506,11 @@ HistoryTests::catchupApplication(uint32_t initLedger,
     CLOG(INFO, "History") << "Caught up: have Hash[" << i
                           << "] = " << hexAbbrev(haveHash);
 
+    CLOG(INFO, "History") << "Caught up: want CLFHash[" << i
+                          << "] = " << hexAbbrev(wantCLFHash);
+    CLOG(INFO, "History") << "Caught up: have CLFHash[" << i
+                          << "] = " << hexAbbrev(haveCLFHash);
+
     CLOG(INFO, "History") << "Caught up: want Bucket0Hash[" << i
                           << "] = " << hexAbbrev(wantBucket0Hash);
     CLOG(INFO, "History") << "Caught up: have Bucket0Hash[" << i
@@ -514,6 +523,7 @@ HistoryTests::catchupApplication(uint32_t initLedger,
 
     CHECK(nextLedger == haveSeq + 1);
     CHECK(wantSeq == haveSeq);
+    CHECK(wantCLFHash == haveCLFHash);
     CHECK(wantHash == haveHash);
 
     CHECK(app2->getCLFManager().getBucketByHash(wantBucket0Hash));
