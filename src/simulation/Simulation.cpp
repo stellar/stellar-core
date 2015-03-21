@@ -7,7 +7,7 @@
 #include "main/test.h"
 #include "util/Logging.h"
 #include "util/types.h"
-#include "ledger/LedgerMaster.h"
+#include "ledger/LedgerManagerImpl.h"
 #include "overlay/PeerRecord.h"
 #include "main/Application.h"
 #include "overlay/OverlayManagerImpl.h"
@@ -27,7 +27,7 @@ Simulation::getMinBalance()
     int64_t mx = 0;
     for (auto n : mNodes)
     {
-        auto b = n.second->getLedgerMaster().getMinBalance(0);
+        auto b = n.second->getLedgerManagerImpl().getMinBalance(0);
         mx = (b > mx ? b : mx);
     }
     return mx;
@@ -169,7 +169,7 @@ Simulation::haveAllExternalized(SequenceNumber num)
     uint32_t min = UINT_MAX;
     for (auto it = mNodes.begin(); it != mNodes.end(); ++it)
     {
-        auto n = it->second->getLedgerMaster().getLedgerNum();
+        auto n = it->second->getLedgerManagerImpl().getLedgerNum();
         LOG(DEBUG) << "Ledger#: " << n;
 
         if (n < min)

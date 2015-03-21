@@ -2,7 +2,7 @@
 // under the ISC License. See the COPYING file at the top-level directory of
 // this distribution or at http://opensource.org/licenses/ISC
 
-#include "LedgerMaster.h"
+#include "LedgerManagerImpl.h"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "clf/CLFManager.h"
@@ -58,7 +58,7 @@ namespace stellar
 {
 
 std::string
-LedgerMaster::ledgerAbbrev(LedgerHeader const& header, uint256 const& hash)
+LedgerManagerImpl::ledgerAbbrev(LedgerHeader const& header, uint256 const& hash)
 {
     std::ostringstream oss;
     oss << "[seq=" << header.ledgerSeq << ", hash=" << hexAbbrev(hash) << "]";
@@ -66,7 +66,7 @@ LedgerMaster::ledgerAbbrev(LedgerHeader const& header, uint256 const& hash)
 }
 
 std::string
-LedgerMaster::ledgerAbbrev(LedgerHeaderFrame::pointer p)
+LedgerManagerImpl::ledgerAbbrev(LedgerHeaderFrame::pointer p)
 {
     if (!p)
     {
@@ -76,12 +76,12 @@ LedgerMaster::ledgerAbbrev(LedgerHeaderFrame::pointer p)
 }
 
 std::string
-LedgerMaster::ledgerAbbrev(LedgerHeaderHistoryEntry he)
+LedgerManagerImpl::ledgerAbbrev(LedgerHeaderHistoryEntry he)
 {
     return ledgerAbbrev(he.header, he.hash);
 }
 
-LedgerMaster::LedgerMaster(Application& app)
+LedgerManagerImpl::LedgerManagerImpl(Application& app)
     : mApp(app)
     , mTransactionApply(
           app.getMetrics().NewTimer({"ledger", "transaction", "apply"}))
@@ -91,7 +91,7 @@ LedgerMaster::LedgerMaster(Application& app)
 }
 
 void
-LedgerMaster::startNewLedger()
+LedgerManagerImpl::startNewLedger()
 {
     auto ledgerTime = mLedgerClose.TimeScope();
     ByteSlice bytes("masterpassphrasemasterpassphrase");
@@ -118,7 +118,7 @@ LedgerMaster::startNewLedger()
 }
 
 void
-LedgerMaster::loadLastKnownLedger()
+LedgerManagerImpl::loadLastKnownLedger()
 {
     auto ledgerTime = mLedgerClose.TimeScope();
 
@@ -150,66 +150,66 @@ LedgerMaster::loadLastKnownLedger()
 }
 
 Database&
-LedgerMaster::getDatabase()
+LedgerManagerImpl::getDatabase()
 {
     return mApp.getDatabase();
 }
 
 int64_t
-LedgerMaster::getTxFee() const
+LedgerManagerImpl::getTxFee() const
 {
     return mCurrentLedger->mHeader.baseFee;
 }
 
 int64_t
-LedgerMaster::getMinBalance(uint32_t ownerCount) const
+LedgerManagerImpl::getMinBalance(uint32_t ownerCount) const
 {
     return (2 + ownerCount) * mCurrentLedger->mHeader.baseReserve;
 }
 
 uint32_t
-LedgerMaster::getLedgerNum() const
+LedgerManagerImpl::getLedgerNum() const
 {
     assert(mCurrentLedger);
     return mCurrentLedger->mHeader.ledgerSeq;
 }
 
 uint64_t
-LedgerMaster::getCloseTime() const
+LedgerManagerImpl::getCloseTime() const
 {
     assert(mCurrentLedger);
     return mCurrentLedger->mHeader.closeTime;
 }
 
 LedgerHeader const&
-LedgerMaster::getCurrentLedgerHeader() const
+LedgerManagerImpl::getCurrentLedgerHeader() const
 {
     assert(mCurrentLedger);
     return mCurrentLedger->mHeader;
 }
 
 LedgerHeader&
-LedgerMaster::getCurrentLedgerHeader()
+LedgerManagerImpl::getCurrentLedgerHeader()
 {
     assert(mCurrentLedger);
     return mCurrentLedger->mHeader;
 }
 
 LedgerHeaderHistoryEntry const&
-LedgerMaster::getLastClosedLedgerHeader() const
+LedgerManagerImpl::getLastClosedLedgerHeader() const
 {
     return mLastClosedLedger;
 }
 
 uint32_t
-LedgerMaster::getLastClosedLedgerNum() const
+LedgerManagerImpl::getLastClosedLedgerNum() const
 {
     return mLastClosedLedger.header.ledgerSeq;
 }
 
 // called by txherder
 void
-LedgerMaster::externalizeValue(LedgerCloseData ledgerData)
+LedgerManagerImpl::externalizeValue(LedgerCloseData ledgerData)
 {
     if (mLastClosedLedger.hash == ledgerData.mTxSet->previousLedgerHash())
     {
@@ -239,22 +239,22 @@ LedgerMaster::externalizeValue(LedgerCloseData ledgerData)
 }
 
 void
-LedgerMaster::startCatchUp(uint32_t initLedger, HistoryManager::ResumeMode resume)
+LedgerManagerImpl::startCatchUp(uint32_t initLedger, HistoryManager::ResumeMode resume)
 {
     mApp.setState(Application::CATCHING_UP_STATE);
     mApp.getHistoryManager().catchupHistory(
         initLedger, resume,
-        std::bind(&LedgerMaster::historyCaughtup, this, _1, _2, _3));
+        std::bind(&LedgerManagerImpl::historyCaughtup, this, _1, _2, _3));
 }
 
 HistoryManager::VerifyHashStatus
-LedgerMaster::verifyCatchupCandidate(LedgerHeaderHistoryEntry const& candidate) const
+LedgerManagerImpl::verifyCatchupCandidate(LedgerHeaderHistoryEntry const& candidate) const
 {
     // This is a callback from CatchupStateMachine when it's considering whether
-    // to treat a retrieved history block as legitimate. It asks LedgerMaster if
+    // to treat a retrieved history block as legitimate. It asks LedgerManagerImpl if
     // it's seen (in its previous, current, or buffer of ledgers-to-close that
     // have queued up since catchup began) whether it believes the candidate is a
-    // legitimate part of history. LedgerMaster is allowed to answer "unknown"
+    // legitimate part of history. LedgerManagerImpl is allowed to answer "unknown"
     // here, which causes CatchupStateMachine to pause and retry later.
 
 #define CHECK_PAIR(aseq,bseq,ahash,bhash)                               \
@@ -290,7 +290,7 @@ LedgerMaster::verifyCatchupCandidate(LedgerHeaderHistoryEntry const& candidate) 
 }
 
 void
-LedgerMaster::historyCaughtup(asio::error_code const& ec,
+LedgerManagerImpl::historyCaughtup(asio::error_code const& ec,
                               HistoryManager::ResumeMode mode,
                               LedgerHeaderHistoryEntry const& lastClosed)
 {
@@ -395,14 +395,14 @@ LedgerMaster::historyCaughtup(asio::error_code const& ec,
 }
 
 uint64_t
-LedgerMaster::secondsSinceLastLedgerClose() const
+LedgerManagerImpl::secondsSinceLastLedgerClose() const
 {
     return mApp.timeNow() - mLastCloseTime;
 }
 
 // called by txherder
 void
-LedgerMaster::closeLedger(LedgerCloseData ledgerData)
+LedgerManagerImpl::closeLedger(LedgerCloseData ledgerData)
 {
     CLOG(DEBUG, "Ledger") << "starting closeLedger() on ledgerSeq="
                           << mCurrentLedger->mHeader.ledgerSeq;
@@ -481,7 +481,7 @@ LedgerMaster::closeLedger(LedgerCloseData ledgerData)
 }
 
 void
-LedgerMaster::advanceLedgerPointers()
+LedgerManagerImpl::advanceLedgerPointers()
 {
     CLOG(INFO, "Ledger") << "Advancing LCL: " << ledgerAbbrev(mLastClosedLedger)
                          << " -> " << ledgerAbbrev(mCurrentLedger);
@@ -494,7 +494,7 @@ LedgerMaster::advanceLedgerPointers()
 }
 
 void
-LedgerMaster::closeLedgerHelper(LedgerDelta const& delta)
+LedgerManagerImpl::closeLedgerHelper(LedgerDelta const& delta)
 {
     mLastCloseTime = mApp.timeNow();
     delta.markMeters(mApp);

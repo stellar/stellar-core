@@ -6,7 +6,7 @@
 #include "util/asio.h"
 
 #include <string>
-#include "ledger/LedgerGateway.h"
+#include "ledger/LedgerManager.h"
 #include "ledger/LedgerHeaderFrame.h"
 #include "main/PersistentState.h"
 #include "history/HistoryManager.h"
@@ -29,7 +29,7 @@ class Application;
 class Database;
 class LedgerDelta;
 
-class LedgerMaster : public LedgerGateway
+class LedgerManagerImpl : public LedgerManager
 {
     LedgerHeaderHistoryEntry mLastClosedLedger;
     LedgerHeaderFrame::pointer mCurrentLedger;
@@ -47,8 +47,8 @@ class LedgerMaster : public LedgerGateway
                          LedgerHeaderHistoryEntry const& lastClosed);
 
   public:
-    typedef std::shared_ptr<LedgerMaster> pointer;
-    typedef const std::shared_ptr<LedgerMaster>& ref;
+    typedef std::shared_ptr<LedgerManagerImpl> pointer;
+    typedef const std::shared_ptr<LedgerManagerImpl>& ref;
 
     // Logging helpers
     static std::string ledgerAbbrev(LedgerHeader const& header,
@@ -56,7 +56,7 @@ class LedgerMaster : public LedgerGateway
     static std::string ledgerAbbrev(LedgerHeaderFrame::pointer p);
     static std::string ledgerAbbrev(LedgerHeaderHistoryEntry he);
 
-    LedgerMaster(Application& app);
+    LedgerManagerImpl(Application& app);
 
     //////// GATEWAY FUNCTIONS
     // called by txherder

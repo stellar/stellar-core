@@ -4,7 +4,7 @@
 
 #include "transactions/CancelOfferOpFrame.h"
 #include "ledger/OfferFrame.h"
-#include "ledger/LedgerMaster.h"
+#include "ledger/LedgerManagerImpl.h"
 #include "database/Database.h"
 
 namespace stellar
@@ -18,7 +18,7 @@ CancelOfferOpFrame::CancelOfferOpFrame(Operation const& op,
 }
 
 bool
-CancelOfferOpFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
+CancelOfferOpFrame::doApply(LedgerDelta& delta, LedgerManagerImpl& ledgerMaster)
 {
     OfferFrame offerFrame;
     Database& db = ledgerMaster.getDatabase();

@@ -10,7 +10,7 @@
 #include "crypto/Hex.h"
 #include "crypto/Base58.h"
 #include "util/Logging.h"
-#include "ledger/LedgerMaster.h"
+#include "ledger/LedgerManagerImpl.h"
 #include "ledger/LedgerHeaderFrame.h"
 #include "util/types.h"
 #include "util/make_unique.h"

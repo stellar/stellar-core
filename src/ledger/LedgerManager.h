@@ -32,7 +32,7 @@ class LedgerCloseData
 /*
  * Public Interface to the Ledger Module
  */
-class LedgerGateway
+class LedgerManager
 {
   public:
     // called by txherder

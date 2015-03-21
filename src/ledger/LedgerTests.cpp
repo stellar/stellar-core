@@ -9,7 +9,7 @@
 #include "lib/catch.hpp"
 #include "database/Database.h"
 #include "ledger/LedgerDelta.h"
-#include "ledger/LedgerMaster.h"
+#include "ledger/LedgerManagerImpl.h"
 #include "ledger/EntryFrame.h"
 #include "util/Logging.h"
 #include "util/types.h"
@@ -87,7 +87,7 @@ TEST_CASE("Ledger entry db lifecycle", "[ledger]")
     Application::pointer app = Application::create(clock, cfg);
 
     app->start();
-    LedgerDelta delta(app->getLedgerMaster().getCurrentLedgerHeader());
+    LedgerDelta delta(app->getLedgerManagerImpl().getCurrentLedgerHeader());
     auto& db = app->getDatabase();
     for (size_t i = 0; i < 100; ++i)
     {
@@ -111,7 +111,7 @@ TEST_CASE("single ledger entry insert SQL", "[singlesql][entrysql][hide]")
     Application::pointer app = Application::create(clock, getTestConfig(0, mode));
     app->start();
 
-    LedgerDelta delta(app->getLedgerMaster().getCurrentLedgerHeader());
+    LedgerDelta delta(app->getLedgerManagerImpl().getCurrentLedgerHeader());
     auto& db = app->getDatabase();
     auto le = EntryFrame::FromXDR(validLedgerEntryGenerator(3));
     auto ctx = db.captureAndLogSQL("ledger-insert");

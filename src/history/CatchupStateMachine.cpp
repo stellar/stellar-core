@@ -14,7 +14,7 @@
 #include "database/Database.h"
 #include "herder/TxSetFrame.h"
 #include "ledger/LedgerDelta.h"
-#include "ledger/LedgerGateway.h"
+#include "ledger/LedgerManager.h"
 #include "transactions/TransactionFrame.h"
 #include "util/Logging.h"
 #include "util/XDRStream.h"
@@ -462,7 +462,7 @@ CatchupStateMachine::enterVerifyingState()
     if (mMode == HistoryManager::RESUME_AT_LAST)
     {
         // In RESUME_AT_LAST mode we need to verify he whole history chain;
-        // this includes checking the final LCL of the chain with LedgerMaster.
+        // this includes checking the final LCL of the chain with LedgerManagerImpl.
         status = verifyHistoryFromLastClosedLedger();
     }
     else
@@ -471,7 +471,7 @@ CatchupStateMachine::enterVerifyingState()
         // and check to see if it's acceptable.
         assert(mMode == HistoryManager::RESUME_AT_NEXT);
         acquireFinalLedgerState(mNextLedger);
-        status = mApp.getLedgerMaster().verifyCatchupCandidate(mLastClosed);
+        status = mApp.getLedgerManagerImpl().verifyCatchupCandidate(mLastClosed);
     }
 
     switch (status)
@@ -502,7 +502,7 @@ verifyLedgerHistoryEntry(LedgerHeaderHistoryEntry const& hhe)
     {
         CLOG(ERROR, "History")
             << "Bad ledger-header history entry: claimed ledger "
-            << LedgerMaster::ledgerAbbrev(hhe)
+            << LedgerManagerImpl::ledgerAbbrev(hhe)
             << " actually hashes to "
             << hexAbbrev(calculated);
         return HistoryManager::VERIFY_HASH_BAD;
@@ -523,7 +523,7 @@ verifyLedgerHistoryLink(Hash const& prev,
     {
         CLOG(ERROR, "History")
             << "Bad hash-chain: "
-            << LedgerMaster::ledgerAbbrev(curr)
+            << LedgerManagerImpl::ledgerAbbrev(curr)
             << " wants prev hash "
             << hexAbbrev(curr.header.previousLedgerHash)
             << " but actual prev hash is "
@@ -536,12 +536,12 @@ verifyLedgerHistoryLink(Hash const& prev,
 HistoryManager::VerifyHashStatus
 CatchupStateMachine::verifyHistoryFromLastClosedLedger()
 {
-    auto& lm = mApp.getLedgerMaster();
+    auto& lm = mApp.getLedgerManagerImpl();
     LedgerHeaderHistoryEntry prev = lm.getLastClosedLedgerHeader();
     CLOG(INFO, "History") << "Verifying ledger-history chain of "
                           << mHeaderInfos.size()
                           << " transaction-history files from LCL "
-                          << LedgerMaster::ledgerAbbrev(prev);
+                          << LedgerManagerImpl::ledgerAbbrev(prev);
 
     for (auto& pair : mHeaderInfos)
     {
@@ -550,7 +550,7 @@ CatchupStateMachine::verifyHistoryFromLastClosedLedger()
         CLOG(INFO, "History") << "Verifying ledger headers from "
                               << hi->localPath_nogz()
                               << " starting from ledger "
-                              << LedgerMaster::ledgerAbbrev(prev);
+                              << LedgerManagerImpl::ledgerAbbrev(prev);
         hdrIn.open(hi->localPath_nogz());
         LedgerHeaderHistoryEntry curr;
         while (hdrIn && hdrIn.readOne(curr))
@@ -733,7 +733,7 @@ CatchupStateMachine::acquireFinalLedgerState(uint32_t ledgerNum)
     }
 
     CLOG(INFO, "History") << "Catchup last-ledger header: "
-                          << LedgerMaster::ledgerAbbrev(hHeader);
+                          << LedgerManagerImpl::ledgerAbbrev(hHeader);
     if (hHeader.header.ledgerSeq + 1 != ledgerNum)
     {
         throw std::runtime_error("catchup last-ledger state mismatch");
@@ -745,11 +745,11 @@ CatchupStateMachine::acquireFinalLedgerState(uint32_t ledgerNum)
 void
 CatchupStateMachine::applyHistoryFromLastClosedLedger()
 {
-    auto& lm = mApp.getLedgerMaster();
+    auto& lm = mApp.getLedgerManagerImpl();
     CLOG(INFO, "History")
         << "Replaying contents of " << mHeaderInfos.size()
         << " transaction-history files from LCL "
-        << LedgerMaster::ledgerAbbrev(lm.getLastClosedLedgerHeader());
+        << LedgerManagerImpl::ledgerAbbrev(lm.getLastClosedLedgerHeader());
 
     for (auto pair : mHeaderInfos)
     {
@@ -866,7 +866,7 @@ CatchupStateMachine::applyHistoryFromLastClosedLedger()
             lm.closeLedger(closeData);
 
             CLOG(DEBUG, "History")
-                << "LedgerMaster LCL:\n"
+                << "LedgerManagerImpl LCL:\n"
                 << xdr::xdr_to_string(lm.getLastClosedLedgerHeader());
             CLOG(DEBUG, "History") << "Replay header:\n"
                                    << xdr::xdr_to_string(hHeader);

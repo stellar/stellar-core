@@ -16,7 +16,7 @@ class InflationOpFrame : public OperationFrame
     InflationOpFrame(Operation const& op, OperationResult& res,
                      TransactionFrame& parentTx);
 
-    bool doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster);
+    bool doApply(LedgerDelta& delta, LedgerManagerImpl& ledgerMaster);
     bool doCheckValid(Application& app);
 };
 

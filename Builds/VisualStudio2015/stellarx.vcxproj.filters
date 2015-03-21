@@ -84,7 +84,7 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\src\ledger\LedgerMaster.cpp">
+    <ClCompile Include="..\..\src\ledger\LedgerManagerImpl.cpp">
       <Filter>ledger</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\main\Application.cpp">
@@ -407,10 +407,10 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\src\ledger\LedgerGateway.h">
+    <ClInclude Include="..\..\src\ledger\LedgerManager.h">
       <Filter>ledger</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\ledger\LedgerMaster.h">
+    <ClInclude Include="..\..\src\ledger\LedgerManagerImpl.h">
       <Filter>ledger</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\main\Application.h">

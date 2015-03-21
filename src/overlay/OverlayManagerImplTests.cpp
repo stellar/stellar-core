@@ -138,7 +138,7 @@ class OverlayManagerImplTests
     test_broadcast()
     {
         OverlayManagerImplStub& pm = app.getOverlayManagerImpl();
-        app.getLedgerMaster().startNewLedger();
+        app.getLedgerManagerImpl().startNewLedger();
 
         pm.storePeerList(fourPeers, 3);
         pm.storePeerList(threePeers, 2);

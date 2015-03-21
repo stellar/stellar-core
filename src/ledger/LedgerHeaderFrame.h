@@ -14,7 +14,7 @@ class session;
 
 namespace stellar
 {
-class LedgerMaster;
+class LedgerManagerImpl;
 class Database;
 class XDROutputFileStream;
 
@@ -43,7 +43,7 @@ class LedgerHeaderFrame
     // generates a new ID and returns it
     uint64_t generateID();
 
-    void storeInsert(LedgerMaster& ledgerMaster) const;
+    void storeInsert(LedgerManagerImpl& ledgerMaster) const;
 
     static LedgerHeaderFrame::pointer loadByHash(Hash const& hash,
                                                  Database& ledgerMaster);

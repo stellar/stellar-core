@@ -3,7 +3,7 @@
 // this distribution or at http://opensource.org/licenses/ISC
 
 #include "OfferExchange.h"
-#include "ledger/LedgerMaster.h"
+#include "ledger/LedgerManagerImpl.h"
 #include "ledger/TrustFrame.h"
 #include "database/Database.h"
 #include "util/Logging.h"
@@ -11,8 +11,8 @@
 namespace stellar
 {
 
-OfferExchange::OfferExchange(LedgerDelta& delta, LedgerMaster& ledgerMaster)
-    : mDelta(delta), mLedgerMaster(ledgerMaster)
+OfferExchange::OfferExchange(LedgerDelta& delta, LedgerManagerImpl& ledgerMaster)
+    : mDelta(delta), mLedgerManagerImpl(ledgerMaster)
 {
 }
 
@@ -25,7 +25,7 @@ OfferExchange::crossOffer(OfferFrame& sellingWheatOffer,
     Currency& wheat = sellingWheatOffer.getOffer().takerGets;
     uint256& accountBID = sellingWheatOffer.getOffer().accountID;
 
-    Database& db = mLedgerMaster.getDatabase();
+    Database& db = mLedgerManagerImpl.getDatabase();
 
     AccountFrame accountB;
     if (!AccountFrame::loadAccount(accountBID, accountB, db))
@@ -61,7 +61,7 @@ OfferExchange::crossOffer(OfferFrame& sellingWheatOffer,
     {
         // can only send above the minimum balance
         numWheatReceived = accountB.getAccount().balance -
-                           accountB.getMinimumBalance(mLedgerMaster);
+                           accountB.getMinimumBalance(mLedgerManagerImpl);
         if (numWheatReceived < 0)
         {
             numWheatReceived = 0;
@@ -184,7 +184,7 @@ OfferExchange::convertWithOffers(
     sheepSend = 0;
     wheatReceived = 0;
 
-    Database& db = mLedgerMaster.getDatabase();
+    Database& db = mLedgerManagerImpl.getDatabase();
 
     size_t offerOffset = 0;
 

@@ -9,7 +9,7 @@
 // first to include <windows.h> -- so we try to include it before everything
 // else.
 #include "util/asio.h"
-#include "ledger/LedgerMaster.h"
+#include "ledger/LedgerManagerImpl.h"
 #include "herder/Herder.h"
 #include "overlay/OverlayManager.h"
 #include "overlay/OverlayManagerImpl.h"
@@ -78,7 +78,7 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
 
     mTmpDirMaster = make_unique<TmpDirMaster>(cfg.TMP_DIR_PATH);
     mOverlayManagerImpl = make_unique<OverlayManagerImpl>(*this);
-    mLedgerMaster = make_unique<LedgerMaster>(*this);
+    mLedgerManagerImpl = make_unique<LedgerManagerImpl>(*this);
     mHerder = make_unique<Herder>(*this);
     mCLFManager = CLFManager::create(*this);
     mHistoryManager = HistoryManager::create(*this);
@@ -201,7 +201,7 @@ ApplicationImpl::start()
             LOG(INFO) << "* Force-starting scp from scratch, creating the "
                          "genesis ledger." << flagClearedMsg;
             LOG(INFO) << "* ";
-            mLedgerMaster->startNewLedger();
+            mLedgerManagerImpl->startNewLedger();
         }
         else
         {
@@ -209,13 +209,13 @@ ApplicationImpl::start()
             LOG(INFO) << "* Force-starting scp from the current db state."
                       << flagClearedMsg;
             LOG(INFO) << "* ";
-            mLedgerMaster->loadLastKnownLedger();
+            mLedgerManagerImpl->loadLastKnownLedger();
         }
         mHerder->bootstrap();
     }
     else
     {
-        mLedgerMaster->loadLastKnownLedger();
+        mLedgerManagerImpl->loadLastKnownLedger();
     }
 }
 
@@ -308,16 +308,16 @@ ApplicationImpl::getTmpDirMaster()
     return *mTmpDirMaster;
 }
 
-LedgerGateway&
-ApplicationImpl::getLedgerGateway()
+LedgerManager&
+ApplicationImpl::getLedgerManager()
 {
-    return *mLedgerMaster;
+    return *mLedgerManagerImpl;
 }
 
-LedgerMaster&
-ApplicationImpl::getLedgerMaster()
+LedgerManagerImpl&
+ApplicationImpl::getLedgerManagerImpl()
 {
-    return *mLedgerMaster;
+    return *mLedgerManagerImpl;
 }
 
 CLFManager&

@@ -3,7 +3,7 @@
 // this distribution or at http://opensource.org/licenses/ISC
 
 #include "LedgerHeaderFrame.h"
-#include "LedgerMaster.h"
+#include "LedgerManagerImpl.h"
 #include "lib/json/json.h"
 #include "util/XDRStream.h"
 #include "util/Logging.h"
@@ -67,7 +67,7 @@ LedgerHeaderFrame::generateID()
 }
 
 void
-LedgerHeaderFrame::storeInsert(LedgerMaster& ledgerMaster) const
+LedgerHeaderFrame::storeInsert(LedgerManagerImpl& ledgerMaster) const
 {
     getHash();
 

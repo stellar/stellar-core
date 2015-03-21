@@ -7,7 +7,7 @@
 #include <ctime>
 #include "math.h"
 #include "herder/TxSetFrame.h"
-#include "ledger/LedgerMaster.h"
+#include "ledger/LedgerManagerImpl.h"
 #include "overlay/OverlayManagerImpl.h"
 #include "main/Application.h"
 #include "main/Config.h"
@@ -130,7 +130,7 @@ Herder::bootstrap()
     assert(mApp.getConfig().START_NEW_NETWORK);
 
     mApp.setState(Application::SYNCED_STATE);
-    mLastClosedLedger = mApp.getLedgerMaster().getLastClosedLedgerHeader();
+    mLastClosedLedger = mApp.getLedgerManagerImpl().getLastClosedLedgerHeader();
     triggerNextLedger();
 }
 
@@ -502,7 +502,7 @@ Herder::valueExternalized(const uint64& slotIndex, const Value& value)
         LedgerCloseData ledgerData(static_cast<uint32_t>(slotIndex),
                                    externalizedSet, b.value.closeTime,
                                    b.value.baseFee);
-        mApp.getLedgerGateway().externalizeValue(ledgerData);
+        mApp.getLedgerManager().externalizeValue(ledgerData);
 
         // remove all these tx from mReceivedTransactions
         for (auto tx : externalizedSet->mTransactions)

@@ -8,7 +8,7 @@
 #include "crypto/Hex.h"
 #include "database/Database.h"
 #include "LedgerDelta.h"
-#include "ledger/LedgerMaster.h"
+#include "ledger/LedgerManagerImpl.h"
 
 using namespace soci;
 using namespace std;
@@ -71,7 +71,7 @@ AccountFrame::getBalance() const
 }
 
 int64_t
-AccountFrame::getMinimumBalance(LedgerMaster const& lm) const
+AccountFrame::getMinimumBalance(LedgerManagerImpl const& lm) const
 {
     return lm.getMinBalance(mAccountEntry.numSubEntries);
 }

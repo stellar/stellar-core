@@ -16,7 +16,7 @@
 #include "util/Timer.h"
 #include "util/TmpDir.h"
 #include "transactions/TxTests.h"
-#include "ledger/LedgerMaster.h"
+#include "ledger/LedgerManagerImpl.h"
 #include "util/NonCopyable.h"
 #include <cstdio>
 #include <xdrpp/autocheck.h>
@@ -243,7 +243,7 @@ extern LedgerEntry generateValidLedgerEntry();
 void
 HistoryTests::generateRandomLedger()
 {
-    auto& lm = app.getLedgerMaster();
+    auto& lm = app.getLedgerManagerImpl();
     TxSetFramePtr txSet =
         std::make_shared<TxSetFrame>(lm.getLastClosedLedgerHeader().hash);
 
@@ -316,7 +316,7 @@ HistoryTests::generateRandomLedger()
 void
 HistoryTests::generateAndPublishHistory(size_t nPublishes)
 {
-    auto& lm = app.getLedgerMaster();
+    auto& lm = app.getLedgerManagerImpl();
     auto& hm = app.getHistoryManager();
 
     size_t publishSuccesses = hm.getPublishSuccessCount();
@@ -353,7 +353,7 @@ HistoryTests::generateAndPublishInitialHistory(size_t nPublishes)
 {
     app.start();
 
-    auto& lm = app.getLedgerMaster();
+    auto& lm = app.getLedgerManagerImpl();
     auto& hm = app.getHistoryManager();
 
     // At this point LCL should be 1, current ledger should be 2
@@ -393,10 +393,10 @@ HistoryTests::catchupApplication(uint32_t initLedger,
 
 
     bool done = false;
-    auto& lm = app2->getLedgerMaster();
+    auto& lm = app2->getLedgerManagerImpl();
     if (doStart)
     {
-        // Normally Herder calls LedgerMaster.externalizeValue(initLedger) and
+        // Normally Herder calls LedgerManagerImpl.externalizeValue(initLedger) and
         // this _triggers_ catchup within the LM. However, we do this
         // out-of-order because we want to control the catchup mode rather than
         // let the LM pick it (it does RESUME_AT_LAST automatically), and
@@ -418,12 +418,12 @@ HistoryTests::catchupApplication(uint32_t initLedger,
     // sitting on the boundary of it. This will ensure there's something
     // externalizable to knit-up with on the catchup side.
     if (HistoryManager::nextCheckpointLedger(
-            app.getLedgerMaster().getLastClosedLedgerNum())
-        == app.getLedgerMaster().getLedgerNum())
+            app.getLedgerManagerImpl().getLastClosedLedgerNum())
+        == app.getLedgerManagerImpl().getLedgerNum())
     {
         CLOG(INFO, "History")
             << "force-publishing first ledger in next history block, ledger="
-            << app.getLedgerMaster().getLedgerNum();
+            << app.getLedgerManagerImpl().getLedgerNum();
         generateRandomLedger();
     }
 
@@ -606,7 +606,7 @@ TEST_CASE_METHOD(HistoryTests, "Full history catchup",
     generateAndPublishInitialHistory(3);
 
     uint32_t lastLedger = 0;
-    uint32_t initLedger = app.getLedgerMaster().getLastClosedLedgerNum();
+    uint32_t initLedger = app.getLedgerManagerImpl().getLastClosedLedgerNum();
 
     std::vector<Application::pointer> apps;
 
@@ -636,7 +636,7 @@ TEST_CASE_METHOD(HistoryTests, "History publish queueing",
 {
     generateAndPublishInitialHistory(1);
 
-    auto& lm = app.getLedgerMaster();
+    auto& lm = app.getLedgerManagerImpl();
     auto& hm = app.getHistoryManager();
 
     while (hm.getPublishDelayCount() < 2)
@@ -655,14 +655,14 @@ TEST_CASE_METHOD(HistoryTests, "History publish queueing",
     // 2 delayed publishes, making 4 total.
     CHECK(hm.getPublishSuccessCount() == 4);
 
-    auto initLedger = app.getLedgerMaster().getLastClosedLedgerNum();
+    auto initLedger = app.getLedgerManagerImpl().getLastClosedLedgerNum();
     auto app2 = catchupNewApplication(
         initLedger,
         Config::TESTDB_IN_MEMORY_SQLITE,
         HistoryManager::RESUME_AT_LAST,
         std::string("Catchup to delayed history"));
-    CHECK(app2->getLedgerMaster().getLedgerNum() ==
-          app.getLedgerMaster().getLedgerNum());
+    CHECK(app2->getLedgerManagerImpl().getLedgerNum() ==
+          app.getLedgerManagerImpl().getLedgerNum());
 }
 
 
@@ -678,7 +678,7 @@ TEST_CASE_METHOD(HistoryTests, "History prefix catchup",
                        10, Config::TESTDB_IN_MEMORY_SQLITE,
                        HistoryManager::RESUME_AT_LAST,
                        std::string("Catchup to prefix of published history")));
-    CHECK(apps.back()->getLedgerMaster().getLedgerNum() ==
+    CHECK(apps.back()->getLedgerManagerImpl().getLedgerNum() ==
           HistoryManager::kCheckpointFrequency + 1);
 
     // Then attempt catchup to 74, prefix of 128. Should round up to 128.
@@ -687,7 +687,7 @@ TEST_CASE_METHOD(HistoryTests, "History prefix catchup",
                        HistoryManager::kCheckpointFrequency + 10,
                        Config::TESTDB_IN_MEMORY_SQLITE, HistoryManager::RESUME_AT_LAST,
                        std::string("Catchup to second prefix of published history")));
-    CHECK(apps.back()->getLedgerMaster().getLedgerNum() ==
+    CHECK(apps.back()->getLedgerManagerImpl().getLedgerNum() ==
           2 * HistoryManager::kCheckpointFrequency + 1);
 }
 
@@ -700,7 +700,7 @@ TEST_CASE_METHOD(HistoryTests, "Publish/catchup alternation, with stall",
 
     Application::pointer app2, app3;
 
-    auto& lm = app.getLedgerMaster();
+    auto& lm = app.getLedgerManagerImpl();
 
     uint32_t initLedger = lm.getLastClosedLedgerNum();
 
@@ -714,8 +714,8 @@ TEST_CASE_METHOD(HistoryTests, "Publish/catchup alternation, with stall",
                                  HistoryManager::RESUME_AT_NEXT,
                                  std::string("app3"));
 
-    CHECK(app2->getLedgerMaster().getLedgerNum() == lm.getLedgerNum());
-    CHECK(app3->getLedgerMaster().getLedgerNum() == lm.getLedgerNum());
+    CHECK(app2->getLedgerManagerImpl().getLedgerNum() == lm.getLedgerNum());
+    CHECK(app3->getLedgerManagerImpl().getLedgerNum() == lm.getLedgerNum());
 
     for (size_t i = 1; i < 4; ++i)
     {
@@ -727,15 +727,15 @@ TEST_CASE_METHOD(HistoryTests, "Publish/catchup alternation, with stall",
         catchupApplication(initLedger, HistoryManager::RESUME_AT_LAST, app2);
         catchupApplication(initLedger, HistoryManager::RESUME_AT_NEXT, app3);
 
-        CHECK(app2->getLedgerMaster().getLedgerNum() == lm.getLedgerNum());
-        CHECK(app3->getLedgerMaster().getLedgerNum() == lm.getLedgerNum());
+        CHECK(app2->getLedgerManagerImpl().getLedgerNum() == lm.getLedgerNum());
+        CHECK(app3->getLedgerManagerImpl().getLedgerNum() == lm.getLedgerNum());
     }
 
     // By now we should have had 3 + 1 + 2 + 3 = 9 publishes, and should
     // have advanced 1-ledger in to the 9th block.
-    CHECK(app2->getLedgerMaster().getLedgerNum() ==
+    CHECK(app2->getLedgerManagerImpl().getLedgerNum() ==
           9 * HistoryManager::kCheckpointFrequency + 1);
-    CHECK(app3->getLedgerMaster().getLedgerNum() ==
+    CHECK(app3->getLedgerManagerImpl().getLedgerNum() ==
           9 * HistoryManager::kCheckpointFrequency + 1);
 
     // Finally, publish a little more history than the last publish-point
@@ -815,7 +815,7 @@ TEST_CASE_METHOD(S3HistoryTests, "Publish/catchup via s3",
 {
     generateAndPublishInitialHistory(3);
     auto app2 = catchupNewApplication(
-        app.getLedgerMaster().getCurrentLedgerHeader().ledgerSeq,
+        app.getLedgerManagerImpl().getCurrentLedgerHeader().ledgerSeq,
         Config::TESTDB_IN_MEMORY_SQLITE,
         HistoryManager::RESUME_AT_LAST, "s3");
 }

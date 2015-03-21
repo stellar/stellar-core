@@ -37,7 +37,7 @@ FMT_SRCS =                                      \
     src/ledger/LedgerDelta.cpp                  \
     src/ledger/LedgerHeaderFrame.cpp            \
     src/ledger/LedgerHeaderTests.cpp            \
-    src/ledger/LedgerMaster.cpp                 \
+    src/ledger/LedgerManagerImpl.cpp            \
     src/ledger/LedgerPerformanceTests.cpp       \
     src/ledger/LedgerTests.cpp                  \
     src/ledger/OfferFrame.cpp                   \
@@ -123,9 +123,9 @@ FMT_HDRS =                                      \
     src/ledger/AccountFrame.h                   \
     src/ledger/EntryFrame.h                     \
     src/ledger/LedgerDelta.h                    \
-    src/ledger/LedgerGateway.h                  \
+    src/ledger/LedgerManager.h                  \
+    src/ledger/LedgerManagerImpl.h              \
     src/ledger/LedgerHeaderFrame.h              \
-    src/ledger/LedgerMaster.h                   \
     src/ledger/OfferFrame.h                     \
     src/ledger/TrustFrame.h                     \
     src/main/Application.h                      \

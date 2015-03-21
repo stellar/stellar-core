@@ -73,7 +73,7 @@ CreateOfferOpFrame::checkOfferValid(Database& db)
 // TODO: revisit this, offer code should share logic with payment code
 //      to keep the code working, I ended up duplicating the error codes
 bool
-CreateOfferOpFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
+CreateOfferOpFrame::doApply(LedgerDelta& delta, LedgerManagerImpl& ledgerMaster)
 {
     Database& db = ledgerMaster.getDatabase();
 

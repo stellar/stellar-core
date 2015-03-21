@@ -21,8 +21,8 @@ namespace stellar
 class VirtualClock;
 class Config;
 class TmpDirMaster;
-class LedgerGateway;
-class LedgerMaster;
+class LedgerManager;
+class LedgerManagerImpl;
 class CLFManager;
 class HistoryManager;
 class ProcessGateway;
@@ -102,8 +102,8 @@ class Application
     virtual VirtualClock& getClock() = 0;
     virtual medida::MetricsRegistry& getMetrics() = 0;
     virtual TmpDirMaster& getTmpDirMaster() = 0;
-    virtual LedgerGateway& getLedgerGateway() = 0;
-    virtual LedgerMaster& getLedgerMaster() = 0;
+    virtual LedgerManager& getLedgerManager() = 0;
+    virtual LedgerManagerImpl& getLedgerManagerImpl() = 0;
     virtual CLFManager& getCLFManager() = 0;
     virtual HistoryManager& getHistoryManager() = 0;
     virtual ProcessGateway& getProcessGateway() = 0;

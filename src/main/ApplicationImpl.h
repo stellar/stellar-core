@@ -11,7 +11,7 @@ namespace stellar
 {
 class TmpDirMaster;
 class OverlayManagerImpl;
-class LedgerMaster;
+class LedgerManagerImpl;
 class Herder;
 class CLFManager;
 class HistoryManager;
@@ -34,8 +34,8 @@ class ApplicationImpl : public Application
     virtual VirtualClock& getClock() override;
     virtual medida::MetricsRegistry& getMetrics() override;
     virtual TmpDirMaster& getTmpDirMaster() override;
-    virtual LedgerGateway& getLedgerGateway() override;
-    virtual LedgerMaster& getLedgerMaster() override;
+    virtual LedgerManager& getLedgerManager() override;
+    virtual LedgerManagerImpl& getLedgerManagerImpl() override;
     virtual CLFManager& getCLFManager() override;
     virtual HistoryManager& getHistoryManager() override;
     virtual ProcessGateway& getProcessGateway() override;
@@ -92,7 +92,7 @@ class ApplicationImpl : public Application
     std::unique_ptr<Database> mDatabase;
     std::unique_ptr<TmpDirMaster> mTmpDirMaster;
     std::unique_ptr<OverlayManagerImpl> mOverlayManagerImpl;
-    std::unique_ptr<LedgerMaster> mLedgerMaster;
+    std::unique_ptr<LedgerManagerImpl> mLedgerManagerImpl;
     std::unique_ptr<Herder> mHerder;
     std::unique_ptr<CLFManager> mCLFManager;
     std::unique_ptr<HistoryManager> mHistoryManager;

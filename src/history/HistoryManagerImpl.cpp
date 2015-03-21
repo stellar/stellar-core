@@ -11,7 +11,7 @@
 #include "main/Config.h"
 #include "clf/BucketList.h"
 #include "clf/CLFManager.h"
-#include "ledger/LedgerMaster.h"
+#include "ledger/LedgerManagerImpl.h"
 #include "generated/StellarXDR.h"
 #include "history/HistoryArchive.h"
 #include "history/HistoryManagerImpl.h"
@@ -313,7 +313,7 @@ HistoryArchiveState
 HistoryManagerImpl::getLastClosedHistoryArchiveState() const
 {
     HistoryArchiveState has;
-    has.currentLedger = mApp.getLedgerMaster()
+    has.currentLedger = mApp.getLedgerManagerImpl()
                             .getLastClosedLedgerHeader()
                             .header.ledgerSeq;
     auto& bl = mApp.getCLFManager().getBucketList();
@@ -344,7 +344,7 @@ HistoryManagerImpl::maybePublishHistory(
     std::function<void(asio::error_code const&)> handler)
 {
     uint32_t seq =
-        mApp.getLedgerMaster().getCurrentLedgerHeader().ledgerSeq;
+        mApp.getLedgerManagerImpl().getCurrentLedgerHeader().ledgerSeq;
     if (seq != nextCheckpointLedger(seq))
     {
         return false;

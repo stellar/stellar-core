@@ -5,7 +5,7 @@
 // this distribution or at http://opensource.org/licenses/ISC
 
 #include <memory>
-#include "ledger/LedgerMaster.h"
+#include "ledger/LedgerManagerImpl.h"
 #include "ledger/AccountFrame.h"
 #include "generated/StellarXDR.h"
 #include "util/types.h"
@@ -13,7 +13,7 @@
 namespace stellar
 {
 class Application;
-class LedgerMaster;
+class LedgerManagerImpl;
 class LedgerDelta;
 
 class TransactionFrame;
@@ -29,7 +29,7 @@ class OperationFrame
     bool checkSignature() const;
 
     virtual bool doCheckValid(Application& app) = 0;
-    virtual bool doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster) = 0;
+    virtual bool doApply(LedgerDelta& delta, LedgerManagerImpl& ledgerMaster) = 0;
     virtual int32_t getNeededThreshold() const;
 
   public:

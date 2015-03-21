@@ -12,12 +12,12 @@ class OfferExchange
 {
 
     LedgerDelta& mDelta;
-    LedgerMaster& mLedgerMaster;
+    LedgerManagerImpl& mLedgerManagerImpl;
 
     std::vector<ClaimOfferAtom> mOfferTrail;
 
   public:
-    OfferExchange(LedgerDelta& delta, LedgerMaster& ledgerMaster);
+    OfferExchange(LedgerDelta& delta, LedgerManagerImpl& ledgerMaster);
 
     // buys wheat with sheep from a single offer
     enum CrossOfferResult

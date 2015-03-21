@@ -92,7 +92,7 @@ TransactionFrame::getFee(Application& app) const
         count = 1;
     }
 
-    return app.getLedgerGateway().getTxFee() * count;
+    return app.getLedgerManager().getTxFee() * count;
 }
 
 void
@@ -204,12 +204,12 @@ TransactionFrame::checkValid(Application& app, bool applying,
         return false;
     }
 
-    if (mEnvelope.tx.maxLedger < app.getLedgerGateway().getLedgerNum())
+    if (mEnvelope.tx.maxLedger < app.getLedgerManager().getLedgerNum())
     {
         getResult().result.code(txBAD_LEDGER);
         return false;
     }
-    if (mEnvelope.tx.minLedger > app.getLedgerGateway().getLedgerNum())
+    if (mEnvelope.tx.minLedger > app.getLedgerManager().getLedgerNum())
     {
         getResult().result.code(txBAD_LEDGER);
         return false;
@@ -253,7 +253,7 @@ TransactionFrame::checkValid(Application& app, bool applying,
 
     // don't let the account go below the reserve
     if (mSigningAccount->getAccount().balance - fee <
-        mSigningAccount->getMinimumBalance(app.getLedgerMaster()))
+        mSigningAccount->getMinimumBalance(app.getLedgerManagerImpl()))
     {
         getResult().result.code(txINSUFFICIENT_BALANCE);
         return false;
@@ -275,7 +275,7 @@ TransactionFrame::checkValid(Application& app, bool applying,
 }
 
 void
-TransactionFrame::prepareResult(LedgerDelta& delta, LedgerMaster& ledgerMaster)
+TransactionFrame::prepareResult(LedgerDelta& delta, LedgerManagerImpl& ledgerMaster)
 {
     Database& db = ledgerMaster.getDatabase();
     int64_t fee = getResult().feeCharged;
@@ -340,7 +340,7 @@ bool
 TransactionFrame::apply(LedgerDelta& delta, Application& app)
 {
     resetState();
-    LedgerMaster& lm = app.getLedgerMaster();
+    LedgerManagerImpl& lm = app.getLedgerManagerImpl();
     if (!checkValid(app, true, 0))
     {
         prepareResult(delta, lm);
@@ -406,7 +406,7 @@ TransactionFrame::toStellarMessage() const
 }
 
 void
-TransactionFrame::storeTransaction(LedgerMaster& ledgerMaster,
+TransactionFrame::storeTransaction(LedgerManagerImpl& ledgerMaster,
                                    LedgerDelta const& delta, int txindex,
                                    SHA256& resultHasher) const
 {

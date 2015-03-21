@@ -23,7 +23,7 @@ MergeOpFrame::MergeOpFrame(Operation const& op, OperationResult& res,
 // make sure the we delete all the trustlines
 // move the XLM to the new account
 bool
-MergeOpFrame::doApply(LedgerDelta& delta, LedgerMaster& ledgerMaster)
+MergeOpFrame::doApply(LedgerDelta& delta, LedgerManagerImpl& ledgerMaster)
 {
     AccountFrame otherAccount;
     Database& db = ledgerMaster.getDatabase();
