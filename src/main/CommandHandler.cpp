@@ -12,7 +12,7 @@
 #include "overlay/OverlayManagerImpl.h"
 #include "crypto/Hex.h"
 #include "xdrpp/marshal.h"
-#include "herder/HerderGateway.h"
+#include "herder/Herder.h"
 #include "lib/json/json.h"
 #include "crypto/Base58.h"
 #include <regex>
@@ -235,7 +235,7 @@ CommandHandler::tx(const std::string& params, std::string& retStr)
                 // add it to our current set
                 // and make sure it is valid
                 bool wasReceived =
-                    mApp.getHerderGateway().recvTransaction(transaction);
+                    mApp.getHerder().recvTransaction(transaction);
 
                 if (wasReceived)
                 {

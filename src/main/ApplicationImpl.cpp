@@ -10,7 +10,7 @@
 // else.
 #include "util/asio.h"
 #include "ledger/LedgerManagerImpl.h"
-#include "herder/Herder.h"
+#include "herder/HerderImpl.h"
 #include "overlay/OverlayManager.h"
 #include "overlay/OverlayManagerImpl.h"
 #include "clf/CLFManager.h"
@@ -79,7 +79,7 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
     mTmpDirMaster = make_unique<TmpDirMaster>(cfg.TMP_DIR_PATH);
     mOverlayManagerImpl = make_unique<OverlayManagerImpl>(*this);
     mLedgerManagerImpl = make_unique<LedgerManagerImpl>(*this);
-    mHerder = make_unique<Herder>(*this);
+    mHerderImpl = make_unique<HerderImpl>(*this);
     mCLFManager = CLFManager::create(*this);
     mHistoryManager = HistoryManager::create(*this);
     mProcessManagerImpl = make_unique<ProcessManagerImpl>(*this);
@@ -211,7 +211,7 @@ ApplicationImpl::start()
             LOG(INFO) << "* ";
             mLedgerManagerImpl->loadLastKnownLedger();
         }
-        mHerder->bootstrap();
+        mHerderImpl->bootstrap();
     }
     else
     {
@@ -257,7 +257,7 @@ ApplicationImpl::manualClose()
 {
     if (mConfig.MANUAL_CLOSE)
     {
-        mHerder->triggerNextLedger();
+        mHerderImpl->triggerNextLedger();
         return true;
     }
     return false;
@@ -338,10 +338,10 @@ ApplicationImpl::getProcessManager()
     return *mProcessManagerImpl;
 }
 
-HerderGateway&
-ApplicationImpl::getHerderGateway()
+Herder&
+ApplicationImpl::getHerder()
 {
-    return *mHerder;
+    return *mHerderImpl;
 }
 
 OverlayManager&

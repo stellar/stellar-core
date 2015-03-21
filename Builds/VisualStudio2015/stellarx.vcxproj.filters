@@ -315,7 +315,7 @@
     <ClCompile Include="..\..\src\crypto\Random.cpp">
       <Filter>crypto</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\herder\Herder.cpp">
+    <ClCompile Include="..\..\src\herder\HerderImpl.cpp">
       <Filter>herder</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\herder\TxSetFrame.cpp">
@@ -599,10 +599,10 @@
     <ClInclude Include="..\..\src\crypto\Random.h">
       <Filter>crypto</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\herder\Herder.h">
+    <ClInclude Include="..\..\src\herder\HerderImpl.h">
       <Filter>herder</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\herder\HerderGateway.h">
+    <ClInclude Include="..\..\src\herder\Herder.h">
       <Filter>herder</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\herder\TxSetFrame.h">

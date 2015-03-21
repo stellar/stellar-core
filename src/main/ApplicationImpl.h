@@ -12,7 +12,7 @@ namespace stellar
 class TmpDirMaster;
 class OverlayManagerImpl;
 class LedgerManagerImpl;
-class Herder;
+class HerderImpl;
 class CLFManager;
 class HistoryManager;
 class ProcessManagerImpl;
@@ -39,7 +39,7 @@ class ApplicationImpl : public Application
     virtual CLFManager& getCLFManager() override;
     virtual HistoryManager& getHistoryManager() override;
     virtual ProcessManager& getProcessManager() override;
-    virtual HerderGateway& getHerderGateway() override;
+    virtual Herder& getHerder() override;
     virtual OverlayManager& getOverlayManager() override;
     virtual OverlayManagerImpl& getOverlayManagerImpl() override;
     virtual Database& getDatabase() override;
@@ -93,7 +93,7 @@ class ApplicationImpl : public Application
     std::unique_ptr<TmpDirMaster> mTmpDirMaster;
     std::unique_ptr<OverlayManagerImpl> mOverlayManagerImpl;
     std::unique_ptr<LedgerManagerImpl> mLedgerManagerImpl;
-    std::unique_ptr<Herder> mHerder;
+    std::unique_ptr<HerderImpl> mHerderImpl;
     std::unique_ptr<CLFManager> mCLFManager;
     std::unique_ptr<HistoryManager> mHistoryManager;
     std::unique_ptr<ProcessManagerImpl> mProcessManagerImpl;

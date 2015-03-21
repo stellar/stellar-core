@@ -12,7 +12,7 @@
 #include "generated/StellarXDR.h"
 #include "xdrpp/marshal.h"
 #include "overlay/OverlayManagerImpl.h"
-#include "herder/HerderGateway.h"
+#include "herder/Herder.h"
 #include "database/Database.h"
 #include "crypto/Hex.h"
 #include <time.h>
@@ -271,11 +271,11 @@ Peer::recvDontHave(StellarMessage const& msg)
     switch (msg.dontHave().type)
     {
     case TX_SET:
-        mApp.getHerderGateway().doesntHaveTxSet(msg.dontHave().reqHash,
+        mApp.getHerder().doesntHaveTxSet(msg.dontHave().reqHash,
                                                 shared_from_this());
         break;
     case SCP_QUORUMSET:
-        mApp.getHerderGateway().doesntHaveSCPQuorumSet(msg.dontHave().reqHash,
+        mApp.getHerder().doesntHaveSCPQuorumSet(msg.dontHave().reqHash,
                                                        shared_from_this());
         break;
     case VALIDATIONS:
@@ -288,7 +288,7 @@ void
 Peer::recvGetTxSet(StellarMessage const& msg)
 {
     TxSetFramePtr txSet =
-        mApp.getHerderGateway().fetchTxSet(msg.txSetHash(), false);
+        mApp.getHerder().fetchTxSet(msg.txSetHash(), false);
     if (txSet)
     {
         StellarMessage newMsg;
@@ -306,7 +306,7 @@ void
 Peer::recvTxSet(StellarMessage const& msg)
 {
     TxSetFramePtr txSet = std::make_shared<TxSetFrame>(msg.txSet());
-    mApp.getHerderGateway().recvTxSet(txSet);
+    mApp.getHerder().recvTxSet(txSet);
 }
 
 void
@@ -318,7 +318,7 @@ Peer::recvTransaction(StellarMessage const& msg)
     {
         // add it to our current set
         // and make sure it is valid
-        if (mApp.getHerderGateway().recvTransaction(transaction))
+        if (mApp.getHerder().recvTransaction(transaction))
         {
             mApp.getOverlayManager().recvFloodedMsg(msg, shared_from_this());
             mApp.getOverlayManager().broadcastMessage(msg);
@@ -330,7 +330,7 @@ void
 Peer::recvGetSCPQuorumSet(StellarMessage const& msg)
 {
     SCPQuorumSetPtr qSet =
-        mApp.getHerderGateway().fetchSCPQuorumSet(msg.qSetHash(), false);
+        mApp.getHerder().fetchSCPQuorumSet(msg.qSetHash(), false);
     if (qSet)
     {
         sendSCPQuorumSet(qSet);
@@ -347,7 +347,7 @@ void
 Peer::recvSCPQuorumSet(StellarMessage const& msg)
 {
     SCPQuorumSetPtr qSet = std::make_shared<SCPQuorumSet>(msg.qSet());
-    mApp.getHerderGateway().recvSCPQuorumSet(qSet);
+    mApp.getHerder().recvSCPQuorumSet(qSet);
 }
 
 void
@@ -367,7 +367,7 @@ Peer::recvSCPMessage(StellarMessage const& msg)
             mApp.getOverlayManager().broadcastMessage(msg);
         }
     };
-    mApp.getHerderGateway().recvSCPEnvelope(envelope, cb);
+    mApp.getHerder().recvSCPEnvelope(envelope, cb);
 }
 
 void

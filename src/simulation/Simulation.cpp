@@ -11,7 +11,7 @@
 #include "overlay/PeerRecord.h"
 #include "main/Application.h"
 #include "overlay/OverlayManagerImpl.h"
-#include "herder/HerderGateway.h"
+#include "herder/Herder.h"
 #include "medida/medida.h"
 #include "medida/reporting/console_reporter.h"
 #include "util/Math.h"
@@ -310,7 +310,7 @@ Simulation::createRandomTransaction(float alpha)
 void
 Simulation::TxInfo::execute(Application& app)
 {
-    app.getHerderGateway().recvTransaction(createPaymentTx());
+    app.getHerder().recvTransaction(createPaymentTx());
     recordExecution(app.getConfig().DESIRED_BASE_FEE);
 }
 

@@ -12,7 +12,7 @@
 #include "main/test.h"
 #include "util/Logging.h"
 #include "util/types.h"
-#include "herder/Herder.h"
+#include "herder/HerderImpl.h"
 
 using namespace stellar;
 

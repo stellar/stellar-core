@@ -26,7 +26,7 @@ class LedgerManagerImpl;
 class CLFManager;
 class HistoryManager;
 class ProcessManager;
-class HerderGateway;
+class Herder;
 class OverlayManager;
 class OverlayManagerImpl;
 class Database;
@@ -107,7 +107,7 @@ class Application
     virtual CLFManager& getCLFManager() = 0;
     virtual HistoryManager& getHistoryManager() = 0;
     virtual ProcessManager& getProcessManager() = 0;
-    virtual HerderGateway& getHerderGateway() = 0;
+    virtual Herder& getHerder() = 0;
     virtual OverlayManager& getOverlayManager() = 0;
     virtual OverlayManagerImpl& getOverlayManagerImpl() = 0;
     virtual Database& getDatabase() = 0;

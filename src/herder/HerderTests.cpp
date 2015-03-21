@@ -2,7 +2,7 @@
 // under the ISC License. See the COPYING file at the top-level directory of
 // this distribution or at http://opensource.org/licenses/ISC
 
-#include "herder/Herder.h"
+#include "herder/HerderImpl.h"
 #include "scp/SCP.h"
 #include "overlay/ItemFetcher.h"
 #include "main/Application.h"
@@ -84,8 +84,8 @@ TEST_CASE("standalone", "[herder]")
             TransactionFramePtr txFrameA2 =
                 createPaymentTx(root, b1, rootSeq++, paymentAmount);
 
-            REQUIRE(app->getHerderGateway().recvTransaction(txFrameA1));
-            REQUIRE(app->getHerderGateway().recvTransaction(txFrameA2));
+            REQUIRE(app->getHerder().recvTransaction(txFrameA1));
+            REQUIRE(app->getHerder().recvTransaction(txFrameA2));
         };
 
         setupTimer.expires_from_now(std::chrono::seconds(0));

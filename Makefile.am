@@ -23,7 +23,7 @@ FMT_SRCS =                                      \
     src/scp/LocalNode.cpp                       \
     src/scp/Node.cpp                            \
     src/scp/Slot.cpp                            \
-    src/herder/Herder.cpp                       \
+    src/herder/HerderImpl.cpp                   \
     src/herder/HerderTests.cpp                  \
     src/herder/TxSetFrame.cpp                   \
     src/history/FileTransferInfo.cpp            \
@@ -112,7 +112,7 @@ FMT_HDRS =                                      \
     src/scp/Node.h                              \
     src/scp/Slot.h                              \
     src/herder/Herder.h                         \
-    src/herder/HerderGateway.h                  \
+    src/herder/HerderImpl.h                     \
     src/herder/TxSetFrame.h                     \
     src/history/FileTransferInfo.h              \
     src/history/CatchupStateMachine.h           \

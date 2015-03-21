@@ -15,7 +15,7 @@
 #include "crypto/SHA.h"
 #include "database/Database.h"
 #include "ledger/LedgerHeaderFrame.h"
-#include "herder/HerderGateway.h"
+#include "herder/Herder.h"
 #include "herder/TxSetFrame.h"
 #include "overlay/OverlayManager.h"
 #include "history/HistoryManager.h"
@@ -473,7 +473,7 @@ LedgerManagerImpl::closeLedger(LedgerCloseData ledgerData)
     txscope.commit();
 
     // Notify ledger close to other components.
-    mApp.getHerderGateway().ledgerClosed(mLastClosedLedger);
+    mApp.getHerder().ledgerClosed(mLastClosedLedger);
     mApp.getOverlayManager().ledgerClosed(mLastClosedLedger);
     mApp.getHistoryManager().maybePublishHistory([](asio::error_code const&)
                                                 {
