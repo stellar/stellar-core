@@ -141,7 +141,7 @@ class CatchupStateMachine
     void enterEndState();
 
     HistoryMaster::VerifyHashStatus verifyHistoryFromLastClosedLedger();
-    void applyBucketsAtLedger(uint32_t ledgerNum);
+    void applyBucketsAtLastClosedLedger();
     void acquireFinalLedgerState(uint32_t ledgerNum);
     void applyHistoryFromLastClosedLedger();
 
