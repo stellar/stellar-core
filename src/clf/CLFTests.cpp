@@ -354,3 +354,59 @@ TEST_CASE("clfmaster ownership", "[clf][ownershipclf]")
     b1.reset();
     CHECK(!fs::exists(filename));
 }
+
+TEST_CASE("single entry bubbling up", "[clf][clfbubble]")
+{
+    VirtualClock clock;
+    Config const& cfg = getTestConfig();
+    try
+    {
+        Application::pointer app = Application::create(clock, cfg);
+        BucketList bl;
+        autocheck::generator<std::vector<LedgerEntry>> liveGen;
+        std::vector<stellar::LedgerKey> emptySet;
+        std::vector<stellar::LedgerEntry> emptySetEntry;
+
+        CLOG(DEBUG, "CLF") << "Adding single entry in lowest level";
+        bl.addBatch(*app, 1, liveGen(1), emptySet);
+
+        CLOG(DEBUG, "CLF") << "Adding empty batches to bucket list";
+        for (uint32_t i = 2;
+        !app->getClock().getIOService().stopped() && i < 130; ++i)
+        {
+            app->getClock().crank(false);
+            bl.addBatch(*app, i, emptySetEntry, emptySet);
+            if (i % 10 == 0)
+                CLOG(DEBUG, "CLF") << "Added batch " << i
+                                   << ", hash=" << binToHex(bl.getHash());
+
+            CLOG(DEBUG, "CLF") << "------- ledger " << i;
+            uint32_t elemCount = 0;
+            for (size_t j = 0; j <= bl.numLevels() - 1; ++j)
+            {
+                auto const& lev = bl.getLevel(j);
+                auto currSz = countEntries(lev.getCurr());
+                auto snapSz = countEntries(lev.getSnap());
+                CLOG(DEBUG, "CLF") << "ledger " << i << ", level " << j
+                                   << " curr=" << currSz
+                                   << " snap=" << snapSz;
+                uint32_t elemCountHigh = elemCount + bl.levelSize(j);
+                if (i >= elemCount && i < elemCountHigh)
+                {
+                    REQUIRE((currSz + snapSz) == 1);
+                }
+                else
+                {
+                    CHECK(currSz == 0);
+                    CHECK(snapSz == 0);
+                }
+                elemCount = elemCountHigh;
+            }
+        }
+    }
+    catch (std::future_error& e)
+    {
+        CLOG(DEBUG, "CLF") << "Test caught std::future_error " << e.code()
+            << ": " << e.what();
+    }
+}
