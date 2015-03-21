@@ -16,7 +16,7 @@
 #include "clf/CLFManager.h"
 #include "history/HistoryManager.h"
 #include "database/Database.h"
-#include "process/ProcessMaster.h"
+#include "process/ProcessManagerImpl.h"
 #include "main/CommandHandler.h"
 #include "medida/metrics_registry.h"
 #include "medida/reporting/console_reporter.h"
@@ -82,7 +82,7 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
     mHerder = make_unique<Herder>(*this);
     mCLFManager = CLFManager::create(*this);
     mHistoryManager = HistoryManager::create(*this);
-    mProcessMaster = make_unique<ProcessMaster>(*this);
+    mProcessManagerImpl = make_unique<ProcessManagerImpl>(*this);
     mCommandHandler = make_unique<CommandHandler>(*this);
 
     while (t--)
@@ -332,10 +332,10 @@ ApplicationImpl::getHistoryManager()
     return *mHistoryManager;
 }
 
-ProcessGateway&
-ApplicationImpl::getProcessGateway()
+ProcessManager&
+ApplicationImpl::getProcessManager()
 {
-    return *mProcessMaster;
+    return *mProcessManagerImpl;
 }
 
 HerderGateway&

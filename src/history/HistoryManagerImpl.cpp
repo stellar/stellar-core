@@ -17,7 +17,7 @@
 #include "history/HistoryManagerImpl.h"
 #include "history/PublishStateMachine.h"
 #include "history/CatchupStateMachine.h"
-#include "process/ProcessGateway.h"
+#include "process/ProcessManager.h"
 #include "util/make_unique.h"
 #include "util/Logging.h"
 #include "util/TmpDir.h"
@@ -220,7 +220,7 @@ HistoryManagerImpl::decompress(std::string const& filename_gz,
         outputFile = filename;
     }
     commandLine += filename_gz;
-    auto exit = app.getProcessGateway().runProcess(commandLine, outputFile);
+    auto exit = app.getProcessManager().runProcess(commandLine, outputFile);
     exit.async_wait(
         [&app, filename_gz, filename, handler](asio::error_code const& ec)
         {
@@ -253,7 +253,7 @@ HistoryManagerImpl::compress(std::string const& filename_nogz,
         outputFile = filename;
     }
     commandLine += filename_nogz;
-    auto exit = app.getProcessGateway().runProcess(commandLine, outputFile);
+    auto exit = app.getProcessManager().runProcess(commandLine, outputFile);
     exit.async_wait(
         [&app, filename_nogz, filename, handler](asio::error_code const& ec)
         {
@@ -276,7 +276,7 @@ HistoryManagerImpl::putFile(std::shared_ptr<HistoryArchive const> archive,
 {
     assert(archive->hasPutCmd());
     auto cmd = archive->putFileCmd(local, remote);
-    auto exit = this->mApp.getProcessGateway().runProcess(cmd);
+    auto exit = this->mApp.getProcessManager().runProcess(cmd);
     exit.async_wait(handler);
 }
 
@@ -287,7 +287,7 @@ HistoryManagerImpl::getFile(std::shared_ptr<HistoryArchive const> archive,
 {
     assert(archive->hasGetCmd());
     auto cmd = archive->getFileCmd(remote, local);
-    auto exit = this->mApp.getProcessGateway().runProcess(cmd);
+    auto exit = this->mApp.getProcessManager().runProcess(cmd);
     exit.async_wait(handler);
 }
 
@@ -299,7 +299,7 @@ HistoryManagerImpl::mkdir(std::shared_ptr<HistoryArchive const> archive,
     if (archive->hasMkdirCmd())
     {
         auto cmd = archive->mkdirCmd(dir);
-        auto exit = this->mApp.getProcessGateway().runProcess(cmd);
+        auto exit = this->mApp.getProcessManager().runProcess(cmd);
         exit.async_wait(handler);
     }
     else

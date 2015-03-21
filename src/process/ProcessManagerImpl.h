@@ -4,13 +4,13 @@
 // under the ISC License. See the COPYING file at the top-level directory of
 // this distribution or at http://opensource.org/licenses/ISC
 
-#include "process/ProcessGateway.h"
+#include "process/ProcessManager.h"
 #include <mutex>
 
 namespace stellar
 {
 
-class ProcessMaster : public ProcessGateway
+class ProcessManagerImpl : public ProcessManager
 {
     // Subprocess callbacks are process-wide, owing to the process-wide
     // receipt of SIGCHLD.
@@ -25,7 +25,7 @@ class ProcessMaster : public ProcessGateway
     void handleSignalWait();
 
   public:
-    ProcessMaster(Application& app);
+    ProcessManagerImpl(Application& app);
     ProcessExitEvent runProcess(std::string const& cmdLine,
                                 std::string outFile = "");
 };

@@ -62,7 +62,7 @@ FMT_SRCS =                                      \
     src/overlay/PeerRecordTests.cpp             \
     src/overlay/TCPPeer.cpp                     \
     src/overlay/TCPPeerTests.cpp                \
-    src/process/ProcessMaster.cpp               \
+    src/process/ProcessManagerImpl.cpp          \
     src/process/ProcessTests.cpp                \
     src/simulation/CoreTests.cpp                \
     src/simulation/Simulation.cpp               \
@@ -144,8 +144,8 @@ FMT_HDRS =                                      \
     src/overlay/PeerDoor.h                      \
     src/overlay/PeerRecord.h                    \
     src/overlay/TCPPeer.h                       \
-    src/process/ProcessGateway.h                \
-    src/process/ProcessMaster.h                 \
+    src/process/ProcessManager.h                \
+    src/process/ProcessManagerImpl.h            \
     src/simulation/Simulation.h                 \
     src/simulation/Topologies.h                 \
     src/transactions/AllowTrustOpFrame.h        \

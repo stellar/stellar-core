@@ -15,7 +15,7 @@ class LedgerManagerImpl;
 class Herder;
 class CLFManager;
 class HistoryManager;
-class ProcessMaster;
+class ProcessManagerImpl;
 class CommandHandler;
 class Database;
 
@@ -38,7 +38,7 @@ class ApplicationImpl : public Application
     virtual LedgerManagerImpl& getLedgerManagerImpl() override;
     virtual CLFManager& getCLFManager() override;
     virtual HistoryManager& getHistoryManager() override;
-    virtual ProcessGateway& getProcessGateway() override;
+    virtual ProcessManager& getProcessManager() override;
     virtual HerderGateway& getHerderGateway() override;
     virtual OverlayManager& getOverlayManager() override;
     virtual OverlayManagerImpl& getOverlayManagerImpl() override;
@@ -96,7 +96,7 @@ class ApplicationImpl : public Application
     std::unique_ptr<Herder> mHerder;
     std::unique_ptr<CLFManager> mCLFManager;
     std::unique_ptr<HistoryManager> mHistoryManager;
-    std::unique_ptr<ProcessMaster> mProcessMaster;
+    std::unique_ptr<ProcessManagerImpl> mProcessManagerImpl;
     std::unique_ptr<CommandHandler> mCommandHandler;
     std::unique_ptr<PersistentState> mPersistentState;
 

@@ -25,7 +25,7 @@ class LedgerManager;
 class LedgerManagerImpl;
 class CLFManager;
 class HistoryManager;
-class ProcessGateway;
+class ProcessManager;
 class HerderGateway;
 class OverlayManager;
 class OverlayManagerImpl;
@@ -106,7 +106,7 @@ class Application
     virtual LedgerManagerImpl& getLedgerManagerImpl() = 0;
     virtual CLFManager& getCLFManager() = 0;
     virtual HistoryManager& getHistoryManager() = 0;
-    virtual ProcessGateway& getProcessGateway() = 0;
+    virtual ProcessManager& getProcessManager() = 0;
     virtual HerderGateway& getHerderGateway() = 0;
     virtual OverlayManager& getOverlayManager() = 0;
     virtual OverlayManagerImpl& getOverlayManagerImpl() = 0;

@@ -3,7 +3,7 @@
 // this distribution or at http://opensource.org/licenses/ISC
 
 #define STELLARD_REAL_TIMER_FOR_CERTAIN_NOT_JUST_VIRTUAL_TIME
-#include "process/ProcessMaster.h"
+#include "process/ProcessManagerImpl.h"
 // ASIO is somewhat particular about when it gets included -- it wants to be the
 // first to include <windows.h> -- so we try to include it before everything
 // else.
@@ -12,8 +12,8 @@
 #include "util/Timer.h"
 #include "main/Application.h"
 #include "util/Logging.h"
-#include "process/ProcessGateway.h"
-#include "process/ProcessMaster.h"
+#include "process/ProcessManager.h"
+#include "process/ProcessManagerImpl.h"
 #include <string>
 #include <functional>
 #include <mutex>
@@ -25,19 +25,19 @@ namespace stellar
 #include <windows.h>
 #include <tchar.h>
 
-ProcessMaster::ProcessMaster(Application& app)
+ProcessManagerImpl::ProcessManagerImpl(Application& app)
     : mApp(app), mSigChild(app.getClock().getIOService())
 {
 }
 
 void
-ProcessMaster::startSignalWait()
+ProcessManagerImpl::startSignalWait()
 {
     // No-op on windows, uses waitable object handles
 }
 
 void
-ProcessMaster::handleSignalWait()
+ProcessManagerImpl::handleSignalWait()
 {
     // No-op on windows, uses waitable object handles
 }
@@ -89,7 +89,7 @@ class ProcessExitEvent::Impl
 };
 
 ProcessExitEvent
-ProcessMaster::runProcess(std::string const& cmdLine, std::string outFile)
+ProcessManagerImpl::runProcess(std::string const& cmdLine, std::string outFile)
 {
     STARTUPINFO si;
     PROCESS_INFORMATION pi;
@@ -167,11 +167,11 @@ class ProcessExitEvent::Impl
     }
 };
 
-std::recursive_mutex ProcessMaster::gImplsMutex;
+std::recursive_mutex ProcessManagerImpl::gImplsMutex;
 
-std::map<int, std::shared_ptr<ProcessExitEvent::Impl>> ProcessMaster::gImpls;
+std::map<int, std::shared_ptr<ProcessExitEvent::Impl>> ProcessManagerImpl::gImpls;
 
-ProcessMaster::ProcessMaster(Application& app)
+ProcessManagerImpl::ProcessManagerImpl(Application& app)
     : mApp(app), mSigChild(app.getClock().getIOService(), SIGCHLD)
 {
     std::lock_guard<std::recursive_mutex> guard(gImplsMutex);
@@ -179,14 +179,14 @@ ProcessMaster::ProcessMaster(Application& app)
 }
 
 void
-ProcessMaster::startSignalWait()
+ProcessManagerImpl::startSignalWait()
 {
     std::lock_guard<std::recursive_mutex> guard(gImplsMutex);
-    mSigChild.async_wait(std::bind(&ProcessMaster::handleSignalWait, this));
+    mSigChild.async_wait(std::bind(&ProcessManagerImpl::handleSignalWait, this));
 }
 
 void
-ProcessMaster::handleSignalWait()
+ProcessManagerImpl::handleSignalWait()
 {
     std::lock_guard<std::recursive_mutex> guard(gImplsMutex);
     while (true)
@@ -254,7 +254,7 @@ split(const std::string& s)
 }
 
 ProcessExitEvent
-ProcessMaster::runProcess(std::string const& cmdLine, std::string outFile)
+ProcessManagerImpl::runProcess(std::string const& cmdLine, std::string outFile)
 {
     std::lock_guard<std::recursive_mutex> guard(gImplsMutex);
     std::vector<std::string> args = split(cmdLine);

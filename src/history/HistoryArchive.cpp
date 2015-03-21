@@ -12,7 +12,7 @@
 #include "crypto/SHA.h"
 #include "history/HistoryManager.h"
 #include "history/FileTransferInfo.h"
-#include "process/ProcessGateway.h"
+#include "process/ProcessManager.h"
 #include "main/Application.h"
 #include "util/Fs.h"
 #include "util/make_unique.h"

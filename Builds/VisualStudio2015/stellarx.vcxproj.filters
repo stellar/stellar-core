@@ -150,7 +150,7 @@
     <ClCompile Include="..\..\src\history\HistoryManagerImpl.cpp">
       <Filter>history</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\process\ProcessMaster.cpp">
+    <ClCompile Include="..\..\src\process\ProcessManagerImpl.cpp">
       <Filter>process</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\process\ProcessTests.cpp">
@@ -494,10 +494,10 @@
     <ClInclude Include="..\..\src\history\HistoryManagerImpl.h">
       <Filter>history</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\process\ProcessGateway.h">
+    <ClInclude Include="..\..\src\process\ProcessManager.h">
       <Filter>process</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\process\ProcessMaster.h">
+    <ClInclude Include="..\..\src\process\ProcessManagerImpl.h">
       <Filter>process</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\util\Timer.h">
