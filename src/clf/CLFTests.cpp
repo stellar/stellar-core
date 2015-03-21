@@ -76,6 +76,7 @@ TEST_CASE("bucket list", "[clf]")
     {
         CLOG(DEBUG, "CLF") << "Test caught std::future_error " << e.code()
                            << ": " << e.what();
+        REQUIRE(false);
     }
 }
 
@@ -119,21 +120,23 @@ TEST_CASE("bucket list shadowing", "[clf]")
         {
             CLOG(DEBUG, "CLF") << "Added batch " << i
                                << ", hash=" << binToHex(bl.getHash());
+            // Alice and bob should be in either curr or snap of level 0 and 1
+            for (size_t j = 0; j < 2; ++j)
             {
-                // Alice and bob should be in either curr or snap of level 0
-                auto curr0 = bl.getLevel(0).getCurr();
-                auto snap0 = bl.getLevel(0).getSnap();
-                bool hasAlice = (curr0->containsCLFIdentity(CLFAlice) ||
-                                 snap0->containsCLFIdentity(CLFAlice));
-                bool hasBob = (curr0->containsCLFIdentity(CLFBob) ||
-                               snap0->containsCLFIdentity(CLFBob));
+                auto const& lev = bl.getLevel(j);
+                auto curr = lev.getCurr();
+                auto snap = lev.getSnap();
+                bool hasAlice = (curr->containsCLFIdentity(CLFAlice) ||
+                                 snap->containsCLFIdentity(CLFAlice));
+                bool hasBob = (curr->containsCLFIdentity(CLFBob) ||
+                               snap->containsCLFIdentity(CLFBob));
                 CHECK(hasAlice);
                 CHECK(hasBob);
             }
 
-            // Alice and Bob should never occur in level 1 .. N because they
+            // Alice and Bob should never occur in level 2 .. N because they
             // were shadowed in level 0 continuously.
-            for (size_t j = 1; j < bl.numLevels(); ++j)
+            for (size_t j = 2; j < bl.numLevels(); ++j)
             {
                 auto const& lev = bl.getLevel(j);
                 auto curr = lev.getCurr();
@@ -408,5 +411,6 @@ TEST_CASE("single entry bubbling up", "[clf][clfbubble]")
     {
         CLOG(DEBUG, "CLF") << "Test caught std::future_error " << e.code()
             << ": " << e.what();
+        REQUIRE(false);
     }
 }

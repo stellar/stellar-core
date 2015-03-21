@@ -217,13 +217,38 @@ BucketList::addBatch(Application& app, uint32_t currLedger,
         shadows.push_back(level.getSnap());
     }
 
+    // We will be counting-down from the highest-numbered level (the
+    // oldest/largest level) to the lowest (youngest); each step we check for
+    // shadows in all the levels _above_ the level we're merging, which means we
+    // pop the current level's curr and snap buckets off the shadow list before
+    // proceeding, to avoid a level shadowing itself.
+    //
+    // But beyond this, we also pop the *previous level's* curr and snap from
+    // 'shadows' as well, for the following reason:
+    //
+    //   - Immediately before beginning to merge level i-1 into level i, level
+    //     i-1 has [curr=A, snap=B]. These two buckets, A and B, are on the end
+    //     of the shadows list.
+    //
+    //   - Upon calling level[i-1].snap(), level i-1 has [curr={}, snap=A]; B
+    //     has been discarded since we're (by definition of restarting a merge
+    //     on level[i]) done merging it.
+    //
+    //   - We do _not_ want to consider A or B as members of the shadow set when
+    //     merging A into level i; B has already been incorporated and A is the
+    //     new material we're trying to incorporate.
+    //
+    // So at any given level-merge i, we should be considering shadows only in
+    // levels i-2 and lower. Therefore before the loop we pop the first two
+    // elements of 'shadows', and then inside the loop we pop two more for each
+    // iteration.
+
+    assert(shadows.size() >= 2);
+    shadows.pop_back();
+    shadows.pop_back();
+
     for (size_t i = mLevels.size() - 1; i > 0; --i)
     {
-        // We are counting-down from the highest-numbered level (the
-        // oldest/largest level) to the lowest (youngest); each step we check
-        // for shadows in all the levels _above_ us, which means we pop the
-        // current level's curr and snap buckets off the shadow list before
-        // proceeding.
         assert(shadows.size() >= 2);
         shadows.pop_back();
         shadows.pop_back();
@@ -252,21 +277,22 @@ BucketList::addBatch(Application& app, uint32_t currLedger,
              * a 'snap' the moment it's half-a-level full, not have anything
              * else spilled/added to it.
              */
+
             auto snap = mLevels[i - 1].snap();
+
             // CLOG(DEBUG, "CLF") << "Ledger " << currLedger
             //           << " causing commit on level " << i
             //           << " and prepare of "
             //           << snap->getEntries().size()
             //           << " element snap from level " << i-1
             //           << " to level " << i;
+
             mLevels[i].commit();
             mLevels[i].prepare(app, currLedger, snap, shadows);
         }
     }
 
-    assert(shadows.size() == 2);
-    shadows.pop_back();
-    shadows.pop_back();
+    assert(shadows.size() == 0);
     mLevels[0].prepare(
         app, currLedger,
         Bucket::fresh(app.getCLFManager(), liveEntries, deadEntries), shadows);
