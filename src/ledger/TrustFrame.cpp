@@ -71,6 +71,18 @@ TrustFrame::getBalance() const
 }
 
 bool
+TrustFrame::addBalance(int64_t delta)
+{
+    if(mTrustLine.limit < delta + mTrustLine.balance)
+    {
+        return false;
+    }
+    if((delta + mTrustLine.balance) < 0) return false;
+    mTrustLine.balance += delta;
+    return true;
+}
+
+bool
 TrustFrame::isValid() const
 {
     const TrustLineEntry& tl = mTrustLine;

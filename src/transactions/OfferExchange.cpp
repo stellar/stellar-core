@@ -69,7 +69,7 @@ OfferExchange::crossOffer(OfferFrame& sellingWheatOffer,
     }
     else
     {
-        numWheatReceived = wheatLineAccountB.getTrustLine().balance;
+        numWheatReceived = wheatLineAccountB.getBalance();
     }
 
     // you can receive the lesser of the amount of wheat offered or
@@ -153,7 +153,10 @@ OfferExchange::crossOffer(OfferFrame& sellingWheatOffer,
     }
     else
     {
-        sheepLineAccountB.getTrustLine().balance += numSheepSend;
+        if(!sheepLineAccountB.addBalance(numSheepSend))
+        {
+            return eOfferCantConvert;
+        }
         sheepLineAccountB.storeChange(mDelta, db);
     }
 
@@ -164,7 +167,10 @@ OfferExchange::crossOffer(OfferFrame& sellingWheatOffer,
     }
     else
     {
-        wheatLineAccountB.getTrustLine().balance -= numWheatReceived;
+        if(!wheatLineAccountB.addBalance(-numWheatReceived))
+        {
+            return eOfferCantConvert;
+        }
         wheatLineAccountB.storeChange(mDelta, db);
     }
 
