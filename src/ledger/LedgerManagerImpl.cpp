@@ -483,8 +483,8 @@ LedgerManagerImpl::closeLedger(LedgerCloseData ledgerData)
 void
 LedgerManagerImpl::advanceLedgerPointers()
 {
-    CLOG(INFO, "Ledger") << "Advancing LCL: " << ledgerAbbrev(mLastClosedLedger)
-                         << " -> " << ledgerAbbrev(mCurrentLedger);
+//    CLOG(INFO, "Ledger") << "Advancing LCL: " << ledgerAbbrev(mLastClosedLedger)
+    //                        << " -> " << ledgerAbbrev(mCurrentLedger);
 
     mLastClosedLedger.hash = mCurrentLedger->getHash();
     mLastClosedLedger.header = mCurrentLedger->mHeader;

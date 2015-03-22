@@ -100,7 +100,8 @@ public:
 TEST_CASE("ledger performance test", "[ledger][performance][hide]")
 {
     int nAccounts = 10000000;
-    int nLedgers = 1000;
+    int nLedgers = 9 /* weeks */ * 7 * 24 * 60 * 60
+                 / 5 /* seconds between ledgers */;
     int nTransactionsPerLedger = 3;
 
 
@@ -130,14 +131,14 @@ TEST_CASE("ledger performance test", "[ledger][performance][hide]")
         
     Timer& ledgerTimer = sim.mApp->getMetrics().NewTimer({ "performance-test", "ledger", "close" });
     Timer& mergeTimer = sim.mApp->getCLFManager().getMergeTimer();
-    for (int iAccounts = 1000; iAccounts < nAccounts; iAccounts *= 10)
+    for (int iAccounts = 10000000; iAccounts <= nAccounts; iAccounts *= 10)
     {
         ledgerTimer.Clear();
         mergeTimer.Clear();
 
-        LOG(INFO) << "Performance test with " << iAccounts << ", loading/creating accounts";
+        LOG(INFO) << "Performance test with " << iAccounts << " accounts, loading/creating accounts";
         sim.ensureNAccounts(iAccounts);
-        LOG(INFO) << "Performance test with " << iAccounts << ", running";
+        LOG(INFO) << "Performance test with " << iAccounts << " accounts, running";
 
         for (int iLedgers = 0; iLedgers < nLedgers; iLedgers++)
         {
@@ -146,10 +147,16 @@ TEST_CASE("ledger performance test", "[ledger][performance][hide]")
             auto scope = ledgerTimer.TimeScope();
             sim.closeLedger(txs);
             while (sim.crankAllNodes() > 0);
+            cout << ".";
+            cout.flush();
+
+            if (iLedgers == nLedgers - 1 || iLedgers % 1000 == 0)
+            {
+                LOG(INFO) << endl << "Performance test with " << iAccounts << " accounts after " << iLedgers << " ledgers";
+                LOG(INFO) << endl << sim.metricsSummary("performance-test");
+                LOG(INFO) << endl << sim.metricsSummary("bucket");
+                LOG(INFO) << "done";
+            }
         }
-        LOG(INFO) << "Performance test with " << iAccounts << ", done";
-        LOG(INFO) << endl << sim.metricsSummary("performance-test");
-        LOG(INFO) << endl << sim.metricsSummary("bucket");
-        LOG(INFO) << "done";
     }
 }
