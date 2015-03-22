@@ -202,7 +202,7 @@ bin_stellard_CPPFLAGS = -I$(top_srcdir)/src \
                         $(xdrpp_CFLAGS) \
                         $(sqlite_CFLAGS) \
                         $(libpq_CFLAGS) -fno-omit-frame-pointer \
-                        $(libmedida_CFLAGS) -g
+                        $(libmedida_CFLAGS) -g -O2
 
 bin_stellard_LDADD = libsoci.la \
                      $(libsodium_LIBS) \
