@@ -14,7 +14,6 @@
 using namespace std;
 using namespace soci;
 
-
 namespace stellar
 {
 const char* OfferFrame::kSQLCreateStatement =
@@ -29,7 +28,6 @@ const char* OfferFrame::kSQLCreateStatement =
     "amount          BIGINT       NOT NULL,"
     "priceN          INT          NOT NULL,"
     "priceD          INT          NOT NULL,"
-    "flags           INT          NOT NULL,"
     "price           BIGINT       NOT NULL,"
     "PRIMARY KEY (offerID)"
     ");";
@@ -69,7 +67,6 @@ OfferFrame::from(OperationFrame const& op)
     mOffer.offerID = create.offerID;
     mOffer.takerGets = create.takerGets;
     mOffer.takerPays = create.takerPays;
-    mOffer.flags = create.flags;
     clearCached();
 }
 
@@ -110,7 +107,7 @@ OfferFrame::getOfferID() const
 
 static const char* offerColumnSelector =
     "SELECT accountID,offerID,paysIsoCurrency,paysIssuer,"
-    "getsIsoCurrency,getsIssuer,amount,priceN,priceD,flags FROM Offers";
+    "getsIsoCurrency,getsIssuer,amount,priceN,priceD FROM Offers";
 
 bool
 OfferFrame::loadOffer(const uint256& accountID, uint64_t offerID,
@@ -132,9 +129,9 @@ OfferFrame::loadOffer(const uint256& accountID, uint64_t offerID,
     retOffer.clearCached();
     loadOffers(sql, [&retOffer, &res](OfferFrame const& offer)
                {
-        retOffer = offer;
-        res = true;
-    });
+                   retOffer = offer;
+                   res = true;
+               });
 
     return res;
 }
@@ -153,11 +150,10 @@ OfferFrame::loadOffers(soci::details::prepare_temp_type& prep,
     offerFrame.clearCached();
     OfferEntry& oe = offerFrame.mOffer;
 
-    statement st =
-        (prep, into(accountID), into(oe.offerID),
-         into(paysIsoCurrency, paysIsoIndicator), into(paysIssuer),
-         into(getsIsoCurrency, getsIsoIndicator), into(getsIssuer),
-         into(oe.amount), into(oe.price.n), into(oe.price.d), into(oe.flags));
+    statement st = (prep, into(accountID), into(oe.offerID),
+                    into(paysIsoCurrency, paysIsoIndicator), into(paysIssuer),
+                    into(getsIsoCurrency, getsIsoIndicator), into(getsIssuer),
+                    into(oe.amount), into(oe.price.n), into(oe.price.d));
 
     st.execute(true);
     while (st.got_data())
@@ -236,8 +232,8 @@ OfferFrame::loadBestOffers(size_t numOffers, size_t offset,
     auto timer = db.getSelectTimer("offer");
     loadOffers(sql, [&retOffers](OfferFrame const& of)
                {
-        retOffers.push_back(of);
-    });
+                   retOffers.push_back(of);
+               });
 }
 
 void
@@ -256,8 +252,8 @@ OfferFrame::loadOffers(const uint256& accountID,
     auto timer = db.getSelectTimer("offer");
     loadOffers(sql, [&retOffers](OfferFrame const& of)
                {
-        retOffers.push_back(of);
-    });
+                   retOffers.push_back(of);
+               });
 }
 
 bool
@@ -336,11 +332,11 @@ OfferFrame::storeAdd(LedgerDelta& delta, Database& db) const
         st = (db.getSession().prepare
                   << "INSERT into Offers "
                      "(accountID,offerID,paysIsoCurrency,paysIssuer,"
-                     "amount,priceN,priceD,price,flags) values"
-                     "(:v1,:v2,:v3,:v4,:v5,:v6,:v7,:v8,:v9)",
+                     "amount,priceN,priceD,price) values"
+                     "(:v1,:v2,:v3,:v4,:v5,:v6,:v7,:v8)",
               use(b58AccountID), use(mOffer.offerID), use(b58issuer),
               use(currencyCode), use(mOffer.amount), use(mOffer.price.n),
-              use(mOffer.price.d), use(computePrice()), use(mOffer.flags));
+              use(mOffer.price.d), use(computePrice()));
         st.execute(true);
     }
     else if (mOffer.takerPays.type() == NATIVE)
@@ -352,11 +348,11 @@ OfferFrame::storeAdd(LedgerDelta& delta, Database& db) const
         st = (db.getSession().prepare
                   << "INSERT into Offers "
                      "(accountID,offerID,getsIsoCurrency,getsIssuer,"
-                     "amount,priceN,priceD,price,flags) values"
-                     "(:v1,:v2,:v3,:v4,:v5,:v6,:v7,:v8,:v9)",
+                     "amount,priceN,priceD,price) values"
+                     "(:v1,:v2,:v3,:v4,:v5,:v6,:v7,:v8)",
               use(b58AccountID), use(mOffer.offerID), use(b58issuer),
               use(currencyCode), use(mOffer.amount), use(mOffer.price.n),
-              use(mOffer.price.d), use(computePrice()), use(mOffer.flags));
+              use(mOffer.price.d), use(computePrice()));
         st.execute(true);
     }
     else
@@ -373,12 +369,12 @@ OfferFrame::storeAdd(LedgerDelta& delta, Database& db) const
         st = (db.getSession().prepare
                   << "INSERT into Offers (accountID,offerID,"
                      "paysIsoCurrency,paysIssuer,getsIsoCurrency,getsIssuer,"
-                     "amount,priceN,priceD,price,flags) values "
-                     "(:v1,:v2,:v3,:v4,:v5,:v6,:v7,:v8,:v9,:v10,:v11)",
+                     "amount,priceN,priceD,price) values "
+                     "(:v1,:v2,:v3,:v4,:v5,:v6,:v7,:v8,:v9,:v10)",
               use(b58AccountID), use(mOffer.offerID), use(paysIsoCurrency),
               use(b58PaysIssuer), use(getsIsoCurrency), use(b58GetsIssuer),
               use(mOffer.amount), use(mOffer.price.n), use(mOffer.price.d),
-              use(computePrice()), use(mOffer.flags));
+              use(computePrice()));
         st.execute(true);
     }
 

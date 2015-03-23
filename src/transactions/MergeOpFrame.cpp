@@ -31,7 +31,7 @@ MergeOpFrame::doApply(LedgerDelta& delta, LedgerManagerImpl& ledgerMaster)
     if (!AccountFrame::loadAccount(mOperation.body.destination(), otherAccount,
                                    db))
     {
-        innerResult().code(AccountMerge::NO_ACCOUNT);
+        innerResult().code(ACCOUNT_MERGE_NO_ACCOUNT);
         return false;
     }
 
@@ -46,7 +46,7 @@ MergeOpFrame::doApply(LedgerDelta& delta, LedgerManagerImpl& ledgerMaster)
     }
     if (db.getSession().got_data())
     {
-        innerResult().code(AccountMerge::HAS_CREDIT);
+        innerResult().code(ACCOUNT_MERGE_HAS_CREDIT);
         return false;
     }
 
@@ -58,7 +58,7 @@ MergeOpFrame::doApply(LedgerDelta& delta, LedgerManagerImpl& ledgerMaster)
     }
     if (db.getSession().got_data())
     {
-        innerResult().code(AccountMerge::HAS_CREDIT);
+        innerResult().code(ACCOUNT_MERGE_HAS_CREDIT);
         return false;
     }
 
@@ -82,7 +82,7 @@ MergeOpFrame::doApply(LedgerDelta& delta, LedgerManagerImpl& ledgerMaster)
     otherAccount.storeChange(delta, db);
     mSourceAccount->storeDelete(delta, db);
 
-    innerResult().code(AccountMerge::SUCCESS);
+    innerResult().code(ACCOUNT_MERGE_SUCCESS);
     return true;
 }
 
@@ -92,7 +92,7 @@ MergeOpFrame::doCheckValid(Application& app)
     // makes sure not merging into self
     if (getSourceID() == mOperation.body.destination())
     {
-        innerResult().code(AccountMerge::MALFORMED);
+        innerResult().code(ACCOUNT_MERGE_MALFORMED);
         return false;
     }
     return true;

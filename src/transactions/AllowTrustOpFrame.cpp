@@ -27,7 +27,7 @@ AllowTrustOpFrame::doApply(LedgerDelta& delta, LedgerManagerImpl& ledgerMaster)
 {
     if (!(mSourceAccount->getAccount().flags & AUTH_REQUIRED_FLAG))
     { // this account doesn't require authorization to hold credit
-        innerResult().code(AllowTrust::MALFORMED);
+        innerResult().code(ALLOW_TRUST_MALFORMED);
         return false;
     }
 
@@ -40,11 +40,11 @@ AllowTrustOpFrame::doApply(LedgerDelta& delta, LedgerManagerImpl& ledgerMaster)
     TrustFrame trustLine;
     if (!TrustFrame::loadTrustLine(mAllowTrust.trustor, ci, trustLine, db))
     {
-        innerResult().code(AllowTrust::NO_TRUST_LINE);
+        innerResult().code(ALLOW_TRUST_NO_TRUST_LINE);
         return false;
     }
 
-    innerResult().code(AllowTrust::SUCCESS);
+    innerResult().code(ALLOW_TRUST_SUCCESS);
 
     trustLine.getTrustLine().authorized = mAllowTrust.authorize;
     trustLine.storeChange(delta, db);
@@ -57,7 +57,7 @@ AllowTrustOpFrame::doCheckValid(Application& app)
 {
     if (mAllowTrust.currency.type() != ISO4217)
     {
-        innerResult().code(AllowTrust::MALFORMED);
+        innerResult().code(ALLOW_TRUST_MALFORMED);
         return false;
     }
     return true;

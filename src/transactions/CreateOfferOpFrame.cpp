@@ -38,12 +38,12 @@ CreateOfferOpFrame::checkOfferValid(Database& db)
     {
         if (!TrustFrame::loadTrustLine(getSourceID(), sheep, mSheepLineA, db))
         { // we don't have what we are trying to sell
-            innerResult().code(CreateOffer::NO_TRUST);
+            innerResult().code(CREATE_OFFER_NO_TRUST);
             return false;
         }
         if (mSheepLineA.getBalance() == 0)
         {
-            innerResult().code(CreateOffer::UNDERFUNDED);
+            innerResult().code(CREATE_OFFER_UNDERFUNDED);
             return false;
         }
     }
@@ -52,13 +52,13 @@ CreateOfferOpFrame::checkOfferValid(Database& db)
     {
         if (!TrustFrame::loadTrustLine(getSourceID(), wheat, mWheatLineA, db))
         { // we can't hold what we are trying to buy
-            innerResult().code(CreateOffer::NO_TRUST);
+            innerResult().code(CREATE_OFFER_NO_TRUST);
             return false;
         }
 
         if (!mWheatLineA.getTrustLine().authorized)
         { // we are not authorized to hold what we are trying to buy
-            innerResult().code(CreateOffer::NOT_AUTHORIZED);
+            innerResult().code(CREATE_OFFER_NOT_AUTHORIZED);
             return false;
         }
     }
@@ -98,13 +98,13 @@ CreateOfferOpFrame::doApply(LedgerDelta& delta, LedgerManagerImpl& ledgerMaster)
                 !compareCurrency(mCreateOffer.takerPays,
                                  mSellSheepOffer.getOffer().takerPays))
             {
-                innerResult().code(CreateOffer::MALFORMED);
+                innerResult().code(CREATE_OFFER_MALFORMED);
                 return false;
             }
         }
         else
         {
-            innerResult().code(CreateOffer::NOT_FOUND);
+            innerResult().code(CREATE_OFFER_NOT_FOUND);
             return false;
         }
     }
@@ -140,7 +140,7 @@ CreateOfferOpFrame::doApply(LedgerDelta& delta, LedgerManagerImpl& ledgerMaster)
 
     Price sheepPrice = mCreateOffer.price;
 
-    innerResult().code(CreateOffer::SUCCESS);
+    innerResult().code(CREATE_OFFER_SUCCESS);
 
     {
         soci::transaction sqlTx(db.getSession());
@@ -163,7 +163,7 @@ CreateOfferOpFrame::doApply(LedgerDelta& delta, LedgerManagerImpl& ledgerMaster)
                 if (o.getAccountID() == getSourceID())
                 {
                     // we are crossing our own offer
-                    innerResult().code(CreateOffer::CROSS_SELF);
+                    innerResult().code(CREATE_OFFER_CROSS_SELF);
                     return OfferExchange::eStop;
                 }
                 return OfferExchange::eKeep;
@@ -179,7 +179,7 @@ CreateOfferOpFrame::doApply(LedgerDelta& delta, LedgerManagerImpl& ledgerMaster)
         case OfferExchange::ePartial:
             break;
         case OfferExchange::eFilterStop:
-            if (innerResult().code() != CreateOffer::SUCCESS)
+            if (innerResult().code() != CREATE_OFFER_SUCCESS)
             {
                 return false;
             }
@@ -212,7 +212,7 @@ CreateOfferOpFrame::doApply(LedgerDelta& delta, LedgerManagerImpl& ledgerMaster)
                 }
                 if(!wheatLineSigningAccount.addBalance(wheatReceived))
                 {
-                    innerResult().code(CreateOffer::UNDERFUNDED);
+                    innerResult().code(CREATE_OFFER_UNDERFUNDED);
                     return false;
                 }
        
@@ -248,12 +248,12 @@ CreateOfferOpFrame::doApply(LedgerDelta& delta, LedgerManagerImpl& ledgerMaster)
                     ledgerMaster.getMinBalance(
                         mSourceAccount->getAccount().numSubEntries + 1))
                 {
-                    innerResult().code(CreateOffer::UNDERFUNDED);
+                    innerResult().code(CREATE_OFFER_UNDERFUNDED);
                     return false;
                 }
                 mSellSheepOffer.mEntry.offer().offerID =
                     tempDelta.getHeaderFrame().generateID();
-                innerResult().success().offer.effect(CreateOffer::CREATED);
+                innerResult().success().offer.effect(CREATE_OFFER_CREATED);
                 innerResult().success().offer.offerCreated() =
                     mSellSheepOffer.getOffer();
                 mSellSheepOffer.storeAdd(tempDelta, db);
@@ -263,13 +263,13 @@ CreateOfferOpFrame::doApply(LedgerDelta& delta, LedgerManagerImpl& ledgerMaster)
             }
             else
             {
-                innerResult().success().offer.effect(CreateOffer::UPDATED);
+                innerResult().success().offer.effect(CREATE_OFFER_UPDATED);
                 mSellSheepOffer.storeChange(tempDelta, db);
             }
         }
         else
         {
-            innerResult().success().offer.effect(CreateOffer::EMPTY);
+            innerResult().success().offer.effect(CREATE_OFFER_EMPTY);
 
             if (!creatingNewOffer)
             {
@@ -291,7 +291,7 @@ CreateOfferOpFrame::doCheckValid(Application& app)
     Currency const& wheat = mCreateOffer.takerPays;
     if (compareCurrency(sheep, wheat))
     {
-        innerResult().code(CreateOffer::MALFORMED);
+        innerResult().code(CREATE_OFFER_MALFORMED);
         return false;
     }
 

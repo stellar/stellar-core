@@ -10,7 +10,7 @@ namespace stellar
 {
 class ChangeTrustOpFrame : public OperationFrame
 {
-    ChangeTrust::ChangeTrustResult&
+    ChangeTrustResult&
     innerResult()
     {
         return mResult.tr().changeTrustResult();
@@ -23,14 +23,11 @@ class ChangeTrustOpFrame : public OperationFrame
 
     bool doApply(LedgerDelta& delta, LedgerManagerImpl& ledgerMaster);
     bool doCheckValid(Application& app);
-};
 
-namespace ChangeTrust
-{
-inline ChangeTrust::ChangeTrustResultCode
-getInnerCode(OperationResult const& res)
-{
-    return res.tr().changeTrustResult().code();
-}
-}
+    static ChangeTrustResultCode
+    getInnerCode(OperationResult const& res)
+    {
+        return res.tr().changeTrustResult().code();
+    }
+};
 }

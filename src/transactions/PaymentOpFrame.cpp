@@ -29,7 +29,7 @@ PaymentOpFrame::doApply(LedgerDelta& delta, LedgerManagerImpl& ledgerMaster)
     // if sending to self directly, just mark as success
     if (mPayment.destination == getSourceID() && mPayment.path.empty())
     {
-        innerResult().code(Payment::SUCCESS);
+        innerResult().code(PAYMENT_SUCCESS);
         return true;
     }
 
@@ -41,7 +41,7 @@ PaymentOpFrame::doApply(LedgerDelta& delta, LedgerManagerImpl& ledgerMaster)
         {
             if (mPayment.amount < ledgerMaster.getMinBalance(0))
             { // not over the minBalance to make an account
-                innerResult().code(Payment::UNDERFUNDED);
+                innerResult().code(PAYMENT_UNDERFUNDED);
                 return false;
             }
             else
@@ -56,7 +56,7 @@ PaymentOpFrame::doApply(LedgerDelta& delta, LedgerManagerImpl& ledgerMaster)
         }
         else
         { // trying to send credit to an unmade account
-            innerResult().code(Payment::NO_DESTINATION);
+            innerResult().code(PAYMENT_NO_DESTINATION);
             return false;
         }
     }
@@ -75,11 +75,11 @@ PaymentOpFrame::sendNoCreate(AccountFrame& destination, LedgerDelta& delta,
     bool multi_mode = mPayment.path.size() != 0;
     if (multi_mode)
     {
-        innerResult().code(Payment::SUCCESS_MULTI);
+        innerResult().code(PAYMENT_SUCCESS_MULTI);
     }
     else
     {
-        innerResult().code(Payment::SUCCESS);
+        innerResult().code(PAYMENT_SUCCESS);
     }
 
     // tracks the last amount that was traded
@@ -103,19 +103,19 @@ PaymentOpFrame::sendNoCreate(AccountFrame& destination, LedgerDelta& delta,
             if (!TrustFrame::loadTrustLine(destination.getID(), curB, destLine,
                                            db))
             {
-                innerResult().code(Payment::NO_TRUST);
+                innerResult().code(PAYMENT_NO_TRUST);
                 return false;
             }
-            
+
             if (!destLine.getTrustLine().authorized)
             {
-                innerResult().code(Payment::NOT_AUTHORIZED);
+                innerResult().code(PAYMENT_NOT_AUTHORIZED);
                 return false;
             }
 
             if (!destLine.addBalance(curBReceived))
             {
-                innerResult().code(Payment::LINE_FULL);
+                innerResult().code(PAYMENT_LINE_FULL);
                 return false;
             }
 
@@ -124,8 +124,8 @@ PaymentOpFrame::sendNoCreate(AccountFrame& destination, LedgerDelta& delta,
 
         if (multi_mode)
         {
-            innerResult().multi().last = Payment::SimplePaymentResult(
-                destination.getID(), curB, curBReceived);
+            innerResult().multi().last =
+                SimplePaymentResult(destination.getID(), curB, curBReceived);
         }
     }
 
@@ -155,7 +155,7 @@ PaymentOpFrame::sendNoCreate(AccountFrame& destination, LedgerDelta& delta,
                 }
             // fall through
             case OfferExchange::ePartial:
-                innerResult().code(Payment::OVERSENDMAX);
+                innerResult().code(PAYMENT_OVERSENDMAX);
                 return false;
             }
             assert(curBReceived == actualCurBReceived);
@@ -173,7 +173,7 @@ PaymentOpFrame::sendNoCreate(AccountFrame& destination, LedgerDelta& delta,
 
     if (curBSent > mPayment.sendMax)
     { // make sure not over the max
-        innerResult().code(Payment::OVERSENDMAX);
+        innerResult().code(PAYMENT_OVERSENDMAX);
         return false;
     }
 
@@ -181,7 +181,7 @@ PaymentOpFrame::sendNoCreate(AccountFrame& destination, LedgerDelta& delta,
     {
         if (mPayment.path.size())
         {
-            innerResult().code(Payment::MALFORMED);
+            innerResult().code(PAYMENT_MALFORMED);
             return false;
         }
 
@@ -189,7 +189,7 @@ PaymentOpFrame::sendNoCreate(AccountFrame& destination, LedgerDelta& delta,
 
         if (mSourceAccount->getAccount().balance < (minBalance + curBSent))
         { // they don't have enough to send
-            innerResult().code(Payment::UNDERFUNDED);
+            innerResult().code(PAYMENT_UNDERFUNDED);
             return false;
         }
 
@@ -205,7 +205,7 @@ PaymentOpFrame::sendNoCreate(AccountFrame& destination, LedgerDelta& delta,
             if (!AccountFrame::loadAccount(curB.isoCI().issuer, issuer, db))
             {
                 CLOG(ERROR, "Tx") << "PaymentOp::sendCredit Issuer not found";
-                innerResult().code(Payment::MALFORMED);
+                innerResult().code(PAYMENT_MALFORMED);
                 return false;
             }
 
@@ -213,13 +213,13 @@ PaymentOpFrame::sendNoCreate(AccountFrame& destination, LedgerDelta& delta,
             if (!TrustFrame::loadTrustLine(getSourceID(), curB, sourceLineFrame,
                                            db))
             {
-                innerResult().code(Payment::UNDERFUNDED);
+                innerResult().code(PAYMENT_UNDERFUNDED);
                 return false;
             }
 
             if (!sourceLineFrame.addBalance(-curBSent))
             {
-                innerResult().code(Payment::UNDERFUNDED);
+                innerResult().code(PAYMENT_UNDERFUNDED);
                 return false;
             }
 

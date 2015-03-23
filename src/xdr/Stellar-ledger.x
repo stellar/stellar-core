@@ -2,6 +2,9 @@
 
 namespace stellar {
 
+/* The LedgerHeader is the highest level structure representing the
+ * state of a ledger, cryptographically linked to previous ledgers.
+*/
 struct LedgerHeader
 {
     Hash previousLedgerHash;// hash of the previous ledger header
@@ -24,22 +27,24 @@ struct LedgerHeader
 
 };
 
+/* Entries used to define the bucket list */
+
 union LedgerKey switch (LedgerEntryType type)
 {
     case ACCOUNT:
         struct {
-            uint256 accountID;
+            AccountID accountID;
         } account;
 
     case TRUSTLINE:
         struct {
-            uint256 accountID;
+            AccountID accountID;
             Currency currency;
         } trustLine;
 
     case OFFER:
         struct {
-            uint256 accountID; // GRAYDON: ok to drop this since offerID is unique now?
+            AccountID accountID;
             uint64 offerID;
         } offer;
 };
@@ -58,6 +63,8 @@ union CLFEntry switch (CLFType type)
         LedgerKey deadEntry;
 };
 
+// Transaction sets are the unit used by SCP to decide on transitions
+// between ledgers
 struct TransactionSet
 {
     Hash previousLedgerHash;
@@ -70,11 +77,13 @@ struct TransactionResultPair
     TransactionResult result;   // result for the transaction
 };
 
+// TransactionResultSet is used to recover results between ledgers
 struct TransactionResultSet
 {
     TransactionResultPair results<5000>;
 };
 
+// Entries below are used in the historical subsystem
 struct TransactionMeta
 {
     CLFEntry entries<>;

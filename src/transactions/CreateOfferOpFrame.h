@@ -15,7 +15,7 @@ class CreateOfferOpFrame : public OperationFrame
 
     bool checkOfferValid(Database& db);
 
-    CreateOffer::CreateOfferResult&
+    CreateOfferResult&
     innerResult()
     {
         return mResult.tr().createOfferResult();
@@ -29,14 +29,11 @@ class CreateOfferOpFrame : public OperationFrame
 
     bool doApply(LedgerDelta& delta, LedgerManagerImpl& ledgerMaster);
     bool doCheckValid(Application& app);
-};
 
-namespace CreateOffer
-{
-inline CreateOffer::CreateOfferResultCode
-getInnerCode(OperationResult const& res)
-{
-    return res.tr().createOfferResult().code();
-}
-}
+    static CreateOfferResultCode
+    getInnerCode(OperationResult const& res)
+    {
+        return res.tr().createOfferResult().code();
+    }
+};
 }

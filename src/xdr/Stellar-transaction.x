@@ -22,17 +22,22 @@ enum OperationType
 
 struct PaymentOp
 {
-    AccountID destination;
+    AccountID destination;  // recipient of the payment
     Currency currency;      // what they end up with
     int64 amount;           // amount they end up with
+
     Currency path<5>;        // what hops it must go through to get there
+
     int64 sendMax;          // the maximum amount of the source currency to
                             // send (excluding fees).
                             // The operation will fail if can't be met
+
     opaque memo<32>;
     opaque sourceMemo<32>;  // used to return a payment
 };
 
+/* Creates or updates an offer
+*/
 struct CreateOfferOp
 {
     Currency takerGets;
@@ -40,26 +45,41 @@ struct CreateOfferOp
     int64 amount;        // amount taker gets
     Price price;         // =takerPaysAmount/takerGetsAmount
 
-    uint64 offerID;      // set if you want to change an existing offer
-    uint32 flags;        // passive: only take offers that cross this. not offers that match it
+    // 0=create a new offer, otherwise edit an existing offer
+    uint64 offerID;
 };
 
+/* Set Account Options
+    set the fields that needs to be updated
+*/
 struct SetOptionsOp
 {
-    AccountID* inflationDest;
-    uint32*    clearFlags;
-    uint32*    setFlags;
-    KeyValue* data;
-    Thresholds* thresholds;
+    AccountID*  inflationDest;  // sets the inflation
+
+    uint32*     clearFlags;     // which flags to clear
+    uint32*     setFlags;       // which flags to set
+
+    
+    Thresholds* thresholds; // update the thresholds for the account
+
+    // Add, update or remove a signer for the account
+    // signer is deleted if the weight is 0
     Signer* signer;
 };
 
+/* Creates, updates or deletes a trust line
+*/
 struct ChangeTrustOp
 {
     Currency line;
+
+    // if limit is set to 0, deletes the trust line
     int64 limit;
 };
 
+/* Updates the "authorized" flag of an existing trust line
+   this is called by the issuer of the related currency
+*/
 struct AllowTrustOp
 {
     AccountID trustor;
@@ -116,6 +136,9 @@ struct TransactionEnvelope
     DecoratedSignature signatures<20>;
 };
 
+
+/* Operation Results section */
+
 struct ClaimOfferAtom
 {
     AccountID offerOwner;
@@ -125,18 +148,19 @@ struct ClaimOfferAtom
     // should we also include the amount that the owner gets in return?
 };
 
-namespace Payment {
+/******* Payment Result ********/
+
 enum PaymentResultCode
 {
-    SUCCESS = 0,
-    SUCCESS_MULTI = 1,
-    UNDERFUNDED = 2,
-    NO_DESTINATION = 3,
-    MALFORMED = 4,
-    NO_TRUST = 5,
-    NOT_AUTHORIZED = 6,
-    LINE_FULL = 7,
-    OVERSENDMAX = 8
+    PAYMENT_SUCCESS = 0,
+    PAYMENT_SUCCESS_MULTI = 1,
+    PAYMENT_UNDERFUNDED = 2,
+    PAYMENT_NO_DESTINATION = 3,
+    PAYMENT_MALFORMED = 4,
+    PAYMENT_NO_TRUST = 5,
+    PAYMENT_NOT_AUTHORIZED = 6,
+    PAYMENT_LINE_FULL = 7,
+    PAYMENT_OVERSENDMAX = 8
 };
 
 struct SimplePaymentResult
@@ -146,7 +170,7 @@ struct SimplePaymentResult
     int64 amount;
 };
 
-struct SuccessMultiResult
+struct PaymentSuccessMultiResult
 {
     ClaimOfferAtom offers<>;
     SimplePaymentResult last;
@@ -154,34 +178,32 @@ struct SuccessMultiResult
 
 union PaymentResult switch(PaymentResultCode code)
 {
-    case SUCCESS:
+    case PAYMENT_SUCCESS:
         void;
-    case SUCCESS_MULTI:
-        SuccessMultiResult multi;
+    case PAYMENT_SUCCESS_MULTI:
+        PaymentSuccessMultiResult multi;
     default:
         void;
 };
 
-}
+/******* CreateOffer Result ********/
 
-namespace CreateOffer
-{
 enum CreateOfferResultCode
 {
-    SUCCESS = 0,
-    NO_TRUST = 1,
-    NOT_AUTHORIZED = 2,
-    MALFORMED = 3,
-    UNDERFUNDED = 4,
-    CROSS_SELF = 5,
-    NOT_FOUND = 6
+    CREATE_OFFER_SUCCESS = 0,
+    CREATE_OFFER_NO_TRUST = 1,
+    CREATE_OFFER_NOT_AUTHORIZED = 2,
+    CREATE_OFFER_MALFORMED = 3,
+    CREATE_OFFER_UNDERFUNDED = 4,
+    CREATE_OFFER_CROSS_SELF = 5,
+    CREATE_OFFER_NOT_FOUND = 6
 };
 
 enum CreateOfferEffect
 {
-    CREATED = 0,
-    UPDATED = 1,
-    EMPTY = 2
+    CREATE_OFFER_CREATED = 0,
+    CREATE_OFFER_UPDATED = 1,
+    CREATE_OFFER_EMPTY = 2
 };
 
 struct CreateOfferSuccessResult
@@ -190,7 +212,7 @@ struct CreateOfferSuccessResult
 
     union switch(CreateOfferEffect effect)
     {
-        case CREATED:
+        case CREATE_OFFER_CREATED:
             OfferEntry offerCreated;
         default:
             void;
@@ -199,117 +221,105 @@ struct CreateOfferSuccessResult
 
 union CreateOfferResult switch(CreateOfferResultCode code)
 {
-    case SUCCESS:
+    case CREATE_OFFER_SUCCESS:
         CreateOfferSuccessResult success;
     default:
         void;
 };
 
-}
+/******* CancelOffer Result ********/
 
-namespace CancelOffer
-{
 enum CancelOfferResultCode
 {
-    SUCCESS = 0,
-    NOT_FOUND = 1
+    CANCEL_OFFER_SUCCESS = 0,
+    CANCEL_OFFER_NOT_FOUND = 1
 };
 
 union CancelOfferResult switch(CancelOfferResultCode code)
 {
-    case SUCCESS:
+    case CANCEL_OFFER_SUCCESS:
         void;
     default:
         void;
 };
 
-}
+/******* SetOptions Result ********/
 
-namespace SetOptions
-{
 enum SetOptionsResultCode
 {
-    SUCCESS = 0,
-    RATE_FIXED = 1,
-    RATE_TOO_HIGH = 2,
-    BELOW_MIN_BALANCE = 3,
-    MALFORMED = 4
+    SET_OPTIONS_SUCCESS = 0,
+    SET_OPTIONS_RATE_FIXED = 1,
+    SET_OPTIONS_RATE_TOO_HIGH = 2,
+    SET_OPTIONS_BELOW_MIN_BALANCE = 3,
+    SET_OPTIONS_MALFORMED = 4
 };
 
 union SetOptionsResult switch(SetOptionsResultCode code)
 {
-    case SUCCESS:
+    case SET_OPTIONS_SUCCESS:
         void;
     default:
         void;
 };
 
-}
+/******* ChangeTrust Result ********/
 
-namespace ChangeTrust
-{
 enum ChangeTrustResultCode
 {
-    SUCCESS = 0,
-    NO_ACCOUNT = 1,
-    INVALID_LIMIT =2
+    CHANGE_TRUST_SUCCESS = 0,
+    CHANGE_TRUST_NO_ACCOUNT = 1,
+    CHANGE_TRUST_INVALID_LIMIT =2
 };
 
 union ChangeTrustResult switch(ChangeTrustResultCode code)
 {
-    case SUCCESS:
+    case CHANGE_TRUST_SUCCESS:
         void;
     default:
         void;
 };
 
-}
+/******* AllowTrust Result ********/
 
-namespace AllowTrust
-{
 enum AllowTrustResultCode
 {
-    SUCCESS = 0,
-    MALFORMED = 1,
-    NO_TRUST_LINE = 2
+    ALLOW_TRUST_SUCCESS = 0,
+    ALLOW_TRUST_MALFORMED = 1,
+    ALLOW_TRUST_NO_TRUST_LINE = 2
 };
 
 union AllowTrustResult switch(AllowTrustResultCode code)
 {
-    case SUCCESS:
+    case ALLOW_TRUST_SUCCESS:
         void;
     default:
         void;
 };
 
-}
+/******* AccountMerge Result ********/
 
-namespace AccountMerge
-{
 enum AccountMergeResultCode
 {
-    SUCCESS = 0,
-    MALFORMED = 1,
-    NO_ACCOUNT = 2,
-    HAS_CREDIT = 3
+    ACCOUNT_MERGE_SUCCESS = 0,
+    ACCOUNT_MERGE_MALFORMED = 1,
+    ACCOUNT_MERGE_NO_ACCOUNT = 2,
+    ACCOUNT_MERGE_HAS_CREDIT = 3
 };
 
 union AccountMergeResult switch(AccountMergeResultCode code)
 {
-    case SUCCESS:
+    case ACCOUNT_MERGE_SUCCESS:
         void;
     default:
         void;
 };
 
-}
+/******* Inflation Result ********/
 
-namespace Inflation
-{
 enum InflationResultCode
 {
-    SUCCESS = 0,
-    NOT_TIME = 1
+    INFLATION_SUCCESS = 0,
+    INFLATION_NOT_TIME = 1
 };
 
 struct inflationPayout // or use PaymentResultAtom to limit types?
@@ -320,21 +330,20 @@ struct inflationPayout // or use PaymentResultAtom to limit types?
 
 union InflationResult switch(InflationResultCode code)
 {
-    case SUCCESS:
+    case INFLATION_SUCCESS:
         inflationPayout payouts<>;
     default:
         void;
 };
 
-}
+/* High level Operation Result */
 
 enum OperationResultCode
 {
-    opSKIP = 0,
-    opINNER = 1,
+    opINNER = 0,     // inner object result is valid
 
-    opBAD_AUTH = 2, // not enough signatures to perform operation
-    opNO_ACCOUNT = 3
+    opBAD_AUTH = 1,  // not enough signatures to perform operation
+    opNO_ACCOUNT = 2 // account was not found
 };
 
 union OperationResult switch(OperationResultCode code)
@@ -343,21 +352,21 @@ union OperationResult switch(OperationResultCode code)
         union switch(OperationType type)
         {
             case PAYMENT:
-                Payment::PaymentResult paymentResult;
+                PaymentResult paymentResult;
             case CREATE_OFFER:
-                CreateOffer::CreateOfferResult createOfferResult;
+                CreateOfferResult createOfferResult;
             case CANCEL_OFFER:
-                CancelOffer::CancelOfferResult cancelOfferResult;
+                CancelOfferResult cancelOfferResult;
             case SET_OPTIONS:
-                SetOptions::SetOptionsResult setOptionsResult;
+                SetOptionsResult setOptionsResult;
             case CHANGE_TRUST:
-                ChangeTrust::ChangeTrustResult changeTrustResult;
+                ChangeTrustResult changeTrustResult;
             case ALLOW_TRUST:
-                AllowTrust::AllowTrustResult allowTrustResult;
+                AllowTrustResult allowTrustResult;
             case ACCOUNT_MERGE:
-                AccountMerge::AccountMergeResult accountMergeResult;
+                AccountMergeResult accountMergeResult;
             case INFLATION:
-                Inflation::InflationResult inflationResult;
+                InflationResult inflationResult;
         } tr;
     default:
         void;

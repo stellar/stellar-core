@@ -6,7 +6,7 @@ namespace stellar
 {
 class InflationOpFrame : public OperationFrame
 {
-    Inflation::InflationResult&
+    InflationResult&
     innerResult()
     {
         return mResult.tr().inflationResult();
@@ -18,14 +18,11 @@ class InflationOpFrame : public OperationFrame
 
     bool doApply(LedgerDelta& delta, LedgerManagerImpl& ledgerMaster);
     bool doCheckValid(Application& app);
-};
 
-namespace Inflation
-{
-inline Inflation::InflationResultCode
-getInnerCode(OperationResult const& res)
-{
-    return res.tr().inflationResult().code();
-}
-}
+    static InflationResultCode
+    getInnerCode(OperationResult const& res)
+    {
+        return res.tr().inflationResult().code();
+    }
+};
 }

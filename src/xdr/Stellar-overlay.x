@@ -44,21 +44,21 @@ enum MessageType
     HELLO=1,
     DONT_HAVE=2,
 
-    GET_PEERS=3,   // gets a list of peers this guy knows about        
+    GET_PEERS=3,   // gets a list of peers this guy knows about
     PEERS=4,
 
-    GET_TX_SET=5,  // gets a particular txset by hash        
+    GET_TX_SET=5,  // gets a particular txset by hash
     TX_SET=6,    
 
-    GET_VALIDATIONS=7, // gets validations for a given ledger hash        
+    GET_VALIDATIONS=7, // gets validations for a given ledger hash
     VALIDATIONS=8,    
 
-    TRANSACTION=9, //pass on a tx you have heard about        
+    TRANSACTION=9, //pass on a tx you have heard about
     JSON_TRANSACTION=10,
 
-    // SCP        
-    GET_SCP_QUORUMSET=11,        
-    SCP_QUORUMSET=12,    
+    // SCP
+    GET_SCP_QUORUMSET=11,
+    SCP_QUORUMSET=12,
     SCP_MESSAGE=13
 };
 
@@ -81,12 +81,12 @@ union StellarMessage switch (MessageType type) {
         PeerAddress peers<>;
 
     case GET_TX_SET:
-        uint256 txSetHash;        
+        uint256 txSetHash;
     case TX_SET:
         TransactionSet txSet;
 
-    case GET_VALIDATIONS:    
-        uint256 ledgerHash;    
+    case GET_VALIDATIONS:
+        uint256 ledgerHash;
     case VALIDATIONS:
         SCPEnvelope validations<>;
 

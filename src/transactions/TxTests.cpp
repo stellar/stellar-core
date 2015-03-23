@@ -128,7 +128,7 @@ createAllowTrust(SecretKey& from, SecretKey& trustor, SequenceNumber seq,
 void
 applyAllowTrust(Application& app, SecretKey& from, SecretKey& trustor,
                 SequenceNumber seq, const std::string& currencyCode,
-                bool authorize, AllowTrust::AllowTrustResultCode result)
+                bool authorize, AllowTrustResultCode result)
 {
     TransactionFramePtr txFrame;
     txFrame = createAllowTrust(from, trustor, seq, currencyCode, authorize);
@@ -137,7 +137,7 @@ applyAllowTrust(Application& app, SecretKey& from, SecretKey& trustor,
     txFrame->apply(delta, app);
 
     checkTransaction(*txFrame);
-    REQUIRE(AllowTrust::getInnerCode(
+    REQUIRE(AllowTrustOpFrame::getInnerCode(
                 txFrame->getResult().result.results()[0]) == result);
 }
 
@@ -157,8 +157,7 @@ createPaymentTx(SecretKey& from, SecretKey& to, SequenceNumber seq,
 
 void
 applyPaymentTx(Application& app, SecretKey& from, SecretKey& to,
-               SequenceNumber seq, int64_t amount,
-               Payment::PaymentResultCode result)
+               SequenceNumber seq, int64_t amount, PaymentResultCode result)
 {
     TransactionFramePtr txFrame;
 
@@ -168,14 +167,14 @@ applyPaymentTx(Application& app, SecretKey& from, SecretKey& to,
     txFrame->apply(delta, app);
 
     checkTransaction(*txFrame);
-    REQUIRE(Payment::getInnerCode(txFrame->getResult().result.results()[0]) ==
-            result);
+    REQUIRE(PaymentOpFrame::getInnerCode(
+                txFrame->getResult().result.results()[0]) == result);
 }
 
 void
 applyChangeTrust(Application& app, SecretKey& from, SecretKey& to,
                  SequenceNumber seq, const std::string& currencyCode,
-                 int64_t limit, ChangeTrust::ChangeTrustResultCode result)
+                 int64_t limit, ChangeTrustResultCode result)
 {
     TransactionFramePtr txFrame;
 
@@ -185,7 +184,7 @@ applyChangeTrust(Application& app, SecretKey& from, SecretKey& to,
     txFrame->apply(delta, app);
 
     checkTransaction(*txFrame);
-    REQUIRE(ChangeTrust::getInnerCode(
+    REQUIRE(ChangeTrustOpFrame::getInnerCode(
                 txFrame->getResult().result.results()[0]) == result);
 }
 
@@ -216,7 +215,7 @@ makeCurrency(SecretKey& issuer, const std::string& code)
 void
 applyCreditPaymentTx(Application& app, SecretKey& from, SecretKey& to,
                      Currency& ci, SequenceNumber seq, int64_t amount,
-                     Payment::PaymentResultCode result)
+                     PaymentResultCode result)
 {
     TransactionFramePtr txFrame;
 
@@ -226,8 +225,8 @@ applyCreditPaymentTx(Application& app, SecretKey& from, SecretKey& to,
     txFrame->apply(delta, app);
 
     checkTransaction(*txFrame);
-    REQUIRE(Payment::getInnerCode(txFrame->getResult().result.results()[0]) ==
-            result);
+    REQUIRE(PaymentOpFrame::getInnerCode(
+                txFrame->getResult().result.results()[0]) == result);
 }
 
 TransactionFramePtr
@@ -244,7 +243,7 @@ createOfferOp(SecretKey& source, Currency& takerGets, Currency& takerPays,
     return transactionFromOperation(source, seq, op);
 }
 
-static CreateOffer::CreateOfferResult
+static CreateOfferResult
 applyCreateOfferHelper(Application& app, LedgerDelta& delta, SecretKey& source,
                        Currency& takerGets, Currency& takerPays,
                        Price const& price, int64_t amount, SequenceNumber seq)
@@ -271,15 +270,14 @@ applyCreateOffer(Application& app, LedgerDelta& delta, SecretKey& source,
 {
     uint64_t expectedOfferID = delta.getHeaderFrame().getLastGeneratedID() + 1;
 
-    CreateOffer::CreateOfferResult const& createOfferRes =
-        applyCreateOfferHelper(app, delta, source, takerGets, takerPays, price,
-                               amount, seq);
+    CreateOfferResult const& createOfferRes = applyCreateOfferHelper(
+        app, delta, source, takerGets, takerPays, price, amount, seq);
 
-    REQUIRE(createOfferRes.code() == CreateOffer::SUCCESS);
+    REQUIRE(createOfferRes.code() == CREATE_OFFER_SUCCESS);
 
     auto& success = createOfferRes.success().offer;
 
-    REQUIRE(success.effect() == CreateOffer::CREATED);
+    REQUIRE(success.effect() == CREATE_OFFER_CREATED);
 
     auto& offerRes = success.offerCreated();
     REQUIRE(offerRes.offerID == expectedOfferID);
@@ -292,16 +290,15 @@ applyCreateOffer(Application& app, LedgerDelta& delta, SecretKey& source,
     return offerRes.offerID;
 }
 
-CreateOffer::CreateOfferResult
+CreateOfferResult
 applyCreateOfferWithResult(Application& app, LedgerDelta& delta,
                            SecretKey& source, Currency& takerGets,
                            Currency& takerPays, Price const& price,
                            int64_t amount, SequenceNumber seq,
-                           CreateOffer::CreateOfferResultCode result)
+                           CreateOfferResultCode result)
 {
-    CreateOffer::CreateOfferResult const& createOfferRes =
-        applyCreateOfferHelper(app, delta, source, takerGets, takerPays, price,
-                               amount, seq);
+    CreateOfferResult const& createOfferRes = applyCreateOfferHelper(
+        app, delta, source, takerGets, takerPays, price, amount, seq);
 
     REQUIRE(createOfferRes.code() == result);
 
@@ -310,8 +307,8 @@ applyCreateOfferWithResult(Application& app, LedgerDelta& delta,
 
 TransactionFramePtr
 createSetOptions(SecretKey& source, AccountID* inflationDest,
-                 uint32_t* setFlags, uint32_t* clearFlags, KeyValue* data,
-                 Thresholds* thrs, Signer* signer, SequenceNumber seq)
+                 uint32_t* setFlags, uint32_t* clearFlags, Thresholds* thrs,
+                 Signer* signer, SequenceNumber seq)
 {
     Operation op;
     op.body.type(SET_OPTIONS);
@@ -331,11 +328,6 @@ createSetOptions(SecretKey& source, AccountID* inflationDest,
         op.body.setOptionsOp().clearFlags.activate() = *clearFlags;
     }
 
-    if (data)
-    {
-        op.body.setOptionsOp().data.activate() = *data;
-    }
-
     if (thrs)
     {
         op.body.setOptionsOp().thresholds.activate() = *thrs;
@@ -351,20 +343,19 @@ createSetOptions(SecretKey& source, AccountID* inflationDest,
 
 void
 applySetOptions(Application& app, SecretKey& source, AccountID* inflationDest,
-                uint32_t* setFlags, uint32_t* clearFlags, KeyValue* data,
-                Thresholds* thrs, Signer* signer, SequenceNumber seq,
-                SetOptions::SetOptionsResultCode result)
+                uint32_t* setFlags, uint32_t* clearFlags, Thresholds* thrs,
+                Signer* signer, SequenceNumber seq, SetOptionsResultCode result)
 {
     TransactionFramePtr txFrame;
 
     txFrame = createSetOptions(source, inflationDest, setFlags, clearFlags,
-                               data, thrs, signer, seq);
+                               thrs, signer, seq);
 
     LedgerDelta delta(app.getLedgerManagerImpl().getCurrentLedgerHeader());
     txFrame->apply(delta, app);
 
     checkTransaction(*txFrame);
-    REQUIRE(SetOptions::getInnerCode(
+    REQUIRE(SetOptionsOpFrame::getInnerCode(
                 txFrame->getResult().result.results()[0]) == result);
 }
 
