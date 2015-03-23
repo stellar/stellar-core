@@ -22,17 +22,22 @@ enum OperationType
 
 struct PaymentOp
 {
-    AccountID destination;
+    AccountID destination;  // recipient of the payment
     Currency currency;      // what they end up with
     int64 amount;           // amount they end up with
+
     Currency path<5>;        // what hops it must go through to get there
+
     int64 sendMax;          // the maximum amount of the source currency to
                             // send (excluding fees).
                             // The operation will fail if can't be met
+
     opaque memo<32>;
     opaque sourceMemo<32>;  // used to return a payment
 };
 
+/* Creates or updates an offer
+*/
 struct CreateOfferOp
 {
     Currency takerGets;
@@ -40,25 +45,41 @@ struct CreateOfferOp
     int64 amount;        // amount taker gets
     Price price;         // =takerPaysAmount/takerGetsAmount
 
-    uint64 offerID;      // set if you want to change an existing offer
-    uint32 flags;        // passive: only take offers that cross this. not offers that match it
+    // 0=create a new offer, otherwise edit an existing offer
+    uint64 offerID;
 };
 
+/* Set Account Options
+    set the fields that needs to be updated
+*/
 struct SetOptionsOp
 {
-    AccountID* inflationDest;
-    uint32*    clearFlags;
-    uint32*    setFlags;
-    Thresholds* thresholds;
+    AccountID*  inflationDest;  // sets the inflation
+
+    uint32*     clearFlags;     // which flags to clear
+    uint32*     setFlags;       // which flags to set
+
+    
+    Thresholds* thresholds; // update the thresholds for the account
+
+    // Add, update or remove a signer for the account
+    // signer is deleted if the weight is 0
     Signer* signer;
 };
 
+/* Creates, updates or deletes a trust line
+*/
 struct ChangeTrustOp
 {
     Currency line;
+
+    // if limit is set to 0, deletes the trust line
     int64 limit;
 };
 
+/* Updates the "authorized" flag of an existing trust line
+   this is called by the issuer of the related currency
+*/
 struct AllowTrustOp
 {
     AccountID trustor;
