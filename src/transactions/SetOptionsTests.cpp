@@ -72,7 +72,7 @@ TEST_CASE("set options", "[tx][setoptions]")
         AccountFrame a1Account;
 
         REQUIRE(AccountFrame::loadAccount(a1.getPublicKey(), a1Account,
-                                          app.getDatabase(), true));
+                                          app.getDatabase()));
         REQUIRE(a1Account.getAccount().signers.size() == 1);
         Signer& a_sk1 = a1Account.getAccount().signers[0];
         REQUIRE(a_sk1.pubKey == sk1.pubKey);
@@ -85,7 +85,7 @@ TEST_CASE("set options", "[tx][setoptions]")
                         a1seq++);
 
         REQUIRE(AccountFrame::loadAccount(a1.getPublicKey(), a1Account,
-                                          app.getDatabase(), true));
+                                          app.getDatabase()));
         REQUIRE(a1Account.getAccount().signers.size() == 2);
 
         // update signer 2
@@ -104,7 +104,7 @@ TEST_CASE("set options", "[tx][setoptions]")
                         a1seq++);
 
         REQUIRE(AccountFrame::loadAccount(a1.getPublicKey(), a1Account,
-                                          app.getDatabase(), true));
+                                          app.getDatabase()));
         REQUIRE(a1Account.getAccount().signers.size() == 1);
         Signer& a_sk2 = a1Account.getAccount().signers[0];
         REQUIRE(a_sk2.pubKey == sk2.pubKey);

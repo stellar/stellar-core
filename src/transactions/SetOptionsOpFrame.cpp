@@ -27,8 +27,6 @@ SetOptionsOpFrame::getNeededThreshold() const
     return mSourceAccount->getMidThreshold();
 }
 
-// make sure it doesn't allow us to add signers when we don't have the
-// minbalance
 bool
 SetOptionsOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
 {

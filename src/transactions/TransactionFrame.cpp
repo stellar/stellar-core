@@ -157,8 +157,7 @@ TransactionFrame::loadAccount(Application& app, uint256 const& accountID)
     else
     {
         res = make_shared<AccountFrame>();
-        bool ok =
-            AccountFrame::loadAccount(accountID, *res, app.getDatabase(), true);
+        bool ok = AccountFrame::loadAccount(accountID, *res, app.getDatabase());
         if (!ok)
         {
             res.reset();

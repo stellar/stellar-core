@@ -27,6 +27,8 @@ class AccountFrame : public EntryFrame
 
     AccountEntry& mAccountEntry;
 
+    void normalize();
+
   public:
     typedef std::shared_ptr<AccountFrame> pointer;
 
@@ -44,6 +46,7 @@ class AccountFrame : public EntryFrame
     void
     setUpdateSigners()
     {
+        normalize();
         mUpdateSigners = true;
     }
     int64_t getBalance() const;
@@ -93,7 +96,7 @@ class AccountFrame : public EntryFrame
 
     // database utilities
     static bool loadAccount(const uint256& accountID, AccountFrame& retEntry,
-                            Database& db, bool withSig = false);
+                            Database& db);
     static void dropAll(Database& db);
     static const char* kSQLCreateStatement1;
     static const char* kSQLCreateStatement2;
