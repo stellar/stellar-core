@@ -40,7 +40,9 @@ class TxSetFrame
 
     std::vector<TransactionFramePtr> sortForApply();
 
-    bool checkValid(Application& app);
+    bool checkValid(Application& app,bool strip=false);
+
+    void removeTx(TransactionFramePtr tx);
 
     void
     add(TransactionFramePtr tx)

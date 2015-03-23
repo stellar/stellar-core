@@ -235,7 +235,13 @@ TransactionFrame::checkValid(Application& app, bool applying,
         current = mSigningAccount->getSeqNum();
     }
 
-    if (current + 1 != mEnvelope.tx.seqNum)
+    if (current + 1 > mEnvelope.tx.seqNum)
+    {
+        getResult().result.code(txPAST_SEQ);
+        return false;
+    }
+
+    if(current + 1 < mEnvelope.tx.seqNum)
     {
         getResult().result.code(txBAD_SEQ);
         return false;

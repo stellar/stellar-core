@@ -93,7 +93,7 @@ class OverlayManagerTests
 
   protected:
     VirtualClock clock;
-    ApplicationStub app{clock, getTestConfig()};
+    ApplicationStub mApp{clock, getTestConfig()};
 
     vector<string> fourPeers;
     vector<string> threePeers;
@@ -109,12 +109,12 @@ class OverlayManagerTests
     void
     test_addPeerList()
     {
-        OverlayManagerStub& pm = app.getOverlayManager();
+        OverlayManagerImplStub& pm = mApp.getOverlayManagerImpl();
 
         pm.storePeerList(fourPeers, 10);
         pm.storePeerList(threePeers, 3);
 
-        rowset<row> rs = app.getDatabase().getSession().prepare
+        rowset<row> rs = mApp.getDatabase().getSession().prepare
                          << "SELECT ip,port from Peers order by rank limit 5 ";
         vector<string> actual;
         for (auto it = rs.begin(); it != rs.end(); ++it)
@@ -138,8 +138,8 @@ class OverlayManagerTests
     void
     test_broadcast()
     {
-        OverlayManagerStub& pm = app.getOverlayManager();
-        app.getLedgerManager().startNewLedger();
+        OverlayManagerImplStub& pm = mApp.getOverlayManagerImpl();
+        mApp.getLedgerManagerImpl().startNewLedger();
 
         pm.storePeerList(fourPeers, 3);
         pm.storePeerList(threePeers, 2);

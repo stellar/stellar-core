@@ -384,11 +384,12 @@ enum TransactionResultCode
     txDUPLICATE = 3,
     txMALFORMED = 4,
     txBAD_SEQ = 5,
+	txPAST_SEQ = 6,
 
-    txBAD_AUTH = 6, // not enough signatures to perform transaction
-    txINSUFFICIENT_BALANCE = 7,
-    txNO_ACCOUNT = 8,
-    txINSUFFICIENT_FEE = 9 // max fee is too small
+    txBAD_AUTH = 7, // not enough signatures to perform transaction
+    txINSUFFICIENT_BALANCE = 8,
+    txNO_ACCOUNT = 9,
+    txINSUFFICIENT_FEE = 10 // max fee is too small
 };
 
 struct TransactionResult

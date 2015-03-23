@@ -11,6 +11,8 @@
 #include "util/Timer.h"
 #include "crypto/SecretKey.h"
 #include "main/Config.h"
+#include "overlay/PeerRecord.h"
+#include "overlay/OverlayManagerImpl.h"
 
 using namespace stellar;
 
@@ -38,3 +40,5 @@ TEST_CASE("loopback peer hello", "[overlay]")
         }
     }
 }
+
+
