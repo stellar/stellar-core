@@ -283,7 +283,7 @@ Simulation::crankUntil(function<bool()> const& predicate,
 }
 
 Simulation::TxInfo
-Simulation::createTranferTransaction(size_t iFrom, size_t iTo, uint64_t amount)
+Simulation::createTransferTransaction(size_t iFrom, size_t iTo, uint64_t amount)
 {
     return TxInfo{mAccounts[iFrom], mAccounts[iTo], amount};
 }
@@ -304,7 +304,7 @@ Simulation::createRandomTransaction(float alpha)
         rand_fraction() *
         min(static_cast<uint64_t>(1000),
             (mAccounts[iFrom]->mBalance - getMinBalance()) / 3));
-    return createTranferTransaction(iFrom, iTo, amount);
+    return createTransferTransaction(iFrom, iTo, amount);
 }
 
 void
@@ -352,16 +352,22 @@ Simulation::accountCreationTransactions(size_t n)
     return result;
 }
 
+Simulation::AccountInfoPtr
+Simulation::createAccount(size_t i)
+{
+    auto accountName = "Account-" + to_string(i);
+    return make_shared<AccountInfo>(
+        i, txtest::getAccount(accountName.c_str()), 0, 0,
+        *this);
+}
+
 vector<Simulation::AccountInfoPtr>
 Simulation::createAccounts(size_t n)
 {
     vector<AccountInfoPtr> result;
     for (int i = 0; i < n; i++)
     {
-        auto accountName = "Account-" + to_string(mAccounts.size());
-        auto account = make_shared<AccountInfo>(
-            mAccounts.size(), txtest::getAccount(accountName.c_str()), 0, 0,
-            *this);
+        auto account = createAccount(mAccounts.size());
         mAccounts.push_back(account);
         result.push_back(account);
     }
