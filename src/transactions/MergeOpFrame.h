@@ -6,7 +6,7 @@ namespace stellar
 {
 class MergeOpFrame : public OperationFrame
 {
-    AccountMerge::AccountMergeResult&
+    AccountMergeResult&
     innerResult()
     {
         return mResult.tr().accountMergeResult();
@@ -18,14 +18,11 @@ class MergeOpFrame : public OperationFrame
 
     bool doApply(LedgerDelta& delta, LedgerManagerImpl& ledgerMaster);
     bool doCheckValid(Application& app);
-};
 
-namespace AccountMerge
-{
-inline AccountMerge::AccountMergeResultCode
-getInnerCode(OperationResult const& res)
-{
-    return res.tr().accountMergeResult().code();
-}
-}
+    static AccountMergeResultCode
+    getInnerCode(OperationResult const& res)
+    {
+        return res.tr().accountMergeResult().code();
+    }
+};
 }

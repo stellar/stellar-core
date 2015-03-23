@@ -98,19 +98,19 @@ TEST_CASE("create offer", "[tx][offers]")
 
         // missing USD trust
         applyCreateOfferWithResult(app, delta, a1, idrCur, usdCur, oneone, 100,
-                                   a1_seq++, CreateOffer::CREATE_OFFER_NO_TRUST);
+                                   a1_seq++, CREATE_OFFER_NO_TRUST);
 
         applyChangeTrust(app, a1, gateway, a1_seq++, "USD", trustLineLimit);
 
         // missing IDR trust
         applyCreateOfferWithResult(app, delta, a1, idrCur, usdCur, oneone, 100,
-                                   a1_seq++, CreateOffer::CREATE_OFFER_NO_TRUST);
+                                   a1_seq++, CREATE_OFFER_NO_TRUST);
 
         applyChangeTrust(app, a1, gateway, a1_seq++, "IDR", trustLineLimit);
 
         // can't sell IDR if account doesn't have any
         applyCreateOfferWithResult(app, delta, a1, idrCur, usdCur, oneone, 100,
-                                   a1_seq++, CreateOffer::CREATE_OFFER_UNDERFUNDED);
+                                   a1_seq++, CREATE_OFFER_UNDERFUNDED);
 
         // fund a1 with some IDR
         applyCreditPaymentTx(app, gateway, a1, idrCur, gateway_seq++,
@@ -118,7 +118,7 @@ TEST_CASE("create offer", "[tx][offers]")
 
         // need sufficient XLM funds to create an offer
         applyCreateOfferWithResult(app, delta, a1, idrCur, usdCur, oneone, 100,
-                                   a1_seq++, CreateOffer::CREATE_OFFER_UNDERFUNDED);
+                                   a1_seq++, CREATE_OFFER_UNDERFUNDED);
 
         // there should be no pending offer at this point in the system
         OfferFrame offer;
@@ -229,7 +229,7 @@ TEST_CASE("create offer", "[tx][offers]")
             uint64_t beforeID = delta.getHeaderFrame().getLastGeneratedID();
             applyCreateOfferWithResult(app, delta, a1, usdCur, idrCur,
                                        exactCross, 150 * currencyMultiplier,
-                                       a1_seq++, CreateOffer::CREATE_OFFER_CROSS_SELF);
+                                       a1_seq++, CREATE_OFFER_CROSS_SELF);
             REQUIRE(beforeID == delta.getHeaderFrame().getLastGeneratedID());
 
             for (auto a1Offer : a1OfferID)
@@ -260,7 +260,7 @@ TEST_CASE("create offer", "[tx][offers]")
                 app, delta, b1, usdCur, idrCur, exactCross,
                 150 * currencyMultiplier, b1_seq++);
 
-            REQUIRE(res.success().offer.effect() == CreateOffer::CREATE_OFFER_EMPTY);
+            REQUIRE(res.success().offer.effect() == CREATE_OFFER_EMPTY);
 
             // verifies that the offer was not created
             REQUIRE(!OfferFrame::loadOffer(b1.getPublicKey(), expectedID, offer,
@@ -322,7 +322,7 @@ TEST_CASE("create offer", "[tx][offers]")
                 app, delta, b1, usdCur, idrCur, onetwo,
                 1010 * currencyMultiplier, b1_seq++);
 
-            REQUIRE(res.success().offer.effect() == CreateOffer::CREATE_OFFER_EMPTY);
+            REQUIRE(res.success().offer.effect() == CREATE_OFFER_EMPTY);
             // verify that the offer was not created
             REQUIRE(!OfferFrame::loadOffer(b1.getPublicKey(), expectedID, offer,
                                            app.getDatabase()));
@@ -423,7 +423,7 @@ TEST_CASE("create offer", "[tx][offers]")
                     app, delta, b1, usdCur, idrCur, onetwo,
                     1 * currencyMultiplier, b1_seq++);
 
-                REQUIRE(res.success().offer.effect() == CreateOffer::CREATE_OFFER_EMPTY);
+                REQUIRE(res.success().offer.effect() == CREATE_OFFER_EMPTY);
                 REQUIRE(!OfferFrame::loadOffer(b1.getPublicKey(), wouldCreateID,
                                                offer, app.getDatabase()));
             }

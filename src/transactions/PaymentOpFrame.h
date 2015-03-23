@@ -11,7 +11,7 @@ class PaymentOpFrame : public OperationFrame
     bool sendNoCreate(AccountFrame& destination, LedgerDelta& delta,
                       LedgerManagerImpl& ledgerMaster);
 
-    Payment::PaymentResult&
+    PaymentResult&
     innerResult()
     {
         return mResult.tr().paymentResult();
@@ -24,14 +24,11 @@ class PaymentOpFrame : public OperationFrame
 
     bool doApply(LedgerDelta& delta, LedgerManagerImpl& ledgerMaster);
     bool doCheckValid(Application& app);
-};
 
-namespace Payment
-{
-inline Payment::PaymentResultCode
-getInnerCode(OperationResult const& res)
-{
-    return res.tr().paymentResult().code();
-}
-}
+    static PaymentResultCode
+    getInnerCode(OperationResult const& res)
+    {
+        return res.tr().paymentResult().code();
+    }
+};
 }

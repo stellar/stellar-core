@@ -7,7 +7,7 @@ namespace stellar
 class SetOptionsOpFrame : public OperationFrame
 {
     int32_t getNeededThreshold() const;
-    SetOptions::SetOptionsResult&
+    SetOptionsResult&
     innerResult()
     {
         return mResult.tr().setOptionsResult();
@@ -20,14 +20,11 @@ class SetOptionsOpFrame : public OperationFrame
 
     bool doApply(LedgerDelta& delta, LedgerManagerImpl& ledgerMaster);
     bool doCheckValid(Application& app);
-};
 
-namespace SetOptions
-{
-inline SetOptions::SetOptionsResultCode
-getInnerCode(OperationResult const& res)
-{
-    return res.tr().setOptionsResult().code();
-}
-}
+    static SetOptionsResultCode
+    getInnerCode(OperationResult const& res)
+    {
+        return res.tr().setOptionsResult().code();
+    }
+};
 }

@@ -7,7 +7,7 @@ namespace stellar
 class AllowTrustOpFrame : public OperationFrame
 {
     int32_t getNeededThreshold() const;
-    AllowTrust::AllowTrustResult&
+    AllowTrustResult&
     innerResult() const
     {
         return getResult().tr().allowTrustResult();
@@ -21,14 +21,11 @@ class AllowTrustOpFrame : public OperationFrame
 
     bool doApply(LedgerDelta& delta, LedgerManagerImpl& ledgerMaster);
     bool doCheckValid(Application& app);
-};
 
-namespace AllowTrust
-{
-inline AllowTrust::AllowTrustResultCode
-getInnerCode(OperationResult const& res)
-{
-    return res.tr().allowTrustResult().code();
-}
-}
+    static AllowTrustResultCode
+    getInnerCode(OperationResult const& res)
+    {
+        return res.tr().allowTrustResult().code();
+    }
+};
 }

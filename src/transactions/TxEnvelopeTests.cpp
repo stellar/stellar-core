@@ -171,8 +171,8 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
             tx->apply(delta, app);
             REQUIRE(tx->getResultCode() == txSUCCESS);
-            REQUIRE(Payment::getInnerCode(getFirstResult(*tx)) ==
-                    Payment::PAYMENT_SUCCESS);
+            REQUIRE(PaymentOpFrame::getInnerCode(getFirstResult(*tx)) ==
+                    PAYMENT_SUCCESS);
         }
     }
 
@@ -239,8 +239,8 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                     REQUIRE(tx->checkValid(app, 0));
                     tx->apply(delta, app);
                     REQUIRE(tx->getResultCode() == txSUCCESS);
-                    REQUIRE(Payment::getInnerCode(getFirstResult(*tx)) ==
-                            Payment::PAYMENT_SUCCESS);
+                    REQUIRE(PaymentOpFrame::getInnerCode(getFirstResult(*tx)) ==
+                            PAYMENT_SUCCESS);
                 }
             }
             SECTION("multiple tx")
@@ -280,12 +280,12 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                             2 * app.getLedgerManager().getTxFee());
                     REQUIRE(tx->getResultCode() == txFAILED);
                     // first operation was success
-                    REQUIRE(Payment::getInnerCode(getFirstResult(*tx)) ==
-                            Payment::PAYMENT_SUCCESS);
+                    REQUIRE(PaymentOpFrame::getInnerCode(getFirstResult(*tx)) ==
+                            PAYMENT_SUCCESS);
                     // second
-                    REQUIRE(CreateOffer::getInnerCode(
+                    REQUIRE(CreateOfferOpFrame::getInnerCode(
                                 tx->getOperations()[1]->getResult()) ==
-                            CreateOffer::CREATE_OFFER_MALFORMED);
+                            CREATE_OFFER_MALFORMED);
                 }
                 SECTION("one failed tx")
                 {
@@ -318,12 +318,12 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                             2 * app.getLedgerManager().getTxFee());
                     REQUIRE(tx->getResultCode() == txFAILED);
                     // first operation was success
-                    REQUIRE(Payment::getInnerCode(getFirstResult(*tx)) ==
-                            Payment::PAYMENT_SUCCESS);
+                    REQUIRE(PaymentOpFrame::getInnerCode(getFirstResult(*tx)) ==
+                            PAYMENT_SUCCESS);
                     // second
-                    REQUIRE(Payment::getInnerCode(
+                    REQUIRE(PaymentOpFrame::getInnerCode(
                                 tx->getOperations()[1]->getResult()) ==
-                            Payment::PAYMENT_UNDERFUNDED);
+                            PAYMENT_UNDERFUNDED);
                 }
                 SECTION("both success")
                 {
@@ -355,11 +355,11 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                             2 * app.getLedgerManager().getTxFee());
                     REQUIRE(tx->getResultCode() == txSUCCESS);
 
-                    REQUIRE(Payment::getInnerCode(getFirstResult(*tx)) ==
-                            Payment::PAYMENT_SUCCESS);
-                    REQUIRE(Payment::getInnerCode(
+                    REQUIRE(PaymentOpFrame::getInnerCode(getFirstResult(*tx)) ==
+                            PAYMENT_SUCCESS);
+                    REQUIRE(PaymentOpFrame::getInnerCode(
                                 tx->getOperations()[1]->getResult()) ==
-                            Payment::PAYMENT_SUCCESS);
+                            PAYMENT_SUCCESS);
                 }
             }
         }

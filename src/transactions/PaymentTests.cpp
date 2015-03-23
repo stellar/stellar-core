@@ -110,7 +110,7 @@ TEST_CASE("payment", "[tx][payment]")
         applyPaymentTx(
             app, root, b1, rootSeq++,
             app.getLedgerManagerImpl().getCurrentLedgerHeader().baseReserve - 1,
-            Payment::PAYMENT_UNDERFUNDED);
+            PAYMENT_UNDERFUNDED);
 
         AccountFrame bAccount;
         REQUIRE(!AccountFrame::loadAccount(b1.getPublicKey(), bAccount,
@@ -125,7 +125,7 @@ TEST_CASE("payment", "[tx][payment]")
         {
             LOG(INFO) << "credit sent to new account (no account error)";
             applyCreditPaymentTx(app, root, b1, currency, rootSeq++, 100,
-                                 Payment::PAYMENT_NO_DESTINATION);
+                                 PAYMENT_NO_DESTINATION);
 
             AccountFrame bAccount;
             REQUIRE(!AccountFrame::loadAccount(b1.getPublicKey(), bAccount,
@@ -139,11 +139,12 @@ TEST_CASE("payment", "[tx][payment]")
                 createPaymentTx(root, a1, rootSeq++, morePayment);
             getFirstOperation(*txFrame2).body.paymentOp().path.push_back(
                 currency);
-            LedgerDelta delta2(app.getLedgerManagerImpl().getCurrentLedgerHeader());
+            LedgerDelta delta2(
+                app.getLedgerManagerImpl().getCurrentLedgerHeader());
             txFrame2->apply(delta2, app);
 
-            REQUIRE(Payment::getInnerCode(getFirstResult(*txFrame2)) ==
-                    Payment::PAYMENT_OVERSENDMAX);
+            REQUIRE(PaymentOpFrame::getInnerCode(getFirstResult(*txFrame2)) ==
+                    PAYMENT_OVERSENDMAX);
             AccountFrame account;
             REQUIRE(AccountFrame::loadAccount(a1.getPublicKey(), account,
                                               app.getDatabase()));
@@ -154,7 +155,7 @@ TEST_CASE("payment", "[tx][payment]")
         {
             LOG(INFO) << "credit payment with no trust";
             applyCreditPaymentTx(app, root, a1, currency, rootSeq++, 100,
-                                 Payment::PAYMENT_NO_TRUST);
+                                 PAYMENT_NO_TRUST);
             AccountFrame account;
             REQUIRE(AccountFrame::loadAccount(a1.getPublicKey(), account,
                                               app.getDatabase()));
@@ -202,7 +203,8 @@ TEST_CASE("single payment tx SQL", "[singlesql][paymentsql][hide]")
 #endif
 
     VirtualClock clock;
-    Application::pointer app = Application::create(clock, getTestConfig(0, mode));
+    Application::pointer app =
+        Application::create(clock, getTestConfig(0, mode));
     app->start();
 
     SecretKey root = getRoot();

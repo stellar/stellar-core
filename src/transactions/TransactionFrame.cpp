@@ -275,7 +275,8 @@ TransactionFrame::checkValid(Application& app, bool applying,
 }
 
 void
-TransactionFrame::prepareResult(LedgerDelta& delta, LedgerManagerImpl& ledgerMaster)
+TransactionFrame::prepareResult(LedgerDelta& delta,
+                                LedgerManagerImpl& ledgerMaster)
 {
     Database& db = ledgerMaster.getDatabase();
     int64_t fee = getResult().feeCharged;

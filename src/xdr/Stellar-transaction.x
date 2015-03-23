@@ -148,7 +148,8 @@ struct ClaimOfferAtom
     // should we also include the amount that the owner gets in return?
 };
 
-namespace Payment {
+/******* Payment Result ********/
+
 enum PaymentResultCode
 {
     PAYMENT_SUCCESS = 0,
@@ -185,10 +186,8 @@ union PaymentResult switch(PaymentResultCode code)
         void;
 };
 
-}
+/******* CreateOffer Result ********/
 
-namespace CreateOffer
-{
 enum CreateOfferResultCode
 {
     CREATE_OFFER_SUCCESS = 0,
@@ -228,10 +227,8 @@ union CreateOfferResult switch(CreateOfferResultCode code)
         void;
 };
 
-}
+/******* CancelOffer Result ********/
 
-namespace CancelOffer
-{
 enum CancelOfferResultCode
 {
     CANCEL_OFFER_SUCCESS = 0,
@@ -246,10 +243,8 @@ union CancelOfferResult switch(CancelOfferResultCode code)
         void;
 };
 
-}
+/******* SetOptions Result ********/
 
-namespace SetOptions
-{
 enum SetOptionsResultCode
 {
     SET_OPTIONS_SUCCESS = 0,
@@ -267,10 +262,8 @@ union SetOptionsResult switch(SetOptionsResultCode code)
         void;
 };
 
-}
+/******* ChangeTrust Result ********/
 
-namespace ChangeTrust
-{
 enum ChangeTrustResultCode
 {
     CHANGE_TRUST_SUCCESS = 0,
@@ -286,10 +279,8 @@ union ChangeTrustResult switch(ChangeTrustResultCode code)
         void;
 };
 
-}
+/******* AllowTrust Result ********/
 
-namespace AllowTrust
-{
 enum AllowTrustResultCode
 {
     ALLOW_TRUST_SUCCESS = 0,
@@ -305,10 +296,8 @@ union AllowTrustResult switch(AllowTrustResultCode code)
         void;
 };
 
-}
+/******* AccountMerge Result ********/
 
-namespace AccountMerge
-{
 enum AccountMergeResultCode
 {
     ACCOUNT_MERGE_SUCCESS = 0,
@@ -325,10 +314,8 @@ union AccountMergeResult switch(AccountMergeResultCode code)
         void;
 };
 
-}
+/******* Inflation Result ********/
 
-namespace Inflation
-{
 enum InflationResultCode
 {
     INFLATION_SUCCESS = 0,
@@ -349,15 +336,14 @@ union InflationResult switch(InflationResultCode code)
         void;
 };
 
-}
+/* High level Operation Result */
 
 enum OperationResultCode
 {
-    opSKIP = 0,
-    opINNER = 1,
+    opINNER = 0,     // inner object result is valid
 
-    opBAD_AUTH = 2, // not enough signatures to perform operation
-    opNO_ACCOUNT = 3
+    opBAD_AUTH = 1,  // not enough signatures to perform operation
+    opNO_ACCOUNT = 2 // account was not found
 };
 
 union OperationResult switch(OperationResultCode code)
@@ -366,21 +352,21 @@ union OperationResult switch(OperationResultCode code)
         union switch(OperationType type)
         {
             case PAYMENT:
-                Payment::PaymentResult paymentResult;
+                PaymentResult paymentResult;
             case CREATE_OFFER:
-                CreateOffer::CreateOfferResult createOfferResult;
+                CreateOfferResult createOfferResult;
             case CANCEL_OFFER:
-                CancelOffer::CancelOfferResult cancelOfferResult;
+                CancelOfferResult cancelOfferResult;
             case SET_OPTIONS:
-                SetOptions::SetOptionsResult setOptionsResult;
+                SetOptionsResult setOptionsResult;
             case CHANGE_TRUST:
-                ChangeTrust::ChangeTrustResult changeTrustResult;
+                ChangeTrustResult changeTrustResult;
             case ALLOW_TRUST:
-                AllowTrust::AllowTrustResult allowTrustResult;
+                AllowTrustResult allowTrustResult;
             case ACCOUNT_MERGE:
-                AccountMerge::AccountMergeResult accountMergeResult;
+                AccountMergeResult accountMergeResult;
             case INFLATION:
-                Inflation::InflationResult inflationResult;
+                InflationResult inflationResult;
         } tr;
     default:
         void;
