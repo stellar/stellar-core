@@ -106,8 +106,9 @@ class Simulation
     };
 
     vector<Simulation::TxInfo> accountCreationTransactions(size_t n);
+    Simulation::AccountInfoPtr createAccount(size_t i);
     vector<Simulation::AccountInfoPtr> createAccounts(size_t n);
-    TxInfo createTranferTransaction(size_t iFrom, size_t iTo, uint64_t amount);
+    TxInfo createTransferTransaction(size_t iFrom, size_t iTo, uint64_t amount);
     TxInfo createRandomTransaction(float alpha);
     vector<Simulation::TxInfo> createRandomTransactions(size_t n,
                                                         float paretoAlpha);
@@ -134,6 +135,7 @@ private:
     map<uint256, Application::pointer> mNodes;
     vector<shared_ptr<LoopbackPeerConnection>> mConnections;
 
+protected:
     uint64 getMinBalance();
 };
 }

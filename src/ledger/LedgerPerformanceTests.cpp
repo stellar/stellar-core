@@ -17,6 +17,8 @@
 #include <soci.h>
 #include "crypto/Base58.h"
 #include "clf/CLFManager.h"
+#include "util/optional.h"
+#include "util/Math.h"
 
 using namespace stellar;
 using namespace std;
@@ -37,43 +39,85 @@ public:
     LedgerPerformanceTests()
         : Simulation(Simulation::OVER_LOOPBACK) {}
 
-    void ensureNAccounts(size_t n, size_t batchSize = 1000)
+    void resizeAccounts(size_t n)
     {
         loadAccount(*mAccounts.front());
-
-        auto newAccounts = createAccounts(max<size_t>(0, n - mAccounts.size() + 1));
-
-        vector<TxInfo> txs;
-        for (int i = 0; i < newAccounts.size(); i++)
+        mAccounts.resize(n);
+    }
+    optional<TxInfo> ensureAccountIsLoadedCreated(size_t i)
+    {
+        if (!mAccounts[i])
         {
-            if (loadAccount(*newAccounts[i]))
+            auto newAccount = createAccount(i);
+            mAccounts[i] = newAccount;
+            if (!loadAccount(*newAccount))
             {
-                if (newAccounts[i]->mId % batchSize == 0)
-                    LOG(INFO) << "... loaded up to account " << newAccounts[i]->mId;
-            } else
-            {
-                txs.push_back(newAccounts[i]->creationTransaction());
-                newAccounts[i]->mSeq = LedgerHeaderFrame(mApp->getLedgerManagerImpl()
+                newAccount->mSeq = LedgerHeaderFrame(mApp->getLedgerManagerImpl()
                     .getCurrentLedgerHeader())
                     .getStartingSequenceNumber();
-            }
-            if (txs.size() == batchSize)
-            {
-                closeLedger(txs);
-                LOG(INFO) << "...created up to account " << newAccounts[i]->mId;
-                txs.clear();
+                return make_optional<TxInfo>(newAccount->creationTransaction());
             }
         }
-        if (txs.size() > 0 )
-        {
-            closeLedger(txs);
-        }
+        return nullopt<TxInfo>();
     }
-    void closeLedgerWithRandomTransactions(size_t n)
+
+    vector<TxInfo>
+    createRandomTransaction_uniformLoadingCreating()
     {
-        auto txs = createRandomTransactions(n, 0.5);
-        closeLedger(txs);
+        vector<optional<TxInfo>> txs;
+        size_t iFrom, iTo;
+        do
+        {
+            iFrom = static_cast<int>(rand_fraction() * mAccounts.size());
+            iTo = static_cast<int>(rand_fraction() * mAccounts.size());
+        } while (iFrom == iTo);
+
+        txs.push_back(ensureAccountIsLoadedCreated(iFrom));
+        txs.push_back(ensureAccountIsLoadedCreated(iTo));
+
+        uint64_t amount = static_cast<uint64_t>(
+            rand_fraction() *
+            min(static_cast<uint64_t>(1000),
+            (mAccounts[iFrom]->mBalance - getMinBalance()) / 3));
+        txs.push_back(make_optional<TxInfo>(createTransferTransaction(iFrom, iTo, amount)));
+
+        vector<TxInfo> result;
+        for(auto tx : txs)
+        {
+            if (tx)
+                result.push_back(*tx);
+        }
+        return result;
     }
+
+    vector<TxInfo>
+    createRandomTransactions_uniformLoadingCreating(size_t n)
+    {
+        vector<TxInfo> result;
+        for (size_t i = 0; i < n; i++)
+        {
+            auto newTxs = createRandomTransaction_uniformLoadingCreating();
+            std::copy(newTxs.begin(), newTxs.end(), std::back_inserter(result));
+        }
+        return result;
+    }
+
+    static
+    pair<vector<TxInfo>, vector<TxInfo>>
+    partitionCreationTransaction(vector<TxInfo> txs)
+    {
+        vector<Simulation::TxInfo> creationTxs;
+        vector<Simulation::TxInfo> otherTxs;
+        for (auto tx : txs)
+        {
+            if (tx.mFrom->mId == 0)
+                creationTxs.push_back(tx);
+            else
+                otherTxs.push_back(tx);
+        }
+        return pair<vector<TxInfo>, vector<TxInfo>>(creationTxs, otherTxs);
+    }
+
 
     void closeLedger(vector<Simulation::TxInfo> txs)
     {
@@ -100,7 +144,8 @@ public:
 TEST_CASE("ledger performance test", "[ledger][performance][hide]")
 {
     int nAccounts = 10000000;
-    int nLedgers = 1000;
+    int nLedgers = 9 /* weeks */ * 7 * 24 * 60 * 60
+                 / 5 /* seconds between ledgers */;
     int nTransactionsPerLedger = 3;
 
 
@@ -130,24 +175,40 @@ TEST_CASE("ledger performance test", "[ledger][performance][hide]")
         
     Timer& ledgerTimer = sim.mApp->getMetrics().NewTimer({ "performance-test", "ledger", "close" });
     Timer& mergeTimer = sim.mApp->getCLFManager().getMergeTimer();
-    for (int iAccounts = 1000; iAccounts < nAccounts; iAccounts *= 10)
+    for (int iAccounts = 1000000; iAccounts <= nAccounts; iAccounts *= 10)
     {
         ledgerTimer.Clear();
         mergeTimer.Clear();
 
-        LOG(INFO) << "Performance test with " << iAccounts << ", loading/creating accounts";
-        sim.ensureNAccounts(iAccounts);
-        LOG(INFO) << "Performance test with " << iAccounts << ", running";
+        LOG(INFO) << "Performance test with " << iAccounts << " accounts, starting";
+        sim.resizeAccounts(iAccounts);
 
         for (int iLedgers = 0; iLedgers < nLedgers; iLedgers++)
         {
-            auto txs = sim.createRandomTransactions(nTransactionsPerLedger, 0.5);
+            auto txs = sim.createRandomTransactions_uniformLoadingCreating(nTransactionsPerLedger);
 
             auto scope = ledgerTimer.TimeScope();
-            sim.closeLedger(txs);
+
+            auto createTxs_otherTxs = LedgerPerformanceTests::partitionCreationTransaction(txs);
+            if (!createTxs_otherTxs.first.empty())
+            {
+                sim.closeLedger(createTxs_otherTxs.first);
+            }
+            sim.closeLedger(createTxs_otherTxs.second);
+
             while (sim.crankAllNodes() > 0);
+
+            cout << ".";
+            cout.flush();
+
+            if (iLedgers % 1000 == 0 && iLedgers != 0)
+            {
+                LOG(INFO) << endl << "Performance test with " << iAccounts << " accounts after " << iLedgers << " ledgers";
+                LOG(INFO) << endl << sim.metricsSummary("performance-test");
+                LOG(INFO) << endl << sim.metricsSummary("bucket");
+            }
         }
-        LOG(INFO) << "Performance test with " << iAccounts << ", done";
+        LOG(INFO) << "Performance test with " << iAccounts << " accounts, done";
         LOG(INFO) << endl << sim.metricsSummary("performance-test");
         LOG(INFO) << endl << sim.metricsSummary("bucket");
         LOG(INFO) << "done";
