@@ -49,7 +49,6 @@ struct SetOptionsOp
     AccountID* inflationDest;
     uint32*    clearFlags;
     uint32*    setFlags;
-    KeyValue* data;
     Thresholds* thresholds;
     Signer* signer;
 };

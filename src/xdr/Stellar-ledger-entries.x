@@ -14,12 +14,6 @@ struct Signer
     uint32 weight;  // really only need 1byte
 };
 
-struct KeyValue
-{
-    uint32 key;
-    opaque value<64>;
-};
-
 enum AccountFlags
 { // masks for each flag
     AUTH_REQUIRED_FLAG = 0x1
@@ -34,7 +28,6 @@ struct AccountEntry
     uint256 *inflationDest;
     opaque thresholds[4]; // [weight of master|threshold1|threshold2|threshold3]
     Signer signers<20>;
-    KeyValue data<>;
 
     uint32 flags; // see AccountFlags
 };

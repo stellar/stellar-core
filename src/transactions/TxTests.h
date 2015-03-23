@@ -77,13 +77,13 @@ CreateOffer::CreateOfferResult applyCreateOfferWithResult(
 TransactionFramePtr createSetOptions(SecretKey& source,
                                      AccountID* inflationDest,
                                      uint32_t* setFlags, uint32_t* clearFlags,
-                                     KeyValue* data, Thresholds* thrs,
-                                     Signer* signer, SequenceNumber seq);
+                                     Thresholds* thrs, Signer* signer,
+                                     SequenceNumber seq);
 
 void
 applySetOptions(Application& app, SecretKey& source, AccountID* inflationDest,
-                uint32_t* setFlags, uint32_t* clearFlags, KeyValue* data,
-                Thresholds* thrs, Signer* signer, SequenceNumber seq,
+                uint32_t* setFlags, uint32_t* clearFlags, Thresholds* thrs,
+                Signer* signer, SequenceNumber seq,
                 SetOptions::SetOptionsResultCode result = SetOptions::SUCCESS);
 
 Currency makeCurrency(SecretKey& issuer, const std::string& code);

@@ -310,8 +310,8 @@ applyCreateOfferWithResult(Application& app, LedgerDelta& delta,
 
 TransactionFramePtr
 createSetOptions(SecretKey& source, AccountID* inflationDest,
-                 uint32_t* setFlags, uint32_t* clearFlags, KeyValue* data,
-                 Thresholds* thrs, Signer* signer, SequenceNumber seq)
+                 uint32_t* setFlags, uint32_t* clearFlags, Thresholds* thrs,
+                 Signer* signer, SequenceNumber seq)
 {
     Operation op;
     op.body.type(SET_OPTIONS);
@@ -331,11 +331,6 @@ createSetOptions(SecretKey& source, AccountID* inflationDest,
         op.body.setOptionsOp().clearFlags.activate() = *clearFlags;
     }
 
-    if (data)
-    {
-        op.body.setOptionsOp().data.activate() = *data;
-    }
-
     if (thrs)
     {
         op.body.setOptionsOp().thresholds.activate() = *thrs;
@@ -351,14 +346,14 @@ createSetOptions(SecretKey& source, AccountID* inflationDest,
 
 void
 applySetOptions(Application& app, SecretKey& source, AccountID* inflationDest,
-                uint32_t* setFlags, uint32_t* clearFlags, KeyValue* data,
-                Thresholds* thrs, Signer* signer, SequenceNumber seq,
+                uint32_t* setFlags, uint32_t* clearFlags, Thresholds* thrs,
+                Signer* signer, SequenceNumber seq,
                 SetOptions::SetOptionsResultCode result)
 {
     TransactionFramePtr txFrame;
 
     txFrame = createSetOptions(source, inflationDest, setFlags, clearFlags,
-                               data, thrs, signer, seq);
+                               thrs, signer, seq);
 
     LedgerDelta delta(app.getLedgerManagerImpl().getCurrentLedgerHeader());
     txFrame->apply(delta, app);
