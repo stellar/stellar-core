@@ -177,7 +177,7 @@ Database::getBalance(const uint256& accountID, const Currency& currency)
         if (TrustFrame::loadTrustLine(accountID, currency, trustLine, *this))
         {
             if (trustLine.getTrustLine().authorized)
-                amountFunded = trustLine.getTrustLine().balance;
+                amountFunded = trustLine.getBalance();
         }
     }
 

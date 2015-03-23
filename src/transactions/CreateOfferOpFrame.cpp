@@ -126,7 +126,7 @@ CreateOfferOpFrame::doApply(LedgerDelta& delta, LedgerManagerImpl& ledgerMaster)
     }
     else
     {
-        maxAmountOfSheepCanSell = mSheepLineA.getTrustLine().balance;
+        maxAmountOfSheepCanSell = mSheepLineA.getBalance();
     }
 
     // amount of sheep for sale is the lesser of amount we can sell and amount
@@ -210,7 +210,12 @@ CreateOfferOpFrame::doApply(LedgerDelta& delta, LedgerManagerImpl& ledgerMaster)
                     throw std::runtime_error("invalid database state: must "
                                              "have matching trust line");
                 }
-                wheatLineSigningAccount.getTrustLine().balance += wheatReceived;
+                if(!wheatLineSigningAccount.addBalance(wheatReceived))
+                {
+                    innerResult().code(CreateOffer::UNDERFUNDED);
+                    return false;
+                }
+       
                 wheatLineSigningAccount.storeChange(delta, db);
             }
 
@@ -221,7 +226,10 @@ CreateOfferOpFrame::doApply(LedgerDelta& delta, LedgerManagerImpl& ledgerMaster)
             }
             else
             {
-                mSheepLineA.getTrustLine().balance -= sheepSent;
+                if(!mSheepLineA.addBalance(-sheepSent))
+                {
+                    return false;
+                }
                 mSheepLineA.storeChange(delta, db);
             }
         }

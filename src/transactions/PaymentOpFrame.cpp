@@ -106,21 +106,19 @@ PaymentOpFrame::sendNoCreate(AccountFrame& destination, LedgerDelta& delta,
                 innerResult().code(Payment::NO_TRUST);
                 return false;
             }
-
-            if (destLine.getTrustLine().limit <
-                curBReceived + destLine.getTrustLine().balance)
-            {
-                innerResult().code(Payment::LINE_FULL);
-                return false;
-            }
-
+            
             if (!destLine.getTrustLine().authorized)
             {
                 innerResult().code(Payment::NOT_AUTHORIZED);
                 return false;
             }
 
-            destLine.getTrustLine().balance += curBReceived;
+            if (!destLine.addBalance(curBReceived))
+            {
+                innerResult().code(Payment::LINE_FULL);
+                return false;
+            }
+
             destLine.storeChange(delta, db);
         }
 
@@ -219,13 +217,12 @@ PaymentOpFrame::sendNoCreate(AccountFrame& destination, LedgerDelta& delta,
                 return false;
             }
 
-            if (sourceLineFrame.getTrustLine().balance < curBSent)
+            if (!sourceLineFrame.addBalance(-curBSent))
             {
                 innerResult().code(Payment::UNDERFUNDED);
                 return false;
             }
 
-            sourceLineFrame.getTrustLine().balance -= curBSent;
             sourceLineFrame.storeChange(delta, db);
         }
     }

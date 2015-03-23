@@ -28,7 +28,7 @@ ChangeTrustOpFrame::doApply(LedgerDelta& delta, LedgerManagerImpl& ledgerMaster)
     { // we are modifying an old trustline
         
         if( mChangeTrust.limit < 0 || 
-            mChangeTrust.limit < trustLine.getTrustLine().balance)
+            mChangeTrust.limit < trustLine.getBalance())
         { // Can't drop the limit below the balance you are holding with them
             innerResult().code(ChangeTrust::INVALID_LIMIT);
             return false;
@@ -36,7 +36,7 @@ ChangeTrustOpFrame::doApply(LedgerDelta& delta, LedgerManagerImpl& ledgerMaster)
 
         trustLine.getTrustLine().limit = mChangeTrust.limit;
         if (trustLine.getTrustLine().limit == 0 &&
-            trustLine.getTrustLine().balance == 0)
+            trustLine.getBalance() == 0)
         {
             // line gets deleted
             mSourceAccount->getAccount().numSubEntries--;

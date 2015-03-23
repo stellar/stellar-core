@@ -65,6 +65,8 @@ class TrustFrame : public EntryFrame
                           std::vector<TrustFrame>& retLines, Database& db);
 
     int64_t getBalance() const;
+    bool addBalance(int64_t delta);
+
     TrustLineEntry const&
     getTrustLine() const
     {
