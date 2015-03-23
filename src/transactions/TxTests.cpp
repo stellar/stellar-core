@@ -275,11 +275,11 @@ applyCreateOffer(Application& app, LedgerDelta& delta, SecretKey& source,
         applyCreateOfferHelper(app, delta, source, takerGets, takerPays, price,
                                amount, seq);
 
-    REQUIRE(createOfferRes.code() == CreateOffer::SUCCESS);
+    REQUIRE(createOfferRes.code() == CreateOffer::CREATE_OFFER_SUCCESS);
 
     auto& success = createOfferRes.success().offer;
 
-    REQUIRE(success.effect() == CreateOffer::CREATED);
+    REQUIRE(success.effect() == CreateOffer::CREATE_OFFER_CREATED);
 
     auto& offerRes = success.offerCreated();
     REQUIRE(offerRes.offerID == expectedOfferID);

@@ -25,11 +25,11 @@ CancelOfferOpFrame::doApply(LedgerDelta& delta, LedgerManagerImpl& ledgerMaster)
     if (!OfferFrame::loadOffer(getSourceID(), mOperation.body.offerID(),
                                offerFrame, db))
     {
-        innerResult().code(CancelOffer::NOT_FOUND);
+        innerResult().code(CancelOffer::CANCEL_OFFER_NOT_FOUND);
         return false;
     }
 
-    innerResult().code(CancelOffer::SUCCESS);
+    innerResult().code(CancelOffer::CANCEL_OFFER_SUCCESS);
 
     mSourceAccount->getAccount().numSubEntries--;
     offerFrame.storeDelete(delta, db);

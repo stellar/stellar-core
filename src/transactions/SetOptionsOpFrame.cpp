@@ -71,13 +71,13 @@ SetOptionsOpFrame::doApply(LedgerDelta& delta, LedgerManagerImpl& ledgerMaster)
             {
                 if (signers.size() == signers.max_size())
                 {
-                    innerResult().code(SetOptions::MALFORMED);
+                    innerResult().code(SetOptions::SET_OPTIONS_MALFORMED);
                     return false;
                 }
                 if (account.balance <
                     ledgerMaster.getMinBalance(account.numSubEntries + 1))
                 {
-                    innerResult().code(SetOptions::BELOW_MIN_BALANCE);
+                    innerResult().code(SetOptions::SET_OPTIONS_BELOW_MIN_BALANCE);
                     return false;
                 }
                 account.numSubEntries++;
@@ -104,7 +104,7 @@ SetOptionsOpFrame::doApply(LedgerDelta& delta, LedgerManagerImpl& ledgerMaster)
         mSourceAccount->setUpdateSigners();
     }
 
-    innerResult().code(SetOptions::SUCCESS);
+    innerResult().code(SetOptions::SET_OPTIONS_SUCCESS);
     mSourceAccount->storeChange(delta, db);
     return true;
 }
@@ -116,7 +116,7 @@ SetOptionsOpFrame::doCheckValid(Application& app)
     {
         if ((*mSetOptions.setFlags & *mSetOptions.clearFlags) != 0)
         {
-            innerResult().code(SetOptions::MALFORMED);
+            innerResult().code(SetOptions::SET_OPTIONS_MALFORMED);
             return false;
         }
     }

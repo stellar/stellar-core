@@ -110,7 +110,7 @@ TEST_CASE("payment", "[tx][payment]")
         applyPaymentTx(
             app, root, b1, rootSeq++,
             app.getLedgerManagerImpl().getCurrentLedgerHeader().baseReserve - 1,
-            Payment::UNDERFUNDED);
+            Payment::PAYMENT_UNDERFUNDED);
 
         AccountFrame bAccount;
         REQUIRE(!AccountFrame::loadAccount(b1.getPublicKey(), bAccount,
@@ -125,7 +125,7 @@ TEST_CASE("payment", "[tx][payment]")
         {
             LOG(INFO) << "credit sent to new account (no account error)";
             applyCreditPaymentTx(app, root, b1, currency, rootSeq++, 100,
-                                 Payment::NO_DESTINATION);
+                                 Payment::PAYMENT_NO_DESTINATION);
 
             AccountFrame bAccount;
             REQUIRE(!AccountFrame::loadAccount(b1.getPublicKey(), bAccount,
@@ -143,7 +143,7 @@ TEST_CASE("payment", "[tx][payment]")
             txFrame2->apply(delta2, app);
 
             REQUIRE(Payment::getInnerCode(getFirstResult(*txFrame2)) ==
-                    Payment::OVERSENDMAX);
+                    Payment::PAYMENT_OVERSENDMAX);
             AccountFrame account;
             REQUIRE(AccountFrame::loadAccount(a1.getPublicKey(), account,
                                               app.getDatabase()));
@@ -154,7 +154,7 @@ TEST_CASE("payment", "[tx][payment]")
         {
             LOG(INFO) << "credit payment with no trust";
             applyCreditPaymentTx(app, root, a1, currency, rootSeq++, 100,
-                                 Payment::NO_TRUST);
+                                 Payment::PAYMENT_NO_TRUST);
             AccountFrame account;
             REQUIRE(AccountFrame::loadAccount(a1.getPublicKey(), account,
                                               app.getDatabase()));

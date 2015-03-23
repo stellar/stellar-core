@@ -15,7 +15,7 @@ bool
 InflationOpFrame::doApply(LedgerDelta& delta, LedgerManagerImpl& ledgerMaster)
 {
     // TODO.2
-    innerResult().code(Inflation::NOT_TIME);
+    innerResult().code(Inflation::INFLATION_NOT_TIME);
     return false;
 }
 

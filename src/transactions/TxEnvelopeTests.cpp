@@ -172,7 +172,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
             tx->apply(delta, app);
             REQUIRE(tx->getResultCode() == txSUCCESS);
             REQUIRE(Payment::getInnerCode(getFirstResult(*tx)) ==
-                    Payment::SUCCESS);
+                    Payment::PAYMENT_SUCCESS);
         }
     }
 
@@ -240,7 +240,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                     tx->apply(delta, app);
                     REQUIRE(tx->getResultCode() == txSUCCESS);
                     REQUIRE(Payment::getInnerCode(getFirstResult(*tx)) ==
-                            Payment::SUCCESS);
+                            Payment::PAYMENT_SUCCESS);
                 }
             }
             SECTION("multiple tx")
@@ -281,11 +281,11 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                     REQUIRE(tx->getResultCode() == txFAILED);
                     // first operation was success
                     REQUIRE(Payment::getInnerCode(getFirstResult(*tx)) ==
-                            Payment::SUCCESS);
+                            Payment::PAYMENT_SUCCESS);
                     // second
                     REQUIRE(CreateOffer::getInnerCode(
                                 tx->getOperations()[1]->getResult()) ==
-                            CreateOffer::MALFORMED);
+                            CreateOffer::CREATE_OFFER_MALFORMED);
                 }
                 SECTION("one failed tx")
                 {
@@ -319,11 +319,11 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                     REQUIRE(tx->getResultCode() == txFAILED);
                     // first operation was success
                     REQUIRE(Payment::getInnerCode(getFirstResult(*tx)) ==
-                            Payment::SUCCESS);
+                            Payment::PAYMENT_SUCCESS);
                     // second
                     REQUIRE(Payment::getInnerCode(
                                 tx->getOperations()[1]->getResult()) ==
-                            Payment::UNDERFUNDED);
+                            Payment::PAYMENT_UNDERFUNDED);
                 }
                 SECTION("both success")
                 {
@@ -356,10 +356,10 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                     REQUIRE(tx->getResultCode() == txSUCCESS);
 
                     REQUIRE(Payment::getInnerCode(getFirstResult(*tx)) ==
-                            Payment::SUCCESS);
+                            Payment::PAYMENT_SUCCESS);
                     REQUIRE(Payment::getInnerCode(
                                 tx->getOperations()[1]->getResult()) ==
-                            Payment::SUCCESS);
+                            Payment::PAYMENT_SUCCESS);
                 }
             }
         }

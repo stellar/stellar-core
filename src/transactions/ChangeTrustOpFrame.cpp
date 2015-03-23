@@ -30,7 +30,7 @@ ChangeTrustOpFrame::doApply(LedgerDelta& delta, LedgerManagerImpl& ledgerMaster)
         if( mChangeTrust.limit < 0 || 
             mChangeTrust.limit < trustLine.getBalance())
         { // Can't drop the limit below the balance you are holding with them
-            innerResult().code(ChangeTrust::INVALID_LIMIT);
+            innerResult().code(ChangeTrust::CHANGE_TRUST_INVALID_LIMIT);
             return false;
         }
 
@@ -47,7 +47,7 @@ ChangeTrustOpFrame::doApply(LedgerDelta& delta, LedgerManagerImpl& ledgerMaster)
         {
             trustLine.storeChange(delta, db);
         }
-        innerResult().code(ChangeTrust::SUCCESS);
+        innerResult().code(ChangeTrust::CHANGE_TRUST_SUCCESS);
         return true;
     }
     else
@@ -56,7 +56,7 @@ ChangeTrustOpFrame::doApply(LedgerDelta& delta, LedgerManagerImpl& ledgerMaster)
         if (!AccountFrame::loadAccount(mChangeTrust.line.isoCI().issuer, issuer,
                                        db))
         {
-            innerResult().code(ChangeTrust::NO_ACCOUNT);
+            innerResult().code(ChangeTrust::CHANGE_TRUST_NO_ACCOUNT);
             return false;
         }
 
@@ -71,7 +71,7 @@ ChangeTrustOpFrame::doApply(LedgerDelta& delta, LedgerManagerImpl& ledgerMaster)
         mSourceAccount->storeChange(delta, db);
         trustLine.storeAdd(delta, db);
 
-        innerResult().code(ChangeTrust::SUCCESS);
+        innerResult().code(ChangeTrust::CHANGE_TRUST_SUCCESS);
         return true;
     }
 }
