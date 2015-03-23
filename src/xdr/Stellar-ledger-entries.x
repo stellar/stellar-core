@@ -55,7 +55,6 @@ struct OfferEntry
                     // price*10,000,000
                     // price=AmountB/AmountA=priceNumerator/priceDenominator
                     // price is after fees
-    int32 flags;
 };
 
 union LedgerEntry switch (LedgerEntryType type)
