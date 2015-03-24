@@ -8,6 +8,7 @@
 #include "database/Database.h"
 #include "LedgerDelta.h"
 #include "ledger/LedgerManager.h"
+#include <algorithm>
 
 using namespace soci;
 using namespace std;
@@ -45,7 +46,7 @@ AccountFrame::AccountFrame()
 AccountFrame::AccountFrame(LedgerEntry const& from)
     : EntryFrame(from), mAccountEntry(mEntry.account())
 {
-    mUpdateSigners = false;
+    mUpdateSigners = !mAccountEntry.signers.empty();
 }
 
 AccountFrame::AccountFrame(AccountFrame const& from) : AccountFrame(from.mEntry)
@@ -55,6 +56,16 @@ AccountFrame::AccountFrame(AccountFrame const& from) : AccountFrame(from.mEntry)
 AccountFrame::AccountFrame(uint256 const& id) : AccountFrame()
 {
     mAccountEntry.accountID = id;
+}
+
+void
+AccountFrame::normalize()
+{
+    std::sort(mAccountEntry.signers.begin(), mAccountEntry.signers.end(),
+              [](Signer const& s1, Signer const& s2)
+              {
+                  return s1.pubKey < s2.pubKey;
+              });
 }
 
 bool
@@ -73,6 +84,36 @@ int64_t
 AccountFrame::getMinimumBalance(LedgerManager const& lm) const
 {
     return lm.getMinBalance(mAccountEntry.numSubEntries);
+}
+
+int64_t
+AccountFrame::getBalanceAboveReserve(LedgerManager const& lm) const
+{
+    int64_t avail = getBalance() - lm.getMinBalance(mAccountEntry.numSubEntries);
+    if (avail < 0)
+    {
+        throw std::runtime_error("Balance cannot be below reserve");
+    }
+    return avail;
+}
+
+// returns true if successfully updated,
+// false if balance is not sufficient
+bool
+AccountFrame::addNumEntries(int count, LedgerManager const& lm)
+{
+    int newEntriesCount = mAccountEntry.numSubEntries + count;
+    if (newEntriesCount < 0)
+    {
+        throw std::runtime_error("invalid account state");
+    }
+    if (getBalance() < lm.getMinBalance(newEntriesCount))
+    {
+        // balance too low
+        return false;
+    }
+    mAccountEntry.numSubEntries = newEntriesCount;
+    return true;
 }
 
 uint256 const&
@@ -107,7 +148,7 @@ AccountFrame::getLowThreshold() const
 
 bool
 AccountFrame::loadAccount(const uint256& accountID, AccountFrame& retAcc,
-                          Database& db, bool withSig)
+                          Database& db)
 {
     std::string base58ID = toBase58Check(VER_ACCOUNT_ID, accountID);
     std::string publicKey, inflationDest, creditAuthKey;
@@ -148,7 +189,7 @@ AccountFrame::loadAccount(const uint256& accountID, AccountFrame& retAcc,
 
     account.signers.clear();
 
-    if (withSig)
+    if (account.numSubEntries != 0)
     {
         string pubKey;
         Signer signer;
@@ -173,6 +214,10 @@ AccountFrame::loadAccount(const uint256& accountID, AccountFrame& retAcc,
             st.fetch();
         }
     }
+
+    retAcc.normalize();
+    retAcc.mUpdateSigners = false;
+
     retAcc.mKeyCalculated = false;
     return true;
 }
@@ -235,7 +280,8 @@ AccountFrame::storeUpdate(LedgerDelta& delta, Database& db, bool insert) const
     }
     else
     {
-        sql = std::string("UPDATE Accounts SET balance = :v1, seqNum = :v2, numSubEntries = :v3, \
+        sql = std::string(
+            "UPDATE Accounts SET balance = :v1, seqNum = :v2, numSubEntries = :v3, \
                 inflationDest = :v4, thresholds = :v5,                  \
                 flags = :v6 WHERE accountID = :id");
     }
@@ -291,8 +337,7 @@ AccountFrame::storeUpdate(LedgerDelta& delta, Database& db, bool insert) const
         // instead separate signatures from account, just like offers are
         // separate entities
         AccountFrame startAccountFrame;
-        // TODO: don't do this (should move the logic out, just like trustlines)
-        if (!loadAccount(getID(), startAccountFrame, db, true))
+        if (!loadAccount(getID(), startAccountFrame, db))
         {
             throw runtime_error("could not load account!");
         }

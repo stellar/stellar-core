@@ -117,7 +117,7 @@ TEST_CASE("create offer", "[tx][offers]")
 
         // need sufficient XLM funds to create an offer
         applyCreateOfferWithResult(app, delta, a1, idrCur, usdCur, oneone, 100,
-                                   a1_seq++, CREATE_OFFER_UNDERFUNDED);
+                                   a1_seq++, CREATE_OFFER_BELOW_MIN_BALANCE);
 
         // there should be no pending offer at this point in the system
         OfferFrame offer;

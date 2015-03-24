@@ -170,7 +170,8 @@ TEST_CASE("file-backed buckets", "[clf]")
     for (auto& e : dead)
         e = deadGen(3);
     CLOG(DEBUG, "CLF") << "Hashing entries";
-    std::shared_ptr<Bucket> b1 = Bucket::fresh(app->getCLFManager(), live, dead);
+    std::shared_ptr<Bucket> b1 =
+        Bucket::fresh(app->getCLFManager(), live, dead);
     for (size_t i = 0; i < 5; ++i)
     {
         CLOG(DEBUG, "CLF") << "Merging 10000 new ledger entries into "
@@ -287,7 +288,8 @@ TEST_CASE("merging clf entries", "[clf]")
         }
         std::shared_ptr<Bucket> b2 =
             Bucket::fresh(app->getCLFManager(), live, dead);
-        std::shared_ptr<Bucket> b3 = Bucket::merge(app->getCLFManager(), b1, b2);
+        std::shared_ptr<Bucket> b3 =
+            Bucket::merge(app->getCLFManager(), b1, b2);
         CHECK(countEntries(b3) == liveCount);
     }
 }
@@ -338,7 +340,8 @@ TEST_CASE("clfmaster ownership", "[clf][ownershipclf]")
     bl.addBatch(*app, 1, live, dead);
     b1 = bl.getLevel(0).getCurr();
 
-    // Bucket should be referenced by bucketlist itself, CLFManager cache and b1.
+    // Bucket should be referenced by bucketlist itself, CLFManager cache and
+    // b1.
     CHECK(b1.use_count() == 3);
 
     // This shouldn't change if we forget unreferenced buckets since it's
@@ -377,7 +380,7 @@ TEST_CASE("single entry bubbling up", "[clf][clfbubble]")
 
         CLOG(DEBUG, "CLF") << "Adding empty batches to bucket list";
         for (uint32_t i = 2;
-        !app->getClock().getIOService().stopped() && i < 130; ++i)
+             !app->getClock().getIOService().stopped() && i < 130; ++i)
         {
             app->getClock().crank(false);
             bl.addBatch(*app, i, emptySetEntry, emptySet);
@@ -393,8 +396,7 @@ TEST_CASE("single entry bubbling up", "[clf][clfbubble]")
                 auto currSz = countEntries(lev.getCurr());
                 auto snapSz = countEntries(lev.getSnap());
                 CLOG(DEBUG, "CLF") << "ledger " << i << ", level " << j
-                                   << " curr=" << currSz
-                                   << " snap=" << snapSz;
+                                   << " curr=" << currSz << " snap=" << snapSz;
                 uint32_t elemCountHigh = elemCount + bl.levelSize(j);
                 if (i >= elemCount && i < elemCountHigh)
                 {
@@ -412,11 +414,10 @@ TEST_CASE("single entry bubbling up", "[clf][clfbubble]")
     catch (std::future_error& e)
     {
         CLOG(DEBUG, "CLF") << "Test caught std::future_error " << e.code()
-            << ": " << e.what();
+                           << ": " << e.what();
         REQUIRE(false);
     }
 }
-
 
 TEST_CASE("bucket persistence over app restart", "[clf][bucketpersist]")
 {
@@ -433,9 +434,10 @@ TEST_CASE("bucket persistence over app restart", "[clf][bucketpersist]")
     {
         Application::pointer app1 = Application::create(clock, cfg);
         app1->start();
-        BucketList &bl1 = app1->getCLFManager().getBucketList();
-        auto lclHash0 = app1->getLedgerManager().getLastClosedLedgerHeader().hash;
-        for (size_t i = 2; i < 100; ++i)
+        BucketList& bl1 = app1->getCLFManager().getBucketList();
+        auto lclHash0 =
+            app1->getLedgerManager().getLastClosedLedgerHeader().hash;
+        for (uint32_t i = 2; i < 100; ++i)
         {
             bl1.addBatch(*app1, i, liveGen(1), emptySet);
         }
@@ -444,10 +446,9 @@ TEST_CASE("bucket persistence over app restart", "[clf][bucketpersist]")
 
         // Checkpoint this bucketlist into a ledger, crudely.
         auto& lm1 = app1->getLedgerManager();
-        LedgerCloseData lcd(lm1.getLedgerNum(),
-                            std::make_shared<TxSetFrame>(lclHash0),
-                            lm1.getCloseTime(),
-                            lm1.getTxFee());
+        LedgerCloseData lcd(
+            lm1.getLedgerNum(), std::make_shared<TxSetFrame>(lclHash0),
+            lm1.getCloseTime(), static_cast<int32_t>(lm1.getTxFee()));
         app1->getLedgerManager().externalizeValue(lcd);
         lclHash1 = app1->getLedgerManager().getLastClosedLedgerHeader().hash;
     }
@@ -460,9 +461,10 @@ TEST_CASE("bucket persistence over app restart", "[clf][bucketpersist]")
     {
         Application::pointer app2 = Application::create(clock, cfg);
         app2->start();
-        auto lclHash2 = app2->getLedgerManager().getLastClosedLedgerHeader().hash;
+        auto lclHash2 =
+            app2->getLedgerManager().getLastClosedLedgerHeader().hash;
         REQUIRE(hexAbbrev(lclHash2) == hexAbbrev(lclHash1));
-        BucketList &bl2 = app2->getCLFManager().getBucketList();
+        BucketList& bl2 = app2->getCLFManager().getBucketList();
         auto bucketHash2 = bl2.getLevel(1).getCurr()->getHash();
         CHECK(hexAbbrev(bucketHash2) == hexAbbrev(bucketHash1));
     }

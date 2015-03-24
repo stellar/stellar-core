@@ -4,7 +4,8 @@
 
 %#include "generated/SCPXDR.h"
 
-namespace stellar {
+namespace stellar
+{
 
 // messages
 typedef opaque uint512[64];
@@ -32,13 +33,13 @@ struct ISOCurrencyIssuer
     AccountID issuer;
 };
 
-union Currency switch(CurrencyType type)
+union Currency switch (CurrencyType type)
 {
-    case NATIVE: 
-        void;
+case NATIVE:
+    void;
 
-    case ISO4217: 
-        ISOCurrencyIssuer isoCI;
+case ISO4217:
+    ISOCurrencyIssuer isoCI;
 
     // add other currency types here in the future
 };
@@ -46,8 +47,7 @@ union Currency switch(CurrencyType type)
 // price in fractional representation
 struct Price
 {
-    int32 n;  // numerator
-    int32 d;  // denominator
+    int32 n; // numerator
+    int32 d; // denominator
 };
-
 }

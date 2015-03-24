@@ -119,10 +119,7 @@ CreateOfferOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
     int64_t maxAmountOfSheepCanSell;
     if (sheep.type() == NATIVE)
     {
-        maxAmountOfSheepCanSell =
-            mSourceAccount->getAccount().balance -
-            ledgerManager.getMinBalance(
-                mSourceAccount->getAccount().numSubEntries);
+        maxAmountOfSheepCanSell = mSourceAccount->getBalanceAboveReserve(ledgerManager);
     }
     else
     {
@@ -244,11 +241,9 @@ CreateOfferOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
             {
                 // make sure we don't allow us to add offers when we don't have
                 // the minbalance
-                if (mSourceAccount->getAccount().balance <
-                    ledgerManager.getMinBalance(
-                        mSourceAccount->getAccount().numSubEntries + 1))
+                if (!mSourceAccount->addNumEntries(1, ledgerManager))
                 {
-                    innerResult().code(CREATE_OFFER_UNDERFUNDED);
+                    innerResult().code(CREATE_OFFER_BELOW_MIN_BALANCE);
                     return false;
                 }
                 mSellSheepOffer.mEntry.offer().offerID =
@@ -258,7 +253,6 @@ CreateOfferOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
                     mSellSheepOffer.getOffer();
                 mSellSheepOffer.storeAdd(tempDelta, db);
 
-                mSourceAccount->getAccount().numSubEntries++;
                 mSourceAccount->storeChange(tempDelta, db);
             }
             else

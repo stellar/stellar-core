@@ -27,6 +27,8 @@ class AccountFrame : public EntryFrame
 
     AccountEntry& mAccountEntry;
 
+    void normalize();
+
   public:
     typedef std::shared_ptr<AccountFrame> pointer;
 
@@ -44,10 +46,23 @@ class AccountFrame : public EntryFrame
     void
     setUpdateSigners()
     {
+        normalize();
         mUpdateSigners = true;
     }
+
+    // actual balance for the account
     int64_t getBalance() const;
+
+    // reserve balance that the account must always hold
     int64_t getMinimumBalance(LedgerManager const& lm) const;
+
+    // balance that can be spent (above the limit)
+    int64_t getBalanceAboveReserve(LedgerManager const& lm) const;
+
+    // returns true if successfully updated,
+    // false if balance is not sufficient
+    bool addNumEntries(int count, LedgerManager const& lm);
+
     bool isAuthRequired() const;
     uint256 const& getID() const;
 
@@ -93,7 +108,7 @@ class AccountFrame : public EntryFrame
 
     // database utilities
     static bool loadAccount(const uint256& accountID, AccountFrame& retEntry,
-                            Database& db, bool withSig = false);
+                            Database& db);
     static void dropAll(Database& db);
     static const char* kSQLCreateStatement1;
     static const char* kSQLCreateStatement2;

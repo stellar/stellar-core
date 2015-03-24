@@ -39,7 +39,7 @@ ChangeTrustOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
             trustLine.getBalance() == 0)
         {
             // line gets deleted
-            mSourceAccount->getAccount().numSubEntries--;
+            mSourceAccount->addNumEntries(-1, ledgerManager);
             trustLine.storeDelete(delta, db);
             mSourceAccount->storeChange(delta, db);
         }
@@ -66,7 +66,10 @@ ChangeTrustOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
         trustLine.getTrustLine().balance = 0;
         trustLine.getTrustLine().authorized = !issuer.isAuthRequired();
 
-        mSourceAccount->getAccount().numSubEntries++;
+        if (!mSourceAccount->addNumEntries(1, ledgerManager))
+        {
+            innerResult().code(CHANGE_TRUST_BELOW_MIN_BALANCE);
+        }
 
         mSourceAccount->storeChange(delta, db);
         trustLine.storeAdd(delta, db);

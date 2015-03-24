@@ -79,8 +79,6 @@ class Database
 
     void initialize();
 
-    int64_t getBalance(const uint256& accountID, const Currency& currency);
-
     soci::session&
     getSession()
     {

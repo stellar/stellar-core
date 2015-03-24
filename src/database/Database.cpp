@@ -161,31 +161,6 @@ Database::getPool()
     return *mPool;
 }
 
-int64_t
-Database::getBalance(const uint256& accountID, const Currency& currency)
-{
-    int64_t amountFunded = 0;
-    if (currency.type() == NATIVE)
-    {
-        AccountFrame account;
-        if (AccountFrame::loadAccount(accountID, account, *this))
-        {
-            amountFunded = account.getAccount().balance;
-        }
-    }
-    else
-    {
-        TrustFrame trustLine;
-        if (TrustFrame::loadTrustLine(accountID, currency, trustLine, *this))
-        {
-            if (trustLine.getTrustLine().authorized)
-                amountFunded = trustLine.getBalance();
-        }
-    }
-
-    return amountFunded;
-}
-
 class SQLLogContext : NonCopyable
 {
     std::string mName;

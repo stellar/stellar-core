@@ -60,12 +60,7 @@ OfferExchange::crossOffer(OfferFrame& sellingWheatOffer,
     if (wheat.type() == NATIVE)
     {
         // can only send above the minimum balance
-        numWheatReceived = accountB.getAccount().balance -
-                           accountB.getMinimumBalance(mLedgerManager);
-        if (numWheatReceived < 0)
-        {
-            numWheatReceived = 0;
-        }
+        numWheatReceived = accountB.getBalanceAboveReserve(mLedgerManager);
     }
     else
     {
@@ -136,7 +131,8 @@ OfferExchange::crossOffer(OfferFrame& sellingWheatOffer,
     if (offerTaken)
     { // entire offer is taken
         sellingWheatOffer.storeDelete(mDelta, db);
-        accountB.getAccount().numSubEntries--;
+
+        accountB.addNumEntries(-1, mLedgerManager);
         accountB.storeChange(mDelta, db);
     }
     else
