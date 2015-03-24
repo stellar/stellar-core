@@ -1,6 +1,10 @@
 # -*- Autoconf -*-
 # Process this file with autoconf to produce a configure script.
 
+# Copyright 2015 Stellar Development Foundation and contributors. Licensed
+# under the ISC License. See the COPYING file at the top-level directory of
+# this distribution or at http://opensource.org/licenses/ISC
+
 AC_PREREQ([2.68])
 AC_INIT([stellard],[0.1],[],[],[http://www.stellar.org])
 AM_INIT_AUTOMAKE([-Wall subdir-objects silent-rules])

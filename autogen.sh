@@ -1,5 +1,9 @@
 #!/bin/sh
 
+# Copyright 2015 Stellar Development Foundation and contributors. Licensed
+# under the ISC License. See the COPYING file at the top-level directory of
+# this distribution or at http://opensource.org/licenses/ISC
+
 SUBMODULES="src/lib/libsodium src/lib/xdrpp src/lib/libmedida"
 GIT=`which git`
 
