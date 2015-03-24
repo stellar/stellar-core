@@ -23,7 +23,7 @@ class SCP
 
   public:
     SCP(const SecretKey& secretKey, const SCPQuorumSet& qSetLocal);
-    ~SCP();
+    virtual ~SCP() {}
 
     // Users of the SCP library should inherit from SCP and implement the
     // following virtual methods which are called by the SCP implementation to:
@@ -200,19 +200,19 @@ class SCP
 
   private:
     // Node getters
-    Node* getNode(const uint256& nodeID);
-    LocalNode* getLocalNode();
+    std::shared_ptr<Node> getNode(const uint256& nodeID);
+    std::shared_ptr<LocalNode> getLocalNode();
 
     // Slot getter
-    Slot* getSlot(const uint64& slotIndex);
+    std::shared_ptr<Slot> getSlot(const uint64& slotIndex);
 
     // Envelope signature/verification
     void signEnvelope(SCPEnvelope& envelope);
     bool verifyEnvelope(const SCPEnvelope& envelope);
 
-    LocalNode* mLocalNode;
-    std::map<uint256, Node*> mKnownNodes;
-    std::map<uint64, Slot*> mKnownSlots;
+    std::shared_ptr<LocalNode> mLocalNode;
+    std::map<uint256, std::shared_ptr<Node>> mKnownNodes;
+    std::map<uint64, std::shared_ptr<Slot>> mKnownSlots;
 
     friend class Slot;
     friend class Node;
