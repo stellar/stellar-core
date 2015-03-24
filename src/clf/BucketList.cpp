@@ -354,7 +354,7 @@ BucketList::restartMerges(Application& app, uint32_t currLedger)
     }
 }
 
-size_t const BucketList::kNumLevels = 9;
+size_t const BucketList::kNumLevels = 11;
 
 BucketList::BucketList()
 {
