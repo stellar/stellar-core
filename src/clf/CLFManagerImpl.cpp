@@ -169,7 +169,7 @@ CLFManagerImpl::adoptFileAsBucket(std::string const& filename, uint256 const& ha
 }
 
 std::shared_ptr<Bucket>
-CLFManagerImpl::getBucketByHash(uint256 const& hash) const
+CLFManagerImpl::getBucketByHash(uint256 const& hash)
 {
     if (isZero(hash))
     {
@@ -181,6 +181,13 @@ CLFManagerImpl::getBucketByHash(uint256 const& hash) const
     if (i != mSharedBuckets.end())
     {
         return i->second;
+    }
+    std::string canonicalName = getBucketDir() + "/" + basename;
+    if (fs::exists(canonicalName))
+    {
+        auto p = std::make_shared<Bucket>(canonicalName, hash);
+        mSharedBuckets.insert(std::make_pair(basename, p));
+        return p;
     }
     return std::shared_ptr<Bucket>();
 }

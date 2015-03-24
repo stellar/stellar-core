@@ -47,7 +47,7 @@ public:
                                                       size_t nBytes = 0) = 0;
 
     // Return a bucket by hash if we have it, else return nullptr.
-    virtual std::shared_ptr<Bucket> getBucketByHash(uint256 const& hash) const = 0;
+    virtual std::shared_ptr<Bucket> getBucketByHash(uint256 const& hash) = 0;
 
     // Forget any buckets not referenced by the current BucketList. This will
     // not immediately cause the buckets to delete themselves, if someone else

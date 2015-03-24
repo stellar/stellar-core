@@ -53,7 +53,8 @@ public:
                                               uint256 const& hash,
                                               size_t nObjects,
                                               size_t nBytes) override;
-    std::shared_ptr<Bucket> getBucketByHash(uint256 const& hash) const override;
+    std::shared_ptr<Bucket> getBucketByHash(uint256 const& hash) override;
+
     void forgetUnreferencedBuckets() override;
     void addBatch(Application& app, uint32_t currLedger,
                   std::vector<LedgerEntry> const& liveEntries,
