@@ -16,7 +16,7 @@ components are:
     rippled's merkle tries, but plays a similar role to the rippled
     nodestore.
 
-  - FBA -- "federated byzantine agreement", the component implementing the
+  - SCP -- "Stellar Consensus Protocol", the component implementing the
     new consensus algorithm.
 
 Relative to the components in the old rippled, there are a few
