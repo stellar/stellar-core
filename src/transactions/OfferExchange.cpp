@@ -60,12 +60,7 @@ OfferExchange::crossOffer(OfferFrame& sellingWheatOffer,
     if (wheat.type() == NATIVE)
     {
         // can only send above the minimum balance
-        numWheatReceived = accountB.getAccount().balance -
-                           accountB.getMinimumBalance(mLedgerManager);
-        if (numWheatReceived < 0)
-        {
-            numWheatReceived = 0;
-        }
+        numWheatReceived = accountB.getBalanceAboveReserve(mLedgerManager);
     }
     else
     {

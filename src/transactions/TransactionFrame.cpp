@@ -282,10 +282,11 @@ TransactionFrame::prepareResult(LedgerDelta& delta,
 
     if (fee > 0)
     {
-        if (mSigningAccount->getAccount().balance < fee)
+        int64_t avail = mSigningAccount->getBalanceAboveReserve(ledgerManager);
+        if (avail < fee)
         {
             // take all their balance to be safe
-            fee = mSigningAccount->getAccount().balance;
+            fee = avail;
         }
         mSigningAccount->setSeqNum(mEnvelope.tx.seqNum);
         mSigningAccount->getAccount().balance -= fee;

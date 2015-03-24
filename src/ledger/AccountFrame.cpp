@@ -86,6 +86,17 @@ AccountFrame::getMinimumBalance(LedgerManager const& lm) const
     return lm.getMinBalance(mAccountEntry.numSubEntries);
 }
 
+int64_t
+AccountFrame::getBalanceAboveReserve(LedgerManager const& lm) const
+{
+    int64_t avail = getBalance() - lm.getMinBalance(mAccountEntry.numSubEntries);
+    if (avail < 0)
+    {
+        throw std::runtime_error("Balance cannot be below reserve");
+    }
+    return avail;
+}
+
 // returns true if successfully updated,
 // false if balance is not sufficient
 bool

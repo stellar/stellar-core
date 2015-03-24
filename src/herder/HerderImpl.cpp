@@ -744,9 +744,7 @@ HerderImpl::recvTransaction(TransactionFramePtr tx)
         return false;
     }
 
-    // don't consider minBalance since you want to allow them to still send
-    // around credit etc
-    if (tx->getSourceAccount().getBalance() < totFee)
+    if (tx->getSourceAccount().getBalanceAboveReserve(mApp.getLedgerManager()) < totFee)
     {
         tx->getResult().result.code(txINSUFFICIENT_BALANCE);
         return false;

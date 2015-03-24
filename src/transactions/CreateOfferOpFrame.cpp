@@ -119,10 +119,7 @@ CreateOfferOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
     int64_t maxAmountOfSheepCanSell;
     if (sheep.type() == NATIVE)
     {
-        maxAmountOfSheepCanSell =
-            mSourceAccount->getAccount().balance -
-            ledgerManager.getMinBalance(
-                mSourceAccount->getAccount().numSubEntries);
+        maxAmountOfSheepCanSell = mSourceAccount->getBalanceAboveReserve(ledgerManager);
     }
     else
     {
