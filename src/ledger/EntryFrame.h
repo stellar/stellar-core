@@ -6,7 +6,6 @@
 
 #include "generated/StellarXDR.h"
 #include "clf/LedgerCmp.h"
-#include "lib/json/json-forwards.h"
 
 /*
 Frame

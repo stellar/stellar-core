@@ -3,7 +3,6 @@
 // this distribution or at http://opensource.org/licenses/ISC
 
 #include "LedgerHeaderFrame.h"
-#include "lib/json/json.h"
 #include "LedgerManager.h"
 #include "util/XDRStream.h"
 #include "util/Logging.h"

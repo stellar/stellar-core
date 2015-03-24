@@ -3,7 +3,6 @@
 // this distribution or at http://opensource.org/licenses/ISC
 
 #include "clf/CLFManager.h"
-#include "lib/json/json.h"
 #include "crypto/Base58.h"
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"

@@ -9,7 +9,6 @@
 #include "lib/catch.hpp"
 #include "util/Logging.h"
 #include "crypto/Base58.h"
-#include "lib/json/json.h"
 #include "TxTests.h"
 
 using namespace stellar;

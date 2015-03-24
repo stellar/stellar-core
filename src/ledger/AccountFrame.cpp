@@ -3,7 +3,6 @@
 // this distribution or at http://opensource.org/licenses/ISC
 
 #include "AccountFrame.h"
-#include "lib/json/json.h"
 #include "crypto/Base58.h"
 #include "crypto/Hex.h"
 #include "database/Database.h"

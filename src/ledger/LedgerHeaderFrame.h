@@ -5,7 +5,6 @@
 // this distribution or at http://opensource.org/licenses/ISC
 
 #include "generated/StellarXDR.h"
-#include "lib/json/json.h"
 
 namespace soci
 {

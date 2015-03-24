@@ -6,7 +6,6 @@
 #include "ledger/AccountFrame.h"
 #include "crypto/Base58.h"
 #include "crypto/SHA.h"
-#include "lib/json/json.h"
 #include "database/Database.h"
 #include "LedgerDelta.h"
 #include "util/types.h"

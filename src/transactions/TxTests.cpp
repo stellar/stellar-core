@@ -9,7 +9,6 @@
 #include "lib/catch.hpp"
 #include "util/Logging.h"
 #include "crypto/Base58.h"
-#include "lib/json/json.h"
 #include "transactions/TxTests.h"
 #include "util/types.h"
 #include "transactions/TransactionFrame.h"
