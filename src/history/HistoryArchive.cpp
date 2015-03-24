@@ -148,6 +148,21 @@ HistoryArchiveState::HistoryArchiveState()
     }
 }
 
+HistoryArchiveState::HistoryArchiveState(uint32_t ledgerSeq,
+                                         BucketList& buckets)
+    : currentLedger(ledgerSeq)
+{
+    for (size_t i = 0; i < BucketList::kNumLevels; ++i)
+    {
+        HistoryStateBucket b;
+        auto& level = buckets.getLevel(i);
+        b.curr = binToHex(level.getCurr()->getHash());
+        b.snap = binToHex(level.getSnap()->getHash());
+        currentBuckets.push_back(b);
+    }
+}
+
+
 HistoryArchive::HistoryArchive(std::string const& name,
                                std::string const& getCmd,
                                std::string const& putCmd,

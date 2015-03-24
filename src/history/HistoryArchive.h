@@ -15,6 +15,7 @@ namespace stellar
 {
 
 class Application;
+class BucketList;
 
 struct HistoryStateBucket
 {
@@ -43,6 +44,9 @@ struct HistoryArchiveState
     std::vector<HistoryStateBucket> currentBuckets;
 
     HistoryArchiveState();
+
+    HistoryArchiveState(uint32_t ledgerSeq,
+                        BucketList& buckets);
 
     static std::string baseName();
     static std::string wellKnownRemoteDir();
