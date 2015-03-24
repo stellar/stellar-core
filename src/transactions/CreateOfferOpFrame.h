@@ -26,6 +26,7 @@ class CreateOfferOpFrame : public OperationFrame
     }
 
     CreateOfferOp const& mCreateOffer;
+    bool doApplyCancelHelper(LedgerDelta& delta, LedgerManager& ledgerManager);
 
   public:
     CreateOfferOpFrame(Operation const& op, OperationResult& res,

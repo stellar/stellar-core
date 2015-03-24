@@ -72,7 +72,6 @@ FMT_SRCS =                                      \
     src/simulation/Simulation.cpp               \
     src/simulation/Topologies.cpp               \
     src/transactions/AllowTrustOpFrame.cpp      \
-    src/transactions/CancelOfferOpFrame.cpp     \
     src/transactions/ChangeTrustOpFrame.cpp     \
     src/transactions/CreateOfferOpFrame.cpp     \
     src/transactions/InflationOpFrame.cpp       \
@@ -153,7 +152,6 @@ FMT_HDRS =                                      \
     src/simulation/Simulation.h                 \
     src/simulation/Topologies.h                 \
     src/transactions/AllowTrustOpFrame.h        \
-    src/transactions/CancelOfferOpFrame.h       \
     src/transactions/ChangeTrustOpFrame.h       \
     src/transactions/CreateOfferOpFrame.h       \
     src/transactions/InflationOpFrame.h         \

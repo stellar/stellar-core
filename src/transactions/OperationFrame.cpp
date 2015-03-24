@@ -9,7 +9,6 @@
 #include "util/Logging.h"
 #include "ledger/LedgerDelta.h"
 #include "transactions/AllowTrustOpFrame.h"
-#include "transactions/CancelOfferOpFrame.h"
 #include "transactions/CreateOfferOpFrame.h"
 #include "transactions/ChangeTrustOpFrame.h"
 #include "transactions/InflationOpFrame.h"
@@ -33,8 +32,6 @@ OperationFrame::makeHelper(Operation const& op, OperationResult& res,
         return shared_ptr<OperationFrame>(new PaymentOpFrame(op, res, tx));
     case CREATE_OFFER:
         return shared_ptr<OperationFrame>(new CreateOfferOpFrame(op, res, tx));
-    case CANCEL_OFFER:
-        return shared_ptr<OperationFrame>(new CancelOfferOpFrame(op, res, tx));
     case SET_OPTIONS:
         return shared_ptr<OperationFrame>(new SetOptionsOpFrame(op, res, tx));
     case CHANGE_TRUST:

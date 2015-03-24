@@ -229,27 +229,31 @@ applyCreditPaymentTx(Application& app, SecretKey& from, SecretKey& to,
 }
 
 TransactionFramePtr
-createOfferOp(SecretKey& source, Currency& takerGets, Currency& takerPays,
-              Price const& price, int64_t amount, SequenceNumber seq)
+createOfferOp(uint64 offerId, SecretKey& source, 
+              Currency& takerGets, Currency& takerPays,
+              Price const& price, int64_t amount, 
+              SequenceNumber seq)
 {
     Operation op;
     op.body.type(CREATE_OFFER);
     op.body.createOfferOp().amount = amount;
     op.body.createOfferOp().takerGets = takerGets;
     op.body.createOfferOp().takerPays = takerPays;
+    op.body.createOfferOp().offerID = offerId;
     op.body.createOfferOp().price = price;
 
     return transactionFromOperation(source, seq, op);
 }
 
 static CreateOfferResult
-applyCreateOfferHelper(Application& app, LedgerDelta& delta, SecretKey& source,
+applyCreateOfferHelper(Application& app, LedgerDelta& delta, uint64 offerId, 
+                       SecretKey& source,
                        Currency& takerGets, Currency& takerPays,
                        Price const& price, int64_t amount, SequenceNumber seq)
 {
     TransactionFramePtr txFrame;
 
-    txFrame = createOfferOp(source, takerGets, takerPays, price, amount, seq);
+    txFrame = createOfferOp(offerId, source, takerGets, takerPays, price, amount, seq);
 
     txFrame->apply(delta, app);
 
@@ -263,14 +267,15 @@ applyCreateOfferHelper(Application& app, LedgerDelta& delta, SecretKey& source,
 }
 
 uint64_t
-applyCreateOffer(Application& app, LedgerDelta& delta, SecretKey& source,
+applyCreateOffer(Application& app, LedgerDelta& delta, uint64 offerId, 
+                 SecretKey& source,
                  Currency& takerGets, Currency& takerPays, Price const& price,
                  int64_t amount, SequenceNumber seq)
 {
     uint64_t expectedOfferID = delta.getHeaderFrame().getLastGeneratedID() + 1;
 
     CreateOfferResult const& createOfferRes = applyCreateOfferHelper(
-        app, delta, source, takerGets, takerPays, price, amount, seq);
+        app, delta, offerId, source, takerGets, takerPays, price, amount, seq);
 
     REQUIRE(createOfferRes.code() == CREATE_OFFER_SUCCESS);
 
@@ -291,13 +296,14 @@ applyCreateOffer(Application& app, LedgerDelta& delta, SecretKey& source,
 
 CreateOfferResult
 applyCreateOfferWithResult(Application& app, LedgerDelta& delta,
+                           uint64 offerId, 
                            SecretKey& source, Currency& takerGets,
                            Currency& takerPays, Price const& price,
                            int64_t amount, SequenceNumber seq,
                            CreateOfferResultCode result)
 {
     CreateOfferResult const& createOfferRes = applyCreateOfferHelper(
-        app, delta, source, takerGets, takerPays, price, amount, seq);
+        app, delta, offerId, source, takerGets, takerPays, price, amount, seq);
 
     REQUIRE(createOfferRes.code() == result);
 
