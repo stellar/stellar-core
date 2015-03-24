@@ -87,6 +87,9 @@ struct HistoryArchiveState
 
     void save(std::string const& outFile) const;
     void load(std::string const& inFile);
+
+    std::string toString() const;
+    void fromString(std::string const& str);
 };
 
 class HistoryArchive : public std::enable_shared_from_this<HistoryArchive>

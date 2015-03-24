@@ -24,6 +24,7 @@
 
 #include <iostream>
 #include <fstream>
+#include <sstream>
 #include <set>
 
 namespace stellar
@@ -37,10 +38,29 @@ HistoryArchiveState::save(std::string const& outFile) const
     serialize(ar);
 }
 
+std::string
+HistoryArchiveState::toString() const
+{
+    std::ostringstream out;
+    {
+        cereal::JSONOutputArchive ar(out);
+        serialize(ar);
+    }
+    return out.str();
+}
+
 void
 HistoryArchiveState::load(std::string const& inFile)
 {
     std::ifstream in(inFile);
+    cereal::JSONInputArchive ar(in);
+    serialize(ar);
+}
+
+void
+HistoryArchiveState::fromString(std::string const& str)
+{
+    std::istringstream in(str);
     cereal::JSONInputArchive ar(in);
     serialize(ar);
 }
