@@ -27,6 +27,33 @@
 
 using namespace stellar;
 
+namespace CLFTests
+{
+size_t mask(size_t v, size_t m) 
+{
+    return (v & ~(m - 1));
+}
+size_t size(size_t i)
+{
+    return 1 << (2 * (i + 1));
+}
+size_t half(size_t i)
+{
+    return size(i) >> 1;
+}
+size_t prev(size_t i)
+{
+    return size(i - 1);
+}
+size_t lowBoundExclusive(size_t level, size_t ledger)
+{
+    return mask(ledger, size(level));
+}
+size_t highBoundInclusive(size_t level, size_t ledger)
+{
+    return mask(ledger, prev(level));
+}
+
 static std::ifstream::pos_type
 fileSize(std::string const& name)
 {
@@ -41,6 +68,10 @@ countEntries(std::shared_ptr<Bucket> bucket)
     auto pair = bucket->countLiveAndDeadEntries();
     return pair.first + pair.second;
 }
+
+}
+
+using namespace CLFTests;
 
 TEST_CASE("bucket list", "[clf]")
 {
@@ -380,7 +411,7 @@ TEST_CASE("single entry bubbling up", "[clf][clfbubble]")
 
         CLOG(DEBUG, "CLF") << "Adding empty batches to bucket list";
         for (uint32_t i = 2;
-             !app->getClock().getIOService().stopped() && i < 130; ++i)
+             !app->getClock().getIOService().stopped() && i < 300; ++i)
         {
             app->getClock().crank(false);
             bl.addBatch(*app, i, emptySetEntry, emptySet);
@@ -389,25 +420,29 @@ TEST_CASE("single entry bubbling up", "[clf][clfbubble]")
                                    << ", hash=" << binToHex(bl.getHash());
 
             CLOG(DEBUG, "CLF") << "------- ledger " << i;
-            uint32_t elemCount = 0;
+
             for (size_t j = 0; j <= bl.numLevels() - 1; ++j)
             {
+                size_t lb = lowBoundExclusive(j, i);
+                size_t hb = highBoundInclusive(j, i);
+
                 auto const& lev = bl.getLevel(j);
                 auto currSz = countEntries(lev.getCurr());
                 auto snapSz = countEntries(lev.getSnap());
                 CLOG(DEBUG, "CLF") << "ledger " << i << ", level " << j
-                                   << " curr=" << currSz << " snap=" << snapSz;
-                uint32_t elemCountHigh = elemCount + bl.levelSize(j);
-                if (i >= elemCount && i < elemCountHigh)
+                                   << " curr=" << currSz
+                                   << " snap=" << snapSz;
+
+                if (1 > lb && 1 <= hb)
                 {
                     REQUIRE((currSz + snapSz) == 1);
                 }
                 else
                 {
-                    CHECK(currSz == 0);
-                    CHECK(snapSz == 0);
+                    REQUIRE(currSz == 0);
+                    REQUIRE(snapSz == 0);
                 }
-                elemCount = elemCountHigh;
+
             }
         }
     }
