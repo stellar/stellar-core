@@ -1,8 +1,9 @@
-[![Build Status](https://magnum.travis-ci.com/stellar/hayashi.svg?token=u11W8KHX2y4hfGqbzE1E)]
+[![Build Status](https://magnum.travis-ci.com/stellar/stellar-core.svg?token=u11W8KHX2y4hfGqbzE1E)]
 
 # Contributing
 
-  We're thriving to keep master's history with minimal merge bubbles. To achieve this, we're asking PRs to be submitted rebased on top of master.
+We're thriving to keep master's history with minimal merge bubbles. To achieve
+this, we're asking PRs to be submitted rebased on top of master.
 
 To keep your local repository in a "rebased" state, simply run:
 
@@ -17,13 +18,13 @@ Code formatting wise, we have a `.clang-format` config file that you should use 
 # Running tests
 
 run tests with:
-  `bin/stellard --test`
+  `bin/stellar-core --test`
 
 run one test with:
-  `bin/stellard --test  testName`
+  `bin/stellar-core --test  testName`
 
 run one test category with:
-  `bin/stellard --test '[categoryName]'`
+  `bin/stellar-core --test '[categoryName]'`
 
 Categories (or tags) can be combined: AND-ed (by juxtaposition) or OR-ed (by comma-listing).
 
@@ -43,7 +44,7 @@ Tests tagged as [.] or [hide] are not part of the default test test.
 We adopt the convention of tagging a stress-test for subsystem foo as [foo-stress][stress][hide].
 
 Then, running
-* `stellard --test [stress]` will run all the stress tests,
-* `stellard --test [foo-stress]` will run the stress tests for subsystem foo alone, and
-* neither `stellard --test` nor `stellard --test [foo]` will run stress tests.
+* `stellar-core --test [stress]` will run all the stress tests,
+* `stellar-core --test [foo-stress]` will run the stress tests for subsystem foo alone, and
+* neither `stellar-core --test` nor `stellar-core --test [foo]` will run stress tests.
 

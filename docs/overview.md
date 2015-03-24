@@ -1,6 +1,6 @@
-#Hayashi
+# Stellar-core
 
-Hayashi is a C++ implementation of the Stellar protocol. (see stellar_overview.md)
+Stellar-core is a C++ implementation of the Stellar protocol. (see stellar_overview.md)
 
 The goal is to be able to scale to 500M accounts and 2000 transactions/second on reasonable hardware.
 
@@ -12,7 +12,7 @@ see http://www.scs.stanford.edu/~dm/noindex/scp.pdf
 It has no knowledge of the rest of the system. 
 
 ##Herder
-This is responsible for interfacing between SCP and th rest of Hayashi. It determines if SCP ballot values are valid or not. 
+This is responsible for interfacing between SCP and the rest of stellar-core. It determines if SCP ballot values are valid or not.
 
 ##Overlay
 This is the connection layer. It handles things like: 

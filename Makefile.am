@@ -7,7 +7,7 @@
 
 SUBDIRS =
 noinst_LTLIBRARIES = libsoci.la
-bin_PROGRAMS = bin/stellard
+bin_PROGRAMS = bin/stellar-core
 
 FMT_SRCS =                                      \
     src/clf/Bucket.cpp                          \
@@ -176,50 +176,57 @@ FMT_HDRS =                                      \
     src/util/optional.h                         \
     src/util/types.h
 
-BUILT_SOURCES = src/generated/StellardVersion.h                                 \
+BUILT_SOURCES = src/generated/StellarCoreVersion.h                              \
                 src/generated/StellarXDR.h                                      \
                 src/generated/SCPXDR.h
 
-bin_stellard_SOURCES = $(FMT_SRCS) \
-                       $(BUILT_SOURCES) \
-                       src/lib/util/getopt_long.c  \
-                       src/lib/util/format.cc      \
-                       src/lib/util/uint128_t.cpp  \
-                       src/lib/json/jsoncpp.cpp    \
-                       src/lib/http/HttpClient.cpp \
-                       src/lib/http/connection.cpp \
-                       src/lib/http/connection_manager.cpp \
-                       src/lib/http/reply.cpp \
-                       src/lib/http/request_parser.cpp \
-                       src/lib/http/server.cpp \
-                       src/lib/asio/src/asio.cpp
+bin_stellar_core_SOURCES =                      \
+    $(FMT_SRCS)                                 \
+    $(BUILT_SOURCES)                            \
+    src/lib/util/getopt_long.c                  \
+    src/lib/util/format.cc                      \
+    src/lib/util/uint128_t.cpp                  \
+    src/lib/json/jsoncpp.cpp                    \
+    src/lib/http/HttpClient.cpp                 \
+    src/lib/http/connection.cpp                 \
+    src/lib/http/connection_manager.cpp         \
+    src/lib/http/reply.cpp                      \
+    src/lib/http/request_parser.cpp             \
+    src/lib/http/server.cpp                     \
+    src/lib/asio/src/asio.cpp
 
-bin_stellard_CPPFLAGS = -I$(top_srcdir)/src \
-                        -I$(builddir)/src \
-                        -I$(srcdir)/src/lib/autocheck/include \
-                        -I$(srcdir)/src/lib/cereal/include \
-                        -I$(srcdir)/src/lib/util \
-                        -I$(srcdir)/src/lib/asio/include -DASIO_SEPARATE_COMPILATION \
-                        -I$(srcdir)/src/lib/soci/src/core \
-                        -I$(srcdir)/src/lib/soci/src/backends/sqlite3 \
-                        $(libsodium_CFLAGS) \
-                        $(xdrpp_CFLAGS) \
-                        $(sqlite_CFLAGS) \
-                        $(libpq_CFLAGS) -fno-omit-frame-pointer \
-                        $(libmedida_CFLAGS) -g -O2
+bin_stellar_core_CPPFLAGS =                         \
+    $(libsodium_CFLAGS)                             \
+    $(xdrpp_CFLAGS)                                 \
+    $(sqlite_CFLAGS)                                \
+    $(libpq_CFLAGS)                                 \
+    $(libmedida_CFLAGS)                             \
+    -fno-omit-frame-pointer                         \
+    -g -O2                                          \
+    -DASIO_SEPARATE_COMPILATION                     \
+    -I$(top_srcdir)/src                             \
+    -I$(builddir)/src                               \
+    -I$(srcdir)/src/lib/autocheck/include           \
+    -I$(srcdir)/src/lib/cereal/include              \
+    -I$(srcdir)/src/lib/util                        \
+    -I$(srcdir)/src/lib/asio/include                \
+    -I$(srcdir)/src/lib/soci/src/core               \
+    -I$(srcdir)/src/lib/soci/src/backends/sqlite3
 
-bin_stellard_LDADD = libsoci.la \
-                     $(libsodium_LIBS) \
-                     $(xdrpp_LIBS) \
-                     $(sqlite_LIBS) \
-                     $(libpq_LIBS) \
-                     $(libmedida_LIBS) 
-bin_stellard_DEPENDENCIES =
+bin_stellar_core_LDADD =                        \
+    libsoci.la                                  \
+    $(libsodium_LIBS)                           \
+    $(xdrpp_LIBS)                               \
+    $(sqlite_LIBS)                              \
+    $(libpq_LIBS)                               \
+    $(libmedida_LIBS)
+
+bin_stellar_core_DEPENDENCIES =
 
 if LIBSODIUM_INTERNAL
 LIBSODIUM_DIR=src/lib/libsodium
 LIBSODIUM=$(top_builddir)/$(LIBSODIUM_DIR)/src/libsodium/libsodium.la
-bin_stellard_LDADD += $(LIBSODIUM)
+bin_stellar_core_LDADD += $(LIBSODIUM)
 SUBDIRS += $(LIBSODIUM_DIR)
 $(LIBSODIUM):
 	$(MAKE) -C $(top_builddir)/$(LIBSODIUM_DIR)
@@ -229,8 +236,8 @@ if SQLITE_INTERNAL
 noinst_LTLIBRARIES += libsqlite.la
 libsqlite_la_SOURCES = src/lib/sqlite/sqlite3.c src/lib/sqlite/sqlite3.h
 libsqlite_la_CPPFLAGS = -I$(srcdir)/src/lib/sqlite -DSQLITE_OMIT_LOAD_EXTENSION
-bin_stellard_DEPENDENCIES += libsqlite.la
-bin_stellard_LDADD += libsqlite.la
+bin_stellar_core_DEPENDENCIES += libsqlite.la
+bin_stellar_core_LDADD += libsqlite.la
 endif
 
 libsoci_la_CPPFLAGS = -I$(srcdir)/src/lib/soci/src/core \
@@ -262,7 +269,7 @@ libsoci_la_SOURCES = src/lib/soci/src/backends/sqlite3/standard-use-type.cpp    
     src/lib/soci/src/core/procedure.cpp src/lib/soci/src/core/use-type.cpp
 
 if USE_POSTGRES
-bin_stellard_CPPFLAGS += -DUSE_POSTGRES
+bin_stellar_core_CPPFLAGS += -DUSE_POSTGRES
 libsoci_la_CPPFLAGS += -I$(srcdir)/src/lib/soci/src/backends/postgresql \
                          $(libpq_CFLAGS)
 
@@ -283,7 +290,7 @@ endif
 if XDRPP_INTERNAL
 XDRPP_DIR=src/lib/xdrpp
 XDRPP=$(top_builddir)/$(XDRPP_DIR)/xdrpp/libxdrpp.a
-bin_stellard_LDADD += $(XDRPP)
+bin_stellar_core_LDADD += $(XDRPP)
 SUBDIRS += $(XDRPP_DIR)
 $(XDRC) $(XDRPP):
 	$(MAKE) -C $(top_builddir)/$(XDRPP_DIR)
@@ -332,19 +339,19 @@ libmedida_la_SOURCES = src/lib/libmedida/src/medida/metered_interface.h         
     src/lib/libmedida/src/medida/sampling_interface.h                           \
     src/lib/libmedida/src/medida/timer.cc
 libmedida_la_CPPFLAGS = -I$(srcdir)/src/lib/libmedida/src
-bin_stellard_DEPENDENCIES += libmedida.la
-bin_stellard_LDADD += libmedida.la
+bin_stellar_core_DEPENDENCIES += libmedida.la
+bin_stellar_core_LDADD += libmedida.la
 endif
 
 CLEANFILES = $(BUILT_SOURCES)
 GITDIR = $(top_srcdir)/.git
-src/generated/StellardVersion.h: Makefile
+src/generated/StellarCoreVersion.h: Makefile
 	$(AM_V_GEN)mkdir -p src/generated; \
     if test -d "$(GITDIR)"; then                                            \
       (VERS="$$(GIT_DIR=$(GITDIR) git describe --always --dirty --tags)" && \
-       echo "#define STELLARD_VERSION \"$$VERS\"") >$@;                     \
+       echo "#define STELLAR_CORE_VERSION \"$$VERS\"") >$@;                     \
     else                                                                    \
-       echo "#define STELLARD_VERSION \"unknown\"" >$@;                     \
+       echo "#define STELLAR_CORE_VERSION \"unknown\"" >$@;                     \
     fi
 
 src/generated/Stellar-types.h: src/xdr/Stellar-types.x src/generated/SCPXDR.h Makefile $(XDRC)
@@ -380,13 +387,13 @@ format:
 	cd $(srcdir) && $(CLANG_FORMAT) -i $(FMT_SRCS) $(FMT_HDRS)
 endif
 
-TESTS=test/selftest-stellard
+TESTS=test/selftest-stellar-core
 
 @VALGRIND_CHECK_RULES@
 VALGRIND_FLAGS = --num-callers=30 --trace-children=yes \
           --trace-children-skip=hostname,aws,gcutil,gcloud,azure,node,python
-VALGRIND_SUPPRESSIONS_FILES = stellard.supp
-EXTRA_DIST = stellard.supp
+VALGRIND_SUPPRESSIONS_FILES = stellar-core.supp
+EXTRA_DIST = stellar-core.supp
 MOSTLYCLEANFILES =
 
 maintainer-clean-local:

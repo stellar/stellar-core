@@ -3,7 +3,7 @@
 // this distribution or at http://opensource.org/licenses/ISC
 
 #include "test.h"
-#include "generated/StellardVersion.h"
+#include "generated/StellarCoreVersion.h"
 #include "main/Config.h"
 #include "util/make_unique.h"
 #include <time.h>
@@ -41,7 +41,7 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
 
     if (!cfgs[instanceNumber])
     {
-        gTestRoots.emplace_back("stellard-test");
+        gTestRoots.emplace_back("stellar-core-test");
 
         std::string rootDir = gTestRoots.back().getName();
         rootDir += "/";
@@ -104,7 +104,7 @@ test(int argc, char* const* argv, el::Level ll, std::vector<std::string> const& 
     Config const& cfg = getTestConfig();
     Logging::setLoggingToFile(cfg.LOG_FILE_PATH);
     Logging::setLogLevel(ll, nullptr);
-    LOG(INFO) << "Testing stellard-hayashi " << STELLARD_VERSION;
+    LOG(INFO) << "Testing stellar-core " << STELLAR_CORE_VERSION;
     LOG(INFO) << "Logging to " << cfg.LOG_FILE_PATH;
 
     return Catch::Session().run(argc, argv);

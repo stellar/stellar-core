@@ -173,13 +173,13 @@ private:
 // non-synchronized helper for the other functions
 void do_unload(std::string const & name)
 {
-    // Stellard customization: no dynamic loading of backends.
+    // Stellar-core customization: no dynamic loading of backends.
 }
 
 // non-synchronized helper
 void do_register_backend(std::string const & name, std::string const & shared_object)
 {
-    // Stellard customization: no dynamic loading of backends.
+    // Stellar-core customization: no dynamic loading of backends.
     throw soci_error("Failed to find shared library for backend " + name);
 }
 
@@ -262,6 +262,6 @@ SOCI_DECL void dynamic_backends::unload(std::string const& name)
 
 SOCI_DECL void dynamic_backends::unload_all()
 {
-    // Stellard customization: no dynamic loading of backends.
+    // Stellar-core customization: no dynamic loading of backends.
     factories_.clear();
 }

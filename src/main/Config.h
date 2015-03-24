@@ -31,7 +31,7 @@ class Config : public std::enable_shared_from_this<Config>
 
     // application config
 
-    // The default way hayashi starts is to load the state from disk and catch
+    // The default way stellar-core starts is to load the state from disk and catch
     // up to the network before starting SCP.
     // If you need different behavior you need to use --new or --local which set
     // the following flags:

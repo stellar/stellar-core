@@ -45,7 +45,7 @@ CLFManagerImpl::CLFManagerImpl(Application& app)
 {
 }
 
-const std::string CLFManagerImpl::kLockFilename = "stellard.lock";
+const std::string CLFManagerImpl::kLockFilename = "stellar-core.lock";
 
 static std::string
 bucketBasename(std::string const& bucketHexHash)

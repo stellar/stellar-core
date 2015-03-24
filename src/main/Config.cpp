@@ -4,7 +4,7 @@
 
 #include "main/Config.h"
 #include "history/HistoryArchive.h"
-#include "generated/StellardVersion.h"
+#include "generated/StellarCoreVersion.h"
 #include "lib/util/cpptoml.h"
 #include "util/Logging.h"
 #include "util/types.h"
@@ -18,7 +18,7 @@ Config::Config() : PEER_KEY(SecretKey::random())
 
     // non configurable
     PROTOCOL_VERSION = 1;
-    VERSION_STR = STELLARD_VERSION;
+    VERSION_STR = STELLAR_CORE_VERSION;
     REBUILD_DB = false;
     DESIRED_BASE_RESERVE = 10000000;
 
@@ -29,7 +29,7 @@ Config::Config() : PEER_KEY(SecretKey::random())
     MANUAL_CLOSE = false;
     TARGET_PEER_CONNECTIONS = 20;
     MAX_PEER_CONNECTIONS = 50;
-    LOG_FILE_PATH = "stellard.log";
+    LOG_FILE_PATH = "stellar-core.log";
     TMP_DIR_PATH = "tmp";
     BUCKET_DIR_PATH = "buckets";
     QUORUM_THRESHOLD = 1000;
