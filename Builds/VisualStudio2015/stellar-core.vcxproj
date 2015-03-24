@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" ToolsVersion="14.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|x64">
@@ -237,7 +237,6 @@
     <ClCompile Include="..\..\src\simulation\Simulation.cpp" />
     <ClCompile Include="..\..\src\simulation\Topologies.cpp" />
     <ClCompile Include="..\..\src\transactions\AllowTrustOpFrame.cpp" />
-    <ClCompile Include="..\..\src\transactions\CancelOfferOpFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\CreateOfferOpFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\InflationOpFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\InflationTests.cpp" />
@@ -348,7 +347,6 @@
     <ClInclude Include="..\..\src\simulation\Simulation.h" />
     <ClInclude Include="..\..\src\simulation\Topologies.h" />
     <ClInclude Include="..\..\src\transactions\AllowTrustOpFrame.h" />
-    <ClInclude Include="..\..\src\transactions\CancelOfferOpFrame.h" />
     <ClInclude Include="..\..\src\transactions\CreateOfferOpFrame.h" />
     <ClInclude Include="..\..\src\transactions\InflationOpFrame.h" />
     <ClInclude Include="..\..\src\transactions\MergeOpFrame.h" />
