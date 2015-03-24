@@ -45,7 +45,7 @@ namespace stellar
 // any time a subset of [key:hash:object] tuples are modified, the whole level
 // is rehashed. But we arrange for three conditions that make this tolerable:
 //
-//    1. [key:hash:object] tuples are added in _batches_, each batch 1/16 the
+//    1. [key:hash:object] tuples are added in _batches_, each batch 1/4 the
 //       size of the level. Rehashing only happens after a _batch_ is added.
 //
 //    2. The batches are propagated at frequencies that slow down in proportion
@@ -73,7 +73,7 @@ namespace stellar
 // snap(i) is "instantaneously" merged into curr(i+1).
 //
 // In reality each snap(i) is evicted once every half(i) ledgers, which will be
-// "a while"; 16x as long on each level. And snap(i) only has to
+// "a while"; 4x as long on each level. And snap(i) only has to
 // "instantaneously" update curr(i+1) when it's evicted. So the moment snap(i)
 // is initially _formed_, it forks a background thread to start merging its
 // contents with curr(i+1). So long as it completes that work before it's
@@ -92,13 +92,13 @@ namespace stellar
 // ---------
 //
 // Define mask(v,m) = (v & ~(m-1))
-// Define size(i) = 1 << (4*(i+1))
+// Define size(i) = 1 << (2*(i+1))
 // Define half(i) = size(i) >> 1
 // Define prev(i) = size(i-1)
 //
 // Then if ledger number is k,
 //
-// Define levels(k) = ceil(log_16(k))
+// Define levels(k) = ceil(log_4(k))
 //
 // Each level holds objects changed _in some range of ledgers_.
 //
@@ -118,32 +118,45 @@ namespace stellar
 //
 // Suppose we're on ledger 0x56789ab (decimal 90,671,531)
 //
-// We immediately know that we could represent the bucket list for this in 7
+// We immediately know that we could represent the bucket list for this in 14
 // levels, because the ledger number has 7 hex digits (alternatively:
-// ceil(log_16(ledger)) == 7). It turns out (see below re: "degeneracy")
-// that we won't use all 7, but for now let's imagine we did:
+// ceil(log_4(ledger)) == 14). It turns out (see below re: "degeneracy")
+// that we won't use all 14, but for now let's imagine we did:
 //
 // The levels would then hold objects changed in the following ranges:
 //
-// level[0]  curr=(0x56789a8, 0x56789ab], snap=(0x56789a0, 0x56789a8]
-// level[1]  curr=(0x5678980, 0x56789a0], snap=(0x5678900, 0x5678980]
-// level[2]  curr=(0x5678800, 0x5678900], snap=(0x5678000, 0x5678800]
-// level[3]  curr= ------ empty ------  , snap=(0x5670000, 0x5678000]
-// level[4]  curr=(0x5600000, 0x5670000], snap= ------ empty ------
-// level[5]  curr=(0x5000000, 0x5600000], snap= ------ empty ------
-// level[6]  curr=(0x0, 0x5000000],       snap= ------ empty ------
+// level[0] curr=(0x56789aa, 0x56789ab],  snap=(0x56789a8, 0x56789aa]
+// level[1] curr=(0x56789a8, 0x56789a8],  snap=(0x56789a0, 0x56789a8]
+// level[2] curr=(0x56789a0, 0x56789a0],  snap=(0x5678980, 0x56789a0]
+// level[3] curr=(0x5678980, 0x5678980],  snap=(0x5678900, 0x5678980]
+// level[4] curr=(0x5678800, 0x5678900],  snap=(0x5678800, 0x5678800]
+// level[5] curr=(0x5678800, 0x5678800],  snap=(0x5678000, 0x5678800]
+// level[6] curr=(0x5678000, 0x5678000],  snap=(0x5678000, 0x5678000]
+// level[7] curr=(0x5678000, 0x5678000],  snap=(0x5670000, 0x5678000]
+// level[8] curr=(0x5660000, 0x5670000],  snap=(0x5640000, 0x5660000]
+// level[9] curr=(0x5600000, 0x5640000],  snap= ------ empty ------
+// level[10] curr= ------ empty ------ ,  snap=(0x5400000, 0x5600000]
+// level[11] curr=(0x5000000, 0x5400000], snap= ------ empty ------
+// level[12] curr=(0x4000000, 0x5000000], snap= ------ empty ------
+// level[13] curr=(0x0, 0x4000000],       snap= ------ empty ------
 //
 // Assuming a ledger closes every 5 seconds, here are the timespans
 // covered by each level:
 //
-// L0: 80 seconds  (16 ledgers)
-// L1: 21.3 min    (256 ledgers)
-// L2: 5.7 hours   (4,096 ledgers)
-// L3: 3.8 days    (65,536 ledgers)
-// L4: 60.7 days   (1,048,576 ledgers)
-// L5: 2.66 years  (16,777,216 ledgers)
-// L6: 42.5 years  (268,435,456 ledgers)
-// L7: 681 years   (4,294,967,296 ledgers)
+// L0:   20 seconds      (4 ledgers)
+// L1:   80 seconds      (16 ledgers)
+// L2:    5 minutes      (64 ledgers)
+// L3:   21 minutes      (256 ledgers)
+// L4:   85 minutes      (1024 ledgers)
+// L5:    5 hours        (4096 ledgers)
+// L6:   22 hours        (16384 ledgers)
+// L7:    3 days         (65536 ledgers)
+// L8:   15 days         (262144 ledgers)
+// L9:   60 days         (1048576 ledgers)
+// L10: 242 days         (4194304 ledgers)
+// L11:   2 years        (16777216 ledgers)
+// L12:  10 years        (67108864 ledgers)
+// L13:  42 years        (268435456 ledgers)
 //
 //
 // Performance:
@@ -190,7 +203,7 @@ namespace stellar
 // Degeneracy and limits:
 // ----------------------
 //
-// Beyond level 4, a certain degeneracy takes over. "Objects changed over the
+// Beyond level 9, a certain degeneracy takes over. "Objects changed over the
 // course of a million ledgers" starts to sound like "the entire database": if
 // we're getting 10,000 objects changed per ledger, a million ledgers means
 // touching 10 billion objects. It's unlikely that we're going to have _much_
@@ -209,8 +222,8 @@ namespace stellar
 // history before: the state of the _full_ database at a certain point in the
 // past, with no implied dependence on deeper history beneath it.
 //
-// We therefore cut off at level 4. Level 5 doesn't exist: it's "the entire
-// database", which we update with a half-level-4 snapshot every half-million
+// We therefore cut off at level 9. Level 10 doesn't exist: it's "the entire
+// database", which we update with a half-level-9 snapshot every half-million
 // ledgers. Which is "once a month" (at 5s per ledger).
 //
 // Cutting off at a fixed level carries a minor design risk: that the database
