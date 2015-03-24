@@ -50,8 +50,6 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
     mServer->addRoute("info", std::bind(&CommandHandler::info, this, _1, _2));
     mServer->addRoute("metrics",
                       std::bind(&CommandHandler::metrics, this, _1, _2));
-    mServer->addRoute("reload_cfg",
-                      std::bind(&CommandHandler::reloadCfg, this, _1, _2));
     mServer->addRoute("logrotate",
                       std::bind(&CommandHandler::logRotate, this, _1, _2));
     mServer->addRoute("connect",
@@ -161,22 +159,6 @@ CommandHandler::metrics(const std::string& params, std::string& retStr)
 {
     medida::reporting::JsonReporter jr(mApp.getMetrics());
     retStr = jr.Report();
-}
-
-void
-CommandHandler::reloadCfg(const std::string& params, std::string& retStr)
-{
-    std::string filename = params.substr(6);
-    if (filename.size())
-    {
-        retStr = "Loading new Config file";
-        // GRAYDON: do we want to call this from some other thread?
-        // mApp.mConfig.load(filename);
-    }
-    else
-    {
-        retStr = "Must specify a filename: reload_cfg&file=????";
-    }
 }
 
 void
