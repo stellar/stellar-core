@@ -17,6 +17,7 @@ before_install:
 - sudo apt-get install -qq autoconf automake libtool pkg-config flex bison clang-3.5 llvm-3.5 g++-4.9 libstdc++6 libpq5 libpq-dev
 - sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-4.9 90 --slave /usr/bin/g++ g++ /usr/bin/g++-4.9
 - sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-3.5 90 --slave /usr/bin/clang++ clang++ /usr/bin/clang++-3.5
+- sudo update-alternatives --install /usr/bin/llvm-symbolizer llvm-symbolizer /usr/bin/llvm-symbolizer-3.5 90
 - sudo rm -Rf /usr/local/clang*
 - hash -r
 - clang -v
@@ -36,7 +37,7 @@ before_script:
 script:
 - set -e
 - ./autogen.sh
-- ./configure
+- CXXFLAGS='-fsanitize=address -fno-omit-frame-pointer -g' CFLAGS='-fsanitize=address -fno-omit-frame-pointer -g' ./configure
 - make
 - make check
 notifications:
