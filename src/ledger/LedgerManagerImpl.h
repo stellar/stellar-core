@@ -46,62 +46,33 @@ class LedgerManagerImpl : public LedgerManager
                          HistoryManager::ResumeMode mode,
                          LedgerHeaderHistoryEntry const& lastClosed);
 
-  public:
-    typedef std::shared_ptr<LedgerManagerImpl> pointer;
-    typedef const std::shared_ptr<LedgerManagerImpl>& ref;
+    void closeLedgerHelper(LedgerDelta const& delta);
+    void advanceLedgerPointers();
 
-    // Logging helpers
-    static std::string ledgerAbbrev(LedgerHeader const& header,
-                                    uint256 const& hash);
-    static std::string ledgerAbbrev(LedgerHeaderFrame::pointer p);
-    static std::string ledgerAbbrev(LedgerHeaderHistoryEntry he);
+  public:
 
     LedgerManagerImpl(Application& app);
 
-    //////// GATEWAY FUNCTIONS
-    // called by txherder
     void externalizeValue(LedgerCloseData ledgerData) override;
 
     uint32_t getLedgerNum() const override;
-    int64_t getMinBalance(uint32_t ownerCount) const;
-    int64_t getTxFee() const override; // fee is a 32 bit but we use 64 to avoid
-                                       // overflow when doing math
+    uint32_t getLastClosedLedgerNum() const override;
+    int64_t getMinBalance(uint32_t ownerCount) const override;
+    int64_t getTxFee() const override;
     uint64_t getCloseTime() const override;
+    uint64_t secondsSinceLastLedgerClose() const override;
 
-    ///////
+    void startNewLedger() override;
+    void loadLastKnownLedger() override;
 
-    uint64_t secondsSinceLastLedgerClose() const;
+    LedgerHeaderHistoryEntry const& getLastClosedLedgerHeader() const override;
+    LedgerHeader const& getCurrentLedgerHeader() const override;
+    LedgerHeader& getCurrentLedgerHeader() override;
 
-    void startNewLedger();
-    void loadLastKnownLedger();
+    Database& getDatabase() override;
 
-    // establishes that our internal representation is in sync with passed
-    // ledger
-    // bool ensureSync(Ledger::pointer lastClosedLedger);
-
-    // called before starting to make changes to the db
-    void beginClosingLedger();
-    // called every time we successfully closed a ledger
-    // bool commitLedgerClose(Ledger::pointer ledger);
-    // called when we could not close the ledger
-    void abortLedgerClose();
-
-    LedgerHeader& getCurrentLedgerHeader();
-    LedgerHeader const& getCurrentLedgerHeader() const;
-
-    LedgerHeaderHistoryEntry const& getLastClosedLedgerHeader() const;
-    uint32_t getLastClosedLedgerNum() const;
-
-    Database& getDatabase();
-
-    void closeLedger(LedgerCloseData ledgerData);
-
-    void startCatchUp(uint32_t initLedger, HistoryManager::ResumeMode resume);
-
-    HistoryManager::VerifyHashStatus verifyCatchupCandidate(LedgerHeaderHistoryEntry const&) const;
-
-  private:
-    void closeLedgerHelper(LedgerDelta const& delta);
-    void advanceLedgerPointers();
+    void startCatchUp(uint32_t initLedger, HistoryManager::ResumeMode resume) override;
+    HistoryManager::VerifyHashStatus verifyCatchupCandidate(LedgerHeaderHistoryEntry const&) const override;
+    void closeLedger(LedgerCloseData ledgerData) override;
 };
 }

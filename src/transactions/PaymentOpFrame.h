@@ -9,7 +9,7 @@ class PaymentOpFrame : public OperationFrame
 {
     // destination must exist
     bool sendNoCreate(AccountFrame& destination, LedgerDelta& delta,
-                      LedgerManagerImpl& ledgerMaster);
+                      LedgerManager& ledgerManager);
 
     PaymentResult&
     innerResult()
@@ -22,7 +22,7 @@ class PaymentOpFrame : public OperationFrame
     PaymentOpFrame(Operation const& op, OperationResult& res,
                    TransactionFrame& parentTx);
 
-    bool doApply(LedgerDelta& delta, LedgerManagerImpl& ledgerMaster);
+    bool doApply(LedgerDelta& delta, LedgerManager& ledgerManager);
     bool doCheckValid(Application& app);
 
     static PaymentResultCode

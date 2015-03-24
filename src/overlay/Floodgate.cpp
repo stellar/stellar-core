@@ -6,7 +6,7 @@
 #include "overlay/OverlayManagerImpl.h"
 #include "xdrpp/marshal.h"
 #include "crypto/SHA.h"
-#include "ledger/LedgerManagerImpl.h"
+#include "ledger/LedgerManager.h"
 #include "main/Application.h"
 
 namespace stellar
@@ -50,7 +50,7 @@ Floodgate::addRecord(StellarMessage const& msg, Peer::pointer peer)
     if (result == mFloodMap.end())
     { // we have never seen this message
         mFloodMap[index] = std::make_shared<FloodRecord>(
-            msg, mApp.getLedgerManagerImpl().getLedgerNum(), peer);
+            msg, mApp.getLedgerManager().getLedgerNum(), peer);
         return true;
     }
     else
@@ -69,7 +69,7 @@ Floodgate::broadcast(StellarMessage const& msg, bool force)
     if (result == mFloodMap.end() || force)
     { // no one has sent us this message
         FloodRecord::pointer record = std::make_shared<FloodRecord>(
-            msg, mApp.getLedgerManagerImpl().getLedgerNum(), Peer::pointer());
+            msg, mApp.getLedgerManager().getLedgerNum(), Peer::pointer());
         record->mPeersTold = mApp.getOverlayManagerImpl().getPeers();
 
         mFloodMap[index] = record;

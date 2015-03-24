@@ -18,7 +18,7 @@ class SetOptionsOpFrame : public OperationFrame
     SetOptionsOpFrame(Operation const& op, OperationResult& res,
                       TransactionFrame& parentTx);
 
-    bool doApply(LedgerDelta& delta, LedgerManagerImpl& ledgerMaster);
+    bool doApply(LedgerDelta& delta, LedgerManager& ledgerManager);
     bool doCheckValid(Application& app);
 
     static SetOptionsResultCode

@@ -7,7 +7,7 @@
 #include <ctime>
 #include "math.h"
 #include "herder/TxSetFrame.h"
-#include "ledger/LedgerManagerImpl.h"
+#include "ledger/LedgerManager.h"
 #include "overlay/OverlayManagerImpl.h"
 #include "main/Application.h"
 #include "main/Config.h"
@@ -130,7 +130,7 @@ HerderImpl::bootstrap()
     assert(mApp.getConfig().START_NEW_NETWORK);
 
     mApp.setState(Application::SYNCED_STATE);
-    mLastClosedLedger = mApp.getLedgerManagerImpl().getLastClosedLedgerHeader();
+    mLastClosedLedger = mApp.getLedgerManager().getLastClosedLedgerHeader();
     triggerNextLedger();
 }
 

@@ -73,9 +73,9 @@ CreateOfferOpFrame::checkOfferValid(Database& db)
 // TODO: revisit this, offer code should share logic with payment code
 //      to keep the code working, I ended up duplicating the error codes
 bool
-CreateOfferOpFrame::doApply(LedgerDelta& delta, LedgerManagerImpl& ledgerMaster)
+CreateOfferOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
 {
-    Database& db = ledgerMaster.getDatabase();
+    Database& db = ledgerManager.getDatabase();
 
     if (!checkOfferValid(db))
     {
@@ -121,7 +121,7 @@ CreateOfferOpFrame::doApply(LedgerDelta& delta, LedgerManagerImpl& ledgerMaster)
     {
         maxAmountOfSheepCanSell =
             mSourceAccount->getAccount().balance -
-            ledgerMaster.getMinBalance(
+            ledgerManager.getMinBalance(
                 mSourceAccount->getAccount().numSubEntries);
     }
     else
@@ -148,7 +148,7 @@ CreateOfferOpFrame::doApply(LedgerDelta& delta, LedgerManagerImpl& ledgerMaster)
 
         int64_t sheepSent, wheatReceived;
 
-        OfferExchange oe(tempDelta, ledgerMaster);
+        OfferExchange oe(tempDelta, ledgerManager);
 
         Price maxWheatPrice(sheepPrice.d, sheepPrice.n);
 
@@ -245,7 +245,7 @@ CreateOfferOpFrame::doApply(LedgerDelta& delta, LedgerManagerImpl& ledgerMaster)
                 // make sure we don't allow us to add offers when we don't have
                 // the minbalance
                 if (mSourceAccount->getAccount().balance <
-                    ledgerMaster.getMinBalance(
+                    ledgerManager.getMinBalance(
                         mSourceAccount->getAccount().numSubEntries + 1))
                 {
                     innerResult().code(CREATE_OFFER_UNDERFUNDED);

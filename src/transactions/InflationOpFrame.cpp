@@ -12,7 +12,7 @@ InflationOpFrame::InflationOpFrame(Operation const& op, OperationResult& res,
 {
 }
 bool
-InflationOpFrame::doApply(LedgerDelta& delta, LedgerManagerImpl& ledgerMaster)
+InflationOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
 {
     // TODO.2
     innerResult().code(INFLATION_NOT_TIME);

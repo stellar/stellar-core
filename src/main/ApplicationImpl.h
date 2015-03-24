@@ -11,7 +11,7 @@ namespace stellar
 {
 class TmpDirMaster;
 class OverlayManagerImpl;
-class LedgerManagerImpl;
+class LedgerManager;
 class HerderImpl;
 class CLFManager;
 class HistoryManager;
@@ -35,7 +35,6 @@ class ApplicationImpl : public Application
     virtual medida::MetricsRegistry& getMetrics() override;
     virtual TmpDirMaster& getTmpDirMaster() override;
     virtual LedgerManager& getLedgerManager() override;
-    virtual LedgerManagerImpl& getLedgerManagerImpl() override;
     virtual CLFManager& getCLFManager() override;
     virtual HistoryManager& getHistoryManager() override;
     virtual ProcessManager& getProcessManager() override;
@@ -71,18 +70,18 @@ class ApplicationImpl : public Application
     VirtualClock& mVirtualClock;
     Config mConfig;
 
-    // NB: The io_services should come first, then the 'master'
+    // NB: The io_services should come first, then the 'manager'
     // sub-objects, then the threads. Do not reorder these fields.
     //
     // The fields must be constructed in this order, because the
-    // 'master' sub-objects register work-to-do (listening on sockets)
+    // 'manager' sub-objects register work-to-do (listening on sockets)
     // with the io_services during construction, and the threads are
     // activated immediately thereafter to serve requests; if the
     // threads started first, they would try to do work, find no work,
     // and exit.
     //
     // The fields must be destructed in the reverse order because the
-    // 'master' sub-objects contain various IO objects that refer
+    // 'manager' sub-objects contain various IO objects that refer
     // directly to the io_services.
 
     asio::io_service mWorkerIOService;
@@ -92,7 +91,7 @@ class ApplicationImpl : public Application
     std::unique_ptr<Database> mDatabase;
     std::unique_ptr<TmpDirMaster> mTmpDirMaster;
     std::unique_ptr<OverlayManagerImpl> mOverlayManagerImpl;
-    std::unique_ptr<LedgerManagerImpl> mLedgerManagerImpl;
+    std::unique_ptr<LedgerManager> mLedgerManager;
     std::unique_ptr<HerderImpl> mHerderImpl;
     std::unique_ptr<CLFManager> mCLFManager;
     std::unique_ptr<HistoryManager> mHistoryManager;

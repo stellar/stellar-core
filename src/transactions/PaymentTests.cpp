@@ -13,7 +13,7 @@
 #include "lib/json/json.h"
 #include "TxTests.h"
 #include "database/Database.h"
-#include "ledger/LedgerManagerImpl.h"
+#include "ledger/LedgerManager.h"
 #include "ledger/LedgerDelta.h"
 #include "transactions/PaymentOpFrame.h"
 #include "transactions/ChangeTrustOpFrame.h"
@@ -48,10 +48,10 @@ TEST_CASE("payment", "[tx][payment]")
     SecretKey a1 = getAccount("A");
     SecretKey b1 = getAccount("B");
 
-    int64_t txfee = app.getLedgerManagerImpl().getTxFee();
+    int64_t txfee = app.getLedgerManager().getTxFee();
 
     const uint64_t paymentAmount =
-        (uint64_t)app.getLedgerManagerImpl().getMinBalance(1) + txfee * 10;
+        (uint64_t)app.getLedgerManager().getMinBalance(1) + txfee * 10;
 
     SequenceNumber rootSeq = getAccountSeqNum(root, app) + 1;
     // create an account
@@ -109,7 +109,7 @@ TEST_CASE("payment", "[tx][payment]")
         LOG(INFO) << "send too little XLM to new account (below reserve)";
         applyPaymentTx(
             app, root, b1, rootSeq++,
-            app.getLedgerManagerImpl().getCurrentLedgerHeader().baseReserve - 1,
+            app.getLedgerManager().getCurrentLedgerHeader().baseReserve - 1,
             PAYMENT_UNDERFUNDED);
 
         AccountFrame bAccount;
@@ -140,7 +140,7 @@ TEST_CASE("payment", "[tx][payment]")
             getFirstOperation(*txFrame2).body.paymentOp().path.push_back(
                 currency);
             LedgerDelta delta2(
-                app.getLedgerManagerImpl().getCurrentLedgerHeader());
+                app.getLedgerManager().getCurrentLedgerHeader());
             txFrame2->apply(delta2, app);
 
             REQUIRE(PaymentOpFrame::getInnerCode(getFirstResult(*txFrame2)) ==
@@ -209,9 +209,9 @@ TEST_CASE("single payment tx SQL", "[singlesql][paymentsql][hide]")
 
     SecretKey root = getRoot();
     SecretKey a1 = getAccount("A");
-    int64_t txfee = app->getLedgerManagerImpl().getTxFee();
+    int64_t txfee = app->getLedgerManager().getTxFee();
     const uint64_t paymentAmount =
-        (uint64_t)app->getLedgerManagerImpl().getMinBalance(1) + txfee * 10;
+        (uint64_t)app->getLedgerManager().getMinBalance(1) + txfee * 10;
 
     SequenceNumber rootSeq = getAccountSeqNum(root, *app) + 1;
 

@@ -30,9 +30,9 @@ SetOptionsOpFrame::getNeededThreshold() const
 // make sure it doesn't allow us to add signers when we don't have the
 // minbalance
 bool
-SetOptionsOpFrame::doApply(LedgerDelta& delta, LedgerManagerImpl& ledgerMaster)
+SetOptionsOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
 {
-    Database& db = ledgerMaster.getDatabase();
+    Database& db = ledgerManager.getDatabase();
     AccountEntry& account = mSourceAccount->getAccount();
 
     if (mSetOptions.inflationDest)
@@ -75,7 +75,7 @@ SetOptionsOpFrame::doApply(LedgerDelta& delta, LedgerManagerImpl& ledgerMaster)
                     return false;
                 }
                 if (account.balance <
-                    ledgerMaster.getMinBalance(account.numSubEntries + 1))
+                    ledgerManager.getMinBalance(account.numSubEntries + 1))
                 {
                     innerResult().code(SET_OPTIONS_BELOW_MIN_BALANCE);
                     return false;

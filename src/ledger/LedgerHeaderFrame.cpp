@@ -3,8 +3,8 @@
 // this distribution or at http://opensource.org/licenses/ISC
 
 #include "LedgerHeaderFrame.h"
-#include "LedgerManagerImpl.h"
 #include "lib/json/json.h"
+#include "LedgerManager.h"
 #include "util/XDRStream.h"
 #include "util/Logging.h"
 #include "crypto/Base58.h"
@@ -67,7 +67,7 @@ LedgerHeaderFrame::generateID()
 }
 
 void
-LedgerHeaderFrame::storeInsert(LedgerManagerImpl& ledgerMaster) const
+LedgerHeaderFrame::storeInsert(LedgerManager& ledgerManager) const
 {
     getHash();
 
@@ -81,7 +81,7 @@ LedgerHeaderFrame::storeInsert(LedgerManagerImpl& ledgerMaster) const
         reinterpret_cast<const unsigned char*>(headerBytes.data()),
         headerBytes.size());
 
-    auto& db = ledgerMaster.getDatabase();
+    auto& db = ledgerManager.getDatabase();
 
     // note: columns other than "data" are there to faciliate lookup/processing
     soci::statement st =

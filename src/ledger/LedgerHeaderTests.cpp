@@ -9,7 +9,7 @@
 #include "lib/catch.hpp"
 #include "util/Logging.h"
 #include "crypto/Base58.h"
-#include "ledger/LedgerManagerImpl.h"
+#include "ledger/LedgerManager.h"
 
 #include "main/Config.h"
 
@@ -33,13 +33,13 @@ TEST_CASE("ledgerheader", "[ledger]")
         app->start();
 
         TxSetFramePtr txSet = make_shared<TxSetFrame>(
-            app->getLedgerManagerImpl().getLastClosedLedgerHeader().hash);
+            app->getLedgerManager().getLastClosedLedgerHeader().hash);
 
         // close this ledger
         LedgerCloseData ledgerData(1, txSet, 1, 10);
-        app->getLedgerManagerImpl().closeLedger(ledgerData);
+        app->getLedgerManager().closeLedger(ledgerData);
 
-        saved = app->getLedgerManagerImpl().getLastClosedLedgerHeader().hash;
+        saved = app->getLedgerManager().getLastClosedLedgerHeader().hash;
     }
 
     SECTION("load existing ledger")
@@ -52,6 +52,6 @@ TEST_CASE("ledgerheader", "[ledger]")
         app2->start();
 
         REQUIRE(saved ==
-                app2->getLedgerManagerImpl().getLastClosedLedgerHeader().hash);
+                app2->getLedgerManager().getLastClosedLedgerHeader().hash);
     }
 }

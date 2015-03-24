@@ -22,7 +22,7 @@ PaymentOpFrame::PaymentOpFrame(Operation const& op, OperationResult& res,
 }
 
 bool
-PaymentOpFrame::doApply(LedgerDelta& delta, LedgerManagerImpl& ledgerMaster)
+PaymentOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
 {
     AccountFrame destAccount;
 
@@ -33,13 +33,13 @@ PaymentOpFrame::doApply(LedgerDelta& delta, LedgerManagerImpl& ledgerMaster)
         return true;
     }
 
-    Database& db = ledgerMaster.getDatabase();
+    Database& db = ledgerManager.getDatabase();
 
     if (!AccountFrame::loadAccount(mPayment.destination, destAccount, db))
     { // this tx is creating an account
         if (mPayment.currency.type() == NATIVE)
         {
-            if (mPayment.amount < ledgerMaster.getMinBalance(0))
+            if (mPayment.amount < ledgerManager.getMinBalance(0))
             { // not over the minBalance to make an account
                 innerResult().code(PAYMENT_UNDERFUNDED);
                 return false;
@@ -61,16 +61,16 @@ PaymentOpFrame::doApply(LedgerDelta& delta, LedgerManagerImpl& ledgerMaster)
         }
     }
 
-    return sendNoCreate(destAccount, delta, ledgerMaster);
+    return sendNoCreate(destAccount, delta, ledgerManager);
 }
 
 // work backward to determine how much they need to send to get the
 // specified amount of currency to the recipient
 bool
 PaymentOpFrame::sendNoCreate(AccountFrame& destination, LedgerDelta& delta,
-                             LedgerManagerImpl& ledgerMaster)
+                             LedgerManager& ledgerManager)
 {
-    Database& db = ledgerMaster.getDatabase();
+    Database& db = ledgerManager.getDatabase();
 
     bool multi_mode = mPayment.path.size() != 0;
     if (multi_mode)
@@ -137,7 +137,7 @@ PaymentOpFrame::sendNoCreate(AccountFrame& destination, LedgerDelta& delta,
             int64_t curASent, actualCurBReceived;
             Currency const& curA = mPayment.path[i];
 
-            OfferExchange oe(delta, ledgerMaster);
+            OfferExchange oe(delta, ledgerManager);
 
             // curA -> curB
             OfferExchange::ConvertResult r =
@@ -185,7 +185,7 @@ PaymentOpFrame::sendNoCreate(AccountFrame& destination, LedgerDelta& delta,
             return false;
         }
 
-        int64_t minBalance = mSourceAccount->getMinimumBalance(ledgerMaster);
+        int64_t minBalance = mSourceAccount->getMinimumBalance(ledgerManager);
 
         if (mSourceAccount->getAccount().balance < (minBalance + curBSent))
         { // they don't have enough to send

@@ -22,7 +22,6 @@ class VirtualClock;
 class Config;
 class TmpDirMaster;
 class LedgerManager;
-class LedgerManagerImpl;
 class CLFManager;
 class HistoryManager;
 class ProcessManager;
@@ -103,7 +102,6 @@ class Application
     virtual medida::MetricsRegistry& getMetrics() = 0;
     virtual TmpDirMaster& getTmpDirMaster() = 0;
     virtual LedgerManager& getLedgerManager() = 0;
-    virtual LedgerManagerImpl& getLedgerManagerImpl() = 0;
     virtual CLFManager& getCLFManager() = 0;
     virtual HistoryManager& getHistoryManager() = 0;
     virtual ProcessManager& getProcessManager() = 0;

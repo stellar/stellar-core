@@ -16,7 +16,7 @@ class CancelOfferOpFrame : public OperationFrame
     CancelOfferOpFrame(Operation const& op, OperationResult& res,
                        TransactionFrame& parentTx);
 
-    bool doApply(LedgerDelta& delta, LedgerManagerImpl& ledgerMaster);
+    bool doApply(LedgerDelta& delta, LedgerManager& ledgerManager);
     bool doCheckValid(Application& app);
 
     static CancelOfferResultCode

@@ -139,7 +139,7 @@ CommandHandler::info(const std::string& params, std::string& retStr)
                                    "Catching up", "Synced"};
     Json::Value root;
 
-    LedgerManagerImpl& lm = mApp.getLedgerManagerImpl();
+    LedgerManager& lm = mApp.getLedgerManager();
 
     root["info"]["state"] = stateStrTable[mApp.getState()];
     root["info"]["ledger"]["num"] = (int)lm.getLedgerNum();

@@ -9,7 +9,7 @@
 // first to include <windows.h> -- so we try to include it before everything
 // else.
 #include "util/asio.h"
-#include "ledger/LedgerManagerImpl.h"
+#include "ledger/LedgerManager.h"
 #include "herder/HerderImpl.h"
 #include "overlay/OverlayManager.h"
 #include "overlay/OverlayManagerImpl.h"
@@ -78,7 +78,7 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
 
     mTmpDirMaster = make_unique<TmpDirMaster>(cfg.TMP_DIR_PATH);
     mOverlayManagerImpl = make_unique<OverlayManagerImpl>(*this);
-    mLedgerManagerImpl = make_unique<LedgerManagerImpl>(*this);
+    mLedgerManager = LedgerManager::create(*this);
     mHerderImpl = make_unique<HerderImpl>(*this);
     mCLFManager = CLFManager::create(*this);
     mHistoryManager = HistoryManager::create(*this);
@@ -201,7 +201,7 @@ ApplicationImpl::start()
             LOG(INFO) << "* Force-starting scp from scratch, creating the "
                          "genesis ledger." << flagClearedMsg;
             LOG(INFO) << "* ";
-            mLedgerManagerImpl->startNewLedger();
+            mLedgerManager->startNewLedger();
         }
         else
         {
@@ -209,13 +209,13 @@ ApplicationImpl::start()
             LOG(INFO) << "* Force-starting scp from the current db state."
                       << flagClearedMsg;
             LOG(INFO) << "* ";
-            mLedgerManagerImpl->loadLastKnownLedger();
+            mLedgerManager->loadLastKnownLedger();
         }
         mHerderImpl->bootstrap();
     }
     else
     {
-        mLedgerManagerImpl->loadLastKnownLedger();
+        mLedgerManager->loadLastKnownLedger();
     }
 }
 
@@ -311,13 +311,7 @@ ApplicationImpl::getTmpDirMaster()
 LedgerManager&
 ApplicationImpl::getLedgerManager()
 {
-    return *mLedgerManagerImpl;
-}
-
-LedgerManagerImpl&
-ApplicationImpl::getLedgerManagerImpl()
-{
-    return *mLedgerManagerImpl;
+    return *mLedgerManager;
 }
 
 CLFManager&
