@@ -11,7 +11,7 @@ namespace stellar
 {
 
 string PersistentState::mapping[kLastEntry] = {
-    "lastClosedLedger", "forceSCPOnNextLaunch", "databaseInitialized"};
+    "lastClosedLedger", "historyArchiveState", "forceSCPOnNextLaunch", "databaseInitialized"};
 
 string PersistentState::kSQLCreateStatement =
     "CREATE TABLE IF NOT EXISTS StoreState ("

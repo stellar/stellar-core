@@ -15,6 +15,7 @@ namespace stellar
 {
 
 class Application;
+class BucketList;
 
 struct HistoryStateBucket
 {
@@ -43,6 +44,9 @@ struct HistoryArchiveState
     std::vector<HistoryStateBucket> currentBuckets;
 
     HistoryArchiveState();
+
+    HistoryArchiveState(uint32_t ledgerSeq,
+                        BucketList& buckets);
 
     static std::string baseName();
     static std::string wellKnownRemoteDir();
@@ -83,6 +87,9 @@ struct HistoryArchiveState
 
     void save(std::string const& outFile) const;
     void load(std::string const& inFile);
+
+    std::string toString() const;
+    void fromString(std::string const& str);
 };
 
 class HistoryArchive : public std::enable_shared_from_this<HistoryArchive>

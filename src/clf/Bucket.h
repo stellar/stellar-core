@@ -29,6 +29,7 @@ class Bucket : public std::enable_shared_from_this<Bucket>
 
     std::string const mFilename;
     uint256 const mHash;
+    bool mRetain {false};
 
   public:
     class InputIterator;
@@ -41,6 +42,8 @@ class Bucket : public std::enable_shared_from_this<Bucket>
 
     uint256 const& getHash() const;
     std::string const& getFilename() const;
+
+    void setRetain(bool r);
 
     bool containsCLFIdentity(CLFEntry const& id) const;
     std::pair<size_t, size_t> countLiveAndDeadEntries() const;

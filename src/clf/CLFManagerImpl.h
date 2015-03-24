@@ -26,6 +26,7 @@ class TmpDir;
 class Application;
 class Bucket;
 class BucketList;
+struct HistoryArchiveState;
 
 class CLFManagerImpl : public CLFManager
 {
@@ -53,12 +54,14 @@ public:
                                               uint256 const& hash,
                                               size_t nObjects,
                                               size_t nBytes) override;
-    std::shared_ptr<Bucket> getBucketByHash(uint256 const& hash) const override;
+    std::shared_ptr<Bucket> getBucketByHash(uint256 const& hash) override;
+
     void forgetUnreferencedBuckets() override;
     void addBatch(Application& app, uint32_t currLedger,
                   std::vector<LedgerEntry> const& liveEntries,
                   std::vector<LedgerKey> const& deadEntries) override;
     void snapshotLedger(LedgerHeader& currentHeader);
+    void assumeState(HistoryArchiveState const& has);
 };
 
 }

@@ -12,6 +12,7 @@
 #include "clf/CLFManager.h"
 #include "clf/LedgerCmp.h"
 #include "crypto/Hex.h"
+#include "ledger/LedgerManagerImpl.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
 #include "main/test.h"
@@ -19,6 +20,7 @@
 #include "util/Logging.h"
 #include "util/Timer.h"
 #include "util/TmpDir.h"
+#include "util/types.h"
 #include "xdrpp/autocheck.h"
 #include <algorithm>
 #include <future>
@@ -412,5 +414,56 @@ TEST_CASE("single entry bubbling up", "[clf][clfbubble]")
         CLOG(DEBUG, "CLF") << "Test caught std::future_error " << e.code()
             << ": " << e.what();
         REQUIRE(false);
+    }
+}
+
+
+TEST_CASE("bucket persistence over app restart", "[clf][bucketpersist]")
+{
+    autocheck::generator<std::vector<LedgerEntry>> liveGen;
+    std::vector<stellar::LedgerKey> emptySet;
+    std::vector<stellar::LedgerEntry> emptySetEntry;
+
+    VirtualClock clock;
+    Config cfg(getTestConfig(0, Config::TESTDB_ON_DISK_SQLITE));
+
+    Hash bucketHash1;
+    Hash lclHash1;
+
+    {
+        Application::pointer app1 = Application::create(clock, cfg);
+        app1->start();
+        BucketList &bl1 = app1->getCLFManager().getBucketList();
+        auto lclHash0 = app1->getLedgerManagerImpl().getLastClosedLedgerHeader().hash;
+        for (size_t i = 2; i < 100; ++i)
+        {
+            bl1.addBatch(*app1, i, liveGen(1), emptySet);
+        }
+        bucketHash1 = bl1.getLevel(1).getCurr()->getHash();
+        REQUIRE(!isZero(bucketHash1));
+
+        // Checkpoint this bucketlist into a ledger, crudely.
+        auto& lm1 = app1->getLedgerManager();
+        LedgerCloseData lcd(lm1.getLedgerNum(),
+                            std::make_shared<TxSetFrame>(lclHash0),
+                            lm1.getCloseTime(),
+                            lm1.getTxFee());
+        app1->getLedgerManager().externalizeValue(lcd);
+        lclHash1 = app1->getLedgerManagerImpl().getLastClosedLedgerHeader().hash;
+    }
+
+    // app is now dead, but we want bucketHash1 to persist into a restart of the
+    // app, since that bucket is "live" in lclHash1, and the database persists.
+    cfg.REBUILD_DB = false;
+    cfg.START_NEW_NETWORK = false;
+
+    {
+        Application::pointer app2 = Application::create(clock, cfg);
+        app2->start();
+        auto lclHash2 = app2->getLedgerManagerImpl().getLastClosedLedgerHeader().hash;
+        REQUIRE(hexAbbrev(lclHash2) == hexAbbrev(lclHash1));
+        BucketList &bl2 = app2->getCLFManager().getBucketList();
+        auto bucketHash2 = bl2.getLevel(1).getCurr()->getHash();
+        CHECK(hexAbbrev(bucketHash2) == hexAbbrev(bucketHash1));
     }
 }

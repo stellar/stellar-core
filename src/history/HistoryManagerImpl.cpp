@@ -312,19 +312,11 @@ HistoryManagerImpl::mkdir(std::shared_ptr<HistoryArchive const> archive,
 HistoryArchiveState
 HistoryManagerImpl::getLastClosedHistoryArchiveState() const
 {
-    HistoryArchiveState has;
-    has.currentLedger = mApp.getLedgerManagerImpl()
-                            .getLastClosedLedgerHeader()
-                            .header.ledgerSeq;
+    auto seq = mApp.getLedgerManagerImpl()
+        .getLastClosedLedgerHeader()
+        .header.ledgerSeq;
     auto& bl = mApp.getCLFManager().getBucketList();
-    for (size_t i = 0; i < BucketList::kNumLevels; ++i)
-    {
-        has.currentBuckets.at(i).curr =
-            binToHex(bl.getLevel(i).getCurr()->getHash());
-        has.currentBuckets.at(i).snap =
-            binToHex(bl.getLevel(i).getSnap()->getHash());
-    }
-    return has;
+    return HistoryArchiveState(seq, bl);
 }
 
 bool

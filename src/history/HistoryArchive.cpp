@@ -24,6 +24,7 @@
 
 #include <iostream>
 #include <fstream>
+#include <sstream>
 #include <set>
 
 namespace stellar
@@ -37,10 +38,29 @@ HistoryArchiveState::save(std::string const& outFile) const
     serialize(ar);
 }
 
+std::string
+HistoryArchiveState::toString() const
+{
+    std::ostringstream out;
+    {
+        cereal::JSONOutputArchive ar(out);
+        serialize(ar);
+    }
+    return out.str();
+}
+
 void
 HistoryArchiveState::load(std::string const& inFile)
 {
     std::ifstream in(inFile);
+    cereal::JSONInputArchive ar(in);
+    serialize(ar);
+}
+
+void
+HistoryArchiveState::fromString(std::string const& str)
+{
+    std::istringstream in(str);
     cereal::JSONInputArchive ar(in);
     serialize(ar);
 }
@@ -147,6 +167,21 @@ HistoryArchiveState::HistoryArchiveState()
         currentBuckets.push_back(b);
     }
 }
+
+HistoryArchiveState::HistoryArchiveState(uint32_t ledgerSeq,
+                                         BucketList& buckets)
+    : currentLedger(ledgerSeq)
+{
+    for (size_t i = 0; i < BucketList::kNumLevels; ++i)
+    {
+        HistoryStateBucket b;
+        auto& level = buckets.getLevel(i);
+        b.curr = binToHex(level.getCurr()->getHash());
+        b.snap = binToHex(level.getSnap()->getHash());
+        currentBuckets.push_back(b);
+    }
+}
+
 
 HistoryArchive::HistoryArchive(std::string const& name,
                                std::string const& getCmd,
