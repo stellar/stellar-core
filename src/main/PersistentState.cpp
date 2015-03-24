@@ -10,6 +10,8 @@
 namespace stellar
 {
 
+using namespace std;
+
 string PersistentState::mapping[kLastEntry] = {
     "lastClosedLedger", "historyArchiveState", "forceSCPOnNextLaunch", "databaseInitialized"};
 

@@ -149,7 +149,7 @@ TEST_CASE("txset", "[herder]")
 
     for (int i = 0; i < nbAccounts; i++)
     {
-        string accountName = "A";
+        std::string accountName = "A";
         accountName += '0' + i;
         accounts[i] = getAccount(accountName.c_str());
         for (int j = 0; j < nbTransactions; j++)

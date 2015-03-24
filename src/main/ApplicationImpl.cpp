@@ -177,7 +177,7 @@ ApplicationImpl::start()
     if (mPersistentState->getState(PersistentState::kDatabaseInitialized) !=
         "true")
     {
-        throw runtime_error("Database not initialized and REBUID_DB is false.");
+        throw std::runtime_error("Database not initialized and REBUID_DB is false.");
     }
 
     bool hasLedger =
@@ -185,7 +185,7 @@ ApplicationImpl::start()
 
     if (mConfig.START_NEW_NETWORK)
     {
-        string flagClearedMsg = "";
+        std::string flagClearedMsg = "";
         if (mPersistentState->getState(
                 PersistentState::kForceSCPOnNextLaunch) == "true")
         {

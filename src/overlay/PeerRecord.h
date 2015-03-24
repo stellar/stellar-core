@@ -17,7 +17,7 @@ using namespace std;
 class PeerRecord
 {
   public:
-    string mIP;
+    std::string mIP;
     uint32_t mPort;
     VirtualClock::time_point mNextAttempt;
     uint32_t mNumFailures;
@@ -43,13 +43,13 @@ class PeerRecord
                mNumFailures == other.mNumFailures && mRank == other.mRank;
     }
 
-    static void fromIPPort(const string& ip, uint32_t port, VirtualClock& clock,
+    static void fromIPPort(const std::string& ip, uint32_t port, VirtualClock& clock,
                            PeerRecord& ret);
-    static bool parseIPPort(const string& ipPort, Application& app,
+    static bool parseIPPort(const std::string& ipPort, Application& app,
                             PeerRecord& ret,
                             uint32_t defaultPort = DEFAULT_PEER_PORT);
 
-    static optional<PeerRecord> loadPeerRecord(Database& db, string ip,
+    static optional<PeerRecord> loadPeerRecord(Database& db, std::string ip,
                                                uint32_t port);
     static void loadPeerRecords(Database& db, uint32_t max,
                                 VirtualClock::time_point nextAttemptCutoff,
@@ -63,10 +63,10 @@ class PeerRecord
     void toXdr(PeerAddress& ret);
 
     static void dropAll(Database& db);
-    string toString();
+    std::string toString();
 
   private:
-    static void ipToXdr(string ip, xdr::opaque_array<4U>& ret);
+    static void ipToXdr(std::string ip, xdr::opaque_array<4U>& ret);
     static const char* kSQLCreateStatement;
 };
 }

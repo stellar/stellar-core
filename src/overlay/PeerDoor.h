@@ -14,7 +14,6 @@ When found passes them to the OverlayManagerImpl
 
 namespace stellar
 {
-using namespace std;
 class Application;
 class PeerDoorStub;
 
@@ -30,7 +29,7 @@ class PeerDoor
     friend PeerDoorStub;
 
   public:
-    typedef shared_ptr<PeerDoor> pointer;
+    typedef std::shared_ptr<PeerDoor> pointer;
 
     PeerDoor(Application&);
 

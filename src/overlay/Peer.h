@@ -14,8 +14,7 @@
 namespace stellar
 {
 
-using namespace std;
-typedef shared_ptr<SCPQuorumSet> SCPQuorumSetPtr;
+typedef std::shared_ptr<SCPQuorumSet> SCPQuorumSetPtr;
 
 class Application;
 class LoopbackPeer;
@@ -23,11 +22,11 @@ class LoopbackPeer;
 /*
  * Another peer out there that we are connected to
  */
-class Peer : public enable_shared_from_this<Peer>
+class Peer : public std::enable_shared_from_this<Peer>
 {
 
   public:
-    typedef shared_ptr<Peer> pointer;
+    typedef std::shared_ptr<Peer> pointer;
 
     enum PeerState
     {
@@ -50,7 +49,7 @@ class Peer : public enable_shared_from_this<Peer>
     PeerState mState;
     uint256 mPeerID;
 
-    string mRemoteVersion;
+    std::string mRemoteVersion;
     uint32_t mRemoteProtocolVersion;
     uint32_t mRemoteListeningPort;
     void recvMessage(StellarMessage const& msg);
@@ -119,7 +118,7 @@ class Peer : public enable_shared_from_this<Peer>
         return mState;
     }
 
-    string const&
+    std::string const&
     getRemoteVersion() const
     {
         return mRemoteVersion;
@@ -164,7 +163,7 @@ class Peer : public enable_shared_from_this<Peer>
     }
 
     virtual void drop() = 0;
-    virtual string getIP() = 0;
+    virtual std::string getIP() = 0;
     virtual ~Peer()
     {
     }
