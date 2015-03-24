@@ -11,7 +11,7 @@ namespace stellar
 {
 class TmpDirManager;
 class LedgerManager;
-class HerderImpl;
+class Herder;
 class CLFManager;
 class HistoryManager;
 class ProcessManager;
@@ -90,7 +90,7 @@ class ApplicationImpl : public Application
     std::unique_ptr<TmpDirManager> mTmpDirManager;
     std::unique_ptr<OverlayManager> mOverlayManager;
     std::unique_ptr<LedgerManager> mLedgerManager;
-    std::unique_ptr<HerderImpl> mHerderImpl;
+    std::unique_ptr<Herder> mHerder;
     std::unique_ptr<CLFManager> mCLFManager;
     std::unique_ptr<HistoryManager> mHistoryManager;
     std::unique_ptr<ProcessManager> mProcessManager;

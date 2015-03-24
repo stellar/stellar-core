@@ -2,27 +2,34 @@
 // under the ISC License. See the COPYING file at the top-level directory of
 // this distribution or at http://opensource.org/licenses/ISC
 
-#include "HerderImpl.h"
-
-#include <ctime>
-#include "math.h"
+#include "crypto/Hex.h"
+#include "crypto/SHA.h"
+#include "herder/HerderImpl.h"
 #include "herder/TxSetFrame.h"
 #include "ledger/LedgerManager.h"
-#include "overlay/OverlayManager.h"
 #include "main/Application.h"
 #include "main/Config.h"
-#include "xdrpp/marshal.h"
-#include "crypto/SHA.h"
-#include "crypto/Hex.h"
+#include "overlay/OverlayManager.h"
+#include "scp/Slot.h"
 #include "util/Logging.h"
 #include "util/Timer.h"
-#include "lib/util/easylogging++.h"
-#include "medida/metrics_registry.h"
+#include "util/make_unique.h"
+
 #include "medida/meter.h"
-#include "scp/Slot.h"
+#include "medida/metrics_registry.h"
+#include "xdrpp/marshal.h"
+
+#include <ctime>
 
 namespace stellar
 {
+
+std::unique_ptr<Herder>
+Herder::create(Application& app)
+{
+    return make_unique<HerderImpl>(app);
+}
+
 
 // Static helper for HerderImpl's SCP constructor
 static SCPQuorumSet

@@ -19,6 +19,7 @@ typedef std::shared_ptr<TxSetFrame> TxSetFramePtr;
 class TransactionFrame;
 typedef std::shared_ptr<TransactionFrame> TransactionFramePtr;
 
+class Application;
 class Peer;
 typedef std::shared_ptr<Peer> PeerPtr;
 
@@ -34,6 +35,11 @@ typedef std::shared_ptr<Peer> PeerPtr;
 class Herder
 {
   public:
+
+    static std::unique_ptr<Herder> create(Application& app);
+
+    virtual void bootstrap() = 0;
+
     // Returns a TxSet or start fetching it from the network if we don't know
     // about it.
     virtual TxSetFramePtr fetchTxSet(uint256 const& setHash,
@@ -63,5 +69,9 @@ class Herder
 
     // Called by Ledger once the ledger closes.
     virtual void ledgerClosed(LedgerHeaderHistoryEntry const& ledger) = 0;
+
+    virtual void triggerNextLedger() = 0;
+    virtual ~Herder() {}
+
 };
 }
