@@ -16,21 +16,10 @@ namespace stellar
 
 SCP::SCP(const SecretKey& secretKey, const SCPQuorumSet& qSetLocal)
 {
-    mLocalNode = new LocalNode(secretKey, qSetLocal, this);
+    mLocalNode = std::make_shared<LocalNode>(secretKey, qSetLocal, this);
     mKnownNodes[mLocalNode->getNodeID()] = mLocalNode;
 }
 
-SCP::~SCP()
-{
-    for (auto it : mKnownNodes)
-    {
-        delete it.second;
-    }
-    for (auto it : mKnownSlots)
-    {
-        delete it.second;
-    }
-}
 
 void
 SCP::receiveEnvelope(const SCPEnvelope& envelope,
@@ -77,7 +66,6 @@ SCP::purgeNode(const uint256& nodeID)
     auto it = mKnownNodes.find(nodeID);
     if (it != mKnownNodes.end())
     {
-        delete it->second;
         mKnownNodes.erase(it);
     }
 }
@@ -90,7 +78,6 @@ SCP::purgeSlots(const uint64& maxSlotIndex)
     {
         if (it->first < maxSlotIndex)
         {
-            delete it->second;
             it = mKnownSlots.erase(it);
         }
         else
@@ -100,30 +87,30 @@ SCP::purgeSlots(const uint64& maxSlotIndex)
     }
 }
 
-Node*
+std::shared_ptr<Node>
 SCP::getNode(const uint256& nodeID)
 {
     auto it = mKnownNodes.find(nodeID);
     if (it == mKnownNodes.end())
     {
-        mKnownNodes[nodeID] = new Node(nodeID, this);
+        mKnownNodes[nodeID] = std::make_shared<Node>(nodeID, this);
     }
     return mKnownNodes[nodeID];
 }
 
-LocalNode*
+std::shared_ptr<LocalNode>
 SCP::getLocalNode()
 {
     return mLocalNode;
 }
 
-Slot*
+std::shared_ptr<Slot>
 SCP::getSlot(const uint64& slotIndex)
 {
     auto it = mKnownSlots.find(slotIndex);
     if (it == mKnownSlots.end())
     {
-        mKnownSlots[slotIndex] = new Slot(slotIndex, this);
+        mKnownSlots[slotIndex] = std::make_shared<Slot>(slotIndex, this);
     }
     return mKnownSlots[slotIndex];
 }
