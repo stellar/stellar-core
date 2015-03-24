@@ -12,14 +12,22 @@
 #include "util/Timer.h"
 #include "main/Application.h"
 #include "util/Logging.h"
+#include "util/make_unique.h"
 #include "process/ProcessManager.h"
 #include "process/ProcessManagerImpl.h"
+
 #include <string>
 #include <functional>
 #include <mutex>
 
 namespace stellar
 {
+
+std::unique_ptr<ProcessManager>
+ProcessManager::create(Application& app)
+{
+    return make_unique<ProcessManagerImpl>(app);
+}
 
 #ifdef _MSC_VER
 #include <windows.h>

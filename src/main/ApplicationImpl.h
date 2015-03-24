@@ -15,7 +15,7 @@ class LedgerManager;
 class HerderImpl;
 class CLFManager;
 class HistoryManager;
-class ProcessManagerImpl;
+class ProcessManager;
 class CommandHandler;
 class Database;
 
@@ -95,7 +95,7 @@ class ApplicationImpl : public Application
     std::unique_ptr<HerderImpl> mHerderImpl;
     std::unique_ptr<CLFManager> mCLFManager;
     std::unique_ptr<HistoryManager> mHistoryManager;
-    std::unique_ptr<ProcessManagerImpl> mProcessManagerImpl;
+    std::unique_ptr<ProcessManager> mProcessManager;
     std::unique_ptr<CommandHandler> mCommandHandler;
     std::unique_ptr<PersistentState> mPersistentState;
 
