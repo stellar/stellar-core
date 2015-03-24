@@ -16,6 +16,7 @@ namespace stellar
 class Application;
 class BucketList;
 struct LedgerHeader;
+struct HistoryArchiveState;
 
 class CLFManager
 {
@@ -63,5 +64,8 @@ public:
     // Update the given LedgerHeader's clfHash to reflect the current state of
     // the bucket list.
     virtual void snapshotLedger(LedgerHeader& currentHeader) = 0;
+
+    // Restart from a saved state: find and attach all buckets, set current BL.
+    virtual void assumeState(HistoryArchiveState const& has) = 0;
 };
 }

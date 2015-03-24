@@ -26,6 +26,7 @@ class TmpDir;
 class Application;
 class Bucket;
 class BucketList;
+struct HistoryArchiveState;
 
 class CLFManagerImpl : public CLFManager
 {
@@ -60,6 +61,7 @@ public:
                   std::vector<LedgerEntry> const& liveEntries,
                   std::vector<LedgerKey> const& deadEntries) override;
     void snapshotLedger(LedgerHeader& currentHeader);
+    void assumeState(HistoryArchiveState const& has);
 };
 
 }

@@ -244,4 +244,21 @@ CLFManagerImpl::snapshotLedger(LedgerHeader& currentHeader)
 {
     currentHeader.clfHash = mBucketList.getHash();
 }
+
+void
+CLFManagerImpl::assumeState(HistoryArchiveState const& has)
+{
+    for (size_t i = 0; i < BucketList::kNumLevels; ++i)
+    {
+        auto curr = getBucketByHash(hexToBin256(has.currentBuckets.at(i).curr));
+        auto snap = getBucketByHash(hexToBin256(has.currentBuckets.at(i).snap));
+        if (!(curr && snap))
+        {
+            throw std::runtime_error("Missing bucket files while assuming saved CLF state");
+        }
+        mBucketList.getLevel(i).setCurr(curr);
+        mBucketList.getLevel(i).setSnap(snap);
+    }
+    mBucketList.restartMerges(mApp, has.currentLedger);
+}
 }
