@@ -476,8 +476,6 @@ TEST_CASE("bucket persistence over app restart", "[clf][bucketpersist]")
         {
             bl1.addBatch(*app1, i, liveGen(1), emptySet);
         }
-        bucketHash1 = bl1.getLevel(1).getCurr()->getHash();
-        REQUIRE(!isZero(bucketHash1));
 
         // Checkpoint this bucketlist into a ledger, crudely.
         auto& lm1 = app1->getLedgerManager();
@@ -486,6 +484,8 @@ TEST_CASE("bucket persistence over app restart", "[clf][bucketpersist]")
             lm1.getCloseTime(), static_cast<int32_t>(lm1.getTxFee()));
         app1->getLedgerManager().externalizeValue(lcd);
         lclHash1 = app1->getLedgerManager().getLastClosedLedgerHeader().hash;
+        bucketHash1 = bl1.getLevel(1).getCurr()->getHash();
+        REQUIRE(!isZero(bucketHash1));
     }
 
     // app is now dead, but we want bucketHash1 to persist into a restart of the
