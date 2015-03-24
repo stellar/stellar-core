@@ -137,13 +137,19 @@ LedgerManagerImpl::loadLastKnownLedger()
 
         mCurrentLedger =
             LedgerHeaderFrame::loadByHash(lastLedgerHash, getDatabase());
-        CLOG(INFO, "Ledger")
-            << "Loaded last known ledger: " << ledgerAbbrev(mCurrentLedger);
-
         if (!mCurrentLedger)
         {
             throw std::runtime_error("Could not load ledger from database");
         }
+
+        string hasString =
+            mApp.getPersistentState().getState(PersistentState::kHistoryArchiveState);
+        HistoryArchiveState has;
+        has.fromString(hasString);
+        mApp.getCLFManager().assumeState(has);
+
+        CLOG(INFO, "Ledger")
+            << "Loaded last known ledger: " << ledgerAbbrev(mCurrentLedger);
 
         advanceLedgerPointers();
     }
@@ -508,6 +514,14 @@ LedgerManagerImpl::closeLedgerHelper(LedgerDelta const& delta)
 
     mApp.getPersistentState().setState(PersistentState::kLastClosedLedger,
                                        binToHex(mCurrentLedger->getHash()));
+
+    // Store the current HAS in the database; this is really just to checkpoint
+    // the bucketlist so we can survive a restart and re-attach to the buckets.
+    HistoryArchiveState has(mCurrentLedger->mHeader.ledgerSeq,
+                            mApp.getCLFManager().getBucketList());
+    mApp.getPersistentState().setState(PersistentState::kHistoryArchiveState,
+                                       has.toString());
+
     advanceLedgerPointers();
 }
 }

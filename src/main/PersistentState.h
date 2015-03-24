@@ -14,6 +14,7 @@ class PersistentState
     enum Entry
     {
         kLastClosedLedger = 0,
+        kHistoryArchiveState,
         kForceSCPOnNextLaunch,
         kDatabaseInitialized,
         kLastEntry
