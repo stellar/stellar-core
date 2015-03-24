@@ -484,6 +484,9 @@ LedgerManagerImpl::closeLedger(LedgerCloseData ledgerData)
     mApp.getHistoryManager().maybePublishHistory([](asio::error_code const&)
                                                 {
                                                 });
+
+    // Permit CLF manager to forget buckets that are no longer in use.
+    mApp.getCLFManager().forgetUnreferencedBuckets();
 }
 
 void
