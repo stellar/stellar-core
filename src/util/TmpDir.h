@@ -20,14 +20,14 @@ class TmpDir
     std::string const& getName() const;
 };
 
-class TmpDirMaster
+class TmpDirManager
 {
     std::string mRoot;
     void clean();
 
   public:
-    TmpDirMaster(std::string const& root);
-    ~TmpDirMaster();
+    TmpDirManager(std::string const& root);
+    ~TmpDirManager();
     TmpDir tmpDir(std::string const& prefix);
 };
 }

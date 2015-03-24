@@ -39,7 +39,7 @@ public:
 class
 TmpDirConfigurator : public Configurator
 {
-    TmpDirMaster mArchtmp;
+    TmpDirManager mArchtmp;
     TmpDir mDir;
 public:
     TmpDirConfigurator()

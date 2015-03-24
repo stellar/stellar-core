@@ -58,7 +58,7 @@ CLFManagerImpl::getTmpDir()
 {
     if (!mWorkDir)
     {
-        TmpDir t = mApp.getTmpDirMaster().tmpDir("clf");
+        TmpDir t = mApp.getTmpDirManager().tmpDir("clf");
         mWorkDir = make_unique<TmpDir>(std::move(t));
     }
     return mWorkDir->getName();

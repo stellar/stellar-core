@@ -20,7 +20,7 @@ namespace stellar
 
 class VirtualClock;
 class Config;
-class TmpDirMaster;
+class TmpDirManager;
 class LedgerManager;
 class CLFManager;
 class HistoryManager;
@@ -99,7 +99,7 @@ class Application
     virtual void setState(State) = 0;
     virtual VirtualClock& getClock() = 0;
     virtual medida::MetricsRegistry& getMetrics() = 0;
-    virtual TmpDirMaster& getTmpDirMaster() = 0;
+    virtual TmpDirManager& getTmpDirManager() = 0;
     virtual LedgerManager& getLedgerManager() = 0;
     virtual CLFManager& getCLFManager() = 0;
     virtual HistoryManager& getHistoryManager() = 0;

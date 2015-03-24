@@ -53,29 +53,29 @@ TmpDir::~TmpDir()
     }
 }
 
-TmpDirMaster::TmpDirMaster(std::string const& root) : mRoot(root)
+TmpDirManager::TmpDirManager(std::string const& root) : mRoot(root)
 {
     clean();
     fs::mkdir(root);
 }
 
-TmpDirMaster::~TmpDirMaster()
+TmpDirManager::~TmpDirManager()
 {
     clean();
 }
 
 void
-TmpDirMaster::clean()
+TmpDirManager::clean()
 {
     if (fs::exists(mRoot))
     {
-        LOG(DEBUG) << "TmpDirMaster cleaning: " << mRoot;
+        LOG(DEBUG) << "TmpDirManager cleaning: " << mRoot;
         fs::deltree(mRoot);
     }
 }
 
 TmpDir
-TmpDirMaster::tmpDir(std::string const& prefix)
+TmpDirManager::tmpDir(std::string const& prefix)
 {
     return TmpDir(mRoot + "/" + prefix);
 }

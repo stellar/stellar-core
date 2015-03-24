@@ -42,7 +42,7 @@ CatchupStateMachine::CatchupStateMachine(
     , mState(CATCHUP_RETRYING)
     , mRetryCount(0)
     , mRetryTimer(app)
-    , mDownloadDir(app.getTmpDirMaster().tmpDir("catchup"))
+    , mDownloadDir(app.getTmpDirManager().tmpDir("catchup"))
 {
     // We start up in CATCHUP_RETRYING as that's the only valid
     // named pre-state for CATCHUP_BEGIN.

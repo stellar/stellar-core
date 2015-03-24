@@ -75,7 +75,7 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
         mDatabase->initialize();
     }
 
-    mTmpDirMaster = make_unique<TmpDirMaster>(cfg.TMP_DIR_PATH);
+    mTmpDirManager = make_unique<TmpDirManager>(cfg.TMP_DIR_PATH);
     mOverlayManager = OverlayManager::create(*this);
     mLedgerManager = LedgerManager::create(*this);
     mHerderImpl = make_unique<HerderImpl>(*this);
@@ -301,10 +301,10 @@ ApplicationImpl::getMetrics()
     return *mMetrics;
 }
 
-TmpDirMaster&
-ApplicationImpl::getTmpDirMaster()
+TmpDirManager&
+ApplicationImpl::getTmpDirManager()
 {
-    return *mTmpDirMaster;
+    return *mTmpDirManager;
 }
 
 LedgerManager&

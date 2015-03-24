@@ -130,7 +130,7 @@ HistoryManagerImpl::getTmpDir()
 {
     if (!mWorkDir)
     {
-        TmpDir t = mApp.getTmpDirMaster().tmpDir("history");
+        TmpDir t = mApp.getTmpDirManager().tmpDir("history");
         mWorkDir = make_unique<TmpDir>(std::move(t));
     }
     return mWorkDir->getName();
