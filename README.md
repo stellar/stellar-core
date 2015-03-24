@@ -12,6 +12,8 @@ To keep your local repository in a "rebased" state, simply run:
 
 note: you may still have to run manual "rebase" commands on your branches to rebase on top of master as you pull changes from upstream.
 
+Code formatting wise, we have a `.clang-format` config file that you should use on modified files.
+
 # Running tests
 
 run tests with:
