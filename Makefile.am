@@ -57,7 +57,7 @@ FMT_SRCS =                                      \
     src/overlay/Peer.cpp                        \
     src/overlay/PeerDoor.cpp                    \
     src/overlay/OverlayManagerImpl.cpp          \
-    src/overlay/OverlayManagerImplTests.cpp     \
+    src/overlay/OverlayManagerTests.cpp         \
     src/overlay/PeerRecord.cpp                  \
     src/overlay/PeerRecordTests.cpp             \
     src/overlay/TCPPeer.cpp                     \

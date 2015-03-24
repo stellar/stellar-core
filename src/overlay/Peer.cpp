@@ -4,19 +4,22 @@
 
 #include "Peer.h"
 
-#include <soci.h>
-#include "util/Logging.h"
+#include "crypto/Hex.h"
 #include "crypto/SHA.h"
+#include "database/Database.h"
+#include "generated/StellarXDR.h"
+#include "herder/Herder.h"
+#include "herder/TxSetFrame.h"
 #include "main/Application.h"
 #include "main/Config.h"
-#include "generated/StellarXDR.h"
+#include "overlay/OverlayManager.h"
+#include "overlay/PeerRecord.h"
+#include "util/Logging.h"
+
 #include "xdrpp/marshal.h"
-#include "overlay/OverlayManagerImpl.h"
-#include "herder/Herder.h"
-#include "database/Database.h"
-#include "crypto/Hex.h"
+
+#include <soci.h>
 #include <time.h>
-#include "PeerRecord.h"
 
 // LATER: need to add some way of docking peers that are misbehaving by sending
 // you bad data

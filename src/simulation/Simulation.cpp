@@ -4,17 +4,20 @@
 
 #include "Simulation.h"
 
-#include "main/test.h"
-#include "util/Logging.h"
-#include "util/types.h"
-#include "ledger/LedgerManager.h"
-#include "overlay/PeerRecord.h"
-#include "main/Application.h"
-#include "overlay/OverlayManagerImpl.h"
 #include "herder/Herder.h"
+#include "ledger/LedgerManager.h"
+#include "main/Application.h"
+#include "main/test.h"
+#include "overlay/OverlayManager.h"
+#include "overlay/PeerRecord.h"
+#include "util/Logging.h"
+#include "util/Math.h"
+#include "util/types.h"
+
 #include "medida/medida.h"
 #include "medida/reporting/console_reporter.h"
-#include "util/Math.h"
+
+#include <thread>
 
 namespace stellar
 {
@@ -132,7 +135,7 @@ Simulation::addTCPConnection(uint256 initiator, uint256 acceptor)
     auto to = getNode(acceptor);
     PeerRecord pr{"127.0.0.1", to->getConfig().PEER_PORT,
                   from->getClock().now(), 0, 10};
-    from->getOverlayManagerImpl().connectTo(pr);
+    from->getOverlayManager().connectTo(pr);
 }
 
 void
@@ -220,7 +223,7 @@ Simulation::crankForAtLeast(VirtualClock::duration seconds)
     while (!stop)
     {
         if (crankAllNodes() == 0)
-            this_thread::sleep_for(chrono::milliseconds(50));
+            std::this_thread::sleep_for(chrono::milliseconds(50));
     }
 }
 
@@ -273,7 +276,7 @@ Simulation::crankUntil(function<bool()> const& predicate,
         if (crankAllNodes() == 0)
         {
             checkDone();
-            this_thread::sleep_for(chrono::milliseconds(50));
+            std::this_thread::sleep_for(chrono::milliseconds(50));
         }
         if (done)
             return;
@@ -421,7 +424,7 @@ Simulation::executeStressTest(size_t nTransactions, int injectionRatePerSec,
             // When running on virtual time, this line is never hit unless the
             // injection is below what the network can absorb, and there is 
             // nothing do to but wait for the next injection.
-            this_thread::sleep_for(chrono::milliseconds(50));
+            std::this_thread::sleep_for(chrono::milliseconds(50));
         }
         else
         {

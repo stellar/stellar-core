@@ -27,7 +27,6 @@ class HistoryManager;
 class ProcessManager;
 class Herder;
 class OverlayManager;
-class OverlayManagerImpl;
 class Database;
 class PersistentState;
 
@@ -107,7 +106,6 @@ class Application
     virtual ProcessManager& getProcessManager() = 0;
     virtual Herder& getHerder() = 0;
     virtual OverlayManager& getOverlayManager() = 0;
-    virtual OverlayManagerImpl& getOverlayManagerImpl() = 0;
     virtual Database& getDatabase() = 0;
     virtual PersistentState& getPersistentState() = 0;
 

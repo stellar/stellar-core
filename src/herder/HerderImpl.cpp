@@ -8,7 +8,7 @@
 #include "math.h"
 #include "herder/TxSetFrame.h"
 #include "ledger/LedgerManager.h"
-#include "overlay/OverlayManagerImpl.h"
+#include "overlay/OverlayManager.h"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "xdrpp/marshal.h"

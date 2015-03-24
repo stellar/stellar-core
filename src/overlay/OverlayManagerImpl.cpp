@@ -2,19 +2,20 @@
 // under the ISC License. See the COPYING file at the top-level directory of
 // this distribution or at http://opensource.org/licenses/ISC
 
-#include "OverlayManagerImpl.h"
+#include "database/Database.h"
 #include "main/Application.h"
 #include "main/Config.h"
-#include <thread>
-#include <random>
-#include "util/Logging.h"
-#include "database/Database.h"
+#include "overlay/OverlayManagerImpl.h"
+#include "overlay/PeerRecord.h"
 #include "overlay/TCPPeer.h"
-#include "PeerRecord.h"
+#include "util/Logging.h"
+#include "util/make_unique.h"
+
 #include "medida/metrics_registry.h"
 #include "medida/meter.h"
 
-using namespace soci;
+#include <thread>
+#include <random>
 
 // TODO.3 flood older msgs to people that connect to you
 
@@ -35,6 +36,12 @@ namespace stellar
 
 using namespace soci;
 using namespace std;
+
+std::unique_ptr<OverlayManager>
+OverlayManager::create(Application& app)
+{
+    return make_unique<OverlayManagerImpl>(app);
+}
 
 OverlayManagerImpl::OverlayManagerImpl(Application& app)
     : mApp(app)
@@ -221,6 +228,12 @@ OverlayManagerImpl::isPeerAccepted(Peer::pointer peer)
     return isPeerPreferred(peer);
 }
 
+std::vector<Peer::pointer>&
+OverlayManagerImpl::getPeers() 
+{
+    return mPeers;
+}
+
 bool
 OverlayManagerImpl::isPeerPreferred(Peer::pointer peer)
 {
@@ -274,7 +287,7 @@ OverlayManagerImpl::broadcastMessage(StellarMessage const& msg, bool force)
 }
 
 void
-OverlayManagerImpl::dropAll(Database& db)
+OverlayManager::dropAll(Database& db)
 {
     PeerRecord::dropAll(db);
 }

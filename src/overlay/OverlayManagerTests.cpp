@@ -11,6 +11,7 @@
 #include "util/make_unique.h"
 #include "main/test.h"
 #include "lib/catch.hpp"
+#include "overlay/OverlayManager.h"
 #include "overlay/OverlayManagerImpl.h"
 #include "util/Timer.h"
 #include "database/Database.h"
@@ -52,10 +53,10 @@ class PeerStub : public Peer
     }
 };
 
-class OverlayManagerImplStub : public OverlayManagerImpl
+class OverlayManagerStub : public OverlayManagerImpl
 {
   public:
-    OverlayManagerImplStub(Application& app) : OverlayManagerImpl(app)
+    OverlayManagerStub(Application& app) : OverlayManagerImpl(app)
     {
     }
 
@@ -72,21 +73,21 @@ class OverlayManagerImplStub : public OverlayManagerImpl
     }
 };
 
-class OverlayManagerImplTests
+class OverlayManagerTests
 {
     class ApplicationStub : public ApplicationImpl
     {
       public:
-        shared_ptr<OverlayManagerImplStub> mOverlayManagerImpl;
+        shared_ptr<OverlayManagerStub> mOverlayManager;
         ApplicationStub(VirtualClock& clock, Config const& cfg)
             : ApplicationImpl(clock, cfg)
         {
-            mOverlayManagerImpl = make_shared<OverlayManagerImplStub>(*this);
+            mOverlayManager = make_shared<OverlayManagerStub>(*this);
         }
-        virtual OverlayManagerImplStub&
-        getOverlayManagerImpl() override
+        virtual OverlayManagerStub&
+        getOverlayManager() override
         {
-            return *mOverlayManagerImpl;
+            return *mOverlayManager;
         }
     };
 
@@ -97,7 +98,7 @@ class OverlayManagerImplTests
     vector<string> fourPeers;
     vector<string> threePeers;
 
-    OverlayManagerImplTests()
+    OverlayManagerTests()
         : fourPeers(vector<string>{"127.0.0.1:2011", "127.0.0.1:2012",
                                    "127.0.0.1:2013", "127.0.0.1:2014"})
         , threePeers(vector<string>{"127.0.0.1:201", "127.0.0.1:202",
@@ -108,7 +109,7 @@ class OverlayManagerImplTests
     void
     test_addPeerList()
     {
-        OverlayManagerImplStub& pm = app.getOverlayManagerImpl();
+        OverlayManagerStub& pm = app.getOverlayManager();
 
         pm.storePeerList(fourPeers, 10);
         pm.storePeerList(threePeers, 3);
@@ -137,7 +138,7 @@ class OverlayManagerImplTests
     void
     test_broadcast()
     {
-        OverlayManagerImplStub& pm = app.getOverlayManagerImpl();
+        OverlayManagerStub& pm = app.getOverlayManager();
         app.getLedgerManager().startNewLedger();
 
         pm.storePeerList(fourPeers, 3);
@@ -163,12 +164,12 @@ class OverlayManagerImplTests
     }
 };
 
-TEST_CASE_METHOD(OverlayManagerImplTests, "addPeerList() adds", "[overlay]")
+TEST_CASE_METHOD(OverlayManagerTests, "addPeerList() adds", "[overlay]")
 {
     test_addPeerList();
 }
 
-TEST_CASE_METHOD(OverlayManagerImplTests, "broadcast() broadcasts", "[overlay]")
+TEST_CASE_METHOD(OverlayManagerTests, "broadcast() broadcasts", "[overlay]")
 {
     test_broadcast();
 }

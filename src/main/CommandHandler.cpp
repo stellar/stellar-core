@@ -2,19 +2,22 @@
 // under the ISC License. See the COPYING file at the top-level directory of
 // this distribution or at http://opensource.org/licenses/ISC
 
-#include "main/CommandHandler.h"
-#include "main/Application.h"
-#include "main/Config.h"
+#include "crypto/Base58.h"
+#include "crypto/Hex.h"
+#include "herder/Herder.h"
+#include "ledger/LedgerManager.h"
 #include "lib/http/server.hpp"
+#include "lib/json/json.h"
+#include "main/Application.h"
+#include "main/CommandHandler.h"
+#include "main/Config.h"
+#include "overlay/OverlayManager.h"
 #include "util/Logging.h"
 #include "util/make_unique.h"
+
 #include "medida/reporting/json_reporter.h"
-#include "overlay/OverlayManagerImpl.h"
-#include "crypto/Hex.h"
 #include "xdrpp/marshal.h"
-#include "herder/Herder.h"
-#include "lib/json/json.h"
-#include "crypto/Base58.h"
+
 #include <regex>
 
 using std::placeholders::_1;
@@ -115,7 +118,7 @@ CommandHandler::peers(const std::string& params, std::string& retStr)
 
     root["peers"];
     int counter = 0;
-    for (auto peer : mApp.getOverlayManagerImpl().getPeers())
+    for (auto peer : mApp.getOverlayManager().getPeers())
     {
         binToHex(peer->getPeerID());
         root["peers"][counter]["ip"] = peer->getIP();
@@ -148,7 +151,7 @@ CommandHandler::info(const std::string& params, std::string& retStr)
     root["info"]["ledger"]["closeTime"] =
         (int)lm.getLastClosedLedgerHeader().header.closeTime;
     root["info"]["ledger"]["age"] = (int)lm.secondsSinceLastLedgerClose();
-    root["info"]["numPeers"] = (int)mApp.getOverlayManagerImpl().getPeers().size();
+    root["info"]["numPeers"] = (int)mApp.getOverlayManager().getPeers().size();
 
     retStr = root.toStyledString();
 }
@@ -193,7 +196,7 @@ CommandHandler::connect(const std::string& params, std::string& retStr)
         std::stringstream str;
         str << m[1] << ":" << m[2];
         retStr = "Connect to";
-        mApp.getOverlayManagerImpl().connectTo(str.str());
+        mApp.getOverlayManager().connectTo(str.str());
     }
     else
     {

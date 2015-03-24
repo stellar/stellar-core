@@ -12,7 +12,6 @@
 #include "ledger/LedgerManager.h"
 #include "herder/HerderImpl.h"
 #include "overlay/OverlayManager.h"
-#include "overlay/OverlayManagerImpl.h"
 #include "clf/CLFManager.h"
 #include "history/HistoryManager.h"
 #include "database/Database.h"
@@ -77,7 +76,7 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
     }
 
     mTmpDirMaster = make_unique<TmpDirMaster>(cfg.TMP_DIR_PATH);
-    mOverlayManagerImpl = make_unique<OverlayManagerImpl>(*this);
+    mOverlayManager = OverlayManager::create(*this);
     mLedgerManager = LedgerManager::create(*this);
     mHerderImpl = make_unique<HerderImpl>(*this);
     mCLFManager = CLFManager::create(*this);
@@ -341,13 +340,7 @@ ApplicationImpl::getHerder()
 OverlayManager&
 ApplicationImpl::getOverlayManager()
 {
-    return *mOverlayManagerImpl;
-}
-
-OverlayManagerImpl&
-ApplicationImpl::getOverlayManagerImpl()
-{
-    return *mOverlayManagerImpl;
+    return *mOverlayManager;
 }
 
 Database&

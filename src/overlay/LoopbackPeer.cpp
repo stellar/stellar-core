@@ -7,7 +7,7 @@
 #include "main/Application.h"
 #include "generated/StellarXDR.h"
 #include "xdrpp/marshal.h"
-#include "overlay/OverlayManagerImpl.h"
+#include "overlay/OverlayManager.h"
 
 namespace stellar
 {
@@ -48,7 +48,7 @@ LoopbackPeer::drop()
     mApp.getClock().getIOService().post(
         [self]()
         {
-            self->getApp().getOverlayManagerImpl().dropPeer(self);
+            self->getApp().getOverlayManager().dropPeer(self);
         });
     if (mRemote)
     {
@@ -56,7 +56,7 @@ LoopbackPeer::drop()
         mRemote->getApp().getClock().getIOService().post(
             [remote]()
             {
-                remote->getApp().getOverlayManagerImpl().dropPeer(remote);
+                remote->getApp().getOverlayManager().dropPeer(remote);
                 remote->mRemote = nullptr;
             });
         mRemote = nullptr;
@@ -307,8 +307,8 @@ LoopbackPeerConnection::LoopbackPeerConnection(Application& initiator,
     mAcceptor->mRemote = mInitiator;
     mAcceptor->mState = Peer::CONNECTED;
 
-    initiator.getOverlayManagerImpl().addConnectedPeer(mInitiator);
-    acceptor.getOverlayManagerImpl().addConnectedPeer(mAcceptor);
+    initiator.getOverlayManager().addConnectedPeer(mInitiator);
+    acceptor.getOverlayManager().addConnectedPeer(mAcceptor);
 
     mAcceptor->connectHandler(asio::error_code());
 }

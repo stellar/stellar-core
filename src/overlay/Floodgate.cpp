@@ -3,7 +3,7 @@
 // this distribution or at http://opensource.org/licenses/ISC
 
 #include "Floodgate.h"
-#include "overlay/OverlayManagerImpl.h"
+#include "overlay/OverlayManager.h"
 #include "xdrpp/marshal.h"
 #include "crypto/SHA.h"
 #include "ledger/LedgerManager.h"
@@ -70,10 +70,10 @@ Floodgate::broadcast(StellarMessage const& msg, bool force)
     { // no one has sent us this message
         FloodRecord::pointer record = std::make_shared<FloodRecord>(
             msg, mApp.getLedgerManager().getLedgerNum(), Peer::pointer());
-        record->mPeersTold = mApp.getOverlayManagerImpl().getPeers();
+        record->mPeersTold = mApp.getOverlayManager().getPeers();
 
         mFloodMap[index] = record;
-        for (auto peer : mApp.getOverlayManagerImpl().getPeers())
+        for (auto peer : mApp.getOverlayManager().getPeers())
         {
             if (peer->getState() == Peer::GOT_HELLO)
             {
@@ -85,7 +85,7 @@ Floodgate::broadcast(StellarMessage const& msg, bool force)
     else
     { // send it to people that haven't sent it to us
         std::vector<Peer::pointer>& peersTold = result->second->mPeersTold;
-        for (auto peer : mApp.getOverlayManagerImpl().getPeers())
+        for (auto peer : mApp.getOverlayManager().getPeers())
         {
             if (find(peersTold.begin(), peersTold.end(), peer) ==
                 peersTold.end())

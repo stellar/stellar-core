@@ -27,9 +27,15 @@ Should keep rotating peers till you get an answer:
 namespace stellar
 {
 
+class PeerRecord;
+
 class OverlayManager
 {
   public:
+
+    static std::unique_ptr<OverlayManager> create(Application& app);
+    static void dropAll(Database& db);
+
     // called by Ledger
     virtual void ledgerClosed(LedgerHeaderHistoryEntry const& ledger) = 0;
 
@@ -43,5 +49,17 @@ class OverlayManager
     virtual Peer::pointer getRandomPeer() = 0;
     // returns NULL if the passed peer isn't found
     virtual Peer::pointer getNextPeer(Peer::pointer peer) = 0;
+    virtual Peer::pointer getConnectedPeer(const std::string& ip, int port) = 0;
+
+    virtual void addConnectedPeer(Peer::pointer peer) = 0;
+    virtual void dropPeer(Peer::pointer peer) = 0;
+    virtual bool isPeerAccepted(Peer::pointer peer) = 0;
+    virtual std::vector<Peer::pointer>& getPeers() = 0;
+
+    virtual void connectTo(const std::string& addr) = 0;
+    virtual void connectTo(PeerRecord& pr) = 0;
+
+    virtual ~OverlayManager() {}
+
 };
 }

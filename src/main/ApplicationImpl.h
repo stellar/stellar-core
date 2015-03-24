@@ -10,7 +10,6 @@
 namespace stellar
 {
 class TmpDirMaster;
-class OverlayManagerImpl;
 class LedgerManager;
 class HerderImpl;
 class CLFManager;
@@ -40,7 +39,6 @@ class ApplicationImpl : public Application
     virtual ProcessManager& getProcessManager() override;
     virtual Herder& getHerder() override;
     virtual OverlayManager& getOverlayManager() override;
-    virtual OverlayManagerImpl& getOverlayManagerImpl() override;
     virtual Database& getDatabase() override;
     virtual PersistentState& getPersistentState() override;
 
@@ -90,7 +88,7 @@ class ApplicationImpl : public Application
     std::unique_ptr<medida::MetricsRegistry> mMetrics;
     std::unique_ptr<Database> mDatabase;
     std::unique_ptr<TmpDirMaster> mTmpDirMaster;
-    std::unique_ptr<OverlayManagerImpl> mOverlayManagerImpl;
+    std::unique_ptr<OverlayManager> mOverlayManager;
     std::unique_ptr<LedgerManager> mLedgerManager;
     std::unique_ptr<HerderImpl> mHerderImpl;
     std::unique_ptr<CLFManager> mCLFManager;

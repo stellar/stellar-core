@@ -47,7 +47,7 @@ class OverlayManagerImpl : public OverlayManager
     void storeConfigPeers();
     bool isPeerPreferred(Peer::pointer peer);
 
-    friend class OverlayManagerImplTests;
+    friend class OverlayManagerTests;
 
   public:
     Floodgate mFloodGate;
@@ -55,31 +55,23 @@ class OverlayManagerImpl : public OverlayManager
     OverlayManagerImpl(Application& app);
     ~OverlayManagerImpl();
 
-    //////// GATEWAY FUNCTIONS
-    void ledgerClosed(LedgerHeaderHistoryEntry const& ledger);
+    void ledgerClosed(LedgerHeaderHistoryEntry const& ledger) override;
+    void recvFloodedMsg(StellarMessage const& msg, Peer::pointer peer) override;
+    void broadcastMessage(StellarMessage const& msg, bool force = false) override;
 
-    void recvFloodedMsg(StellarMessage const& msg, Peer::pointer peer);
+    void connectTo(const std::string& addr) override;
+    virtual void connectTo(PeerRecord& pr) override;
 
-    void broadcastMessage(StellarMessage const& msg, bool force = false);
-    //////
+    void addConnectedPeer(Peer::pointer peer) override;
+    void dropPeer(Peer::pointer peer) override;
+    bool isPeerAccepted(Peer::pointer peer) override;
+    std::vector<Peer::pointer>& getPeers() override;
 
-    void connectTo(const std::string& addr);
-    virtual void connectTo(PeerRecord& pr);
-    void connectToMorePeers(int max);
-    void addConnectedPeer(Peer::pointer peer);
-    void dropPeer(Peer::pointer peer);
-    bool isPeerAccepted(Peer::pointer peer);
-    std::vector<Peer::pointer>&
-    getPeers()
-    {
-        return mPeers;
-    }
-
-    Peer::pointer getConnectedPeer(const std::string& ip, int port);
-    Peer::pointer getRandomPeer();
     // returns NULL if the passed peer isn't found
-    Peer::pointer getNextPeer(Peer::pointer peer);
+    Peer::pointer getNextPeer(Peer::pointer peer) override;
+    Peer::pointer getConnectedPeer(const std::string& ip, int port) override;
 
-    static void dropAll(Database& db);
+    void connectToMorePeers(int max);
+    Peer::pointer getRandomPeer() override;
 };
 }

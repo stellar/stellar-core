@@ -7,7 +7,7 @@
 #include "main/Config.h"
 #include "util/Logging.h"
 #include "simulation/Simulation.h"
-#include "overlay/OverlayManagerImpl.h"
+#include "overlay/OverlayManager.h"
 
 namespace stellar
 {
@@ -25,10 +25,10 @@ TEST_CASE("TCPPeer can communicate", "[overlay]")
 
     s->crankForAtLeast(std::chrono::seconds(3));
 
-    REQUIRE(n0->getOverlayManagerImpl()
+    REQUIRE(n0->getOverlayManager()
                 .getConnectedPeer("127.0.0.1", n1->getConfig().PEER_PORT)
                 ->getState() == Peer::GOT_HELLO);
-    REQUIRE(n1->getOverlayManagerImpl()
+    REQUIRE(n1->getOverlayManager()
                 .getConnectedPeer("127.0.0.1", n0->getConfig().PEER_PORT)
                 ->getState() == Peer::GOT_HELLO);
 }
