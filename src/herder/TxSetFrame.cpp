@@ -119,11 +119,12 @@ TxSetFrame::sortForApply()
     return retList;
 }
 
+
 // need to make sure every account that is submitting a tx has enough to pay
 // the fees of all the tx it has submitted in this set
 // check seq num
 bool
-TxSetFrame::checkValid(Application& app)
+TxSetFrame::checkValid(Application& app,bool strip)
 {
     using xdr::operator==;
 
@@ -160,7 +161,11 @@ TxSetFrame::checkValid(Application& app)
         {
             if (!tx->checkValid(app, lastSeq))
             {
-                return false;
+                if(strip)
+                {
+                    removeTx(tx);
+                    continue;
+                }else return false;
             }
             totFee += tx->getFee(app);
 
@@ -175,11 +180,25 @@ TxSetFrame::checkValid(Application& app)
             if (newBalance < lastTx->getSourceAccount().getMinimumBalance(
                                  app.getLedgerManager()))
             {
-                return false;
+                if(strip)
+                {
+                    for(auto& tx : item.second)
+                    {
+                        removeTx(tx);
+                    }
+                    continue;
+                }else  return false;
             }
         }
     }
     return true;
+}
+
+void TxSetFrame::removeTx(TransactionFramePtr tx)
+{
+    auto it = std::find(mTransactions.begin(), mTransactions.end(), tx);
+    if(it != mTransactions.end())
+        mTransactions.erase(it);
 }
 
 Hash

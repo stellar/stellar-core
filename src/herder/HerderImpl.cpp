@@ -882,11 +882,29 @@ HerderImpl::triggerNextLedger()
         std::make_shared<TxSetFrame>(mLastClosedLedger.hash);
     for (auto& list : mReceivedTransactions)
     {
-        for (auto& tx : list)
+        for(auto iter = list.begin(); iter != list.end(); )
         {
-            proposedSet->add(tx);
+            auto& tx = *iter;
+            if(tx->checkValid(mApp, 0))
+            {
+                proposedSet->add(tx);
+                iter++;
+            } else
+            { // still include badseq since they could still be valid
+                if(tx->getResultCode() == txBAD_SEQ)
+                {
+                    proposedSet->add(tx);
+                    iter++;
+                } else
+                { // drop txs that will never be valid
+                    iter = list.erase(iter);
+                }
+            }
         }
     }
+
+    proposedSet->sortForHash();
+    proposedSet->checkValid(mApp, true);
 
     recvTxSet(proposedSet);
 
