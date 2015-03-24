@@ -53,19 +53,37 @@ BucketLevel::getSnap() const
 void
 BucketLevel::setCurr(std::shared_ptr<Bucket> b)
 {
-    mNextCurr = std::future<std::shared_ptr<Bucket>>();
+    clearPendingMerge();
+    if (mCurr)
+    {
+        mCurr->setRetain(false);
+    }
     mCurr = b;
+    if (mCurr)
+    {
+        mCurr->setRetain(true);
+    }
 }
 
 void
 BucketLevel::setSnap(std::shared_ptr<Bucket> b)
 {
+    if (mSnap)
+    {
+        mSnap->setRetain(false);
+    }
     mSnap = b;
+    if (mSnap)
+    {
+        mSnap->setRetain(true);
+    }
 }
 
 void
 BucketLevel::clearPendingMerge()
 {
+    // NB: MSVC future<> implementation doesn't purge the task lambda (and
+    // its captures) on invalidation (due to get()); must explicitly reset.
     mNextCurr = std::future<std::shared_ptr<Bucket>>();
 }
 
@@ -75,13 +93,8 @@ BucketLevel::commit()
     if (mNextCurr.valid())
     {
         // NB: This might block if the worker thread is slow; might want to
-        // use mNextCurr.wait_for(
-        mCurr = mNextCurr.get();
-
-        // NB: MSVC future<> implementation doesn't purge the task lambda (and
-        // its captures) on invalidation (due to get()); must explicitly reset.
-        clearPendingMerge();
-
+        // use mNextCurr.wait_for()
+        setCurr(mNextCurr.get());
         // CLOG(DEBUG, "CLF") << "level " << mLevel << " set mCurr to "
         //            << mCurr->getEntries().size() << " elements";
     }

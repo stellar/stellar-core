@@ -211,7 +211,12 @@ CLFManagerImpl::forgetUnreferencedBuckets()
         ++i;
         if (referenced.find(j->first) == referenced.end())
         {
+            j->second->setRetain(false);
             mSharedBuckets.erase(j);
+        }
+        else
+        {
+            j->second->setRetain(true);
         }
     }
 }
