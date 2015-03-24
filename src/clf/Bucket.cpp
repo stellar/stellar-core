@@ -78,7 +78,7 @@ Bucket::Bucket(std::string const& filename, uint256 const& hash)
 
 Bucket::~Bucket()
 {
-    if (!mFilename.empty())
+    if (!mFilename.empty() && !mRetain)
     {
         std::remove(mFilename.c_str());
     }
@@ -98,6 +98,12 @@ std::string const&
 Bucket::getFilename() const
 {
     return mFilename;
+}
+
+void
+Bucket::setRetain(bool r)
+{
+    mRetain = r;
 }
 
 /**
