@@ -4,67 +4,71 @@
 
 %#include "generated/Stellar-transaction.h"
 
-namespace stellar {
+namespace stellar
+{
 
 /* The LedgerHeader is the highest level structure representing the
  * state of a ledger, cryptographically linked to previous ledgers.
 */
 struct LedgerHeader
 {
-    Hash previousLedgerHash;// hash of the previous ledger header
-    Hash txSetHash;         // the tx set that was SCP confirmed
-    Hash txSetResultHash;   // the TransactionResultSet that led to this ledger
-    Hash clfHash;           // hash of the ledger state
+    Hash previousLedgerHash; // hash of the previous ledger header
+    Hash txSetHash;          // the tx set that was SCP confirmed
+    Hash txSetResultHash;    // the TransactionResultSet that led to this ledger
+    Hash clfHash;            // hash of the ledger state
 
-    uint32 ledgerSeq;       // sequence number of this ledger
-    uint64 closeTime;       // network close time
+    uint32 ledgerSeq; // sequence number of this ledger
+    uint64 closeTime; // network close time
 
-    int64 totalCoins;       // total number of stroops in existence
+    int64 totalCoins; // total number of stroops in existence
 
-    int64 feePool;          // fees burned since last inflation run
-    uint32 inflationSeq;    // inflation sequence number
+    int64 feePool;       // fees burned since last inflation run
+    uint32 inflationSeq; // inflation sequence number
 
-    uint64 idPool;          // last used global ID, used for generating objects
+    uint64 idPool; // last used global ID, used for generating objects
 
-    int32 baseFee;          // base fee per operation in stroops
-    int32 baseReserve;      // account base reserve in stroops
-
+    int32 baseFee;     // base fee per operation in stroops
+    int32 baseReserve; // account base reserve in stroops
 };
 
 /* Entries used to define the bucket list */
 
 union LedgerKey switch (LedgerEntryType type)
 {
-    case ACCOUNT:
-        struct {
-            AccountID accountID;
-        } account;
+case ACCOUNT:
+    struct
+    {
+        AccountID accountID;
+    } account;
 
-    case TRUSTLINE:
-        struct {
-            AccountID accountID;
-            Currency currency;
-        } trustLine;
+case TRUSTLINE:
+    struct
+    {
+        AccountID accountID;
+        Currency currency;
+    } trustLine;
 
-    case OFFER:
-        struct {
-            AccountID accountID;
-            uint64 offerID;
-        } offer;
+case OFFER:
+    struct
+    {
+        AccountID accountID;
+        uint64 offerID;
+    } offer;
 };
 
-enum CLFType {
+enum CLFType
+{
     LIVEENTRY = 0,
     DEADENTRY = 1
 };
 
 union CLFEntry switch (CLFType type)
 {
-    case LIVEENTRY:
-        LedgerEntry liveEntry;
+case LIVEENTRY:
+    LedgerEntry liveEntry;
 
-    case DEADENTRY:
-        LedgerKey deadEntry;
+case DEADENTRY:
+    LedgerKey deadEntry;
 };
 
 // Transaction sets are the unit used by SCP to decide on transitions
@@ -78,7 +82,7 @@ struct TransactionSet
 struct TransactionResultPair
 {
     Hash transactionHash;
-    TransactionResult result;   // result for the transaction
+    TransactionResult result; // result for the transaction
 };
 
 // TransactionResultSet is used to recover results between ledgers
@@ -110,5 +114,4 @@ struct LedgerHeaderHistoryEntry
     Hash hash;
     LedgerHeader header;
 };
-
 }

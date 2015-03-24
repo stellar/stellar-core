@@ -4,9 +4,11 @@
 
 %#include "generated/Stellar-types.h"
 
-namespace stellar {
+namespace stellar
+{
 
-enum LedgerEntryType {
+enum LedgerEntryType
+{
     ACCOUNT = 0,
     TRUSTLINE = 1,
     OFFER = 2
@@ -15,7 +17,7 @@ enum LedgerEntryType {
 struct Signer
 {
     uint256 pubKey;
-    uint32 weight;  // really only need 1byte
+    uint32 weight; // really only need 1byte
 };
 
 enum AccountFlags
@@ -25,27 +27,27 @@ enum AccountFlags
 
 struct AccountEntry
 {
-    AccountID accountID;    // master public key for this account
-    int64 balance;          // in stroops
-    SequenceNumber seqNum;  // last sequence number used for this account
+    AccountID accountID;   // master public key for this account
+    int64 balance;         // in stroops
+    SequenceNumber seqNum; // last sequence number used for this account
     uint32 numSubEntries;
-    uint256 *inflationDest;
-    uint32 flags;           // see AccountFlags
+    uint256* inflationDest;
+    uint32 flags; // see AccountFlags
 
     // fields used for signatures
     // thresholds stores [weight of master|threshold1|threshold2|threshold3]
     opaque thresholds[4];
 
-    Signer signers<20>;     // possible signers for this account
+    Signer signers<20>; // possible signers for this account
 };
 
 struct TrustLineEntry
 {
-    AccountID accountID;// account this trustline belongs to
-    Currency currency;  // currency (with issuer)
-    int64 balance;      // currency defines the unit for this
-    int64 limit;        // balance cannot be above this
-    bool authorized;    // issuer has authorized account to hold its credit
+    AccountID accountID; // account this trustline belongs to
+    Currency currency;   // currency (with issuer)
+    int64 balance;       // currency defines the unit for this
+    int64 limit;         // balance cannot be above this
+    bool authorized;     // issuer has authorized account to hold its credit
 };
 
 // an Offer, for example selling 10A @ 2B/A
@@ -67,14 +69,13 @@ struct OfferEntry
 
 union LedgerEntry switch (LedgerEntryType type)
 {
-    case ACCOUNT:
-        AccountEntry account;
+case ACCOUNT:
+    AccountEntry account;
 
-    case TRUSTLINE:
-        TrustLineEntry trustLine;
+case TRUSTLINE:
+    TrustLineEntry trustLine;
 
-    case OFFER:
-        OfferEntry offer;
+case OFFER:
+    OfferEntry offer;
 };
-
 }
