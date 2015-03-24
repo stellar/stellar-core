@@ -31,7 +31,7 @@ CancelOfferOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
 
     innerResult().code(CANCEL_OFFER_SUCCESS);
 
-    mSourceAccount->getAccount().numSubEntries--;
+    mSourceAccount->addNumEntries(-1, ledgerManager);
     offerFrame.storeDelete(delta, db);
     mSourceAccount->storeChange(delta, db);
 

@@ -86,6 +86,25 @@ AccountFrame::getMinimumBalance(LedgerManager const& lm) const
     return lm.getMinBalance(mAccountEntry.numSubEntries);
 }
 
+// returns true if successfully updated,
+// false if balance is not sufficient
+bool
+AccountFrame::addNumEntries(int count, LedgerManager const& lm)
+{
+    int newEntriesCount = mAccountEntry.numSubEntries + count;
+    if (newEntriesCount < 0)
+    {
+        throw std::runtime_error("invalid account state");
+    }
+    if (getBalance() < lm.getMinBalance(newEntriesCount))
+    {
+        // balance too low
+        return false;
+    }
+    mAccountEntry.numSubEntries = newEntriesCount;
+    return true;
+}
+
 uint256 const&
 AccountFrame::getID() const
 {

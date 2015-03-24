@@ -136,7 +136,8 @@ OfferExchange::crossOffer(OfferFrame& sellingWheatOffer,
     if (offerTaken)
     { // entire offer is taken
         sellingWheatOffer.storeDelete(mDelta, db);
-        accountB.getAccount().numSubEntries--;
+
+        accountB.addNumEntries(-1, mLedgerManager);
         accountB.storeChange(mDelta, db);
     }
     else

@@ -49,8 +49,14 @@ class AccountFrame : public EntryFrame
         normalize();
         mUpdateSigners = true;
     }
+
     int64_t getBalance() const;
     int64_t getMinimumBalance(LedgerManager const& lm) const;
+
+    // returns true if successfully updated,
+    // false if balance is not sufficient
+    bool addNumEntries(int count, LedgerManager const& lm);
+
     bool isAuthRequired() const;
     uint256 const& getID() const;
 

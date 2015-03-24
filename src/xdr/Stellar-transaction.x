@@ -200,7 +200,8 @@ enum CreateOfferResultCode
     CREATE_OFFER_MALFORMED = 3,
     CREATE_OFFER_UNDERFUNDED = 4,
     CREATE_OFFER_CROSS_SELF = 5,
-    CREATE_OFFER_NOT_FOUND = 6
+    CREATE_OFFER_NOT_FOUND = 6,
+    CREATE_OFFER_BELOW_MIN_BALANCE = 7 // not enough funds to create a new Offer
 };
 
 enum CreateOfferEffect
@@ -254,7 +255,7 @@ enum SetOptionsResultCode
     SET_OPTIONS_SUCCESS = 0,
     SET_OPTIONS_RATE_FIXED = 1,
     SET_OPTIONS_RATE_TOO_HIGH = 2,
-    SET_OPTIONS_BELOW_MIN_BALANCE = 3,
+    SET_OPTIONS_BELOW_MIN_BALANCE = 3, // not enough funds to add a signer
     SET_OPTIONS_MALFORMED = 4
 };
 
@@ -272,7 +273,8 @@ enum ChangeTrustResultCode
 {
     CHANGE_TRUST_SUCCESS = 0,
     CHANGE_TRUST_NO_ACCOUNT = 1,
-    CHANGE_TRUST_INVALID_LIMIT =2
+    CHANGE_TRUST_INVALID_LIMIT =2,
+    CHANGE_TRUST_BELOW_MIN_BALANCE = 3 // not enough funds to create a new trust line
 };
 
 union ChangeTrustResult switch(ChangeTrustResultCode code)

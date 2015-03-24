@@ -72,13 +72,11 @@ SetOptionsOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
                     innerResult().code(SET_OPTIONS_MALFORMED);
                     return false;
                 }
-                if (account.balance <
-                    ledgerManager.getMinBalance(account.numSubEntries + 1))
+                if (!mSourceAccount->addNumEntries(1, ledgerManager))
                 {
                     innerResult().code(SET_OPTIONS_BELOW_MIN_BALANCE);
                     return false;
                 }
-                account.numSubEntries++;
                 signers.push_back(*mSetOptions.signer);
             }
         }
@@ -91,7 +89,7 @@ SetOptionsOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
                 if (oldSigner.pubKey == mSetOptions.signer->pubKey)
                 {
                     it = signers.erase(it);
-                    account.numSubEntries--;
+                    mSourceAccount->addNumEntries(-1, ledgerManager);
                 }
                 else
                 {
