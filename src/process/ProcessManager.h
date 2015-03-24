@@ -47,7 +47,9 @@ class ProcessExitEvent
 class ProcessManager
 {
   public:
+    static std::unique_ptr<ProcessManager> create(Application& app);
     virtual ProcessExitEvent runProcess(std::string const& cmdLine,
                                         std::string outputFile = "") = 0;
+    virtual ~ProcessManager() {}
 };
 }

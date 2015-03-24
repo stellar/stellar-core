@@ -3,7 +3,7 @@
 // this distribution or at http://opensource.org/licenses/ISC
 
 #include "ledger/EntryFrame.h"
-#include "LedgerManagerImpl.h"
+#include "LedgerManager.h"
 #include "ledger/AccountFrame.h"
 #include "ledger/OfferFrame.h"
 #include "ledger/TrustFrame.h"

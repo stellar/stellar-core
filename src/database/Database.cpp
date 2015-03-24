@@ -4,14 +4,15 @@
 
 #include "database/Database.h"
 #include "generated/StellarXDR.h"
-#include "overlay/OverlayManagerImpl.h"
+#include "overlay/OverlayManager.h"
 #include "main/Application.h"
 #include "main/Config.h"
+#include "main/PersistentState.h"
 #include "crypto/Hex.h"
 #include "crypto/Base58.h"
 #include "util/Logging.h"
-#include "ledger/LedgerManagerImpl.h"
 #include "ledger/LedgerHeaderFrame.h"
+#include "transactions/TransactionFrame.h"
 #include "util/types.h"
 #include "util/make_unique.h"
 #include "medida/metrics_registry.h"
@@ -20,6 +21,7 @@
 #include <stdexcept>
 #include <vector>
 #include <sstream>
+#include <thread>
 
 extern "C" void register_factory_sqlite3();
 
@@ -123,7 +125,7 @@ Database::initialize()
     AccountFrame::dropAll(*this);
     OfferFrame::dropAll(*this);
     TrustFrame::dropAll(*this);
-    OverlayManagerImpl::dropAll(*this);
+    OverlayManager::dropAll(*this);
     PersistentState::dropAll(*this);
     LedgerHeaderFrame::dropAll(*this);
     TransactionFrame::dropAll(*this);

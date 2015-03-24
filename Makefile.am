@@ -1,6 +1,10 @@
 ## -*- fill-column: 30; -*-
 ## Process this file with automake to produce Makefile.in
 
+# Copyright 2015 Stellar Development Foundation and contributors. Licensed
+# under the ISC License. See the COPYING file at the top-level directory of
+# this distribution or at http://opensource.org/licenses/ISC
+
 SUBDIRS =
 noinst_LTLIBRARIES = libsoci.la
 bin_PROGRAMS = bin/stellard
@@ -57,7 +61,7 @@ FMT_SRCS =                                      \
     src/overlay/Peer.cpp                        \
     src/overlay/PeerDoor.cpp                    \
     src/overlay/OverlayManagerImpl.cpp          \
-    src/overlay/OverlayManagerImplTests.cpp     \
+    src/overlay/OverlayManagerTests.cpp         \
     src/overlay/PeerRecord.cpp                  \
     src/overlay/PeerRecordTests.cpp             \
     src/overlay/TCPPeer.cpp                     \

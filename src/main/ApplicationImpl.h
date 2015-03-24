@@ -1,6 +1,9 @@
 #pragma once
 
-#define STELLARD_REAL_TIMER_FOR_CERTAIN_NOT_JUST_VIRTUAL_TIME
+// Copyright 2015 Stellar Development Foundation and contributors. Licensed
+// under the ISC License. See the COPYING file at the top-level directory of
+// this distribution or at http://opensource.org/licenses/ISC
+
 #include "util/Timer.h"
 #include "Application.h"
 #include "main/Config.h"
@@ -9,13 +12,12 @@
 
 namespace stellar
 {
-class TmpDirMaster;
-class OverlayManagerImpl;
-class LedgerManagerImpl;
-class HerderImpl;
+class TmpDirManager;
+class LedgerManager;
+class Herder;
 class CLFManager;
 class HistoryManager;
-class ProcessManagerImpl;
+class ProcessManager;
 class CommandHandler;
 class Database;
 
@@ -33,15 +35,13 @@ class ApplicationImpl : public Application
     virtual void setState(State) override;
     virtual VirtualClock& getClock() override;
     virtual medida::MetricsRegistry& getMetrics() override;
-    virtual TmpDirMaster& getTmpDirMaster() override;
+    virtual TmpDirManager& getTmpDirManager() override;
     virtual LedgerManager& getLedgerManager() override;
-    virtual LedgerManagerImpl& getLedgerManagerImpl() override;
     virtual CLFManager& getCLFManager() override;
     virtual HistoryManager& getHistoryManager() override;
     virtual ProcessManager& getProcessManager() override;
     virtual Herder& getHerder() override;
     virtual OverlayManager& getOverlayManager() override;
-    virtual OverlayManagerImpl& getOverlayManagerImpl() override;
     virtual Database& getDatabase() override;
     virtual PersistentState& getPersistentState() override;
 
@@ -71,18 +71,18 @@ class ApplicationImpl : public Application
     VirtualClock& mVirtualClock;
     Config mConfig;
 
-    // NB: The io_services should come first, then the 'master'
+    // NB: The io_services should come first, then the 'manager'
     // sub-objects, then the threads. Do not reorder these fields.
     //
     // The fields must be constructed in this order, because the
-    // 'master' sub-objects register work-to-do (listening on sockets)
+    // 'manager' sub-objects register work-to-do (listening on sockets)
     // with the io_services during construction, and the threads are
     // activated immediately thereafter to serve requests; if the
     // threads started first, they would try to do work, find no work,
     // and exit.
     //
     // The fields must be destructed in the reverse order because the
-    // 'master' sub-objects contain various IO objects that refer
+    // 'manager' sub-objects contain various IO objects that refer
     // directly to the io_services.
 
     asio::io_service mWorkerIOService;
@@ -90,13 +90,13 @@ class ApplicationImpl : public Application
 
     std::unique_ptr<medida::MetricsRegistry> mMetrics;
     std::unique_ptr<Database> mDatabase;
-    std::unique_ptr<TmpDirMaster> mTmpDirMaster;
-    std::unique_ptr<OverlayManagerImpl> mOverlayManagerImpl;
-    std::unique_ptr<LedgerManagerImpl> mLedgerManagerImpl;
-    std::unique_ptr<HerderImpl> mHerderImpl;
+    std::unique_ptr<TmpDirManager> mTmpDirManager;
+    std::unique_ptr<OverlayManager> mOverlayManager;
+    std::unique_ptr<LedgerManager> mLedgerManager;
+    std::unique_ptr<Herder> mHerder;
     std::unique_ptr<CLFManager> mCLFManager;
     std::unique_ptr<HistoryManager> mHistoryManager;
-    std::unique_ptr<ProcessManagerImpl> mProcessManagerImpl;
+    std::unique_ptr<ProcessManager> mProcessManager;
     std::unique_ptr<CommandHandler> mCommandHandler;
     std::unique_ptr<PersistentState> mPersistentState;
 

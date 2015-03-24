@@ -2,28 +2,30 @@
 // under the ISC License. See the COPYING file at the top-level directory of
 // this distribution or at http://opensource.org/licenses/ISC
 
-#include "LedgerManagerImpl.h"
-#include "main/Application.h"
-#include "main/Config.h"
 #include "clf/CLFManager.h"
-#include "util/Logging.h"
-#include "lib/json/json.h"
-#include "ledger/LedgerDelta.h"
-#include "crypto/Hex.h"
-#include "crypto/SecretKey.h"
 #include "crypto/Base58.h"
+#include "crypto/Hex.h"
 #include "crypto/SHA.h"
+#include "crypto/SecretKey.h"
 #include "database/Database.h"
-#include "ledger/LedgerHeaderFrame.h"
 #include "herder/Herder.h"
 #include "herder/TxSetFrame.h"
-#include "overlay/OverlayManager.h"
 #include "history/HistoryManager.h"
-#include "medida/metrics_registry.h"
+#include "ledger/LedgerDelta.h"
+#include "ledger/LedgerHeaderFrame.h"
+#include "ledger/LedgerManagerImpl.h"
+#include "main/Application.h"
+#include "main/Config.h"
+#include "overlay/OverlayManager.h"
+#include "util/Logging.h"
+#include "util/make_unique.h"
+
 #include "medida/meter.h"
+#include "medida/metrics_registry.h"
 #include "medida/timer.h"
 #include "xdrpp/printer.h"
 #include "xdrpp/types.h"
+
 #include <chrono>
 #include <sstream>
 
@@ -41,8 +43,8 @@ The ledger module:
 
 catching up to network:
     1) Wait for SCP to tell us what the network is on now
-    2) Ask network for the the delta between what it has now and our ledger last
-ledger
+    2) Pull history log or static deltas from history archive
+    3) Replay or force-apply deltas, depending on catchup mode
 
     // TODO.3 we need to store some validation history?
     // TODO.3 better way to handle quorums when you are booting a network for
@@ -57,8 +59,14 @@ using namespace std;
 namespace stellar
 {
 
+std::unique_ptr<LedgerManager>
+LedgerManager::create(Application& app)
+{
+    return make_unique<LedgerManagerImpl>(app);
+}
+
 std::string
-LedgerManagerImpl::ledgerAbbrev(LedgerHeader const& header, uint256 const& hash)
+LedgerManager::ledgerAbbrev(LedgerHeader const& header, uint256 const& hash)
 {
     std::ostringstream oss;
     oss << "[seq=" << header.ledgerSeq << ", hash=" << hexAbbrev(hash) << "]";
@@ -66,7 +74,7 @@ LedgerManagerImpl::ledgerAbbrev(LedgerHeader const& header, uint256 const& hash)
 }
 
 std::string
-LedgerManagerImpl::ledgerAbbrev(LedgerHeaderFrame::pointer p)
+LedgerManager::ledgerAbbrev(LedgerHeaderFrame::pointer p)
 {
     if (!p)
     {
@@ -76,7 +84,7 @@ LedgerManagerImpl::ledgerAbbrev(LedgerHeaderFrame::pointer p)
 }
 
 std::string
-LedgerManagerImpl::ledgerAbbrev(LedgerHeaderHistoryEntry he)
+LedgerManager::ledgerAbbrev(LedgerHeaderHistoryEntry he)
 {
     return ledgerAbbrev(he.header, he.hash);
 }

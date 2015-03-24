@@ -49,7 +49,7 @@ TEST_CASE("standalone", "[herder]")
     SecretKey a1 = getAccount("A");
     SecretKey b1 = getAccount("B");
 
-    const int64_t paymentAmount = app->getLedgerManagerImpl().getMinBalance(0);
+    const int64_t paymentAmount = app->getLedgerManager().getMinBalance(0);
 
     AccountFrame rootAccount;
     REQUIRE(AccountFrame::loadAccount(root.getPublicKey(), rootAccount,
@@ -126,7 +126,7 @@ TEST_CASE("txset", "[herder]")
     const int nbTransactions = 5;
     SecretKey accounts[nbAccounts];
 
-    const int64_t paymentAmount = app->getLedgerManagerImpl().getMinBalance(0);
+    const int64_t paymentAmount = app->getLedgerManager().getMinBalance(0);
 
     AccountFrame rootAccount;
 
@@ -138,7 +138,7 @@ TEST_CASE("txset", "[herder]")
     SecretKey sourceAccount = getAccount("source");
 
     int64_t amountPop =
-        nbAccounts * nbTransactions * app->getLedgerManagerImpl().getTxFee() +
+        nbAccounts * nbTransactions * app->getLedgerManager().getTxFee() +
         paymentAmount;
 
     applyPaymentTx(*app, root, sourceAccount, rootSeq++, amountPop);
@@ -149,7 +149,7 @@ TEST_CASE("txset", "[herder]")
 
     for (int i = 0; i < nbAccounts; i++)
     {
-        string accountName = "A";
+        std::string accountName = "A";
         accountName += '0' + i;
         accounts[i] = getAccount(accountName.c_str());
         for (int j = 0; j < nbTransactions; j++)
@@ -160,7 +160,7 @@ TEST_CASE("txset", "[herder]")
     }
 
     TxSetFramePtr txSet = std::make_shared<TxSetFrame>(
-        app->getLedgerManagerImpl().getLastClosedLedgerHeader().hash);
+        app->getLedgerManager().getLastClosedLedgerHeader().hash);
 
     for (auto& txs : transactions)
     {

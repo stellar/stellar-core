@@ -9,14 +9,13 @@
 // first to include <windows.h> -- so we try to include it before everything
 // else.
 #include "util/asio.h"
-#include "ledger/LedgerManagerImpl.h"
-#include "herder/HerderImpl.h"
+#include "ledger/LedgerManager.h"
+#include "herder/Herder.h"
 #include "overlay/OverlayManager.h"
-#include "overlay/OverlayManagerImpl.h"
 #include "clf/CLFManager.h"
 #include "history/HistoryManager.h"
 #include "database/Database.h"
-#include "process/ProcessManagerImpl.h"
+#include "process/ProcessManager.h"
 #include "main/CommandHandler.h"
 #include "medida/metrics_registry.h"
 #include "medida/reporting/console_reporter.h"
@@ -76,13 +75,13 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
         mDatabase->initialize();
     }
 
-    mTmpDirMaster = make_unique<TmpDirMaster>(cfg.TMP_DIR_PATH);
-    mOverlayManagerImpl = make_unique<OverlayManagerImpl>(*this);
-    mLedgerManagerImpl = make_unique<LedgerManagerImpl>(*this);
-    mHerderImpl = make_unique<HerderImpl>(*this);
+    mTmpDirManager = make_unique<TmpDirManager>(cfg.TMP_DIR_PATH);
+    mOverlayManager = OverlayManager::create(*this);
+    mLedgerManager = LedgerManager::create(*this);
+    mHerder = Herder::create(*this);
     mCLFManager = CLFManager::create(*this);
     mHistoryManager = HistoryManager::create(*this);
-    mProcessManagerImpl = make_unique<ProcessManagerImpl>(*this);
+    mProcessManager = ProcessManager::create(*this);
     mCommandHandler = make_unique<CommandHandler>(*this);
 
     while (t--)
@@ -178,7 +177,7 @@ ApplicationImpl::start()
     if (mPersistentState->getState(PersistentState::kDatabaseInitialized) !=
         "true")
     {
-        throw runtime_error("Database not initialized and REBUID_DB is false.");
+        throw std::runtime_error("Database not initialized and REBUID_DB is false.");
     }
 
     bool hasLedger =
@@ -186,7 +185,7 @@ ApplicationImpl::start()
 
     if (mConfig.START_NEW_NETWORK)
     {
-        string flagClearedMsg = "";
+        std::string flagClearedMsg = "";
         if (mPersistentState->getState(
                 PersistentState::kForceSCPOnNextLaunch) == "true")
         {
@@ -201,7 +200,7 @@ ApplicationImpl::start()
             LOG(INFO) << "* Force-starting scp from scratch, creating the "
                          "genesis ledger." << flagClearedMsg;
             LOG(INFO) << "* ";
-            mLedgerManagerImpl->startNewLedger();
+            mLedgerManager->startNewLedger();
         }
         else
         {
@@ -209,13 +208,13 @@ ApplicationImpl::start()
             LOG(INFO) << "* Force-starting scp from the current db state."
                       << flagClearedMsg;
             LOG(INFO) << "* ";
-            mLedgerManagerImpl->loadLastKnownLedger();
+            mLedgerManager->loadLastKnownLedger();
         }
-        mHerderImpl->bootstrap();
+        mHerder->bootstrap();
     }
     else
     {
-        mLedgerManagerImpl->loadLastKnownLedger();
+        mLedgerManager->loadLastKnownLedger();
     }
 }
 
@@ -257,7 +256,7 @@ ApplicationImpl::manualClose()
 {
     if (mConfig.MANUAL_CLOSE)
     {
-        mHerderImpl->triggerNextLedger();
+        mHerder->triggerNextLedger();
         return true;
     }
     return false;
@@ -302,22 +301,16 @@ ApplicationImpl::getMetrics()
     return *mMetrics;
 }
 
-TmpDirMaster&
-ApplicationImpl::getTmpDirMaster()
+TmpDirManager&
+ApplicationImpl::getTmpDirManager()
 {
-    return *mTmpDirMaster;
+    return *mTmpDirManager;
 }
 
 LedgerManager&
 ApplicationImpl::getLedgerManager()
 {
-    return *mLedgerManagerImpl;
-}
-
-LedgerManagerImpl&
-ApplicationImpl::getLedgerManagerImpl()
-{
-    return *mLedgerManagerImpl;
+    return *mLedgerManager;
 }
 
 CLFManager&
@@ -335,25 +328,19 @@ ApplicationImpl::getHistoryManager()
 ProcessManager&
 ApplicationImpl::getProcessManager()
 {
-    return *mProcessManagerImpl;
+    return *mProcessManager;
 }
 
 Herder&
 ApplicationImpl::getHerder()
 {
-    return *mHerderImpl;
+    return *mHerder;
 }
 
 OverlayManager&
 ApplicationImpl::getOverlayManager()
 {
-    return *mOverlayManagerImpl;
-}
-
-OverlayManagerImpl&
-ApplicationImpl::getOverlayManagerImpl()
-{
-    return *mOverlayManagerImpl;
+    return *mOverlayManager;
 }
 
 Database&

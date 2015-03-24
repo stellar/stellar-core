@@ -333,7 +333,7 @@
     <ClCompile Include="..\..\src\util\Math.cpp">
       <Filter>util</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\overlay\OverlayManagerImplTests.cpp">
+    <ClCompile Include="..\..\src\overlay\OverlayManagerTests.cpp">
       <Filter>overlay</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\history\CatchupStateMachine.cpp">

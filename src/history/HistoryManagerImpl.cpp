@@ -11,7 +11,7 @@
 #include "main/Config.h"
 #include "clf/BucketList.h"
 #include "clf/CLFManager.h"
-#include "ledger/LedgerManagerImpl.h"
+#include "ledger/LedgerManager.h"
 #include "generated/StellarXDR.h"
 #include "history/HistoryArchive.h"
 #include "history/HistoryManagerImpl.h"
@@ -130,7 +130,7 @@ HistoryManagerImpl::getTmpDir()
 {
     if (!mWorkDir)
     {
-        TmpDir t = mApp.getTmpDirMaster().tmpDir("history");
+        TmpDir t = mApp.getTmpDirManager().tmpDir("history");
         mWorkDir = make_unique<TmpDir>(std::move(t));
     }
     return mWorkDir->getName();
@@ -312,7 +312,7 @@ HistoryManagerImpl::mkdir(std::shared_ptr<HistoryArchive const> archive,
 HistoryArchiveState
 HistoryManagerImpl::getLastClosedHistoryArchiveState() const
 {
-    auto seq = mApp.getLedgerManagerImpl()
+    auto seq = mApp.getLedgerManager()
         .getLastClosedLedgerHeader()
         .header.ledgerSeq;
     auto& bl = mApp.getCLFManager().getBucketList();
@@ -335,8 +335,7 @@ bool
 HistoryManagerImpl::maybePublishHistory(
     std::function<void(asio::error_code const&)> handler)
 {
-    uint32_t seq =
-        mApp.getLedgerManagerImpl().getCurrentLedgerHeader().ledgerSeq;
+    uint32_t seq = mApp.getLedgerManager().getLedgerNum();
     if (seq != nextCheckpointLedger(seq))
     {
         return false;

@@ -3,12 +3,11 @@
 // this distribution or at http://opensource.org/licenses/ISC
 
 #include "AccountFrame.h"
-#include "lib/json/json.h"
 #include "crypto/Base58.h"
 #include "crypto/Hex.h"
 #include "database/Database.h"
 #include "LedgerDelta.h"
-#include "ledger/LedgerManagerImpl.h"
+#include "ledger/LedgerManager.h"
 
 using namespace soci;
 using namespace std;
@@ -71,7 +70,7 @@ AccountFrame::getBalance() const
 }
 
 int64_t
-AccountFrame::getMinimumBalance(LedgerManagerImpl const& lm) const
+AccountFrame::getMinimumBalance(LedgerManager const& lm) const
 {
     return lm.getMinBalance(mAccountEntry.numSubEntries);
 }

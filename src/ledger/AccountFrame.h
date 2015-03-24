@@ -18,7 +18,7 @@ class prepare_temp_type;
 
 namespace stellar
 {
-class LedgerManagerImpl;
+class LedgerManager;
 
 class AccountFrame : public EntryFrame
 {
@@ -47,7 +47,7 @@ class AccountFrame : public EntryFrame
         mUpdateSigners = true;
     }
     int64_t getBalance() const;
-    int64_t getMinimumBalance(LedgerManagerImpl const& lm) const;
+    int64_t getMinimumBalance(LedgerManager const& lm) const;
     bool isAuthRequired() const;
     uint256 const& getID() const;
 

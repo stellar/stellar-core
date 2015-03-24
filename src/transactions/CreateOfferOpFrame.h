@@ -1,5 +1,9 @@
 #pragma once
 
+// Copyright 2015 Stellar Development Foundation and contributors. Licensed
+// under the ISC License. See the COPYING file at the top-level directory of
+// this distribution or at http://opensource.org/licenses/ISC
+
 #include "transactions/OperationFrame.h"
 #include "ledger/TrustFrame.h"
 #include "ledger/OfferFrame.h"
@@ -27,7 +31,7 @@ class CreateOfferOpFrame : public OperationFrame
     CreateOfferOpFrame(Operation const& op, OperationResult& res,
                        TransactionFrame& parentTx);
 
-    bool doApply(LedgerDelta& delta, LedgerManagerImpl& ledgerMaster);
+    bool doApply(LedgerDelta& delta, LedgerManager& ledgerManager);
     bool doCheckValid(Application& app);
 
     static CreateOfferResultCode

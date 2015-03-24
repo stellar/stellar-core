@@ -253,7 +253,7 @@ TransactionFrame::checkValid(Application& app, bool applying,
 
     // don't let the account go below the reserve
     if (mSigningAccount->getAccount().balance - fee <
-        mSigningAccount->getMinimumBalance(app.getLedgerManagerImpl()))
+        mSigningAccount->getMinimumBalance(app.getLedgerManager()))
     {
         getResult().result.code(txINSUFFICIENT_BALANCE);
         return false;
@@ -276,9 +276,9 @@ TransactionFrame::checkValid(Application& app, bool applying,
 
 void
 TransactionFrame::prepareResult(LedgerDelta& delta,
-                                LedgerManagerImpl& ledgerMaster)
+                                LedgerManager& ledgerManager)
 {
-    Database& db = ledgerMaster.getDatabase();
+    Database& db = ledgerManager.getDatabase();
     int64_t fee = getResult().feeCharged;
 
     if (fee > 0)
@@ -341,7 +341,7 @@ bool
 TransactionFrame::apply(LedgerDelta& delta, Application& app)
 {
     resetState();
-    LedgerManagerImpl& lm = app.getLedgerManagerImpl();
+    LedgerManager& lm = app.getLedgerManager();
     if (!checkValid(app, true, 0))
     {
         prepareResult(delta, lm);
@@ -407,7 +407,7 @@ TransactionFrame::toStellarMessage() const
 }
 
 void
-TransactionFrame::storeTransaction(LedgerManagerImpl& ledgerMaster,
+TransactionFrame::storeTransaction(LedgerManager& ledgerManager,
                                    LedgerDelta const& delta, int txindex,
                                    SHA256& resultHasher) const
 {
@@ -430,14 +430,14 @@ TransactionFrame::storeTransaction(LedgerManagerImpl& ledgerMaster,
 
     string txIDString(binToHex(getContentsHash()));
 
-    auto timer = ledgerMaster.getDatabase().getInsertTimer("txhistory");
+    auto timer = ledgerManager.getDatabase().getInsertTimer("txhistory");
     soci::statement st =
-        (ledgerMaster.getDatabase().getSession().prepare
+        (ledgerManager.getDatabase().getSession().prepare
              << "INSERT INTO TxHistory (txID, ledgerSeq, txindex, TxBody, "
                 "TxResult, TxMeta) VALUES "
                 "(:id,:seq,:txindex,:txb,:txres,:meta)",
          soci::use(txIDString),
-         soci::use(ledgerMaster.getCurrentLedgerHeader().ledgerSeq),
+         soci::use(ledgerManager.getCurrentLedgerHeader().ledgerSeq),
          soci::use(txindex), soci::use(txBody), soci::use(txResult),
          soci::use(meta));
 

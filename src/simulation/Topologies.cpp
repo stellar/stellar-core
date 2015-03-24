@@ -2,11 +2,12 @@
 // under the ISC License. See the COPYING file at the top-level directory of
 // this distribution or at http://opensource.org/licenses/ISC
 
-#include "Topologies.h"
+#include "simulation/Topologies.h"
 #include "crypto/SHA.h"
 
 namespace stellar
 {
+using namespace std;
 
 Simulation::pointer
 Topologies::pair(Simulation::Mode mode)

@@ -5,7 +5,6 @@
 // this distribution or at http://opensource.org/licenses/ISC
 
 #include "generated/StellarXDR.h"
-#include "lib/json/json.h"
 
 namespace soci
 {
@@ -14,7 +13,7 @@ class session;
 
 namespace stellar
 {
-class LedgerManagerImpl;
+class LedgerManager;
 class Database;
 class XDROutputFileStream;
 
@@ -43,7 +42,7 @@ class LedgerHeaderFrame
     // generates a new ID and returns it
     uint64_t generateID();
 
-    void storeInsert(LedgerManagerImpl& ledgerMaster) const;
+    void storeInsert(LedgerManager& ledgerManager) const;
 
     static LedgerHeaderFrame::pointer loadByHash(Hash const& hash,
                                                  Database& ledgerMaster);

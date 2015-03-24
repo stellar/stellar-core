@@ -322,7 +322,7 @@ PublishStateMachine::queueSnapshot(SnapshotPtr snap, PublishCallback handler)
 StateSnapshot::StateSnapshot(Application& app)
     : mApp(app)
     , mLocalState(app.getHistoryManager().getLastClosedHistoryArchiveState())
-    , mSnapDir(app.getTmpDirMaster().tmpDir("snapshot"))
+    , mSnapDir(app.getTmpDirManager().tmpDir("snapshot"))
     , mLedgerSnapFile(std::make_shared<FilePublishInfo>(
           FILE_PUBLISH_NEEDED, mSnapDir, HISTORY_FILE_TYPE_LEDGER,
           uint32_t(mLocalState.currentLedger /

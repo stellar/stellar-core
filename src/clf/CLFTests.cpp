@@ -12,7 +12,7 @@
 #include "clf/CLFManager.h"
 #include "clf/LedgerCmp.h"
 #include "crypto/Hex.h"
-#include "ledger/LedgerManagerImpl.h"
+#include "ledger/LedgerManager.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
 #include "main/test.h"
@@ -434,7 +434,7 @@ TEST_CASE("bucket persistence over app restart", "[clf][bucketpersist]")
         Application::pointer app1 = Application::create(clock, cfg);
         app1->start();
         BucketList &bl1 = app1->getCLFManager().getBucketList();
-        auto lclHash0 = app1->getLedgerManagerImpl().getLastClosedLedgerHeader().hash;
+        auto lclHash0 = app1->getLedgerManager().getLastClosedLedgerHeader().hash;
         for (size_t i = 2; i < 100; ++i)
         {
             bl1.addBatch(*app1, i, liveGen(1), emptySet);
@@ -449,7 +449,7 @@ TEST_CASE("bucket persistence over app restart", "[clf][bucketpersist]")
                             lm1.getCloseTime(),
                             lm1.getTxFee());
         app1->getLedgerManager().externalizeValue(lcd);
-        lclHash1 = app1->getLedgerManagerImpl().getLastClosedLedgerHeader().hash;
+        lclHash1 = app1->getLedgerManager().getLastClosedLedgerHeader().hash;
     }
 
     // app is now dead, but we want bucketHash1 to persist into a restart of the
@@ -460,7 +460,7 @@ TEST_CASE("bucket persistence over app restart", "[clf][bucketpersist]")
     {
         Application::pointer app2 = Application::create(clock, cfg);
         app2->start();
-        auto lclHash2 = app2->getLedgerManagerImpl().getLastClosedLedgerHeader().hash;
+        auto lclHash2 = app2->getLedgerManager().getLastClosedLedgerHeader().hash;
         REQUIRE(hexAbbrev(lclHash2) == hexAbbrev(lclHash1));
         BucketList &bl2 = app2->getCLFManager().getBucketList();
         auto bucketHash2 = bl2.getLevel(1).getCurr()->getHash();

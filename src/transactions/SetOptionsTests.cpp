@@ -11,7 +11,6 @@
 #include "lib/catch.hpp"
 #include "util/Logging.h"
 #include "crypto/Base58.h"
-#include "lib/json/json.h"
 #include "TxTests.h"
 #include "transactions/TransactionFrame.h"
 #include "ledger/LedgerDelta.h"
@@ -43,7 +42,7 @@ TEST_CASE("set options", "[tx][setoptions]")
     SequenceNumber rootSeq = getAccountSeqNum(root, app) + 1;
 
     applyPaymentTx(app, root, a1, rootSeq++,
-                   app.getLedgerManagerImpl().getMinBalance(0) + 1000);
+                   app.getLedgerManager().getMinBalance(0) + 1000);
 
     SequenceNumber a1seq = getAccountSeqNum(a1, app) + 1;
 
@@ -66,7 +65,7 @@ TEST_CASE("set options", "[tx][setoptions]")
         }
 
         applyPaymentTx(app, root, a1, rootSeq++,
-                       app.getLedgerManagerImpl().getMinBalance(2));
+                       app.getLedgerManager().getMinBalance(2));
 
         applySetOptions(app, a1, nullptr, nullptr, nullptr, &th, &sk1, a1seq++);
 

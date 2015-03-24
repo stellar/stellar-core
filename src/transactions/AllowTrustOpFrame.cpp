@@ -3,7 +3,7 @@
 // this distribution or at http://opensource.org/licenses/ISC
 
 #include "transactions/AllowTrustOpFrame.h"
-#include "ledger/LedgerManagerImpl.h"
+#include "ledger/LedgerManager.h"
 #include "ledger/TrustFrame.h"
 #include "database/Database.h"
 
@@ -23,7 +23,7 @@ AllowTrustOpFrame::getNeededThreshold() const
 }
 
 bool
-AllowTrustOpFrame::doApply(LedgerDelta& delta, LedgerManagerImpl& ledgerMaster)
+AllowTrustOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
 {
     if (!(mSourceAccount->getAccount().flags & AUTH_REQUIRED_FLAG))
     { // this account doesn't require authorization to hold credit
@@ -36,7 +36,7 @@ AllowTrustOpFrame::doApply(LedgerDelta& delta, LedgerManagerImpl& ledgerMaster)
     ci.isoCI().currencyCode = mAllowTrust.currency.currencyCode();
     ci.isoCI().issuer = getSourceID();
 
-    Database& db = ledgerMaster.getDatabase();
+    Database& db = ledgerManager.getDatabase();
     TrustFrame trustLine;
     if (!TrustFrame::loadTrustLine(mAllowTrust.trustor, ci, trustLine, db))
     {

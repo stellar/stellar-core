@@ -22,7 +22,6 @@ Committed
 
 namespace stellar
 {
-class OverlayManagerImpl;
 
 class FloodRecord
 {

@@ -22,6 +22,8 @@ _INITIALIZE_EASYLOGGINGPP
 namespace stellar
 {
 
+using namespace std;
+
 enum opttag
 {
     OPT_VERSION = 0x100,

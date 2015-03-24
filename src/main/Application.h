@@ -20,15 +20,13 @@ namespace stellar
 
 class VirtualClock;
 class Config;
-class TmpDirMaster;
+class TmpDirManager;
 class LedgerManager;
-class LedgerManagerImpl;
 class CLFManager;
 class HistoryManager;
 class ProcessManager;
 class Herder;
 class OverlayManager;
-class OverlayManagerImpl;
 class Database;
 class PersistentState;
 
@@ -101,15 +99,13 @@ class Application
     virtual void setState(State) = 0;
     virtual VirtualClock& getClock() = 0;
     virtual medida::MetricsRegistry& getMetrics() = 0;
-    virtual TmpDirMaster& getTmpDirMaster() = 0;
+    virtual TmpDirManager& getTmpDirManager() = 0;
     virtual LedgerManager& getLedgerManager() = 0;
-    virtual LedgerManagerImpl& getLedgerManagerImpl() = 0;
     virtual CLFManager& getCLFManager() = 0;
     virtual HistoryManager& getHistoryManager() = 0;
     virtual ProcessManager& getProcessManager() = 0;
     virtual Herder& getHerder() = 0;
     virtual OverlayManager& getOverlayManager() = 0;
-    virtual OverlayManagerImpl& getOverlayManagerImpl() = 0;
     virtual Database& getDatabase() = 0;
     virtual PersistentState& getPersistentState() = 0;
 

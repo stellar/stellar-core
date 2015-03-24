@@ -1,5 +1,9 @@
 #pragma once
 
+// Copyright 2015 Stellar Development Foundation and contributors. Licensed
+// under the ISC License. See the COPYING file at the top-level directory of
+// this distribution or at http://opensource.org/licenses/ISC
+
 #include "transactions/OperationFrame.h"
 #include "ledger/OfferFrame.h"
 #include <vector>
@@ -12,12 +16,12 @@ class OfferExchange
 {
 
     LedgerDelta& mDelta;
-    LedgerManagerImpl& mLedgerManagerImpl;
+    LedgerManager& mLedgerManager;
 
     std::vector<ClaimOfferAtom> mOfferTrail;
 
   public:
-    OfferExchange(LedgerDelta& delta, LedgerManagerImpl& ledgerMaster);
+    OfferExchange(LedgerDelta& delta, LedgerManager& ledgerManager);
 
     // buys wheat with sheep from a single offer
     enum CrossOfferResult
