@@ -1,6 +1,5 @@
 #pragma once
 
-#define STELLARD_REAL_TIMER_FOR_CERTAIN_NOT_JUST_VIRTUAL_TIME
 #include "util/Timer.h"
 #include "Application.h"
 #include "main/Config.h"
