@@ -23,6 +23,7 @@ class CLFManager
 
 public:
     static std::unique_ptr<CLFManager> create(Application&);
+    static void dropAll(Application& app);
 
     virtual ~CLFManager() {}
     virtual std::string const& getTmpDir() = 0;
