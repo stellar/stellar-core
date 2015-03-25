@@ -266,25 +266,50 @@ class BucketLevel
 
 class BucketList
 {
+    // Helper for calculating `levelShouldSpill`
+    static uint32_t mask(uint32_t v, uint32_t m);
     std::vector<BucketLevel> mLevels;
 
   public:
+
+    // Number of bucket levels in the bucketlist. Every bucketlist in the system
+    // will have this many levels and it effectively gets wired-in to the
+    // protocol. Careful about changing it.
     static size_t const kNumLevels;
 
+    // Returns size of a given level, in ledgers.
     static uint32_t levelSize(size_t level);
-    static uint32_t levelHalf(size_t level);
-    static bool levelShouldSpill(uint32_t ledger, size_t level);
-    static uint32_t mask(uint32_t v, uint32_t m);
-    static size_t numLevels(uint32_t ledger);
 
-    // BucketList _just_ stores a set of entries; anything else the CLF
-    // wants to support should happen in another class. These operations form a
-    // minimal, testable interface to BucketList.
+    // Returns half the size of a given level, in ledgers.
+    static uint32_t levelHalf(size_t level);
+
+    // Returns true if, at a given point-in-time (`ledger`), a given `level`
+    // should spill curr->snap and start merging snap into its next level.
+    static bool levelShouldSpill(uint32_t ledger, size_t level);
+
+    // Create a new BucketList with every `kNumLevels` levels, each with
+    // an empty bucket in `curr` and `snap`.
     BucketList();
-    size_t numLevels() const;
+
+    // Return level `i` of the BucketList.
     BucketLevel& getLevel(size_t i);
-    uint256 getHash() const;
+
+    // Return a cumulative hash of the entire bucketlist; this is the hash of
+    // the concatenation of each level's hash, each of which in turn is the hash
+    // of the concatenation of the hashes of the `curr` and `snap` buckets.
+    Hash getHash() const;
+
+    // Restart any merges that might be running on background worker threads,
+    // merging buckets between levels. This needs to be called after forcing a
+    // BucketList to adopt a new state, either at application restart or when
+    // catching up from buckets loaded over the network.
     void restartMerges(Application& app, uint32_t currLedger);
+
+    // Add a batch of live and dead entries to the bucketlist, representing the
+    // entries effected by closing `currLedger`. The bucketlist will incorporate
+    // these into the smallest (0th) level, as well as commit or prepare merges
+    // for any levels that should have spilled due to passing through
+    // `currLedger`.
     void addBatch(Application& app, uint32_t currLedger,
                   std::vector<LedgerEntry> const& liveEntries,
                   std::vector<LedgerKey> const& deadEntries);

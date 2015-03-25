@@ -15,7 +15,7 @@ namespace stellar
 class TmpDirManager;
 class LedgerManager;
 class Herder;
-class CLFManager;
+class BucketManager;
 class HistoryManager;
 class ProcessManager;
 class CommandHandler;
@@ -37,7 +37,7 @@ class ApplicationImpl : public Application
     virtual medida::MetricsRegistry& getMetrics() override;
     virtual TmpDirManager& getTmpDirManager() override;
     virtual LedgerManager& getLedgerManager() override;
-    virtual CLFManager& getCLFManager() override;
+    virtual BucketManager& getBucketManager() override;
     virtual HistoryManager& getHistoryManager() override;
     virtual ProcessManager& getProcessManager() override;
     virtual Herder& getHerder() override;
@@ -94,7 +94,7 @@ class ApplicationImpl : public Application
     std::unique_ptr<OverlayManager> mOverlayManager;
     std::unique_ptr<LedgerManager> mLedgerManager;
     std::unique_ptr<Herder> mHerder;
-    std::unique_ptr<CLFManager> mCLFManager;
+    std::unique_ptr<BucketManager> mBucketManager;
     std::unique_ptr<HistoryManager> mHistoryManager;
     std::unique_ptr<ProcessManager> mProcessManager;
     std::unique_ptr<CommandHandler> mCommandHandler;

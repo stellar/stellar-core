@@ -4,7 +4,7 @@
 // under the ISC License. See the COPYING file at the top-level directory of
 // this distribution or at http://opensource.org/licenses/ISC
 
-#include "clf/Bucket.h"
+#include "bucket/Bucket.h"
 #include "crypto/Hex.h"
 #include "util/Fs.h"
 #include "util/Logging.h"

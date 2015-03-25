@@ -72,7 +72,7 @@ LedgerHeaderFrame::storeInsert(LedgerManager& ledgerManager) const
 
     string hash(binToHex(mHash)),
         prevHash(binToHex(mHeader.previousLedgerHash)),
-        clfHash(binToHex(mHeader.clfHash));
+        bucketListHash(binToHex(mHeader.bucketListHash));
 
     auto headerBytes(xdr::xdr_to_opaque(mHeader));
 
@@ -85,11 +85,11 @@ LedgerHeaderFrame::storeInsert(LedgerManager& ledgerManager) const
     // note: columns other than "data" are there to faciliate lookup/processing
     soci::statement st =
         (db.getSession().prepare
-             << "INSERT INTO LedgerHeaders (ledgerHash,prevHash,clfHash, "
+             << "INSERT INTO LedgerHeaders (ledgerHash,prevHash,bucketListHash, "
                 "ledgerSeq,closeTime,data) VALUES"
-                "(:h,:ph,:clf,"
+                "(:h,:ph,:blh,"
                 ":seq,:ct,:data)",
-         use(hash), use(prevHash), use(clfHash), use(mHeader.ledgerSeq),
+         use(hash), use(prevHash), use(bucketListHash), use(mHeader.ledgerSeq),
          use(mHeader.closeTime), use(headerEncoded));
     {
         auto timer = db.getInsertTimer("ledger-header");
@@ -210,7 +210,7 @@ LedgerHeaderFrame::dropAll(Database& db)
     db.getSession() << "CREATE TABLE LedgerHeaders ("
                        "ledgerHash      CHARACTER(64) PRIMARY KEY,"
                        "prevHash        CHARACTER(64) NOT NULL,"
-                       "clfHash         CHARACTER(64) NOT NULL,"
+                       "bucketListHash  CHARACTER(64) NOT NULL,"
                        "ledgerSeq       INT UNIQUE CHECK (ledgerSeq >= 0),"
                        "closeTime       BIGINT NOT NULL CHECK (closeTime >= 0),"
                        "data            TEXT NOT NULL"

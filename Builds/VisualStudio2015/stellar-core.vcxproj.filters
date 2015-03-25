@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
     <Filter Include="overlay">
@@ -10,7 +10,7 @@
     <Filter Include="ledger">
       <UniqueIdentifier>{89a037c6-770c-4df9-aa5e-3f963a001da3}</UniqueIdentifier>
     </Filter>
-    <Filter Include="clf">
+    <Filter Include="bucket">
       <UniqueIdentifier>{83ce5e44-5de9-452b-a707-780112922d21}</UniqueIdentifier>
     </Filter>
     <Filter Include="main">
@@ -73,7 +73,7 @@
     <Filter Include="simulation">
       <UniqueIdentifier>{5da37d0f-0d0e-4f17-a7b4-5463b0ccc0a9}</UniqueIdentifier>
     </Filter>
-    <Filter Include="clf\tests">
+    <Filter Include="bucket\tests">
       <UniqueIdentifier>{86be4089-9cdf-49d8-9d3f-4f8712a6560c}</UniqueIdentifier>
     </Filter>
     <Filter Include="herder\tests">
@@ -108,8 +108,8 @@
     <ClCompile Include="..\..\src\overlay\OverlayManagerImpl.cpp">
       <Filter>overlay</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\clf\BucketList.cpp">
-      <Filter>clf</Filter>
+    <ClCompile Include="..\..\src\bucket\BucketList.cpp">
+      <Filter>bucket</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\main\Config.cpp">
       <Filter>main</Filter>
@@ -285,8 +285,8 @@
     <ClCompile Include="..\..\src\lib\asio\src\asio.cpp">
       <Filter>lib</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\clf\CLFManagerImpl.cpp">
-      <Filter>clf</Filter>
+    <ClCompile Include="..\..\src\bucket\BucketManagerImpl.cpp">
+      <Filter>bucket</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\lib\util\uint128_t.cpp">
       <Filter>lib\util</Filter>
@@ -339,11 +339,11 @@
     <ClCompile Include="..\..\src\history\PublishStateMachine.cpp">
       <Filter>history</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\clf\Bucket.cpp">
-      <Filter>clf</Filter>
+    <ClCompile Include="..\..\src\bucket\Bucket.cpp">
+      <Filter>bucket</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\clf\CLFTests.cpp">
-      <Filter>clf\tests</Filter>
+    <ClCompile Include="..\..\src\bucket\BucketTests.cpp">
+      <Filter>bucket\tests</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\simulation\CoreTests.cpp">
       <Filter>simulation</Filter>
@@ -440,8 +440,8 @@
     <ClInclude Include="..\..\src\main\Config.h">
       <Filter>main</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\clf\BucketList.h">
-      <Filter>clf</Filter>
+    <ClInclude Include="..\..\src\bucket\BucketList.h">
+      <Filter>bucket</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\lib\util\easylogging++.h">
       <Filter>lib\util</Filter>
@@ -608,8 +608,8 @@
     <ClInclude Include="..\..\src\transactions\OfferExchange.h">
       <Filter>transactions</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\clf\LedgerCmp.h">
-      <Filter>clf</Filter>
+    <ClInclude Include="..\..\src\bucket\LedgerCmp.h">
+      <Filter>bucket</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\util\Math.h">
       <Filter>util</Filter>
@@ -623,17 +623,17 @@
     <ClInclude Include="..\..\src\history\PublishStateMachine.h">
       <Filter>history</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\clf\Bucket.h">
-      <Filter>clf</Filter>
+    <ClInclude Include="..\..\src\bucket\Bucket.h">
+      <Filter>bucket</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\overlay\PeerRecord.h">
       <Filter>overlay</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\clf\CLFManager.h">
-      <Filter>clf</Filter>
+    <ClInclude Include="..\..\src\bucket\BucketManager.h">
+      <Filter>bucket</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\clf\CLFManagerImpl.h">
-      <Filter>clf</Filter>
+    <ClInclude Include="..\..\src\bucket\BucketManagerImpl.h">
+      <Filter>bucket</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\main\ApplicationImpl.h">
       <Filter>main</Filter>

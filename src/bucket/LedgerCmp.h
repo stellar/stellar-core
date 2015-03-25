@@ -77,17 +77,17 @@ struct LedgerEntryIdCmp
 };
 
 /**
- * Compare two CLFEntries for identity by comparing their respective
+ * Compare two BucketEntries for identity by comparing their respective
  * LedgerEntries (ignoring their hashes, as the LedgerEntryIdCmp ignores their
  * bodies).
  */
-struct CLFEntryIdCmp
+struct BucketEntryIdCmp
 {
     LedgerEntryIdCmp mCmp;
-    bool operator()(CLFEntry const& a, CLFEntry const& b) const
+    bool operator()(BucketEntry const& a, BucketEntry const& b) const
     {
-        CLFType aty = a.type();
-        CLFType bty = b.type();
+        BucketEntryType aty = a.type();
+        BucketEntryType bty = b.type();
 
         if (aty == LIVEENTRY)
         {

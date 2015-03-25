@@ -14,8 +14,7 @@ namespace stellar
 
 /**
  * Transient adaptor type to permit passing a few different sorts of
- * byte-container
- * types into encoder functions.
+ * byte-container types into encoder functions.
  */
 class ByteSlice
 {

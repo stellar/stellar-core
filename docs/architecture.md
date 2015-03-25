@@ -7,14 +7,13 @@ messages between peers, a set-synchronization component for arriving at
 likely-in-sync candidate transaction sets, a transaction processing
 component for applying a consensus transaction set to the ledger, a crypto
 component for confirming signatures and hashing results, and a database
-component for persisting ledger changes. Two slightly-obscure acronym-named
+component for persisting ledger changes. Two slightly-obscurely-named
 components are:
 
-  - CLF -- "canonical ledger form", the in-memory and on-disk linear
-    history and ledger form that is hashed. A specific arrangement of
+  - "bucketList", stored in the directory "bucket": the in-memory and on-disk
+    linear history and ledger form that is hashed. A specific arrangement of
     concatenations-of-XDR. Organized around "temporal buckets" rather than
-    rippled's merkle tries, but plays a similar role to the rippled
-    nodestore.
+    rippled's merkle tries, but plays a similar role to the rippled nodestore.
 
   - SCP -- "Stellar Consensus Protocol", the component implementing the
     new consensus algorithm.
@@ -43,7 +42,7 @@ simplifications:
     time, in production).
 
   - No nodestore, no on-disk k/v stores at all. Storage is split in two
-    pieces, one bulk/cold CLF-shaped store (history) kept in flat files,
+    pieces, one bulk/cold Bucket-based store (history) kept in flat files,
     and one hot/indexed store (SQL DB). Both kept primarily _off_ the
     validator nodes.
 

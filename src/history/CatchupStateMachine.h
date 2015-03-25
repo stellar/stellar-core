@@ -6,7 +6,7 @@
 
 #include "history/HistoryArchive.h"
 #include "history/HistoryManager.h"
-#include "clf/Bucket.h"
+#include "bucket/Bucket.h"
 #include "util/Timer.h"
 #include "util/TmpDir.h"
 

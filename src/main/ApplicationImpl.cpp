@@ -12,7 +12,7 @@
 #include "ledger/LedgerManager.h"
 #include "herder/Herder.h"
 #include "overlay/OverlayManager.h"
-#include "clf/CLFManager.h"
+#include "bucket/BucketManager.h"
 #include "history/HistoryManager.h"
 #include "database/Database.h"
 #include "process/ProcessManager.h"
@@ -79,7 +79,7 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
     mOverlayManager = OverlayManager::create(*this);
     mLedgerManager = LedgerManager::create(*this);
     mHerder = Herder::create(*this);
-    mCLFManager = CLFManager::create(*this);
+    mBucketManager = BucketManager::create(*this);
     mHistoryManager = HistoryManager::create(*this);
     mProcessManager = ProcessManager::create(*this);
     mCommandHandler = make_unique<CommandHandler>(*this);
@@ -313,10 +313,10 @@ ApplicationImpl::getLedgerManager()
     return *mLedgerManager;
 }
 
-CLFManager&
-ApplicationImpl::getCLFManager()
+BucketManager&
+ApplicationImpl::getBucketManager()
 {
-    return *mCLFManager;
+    return *mBucketManager;
 }
 
 HistoryManager&

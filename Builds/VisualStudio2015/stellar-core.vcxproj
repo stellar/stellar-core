@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" ToolsVersion="14.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|x64">
@@ -140,10 +140,10 @@
     </CustomBuild>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\src\clf\Bucket.cpp" />
-    <ClCompile Include="..\..\src\clf\BucketList.cpp" />
-    <ClCompile Include="..\..\src\clf\CLFManagerImpl.cpp" />
-    <ClCompile Include="..\..\src\clf\CLFTests.cpp" />
+    <ClCompile Include="..\..\src\bucket\Bucket.cpp" />
+    <ClCompile Include="..\..\src\bucket\BucketList.cpp" />
+    <ClCompile Include="..\..\src\bucket\BucketManagerImpl.cpp" />
+    <ClCompile Include="..\..\src\bucket\BucketTests.cpp" />
     <ClCompile Include="..\..\src\crypto\Base58.cpp" />
     <ClCompile Include="..\..\src\crypto\CryptoTests.cpp" />
     <ClCompile Include="..\..\src\crypto\Hex.cpp" />
@@ -277,11 +277,11 @@
     <ClCompile Include="..\..\src\util\Uint128Tests.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\src\clf\Bucket.h" />
-    <ClInclude Include="..\..\src\clf\BucketList.h" />
-    <ClInclude Include="..\..\src\clf\CLFManager.h" />
-    <ClInclude Include="..\..\src\clf\CLFManagerImpl.h" />
-    <ClInclude Include="..\..\src\clf\LedgerCmp.h" />
+    <ClInclude Include="..\..\src\bucket\Bucket.h" />
+    <ClInclude Include="..\..\src\bucket\BucketList.h" />
+    <ClInclude Include="..\..\src\bucket\BucketManager.h" />
+    <ClInclude Include="..\..\src\bucket\BucketManagerImpl.h" />
+    <ClInclude Include="..\..\src\bucket\LedgerCmp.h" />
     <ClInclude Include="..\..\src\crypto\Base58.h" />
     <ClInclude Include="..\..\src\crypto\ByteSlice.h" />
     <ClInclude Include="..\..\src\crypto\Hex.h" />

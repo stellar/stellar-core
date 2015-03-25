@@ -10,10 +10,10 @@ noinst_LTLIBRARIES = libsoci.la
 bin_PROGRAMS = bin/stellar-core
 
 FMT_SRCS =                                      \
-    src/clf/Bucket.cpp                          \
-    src/clf/BucketList.cpp                      \
-    src/clf/CLFManagerImpl.cpp                  \
-    src/clf/CLFTests.cpp                        \
+    src/bucket/Bucket.cpp                       \
+    src/bucket/BucketList.cpp                   \
+    src/bucket/BucketManagerImpl.cpp            \
+    src/bucket/BucketTests.cpp                  \
     src/crypto/Base58.cpp                       \
     src/crypto/CryptoTests.cpp                  \
     src/crypto/Hex.cpp                          \
@@ -98,11 +98,11 @@ FMT_SRCS =                                      \
     src/util/types.cpp
 
 FMT_HDRS =                                      \
-    src/clf/Bucket.h                            \
-    src/clf/BucketList.h                        \
-    src/clf/CLFManager.h                        \
-    src/clf/CLFManagerImpl.h                    \
-    src/clf/LedgerCmp.h                         \
+    src/bucket/Bucket.h                         \
+    src/bucket/BucketList.h                     \
+    src/bucket/BucketManager.h                  \
+    src/bucket/BucketManagerImpl.h              \
+    src/bucket/LedgerCmp.h                      \
     src/crypto/Base58.h                         \
     src/crypto/ByteSlice.h                      \
     src/crypto/Hex.h                            \

@@ -2,7 +2,7 @@
 // under the ISC License. See the COPYING file at the top-level directory of
 // this distribution or at http://opensource.org/licenses/ISC
 
-#include "clf/CLFManager.h"
+#include "bucket/BucketManager.h"
 #include "crypto/Base58.h"
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
@@ -34,7 +34,7 @@ The ledger module:
     1) gets the externalized tx set
     2) applies this set to the previous ledger
     3) sends the resultMeta somewhere
-    4) sends the changed entries to the CLF
+    4) sends the changed entries to the BucketList
     5) saves the changed entries to SQL
     6) saves the ledger hash and header to SQL
     7) sends the new ledger hash and the tx set to the history
@@ -154,7 +154,7 @@ LedgerManagerImpl::loadLastKnownLedger()
             mApp.getPersistentState().getState(PersistentState::kHistoryArchiveState);
         HistoryArchiveState has;
         has.fromString(hasString);
-        mApp.getCLFManager().assumeState(has);
+        mApp.getBucketManager().assumeState(has);
 
         CLOG(INFO, "Ledger")
             << "Loaded last known ledger: " << ledgerAbbrev(mCurrentLedger);
@@ -493,8 +493,8 @@ LedgerManagerImpl::closeLedger(LedgerCloseData ledgerData)
                                                 {
                                                 });
 
-    // Permit CLF manager to forget buckets that are no longer in use.
-    mApp.getCLFManager().forgetUnreferencedBuckets();
+    // Permit BucketManager to forget buckets that are no longer in use.
+    mApp.getBucketManager().forgetUnreferencedBuckets();
 }
 
 void
@@ -515,11 +515,11 @@ LedgerManagerImpl::closeLedgerHelper(LedgerDelta const& delta)
 {
     mLastCloseTime = mApp.timeNow();
     delta.markMeters(mApp);
-    mApp.getCLFManager().addBatch(mApp, mCurrentLedger->mHeader.ledgerSeq,
+    mApp.getBucketManager().addBatch(mApp, mCurrentLedger->mHeader.ledgerSeq,
                                   delta.getLiveEntries(),
                                   delta.getDeadEntries());
 
-    mApp.getCLFManager().snapshotLedger(mCurrentLedger->mHeader);
+    mApp.getBucketManager().snapshotLedger(mCurrentLedger->mHeader);
 
     mCurrentLedger->storeInsert(*this);
 
@@ -529,7 +529,7 @@ LedgerManagerImpl::closeLedgerHelper(LedgerDelta const& delta)
     // Store the current HAS in the database; this is really just to checkpoint
     // the bucketlist so we can survive a restart and re-attach to the buckets.
     HistoryArchiveState has(mCurrentLedger->mHeader.ledgerSeq,
-                            mApp.getCLFManager().getBucketList());
+                            mApp.getBucketManager().getBucketList());
     mApp.getPersistentState().setState(PersistentState::kHistoryArchiveState,
                                        has.toString());
 

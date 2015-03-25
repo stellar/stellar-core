@@ -6,8 +6,8 @@
 #include "history/HistoryManager.h"
 #include "history/FileTransferInfo.h"
 
-#include "clf/CLFManager.h"
-#include "clf/BucketList.h"
+#include "bucket/BucketManager.h"
+#include "bucket/BucketList.h"
 #include "crypto/Hex.h"
 #include "main/Application.h"
 #include "main/Config.h"
@@ -198,14 +198,14 @@ CatchupStateMachine::enterFetchingState()
             std::shared_ptr<Bucket> b;
             if (!hashname.empty())
             {
-                b = mApp.getCLFManager().getBucketByHash(hash);
+                b = mApp.getBucketManager().getBucketByHash(hash);
             }
             if (b)
             {
-                // If for some reason this bucket exists and is live in the CLF,
-                // just grab a copy of it.
+                // If for some reason this bucket exists and is live in the
+                // BucketManager, just grab a copy of it.
                 CLOG(INFO, "History")
-                    << "Existing bucket found in CLF: " << hashname;
+                    << "Existing bucket found in BucketManager: " << hashname;
                 mBuckets[hashname] = b;
                 fi->setState(FILE_CATCHUP_VERIFIED);
             }
@@ -264,7 +264,7 @@ CatchupStateMachine::enterFetchingState()
                               {
                     if (!ec)
                     {
-                        auto b = this->mApp.getCLFManager().adoptFileAsBucket(
+                        auto b = this->mApp.getBucketManager().adoptFileAsBucket(
                             filename, hash);
                         this->mBuckets[hashname] = b;
                     }
@@ -620,10 +620,10 @@ std::shared_ptr<Bucket>
 CatchupStateMachine::getBucketToApply(std::string const& hash)
 {
     // Any apply-able bucket is _either_ the empty bucket, or one we downloaded,
-    // or one we tried to download but found we already had in the CLF, or one
-    // we didn't even bother trying to download because
+    // or one we tried to download but found we already had in the
+    // BucketManager, or one we didn't even bother trying to download because
     // mArchiveState.differingBuckets(mLocalState) didn't mention it (in which
-    // case it ought to still be in the CLF).
+    // case it ought to still be in the BucketManager).
 
     std::shared_ptr<Bucket> b;
     CLOG(DEBUG, "History") << "Searching for bucket to apply: " << hash;
@@ -640,7 +640,7 @@ CatchupStateMachine::getBucketToApply(std::string const& hash)
         }
         else
         {
-            b = mApp.getCLFManager().getBucketByHash(hexToBin256(hash));
+            b = mApp.getBucketManager().getBucketByHash(hexToBin256(hash));
         }
     }
     assert(b);
@@ -651,7 +651,7 @@ void
 CatchupStateMachine::applyBucketsAtLastClosedLedger()
 {
     auto& db = mApp.getDatabase();
-    auto& bl = mApp.getCLFManager().getBucketList();
+    auto& bl = mApp.getBucketManager().getBucketList();
     auto n = BucketList::kNumLevels;
     bool applying = false;
 
@@ -660,18 +660,22 @@ CatchupStateMachine::applyBucketsAtLastClosedLedger()
 
 
     // We've verified mLastClosed (in the "trusted part of history" sense) in
-    // CATCHUP_VERIFY phase; we now need to check that the CLF hash we're
+    // CATCHUP_VERIFY phase; we now need to check that the BucketListHash we're
     // about to apply is the one denoted by that ledger header.
-    if (mLastClosed.header.clfHash != mArchiveState.getBucketListHash())
+    if (mLastClosed.header.bucketListHash != mArchiveState.getBucketListHash())
     {
         throw std::runtime_error(
-            "catchup CLF hash differs from CLF hash in catchup ledger");
+            "catchup BucketList hash differs from BucketList hash in catchup ledger");
     }
 
     assert(mArchiveState.currentLedger == mLastClosed.header.ledgerSeq);
 
-    CLOG(INFO, "History") << "Archive clfHash: " << hexAbbrev(mArchiveState.getBucketListHash());
-    CLOG(INFO, "History") << "mLastClosed clfHash: " << hexAbbrev(mLastClosed.header.clfHash);
+    CLOG(INFO, "History")
+        << "Archive bucketListHash: "
+        << hexAbbrev(mArchiveState.getBucketListHash());
+    CLOG(INFO, "History")
+        << "mLastClosed bucketListHash: "
+        << hexAbbrev(mLastClosed.header.bucketListHash);
 
     // Apply buckets in reverse order, oldest bucket to new. Once we apply
     // one bucket, apply all buckets newer as well.
@@ -685,7 +689,7 @@ CatchupStateMachine::applyBucketsAtLastClosedLedger()
         {
             std::shared_ptr<Bucket> b = getBucketToApply(i->snap);
             CLOG(DEBUG, "History") << "Applying bucket " << b->getFilename()
-                                   << " to ledger as CLF 'snap' for level "
+                                   << " to ledger as BucketList 'snap' for level "
                                    << n;
             b->apply(db);
             existingLevel.setSnap(b);
@@ -696,7 +700,7 @@ CatchupStateMachine::applyBucketsAtLastClosedLedger()
         {
             std::shared_ptr<Bucket> b = getBucketToApply(i->curr);
             CLOG(DEBUG, "History") << "Applying bucket " << b->getFilename()
-                                   << " to ledger as CLF 'curr' for level "
+                                   << " to ledger as BucketList 'curr' for level "
                                    << n;
             b->apply(db);
             existingLevel.setCurr(b);
@@ -775,7 +779,7 @@ CatchupStateMachine::applyHistoryFromLastClosedLedger()
         bool readTxSet = false;
 
         // Start the merges we need to have completed to play transactions forward from LCL
-        mApp.getCLFManager().getBucketList().restartMerges(mApp, lm.getLastClosedLedgerNum());
+        mApp.getBucketManager().getBucketList().restartMerges(mApp, lm.getLastClosedLedgerNum());
 
         while (hdrIn && hdrIn.readOne(hHeader))
         {

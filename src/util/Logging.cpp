@@ -28,7 +28,7 @@ Logging::init()
 
     el::Loggers::getLogger("Fs");
     el::Loggers::getLogger("SCP");
-    el::Loggers::getLogger("CLF");
+    el::Loggers::getLogger("Bucket");
     el::Loggers::getLogger("Database");
     el::Loggers::getLogger("History");
     el::Loggers::getLogger("Process");

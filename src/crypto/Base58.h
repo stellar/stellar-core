@@ -23,8 +23,10 @@ typedef enum
     VER_SEED = 33       // 's'
 } Base58CheckVersionByte;
 
+// Encode a version byte and ByteSlice into Base58Check (with the stellar alphabet).
 std::string toBase58Check(Base58CheckVersionByte ver, ByteSlice const& bin);
 
+// Decode a version byte and bytes from Base58Check (with the stellar alphabet).
 std::pair<Base58CheckVersionByte, std::vector<uint8_t>>
 fromBase58Check(std::string const& encoded);
 
