@@ -211,12 +211,6 @@ BucketList::levelShouldSpill(uint32_t ledger, size_t level)
             ledger == mask(ledger, levelSize(level)));
 }
 
-size_t
-BucketList::numLevels() const
-{
-    return kNumLevels;
-}
-
 BucketLevel&
 BucketList::getLevel(size_t i)
 {

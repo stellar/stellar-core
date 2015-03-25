@@ -92,7 +92,7 @@ TEST_CASE("bucket list", "[clf]")
             if (i % 10 == 0)
                 CLOG(DEBUG, "CLF") << "Added batch " << i
                                    << ", hash=" << binToHex(bl.getHash());
-            for (size_t j = 0; j < bl.numLevels(); ++j)
+            for (size_t j = 0; j < BucketList::kNumLevels; ++j)
             {
                 auto const& lev = bl.getLevel(j);
                 auto currSz = countEntries(lev.getCurr());
@@ -169,7 +169,7 @@ TEST_CASE("bucket list shadowing", "[clf]")
 
             // Alice and Bob should never occur in level 2 .. N because they
             // were shadowed in level 0 continuously.
-            for (size_t j = 2; j < bl.numLevels(); ++j)
+            for (size_t j = 2; j < BucketList::kNumLevels; ++j)
             {
                 auto const& lev = bl.getLevel(j);
                 auto curr = lev.getCurr();
@@ -421,7 +421,7 @@ TEST_CASE("single entry bubbling up", "[clf][clfbubble]")
 
             CLOG(DEBUG, "CLF") << "------- ledger " << i;
 
-            for (size_t j = 0; j <= bl.numLevels() - 1; ++j)
+            for (size_t j = 0; j <= BucketList::kNumLevels - 1; ++j)
             {
                 size_t lb = lowBoundExclusive(j, i);
                 size_t hb = highBoundInclusive(j, i);

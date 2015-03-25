@@ -339,7 +339,7 @@ StateSnapshot::StateSnapshot(Application& app)
                    HistoryManager::kCheckpointFrequency)))
 {
     BucketList& buckets = app.getCLFManager().getBucketList();
-    for (size_t i = 0; i < buckets.numLevels(); ++i)
+    for (size_t i = 0; i < BucketList::kNumLevels; ++i)
     {
         auto const& level = buckets.getLevel(i);
         mLocalBuckets.push_back(level.getCurr());
