@@ -179,12 +179,6 @@ PaymentOpFrame::sendNoCreate(AccountFrame& destination, LedgerDelta& delta,
 
     if (curB.type() == NATIVE)
     {
-        if (mPayment.path.size())
-        {
-            innerResult().code(PAYMENT_XLM_NOT_ALLOWED);
-            return false;
-        }
-
         int64_t minBalance = mSourceAccount->getMinimumBalance(ledgerManager);
 
         if (mSourceAccount->getAccount().balance < (minBalance + curBSent))

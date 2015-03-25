@@ -225,15 +225,14 @@ enum PaymentResultCode
     PAYMENT_SUCCESS_MULTI = 1, // multi-path payment success
 
     // codes considered as "failure" for the operation
-    PAYMENT_UNDERFUNDED = 2, // not enough funds in source account
+    PAYMENT_UNDERFUNDED = 2,    // not enough funds in source account
     PAYMENT_NO_DESTINATION = 3, // destination account does not exist
-    PAYMENT_XLM_NOT_ALLOWED = 4, // can't initiate multi path payment from XLM
-    PAYMENT_NO_TRUST = 5, // destination missing a trust line for currency
-    PAYMENT_NOT_AUTHORIZED = 6, // destination not authorized to hold currency
-    PAYMENT_LINE_FULL = 7, // destination would go above their limit
-    PAYMENT_OVERSENDMAX = 8, // multi-path payment could not satisfy sendmax
-    PAYMENT_LOW_RESERVE = 9, // would create an account below the min reserve
-    PAYMENT_NOT_ENOUGH_OFFERS = 10 // not enough offers to fund payment
+    PAYMENT_NO_TRUST = 4,       // destination missing a trust line for currency
+    PAYMENT_NOT_AUTHORIZED = 5, // destination not authorized to hold currency
+    PAYMENT_LINE_FULL = 6,      // destination would go above their limit
+    PAYMENT_OVERSENDMAX = 7,    // multi-path payment could not satisfy sendmax
+    PAYMENT_LOW_RESERVE = 8,    // would create an account below the min reserve
+    PAYMENT_NOT_ENOUGH_OFFERS = 9 // not enough offers to fund payment
 };
 
 struct SimplePaymentResult
