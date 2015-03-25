@@ -56,8 +56,9 @@ else
     export CC='ccache gcc'
     export CXX='ccache g++'
 fi
-
+ccache -s
 ./autogen.sh
 ./configure
 make
+ccache -s
 make check
