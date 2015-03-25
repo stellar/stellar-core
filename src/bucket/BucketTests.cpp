@@ -29,27 +29,33 @@ using namespace stellar;
 
 namespace BucketTests
 {
-uint32_t mask(uint32_t v, uint32_t m)
+uint32_t
+mask(uint32_t v, uint32_t m)
 {
     return (v & ~(m - 1));
 }
-uint32_t size(size_t level)
+uint32_t
+size(size_t level)
 {
     return 1 << (2 * (level + 1));
 }
-uint32_t half(size_t level)
+uint32_t
+half(size_t level)
 {
     return size(level) >> 1;
 }
-uint32_t prev(size_t level)
+uint32_t
+prev(size_t level)
 {
     return size(level - 1);
 }
-uint32_t lowBoundExclusive(size_t level, uint32_t ledger)
+uint32_t
+lowBoundExclusive(size_t level, uint32_t ledger)
 {
     return mask(ledger, size(level));
 }
-uint32_t highBoundInclusive(size_t level, uint32_t ledger)
+uint32_t
+highBoundInclusive(size_t level, uint32_t ledger)
 {
     return mask(ledger, prev(level));
 }
@@ -68,7 +74,6 @@ countEntries(std::shared_ptr<Bucket> bucket)
     auto pair = bucket->countLiveAndDeadEntries();
     return pair.first + pair.second;
 }
-
 }
 
 using namespace BucketTests;
@@ -430,8 +435,7 @@ TEST_CASE("single entry bubbling up", "[bucket][bucketbubble]")
                 auto currSz = countEntries(lev.getCurr());
                 auto snapSz = countEntries(lev.getSnap());
                 CLOG(DEBUG, "Bucket") << "ledger " << i << ", level " << j
-                                   << " curr=" << currSz
-                                   << " snap=" << snapSz;
+                                   << " curr=" << currSz << " snap=" << snapSz;
 
                 if (1 > lb && 1 <= hb)
                 {
@@ -442,7 +446,6 @@ TEST_CASE("single entry bubbling up", "[bucket][bucketbubble]")
                     REQUIRE(currSz == 0);
                     REQUIRE(snapSz == 0);
                 }
-
             }
         }
     }
