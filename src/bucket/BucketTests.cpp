@@ -29,27 +29,27 @@ using namespace stellar;
 
 namespace BucketTests
 {
-size_t mask(size_t v, size_t m) 
+uint32_t mask(uint32_t v, uint32_t m)
 {
     return (v & ~(m - 1));
 }
-size_t size(size_t i)
+uint32_t size(size_t level)
 {
-    return 1 << (2 * (i + 1));
+    return 1 << (2 * (level + 1));
 }
-size_t half(size_t i)
+uint32_t half(size_t level)
 {
-    return size(i) >> 1;
+    return size(level) >> 1;
 }
-size_t prev(size_t i)
+uint32_t prev(size_t level)
 {
-    return size(i - 1);
+    return size(level - 1);
 }
-size_t lowBoundExclusive(size_t level, size_t ledger)
+uint32_t lowBoundExclusive(size_t level, uint32_t ledger)
 {
     return mask(ledger, size(level));
 }
-size_t highBoundInclusive(size_t level, size_t ledger)
+uint32_t highBoundInclusive(size_t level, uint32_t ledger)
 {
     return mask(ledger, prev(level));
 }
