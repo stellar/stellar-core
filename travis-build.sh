@@ -4,8 +4,7 @@
 
 set -ev
 
-# Short-circuit transient 'auto-initialization' builds when latobarita just
-# pointed auto at master before forming a new merge node.
+# Short-circuit transient 'auto-initialization' builds
 git fetch origin master
 AUTO=$(git describe --always auto)
 MASTER=$(git describe --always FETCH_HEAD)
@@ -17,7 +16,7 @@ then
     exit 0
 fi
 
-# Set up packages as we need them
+# Set up packages
 sudo apt-get -y purge clang clang-3.4
 sudo apt-get -y autoremove
 wget -O - http://llvm.org/apt/llvm-snapshot.gpg.key | sudo apt-key add -
