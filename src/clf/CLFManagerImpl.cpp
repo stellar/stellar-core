@@ -136,17 +136,21 @@ CLFManagerImpl::getMergeTimer()
 
 std::shared_ptr<Bucket>
 CLFManagerImpl::adoptFileAsBucket(std::string const& filename, uint256 const& hash,
-                             size_t nObjects, size_t nBytes)
+                                  size_t nObjects, size_t nBytes)
 {
-    std::lock_guard<std::mutex> lock(mBucketMutex);
-    mBucketObjectInsert.Mark(nObjects);
-    mBucketByteInsert.Mark(nBytes);
-    std::string basename = bucketBasename(binToHex(hash));
-    std::shared_ptr<Bucket> b;
-    if (mSharedBuckets.find(basename) == mSharedBuckets.end())
+    // Check to see if we have an existing bucket (either in-memory or on-disk)
+    std::shared_ptr<Bucket> b = getBucketByHash(hash);
+    if (b)
     {
-        // We do not yet have this file under its canonical name,
-        // so we'll move it into place.
+        CLOG(DEBUG, "CLF") << "Deleting bucket file " << filename
+                           << " that is redundant with existing bucket";
+        std::remove(filename.c_str());
+    }
+    else
+    {
+        mBucketObjectInsert.Mark(nObjects);
+        mBucketByteInsert.Mark(nBytes);
+        std::string basename = bucketBasename(binToHex(hash));
         std::string canonicalName = getBucketDir() + "/" + basename;
         CLOG(DEBUG, "CLF") << "Adopting bucket file " << filename << " as "
                            << canonicalName;
@@ -154,18 +158,15 @@ CLFManagerImpl::adoptFileAsBucket(std::string const& filename, uint256 const& ha
         {
             throw std::runtime_error("Failed to rename bucket");
         }
-        mSharedBuckets[basename] =
-            std::make_shared<Bucket>(canonicalName, hash);
+
+        b = std::make_shared<Bucket>(canonicalName, hash);
+        {
+            std::lock_guard<std::mutex> lock(mBucketMutex);
+            mSharedBuckets.insert(std::make_pair(basename, b));
+        }
     }
-    else
-    {
-        // We already have a bucket with this hash, so just kill the
-        // source file.
-        CLOG(DEBUG, "CLF") << "Deleting bucket file " << filename
-                           << " that is redundant with existing bucket";
-        std::remove(filename.c_str());
-    }
-    return mSharedBuckets[basename];
+    assert(b);
+    return b;
 }
 
 std::shared_ptr<Bucket>
