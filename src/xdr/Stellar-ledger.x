@@ -15,7 +15,7 @@ struct LedgerHeader
     Hash previousLedgerHash; // hash of the previous ledger header
     Hash txSetHash;          // the tx set that was SCP confirmed
     Hash txSetResultHash;    // the TransactionResultSet that led to this ledger
-    Hash clfHash;            // hash of the ledger state
+    Hash bucketListHash;     // hash of the ledger state
 
     uint32 ledgerSeq; // sequence number of this ledger
     uint64 closeTime; // network close time
@@ -56,13 +56,13 @@ case OFFER:
     } offer;
 };
 
-enum CLFType
+enum BucketEntryType
 {
     LIVEENTRY = 0,
     DEADENTRY = 1
 };
 
-union CLFEntry switch (CLFType type)
+union BucketEntry switch (BucketEntryType type)
 {
 case LIVEENTRY:
     LedgerEntry liveEntry;
@@ -94,7 +94,7 @@ struct TransactionResultSet
 // Entries below are used in the historical subsystem
 struct TransactionMeta
 {
-    CLFEntry entries<>;
+    BucketEntry entries<>;
 };
 
 struct TransactionHistoryEntry

@@ -1,7 +1,7 @@
 #pragma once
 
-#include "clf/BucketList.h"
-#include "clf/CLFManager.h"
+#include "bucket/BucketList.h"
+#include "bucket/BucketManager.h"
 #include "generated/StellarXDR.h"
 
 #include <map>
@@ -28,7 +28,7 @@ class Bucket;
 class BucketList;
 struct HistoryArchiveState;
 
-class CLFManagerImpl : public CLFManager
+class BucketManagerImpl : public BucketManager
 {
     static std::string const kLockFilename;
 
@@ -36,7 +36,7 @@ class CLFManagerImpl : public CLFManager
     BucketList mBucketList;
     std::unique_ptr<TmpDir> mWorkDir;
     std::map<std::string, std::shared_ptr<Bucket>> mSharedBuckets;
-    mutable std::mutex mBucketMutex;
+    mutable std::recursive_mutex mBucketMutex;
     std::unique_ptr<std::string> mLockedBucketDir;
     medida::Meter& mBucketObjectInsert;
     medida::Meter& mBucketByteInsert;
@@ -44,8 +44,8 @@ class CLFManagerImpl : public CLFManager
     medida::Timer& mBucketSnapMerge;
 
 public:
-    CLFManagerImpl(Application& app);
-    ~CLFManagerImpl() override;
+    BucketManagerImpl(Application& app);
+    ~BucketManagerImpl() override;
     std::string const& getTmpDir() override;
     std::string const& getBucketDir() override;
     BucketList& getBucketList() override;

@@ -7,10 +7,10 @@
 // else.
 #include "util/asio.h"
 
-#include "clf/Bucket.h"
-#include "clf/BucketList.h"
-#include "clf/CLFManager.h"
-#include "clf/LedgerCmp.h"
+#include "bucket/Bucket.h"
+#include "bucket/BucketList.h"
+#include "bucket/BucketManager.h"
+#include "bucket/LedgerCmp.h"
 #include "crypto/Hex.h"
 #include "ledger/LedgerManager.h"
 #include "lib/catch.hpp"
@@ -27,7 +27,7 @@
 
 using namespace stellar;
 
-namespace CLFTests
+namespace BucketTests
 {
 size_t mask(size_t v, size_t m) 
 {
@@ -71,9 +71,9 @@ countEntries(std::shared_ptr<Bucket> bucket)
 
 }
 
-using namespace CLFTests;
+using namespace BucketTests;
 
-TEST_CASE("bucket list", "[clf]")
+TEST_CASE("bucket list", "[bucket]")
 {
     VirtualClock clock;
     Config const& cfg = getTestConfig();
@@ -83,21 +83,21 @@ TEST_CASE("bucket list", "[clf]")
         BucketList bl;
         autocheck::generator<std::vector<LedgerEntry>> liveGen;
         autocheck::generator<std::vector<LedgerKey>> deadGen;
-        CLOG(DEBUG, "CLF") << "Adding batches to bucket list";
+        CLOG(DEBUG, "Bucket") << "Adding batches to bucket list";
         for (uint32_t i = 1;
              !app->getClock().getIOService().stopped() && i < 130; ++i)
         {
             app->getClock().crank(false);
             bl.addBatch(*app, i, liveGen(8), deadGen(5));
             if (i % 10 == 0)
-                CLOG(DEBUG, "CLF") << "Added batch " << i
+                CLOG(DEBUG, "Bucket") << "Added batch " << i
                                    << ", hash=" << binToHex(bl.getHash());
             for (size_t j = 0; j < BucketList::kNumLevels; ++j)
             {
                 auto const& lev = bl.getLevel(j);
                 auto currSz = countEntries(lev.getCurr());
                 auto snapSz = countEntries(lev.getSnap());
-                // CLOG(DEBUG, "CLF") << "level " << j
+                // CLOG(DEBUG, "Bucket") << "level " << j
                 //            << " curr=" << currSz
                 //            << " snap=" << snapSz;
                 CHECK(currSz <= BucketList::levelHalf(j) * 100);
@@ -107,13 +107,13 @@ TEST_CASE("bucket list", "[clf]")
     }
     catch (std::future_error& e)
     {
-        CLOG(DEBUG, "CLF") << "Test caught std::future_error " << e.code()
+        CLOG(DEBUG, "Bucket") << "Test caught std::future_error " << e.code()
                            << ": " << e.what();
         REQUIRE(false);
     }
 }
 
-TEST_CASE("bucket list shadowing", "[clf]")
+TEST_CASE("bucket list shadowing", "[bucket]")
 {
     VirtualClock clock;
     Config const& cfg = getTestConfig();
@@ -127,7 +127,7 @@ TEST_CASE("bucket list shadowing", "[clf]")
 
     autocheck::generator<std::vector<LedgerEntry>> liveGen;
     autocheck::generator<std::vector<LedgerKey>> deadGen;
-    CLOG(DEBUG, "CLF") << "Adding batches to bucket list";
+    CLOG(DEBUG, "Bucket") << "Adding batches to bucket list";
 
     for (uint32_t i = 1; !app->getClock().getIOService().stopped() && i < 1200;
          ++i)
@@ -135,23 +135,23 @@ TEST_CASE("bucket list shadowing", "[clf]")
         app->getClock().crank(false);
         auto liveBatch = liveGen(5);
 
-        CLFEntry CLFAlice, CLFBob;
+        BucketEntry BucketEntryAlice, BucketEntryBob;
         alice.balance++;
-        CLFAlice.type(LIVEENTRY);
-        CLFAlice.liveEntry().type(ACCOUNT);
-        CLFAlice.liveEntry().account() = alice;
-        liveBatch.push_back(CLFAlice.liveEntry());
+        BucketEntryAlice.type(LIVEENTRY);
+        BucketEntryAlice.liveEntry().type(ACCOUNT);
+        BucketEntryAlice.liveEntry().account() = alice;
+        liveBatch.push_back(BucketEntryAlice.liveEntry());
 
         bob.balance++;
-        CLFBob.type(LIVEENTRY);
-        CLFBob.liveEntry().type(ACCOUNT);
-        CLFBob.liveEntry().account() = bob;
-        liveBatch.push_back(CLFBob.liveEntry());
+        BucketEntryBob.type(LIVEENTRY);
+        BucketEntryBob.liveEntry().type(ACCOUNT);
+        BucketEntryBob.liveEntry().account() = bob;
+        liveBatch.push_back(BucketEntryBob.liveEntry());
 
         bl.addBatch(*app, i, liveBatch, deadGen(5));
         if (i % 100 == 0)
         {
-            CLOG(DEBUG, "CLF") << "Added batch " << i
+            CLOG(DEBUG, "Bucket") << "Added batch " << i
                                << ", hash=" << binToHex(bl.getHash());
             // Alice and bob should be in either curr or snap of level 0 and 1
             for (size_t j = 0; j < 2; ++j)
@@ -159,10 +159,10 @@ TEST_CASE("bucket list shadowing", "[clf]")
                 auto const& lev = bl.getLevel(j);
                 auto curr = lev.getCurr();
                 auto snap = lev.getSnap();
-                bool hasAlice = (curr->containsCLFIdentity(CLFAlice) ||
-                                 snap->containsCLFIdentity(CLFAlice));
-                bool hasBob = (curr->containsCLFIdentity(CLFBob) ||
-                               snap->containsCLFIdentity(CLFBob));
+                bool hasAlice = (curr->containsBucketIdentity(BucketEntryAlice) ||
+                                 snap->containsBucketIdentity(BucketEntryAlice));
+                bool hasBob = (curr->containsBucketIdentity(BucketEntryBob) ||
+                               snap->containsBucketIdentity(BucketEntryBob));
                 CHECK(hasAlice);
                 CHECK(hasBob);
             }
@@ -174,10 +174,10 @@ TEST_CASE("bucket list shadowing", "[clf]")
                 auto const& lev = bl.getLevel(j);
                 auto curr = lev.getCurr();
                 auto snap = lev.getSnap();
-                bool hasAlice = (curr->containsCLFIdentity(CLFAlice) ||
-                                 snap->containsCLFIdentity(CLFAlice));
-                bool hasBob = (curr->containsCLFIdentity(CLFBob) ||
-                               snap->containsCLFIdentity(CLFBob));
+                bool hasAlice = (curr->containsBucketIdentity(BucketEntryAlice) ||
+                                 snap->containsBucketIdentity(BucketEntryAlice));
+                bool hasBob = (curr->containsBucketIdentity(BucketEntryBob) ||
+                               snap->containsBucketIdentity(BucketEntryBob));
                 CHECK(!hasAlice);
                 CHECK(!hasBob);
             }
@@ -185,7 +185,7 @@ TEST_CASE("bucket list shadowing", "[clf]")
     }
 }
 
-TEST_CASE("file-backed buckets", "[clf]")
+TEST_CASE("file-backed buckets", "[bucket]")
 {
     VirtualClock clock;
     Config const& cfg = getTestConfig();
@@ -193,19 +193,19 @@ TEST_CASE("file-backed buckets", "[clf]")
 
     autocheck::generator<LedgerEntry> liveGen;
     autocheck::generator<LedgerKey> deadGen;
-    CLOG(DEBUG, "CLF") << "Generating 10000 random ledger entries";
+    CLOG(DEBUG, "Bucket") << "Generating 10000 random ledger entries";
     std::vector<LedgerEntry> live(9000);
     std::vector<LedgerKey> dead(1000);
     for (auto& e : live)
         e = liveGen(3);
     for (auto& e : dead)
         e = deadGen(3);
-    CLOG(DEBUG, "CLF") << "Hashing entries";
+    CLOG(DEBUG, "Bucket") << "Hashing entries";
     std::shared_ptr<Bucket> b1 =
-        Bucket::fresh(app->getCLFManager(), live, dead);
+        Bucket::fresh(app->getBucketManager(), live, dead);
     for (size_t i = 0; i < 5; ++i)
     {
-        CLOG(DEBUG, "CLF") << "Merging 10000 new ledger entries into "
+        CLOG(DEBUG, "Bucket") << "Merging 10000 new ledger entries into "
                            << (i * 10000) << " entry bucket";
         for (auto& e : live)
             e = liveGen(3);
@@ -213,14 +213,14 @@ TEST_CASE("file-backed buckets", "[clf]")
             e = deadGen(3);
         {
             TIMED_SCOPE(timerObj2, "merge");
-            b1 = Bucket::merge(app->getCLFManager(), b1,
-                               Bucket::fresh(app->getCLFManager(), live, dead));
+            b1 = Bucket::merge(app->getBucketManager(), b1,
+                               Bucket::fresh(app->getBucketManager(), live, dead));
         }
     }
-    CLOG(DEBUG, "CLF") << "Spill file size: " << fileSize(b1->getFilename());
+    CLOG(DEBUG, "Bucket") << "Spill file size: " << fileSize(b1->getFilename());
 }
 
-TEST_CASE("merging clf entries", "[clf]")
+TEST_CASE("merging bucket entries", "[bucket]")
 {
     VirtualClock clock;
     Config const& cfg = getTestConfig();
@@ -244,7 +244,7 @@ TEST_CASE("merging clf entries", "[clf]")
         std::vector<LedgerEntry> live{liveEntry};
         std::vector<LedgerKey> dead{deadEntry};
         std::shared_ptr<Bucket> b1 =
-            Bucket::fresh(app->getCLFManager(), live, dead);
+            Bucket::fresh(app->getBucketManager(), live, dead);
         CHECK(countEntries(b1) == 1);
     }
 
@@ -258,7 +258,7 @@ TEST_CASE("merging clf entries", "[clf]")
         std::vector<LedgerEntry> live{liveEntry};
         std::vector<LedgerKey> dead{deadEntry};
         std::shared_ptr<Bucket> b1 =
-            Bucket::fresh(app->getCLFManager(), live, dead);
+            Bucket::fresh(app->getBucketManager(), live, dead);
         CHECK(countEntries(b1) == 1);
     }
 
@@ -272,7 +272,7 @@ TEST_CASE("merging clf entries", "[clf]")
         std::vector<LedgerEntry> live{liveEntry};
         std::vector<LedgerKey> dead{deadEntry};
         std::shared_ptr<Bucket> b1 =
-            Bucket::fresh(app->getCLFManager(), live, dead);
+            Bucket::fresh(app->getBucketManager(), live, dead);
         CHECK(countEntries(b1) == 1);
     }
 
@@ -289,10 +289,10 @@ TEST_CASE("merging clf entries", "[clf]")
             }
         }
         std::shared_ptr<Bucket> b1 =
-            Bucket::fresh(app->getCLFManager(), live, dead);
+            Bucket::fresh(app->getBucketManager(), live, dead);
         CHECK(countEntries(b1) == live.size());
         auto liveCount = b1->countLiveAndDeadEntries().first;
-        CLOG(DEBUG, "CLF") << "post-merge live count: " << liveCount << " of "
+        CLOG(DEBUG, "Bucket") << "post-merge live count: " << liveCount << " of "
                            << live.size();
         CHECK(liveCount == live.size() - dead.size());
     }
@@ -306,7 +306,7 @@ TEST_CASE("merging clf entries", "[clf]")
             e = leGen(10);
         }
         std::shared_ptr<Bucket> b1 =
-            Bucket::fresh(app->getCLFManager(), live, dead);
+            Bucket::fresh(app->getBucketManager(), live, dead);
         std::random_shuffle(live.begin(), live.end());
         size_t liveCount = live.size();
         for (auto& e : live)
@@ -318,14 +318,14 @@ TEST_CASE("merging clf entries", "[clf]")
             }
         }
         std::shared_ptr<Bucket> b2 =
-            Bucket::fresh(app->getCLFManager(), live, dead);
+            Bucket::fresh(app->getBucketManager(), live, dead);
         std::shared_ptr<Bucket> b3 =
-            Bucket::merge(app->getCLFManager(), b1, b2);
+            Bucket::merge(app->getBucketManager(), b1, b2);
         CHECK(countEntries(b3) == liveCount);
     }
 }
 
-TEST_CASE("clfmaster ownership", "[clf][ownershipclf]")
+TEST_CASE("bucketmanager ownership", "[bucket]")
 {
     VirtualClock clock;
     Config const& cfg = getTestConfig();
@@ -339,25 +339,25 @@ TEST_CASE("clfmaster ownership", "[clf][ownershipclf]")
 
     {
         std::shared_ptr<Bucket> b2 =
-            Bucket::fresh(app->getCLFManager(), live, dead);
+            Bucket::fresh(app->getBucketManager(), live, dead);
         b1 = b2;
 
-        // Bucket is referenced by b1, b2 and the CLFManager.
+        // Bucket is referenced by b1, b2 and the BucketManager.
         CHECK(b1.use_count() == 3);
 
         std::shared_ptr<Bucket> b3 =
-            Bucket::fresh(app->getCLFManager(), live, dead);
+            Bucket::fresh(app->getBucketManager(), live, dead);
         std::shared_ptr<Bucket> b4 =
-            Bucket::fresh(app->getCLFManager(), live, dead);
-        // Bucket is referenced by b1, b2, b3, b4 and the CLFManager.
+            Bucket::fresh(app->getBucketManager(), live, dead);
+        // Bucket is referenced by b1, b2, b3, b4 and the BucketManager.
         CHECK(b1.use_count() == 5);
     }
 
-    // Bucket is now only referenced by b1 and the CLFManager.
+    // Bucket is now only referenced by b1 and the BucketManager.
     CHECK(b1.use_count() == 2);
 
-    // Drop CLFManager's reference, down to just b1.
-    app->getCLFManager().forgetUnreferencedBuckets();
+    // Drop BucketManager's reference, down to just b1.
+    app->getBucketManager().forgetUnreferencedBuckets();
     CHECK(b1.use_count() == 1);
 
     // Drop it too.
@@ -366,25 +366,25 @@ TEST_CASE("clfmaster ownership", "[clf][ownershipclf]")
     b1.reset();
     CHECK(!fs::exists(filename));
 
-    // Try adding a bucket to the CLFManager's bucketlist
-    auto& bl = app->getCLFManager().getBucketList();
+    // Try adding a bucket to the BucketManager's bucketlist
+    auto& bl = app->getBucketManager().getBucketList();
     bl.addBatch(*app, 1, live, dead);
     b1 = bl.getLevel(0).getCurr();
 
-    // Bucket should be referenced by bucketlist itself, CLFManager cache and
+    // Bucket should be referenced by bucketlist itself, BucketManager cache and
     // b1.
     CHECK(b1.use_count() == 3);
 
     // This shouldn't change if we forget unreferenced buckets since it's
     // referenced by bucketlist.
-    app->getCLFManager().forgetUnreferencedBuckets();
+    app->getBucketManager().forgetUnreferencedBuckets();
     CHECK(b1.use_count() == 3);
 
     // But if we mutate the curr bucket of the bucketlist, it should.
     live[0] = leGen(10);
     bl.addBatch(*app, 1, live, dead);
     CHECK(b1.use_count() == 2);
-    app->getCLFManager().forgetUnreferencedBuckets();
+    app->getBucketManager().forgetUnreferencedBuckets();
     CHECK(b1.use_count() == 1);
 
     // Drop it again.
@@ -394,7 +394,7 @@ TEST_CASE("clfmaster ownership", "[clf][ownershipclf]")
     CHECK(!fs::exists(filename));
 }
 
-TEST_CASE("single entry bubbling up", "[clf][clfbubble]")
+TEST_CASE("single entry bubbling up", "[bucket][bucketbubble]")
 {
     VirtualClock clock;
     Config const& cfg = getTestConfig();
@@ -406,20 +406,20 @@ TEST_CASE("single entry bubbling up", "[clf][clfbubble]")
         std::vector<stellar::LedgerKey> emptySet;
         std::vector<stellar::LedgerEntry> emptySetEntry;
 
-        CLOG(DEBUG, "CLF") << "Adding single entry in lowest level";
+        CLOG(DEBUG, "Bucket") << "Adding single entry in lowest level";
         bl.addBatch(*app, 1, liveGen(1), emptySet);
 
-        CLOG(DEBUG, "CLF") << "Adding empty batches to bucket list";
+        CLOG(DEBUG, "Bucket") << "Adding empty batches to bucket list";
         for (uint32_t i = 2;
              !app->getClock().getIOService().stopped() && i < 300; ++i)
         {
             app->getClock().crank(false);
             bl.addBatch(*app, i, emptySetEntry, emptySet);
             if (i % 10 == 0)
-                CLOG(DEBUG, "CLF") << "Added batch " << i
+                CLOG(DEBUG, "Bucket") << "Added batch " << i
                                    << ", hash=" << binToHex(bl.getHash());
 
-            CLOG(DEBUG, "CLF") << "------- ledger " << i;
+            CLOG(DEBUG, "Bucket") << "------- ledger " << i;
 
             for (size_t j = 0; j <= BucketList::kNumLevels - 1; ++j)
             {
@@ -429,7 +429,7 @@ TEST_CASE("single entry bubbling up", "[clf][clfbubble]")
                 auto const& lev = bl.getLevel(j);
                 auto currSz = countEntries(lev.getCurr());
                 auto snapSz = countEntries(lev.getSnap());
-                CLOG(DEBUG, "CLF") << "ledger " << i << ", level " << j
+                CLOG(DEBUG, "Bucket") << "ledger " << i << ", level " << j
                                    << " curr=" << currSz
                                    << " snap=" << snapSz;
 
@@ -448,13 +448,13 @@ TEST_CASE("single entry bubbling up", "[clf][clfbubble]")
     }
     catch (std::future_error& e)
     {
-        CLOG(DEBUG, "CLF") << "Test caught std::future_error " << e.code()
+        CLOG(DEBUG, "Bucket") << "Test caught std::future_error " << e.code()
                            << ": " << e.what();
         REQUIRE(false);
     }
 }
 
-TEST_CASE("bucket persistence over app restart", "[clf][bucketpersist]")
+TEST_CASE("bucket persistence over app restart", "[bucket][bucketpersist]")
 {
     autocheck::generator<std::vector<LedgerEntry>> liveGen;
     std::vector<stellar::LedgerKey> emptySet;
@@ -469,7 +469,7 @@ TEST_CASE("bucket persistence over app restart", "[clf][bucketpersist]")
     {
         Application::pointer app1 = Application::create(clock, cfg);
         app1->start();
-        BucketList& bl1 = app1->getCLFManager().getBucketList();
+        BucketList& bl1 = app1->getBucketManager().getBucketList();
         auto lclHash0 =
             app1->getLedgerManager().getLastClosedLedgerHeader().hash;
         for (uint32_t i = 2; i < 100; ++i)
@@ -499,7 +499,7 @@ TEST_CASE("bucket persistence over app restart", "[clf][bucketpersist]")
         auto lclHash2 =
             app2->getLedgerManager().getLastClosedLedgerHeader().hash;
         REQUIRE(hexAbbrev(lclHash2) == hexAbbrev(lclHash1));
-        BucketList& bl2 = app2->getCLFManager().getBucketList();
+        BucketList& bl2 = app2->getBucketManager().getBucketList();
         auto bucketHash2 = bl2.getLevel(1).getCurr()->getHash();
         CHECK(hexAbbrev(bucketHash2) == hexAbbrev(bucketHash1));
     }

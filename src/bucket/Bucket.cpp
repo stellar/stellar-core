@@ -2,13 +2,13 @@
 // under the ISC License. See the COPYING file at the top-level directory of
 // this distribution or at http://opensource.org/licenses/ISC
 
-#include "clf/Bucket.h"
+#include "bucket/Bucket.h"
 // ASIO is somewhat particular about when it gets included -- it wants to be the
 // first to include <windows.h> -- so we try to include it before everything
 // else.
 #include "util/asio.h"
-#include "clf/CLFManager.h"
-#include "clf/LedgerCmp.h"
+#include "bucket/BucketManager.h"
+#include "bucket/LedgerCmp.h"
 #include "crypto/Hex.h"
 #include "crypto/Random.h"
 #include "crypto/SHA.h"
@@ -116,9 +116,9 @@ class Bucket::InputIterator
 
     // Validity and current-value of the iterator is funneled into a pointer. If
     // non-null, it points to mEntry.
-    CLFEntry const* mEntryPtr;
+    BucketEntry const* mEntryPtr;
     XDRInputFileStream mIn;
-    CLFEntry mEntry;
+    BucketEntry mEntry;
 
     void
     loadEntry()
@@ -139,7 +139,7 @@ class Bucket::InputIterator
         return mEntryPtr != nullptr;
     }
 
-    CLFEntry const& operator*()
+    BucketEntry const& operator*()
     {
         return *mEntryPtr;
     }
@@ -149,7 +149,7 @@ class Bucket::InputIterator
     {
         if (!mBucket->mFilename.empty())
         {
-            CLOG(TRACE, "CLF") << "Bucket::InputIterator opening file to read: "
+            CLOG(TRACE, "Bucket") << "Bucket::InputIterator opening file to read: "
                                << mBucket->mFilename;
             mIn.open(mBucket->mFilename);
             loadEntry();
@@ -176,8 +176,8 @@ class Bucket::InputIterator
 };
 
 /**
- * Helper class that points to an output tempfile. Absorbs CLFEntries and hashes
- * them while writing to either destination. Produces a Bucket when done.
+ * Helper class that points to an output tempfile. Absorbs BucketEntries and
+ * hashes them while writing to either destination. Produces a Bucket when done.
  */
 class Bucket::OutputIterator
 {
@@ -192,20 +192,20 @@ class Bucket::OutputIterator
         : mFilename(randomBucketName(tmpDir))
         , mHasher(SHA256::create())
     {
-        CLOG(TRACE, "CLF") << "Bucket::OutputIterator opening file to write: "
+        CLOG(TRACE, "Bucket") << "Bucket::OutputIterator opening file to write: "
                            << mFilename;
         mOut.open(mFilename);
     }
 
     void
-    put(CLFEntry const& e)
+    put(BucketEntry const& e)
     {
         mOut.writeOne(e, mHasher.get(), &mBytesPut);
         mObjectsPut++;
     }
 
     std::shared_ptr<Bucket>
-    getBucket(CLFManager& clfManager)
+    getBucket(BucketManager& bucketManager)
     {
         assert(mOut);
         mOut.close();
@@ -213,19 +213,19 @@ class Bucket::OutputIterator
         {
             assert(mObjectsPut == 0);
             assert(mBytesPut == 0);
-            CLOG(DEBUG, "CLF") << "Deleting empty bucket file " << mFilename;
+            CLOG(DEBUG, "Bucket") << "Deleting empty bucket file " << mFilename;
             std::remove(mFilename.c_str());
             return std::make_shared<Bucket>();
         }
-        return clfManager.adoptFileAsBucket(mFilename, mHasher->finish(),
+        return bucketManager.adoptFileAsBucket(mFilename, mHasher->finish(),
                                             mObjectsPut, mBytesPut);
     }
 };
 
 bool
-Bucket::containsCLFIdentity(CLFEntry const& id) const
+Bucket::containsBucketIdentity(BucketEntry const& id) const
 {
-    CLFEntryIdCmp cmp;
+    BucketEntryIdCmp cmp;
     Bucket::InputIterator iter(shared_from_this());
     while (iter)
     {
@@ -261,7 +261,7 @@ Bucket::countLiveAndDeadEntries() const
 void
 Bucket::apply(Database& db) const
 {
-    CLFEntry entry;
+    BucketEntry entry;
     LedgerHeader lh; // buckets, by definition are independent from the header
     LedgerDelta delta(lh);
     XDRInputFileStream in;
@@ -282,16 +282,16 @@ Bucket::apply(Database& db) const
 }
 
 std::shared_ptr<Bucket>
-Bucket::fresh(CLFManager& clfManager, std::vector<LedgerEntry> const& liveEntries,
+Bucket::fresh(BucketManager& bucketManager, std::vector<LedgerEntry> const& liveEntries,
               std::vector<LedgerKey> const& deadEntries)
 {
-    std::vector<CLFEntry> live, dead, combined;
+    std::vector<BucketEntry> live, dead, combined;
     live.reserve(liveEntries.size());
     dead.reserve(deadEntries.size());
 
     for (auto const& e : liveEntries)
     {
-        CLFEntry ce;
+        BucketEntry ce;
         ce.type(LIVEENTRY);
         ce.liveEntry() = e;
         live.push_back(ce);
@@ -299,18 +299,18 @@ Bucket::fresh(CLFManager& clfManager, std::vector<LedgerEntry> const& liveEntrie
 
     for (auto const& e : deadEntries)
     {
-        CLFEntry ce;
+        BucketEntry ce;
         ce.type(DEADENTRY);
         ce.deadEntry() = e;
         dead.push_back(ce);
     }
 
-    std::sort(live.begin(), live.end(), CLFEntryIdCmp());
+    std::sort(live.begin(), live.end(), BucketEntryIdCmp());
 
-    std::sort(dead.begin(), dead.end(), CLFEntryIdCmp());
+    std::sort(dead.begin(), dead.end(), BucketEntryIdCmp());
 
-    OutputIterator liveOut(clfManager.getTmpDir());
-    OutputIterator deadOut(clfManager.getTmpDir());
+    OutputIterator liveOut(bucketManager.getTmpDir());
+    OutputIterator deadOut(bucketManager.getTmpDir());
     for (auto const& e : live)
     {
         liveOut.put(e);
@@ -320,13 +320,13 @@ Bucket::fresh(CLFManager& clfManager, std::vector<LedgerEntry> const& liveEntrie
         deadOut.put(e);
     }
 
-    auto liveBucket = liveOut.getBucket(clfManager);
-    auto deadBucket = deadOut.getBucket(clfManager);
-    return Bucket::merge(clfManager, liveBucket, deadBucket);
+    auto liveBucket = liveOut.getBucket(bucketManager);
+    auto deadBucket = deadOut.getBucket(bucketManager);
+    return Bucket::merge(bucketManager, liveBucket, deadBucket);
 }
 
 inline void
-maybe_put(CLFEntryIdCmp const& cmp, Bucket::OutputIterator& out,
+maybe_put(BucketEntryIdCmp const& cmp, Bucket::OutputIterator& out,
           Bucket::InputIterator& in,
           std::vector<Bucket::InputIterator>& shadowIterators)
 {
@@ -356,7 +356,7 @@ maybe_put(CLFEntryIdCmp const& cmp, Bucket::OutputIterator& out,
 }
 
 std::shared_ptr<Bucket>
-Bucket::merge(CLFManager& clfManager, std::shared_ptr<Bucket> const& oldBucket,
+Bucket::merge(BucketManager& bucketManager, std::shared_ptr<Bucket> const& oldBucket,
               std::shared_ptr<Bucket> const& newBucket,
               std::vector<std::shared_ptr<Bucket>> const& shadows)
 {
@@ -373,10 +373,10 @@ Bucket::merge(CLFManager& clfManager, std::shared_ptr<Bucket> const& oldBucket,
     std::vector<Bucket::InputIterator> shadowIterators(shadows.begin(),
                                                        shadows.end());
 
-    auto timer = clfManager.getMergeTimer().TimeScope();
-    Bucket::OutputIterator out(clfManager.getTmpDir());
+    auto timer = bucketManager.getMergeTimer().TimeScope();
+    Bucket::OutputIterator out(bucketManager.getTmpDir());
 
-    CLFEntryIdCmp cmp;
+    BucketEntryIdCmp cmp;
     while (oi || ni)
     {
         if (!ni)
@@ -411,6 +411,6 @@ Bucket::merge(CLFManager& clfManager, std::shared_ptr<Bucket> const& oldBucket,
             ++ni;
         }
     }
-    return out.getBucket(clfManager);
+    return out.getBucket(bucketManager);
 }
 }

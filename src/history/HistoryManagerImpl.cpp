@@ -9,8 +9,8 @@
 
 #include "main/Application.h"
 #include "main/Config.h"
-#include "clf/BucketList.h"
-#include "clf/CLFManager.h"
+#include "bucket/BucketList.h"
+#include "bucket/BucketManager.h"
 #include "ledger/LedgerManager.h"
 #include "generated/StellarXDR.h"
 #include "history/HistoryArchive.h"
@@ -315,7 +315,7 @@ HistoryManagerImpl::getLastClosedHistoryArchiveState() const
     auto seq = mApp.getLedgerManager()
         .getLastClosedLedgerHeader()
         .header.ledgerSeq;
-    auto& bl = mApp.getCLFManager().getBucketList();
+    auto& bl = mApp.getBucketManager().getBucketList();
     return HistoryArchiveState(seq, bl);
 }
 

@@ -22,11 +22,10 @@ This is the connection layer. It handles things like:
 - Trying to keep you connected to the number of peers set in the .cfg 
 
 ##Ledger
-Handles applying the transaction set that is externalized by SCP. Hands off the resulting changed ledger entries to the CLF.
+Handles applying the transaction set that is externalized by SCP. Hands off the resulting changed ledger entries to the BucketList.
 
-##CLF
-Cannonical Ledger Form. 
-Needs to 
+##BucketList
+Ledger entries arranged for hashing
 
 ##Transactions
 The implementaions of all the various transaction types. (see transaction.md)

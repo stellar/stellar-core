@@ -14,9 +14,9 @@
 #include "crypto/Hex.h"
 #include "crypto/Random.h"
 #include "util/XDRStream.h"
-#include "clf/Bucket.h"
-#include "clf/CLFManager.h"
-#include "clf/LedgerCmp.h"
+#include "bucket/Bucket.h"
+#include "bucket/BucketManager.h"
+#include "bucket/LedgerCmp.h"
 #include <cassert>
 
 namespace stellar
@@ -95,7 +95,7 @@ BucketLevel::commit()
         // NB: This might block if the worker thread is slow; might want to
         // use mNextCurr.wait_for()
         setCurr(mNextCurr.get());
-        // CLOG(DEBUG, "CLF") << "level " << mLevel << " set mCurr to "
+        // CLOG(DEBUG, "Bucket") << "level " << mLevel << " set mCurr to "
         //            << mCurr->getEntries().size() << " elements";
     }
     assert(!mNextCurr.valid());
@@ -125,27 +125,27 @@ BucketLevel::prepare(Application& app, uint32_t currLedger,
             currLedger + BucketList::levelHalf(mLevel - 1);
         if (BucketList::levelShouldSpill(nextChangeLedger, mLevel))
         {
-            // CLOG(DEBUG, "CLF") << "level " << mLevel
+            // CLOG(DEBUG, "Bucket") << "level " << mLevel
             //            << " skipping pending-snapshot curr";
             curr.reset();
         }
     }
 
-    //CLOG(INFO, "CLF")
+    //CLOG(INFO, "Bucket")
     //    << "Worker preparing merge of " << snap->getFilename() << " with " << snap->getFilename();
 
-    CLFManager& clfManager = app.getCLFManager();
+    BucketManager& bucketManager = app.getBucketManager();
     using task_t = std::packaged_task<std::shared_ptr<Bucket>()>;
     std::shared_ptr<task_t> task = std::make_shared<task_t>(
-        [curr, snap, &clfManager, shadows]()
+        [curr, snap, &bucketManager, shadows]()
         {
-            //CLOG(INFO, "CLF")
+            //CLOG(INFO, "Bucket")
             //    << "Worker merging " << snap->getFilename() << " with " << snap->getFilename();
 
-             auto res = Bucket::merge(clfManager,
+             auto res = Bucket::merge(bucketManager,
                                      (curr ? curr : std::make_shared<Bucket>()),
                                      snap, shadows);
-             //CLOG(INFO, "CLF")
+             //CLOG(INFO, "Bucket")
              //    << "Worker finished merging " << snap->getFilename() << " with " << snap->getFilename();
              return res;
         });
@@ -161,9 +161,9 @@ BucketLevel::snap()
 {
     mSnap = mCurr;
     mCurr = std::make_shared<Bucket>();
-    // CLOG(DEBUG, "CLF") << "level " << mLevel << " set mSnap to "
+    // CLOG(DEBUG, "Bucket") << "level " << mLevel << " set mSnap to "
     //            << mSnap->getEntries().size() << " elements";
-    // CLOG(DEBUG, "CLF") << "level " << mLevel << " reset mCurr to "
+    // CLOG(DEBUG, "Bucket") << "level " << mLevel << " reset mCurr to "
     //            << mCurr->getEntries().size() << " elements";
     return mSnap;
 }
@@ -268,7 +268,7 @@ BucketList::addBatch(Application& app, uint32_t currLedger,
         shadows.pop_back();
 
         /*
-        CLOG(DEBUG, "CLF") << "curr=" << currLedger
+        CLOG(DEBUG, "Bucket") << "curr=" << currLedger
                    << ", half(i-1)=" << levelHalf(i-1)
                    << ", size(i-1)=" << levelSize(i-1)
                    << ", mask(curr,half)=" << mask(currLedger, levelHalf(i-1))
@@ -294,7 +294,7 @@ BucketList::addBatch(Application& app, uint32_t currLedger,
 
             auto snap = mLevels[i - 1].snap();
 
-            // CLOG(DEBUG, "CLF") << "Ledger " << currLedger
+            // CLOG(DEBUG, "Bucket") << "Ledger " << currLedger
             //           << " causing commit on level " << i
             //           << " and prepare of "
             //           << snap->getEntries().size()
@@ -309,7 +309,7 @@ BucketList::addBatch(Application& app, uint32_t currLedger,
     assert(shadows.size() == 0);
     mLevels[0].prepare(
         app, currLedger,
-        Bucket::fresh(app.getCLFManager(), liveEntries, deadEntries), shadows);
+        Bucket::fresh(app.getBucketManager(), liveEntries, deadEntries), shadows);
     mLevels[0].commit();
 }
 

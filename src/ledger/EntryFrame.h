@@ -5,7 +5,7 @@
 // this distribution or at http://opensource.org/licenses/ISC
 
 #include "generated/StellarXDR.h"
-#include "clf/LedgerCmp.h"
+#include "bucket/LedgerCmp.h"
 
 /*
 Frame

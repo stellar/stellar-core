@@ -6,7 +6,8 @@
 
 #include <memory>
 #include "generated/StellarXDR.h"
-#include "clf/Bucket.h"
+#include "bucket/Bucket.h"
+#include "util/NonCopyable.h"
 
 #include "medida/timer_context.h"
 
@@ -18,30 +19,51 @@ class BucketList;
 struct LedgerHeader;
 struct HistoryArchiveState;
 
-class CLFManager
+/**
+ * BucketManager is responsible for maintaining a collection of Buckets of
+ * ledger entries (each sorted, de-duplicated and identified by hash) and,
+ * primarily, for holding the BucketList: the distinguished, ordered collection
+ * of buckets that are arranged in such a way as to efficiently provide a single
+ * canonical hash for the state of all the entries in the ledger.
+ *
+ * Not every bucket is present in the BucketList at every instant; buckets
+ * live in a few transient states while being merged, upload or downloaded
+ * from history archives.
+ *
+ * Every bucket corresponds to a file on disk and the BucketManager owns a
+ * directory in which the buckets it's responsible for reside. It locks this
+ * directory exclusively while the process is running; only one BucketManager
+ * should be attached to a single diretory at a time.
+ *
+ * Buckets can be created outside the BucketManager's directory -- for example
+ * in temporary directories -- and then "adopted" by the BucketManager, moved
+ * into its directory and managed by it.
+ */
+
+class BucketManager : NonMovableOrCopyable
 {
 
 public:
-    static std::unique_ptr<CLFManager> create(Application&);
+    static std::unique_ptr<BucketManager> create(Application&);
     static void dropAll(Application& app);
 
-    virtual ~CLFManager() {}
+    virtual ~BucketManager() {}
     virtual std::string const& getTmpDir() = 0;
     virtual std::string const& getBucketDir() = 0;
     virtual BucketList& getBucketList() = 0;
 
     virtual medida::Timer& getMergeTimer() = 0;
 
-    // Get a reference to a persistent bucket in the CLF-managed bucket
-    // directory, from the CLF's shared bucket-set.
+    // Get a reference to a persistent bucket (in the BucketManager's bucket
+    // directory), from the BucketManager's shared bucket-set.
     //
-    // Concretely: if `hash` names an existing bucket, delete `filename` and
-    // return
-    // the existing bucket; otherwise move `filename` to the bucket directory,
-    // stored under `hash`, and return a new bucket pointing to that.
+    // Concretely: if `hash` names an existing bucket -- either in-memory or on
+    // disk -- delete `filename` and return an object for the existing bucket;
+    // otherwise move `filename` to the bucket directory, stored under `hash`,
+    // and return a new bucket pointing to that.
     //
     // This method is mostly-threadsafe -- assuming you don't destruct the
-    // CLFManager mid-call -- and is intended to be called from both main and
+    // BucketManager mid-call -- and is intended to be called from both main and
     // worker threads. Very carefully.
     virtual std::shared_ptr<Bucket> adoptFileAsBucket(std::string const& filename,
                                                       uint256 const& hash,
@@ -53,7 +75,7 @@ public:
 
     // Forget any buckets not referenced by the current BucketList. This will
     // not immediately cause the buckets to delete themselves, if someone else
-    // is using them via a shared_ptr<>, but the CLFManager will no longer
+    // is using them via a shared_ptr<>, but the BucketManager will no longer
     // independently keep them alive.
     virtual void forgetUnreferencedBuckets() = 0;
 
@@ -62,8 +84,8 @@ public:
                           std::vector<LedgerEntry> const& liveEntries,
                           std::vector<LedgerKey> const& deadEntries) = 0;
 
-    // Update the given LedgerHeader's clfHash to reflect the current state of
-    // the bucket list.
+    // Update the given LedgerHeader's bucketListHash to reflect the current
+    // state of the bucket list.
     virtual void snapshotLedger(LedgerHeader& currentHeader) = 0;
 
     // Restart from a saved state: find and attach all buckets, set current BL.

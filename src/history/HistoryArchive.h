@@ -61,8 +61,7 @@ struct HistoryArchiveState
                                  std::string const& archiveName);
 
 
-    // Return cumulative hash of the bucketlist (a.k.a. clfHash) for this
-    // archive state.
+    // Return cumulative hash of the bucketlist for this archive state.
     Hash getBucketListHash();
 
     // Return vector of buckets to fetch/apply to turn 'other' into 'this'.

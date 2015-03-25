@@ -3,9 +3,9 @@
 // this distribution or at http://opensource.org/licenses/ISC
 
 #include "history/PublishStateMachine.h"
-#include "clf/Bucket.h"
-#include "clf/BucketList.h"
-#include "clf/CLFManager.h"
+#include "bucket/Bucket.h"
+#include "bucket/BucketList.h"
+#include "bucket/BucketManager.h"
 #include "crypto/Hex.h"
 #include "history/HistoryArchive.h"
 #include "history/HistoryManager.h"
@@ -338,7 +338,7 @@ StateSnapshot::StateSnapshot(Application& app)
           uint32_t(mLocalState.currentLedger /
                    HistoryManager::kCheckpointFrequency)))
 {
-    BucketList& buckets = app.getCLFManager().getBucketList();
+    BucketList& buckets = app.getBucketManager().getBucketList();
     for (size_t i = 0; i < BucketList::kNumLevels; ++i)
     {
         auto const& level = buckets.getLevel(i);

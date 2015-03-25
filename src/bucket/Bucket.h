@@ -21,7 +21,7 @@ namespace stellar
  * merged in sorted order, and all elements are hashed while being added.
  */
 
-class CLFManager;
+class BucketManager;
 class Database;
 
 class Bucket : public std::enable_shared_from_this<Bucket>
@@ -61,15 +61,15 @@ class Bucket : public std::enable_shared_from_this<Bucket>
     // not be deleted (from the filesystem) when the Bucket object is deleted. A
     // non-retained bucket _will_ delete the underlying file. Buckets should
     // only be retained if you want them to survive process-exit / restart; in
-    // particular the contents of the CLFManager's current BucketList should be
+    // particular the contents of the BucketManager's current BucketList should be
     // retained.
     void setRetain(bool r);
 
-    // Returns true if a CLFEntry that is key-wise identical to the given
-    // CLFEntry exists in the bucket. For testing.
-    bool containsCLFIdentity(CLFEntry const& id) const;
+    // Returns true if a BucketEntry that is key-wise identical to the given
+    // BucketEntry exists in the bucket. For testing.
+    bool containsBucketIdentity(BucketEntry const& id) const;
 
-    // Return the count of live and dead CLFEntries in the bucket. For testing.
+    // Return the count of live and dead BucketEntries in the bucket. For testing.
     std::pair<size_t, size_t> countLiveAndDeadEntries() const;
 
     // "Applies" the bucket to the database. For each entry in the bucket, if
@@ -80,9 +80,9 @@ class Bucket : public std::enable_shared_from_this<Bucket>
 
     // Create a fresh bucket from a given vector of live LedgerEntries and
     // dead LedgerEntryKeys. The bucket will be sorted, hashed, and adopted
-    // in the provided CLFManager.
+    // in the provided BucketManager.
     static std::shared_ptr<Bucket>
-    fresh(CLFManager& clfManager, std::vector<LedgerEntry> const& liveEntries,
+    fresh(BucketManager& bucketManager, std::vector<LedgerEntry> const& liveEntries,
           std::vector<LedgerKey> const& deadEntries);
 
     // Merge two buckets together, producing a fresh one. Entries in `oldBucket`
@@ -90,7 +90,7 @@ class Bucket : public std::enable_shared_from_this<Bucket>
     // `newBucket`. Entries are inhibited from the fresh bucket by keywise-equal
     // entries in any of the buckets in the provided `shadows` vector.
     static std::shared_ptr<Bucket>
-    merge(CLFManager& clfManager, std::shared_ptr<Bucket> const& oldBucket,
+    merge(BucketManager& bucketManager, std::shared_ptr<Bucket> const& oldBucket,
           std::shared_ptr<Bucket> const& newBucket,
           std::vector<std::shared_ptr<Bucket>> const& shadows =
               std::vector<std::shared_ptr<Bucket>>());
