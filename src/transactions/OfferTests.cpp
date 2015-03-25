@@ -95,15 +95,11 @@ TEST_CASE("create offer", "[tx][offers]")
         applyPaymentTx(app, root, a1, root_seq++, minBalance2 + 10000);
         SequenceNumber a1_seq = getAccountSeqNum(a1, app) + 1;
 
-        // missing USD trust
-        applyCreateOfferWithResult(app, delta, 0, a1, idrCur, usdCur, oneone, 100,
-                                   a1_seq++, CREATE_OFFER_NO_TRUST);
-
-        applyChangeTrust(app, a1, gateway, a1_seq++, "USD", trustLineLimit);
+        // sell IDR for USD
 
         // missing IDR trust
         applyCreateOfferWithResult(app, delta, 0, a1, idrCur, usdCur, oneone, 100,
-                                   a1_seq++, CREATE_OFFER_NO_TRUST);
+                                   a1_seq++, CREATE_OFFER_UNDERFUNDED);
 
         applyChangeTrust(app, a1, gateway, a1_seq++, "IDR", trustLineLimit);
 
@@ -115,9 +111,15 @@ TEST_CASE("create offer", "[tx][offers]")
         applyCreditPaymentTx(app, gateway, a1, idrCur, gateway_seq++,
                              trustLineLimit);
 
+        // missing USD trust
+        applyCreateOfferWithResult(app, delta, 0, a1, idrCur, usdCur, oneone, 100,
+            a1_seq++, CREATE_OFFER_NO_TRUST);
+
+        applyChangeTrust(app, a1, gateway, a1_seq++, "USD", trustLineLimit);
+
         // need sufficient XLM funds to create an offer
         applyCreateOfferWithResult(app, delta, 0, a1, idrCur, usdCur, oneone, 100,
-                                   a1_seq++, CREATE_OFFER_BELOW_MIN_BALANCE);
+                                   a1_seq++, CREATE_OFFER_LOW_RESERVE);
 
         // there should be no pending offer at this point in the system
         OfferFrame offer;
@@ -140,7 +142,7 @@ TEST_CASE("create offer", "[tx][offers]")
         auto res = applyCreateOfferWithResult(app, delta, 0, a1, idrCur, usdCur, oneone, 100,
             a1_seq++, CREATE_OFFER_SUCCESS);
 
-        auto offer = res.success().offer.offerCreated();
+        auto offer = res.success().offer.offer();
         OfferFrame loaded;
         REQUIRE(OfferFrame::loadOffer(a1.getPublicKey(), offer.offerID, loaded,
             app.getDatabase()));
@@ -149,7 +151,7 @@ TEST_CASE("create offer", "[tx][offers]")
             applyCreateOfferWithResult(app, delta, offer.offerID, a1, idrCur, usdCur, oneone, 0,
                                        a1_seq++, CREATE_OFFER_SUCCESS);
 
-        REQUIRE(cancelRes.success().offer.effect() == CREATE_OFFER_CANCELLED);
+        REQUIRE(cancelRes.success().offer.effect() == CREATE_OFFER_DELETED);
         REQUIRE(!OfferFrame::loadOffer(a1.getPublicKey(), offer.offerID, loaded,
             app.getDatabase()));
     }
@@ -288,7 +290,7 @@ TEST_CASE("create offer", "[tx][offers]")
                 app, delta, 0, b1, usdCur, idrCur, exactCross,
                 150 * currencyMultiplier, b1_seq++);
 
-            REQUIRE(res.success().offer.effect() == CREATE_OFFER_EMPTY);
+            REQUIRE(res.success().offer.effect() == CREATE_OFFER_DELETED);
 
             // verifies that the offer was not created
             REQUIRE(!OfferFrame::loadOffer(b1.getPublicKey(), expectedID, offer,
@@ -350,7 +352,7 @@ TEST_CASE("create offer", "[tx][offers]")
                 app, delta, 0, b1, usdCur, idrCur, onetwo,
                 1010 * currencyMultiplier, b1_seq++);
 
-            REQUIRE(res.success().offer.effect() == CREATE_OFFER_EMPTY);
+            REQUIRE(res.success().offer.effect() == CREATE_OFFER_DELETED);
             // verify that the offer was not created
             REQUIRE(!OfferFrame::loadOffer(b1.getPublicKey(), expectedID, offer,
                                            app.getDatabase()));
@@ -451,7 +453,7 @@ TEST_CASE("create offer", "[tx][offers]")
                     app, delta, 0, b1, usdCur, idrCur, onetwo,
                     1 * currencyMultiplier, b1_seq++);
 
-                REQUIRE(res.success().offer.effect() == CREATE_OFFER_EMPTY);
+                REQUIRE(res.success().offer.effect() == CREATE_OFFER_DELETED);
                 REQUIRE(!OfferFrame::loadOffer(b1.getPublicKey(), wouldCreateID,
                                                offer, app.getDatabase()));
             }

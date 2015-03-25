@@ -20,6 +20,7 @@ class MergeOpFrame : public OperationFrame
     MergeOpFrame(Operation const& op, OperationResult& res,
                  TransactionFrame& parentTx);
 
+    int32_t getNeededThreshold() const;
     bool doApply(LedgerDelta& delta, LedgerManager& ledgerManager);
     bool doCheckValid(Application& app);
 

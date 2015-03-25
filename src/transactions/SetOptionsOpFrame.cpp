@@ -74,7 +74,7 @@ SetOptionsOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
                 }
                 if (!mSourceAccount->addNumEntries(1, ledgerManager))
                 {
-                    innerResult().code(SET_OPTIONS_BELOW_MIN_BALANCE);
+                    innerResult().code(SET_OPTIONS_LOW_RESERVE);
                     return false;
                 }
                 signers.push_back(*mSetOptions.signer);

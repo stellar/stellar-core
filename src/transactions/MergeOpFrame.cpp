@@ -17,6 +17,12 @@ MergeOpFrame::MergeOpFrame(Operation const& op, OperationResult& res,
 {
 }
 
+int32_t
+MergeOpFrame::getNeededThreshold() const
+{
+    return mSourceAccount->getHighThreshold();
+}
+
 // make sure the deleted Account hasn't issued credit
 // make sure we aren't holding any credit
 // make sure the we delete all the offers
@@ -46,7 +52,7 @@ MergeOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
     }
     if (db.getSession().got_data())
     {
-        innerResult().code(ACCOUNT_MERGE_HAS_CREDIT);
+        innerResult().code(ACCOUNT_MERGE_CREDIT_HELD);
         return false;
     }
 

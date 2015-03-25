@@ -283,7 +283,7 @@ applyCreateOffer(Application& app, LedgerDelta& delta, uint64 offerId,
 
     REQUIRE(success.effect() == CREATE_OFFER_CREATED);
 
-    auto& offerRes = success.offerCreated();
+    auto& offerRes = success.offer();
     REQUIRE(offerRes.offerID == expectedOfferID);
 
     // verify that the created offer is in the database

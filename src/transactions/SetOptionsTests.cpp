@@ -61,7 +61,7 @@ TEST_CASE("set options", "[tx][setoptions]")
         SECTION("insufficient balance")
         {
             applySetOptions(app, a1, nullptr, nullptr, nullptr, &th, &sk1,
-                            a1seq++, SET_OPTIONS_BELOW_MIN_BALANCE);
+                            a1seq++, SET_OPTIONS_LOW_RESERVE);
         }
 
         applyPaymentTx(app, root, a1, rootSeq++,
