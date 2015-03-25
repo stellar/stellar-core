@@ -17,12 +17,11 @@ enum OperationType
 {
     PAYMENT = 0,
     CREATE_OFFER = 1,
-    CANCEL_OFFER = 2,
-    SET_OPTIONS = 3,
-    CHANGE_TRUST = 4,
-    ALLOW_TRUST = 5,
-    ACCOUNT_MERGE = 6,
-    INFLATION = 7
+    SET_OPTIONS = 2,
+    CHANGE_TRUST = 3,
+    ALLOW_TRUST = 4,
+    ACCOUNT_MERGE = 5,
+    INFLATION = 6
 };
 
 struct PaymentOp
@@ -109,8 +108,6 @@ struct Operation
         PaymentOp paymentOp;
     case CREATE_OFFER:
         CreateOfferOp createOfferOp;
-    case CANCEL_OFFER:
-        uint64 offerID;
     case SET_OPTIONS:
         SetOptionsOp setOptionsOp;
     case CHANGE_TRUST:
@@ -209,7 +206,8 @@ enum CreateOfferEffect
 {
     CREATE_OFFER_CREATED = 0,
     CREATE_OFFER_UPDATED = 1,
-    CREATE_OFFER_EMPTY = 2
+    CREATE_OFFER_EMPTY = 2,
+	CREATE_OFFER_CANCELLED = 3
 };
 
 struct CreateOfferSuccessResult
@@ -234,21 +232,6 @@ default:
     void;
 };
 
-/******* CancelOffer Result ********/
-
-enum CancelOfferResultCode
-{
-    CANCEL_OFFER_SUCCESS = 0,
-    CANCEL_OFFER_NOT_FOUND = 1
-};
-
-union CancelOfferResult switch (CancelOfferResultCode code)
-{
-case CANCEL_OFFER_SUCCESS:
-    void;
-default:
-    void;
-};
 
 /******* SetOptions Result ********/
 
@@ -364,8 +347,6 @@ case opINNER:
         PaymentResult paymentResult;
     case CREATE_OFFER:
         CreateOfferResult createOfferResult;
-    case CANCEL_OFFER:
-        CancelOfferResult cancelOfferResult;
     case SET_OPTIONS:
         SetOptionsResult setOptionsResult;
     case CHANGE_TRUST:
