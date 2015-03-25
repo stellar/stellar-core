@@ -116,7 +116,7 @@ TEST_CASE("set options", "[tx][setoptions]")
         uint32_t setFlags = AUTH_REQUIRED_FLAG;
         uint32_t clearFlags = AUTH_REQUIRED_FLAG;
         applySetOptions(app, a1, nullptr, &setFlags, &clearFlags, nullptr,
-                        nullptr, a1seq++, SET_OPTIONS_MALFORMED);
+                        nullptr, a1seq++, SET_OPTIONS_BAD_FLAGS);
     }
 
     // these are all tested by other tests

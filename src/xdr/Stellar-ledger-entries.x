@@ -35,7 +35,7 @@ struct AccountEntry
     uint32 flags; // see AccountFlags
 
     // fields used for signatures
-    // thresholds stores [weight of master|threshold1|threshold2|threshold3]
+    // thresholds stores [weight of master|low|medium|high]
     opaque thresholds[4];
 
     Signer signers<20>; // possible signers for this account

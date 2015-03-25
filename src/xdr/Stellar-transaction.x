@@ -68,11 +68,18 @@ struct CreateOfferOp
 };
 
 /* Set Account Options
-    set the fields that needs to be updated
+
+    updates "AccountEntry" fields.
+    note: updating thresholds or signers requires high threshold
+
+    Threshold: med or high
+
+    Result: SetOptionsResult
 */
+
 struct SetOptionsOp
 {
-    AccountID* inflationDest; // sets the inflation
+    AccountID* inflationDest; // sets the inflation destination
 
     uint32* clearFlags; // which flags to clear
     uint32* setFlags;   // which flags to set
@@ -320,8 +327,9 @@ enum SetOptionsResultCode
     // codes considered as "failure" for the operation
     SET_OPTIONS_RATE_FIXED = 1,
     SET_OPTIONS_RATE_TOO_HIGH = 2,
-    SET_OPTIONS_LOW_RESERVE = 3, // not enough funds to add a signer
-    SET_OPTIONS_MALFORMED = 4
+    SET_OPTIONS_LOW_RESERVE = 3,      // not enough funds to add a signer
+    SET_OPTIONS_TOO_MANY_SIGNERS = 4, // max number of signers already reached
+    SET_OPTIONS_BAD_FLAGS = 5         // invalid combination of clear/set flags
 };
 
 union SetOptionsResult switch (SetOptionsResultCode code)
