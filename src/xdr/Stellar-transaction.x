@@ -24,20 +24,29 @@ enum OperationType
     INFLATION = 6
 };
 
+/* Payment
+
+    send an amount to a destination account, optionally through a path.
+    XLM payments create the destination account if it does not exist
+
+    Threshold: med
+
+    Result: PaymentResult
+*/
 struct PaymentOp
 {
     AccountID destination; // recipient of the payment
     Currency currency;     // what they end up with
     int64 amount;          // amount they end up with
 
-    Currency path<5>; // what hops it must go through to get there
-
-    int64 sendMax; // the maximum amount of the source currency to
-                   // send (excluding fees).
-                   // The operation will fail if can't be met
-
     opaque memo<32>;
     opaque sourceMemo<32>; // used to return a payment
+
+    // payment over path
+    Currency path<5>; // what hops it must go through to get there
+    int64 sendMax; // the maximum amount of the source currency (==path[0]) to
+                   // send (excluding fees).
+                   // The operation will fail if can't be met
 };
 
 /* Creates, updates or deletes an offer
@@ -211,15 +220,20 @@ struct ClaimOfferAtom
 
 enum PaymentResultCode
 {
-    PAYMENT_SUCCESS = 0,
-    PAYMENT_SUCCESS_MULTI = 1,
-    PAYMENT_UNDERFUNDED = 2,
-    PAYMENT_NO_DESTINATION = 3,
-    PAYMENT_MALFORMED = 4,
-    PAYMENT_NO_TRUST = 5,
-    PAYMENT_NOT_AUTHORIZED = 6,
-    PAYMENT_LINE_FULL = 7,
-    PAYMENT_OVERSENDMAX = 8
+    // codes considered as "success" for the operation
+    PAYMENT_SUCCESS = 0,       // simple payment success
+    PAYMENT_SUCCESS_MULTI = 1, // multi-path payment success
+
+    // codes considered as "failure" for the operation
+    PAYMENT_UNDERFUNDED = 2, // not enough funds in source account
+    PAYMENT_NO_DESTINATION = 3, // destination account does not exist
+    PAYMENT_XLM_NOT_ALLOWED = 4, // can't initiate multi path payment from XLM
+    PAYMENT_NO_TRUST = 5, // destination missing a trust line for currency
+    PAYMENT_NOT_AUTHORIZED = 6, // destination not authorized to hold currency
+    PAYMENT_LINE_FULL = 7, // destination would go above their limit
+    PAYMENT_OVERSENDMAX = 8, // multi-path payment could not satisfy sendmax
+    PAYMENT_LOW_RESERVE = 9, // would create an account below the min reserve
+    PAYMENT_NOT_ENOUGH_OFFERS = 10 // not enough offers to fund payment
 };
 
 struct SimplePaymentResult
