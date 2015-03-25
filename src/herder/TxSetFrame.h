@@ -41,6 +41,9 @@ class TxSetFrame
     std::vector<TransactionFramePtr> sortForApply();
 
     bool checkValid(Application& app);
+    void trimInvalid(Application& app, std::vector<TransactionFramePtr> trimmed);
+
+    void removeTx(TransactionFramePtr tx);
 
     void
     add(TransactionFramePtr tx)

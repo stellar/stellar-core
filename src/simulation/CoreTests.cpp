@@ -33,6 +33,21 @@ TEST_CASE("core4 topology", "[simulation]")
     REQUIRE(simulation->haveAllExternalized(3));
 }
 
+TEST_CASE("core4 topology long", "[simulation][long][hide]")
+{
+    Simulation::pointer simulation = Topologies::core3(Simulation::OVER_TCP);
+    simulation->startAllNodes();
+
+    simulation->crankUntil(
+        [&simulation]()
+    {
+        return simulation->haveAllExternalized(30);
+    },
+        std::chrono::seconds(30 * EXP_LEDGER_TIMESPAN_SECONDS*2));
+
+    REQUIRE(simulation->haveAllExternalized(3));
+}
+
 TEST_CASE("cycle4 topology", "[simulation]")
 {
     Simulation::pointer simulation = Topologies::cycle4();

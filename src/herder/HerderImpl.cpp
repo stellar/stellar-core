@@ -917,10 +917,17 @@ HerderImpl::triggerNextLedger()
         std::make_shared<TxSetFrame>(mLastClosedLedger.hash);
     for (auto& list : mReceivedTransactions)
     {
-        for (auto& tx : list)
+        for(auto& tx : list)
         {
             proposedSet->add(tx);
         }
+    }
+
+    std::vector<TransactionFramePtr> removed;
+    proposedSet->trimInvalid(mApp, removed);
+    for(auto& tx : removed)
+    {
+        removeReceivedTx(tx);
     }
 
     recvTxSet(proposedSet);

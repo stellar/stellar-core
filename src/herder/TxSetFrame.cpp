@@ -119,6 +119,63 @@ TxSetFrame::sortForApply()
     return retList;
 }
 
+// TODO.3 this and checkValid share a lot of code
+void 
+TxSetFrame::trimInvalid(Application& app, 
+    std::vector<TransactionFramePtr> trimmed)
+{
+    sortForHash();
+
+    using xdr::operator==;
+
+    map<uint256, vector<TransactionFramePtr>> accountTxMap;
+
+    Hash lastHash;
+    for(auto tx : mTransactions)
+    {
+        accountTxMap[tx->getSourceID()].push_back(tx);
+        lastHash = tx->getFullHash();
+    }
+
+    for(auto& item : accountTxMap)
+    {
+        // order by sequence number
+        std::sort(item.second.begin(), item.second.end(), SeqSorter);
+
+        TransactionFramePtr lastTx;
+        SequenceNumber lastSeq = 0;
+        int64_t totFee = 0;
+        for(auto& tx : item.second)
+        {
+            if(!tx->checkValid(app, lastSeq))
+            {
+                trimmed.push_back(tx);
+                removeTx(tx);
+                continue;
+            }
+            totFee += tx->getFee(app);
+
+            lastTx = tx;
+            lastSeq = tx->getSeqNum();
+        }
+        if(lastTx)
+        {
+            // make sure account can pay the fee for all these tx
+            int64_t newBalance =
+                lastTx->getSourceAccount().getBalance() - totFee;
+            if(newBalance < lastTx->getSourceAccount().getMinimumBalance(
+                app.getLedgerManager()))
+            {
+                for(auto& tx : item.second)
+                {
+                    trimmed.push_back(tx);
+                    removeTx(tx);
+                }       
+            }
+        }
+    }
+}
+
 // need to make sure every account that is submitting a tx has enough to pay
 // the fees of all the tx it has submitted in this set
 // check seq num
@@ -180,6 +237,13 @@ TxSetFrame::checkValid(Application& app)
         }
     }
     return true;
+}
+
+void TxSetFrame::removeTx(TransactionFramePtr tx)
+{
+    auto it = std::find(mTransactions.begin(), mTransactions.end(), tx);
+    if(it != mTransactions.end())
+        mTransactions.erase(it);
 }
 
 Hash

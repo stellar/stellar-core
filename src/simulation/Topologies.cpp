@@ -76,10 +76,37 @@ Topologies::cycle4()
 }
 
 Simulation::pointer
-Topologies::core4()
+Topologies::core3(Simulation::Mode mode)
 {
     Simulation::pointer simulation =
-        make_shared<Simulation>(Simulation::OVER_LOOPBACK);
+        make_shared<Simulation>(mode);
+
+    SIMULATION_CREATE_NODE(0);
+    SIMULATION_CREATE_NODE(1);
+    SIMULATION_CREATE_NODE(2);
+
+    SCPQuorumSet qSet;
+    qSet.threshold = 2;
+    qSet.validators.push_back(v0NodeID);
+    qSet.validators.push_back(v1NodeID);
+    qSet.validators.push_back(v2NodeID);
+
+    auto n0 = simulation->addNode(v0VSeed, qSet, simulation->getClock());
+    auto n1 = simulation->addNode(v1VSeed, qSet, simulation->getClock());
+    auto n2 = simulation->addNode(v2VSeed, qSet, simulation->getClock());
+
+    simulation->addConnection(n0, n1);
+    simulation->addConnection(n0, n2);
+    simulation->addConnection(n1, n2);
+
+    return simulation;
+}
+
+Simulation::pointer
+Topologies::core4(Simulation::Mode mode)
+{
+    Simulation::pointer simulation =
+        make_shared<Simulation>(mode);
 
     SIMULATION_CREATE_NODE(0);
     SIMULATION_CREATE_NODE(1);
@@ -98,18 +125,12 @@ Topologies::core4()
     auto n2 = simulation->addNode(v2VSeed, qSet, simulation->getClock());
     auto n3 = simulation->addNode(v3VSeed, qSet, simulation->getClock());
 
-    std::shared_ptr<LoopbackPeerConnection> n0n1 =
-        simulation->addLoopbackConnection(n0, n1);
-    std::shared_ptr<LoopbackPeerConnection> n0n2 =
-        simulation->addLoopbackConnection(n0, n2);
-    std::shared_ptr<LoopbackPeerConnection> n0n3 =
-        simulation->addLoopbackConnection(n0, n3);
-    std::shared_ptr<LoopbackPeerConnection> n1n2 =
-        simulation->addLoopbackConnection(n1, n2);
-    std::shared_ptr<LoopbackPeerConnection> n1n3 =
-        simulation->addLoopbackConnection(n1, n3);
-    std::shared_ptr<LoopbackPeerConnection> n2n3 =
-        simulation->addLoopbackConnection(n2, n3);
+    simulation->addConnection(n0, n1);
+    simulation->addConnection(n0, n2);
+    simulation->addConnection(n0, n3);
+    simulation->addConnection(n1, n2);
+    simulation->addConnection(n1, n3);
+    simulation->addConnection(n2, n3);
 
     return simulation;
 }
