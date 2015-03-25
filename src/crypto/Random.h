@@ -8,4 +8,5 @@
 #include <cstdint>
 #include <cstddef>
 
+// Generate `length` random bytes using the system CSPRNG (/dev/urandom etc.)
 std::vector<uint8_t> randomBytes(size_t length);
