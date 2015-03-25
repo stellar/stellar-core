@@ -14,6 +14,9 @@ class Topologies
   public:
     static Simulation::pointer pair(Simulation::Mode mode);
     static Simulation::pointer cycle4();
-    static Simulation::pointer core4();
+    static Simulation::pointer core4(
+        Simulation::Mode mode= Simulation::OVER_LOOPBACK);
+    static Simulation::pointer core3(
+        Simulation::Mode mode = Simulation::OVER_LOOPBACK);
 };
 }

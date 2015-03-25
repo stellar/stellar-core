@@ -195,7 +195,8 @@ CommandHandler::connect(const std::string& params, std::string& retStr)
     {
         std::stringstream str;
         str << m[1] << ":" << m[2];
-        retStr = "Connect to";
+        retStr = "Connect to: ";
+        retStr += str.str();
         mApp.getOverlayManager().connectTo(str.str());
     }
     else
