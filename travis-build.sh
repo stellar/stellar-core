@@ -7,7 +7,11 @@ set -ev
 # Short-circuit transient 'auto-initialization' builds when latobarita just
 # pointed auto at master before forming a new merge node.
 git fetch origin master
-if [ $(git describe --always auto) == $(git describe --always FETCH_HEAD) ]
+AUTO=$(git describe --always auto)
+MASTER=$(git describe --always FETCH_HEAD)
+echo $AUTO
+echo $MASTER
+if [ $AUTO == $MASTER ]
 then
     echo "auto branch equals master; probably just establishing merge, exiting build early"
     exit 0
