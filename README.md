@@ -2,7 +2,7 @@
 
 # Contributing
 
-We're thriving to keep master's history with minimal merge bubbles. To achieve
+We're striving to keep master's history with minimal merge bubbles. To achieve
 this, we're asking PRs to be submitted rebased on top of master.
 
 To keep your local repository in a "rebased" state, simply run:
