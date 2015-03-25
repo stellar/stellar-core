@@ -116,8 +116,8 @@ BucketLevel::prepare(Application& app, uint32_t currLedger,
     // *either* mCurr merged with snap, or else just snap (if mCurr is going to
     // be snapshotted itself in the next spill). This second condition happens
     // when currLedger is one multiple of the previous levels's spill-size away
-    // from a snap of its own.  Eg. level 1 at ledger 120 (8 away from
-    // 128, its next snap), or level 2 at ledger 1920 (128 away from 2048, its
+    // from a snap of its own.  Eg. level 1 at ledger 120 (2 away from
+    // 8, its next snap), or level 2 at ledger 24 (8 away from 32, its
     // next snap).
     if (mLevel > 0)
     {
@@ -171,8 +171,8 @@ BucketLevel::snap()
 uint32_t
 BucketList::levelSize(size_t level)
 {
-    assert(level < 8);
-    return 1UL << (4 * (static_cast<uint32_t>(level) + 1));
+    assert(level < kNumLevels);
+    return 1UL << (2 * (static_cast<uint32_t>(level) + 1));
 }
 
 uint32_t
@@ -354,7 +354,7 @@ BucketList::restartMerges(Application& app, uint32_t currLedger)
     }
 }
 
-size_t const BucketList::kNumLevels = 5;
+size_t const BucketList::kNumLevels = 11;
 
 BucketList::BucketList()
 {
