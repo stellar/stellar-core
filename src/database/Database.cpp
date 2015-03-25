@@ -17,6 +17,7 @@
 #include "util/make_unique.h"
 #include "medida/metrics_registry.h"
 #include "medida/timer.h"
+#include "clf/CLFManager.h"
 
 #include <stdexcept>
 #include <vector>
@@ -129,6 +130,7 @@ Database::initialize()
     PersistentState::dropAll(*this);
     LedgerHeaderFrame::dropAll(*this);
     TransactionFrame::dropAll(*this);
+    CLFManager::dropAll(mApp);
 }
 
 soci::connection_pool&

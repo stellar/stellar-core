@@ -31,6 +31,28 @@ CLFManager::create(Application& app)
     return make_unique<CLFManagerImpl>(app);
 }
 
+void
+CLFManager::dropAll(Application& app)
+{
+    std::string d = app.getConfig().BUCKET_DIR_PATH;
+
+    if (fs::exists(d))
+    {
+        CLOG(DEBUG, "CLF")
+            << "Deleting bucket directory: " << d;
+        fs::deltree(d);
+    }
+
+    if (!fs::exists(d))
+    {
+        if (!fs::mkdir(d))
+        {
+            throw std::runtime_error("Unable to create bucket directory: " +
+                d);
+        }
+    }
+}
+
 CLFManagerImpl::CLFManagerImpl(Application& app)
     : mApp(app)
     , mWorkDir(nullptr)
@@ -70,25 +92,6 @@ CLFManagerImpl::getBucketDir()
     if (!mLockedBucketDir)
     {
         std::string d = mApp.getConfig().BUCKET_DIR_PATH;
-
-        if (mApp.getConfig().START_NEW_NETWORK)
-        {
-            if (fs::exists(d))
-            {
-                CLOG(DEBUG, "CLF")
-                    << "Deleting bucket directory for new network: " << d;
-                fs::deltree(d);
-            }
-        }
-
-        if (!fs::exists(d))
-        {
-            if (!fs::mkdir(d))
-            {
-                throw std::runtime_error("Unable to create bucket directory: " +
-                                         d);
-            }
-        }
 
         std::string lock = d + "/" + kLockFilename;
         if (fs::exists(lock))
