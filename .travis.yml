@@ -6,7 +6,9 @@ addons:
   - postgresql: "9.3"
 cache:
   - apt
-  - ccache
+  - directories:
+    - $HOME/.ccache
+    - .libs
 script: ./travis-build.sh
 notifications:
   email: false

@@ -4,15 +4,17 @@
 
 set -ev
 
+echo $TRAVIS_PULL_REQUEST
+
 # Short-circuit transient 'auto-initialization' builds
 git fetch origin master
-AUTO=$(git describe --always auto)
 MASTER=$(git describe --always FETCH_HEAD)
-echo $AUTO
+HEAD=$(git describe --always HEAD)
 echo $MASTER
-if [ $AUTO == $MASTER ]
+echo $HEAD
+if [ $HEAD == $MASTER ]
 then
-    echo "auto branch equals master; probably just establishing merge, exiting build early"
+    echo "HEAD SHA1 equals master; probably just establishing merge, exiting build early"
     exit 0
 fi
 
