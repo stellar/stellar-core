@@ -72,11 +72,12 @@ TrustFrame::getBalance() const
 bool
 TrustFrame::addBalance(int64_t delta)
 {
-    if(mTrustLine.limit < delta + mTrustLine.balance)
+    if (mTrustLine.limit < delta + mTrustLine.balance)
     {
         return false;
     }
-    if((delta + mTrustLine.balance) < 0) return false;
+    if ((delta + mTrustLine.balance) < 0)
+        return false;
     mTrustLine.balance += delta;
     return true;
 }
@@ -203,9 +204,9 @@ TrustFrame::loadTrustLine(const uint256& accountID, const Currency& currency,
     auto timer = db.getSelectTimer("trust");
     loadLines(sql, [&retLine, &res](TrustFrame const& trust)
               {
-        retLine = trust;
-        res = true;
-    });
+                  retLine = trust;
+                  res = true;
+              });
     return res;
 }
 
@@ -232,6 +233,8 @@ TrustFrame::loadLines(details::prepare_temp_type& prep,
         tl.currency.isoCI().issuer = fromBase58Check256(VER_ACCOUNT_ID, issuer);
         strToCurrencyCode(tl.currency.isoCI().currencyCode, currency);
         tl.authorized = (authorized != 0);
+
+        assert(curTrustLine.isValid());
         trustProcessor(curTrustLine);
 
         st.fetch();
@@ -254,8 +257,8 @@ TrustFrame::loadLines(const uint256& accountID,
     auto timer = db.getSelectTimer("trust");
     loadLines(sql, [&retLines](TrustFrame const& cur)
               {
-        retLines.push_back(cur);
-    });
+                  retLines.push_back(cur);
+              });
 }
 
 void

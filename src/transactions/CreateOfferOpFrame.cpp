@@ -34,12 +34,6 @@ CreateOfferOpFrame::checkOfferValid(Database& db)
     Currency const& sheep = mCreateOffer.takerGets;
     Currency const& wheat = mCreateOffer.takerPays;
 
-    if (mCreateOffer.amount == 0)
-    {
-        // canceling a previous offer
-        return true;
-    }
-
     if (sheep.type() != NATIVE)
     {
         if (!TrustFrame::loadTrustLine(getSourceID(), sheep, mSheepLineA, db))
@@ -118,18 +112,6 @@ CreateOfferOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
     { // creating a new Offer
         creatingNewOffer = true;
         mSellSheepOffer.from(*this);
-    }
-
-
-    if (mCreateOffer.amount == 0)
-    {
-        // Setting `amount` to zero signals we want to cancel an existing offer
-        if (creatingNewOffer)
-        {
-            innerResult().code(CREATE_OFFER_MALFORMED);
-            return false;
-        }
-        return doApplyCancelHelper(delta, ledgerManager);
     }
 
     int64_t maxSheepSend = mCreateOffer.amount;
@@ -294,23 +276,6 @@ CreateOfferOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
     }
     return true;
 }
-
-bool
-CreateOfferOpFrame::doApplyCancelHelper(LedgerDelta& delta, LedgerManager& ledgerManager) 
-{
-    innerResult().code(CREATE_OFFER_SUCCESS);
-
-    mSourceAccount->getAccount().numSubEntries--;
-
-    Database& db = ledgerManager.getDatabase();
-    mSellSheepOffer.storeDelete(delta, db);
-    mSourceAccount->storeChange(delta, db);
-    innerResult().success().offer.effect(CREATE_OFFER_CANCELLED);
-
-    return true;
-}
-
-
 
 // makes sure the currencies are different
 bool
