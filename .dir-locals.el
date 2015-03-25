@@ -1,4 +1,4 @@
-; This file sets emacs variables that are helpful for editing stellard
+; This file sets emacs variables that are helpful for editing stellar-core
 
 ((nil . ((flycheck-clang-language-standard . "c++11")
          (flycheck-clang-include-path . ("."

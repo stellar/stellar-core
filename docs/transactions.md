@@ -1,5 +1,5 @@
 # Transactions
-https://github.com/stellar/hayashi/tree/master/src/transactions
+https://github.com/stellar/stellar-core/tree/master/src/transactions
 Anything that changes the ledger is called a Transaction. Transactions have an aribtrary list of operations. 
 Transactions have a list of signatures. (see multisig.md) The signatures are for the accounts used in the operations.
 

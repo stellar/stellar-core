@@ -686,7 +686,7 @@
     <None Include="..\..\ChangeLog" />
     <None Include="..\..\COPYING" />
     <None Include="..\..\NEWS" />
-    <None Include="..\..\docs\hayashi_example.cfg">
+    <None Include="..\..\docs\stellar_core_example.cfg">
       <Filter>docs</Filter>
     </None>
     <None Include="..\..\docs\questions.md">

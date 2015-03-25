@@ -45,7 +45,7 @@ TEST_CASE("create offer", "[tx][offers]")
     Config const& cfg = getTestConfig();
     Config cfg2(cfg);
     // cfg2.DATABASE = "sqlite3://test.db";
-    // cfg2.DATABASE = "postgresql://dbmaster:-island-@localhost/hayashi";
+    // cfg2.DATABASE = "postgresql://dbmaster:-island-@localhost/stellar-core";
 
     VirtualClock clock;
     Application::pointer appPtr = Application::create(clock, cfg2);

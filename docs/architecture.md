@@ -79,7 +79,7 @@ validators should have a more "even" and predictable system-load profile
 than before. Validators are also less stateful, should require much less
 disk and memory.
 
-- Set of core validator nodes. Running stellard only. Tasked with:
+- Set of core validator nodes. Running stellar-core only. Tasked with:
   - Reaching consensus on a transaction set
   - Applying the tx set to their last ledger
   - Hashing current/recent/last-snapshot state
@@ -100,7 +100,7 @@ disk and memory.
     housekeeping. Long-term signed, canonical state is stored in bulk form
     in history archives.
 
-- Set of public HTTP nodes. Not running stellard. Running
+- Set of public HTTP nodes. Not running stellar-core. Running
   apache/nginx/node/HTTP stack of choice. Flexible. Tasked with:
   - HTTP traffic from the outside world
   - Serving queries about ledger state from one of the SQL DBs
@@ -134,7 +134,7 @@ disk and memory.
   failure mode, they can timeout/poll. Messages are idempotent,
   content-free pings.
 
-- (optional): Set of public validator nodes. Running stellard only. Tasked with:
+- (optional): Set of public validator nodes. Running stellar-core only. Tasked with:
   - Listening to core validators and propagating their decisions blindly
     to anyone who asks.
   - Optionally feeding (some?) tx proposals submitted to them into core network.

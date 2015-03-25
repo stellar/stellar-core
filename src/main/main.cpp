@@ -3,7 +3,7 @@
 // this distribution or at http://opensource.org/licenses/ISC
 #include "util/asio.h"
 #include "main/Application.h"
-#include "generated/StellardVersion.h"
+#include "generated/StellarCoreVersion.h"
 #include "util/Logging.h"
 #include "util/Timer.h"
 #include "util/Fs.h"
@@ -39,7 +39,7 @@ enum opttag
     OPT_NEWHIST
 };
 
-static const struct option stellard_options[] = {
+static const struct option stellar_core_options[] = {
     {"version", no_argument, nullptr, OPT_VERSION},
     {"help", no_argument, nullptr, OPT_HELP},
     {"test", no_argument, nullptr, OPT_TEST},
@@ -57,7 +57,7 @@ static void
 usage(int err = 1)
 {
     std::ostream& os = err ? std::cerr : std::cout;
-    os << "usage: stellard [OPTIONS]\n"
+    os << "usage: stellar-core [OPTIONS]\n"
           "where OPTIONS can be any of:\n"
           "      --help          To display this string\n"
           "      --version       To print version information\n"
@@ -66,11 +66,11 @@ usage(int err = 1)
           "      --newdb         Setup the DB and then exit.\n"
           "      --newhist ARCH  Initialize the named history archive ARCH.\n"
           "      --forcescp      Force SCP to start before you hear a ledger "
-          "close next time stellard is run.\n"
+          "close next time stellar-core is run.\n"
           "      --genseed       Generate and print a random node seed.\n"
           "      --ll LEVEL      Set the log level. LEVEL can be:\n"
           "                      [trace|debug|info|warning|error|fatal|none]\n"
-          "      --c             Command to send to local hayashi\n"
+          "      --c             Command to send to local stellar-core\n"
           "                stop\n"
           "                info\n"
           "                reload_cfg?file=newconfig.cfg\n"
@@ -80,7 +80,7 @@ usage(int err = 1)
           "                tx?blob=TX_IN_HEX\n"
           "      --conf FILE     To specify a config file ('-' for STDIN, "
           "default "
-          "'stellard.cfg')\n";
+          "'stellar-core.cfg')\n";
     exit(err);
 }
 
@@ -177,7 +177,7 @@ initializeHistories(Config& cfg, vector<string> newHistories)
 int
 startApp(string cfgFile, Config& cfg)
 {
-    LOG(INFO) << "Starting stellard-hayashi " << STELLARD_VERSION;
+    LOG(INFO) << "Starting stellar-core " << STELLAR_CORE_VERSION;
     LOG(INFO) << "Config from " << cfgFile;
     VirtualClock clock(VirtualClock::REAL_TIME);
     Application::pointer app = Application::create(clock, cfg);
@@ -211,7 +211,7 @@ main(int argc, char* const* argv)
     sodium_init();
     Logging::init();
 
-    std::string cfgFile("stellard.cfg");
+    std::string cfgFile("stellar-core.cfg");
     std::string command;
     el::Level logLevel = el::Level::Fatal;
     std::vector<char*> rest;
@@ -222,7 +222,7 @@ main(int argc, char* const* argv)
     std::vector<std::string> metrics;
 
     int opt;
-    while ((opt = getopt_long_only(argc, argv, "", stellard_options,
+    while ((opt = getopt_long_only(argc, argv, "", stellar_core_options,
                                    nullptr)) != -1)
     {
         switch (opt)
@@ -241,7 +241,7 @@ main(int argc, char* const* argv)
             rest.insert(rest.begin(), argv + optind, argv + argc);
             break;
         case OPT_VERSION:
-            std::cout << STELLARD_VERSION;
+            std::cout << STELLAR_CORE_VERSION;
             return 0;
         case OPT_FORCESCP:
             newNetwork = true;

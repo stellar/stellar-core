@@ -73,7 +73,7 @@ CommandHandler::manualCmd(const std::string& cmd)
 void
 CommandHandler::fileNotFound(const std::string& params, std::string& retStr)
 {
-    retStr = "<b>Welcome to Hayashi!</b><p>";
+    retStr = "<b>Welcome to stellar-core!</b><p>";
     retStr += "supported commands:  <p><ul>";
     retStr += "<li>/stop</li>";
     retStr += "<li><a href='/peers'>/peers</a> see list of peers we are "
@@ -99,7 +99,7 @@ CommandHandler::manualClose(const std::string& params, std::string& retStr)
     }
     else
     {
-        retStr = "Set MANUAL_CLOSE=true in the stellard.cfg if you want this "
+        retStr = "Set MANUAL_CLOSE=true in the stellar-core.cfg if you want this "
                  "behavior";
     }
 }

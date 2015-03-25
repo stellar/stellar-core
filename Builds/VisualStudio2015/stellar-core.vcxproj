@@ -12,7 +12,7 @@
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{916B91AB-A300-422C-B9C2-D683924DC109}</ProjectGuid>
-    <RootNamespace>stellarx</RootNamespace>
+    <RootNamespace>stellar-core</RootNamespace>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
@@ -376,7 +376,7 @@
     <None Include="..\..\COPYING" />
     <None Include="..\..\docs\design.md" />
     <None Include="..\..\docs\ledger.md" />
-    <None Include="..\..\docs\hayashi_example.cfg" />
+    <None Include="..\..\docs\stellar_core_example.cfg" />
     <None Include="..\..\docs\multisig.md" />
     <None Include="..\..\docs\overview.md" />
     <None Include="..\..\docs\questions.md" />
