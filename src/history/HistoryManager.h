@@ -170,12 +170,39 @@ struct StateSnapshot;
 class HistoryManager
 {
   public:
+
+    // The two supported styles of catchup. RESUME_AT_LAST will replay all
+    // history blocks, from the last closed ledger to the present, when catching
+    // up; RESUME_AT_NEXT will attempt to "fast forward" to the next BucketList
+    // checkpoint, skipping the history log that happened between the last
+    // closed ledger and the catchup point. By default the LedgerManager uses
+    // RESUME_AT_LAST mode when it detects desynchronization. See
+    // LedgerManager::startCatchUp and its callers.
     enum ResumeMode
     {
         RESUME_AT_LAST,
         RESUME_AT_NEXT
     };
 
+    // Status code returned from LedgerManager::verifyCatchupCandidate. The
+    // HistoryManager's catchup algorithm downloads _untrusted_ history from a
+    // configured history archive, then (once it has done internal consistency
+    // checking of the chain of history it downloaded) calls
+    // verifyCatchupCandidate to check the validity of a proposed target ledger
+    // against the running consensus of the SCP protocol, thus turning untrusted
+    // history into trusted history.
+    //
+    // LedgerManager will return VERIFY_HASH_OK if the proposed ledger is
+    // definitely part of the consensus history chain (i.e. the ledger hash
+    // matches the consensus for the provided ledger number); VERIFY_HASH_BAD if
+    // the proposed ledger is definitely _not_ valid (i.e. if it has a different
+    // hash than the consensus ledger with its number); or VERIFY_HASH_UNKNOWN
+    // if the network consensus has not yet advanced to the proposed catchup
+    // target.
+    //
+    // In the first case, catchup will proceed; in the second it will fail (and
+    // restart, possibly against a different untrusted history archive); in the
+    // third it will pause and retry the query after a timeout.
     enum VerifyHashStatus
     {
         VERIFY_HASH_OK,
@@ -235,9 +262,8 @@ class HistoryManager
     virtual bool hasAnyWritableHistoryArchive() = 0;
 
     // Checkpoint the LCL -- both the log of history from the previous
-    // checkpoint to it,
-    // as well as the bucketlist of its state -- to all writable history
-    // archives.
+    // checkpoint to it, as well as the bucketlist of its state -- to all
+    // writable history archives.
     virtual void publishHistory(std::function<void(asio::error_code const&)> handler) = 0;
 
     // Run catchup, we've just heard `initLedger` from the network. Mode can be
@@ -254,21 +280,48 @@ class HistoryManager
     // PublishStateMachine::snapshotWritten after bumping counter.
     virtual void snapshotWritten(asio::error_code const&) = 0;
 
+    // Return the HistoryArchiveState of the LedgerManager's LCL
     virtual HistoryArchiveState getLastClosedHistoryArchiveState() const = 0;
 
+    // Return the name of the HistoryManager's tmpdir (used for storing files in
+    // transit).
     virtual std::string const& getTmpDir() = 0;
 
+    // Return the path of `basename` situated inside the HistoryManager's tmpdir.
     virtual std::string localFilename(std::string const& basename) = 0;
 
+    // Return the number of checkpoints that have been skipped due to
+    // unavailability of any publish targets.
     virtual uint64_t getPublishSkipCount() = 0;
+
+    // Return the number of checkpoints that have been enqueued for
+    // publication. This may be less than the number "started", but every
+    // enqueued checkpoint should eventually start.
     virtual uint64_t getPublishQueueCount() = 0;
+
+    // Return the number of enqueued checkpoints that have been delayed due to
+    // the publish system being busy with a previous checkpoint. This indicates
+    // a degree of overloading in the publish system.
     virtual uint64_t getPublishDelayCount() = 0;
+
+    // Return the number of enqueued checkpoints that have "started", meaning
+    // that their history logs have been written to disk and the publish system
+    // has commenced running the external put commands for them.
     virtual uint64_t getPublishStartCount() = 0;
+
+    // Return the number of checkpoints that completed publication successfully.
     virtual uint64_t getPublishSuccessCount() = 0;
+
+    // Return the number of checkpoints that failed publication.
     virtual uint64_t getPublishFailureCount() = 0;
 
+    // Return the number of times the process has commenced catchup.
     virtual uint64_t getCatchupStartCount() = 0;
+
+    // Return the number of times the catchup has completed successfully.
     virtual uint64_t getCatchupSuccessCount() = 0;
+
+    // Return the number of times the catchup has failed.
     virtual uint64_t getCatchupFailureCount() = 0;
 
     virtual ~HistoryManager() {};
