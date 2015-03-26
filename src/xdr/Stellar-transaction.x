@@ -463,6 +463,7 @@ default:
 enum TransactionResultCode
 {
     txSUCCESS = 0,
+
     txFAILED = 1,
     txBAD_LEDGER = 2,
     txDUPLICATE = 3,
@@ -472,7 +473,8 @@ enum TransactionResultCode
     txBAD_AUTH = 6, // not enough signatures to perform transaction
     txINSUFFICIENT_BALANCE = 7,
     txNO_ACCOUNT = 8,
-    txINSUFFICIENT_FEE = 9 // max fee is too small
+    txINSUFFICIENT_FEE = 9, // max fee is too small
+    txINTERNAL_ERROR = 10 // an unknown error occured
 };
 
 struct TransactionResult

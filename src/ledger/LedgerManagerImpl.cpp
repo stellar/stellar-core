@@ -447,15 +447,15 @@ LedgerManagerImpl::closeLedger(LedgerCloseData ledgerData)
     for (auto tx : txs)
     {
         auto txTime = mTransactionApply.TimeScope();
+        LedgerDelta delta(ledgerDelta);
         try
         {
-            LedgerDelta delta(ledgerDelta);
-
             CLOG(DEBUG, "Tx") << "APPLY: ledger "
                               << mCurrentLedger->mHeader.ledgerSeq << " tx#"
                               << index << " = " << hexAbbrev(tx->getFullHash())
                               << " txseq=" << tx->getSeqNum() << " (@ "
                               << hexAbbrev(tx->getSourceID()) << ")";
+
             // note that success here just means it got processed
             // a failed transaction collecting a fee is successful at this layer
             if (tx->apply(delta, mApp))
@@ -464,26 +464,33 @@ LedgerManagerImpl::closeLedger(LedgerCloseData ledgerData)
             }
             else
             {
+                // transaction failed validation and cannot have side effects
                 tx->getResult().feeCharged = 0;
-                // ensures that this transaction doesn't have any side effects
-                delta.rollback();
-
-                CLOG(ERROR, "Tx") << "invalid tx. This should never happen";
-                CLOG(ERROR, "Tx")
-                    << "Transaction: " << xdr::xdr_to_string(tx->getEnvelope());
-                CLOG(ERROR, "Tx")
-                    << "Result: " << xdr::xdr_to_string(tx->getResult());
             }
-            tx->storeTransaction(*this, delta, ++index, *txResultHasher);
         }
         catch (std::runtime_error& e)
         {
             CLOG(ERROR, "Ledger") << "Exception during tx->apply: " << e.what();
+            tx->getResult().result.code(txINTERNAL_ERROR);
+            tx->getResult().feeCharged = 0;
         }
         catch (...)
         {
             CLOG(ERROR, "Ledger") << "Unknown exception during tx->apply";
+            tx->getResult().result.code(txINTERNAL_ERROR);
+            tx->getResult().feeCharged = 0;
         }
+        if (tx->getResult().feeCharged == 0)
+        {
+            CLOG(ERROR, "Tx") << "invalid tx";
+            CLOG(ERROR, "Tx")
+                << "Transaction: " << xdr::xdr_to_string(tx->getEnvelope());
+            CLOG(ERROR, "Tx")
+                << "Result: " << xdr::xdr_to_string(tx->getResult());
+            // ensures that this transaction doesn't have any side effects
+            delta.rollback();
+        }
+        tx->storeTransaction(*this, delta, ++index, *txResultHasher);
     }
     ledgerDelta.commit();
     mCurrentLedger->mHeader.baseFee = ledgerData.mBaseFee;
