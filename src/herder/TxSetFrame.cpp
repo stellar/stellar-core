@@ -81,36 +81,49 @@ SeqSorter(TransactionFramePtr const& tx1, TransactionFramePtr const& tx2)
     return tx1->getSeqNum() < tx2->getSeqNum();
 }
 
+/*
+    Build a list of transaction ready to be applied to the last closed ledger,
+    based on the transaction set.
+
+    The order satisfies:
+    * transactions for an account are sorted by sequence number (ascending)
+    * the order between accounts is randomized
+*/
 std::vector<TransactionFramePtr>
 TxSetFrame::sortForApply()
 {
     vector<TransactionFramePtr> retList;
 
-    vector<vector<TransactionFramePtr>> txLevels(4);
+    vector<vector<TransactionFramePtr>> txBatches(4);
     map<uint256, size_t> accountTxCountMap;
     retList = mTransactions;
     // sort all the txs by seqnum
     std::sort(retList.begin(), retList.end(), SeqSorter);
 
+    // build the txBatches
+    // batch[i] contains the i-th transaction for any account with
+    // a transaction in the transaction set
     for (auto tx : retList)
     {
         auto& v = accountTxCountMap[tx->getSourceID()];
 
-        if (v >= txLevels.size())
+        if (v >= txBatches.size())
         {
-            txLevels.resize(v + 4);
+            txBatches.resize(v + 4);
         }
-        txLevels[v].push_back(tx);
+        txBatches[v].push_back(tx);
         v++;
     }
 
     retList.clear();
 
-    for (auto level : txLevels)
+    for (auto batch : txBatches)
     {
+        // randomize each batch using the hash of the transaction set
+        // as a way to randomize even more
         ApplyTxSorter s(getContentsHash());
-        std::sort(level.begin(), level.end(), s);
-        for (auto tx : level)
+        std::sort(batch.begin(), batch.end(), s);
+        for (auto tx : batch)
         {
             retList.push_back(tx);
         }

@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
     <Filter Include="overlay">
@@ -81,6 +81,9 @@
     </Filter>
     <Filter Include="scp">
       <UniqueIdentifier>{0cf920e3-5232-4c4e-8b79-25ec2c8f86ce}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="ledger\docs">
+      <UniqueIdentifier>{5fe20e36-ace5-4a05-adcc-4d352ad20f87}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -707,14 +710,14 @@
     <None Include="..\..\docs\stellar_overview.md">
       <Filter>docs</Filter>
     </None>
-    <None Include="..\..\docs\ledger.md">
-      <Filter>docs</Filter>
-    </None>
     <None Include="..\..\docs\testnet.md">
       <Filter>docs</Filter>
     </None>
     <None Include="..\..\autogen.sh" />
     <None Include="..\..\Makefile.am" />
+    <None Include="..\..\src\ledger\readme.md">
+      <Filter>ledger\docs</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="..\..\src\overlay\StellarXDR.x">
