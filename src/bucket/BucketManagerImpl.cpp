@@ -19,6 +19,7 @@
 #include <set>
 
 #include "medida/metrics_registry.h"
+#include "medida/counter.h"
 #include "medida/meter.h"
 #include "medida/timer.h"
 
@@ -64,6 +65,9 @@ BucketManagerImpl::BucketManagerImpl(Application& app)
     , mBucketAddBatch(app.getMetrics().NewTimer({"bucket", "batch", "add"}))
     , mBucketSnapMerge(
         app.getMetrics().NewTimer({"bucket", "snap", "merge"}))
+    , mSharedBucketsSize(
+        app.getMetrics().NewCounter({"bucket", "memory", "shared"}))
+
 {
 }
 
@@ -167,6 +171,7 @@ BucketManagerImpl::adoptFileAsBucket(std::string const& filename, uint256 const&
         b = std::make_shared<Bucket>(canonicalName, hash);
         {
             mSharedBuckets.insert(std::make_pair(basename, b));
+            mSharedBucketsSize.set_count(mSharedBuckets.size());
         }
     }
     assert(b);
@@ -192,6 +197,7 @@ BucketManagerImpl::getBucketByHash(uint256 const& hash)
     {
         auto p = std::make_shared<Bucket>(canonicalName, hash);
         mSharedBuckets.insert(std::make_pair(basename, p));
+        mSharedBucketsSize.set_count(mSharedBuckets.size());
         return p;
     }
     return std::shared_ptr<Bucket>();
@@ -225,6 +231,7 @@ BucketManagerImpl::forgetUnreferencedBuckets()
         {
             j->second->setRetain(false);
             mSharedBuckets.erase(j);
+            mSharedBucketsSize.set_count(mSharedBuckets.size());
         }
         else
         {

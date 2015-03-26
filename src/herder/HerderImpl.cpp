@@ -16,6 +16,7 @@
 #include "util/make_unique.h"
 
 #include "medida/meter.h"
+#include "medida/counter.h"
 #include "medida/metrics_registry.h"
 #include "xdrpp/marshal.h"
 
@@ -118,6 +119,24 @@ HerderImpl::HerderImpl(Application& app)
           {"scp", "envelope", "validsig"}, "envelope"))
     , mEnvelopeInvalidSig(app.getMetrics().NewMeter(
           {"scp", "envelope", "invalidsig"}, "envelope"))
+
+    , mNodeLastAccessSize(app.getMetrics().NewCounter(
+          {"scp", "memory", "node-last-access"}))
+    , mSCPQSetFetchesSize(app.getMetrics().NewCounter(
+          {"scp", "memory", "qset-fetches"}))
+    , mFutureEnvelopesSize(app.getMetrics().NewCounter(
+          {"scp", "memory", "future-envelopes"}))
+    , mBallotValidationTimersSize(app.getMetrics().NewCounter(
+          {"scp", "memory", "ballot-validation-timers"}))
+
+    , mKnownNodesSize(app.getMetrics().NewCounter(
+          {"scp", "memory", "known-nodes"}))
+    , mKnownSlotsSize(app.getMetrics().NewCounter(
+          {"scp", "memory", "known-slots"}))
+    , mCumulativeStatements(app.getMetrics().NewCounter(
+          {"scp", "memory", "cumulative-statements"}))
+    , mCumulativeCachedQuorumSets(app.getMetrics().NewCounter(
+          {"scp", "memory", "cumulative-cached-quorum-sets"}))
 
 {
     // Inject our local qSet in the SCPQSetFetcher.
@@ -447,6 +466,7 @@ HerderImpl::validateBallot(const uint64& slotIndex, const uint256& nodeID,
             // This will cancel all timers.
             mBallotValidationTimers.erase(ballot);
         }
+        mBallotValidationTimersSize.set_count(mBallotValidationTimers.size());
     }
 }
 
@@ -472,8 +492,18 @@ HerderImpl::ballotDidHearFromQuorum(const uint64& slotIndex,
 }
 
 void
+HerderImpl::updateSCPCounters()
+{
+    mKnownNodesSize.set_count(getKnownNodesCount());
+    mKnownSlotsSize.set_count(getKnownSlotsCount());
+    mCumulativeStatements.set_count(getCumulativeStatemtCount());
+    mCumulativeCachedQuorumSets.set_count(getCumulativeCachedQuorumSetCount());
+}
+
+void
 HerderImpl::valueExternalized(const uint64& slotIndex, const Value& value)
 {
+    updateSCPCounters();
     mValueExternalize.Mark();
     mBumpTimer.cancel();
     StellarBallot b;
@@ -568,6 +598,7 @@ HerderImpl::nodeTouched(const uint256& nodeID)
     // We simply store the time of last access each time a node is touched by
     // SCP. That way we can evict old irrelevant nodes at each round.
     mNodeLastAccess[nodeID] = mApp.getClock().now();
+    mNodeLastAccessSize.set_count(mNodeLastAccess.size());
 }
 
 void
@@ -589,6 +620,7 @@ HerderImpl::retrieveQuorumSet(const uint256& nodeID, const Hash& qSetHash,
     if (!qSet)
     {
         mSCPQSetFetches[qSetHash].push_back(retrieve);
+        mSCPQSetFetchesSize.set_count(mSCPQSetFetches.size());
     }
     else
     {
@@ -699,6 +731,7 @@ HerderImpl::recvSCPQuorumSet(SCPQuorumSetPtr qSet)
                 retrieve(qSet);
             }
             mSCPQSetFetches.erase(it);
+            mSCPQSetFetchesSize.set_count(mSCPQSetFetches.size());
         }
     }
 }
@@ -791,6 +824,7 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope envelope,
         {
             mFutureEnvelopes[envelope.statement.slotIndex].push_back(
                 std::make_pair(envelope, cb));
+            mFutureEnvelopesSize.set_count(mFutureEnvelopes.size());
             return;
         }
     }
@@ -803,6 +837,7 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope envelope,
 void
 HerderImpl::ledgerClosed(LedgerHeaderHistoryEntry const& ledger)
 {
+    updateSCPCounters();
     CLOG(TRACE, "Herder") << "HerderImpl::ledgerClosed@"
                           << "@" << binToHex(getLocalNodeID()).substr(0, 6)
                           << " ledger: " << binToHex(ledger.hash).substr(0, 6);
@@ -816,6 +851,7 @@ HerderImpl::ledgerClosed(LedgerHeaderHistoryEntry const& ledger)
     // timers. Since the value externalized, the messages that this generates
     // wont' have any impact.
     mBallotValidationTimers.clear();
+    mBallotValidationTimersSize.set_count(mBallotValidationTimers.size());
 
     // If we are not a validating not and just watching SCP we don't call
     // triggerNextLedger
@@ -871,6 +907,7 @@ HerderImpl::removeReceivedTx(TransactionFramePtr dropTx)
 void
 HerderImpl::triggerNextLedger()
 {
+    updateSCPCounters();
     // We store at which time we triggered consensus
     mLastTrigger = mApp.getClock().now();
 
@@ -927,6 +964,7 @@ HerderImpl::triggerNextLedger()
         recvSCPEnvelope(p.first, p.second);
     }
     mFutureEnvelopes.erase(slotIndex);
+    mFutureEnvelopesSize.set_count(mFutureEnvelopes.size());
 }
 
 void

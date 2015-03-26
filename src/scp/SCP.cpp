@@ -150,4 +150,38 @@ SCP::isVBlocking(const std::vector<uint256>& nodes)
     return getLocalNode()->isVBlocking<bool>(getLocalNode()->getQuorumSetHash(),
                                              map);
 }
+
+size_t
+SCP::getKnownNodesCount() const
+{
+    return mKnownNodes.size();
+}
+
+size_t
+SCP::getKnownSlotsCount() const
+{
+    return mKnownSlots.size();
+}
+
+size_t
+SCP::getCumulativeStatemtCount() const
+{
+    size_t c = 0;
+    for (auto const& s : mKnownSlots)
+    {
+        c += s.second->getStatementCount();
+    }
+    return c;
+}
+
+size_t
+SCP::getCumulativeCachedQuorumSetCount() const
+{
+    size_t c = 0;
+    for (auto const& n : mKnownNodes)
+    {
+        c += n.second->getCachedQuorumSetCount();
+    }
+    return c;
+}
 }

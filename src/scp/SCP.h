@@ -198,6 +198,11 @@ class SCP
     {
     }
 
+    size_t getKnownNodesCount() const;
+    size_t getKnownSlotsCount() const;
+    size_t getCumulativeStatemtCount() const;
+    size_t getCumulativeCachedQuorumSetCount() const;
+
   private:
     // Node getters
     std::shared_ptr<Node> getNode(const uint256& nodeID);

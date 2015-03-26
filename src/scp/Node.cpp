@@ -184,4 +184,11 @@ Node::getNodeID()
 {
     return mNodeID;
 }
+
+size_t
+Node::getCachedQuorumSetCount() const
+{
+    return mCache.size();
+}
+
 }

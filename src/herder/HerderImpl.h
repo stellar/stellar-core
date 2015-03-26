@@ -28,6 +28,7 @@
 namespace medida
 {
 class Meter;
+class Counter;
 }
 
 namespace stellar
@@ -114,6 +115,8 @@ class HerderImpl : public Herder, public SCP
     void signStellarBallot(StellarBallot& b);
     bool verifyStellarBallot(const StellarBallot& b);
 
+    void updateSCPCounters();
+
     // 0- tx we got during ledger close
     // 1- one ledger ago. rebroadcast
     // 2- two ledgers ago.
@@ -178,5 +181,21 @@ class HerderImpl : public Herder, public SCP
     medida::Meter& mEnvelopeSign;
     medida::Meter& mEnvelopeValidSig;
     medida::Meter& mEnvelopeInvalidSig;
+
+    medida::Counter& mNodeLastAccessSize;
+    medida::Counter& mSCPQSetFetchesSize;
+    medida::Counter& mFutureEnvelopesSize;
+    medida::Counter& mBallotValidationTimersSize;
+
+    // Counters for stuff in parent class (SCP)
+    // that we monitor on a best-effort basis from
+    // here.
+    medida::Counter& mKnownNodesSize;
+    medida::Counter& mKnownSlotsSize;
+
+    // Counters for things reached-through the
+    // SCP maps: Slots and Nodes
+    medida::Counter& mCumulativeStatements;
+    medida::Counter& mCumulativeCachedQuorumSets;
 };
 }

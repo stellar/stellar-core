@@ -786,4 +786,11 @@ Slot::advanceSlot()
         advanceSlot();
     }
 }
+
+size_t
+Slot::getStatementCount() const
+{
+    return mStatements.size();
+}
+
 }

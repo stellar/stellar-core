@@ -36,6 +36,8 @@ class Slot
     // generated with an increased counter value.
     bool prepareValue(const Value& value, bool forceBump = false);
 
+    size_t getStatementCount() const;
+
   private:
     // bumps to the specified ballot
     void bumpToBallot(const SCPBallot& ballot);

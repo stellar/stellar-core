@@ -21,6 +21,7 @@ Hands the old ledger off to the history
 namespace medida
 {
 class Timer;
+class Counter;
 }
 
 namespace stellar
@@ -37,6 +38,7 @@ class LedgerManagerImpl : public LedgerManager
     Application& mApp;
     medida::Timer& mTransactionApply;
     medida::Timer& mLedgerClose;
+    medida::Counter& mSyncingLedgersSize;
 
     uint64_t mLastCloseTime;
 
