@@ -23,6 +23,7 @@
 #include "medida/meter.h"
 #include "medida/metrics_registry.h"
 #include "medida/timer.h"
+#include "medida/counter.h"
 #include "xdrpp/printer.h"
 #include "xdrpp/types.h"
 
@@ -94,6 +95,9 @@ LedgerManagerImpl::LedgerManagerImpl(Application& app)
     , mTransactionApply(
           app.getMetrics().NewTimer({"ledger", "transaction", "apply"}))
     , mLedgerClose(app.getMetrics().NewTimer({"ledger", "ledger", "close"}))
+    , mSyncingLedgersSize(app.getMetrics().NewCounter(
+                              {"ledger", "memory", "syncing-ledgers"}))
+
 {
     mLastCloseTime = mApp.timeNow(); // this is 0 at this point
 }
@@ -237,6 +241,7 @@ LedgerManagerImpl::externalizeValue(LedgerCloseData ledgerData)
                "ledgerSeq=" << ledgerData.mLedgerSeq;
 
         mSyncingLedgers.push_back(ledgerData);
+        mSyncingLedgersSize.set_count(mSyncingLedgers.size());
 
         if (mApp.getState() == Application::CATCHING_UP_STATE)
         {
@@ -404,6 +409,7 @@ LedgerManagerImpl::historyCaughtup(asio::error_code const& ec,
             << "Caught up to LCL including recent network activity: "
             << ledgerAbbrev(mLastClosedLedger);
 
+        mSyncingLedgersSize.set_count(mSyncingLedgers.size());
         mApp.setState(Application::SYNCED_STATE);
     }
 }

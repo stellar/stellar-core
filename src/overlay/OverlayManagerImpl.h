@@ -18,6 +18,7 @@
 namespace medida
 {
 class Meter;
+class Counter;
 }
 
 /*
@@ -39,6 +40,7 @@ class OverlayManagerImpl : public OverlayManager
     medida::Meter& mConnectionsAttempted;
     medida::Meter& mConnectionsEstablished;
     medida::Meter& mConnectionsDropped;
+    medida::Counter& mPeersSize;
 
     void tick();
     VirtualTimer mTimer;

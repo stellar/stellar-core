@@ -13,6 +13,7 @@
 
 #include "medida/metrics_registry.h"
 #include "medida/meter.h"
+#include "medida/counter.h"
 
 #include <thread>
 #include <random>
@@ -56,6 +57,8 @@ OverlayManagerImpl::OverlayManagerImpl(Application& app)
           {"overlay", "connection", "establish"}, "connection"))
     , mConnectionsDropped(app.getMetrics().NewMeter(
           {"overlay", "connection", "drop"}, "connection"))
+    , mPeersSize(app.getMetrics().NewCounter(
+          {"overlay", "memory", "peers"}))
     , mTimer(app)
     , mFloodGate(app)
 {
@@ -207,6 +210,7 @@ OverlayManagerImpl::addConnectedPeer(Peer::pointer peer)
 {
     mConnectionsEstablished.Mark();
     mPeers.push_back(peer);
+    mPeersSize.set_count(mPeers.size());
 }
 
 void
@@ -218,6 +222,7 @@ OverlayManagerImpl::dropPeer(Peer::pointer peer)
         mPeers.erase(iter);
     else
         CLOG(WARNING, "Overlay") << "Dropping unlisted peer";
+    mPeersSize.set_count(mPeers.size());
 }
 
 bool

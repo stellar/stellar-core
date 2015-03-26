@@ -7,6 +7,11 @@
 #include "process/ProcessManager.h"
 #include <mutex>
 
+namespace medida
+{
+class Counter;
+}
+
 namespace stellar
 {
 
@@ -23,6 +28,8 @@ class ProcessManagerImpl : public ProcessManager
     asio::signal_set mSigChild;
     void startSignalWait();
     void handleSignalWait();
+
+    medida::Counter& mImplsSize;
 
   public:
     ProcessManagerImpl(Application& app);

@@ -16,6 +16,9 @@
 #include "process/ProcessManager.h"
 #include "process/ProcessManagerImpl.h"
 
+#include "medida/counter.h"
+#include "medida/metrics_registry.h"
+
 #include <string>
 #include <functional>
 #include <mutex>
@@ -34,7 +37,10 @@ ProcessManager::create(Application& app)
 #include <tchar.h>
 
 ProcessManagerImpl::ProcessManagerImpl(Application& app)
-    : mApp(app), mSigChild(app.getClock().getIOService())
+    : mApp(app)
+    , mSigChild(app.getClock().getIOService())
+    , mImplsSize(app.getMetrics().NewCounter(
+                     {"process", "memory", "handles"}))
 {
 }
 
@@ -180,7 +186,10 @@ std::recursive_mutex ProcessManagerImpl::gImplsMutex;
 std::map<int, std::shared_ptr<ProcessExitEvent::Impl>> ProcessManagerImpl::gImpls;
 
 ProcessManagerImpl::ProcessManagerImpl(Application& app)
-    : mApp(app), mSigChild(app.getClock().getIOService(), SIGCHLD)
+    : mApp(app)
+    , mSigChild(app.getClock().getIOService(), SIGCHLD)
+    , mImplsSize(app.getMetrics().NewCounter(
+                     {"process", "memory", "handles"}))
 {
     std::lock_guard<std::recursive_mutex> guard(gImplsMutex);
     startSignalWait();
@@ -241,6 +250,7 @@ ProcessManagerImpl::handleSignalWait()
             break;
         }
     }
+    mImplsSize.set_count(gImpls.size());
     startSignalWait();
 }
 
@@ -324,6 +334,7 @@ ProcessManagerImpl::runProcess(std::string const& cmdLine, std::string outFile)
     ProcessExitEvent pe(svc);
     pe.mImpl = std::make_shared<ProcessExitEvent::Impl>(pe.mTimer, pe.mEc);
     gImpls[pid] = pe.mImpl;
+    mImplsSize.set_count(gImpls.size());
     return pe;
 }
 

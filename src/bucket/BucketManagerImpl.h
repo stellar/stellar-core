@@ -17,6 +17,7 @@ namespace medida
 {
 class Timer;
 class Meter;
+class Counter;
 }
 
 namespace stellar
@@ -42,6 +43,7 @@ class BucketManagerImpl : public BucketManager
     medida::Meter& mBucketByteInsert;
     medida::Timer& mBucketAddBatch;
     medida::Timer& mBucketSnapMerge;
+    medida::Counter& mSharedBucketsSize;
 
 public:
     BucketManagerImpl(Application& app);

@@ -98,6 +98,8 @@ class Node
 
     const uint256& getNodeID();
 
+    size_t getCachedQuorumSetCount() const;
+
   protected:
     const uint256 mNodeID;
     SCP* mSCP;
