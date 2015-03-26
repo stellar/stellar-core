@@ -29,6 +29,7 @@ class CommandHandler
     void stop(const std::string& params, std::string& retStr);
     void peers(const std::string& params, std::string& retStr);
     void info(const std::string& params, std::string& retStr);
+    void scpInfo(const std::string& params, std::string& retStr);
     void metrics(const std::string& params, std::string& retStr);
     void reloadCfg(const std::string& params, std::string& retStr);
     void logRotate(const std::string& params, std::string& retStr);
@@ -37,5 +38,6 @@ class CommandHandler
     void ll(const std::string& params, std::string& retStr);
     void manualClose(const std::string& params, std::string& retStr);
     void fileNotFound(const std::string& params, std::string& retStr);
+    
 };
 }

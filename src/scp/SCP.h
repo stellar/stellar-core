@@ -171,8 +171,12 @@ class SCP
     const uint256& getLocalNodeID();
 
   protected:
+      std::shared_ptr<LocalNode> mLocalNode;
+      std::map<uint256, std::shared_ptr<Node>> mKnownNodes;
+      std::map<uint64, std::shared_ptr<Slot>> mKnownSlots;
+
     // Purges all data relative to that node. Can be called at any time on any
-    // node. If the node is subsquently needed, it will be recreated and its
+    // node. If the node is subsequently needed, it will be recreated and its
     // quorumSet retrieved again. This method has no effect if called on the
     // local nodeID.
     void purgeNode(const uint256& nodeID);
@@ -215,9 +219,7 @@ class SCP
     void signEnvelope(SCPEnvelope& envelope);
     bool verifyEnvelope(const SCPEnvelope& envelope);
 
-    std::shared_ptr<LocalNode> mLocalNode;
-    std::map<uint256, std::shared_ptr<Node>> mKnownNodes;
-    std::map<uint64, std::shared_ptr<Slot>> mKnownSlots;
+    
 
     friend class Slot;
     friend class Node;

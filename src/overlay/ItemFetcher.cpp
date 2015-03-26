@@ -9,7 +9,7 @@
 #include "util/Logging.h"
 #include "overlay/OverlayManager.h"
 
-#define MS_TO_WAIT_FOR_FETCH_REPLY 3000
+#define MS_TO_WAIT_FOR_FETCH_REPLY 500
 
 // TODO.1 I think we need to add something that after some time it retries to
 // fetch qsets that it really needs.
@@ -76,6 +76,7 @@ TxSetFetcher::fetchItem(uint256 const& txSetHash, bool askNetwork)
     }
     else
     { // not found
+        
         if (askNetwork)
         {
             TrackingCollar::pointer collar =
@@ -186,7 +187,6 @@ SCPQSetFetcher::recvItem(SCPQuorumSetPtr qSet)
 TrackingCollar::TrackingCollar(uint256 const& id, Application& app)
     : mApp(app), mTimer(app), mItemID(id)
 {
-    mCantFind = false;
     mRefCount = 1;
 }
 
@@ -246,28 +246,43 @@ TrackingCollar::tryNextPeer()
             { // we have never asked this guy
                 mLastAskedPeer = peer;
 
-                mTimer.cancel(); // cancel any stray timers
-                mTimer.expires_from_now(
-                    std::chrono::milliseconds(MS_TO_WAIT_FOR_FETCH_REPLY));
-                mTimer.async_wait([this](asio::error_code const& ec)
-                                  {
-                                      if (!ec)
-                                      {
-                                          this->tryNextPeer();
-                                      }
-                                  });
+                
 
                 askPeer(peer);
                 mPeersAsked.push_back(peer);
             }
             else
             { // we have looped back around
-                mCantFind = true;
+               
                 // LATER what should we do here?
                 // try to connect to more peers?
                 // just ask any new peers we connect to?
                 // wait a longer amount of time and then loop again?
             }
+            mTimer.cancel(); // cancel any stray timers
+            mTimer.expires_from_now(
+                std::chrono::milliseconds(MS_TO_WAIT_FOR_FETCH_REPLY));
+            mTimer.async_wait([this](asio::error_code const& ec)
+            {
+                if(!ec)
+                {
+                    this->tryNextPeer();
+                }
+            });
+        } else
+        { // we have asked all our peers
+            // clear list and try again in a bit
+            mPeersAsked.clear();
+            mTimer.cancel(); // cancel any stray timers
+            mTimer.expires_from_now(
+                std::chrono::milliseconds(MS_TO_WAIT_FOR_FETCH_REPLY*2));
+            mTimer.async_wait([this](asio::error_code const& ec)
+            {
+                if(!ec)
+                {
+                    this->tryNextPeer();
+                }
+            });
         }
     }
 }

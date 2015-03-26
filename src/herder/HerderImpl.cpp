@@ -4,6 +4,7 @@
 
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
+#include "crypto/Base58.h"
 #include "herder/HerderImpl.h"
 #include "herder/TxSetFrame.h"
 #include "ledger/LedgerManager.h"
@@ -14,6 +15,8 @@
 #include "util/Logging.h"
 #include "util/Timer.h"
 #include "util/make_unique.h"
+#include "lib/json/json.h"
+#include "scp/Node.h"
 
 #include "medida/meter.h"
 #include "medida/counter.h"
@@ -256,6 +259,12 @@ HerderImpl::compareValues(const uint64& slotIndex, const uint32& ballotCounter,
 {
     using xdr::operator<;
 
+    if(!v1.size())
+    {
+        if(!v2.size()) return 0;
+        return -1;
+    } else if(!v2.size()) return 1;
+
     StellarBallot b1;
     StellarBallot b2;
     try
@@ -307,7 +316,7 @@ HerderImpl::compareValues(const uint64& slotIndex, const uint32& ballotCounter,
     if (b1.value < b2.value)
         return -1;
     if (b2.value < b1.value)
-        return -1;
+        return 1;
 
     return 0;
 }
@@ -476,8 +485,8 @@ HerderImpl::ballotDidHearFromQuorum(const uint64& slotIndex,
 {
     mQuorumHeard.Mark();
 
-    // Only validated values (current) values should trigger this.
-    assert(slotIndex == mLastClosedLedger.header.ledgerSeq + 1);
+    // This isn't always true if you are just joining the network
+    // assert(slotIndex == mLastClosedLedger.header.ledgerSeq + 1);
 
     mBumpTimer.cancel();
 
@@ -520,7 +529,7 @@ HerderImpl::valueExternalized(const uint64& slotIndex, const Value& value)
                               << " Externalized StellarBallot malformed";
     }
 
-    TxSetFramePtr externalizedSet = fetchTxSet(b.value.txSetHash, false);
+    TxSetFramePtr externalizedSet = fetchTxSet(b.value.txSetHash, true);
     if (externalizedSet)
     {
 
@@ -531,6 +540,8 @@ HerderImpl::valueExternalized(const uint64& slotIndex, const Value& value)
 
         // we don't need to keep fetching any of the old TX sets
         mTxSetFetcher[mCurrentTxSetFetcher].stopFetchingAll();
+
+        mRebroadcastTimer.cancel();
 
         mCurrentTxSetFetcher = mCurrentTxSetFetcher ? 0 : 1;
         mTxSetFetcher[mCurrentTxSetFetcher].clear();
@@ -669,7 +680,10 @@ HerderImpl::emitEnvelope(const SCPEnvelope& envelope)
 TxSetFramePtr
 HerderImpl::fetchTxSet(const uint256& txSetHash, bool askNetwork)
 {
-    return mTxSetFetcher[mCurrentTxSetFetcher].fetchItem(txSetHash, askNetwork);
+    // set false the first time to make sure we only ask network at most once
+    TxSetFramePtr ret=mTxSetFetcher[0].fetchItem(txSetHash, false);
+    if(!ret) ret=mTxSetFetcher[1].fetchItem(txSetHash, askNetwork);
+    return ret;
 }
 
 void
@@ -958,7 +972,8 @@ HerderImpl::triggerNextLedger()
                          << " previousLedgerHash: "
                          << binToHex(proposedSet->previousLedgerHash())
                                 .substr(0, 6)
-                         << " value: " << binToHex(valueHash).substr(0, 6);
+                         << " value: " << binToHex(valueHash).substr(0, 6)
+                         << " slot: " << slotIndex;
 
     // We prepare that value. If we're monarch, the ballot will be validated,
     // and
@@ -966,6 +981,7 @@ HerderImpl::triggerNextLedger()
     mValuePrepare.Mark();
     prepareValue(slotIndex, mCurrentValue);
 
+    // process any statements that we got before this ledger closed
     for (auto& p : mFutureEnvelopes[slotIndex])
     {
         recvSCPEnvelope(p.first, p.second);
@@ -1054,4 +1070,23 @@ HerderImpl::envelopeVerified(bool valid)
         mEnvelopeInvalidSig.Mark();
     }
 }
+
+void 
+HerderImpl::dumpInfo(Json::Value& ret)
+{
+    //ret["local"] = toBase58Check(VER_ACCOUNT_ID, mLocalNode->getNodeID()).c_str();
+    int count = 0;
+    for(auto& item : mKnownNodes)
+    {
+        ret["nodes"][count++] = 
+            toBase58Check(VER_ACCOUNT_ID, item.second->getNodeID()).c_str();
+    }
+
+    for(auto& item : mKnownSlots)
+    {
+        item.second->dumpInfo(ret);
+    }
+
+}
+
 }

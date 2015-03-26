@@ -8,6 +8,7 @@
 #include <functional>
 #include "generated/StellarXDR.h"
 #include "scp/SCP.h"
+#include "lib/json/json-forwards.h"
 
 namespace stellar
 {
@@ -72,6 +73,8 @@ class Herder
 
     virtual void triggerNextLedger() = 0;
     virtual ~Herder() {}
+
+    virtual void dumpInfo(Json::Value& ret) = 0;
 
 };
 }

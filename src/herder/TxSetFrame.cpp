@@ -253,6 +253,7 @@ TxSetFrame::getContentsHash()
     {
         sortForHash();
         auto hasher = SHA256::create();
+        hasher->add(mPreviousLedgerHash);
         for (unsigned int n = 0; n < mTransactions.size(); n++)
         {
             hasher->add(xdr::xdr_to_opaque(mTransactions[n]->getEnvelope()));
