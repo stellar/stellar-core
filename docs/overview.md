@@ -1,51 +1,169 @@
 # Stellar-core
 
-Stellar-core is a C++ implementation of the Stellar protocol. (see stellar_overview.md)
+Stellar is a decentralized, federated peer-to-peer network that allows people to
+send payments in any currencies anywhere in the world instantaneously, and with
+minimal fee.
 
-The goal is to be able to scale to 500M accounts and 2000 transactions/second on reasonable hardware.
+`Stellar-core` is the core component of this network. `Stellar-core` is a C++
+implementation of the Stellar Consensus Protocol configured to construct a chain
+of ledgers that are guaranteed to be in-consensus across all the federated nodes
+at all time.
 
-There are a few major components of the system:
+The more detail on the Stellar Consensus Protocol and how it establishes this
+guarantee see `src/scp/README.md`. For more details on the financial
+transactions supported by the network, see `src/transactions/README.md`.
 
-##SCP
-This is our implementation of the SCP algorithm.
-see http://www.scs.stanford.edu/~dm/noindex/scp.pdf
-It has no knowledge of the rest of the system. 
+##Key Concepts
 
-##Herder
-This is responsible for interfacing between SCP and the rest of stellar-core. It determines if SCP ballot values are valid or not.
+- **Ledger**: A ledger is composed of a set of _ledger entries_, including (1)
+  accounts and their balances, (2) buy and sell offers, (3) and trust lines, as
+  well as a _ledger header_ that records some additional meta data. Ledgers are
+  linked together in a _ledger chain_. Each ledger has a sequence number that
+  tells you where in the chain it falls.
 
-##Overlay
-This is the connection layer. It handles things like: 
-- Keeping track of what other peers you are connected to.
-- Flooding messages that need to be flooded to the network.
-- Fetching things like transaction and quorum sets from the network.
-- Trying to keep you connected to the number of peers set in the .cfg 
+- **Ledger chain**: This is an ever increasing list of ledgers. Each ledger
+  points to the previous one thus forming a chain of history stretching back in
+  time.
 
-##Ledger
-Handles applying the transaction set that is externalized by SCP. Hands off the resulting changed ledger entries to the BucketList.
+- **Ledger header**: The ledger's header contains meta information the ledger,
+  the hash of the previous ledger (thus recording the chain) and its own
+  hash. (See `src/xdr/Stellar-ledger.x`)
 
-##BucketList
-Ledger entries arranged for hashing
+- **Bucket List**: A high-performance data structure used to compute hashes of
+  large sets of ledger entries incrementally (See `src/bucket/README.md`).
 
-##Transactions
-The implementaions of all the various transaction types. (see transaction.md)
+- **Transaction**: Making a payment, creating an offer and so forth. Anything
+  that changes a ledger's entries is called a transaction.
 
-##crypto
-
-##util
-Logging and whatnot
-
-##lib
-various 3rd party libaries we use
+- **Transaction set**: Set of transactions that are applied to a ledger to
+  produce the next one in the chain.
 
 
-##Concepts
-- **Ledger**: This is the state of the world at a particular point in time. Ledgers are linked together in a `Ledger Chain`. Each ledger has a sequence number that tells you where in the chain it falls. A ledger is composed of a set of `ledger entries` and a `ledger header`.
-- **Ledger chain**: This is an ever increasing list of `ledgers`. Each `ledger` points to the previous one thus forming a chain of history stretching back in time.
-- **Ledger header**: (/src/xdr/Stellar-ledger.x) Meta information about a particular `ledger`.
-- **Ledger entry**: One piece of data that is stored in the `ledger`. Can be thought of like a record in a DB. Examples are Accounts,Offers,TrustLines.
-- **Bucket**: Contains a set of ledger entries. see /src/bucket/BucketList.h for more details.
-- **Bucket List**: List of buckets. The buckets are hashed to produce the ledger hash. see /src/bucket/BucketList.h for more details.
-- **Transaction**: Anything that changes the ledger entries is called a transaction. 
-- **Transaction set**: Set of transactions that are applied to a ledger to produce the next one in the chain. 
+`Stellar-core` maintains the content of the latest ledger and of the ledger
+chain in a number of different representations in order to satisfy competing
+performance needs.
+
+ 1- The latest ledger is stored in a postgresql or sqlite database in order to
+    provide full "acid" safety and fast access to current state, notably to make
+    it possible to determine efficiently whether a newly submitted operation is
+    valid. (See the `load` and `store` functions in the subclasses of
+    `EntryFrame`: `AccountFrame`, `TrustFrame`, and `OfferFrame` in
+    `src/ledger`).
+
+ 2- The ledger chain is represented in the the ledger headers as hashes linking
+    each hedger to the previous one. The spine of the chain is lightweight data
+    structure that can be scanned quickly to confirm that the current ledger is
+    part of a trusted unbroken chain.
+
+ 3- In addition to being stored in the database, ledgers entries are stored on
+    disk in a linearized format using a specific arrangement of
+    exponentially-larger buckets, called the _bucket list_. This representation
+    achieves two different goals. First, it makes it possible to compute the
+    hashes of new ledgers incrementally and quickly, especially in the case
+    where a minority of the accounts see the majority of the operations. Second,
+    it participates in providing nodes that have fallen behind with the ledger
+    data they need to catch-up with the current state of the chain. (See
+    `src/bucket/README.md`). While the hash computed by the bucket list is
+    functionally equivalent to a hash obtained concatenating all the entries, it
+    is not the same value since the bucket list deduplicates changed entries
+    incrementally.
+
+ 4- Finally, `stellar-core` can be configured to uploads detailed historical
+    records of all the transactions, including all or most of the ledgers'
+    content, to persistent long-term storage. This record can be used to audit
+    the full ledger chain's history, and is used to catch-up new nodes and nodes
+    that have fallen far behind the rest of the network without imposing an
+    undue burden on the nodes participating in the consensus protocol (See
+    `src/history/README.md`).
+
+
+##Major components
+
+There are a few major components of the system. Each component has a dedicated
+source directory and its own dedicated `README.md`.
+
+
+* **SCP** is our implementation of the Stellar Consensus Protocol (SCP). This
+  component is fully abstracted from the rest of the system. It receives
+  candidate black-box values and signals when these values have reached
+  consensus by the network (called _externalizing_ a value) (See
+  `src/scp/README.md`).
+
+* *Herder* is responsible for interfacing between SCP and the rest of
+  `stellar-core`. Herder provides SCP with concrete implementations of the
+  methods SCP uses to communicate with peers, to compare values, to determine
+  whether values contain valid signatures, and so forth. Herder often accomplishes
+  its tasks by forwarding to other components (See `src/herder/README.md`).
+
+* **Overlay** connects to and keeps track of which peers this node is knows
+  about and is connected to. It floods messages and fetches from peers the data
+  that is needed to accomplish consensus (all other data downloads are handled
+  without imposing on the SCP-nodes) (See `src/overlay/README.md`)
+  
+* **Ledger** applies the transaction set that is externalized by SCP. It also
+  forwards the externalization event the other components: It hands off the
+  changed ledger entries to the bucket list. It triggers the publishing of the
+  history. It informs Overlay to update its map of flooded messages. Ledger also
+  triggers the History's catching-up routine when it detect this node has fallen
+  behind of the rest of the network (See `src/ledger/README.md`).
+
+* **History** publishes transaction and ledger entries to off-site permanent
+  storage for auditing, and as a source of catch-up data for other nodes. When
+  this node falls behind, History fetches the catch-up data and submits it to
+  Ledger first to verify its security, then to apply it (See `src/history/README.md`).
+
+* **BucketList** stores ledger entries on disk arranged for hashing and
+  block-catch-up. BucketList coordinates the hashing and deduplicating of
+  buckets by multiple background threads (See `src/buckets/README.md`).
+
+* **Transactions** The implementations of all the various transaction types (See
+  `./transaction.md`).
+
+
+## Supporting code directories
+
+* **src/main** handles booting, loading of the configuration and of persistent state
+  flags. Launches the test suite if requested.
+
+* **src/crypto** contains standard cryptographic routines, including random number
+  generation and base-58 hashing.
+
+* **src/util** gathers assorted logging and whatnot.
+
+* **src/lib** keeps various 3rd party libraries we use
+
+* **src/database** is a thin layer above the functionality provided by the
+  database-access library `soci`.
+  
+* **src/process** is an asynchronous implementation `system()`.
+
+* **simulation** provides support for instantiating and exercising in-process
+  test networks.
+
+* **xdr** contains to definition of the wire protocol in the `xdr` language.
+
+* **generated** contains the wire protocol's C++ classes, generated from the definitions
+  in `src/xdr`.
+
+
+## Additional documentation
+
+This directory contains the following additional documentation:
+
+* `testnet.md` is short tutorial demonstrating how to configure and run a
+  short-lived, isolated test network.
+
+* `architecture.md` describe how `stellar-core` is intended to be deployed and the
+  collection of servers and services needed to get the full functionality and
+  performance.
+
+* `multisig.md` describes `stellar-core` support for accounts protected by
+  multiple cryptographic signatures and the range of scenarios that it can
+  express.
+
+* `admin.md` describes the configuration concerns and documents the command line
+  options.
+
+* `transaction.md` lists the different kinds of transaction supported and
+  details of the rules for their validity.
 
