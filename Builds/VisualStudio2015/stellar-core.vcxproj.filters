@@ -689,9 +689,6 @@
     <None Include="..\..\docs\questions.md">
       <Filter>docs</Filter>
     </None>
-    <None Include="..\..\docs\usecases.md">
-      <Filter>docs</Filter>
-    </None>
     <None Include="..\..\docs\design.md">
       <Filter>docs</Filter>
     </None>
@@ -717,6 +714,12 @@
     <None Include="..\..\Makefile.am" />
     <None Include="..\..\src\ledger\readme.md">
       <Filter>ledger\docs</Filter>
+    </None>
+    <None Include="..\..\docs\admin.md">
+      <Filter>docs</Filter>
+    </None>
+    <None Include="..\..\docs\architecture.md">
+      <Filter>docs</Filter>
     </None>
   </ItemGroup>
   <ItemGroup>

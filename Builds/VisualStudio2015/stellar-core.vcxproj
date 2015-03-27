@@ -372,6 +372,8 @@
     <None Include="..\..\autogen.sh" />
     <None Include="..\..\ChangeLog" />
     <None Include="..\..\COPYING" />
+    <None Include="..\..\docs\admin.md" />
+    <None Include="..\..\docs\architecture.md" />
     <None Include="..\..\docs\design.md" />
     <None Include="..\..\docs\stellar_core_example.cfg" />
     <None Include="..\..\docs\multisig.md" />
@@ -380,7 +382,6 @@
     <None Include="..\..\docs\stellar_overview.md" />
     <None Include="..\..\docs\testnet.md" />
     <None Include="..\..\docs\transactions.md" />
-    <None Include="..\..\docs\usecases.md" />
     <None Include="..\..\INSTALL" />
     <None Include="..\..\Makefile.am" />
     <None Include="..\..\NEWS" />

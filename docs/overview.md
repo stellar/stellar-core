@@ -38,3 +38,14 @@ Logging and whatnot
 ##lib
 various 3rd party libaries we use
 
+
+##Concepts
+- **Ledger**: This is the state of the world at a particular point in time. Ledgers are linked together in a `Ledger Chain`. Each ledger has a sequence number that tells you where in the chain it falls. A ledger is composed of a set of `ledger entries` and a `ledger header`.
+- **Ledger chain**: This is an ever increasing list of `ledgers`. Each `ledger` points to the previous one thus forming a chain of history stretching back in time.
+- **Ledger header**: (/src/xdr/Stellar-ledger.x) Meta information about a particular `ledger`.
+- **Ledger entry**: One piece of data that is stored in the `ledger`. Can be thought of like a record in a DB. Examples are Accounts,Offers,TrustLines.
+- **Bucket**: Contains a set of ledger entries. see /src/bucket/BucketList.h for more details.
+- **Bucket List**: List of buckets. The buckets are hashed to produce the ledger hash. see /src/bucket/BucketList.h for more details.
+- **Transaction**: Anything that changes the ledger entries is called a transaction. 
+- **Transaction set**: Set of transactions that are applied to a ledger to produce the next one in the chain. 
+

@@ -14,6 +14,8 @@ Administrative commands
     submit transactions to the Stellar network, or by administrators.
 
     Supported commands:
+*/help
+        give a list of currently supported commands
 * /stop
         stops the instance
 * /peers
