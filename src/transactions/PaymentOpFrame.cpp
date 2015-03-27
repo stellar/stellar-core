@@ -155,7 +155,7 @@ PaymentOpFrame::sendNoCreate(AccountFrame& destination, LedgerDelta& delta,
                 }
             // fall through
             case OfferExchange::ePartial:
-                innerResult().code(PAYMENT_OVERSENDMAX);
+                innerResult().code(PAYMENT_OVER_SENDMAX);
                 return false;
             }
             assert(curBReceived == actualCurBReceived);
@@ -173,7 +173,7 @@ PaymentOpFrame::sendNoCreate(AccountFrame& destination, LedgerDelta& delta,
 
     if (curBSent > mPayment.sendMax)
     { // make sure not over the max
-        innerResult().code(PAYMENT_OVERSENDMAX);
+        innerResult().code(PAYMENT_OVER_SENDMAX);
         return false;
     }
 
