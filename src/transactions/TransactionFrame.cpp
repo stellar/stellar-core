@@ -353,6 +353,8 @@ TransactionFrame::apply(LedgerDelta& delta, Application& app)
     bool errorEncountered = false;
 
     {
+        // shield outer scope of any side effects by using
+        // a sql transaction for ledger state and LedgerDelta
         soci::transaction sqlTx(app.getDatabase().getSession());
         LedgerDelta thisTxDelta(delta);
 

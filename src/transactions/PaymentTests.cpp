@@ -109,7 +109,7 @@ TEST_CASE("payment", "[tx][payment]")
         applyPaymentTx(
             app, root, b1, rootSeq++,
             app.getLedgerManager().getCurrentLedgerHeader().baseReserve - 1,
-            PAYMENT_UNDERFUNDED);
+            PAYMENT_LOW_RESERVE);
 
         AccountFrame bAccount;
         REQUIRE(!AccountFrame::loadAccount(b1.getPublicKey(), bAccount,

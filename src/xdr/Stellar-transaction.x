@@ -24,29 +24,43 @@ enum OperationType
     INFLATION = 6
 };
 
+/* Payment
+
+    send an amount to a destination account, optionally through a path.
+    XLM payments create the destination account if it does not exist
+
+    Threshold: med
+
+    Result: PaymentResult
+*/
 struct PaymentOp
 {
     AccountID destination; // recipient of the payment
     Currency currency;     // what they end up with
     int64 amount;          // amount they end up with
 
-    Currency path<5>; // what hops it must go through to get there
-
-    int64 sendMax; // the maximum amount of the source currency to
-                   // send (excluding fees).
-                   // The operation will fail if can't be met
-
     opaque memo<32>;
     opaque sourceMemo<32>; // used to return a payment
+
+    // payment over path
+    Currency path<5>; // what hops it must go through to get there
+    int64 sendMax; // the maximum amount of the source currency (==path[0]) to
+                   // send (excluding fees).
+                   // The operation will fail if can't be met
 };
 
-/* Creates or updates an offer
+/* Creates, updates or deletes an offer
+
+Threshold: med
+
+Result: CreateOfferResult
+
 */
 struct CreateOfferOp
 {
     Currency takerGets;
     Currency takerPays;
-    int64 amount; // amount taker gets
+    int64 amount; // amount taker gets. if set to 0, delete the offer
     Price price;  // =takerPaysAmount/takerGetsAmount
 
     // 0=create a new offer, otherwise edit an existing offer
@@ -54,11 +68,18 @@ struct CreateOfferOp
 };
 
 /* Set Account Options
-    set the fields that needs to be updated
+
+    updates "AccountEntry" fields.
+    note: updating thresholds or signers requires high threshold
+
+    Threshold: med or high
+
+    Result: SetOptionsResult
 */
+
 struct SetOptionsOp
 {
-    AccountID* inflationDest; // sets the inflation
+    AccountID* inflationDest; // sets the inflation destination
 
     uint32* clearFlags; // which flags to clear
     uint32* setFlags;   // which flags to set
@@ -71,6 +92,11 @@ struct SetOptionsOp
 };
 
 /* Creates, updates or deletes a trust line
+
+    Threshold: med
+
+    Result: ChangeTrustResult
+
 */
 struct ChangeTrustOp
 {
@@ -81,7 +107,11 @@ struct ChangeTrustOp
 };
 
 /* Updates the "authorized" flag of an existing trust line
-   this is called by the issuer of the related currency
+   this is called by the issuer of the related currency.
+
+   Threshold: low
+
+   Result: AllowTrustResult
 */
 struct AllowTrustOp
 {
@@ -99,9 +129,31 @@ struct AllowTrustOp
     bool authorize;
 };
 
+/* Inflation
+    Runs inflation
+
+Threshold: low
+
+Result: InflationResult
+
+*/
+
+/* AccountMerge
+    Transfers native balance to destination account.
+
+    Threshold: high
+
+    Result : AccountMergeResult
+*/
+
+/* An operation is the lowest unit of work that a transaction does */
 struct Operation
 {
-    AccountID* sourceAccount; // defaults to the account from the transaction
+    // sourceAccount is the account used to run the operation
+    // if not set, the runtime defaults to "account" specified at
+    // the transaction level
+    AccountID* sourceAccount;
+
     union switch (OperationType type)
     {
     case PAYMENT:
@@ -122,17 +174,33 @@ struct Operation
     body;
 };
 
+/* a transaction is a container for a set of operations
+    - is executed by an account
+    - fees are collected from the account
+    - operations are executed in order as one ACID transaction
+          either all operations are applied or none are
+          if any returns a failing code
+*/
+
 struct Transaction
 {
+    // account used to run the transaction
     AccountID account;
+
+    // maximum fee this transaction can collect
     int32 maxFee;
+
+    // sequence number to consume in the account
     SequenceNumber seqNum;
+
+    // validity range for the ledger sequence number
     uint32 minLedger;
     uint32 maxLedger;
 
     Operation operations<100>;
 };
 
+/* A TransactionEnvelope wraps a transaction with signatures. */
 struct TransactionEnvelope
 {
     Transaction tx;
@@ -141,12 +209,17 @@ struct TransactionEnvelope
 
 /* Operation Results section */
 
+/* This result is used when offers are taken during an operation */
 struct ClaimOfferAtom
 {
-    AccountID offerOwner;
+    // emited to identify the offer
+    AccountID offerOwner; // Account that owns the offer
     uint64 offerID;
-    Currency currencyClaimed; // redundant but emited for clarity
+
+    // amount and currency taken from the owner
+    Currency currencyClaimed;
     int64 amountClaimed;
+
     // should we also include the amount that the owner gets in return?
 };
 
@@ -154,15 +227,19 @@ struct ClaimOfferAtom
 
 enum PaymentResultCode
 {
-    PAYMENT_SUCCESS = 0,
-    PAYMENT_SUCCESS_MULTI = 1,
-    PAYMENT_UNDERFUNDED = 2,
-    PAYMENT_NO_DESTINATION = 3,
-    PAYMENT_MALFORMED = 4,
-    PAYMENT_NO_TRUST = 5,
-    PAYMENT_NOT_AUTHORIZED = 6,
-    PAYMENT_LINE_FULL = 7,
-    PAYMENT_OVERSENDMAX = 8
+    // codes considered as "success" for the operation
+    PAYMENT_SUCCESS = 0,       // simple payment success
+    PAYMENT_SUCCESS_MULTI = 1, // multi-path payment success
+
+    // codes considered as "failure" for the operation
+    PAYMENT_UNDERFUNDED = 2,    // not enough funds in source account
+    PAYMENT_NO_DESTINATION = 3, // destination account does not exist
+    PAYMENT_NO_TRUST = 4,       // destination missing a trust line for currency
+    PAYMENT_NOT_AUTHORIZED = 5, // destination not authorized to hold currency
+    PAYMENT_LINE_FULL = 6,      // destination would go above their limit
+    PAYMENT_OVERSENDMAX = 7,    // multi-path payment could not satisfy sendmax
+    PAYMENT_LOW_RESERVE = 8,    // would create an account below the min reserve
+    PAYMENT_NOT_ENOUGH_OFFERS = 9 // not enough offers to fund payment
 };
 
 struct SimplePaymentResult
@@ -192,32 +269,41 @@ default:
 
 enum CreateOfferResultCode
 {
+    // codes considered as "success" for the operation
     CREATE_OFFER_SUCCESS = 0,
-    CREATE_OFFER_NO_TRUST = 1,
-    CREATE_OFFER_NOT_AUTHORIZED = 2,
-    CREATE_OFFER_MALFORMED = 3,
-    CREATE_OFFER_UNDERFUNDED = 4,
-    CREATE_OFFER_CROSS_SELF = 5,
-    CREATE_OFFER_NOT_FOUND = 6,
-    CREATE_OFFER_BELOW_MIN_BALANCE = 7 // not enough funds to create a new Offer
+
+    // codes considered as "failure" for the operation
+    CREATE_OFFER_NO_TRUST = 1,       // can't hold what it's buying
+    CREATE_OFFER_NOT_AUTHORIZED = 2, // not authorized to hold what it's buying
+    CREATE_OFFER_MALFORMED = 3,      // generated offer would be invalid
+    CREATE_OFFER_UNDERFUNDED = 4,    // doesn't hold what it's trying to sell
+    CREATE_OFFER_CROSS_SELF = 5,     // would cross an offer from the same user
+
+    // update errors
+    CREATE_OFFER_NOT_FOUND = 6, // offerID does not match an existing offer
+    CREATE_OFFER_MISMATCH = 7,  // currencies don't match offer
+
+    CREATE_OFFER_LOW_RESERVE = 8 // not enough funds to create a new Offer
+
 };
 
 enum CreateOfferEffect
 {
     CREATE_OFFER_CREATED = 0,
     CREATE_OFFER_UPDATED = 1,
-    CREATE_OFFER_EMPTY = 2,
-	CREATE_OFFER_CANCELLED = 3
+    CREATE_OFFER_DELETED = 2
 };
 
 struct CreateOfferSuccessResult
 {
+    // offers that got claimed while creating this offer
     ClaimOfferAtom offersClaimed<>;
 
     union switch (CreateOfferEffect effect)
     {
     case CREATE_OFFER_CREATED:
-        OfferEntry offerCreated;
+    case CREATE_OFFER_UPDATED:
+        OfferEntry offer;
     default:
         void;
     }
@@ -232,16 +318,18 @@ default:
     void;
 };
 
-
 /******* SetOptions Result ********/
 
 enum SetOptionsResultCode
 {
+    // codes considered as "success" for the operation
     SET_OPTIONS_SUCCESS = 0,
+    // codes considered as "failure" for the operation
     SET_OPTIONS_RATE_FIXED = 1,
     SET_OPTIONS_RATE_TOO_HIGH = 2,
-    SET_OPTIONS_BELOW_MIN_BALANCE = 3, // not enough funds to add a signer
-    SET_OPTIONS_MALFORMED = 4
+    SET_OPTIONS_LOW_RESERVE = 3,      // not enough funds to add a signer
+    SET_OPTIONS_TOO_MANY_SIGNERS = 4, // max number of signers already reached
+    SET_OPTIONS_BAD_FLAGS = 5         // invalid combination of clear/set flags
 };
 
 union SetOptionsResult switch (SetOptionsResultCode code)
@@ -256,11 +344,12 @@ default:
 
 enum ChangeTrustResultCode
 {
+    // codes considered as "success" for the operation
     CHANGE_TRUST_SUCCESS = 0,
-    CHANGE_TRUST_NO_ACCOUNT = 1,
-    CHANGE_TRUST_INVALID_LIMIT = 2,
-    CHANGE_TRUST_BELOW_MIN_BALANCE =
-        3 // not enough funds to create a new trust line
+    // codes considered as "failure" for the operation
+    CHANGE_TRUST_NO_ISSUER = 1,     // could not find issuer
+    CHANGE_TRUST_INVALID_LIMIT = 2, // cannot drop limit below balance
+    CHANGE_TRUST_LOW_RESERVE = 3 // not enough funds to create a new trust line
 };
 
 union ChangeTrustResult switch (ChangeTrustResultCode code)
@@ -275,9 +364,12 @@ default:
 
 enum AllowTrustResultCode
 {
+    // codes considered as "success" for the operation
     ALLOW_TRUST_SUCCESS = 0,
-    ALLOW_TRUST_MALFORMED = 1,
-    ALLOW_TRUST_NO_TRUST_LINE = 2
+    // codes considered as "failure" for the operation
+    ALLOW_TRUST_MALFORMED = 1,         // currency is not ISO4217
+    ALLOW_TRUST_NO_TRUST_LINE = 2,     // trustor does not have a trustline
+    ALLOW_TRUST_TRUST_NOT_REQUIRED = 3 // source account does not require trust
 };
 
 union AllowTrustResult switch (AllowTrustResultCode code)
@@ -292,10 +384,13 @@ default:
 
 enum AccountMergeResultCode
 {
+    // codes considered as "success" for the operation
     ACCOUNT_MERGE_SUCCESS = 0,
-    ACCOUNT_MERGE_MALFORMED = 1,
-    ACCOUNT_MERGE_NO_ACCOUNT = 2,
-    ACCOUNT_MERGE_HAS_CREDIT = 3
+    // codes considered as "failure" for the operation
+    ACCOUNT_MERGE_MALFORMED = 1,  // can't merge onto itself
+    ACCOUNT_MERGE_NO_ACCOUNT = 2, // destination does not exist
+    ACCOUNT_MERGE_HAS_CREDIT = 3, // account has active trust lines
+    ACCOUNT_MERGE_CREDIT_HELD = 4 // an issuer cannot be merged if used
 };
 
 union AccountMergeResult switch (AccountMergeResultCode code)
@@ -310,7 +405,9 @@ default:
 
 enum InflationResultCode
 {
+    // codes considered as "success" for the operation
     INFLATION_SUCCESS = 0,
+    // codes considered as "failure" for the operation
     INFLATION_NOT_TIME = 1
 };
 
@@ -366,6 +463,7 @@ default:
 enum TransactionResultCode
 {
     txSUCCESS = 0,
+
     txFAILED = 1,
     txBAD_LEDGER = 2,
     txDUPLICATE = 3,
@@ -375,7 +473,8 @@ enum TransactionResultCode
     txBAD_AUTH = 6, // not enough signatures to perform transaction
     txINSUFFICIENT_BALANCE = 7,
     txNO_ACCOUNT = 8,
-    txINSUFFICIENT_FEE = 9 // max fee is too small
+    txINSUFFICIENT_FEE = 9, // max fee is too small
+    txINTERNAL_ERROR = 10 // an unknown error occured
 };
 
 struct TransactionResult

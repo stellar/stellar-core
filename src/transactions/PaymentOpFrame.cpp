@@ -41,7 +41,7 @@ PaymentOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
         {
             if (mPayment.amount < ledgerManager.getMinBalance(0))
             { // not over the minBalance to make an account
-                innerResult().code(PAYMENT_UNDERFUNDED);
+                innerResult().code(PAYMENT_LOW_RESERVE);
                 return false;
             }
             else
@@ -179,12 +179,6 @@ PaymentOpFrame::sendNoCreate(AccountFrame& destination, LedgerDelta& delta,
 
     if (curB.type() == NATIVE)
     {
-        if (mPayment.path.size())
-        {
-            innerResult().code(PAYMENT_MALFORMED);
-            return false;
-        }
-
         int64_t minBalance = mSourceAccount->getMinimumBalance(ledgerManager);
 
         if (mSourceAccount->getAccount().balance < (minBalance + curBSent))
@@ -204,9 +198,7 @@ PaymentOpFrame::sendNoCreate(AccountFrame& destination, LedgerDelta& delta,
             AccountFrame issuer;
             if (!AccountFrame::loadAccount(curB.isoCI().issuer, issuer, db))
             {
-                CLOG(ERROR, "Tx") << "PaymentOp::sendCredit Issuer not found";
-                innerResult().code(PAYMENT_MALFORMED);
-                return false;
+                throw std::runtime_error("sendCredit Issuer not found");
             }
 
             TrustFrame sourceLineFrame;

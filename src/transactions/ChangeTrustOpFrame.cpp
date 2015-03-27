@@ -56,7 +56,7 @@ ChangeTrustOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
         if (!AccountFrame::loadAccount(mChangeTrust.line.isoCI().issuer, issuer,
                                        db))
         {
-            innerResult().code(CHANGE_TRUST_NO_ACCOUNT);
+            innerResult().code(CHANGE_TRUST_NO_ISSUER);
             return false;
         }
 
@@ -68,7 +68,7 @@ ChangeTrustOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
 
         if (!mSourceAccount->addNumEntries(1, ledgerManager))
         {
-            innerResult().code(CHANGE_TRUST_BELOW_MIN_BALANCE);
+            innerResult().code(CHANGE_TRUST_LOW_RESERVE);
         }
 
         mSourceAccount->storeChange(delta, db);

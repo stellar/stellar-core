@@ -33,13 +33,12 @@
 /*
 The ledger module:
     1) gets the externalized tx set
-    2) applies this set to the previous ledger
-    3) sends the resultMeta somewhere
-    4) sends the changed entries to the BucketList
-    5) saves the changed entries to SQL
-    6) saves the ledger hash and header to SQL
-    7) sends the new ledger hash and the tx set to the history
-    8) sends the new ledger hash and header to the Herder
+    2) applies this set to the last closed ledger
+    3) sends the changed entries to the BucketList
+    4) saves the changed entries to SQL
+    5) saves the ledger hash and header to SQL
+    6) sends the new ledger hash and the tx set to the history
+    7) sends the new ledger hash and header to the Herder
 
 
 catching up to network:
@@ -420,7 +419,12 @@ LedgerManagerImpl::secondsSinceLastLedgerClose() const
     return mApp.timeNow() - mLastCloseTime;
 }
 
-// called by txherder
+/*
+    This is the main method that closes the current ledger based on
+the close context that was computed by SCP or by the historical module
+during replays.
+
+*/
 void
 LedgerManagerImpl::closeLedger(LedgerCloseData ledgerData)
 {
@@ -439,6 +443,9 @@ LedgerManagerImpl::closeLedger(LedgerCloseData ledgerData)
 
     auto ledgerTime = mLedgerClose.TimeScope();
 
+    // the transaction set that was agreed upon by consensus
+    // was sorted by hash; we reorder it so that transactions are
+    // sorted such that sequence numbers are respected
     vector<TransactionFramePtr> txs = ledgerData.mTxSet->sortForApply();
     int index = 0;
 
@@ -446,15 +453,15 @@ LedgerManagerImpl::closeLedger(LedgerCloseData ledgerData)
     for (auto tx : txs)
     {
         auto txTime = mTransactionApply.TimeScope();
+        LedgerDelta delta(ledgerDelta);
         try
         {
-            LedgerDelta delta(ledgerDelta);
-
             CLOG(DEBUG, "Tx") << "APPLY: ledger "
                               << mCurrentLedger->mHeader.ledgerSeq << " tx#"
                               << index << " = " << hexAbbrev(tx->getFullHash())
                               << " txseq=" << tx->getSeqNum() << " (@ "
                               << hexAbbrev(tx->getSourceID()) << ")";
+
             // note that success here just means it got processed
             // a failed transaction collecting a fee is successful at this layer
             if (tx->apply(delta, mApp))
@@ -463,26 +470,33 @@ LedgerManagerImpl::closeLedger(LedgerCloseData ledgerData)
             }
             else
             {
+                // transaction failed validation and cannot have side effects
                 tx->getResult().feeCharged = 0;
-                // ensures that this transaction doesn't have any side effects
-                delta.rollback();
-
-                CLOG(ERROR, "Tx") << "invalid tx. This should never happen";
-                CLOG(ERROR, "Tx")
-                    << "Transaction: " << xdr::xdr_to_string(tx->getEnvelope());
-                CLOG(ERROR, "Tx")
-                    << "Result: " << xdr::xdr_to_string(tx->getResult());
             }
-            tx->storeTransaction(*this, delta, ++index, *txResultHasher);
         }
         catch (std::runtime_error& e)
         {
             CLOG(ERROR, "Ledger") << "Exception during tx->apply: " << e.what();
+            tx->getResult().result.code(txINTERNAL_ERROR);
+            tx->getResult().feeCharged = 0;
         }
         catch (...)
         {
             CLOG(ERROR, "Ledger") << "Unknown exception during tx->apply";
+            tx->getResult().result.code(txINTERNAL_ERROR);
+            tx->getResult().feeCharged = 0;
         }
+        if (tx->getResult().feeCharged == 0)
+        {
+            CLOG(ERROR, "Tx") << "invalid tx";
+            CLOG(ERROR, "Tx")
+                << "Transaction: " << xdr::xdr_to_string(tx->getEnvelope());
+            CLOG(ERROR, "Tx")
+                << "Result: " << xdr::xdr_to_string(tx->getResult());
+            // ensures that this transaction doesn't have any side effects
+            delta.rollback();
+        }
+        tx->storeTransaction(*this, delta, ++index, *txResultHasher);
     }
     ledgerDelta.commit();
     mCurrentLedger->mHeader.baseFee = ledgerData.mBaseFee;

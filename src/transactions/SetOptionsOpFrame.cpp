@@ -69,12 +69,12 @@ SetOptionsOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
             {
                 if (signers.size() == signers.max_size())
                 {
-                    innerResult().code(SET_OPTIONS_MALFORMED);
+                    innerResult().code(SET_OPTIONS_TOO_MANY_SIGNERS);
                     return false;
                 }
                 if (!mSourceAccount->addNumEntries(1, ledgerManager))
                 {
-                    innerResult().code(SET_OPTIONS_BELOW_MIN_BALANCE);
+                    innerResult().code(SET_OPTIONS_LOW_RESERVE);
                     return false;
                 }
                 signers.push_back(*mSetOptions.signer);
@@ -112,7 +112,7 @@ SetOptionsOpFrame::doCheckValid(Application& app)
     {
         if ((*mSetOptions.setFlags & *mSetOptions.clearFlags) != 0)
         {
-            innerResult().code(SET_OPTIONS_MALFORMED);
+            innerResult().code(SET_OPTIONS_BAD_FLAGS);
             return false;
         }
     }

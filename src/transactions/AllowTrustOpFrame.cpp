@@ -27,7 +27,7 @@ AllowTrustOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
 {
     if (!(mSourceAccount->getAccount().flags & AUTH_REQUIRED_FLAG))
     { // this account doesn't require authorization to hold credit
-        innerResult().code(ALLOW_TRUST_MALFORMED);
+        innerResult().code(ALLOW_TRUST_TRUST_NOT_REQUIRED);
         return false;
     }
 
