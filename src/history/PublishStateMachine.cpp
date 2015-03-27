@@ -18,6 +18,10 @@
 #include "util/Logging.h"
 #include "util/make_unique.h"
 #include "util/XDRStream.h"
+
+#include "medida/metrics_registry.h"
+#include "medida/counter.h"
+
 #include <soci.h>
 
 namespace stellar
@@ -299,7 +303,12 @@ ArchivePublisher::isDone() const
     return mState == PUBLISH_END;
 }
 
-PublishStateMachine::PublishStateMachine(Application& app) : mApp(app)
+PublishStateMachine::PublishStateMachine(Application& app)
+    : mApp(app)
+    , mPublishersSize(app.getMetrics().NewCounter(
+                          {"history", "memory", "publishers"}))
+    , mPendingSnapsSize(app.getMetrics().NewCounter(
+                            {"history", "memory", "pending-snaps"}))
 {
 }
 
@@ -308,6 +317,7 @@ PublishStateMachine::queueSnapshot(SnapshotPtr snap, PublishCallback handler)
 {
     bool delayed = !mPendingSnaps.empty();
     mPendingSnaps.push_back(std::make_pair(snap, handler));
+    mPendingSnapsSize.set_count(mPendingSnaps.size());
     if (delayed)
     {
         CLOG(WARNING, "History") << "Snapshot queued while already publishing";
@@ -478,6 +488,7 @@ PublishStateMachine::snapshotWritten(asio::error_code const& ec)
                 },
                 pair.second, snap);
             mPublishers.push_back(p);
+            mPublishersSize.set_count(mPublishers.size());
         }
     }
 }
@@ -491,6 +502,7 @@ PublishStateMachine::snapshotPublished(asio::error_code const& ec)
                                      {
         return p->isDone();
     }));
+    mPublishersSize.set_count(mPublishers.size());
     CLOG(DEBUG, "History") << "Completed publish to archive, "
                            << mPublishers.size() << " remain";
     if (mPublishers.empty())
@@ -505,6 +517,7 @@ PublishStateMachine::finishOne(asio::error_code const& ec)
     assert(!mPendingSnaps.empty());
     mPendingSnaps.front().second(ec);
     mPendingSnaps.pop_front();
+    mPendingSnapsSize.set_count(mPendingSnaps.size());
     writeNextSnapshot();
 }
 }

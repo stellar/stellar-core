@@ -18,6 +18,11 @@ class transaction;
 class session;
 }
 
+namespace medida
+{
+class Counter;
+}
+
 namespace stellar
 {
 
@@ -97,6 +102,9 @@ class PublishStateMachine
     Application& mApp;
     std::vector<std::shared_ptr<ArchivePublisher>> mPublishers;
     std::deque<std::pair<SnapshotPtr, PublishCallback>> mPendingSnaps;
+    medida::Counter& mPublishersSize;
+    medida::Counter& mPendingSnapsSize;
+
     void writeNextSnapshot();
     void finishOne(asio::error_code const&);
 

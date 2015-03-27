@@ -20,6 +20,11 @@ Committed
 
 */
 
+namespace medida
+{
+class Counter;
+}
+
 namespace stellar
 {
 
@@ -39,6 +44,7 @@ class Floodgate
 {
     std::map<uint256, FloodRecord::pointer> mFloodMap;
     Application& mApp;
+    medida::Counter& mFloodMapSize;
 
   public:
     Floodgate(Application& app);

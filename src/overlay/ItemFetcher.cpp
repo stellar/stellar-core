@@ -2,12 +2,15 @@
 // under the ISC License. See the COPYING file at the top-level directory of
 // this distribution or at http://opensource.org/licenses/ISC
 
-#include "ItemFetcher.h"
-#include "main/Application.h"
-#include "xdrpp/marshal.h"
 #include "crypto/SHA.h"
-#include "util/Logging.h"
+#include "main/Application.h"
+#include "overlay/ItemFetcher.h"
 #include "overlay/OverlayManager.h"
+#include "util/Logging.h"
+
+#include "medida/counter.h"
+#include "medida/metrics_registry.h"
+#include "xdrpp/marshal.h"
 
 #define MS_TO_WAIT_FOR_FETCH_REPLY 500
 
@@ -20,6 +23,13 @@
 
 namespace stellar
 {
+
+ItemFetcher::ItemFetcher(Application& app)
+    : mApp(app)
+    , mItemMapSize(app.getMetrics().NewCounter({"overlay", "memory", "item-fetch-map"}))
+{
+}
+
 void
 ItemFetcher::doesntHave(uint256 const& itemID, Peer::pointer peer)
 {
@@ -52,7 +62,9 @@ ItemFetcher::stopFetching(uint256 const& itemID)
 void
 ItemFetcher::clear()
 {
+    int64_t n = static_cast<int64_t>(mItemMap.size());
     mItemMap.clear();
+    mItemMapSize.dec(n);
 }
 
 //////////////////////////////
@@ -83,6 +95,7 @@ TxSetFetcher::fetchItem(uint256 const& txSetHash, bool askNetwork)
                 std::make_shared<TxSetTrackingCollar>(txSetHash,
                                                       TxSetFramePtr(), mApp);
             mItemMap[txSetHash] = collar;
+            mItemMapSize.inc();
             collar->tryNextPeer();
         }
     }
@@ -114,6 +127,7 @@ TxSetFetcher::recvItem(TxSetFramePtr txSet)
             mItemMap[txSet->getContentsHash()] =
                 std::make_shared<TxSetTrackingCollar>(txSet->getContentsHash(),
                                                       txSet, mApp);
+            mItemMapSize.inc();
         }
     }
     return false;
@@ -146,6 +160,7 @@ SCPQSetFetcher::fetchItem(uint256 const& qSetHash, bool askNetwork)
                 std::make_shared<QSetTrackingCollar>(qSetHash,
                                                      SCPQuorumSetPtr(), mApp);
             mItemMap[qSetHash] = collar;
+            mItemMapSize.inc();
             collar->tryNextPeer(); // start asking
         }
     }
@@ -177,6 +192,7 @@ SCPQSetFetcher::recvItem(SCPQuorumSetPtr qSet)
             // now
             mItemMap[qSetHash] =
                 std::make_shared<QSetTrackingCollar>(qSetHash, qSet, mApp);
+            mItemMapSize.inc();
         }
     }
     return false;
