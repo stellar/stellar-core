@@ -127,8 +127,6 @@ Peer::sendGetQuorumSet(uint256 const& setID)
 void
 Peer::sendPeers()
 {
-    // TODO.2 catch DB errors and malformed IPs
-
     // send top 50 peers we know about
     vector<PeerRecord> peerList;
     PeerRecord::loadPeerRecords(mApp.getDatabase(), 50, mApp.getClock().now(),

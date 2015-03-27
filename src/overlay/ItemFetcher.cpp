@@ -251,14 +251,7 @@ TrackingCollar::tryNextPeer()
                 askPeer(peer);
                 mPeersAsked.push_back(peer);
             }
-            else
-            { // we have looped back around
-               
-                // LATER what should we do here?
-                // try to connect to more peers?
-                // just ask any new peers we connect to?
-                // wait a longer amount of time and then loop again?
-            }
+
             mTimer.cancel(); // cancel any stray timers
             mTimer.expires_from_now(
                 std::chrono::milliseconds(MS_TO_WAIT_FOR_FETCH_REPLY));

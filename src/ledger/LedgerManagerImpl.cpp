@@ -47,9 +47,6 @@ catching up to network:
     3) Replay or force-apply deltas, depending on catchup mode
 
     // TODO.3 we need to store some validation history?
-    // TODO.3 better way to handle quorums when you are booting a network for
-instance if all nodes fail.
-
 */
 using std::placeholders::_1;
 using std::placeholders::_2;
