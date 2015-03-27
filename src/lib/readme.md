@@ -1,3 +1,5 @@
+# Support libraries
+
 This subdirectory is for storing libraries that we have integrated directly into
 our build process, either due to their not being well-packaged or being small
 (single file / single header) or simply for convenience while developing.
