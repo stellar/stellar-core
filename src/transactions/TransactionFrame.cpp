@@ -301,7 +301,7 @@ TransactionFrame::setSourceAccountPtr(AccountFrame::pointer signingAccount)
 {
     if (!signingAccount)
     {
-        if (mEnvelope.tx.account != signingAccount->getID())
+        if (mEnvelope.tx.sourceAccount != signingAccount->getID())
         {
             throw std::invalid_argument("wrong account");
         }

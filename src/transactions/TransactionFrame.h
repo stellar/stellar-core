@@ -117,7 +117,7 @@ class TransactionFrame
     uint256 const&
     getSourceID() const
     {
-        return mEnvelope.tx.account;
+        return mEnvelope.tx.sourceAccount;
     }
 
     int64_t getFee(Application& app) const;

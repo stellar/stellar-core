@@ -185,7 +185,7 @@ struct Operation
 struct Transaction
 {
     // account used to run the transaction
-    AccountID account;
+    AccountID sourceAccount;
 
     // maximum fee this transaction can collect
     int32 maxFee;

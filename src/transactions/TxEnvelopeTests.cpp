@@ -181,7 +181,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
         SECTION("empty batch")
         {
             TransactionEnvelope te;
-            te.tx.account = root.getPublicKey();
+            te.tx.sourceAccount = root.getPublicKey();
             te.tx.maxFee = 1000;
             te.tx.maxLedger = 1000;
             te.tx.minLedger = 0;
