@@ -49,15 +49,15 @@ class ApplicationImpl : public Application
 
     virtual void start() override;
 
-    // Stops the io_services, which should cause the threads to exit
-    // once they finish running any work-in-progress. If you want a
-    // more abrupt exit than this, call exit() and hope for the best.
+    // Stops the worker io_service, which should cause the threads to exit once
+    // they finish running any work-in-progress. If you want a more abrupt exit
+    // than this, call exit() and hope for the best.
     virtual void gracefulStop() override;
 
-    // Wait-on and join all the threads this application started; should
-    // only return when there is no more work to do or someone has
-    // force-stopped the io_services. Application can be safely destroyed
-    // after this returns.
+    // Wait-on and join all the threads this application started; should only
+    // return when there is no more work to do or someone has force-stopped the
+    // worker io_service. Application can be safely destroyed after this
+    // returns.
     virtual void joinAllThreads() override;
 
     virtual bool manualClose() override;
@@ -71,19 +71,16 @@ class ApplicationImpl : public Application
     VirtualClock& mVirtualClock;
     Config mConfig;
 
-    // NB: The io_services should come first, then the 'manager'
-    // sub-objects, then the threads. Do not reorder these fields.
+    // NB: The io_service should come first, then the 'manager' sub-objects,
+    // then the threads. Do not reorder these fields.
     //
-    // The fields must be constructed in this order, because the
-    // 'manager' sub-objects register work-to-do (listening on sockets)
-    // with the io_services during construction, and the threads are
-    // activated immediately thereafter to serve requests; if the
-    // threads started first, they would try to do work, find no work,
-    // and exit.
+    // The fields must be constructed in this order, because the subsystem
+    // objects need to be fully instantiated before any workers acquire
+    // references to them.
     //
-    // The fields must be destructed in the reverse order because the
-    // 'manager' sub-objects contain various IO objects that refer
-    // directly to the io_services.
+    // The fields must be destructed in the reverse order because all worker
+    // threads must be joined and destroyed before we start tearing down
+    // subsystems.
 
     asio::io_service mWorkerIOService;
     std::unique_ptr<asio::io_service::work> mWork;
