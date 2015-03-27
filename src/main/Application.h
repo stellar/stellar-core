@@ -31,20 +31,76 @@ class Database;
 class PersistentState;
 
 /*
- * State of a single instance of the application.
+ * State of a single instance of the stellar-core application.
  *
- * Multiple instances may exist in the same process, eg. for the sake of
- * testing by simulating a network of applications.
+ * Multiple instances may exist in the same process, eg. for the sake of testing
+ * by simulating a network of Applications.
  *
- * Owns two asio::io_services, one "main" (driven by the main thread) and one
- * "worker" (driven by a pool of #NCORE worker threads). The main io_service
- * has the run of the application and responds to the majority of (small,
- * sequential, consensus-related) network requests. The worker
- * threads/io_service are for long-running, self-contained helper jobs such as
- * bulk transfers and hashing. They should not touch anything outside their own
- * job-state (i.e. in a closure) and should post results back to the main
- * io_service when complete.
  *
+ * Clocks, time and events
+ * -----------------------
+ *
+ * An Application is connected to a VirtualClock, that both manages the
+ * Application's view of time and also owns an IO event loop that dispatches
+ * events for the main thread. See VirtualClock for details.
+ *
+ * In order to advance an Application's view of time, as well as dispatch any IO
+ * events, timers or callbacks, the associated VirtualClock must be cranked. See
+ * VirtualClock::crank().
+ *
+ * All Applications coordinating on a simulation should be bound to the same
+ * VirtualClock, so that their view of time advances from event to event within
+ * the collective simulation.
+ *
+ *
+ * Configuration
+ * -------------
+ *
+ * Each Application owns a Config object, which describes any user-controllable
+ * configuration variables, including cryptographic keys, network ports, log
+ * files, directories and the like. A local copy of the Config object is made on
+ * construction of each Application, after which the local copy cannot be
+ * further altered; the Application should be destroyed and recreted if any
+ * change to configuration is desired.
+ *
+ *
+ * Subsystems
+ * ----------
+ *
+ * Each Application owns a collection of subsystem "manager" objects, typically
+ * one per subdirectory in the source tree. For example, the LedgerManager, the
+ * OverlayManager, the HistoryManager, etc. Instances of these subsystem objects
+ * are generally created in 1:1 correspondence with their owning Application;
+ * each Application creates a new LedgerManager for itself, for example.
+ *
+ * Each subsystem object contains a reference back to its owning Application, and
+ * uses this reference to retrieve its Application's associated instance of the
+ * other subsystems. So for example an Application's LedgerManager can access
+ * that Application's HistoryManager in order to run catchup. Subsystems access
+ * one another through virtual interfaces, to afford some degree of support for
+ * testing and information hiding.
+ *
+ *
+ * Threading
+ * ---------
+ *
+ * In general, Application expects to run on a single thread -- the main thread
+ * -- and most subsystems perform no locking, are not multi-thread
+ * safe. Operations with high IO latency are broken into steps and executed
+ * piecewise through the VirtualClock's asio::io_service; those with high CPU
+ * latency are run on a "worker" thread pool.
+ *
+ * Each Application owns a secondary "worker" asio::io_service, that queues and
+ * dispatches CPU-bound work to a number of worker threads (one per core); these
+ * serve only to offload self-contained CPU-bound tasks like hashing from the
+ * main thread, and do not generally call back into the Application's owned
+ * sub-objects (with a couple exceptions, in the BucketManager and BucketList
+ * objects).
+ *
+ * Completed "worker" tasks typically post their results back to the main
+ * thread's io_service (held in the VirtualClock), or else deliver their results
+ * to the Application through std::futures or similar standard
+ * thread-synchronization primitives.
  */
 
 class Application
@@ -52,53 +108,46 @@ class Application
   public:
     typedef std::shared_ptr<Application> pointer;
 
-    // State invariants / definitions:
-    //
-    //  - Define "trusted" as "something signed by a sufficient set
-    //    of parties based on our _current_ config-file quorum-set".
-    //    This definition may change from run to run. This is intentional.
-    //    Trust is not permanent, may need to be reinforced by some
-    //    other party if we stop trusting someone we trusted in the past.
-    //
-    //  - Catching-up means: the newest trusted ledger we have on hand has a
-    //    sequence number less than the highest "previous-ledger" sequence
-    //    number we hear in ballots from any of our quorum-sets. In other
-    //    words, we don't have the prestate necessary to run consensus
-    //    transactions against yet, even if we wanted to.
-    //
-    //  - We only ever execute a transaction set when it's part of a
-    //    trusted ledger. Currently trusted, not historical trusted.
-    //    This includes the current consensus round: we don't run the
-    //    transactions at all until we're certain everyone agrees on them.
-    //
-    //  - We only ever place our signature on a ledger when we have executed
-    //    the transactions ourselves and verified the outcome. Even if we
-    //    trust someone else's signatures for the sake of constructing a
-    //    ledger (say, from snapshots), we don't _add our own signature_
-    //    without execution as well.
-
+    // Running state of an application; different values inhibit or enable
+    // certain subsystem responses to IO events, timers etc.
     enum State
     {
-        BOOTING_STATE,     // loading last known ledger from disk
-        CONNECTING_STATE,  // trying to connect to other peers
-        CONNECTED_STATE,   // connected to other peers and receiving validations
-        CATCHING_UP_STATE, // getting the current ledger from the network
-        SYNCED_STATE, // we are on the current ledger and are keeping up with
-                      // deltas
+        // Loading state from database, not yet active. SCP is inhibited.
+        BOOTING_STATE,
+
+        // In sync with SCP peers, applying transactions. SCP is active,
+        // desynchronization will cause transition to CATCHING_UP_STATE.
+        SYNCED_STATE,
+
+        // Out of sync with SCP peers, downloading history. SCP is inhibited,
+        // catchup is in progress, observed desynchronization has no effect.
+        CATCHING_UP_STATE,
+
         NUM_STATE
     };
 
     virtual ~Application(){};
 
-    // in seconds
+    // Return the time in seconds since the POSIX epoch, according to the
+    // VirtualClock this Application is bound to. Convenience method.
     virtual uint64_t timeNow() = 0;
 
+    // Return a reference to the Application-local copy of the Config object
+    // that the Application was constructed with.
     virtual Config const& getConfig() = 0;
 
+    // Get and set the current execution-state of the Application
     virtual State getState() = 0;
     virtual void setState(State) = 0;
+
+    // Get the external VirtualClock to which this Application is bound.
     virtual VirtualClock& getClock() = 0;
+
+    // Get the registry of metrics owned by this application. Metrics are
+    // reported through the administrative HTTP interface, see CommandHandler.
     virtual medida::MetricsRegistry& getMetrics() = 0;
+
+    // Get references to each of the "subsystem" objects.
     virtual TmpDirManager& getTmpDirManager() = 0;
     virtual LedgerManager& getLedgerManager() = 0;
     virtual BucketManager& getBucketManager() = 0;
@@ -109,29 +158,42 @@ class Application
     virtual Database& getDatabase() = 0;
     virtual PersistentState& getPersistentState() = 0;
 
+    // Get the worker IO service, served by background threads. Work posted to
+    // this io_service will execute in parallel with the calling thread, so use
+    // with caution.
     virtual asio::io_service& getWorkerIOService() = 0;
 
+    // Perform actions necessary to transition from BOOTING_STATE to
+    // SYNCED_STATE or CATCHING_UP_STATE. In particular: either reload or
+    // reinitialize the database, and either restart or begin reacquiring SCP
+    // consensus (as instructed by Config).
     virtual void start() = 0;
 
-    // Stops the io_services, which should cause the threads to exit
-    // once they finish running any work-in-progress. If you want a
-    // more abrupt exit than this, call exit() and hope for the best.
+    // Stop the io_services, which should cause the threads to exit once they
+    // finish running any work-in-progress.
     virtual void gracefulStop() = 0;
 
-    // Wait-on and join all the threads this application started; should
-    // only return when there is no more work to do or someone has
-    // force-stopped the io_services. Application can be safely destroyed
-    // after this returns.
+    // Wait-on and join all the threads this application started; should only
+    // return when there is no more work to do or someone has force-stopped the
+    // worker io_service. Application can be safely destroyed after this
+    // returns.
     virtual void joinAllThreads() = 0;
 
-    // only works if config.MANUAL_MODE=true;
-    // forces the ledger to close
+    // If config.MANUAL_MODE=true, force the current ledger to close and return
+    // true. Otherwise return false. This method exists only for testing.
     virtual bool manualClose() = 0;
 
+    // Execute any administrative commands written in the Config.COMMANDS
+    // variable of the config file. This permits scripting certain actions to
+    // occur automatically at startup.
     virtual void applyCfgCommands() = 0;
 
+    // Report, via standard logging, the current state any metrics defined in
+    // the Config.REPORT_METRICS (or passed on the command line with --metric)
     virtual void reportCfgMetrics() = 0;
 
+    // Factory: create a new Application object bound to `clock`, with a local
+    // copy made of `cfg`.
     static pointer create(VirtualClock& clock, Config const& cfg);
 
   protected:
