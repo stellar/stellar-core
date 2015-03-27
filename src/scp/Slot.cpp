@@ -800,180 +800,18 @@ Slot::advanceSlot()
         advanceSlot();
     }
 }
-        mRunAdvanceSlot = true;
-        return;
-    }
-    mInAdvanceSlot = true;
-
-    try
-    {
-        CLOG(DEBUG, "SCP") << "Slot::advanceSlot"
-                           << "@"
-                           << binToHex(mSCP->getLocalNodeID()).substr(0, 6)
-                           << " i: " << mSlotIndex
-                           << " b: " << ballotToStr(mBallot);
-
-        // If we're pristine, we haven't set `mBallot` yet so we just skip
-        // to the search for conditions to bump our ballot
-        if (!mIsPristine)
-        {
-            if (!mIsCommitted)
-            {
-                attemptPrepare();
-
-                if (isPrepared(mBallot))
-                {
-                    attemptPrepared(mBallot);
-                }
-
-                // If our current ballot is prepared confirmed we can move onto
-                // the commit phase
-                if (isPreparedConfirmed(mBallot))
-                {
-                    attemptCommit();
-
-                    if (isCommitted(mBallot))
-                    {
-                        attemptCommitted();
-                    }
-                }
-            }
-            else
-            {
-                // If our current ballot is committed and we can confirm the
-                // value then we externalize
-                if (isCommittedConfirmed(mBallot.value))
-                {
-                    attemptExternalize();
-                }
-            }
-        }
-
-        // We loop on all known ballots to check if there are conditions that
-        // should make us bump our current ballot
-        for (auto it : mStatements)
-        {
-            // None of this apply if we committed or externalized
-            if (mIsCommitted || mIsExternalized)
-            {
-                break;
-            }
-
-            SCPBallot b = it.first;
-
-            CLOG(DEBUG, "SCP")
-                << "Slot::advanceSlot::tryBumping"
-                << "@" << binToHex(mSCP->getLocalNodeID()).substr(0, 6)
-                << " i: " << mSlotIndex << " b: " << ballotToStr(mBallot);
-
-            // If we could externalize by moving on to a given value we bump
-            // our ballot to the appropriate one
-            if (isCommittedConfirmed(b.value))
-            {
-                assert(!mIsCommitted || mBallot.value == b.value);
-
-                // We look for the smallest ballot that is bigger than all the
-                // COMMITTED message we saw for the value and our own current
-                // ballot.
-                SCPBallot bext = SCPBallot(mBallot.counter, b.value);
-                if (compareBallots(bext, mBallot) < 0)
-                {
-                    bext.counter += 1;
-                }
-                for (auto sit : mStatements)
-                {
-                    // We consider only the ballots that have a compatible
-                    // value
-                    if (sit.first.value == bext.value)
-                    {
-                        // If we have a COMMITTED statement for this ballot and
-                        // it is bigger than bext, we bump bext to it.
-                        if (!sit.second[SCPStatementType::COMMITTED].empty())
-                        {
-                            if (compareBallots(bext, sit.first) < 0)
-                            {
-                                bext = sit.first;
-                            }
-                        }
-                    }
-                }
-
-                bumpToBallot(bext);
-                attemptCommitted();
-            }
-
-            if (isPrepared(b))
-            {
-                // If a higher ballot has prepared, we can bump to it as our
-                // current ballot has become irrelevant (aborted)
-                if (compareBallots(b, mBallot) > 0)
-                {
-                    bumpToBallot(b);
-                    mRunAdvanceSlot = true;
-                }
-                // If it's a smaller ballot we must emit a PREPARED for it.
-                // We can't and we won't COMMIT b as `mBallot` only moves
-                // monotonically.
-                else
-                {
-                    attemptPrepared(b);
-                }
-            }
-        }
-
-        // Check if we can call `ballotDidHearFromQuorum`
-        if (!mHeardFromQuorum)
-        {
-            std::map<uint256, SCPStatement> allStatements;
-            for (auto tp : mStatements[mBallot])
-            {
-                for (auto np : tp.second)
-                {
-                    allStatements[np.first] = np.second;
-                }
-            }
-            if (mSCP->getLocalNode()->isQuorumTransitive<SCPStatement>(
-                    mSCP->getLocalNode()->getQuorumSetHash(), allStatements,
-                    [](const SCPStatement& s)
-                    {
-                        return s.quorumSetHash;
-                    }))
-            {
-                mHeardFromQuorum = true;
-                mSCP->ballotDidHearFromQuorum(mSlotIndex, mBallot);
-            }
-        }
-    }
-    catch (Node::QuorumSetNotFound e)
-    {
-        auto cb = [this, e](const SCPQuorumSet& qSet)
-        {
-            uint256 qSetHash = sha256(xdr::xdr_to_opaque(qSet));
-            if (e.qSetHash() == qSetHash)
-            {
-                mSCP->getNode(e.nodeID())->cacheQuorumSet(qSet);
-                advanceSlot();
-            }
-        };
-        mSCP->retrieveQuorumSet(e.nodeID(), e.qSetHash(), cb);
-    }
-
-    mInAdvanceSlot = false;
-    if (mRunAdvanceSlot)
-    {
-        mRunAdvanceSlot = false;
-        advanceSlot();
-    }
-}
+       
 
 size_t
 Slot::getStatementCount() const
 {
     return mStatements.size();
+}
 
-void Slot::dumpInfo(Json::Value& ret)
+void 
+Slot::dumpInfo(Json::Value& ret)
 {
-    ret["slot"][(int)mSlotIndex]["index"] = mSlotIndex;
+    ret["slot"][(int)mSlotIndex]["index"] = (int) mSlotIndex;
     ret["slot"][(int)mSlotIndex]["pristine"] = mIsPristine;
     ret["slot"][(int)mSlotIndex]["heard"] = mHeardFromQuorum;
     ret["slot"][(int)mSlotIndex]["committed"] = mIsCommitted;
