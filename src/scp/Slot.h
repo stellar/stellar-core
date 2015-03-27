@@ -5,6 +5,7 @@
 // this distribution or at http://opensource.org/licenses/ISC
 
 #include "scp/SCP.h"
+#include "lib/json/json-forwards.h"
 
 namespace stellar
 {
@@ -24,7 +25,7 @@ class Slot
     Slot(const uint64& slotIndex, SCP* SCP);
 
     // Process a newly received envelope for this slot and update the state of
-    // the slot accordingly. `cb` asynchronously returns wether the envelope
+    // the slot accordingly. `cb` asynchronously returns whether the envelope
     // was validated or not. Must exclusively receive envelopes whose payload
     // type is STATEMENT
     void processEnvelope(const SCPEnvelope& envelope,
@@ -38,6 +39,8 @@ class Slot
 
     size_t getStatementCount() const;
 
+    void dumpInfo(Json::Value& ret);
+
   private:
     // bumps to the specified ballot
     void bumpToBallot(const SCPBallot& ballot);
@@ -48,7 +51,7 @@ class Slot
 
     // `attempt*` methods progress the slot to the specified state if it was
     // not already reached previously. They are in charge of emitting events
-    // and envelopes. They are indempotent. `attemptPrepared` takes an extra
+    // and envelopes. They are idempotent. `attemptPrepared` takes an extra
     // ballot argument as we can emit PREPARED messages for ballots different
     // than our current `mBallot`.
     void attemptPrepare();
@@ -76,13 +79,13 @@ class Slot
 
     // `advanceSlot` can be called as many time as needed. It attempts to
     // advance the slot to a next state if possible given the current
-    // knownledge of this node.
+    // knowledge of this node.
     void advanceSlot();
 
     const uint64 mSlotIndex;
     SCP* mSCP;
 
-    // mBallot is the current ballot (monotically increasing).
+    // mBallot is the current ballot (monotonically increasing).
     SCPBallot mBallot;
     // mIsPristine is true while we never bump our ballot (mBallot invalid)
     bool mIsPristine;

@@ -104,6 +104,8 @@ class HerderImpl : public Herder, public SCP
 
     void triggerNextLedger() override;
 
+    void dumpInfo(Json::Value& ret) override;
+
   private:
     void removeReceivedTx(TransactionFramePtr tx);
     void expireBallot(const uint64& slotIndex, const SCPBallot& ballot);

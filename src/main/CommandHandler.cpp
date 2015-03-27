@@ -48,6 +48,7 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
     mServer->addRoute("stop", std::bind(&CommandHandler::stop, this, _1, _2));
     mServer->addRoute("peers", std::bind(&CommandHandler::peers, this, _1, _2));
     mServer->addRoute("info", std::bind(&CommandHandler::info, this, _1, _2));
+    mServer->addRoute("scp", std::bind(&CommandHandler::scpInfo, this, _1, _2));
     mServer->addRoute("metrics",
                       std::bind(&CommandHandler::metrics, this, _1, _2));
     mServer->addRoute("logrotate",
@@ -77,6 +78,7 @@ CommandHandler::fileNotFound(const std::string& params, std::string& retStr)
     retStr += "<li><a href='/peers'>/peers</a> see list of peers we are "
               "connected to.</li>";
     retStr += "<li><a href='/info'>/info</a></li>";
+    retStr += "<li><a href='/scp'>/scp</a></li>";
     retStr += "<li><a href='/metrics'>/metrics</a></li>";
     retStr += "<li><a href='/manualClose'>/manualClose</a>  if in manual mode "
               "will force the ledger to close.</li>";
@@ -177,13 +179,24 @@ CommandHandler::connect(const std::string& params, std::string& retStr)
     {
         std::stringstream str;
         str << m[1] << ":" << m[2];
-        retStr = "Connect to";
+        retStr = "Connect to: ";
+        retStr += str.str();
         mApp.getOverlayManager().connectTo(str.str());
     }
     else
     {
         retStr = "Must specify a peer and port: connect&peer=PEER&port=PORT";
     }
+}
+
+void 
+CommandHandler::scpInfo(const std::string& params, std::string& retStr)
+{
+    Json::Value root;
+
+    mApp.getHerder().dumpInfo(root);
+
+    retStr = root.toStyledString();
 }
 
 // "Must specify a log level: ll?level=<level>&partition=<name>";

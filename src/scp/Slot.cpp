@@ -12,6 +12,7 @@
 #include "util/Logging.h"
 #include "scp/Node.h"
 #include "scp/LocalNode.h"
+#include "lib/json/json.h"
 
 namespace stellar
 {
@@ -93,6 +94,10 @@ Slot::processEnvelope(const SCPEnvelope& envelope,
         // If the value is not valid, we just ignore it.
         if (!valid)
         {
+            CLOG(TRACE, "SCP") << "invalid value"
+                << "@" << binToHex(mSCP->getLocalNodeID()).substr(0, 6)
+                << " i: " << mSlotIndex;
+
             return cb(SCP::EnvelopeState::INVALID);
         }
 
@@ -172,6 +177,9 @@ Slot::processEnvelope(const SCPEnvelope& envelope,
             if (getNodeStatements(nodeID, SCPStatementType::COMMITTED).size() >
                 0)
             {
+                CLOG(TRACE, "SCP") << "Node Already Committed"
+                    << "@" << binToHex(mSCP->getLocalNodeID()).substr(0, 6)
+                    << " i: " << mSlotIndex; 
                 return cb(SCP::EnvelopeState::INVALID);
             }
 
@@ -621,6 +629,12 @@ Slot::advanceSlot()
     // set and `advanceSlot` will be called again after it is done executing.
     if (mInAdvanceSlot)
     {
+        CLOG(DEBUG, "SCP") << "already in advanceSlot"
+            << "@"
+            << binToHex(mSCP->getLocalNodeID()).substr(0, 6)
+            << " i: " << mSlotIndex
+            << " b: " << ballotToStr(mBallot);
+
         mRunAdvanceSlot = true;
         return;
     }
@@ -786,11 +800,44 @@ Slot::advanceSlot()
         advanceSlot();
     }
 }
+       
 
 size_t
 Slot::getStatementCount() const
 {
     return mStatements.size();
+}
+
+void 
+Slot::dumpInfo(Json::Value& ret)
+{
+    ret["slot"][(int)mSlotIndex]["index"] = (int) mSlotIndex;
+    ret["slot"][(int)mSlotIndex]["pristine"] = mIsPristine;
+    ret["slot"][(int)mSlotIndex]["heard"] = mHeardFromQuorum;
+    ret["slot"][(int)mSlotIndex]["committed"] = mIsCommitted;
+    ret["slot"][(int)mSlotIndex]["pristine"] = mIsExternalized;
+    ret["slot"][(int)mSlotIndex]["ballot"] = ballotToStr(mBallot);
+
+    std::string stateStrTable[] = { "PREPARE", "PREPARED", "COMMIT",
+        "COMMITTED"};
+
+    for(auto& item : mStatements)
+    {
+        for(auto& mapItem : item.second)
+        {
+            int count = 0;
+            for(auto& stateItem : mapItem.second)
+            {
+                // ballot, node, qset, state
+                std::ostringstream output;
+                output << "b:" << ballotToStr(item.first) << " n:" << 
+                    binToHex(stateItem.first).substr(0, 6) << " q:" << 
+                    binToHex(stateItem.second.quorumSetHash).substr(0, 6) << 
+                    " ," << stateStrTable[(int)stateItem.second.pledges.type()];
+                ret["slot"][(int)mSlotIndex]["statements"][count++] = output.str();
+            }
+        }
+    }
 }
 
 }
