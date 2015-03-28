@@ -6,5 +6,5 @@ broadcast messages, anycast request/reply message pairs, and peer-to-peer contro
 messages to and from those peers.
 
 Within the local process, the overlay subsystem primarily delivers messages to,
-and accepts them from, the [Herder](src/herder), as well as propagating through
+and accepts them from, the [Herder](../herder), as well as propagating through
 the network any transactions injected from public API servers.

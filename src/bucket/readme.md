@@ -1,7 +1,8 @@
 # Buckets and the BucketList
 
 Ledgers contain a (large) logical set of ledger entries, and store this set in a
-local SQL database in order to query the set and apply transactions to it.
+local SQL [database](../database) in order to query the set and apply
+transactions to it.
 
 However, for for two operations the "large logical set" of entries is inconvenient
 and/or intractable in its SQL storge form:
@@ -20,10 +21,10 @@ Buckets in the previous level, and Buckets store entries based on their age:
 more-recently-modified entries reside in smaller, lower-level buckets.
 
 The cumulative hash of the bucket levels creates a single "BucketList hash",
-which is stored in the [ledger header](src/xdr/Stellar-ledger.x) in order to
+which is stored in the [ledger header](../xdr/Stellar-ledger.x) in order to
 unambiguously denote the set of entries that exist at each ledger-close.
 
 The individual buckets that compose each level are checkpointed to history
-storage by the [history module](src/history), and a subset of them -- the
+storage by the [history module](../history), and a subset of them -- the
 difference from the current bucket list -- is retrieved from history and applied
 in order to perform "fast" catchup.
