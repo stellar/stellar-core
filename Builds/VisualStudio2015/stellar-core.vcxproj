@@ -377,7 +377,6 @@
     <None Include="..\..\docs\design.md" />
     <None Include="..\..\docs\stellar_core_example.cfg" />
     <None Include="..\..\docs\overview.md" />
-    <None Include="..\..\docs\questions.md" />
     <None Include="..\..\docs\stellar_overview.md" />
     <None Include="..\..\docs\testnet.md" />
     <None Include="..\..\INSTALL" />
@@ -399,6 +398,11 @@ $(SolutionDir)$(Platform)\$(Configuration)\xdrc.exe -hh -o ../../src/generated/S
       <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">../../src/overlay/StellarXDR.x;../../src/generated/Stellar-types.h;../../src/generated/Stellar-ledger-entries.h;../../src/generated/Stellar-transaction.h;../../src/generated/Stellar-ledger.h;../../src/generated/Stellar-overlay.h</AdditionalInputs>
     </CustomBuild>
     <None Include="..\..\README.md" />
+    <None Include="..\..\src\bucket\readme.md" />
+    <None Include="..\..\src\crypto\readme.md" />
+    <None Include="..\..\src\database\readme.md" />
+    <None Include="..\..\src\herder\readme.md" />
+    <None Include="..\..\src\history\readme.md" />
     <None Include="..\..\src\ledger\readme.md" />
     <None Include="..\..\src\lib\xdrpp\tests\xdrtest.x" />
     <CustomBuild Include="..\..\src\xdr\Stellar-ledger.x">
@@ -465,6 +469,8 @@ $(SolutionDir)$(Platform)\$(Configuration)\xdrc.exe -hh -o ../../src/generated/S
       <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">running xdrc</Message>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">../../src/generated/SCPXDR.h</Outputs>
     </CustomBuild>
+    <None Include="..\..\src\overlay\readme.md" />
+    <None Include="..\..\src\scp\readme.md" />
     <None Include="..\..\src\transactions\readme.md" />
     <None Include="libmedida\libmedida.vcxproj" />
   </ItemGroup>
