@@ -8,17 +8,18 @@
 #include "overlay/Peer.h"
 #include <map>
 
-/*
-Keeps track of what peers have sent us which flood messages so we know who to
-send to when we broadcast the messages in return
-
-Transactions  (fullHash)
-Prepare		(hash of envelope)
-Aborted
-Commit
-Committed
-
-*/
+/**
+ * FloodGate keeps track of which peers have sent us which broadcast messages,
+ * in order to ensure that for each broadcast message M and for each peer P, we
+ * either send M to P once (and only once), or receive M _from_ P (thereby
+ * inhibit sending M to P at all).
+ *
+ * The broadcast message types are TRANSACTION and SCP_MESSAGE.
+ *
+ * All messages are marked with the ledger sequence number to which they
+ * relate, and all flood-management information for a given ledger number
+ * is purged from the FloodGate when the ledger closes.
+ */
 
 namespace medida
 {
