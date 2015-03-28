@@ -4,7 +4,7 @@ Ledgers contain a (large) logical set of ledger entries, and store this set in a
 local SQL [database](../database) in order to query the set and apply
 transactions to it.
 
-However, for for two operations the "large logical set" of entries is inconvenient
+However, for two operations the "large logical set" of entries is inconvenient
 and/or intractable in its SQL storge form:
 
   - Efficiently calculating a cryptographic hash of the entire set, after each

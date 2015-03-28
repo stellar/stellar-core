@@ -10,7 +10,8 @@ See the TransactionFrame class for the implementation.
 
 *********************
 ##Fees
-The network charges a fee for each transaction - right now the fee is just proportional to the number of operations inside it. See TransactionFrame::getFee for the actual implementation.
+The network charges a fee for each transaction - right now the fee is just 
+proportional to the number of operations inside it. See TransactionFrame::getFee for the actual implementation.
 
 The base fee (multiplier) is decided during consensus; the vote for each instance is defined in their configuration file.
 
@@ -22,7 +23,10 @@ Transactions follow a strict ordering rule when it comes to processing of transa
 * The account entry is updated with the next sequence number of the transaction when the transaction is applied.
 
 
-Note that if several transactions are submitted as part of the same ledger, the rule is the same than if they were applied one after the other, which translates to their sequence numbers being continuous: if 3 transactions are submitted and the account is at sequence number 5, the transactions must have sequence numbers 5, 6 and 7.
+Note that if several transactions are submitted as part of the same ledger, the 
+rule is the same than if they were applied one after the other, which translates 
+to their sequence numbers being continuous: if 3 transactions are submitted and 
+the account is at sequence number 5, the transactions must have sequence numbers 5, 6 and 7.
 
 ##Validity of a transaction
 
