@@ -729,7 +729,7 @@ HerderImpl::fetchSCPQuorumSet(uint256 const& qSetHash, bool askNetwork)
 void
 HerderImpl::recvSCPQuorumSet(SCPQuorumSetPtr qSet)
 {
-    CLOG(DEBUG, "Herder") << "HerderImpl::recvSCPQuorumSet"
+    CLOG(TRACE, "Herder") << "HerderImpl::recvSCPQuorumSet"
                           << "@" << binToHex(getLocalNodeID()).substr(0, 6)
                           << " qSet: "
                           << binToHex(sha256(xdr::xdr_to_opaque(*qSet)))
