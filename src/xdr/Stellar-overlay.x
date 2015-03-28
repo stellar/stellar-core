@@ -90,11 +90,6 @@ case GET_TX_SET:
 case TX_SET:
     TransactionSet txSet;
 
-case GET_VALIDATIONS:
-    uint256 ledgerHash;
-case VALIDATIONS:
-    SCPEnvelope validations<>;
-
 case TRANSACTION:
     TransactionEnvelope transaction;
 

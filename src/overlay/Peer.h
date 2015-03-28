@@ -67,8 +67,6 @@ class Peer : public std::enable_shared_from_this<Peer>
     void recvDelta(StellarMessage const& msg);
     void recvGetTxSet(StellarMessage const& msg);
     void recvTxSet(StellarMessage const& msg);
-    void recvGetValidations(StellarMessage const& msg);
-    void recvValidations(StellarMessage const& msg);
     void recvTransaction(StellarMessage const& msg);
     void recvGetSCPQuorumSet(StellarMessage const& msg);
     void recvSCPQuorumSet(StellarMessage const& msg);
