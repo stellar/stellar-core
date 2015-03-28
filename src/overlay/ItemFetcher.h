@@ -23,6 +23,11 @@ Anywhere else? If someone asked you you can late reply to them
 
 */
 
+namespace medida
+{
+class Counter;
+}
+
 namespace stellar
 {
 class TrackingCollar
@@ -67,10 +72,14 @@ class ItemFetcher
     Application& mApp;
     std::map<uint256, TrackingCollar::pointer> mItemMap;
 
+    // NB: There are many ItemFetchers in the system at once, but we are sharing
+    // a single counter for all the items being fetched by all of them. Be
+    // careful, therefore, to only increment and decrement this counter, not set
+    // it absolutely.
+    medida::Counter& mItemMapSize;
+
   public:
-    ItemFetcher(Application& app) : mApp(app)
-    {
-    }
+    ItemFetcher(Application& app);
     void clear();
     void stopFetching(uint256 const& itemID);
     void stopFetchingAll();

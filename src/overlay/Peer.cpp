@@ -223,18 +223,6 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
     }
     break;
 
-    case GET_VALIDATIONS:
-    {
-        recvGetValidations(stellarMsg);
-    }
-    break;
-
-    case VALIDATIONS:
-    {
-        recvValidations(stellarMsg);
-    }
-    break;
-
     case TRANSACTION:
     {
         recvTransaction(stellarMsg);
@@ -279,7 +267,6 @@ Peer::recvDontHave(StellarMessage const& msg)
         mApp.getHerder().doesntHaveSCPQuorumSet(msg.dontHave().reqHash,
                                                        shared_from_this());
         break;
-    case VALIDATIONS:
     default:
         break;
     }
@@ -421,16 +408,5 @@ Peer::recvPeers(StellarMessage const& msg)
 
         pr.storePeerRecord(mApp.getDatabase());
     }
-}
-
-void
-Peer::recvGetValidations(StellarMessage const& msg)
-{
-    // TODO.4
-}
-void
-Peer::recvValidations(StellarMessage const& msg)
-{
-    // TODO.4
 }
 }

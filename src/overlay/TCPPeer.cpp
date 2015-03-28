@@ -137,6 +137,11 @@ TCPPeer::writeHandler(const asio::error_code& error,
                    << mRemoteListeningPort;
         drop();
     }
+    else
+    {
+        mMessageWrite.Mark();
+        mByteWrite.Mark(bytes_transferred);
+    }
 }
 
 void
@@ -194,6 +199,7 @@ TCPPeer::readHeaderHandler(const asio::error_code& error,
 
     if (!error)
     {
+        mByteRead.Mark(bytes_transferred);
         mIncomingBody.resize(getIncomingMsgLength());
         auto self = shared_from_this();
         asio::async_read(*mSocket.get(), asio::buffer(mIncomingBody),
@@ -220,6 +226,7 @@ TCPPeer::readBodyHandler(const asio::error_code& error,
 
     if (!error)
     {
+        mByteRead.Mark(bytes_transferred);
         recvMessage();
         startRead();
     }
@@ -235,6 +242,7 @@ TCPPeer::recvMessage()
 {
     xdr::xdr_get g(mIncomingBody.data(),
                    mIncomingBody.data() + mIncomingBody.size());
+    mMessageRead.Mark();
     StellarMessage sm;
     xdr::xdr_argpack_archive(g, sm);
     Peer::recvMessage(sm);

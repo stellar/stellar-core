@@ -2,12 +2,15 @@
 // under the ISC License. See the COPYING file at the top-level directory of
 // this distribution or at http://opensource.org/licenses/ISC
 
-#include "Floodgate.h"
-#include "overlay/OverlayManager.h"
-#include "xdrpp/marshal.h"
 #include "crypto/SHA.h"
 #include "ledger/LedgerManager.h"
 #include "main/Application.h"
+#include "overlay/Floodgate.h"
+#include "overlay/OverlayManager.h"
+
+#include "medida/counter.h"
+#include "medida/metrics_registry.h"
+#include "xdrpp/marshal.h"
 
 namespace stellar
 {
@@ -20,7 +23,9 @@ FloodRecord::FloodRecord(StellarMessage const& msg, uint32_t ledger,
         mPeersTold.push_back(peer);
 }
 
-Floodgate::Floodgate(Application& app) : mApp(app)
+Floodgate::Floodgate(Application& app)
+    : mApp(app)
+    , mFloodMapSize(app.getMetrics().NewCounter({"overlay", "memory", "flood-map"}))
 {
 }
 
@@ -40,6 +45,7 @@ Floodgate::clearBelow(uint32_t currentLedger)
             ++it;
         }
     }
+    mFloodMapSize.set_count(mFloodMap.size());
 }
 
 bool
@@ -51,6 +57,7 @@ Floodgate::addRecord(StellarMessage const& msg, Peer::pointer peer)
     { // we have never seen this message
         mFloodMap[index] = std::make_shared<FloodRecord>(
             msg, mApp.getLedgerManager().getLedgerNum(), peer);
+        mFloodMapSize.set_count(mFloodMap.size());
         return true;
     }
     else
@@ -73,6 +80,7 @@ Floodgate::broadcast(StellarMessage const& msg, bool force)
         record->mPeersTold = mApp.getOverlayManager().getPeers();
 
         mFloodMap[index] = record;
+        mFloodMapSize.set_count(mFloodMap.size());
         for (auto peer : mApp.getOverlayManager().getPeers())
         {
             if (peer->getState() == Peer::GOT_HELLO)

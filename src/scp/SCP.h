@@ -202,6 +202,8 @@ class SCP
     {
     }
 
+    // Helpers for monitoring and reporting the internal memory-usage of the SCP
+    // protocol to system metric reporters.
     size_t getKnownNodesCount() const;
     size_t getKnownSlotsCount() const;
     size_t getCumulativeStatemtCount() const;
@@ -218,8 +220,6 @@ class SCP
     // Envelope signature/verification
     void signEnvelope(SCPEnvelope& envelope);
     bool verifyEnvelope(const SCPEnvelope& envelope);
-
-    
 
     friend class Slot;
     friend class Node;

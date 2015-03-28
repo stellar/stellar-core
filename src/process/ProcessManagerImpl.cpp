@@ -19,9 +19,12 @@
 #include "medida/counter.h"
 #include "medida/metrics_registry.h"
 
-#include <string>
+#include <algorithm>
 #include <functional>
+#include <iterator>
 #include <mutex>
+#include <regex>
+#include <string>
 
 namespace stellar
 {
@@ -258,16 +261,10 @@ static std::vector<std::string>
 split(const std::string& s)
 {
     std::vector<std::string> parts;
-    auto delim = " ";
-    auto a = s.find_first_not_of(delim, 0);
-    auto b = s.find_first_of(delim, a);
-    while (b != std::string::npos || a != std::string::npos)
-    {
-        auto len = b == std::string::npos ? std::string::npos : b - a;
-        parts.push_back(s.substr(a, len));
-        a = s.find_first_not_of(delim, b);
-        b = s.find_first_of(delim, a);
-    }
+    std::regex ws_re("\\s+");
+    std::copy(std::sregex_token_iterator(s.begin(), s.end(), ws_re, -1),
+              std::sregex_token_iterator(),
+              std::back_inserter(parts));
     return parts;
 }
 

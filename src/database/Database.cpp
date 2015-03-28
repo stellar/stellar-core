@@ -2,22 +2,24 @@
 // under the ISC License. See the COPYING file at the top-level directory of
 // this distribution or at http://opensource.org/licenses/ISC
 
+#include "bucket/BucketManager.h"
+#include "crypto/Base58.h"
+#include "crypto/Hex.h"
 #include "database/Database.h"
 #include "generated/StellarXDR.h"
-#include "overlay/OverlayManager.h"
+#include "ledger/LedgerHeaderFrame.h"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "main/PersistentState.h"
-#include "crypto/Hex.h"
-#include "crypto/Base58.h"
-#include "util/Logging.h"
-#include "ledger/LedgerHeaderFrame.h"
+#include "overlay/OverlayManager.h"
 #include "transactions/TransactionFrame.h"
-#include "util/types.h"
+#include "util/Logging.h"
 #include "util/make_unique.h"
+#include "util/types.h"
+
 #include "medida/metrics_registry.h"
 #include "medida/timer.h"
-#include "bucket/BucketManager.h"
+#include "medida/counter.h"
 
 #include <stdexcept>
 #include <vector>
@@ -61,7 +63,9 @@ Database::registerDrivers()
     }
 }
 
-Database::Database(Application& app) : mApp(app)
+Database::Database(Application& app)
+    : mApp(app)
+    , mStatementsSize(app.getMetrics().NewCounter({"database", "memory", "statements"}))
 {
     registerDrivers();
     CLOG(INFO, "Database") << "Connecting to: " << app.getConfig().DATABASE;
@@ -211,6 +215,7 @@ Database::getPreparedStatement(std::string const& query)
         p->alloc();
         p->prepare(query);
         mStatements.insert(std::make_pair(query, p));
+        mStatementsSize.set_count(mStatements.size());
     }
     else
     {

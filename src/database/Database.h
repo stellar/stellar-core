@@ -17,6 +17,7 @@ namespace medida
 {
 class Meter;
 class Timer;
+class Counter;
 }
 
 namespace stellar
@@ -87,6 +88,7 @@ class Database : NonMovableOrCopyable
     std::unique_ptr<soci::connection_pool> mPool;
 
     std::map<std::string, std::shared_ptr<soci::statement>> mStatements;
+    medida::Counter& mStatementsSize;
 
     static bool gDriversRegistered;
     static void registerDrivers();
