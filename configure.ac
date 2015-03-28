@@ -29,6 +29,7 @@ test -z "$WFLAGS" || CFLAGS="$CFLAGS $WFLAGS" CXXFLAGS="$CXXFLAGS $WFLAGS"
 
 AC_LANG(C++)
 AX_CXX_COMPILE_STDCXX_11(noext,mandatory)
+AX_FRESH_COMPILER
 
 # Our large include path set makes for annoying warnings without this
 AX_APPEND_COMPILE_FLAGS([-Wno-unused-command-line-argument])
