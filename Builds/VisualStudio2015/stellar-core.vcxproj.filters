@@ -82,9 +82,6 @@
     <Filter Include="scp">
       <UniqueIdentifier>{0cf920e3-5232-4c4e-8b79-25ec2c8f86ce}</UniqueIdentifier>
     </Filter>
-    <Filter Include="ledger\docs">
-      <UniqueIdentifier>{5fe20e36-ace5-4a05-adcc-4d352ad20f87}</UniqueIdentifier>
-    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\src\ledger\LedgerManagerImpl.cpp">
@@ -676,9 +673,6 @@
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <None Include="..\..\docs\transactions.md">
-      <Filter>docs</Filter>
-    </None>
     <None Include="..\..\AUTHORS" />
     <None Include="..\..\ChangeLog" />
     <None Include="..\..\COPYING" />
@@ -686,17 +680,11 @@
     <None Include="..\..\docs\stellar_core_example.cfg">
       <Filter>docs</Filter>
     </None>
-    <None Include="..\..\docs\questions.md">
-      <Filter>docs</Filter>
-    </None>
     <None Include="..\..\docs\design.md">
       <Filter>docs</Filter>
     </None>
     <None Include="..\..\src\lib\xdrpp\tests\xdrtest.x">
       <Filter>lib\xdrpp</Filter>
-    </None>
-    <None Include="..\..\docs\multisig.md">
-      <Filter>docs</Filter>
     </None>
     <None Include="libmedida\libmedida.vcxproj" />
     <None Include="..\..\INSTALL" />
@@ -712,14 +700,38 @@
     </None>
     <None Include="..\..\autogen.sh" />
     <None Include="..\..\Makefile.am" />
-    <None Include="..\..\src\ledger\readme.md">
-      <Filter>ledger\docs</Filter>
-    </None>
     <None Include="..\..\docs\admin.md">
       <Filter>docs</Filter>
     </None>
     <None Include="..\..\docs\architecture.md">
       <Filter>docs</Filter>
+    </None>
+    <None Include="..\..\src\herder\readme.md">
+      <Filter>herder</Filter>
+    </None>
+    <None Include="..\..\src\bucket\readme.md">
+      <Filter>bucket</Filter>
+    </None>
+    <None Include="..\..\src\crypto\readme.md">
+      <Filter>crypto</Filter>
+    </None>
+    <None Include="..\..\src\database\readme.md">
+      <Filter>database</Filter>
+    </None>
+    <None Include="..\..\src\history\readme.md">
+      <Filter>history</Filter>
+    </None>
+    <None Include="..\..\src\ledger\readme.md">
+      <Filter>ledger</Filter>
+    </None>
+    <None Include="..\..\src\transactions\readme.md">
+      <Filter>transactions</Filter>
+    </None>
+    <None Include="..\..\src\overlay\readme.md">
+      <Filter>overlay</Filter>
+    </None>
+    <None Include="..\..\src\scp\readme.md">
+      <Filter>scp</Filter>
     </None>
   </ItemGroup>
   <ItemGroup>

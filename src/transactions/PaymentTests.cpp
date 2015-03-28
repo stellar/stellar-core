@@ -138,12 +138,11 @@ TEST_CASE("payment", "[tx][payment]")
                 createPaymentTx(root, a1, rootSeq++, morePayment);
             getFirstOperation(*txFrame2).body.paymentOp().path.push_back(
                 currency);
-            LedgerDelta delta2(
-                app.getLedgerManager().getCurrentLedgerHeader());
+            LedgerDelta delta2(app.getLedgerManager().getCurrentLedgerHeader());
             txFrame2->apply(delta2, app);
 
             REQUIRE(PaymentOpFrame::getInnerCode(getFirstResult(*txFrame2)) ==
-                    PAYMENT_OVERSENDMAX);
+                    PAYMENT_OVER_SENDMAX);
             AccountFrame account;
             REQUIRE(AccountFrame::loadAccount(a1.getPublicKey(), account,
                                               app.getDatabase()));

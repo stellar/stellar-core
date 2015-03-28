@@ -199,7 +199,7 @@ TransactionFrame::checkValid(Application& app, bool applying,
 
     if (mOperations.size() == 0)
     {
-        getResult().result.code(txMALFORMED);
+        getResult().result.code(txMISSING_OPERATION);
         return false;
     }
 
@@ -264,6 +264,10 @@ TransactionFrame::checkValid(Application& app, bool applying,
         {
             if (!op->checkValid(app))
             {
+                // it's OK to just fast fail here and not try to call
+                // checkValid on all operations as the resulting object
+                // is only used by applications
+                markResultFailed();
                 return false;
             }
         }
@@ -301,7 +305,7 @@ TransactionFrame::setSourceAccountPtr(AccountFrame::pointer signingAccount)
 {
     if (!signingAccount)
     {
-        if (mEnvelope.tx.account != signingAccount->getID())
+        if (mEnvelope.tx.sourceAccount != signingAccount->getID())
         {
             throw std::invalid_argument("wrong account");
         }
@@ -323,7 +327,7 @@ TransactionFrame::checkAllSignaturesUsed()
     {
         if (!sigb)
         {
-            getResult().result.code(txBAD_AUTH);
+            getResult().result.code(txBAD_AUTH_EXTRA);
             return false;
         }
     }
@@ -335,6 +339,19 @@ TransactionFrame::checkValid(Application& app, SequenceNumber current)
 {
     resetState();
     return checkValid(app, false, current);
+}
+
+void
+TransactionFrame::markResultFailed()
+{
+    // changing "code" causes the xdr struct to be deleted/re-created
+    // As we want to preserve the results, we save them inside a temp object
+    // Also, note that because we're using move operators
+    // mOperations are still valid (they have pointers to the individual
+    // results elements)
+    xdr::xvector<OperationResult> t(std::move(getResult().result.results()));
+    getResult().result.code(txFAILED);
+    getResult().result.results() = std::move(t);
 }
 
 bool
@@ -384,15 +401,7 @@ TransactionFrame::apply(LedgerDelta& delta, Application& app)
 
     if (errorEncountered)
     {
-        // changing "code" causes the xdr struct to be deleted/re-created
-        // As we want to preserve the results, we save them inside a temp object
-        // Also, note that because we're using move operators
-        // mOperations are still valid (they have pointers to the individual
-        // results elements)
-        xdr::xvector<OperationResult> t(
-            std::move(getResult().result.results()));
-        getResult().result.code(txFAILED);
-        getResult().result.results() = std::move(t);
+        markResultFailed();
     }
 
     // return true as the transaction executed and collected a fee

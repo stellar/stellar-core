@@ -85,7 +85,7 @@ uint256 const&
 OperationFrame::getSourceID() const
 {
     return mOperation.sourceAccount ? *mOperation.sourceAccount
-                                    : mParentTx.getEnvelope().tx.account;
+                                    : mParentTx.getEnvelope().tx.sourceAccount;
 }
 
 bool

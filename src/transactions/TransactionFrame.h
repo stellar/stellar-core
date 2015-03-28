@@ -51,6 +51,7 @@ class TransactionFrame
 
     void resetState();
     bool checkAllSignaturesUsed();
+    void markResultFailed();
 
   public:
     typedef std::shared_ptr<TransactionFrame> pointer;
@@ -117,7 +118,7 @@ class TransactionFrame
     uint256 const&
     getSourceID() const
     {
-        return mEnvelope.tx.account;
+        return mEnvelope.tx.sourceAccount;
     }
 
     int64_t getFee(Application& app) const;
@@ -138,8 +139,9 @@ class TransactionFrame
                                       uint256 const& accountID);
 
     // transaction history
-    void storeTransaction(LedgerManager& ledgerManager, LedgerDelta const& delta,
-                          int txindex, SHA256& resultHasher) const;
+    void storeTransaction(LedgerManager& ledgerManager,
+                          LedgerDelta const& delta, int txindex,
+                          SHA256& resultHasher) const;
 
     /*
     txOut: stream of TransactionHistoryEntry
