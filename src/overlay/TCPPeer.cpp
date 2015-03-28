@@ -269,6 +269,7 @@ TCPPeer::recvHello(StellarMessage const& msg)
         if (mApp.getOverlayManager().isPeerAccepted(shared_from_this()))
         {
             sendHello();
+            sendPeers();
         }
         else
         { // we can't accept anymore peer connections

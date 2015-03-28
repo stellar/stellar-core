@@ -167,11 +167,6 @@ void
 HerderImpl::validateValue(const uint64& slotIndex, const uint256& nodeID,
                       const Value& value, std::function<void(bool)> const& cb)
 {
-    if (mApp.getState() != Application::SYNCED_STATE)
-    { // if we aren't synced to the network we can't validate
-        return cb(true);
-    }
-
     StellarBallot b;
     try
     {
@@ -181,6 +176,13 @@ HerderImpl::validateValue(const uint64& slotIndex, const uint256& nodeID,
     {
         mValueInvalid.Mark();
         return cb(false);
+    }
+
+    if(mApp.getState() != Application::SYNCED_STATE)
+    { // if we aren't synced to the network we can't validate
+      // but we still need to fetch the tx set
+        fetchTxSet(b.value.txSetHash, true);
+        return cb(true);
     }
 
     // First of all let's verify the internal Stellar Ballot signature is
@@ -599,7 +601,8 @@ HerderImpl::valueExternalized(const uint64& slotIndex, const Value& value)
         // therefore fetch the txSet before being considered by SCP.
         CLOG(ERROR, "Herder") << "HerderImpl::valueExternalized"
                               << "@" << binToHex(getLocalNodeID()).substr(0, 6)
-                              << " Externalized txSet not found";
+                              << " Externalized txSet not found: "
+                              << binToHex(b.value.txSetHash).substr(0, 6);
     }
 }
 
@@ -690,8 +693,9 @@ void
 HerderImpl::recvTxSet(TxSetFramePtr txSet)
 {
     if (mTxSetFetcher[mCurrentTxSetFetcher].recvItem(txSet))
-    {
-        // someone cares about this set
+    { // someone cares about this set
+        
+        // add all txs to next set in case they don't get in this ledger
         for (auto tx : txSet->sortForApply())
         {
             recvTransaction(tx);
@@ -725,7 +729,7 @@ HerderImpl::fetchSCPQuorumSet(uint256 const& qSetHash, bool askNetwork)
 void
 HerderImpl::recvSCPQuorumSet(SCPQuorumSetPtr qSet)
 {
-    CLOG(DEBUG, "Herder") << "HerderImpl::recvSCPQuorumSet"
+    CLOG(TRACE, "Herder") << "HerderImpl::recvSCPQuorumSet"
                           << "@" << binToHex(getLocalNodeID()).substr(0, 6)
                           << " qSet: "
                           << binToHex(sha256(xdr::xdr_to_opaque(*qSet)))
