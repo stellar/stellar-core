@@ -11,7 +11,7 @@
 #include "util/Timer.h"
 
 // Expected time between two ledger close.
-#define EXP_LEDGER_TIMESPAN_SECONDS 2
+#define EXP_LEDGER_TIMESPAN_SECONDS 4
 
 // Maximum timeout for SCP consensus.
 #define MAX_SCP_TIMEOUT_SECONDS 240

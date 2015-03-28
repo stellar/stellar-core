@@ -15,11 +15,12 @@ transactions supported by the network, see `src/transactions/README.md`.
 
 ##Key Concepts
 
-- **Ledger**: A ledger is composed of a set of _ledger entries_, including (1)
-  accounts and their balances, (2) buy and sell offers, (3) and trust lines, as
-  well as a _ledger header_ that records some additional meta data. Ledgers are
-  linked together in a _ledger chain_. Each ledger has a sequence number that
-  tells you where in the chain it falls.
+- **Ledger**: A ledger is the state of the distributed Stellar database at a 
+  particular point in time. It is composed of a set of _ledger entries_, 
+  including (1) accounts and their balances, (2) buy and sell offers, (3) and 
+  trust lines, as well as a _ledger header_ that records some additional meta 
+  data. Ledgers are linked together in a _ledger chain_. Each ledger has a 
+  sequence number that tells you where in the chain it falls.
 
 - **Ledger chain**: This is an ever increasing list of ledgers. Each ledger
   points to the previous one thus forming a chain of history stretching back in
