@@ -188,12 +188,13 @@ struct Transaction
     AccountID sourceAccount;
 
     // maximum fee this transaction can collect
+    // the transaction is aborted if the fee is higher
     int32 maxFee;
 
     // sequence number to consume in the account
     SequenceNumber seqNum;
 
-    // validity range for the ledger sequence number
+    // validity range (inclusive) for the ledger sequence number
     uint32 minLedger;
     uint32 maxLedger;
 
@@ -237,9 +238,8 @@ enum PaymentResultCode
     PAYMENT_NO_TRUST = 4,       // destination missing a trust line for currency
     PAYMENT_NOT_AUTHORIZED = 5, // destination not authorized to hold currency
     PAYMENT_LINE_FULL = 6,      // destination would go above their limit
-    PAYMENT_OVER_SENDMAX = 7,    // multi-path payment could not satisfy sendmax
-    PAYMENT_LOW_RESERVE = 8,    // would create an account below the min reserve
-    PAYMENT_NOT_ENOUGH_OFFERS = 9 // not enough offers to fund payment
+    PAYMENT_OVER_SENDMAX = 7,   // multi-path payment could not satisfy sendmax
+    PAYMENT_LOW_RESERVE = 8     // would create an account below the min reserve
 };
 
 struct SimplePaymentResult
@@ -325,11 +325,9 @@ enum SetOptionsResultCode
     // codes considered as "success" for the operation
     SET_OPTIONS_SUCCESS = 0,
     // codes considered as "failure" for the operation
-    SET_OPTIONS_RATE_FIXED = 1,
-    SET_OPTIONS_RATE_TOO_HIGH = 2,
-    SET_OPTIONS_LOW_RESERVE = 3,      // not enough funds to add a signer
-    SET_OPTIONS_TOO_MANY_SIGNERS = 4, // max number of signers already reached
-    SET_OPTIONS_BAD_FLAGS = 5         // invalid combination of clear/set flags
+    SET_OPTIONS_LOW_RESERVE = 1,      // not enough funds to add a signer
+    SET_OPTIONS_TOO_MANY_SIGNERS = 2, // max number of signers already reached
+    SET_OPTIONS_BAD_FLAGS = 3         // invalid combination of clear/set flags
 };
 
 union SetOptionsResult switch (SetOptionsResultCode code)
@@ -432,7 +430,7 @@ enum OperationResultCode
     opINNER = 0, // inner object result is valid
 
     opBAD_AUTH = 1,  // not enough signatures to perform operation
-    opNO_ACCOUNT = 2 // account was not found
+    opNO_ACCOUNT = 2 // source account was not found
 };
 
 union OperationResult switch (OperationResultCode code)
@@ -462,24 +460,27 @@ default:
 
 enum TransactionResultCode
 {
-    txSUCCESS = 0,
+    txSUCCESS = 0, // all operations succeeded
 
-    txFAILED = 1,
-    txBAD_LEDGER = 2,
-    txDUPLICATE = 3,
-    txMALFORMED = 4,
-    txBAD_SEQ = 5,
+    txDUPLICATE = 1, // transaction was already submited
 
-    txBAD_AUTH = 6, // not enough signatures to perform transaction
-    txINSUFFICIENT_BALANCE = 7,
-    txNO_ACCOUNT = 8,
-    txINSUFFICIENT_FEE = 9, // max fee is too small
-    txINTERNAL_ERROR = 10 // an unknown error occured
+    txFAILED = 2, // one of the operations failed (but none were applied)
+
+    txBAD_LEDGER = 3,        // ledger is not in range [minLeder; maxLedger]
+    txMISSING_OPERATION = 4, // no operation was specified
+    txBAD_SEQ = 5,           // sequence number does not match source account
+
+    txBAD_AUTH = 6,             // not enough signatures to perform transaction
+    txINSUFFICIENT_BALANCE = 7, // fee would bring account below reserve
+    txNO_ACCOUNT = 8,           // source account not found
+    txINSUFFICIENT_FEE = 9,     // max fee is too small
+    txBAD_AUTH_EXTRA = 10,      // too many signatures on transaction
+    txINTERNAL_ERROR = 0xFFFFFFFF // an unknown error occured
 };
 
 struct TransactionResult
 {
-    int64 feeCharged;
+    int64 feeCharged; // actual fee charged for the transaction
 
     union switch (TransactionResultCode code)
     {

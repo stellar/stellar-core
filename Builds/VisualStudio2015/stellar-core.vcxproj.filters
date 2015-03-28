@@ -85,6 +85,12 @@
     <Filter Include="ledger\docs">
       <UniqueIdentifier>{5fe20e36-ace5-4a05-adcc-4d352ad20f87}</UniqueIdentifier>
     </Filter>
+    <Filter Include="transactions\docs">
+      <UniqueIdentifier>{b389d163-a615-4728-9c51-4d44dc3d8bf9}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="bucket\docs">
+      <UniqueIdentifier>{467db889-2467-4ae8-880b-9d1a2c6c9a5b}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\src\ledger\LedgerManagerImpl.cpp">
@@ -676,9 +682,6 @@
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <None Include="..\..\docs\transactions.md">
-      <Filter>docs</Filter>
-    </None>
     <None Include="..\..\AUTHORS" />
     <None Include="..\..\ChangeLog" />
     <None Include="..\..\COPYING" />
@@ -694,9 +697,6 @@
     </None>
     <None Include="..\..\src\lib\xdrpp\tests\xdrtest.x">
       <Filter>lib\xdrpp</Filter>
-    </None>
-    <None Include="..\..\docs\multisig.md">
-      <Filter>docs</Filter>
     </None>
     <None Include="libmedida\libmedida.vcxproj" />
     <None Include="..\..\INSTALL" />
@@ -720,6 +720,9 @@
     </None>
     <None Include="..\..\docs\architecture.md">
       <Filter>docs</Filter>
+    </None>
+    <None Include="..\..\src\transactions\readme.md">
+      <Filter>transactions\docs</Filter>
     </None>
   </ItemGroup>
   <ItemGroup>

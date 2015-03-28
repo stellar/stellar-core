@@ -88,7 +88,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
             txFrame->apply(delta, app);
 
-            REQUIRE(txFrame->getResultCode() == txBAD_AUTH);
+            REQUIRE(txFrame->getResultCode() == txBAD_AUTH_EXTRA);
         }
         SECTION("too many signatures (unused signature)")
         {
@@ -98,7 +98,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
             txFrame->apply(delta, app);
 
-            REQUIRE(txFrame->getResultCode() == txBAD_AUTH);
+            REQUIRE(txFrame->getResultCode() == txBAD_AUTH_EXTRA);
         }
     }
 
@@ -133,8 +133,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
             tx->getEnvelope().signatures.clear();
             tx->addSignature(s1);
 
-            LedgerDelta delta(
-                app.getLedgerManager().getCurrentLedgerHeader());
+            LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader());
 
             tx->apply(delta, app);
             REQUIRE(tx->getResultCode() == txBAD_AUTH);
@@ -150,8 +149,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
             tx->getEnvelope().signatures.clear();
             tx->addSignature(s2);
 
-            LedgerDelta delta(
-                app.getLedgerManager().getCurrentLedgerHeader());
+            LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader());
 
             tx->apply(delta, app);
             REQUIRE(tx->getResultCode() == txFAILED);
@@ -166,8 +164,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
             tx->addSignature(s1);
             tx->addSignature(s2);
 
-            LedgerDelta delta(
-                app.getLedgerManager().getCurrentLedgerHeader());
+            LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader());
 
             tx->apply(delta, app);
             REQUIRE(tx->getResultCode() == txSUCCESS);
@@ -188,13 +185,12 @@ TEST_CASE("txenvelope", "[tx][envelope]")
             te.tx.seqNum = rootSeq++;
             TransactionFrame tx(te);
             tx.addSignature(root);
-            LedgerDelta delta(
-                app.getLedgerManager().getCurrentLedgerHeader());
+            LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader());
 
             REQUIRE(!tx.checkValid(app, 0));
 
             tx.apply(delta, app);
-            REQUIRE(tx.getResultCode() == txMALFORMED);
+            REQUIRE(tx.getResultCode() == txMISSING_OPERATION);
         }
 
         SECTION("non empty")
@@ -251,8 +247,8 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                 {
                     Currency idrCur = makeCurrency(b1, "IDR");
                     Price price(1, 1);
-                    TransactionFramePtr tx_b =
-                        createOfferOp(0, b1, idrCur, idrCur, price, 1000, b1Seq);
+                    TransactionFramePtr tx_b = createOfferOp(
+                        0, b1, idrCur, idrCur, price, 1000, b1Seq);
 
                     // build a new tx based off tx_a and tx_b
                     tx_b->getEnvelope()
@@ -385,8 +381,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
         REQUIRE(app.getLedgerManager().getLedgerNum() == 3);
 
         {
-            LedgerDelta delta(
-                app.getLedgerManager().getCurrentLedgerHeader());
+            LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader());
 
             SECTION("Insufficient fee")
             {
