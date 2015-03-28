@@ -20,12 +20,12 @@ This container has references to the actual data within the ledger as well as
 a reference to the previous ledger.
 References here are cryptographic hashes of the content being referenced, which
 behaves just like pointers in typical data structures but with added
-security garantees.
+security guarantees.
 
 See the protocol file for the object definitions.
 src/xdr/Stellar-ledger.x
 
-One can think of the historical chain as a linked list of LedgerHeader:
+One can think of the historical chain as a linked list of LedgerHeaders:
 
 [Genesis] <---- [LedgerHeader_1] <----- ... <---- [LedgerHeader_n]
 
@@ -33,7 +33,7 @@ One can think of the historical chain as a linked list of LedgerHeader:
 Each LedgerHeader has many references described below.
 
 Some key properties are directly inside the LedgerHeader such as the number of
-coins present at this given time.
+lumens present at this given time.
 
 ##Back references
 The way a ledger header refers to a previous ledger is actually done with
@@ -42,13 +42,13 @@ alternate validation in mind.
 It is there to link the sequence of ledgers as previously described.
 
 ###The hash of the transaction set from SCP
-This direclty links consensus messages to the chain as what consensus signs
+This directly links consensus messages to the chain as what consensus signs
 includes the transaction set.
 
 The transaction set is what was used as input to the transaction engine to
 transition a ledger to the next.
 
-###The hash of the list of result for each transaction
+###The hash of the list of results for each transaction
 This data is not stricly speaking necessary for validating the chain, but
 makes it easier for entities to validate the result of a given transaction
 without having to replay and validate the entire ledger state.
@@ -69,20 +69,20 @@ accounts: transactions are performed by an account.
 Accounts control the access rights to balances.
 
 The other entries are "add-ons" to the main account entry; with every new entry
-attached to the account, the minimum balance in XLM goes up for the
-account (also known as reserve). See LedgerManager::getMinBalance for more detail
+attached to the account, the minimum balance in LUM goes up for the
+account (also known as reserve). See LedgerManager::getMinBalance for more detail.
 
 ###TrustLineEntry
-Trust lines are lines of credit the account has with a specific currency
-from an issuer.
+Trust lines are lines of credit the account has given a particular issuer in a 
+specific currency.
 
 It defines the rules around the use of this currency.
 Rules can be defined by the user (balance limit to limit risk), or by
 the issuer (authorized flag for example).
 
 ###OfferEntry
-Offers are entries in the Offer Book that an account creates.
-Offers are a way to automate simple trading off the Stellar network.
+Offers are entries in the Order Book that an account creates.
+Offers are a way to automate simple trading inside the Stellar network.
 
 #Source code organization
 
@@ -126,7 +126,7 @@ during consensus, the transaction set was sorted by hash to keep things simple,
 but when it comes to actually applying them, they need to be sorted such that
 transactions for a given account are applied in sequence number order and also
 randomized enough so that it becomes unfeasible to submit a transaction and
-garantee that it will be executed before or after another transaction in the set.
+guarantee that it will be executed before or after another transaction in the set.
 
 See TxSetFrame::sortForApply for more detail.
 
@@ -135,18 +135,18 @@ applied to the ledger.
 
 See src/transactions/ for more detail on how transactions are applied.
 
-After applying each transaction its result is stored in the transaction history
+After applying each transaction its result are stored in the transaction history
 table (see Historical data) and side effects (captured in LedgerDelta) are saved.
 
-After all transaction have been applied, all changes are ready to be commited to
+After all transactions have been applied, the changes are committed to
 the current state of the database via SQL commit and to the overall LedgerDelta
 for the entire Ledger close is fed to the BucketManager (see BucketManager).
 
 At this point the module notifies other modules that a ledger was closed:
-* herder so that it can trigger a new SCP round (see src/herder )
-* overlay to reset its state and prepare accumulating changes for the next
+* Herder so that it can trigger a new SCP round (see src/herder )
+* Overlay to reset its state and prepare accumulating changes for the next
     ledger (see src/overlay )
-* historical subsystem, so that it can publish the new ledger/transaction set
+* History so that it can publish the new ledger/transaction set
     for long term storage (see src/history )
 
 #Storage
@@ -161,7 +161,7 @@ For more detail on the SQL implementation, see src/Database/
 
 ###Hot Ledger Data
 
-The SQL tables for Ledger Entries represents the state of the current ledger:
+The SQL tables for Ledger Entries represent the state of the current ledger:
 ie, if an account is modified in some way, the "Accounts" table will have the change.
 
 ###Historical data
