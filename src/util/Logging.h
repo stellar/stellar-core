@@ -23,5 +23,6 @@ class Logging
     static void setLoggingToFile(std::string const& filename);
     static void setLogLevel(el::Level level, const char* partition);
     static el::Level getLLfromString(std::string const& levelName);
+    static std::string getStringFromLL(el::Level);
 };
 }

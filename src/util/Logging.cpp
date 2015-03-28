@@ -88,6 +88,33 @@ Logging::setLogLevel(el::Level level, const char* partition)
         el::Loggers::reconfigureAllLoggers(config);
 }
 
+std::string 
+Logging::getStringFromLL(el::Level level)
+{
+    switch(level)
+    {
+    case el::Level::Global:
+        return "Global";
+    case el::Level::Trace:
+        return "Trace";
+    case el::Level::Debug:
+        return "Debug";
+    case el::Level::Fatal:
+        return "Fatal";
+    case el::Level::Error:
+        return "Error";
+    case el::Level::Warning:
+        return "Warning";
+    case el::Level::Verbose:
+        return "Verbose";
+    case el::Level::Info:
+        return "Info";
+    case el::Level::Unknown:
+        return "Unknown";
+    }
+    return "????";
+}
+
 // default "info" if unrecognized
 el::Level
 Logging::getLLfromString(std::string const& levelName)

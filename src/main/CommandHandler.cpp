@@ -207,8 +207,18 @@ CommandHandler::ll(const std::string& params, std::string& retStr)
     http::server::server::parseParams(params, retMap);
     el::Level level = Logging::getLLfromString(retMap["level"]);
     std::string partition = retMap["partition"];
-    Logging::setLogLevel(level, partition.c_str());
-    retStr = "Log level set";
+    if(partition.size())
+    {
+        Logging::setLogLevel(level, partition.c_str());
+        retStr = partition;
+        retStr += " set to ";
+        retStr += Logging::getStringFromLL(level);
+    } else
+    {
+        Logging::setLogLevel(level, nullptr);
+        retStr = "Global Log level set to: ";
+        retStr += Logging::getStringFromLL(level);
+    }
 }
 
 void
