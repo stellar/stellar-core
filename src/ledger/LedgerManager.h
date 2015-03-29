@@ -48,7 +48,7 @@ class LedgerCloseData
  *        in memory (in the Herder) will be applied on the next ledger-close.
  *
  *     2. The "last-closed ledger" (LCL), which is the result of the most recent
- *        ledger-close. This ledger is the state most recently COMMIT'ed to the
+ *        ledger-close. This ledger is the state most recently committed to the
  *        SQL store, is immutable, and is the basis for the transactions applied
  *        in "current". In other words, "current" begins as a copy of LCL and
  *        then is mutated by the transactions applied to it.
@@ -58,7 +58,7 @@ class LedgerCloseData
  * producing a new current ledger.
  *
  * Finally, LedgerManager triggers and responds to boundary conditions in the
- * lifecycle of the application that "suddenly" alter the notions of "current"
+ * life cycle of the application that "suddenly" alter the notions of "current"
  * and "LCL": process startup, desynchronization and resynchronization of the
  * current process with the rest of the network.
  */

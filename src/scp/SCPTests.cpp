@@ -177,7 +177,7 @@ TEST_CASE("protocol core4", "[scp]")
         REQUIRE(scp.mEnvs[0].statement.ballot.value == xValue);
         REQUIRE(scp.mEnvs[0].statement.ballot.counter == 0);
         REQUIRE(scp.mEnvs[0].statement.pledges.type() ==
-                SCPStatementType::PREPARE);
+                SCPStatementType::PREPARING);
         REQUIRE(!scp.mEnvs[0].statement.pledges.prepare().prepared);
         REQUIRE(scp.mEnvs[0].statement.pledges.prepare().excepted.size() == 0);
     }
@@ -186,13 +186,13 @@ TEST_CASE("protocol core4", "[scp]")
     {
         SCPEnvelope prepare1 =
             makeEnvelope(v1SecretKey, qSetHash, 0, SCPBallot(0, xValue),
-                         SCPStatementType::PREPARE);
+                         SCPStatementType::PREPARING);
         SCPEnvelope prepare2 =
             makeEnvelope(v2SecretKey, qSetHash, 0, SCPBallot(0, xValue),
-                         SCPStatementType::PREPARE);
+                         SCPStatementType::PREPARING);
         SCPEnvelope prepare3 =
             makeEnvelope(v3SecretKey, qSetHash, 0, SCPBallot(0, xValue),
-                         SCPStatementType::PREPARE);
+                         SCPStatementType::PREPARING);
 
         scp.receiveEnvelope(prepare1);
         REQUIRE(scp.mEnvs.size() == 1);
@@ -203,7 +203,7 @@ TEST_CASE("protocol core4", "[scp]")
         REQUIRE(scp.mEnvs[0].statement.ballot.value == xValue);
         REQUIRE(scp.mEnvs[0].statement.ballot.counter == 0);
         REQUIRE(scp.mEnvs[0].statement.pledges.type() ==
-                SCPStatementType::PREPARE);
+                SCPStatementType::PREPARING);
 
         scp.receiveEnvelope(prepare2);
         REQUIRE(scp.mEnvs.size() == 2);
@@ -241,20 +241,20 @@ TEST_CASE("protocol core4", "[scp]")
         REQUIRE(scp.mEnvs[2].statement.ballot.value == xValue);
         REQUIRE(scp.mEnvs[2].statement.ballot.counter == 0);
         REQUIRE(scp.mEnvs[2].statement.pledges.type() ==
-                SCPStatementType::COMMIT);
+                SCPStatementType::COMMITTING);
 
         scp.receiveEnvelope(prepared1);
         REQUIRE(scp.mEnvs.size() == 3);
 
         SCPEnvelope commit1 =
             makeEnvelope(v1SecretKey, qSetHash, 0, SCPBallot(0, xValue),
-                         SCPStatementType::COMMIT);
+                         SCPStatementType::COMMITTING);
         SCPEnvelope commit2 =
             makeEnvelope(v2SecretKey, qSetHash, 0, SCPBallot(0, xValue),
-                         SCPStatementType::COMMIT);
+                         SCPStatementType::COMMITTING);
         SCPEnvelope commit3 =
             makeEnvelope(v3SecretKey, qSetHash, 0, SCPBallot(0, xValue),
-                         SCPStatementType::COMMIT);
+                         SCPStatementType::COMMITTING);
 
         scp.receiveEnvelope(commit2);
         REQUIRE(scp.mEnvs.size() == 3);
@@ -313,7 +313,7 @@ TEST_CASE("protocol core4", "[scp]")
         REQUIRE(scp.mEnvs[0].statement.ballot.value == xValue);
         REQUIRE(scp.mEnvs[0].statement.ballot.counter == 0);
         REQUIRE(scp.mEnvs[0].statement.pledges.type() ==
-                SCPStatementType::PREPARE);
+                SCPStatementType::PREPARING);
 
         SCPEnvelope prepared1 =
             makeEnvelope(v1SecretKey, qSetHash, 0, SCPBallot(0, yValue),
@@ -333,7 +333,7 @@ TEST_CASE("protocol core4", "[scp]")
         REQUIRE(scp.mEnvs[1].statement.ballot.value == yValue);
         REQUIRE(scp.mEnvs[1].statement.ballot.counter == 0);
         REQUIRE(scp.mEnvs[1].statement.pledges.type() ==
-                SCPStatementType::PREPARE);
+                SCPStatementType::PREPARING);
         REQUIRE(!scp.mEnvs[1].statement.pledges.prepare().prepared);
         REQUIRE(scp.mEnvs[1].statement.pledges.prepare().excepted.size() == 0);
 
@@ -347,7 +347,7 @@ TEST_CASE("protocol core4", "[scp]")
         REQUIRE(scp.mEnvs[3].statement.ballot.value == yValue);
         REQUIRE(scp.mEnvs[3].statement.ballot.counter == 0);
         REQUIRE(scp.mEnvs[3].statement.pledges.type() ==
-                SCPStatementType::COMMIT);
+                SCPStatementType::COMMITTING);
     }
 
     SECTION("x<y, prepare (0,y), prepared (0,x) by v-blocking")
@@ -359,14 +359,14 @@ TEST_CASE("protocol core4", "[scp]")
         REQUIRE(scp.mEnvs[0].statement.ballot.value == yValue);
         REQUIRE(scp.mEnvs[0].statement.ballot.counter == 0);
         REQUIRE(scp.mEnvs[0].statement.pledges.type() ==
-                SCPStatementType::PREPARE);
+                SCPStatementType::PREPARING);
 
         SCPEnvelope prepare1 =
             makeEnvelope(v1SecretKey, qSetHash, 0, SCPBallot(0, xValue),
-                         SCPStatementType::PREPARE);
+                         SCPStatementType::PREPARING);
         SCPEnvelope prepare2 =
             makeEnvelope(v2SecretKey, qSetHash, 0, SCPBallot(0, xValue),
-                         SCPStatementType::PREPARE);
+                         SCPStatementType::PREPARING);
 
         scp.receiveEnvelope(prepare1);
         scp.receiveEnvelope(prepare2);
@@ -403,17 +403,17 @@ TEST_CASE("protocol core4", "[scp]")
         REQUIRE(scp.mEnvs[0].statement.ballot.value == xValue);
         REQUIRE(scp.mEnvs[0].statement.ballot.counter == 0);
         REQUIRE(scp.mEnvs[0].statement.pledges.type() ==
-                SCPStatementType::PREPARE);
+                SCPStatementType::PREPARING);
 
         SCPEnvelope prepare1 =
             makeEnvelope(v1SecretKey, qSetHash, 0, SCPBallot(0, yValue),
-                         SCPStatementType::PREPARE);
+                         SCPStatementType::PREPARING);
         SCPEnvelope prepare2 =
             makeEnvelope(v2SecretKey, qSetHash, 0, SCPBallot(0, yValue),
-                         SCPStatementType::PREPARE);
+                         SCPStatementType::PREPARING);
         SCPEnvelope prepare3 =
             makeEnvelope(v3SecretKey, qSetHash, 0, SCPBallot(0, yValue),
-                         SCPStatementType::PREPARE);
+                         SCPStatementType::PREPARING);
 
         scp.receiveEnvelope(prepare1);
         REQUIRE(scp.mEnvs.size() == 2);
@@ -422,7 +422,7 @@ TEST_CASE("protocol core4", "[scp]")
         REQUIRE(scp.mEnvs[1].statement.ballot.value == yValue);
         REQUIRE(scp.mEnvs[1].statement.ballot.counter == 0);
         REQUIRE(scp.mEnvs[1].statement.pledges.type() ==
-                SCPStatementType::PREPARE);
+                SCPStatementType::PREPARING);
         REQUIRE(!scp.mEnvs[1].statement.pledges.prepare().prepared);
         REQUIRE(scp.mEnvs[1].statement.pledges.prepare().excepted.size() == 0);
 
@@ -448,17 +448,17 @@ TEST_CASE("protocol core4", "[scp]")
         REQUIRE(scp.mEnvs[0].statement.ballot.value == yValue);
         REQUIRE(scp.mEnvs[0].statement.ballot.counter == 0);
         REQUIRE(scp.mEnvs[0].statement.pledges.type() ==
-                SCPStatementType::PREPARE);
+                SCPStatementType::PREPARING);
 
         SCPEnvelope prepare1 =
             makeEnvelope(v1SecretKey, qSetHash, 0, SCPBallot(0, xValue),
-                         SCPStatementType::PREPARE);
+                         SCPStatementType::PREPARING);
         SCPEnvelope prepare2 =
             makeEnvelope(v2SecretKey, qSetHash, 0, SCPBallot(0, xValue),
-                         SCPStatementType::PREPARE);
+                         SCPStatementType::PREPARING);
         SCPEnvelope prepare3 =
             makeEnvelope(v3SecretKey, qSetHash, 0, SCPBallot(0, xValue),
-                         SCPStatementType::PREPARE);
+                         SCPStatementType::PREPARING);
 
         scp.receiveEnvelope(prepare1);
         scp.receiveEnvelope(prepare2);
@@ -625,7 +625,7 @@ TEST_CASE("protocol core4", "[scp]")
 
         SCPEnvelope prepare1 =
             makeEnvelope(v1SecretKey, qSetHash, 0, SCPBallot(1, yValue),
-                         SCPStatementType::PREPARE);
+                         SCPStatementType::PREPARING);
 
         scp.receiveEnvelope(prepare1);
         REQUIRE(scp.mEnvs.size() == 2);
@@ -634,16 +634,16 @@ TEST_CASE("protocol core4", "[scp]")
         REQUIRE(scp.mEnvs[1].statement.ballot.value == yValue);
         REQUIRE(scp.mEnvs[1].statement.ballot.counter == 1);
         REQUIRE(scp.mEnvs[1].statement.pledges.type() ==
-                SCPStatementType::PREPARE);
+                SCPStatementType::PREPARING);
 
         SCPEnvelope prepare2 =
             makeEnvelope(v2SecretKey, qSetHash, 0, SCPBallot(0, zValue),
-                         SCPStatementType::PREPARE);
+                         SCPStatementType::PREPARING);
         scp.receiveEnvelope(prepare2);
 
         SCPEnvelope commit3 =
             makeEnvelope(v3SecretKey, qSetHash, 0, SCPBallot(0, zValue),
-                         SCPStatementType::COMMIT);
+                         SCPStatementType::COMMITTING);
         scp.receiveEnvelope(commit3);
 
         // The envelopes should have no effect
@@ -654,13 +654,13 @@ TEST_CASE("protocol core4", "[scp]")
     {
         SCPEnvelope prepare1 =
             makeEnvelope(v1SecretKey, qSetHash, 0, SCPBallot(0, xValue),
-                         SCPStatementType::PREPARE);
+                         SCPStatementType::PREPARING);
         SCPEnvelope prepare2 =
             makeEnvelope(v1SecretKey, qSetHash, 0, SCPBallot(0, xValue),
-                         SCPStatementType::PREPARE);
+                         SCPStatementType::PREPARING);
         SCPEnvelope prepare3 =
             makeEnvelope(v1SecretKey, qSetHash, 0, SCPBallot(0, yValue),
-                         SCPStatementType::PREPARE);
+                         SCPStatementType::PREPARING);
 
         scp.receiveEnvelope(prepare1);
         REQUIRE(scp.mEnvs.size() == 1);
@@ -669,7 +669,7 @@ TEST_CASE("protocol core4", "[scp]")
         REQUIRE(scp.mEnvs[0].statement.ballot.value == xValue);
         REQUIRE(scp.mEnvs[0].statement.ballot.counter == 0);
         REQUIRE(scp.mEnvs[0].statement.pledges.type() ==
-                SCPStatementType::PREPARE);
+                SCPStatementType::PREPARING);
 
         scp.receiveEnvelope(prepare2);
         REQUIRE(scp.mEnvs.size() == 1);
@@ -681,7 +681,7 @@ TEST_CASE("protocol core4", "[scp]")
         REQUIRE(scp.mEnvs[1].statement.ballot.value == yValue);
         REQUIRE(scp.mEnvs[1].statement.ballot.counter == 0);
         REQUIRE(scp.mEnvs[1].statement.pledges.type() ==
-                SCPStatementType::PREPARE);
+                SCPStatementType::PREPARING);
 
         REQUIRE(scp.prepareValue(0, yValue));
         // No effect on this round
@@ -693,10 +693,10 @@ TEST_CASE("protocol core4", "[scp]")
         // 1 and 2 prepare (0,x)
         SCPEnvelope prepare1_x =
             makeEnvelope(v1SecretKey, qSetHash, 0, SCPBallot(0, xValue),
-                         SCPStatementType::PREPARE);
+                         SCPStatementType::PREPARING);
         SCPEnvelope prepare2_x =
             makeEnvelope(v2SecretKey, qSetHash, 0, SCPBallot(0, xValue),
-                         SCPStatementType::PREPARE);
+                         SCPStatementType::PREPARING);
 
         scp.receiveEnvelope(prepare1_x);
         REQUIRE(scp.mEnvs.size() == 1);
@@ -705,7 +705,7 @@ TEST_CASE("protocol core4", "[scp]")
         REQUIRE(scp.mEnvs[0].statement.ballot.value == xValue);
         REQUIRE(scp.mEnvs[0].statement.ballot.counter == 0);
         REQUIRE(scp.mEnvs[0].statement.pledges.type() ==
-                SCPStatementType::PREPARE);
+                SCPStatementType::PREPARING);
 
         scp.receiveEnvelope(prepare2_x);
         REQUIRE(scp.mEnvs.size() == 2);
@@ -734,7 +734,7 @@ TEST_CASE("protocol core4", "[scp]")
         REQUIRE(scp.mEnvs[2].statement.ballot.value == xValue);
         REQUIRE(scp.mEnvs[2].statement.ballot.counter == 0);
         REQUIRE(scp.mEnvs[2].statement.pledges.type() ==
-                SCPStatementType::COMMIT);
+                SCPStatementType::COMMITTING);
 
         // then our node becomes laggy for a while time during which 1, 2, 3
         // confirms prepare on (1,y) but 3 dies. Then we come back and 2
@@ -743,14 +743,14 @@ TEST_CASE("protocol core4", "[scp]")
         // 1 and 2 prepare (2,y)
         SCPEnvelope prepare1_y =
             makeEnvelope(v1SecretKey, qSetHash, 0, SCPBallot(2, yValue),
-                         SCPStatementType::PREPARE);
+                         SCPStatementType::PREPARING);
         prepare1_y.statement.pledges.prepare().prepared.activate() =
             SCPBallot(1, yValue);
         signEnvelope(v1SecretKey, prepare1_y);
 
         SCPEnvelope prepare2_y =
             makeEnvelope(v2SecretKey, qSetHash, 0, SCPBallot(2, yValue),
-                         SCPStatementType::PREPARE);
+                         SCPStatementType::PREPARING);
         prepare2_y.statement.pledges.prepare().prepared.activate() =
             SCPBallot(1, yValue);
         signEnvelope(v2SecretKey, prepare2_y);
@@ -763,7 +763,7 @@ TEST_CASE("protocol core4", "[scp]")
         REQUIRE(scp.mEnvs[3].statement.ballot.value == yValue);
         REQUIRE(scp.mEnvs[3].statement.ballot.counter == 2);
         REQUIRE(scp.mEnvs[3].statement.pledges.type() ==
-                SCPStatementType::PREPARE);
+                SCPStatementType::PREPARING);
         REQUIRE(scp.mEnvs[3].statement.pledges.prepare().excepted.size() == 1);
         REQUIRE(scp.mEnvs[3].statement.pledges.prepare().excepted[0].counter ==
                 0);
@@ -800,7 +800,7 @@ TEST_CASE("protocol core4", "[scp]")
         REQUIRE(scp.mEnvs[5].statement.ballot.value == yValue);
         REQUIRE(scp.mEnvs[5].statement.ballot.counter == 2);
         REQUIRE(scp.mEnvs[5].statement.pledges.type() ==
-                SCPStatementType::COMMIT);
+                SCPStatementType::COMMITTING);
 
         // finally things go south and we attempt x again
         REQUIRE(scp.prepareValue(0, xValue));
@@ -811,7 +811,7 @@ TEST_CASE("protocol core4", "[scp]")
         REQUIRE(scp.mEnvs[6].statement.ballot.value == xValue);
         REQUIRE(scp.mEnvs[6].statement.ballot.counter == 3);
         REQUIRE(scp.mEnvs[6].statement.pledges.type() ==
-                SCPStatementType::PREPARE);
+                SCPStatementType::PREPARING);
         REQUIRE(scp.mEnvs[6].statement.pledges.prepare().excepted.size() == 2);
         REQUIRE(scp.mEnvs[6].statement.pledges.prepare().excepted[0].counter ==
                 0);
@@ -832,7 +832,7 @@ TEST_CASE("protocol core4", "[scp]")
     {
         SCPEnvelope prepare1 =
             makeEnvelope(v1SecretKey, qSetHash, 0, SCPBallot(0, xValue),
-                         SCPStatementType::PREPARE);
+                         SCPStatementType::PREPARING);
         scp.receiveEnvelope(prepare1);
         REQUIRE(scp.mEnvs.size() == 1);
 
@@ -840,11 +840,11 @@ TEST_CASE("protocol core4", "[scp]")
         REQUIRE(scp.mEnvs[0].statement.ballot.value == xValue);
         REQUIRE(scp.mEnvs[0].statement.ballot.counter == 0);
         REQUIRE(scp.mEnvs[0].statement.pledges.type() ==
-                SCPStatementType::PREPARE);
+                SCPStatementType::PREPARING);
 
         SCPEnvelope commit1 =
             makeEnvelope(v1SecretKey, qSetHash, 0, SCPBallot(0, yValue),
-                         SCPStatementType::COMMIT);
+                         SCPStatementType::COMMITTING);
 
         // the node must have requested evidence
         scp.receiveEnvelope(commit1, [](SCP::EnvelopeState s)
@@ -868,7 +868,7 @@ TEST_CASE("protocol core4", "[scp]")
     {
         SCPEnvelope commit1 =
             makeEnvelope(v1SecretKey, qSetHash, 0, SCPBallot(0, yValue),
-                         SCPStatementType::COMMIT);
+                         SCPStatementType::COMMITTING);
 
         // the node must have requested evidence
         scp.receiveEnvelope(commit1, [](SCP::EnvelopeState s)
@@ -882,7 +882,7 @@ TEST_CASE("protocol core4", "[scp]")
     {
         SCPEnvelope commit1 =
             makeEnvelope(v1SecretKey, qSetHash, 0, SCPBallot(0, yValue),
-                         SCPStatementType::COMMIT);
+                         SCPStatementType::COMMITTING);
 
         scp.receiveEnvelope(commit1);
         REQUIRE(scp.mEnvs.size() == 0);
@@ -907,7 +907,7 @@ TEST_CASE("protocol core4", "[scp]")
         REQUIRE(scp.mEnvs[0].statement.ballot.value == xValue);
         REQUIRE(scp.mEnvs[0].statement.ballot.counter == 0);
         REQUIRE(scp.mEnvs[0].statement.pledges.type() ==
-                SCPStatementType::PREPARE);
+                SCPStatementType::PREPARING);
 
         REQUIRE(scp.mEnvs[1].nodeID == v0NodeID);
         REQUIRE(scp.mEnvs[1].statement.ballot.value == xValue);
@@ -919,14 +919,14 @@ TEST_CASE("protocol core4", "[scp]")
         REQUIRE(scp.mEnvs[2].statement.ballot.value == xValue);
         REQUIRE(scp.mEnvs[2].statement.ballot.counter == 0);
         REQUIRE(scp.mEnvs[2].statement.pledges.type() ==
-                SCPStatementType::COMMIT);
+                SCPStatementType::COMMITTING);
 
         SCPEnvelope commit1 =
             makeEnvelope(v1SecretKey, qSetHash, 0, SCPBallot(0, xValue),
-                         SCPStatementType::COMMIT);
+                         SCPStatementType::COMMITTING);
         SCPEnvelope commit2 =
             makeEnvelope(v2SecretKey, qSetHash, 0, SCPBallot(0, xValue),
-                         SCPStatementType::COMMIT);
+                         SCPStatementType::COMMITTING);
 
         scp.receiveEnvelope(commit1);
         REQUIRE(scp.mEnvs.size() == 3);
