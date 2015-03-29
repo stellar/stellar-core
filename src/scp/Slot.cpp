@@ -40,14 +40,14 @@ envToStr(const SCPEnvelope& envelope)
     oss << "{ENV@" << binToHex(envelope.nodeID).substr(0, 6) << "|";
     switch (envelope.statement.pledges.type())
     {
-    case SCPStatementType::PREPARE:
-        oss << "PREPARE";
+    case SCPStatementType::PREPARING:
+        oss << "PREPARING";
         break;
     case SCPStatementType::PREPARED:
         oss << "PREPARED";
         break;
-    case SCPStatementType::COMMIT:
-        oss << "COMMIT";
+    case SCPStatementType::COMMITTING:
+        oss << "COMMITTING";
         break;
     case SCPStatementType::COMMITTED:
         oss << "COMMITTED";
@@ -101,7 +101,7 @@ Slot::processEnvelope(const SCPEnvelope& envelope,
             return cb(SCP::EnvelopeState::INVALID);
         }
 
-        if (!mIsCommitted && t == SCPStatementType::PREPARE)
+        if (!mIsCommitted && t == SCPStatementType::PREPARING)
         {
             auto ballot_cb = [b, t, nodeID, statement, cb, this](bool valid)
             {
@@ -126,16 +126,16 @@ Slot::processEnvelope(const SCPEnvelope& envelope,
         }
         else if (!mIsCommitted && t == SCPStatementType::PREPARED)
         {
-            // A PREPARED statement does not imply any PREPARE so we can go
+            // A PREPARED statement does not imply any PREPARING so we can go
             // ahead and store it if its value is valid.
             mStatements[b][t][nodeID] = statement;
             advanceSlot();
         }
-        else if (!mIsCommitted && t == SCPStatementType::COMMIT)
+        else if (!mIsCommitted && t == SCPStatementType::COMMITTING)
         {
-            // We accept COMMIT statements only if we previously saw a valid
-            // PREPARED statement for that ballot and all the PREPARE we saw so
-            // far have a lower ballot than this one or have that COMMIT in
+            // We accept COMMITTING statements only if we previously saw a valid
+            // PREPARED statement for that ballot and all the PREPARING we saw so
+            // far have a lower ballot than this one or have that COMMITTING in
             // their B_c.  This prevents node from emitting phony messages too
             // easily.
             bool isPrepared = false;
@@ -146,7 +146,7 @@ Slot::processEnvelope(const SCPEnvelope& envelope,
                     isPrepared = true;
                 }
             }
-            for (auto s : getNodeStatements(nodeID, SCPStatementType::PREPARE))
+            for (auto s : getNodeStatements(nodeID, SCPStatementType::PREPARING))
             {
                 if (compareBallots(b, s.ballot) < 0)
                 {
@@ -239,7 +239,7 @@ Slot::bumpToBallot(const SCPBallot& ballot)
     // We shouldn't have emitted any prepare message for this ballot or any
     // other higher ballot.
     for (auto s :
-         getNodeStatements(mSCP->getLocalNodeID(), SCPStatementType::PREPARE))
+         getNodeStatements(mSCP->getLocalNodeID(), SCPStatementType::PREPARING))
     {
         assert(compareBallots(ballot, s.ballot) >= 0);
     }
@@ -280,9 +280,9 @@ Slot::createEnvelope(const SCPStatement& statement)
 void
 Slot::attemptPrepare()
 {
-    auto it = mStatements[mBallot][SCPStatementType::PREPARE].find(
+    auto it = mStatements[mBallot][SCPStatementType::PREPARING].find(
         mSCP->getLocalNodeID());
-    if (it != mStatements[mBallot][SCPStatementType::PREPARE].end())
+    if (it != mStatements[mBallot][SCPStatementType::PREPARING].end())
     {
         return;
     }
@@ -291,7 +291,7 @@ Slot::attemptPrepare()
                        << " i: " << mSlotIndex
                        << " b: " << ballotToStr(mBallot);
 
-    SCPStatement statement = createStatement(SCPStatementType::PREPARE);
+    SCPStatement statement = createStatement(SCPStatementType::PREPARING);
 
     for (auto s :
          getNodeStatements(mSCP->getLocalNodeID(), SCPStatementType::PREPARED))
@@ -307,7 +307,7 @@ Slot::attemptPrepare()
         }
     }
     for (auto s :
-         getNodeStatements(mSCP->getLocalNodeID(), SCPStatementType::COMMIT))
+         getNodeStatements(mSCP->getLocalNodeID(), SCPStatementType::COMMITTING))
     {
         statement.pledges.prepare().excepted.push_back(s.ballot);
     }
@@ -355,9 +355,9 @@ Slot::attemptPrepared(const SCPBallot& ballot)
 void
 Slot::attemptCommit()
 {
-    auto it = mStatements[mBallot][SCPStatementType::COMMIT].find(
+    auto it = mStatements[mBallot][SCPStatementType::COMMITTING].find(
         mSCP->getLocalNodeID());
-    if (it != mStatements[mBallot][SCPStatementType::COMMIT].end())
+    if (it != mStatements[mBallot][SCPStatementType::COMMITTING].end())
     {
         return;
     }
@@ -366,7 +366,7 @@ Slot::attemptCommit()
                        << " i: " << mSlotIndex
                        << " b: " << ballotToStr(mBallot);
 
-    SCPStatement statement = createStatement(SCPStatementType::COMMIT);
+    SCPStatement statement = createStatement(SCPStatementType::COMMITTING);
 
     mSCP->ballotDidCommit(mSlotIndex, mBallot);
 
@@ -439,7 +439,7 @@ Slot::isPrepared(const SCPBallot& ballot)
         return true;
     }
 
-    // Checks if there is a v-blocking set of nodes that accepted the PREPARE
+    // Checks if there is a v-blocking set of nodes that accepted the PREPARING
     // statements (this is an optimization).
     if (mSCP->getLocalNode()->isVBlocking<SCPStatement>(
             mSCP->getLocalNode()->getQuorumSetHash(),
@@ -485,7 +485,7 @@ Slot::isPrepared(const SCPBallot& ballot)
 
             if (mSCP->getNode(nIDR)->isVBlocking<SCPStatement>(
                     stR.quorumSetHash,
-                    mStatements[ballot][SCPStatementType::PREPARE],
+                    mStatements[ballot][SCPStatementType::PREPARING],
                     abortedFilter))
             {
                 continue;
@@ -499,7 +499,7 @@ Slot::isPrepared(const SCPBallot& ballot)
 
     if (mSCP->getLocalNode()->isQuorumTransitive<SCPStatement>(
             mSCP->getLocalNode()->getQuorumSetHash(),
-            mStatements[ballot][SCPStatementType::PREPARE],
+            mStatements[ballot][SCPStatementType::PREPARING],
             [](const SCPStatement& s)
             {
                 return s.quorumSetHash;
@@ -515,15 +515,15 @@ Slot::isPrepared(const SCPBallot& ballot)
 bool
 Slot::isPreparedConfirmed(const SCPBallot& ballot)
 {
-    // Checks if we haven't already emitted COMMIT b
-    auto it = mStatements[ballot][SCPStatementType::COMMIT].find(
+    // Checks if we haven't already emitted COMMITTING b
+    auto it = mStatements[ballot][SCPStatementType::COMMITTING].find(
         mSCP->getLocalNodeID());
-    if (it != mStatements[ballot][SCPStatementType::COMMIT].end())
+    if (it != mStatements[ballot][SCPStatementType::COMMITTING].end())
     {
         return true;
     }
 
-    // Checks if there is a transitive quorum that accepted the PREPARE
+    // Checks if there is a transitive quorum that accepted the PREPARING
     // statements for the local node.
     if (mSCP->getLocalNode()->isQuorumTransitive<SCPStatement>(
             mSCP->getLocalNode()->getQuorumSetHash(),
@@ -552,7 +552,7 @@ Slot::isCommitted(const SCPBallot& ballot)
     // Check if we can establish the pledges for a transitive quorum.
     if (mSCP->getLocalNode()->isQuorumTransitive<SCPStatement>(
             mSCP->getLocalNode()->getQuorumSetHash(),
-            mStatements[ballot][SCPStatementType::COMMIT],
+            mStatements[ballot][SCPStatementType::COMMITTING],
             [](const SCPStatement& s)
             {
                 return s.quorumSetHash;
@@ -579,7 +579,7 @@ Slot::isCommittedConfirmed(const Value& value)
         }
     }
 
-    // Checks if there is a transitive quorum that accepted the COMMIT
+    // Checks if there is a transitive quorum that accepted the COMMITTING
     // statement for the local node.
     if (mSCP->getLocalNode()->isQuorumTransitive<SCPStatement>(
             mSCP->getLocalNode()->getQuorumSetHash(), statements,
@@ -747,7 +747,7 @@ Slot::advanceSlot()
                     mRunAdvanceSlot = true;
                 }
                 // If it's a smaller ballot we must emit a PREPARED for it.
-                // We can't and we won't COMMIT b as `mBallot` only moves
+                // We can't and we won't COMMITTING b as `mBallot` only moves
                 // monotonically.
                 else
                 {
@@ -811,14 +811,15 @@ Slot::getStatementCount() const
 void 
 Slot::dumpInfo(Json::Value& ret)
 {
-    ret["slot"][(int)mSlotIndex]["index"] = (int) mSlotIndex;
-    ret["slot"][(int)mSlotIndex]["pristine"] = mIsPristine;
-    ret["slot"][(int)mSlotIndex]["heard"] = mHeardFromQuorum;
-    ret["slot"][(int)mSlotIndex]["committed"] = mIsCommitted;
-    ret["slot"][(int)mSlotIndex]["pristine"] = mIsExternalized;
-    ret["slot"][(int)mSlotIndex]["ballot"] = ballotToStr(mBallot);
+    Json::Value slotValue;
+    slotValue["index"] = (int)mSlotIndex;
+    slotValue["pristine"] = mIsPristine;
+    slotValue["heard"] = mHeardFromQuorum;
+    slotValue["committed"] = mIsCommitted;
+    slotValue["pristine"] = mIsExternalized;
+    slotValue["ballot"] = ballotToStr(mBallot);
 
-    std::string stateStrTable[] = { "PREPARE", "PREPARED", "COMMIT",
+    std::string stateStrTable[] = { "PREPARING", "PREPARED", "COMMITTING",
         "COMMITTED"};
 
     for(auto& item : mStatements)
@@ -834,10 +835,12 @@ Slot::dumpInfo(Json::Value& ret)
                     binToHex(stateItem.first).substr(0, 6) << " q:" << 
                     binToHex(stateItem.second.quorumSetHash).substr(0, 6) << 
                     " ," << stateStrTable[(int)stateItem.second.pledges.type()];
-                ret["slot"][(int)mSlotIndex]["statements"][count++] = output.str();
+                slotValue["statements"][count++] = output.str();
             }
         }
     }
+
+    ret["slot"].append(slotValue);
 }
 
 }

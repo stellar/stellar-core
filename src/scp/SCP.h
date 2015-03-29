@@ -70,7 +70,7 @@ class SCP
         return 0;
     }
 
-    // `validateBallot` is used to validate ballots associated with PREPARE
+    // `validateBallot` is used to validate ballots associated with PREPARING
     // messages.  Therefore unvalidated ballots may still externalize if other
     // nodes PREARED and subsequently COMMITTED such ballot.
     virtual void
@@ -80,7 +80,7 @@ class SCP
         return cb(true);
     }
 
-    // `ballotDidPrepare` is called each time the local node PREPARE a ballot.
+    // `ballotDidPrepare` is called each time the local node PREPARING a ballot.
     // It is always called on the internally monotically increasing `mBallot`.
     virtual void
     ballotDidPrepare(const uint64& slotIndex, const SCPBallot& ballot)
@@ -92,7 +92,7 @@ class SCP
     ballotDidPrepared(const uint64& slotIndex, const SCPBallot& ballot)
     {
     }
-    // `ballotDidCommit` is called each time the local node COMMIT a ballot.
+    // `ballotDidCommit` is called each time the local node COMMITTING a ballot.
     // It is always called on the internally monotically increasing `mBallot`.
     virtual void
     ballotDidCommit(const uint64& slotIndex, const SCPBallot& ballot)

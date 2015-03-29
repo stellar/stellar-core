@@ -18,9 +18,9 @@ struct SCPBallot
 
 enum SCPStatementType
 {
-    PREPARE = 0,
+    PREPARING = 0,
     PREPARED = 1,
-    COMMIT = 2,
+    COMMITTING = 2,
     COMMITTED = 3
 };
 
@@ -32,14 +32,14 @@ struct SCPStatement
 
     union switch (SCPStatementType type)
     {
-    case PREPARE:
+    case PREPARING:
         struct
         {
             SCPBallot excepted<>; // B_c
             SCPBallot* prepared;  // p
         } prepare;
     case PREPARED:
-    case COMMIT:
+    case COMMITTING:
     case COMMITTED:
         void;
     }
