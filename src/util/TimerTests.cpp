@@ -118,10 +118,9 @@ TEST_CASE("virtual event dispatch order and times", "[timer]")
 TEST_CASE("shared virtual time advances only when all apps idle",
           "[timer][sharedtimer]")
 {
-    Config cfg(getTestConfig());
     VirtualClock clock;
-    Application::pointer app1 = Application::create(clock, cfg);
-    Application::pointer app2 = Application::create(clock, cfg);
+    Application::pointer app1 = Application::create(clock, getTestConfig(0));
+    Application::pointer app2 = Application::create(clock, getTestConfig(1));
 
     size_t app1Event = 0;
     size_t app2Event = 0;
