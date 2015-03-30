@@ -171,13 +171,15 @@ CommandHandler::logRotate(const std::string& params, std::string& retStr)
 void
 CommandHandler::connect(const std::string& params, std::string& retStr)
 {
-    static std::regex re("\\?peer=([[:alnum:].]+)&port=([0-9]+)");
-    std::smatch m;
+    std::map<std::string, std::string> retMap;
+    http::server::server::parseParams(params, retMap);
 
-    if (std::regex_search(params, m, re) && !m.empty())
+    auto peerP = retMap.find("peer");
+    auto portP = retMap.find("port");
+    if (peerP != retMap.end() && portP != retMap.end())
     {
         std::stringstream str;
-        str << m[1] << ":" << m[2];
+        str << peerP->second << ":" << portP->second;
         retStr = "Connect to: ";
         retStr += str.str();
         mApp.getOverlayManager().connectTo(str.str());
