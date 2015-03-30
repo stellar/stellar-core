@@ -138,8 +138,7 @@ void
 CommandHandler::info(const std::string& params, std::string& retStr)
 {
 
-    std::string stateStrTable[] = {"Booting", "Connecting", "Connected",
-                                   "Catching up", "Synced"};
+    std::string stateStrTable[] = {"Booting", "Synced", "Catching up" };
     Json::Value root;
 
     LedgerManager& lm = mApp.getLedgerManager();
