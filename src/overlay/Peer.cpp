@@ -246,11 +246,6 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
         recvSCPMessage(stellarMsg);
     }
     break;
-    case JSON_TRANSACTION:
-    {
-        assert(false);
-    }
-    break;
     }
 }
 
