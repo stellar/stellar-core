@@ -93,6 +93,92 @@ HistoryManager::create(Application& app)
     return make_unique<HistoryManagerImpl>(app);
 }
 
+void
+HistoryManager::checkSensibleConfig(Config const& cfg)
+{
+    // Check reasonable-ness of history archive definitions
+    std::vector<std::string> readOnlyArchives;
+    std::vector<std::string> readWriteArchives;
+    std::vector<std::string> writeOnlyArchives;
+    std::vector<std::string> inertArchives;
+
+    for (auto const& pair : cfg.HISTORY)
+    {
+        if (pair.second->hasGetCmd())
+        {
+            if (pair.second->hasPutCmd())
+            {
+                readWriteArchives.push_back(pair.first);
+            }
+            else
+            {
+                readOnlyArchives.push_back(pair.first);
+            }
+        }
+        else
+        {
+            if (pair.second->hasPutCmd())
+            {
+                writeOnlyArchives.push_back(pair.first);
+            }
+            else
+            {
+                inertArchives.push_back(pair.first);
+            }
+        }
+    }
+
+    bool badArchives = false;
+
+    for (auto const& a : inertArchives)
+    {
+        CLOG(FATAL, "History")
+            << "Archive '" << a
+            << "' has no 'get' or 'put' command, will not function";
+        badArchives = true;
+    }
+
+    for (auto const& a : writeOnlyArchives)
+    {
+        CLOG(FATAL, "History")
+            << "Archive '" << a
+            << "' has 'put' but no 'get' command, will be unwritable";
+        badArchives = true;
+    }
+
+    for (auto const& a : readWriteArchives)
+    {
+        CLOG(INFO, "History")
+            << "Archive '" << a
+            << "' has 'put' and 'get' commands, will be read and written";
+    }
+
+    for (auto const& a : readOnlyArchives)
+    {
+        CLOG(INFO, "History")
+            << "Archive '" << a
+            << "' has 'get' command only, will not be written";
+    }
+
+    if (readOnlyArchives.empty() && readWriteArchives.empty())
+    {
+        CLOG(FATAL, "History")
+            << "No readable archives configured, catchup will fail.";
+        badArchives = true;
+    }
+
+    if (readWriteArchives.empty())
+    {
+        CLOG(WARNING, "History")
+            << "No writable archives configured, history will not be written.";
+    }
+
+    if (badArchives)
+    {
+        throw std::invalid_argument("History archives misconfigured.");
+    }
+
+}
 
 HistoryManagerImpl::HistoryManagerImpl(Application& app)
     : mApp(app)

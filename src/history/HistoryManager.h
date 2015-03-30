@@ -164,6 +164,7 @@ namespace stellar
 class Application;
 class Bucket;
 class BucketList;
+class Config;
 class HistoryArchive;
 struct StateSnapshot;
 
@@ -219,6 +220,9 @@ class HistoryManager
     // Initialize a named history archive by writing
     // .well-known/stellar-history.json to it.
     static bool initializeHistoryArchive(Application& app, std::string arch);
+
+    // Check that config settings are at least somewhat reasonable.
+    static void checkSensibleConfig(Config const& cfg);
 
     static std::unique_ptr<HistoryManager> create(Application& app);
 

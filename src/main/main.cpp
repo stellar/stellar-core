@@ -289,6 +289,7 @@ main(int argc, char* const* argv)
             cfgFile = ":default-settings:";
         }
         Logging::setLogLevel(logLevel, nullptr);
+
         if(command.size())
         {
             sendCommand(command, rest, cfg.HTTP_PORT);
@@ -300,6 +301,8 @@ main(int argc, char* const* argv)
         cfg.REBUILD_DB = newDB;
         cfg.START_NEW_NETWORK = newNetwork;
         cfg.REPORT_METRICS = metrics;
+
+        HistoryManager::checkSensibleConfig(cfg);
         
         if (newNetwork || newDB)
         {
@@ -314,7 +317,7 @@ main(int argc, char* const* argv)
             return initializeHistories(cfg, newHistories);
         }
     }
-    catch (std::invalid_argument e)
+    catch (std::invalid_argument& e)
     {
         LOG(FATAL) << e.what();
         return 1;
