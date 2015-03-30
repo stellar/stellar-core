@@ -24,6 +24,7 @@ namespace fs
 #ifdef _WIN32
 #include <Windows.h>
 #include <Shellapi.h>
+#include <psapi.h>
 
 bool
 exists(std::string const& name)
@@ -67,6 +68,34 @@ deltree(std::string const& d)
     if (SHFileOperation(&s) != 0)
     {
         throw std::runtime_error("SHFileOperation failed in deltree");
+    }
+}
+
+
+long
+getpid()
+{
+    return static_cast<long>(GetCurrentProcessId());
+}
+
+bool
+processExists(long pid)
+{
+    std::vector<DWORD> buffer(4096);
+    DWORD bytesWritten;
+    while(true)
+    {
+        if (!EnumProcesses(buffer.data(), static_cast<DWORD>(buffer.size() * sizeof(DWORD)), &bytesWritten))
+        {
+            throw std::runtime_error("EnumProcess failed");
+        }
+        if (bytesWritten / sizeof(DWORD) < buffer.size())
+        {
+            auto found = std::find(buffer.begin(), buffer.end(), pid);
+            return !(found == buffer.end());
+        }
+        // Need a larger buffer to hold all the ids.
+        buffer.resize(buffer.size() * 2);
     }
 }
 
