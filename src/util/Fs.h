@@ -16,7 +16,7 @@ namespace fs
 ////
 
 
-long getpid();
+long getCurrentPid();
 
 bool processExists(long pid);
 

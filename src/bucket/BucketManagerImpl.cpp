@@ -117,7 +117,7 @@ BucketManagerImpl::getBucketDir()
 
         {
             std::ofstream lockfile(lock, std::ios::trunc);
-            lockfile << std::to_string(fs::getpid()) << std::endl;
+            lockfile << std::to_string(fs::getCurrentPid()) << std::endl;
         }
         assert(fs::exists(lock));
         mLockedBucketDir = make_unique<std::string>(d);

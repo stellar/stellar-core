@@ -73,7 +73,7 @@ deltree(std::string const& d)
 
 
 long
-getpid()
+getCurrentPid()
 {
     return static_cast<long>(GetCurrentProcessId());
 }
@@ -161,6 +161,21 @@ deltree(std::string const& d)
         throw std::runtime_error("nftw failed in deltree");
     }
 }
+
+
+long
+getCurrentPid()
+{
+    return static_cast<long>(getpid());
+}
+
+bool
+processExists(long pid)
+{
+    return exists("/proc/" + std::to_string(pid));
+}
+
+
 #endif
 
 std::string
