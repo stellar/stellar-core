@@ -62,12 +62,6 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
     mDatabase = make_unique<Database>(*this);
     mPersistentState = make_unique<PersistentState>(*this);
 
-    if (mPersistentState->getState(PersistentState::kForceSCPOnNextLaunch) ==
-        "true")
-    {
-        mConfig.FORCE_SCP = true;
-    }
-
     bool initializeDB =
         (mConfig.REBUILD_DB || mConfig.DATABASE == "sqlite3://:memory:");
     if (initializeDB)
@@ -81,6 +75,11 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
         LOG(INFO) << "* The database has been" << wipeMsg << " *";
 
         mDatabase->initialize();
+    }
+    else if (mPersistentState->getState(
+                 PersistentState::kForceSCPOnNextLaunch) == "true")
+    {
+        mConfig.FORCE_SCP = true;
     }
 
     mTmpDirManager = make_unique<TmpDirManager>(cfg.TMP_DIR_PATH);
