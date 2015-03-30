@@ -53,7 +53,8 @@ class HerderImpl : public Herder, public SCP
 
     // SCP methods
     void validateValue(const uint64& slotIndex, const uint256& nodeID,
-                       const Value& value, std::function<void(bool)> const& cb) override;
+                       const Value& value,
+                       std::function<void(bool)> const& cb) override;
     int compareValues(const uint64& slotIndex, const uint32& ballotCounter,
                       const Value& v1, const Value& v2) override;
 
@@ -63,12 +64,14 @@ class HerderImpl : public Herder, public SCP
 
     void ballotDidHearFromQuorum(const uint64& slotIndex,
                                  const SCPBallot& ballot) override;
-    void valueExternalized(const uint64& slotIndex, const Value& value) override;
+    void valueExternalized(const uint64& slotIndex,
+                           const Value& value) override;
 
     void nodeTouched(const uint256& nodeID) override;
 
-    void retrieveQuorumSet(const uint256& nodeID, const Hash& qSetHash,
-                           std::function<void(const SCPQuorumSet&)> const& cb) override;
+    void retrieveQuorumSet(
+        const uint256& nodeID, const Hash& qSetHash,
+        std::function<void(const SCPQuorumSet&)> const& cb) override;
     void emitEnvelope(const SCPEnvelope& envelope) override;
 
     // Extra SCP methods overridden solely to increment metrics.
@@ -84,11 +87,13 @@ class HerderImpl : public Herder, public SCP
     void envelopeVerified(bool) override;
 
     // Herder methods
-    TxSetFramePtr fetchTxSet(const uint256& txSetHash, bool askNetwork) override;
+    TxSetFramePtr fetchTxSet(const uint256& txSetHash,
+                             bool askNetwork) override;
     void recvTxSet(TxSetFramePtr txSet) override;
     void doesntHaveTxSet(uint256 const& txSethash, PeerPtr peer) override;
 
-    SCPQuorumSetPtr fetchSCPQuorumSet(const uint256& qSetHash, bool askNetwork) override;
+    SCPQuorumSetPtr fetchSCPQuorumSet(const uint256& qSetHash,
+                                      bool askNetwork) override;
     void recvSCPQuorumSet(SCPQuorumSetPtr qSet) override;
     void doesntHaveSCPQuorumSet(uint256 const& qSetHash, PeerPtr peer) override;
 
@@ -98,7 +103,7 @@ class HerderImpl : public Herder, public SCP
     void recvSCPEnvelope(SCPEnvelope envelope,
                          std::function<void(EnvelopeState)> const& cb = [](bool)
                          {
-    }) override;
+                         }) override;
 
     void ledgerClosed(LedgerHeaderHistoryEntry const& ledger) override;
 

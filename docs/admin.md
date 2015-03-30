@@ -27,6 +27,8 @@
         level is one of FATAL, ERROR, WARNING, INFO, DEBUG, VERBOSE, TRACE
 ## /logrotate
         rotate log files
+## /manualclose
+        close the current ledger; must be used with MANUAL_CLOSE set to true
 ## /metrics
         returns a snapshot of the metrics registry (for monitoring and
         debugging purpose)
@@ -38,8 +40,8 @@
         stops the instance
 ## /tx?blob=HEX
         submit a transaction to the network.
-        blob is a hex encoded XDR serialized "TransactionEnvelope"
+        blob is a hex encoded XDR serialized 'TransactionEnvelope'
         returns a JSON object
             wasReceived: boolean, true if transaction was queued properly
-            result: hex encoded, XDR serialized "TransactionResult"
+            result: hex encoded, XDR serialized 'TransactionResult'
 
