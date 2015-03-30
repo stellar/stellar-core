@@ -23,7 +23,7 @@
 #define NODE_EXPIRATION_SECONDS 240
 
 // How many ledger in past/future we consider an envelope viable.
-#define LEDGER_VALIDITY_BRACKET 10
+#define LEDGER_VALIDITY_BRACKET 1000
 
 namespace medida
 {

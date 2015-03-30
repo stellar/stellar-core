@@ -283,24 +283,25 @@ main(int argc, char* const* argv)
         if (fs::exists(cfgFile))
         {
             cfg.load(cfgFile);
-            Logging::setLoggingToFile(cfg.LOG_FILE_PATH);
-        }
-        else
+        }else
         {
             LOG(WARNING) << "No config file " << cfgFile << " found";
             cfgFile = ":default-settings:";
         }
         Logging::setLogLevel(logLevel, nullptr);
-
-        cfg.REBUILD_DB = newDB;
-        cfg.START_NEW_NETWORK = newNetwork;
-        cfg.REPORT_METRICS = metrics;
-        if (command.size())
+        if(command.size())
         {
             sendCommand(command, rest, cfg.HTTP_PORT);
             return 0;
         }
-        else if (newNetwork || newDB)
+
+        // don't log to file if just sending a command
+        Logging::setLoggingToFile(cfg.LOG_FILE_PATH);
+        cfg.REBUILD_DB = newDB;
+        cfg.START_NEW_NETWORK = newNetwork;
+        cfg.REPORT_METRICS = metrics;
+        
+        if (newNetwork || newDB)
         {
             if (newDB)
                 initializeDatabase(cfg);
