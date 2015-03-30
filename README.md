@@ -1,5 +1,12 @@
 [![Build Status](https://magnum.travis-ci.com/stellar/stellar-core.svg?token=u11W8KHX2y4hfGqbzE1E)]
 
+# Documentation
+
+Documentation of the code's layout and abstractions, as well as for the
+functionality available, can be found in
+[`./docs`](https://github.com/stellar/stellar-core/tree/master/docs). Start
+reading at the [overview document](https://github.com/stellar/stellar-core/blob/master/docs/readme.md).
+
 # Contributing
 
 We're striving to keep master's history with minimal merge bubbles. To achieve
