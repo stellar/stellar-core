@@ -45,7 +45,7 @@ class LedgerManagerImpl : public LedgerManager
     std::vector<LedgerCloseData> mSyncingLedgers;
 
     void historyCaughtup(asio::error_code const& ec,
-                         HistoryManager::ResumeMode mode,
+                         HistoryManager::CatchupMode mode,
                          LedgerHeaderHistoryEntry const& lastClosed);
 
     void closeLedgerHelper(LedgerDelta const& delta);
@@ -73,7 +73,7 @@ class LedgerManagerImpl : public LedgerManager
 
     Database& getDatabase() override;
 
-    void startCatchUp(uint32_t initLedger, HistoryManager::ResumeMode resume) override;
+    void startCatchUp(uint32_t initLedger, HistoryManager::CatchupMode resume) override;
     HistoryManager::VerifyHashStatus verifyCatchupCandidate(LedgerHeaderHistoryEntry const&) const override;
     void closeLedger(LedgerCloseData ledgerData) override;
 };

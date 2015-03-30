@@ -479,8 +479,8 @@ HistoryManagerImpl::snapshotWritten(asio::error_code const& ec)
 
 void
 HistoryManagerImpl::catchupHistory(
-    uint32_t initLedger, ResumeMode mode,
-    std::function<void(asio::error_code const& ec, ResumeMode mode,
+    uint32_t initLedger, CatchupMode mode,
+    std::function<void(asio::error_code const& ec, CatchupMode mode,
                        LedgerHeaderHistoryEntry const& lastClosed)> handler)
 {
     if (mCatchup)
@@ -491,7 +491,7 @@ HistoryManagerImpl::catchupHistory(
     mCatchup = make_unique<CatchupStateMachine>(
         mApp, initLedger, mode,
         [this, handler](asio::error_code const& ec,
-                        HistoryManagerImpl::ResumeMode mode,
+                        HistoryManagerImpl::CatchupMode mode,
                         LedgerHeaderHistoryEntry const& lastClosed)
         {
             if (ec)

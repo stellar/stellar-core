@@ -126,7 +126,7 @@ class LedgerManager
     // happens automatically when LedgerManager detects it is desynchronized
     // from SCP's consensus ledger; this methos is present in the public interface
     // to permit testing.
-    virtual void startCatchUp(uint32_t initLedger, HistoryManager::ResumeMode resume) = 0;
+    virtual void startCatchUp(uint32_t initLedger, HistoryManager::CatchupMode resume) = 0;
 
     // Called by the history subsystem during catchup: this method asks the
     // LedgerManager whether or not the HistoryManager should trust (thus: begin

@@ -71,8 +71,8 @@ public:
     void publishHistory(std::function<void(asio::error_code const&)> handler) override;
 
     void catchupHistory(
-        uint32_t initLedger, ResumeMode mode,
-        std::function<void(asio::error_code const& ec, ResumeMode mode,
+        uint32_t initLedger, CatchupMode mode,
+        std::function<void(asio::error_code const& ec, CatchupMode mode,
                            LedgerHeaderHistoryEntry const& lastClosed)>
             handler) override;
 

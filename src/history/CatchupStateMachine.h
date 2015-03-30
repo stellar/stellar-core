@@ -101,9 +101,9 @@ class CatchupStateMachine
     uint32_t mInitLedger;
     uint32_t mNextLedger;
     LedgerHeaderHistoryEntry mLastClosed;
-    HistoryManager::ResumeMode mMode;
+    HistoryManager::CatchupMode mMode;
     std::function<void(asio::error_code const& ec,
-                       HistoryManager::ResumeMode mode,
+                       HistoryManager::CatchupMode mode,
                        LedgerHeaderHistoryEntry const& lastClosed)> mEndHandler;
     asio::error_code mError;
     CatchupState mState;
@@ -148,9 +148,9 @@ class CatchupStateMachine
   public:
     CatchupStateMachine(
         Application& app, uint32_t initLedger,
-        HistoryManager::ResumeMode mode,
+        HistoryManager::CatchupMode mode,
         std::function<
-            void(asio::error_code const& ec, HistoryManager::ResumeMode mode,
+            void(asio::error_code const& ec, HistoryManager::CatchupMode mode,
                  LedgerHeaderHistoryEntry const& lastClosed)> handler);
 };
 }
