@@ -71,14 +71,8 @@ usage(int err = 1)
           "      --genseed       Generate and print a random node seed\n"
           "      --ll LEVEL      Set the log level. LEVEL can be:\n"
           "                      [trace|debug|info|warning|error|fatal|none]\n"
-          "      --c             Command to send to local stellar-core:\n"
-          "                      stop\n"
-          "                      info\n"
-          "                      reload_cfg?file=newconfig.cfg\n"
-          "                      logrotate\n"
-          "                      peers\n"
-          "                      connect?ip=5.5.5.5&port=3424\n"
-          "                      tx?blob=TX_IN_HEX\n"
+          "      --c             Command to send to local stellar-core. try "
+          "'--c help' for more information\n"
           "      --conf FILE     To specify a config file ('-' for STDIN, "
           "default 'stellar-core.cfg')\n";
     exit(err);
