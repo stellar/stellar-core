@@ -25,9 +25,7 @@ typedef std::unique_ptr<Application> appPtr;
 // Merging with outstanding offers
 TEST_CASE("merge", "[tx]")
 {
-    Config cfg;
-    cfg.RUN_STANDALONE = true;
-    cfg.FORCE_SCP = true;
+    Config cfg(getTestConfig());
 
     VirtualClock clock;
     Application::pointer app = Application::create(clock, cfg);

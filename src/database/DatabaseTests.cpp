@@ -251,12 +251,8 @@ TEST_CASE("postgres smoketest", "[db]")
 
 TEST_CASE("postgres performance", "[db][pgperf][hide]")
 {
-    Config cfg;
-    cfg.RUN_STANDALONE = true;
+    Config cfg(getTestConfig(0, Config::TESTDB_TCP_LOCALHOST_POSTGRESQL));
     VirtualClock clock;
-    cfg.DATABASE =
-        "postgresql://host=localhost dbname=test user=test password=test";
-    cfg.REBUILD_DB = true;
     std::default_random_engine gen;
     std::uniform_int_distribution<uint64_t> dist;
 
