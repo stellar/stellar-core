@@ -27,6 +27,7 @@ Config::Config() : PEER_KEY(SecretKey::random())
     PEER_PORT = DEFAULT_PEER_PORT;
     RUN_STANDALONE = false;
     MANUAL_CLOSE = false;
+    CATCHUP_COMPLETE = false;
     TARGET_PEER_CONNECTIONS = 20;
     MAX_PEER_CONNECTIONS = 50;
     LOG_FILE_PATH = "stellar-core.log";
@@ -71,6 +72,8 @@ Config::load(const std::string& filename)
                     (uint32_t)item.second->as<int64_t>()->value();
             else if (item.first == "RUN_STANDALONE")
                 RUN_STANDALONE = item.second->as<bool>()->value();
+            else if (item.first == "CATCHUP_COMPLETE")
+                CATCHUP_COMPLETE = item.second->as<bool>()->value();
             else if (item.first == "MANUAL_CLOSE")
                 MANUAL_CLOSE = item.second->as<bool>()->value();
             else if (item.first == "LOG_FILE_PATH")

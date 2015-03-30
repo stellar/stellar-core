@@ -45,8 +45,14 @@ class Config : public std::enable_shared_from_this<Config>
     // This is a mode for testing. It prevents you from trying to connect to
     // other peers
     bool RUN_STANDALONE;
+
     // Mode for testing. Ledger will only close when told to over http
     bool MANUAL_CLOSE;
+
+    // Whether to catchup "completely" (replaying all history); default is false,
+    // meaning catchup "minimally", using deltas to the most recent snapshot.
+    bool CATCHUP_COMPLETE;
+
     uint32_t PROTOCOL_VERSION;
     std::string VERSION_STR;
     std::string LOG_FILE_PATH;

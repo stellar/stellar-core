@@ -124,10 +124,10 @@ class HistoryTests
 
     Application::pointer catchupNewApplication(
         uint32_t initLedger, Config::TestDbMode dbMode,
-        HistoryManager::ResumeMode resumeMode, std::string const& appName);
+        HistoryManager::CatchupMode resumeMode, std::string const& appName);
 
     bool catchupApplication(uint32_t initLedger,
-                            HistoryManager::ResumeMode resumeMode,
+                            HistoryManager::CatchupMode resumeMode,
                             Application::pointer app2,
                             bool doStart = true,
                             uint32_t maxCranks = 0xffffffff);
@@ -366,7 +366,7 @@ HistoryTests::generateAndPublishInitialHistory(size_t nPublishes)
 Application::pointer
 HistoryTests::catchupNewApplication(uint32_t initLedger,
                                     Config::TestDbMode dbMode,
-                                    HistoryManager::ResumeMode resumeMode,
+                                    HistoryManager::CatchupMode resumeMode,
                                     std::string const& appName)
 {
 
@@ -386,7 +386,7 @@ HistoryTests::catchupNewApplication(uint32_t initLedger,
 
 bool
 HistoryTests::catchupApplication(uint32_t initLedger,
-                                 HistoryManager::ResumeMode resumeMode,
+                                 HistoryManager::CatchupMode resumeMode,
                                  Application::pointer app2,
                                  bool doStart, uint32_t maxCranks)
 {
@@ -399,11 +399,10 @@ HistoryTests::catchupApplication(uint32_t initLedger,
         // Normally Herder calls LedgerManager.externalizeValue(initLedger) and
         // this _triggers_ catchup within the LM. However, we do this
         // out-of-order because we want to control the catchup mode rather than
-        // let the LM pick it (it does RESUME_AT_LAST automatically), and
-        // because we want to simulate a 1-ledger skew between the publishing
-        // side and the catchup side so that the catchup has "heard" exactly 1
-        // consensus LedgerCloseData broadcast after the event that triggered
-        // its catchup to begin.
+        // let the LM pick it, and because we want to simulate a 1-ledger skew
+        // between the publishing side and the catchup side so that the catchup
+        // has "heard" exactly 1 consensus LedgerCloseData broadcast after the
+        // event that triggered its catchup to begin.
         //
         // For example: we want initLedger to be (say) 191-or-less, so that it
         // catches up using block 3, but we want the publisher to advance past
@@ -569,14 +568,14 @@ TEST_CASE_METHOD(HistoryTests, "History publish", "[history]")
 }
 
 static std::string
-resumeModeName(HistoryManager::ResumeMode mode)
+resumeModeName(HistoryManager::CatchupMode mode)
 {
     switch (mode)
     {
-    case HistoryManager::RESUME_AT_NEXT:
-        return "RESUME_AT_NEXT";
-    case HistoryManager::RESUME_AT_LAST:
-        return "RESUME_AT_LAST";
+    case HistoryManager::CATCHUP_MINIMAL:
+        return "CATCHUP_MINIMAL";
+    case HistoryManager::CATCHUP_COMPLETE:
+        return "CATCHUP_COMPLETE";
     default:
         abort();
     }
@@ -610,8 +609,8 @@ TEST_CASE_METHOD(HistoryTests, "Full history catchup",
 
     std::vector<Application::pointer> apps;
 
-    std::vector<HistoryManager::ResumeMode> resumeModes = {
-        HistoryManager::RESUME_AT_NEXT, HistoryManager::RESUME_AT_LAST};
+    std::vector<HistoryManager::CatchupMode> resumeModes = {
+        HistoryManager::CATCHUP_MINIMAL, HistoryManager::CATCHUP_COMPLETE};
 
     std::vector<Config::TestDbMode> dbModes = {
 #ifdef USE_POSTGRES
@@ -659,7 +658,7 @@ TEST_CASE_METHOD(HistoryTests, "History publish queueing",
     auto app2 = catchupNewApplication(
         initLedger,
         Config::TESTDB_IN_MEMORY_SQLITE,
-        HistoryManager::RESUME_AT_LAST,
+        HistoryManager::CATCHUP_COMPLETE,
         std::string("Catchup to delayed history"));
     CHECK(app2->getLedgerManager().getLedgerNum() ==
           app.getLedgerManager().getLedgerNum());
@@ -676,7 +675,7 @@ TEST_CASE_METHOD(HistoryTests, "History prefix catchup",
     // Should replay the 64th (since it gets externalized) and land on 65.
     apps.push_back(catchupNewApplication(
                        10, Config::TESTDB_IN_MEMORY_SQLITE,
-                       HistoryManager::RESUME_AT_LAST,
+                       HistoryManager::CATCHUP_COMPLETE,
                        std::string("Catchup to prefix of published history")));
     CHECK(apps.back()->getLedgerManager().getLedgerNum() ==
           HistoryManager::kCheckpointFrequency + 1);
@@ -685,7 +684,7 @@ TEST_CASE_METHOD(HistoryTests, "History prefix catchup",
     // Should replay the 64th (since it gets externalized) and land on 129.
     apps.push_back(catchupNewApplication(
                        HistoryManager::kCheckpointFrequency + 10,
-                       Config::TESTDB_IN_MEMORY_SQLITE, HistoryManager::RESUME_AT_LAST,
+                       Config::TESTDB_IN_MEMORY_SQLITE, HistoryManager::CATCHUP_COMPLETE,
                        std::string("Catchup to second prefix of published history")));
     CHECK(apps.back()->getLedgerManager().getLedgerNum() ==
           2 * HistoryManager::kCheckpointFrequency + 1);
@@ -695,7 +694,7 @@ TEST_CASE_METHOD(HistoryTests, "Publish/catchup alternation, with stall",
                  "[history][historycatchup][catchupalternation]")
 {
     // Publish in app, catch up in app2 and app3.
-    // App2 will catch up using RESUME_AT_LAST, app3 will use RESUME_AT_NEXT.
+    // App2 will catch up using CATCHUP_COMPLETE, app3 will use CATCHUP_MINIMAL.
     generateAndPublishInitialHistory(3);
 
     Application::pointer app2, app3;
@@ -706,12 +705,12 @@ TEST_CASE_METHOD(HistoryTests, "Publish/catchup alternation, with stall",
 
     app2 = catchupNewApplication(initLedger,
                                  Config::TESTDB_IN_MEMORY_SQLITE,
-                                 HistoryManager::RESUME_AT_LAST,
+                                 HistoryManager::CATCHUP_COMPLETE,
                                  std::string("app2"));
 
     app3 = catchupNewApplication(initLedger,
                                  Config::TESTDB_IN_MEMORY_SQLITE,
-                                 HistoryManager::RESUME_AT_NEXT,
+                                 HistoryManager::CATCHUP_MINIMAL,
                                  std::string("app3"));
 
     CHECK(app2->getLedgerManager().getLedgerNum() == lm.getLedgerNum());
@@ -724,8 +723,8 @@ TEST_CASE_METHOD(HistoryTests, "Publish/catchup alternation, with stall",
 
         initLedger = lm.getLastClosedLedgerNum();
 
-        catchupApplication(initLedger, HistoryManager::RESUME_AT_LAST, app2);
-        catchupApplication(initLedger, HistoryManager::RESUME_AT_NEXT, app3);
+        catchupApplication(initLedger, HistoryManager::CATCHUP_COMPLETE, app2);
+        catchupApplication(initLedger, HistoryManager::CATCHUP_MINIMAL, app3);
 
         CHECK(app2->getLedgerManager().getLedgerNum() == lm.getLedgerNum());
         CHECK(app3->getLedgerManager().getLedgerNum() == lm.getLedgerNum());
@@ -753,10 +752,10 @@ TEST_CASE_METHOD(HistoryTests, "Publish/catchup alternation, with stall",
     bool caughtup = false;
     initLedger = lm.getLastClosedLedgerNum();
 
-    caughtup = catchupApplication(initLedger, HistoryManager::RESUME_AT_LAST,
+    caughtup = catchupApplication(initLedger, HistoryManager::CATCHUP_COMPLETE,
                                   app2, true, 30);
     CHECK(!caughtup);
-    caughtup = catchupApplication(initLedger, HistoryManager::RESUME_AT_NEXT,
+    caughtup = catchupApplication(initLedger, HistoryManager::CATCHUP_MINIMAL,
                                   app3, true, 30);
     CHECK(!caughtup);
 
@@ -764,10 +763,10 @@ TEST_CASE_METHOD(HistoryTests, "Publish/catchup alternation, with stall",
     // Now complete this publish cycle and confirm that the stalled apps
     // will catch up.
     generateAndPublishHistory(1);
-    caughtup = catchupApplication(initLedger, HistoryManager::RESUME_AT_LAST,
+    caughtup = catchupApplication(initLedger, HistoryManager::CATCHUP_COMPLETE,
                                   app2, false);
     CHECK(caughtup);
-    caughtup = catchupApplication(initLedger, HistoryManager::RESUME_AT_NEXT,
+    caughtup = catchupApplication(initLedger, HistoryManager::CATCHUP_MINIMAL,
                                   app3, false);
     CHECK(caughtup);
 }
@@ -817,5 +816,5 @@ TEST_CASE_METHOD(S3HistoryTests, "Publish/catchup via s3",
     auto app2 = catchupNewApplication(
         app.getLedgerManager().getCurrentLedgerHeader().ledgerSeq,
         Config::TESTDB_IN_MEMORY_SQLITE,
-        HistoryManager::RESUME_AT_LAST, "s3");
+        HistoryManager::CATCHUP_COMPLETE, "s3");
 }

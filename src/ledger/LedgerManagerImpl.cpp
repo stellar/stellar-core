@@ -248,13 +248,16 @@ LedgerManagerImpl::externalizeValue(LedgerCloseData ledgerData)
         {
             // Start trying to catchup.
             CLOG(INFO, "Ledger") << "Starting catchup";
-            startCatchUp(ledgerData.mLedgerSeq, HistoryManager::RESUME_AT_LAST);
+            startCatchUp(ledgerData.mLedgerSeq,
+                         mApp.getConfig().CATCHUP_COMPLETE ?
+                         HistoryManager::CATCHUP_COMPLETE :
+                         HistoryManager::CATCHUP_MINIMAL);
         }
     }
 }
 
 void
-LedgerManagerImpl::startCatchUp(uint32_t initLedger, HistoryManager::ResumeMode resume)
+LedgerManagerImpl::startCatchUp(uint32_t initLedger, HistoryManager::CatchupMode resume)
 {
     mApp.setState(Application::CATCHING_UP_STATE);
     mApp.getHistoryManager().catchupHistory(
@@ -306,7 +309,7 @@ LedgerManagerImpl::verifyCatchupCandidate(LedgerHeaderHistoryEntry const& candid
 
 void
 LedgerManagerImpl::historyCaughtup(asio::error_code const& ec,
-                              HistoryManager::ResumeMode mode,
+                              HistoryManager::CatchupMode mode,
                               LedgerHeaderHistoryEntry const& lastClosed)
 {
     if (ec)
@@ -315,9 +318,9 @@ LedgerManagerImpl::historyCaughtup(asio::error_code const& ec,
     }
     else
     {
-        // If we were in RESUME_AT_NEXT mode, LCL has not been updated
+        // If we were in CATCHUP_MINIMAL mode, LCL has not been updated
         // and we need to pick it up here.
-        if (mode == HistoryManager::RESUME_AT_NEXT)
+        if (mode == HistoryManager::CATCHUP_MINIMAL)
         {
             mLastClosedLedger = lastClosed;
             mCurrentLedger = make_shared<LedgerHeaderFrame>(lastClosed);
@@ -328,7 +331,7 @@ LedgerManagerImpl::historyCaughtup(asio::error_code const& ec,
             // replay process and, if judged successful, our LCL should be the
             // one provided as well.
             using xdr::operator==;
-            assert(mode == HistoryManager::RESUME_AT_LAST);
+            assert(mode == HistoryManager::CATCHUP_COMPLETE);
             assert(lastClosed.hash == mLastClosedLedger.hash);
             assert(lastClosed.header == mLastClosedLedger.header);
         }
@@ -395,7 +398,9 @@ LedgerManagerImpl::historyCaughtup(asio::error_code const& ec,
                     << lastBuffered.mLedgerSeq;
                 mSyncingLedgers.clear();
                 startCatchUp(lastBuffered.mLedgerSeq,
-                             HistoryManager::RESUME_AT_LAST);
+                             mApp.getConfig().CATCHUP_COMPLETE ?
+                             HistoryManager::CATCHUP_COMPLETE :
+                             HistoryManager::CATCHUP_MINIMAL);
             }
         }
         if (applied)

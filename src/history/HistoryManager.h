@@ -134,7 +134,7 @@
  * Therefore: if the peer is serving public API consumers that expect a
  * complete, uninterrupted view of history from LAST to the present, it will
  * define RESUME=LAST and replay all history blocks since LAST. If on the other
- * hand the peer is interested in a quick catchup and does not want to serve
+ * hand the peer is interested in a minimal catchup and does not want to serve
  * contiguous history records to its clients, or if too much time has passed
  * since LAST for this to be reasonable, it may define RESUME=NEXT and replay
  * the absolute least history it can, probably only the stuff buffered in
@@ -164,6 +164,7 @@ namespace stellar
 class Application;
 class Bucket;
 class BucketList;
+class Config;
 class HistoryArchive;
 struct StateSnapshot;
 
@@ -171,17 +172,17 @@ class HistoryManager
 {
   public:
 
-    // The two supported styles of catchup. RESUME_AT_LAST will replay all
+    // The two supported styles of catchup. CATCHUP_COMPLETE will replay all
     // history blocks, from the last closed ledger to the present, when catching
-    // up; RESUME_AT_NEXT will attempt to "fast forward" to the next BucketList
+    // up; CATCHUP_MINIMAL will attempt to "fast forward" to the next BucketList
     // checkpoint, skipping the history log that happened between the last
-    // closed ledger and the catchup point. By default the LedgerManager uses
-    // RESUME_AT_LAST mode when it detects desynchronization. See
-    // LedgerManager::startCatchUp and its callers.
-    enum ResumeMode
+    // closed ledger and the catchup point. This is set by config, default is
+    // CATCHUP_MINIMAL but it should be CATCHUP_COMPLETE for any server with
+    // API clients. See LedgerManager::startCatchUp and its callers for uses.
+    enum CatchupMode
     {
-        RESUME_AT_LAST,
-        RESUME_AT_NEXT
+        CATCHUP_COMPLETE,
+        CATCHUP_MINIMAL
     };
 
     // Status code returned from LedgerManager::verifyCatchupCandidate. The
@@ -219,6 +220,9 @@ class HistoryManager
     // Initialize a named history archive by writing
     // .well-known/stellar-history.json to it.
     static bool initializeHistoryArchive(Application& app, std::string arch);
+
+    // Check that config settings are at least somewhat reasonable.
+    static void checkSensibleConfig(Config const& cfg);
 
     static std::unique_ptr<HistoryManager> create(Application& app);
 
@@ -267,12 +271,12 @@ class HistoryManager
     virtual void publishHistory(std::function<void(asio::error_code const&)> handler) = 0;
 
     // Run catchup, we've just heard `initLedger` from the network. Mode can be
-    // RESUME_AT_LAST, meaning replay history from last to present, or
-    // RESUME_AT_NEXT, meaning snap to the next state possible and discard
+    // CATCHUP_COMPLETE, meaning replay history from last to present, or
+    // CATCHUP_MINIMAL, meaning snap to the next state possible and discard
     // history. See larger comment above for more detail.
     virtual void catchupHistory(
-        uint32_t initLedger, ResumeMode mode,
-        std::function<void(asio::error_code const& ec, ResumeMode mode,
+        uint32_t initLedger, CatchupMode mode,
+        std::function<void(asio::error_code const& ec, CatchupMode mode,
                            LedgerHeaderHistoryEntry const& lastClosed)>
         handler) = 0;
 

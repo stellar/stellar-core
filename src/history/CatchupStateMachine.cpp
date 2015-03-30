@@ -30,9 +30,9 @@ const size_t CatchupStateMachine::kRetryLimit = 16;
 
 CatchupStateMachine::CatchupStateMachine(
     Application& app, uint32_t initLedger,
-    HistoryManager::ResumeMode mode,
+    HistoryManager::CatchupMode mode,
     std::function<void(asio::error_code const& ec,
-                       HistoryManager::ResumeMode mode,
+                       HistoryManager::CatchupMode mode,
                        LedgerHeaderHistoryEntry const& lastClosed)> handler)
     : mApp(app)
     , mInitLedger(initLedger)
@@ -71,7 +71,7 @@ CatchupStateMachine::selectRandomReadableHistoryArchive()
     if (archives.size() == 0)
     {
         throw std::runtime_error(
-            "No readable history archive to catch up from.");
+            "No GET-enabled history archive in config, can't start catchup.");
     }
     else if (archives.size() == 1)
     {
@@ -359,9 +359,9 @@ CatchupStateMachine::enterAnchoredState(HistoryArchiveState const& has)
 
     // Then make sure all the files we _want_ are either present
     // or queued to be requested.
-    if (mMode == HistoryManager::RESUME_AT_NEXT)
+    if (mMode == HistoryManager::CATCHUP_MINIMAL)
     {
-        // in RESUME_AT_NEXT mode we need all the buckets...
+        // in CATCHUP_MINIMAL mode we need all the buckets...
         std::vector<std::string> bucketsToFetch =
             mArchiveState.differingBuckets(mLocalState);
         for (auto const& h : bucketsToFetch)
@@ -378,8 +378,8 @@ CatchupStateMachine::enterAnchoredState(HistoryArchiveState const& has)
     }
     else
     {
-        assert(mMode == HistoryManager::RESUME_AT_LAST);
-        // In RESUME_AT_LAST mode we need all the transaction and ledger files.
+        assert(mMode == HistoryManager::CATCHUP_COMPLETE);
+        // In CATCHUP_COMPLETE mode we need all the transaction and ledger files.
         for (uint32_t snap = mLocalState.currentLedger /
                              HistoryManager::kCheckpointFrequency;
              snap <= mArchiveState.currentLedger /
@@ -459,17 +459,17 @@ CatchupStateMachine::enterVerifyingState()
     mState = CATCHUP_VERIFYING;
 
     HistoryManager::VerifyHashStatus status = HistoryManager::VERIFY_HASH_UNKNOWN;
-    if (mMode == HistoryManager::RESUME_AT_LAST)
+    if (mMode == HistoryManager::CATCHUP_COMPLETE)
     {
-        // In RESUME_AT_LAST mode we need to verify he whole history chain;
+        // In CATCHUP_COMPLETE mode we need to verify he whole history chain;
         // this includes checking the final LCL of the chain with LedgerManager.
         status = verifyHistoryFromLastClosedLedger();
     }
     else
     {
-        // In RESUME_AT_NEXT mode we just need to acquire the LCL before mNextLedger
+        // In CATCHUP_MINIMAL mode we just need to acquire the LCL before mNextLedger
         // and check to see if it's acceptable.
-        assert(mMode == HistoryManager::RESUME_AT_NEXT);
+        assert(mMode == HistoryManager::CATCHUP_MINIMAL);
         acquireFinalLedgerState(mNextLedger);
         status = mApp.getLedgerManager().verifyCatchupCandidate(mLastClosed);
     }
@@ -598,17 +598,17 @@ CatchupStateMachine::enterApplyingState()
     // to confirm that it's part of the trusted chain of history we want
     // to catch up with. Currently it applies blindly.
 
-    if (mMode == HistoryManager::RESUME_AT_NEXT)
+    if (mMode == HistoryManager::CATCHUP_MINIMAL)
     {
-        // In RESUME_AT_NEXT mode we're applying the _state_ at mLastClosed
+        // In CATCHUP_MINIMAL mode we're applying the _state_ at mLastClosed
         // without any history replay.
         applyBucketsAtLastClosedLedger();
     }
     else
     {
-        // In RESUME_AT_LAST mode we're applying the _log_ of history from
+        // In CATCHUP_COMPLETE mode we're applying the _log_ of history from
         // HistoryManager's LCL through mNextLedger, without any reconstitution.
-        assert(mMode == HistoryManager::RESUME_AT_LAST);
+        assert(mMode == HistoryManager::CATCHUP_COMPLETE);
         applyHistoryFromLastClosedLedger();
     }
 

@@ -54,16 +54,12 @@ enum MessageType
     GET_TX_SET = 5, // gets a particular txset by hash
     TX_SET = 6,
 
-    GET_VALIDATIONS = 7, // gets validations for a given ledger hash
-    VALIDATIONS = 8,
-
-    TRANSACTION = 9, // pass on a tx you have heard about
-    JSON_TRANSACTION = 10,
+    TRANSACTION = 7, // pass on a tx you have heard about
 
     // SCP
-    GET_SCP_QUORUMSET = 11,
-    SCP_QUORUMSET = 12,
-    SCP_MESSAGE = 13
+    GET_SCP_QUORUMSET = 8,
+    SCP_QUORUMSET = 9,
+    SCP_MESSAGE = 10
 };
 
 struct DontHave
