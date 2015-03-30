@@ -101,16 +101,23 @@ BucketManagerImpl::getBucketDir()
         std::string lock = d + "/" + kLockFilename;
         if (fs::exists(lock))
         {
-            std::string msg("Found existing lockfile '");
-            msg += lock;
-            msg += "'";
-            throw std::runtime_error(msg);
+            std::ifstream lockfile(lock);
+            std::string pidStr;
+            lockfile >> pidStr;
+            auto pid = stoi(pidStr);
+            if (fs::processExists(pid))
+            {
+                std::string msg("Found existing lockfile '" + lock + "' and process " + std::to_string(pid) + " is still running.");
+                throw std::runtime_error(msg);
+            } else
+            {
+                CLOG(WARNING, "Bucket") << "Ignoring stale lockfile '" << lock << "', process " << pid << " is gone.";
+            }
         }
 
-        assert(!fs::exists(lock));
         {
-            std::ofstream lockfile(lock);
-            lockfile << 1;
+            std::ofstream lockfile(lock, std::ios::trunc);
+            lockfile << std::to_string(fs::getCurrentPid()) << std::endl;
         }
         assert(fs::exists(lock));
         mLockedBucketDir = make_unique<std::string>(d);
@@ -151,7 +158,7 @@ BucketManagerImpl::adoptFileAsBucket(std::string const& filename, uint256 const&
     std::shared_ptr<Bucket> b = getBucketByHash(hash);
     if (b)
     {
-        CLOG(DEBUG, "CLF") << "Deleting bucket file " << filename
+        CLOG(DEBUG, "Bucket") << "Deleting bucket file " << filename
                            << " that is redundant with existing bucket";
         std::remove(filename.c_str());
     }
