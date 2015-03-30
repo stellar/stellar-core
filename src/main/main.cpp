@@ -163,6 +163,11 @@ initializeDatabase(Config& cfg)
 int
 initializeHistories(Config& cfg, vector<string> newHistories)
 {
+    // prevent opening up a port for other peers
+    cfg.RUN_STANDALONE = true;
+    cfg.HTTP_PORT = 0;
+    cfg.MANUAL_CLOSE = true;
+    
     VirtualClock clock;
     Application::pointer app = Application::create(clock, cfg);
 
