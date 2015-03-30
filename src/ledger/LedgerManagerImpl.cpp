@@ -247,7 +247,7 @@ LedgerManagerImpl::externalizeValue(LedgerCloseData ledgerData)
         else
         {
             // Start trying to catchup.
-            CLOG(DEBUG, "Ledger") << "Starting catchup";
+            CLOG(INFO, "Ledger") << "Starting catchup";
             startCatchUp(ledgerData.mLedgerSeq, HistoryManager::RESUME_AT_LAST);
         }
     }
