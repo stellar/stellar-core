@@ -156,7 +156,7 @@ void
 HerderImpl::bootstrap()
 {
     assert(!getSecretKey().isZero());
-    assert(mApp.getConfig().START_NEW_NETWORK);
+    assert(mApp.getConfig().FORCE_SCP);
 
     mApp.setState(Application::SYNCED_STATE);
     mLastClosedLedger = mApp.getLedgerManager().getLastClosedLedgerHeader();

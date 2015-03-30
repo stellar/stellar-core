@@ -27,7 +27,7 @@ TEST_CASE("merge", "[tx]")
 {
     Config cfg;
     cfg.RUN_STANDALONE = true;
-    cfg.START_NEW_NETWORK = true;
+    cfg.FORCE_SCP = true;
 
     VirtualClock clock;
     Application::pointer app = Application::create(clock, cfg);

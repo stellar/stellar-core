@@ -61,13 +61,13 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
         // and connected loopback sockets), no external connections are
         // attempted.
         thisConfig.RUN_STANDALONE = true;
-        thisConfig.START_NEW_NETWORK = true;
+        thisConfig.FORCE_SCP = true;
         thisConfig.REBUILD_DB = true;
 
         thisConfig.PEER_PORT = DEFAULT_PEER_PORT + instanceNumber * 2;
         thisConfig.HTTP_PORT = DEFAULT_PEER_PORT + instanceNumber * 2 - 1;
 
-        // We set a secret key by default as START_NEW_NETWORK is true by
+        // We set a secret key by default as FORCE_SCP is true by
         // default and we do need a VALIDATION_KEY to start a new network
         thisConfig.VALIDATION_KEY = SecretKey::random();
 

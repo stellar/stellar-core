@@ -157,7 +157,7 @@ initializeHistories(Config& cfg, vector<string> newHistories)
     cfg.RUN_STANDALONE = true;
     cfg.HTTP_PORT = 0;
     cfg.MANUAL_CLOSE = true;
-    
+
     VirtualClock clock;
     Application::pointer app = Application::create(clock, cfg);
 
@@ -211,7 +211,7 @@ main(int argc, char* const* argv)
     el::Level logLevel = el::Level::Fatal;
     std::vector<char*> rest;
 
-    bool newNetwork = false;
+    bool forceSCP = false;
     bool newDB = false;
     std::vector<std::string> newHistories;
     std::vector<std::string> metrics;
@@ -240,7 +240,7 @@ main(int argc, char* const* argv)
             std::cout << STELLAR_CORE_VERSION;
             return 0;
         case OPT_FORCESCP:
-            newNetwork = true;
+            forceSCP = true;
             break;
         case OPT_METRIC:
             metrics.push_back(std::string(optarg));
@@ -274,14 +274,15 @@ main(int argc, char* const* argv)
         if (fs::exists(cfgFile))
         {
             cfg.load(cfgFile);
-        }else
+        }
+        else
         {
             LOG(WARNING) << "No config file " << cfgFile << " found";
             cfgFile = ":default-settings:";
         }
         Logging::setLogLevel(logLevel, nullptr);
 
-        if(command.size())
+        if (command.size())
         {
             sendCommand(command, rest, cfg.HTTP_PORT);
             return 0;
@@ -290,16 +291,16 @@ main(int argc, char* const* argv)
         // don't log to file if just sending a command
         Logging::setLoggingToFile(cfg.LOG_FILE_PATH);
         cfg.REBUILD_DB = newDB;
-        cfg.START_NEW_NETWORK = newNetwork;
+        cfg.FORCE_SCP = forceSCP;
         cfg.REPORT_METRICS = metrics;
 
         HistoryManager::checkSensibleConfig(cfg);
-        
-        if (newNetwork || newDB)
+
+        if (forceSCP || newDB)
         {
             if (newDB)
                 initializeDatabase(cfg);
-            if (newNetwork)
+            if (forceSCP)
                 setForceSCPFlag(cfg);
             return 0;
         }

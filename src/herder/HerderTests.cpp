@@ -34,7 +34,7 @@ TEST_CASE("standalone", "[herder]")
 
     cfg.RUN_STANDALONE = true;
     cfg.VALIDATION_KEY = v0SecretKey;
-    cfg.START_NEW_NETWORK = true;
+    cfg.FORCE_SCP = true;
 
     cfg.QUORUM_THRESHOLD = 1;
     cfg.QUORUM_SET.push_back(v0NodeID);

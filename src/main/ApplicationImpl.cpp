@@ -65,7 +65,7 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
     if (mPersistentState->getState(PersistentState::kForceSCPOnNextLaunch) ==
         "true")
     {
-        mConfig.START_NEW_NETWORK = true;
+        mConfig.FORCE_SCP = true;
     }
 
     bool initializeDB =
@@ -196,7 +196,7 @@ ApplicationImpl::start()
 
     mLedgerManager->loadLastKnownLedger();
 
-    if (mConfig.START_NEW_NETWORK)
+    if (mConfig.FORCE_SCP)
     {
         std::string flagClearedMsg = "";
         if (mPersistentState->getState(

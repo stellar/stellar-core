@@ -38,7 +38,7 @@ class Config : public std::enable_shared_from_this<Config>
 
     // Will start a brand new ledger. And SCP will start running immediately
     // should only be used once to start a whole new network
-    bool START_NEW_NETWORK;
+    bool FORCE_SCP;
 
     bool REBUILD_DB;
 
