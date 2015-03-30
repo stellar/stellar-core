@@ -31,15 +31,18 @@ class Config : public std::enable_shared_from_this<Config>
 
     // application config
 
-    // The default way stellar-core starts is to load the state from disk and catch
+    // The default way stellar-core starts is to load the state from disk and
+    // catch
     // up to the network before starting SCP.
-    // If you need different behavior you need to use --new or --local which set
-    // the following flags:
+    // If you need different behavior you need to use --newdb or --force-scp
+    // which sets the following flags:
 
-    // Will start a brand new ledger. And SCP will start running immediately
-    // should only be used once to start a whole new network
+    // SCP will start running immediately using the current local state to
+    // participate in consensus. DO NOT INCLUDE THIS IN A CONFIG FILE
     bool FORCE_SCP;
 
+    // reset the database to the genesis ledger. DO NOT INCLUDE THIS IN
+    // A CONFIG FILE
     bool REBUILD_DB;
 
     // This is a mode for testing. It prevents you from trying to connect to
