@@ -1,17 +1,16 @@
 # Stellar-core Overview
 
 Stellar is a decentralized, federated peer-to-peer network that allows people to
-send payments in any currencies anywhere in the world instantaneously, and with
+send payments in any currency anywhere in the world instantaneously, and with
 minimal fee.
 
 `Stellar-core` is the core component of this network. `Stellar-core` is a C++
 implementation of the Stellar Consensus Protocol configured to construct a chain
 of ledgers that are guaranteed to be in-consensus across all the federated nodes
-at all time.
+at all times.
 
-The more detail on the Stellar Consensus Protocol and how it establishes this
-guarantee see `src/scp/README.md`. For more details on the financial
-transactions supported by the network, see `src/transactions/README.md`.
+For more detail on the Stellar Consensus Protocol and how it establishes this
+guarantee see `src/scp/README.md`. 
 
 ##Key Concepts
 
@@ -116,7 +115,7 @@ source directory and its own dedicated `README.md`.
   buckets by multiple background threads (See `src/buckets/README.md`).
 
 * **Transactions** implements all the various transaction types (See
-  `./transaction.md`).
+  [src/transactions/readme.md](src/transactions/readme.md)).
 
 
 ## Supporting Code Directories
@@ -149,20 +148,14 @@ source directory and its own dedicated `README.md`.
 
 This directory contains the following additional documentation:
 
-* `testnet.md` is short tutorial demonstrating how to configure and run a
+* [testnet.md](/docs/testnet.md) is short tutorial demonstrating how to configure and run a
   short-lived, isolated test network.
 
-* `architecture.md` describe how `stellar-core` is intended to be deployed and the
+* [architecture.md](/docs/architecture.md) describe how `stellar-core` is intended to be deployed and the
   collection of servers and services needed to get the full functionality and
   performance.
 
-* `multisig.md` describes `stellar-core` support for accounts protected by
-  multiple cryptographic signatures and the range of scenarios that it can
-  express.
-
-* `admin.md` describes the configuration concerns and documents the command line
+* [admin.md](/docs/admin.md) describes the configuration concerns and documents the command line
   options.
 
-* `transaction.md` lists the different kinds of transaction supported and
-  details of the rules for their validity.
 
