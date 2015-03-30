@@ -102,6 +102,13 @@ OverlayManagerImpl::connectTo(PeerRecord& pr)
         return;
     }
 
+    if(!pr.mIP.size())
+    {
+        CLOG(INFO, "Overlay") << "OverlayManagerImpl::connectTo Invalid IP ";
+        return;
+    }
+
+
     mConnectionsAttempted.Mark();
     if (!getConnectedPeer(pr.mIP, pr.mPort))
     {

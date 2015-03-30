@@ -101,6 +101,8 @@ PeerRecord::parseIPPort(const string& ipPort, Application& app, PeerRecord& ret,
     if (port < 1 || port > 65535)
         return false;
 
+    if(!ip.size()) return false;
+
     ret = PeerRecord{ip, port, app.getClock().now(), 0, 1};
     return true;
 }
