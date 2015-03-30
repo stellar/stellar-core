@@ -71,7 +71,7 @@ CatchupStateMachine::selectRandomReadableHistoryArchive()
     if (archives.size() == 0)
     {
         throw std::runtime_error(
-            "No readable history archive to catch up from.");
+            "No GET-enabled history archive in config, can't start catchup.");
     }
     else if (archives.size() == 1)
     {
