@@ -172,7 +172,7 @@ getCurrentPid()
 bool
 processExists(long pid)
 {
-    return exists("/proc/" + std::to_string(pid));
+    return (kill(pid, 0) == 0);
 }
 
 
