@@ -8,3 +8,6 @@ messages to and from those peers.
 Within the local process, the overlay subsystem primarily delivers messages to,
 and accepts them from, the [Herder](../herder), as well as propagating through
 the network any transactions injected from public API servers.
+
+Good reading entry points are `OverlayManager.h`, as well as the implementation of
+`OverlayManagerImpl::tick`, and `OverlayManagerImpl::broadcastMessage`.

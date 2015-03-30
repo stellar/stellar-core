@@ -10,7 +10,7 @@ of ledgers that are guaranteed to be in-consensus across all the federated nodes
 at all times.
 
 For more detail on the Stellar Consensus Protocol and how it establishes this
-guarantee see `src/scp/README.md`. 
+guarantee see [`src/scp/README.md`](src/scp/readme.md). 
 
 ##Key Concepts
 
@@ -27,7 +27,7 @@ guarantee see `src/scp/README.md`.
 
 - **Ledger header**: The ledger's header contains meta data about the ledger,
   including the hash of the previous ledger (thus recording the chain) and its own
-  hash. (See `src/xdr/Stellar-ledger.x`)
+  hash. (See [`src/xdr/Stellar-ledger.x`](src/xdr/Stellar-ledger.x))
 
 - **Transaction**: Making a payment, creating an offer and so forth. Anything
   that changes a ledger's entries is called a transaction.
@@ -45,7 +45,7 @@ performance needs.
     it possible to determine efficiently whether a newly submitted operation is
     valid. (See the `load` and `store` functions in the subclasses of
     `EntryFrame`: `AccountFrame`, `TrustFrame`, and `OfferFrame` in
-    `src/ledger`).
+    [`src/ledger`](src/ledger)).
 
  2. The ledger chain is represented in the the ledger headers as hashes linking
     each hedger to the previous one. The spine of the chain is lightweight data
@@ -60,7 +60,7 @@ performance needs.
     where a minority of the accounts see the majority of the operations. Second,
     it participates in providing nodes that have fallen behind with the ledger
     data they need to catch-up with the current state of the chain. (See
-    `src/bucket/README.md`). While the hash computed by the bucket list is
+    [`src/bucket/readme.md`](src/bucket/readme.md)). While the hash computed by the bucket list is
     functionally equivalent to a hash obtained concatenating all the entries, it
     is not the same value since the bucket list deduplicates changed entries
     incrementally.
@@ -71,30 +71,30 @@ performance needs.
     the full ledger chain's history, and is used to catch-up new nodes and nodes
     that have fallen far behind the rest of the network without imposing an
     undue burden on the nodes participating in the consensus protocol (See
-    `src/history/README.md`).
+    [`src/history/readme.md`](src/history/readme.md)).
 
 
 ##Major Components
 
 There are a few major components of the system. Each component has a dedicated
-source directory and its own dedicated `README.md`.
+source directory and its own dedicated `readme.md`.
 
 
 * **SCP** is our implementation of the Stellar Consensus Protocol (SCP). This
   component is fully abstracted from the rest of the system. It receives
   candidate black-box values and signals when these values have reached
   consensus by the network (called _externalizing_ a value) (See
-  `src/scp/README.md`).
+  [`src/scp/readme.md`](src/scp/readme.md)).
 
 * **Herder** is responsible for interfacing between SCP and the rest of
   `stellar-core`. Herder provides SCP with concrete implementations of the
   methods SCP uses to communicate with peers, to compare values, to determine
   whether values contain valid signatures, and so forth. Herder often accomplishes
-  its tasks by forwarding to other components (See `src/herder/README.md`).
+  its tasks by forwarding to other components (See [`src/herder/readme.md`](src/herder/readme.md)).
 
 * **Overlay** connects to and keeps track of the peers this nodeis knows
   about and is connected to. It floods messages and fetches from peers the data
-  that is needed to accomplish consensus (See `src/overlay/README.md`). All
+  that is needed to accomplish consensus (See [`src/overlay/readme.md`](src/overlay/readme.md)). All
   other data downloads are handled without imposing on the SCP-nodes, see 
   `./architecture.md`.
   
@@ -103,16 +103,16 @@ source directory and its own dedicated `README.md`.
   changed ledger entries to the bucket list. It triggers the publishing of the
   history. It informs Overlay to update its map of flooded messages. Ledger also
   triggers the History's catching-up routine when it detect that this node has fallen
-  behind of the rest of the network (See `src/ledger/README.md`).
+  behind of the rest of the network (See [`src/ledger/readme.md`](src/ledger/readme.md)).
 
 * **History** publishes transaction and ledger entries to off-site permanent
   storage for auditing, and as a source of catch-up data for other nodes. When
   this node falls behind, History fetches the catch-up data and submits it to
-  Ledger twice: first to verify its security, then to apply it (See `src/history/README.md`).
+  Ledger twice: first to verify its security, then to apply it (See [`src/history/readme.md`](src/history/readme.md)).
 
 * **BucketList** stores ledger entries on disk arranged for hashing and
   block-catch-up. BucketList coordinates the hashing and deduplicating of
-  buckets by multiple background threads (See `src/buckets/README.md`).
+  buckets by multiple background threads (See [`src/buckets/readme.md`](src/buckets/readme.md)).
 
 * **Transactions** implements all the various transaction types (See
   [src/transactions/readme.md](src/transactions/readme.md)).
@@ -157,5 +157,4 @@ This directory contains the following additional documentation:
 
 * [admin.md](/docs/admin.md) describes the configuration concerns and documents the command line
   options.
-
 
