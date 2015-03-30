@@ -91,8 +91,8 @@ LedgerManagerImpl::LedgerManagerImpl(Application& app)
     , mTransactionApply(
           app.getMetrics().NewTimer({"ledger", "transaction", "apply"}))
     , mLedgerClose(app.getMetrics().NewTimer({"ledger", "ledger", "close"}))
-    , mSyncingLedgersSize(app.getMetrics().NewCounter(
-                              {"ledger", "memory", "syncing-ledgers"}))
+    , mSyncingLedgersSize(
+          app.getMetrics().NewCounter({"ledger", "memory", "syncing-ledgers"}))
 
 {
     mLastCloseTime = mApp.timeNow(); // this is 0 at this point
@@ -105,6 +105,7 @@ LedgerManagerImpl::startNewLedger()
     ByteSlice bytes("masterpassphrasemasterpassphrase");
     std::string b58SeedStr = toBase58Check(VER_SEED, bytes);
     SecretKey skey = SecretKey::fromBase58Seed(b58SeedStr);
+
     AccountFrame masterAccount(skey.getPublicKey());
     masterAccount.getAccount().balance = 100000000000000000;
     LedgerHeader genesisHeader;
@@ -135,8 +136,7 @@ LedgerManagerImpl::loadLastKnownLedger()
 
     if (lastLedger.empty())
     {
-        LOG(INFO) << "No ledger in the DB. Storing ledger 0.";
-        startNewLedger();
+        throw std::runtime_error("No ledger in the DB");
     }
     else
     {
@@ -150,8 +150,8 @@ LedgerManagerImpl::loadLastKnownLedger()
             throw std::runtime_error("Could not load ledger from database");
         }
 
-        string hasString =
-            mApp.getPersistentState().getState(PersistentState::kHistoryArchiveState);
+        string hasString = mApp.getPersistentState().getState(
+            PersistentState::kHistoryArchiveState);
         HistoryArchiveState has;
         has.fromString(hasString);
         mApp.getBucketManager().assumeState(has);
@@ -266,35 +266,39 @@ LedgerManagerImpl::startCatchUp(uint32_t initLedger, HistoryManager::CatchupMode
 }
 
 HistoryManager::VerifyHashStatus
-LedgerManagerImpl::verifyCatchupCandidate(LedgerHeaderHistoryEntry const& candidate) const
+LedgerManagerImpl::verifyCatchupCandidate(
+    LedgerHeaderHistoryEntry const& candidate) const
 {
     // This is a callback from CatchupStateMachine when it's considering whether
-    // to treat a retrieved history block as legitimate. It asks LedgerManagerImpl if
+// to treat a retrieved history block as legitimate. It asks LedgerManagerImpl
+// if
     // it's seen (in its previous, current, or buffer of ledgers-to-close that
     // have queued up since catchup began) whether it believes the candidate is a
     // legitimate part of history. LedgerManagerImpl is allowed to answer "unknown"
     // here, which causes CatchupStateMachine to pause and retry later.
 
-#define CHECK_PAIR(aseq,bseq,ahash,bhash)                               \
-    if ((aseq) == (bseq))                                               \
-    {                                                                   \
-        if ((ahash) == (bhash))                                         \
-        {                                                               \
-            return HistoryManager::VERIFY_HASH_OK;                       \
-        }                                                               \
-        else                                                            \
-        {                                                               \
-            return HistoryManager::VERIFY_HASH_BAD;                      \
-        }                                                               \
+#define CHECK_PAIR(aseq, bseq, ahash, bhash)                                   \
+    if ((aseq) == (bseq))                                                      \
+    {                                                                          \
+        if ((ahash) == (bhash))                                                \
+        {                                                                      \
+            return HistoryManager::VERIFY_HASH_OK;                             \
+        }                                                                      \
+        else                                                                   \
+        {                                                                      \
+            return HistoryManager::VERIFY_HASH_BAD;                            \
+        }                                                                      \
     }
 
     CHECK_PAIR(mLastClosedLedger.header.ledgerSeq, candidate.header.ledgerSeq,
                mLastClosedLedger.hash, candidate.hash);
 
-    CHECK_PAIR(mLastClosedLedger.header.ledgerSeq, candidate.header.ledgerSeq + 1,
+    CHECK_PAIR(mLastClosedLedger.header.ledgerSeq,
+               candidate.header.ledgerSeq + 1,
                mLastClosedLedger.header.previousLedgerHash, candidate.hash);
 
-    CHECK_PAIR(mCurrentLedger->mHeader.ledgerSeq, candidate.header.ledgerSeq + 1,
+    CHECK_PAIR(mCurrentLedger->mHeader.ledgerSeq,
+               candidate.header.ledgerSeq + 1,
                mCurrentLedger->mHeader.previousLedgerHash, candidate.hash);
 
     for (auto const& ld : mSyncingLedgers)
@@ -357,18 +361,19 @@ LedgerManagerImpl::historyCaughtup(asio::error_code const& ec,
                     // contents of the consensus LCD and the last ledger catchup
                     // closed (which was proposed as a candidate, and we
                     // approved in verifyCatchupCandidate).
-                    assert(lcd.mTxSet->getContentsHash() == mLastClosedLedger.header.txSetHash);
+                    assert(lcd.mTxSet->getContentsHash() ==
+                           mLastClosedLedger.header.txSetHash);
                     assert(lcd.mBaseFee == mLastClosedLedger.header.baseFee);
-                    assert(lcd.mCloseTime == mLastClosedLedger.header.closeTime);
+                    assert(lcd.mCloseTime ==
+                           mLastClosedLedger.header.closeTime);
                 }
 
                 continue;
-
             }
             else if (lcd.mLedgerSeq == mLastClosedLedger.header.ledgerSeq + 1)
             {
-                CLOG(INFO, "Ledger")
-                    << "Replaying buffered ledger-close for " << lcd.mLedgerSeq;
+                CLOG(INFO, "Ledger") << "Replaying buffered ledger-close for "
+                                     << lcd.mLedgerSeq;
                 closeLedger(lcd);
                 applied = true;
             }
@@ -392,7 +397,8 @@ LedgerManagerImpl::historyCaughtup(asio::error_code const& ec,
                 CLOG(ERROR, "Ledger")
                     << "LCL is " << ledgerAbbrev(mLastClosedLedger)
                     << ", trying to apply buffered close " << lcd.mLedgerSeq
-                    << " with txhash " << hexAbbrev(lcd.mTxSet->getContentsHash());
+                    << " with txhash "
+                    << hexAbbrev(lcd.mTxSet->getContentsHash());
                 CLOG(ERROR, "Ledger")
                     << "Flushing buffer and restarting at ledger "
                     << lastBuffered.mLedgerSeq;
@@ -522,7 +528,8 @@ LedgerManagerImpl::closeLedger(LedgerCloseData ledgerData)
 void
 LedgerManagerImpl::advanceLedgerPointers()
 {
-//    CLOG(INFO, "Ledger") << "Advancing LCL: " << ledgerAbbrev(mLastClosedLedger)
+    //    CLOG(INFO, "Ledger") << "Advancing LCL: " <<
+    //    ledgerAbbrev(mLastClosedLedger)
     //                        << " -> " << ledgerAbbrev(mCurrentLedger);
 
     mLastClosedLedger.hash = mCurrentLedger->getHash();

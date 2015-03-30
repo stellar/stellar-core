@@ -141,23 +141,13 @@ setForceSCPFlag(Config& cfg)
 void
 initializeDatabase(Config& cfg)
 {
-    cfg.REBUILD_DB = false; // don't wipe the db until we read whether it was
-                            // already initialized
     VirtualClock clock;
     Application::pointer app = Application::create(clock, cfg);
 
-    auto wipeMsg = (app->getPersistentState().getState(
-                        PersistentState::kDatabaseInitialized) == "true"
-                        ? " wiped and initialized"
-                        : " initialized");
-
-    app->getDatabase().initialize();
-
-    LOG(INFO) << "* ";
-    LOG(INFO) << "* The database has been" << wipeMsg
-              << ". The next launch will catchup from the";
+    LOG(INFO) << ". The next launch will catchup from the";
     LOG(INFO) << "* network afresh.";
-    LOG(INFO) << "* ";
+
+    cfg.REBUILD_DB = false;
 }
 
 int
@@ -236,7 +226,8 @@ main(int argc, char* const* argv)
         {
             rest.push_back(*argv);
             rest.insert(++rest.begin(), argv + optind, argv + argc);
-            return test(static_cast<int>(rest.size()), &rest[0], logLevel, metrics);
+            return test(static_cast<int>(rest.size()), &rest[0], logLevel,
+                        metrics);
         }
         case OPT_CONF:
             cfgFile = std::string(optarg);

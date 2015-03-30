@@ -68,10 +68,18 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
         mConfig.START_NEW_NETWORK = true;
     }
 
-    // Initialize the db as early as possible, namely as soon as metrics,
-    // database and persistentState are instantiated.
-    if (mConfig.REBUILD_DB || mConfig.DATABASE == "sqlite3://:memory:")
+    bool initializeDB =
+        (mConfig.REBUILD_DB || mConfig.DATABASE == "sqlite3://:memory:");
+    if (initializeDB)
     {
+        auto wipeMsg = (getPersistentState().getState(
+                            PersistentState::kDatabaseInitialized) == "true"
+                            ? " wiped and initialized"
+                            : " initialized");
+
+        LOG(INFO) << "* ";
+        LOG(INFO) << "* The database has been" << wipeMsg << " *";
+
         mDatabase->initialize();
     }
 
@@ -90,6 +98,11 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
                                     {
                                         this->runWorkerThread(t);
                                     });
+    }
+
+    if (initializeDB)
+    {
+        mLedgerManager->startNewLedger();
     }
 
     LOG(INFO) << "Application constructed";
@@ -177,11 +190,11 @@ ApplicationImpl::start()
     if (mPersistentState->getState(PersistentState::kDatabaseInitialized) !=
         "true")
     {
-        throw std::runtime_error("Database not initialized and REBUID_DB is false.");
+        throw std::runtime_error(
+            "Database not initialized and REBUID_DB is false.");
     }
 
-    bool hasLedger =
-        !mPersistentState->getState(PersistentState::kLastClosedLedger).empty();
+    mLedgerManager->loadLastKnownLedger();
 
     if (mConfig.START_NEW_NETWORK)
     {
@@ -194,27 +207,12 @@ ApplicationImpl::start()
                                        "false");
         }
 
-        if (!hasLedger)
-        {
-            LOG(INFO) << "* ";
-            LOG(INFO) << "* Force-starting scp from scratch, creating the "
-                         "genesis ledger." << flagClearedMsg;
-            LOG(INFO) << "* ";
-            mLedgerManager->startNewLedger();
-        }
-        else
-        {
-            LOG(INFO) << "* ";
-            LOG(INFO) << "* Force-starting scp from the current db state."
-                      << flagClearedMsg;
-            LOG(INFO) << "* ";
-            mLedgerManager->loadLastKnownLedger();
-        }
+        LOG(INFO) << "* ";
+        LOG(INFO) << "* Force-starting scp from the current db state."
+                  << flagClearedMsg;
+        LOG(INFO) << "* ";
+
         mHerder->bootstrap();
-    }
-    else
-    {
-        mLedgerManager->loadLastKnownLedger();
     }
 }
 
