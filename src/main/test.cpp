@@ -81,6 +81,7 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
             dbname << "sqlite3://" << rootDir << "test" << instanceNumber
                    << ".db";
             break;
+#ifdef USE_POSTGRES
         case Config::TESTDB_UNIX_LOCAL_POSTGRESQL:
             dbname << "postgresql://dbname=test" << instanceNumber;
             break;
@@ -88,6 +89,7 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
             dbname << "postgresql://host=localhost dbname=test"
                    << instanceNumber << " user=test password=test";
             break;
+#endif
         default:
             abort();
         }

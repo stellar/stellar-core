@@ -590,10 +590,12 @@ dbModeName(Config::TestDbMode mode)
         return "TESTDB_IN_MEMORY_SQLITE";
     case Config::TESTDB_ON_DISK_SQLITE:
         return "TESTDB_ON_DISK_SQLITE";
+#ifdef USE_POSTGRES
     case Config::TESTDB_UNIX_LOCAL_POSTGRESQL:
         return "TESTDB_UNIX_LOCAL_POSTGRESQL";
     case Config::TESTDB_TCP_LOCALHOST_POSTGRESQL:
         return "TESTDB_TCP_LOCALHOST_POSTGRESQL";
+#endif
     default:
         abort();
     }
