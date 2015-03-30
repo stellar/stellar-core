@@ -249,7 +249,9 @@ LedgerManagerImpl::externalizeValue(LedgerCloseData ledgerData)
             // Start trying to catchup.
             CLOG(INFO, "Ledger") << "Starting catchup";
             startCatchUp(ledgerData.mLedgerSeq,
-                         HistoryManager::CATCHUP_COMPLETE);
+                         mApp.getConfig().CATCHUP_COMPLETE ?
+                         HistoryManager::CATCHUP_COMPLETE :
+                         HistoryManager::CATCHUP_MINIMAL);
         }
     }
 }
@@ -396,7 +398,9 @@ LedgerManagerImpl::historyCaughtup(asio::error_code const& ec,
                     << lastBuffered.mLedgerSeq;
                 mSyncingLedgers.clear();
                 startCatchUp(lastBuffered.mLedgerSeq,
-                             HistoryManager::CATCHUP_COMPLETE);
+                             mApp.getConfig().CATCHUP_COMPLETE ?
+                             HistoryManager::CATCHUP_COMPLETE :
+                             HistoryManager::CATCHUP_MINIMAL);
             }
         }
         if (applied)
