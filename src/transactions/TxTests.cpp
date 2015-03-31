@@ -251,6 +251,12 @@ applyCreateOfferHelper(Application& app, LedgerDelta& delta, uint64 offerId,
                        Currency& takerGets, Currency& takerPays,
                        Price const& price, int64_t amount, SequenceNumber seq)
 {
+    uint64_t expectedOfferID = delta.getHeaderFrame().getLastGeneratedID() + 1;
+    if (offerId != 0)
+    {
+        expectedOfferID = offerId;
+    }
+
     TransactionFramePtr txFrame;
 
     txFrame = createOfferOp(offerId, source, takerGets, takerPays, price, amount, seq);
@@ -263,7 +269,29 @@ applyCreateOfferHelper(Application& app, LedgerDelta& delta, uint64 offerId,
 
     REQUIRE(results.size() == 1);
 
-    return results[0].tr().createOfferResult();
+    auto& createOfferResult = results[0].tr().createOfferResult();
+
+    if (createOfferResult.code() == CREATE_OFFER_SUCCESS)
+    {
+        OfferFrame offer;
+
+        switch (createOfferResult.success().offer.effect())
+        {
+        case CREATE_OFFER_CREATED:
+        case CREATE_OFFER_UPDATED:
+            REQUIRE(OfferFrame::loadOffer(source.getPublicKey(), expectedOfferID, offer,
+                app.getDatabase()));
+            break;
+        case CREATE_OFFER_DELETED:
+            REQUIRE(!OfferFrame::loadOffer(source.getPublicKey(), expectedOfferID, offer,
+                app.getDatabase()));
+            break;
+        default:
+            abort();
+        }
+    }
+
+    return createOfferResult;
 }
 
 uint64_t
@@ -272,8 +300,6 @@ applyCreateOffer(Application& app, LedgerDelta& delta, uint64 offerId,
                  Currency& takerGets, Currency& takerPays, Price const& price,
                  int64_t amount, SequenceNumber seq)
 {
-    uint64_t expectedOfferID = delta.getHeaderFrame().getLastGeneratedID() + 1;
-
     CreateOfferResult const& createOfferRes = applyCreateOfferHelper(
         app, delta, offerId, source, takerGets, takerPays, price, amount, seq);
 
@@ -283,15 +309,7 @@ applyCreateOffer(Application& app, LedgerDelta& delta, uint64 offerId,
 
     REQUIRE(success.effect() == CREATE_OFFER_CREATED);
 
-    auto& offerRes = success.offer();
-    REQUIRE(offerRes.offerID == expectedOfferID);
-
-    // verify that the created offer is in the database
-    OfferFrame offer;
-    REQUIRE(OfferFrame::loadOffer(source.getPublicKey(), expectedOfferID, offer,
-                                  app.getDatabase()));
-
-    return offerRes.offerID;
+    return success.offer().offerID;
 }
 
 CreateOfferResult
@@ -305,7 +323,8 @@ applyCreateOfferWithResult(Application& app, LedgerDelta& delta,
     CreateOfferResult const& createOfferRes = applyCreateOfferHelper(
         app, delta, offerId, source, takerGets, takerPays, price, amount, seq);
 
-    REQUIRE(createOfferRes.code() == result);
+    auto res = createOfferRes.code();
+    REQUIRE(res == result);
 
     return createOfferRes;
 }
