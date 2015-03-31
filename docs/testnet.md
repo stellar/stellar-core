@@ -3,6 +3,18 @@ First, make sure you have copied the example config to your current working dire
 From the TLD of the repo, run
 `cp docs/stellar_core_example.cfg ./bin/stellar-core.cfg`
 
+In order to come to a quorum and make progress when you're running your own network (with one node), change your configuration quorum threshold to 1 and your quorum set to just your validation seed's public key.
+
+```
+# what generates the peerID (used for peer connections) used by this node
+PEER_SEED="s3BCUXncNvghHzKafx4gwYGaEG5rEeMUDdJPDsdjve3ojoFd5tK"
+# what generates the nodeID (used in FBA)
+VALIDATION_SEED="s3BCUXncNvghHzKafx4gwYGaEG5rEeMUDdJPDsdjve3ojoFd5tK"
+
+QUORUM_THRESHOLD=1
+QUORUM_SET=["gxoicA8D962NezYaa4AmrhXKGHYbrELu8rhyKE2vt8osLHL3T5"]
+```
+
 By default stellar-core waits to hear from the network for a ledger close before
 it starts emmiting its own SCP messages. This works fine in the common case but
 when you want to start your own network you need to start SCP manually.
