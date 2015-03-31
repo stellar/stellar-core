@@ -1,12 +1,16 @@
 # Starting a test network
+First, make sure you have copied the example config to your current working directory.
+From the TLD of the repo, run
+`cp docs/stellar_core_example.cfg ./bin/stellar-core.cfg`
+
 By default stellar-core waits to hear from the network for a ledger close before
-it starts emmiting its own SCP messages. This works fine in the common case but 
+it starts emmiting its own SCP messages. This works fine in the common case but
 when you want to start your own network you need to start SCP manually.
 this is done by:
 ```sh
 $ stellar-core --forcescp
 ```
-That will set state in the DB and then exit. The next time you start stellar-core 
+That will set state in the DB and then exit. The next time you start stellar-core
 SCP will start immediately rather than waiting.
 
 
