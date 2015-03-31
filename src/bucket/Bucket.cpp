@@ -261,6 +261,10 @@ Bucket::countLiveAndDeadEntries() const
 void
 Bucket::apply(Database& db) const
 {
+    if (getFilename().empty())
+    {
+        return;
+    }
     BucketEntry entry;
     LedgerHeader lh; // buckets, by definition are independent from the header
     LedgerDelta delta(lh);
