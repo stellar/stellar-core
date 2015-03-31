@@ -127,10 +127,28 @@ CreateOfferOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
         maxAmountOfSheepCanSell = mSheepLineA.getBalance();
     }
 
+    // the maximum is defined by how much wheat it can receive
+    int64_t maxWheatCanSell;
+    if (wheat.type() == NATIVE)
+    {
+        maxWheatCanSell = INT64_MAX;
+    }
+    else
+    {
+        maxWheatCanSell = mWheatLineA.getMaxAmountReceive();
+    }
+
+    {
+        int64_t maxSheepBasedOnWheat = bigDivide(
+            maxWheatCanSell, mCreateOffer.price.d, mCreateOffer.price.n);
+        if (maxAmountOfSheepCanSell > maxSheepBasedOnWheat)
+        {
+            maxAmountOfSheepCanSell = maxSheepBasedOnWheat;
+        }
+    }
+
     // amount of sheep for sale is the lesser of amount we can sell and amount
     // put in the offer
-    // int64_t amountOfSheepForSale = amountOfWheat*OFFER_PRICE_DIVISOR /
-    // sheepPrice;
     if (maxAmountOfSheepCanSell < maxSheepSend)
     {
         maxSheepSend = maxAmountOfSheepCanSell;
@@ -151,8 +169,8 @@ CreateOfferOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
         Price maxWheatPrice(sheepPrice.d, sheepPrice.n);
 
         OfferExchange::ConvertResult r = oe.convertWithOffers(
-            sheep, maxSheepSend, sheepSent, wheat, INT64_MAX, wheatReceived,
-            [this, maxWheatPrice](OfferFrame const& o)
+            sheep, maxSheepSend, sheepSent, wheat, maxWheatCanSell,
+            wheatReceived, [this, maxWheatPrice](OfferFrame const& o)
             {
                 if (o.getPrice() > maxWheatPrice)
                 {
@@ -172,9 +190,8 @@ CreateOfferOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
         switch (r)
         {
         case OfferExchange::eOK:
-            offerIsValid = true;
-            break;
         case OfferExchange::ePartial:
+            offerIsValid = true;
             break;
         case OfferExchange::eFilterStop:
             if (innerResult().code() != CREATE_OFFER_SUCCESS)

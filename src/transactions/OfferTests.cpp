@@ -56,6 +56,7 @@ TEST_CASE("create offer", "[tx][offers]")
     SecretKey root = getRoot();
     SecretKey a1 = getAccount("A");
     SecretKey b1 = getAccount("B");
+    SecretKey c1 = getAccount("C");
     SecretKey gateway = getAccount("gate");
 
     const int64_t currencyMultiplier = 1000000;
@@ -515,7 +516,6 @@ TEST_CASE("create offer", "[tx][offers]")
 
             // inject also an offer that should get cleaned up
             uint64_t cOfferID = 0;
-            SecretKey c1 = getAccount("C");
             {
                 applyPaymentTx(app, root, c1, root_seq++, minBalance3 + 10000);
                 SequenceNumber c1_seq = getAccountSeqNum(c1, app) + 1;
@@ -592,5 +592,244 @@ TEST_CASE("create offer", "[tx][offers]")
         // Offer for more than you have
         // Offer for something you can't hold
         // Passive offer
+    }
+
+    SECTION("multiple parties")
+    {
+        OfferFrame offer;
+        // setup "a1"
+        const int64_t minBalanceA = app.getLedgerManager().getMinBalance(4);
+
+        applyPaymentTx(app, root, a1, root_seq++, minBalanceA + 10000);
+        SequenceNumber a1_seq = getAccountSeqNum(a1, app) + 1;
+
+        applyChangeTrust(app, a1, gateway, a1_seq++, "USD", trustLineLimit);
+        applyChangeTrust(app, a1, gateway, a1_seq++, "IDR", trustLineLimit);
+
+        applyCreditPaymentTx(app, gateway, a1, idrCur, gateway_seq++,
+                             trustLineLimit);
+
+        const Price usdPriceOfferA(3, 2);
+
+        // offer is buy 150 USD for 100 IDR; buy USD @ 1.5 = sell IRD @ 0.66
+        uint64_t offerA1 =
+            applyCreateOffer(app, delta, 0, a1, idrCur, usdCur, usdPriceOfferA,
+                             100 * currencyMultiplier, a1_seq++);
+
+        REQUIRE(OfferFrame::loadOffer(a1.getPublicKey(), offerA1, offer,
+                                      app.getDatabase()));
+
+        // b1 sells the same thing
+        applyPaymentTx(app, root, b1, root_seq++, minBalance3 + 10000);
+        SequenceNumber b1_seq = getAccountSeqNum(b1, app) + 1;
+        applyChangeTrust(app, b1, gateway, b1_seq++, "IDR", trustLineLimit);
+        applyChangeTrust(app, b1, gateway, b1_seq++, "USD", trustLineLimit);
+
+        applyCreditPaymentTx(app, gateway, b1, idrCur, gateway_seq++,
+                             trustLineLimit);
+
+        uint64_t offerB1 =
+            applyCreateOffer(app, delta, 0, b1, idrCur, usdCur, usdPriceOfferA,
+                             100 * currencyMultiplier, b1_seq++);
+
+        REQUIRE(OfferFrame::loadOffer(b1.getPublicKey(), offerB1, offer,
+                                      app.getDatabase()));
+
+        applyPaymentTx(app, root, c1, root_seq++, minBalanceA + 10000);
+        SequenceNumber c1_seq = getAccountSeqNum(c1, app) + 1;
+
+        applyChangeTrust(app, c1, gateway, c1_seq++, "USD", trustLineLimit);
+        applyChangeTrust(app, c1, gateway, c1_seq++, "IDR", trustLineLimit);
+
+        applyCreditPaymentTx(app, gateway, c1, usdCur, gateway_seq++,
+                             trustLineLimit);
+
+        SECTION("Creates an offer but reaches limit while selling")
+        {
+            // fund C such that it's 150 IDR below its limit
+            applyCreditPaymentTx(app, gateway, c1, idrCur, gateway_seq++,
+                                 trustLineLimit - 150 * currencyMultiplier);
+
+            // try to create an offer:
+            // it will cross with the offers from A and B but will stop when
+            // C1's limit is reached.
+            // it should still be able to buy 150 IDR / sell 225 USD
+
+            // offer is buy 200 IDR for 300 USD; buy IDR @ 0.66 USD
+            // -> sell USD @ 1.5 IDR
+            const Price idrPriceOfferC(2, 3);
+            auto offerC1Res = applyCreateOfferWithResult(
+                app, delta, 0, c1, usdCur, idrCur, idrPriceOfferC,
+                300 * currencyMultiplier, c1_seq++);
+            // offer consumed offers but was not created
+            REQUIRE(offerC1Res.success().offer.effect() ==
+                    CREATE_OFFER_DELETED);
+
+            TrustFrame line;
+
+            // check balances
+
+            // A1's offer was taken entirely
+            REQUIRE(TrustFrame::loadTrustLine(a1.getPublicKey(), usdCur, line,
+                                              app.getDatabase()));
+            checkAmounts(150 * currencyMultiplier, line.getBalance());
+
+            REQUIRE(TrustFrame::loadTrustLine(a1.getPublicKey(), idrCur, line,
+                                              app.getDatabase()));
+            checkAmounts(trustLineLimit - 100 * currencyMultiplier,
+                         line.getBalance());
+
+            // B1's offer was partially taken
+            // buyer may have paid a bit more to cross offers
+            REQUIRE(TrustFrame::loadTrustLine(b1.getPublicKey(), usdCur, line,
+                                              app.getDatabase()));
+            checkAmounts(line.getBalance(), 75 * currencyMultiplier);
+
+            REQUIRE(TrustFrame::loadTrustLine(b1.getPublicKey(), idrCur, line,
+                                              app.getDatabase()));
+            checkAmounts(line.getBalance(),
+                         trustLineLimit - 50 * currencyMultiplier);
+
+            // C1
+            REQUIRE(TrustFrame::loadTrustLine(c1.getPublicKey(), usdCur, line,
+                                              app.getDatabase()));
+            checkAmounts(line.getBalance(),
+                         trustLineLimit - 225 * currencyMultiplier);
+
+            REQUIRE(TrustFrame::loadTrustLine(c1.getPublicKey(), idrCur, line,
+                                              app.getDatabase()));
+            checkAmounts(line.getBalance(), trustLineLimit);
+        }
+        SECTION("Create an offer, top seller has limits")
+        {
+            SECTION("Creates an offer, top seller not authorized")
+            {
+                // makes "A" not authorized to hold "USD"
+                uint32_t setFlags = AUTH_REQUIRED_FLAG;
+                applySetOptions(app, gateway, nullptr, &setFlags, nullptr,
+                                nullptr, nullptr, gateway_seq++);
+                applyAllowTrust(app, gateway, a1, gateway_seq++, "USD", false);
+
+                // try to create an offer:
+                // it will cross with the offer from B and skip the offer from A
+                // it should still be able to buy 100 IDR / sell 150 USD
+
+                // offer is buy 200 IDR for 300 USD; buy IDR @ 0.66 USD
+                // -> sell USD @ 1.5 IDR
+                const Price idrPriceOfferC(2, 3);
+                auto offerC1Res = applyCreateOfferWithResult(
+                    app, delta, 0, c1, usdCur, idrCur, idrPriceOfferC,
+                    300 * currencyMultiplier, c1_seq++);
+                // offer created would be buy 100 IDR for 150 USD ; 0.66
+                REQUIRE(offerC1Res.success().offer.effect() ==
+                        CREATE_OFFER_CREATED);
+
+                REQUIRE(offerC1Res.success().offer.offer().amount ==
+                        150 * currencyMultiplier);
+
+                TrustFrame line;
+
+                // check balances
+
+                // A1's offer was deleted
+                REQUIRE(!OfferFrame::loadOffer(a1.getPublicKey(), offerA1,
+                                               offer, app.getDatabase()));
+
+                REQUIRE(TrustFrame::loadTrustLine(a1.getPublicKey(), usdCur,
+                                                  line, app.getDatabase()));
+                checkAmounts(0, line.getBalance());
+
+                REQUIRE(TrustFrame::loadTrustLine(a1.getPublicKey(), idrCur,
+                                                  line, app.getDatabase()));
+                checkAmounts(trustLineLimit, line.getBalance());
+
+                // B1's offer was taken
+                REQUIRE(!OfferFrame::loadOffer(b1.getPublicKey(), offerB1,
+                                               offer, app.getDatabase()));
+
+                REQUIRE(TrustFrame::loadTrustLine(b1.getPublicKey(), usdCur,
+                                                  line, app.getDatabase()));
+                checkAmounts(line.getBalance(), 150 * currencyMultiplier);
+
+                REQUIRE(TrustFrame::loadTrustLine(b1.getPublicKey(), idrCur,
+                                                  line, app.getDatabase()));
+                checkAmounts(line.getBalance(),
+                             trustLineLimit - 100 * currencyMultiplier);
+
+                // C1
+                REQUIRE(TrustFrame::loadTrustLine(c1.getPublicKey(), usdCur,
+                                                  line, app.getDatabase()));
+                checkAmounts(line.getBalance(),
+                             trustLineLimit - 150 * currencyMultiplier);
+
+                REQUIRE(TrustFrame::loadTrustLine(c1.getPublicKey(), idrCur,
+                                                  line, app.getDatabase()));
+                checkAmounts(line.getBalance(), 100 * currencyMultiplier);
+            }
+            SECTION("Creates an offer, top seller reaches limit")
+            {
+                // makes "A" only capable of holding 75 "USD"
+                applyCreditPaymentTx(app, gateway, a1, usdCur, gateway_seq++,
+                                     trustLineLimit - 75 * currencyMultiplier);
+
+                // try to create an offer:
+                // it will cross with the offer from B fully
+                // but partially cross the offer from A
+                // it should still be able to buy 150 IDR / sell 225 USD
+
+                // offer is buy 200 IDR for 300 USD; buy IDR @ 0.66 USD
+                // -> sell USD @ 1.5 IDR
+                const Price idrPriceOfferC(2, 3);
+                auto offerC1Res = applyCreateOfferWithResult(
+                    app, delta, 0, c1, usdCur, idrCur, idrPriceOfferC,
+                    300 * currencyMultiplier, c1_seq++);
+                // offer created would be buy 50 IDR for 75 USD ; 0.66
+                REQUIRE(offerC1Res.success().offer.effect() ==
+                        CREATE_OFFER_CREATED);
+
+                REQUIRE(offerC1Res.success().offer.offer().amount ==
+                        75 * currencyMultiplier);
+
+                TrustFrame line;
+
+                // check balances
+
+                // A1's offer was deleted
+                REQUIRE(!OfferFrame::loadOffer(a1.getPublicKey(), offerA1,
+                                               offer, app.getDatabase()));
+
+                REQUIRE(TrustFrame::loadTrustLine(a1.getPublicKey(), usdCur,
+                                                  line, app.getDatabase()));
+                checkAmounts(trustLineLimit, line.getBalance());
+
+                REQUIRE(TrustFrame::loadTrustLine(a1.getPublicKey(), idrCur,
+                                                  line, app.getDatabase()));
+                checkAmounts(trustLineLimit - 50 * currencyMultiplier,
+                             line.getBalance());
+
+                // B1's offer was taken
+                REQUIRE(!OfferFrame::loadOffer(b1.getPublicKey(), offerB1,
+                                               offer, app.getDatabase()));
+
+                REQUIRE(TrustFrame::loadTrustLine(b1.getPublicKey(), usdCur,
+                                                  line, app.getDatabase()));
+                checkAmounts(line.getBalance(), 150 * currencyMultiplier);
+
+                REQUIRE(TrustFrame::loadTrustLine(b1.getPublicKey(), idrCur,
+                                                  line, app.getDatabase()));
+                checkAmounts(line.getBalance(),
+                             trustLineLimit - 100 * currencyMultiplier);
+
+                // C1
+                REQUIRE(TrustFrame::loadTrustLine(c1.getPublicKey(), usdCur,
+                                                  line, app.getDatabase()));
+                checkAmounts(line.getBalance(),
+                             trustLineLimit - 225 * currencyMultiplier);
+
+                REQUIRE(TrustFrame::loadTrustLine(c1.getPublicKey(), idrCur,
+                                                  line, app.getDatabase()));
+                checkAmounts(line.getBalance(), 150 * currencyMultiplier);
+            }
+        }
     }
 }

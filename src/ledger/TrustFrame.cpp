@@ -72,6 +72,10 @@ TrustFrame::getBalance() const
 bool
 TrustFrame::addBalance(int64_t delta)
 {
+    if (!mTrustLine.authorized)
+    {
+        return false;
+    }
     if (mTrustLine.limit < delta + mTrustLine.balance)
     {
         return false;
