@@ -106,10 +106,6 @@ TEST_CASE("payment", "[tx][payment]")
             app, root, b1, rootSeq++,
             app.getLedgerManager().getCurrentLedgerHeader().baseReserve - 1,
             PAYMENT_LOW_RESERVE);
-
-        AccountFrame bAccount;
-        REQUIRE(!AccountFrame::loadAccount(b1.getPublicKey(), bAccount,
-                                           app.getDatabase()));
     }
 
     SECTION("simple credit")
@@ -120,10 +116,6 @@ TEST_CASE("payment", "[tx][payment]")
         {
             applyCreditPaymentTx(app, root, b1, currency, rootSeq++, 100,
                                  PAYMENT_NO_DESTINATION);
-
-            AccountFrame bAccount;
-            REQUIRE(!AccountFrame::loadAccount(b1.getPublicKey(), bAccount,
-                                               app.getDatabase()));
         }
 
         SECTION("send XLM with path (not enough offers)")
@@ -137,9 +129,6 @@ TEST_CASE("payment", "[tx][payment]")
 
             REQUIRE(PaymentOpFrame::getInnerCode(getFirstResult(*txFrame2)) ==
                     PAYMENT_OVER_SENDMAX);
-            AccountFrame account;
-            REQUIRE(AccountFrame::loadAccount(a1.getPublicKey(), account,
-                                              app.getDatabase()));
         }
 
         // actual sendcredit
@@ -147,9 +136,6 @@ TEST_CASE("payment", "[tx][payment]")
         {
             applyCreditPaymentTx(app, root, a1, currency, rootSeq++, 100,
                                  PAYMENT_NO_TRUST);
-            AccountFrame account;
-            REQUIRE(AccountFrame::loadAccount(a1.getPublicKey(), account,
-                                              app.getDatabase()));
         }
 
         SECTION("with trust")

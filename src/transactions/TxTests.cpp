@@ -160,14 +160,45 @@ applyPaymentTx(Application& app, SecretKey& from, SecretKey& to,
 {
     TransactionFramePtr txFrame;
 
+    AccountFrame fromAccount;
+    AccountFrame toAccount;
+    bool beforeToExists = AccountFrame::loadAccount(
+        to.getPublicKey(), toAccount, app.getDatabase());
+
+    REQUIRE(AccountFrame::loadAccount(from.getPublicKey(), fromAccount,
+                                      app.getDatabase()));
+
     txFrame = createPaymentTx(from, to, seq, amount);
 
     LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader());
     txFrame->apply(delta, app);
 
     checkTransaction(*txFrame);
-    REQUIRE(PaymentOpFrame::getInnerCode(
-                txFrame->getResult().result.results()[0]) == result);
+    auto txResult = txFrame->getResult();
+    auto innerCode = PaymentOpFrame::getInnerCode(txResult.result.results()[0]);
+    REQUIRE(innerCode == result);
+
+    REQUIRE(txResult.feeCharged == app.getLedgerManager().getTxFee());
+
+    AccountFrame toAccountAfter;
+    bool afterToExists = AccountFrame::loadAccount(
+        to.getPublicKey(), toAccountAfter, app.getDatabase());
+
+    if (!(innerCode == PAYMENT_SUCCESS || innerCode == PAYMENT_SUCCESS_MULTI))
+    {
+        // check that the target account didn't change
+        REQUIRE(beforeToExists == afterToExists);
+        if (beforeToExists && afterToExists)
+        {
+            REQUIRE(memcmp(&toAccount.getAccount(),
+                           &toAccountAfter.getAccount(),
+                           sizeof(AccountEntry)) == 0);
+        }
+    }
+    else
+    {
+        REQUIRE(afterToExists);
+    }
 }
 
 void
@@ -229,9 +260,8 @@ applyCreditPaymentTx(Application& app, SecretKey& from, SecretKey& to,
 }
 
 TransactionFramePtr
-createOfferOp(uint64 offerId, SecretKey& source, 
-              Currency& takerGets, Currency& takerPays,
-              Price const& price, int64_t amount, 
+createOfferOp(uint64 offerId, SecretKey& source, Currency& takerGets,
+              Currency& takerPays, Price const& price, int64_t amount,
               SequenceNumber seq)
 {
     Operation op;
@@ -246,10 +276,10 @@ createOfferOp(uint64 offerId, SecretKey& source,
 }
 
 static CreateOfferResult
-applyCreateOfferHelper(Application& app, LedgerDelta& delta, uint64 offerId, 
-                       SecretKey& source,
-                       Currency& takerGets, Currency& takerPays,
-                       Price const& price, int64_t amount, SequenceNumber seq)
+applyCreateOfferHelper(Application& app, LedgerDelta& delta, uint64 offerId,
+                       SecretKey& source, Currency& takerGets,
+                       Currency& takerPays, Price const& price, int64_t amount,
+                       SequenceNumber seq)
 {
     uint64_t expectedOfferID = delta.getHeaderFrame().getLastGeneratedID() + 1;
     if (offerId != 0)
@@ -259,7 +289,8 @@ applyCreateOfferHelper(Application& app, LedgerDelta& delta, uint64 offerId,
 
     TransactionFramePtr txFrame;
 
-    txFrame = createOfferOp(offerId, source, takerGets, takerPays, price, amount, seq);
+    txFrame = createOfferOp(offerId, source, takerGets, takerPays, price,
+                            amount, seq);
 
     txFrame->apply(delta, app);
 
@@ -282,19 +313,21 @@ applyCreateOfferHelper(Application& app, LedgerDelta& delta, uint64 offerId,
         {
         case CREATE_OFFER_CREATED:
         case CREATE_OFFER_UPDATED:
-            REQUIRE(OfferFrame::loadOffer(source.getPublicKey(), expectedOfferID, offer,
-                app.getDatabase()));
-            REQUIRE(memcmp(
-                &offerEntry,
-                &offerResult.offer(),
-                sizeof(OfferEntry)) == 0);
+            REQUIRE(OfferFrame::loadOffer(source.getPublicKey(),
+                                          expectedOfferID, offer,
+                                          app.getDatabase()));
+            REQUIRE(memcmp(&offerEntry, &offerResult.offer(),
+                           sizeof(OfferEntry)) == 0);
             REQUIRE(offerEntry.price == price);
-            REQUIRE(memcmp(&offerEntry.takerGets, &takerGets, sizeof(Currency)) == 0);
-            REQUIRE(memcmp(&offerEntry.takerPays, &takerPays, sizeof(Currency)) == 0);
+            REQUIRE(memcmp(&offerEntry.takerGets, &takerGets,
+                           sizeof(Currency)) == 0);
+            REQUIRE(memcmp(&offerEntry.takerPays, &takerPays,
+                           sizeof(Currency)) == 0);
             break;
         case CREATE_OFFER_DELETED:
-            REQUIRE(!OfferFrame::loadOffer(source.getPublicKey(), expectedOfferID, offer,
-                app.getDatabase()));
+            REQUIRE(!OfferFrame::loadOffer(source.getPublicKey(),
+                                           expectedOfferID, offer,
+                                           app.getDatabase()));
             break;
         default:
             abort();
@@ -305,10 +338,9 @@ applyCreateOfferHelper(Application& app, LedgerDelta& delta, uint64 offerId,
 }
 
 uint64_t
-applyCreateOffer(Application& app, LedgerDelta& delta, uint64 offerId, 
-                 SecretKey& source,
-                 Currency& takerGets, Currency& takerPays, Price const& price,
-                 int64_t amount, SequenceNumber seq)
+applyCreateOffer(Application& app, LedgerDelta& delta, uint64 offerId,
+                 SecretKey& source, Currency& takerGets, Currency& takerPays,
+                 Price const& price, int64_t amount, SequenceNumber seq)
 {
     CreateOfferResult const& createOfferRes = applyCreateOfferHelper(
         app, delta, offerId, source, takerGets, takerPays, price, amount, seq);
@@ -323,8 +355,7 @@ applyCreateOffer(Application& app, LedgerDelta& delta, uint64 offerId,
 }
 
 CreateOfferResult
-applyCreateOfferWithResult(Application& app, LedgerDelta& delta,
-                           uint64 offerId, 
+applyCreateOfferWithResult(Application& app, LedgerDelta& delta, uint64 offerId,
                            SecretKey& source, Currency& takerGets,
                            Currency& takerPays, Price const& price,
                            int64_t amount, SequenceNumber seq,
