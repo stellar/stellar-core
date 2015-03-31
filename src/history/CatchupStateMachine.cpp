@@ -19,6 +19,7 @@
 #include "util/Logging.h"
 #include "util/XDRStream.h"
 #include "xdrpp/printer.h"
+#include "util/Math.h"
 
 #include <random>
 #include <memory>
@@ -82,9 +83,8 @@ CatchupStateMachine::selectRandomReadableHistoryArchive()
     }
     else
     {
-        std::default_random_engine gen;
         std::uniform_int_distribution<size_t> dist(0, archives.size() - 1);
-        size_t i = dist(gen);
+        size_t i = dist(gRandomEngine);
         CLOG(INFO, "History") << "Catching up via readable history archive #"
                               << i << ", '" << archives[i].first << "'";
         return archives[i].second;
