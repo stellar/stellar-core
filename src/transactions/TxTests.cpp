@@ -275,12 +275,22 @@ applyCreateOfferHelper(Application& app, LedgerDelta& delta, uint64 offerId,
     {
         OfferFrame offer;
 
-        switch (createOfferResult.success().offer.effect())
+        auto& offerResult = createOfferResult.success().offer;
+        auto& offerEntry = offer.getOffer();
+
+        switch (offerResult.effect())
         {
         case CREATE_OFFER_CREATED:
         case CREATE_OFFER_UPDATED:
             REQUIRE(OfferFrame::loadOffer(source.getPublicKey(), expectedOfferID, offer,
                 app.getDatabase()));
+            REQUIRE(memcmp(
+                &offerEntry,
+                &offerResult.offer(),
+                sizeof(OfferEntry)) == 0);
+            REQUIRE(offerEntry.price == price);
+            REQUIRE(memcmp(&offerEntry.takerGets, &takerGets, sizeof(Currency)) == 0);
+            REQUIRE(memcmp(&offerEntry.takerPays, &takerPays, sizeof(Currency)) == 0);
             break;
         case CREATE_OFFER_DELETED:
             REQUIRE(!OfferFrame::loadOffer(source.getPublicKey(), expectedOfferID, offer,
