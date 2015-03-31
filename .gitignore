@@ -19,7 +19,6 @@
 *.suo
 *.trs
 *.db
-*.cfg
 
 # text editors
 *~
@@ -37,6 +36,7 @@
 /autom4te.cache
 /build
 /bin
+/buckets
 /compile
 /config.h
 /config.h.in
