@@ -135,7 +135,7 @@ AccountFrame::getHighThreshold() const
 }
 
 uint32_t
-AccountFrame::getMidThreshold() const
+AccountFrame::getMediumThreshold() const
 {
     return mAccountEntry.thresholds[2];
 }

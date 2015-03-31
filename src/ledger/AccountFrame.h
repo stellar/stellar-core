@@ -68,7 +68,7 @@ class AccountFrame : public EntryFrame
 
     uint32_t getMasterWeight() const;
     uint32_t getHighThreshold() const;
-    uint32_t getMidThreshold() const;
+    uint32_t getMediumThreshold() const;
     uint32_t getLowThreshold() const;
 
     void

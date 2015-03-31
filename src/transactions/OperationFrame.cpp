@@ -72,7 +72,7 @@ OperationFrame::apply(LedgerDelta& delta, Application& app)
 int32_t
 OperationFrame::getNeededThreshold() const
 {
-    return mSourceAccount->getMidThreshold();
+    return mSourceAccount->getMediumThreshold();
 }
 
 bool

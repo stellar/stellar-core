@@ -66,12 +66,12 @@ TEST_CASE("payment", "[tx][payment]")
     REQUIRE(rootAccount.getMasterWeight() == 1);
     REQUIRE(rootAccount.getHighThreshold() == 0);
     REQUIRE(rootAccount.getLowThreshold() == 0);
-    REQUIRE(rootAccount.getMidThreshold() == 0);
+    REQUIRE(rootAccount.getMediumThreshold() == 0);
     REQUIRE(a1Account.getBalance() == paymentAmount);
     REQUIRE(a1Account.getMasterWeight() == 1);
     REQUIRE(a1Account.getHighThreshold() == 0);
     REQUIRE(a1Account.getLowThreshold() == 0);
-    REQUIRE(a1Account.getMidThreshold() == 0);
+    REQUIRE(a1Account.getMediumThreshold() == 0);
     REQUIRE(rootAccount.getBalance() ==
             (100000000000000000 - paymentAmount - txfee));
 
