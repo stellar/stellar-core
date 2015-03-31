@@ -26,17 +26,17 @@ class CommandHandler
 
     void manualCmd(const std::string& cmd);
 
-    void stop(const std::string& params, std::string& retStr);
-    void peers(const std::string& params, std::string& retStr);
-    void info(const std::string& params, std::string& retStr);
-    void scpInfo(const std::string& params, std::string& retStr);
-    void metrics(const std::string& params, std::string& retStr);
-    void logRotate(const std::string& params, std::string& retStr);
-    void connect(const std::string& params, std::string& retStr);
-    void tx(const std::string& params, std::string& retStr);
-    void ll(const std::string& params, std::string& retStr);
-    void manualClose(const std::string& params, std::string& retStr);
     void fileNotFound(const std::string& params, std::string& retStr);
-    
+
+    void connect(const std::string& params, std::string& retStr);
+    void info(const std::string& params, std::string& retStr);
+    void ll(const std::string& params, std::string& retStr);
+    void logRotate(const std::string& params, std::string& retStr);
+    void manualClose(const std::string& params, std::string& retStr);
+    void metrics(const std::string& params, std::string& retStr);
+    void peers(const std::string& params, std::string& retStr);
+    void scpInfo(const std::string& params, std::string& retStr);
+    void stop(const std::string& params, std::string& retStr);
+    void tx(const std::string& params, std::string& retStr);
 };
 }

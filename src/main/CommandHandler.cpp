@@ -45,18 +45,20 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
 
     mServer->add404(std::bind(&CommandHandler::fileNotFound, this, _1, _2));
 
-    mServer->addRoute("stop", std::bind(&CommandHandler::stop, this, _1, _2));
-    mServer->addRoute("peers", std::bind(&CommandHandler::peers, this, _1, _2));
-    mServer->addRoute("info", std::bind(&CommandHandler::info, this, _1, _2));
-    mServer->addRoute("scp", std::bind(&CommandHandler::scpInfo, this, _1, _2));
-    mServer->addRoute("metrics",
-                      std::bind(&CommandHandler::metrics, this, _1, _2));
-    mServer->addRoute("logrotate",
-                      std::bind(&CommandHandler::logRotate, this, _1, _2));
     mServer->addRoute("connect",
                       std::bind(&CommandHandler::connect, this, _1, _2));
-    mServer->addRoute("tx", std::bind(&CommandHandler::tx, this, _1, _2));
+    mServer->addRoute("info", std::bind(&CommandHandler::info, this, _1, _2));
     mServer->addRoute("ll", std::bind(&CommandHandler::ll, this, _1, _2));
+    mServer->addRoute("logrotate",
+                      std::bind(&CommandHandler::logRotate, this, _1, _2));
+    mServer->addRoute("manualclose",
+                      std::bind(&CommandHandler::manualClose, this, _1, _2));
+    mServer->addRoute("metrics",
+                      std::bind(&CommandHandler::metrics, this, _1, _2));
+    mServer->addRoute("peers", std::bind(&CommandHandler::peers, this, _1, _2));
+    mServer->addRoute("scp", std::bind(&CommandHandler::scpInfo, this, _1, _2));
+    mServer->addRoute("stop", std::bind(&CommandHandler::stop, this, _1, _2));
+    mServer->addRoute("tx", std::bind(&CommandHandler::tx, this, _1, _2));
 }
 
 void
@@ -73,21 +75,44 @@ void
 CommandHandler::fileNotFound(const std::string& params, std::string& retStr)
 {
     retStr = "<b>Welcome to stellar-core!</b><p>";
-    retStr += "supported commands:  <p><ul>";
-    retStr += "<li>/stop</li>";
-    retStr += "<li><a href='/peers'>/peers</a> see list of peers we are "
-              "connected to.</li>";
-    retStr += "<li><a href='/info'>/info</a></li>";
-    retStr += "<li><a href='/scp'>/scp</a></li>";
-    retStr += "<li><a href='/metrics'>/metrics</a></li>";
-    retStr += "<li><a href='/manualClose'>/manualClose</a>  if in manual mode "
-              "will force the ledger to close.</li>";
-    retStr += "<li>/connect?peer=###.###.###.###&port=###  connect to a "
-              "particular peer.</li>";
-    retStr += "<li>/tx?blob=[tx in xdr] submit a transaction.</li>";
-    retStr += "<li>/ll?level=[level]&partition=[name]  set the log level. "
-              "partition is optional.</li>";
-    retStr += "</ul><p>Have fun!";
+    retStr += "supported commands:<p/>";
+
+    retStr +=
+        "<p><h1> /connect?peer=NAME&port=NNN</h1>"
+        "triggers the instance to connect to peer NAME at port NNN."
+        "</p><p><h1> /help</h1>"
+        "give a list of currently supported commands"
+        "</p><p><h1> /info</h1>"
+        "returns information about the server in JSON format (sync state, "
+        "connected peers, etc)"
+        "</p><p><h1> /ll?level=L[&partition=P]</h1>"
+        "adjust the log level for partition P (or all if no partition is "
+        "specified).<br>"
+        "level is one of FATAL, ERROR, WARNING, INFO, DEBUG, VERBOSE, TRACE"
+        "</p><p><h1> /logrotate</h1>"
+        "rotate log files"
+        "</p><p><h1> /manualclose</h1>"
+        "close the current ledger; must be used with MANUAL_CLOSE set to true"
+        "</p><p><h1> /metrics</h1>"
+        "returns a snapshot of the metrics registry (for monitoring and "
+        "debugging purpose)"
+        "</p><p><h1> /peers</h1>"
+        "returns the list of known peers in JSON format"
+        "</p><p><h1> /scp</h1>"
+        "returns a JSON object with the internal state of the SCP engine"
+        "</p><p><h1> /stop</h1>"
+        "stops the instance"
+        "</p><p><h1> /tx?blob=HEX</h1>"
+        "submit a transaction to the network.<br>"
+        "blob is a hex encoded XDR serialized 'TransactionEnvelope'<br>"
+        "returns a JSON object<br>"
+        "wasReceived: boolean, true if transaction was queued properly<br>"
+        "result: hex encoded, XDR serialized 'TransactionResult'<br>"
+        "</p>"
+
+        "<br>";
+
+    retStr += "<p>Have fun!</p>";
 }
 
 void
@@ -99,8 +124,9 @@ CommandHandler::manualClose(const std::string& params, std::string& retStr)
     }
     else
     {
-        retStr = "Set MANUAL_CLOSE=true in the stellar-core.cfg if you want this "
-                 "behavior";
+        retStr =
+            "Set MANUAL_CLOSE=true in the stellar-core.cfg if you want this "
+            "behavior";
     }
 }
 
@@ -171,13 +197,15 @@ CommandHandler::logRotate(const std::string& params, std::string& retStr)
 void
 CommandHandler::connect(const std::string& params, std::string& retStr)
 {
-    static std::regex re("\\?peer=([[:alnum:].]+)&port=([0-9]+)");
-    std::smatch m;
+    std::map<std::string, std::string> retMap;
+    http::server::server::parseParams(params, retMap);
 
-    if (std::regex_search(params, m, re) && !m.empty())
+    auto peerP = retMap.find("peer");
+    auto portP = retMap.find("port");
+    if (peerP != retMap.end() && portP != retMap.end())
     {
         std::stringstream str;
-        str << m[1] << ":" << m[2];
+        str << peerP->second << ":" << portP->second;
         retStr = "Connect to: ";
         retStr += str.str();
         mApp.getOverlayManager().connectTo(str.str());
@@ -188,7 +216,7 @@ CommandHandler::connect(const std::string& params, std::string& retStr)
     }
 }
 
-void 
+void
 CommandHandler::scpInfo(const std::string& params, std::string& retStr)
 {
     Json::Value root;
@@ -206,13 +234,14 @@ CommandHandler::ll(const std::string& params, std::string& retStr)
     http::server::server::parseParams(params, retMap);
     el::Level level = Logging::getLLfromString(retMap["level"]);
     std::string partition = retMap["partition"];
-    if(partition.size())
+    if (partition.size())
     {
         Logging::setLogLevel(level, partition.c_str());
         retStr = partition;
         retStr += " set to ";
         retStr += Logging::getStringFromLL(level);
-    } else
+    }
+    else
     {
         Logging::setLogLevel(level, nullptr);
         retStr = "Global Log level set to: ";

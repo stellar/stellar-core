@@ -23,7 +23,7 @@ SetOptionsOpFrame::getNeededThreshold() const
     {
         return mSourceAccount->getHighThreshold();
     }
-    return mSourceAccount->getMidThreshold();
+    return mSourceAccount->getMediumThreshold();
 }
 
 bool

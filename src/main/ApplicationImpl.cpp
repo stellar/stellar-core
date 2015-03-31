@@ -62,17 +62,24 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
     mDatabase = make_unique<Database>(*this);
     mPersistentState = make_unique<PersistentState>(*this);
 
-    if (mPersistentState->getState(PersistentState::kForceSCPOnNextLaunch) ==
-        "true")
+    bool initializeDB =
+        (mConfig.REBUILD_DB || mConfig.DATABASE == "sqlite3://:memory:");
+    if (initializeDB)
     {
-        mConfig.START_NEW_NETWORK = true;
-    }
+        auto wipeMsg = (getPersistentState().getState(
+                            PersistentState::kDatabaseInitialized) == "true"
+                            ? " wiped and initialized"
+                            : " initialized");
 
-    // Initialize the db as early as possible, namely as soon as metrics,
-    // database and persistentState are instantiated.
-    if (mConfig.REBUILD_DB || mConfig.DATABASE == "sqlite3://:memory:")
-    {
+        LOG(INFO) << "* ";
+        LOG(INFO) << "* The database has been" << wipeMsg << " *";
+
         mDatabase->initialize();
+    }
+    else if (mPersistentState->getState(
+                 PersistentState::kForceSCPOnNextLaunch) == "true")
+    {
+        mConfig.FORCE_SCP = true;
     }
 
     mTmpDirManager = make_unique<TmpDirManager>(cfg.TMP_DIR_PATH);
@@ -90,6 +97,11 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
                                     {
                                         this->runWorkerThread(t);
                                     });
+    }
+
+    if (initializeDB)
+    {
+        mLedgerManager->startNewLedger();
     }
 
     LOG(INFO) << "Application constructed";
@@ -177,13 +189,13 @@ ApplicationImpl::start()
     if (mPersistentState->getState(PersistentState::kDatabaseInitialized) !=
         "true")
     {
-        throw std::runtime_error("Database not initialized and REBUID_DB is false.");
+        throw std::runtime_error(
+            "Database not initialized and REBUID_DB is false.");
     }
 
-    bool hasLedger =
-        !mPersistentState->getState(PersistentState::kLastClosedLedger).empty();
+    mLedgerManager->loadLastKnownLedger();
 
-    if (mConfig.START_NEW_NETWORK)
+    if (mConfig.FORCE_SCP)
     {
         std::string flagClearedMsg = "";
         if (mPersistentState->getState(
@@ -194,27 +206,12 @@ ApplicationImpl::start()
                                        "false");
         }
 
-        if (!hasLedger)
-        {
-            LOG(INFO) << "* ";
-            LOG(INFO) << "* Force-starting scp from scratch, creating the "
-                         "genesis ledger." << flagClearedMsg;
-            LOG(INFO) << "* ";
-            mLedgerManager->startNewLedger();
-        }
-        else
-        {
-            LOG(INFO) << "* ";
-            LOG(INFO) << "* Force-starting scp from the current db state."
-                      << flagClearedMsg;
-            LOG(INFO) << "* ";
-            mLedgerManager->loadLastKnownLedger();
-        }
+        LOG(INFO) << "* ";
+        LOG(INFO) << "* Force-starting scp from the current db state."
+                  << flagClearedMsg;
+        LOG(INFO) << "* ";
+
         mHerder->bootstrap();
-    }
-    else
-    {
-        mLedgerManager->loadLastKnownLedger();
     }
 }
 

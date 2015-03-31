@@ -55,7 +55,7 @@ PeerRecord::parseIPPort(const string& ipPort, Application& app, PeerRecord& ret,
                         uint32_t defaultPort)
 {
     static std::regex re(
-        "^(?:(\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3})|([[:alnum:].]+))"
+        "^(?:(\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3})|([[:alnum:].-]+))"
         "(?:\\:(\\d{1,5}))?$");
     std::smatch m;
 
@@ -79,15 +79,23 @@ PeerRecord::parseIPPort(const string& ipPort, Application& app, PeerRecord& ret,
 
         asio::ip::tcp::resolver resolver(app.getWorkerIOService());
         asio::ip::tcp::resolver::query query(toResolve, "", resolveflags);
-        asio::ip::tcp::resolver::iterator i = resolver.resolve(query);
-        while (i != asio::ip::tcp::resolver::iterator())
+        try
         {
-            asio::ip::tcp::endpoint end = *i;
-            if (end.address().is_v4())
+            asio::ip::tcp::resolver::iterator i = resolver.resolve(query);
+            while (i != asio::ip::tcp::resolver::iterator())
             {
-                ip = end.address().to_v4().to_string();
+                asio::ip::tcp::endpoint end = *i;
+                if (end.address().is_v4())
+                {
+                    ip = end.address().to_v4().to_string();
+                    break;
+                }
+                i++;
             }
-            i++;
+        }
+        catch (asio::system_error&)
+        {
+            return false;
         }
         if (ip.empty())
             return false;
@@ -97,11 +105,13 @@ PeerRecord::parseIPPort(const string& ipPort, Application& app, PeerRecord& ret,
             port = atoi(m[3].str().c_str());
         }
     }
+    else
+    {
+        return false;
+    }
 
     if (port < 1 || port > 65535)
         return false;
-
-    if(!ip.size()) return false;
 
     ret = PeerRecord{ip, port, app.getClock().now(), 0, 1};
     return true;

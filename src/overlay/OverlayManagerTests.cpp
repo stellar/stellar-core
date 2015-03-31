@@ -139,7 +139,6 @@ namespace stellar
             test_broadcast()
         {
             OverlayManagerStub& pm = app.getOverlayManager();
-            app.getLedgerManager().startNewLedger();
 
             pm.storePeerList(fourPeers, 3);
             pm.storePeerList(threePeers, 2);

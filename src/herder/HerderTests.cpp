@@ -32,9 +32,7 @@ TEST_CASE("standalone", "[herder]")
 
     Config cfg(getTestConfig());
 
-    cfg.RUN_STANDALONE = true;
     cfg.VALIDATION_KEY = v0SecretKey;
-    cfg.START_NEW_NETWORK = true;
 
     cfg.QUORUM_THRESHOLD = 1;
     cfg.QUORUM_SET.push_back(v0NodeID);

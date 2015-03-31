@@ -494,7 +494,7 @@ TEST_CASE("bucket persistence over app restart", "[bucket][bucketpersist]")
     // app is now dead, but we want bucketHash1 to persist into a restart of the
     // app, since that bucket is "live" in lclHash1, and the database persists.
     cfg.REBUILD_DB = false;
-    cfg.START_NEW_NETWORK = false;
+    cfg.FORCE_SCP = false;
 
     {
         Application::pointer app2 = Application::create(clock, cfg);

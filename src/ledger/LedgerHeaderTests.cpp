@@ -46,7 +46,7 @@ TEST_CASE("ledgerheader", "[ledger]")
     {
         Config cfg2(cfg);
         cfg2.REBUILD_DB = false;
-        cfg2.START_NEW_NETWORK = false;
+        cfg2.FORCE_SCP = false;
         VirtualClock clock2;
         Application::pointer app2 = Application::create(clock2, cfg2);
         app2->start();

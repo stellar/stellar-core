@@ -63,24 +63,18 @@ usage(int err = 1)
           "      --version       To print version information\n"
           "      --test          To run self-tests\n"
           "      --metric METRIC Report metric METRIC on exit.\n"
-          "      --newdb         Setup the DB and then exit.\n"
-          "      --newhist ARCH  Initialize the named history archive ARCH.\n"
-          "      --forcescp      Force SCP to start before you hear a ledger "
-          "close next time stellar-core is run.\n"
-          "      --genseed       Generate and print a random node seed.\n"
+          "      --newdb         Creates or restores the DB to the genesis "
+          "ledger\n"
+          "      --newhist ARCH  Initialize the named history archive ARCH\n"
+          "      --forcescp      Force SCP to start with the local ledger as "
+          "position, close next time stellar-core is run\n"
+          "      --genseed       Generate and print a random node seed\n"
           "      --ll LEVEL      Set the log level. LEVEL can be:\n"
           "                      [trace|debug|info|warning|error|fatal|none]\n"
-          "      --c             Command to send to local stellar-core\n"
-          "                stop\n"
-          "                info\n"
-          "                reload_cfg?file=newconfig.cfg\n"
-          "                logrotate\n"
-          "                peers\n"
-          "                connect?ip=5.5.5.5&port=3424\n"
-          "                tx?blob=TX_IN_HEX\n"
+          "      --c             Command to send to local stellar-core. try "
+          "'--c help' for more information\n"
           "      --conf FILE     To specify a config file ('-' for STDIN, "
-          "default "
-          "'stellar-core.cfg')\n";
+          "default 'stellar-core.cfg')\n";
     exit(err);
 }
 
@@ -141,23 +135,13 @@ setForceSCPFlag(Config& cfg)
 void
 initializeDatabase(Config& cfg)
 {
-    cfg.REBUILD_DB = false; // don't wipe the db until we read whether it was
-                            // already initialized
     VirtualClock clock;
     Application::pointer app = Application::create(clock, cfg);
 
-    auto wipeMsg = (app->getPersistentState().getState(
-                        PersistentState::kDatabaseInitialized) == "true"
-                        ? " wiped and initialized"
-                        : " initialized");
-
-    app->getDatabase().initialize();
-
-    LOG(INFO) << "* ";
-    LOG(INFO) << "* The database has been" << wipeMsg
-              << ". The next launch will catchup from the";
+    LOG(INFO) << ". The next launch will catchup from the";
     LOG(INFO) << "* network afresh.";
-    LOG(INFO) << "* ";
+
+    cfg.REBUILD_DB = false;
 }
 
 int
@@ -167,7 +151,7 @@ initializeHistories(Config& cfg, vector<string> newHistories)
     cfg.RUN_STANDALONE = true;
     cfg.HTTP_PORT = 0;
     cfg.MANUAL_CLOSE = true;
-    
+
     VirtualClock clock;
     Application::pointer app = Application::create(clock, cfg);
 
@@ -221,7 +205,7 @@ main(int argc, char* const* argv)
     el::Level logLevel = el::Level::Fatal;
     std::vector<char*> rest;
 
-    bool newNetwork = false;
+    bool forceSCP = false;
     bool newDB = false;
     std::vector<std::string> newHistories;
     std::vector<std::string> metrics;
@@ -236,7 +220,8 @@ main(int argc, char* const* argv)
         {
             rest.push_back(*argv);
             rest.insert(++rest.begin(), argv + optind, argv + argc);
-            return test(static_cast<int>(rest.size()), &rest[0], logLevel, metrics);
+            return test(static_cast<int>(rest.size()), &rest[0], logLevel,
+                        metrics);
         }
         case OPT_CONF:
             cfgFile = std::string(optarg);
@@ -249,7 +234,7 @@ main(int argc, char* const* argv)
             std::cout << STELLAR_CORE_VERSION;
             return 0;
         case OPT_FORCESCP:
-            newNetwork = true;
+            forceSCP = true;
             break;
         case OPT_METRIC:
             metrics.push_back(std::string(optarg));
@@ -283,14 +268,15 @@ main(int argc, char* const* argv)
         if (fs::exists(cfgFile))
         {
             cfg.load(cfgFile);
-        }else
+        }
+        else
         {
             LOG(WARNING) << "No config file " << cfgFile << " found";
             cfgFile = ":default-settings:";
         }
         Logging::setLogLevel(logLevel, nullptr);
 
-        if(command.size())
+        if (command.size())
         {
             sendCommand(command, rest, cfg.HTTP_PORT);
             return 0;
@@ -299,16 +285,16 @@ main(int argc, char* const* argv)
         // don't log to file if just sending a command
         Logging::setLoggingToFile(cfg.LOG_FILE_PATH);
         cfg.REBUILD_DB = newDB;
-        cfg.START_NEW_NETWORK = newNetwork;
+        cfg.FORCE_SCP = forceSCP;
         cfg.REPORT_METRICS = metrics;
 
         HistoryManager::checkSensibleConfig(cfg);
-        
-        if (newNetwork || newDB)
+
+        if (forceSCP || newDB)
         {
             if (newDB)
                 initializeDatabase(cfg);
-            if (newNetwork)
+            if (forceSCP)
                 setForceSCPFlag(cfg);
             return 0;
         }

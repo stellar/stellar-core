@@ -71,7 +71,7 @@ Simulation::addNode(uint256 validationSeed, SCPQuorumSet qSet,
     }
     cfg->VALIDATION_KEY = SecretKey::fromSeed(validationSeed);
     cfg->QUORUM_THRESHOLD = qSet.threshold;
-    cfg->START_NEW_NETWORK = true;
+    cfg->FORCE_SCP = true;
     cfg->RUN_STANDALONE = (mMode == OVER_LOOPBACK);
 
     for (auto q : qSet.validators)

@@ -34,7 +34,6 @@ Herder::create(Application& app)
     return make_unique<HerderImpl>(app);
 }
 
-
 // Static helper for HerderImpl's SCP constructor
 static SCPQuorumSet
 quorumSetFromApp(Application& app)
@@ -123,19 +122,19 @@ HerderImpl::HerderImpl(Application& app)
     , mEnvelopeInvalidSig(app.getMetrics().NewMeter(
           {"scp", "envelope", "invalidsig"}, "envelope"))
 
-    , mNodeLastAccessSize(app.getMetrics().NewCounter(
-          {"scp", "memory", "node-last-access"}))
-    , mSCPQSetFetchesSize(app.getMetrics().NewCounter(
-          {"scp", "memory", "qset-fetches"}))
-    , mFutureEnvelopesSize(app.getMetrics().NewCounter(
-          {"scp", "memory", "future-envelopes"}))
+    , mNodeLastAccessSize(
+          app.getMetrics().NewCounter({"scp", "memory", "node-last-access"}))
+    , mSCPQSetFetchesSize(
+          app.getMetrics().NewCounter({"scp", "memory", "qset-fetches"}))
+    , mFutureEnvelopesSize(
+          app.getMetrics().NewCounter({"scp", "memory", "future-envelopes"}))
     , mBallotValidationTimersSize(app.getMetrics().NewCounter(
           {"scp", "memory", "ballot-validation-timers"}))
 
-    , mKnownNodesSize(app.getMetrics().NewCounter(
-          {"scp", "memory", "known-nodes"}))
-    , mKnownSlotsSize(app.getMetrics().NewCounter(
-          {"scp", "memory", "known-slots"}))
+    , mKnownNodesSize(
+          app.getMetrics().NewCounter({"scp", "memory", "known-nodes"}))
+    , mKnownSlotsSize(
+          app.getMetrics().NewCounter({"scp", "memory", "known-slots"}))
     , mCumulativeStatements(app.getMetrics().NewCounter(
           {"scp", "memory", "cumulative-statements"}))
     , mCumulativeCachedQuorumSets(app.getMetrics().NewCounter(
@@ -156,7 +155,7 @@ void
 HerderImpl::bootstrap()
 {
     assert(!getSecretKey().isZero());
-    assert(mApp.getConfig().START_NEW_NETWORK);
+    assert(mApp.getConfig().FORCE_SCP);
 
     mApp.setState(Application::SYNCED_STATE);
     mLastClosedLedger = mApp.getLedgerManager().getLastClosedLedgerHeader();
@@ -165,7 +164,8 @@ HerderImpl::bootstrap()
 
 void
 HerderImpl::validateValue(const uint64& slotIndex, const uint256& nodeID,
-                      const Value& value, std::function<void(bool)> const& cb)
+                          const Value& value,
+                          std::function<void(bool)> const& cb)
 {
     StellarBallot b;
     try
@@ -178,9 +178,9 @@ HerderImpl::validateValue(const uint64& slotIndex, const uint256& nodeID,
         return cb(false);
     }
 
-    if(mApp.getState() != Application::SYNCED_STATE)
-    { // if we aren't synced to the network we can't validate
-      // but we still need to fetch the tx set
+    if (mApp.getState() != Application::SYNCED_STATE)
+    {   // if we aren't synced to the network we can't validate
+        // but we still need to fetch the tx set
         fetchTxSet(b.value.txSetHash, true);
         return cb(true);
     }
@@ -257,15 +257,18 @@ HerderImpl::validateValue(const uint64& slotIndex, const uint256& nodeID,
 
 int
 HerderImpl::compareValues(const uint64& slotIndex, const uint32& ballotCounter,
-                      const Value& v1, const Value& v2)
+                          const Value& v1, const Value& v2)
 {
     using xdr::operator<;
 
-    if(!v1.size())
+    if (!v1.size())
     {
-        if(!v2.size()) return 0;
+        if (!v2.size())
+            return 0;
         return -1;
-    } else if(!v2.size()) return 1;
+    }
+    else if (!v2.size())
+        return 1;
 
     StellarBallot b1;
     StellarBallot b2;
@@ -325,8 +328,8 @@ HerderImpl::compareValues(const uint64& slotIndex, const uint32& ballotCounter,
 
 void
 HerderImpl::validateBallot(const uint64& slotIndex, const uint256& nodeID,
-                       const SCPBallot& ballot,
-                       std::function<void(bool)> const& cb)
+                           const SCPBallot& ballot,
+                           std::function<void(bool)> const& cb)
 {
     StellarBallot b;
     try
@@ -483,7 +486,7 @@ HerderImpl::validateBallot(const uint64& slotIndex, const uint256& nodeID,
 
 void
 HerderImpl::ballotDidHearFromQuorum(const uint64& slotIndex,
-                                const SCPBallot& ballot)
+                                    const SCPBallot& ballot)
 {
     mQuorumHeard.Mark();
 
@@ -616,8 +619,9 @@ HerderImpl::nodeTouched(const uint256& nodeID)
 }
 
 void
-HerderImpl::retrieveQuorumSet(const uint256& nodeID, const Hash& qSetHash,
-                          std::function<void(const SCPQuorumSet&)> const& cb)
+HerderImpl::retrieveQuorumSet(
+    const uint256& nodeID, const Hash& qSetHash,
+    std::function<void(const SCPQuorumSet&)> const& cb)
 {
     mQsetRetrieve.Mark();
     CLOG(DEBUG, "Herder") << "HerderImpl::retrieveQuorumSet"
@@ -684,8 +688,9 @@ TxSetFramePtr
 HerderImpl::fetchTxSet(const uint256& txSetHash, bool askNetwork)
 {
     // set false the first time to make sure we only ask network at most once
-    TxSetFramePtr ret=mTxSetFetcher[0].fetchItem(txSetHash, false);
-    if(!ret) ret=mTxSetFetcher[1].fetchItem(txSetHash, askNetwork);
+    TxSetFramePtr ret = mTxSetFetcher[0].fetchItem(txSetHash, false);
+    if (!ret)
+        ret = mTxSetFetcher[1].fetchItem(txSetHash, askNetwork);
     return ret;
 }
 
@@ -694,7 +699,7 @@ HerderImpl::recvTxSet(TxSetFramePtr txSet)
 {
     if (mTxSetFetcher[mCurrentTxSetFetcher].recvItem(txSet))
     { // someone cares about this set
-        
+
         // add all txs to next set in case they don't get in this ledger
         for (auto tx : txSet->sortForApply())
         {
@@ -795,7 +800,8 @@ HerderImpl::recvTransaction(TransactionFramePtr tx)
         return false;
     }
 
-    if (tx->getSourceAccount().getBalanceAboveReserve(mApp.getLedgerManager()) < totFee)
+    if (tx->getSourceAccount().getBalanceAboveReserve(mApp.getLedgerManager()) <
+        totFee)
     {
         tx->getResult().result.code(txINSUFFICIENT_BALANCE);
         return false;
@@ -808,7 +814,7 @@ HerderImpl::recvTransaction(TransactionFramePtr tx)
 
 void
 HerderImpl::recvSCPEnvelope(SCPEnvelope envelope,
-                        std::function<void(EnvelopeState)> const& cb)
+                            std::function<void(EnvelopeState)> const& cb)
 {
     CLOG(DEBUG, "Herder") << "HerderImpl::recvSCPEnvelope@"
                           << "@" << binToHex(getLocalNodeID()).substr(0, 6);
@@ -896,8 +902,9 @@ HerderImpl::ledgerClosed(LedgerHeaderHistoryEntry const& ledger)
     }
 
     if (!mApp.getConfig().MANUAL_CLOSE)
-        mTriggerTimer.async_wait(std::bind(&HerderImpl::triggerNextLedger, this),
-                                 &VirtualTimer::onFailureNoop);
+        mTriggerTimer.async_wait(
+            std::bind(&HerderImpl::triggerNextLedger, this),
+            &VirtualTimer::onFailureNoop);
 }
 
 void
@@ -935,7 +942,7 @@ HerderImpl::triggerNextLedger()
         std::make_shared<TxSetFrame>(mLastClosedLedger.hash);
     for (auto& list : mReceivedTransactions)
     {
-        for(auto& tx : list)
+        for (auto& tx : list)
         {
             proposedSet->add(tx);
         }
@@ -943,7 +950,7 @@ HerderImpl::triggerNextLedger()
 
     std::vector<TransactionFramePtr> removed;
     proposedSet->trimInvalid(mApp, removed);
-    for(auto& tx : removed)
+    for (auto& tx : removed)
     {
         removeReceivedTx(tx);
     }
@@ -1075,22 +1082,21 @@ HerderImpl::envelopeVerified(bool valid)
     }
 }
 
-void 
+void
 HerderImpl::dumpInfo(Json::Value& ret)
 {
-    //ret["local"] = toBase58Check(VER_ACCOUNT_ID, mLocalNode->getNodeID()).c_str();
+    // ret["local"] = toBase58Check(VER_ACCOUNT_ID,
+    // mLocalNode->getNodeID()).c_str();
     int count = 0;
-    for(auto& item : mKnownNodes)
+    for (auto& item : mKnownNodes)
     {
-        ret["nodes"][count++] = 
+        ret["nodes"][count++] =
             toBase58Check(VER_ACCOUNT_ID, item.second->getNodeID()).c_str();
     }
 
-    for(auto& item : mKnownSlots)
+    for (auto& item : mKnownSlots)
     {
         item.second->dumpInfo(ret);
     }
-
 }
-
 }
