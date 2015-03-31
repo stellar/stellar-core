@@ -33,12 +33,9 @@ typedef std::unique_ptr<Application> appPtr;
 TEST_CASE("payment", "[tx][payment]")
 {
     Config const& cfg = getTestConfig();
-    Config cfg2(cfg);
-    // cfg2.DATABASE = "sqlite3://test.db";
-    // cfg2.DATABASE = "postgresql://dbmaster:-island-@localhost/stellar-core";
 
     VirtualClock clock;
-    Application::pointer appPtr = Application::create(clock, cfg2);
+    Application::pointer appPtr = Application::create(clock, cfg);
     Application& app = *appPtr;
     app.start();
 
@@ -105,7 +102,6 @@ TEST_CASE("payment", "[tx][payment]")
 
     SECTION("send too little XLM to new account (below reserve)")
     {
-        LOG(INFO) << "send too little XLM to new account (below reserve)";
         applyPaymentTx(
             app, root, b1, rootSeq++,
             app.getLedgerManager().getCurrentLedgerHeader().baseReserve - 1,
@@ -122,7 +118,6 @@ TEST_CASE("payment", "[tx][payment]")
 
         SECTION("credit sent to new account (no account error)")
         {
-            LOG(INFO) << "credit sent to new account (no account error)";
             applyCreditPaymentTx(app, root, b1, currency, rootSeq++, 100,
                                  PAYMENT_NO_DESTINATION);
 
@@ -133,7 +128,6 @@ TEST_CASE("payment", "[tx][payment]")
 
         SECTION("send XLM with path (not enough offers)")
         {
-            LOG(INFO) << "send XLM with path";
             TransactionFramePtr txFrame2 =
                 createPaymentTx(root, a1, rootSeq++, morePayment);
             getFirstOperation(*txFrame2).body.paymentOp().path.push_back(
@@ -151,7 +145,6 @@ TEST_CASE("payment", "[tx][payment]")
         // actual sendcredit
         SECTION("credit payment with no trust")
         {
-            LOG(INFO) << "credit payment with no trust";
             applyCreditPaymentTx(app, root, a1, currency, rootSeq++, 100,
                                  PAYMENT_NO_TRUST);
             AccountFrame account;
@@ -161,8 +154,6 @@ TEST_CASE("payment", "[tx][payment]")
 
         SECTION("with trust")
         {
-            LOG(INFO) << "with trust";
-
             applyChangeTrust(app, a1, root, a1Seq++, "IDR", 1000);
             applyCreditPaymentTx(app, root, a1, currency, rootSeq++, 100);
 

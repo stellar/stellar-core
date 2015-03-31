@@ -31,8 +31,6 @@ typedef std::unique_ptr<Application> appPtr;
 
 TEST_CASE("txenvelope", "[tx][envelope]")
 {
-    LOG(INFO) << "************ Starting envelope test";
-
     Config const& cfg = getTestConfig();
 
     VirtualClock clock;
@@ -432,6 +430,4 @@ TEST_CASE("txenvelope", "[tx][envelope]")
             }
         }
     }
-
-    LOG(INFO) << "************ Ending envelope test";
 }

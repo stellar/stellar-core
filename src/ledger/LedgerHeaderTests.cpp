@@ -21,13 +21,10 @@ typedef std::unique_ptr<Application> appPtr;
 TEST_CASE("ledgerheader", "[ledger]")
 {
 
-    Config cfg(getTestConfig());
-
-    cfg.DATABASE = "sqlite3://test.db";
+    Config cfg(getTestConfig(0, Config::TESTDB_ON_DISK_SQLITE));
 
     Hash saved;
     {
-        cfg.REBUILD_DB = true;
         VirtualClock clock;
         Application::pointer app = Application::create(clock, cfg);
         app->start();

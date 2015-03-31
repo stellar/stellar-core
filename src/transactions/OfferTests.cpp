@@ -43,12 +43,9 @@ checkAmounts(int64_t a, int64_t b, int64_t maxd = 1)
 TEST_CASE("create offer", "[tx][offers]")
 {
     Config const& cfg = getTestConfig();
-    Config cfg2(cfg);
-    // cfg2.DATABASE = "sqlite3://test.db";
-    // cfg2.DATABASE = "postgresql://dbmaster:-island-@localhost/stellar-core";
 
     VirtualClock clock;
-    Application::pointer appPtr = Application::create(clock, cfg2);
+    Application::pointer appPtr = Application::create(clock, cfg);
     Application& app = *appPtr;
     app.start();
 
