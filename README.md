@@ -59,5 +59,5 @@ Then, running
 * `stellar-core --test [foo-stress]` will run the stress tests for subsystem foo alone, and
 * neither `stellar-core --test` nor `stellar-core --test [foo]` will run stress tests.
 
-# [Documentation](/docs/overview.md)
+# [Documentation](/docs/)
 
