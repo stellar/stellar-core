@@ -99,33 +99,42 @@ TEST_CASE("create offer", "[tx][offers]")
         // sell IDR for USD
 
         // missing IDR trust
-        applyCreateOfferWithResult(app, delta, 0, a1, idrCur, usdCur, oneone, 100,
-                                   a1_seq++, CREATE_OFFER_UNDERFUNDED);
+        applyCreateOfferWithResult(app, delta, 0, a1, idrCur, usdCur, oneone,
+                                   100, a1_seq++, CREATE_OFFER_UNDERFUNDED);
 
         applyChangeTrust(app, a1, gateway, a1_seq++, "IDR", trustLineLimit);
 
         // can't sell IDR if account doesn't have any
-        applyCreateOfferWithResult(app, delta, 0, a1, idrCur, usdCur, oneone, 100,
-                                   a1_seq++, CREATE_OFFER_UNDERFUNDED);
+        applyCreateOfferWithResult(app, delta, 0, a1, idrCur, usdCur, oneone,
+                                   100, a1_seq++, CREATE_OFFER_UNDERFUNDED);
 
         // fund a1 with some IDR
         applyCreditPaymentTx(app, gateway, a1, idrCur, gateway_seq++,
                              trustLineLimit);
 
         // missing USD trust
-        applyCreateOfferWithResult(app, delta, 0, a1, idrCur, usdCur, oneone, 100,
-            a1_seq++, CREATE_OFFER_NO_TRUST);
+        applyCreateOfferWithResult(app, delta, 0, a1, idrCur, usdCur, oneone,
+                                   100, a1_seq++, CREATE_OFFER_NO_TRUST);
 
         applyChangeTrust(app, a1, gateway, a1_seq++, "USD", trustLineLimit);
 
         // need sufficient XLM funds to create an offer
-        applyCreateOfferWithResult(app, delta, 0, a1, idrCur, usdCur, oneone, 100,
-                                   a1_seq++, CREATE_OFFER_LOW_RESERVE);
+        applyCreateOfferWithResult(app, delta, 0, a1, idrCur, usdCur, oneone,
+                                   100, a1_seq++, CREATE_OFFER_LOW_RESERVE);
+
+        // can't receive more of what we're trying to buy
+        applyCreditPaymentTx(app, gateway, a1, usdCur, gateway_seq++,
+                             trustLineLimit);
+        applyCreateOfferWithResult(app, delta, 0, a1, idrCur, usdCur, oneone,
+                                   100, a1_seq++, CREATE_OFFER_LINE_FULL);
 
         // there should be no pending offer at this point in the system
         OfferFrame offer;
-        REQUIRE(!OfferFrame::loadOffer(a1.getPublicKey(), 5, offer,
-                                       app.getDatabase()));
+        for (int i = 0; i < 7; i++)
+        {
+            REQUIRE(!OfferFrame::loadOffer(a1.getPublicKey(), i, offer,
+                                           app.getDatabase()));
+        }
     }
 
     SECTION("cancel offer")
@@ -138,23 +147,24 @@ TEST_CASE("create offer", "[tx][offers]")
         applyChangeTrust(app, a1, gateway, a1_seq++, "USD", trustLineLimit);
         applyChangeTrust(app, a1, gateway, a1_seq++, "IDR", trustLineLimit);
         applyCreditPaymentTx(app, gateway, a1, idrCur, gateway_seq++,
-            trustLineLimit);
+                             trustLineLimit);
 
-        auto res = applyCreateOfferWithResult(app, delta, 0, a1, idrCur, usdCur, oneone, 100,
-            a1_seq++, CREATE_OFFER_SUCCESS);
+        auto res = applyCreateOfferWithResult(app, delta, 0, a1, idrCur, usdCur,
+                                              oneone, 100, a1_seq++,
+                                              CREATE_OFFER_SUCCESS);
 
         auto offer = res.success().offer.offer();
         OfferFrame loaded;
         REQUIRE(OfferFrame::loadOffer(a1.getPublicKey(), offer.offerID, loaded,
-            app.getDatabase()));
-        
-        auto cancelRes =
-            applyCreateOfferWithResult(app, delta, offer.offerID, a1, idrCur, usdCur, oneone, 0,
-                                       a1_seq++, CREATE_OFFER_SUCCESS);
+                                      app.getDatabase()));
+
+        auto cancelRes = applyCreateOfferWithResult(
+            app, delta, offer.offerID, a1, idrCur, usdCur, oneone, 0, a1_seq++,
+            CREATE_OFFER_SUCCESS);
 
         REQUIRE(cancelRes.success().offer.effect() == CREATE_OFFER_DELETED);
         REQUIRE(!OfferFrame::loadOffer(a1.getPublicKey(), offer.offerID, loaded,
-            app.getDatabase()));
+                                       app.getDatabase()));
     }
 
     // minimum balance to hold
@@ -188,9 +198,9 @@ TEST_CASE("create offer", "[tx][offers]")
 
             // offer is sell 100 IDR for 150 USD; sell IRD @ 0.66 -> buy USD @
             // 1.5
-            uint64_t newOfferID =
-                applyCreateOffer(app, delta, 0, a1, idrCur, usdCur, usdPriceOfferA,
-                                 100 * currencyMultiplier, a1_seq++);
+            uint64_t newOfferID = applyCreateOffer(
+                app, delta, 0, a1, idrCur, usdCur, usdPriceOfferA,
+                100 * currencyMultiplier, a1_seq++);
 
             REQUIRE(OfferFrame::loadOffer(a1.getPublicKey(), newOfferID, offer,
                                           app.getDatabase()));
@@ -253,7 +263,11 @@ TEST_CASE("create offer", "[tx][offers]")
             applyCreditPaymentTx(app, gateway, a1, usdCur, gateway_seq++,
                                  20000 * currencyMultiplier);
 
-            // offer is sell 150 USD for 100 USD; sell USD @ 1.5 / buy IRD @
+            // ensure we could receive proceeds from the offer
+            applyCreditPaymentTx(app, a1, gateway, idrCur, a1_seq++,
+                                 100000 * currencyMultiplier);
+
+            // offer is sell 150 USD for 100 IDR; sell USD @ 1.5 / buy IRD @
             // 0.66
             Price exactCross(usdPriceOfferA.d, usdPriceOfferA.n);
 

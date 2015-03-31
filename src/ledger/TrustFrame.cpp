@@ -72,6 +72,10 @@ TrustFrame::getBalance() const
 bool
 TrustFrame::addBalance(int64_t delta)
 {
+    if (delta == 0)
+    {
+        return true;
+    }
     if (!mTrustLine.authorized)
     {
         return false;

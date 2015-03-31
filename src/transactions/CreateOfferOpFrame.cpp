@@ -136,6 +136,11 @@ CreateOfferOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
     else
     {
         maxWheatCanSell = mWheatLineA.getMaxAmountReceive();
+        if (maxWheatCanSell == 0)
+        {
+            innerResult().code(CREATE_OFFER_LINE_FULL);
+            return false;
+        }
     }
 
     {
