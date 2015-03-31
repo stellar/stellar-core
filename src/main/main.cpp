@@ -202,7 +202,7 @@ main(int argc, char* const* argv)
 
     std::string cfgFile("stellar-core.cfg");
     std::string command;
-    el::Level logLevel = el::Level::Fatal;
+    el::Level logLevel = el::Level::Info;
     std::vector<char*> rest;
 
     bool forceSCP = false;
@@ -284,6 +284,8 @@ main(int argc, char* const* argv)
 
         // don't log to file if just sending a command
         Logging::setLoggingToFile(cfg.LOG_FILE_PATH);
+        Logging::setLogLevel(logLevel, nullptr);
+
         cfg.REBUILD_DB = newDB;
         cfg.FORCE_SCP = forceSCP;
         cfg.REPORT_METRICS = metrics;

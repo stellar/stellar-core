@@ -39,7 +39,7 @@ using xdr::operator<;
 using xdr::operator==;
 
 /*
- * Drives the SCP protocol (is an SCP::Client). It is also incharge of
+ * Drives the SCP protocol (is an SCP::Client). It is also in charge of
  * receiving transactions from the network.
  */
 class HerderImpl : public Herder, public SCP
