@@ -55,6 +55,26 @@ TEST_CASE("payment", "[tx][payment]")
 
     SequenceNumber a1Seq = getAccountSeqNum(a1, app) + 1;
 
+    const uint64_t morePayment = paymentAmount / 2;
+
+    SecretKey gateway = getAccount("gate");
+
+    const int64_t currencyMultiplier = 1000000;
+
+    int64_t trustLineLimit = 1000000 * currencyMultiplier;
+
+    // minimum balance necessary to hold 2 trust lines
+    const int64_t minBalance2 =
+        app.getLedgerManager().getMinBalance(2) + 10 * txfee;
+
+    Currency idrCur = makeCurrency(gateway, "IDR");
+    Currency usdCur = makeCurrency(gateway, "USD");
+
+    // sets up gateway account
+    const int64_t gatewayPayment = minBalance2 + morePayment;
+    applyPaymentTx(app, root, gateway, rootSeq++, gatewayPayment);
+    SequenceNumber gateway_seq = getAccountSeqNum(gateway, app) + 1;
+
     AccountFrame a1Account, rootAccount;
     REQUIRE(AccountFrame::loadAccount(root.getPublicKey(), rootAccount,
                                       app.getDatabase()));
@@ -69,10 +89,9 @@ TEST_CASE("payment", "[tx][payment]")
     REQUIRE(a1Account.getHighThreshold() == 0);
     REQUIRE(a1Account.getLowThreshold() == 0);
     REQUIRE(a1Account.getMediumThreshold() == 0);
+    // root did 2 transactions at this point
     REQUIRE(rootAccount.getBalance() ==
-            (100000000000000000 - paymentAmount - txfee));
-
-    const uint64_t morePayment = paymentAmount / 2;
+            (100000000000000000 - paymentAmount - gatewayPayment - txfee * 2));
 
     SECTION("send XLM to an existing account")
     {
@@ -85,6 +104,8 @@ TEST_CASE("payment", "[tx][payment]")
                                           app.getDatabase()));
         REQUIRE(a1Account2.getBalance() ==
                 a1Account.getBalance() + morePayment);
+
+        // root did 2 transactions at this point
         REQUIRE(rootAccount2.getBalance() ==
                 (rootAccount.getBalance() - morePayment - txfee));
     }
@@ -110,20 +131,19 @@ TEST_CASE("payment", "[tx][payment]")
 
     SECTION("simple credit")
     {
-        Currency currency = makeCurrency(root, "IDR");
-
         SECTION("credit sent to new account (no account error)")
         {
-            applyCreditPaymentTx(app, root, b1, currency, rootSeq++, 100,
+            applyCreditPaymentTx(app, gateway, b1, idrCur, gateway_seq++, 100,
                                  PAYMENT_NO_DESTINATION);
         }
 
         SECTION("send XLM with path (not enough offers)")
         {
             TransactionFramePtr txFrame2 =
-                createPaymentTx(root, a1, rootSeq++, morePayment);
+                createPaymentTx(gateway, a1, gateway_seq++, morePayment);
             getFirstOperation(*txFrame2).body.paymentOp().path.push_back(
-                currency);
+                idrCur);
+
             LedgerDelta delta2(app.getLedgerManager().getCurrentLedgerHeader());
             txFrame2->apply(delta2, app);
 
@@ -134,17 +154,17 @@ TEST_CASE("payment", "[tx][payment]")
         // actual sendcredit
         SECTION("credit payment with no trust")
         {
-            applyCreditPaymentTx(app, root, a1, currency, rootSeq++, 100,
+            applyCreditPaymentTx(app, gateway, a1, idrCur, gateway_seq++, 100,
                                  PAYMENT_NO_TRUST);
         }
 
         SECTION("with trust")
         {
-            applyChangeTrust(app, a1, root, a1Seq++, "IDR", 1000);
-            applyCreditPaymentTx(app, root, a1, currency, rootSeq++, 100);
+            applyChangeTrust(app, a1, gateway, a1Seq++, "IDR", 1000);
+            applyCreditPaymentTx(app, gateway, a1, idrCur, gateway_seq++, 100);
 
             TrustFrame line;
-            REQUIRE(TrustFrame::loadTrustLine(a1.getPublicKey(), currency, line,
+            REQUIRE(TrustFrame::loadTrustLine(a1.getPublicKey(), idrCur, line,
                                               app.getDatabase()));
             REQUIRE(line.getBalance() == 100);
 
@@ -153,20 +173,28 @@ TEST_CASE("payment", "[tx][payment]")
 
             SequenceNumber b1Seq = getAccountSeqNum(b1, app) + 1;
 
-            applyChangeTrust(app, b1, root, b1Seq++, "IDR", 100);
-            applyCreditPaymentTx(app, a1, b1, currency, a1Seq++, 40);
+            applyChangeTrust(app, b1, gateway, b1Seq++, "IDR", 100);
 
-            REQUIRE(TrustFrame::loadTrustLine(a1.getPublicKey(), currency, line,
+            // first, send 40 from a1 to b1
+            applyCreditPaymentTx(app, a1, b1, idrCur, a1Seq++, 40);
+
+            REQUIRE(TrustFrame::loadTrustLine(a1.getPublicKey(), idrCur, line,
                                               app.getDatabase()));
             REQUIRE(line.getBalance() == 60);
-            REQUIRE(TrustFrame::loadTrustLine(b1.getPublicKey(), currency, line,
+            REQUIRE(TrustFrame::loadTrustLine(b1.getPublicKey(), idrCur, line,
                                               app.getDatabase()));
             REQUIRE(line.getBalance() == 40);
-            applyCreditPaymentTx(app, b1, root, currency, b1Seq++, 40);
-            REQUIRE(TrustFrame::loadTrustLine(b1.getPublicKey(), currency, line,
+
+            // then, send back to the gateway
+            // the gateway does not have a trust line as it's the issuer
+            applyCreditPaymentTx(app, b1, gateway, idrCur, b1Seq++, 40);
+            REQUIRE(TrustFrame::loadTrustLine(b1.getPublicKey(), idrCur, line,
                                               app.getDatabase()));
             REQUIRE(line.getBalance() == 0);
         }
+    }
+    SECTION("payment through path")
+    {
     }
 }
 

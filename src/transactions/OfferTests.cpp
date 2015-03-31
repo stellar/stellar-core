@@ -63,7 +63,6 @@ TEST_CASE("create offer", "[tx][offers]")
     int64_t txfee = app.getLedgerManager().getTxFee();
 
     SequenceNumber root_seq = getAccountSeqNum(root, app) + 1;
-    ;
 
     // minimum balance necessary to hold 2 trust lines
     const int64_t minBalance2 =
