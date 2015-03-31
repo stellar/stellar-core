@@ -77,9 +77,22 @@ TrustFrame::addBalance(int64_t delta)
         return false;
     }
     if ((delta + mTrustLine.balance) < 0)
+    {
         return false;
+    }
     mTrustLine.balance += delta;
     return true;
+}
+
+int64_t
+TrustFrame::getMaxAmountReceive() const
+{
+    int64_t amount = 0;
+    if (mTrustLine.authorized)
+    {
+        amount = mTrustLine.limit - mTrustLine.balance;
+    }
+    return amount;
 }
 
 bool
