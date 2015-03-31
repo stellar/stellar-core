@@ -14,7 +14,7 @@ this, we're asking PRs to be submitted rebased on top of master.
 
 To keep your local repository in a "rebased" state, simply run:
 
-`git config --global branch.autosetuprebase always` *changes the default for all future branches*  
+`git config --global branch.autosetuprebase always` *changes the default for all future branches*
 
 `git config --global branch.master.rebase true` *changes the setting for branch master*
 
@@ -38,14 +38,18 @@ Categories (or tags) can be combined: AND-ed (by juxtaposition) or OR-ed (by com
 Tests tagged as [.] or [hide] are not part of the default test test.
 
 # Running tests against postgreSQL
- First, you'll need to create a few test databases by running within psql
-`create database test with owner=test`
+First you'll need to create the postgres role "test". If you've just installed postgresSQL with the default init, access the psql client by running `psql postgres`.
 
-`create database test0 with owner=test`
+Now create the 'test' role: `CREATE ROLE test SUPERUSER`
 
-`create database test1 with owner=test`
+Now, create a few test databases:
+`CREATE DATABASE test WITH owner=test`
 
-`create database test2 with owner=test`
+`CREATE DATABASE test0 WITH owner=test`
+
+`CREATE DATABASE test1 WITH owner=test`
+
+`CREATE DATABASE test2 WITH owner=test`
 
 # Running stress tests
 We adopt the convention of tagging a stress-test for subsystem foo as [foo-stress][stress][hide].
