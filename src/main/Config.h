@@ -58,6 +58,11 @@ class Config : public std::enable_shared_from_this<Config>
     // meaning catchup "minimally", using deltas to the most recent snapshot.
     bool CATCHUP_COMPLETE;
 
+    // A config parameter that reduces ledger close time to 1s and checkpoint
+    // frequency to every 8 ledgers. Do not ever set this in production, as it
+    // will make your history archives incompatible with those of anyone else.
+    bool ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING;
+
     uint32_t PROTOCOL_VERSION;
     std::string VERSION_STR;
     std::string LOG_FILE_PATH;

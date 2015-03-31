@@ -36,8 +36,6 @@ namespace stellar
 
 using namespace std;
 
-const uint32_t HistoryManager::kCheckpointFrequency = 64;
-
 bool
 HistoryManager::initializeHistoryArchive(Application& app, std::string arch)
 {
@@ -76,15 +74,6 @@ HistoryManager::initializeHistoryArchive(Application& app, std::string arch)
         app.getClock().crank(false);
     }
     return ok;
-}
-
-uint32_t
-HistoryManager::nextCheckpointLedger(uint32_t ledger)
-{
-    if (ledger == 0)
-        return kCheckpointFrequency;
-    uint64_t res = static_cast<uint64_t>(kCheckpointFrequency);
-    return static_cast<uint32_t>(((ledger + res - 1) / res) * res);
 }
 
 std::unique_ptr<HistoryManager>
@@ -209,6 +198,28 @@ HistoryManagerImpl::HistoryManagerImpl(Application& app)
 
 HistoryManagerImpl::~HistoryManagerImpl()
 {
+}
+
+uint32_t
+HistoryManagerImpl::getCheckpointFrequency()
+{
+    if (mApp.getConfig().ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING)
+    {
+        return 8;
+    }
+    else
+    {
+        return 64;
+    }
+}
+
+uint32_t
+HistoryManagerImpl::nextCheckpointLedger(uint32_t ledger)
+{
+    uint32_t freq = getCheckpointFrequency();
+    if (ledger == 0)
+        return freq;
+    return (((ledger + freq - 1) / freq) * freq);
 }
 
 string const&

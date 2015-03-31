@@ -36,7 +36,7 @@ CatchupStateMachine::CatchupStateMachine(
                        LedgerHeaderHistoryEntry const& lastClosed)> handler)
     : mApp(app)
     , mInitLedger(initLedger)
-    , mNextLedger(HistoryManager::nextCheckpointLedger(initLedger))
+    , mNextLedger(app.getHistoryManager().nextCheckpointLedger(initLedger))
     , mMode(mode)
     , mEndHandler(handler)
     , mState(CATCHUP_RETRYING)
@@ -105,7 +105,7 @@ CatchupStateMachine::enterBeginState()
 
     assert(mNextLedger > 0);
     uint32_t blockEnd = mNextLedger - 1;
-    uint32_t snap = blockEnd / HistoryManager::kCheckpointFrequency;
+    uint32_t snap = blockEnd / mApp.getHistoryManager().getCheckpointFrequency();
 
     CLOG(INFO, "History") << "Catchup BEGIN, initLedger=" << mInitLedger
                           << ", guessed nextLedger=" << mNextLedger
@@ -356,6 +356,7 @@ CatchupStateMachine::enterAnchoredState(HistoryArchiveState const& has)
     }
 
     std::vector<std::shared_ptr<FileCatchupInfo>> fileCatchupInfos;
+    size_t freq = mApp.getHistoryManager().getCheckpointFrequency();
 
     // Then make sure all the files we _want_ are either present
     // or queued to be requested.
@@ -372,18 +373,15 @@ CatchupStateMachine::enterAnchoredState(HistoryArchiveState const& has)
         }
 
         // ...and _the last_ history ledger file (to get its final state).
-        uint32_t snap =
-            mArchiveState.currentLedger / HistoryManager::kCheckpointFrequency;
+        uint32_t snap = mArchiveState.currentLedger / freq;
         fileCatchupInfos.push_back(queueLedgerFile(snap));
     }
     else
     {
         assert(mMode == HistoryManager::CATCHUP_COMPLETE);
         // In CATCHUP_COMPLETE mode we need all the transaction and ledger files.
-        for (uint32_t snap = mLocalState.currentLedger /
-                             HistoryManager::kCheckpointFrequency;
-             snap <= mArchiveState.currentLedger /
-                         HistoryManager::kCheckpointFrequency;
+        for (uint32_t snap = mLocalState.currentLedger / freq;
+             snap <= mArchiveState.currentLedger / freq;
              ++snap)
         {
             fileCatchupInfos.push_back(queueTransactionsFile(snap));
