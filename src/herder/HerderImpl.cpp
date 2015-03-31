@@ -25,6 +25,8 @@
 
 #include <ctime>
 
+#define MAX_SLOTS_TO_REMEMBER 4
+
 namespace stellar
 {
 
@@ -584,7 +586,7 @@ HerderImpl::valueExternalized(const uint64& slotIndex, const Value& value)
         // Evict slots that are outside of our ledger validity bracket
         if (slotIndex > LEDGER_VALIDITY_BRACKET)
         {
-            purgeSlots(slotIndex - LEDGER_VALIDITY_BRACKET);
+            purgeSlots(slotIndex - MAX_SLOTS_TO_REMEMBER);
         }
 
         // Move all the remaining to the next highest level don't move the
@@ -1093,6 +1095,8 @@ HerderImpl::dumpInfo(Json::Value& ret)
         ret["nodes"][count++] =
             toBase58Check(VER_ACCOUNT_ID, item.second->getNodeID()).c_str();
     }
+
+    ret["you"] = binToHex(getSecretKey().getPublicKey()).substr(0, 6);
 
     for (auto& item : mKnownSlots)
     {

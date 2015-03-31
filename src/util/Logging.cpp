@@ -64,29 +64,52 @@ Logging::setLoggingToFile(std::string const& filename)
     el::Loggers::reconfigureAllLoggers(mDefaultConf);
 }
 
+// Trace < Debug < Info < Warning < Error < Fatal < None
 void
 Logging::setLogLevel(el::Level level, const char* partition)
 {
     el::Configurations config = mDefaultConf;
 
-    if (el::Level::Trace < level)
+    if(level == el::Level::Debug)
         config.set(el::Level::Trace, el::ConfigurationType::Enabled, "false");
-    if (el::Level::Debug < level)
+    else if(level == el::Level::Info)
+    {
+        config.set(el::Level::Trace, el::ConfigurationType::Enabled, "false");
         config.set(el::Level::Debug, el::ConfigurationType::Enabled, "false");
-    if (el::Level::Fatal < level)
-        config.set(el::Level::Fatal, el::ConfigurationType::Enabled, "false");
-    if (el::Level::Error < level)
-        config.set(el::Level::Error, el::ConfigurationType::Enabled, "false");
-    if (el::Level::Warning < level)
-        config.set(el::Level::Warning, el::ConfigurationType::Enabled, "false");
-    if (el::Level::Info < level)
+    } else if(level == el::Level::Warning)
+    {
+        config.set(el::Level::Trace, el::ConfigurationType::Enabled, "false");
+        config.set(el::Level::Debug, el::ConfigurationType::Enabled, "false");
         config.set(el::Level::Info, el::ConfigurationType::Enabled, "false");
+    } else if(level == el::Level::Error)
+    {
+        config.set(el::Level::Trace, el::ConfigurationType::Enabled, "false");
+        config.set(el::Level::Debug, el::ConfigurationType::Enabled, "false");
+        config.set(el::Level::Info, el::ConfigurationType::Enabled, "false");
+        config.set(el::Level::Warning, el::ConfigurationType::Enabled, "false");
+    } else if(level == el::Level::Fatal)
+    {
+        config.set(el::Level::Trace, el::ConfigurationType::Enabled, "false");
+        config.set(el::Level::Debug, el::ConfigurationType::Enabled, "false");
+        config.set(el::Level::Info, el::ConfigurationType::Enabled, "false");
+        config.set(el::Level::Warning, el::ConfigurationType::Enabled, "false");
+        config.set(el::Level::Error, el::ConfigurationType::Enabled, "false");
+    } else if(level == el::Level::Unknown)
+    {
+        config.set(el::Level::Trace, el::ConfigurationType::Enabled, "false");
+        config.set(el::Level::Debug, el::ConfigurationType::Enabled, "false");
+        config.set(el::Level::Info, el::ConfigurationType::Enabled, "false");
+        config.set(el::Level::Warning, el::ConfigurationType::Enabled, "false");
+        config.set(el::Level::Error, el::ConfigurationType::Enabled, "false");
+        config.set(el::Level::Fatal, el::ConfigurationType::Enabled, "false");
+    }
 
-    if (partition)
+    if(partition)
         el::Loggers::reconfigureLogger(partition, config);
     else
         el::Loggers::reconfigureAllLoggers(config);
 }
+
 
 std::string 
 Logging::getStringFromLL(el::Level level)
