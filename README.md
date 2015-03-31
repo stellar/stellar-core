@@ -14,7 +14,7 @@ this, we're asking PRs to be submitted rebased on top of master.
 
 To keep your local repository in a "rebased" state, simply run:
 
-`git config --global branch.autosetuprebase always` *changes the default for all future branches*  
+`git config --global branch.autosetuprebase always` *changes the default for all future branches*
 
 `git config --global branch.master.rebase true` *changes the setting for branch master*
 
@@ -55,5 +55,5 @@ Then, running
 * `stellar-core --test [foo-stress]` will run the stress tests for subsystem foo alone, and
 * neither `stellar-core --test` nor `stellar-core --test [foo]` will run stress tests.
 
-# [Documentation](/docs/overview.md)
+# [Documentation](/docs/)
 
