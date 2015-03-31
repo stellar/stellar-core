@@ -33,6 +33,15 @@ static std::vector<TmpDir> gTestRoots;
 Config const&
 getTestConfig(int instanceNumber, Config::TestDbMode mode)
 {
+    if (mode == Config::TESTDB_DEFAULT)
+    {
+        // by default, tests should be run with in memory SQLITE as it's faster
+        // you can change this by enabling the appropriate line below
+        mode = Config::TESTDB_IN_MEMORY_SQLITE;
+        // mode = Config::TESTDB_ON_DISK_SQLITE;
+        // mode = Config::TESTDB_UNIX_LOCAL_POSTGRESQL;
+        // mode = Config::TESTDB_TCP_LOCALHOST_POSTGRESQL;
+    }
     auto& cfgs = gTestCfg[mode];
     if (cfgs.size() <= instanceNumber)
     {
@@ -100,7 +109,8 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
 }
 
 int
-test(int argc, char* const* argv, el::Level ll, std::vector<std::string> const& metrics)
+test(int argc, char* const* argv, el::Level ll,
+     std::vector<std::string> const& metrics)
 {
     gTestMetrics = metrics;
     Config const& cfg = getTestConfig();
