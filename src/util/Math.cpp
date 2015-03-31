@@ -4,18 +4,17 @@
 
 #include "Math.h"
 #include <cmath>
-#include <random>
 
 namespace stellar
 {
 
-std::default_random_engine generator;
+std::default_random_engine gRandomEngine;
 std::uniform_real_distribution<double> uniformFractionDistribution(0.0, 1.0);
 
 double
 rand_fraction()
 {
-    return uniformFractionDistribution(generator);
+    return uniformFractionDistribution(gRandomEngine);
 }
 
 size_t
