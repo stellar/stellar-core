@@ -890,11 +890,17 @@ HerderImpl::ledgerClosed(LedgerHeaderHistoryEntry const& ledger)
     // trigger.
     mTriggerTimer.cancel();
 
+    size_t seconds = EXP_LEDGER_TIMESPAN_SECONDS;
+    if (mApp.getConfig().ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING)
+    {
+        seconds = 1;
+    }
+
     auto now = mApp.getClock().now();
     if ((now - mLastTrigger) <
-        std::chrono::seconds(EXP_LEDGER_TIMESPAN_SECONDS))
+        std::chrono::seconds(seconds))
     {
-        auto timeout = std::chrono::seconds(EXP_LEDGER_TIMESPAN_SECONDS) -
+        auto timeout = std::chrono::seconds(seconds) -
                        (now - mLastTrigger);
         mTriggerTimer.expires_from_now(timeout);
     }

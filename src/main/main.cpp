@@ -291,6 +291,12 @@ main(int argc, char* const* argv)
         cfg.REPORT_METRICS = metrics;
 
         HistoryManager::checkSensibleConfig(cfg);
+        if (cfg.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING)
+        {
+            LOG(WARNING)
+                << "Artificial acceleration of time enabled "
+                << "(for testing only)";
+        }
 
         if (forceSCP || newDB)
         {

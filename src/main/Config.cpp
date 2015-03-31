@@ -1,3 +1,4 @@
+
 // Copyright 2014 Stellar Development Foundation and contributors. Licensed
 // under the ISC License. See the COPYING file at the top-level directory of
 // this distribution or at http://opensource.org/licenses/ISC
@@ -28,6 +29,7 @@ Config::Config() : PEER_KEY(SecretKey::random())
     RUN_STANDALONE = false;
     MANUAL_CLOSE = false;
     CATCHUP_COMPLETE = false;
+    ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = false;
     TARGET_PEER_CONNECTIONS = 20;
     MAX_PEER_CONNECTIONS = 50;
     LOG_FILE_PATH = "stellar-core.log";
@@ -74,6 +76,8 @@ Config::load(const std::string& filename)
                 RUN_STANDALONE = item.second->as<bool>()->value();
             else if (item.first == "CATCHUP_COMPLETE")
                 CATCHUP_COMPLETE = item.second->as<bool>()->value();
+            else if (item.first == "ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING")
+                ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = item.second->as<bool>()->value();
             else if (item.first == "MANUAL_CLOSE")
                 MANUAL_CLOSE = item.second->as<bool>()->value();
             else if (item.first == "LOG_FILE_PATH")

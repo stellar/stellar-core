@@ -148,21 +148,22 @@ HistoryTests::crankTillDone(bool& done)
     }
 }
 
-TEST_CASE("next checkpoint ledger", "[history]")
+TEST_CASE_METHOD(HistoryTests, "next checkpoint ledger", "[history]")
 {
-    CHECK(HistoryManager::nextCheckpointLedger(0) == 64);
-    CHECK(HistoryManager::nextCheckpointLedger(1) == 64);
-    CHECK(HistoryManager::nextCheckpointLedger(32) == 64);
-    CHECK(HistoryManager::nextCheckpointLedger(62) == 64);
-    CHECK(HistoryManager::nextCheckpointLedger(63) == 64);
-    CHECK(HistoryManager::nextCheckpointLedger(64) == 64);
-    CHECK(HistoryManager::nextCheckpointLedger(65) == 128);
-    CHECK(HistoryManager::nextCheckpointLedger(66) == 128);
-    CHECK(HistoryManager::nextCheckpointLedger(126) == 128);
-    CHECK(HistoryManager::nextCheckpointLedger(127) == 128);
-    CHECK(HistoryManager::nextCheckpointLedger(128) == 128);
-    CHECK(HistoryManager::nextCheckpointLedger(129) == 192);
-    CHECK(HistoryManager::nextCheckpointLedger(130) == 192);
+    HistoryManager& hm = app.getHistoryManager();
+    CHECK(hm.nextCheckpointLedger(0) == 64);
+    CHECK(hm.nextCheckpointLedger(1) == 64);
+    CHECK(hm.nextCheckpointLedger(32) == 64);
+    CHECK(hm.nextCheckpointLedger(62) == 64);
+    CHECK(hm.nextCheckpointLedger(63) == 64);
+    CHECK(hm.nextCheckpointLedger(64) == 64);
+    CHECK(hm.nextCheckpointLedger(65) == 128);
+    CHECK(hm.nextCheckpointLedger(66) == 128);
+    CHECK(hm.nextCheckpointLedger(126) == 128);
+    CHECK(hm.nextCheckpointLedger(127) == 128);
+    CHECK(hm.nextCheckpointLedger(128) == 128);
+    CHECK(hm.nextCheckpointLedger(129) == 192);
+    CHECK(hm.nextCheckpointLedger(130) == 192);
 }
 
 TEST_CASE_METHOD(HistoryTests, "HistoryManager::compress", "[history]")
@@ -344,7 +345,7 @@ HistoryTests::generateAndPublishHistory(size_t nPublishes)
     REQUIRE(hm.getPublishFailureCount() == 0);
     REQUIRE(hm.getPublishSuccessCount() == publishSuccesses + nPublishes);
     REQUIRE(lm.getLedgerNum() ==
-          ((publishSuccesses + nPublishes) * HistoryManager::kCheckpointFrequency));
+            ((publishSuccesses + nPublishes) * hm.getCheckpointFrequency()));
 }
 
 
@@ -416,7 +417,7 @@ HistoryTests::catchupApplication(uint32_t initLedger,
     // Push publishing side forward one-ledger into a history block if it's
     // sitting on the boundary of it. This will ensure there's something
     // externalizable to knit-up with on the catchup side.
-    if (HistoryManager::nextCheckpointLedger(
+    if (app.getHistoryManager().nextCheckpointLedger(
             app.getLedgerManager().getLastClosedLedgerNum())
         == app.getLedgerManager().getLedgerNum())
     {
@@ -430,7 +431,8 @@ HistoryTests::catchupApplication(uint32_t initLedger,
     // and as near as we can get to the first ledger of the block after
     // initLedger (inclusive), so that there's something to knit-up with. Do not
     // externalize anything we haven't yet published, of course.
-    uint32_t nextBlockStart = HistoryManager::nextCheckpointLedger(initLedger);
+    uint32_t nextBlockStart =
+        app.getHistoryManager().nextCheckpointLedger(initLedger);
     for (uint32_t n = initLedger; n <= nextBlockStart; ++n)
     {
         if (n-2 >= mLedgerCloseDatas.size())
@@ -679,17 +681,17 @@ TEST_CASE_METHOD(HistoryTests, "History prefix catchup",
                        10, Config::TESTDB_IN_MEMORY_SQLITE,
                        HistoryManager::CATCHUP_COMPLETE,
                        std::string("Catchup to prefix of published history")));
-    CHECK(apps.back()->getLedgerManager().getLedgerNum() ==
-          HistoryManager::kCheckpointFrequency + 1);
+    uint32_t freq = apps.back()->getHistoryManager().getCheckpointFrequency();
+    CHECK(apps.back()->getLedgerManager().getLedgerNum() == freq + 1);
 
     // Then attempt catchup to 74, prefix of 128. Should round up to 128.
     // Should replay the 64th (since it gets externalized) and land on 129.
     apps.push_back(catchupNewApplication(
-                       HistoryManager::kCheckpointFrequency + 10,
+                       freq + 10,
                        Config::TESTDB_IN_MEMORY_SQLITE, HistoryManager::CATCHUP_COMPLETE,
                        std::string("Catchup to second prefix of published history")));
     CHECK(apps.back()->getLedgerManager().getLedgerNum() ==
-          2 * HistoryManager::kCheckpointFrequency + 1);
+          2 * freq + 1);
 }
 
 TEST_CASE_METHOD(HistoryTests, "Publish/catchup alternation, with stall",
@@ -733,11 +735,10 @@ TEST_CASE_METHOD(HistoryTests, "Publish/catchup alternation, with stall",
     }
 
     // By now we should have had 3 + 1 + 2 + 3 = 9 publishes, and should
-    // have advanced 1-ledger in to the 9th block.
-    CHECK(app2->getLedgerManager().getLedgerNum() ==
-          9 * HistoryManager::kCheckpointFrequency + 1);
-    CHECK(app3->getLedgerManager().getLedgerNum() ==
-          9 * HistoryManager::kCheckpointFrequency + 1);
+    // have advanced 1 ledger in to the 9th block.
+    uint32_t freq = app2->getHistoryManager().getCheckpointFrequency();
+    CHECK(app2->getLedgerManager().getLedgerNum() == 9 * freq + 1);
+    CHECK(app3->getLedgerManager().getLedgerNum() == 9 * freq + 1);
 
     // Finally, publish a little more history than the last publish-point
     // but not enough to get to the _next_ publish-point:

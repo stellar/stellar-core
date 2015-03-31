@@ -211,12 +211,6 @@ class HistoryManager
         VERIFY_HASH_UNKNOWN
     };
 
-    // Checkpoints are made every kCheckpointFrequency ledgers.
-    static const uint32_t kCheckpointFrequency;
-
-    // Given a ledger, tell when the next checkpoint will occur.
-    static uint32_t nextCheckpointLedger(uint32_t ledger);
-
     // Initialize a named history archive by writing
     // .well-known/stellar-history.json to it.
     static bool initializeHistoryArchive(Application& app, std::string arch);
@@ -225,6 +219,14 @@ class HistoryManager
     static void checkSensibleConfig(Config const& cfg);
 
     static std::unique_ptr<HistoryManager> create(Application& app);
+
+    // Checkpoints are made every getCheckpointFrequency() ledgers.
+    // This should normally be a constant (64) but in testing cases
+    // may be different (see ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING).
+    virtual uint32_t getCheckpointFrequency() = 0;
+
+    // Given a ledger, tell when the next checkpoint will occur.
+    virtual uint32_t nextCheckpointLedger(uint32_t ledger) = 0;
 
     // Verify that a file has a given hash.
     virtual void verifyHash(std::string const& filename, uint256 const& hash,
@@ -256,8 +258,8 @@ class HistoryManager
                        std::function<void(asio::error_code const&)> handler) const = 0;
 
     // Publish history if the current ledger is a multiple of
-    // kCheckpointFrequency -- equivalently, the LCL is one _less_ than a
-    // multiple of kCheckpointFrequency -- and no publish action is currently in
+    // getCheckpointFrequency() -- equivalently, the LCL is one _less_ than a
+    // multiple of getCheckpointFrequency() -- and no publish action is currently in
     // progress. Returns true if checkpoint publication of the LCL was started
     // (and the completion-handler queued), otherwise false.
     virtual bool
