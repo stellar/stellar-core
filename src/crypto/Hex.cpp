@@ -30,9 +30,9 @@ std::string
 hexAbbrev(ByteSlice const& bin)
 {
     size_t sz = bin.size();
-    if (sz > 6)
+    if (sz > 3)
     {
-        sz = 6;
+        sz = 3;
     }
     return binToHex(ByteSlice(bin.data(), sz));
 }
