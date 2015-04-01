@@ -174,7 +174,7 @@ startApp(string cfgFile, Config& cfg)
 
     if (!checkInitialized(app))
     {
-        return 1;
+        return 0;
     }
     else
     {
@@ -199,7 +199,7 @@ startApp(string cfgFile, Config& cfg)
         {
             clock.crank();
         }
-        return 1;
+        return 0;
     }
 }
 }
