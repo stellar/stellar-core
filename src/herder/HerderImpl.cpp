@@ -197,7 +197,6 @@ HerderImpl::validateValue(uint64 const& slotIndex, uint256 const& nodeID,
 
     // All tests that are relative to mLastClosedLedger are executed only once
     // we are fully synced up
-
     // Check slotIndex.
     if (mLastClosedLedger.header.ledgerSeq + 1 != slotIndex)
     {
@@ -844,16 +843,63 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope envelope,
             (envelope.statement.slotIndex == nextLedger &&
              mCurrentValue.empty()))
         {
+            if(checkFutureCommitted(envelope))
+            {  // a quorum slice has left us behind 
+                CLOG(INFO, "Herder") << "Left behind. Catching up to our slice.";
+                valueExternalized(envelope.statement.slotIndex, 
+                    envelope.statement.ballot.value);
+                return;
+            }
+            
+
             mFutureEnvelopes[envelope.statement.slotIndex].push_back(
                 std::make_pair(envelope, cb));
             mFutureEnvelopesSize.set_count(mFutureEnvelopes.size());
             return;
         }
+        
     }
     startRebroadcastTimer();
 
     mEnvelopeReceive.Mark();
     return receiveEnvelope(envelope, cb);
+}
+
+// returns true if we have been left behind :(
+// see: walter the lazy mouse 
+bool 
+HerderImpl::checkFutureCommitted(SCPEnvelope& envelope)
+{
+    // is this a committed statement
+    // is it from someone we care about?
+    // is it a new one for the list?
+    // do we have enough of these for the same ballot?
+    if(envelope.statement.pledges.type() == COMMITTED)
+    {
+        const SCPQuorumSet& qset=getLocalQuorumSet();
+        
+        if(find(qset.validators.begin(), qset.validators.end(),
+            envelope.nodeID) != qset.validators.end())
+        {
+            auto& list = mQuorumAheadOfUs[envelope.statement.slotIndex];
+            if(find(list.begin(), list.end(), envelope) == list.end())
+            {
+                list.push_back(envelope);
+                int count = 0;
+                for(auto& env : list)
+                {
+                    if(env.statement.ballot.value ==
+                        envelope.statement.ballot.value) count++;
+
+                    if(count>=qset.threshold)
+                    {
+                        return true;
+                    }
+                }
+            }
+        }
+    }
+    return false;
 }
 
 void
@@ -1001,6 +1047,7 @@ HerderImpl::triggerNextLedger()
     }
     mFutureEnvelopes.erase(slotIndex);
     mFutureEnvelopesSize.set_count(mFutureEnvelopes.size());
+    mQuorumAheadOfUs.erase(slotIndex);
 }
 
 void
@@ -1087,8 +1134,6 @@ HerderImpl::envelopeVerified(bool valid)
 void
 HerderImpl::dumpInfo(Json::Value& ret)
 {
-    // ret["local"] = toBase58Check(VER_ACCOUNT_ID,
-    // mLocalNode->getNodeID()).c_str();
     int count = 0;
     for (auto& item : mKnownNodes)
     {
@@ -1101,6 +1146,19 @@ HerderImpl::dumpInfo(Json::Value& ret)
     for (auto& item : mKnownSlots)
     {
         item.second->dumpInfo(ret);
+    }
+
+    count = 0;
+    for(auto& item : mQuorumAheadOfUs)
+    {
+        for(auto& envelope : item.second)
+        {
+            std::ostringstream output;
+            output << "i:" << item.first << " n:" <<
+                binToHex(envelope.nodeID).substr(0, 6);
+
+            ret["ahead"][count++] = output.str();
+        }
     }
 }
 }
