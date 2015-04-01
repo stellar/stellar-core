@@ -133,7 +133,7 @@ LedgerManagerImpl::startNewLedger()
 }
 
 void
-LedgerManagerImpl::loadLastKnownLedger()
+LedgerManagerImpl::loadLastKnownLedger(function<void(asio::error_code const &ec)> handler)
 {
     auto ledgerTime = mLedgerClose.TimeScope();
 
@@ -160,18 +160,33 @@ LedgerManagerImpl::loadLastKnownLedger()
             PersistentState::kHistoryArchiveState);
         HistoryArchiveState has;
         has.fromString(hasString);
+
+        auto continuation = [this, handler, has](asio::error_code const& ec)
+        {
+            if (ec) {
+                handler(ec);
+            } else
+            {
+                mApp.getBucketManager().assumeState(has);
+
+                CLOG(INFO, "Ledger")
+                    << "Loaded last known ledger: " << ledgerAbbrev(mCurrentLedger);
+
+                advanceLedgerPointers();
+                handler(ec);
+            }
+        };
+
+
         auto missing = mApp.getBucketManager().checkForMissingBucketsFiles(has);
         if (!missing.empty())
         {
-            mApp.getHistoryManager().downloadMissingBuckets(has, [](asio::error_code const& ec) {}); // TODO
+            mApp.getHistoryManager().downloadMissingBuckets(has, continuation);
+        } else
+        {
+            continuation(asio::error_code());
         }
 
-        mApp.getBucketManager().assumeState(has);
-
-        CLOG(INFO, "Ledger")
-            << "Loaded last known ledger: " << ledgerAbbrev(mCurrentLedger);
-
-        advanceLedgerPointers();
     }
 }
 

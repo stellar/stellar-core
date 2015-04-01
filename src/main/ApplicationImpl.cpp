@@ -194,25 +194,33 @@ ApplicationImpl::start()
             "Database not initialized and REBUID_DB is false.");
     }
 
-    mLedgerManager->loadLastKnownLedger();
-
-    if (mConfig.FORCE_SCP)
+    bool done = false;
+    mLedgerManager->loadLastKnownLedger([this, &done](asio::error_code const& ec)
     {
-        std::string flagClearedMsg = "";
-        if (mPersistentState->getState(
-                PersistentState::kForceSCPOnNextLaunch) == "true")
+        if (mConfig.FORCE_SCP)
         {
-            flagClearedMsg = " (`force scp` flag cleared in the db)";
-            mPersistentState->setState(PersistentState::kForceSCPOnNextLaunch,
-                                       "false");
+            std::string flagClearedMsg = "";
+            if (mPersistentState->getState(
+                PersistentState::kForceSCPOnNextLaunch) == "true")
+            {
+                flagClearedMsg = " (`force scp` flag cleared in the db)";
+                mPersistentState->setState(PersistentState::kForceSCPOnNextLaunch,
+                    "false");
+            }
+
+            LOG(INFO) << "* ";
+            LOG(INFO) << "* Force-starting scp from the current db state."
+                << flagClearedMsg;
+            LOG(INFO) << "* ";
+
+            mHerder->bootstrap();
+            done = true;
         }
+    });
 
-        LOG(INFO) << "* ";
-        LOG(INFO) << "* Force-starting scp from the current db state."
-                  << flagClearedMsg;
-        LOG(INFO) << "* ";
-
-        mHerder->bootstrap();
+    while(!done)
+    {
+        mVirtualClock.crank();
     }
 }
 
