@@ -104,6 +104,7 @@ test(int argc, char* const* argv, el::Level ll, std::vector<std::string> const& 
 {
     gTestMetrics = metrics;
     Config const& cfg = getTestConfig();
+    Logging::setFmt("<test>");
     Logging::setLoggingToFile(cfg.LOG_FILE_PATH);
     Logging::setLogLevel(ll, nullptr);
     LOG(INFO) << "Testing stellar-core " << STELLAR_CORE_VERSION;

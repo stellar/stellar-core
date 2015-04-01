@@ -11,6 +11,7 @@
 #include "main/test.h"
 #include "main/Config.h"
 #include "lib/http/HttpClient.h"
+#include "crypto/Hex.h"
 #include "crypto/SecretKey.h"
 #include "history/HistoryManager.h"
 #include "main/PersistentState.h"
@@ -123,11 +124,11 @@ setForceSCPFlag(Config& cfg)
         app->getPersistentState().setState(
             PersistentState::kForceSCPOnNextLaunch, "true");
         LOG(INFO) << "* ";
-        LOG(INFO) << "* The `force scp` flag has been set in the db. The next "
-                     "launch will";
-        LOG(INFO) << "* and start scp from the account balances as they stand";
-        LOG(INFO)
-            << "* in the db now, without waiting to hear from the network.";
+        LOG(INFO) << "* The `force scp` flag has been set in the db.";
+        LOG(INFO) << "* ";
+        LOG(INFO) << "* The next launch will start scp from the account balances";
+        LOG(INFO) << "* as they stand in the db now, without waiting to hear from";
+        LOG(INFO) << "* the network.";
         LOG(INFO) << "* ";
     }
 }
@@ -138,8 +139,9 @@ initializeDatabase(Config& cfg)
     VirtualClock clock;
     Application::pointer app = Application::create(clock, cfg);
 
-    LOG(INFO) << ". The next launch will catchup from the";
-    LOG(INFO) << "* network afresh.";
+    LOG(INFO) << "*";
+    LOG(INFO) << "* The next launch will catchup from the network afresh.";
+    LOG(INFO) << "*";
 
     cfg.REBUILD_DB = false;
 }
@@ -173,10 +175,21 @@ startApp(string cfgFile, Config& cfg)
 
     if (!checkInitialized(app))
     {
-        return 1;
+        return 0;
     }
     else
     {
+        if (!HistoryManager::checkSensibleConfig(cfg))
+        {
+            return 1;
+        }
+        if (cfg.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING)
+        {
+            LOG(WARNING)
+                << "Artificial acceleration of time enabled "
+                << "(for testing only)";
+        }
+
         app->applyCfgCommands();
 
         app->start();
@@ -187,7 +200,7 @@ startApp(string cfgFile, Config& cfg)
         {
             clock.crank();
         }
-        return 1;
+        return 0;
     }
 }
 }
@@ -274,6 +287,7 @@ main(int argc, char* const* argv)
             LOG(WARNING) << "No config file " << cfgFile << " found";
             cfgFile = ":default-settings:";
         }
+        Logging::setFmt(hexAbbrev(cfg.PEER_PUBLIC_KEY));
         Logging::setLogLevel(logLevel, nullptr);
 
         if (command.size())
@@ -289,14 +303,6 @@ main(int argc, char* const* argv)
         cfg.REBUILD_DB = newDB;
         cfg.FORCE_SCP = forceSCP;
         cfg.REPORT_METRICS = metrics;
-
-        HistoryManager::checkSensibleConfig(cfg);
-        if (cfg.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING)
-        {
-            LOG(WARNING)
-                << "Artificial acceleration of time enabled "
-                << "(for testing only)";
-        }
 
         if (forceSCP || newDB)
         {

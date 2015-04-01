@@ -71,10 +71,11 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
                             ? " wiped and initialized"
                             : " initialized");
 
-        LOG(INFO) << "* ";
-        LOG(INFO) << "* The database has been" << wipeMsg << " *";
-
         mDatabase->initialize();
+
+        LOG(INFO) << "* ";
+        LOG(INFO) << "* The database has been" << wipeMsg;
+        LOG(INFO) << "* ";
     }
     else if (mPersistentState->getState(
                  PersistentState::kForceSCPOnNextLaunch) == "true")

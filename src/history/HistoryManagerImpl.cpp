@@ -82,7 +82,7 @@ HistoryManager::create(Application& app)
     return make_unique<HistoryManagerImpl>(app);
 }
 
-void
+bool
 HistoryManager::checkSensibleConfig(Config const& cfg)
 {
     // Check reasonable-ness of history archive definitions
@@ -164,9 +164,10 @@ HistoryManager::checkSensibleConfig(Config const& cfg)
 
     if (badArchives)
     {
-        throw std::invalid_argument("History archives misconfigured.");
+        CLOG(ERROR, "History") << "History archives misconfigured.";
+        return false;
     }
-
+    return true;
 }
 
 HistoryManagerImpl::HistoryManagerImpl(Application& app)

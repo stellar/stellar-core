@@ -115,7 +115,7 @@ void
 Peer::sendGetQuorumSet(uint256 const& setID)
 {
     CLOG(TRACE, "Overlay") << "Get quorum set: "
-                           << binToHex(setID).substr(0, 6);
+                           << hexAbbrev(setID);
 
     StellarMessage newMsg;
     newMsg.type(GET_SCP_QUORUMSET);
@@ -147,7 +147,7 @@ Peer::sendMessage(StellarMessage const& msg)
     CLOG(TRACE, "Overlay") << "("
                            << binToHex(mApp.getConfig().PEER_PUBLIC_KEY)
                                   .substr(0, 6) << ")send: " << msg.type()
-                           << " to : " << binToHex(mPeerID).substr(0, 6);
+                           << " to : " << hexAbbrev(mPeerID);
     xdr::msg_ptr xdrBytes(xdr::xdr_to_msg(msg));
     this->sendMessage(std::move(xdrBytes));
 }
@@ -168,7 +168,7 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
                            << binToHex(mApp.getConfig().PEER_PUBLIC_KEY)
                                   .substr(0, 6)
                            << ")recv: " << stellarMsg.type()
-                           << " from:" << binToHex(mPeerID).substr(0, 6);
+                           << " from:" << hexAbbrev(mPeerID);
 
     if (mState < GOT_HELLO &&
         ((stellarMsg.type() != HELLO) && (stellarMsg.type() != PEERS)))
@@ -321,7 +321,7 @@ Peer::recvGetSCPQuorumSet(StellarMessage const& msg)
     else
     {
         CLOG(TRACE, "Overlay")
-            << "No quorum set: " << binToHex(msg.qSetHash()).substr(0, 6);
+            << "No quorum set: " << hexAbbrev(msg.qSetHash());
         sendDontHave(SCP_QUORUMSET, msg.qSetHash());
         // do we want to ask other people for it?
     }

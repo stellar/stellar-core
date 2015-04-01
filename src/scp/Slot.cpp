@@ -27,7 +27,7 @@ ballotToStr(const SCPBallot& ballot)
 
     uint256 valueHash = sha256(xdr::xdr_to_opaque(ballot.value));
 
-    oss << "(" << ballot.counter << "," << binToHex(valueHash).substr(0, 6)
+    oss << "(" << ballot.counter << "," << hexAbbrev(valueHash)
         << ")";
     return oss.str();
 }
@@ -37,7 +37,7 @@ std::string
 envToStr(const SCPEnvelope& envelope)
 {
     std::ostringstream oss;
-    oss << "{ENV@" << binToHex(envelope.nodeID).substr(0, 6) << "|";
+    oss << "{ENV@" << hexAbbrev(envelope.nodeID) << "|";
     switch (envelope.statement.pledges.type())
     {
     case SCPStatementType::PREPARING:
@@ -56,7 +56,7 @@ envToStr(const SCPEnvelope& envelope)
 
     Hash qSetHash = envelope.statement.quorumSetHash;
     oss << "|" << ballotToStr(envelope.statement.ballot);
-    oss << "|" << binToHex(qSetHash).substr(0, 6) << "}";
+    oss << "|" << hexAbbrev(qSetHash) << "}";
     return oss.str();
 }
 
@@ -80,7 +80,7 @@ Slot::processEnvelope(const SCPEnvelope& envelope,
     assert(envelope.statement.slotIndex == mSlotIndex);
 
     CLOG(DEBUG, "SCP") << "Slot::processEnvelope"
-                       << "@" << binToHex(mSCP->getLocalNodeID()).substr(0, 6)
+                       << "@" << hexAbbrev(mSCP->getLocalNodeID())
                        << " i: " << mSlotIndex << " " << envToStr(envelope);
 
     uint256 nodeID = envelope.nodeID;
@@ -95,7 +95,7 @@ Slot::processEnvelope(const SCPEnvelope& envelope,
         if (!valid)
         {
             CLOG(TRACE, "SCP") << "invalid value"
-                << "@" << binToHex(mSCP->getLocalNodeID()).substr(0, 6)
+                << "@" << hexAbbrev(mSCP->getLocalNodeID())
                 << " i: " << mSlotIndex;
 
             return cb(SCP::EnvelopeState::INVALID);
@@ -178,7 +178,7 @@ Slot::processEnvelope(const SCPEnvelope& envelope,
                 0)
             {
                 CLOG(TRACE, "SCP") << "Node Already Committed"
-                    << "@" << binToHex(mSCP->getLocalNodeID()).substr(0, 6)
+                    << "@" << hexAbbrev(mSCP->getLocalNodeID())
                     << " i: " << mSlotIndex; 
                 return cb(SCP::EnvelopeState::INVALID);
             }
@@ -233,7 +233,7 @@ Slot::bumpToBallot(const SCPBallot& ballot)
     assert(!mIsCommitted && !mIsExternalized);
 
     CLOG(DEBUG, "SCP") << "Slot::bumpToBallot"
-                       << "@" << binToHex(mSCP->getLocalNodeID()).substr(0, 6)
+                       << "@" << hexAbbrev(mSCP->getLocalNodeID())
                        << " i: " << mSlotIndex << " b: " << ballotToStr(ballot);
 
     // We shouldn't have emitted any prepare message for this ballot or any
@@ -287,7 +287,7 @@ Slot::attemptPrepare()
         return;
     }
     CLOG(DEBUG, "SCP") << "Slot::attemptPrepare"
-                       << "@" << binToHex(mSCP->getLocalNodeID()).substr(0, 6)
+                       << "@" << hexAbbrev(mSCP->getLocalNodeID())
                        << " i: " << mSlotIndex
                        << " b: " << ballotToStr(mBallot);
 
@@ -335,7 +335,7 @@ Slot::attemptPrepared(const SCPBallot& ballot)
         return;
     }
     CLOG(DEBUG, "SCP") << "Slot::attemptPrepared"
-                       << "@" << binToHex(mSCP->getLocalNodeID()).substr(0, 6)
+                       << "@" << hexAbbrev(mSCP->getLocalNodeID())
                        << " i: " << mSlotIndex << " b: " << ballotToStr(ballot);
 
     SCPStatement statement = createStatement(SCPStatementType::PREPARED);
@@ -362,7 +362,7 @@ Slot::attemptCommit()
         return;
     }
     CLOG(DEBUG, "SCP") << "Slot::attemptCommit"
-                       << "@" << binToHex(mSCP->getLocalNodeID()).substr(0, 6)
+                       << "@" << hexAbbrev(mSCP->getLocalNodeID())
                        << " i: " << mSlotIndex
                        << " b: " << ballotToStr(mBallot);
 
@@ -391,7 +391,7 @@ Slot::attemptCommitted()
         return;
     }
     CLOG(DEBUG, "SCP") << "Slot::attemptCommitted"
-                       << "@" << binToHex(mSCP->getLocalNodeID()).substr(0, 6)
+                       << "@" << hexAbbrev(mSCP->getLocalNodeID())
                        << " i: " << mSlotIndex
                        << " b: " << ballotToStr(mBallot);
 
@@ -419,7 +419,7 @@ Slot::attemptExternalize()
         return;
     }
     CLOG(DEBUG, "SCP") << "Slot::attemptExternalize"
-                       << "@" << binToHex(mSCP->getLocalNodeID()).substr(0, 6)
+                       << "@" << hexAbbrev(mSCP->getLocalNodeID())
                        << " i: " << mSlotIndex
                        << " b: " << ballotToStr(mBallot);
 
@@ -631,7 +631,7 @@ Slot::advanceSlot()
     {
         CLOG(DEBUG, "SCP") << "already in advanceSlot"
             << "@"
-            << binToHex(mSCP->getLocalNodeID()).substr(0, 6)
+            << hexAbbrev(mSCP->getLocalNodeID())
             << " i: " << mSlotIndex
             << " b: " << ballotToStr(mBallot);
 
@@ -644,7 +644,7 @@ Slot::advanceSlot()
     {
         CLOG(DEBUG, "SCP") << "Slot::advanceSlot"
                            << "@"
-                           << binToHex(mSCP->getLocalNodeID()).substr(0, 6)
+                           << hexAbbrev(mSCP->getLocalNodeID())
                            << " i: " << mSlotIndex
                            << " b: " << ballotToStr(mBallot);
 
@@ -698,7 +698,7 @@ Slot::advanceSlot()
 
             CLOG(DEBUG, "SCP")
                 << "Slot::advanceSlot::tryBumping"
-                << "@" << binToHex(mSCP->getLocalNodeID()).substr(0, 6)
+                << "@" << hexAbbrev(mSCP->getLocalNodeID())
                 << " i: " << mSlotIndex << " b: " << ballotToStr(mBallot);
 
             // If we could externalize by moving on to a given value we bump
@@ -832,8 +832,8 @@ Slot::dumpInfo(Json::Value& ret)
                 // ballot, node, qset, state
                 std::ostringstream output;
                 output << "b:" << ballotToStr(item.first) << " n:" << 
-                    binToHex(stateItem.first).substr(0, 6) << " q:" << 
-                    binToHex(stateItem.second.quorumSetHash).substr(0, 6) << 
+                    hexAbbrev(stateItem.first) << " q:" << 
+                    hexAbbrev(stateItem.second.quorumSetHash) << 
                     " ," << stateStrTable[(int)stateItem.second.pledges.type()];
                 slotValue["statements"][count++] = output.str();
             }

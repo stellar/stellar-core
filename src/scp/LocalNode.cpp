@@ -23,8 +23,8 @@ LocalNode::LocalNode(const SecretKey& secretKey, const SCPQuorumSet& qSet,
     cacheQuorumSet(qSet);
 
     CLOG(INFO, "SCP") << "LocalNode::LocalNode"
-                      << "@" << binToHex(mNodeID).substr(0, 6)
-                      << " qSet: " << binToHex(mQSetHash).substr(0, 6);
+                      << "@" << hexAbbrev(mNodeID)
+                      << " qSet: " << hexAbbrev(mQSetHash);
 }
 
 void
