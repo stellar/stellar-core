@@ -584,7 +584,7 @@ HerderImpl::valueExternalized(const uint64& slotIndex, const Value& value)
         }
 
         // Evict slots that are outside of our ledger validity bracket
-        if (slotIndex > LEDGER_VALIDITY_BRACKET)
+        if (slotIndex > MAX_SLOTS_TO_REMEMBER)
         {
             purgeSlots(slotIndex - MAX_SLOTS_TO_REMEMBER);
         }
