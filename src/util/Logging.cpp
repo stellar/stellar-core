@@ -18,7 +18,21 @@ Levels:
 
 namespace stellar
 {
-el::Configurations Logging::mDefaultConf;
+el::Configurations Logging::gDefaultConf;
+
+void
+Logging::setFmt(std::string const& peerID)
+{
+    std::string datetime = "%datetime{%Y-%M-%dT%H:%m:%s.%g}";
+    std::string shortFmt = datetime + " " + peerID + " [%logger] %level %msg";
+    std::string longFmt = shortFmt + " [%fbase:%line]";
+
+    gDefaultConf.setGlobally(el::ConfigurationType::Format, shortFmt);
+    gDefaultConf.set(el::Level::Error, el::ConfigurationType::Format, longFmt);
+    gDefaultConf.set(el::Level::Trace, el::ConfigurationType::Format, longFmt);
+    gDefaultConf.set(el::Level::Fatal, el::ConfigurationType::Format, longFmt);
+    el::Loggers::reconfigureAllLoggers(gDefaultConf);
+}
 
 void
 Logging::init()
@@ -37,38 +51,25 @@ Logging::init()
     el::Loggers::getLogger("Herder");
     el::Loggers::getLogger("Tx");
 
-    mDefaultConf.setToDefault();
-
-    mDefaultConf.setGlobally(
-        el::ConfigurationType::Format,
-        "%datetime{%d/%M/%y %H:%m:%s} [%logger] %level %msg");
-    mDefaultConf.set(
-        el::Level::Error, el::ConfigurationType::Format,
-        "%datetime{%d/%M/%y %H:%m:%s} [%logger] %level %msg [%fbase:%line]");
-    mDefaultConf.set(
-        el::Level::Trace, el::ConfigurationType::Format,
-        "%datetime{%d/%M/%y %H:%m:%s} [%logger] %level %msg [%fbase:%line]");
-    mDefaultConf.set(
-        el::Level::Fatal, el::ConfigurationType::Format,
-        "%datetime{%d/%M/%y %H:%m:%s} [%logger] %level %msg [%fbase:%line]");
-    mDefaultConf.setGlobally(el::ConfigurationType::ToStandardOutput, "true");
-    mDefaultConf.setGlobally(el::ConfigurationType::ToFile, "false");
-    el::Loggers::reconfigureAllLoggers(mDefaultConf);
+    gDefaultConf.setToDefault();
+    gDefaultConf.setGlobally(el::ConfigurationType::ToStandardOutput, "true");
+    gDefaultConf.setGlobally(el::ConfigurationType::ToFile, "false");
+    setFmt("<startup>");
 }
 
 void
 Logging::setLoggingToFile(std::string const& filename)
 {
-    mDefaultConf.setGlobally(el::ConfigurationType::ToFile, "true");
-    mDefaultConf.setGlobally(el::ConfigurationType::Filename, filename);
-    el::Loggers::reconfigureAllLoggers(mDefaultConf);
+    gDefaultConf.setGlobally(el::ConfigurationType::ToFile, "true");
+    gDefaultConf.setGlobally(el::ConfigurationType::Filename, filename);
+    el::Loggers::reconfigureAllLoggers(gDefaultConf);
 }
 
 // Trace < Debug < Info < Warning < Error < Fatal < None
 void
 Logging::setLogLevel(el::Level level, const char* partition)
 {
-    el::Configurations config = mDefaultConf;
+    el::Configurations config = gDefaultConf;
 
     if(level == el::Level::Debug)
         config.set(el::Level::Trace, el::ConfigurationType::Enabled, "false");
@@ -111,7 +112,7 @@ Logging::setLogLevel(el::Level level, const char* partition)
 }
 
 
-std::string 
+std::string
 Logging::getStringFromLL(el::Level level)
 {
     switch(level)

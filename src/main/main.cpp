@@ -11,6 +11,7 @@
 #include "main/test.h"
 #include "main/Config.h"
 #include "lib/http/HttpClient.h"
+#include "crypto/Hex.h"
 #include "crypto/SecretKey.h"
 #include "history/HistoryManager.h"
 #include "main/PersistentState.h"
@@ -274,6 +275,7 @@ main(int argc, char* const* argv)
             LOG(WARNING) << "No config file " << cfgFile << " found";
             cfgFile = ":default-settings:";
         }
+        Logging::setFmt(hexAbbrev(cfg.PEER_PUBLIC_KEY));
         Logging::setLogLevel(logLevel, nullptr);
 
         if (command.size())
