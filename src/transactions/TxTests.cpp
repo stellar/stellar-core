@@ -220,7 +220,7 @@ applyChangeTrust(Application& app, SecretKey& from, SecretKey& to,
 
 TransactionFramePtr
 createCreditPaymentTx(SecretKey& from, SecretKey& to, Currency& ci,
-                      SequenceNumber seq, int64_t amount)
+                      SequenceNumber seq, int64_t amount, std::vector<Currency> *path)
 {
     Operation op;
     op.body.type(PAYMENT);
@@ -228,6 +228,13 @@ createCreditPaymentTx(SecretKey& from, SecretKey& to, Currency& ci,
     op.body.paymentOp().currency = ci;
     op.body.paymentOp().destination = to.getPublicKey();
     op.body.paymentOp().sendMax = INT64_MAX;
+    if (path)
+    {
+        for (auto const& cur : *path)
+        {
+            op.body.paymentOp().path.push_back(cur);
+        }
+    }
 
     return transactionFromOperation(from, seq, op);
 }
@@ -245,11 +252,11 @@ makeCurrency(SecretKey& issuer, const std::string& code)
 void
 applyCreditPaymentTx(Application& app, SecretKey& from, SecretKey& to,
                      Currency& ci, SequenceNumber seq, int64_t amount,
-                     PaymentResultCode result)
+                     PaymentResultCode result, std::vector<Currency> *path)
 {
     TransactionFramePtr txFrame;
 
-    txFrame = createCreditPaymentTx(from, to, ci, seq, amount);
+    txFrame = createCreditPaymentTx(from, to, ci, seq, amount, path);
 
     LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader());
     txFrame->apply(delta, app);

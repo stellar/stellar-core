@@ -51,31 +51,31 @@ void applyPaymentTx(Application& app, SecretKey& from, SecretKey& to,
                     SequenceNumber seq, int64_t amount,
                     PaymentResultCode result = PAYMENT_SUCCESS);
 
-TransactionFramePtr createCreditPaymentTx(SecretKey& from, SecretKey& to,
-                                          Currency& ci, SequenceNumber seq,
-                                          int64_t amount);
+TransactionFramePtr
+createCreditPaymentTx(SecretKey& from, SecretKey& to, Currency& ci,
+                      SequenceNumber seq, int64_t amount,
+                      std::vector<Currency>* path = nullptr);
 
 void applyCreditPaymentTx(Application& app, SecretKey& from, SecretKey& to,
                           Currency& ci, SequenceNumber seq, int64_t amount,
-                          PaymentResultCode result = PAYMENT_SUCCESS);
+                          PaymentResultCode result = PAYMENT_SUCCESS,
+                          std::vector<Currency>* path = nullptr);
 
-TransactionFramePtr createOfferOp(uint64 offerId, SecretKey& source, 
-                                  Currency& takerGets, Currency& takerPays, 
-                                  Price const& price, int64_t amount, 
+TransactionFramePtr createOfferOp(uint64 offerId, SecretKey& source,
+                                  Currency& takerGets, Currency& takerPays,
+                                  Price const& price, int64_t amount,
                                   SequenceNumber seq);
 
 // expects success
 // expects a new offer to be created
 // returns the ID of the new offer
-uint64_t applyCreateOffer(Application& app, LedgerDelta& delta,
-                          uint64 offerId, 
+uint64_t applyCreateOffer(Application& app, LedgerDelta& delta, uint64 offerId,
                           SecretKey& source, Currency& takerGets,
                           Currency& takerPays, Price const& price,
                           int64_t amount, SequenceNumber seq);
 
 CreateOfferResult
-applyCreateOfferWithResult(Application& app, LedgerDelta& delta,
-                           uint64 offerId,
+applyCreateOfferWithResult(Application& app, LedgerDelta& delta, uint64 offerId,
                            SecretKey& source, Currency& takerGets,
                            Currency& takerPays, Price const& price,
                            int64_t amount, SequenceNumber seq,

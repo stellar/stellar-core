@@ -137,20 +137,6 @@ TEST_CASE("payment", "[tx][payment]")
                                  PAYMENT_NO_DESTINATION);
         }
 
-        SECTION("send XLM with path (not enough offers)")
-        {
-            TransactionFramePtr txFrame2 =
-                createPaymentTx(gateway, a1, gateway_seq++, morePayment);
-            getFirstOperation(*txFrame2).body.paymentOp().path.push_back(
-                idrCur);
-
-            LedgerDelta delta2(app.getLedgerManager().getCurrentLedgerHeader());
-            txFrame2->apply(delta2, app);
-
-            REQUIRE(PaymentOpFrame::getInnerCode(getFirstResult(*txFrame2)) ==
-                    PAYMENT_OVER_SENDMAX);
-        }
-
         // actual sendcredit
         SECTION("credit payment with no trust")
         {
@@ -195,6 +181,16 @@ TEST_CASE("payment", "[tx][payment]")
     }
     SECTION("payment through path")
     {
+        SECTION("send XLM with path (not enough offers)")
+        {
+            std::vector<Currency> path;
+
+            path.push_back(idrCur);
+
+            Currency xlmCur;
+
+            applyCreditPaymentTx(app, gateway, a1, xlmCur, gateway_seq++, morePayment, PAYMENT_OVER_SENDMAX, &path);
+        }
     }
 }
 
