@@ -178,6 +178,14 @@ startApp(string cfgFile, Config& cfg)
     }
     else
     {
+        HistoryManager::checkSensibleConfig(cfg);
+        if (cfg.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING)
+        {
+            LOG(WARNING)
+                << "Artificial acceleration of time enabled "
+                << "(for testing only)";
+        }
+
         app->applyCfgCommands();
 
         app->start();
@@ -291,14 +299,6 @@ main(int argc, char* const* argv)
         cfg.REBUILD_DB = newDB;
         cfg.FORCE_SCP = forceSCP;
         cfg.REPORT_METRICS = metrics;
-
-        HistoryManager::checkSensibleConfig(cfg);
-        if (cfg.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING)
-        {
-            LOG(WARNING)
-                << "Artificial acceleration of time enabled "
-                << "(for testing only)";
-        }
 
         if (forceSCP || newDB)
         {
