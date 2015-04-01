@@ -176,7 +176,10 @@ ArchivePublisher::fileStateChange(asio::error_code const& ec,
         mError = ec;
     }
     mFileInfos[name]->setState(newState);
-    enterSendingState();
+    if (mState != PUBLISH_RETRYING)
+    {
+        enterSendingState();
+    }
 }
 
 void
