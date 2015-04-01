@@ -85,16 +85,16 @@ class TestSCP : public SCP
         if (mQuorumSets.find(qSetHash) != mQuorumSets.end())
         {
             CLOG(DEBUG, "SCP") << "TestSCP::retrieveQuorumSet"
-                               << " qSet: " << binToHex(qSetHash).substr(0, 6)
-                               << " nodeID: " << binToHex(nodeID).substr(0, 6)
+                               << " qSet: " << hexAbbrev(qSetHash)
+                               << " nodeID: " << hexAbbrev(nodeID)
                                << " OK";
             return cb(mQuorumSets[qSetHash]);
         }
         else
         {
             CLOG(DEBUG, "SCP") << "TestSCP::retrieveQuorumSet"
-                               << " qSet: " << binToHex(qSetHash).substr(0, 6)
-                               << " nodeID: " << binToHex(nodeID).substr(0, 6)
+                               << " qSet: " << hexAbbrev(qSetHash)
+                               << " nodeID: " << hexAbbrev(nodeID)
                                << " FAIL";
         }
     }

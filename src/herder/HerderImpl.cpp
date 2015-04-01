@@ -228,20 +228,20 @@ HerderImpl::validateValue(const uint64& slotIndex, const uint256& nodeID,
         {
             CLOG(DEBUG, "Herder")
                 << "HerderImpl::validateValue"
-                << "@" << binToHex(getLocalNodeID()).substr(0, 6)
+                << "@" << hexAbbrev(getLocalNodeID())
                 << " i: " << slotIndex
-                << " v: " << binToHex(nodeID).substr(0, 6) << " Invalid txSet:"
-                << " " << binToHex(txSet->getContentsHash()).substr(0, 6);
+                << " v: " << hexAbbrev(nodeID) << " Invalid txSet:"
+                << " " << hexAbbrev(txSet->getContentsHash());
             this->mValueInvalid.Mark();
             return cb(false);
         }
 
         CLOG(DEBUG, "Herder")
             << "HerderImpl::validateValue"
-            << "@" << binToHex(getLocalNodeID()).substr(0, 6)
-            << " i: " << slotIndex << " v: " << binToHex(nodeID).substr(0, 6)
+            << "@" << hexAbbrev(getLocalNodeID())
+            << " i: " << slotIndex << " v: " << hexAbbrev(nodeID)
             << " txSet:"
-            << " " << binToHex(txSet->getContentsHash()).substr(0, 6) << " OK";
+            << " " << hexAbbrev(txSet->getContentsHash()) << " OK";
         this->mValueValid.Mark();
         return cb(true);
     };
@@ -285,7 +285,7 @@ HerderImpl::compareValues(const uint64& slotIndex, const uint32& ballotCounter,
         // are compared.
         CLOG(ERROR, "Herder")
             << "HerderImpl::compareValues"
-            << "@" << binToHex(getLocalNodeID()).substr(0, 6)
+            << "@" << hexAbbrev(getLocalNodeID())
             << " Unexpected invalid value format. v1:" << binToHex(v1)
             << " v2:" << binToHex(v2);
 
@@ -430,12 +430,12 @@ HerderImpl::validateBallot(const uint64& slotIndex, const uint256& nodeID,
     uint256 valueHash = sha256(xdr::xdr_to_opaque(ballot.value));
 
     CLOG(DEBUG, "Herder") << "HerderImpl::validateBallot"
-                          << "@" << binToHex(getLocalNodeID()).substr(0, 6)
+                          << "@" << hexAbbrev(getLocalNodeID())
                           << " i: " << slotIndex
-                          << " v: " << binToHex(nodeID).substr(0, 6)
-                          << " o: " << binToHex(b.nodeID).substr(0, 6)
+                          << " v: " << hexAbbrev(nodeID)
+                          << " o: " << hexAbbrev(b.nodeID)
                           << " b: (" << ballot.counter << ","
-                          << binToHex(valueHash).substr(0, 6) << ")"
+                          << hexAbbrev(valueHash) << ")"
                           << " isTrusted: " << isTrusted
                           << " isKing: " << isKing
                           << " timeout: " << pow(2.0, ballot.counter) / 2;
@@ -449,10 +449,10 @@ HerderImpl::validateBallot(const uint64& slotIndex, const uint256& nodeID,
     {
         CLOG(DEBUG, "Herder")
             << "start timer"
-            << "@" << binToHex(getLocalNodeID()).substr(0, 6)
-            << " i: " << slotIndex << " v: " << binToHex(nodeID).substr(0, 6)
-            << " o: " << binToHex(b.nodeID).substr(0, 6) << " b: ("
-            << ballot.counter << "," << binToHex(valueHash).substr(0, 6) << ")"
+            << "@" << hexAbbrev(getLocalNodeID())
+            << " i: " << slotIndex << " v: " << hexAbbrev(nodeID)
+            << " o: " << hexAbbrev(b.nodeID) << " b: ("
+            << ballot.counter << "," << hexAbbrev(valueHash) << ")"
             << " isTrusted: " << isTrusted << " isKing: " << isKing
             << " timeout: " << pow(2.0, ballot.counter) / 2;
         // Create a timer to wait for current SCP timeout / 2 before accepting
@@ -532,7 +532,7 @@ HerderImpl::valueExternalized(const uint64& slotIndex, const Value& value)
         // This may not be possible as all messages are validated and should
         // therefore contain a valid StellarBallot.
         CLOG(ERROR, "Herder") << "HerderImpl::valueExternalized"
-                              << "@" << binToHex(getLocalNodeID()).substr(0, 6)
+                              << "@" << hexAbbrev(getLocalNodeID())
                               << " Externalized StellarBallot malformed";
     }
 
@@ -542,8 +542,8 @@ HerderImpl::valueExternalized(const uint64& slotIndex, const Value& value)
 
         CLOG(INFO, "Herder")
             << "HerderImpl::valueExternalized"
-            << "@" << binToHex(getLocalNodeID()).substr(0, 6)
-            << " txSet: " << binToHex(b.value.txSetHash).substr(0, 6);
+            << "@" << hexAbbrev(getLocalNodeID())
+            << " txSet: " << hexAbbrev(b.value.txSetHash);
 
         // we don't need to keep fetching any of the old TX sets
         mTxSetFetcher[mCurrentTxSetFetcher].stopFetchingAll();
@@ -605,9 +605,9 @@ HerderImpl::valueExternalized(const uint64& slotIndex, const Value& value)
         // This may not be possible as all messages are validated and should
         // therefore fetch the txSet before being considered by SCP.
         CLOG(ERROR, "Herder") << "HerderImpl::valueExternalized"
-                              << "@" << binToHex(getLocalNodeID()).substr(0, 6)
+                              << "@" << hexAbbrev(getLocalNodeID())
                               << " Externalized txSet not found: "
-                              << binToHex(b.value.txSetHash).substr(0, 6);
+                              << hexAbbrev(b.value.txSetHash);
     }
 }
 
@@ -627,8 +627,8 @@ HerderImpl::retrieveQuorumSet(
 {
     mQsetRetrieve.Mark();
     CLOG(DEBUG, "Herder") << "HerderImpl::retrieveQuorumSet"
-                          << "@" << binToHex(getLocalNodeID()).substr(0, 6)
-                          << " qSet: " << binToHex(qSetHash).substr(0, 6);
+                          << "@" << hexAbbrev(getLocalNodeID())
+                          << " qSet: " << hexAbbrev(qSetHash);
     auto retrieve = [cb, this](SCPQuorumSetPtr qSet)
     {
         return cb(*qSet);
@@ -652,7 +652,7 @@ void
 HerderImpl::rebroadcast()
 {
     CLOG(DEBUG, "Herder") << "HerderImpl:rebroadcast"
-                          << "@" << binToHex(getLocalNodeID()).substr(0, 6);
+                          << "@" << hexAbbrev(getLocalNodeID());
 
     mEnvelopeEmit.Mark();
     mApp.getOverlayManager().broadcastMessage(mLastSentMessage, true);
@@ -737,7 +737,7 @@ void
 HerderImpl::recvSCPQuorumSet(SCPQuorumSetPtr qSet)
 {
     CLOG(TRACE, "Herder") << "HerderImpl::recvSCPQuorumSet"
-                          << "@" << binToHex(getLocalNodeID()).substr(0, 6)
+                          << "@" << hexAbbrev(getLocalNodeID())
                           << " qSet: "
                           << binToHex(sha256(xdr::xdr_to_opaque(*qSet)))
                                  .substr(0, 6);
@@ -819,7 +819,7 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope envelope,
                             std::function<void(EnvelopeState)> const& cb)
 {
     CLOG(DEBUG, "Herder") << "HerderImpl::recvSCPEnvelope@"
-                          << "@" << binToHex(getLocalNodeID()).substr(0, 6);
+                          << "@" << hexAbbrev(getLocalNodeID());
 
     if (mApp.getState() == Application::SYNCED_STATE)
     {
@@ -865,8 +865,8 @@ HerderImpl::ledgerClosed(LedgerHeaderHistoryEntry const& ledger)
 {
     updateSCPCounters();
     CLOG(TRACE, "Herder") << "HerderImpl::ledgerClosed@"
-                          << "@" << binToHex(getLocalNodeID()).substr(0, 6)
-                          << " ledger: " << binToHex(ledger.hash).substr(0, 6);
+                          << "@" << hexAbbrev(getLocalNodeID())
+                          << " ledger: " << hexAbbrev(ledger.hash);
 
     // we're not running SCP anymore
     mCurrentValue.clear();
@@ -986,12 +986,12 @@ HerderImpl::triggerNextLedger()
 
     uint256 valueHash = sha256(xdr::xdr_to_opaque(mCurrentValue));
     CLOG(INFO, "Herder") << "HerderImpl::triggerNextLedger"
-                         << "@" << binToHex(getLocalNodeID()).substr(0, 6)
+                         << "@" << hexAbbrev(getLocalNodeID())
                          << " txSet.size: " << proposedSet->mTransactions.size()
                          << " previousLedgerHash: "
                          << binToHex(proposedSet->previousLedgerHash())
                                 .substr(0, 6)
-                         << " value: " << binToHex(valueHash).substr(0, 6)
+                         << " value: " << hexAbbrev(valueHash)
                          << " slot: " << slotIndex;
 
     // We prepare that value. If we're monarch, the ballot will be validated,
@@ -1102,7 +1102,7 @@ HerderImpl::dumpInfo(Json::Value& ret)
             toBase58Check(VER_ACCOUNT_ID, item.second->getNodeID()).c_str();
     }
 
-    ret["you"] = binToHex(getSecretKey().getPublicKey()).substr(0, 6);
+    ret["you"] = hexAbbrev(getSecretKey().getPublicKey());
 
     for (auto& item : mKnownSlots)
     {

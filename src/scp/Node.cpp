@@ -22,8 +22,8 @@ bool
 Node::hasQuorum(const Hash& qSetHash, const std::vector<uint256>& nodeSet)
 {
     CLOG(DEBUG, "SCP") << "Node::hasQuorum"
-                       << "@" << binToHex(mNodeID).substr(0, 6)
-                       << " qSet: " << binToHex(qSetHash).substr(0, 6)
+                       << "@" << hexAbbrev(mNodeID)
+                       << " qSet: " << hexAbbrev(qSetHash)
                        << " nodeSet.size: " << nodeSet.size();
     // This call can throw a `QuorumSetNotFound` if the quorumSet is unknown.
     const SCPQuorumSet& qSet = retrieveQuorumSet(qSetHash);
@@ -36,7 +36,7 @@ Node::hasQuorum(const Hash& qSetHash, const std::vector<uint256>& nodeSet)
     }
     auto result = (count >= qSet.threshold);
     CLOG(DEBUG, "SCP") << "Node::hasQuorum"
-                       << "@" << binToHex(mNodeID).substr(0, 6) << " is "
+                       << "@" << hexAbbrev(mNodeID) << " is "
                        << result;
     return result;
 }
@@ -45,8 +45,8 @@ bool
 Node::isVBlocking(const Hash& qSetHash, const std::vector<uint256>& nodeSet)
 {
     CLOG(DEBUG, "SCP") << "Node::isVBlocking"
-                       << "@" << binToHex(mNodeID).substr(0, 6)
-                       << " qSet: " << binToHex(qSetHash).substr(0, 6)
+                       << "@" << hexAbbrev(mNodeID)
+                       << " qSet: " << hexAbbrev(qSetHash)
                        << " nodeSet.size: " << nodeSet.size();
     // This call can throw a `QuorumSetNotFound` if the quorumSet is unknown.
     const SCPQuorumSet& qSet = retrieveQuorumSet(qSetHash);
@@ -65,7 +65,7 @@ Node::isVBlocking(const Hash& qSetHash, const std::vector<uint256>& nodeSet)
     }
     auto result = (qSet.validators.size() - count < qSet.threshold);
     CLOG(DEBUG, "SCP") << "Node::isVBlocking"
-                       << "@" << binToHex(mNodeID).substr(0, 6) << " is "
+                       << "@" << hexAbbrev(mNodeID) << " is "
                        << result;
     return result;
 }
@@ -149,8 +149,8 @@ Node::retrieveQuorumSet(const uint256& qSetHash)
     }
 
     CLOG(DEBUG, "SCP") << "Node::retrieveQuorumSet"
-                       << "@" << binToHex(mNodeID).substr(0, 6)
-                       << " qSet: " << binToHex(qSetHash).substr(0, 6);
+                       << "@" << hexAbbrev(mNodeID)
+                       << " qSet: " << hexAbbrev(qSetHash);
 
     throw QuorumSetNotFound(mNodeID, qSetHash);
 }
@@ -160,8 +160,8 @@ Node::cacheQuorumSet(const SCPQuorumSet& qSet)
 {
     uint256 qSetHash = sha256(xdr::xdr_to_opaque(qSet));
     CLOG(DEBUG, "SCP") << "Node::cacheQuorumSet"
-                       << "@" << binToHex(mNodeID).substr(0, 6)
-                       << " qSet: " << binToHex(qSetHash).substr(0, 6);
+                       << "@" << hexAbbrev(mNodeID)
+                       << " qSet: " << hexAbbrev(qSetHash);
 
     if (mCache.find(qSetHash) != mCache.end())
     {
