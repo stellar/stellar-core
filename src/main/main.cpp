@@ -124,11 +124,11 @@ setForceSCPFlag(Config& cfg)
         app->getPersistentState().setState(
             PersistentState::kForceSCPOnNextLaunch, "true");
         LOG(INFO) << "* ";
-        LOG(INFO) << "* The `force scp` flag has been set in the db. The next "
-                     "launch will";
-        LOG(INFO) << "* and start scp from the account balances as they stand";
-        LOG(INFO)
-            << "* in the db now, without waiting to hear from the network.";
+        LOG(INFO) << "* The `force scp` flag has been set in the db.";
+        LOG(INFO) << "* ";
+        LOG(INFO) << "* The next launch will start scp from the account balances";
+        LOG(INFO) << "* as they stand in the db now, without waiting to hear from";
+        LOG(INFO) << "* the network.";
         LOG(INFO) << "* ";
     }
 }
@@ -139,8 +139,9 @@ initializeDatabase(Config& cfg)
     VirtualClock clock;
     Application::pointer app = Application::create(clock, cfg);
 
-    LOG(INFO) << ". The next launch will catchup from the";
-    LOG(INFO) << "* network afresh.";
+    LOG(INFO) << "*";
+    LOG(INFO) << "* The next launch will catchup from the network afresh.";
+    LOG(INFO) << "*";
 
     cfg.REBUILD_DB = false;
 }
