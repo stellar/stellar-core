@@ -74,6 +74,10 @@ public:
 
     void publishHistory(std::function<void(asio::error_code const&)> handler) override;
 
+    void downloadMissingBuckets(
+        HistoryArchiveState desiredState,
+        std::function<void(asio::error_code const&ec)> handler) override;
+
     void catchupHistory(
         uint32_t initLedger, CatchupMode mode,
         std::function<void(asio::error_code const& ec, CatchupMode mode,

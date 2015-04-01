@@ -160,6 +160,12 @@ LedgerManagerImpl::loadLastKnownLedger()
             PersistentState::kHistoryArchiveState);
         HistoryArchiveState has;
         has.fromString(hasString);
+        auto missing = mApp.getBucketManager().checkForMissingBucketsFiles(has);
+        if (!missing.empty())
+        {
+            mApp.getHistoryManager().downloadMissingBuckets(has, [](asio::error_code const& ec) {}); // TODO
+        }
+
         mApp.getBucketManager().assumeState(has);
 
         CLOG(INFO, "Ledger")
@@ -344,9 +350,8 @@ LedgerManagerImpl::verifyCatchupCandidate(
     LedgerHeaderHistoryEntry const& candidate) const
 {
     // This is a callback from CatchupStateMachine when it's considering whether
-// to treat a retrieved history block as legitimate. It asks LedgerManagerImpl
-// if
-    // it's seen (in its previous, current, or buffer of ledgers-to-close that
+    // to treat a retrieved history block as legitimate. It asks LedgerManagerImpl
+    // if it's seen (in its previous, current, or buffer of ledgers-to-close that
     // have queued up since catchup began) whether it believes the candidate is a
     // legitimate part of history. LedgerManagerImpl is allowed to answer "unknown"
     // here, which causes CatchupStateMachine to pause and retry later.

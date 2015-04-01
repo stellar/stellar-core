@@ -33,7 +33,8 @@ namespace stellar
 const size_t CatchupStateMachine::kRetryLimit = 16;
 
 CatchupStateMachine::CatchupStateMachine(
-    Application& app, uint32_t initLedger, HistoryManager::CatchupMode mode,
+    Application& app, uint32_t initLedger, HistoryManager::CatchupMode mode, 
+    HistoryArchiveState localState,
     std::function<void(asio::error_code const& ec,
                        HistoryManager::CatchupMode mode,
                        LedgerHeaderHistoryEntry const& lastClosed)> handler)
@@ -41,6 +42,7 @@ CatchupStateMachine::CatchupStateMachine(
     , mInitLedger(initLedger)
     , mNextLedger(app.getHistoryManager().nextCheckpointLedger(initLedger))
     , mMode(mode)
+    , mLocalState(localState)
     , mEndHandler(handler)
     , mState(CATCHUP_RETRYING)
     , mRetryCount(0)
@@ -49,7 +51,6 @@ CatchupStateMachine::CatchupStateMachine(
 {
     // We start up in CATCHUP_RETRYING as that's the only valid
     // named pre-state for CATCHUP_BEGIN.
-    mLocalState = app.getHistoryManager().getLastClosedHistoryArchiveState();
     enterBeginState();
 }
 
@@ -357,20 +358,18 @@ CatchupStateMachine::enterAnchoredState(HistoryArchiveState const& has)
 
     std::vector<std::shared_ptr<FileCatchupInfo>> fileCatchupInfos;
     uint32_t freq = mApp.getHistoryManager().getCheckpointFrequency();
+    std::vector<std::string> bucketsToFetch;
 
     // Then make sure all the files we _want_ are either present
     // or queued to be requested.
-    if (mMode == HistoryManager::CATCHUP_MINIMAL)
+    if (mMode == HistoryManager::CATCHUP_BUCKET_REPAIR)
+    {
+        bucketsToFetch = mApp.getBucketManager().checkForMissingBucketsFiles(mLocalState);
+    }
+    else if (mMode == HistoryManager::CATCHUP_MINIMAL)
     {
         // in CATCHUP_MINIMAL mode we need all the buckets...
-        std::vector<std::string> bucketsToFetch =
-            mArchiveState.differingBuckets(mLocalState);
-        for (auto const& h : bucketsToFetch)
-        {
-            fileCatchupInfos.push_back(std::make_shared<FileCatchupInfo>(
-                FILE_CATCHUP_NEEDED, mDownloadDir, HISTORY_FILE_TYPE_BUCKET,
-                h));
-        }
+        bucketsToFetch = mArchiveState.differingBuckets(mLocalState);
 
         // ...and _the last_ history ledger file (to get its final state).
         uint32_t snap = mArchiveState.currentLedger / freq;
@@ -388,6 +387,16 @@ CatchupStateMachine::enterAnchoredState(HistoryArchiveState const& has)
             fileCatchupInfos.push_back(queueLedgerFile(snap));
         }
     }
+
+    // Turn bucket hashes into `FileCatchupInfo`s
+    for (auto const& h : bucketsToFetch)
+    {
+        fileCatchupInfos.push_back(std::make_shared<FileCatchupInfo>(
+            FILE_CATCHUP_NEEDED, mDownloadDir, HISTORY_FILE_TYPE_BUCKET,
+            h));
+    }
+
+
     for (auto const& fi : fileCatchupInfos)
     {
         auto name = fi->baseName_nogz();
@@ -471,14 +480,19 @@ CatchupStateMachine::enterVerifyingState()
         // this includes checking the final LCL of the chain with LedgerManager.
         status = verifyHistoryFromLastClosedLedger();
     }
-    else
+    else if (mMode == HistoryManager::CATCHUP_MINIMAL)
     {
         // In CATCHUP_MINIMAL mode we just need to acquire the LCL before
         // mNextLedger
         // and check to see if it's acceptable.
-        assert(mMode == HistoryManager::CATCHUP_MINIMAL);
         acquireFinalLedgerState(mNextLedger);
         status = mApp.getLedgerManager().verifyCatchupCandidate(mLastClosed);
+    } else
+    {
+        assert(mMode == HistoryManager::CATCHUP_BUCKET_REPAIR);
+        // In CATCH_BUCKET_REPAIR, the verification done by the download step is all 
+        // we can do.
+        status = HistoryManager::VERIFY_HASH_OK;
     }
 
     switch (status)
@@ -606,12 +620,15 @@ CatchupStateMachine::enterApplyingState()
         // without any history replay.
         applyBucketsAtLastClosedLedger();
     }
-    else
+    else if (mMode == HistoryManager::CATCHUP_COMPLETE)
     {
         // In CATCHUP_COMPLETE mode we're applying the _log_ of history from
         // HistoryManager's LCL through mNextLedger, without any reconstitution.
-        assert(mMode == HistoryManager::CATCHUP_COMPLETE);
         applyHistoryFromLastClosedLedger();
+    } else
+    {
+        assert(mMode == HistoryManager::CATCHUP_BUCKET_REPAIR);
+        // Nothing to do.
     }
 
     sqltx.commit();
