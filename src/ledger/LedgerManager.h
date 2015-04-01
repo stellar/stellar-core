@@ -120,7 +120,7 @@ class LedgerManager
 
     // Called by application lifecycle events, system startup.
     virtual void startNewLedger() = 0;
-    virtual void loadLastKnownLedger() = 0;
+    virtual void loadLastKnownLedger(std::function<void(asio::error_code const &ec)> handler) = 0;
 
     // Forcibly switch the application into catchup mode, treating `initLedger`
     // as the current ledger number (to begin catchup from). Normally this

@@ -65,7 +65,7 @@ class LedgerManagerImpl : public LedgerManager
     uint64_t secondsSinceLastLedgerClose() const override;
 
     void startNewLedger() override;
-    void loadLastKnownLedger() override;
+    void loadLastKnownLedger(std::function<void(asio::error_code const &ec)> handler) override;
 
     LedgerHeaderHistoryEntry const& getLastClosedLedgerHeader() const override;
     LedgerHeader const& getCurrentLedgerHeader() const override;
