@@ -178,7 +178,10 @@ startApp(string cfgFile, Config& cfg)
     }
     else
     {
-        HistoryManager::checkSensibleConfig(cfg);
+        if (!HistoryManager::checkSensibleConfig(cfg))
+        {
+            return 1;
+        }
         if (cfg.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING)
         {
             LOG(WARNING)

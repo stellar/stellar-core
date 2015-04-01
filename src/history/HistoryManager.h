@@ -216,7 +216,7 @@ class HistoryManager
     static bool initializeHistoryArchive(Application& app, std::string arch);
 
     // Check that config settings are at least somewhat reasonable.
-    static void checkSensibleConfig(Config const& cfg);
+    static bool checkSensibleConfig(Config const& cfg);
 
     static std::unique_ptr<HistoryManager> create(Application& app);
 
