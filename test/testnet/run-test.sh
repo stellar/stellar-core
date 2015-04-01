@@ -9,12 +9,32 @@
 #
 # It requires multitail and realpath installed
 
-set -x
+set -e
 
 echo "killing all nodes"
-killall -9 stellar-core
+killall -q -9 stellar-core || true
+
+if which realpath >/dev/null
+then
+    echo "found realpath"
+else
+    echo "this script requires realpath"
+    exit 1
+fi
+
+if which multitail >/dev/null
+then
+    echo "found multitail"
+else
+    echo "this script requires multitail"
+    exit 1
+fi
 
 ST=$(realpath ../../bin/stellar-core)
+if [ ! -e $ST ]
+then
+    exit "can't find stellar-core binary at '$ST'"
+fi
 
 VSEC0=sfSXhEWL4YLthoeJL7GUYz7MNu7KM5TkQUgETmg5SQPWy94i5XZ
 VPUB0=gqViD3GvzLHY5sjtieSqzLtuJMXaNrBHMpqiD6DLAFCxSLxFiB
@@ -99,4 +119,4 @@ echo "nodes initialized, running quietly + multitail"
 multitail --config multitail.conf -CS stellar node{0,1,2}/stellar.log
 
 echo "killing all nodes"
-killall -9 stellar-core
+killall -q -9 stellar-core || true
