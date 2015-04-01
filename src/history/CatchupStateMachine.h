@@ -95,6 +95,8 @@ class Application;
 
 class CatchupStateMachine
 {
+
+private:
     static const size_t kRetryLimit;
 
     Application& mApp;
@@ -145,12 +147,12 @@ class CatchupStateMachine
     void acquireFinalLedgerState(uint32_t ledgerNum);
     void applyHistoryFromLastClosedLedger();
 
-  public:
+public:
     CatchupStateMachine(
         Application& app, uint32_t initLedger,
-        HistoryManager::CatchupMode mode,
+        HistoryManager::CatchupMode mode, HistoryArchiveState localState,
         std::function<
-            void(asio::error_code const& ec, HistoryManager::CatchupMode mode,
-                 LedgerHeaderHistoryEntry const& lastClosed)> handler);
+        void(asio::error_code const& ec, HistoryManager::CatchupMode mode,
+        LedgerHeaderHistoryEntry const& lastClosed)> handler);
 };
 }
