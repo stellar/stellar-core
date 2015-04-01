@@ -829,6 +829,9 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope envelope,
         if (envelope.statement.slotIndex > maxLedgerSeq ||
             envelope.statement.slotIndex < minLedgerSeq)
         {
+            CLOG(DEBUG, "Herder") << "Ignoring SCPEnvelope outside of range: "
+                << envelope.statement.slotIndex << "( " << minLedgerSeq << "," 
+                << maxLedgerSeq << ")";
             return;
         }
 
