@@ -238,8 +238,9 @@ enum PaymentResultCode
     PAYMENT_NO_TRUST = 4,       // destination missing a trust line for currency
     PAYMENT_NOT_AUTHORIZED = 5, // destination not authorized to hold currency
     PAYMENT_LINE_FULL = 6,      // destination would go above their limit
-    PAYMENT_OVER_SENDMAX = 7,   // multi-path payment could not satisfy sendmax
-    PAYMENT_LOW_RESERVE = 8     // would create an account below the min reserve
+    PAYMENT_TOO_FEW_OFFERS = 7, // not enough offers to satisfy path payment
+    PAYMENT_OVER_SENDMAX = 8,   // multi-path payment could not satisfy sendmax
+    PAYMENT_LOW_RESERVE = 9     // would create an account below the min reserve
 };
 
 struct SimplePaymentResult

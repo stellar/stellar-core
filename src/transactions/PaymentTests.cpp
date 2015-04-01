@@ -189,7 +189,8 @@ TEST_CASE("payment", "[tx][payment]")
 
             Currency xlmCur;
 
-            applyCreditPaymentTx(app, gateway, a1, xlmCur, gateway_seq++, morePayment, PAYMENT_OVER_SENDMAX, &path);
+            applyCreditPaymentTx(app, gateway, a1, xlmCur, gateway_seq++,
+                                 morePayment, PAYMENT_TOO_FEW_OFFERS, &path);
         }
     }
 }
