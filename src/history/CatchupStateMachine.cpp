@@ -30,8 +30,7 @@ namespace stellar
 const size_t CatchupStateMachine::kRetryLimit = 16;
 
 CatchupStateMachine::CatchupStateMachine(
-    Application& app, uint32_t initLedger,
-    HistoryManager::CatchupMode mode,
+    Application& app, uint32_t initLedger, HistoryManager::CatchupMode mode,
     std::function<void(asio::error_code const& ec,
                        HistoryManager::CatchupMode mode,
                        LedgerHeaderHistoryEntry const& lastClosed)> handler)
@@ -105,7 +104,8 @@ CatchupStateMachine::enterBeginState()
 
     assert(mNextLedger > 0);
     uint32_t blockEnd = mNextLedger - 1;
-    uint32_t snap = blockEnd / mApp.getHistoryManager().getCheckpointFrequency();
+    uint32_t snap =
+        blockEnd / mApp.getHistoryManager().getCheckpointFrequency();
 
     CLOG(INFO, "History") << "Catchup BEGIN, initLedger=" << mInitLedger
                           << ", guessed nextLedger=" << mNextLedger
@@ -216,8 +216,9 @@ CatchupStateMachine::enterFetchingState()
                 hm.getFile(mArchive, fi->remoteName(), fi->localPath_gz(),
                            [this, name](asio::error_code const& ec)
                            {
-                    this->fileStateChange(ec, name, FILE_CATCHUP_DOWNLOADED);
-                });
+                               this->fileStateChange(ec, name,
+                                                     FILE_CATCHUP_DOWNLOADED);
+                           });
             }
         }
         break;
@@ -228,11 +229,11 @@ CatchupStateMachine::enterFetchingState()
         case FILE_CATCHUP_DOWNLOADED:
             fi->setState(FILE_CATCHUP_DECOMPRESSING);
             CLOG(INFO, "History") << "Decompressing " << fi->localPath_gz();
-            hm.decompress(fi->localPath_gz(),
-                          [this, name](asio::error_code const& ec)
-                          {
-                this->fileStateChange(ec, name, FILE_CATCHUP_DECOMPRESSED);
-            });
+            hm.decompress(
+                fi->localPath_gz(), [this, name](asio::error_code const& ec)
+                {
+                    this->fileStateChange(ec, name, FILE_CATCHUP_DECOMPRESSED);
+                });
             break;
 
         case FILE_CATCHUP_DECOMPRESSING:
@@ -258,18 +259,19 @@ CatchupStateMachine::enterFetchingState()
             {
                 CLOG(INFO, "History") << "Verifying " << name;
                 auto filename = fi->localPath_nogz();
-                hm.verifyHash(filename, hash,
-                              [this, name, filename, hashname, hash](
-                                  asio::error_code const& ec)
-                              {
-                    if (!ec)
+                hm.verifyHash(
+                    filename, hash, [this, name, filename, hashname, hash](
+                                        asio::error_code const& ec)
                     {
-                        auto b = this->mApp.getBucketManager().adoptFileAsBucket(
-                            filename, hash);
-                        this->mBuckets[hashname] = b;
-                    }
-                    this->fileStateChange(ec, name, FILE_CATCHUP_VERIFIED);
-                });
+                        if (!ec)
+                        {
+                            auto b =
+                                this->mApp.getBucketManager().adoptFileAsBucket(
+                                    filename, hash);
+                            this->mBuckets[hashname] = b;
+                        }
+                        this->fileStateChange(ec, name, FILE_CATCHUP_VERIFIED);
+                    });
             }
             break;
 
@@ -356,7 +358,7 @@ CatchupStateMachine::enterAnchoredState(HistoryArchiveState const& has)
     }
 
     std::vector<std::shared_ptr<FileCatchupInfo>> fileCatchupInfos;
-    size_t freq = mApp.getHistoryManager().getCheckpointFrequency();
+    uint32_t freq = mApp.getHistoryManager().getCheckpointFrequency();
 
     // Then make sure all the files we _want_ are either present
     // or queued to be requested.
@@ -379,10 +381,10 @@ CatchupStateMachine::enterAnchoredState(HistoryArchiveState const& has)
     else
     {
         assert(mMode == HistoryManager::CATCHUP_COMPLETE);
-        // In CATCHUP_COMPLETE mode we need all the transaction and ledger files.
+        // In CATCHUP_COMPLETE mode we need all the transaction and ledger
+        // files.
         for (uint32_t snap = mLocalState.currentLedger / freq;
-             snap <= mArchiveState.currentLedger / freq;
-             ++snap)
+             snap <= mArchiveState.currentLedger / freq; ++snap)
         {
             fileCatchupInfos.push_back(queueTransactionsFile(snap));
             fileCatchupInfos.push_back(queueLedgerFile(snap));
@@ -430,7 +432,8 @@ CatchupStateMachine::enterRetryingState()
             }
             else if (!anchored)
             {
-                CLOG(WARNING, "History") << "Unable to anchor, restarting catchup";
+                CLOG(WARNING, "History")
+                    << "Unable to anchor, restarting catchup";
                 this->enterBeginState();
             }
             else if (!verifying)
@@ -451,12 +454,12 @@ CatchupStateMachine::enterRetryingState()
 void
 CatchupStateMachine::enterVerifyingState()
 {
-    assert(mState == CATCHUP_RETRYING ||
-           mState == CATCHUP_FETCHING);
+    assert(mState == CATCHUP_RETRYING || mState == CATCHUP_FETCHING);
 
     mState = CATCHUP_VERIFYING;
 
-    HistoryManager::VerifyHashStatus status = HistoryManager::VERIFY_HASH_UNKNOWN;
+    HistoryManager::VerifyHashStatus status =
+        HistoryManager::VERIFY_HASH_UNKNOWN;
     if (mMode == HistoryManager::CATCHUP_COMPLETE)
     {
         // In CATCHUP_COMPLETE mode we need to verify he whole history chain;
@@ -465,7 +468,8 @@ CatchupStateMachine::enterVerifyingState()
     }
     else
     {
-        // In CATCHUP_MINIMAL mode we just need to acquire the LCL before mNextLedger
+        // In CATCHUP_MINIMAL mode we just need to acquire the LCL before
+        // mNextLedger
         // and check to see if it's acceptable.
         assert(mMode == HistoryManager::CATCHUP_MINIMAL);
         acquireFinalLedgerState(mNextLedger);
@@ -479,11 +483,13 @@ CatchupStateMachine::enterVerifyingState()
         enterApplyingState();
         break;
     case HistoryManager::VERIFY_HASH_BAD:
-        CLOG(INFO, "History") << "Catchup material failed verification, restarting";
+        CLOG(INFO, "History")
+            << "Catchup material failed verification, restarting";
         enterBeginState();
         break;
     case HistoryManager::VERIFY_HASH_UNKNOWN:
-        CLOG(INFO, "History") << "Catchup material verification inconclusive, pausing";
+        CLOG(INFO, "History")
+            << "Catchup material verification inconclusive, pausing";
         enterRetryingState();
         break;
     default:
@@ -500,8 +506,7 @@ verifyLedgerHistoryEntry(LedgerHeaderHistoryEntry const& hhe)
     {
         CLOG(ERROR, "History")
             << "Bad ledger-header history entry: claimed ledger "
-            << LedgerManager::ledgerAbbrev(hhe)
-            << " actually hashes to "
+            << LedgerManager::ledgerAbbrev(hhe) << " actually hashes to "
             << hexAbbrev(calculated);
         return HistoryManager::VERIFY_HASH_BAD;
     }
@@ -509,23 +514,18 @@ verifyLedgerHistoryEntry(LedgerHeaderHistoryEntry const& hhe)
 }
 
 static HistoryManager::VerifyHashStatus
-verifyLedgerHistoryLink(Hash const& prev,
-                        LedgerHeaderHistoryEntry const& curr)
+verifyLedgerHistoryLink(Hash const& prev, LedgerHeaderHistoryEntry const& curr)
 {
-    if (verifyLedgerHistoryEntry(curr) !=
-        HistoryManager::VERIFY_HASH_OK)
+    if (verifyLedgerHistoryEntry(curr) != HistoryManager::VERIFY_HASH_OK)
     {
         return HistoryManager::VERIFY_HASH_BAD;
     }
     if (prev != curr.header.previousLedgerHash)
     {
         CLOG(ERROR, "History")
-            << "Bad hash-chain: "
-            << LedgerManager::ledgerAbbrev(curr)
-            << " wants prev hash "
-            << hexAbbrev(curr.header.previousLedgerHash)
-            << " but actual prev hash is "
-            << hexAbbrev(prev);
+            << "Bad hash-chain: " << LedgerManager::ledgerAbbrev(curr)
+            << " wants prev hash " << hexAbbrev(curr.header.previousLedgerHash)
+            << " but actual prev hash is " << hexAbbrev(prev);
         return HistoryManager::VERIFY_HASH_BAD;
     }
     return HistoryManager::VERIFY_HASH_OK;
@@ -545,10 +545,9 @@ CatchupStateMachine::verifyHistoryFromLastClosedLedger()
     {
         auto hi = pair.second;
         XDRInputFileStream hdrIn;
-        CLOG(INFO, "History") << "Verifying ledger headers from "
-                              << hi->localPath_nogz()
-                              << " starting from ledger "
-                              << LedgerManager::ledgerAbbrev(prev);
+        CLOG(INFO, "History")
+            << "Verifying ledger headers from " << hi->localPath_nogz()
+            << " starting from ledger " << LedgerManager::ledgerAbbrev(prev);
         hdrIn.open(hi->localPath_nogz());
         LedgerHeaderHistoryEntry curr;
         while (hdrIn && hdrIn.readOne(curr))
@@ -576,8 +575,8 @@ CatchupStateMachine::verifyHistoryFromLastClosedLedger()
     }
     if (prev.header.ledgerSeq + 1 != mNextLedger)
     {
-        CLOG(INFO, "History") << "Insufficient history to connect chain to ledger"
-                              << mNextLedger;
+        CLOG(INFO, "History")
+            << "Insufficient history to connect chain to ledger" << mNextLedger;
         return HistoryManager::VERIFY_HASH_BAD;
     }
     return lm.verifyCatchupCandidate(prev);
@@ -656,24 +655,21 @@ CatchupStateMachine::applyBucketsAtLastClosedLedger()
     CLOG(INFO, "History") << "Applying buckets at ledger "
                           << mLastClosed.header.ledgerSeq;
 
-
     // We've verified mLastClosed (in the "trusted part of history" sense) in
     // CATCHUP_VERIFY phase; we now need to check that the BucketListHash we're
     // about to apply is the one denoted by that ledger header.
     if (mLastClosed.header.bucketListHash != mArchiveState.getBucketListHash())
     {
-        throw std::runtime_error(
-            "catchup BucketList hash differs from BucketList hash in catchup ledger");
+        throw std::runtime_error("catchup BucketList hash differs from "
+                                 "BucketList hash in catchup ledger");
     }
 
     assert(mArchiveState.currentLedger == mLastClosed.header.ledgerSeq);
 
-    CLOG(INFO, "History")
-        << "Archive bucketListHash: "
-        << hexAbbrev(mArchiveState.getBucketListHash());
-    CLOG(INFO, "History")
-        << "mLastClosed bucketListHash: "
-        << hexAbbrev(mLastClosed.header.bucketListHash);
+    CLOG(INFO, "History") << "Archive bucketListHash: "
+                          << hexAbbrev(mArchiveState.getBucketListHash());
+    CLOG(INFO, "History") << "mLastClosed bucketListHash: "
+                          << hexAbbrev(mLastClosed.header.bucketListHash);
 
     // Apply buckets in reverse order, oldest bucket to new. Once we apply
     // one bucket, apply all buckets newer as well.
@@ -686,9 +682,9 @@ CatchupStateMachine::applyBucketsAtLastClosedLedger()
         if (applying || i->snap != binToHex(existingLevel.getSnap()->getHash()))
         {
             std::shared_ptr<Bucket> b = getBucketToApply(i->snap);
-            CLOG(DEBUG, "History") << "Applying bucket " << b->getFilename()
-                                   << " to ledger as BucketList 'snap' for level "
-                                   << n;
+            CLOG(DEBUG, "History")
+                << "Applying bucket " << b->getFilename()
+                << " to ledger as BucketList 'snap' for level " << n;
             b->apply(db);
             existingLevel.setSnap(b);
             applying = true;
@@ -697,9 +693,9 @@ CatchupStateMachine::applyBucketsAtLastClosedLedger()
         if (applying || i->curr != binToHex(existingLevel.getCurr()->getHash()))
         {
             std::shared_ptr<Bucket> b = getBucketToApply(i->curr);
-            CLOG(DEBUG, "History") << "Applying bucket " << b->getFilename()
-                                   << " to ledger as BucketList 'curr' for level "
-                                   << n;
+            CLOG(DEBUG, "History")
+                << "Applying bucket " << b->getFilename()
+                << " to ledger as BucketList 'curr' for level " << n;
             b->apply(db);
             existingLevel.setCurr(b);
             applying = true;
@@ -748,10 +744,10 @@ void
 CatchupStateMachine::applyHistoryFromLastClosedLedger()
 {
     auto& lm = mApp.getLedgerManager();
-    CLOG(INFO, "History")
-        << "Replaying contents of " << mHeaderInfos.size()
-        << " transaction-history files from LCL "
-        << LedgerManager::ledgerAbbrev(lm.getLastClosedLedgerHeader());
+    CLOG(INFO, "History") << "Replaying contents of " << mHeaderInfos.size()
+                          << " transaction-history files from LCL "
+                          << LedgerManager::ledgerAbbrev(
+                                 lm.getLastClosedLedgerHeader());
 
     for (auto pair : mHeaderInfos)
     {
@@ -776,8 +772,10 @@ CatchupStateMachine::applyHistoryFromLastClosedLedger()
         TransactionHistoryEntry txHistoryEntry;
         bool readTxSet = false;
 
-        // Start the merges we need to have completed to play transactions forward from LCL
-        mApp.getBucketManager().getBucketList().restartMerges(mApp, lm.getLastClosedLedgerNum());
+        // Start the merges we need to have completed to play transactions
+        // forward from LCL
+        mApp.getBucketManager().getBucketList().restartMerges(
+            mApp, lm.getLastClosedLedgerNum());
 
         while (hdrIn && hdrIn.readOne(hHeader))
         {
@@ -859,8 +857,8 @@ CatchupStateMachine::applyHistoryFromLastClosedLedger()
             // header.
             if (header.txSetHash != txset->getContentsHash())
             {
-                throw std::runtime_error(
-                    "replay txset hash differs from txset hash in replay ledger");
+                throw std::runtime_error("replay txset hash differs from txset "
+                                         "hash in replay ledger");
             }
 
             LedgerCloseData closeData(header.ledgerSeq, txset, header.closeTime,
