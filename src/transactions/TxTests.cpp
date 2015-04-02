@@ -462,5 +462,12 @@ reSignTransaction(TransactionFrame& tx, SecretKey& source)
     tx.addSignature(source);
 }
 
+void
+checkAmounts(int64_t a, int64_t b, int64_t maxd)
+{
+    int64_t d = b - maxd;
+    REQUIRE(a >= d);
+    REQUIRE(a <= b);
+}
 }
 }

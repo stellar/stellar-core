@@ -20,18 +20,6 @@ using namespace stellar::txtest;
 
 typedef std::unique_ptr<Application> appPtr;
 
-// checks that b-maxd <= a <= b
-// bias towards seller means
-//    * amount left in an offer should be higher than the exact calculation
-//    * amount received by a seller should be higher than the exact calculation
-void
-checkAmounts(int64_t a, int64_t b, int64_t maxd = 1)
-{
-    int64_t d = b - maxd;
-    REQUIRE(a >= d);
-    REQUIRE(a <= b);
-}
-
 // Offer that takes multiple other offers and remains
 // Offer selling XLM
 // Offer buying XLM
