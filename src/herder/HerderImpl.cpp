@@ -596,6 +596,14 @@ HerderImpl::valueExternalized(uint64 const& slotIndex, Value const& value)
     }
     else
     {
+        auto cb = [slotIndex, value, this](TxSetFramePtr txSet)
+        {
+            this->valueExternalized(slotIndex, value);
+        };
+
+        mTxSetFetches[b.value.txSetHash].push_back(cb);
+
+
         // This may not be possible as all messages are validated and should
         // therefore fetch the txSet before being considered by SCP.
         CLOG(ERROR, "Herder") << "HerderImpl::valueExternalized"
@@ -693,25 +701,23 @@ HerderImpl::fetchTxSet(uint256 const& txSetHash, bool askNetwork)
 void
 HerderImpl::recvTxSet(TxSetFramePtr txSet)
 {
-    if (mTxSetFetcher[mCurrentTxSetFetcher].recvItem(txSet))
-    { // someone cares about this set
+    // add all txs to next set in case they don't get in this ledger
+    for(auto tx : txSet->sortForApply())
+    {
+        recvTransaction(tx);
+    }
+    
+    mTxSetFetcher[mCurrentTxSetFetcher].recvItem(txSet);
 
-        // add all txs to next set in case they don't get in this ledger
-        for (auto tx : txSet->sortForApply())
+    // Runs any pending validation on this txSet.
+    auto it = mTxSetFetches.find(txSet->getContentsHash());
+    if(it != mTxSetFetches.end())
+    {
+        for(auto validate : it->second)
         {
-            recvTransaction(tx);
+            validate(txSet);
         }
-
-        // Runs any pending validation on this txSet.
-        auto it = mTxSetFetches.find(txSet->getContentsHash());
-        if (it != mTxSetFetches.end())
-        {
-            for (auto validate : it->second)
-            {
-                validate(txSet);
-            }
-            mTxSetFetches.erase(it);
-        }
+        mTxSetFetches.erase(it);
     }
 }
 
@@ -845,7 +851,8 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope envelope,
         {
             if(checkFutureCommitted(envelope))
             {  // a quorum slice has left us behind 
-                CLOG(INFO, "Herder") << "Left behind. Catching up to our slice.";
+                CLOG(INFO, "Herder") << "Left behind. Catching up to our slice." 
+                    << envelope.statement.slotIndex;
                 valueExternalized(envelope.statement.slotIndex, 
                     envelope.statement.ballot.value);
                 return;
@@ -870,20 +877,17 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope envelope,
 bool 
 HerderImpl::checkFutureCommitted(SCPEnvelope& envelope)
 {
-    // is this a committed statement
-    // is it from someone we care about?
-    // is it a new one for the list?
-    // do we have enough of these for the same ballot?
     if(envelope.statement.pledges.type() == COMMITTED)
-    {
+    { // is this a committed statement
         const SCPQuorumSet& qset=getLocalQuorumSet();
         
         if(find(qset.validators.begin(), qset.validators.end(),
             envelope.nodeID) != qset.validators.end())
-        {
+        {// is it from someone we care about?
             auto& list = mQuorumAheadOfUs[envelope.statement.slotIndex];
             if(find(list.begin(), list.end(), envelope) == list.end())
-            {
+            {// is it a new one for the list?
+                // TODO: we probably want to fetch the txset here to save time
                 list.push_back(envelope);
                 int count = 0;
                 for(auto& env : list)
@@ -892,7 +896,7 @@ HerderImpl::checkFutureCommitted(SCPEnvelope& envelope)
                         envelope.statement.ballot.value) count++;
 
                     if(count>=qset.threshold)
-                    {
+                    {// do we have enough of these for the same ballot?
                         return true;
                     }
                 }
