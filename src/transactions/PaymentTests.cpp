@@ -44,6 +44,8 @@ TEST_CASE("payment", "[tx][payment]")
     SecretKey a1 = getAccount("A");
     SecretKey b1 = getAccount("B");
 
+    Currency xlmCur;
+
     int64_t txfee = app.getLedgerManager().getTxFee();
 
     const uint64_t paymentAmount =
@@ -63,9 +65,15 @@ TEST_CASE("payment", "[tx][payment]")
 
     int64_t trustLineLimit = 1000000 * currencyMultiplier;
 
+    int64_t trustLineStartingBalance = 20000 * currencyMultiplier;
+
     // minimum balance necessary to hold 2 trust lines
     const int64_t minBalance2 =
         app.getLedgerManager().getMinBalance(2) + 10 * txfee;
+
+    // minimum balance necessary to hold 2 trust lines and an offer
+    const int64_t minBalance3 = 
+        app.getLedgerManager().getMinBalance(3) + 10 * txfee;
 
     Currency idrCur = makeCurrency(gateway, "IDR");
     Currency usdCur = makeCurrency(gateway, "USD");
@@ -92,6 +100,8 @@ TEST_CASE("payment", "[tx][payment]")
     // root did 2 transactions at this point
     REQUIRE(rootAccount.getBalance() ==
             (100000000000000000 - paymentAmount - gatewayPayment - txfee * 2));
+
+    LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader());
 
     SECTION("send XLM to an existing account")
     {
@@ -184,13 +194,63 @@ TEST_CASE("payment", "[tx][payment]")
         SECTION("send XLM with path (not enough offers)")
         {
             std::vector<Currency> path;
-
             path.push_back(idrCur);
-
-            Currency xlmCur;
 
             applyCreditPaymentTx(app, gateway, a1, xlmCur, gateway_seq++,
                                  morePayment, PAYMENT_TOO_FEW_OFFERS, &path);
+        }
+
+        // add a couple offers in the order book
+
+        OfferFrame offer;
+
+        const Price usdPriceOffer(3, 2);
+
+        // b1 sells the same thing
+        applyPaymentTx(app, root, b1, rootSeq++, minBalance3 + 10000);
+        SequenceNumber b1Seq = getAccountSeqNum(b1, app) + 1;
+        applyChangeTrust(app, b1, gateway, b1Seq++, "USD", trustLineLimit);
+        applyChangeTrust(app, b1, gateway, b1Seq++, "IDR", trustLineLimit);
+
+        applyCreditPaymentTx(app, gateway, b1, idrCur, gateway_seq++,
+            trustLineStartingBalance);
+
+        uint64_t offerB1 =
+            applyCreateOffer(app, delta, 0, b1, idrCur, usdCur, usdPriceOffer,
+                             100 * currencyMultiplier, b1Seq++);
+
+        // setup "c1"
+        SecretKey c1 = getAccount("C");
+
+        applyPaymentTx(app, root, c1, rootSeq++, minBalance3 + 10000);
+        SequenceNumber c1Seq = getAccountSeqNum(c1, app) + 1;
+
+        applyChangeTrust(app, c1, gateway, c1Seq++, "USD", trustLineLimit);
+        applyChangeTrust(app, c1, gateway, c1Seq++, "IDR", trustLineLimit);
+
+        applyCreditPaymentTx(app, gateway, c1, idrCur, gateway_seq++,
+            trustLineStartingBalance);
+
+        // offer is buy 150 USD for 100 IDR; buy USD @ 1.5 = sell IRD @ 0.66
+        uint64_t offerC1 =
+            applyCreateOffer(app, delta, 0, c1, idrCur, usdCur, usdPriceOffer,
+                             100 * currencyMultiplier, c1Seq++);
+
+        SECTION("send with path (over sendmax)")
+        {
+            // A1: try to send 100 IDR to B1 via USD
+            // with sendMax set to 149 USD
+
+            std::vector<Currency> path;
+            path.push_back(usdCur);
+
+            TransactionFramePtr txFrame = createCreditPaymentTx(a1, b1, idrCur, a1Seq++, 100 * currencyMultiplier, &path);
+            getFirstOperation(*txFrame).body.paymentOp().sendMax = 149 * currencyMultiplier;
+            reSignTransaction(*txFrame, a1);
+
+            txFrame->apply(delta, app);
+
+            REQUIRE(getFirstResult(*txFrame).tr().paymentResult().code() == PAYMENT_OVER_SENDMAX);
         }
     }
 }

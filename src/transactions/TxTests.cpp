@@ -454,5 +454,13 @@ getFirstOperation(TransactionFrame& tx)
 {
     return tx.getEnvelope().tx.operations[0];
 }
+
+void
+reSignTransaction(TransactionFrame& tx, SecretKey& source)
+{
+    tx.getEnvelope().signatures.clear();
+    tx.addSignature(source);
+}
+
 }
 }

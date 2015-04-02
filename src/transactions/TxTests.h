@@ -102,5 +102,7 @@ OperationResultCode getFirstResultCode(TransactionFrame const& tx);
 // modifying the type of the operation will lead to undefined behavior
 Operation& getFirstOperation(TransactionFrame& tx);
 
+void reSignTransaction(TransactionFrame& tx, SecretKey& source);
+
 } // end txtest namespace
 }
