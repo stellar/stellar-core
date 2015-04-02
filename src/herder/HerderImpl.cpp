@@ -540,7 +540,7 @@ HerderImpl::valueExternalized(const uint64& slotIndex, const Value& value)
     if (externalizedSet)
     {
 
-        CLOG(INFO, "Herder")
+        CLOG(DEBUG, "Herder")
             << "HerderImpl::valueExternalized"
             << "@" << hexAbbrev(getLocalNodeID())
             << " txSet: " << hexAbbrev(b.value.txSetHash);
@@ -739,8 +739,7 @@ HerderImpl::recvSCPQuorumSet(SCPQuorumSetPtr qSet)
     CLOG(TRACE, "Herder") << "HerderImpl::recvSCPQuorumSet"
                           << "@" << hexAbbrev(getLocalNodeID())
                           << " qSet: "
-                          << binToHex(sha256(xdr::xdr_to_opaque(*qSet)))
-                                 .substr(0, 6);
+                          << hexAbbrev(sha256(xdr::xdr_to_opaque(*qSet)));
 
     if (mSCPQSetFetcher.recvItem(qSet))
     {
@@ -985,12 +984,11 @@ HerderImpl::triggerNextLedger()
     mCurrentValue = xdr::xdr_to_opaque(b);
 
     uint256 valueHash = sha256(xdr::xdr_to_opaque(mCurrentValue));
-    CLOG(INFO, "Herder") << "HerderImpl::triggerNextLedger"
+    CLOG(DEBUG, "Herder") << "HerderImpl::triggerNextLedger"
                          << "@" << hexAbbrev(getLocalNodeID())
                          << " txSet.size: " << proposedSet->mTransactions.size()
                          << " previousLedgerHash: "
-                         << binToHex(proposedSet->previousLedgerHash())
-                                .substr(0, 6)
+                         << hexAbbrev(proposedSet->previousLedgerHash())
                          << " value: " << hexAbbrev(valueHash)
                          << " slot: " << slotIndex;
 

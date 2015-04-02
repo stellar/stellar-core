@@ -63,11 +63,17 @@ LedgerManager::create(Application& app)
 }
 
 std::string
-LedgerManager::ledgerAbbrev(LedgerHeader const& header, uint256 const& hash)
+LedgerManager::ledgerAbbrev(uint32_t seq, uint256 const& hash)
 {
     std::ostringstream oss;
-    oss << "[seq=" << header.ledgerSeq << ", hash=" << hexAbbrev(hash) << "]";
+    oss << "[seq=" << seq << ", hash=" << hexAbbrev(hash) << "]";
     return oss.str();
+}
+
+std::string
+LedgerManager::ledgerAbbrev(LedgerHeader const& header, uint256 const& hash)
+{
+    return ledgerAbbrev(header.ledgerSeq, hash);
 }
 
 std::string
@@ -225,9 +231,25 @@ LedgerManagerImpl::getLastClosedLedgerNum() const
 void
 LedgerManagerImpl::externalizeValue(LedgerCloseData ledgerData)
 {
+    CLOG(INFO, "Ledger")
+        << "Got consensus: "
+        << "[seq=" << ledgerData.mLedgerSeq
+        << ", prev=" << hexAbbrev(ledgerData.mTxSet->previousLedgerHash())
+        << ", time=" << ledgerData.mCloseTime
+        << ", txs=" << ledgerData.mTxSet->size()
+        << ", txhash=" << hexAbbrev(ledgerData.mTxSet->getContentsHash())
+        << ", fee=" << ledgerData.mBaseFee
+        << "]";
+
+        // ledgerAbbrev(ledgerData.mLedgerSeq-1,
+        //              ledgerData.mTxSet->previousLedgerHash())
+
     if (mLastClosedLedger.hash == ledgerData.mTxSet->previousLedgerHash())
     {
         closeLedger(ledgerData);
+        CLOG(INFO, "Ledger")
+            << "Closed ledger: "
+            << ledgerAbbrev(mLastClosedLedger);
     }
     else
     {
@@ -528,9 +550,9 @@ LedgerManagerImpl::closeLedger(LedgerCloseData ledgerData)
 void
 LedgerManagerImpl::advanceLedgerPointers()
 {
-    //    CLOG(INFO, "Ledger") << "Advancing LCL: " <<
-    //    ledgerAbbrev(mLastClosedLedger)
-    //                        << " -> " << ledgerAbbrev(mCurrentLedger);
+    CLOG(DEBUG, "Ledger")
+        << "Advancing LCL: " << ledgerAbbrev(mLastClosedLedger)
+        << " -> " << ledgerAbbrev(mCurrentLedger);
 
     mLastClosedLedger.hash = mCurrentLedger->getHash();
     mLastClosedLedger.header = mCurrentLedger->mHeader;
