@@ -44,14 +44,14 @@ PeerRecord::toXdr(PeerAddress& ret)
 }
 
 void
-PeerRecord::fromIPPort(const string& ip, uint32_t port, VirtualClock& clock,
+PeerRecord::fromIPPort(string const& ip, uint32_t port, VirtualClock& clock,
                        PeerRecord& ret)
 {
     ret = PeerRecord{ip, port, clock.now(), 0, 1};
 }
 
 bool
-PeerRecord::parseIPPort(const string& ipPort, Application& app, PeerRecord& ret,
+PeerRecord::parseIPPort(string const& ipPort, Application& app, PeerRecord& ret,
                         uint32_t defaultPort)
 {
     static std::regex re(

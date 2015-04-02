@@ -109,7 +109,7 @@ static const char* offerColumnSelector =
     "getsIsoCurrency,getsIssuer,amount,priceN,priceD FROM Offers";
 
 bool
-OfferFrame::loadOffer(const uint256& accountID, uint64_t offerID,
+OfferFrame::loadOffer(uint256 const& accountID, uint64_t offerID,
                       OfferFrame& retOffer, Database& db)
 {
     std::string accStr;
@@ -190,7 +190,7 @@ OfferFrame::loadOffers(soci::details::prepare_temp_type& prep,
 
 void
 OfferFrame::loadBestOffers(size_t numOffers, size_t offset,
-                           const Currency& pays, const Currency& gets,
+                           Currency const& pays, Currency const& gets,
                            vector<OfferFrame>& retOffers, Database& db)
 {
     soci::session& session = db.getSession();
@@ -236,7 +236,7 @@ OfferFrame::loadBestOffers(size_t numOffers, size_t offset,
 }
 
 void
-OfferFrame::loadOffers(const uint256& accountID,
+OfferFrame::loadOffers(uint256 const& accountID,
                        std::vector<OfferFrame>& retOffers, Database& db)
 {
     soci::session& session = db.getSession();

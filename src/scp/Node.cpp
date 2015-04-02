@@ -13,20 +13,20 @@
 namespace stellar
 {
 
-Node::Node(const uint256& nodeID, SCP* SCP, int cacheCapacity)
+Node::Node(uint256 const& nodeID, SCP* SCP, int cacheCapacity)
     : mNodeID(nodeID), mSCP(SCP), mCacheCapacity(cacheCapacity)
 {
 }
 
 bool
-Node::hasQuorum(const Hash& qSetHash, const std::vector<uint256>& nodeSet)
+Node::hasQuorum(Hash const& qSetHash, std::vector<uint256> const& nodeSet)
 {
     CLOG(DEBUG, "SCP") << "Node::hasQuorum"
                        << "@" << hexAbbrev(mNodeID)
                        << " qSet: " << hexAbbrev(qSetHash)
                        << " nodeSet.size: " << nodeSet.size();
     // This call can throw a `QuorumSetNotFound` if the quorumSet is unknown.
-    const SCPQuorumSet& qSet = retrieveQuorumSet(qSetHash);
+    SCPQuorumSet const& qSet = retrieveQuorumSet(qSetHash);
 
     uint32 count = 0;
     for (auto n : qSet.validators)
@@ -36,20 +36,19 @@ Node::hasQuorum(const Hash& qSetHash, const std::vector<uint256>& nodeSet)
     }
     auto result = (count >= qSet.threshold);
     CLOG(DEBUG, "SCP") << "Node::hasQuorum"
-                       << "@" << hexAbbrev(mNodeID) << " is "
-                       << result;
+                       << "@" << hexAbbrev(mNodeID) << " is " << result;
     return result;
 }
 
 bool
-Node::isVBlocking(const Hash& qSetHash, const std::vector<uint256>& nodeSet)
+Node::isVBlocking(Hash const& qSetHash, std::vector<uint256> const& nodeSet)
 {
     CLOG(DEBUG, "SCP") << "Node::isVBlocking"
                        << "@" << hexAbbrev(mNodeID)
                        << " qSet: " << hexAbbrev(qSetHash)
                        << " nodeSet.size: " << nodeSet.size();
     // This call can throw a `QuorumSetNotFound` if the quorumSet is unknown.
-    const SCPQuorumSet& qSet = retrieveQuorumSet(qSetHash);
+    SCPQuorumSet const& qSet = retrieveQuorumSet(qSetHash);
 
     // There is no v-blocking set for {\empty}
     if (qSet.threshold == 0)
@@ -65,15 +64,14 @@ Node::isVBlocking(const Hash& qSetHash, const std::vector<uint256>& nodeSet)
     }
     auto result = (qSet.validators.size() - count < qSet.threshold);
     CLOG(DEBUG, "SCP") << "Node::isVBlocking"
-                       << "@" << hexAbbrev(mNodeID) << " is "
-                       << result;
+                       << "@" << hexAbbrev(mNodeID) << " is " << result;
     return result;
 }
 
 template <class T>
 bool
-Node::isVBlocking(const Hash& qSetHash, const std::map<uint256, T>& map,
-                  std::function<bool(const uint256&, const T&)> const& filter)
+Node::isVBlocking(Hash const& qSetHash, std::map<uint256, T> const& map,
+                  std::function<bool(uint256 const&, T const&)> const& filter)
 {
     std::vector<uint256> pNodes;
     for (auto it : map)
@@ -88,19 +86,19 @@ Node::isVBlocking(const Hash& qSetHash, const std::map<uint256, T>& map,
 }
 
 template bool Node::isVBlocking<SCPStatement>(
-    const Hash& qSetHash, const std::map<uint256, SCPStatement>& map,
-    std::function<bool(const uint256&, const SCPStatement&)> const& filter);
+    Hash const& qSetHash, std::map<uint256, SCPStatement> const& map,
+    std::function<bool(uint256 const&, SCPStatement const&)> const& filter);
 
 template bool Node::isVBlocking<bool>(
-    const Hash& qSetHash, const std::map<uint256, bool>& map,
-    std::function<bool(const uint256&, const bool&)> const& filter);
+    Hash const& qSetHash, std::map<uint256, bool> const& map,
+    std::function<bool(uint256 const&, bool const&)> const& filter);
 
 template <class T>
 bool
 Node::isQuorumTransitive(
-    const Hash& qSetHash, const std::map<uint256, T>& map,
-    std::function<Hash(const T&)> const& qfun,
-    std::function<bool(const uint256&, const T&)> const& filter)
+    Hash const& qSetHash, std::map<uint256, T> const& map,
+    std::function<Hash(T const&)> const& qfun,
+    std::function<bool(uint256 const&, T const&)> const& filter)
 {
     std::vector<uint256> pNodes;
     for (auto it : map)
@@ -131,12 +129,12 @@ Node::isQuorumTransitive(
 }
 
 template bool Node::isQuorumTransitive<SCPStatement>(
-    const Hash& qSetHash, const std::map<uint256, SCPStatement>& map,
-    std::function<Hash(const SCPStatement&)> const& qfun,
-    std::function<bool(const uint256&, const SCPStatement&)> const& filter);
+    Hash const& qSetHash, std::map<uint256, SCPStatement> const& map,
+    std::function<Hash(SCPStatement const&)> const& qfun,
+    std::function<bool(uint256 const&, SCPStatement const&)> const& filter);
 
-const SCPQuorumSet&
-Node::retrieveQuorumSet(const uint256& qSetHash)
+SCPQuorumSet const&
+Node::retrieveQuorumSet(uint256 const& qSetHash)
 {
     // Notify that we touched this node.
     mSCP->nodeTouched(mNodeID);
@@ -156,7 +154,7 @@ Node::retrieveQuorumSet(const uint256& qSetHash)
 }
 
 void
-Node::cacheQuorumSet(const SCPQuorumSet& qSet)
+Node::cacheQuorumSet(SCPQuorumSet const& qSet)
 {
     uint256 qSetHash = sha256(xdr::xdr_to_opaque(qSet));
     CLOG(DEBUG, "SCP") << "Node::cacheQuorumSet"
@@ -179,7 +177,7 @@ Node::cacheQuorumSet(const SCPQuorumSet& qSet)
     mCache[qSetHash] = qSet;
 }
 
-const uint256&
+uint256 const&
 Node::getNodeID()
 {
     return mNodeID;
@@ -190,5 +188,4 @@ Node::getCachedQuorumSetCount() const
 {
     return mCache.size();
 }
-
 }

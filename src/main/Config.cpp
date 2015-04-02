@@ -44,7 +44,7 @@ Config::Config() : PEER_KEY(SecretKey::random())
 }
 
 void
-Config::load(const std::string& filename)
+Config::load(std::string const& filename)
 {
     try
     {
@@ -77,7 +77,8 @@ Config::load(const std::string& filename)
             else if (item.first == "CATCHUP_COMPLETE")
                 CATCHUP_COMPLETE = item.second->as<bool>()->value();
             else if (item.first == "ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING")
-                ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = item.second->as<bool>()->value();
+                ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING =
+                    item.second->as<bool>()->value();
             else if (item.first == "MANUAL_CLOSE")
                 MANUAL_CLOSE = item.second->as<bool>()->value();
             else if (item.first == "LOG_FILE_PATH")
@@ -142,7 +143,8 @@ Config::load(const std::string& filename)
                         auto tab = archive.second->as_group();
                         if (!tab)
                         {
-                            throw std::invalid_argument("malformed HISTORY config block");
+                            throw std::invalid_argument(
+                                "malformed HISTORY config block");
                         }
                         std::string get, put, mkdir;
                         auto gg = tab->get_as<std::string>("get");

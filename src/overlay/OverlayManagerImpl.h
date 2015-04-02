@@ -45,7 +45,7 @@ class OverlayManagerImpl : public OverlayManager
     void tick();
     VirtualTimer mTimer;
 
-    void storePeerList(const std::vector<std::string>& list, int rank);
+    void storePeerList(std::vector<std::string> const& list, int rank);
     void storeConfigPeers();
     bool isPeerPreferred(Peer::pointer peer);
 
@@ -59,9 +59,10 @@ class OverlayManagerImpl : public OverlayManager
 
     void ledgerClosed(LedgerHeaderHistoryEntry const& ledger) override;
     void recvFloodedMsg(StellarMessage const& msg, Peer::pointer peer) override;
-    void broadcastMessage(StellarMessage const& msg, bool force = false) override;
+    void broadcastMessage(StellarMessage const& msg,
+                          bool force = false) override;
 
-    void connectTo(const std::string& addr) override;
+    void connectTo(std::string const& addr) override;
     virtual void connectTo(PeerRecord& pr) override;
 
     void addConnectedPeer(Peer::pointer peer) override;
@@ -71,7 +72,7 @@ class OverlayManagerImpl : public OverlayManager
 
     // returns NULL if the passed peer isn't found
     Peer::pointer getNextPeer(Peer::pointer peer) override;
-    Peer::pointer getConnectedPeer(const std::string& ip, int port) override;
+    Peer::pointer getConnectedPeer(std::string const& ip, int port) override;
 
     void connectToMorePeers(int max);
     Peer::pointer getRandomPeer() override;

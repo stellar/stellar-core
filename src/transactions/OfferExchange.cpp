@@ -46,7 +46,12 @@ OfferExchange::crossOffer(OfferFrame& sellingWheatOffer,
     }
 
     TrustFrame sheepLineAccountB;
-    if (sheep.type() != NATIVE)
+
+    if (sheep.type() == NATIVE)
+    {
+        numWheatReceived = INT64_MAX;
+    }
+    else
     {
         if (!TrustFrame::loadTrustLine(accountBID, sheep, sheepLineAccountB,
                                        db))
@@ -54,19 +59,31 @@ OfferExchange::crossOffer(OfferFrame& sellingWheatOffer,
             throw std::runtime_error(
                 "invalid database state: offer must have matching trust line");
         }
+
+        // compute numWheatReceived based on what the account can receive
+        int64_t sellerMaxSheep = sheepLineAccountB.getMaxAmountReceive();
+        numWheatReceived =
+            bigDivide(sellerMaxSheep, sellingWheatOffer.getOffer().price.d,
+                      sellingWheatOffer.getOffer().price.n);
     }
 
-    // what the seller has
-    if (wheat.type() == NATIVE)
+    // adjust numWheatReceived with what the seller has
     {
-        // can only send above the minimum balance
-        numWheatReceived = accountB.getBalanceAboveReserve(mLedgerManager);
+        int64_t wheatCanSell;
+        if (wheat.type() == NATIVE)
+        {
+            // can only send above the minimum balance
+            wheatCanSell = accountB.getBalanceAboveReserve(mLedgerManager);
+        }
+        else
+        {
+            wheatCanSell = wheatLineAccountB.getBalance();
+        }
+        if (numWheatReceived > wheatCanSell)
+        {
+            numWheatReceived = wheatCanSell;
+        }
     }
-    else
-    {
-        numWheatReceived = wheatLineAccountB.getBalance();
-    }
-
     // you can receive the lesser of the amount of wheat offered or
     // the amount the guy has
 
@@ -149,7 +166,7 @@ OfferExchange::crossOffer(OfferFrame& sellingWheatOffer,
     }
     else
     {
-        if(!sheepLineAccountB.addBalance(numSheepSend))
+        if (!sheepLineAccountB.addBalance(numSheepSend))
         {
             return eOfferCantConvert;
         }
@@ -163,7 +180,7 @@ OfferExchange::crossOffer(OfferFrame& sellingWheatOffer,
     }
     else
     {
-        if(!wheatLineAccountB.addBalance(-numWheatReceived))
+        if (!wheatLineAccountB.addBalance(-numWheatReceived))
         {
             return eOfferCantConvert;
         }

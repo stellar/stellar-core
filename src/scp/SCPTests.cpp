@@ -21,7 +21,7 @@ using xdr::operator==;
 class TestSCP : public SCP
 {
   public:
-    TestSCP(const SecretKey& secretKey, const SCPQuorumSet& qSetLocal)
+    TestSCP(SecretKey const& secretKey, SCPQuorumSet const& qSetLocal)
         : SCP(secretKey, qSetLocal)
     {
     }
@@ -33,43 +33,43 @@ class TestSCP : public SCP
     }
 
     void
-    validateValue(const uint64& slotIndex, const Hash& nodeID,
-                  const Value& value, std::function<void(bool)> const& cb)
+    validateValue(uint64 const& slotIndex, Hash const& nodeID,
+                  Value const& value, std::function<void(bool)> const& cb)
     {
         cb(true);
     }
 
     void
-    validateBallot(const uint64& slotIndex, const Hash& nodeID,
-                   const SCPBallot& ballot, std::function<void(bool)> const& cb)
+    validateBallot(uint64 const& slotIndex, Hash const& nodeID,
+                   SCPBallot const& ballot, std::function<void(bool)> const& cb)
     {
         cb(true);
     }
 
     void
-    ballotDidPrepare(const uint64& slotIndex, const SCPBallot& ballot)
+    ballotDidPrepare(uint64 const& slotIndex, SCPBallot const& ballot)
     {
     }
     void
-    ballotDidPrepared(const uint64& slotIndex, const SCPBallot& ballot)
+    ballotDidPrepared(uint64 const& slotIndex, SCPBallot const& ballot)
     {
     }
     void
-    ballotDidCommit(const uint64& slotIndex, const SCPBallot& ballot)
+    ballotDidCommit(uint64 const& slotIndex, SCPBallot const& ballot)
     {
     }
     void
-    ballotDidCommitted(const uint64& slotIndex, const SCPBallot& ballot)
+    ballotDidCommitted(uint64 const& slotIndex, SCPBallot const& ballot)
     {
     }
     void
-    ballotDidHearFromQuorum(const uint64& slotIndex, const SCPBallot& ballot)
+    ballotDidHearFromQuorum(uint64 const& slotIndex, SCPBallot const& ballot)
     {
         mHeardFromQuorums[slotIndex].push_back(ballot);
     }
 
     void
-    valueExternalized(const uint64& slotIndex, const Value& value)
+    valueExternalized(uint64 const& slotIndex, Value const& value)
     {
         if (mExternalizedValues.find(slotIndex) != mExternalizedValues.end())
         {
@@ -79,27 +79,25 @@ class TestSCP : public SCP
     }
 
     void
-    retrieveQuorumSet(const Hash& nodeID, const Hash& qSetHash,
-                      std::function<void(const SCPQuorumSet&)> const& cb)
+    retrieveQuorumSet(Hash const& nodeID, Hash const& qSetHash,
+                      std::function<void(SCPQuorumSet const&)> const& cb)
     {
         if (mQuorumSets.find(qSetHash) != mQuorumSets.end())
         {
             CLOG(DEBUG, "SCP") << "TestSCP::retrieveQuorumSet"
                                << " qSet: " << hexAbbrev(qSetHash)
-                               << " nodeID: " << hexAbbrev(nodeID)
-                               << " OK";
+                               << " nodeID: " << hexAbbrev(nodeID) << " OK";
             return cb(mQuorumSets[qSetHash]);
         }
         else
         {
             CLOG(DEBUG, "SCP") << "TestSCP::retrieveQuorumSet"
                                << " qSet: " << hexAbbrev(qSetHash)
-                               << " nodeID: " << hexAbbrev(nodeID)
-                               << " FAIL";
+                               << " nodeID: " << hexAbbrev(nodeID) << " FAIL";
         }
     }
     void
-    emitEnvelope(const SCPEnvelope& envelope)
+    emitEnvelope(SCPEnvelope const& envelope)
     {
         mEnvs.push_back(envelope);
     }
@@ -111,9 +109,9 @@ class TestSCP : public SCP
 };
 
 static SCPEnvelope
-makeEnvelope(const SecretKey& secretKey, const Hash& qSetHash,
-             const uint64& slotIndex, const SCPBallot& ballot,
-             const SCPStatementType& type)
+makeEnvelope(SecretKey const& secretKey, Hash const& qSetHash,
+             uint64 const& slotIndex, SCPBallot const& ballot,
+             SCPStatementType const& type)
 {
     SCPEnvelope envelope;
 
@@ -128,7 +126,7 @@ makeEnvelope(const SecretKey& secretKey, const Hash& qSetHash,
 }
 
 void
-signEnvelope(const SecretKey& secretKey, SCPEnvelope& envelope)
+signEnvelope(SecretKey const& secretKey, SCPEnvelope& envelope)
 {
     envelope.signature = secretKey.sign(xdr::xdr_to_opaque(envelope.statement));
 }
@@ -849,8 +847,9 @@ TEST_CASE("protocol core4", "[scp]")
         // the node must have requested evidence
         scp.receiveEnvelope(commit1, [](SCP::EnvelopeState s)
                             {
-            REQUIRE(s == SCP::EnvelopeState::STATEMENTS_MISSING);
-        });
+                                REQUIRE(s ==
+                                        SCP::EnvelopeState::STATEMENTS_MISSING);
+                            });
         REQUIRE(scp.mEnvs.size() == 1);
     }
 
@@ -873,8 +872,9 @@ TEST_CASE("protocol core4", "[scp]")
         // the node must have requested evidence
         scp.receiveEnvelope(commit1, [](SCP::EnvelopeState s)
                             {
-            REQUIRE(s == SCP::EnvelopeState::STATEMENTS_MISSING);
-        });
+                                REQUIRE(s ==
+                                        SCP::EnvelopeState::STATEMENTS_MISSING);
+                            });
         REQUIRE(scp.mEnvs.size() == 0);
     }
 

@@ -30,7 +30,7 @@ class PersistentState
 
     std::string getState(Entry stateName);
 
-    void setState(Entry stateName, const std::string& value);
+    void setState(Entry stateName, std::string const& value);
 
   private:
     static std::string kSQLCreateStatement;

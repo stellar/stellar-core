@@ -25,7 +25,7 @@ class OfferFrame : public EntryFrame
 {
     static void
     loadOffers(soci::details::prepare_temp_type& prep,
-               std::function<void(const OfferFrame&)> offerProcessor);
+               std::function<void(OfferFrame const&)> offerProcessor);
 
     int64_t computePrice() const;
 
@@ -79,15 +79,15 @@ class OfferFrame : public EntryFrame
     static bool exists(Database& db, LedgerKey const& key);
 
     // database utilities
-    static bool loadOffer(const uint256& accountID, uint64_t offerID,
+    static bool loadOffer(uint256 const& accountID, uint64_t offerID,
                           OfferFrame& retEntry, Database& db);
 
     static void loadBestOffers(size_t numOffers, size_t offset,
-                               const Currency& pays, const Currency& gets,
+                               Currency const& pays, Currency const& gets,
                                std::vector<OfferFrame>& retOffers,
                                Database& db);
 
-    static void loadOffers(const uint256& accountID,
+    static void loadOffers(uint256 const& accountID,
                            std::vector<OfferFrame>& retOffers, Database& db);
 
     static void dropAll(Database& db);

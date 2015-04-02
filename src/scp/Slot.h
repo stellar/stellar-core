@@ -9,8 +9,8 @@
 
 namespace stellar
 {
-std::string ballotToStr(const SCPBallot& ballot);
-std::string envToStr(const SCPEnvelope& envelope);
+std::string ballotToStr(SCPBallot const& ballot);
+std::string envToStr(SCPEnvelope const& envelope);
 
 class Node;
 
@@ -22,20 +22,20 @@ class Slot
 {
   public:
     // Constructor
-    Slot(const uint64& slotIndex, SCP* SCP);
+    Slot(uint64 const& slotIndex, SCP* SCP);
 
     // Process a newly received envelope for this slot and update the state of
     // the slot accordingly. `cb` asynchronously returns whether the envelope
     // was validated or not. Must exclusively receive envelopes whose payload
     // type is STATEMENT
-    void processEnvelope(const SCPEnvelope& envelope,
+    void processEnvelope(SCPEnvelope const& envelope,
                          std::function<void(SCP::EnvelopeState)> const& cb);
 
     // Prepares a new ballot with the provided value for this slot. If the
     // value is less or equal to the current ballot value, and forceBump is
     // false, the current ballot counter is used. Otherwise a new ballot is
     // generated with an increased counter value.
-    bool prepareValue(const Value& value, bool forceBump = false);
+    bool prepareValue(Value const& value, bool forceBump = false);
 
     size_t getStatementCount() const;
 
@@ -43,11 +43,11 @@ class Slot
 
   private:
     // bumps to the specified ballot
-    void bumpToBallot(const SCPBallot& ballot);
+    void bumpToBallot(SCPBallot const& ballot);
 
     // Helper methods to generate a new envelopes
-    SCPStatement createStatement(const SCPStatementType& type);
-    SCPEnvelope createEnvelope(const SCPStatement& statement);
+    SCPStatement createStatement(SCPStatementType const& type);
+    SCPEnvelope createEnvelope(SCPStatement const& statement);
 
     // `attempt*` methods progress the slot to the specified state if it was
     // not already reached previously. They are in charge of emitting events
@@ -55,7 +55,7 @@ class Slot
     // ballot argument as we can emit PREPARED messages for ballots different
     // than our current `mBallot`.
     void attemptPrepare();
-    void attemptPrepared(const SCPBallot& ballot);
+    void attemptPrepared(SCPBallot const& ballot);
     void attemptCommit();
     void attemptCommitted();
     void attemptExternalize();
@@ -65,17 +65,17 @@ class Slot
     // the `attempt*` methods. `isCommittedConfirmed` does not take a ballot
     // but a `Value` as it is determined across ballot rounds
     bool isPristine();
-    bool isPrepared(const SCPBallot& ballot);
-    bool isPreparedConfirmed(const SCPBallot& ballot);
-    bool isCommitted(const SCPBallot& ballot);
-    bool isCommittedConfirmed(const Value& value);
+    bool isPrepared(SCPBallot const& ballot);
+    bool isPreparedConfirmed(SCPBallot const& ballot);
+    bool isCommitted(SCPBallot const& ballot);
+    bool isCommittedConfirmed(Value const& value);
 
     // Retrieve all the statements of a given type for a given node
-    std::vector<SCPStatement> getNodeStatements(const uint256& nodeID,
-                                                const SCPStatementType& type);
+    std::vector<SCPStatement> getNodeStatements(uint256 const& nodeID,
+                                                SCPStatementType const& type);
 
     // Helper method to compare two ballots
-    int compareBallots(const SCPBallot& b1, const SCPBallot& b2);
+    int compareBallots(SCPBallot const& b1, SCPBallot const& b2);
 
     // `advanceSlot` can be called as many time as needed. It attempts to
     // advance the slot to a next state if possible given the current

@@ -28,7 +28,7 @@ class TrustFrame : public EntryFrame
 
     static void
     loadLines(soci::details::prepare_temp_type& prep,
-              std::function<void(const TrustFrame&)> trustProcessor);
+              std::function<void(TrustFrame const&)> trustProcessor);
 
     TrustLineEntry& mTrustLine;
 
@@ -57,15 +57,18 @@ class TrustFrame : public EntryFrame
                             LedgerKey const& key);
     static bool exists(Database& db, LedgerKey const& key);
 
-    static bool loadTrustLine(const uint256& accountID,
-                              const Currency& currency, TrustFrame& retEntry,
+    static bool loadTrustLine(uint256 const& accountID,
+                              Currency const& currency, TrustFrame& retEntry,
                               Database& db);
 
-    static void loadLines(const uint256& accountID,
+    static void loadLines(uint256 const& accountID,
                           std::vector<TrustFrame>& retLines, Database& db);
 
     int64_t getBalance() const;
     bool addBalance(int64_t delta);
+
+    // returns the maximum amount that can be added to this trust line
+    int64_t getMaxAmountReceive() const;
 
     TrustLineEntry const&
     getTrustLine() const

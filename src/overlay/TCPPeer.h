@@ -28,7 +28,7 @@ class TCPPeer : public Peer
     medida::Meter& mByteRead;
     medida::Meter& mByteWrite;
 
-    void timerExpired(const asio::error_code& error);
+    void timerExpired(asio::error_code const& error);
     void recvMessage();
     bool recvHello(StellarMessage const& msg);
     void sendMessage(xdr::msg_ptr&& xdrBytes);
@@ -36,11 +36,11 @@ class TCPPeer : public Peer
     virtual void connected() override;
     void startRead();
 
-    void writeHandler(const asio::error_code& error,
+    void writeHandler(asio::error_code const& error,
                       std::size_t bytes_transferred);
-    void readHeaderHandler(const asio::error_code& error,
+    void readHeaderHandler(asio::error_code const& error,
                            std::size_t bytes_transferred);
-    void readBodyHandler(const asio::error_code& error,
+    void readBodyHandler(asio::error_code const& error,
                          std::size_t bytes_transferred);
 
   public:
@@ -52,7 +52,7 @@ class TCPPeer : public Peer
                                                             // `initiate` or
                                                             // `accept` instead
 
-    static pointer initiate(Application& app, const std::string& ip,
+    static pointer initiate(Application& app, std::string const& ip,
                             uint32_t port);
     static pointer accept(Application& app,
                           std::shared_ptr<asio::ip::tcp::socket> socket);

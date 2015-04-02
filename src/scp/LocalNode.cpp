@@ -13,7 +13,7 @@
 namespace stellar
 {
 
-LocalNode::LocalNode(const SecretKey& secretKey, const SCPQuorumSet& qSet,
+LocalNode::LocalNode(SecretKey const& secretKey, SCPQuorumSet const& qSet,
                      SCP* SCP)
     : Node(secretKey.getPublicKey(), SCP, -1)
     , mSecretKey(secretKey)
@@ -28,7 +28,7 @@ LocalNode::LocalNode(const SecretKey& secretKey, const SCPQuorumSet& qSet,
 }
 
 void
-LocalNode::updateQuorumSet(const SCPQuorumSet& qSet)
+LocalNode::updateQuorumSet(SCPQuorumSet const& qSet)
 {
     cacheQuorumSet(qSet);
 
@@ -36,19 +36,19 @@ LocalNode::updateQuorumSet(const SCPQuorumSet& qSet)
     mQSet = qSet;
 }
 
-const SCPQuorumSet&
+SCPQuorumSet const&
 LocalNode::getQuorumSet()
 {
     return mQSet;
 }
 
-const Hash&
+Hash const&
 LocalNode::getQuorumSetHash()
 {
     return mQSetHash;
 }
 
-const SecretKey&
+SecretKey const&
 LocalNode::getSecretKey()
 {
     return mSecretKey;

@@ -18,13 +18,13 @@ namespace stellar
 class LocalNode : public Node
 {
   public:
-    LocalNode(const SecretKey& secretKey, const SCPQuorumSet& qSet, SCP* SCP);
+    LocalNode(SecretKey const& secretKey, SCPQuorumSet const& qSet, SCP* SCP);
 
-    void updateQuorumSet(const SCPQuorumSet& qSet);
+    void updateQuorumSet(SCPQuorumSet const& qSet);
 
-    const SCPQuorumSet& getQuorumSet();
-    const Hash& getQuorumSetHash();
-    const SecretKey& getSecretKey();
+    SCPQuorumSet const& getQuorumSet();
+    Hash const& getQuorumSetHash();
+    SecretKey const& getSecretKey();
 
   private:
     const SecretKey mSecretKey;

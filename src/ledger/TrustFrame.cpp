@@ -72,20 +72,41 @@ TrustFrame::getBalance() const
 bool
 TrustFrame::addBalance(int64_t delta)
 {
+    if (delta == 0)
+    {
+        return true;
+    }
+    if (!mTrustLine.authorized)
+    {
+        return false;
+    }
     if (mTrustLine.limit < delta + mTrustLine.balance)
     {
         return false;
     }
     if ((delta + mTrustLine.balance) < 0)
+    {
         return false;
+    }
     mTrustLine.balance += delta;
     return true;
+}
+
+int64_t
+TrustFrame::getMaxAmountReceive() const
+{
+    int64_t amount = 0;
+    if (mTrustLine.authorized)
+    {
+        amount = mTrustLine.limit - mTrustLine.balance;
+    }
+    return amount;
 }
 
 bool
 TrustFrame::isValid() const
 {
-    const TrustLineEntry& tl = mTrustLine;
+    TrustLineEntry const& tl = mTrustLine;
     bool res = tl.currency.type() != NATIVE;
     res = res && (tl.balance >= 0);
     res = res && (tl.balance <= tl.limit);
@@ -212,7 +233,7 @@ TrustFrame::loadTrustLine(const uint256& accountID, const Currency& currency,
 
 void
 TrustFrame::loadLines(details::prepare_temp_type& prep,
-                      std::function<void(const TrustFrame&)> trustProcessor)
+                      std::function<void(TrustFrame const&)> trustProcessor)
 {
     string accountID;
     std::string issuer, currency;
@@ -242,7 +263,7 @@ TrustFrame::loadLines(details::prepare_temp_type& prep,
 }
 
 void
-TrustFrame::loadLines(const uint256& accountID,
+TrustFrame::loadLines(uint256 const& accountID,
                       std::vector<TrustFrame>& retLines, Database& db)
 {
     std::string accStr;

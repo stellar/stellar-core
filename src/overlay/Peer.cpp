@@ -65,7 +65,7 @@ Peer::toString()
 }
 
 void
-Peer::connectHandler(const asio::error_code& error)
+Peer::connectHandler(asio::error_code const& error)
 {
     if (error)
     {
@@ -114,8 +114,7 @@ Peer::sendGetTxSet(uint256 const& setID)
 void
 Peer::sendGetQuorumSet(uint256 const& setID)
 {
-    CLOG(TRACE, "Overlay") << "Get quorum set: "
-                           << hexAbbrev(setID);
+    CLOG(TRACE, "Overlay") << "Get quorum set: " << hexAbbrev(setID);
 
     StellarMessage newMsg;
     newMsg.type(GET_SCP_QUORUMSET);
@@ -256,11 +255,11 @@ Peer::recvDontHave(StellarMessage const& msg)
     {
     case TX_SET:
         mApp.getHerder().doesntHaveTxSet(msg.dontHave().reqHash,
-                                                shared_from_this());
+                                         shared_from_this());
         break;
     case SCP_QUORUMSET:
         mApp.getHerder().doesntHaveSCPQuorumSet(msg.dontHave().reqHash,
-                                                       shared_from_this());
+                                                shared_from_this());
         break;
     default:
         break;
@@ -270,8 +269,7 @@ Peer::recvDontHave(StellarMessage const& msg)
 void
 Peer::recvGetTxSet(StellarMessage const& msg)
 {
-    TxSetFramePtr txSet =
-        mApp.getHerder().fetchTxSet(msg.txSetHash(), false);
+    TxSetFramePtr txSet = mApp.getHerder().fetchTxSet(msg.txSetHash(), false);
     if (txSet)
     {
         StellarMessage newMsg;

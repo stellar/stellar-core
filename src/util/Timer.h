@@ -21,7 +21,8 @@ namespace stellar
 {
 
 /**
- * The purpose of this module is to provide "timing service" to stellar-core; but in
+ * The purpose of this module is to provide "timing service" to stellar-core;
+ *but in
  * such a way that strongly favours the use of virtual time over real
  * time. Ideally there will only ever be one use of the "real" wall clock in the
  * system, which is driving the virtual clock when running non-test mode
@@ -172,7 +173,7 @@ class VirtualTimer : private NonMovableOrCopyable
                     std::function<void(asio::error_code)> const& onFailure);
     void cancel();
 
-    static void onFailureNoop(const asio::error_code& error){};
+    static void onFailureNoop(asio::error_code const& error){};
 };
 
 // This is almost certainly not the type you want to use. So much so

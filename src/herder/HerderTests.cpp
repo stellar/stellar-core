@@ -60,7 +60,7 @@ TEST_CASE("standalone", "[herder]")
         VirtualTimer setupTimer(*app);
         VirtualTimer checkTimer(*app);
 
-        auto check = [&](const asio::error_code& error)
+        auto check = [&](asio::error_code const& error)
         {
             stop = true;
 
@@ -74,7 +74,7 @@ TEST_CASE("standalone", "[herder]")
             REQUIRE(b1Account.getBalance() == paymentAmount);
         };
 
-        auto setup = [&](const asio::error_code& error)
+        auto setup = [&](asio::error_code const& error)
         {
             // create accounts
             TransactionFramePtr txFrameA1 =

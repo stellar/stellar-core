@@ -155,12 +155,18 @@ PaymentOpFrame::sendNoCreate(AccountFrame& destination, LedgerDelta& delta,
                 }
             // fall through
             case OfferExchange::ePartial:
-                innerResult().code(PAYMENT_OVER_SENDMAX);
+                innerResult().code(PAYMENT_TOO_FEW_OFFERS);
                 return false;
             }
             assert(curBReceived == actualCurBReceived);
             curBReceived = curASent; // next round, we need to send enough
             curB = curA;
+
+            // add offers that got taken on the way
+            // insert in front to match the path's order
+            auto& offers = innerResult().multi().offers;
+            offers.insert(offers.begin(), oe.getOfferTrail().begin(),
+                          oe.getOfferTrail().end());
         }
     }
 

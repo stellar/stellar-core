@@ -19,14 +19,14 @@ uint256 makePublicKey(uint256 const& b);
 // returns true if the currencies are the same
 bool compareCurrency(Currency const& first, Currency const& second);
 
-void currencyCodeToStr(const xdr::opaque_array<4U>& code, std::string& retStr);
+void currencyCodeToStr(xdr::opaque_array<4U> const& code, std::string& retStr);
 
-void strToCurrencyCode(xdr::opaque_array<4U>& ret, const std::string& str);
+void strToCurrencyCode(xdr::opaque_array<4U>& ret, std::string const& str);
 
 // calculates A*B/C when A*B overflows 64bits
 int64_t bigDivide(int64_t A, int64_t B, int64_t C);
 
-bool iequals(const std::string& a, const std::string& b);
+bool iequals(std::string const& a, std::string const& b);
 
 bool operator>(Price const& a, Price const& b);
 bool operator==(Price const& a, Price const& b);

@@ -185,7 +185,7 @@ void
 Simulation::crankForAtMost(VirtualClock::duration seconds)
 {
     bool stop = false;
-    auto stopIt = [&](const asio::error_code& error)
+    auto stopIt = [&](asio::error_code const& error)
     {
         if (!error)
             stop = true;
@@ -209,7 +209,7 @@ void
 Simulation::crankForAtLeast(VirtualClock::duration seconds)
 {
     bool stop = false;
-    auto stopIt = [&](const asio::error_code& error)
+    auto stopIt = [&](asio::error_code const& error)
     {
         if (!error)
             stop = true;
@@ -262,10 +262,10 @@ Simulation::crankUntil(function<bool()> const& predicate,
 
     timeoutTimer.async_wait(
         [&]()
-    {
-        checkDone();
-        timedOut = true;
-    },
+        {
+            checkDone();
+            timedOut = true;
+        },
         &VirtualTimer::onFailureNoop);
 
     checkTimer.expires_from_now(chrono::seconds(5));
@@ -297,8 +297,8 @@ Simulation::createRandomTransaction(float alpha)
     size_t iFrom, iTo;
     do
     {
-        //iFrom = rand_pareto(alpha, mAccounts.size());
-        //iTo = rand_pareto(alpha, mAccounts.size());
+        // iFrom = rand_pareto(alpha, mAccounts.size());
+        // iTo = rand_pareto(alpha, mAccounts.size());
         iFrom = static_cast<int>(rand_fraction() * mAccounts.size());
         iTo = static_cast<int>(rand_fraction() * mAccounts.size());
     } while (iFrom == iTo);
@@ -348,7 +348,7 @@ vector<Simulation::TxInfo>
 Simulation::accountCreationTransactions(size_t n)
 {
     vector<TxInfo> result;
-    for(auto account : createAccounts(n))
+    for (auto account : createAccounts(n))
     {
         result.push_back(account->creationTransaction());
     }
@@ -359,9 +359,8 @@ Simulation::AccountInfoPtr
 Simulation::createAccount(size_t i)
 {
     auto accountName = "Account-" + to_string(i);
-    return make_shared<AccountInfo>(
-        i, txtest::getAccount(accountName.c_str()), 0, 0,
-        *this);
+    return make_shared<AccountInfo>(i, txtest::getAccount(accountName.c_str()),
+                                    0, 0, *this);
 }
 
 vector<Simulation::AccountInfoPtr>
@@ -422,7 +421,7 @@ Simulation::executeStressTest(size_t nTransactions, int injectionRatePerSec,
             // the next event to trigger, or for the next network message.
             //
             // When running on virtual time, this line is never hit unless the
-            // injection is below what the network can absorb, and there is 
+            // injection is below what the network can absorb, and there is
             // nothing do to but wait for the next injection.
             std::this_thread::sleep_for(chrono::milliseconds(50));
         }
@@ -520,27 +519,31 @@ Simulation::loadAccounts()
     }
 }
 
-class ConsoleReporterWithSum : public medida::reporting::ConsoleReporter 
+class ConsoleReporterWithSum : public medida::reporting::ConsoleReporter
 {
     std::ostream& out_;
 
-public:
-    ConsoleReporterWithSum(medida::MetricsRegistry &registry, std::ostream& out = std::cerr) 
-        : medida::reporting::ConsoleReporter(registry, out), out_(out) {} 
+  public:
+    ConsoleReporterWithSum(medida::MetricsRegistry& registry,
+                           std::ostream& out = std::cerr)
+        : medida::reporting::ConsoleReporter(registry, out), out_(out)
+    {
+    }
 
-    void Process(medida::Timer& timer) override {
+    void
+    Process(medida::Timer& timer) override
+    {
         auto snapshot = timer.GetSnapshot();
         auto unit = "ms";
-        out_
-            << "           count = " << timer.count() << endl
-            << "             sum = " << timer.count() * timer.mean() << unit << endl
-            << "             min = " << timer.min() << unit << endl
-            << "             max = " << timer.max() << unit << endl
-            << "            mean = " << timer.mean() << unit << endl
-            << "          stddev = " << timer.std_dev() << unit << endl;
+        out_ << "           count = " << timer.count() << endl
+             << "             sum = " << timer.count() * timer.mean() << unit
+             << endl
+             << "             min = " << timer.min() << unit << endl
+             << "             max = " << timer.max() << unit << endl
+             << "            mean = " << timer.mean() << unit << endl
+             << "          stddev = " << timer.std_dev() << unit << endl;
     }
 };
-
 
 string
 Simulation::metricsSummary(string domain)

@@ -62,7 +62,7 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
 }
 
 void
-CommandHandler::manualCmd(const std::string& cmd)
+CommandHandler::manualCmd(std::string const& cmd)
 {
     http::server::reply reply;
     http::server::request request;
@@ -72,7 +72,7 @@ CommandHandler::manualCmd(const std::string& cmd)
 }
 
 void
-CommandHandler::fileNotFound(const std::string& params, std::string& retStr)
+CommandHandler::fileNotFound(std::string const& params, std::string& retStr)
 {
     retStr = "<b>Welcome to stellar-core!</b><p>";
     retStr += "supported commands:<p/>";
@@ -116,7 +116,7 @@ CommandHandler::fileNotFound(const std::string& params, std::string& retStr)
 }
 
 void
-CommandHandler::manualClose(const std::string& params, std::string& retStr)
+CommandHandler::manualClose(std::string const& params, std::string& retStr)
 {
     if (mApp.manualClose())
     {
@@ -131,14 +131,14 @@ CommandHandler::manualClose(const std::string& params, std::string& retStr)
 }
 
 void
-CommandHandler::stop(const std::string& params, std::string& retStr)
+CommandHandler::stop(std::string const& params, std::string& retStr)
 {
     retStr = "Stopping...";
     mApp.gracefulStop();
 }
 
 void
-CommandHandler::peers(const std::string& params, std::string& retStr)
+CommandHandler::peers(std::string const& params, std::string& retStr)
 {
     Json::Value root;
 
@@ -161,10 +161,10 @@ CommandHandler::peers(const std::string& params, std::string& retStr)
 }
 
 void
-CommandHandler::info(const std::string& params, std::string& retStr)
+CommandHandler::info(std::string const& params, std::string& retStr)
 {
 
-    std::string stateStrTable[] = {"Booting", "Synced", "Catching up" };
+    std::string stateStrTable[] = {"Booting", "Synced", "Catching up"};
     Json::Value root;
 
     LedgerManager& lm = mApp.getLedgerManager();
@@ -182,20 +182,20 @@ CommandHandler::info(const std::string& params, std::string& retStr)
 }
 
 void
-CommandHandler::metrics(const std::string& params, std::string& retStr)
+CommandHandler::metrics(std::string const& params, std::string& retStr)
 {
     medida::reporting::JsonReporter jr(mApp.getMetrics());
     retStr = jr.Report();
 }
 
 void
-CommandHandler::logRotate(const std::string& params, std::string& retStr)
+CommandHandler::logRotate(std::string const& params, std::string& retStr)
 {
     retStr = "Log rotate...";
 }
 
 void
-CommandHandler::connect(const std::string& params, std::string& retStr)
+CommandHandler::connect(std::string const& params, std::string& retStr)
 {
     std::map<std::string, std::string> retMap;
     http::server::server::parseParams(params, retMap);
@@ -217,7 +217,7 @@ CommandHandler::connect(const std::string& params, std::string& retStr)
 }
 
 void
-CommandHandler::scpInfo(const std::string& params, std::string& retStr)
+CommandHandler::scpInfo(std::string const& params, std::string& retStr)
 {
     Json::Value root;
 
@@ -228,7 +228,7 @@ CommandHandler::scpInfo(const std::string& params, std::string& retStr)
 
 // "Must specify a log level: ll?level=<level>&partition=<name>";
 void
-CommandHandler::ll(const std::string& params, std::string& retStr)
+CommandHandler::ll(std::string const& params, std::string& retStr)
 {
     std::map<std::string, std::string> retMap;
     http::server::server::parseParams(params, retMap);
@@ -250,7 +250,7 @@ CommandHandler::ll(const std::string& params, std::string& retStr)
 }
 
 void
-CommandHandler::tx(const std::string& params, std::string& retStr)
+CommandHandler::tx(std::string const& params, std::string& retStr)
 {
     std::ostringstream output;
 

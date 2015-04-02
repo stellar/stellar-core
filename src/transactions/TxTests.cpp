@@ -94,7 +94,7 @@ transactionFromOperation(SecretKey& from, SequenceNumber seq,
 
 TransactionFramePtr
 createChangeTrust(SecretKey& from, SecretKey& to, SequenceNumber seq,
-                  const std::string& currencyCode, int64_t limit)
+                  std::string const& currencyCode, int64_t limit)
 {
     Operation op;
 
@@ -110,7 +110,7 @@ createChangeTrust(SecretKey& from, SecretKey& to, SequenceNumber seq,
 
 TransactionFramePtr
 createAllowTrust(SecretKey& from, SecretKey& trustor, SequenceNumber seq,
-                 const std::string& currencyCode, bool authorize)
+                 std::string const& currencyCode, bool authorize)
 {
     Operation op;
 
@@ -126,7 +126,7 @@ createAllowTrust(SecretKey& from, SecretKey& trustor, SequenceNumber seq,
 
 void
 applyAllowTrust(Application& app, SecretKey& from, SecretKey& trustor,
-                SequenceNumber seq, const std::string& currencyCode,
+                SequenceNumber seq, std::string const& currencyCode,
                 bool authorize, AllowTrustResultCode result)
 {
     TransactionFramePtr txFrame;
@@ -160,19 +160,50 @@ applyPaymentTx(Application& app, SecretKey& from, SecretKey& to,
 {
     TransactionFramePtr txFrame;
 
+    AccountFrame fromAccount;
+    AccountFrame toAccount;
+    bool beforeToExists = AccountFrame::loadAccount(
+        to.getPublicKey(), toAccount, app.getDatabase());
+
+    REQUIRE(AccountFrame::loadAccount(from.getPublicKey(), fromAccount,
+                                      app.getDatabase()));
+
     txFrame = createPaymentTx(from, to, seq, amount);
 
     LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader());
     txFrame->apply(delta, app);
 
     checkTransaction(*txFrame);
-    REQUIRE(PaymentOpFrame::getInnerCode(
-                txFrame->getResult().result.results()[0]) == result);
+    auto txResult = txFrame->getResult();
+    auto innerCode = PaymentOpFrame::getInnerCode(txResult.result.results()[0]);
+    REQUIRE(innerCode == result);
+
+    REQUIRE(txResult.feeCharged == app.getLedgerManager().getTxFee());
+
+    AccountFrame toAccountAfter;
+    bool afterToExists = AccountFrame::loadAccount(
+        to.getPublicKey(), toAccountAfter, app.getDatabase());
+
+    if (!(innerCode == PAYMENT_SUCCESS || innerCode == PAYMENT_SUCCESS_MULTI))
+    {
+        // check that the target account didn't change
+        REQUIRE(beforeToExists == afterToExists);
+        if (beforeToExists && afterToExists)
+        {
+            REQUIRE(memcmp(&toAccount.getAccount(),
+                           &toAccountAfter.getAccount(),
+                           sizeof(AccountEntry)) == 0);
+        }
+    }
+    else
+    {
+        REQUIRE(afterToExists);
+    }
 }
 
 void
 applyChangeTrust(Application& app, SecretKey& from, SecretKey& to,
-                 SequenceNumber seq, const std::string& currencyCode,
+                 SequenceNumber seq, std::string const& currencyCode,
                  int64_t limit, ChangeTrustResultCode result)
 {
     TransactionFramePtr txFrame;
@@ -189,7 +220,8 @@ applyChangeTrust(Application& app, SecretKey& from, SecretKey& to,
 
 TransactionFramePtr
 createCreditPaymentTx(SecretKey& from, SecretKey& to, Currency& ci,
-                      SequenceNumber seq, int64_t amount)
+                      SequenceNumber seq, int64_t amount,
+                      std::vector<Currency>* path)
 {
     Operation op;
     op.body.type(PAYMENT);
@@ -197,12 +229,19 @@ createCreditPaymentTx(SecretKey& from, SecretKey& to, Currency& ci,
     op.body.paymentOp().currency = ci;
     op.body.paymentOp().destination = to.getPublicKey();
     op.body.paymentOp().sendMax = INT64_MAX;
+    if (path)
+    {
+        for (auto const& cur : *path)
+        {
+            op.body.paymentOp().path.push_back(cur);
+        }
+    }
 
     return transactionFromOperation(from, seq, op);
 }
 
 Currency
-makeCurrency(SecretKey& issuer, const std::string& code)
+makeCurrency(SecretKey& issuer, std::string const& code)
 {
     Currency currency;
     currency.type(ISO4217);
@@ -211,27 +250,31 @@ makeCurrency(SecretKey& issuer, const std::string& code)
     return currency;
 }
 
-void
+PaymentResult
 applyCreditPaymentTx(Application& app, SecretKey& from, SecretKey& to,
                      Currency& ci, SequenceNumber seq, int64_t amount,
-                     PaymentResultCode result)
+                     PaymentResultCode result, std::vector<Currency>* path)
 {
     TransactionFramePtr txFrame;
 
-    txFrame = createCreditPaymentTx(from, to, ci, seq, amount);
+    txFrame = createCreditPaymentTx(from, to, ci, seq, amount, path);
 
     LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader());
     txFrame->apply(delta, app);
 
     checkTransaction(*txFrame);
-    REQUIRE(PaymentOpFrame::getInnerCode(
-                txFrame->getResult().result.results()[0]) == result);
+
+    auto& firstResult = getFirstResult(*txFrame);
+
+    PaymentResult res = firstResult.tr().paymentResult();
+    auto resCode = res.code();
+    REQUIRE(resCode == result);
+    return res;
 }
 
 TransactionFramePtr
-createOfferOp(uint64 offerId, SecretKey& source, 
-              Currency& takerGets, Currency& takerPays,
-              Price const& price, int64_t amount, 
+createOfferOp(uint64 offerId, SecretKey& source, Currency& takerGets,
+              Currency& takerPays, Price const& price, int64_t amount,
               SequenceNumber seq)
 {
     Operation op;
@@ -246,14 +289,21 @@ createOfferOp(uint64 offerId, SecretKey& source,
 }
 
 static CreateOfferResult
-applyCreateOfferHelper(Application& app, LedgerDelta& delta, uint64 offerId, 
-                       SecretKey& source,
-                       Currency& takerGets, Currency& takerPays,
-                       Price const& price, int64_t amount, SequenceNumber seq)
+applyCreateOfferHelper(Application& app, LedgerDelta& delta, uint64 offerId,
+                       SecretKey& source, Currency& takerGets,
+                       Currency& takerPays, Price const& price, int64_t amount,
+                       SequenceNumber seq)
 {
+    uint64_t expectedOfferID = delta.getHeaderFrame().getLastGeneratedID() + 1;
+    if (offerId != 0)
+    {
+        expectedOfferID = offerId;
+    }
+
     TransactionFramePtr txFrame;
 
-    txFrame = createOfferOp(offerId, source, takerGets, takerPays, price, amount, seq);
+    txFrame = createOfferOp(offerId, source, takerGets, takerPays, price,
+                            amount, seq);
 
     txFrame->apply(delta, app);
 
@@ -263,17 +313,48 @@ applyCreateOfferHelper(Application& app, LedgerDelta& delta, uint64 offerId,
 
     REQUIRE(results.size() == 1);
 
-    return results[0].tr().createOfferResult();
+    auto& createOfferResult = results[0].tr().createOfferResult();
+
+    if (createOfferResult.code() == CREATE_OFFER_SUCCESS)
+    {
+        OfferFrame offer;
+
+        auto& offerResult = createOfferResult.success().offer;
+        auto& offerEntry = offer.getOffer();
+
+        switch (offerResult.effect())
+        {
+        case CREATE_OFFER_CREATED:
+        case CREATE_OFFER_UPDATED:
+            REQUIRE(OfferFrame::loadOffer(source.getPublicKey(),
+                                          expectedOfferID, offer,
+                                          app.getDatabase()));
+            REQUIRE(memcmp(&offerEntry, &offerResult.offer(),
+                           sizeof(OfferEntry)) == 0);
+            REQUIRE(offerEntry.price == price);
+            REQUIRE(memcmp(&offerEntry.takerGets, &takerGets,
+                           sizeof(Currency)) == 0);
+            REQUIRE(memcmp(&offerEntry.takerPays, &takerPays,
+                           sizeof(Currency)) == 0);
+            break;
+        case CREATE_OFFER_DELETED:
+            REQUIRE(!OfferFrame::loadOffer(source.getPublicKey(),
+                                           expectedOfferID, offer,
+                                           app.getDatabase()));
+            break;
+        default:
+            abort();
+        }
+    }
+
+    return createOfferResult;
 }
 
 uint64_t
-applyCreateOffer(Application& app, LedgerDelta& delta, uint64 offerId, 
-                 SecretKey& source,
-                 Currency& takerGets, Currency& takerPays, Price const& price,
-                 int64_t amount, SequenceNumber seq)
+applyCreateOffer(Application& app, LedgerDelta& delta, uint64 offerId,
+                 SecretKey& source, Currency& takerGets, Currency& takerPays,
+                 Price const& price, int64_t amount, SequenceNumber seq)
 {
-    uint64_t expectedOfferID = delta.getHeaderFrame().getLastGeneratedID() + 1;
-
     CreateOfferResult const& createOfferRes = applyCreateOfferHelper(
         app, delta, offerId, source, takerGets, takerPays, price, amount, seq);
 
@@ -283,20 +364,11 @@ applyCreateOffer(Application& app, LedgerDelta& delta, uint64 offerId,
 
     REQUIRE(success.effect() == CREATE_OFFER_CREATED);
 
-    auto& offerRes = success.offer();
-    REQUIRE(offerRes.offerID == expectedOfferID);
-
-    // verify that the created offer is in the database
-    OfferFrame offer;
-    REQUIRE(OfferFrame::loadOffer(source.getPublicKey(), expectedOfferID, offer,
-                                  app.getDatabase()));
-
-    return offerRes.offerID;
+    return success.offer().offerID;
 }
 
 CreateOfferResult
-applyCreateOfferWithResult(Application& app, LedgerDelta& delta,
-                           uint64 offerId, 
+applyCreateOfferWithResult(Application& app, LedgerDelta& delta, uint64 offerId,
                            SecretKey& source, Currency& takerGets,
                            Currency& takerPays, Price const& price,
                            int64_t amount, SequenceNumber seq,
@@ -305,7 +377,8 @@ applyCreateOfferWithResult(Application& app, LedgerDelta& delta,
     CreateOfferResult const& createOfferRes = applyCreateOfferHelper(
         app, delta, offerId, source, takerGets, takerPays, price, amount, seq);
 
-    REQUIRE(createOfferRes.code() == result);
+    auto res = createOfferRes.code();
+    REQUIRE(res == result);
 
     return createOfferRes;
 }
@@ -386,6 +459,21 @@ Operation&
 getFirstOperation(TransactionFrame& tx)
 {
     return tx.getEnvelope().tx.operations[0];
+}
+
+void
+reSignTransaction(TransactionFrame& tx, SecretKey& source)
+{
+    tx.getEnvelope().signatures.clear();
+    tx.addSignature(source);
+}
+
+void
+checkAmounts(int64_t a, int64_t b, int64_t maxd)
+{
+    int64_t d = b - maxd;
+    REQUIRE(a >= d);
+    REQUIRE(a <= b);
 }
 }
 }

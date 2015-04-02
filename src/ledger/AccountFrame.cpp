@@ -89,7 +89,8 @@ AccountFrame::getMinimumBalance(LedgerManager const& lm) const
 int64_t
 AccountFrame::getBalanceAboveReserve(LedgerManager const& lm) const
 {
-    int64_t avail = getBalance() - lm.getMinBalance(mAccountEntry.numSubEntries);
+    int64_t avail =
+        getBalance() - lm.getMinBalance(mAccountEntry.numSubEntries);
     if (avail < 0)
     {
         throw std::runtime_error("Balance cannot be below reserve");
@@ -147,7 +148,7 @@ AccountFrame::getLowThreshold() const
 }
 
 bool
-AccountFrame::loadAccount(const uint256& accountID, AccountFrame& retAcc,
+AccountFrame::loadAccount(uint256 const& accountID, AccountFrame& retAcc,
                           Database& db)
 {
     std::string base58ID = toBase58Check(VER_ACCOUNT_ID, accountID);
