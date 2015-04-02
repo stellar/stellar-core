@@ -62,9 +62,9 @@ class VirtualClock
     typedef std::chrono::nanoseconds duration;
     typedef duration::rep rep;
     typedef duration::period period;
-    typedef std::chrono::time_point<std::chrono::steady_clock, duration>
+    typedef std::chrono::time_point<std::chrono::system_clock, duration>
         time_point;
-    static const bool is_steady = true;
+    static const bool is_steady = false;
 
     /**
      * NB: Please please please use these helpers for date-time conversions
@@ -97,7 +97,7 @@ class VirtualClock
 
   private:
     asio::io_service mIOService;
-    asio::basic_waitable_timer<std::chrono::steady_clock> mRealTimer;
+    asio::basic_waitable_timer<std::chrono::system_clock> mRealTimer;
     Mode mMode;
 
     size_t nRealTimerCancelEvents;
@@ -179,11 +179,11 @@ class VirtualTimer : private NonMovableOrCopyable
 // that we will not even show it to you unless you define an unwieldy
 // symbol:
 #ifdef STELLAR_CORE_REAL_TIMER_FOR_CERTAIN_NOT_JUST_VIRTUAL_TIME
-class RealTimer : public asio::basic_waitable_timer<std::chrono::steady_clock>
+class RealTimer : public asio::basic_waitable_timer<std::chrono::system_clock>
 {
   public:
     RealTimer(asio::io_service& io)
-        : asio::basic_waitable_timer<std::chrono::steady_clock>(io)
+        : asio::basic_waitable_timer<std::chrono::system_clock>(io)
     {
     }
 };
