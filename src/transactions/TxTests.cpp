@@ -94,7 +94,7 @@ transactionFromOperation(SecretKey& from, SequenceNumber seq,
 
 TransactionFramePtr
 createChangeTrust(SecretKey& from, SecretKey& to, SequenceNumber seq,
-                  const std::string& currencyCode, int64_t limit)
+                  std::string const& currencyCode, int64_t limit)
 {
     Operation op;
 
@@ -110,7 +110,7 @@ createChangeTrust(SecretKey& from, SecretKey& to, SequenceNumber seq,
 
 TransactionFramePtr
 createAllowTrust(SecretKey& from, SecretKey& trustor, SequenceNumber seq,
-                 const std::string& currencyCode, bool authorize)
+                 std::string const& currencyCode, bool authorize)
 {
     Operation op;
 
@@ -126,7 +126,7 @@ createAllowTrust(SecretKey& from, SecretKey& trustor, SequenceNumber seq,
 
 void
 applyAllowTrust(Application& app, SecretKey& from, SecretKey& trustor,
-                SequenceNumber seq, const std::string& currencyCode,
+                SequenceNumber seq, std::string const& currencyCode,
                 bool authorize, AllowTrustResultCode result)
 {
     TransactionFramePtr txFrame;
@@ -203,7 +203,7 @@ applyPaymentTx(Application& app, SecretKey& from, SecretKey& to,
 
 void
 applyChangeTrust(Application& app, SecretKey& from, SecretKey& to,
-                 SequenceNumber seq, const std::string& currencyCode,
+                 SequenceNumber seq, std::string const& currencyCode,
                  int64_t limit, ChangeTrustResultCode result)
 {
     TransactionFramePtr txFrame;
@@ -241,7 +241,7 @@ createCreditPaymentTx(SecretKey& from, SecretKey& to, Currency& ci,
 }
 
 Currency
-makeCurrency(SecretKey& issuer, const std::string& code)
+makeCurrency(SecretKey& issuer, std::string const& code)
 {
     Currency currency;
     currency.type(ISO4217);

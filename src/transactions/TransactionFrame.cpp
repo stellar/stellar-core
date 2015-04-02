@@ -28,7 +28,7 @@ TransactionFrame::makeTransactionFromWire(TransactionEnvelope const& msg)
     return res;
 }
 
-TransactionFrame::TransactionFrame(const TransactionEnvelope& envelope)
+TransactionFrame::TransactionFrame(TransactionEnvelope const& envelope)
     : mEnvelope(envelope)
 {
 }
@@ -96,7 +96,7 @@ TransactionFrame::getFee(Application& app) const
 }
 
 void
-TransactionFrame::addSignature(const SecretKey& secretKey)
+TransactionFrame::addSignature(SecretKey const& secretKey)
 {
     clearCached();
     DecoratedSignature sig;

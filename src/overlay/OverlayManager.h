@@ -51,7 +51,6 @@ class PeerRecord;
 class OverlayManager
 {
   public:
-
     static std::unique_ptr<OverlayManager> create(Application& app);
 
     // Drop all PeerRecords from the Database
@@ -76,14 +75,15 @@ class OverlayManager
     // Return a random peer from the set of connected peers.
     virtual Peer::pointer getRandomPeer() = 0;
 
-    // Return the peer following the provided peer, in the set of connected peers.
+    // Return the peer following the provided peer, in the set of connected
+    // peers.
     // Returns a `nullptr`-valued pointer if the provided peer is not part of
     // the in-memory peer set, or is the last peer in the set.
     virtual Peer::pointer getNextPeer(Peer::pointer peer) = 0;
 
     // Return an already-connected peer at the given ip address and port;
     // returns a `nullptr`-valued pointer if no such connected peer exists.
-    virtual Peer::pointer getConnectedPeer(const std::string& ip, int port) = 0;
+    virtual Peer::pointer getConnectedPeer(std::string const& ip, int port) = 0;
 
     // Add a peer to the in-memory set of connected peers.
     virtual void addConnectedPeer(Peer::pointer peer) = 0;
@@ -94,7 +94,8 @@ class OverlayManager
 
     // Returns true if there is room for the provided peer in the in-memory set
     // of connected peers without evicting an existing peer, or if the provided
-    // peer is a "preferred" peer (as specified in the config file's PREFERRED_PEERS
+    // peer is a "preferred" peer (as specified in the config file's
+    // PREFERRED_PEERS
     // setting). Otherwise returns false.
     virtual bool isPeerAccepted(Peer::pointer peer) = 0;
 
@@ -104,12 +105,13 @@ class OverlayManager
     // Attempt to connect to a peer identified by string. The form of the string
     // should be an IP address or hostname, optionally followed by a colon and
     // a TCP port number.
-    virtual void connectTo(const std::string& addr) = 0;
+    virtual void connectTo(std::string const& addr) = 0;
 
     // Attempt to connect to a peer identified by peer record.
     virtual void connectTo(PeerRecord& pr) = 0;
 
-    virtual ~OverlayManager() {}
-
+    virtual ~OverlayManager()
+    {
+    }
 };
 }

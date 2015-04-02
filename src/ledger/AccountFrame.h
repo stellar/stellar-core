@@ -107,7 +107,7 @@ class AccountFrame : public EntryFrame
     static bool exists(Database& db, LedgerKey const& key);
 
     // database utilities
-    static bool loadAccount(const uint256& accountID, AccountFrame& retEntry,
+    static bool loadAccount(uint256 const& accountID, AccountFrame& retEntry,
                             Database& db);
     static void dropAll(Database& db);
     static const char* kSQLCreateStatement1;

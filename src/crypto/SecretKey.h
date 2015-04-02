@@ -17,7 +17,7 @@ struct PublicKey : public uint256
     bool verify(uint512 const& signature, ByteSlice const& bin) const;
 
     // Return true iff `signature` is valid for `bin` under `key`.
-    static bool verifySig(const uint256& key, uint512 const& signature,
+    static bool verifySig(uint256 const& key, uint512 const& signature,
                           ByteSlice const& bin);
 };
 
@@ -49,6 +49,6 @@ class SecretKey : public uint512
     static SecretKey fromBase58Seed(std::string const& base58Seed);
 
     // Decode a secret key from a binary seed value.
-    static SecretKey fromSeed(const uint256& seed);
+    static SecretKey fromSeed(uint256 const& seed);
 };
 }

@@ -56,7 +56,7 @@ class TransactionFrame
   public:
     typedef std::shared_ptr<TransactionFrame> pointer;
 
-    TransactionFrame(const TransactionEnvelope& envelope);
+    TransactionFrame(TransactionEnvelope const& envelope);
     TransactionFrame(TransactionFrame const&) = delete;
     TransactionFrame() = delete;
 
@@ -123,7 +123,7 @@ class TransactionFrame
 
     int64_t getFee(Application& app) const;
 
-    void addSignature(const SecretKey& secretKey);
+    void addSignature(SecretKey const& secretKey);
 
     bool checkSignature(AccountFrame& account, int32_t neededWeight);
 

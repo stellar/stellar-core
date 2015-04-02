@@ -143,20 +143,20 @@ class Peer : public std::enable_shared_from_this<Peer>
 
     // These exist mostly to be overridden in TCPPeer and callable via
     // shared_ptr<Peer> as a captured shared_from_this().
-    virtual void connectHandler(const asio::error_code& ec);
+    virtual void connectHandler(asio::error_code const& ec);
 
     virtual void
-    writeHandler(const asio::error_code& error, size_t bytes_transferred)
+    writeHandler(asio::error_code const& error, size_t bytes_transferred)
     {
     }
 
     virtual void
-    readHeaderHandler(const asio::error_code& error, size_t bytes_transferred)
+    readHeaderHandler(asio::error_code const& error, size_t bytes_transferred)
     {
     }
 
     virtual void
-    readBodyHandler(const asio::error_code& error, size_t bytes_transferred)
+    readBodyHandler(asio::error_code const& error, size_t bytes_transferred)
     {
     }
 

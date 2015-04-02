@@ -22,8 +22,10 @@ class SCP
 {
 
   public:
-    SCP(const SecretKey& secretKey, const SCPQuorumSet& qSetLocal);
-    virtual ~SCP() {}
+    SCP(SecretKey const& secretKey, SCPQuorumSet const& qSetLocal);
+    virtual ~SCP()
+    {
+    }
 
     // Users of the SCP library should inherit from SCP and implement the
     // following virtual methods which are called by the SCP implementation to:
@@ -46,8 +48,8 @@ class SCP
     // with the current state of that node. Unvalidated values can never
     // externalize.
     virtual void
-    validateValue(const uint64& slotIndex, const uint256& nodeID,
-                  const Value& value, std::function<void(bool)> const& cb)
+    validateValue(uint64 const& slotIndex, uint256 const& nodeID,
+                  Value const& value, std::function<void(bool)> const& cb)
     {
         return cb(true);
     }
@@ -58,8 +60,8 @@ class SCP
     // ordering by slotIndex and ballot counter. That's why they are provided
     // as argument to `compareValues`.
     virtual int
-    compareValues(const uint64& slotIndex, const uint32& ballotCounter,
-                  const Value& v1, const Value& v2)
+    compareValues(uint64 const& slotIndex, uint32 const& ballotCounter,
+                  Value const& v1, Value const& v2)
     {
         using xdr::operator<;
 
@@ -74,8 +76,8 @@ class SCP
     // messages.  Therefore unvalidated ballots may still externalize if other
     // nodes PREARED and subsequently COMMITTED such ballot.
     virtual void
-    validateBallot(const uint64& slotIndex, const uint256& nodeID,
-                   const SCPBallot& ballot, std::function<void(bool)> const& cb)
+    validateBallot(uint64 const& slotIndex, uint256 const& nodeID,
+                   SCPBallot const& ballot, std::function<void(bool)> const& cb)
     {
         return cb(true);
     }
@@ -83,19 +85,19 @@ class SCP
     // `ballotDidPrepare` is called each time the local node PREPARING a ballot.
     // It is always called on the internally monotically increasing `mBallot`.
     virtual void
-    ballotDidPrepare(const uint64& slotIndex, const SCPBallot& ballot)
+    ballotDidPrepare(uint64 const& slotIndex, SCPBallot const& ballot)
     {
     }
     // `ballotDidPrepared` is called each time the local node PREPARED a
     // ballot. It can be called on ballots lower than `mBallot`.
     virtual void
-    ballotDidPrepared(const uint64& slotIndex, const SCPBallot& ballot)
+    ballotDidPrepared(uint64 const& slotIndex, SCPBallot const& ballot)
     {
     }
     // `ballotDidCommit` is called each time the local node COMMITTING a ballot.
     // It is always called on the internally monotically increasing `mBallot`.
     virtual void
-    ballotDidCommit(const uint64& slotIndex, const SCPBallot& ballot)
+    ballotDidCommit(uint64 const& slotIndex, SCPBallot const& ballot)
     {
     }
     // `ballotDidCommitted` is called each time the local node COMMITTED a
@@ -104,7 +106,7 @@ class SCP
     // does not mean that the network agress on it yet though, but if the slot
     // later externalize on this node, it will necessarily be on this value.
     virtual void
-    ballotDidCommitted(const uint64& slotIndex, const SCPBallot& ballot)
+    ballotDidCommitted(uint64 const& slotIndex, SCPBallot const& ballot)
     {
     }
 
@@ -112,14 +114,14 @@ class SCP
     // the current `mBallot` from a set of node that is a transitive quorum for
     // the local node. It should be used to start ballot expiration timer.
     virtual void
-    ballotDidHearFromQuorum(const uint64& slotIndex, const SCPBallot& ballot)
+    ballotDidHearFromQuorum(uint64 const& slotIndex, SCPBallot const& ballot)
     {
     }
 
     // `valueExternalized` is called at most once per slot when the slot
     // externalize its value.
     virtual void
-    valueExternalized(const uint64& slotIndex, const Value& value)
+    valueExternalized(uint64 const& slotIndex, Value const& value)
     {
     }
 
@@ -128,19 +130,19 @@ class SCP
     // touched for a long time (because it died or the quorum structure was
     // updated).
     virtual void
-    nodeTouched(const uint256& nodeID)
+    nodeTouched(uint256 const& nodeID)
     {
     }
 
     // Delegates the retrieval of the quorum set designated by `qSetHash` to
     // the user of SCP.
     virtual void
-    retrieveQuorumSet(const uint256& nodeID, const Hash& qSetHash,
-                      std::function<void(const SCPQuorumSet&)> const& cb) = 0;
+    retrieveQuorumSet(uint256 const& nodeID, Hash const& qSetHash,
+                      std::function<void(SCPQuorumSet const&)> const& cb) = 0;
 
     // Delegates the emission of an SCPEnvelope to the user of SCP. Envelopes
     // should be flooded to the network.
-    virtual void emitEnvelope(const SCPEnvelope& envelope) = 0;
+    virtual void emitEnvelope(SCPEnvelope const& envelope) = 0;
 
     // Receives an envelope. `cb` asynchronously returns with a status for the
     // envelope:
@@ -153,44 +155,44 @@ class SCP
     // If evidences are missing, a retransmisison should take place for that
     // slot. see `procudeSlotEvidence` to implement such retransmission
     // mechanism on the other side of the wire.
-    void receiveEnvelope(const SCPEnvelope& envelope,
+    void receiveEnvelope(SCPEnvelope const& envelope,
                          std::function<void(EnvelopeState)> const& cb =
                              [](EnvelopeState)
                          {
-    });
+                         });
 
     // Submit a value for the SCP consensus phase
-    bool prepareValue(const uint64& slotIndex, const Value& value,
+    bool prepareValue(uint64 const& slotIndex, Value const& value,
                       bool forceBump = false);
 
     // Local QuorumSet interface (can be dynamically updated)
-    void updateLocalQuorumSet(const SCPQuorumSet& qSet);
-    const SCPQuorumSet& getLocalQuorumSet();
+    void updateLocalQuorumSet(SCPQuorumSet const& qSet);
+    SCPQuorumSet const& getLocalQuorumSet();
 
     // Local nodeID getter
-    const uint256& getLocalNodeID();
+    uint256 const& getLocalNodeID();
 
   protected:
-      std::shared_ptr<LocalNode> mLocalNode;
-      std::map<uint256, std::shared_ptr<Node>> mKnownNodes;
-      std::map<uint64, std::shared_ptr<Slot>> mKnownSlots;
+    std::shared_ptr<LocalNode> mLocalNode;
+    std::map<uint256, std::shared_ptr<Node>> mKnownNodes;
+    std::map<uint64, std::shared_ptr<Slot>> mKnownSlots;
 
     // Purges all data relative to that node. Can be called at any time on any
     // node. If the node is subsequently needed, it will be recreated and its
     // quorumSet retrieved again. This method has no effect if called on the
     // local nodeID.
-    void purgeNode(const uint256& nodeID);
+    void purgeNode(uint256 const& nodeID);
 
     // Purges all data relative to all the slots whose slotIndex is smaller
     // than the specified `maxSlotIndex`.
-    void purgeSlots(const uint64& maxSlotIndex);
+    void purgeSlots(uint64 const& maxSlotIndex);
 
     // Retrieves the local secret key as specified at construction
-    const SecretKey& getSecretKey();
+    SecretKey const& getSecretKey();
 
     // Tests wether a set of nodes is v-blocking for our local node. This can
     // be used in ballot validation decisions.
-    bool isVBlocking(const std::vector<uint256>& nodes);
+    bool isVBlocking(std::vector<uint256> const& nodes);
 
     // Hooks for subclasses to note signatures and verification pass/fail.
     virtual void
@@ -211,15 +213,15 @@ class SCP
 
   private:
     // Node getters
-    std::shared_ptr<Node> getNode(const uint256& nodeID);
+    std::shared_ptr<Node> getNode(uint256 const& nodeID);
     std::shared_ptr<LocalNode> getLocalNode();
 
     // Slot getter
-    std::shared_ptr<Slot> getSlot(const uint64& slotIndex);
+    std::shared_ptr<Slot> getSlot(uint64 const& slotIndex);
 
     // Envelope signature/verification
     void signEnvelope(SCPEnvelope& envelope);
-    bool verifyEnvelope(const SCPEnvelope& envelope);
+    bool verifyEnvelope(SCPEnvelope const& envelope);
 
     friend class Slot;
     friend class Node;

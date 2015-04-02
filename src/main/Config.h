@@ -55,7 +55,8 @@ class Config : public std::enable_shared_from_this<Config>
     // Mode for testing. Ledger will only close when told to over http
     bool MANUAL_CLOSE;
 
-    // Whether to catchup "completely" (replaying all history); default is false,
+    // Whether to catchup "completely" (replaying all history); default is
+    // false,
     // meaning catchup "minimally", using deltas to the most recent snapshot.
     bool CATCHUP_COMPLETE;
 
@@ -100,7 +101,7 @@ class Config : public std::enable_shared_from_this<Config>
 
     Config();
 
-    void load(const std::string& filename);
+    void load(std::string const& filename);
     void applyCommands();
 };
 }

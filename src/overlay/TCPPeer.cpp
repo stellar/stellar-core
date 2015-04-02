@@ -44,11 +44,11 @@ TCPPeer::TCPPeer(Application& app, Peer::PeerRole role,
 }
 
 TCPPeer::pointer
-TCPPeer::initiate(Application& app, const std::string& ip, uint32_t port)
+TCPPeer::initiate(Application& app, std::string const& ip, uint32_t port)
 {
-    CLOG(DEBUG,"Overlay") << "TCPPeer:initiate"
-               << "@" << app.getConfig().PEER_PORT << " to " << ip << ":"
-               << port;
+    CLOG(DEBUG, "Overlay") << "TCPPeer:initiate"
+                           << "@" << app.getConfig().PEER_PORT << " to " << ip
+                           << ":" << port;
     auto socket =
         make_shared<asio::ip::tcp::socket>(app.getClock().getIOService());
     auto result = make_shared<TCPPeer>(
@@ -57,10 +57,10 @@ TCPPeer::initiate(Application& app, const std::string& ip, uint32_t port)
     result->mIP = ip;
     result->mRemoteListeningPort = port;
     asio::ip::tcp::endpoint endpoint(asio::ip::address::from_string(ip), port);
-    socket->async_connect(endpoint, [result](const asio::error_code& error)
+    socket->async_connect(endpoint, [result](asio::error_code const& error)
                           {
-        result->connectHandler(error);
-    });
+                              result->connectHandler(error);
+                          });
     return result;
 }
 
@@ -68,14 +68,14 @@ TCPPeer::pointer
 TCPPeer::accept(Application& app, shared_ptr<asio::ip::tcp::socket> socket)
 {
     CLOG(DEBUG, "Overlay") << "TCPPeer:accept"
-               << "@" << app.getConfig().PEER_PORT;
+                           << "@" << app.getConfig().PEER_PORT;
     auto result = make_shared<TCPPeer>(
         app, INITIATOR,
         socket); // We are accepting; new `newed` TCPPeer initiated
     result->mIP = socket->remote_endpoint().address().to_string();
     result->mHelloTimer.expires_from_now(
         std::chrono::milliseconds(MS_TO_WAIT_FOR_HELLO));
-    result->mHelloTimer.async_wait([result](const asio::error_code& error)
+    result->mHelloTimer.async_wait([result](asio::error_code const& error)
                                    {
                                        if (!error)
                                            result->timerExpired(error);
@@ -90,7 +90,7 @@ TCPPeer::~TCPPeer()
 }
 
 void
-TCPPeer::timerExpired(const asio::error_code& error)
+TCPPeer::timerExpired(asio::error_code const& error)
 {
     drop();
 }
@@ -112,8 +112,8 @@ TCPPeer::sendMessage(xdr::msg_ptr&& xdrBytes)
     // The capture of `buf` is required to keep the buffer alive long enough.
 
     CLOG(DEBUG, "Overlay") << "TCPPeer:sendMessage"
-               << "@" << mApp.getConfig().PEER_PORT << " to "
-               << mRemoteListeningPort;
+                           << "@" << mApp.getConfig().PEER_PORT << " to "
+                           << mRemoteListeningPort;
 
     auto self = shared_from_this();
     auto buf = std::make_shared<xdr::msg_ptr>(std::move(xdrBytes));
@@ -127,14 +127,14 @@ TCPPeer::sendMessage(xdr::msg_ptr&& xdrBytes)
 }
 
 void
-TCPPeer::writeHandler(const asio::error_code& error,
+TCPPeer::writeHandler(asio::error_code const& error,
                       std::size_t bytes_transferred)
 {
     if (error)
     {
         CLOG(DEBUG, "Overlay") << "TCPPeer::writeHandler error"
-                   << "@" << mApp.getConfig().PEER_PORT << " to "
-                   << mRemoteListeningPort;
+                               << "@" << mApp.getConfig().PEER_PORT << " to "
+                               << mRemoteListeningPort;
         drop();
     }
     else
@@ -148,17 +148,18 @@ void
 TCPPeer::startRead()
 {
     CLOG(DEBUG, "Overlay") << "TCPPeer::startRead"
-               << "@" << mApp.getConfig().PEER_PORT << " to "
-               << mSocket->remote_endpoint().port();
+                           << "@" << mApp.getConfig().PEER_PORT << " to "
+                           << mSocket->remote_endpoint().port();
 
     auto self = shared_from_this();
     asio::async_read(*(mSocket.get()), asio::buffer(mIncomingHeader),
                      [self](asio::error_code ec, std::size_t length)
                      {
-        CLOG(DEBUG, "Overlay") << "TCPPeer::startRead calledback " << ec
-                   << " length:" << length;
-        self->readHeaderHandler(ec, length);
-    });
+                         CLOG(DEBUG, "Overlay")
+                             << "TCPPeer::startRead calledback " << ec
+                             << " length:" << length;
+                         self->readHeaderHandler(ec, length);
+                     });
 }
 
 int
@@ -174,7 +175,7 @@ TCPPeer::getIncomingMsgLength()
     length |= mIncomingHeader[3];
     if (length < 0 || length > MAX_MESSAGE_SIZE)
     {
-        CLOG(WARNING,"Overlay")
+        CLOG(WARNING, "Overlay")
             << "TCP::Peer::getIncomingMsgLength message size unacceptable: "
             << length;
         drop();
@@ -189,7 +190,7 @@ TCPPeer::connected()
 }
 
 void
-TCPPeer::readHeaderHandler(const asio::error_code& error,
+TCPPeer::readHeaderHandler(asio::error_code const& error,
                            std::size_t bytes_transferred)
 {
     // LOG(DEBUG) << "TCPPeer::readHeaderHandler "
@@ -205,8 +206,8 @@ TCPPeer::readHeaderHandler(const asio::error_code& error,
         asio::async_read(*mSocket.get(), asio::buffer(mIncomingBody),
                          [self](asio::error_code ec, std::size_t length)
                          {
-            self->readBodyHandler(ec, length);
-        });
+                             self->readBodyHandler(ec, length);
+                         });
     }
     else
     {
@@ -216,7 +217,7 @@ TCPPeer::readHeaderHandler(const asio::error_code& error,
 }
 
 void
-TCPPeer::readBodyHandler(const asio::error_code& error,
+TCPPeer::readBodyHandler(asio::error_code const& error,
                          std::size_t bytes_transferred)
 {
     // LOG(DEBUG) << "TCPPeer::readBodyHandler "
@@ -299,8 +300,8 @@ void
 TCPPeer::drop()
 {
     CLOG(DEBUG, "Overlay") << "TCPPeer:drop"
-               << "@" << mApp.getConfig().PEER_PORT << " to "
-               << mRemoteListeningPort;
+                           << "@" << mApp.getConfig().PEER_PORT << " to "
+                           << mRemoteListeningPort;
 
     auto self = shared_from_this();
     auto sock = mSocket;
@@ -314,7 +315,8 @@ TCPPeer::drop()
             }
             catch (...)
             {
-                CLOG(WARNING,"Overlay") << "TCPPeer::drop failed to shutdown socket";
+                CLOG(WARNING, "Overlay")
+                    << "TCPPeer::drop failed to shutdown socket";
             }
             sock->close();
         });

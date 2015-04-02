@@ -24,7 +24,11 @@ class EntryFrame
   protected:
     mutable bool mKeyCalculated;
     mutable LedgerKey mKey;
-    void clearCached() { mKeyCalculated = false; }
+    void
+    clearCached()
+    {
+        mKeyCalculated = false;
+    }
 
   public:
     typedef std::shared_ptr<EntryFrame> pointer;
@@ -33,7 +37,7 @@ class EntryFrame
 
     EntryFrame() = delete;
     EntryFrame(LedgerEntryType type);
-    EntryFrame(const LedgerEntry& from);
+    EntryFrame(LedgerEntry const& from);
 
     static pointer FromXDR(LedgerEntry const& from);
 

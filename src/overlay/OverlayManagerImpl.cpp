@@ -57,8 +57,7 @@ OverlayManagerImpl::OverlayManagerImpl(Application& app)
           {"overlay", "connection", "establish"}, "connection"))
     , mConnectionsDropped(app.getMetrics().NewMeter(
           {"overlay", "connection", "drop"}, "connection"))
-    , mPeersSize(app.getMetrics().NewCounter(
-          {"overlay", "memory", "peers"}))
+    , mPeersSize(app.getMetrics().NewCounter({"overlay", "memory", "peers"}))
     , mTimer(app)
     , mFloodGate(app)
 {
@@ -82,7 +81,7 @@ OverlayManagerImpl::~OverlayManagerImpl()
 }
 
 void
-OverlayManagerImpl::connectTo(const std::string& peerStr)
+OverlayManagerImpl::connectTo(std::string const& peerStr)
 {
     PeerRecord pr;
     if (PeerRecord::parseIPPort(peerStr, mApp, pr))
@@ -102,12 +101,11 @@ OverlayManagerImpl::connectTo(PeerRecord& pr)
         return;
     }
 
-    if(!pr.mIP.size())
+    if (!pr.mIP.size())
     {
         CLOG(INFO, "Overlay") << "OverlayManagerImpl::connectTo Invalid IP ";
         return;
     }
-
 
     mConnectionsAttempted.Mark();
     if (!getConnectedPeer(pr.mIP, pr.mPort))
@@ -126,7 +124,8 @@ OverlayManagerImpl::connectTo(PeerRecord& pr)
 }
 
 void
-OverlayManagerImpl::storePeerList(const std::vector<std::string>& list, int rank)
+OverlayManagerImpl::storePeerList(std::vector<std::string> const& list,
+                                  int rank)
 {
     for (auto peerStr : list)
     {
@@ -194,7 +193,7 @@ OverlayManagerImpl::tick()
 }
 
 Peer::pointer
-OverlayManagerImpl::getConnectedPeer(const std::string& ip, int port)
+OverlayManagerImpl::getConnectedPeer(std::string const& ip, int port)
 {
     for (auto peer : mPeers)
     {
@@ -241,7 +240,7 @@ OverlayManagerImpl::isPeerAccepted(Peer::pointer peer)
 }
 
 std::vector<Peer::pointer>&
-OverlayManagerImpl::getPeers() 
+OverlayManagerImpl::getPeers()
 {
     return mPeers;
 }
@@ -285,7 +284,8 @@ OverlayManagerImpl::getNextPeer(Peer::pointer peer)
 }
 
 void
-OverlayManagerImpl::recvFloodedMsg(StellarMessage const& msg, Peer::pointer peer)
+OverlayManagerImpl::recvFloodedMsg(StellarMessage const& msg,
+                                   Peer::pointer peer)
 {
     mMessagesReceived.Mark();
     mFloodGate.addRecord(msg, peer);

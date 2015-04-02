@@ -48,8 +48,7 @@ compareCurrency(Currency const& first, Currency const& second)
     return false;
 }
 
-void
-currencyCodeToStr(const xdr::opaque_array<4U>& code, std::string& retStr)
+void currencyCodeToStr(xdr::opaque_array<4U> const& code, std::string& retStr)
 {
     retStr = "    ";
     for (int n = 0; n < 4; n++)
@@ -64,7 +63,7 @@ currencyCodeToStr(const xdr::opaque_array<4U>& code, std::string& retStr)
     }
 }
 
-void strToCurrencyCode(xdr::opaque_array<4U>& ret, const std::string& str)
+void strToCurrencyCode(xdr::opaque_array<4U>& ret, std::string const& str)
 {
     for (int n = 0; (n < str.size()) && (n < 4); n++)
     {
@@ -90,7 +89,7 @@ bigDivide(int64_t A, int64_t B, int64_t C)
 }
 
 bool
-iequals(const std::string& a, const std::string& b)
+iequals(std::string const& a, std::string const& b)
 {
     size_t sz = a.size();
     if (b.size() != sz)

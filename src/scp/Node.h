@@ -18,13 +18,13 @@ class Node
 {
 
   public:
-    Node(const uint256& nodeID, SCP* SCP, int cacheCapacity = 4);
+    Node(uint256 const& nodeID, SCP* SCP, int cacheCapacity = 4);
 
     // Tests this node against nodeSet for the specified qSethash. Triggers the
     // retrieval of qSetHash for this node and may throw a QuorumSetNotFound
     // exception
-    bool hasQuorum(const Hash& qSetHash, const std::vector<uint256>& nodeSet);
-    bool isVBlocking(const Hash& qSetHash, const std::vector<uint256>& nodeSet);
+    bool hasQuorum(Hash const& qSetHash, std::vector<uint256> const& nodeSet);
+    bool isVBlocking(Hash const& qSetHash, std::vector<uint256> const& nodeSet);
 
     // Tests this node against a map of nodeID -> T for the specified qSetHash.
     // Triggers the retrieval of qSetHash for this node and may throw a
@@ -34,26 +34,26 @@ class Node
     // this node.
     template <class T>
     bool
-    isVBlocking(const Hash& qSetHash, const std::map<uint256, T>& map,
-                std::function<bool(const uint256&, const T&)> const& filter =
-                    [](const uint256&, const T&)
+    isVBlocking(Hash const& qSetHash, std::map<uint256, T> const& map,
+                std::function<bool(uint256 const&, T const&)> const& filter =
+                    [](uint256 const&, T const&)
                 {
-        return true;
-    });
+                    return true;
+                });
     // `isQuorumTransitive` tests if the filtered nodes V are a transitive
     // quorum for this node (meaning for each v \in V there is q \in Q(v)
     // included in V and we have quorum on V for qSetHash). `qfun` extracts the
     // qSetHash from the template T for its associated node in map (required
     // for transitivity)
     template <class T>
-    bool isQuorumTransitive(const Hash& qSetHash,
-                            const std::map<uint256, T>& map,
-                            std::function<Hash(const T&)> const& qfun,
-                            std::function<bool(const uint256&, const T&)> const&
-                                filter = [](const uint256&, const T&)
+    bool isQuorumTransitive(Hash const& qSetHash,
+                            std::map<uint256, T> const& map,
+                            std::function<Hash(T const&)> const& qfun,
+                            std::function<bool(uint256 const&, T const&)> const&
+                                filter = [](uint256 const&, T const&)
                             {
-        return true;
-    });
+                                return true;
+                            });
 
     /**
      * Exception used to trigger the retrieval of a quorum set based on its
@@ -63,7 +63,7 @@ class Node
     class QuorumSetNotFound : public std::exception
     {
       public:
-        QuorumSetNotFound(const uint256& nodeID, const Hash& qSetHash)
+        QuorumSetNotFound(uint256 const& nodeID, Hash const& qSetHash)
             : mNodeID(nodeID), mQSetHash(qSetHash)
         {
         }
@@ -73,12 +73,12 @@ class Node
         {
             return "QuorumSet not found";
         }
-        const uint256&
+        uint256 const&
         nodeID() const throw()
         {
             return mNodeID;
         }
-        const Hash&
+        Hash const&
         qSetHash() const throw()
         {
             return mQSetHash;
@@ -91,12 +91,12 @@ class Node
     // Retrieves the cached quorum set associated with this hash or throws a
     // QuorumSetNotFound exception otherwise. The exception shall not escape
     // the SCP module
-    const SCPQuorumSet& retrieveQuorumSet(const Hash& qSetHash);
+    SCPQuorumSet const& retrieveQuorumSet(Hash const& qSetHash);
 
     // Cache a quorumSet for this node.
-    void cacheQuorumSet(const SCPQuorumSet& qSet);
+    void cacheQuorumSet(SCPQuorumSet const& qSet);
 
-    const uint256& getNodeID();
+    uint256 const& getNodeID();
 
     size_t getCachedQuorumSetCount() const;
 

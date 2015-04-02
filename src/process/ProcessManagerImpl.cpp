@@ -42,8 +42,7 @@ ProcessManager::create(Application& app)
 ProcessManagerImpl::ProcessManagerImpl(Application& app)
     : mApp(app)
     , mSigChild(app.getClock().getIOService())
-    , mImplsSize(app.getMetrics().NewCounter(
-                     {"process", "memory", "handles"}))
+    , mImplsSize(app.getMetrics().NewCounter({"process", "memory", "handles"}))
 {
 }
 
@@ -186,13 +185,13 @@ class ProcessExitEvent::Impl
 
 std::recursive_mutex ProcessManagerImpl::gImplsMutex;
 
-std::map<int, std::shared_ptr<ProcessExitEvent::Impl>> ProcessManagerImpl::gImpls;
+std::map<int, std::shared_ptr<ProcessExitEvent::Impl>>
+    ProcessManagerImpl::gImpls;
 
 ProcessManagerImpl::ProcessManagerImpl(Application& app)
     : mApp(app)
     , mSigChild(app.getClock().getIOService(), SIGCHLD)
-    , mImplsSize(app.getMetrics().NewCounter(
-                     {"process", "memory", "handles"}))
+    , mImplsSize(app.getMetrics().NewCounter({"process", "memory", "handles"}))
 {
     std::lock_guard<std::recursive_mutex> guard(gImplsMutex);
     startSignalWait();
@@ -202,7 +201,8 @@ void
 ProcessManagerImpl::startSignalWait()
 {
     std::lock_guard<std::recursive_mutex> guard(gImplsMutex);
-    mSigChild.async_wait(std::bind(&ProcessManagerImpl::handleSignalWait, this));
+    mSigChild.async_wait(
+        std::bind(&ProcessManagerImpl::handleSignalWait, this));
 }
 
 void
@@ -258,13 +258,12 @@ ProcessManagerImpl::handleSignalWait()
 }
 
 static std::vector<std::string>
-split(const std::string& s)
+split(std::string const& s)
 {
     std::vector<std::string> parts;
     std::regex ws_re("\\s+");
     std::copy(std::sregex_token_iterator(s.begin(), s.end(), ws_re, -1),
-              std::sregex_token_iterator(),
-              std::back_inserter(parts));
+              std::sregex_token_iterator(), std::back_inserter(parts));
     return parts;
 }
 

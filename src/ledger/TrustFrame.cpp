@@ -106,7 +106,7 @@ TrustFrame::getMaxAmountReceive() const
 bool
 TrustFrame::isValid() const
 {
-    const TrustLineEntry& tl = mTrustLine;
+    TrustLineEntry const& tl = mTrustLine;
     bool res = tl.currency.type() != NATIVE;
     res = res && (tl.balance >= 0);
     res = res && (tl.balance <= tl.limit);
@@ -233,7 +233,7 @@ TrustFrame::loadTrustLine(const uint256& accountID, const Currency& currency,
 
 void
 TrustFrame::loadLines(details::prepare_temp_type& prep,
-                      std::function<void(const TrustFrame&)> trustProcessor)
+                      std::function<void(TrustFrame const&)> trustProcessor)
 {
     string accountID;
     std::string issuer, currency;
@@ -263,7 +263,7 @@ TrustFrame::loadLines(details::prepare_temp_type& prep,
 }
 
 void
-TrustFrame::loadLines(const uint256& accountID,
+TrustFrame::loadLines(uint256 const& accountID,
                       std::vector<TrustFrame>& retLines, Database& db)
 {
     std::string accStr;

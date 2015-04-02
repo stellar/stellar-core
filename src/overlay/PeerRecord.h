@@ -25,7 +25,7 @@ class PeerRecord
 
     PeerRecord(){};
 
-    PeerRecord(const string& ip, uint32_t port,
+    PeerRecord(string const& ip, uint32_t port,
                VirtualClock::time_point nextAttempt, uint32_t fails,
                uint32_t rank)
         : mIP(ip)
@@ -43,9 +43,9 @@ class PeerRecord
                mNumFailures == other.mNumFailures && mRank == other.mRank;
     }
 
-    static void fromIPPort(const std::string& ip, uint32_t port, VirtualClock& clock,
-                           PeerRecord& ret);
-    static bool parseIPPort(const std::string& ipPort, Application& app,
+    static void fromIPPort(std::string const& ip, uint32_t port,
+                           VirtualClock& clock, PeerRecord& ret);
+    static bool parseIPPort(std::string const& ipPort, Application& app,
                             PeerRecord& ret,
                             uint32_t defaultPort = DEFAULT_PEER_PORT);
 

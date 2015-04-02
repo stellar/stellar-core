@@ -21,20 +21,19 @@ using xdr::operator<;
 
 // Static helper to stringify ballot for logging
 std::string
-ballotToStr(const SCPBallot& ballot)
+ballotToStr(SCPBallot const& ballot)
 {
     std::ostringstream oss;
 
     uint256 valueHash = sha256(xdr::xdr_to_opaque(ballot.value));
 
-    oss << "(" << ballot.counter << "," << hexAbbrev(valueHash)
-        << ")";
+    oss << "(" << ballot.counter << "," << hexAbbrev(valueHash) << ")";
     return oss.str();
 }
 
 // Static helper to stringify envelope for logging
 std::string
-envToStr(const SCPEnvelope& envelope)
+envToStr(SCPEnvelope const& envelope)
 {
     std::ostringstream oss;
     oss << "{ENV@" << hexAbbrev(envelope.nodeID) << "|";
@@ -60,7 +59,7 @@ envToStr(const SCPEnvelope& envelope)
     return oss.str();
 }
 
-Slot::Slot(const uint64& slotIndex, SCP* SCP)
+Slot::Slot(uint64 const& slotIndex, SCP* SCP)
     : mSlotIndex(slotIndex)
     , mSCP(SCP)
     , mIsPristine(true)
@@ -74,7 +73,7 @@ Slot::Slot(const uint64& slotIndex, SCP* SCP)
 }
 
 void
-Slot::processEnvelope(const SCPEnvelope& envelope,
+Slot::processEnvelope(SCPEnvelope const& envelope,
                       std::function<void(SCP::EnvelopeState)> const& cb)
 {
     assert(envelope.statement.slotIndex == mSlotIndex);
@@ -95,8 +94,8 @@ Slot::processEnvelope(const SCPEnvelope& envelope,
         if (!valid)
         {
             CLOG(TRACE, "SCP") << "invalid value"
-                << "@" << hexAbbrev(mSCP->getLocalNodeID())
-                << " i: " << mSlotIndex;
+                               << "@" << hexAbbrev(mSCP->getLocalNodeID())
+                               << " i: " << mSlotIndex;
 
             return cb(SCP::EnvelopeState::INVALID);
         }
@@ -134,7 +133,8 @@ Slot::processEnvelope(const SCPEnvelope& envelope,
         else if (!mIsCommitted && t == SCPStatementType::COMMITTING)
         {
             // We accept COMMITTING statements only if we previously saw a valid
-            // PREPARED statement for that ballot and all the PREPARING we saw so
+            // PREPARED statement for that ballot and all the PREPARING we saw
+            // so
             // far have a lower ballot than this one or have that COMMITTING in
             // their B_c.  This prevents node from emitting phony messages too
             // easily.
@@ -146,7 +146,8 @@ Slot::processEnvelope(const SCPEnvelope& envelope,
                     isPrepared = true;
                 }
             }
-            for (auto s : getNodeStatements(nodeID, SCPStatementType::PREPARING))
+            for (auto s :
+                 getNodeStatements(nodeID, SCPStatementType::PREPARING))
             {
                 if (compareBallots(b, s.ballot) < 0)
                 {
@@ -178,8 +179,8 @@ Slot::processEnvelope(const SCPEnvelope& envelope,
                 0)
             {
                 CLOG(TRACE, "SCP") << "Node Already Committed"
-                    << "@" << hexAbbrev(mSCP->getLocalNodeID())
-                    << " i: " << mSlotIndex; 
+                                   << "@" << hexAbbrev(mSCP->getLocalNodeID())
+                                   << " i: " << mSlotIndex;
                 return cb(SCP::EnvelopeState::INVALID);
             }
 
@@ -205,7 +206,7 @@ Slot::processEnvelope(const SCPEnvelope& envelope,
 }
 
 bool
-Slot::prepareValue(const Value& value, bool forceBump)
+Slot::prepareValue(Value const& value, bool forceBump)
 {
     if (mIsCommitted)
     {
@@ -227,7 +228,7 @@ Slot::prepareValue(const Value& value, bool forceBump)
 }
 
 void
-Slot::bumpToBallot(const SCPBallot& ballot)
+Slot::bumpToBallot(SCPBallot const& ballot)
 {
     // `bumpToBallot` should be never called once we committed.
     assert(!mIsCommitted && !mIsExternalized);
@@ -253,7 +254,7 @@ Slot::bumpToBallot(const SCPBallot& ballot)
 }
 
 SCPStatement
-Slot::createStatement(const SCPStatementType& type)
+Slot::createStatement(SCPStatementType const& type)
 {
     SCPStatement statement;
 
@@ -266,7 +267,7 @@ Slot::createStatement(const SCPStatementType& type)
 }
 
 SCPEnvelope
-Slot::createEnvelope(const SCPStatement& statement)
+Slot::createEnvelope(SCPStatement const& statement)
 {
     SCPEnvelope envelope;
 
@@ -306,8 +307,8 @@ Slot::attemptPrepare()
             }
         }
     }
-    for (auto s :
-         getNodeStatements(mSCP->getLocalNodeID(), SCPStatementType::COMMITTING))
+    for (auto s : getNodeStatements(mSCP->getLocalNodeID(),
+                                    SCPStatementType::COMMITTING))
     {
         statement.pledges.prepare().excepted.push_back(s.ballot);
     }
@@ -315,7 +316,7 @@ Slot::attemptPrepare()
     mSCP->ballotDidPrepare(mSlotIndex, mBallot);
 
     SCPEnvelope envelope = createEnvelope(statement);
-    auto cb = [envelope, this](const SCP::EnvelopeState& s)
+    auto cb = [envelope, this](SCP::EnvelopeState const& s)
     {
         if (s == SCP::EnvelopeState::VALID)
         {
@@ -326,7 +327,7 @@ Slot::attemptPrepare()
 }
 
 void
-Slot::attemptPrepared(const SCPBallot& ballot)
+Slot::attemptPrepared(SCPBallot const& ballot)
 {
     auto it = mStatements[ballot][SCPStatementType::PREPARED].find(
         mSCP->getLocalNodeID());
@@ -429,7 +430,7 @@ Slot::attemptExternalize()
 }
 
 bool
-Slot::isPrepared(const SCPBallot& ballot)
+Slot::isPrepared(SCPBallot const& ballot)
 {
     // Checks if we haven't already emitted PREPARED b
     auto it = mStatements[ballot][SCPStatementType::PREPARED].find(
@@ -449,8 +450,8 @@ Slot::isPrepared(const SCPBallot& ballot)
     }
 
     // Check if we can establish the pledges for a transitive quorum.
-    auto ratifyFilter = [&](const uint256& nIDR, const SCPStatement& stR)
-                            -> bool
+    auto ratifyFilter =
+        [&](uint256 const& nIDR, SCPStatement const& stR) -> bool
     {
         // Either the ratifying node has no excepted B_c ballot
         if (stR.pledges.prepare().excepted.size() == 0)
@@ -470,7 +471,7 @@ Slot::isPrepared(const SCPBallot& ballot)
             }
 
             auto abortedFilter =
-                [&](const uint256& nIDA, const SCPStatement& stA) -> bool
+                [&](uint256 const& nIDA, SCPStatement const& stA) -> bool
             {
                 if (stA.pledges.prepare().prepared)
                 {
@@ -500,7 +501,7 @@ Slot::isPrepared(const SCPBallot& ballot)
     if (mSCP->getLocalNode()->isQuorumTransitive<SCPStatement>(
             mSCP->getLocalNode()->getQuorumSetHash(),
             mStatements[ballot][SCPStatementType::PREPARING],
-            [](const SCPStatement& s)
+            [](SCPStatement const& s)
             {
                 return s.quorumSetHash;
             },
@@ -513,7 +514,7 @@ Slot::isPrepared(const SCPBallot& ballot)
 }
 
 bool
-Slot::isPreparedConfirmed(const SCPBallot& ballot)
+Slot::isPreparedConfirmed(SCPBallot const& ballot)
 {
     // Checks if we haven't already emitted COMMITTING b
     auto it = mStatements[ballot][SCPStatementType::COMMITTING].find(
@@ -528,7 +529,7 @@ Slot::isPreparedConfirmed(const SCPBallot& ballot)
     if (mSCP->getLocalNode()->isQuorumTransitive<SCPStatement>(
             mSCP->getLocalNode()->getQuorumSetHash(),
             mStatements[ballot][SCPStatementType::PREPARED],
-            [](const SCPStatement& s)
+            [](SCPStatement const& s)
             {
                 return s.quorumSetHash;
             }))
@@ -539,7 +540,7 @@ Slot::isPreparedConfirmed(const SCPBallot& ballot)
 }
 
 bool
-Slot::isCommitted(const SCPBallot& ballot)
+Slot::isCommitted(SCPBallot const& ballot)
 {
     // Checks if we haven't already emitted COMMITTED b
     auto it = mStatements[ballot][SCPStatementType::COMMITTED].find(
@@ -553,7 +554,7 @@ Slot::isCommitted(const SCPBallot& ballot)
     if (mSCP->getLocalNode()->isQuorumTransitive<SCPStatement>(
             mSCP->getLocalNode()->getQuorumSetHash(),
             mStatements[ballot][SCPStatementType::COMMITTING],
-            [](const SCPStatement& s)
+            [](SCPStatement const& s)
             {
                 return s.quorumSetHash;
             }))
@@ -565,7 +566,7 @@ Slot::isCommitted(const SCPBallot& ballot)
 }
 
 bool
-Slot::isCommittedConfirmed(const Value& value)
+Slot::isCommittedConfirmed(Value const& value)
 {
     std::map<uint256, SCPStatement> statements;
     for (auto it : mStatements)
@@ -583,7 +584,7 @@ Slot::isCommittedConfirmed(const Value& value)
     // statement for the local node.
     if (mSCP->getLocalNode()->isQuorumTransitive<SCPStatement>(
             mSCP->getLocalNode()->getQuorumSetHash(), statements,
-            [](const SCPStatement& s)
+            [](SCPStatement const& s)
             {
                 return s.quorumSetHash;
             }))
@@ -594,7 +595,7 @@ Slot::isCommittedConfirmed(const Value& value)
 }
 
 std::vector<SCPStatement>
-Slot::getNodeStatements(const uint256& nodeID, const SCPStatementType& type)
+Slot::getNodeStatements(uint256 const& nodeID, SCPStatementType const& type)
 {
     std::vector<SCPStatement> statements;
     for (auto it : mStatements)
@@ -608,7 +609,7 @@ Slot::getNodeStatements(const uint256& nodeID, const SCPStatementType& type)
 }
 
 int
-Slot::compareBallots(const SCPBallot& b1, const SCPBallot& b2)
+Slot::compareBallots(SCPBallot const& b1, SCPBallot const& b2)
 {
     if (b1.counter < b2.counter)
     {
@@ -630,10 +631,9 @@ Slot::advanceSlot()
     if (mInAdvanceSlot)
     {
         CLOG(DEBUG, "SCP") << "already in advanceSlot"
-            << "@"
-            << hexAbbrev(mSCP->getLocalNodeID())
-            << " i: " << mSlotIndex
-            << " b: " << ballotToStr(mBallot);
+                           << "@" << hexAbbrev(mSCP->getLocalNodeID())
+                           << " i: " << mSlotIndex
+                           << " b: " << ballotToStr(mBallot);
 
         mRunAdvanceSlot = true;
         return;
@@ -643,8 +643,7 @@ Slot::advanceSlot()
     try
     {
         CLOG(DEBUG, "SCP") << "Slot::advanceSlot"
-                           << "@"
-                           << hexAbbrev(mSCP->getLocalNodeID())
+                           << "@" << hexAbbrev(mSCP->getLocalNodeID())
                            << " i: " << mSlotIndex
                            << " b: " << ballotToStr(mBallot);
 
@@ -696,10 +695,10 @@ Slot::advanceSlot()
 
             SCPBallot b = it.first;
 
-            CLOG(DEBUG, "SCP")
-                << "Slot::advanceSlot::tryBumping"
-                << "@" << hexAbbrev(mSCP->getLocalNodeID())
-                << " i: " << mSlotIndex << " b: " << ballotToStr(mBallot);
+            CLOG(DEBUG, "SCP") << "Slot::advanceSlot::tryBumping"
+                               << "@" << hexAbbrev(mSCP->getLocalNodeID())
+                               << " i: " << mSlotIndex
+                               << " b: " << ballotToStr(mBallot);
 
             // If we could externalize by moving on to a given value we bump
             // our ballot to the appropriate one
@@ -769,7 +768,7 @@ Slot::advanceSlot()
             }
             if (mSCP->getLocalNode()->isQuorumTransitive<SCPStatement>(
                     mSCP->getLocalNode()->getQuorumSetHash(), allStatements,
-                    [](const SCPStatement& s)
+                    [](SCPStatement const& s)
                     {
                         return s.quorumSetHash;
                     }))
@@ -781,7 +780,7 @@ Slot::advanceSlot()
     }
     catch (Node::QuorumSetNotFound e)
     {
-        auto cb = [this, e](const SCPQuorumSet& qSet)
+        auto cb = [this, e](SCPQuorumSet const& qSet)
         {
             uint256 qSetHash = sha256(xdr::xdr_to_opaque(qSet));
             if (e.qSetHash() == qSetHash)
@@ -800,7 +799,6 @@ Slot::advanceSlot()
         advanceSlot();
     }
 }
-       
 
 size_t
 Slot::getStatementCount() const
@@ -808,7 +806,7 @@ Slot::getStatementCount() const
     return mStatements.size();
 }
 
-void 
+void
 Slot::dumpInfo(Json::Value& ret)
 {
     Json::Value slotValue;
@@ -819,22 +817,23 @@ Slot::dumpInfo(Json::Value& ret)
     slotValue["pristine"] = mIsExternalized;
     slotValue["ballot"] = ballotToStr(mBallot);
 
-    std::string stateStrTable[] = { "PREPARING", "PREPARED", "COMMITTING",
-        "COMMITTED"};
+    std::string stateStrTable[] = {"PREPARING", "PREPARED", "COMMITTING",
+                                   "COMMITTED"};
 
-    for(auto& item : mStatements)
+    for (auto& item : mStatements)
     {
-        for(auto& mapItem : item.second)
+        for (auto& mapItem : item.second)
         {
             int count = 0;
-            for(auto& stateItem : mapItem.second)
+            for (auto& stateItem : mapItem.second)
             {
                 // ballot, node, qset, state
                 std::ostringstream output;
-                output << "b:" << ballotToStr(item.first) << " n:" << 
-                    hexAbbrev(stateItem.first) << " q:" << 
-                    hexAbbrev(stateItem.second.quorumSetHash) << 
-                    " ," << stateStrTable[(int)stateItem.second.pledges.type()];
+                output << "b:" << ballotToStr(item.first)
+                       << " n:" << hexAbbrev(stateItem.first)
+                       << " q:" << hexAbbrev(stateItem.second.quorumSetHash)
+                       << " ,"
+                       << stateStrTable[(int)stateItem.second.pledges.type()];
                 slotValue["statements"][count++] = output.str();
             }
         }
@@ -842,5 +841,4 @@ Slot::dumpInfo(Json::Value& ret)
 
     ret["slot"].append(slotValue);
 }
-
 }

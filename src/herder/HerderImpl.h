@@ -52,47 +52,47 @@ class HerderImpl : public Herder, public SCP
     void bootstrap() override;
 
     // SCP methods
-    void validateValue(const uint64& slotIndex, const uint256& nodeID,
-                       const Value& value,
+    void validateValue(uint64 const& slotIndex, uint256 const& nodeID,
+                       Value const& value,
                        std::function<void(bool)> const& cb) override;
-    int compareValues(const uint64& slotIndex, const uint32& ballotCounter,
-                      const Value& v1, const Value& v2) override;
+    int compareValues(uint64 const& slotIndex, uint32 const& ballotCounter,
+                      Value const& v1, Value const& v2) override;
 
-    void validateBallot(const uint64& slotIndex, const uint256& nodeID,
-                        const SCPBallot& ballot,
+    void validateBallot(uint64 const& slotIndex, uint256 const& nodeID,
+                        SCPBallot const& ballot,
                         std::function<void(bool)> const& cb) override;
 
-    void ballotDidHearFromQuorum(const uint64& slotIndex,
-                                 const SCPBallot& ballot) override;
-    void valueExternalized(const uint64& slotIndex,
-                           const Value& value) override;
+    void ballotDidHearFromQuorum(uint64 const& slotIndex,
+                                 SCPBallot const& ballot) override;
+    void valueExternalized(uint64 const& slotIndex,
+                           Value const& value) override;
 
-    void nodeTouched(const uint256& nodeID) override;
+    void nodeTouched(uint256 const& nodeID) override;
 
     void retrieveQuorumSet(
-        const uint256& nodeID, const Hash& qSetHash,
-        std::function<void(const SCPQuorumSet&)> const& cb) override;
-    void emitEnvelope(const SCPEnvelope& envelope) override;
+        uint256 const& nodeID, Hash const& qSetHash,
+        std::function<void(SCPQuorumSet const&)> const& cb) override;
+    void emitEnvelope(SCPEnvelope const& envelope) override;
 
     // Extra SCP methods overridden solely to increment metrics.
-    void ballotDidPrepare(const uint64& slotIndex,
-                          const SCPBallot& ballot) override;
-    void ballotDidPrepared(const uint64& slotIndex,
-                           const SCPBallot& ballot) override;
-    void ballotDidCommit(const uint64& slotIndex,
-                         const SCPBallot& ballot) override;
-    void ballotDidCommitted(const uint64& slotIndex,
-                            const SCPBallot& ballot) override;
+    void ballotDidPrepare(uint64 const& slotIndex,
+                          SCPBallot const& ballot) override;
+    void ballotDidPrepared(uint64 const& slotIndex,
+                           SCPBallot const& ballot) override;
+    void ballotDidCommit(uint64 const& slotIndex,
+                         SCPBallot const& ballot) override;
+    void ballotDidCommitted(uint64 const& slotIndex,
+                            SCPBallot const& ballot) override;
     void envelopeSigned() override;
     void envelopeVerified(bool) override;
 
     // Herder methods
-    TxSetFramePtr fetchTxSet(const uint256& txSetHash,
+    TxSetFramePtr fetchTxSet(uint256 const& txSetHash,
                              bool askNetwork) override;
     void recvTxSet(TxSetFramePtr txSet) override;
     void doesntHaveTxSet(uint256 const& txSethash, PeerPtr peer) override;
 
-    SCPQuorumSetPtr fetchSCPQuorumSet(const uint256& qSetHash,
+    SCPQuorumSetPtr fetchSCPQuorumSet(uint256 const& qSetHash,
                                       bool askNetwork) override;
     void recvSCPQuorumSet(SCPQuorumSetPtr qSet) override;
     void doesntHaveSCPQuorumSet(uint256 const& qSetHash, PeerPtr peer) override;
@@ -113,14 +113,14 @@ class HerderImpl : public Herder, public SCP
 
   private:
     void removeReceivedTx(TransactionFramePtr tx);
-    void expireBallot(const uint64& slotIndex, const SCPBallot& ballot);
+    void expireBallot(uint64 const& slotIndex, SCPBallot const& ballot);
 
     void startRebroadcastTimer();
     void rebroadcast();
 
     // StellarBallot internal signature/verification
     void signStellarBallot(StellarBallot& b);
-    bool verifyStellarBallot(const StellarBallot& b);
+    bool verifyStellarBallot(StellarBallot const& b);
 
     void updateSCPCounters();
 

@@ -165,8 +165,8 @@ HerderImpl::bootstrap()
 }
 
 void
-HerderImpl::validateValue(const uint64& slotIndex, const uint256& nodeID,
-                          const Value& value,
+HerderImpl::validateValue(uint64 const& slotIndex, uint256 const& nodeID,
+                          Value const& value,
                           std::function<void(bool)> const& cb)
 {
     StellarBallot b;
@@ -181,7 +181,7 @@ HerderImpl::validateValue(const uint64& slotIndex, const uint256& nodeID,
     }
 
     if (mApp.getState() != Application::SYNCED_STATE)
-    {   // if we aren't synced to the network we can't validate
+    { // if we aren't synced to the network we can't validate
         // but we still need to fetch the tx set
         fetchTxSet(b.value.txSetHash, true);
         return cb(true);
@@ -228,8 +228,7 @@ HerderImpl::validateValue(const uint64& slotIndex, const uint256& nodeID,
         {
             CLOG(DEBUG, "Herder")
                 << "HerderImpl::validateValue"
-                << "@" << hexAbbrev(getLocalNodeID())
-                << " i: " << slotIndex
+                << "@" << hexAbbrev(getLocalNodeID()) << " i: " << slotIndex
                 << " v: " << hexAbbrev(nodeID) << " Invalid txSet:"
                 << " " << hexAbbrev(txSet->getContentsHash());
             this->mValueInvalid.Mark();
@@ -238,9 +237,8 @@ HerderImpl::validateValue(const uint64& slotIndex, const uint256& nodeID,
 
         CLOG(DEBUG, "Herder")
             << "HerderImpl::validateValue"
-            << "@" << hexAbbrev(getLocalNodeID())
-            << " i: " << slotIndex << " v: " << hexAbbrev(nodeID)
-            << " txSet:"
+            << "@" << hexAbbrev(getLocalNodeID()) << " i: " << slotIndex
+            << " v: " << hexAbbrev(nodeID) << " txSet:"
             << " " << hexAbbrev(txSet->getContentsHash()) << " OK";
         this->mValueValid.Mark();
         return cb(true);
@@ -258,8 +256,8 @@ HerderImpl::validateValue(const uint64& slotIndex, const uint256& nodeID,
 }
 
 int
-HerderImpl::compareValues(const uint64& slotIndex, const uint32& ballotCounter,
-                          const Value& v1, const Value& v2)
+HerderImpl::compareValues(uint64 const& slotIndex, uint32 const& ballotCounter,
+                          Value const& v1, Value const& v2)
 {
     using xdr::operator<;
 
@@ -329,8 +327,8 @@ HerderImpl::compareValues(const uint64& slotIndex, const uint32& ballotCounter,
 }
 
 void
-HerderImpl::validateBallot(const uint64& slotIndex, const uint256& nodeID,
-                           const SCPBallot& ballot,
+HerderImpl::validateBallot(uint64 const& slotIndex, uint256 const& nodeID,
+                           SCPBallot const& ballot,
                            std::function<void(bool)> const& cb)
 {
     StellarBallot b;
@@ -431,11 +429,10 @@ HerderImpl::validateBallot(const uint64& slotIndex, const uint256& nodeID,
 
     CLOG(DEBUG, "Herder") << "HerderImpl::validateBallot"
                           << "@" << hexAbbrev(getLocalNodeID())
-                          << " i: " << slotIndex
-                          << " v: " << hexAbbrev(nodeID)
-                          << " o: " << hexAbbrev(b.nodeID)
-                          << " b: (" << ballot.counter << ","
-                          << hexAbbrev(valueHash) << ")"
+                          << " i: " << slotIndex << " v: " << hexAbbrev(nodeID)
+                          << " o: " << hexAbbrev(b.nodeID) << " b: ("
+                          << ballot.counter << "," << hexAbbrev(valueHash)
+                          << ")"
                           << " isTrusted: " << isTrusted
                           << " isKing: " << isKing
                           << " timeout: " << pow(2.0, ballot.counter) / 2;
@@ -449,10 +446,9 @@ HerderImpl::validateBallot(const uint64& slotIndex, const uint256& nodeID,
     {
         CLOG(DEBUG, "Herder")
             << "start timer"
-            << "@" << hexAbbrev(getLocalNodeID())
-            << " i: " << slotIndex << " v: " << hexAbbrev(nodeID)
-            << " o: " << hexAbbrev(b.nodeID) << " b: ("
-            << ballot.counter << "," << hexAbbrev(valueHash) << ")"
+            << "@" << hexAbbrev(getLocalNodeID()) << " i: " << slotIndex
+            << " v: " << hexAbbrev(nodeID) << " o: " << hexAbbrev(b.nodeID)
+            << " b: (" << ballot.counter << "," << hexAbbrev(valueHash) << ")"
             << " isTrusted: " << isTrusted << " isKing: " << isKing
             << " timeout: " << pow(2.0, ballot.counter) / 2;
         // Create a timer to wait for current SCP timeout / 2 before accepting
@@ -487,8 +483,8 @@ HerderImpl::validateBallot(const uint64& slotIndex, const uint256& nodeID,
 }
 
 void
-HerderImpl::ballotDidHearFromQuorum(const uint64& slotIndex,
-                                    const SCPBallot& ballot)
+HerderImpl::ballotDidHearFromQuorum(uint64 const& slotIndex,
+                                    SCPBallot const& ballot)
 {
     mQuorumHeard.Mark();
 
@@ -517,7 +513,7 @@ HerderImpl::updateSCPCounters()
 }
 
 void
-HerderImpl::valueExternalized(const uint64& slotIndex, const Value& value)
+HerderImpl::valueExternalized(uint64 const& slotIndex, Value const& value)
 {
     updateSCPCounters();
     mValueExternalize.Mark();
@@ -540,10 +536,9 @@ HerderImpl::valueExternalized(const uint64& slotIndex, const Value& value)
     if (externalizedSet)
     {
 
-        CLOG(DEBUG, "Herder")
-            << "HerderImpl::valueExternalized"
-            << "@" << hexAbbrev(getLocalNodeID())
-            << " txSet: " << hexAbbrev(b.value.txSetHash);
+        CLOG(DEBUG, "Herder") << "HerderImpl::valueExternalized"
+                              << "@" << hexAbbrev(getLocalNodeID())
+                              << " txSet: " << hexAbbrev(b.value.txSetHash);
 
         // we don't need to keep fetching any of the old TX sets
         mTxSetFetcher[mCurrentTxSetFetcher].stopFetchingAll();
@@ -612,7 +607,7 @@ HerderImpl::valueExternalized(const uint64& slotIndex, const Value& value)
 }
 
 void
-HerderImpl::nodeTouched(const uint256& nodeID)
+HerderImpl::nodeTouched(uint256 const& nodeID)
 {
     // We simply store the time of last access each time a node is touched by
     // SCP. That way we can evict old irrelevant nodes at each round.
@@ -622,8 +617,8 @@ HerderImpl::nodeTouched(const uint256& nodeID)
 
 void
 HerderImpl::retrieveQuorumSet(
-    const uint256& nodeID, const Hash& qSetHash,
-    std::function<void(const SCPQuorumSet&)> const& cb)
+    uint256 const& nodeID, Hash const& qSetHash,
+    std::function<void(SCPQuorumSet const&)> const& cb)
 {
     mQsetRetrieve.Mark();
     CLOG(DEBUG, "Herder") << "HerderImpl::retrieveQuorumSet"
@@ -672,7 +667,7 @@ HerderImpl::startRebroadcastTimer()
 }
 
 void
-HerderImpl::emitEnvelope(const SCPEnvelope& envelope)
+HerderImpl::emitEnvelope(SCPEnvelope const& envelope)
 {
     // We don't emit any envelope as long as we're not fully synced
     if (mApp.getState() != Application::SYNCED_STATE)
@@ -687,7 +682,7 @@ HerderImpl::emitEnvelope(const SCPEnvelope& envelope)
 }
 
 TxSetFramePtr
-HerderImpl::fetchTxSet(const uint256& txSetHash, bool askNetwork)
+HerderImpl::fetchTxSet(uint256 const& txSetHash, bool askNetwork)
 {
     // set false the first time to make sure we only ask network at most once
     TxSetFramePtr ret = mTxSetFetcher[0].fetchItem(txSetHash, false);
@@ -737,8 +732,7 @@ void
 HerderImpl::recvSCPQuorumSet(SCPQuorumSetPtr qSet)
 {
     CLOG(TRACE, "Herder") << "HerderImpl::recvSCPQuorumSet"
-                          << "@" << hexAbbrev(getLocalNodeID())
-                          << " qSet: "
+                          << "@" << hexAbbrev(getLocalNodeID()) << " qSet: "
                           << hexAbbrev(sha256(xdr::xdr_to_opaque(*qSet)));
 
     if (mSCPQSetFetcher.recvItem(qSet))
@@ -896,11 +890,9 @@ HerderImpl::ledgerClosed(LedgerHeaderHistoryEntry const& ledger)
     }
 
     auto now = mApp.getClock().now();
-    if ((now - mLastTrigger) <
-        std::chrono::seconds(seconds))
+    if ((now - mLastTrigger) < std::chrono::seconds(seconds))
     {
-        auto timeout = std::chrono::seconds(seconds) -
-                       (now - mLastTrigger);
+        auto timeout = std::chrono::seconds(seconds) - (now - mLastTrigger);
         mTriggerTimer.expires_from_now(timeout);
     }
     else
@@ -985,12 +977,13 @@ HerderImpl::triggerNextLedger()
 
     uint256 valueHash = sha256(xdr::xdr_to_opaque(mCurrentValue));
     CLOG(DEBUG, "Herder") << "HerderImpl::triggerNextLedger"
-                         << "@" << hexAbbrev(getLocalNodeID())
-                         << " txSet.size: " << proposedSet->mTransactions.size()
-                         << " previousLedgerHash: "
-                         << hexAbbrev(proposedSet->previousLedgerHash())
-                         << " value: " << hexAbbrev(valueHash)
-                         << " slot: " << slotIndex;
+                          << "@" << hexAbbrev(getLocalNodeID())
+                          << " txSet.size: "
+                          << proposedSet->mTransactions.size()
+                          << " previousLedgerHash: "
+                          << hexAbbrev(proposedSet->previousLedgerHash())
+                          << " value: " << hexAbbrev(valueHash)
+                          << " slot: " << slotIndex;
 
     // We prepare that value. If we're monarch, the ballot will be validated,
     // and
@@ -1008,7 +1001,7 @@ HerderImpl::triggerNextLedger()
 }
 
 void
-HerderImpl::expireBallot(const uint64& slotIndex, const SCPBallot& ballot)
+HerderImpl::expireBallot(uint64 const& slotIndex, SCPBallot const& ballot)
 
 {
     mBallotExpire.Mark();
@@ -1029,7 +1022,7 @@ HerderImpl::signStellarBallot(StellarBallot& b)
 }
 
 bool
-HerderImpl::verifyStellarBallot(const StellarBallot& b)
+HerderImpl::verifyStellarBallot(StellarBallot const& b)
 {
     auto v = PublicKey::verifySig(b.nodeID, b.signature,
                                   xdr::xdr_to_opaque(b.value));
@@ -1046,25 +1039,25 @@ HerderImpl::verifyStellarBallot(const StellarBallot& b)
 
 // Extra SCP methods overridden solely to increment metrics.
 void
-HerderImpl::ballotDidPrepare(const uint64& slotIndex, const SCPBallot& ballot)
+HerderImpl::ballotDidPrepare(uint64 const& slotIndex, SCPBallot const& ballot)
 {
     mBallotPrepare.Mark();
 }
 
 void
-HerderImpl::ballotDidPrepared(const uint64& slotIndex, const SCPBallot& ballot)
+HerderImpl::ballotDidPrepared(uint64 const& slotIndex, SCPBallot const& ballot)
 {
     mBallotPrepared.Mark();
 }
 
 void
-HerderImpl::ballotDidCommit(const uint64& slotIndex, const SCPBallot& ballot)
+HerderImpl::ballotDidCommit(uint64 const& slotIndex, SCPBallot const& ballot)
 {
     mBallotCommit.Mark();
 }
 
 void
-HerderImpl::ballotDidCommitted(const uint64& slotIndex, const SCPBallot& ballot)
+HerderImpl::ballotDidCommitted(uint64 const& slotIndex, SCPBallot const& ballot)
 {
     mBallotCommitted.Mark();
 }

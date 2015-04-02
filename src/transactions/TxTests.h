@@ -26,21 +26,21 @@ uint64_t getAccountBalance(SecretKey const& k, Application& app);
 
 TransactionFramePtr createChangeTrust(SecretKey& from, SecretKey& to,
                                       SequenceNumber seq,
-                                      const std::string& currencyCode,
+                                      std::string const& currencyCode,
                                       int64_t limit);
 
 void applyChangeTrust(Application& app, SecretKey& from, SecretKey& to,
-                      SequenceNumber seq, const std::string& currencyCode,
+                      SequenceNumber seq, std::string const& currencyCode,
                       int64_t limit,
                       ChangeTrustResultCode result = CHANGE_TRUST_SUCCESS);
 
 TransactionFramePtr createAllowTrust(SecretKey& from, SecretKey& trustor,
                                      SequenceNumber seq,
-                                     const std::string& currencyCode,
+                                     std::string const& currencyCode,
                                      bool authorize);
 
 void applyAllowTrust(Application& app, SecretKey& from, SecretKey& trustor,
-                     SequenceNumber seq, const std::string& currencyCode,
+                     SequenceNumber seq, std::string const& currencyCode,
                      bool authorize,
                      AllowTrustResultCode result = ALLOW_TRUST_SUCCESS);
 
@@ -94,7 +94,7 @@ void applySetOptions(Application& app, SecretKey& source,
                      SequenceNumber seq,
                      SetOptionsResultCode result = SET_OPTIONS_SUCCESS);
 
-Currency makeCurrency(SecretKey& issuer, const std::string& code);
+Currency makeCurrency(SecretKey& issuer, std::string const& code);
 
 OperationFrame const& getFirstOperationFrame(TransactionFrame const& tx);
 OperationResult const& getFirstResult(TransactionFrame const& tx);

@@ -32,7 +32,7 @@ TxSetFrame::TxSetFrame(TransactionSet const& xdrSet) : mHashIsValid(false)
 }
 
 static bool
-HashTxSorter(const TransactionFramePtr& tx1, const TransactionFramePtr& tx2)
+HashTxSorter(TransactionFramePtr const& tx1, TransactionFramePtr const& tx2)
 {
     // need to use the hash of whole tx here since multiple txs could have
     // the same Contents
@@ -57,8 +57,8 @@ struct ApplyTxSorter
     {
     }
 
-    bool operator()(const TransactionFramePtr& tx1,
-                    const TransactionFramePtr& tx2)
+    bool operator()(TransactionFramePtr const& tx1,
+                    TransactionFramePtr const& tx2)
     {
         // need to use the hash of whole tx here since multiple txs could have
         // the same Contents
@@ -133,9 +133,9 @@ TxSetFrame::sortForApply()
 }
 
 // TODO.3 this and checkValid share a lot of code
-void 
-TxSetFrame::trimInvalid(Application& app, 
-    std::vector<TransactionFramePtr> trimmed)
+void
+TxSetFrame::trimInvalid(Application& app,
+                        std::vector<TransactionFramePtr> trimmed)
 {
     sortForHash();
 
@@ -144,13 +144,13 @@ TxSetFrame::trimInvalid(Application& app,
     map<uint256, vector<TransactionFramePtr>> accountTxMap;
 
     Hash lastHash;
-    for(auto tx : mTransactions)
+    for (auto tx : mTransactions)
     {
         accountTxMap[tx->getSourceID()].push_back(tx);
         lastHash = tx->getFullHash();
     }
 
-    for(auto& item : accountTxMap)
+    for (auto& item : accountTxMap)
     {
         // order by sequence number
         std::sort(item.second.begin(), item.second.end(), SeqSorter);
@@ -158,9 +158,9 @@ TxSetFrame::trimInvalid(Application& app,
         TransactionFramePtr lastTx;
         SequenceNumber lastSeq = 0;
         int64_t totFee = 0;
-        for(auto& tx : item.second)
+        for (auto& tx : item.second)
         {
-            if(!tx->checkValid(app, lastSeq))
+            if (!tx->checkValid(app, lastSeq))
             {
                 trimmed.push_back(tx);
                 removeTx(tx);
@@ -171,19 +171,19 @@ TxSetFrame::trimInvalid(Application& app,
             lastTx = tx;
             lastSeq = tx->getSeqNum();
         }
-        if(lastTx)
+        if (lastTx)
         {
             // make sure account can pay the fee for all these tx
             int64_t newBalance =
                 lastTx->getSourceAccount().getBalance() - totFee;
-            if(newBalance < lastTx->getSourceAccount().getMinimumBalance(
-                app.getLedgerManager()))
+            if (newBalance < lastTx->getSourceAccount().getMinimumBalance(
+                                 app.getLedgerManager()))
             {
-                for(auto& tx : item.second)
+                for (auto& tx : item.second)
                 {
                     trimmed.push_back(tx);
                     removeTx(tx);
-                }       
+                }
             }
         }
     }
@@ -252,10 +252,11 @@ TxSetFrame::checkValid(Application& app)
     return true;
 }
 
-void TxSetFrame::removeTx(TransactionFramePtr tx)
+void
+TxSetFrame::removeTx(TransactionFramePtr tx)
 {
     auto it = std::find(mTransactions.begin(), mTransactions.end(), tx);
-    if(it != mTransactions.end())
+    if (it != mTransactions.end())
         mTransactions.erase(it);
 }
 

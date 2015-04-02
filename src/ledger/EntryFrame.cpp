@@ -36,7 +36,7 @@ EntryFrame::EntryFrame(LedgerEntryType type)
 {
 }
 
-EntryFrame::EntryFrame(const LedgerEntry& from)
+EntryFrame::EntryFrame(LedgerEntry const& from)
     : mKeyCalculated(false), mEntry(from)
 {
 }
