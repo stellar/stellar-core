@@ -16,7 +16,7 @@ VirtualClock::VirtualClock(Mode mode) : mRealTimer(mIOService), mMode(mode)
 {
     if (mMode == REAL_TIME)
     {
-        mNow = std::chrono::steady_clock::now();
+        mNow = std::chrono::system_clock::now();
     }
 }
 
@@ -25,7 +25,7 @@ VirtualClock::now() noexcept
 {
     if (mMode == REAL_TIME)
     {
-        mNow = std::chrono::steady_clock::now();
+        mNow = std::chrono::system_clock::now();
     }
     return mNow;
 }
