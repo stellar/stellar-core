@@ -54,13 +54,13 @@ NPUB1=gs2GfogJPA8cksDftdLzUChXdL2bjxyppMinfnterAPkRAzWtgq
 NSEC2=s36idnC29ty9xMArD9ryVv4jQMh724K3nMhnavGtwD24mL9KhRG
 NPUB2=gsqfnS41bgWfS2nZnU2XD4YjugycAyGh3JwmWVrWmJiUxemcvUG
 
-for i in archive node{0,1,2}
+for i in archive{0,1,2} node{0,1,2}
 do
     rm -Rf $i
     mkdir $i
 done
 
-ARCH=$(realpath archive)
+ARCH_PREFIX=$(realpath archive)
 
 for i in 0 1 2
 do
@@ -73,6 +73,10 @@ do
     VPUB=VPUB${i}
     VPUBA=VPUB${a}
     VPUBB=VPUB${b}
+
+    ARCH=${ARCH_PREFIX}${i}
+    ARCHA=${ARCH_PREFIX}${a}
+    ARCHB=${ARCH_PREFIX}${b}
 
     PORT=$(( $baseport + $i ))
     HTTP_PORT=$(($PORT + 8080))
@@ -93,10 +97,19 @@ QUORUM_SET=["${!VPUB}", "${!VPUBA}", "${!VPUBB}"]
 ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING=true
 DATABASE="sqlite3://stellar.db"
 COMMANDS=["ll?level=info"]
-[HISTORY.archive]
+
+[HISTORY.archive${i}]
 get="cp ${ARCH}/{0} {1}"
 put="cp {0} ${ARCH}/{1}"
 mkdir="mkdir -p ${ARCH}/{0}"
+
+[HISTORY.archive${a}]
+get="cp ${ARCHA}/{0} {1}"
+mkdir="mkdir -p ${ARCHA}/{0}"
+
+[HISTORY.archive${b}]
+get="cp ${ARCHB}/{0} {1}"
+mkdir="mkdir -p ${ARCHB}/{0}"
 EOF
 done
 
@@ -106,8 +119,8 @@ echo "nodes configured, initializing databases"
 (cd node1 && $ST --conf node.cfg --newdb --forcescp)
 (cd node2 && $ST --conf node.cfg --newdb)
 
-echo "nodes initialized, initializing history archive"
-(cd node0 && $ST --conf node.cfg --newhist archive)
+echo "nodes initialized, initializing history archives"
+for i in 0 1 2; do (cd node$i && $ST --conf node.cfg --newhist archive$i); done
 
 rm node*/*.log
 for i in 0 1 2; do touch node$i/stellar.log; done
