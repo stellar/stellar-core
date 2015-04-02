@@ -56,10 +56,11 @@ createCreditPaymentTx(SecretKey& from, SecretKey& to, Currency& ci,
                       SequenceNumber seq, int64_t amount,
                       std::vector<Currency>* path = nullptr);
 
-void applyCreditPaymentTx(Application& app, SecretKey& from, SecretKey& to,
-                          Currency& ci, SequenceNumber seq, int64_t amount,
-                          PaymentResultCode result = PAYMENT_SUCCESS,
-                          std::vector<Currency>* path = nullptr);
+PaymentResult applyCreditPaymentTx(Application& app, SecretKey& from,
+                                   SecretKey& to, Currency& ci,
+                                   SequenceNumber seq, int64_t amount,
+                                   PaymentResultCode result = PAYMENT_SUCCESS,
+                                   std::vector<Currency>* path = nullptr);
 
 TransactionFramePtr createOfferOp(uint64 offerId, SecretKey& source,
                                   Currency& takerGets, Currency& takerPays,

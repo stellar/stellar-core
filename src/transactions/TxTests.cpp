@@ -220,7 +220,8 @@ applyChangeTrust(Application& app, SecretKey& from, SecretKey& to,
 
 TransactionFramePtr
 createCreditPaymentTx(SecretKey& from, SecretKey& to, Currency& ci,
-                      SequenceNumber seq, int64_t amount, std::vector<Currency> *path)
+                      SequenceNumber seq, int64_t amount,
+                      std::vector<Currency>* path)
 {
     Operation op;
     op.body.type(PAYMENT);
@@ -249,10 +250,10 @@ makeCurrency(SecretKey& issuer, const std::string& code)
     return currency;
 }
 
-void
+PaymentResult
 applyCreditPaymentTx(Application& app, SecretKey& from, SecretKey& to,
                      Currency& ci, SequenceNumber seq, int64_t amount,
-                     PaymentResultCode result, std::vector<Currency> *path)
+                     PaymentResultCode result, std::vector<Currency>* path)
 {
     TransactionFramePtr txFrame;
 
@@ -262,8 +263,13 @@ applyCreditPaymentTx(Application& app, SecretKey& from, SecretKey& to,
     txFrame->apply(delta, app);
 
     checkTransaction(*txFrame);
-    REQUIRE(PaymentOpFrame::getInnerCode(
-                txFrame->getResult().result.results()[0]) == result);
+
+    auto& firstResult = getFirstResult(*txFrame);
+
+    PaymentResult res = firstResult.tr().paymentResult();
+    auto resCode = res.code();
+    REQUIRE(resCode == result);
+    return res;
 }
 
 TransactionFramePtr
