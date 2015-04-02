@@ -84,6 +84,14 @@ src/lib/util/format.cc and format.h:
   Licensed under the 2-clause BSD license
   (http://opensource.org/licenses/BSD-2-Clause)
 
+src/lib/json/:
+
+  The JsonCpp library,
+  Copyright (c) 2007-2010 Baptiste Lepilleur
+  (blep@users.sourceforge.net)
+  Licensed under the MIT license
+  (http://opensource.org/licenses/MIT)
+
 src/lib/cereal:
 
   The cereal library,
