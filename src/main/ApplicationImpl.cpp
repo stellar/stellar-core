@@ -214,14 +214,11 @@ ApplicationImpl::start()
             LOG(INFO) << "* ";
 
             mHerder->bootstrap();
-            done = true;
         }
+        done = true;
     });
 
-    while(!done)
-    {
-        mVirtualClock.crank();
-    }
+    while (!done && mVirtualClock.crank() > 0);
 }
 
 void

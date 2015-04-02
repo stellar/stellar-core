@@ -267,20 +267,20 @@ BucketManagerImpl::snapshotLedger(LedgerHeader& currentHeader)
 std::vector<std::string>
 BucketManagerImpl::checkForMissingBucketsFiles(HistoryArchiveState const& has)
 {
-    std::vector<std::string> result;
+    std::vector<std::string> buckets;
     for (size_t i = 0; i < BucketList::kNumLevels; ++i)
     {
-        auto curr = bucketBasename(has.currentBuckets.at(i).curr);
         auto snap = bucketBasename(has.currentBuckets.at(i).snap);
-        if (!fs::exists(getBucketDir() + "/" + curr))
-        {
-            result.push_back(has.currentBuckets.at(i).curr);
-        }
-        if (!fs::exists(getBucketDir() + "/" + snap))
-        {
-            result.push_back(has.currentBuckets.at(i).snap);
-        }
+        buckets.push_back(has.currentBuckets.at(i).curr);
+        buckets.push_back(has.currentBuckets.at(i).snap);
     }
+
+    std::vector<std::string> result;
+    std::copy_if(buckets.begin(), buckets.end(), std::back_inserter(result), [&](std::string b) {
+        auto filename = getBucketDir() + "/" + bucketBasename(b);
+        return !isZero(hexToBin256(b)) && !fs::exists(filename);
+    });
+
     return result;
 }
 

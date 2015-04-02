@@ -181,6 +181,8 @@ LedgerManagerImpl::loadLastKnownLedger(function<void(asio::error_code const &ec)
         auto missing = mApp.getBucketManager().checkForMissingBucketsFiles(has);
         if (!missing.empty())
         {
+            CLOG(WARNING, "Ledger") << "Some buckets are missing in '" << mApp.getBucketManager().getBucketDir() << "'.";
+            CLOG(WARNING, "Ledger") << "Attempting to recover from the history store.";
             mApp.getHistoryManager().downloadMissingBuckets(has, continuation);
         } else
         {
