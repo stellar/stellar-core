@@ -15,13 +15,13 @@ packaged/external variants of the libraries as necessary.
 Wrappers, convenience types and local customizations should be kept outside this
 directory, in their own modules whenever possible.
 
-All code here should be licensed appropriately: no more restrictive than ISC.
+All code here should be licensed appropriately: no more restrictive than ASL2.
 The following are acceptable:
 
   - MIT license
   - BSD license
   - ISC license
-  - Apache license
+  - Apache license 2.0
   - Boost software license
   - IBM public license
   - zlib license
