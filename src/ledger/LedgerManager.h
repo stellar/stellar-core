@@ -67,6 +67,7 @@ class LedgerManager
   public:
 
     // Logging helpers, return strings describing the provided ledgers.
+    static std::string ledgerAbbrev(uint32_t seq, uint256 const& hash);
     static std::string ledgerAbbrev(LedgerHeader const& header,
                                     uint256 const& hash);
     static std::string ledgerAbbrev(std::shared_ptr<LedgerHeaderFrame> p);
