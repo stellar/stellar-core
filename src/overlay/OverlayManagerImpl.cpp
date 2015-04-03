@@ -57,7 +57,10 @@ OverlayManagerImpl::OverlayManagerImpl(Application& app)
           {"overlay", "connection", "establish"}, "connection"))
     , mConnectionsDropped(app.getMetrics().NewMeter(
           {"overlay", "connection", "drop"}, "connection"))
-    , mPeersSize(app.getMetrics().NewCounter({"overlay", "memory", "peers"}))
+    , mConnectionsRejected(app.getMetrics().NewMeter(
+          {"overlay", "connection", "reject"}, "connection"))
+    , mPeersSize(app.getMetrics().NewCounter(
+          {"overlay", "memory", "peers"}))
     , mTimer(app)
     , mFloodGate(app)
 {
@@ -235,7 +238,12 @@ OverlayManagerImpl::isPeerAccepted(Peer::pointer peer)
 {
     if (mPeers.size() < mApp.getConfig().MAX_PEER_CONNECTIONS)
         return true;
-    return isPeerPreferred(peer);
+    bool accept = isPeerPreferred(peer);
+    if (!accept)
+    {
+        mConnectionsRejected.Mark();
+    }
+    return accept;
 }
 
 std::vector<Peer::pointer>&
