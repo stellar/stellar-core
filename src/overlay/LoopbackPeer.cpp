@@ -44,6 +44,11 @@ LoopbackPeer::getIP()
 void
 LoopbackPeer::drop()
 {
+    if (mState == CLOSING)
+    {
+        return;
+    }
+    mState = CLOSING;
     auto self = shared_from_this();
     mApp.getClock().getIOService().post(
         [self]()

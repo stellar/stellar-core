@@ -57,7 +57,10 @@ OverlayManagerImpl::OverlayManagerImpl(Application& app)
           {"overlay", "connection", "establish"}, "connection"))
     , mConnectionsDropped(app.getMetrics().NewMeter(
           {"overlay", "connection", "drop"}, "connection"))
-    , mPeersSize(app.getMetrics().NewCounter({"overlay", "memory", "peers"}))
+    , mConnectionsRejected(app.getMetrics().NewMeter(
+          {"overlay", "connection", "reject"}, "connection"))
+    , mPeersSize(app.getMetrics().NewCounter(
+          {"overlay", "memory", "peers"}))
     , mTimer(app)
     , mFloodGate(app)
 {
@@ -112,8 +115,7 @@ OverlayManagerImpl::connectTo(PeerRecord& pr)
     {
         pr.backOff(mApp.getClock());
         pr.storePeerRecord(mApp.getDatabase());
-
-        addConnectedPeer(TCPPeer::initiate(mApp, pr.mIP, pr.mPort));
+        TCPPeer::initiate(mApp, pr.mIP, pr.mPort);
     }
     else
     {
@@ -214,6 +216,7 @@ OverlayManagerImpl::ledgerClosed(LedgerHeaderHistoryEntry const& ledger)
 void
 OverlayManagerImpl::addConnectedPeer(Peer::pointer peer)
 {
+    CLOG(INFO, "Overlay") << "New connected peer " << peer->toString();
     mConnectionsEstablished.Mark();
     mPeers.push_back(peer);
     mPeersSize.set_count(mPeers.size());
@@ -223,6 +226,7 @@ void
 OverlayManagerImpl::dropPeer(Peer::pointer peer)
 {
     mConnectionsDropped.Mark();
+    CLOG(INFO, "Overlay") << "Dropping peer " << peer->toString();
     auto iter = find(mPeers.begin(), mPeers.end(), peer);
     if (iter != mPeers.end())
         mPeers.erase(iter);
@@ -236,7 +240,12 @@ OverlayManagerImpl::isPeerAccepted(Peer::pointer peer)
 {
     if (mPeers.size() < mApp.getConfig().MAX_PEER_CONNECTIONS)
         return true;
-    return isPeerPreferred(peer);
+    bool accept = isPeerPreferred(peer);
+    if (!accept)
+    {
+        mConnectionsRejected.Mark();
+    }
+    return accept;
 }
 
 std::vector<Peer::pointer>&

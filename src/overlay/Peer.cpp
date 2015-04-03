@@ -33,7 +33,7 @@ using namespace soci;
 Peer::Peer(Application& app, PeerRole role)
     : mApp(app)
     , mRole(role)
-    , mState(role == ACCEPTOR ? CONNECTED : CONNECTING)
+    , mState(role == ACCEPTOR ? CONNECTING : CONNECTED)
     , mRemoteProtocolVersion(0)
     , mRemoteListeningPort(0)
 {
@@ -70,11 +70,13 @@ Peer::connectHandler(asio::error_code const& error)
     if (error)
     {
         CLOG(WARNING, "Overlay") << "@" << mApp.getConfig().PEER_PORT
-                                 << " connectHandler error: " << error;
+                                 << " connectHandler error: "
+                                 << error.message();
         drop();
     }
     else
     {
+        mApp.getOverlayManager().addConnectedPeer(shared_from_this());
         CLOG(DEBUG, "Overlay") << "connected @" << toString();
         connected();
         mState = CONNECTED;
