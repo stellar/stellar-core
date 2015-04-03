@@ -102,16 +102,13 @@ class VirtualClock
 
     size_t nRealTimerCancelEvents;
     time_point mNow;
-    std::map<Application*,
-             std::shared_ptr<std::priority_queue<VirtualClockEvent>>> mEvents;
+    std::priority_queue<VirtualClockEvent> mEvents;
+
+    bool mDestructing{false};
 
     time_point next();
-    bool
-    cancelAllEventsFrom(Application& a,
-                        std::function<bool(VirtualClockEvent const&)> pred);
     void maybeSetRealtimer();
     size_t advanceTo(time_point n);
-    bool allEmpty() const;
     size_t advanceToNext();
     size_t advanceToNow();
 
@@ -122,6 +119,7 @@ class VirtualClock
     // the next virtual event instantly.
 
     VirtualClock(Mode mode = VIRTUAL_TIME);
+    ~VirtualClock();
     size_t crank(bool block = true);
     asio::io_service& getIOService();
 
@@ -129,9 +127,10 @@ class VirtualClock
     // not an implementation of the C++ `Clock` concept; there is no global
     // virtual time. Each virtual clock has its own time.
     time_point now() noexcept;
-    void enqueue(Application& app, VirtualClockEvent const& ve);
-    bool cancelAllEventsFrom(Application& a);
-    bool cancelAllEventsFrom(Application& a, VirtualTimer& v);
+
+    void enqueue(VirtualClockEvent const& ve);
+    bool cancelAllEventsFrom(VirtualTimer& v);
+    bool cancelAllEvents();
 };
 
 struct VirtualClockEvent
@@ -151,18 +150,19 @@ struct VirtualClockEvent
 };
 
 /**
- * This is the class you probably want to use: it is coupled with an Application
- * (thus the app's VirtualClock), so advances with per-Application simulated
- * time, and therefore runs at full speed during simulation/testing.
+ * This is the class you probably want to use: it is coupled with a
+ * VirtualClock, so advances with per-VirtualClock simulated time, and therefore
+ * runs at full speed during simulation/testing.
  */
 class VirtualTimer : private NonMovableOrCopyable
 {
-    Application& mApp;
+    VirtualClock& mClock;
     VirtualClock::time_point mExpiryTime;
     bool mCancelled;
 
   public:
     VirtualTimer(Application& app);
+    VirtualTimer(VirtualClock& app);
     ~VirtualTimer();
 
     void expires_at(VirtualClock::time_point t);

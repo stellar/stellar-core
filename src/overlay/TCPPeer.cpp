@@ -88,6 +88,21 @@ TCPPeer::accept(Application& app, shared_ptr<asio::ip::tcp::socket> socket)
 
 TCPPeer::~TCPPeer()
 {
+    mWriteIdle.cancel();
+    mReadIdle.cancel();
+    try
+    {
+        if (mSocket)
+        {
+            mSocket->cancel();
+            mSocket->close();
+        }
+    }
+    catch (asio::system_error& e)
+    {
+        // Ignore: this indicates an attempt to cancel events
+        // on a not-established socket.
+    }
 }
 
 void
