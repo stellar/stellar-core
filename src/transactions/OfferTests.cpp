@@ -877,8 +877,56 @@ TEST_CASE("create offer", "[tx][offers]")
                     }
                 }
             }
+            SECTION("issuer offers")
+            {
                 TrustFrame line;
 
+                SECTION("issuer creates an offer, claimed by somebody else")
+                {
+                    // sell 100 IDR for 90 USD
+                    uint64_t gwOffer = applyCreateOffer(
+                        app, delta, 0, gateway, idrCur, usdCur, Price(9, 10),
+                        100 * currencyMultiplier, gateway_seq++);
+
+                    // fund a1 with some USD
+                    applyCreditPaymentTx(app, gateway, a1, usdCur,
+                                         gateway_seq++,
+                                         1000 * currencyMultiplier);
+
+                    // sell USD for IDR
+                    auto resA = applyCreateOfferWithResult(
+                        app, delta, 0, a1, usdCur, idrCur, Price(1, 1),
+                        90 * currencyMultiplier, a1_seq++);
+
+                    REQUIRE(resA.success().offer.effect() ==
+                            CREATE_OFFER_DELETED);
+
+                    // gw's offer was deleted
+                    REQUIRE(!OfferFrame::loadOffer(gateway.getPublicKey(),
+                                                   gwOffer, offer,
+                                                   app.getDatabase()));
+
+                    // check balance
+                    REQUIRE(TrustFrame::loadTrustLine(a1.getPublicKey(), usdCur,
+                                                      line, app.getDatabase()));
+                    checkAmounts(910 * currencyMultiplier, line.getBalance());
+
+                    REQUIRE(TrustFrame::loadTrustLine(a1.getPublicKey(), idrCur,
+                                                      line, app.getDatabase()));
+                    checkAmounts(trustLineBalance + 100 * currencyMultiplier,
+                                 line.getBalance());
+                }
+                SECTION("issuer claims an offer from somebody else")
+                {
+                    auto res = applyCreateOfferWithResult(
+                        app, delta, 0, gateway, usdCur, idrCur, Price(2, 3),
+                        150 * currencyMultiplier, gateway_seq++);
+                    REQUIRE(res.success().offer.effect() ==
+                            CREATE_OFFER_DELETED);
+
+                    // A's offer was deleted
+                    REQUIRE(!OfferFrame::loadOffer(a1.getPublicKey(), offerA1,
+                                                   offer, app.getDatabase()));
 
                     // check balance
                     REQUIRE(TrustFrame::loadTrustLine(a1.getPublicKey(), usdCur,
