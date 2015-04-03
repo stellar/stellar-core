@@ -849,19 +849,18 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope envelope,
             (envelope.statement.slotIndex == nextLedger &&
              mCurrentValue.empty()))
         {
-            if(checkFutureCommitted(envelope))
-            {  // a quorum slice has left us behind 
-                CLOG(INFO, "Herder") << "Left behind. Catching up to our slice." 
-                    << envelope.statement.slotIndex;
-                valueExternalized(envelope.statement.slotIndex, 
-                    envelope.statement.ballot.value);
-                return;
-            }
-            
-
             mFutureEnvelopes[envelope.statement.slotIndex].push_back(
                 std::make_pair(envelope, cb));
             mFutureEnvelopesSize.set_count(mFutureEnvelopes.size());
+
+            if(checkFutureCommitted(envelope))
+            {  // a quorum slice has left us behind 
+                CLOG(INFO, "Herder") << "Left behind. Catching up to our slice."
+                    << envelope.statement.slotIndex;
+                valueExternalized(envelope.statement.slotIndex,
+                    envelope.statement.ballot.value);
+            }
+
             return;
         }
         

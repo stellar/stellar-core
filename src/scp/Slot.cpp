@@ -108,7 +108,7 @@ Slot::processEnvelope(SCPEnvelope const& envelope,
                 if (!valid)
                 {
                     return cb(SCP::EnvelopeState::INVALID);
-                }
+                }else cb(SCP::EnvelopeState::VALID);
 
                 // If a new higher ballot has been issued, let's move on to it.
                 if (mIsPristine || compareBallots(b, mBallot) > 0)
