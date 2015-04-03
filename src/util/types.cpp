@@ -72,8 +72,8 @@ void strToCurrencyCode(xdr::opaque_array<4U>& ret, std::string const& str)
 }
 
 // calculates A*B/C when A*B overflows 64bits
-int64_t
-bigDivide(int64_t A, int64_t B, int64_t C)
+bool
+bigDivide(int64_t& result, int64_t A, int64_t B, int64_t C)
 {
     // update when moving to (signed) int128
     assert((A >= 0) && (B >= 0) && (C > 0));
@@ -81,11 +81,21 @@ bigDivide(int64_t A, int64_t B, int64_t C)
     uint128_t b(B);
     uint128_t c(C);
     uint128_t x = (a * b) / c;
-    if (x > INT64_MAX)
+
+    result = (uint64_t)x;
+
+    return (x <= INT64_MAX);
+}
+
+int64_t
+bigDivide(int64_t A, int64_t B, int64_t C)
+{
+    int64_t res;
+    if (!bigDivide(res, A, B, C))
     {
-        throw std::overflow_error("cannot process value");
+        throw std::overflow_error("overflow while performing bigDivide");
     }
-    return (uint64_t)x;
+    return res;
 }
 
 bool
