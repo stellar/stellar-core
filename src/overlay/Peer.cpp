@@ -70,7 +70,8 @@ Peer::connectHandler(asio::error_code const& error)
     if (error)
     {
         CLOG(WARNING, "Overlay") << "@" << mApp.getConfig().PEER_PORT
-                                 << " connectHandler error: " << error;
+                                 << " connectHandler error: "
+                                 << error.message();
         drop();
     }
     else

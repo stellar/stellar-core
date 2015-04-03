@@ -216,6 +216,7 @@ OverlayManagerImpl::ledgerClosed(LedgerHeaderHistoryEntry const& ledger)
 void
 OverlayManagerImpl::addConnectedPeer(Peer::pointer peer)
 {
+    CLOG(INFO, "Overlay") << "New connected peer " << peer->toString();
     mConnectionsEstablished.Mark();
     mPeers.push_back(peer);
     mPeersSize.set_count(mPeers.size());
@@ -225,6 +226,7 @@ void
 OverlayManagerImpl::dropPeer(Peer::pointer peer)
 {
     mConnectionsDropped.Mark();
+    CLOG(INFO, "Overlay") << "Dropping peer " << peer->toString();
     auto iter = find(mPeers.begin(), mPeers.end(), peer);
     if (iter != mPeers.end())
         mPeers.erase(iter);

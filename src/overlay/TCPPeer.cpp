@@ -80,7 +80,6 @@ TCPPeer::accept(Application& app, shared_ptr<asio::ip::tcp::socket> socket)
 
 TCPPeer::~TCPPeer()
 {
-    //    cout << "TCPPeer::~TCPPeer @" << mApp.getConfig().PEER_PORT;
 }
 
 void
@@ -161,9 +160,14 @@ TCPPeer::writeHandler(asio::error_code const& error,
 {
     if (error)
     {
-        CLOG(DEBUG, "Overlay") << "TCPPeer::writeHandler error"
-                               << "@" << mApp.getConfig().PEER_PORT << " to "
-                               << mRemoteListeningPort;
+        if (mState == CONNECTED || mState == GOT_HELLO)
+        {
+            // Only emit a warning if we have an error while connected;
+            // errors during shutdown or connection are common/expected.
+            CLOG(ERROR, "Overlay") << "TCPPeer::writeHandler error"
+                                   << "@" << mApp.getConfig().PEER_PORT << " to "
+                                   << mRemoteListeningPort;
+        }
         drop();
     }
     else
@@ -204,7 +208,7 @@ TCPPeer::getIncomingMsgLength()
     length |= mIncomingHeader[3];
     if (length < 0 || length > MAX_MESSAGE_SIZE)
     {
-        CLOG(WARNING, "Overlay")
+        CLOG(ERROR, "Overlay")
             << "TCP::Peer::getIncomingMsgLength message size unacceptable: "
             << length;
         drop();
@@ -240,7 +244,13 @@ TCPPeer::readHeaderHandler(asio::error_code const& error,
     }
     else
     {
-        CLOG(WARNING, "Overlay") << "readHeaderHandler error: " << error;
+        if (mState == CONNECTED || mState == GOT_HELLO)
+        {
+            // Only emit a warning if we have an error while connected;
+            // errors during shutdown or connection are common/expected.
+            CLOG(ERROR, "Overlay") << "readHeaderHandler error: "
+                                   << error.message();
+        }
         drop();
     }
 }
@@ -262,7 +272,13 @@ TCPPeer::readBodyHandler(asio::error_code const& error,
     }
     else
     {
-        CLOG(WARNING, "Overlay") << "readBodyHandler error: " << error;
+        if (mState == CONNECTED || mState == GOT_HELLO)
+        {
+            // Only emit a warning if we have an error while connected;
+            // errors during shutdown or connection are common/expected.
+            CLOG(ERROR, "Overlay") << "readBodyHandler error: "
+                                   << error.message();
+        }
         drop();
     }
 }
