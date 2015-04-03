@@ -33,7 +33,7 @@ using namespace soci;
 Peer::Peer(Application& app, PeerRole role)
     : mApp(app)
     , mRole(role)
-    , mState(role == ACCEPTOR ? CONNECTED : CONNECTING)
+    , mState(role == ACCEPTOR ? CONNECTING : CONNECTED)
     , mRemoteProtocolVersion(0)
     , mRemoteListeningPort(0)
 {
