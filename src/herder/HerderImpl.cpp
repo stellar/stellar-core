@@ -926,7 +926,7 @@ HerderImpl::ledgerClosed(LedgerHeaderHistoryEntry const& ledger)
 
     // If we are not a validating not and just watching SCP we don't call
     // triggerNextLedger
-    if (getSecretKey().isZero())
+    if (getSecretKey().isZero() || mApp.getState()!=Application::SYNCED_STATE)
     {
         return;
     }

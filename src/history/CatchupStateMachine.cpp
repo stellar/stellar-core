@@ -75,7 +75,7 @@ CatchupStateMachine::selectRandomReadableHistoryArchive()
     }
     else if (archives.size() == 1)
     {
-        CLOG(INFO, "History")
+        CLOG(DEBUG, "History")
             << "Catching up via sole readable history archive '"
             << archives[0].first << "'";
         return archives[0].second;
@@ -84,7 +84,7 @@ CatchupStateMachine::selectRandomReadableHistoryArchive()
     {
         std::uniform_int_distribution<size_t> dist(0, archives.size() - 1);
         size_t i = dist(gRandomEngine);
-        CLOG(INFO, "History") << "Catching up via readable history archive #"
+        CLOG(DEBUG, "History") << "Catching up via readable history archive #"
                               << i << ", '" << archives[i].first << "'";
         return archives[i].second;
     }
@@ -204,7 +204,7 @@ CatchupStateMachine::enterFetchingState()
             {
                 // If for some reason this bucket exists and is live in the
                 // BucketManager, just grab a copy of it.
-                CLOG(INFO, "History")
+                CLOG(DEBUG, "History")
                     << "Existing bucket found in BucketManager: " << hashname;
                 mBuckets[hashname] = b;
                 fi->setState(FILE_CATCHUP_VERIFIED);
@@ -228,7 +228,7 @@ CatchupStateMachine::enterFetchingState()
 
         case FILE_CATCHUP_DOWNLOADED:
             fi->setState(FILE_CATCHUP_DECOMPRESSING);
-            CLOG(INFO, "History") << "Decompressing " << fi->localPath_gz();
+            CLOG(DEBUG, "History") << "Decompressing " << fi->localPath_gz();
             hm.decompress(
                 fi->localPath_gz(), [this, name](asio::error_code const& ec)
                 {
@@ -251,13 +251,13 @@ CatchupStateMachine::enterFetchingState()
 
             if (hashname.empty())
             {
-                CLOG(INFO, "History") << "Not verifying " << name
+                CLOG(DEBUG, "History") << "Not verifying " << name
                                       << ", no hash";
                 fi->setState(FILE_CATCHUP_VERIFIED);
             }
             else
             {
-                CLOG(INFO, "History") << "Verifying " << name;
+                CLOG(DEBUG, "History") << "Verifying " << name;
                 auto filename = fi->localPath_nogz();
                 hm.verifyHash(
                     filename, hash, [this, name, filename, hashname, hash](
@@ -292,7 +292,7 @@ CatchupStateMachine::enterFetchingState()
     }
     else if (minimumState == FILE_CATCHUP_VERIFIED)
     {
-        CLOG(INFO, "History") << "All files verified, verifying combination";
+        CLOG(DEBUG, "History") << "All files verified, verifying combination";
         enterVerifyingState();
     }
     else
@@ -335,7 +335,7 @@ CatchupStateMachine::enterAnchoredState(HistoryArchiveState const& has)
     mState = CATCHUP_ANCHORED;
     mArchiveState = has;
 
-    CLOG(INFO, "History") << "Catchup ANCHORED, anchor ledger = "
+    CLOG(DEBUG, "History") << "Catchup ANCHORED, anchor ledger = "
                           << mArchiveState.currentLedger;
 
     // First clear out any previous failed files, so we retry them.
@@ -421,7 +421,7 @@ CatchupStateMachine::enterRetryingState()
             if (ec)
             {
                 CLOG(WARNING, "History")
-                    << "Retry timer cancelled while waiting";
+                    << "Retry timer canceled while waiting";
                 return;
             }
             if (this->mRetryCount++ > kRetryLimit)
@@ -479,7 +479,7 @@ CatchupStateMachine::enterVerifyingState()
     switch (status)
     {
     case HistoryManager::VERIFY_HASH_OK:
-        CLOG(INFO, "History") << "Catchup material verified, applying";
+        CLOG(DEBUG, "History") << "Catchup material verified, applying";
         enterApplyingState();
         break;
     case HistoryManager::VERIFY_HASH_BAD:
@@ -709,11 +709,11 @@ CatchupStateMachine::applyBucketsAtLastClosedLedger()
 void
 CatchupStateMachine::acquireFinalLedgerState(uint32_t ledgerNum)
 {
-    CLOG(INFO, "History") << "Seeking ledger state preceding " << ledgerNum;
+    CLOG(DEBUG, "History") << "Seeking ledger state preceding " << ledgerNum;
     assert(mHeaderInfos.size() == 1);
     auto hi = mHeaderInfos.begin()->second;
     XDRInputFileStream hdrIn;
-    CLOG(INFO, "History") << "Scanning to last-ledger in "
+    CLOG(DEBUG, "History") << "Scanning to last-ledger in "
                           << hi->localPath_nogz();
     hdrIn.open(hi->localPath_nogz());
     LedgerHeaderHistoryEntry hHeader;
@@ -730,7 +730,7 @@ CatchupStateMachine::acquireFinalLedgerState(uint32_t ledgerNum)
         throw std::runtime_error("no ledgers in last-ledger file");
     }
 
-    CLOG(INFO, "History") << "Catchup last-ledger header: "
+    CLOG(DEBUG, "History") << "Catchup last-ledger header: "
                           << LedgerManager::ledgerAbbrev(hHeader);
     if (hHeader.header.ledgerSeq + 1 != ledgerNum)
     {
