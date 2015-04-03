@@ -889,7 +889,7 @@ HerderImpl::checkFutureCommitted(SCPEnvelope& envelope)
             {// is it a new one for the list?
                 // TODO: we probably want to fetch the txset here to save time
                 list.push_back(envelope);
-                int count = 0;
+                unsigned int count = 0;
                 for(auto& env : list)
                 {
                     if(env.statement.ballot.value ==
