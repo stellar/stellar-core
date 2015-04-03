@@ -341,7 +341,7 @@ ProcessExitEvent::ProcessExitEvent(asio::io_service& io_service)
     , mImpl(nullptr)
     , mEc(std::make_shared<asio::error_code>())
 {
-    mTimer->expires_from_now(std::chrono::steady_clock::duration::max());
+    mTimer->expires_from_now(std::chrono::system_clock::duration::max());
 }
 
 ProcessExitEvent::~ProcessExitEvent()

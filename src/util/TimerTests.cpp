@@ -81,32 +81,43 @@ TEST_CASE("virtual event dispatch order and times", "[timer]")
 
     size_t eventsDispatched = 0;
 
-    timer1.expires_from_now(std::chrono::nanoseconds(1));
-    timer1.async_wait([&](asio::error_code const& e)
-                      {
-                          CHECK(clock.now().time_since_epoch().count() == 1);
-                          CHECK(eventsDispatched++ == 0);
-                      });
+    timer1.expires_from_now(std::chrono::milliseconds(1));
+    timer1.async_wait(
+        [&](asio::error_code const& e)
+        {
+            auto ns = std::chrono::duration_cast<std::chrono::milliseconds>(
+                          clock.now().time_since_epoch()).count();
+            CHECK(ns == 1);
+            CHECK(eventsDispatched++ == 0);
+        });
 
-    timer20.expires_from_now(std::chrono::nanoseconds(20));
-    timer20.async_wait([&](asio::error_code const& e)
-                       {
-                           CHECK(clock.now().time_since_epoch().count() == 20);
-                           CHECK(eventsDispatched++ == 1);
-                       });
+    timer20.expires_from_now(std::chrono::milliseconds(20));
+    timer20.async_wait(
+        [&](asio::error_code const& e)
+        {
+            auto ns = std::chrono::duration_cast<std::chrono::milliseconds>(
+                          clock.now().time_since_epoch()).count();
+            CHECK(ns == 20);
+            CHECK(eventsDispatched++ == 1);
+        });
 
-    timer21.expires_from_now(std::chrono::nanoseconds(21));
-    timer21.async_wait([&](asio::error_code const& e)
-                       {
-                           CHECK(clock.now().time_since_epoch().count() == 21);
-                           CHECK(eventsDispatched++ == 2);
-                       });
+    timer21.expires_from_now(std::chrono::milliseconds(21));
+    timer21.async_wait(
+        [&](asio::error_code const& e)
+        {
+            auto ns = std::chrono::duration_cast<std::chrono::milliseconds>(
+                          clock.now().time_since_epoch()).count();
+            CHECK(ns == 21);
+            CHECK(eventsDispatched++ == 2);
+        });
 
-    timer200.expires_from_now(std::chrono::nanoseconds(200));
+    timer200.expires_from_now(std::chrono::milliseconds(200));
     timer200.async_wait(
         [&](asio::error_code const& e)
         {
-            CHECK(clock.now().time_since_epoch().count() == 200);
+            auto ns = std::chrono::duration_cast<std::chrono::milliseconds>(
+                          clock.now().time_since_epoch()).count();
+            CHECK(ns == 200);
             CHECK(eventsDispatched++ == 3);
         });
 
