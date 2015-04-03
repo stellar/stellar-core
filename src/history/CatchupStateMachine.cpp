@@ -490,7 +490,7 @@ CatchupStateMachine::enterVerifyingState()
     } else
     {
         assert(mMode == HistoryManager::CATCHUP_BUCKET_REPAIR);
-        // In CATCH_BUCKET_REPAIR, the verification done by the download step is all 
+        // In CATCHUP_BUCKET_REPAIR, the verification done by the download step is all 
         // we can do.
         status = HistoryManager::VERIFY_HASH_OK;
     }
