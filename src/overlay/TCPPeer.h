@@ -28,6 +28,10 @@ class TCPPeer : public Peer
     medida::Meter& mMessageWrite;
     medida::Meter& mByteRead;
     medida::Meter& mByteWrite;
+    medida::Meter& mErrorRead;
+    medida::Meter& mErrorWrite;
+    medida::Meter& mTimeoutRead;
+    medida::Meter& mTimeoutWrite;
 
     void timeoutRead(asio::error_code const& error);
     void timeoutWrite(asio::error_code const& error);

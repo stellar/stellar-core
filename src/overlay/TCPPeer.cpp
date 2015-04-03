@@ -41,6 +41,14 @@ TCPPeer::TCPPeer(Application& app, Peer::PeerRole role,
     , mByteRead(app.getMetrics().NewMeter({"overlay", "byte", "read"}, "byte"))
     , mByteWrite(
           app.getMetrics().NewMeter({"overlay", "byte", "write"}, "byte"))
+    , mErrorRead(app.getMetrics().NewMeter({"overlay", "error", "read"},
+                                           "error"))
+    , mErrorWrite(app.getMetrics().NewMeter({"overlay", "error", "write"},
+                                            "error"))
+    , mTimeoutRead(app.getMetrics().NewMeter({"overlay", "timeout", "read"},
+                                               "timeout"))
+    , mTimeoutWrite(app.getMetrics().NewMeter({"overlay", "timeout", "write"},
+                                               "timeout"))
 {
 }
 
@@ -112,6 +120,7 @@ void
 TCPPeer::timeoutWrite(asio::error_code const& error)
 {
     CLOG(INFO, "Overlay") << "write timeout";
+    mTimeoutWrite.Mark();
     drop();
 }
 
@@ -119,6 +128,7 @@ void
 TCPPeer::timeoutRead(asio::error_code const& error)
 {
     CLOG(INFO, "Overlay") << "read timeout";
+    mTimeoutRead.Mark();
     drop();
 }
 
@@ -164,6 +174,7 @@ TCPPeer::writeHandler(asio::error_code const& error,
         {
             // Only emit a warning if we have an error while connected;
             // errors during shutdown or connection are common/expected.
+            mErrorWrite.Mark();
             CLOG(ERROR, "Overlay") << "TCPPeer::writeHandler error"
                                    << "@" << mApp.getConfig().PEER_PORT << " to "
                                    << mRemoteListeningPort;
@@ -208,6 +219,7 @@ TCPPeer::getIncomingMsgLength()
     length |= mIncomingHeader[3];
     if (length < 0 || length > MAX_MESSAGE_SIZE)
     {
+        mErrorRead.Mark();
         CLOG(ERROR, "Overlay")
             << "TCP::Peer::getIncomingMsgLength message size unacceptable: "
             << length;
@@ -248,6 +260,7 @@ TCPPeer::readHeaderHandler(asio::error_code const& error,
         {
             // Only emit a warning if we have an error while connected;
             // errors during shutdown or connection are common/expected.
+            mErrorRead.Mark();
             CLOG(ERROR, "Overlay") << "readHeaderHandler error: "
                                    << error.message();
         }
@@ -276,6 +289,7 @@ TCPPeer::readBodyHandler(asio::error_code const& error,
         {
             // Only emit a warning if we have an error while connected;
             // errors during shutdown or connection are common/expected.
+            mErrorRead.Mark();
             CLOG(ERROR, "Overlay") << "readBodyHandler error: "
                                    << error.message();
         }
