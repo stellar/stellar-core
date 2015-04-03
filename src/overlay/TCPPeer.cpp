@@ -299,6 +299,12 @@ TCPPeer::recvHello(StellarMessage const& msg)
 void
 TCPPeer::drop()
 {
+    if (mState == CLOSING)
+    {
+        return;
+    }
+    mState = CLOSING;
+
     CLOG(DEBUG, "Overlay") << "TCPPeer:drop"
                            << "@" << mApp.getConfig().PEER_PORT << " to "
                            << mRemoteListeningPort;
