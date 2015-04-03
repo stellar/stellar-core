@@ -188,10 +188,12 @@ bool
 VirtualClock::cancelAllEvents()
 {
     bool empty = mEvents.empty();
-    while (!mEvents.empty())
+    auto events = mEvents;
+    mEvents = priority_queue<VirtualClockEvent>();
+    while (!events.empty())
     {
-        mEvents.top().mCallback(asio::error::operation_aborted);
-        mEvents.pop();
+        events.top().mCallback(asio::error::operation_aborted);
+        events.pop();
     }
     return !empty;
 }
