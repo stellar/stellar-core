@@ -63,7 +63,7 @@ TEST_CASE("payment", "[tx][payment]")
 
     const int64_t currencyMultiplier = 1000000;
 
-    int64_t trustLineLimit = 1000000 * currencyMultiplier;
+    int64_t trustLineLimit = INT64_MAX;
 
     int64_t trustLineStartingBalance = 20000 * currencyMultiplier;
 

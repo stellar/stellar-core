@@ -144,8 +144,13 @@ CreateOfferOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
     }
 
     {
-        int64_t maxSheepBasedOnWheat = bigDivide(
-            maxWheatCanSell, mCreateOffer.price.d, mCreateOffer.price.n);
+        int64_t maxSheepBasedOnWheat;
+        if (!bigDivide(maxSheepBasedOnWheat, maxWheatCanSell,
+                       mCreateOffer.price.d, mCreateOffer.price.n))
+        {
+            maxSheepBasedOnWheat = INT64_MAX;
+        }
+
         if (maxAmountOfSheepCanSell > maxSheepBasedOnWheat)
         {
             maxAmountOfSheepCanSell = maxSheepBasedOnWheat;

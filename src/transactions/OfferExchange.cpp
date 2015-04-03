@@ -62,9 +62,13 @@ OfferExchange::crossOffer(OfferFrame& sellingWheatOffer,
 
         // compute numWheatReceived based on what the account can receive
         int64_t sellerMaxSheep = sheepLineAccountB.getMaxAmountReceive();
-        numWheatReceived =
-            bigDivide(sellerMaxSheep, sellingWheatOffer.getOffer().price.d,
-                      sellingWheatOffer.getOffer().price.n);
+
+        if (!bigDivide(numWheatReceived, sellerMaxSheep,
+                       sellingWheatOffer.getOffer().price.d,
+                       sellingWheatOffer.getOffer().price.n))
+        {
+            numWheatReceived = INT64_MAX;
+        }
     }
 
     // adjust numWheatReceived with what the seller has
@@ -110,9 +114,12 @@ OfferExchange::crossOffer(OfferFrame& sellingWheatOffer,
     }
 
     // this guy can get X wheat to you. How many sheep does that get him?
-    numSheepSend =
-        bigDivide(numWheatReceived, sellingWheatOffer.getOffer().price.n,
-                  sellingWheatOffer.getOffer().price.d);
+    if (!bigDivide(numSheepSend, numWheatReceived,
+                   sellingWheatOffer.getOffer().price.n,
+                   sellingWheatOffer.getOffer().price.d))
+    {
+        numSheepSend = INT64_MAX;
+    }
 
     if (numSheepSend > maxSheepSend)
     {
@@ -121,7 +128,7 @@ OfferExchange::crossOffer(OfferFrame& sellingWheatOffer,
         reducedOffer = true;
     }
 
-    // bias towards seller
+    // bias towards seller (this cannot overflow at this point)
     numWheatReceived =
         bigDivide(numSheepSend, sellingWheatOffer.getOffer().price.d,
                   sellingWheatOffer.getOffer().price.n);
