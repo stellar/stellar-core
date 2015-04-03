@@ -14,7 +14,7 @@
 #include "medida/meter.h"
 #include "main/Config.h"
 
-#define MS_TO_WAIT_FOR_HELLO 2000
+#define IO_TIMEOUT_SECONDS 30
 #define MAX_MESSAGE_SIZE 0x1000000
 
 using namespace soci;
@@ -32,7 +32,8 @@ TCPPeer::TCPPeer(Application& app, Peer::PeerRole role,
                  std::shared_ptr<asio::ip::tcp::socket> socket)
     : Peer(app, role)
     , mSocket(socket)
-    , mHelloTimer(app)
+    , mReadIdle(app)
+    , mWriteIdle(app)
     , mMessageRead(
           app.getMetrics().NewMeter({"overlay", "message", "read"}, "message"))
     , mMessageWrite(
@@ -73,13 +74,6 @@ TCPPeer::accept(Application& app, shared_ptr<asio::ip::tcp::socket> socket)
         app, INITIATOR,
         socket); // We are accepting; new `newed` TCPPeer initiated
     result->mIP = socket->remote_endpoint().address().to_string();
-    result->mHelloTimer.expires_from_now(
-        std::chrono::milliseconds(MS_TO_WAIT_FOR_HELLO));
-    result->mHelloTimer.async_wait([result](asio::error_code const& error)
-                                   {
-                                       if (!error)
-                                           result->timerExpired(error);
-                                   });
     result->startRead();
     return result;
 }
@@ -90,8 +84,42 @@ TCPPeer::~TCPPeer()
 }
 
 void
-TCPPeer::timerExpired(asio::error_code const& error)
+TCPPeer::resetWriteIdle()
 {
+    std::shared_ptr<TCPPeer> self =
+        std::dynamic_pointer_cast<TCPPeer>(shared_from_this());
+    mWriteIdle.expires_from_now(std::chrono::seconds(IO_TIMEOUT_SECONDS));
+    mWriteIdle.async_wait([self](const asio::error_code& error)
+                          {
+                              if (!error)
+                                  self->timeoutWrite(error);
+                          });
+}
+
+void
+TCPPeer::resetReadIdle()
+{
+    std::shared_ptr<TCPPeer> self =
+        std::dynamic_pointer_cast<TCPPeer>(shared_from_this());
+    mReadIdle.expires_from_now(std::chrono::seconds(IO_TIMEOUT_SECONDS));
+    mReadIdle.async_wait([self](const asio::error_code& error)
+                         {
+                             if (!error)
+                                 self->timeoutRead(error);
+                         });
+}
+
+void
+TCPPeer::timeoutWrite(asio::error_code const& error)
+{
+    CLOG(INFO, "Overlay") << "write timeout";
+    drop();
+}
+
+void
+TCPPeer::timeoutRead(asio::error_code const& error)
+{
+    CLOG(INFO, "Overlay") << "read timeout";
     drop();
 }
 
@@ -115,6 +143,7 @@ TCPPeer::sendMessage(xdr::msg_ptr&& xdrBytes)
                            << "@" << mApp.getConfig().PEER_PORT << " to "
                            << mRemoteListeningPort;
 
+    resetWriteIdle();
     auto self = shared_from_this();
     auto buf = std::make_shared<xdr::msg_ptr>(std::move(xdrBytes));
     asio::async_write(
@@ -150,7 +179,7 @@ TCPPeer::startRead()
     CLOG(DEBUG, "Overlay") << "TCPPeer::startRead"
                            << "@" << mApp.getConfig().PEER_PORT << " to "
                            << mSocket->remote_endpoint().port();
-
+    resetReadIdle();
     auto self = shared_from_this();
     asio::async_read(*(mSocket.get()), asio::buffer(mIncomingHeader),
                      [self](asio::error_code ec, std::size_t length)
@@ -252,7 +281,6 @@ TCPPeer::recvMessage()
 bool
 TCPPeer::recvHello(StellarMessage const& msg)
 {
-    mHelloTimer.cancel();
     if (!Peer::recvHello(msg))
         return false;
 
@@ -309,6 +337,8 @@ TCPPeer::drop()
                            << "@" << mApp.getConfig().PEER_PORT << " to "
                            << mRemoteListeningPort;
 
+    mWriteIdle.cancel();
+    mReadIdle.cancel();
     auto self = shared_from_this();
     auto sock = mSocket;
     mApp.getClock().getIOService().post(
