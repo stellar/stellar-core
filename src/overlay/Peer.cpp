@@ -75,6 +75,7 @@ Peer::connectHandler(asio::error_code const& error)
     }
     else
     {
+        mApp.getOverlayManager().addConnectedPeer(shared_from_this());
         CLOG(DEBUG, "Overlay") << "connected @" << toString();
         connected();
         mState = CONNECTED;
