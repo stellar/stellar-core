@@ -94,11 +94,15 @@ TCPPeer::~TCPPeer()
     {
         if (mSocket)
         {
+#ifndef _WIN32
+            // This always fails on windows and ASIO won't
+            // even build it.
             mSocket->cancel();
+#endif
             mSocket->close();
         }
     }
-    catch (asio::system_error& e)
+    catch (asio::system_error&)
     {
         // Ignore: this indicates an attempt to cancel events
         // on a not-established socket.
