@@ -60,11 +60,10 @@ class VirtualClock
     // These model most of the std::chrono clock concept, with the exception of
     // now()
     // which is non-static.
-    typedef std::chrono::nanoseconds duration;
+    typedef std::chrono::system_clock::duration duration;
     typedef duration::rep rep;
     typedef duration::period period;
-    typedef std::chrono::time_point<std::chrono::system_clock, duration>
-        time_point;
+    typedef std::chrono::system_clock::time_point time_point;
     static const bool is_steady = false;
 
     /**
@@ -168,6 +167,11 @@ class VirtualTimer : private NonMovableOrCopyable
 
     void expires_at(VirtualClock::time_point t);
     void expires_from_now(VirtualClock::duration d);
+    template <typename R, typename P>
+        void expires_from_now(std::chrono::duration<R,P> const& d)
+    {
+        expires_from_now(std::chrono::duration_cast<VirtualClock::duration>(d));
+    }
     void async_wait(std::function<void(asio::error_code)> const& fn);
     void async_wait(std::function<void()> const& onSuccess,
                     std::function<void(asio::error_code)> const& onFailure);
