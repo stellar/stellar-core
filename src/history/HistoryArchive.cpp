@@ -52,9 +52,15 @@ HistoryArchiveState::toString() const
 void
 HistoryArchiveState::load(std::string const& inFile)
 {
-    std::ifstream in(inFile);
-    cereal::JSONInputArchive ar(in);
-    serialize(ar);
+    try {
+        std::ifstream in(inFile);
+        cereal::JSONInputArchive ar(in);
+        serialize(ar);
+    }
+    catch(...)
+    {
+        CLOG(WARNING, "History") << "Exception loading: " << inFile;
+    }
 }
 
 void
