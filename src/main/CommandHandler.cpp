@@ -30,7 +30,10 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
     if (!mApp.getConfig().RUN_STANDALONE && mApp.getConfig().HTTP_PORT)
     {
         std::string ipStr;
-        ipStr = "127.0.0.1";
+        if(mApp.getConfig().PUBLIC_HTTP_PORT)
+        { 
+            ipStr = "0.0.0.0";
+        }else ipStr = "127.0.0.1";
         LOG(INFO) << "Listening on " << ipStr << ":"
                   << mApp.getConfig().HTTP_PORT << " for HTTP requests";
 
