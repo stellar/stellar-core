@@ -778,7 +778,8 @@ TEST_CASE_METHOD(HistoryTests, "Publish/catchup alternation, with stall",
 TEST_CASE_METHOD(HistoryTests, "Repair missing buckets via history", "[history][historybucketrepair]")
 {
     generateAndPublishInitialHistory(1);
-    app.gracefulStop();
+    appPtr.reset();
+
 
     auto cfg2 = getTestConfig(1, Config::TESTDB_IN_MEMORY_SQLITE);
     auto app2 = Application::create(clock, mConfigurator->configure(cfg2, false));
@@ -795,11 +796,7 @@ TEST_CASE_METHOD(HistoryTests, "Repair missing buckets via history", "[history][
         count += level.getCurr()->countLiveAndDeadEntries().first;
         count += level.getSnap()->countLiveAndDeadEntries().first;
     }
-
-    app2 = nullptr;
     CHECK(count == 1);
-
-    
 }
 
 
