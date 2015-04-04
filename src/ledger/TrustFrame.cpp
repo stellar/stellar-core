@@ -27,12 +27,13 @@ const char* TrustFrame::kSQLCreateStatement =
     "PRIMARY KEY (accountID, issuer, isoCurrency)"
     ");";
 
-TrustFrame::TrustFrame() : EntryFrame(TRUSTLINE), mTrustLine(mEntry.trustLine())
+TrustFrame::TrustFrame()
+    : EntryFrame(TRUSTLINE), mTrustLine(mEntry.trustLine()), mIsIssuer(false)
 {
 }
 
 TrustFrame::TrustFrame(LedgerEntry const& from)
-    : EntryFrame(from), mTrustLine(mEntry.trustLine())
+    : EntryFrame(from), mTrustLine(mEntry.trustLine()), mIsIssuer(false)
 {
 }
 
@@ -47,6 +48,7 @@ TrustFrame& TrustFrame::operator=(TrustFrame const& other)
         mTrustLine = other.mTrustLine;
         mKey = other.mKey;
         mKeyCalculated = other.mKeyCalculated;
+        mIsIssuer = other.mIsIssuer;
     }
     return *this;
 }
@@ -58,6 +60,9 @@ TrustFrame::getKeyFields(LedgerKey const& key, std::string& base58AccountID,
     base58AccountID = toBase58Check(VER_ACCOUNT_ID, key.trustLine().accountID);
     base58Issuer =
         toBase58Check(VER_ACCOUNT_ID, key.trustLine().currency.isoCI().issuer);
+    if (base58AccountID == base58Issuer)
+        throw std::runtime_error("Issuer's own trustline should not be used "
+                                 "outside of OperationFrame");
     currencyCodeToStr(key.trustLine().currency.isoCI().currencyCode,
                       currencyCode);
 }
@@ -72,6 +77,10 @@ TrustFrame::getBalance() const
 bool
 TrustFrame::addBalance(int64_t delta)
 {
+    if (mIsIssuer)
+    {
+        return true;
+    }
     if (delta == 0)
     {
         return true;
@@ -96,7 +105,11 @@ int64_t
 TrustFrame::getMaxAmountReceive() const
 {
     int64_t amount = 0;
-    if (mTrustLine.authorized)
+    if (mIsIssuer)
+    {
+        amount = INT64_MAX;
+    }
+    else if (mTrustLine.authorized)
     {
         amount = mTrustLine.limit - mTrustLine.balance;
     }
@@ -151,6 +164,9 @@ TrustFrame::storeChange(LedgerDelta& delta, Database& db) const
 {
     assert(isValid());
 
+    if (mIsIssuer)
+        return;
+
     std::string b58AccountID, b58Issuer, currencyCode;
     getKeyFields(getKey(), b58AccountID, b58Issuer, currencyCode);
 
@@ -177,6 +193,9 @@ TrustFrame::storeAdd(LedgerDelta& delta, Database& db) const
 {
     assert(isValid());
 
+    if (mIsIssuer)
+        return;
+
     std::string b58AccountID, b58Issuer, currencyCode;
     getKeyFields(getKey(), b58AccountID, b58Issuer, currencyCode);
 
@@ -202,10 +221,27 @@ static const char* trustLineColumnSelector =
     "SELECT accountID, issuer, isoCurrency, tlimit,balance,authorized FROM "
     "TrustLines";
 
+void
+TrustFrame::setAsIssuer(Currency const& issuer)
+{
+    mIsIssuer = true;
+    mTrustLine.accountID = issuer.isoCI().issuer;
+    mTrustLine.authorized = true;
+    mTrustLine.balance = INT64_MAX;
+    mTrustLine.currency = issuer;
+    mTrustLine.limit = INT64_MAX;
+}
+
 bool
-TrustFrame::loadTrustLine(const uint256& accountID, const Currency& currency,
+TrustFrame::loadTrustLine(uint256 const& accountID, Currency const& currency,
                           TrustFrame& retLine, Database& db)
 {
+    if (accountID == currency.isoCI().issuer)
+    {
+        retLine.setAsIssuer(currency);
+        return true;
+    }
+
     std::string accStr, issuerStr, currencyStr;
 
     accStr = toBase58Check(VER_ACCOUNT_ID, accountID);

@@ -96,7 +96,7 @@ PaymentOpFrame::sendNoCreate(AccountFrame& destination, LedgerDelta& delta,
             destination.getAccount().balance += curBReceived;
             destination.storeChange(delta, db);
         }
-        else if (destination.getID() != curB.isoCI().issuer)
+        else
         {
             TrustFrame destLine;
 
@@ -198,31 +198,27 @@ PaymentOpFrame::sendNoCreate(AccountFrame& destination, LedgerDelta& delta,
     }
     else
     {
-        // issuer can always send its own credit
-        if (getSourceID() != curB.isoCI().issuer)
+        AccountFrame issuer;
+        if (!AccountFrame::loadAccount(curB.isoCI().issuer, issuer, db))
         {
-            AccountFrame issuer;
-            if (!AccountFrame::loadAccount(curB.isoCI().issuer, issuer, db))
-            {
-                throw std::runtime_error("sendCredit Issuer not found");
-            }
-
-            TrustFrame sourceLineFrame;
-            if (!TrustFrame::loadTrustLine(getSourceID(), curB, sourceLineFrame,
-                                           db))
-            {
-                innerResult().code(PAYMENT_UNDERFUNDED);
-                return false;
-            }
-
-            if (!sourceLineFrame.addBalance(-curBSent))
-            {
-                innerResult().code(PAYMENT_UNDERFUNDED);
-                return false;
-            }
-
-            sourceLineFrame.storeChange(delta, db);
+            throw std::runtime_error("sendCredit Issuer not found");
         }
+
+        TrustFrame sourceLineFrame;
+        if (!TrustFrame::loadTrustLine(getSourceID(), curB, sourceLineFrame,
+                                       db))
+        {
+            innerResult().code(PAYMENT_UNDERFUNDED);
+            return false;
+        }
+
+        if (!sourceLineFrame.addBalance(-curBSent))
+        {
+            innerResult().code(PAYMENT_UNDERFUNDED);
+            return false;
+        }
+
+        sourceLineFrame.storeChange(delta, db);
     }
 
     return true;

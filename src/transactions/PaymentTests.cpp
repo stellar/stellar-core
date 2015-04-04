@@ -63,7 +63,7 @@ TEST_CASE("payment", "[tx][payment]")
 
     const int64_t currencyMultiplier = 1000000;
 
-    int64_t trustLineLimit = 1000000 * currencyMultiplier;
+    int64_t trustLineLimit = INT64_MAX;
 
     int64_t trustLineStartingBalance = 20000 * currencyMultiplier;
 
@@ -102,7 +102,6 @@ TEST_CASE("payment", "[tx][payment]")
             (100000000000000000 - paymentAmount - gatewayPayment - txfee * 2));
 
     LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader());
-
     SECTION("send XLM to an existing account")
     {
         applyPaymentTx(app, root, a1, rootSeq++, morePayment);
@@ -138,7 +137,6 @@ TEST_CASE("payment", "[tx][payment]")
             app.getLedgerManager().getCurrentLedgerHeader().baseReserve - 1,
             PAYMENT_LOW_RESERVE);
     }
-
     SECTION("simple credit")
     {
         SECTION("credit sent to new account (no account error)")
@@ -247,7 +245,6 @@ TEST_CASE("payment", "[tx][payment]")
         // a1 holds (0, IDR) (trustLineStartingBalance, USD)
         // b1 holds (trustLineStartingBalance, IDR) (0, USD)
         // c1 holds (trustLineStartingBalance, IDR) (0, USD)
-
         SECTION("send with path (over sendmax)")
         {
             // A1: try to send 100 IDR to B1 via USD
@@ -391,6 +388,27 @@ TEST_CASE("payment", "[tx][payment]")
                                               app.getDatabase()));
             checkAmounts(line.getBalance(),
                          trustLineStartingBalance - 170 * currencyMultiplier);
+        }
+        SECTION("issuer large amounts")
+        {
+            applyChangeTrust(app, a1, gateway, a1Seq++, "IDR", INT64_MAX);
+            applyCreditPaymentTx(app, gateway, a1, idrCur, gateway_seq++,
+                                 INT64_MAX);
+            TrustFrame line;
+            REQUIRE(TrustFrame::loadTrustLine(a1.getPublicKey(), idrCur, line,
+                                              app.getDatabase()));
+            REQUIRE(line.getBalance() == INT64_MAX);
+
+            // send it all back
+            applyCreditPaymentTx(app, a1, gateway, idrCur, a1Seq++, INT64_MAX);
+            REQUIRE(TrustFrame::loadTrustLine(a1.getPublicKey(), idrCur, line,
+                                              app.getDatabase()));
+            REQUIRE(line.getBalance() == 0);
+
+            std::vector<TrustFrame> gwLines;
+            TrustFrame::loadLines(gateway.getPublicKey(), gwLines,
+                                  app.getDatabase());
+            REQUIRE(gwLines.size() == 0);
         }
     }
 }

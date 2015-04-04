@@ -32,6 +32,9 @@ class TrustFrame : public EntryFrame
 
     TrustLineEntry& mTrustLine;
 
+    void setAsIssuer(Currency const& issuer);
+    bool mIsIssuer; // the TrustFrame fakes an infinite trustline for issuers
+
   public:
     typedef std::shared_ptr<TrustFrame> pointer;
 
@@ -57,10 +60,12 @@ class TrustFrame : public EntryFrame
                             LedgerKey const& key);
     static bool exists(Database& db, LedgerKey const& key);
 
+    // returns the specified trustline or a generated one for issuers
     static bool loadTrustLine(uint256 const& accountID,
                               Currency const& currency, TrustFrame& retEntry,
                               Database& db);
 
+    // note: only returns trust lines stored in the database
     static void loadLines(uint256 const& accountID,
                           std::vector<TrustFrame>& retLines, Database& db);
 
