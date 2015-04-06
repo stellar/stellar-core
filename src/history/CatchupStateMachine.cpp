@@ -42,12 +42,12 @@ CatchupStateMachine::CatchupStateMachine(
     , mInitLedger(initLedger)
     , mNextLedger(app.getHistoryManager().nextCheckpointLedger(initLedger))
     , mMode(mode)
-    , mLocalState(localState)
     , mEndHandler(handler)
     , mState(CATCHUP_RETRYING)
     , mRetryCount(0)
     , mRetryTimer(app)
     , mDownloadDir(app.getTmpDirManager().tmpDir("catchup"))
+    , mLocalState(localState)
 {
     // We start up in CATCHUP_RETRYING as that's the only valid
     // named pre-state for CATCHUP_BEGIN.
