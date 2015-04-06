@@ -840,11 +840,11 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope envelope,
             return;
         }
 
-        // If we are fully synced and we see envelopes that are from future
+        // If we are synced and we see envelopes that are for future
         // ledgers we store them for later replay.
-        // we also need to store envelopes for the upcoming SCP round if needed
         uint32_t nextLedger = mLastClosedLedger.header.ledgerSeq + 1;
 
+        // for the future or for the next slot before we have triggered
         if (envelope.statement.slotIndex > nextLedger ||
             (envelope.statement.slotIndex == nextLedger &&
              mCurrentValue.empty()))
@@ -915,6 +915,7 @@ HerderImpl::ledgerClosed(LedgerHeaderHistoryEntry const& ledger)
 
     // we're not running SCP anymore
     mCurrentValue.clear();
+    mQuorumAheadOfUs.erase(ledger.header.ledgerSeq-1);
 
     mLastClosedLedger = ledger;
 
@@ -1050,7 +1051,6 @@ HerderImpl::triggerNextLedger()
     }
     mFutureEnvelopes.erase(slotIndex);
     mFutureEnvelopesSize.set_count(mFutureEnvelopes.size());
-    mQuorumAheadOfUs.erase(slotIndex);
 }
 
 void

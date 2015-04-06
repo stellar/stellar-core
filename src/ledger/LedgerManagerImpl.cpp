@@ -108,7 +108,7 @@ void
 LedgerManagerImpl::startNewLedger()
 {
     auto ledgerTime = mLedgerClose.TimeScope();
-    ByteSlice bytes("masterpassphrasemasterpassphrase");
+    ByteSlice bytes("allmylifemyhearthasbeensearching");
     std::string b58SeedStr = toBase58Check(VER_SEED, bytes);
     SecretKey skey = SecretKey::fromBase58Seed(b58SeedStr);
 
