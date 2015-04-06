@@ -10,21 +10,6 @@
 #include "scp/SCP.h"
 #include "util/Timer.h"
 
-// Expected time between two ledger close.
-#define EXP_LEDGER_TIMESPAN_SECONDS 5
-
-// Maximum timeout for SCP consensus.
-#define MAX_SCP_TIMEOUT_SECONDS 240
-
-// Maximum time slip between nodes.
-#define MAX_TIME_SLIP_SECONDS 60
-
-// How many seconds of inactivity before evicting a node.
-#define NODE_EXPIRATION_SECONDS 240
-
-// How many ledger in past/future we consider an envelope viable.
-#define LEDGER_VALIDITY_BRACKET 1000
-
 namespace medida
 {
 class Meter;
