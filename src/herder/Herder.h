@@ -10,6 +10,7 @@
 #include "generated/StellarXDR.h"
 #include "scp/SCP.h"
 #include "lib/json/json-forwards.h"
+#include "util/Timer.h"
 
 namespace stellar
 {
@@ -38,6 +39,25 @@ class Herder
 {
   public:
 
+    // Expected time between two ledger close.
+    static std::chrono::seconds const EXP_LEDGER_TIMESPAN_SECONDS;
+    
+    // Maximum timeout for SCP consensus.
+    static std::chrono::seconds const MAX_SCP_TIMEOUT_SECONDS;
+    
+    // timeout before considering the node out of sync
+    static std::chrono::seconds const CONSENSUS_STUCK_TIMEOUT_SECONDS;
+
+    // Maximum time slip between nodes.
+    static std::chrono::seconds const MAX_TIME_SLIP_SECONDS;
+    
+    // How many seconds of inactivity before evicting a node.
+    static std::chrono::seconds const NODE_EXPIRATION_SECONDS;
+    
+    // How many ledger in past/future we consider an envelope viable.
+    static uint32 const LEDGER_VALIDITY_BRACKET;
+    
+    
     static std::unique_ptr<Herder> create(Application& app);
 
     enum State

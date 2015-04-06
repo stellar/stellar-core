@@ -12,7 +12,7 @@
 #include "main/test.h"
 #include "util/Logging.h"
 #include "util/types.h"
-#include "herder/HerderImpl.h"
+#include "herder/Herder.h"
 
 using namespace stellar;
 
@@ -28,7 +28,7 @@ TEST_CASE("core4 topology", "[simulation]")
         {
             return simulation->haveAllExternalized(3);
         },
-        std::chrono::seconds(2* EXP_LEDGER_TIMESPAN_SECONDS));
+        2 * Herder::EXP_LEDGER_TIMESPAN_SECONDS);
 
     REQUIRE(simulation->haveAllExternalized(3));
 }
@@ -43,7 +43,7 @@ TEST_CASE("core4 topology long", "[simulation][long][hide]")
     {
         return simulation->haveAllExternalized(30);
     },
-        std::chrono::seconds(30 * EXP_LEDGER_TIMESPAN_SECONDS*2));
+        30 * Herder::EXP_LEDGER_TIMESPAN_SECONDS*2);
 
     REQUIRE(simulation->haveAllExternalized(3));
 }
@@ -77,7 +77,7 @@ TEST_CASE(
         {
             return simulation->haveAllExternalized(3);
         },
-        std::chrono::seconds(2 * EXP_LEDGER_TIMESPAN_SECONDS));
+        2 * Herder::EXP_LEDGER_TIMESPAN_SECONDS);
 
     simulation->executeAll(simulation->accountCreationTransactions(3));
 
@@ -89,7 +89,7 @@ TEST_CASE(
                 return simulation->haveAllExternalized(4) &&
                        simulation->accountsOutOfSyncWithDb().empty();
             },
-            std::chrono::seconds(2 * EXP_LEDGER_TIMESPAN_SECONDS));
+            2 * Herder::EXP_LEDGER_TIMESPAN_SECONDS);
 
         auto crankingTime = simulation->executeStressTest(
             10, 10, [&simulation](size_t i)

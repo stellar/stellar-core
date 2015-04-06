@@ -411,6 +411,9 @@
     <ClCompile Include="..\..\src\main\fuzz.cpp">
       <Filter>main\tests</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\herder\Herder.cpp">
+      <Filter>herder</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\ledger\LedgerManager.h">
