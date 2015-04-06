@@ -244,37 +244,80 @@ LedgerManagerImpl::externalizeValue(LedgerCloseData ledgerData)
         // ledgerAbbrev(ledgerData.mLedgerSeq-1,
         //              ledgerData.mTxSet->previousLedgerHash())
 
-    if (mLastClosedLedger.hash == ledgerData.mTxSet->previousLedgerHash())
+    switch (mApp.getState())
     {
-        closeLedger(ledgerData);
-        CLOG(INFO, "Ledger")
-            << "Closed ledger: "
-            << ledgerAbbrev(mLastClosedLedger);
-    }
-    else
-    {
-        // Out of sync, buffer what we just heard.
-        CLOG(DEBUG, "Ledger")
-            << "Out of sync with network, buffering externalized value for "
-               "ledgerSeq=" << ledgerData.mLedgerSeq;
 
-        mSyncingLedgers.push_back(ledgerData);
-        mSyncingLedgersSize.set_count(mSyncingLedgers.size());
-
-        if (mApp.getState() == Application::CATCHING_UP_STATE)
+    case Application::BOOTING_STATE:
+    case Application::SYNCED_STATE:
+        if (mLastClosedLedger.header.ledgerSeq + 1 == ledgerData.mLedgerSeq)
         {
-            // We are already trying to catch up.
-            CLOG(DEBUG, "Ledger") << "Catchup in progress";
+            if (mLastClosedLedger.hash ==
+                ledgerData.mTxSet->previousLedgerHash())
+            {
+                closeLedger(ledgerData);
+                CLOG(INFO, "Ledger")
+                    << "Closed ledger: "
+                    << ledgerAbbrev(mLastClosedLedger);
+            }
+            else
+            {
+                CLOG(FATAL, "Ledger")
+                    << "Network consensus for ledger "
+                    << mLastClosedLedger.header.ledgerSeq
+                    << " changed; this should never happen";
+                throw std::runtime_error("Network consensus inconsistency");
+            }
         }
         else
         {
-            // Start trying to catchup.
-            CLOG(INFO, "Ledger") << "Starting catchup";
+            // Out of sync, buffer what we just heard and start catchup.
+            CLOG(INFO, "Ledger")
+                << "Lost sync, local LCL is "
+                << mLastClosedLedger.header.ledgerSeq
+                << ", network closed ledger "
+                << ledgerData.mLedgerSeq;
+
+            assert(mSyncingLedgers.size() == 0);
+            mSyncingLedgers.push_back(ledgerData);
+            mSyncingLedgersSize.set_count(mSyncingLedgers.size());
+            CLOG(INFO, "Ledger")
+                << "Close of ledger "
+                << ledgerData.mLedgerSeq
+                << " buffered, starting catchup";
             startCatchUp(ledgerData.mLedgerSeq,
                          mApp.getConfig().CATCHUP_COMPLETE ?
                          HistoryManager::CATCHUP_COMPLETE :
                          HistoryManager::CATCHUP_MINIMAL);
         }
+        break;
+
+    case Application::CATCHING_UP_STATE:
+        if (mSyncingLedgers.empty()
+            || mSyncingLedgers.back().mLedgerSeq + 1 == ledgerData.mLedgerSeq)
+        {
+            // Normal close while catching up
+            CLOG(INFO, "Ledger")
+                << "Catchup in progress, buffering close of ledger "
+                << ledgerData.mLedgerSeq;
+            mSyncingLedgers.push_back(ledgerData);
+            mSyncingLedgersSize.set_count(mSyncingLedgers.size());
+        }
+        else
+        {
+            // Out-of-order close while catching up; timeout / network failure?
+            assert(!mSyncingLedgers.empty());
+            CLOG(INFO, "Ledger")
+                << "Out-of-order close during catchup, buffered to "
+                << mSyncingLedgers.back().mLedgerSeq
+                << " but network closed "
+                << ledgerData.mLedgerSeq;
+            CLOG(WARNING, "Ledger")
+                << "this round of catchup will fail.";
+        }
+        break;
+
+    default:
+        assert(false);
     }
 }
 
@@ -340,7 +383,8 @@ LedgerManagerImpl::historyCaughtup(asio::error_code const& ec,
 {
     if (ec)
     {
-        CLOG(ERROR, "Ledger") << "Error catching up: " << ec;
+        CLOG(ERROR, "Ledger") << "Error catching up: " << ec.message();
+        CLOG(ERROR, "Ledger") << "Catchup will restart at next close.";
     }
     else
     {
@@ -407,10 +451,10 @@ LedgerManagerImpl::historyCaughtup(asio::error_code const& ec,
                 // the buffered LedgerCloseDatas and the history block we catch
                 // up with.
                 //
-                // So if we ever get here, something was seriously wrong and we
-                // should either fail the process or, at very least, flush
-                // everything we did during catchup and restart the process
-                // anew.
+                // So if we ever get here, something was seriously wrong --
+                // possibly SCP timed out / fell behind _during_ catchup -- and
+                // we should flush everything we did during catchup and restart
+                // the process anew.
 
                 assert(lcd.mLedgerSeq > mLastClosedLedger.header.ledgerSeq + 1);
                 auto const& lastBuffered = mSyncingLedgers.back();
@@ -425,6 +469,7 @@ LedgerManagerImpl::historyCaughtup(asio::error_code const& ec,
                     << "Flushing buffer and restarting at ledger "
                     << lastBuffered.mLedgerSeq;
                 mSyncingLedgers.clear();
+                mSyncingLedgersSize.set_count(mSyncingLedgers.size());
                 startCatchUp(lastBuffered.mLedgerSeq,
                              mApp.getConfig().CATCHUP_COMPLETE ?
                              HistoryManager::CATCHUP_COMPLETE :
