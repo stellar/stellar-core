@@ -429,6 +429,7 @@ LedgerManagerImpl::historyCaughtup(asio::error_code const& ec,
                              mApp.getConfig().CATCHUP_COMPLETE ?
                              HistoryManager::CATCHUP_COMPLETE :
                              HistoryManager::CATCHUP_MINIMAL);
+                return;
             }
         }
         if (applied)
