@@ -59,7 +59,9 @@ enum MessageType
     // SCP
     GET_SCP_QUORUMSET = 8,
     SCP_QUORUMSET = 9,
-    SCP_MESSAGE = 10
+    SCP_MESSAGE = 10,
+    GET_SCP_STATE = 11,
+    SCP_STATE = 12
 };
 
 struct DontHave
@@ -96,5 +98,9 @@ case SCP_QUORUMSET:
     SCPQuorumSet qSet;
 case SCP_MESSAGE:
     SCPEnvelope envelope;
+case GET_SCP_STATE:
+    uint64 slotIndex;
+case SCP_STATE:
+    SCPEnvelope statements<>;     
 };
 }

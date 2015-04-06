@@ -1,11 +1,11 @@
 #Running an instance
 
-#Hardware requirement
+#Hardware requirements
     (need more stress testing)
 
 #Operational considerations
 * You will need a PEER_SEED to recognize your node on the network;
-* you will also need a VALIDATION_SEED if you plan on contributing to SCP
+* you will also need a VALIDATION_SEED if you plan on participating in SCP
 
 #Administrative commands
     Interaction with stellar-core is done via an administrative
@@ -26,7 +26,7 @@
         is specified).
         level is one of FATAL, ERROR, WARNING, INFO, DEBUG, VERBOSE, TRACE
 ## /logrotate
-        rotate log files
+        rotate log file
 ## /manualclose
         close the current ledger; must be used with MANUAL_CLOSE set to true
 ## /metrics

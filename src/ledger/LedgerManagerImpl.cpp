@@ -108,7 +108,7 @@ void
 LedgerManagerImpl::startNewLedger()
 {
     auto ledgerTime = mLedgerClose.TimeScope();
-    ByteSlice bytes("masterpassphrasemasterpassphrase");
+    ByteSlice bytes("allmylifemyhearthasbeensearching");
     std::string b58SeedStr = toBase58Check(VER_SEED, bytes);
     SecretKey skey = SecretKey::fromBase58Seed(b58SeedStr);
 
@@ -315,11 +315,12 @@ LedgerManagerImpl::verifyCatchupCandidate(
     CHECK_PAIR(mLastClosedLedger.header.ledgerSeq, candidate.header.ledgerSeq,
                mLastClosedLedger.hash, candidate.hash);
 
+   
     CHECK_PAIR(mLastClosedLedger.header.ledgerSeq,
                candidate.header.ledgerSeq + 1,
                mLastClosedLedger.header.previousLedgerHash, candidate.hash);
 
-    CHECK_PAIR(mCurrentLedger->mHeader.ledgerSeq,
+   CHECK_PAIR(mCurrentLedger->mHeader.ledgerSeq,
                candidate.header.ledgerSeq + 1,
                mCurrentLedger->mHeader.previousLedgerHash, candidate.hash);
 
@@ -440,6 +441,7 @@ LedgerManagerImpl::historyCaughtup(asio::error_code const& ec,
 
         mSyncingLedgersSize.set_count(mSyncingLedgers.size());
         mApp.setState(Application::SYNCED_STATE);
+        mApp.getHerder().ledgerClosed(mLastClosedLedger);
     }
 }
 

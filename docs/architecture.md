@@ -2,14 +2,13 @@
 Process-level architecture
 ==========================
 
-Similar to old (rippled) design: application owns a ledger-forming
-component, a p2p "overlay" component for connecting to peers and flooding
-messages between peers, a set-synchronization component for arriving at
-likely-in-sync candidate transaction sets, a transaction processing
-component for applying a consensus transaction set to the ledger, a crypto
-component for confirming signatures and hashing results, and a database
-component for persisting ledger changes. Two slightly-obscurely-named
-components are:
+Application owns a ledger-forming component, a p2p "overlay" component for 
+connecting to peers and flooding messages between peers, a set-synchronization 
+component for arriving at likely-in-sync candidate transaction sets, a 
+transaction processing component for applying a consensus transaction set to 
+the ledger, a crypto component for confirming signatures and hashing results, 
+and a database component for persisting ledger changes. 
+Two slightly-obscurely-named components are:
 
   - "bucketList", stored in the directory "bucket": the in-memory and on-disk
     linear history and ledger form that is hashed. A specific arrangement of
@@ -19,8 +18,7 @@ components are:
   - SCP -- "Stellar Consensus Protocol", the component implementing the
     new consensus algorithm.
 
-Relative to the components in the old rippled, there are a few
-simplifications:
+Other details:
 
 
   - Single main thread doing async I/O and forming consensus; multiple
@@ -42,10 +40,9 @@ simplifications:
     real-time timeouts (except the one that synchronizes virtual and real
     time, in production).
 
-  - No nodestore, no on-disk k/v stores at all. Storage is split in two
-    pieces, one bulk/cold Bucket-based store (history) kept in flat files,
-    and one hot/indexed store (SQL DB). Both kept primarily _off_ the
-    validator nodes.
+  - Storage is split in two pieces, one bulk/cold Bucket-based store (history) 
+    kept in flat files, and one hot/indexed store (SQL DB). Both kept primarily 
+	_off_ the validator nodes.
 
   - No direct service of public HTTP requests. HTTP and websocket frontends
     are on separate public/frontend servers.
@@ -57,27 +54,26 @@ simplifications:
   - No use of boost. Use C++11 when possible, task-specific libraries
     when required.
 
-  - No use of custom serialization format, nor embedding in protobufs. Use
+  - No use of custom serialization format, nor embedding in protobufs. Uses
     single, standard XDR for canonical (hashed) format, history, and
     inter-node messaging.
 
-  - No use of custom datatypes (custom time epochs, currency codes, decimal
+  - No use of custom datatypes (No custom time epochs, currency codes, decimal
     floating point, etc.)
 
 
 Network-level architecture
 ==========================
 
-Again, similar to the network architecture with old (rippled) stellard,
-except that the validators do less and offload more responsibilities to
-other nodes in the network. In particular, validators do not store or serve
-long-term history archives; they do not operate a transactional (on disk)
-store for the "current state of the ledger"; they do not serve public HTTP
-requests directly. These roles are offloaded to servers that are better
+Validators are kept as simple as possible and offload as much responsibility as 
+they can to other parts of the system. In particular, validators do not store 
+or serve long-term history archives; they do not operate a transactional 
+(on disk) store for the "current state of the ledger"; they do not serve public 
+HTTP requests directly. These roles are offloaded to servers that are better
 suited to these tasks, for which there are existing/better software stacks;
-validators should have a more "even" and predictable system-load profile
-than before. Validators are also less stateful, should require much less
-disk and memory.
+validators should have an "even" and predictable system-load profile. Validators 
+are also kept as stateless as possible keeping disk and memory restraints in 
+mind.
 
 - Set of core validator nodes. Running stellar-core only. Tasked with:
   - Reaching consensus on a transaction set
@@ -134,7 +130,8 @@ disk and memory.
   failure mode, they can timeout/poll. Messages are idempotent,
   content-free pings.
 
-- (optional): Set of public validator nodes. Running stellar-core only. Tasked with:
+- (optional): Set of public validator nodes. Running stellar-core only. Tasked 
+with:
   - Listening to core validators and propagating their decisions blindly
     to anyone who asks.
   - Optionally feeding (some?) tx proposals submitted to them into core network.

@@ -677,9 +677,6 @@
     <None Include="..\..\ChangeLog" />
     <None Include="..\..\COPYING" />
     <None Include="..\..\NEWS" />
-    <None Include="..\..\docs\stellar_core_example.cfg">
-      <Filter>docs</Filter>
-    </None>
     <None Include="..\..\docs\design.md">
       <Filter>docs</Filter>
     </None>
@@ -689,12 +686,6 @@
     <None Include="libmedida\libmedida.vcxproj" />
     <None Include="..\..\INSTALL" />
     <None Include="..\..\README.md" />
-    <None Include="..\..\docs\overview.md">
-      <Filter>docs</Filter>
-    </None>
-    <None Include="..\..\docs\stellar_overview.md">
-      <Filter>docs</Filter>
-    </None>
     <None Include="..\..\docs\testnet.md">
       <Filter>docs</Filter>
     </None>
@@ -732,6 +723,12 @@
     </None>
     <None Include="..\..\src\scp\readme.md">
       <Filter>scp</Filter>
+    </None>
+    <None Include="..\..\docs\readme.md">
+      <Filter>docs</Filter>
+    </None>
+    <None Include="..\..\docs\stellar-core_example.cfg">
+      <Filter>docs</Filter>
     </None>
   </ItemGroup>
   <ItemGroup>
