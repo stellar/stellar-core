@@ -778,15 +778,13 @@ TEST_CASE_METHOD(HistoryTests, "Publish/catchup alternation, with stall",
 TEST_CASE_METHOD(HistoryTests, "Repair missing buckets via history", "[history][historybucketrepair]")
 {
     generateAndPublishInitialHistory(1);
+    auto state = app.getPersistentState().getState(PersistentState::kHistoryArchiveState);
     appPtr.reset();
-
 
     auto cfg2 = getTestConfig(1, Config::TESTDB_IN_MEMORY_SQLITE);
     auto app2 = Application::create(clock, mConfigurator->configure(cfg2, false));
-    app2->getPersistentState().setState(PersistentState::kHistoryArchiveState,
-        app.getPersistentState().getState(PersistentState::kHistoryArchiveState));
+    app2->getPersistentState().setState(PersistentState::kHistoryArchiveState, state);
     app2->start();
-
 
     auto &bList = app2->getBucketManager().getBucketList();
     size_t count = 0;
