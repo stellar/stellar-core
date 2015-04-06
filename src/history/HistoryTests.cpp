@@ -790,7 +790,7 @@ TEST_CASE_METHOD(HistoryTests, "Repair missing buckets via history", "[history][
 
     auto &bList = app2->getBucketManager().getBucketList();
     size_t count = 0;
-    for (int i = 0; i < BucketList::kNumLevels; i++)
+    for (size_t i = 0; i < BucketList::kNumLevels; i++)
     {
         auto& level = bList.getLevel(i);
         count += level.getCurr()->countLiveAndDeadEntries().first;
