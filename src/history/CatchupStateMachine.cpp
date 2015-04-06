@@ -13,6 +13,7 @@
 #include "main/Config.h"
 #include "database/Database.h"
 #include "herder/TxSetFrame.h"
+#include "herder/HerderImpl.h"
 #include "ledger/LedgerDelta.h"
 #include "ledger/LedgerManager.h"
 #include "transactions/TransactionFrame.h"
@@ -23,6 +24,8 @@
 
 #include <random>
 #include <memory>
+
+#define SLEEP_SECONDS_PER_LEDGER (EXP_LEDGER_TIMESPAN_SECONDS+1)
 
 namespace stellar
 {
@@ -111,32 +114,27 @@ CatchupStateMachine::enterBeginState()
                           << ", guessed nextLedger=" << mNextLedger
                           << ", anchor checkpoint=" << snap;
 
+    uint64_t sleepSeconds = (((mNextLedger - mInitLedger) + 5) *
+                             SLEEP_SECONDS_PER_LEDGER);
+
     mArchive = selectRandomReadableHistoryArchive();
     mArchive->getSnapState(
-        mApp, snap, [this, blockEnd, snap](asio::error_code const& ec,
-                                           HistoryArchiveState const& has)
+        mApp, snap, [this, blockEnd, snap, sleepSeconds](
+            asio::error_code const& ec,
+            HistoryArchiveState const& has)
         {
-            if (ec)
+            if (ec ||
+                blockEnd != has.currentLedger)
             {
                 CLOG(WARNING, "History")
-                    << "Catchup failed to retrieve state from history archive '"
-                    << this->mArchive->getName() << "', restarting catchup";
-                this->enterRetryingState();
+                    << "History archive '" << this->mArchive->getName()
+                    << "', hasn't yet received checkpoint " << snap
+                    << ", retrying catchup";
+                this->enterRetryingState(sleepSeconds);
             }
             else
             {
-                if (blockEnd != has.currentLedger)
-                {
-                    CLOG(WARNING, "History")
-                        << "History archive '" << this->mArchive->getName()
-                        << "', hasn't yet received checkpoint " << snap
-                        << ", retrying catchup";
-                    this->enterRetryingState();
-                }
-                else
-                {
-                    this->enterAnchoredState(has);
-                }
+                this->enterAnchoredState(has);
             }
         });
 }
@@ -406,7 +404,7 @@ CatchupStateMachine::enterAnchoredState(HistoryArchiveState const& has)
 }
 
 void
-CatchupStateMachine::enterRetryingState()
+CatchupStateMachine::enterRetryingState(uint64_t nseconds)
 {
     assert(mState == CATCHUP_BEGIN || mState == CATCHUP_ANCHORED ||
            mState == CATCHUP_FETCHING || mState == CATCHUP_APPLYING ||
@@ -414,7 +412,14 @@ CatchupStateMachine::enterRetryingState()
     bool anchored = mState >= CATCHUP_ANCHORED;
     bool verifying = mState >= CATCHUP_VERIFYING;
     mState = CATCHUP_RETRYING;
-    mRetryTimer.expires_from_now(std::chrono::seconds(2));
+
+    CLOG(WARNING, "History")
+        << "Catchup pausing for " << nseconds
+        << " seconds, until "
+        << VirtualClock::pointToISOString(mApp.getClock().now() +
+                                          std::chrono::seconds(nseconds));
+
+    mRetryTimer.expires_from_now(std::chrono::seconds(nseconds));
     mRetryTimer.async_wait(
         [this, anchored, verifying](asio::error_code const& ec)
         {

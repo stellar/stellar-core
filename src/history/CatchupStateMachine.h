@@ -134,7 +134,7 @@ class CatchupStateMachine
 
     void enterBeginState();
     void enterAnchoredState(HistoryArchiveState const& has);
-    void enterRetryingState();
+    void enterRetryingState(uint64_t nseconds=2);
     void enterFetchingState();
     void enterVerifyingState();
     void enterApplyingState();
