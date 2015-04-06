@@ -137,7 +137,10 @@ Peer::sendPeers()
     newMsg.peers().resize(xdr::size32(peerList.size()));
     for (int n = 0; n < peerList.size(); n++)
     {
-        peerList[n].toXdr(newMsg.peers()[n]);
+        if (!peerList[n].isPrivateAddress())
+        {
+            peerList[n].toXdr(newMsg.peers()[n]);
+        }
     }
     sendMessage(newMsg);
 }
@@ -401,7 +404,15 @@ Peer::recvPeers(StellarMessage const& msg)
         PeerRecord pr{ip.str(), peer.port, mApp.getClock().now(),
                       peer.numFailures, 1};
 
-        pr.storePeerRecord(mApp.getDatabase());
+        if (pr.isPrivateAddress())
+        {
+            CLOG(WARNING, "Overlay")
+                << "ignoring flooded private address";
+        }
+        else
+        {
+            pr.storePeerRecord(mApp.getDatabase());
+        }
     }
 }
 }

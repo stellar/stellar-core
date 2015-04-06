@@ -57,4 +57,19 @@ TEST_CASE("toXdr", "[overlay][PeerRecord]")
         REQUIRE(*actual2 == other);
     }
 }
+
+TEST_CASE("private addresses", "[overlay][PeerRecord]")
+{
+    VirtualClock clock;
+    PeerRecord pr;
+    PeerRecord::fromIPPort("1.2.3.4", 15, clock, pr);
+    CHECK(!pr.isPrivateAddress());
+    PeerRecord::fromIPPort("10.1.2.3", 15, clock, pr);
+    CHECK(pr.isPrivateAddress());
+    PeerRecord::fromIPPort("172.17.1.2", 15, clock, pr);
+    CHECK(pr.isPrivateAddress());
+    PeerRecord::fromIPPort("192.168.1.2", 15, clock, pr);
+    CHECK(pr.isPrivateAddress());
+}
+
 }
