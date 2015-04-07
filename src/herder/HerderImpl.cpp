@@ -837,33 +837,36 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope envelope,
 
     if (mApp.getState() == Application::SYNCED_STATE)
     {
-        uint32_t minLedgerSeq =
-            (mLastClosedLedger.header.ledgerSeq < LEDGER_VALIDITY_BRACKET)
-                ? 0
-                : (mLastClosedLedger.header.ledgerSeq -
-                   LEDGER_VALIDITY_BRACKET);
+        uint32_t minLedgerSeq = mLastClosedLedger.header.ledgerSeq;
         uint32_t maxLedgerSeq =
             mLastClosedLedger.header.ledgerSeq + LEDGER_VALIDITY_BRACKET;
 
         // If we are fully synced and the envelopes are out of our validity
         // brackets, we just ignore them.
         if (envelope.statement.slotIndex > maxLedgerSeq ||
-            envelope.statement.slotIndex < minLedgerSeq)
+            envelope.statement.slotIndex <= minLedgerSeq)
         {
             CLOG(DEBUG, "Herder") << "Ignoring SCPEnvelope outside of range: "
-                << envelope.statement.slotIndex << "( " << minLedgerSeq << "," 
+                << envelope.statement.slotIndex << "( " << minLedgerSeq << ","
                 << maxLedgerSeq << ")";
             return;
         }
 
-        // If we are fully synced and we see envelopes that are from future
-        // ledgers we store them for later replay.
-        // we also need to store envelopes for the upcoming SCP round if needed
-        uint32_t nextLedger = mLastClosedLedger.header.ledgerSeq + 1;
-
-        if (envelope.statement.slotIndex > nextLedger ||
-            (envelope.statement.slotIndex == nextLedger &&
-             mCurrentValue.empty()))
+        // If we are synced, and we see envelopes that are for future ledgers
+        // (or the current ledger, if a validator and curr is empty) then we
+        // should store the envelopes for later replay.
+        uint32_t currLedger = mLastClosedLedger.header.ledgerSeq + 1;
+        if (!getSecretKey().isZero() &&
+            envelope.statement.slotIndex == currLedger &&
+            mCurrentValue.empty())
+        {
+            mFutureEnvelopes[envelope.statement.slotIndex].push_back(
+                std::make_pair(envelope, cb));
+            mFutureEnvelopesSize.set_count(mFutureEnvelopes.size());
+            CLOG(DEBUG, "Herder") << "Adding envelope to future-envelopes queue";
+            return;
+        }
+        else if (envelope.statement.slotIndex > currLedger)
         {
             mFutureEnvelopes[envelope.statement.slotIndex].push_back(
                 std::make_pair(envelope, cb));
