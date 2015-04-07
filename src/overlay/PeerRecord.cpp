@@ -93,8 +93,9 @@ PeerRecord::parseIPPort(string const& ipPort, Application& app, PeerRecord& ret,
                 i++;
             }
         }
-        catch (asio::system_error&)
+        catch (asio::system_error& e)
         {
+            LOG(DEBUG) << "Could not resolve '" << ipPort << "' : " << e.what();
             return false;
         }
         if (ip.empty())

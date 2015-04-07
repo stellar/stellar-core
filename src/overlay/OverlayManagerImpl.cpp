@@ -90,7 +90,7 @@ OverlayManagerImpl::connectTo(std::string const& peerStr)
         connectTo(pr);
     else
     {
-        CLOG(ERROR, "Overlay") << "Unable to parse: " << peerStr;
+        CLOG(ERROR, "Overlay") << "Unable to add peer '" << peerStr << "'";
     }
 }
 
@@ -142,7 +142,7 @@ OverlayManagerImpl::storePeerList(std::vector<std::string> const& list,
         }
         else
         {
-            CLOG(ERROR, "Overlay") << "Unable to parse: " << peerStr;
+            CLOG(ERROR, "Overlay") << "Unable to add peer '" << peerStr << "'";
         }
     }
 }
