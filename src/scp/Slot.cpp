@@ -279,7 +279,7 @@ Slot::createEnvelope(SCPStatement const& statement)
 }
 
 void
-Slot::attemptPrepare()
+Slot::attemptPreparing()
 {
     auto it = mStatements[mBallot][SCPStatementType::PREPARING].find(
         mSCP->getLocalNodeID());
@@ -287,7 +287,7 @@ Slot::attemptPrepare()
     {
         return;
     }
-    CLOG(DEBUG, "SCP") << "Slot::attemptPrepare"
+    CLOG(DEBUG, "SCP") << "Slot::attemptPreparing"
                        << "@" << hexAbbrev(mSCP->getLocalNodeID())
                        << " i: " << mSlotIndex
                        << " b: " << ballotToStr(mBallot);
@@ -354,7 +354,7 @@ Slot::attemptPrepared(SCPBallot const& ballot)
 }
 
 void
-Slot::attemptCommit()
+Slot::attemptCommitting()
 {
     auto it = mStatements[mBallot][SCPStatementType::COMMITTING].find(
         mSCP->getLocalNodeID());
@@ -362,7 +362,7 @@ Slot::attemptCommit()
     {
         return;
     }
-    CLOG(DEBUG, "SCP") << "Slot::attemptCommit"
+    CLOG(DEBUG, "SCP") << "Slot::attemptCommitting"
                        << "@" << hexAbbrev(mSCP->getLocalNodeID())
                        << " i: " << mSlotIndex
                        << " b: " << ballotToStr(mBallot);
@@ -653,7 +653,7 @@ Slot::advanceSlot()
         {
             if (!mIsCommitted)
             {
-                attemptPrepare();
+                attemptPreparing();
 
                 if (isPrepared(mBallot))
                 {
@@ -664,7 +664,7 @@ Slot::advanceSlot()
                 // the commit phase
                 if (isPreparedConfirmed(mBallot))
                 {
-                    attemptCommit();
+                    attemptCommitting();
 
                     if (isCommitted(mBallot))
                     {
@@ -820,11 +820,11 @@ Slot::dumpInfo(Json::Value& ret)
     std::string stateStrTable[] = {"PREPARING", "PREPARED", "COMMITTING",
                                    "COMMITTED"};
 
+    int count = 0;
     for (auto& item : mStatements)
     {
         for (auto& mapItem : item.second)
         {
-            int count = 0;
             for (auto& stateItem : mapItem.second)
             {
                 // ballot, node, qset, state

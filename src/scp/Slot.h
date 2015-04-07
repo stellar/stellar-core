@@ -54,9 +54,10 @@ class Slot
     // and envelopes. They are idempotent. `attemptPrepared` takes an extra
     // ballot argument as we can emit PREPARED messages for ballots different
     // than our current `mBallot`.
-    void attemptPrepare();
-    void attemptPrepared(SCPBallot const& ballot);
-    void attemptCommit();
+
+    void attemptPreparing();
+    void attemptPrepared(const SCPBallot& ballot);
+    void attemptCommitting();
     void attemptCommitted();
     void attemptExternalize();
 
@@ -64,11 +65,10 @@ class Slot
     // reached or not. They are called by `advanceSlot` and drive the call of
     // the `attempt*` methods. `isCommittedConfirmed` does not take a ballot
     // but a `Value` as it is determined across ballot rounds
-    bool isPristine();
-    bool isPrepared(SCPBallot const& ballot);
-    bool isPreparedConfirmed(SCPBallot const& ballot);
-    bool isCommitted(SCPBallot const& ballot);
-    bool isCommittedConfirmed(Value const& value);
+    bool isPrepared(const SCPBallot& ballot);
+    bool isPreparedConfirmed(const SCPBallot& ballot);
+    bool isCommitted(const SCPBallot& ballot);
+    bool isCommittedConfirmed(const Value& value);
 
     // Retrieve all the statements of a given type for a given node
     std::vector<SCPStatement> getNodeStatements(uint256 const& nodeID,
