@@ -115,7 +115,8 @@ OverlayManagerImpl::connectTo(PeerRecord& pr)
     {
         pr.backOff(mApp.getClock());
         pr.storePeerRecord(mApp.getDatabase());
-        TCPPeer::initiate(mApp, pr.mIP, pr.mPort);
+
+        addConnectedPeer(TCPPeer::initiate(mApp, pr.mIP, pr.mPort));
     }
     else
     {
