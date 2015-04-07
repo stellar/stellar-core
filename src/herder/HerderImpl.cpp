@@ -597,6 +597,14 @@ HerderImpl::valueExternalized(uint64 const& slotIndex, Value const& value)
     }
     else
     {
+        auto cb = [slotIndex, value, this](TxSetFramePtr txSet)
+        {
+            this->valueExternalized(slotIndex, value);
+        };
+
+        mTxSetFetches[b.value.txSetHash].push_back(cb);
+
+
         // This may not be possible as all messages are validated and should
         // therefore fetch the txSet before being considered by SCP.
         CLOG(ERROR, "Herder") << "HerderImpl::valueExternalized"
@@ -694,25 +702,23 @@ HerderImpl::fetchTxSet(uint256 const& txSetHash, bool askNetwork)
 void
 HerderImpl::recvTxSet(TxSetFramePtr txSet)
 {
-    if (mTxSetFetcher[mCurrentTxSetFetcher].recvItem(txSet))
-    { // someone cares about this set
+    // add all txs to next set in case they don't get in this ledger
+    for(auto tx : txSet->sortForApply())
+    {
+        recvTransaction(tx);
+    }
+    
+    mTxSetFetcher[mCurrentTxSetFetcher].recvItem(txSet);
 
-        // add all txs to next set in case they don't get in this ledger
-        for (auto tx : txSet->sortForApply())
+    // Runs any pending validation on this txSet.
+    auto it = mTxSetFetches.find(txSet->getContentsHash());
+    if(it != mTxSetFetches.end())
+    {
+        for(auto validate : it->second)
         {
-            recvTransaction(tx);
+            validate(txSet);
         }
-
-        // Runs any pending validation on this txSet.
-        auto it = mTxSetFetches.find(txSet->getContentsHash());
-        if (it != mTxSetFetches.end())
-        {
-            for (auto validate : it->second)
-            {
-                validate(txSet);
-            }
-            mTxSetFetches.erase(it);
-        }
+        mTxSetFetches.erase(it);
     }
 }
 

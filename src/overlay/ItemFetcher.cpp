@@ -102,6 +102,9 @@ TxSetFetcher::fetchItem(uint256 const& txSetHash, bool askNetwork)
     return (TxSetFramePtr());
 }
 
+
+
+// TODO.1: This all needs to change
 // returns true if we were waiting for this txSet
 bool
 TxSetFetcher::recvItem(TxSetFramePtr txSet)
