@@ -31,7 +31,7 @@ SecretKey
 getRoot()
 {
     std::string b58SeedStr =
-        toBase58Check(VER_SEED, "masterpassphrasemasterpassphrase");
+        toBase58Check(VER_SEED, "allmylifemyhearthasbeensearching");
     return SecretKey::fromBase58Seed(b58SeedStr);
 }
 
