@@ -1018,8 +1018,7 @@ HerderImpl::triggerNextLedger()
                           << " slot: " << slotIndex;
 
     // We prepare that value. If we're monarch, the ballot will be validated,
-    // and
-    // if we're not it'll just get ignored.
+    // and if we're not it'll just get ignored.
     mValuePrepare.Mark();
     prepareValue(slotIndex, mCurrentValue);
 
