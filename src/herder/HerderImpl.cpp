@@ -197,7 +197,6 @@ HerderImpl::validateValue(uint64 const& slotIndex, uint256 const& nodeID,
 
     // All tests that are relative to mLastClosedLedger are executed only once
     // we are fully synced up
-
     // Check slotIndex.
     if (mLastClosedLedger.header.ledgerSeq + 1 != slotIndex)
     {
@@ -718,7 +717,7 @@ HerderImpl::recvTxSet(TxSetFramePtr txSet)
     {
         recvTransaction(tx);
     }
-    
+
     mTxSetFetcher[mCurrentTxSetFetcher].recvItem(txSet);
 
     // Runs any pending validation on this txSet.
@@ -869,13 +868,59 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope envelope,
             mFutureEnvelopes[envelope.statement.slotIndex].push_back(
                 std::make_pair(envelope, cb));
             mFutureEnvelopesSize.set_count(mFutureEnvelopes.size());
+
+            if (checkFutureCommitted(envelope))
+            {
+                // a quorum slice has left us behind
+                CLOG(INFO, "Herder")
+                    << "Left behind. Catching up to our slice at "
+                    << envelope.statement.slotIndex;
+                valueExternalized(envelope.statement.slotIndex,
+                                  envelope.statement.ballot.value);
+            }
+
             return;
         }
+
     }
     startRebroadcastTimer();
 
     mEnvelopeReceive.Mark();
     return receiveEnvelope(envelope, cb);
+}
+
+// returns true if we have been left behind :(
+// see: walter the lazy mouse
+bool
+HerderImpl::checkFutureCommitted(SCPEnvelope& envelope)
+{
+    if(envelope.statement.pledges.type() == COMMITTED)
+    { // is this a committed statement
+        const SCPQuorumSet& qset=getLocalQuorumSet();
+
+        if(find(qset.validators.begin(), qset.validators.end(),
+            envelope.nodeID) != qset.validators.end())
+        {// is it from someone we care about?
+            auto& list = mQuorumAheadOfUs[envelope.statement.slotIndex];
+            if(find(list.begin(), list.end(), envelope) == list.end())
+            {// is it a new one for the list?
+                // TODO: we probably want to fetch the txset here to save time
+                list.push_back(envelope);
+                unsigned int count = 0;
+                for(auto& env : list)
+                {
+                    if(env.statement.ballot.value ==
+                        envelope.statement.ballot.value) count++;
+
+                    if(count>=qset.threshold)
+                    {// do we have enough of these for the same ballot?
+                        return true;
+                    }
+                }
+            }
+        }
+    }
+    return false;
 }
 
 void
@@ -890,6 +935,7 @@ HerderImpl::ledgerClosed(LedgerHeaderHistoryEntry const& ledger)
 
     // we're not running SCP anymore
     mCurrentValue.clear();
+    mQuorumAheadOfUs.erase(ledger.header.ledgerSeq-1);
 
     mLastClosedLedger = ledger;
 
@@ -1115,8 +1161,6 @@ HerderImpl::envelopeVerified(bool valid)
 void
 HerderImpl::dumpInfo(Json::Value& ret)
 {
-    // ret["local"] = toBase58Check(VER_ACCOUNT_ID,
-    // mLocalNode->getNodeID()).c_str();
     int count = 0;
     for (auto& item : mKnownNodes)
     {
@@ -1129,6 +1173,19 @@ HerderImpl::dumpInfo(Json::Value& ret)
     for (auto& item : mKnownSlots)
     {
         item.second->dumpInfo(ret);
+    }
+
+    count = 0;
+    for(auto& item : mQuorumAheadOfUs)
+    {
+        for(auto& envelope : item.second)
+        {
+            std::ostringstream output;
+            output << "i:" << item.first << " n:" <<
+                binToHex(envelope.nodeID).substr(0, 6);
+
+            ret["ahead"][count++] = output.str();
+        }
     }
 }
 }

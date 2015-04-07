@@ -124,6 +124,8 @@ class HerderImpl : public Herder, public SCP
 
     void updateSCPCounters();
 
+    bool checkFutureCommitted(SCPEnvelope& envelope);
+
     // 0- tx we got during ledger close
     // 1- one ledger ago. rebroadcast
     // 2- two ledgers ago.
@@ -151,6 +153,8 @@ class HerderImpl : public Herder, public SCP
     std::map<SCPBallot,
              std::map<uint256, std::vector<std::shared_ptr<VirtualTimer>>>>
         mBallotValidationTimers;
+
+    std::map<uint64, std::vector<SCPEnvelope>> mQuorumAheadOfUs;
 
     LedgerHeaderHistoryEntry mLastClosedLedger;
 
