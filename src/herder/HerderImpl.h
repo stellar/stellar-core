@@ -11,7 +11,7 @@
 #include "util/Timer.h"
 
 // Expected time between two ledger close.
-#define EXP_LEDGER_TIMESPAN_SECONDS 4
+#define EXP_LEDGER_TIMESPAN_SECONDS 5
 
 // Maximum timeout for SCP consensus.
 #define MAX_SCP_TIMEOUT_SECONDS 240
@@ -124,6 +124,8 @@ class HerderImpl : public Herder, public SCP
 
     void updateSCPCounters();
 
+    bool checkFutureCommitted(SCPEnvelope& envelope);
+
     // 0- tx we got during ledger close
     // 1- one ledger ago. rebroadcast
     // 2- two ledgers ago.
@@ -151,6 +153,8 @@ class HerderImpl : public Herder, public SCP
     std::map<SCPBallot,
              std::map<uint256, std::vector<std::shared_ptr<VirtualTimer>>>>
         mBallotValidationTimers;
+
+    std::map<uint64, std::vector<SCPEnvelope>> mQuorumAheadOfUs;
 
     LedgerHeaderHistoryEntry mLastClosedLedger;
 

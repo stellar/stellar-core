@@ -33,6 +33,7 @@ class PeerRecord
         , mNextAttempt(nextAttempt)
         , mNumFailures(fails)
         , mRank(rank)
+
     {
     }
 
@@ -55,6 +56,7 @@ class PeerRecord
                                 VirtualClock::time_point nextAttemptCutoff,
                                 vector<PeerRecord>& retList);
 
+    bool isPrivateAddress();
     bool isStored(Database& db);
     void storePeerRecord(Database& db);
 

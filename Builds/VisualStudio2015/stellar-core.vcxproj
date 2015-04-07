@@ -375,9 +375,8 @@
     <None Include="..\..\docs\admin.md" />
     <None Include="..\..\docs\architecture.md" />
     <None Include="..\..\docs\design.md" />
-    <None Include="..\..\docs\stellar_core_example.cfg" />
-    <None Include="..\..\docs\overview.md" />
-    <None Include="..\..\docs\stellar_overview.md" />
+    <None Include="..\..\docs\readme.md" />
+    <None Include="..\..\docs\stellar-core_example.cfg" />
     <None Include="..\..\docs\testnet.md" />
     <None Include="..\..\INSTALL" />
     <None Include="..\..\Makefile.am" />

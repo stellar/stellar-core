@@ -47,13 +47,13 @@ done
 # customize CC and CXX for asan, ccache
 if [ $CC == clang ]
 then
-    export CXXFLAGS='-fsanitize=address -fno-omit-frame-pointer -g'
-    export CFLAGS='-fsanitize=address -fno-omit-frame-pointer -g'
+    export CXXFLAGS='-fsanitize=address -fno-omit-frame-pointer -g -O2'
+    export CFLAGS='-fsanitize=address -fno-omit-frame-pointer -g -O2'
     export CC='ccache clang -Qunused-arguments -fcolor-diagnostics'
     export CXX='ccache clang++ -Qunused-arguments -fcolor-diagnostics'
 else
-    export CXXFLAGS='-fsanitize=address -fno-omit-frame-pointer -g'
-    export CFLAGS='-fsanitize=address -fno-omit-frame-pointer -g'
+    export CXXFLAGS='-fsanitize=address -fno-omit-frame-pointer -g -O2'
+    export CFLAGS='-fsanitize=address -fno-omit-frame-pointer -g -O2'
     export CC='ccache gcc'
     export CXX='ccache g++'
 fi

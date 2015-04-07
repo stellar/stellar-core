@@ -17,6 +17,7 @@
 #include "history/HistoryManagerImpl.h"
 #include "history/PublishStateMachine.h"
 #include "history/CatchupStateMachine.h"
+#include "herder/HerderImpl.h"
 #include "process/ProcessManager.h"
 #include "util/make_unique.h"
 #include "util/Logging.h"
@@ -30,6 +31,8 @@
 
 #include <fstream>
 #include <system_error>
+
+#define SLEEP_SECONDS_PER_LEDGER (EXP_LEDGER_TIMESPAN_SECONDS + 1)
 
 namespace stellar
 {
@@ -221,6 +224,13 @@ HistoryManagerImpl::nextCheckpointLedger(uint32_t ledger)
     if (ledger == 0)
         return freq;
     return (((ledger + freq - 1) / freq) * freq);
+}
+
+uint64_t
+HistoryManagerImpl::nextCheckpointCatchupProbe(uint32_t ledger)
+{
+    uint32_t next = this->nextCheckpointLedger(ledger);
+    return (((next - ledger) + 5) * SLEEP_SECONDS_PER_LEDGER);
 }
 
 string const&

@@ -42,6 +42,7 @@ public:
 
     uint32_t getCheckpointFrequency();
     uint32_t nextCheckpointLedger(uint32_t ledger);
+    uint64_t nextCheckpointCatchupProbe(uint32_t ledger);
 
     void verifyHash(std::string const& filename, uint256 const& hash,
                     std::function<void(asio::error_code const&)> handler) const override;

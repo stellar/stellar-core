@@ -251,6 +251,7 @@ HistoryArchive::getStateFromPath(
         self, remoteName, local,
         [handler, remoteName, archiveName, local](asio::error_code const& ec)
         {
+            auto ec2 = ec;
             HistoryArchiveState has;
             if (ec)
             {
@@ -263,10 +264,18 @@ HistoryArchive::getStateFromPath(
                 CLOG(DEBUG, "History") << "got " << remoteName
                                        << " from history archive '"
                                        << archiveName << "'";
-                has.load(local);
+                try
+                {
+                    has.load(local);
+                }
+                catch(...)
+                {
+                    CLOG(WARNING, "History") << "Exception loading: " << local;
+                    ec2 = std::make_error_code(std::errc::io_error);
+                }
             }
             std::remove(local.c_str());
-            handler(ec, has);
+            handler(ec2, has);
         });
 }
 
