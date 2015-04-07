@@ -678,7 +678,8 @@ void
 HerderImpl::emitEnvelope(SCPEnvelope const& envelope)
 {
     // We don't emit any envelope as long as we're not fully synced
-    if (mApp.getState() != Application::SYNCED_STATE)
+    if (mApp.getState() != Application::SYNCED_STATE ||
+        mCurrentValue.empty())
     {
         return;
     }
