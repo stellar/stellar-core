@@ -39,11 +39,12 @@ class Simulation
 
     VirtualClock& getClock();
 
-    uint256 addNode(uint256 validationSeed, SCPQuorumSet qSet,
+    uint256 addNode(SecretKey nodeKey, SCPQuorumSet qSet,
                     VirtualClock& clock,
                     Config::pointer cfg = std::shared_ptr<Config>());
     Application::pointer getNode(uint256 nodeID);
     std::vector<Application::pointer> getNodes();
+    std::vector<uint256> getNodeIDs();
 
     void addConnection(uint256 initiator, uint256 acceptor);
 
