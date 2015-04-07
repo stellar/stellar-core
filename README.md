@@ -1,11 +1,14 @@
 [![Build Status](https://magnum.travis-ci.com/stellar/stellar-core.svg?token=u11W8KHX2y4hfGqbzE1E)]
 
+#stellar-core
+
+Stellar-core is a C++ implementation of the [Stellar Consensus Protocol](https://github.com/stellar/stellar-core/blob/master/src/scp/readme.md) that maintains a local copy of the ledger and syncs with other instances of stellar-core on the network. Learn more by reading the [overview document](https://github.com/stellar/stellar-core/blob/master/docs/readme.md).
+
 # Documentation
 
 Documentation of the code's layout and abstractions, as well as for the
 functionality available, can be found in
-[`./docs`](https://github.com/stellar/stellar-core/tree/master/docs). Start
-reading at the [overview document](https://github.com/stellar/stellar-core/blob/master/docs/readme.md).
+[`./docs`](https://github.com/stellar/stellar-core/tree/master/docs).
 
 # Contributing
 
@@ -58,6 +61,4 @@ Then, running
 * `stellar-core --test [stress]` will run all the stress tests,
 * `stellar-core --test [foo-stress]` will run the stress tests for subsystem foo alone, and
 * neither `stellar-core --test` nor `stellar-core --test [foo]` will run stress tests.
-
-# [Documentation](/docs/)
 
