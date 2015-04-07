@@ -18,7 +18,7 @@ class Node;
  * The Slot object is in charge of maintaining the state of the SCP protocol
  * for a given slot index.
  */
-class Slot
+class Slot : public std::enable_shared_from_this<Slot>
 {
   public:
     // Constructor
