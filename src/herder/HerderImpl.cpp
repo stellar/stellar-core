@@ -658,13 +658,18 @@ HerderImpl::retrieveQuorumSet(
 void
 HerderImpl::rebroadcast()
 {
-    CLOG(DEBUG, "Herder") << "rebroadcast "
-        << " s:" << mLastSentMessage.envelope().statement.pledges.type() 
-        << " i:" << mLastSentMessage.envelope().statement.slotIndex;
+    if(mLastSentMessage.type()== SCP_MESSAGE)
+    {
+        CLOG(DEBUG, "Herder") << "rebroadcast "
+            << " s:" << mLastSentMessage.envelope().statement.pledges.type()
+            << " i:" << mLastSentMessage.envelope().statement.slotIndex
+            << " b:" << mLastSentMessage.envelope().statement.ballot.counter
+            << " v:" << binToHex(ByteSlice(&mLastSentMessage.envelope().statement.ballot.value[96], 3));
 
-    mEnvelopeEmit.Mark();
-    mApp.getOverlayManager().broadcastMessage(mLastSentMessage, true);
-    startRebroadcastTimer();
+        mEnvelopeEmit.Mark();
+        mApp.getOverlayManager().broadcastMessage(mLastSentMessage, true);
+        startRebroadcastTimer();
+    }
 }
 
 void
