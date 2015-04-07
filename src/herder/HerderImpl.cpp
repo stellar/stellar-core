@@ -665,7 +665,7 @@ HerderImpl::rebroadcast()
 void
 HerderImpl::startRebroadcastTimer()
 {
-    if (!mApp.getConfig().MANUAL_CLOSE)
+    if (!mApp.getConfig().MANUAL_CLOSE && mLastSentMessage.type()==SCP_MESSAGE)
     {
         mRebroadcastTimer.expires_from_now(std::chrono::seconds(2));
 
