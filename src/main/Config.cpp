@@ -46,6 +46,7 @@ Config::Config() : PEER_KEY(SecretKey::random())
 void
 Config::load(std::string const& filename)
 {
+    LOG(DEBUG) << "Loading config from: " << filename;
     try
     {
         cpptoml::toml_group g;
@@ -61,6 +62,7 @@ Config::load(std::string const& filename)
 
         for (auto& item : g)
         {
+            LOG(DEBUG) << "Config item: " << item.first;
             if (item.first == "PEER_PORT")
                 PEER_PORT = (int)item.second->as<int64_t>()->value();
             else if (item.first == "HTTP_PORT")
@@ -140,6 +142,7 @@ Config::load(std::string const& filename)
                 {
                     for (auto const& archive : *hist)
                     {
+                        LOG(DEBUG) << "History archive: " << archive.first;
                         auto tab = archive.second->as_group();
                         if (!tab)
                         {
@@ -147,15 +150,28 @@ Config::load(std::string const& filename)
                                 "malformed HISTORY config block");
                         }
                         std::string get, put, mkdir;
-                        auto gg = tab->get_as<std::string>("get");
-                        auto pp = tab->get_as<std::string>("put");
-                        auto mm = tab->get_as<std::string>("mkdir");
-                        if (gg)
-                            get = *gg;
-                        if (pp)
-                            put = *pp;
-                        if (mm)
-                            mkdir = *mm;
+                        for (auto const& c : *tab)
+                        {
+                            if (c.first == "get")
+                            {
+                                get = c.second->as<std::string>()->value();
+                            }
+                            else if (c.first == "put")
+                            {
+                                put = c.second->as<std::string>()->value();
+                            }
+                            else if (c.first == "mkdir")
+                            {
+                                mkdir = c.second->as<std::string>()->value();
+                            }
+                            else
+                            {
+                                std::string err("Unknown HISTORY-table entry: '");
+                                err += c.first;
+                                err += "', within [HISTORY." + archive.first + "]";
+                                throw std::invalid_argument(err);
+                            }
+                        }
                         HISTORY[archive.first] =
                             std::make_shared<HistoryArchive>(archive.first, get,
                                                              put, mkdir);
