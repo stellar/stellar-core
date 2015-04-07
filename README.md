@@ -25,6 +25,8 @@ note: you may still have to run manual "rebase" commands on your branches to reb
 
 Code formatting wise, we have a `.clang-format` config file that you should use on modified files.
 
+Please sign the [Contributor License Agreement](http://goo.gl/forms/f2nhGi537n).
+
 # Running tests
 
 run tests with:
