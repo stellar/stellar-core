@@ -114,8 +114,8 @@ CatchupStateMachine::enterBeginState()
                           << ", guessed nextLedger=" << mNextLedger
                           << ", anchor checkpoint=" << snap;
 
-    uint64_t sleepSeconds = (((mNextLedger - mInitLedger) + 5) *
-                             SLEEP_SECONDS_PER_LEDGER);
+    uint64_t sleepSeconds =
+        mApp.getHistoryManager().nextCheckpointCatchupProbe(mInitLedger);
 
     mArchive = selectRandomReadableHistoryArchive();
     mArchive->getSnapState(

@@ -296,11 +296,20 @@ LedgerManagerImpl::externalizeValue(LedgerCloseData ledgerData)
             || mSyncingLedgers.back().mLedgerSeq + 1 == ledgerData.mLedgerSeq)
         {
             // Normal close while catching up
-            CLOG(INFO, "Ledger")
-                << "Catchup in progress, buffering close of ledger "
-                << ledgerData.mLedgerSeq;
             mSyncingLedgers.push_back(ledgerData);
             mSyncingLedgersSize.set_count(mSyncingLedgers.size());
+
+            uint64_t now = mApp.timeNow();
+            uint64_t eta = mSyncingLedgers.front().mCloseTime +
+                mApp.getHistoryManager().nextCheckpointCatchupProbe(
+                mSyncingLedgers.front().mLedgerSeq);
+
+            CLOG(INFO, "Ledger")
+                << "Catchup awaiting checkpoint"
+                << " (ETA: "
+                << (now > eta ? 0 : (eta - now))
+                << " seconds), buffering close of ledger "
+                << ledgerData.mLedgerSeq;
         }
         else
         {

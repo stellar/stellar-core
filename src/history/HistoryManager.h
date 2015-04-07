@@ -228,6 +228,9 @@ class HistoryManager
     // Given a ledger, tell when the next checkpoint will occur.
     virtual uint32_t nextCheckpointLedger(uint32_t ledger) = 0;
 
+    // Given a ledger, tell the number of seconds to sleep until the next catchup probe.
+    virtual uint64_t nextCheckpointCatchupProbe(uint32_t ledger) = 0;
+
     // Verify that a file has a given hash.
     virtual void verifyHash(std::string const& filename, uint256 const& hash,
                             std::function<void(asio::error_code const&)> handler) const = 0;
