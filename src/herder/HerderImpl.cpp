@@ -229,7 +229,7 @@ HerderImpl::validateValue(uint64 const& slotIndex, uint256 const& nodeID,
             CLOG(DEBUG, "Herder")
                 << "HerderImpl::validateValue"
                 << "@" << hexAbbrev(getLocalNodeID()) << " i: " << slotIndex
-                << " v: " << hexAbbrev(nodeID) << " Invalid txSet:"
+                << " n: " << hexAbbrev(nodeID) << " Invalid txSet:"
                 << " " << hexAbbrev(txSet->getContentsHash());
             this->mValueInvalid.Mark();
             return cb(false);
@@ -238,7 +238,7 @@ HerderImpl::validateValue(uint64 const& slotIndex, uint256 const& nodeID,
         CLOG(DEBUG, "Herder")
             << "HerderImpl::validateValue"
             << "@" << hexAbbrev(getLocalNodeID()) << " i: " << slotIndex
-            << " v: " << hexAbbrev(nodeID) << " txSet:"
+            << " n: " << hexAbbrev(nodeID) << " txSet:"
             << " " << hexAbbrev(txSet->getContentsHash()) << " OK";
         this->mValueValid.Mark();
         return cb(true);
@@ -658,8 +658,9 @@ HerderImpl::retrieveQuorumSet(
 void
 HerderImpl::rebroadcast()
 {
-    CLOG(DEBUG, "Herder") << "HerderImpl:rebroadcast"
-                          << "@" << hexAbbrev(getLocalNodeID());
+    CLOG(DEBUG, "Herder") << "rebroadcast "
+        << " s:" << mLastSentMessage.envelope().statement.pledges.type() 
+        << " i:" << mLastSentMessage.envelope().statement.slotIndex;
 
     mEnvelopeEmit.Mark();
     mApp.getOverlayManager().broadcastMessage(mLastSentMessage, true);
@@ -822,8 +823,13 @@ void
 HerderImpl::recvSCPEnvelope(SCPEnvelope envelope,
                             std::function<void(EnvelopeState)> const& cb)
 {
-    CLOG(DEBUG, "Herder") << "HerderImpl::recvSCPEnvelope@"
-                          << "@" << hexAbbrev(getLocalNodeID());
+    CLOG(DEBUG, "Herder") << "recvSCPEnvelope"
+                          << " from: " << hexAbbrev(envelope.nodeID) 
+                          << " s:" << envelope.statement.pledges.type() 
+                          << " i:" << envelope.statement.slotIndex
+                          << " b:" << envelope.statement.ballot.counter
+                          << " v:" << binToHex(ByteSlice(&envelope.statement.ballot.value[96],3))
+                          << " a:" << mApp.getState();
 
     if (mApp.getState() == Application::SYNCED_STATE)
     {
@@ -840,6 +846,9 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope envelope,
         if (envelope.statement.slotIndex > maxLedgerSeq ||
             envelope.statement.slotIndex < minLedgerSeq)
         {
+            CLOG(DEBUG, "Herder") << "Ignoring SCPEnvelope outside of range: "
+                << envelope.statement.slotIndex << "( " << minLedgerSeq << "," 
+                << maxLedgerSeq << ")";
             return;
         }
 
@@ -885,10 +894,19 @@ HerderImpl::ledgerClosed(LedgerHeaderHistoryEntry const& ledger)
     mBallotValidationTimers.clear();
     mBallotValidationTimersSize.set_count(mBallotValidationTimers.size());
 
-    // If we are not a validating not and just watching SCP we don't call
-    // triggerNextLedger
-    if (getSecretKey().isZero() || mApp.getState()!=Application::SYNCED_STATE)
+    // If we are not a validating node and just watching SCP we don't call
+    // triggerNextLedger. Likewise if we are not in synced state.
+    if (getSecretKey().isZero())
     {
+        CLOG(DEBUG, "Herder")
+            << "Non-validating node, not triggering ledger-close.";
+        return;
+    }
+
+    if (mApp.getState() != Application::SYNCED_STATE)
+    {
+        CLOG(DEBUG, "Herder")
+            << "Not presently synced, not triggering ledger-close.";
         return;
     }
 
