@@ -548,6 +548,10 @@ HerderImpl::valueExternalized(uint64 const& slotIndex, Value const& value)
         mCurrentTxSetFetcher = mCurrentTxSetFetcher ? 0 : 1;
         mTxSetFetcher[mCurrentTxSetFetcher].clear();
 
+        // We trigger next ledger EXP_LEDGER_TIMESPAN_SECONDS after our last
+        // trigger.
+        mTriggerTimer.cancel();
+
         // Triggers sync if not already syncing.
         LedgerCloseData ledgerData(static_cast<uint32_t>(slotIndex),
                                    externalizedSet, b.value.closeTime,
@@ -863,6 +867,8 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope envelope,
 void
 HerderImpl::ledgerClosed(LedgerHeaderHistoryEntry const& ledger)
 {
+    mTriggerTimer.cancel();
+
     updateSCPCounters();
     CLOG(TRACE, "Herder") << "HerderImpl::ledgerClosed@"
                           << "@" << hexAbbrev(getLocalNodeID())
@@ -885,10 +891,6 @@ HerderImpl::ledgerClosed(LedgerHeaderHistoryEntry const& ledger)
     {
         return;
     }
-
-    // We trigger next ledger EXP_LEDGER_TIMESPAN_SECONDS after our last
-    // trigger.
-    mTriggerTimer.cancel();
 
     size_t seconds = EXP_LEDGER_TIMESPAN_SECONDS;
     if (mApp.getConfig().ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING)
