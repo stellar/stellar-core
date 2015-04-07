@@ -480,7 +480,7 @@ enum TransactionResultCode
     txNO_ACCOUNT = 8,           // source account not found
     txINSUFFICIENT_FEE = 9,     // max fee is too small
     txBAD_AUTH_EXTRA = 10,      // too many signatures on transaction
-    txINTERNAL_ERROR = 0xFFFFFFFF // an unknown error occured
+    txINTERNAL_ERROR = -1 // an unknown error occured
 };
 
 struct TransactionResult
