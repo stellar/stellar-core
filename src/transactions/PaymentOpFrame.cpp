@@ -227,6 +227,11 @@ PaymentOpFrame::sendNoCreate(AccountFrame& destination, LedgerDelta& delta,
 bool
 PaymentOpFrame::doCheckValid(Application& app)
 {
+    if (mPayment.amount < 0 || mPayment.sendMax < 0)
+    {
+        innerResult().code(PAYMENT_MALFORMED);
+        return false;
+    }
     return true;
 }
 }

@@ -233,14 +233,15 @@ enum PaymentResultCode
     PAYMENT_SUCCESS_MULTI = 1, // multi-path payment success
 
     // codes considered as "failure" for the operation
-    PAYMENT_UNDERFUNDED = 2,    // not enough funds in source account
-    PAYMENT_NO_DESTINATION = 3, // destination account does not exist
-    PAYMENT_NO_TRUST = 4,       // destination missing a trust line for currency
-    PAYMENT_NOT_AUTHORIZED = 5, // destination not authorized to hold currency
-    PAYMENT_LINE_FULL = 6,      // destination would go above their limit
-    PAYMENT_TOO_FEW_OFFERS = 7, // not enough offers to satisfy path payment
-    PAYMENT_OVER_SENDMAX = 8,   // multi-path payment could not satisfy sendmax
-    PAYMENT_LOW_RESERVE = 9     // would create an account below the min reserve
+    PAYMENT_MALFORMED = 2,      // bad input
+    PAYMENT_UNDERFUNDED = 3,    // not enough funds in source account
+    PAYMENT_NO_DESTINATION = 4, // destination account does not exist
+    PAYMENT_NO_TRUST = 5,       // destination missing a trust line for currency
+    PAYMENT_NOT_AUTHORIZED = 6, // destination not authorized to hold currency
+    PAYMENT_LINE_FULL = 7,      // destination would go above their limit
+    PAYMENT_TOO_FEW_OFFERS = 8, // not enough offers to satisfy path payment
+    PAYMENT_OVER_SENDMAX = 9,   // multi-path payment could not satisfy sendmax
+    PAYMENT_LOW_RESERVE = 10    // would create an account below the min reserve
 };
 
 struct SimplePaymentResult
@@ -329,7 +330,8 @@ enum SetOptionsResultCode
     // codes considered as "failure" for the operation
     SET_OPTIONS_LOW_RESERVE = 1,      // not enough funds to add a signer
     SET_OPTIONS_TOO_MANY_SIGNERS = 2, // max number of signers already reached
-    SET_OPTIONS_BAD_FLAGS = 3         // invalid combination of clear/set flags
+    SET_OPTIONS_BAD_FLAGS = 3,        // invalid combination of clear/set flags
+    SET_OPTIONS_INVALID_INFLATION = 4 // inflation account does not exist
 };
 
 union SetOptionsResult switch (SetOptionsResultCode code)
@@ -349,7 +351,8 @@ enum ChangeTrustResultCode
     // codes considered as "failure" for the operation
     CHANGE_TRUST_NO_ISSUER = 1,     // could not find issuer
     CHANGE_TRUST_INVALID_LIMIT = 2, // cannot drop limit below balance
-    CHANGE_TRUST_LOW_RESERVE = 3 // not enough funds to create a new trust line
+    CHANGE_TRUST_LOW_RESERVE = 3, // not enough funds to create a new trust line
+    CHANGE_TRUST_MALFORMED = 4    // bad input
 };
 
 union ChangeTrustResult switch (ChangeTrustResultCode code)
