@@ -18,7 +18,11 @@
 #include "medida/reporting/json_reporter.h"
 #include "xdrpp/marshal.h"
 
+
+
 #include <regex>
+#include "transactions/TxTests.h"
+using namespace stellar::txtest;
 
 using std::placeholders::_1;
 using std::placeholders::_2;
@@ -65,6 +69,7 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
     mServer->addRoute("peers", std::bind(&CommandHandler::peers, this, _1, _2));
     mServer->addRoute("scp", std::bind(&CommandHandler::scpInfo, this, _1, _2));
     mServer->addRoute("stop", std::bind(&CommandHandler::stop, this, _1, _2));
+    mServer->addRoute("testtx", std::bind(&CommandHandler::testTx, this, _1, _2));
     mServer->addRoute("tx", std::bind(&CommandHandler::tx, this, _1, _2));
 }
 
@@ -76,6 +81,53 @@ CommandHandler::manualCmd(std::string const& cmd)
     request.uri = cmd;
     mServer->handle_request(request, reply);
     LOG(INFO) << cmd << " -> " << reply.content;
+}
+
+SequenceNumber getSeq(SecretKey const& k, Application& app)
+{
+    AccountFrame account;
+    if(AccountFrame::loadAccount(k.getPublicKey(), account,
+        app.getDatabase()))
+    {
+        return account.getSeqNum();
+    }
+    return(0);
+}
+
+void CommandHandler::testTx(std::string const& params, std::string& retStr)
+{
+    std::map<std::string, std::string> retMap;
+    http::server::server::parseParams(params, retMap);
+
+    auto to = retMap.find("to");
+    auto from = retMap.find("from");
+    auto amount = retMap.find("amount");
+
+    if( to != retMap.end() && 
+        from != retMap.end() &&
+        amount != retMap.end())
+    {
+        SecretKey toKey,fromKey;
+        if(to->second == "root") toKey = getRoot();
+        else toKey=getAccount(to->second.c_str());
+
+        if(from->second == "root") fromKey = getRoot();
+        else fromKey = getAccount(from->second.c_str());
+
+        int64_t txfee = mApp.getLedgerManager().getTxFee();
+        uint64_t paymentAmount = stoi(amount->second)*1000000;
+
+        SequenceNumber fromSeq = getSeq(fromKey, mApp) + 1;
+
+        TransactionFramePtr txFrame = createPaymentTx(fromKey, toKey, fromSeq, paymentAmount);
+        bool ret=mApp.getHerder().recvTransaction(txFrame);
+        if(ret) retStr = "Transaction submitted";
+        else retStr = "Something went wrong";
+
+    } else
+    {
+        retStr = "try something like: testtx?from=root&to=bob&amount=100";
+    }
 }
 
 void
