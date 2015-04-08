@@ -487,8 +487,13 @@ HerderImpl::validateBallot(uint64 const& slotIndex, uint256 const& nodeID,
             [cb, this]()
             {
                 this->mBallotValid.Mark();
+                cb(true);
             },
-            VirtualTimer::onFailureNoop);
+            [cb, this](asio::error_code const&)
+            {
+                this->mBallotInvalid.Mark();
+                cb(false);
+            });
         mBallotValidationTimers[ballot][nodeID].push_back(ballotTimer);
 
         // Check if the nodes that have requested validation for this ballot
