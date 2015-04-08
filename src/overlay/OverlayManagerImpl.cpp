@@ -135,10 +135,7 @@ OverlayManagerImpl::storePeerList(std::vector<std::string> const& list,
         PeerRecord pr;
         if (PeerRecord::parseIPPort(peerStr, mApp, pr))
         {
-            if (!pr.isStored(mApp.getDatabase()))
-            {
-                pr.storePeerRecord(mApp.getDatabase());
-            }
+            pr.insertIfNew(mApp.getDatabase());
         }
         else
         {

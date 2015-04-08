@@ -41,7 +41,19 @@ TEST_CASE("toXdr", "[overlay][PeerRecord]")
     SECTION("loadPeerRecord and storePeerRecord")
     {
         pr.mNextAttempt = pr.mNextAttempt + chrono::seconds(12);
-        pr.storePeerRecord(app->getDatabase());
+        REQUIRE(pr.insertIfNew(app->getDatabase()));
+
+        {
+            // second time should return false and not modify it
+            PeerRecord pr2(pr);
+            pr2.mNumFailures++;
+            REQUIRE(!pr2.insertIfNew(app->getDatabase()));
+
+            auto actualPR =
+                PeerRecord::loadPeerRecord(app->getDatabase(), pr.mIP, pr.mPort);
+            REQUIRE(*actualPR == pr);
+        }
+
         PeerRecord other;
         PeerRecord::fromIPPort("1.2.3.4", 15, clock, other);
         other.storePeerRecord(app->getDatabase());

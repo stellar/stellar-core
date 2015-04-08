@@ -152,9 +152,9 @@ PeerRecord::loadPeerRecords(Database& db, uint32_t max,
         PeerRecord pr;
         statement st =
             (db.getSession().prepare << "SELECT ip, port, nextAttempt, "
-                                        "numFailures, rank from Peers "
-                                        " where nextAttempt <= :nextAttempt "
-                                        " order by rank limit :max ",
+                                        "numFailures, rank FROM Peers "
+                                        "WHERE nextAttempt <= :nextAttempt "
+                                        "ORDER BY rank DESC,numFailures ASC limit :max ",
              use(tm), use(max), into(pr.mIP), into(pr.mPort), into(tm),
              into(pr.mNumFailures), into(pr.mRank));
         st.execute();
@@ -195,42 +195,52 @@ PeerRecord::isStored(Database& db)
     return loadPeerRecord(db, mIP, mPort) != nullopt<PeerRecord>();
 }
 
+bool
+PeerRecord::insertIfNew(Database& db)
+{
+    auto timer = db.getInsertTimer("peer");
+    auto tm = VirtualClock::pointToTm(mNextAttempt);
+
+    auto other = loadPeerRecord(db, mIP, mPort);
+
+    if (other)
+    {
+        return false;
+    }
+    else
+    {
+        statement stIn =
+            (db.getSession().prepare << "INSERT INTO Peers "
+            "(IP,Port,nextAttempt,numFailures,"
+            "Rank) values (:v1, :v2, :v3, :v4, "
+            ":v5)",
+            use(mIP), use(mPort), use(tm), use(mNumFailures), use(mRank));
+
+        stIn.execute(true);
+        return (stIn.get_affected_rows() == 1);
+    }
+}
+
 void
 PeerRecord::storePeerRecord(Database& db)
 {
-    try
+    if (!insertIfNew(db))
     {
         auto tm = VirtualClock::pointToTm(mNextAttempt);
         statement stUp =
             (db.getSession().prepare << "UPDATE Peers SET "
-                                        "nextAttempt=:v1,numFailures=:v2,Rank=:"
-                                        "v3 WHERE IP=:v4 AND Port=:v5",
-             use(tm), use(mNumFailures), use(mRank), use(mIP), use(mPort));
+            "nextAttempt=:v1,numFailures=:v2,Rank=:"
+            "v3 WHERE IP=:v4 AND Port=:v5",
+            use(tm), use(mNumFailures), use(mRank), use(mIP), use(mPort));
         {
             auto timer = db.getUpdateTimer("peer");
             stUp.execute(true);
-        }
-        if (stUp.get_affected_rows() != 1)
-        {
-            auto timer = db.getInsertTimer("peer");
-            tm = VirtualClock::pointToTm(mNextAttempt);
-
-            statement stIn =
-                (db.getSession().prepare << "INSERT INTO Peers "
-                                            "(IP,Port,nextAttempt,numFailures,"
-                                            "Rank) values (:v1, :v2, :v3, :v4, "
-                                            ":v5)",
-                 use(mIP), use(mPort), use(tm), use(mNumFailures), use(mRank));
-
-            stIn.execute(true);
-            if (stIn.get_affected_rows() != 1)
+            if (stUp.get_affected_rows() != 1)
+            {
                 throw runtime_error("PeerRecord::storePeerRecord: failed on " +
-                                    toString());
+                    toString());
+            }
         }
-    }
-    catch (soci_error& err)
-    {
-        LOG(ERROR) << "PeerRecord::storePeerRecord: " << err.what();
     }
 }
 

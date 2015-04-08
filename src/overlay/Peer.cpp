@@ -402,7 +402,6 @@ Peer::recvPeers(StellarMessage const& msg)
 {
     for (auto peer : msg.peers())
     {
-        // TODO.3 make sure they aren't sending us garbage
         stringstream ip;
 
         ip << (int)peer.ip[0] << "." << (int)peer.ip[1] << "."
@@ -422,7 +421,7 @@ Peer::recvPeers(StellarMessage const& msg)
         }
         else
         {
-            pr.storePeerRecord(mApp.getDatabase());
+            pr.insertIfNew(mApp.getDatabase());
         }
     }
 }

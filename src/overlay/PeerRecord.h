@@ -57,7 +57,15 @@ class PeerRecord
                                 vector<PeerRecord>& retList);
 
     bool isPrivateAddress();
+
+    // returns true if peerRecord is already in the database
     bool isStored(Database& db);
+
+    // insert record in database if it's a new record
+    // returns true if inserted
+    bool insertIfNew(Database& db);
+
+    // insert or update record from database
     void storePeerRecord(Database& db);
 
     void backOff(VirtualClock& clock);
