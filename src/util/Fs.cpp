@@ -71,7 +71,6 @@ deltree(std::string const& d)
     }
 }
 
-
 long
 getCurrentPid()
 {
@@ -83,9 +82,11 @@ processExists(long pid)
 {
     std::vector<DWORD> buffer(4096);
     DWORD bytesWritten;
-    while(true)
+    for (;;)
     {
-        if (!EnumProcesses(buffer.data(), static_cast<DWORD>(buffer.size() * sizeof(DWORD)), &bytesWritten))
+        if (!EnumProcesses(buffer.data(),
+                           static_cast<DWORD>(buffer.size() * sizeof(DWORD)),
+                           &bytesWritten))
         {
             throw std::runtime_error("EnumProcess failed");
         }
@@ -162,7 +163,6 @@ deltree(std::string const& d)
     }
 }
 
-
 long
 getCurrentPid()
 {
@@ -174,7 +174,6 @@ processExists(long pid)
 {
     return (kill(pid, 0) == 0);
 }
-
 
 #endif
 

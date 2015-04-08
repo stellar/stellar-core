@@ -34,7 +34,14 @@ SetOptionsOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
 
     if (mSetOptions.inflationDest)
     {
-        account.inflationDest.activate() = *mSetOptions.inflationDest;
+        AccountFrame inflationAccount;
+        AccountID inflationID = *mSetOptions.inflationDest;
+        if (!AccountFrame::loadAccount(inflationID, inflationAccount, db))
+        {
+            innerResult().code(SET_OPTIONS_INVALID_INFLATION);
+            return false;
+        }
+        account.inflationDest.activate() = inflationID;
     }
 
     if (mSetOptions.clearFlags)

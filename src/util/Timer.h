@@ -177,7 +177,7 @@ class VirtualTimer : private NonMovableOrCopyable
                     std::function<void(asio::error_code)> const& onFailure);
     void cancel();
 
-    static void onFailureNoop(asio::error_code const& error){};
+    static void onFailureNoop(asio::error_code const&){};
 };
 
 // This is almost certainly not the type you want to use. So much so

@@ -62,9 +62,19 @@ Config::load(std::string const& filename)
         for (auto& item : g)
         {
             if (item.first == "PEER_PORT")
-                PEER_PORT = (int)item.second->as<int64_t>()->value();
+            {
+                int64_t parsedPort = item.second->as<int64_t>()->value();
+                if (parsedPort <= 0 || parsedPort > UINT16_MAX)
+                    throw std::invalid_argument("bad port number");
+                PEER_PORT = static_cast<unsigned short>(parsedPort);
+            }
             else if (item.first == "HTTP_PORT")
-                HTTP_PORT = (int)item.second->as<int64_t>()->value();
+            {
+                int64_t parsedPort = item.second->as<int64_t>()->value();
+                if (parsedPort <= 0 || parsedPort > UINT16_MAX)
+                    throw std::invalid_argument("bad port number");
+                HTTP_PORT = static_cast<unsigned short>(parsedPort);
+            }
             else if (item.first == "PUBLIC_HTTP_PORT")
                 PUBLIC_HTTP_PORT = item.second->as<bool>()->value();
             else if (item.first == "QUORUM_THRESHOLD")

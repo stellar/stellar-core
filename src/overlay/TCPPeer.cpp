@@ -41,19 +41,19 @@ TCPPeer::TCPPeer(Application& app, Peer::PeerRole role,
     , mByteRead(app.getMetrics().NewMeter({"overlay", "byte", "read"}, "byte"))
     , mByteWrite(
           app.getMetrics().NewMeter({"overlay", "byte", "write"}, "byte"))
-    , mErrorRead(app.getMetrics().NewMeter({"overlay", "error", "read"},
-                                           "error"))
-    , mErrorWrite(app.getMetrics().NewMeter({"overlay", "error", "write"},
-                                            "error"))
-    , mTimeoutRead(app.getMetrics().NewMeter({"overlay", "timeout", "read"},
-                                               "timeout"))
-    , mTimeoutWrite(app.getMetrics().NewMeter({"overlay", "timeout", "write"},
-                                               "timeout"))
+    , mErrorRead(
+          app.getMetrics().NewMeter({"overlay", "error", "read"}, "error"))
+    , mErrorWrite(
+          app.getMetrics().NewMeter({"overlay", "error", "write"}, "error"))
+    , mTimeoutRead(
+          app.getMetrics().NewMeter({"overlay", "timeout", "read"}, "timeout"))
+    , mTimeoutWrite(
+          app.getMetrics().NewMeter({"overlay", "timeout", "write"}, "timeout"))
 {
 }
 
 TCPPeer::pointer
-TCPPeer::initiate(Application& app, std::string const& ip, uint32_t port)
+TCPPeer::initiate(Application& app, std::string const& ip, unsigned short port)
 {
     CLOG(DEBUG, "Overlay") << "TCPPeer:initiate"
                            << "@" << app.getConfig().PEER_PORT << " to " << ip
@@ -195,8 +195,8 @@ TCPPeer::writeHandler(asio::error_code const& error,
             // errors during shutdown or connection are common/expected.
             mErrorWrite.Mark();
             CLOG(ERROR, "Overlay") << "TCPPeer::writeHandler error"
-                                   << "@" << mApp.getConfig().PEER_PORT << " to "
-                                   << mRemoteListeningPort;
+                                   << "@" << mApp.getConfig().PEER_PORT
+                                   << " to " << mRemoteListeningPort;
         }
         drop();
     }
@@ -210,19 +210,27 @@ TCPPeer::writeHandler(asio::error_code const& error,
 void
 TCPPeer::startRead()
 {
-    CLOG(DEBUG, "Overlay") << "TCPPeer::startRead"
-                           << "@" << mApp.getConfig().PEER_PORT << " to "
-                           << mSocket->remote_endpoint().port();
-    resetReadIdle();
-    auto self = shared_from_this();
-    asio::async_read(*(mSocket.get()), asio::buffer(mIncomingHeader),
-                     [self](asio::error_code ec, std::size_t length)
-                     {
-                         CLOG(DEBUG, "Overlay")
-                             << "TCPPeer::startRead calledback " << ec
-                             << " length:" << length;
-                         self->readHeaderHandler(ec, length);
-                     });
+    try
+    {
+        CLOG(DEBUG, "Overlay") << "TCPPeer::startRead"
+            << "@" << mApp.getConfig().PEER_PORT << " to "
+            << mSocket->remote_endpoint().port();
+        resetReadIdle();
+        auto self = shared_from_this();
+        asio::async_read(*(mSocket.get()), asio::buffer(mIncomingHeader),
+            [self](asio::error_code ec, std::size_t length)
+        {
+            CLOG(DEBUG, "Overlay")
+                << "TCPPeer::startRead calledback " << ec
+                << " length:" << length;
+            self->readHeaderHandler(ec, length);
+        });
+    }
+    catch (asio::system_error &e)
+    {
+        CLOG(ERROR, "Overlay") << "TCPPeer::startRead error " << e.what();
+        drop();
+    }
 }
 
 int
@@ -280,8 +288,8 @@ TCPPeer::readHeaderHandler(asio::error_code const& error,
             // Only emit a warning if we have an error while connected;
             // errors during shutdown or connection are common/expected.
             mErrorRead.Mark();
-            CLOG(ERROR, "Overlay") << "readHeaderHandler error: "
-                                   << error.message();
+            CLOG(ERROR, "Overlay")
+                << "readHeaderHandler error: " << error.message();
         }
         drop();
     }
@@ -309,8 +317,8 @@ TCPPeer::readBodyHandler(asio::error_code const& error,
             // Only emit a warning if we have an error while connected;
             // errors during shutdown or connection are common/expected.
             mErrorRead.Mark();
-            CLOG(ERROR, "Overlay") << "readBodyHandler error: "
-                                   << error.message();
+            CLOG(ERROR, "Overlay")
+                << "readBodyHandler error: " << error.message();
         }
         drop();
     }
@@ -383,11 +391,9 @@ TCPPeer::drop()
 
     bool wasConnected = (mState == CONNECTED || mState == GOT_HELLO);
 
-    CLOG(INFO, "Overlay")
-        << "TCPPeer::drop"
-        << "@" << mApp.getConfig().PEER_PORT << " to "
-        << mRemoteListeningPort
-        << " in state " << mState;
+    CLOG(INFO, "Overlay") << "TCPPeer::drop"
+                          << "@" << mApp.getConfig().PEER_PORT << " to "
+                          << mRemoteListeningPort << " in state " << mState;
 
     mState = CLOSING;
 

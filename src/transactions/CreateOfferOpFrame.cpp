@@ -315,7 +315,8 @@ CreateOfferOpFrame::doCheckValid(Application& app)
         innerResult().code(CREATE_OFFER_MALFORMED);
         return false;
     }
-    if (mCreateOffer.price.d <= 0 || mCreateOffer.price.n <= 0)
+    if (mCreateOffer.amount < 0 || mCreateOffer.price.d <= 0 ||
+        mCreateOffer.price.n <= 0)
     {
         innerResult().code(CREATE_OFFER_MALFORMED);
         return false;

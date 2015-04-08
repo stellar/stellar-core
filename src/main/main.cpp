@@ -81,7 +81,7 @@ usage(int err = 1)
 
 static void
 sendCommand(const std::string& command, const std::vector<char*>& rest,
-            int port)
+            unsigned short port)
 {
     std::string ret;
     std::ostringstream path;
@@ -126,8 +126,10 @@ setForceSCPFlag(Config& cfg)
         LOG(INFO) << "* ";
         LOG(INFO) << "* The `force scp` flag has been set in the db.";
         LOG(INFO) << "* ";
-        LOG(INFO) << "* The next launch will start scp from the account balances";
-        LOG(INFO) << "* as they stand in the db now, without waiting to hear from";
+        LOG(INFO)
+            << "* The next launch will start scp from the account balances";
+        LOG(INFO)
+            << "* as they stand in the db now, without waiting to hear from";
         LOG(INFO) << "* the network.";
         LOG(INFO) << "* ";
     }
@@ -185,9 +187,8 @@ startApp(string cfgFile, Config& cfg)
         }
         if (cfg.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING)
         {
-            LOG(WARNING)
-                << "Artificial acceleration of time enabled "
-                << "(for testing only)";
+            LOG(WARNING) << "Artificial acceleration of time enabled "
+                         << "(for testing only)";
         }
 
         app->applyCfgCommands();

@@ -172,7 +172,9 @@ BucketManagerImpl::adoptFileAsBucket(std::string const& filename, uint256 const&
                            << canonicalName;
         if (rename(filename.c_str(), canonicalName.c_str()) != 0)
         {
-            throw std::runtime_error("Failed to rename bucket");
+            std::string err("Failed to rename bucket :");
+            err += err + strerror(errno);
+            throw std::runtime_error(err);
         }
 
         b = std::make_shared<Bucket>(canonicalName, hash);

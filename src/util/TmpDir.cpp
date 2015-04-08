@@ -17,7 +17,7 @@ namespace stellar
 TmpDir::TmpDir(std::string const& prefix)
 {
     size_t attempts = 0;
-    while (true)
+    for (;;)
     {
         std::string hex = binToHex(randomBytes(8));
         std::string name = prefix + "-" + hex;

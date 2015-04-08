@@ -61,7 +61,7 @@ class TCPPeer : public Peer
                                                             // `accept` instead
 
     static pointer initiate(Application& app, std::string const& ip,
-                            uint32_t port);
+                            unsigned short port);
     static pointer accept(Application& app,
                           std::shared_ptr<asio::ip::tcp::socket> socket);
 

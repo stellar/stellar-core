@@ -59,8 +59,7 @@ OverlayManagerImpl::OverlayManagerImpl(Application& app)
           {"overlay", "connection", "drop"}, "connection"))
     , mConnectionsRejected(app.getMetrics().NewMeter(
           {"overlay", "connection", "reject"}, "connection"))
-    , mPeersSize(app.getMetrics().NewCounter(
-          {"overlay", "memory", "peers"}))
+    , mPeersSize(app.getMetrics().NewCounter({"overlay", "memory", "peers"}))
     , mTimer(app)
     , mFloodGate(app)
 {
@@ -91,7 +90,7 @@ OverlayManagerImpl::connectTo(std::string const& peerStr)
         connectTo(pr);
     else
     {
-        CLOG(ERROR, "Overlay") << "Unable to parse: " << peerStr;
+        CLOG(ERROR, "Overlay") << "Unable to add peer '" << peerStr << "'";
     }
 }
 
@@ -136,14 +135,11 @@ OverlayManagerImpl::storePeerList(std::vector<std::string> const& list,
         PeerRecord pr;
         if (PeerRecord::parseIPPort(peerStr, mApp, pr))
         {
-            if (!pr.isStored(mApp.getDatabase()))
-            {
-                pr.storePeerRecord(mApp.getDatabase());
-            }
+            pr.insertIfNew(mApp.getDatabase());
         }
         else
         {
-            CLOG(ERROR, "Overlay") << "Unable to parse: " << peerStr;
+            CLOG(ERROR, "Overlay") << "Unable to add peer '" << peerStr << "'";
         }
     }
 }
@@ -196,7 +192,7 @@ OverlayManagerImpl::tick()
 }
 
 Peer::pointer
-OverlayManagerImpl::getConnectedPeer(std::string const& ip, uint32_t port)
+OverlayManagerImpl::getConnectedPeer(std::string const& ip, unsigned short port)
 {
     for (auto peer : mPeers)
     {

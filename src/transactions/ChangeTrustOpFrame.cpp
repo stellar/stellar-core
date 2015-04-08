@@ -82,6 +82,11 @@ ChangeTrustOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
 bool
 ChangeTrustOpFrame::doCheckValid(Application& app)
 {
+    if (mChangeTrust.limit < 0)
+    {
+        innerResult().code(CHANGE_TRUST_MALFORMED);
+        return false;
+    }
     return true;
 }
 }

@@ -38,7 +38,7 @@ public:
 
     /// Construct the server to listen on the specified TCP address and port
     explicit server(asio::io_service& io_service,
-                    const std::string& address, const int port);
+                    const std::string& address, unsigned short port);
     ~server();
 
     void addRoute(const std::string& routeName, routeHandler callback);

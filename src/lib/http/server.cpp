@@ -29,7 +29,7 @@ server::server(asio::io_service& io_service)
 }
 
 server::server(asio::io_service& io_service, const std::string& address,
-               const int port)
+               unsigned short port)
     : io_service_(io_service)
     , signals_(io_service_)
     , acceptor_(io_service_)

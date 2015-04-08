@@ -72,11 +72,11 @@ class Config : public std::enable_shared_from_this<Config>
     std::string BUCKET_DIR_PATH;
     uint32_t DESIRED_BASE_FEE;     // in stroops
     uint32_t DESIRED_BASE_RESERVE; // in stroops
-    uint32_t HTTP_PORT;    // what port to listen for commands on. 0 for don't
-    bool PUBLIC_HTTP_PORT; // if you accept commands from not localhost
+    unsigned short HTTP_PORT;      // what port to listen for commands
+    bool PUBLIC_HTTP_PORT;         // if you accept commands from not localhost
 
     // overlay config
-    uint32_t PEER_PORT;
+    unsigned short PEER_PORT;
     SecretKey PEER_KEY;
     PublicKey PEER_PUBLIC_KEY;
     unsigned TARGET_PEER_CONNECTIONS;

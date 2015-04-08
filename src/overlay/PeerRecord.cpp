@@ -28,7 +28,7 @@ PeerRecord::ipToXdr(string ip, xdr::opaque_array<4U>& ret)
     int n = 0;
     while (getline(ss, item, '.') && n < 4)
     {
-        ret[n] = atoi(item.c_str());
+        ret[n] = static_cast<unsigned char>(atoi(item.c_str()));
         n++;
     }
     if (n != 4)
@@ -38,21 +38,21 @@ PeerRecord::ipToXdr(string ip, xdr::opaque_array<4U>& ret)
 void
 PeerRecord::toXdr(PeerAddress& ret)
 {
-    ret.port = mPort;
+    ret.port = static_cast<unsigned short>(mPort);
     ret.numFailures = mNumFailures;
     ipToXdr(mIP, ret.ip);
 }
 
 void
-PeerRecord::fromIPPort(string const& ip, uint32_t port, VirtualClock& clock,
-                       PeerRecord& ret)
+PeerRecord::fromIPPort(string const& ip, unsigned short port,
+                       VirtualClock& clock, PeerRecord& ret)
 {
     ret = PeerRecord{ip, port, clock.now(), 0, 1};
 }
 
 bool
 PeerRecord::parseIPPort(string const& ipPort, Application& app, PeerRecord& ret,
-                        uint32_t defaultPort)
+                        unsigned short defaultPort)
 {
     static std::regex re(
         "^(?:(\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3})|([[:alnum:].-]+))"
@@ -60,7 +60,7 @@ PeerRecord::parseIPPort(string const& ipPort, Application& app, PeerRecord& ret,
     std::smatch m;
 
     string ip;
-    uint32_t port = defaultPort;
+    unsigned short port = defaultPort;
 
     if (std::regex_search(ipPort, m, re) && !m.empty())
     {
@@ -93,8 +93,9 @@ PeerRecord::parseIPPort(string const& ipPort, Application& app, PeerRecord& ret,
                 i++;
             }
         }
-        catch (asio::system_error&)
+        catch (asio::system_error& e)
         {
+            LOG(DEBUG) << "Could not resolve '" << ipPort << "' : " << e.what();
             return false;
         }
         if (ip.empty())
@@ -102,7 +103,10 @@ PeerRecord::parseIPPort(string const& ipPort, Application& app, PeerRecord& ret,
 
         if (m[3].matched)
         {
-            port = atoi(m[3].str().c_str());
+            int parsedPort = atoi(m[3].str().c_str());
+            if (parsedPort <= 0 || parsedPort > UINT16_MAX)
+                return false;
+            port = static_cast<unsigned short>(parsedPort);
         }
     }
     else
@@ -110,7 +114,7 @@ PeerRecord::parseIPPort(string const& ipPort, Application& app, PeerRecord& ret,
         return false;
     }
 
-    if (port < 1 || port > 65535)
+    if (port == 0)
         return false;
 
     ret = PeerRecord{ip, port, app.getClock().now(), 0, 1};
@@ -118,7 +122,7 @@ PeerRecord::parseIPPort(string const& ipPort, Application& app, PeerRecord& ret,
 }
 
 optional<PeerRecord>
-PeerRecord::loadPeerRecord(Database& db, string ip, uint32_t port)
+PeerRecord::loadPeerRecord(Database& db, string ip, unsigned short port)
 {
     auto ret = make_optional<PeerRecord>();
     auto timer = db.getSelectTimer("peer");
@@ -126,7 +130,7 @@ PeerRecord::loadPeerRecord(Database& db, string ip, uint32_t port)
     db.getSession() << "Select ip,port, nextAttempt, numFailures, rank FROM "
                        "Peers WHERE ip = :v1 AND port = :v2",
         into(ret->mIP), into(ret->mPort), into(tm), into(ret->mNumFailures),
-        into(ret->mRank), use(ip), use(port);
+        into(ret->mRank), use(ip), use(uint32_t(port));
     if (db.getSession().got_data())
     {
         ret->mNextAttempt = VirtualClock::tmToPoint(tm);
@@ -148,9 +152,9 @@ PeerRecord::loadPeerRecords(Database& db, uint32_t max,
         PeerRecord pr;
         statement st =
             (db.getSession().prepare << "SELECT ip, port, nextAttempt, "
-                                        "numFailures, rank from Peers "
-                                        " where nextAttempt <= :nextAttempt "
-                                        " order by rank limit :max ",
+                                        "numFailures, rank FROM Peers "
+                                        "WHERE nextAttempt <= :nextAttempt "
+                                        "ORDER BY rank DESC,numFailures ASC limit :max ",
              use(tm), use(max), into(pr.mIP), into(pr.mPort), into(tm),
              into(pr.mNumFailures), into(pr.mRank));
         st.execute();
@@ -170,16 +174,15 @@ bool
 PeerRecord::isPrivateAddress()
 {
     asio::error_code ec;
-    asio::ip::address_v4 addr =
-        asio::ip::address_v4::from_string(mIP, ec);
+    asio::ip::address_v4 addr = asio::ip::address_v4::from_string(mIP, ec);
     if (ec)
     {
         return false;
     }
     unsigned long val = addr.to_ulong();
-    if (((  val >> 24) == 10)      // 10.x.y.z
-        ||((val >> 20) == 2753)    // 172.[16-31].x.y
-        ||((val >> 16) == 49320))  // 192.168.x.y
+    if (((val >> 24) == 10)        // 10.x.y.z
+        || ((val >> 20) == 2753)   // 172.[16-31].x.y
+        || ((val >> 16) == 49320)) // 192.168.x.y
     {
         return true;
     }
@@ -192,42 +195,52 @@ PeerRecord::isStored(Database& db)
     return loadPeerRecord(db, mIP, mPort) != nullopt<PeerRecord>();
 }
 
+bool
+PeerRecord::insertIfNew(Database& db)
+{
+    auto timer = db.getInsertTimer("peer");
+    auto tm = VirtualClock::pointToTm(mNextAttempt);
+
+    auto other = loadPeerRecord(db, mIP, mPort);
+
+    if (other)
+    {
+        return false;
+    }
+    else
+    {
+        statement stIn =
+            (db.getSession().prepare << "INSERT INTO Peers "
+            "(IP,Port,nextAttempt,numFailures,"
+            "Rank) values (:v1, :v2, :v3, :v4, "
+            ":v5)",
+            use(mIP), use(mPort), use(tm), use(mNumFailures), use(mRank));
+
+        stIn.execute(true);
+        return (stIn.get_affected_rows() == 1);
+    }
+}
+
 void
 PeerRecord::storePeerRecord(Database& db)
 {
-    try
+    if (!insertIfNew(db))
     {
         auto tm = VirtualClock::pointToTm(mNextAttempt);
         statement stUp =
             (db.getSession().prepare << "UPDATE Peers SET "
-                                        "nextAttempt=:v1,numFailures=:v2,Rank=:"
-                                        "v3 WHERE IP=:v4 AND Port=:v5",
-             use(tm), use(mNumFailures), use(mRank), use(mIP), use(mPort));
+            "nextAttempt=:v1,numFailures=:v2,Rank=:"
+            "v3 WHERE IP=:v4 AND Port=:v5",
+            use(tm), use(mNumFailures), use(mRank), use(mIP), use(mPort));
         {
             auto timer = db.getUpdateTimer("peer");
             stUp.execute(true);
-        }
-        if (stUp.get_affected_rows() != 1)
-        {
-            auto timer = db.getInsertTimer("peer");
-            tm = VirtualClock::pointToTm(mNextAttempt);
-
-            statement stIn =
-                (db.getSession().prepare << "INSERT INTO Peers "
-                                            "(IP,Port,nextAttempt,numFailures,"
-                                            "Rank) values (:v1, :v2, :v3, :v4, "
-                                            ":v5)",
-                 use(mIP), use(mPort), use(tm), use(mNumFailures), use(mRank));
-
-            stIn.execute(true);
-            if (stIn.get_affected_rows() != 1)
+            if (stUp.get_affected_rows() != 1)
+            {
                 throw runtime_error("PeerRecord::storePeerRecord: failed on " +
-                                    toString());
+                    toString());
+            }
         }
-    }
-    catch (soci_error& err)
-    {
-        LOG(ERROR) << "PeerRecord::storePeerRecord: " << err.what();
     }
 }
 
@@ -255,12 +268,12 @@ PeerRecord::dropAll(Database& db)
 }
 
 const char* PeerRecord::kSQLCreateStatement =
-    "CREATE TABLE Peers (                                                   \
-    ip              VARCHAR(15) NOT NULL,                                   \
-    port            INT DEFAULT 0 CHECK (port >= 0) NOT NULL,               \
-    nextAttempt     TIMESTAMP NOT NULL,                                     \
-    numFailures     INT DEFAULT 0 CHECK (numFailures >= 0) NOT NULL,        \
-    rank            INT DEFAULT 0 CHECK (rank >= 0) NOT NULL,               \
-    PRIMARY KEY (ip, port)                                                  \
-);";
+    "CREATE TABLE Peers ("
+    "ip            VARCHAR(15) NOT NULL,"
+    "port          INT DEFAULT 0 CHECK (port > 0 AND port <= 65535) NOT NULL,"
+    "nextAttempt   TIMESTAMP NOT NULL,"
+    "numFailures   INT DEFAULT 0 CHECK (numFailures >= 0) NOT NULL,"
+    "rank          INT DEFAULT 0 CHECK (rank >= 0) NOT NULL,"
+    "PRIMARY KEY (ip, port)"
+    ");";
 }

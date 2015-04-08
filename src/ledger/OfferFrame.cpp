@@ -24,7 +24,7 @@ const char* OfferFrame::kSQLCreateStatement =
     "paysIssuer      VARCHAR(51)  NOT NULL,"
     "getsIsoCurrency VARCHAR(4)   NOT NULL,"
     "getsIssuer      VARCHAR(51)  NOT NULL,"
-    "amount          BIGINT       NOT NULL,"
+    "amount          BIGINT       NOT NULL CHECK (amount >= 0),"
     "priceN          INT          NOT NULL,"
     "priceD          INT          NOT NULL,"
     "price           BIGINT       NOT NULL,"
