@@ -138,7 +138,7 @@ TCPPeer::resetReadIdle()
 void
 TCPPeer::timeoutWrite(asio::error_code const& error)
 {
-    CLOG(INFO, "Overlay") << "write timeout";
+    CLOG(DEBUG, "Overlay") << "write timeout";
     mTimeoutWrite.Mark();
     drop();
 }

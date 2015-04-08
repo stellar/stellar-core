@@ -366,7 +366,7 @@ Peer::recvHello(StellarMessage const& msg)
 {
     if (msg.hello().peerID == mApp.getConfig().PEER_PUBLIC_KEY)
     {
-        CLOG(INFO, "Overlay") << "connecting to self";
+        CLOG(DEBUG, "Overlay") << "connecting to self";
         drop();
         return false;
     }
@@ -376,7 +376,7 @@ Peer::recvHello(StellarMessage const& msg)
     if (msg.hello().listeningPort <= 0 ||
         msg.hello().listeningPort > UINT16_MAX)
     {
-        CLOG(INFO, "Overlay") << "bad port in recvHello";
+        CLOG(DEBUG, "Overlay") << "bad port in recvHello";
         drop();
         return false;
     }
@@ -409,7 +409,7 @@ Peer::recvPeers(StellarMessage const& msg)
 
         if (peer.port == 0 || peer.port > UINT16_MAX)
         {
-            CLOG(WARNING, "Overlay") << "ignoring peer with bad port";
+            CLOG(DEBUG, "Overlay") << "ignoring peer with bad port";
             continue;
         }
         PeerRecord pr{ip.str(), static_cast<unsigned short>(peer.port),
@@ -417,7 +417,7 @@ Peer::recvPeers(StellarMessage const& msg)
 
         if (pr.isPrivateAddress())
         {
-            CLOG(WARNING, "Overlay") << "ignoring flooded private address";
+            CLOG(DEBUG, "Overlay") << "ignoring flooded private address";
         }
         else
         {
