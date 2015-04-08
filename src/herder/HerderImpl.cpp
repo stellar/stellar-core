@@ -487,19 +487,24 @@ HerderImpl::ballotDidHearFromQuorum(uint64 const& slotIndex,
 {
     mQuorumHeard.Mark();
 
-    // This isn't always true if you are just joining the network
-    // assert(slotIndex == mLastClosedLedger.header.ledgerSeq + 1);
+    // Don't have a bump timer if we aren't in sync
+    if(slotIndex == mLastClosedLedger.header.ledgerSeq + 1)
+    {
+        int seconds = (int)pow(2.0, ballot.counter + 1);
+        CLOG(DEBUG, "Herder")
+            << "start bumptimer"
+            << " i: " << slotIndex
+            << " ballot counter: " << ballot.counter << ","
+            << " timeout: " << seconds;
 
-    mBumpTimer.cancel();
+        // Once we hear from a transitive quorum, we start a timer in case SCP
+        // timeouts.
+        mBumpTimer.expires_from_now(std::chrono::seconds(seconds));
 
-    // Once we hear from a transitive quorum, we start a timer in case SCP
-    // timeouts.
-    mBumpTimer.expires_from_now(
-        std::chrono::seconds((int)pow(2.0, ballot.counter+1)));
-
-    // TODO: Bumping on a timeout disabled for now, tends to stall scp
-    mBumpTimer.async_wait([&]() { expireBallot(slotIndex, ballot); },
-      &VirtualTimer::onFailureNoop);
+        // TODO: Bumping on a timeout disabled for now, tends to stall scp
+        mBumpTimer.async_wait([&]() { expireBallot(slotIndex, ballot); },
+            &VirtualTimer::onFailureNoop);
+    }
 }
 
 void
