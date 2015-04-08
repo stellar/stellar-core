@@ -204,7 +204,10 @@ HerderImpl::validateValue(uint64 const& slotIndex, uint256 const& nodeID,
     if (mLastClosedLedger.header.ledgerSeq + 1 != slotIndex)
     {
         mValueInvalid.Mark();
-        return cb(false);
+        // return cb(false);
+        // there is a bug somewhere if we're trying to process messages
+        // for a different slot
+        throw new std::runtime_error("unexpected state");
     }
 
     // Check closeTime (not too old)
@@ -228,7 +231,8 @@ HerderImpl::validateValue(uint64 const& slotIndex, uint256 const& nodeID,
     auto validate = [cb, b, slotIndex, nodeID, this](TxSetFramePtr txSet)
     {
         // Check txSet (only if we're fully synced)
-        if (!txSet->checkValid(mApp))
+        if ((mApp.getState() != Application::SYNCED_STATE) ||
+            !txSet->checkValid(mApp))
         {
             CLOG(DEBUG, "Herder")
                 << "HerderImpl::validateValue"
@@ -356,6 +360,16 @@ HerderImpl::validateBallot(uint64 const& slotIndex, uint256 const& nodeID,
         mBallotInvalid.Mark();
         cb(false);
         return;
+    }
+
+    if ((mApp.getState() == Application::SYNCED_STATE) &&
+        mLastClosedLedger.header.ledgerSeq + 1 != slotIndex)
+    {
+        mValueInvalid.Mark();
+        // return cb(false);
+        // there is a bug somewhere if we're trying to process messages
+        // for a different slot
+        throw new std::runtime_error("unexpected state");
     }
 
     // Check the ballot counter is not growing too rapidly. We ignore ballots
