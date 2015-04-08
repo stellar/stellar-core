@@ -74,12 +74,20 @@ Bucket::Bucket(std::string const& filename, uint256 const& hash)
     : mFilename(filename), mHash(hash)
 {
     assert(filename.empty() || fs::exists(filename));
+    if (!filename.empty())
+    {
+        CLOG(TRACE, "Bucket")
+            << "Bucket::Bucket() created, file exists : "
+            << mFilename;
+    }
 }
 
 Bucket::~Bucket()
 {
     if (!mFilename.empty() && !mRetain)
     {
+        CLOG(TRACE, "Bucket") << "Bucket::~Bucket removing file: "
+                              << mFilename;
         std::remove(mFilename.c_str());
     }
 }

@@ -361,14 +361,11 @@ TEST_CASE("bucketmanager ownership", "[bucket]")
     // Bucket is now only referenced by b1 and the BucketManager.
     CHECK(b1.use_count() == 2);
 
-    // Drop BucketManager's reference, down to just b1.
-    app->getBucketManager().forgetUnreferencedBuckets();
-    CHECK(b1.use_count() == 1);
-
-    // Drop it too.
+    // Drop bucket ourselves then purge bucketManager.
     std::string filename = b1->getFilename();
     CHECK(fs::exists(filename));
     b1.reset();
+    app->getBucketManager().forgetUnreferencedBuckets();
     CHECK(!fs::exists(filename));
 
     // Try adding a bucket to the BucketManager's bucketlist
@@ -389,13 +386,12 @@ TEST_CASE("bucketmanager ownership", "[bucket]")
     live[0] = leGen(10);
     bl.addBatch(*app, 1, live, dead);
     CHECK(b1.use_count() == 2);
-    app->getBucketManager().forgetUnreferencedBuckets();
-    CHECK(b1.use_count() == 1);
 
     // Drop it again.
     filename = b1->getFilename();
     CHECK(fs::exists(filename));
     b1.reset();
+    app->getBucketManager().forgetUnreferencedBuckets();
     CHECK(!fs::exists(filename));
 }
 
