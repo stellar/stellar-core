@@ -65,6 +65,27 @@ Logging::setLoggingToFile(std::string const& filename)
     el::Loggers::reconfigureAllLoggers(gDefaultConf);
 }
 
+
+el::Level 
+Logging::getLogLevel(std::string const& partition)
+{
+    el::Logger* logger = el::Loggers::getLogger(partition);
+    if(logger->typedConfigurations()->enabled(el::Level::Trace)) 
+        return el::Level::Trace;
+    if(logger->typedConfigurations()->enabled(el::Level::Debug))
+        return el::Level::Debug;
+    if(logger->typedConfigurations()->enabled(el::Level::Info))
+        return el::Level::Info;
+    if(logger->typedConfigurations()->enabled(el::Level::Warning))
+        return el::Level::Warning;
+    if(logger->typedConfigurations()->enabled(el::Level::Error))
+        return el::Level::Error;
+    if(logger->typedConfigurations()->enabled(el::Level::Fatal))
+        return el::Level::Fatal;
+    return el::Level::Unknown;
+
+}
+
 // Trace < Debug < Info < Warning < Error < Fatal < None
 void
 Logging::setLogLevel(el::Level level, const char* partition)

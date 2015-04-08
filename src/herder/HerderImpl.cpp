@@ -501,7 +501,6 @@ HerderImpl::ballotDidHearFromQuorum(uint64 const& slotIndex,
         // timeouts.
         mBumpTimer.expires_from_now(std::chrono::seconds(seconds));
 
-        // TODO: Bumping on a timeout disabled for now, tends to stall scp
         mBumpTimer.async_wait([&]() { expireBallot(slotIndex, ballot); },
             &VirtualTimer::onFailureNoop);
     }
@@ -868,11 +867,14 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope envelope,
             mFutureEnvelopes[envelope.statement.slotIndex].push_back(
                 std::make_pair(envelope, cb));
             mFutureEnvelopesSize.set_count(mFutureEnvelopes.size());
-            CLOG(DEBUG, "Herder") << "Adding envelope to future-envelopes queue";
+            CLOG(DEBUG, "Herder") 
+                << "Adding envelope to future-envelopes queue while waiting for trigger";
             return;
         }
         else if (envelope.statement.slotIndex > currLedger)
         {
+            CLOG(DEBUG, "Herder") << "Adding envelope to future-envelopes queue";
+
             mFutureEnvelopes[envelope.statement.slotIndex].push_back(
                 std::make_pair(envelope, cb));
             mFutureEnvelopesSize.set_count(mFutureEnvelopes.size());
