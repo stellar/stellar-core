@@ -38,7 +38,7 @@ PeerRecord::ipToXdr(string ip, xdr::opaque_array<4U>& ret)
 void
 PeerRecord::toXdr(PeerAddress& ret)
 {
-    ret.port = static_cast<unsigned short>(mPort);
+    ret.port = mPort;
     ret.numFailures = mNumFailures;
     ipToXdr(mIP, ret.ip);
 }
@@ -127,12 +127,16 @@ PeerRecord::loadPeerRecord(Database& db, string ip, unsigned short port)
     auto ret = make_optional<PeerRecord>();
     auto timer = db.getSelectTimer("peer");
     tm tm;
+    // SOCI only support signed short, using intermediate int avoids ending up
+    // with negative numbers in the database
+    uint32_t lport;
     db.getSession() << "Select ip,port, nextAttempt, numFailures, rank FROM "
                        "Peers WHERE ip = :v1 AND port = :v2",
-        into(ret->mIP), into(ret->mPort), into(tm), into(ret->mNumFailures),
+        into(ret->mIP), into(lport), into(tm), into(ret->mNumFailures),
         into(ret->mRank), use(ip), use(uint32_t(port));
     if (db.getSession().got_data())
     {
+        ret->mPort = static_cast<unsigned short>(lport);
         ret->mNextAttempt = VirtualClock::tmToPoint(tm);
         return ret;
     }
@@ -150,16 +154,18 @@ PeerRecord::loadPeerRecords(Database& db, uint32_t max,
         auto timer = db.getSelectTimer("peer");
         tm tm = VirtualClock::pointToTm(nextAttemptCutoff);
         PeerRecord pr;
-        statement st =
-            (db.getSession().prepare << "SELECT ip, port, nextAttempt, "
-                                        "numFailures, rank FROM Peers "
-                                        "WHERE nextAttempt <= :nextAttempt "
-                                        "ORDER BY rank DESC,numFailures ASC limit :max ",
-             use(tm), use(max), into(pr.mIP), into(pr.mPort), into(tm),
-             into(pr.mNumFailures), into(pr.mRank));
+        uint32_t lport;
+        statement st = (db.getSession().prepare
+                            << "SELECT ip, port, nextAttempt, "
+                               "numFailures, rank FROM Peers "
+                               "WHERE nextAttempt <= :nextAttempt "
+                               "ORDER BY rank DESC,numFailures ASC limit :max ",
+                        use(tm), use(max), into(pr.mIP), into(lport), into(tm),
+                        into(pr.mNumFailures), into(pr.mRank));
         st.execute();
         while (st.fetch())
         {
+            pr.mPort = static_cast<unsigned short>(lport);
             pr.mNextAttempt = VirtualClock::tmToPoint(tm);
             retList.push_back(pr);
         }
@@ -211,10 +217,11 @@ PeerRecord::insertIfNew(Database& db)
     {
         statement stIn =
             (db.getSession().prepare << "INSERT INTO Peers "
-            "(IP,Port,nextAttempt,numFailures,"
-            "Rank) values (:v1, :v2, :v3, :v4, "
-            ":v5)",
-            use(mIP), use(mPort), use(tm), use(mNumFailures), use(mRank));
+                                        "(IP,Port,nextAttempt,numFailures,"
+                                        "Rank) values (:v1, :v2, :v3, :v4, "
+                                        ":v5)",
+             use(mIP), use(uint32_t(mPort)), use(tm), use(mNumFailures),
+             use(mRank));
 
         stIn.execute(true);
         return (stIn.get_affected_rows() == 1);
@@ -229,16 +236,17 @@ PeerRecord::storePeerRecord(Database& db)
         auto tm = VirtualClock::pointToTm(mNextAttempt);
         statement stUp =
             (db.getSession().prepare << "UPDATE Peers SET "
-            "nextAttempt=:v1,numFailures=:v2,Rank=:"
-            "v3 WHERE IP=:v4 AND Port=:v5",
-            use(tm), use(mNumFailures), use(mRank), use(mIP), use(mPort));
+                                        "nextAttempt=:v1,numFailures=:v2,Rank=:"
+                                        "v3 WHERE IP=:v4 AND Port=:v5",
+             use(tm), use(mNumFailures), use(mRank), use(mIP),
+             use(uint32_t(mPort)));
         {
             auto timer = db.getUpdateTimer("peer");
             stUp.execute(true);
             if (stUp.get_affected_rows() != 1)
             {
                 throw runtime_error("PeerRecord::storePeerRecord: failed on " +
-                    toString());
+                                    toString());
             }
         }
     }
