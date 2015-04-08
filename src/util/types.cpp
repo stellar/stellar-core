@@ -65,7 +65,7 @@ void currencyCodeToStr(xdr::opaque_array<4U> const& code, std::string& retStr)
 
 void strToCurrencyCode(xdr::opaque_array<4U>& ret, std::string const& str)
 {
-    for (int n = 0; (n < str.size()) && (n < 4); n++)
+    for (size_t n = 0; (n < str.size()) && (n < 4); n++)
     {
         ret[n] = str[n];
     }

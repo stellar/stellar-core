@@ -63,6 +63,8 @@ public:
                   std::vector<LedgerEntry> const& liveEntries,
                   std::vector<LedgerKey> const& deadEntries) override;
     void snapshotLedger(LedgerHeader& currentHeader);
+
+    std::vector<std::string> checkForMissingBucketsFiles(HistoryArchiveState const& has) override;
     void assumeState(HistoryArchiveState const& has);
 };
 

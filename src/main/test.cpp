@@ -43,7 +43,7 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
         // mode = Config::TESTDB_TCP_LOCALHOST_POSTGRESQL;
     }
     auto& cfgs = gTestCfg[mode];
-    if (cfgs.size() <= instanceNumber)
+    if (cfgs.size() <= static_cast<size_t>(instanceNumber))
     {
         cfgs.resize(instanceNumber + 1);
     }

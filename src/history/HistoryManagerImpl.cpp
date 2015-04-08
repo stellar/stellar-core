@@ -18,6 +18,7 @@
 #include "history/PublishStateMachine.h"
 #include "history/CatchupStateMachine.h"
 #include "herder/HerderImpl.h"
+#include "history/FileTransferInfo.h"
 #include "process/ProcessManager.h"
 #include "util/make_unique.h"
 #include "util/Logging.h"
@@ -499,21 +500,44 @@ HistoryManagerImpl::snapshotWritten(asio::error_code const& ec)
     mPublish->snapshotWritten(ec);
 }
 
+void 
+HistoryManagerImpl::downloadMissingBuckets(
+    HistoryArchiveState desiredState,
+    std::function<void(asio::error_code const&ec)> handler)
+{
+    mCatchup = make_unique<CatchupStateMachine>(
+        mApp, 0, CATCHUP_BUCKET_REPAIR, desiredState,
+        [this, handler](asio::error_code const& ec,
+                        CatchupMode mode,
+                        LedgerHeaderHistoryEntry const& lastClosed)
+    {
+        // Destroy this machine at the end of the call to `handler`
+        std::unique_ptr<CatchupStateMachine> m(
+            std::move(this->mCatchup));
+        handler(ec);
+    });
+}
+
 void
 HistoryManagerImpl::catchupHistory(
     uint32_t initLedger, CatchupMode mode,
     std::function<void(asio::error_code const& ec, CatchupMode mode,
                        LedgerHeaderHistoryEntry const& lastClosed)> handler)
 {
+    // To repair buckets, call `downloadMissingBuckets()` instead.
+    assert(mode != CATCHUP_BUCKET_REPAIR); 
+
     if (mCatchup)
     {
         throw std::runtime_error("Catchup already in progress");
     }
     mCatchupStart.Mark();
+
     mCatchup = make_unique<CatchupStateMachine>(
-        mApp, initLedger, mode,
+        mApp, initLedger, mode, 
+        getLastClosedHistoryArchiveState(),
         [this, handler](asio::error_code const& ec,
-                        HistoryManagerImpl::CatchupMode mode,
+                        CatchupMode mode,
                         LedgerHeaderHistoryEntry const& lastClosed)
         {
             if (ec)
