@@ -8,6 +8,7 @@
 #include "util/Timer.h"
 #include "util/Fs.h"
 #include "lib/util/getopt.h"
+#include "main/fuzz.h"
 #include "main/test.h"
 #include "main/Config.h"
 #include "lib/http/HttpClient.h"
@@ -30,10 +31,12 @@ enum opttag
     OPT_VERSION = 0x100,
     OPT_HELP,
     OPT_TEST,
+    OPT_FUZZ,
     OPT_CONF,
     OPT_CMD,
     OPT_FORCESCP,
     OPT_GENSEED,
+    OPT_GENFUZZ,
     OPT_LOGLEVEL,
     OPT_METRIC,
     OPT_NEWDB,
@@ -44,9 +47,11 @@ static const struct option stellar_core_options[] = {
     {"version", no_argument, nullptr, OPT_VERSION},
     {"help", no_argument, nullptr, OPT_HELP},
     {"test", no_argument, nullptr, OPT_TEST},
+    {"fuzz", required_argument, nullptr, OPT_FUZZ},
     {"conf", required_argument, nullptr, OPT_CONF},
     {"c", required_argument, nullptr, OPT_CMD},
     {"genseed", no_argument, nullptr, OPT_GENSEED},
+    {"genfuzz", required_argument, nullptr, OPT_GENFUZZ},
     {"metric", required_argument, nullptr, OPT_METRIC},
     {"newdb", no_argument, nullptr, OPT_NEWDB},
     {"newhist", required_argument, nullptr, OPT_NEWHIST},
@@ -63,13 +68,15 @@ usage(int err = 1)
           "      --help          To display this string\n"
           "      --version       To print version information\n"
           "      --test          To run self-tests\n"
-          "      --metric METRIC Report metric METRIC on exit.\n"
+          "      --fuzz FILE     To run a single fuzz input and exit\n"
+          "      --metric METRIC Report metric METRIC on exit\n"
           "      --newdb         Creates or restores the DB to the genesis "
           "ledger\n"
           "      --newhist ARCH  Initialize the named history archive ARCH\n"
           "      --forcescp      Force SCP to start with the local ledger as "
           "position, close next time stellar-core is run\n"
           "      --genseed       Generate and print a random node seed\n"
+          "      --genfuzz FILE  Generate a random fuzzer input file\n "
           "      --ll LEVEL      Set the log level. LEVEL can be:\n"
           "                      [trace|debug|info|warning|error|fatal|none]\n"
           "      --c             Command to send to local stellar-core. try "
@@ -237,6 +244,9 @@ main(int argc, char* const* argv)
             return test(static_cast<int>(rest.size()), &rest[0], logLevel,
                         metrics);
         }
+        case OPT_FUZZ:
+            fuzz(std::string(optarg), logLevel, metrics);
+            return 0;
         case OPT_CONF:
             cfgFile = std::string(optarg);
             break;
@@ -269,6 +279,9 @@ main(int argc, char* const* argv)
             std::cout << "Public: " << key.getBase58Public() << std::endl;
             return 0;
         }
+        case OPT_GENFUZZ:
+            genfuzz(std::string(optarg));
+            return 0;
 
         default:
             usage(0);
