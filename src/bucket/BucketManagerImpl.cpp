@@ -199,11 +199,18 @@ BucketManagerImpl::getBucketByHash(uint256 const& hash)
     auto i = mSharedBuckets.find(basename);
     if (i != mSharedBuckets.end())
     {
+        CLOG(TRACE, "Bucket")
+            << "BucketManager::getBucketByHash("
+            << binToHex(hash) << ") found bucket "
+            << i->second->getFilename();
         return i->second;
     }
     std::string canonicalName = getBucketDir() + "/" + basename;
     if (fs::exists(canonicalName))
     {
+        CLOG(TRACE, "Bucket")
+            << "BucketManager::getBucketByHash("
+            << binToHex(hash) << ") found no bucket, making new one";
         auto p = std::make_shared<Bucket>(canonicalName, hash);
         mSharedBuckets.insert(std::make_pair(basename, p));
         mSharedBucketsSize.set_count(mSharedBuckets.size());
@@ -215,6 +222,7 @@ BucketManagerImpl::getBucketByHash(uint256 const& hash)
 void
 BucketManagerImpl::forgetUnreferencedBuckets()
 {
+
     std::lock_guard<std::recursive_mutex> lock(mBucketMutex);
     std::set<std::string> referenced;
     for (size_t i = 0; i < BucketList::kNumLevels; ++i)
@@ -236,8 +244,23 @@ BucketManagerImpl::forgetUnreferencedBuckets()
         // valid.
         auto j = i;
         ++i;
-        if (referenced.find(j->first) == referenced.end())
+
+        // Only drop buckets if the bucketlist has forgotten them _and_
+        // no other in-progress structures (worker threads, shadow lists)
+        // have references to them, just us. It's ok to retain a few too
+        // many buckets, a little longer than necessary.
+        //
+        // This conservatism is important because we want to enforce that only
+        // one bucket ever exists in memory with a given filename, and that
+        // we're the first and last to know about it. Otherwise buckets might
+        // race on deleting the underlying file from one another.
+
+        if (referenced.find(j->first) == referenced.end() &&
+            j->second.use_count() == 1)
         {
+            CLOG(TRACE, "Bucket")
+                << "BucketManager::forgetUnreferencedBuckets dropping "
+                << j->second->getFilename();
             j->second->setRetain(false);
             mSharedBuckets.erase(j);
             mSharedBucketsSize.set_count(mSharedBuckets.size());

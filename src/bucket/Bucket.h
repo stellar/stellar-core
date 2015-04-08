@@ -6,6 +6,7 @@
 
 #include "generated/StellarXDR.h"
 #include <string>
+#include "util/NonCopyable.h"
 
 namespace stellar
 {
@@ -25,6 +26,7 @@ class BucketManager;
 class Database;
 
 class Bucket : public std::enable_shared_from_this<Bucket>
+             , public NonMovableOrCopyable
 {
 
     std::string const mFilename;
