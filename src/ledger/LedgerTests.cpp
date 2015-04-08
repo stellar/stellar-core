@@ -61,6 +61,7 @@ auto validLedgerEntryGenerator = autocheck::map(
             le.offer().takerPays.type(ISO4217);
             strToCurrencyCode(le.offer().takerPays.isoCI().currencyCode, "EUR");
 
+            clampLow<int64_t>(0, le.offer().amount);
             clampLow(0, le.offer().price.n);
             clampLow(1, le.offer().price.d);
         }
@@ -111,7 +112,8 @@ TEST_CASE("single ledger entry insert SQL", "[singlesql][entrysql][hide]")
 #endif
 
     VirtualClock clock;
-    Application::pointer app = Application::create(clock, getTestConfig(0, mode));
+    Application::pointer app =
+        Application::create(clock, getTestConfig(0, mode));
     app->start();
 
     LedgerDelta delta(app->getLedgerManager().getCurrentLedgerHeader());
