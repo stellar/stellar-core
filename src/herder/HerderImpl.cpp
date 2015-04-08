@@ -177,14 +177,8 @@ HerderImpl::validateValue(uint64 const& slotIndex, uint256 const& nodeID,
     catch (...)
     {
         mValueInvalid.Mark();
-        return cb(false);
-    }
-
-    if (mApp.getState() != Application::SYNCED_STATE)
-    { // if we aren't synced to the network we can't validate
-        // but we still need to fetch the tx set
-        fetchTxSet(b.value.txSetHash, true);
-        return cb(true);
+        cb(false);
+        return;
     }
 
     // First of all let's verify the internal Stellar Ballot signature is
@@ -192,7 +186,16 @@ HerderImpl::validateValue(uint64 const& slotIndex, uint256 const& nodeID,
     if (!verifyStellarBallot(b))
     {
         mValueInvalid.Mark();
-        return cb(false);
+        cb(false);
+        return;
+    }
+
+    if (mApp.getState() != Application::SYNCED_STATE)
+    { // if we aren't synced to the network we can't validate
+        // but we still need to fetch the tx set
+        fetchTxSet(b.value.txSetHash, true);
+        cb(true);
+        return;
     }
 
     // All tests that are relative to mLastClosedLedger are executed only once
