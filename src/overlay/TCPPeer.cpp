@@ -210,19 +210,27 @@ TCPPeer::writeHandler(asio::error_code const& error,
 void
 TCPPeer::startRead()
 {
-    CLOG(DEBUG, "Overlay") << "TCPPeer::startRead"
-                           << "@" << mApp.getConfig().PEER_PORT << " to "
-                           << mSocket->remote_endpoint().port();
-    resetReadIdle();
-    auto self = shared_from_this();
-    asio::async_read(*(mSocket.get()), asio::buffer(mIncomingHeader),
-                     [self](asio::error_code ec, std::size_t length)
-                     {
-                         CLOG(DEBUG, "Overlay")
-                             << "TCPPeer::startRead calledback " << ec
-                             << " length:" << length;
-                         self->readHeaderHandler(ec, length);
-                     });
+    try
+    {
+        CLOG(DEBUG, "Overlay") << "TCPPeer::startRead"
+            << "@" << mApp.getConfig().PEER_PORT << " to "
+            << mSocket->remote_endpoint().port();
+        resetReadIdle();
+        auto self = shared_from_this();
+        asio::async_read(*(mSocket.get()), asio::buffer(mIncomingHeader),
+            [self](asio::error_code ec, std::size_t length)
+        {
+            CLOG(DEBUG, "Overlay")
+                << "TCPPeer::startRead calledback " << ec
+                << " length:" << length;
+            self->readHeaderHandler(ec, length);
+        });
+    }
+    catch (asio::system_error &e)
+    {
+        CLOG(ERROR, "Overlay") << "TCPPeer::startRead error " << e.what();
+        drop();
+    }
 }
 
 int
