@@ -337,7 +337,6 @@ LedgerManagerImpl::externalizeValue(LedgerCloseData ledgerData)
         else
         {
             // Out-of-order close while catching up; timeout / network failure?
-            assert(!mSyncingLedgers.empty());
             CLOG(INFO, "Ledger")
                 << "Out-of-order close during catchup, buffered to "
                 << mSyncingLedgers.back().mLedgerSeq
@@ -345,6 +344,7 @@ LedgerManagerImpl::externalizeValue(LedgerCloseData ledgerData)
                 << ledgerData.mLedgerSeq;
             CLOG(WARNING, "Ledger")
                 << "this round of catchup will fail.";
+            assert(!mSyncingLedgers.empty());
         }
         break;
 
@@ -508,8 +508,9 @@ LedgerManagerImpl::historyCaughtup(asio::error_code const& ec,
                 return;
             }
         }
-        if (applied)
-            mSyncingLedgers.clear();
+
+        // we're done processing the ledgers backlog
+        mSyncingLedgers.clear();
 
         CLOG(INFO, "Ledger")
             << "Caught up to LCL including recent network activity: "
