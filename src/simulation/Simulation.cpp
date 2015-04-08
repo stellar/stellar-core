@@ -53,6 +53,8 @@ Simulation::~Simulation()
     // tear down
     mClock.getIOService().poll_one();
     mClock.getIOService().stop();
+    while (mClock.cancelAllEvents())
+        ;
 }
 
 VirtualClock&
@@ -129,7 +131,7 @@ Simulation::addTCPConnection(uint256 initiator, uint256 acceptor)
 {
     if (mMode != OVER_TCP)
     {
-        throw new runtime_error("Cannot add a TCP connection");
+        throw runtime_error("Cannot add a TCP connection");
     }
     auto from = getNode(initiator);
     auto to = getNode(acceptor);

@@ -88,21 +88,22 @@ Slot::processEnvelope(SCPEnvelope const& envelope,
     SCPStatementType t = statement.pledges.type();
 
     // We copy everything we need as this can be async (no reference).
-    auto value_cb = [b, t, nodeID, statement, cb, this](bool valid)
+    auto self = shared_from_this();
+    auto value_cb = [b, t, nodeID, statement, cb, self](bool valid)
     {
         // If the value is not valid, we just ignore it.
         if (!valid)
         {
             CLOG(TRACE, "SCP") << "invalid value"
-                               << "@" << hexAbbrev(mSCP->getLocalNodeID())
-                               << " i: " << mSlotIndex;
+                               << "@" << hexAbbrev(self->mSCP->getLocalNodeID())
+                               << " i: " << self->mSlotIndex;
 
             return cb(SCP::EnvelopeState::INVALID);
         }
 
-        if (!mIsCommitted && t == SCPStatementType::PREPARING)
+        if (!self->mIsCommitted && t == SCPStatementType::PREPARING)
         {
-            auto ballot_cb = [b, t, nodeID, statement, cb, this](bool valid)
+            auto ballot_cb = [b, t, nodeID, statement, cb, self](bool valid)
             {
                 // If the ballot is not valid, we just ignore it.
                 if (!valid)
@@ -111,26 +112,26 @@ Slot::processEnvelope(SCPEnvelope const& envelope,
                 }
 
                 // If a new higher ballot has been issued, let's move on to it.
-                if (mIsPristine || compareBallots(b, mBallot) > 0)
+                if (self->mIsPristine || self->compareBallots(b, self->mBallot) > 0)
                 {
-                    bumpToBallot(b);
+                    self->bumpToBallot(b);
                 }
 
                 // Finally store the statement and advance the slot if possible.
-                mStatements[b][t][nodeID] = statement;
-                advanceSlot();
+                self->mStatements[b][t][nodeID] = statement;
+                self->advanceSlot();
             };
 
-            mSCP->validateBallot(mSlotIndex, nodeID, b, ballot_cb);
+            self->mSCP->validateBallot(self->mSlotIndex, nodeID, b, ballot_cb);
         }
-        else if (!mIsCommitted && t == SCPStatementType::PREPARED)
+        else if (!self->mIsCommitted && t == SCPStatementType::PREPARED)
         {
             // A PREPARED statement does not imply any PREPARING so we can go
             // ahead and store it if its value is valid.
-            mStatements[b][t][nodeID] = statement;
-            advanceSlot();
+            self->mStatements[b][t][nodeID] = statement;
+            self->advanceSlot();
         }
-        else if (!mIsCommitted && t == SCPStatementType::COMMITTING)
+        else if (!self->mIsCommitted && t == SCPStatementType::COMMITTING)
         {
             // We accept COMMITTING statements only if we previously saw a valid
             // PREPARED statement for that ballot and all the PREPARING we saw
@@ -139,17 +140,17 @@ Slot::processEnvelope(SCPEnvelope const& envelope,
             // their B_c.  This prevents node from emitting phony messages too
             // easily.
             bool isPrepared = false;
-            for (auto s : getNodeStatements(nodeID, SCPStatementType::PREPARED))
+            for (auto s : self->getNodeStatements(nodeID, SCPStatementType::PREPARED))
             {
-                if (compareBallots(b, s.ballot) == 0)
+                if (self->compareBallots(b, s.ballot) == 0)
                 {
                     isPrepared = true;
                 }
             }
             for (auto s :
-                 getNodeStatements(nodeID, SCPStatementType::PREPARING))
+                 self->getNodeStatements(nodeID, SCPStatementType::PREPARING))
             {
-                if (compareBallots(b, s.ballot) < 0)
+                if (self->compareBallots(b, s.ballot) < 0)
                 {
                     auto excepted = s.pledges.prepare().excepted;
                     auto it = std::find(excepted.begin(), excepted.end(), b);
@@ -163,8 +164,8 @@ Slot::processEnvelope(SCPEnvelope const& envelope,
             {
                 // Finally store the statement and advance the slot if
                 // possible.
-                mStatements[b][t][nodeID] = statement;
-                advanceSlot();
+                self->mStatements[b][t][nodeID] = statement;
+                self->advanceSlot();
             }
             else
             {
@@ -175,27 +176,27 @@ Slot::processEnvelope(SCPEnvelope const& envelope,
         {
             // If we already have a COMMITTED statements for this node, we just
             // ignore this one as it is illegal.
-            if (getNodeStatements(nodeID, SCPStatementType::COMMITTED).size() >
+            if (self->getNodeStatements(nodeID, SCPStatementType::COMMITTED).size() >
                 0)
             {
                 CLOG(TRACE, "SCP") << "Node Already Committed"
-                                   << "@" << hexAbbrev(mSCP->getLocalNodeID())
-                                   << " i: " << mSlotIndex;
+                                   << "@" << hexAbbrev(self->mSCP->getLocalNodeID())
+                                   << " i: " << self->mSlotIndex;
                 return cb(SCP::EnvelopeState::INVALID);
             }
 
             // Finally store the statement and advance the slot if possible.
-            mStatements[b][t][nodeID] = statement;
-            advanceSlot();
+            self->mStatements[b][t][nodeID] = statement;
+            self->advanceSlot();
         }
-        else if (mIsCommitted)
+        else if (self->mIsCommitted)
         {
             // If the slot already COMMITTED and we received another statement,
             // we resend our own COMMITTED message.
-            SCPStatement stmt = createStatement(SCPStatementType::COMMITTED);
+            SCPStatement stmt = self->createStatement(SCPStatementType::COMMITTED);
 
-            SCPEnvelope env = createEnvelope(stmt);
-            mSCP->emitEnvelope(env);
+            SCPEnvelope env = self->createEnvelope(stmt);
+            self->mSCP->emitEnvelope(env);
         }
 
         // Finally call the callback saying that this was a valid envelope
@@ -316,11 +317,12 @@ Slot::attemptPreparing()
     mSCP->ballotDidPrepare(mSlotIndex, mBallot);
 
     SCPEnvelope envelope = createEnvelope(statement);
-    auto cb = [envelope, this](SCP::EnvelopeState const& s)
+    auto self = shared_from_this();
+    auto cb = [envelope, self](SCP::EnvelopeState const& s)
     {
         if (s == SCP::EnvelopeState::VALID)
         {
-            mSCP->emitEnvelope(envelope);
+            self->mSCP->emitEnvelope(envelope);
         }
     };
     processEnvelope(envelope, cb);
@@ -343,11 +345,12 @@ Slot::attemptPrepared(SCPBallot const& ballot)
     statement.ballot = ballot;
 
     SCPEnvelope envelope = createEnvelope(statement);
-    auto cb = [envelope, this](SCP::EnvelopeState s)
+    auto self = shared_from_this();
+    auto cb = [envelope, self](SCP::EnvelopeState s)
     {
         if (s == SCP::EnvelopeState::VALID)
         {
-            mSCP->emitEnvelope(envelope);
+            self->mSCP->emitEnvelope(envelope);
         }
     };
     processEnvelope(envelope, cb);
@@ -372,11 +375,12 @@ Slot::attemptCommitting()
     mSCP->ballotDidCommit(mSlotIndex, mBallot);
 
     SCPEnvelope envelope = createEnvelope(statement);
-    auto cb = [envelope, this](SCP::EnvelopeState s)
+    auto self = shared_from_this();
+    auto cb = [envelope, self](SCP::EnvelopeState s)
     {
         if (s == SCP::EnvelopeState::VALID)
         {
-            mSCP->emitEnvelope(envelope);
+            self->mSCP->emitEnvelope(envelope);
         }
     };
     processEnvelope(envelope, cb);
@@ -402,11 +406,12 @@ Slot::attemptCommitted()
     mSCP->ballotDidCommitted(mSlotIndex, mBallot);
 
     SCPEnvelope envelope = createEnvelope(statement);
-    auto cb = [envelope, this](SCP::EnvelopeState s)
+    auto self = shared_from_this();
+    auto cb = [envelope, self](SCP::EnvelopeState s)
     {
         if (s == SCP::EnvelopeState::VALID)
         {
-            mSCP->emitEnvelope(envelope);
+            self->mSCP->emitEnvelope(envelope);
         }
     };
     processEnvelope(envelope, cb);
@@ -780,13 +785,14 @@ Slot::advanceSlot()
     }
     catch (Node::QuorumSetNotFound e)
     {
-        auto cb = [this, e](SCPQuorumSet const& qSet)
+        auto self = shared_from_this();
+        auto cb = [self, e](SCPQuorumSet const& qSet)
         {
             uint256 qSetHash = sha256(xdr::xdr_to_opaque(qSet));
             if (e.qSetHash() == qSetHash)
             {
-                mSCP->getNode(e.nodeID())->cacheQuorumSet(qSet);
-                advanceSlot();
+                self->mSCP->getNode(e.nodeID())->cacheQuorumSet(qSet);
+                self->advanceSlot();
             }
         };
         mSCP->retrieveQuorumSet(e.nodeID(), e.qSetHash(), cb);
