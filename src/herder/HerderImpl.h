@@ -156,6 +156,9 @@ class HerderImpl : public Herder, public SCP
 
     std::map<uint64, std::vector<SCPEnvelope>> mQuorumAheadOfUs;
 
+    // the last closed ledger that consensus saw
+    // note that this can differ from the one in LedgerManager when
+    // the instance is out of sync
     LedgerHeaderHistoryEntry mLastClosedLedger;
 
     VirtualClock::time_point mLastTrigger;

@@ -562,26 +562,27 @@ HerderImpl::valueExternalized(uint64 const& slotIndex, Value const& value)
                               << " Externalized StellarBallot malformed";
     }
 
+    CLOG(DEBUG, "Herder") << "HerderImpl::valueExternalized"
+                          << "@" << hexAbbrev(getLocalNodeID())
+                          << " txSet: " << hexAbbrev(b.value.txSetHash);
+
+    // we don't need to keep fetching any of the old TX sets
+    mTxSetFetcher[mCurrentTxSetFetcher].stopFetchingPred(
+        [&b](uint256 const& itemID)
+        {
+            return itemID != b.value.txSetHash;
+        });
+
+    mCurrentTxSetFetcher = mCurrentTxSetFetcher ? 0 : 1;
+    mTxSetFetcher[mCurrentTxSetFetcher].clear();
+
+    // trigger will be recreated when the ledger is closed
+    // we do not want it to trigger while downloading the current set
+    mTriggerTimer.cancel();
+
     TxSetFramePtr externalizedSet = fetchTxSet(b.value.txSetHash, true);
     if (externalizedSet)
     {
-
-        CLOG(DEBUG, "Herder") << "HerderImpl::valueExternalized"
-                              << "@" << hexAbbrev(getLocalNodeID())
-                              << " txSet: " << hexAbbrev(b.value.txSetHash);
-
-        // we don't need to keep fetching any of the old TX sets
-        mTxSetFetcher[mCurrentTxSetFetcher].stopFetchingAll();
-
-        mRebroadcastTimer.cancel();
-
-        mCurrentTxSetFetcher = mCurrentTxSetFetcher ? 0 : 1;
-        mTxSetFetcher[mCurrentTxSetFetcher].clear();
-
-        // We trigger next ledger EXP_LEDGER_TIMESPAN_SECONDS after our last
-        // trigger.
-        mTriggerTimer.cancel();
-
         // Triggers sync if not already syncing.
         LedgerCloseData ledgerData(static_cast<uint32_t>(slotIndex),
                                    externalizedSet, b.value.closeTime,

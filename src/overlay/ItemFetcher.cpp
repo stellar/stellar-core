@@ -26,7 +26,8 @@ namespace stellar
 
 ItemFetcher::ItemFetcher(Application& app)
     : mApp(app)
-    , mItemMapSize(app.getMetrics().NewCounter({"overlay", "memory", "item-fetch-map"}))
+    , mItemMapSize(
+          app.getMetrics().NewCounter({"overlay", "memory", "item-fetch-map"}))
 {
 }
 
@@ -42,9 +43,17 @@ ItemFetcher::doesntHave(uint256 const& itemID, Peer::pointer peer)
 void
 ItemFetcher::stopFetchingAll()
 {
-    for (auto result : mItemMap)
+    stopFetchingPred(nullptr);
+}
+
+void
+ItemFetcher::stopFetchingPred(
+    std::function<bool(uint256 const& itemID)> const& pred)
+{
+    for (auto& item : mItemMap)
     {
-        result.second->cancelFetch();
+        if (!pred || pred(item.first))
+            item.second->cancelFetch();
     }
 }
 
@@ -88,7 +97,7 @@ TxSetFetcher::fetchItem(uint256 const& txSetHash, bool askNetwork)
     }
     else
     { // not found
-        
+
         if (askNetwork)
         {
             TrackingCollar::pointer collar =
@@ -101,8 +110,6 @@ TxSetFetcher::fetchItem(uint256 const& txSetHash, bool askNetwork)
     }
     return (TxSetFramePtr());
 }
-
-
 
 // TODO.1: This all needs to change
 // returns true if we were waiting for this txSet
@@ -265,8 +272,6 @@ TrackingCollar::tryNextPeer()
             { // we have never asked this guy
                 mLastAskedPeer = peer;
 
-                
-
                 askPeer(peer);
                 mPeersAsked.push_back(peer);
             }
@@ -275,26 +280,27 @@ TrackingCollar::tryNextPeer()
             mTimer.expires_from_now(
                 std::chrono::milliseconds(MS_TO_WAIT_FOR_FETCH_REPLY));
             mTimer.async_wait([this](asio::error_code const& ec)
-            {
-                if(!ec)
-                {
-                    this->tryNextPeer();
-                }
-            });
-        } else
+                              {
+                                  if (!ec)
+                                  {
+                                      this->tryNextPeer();
+                                  }
+                              });
+        }
+        else
         { // we have asked all our peers
             // clear list and try again in a bit
             mPeersAsked.clear();
             mTimer.cancel(); // cancel any stray timers
             mTimer.expires_from_now(
-                std::chrono::milliseconds(MS_TO_WAIT_FOR_FETCH_REPLY*2));
+                std::chrono::milliseconds(MS_TO_WAIT_FOR_FETCH_REPLY * 2));
             mTimer.async_wait([this](asio::error_code const& ec)
-            {
-                if(!ec)
-                {
-                    this->tryNextPeer();
-                }
-            });
+                              {
+                                  if (!ec)
+                                  {
+                                      this->tryNextPeer();
+                                  }
+                              });
         }
     }
 }

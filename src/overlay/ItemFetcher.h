@@ -6,6 +6,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include <map>
+#include <functional>
 #include "generated/SCPXDR.h"
 #include "overlay/OverlayManager.h"
 #include "herder/TxSetFrame.h"
@@ -83,6 +84,9 @@ class ItemFetcher
     void clear();
     void stopFetching(uint256 const& itemID);
     void stopFetchingAll();
+    // stop fetching items that verify a condition
+    void
+    stopFetchingPred(std::function<bool(uint256 const& itemID)> const& pred);
     void doesntHave(uint256 const& itemID, Peer::pointer peer);
 };
 
