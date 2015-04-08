@@ -779,22 +779,16 @@ TEST_CASE_METHOD(HistoryTests, "Repair missing buckets via history", "[history][
 {
     generateAndPublishInitialHistory(1);
     auto state = app.getPersistentState().getState(PersistentState::kHistoryArchiveState);
-    appPtr.reset();
 
     auto cfg2 = getTestConfig(1, Config::TESTDB_IN_MEMORY_SQLITE);
+    cfg2.BUCKET_DIR_PATH += "2";
     auto app2 = Application::create(clock, mConfigurator->configure(cfg2, false));
     app2->getPersistentState().setState(PersistentState::kHistoryArchiveState, state);
     app2->start();
 
-    auto &bList = app2->getBucketManager().getBucketList();
-    size_t count = 0;
-    for (size_t i = 0; i < BucketList::kNumLevels; i++)
-    {
-        auto& level = bList.getLevel(i);
-        count += level.getCurr()->countLiveAndDeadEntries().first;
-        count += level.getSnap()->countLiveAndDeadEntries().first;
-    }
-    CHECK(count == 1);
+    auto hash1 = appPtr->getBucketManager().getBucketList().getHash();
+    auto hash2 = app2->getBucketManager().getBucketList().getHash();
+    CHECK(hash1 == hash2);
 }
 
 
