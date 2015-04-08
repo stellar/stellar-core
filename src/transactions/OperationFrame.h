@@ -48,7 +48,7 @@ class OperationFrame
         return *mSourceAccount;
     }
 
-    uint256 const& getSourceID() const;
+    AccountID const& getSourceID() const;
 
     // load account if needed
     // returns true on success

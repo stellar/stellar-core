@@ -34,7 +34,7 @@ class AccountFrame : public EntryFrame
 
     AccountFrame();
     AccountFrame(LedgerEntry const& from);
-    AccountFrame(uint256 const& id);
+    AccountFrame(AccountID const& id);
     AccountFrame(AccountFrame const& from);
 
     EntryFrame::pointer
@@ -64,7 +64,7 @@ class AccountFrame : public EntryFrame
     bool addNumEntries(int count, LedgerManager const& lm);
 
     bool isAuthRequired() const;
-    uint256 const& getID() const;
+    AccountID const& getID() const;
 
     uint32_t getMasterWeight() const;
     uint32_t getHighThreshold() const;
@@ -107,7 +107,7 @@ class AccountFrame : public EntryFrame
     static bool exists(Database& db, LedgerKey const& key);
 
     // database utilities
-    static bool loadAccount(uint256 const& accountID, AccountFrame& retEntry,
+    static bool loadAccount(AccountID const& accountID, AccountFrame& retEntry,
                             Database& db);
     static void dropAll(Database& db);
     static const char* kSQLCreateStatement1;

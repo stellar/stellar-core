@@ -115,7 +115,7 @@ class TransactionFrame
         return *mSigningAccount;
     }
 
-    uint256 const&
+    AccountID const&
     getSourceID() const
     {
         return mEnvelope.tx.sourceAccount;
@@ -136,7 +136,7 @@ class TransactionFrame
     StellarMessage toStellarMessage() const;
 
     AccountFrame::pointer loadAccount(Application& app,
-                                      uint256 const& accountID);
+                                      AccountID const& accountID);
 
     // transaction history
     void storeTransaction(LedgerManager& ledgerManager,

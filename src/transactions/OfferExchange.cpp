@@ -23,7 +23,7 @@ OfferExchange::crossOffer(OfferFrame& sellingWheatOffer,
 {
     Currency& sheep = sellingWheatOffer.getOffer().takerPays;
     Currency& wheat = sellingWheatOffer.getOffer().takerGets;
-    uint256& accountBID = sellingWheatOffer.getOffer().accountID;
+    AccountID& accountBID = sellingWheatOffer.getOffer().accountID;
 
     Database& db = mLedgerManager.getDatabase();
 

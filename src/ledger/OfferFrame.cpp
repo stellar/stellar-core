@@ -81,7 +81,7 @@ OfferFrame::getAmount() const
     return mOffer.amount;
 }
 
-uint256 const&
+AccountID const&
 OfferFrame::getAccountID() const
 {
     return mOffer.accountID;
@@ -109,7 +109,7 @@ static const char* offerColumnSelector =
     "getsIsoCurrency,getsIssuer,amount,priceN,priceD FROM Offers";
 
 bool
-OfferFrame::loadOffer(uint256 const& accountID, uint64_t offerID,
+OfferFrame::loadOffer(AccountID const& accountID, uint64_t offerID,
                       OfferFrame& retOffer, Database& db)
 {
     std::string accStr;
@@ -236,7 +236,7 @@ OfferFrame::loadBestOffers(size_t numOffers, size_t offset,
 }
 
 void
-OfferFrame::loadOffers(uint256 const& accountID,
+OfferFrame::loadOffers(AccountID const& accountID,
                        std::vector<OfferFrame>& retOffers, Database& db)
 {
     soci::session& session = db.getSession();

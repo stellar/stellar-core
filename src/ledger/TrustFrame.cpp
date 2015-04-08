@@ -233,7 +233,7 @@ TrustFrame::setAsIssuer(Currency const& issuer)
 }
 
 bool
-TrustFrame::loadTrustLine(uint256 const& accountID, Currency const& currency,
+TrustFrame::loadTrustLine(AccountID const& accountID, Currency const& currency,
                           TrustFrame& retLine, Database& db)
 {
     if (accountID == currency.isoCI().issuer)
@@ -299,7 +299,7 @@ TrustFrame::loadLines(details::prepare_temp_type& prep,
 }
 
 void
-TrustFrame::loadLines(uint256 const& accountID,
+TrustFrame::loadLines(AccountID const& accountID,
                       std::vector<TrustFrame>& retLines, Database& db)
 {
     std::string accStr;

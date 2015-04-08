@@ -81,7 +81,7 @@ OperationFrame::checkSignature() const
     return mParentTx.checkSignature(*mSourceAccount, getNeededThreshold());
 }
 
-uint256 const&
+AccountID const&
 OperationFrame::getSourceID() const
 {
     return mOperation.sourceAccount ? *mOperation.sourceAccount
