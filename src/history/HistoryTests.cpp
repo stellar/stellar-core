@@ -7,6 +7,7 @@
 #include "history/HistoryArchive.h"
 #include "main/test.h"
 #include "main/Config.h"
+#include "main/PersistentState.h"
 #include "bucket/BucketManager.h"
 #include "bucket/BucketList.h"
 #include "crypto/Hex.h"
@@ -772,6 +773,22 @@ TEST_CASE_METHOD(HistoryTests, "Publish/catchup alternation, with stall",
     caughtup = catchupApplication(initLedger, HistoryManager::CATCHUP_MINIMAL,
                                   app3, false);
     CHECK(caughtup);
+}
+
+TEST_CASE_METHOD(HistoryTests, "Repair missing buckets via history", "[history][historybucketrepair]")
+{
+    generateAndPublishInitialHistory(1);
+    auto state = app.getPersistentState().getState(PersistentState::kHistoryArchiveState);
+
+    auto cfg2 = getTestConfig(1, Config::TESTDB_IN_MEMORY_SQLITE);
+    cfg2.BUCKET_DIR_PATH += "2";
+    auto app2 = Application::create(clock, mConfigurator->configure(cfg2, false));
+    app2->getPersistentState().setState(PersistentState::kHistoryArchiveState, state);
+    app2->start();
+
+    auto hash1 = appPtr->getBucketManager().getBucketList().getHash();
+    auto hash2 = app2->getBucketManager().getBucketList().getHash();
+    CHECK(hash1 == hash2);
 }
 
 

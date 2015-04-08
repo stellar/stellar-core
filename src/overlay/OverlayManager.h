@@ -83,7 +83,7 @@ class OverlayManager
 
     // Return an already-connected peer at the given ip address and port;
     // returns a `nullptr`-valued pointer if no such connected peer exists.
-    virtual Peer::pointer getConnectedPeer(std::string const& ip, int port) = 0;
+    virtual Peer::pointer getConnectedPeer(std::string const& ip, uint32_t port) = 0;
 
     // Add a peer to the in-memory set of connected peers.
     virtual void addConnectedPeer(Peer::pointer peer) = 0;

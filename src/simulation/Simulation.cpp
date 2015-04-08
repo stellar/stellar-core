@@ -369,7 +369,7 @@ vector<Simulation::AccountInfoPtr>
 Simulation::createAccounts(size_t n)
 {
     vector<AccountInfoPtr> result;
-    for (int i = 0; i < n; i++)
+    for (size_t i = 0; i < n; i++)
     {
         auto account = createAccount(mAccounts.size());
         mAccounts.push_back(account);
