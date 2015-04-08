@@ -211,7 +211,8 @@ HerderImpl::validateValue(uint64 const& slotIndex, uint256 const& nodeID,
     if (b.value.closeTime <= mLastClosedLedger.header.closeTime)
     {
         mValueInvalid.Mark();
-        return cb(false);
+        cb(false);
+        return;
     }
 
     // Check closeTime (not too far in future)
@@ -219,7 +220,8 @@ HerderImpl::validateValue(uint64 const& slotIndex, uint256 const& nodeID,
     if (b.value.closeTime > timeNow + MAX_TIME_SLIP_SECONDS)
     {
         mValueInvalid.Mark();
-        return cb(false);
+        cb(false);
+        return;
     }
 
     // make sure all the tx we have in the old set are included
@@ -234,16 +236,18 @@ HerderImpl::validateValue(uint64 const& slotIndex, uint256 const& nodeID,
                 << " n: " << hexAbbrev(nodeID) << " Invalid txSet:"
                 << " " << hexAbbrev(txSet->getContentsHash());
             this->mValueInvalid.Mark();
-            return cb(false);
+            cb(false);
         }
-
-        CLOG(DEBUG, "Herder")
-            << "HerderImpl::validateValue"
-            << "@" << hexAbbrev(getLocalNodeID()) << " i: " << slotIndex
-            << " n: " << hexAbbrev(nodeID) << " txSet:"
-            << " " << hexAbbrev(txSet->getContentsHash()) << " OK";
-        this->mValueValid.Mark();
-        return cb(true);
+        else
+        {
+            CLOG(DEBUG, "Herder")
+                << "HerderImpl::validateValue"
+                << "@" << hexAbbrev(getLocalNodeID()) << " i: " << slotIndex
+                << " n: " << hexAbbrev(nodeID) << " txSet:"
+                << " " << hexAbbrev(txSet->getContentsHash()) << " OK";
+            this->mValueValid.Mark();
+            cb(true);
+        }
     };
 
     TxSetFramePtr txSet = fetchTxSet(b.value.txSetHash, true);
@@ -341,7 +345,8 @@ HerderImpl::validateBallot(uint64 const& slotIndex, uint256 const& nodeID,
     catch (...)
     {
         mBallotInvalid.Mark();
-        return cb(false);
+        cb(false);
+        return;
     }
 
     // Check closeTime (not too far in the future)
@@ -349,7 +354,8 @@ HerderImpl::validateBallot(uint64 const& slotIndex, uint256 const& nodeID,
     if (b.value.closeTime > timeNow + MAX_TIME_SLIP_SECONDS)
     {
         mBallotInvalid.Mark();
-        return cb(false);
+        cb(false);
+        return;
     }
 
     // Check the ballot counter is not growing too rapidly. We ignore ballots
@@ -371,19 +377,22 @@ HerderImpl::validateBallot(uint64 const& slotIndex, uint256 const& nodeID,
     if ((timeNow + MAX_TIME_SLIP_SECONDS) < (lastTrigger + sumTimeouts))
     {
         mBallotInvalid.Mark();
-        return cb(false);
+        cb(false);
+        return;
     }
 
     // Check baseFee (within range of desired fee).
     if (b.value.baseFee < mApp.getConfig().DESIRED_BASE_FEE * .5)
     {
         mBallotInvalid.Mark();
-        return cb(false);
+        cb(false);
+        return;
     }
     if (b.value.baseFee > mApp.getConfig().DESIRED_BASE_FEE * 2)
     {
         mBallotInvalid.Mark();
-        return cb(false);
+        cb(false);
+        return;
     }
 
     // Ignore ourselves if we're just watching SCP.
@@ -442,7 +451,8 @@ HerderImpl::validateBallot(uint64 const& slotIndex, uint256 const& nodeID,
     if (isKing && isTrusted)
     {
         mBallotValid.Mark();
-        return cb(true);
+        cb(true);
+        return;
     }
     else
     {
@@ -463,7 +473,6 @@ HerderImpl::validateBallot(uint64 const& slotIndex, uint256 const& nodeID,
             [cb, this]()
             {
                 this->mBallotValid.Mark();
-                return cb(true);
             },
             VirtualTimer::onFailureNoop);
         mBallotValidationTimers[ballot][nodeID].push_back(ballotTimer);
@@ -610,7 +619,6 @@ HerderImpl::valueExternalized(uint64 const& slotIndex, Value const& value)
 
         mTxSetFetches[b.value.txSetHash].push_back(cb);
 
-
         // This may not be possible as all messages are validated and should
         // therefore fetch the txSet before being considered by SCP.
         CLOG(ERROR, "Herder") << "HerderImpl::valueExternalized"
@@ -660,13 +668,16 @@ HerderImpl::retrieveQuorumSet(
 void
 HerderImpl::rebroadcast()
 {
-    if(mLastSentMessage.type()== SCP_MESSAGE)
+    if (mLastSentMessage.type() == SCP_MESSAGE)
     {
-        CLOG(DEBUG, "Herder") << "rebroadcast "
+        CLOG(DEBUG, "Herder")
+            << "rebroadcast "
             << " s:" << mLastSentMessage.envelope().statement.pledges.type()
             << " i:" << mLastSentMessage.envelope().statement.slotIndex
             << " b:" << mLastSentMessage.envelope().statement.ballot.counter
-            << " v:" << binToHex(ByteSlice(&mLastSentMessage.envelope().statement.ballot.value[96], 3));
+            << " v:"
+            << binToHex(ByteSlice(
+                   &mLastSentMessage.envelope().statement.ballot.value[96], 3));
 
         mEnvelopeEmit.Mark();
         mApp.getOverlayManager().broadcastMessage(mLastSentMessage, true);
@@ -677,7 +688,8 @@ HerderImpl::rebroadcast()
 void
 HerderImpl::startRebroadcastTimer()
 {
-    if (!mApp.getConfig().MANUAL_CLOSE && mLastSentMessage.type()==SCP_MESSAGE)
+    if (!mApp.getConfig().MANUAL_CLOSE &&
+        mLastSentMessage.type() == SCP_MESSAGE)
     {
         mRebroadcastTimer.expires_from_now(std::chrono::seconds(2));
 
@@ -690,8 +702,7 @@ void
 HerderImpl::emitEnvelope(SCPEnvelope const& envelope)
 {
     // We don't emit any envelope as long as we're not fully synced
-    if (mApp.getState() != Application::SYNCED_STATE ||
-        mCurrentValue.empty())
+    if (mApp.getState() != Application::SYNCED_STATE || mCurrentValue.empty())
     {
         return;
     }
@@ -716,7 +727,7 @@ void
 HerderImpl::recvTxSet(TxSetFramePtr txSet)
 {
     // add all txs to next set in case they don't get in this ledger
-    for(auto tx : txSet->sortForApply())
+    for (auto tx : txSet->sortForApply())
     {
         recvTransaction(tx);
     }
@@ -725,9 +736,9 @@ HerderImpl::recvTxSet(TxSetFramePtr txSet)
 
     // Runs any pending validation on this txSet.
     auto it = mTxSetFetches.find(txSet->getContentsHash());
-    if(it != mTxSetFetches.end())
+    if (it != mTxSetFetches.end())
     {
-        for(auto validate : it->second)
+        for (auto validate : it->second)
         {
             validate(txSet);
         }
@@ -831,11 +842,12 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope envelope,
                             std::function<void(EnvelopeState)> const& cb)
 {
     CLOG(DEBUG, "Herder") << "recvSCPEnvelope"
-                          << " from: " << hexAbbrev(envelope.nodeID) 
-                          << " s:" << envelope.statement.pledges.type() 
+                          << " from: " << hexAbbrev(envelope.nodeID)
+                          << " s:" << envelope.statement.pledges.type()
                           << " i:" << envelope.statement.slotIndex
-                          << " b:" << envelope.statement.ballot.counter
-                          << " v:" << binToHex(ByteSlice(&envelope.statement.ballot.value[96],3))
+                          << " b:" << envelope.statement.ballot.counter << " v:"
+                          << binToHex(ByteSlice(
+                                 &envelope.statement.ballot.value[96], 3))
                           << " a:" << mApp.getState();
 
     if (mApp.getState() == Application::SYNCED_STATE)
@@ -850,8 +862,8 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope envelope,
             envelope.statement.slotIndex <= minLedgerSeq)
         {
             CLOG(DEBUG, "Herder") << "Ignoring SCPEnvelope outside of range: "
-                << envelope.statement.slotIndex << "( " << minLedgerSeq << ","
-                << maxLedgerSeq << ")";
+                                  << envelope.statement.slotIndex << "( "
+                                  << minLedgerSeq << "," << maxLedgerSeq << ")";
             return;
         }
 
@@ -860,13 +872,13 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope envelope,
         // should store the envelopes for later replay.
         uint32_t currLedger = mLastClosedLedger.header.ledgerSeq + 1;
         if (!getSecretKey().isZero() &&
-            envelope.statement.slotIndex == currLedger &&
-            mCurrentValue.empty())
+            envelope.statement.slotIndex == currLedger && mCurrentValue.empty())
         {
             mFutureEnvelopes[envelope.statement.slotIndex].push_back(
                 std::make_pair(envelope, cb));
             mFutureEnvelopesSize.set_count(mFutureEnvelopes.size());
-            CLOG(DEBUG, "Herder") << "Adding envelope to future-envelopes queue";
+            CLOG(DEBUG, "Herder")
+                << "Adding envelope to future-envelopes queue";
             return;
         }
         else if (envelope.statement.slotIndex > currLedger)
@@ -887,7 +899,6 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope envelope,
 
             return;
         }
-
     }
     startRebroadcastTimer();
 
@@ -900,26 +911,27 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope envelope,
 bool
 HerderImpl::checkFutureCommitted(SCPEnvelope& envelope)
 {
-    if(envelope.statement.pledges.type() == COMMITTED)
+    if (envelope.statement.pledges.type() == COMMITTED)
     { // is this a committed statement
-        const SCPQuorumSet& qset=getLocalQuorumSet();
+        const SCPQuorumSet& qset = getLocalQuorumSet();
 
-        if(find(qset.validators.begin(), qset.validators.end(),
-            envelope.nodeID) != qset.validators.end())
-        {// is it from someone we care about?
+        if (find(qset.validators.begin(), qset.validators.end(),
+                 envelope.nodeID) != qset.validators.end())
+        { // is it from someone we care about?
             auto& list = mQuorumAheadOfUs[envelope.statement.slotIndex];
-            if(find(list.begin(), list.end(), envelope) == list.end())
-            {// is it a new one for the list?
+            if (find(list.begin(), list.end(), envelope) == list.end())
+            { // is it a new one for the list?
                 // TODO: we probably want to fetch the txset here to save time
                 list.push_back(envelope);
                 unsigned int count = 0;
-                for(auto& env : list)
+                for (auto& env : list)
                 {
-                    if(env.statement.ballot.value ==
-                        envelope.statement.ballot.value) count++;
+                    if (env.statement.ballot.value ==
+                        envelope.statement.ballot.value)
+                        count++;
 
-                    if(count>=qset.threshold)
-                    {// do we have enough of these for the same ballot?
+                    if (count >= qset.threshold)
+                    { // do we have enough of these for the same ballot?
                         return true;
                     }
                 }
@@ -941,7 +953,7 @@ HerderImpl::ledgerClosed(LedgerHeaderHistoryEntry const& ledger)
 
     // we're not running SCP anymore
     mCurrentValue.clear();
-    mQuorumAheadOfUs.erase(ledger.header.ledgerSeq-1);
+    mQuorumAheadOfUs.erase(ledger.header.ledgerSeq - 1);
 
     mLastClosedLedger = ledger;
 
@@ -1182,13 +1194,13 @@ HerderImpl::dumpInfo(Json::Value& ret)
     }
 
     count = 0;
-    for(auto& item : mQuorumAheadOfUs)
+    for (auto& item : mQuorumAheadOfUs)
     {
-        for(auto& envelope : item.second)
+        for (auto& envelope : item.second)
         {
             std::ostringstream output;
-            output << "i:" << item.first << " n:" <<
-                binToHex(envelope.nodeID).substr(0, 6);
+            output << "i:" << item.first
+                   << " n:" << binToHex(envelope.nodeID).substr(0, 6);
 
             ret["ahead"][count++] = output.str();
         }
