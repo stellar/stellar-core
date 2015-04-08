@@ -134,7 +134,7 @@ Peer::sendPeers()
     StellarMessage newMsg;
     newMsg.type(PEERS);
     newMsg.peers().resize(xdr::size32(peerList.size()));
-    for (int n = 0; n < peerList.size(); n++)
+    for (size_t n = 0; n < peerList.size(); n++)
     {
         if (!peerList[n].isPrivateAddress())
         {

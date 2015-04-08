@@ -182,7 +182,8 @@ class HistoryManager
     enum CatchupMode
     {
         CATCHUP_COMPLETE,
-        CATCHUP_MINIMAL
+        CATCHUP_MINIMAL,
+        CATCHUP_BUCKET_REPAIR
     };
 
     // Status code returned from LedgerManager::verifyCatchupCandidate. The
@@ -274,6 +275,10 @@ class HistoryManager
     // checkpoint to it, as well as the bucketlist of its state -- to all
     // writable history archives.
     virtual void publishHistory(std::function<void(asio::error_code const&)> handler) = 0;
+
+    virtual void downloadMissingBuckets(
+        HistoryArchiveState desiredState,
+        std::function<void(asio::error_code const&ec)> handler) = 0;
 
     // Run catchup, we've just heard `initLedger` from the network. Mode can be
     // CATCHUP_COMPLETE, meaning replay history from last to present, or

@@ -264,6 +264,26 @@ BucketManagerImpl::snapshotLedger(LedgerHeader& currentHeader)
     currentHeader.bucketListHash = mBucketList.getHash();
 }
 
+std::vector<std::string>
+BucketManagerImpl::checkForMissingBucketsFiles(HistoryArchiveState const& has)
+{
+    std::vector<std::string> buckets;
+    for (size_t i = 0; i < BucketList::kNumLevels; ++i)
+    {
+        auto snap = bucketBasename(has.currentBuckets.at(i).snap);
+        buckets.push_back(has.currentBuckets.at(i).curr);
+        buckets.push_back(has.currentBuckets.at(i).snap);
+    }
+
+    std::vector<std::string> result;
+    std::copy_if(buckets.begin(), buckets.end(), std::back_inserter(result), [&](std::string b) {
+        auto filename = getBucketDir() + "/" + bucketBasename(b);
+        return !isZero(hexToBin256(b)) && !fs::exists(filename);
+    });
+
+    return result;
+}
+
 void
 BucketManagerImpl::assumeState(HistoryArchiveState const& has)
 {

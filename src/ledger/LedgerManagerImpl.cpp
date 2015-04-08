@@ -133,7 +133,7 @@ LedgerManagerImpl::startNewLedger()
 }
 
 void
-LedgerManagerImpl::loadLastKnownLedger()
+LedgerManagerImpl::loadLastKnownLedger(function<void(asio::error_code const &ec)> handler)
 {
     auto ledgerTime = mLedgerClose.TimeScope();
 
@@ -160,12 +160,35 @@ LedgerManagerImpl::loadLastKnownLedger()
             PersistentState::kHistoryArchiveState);
         HistoryArchiveState has;
         has.fromString(hasString);
-        mApp.getBucketManager().assumeState(has);
 
-        CLOG(INFO, "Ledger")
-            << "Loaded last known ledger: " << ledgerAbbrev(mCurrentLedger);
+        auto continuation = [this, handler, has](asio::error_code const& ec)
+        {
+            if (ec) {
+                handler(ec);
+            } else
+            {
+                mApp.getBucketManager().assumeState(has);
 
-        advanceLedgerPointers();
+                CLOG(INFO, "Ledger")
+                    << "Loaded last known ledger: " << ledgerAbbrev(mCurrentLedger);
+
+                advanceLedgerPointers();
+                handler(ec);
+            }
+        };
+
+
+        auto missing = mApp.getBucketManager().checkForMissingBucketsFiles(has);
+        if (!missing.empty())
+        {
+            CLOG(WARNING, "Ledger") << "Some buckets are missing in '" << mApp.getBucketManager().getBucketDir() << "'.";
+            CLOG(WARNING, "Ledger") << "Attempting to recover from the history store.";
+            mApp.getHistoryManager().downloadMissingBuckets(has, continuation);
+        } else
+        {
+            continuation(asio::error_code());
+        }
+
     }
 }
 
@@ -344,9 +367,8 @@ LedgerManagerImpl::verifyCatchupCandidate(
     LedgerHeaderHistoryEntry const& candidate) const
 {
     // This is a callback from CatchupStateMachine when it's considering whether
-// to treat a retrieved history block as legitimate. It asks LedgerManagerImpl
-// if
-    // it's seen (in its previous, current, or buffer of ledgers-to-close that
+    // to treat a retrieved history block as legitimate. It asks LedgerManagerImpl
+    // if it's seen (in its previous, current, or buffer of ledgers-to-close that
     // have queued up since catchup began) whether it believes the candidate is a
     // legitimate part of history. LedgerManagerImpl is allowed to answer "unknown"
     // here, which causes CatchupStateMachine to pause and retry later.

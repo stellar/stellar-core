@@ -88,7 +88,10 @@ public:
     // state of the bucket list.
     virtual void snapshotLedger(LedgerHeader& currentHeader) = 0;
 
-    // Restart from a saved state: find and attach all buckets, set current BL.
+    // Check for missing bucket files that would prevent `assumeState` from succeeding
+    virtual std::vector<std::string> checkForMissingBucketsFiles(HistoryArchiveState const& has) = 0;
+
+    // Restart from a saved state: find and attach all buckets in `has`, set current BL.
     virtual void assumeState(HistoryArchiveState const& has) = 0;
 };
 }

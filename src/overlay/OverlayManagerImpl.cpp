@@ -196,7 +196,7 @@ OverlayManagerImpl::tick()
 }
 
 Peer::pointer
-OverlayManagerImpl::getConnectedPeer(std::string const& ip, int port)
+OverlayManagerImpl::getConnectedPeer(std::string const& ip, uint32_t port)
 {
     for (auto peer : mPeers)
     {
