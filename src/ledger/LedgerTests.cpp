@@ -67,7 +67,10 @@ auto validLedgerEntryGenerator = autocheck::map(
         break;
 
         case ACCOUNT:
+        {
+            clampLow<int64_t>(0, le.account().balance);
             break;
+        }
         }
 
         return le;

@@ -19,7 +19,7 @@ const char* AccountFrame::kSQLCreateStatement1 =
     "CREATE TABLE Accounts"
     "("
     "accountID       VARCHAR(51)  PRIMARY KEY,"
-    "balance         BIGINT       NOT NULL,"
+    "balance         BIGINT       NOT NULL CHECK (balance >= 0),"
     "seqNum          BIGINT       NOT NULL,"
     "numSubEntries   INT          NOT NULL CHECK (numSubEntries >= 0),"
     "inflationDest   VARCHAR(51),"
