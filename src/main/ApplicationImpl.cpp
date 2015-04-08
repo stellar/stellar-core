@@ -218,7 +218,7 @@ ApplicationImpl::start()
         done = true;
     });
 
-    while (!done && mVirtualClock.crank() > 0);
+    while (!done && mVirtualClock.crank(false) > 0);
 }
 
 void
