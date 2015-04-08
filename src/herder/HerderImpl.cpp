@@ -495,11 +495,11 @@ HerderImpl::ballotDidHearFromQuorum(uint64 const& slotIndex,
     // Once we hear from a transitive quorum, we start a timer in case SCP
     // timeouts.
     mBumpTimer.expires_from_now(
-        std::chrono::seconds((int)pow(2.0, ballot.counter)));
+        std::chrono::seconds((int)pow(2.0, ballot.counter+1)));
 
     // TODO: Bumping on a timeout disabled for now, tends to stall scp
-    // mBumpTimer.async_wait([&]() { expireBallot(slotIndex, ballot); },
-    // &VirtualTimer::onFailureNoop);
+    mBumpTimer.async_wait([&]() { expireBallot(slotIndex, ballot); },
+      &VirtualTimer::onFailureNoop);
 }
 
 void
