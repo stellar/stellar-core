@@ -273,7 +273,7 @@ Simulation::crankUntil(function<bool()> const& predicate,
     checkTimer.expires_from_now(chrono::seconds(5));
     checkTimer.async_wait(checkDone, &VirtualTimer::onFailureNoop);
 
-    while (true)
+    for (;;)
     {
         if (crankAllNodes() == 0)
         {

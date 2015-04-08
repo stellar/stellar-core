@@ -69,9 +69,9 @@ Peer::connectHandler(asio::error_code const& error)
 {
     if (error)
     {
-        CLOG(WARNING, "Overlay") << "@" << mApp.getConfig().PEER_PORT
-                                 << " connectHandler error: "
-                                 << error.message();
+        CLOG(WARNING, "Overlay")
+            << "@" << mApp.getConfig().PEER_PORT
+            << " connectHandler error: " << error.message();
         drop();
     }
     else
@@ -373,7 +373,15 @@ Peer::recvHello(StellarMessage const& msg)
 
     mRemoteProtocolVersion = msg.hello().protocolVersion;
     mRemoteVersion = msg.hello().versionStr;
-    mRemoteListeningPort = msg.hello().listeningPort;
+    if (msg.hello().listeningPort <= 0 ||
+        msg.hello().listeningPort > UINT16_MAX)
+    {
+        CLOG(INFO, "Overlay") << "bad port in recvHello";
+        drop();
+        return false;
+    }
+    mRemoteListeningPort =
+        static_cast<unsigned short>(msg.hello().listeningPort);
     CLOG(INFO, "Overlay") << "recvHello "
                           << "@" << mApp.getConfig().PEER_PORT
                           << " from: " << mRemoteProtocolVersion << " "
@@ -400,13 +408,17 @@ Peer::recvPeers(StellarMessage const& msg)
         ip << (int)peer.ip[0] << "." << (int)peer.ip[1] << "."
            << (int)peer.ip[2] << "." << (int)peer.ip[3];
 
-        PeerRecord pr{ip.str(), peer.port, mApp.getClock().now(),
-                      peer.numFailures, 1};
+        if (peer.port == 0 || peer.port > UINT16_MAX)
+        {
+            CLOG(WARNING, "Overlay") << "ignoring peer with bad port";
+            continue;
+        }
+        PeerRecord pr{ip.str(), static_cast<unsigned short>(peer.port),
+                      mApp.getClock().now(), peer.numFailures, 1};
 
         if (pr.isPrivateAddress())
         {
-            CLOG(WARNING, "Overlay")
-                << "ignoring flooded private address";
+            CLOG(WARNING, "Overlay") << "ignoring flooded private address";
         }
         else
         {

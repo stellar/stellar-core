@@ -59,8 +59,7 @@ OverlayManagerImpl::OverlayManagerImpl(Application& app)
           {"overlay", "connection", "drop"}, "connection"))
     , mConnectionsRejected(app.getMetrics().NewMeter(
           {"overlay", "connection", "reject"}, "connection"))
-    , mPeersSize(app.getMetrics().NewCounter(
-          {"overlay", "memory", "peers"}))
+    , mPeersSize(app.getMetrics().NewCounter({"overlay", "memory", "peers"}))
     , mTimer(app)
     , mFloodGate(app)
 {
@@ -196,7 +195,7 @@ OverlayManagerImpl::tick()
 }
 
 Peer::pointer
-OverlayManagerImpl::getConnectedPeer(std::string const& ip, uint32_t port)
+OverlayManagerImpl::getConnectedPeer(std::string const& ip, unsigned short port)
 {
     for (auto peer : mPeers)
     {

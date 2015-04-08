@@ -48,8 +48,8 @@ TEST_CASE("payment", "[tx][payment]")
 
     int64_t txfee = app.getLedgerManager().getTxFee();
 
-    const uint64_t paymentAmount =
-        (uint64_t)app.getLedgerManager().getMinBalance(1) + txfee * 10;
+    const int64_t paymentAmount =
+        app.getLedgerManager().getMinBalance(1) + txfee * 10;
 
     SequenceNumber rootSeq = getAccountSeqNum(root, app) + 1;
     // create an account
@@ -57,7 +57,7 @@ TEST_CASE("payment", "[tx][payment]")
 
     SequenceNumber a1Seq = getAccountSeqNum(a1, app) + 1;
 
-    const uint64_t morePayment = paymentAmount / 2;
+    const int64_t morePayment = paymentAmount / 2;
 
     SecretKey gateway = getAccount("gate");
 
@@ -428,8 +428,8 @@ TEST_CASE("single payment tx SQL", "[singlesql][paymentsql][hide]")
     SecretKey root = getRoot();
     SecretKey a1 = getAccount("A");
     int64_t txfee = app->getLedgerManager().getTxFee();
-    const uint64_t paymentAmount =
-        (uint64_t)app->getLedgerManager().getMinBalance(1) + txfee * 10;
+    const int64_t paymentAmount =
+        app->getLedgerManager().getMinBalance(1) + txfee * 10;
 
     SequenceNumber rootSeq = getAccountSeqNum(root, *app) + 1;
 

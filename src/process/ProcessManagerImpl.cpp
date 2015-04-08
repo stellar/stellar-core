@@ -209,7 +209,7 @@ void
 ProcessManagerImpl::handleSignalWait()
 {
     std::lock_guard<std::recursive_mutex> guard(gImplsMutex);
-    while (true)
+    for (;;)
     {
         int status = 0;
         int pid = waitpid(-1, &status, WNOHANG);

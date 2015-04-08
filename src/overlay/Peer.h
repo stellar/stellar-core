@@ -51,7 +51,7 @@ class Peer : public std::enable_shared_from_this<Peer>
 
     std::string mRemoteVersion;
     uint32_t mRemoteProtocolVersion;
-    uint32_t mRemoteListeningPort;
+    unsigned short mRemoteListeningPort;
     void recvMessage(StellarMessage const& msg);
     void recvMessage(xdr::msg_ptr const& xdrBytes);
 
@@ -128,7 +128,7 @@ class Peer : public std::enable_shared_from_this<Peer>
         return mRemoteProtocolVersion;
     }
 
-    uint32_t
+    unsigned short
     getRemoteListeningPort()
     {
         return mRemoteListeningPort;

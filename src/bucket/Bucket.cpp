@@ -31,7 +31,7 @@ namespace stellar
 static std::string
 randomBucketName(std::string const& tmpDir)
 {
-    while (true)
+    for (;;)
     {
         std::string name =
             tmpDir + "/tmp-bucket-" + binToHex(randomBytes(8)) + ".xdr";
