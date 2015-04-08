@@ -99,13 +99,13 @@ OverlayManagerImpl::connectTo(PeerRecord& pr)
 {
     if (pr.mPort == 0)
     {
-        CLOG(INFO, "Overlay") << "Invalid port: " << pr.toString();
+        CLOG(DEBUG, "Overlay") << "Invalid port: " << pr.toString();
         return;
     }
 
     if (!pr.mIP.size())
     {
-        CLOG(INFO, "Overlay") << "OverlayManagerImpl::connectTo Invalid IP ";
+        CLOG(DEBUG, "Overlay") << "OverlayManagerImpl::connectTo Invalid IP ";
         return;
     }
 
@@ -223,7 +223,7 @@ void
 OverlayManagerImpl::dropPeer(Peer::pointer peer)
 {
     mConnectionsDropped.Mark();
-    CLOG(INFO, "Overlay") << "Dropping peer " << peer->toString();
+    CLOG(DEBUG, "Overlay") << "Dropping peer " << peer->toString();
     auto iter = find(mPeers.begin(), mPeers.end(), peer);
     if (iter != mPeers.end())
         mPeers.erase(iter);
