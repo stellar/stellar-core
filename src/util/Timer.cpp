@@ -159,6 +159,11 @@ VirtualClock::flushCancelledEvents()
     }
     if (mFlushesIgnored <= mEvents.size())
     {
+        // Flushing all the canceled events immediately can lead to 
+        // a O(n^2) loop if many events in the queue are canceled one a time.
+        //
+        // By ignoring O(n) flushes, we batch the iterations together and 
+        // restore O(n) performance.
         mFlushesIgnored++;
         return;
     }
@@ -189,8 +194,9 @@ VirtualClock::cancelAllEvents()
     bool wasEmpty = mEvents.empty();
     while (!mEvents.empty())
     {
-        mEvents.top()->cancel();
+        auto ev = mEvents.top();
         mEvents.pop();
+        ev->cancel();
     }
     mEvents = PrQueue();
     return !wasEmpty;
@@ -275,6 +281,9 @@ VirtualClock::advanceTo(time_point n)
         toDispatch.push_back(mEvents.top());
         mEvents.pop();
     }
+    // Keep the dispatch loop separate from the pop()-ing loop
+    // so the triggered events can't mutate the priority queue 
+    // from underneat us while we are looping.
     for(auto ev : toDispatch)
     {
         ev->trigger();
