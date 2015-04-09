@@ -108,9 +108,7 @@ namespace stellar
 //
 // Every time k increases, it must create a snapshot (promoting curr(i) to
 // snap(i) and evicting snap(i)) at any level i where the size of the actual
-// ledger range represented in curr(i) exceeds half(i). This should be
-// equivalent to saying "snapshot+evict any level at which the ith hex digit of
-// k changed from f to 0 or from 7 to 8".
+// ledger range represented in curr(i) exceeds half(i).
 //
 //
 // Example:
@@ -125,38 +123,38 @@ namespace stellar
 //
 // The levels would then hold objects changed in the following ranges:
 //
-// level[0] curr=(0x56789aa, 0x56789ab],  snap=(0x56789a8, 0x56789aa]
-// level[1] curr=(0x56789a8, 0x56789a8],  snap=(0x56789a0, 0x56789a8]
-// level[2] curr=(0x56789a0, 0x56789a0],  snap=(0x5678980, 0x56789a0]
-// level[3] curr=(0x5678980, 0x5678980],  snap=(0x5678900, 0x5678980]
-// level[4] curr=(0x5678800, 0x5678900],  snap=(0x5678800, 0x5678800]
-// level[5] curr=(0x5678800, 0x5678800],  snap=(0x5678000, 0x5678800]
-// level[6] curr=(0x5678000, 0x5678000],  snap=(0x5678000, 0x5678000]
-// level[7] curr=(0x5678000, 0x5678000],  snap=(0x5670000, 0x5678000]
-// level[8] curr=(0x5660000, 0x5670000],  snap=(0x5640000, 0x5660000]
-// level[9] curr=(0x5600000, 0x5640000],  snap= ------ empty ------
-// level[10] curr= ------ empty ------ ,  snap=(0x5400000, 0x5600000]
-// level[11] curr=(0x5000000, 0x5400000], snap= ------ empty ------
-// level[12] curr=(0x4000000, 0x5000000], snap= ------ empty ------
-// level[13] curr=(0x0, 0x4000000],       snap= ------ empty ------
+// level[0]  curr=(0x56789aa, 0x56789ab],  snap=(0x56789a8, 0x56789aa]
+// level[1]  curr= ------ empty ------- ,  snap=(0x56789a0, 0x56789a8]
+// level[2]  curr= ------ empty ------- ,  snap=(0x5678980, 0x56789a0]
+// level[3]  curr= ------ empty ------- ,  snap=(0x5678900, 0x5678980]
+// level[4]  curr=(0x5678800, 0x5678900],  snap= ------ empty ------- 
+// level[5]  curr= ------ empty ------- ,  snap=(0x5678000, 0x5678800]
+// level[6]  curr= ------ empty ------- ,  snap= ------ empty ------- 
+// level[7]  curr= ------ empty ------- ,  snap=(0x5670000, 0x5678000]
+// level[8]  curr=(0x5660000, 0x5670000],  snap=(0x5640000, 0x5660000]
+// level[9]  curr=(0x5600000, 0x5640000],  snap= ------ empty -------
+// level[10] curr= ------ empty ------- ,  snap=(0x5400000, 0x5600000]
+// level[11] curr=(0x5000000, 0x5400000],  snap= ------ empty -------
+// level[12] curr=(0x4000000, 0x5000000],  snap= ------ empty -------
+// level[13] curr=(0x0, 0x4000000],        snap= ------ empty -------
 //
 // Assuming a ledger closes every 5 seconds, here are the timespans
 // covered by each level:
 //
-// L0:   20 seconds      (4 ledgers)
-// L1:   80 seconds      (16 ledgers)
-// L2:    5 minutes      (64 ledgers)
-// L3:   21 minutes      (256 ledgers)
-// L4:   85 minutes      (1024 ledgers)
-// L5:    5 hours        (4096 ledgers)
-// L6:   22 hours        (16384 ledgers)
-// L7:    3 days         (65536 ledgers)
-// L8:   15 days         (262144 ledgers)
-// L9:   60 days         (1048576 ledgers)
-// L10: 242 days         (4194304 ledgers)
-// L11:   2 years        (16777216 ledgers)
-// L12:  10 years        (67108864 ledgers)
-// L13:  42 years        (268435456 ledgers)
+// L0:   20 seconds          (4 ledgers)
+// L1:   80 seconds         (16 ledgers)
+// L2:    5 minutes         (64 ledgers)
+// L3:   21 minutes        (256 ledgers)
+// L4:   85 minutes      (1,024 ledgers)
+// L5:    5 hours        (4,096 ledgers)
+// L6:   22 hours       (16,384 ledgers)
+// L7:    3 days        (65,536 ledgers)
+// L8:   15 days       (262,144 ledgers)
+// L9:   60 days     (1,048,576 ledgers)
+// L10: 242 days     (4,194,304 ledgers)
+// L11:   2 years   (16,777,216 ledgers)
+// L12:  10 years   (67,108,864 ledgers)
+// L13:  42 years  (268,435,456 ledgers)
 //
 //
 // Performance:
@@ -167,48 +165,43 @@ namespace stellar
 // ledger to this data structure. Assuming the 10GB allocated to in-memory
 // buckets, if each object is on average 256 bytes then we can store 4 objects
 // per kb or 40 million objects in memory, or 4,000 (say: 4,096) ledgers in
-// memory. So levels 0, 1, 2. Levels 3 and 4 must go on disk.
+// memory. So levels 0 to 5 can be in memory, the remainder must go on disk.
 //
-// How fast do we need to rewrite/rehash level 3? We rewrite it every time
-// snap(2) is evicted. This happens every 2048 ledgers. That's 10240 seconds, or
+// How fast do we need to rewrite/rehash level 6? We rewrite it every time
+// snap(5) is evicted. This happens every 2048 ledgers. That's 10240 seconds, or
 // 2.8 hours. So we have >2 hours to do a sequential read + merge + hash of a
-// half of level 3 (32,768 ledgers' worth of objects), or 83GB of data (at 1,000
+// half of level 6 (8,192 ledgers' worth of objects), or 20GB of data (at 1,000
 // tx/s). Amazon EBS disks sustain sequential writes at 30MB/s, so it should
-// take ~46 minutes, giving us a safety margin of ~3x.
+// take ~11 minutes, giving us a safety margin of ~15x.
 //
-// It _does_ mean that at this scale, we will be _doing_ an 83GB sequential
+// It _does_ mean that at this scale, we will be _doing_ an 20GB sequential
 // read/merge/hash/write every 2.8 hours. That might cause a noticeable I/O
-// spike
-// and/or some degree of I/O wear. But the hardware should keep up and this is,
-// after all, the 1000 tx/s "great success" situation where we're doing some
-// substantial tuning, having scaled through three orders of magnitude.
+// spike and/or some degree of I/O wear. But the hardware should keep up and
+// this is, after all, the 1000 tx/s "great success" situation where we're doing
+// some substantial tuning, having scaled through three orders of magnitude.
 //
-// It also means we're doing a ~1.3TB sequential write once every ~45 hours, as
-// we evict a snap from level 3 to level 4. But again, any storage device that's
-// actually comfortable slinging around 1.4TB files (and we will have that much
-// data to hash, period) should be able to process it in much less than 45
-// hours; at 30MB/s it should take less than 13h (safety margin ~3x).
+// It also means we're doing a ~78GB sequential write once every ~11 hours, as
+// we evict a snap from level 6 to level 7. But again, any storage device that's
+// actually comfortable slinging around 78GB files (and we will have that much
+// data to hash, period) should be able to process it in much less than 11
+// hours; at 30MB/s it should take less than 45 minutes (safety margin ~15x).
 //
 // It is possible to increase the safety margin by several possible means:
 // either buying physical hardware (commodity SSDs sustain writes in the 400MB/s
 // range), by using instance storage rather than EBS (measured around 100MB/s
 // write on disk, 250MB/s on SSD) or by using striping across EBS or instance
-// volumes. If none of these are acceptable, the data structure can also be
-// modified to split each bucket into (say) 8 sub-buckets, Merkle style, and
-// combine the hashes of each; essentially performing the striping "in the data
-// structure". Though this would effect the hash values so should be done
-// earlier in the design process, if at all.
+// volumes. 
 //
 //
 // Degeneracy and limits:
 // ----------------------
 //
-// Beyond level 9, a certain degeneracy takes over. "Objects changed over the
-// course of a million ledgers" starts to sound like "the entire database": if
-// we're getting 10,000 objects changed per ledger, a million ledgers means
-// touching 10 billion objects. It's unlikely that we're going to have _much_
+// Beyond level 11, a certain degeneracy takes over. "Objects changed over the
+// course of 16 million ledgers" starts to sound like "the entire database": if
+// we're getting 10,000 objects changed per ledger, 16 million ledgers means
+// touching 160 billion objects. It's unlikely that we're going to have _much_
 // more objects than that over the long term; in particular we're unlikely to
-// bump up against 160 billion objects anytime soon, which is where the next
+// bump up against 640 billion objects anytime soon, which is where the next
 // level would be. There are only so many humans on earth. Having more levels
 // just produces "dead weight" levels that contain copies of the old database
 // and are completely shadowed by levels above them.
@@ -222,9 +215,9 @@ namespace stellar
 // history before: the state of the _full_ database at a certain point in the
 // past, with no implied dependence on deeper history beneath it.
 //
-// We therefore cut off at level 9. Level 10 doesn't exist: it's "the entire
-// database", which we update with a half-level-9 snapshot every half-million
-// ledgers. Which is "once a month" (at 5s per ledger).
+// We therefore cut off at level 11. Level 12 doesn't exist: it's "the entire
+// database", which we update with a half-level-11 snapshot every 8-million
+// ledgers. Which is "every 16 months" (at 5s per ledger).
 //
 // Cutting off at a fixed level carries a minor design risk: that the database
 // might grow very large, relative to the transaction volume, and that we might
