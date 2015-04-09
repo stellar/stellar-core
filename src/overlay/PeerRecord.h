@@ -18,7 +18,7 @@ class PeerRecord
 {
   public:
     std::string mIP;
-    uint32_t mPort;
+    unsigned short mPort;
     VirtualClock::time_point mNextAttempt;
     uint32_t mNumFailures;
     uint32_t mRank;

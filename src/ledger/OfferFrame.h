@@ -52,7 +52,7 @@ class OfferFrame : public EntryFrame
 
     Price const& getPrice() const;
     int64_t getAmount() const;
-    uint256 const& getAccountID() const;
+    AccountID const& getAccountID() const;
     Currency const& getTakerPays() const;
     Currency const& getTakerGets() const;
     uint64 getOfferID() const;
@@ -79,7 +79,7 @@ class OfferFrame : public EntryFrame
     static bool exists(Database& db, LedgerKey const& key);
 
     // database utilities
-    static bool loadOffer(uint256 const& accountID, uint64_t offerID,
+    static bool loadOffer(AccountID const& accountID, uint64_t offerID,
                           OfferFrame& retEntry, Database& db);
 
     static void loadBestOffers(size_t numOffers, size_t offset,
@@ -87,7 +87,7 @@ class OfferFrame : public EntryFrame
                                std::vector<OfferFrame>& retOffers,
                                Database& db);
 
-    static void loadOffers(uint256 const& accountID,
+    static void loadOffers(AccountID const& accountID,
                            std::vector<OfferFrame>& retOffers, Database& db);
 
     static void dropAll(Database& db);

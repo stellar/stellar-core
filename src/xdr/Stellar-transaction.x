@@ -233,15 +233,15 @@ enum PaymentResultCode
     PAYMENT_SUCCESS_MULTI = 1, // multi-path payment success
 
     // codes considered as "failure" for the operation
-    PAYMENT_MALFORMED = 2,      // bad input
-    PAYMENT_UNDERFUNDED = 3,    // not enough funds in source account
-    PAYMENT_NO_DESTINATION = 4, // destination account does not exist
-    PAYMENT_NO_TRUST = 5,       // destination missing a trust line for currency
-    PAYMENT_NOT_AUTHORIZED = 6, // destination not authorized to hold currency
-    PAYMENT_LINE_FULL = 7,      // destination would go above their limit
-    PAYMENT_TOO_FEW_OFFERS = 8, // not enough offers to satisfy path payment
-    PAYMENT_OVER_SENDMAX = 9,   // multi-path payment could not satisfy sendmax
-    PAYMENT_LOW_RESERVE = 10    // would create an account below the min reserve
+    PAYMENT_MALFORMED = -1,      // bad input
+    PAYMENT_UNDERFUNDED = -2,    // not enough funds in source account
+    PAYMENT_NO_DESTINATION = -3, // destination account does not exist
+    PAYMENT_NO_TRUST = -4, // destination missing a trust line for currency
+    PAYMENT_NOT_AUTHORIZED = -5, // destination not authorized to hold currency
+    PAYMENT_LINE_FULL = -6,      // destination would go above their limit
+    PAYMENT_TOO_FEW_OFFERS = -7, // not enough offers to satisfy path payment
+    PAYMENT_OVER_SENDMAX = -8,   // multi-path payment could not satisfy sendmax
+    PAYMENT_LOW_RESERVE = -9 // would create an account below the min reserve
 };
 
 struct SimplePaymentResult
@@ -275,19 +275,18 @@ enum CreateOfferResultCode
     CREATE_OFFER_SUCCESS = 0,
 
     // codes considered as "failure" for the operation
-    CREATE_OFFER_NO_TRUST = 1,       // can't hold what it's buying
-    CREATE_OFFER_NOT_AUTHORIZED = 2, // not authorized to hold what it's buying
-    CREATE_OFFER_LINE_FULL = 3,      // can't receive more of what it's buying
-    CREATE_OFFER_MALFORMED = 4,      // generated offer would be invalid
-    CREATE_OFFER_UNDERFUNDED = 5,    // doesn't hold what it's trying to sell
-    CREATE_OFFER_CROSS_SELF = 6,     // would cross an offer from the same user
+    CREATE_OFFER_MALFORMED = -1,      // generated offer would be invalid
+    CREATE_OFFER_NO_TRUST = -2,       // can't hold what it's buying
+    CREATE_OFFER_NOT_AUTHORIZED = -3, // not authorized to hold what it's buying
+    CREATE_OFFER_LINE_FULL = -4,      // can't receive more of what it's buying
+    CREATE_OFFER_UNDERFUNDED = -5,    // doesn't hold what it's trying to sell
+    CREATE_OFFER_CROSS_SELF = -6,     // would cross an offer from the same user
 
     // update errors
-    CREATE_OFFER_NOT_FOUND = 7, // offerID does not match an existing offer
-    CREATE_OFFER_MISMATCH = 8,  // currencies don't match offer
+    CREATE_OFFER_NOT_FOUND = -7, // offerID does not match an existing offer
+    CREATE_OFFER_MISMATCH = -8,  // currencies don't match offer
 
-    CREATE_OFFER_LOW_RESERVE = 9 // not enough funds to create a new Offer
-
+    CREATE_OFFER_LOW_RESERVE = -9 // not enough funds to create a new Offer
 };
 
 enum CreateOfferEffect
@@ -328,10 +327,10 @@ enum SetOptionsResultCode
     // codes considered as "success" for the operation
     SET_OPTIONS_SUCCESS = 0,
     // codes considered as "failure" for the operation
-    SET_OPTIONS_LOW_RESERVE = 1,      // not enough funds to add a signer
-    SET_OPTIONS_TOO_MANY_SIGNERS = 2, // max number of signers already reached
-    SET_OPTIONS_BAD_FLAGS = 3,        // invalid combination of clear/set flags
-    SET_OPTIONS_INVALID_INFLATION = 4 // inflation account does not exist
+    SET_OPTIONS_LOW_RESERVE = -1,      // not enough funds to add a signer
+    SET_OPTIONS_TOO_MANY_SIGNERS = -2, // max number of signers already reached
+    SET_OPTIONS_BAD_FLAGS = -3,        // invalid combination of clear/set flags
+    SET_OPTIONS_INVALID_INFLATION = -4 // inflation account does not exist
 };
 
 union SetOptionsResult switch (SetOptionsResultCode code)
@@ -349,10 +348,10 @@ enum ChangeTrustResultCode
     // codes considered as "success" for the operation
     CHANGE_TRUST_SUCCESS = 0,
     // codes considered as "failure" for the operation
-    CHANGE_TRUST_NO_ISSUER = 1,     // could not find issuer
-    CHANGE_TRUST_INVALID_LIMIT = 2, // cannot drop limit below balance
-    CHANGE_TRUST_LOW_RESERVE = 3, // not enough funds to create a new trust line
-    CHANGE_TRUST_MALFORMED = 4    // bad input
+    CHANGE_TRUST_MALFORMED = -1,     // bad input
+    CHANGE_TRUST_NO_ISSUER = -2,     // could not find issuer
+    CHANGE_TRUST_INVALID_LIMIT = -3, // cannot drop limit below balance
+    CHANGE_TRUST_LOW_RESERVE = -4 // not enough funds to create a new trust line
 };
 
 union ChangeTrustResult switch (ChangeTrustResultCode code)
@@ -370,9 +369,9 @@ enum AllowTrustResultCode
     // codes considered as "success" for the operation
     ALLOW_TRUST_SUCCESS = 0,
     // codes considered as "failure" for the operation
-    ALLOW_TRUST_MALFORMED = 1,         // currency is not ISO4217
-    ALLOW_TRUST_NO_TRUST_LINE = 2,     // trustor does not have a trustline
-    ALLOW_TRUST_TRUST_NOT_REQUIRED = 3 // source account does not require trust
+    ALLOW_TRUST_MALFORMED = -1,         // currency is not ISO4217
+    ALLOW_TRUST_NO_TRUST_LINE = -2,     // trustor does not have a trustline
+    ALLOW_TRUST_TRUST_NOT_REQUIRED = -3 // source account does not require trust
 };
 
 union AllowTrustResult switch (AllowTrustResultCode code)
@@ -390,10 +389,10 @@ enum AccountMergeResultCode
     // codes considered as "success" for the operation
     ACCOUNT_MERGE_SUCCESS = 0,
     // codes considered as "failure" for the operation
-    ACCOUNT_MERGE_MALFORMED = 1,  // can't merge onto itself
-    ACCOUNT_MERGE_NO_ACCOUNT = 2, // destination does not exist
-    ACCOUNT_MERGE_HAS_CREDIT = 3, // account has active trust lines
-    ACCOUNT_MERGE_CREDIT_HELD = 4 // an issuer cannot be merged if used
+    ACCOUNT_MERGE_MALFORMED = -1,  // can't merge onto itself
+    ACCOUNT_MERGE_NO_ACCOUNT = -2, // destination does not exist
+    ACCOUNT_MERGE_HAS_CREDIT = -3, // account has active trust lines
+    ACCOUNT_MERGE_CREDIT_HELD = -4 // an issuer cannot be merged if used
 };
 
 union AccountMergeResult switch (AccountMergeResultCode code)
@@ -411,7 +410,7 @@ enum InflationResultCode
     // codes considered as "success" for the operation
     INFLATION_SUCCESS = 0,
     // codes considered as "failure" for the operation
-    INFLATION_NOT_TIME = 1
+    INFLATION_NOT_TIME = -1
 };
 
 struct inflationPayout // or use PaymentResultAtom to limit types?
@@ -434,8 +433,8 @@ enum OperationResultCode
 {
     opINNER = 0, // inner object result is valid
 
-    opBAD_AUTH = 1,  // not enough signatures to perform operation
-    opNO_ACCOUNT = 2 // source account was not found
+    opBAD_AUTH = -1,  // not enough signatures to perform operation
+    opNO_ACCOUNT = -2 // source account was not found
 };
 
 union OperationResult switch (OperationResultCode code)
@@ -467,20 +466,20 @@ enum TransactionResultCode
 {
     txSUCCESS = 0, // all operations succeeded
 
-    txDUPLICATE = 1, // transaction was already submited
+    txDUPLICATE = -1, // transaction was already submited
 
-    txFAILED = 2, // one of the operations failed (but none were applied)
+    txFAILED = -2, // one of the operations failed (but none were applied)
 
-    txBAD_LEDGER = 3,        // ledger is not in range [minLeder; maxLedger]
-    txMISSING_OPERATION = 4, // no operation was specified
-    txBAD_SEQ = 5,           // sequence number does not match source account
+    txBAD_LEDGER = -3,        // ledger is not in range [minLeder; maxLedger]
+    txMISSING_OPERATION = -4, // no operation was specified
+    txBAD_SEQ = -5,           // sequence number does not match source account
 
-    txBAD_AUTH = 6,             // not enough signatures to perform transaction
-    txINSUFFICIENT_BALANCE = 7, // fee would bring account below reserve
-    txNO_ACCOUNT = 8,           // source account not found
-    txINSUFFICIENT_FEE = 9,     // max fee is too small
-    txBAD_AUTH_EXTRA = 10,      // too many signatures on transaction
-    txINTERNAL_ERROR = 0xFFFFFFFF // an unknown error occured
+    txBAD_AUTH = -6,             // not enough signatures to perform transaction
+    txINSUFFICIENT_BALANCE = -7, // fee would bring account below reserve
+    txNO_ACCOUNT = -8,           // source account not found
+    txINSUFFICIENT_FEE = -9,     // max fee is too small
+    txBAD_AUTH_EXTRA = -10,      // too many signatures on transaction
+    txINTERNAL_ERROR = -11       // an unknown error occured
 };
 
 struct TransactionResult

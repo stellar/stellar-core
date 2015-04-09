@@ -375,7 +375,6 @@ void MemoryBuffer<T, SIZE, Allocator>::grow(std::size_t size) {
     this->deallocate(old_ptr, old_capacity);
 }
 
-#ifndef _MSC_VER
 // Portable version of signbit.
 inline int getsign(double x) {
   // When compiled in C++11 mode signbit is no longer a macro but a function
@@ -395,17 +394,6 @@ inline int isinfinity(long double x) { return isinf(x); }
 inline int isinfinity(double x) { return std::isinf(x); }
 inline int isinfinity(long double x) { return std::isinf(x); }
 # endif
-#else
-inline int getsign(double value) {
-  if (value < 0) return 1;
-  if (value == value) return 0;
-  int dec = 0, sign = 0;
-  char buffer[2];  // The buffer size must be >= 2 or _ecvt_s will fail.
-  _ecvt_s(buffer, sizeof(buffer), value, 0, &dec, &sign);
-  return sign;
-}
-inline int isinfinity(double x) { return !_finite(x); }
-#endif
 
 template <typename T>
 struct IsLongDouble { enum {VALUE = 0}; };
@@ -1958,9 +1946,9 @@ void BasicWriter<Char>::write_double(
       }
       if (spec.align() == ALIGN_CENTER &&
           spec.width() > static_cast<unsigned>(n)) {
-        unsigned width = spec.width();
-        CharPtr p = grow_buffer(width);
-        std::copy(p, p + n, p + (width - n) / 2);
+        unsigned spec_width = spec.width();
+        CharPtr p = grow_buffer(spec_width);
+        std::copy(p, p + n, p + (spec_width - n) / 2);
         fill_padding(p, spec.width(), n, fill);
         return;
       }

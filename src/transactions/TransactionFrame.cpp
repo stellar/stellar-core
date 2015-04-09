@@ -146,7 +146,7 @@ TransactionFrame::checkSignature(AccountFrame& account, int32_t neededWeight)
 }
 
 AccountFrame::pointer
-TransactionFrame::loadAccount(Application& app, uint256 const& accountID)
+TransactionFrame::loadAccount(Application& app, AccountID const& accountID)
 {
     AccountFrame::pointer res;
 

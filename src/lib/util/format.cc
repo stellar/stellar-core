@@ -84,6 +84,7 @@ using fmt::internal::Arg;
 #if _MSC_VER
 # pragma warning(push)
 # pragma warning(disable: 4127)  // conditional expression is constant
+# pragma warning(disable: 4702)  // unreachable code
 #endif
 
 namespace {
@@ -872,8 +873,8 @@ void fmt::internal::PrintfFormatter<Char>::format(
     case Arg::CUSTOM: {
       if (spec.type_)
         internal::report_unknown_type(spec.type_, "object");
-      const void *s = "s";
-      arg.custom.format(&writer, arg.custom.value, &s);
+      const void *s_str = "s";
+      arg.custom.format(&writer, arg.custom.value, &s_str);
       break;
     }
     default:

@@ -61,12 +61,12 @@ class TrustFrame : public EntryFrame
     static bool exists(Database& db, LedgerKey const& key);
 
     // returns the specified trustline or a generated one for issuers
-    static bool loadTrustLine(uint256 const& accountID,
+    static bool loadTrustLine(AccountID const& accountID,
                               Currency const& currency, TrustFrame& retEntry,
                               Database& db);
 
     // note: only returns trust lines stored in the database
-    static void loadLines(uint256 const& accountID,
+    static void loadLines(AccountID const& accountID,
                           std::vector<TrustFrame>& retLines, Database& db);
 
     int64_t getBalance() const;

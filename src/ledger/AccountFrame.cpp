@@ -53,7 +53,7 @@ AccountFrame::AccountFrame(AccountFrame const& from) : AccountFrame(from.mEntry)
 {
 }
 
-AccountFrame::AccountFrame(uint256 const& id) : AccountFrame()
+AccountFrame::AccountFrame(AccountID const& id) : AccountFrame()
 {
     mAccountEntry.accountID = id;
 }
@@ -117,7 +117,7 @@ AccountFrame::addNumEntries(int count, LedgerManager const& lm)
     return true;
 }
 
-uint256 const&
+AccountID const&
 AccountFrame::getID() const
 {
     return (mAccountEntry.accountID);
@@ -148,7 +148,7 @@ AccountFrame::getLowThreshold() const
 }
 
 bool
-AccountFrame::loadAccount(uint256 const& accountID, AccountFrame& retAcc,
+AccountFrame::loadAccount(AccountID const& accountID, AccountFrame& retAcc,
                           Database& db)
 {
     std::string base58ID = toBase58Check(VER_ACCOUNT_ID, accountID);
