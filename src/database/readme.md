@@ -1,6 +1,6 @@
 # Database
 
-The [Database](Database.h) object manages connections to a SQL database, in
+The [Database](Database.h) object manages connections to an SQL database, in
 which the current ledger state and several auxiliary tables are stored. The
 database object also caches prepared statements, and holds some timers for
 tracking query performance.

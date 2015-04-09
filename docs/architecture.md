@@ -72,7 +72,7 @@ or serve long-term history archives; they do not operate a transactional
 HTTP requests directly. These roles are offloaded to servers that are better
 suited to these tasks, for which there are existing/better software stacks;
 validators should have an "even" and predictable system-load profile. Validators 
-are also kept as stateless as possible keeping disk and memory restraints in 
+are also kept as stateless as possible keeping disk and memory constraints in 
 mind.
 
 - Set of core validator nodes. Running stellar-core only. Tasked with:

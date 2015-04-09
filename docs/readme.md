@@ -65,7 +65,7 @@ performance needs.
 	concatenating all the entries, it is not the same value since the bucket 
 	list deduplicates changed entries incrementally.
 
- 4. Finally, `stellar-core` can be configured to uploads detailed historical
+ 4. Finally, `stellar-core` can be configured to upload detailed historical
     records of all the transactions, including all or most of the ledgers'
     content, to persistent long-term storage. This record can be used to audit
     the full ledger chain's history, and is used to catch-up new nodes and nodes
@@ -90,7 +90,7 @@ source directory and its own dedicated `readme.md`.
   `stellar-core`. Herder provides SCP with concrete implementations of the
   methods SCP uses to communicate with peers, to compare values, to determine
   whether values contain valid signatures, and so forth. Herder often 
-  accomplishes its tasks by forwarding to other components 
+  accomplishes its tasks by delegating to other components 
   (See [`src/herder/readme.md`](../src/herder/readme.md)).
 
 * **Overlay** connects to and keeps track of the peers this nodeis knows
@@ -98,21 +98,21 @@ source directory and its own dedicated `readme.md`.
   that is needed to accomplish consensus (See 
   [`src/overlay/readme.md`](../src/overlay/readme.md)). All
   other data downloads are handled without imposing on the SCP-nodes, see 
-  `./architecture.md`.
+  [`./architecture.md`](/docs/architecture.md).
   
 * **Ledger** applies the transaction set that is externalized by SCP. It also
-  forwards the externalization event the other components: It submits the
-  changed ledger entries to the bucket list. It triggers the publishing of the
-  history. It informs Overlay to update its map of flooded messages. Ledger also
-  triggers the History's catching-up routine when it detect that this node has 
-  fallen behind of the rest of the network 
-  (See [`src/ledger/readme.md`](../src/ledger/readme.md)).
+  forwards the externalization event to other components: it submits the changed
+  ledger entries to the bucket list, triggers the publishing of history, and
+  informs the overlay system to update its map of flooded messages. Ledger also
+  triggers the history system's catching-up routine when it detects that this
+  node has fallen behind of the rest of the network (See
+  [`src/ledger/readme.md`](../src/ledger/readme.md)).
 
 * **History** publishes transaction and ledger entries to off-site permanent
   storage for auditing, and as a source of catch-up data for other nodes. When
-  this node falls behind, History fetches the catch-up data and submits it to
-  Ledger twice: first to verify its security, then to apply it 
-  (See [`src/history/readme.md`](../src/history/readme.md)).
+  this node falls behind, the history system fetches catch-up data and submits
+  it to Ledger twice: first to verify its security, then to apply it (See
+  [`src/history/readme.md`](../src/history/readme.md)).
 
 * **BucketList** stores ledger entries on disk arranged for hashing and
   block-catch-up. BucketList coordinates the hashing and deduplicating of
@@ -129,21 +129,23 @@ source directory and its own dedicated `readme.md`.
   state flags. Launches the test suite if requested.
 
 * **src/crypto** contains standard cryptographic routines, including random 
-  number generation and base-58 hashing.
+  number generation, hashing, and base-58 and hex encoding.
 
-* **src/util** gathers assorted logging and whatnot.
+* **src/util** gathers assorted logging and utility routines.
 
-* **src/lib** keeps various 3rd party libraries we use
+* **src/lib** keeps various 3rd party libraries we use.
 
 * **src/database** is a thin layer above the functionality provided by the
   database-access library `soci`.
   
-* **src/process** is an asynchronous implementation `system()`.
+* **src/process** is an asynchronous implementation of `system()`, for running
+  subprocesses.
 
 * **src/simulation** provides support for instantiating and exercising 
   in-process test networks.
 
-* **src/xdr** contains to definition of the wire protocol in the `xdr` language.
+* **src/xdr** contains to definition of the wire protocol in the [`XDR`
+    (RFC4506)](https://tools.ietf.org/html/rfc4506.html) specification language.
 
 * **src/generated** contains the wire protocol's C++ classes, generated from 
   the definitions in `src/xdr`.
@@ -156,9 +158,9 @@ This directory contains the following additional documentation:
 * [testnet.md](/docs/testnet.md) is short tutorial demonstrating how to 
   configure and run a short-lived, isolated test network.
 
-* [architecture.md](/docs/architecture.md) describe how `stellar-core` is 
-  intended to be deployed and the collection of servers and services needed to 
-  get the full functionality and performance.
+* [architecture.md](/docs/architecture.md) describes how `stellar-core` is
+  structured internally, how it is intended to be deployed and the collection of
+  servers and services needed to get the full functionality and performance.
 
 * [admin.md](/docs/admin.md) describes the configuration concerns and documents 
   the command line options.

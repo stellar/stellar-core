@@ -1,7 +1,7 @@
 # Overlay
 
 The overlay subsystem manages a virtual "broadcast network" composed of a set of
-peer-to-peer TCP connections, as well mechanisms for managing distribution of
+peer-to-peer TCP connections, as well as mechanisms for managing distribution of
 broadcast messages, anycast request/reply message pairs, and peer-to-peer control
 messages to and from those peers.
 
