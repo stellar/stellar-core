@@ -114,7 +114,6 @@ void CommandHandler::testTx(std::string const& params, std::string& retStr)
         if(from->second == "root") fromKey = getRoot();
         else fromKey = getAccount(from->second.c_str());
 
-        int64_t txfee = mApp.getLedgerManager().getTxFee();
         uint64_t paymentAmount = uint64_t(stoi(amount->second))*1000000ULL;
 
         SequenceNumber fromSeq = getSeq(fromKey, mApp) + 1;

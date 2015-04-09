@@ -166,17 +166,13 @@ VirtualClock::flushCancelledEvents()
     // LOG(DEBUG) << "VirtualClock::cancelAllEventsFrom";
 
     auto toKeep = vector<shared_ptr<VirtualClockEvent>>();
-    bool changed = false;
+
     while (!mEvents.empty())
     {
         auto const& e = mEvents.top();
         if (!e->getTriggered())
         {
             toKeep.emplace_back(e);
-        }
-        else
-        {
-            changed = true;
         }
         mEvents.pop();
     }
@@ -308,7 +304,7 @@ VirtualClockEvent::VirtualClockEvent(
     VirtualClock::time_point when,
     std::function<void(asio::error_code)> callback) 
     :
-    mWhen(when), mCallback(callback), mTriggered(false) { }
+    mCallback(callback), mTriggered(false), mWhen(when) { }
 
 bool
 VirtualClockEvent::getTriggered()
