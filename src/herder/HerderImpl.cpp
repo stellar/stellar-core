@@ -79,6 +79,7 @@ HerderImpl::HerderImpl(Application& app)
     , mBumpTimer(app)
     , mRebroadcastTimer(app)
     , mApp(app)
+    , mLedgerManager(app.getLedgerManager())
 
     , mValueValid(app.getMetrics().NewMeter({"scp", "value", "valid"}, "value"))
     , mValueInvalid(
@@ -154,21 +155,34 @@ HerderImpl::~HerderImpl()
 {
 }
 
+Herder::State HerderImpl::getState() const
+{
+    return mTrackingSCP ? HERDER_TRACKING_STATE : HERDER_SYNCING_STATE;
+}
+
+std::string HerderImpl::getStateHuman() const
+{
+    static const char* stateStrings[HERDER_NUM_STATE] = {
+        "HERDER_SYNCING_STATE", "HERDER_TRACKING_STATE"};
+    return std::string(stateStrings[getState()]);
+}
+
 void
 HerderImpl::bootstrap()
 {
+    CLOG(INFO, "Herder") << "Force joining SCP with local state";
     assert(!getSecretKey().isZero());
     assert(mApp.getConfig().FORCE_SCP);
 
     // setup a sufficient state that we can participate in consensus
-    auto const& lcl = mApp.getLedgerManager().getLastClosedLedgerHeader();
+    auto const& lcl = mLedgerManager.getLastClosedLedgerHeader();
     StellarBallot b;
     b.value.txSetHash = lcl.header.txSetHash;
     b.value.closeTime = lcl.header.closeTime;
     b.value.baseFee = mApp.getConfig().DESIRED_BASE_FEE;
     signStellarBallot(b);
     mTrackingSCP = make_unique<ConsensusData>(lcl.header.ledgerSeq, b);
-    mApp.setState(Application::SYNCED_STATE);
+    mLedgerManager.setState(LedgerManager::LM_SYNCED_STATE);
 
     trackingHeartBeat();
     triggerNextLedger();
@@ -232,7 +246,7 @@ HerderImpl::validateValue(uint64 const& slotIndex, uint256 const& nodeID,
         return;
     }
 
-    if (mApp.getState() != Application::SYNCED_STATE)
+    if (!mLedgerManager.isSynced())
     { // if we aren't synced to the network we can't validate
         // but we still need to fetch the tx set
         fetchTxSet(b.value.txSetHash, true);
@@ -246,7 +260,7 @@ HerderImpl::validateValue(uint64 const& slotIndex, uint256 const& nodeID,
     auto validate = [cb, b, slotIndex, nodeID, this](TxSetFramePtr txSet)
     {
         // Check txSet (only if we're fully synced)
-        if ((mApp.getState() != Application::SYNCED_STATE) ||
+        if ((!mLedgerManager.isSynced()) ||
             !txSet->checkValid(mApp))
         {
             CLOG(DEBUG, "Herder")
@@ -377,7 +391,7 @@ HerderImpl::validateBallot(uint64 const& slotIndex, uint256 const& nodeID,
         return;
     }
 
-    if ((mApp.getState() == Application::SYNCED_STATE) &&
+    if ((mLedgerManager.isSynced()) &&
         nextConsensusLedgerIndex() != slotIndex)
     {
         mValueInvalid.Mark();
@@ -605,7 +619,7 @@ HerderImpl::valueExternalized(uint64 const& slotIndex, Value const& value)
         // Triggers sync if not already syncing.
         LedgerCloseData ledgerData(lastConsensusLedgerIndex(), externalizedSet,
                                    b.value.closeTime, b.value.baseFee);
-        mApp.getLedgerManager().externalizeValue(ledgerData);
+        mLedgerManager.externalizeValue(ledgerData);
 
         ledgerClosed();
 
@@ -742,7 +756,7 @@ void
 HerderImpl::emitEnvelope(SCPEnvelope const& envelope)
 {
     // We don't emit any envelope as long as we're not fully synced
-    if (mApp.getState() != Application::SYNCED_STATE || mCurrentValue.empty())
+    if (!mLedgerManager.isSynced() || mCurrentValue.empty())
     {
         return;
     }
@@ -865,7 +879,7 @@ HerderImpl::recvTransaction(TransactionFramePtr tx)
         return false;
     }
 
-    if (tx->getSourceAccount().getBalanceAboveReserve(mApp.getLedgerManager()) <
+    if (tx->getSourceAccount().getBalanceAboveReserve(mLedgerManager) <
         totFee)
     {
         tx->getResult().result.code(txINSUFFICIENT_BALANCE);
@@ -888,7 +902,7 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope envelope,
                           << " b:" << envelope.statement.ballot.counter << " v:"
                           << binToHex(ByteSlice(
                                  &envelope.statement.ballot.value[96], 3))
-                          << " a:" << mApp.getState();
+                          << " a:" << mApp.getStateHuman();
 
     mEnvelopeReceive.Mark();
 
@@ -1040,7 +1054,7 @@ HerderImpl::ledgerClosed()
         return;
     }
 
-    if (mApp.getState() != Application::SYNCED_STATE)
+    if (!mLedgerManager.isSynced())
     {
         CLOG(DEBUG, "Herder")
             << "Not presently synced, not triggering ledger-close.";
@@ -1096,7 +1110,7 @@ HerderImpl::removeReceivedTx(TransactionFramePtr dropTx)
 void
 HerderImpl::triggerNextLedger()
 {
-    if (mApp.getState() != Application::SYNCED_STATE)
+    if (!mLedgerManager.isSynced())
     {
         CLOG(DEBUG, "Herder") << "triggerNextLedger: skipping (out of sync)";
         return;
@@ -1107,7 +1121,7 @@ HerderImpl::triggerNextLedger()
 
     // our first choice for this round's set is all the tx we have collected
     // during last ledger close
-    auto const& lcl = mApp.getLedgerManager().getLastClosedLedgerHeader();
+    auto const& lcl = mLedgerManager.getLastClosedLedgerHeader();
     TxSetFramePtr proposedSet = std::make_shared<TxSetFrame>(lcl.hash);
     for (auto& list : mReceivedTransactions)
     {
@@ -1289,7 +1303,7 @@ HerderImpl::trackingHeartBeat()
 void
 HerderImpl::herderOutOfSync()
 {
-    CLOG(DEBUG, "Herder") << "Lost track of consensus";
+    CLOG(INFO, "Herder") << "Lost track of consensus";
     mTrackingSCP.reset();
     processSCPQueue();
 }

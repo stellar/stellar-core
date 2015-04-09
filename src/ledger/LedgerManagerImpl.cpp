@@ -99,9 +99,36 @@ LedgerManagerImpl::LedgerManagerImpl(Application& app)
     , mLedgerClose(app.getMetrics().NewTimer({"ledger", "ledger", "close"}))
     , mSyncingLedgersSize(
           app.getMetrics().NewCounter({"ledger", "memory", "syncing-ledgers"}))
+    , mState(LM_BOOTING_STATE)
 
 {
     mLastCloseTime = mApp.timeNow(); // this is 0 at this point
+}
+
+void
+LedgerManagerImpl::setState(State s)
+{
+    if (s != getState())
+    {
+        std::string oldState = getStateHuman();
+        mState = s;
+        CLOG(INFO, "Ledger") << "Changing state " << oldState << " -> "
+                             << getStateHuman();
+    }
+}
+
+LedgerManager::State
+LedgerManagerImpl::getState() const
+{
+    return mState;
+}
+
+std::string
+LedgerManagerImpl::getStateHuman() const
+{
+    static const char* stateStrings[LM_NUM_STATE] = {
+        "LM_BOOTING_STATE", "LM_SYNCED_STATE", "LM_CATCHING_UP_STATE"};
+    return std::string(stateStrings[getState()]);
 }
 
 void
@@ -270,11 +297,10 @@ LedgerManagerImpl::externalizeValue(LedgerCloseData ledgerData)
     // ledgerAbbrev(ledgerData.mLedgerSeq-1,
     //              ledgerData.mTxSet->previousLedgerHash())
 
-    switch (mApp.getState())
+    switch (getState())
     {
-
-    case Application::BOOTING_STATE:
-    case Application::SYNCED_STATE:
+    case LedgerManager::LM_BOOTING_STATE:
+    case LedgerManager::LM_SYNCED_STATE:
         if (mLastClosedLedger.header.ledgerSeq + 1 == ledgerData.mLedgerSeq)
         {
             if (mLastClosedLedger.hash ==
@@ -312,7 +338,7 @@ LedgerManagerImpl::externalizeValue(LedgerCloseData ledgerData)
         }
         break;
 
-    case Application::CATCHING_UP_STATE:
+    case LedgerManager::LM_CATCHING_UP_STATE:
         if (mSyncingLedgers.empty() ||
             mSyncingLedgers.back().mLedgerSeq + 1 == ledgerData.mLedgerSeq)
         {
@@ -351,7 +377,7 @@ void
 LedgerManagerImpl::startCatchUp(uint32_t initLedger,
                                 HistoryManager::CatchupMode resume)
 {
-    mApp.setState(Application::CATCHING_UP_STATE);
+    setState(LM_CATCHING_UP_STATE);
     mApp.getHistoryManager().catchupHistory(
         initLedger, resume,
         std::bind(&LedgerManagerImpl::historyCaughtup, this, _1, _2, _3));
@@ -512,7 +538,7 @@ LedgerManagerImpl::historyCaughtup(asio::error_code const& ec,
             << ledgerAbbrev(mLastClosedLedger);
 
         mSyncingLedgersSize.set_count(mSyncingLedgers.size());
-        mApp.setState(Application::SYNCED_STATE);
+        setState(LM_SYNCED_STATE);
         if (!mApp.getConfig().VALIDATION_KEY.isZero())
         {
             mApp.getHerder().triggerNextLedger();

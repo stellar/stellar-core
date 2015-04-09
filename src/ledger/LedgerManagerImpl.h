@@ -51,9 +51,14 @@ class LedgerManagerImpl : public LedgerManager
     void closeLedgerHelper(LedgerDelta const& delta);
     void advanceLedgerPointers();
 
-  public:
+    State mState;
 
+  public:
     LedgerManagerImpl(Application& app);
+
+    void setState(State s) override;
+    State getState() const override;
+    std::string getStateHuman() const override;
 
     void externalizeValue(LedgerCloseData ledgerData) override;
 

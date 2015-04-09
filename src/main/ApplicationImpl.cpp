@@ -31,8 +31,7 @@ namespace stellar
 {
 
 ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
-    : mState(Application::State::BOOTING_STATE)
-    , mVirtualClock(clock)
+    : mVirtualClock(clock)
     , mConfig(cfg)
     , mWorkerIOService(std::thread::hardware_concurrency())
     , mWork(make_unique<asio::io_service::work>(mWorkerIOService))
@@ -283,15 +282,41 @@ ApplicationImpl::getConfig()
 }
 
 Application::State
-ApplicationImpl::getState()
+ApplicationImpl::getState() const
 {
-    return mState;
+    State s;
+    if (mHerder->getState() == Herder::HERDER_SYNCING_STATE)
+    {
+        s = APP_ACQUIRING_CONSENSUS_STATE;
+    }
+    else
+    {
+        switch (mLedgerManager->getState())
+        {
+        case LedgerManager::LM_BOOTING_STATE:
+            // not sure it's worth exposing this to the user?
+            s = APP_ACQUIRING_CONSENSUS_STATE;
+            break;
+        case LedgerManager::LM_CATCHING_UP_STATE:
+            s = APP_CATCHING_UP_STATE;
+            break;
+        case LedgerManager::LM_SYNCED_STATE:
+            s = APP_SYNCED_STATE;
+            break;
+        default:
+            abort();
+        }
+    }
+    return s;
 }
 
-void
-ApplicationImpl::setState(State s)
+std::string
+ApplicationImpl::getStateHuman() const
 {
-    mState = s;
+    static const char* stateStrings[APP_NUM_STATE] = {
+        "APP_BOOTING_STATE", "APP_ACQUIRING_CONSENSUS_STATE",
+        "APP_CATCHING_UP_STATE", "APP_SYNCED_STATE"};
+    return std::string(stateStrings[getState()]);
 }
 
 VirtualClock&

@@ -38,6 +38,7 @@ class Counter;
 namespace stellar
 {
 class Application;
+class LedgerManager;
 
 using xdr::operator<;
 using xdr::operator==;
@@ -51,6 +52,9 @@ class HerderImpl : public Herder, public SCP
   public:
     HerderImpl(Application& app);
     ~HerderImpl();
+
+    State getState() const override;
+    std::string getStateHuman() const override;
 
     // Bootstraps the HerderImpl if we're creating a new Network
     void bootstrap() override;
@@ -212,6 +216,7 @@ class HerderImpl : public Herder, public SCP
     StellarMessage mLastSentMessage;
 
     Application& mApp;
+    LedgerManager& mLedgerManager;
 
     medida::Meter& mValueValid;
     medida::Meter& mValueInvalid;

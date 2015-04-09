@@ -452,7 +452,7 @@ HistoryTests::catchupApplication(uint32_t initLedger,
 
     assert(!app2->getClock().getIOService().stopped());
 
-    while ((app2->getState() == Application::CATCHING_UP_STATE) &&
+    while ((app2->getLedgerManager().getState() != LedgerManager::LM_SYNCED_STATE) &&
            !app2->getClock().getIOService().stopped() &&
            (--maxCranks != 0))
     {

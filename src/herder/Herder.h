@@ -6,6 +6,7 @@
 
 #include <memory>
 #include <functional>
+#include <string>
 #include "generated/StellarXDR.h"
 #include "scp/SCP.h"
 #include "lib/json/json-forwards.h"
@@ -38,6 +39,16 @@ class Herder
   public:
 
     static std::unique_ptr<Herder> create(Application& app);
+
+    enum State
+    {
+        HERDER_SYNCING_STATE,
+        HERDER_TRACKING_STATE,
+        HERDER_NUM_STATE
+    };
+
+    virtual State getState() const = 0;
+    virtual std::string getStateHuman() const = 0;
 
     virtual void bootstrap() = 0;
 
