@@ -73,7 +73,8 @@ class PersistentState;
  * are generally created in 1:1 correspondence with their owning Application;
  * each Application creates a new LedgerManager for itself, for example.
  *
- * Each subsystem object contains a reference back to its owning Application, and
+ * Each subsystem object contains a reference back to its owning Application,
+ *and
  * uses this reference to retrieve its Application's associated instance of the
  * other subsystems. So for example an Application's LedgerManager can access
  * that Application's HistoryManager in order to run catchup. Subsystems access
