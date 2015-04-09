@@ -539,10 +539,6 @@ LedgerManagerImpl::historyCaughtup(asio::error_code const& ec,
 
         mSyncingLedgersSize.set_count(mSyncingLedgers.size());
         setState(LM_SYNCED_STATE);
-        if (!mApp.getConfig().VALIDATION_KEY.isZero())
-        {
-            mApp.getHerder().triggerNextLedger();
-        }
     }
 }
 
