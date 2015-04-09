@@ -9,6 +9,7 @@
 #include "main/test.h"
 #include "lib/catch.hpp"
 #include "util/Logging.h"
+#include "util/make_unique.h"
 
 using namespace stellar;
 
@@ -200,7 +201,7 @@ TEST_CASE("timer cancels", "[timer]")
     std::vector<std::unique_ptr<VirtualTimer>> timers;
     for (int i = 0; i < 10; i++)
     {
-        timers.push_back(std::make_unique<VirtualTimer>(*app));
+        timers.push_back(make_unique<VirtualTimer>(*app));
         timers.back()->expires_from_now(std::chrono::seconds(i));
         timers.back()->async_wait([&timerFired, &timerCancelled, i](asio::error_code const& ec)
         {

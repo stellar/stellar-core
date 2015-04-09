@@ -55,8 +55,10 @@
 /test-driver
 /stamp-h1
 
+# test output
+/stellar-core-test-*
+
 # Windows specific
 **/Build/*
 **/x64/*
 *.vcxproj.user
-

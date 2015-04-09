@@ -362,7 +362,7 @@ HerderImpl::validateBallot(uint64 const& slotIndex, uint256 const& nodeID,
          (timeNow + MAX_TIME_SLIP_SECONDS.count()) >= (lastTrigger + sumTimeouts);
          i++)
     {
-        sumTimeouts += std::min(MAX_SCP_TIMEOUT_SECONDS.count(), (long long)pow(2.0, i));
+      sumTimeouts += std::min((long long)MAX_SCP_TIMEOUT_SECONDS.count(), (long long)pow(2.0, i));
     }
     // This inequality is effectively a limitation on `ballot.counter`
     if ((timeNow + MAX_TIME_SLIP_SECONDS.count()) < (lastTrigger + sumTimeouts))
