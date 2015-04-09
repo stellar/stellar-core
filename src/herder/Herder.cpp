@@ -1,4 +1,3 @@
-#pragma once
 
 #include "herder/Herder.h"
 

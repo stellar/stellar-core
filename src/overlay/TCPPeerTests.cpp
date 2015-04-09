@@ -20,8 +20,8 @@ TEST_CASE("TCPPeer can communicate", "[overlay]")
 {
     Simulation::pointer s = std::make_shared<Simulation>(Simulation::OVER_TCP);
 
-    SIMULATION_CREATE_NODE(10);
-    SIMULATION_CREATE_NODE(11);
+    auto v10SecretKey = SecretKey::fromSeed(sha256("v10"));
+    auto v11SecretKey = SecretKey::fromSeed(sha256("v11"));
 
     auto n0 = s->getNode(s->addNode(v10SecretKey, SCPQuorumSet(), s->getClock()));
     auto n1 = s->getNode(s->addNode(v11SecretKey, SCPQuorumSet(), s->getClock()));
