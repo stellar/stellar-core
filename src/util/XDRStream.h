@@ -123,10 +123,10 @@ class XDROutputFileStream
 
         // Write 4 bytes of size, big-endian, with XDR 'continuation' bit set on
         // high bit of high byte.
-        mBuf[0] = static_cast<char>(sz >> 24) | '\x80';
-        mBuf[1] = static_cast<char>(sz >> 16);
-        mBuf[2] = static_cast<char>(sz >> 8);
-        mBuf[3] = static_cast<char>(sz);
+        mBuf[0] = static_cast<char>((sz >> 24) & 0xFF) | '\x80';
+        mBuf[1] = static_cast<char>((sz >> 16) & 0xFF);
+        mBuf[2] = static_cast<char>((sz >> 8) & 0xFF);
+        mBuf[3] = static_cast<char>(sz & 0xFF);
 
         xdr::xdr_put p(mBuf.data() + 4, mBuf.data() + 4 + sz);
         xdr_argpack_archive(p, t);
