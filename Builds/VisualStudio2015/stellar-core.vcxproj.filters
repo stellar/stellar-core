@@ -405,6 +405,9 @@
     <ClCompile Include="..\..\src\ledger\LedgerPerformanceTests.cpp">
       <Filter>ledger\tests</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\util\GlobalChecks.cpp">
+      <Filter>util</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\ledger\LedgerManager.h">
@@ -672,6 +675,18 @@
       <Filter>scp</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\util\Fs.h">
+      <Filter>util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\util\NonCopyable.h">
+      <Filter>util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\util\optional.h">
+      <Filter>util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\util\XDRStream.h">
+      <Filter>util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\util\GlobalChecks.h">
       <Filter>util</Filter>
     </ClInclude>
   </ItemGroup>

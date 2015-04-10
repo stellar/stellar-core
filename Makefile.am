@@ -89,6 +89,7 @@ FMT_SRCS =                                      \
     src/transactions/TxEnvelopeTests.cpp        \
     src/transactions/TxTests.cpp                \
     src/util/Fs.cpp                             \
+    src/util/GlobalChecks.cpp                   \
     src/util/Logging.cpp                        \
     src/util/Math.cpp                           \
     src/util/Timer.cpp                          \
@@ -163,6 +164,7 @@ FMT_HDRS =                                      \
     src/transactions/TransactionFrame.h         \
     src/transactions/TxTests.h                  \
     src/util/Fs.h                               \
+    src/util/GlobalChecks.h                     \
     src/util/Logging.h                          \
     src/util/Math.h                             \
     src/util/NonCopyable.h                      \

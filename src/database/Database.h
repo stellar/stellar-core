@@ -33,12 +33,12 @@ class SQLLogContext;
 class StatementContext : NonCopyable
 {
     std::shared_ptr<soci::statement> mStmt;
-public:
-    StatementContext(std::shared_ptr<soci::statement> stmt)
-        : mStmt(stmt)
-        {
-            mStmt->clean_up(false);
-        }
+
+  public:
+    StatementContext(std::shared_ptr<soci::statement> stmt) : mStmt(stmt)
+    {
+        mStmt->clean_up(false);
+    }
     StatementContext(StatementContext&& other)
     {
         mStmt = other.mStmt;
@@ -51,7 +51,8 @@ public:
             mStmt->clean_up(false);
         }
     }
-    soci::statement& statement()
+    soci::statement&
+    statement()
     {
         return *mStmt;
     }
@@ -129,11 +130,7 @@ class Database : NonMovableOrCopyable
     void initialize();
 
     // Access the underlying SOCI session object
-    soci::session&
-    getSession()
-    {
-        return mSession;
-    }
+    soci::session& getSession();
 
     // Access the optional SOCI connection pool available for worker
     // threads. Throws an error if !canUsePool().
