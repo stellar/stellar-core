@@ -34,7 +34,6 @@ enum opttag
     OPT_CMD,
     OPT_FORCESCP,
     OPT_GENSEED,
-    OPT_LOGLEVEL,
     OPT_METRIC,
     OPT_NEWDB,
     OPT_NEWHIST
@@ -51,7 +50,6 @@ static const struct option stellar_core_options[] = {
     {"newdb", no_argument, nullptr, OPT_NEWDB},
     {"newhist", required_argument, nullptr, OPT_NEWHIST},
     {"forcescp", no_argument, nullptr, OPT_FORCESCP},
-    {"ll", required_argument, nullptr, OPT_LOGLEVEL},
     {nullptr, 0, nullptr, 0}};
 
 static void
@@ -70,8 +68,6 @@ usage(int err = 1)
           "      --forcescp      Force SCP to start with the local ledger as "
           "position, close next time stellar-core is run\n"
           "      --genseed       Generate and print a random node seed\n"
-          "      --ll LEVEL      Set the log level. LEVEL can be:\n"
-          "                      [trace|debug|info|warning|error|fatal|none]\n"
           "      --c             Command to send to local stellar-core. try "
           "'--c help' for more information\n"
           "      --conf FILE     To specify a config file ('-' for STDIN, "
@@ -258,9 +254,6 @@ main(int argc, char* const* argv)
             break;
         case OPT_NEWHIST:
             newHistories.push_back(std::string(optarg));
-            break;
-        case OPT_LOGLEVEL:
-            logLevel = Logging::getLLfromString(std::string(optarg));
             break;
         case OPT_GENSEED:
         {

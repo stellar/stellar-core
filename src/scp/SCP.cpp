@@ -10,6 +10,7 @@
 #include "crypto/SHA.h"
 #include "scp/LocalNode.h"
 #include "scp/Slot.h"
+#include "util/Logging.h"
 
 namespace stellar
 {
@@ -27,6 +28,7 @@ SCP::receiveEnvelope(SCPEnvelope const& envelope,
     // If the envelope is not correctly signed, we ignore it.
     if (!verifyEnvelope(envelope))
     {
+        CLOG(DEBUG, "SCP") << "SCP::receiveEnvelope invalid";
         return cb(SCP::EnvelopeState::INVALID);
     }
 
