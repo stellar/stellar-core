@@ -44,7 +44,7 @@ A transaction is considered valid iff
  * the Source Account exists
  * the transaction is signed for the source account (see Signatures below)
  * the signatures together meet the "low" threshold
- * maxFee should be less than the fee
+ * fee should be less than maxFee
  * the sequence number follows the rules defined in the "Sequence Number" section
  * the current ledger sequence number must be within the [minLedger, maxLedger] 
    range
