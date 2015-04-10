@@ -68,7 +68,7 @@ usage(int err = 1)
           "      --newdb         Creates or restores the DB to the genesis "
           "ledger\n"
           "      --newhist ARCH  Initialize the named history archive ARCH\n"
-          "      --forcescp      Force SCP to start with the local ledger as "
+          "      --forcescp      When true, forces SCP to start with the local ledger as "
           "position, close next time stellar-core is run\n"
           "      --genseed       Generate and print a random node seed\n"
           "      --ll LEVEL      Set the log level. LEVEL can be:\n"
@@ -313,7 +313,6 @@ main(int argc, char* const* argv)
         Logging::setLogLevel(logLevel, nullptr);
 
         cfg.REBUILD_DB = newDB;
-        cfg.FORCE_SCP = (forceSCP != nullptr);
         cfg.REPORT_METRICS = metrics;
 
         if (forceSCP || newDB)
