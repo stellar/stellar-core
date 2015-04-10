@@ -145,10 +145,10 @@ TEST_CASE("txset", "[herder]")
 
     std::vector<TransactionFramePtr> transactions[nbAccounts];
 
-    for (char i = 0; i < nbAccounts; i++)
+    for (int i = 0; i < nbAccounts; i++)
     {
         std::string accountName = "A";
-        accountName += '0' + i;
+        accountName += '0' + (char)i;
         accounts[i] = getAccount(accountName.c_str());
         for (int j = 0; j < nbTransactions; j++)
         {

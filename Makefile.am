@@ -27,6 +27,7 @@ FMT_SRCS =                                      \
     src/scp/LocalNode.cpp                       \
     src/scp/Node.cpp                            \
     src/scp/Slot.cpp                            \
+    src/herder/Herder.cpp                       \
     src/herder/HerderImpl.cpp                   \
     src/herder/HerderTests.cpp                  \
     src/herder/TxSetFrame.cpp                   \

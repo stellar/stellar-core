@@ -25,12 +25,14 @@
 #include <random>
 #include <memory>
 
-#define SLEEP_SECONDS_PER_LEDGER (EXP_LEDGER_TIMESPAN_SECONDS+1)
 
 namespace stellar
 {
 
 const size_t CatchupStateMachine::kRetryLimit = 16;
+
+const std::chrono::seconds CatchupStateMachine::SLEEP_SECONDS_PER_LEDGER =
+    Herder::EXP_LEDGER_TIMESPAN_SECONDS + std::chrono::seconds(1);
 
 CatchupStateMachine::CatchupStateMachine(
     Application& app, uint32_t initLedger, HistoryManager::CatchupMode mode, 

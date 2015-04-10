@@ -64,14 +64,14 @@ Simulation::getClock()
 }
 
 uint256
-Simulation::addNode(uint256 validationSeed, SCPQuorumSet qSet,
+Simulation::addNode(SecretKey nodeKey, SCPQuorumSet qSet,
                     VirtualClock& clock, Config::pointer cfg)
 {
     if (!cfg)
     {
         cfg = std::make_shared<Config>(getTestConfig(++mConfigCount));
     }
-    cfg->VALIDATION_KEY = SecretKey::fromSeed(validationSeed);
+    cfg->VALIDATION_KEY = nodeKey;
     cfg->QUORUM_THRESHOLD = qSet.threshold;
     cfg->FORCE_SCP = true;
     cfg->RUN_STANDALONE = (mMode == OVER_LOOPBACK);
@@ -83,7 +83,7 @@ Simulation::addNode(uint256 validationSeed, SCPQuorumSet qSet,
 
     Application::pointer result = Application::create(clock, *cfg);
 
-    uint256 nodeID = makePublicKey(validationSeed);
+    uint256 nodeID = nodeKey.getPublicKey();
     mConfigs[nodeID] = cfg;
     mNodes[nodeID] = result;
 
@@ -101,6 +101,14 @@ Simulation::getNodes()
     vector<Application::pointer> result;
     for (auto app : mNodes)
         result.push_back(app.second);
+    return result;
+}
+vector<uint256>
+Simulation::getNodeIDs()
+{
+    vector<uint256> result;
+    for (auto app : mNodes)
+        result.push_back(app.first);
     return result;
 }
 
