@@ -33,8 +33,6 @@
 #include <fstream>
 #include <system_error>
 
-#define SLEEP_SECONDS_PER_LEDGER (EXP_LEDGER_TIMESPAN_SECONDS + 1)
-
 namespace stellar
 {
 
@@ -231,7 +229,7 @@ uint64_t
 HistoryManagerImpl::nextCheckpointCatchupProbe(uint32_t ledger)
 {
     uint32_t next = this->nextCheckpointLedger(ledger);
-    return (((next - ledger) + 5) * SLEEP_SECONDS_PER_LEDGER);
+    return (((next - ledger) + 5) * CatchupStateMachine::SLEEP_SECONDS_PER_LEDGER.count());
 }
 
 string const&

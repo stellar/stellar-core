@@ -213,7 +213,7 @@ HerderImpl::validateValue(uint64 const& slotIndex, uint256 const& nodeID,
 
     // Check closeTime (not too far in future)
     uint64_t timeNow = mApp.timeNow();
-    if (b.value.closeTime > timeNow + MAX_TIME_SLIP_SECONDS)
+    if (b.value.closeTime > timeNow + MAX_TIME_SLIP_SECONDS.count())
     {
         mValueInvalid.Mark();
         return cb(false);
@@ -343,7 +343,7 @@ HerderImpl::validateBallot(uint64 const& slotIndex, uint256 const& nodeID,
 
     // Check closeTime (not too far in the future)
     uint64_t timeNow = mApp.timeNow();
-    if (b.value.closeTime > timeNow + MAX_TIME_SLIP_SECONDS)
+    if (b.value.closeTime > timeNow + MAX_TIME_SLIP_SECONDS.count())
     {
         mBallotInvalid.Mark();
         return cb(false);
@@ -359,13 +359,13 @@ HerderImpl::validateBallot(uint64 const& slotIndex, uint256 const& nodeID,
     // verification would busy lock us.
     for (int unsigned i = 0;
          i < ballot.counter &&
-         (timeNow + MAX_TIME_SLIP_SECONDS) >= (lastTrigger + sumTimeouts);
+         (timeNow + MAX_TIME_SLIP_SECONDS.count()) >= (lastTrigger + sumTimeouts);
          i++)
     {
-        sumTimeouts += std::min(MAX_SCP_TIMEOUT_SECONDS, (int)pow(2.0, i));
+      sumTimeouts += std::min((long long)MAX_SCP_TIMEOUT_SECONDS.count(), (long long)pow(2.0, i));
     }
     // This inequality is effectively a limitation on `ballot.counter`
-    if ((timeNow + MAX_TIME_SLIP_SECONDS) < (lastTrigger + sumTimeouts))
+    if ((timeNow + MAX_TIME_SLIP_SECONDS.count()) < (lastTrigger + sumTimeouts))
     {
         mBallotInvalid.Mark();
         return cb(false);
@@ -575,7 +575,7 @@ HerderImpl::valueExternalized(uint64 const& slotIndex, Value const& value)
         for (auto it : mNodeLastAccess)
         {
             if ((now - it.second) >
-                std::chrono::seconds(NODE_EXPIRATION_SECONDS))
+                NODE_EXPIRATION_SECONDS)
             {
                 purgeNode(it.first);
             }
@@ -964,16 +964,16 @@ HerderImpl::ledgerClosed(LedgerHeaderHistoryEntry const& ledger)
         return;
     }
 
-    size_t seconds = EXP_LEDGER_TIMESPAN_SECONDS;
+    auto seconds = Herder::EXP_LEDGER_TIMESPAN_SECONDS;
     if (mApp.getConfig().ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING)
     {
-        seconds = 1;
+        seconds = std::chrono::seconds(1);
     }
 
     auto now = mApp.getClock().now();
-    if ((now - mLastTrigger) < std::chrono::seconds(seconds))
+    if ((now - mLastTrigger) < seconds)
     {
-        auto timeout = std::chrono::seconds(seconds) - (now - mLastTrigger);
+        auto timeout = seconds - (now - mLastTrigger);
         mTriggerTimer.expires_from_now(timeout);
     }
     else
