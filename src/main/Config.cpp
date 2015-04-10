@@ -22,6 +22,7 @@ Config::Config() : PEER_KEY(SecretKey::random())
     VERSION_STR = STELLAR_CORE_VERSION;
     REBUILD_DB = false;
     DESIRED_BASE_RESERVE = 10000000;
+    FORCE_SCP = false;
 
     // configurable
     DESIRED_BASE_FEE = 10;
