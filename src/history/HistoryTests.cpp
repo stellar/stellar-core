@@ -780,7 +780,7 @@ TEST_CASE_METHOD(HistoryTests, "Repair missing buckets via history", "[history][
     generateAndPublishInitialHistory(1);
     auto state = app.getPersistentState().getState(PersistentState::kHistoryArchiveState);
 
-    auto cfg2 = getTestConfig(1, Config::TESTDB_IN_MEMORY_SQLITE);
+    auto cfg2 = getTestConfig(1);
     cfg2.BUCKET_DIR_PATH += "2";
     auto app2 = Application::create(clock, mConfigurator->configure(cfg2, false));
     app2->getPersistentState().setState(PersistentState::kHistoryArchiveState, state);

@@ -84,11 +84,11 @@ LedgerHeaderFrame::storeInsert(LedgerManager& ledgerManager) const
 
     // note: columns other than "data" are there to faciliate lookup/processing
     soci::statement st =
-        (db.getSession().prepare
-             << "INSERT INTO LedgerHeaders (ledgerHash,prevHash,bucketListHash, "
-                "ledgerSeq,closeTime,data) VALUES"
-                "(:h,:ph,:blh,"
-                ":seq,:ct,:data)",
+        (db.getSession().prepare << "INSERT INTO LedgerHeaders "
+                                    "(ledgerHash,prevHash,bucketListHash, "
+                                    "ledgerSeq,closeTime,data) VALUES"
+                                    "(:h,:ph,:blh,"
+                                    ":seq,:ct,:data)",
          use(hash), use(prevHash), use(bucketListHash), use(mHeader.ledgerSeq),
          use(mHeader.closeTime), use(headerEncoded));
     {
@@ -141,18 +141,19 @@ LedgerHeaderFrame::loadByHash(Hash const& hash, Database& db)
 }
 
 LedgerHeaderFrame::pointer
-LedgerHeaderFrame::loadBySequence(uint32_t seq, Database& db)
+LedgerHeaderFrame::loadBySequence(uint32_t seq, Database& db,
+                                  soci::session& sess)
 {
     LedgerHeaderFrame::pointer lhf;
 
     string headerEncoded;
     {
         auto timer = db.getSelectTimer("ledger-header");
-        db.getSession() << "SELECT data FROM LedgerHeaders "
-                           "WHERE ledgerSeq = :s",
+        sess << "SELECT data FROM LedgerHeaders "
+                "WHERE ledgerSeq = :s",
             into(headerEncoded), use(seq);
     }
-    if (db.getSession().got_data())
+    if (sess.got_data())
     {
         lhf = decodeFromData(headerEncoded);
 
