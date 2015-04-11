@@ -408,6 +408,9 @@
     <ClCompile Include="..\..\src\util\GlobalChecks.cpp">
       <Filter>util</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\main\fuzz.cpp">
+      <Filter>main\tests</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\ledger\LedgerManager.h">
@@ -688,6 +691,9 @@
     </ClInclude>
     <ClInclude Include="..\..\src\util\GlobalChecks.h">
       <Filter>util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\main\fuzz.h">
+      <Filter>main\tests</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

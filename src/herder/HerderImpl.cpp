@@ -391,7 +391,7 @@ HerderImpl::validateBallot(uint64 const& slotIndex, uint256 const& nodeID,
         return;
     }
 
-    if ((mLedgerManager.isSynced()) &&
+    if (mTrackingSCP &&
         nextConsensusLedgerIndex() != slotIndex)
     {
         mValueInvalid.Mark();
@@ -1110,9 +1110,9 @@ HerderImpl::removeReceivedTx(TransactionFramePtr dropTx)
 void
 HerderImpl::triggerNextLedger()
 {
-    if (!mLedgerManager.isSynced())
+    if (!mTrackingSCP || !mLedgerManager.isSynced())
     {
-        CLOG(DEBUG, "Herder") << "triggerNextLedger: skipping (out of sync)";
+        CLOG(DEBUG, "Herder") << "triggerNextLedger: skipping (out of sync) : " << mApp.getStateHuman();
         return;
     }
     updateSCPCounters();
