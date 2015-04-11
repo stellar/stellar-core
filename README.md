@@ -1,4 +1,4 @@
-[![Build Status](https://magnum.travis-ci.com/stellar/stellar-core.svg?token=u11W8KHX2y4hfGqbzE1E)]
+[![Build Status](https://travis-ci.org/stellar/stellar-core.svg?branch=auto)]
 
 # Note this code is pre-beta. 
 It is definitely not ready yet for production.
