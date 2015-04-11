@@ -1,20 +1,46 @@
-sudo: required
 language: cpp
+sudo: false
+
 compiler:
-  - clang
-  - gcc
+- clang
+- gcc
+
 addons:
-  - postgresql: "9.3"
-cache:
-  - apt
-  - directories:
-    - $HOME/.ccache
-    - .libs
+  apt:
+    packages:
+    - autoconf
+
+addons:
+  postgresql: "9.3"
+  apt:
+    sources:
+    - llvm-toolchain-precise-3.5
+    - ubuntu-toolchain-r-test
+    packages:
+    - autoconf
+    - automake
+    - bison
+    - clang-3.5
+    - flex
+    - g++-4.9
+    - libpq-dev
+    - libpq5
+    - libstdc++6
+    - libtool
+    - pkg-config
+
 script: ./travis-build.sh
+
+cache:
+  directories:
+  - $HOME/.ccache
+  - .libs
+
 notifications:
   email: false
   slack:
     secure: VYA87p8f6PgmOhL8b8DM4t6k8vPYjULpT7LBhvmNBNe8iiNDtTzLpRbUXg6t6Ij7Y3MU4uOJ5K617hCqs81VfRoOakbiYTWHeYSsMmIrUM4+d5MZM4pVP0/bCE49qt06bZINorh6IHChhfuvod3uyUqbgNrwRf/qDIIboFDIty8=
+
 branches:
-  only:
-    - auto
+ only:
+ - auto
