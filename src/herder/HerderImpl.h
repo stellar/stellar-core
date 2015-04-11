@@ -5,6 +5,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include <vector>
+#include <queue>
 #include <memory>
 #include <set>
 #include "herder/Herder.h"
@@ -140,7 +141,7 @@ class HerderImpl : public Herder, public SCP
 
     std::map<
         uint64,
-        std::vector<std::pair<SCPEnvelope, std::function<void(EnvelopeState)>>>>
+        std::queue<std::pair<SCPEnvelope, std::function<void(EnvelopeState)>>>>
         mFutureEnvelopes;
 
     std::map<SCPBallot,

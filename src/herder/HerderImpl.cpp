@@ -762,17 +762,17 @@ HerderImpl::startRebroadcastTimer()
 void
 HerderImpl::emitEnvelope(SCPEnvelope const& envelope)
 {
-    // We don't emit any envelope as long as we're not fully synced
-    if (!mLedgerManager.isSynced() || mCurrentValue.empty())
-    {
-        return;
+        // We don't emit any envelope as long as we're not fully synced
+        if (!mLedgerManager.isSynced() || mCurrentValue.empty())
+        {
+            return;
+        }
+
+        mLastSentMessage.type(SCP_MESSAGE);
+        mLastSentMessage.envelope() = envelope;
+
+        rebroadcast();
     }
-
-    mLastSentMessage.type(SCP_MESSAGE);
-    mLastSentMessage.envelope() = envelope;
-
-    rebroadcast();
-}
 
 TxSetFramePtr
 HerderImpl::fetchTxSet(uint256 const& txSetHash, bool askNetwork)
@@ -934,7 +934,7 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope envelope,
 
     checkFutureCommitted(envelope);
 
-    mFutureEnvelopes[envelope.statement.slotIndex].push_back(
+    mFutureEnvelopes[envelope.statement.slotIndex].push(
         std::make_pair(envelope, cb));
     mFutureEnvelopesSize.set_count(mFutureEnvelopes.size());
 
@@ -1001,9 +1001,9 @@ HerderImpl::processSCPQueueAtIndex(uint64 slotIndex)
     }
     while (envsIt->second.size() != 0)
     {
-        auto& item = envsIt->second.back();
+        auto& item = envsIt->second.front();
         receiveEnvelope(item.first, item.second);
-        envsIt->second.pop_back();
+        envsIt->second.pop();
     }
 }
 
