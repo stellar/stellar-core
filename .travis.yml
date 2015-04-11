@@ -6,11 +6,6 @@ compiler:
 - gcc
 
 addons:
-  apt:
-    packages:
-    - autoconf
-
-addons:
   postgresql: "9.3"
   apt:
     sources:
