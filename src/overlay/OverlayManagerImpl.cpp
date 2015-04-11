@@ -205,9 +205,9 @@ OverlayManagerImpl::getConnectedPeer(std::string const& ip, unsigned short port)
 }
 
 void
-OverlayManagerImpl::ledgerClosed(LedgerHeaderHistoryEntry const& ledger)
+OverlayManagerImpl::ledgerClosed(uint32_t lastClosedledgerSeq)
 {
-    mFloodGate.clearBelow(ledger.header.ledgerSeq);
+    mFloodGate.clearBelow(lastClosedledgerSeq);
 }
 
 void

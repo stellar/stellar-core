@@ -68,9 +68,6 @@ class Herder
                                  {
     }) = 0;
 
-    // Called by Ledger once the ledger closes.
-    virtual void ledgerClosed(LedgerHeaderHistoryEntry const& ledger) = 0;
-
     virtual void triggerNextLedger() = 0;
     virtual ~Herder() {}
 

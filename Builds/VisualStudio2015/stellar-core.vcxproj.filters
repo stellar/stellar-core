@@ -82,6 +82,9 @@
     <Filter Include="scp">
       <UniqueIdentifier>{0cf920e3-5232-4c4e-8b79-25ec2c8f86ce}</UniqueIdentifier>
     </Filter>
+    <Filter Include="herder\docs">
+      <UniqueIdentifier>{aa45d521-588a-4f8f-b737-d3667c7d9404}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\src\ledger\LedgerManagerImpl.cpp">
@@ -697,9 +700,6 @@
     <None Include="..\..\docs\architecture.md">
       <Filter>docs</Filter>
     </None>
-    <None Include="..\..\src\herder\readme.md">
-      <Filter>herder</Filter>
-    </None>
     <None Include="..\..\src\bucket\readme.md">
       <Filter>bucket</Filter>
     </None>
@@ -729,6 +729,9 @@
     </None>
     <None Include="..\..\docs\stellar-core_example.cfg">
       <Filter>docs</Filter>
+    </None>
+    <None Include="..\..\src\herder\readme.md">
+      <Filter>herder\docs</Filter>
     </None>
   </ItemGroup>
   <ItemGroup>
