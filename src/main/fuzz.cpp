@@ -39,7 +39,6 @@
 namespace stellar
 {
 
-
 std::string
 msgSummary(StellarMessage const& m)
 {
@@ -49,8 +48,8 @@ msgSummary(StellarMessage const& m)
 }
 
 void
-fuzz(std::string const& filename,
-     el::Level logLevel, std::vector<std::string> const& metrics)
+fuzz(std::string const& filename, el::Level logLevel,
+     std::vector<std::string> const& metrics)
 {
     Logging::setFmt("<fuzz>");
     Logging::setLogLevel(logLevel, nullptr);
@@ -75,7 +74,7 @@ fuzz(std::string const& filename,
     Application::pointer app1 = Application::create(clock, cfg1);
     Application::pointer app2 = Application::create(clock, cfg2);
     LoopbackPeerConnection loop(*app1, *app2);
-    while(clock.crank(false) > 0)
+    while (clock.crank(false) > 0)
         ;
 
     XDRInputFileStream in;
@@ -87,16 +86,17 @@ fuzz(std::string const& filename,
         ++i;
         if (msg.type() != HELLO)
         {
-            LOG(INFO) << "Fuzzer injecting message "
-                      << i << ": " << msgSummary(msg);
+            LOG(INFO) << "Fuzzer injecting message " << i << ": "
+                      << msgSummary(msg);
             loop.getAcceptor()->Peer::sendMessage(msg);
         }
-        while(clock.crank(false) > 0)
+        while (clock.crank(false) > 0)
             ;
     }
 }
 
-void genfuzz(std::string const& filename)
+void
+genfuzz(std::string const& filename)
 {
     Logging::setFmt("<fuzz>");
     size_t n = 8;
@@ -112,11 +112,10 @@ void genfuzz(std::string const& filename)
             out.writeOne(m);
             LOG(INFO) << "Message " << i << ": " << msgSummary(m);
         }
-        catch (xdr::xdr_bad_discriminant &e)
+        catch (xdr::xdr_bad_discriminant const&)
         {
             LOG(INFO) << "Message " << i << ": malformed, omitted";
         }
     }
 }
-
 }
