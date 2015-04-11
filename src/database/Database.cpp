@@ -16,6 +16,7 @@
 #include "util/Logging.h"
 #include "util/make_unique.h"
 #include "util/types.h"
+#include "util/GlobalChecks.h"
 
 #include "medida/metrics_registry.h"
 #include "medida/timer.h"
@@ -135,6 +136,14 @@ Database::initialize()
     LedgerHeaderFrame::dropAll(*this);
     TransactionFrame::dropAll(*this);
     BucketManager::dropAll(mApp);
+}
+
+soci::session&
+Database::getSession()
+{
+    // global session can only be used from the main thread
+    assertThreadIsMain();
+    return mSession;
 }
 
 soci::connection_pool&

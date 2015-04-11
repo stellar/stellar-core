@@ -51,9 +51,14 @@ class LedgerManagerImpl : public LedgerManager
     void closeLedgerHelper(LedgerDelta const& delta);
     void advanceLedgerPointers();
 
-  public:
+    State mState;
 
+  public:
     LedgerManagerImpl(Application& app);
+
+    void setState(State s) override;
+    State getState() const override;
+    std::string getStateHuman() const override;
 
     void externalizeValue(LedgerCloseData ledgerData) override;
 
@@ -65,7 +70,8 @@ class LedgerManagerImpl : public LedgerManager
     uint64_t secondsSinceLastLedgerClose() const override;
 
     void startNewLedger() override;
-    void loadLastKnownLedger(std::function<void(asio::error_code const &ec)> handler) override;
+    void loadLastKnownLedger(
+        std::function<void(asio::error_code const& ec)> handler) override;
 
     LedgerHeaderHistoryEntry const& getLastClosedLedgerHeader() const override;
     LedgerHeader const& getCurrentLedgerHeader() const override;
@@ -73,8 +79,10 @@ class LedgerManagerImpl : public LedgerManager
 
     Database& getDatabase() override;
 
-    void startCatchUp(uint32_t initLedger, HistoryManager::CatchupMode resume) override;
-    HistoryManager::VerifyHashStatus verifyCatchupCandidate(LedgerHeaderHistoryEntry const&) const override;
+    void startCatchUp(uint32_t initLedger,
+                      HistoryManager::CatchupMode resume) override;
+    HistoryManager::VerifyHashStatus
+    verifyCatchupCandidate(LedgerHeaderHistoryEntry const&) const override;
     void closeLedger(LedgerCloseData ledgerData) override;
 };
 }

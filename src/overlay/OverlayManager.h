@@ -58,7 +58,7 @@ class OverlayManager
 
     // Flush all FloodGate state for ledgers older than `ledger`. This is
     // called by LedgerManager when a ledger closes.
-    virtual void ledgerClosed(LedgerHeaderHistoryEntry const& ledger) = 0;
+    virtual void ledgerClosed(uint32_t lastClosedledgerSeq) = 0;
 
     // Send a given message to all peers, via the FloodGate. This is called by
     // Herder.

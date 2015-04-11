@@ -6,6 +6,7 @@
 
 #include <memory>
 #include <functional>
+#include <string>
 #include "generated/StellarXDR.h"
 #include "scp/SCP.h"
 #include "lib/json/json-forwards.h"
@@ -39,6 +40,16 @@ class Herder
 
     static std::unique_ptr<Herder> create(Application& app);
 
+    enum State
+    {
+        HERDER_SYNCING_STATE,
+        HERDER_TRACKING_STATE,
+        HERDER_NUM_STATE
+    };
+
+    virtual State getState() const = 0;
+    virtual std::string getStateHuman() const = 0;
+
     virtual void bootstrap() = 0;
 
     // Returns a TxSet or start fetching it from the network if we don't know
@@ -67,9 +78,6 @@ class Herder
                                      cb = [](SCP::EnvelopeState)
                                  {
     }) = 0;
-
-    // Called by Ledger once the ledger closes.
-    virtual void ledgerClosed(LedgerHeaderHistoryEntry const& ledger) = 0;
 
     virtual void triggerNextLedger() = 0;
     virtual ~Herder() {}

@@ -31,8 +31,8 @@ class ApplicationImpl : public Application
 
     virtual Config const& getConfig() override;
 
-    virtual State getState() override;
-    virtual void setState(State) override;
+    virtual State getState() const override;
+    virtual std::string getStateHuman() const override;
     virtual VirtualClock& getClock() override;
     virtual medida::MetricsRegistry& getMetrics() override;
     virtual TmpDirManager& getTmpDirManager() override;
@@ -67,7 +67,6 @@ class ApplicationImpl : public Application
     virtual void reportCfgMetrics() override;
 
   private:
-    Application::State mState;
     VirtualClock& mVirtualClock;
     Config mConfig;
 

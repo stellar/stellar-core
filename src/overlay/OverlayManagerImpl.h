@@ -58,7 +58,7 @@ class OverlayManagerImpl : public OverlayManager
     OverlayManagerImpl(Application& app);
     ~OverlayManagerImpl();
 
-    void ledgerClosed(LedgerHeaderHistoryEntry const& ledger) override;
+    void ledgerClosed(uint32_t lastClosedledgerSeq) override;
     void recvFloodedMsg(StellarMessage const& msg, Peer::pointer peer) override;
     void broadcastMessage(StellarMessage const& msg,
                           bool force = false) override;
@@ -73,7 +73,8 @@ class OverlayManagerImpl : public OverlayManager
 
     // returns NULL if the passed peer isn't found
     Peer::pointer getNextPeer(Peer::pointer peer) override;
-    Peer::pointer getConnectedPeer(std::string const& ip, unsigned short port) override;
+    Peer::pointer getConnectedPeer(std::string const& ip,
+                                   unsigned short port) override;
 
     void connectToMorePeers(int max);
     Peer::pointer getRandomPeer() override;

@@ -82,6 +82,9 @@
     <Filter Include="scp">
       <UniqueIdentifier>{0cf920e3-5232-4c4e-8b79-25ec2c8f86ce}</UniqueIdentifier>
     </Filter>
+    <Filter Include="herder\docs">
+      <UniqueIdentifier>{aa45d521-588a-4f8f-b737-d3667c7d9404}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\src\ledger\LedgerManagerImpl.cpp">
@@ -402,6 +405,9 @@
     <ClCompile Include="..\..\src\ledger\LedgerPerformanceTests.cpp">
       <Filter>ledger\tests</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\util\GlobalChecks.cpp">
+      <Filter>util</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\ledger\LedgerManager.h">
@@ -671,6 +677,18 @@
     <ClInclude Include="..\..\src\util\Fs.h">
       <Filter>util</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\src\util\NonCopyable.h">
+      <Filter>util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\util\optional.h">
+      <Filter>util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\util\XDRStream.h">
+      <Filter>util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\util\GlobalChecks.h">
+      <Filter>util</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="..\..\AUTHORS" />
@@ -696,9 +714,6 @@
     </None>
     <None Include="..\..\docs\architecture.md">
       <Filter>docs</Filter>
-    </None>
-    <None Include="..\..\src\herder\readme.md">
-      <Filter>herder</Filter>
     </None>
     <None Include="..\..\src\bucket\readme.md">
       <Filter>bucket</Filter>
@@ -729,6 +744,9 @@
     </None>
     <None Include="..\..\docs\stellar-core_example.cfg">
       <Filter>docs</Filter>
+    </None>
+    <None Include="..\..\src\herder\readme.md">
+      <Filter>herder\docs</Filter>
     </None>
   </ItemGroup>
   <ItemGroup>

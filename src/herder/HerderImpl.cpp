@@ -2,10 +2,10 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "herder/HerderImpl.h"
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
 #include "crypto/Base58.h"
-#include "herder/HerderImpl.h"
 #include "herder/TxSetFrame.h"
 #include "ledger/LedgerManager.h"
 #include "main/Application.h"
@@ -73,11 +73,13 @@ HerderImpl::HerderImpl(Application& app)
 #endif
     , mCurrentTxSetFetcher(0)
     , mSCPQSetFetcher(app)
+    , mTrackingTimer(app)
     , mLastTrigger(app.getClock().now())
     , mTriggerTimer(app)
     , mBumpTimer(app)
     , mRebroadcastTimer(app)
     , mApp(app)
+    , mLedgerManager(app.getLedgerManager())
 
     , mValueValid(app.getMetrics().NewMeter({"scp", "value", "valid"}, "value"))
     , mValueInvalid(
@@ -153,14 +155,36 @@ HerderImpl::~HerderImpl()
 {
 }
 
+Herder::State HerderImpl::getState() const
+{
+    return mTrackingSCP ? HERDER_TRACKING_STATE : HERDER_SYNCING_STATE;
+}
+
+std::string HerderImpl::getStateHuman() const
+{
+    static const char* stateStrings[HERDER_NUM_STATE] = {
+        "HERDER_SYNCING_STATE", "HERDER_TRACKING_STATE"};
+    return std::string(stateStrings[getState()]);
+}
+
 void
 HerderImpl::bootstrap()
 {
+    CLOG(INFO, "Herder") << "Force joining SCP with local state";
     assert(!getSecretKey().isZero());
     assert(mApp.getConfig().FORCE_SCP);
 
-    mApp.setState(Application::SYNCED_STATE);
-    mLastClosedLedger = mApp.getLedgerManager().getLastClosedLedgerHeader();
+    // setup a sufficient state that we can participate in consensus
+    auto const& lcl = mLedgerManager.getLastClosedLedgerHeader();
+    StellarBallot b;
+    b.value.txSetHash = lcl.header.txSetHash;
+    b.value.closeTime = lcl.header.closeTime;
+    b.value.baseFee = mApp.getConfig().DESIRED_BASE_FEE;
+    signStellarBallot(b);
+    mTrackingSCP = make_unique<ConsensusData>(lcl.header.ledgerSeq, b);
+    mLedgerManager.setState(LedgerManager::LM_SYNCED_STATE);
+
+    trackingHeartBeat();
     triggerNextLedger();
 }
 
@@ -177,14 +201,8 @@ HerderImpl::validateValue(uint64 const& slotIndex, uint256 const& nodeID,
     catch (...)
     {
         mValueInvalid.Mark();
-        return cb(false);
-    }
-
-    if (mApp.getState() != Application::SYNCED_STATE)
-    { // if we aren't synced to the network we can't validate
-        // but we still need to fetch the tx set
-        fetchTxSet(b.value.txSetHash, true);
-        return cb(true);
+        cb(false);
+        return;
     }
 
     // First of all let's verify the internal Stellar Ballot signature is
@@ -192,23 +210,31 @@ HerderImpl::validateValue(uint64 const& slotIndex, uint256 const& nodeID,
     if (!verifyStellarBallot(b))
     {
         mValueInvalid.Mark();
-        return cb(false);
+        cb(false);
+        return;
     }
 
-    // All tests that are relative to mLastClosedLedger are executed only once
-    // we are fully synced up
+    if (!mTrackingSCP)
+    {
+        // if we're not tracking, there is not much more we can do to validate
+        cb(true);
+        return;
+    }
+
     // Check slotIndex.
-    if (mLastClosedLedger.header.ledgerSeq + 1 != slotIndex)
+    if (nextConsensusLedgerIndex() != slotIndex)
     {
         mValueInvalid.Mark();
-        return cb(false);
+        cb(false);
+        return;
     }
 
     // Check closeTime (not too old)
-    if (b.value.closeTime <= mLastClosedLedger.header.closeTime)
+    if (b.value.closeTime <= mTrackingSCP->mConsensusBallot.value.closeTime)
     {
         mValueInvalid.Mark();
-        return cb(false);
+        cb(false);
+        return;
     }
 
     // Check closeTime (not too far in future)
@@ -216,14 +242,26 @@ HerderImpl::validateValue(uint64 const& slotIndex, uint256 const& nodeID,
     if (b.value.closeTime > timeNow + MAX_TIME_SLIP_SECONDS)
     {
         mValueInvalid.Mark();
-        return cb(false);
+        cb(false);
+        return;
     }
+
+    if (!mLedgerManager.isSynced())
+    { // if we aren't synced to the network we can't validate
+        // but we still need to fetch the tx set
+        fetchTxSet(b.value.txSetHash, true);
+        cb(true);
+        return;
+    }
+
+    // we are fully synced up
 
     // make sure all the tx we have in the old set are included
     auto validate = [cb, b, slotIndex, nodeID, this](TxSetFramePtr txSet)
     {
         // Check txSet (only if we're fully synced)
-        if (!txSet->checkValid(mApp))
+        if ((!mLedgerManager.isSynced()) ||
+            !txSet->checkValid(mApp))
         {
             CLOG(DEBUG, "Herder")
                 << "HerderImpl::validateValue"
@@ -231,16 +269,18 @@ HerderImpl::validateValue(uint64 const& slotIndex, uint256 const& nodeID,
                 << " n: " << hexAbbrev(nodeID) << " Invalid txSet:"
                 << " " << hexAbbrev(txSet->getContentsHash());
             this->mValueInvalid.Mark();
-            return cb(false);
+            cb(false);
         }
-
-        CLOG(DEBUG, "Herder")
-            << "HerderImpl::validateValue"
-            << "@" << hexAbbrev(getLocalNodeID()) << " i: " << slotIndex
-            << " n: " << hexAbbrev(nodeID) << " txSet:"
-            << " " << hexAbbrev(txSet->getContentsHash()) << " OK";
-        this->mValueValid.Mark();
-        return cb(true);
+        else
+        {
+            CLOG(DEBUG, "Herder")
+                << "HerderImpl::validateValue"
+                << "@" << hexAbbrev(getLocalNodeID()) << " i: " << slotIndex
+                << " n: " << hexAbbrev(nodeID) << " txSet:"
+                << " " << hexAbbrev(txSet->getContentsHash()) << " OK";
+            this->mValueValid.Mark();
+            cb(true);
+        }
     };
 
     TxSetFramePtr txSet = fetchTxSet(b.value.txSetHash, true);
@@ -338,7 +378,8 @@ HerderImpl::validateBallot(uint64 const& slotIndex, uint256 const& nodeID,
     catch (...)
     {
         mBallotInvalid.Mark();
-        return cb(false);
+        cb(false);
+        return;
     }
 
     // Check closeTime (not too far in the future)
@@ -346,7 +387,18 @@ HerderImpl::validateBallot(uint64 const& slotIndex, uint256 const& nodeID,
     if (b.value.closeTime > timeNow + MAX_TIME_SLIP_SECONDS)
     {
         mBallotInvalid.Mark();
-        return cb(false);
+        cb(false);
+        return;
+    }
+
+    if ((mLedgerManager.isSynced()) &&
+        nextConsensusLedgerIndex() != slotIndex)
+    {
+        mValueInvalid.Mark();
+        // return cb(false);
+        // there is a bug somewhere if we're trying to process messages
+        // for a different slot
+        throw new std::runtime_error("unexpected state");
     }
 
     // Check the ballot counter is not growing too rapidly. We ignore ballots
@@ -368,19 +420,22 @@ HerderImpl::validateBallot(uint64 const& slotIndex, uint256 const& nodeID,
     if ((timeNow + MAX_TIME_SLIP_SECONDS) < (lastTrigger + sumTimeouts))
     {
         mBallotInvalid.Mark();
-        return cb(false);
+        cb(false);
+        return;
     }
 
     // Check baseFee (within range of desired fee).
     if (b.value.baseFee < mApp.getConfig().DESIRED_BASE_FEE * .5)
     {
         mBallotInvalid.Mark();
-        return cb(false);
+        cb(false);
+        return;
     }
     if (b.value.baseFee > mApp.getConfig().DESIRED_BASE_FEE * 2)
     {
         mBallotInvalid.Mark();
-        return cb(false);
+        cb(false);
+        return;
     }
 
     // Ignore ourselves if we're just watching SCP.
@@ -439,7 +494,8 @@ HerderImpl::validateBallot(uint64 const& slotIndex, uint256 const& nodeID,
     if (isKing && isTrusted)
     {
         mBallotValid.Mark();
-        return cb(true);
+        cb(true);
+        return;
     }
     else
     {
@@ -460,9 +516,13 @@ HerderImpl::validateBallot(uint64 const& slotIndex, uint256 const& nodeID,
             [cb, this]()
             {
                 this->mBallotValid.Mark();
-                return cb(true);
+                cb(true);
             },
-            VirtualTimer::onFailureNoop);
+            [cb, this](asio::error_code const&)
+            {
+                this->mBallotInvalid.Mark();
+                cb(false);
+            });
         mBallotValidationTimers[ballot][nodeID].push_back(ballotTimer);
 
         // Check if the nodes that have requested validation for this ballot
@@ -488,7 +548,7 @@ HerderImpl::ballotDidHearFromQuorum(uint64 const& slotIndex,
     mQuorumHeard.Mark();
 
     // This isn't always true if you are just joining the network
-    // assert(slotIndex == mLastClosedLedger.header.ledgerSeq + 1);
+    // assert(slotIndex == nextConsensusLedgerIndex());
 
     mBumpTimer.cancel();
 
@@ -531,31 +591,37 @@ HerderImpl::valueExternalized(uint64 const& slotIndex, Value const& value)
                               << " Externalized StellarBallot malformed";
     }
 
+    CLOG(DEBUG, "Herder") << "HerderImpl::valueExternalized"
+                          << "@" << hexAbbrev(getLocalNodeID())
+                          << " txSet: " << hexAbbrev(b.value.txSetHash);
+
+    mTrackingSCP = make_unique<ConsensusData>(slotIndex, b);
+    trackingHeartBeat();
+
+    // we don't need to keep fetching any of the old TX sets
+    mTxSetFetcher[mCurrentTxSetFetcher].stopFetchingPred(
+        [&b](uint256 const& itemID)
+        {
+            return itemID != b.value.txSetHash;
+        });
+
+    mCurrentTxSetFetcher = mCurrentTxSetFetcher ? 0 : 1;
+    mTxSetFetcher[mCurrentTxSetFetcher].clear();
+
+    // trigger will be recreated when the ledger is closed
+    // we do not want it to trigger while downloading the current set
+    // and there is no point in taking a position after the round is over
+    mTriggerTimer.cancel();
+
     TxSetFramePtr externalizedSet = fetchTxSet(b.value.txSetHash, true);
     if (externalizedSet)
     {
-
-        CLOG(DEBUG, "Herder") << "HerderImpl::valueExternalized"
-                              << "@" << hexAbbrev(getLocalNodeID())
-                              << " txSet: " << hexAbbrev(b.value.txSetHash);
-
-        // we don't need to keep fetching any of the old TX sets
-        mTxSetFetcher[mCurrentTxSetFetcher].stopFetchingAll();
-
-        mRebroadcastTimer.cancel();
-
-        mCurrentTxSetFetcher = mCurrentTxSetFetcher ? 0 : 1;
-        mTxSetFetcher[mCurrentTxSetFetcher].clear();
-
-        // We trigger next ledger EXP_LEDGER_TIMESPAN_SECONDS after our last
-        // trigger.
-        mTriggerTimer.cancel();
-
         // Triggers sync if not already syncing.
-        LedgerCloseData ledgerData(static_cast<uint32_t>(slotIndex),
-                                   externalizedSet, b.value.closeTime,
-                                   b.value.baseFee);
-        mApp.getLedgerManager().externalizeValue(ledgerData);
+        LedgerCloseData ledgerData(lastConsensusLedgerIndex(), externalizedSet,
+                                   b.value.closeTime, b.value.baseFee);
+        mLedgerManager.externalizeValue(ledgerData);
+
+        ledgerClosed();
 
         // remove all these tx from mReceivedTransactions
         for (auto tx : externalizedSet->mTransactions)
@@ -607,7 +673,6 @@ HerderImpl::valueExternalized(uint64 const& slotIndex, Value const& value)
 
         mTxSetFetches[b.value.txSetHash].push_back(cb);
 
-
         // This may not be possible as all messages are validated and should
         // therefore fetch the txSet before being considered by SCP.
         CLOG(ERROR, "Herder") << "HerderImpl::valueExternalized"
@@ -657,13 +722,16 @@ HerderImpl::retrieveQuorumSet(
 void
 HerderImpl::rebroadcast()
 {
-    if(mLastSentMessage.type()== SCP_MESSAGE)
+    if (mLastSentMessage.type() == SCP_MESSAGE)
     {
-        CLOG(DEBUG, "Herder") << "rebroadcast "
+        CLOG(DEBUG, "Herder")
+            << "rebroadcast "
             << " s:" << mLastSentMessage.envelope().statement.pledges.type()
             << " i:" << mLastSentMessage.envelope().statement.slotIndex
             << " b:" << mLastSentMessage.envelope().statement.ballot.counter
-            << " v:" << binToHex(ByteSlice(&mLastSentMessage.envelope().statement.ballot.value[96], 3));
+            << " v:"
+            << binToHex(ByteSlice(
+                   &mLastSentMessage.envelope().statement.ballot.value[96], 3));
 
         mEnvelopeEmit.Mark();
         mApp.getOverlayManager().broadcastMessage(mLastSentMessage, true);
@@ -674,7 +742,8 @@ HerderImpl::rebroadcast()
 void
 HerderImpl::startRebroadcastTimer()
 {
-    if (!mApp.getConfig().MANUAL_CLOSE && mLastSentMessage.type()==SCP_MESSAGE)
+    if (!mApp.getConfig().MANUAL_CLOSE &&
+        mLastSentMessage.type() == SCP_MESSAGE)
     {
         mRebroadcastTimer.expires_from_now(std::chrono::seconds(2));
 
@@ -687,8 +756,7 @@ void
 HerderImpl::emitEnvelope(SCPEnvelope const& envelope)
 {
     // We don't emit any envelope as long as we're not fully synced
-    if (mApp.getState() != Application::SYNCED_STATE ||
-        mCurrentValue.empty())
+    if (!mLedgerManager.isSynced() || mCurrentValue.empty())
     {
         return;
     }
@@ -713,7 +781,7 @@ void
 HerderImpl::recvTxSet(TxSetFramePtr txSet)
 {
     // add all txs to next set in case they don't get in this ledger
-    for(auto tx : txSet->sortForApply())
+    for (auto tx : txSet->sortForApply())
     {
         recvTransaction(tx);
     }
@@ -722,9 +790,9 @@ HerderImpl::recvTxSet(TxSetFramePtr txSet)
 
     // Runs any pending validation on this txSet.
     auto it = mTxSetFetches.find(txSet->getContentsHash());
-    if(it != mTxSetFetches.end())
+    if (it != mTxSetFetches.end())
     {
-        for(auto validate : it->second)
+        for (auto validate : it->second)
         {
             validate(txSet);
         }
@@ -811,7 +879,7 @@ HerderImpl::recvTransaction(TransactionFramePtr tx)
         return false;
     }
 
-    if (tx->getSourceAccount().getBalanceAboveReserve(mApp.getLedgerManager()) <
+    if (tx->getSourceAccount().getBalanceAboveReserve(mLedgerManager) <
         totFee)
     {
         tx->getResult().result.code(txINSUFFICIENT_BALANCE);
@@ -828,68 +896,97 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope envelope,
                             std::function<void(EnvelopeState)> const& cb)
 {
     CLOG(DEBUG, "Herder") << "recvSCPEnvelope"
-                          << " from: " << hexAbbrev(envelope.nodeID) 
-                          << " s:" << envelope.statement.pledges.type() 
+                          << " from: " << hexAbbrev(envelope.nodeID)
+                          << " s:" << envelope.statement.pledges.type()
                           << " i:" << envelope.statement.slotIndex
-                          << " b:" << envelope.statement.ballot.counter
-                          << " v:" << binToHex(ByteSlice(&envelope.statement.ballot.value[96],3))
-                          << " a:" << mApp.getState();
+                          << " b:" << envelope.statement.ballot.counter << " v:"
+                          << binToHex(ByteSlice(
+                                 &envelope.statement.ballot.value[96], 3))
+                          << " a:" << mApp.getStateHuman();
 
-    if (mApp.getState() == Application::SYNCED_STATE)
+    mEnvelopeReceive.Mark();
+
+    if (mTrackingSCP)
     {
-        uint32_t minLedgerSeq = mLastClosedLedger.header.ledgerSeq;
+        // when tracking, we can filter messages based on the information we got
+        // from consensus
+        uint32_t minLedgerSeq = nextConsensusLedgerIndex();
         uint32_t maxLedgerSeq =
-            mLastClosedLedger.header.ledgerSeq + LEDGER_VALIDITY_BRACKET;
+            nextConsensusLedgerIndex() + LEDGER_VALIDITY_BRACKET;
 
         // If we are fully synced and the envelopes are out of our validity
         // brackets, we just ignore them.
         if (envelope.statement.slotIndex > maxLedgerSeq ||
-            envelope.statement.slotIndex <= minLedgerSeq)
+            envelope.statement.slotIndex < minLedgerSeq)
         {
             CLOG(DEBUG, "Herder") << "Ignoring SCPEnvelope outside of range: "
-                << envelope.statement.slotIndex << "( " << minLedgerSeq << ","
-                << maxLedgerSeq << ")";
+                                  << envelope.statement.slotIndex << "( "
+                                  << minLedgerSeq << "," << maxLedgerSeq << ")";
             return;
         }
-
-        // If we are synced, and we see envelopes that are for future ledgers
-        // (or the current ledger, if a validator and curr is empty) then we
-        // should store the envelopes for later replay.
-        uint32_t currLedger = mLastClosedLedger.header.ledgerSeq + 1;
-        if (!getSecretKey().isZero() &&
-            envelope.statement.slotIndex == currLedger &&
-            mCurrentValue.empty())
-        {
-            mFutureEnvelopes[envelope.statement.slotIndex].push_back(
-                std::make_pair(envelope, cb));
-            mFutureEnvelopesSize.set_count(mFutureEnvelopes.size());
-            CLOG(DEBUG, "Herder") << "Adding envelope to future-envelopes queue";
-            return;
-        }
-        else if (envelope.statement.slotIndex > currLedger)
-        {
-            mFutureEnvelopes[envelope.statement.slotIndex].push_back(
-                std::make_pair(envelope, cb));
-            mFutureEnvelopesSize.set_count(mFutureEnvelopes.size());
-
-            if (checkFutureCommitted(envelope))
-            {
-                // a quorum slice has left us behind
-                CLOG(INFO, "Herder")
-                    << "Left behind. Catching up to our slice at "
-                    << envelope.statement.slotIndex;
-                valueExternalized(envelope.statement.slotIndex,
-                                  envelope.statement.ballot.value);
-            }
-
-            return;
-        }
-
     }
-    startRebroadcastTimer();
 
-    mEnvelopeReceive.Mark();
-    return receiveEnvelope(envelope, cb);
+    mFutureEnvelopes[envelope.statement.slotIndex].push_back(
+        std::make_pair(envelope, cb));
+    mFutureEnvelopesSize.set_count(mFutureEnvelopes.size());
+
+    processSCPQueue();
+}
+
+void
+HerderImpl::processSCPQueue()
+{
+    if (mTrackingSCP)
+    {
+        auto it = mFutureEnvelopes.begin();
+        while (it != mFutureEnvelopes.end())
+        {
+            // drop obsolete or empty slots
+            if (it->first < nextConsensusLedgerIndex() || it->second.empty())
+
+            {
+                it = mFutureEnvelopes.erase(it);
+            }
+            else
+            {
+                it++;
+            }
+        }
+        processSCPQueueAtIndex(nextConsensusLedgerIndex());
+        mFutureEnvelopesSize.set_count(mFutureEnvelopes.size());
+    }
+    else
+    {
+        // we don't know which ledger we're in
+        // try to consume the messages from the queue
+        // starting from the smallest slot
+        for (auto& item : mFutureEnvelopes)
+        {
+            processSCPQueueAtIndex(item.first);
+            if (mTrackingSCP)
+            {
+                // one of the slots externalized
+                // we go back to regular flow
+                break;
+            }
+        }
+    }
+}
+
+void
+HerderImpl::processSCPQueueAtIndex(uint64 slotIndex)
+{
+    auto envsIt = mFutureEnvelopes.find(slotIndex);
+    if (envsIt == mFutureEnvelopes.end())
+    {
+        return;
+    }
+    while (envsIt->second.size() != 0)
+    {
+        auto& item = envsIt->second.back();
+        receiveEnvelope(item.first, item.second);
+        envsIt->second.pop_back();
+    }
 }
 
 // returns true if we have been left behind :(
@@ -897,26 +994,27 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope envelope,
 bool
 HerderImpl::checkFutureCommitted(SCPEnvelope& envelope)
 {
-    if(envelope.statement.pledges.type() == COMMITTED)
+    if (envelope.statement.pledges.type() == COMMITTED)
     { // is this a committed statement
-        const SCPQuorumSet& qset=getLocalQuorumSet();
+        const SCPQuorumSet& qset = getLocalQuorumSet();
 
-        if(find(qset.validators.begin(), qset.validators.end(),
-            envelope.nodeID) != qset.validators.end())
-        {// is it from someone we care about?
+        if (find(qset.validators.begin(), qset.validators.end(),
+                 envelope.nodeID) != qset.validators.end())
+        { // is it from someone we care about?
             auto& list = mQuorumAheadOfUs[envelope.statement.slotIndex];
-            if(find(list.begin(), list.end(), envelope) == list.end())
-            {// is it a new one for the list?
+            if (find(list.begin(), list.end(), envelope) == list.end())
+            { // is it a new one for the list?
                 // TODO: we probably want to fetch the txset here to save time
                 list.push_back(envelope);
                 unsigned int count = 0;
-                for(auto& env : list)
+                for (auto& env : list)
                 {
-                    if(env.statement.ballot.value ==
-                        envelope.statement.ballot.value) count++;
+                    if (env.statement.ballot.value ==
+                        envelope.statement.ballot.value)
+                        count++;
 
-                    if(count>=qset.threshold)
-                    {// do we have enough of these for the same ballot?
+                    if (count >= qset.threshold)
+                    { // do we have enough of these for the same ballot?
                         return true;
                     }
                 }
@@ -927,20 +1025,19 @@ HerderImpl::checkFutureCommitted(SCPEnvelope& envelope)
 }
 
 void
-HerderImpl::ledgerClosed(LedgerHeaderHistoryEntry const& ledger)
+HerderImpl::ledgerClosed()
 {
     mTriggerTimer.cancel();
 
     updateSCPCounters();
     CLOG(TRACE, "Herder") << "HerderImpl::ledgerClosed@"
-                          << "@" << hexAbbrev(getLocalNodeID())
-                          << " ledger: " << hexAbbrev(ledger.hash);
+                          << "@" << hexAbbrev(getLocalNodeID());
 
     // we're not running SCP anymore
     mCurrentValue.clear();
-    mQuorumAheadOfUs.erase(ledger.header.ledgerSeq-1);
+    mQuorumAheadOfUs.erase(lastConsensusLedgerIndex());
 
-    mLastClosedLedger = ledger;
+    mApp.getOverlayManager().ledgerClosed(lastConsensusLedgerIndex());
 
     // As the current slotIndex changes we cancel all pending validation
     // timers. Since the value externalized, the messages that this generates
@@ -957,7 +1054,7 @@ HerderImpl::ledgerClosed(LedgerHeaderHistoryEntry const& ledger)
         return;
     }
 
-    if (mApp.getState() != Application::SYNCED_STATE)
+    if (!mLedgerManager.isSynced())
     {
         CLOG(DEBUG, "Herder")
             << "Not presently synced, not triggering ledger-close.";
@@ -1008,18 +1105,24 @@ HerderImpl::removeReceivedTx(TransactionFramePtr dropTx)
     }
 }
 
-// called to start the next round of SCP
+// called to take a position during the next round
+// uses the state in LedgerManager to derive a starting position
 void
 HerderImpl::triggerNextLedger()
 {
+    if (!mLedgerManager.isSynced())
+    {
+        CLOG(DEBUG, "Herder") << "triggerNextLedger: skipping (out of sync)";
+        return;
+    }
     updateSCPCounters();
     // We store at which time we triggered consensus
     mLastTrigger = mApp.getClock().now();
 
     // our first choice for this round's set is all the tx we have collected
     // during last ledger close
-    TxSetFramePtr proposedSet =
-        std::make_shared<TxSetFrame>(mLastClosedLedger.hash);
+    auto const& lcl = mLedgerManager.getLastClosedLedgerHeader();
+    TxSetFramePtr proposedSet = std::make_shared<TxSetFrame>(lcl.hash);
     for (auto& list : mReceivedTransactions)
     {
         for (auto& tx : list)
@@ -1037,15 +1140,15 @@ HerderImpl::triggerNextLedger()
 
     recvTxSet(proposedSet);
 
-    uint64_t slotIndex = mLastClosedLedger.header.ledgerSeq + 1;
+    uint64_t slotIndex = nextConsensusLedgerIndex();
 
     // We pick as next close time the current time unless it's before the last
     // close time. We don't know how much time it will take to reach consensus
     // so this is the most appropriate value to use as closeTime.
     uint64_t nextCloseTime = VirtualClock::to_time_t(mLastTrigger);
-    if (nextCloseTime <= mLastClosedLedger.header.closeTime)
+    if (nextCloseTime <= lcl.header.closeTime)
     {
-        nextCloseTime = mLastClosedLedger.header.closeTime + 1;
+        nextCloseTime = lcl.header.closeTime + 1;
     }
 
     StellarBallot b;
@@ -1071,13 +1174,8 @@ HerderImpl::triggerNextLedger()
     mValuePrepare.Mark();
     prepareValue(slotIndex, mCurrentValue);
 
-    // process any statements that we got before this ledger closed
-    for (auto& p : mFutureEnvelopes[slotIndex])
-    {
-        recvSCPEnvelope(p.first, p.second);
-    }
-    mFutureEnvelopes.erase(slotIndex);
-    mFutureEnvelopesSize.set_count(mFutureEnvelopes.size());
+    // process any statements for this slot (this may trigger externalize)
+    processSCPQueueAtIndex(slotIndex);
 }
 
 void
@@ -1085,7 +1183,7 @@ HerderImpl::expireBallot(uint64 const& slotIndex, SCPBallot const& ballot)
 
 {
     mBallotExpire.Mark();
-    assert(slotIndex == mLastClosedLedger.header.ledgerSeq + 1);
+    assert(slotIndex == nextConsensusLedgerIndex());
 
     // We prepare the value while bumping the ballot counter. If we're monarch,
     // this prepare will go through. If not, we will have bumped our ballot.
@@ -1179,16 +1277,34 @@ HerderImpl::dumpInfo(Json::Value& ret)
     }
 
     count = 0;
-    for(auto& item : mQuorumAheadOfUs)
+    for (auto& item : mQuorumAheadOfUs)
     {
-        for(auto& envelope : item.second)
+        for (auto& envelope : item.second)
         {
             std::ostringstream output;
-            output << "i:" << item.first << " n:" <<
-                binToHex(envelope.nodeID).substr(0, 6);
+            output << "i:" << item.first
+                   << " n:" << binToHex(envelope.nodeID).substr(0, 6);
 
             ret["ahead"][count++] = output.str();
         }
     }
+}
+
+void
+HerderImpl::trackingHeartBeat()
+{
+    assert(mTrackingSCP);
+    mTrackingTimer.expires_from_now(
+        std::chrono::seconds(CONSENSUS_STUCK_TIMEOUT_SECONDS));
+    mTrackingTimer.async_wait(std::bind(&HerderImpl::herderOutOfSync, this),
+                              &VirtualTimer::onFailureNoop);
+}
+
+void
+HerderImpl::herderOutOfSync()
+{
+    CLOG(INFO, "Herder") << "Lost track of consensus";
+    mTrackingSCP.reset();
+    processSCPQueue();
 }
 }

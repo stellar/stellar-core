@@ -5,6 +5,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include <memory>
+#include <string>
 
 namespace asio
 {
@@ -73,7 +74,8 @@ class PersistentState;
  * are generally created in 1:1 correspondence with their owning Application;
  * each Application creates a new LedgerManager for itself, for example.
  *
- * Each subsystem object contains a reference back to its owning Application, and
+ * Each subsystem object contains a reference back to its owning Application,
+ *and
  * uses this reference to retrieve its Application's associated instance of the
  * other subsystems. So for example an Application's LedgerManager can access
  * that Application's HistoryManager in order to run catchup. Subsystems access
@@ -113,17 +115,21 @@ class Application
     enum State
     {
         // Loading state from database, not yet active. SCP is inhibited.
-        BOOTING_STATE,
+        APP_BOOTING_STATE,
+
+        // Out of sync with SCP peers
+        APP_ACQUIRING_CONSENSUS_STATE,
+
+        // Connected to other SCP peers
+        // some work required to catchup to the consensus ledger
+        // ie: downloading from history, applying buckets and replaying
+        // transactions
+        APP_CATCHING_UP_STATE,
 
         // In sync with SCP peers, applying transactions. SCP is active,
-        // desynchronization will cause transition to CATCHING_UP_STATE.
-        SYNCED_STATE,
+        APP_SYNCED_STATE,
 
-        // Out of sync with SCP peers, downloading history. SCP is inhibited,
-        // catchup is in progress, observed desynchronization has no effect.
-        CATCHING_UP_STATE,
-
-        NUM_STATE
+        APP_NUM_STATE
     };
 
     virtual ~Application(){};
@@ -136,9 +142,10 @@ class Application
     // that the Application was constructed with.
     virtual Config const& getConfig() = 0;
 
-    // Get and set the current execution-state of the Application
-    virtual State getState() = 0;
-    virtual void setState(State) = 0;
+    // Gets the current execution-state of the Application
+    // (derived from the state of other modules
+    virtual State getState() const = 0;
+    virtual std::string getStateHuman() const = 0;
 
     // Get the external VirtualClock to which this Application is bound.
     virtual VirtualClock& getClock() = 0;
@@ -163,10 +170,10 @@ class Application
     // with caution.
     virtual asio::io_service& getWorkerIOService() = 0;
 
-    // Perform actions necessary to transition from BOOTING_STATE to
-    // SYNCED_STATE or CATCHING_UP_STATE. In particular: either reload or
-    // reinitialize the database, and either restart or begin reacquiring SCP
-    // consensus (as instructed by Config).
+    // Perform actions necessary to transition from BOOTING_STATE to other
+    // states. In particular: either reload or reinitialize the database, and
+    // either restart or begin reacquiring SCP consensus (as instructed by
+    // Config).
     virtual void start() = 0;
 
     // Stop the io_services, which should cause the threads to exit once they

@@ -6,6 +6,8 @@
 #include <chrono>
 #include "main/Application.h"
 #include "util/Logging.h"
+#include <thread>
+#include "util/GlobalChecks.h"
 
 namespace stellar
 {
@@ -53,6 +55,7 @@ VirtualClock::maybeSetRealtimer()
 VirtualClock::time_point
 VirtualClock::next()
 {
+    assertThreadIsMain();
     VirtualClock::time_point least = time_point::max();
     if (!mEvents.empty())
     {
@@ -137,6 +140,7 @@ VirtualClock::enqueue(VirtualClockEvent const& ve)
     }
     // LOG(DEBUG) << "VirtualClock::enqueue";
     mEvents.emplace(ve);
+    assertThreadIsMain();
 }
 
 bool
@@ -146,6 +150,7 @@ VirtualClock::cancelAllEventsFrom(VirtualTimer& v)
     {
         return false;
     }
+    assertThreadIsMain();
     // LOG(DEBUG) << "VirtualClock::cancelAllEventsFrom";
     // Brute force approach; could be done better with a linked list
     // per timer, as is done in asio. For the time being this should
@@ -187,6 +192,7 @@ VirtualClock::cancelAllEventsFrom(VirtualTimer& v)
 bool
 VirtualClock::cancelAllEvents()
 {
+    assertThreadIsMain();
     bool empty = mEvents.empty();
     auto events = mEvents;
     mEvents = priority_queue<VirtualClockEvent>();
@@ -264,6 +270,7 @@ VirtualClock::advanceTo(time_point n)
     {
         return 0;
     }
+    assertThreadIsMain();
     priority_queue<VirtualClockEvent> toDispatch;
     // LOG(DEBUG) << "VirtualClock::advanceTo("
     //            << n.time_since_epoch().count() << ")";
@@ -299,6 +306,7 @@ VirtualClock::advanceToNext()
         return 0;
     }
     assert(mMode == VIRTUAL_TIME);
+    assertThreadIsMain();
     if (mEvents.empty())
     {
         return 0;

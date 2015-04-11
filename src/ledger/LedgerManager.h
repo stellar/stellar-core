@@ -65,6 +65,30 @@ class LedgerCloseData
 class LedgerManager
 {
   public:
+    enum State
+    {
+        // Loading state from database, not yet active
+        LM_BOOTING_STATE,
+
+        // local state is in sync with view of consensus coming from herder
+        // desynchronization will cause transition to CATCHING_UP_STATE.
+        LM_SYNCED_STATE,
+
+        // local state doesn't match view of consensus from herder
+        // catchup is in progress
+        LM_CATCHING_UP_STATE,
+
+        LM_NUM_STATE
+    };
+
+    virtual void setState(State s) = 0;
+    virtual State getState() const = 0;
+    virtual std::string getStateHuman() const = 0;
+
+    bool isSynced() const
+    {
+        return getState() == LM_SYNCED_STATE;
+    }
 
     // Logging helpers, return strings describing the provided ledgers.
     static std::string ledgerAbbrev(uint32_t seq, uint256 const& hash);
@@ -86,7 +110,8 @@ class LedgerManager
     virtual LedgerHeader const& getCurrentLedgerHeader() const = 0;
 
     // Return the LCL header and (complete, immutable) hash.
-    virtual LedgerHeaderHistoryEntry const& getLastClosedLedgerHeader() const = 0;
+    virtual LedgerHeaderHistoryEntry const&
+    getLastClosedLedgerHeader() const = 0;
 
     // Return the sequence number of the current ledger.
     virtual uint32_t getLedgerNum() const = 0;
@@ -120,14 +145,17 @@ class LedgerManager
 
     // Called by application lifecycle events, system startup.
     virtual void startNewLedger() = 0;
-    virtual void loadLastKnownLedger(std::function<void(asio::error_code const &ec)> handler) = 0;
+    virtual void loadLastKnownLedger(
+        std::function<void(asio::error_code const& ec)> handler) = 0;
 
     // Forcibly switch the application into catchup mode, treating `initLedger`
     // as the current ledger number (to begin catchup from). Normally this
     // happens automatically when LedgerManager detects it is desynchronized
-    // from SCP's consensus ledger; this methos is present in the public interface
+    // from SCP's consensus ledger; this methos is present in the public
+    // interface
     // to permit testing.
-    virtual void startCatchUp(uint32_t initLedger, HistoryManager::CatchupMode resume) = 0;
+    virtual void startCatchUp(uint32_t initLedger,
+                              HistoryManager::CatchupMode resume) = 0;
 
     // Called by the history subsystem during catchup: this method asks the
     // LedgerManager whether or not the HistoryManager should trust (thus: begin
@@ -149,6 +177,8 @@ class LedgerManager
     // permit testing.
     virtual void closeLedger(LedgerCloseData ledgerData) = 0;
 
-    virtual ~LedgerManager() {}
+    virtual ~LedgerManager()
+    {
+    }
 };
 }

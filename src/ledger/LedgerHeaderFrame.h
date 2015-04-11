@@ -45,9 +45,9 @@ class LedgerHeaderFrame
     void storeInsert(LedgerManager& ledgerManager) const;
 
     static LedgerHeaderFrame::pointer loadByHash(Hash const& hash,
-                                                 Database& ledgerMaster);
-    static LedgerHeaderFrame::pointer loadBySequence(uint32_t seq,
-                                                     Database& ledgerMaster);
+                                                 Database& db);
+    static LedgerHeaderFrame::pointer loadBySequence(uint32_t seq, Database& db,
+                                                     soci::session& sess);
 
     static size_t copyLedgerHeadersToStream(Database& db, soci::session& sess,
                                             uint32_t ledgerSeq,

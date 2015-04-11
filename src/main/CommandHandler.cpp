@@ -222,13 +222,11 @@ CommandHandler::peers(std::string const& params, std::string& retStr)
 void
 CommandHandler::info(std::string const& params, std::string& retStr)
 {
-
-    std::string stateStrTable[] = {"Booting", "Synced", "Catching up"};
     Json::Value root;
 
     LedgerManager& lm = mApp.getLedgerManager();
 
-    root["info"]["state"] = stateStrTable[mApp.getState()];
+    root["info"]["state"] = mApp.getStateHuman();
     root["info"]["ledger"]["num"] = (int)lm.getLedgerNum();
     root["info"]["ledger"]["hash"] =
         binToHex(lm.getLastClosedLedgerHeader().hash);

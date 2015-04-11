@@ -461,14 +461,14 @@ TransactionFrame::storeTransaction(LedgerManager& ledgerManager,
 }
 
 static void
-saveTransactionHelper(Database& db, uint32 ledgerSeq, TxSetFrame& txSet,
-                      TransactionHistoryResultEntry& results,
+saveTransactionHelper(Database& db, soci::session& sess, uint32 ledgerSeq,
+                      TxSetFrame& txSet, TransactionHistoryResultEntry& results,
                       XDROutputFileStream& txOut,
                       XDROutputFileStream& txResultOut)
 {
     // prepare the txset for saving
     LedgerHeaderFrame::pointer lh =
-        LedgerHeaderFrame::loadBySequence(ledgerSeq, db);
+        LedgerHeaderFrame::loadBySequence(ledgerSeq, db, sess);
     if (!lh)
     {
         throw std::runtime_error("Could not find ledger");
@@ -519,8 +519,8 @@ TransactionFrame::copyTransactionsToStream(Database& db, soci::session& sess,
     {
         if (curLedgerSeq != lastLedgerSeq)
         {
-            saveTransactionHelper(db, lastLedgerSeq, txSet, results, txOut,
-                                  txResultOut);
+            saveTransactionHelper(db, sess, lastLedgerSeq, txSet, results,
+                                  txOut, txResultOut);
             // reset state
             txSet.mTransactions.clear();
             results.ledgerSeq = ledgerSeq;
@@ -553,7 +553,7 @@ TransactionFrame::copyTransactionsToStream(Database& db, soci::session& sess,
     }
     if (n != 0)
     {
-        saveTransactionHelper(db, lastLedgerSeq, txSet, results, txOut,
+        saveTransactionHelper(db, sess, lastLedgerSeq, txSet, results, txOut,
                               txResultOut);
     }
     return n;

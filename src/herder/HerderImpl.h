@@ -5,6 +5,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include <vector>
+#include <memory>
 #include "herder/Herder.h"
 #include "overlay/ItemFetcher.h"
 #include "scp/SCP.h"
@@ -15,6 +16,9 @@
 
 // Maximum timeout for SCP consensus.
 #define MAX_SCP_TIMEOUT_SECONDS 240
+
+// timeout before considering the node out of sync
+#define CONSENSUS_STUCK_TIMEOUT_SECONDS 35
 
 // Maximum time slip between nodes.
 #define MAX_TIME_SLIP_SECONDS 60
@@ -34,6 +38,7 @@ class Counter;
 namespace stellar
 {
 class Application;
+class LedgerManager;
 
 using xdr::operator<;
 using xdr::operator==;
@@ -47,6 +52,9 @@ class HerderImpl : public Herder, public SCP
   public:
     HerderImpl(Application& app);
     ~HerderImpl();
+
+    State getState() const override;
+    std::string getStateHuman() const override;
 
     // Bootstraps the HerderImpl if we're creating a new Network
     void bootstrap() override;
@@ -105,13 +113,12 @@ class HerderImpl : public Herder, public SCP
                          {
                          }) override;
 
-    void ledgerClosed(LedgerHeaderHistoryEntry const& ledger) override;
-
     void triggerNextLedger() override;
 
     void dumpInfo(Json::Value& ret) override;
 
   private:
+    void ledgerClosed();
     void removeReceivedTx(TransactionFramePtr tx);
     void expireBallot(uint64 const& slotIndex, SCPBallot const& ballot);
 
@@ -125,6 +132,9 @@ class HerderImpl : public Herder, public SCP
     void updateSCPCounters();
 
     bool checkFutureCommitted(SCPEnvelope& envelope);
+
+    void processSCPQueue();
+    void processSCPQueueAtIndex(uint64 slotIndex);
 
     // 0- tx we got during ledger close
     // 1- one ledger ago. rebroadcast
@@ -156,7 +166,46 @@ class HerderImpl : public Herder, public SCP
 
     std::map<uint64, std::vector<SCPEnvelope>> mQuorumAheadOfUs;
 
-    LedgerHeaderHistoryEntry mLastClosedLedger;
+    void herderOutOfSync();
+
+    struct ConsensusData
+    {
+        uint64 mConsensusIndex;
+        StellarBallot mConsensusBallot;
+        ConsensusData(uint64 index, StellarBallot const& b)
+            : mConsensusIndex(index), mConsensusBallot(b)
+        {
+        }
+    };
+
+    // if the local instance is tracking the current state of SCP
+    // herder keeps track of the consensus index and ballot
+    // when not set, it just means that herder will try to snap to any slot that
+    // reached consensus it can
+    std::unique_ptr<ConsensusData> mTrackingSCP;
+
+    // the ledger index that was last externalized
+    uint32
+    lastConsensusLedgerIndex() const
+    {
+        assert(mTrackingSCP->mConsensusIndex <= UINT32_MAX);
+        return static_cast<uint32>(mTrackingSCP->mConsensusIndex);
+    }
+
+    // the ledger index that we expect to externalize next
+    uint32
+    nextConsensusLedgerIndex() const
+    {
+        return lastConsensusLedgerIndex() + 1;
+    }
+
+    // timer that detects that we're stuck on an SCP slot
+    VirtualTimer mTrackingTimer;
+
+    // called every time we get ledger externalized
+    // ensures that if we don't hear from the network, we throw the herder into
+    // indeterminate mode
+    void trackingHeartBeat();
 
     VirtualClock::time_point mLastTrigger;
     VirtualTimer mTriggerTimer;
@@ -167,6 +216,7 @@ class HerderImpl : public Herder, public SCP
     StellarMessage mLastSentMessage;
 
     Application& mApp;
+    LedgerManager& mLedgerManager;
 
     medida::Meter& mValueValid;
     medida::Meter& mValueInvalid;

@@ -173,7 +173,7 @@ BucketManagerImpl::adoptFileAsBucket(std::string const& filename, uint256 const&
         if (rename(filename.c_str(), canonicalName.c_str()) != 0)
         {
             std::string err("Failed to rename bucket :");
-            err += err + strerror(errno);
+            err += strerror(errno);
             throw std::runtime_error(err);
         }
 
