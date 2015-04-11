@@ -762,17 +762,28 @@ HerderImpl::startRebroadcastTimer()
 void
 HerderImpl::emitEnvelope(SCPEnvelope const& envelope)
 {
+    if (envelope.nodeID == getLocalNodeID())
+    {
         // We don't emit any envelope as long as we're not fully synced
         if (!mLedgerManager.isSynced() || mCurrentValue.empty())
         {
             return;
         }
 
+        // start to broadcast our latest message
         mLastSentMessage.type(SCP_MESSAGE);
         mLastSentMessage.envelope() = envelope;
 
         rebroadcast();
     }
+    else
+    {
+        StellarMessage msg;
+        msg.type(SCP_MESSAGE);
+        msg.envelope() = envelope;
+        mApp.getOverlayManager().broadcastMessage(msg, false);
+    }
+}
 
 TxSetFramePtr
 HerderImpl::fetchTxSet(uint256 const& txSetHash, bool askNetwork)
@@ -969,7 +980,7 @@ HerderImpl::processSCPQueue()
             mHasQuorumAheadOfUs.find(nextConsensusLedgerIndex()) != mHasQuorumAheadOfUs.end()
             )
         {
-            processSCPQueueAtIndex(nextConsensusLedgerIndex());
+        processSCPQueueAtIndex(nextConsensusLedgerIndex());
         }
         mFutureEnvelopesSize.set_count(mFutureEnvelopes.size());
     }

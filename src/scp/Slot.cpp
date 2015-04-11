@@ -318,7 +318,7 @@ Slot::attemptPreparing()
 
     SCPEnvelope envelope = createEnvelope(statement);
     auto self = shared_from_this();
-    auto cb = [envelope, self](SCP::EnvelopeState const& s)
+    auto cb = [envelope, self](SCP::EnvelopeState s)
     {
         if (s == SCP::EnvelopeState::VALID)
         {
