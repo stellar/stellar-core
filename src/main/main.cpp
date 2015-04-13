@@ -78,8 +78,9 @@ usage(int err = 1)
           "position, close next time stellar-core is run\n"
           "      --genseed       Generate and print a random node seed\n"
           "      --genfuzz FILE  Generate a random fuzzer input file\n "
-          "      --ll LEVEL      Set the log level. LEVEL can be:\n"
-          "                      [trace|debug|info|warning|error|fatal|none]\n"
+          "      --ll LEVEL      Set the log level. (redundant with --c ll but "
+          "you need this form for the tests.)\n"
+          "                      LEVEL can be:\n"
           "      --c             Command to send to local stellar-core. try "
           "'--c help' for more information\n"
           "      --conf FILE     To specify a config file ('-' for STDIN, "
@@ -303,6 +304,8 @@ main(int argc, char* const* argv)
     Config cfg;
     try
     {
+        // yes you really have to do this 3 times
+        Logging::setLogLevel(logLevel, nullptr);
         if (fs::exists(cfgFile))
         {
             cfg.load(cfgFile);
