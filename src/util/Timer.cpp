@@ -337,6 +337,7 @@ VirtualClockEvent::cancel()
     {
         mTriggered = true;
         mCallback(asio::error::operation_aborted);
+        mCallback = nullptr;
     }
 }
 

@@ -144,7 +144,7 @@ class VirtualClock
     bool cancelAllEvents();
 };
 
-class VirtualClockEvent
+class VirtualClockEvent : public NonMovableOrCopyable
 {
     std::function<void(asio::error_code)> mCallback;
     bool mTriggered;
