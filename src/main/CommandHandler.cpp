@@ -289,23 +289,40 @@ CommandHandler::scpInfo(std::string const& params, std::string& retStr)
 void
 CommandHandler::ll(std::string const& params, std::string& retStr)
 {
+    Json::Value root;
+
     std::map<std::string, std::string> retMap;
     http::server::server::parseParams(params, retMap);
-    el::Level level = Logging::getLLfromString(retMap["level"]);
+
+    std::string levelStr = retMap["level"];
     std::string partition = retMap["partition"];
-    if (partition.size())
+    if(!levelStr.size())
     {
-        Logging::setLogLevel(level, partition.c_str());
-        retStr = partition;
-        retStr += " set to ";
-        retStr += Logging::getStringFromLL(level);
-    }
-    else
+        root["Fs"] = Logging::getStringFromLL(Logging::getLogLevel("Fs"));
+        root["SCP"] = Logging::getStringFromLL(Logging::getLogLevel("SCP"));
+        root["Bucket"] = Logging::getStringFromLL(Logging::getLogLevel("Bucket"));
+        root["Database"] = Logging::getStringFromLL(Logging::getLogLevel("Database"));
+        root["History"] = Logging::getStringFromLL(Logging::getLogLevel("History"));
+        root["Process"] = Logging::getStringFromLL(Logging::getLogLevel("Process"));
+        root["Ledger"] = Logging::getStringFromLL(Logging::getLogLevel("Ledger"));
+        root["Overlay"] = Logging::getStringFromLL(Logging::getLogLevel("Overlay"));
+        root["Herder"] = Logging::getStringFromLL(Logging::getLogLevel("Herder"));
+        root["Tx"] = Logging::getStringFromLL(Logging::getLogLevel("Tx"));
+    } else
     {
-        Logging::setLogLevel(level, nullptr);
-        retStr = "Global Log level set to: ";
-        retStr += Logging::getStringFromLL(level);
+        el::Level level = Logging::getLLfromString(levelStr);
+        if(partition.size())
+        {
+            Logging::setLogLevel(level, partition.c_str());
+            root[partition] = Logging::getStringFromLL(level);
+        } else
+        {
+            Logging::setLogLevel(level, nullptr);
+            root["Global"] = Logging::getStringFromLL(level);
+        }
     }
+
+    retStr = root.toStyledString();
 }
 
 void

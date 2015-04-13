@@ -40,7 +40,7 @@ class SCP
     // 4) trigger the broadcast of Envelopes to other nodes in the network.
     //    (`emitEnvelope`)
     //
-    // Thes methods are designed to abstract the transport layer used from the
+    // These methods are designed to abstract the transport layer used from the
     // implementation of the SCP protocol.
 
     // `validateValue` is called on each message received before any processing
@@ -83,7 +83,7 @@ class SCP
     }
 
     // `ballotDidPrepare` is called each time the local node PREPARING a ballot.
-    // It is always called on the internally monotically increasing `mBallot`.
+    // It is always called on the internally monotonically increasing `mBallot`.
     virtual void
     ballotDidPrepare(uint64 const& slotIndex, SCPBallot const& ballot)
     {
@@ -95,15 +95,15 @@ class SCP
     {
     }
     // `ballotDidCommit` is called each time the local node COMMITTING a ballot.
-    // It is always called on the internally monotically increasing `mBallot`.
+    // It is always called on the internally monotonically increasing `mBallot`.
     virtual void
     ballotDidCommit(uint64 const& slotIndex, SCPBallot const& ballot)
     {
     }
     // `ballotDidCommitted` is called each time the local node COMMITTED a
-    // ballot. It is always called on the internally monotically increasing
+    // ballot. It is always called on the internally monotonically increasing
     // `mBallot`. Once COMMITTED, a slot cannot switch to another value. That
-    // does not mean that the network agress on it yet though, but if the slot
+    // does not mean that the network agrees on it yet though, but if the slot
     // later externalize on this node, it will necessarily be on this value.
     virtual void
     ballotDidCommitted(uint64 const& slotIndex, SCPBallot const& ballot)
@@ -152,7 +152,7 @@ class SCP
         STATEMENTS_MISSING, // the envelope is valid but we miss statements
         VALID               // the envelope is valid
     };
-    // If evidences are missing, a retransmisison should take place for that
+    // If evidences are missing, a retransmission should take place for that
     // slot. see `procudeSlotEvidence` to implement such retransmission
     // mechanism on the other side of the wire.
     void receiveEnvelope(SCPEnvelope const& envelope,
@@ -190,7 +190,7 @@ class SCP
     // Retrieves the local secret key as specified at construction
     SecretKey const& getSecretKey();
 
-    // Tests wether a set of nodes is v-blocking for our local node. This can
+    // Tests whether a set of nodes is v-blocking for our local node. This can
     // be used in ballot validation decisions.
     bool isVBlocking(std::vector<uint256> const& nodes);
 
