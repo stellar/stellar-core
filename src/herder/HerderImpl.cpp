@@ -595,6 +595,9 @@ HerderImpl::valueExternalized(uint64 const& slotIndex, Value const& value)
                           << "@" << hexAbbrev(getLocalNodeID())
                           << " txSet: " << hexAbbrev(b.value.txSetHash);
 
+    // current value is not valid anymore
+    mCurrentValue.clear();
+
     mTrackingSCP = make_unique<ConsensusData>(slotIndex, b);
     trackingHeartBeat();
 
@@ -616,12 +619,14 @@ HerderImpl::valueExternalized(uint64 const& slotIndex, Value const& value)
     TxSetFramePtr externalizedSet = fetchTxSet(b.value.txSetHash, true);
     if (externalizedSet)
     {
-        // Triggers sync if not already syncing.
+        // tell the LedgerManager that this value got externalized
+        // LedgerManager will perform the proper action based on its internal
+        // state: apply, trigger catchup, etc
         LedgerCloseData ledgerData(lastConsensusLedgerIndex(), externalizedSet,
                                    b.value.closeTime, b.value.baseFee);
         mLedgerManager.externalizeValue(ledgerData);
 
-        ledgerClosed();
+        // perform cleanups
 
         // remove all these tx from mReceivedTransactions
         for (auto tx : externalizedSet->mTransactions)
@@ -663,6 +668,8 @@ HerderImpl::valueExternalized(uint64 const& slotIndex, Value const& value)
             }
             mReceivedTransactions[n - 1].clear();
         }
+
+        ledgerClosed();
     }
     else
     {
@@ -1032,8 +1039,6 @@ HerderImpl::ledgerClosed()
     CLOG(TRACE, "Herder") << "HerderImpl::ledgerClosed@"
                           << "@" << hexAbbrev(getLocalNodeID());
 
-    // we're not running SCP anymore
-    mCurrentValue.clear();
     mQuorumAheadOfUs.erase(lastConsensusLedgerIndex());
 
     mApp.getOverlayManager().ledgerClosed(lastConsensusLedgerIndex());
@@ -1043,6 +1048,18 @@ HerderImpl::ledgerClosed()
     // wont' have any impact.
     mBallotValidationTimers.clear();
     mBallotValidationTimersSize.set_count(mBallotValidationTimers.size());
+
+    uint64_t nextIndex = nextConsensusLedgerIndex();
+
+    // process any statements for this slot (this may trigger externalize)
+    processSCPQueueAtIndex(nextIndex);
+
+    // if externalize got called for a future slot, we don't
+    // need to trigger (the now obsolete) next round
+    if (nextIndex != nextConsensusLedgerIndex())
+    {
+        return;
+    }
 
     // If we are not a validating node and just watching SCP we don't call
     // triggerNextLedger. Likewise if we are not in synced state.
@@ -1172,9 +1189,6 @@ HerderImpl::triggerNextLedger()
     // and if we're not it'll just get ignored.
     mValuePrepare.Mark();
     prepareValue(slotIndex, mCurrentValue);
-
-    // process any statements for this slot (this may trigger externalize)
-    processSCPQueueAtIndex(slotIndex);
 }
 
 void
