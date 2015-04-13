@@ -12,6 +12,7 @@
 #include "herder/TxSetFrame.h"
 #include "overlay/Peer.h"
 #include "util/Timer.h"
+#include "util/NonCopyable.h"
 
 /*
 Manages asking for Transaction or Quorum sets from Peers
@@ -31,7 +32,7 @@ class Counter;
 
 namespace stellar
 {
-class TrackingCollar
+class TrackingCollar : private NonMovableOrCopyable
 {
     Application& mApp;
     Peer::pointer mLastAskedPeer;
