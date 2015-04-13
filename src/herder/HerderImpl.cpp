@@ -764,6 +764,13 @@ HerderImpl::emitEnvelope(SCPEnvelope const& envelope)
 {
     if (envelope.nodeID == getLocalNodeID())
     {
+        // this should not happen: if we're just watching consensus
+        // don't send out SCP messages
+        if (getSecretKey().isZero())
+        {
+            return;
+        }
+
         // We don't emit any envelope as long as we're not fully synced
         if (!mLedgerManager.isSynced() || mCurrentValue.empty())
         {
