@@ -47,7 +47,13 @@ namespace stellar
 
 class VirtualTimer;
 class Application;
-struct VirtualClockEvent;
+class VirtualClockEvent;
+class VirtualClockEventCompare
+{
+public:
+    bool operator()(std::shared_ptr<VirtualClockEvent> a, std::shared_ptr<VirtualClockEvent> b);
+};
+
 
 class VirtualClock
 {
@@ -102,7 +108,12 @@ class VirtualClock
 
     size_t nRealTimerCancelEvents;
     time_point mNow;
-    std::priority_queue<VirtualClockEvent> mEvents;
+
+    using PrQueue = std::priority_queue<std::shared_ptr<VirtualClockEvent>, 
+                                        std::vector<std::shared_ptr<VirtualClockEvent>>, 
+                                        VirtualClockEventCompare>;
+    PrQueue mEvents;
+    size_t mFlushesIgnored;
 
     bool mDestructing{false};
 
@@ -128,25 +139,23 @@ class VirtualClock
     // virtual time. Each virtual clock has its own time.
     time_point now() noexcept;
 
-    void enqueue(VirtualClockEvent const& ve);
-    bool cancelAllEventsFrom(VirtualTimer& v);
+    void enqueue(std::shared_ptr<VirtualClockEvent> ve);
+    void flushCancelledEvents();
     bool cancelAllEvents();
 };
 
-struct VirtualClockEvent
+class VirtualClockEvent : public NonMovableOrCopyable
 {
-    VirtualClock::time_point mWhen;
     std::function<void(asio::error_code)> mCallback;
-    VirtualTimer* mTimer;
-    ~VirtualClockEvent();
-    bool live() const;
-    bool operator<(VirtualClockEvent const& other) const
-    {
-        // For purposes of priority queue, a timer is "less than"
-        // another timer if it occurs in the future (has a higher
-        // expiry time). The "greatest" timer is timer 0.
-        return mWhen > other.mWhen;
-    }
+    bool mTriggered;
+public:
+    VirtualClock::time_point mWhen;
+    VirtualClockEvent(VirtualClock::time_point when, 
+                      std::function<void(asio::error_code)> callback);
+    bool getTriggered();
+    void trigger();
+    void cancel();
+    bool operator<(VirtualClockEvent const& other) const;
 };
 
 /**
@@ -158,6 +167,7 @@ class VirtualTimer : private NonMovableOrCopyable
 {
     VirtualClock& mClock;
     VirtualClock::time_point mExpiryTime;
+    std::vector<std::shared_ptr<VirtualClockEvent>> mEvents;
     bool mCancelled;
 
   public:

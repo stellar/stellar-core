@@ -156,6 +156,7 @@
     <ClCompile Include="..\..\src\crypto\SecretKey.cpp" />
     <ClCompile Include="..\..\src\database\Database.cpp" />
     <ClCompile Include="..\..\src\database\DatabaseTests.cpp" />
+    <ClCompile Include="..\..\src\herder\Herder.cpp" />
     <ClCompile Include="..\..\src\herder\HerderImpl.cpp" />
     <ClCompile Include="..\..\src\herder\HerderTests.cpp" />
     <ClCompile Include="..\..\src\herder\TxSetFrame.cpp" />

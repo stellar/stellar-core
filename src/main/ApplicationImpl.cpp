@@ -50,9 +50,12 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
               << "(worker threads: " << t << ")";
     mStopSignals.async_wait([this](asio::error_code const& ec, int sig)
                             {
-                                LOG(INFO) << "got signal " << sig
-                                          << ", shutting down";
-                                this->gracefulStop();
+                                if (!ec)
+                                {
+                                    LOG(INFO) << "got signal " << sig
+                                              << ", shutting down";
+                                    this->gracefulStop();
+                                }
                             });
 
     // These must be constructed _after_ because they frequently call back
