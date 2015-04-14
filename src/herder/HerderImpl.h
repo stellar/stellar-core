@@ -5,7 +5,9 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include <vector>
+#include <queue>
 #include <memory>
+#include <set>
 #include "herder/Herder.h"
 #include "overlay/ItemFetcher.h"
 #include "scp/SCP.h"
@@ -95,6 +97,8 @@ class HerderImpl : public Herder, public SCP
                          {
                          }) override;
 
+    uint32_t getCurrentLedgerSeq() const override;
+
     void triggerNextLedger() override;
 
     void dumpInfo(Json::Value& ret) override;
@@ -139,7 +143,7 @@ class HerderImpl : public Herder, public SCP
 
     std::map<
         uint64,
-        std::vector<std::pair<SCPEnvelope, std::function<void(EnvelopeState)>>>>
+        std::queue<std::pair<SCPEnvelope, std::function<void(EnvelopeState)>>>>
         mFutureEnvelopes;
 
     std::map<SCPBallot,
@@ -147,6 +151,7 @@ class HerderImpl : public Herder, public SCP
         mBallotValidationTimers;
 
     std::map<uint64, std::vector<SCPEnvelope>> mQuorumAheadOfUs;
+    std::set<uint64> mHasQuorumAheadOfUs;
 
     void herderOutOfSync();
 

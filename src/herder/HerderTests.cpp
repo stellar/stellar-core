@@ -64,6 +64,8 @@ TEST_CASE("standalone", "[herder]")
         {
             stop = true;
 
+            REQUIRE(app->getLedgerManager().getLastClosedLedgerNum() > 2);
+
             AccountFrame a1Account, b1Account;
             REQUIRE(AccountFrame::loadAccount(a1.getPublicKey(), a1Account,
                                               app->getDatabase()));
@@ -89,7 +91,7 @@ TEST_CASE("standalone", "[herder]")
         setupTimer.expires_from_now(std::chrono::seconds(0));
         setupTimer.async_wait(setup);
 
-        checkTimer.expires_from_now(std::chrono::seconds(5));
+        checkTimer.expires_from_now(Herder::EXP_LEDGER_TIMESPAN_SECONDS + std::chrono::seconds(1));
         checkTimer.async_wait(check);
 
         while (!stop && app->getClock().crank(false) > 0)

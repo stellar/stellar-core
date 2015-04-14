@@ -50,10 +50,10 @@ class Application;
 class VirtualClockEvent;
 class VirtualClockEventCompare
 {
-public:
-    bool operator()(std::shared_ptr<VirtualClockEvent> a, std::shared_ptr<VirtualClockEvent> b);
+  public:
+    bool operator()(std::shared_ptr<VirtualClockEvent> a,
+                    std::shared_ptr<VirtualClockEvent> b);
 };
-
 
 class VirtualClock
 {
@@ -109,9 +109,10 @@ class VirtualClock
     size_t nRealTimerCancelEvents;
     time_point mNow;
 
-    using PrQueue = std::priority_queue<std::shared_ptr<VirtualClockEvent>, 
-                                        std::vector<std::shared_ptr<VirtualClockEvent>>, 
-                                        VirtualClockEventCompare>;
+    using PrQueue =
+        std::priority_queue<std::shared_ptr<VirtualClockEvent>,
+                            std::vector<std::shared_ptr<VirtualClockEvent>>,
+                            VirtualClockEventCompare>;
     PrQueue mEvents;
     size_t mFlushesIgnored;
 
@@ -148,9 +149,10 @@ class VirtualClockEvent : public NonMovableOrCopyable
 {
     std::function<void(asio::error_code)> mCallback;
     bool mTriggered;
-public:
+
+  public:
     VirtualClock::time_point mWhen;
-    VirtualClockEvent(VirtualClock::time_point when, 
+    VirtualClockEvent(VirtualClock::time_point when,
                       std::function<void(asio::error_code)> callback);
     bool getTriggered();
     void trigger();
@@ -169,6 +171,7 @@ class VirtualTimer : private NonMovableOrCopyable
     VirtualClock::time_point mExpiryTime;
     std::vector<std::shared_ptr<VirtualClockEvent>> mEvents;
     bool mCancelled;
+    bool mDeleting;
 
   public:
     VirtualTimer(Application& app);
@@ -178,7 +181,8 @@ class VirtualTimer : private NonMovableOrCopyable
     void expires_at(VirtualClock::time_point t);
     void expires_from_now(VirtualClock::duration d);
     template <typename R, typename P>
-        void expires_from_now(std::chrono::duration<R,P> const& d)
+    void
+    expires_from_now(std::chrono::duration<R, P> const& d)
     {
         expires_from_now(std::chrono::duration_cast<VirtualClock::duration>(d));
     }

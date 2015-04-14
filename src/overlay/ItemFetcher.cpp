@@ -279,13 +279,10 @@ TrackingCollar::tryNextPeer()
             mTimer.cancel(); // cancel any stray timers
             mTimer.expires_from_now(
                 std::chrono::milliseconds(MS_TO_WAIT_FOR_FETCH_REPLY));
-            mTimer.async_wait([this](asio::error_code const& ec)
+            mTimer.async_wait([this]()
                               {
-                                  if (!ec)
-                                  {
-                                      this->tryNextPeer();
-                                  }
-                              });
+                                    this->tryNextPeer();
+                              }, VirtualTimer::onFailureNoop);
         }
         else
         { // we have asked all our peers
@@ -294,13 +291,10 @@ TrackingCollar::tryNextPeer()
             mTimer.cancel(); // cancel any stray timers
             mTimer.expires_from_now(
                 std::chrono::milliseconds(MS_TO_WAIT_FOR_FETCH_REPLY * 2));
-            mTimer.async_wait([this](asio::error_code const& ec)
+            mTimer.async_wait([this]()
                               {
-                                  if (!ec)
-                                  {
-                                      this->tryNextPeer();
-                                  }
-                              });
+                                this->tryNextPeer();
+                              }, VirtualTimer::onFailureNoop);
         }
     }
 }

@@ -52,9 +52,8 @@ VirtualClock::maybeSetRealtimer()
     }
 }
 
-bool 
-VirtualClockEventCompare::operator()(shared_ptr<VirtualClockEvent> a, 
-                                     shared_ptr<VirtualClockEvent> b)
+bool VirtualClockEventCompare::operator()(shared_ptr<VirtualClockEvent> a,
+                                          shared_ptr<VirtualClockEvent> b)
 {
     return *a < *b;
 }
@@ -159,10 +158,10 @@ VirtualClock::flushCancelledEvents()
     }
     if (mFlushesIgnored <= mEvents.size())
     {
-        // Flushing all the canceled events immediately can lead to 
+        // Flushing all the canceled events immediately can lead to
         // a O(n^2) loop if many events in the queue are canceled one a time.
         //
-        // By ignoring O(n) flushes, we batch the iterations together and 
+        // By ignoring O(n) flushes, we batch the iterations together and
         // restore O(n) performance.
         mFlushesIgnored++;
         return;
@@ -260,7 +259,6 @@ VirtualClock::~VirtualClock()
     cancelAllEvents();
 }
 
-
 size_t
 VirtualClock::advanceTo(time_point n)
 {
@@ -282,9 +280,9 @@ VirtualClock::advanceTo(time_point n)
         mEvents.pop();
     }
     // Keep the dispatch loop separate from the pop()-ing loop
-    // so the triggered events can't mutate the priority queue 
+    // so the triggered events can't mutate the priority queue
     // from underneat us while we are looping.
-    for(auto ev : toDispatch)
+    for (auto ev : toDispatch)
     {
         ev->trigger();
     }
@@ -311,16 +309,17 @@ VirtualClock::advanceToNext()
 
 VirtualClockEvent::VirtualClockEvent(
     VirtualClock::time_point when,
-    std::function<void(asio::error_code)> callback) 
-    :
-    mCallback(callback), mTriggered(false), mWhen(when) { }
+    std::function<void(asio::error_code)> callback)
+    : mCallback(callback), mTriggered(false), mWhen(when)
+{
+}
 
 bool
 VirtualClockEvent::getTriggered()
 {
     return mTriggered;
 }
-void 
+void
 VirtualClockEvent::trigger()
 {
     if (!mTriggered)
@@ -330,7 +329,7 @@ VirtualClockEvent::trigger()
     }
 }
 
-void 
+void
 VirtualClockEvent::cancel()
 {
     if (!mTriggered)
@@ -341,8 +340,7 @@ VirtualClockEvent::cancel()
     }
 }
 
-bool 
-VirtualClockEvent::operator<(VirtualClockEvent const& other) const
+bool VirtualClockEvent::operator<(VirtualClockEvent const& other) const
 {
     // For purposes of priority queue, a timer is "less than"
     // another timer if it occurs in the future (has a higher
@@ -350,19 +348,21 @@ VirtualClockEvent::operator<(VirtualClockEvent const& other) const
     return mWhen > other.mWhen;
 }
 
-
-VirtualTimer::VirtualTimer(Application& app)
-    : VirtualTimer(app.getClock())
+VirtualTimer::VirtualTimer(Application& app) : VirtualTimer(app.getClock())
 {
 }
 
 VirtualTimer::VirtualTimer(VirtualClock& clock)
-    : mClock(clock), mExpiryTime(mClock.now()), mCancelled(false)
+    : mClock(clock)
+    , mExpiryTime(mClock.now())
+    , mCancelled(false)
+    , mDeleting(false)
 {
 }
 
 VirtualTimer::~VirtualTimer()
 {
+    mDeleting = true;
     cancel();
 }
 
@@ -372,7 +372,7 @@ VirtualTimer::cancel()
     if (!mCancelled)
     {
         mCancelled = true;
-        for(auto ev : mEvents)
+        for (auto ev : mEvents)
         {
             ev->cancel();
         }
@@ -401,6 +401,7 @@ VirtualTimer::async_wait(function<void(asio::error_code)> const& fn)
 {
     if (!mCancelled)
     {
+        assert(!mDeleting);
         auto ve = make_shared<VirtualClockEvent>(mExpiryTime, fn);
         mClock.enqueue(ve);
         mEvents.push_back(ve);
@@ -413,14 +414,15 @@ VirtualTimer::async_wait(std::function<void()> const& onSuccess,
 {
     if (!mCancelled)
     {
-        auto ve = make_shared<VirtualClockEvent>(mExpiryTime,
-            [onSuccess, onFailure](asio::error_code error)
-        {
-            if (error)
-                onFailure(error);
-            else
-                onSuccess();
-        });
+        assert(!mDeleting);
+        auto ve = make_shared<VirtualClockEvent>(
+            mExpiryTime, [onSuccess, onFailure](asio::error_code error)
+            {
+                if (error)
+                    onFailure(error);
+                else
+                    onSuccess();
+            });
         mClock.enqueue(ve);
         mEvents.push_back(ve);
     }

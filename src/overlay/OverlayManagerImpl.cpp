@@ -67,14 +67,13 @@ OverlayManagerImpl::OverlayManagerImpl(Application& app)
 
     if (!mApp.getConfig().RUN_STANDALONE)
     {
-        mTimer.async_wait([this](asio::error_code const& ec)
-                          {
-                              if (!ec)
-                              {
-                                  storeConfigPeers();
-                                  this->tick();
-                              }
-                          });
+        mTimer.async_wait(
+            [this]()
+            {
+                storeConfigPeers();
+                this->tick();
+            },
+            VirtualTimer::onFailureNoop);
     }
 }
 
@@ -182,13 +181,12 @@ OverlayManagerImpl::tick()
     }
 
     mTimer.expires_from_now(std::chrono::seconds(2));
-    mTimer.async_wait([this](asio::error_code const& ec)
-                      {
-                          if (!ec)
-                          {
-                              this->tick();
-                          }
-                      });
+    mTimer.async_wait(
+        [this]()
+        {
+            this->tick();
+        },
+        VirtualTimer::onFailureNoop);
 }
 
 Peer::pointer
