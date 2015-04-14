@@ -932,6 +932,8 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope envelope,
         }
     }
 
+    checkFutureCommitted(envelope);
+
     mFutureEnvelopes[envelope.statement.slotIndex].push_back(
         std::make_pair(envelope, cb));
     mFutureEnvelopesSize.set_count(mFutureEnvelopes.size());
@@ -958,7 +960,17 @@ HerderImpl::processSCPQueue()
                 it++;
             }
         }
-        processSCPQueueAtIndex(nextConsensusLedgerIndex());
+        // process current slot only if
+        // we're not in sync
+        // or if we're in sync with a position
+        // or quorum was reached on the slot
+        if (!mLedgerManager.isSynced() ||
+            (mLedgerManager.isSynced() && !mCurrentValue.empty()) ||
+            mHasQuorumAheadOfUs.find(nextConsensusLedgerIndex()) != mHasQuorumAheadOfUs.end()
+            )
+        {
+            processSCPQueueAtIndex(nextConsensusLedgerIndex());
+        }
         mFutureEnvelopesSize.set_count(mFutureEnvelopes.size());
     }
     else
@@ -1021,6 +1033,7 @@ HerderImpl::checkFutureCommitted(SCPEnvelope& envelope)
 
                     if (count >= qset.threshold)
                     { // do we have enough of these for the same ballot?
+                        mHasQuorumAheadOfUs.insert(envelope.statement.slotIndex);
                         return true;
                     }
                 }
@@ -1040,6 +1053,7 @@ HerderImpl::ledgerClosed()
                           << "@" << hexAbbrev(getLocalNodeID());
 
     mQuorumAheadOfUs.erase(lastConsensusLedgerIndex());
+    mHasQuorumAheadOfUs.erase(lastConsensusLedgerIndex());
 
     mApp.getOverlayManager().ledgerClosed(lastConsensusLedgerIndex());
 

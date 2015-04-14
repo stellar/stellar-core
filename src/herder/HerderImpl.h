@@ -6,6 +6,7 @@
 
 #include <vector>
 #include <memory>
+#include <set>
 #include "herder/Herder.h"
 #include "overlay/ItemFetcher.h"
 #include "scp/SCP.h"
@@ -147,6 +148,7 @@ class HerderImpl : public Herder, public SCP
         mBallotValidationTimers;
 
     std::map<uint64, std::vector<SCPEnvelope>> mQuorumAheadOfUs;
+    std::set<uint64> mHasQuorumAheadOfUs;
 
     void herderOutOfSync();
 
