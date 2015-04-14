@@ -38,6 +38,12 @@ BucketLevel::getHash() const
     return hsh->finish();
 }
 
+std::shared_future<std::shared_ptr<Bucket>>
+BucketLevel::getNext() const
+{
+    return std::shared_future<std::shared_ptr<Bucket>>(mNextCurr);
+}
+
 std::shared_ptr<Bucket>
 BucketLevel::getCurr() const
 {

@@ -245,6 +245,7 @@ class BucketLevel
   public:
     BucketLevel(size_t i);
     uint256 getHash() const;
+    std::shared_future<std::shared_ptr<Bucket>> getNext() const;
     std::shared_ptr<Bucket> getCurr() const;
     std::shared_ptr<Bucket> getSnap() const;
     void setCurr(std::shared_ptr<Bucket>);
