@@ -12,6 +12,7 @@
 #include "util/Logging.h"
 #include "util/Timer.h"
 #include "util/XDRStream.h"
+#include "util/Fs.h"
 #include "main/Config.h"
 
 #include "main/fuzz.h"
@@ -39,6 +40,29 @@
 namespace stellar
 {
 
+struct
+CfgDirGuard
+{
+    Config const& mConfig;
+    static void clean(std::string const& path)
+    {
+        if (fs::exists(path))
+        {
+            fs::deltree(path);
+        }
+    }
+    CfgDirGuard(Config const& c) : mConfig(c)
+    {
+        clean(mConfig.TMP_DIR_PATH);
+        clean(mConfig.BUCKET_DIR_PATH);
+    }
+    ~CfgDirGuard()
+    {
+        clean(mConfig.TMP_DIR_PATH);
+        clean(mConfig.BUCKET_DIR_PATH);
+    }
+};
+
 std::string
 msgSummary(StellarMessage const& m)
 {
@@ -47,11 +71,26 @@ msgSummary(StellarMessage const& m)
     return p.buf_.str() + ":" + hexAbbrev(sha256(xdr::xdr_to_msg(m)));
 }
 
+bool
+tryRead(XDRInputFileStream &in, StellarMessage &m)
+{
+    try
+    {
+        return in.readOne(m);
+    }
+    catch (xdr::xdr_runtime_error &e)
+    {
+        LOG(INFO) << "Caught XDR error '" << e.what() << "' on input substituting HELLO";
+        m.type(HELLO);
+        return true;
+    }
+}
+
 void
 fuzz(std::string const& filename, el::Level logLevel,
      std::vector<std::string> const& metrics)
 {
-    Logging::setFmt("<fuzz>");
+    Logging::setFmt("<fuzz>", false);
     Logging::setLogLevel(logLevel, nullptr);
     LOG(INFO) << "Fuzzing stellar-core " << STELLAR_CORE_VERSION;
     LOG(INFO) << "Fuzz input is in " << filename;
@@ -70,6 +109,9 @@ fuzz(std::string const& filename, el::Level logLevel,
     cfg2.TMP_DIR_PATH = "fuzz-tmp-2";
     cfg2.BUCKET_DIR_PATH = "fuzz-buckets-2";
 
+    CfgDirGuard g1(cfg1);
+    CfgDirGuard g2(cfg2);
+
     VirtualClock clock;
     Application::pointer app1 = Application::create(clock, cfg1);
     Application::pointer app2 = Application::create(clock, cfg2);
@@ -81,7 +123,7 @@ fuzz(std::string const& filename, el::Level logLevel,
     in.open(filename);
     StellarMessage msg;
     size_t i = 0;
-    while (in.readOne(msg))
+    while (tryRead(in, msg))
     {
         ++i;
         if (msg.type() != HELLO)

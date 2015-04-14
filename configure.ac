@@ -13,6 +13,9 @@ AC_CONFIG_SRCDIR([configure.ac])
 AC_CONFIG_MACRO_DIR([m4])
 
 test "${WFLAGS+set}" || WFLAGS="-Wall"
+test "${CFLAGS+set}" || CFLAGS="-g -O2"
+test "${CXXFLAGS+set}" || CXXFLAGS="-g -O2"
+
 AC_PROG_CC([clang gcc cc])
 AC_PROG_CXX([clang++ g++ c++])
 AM_PROG_AR
@@ -33,6 +36,7 @@ AX_FRESH_COMPILER
 
 # Our large include path set makes for annoying warnings without this
 AX_APPEND_COMPILE_FLAGS([-Wno-unused-command-line-argument])
+AX_APPEND_COMPILE_FLAGS([-Qunused-arguments])
 
 # We want to consider unused MUST_USE results as errors
 AX_APPEND_COMPILE_FLAGS([-Werror=unused-result])
@@ -40,15 +44,64 @@ AX_APPEND_COMPILE_FLAGS([-Werror=unused-result])
 # -pthread seems to be required by -std=c++11 on some hosts
 AX_APPEND_COMPILE_FLAGS([-pthread])
 
+# add colorized diagnostics when possible
+AX_APPEND_COMPILE_FLAGS([-fcolor-diagnostics])
 
-AC_ARG_ENABLE([address-sanitizer], AS_HELP_STRING([--enable-address-sanitizer],
-              [enable AddressSanitizer support]),
-              [AC_DEFINE(HAVE_ADDRESS_SANITIZER, 1, [enable AddressSanitizer])
-              CFLAGS="$CFLAGS -fsanitize=address -fno-omit-frame-pointer"
-              CXXFLAGS="$CXXFLAGS -fsanitize=address -fno-omit-frame-pointer"
-              AC_TRY_COMPILE([],[const int i=0;],[AC_MSG_NOTICE([Address Sanitizer Enabled])],
-                                                 [AC_MSG_ERROR([Address Sanitizer not available])])
-              ])
+# Also add CXXFLAGS changes to CFLAGS
+AC_LANG_PUSH(C)
+AX_APPEND_COMPILE_FLAGS([-Werror=unused-result])
+AX_APPEND_COMPILE_FLAGS([-Wno-unused-command-line-argument])
+AX_APPEND_COMPILE_FLAGS([-Qunused-arguments])
+AX_APPEND_COMPILE_FLAGS([-fcolor-diagnostics])
+AC_LANG_POP(C)
+
+# Permit user to enable asan instrumentation
+AC_ARG_ENABLE([asan],
+              AS_HELP_STRING([--enable-asan],
+                             [build with asan (address-sanitizer) instrumentation]))
+AS_IF([test "x$enable_asan" = "xyes"], [
+  AX_APPEND_COMPILE_FLAGS([-fsanitize=address])
+  AX_APPEND_COMPILE_FLAGS([-fno-omit-frame-pointer])
+  AC_LANG_PUSH(C)
+  AX_APPEND_COMPILE_FLAGS([-fsanitize=address])
+  AX_APPEND_COMPILE_FLAGS([-fno-omit-frame-pointer])
+  AC_LANG_POP(C)
+])
+
+# Permit user to build with ccache
+AC_ARG_ENABLE([ccache],
+              AS_HELP_STRING([--enable-ccache],
+                             [build with ccache]))
+AS_IF([test "x$enable_ccache" = "xyes"], [
+  AC_CHECK_PROGS([CCACHE], [ccache])
+  CC="ccache ${CC}"
+  CXX="ccache ${CXX}"
+])
+
+# Permit user to enable AFL instrumentation
+AC_ARG_ENABLE([afl],
+              AS_HELP_STRING([--enable-afl],
+                             [build with AFL (fuzzer) instrumentation]))
+AS_IF([test "x$enable_afl" = "xyes"], [
+  AS_IF([test "x$enable_asan" = "xyes"], [
+    AC_MSG_ERROR([AFL is presently incompatible with Address Sanitizer])
+  ])
+  AS_IF([test "x$enable_ccache" = "xyes"], [
+    AC_MSG_ERROR([AFL is presently incompatible with ccache])
+  ])
+  AC_CHECK_PROGS([AFL_FUZZ], [afl-fuzz])
+  AS_CASE(["$CC"],
+          [clang*], [AC_CHECK_PROGS([AFL_CLANG], [afl-clang])
+                     AC_CHECK_PROGS([AFL_CLANGPP], [afl-clang++])
+                     CC="afl-clang"
+                     CXX="afl-clang++"],
+          [gcc*],   [AC_CHECK_PROGS([AFL_GCC], [afl-gcc])
+                     AC_CHECK_PROGS([AFL_GPP], [afl-g++])
+                     CC="afl-gcc"
+                     CXX="afl-g++"],
+          [AC_MSG_ERROR([Don't know how to instrument CC=$CC with AFL])])
+])
+AM_CONDITIONAL([USE_AFL_FUZZ], [test "x$enable_afl" == "xyes"])
 
 AC_CHECK_PROGS(CLANG_FORMAT, [clang-format clang-format-3.6])
 AM_CONDITIONAL([USE_CLANG_FORMAT], [test "x$CLANG_FORMAT" != "x"])

@@ -390,6 +390,19 @@ format:
 	cd $(srcdir) && $(CLANG_FORMAT) -i $(FMT_SRCS) $(FMT_HDRS)
 endif
 
+if USE_AFL_FUZZ
+fuzz-testcases: bin/stellar-core
+	mkdir -p fuzz-testcases
+	for i in `seq 1 10`; do bin/stellar-core --genfuzz fuzz-testcases/fuzz$$i.xdr; done
+
+fuzz: fuzz-testcases bin/stellar-core
+	mkdir -p fuzz-findings
+	afl-fuzz -m 8000 -i fuzz-testcases -o fuzz-findings bin/stellar-core --fuzz @@
+
+fuzz-clean:
+	rm -Rf fuzz-testcases fuzz-findings
+endif
+
 TESTS=test/selftest-stellar-core
 
 @VALGRIND_CHECK_RULES@
@@ -402,7 +415,10 @@ MOSTLYCLEANFILES =
 maintainer-clean-local:
 	+@echo rm -rf `sed -ne 's!^/!!p' .gitignore` Makefile.in
 	rm -rf `sed -ne 's!^/!!p' .gitignore` Makefile.in
-
+if USE_AFL_FUZZ
+	+@echo rm -rf fuzz-testcases fuzz-findings
+	rm -rf fuzz-testcases fuzz-findings
+endif
 
 libtool: $(LIBTOOL_DEPS)
 	$(SHELL) ./config.status libtool

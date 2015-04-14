@@ -20,7 +20,7 @@ class Logging
 
   public:
     static void init();
-    static void setFmt(std::string const& peerID);
+    static void setFmt(std::string const& peerID, bool timestamps=true);
     static void setLoggingToFile(std::string const& filename);
     static void setLogLevel(el::Level level, const char* partition);
     static el::Level getLLfromString(std::string const& levelName);
