@@ -73,7 +73,7 @@ class XDRInputFileStream
         }
         if (!mIn.read(mBuf.data(), sz))
         {
-            throw std::runtime_error("malformed XDR file");
+            throw xdr::xdr_runtime_error("malformed XDR file");
         }
         xdr::xdr_get g(mBuf.data(), mBuf.data() + sz);
         xdr::xdr_argpack_archive(g, out);
