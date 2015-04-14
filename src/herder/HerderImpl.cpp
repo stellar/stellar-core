@@ -1025,7 +1025,7 @@ HerderImpl::checkFutureCommitted(SCPEnvelope& envelope)
 {
     if (envelope.statement.pledges.type() == COMMITTED)
     { // is this a committed statement
-        const SCPQuorumSet& qset = getLocalQuorumSet();
+        SCPQuorumSet const& qset = getLocalQuorumSet();
 
         if (find(qset.validators.begin(), qset.validators.end(),
                  envelope.nodeID) != qset.validators.end())

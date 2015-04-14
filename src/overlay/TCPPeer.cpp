@@ -115,7 +115,7 @@ TCPPeer::resetWriteIdle()
     std::shared_ptr<TCPPeer> self =
         std::dynamic_pointer_cast<TCPPeer>(shared_from_this());
     mWriteIdle.expires_from_now(std::chrono::seconds(IO_TIMEOUT_SECONDS));
-    mWriteIdle.async_wait([self](const asio::error_code& error)
+    mWriteIdle.async_wait([self](asio::error_code const& error)
                           {
                               if (!error)
                                   self->timeoutWrite(error);
@@ -128,7 +128,7 @@ TCPPeer::resetReadIdle()
     std::shared_ptr<TCPPeer> self =
         std::dynamic_pointer_cast<TCPPeer>(shared_from_this());
     mReadIdle.expires_from_now(std::chrono::seconds(IO_TIMEOUT_SECONDS));
-    mReadIdle.async_wait([self](const asio::error_code& error)
+    mReadIdle.async_wait([self](asio::error_code const& error)
                          {
                              if (!error)
                                  self->timeoutRead(error);
@@ -213,20 +213,20 @@ TCPPeer::startRead()
     try
     {
         CLOG(DEBUG, "Overlay") << "TCPPeer::startRead"
-            << "@" << mApp.getConfig().PEER_PORT << " to "
-            << mSocket->remote_endpoint().port();
+                               << "@" << mApp.getConfig().PEER_PORT << " to "
+                               << mSocket->remote_endpoint().port();
         resetReadIdle();
         auto self = shared_from_this();
         asio::async_read(*(mSocket.get()), asio::buffer(mIncomingHeader),
-            [self](asio::error_code ec, std::size_t length)
-        {
-            CLOG(DEBUG, "Overlay")
-                << "TCPPeer::startRead calledback " << ec
-                << " length:" << length;
-            self->readHeaderHandler(ec, length);
-        });
+                         [self](asio::error_code ec, std::size_t length)
+                         {
+                             CLOG(DEBUG, "Overlay")
+                                 << "TCPPeer::startRead calledback " << ec
+                                 << " length:" << length;
+                             self->readHeaderHandler(ec, length);
+                         });
     }
-    catch (asio::system_error &e)
+    catch (asio::system_error& e)
     {
         CLOG(ERROR, "Overlay") << "TCPPeer::startRead error " << e.what();
         drop();

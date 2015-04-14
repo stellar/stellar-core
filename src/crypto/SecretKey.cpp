@@ -25,7 +25,7 @@ PublicKey::verify(uint512 const& signature, ByteSlice const& bin) const
 }
 
 bool
-PublicKey::verifySig(const uint256& key, uint512 const& signature,
+PublicKey::verifySig(uint256 const& key, uint512 const& signature,
                      ByteSlice const& bin)
 {
     return crypto_sign_verify_detached(signature.data(), bin.data(), bin.size(),
@@ -102,7 +102,7 @@ SecretKey::random()
 }
 
 SecretKey
-SecretKey::fromSeed(const uint256& seed)
+SecretKey::fromSeed(uint256 const& seed)
 {
     PublicKey pk;
     SecretKey sk;

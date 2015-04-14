@@ -74,8 +74,8 @@ usage(int err = 1)
           "      --newdb         Creates or restores the DB to the genesis "
           "ledger\n"
           "      --newhist ARCH  Initialize the named history archive ARCH\n"
-          "      --forcescp      When true, forces SCP to start with the local ledger as "
-          "position, close next time stellar-core is run\n"
+          "      --forcescp      When true, forces SCP to start with the local "
+          "ledger as position, close next time stellar-core is run\n"
           "      --genseed       Generate and print a random node seed\n"
           "      --genfuzz FILE  Generate a random fuzzer input file\n "
           "      --ll LEVEL      Set the log level. (redundant with --c ll but "
@@ -89,7 +89,7 @@ usage(int err = 1)
 }
 
 static void
-sendCommand(const std::string& command, const std::vector<char*>& rest,
+sendCommand(std::string const& command, const std::vector<char*>& rest,
             unsigned short port)
 {
     std::string ret;
@@ -139,8 +139,8 @@ setForceSCPFlag(Config& cfg, bool isOn)
             LOG(INFO) << "* ";
             LOG(INFO)
                 << "* The next launch will start scp from the account balances";
-            LOG(INFO)
-                << "* as they stand in the db now, without waiting to hear from";
+            LOG(INFO) << "* as they stand in the db now, without waiting to "
+                         "hear from";
             LOG(INFO) << "* the network.";
             LOG(INFO) << "* ";
         }
@@ -270,7 +270,8 @@ main(int argc, char* const* argv)
             std::cout << STELLAR_CORE_VERSION;
             return 0;
         case OPT_FORCESCP:
-            forceSCP = make_optional<bool>(optarg == nullptr || string(optarg) == "true");
+            forceSCP = make_optional<bool>(optarg == nullptr ||
+                                           string(optarg) == "true");
             break;
         case OPT_METRIC:
             metrics.push_back(std::string(optarg));
