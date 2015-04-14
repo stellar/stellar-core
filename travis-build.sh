@@ -39,18 +39,9 @@ do
     psql -c "create database test$i;" -U postgres
 done
 
-# customize CC and CXX for asan, ccache
-if [ $CC == clang ]
-then
-    export CC='ccache clang -Qunused-arguments -fcolor-diagnostics'
-    export CXX='ccache clang++ -Qunused-arguments -fcolor-diagnostics'
-else
-    export CC='ccache gcc'
-    export CXX='ccache g++'
-fi
 ccache -s
 ./autogen.sh
-./configure --enable-asan
+./configure --enable-asan --enable-ccache
 make
 ccache -s
 make check

@@ -36,6 +36,7 @@ AX_FRESH_COMPILER
 
 # Our large include path set makes for annoying warnings without this
 AX_APPEND_COMPILE_FLAGS([-Wno-unused-command-line-argument])
+AX_APPEND_COMPILE_FLAGS([-Qunused-arguments])
 
 # We want to consider unused MUST_USE results as errors
 AX_APPEND_COMPILE_FLAGS([-Werror=unused-result])
@@ -43,7 +44,16 @@ AX_APPEND_COMPILE_FLAGS([-Werror=unused-result])
 # -pthread seems to be required by -std=c++11 on some hosts
 AX_APPEND_COMPILE_FLAGS([-pthread])
 
+# add colorized diagnostics when possible
+AX_APPEND_COMPILE_FLAGS([-fcolor-diagnostics])
 
+# Also add CXXFLAGS changes to CFLAGS
+AC_LANG_PUSH(C)
+AX_APPEND_COMPILE_FLAGS([-Werror=unused-result])
+AX_APPEND_COMPILE_FLAGS([-Wno-unused-command-line-argument])
+AX_APPEND_COMPILE_FLAGS([-Qunused-arguments])
+AX_APPEND_COMPILE_FLAGS([-fcolor-diagnostics])
+AC_LANG_POP(C)
 
 # Permit user to enable asan instrumentation
 AC_ARG_ENABLE([asan],
@@ -57,6 +67,14 @@ AS_IF([test "x$enable_asan" = "xyes"], [
   AX_APPEND_COMPILE_FLAGS([-fno-omit-frame-pointer])
   AC_LANG_POP(C)
 ])
+# Permit user to build with ccache
+AC_ARG_ENABLE([ccache],
+              AS_HELP_STRING([--enable-ccache],
+                             [build with ccache]))
+AS_IF([test "x$enable_ccache" = "xyes"], [
+  AC_CHECK_PROGS([CCACHE], [ccache])
+  CC="ccache ${CC}"
+  CXX="ccache ${CXX}"
 ])
 
 AC_CHECK_PROGS(CLANG_FORMAT, [clang-format clang-format-3.6])
