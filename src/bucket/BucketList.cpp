@@ -84,7 +84,7 @@ BucketLevel::clearPendingMerge()
 {
     // NB: MSVC future<> implementation doesn't purge the task lambda (and
     // its captures) on invalidation (due to get()); must explicitly reset.
-    mNextCurr = std::future<std::shared_ptr<Bucket>>();
+    mNextCurr = std::shared_future<std::shared_ptr<Bucket>>();
 }
 
 void
@@ -150,7 +150,7 @@ BucketLevel::prepare(Application& app, uint32_t currLedger,
              return res;
         });
 
-    mNextCurr = task->get_future();
+    mNextCurr = task->get_future().share();
     app.getWorkerIOService().post(bind(&task_t::operator(), task));
 
     assert(mNextCurr.valid());

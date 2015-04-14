@@ -238,7 +238,7 @@ class Bucket;
 class BucketLevel
 {
     size_t mLevel;
-    std::future<std::shared_ptr<Bucket>> mNextCurr;
+    std::shared_future<std::shared_ptr<Bucket>> mNextCurr;
     std::shared_ptr<Bucket> mCurr;
     std::shared_ptr<Bucket> mSnap;
 
