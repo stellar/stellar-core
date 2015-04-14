@@ -67,6 +67,7 @@ AS_IF([test "x$enable_asan" = "xyes"], [
   AX_APPEND_COMPILE_FLAGS([-fno-omit-frame-pointer])
   AC_LANG_POP(C)
 ])
+
 # Permit user to build with ccache
 AC_ARG_ENABLE([ccache],
               AS_HELP_STRING([--enable-ccache],
@@ -76,6 +77,31 @@ AS_IF([test "x$enable_ccache" = "xyes"], [
   CC="ccache ${CC}"
   CXX="ccache ${CXX}"
 ])
+
+# Permit user to enable AFL instrumentation
+AC_ARG_ENABLE([afl],
+              AS_HELP_STRING([--enable-afl],
+                             [build with AFL (fuzzer) instrumentation]))
+AS_IF([test "x$enable_afl" = "xyes"], [
+  AS_IF([test "x$enable_asan" = "xyes"], [
+    AC_MSG_ERROR([AFL is presently incompatible with Address Sanitizer])
+  ])
+  AS_IF([test "x$enable_ccache" = "xyes"], [
+    AC_MSG_ERROR([AFL is presently incompatible with ccache])
+  ])
+  AC_CHECK_PROGS([AFL_FUZZ], [afl-fuzz])
+  AS_CASE(["$CC"],
+          [clang*], [AC_CHECK_PROGS([AFL_CLANG], [afl-clang])
+                     AC_CHECK_PROGS([AFL_CLANGPP], [afl-clang++])
+                     CC="afl-clang"
+                     CXX="afl-clang++"],
+          [gcc*],   [AC_CHECK_PROGS([AFL_GCC], [afl-gcc])
+                     AC_CHECK_PROGS([AFL_GPP], [afl-g++])
+                     CC="afl-gcc"
+                     CXX="afl-g++"],
+          [AC_MSG_ERROR([Don't know how to instrument CC=$CC with AFL])])
+])
+AM_CONDITIONAL([USE_AFL_FUZZ], [test "x$enable_afl" == "xyes"])
 
 AC_CHECK_PROGS(CLANG_FORMAT, [clang-format clang-format-3.6])
 AM_CONDITIONAL([USE_CLANG_FORMAT], [test "x$CLANG_FORMAT" != "x"])
