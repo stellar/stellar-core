@@ -12,6 +12,7 @@
 #include "util/Logging.h"
 #include "util/Timer.h"
 #include "util/XDRStream.h"
+#include "util/Fs.h"
 #include "main/Config.h"
 
 #include "main/fuzz.h"
@@ -38,6 +39,29 @@
 
 namespace stellar
 {
+
+struct
+CfgDirGuard
+{
+    Config const& mConfig;
+    static void clean(std::string const& path)
+    {
+        if (fs::exists(path))
+        {
+            fs::deltree(path);
+        }
+    }
+    CfgDirGuard(Config const& c) : mConfig(c)
+    {
+        clean(mConfig.TMP_DIR_PATH);
+        clean(mConfig.BUCKET_DIR_PATH);
+    }
+    ~CfgDirGuard()
+    {
+        clean(mConfig.TMP_DIR_PATH);
+        clean(mConfig.BUCKET_DIR_PATH);
+    }
+};
 
 std::string
 msgSummary(StellarMessage const& m)
@@ -84,6 +108,9 @@ fuzz(std::string const& filename, el::Level logLevel,
     cfg1.LOG_FILE_PATH = "fuzz-app-2.log";
     cfg2.TMP_DIR_PATH = "fuzz-tmp-2";
     cfg2.BUCKET_DIR_PATH = "fuzz-buckets-2";
+
+    CfgDirGuard g1(cfg1);
+    CfgDirGuard g2(cfg2);
 
     VirtualClock clock;
     Application::pointer app1 = Application::create(clock, cfg1);
