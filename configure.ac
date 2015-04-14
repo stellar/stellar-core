@@ -13,6 +13,9 @@ AC_CONFIG_SRCDIR([configure.ac])
 AC_CONFIG_MACRO_DIR([m4])
 
 test "${WFLAGS+set}" || WFLAGS="-Wall"
+test "${CFLAGS+set}" || CFLAGS="-g -O2"
+test "${CXXFLAGS+set}" || CXXFLAGS="-g -O2"
+
 AC_PROG_CC([clang gcc cc])
 AC_PROG_CXX([clang++ g++ c++])
 AM_PROG_AR
@@ -41,14 +44,20 @@ AX_APPEND_COMPILE_FLAGS([-Werror=unused-result])
 AX_APPEND_COMPILE_FLAGS([-pthread])
 
 
-AC_ARG_ENABLE([address-sanitizer], AS_HELP_STRING([--enable-address-sanitizer],
-              [enable AddressSanitizer support]),
-              [AC_DEFINE(HAVE_ADDRESS_SANITIZER, 1, [enable AddressSanitizer])
-              CFLAGS="$CFLAGS -fsanitize=address -fno-omit-frame-pointer"
-              CXXFLAGS="$CXXFLAGS -fsanitize=address -fno-omit-frame-pointer"
-              AC_TRY_COMPILE([],[const int i=0;],[AC_MSG_NOTICE([Address Sanitizer Enabled])],
-                                                 [AC_MSG_ERROR([Address Sanitizer not available])])
-              ])
+
+# Permit user to enable asan instrumentation
+AC_ARG_ENABLE([asan],
+              AS_HELP_STRING([--enable-asan],
+                             [build with asan (address-sanitizer) instrumentation]))
+AS_IF([test "x$enable_asan" = "xyes"], [
+  AX_APPEND_COMPILE_FLAGS([-fsanitize=address])
+  AX_APPEND_COMPILE_FLAGS([-fno-omit-frame-pointer])
+  AC_LANG_PUSH(C)
+  AX_APPEND_COMPILE_FLAGS([-fsanitize=address])
+  AX_APPEND_COMPILE_FLAGS([-fno-omit-frame-pointer])
+  AC_LANG_POP(C)
+])
+])
 
 AC_CHECK_PROGS(CLANG_FORMAT, [clang-format clang-format-3.6])
 AM_CONDITIONAL([USE_CLANG_FORMAT], [test "x$CLANG_FORMAT" != "x"])
