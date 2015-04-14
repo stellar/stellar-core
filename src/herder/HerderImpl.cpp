@@ -771,12 +771,6 @@ HerderImpl::emitEnvelope(SCPEnvelope const& envelope)
             return;
         }
 
-        // We don't emit any envelope as long as we're not fully synced
-        if (!mLedgerManager.isSynced() || mCurrentValue.empty())
-        {
-            return;
-        }
-
         // start to broadcast our latest message
         mLastSentMessage.type(SCP_MESSAGE);
         mLastSentMessage.envelope() = envelope;
