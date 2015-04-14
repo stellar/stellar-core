@@ -21,9 +21,13 @@ namespace stellar
 el::Configurations Logging::gDefaultConf;
 
 void
-Logging::setFmt(std::string const& peerID)
+Logging::setFmt(std::string const& peerID, bool timestamps)
 {
-    std::string datetime = "%datetime{%Y-%M-%dT%H:%m:%s.%g}";
+    std::string datetime;
+    if (timestamps)
+    {
+        datetime = "%datetime{%Y-%M-%dT%H:%m:%s.%g}";
+    }
     std::string shortFmt = datetime + " " + peerID + " [%logger] %level %msg";
     std::string longFmt = shortFmt + " [%fbase:%line]";
 

@@ -51,7 +51,7 @@ void
 fuzz(std::string const& filename, el::Level logLevel,
      std::vector<std::string> const& metrics)
 {
-    Logging::setFmt("<fuzz>");
+    Logging::setFmt("<fuzz>", false);
     Logging::setLogLevel(logLevel, nullptr);
     LOG(INFO) << "Fuzzing stellar-core " << STELLAR_CORE_VERSION;
     LOG(INFO) << "Fuzz input is in " << filename;
