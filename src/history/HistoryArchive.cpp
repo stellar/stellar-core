@@ -70,11 +70,12 @@ HistoryArchiveState::resolveAllFutures()
     std::string zstr = binToHex(zero);
     for (auto& level : currentBuckets)
     {
-        assert(level.next.empty());
+        if (!level.next.empty())
+        {
+            continue;
+        }
         if (level.nextFuture.valid())
         {
-            auto status = level.nextFuture.wait_for(std::chrono::nanoseconds(1));
-            assert(status == std::future_status::ready);
             level.next = binToHex(level.nextFuture.get()->getHash());
         }
         else
@@ -194,6 +195,7 @@ HistoryArchiveState::getBucketListHash()
 std::vector<std::string>
 HistoryArchiveState::differingBuckets(HistoryArchiveState const& other) const
 {
+    assert(futuresAllResolved());
     std::set<std::string> inhibit;
     uint256 zero;
     inhibit.insert(binToHex(zero));
@@ -208,6 +210,7 @@ HistoryArchiveState::differingBuckets(HistoryArchiveState const& other) const
     {
         auto const& s = currentBuckets[i - 1].snap;
         auto const& n = currentBuckets[i - 1].next;
+        assert(!n.empty());
         auto const& c = currentBuckets[i - 1].curr;
         auto bs = { s, n, c };
         for (auto j : bs)

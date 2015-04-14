@@ -51,6 +51,7 @@ CatchupStateMachine::CatchupStateMachine(
     , mDownloadDir(app.getTmpDirManager().tmpDir("catchup"))
     , mLocalState(localState)
 {
+    mLocalState.resolveAllFutures();
     // We start up in CATCHUP_RETRYING as that's the only valid
     // named pre-state for CATCHUP_BEGIN.
     enterBeginState();

@@ -293,11 +293,12 @@ std::vector<std::string>
 BucketManagerImpl::checkForMissingBucketsFiles(HistoryArchiveState const& has)
 {
     std::vector<std::string> buckets;
-    for (size_t i = 0; i < BucketList::kNumLevels; ++i)
+    for (auto const& level : has.currentBuckets)
     {
-        auto snap = bucketBasename(has.currentBuckets.at(i).snap);
-        buckets.push_back(has.currentBuckets.at(i).curr);
-        buckets.push_back(has.currentBuckets.at(i).snap);
+        assert(!level.next.empty());
+        buckets.push_back(level.next);
+        buckets.push_back(level.curr);
+        buckets.push_back(level.snap);
     }
 
     std::vector<std::string> result;
