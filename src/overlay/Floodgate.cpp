@@ -2,11 +2,11 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "crypto/SHA.h"
-#include "ledger/LedgerManager.h"
-#include "main/Application.h"
 #include "overlay/Floodgate.h"
+#include "crypto/SHA.h"
+#include "main/Application.h"
 #include "overlay/OverlayManager.h"
+#include "herder/Herder.h"
 
 #include "medida/counter.h"
 #include "medida/metrics_registry.h"
@@ -25,7 +25,8 @@ FloodRecord::FloodRecord(StellarMessage const& msg, uint32_t ledger,
 
 Floodgate::Floodgate(Application& app)
     : mApp(app)
-    , mFloodMapSize(app.getMetrics().NewCounter({"overlay", "memory", "flood-map"}))
+    , mFloodMapSize(
+          app.getMetrics().NewCounter({"overlay", "memory", "flood-map"}))
 {
 }
 
@@ -56,7 +57,7 @@ Floodgate::addRecord(StellarMessage const& msg, Peer::pointer peer)
     if (result == mFloodMap.end())
     { // we have never seen this message
         mFloodMap[index] = std::make_shared<FloodRecord>(
-            msg, mApp.getLedgerManager().getLedgerNum(), peer);
+            msg, mApp.getHerder().getCurrentLedgerSeq(), peer);
         mFloodMapSize.set_count(mFloodMap.size());
         return true;
     }
@@ -76,7 +77,7 @@ Floodgate::broadcast(StellarMessage const& msg, bool force)
     if (result == mFloodMap.end() || force)
     { // no one has sent us this message
         FloodRecord::pointer record = std::make_shared<FloodRecord>(
-            msg, mApp.getLedgerManager().getLedgerNum(), Peer::pointer());
+            msg, mApp.getHerder().getCurrentLedgerSeq(), Peer::pointer());
         record->mPeersTold = mApp.getOverlayManager().getPeers();
 
         mFloodMap[index] = record;

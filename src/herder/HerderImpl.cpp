@@ -155,12 +155,14 @@ HerderImpl::~HerderImpl()
 {
 }
 
-Herder::State HerderImpl::getState() const
+Herder::State
+HerderImpl::getState() const
 {
     return mTrackingSCP ? HERDER_TRACKING_STATE : HERDER_SYNCING_STATE;
 }
 
-std::string HerderImpl::getStateHuman() const
+std::string
+HerderImpl::getStateHuman() const
 {
     static const char* stateStrings[HERDER_NUM_STATE] = {
         "HERDER_SYNCING_STATE", "HERDER_TRACKING_STATE"};
@@ -260,8 +262,7 @@ HerderImpl::validateValue(uint64 const& slotIndex, uint256 const& nodeID,
     auto validate = [cb, b, slotIndex, nodeID, this](TxSetFramePtr txSet)
     {
         // Check txSet (only if we're fully synced)
-        if ((!mLedgerManager.isSynced()) ||
-            !txSet->checkValid(mApp))
+        if ((!mLedgerManager.isSynced()) || !txSet->checkValid(mApp))
         {
             CLOG(DEBUG, "Herder")
                 << "HerderImpl::validateValue"
@@ -391,8 +392,7 @@ HerderImpl::validateBallot(uint64 const& slotIndex, uint256 const& nodeID,
         return;
     }
 
-    if (mTrackingSCP &&
-        nextConsensusLedgerIndex() != slotIndex)
+    if (mTrackingSCP && nextConsensusLedgerIndex() != slotIndex)
     {
         mValueInvalid.Mark();
         // return cb(false);
@@ -409,12 +409,13 @@ HerderImpl::validateBallot(uint64 const& slotIndex, uint256 const& nodeID,
     uint64_t sumTimeouts = 0;
     // The second condition is to prevent attackers from emitting ballots whose
     // verification would busy lock us.
-    for (int unsigned i = 0;
-         i < ballot.counter &&
-         (timeNow + MAX_TIME_SLIP_SECONDS.count()) >= (lastTrigger + sumTimeouts);
+    for (int unsigned i = 0; i < ballot.counter &&
+                             (timeNow + MAX_TIME_SLIP_SECONDS.count()) >=
+                                 (lastTrigger + sumTimeouts);
          i++)
     {
-        sumTimeouts += std::min((long long)MAX_SCP_TIMEOUT_SECONDS.count(), (long long)pow(2.0, i));
+        sumTimeouts += std::min((long long)MAX_SCP_TIMEOUT_SECONDS.count(),
+                                (long long)pow(2.0, i));
     }
     // This inequality is effectively a limitation on `ballot.counter`
     if ((timeNow + MAX_TIME_SLIP_SECONDS.count()) < (lastTrigger + sumTimeouts))
@@ -645,8 +646,7 @@ HerderImpl::valueExternalized(uint64 const& slotIndex, Value const& value)
         auto now = mApp.getClock().now();
         for (auto it : mNodeLastAccess)
         {
-            if ((now - it.second) >
-                NODE_EXPIRATION_SECONDS)
+            if ((now - it.second) > NODE_EXPIRATION_SECONDS)
             {
                 purgeNode(it.first);
             }
@@ -898,8 +898,7 @@ HerderImpl::recvTransaction(TransactionFramePtr tx)
         return false;
     }
 
-    if (tx->getSourceAccount().getBalanceAboveReserve(mLedgerManager) <
-        totFee)
+    if (tx->getSourceAccount().getBalanceAboveReserve(mLedgerManager) < totFee)
     {
         tx->getResult().result.code(txINSUFFICIENT_BALANCE);
         return false;
@@ -978,10 +977,10 @@ HerderImpl::processSCPQueue()
         // or quorum was reached on the slot
         if (!mLedgerManager.isSynced() ||
             (mLedgerManager.isSynced() && !mCurrentValue.empty()) ||
-            mHasQuorumAheadOfUs.find(nextConsensusLedgerIndex()) != mHasQuorumAheadOfUs.end()
-            )
+            mHasQuorumAheadOfUs.find(nextConsensusLedgerIndex()) !=
+                mHasQuorumAheadOfUs.end())
         {
-        processSCPQueueAtIndex(nextConsensusLedgerIndex());
+            processSCPQueueAtIndex(nextConsensusLedgerIndex());
         }
         mFutureEnvelopesSize.set_count(mFutureEnvelopes.size());
     }
@@ -1045,7 +1044,8 @@ HerderImpl::checkFutureCommitted(SCPEnvelope& envelope)
 
                     if (count >= qset.threshold)
                     { // do we have enough of these for the same ballot?
-                        mHasQuorumAheadOfUs.insert(envelope.statement.slotIndex);
+                        mHasQuorumAheadOfUs.insert(
+                            envelope.statement.slotIndex);
                         return true;
                     }
                 }
@@ -1147,6 +1147,19 @@ HerderImpl::removeReceivedTx(TransactionFramePtr dropTx)
     }
 }
 
+uint32_t
+HerderImpl::getCurrentLedgerSeq() const
+{
+    if (mTrackingSCP)
+    {
+        return static_cast<uint32_t>(mTrackingSCP->mConsensusIndex);
+    }
+    else
+    {
+        return mLedgerManager.getLastClosedLedgerNum();
+    }
+}
+
 // called to take a position during the next round
 // uses the state in LedgerManager to derive a starting position
 void
@@ -1154,7 +1167,8 @@ HerderImpl::triggerNextLedger()
 {
     if (!mTrackingSCP || !mLedgerManager.isSynced())
     {
-        CLOG(DEBUG, "Herder") << "triggerNextLedger: skipping (out of sync) : " << mApp.getStateHuman();
+        CLOG(DEBUG, "Herder") << "triggerNextLedger: skipping (out of sync) : "
+                              << mApp.getStateHuman();
         return;
     }
     updateSCPCounters();
