@@ -47,6 +47,21 @@ msgSummary(StellarMessage const& m)
     return p.buf_.str() + ":" + hexAbbrev(sha256(xdr::xdr_to_msg(m)));
 }
 
+bool
+tryRead(XDRInputFileStream &in, StellarMessage &m)
+{
+    try
+    {
+        return in.readOne(m);
+    }
+    catch (xdr::xdr_runtime_error &e)
+    {
+        LOG(INFO) << "Caught XDR error '" << e.what() << "' on input substituting HELLO";
+        m.type(HELLO);
+        return true;
+    }
+}
+
 void
 fuzz(std::string const& filename, el::Level logLevel,
      std::vector<std::string> const& metrics)
@@ -81,7 +96,7 @@ fuzz(std::string const& filename, el::Level logLevel,
     in.open(filename);
     StellarMessage msg;
     size_t i = 0;
-    while (in.readOne(msg))
+    while (tryRead(in, msg))
     {
         ++i;
         if (msg.type() != HELLO)
