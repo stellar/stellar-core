@@ -899,9 +899,8 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope envelope,
                           << " from: " << hexAbbrev(envelope.nodeID)
                           << " s:" << envelope.statement.pledges.type()
                           << " i:" << envelope.statement.slotIndex
-                          << " b:" << envelope.statement.ballot.counter << " v:"
-                          << binToHex(ByteSlice(
-                                 &envelope.statement.ballot.value[96], 3))
+                          << " b:" << envelope.statement.ballot.counter
+                          << " v:" << hexAbbrev(envelope.statement.ballot.value)
                           << " a:" << mApp.getStateHuman();
 
     mEnvelopeReceive.Mark();
