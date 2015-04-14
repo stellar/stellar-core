@@ -318,6 +318,7 @@ PublishStateMachine::PublishStateMachine(Application& app)
 bool
 PublishStateMachine::queueSnapshot(SnapshotPtr snap, PublishCallback handler)
 {
+    snap->mLocalState.resolveAllFutures();
     bool delayed = !mPendingSnaps.empty();
     mPendingSnaps.push_back(std::make_pair(snap, handler));
     mPendingSnapsSize.set_count(mPendingSnaps.size());

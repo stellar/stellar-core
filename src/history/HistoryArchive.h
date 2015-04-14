@@ -8,6 +8,7 @@
 #include <string>
 #include <system_error>
 #include <memory>
+#include <future>
 #include "generated/Stellar-types.h"
 
 namespace asio
@@ -20,10 +21,12 @@ namespace stellar
 
 class Application;
 class BucketList;
+class Bucket;
 
 struct HistoryStateBucket
 {
     std::string curr;
+    std::shared_future<std::shared_ptr<Bucket>> nextFuture;
     std::string next;
     std::string snap;
 
@@ -65,7 +68,6 @@ struct HistoryArchiveState
     static std::string localName(Application& app,
                                  std::string const& archiveName);
 
-
     // Return cumulative hash of the bucketlist for this archive state.
     Hash getBucketListHash();
 
@@ -92,6 +94,17 @@ struct HistoryArchiveState
         ar(CEREAL_NVP(version), CEREAL_NVP(currentLedger),
            CEREAL_NVP(currentBuckets));
     }
+
+    // Return true if all the 'next' bucket-futures that can be resolved are
+    // ready to be (instantaneously) resolved, or false if a merge is still
+    // in progress on one or more of them.
+    bool futuresAllReady() const;
+
+    // Return true if all futures have already been resolved, otherwise false.
+    bool futuresAllResolved() const;
+
+    // Resolve all futures, filling in the 'next' bucket hashes of each level.
+    void resolveAllFutures();
 
     void save(std::string const& outFile) const;
     void load(std::string const& inFile);
