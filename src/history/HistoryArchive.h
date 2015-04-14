@@ -24,20 +24,25 @@ class BucketList;
 struct HistoryStateBucket
 {
     std::string curr;
+    std::string next;
     std::string snap;
 
     template <class Archive>
     void
     serialize(Archive& ar) const
     {
-        ar(CEREAL_NVP(curr), CEREAL_NVP(snap));
+        ar(CEREAL_NVP(curr),
+           CEREAL_NVP(next),
+           CEREAL_NVP(snap));
     }
 
     template <class Archive>
     void
     serialize(Archive& ar)
     {
-        ar(CEREAL_NVP(curr), CEREAL_NVP(snap));
+        ar(CEREAL_NVP(curr),
+           CEREAL_NVP(next),
+           CEREAL_NVP(snap));
     }
 };
 

@@ -134,22 +134,23 @@ HistoryArchiveState::differingBuckets(HistoryArchiveState const& other) const
     for (auto b : other.currentBuckets)
     {
         inhibit.insert(b.curr);
+        inhibit.insert(b.next);
         inhibit.insert(b.snap);
     }
     std::vector<std::string> ret;
     for (size_t i = BucketList::kNumLevels; i != 0; --i)
     {
         auto const& s = currentBuckets[i - 1].snap;
+        auto const& n = currentBuckets[i - 1].next;
         auto const& c = currentBuckets[i - 1].curr;
-        if (inhibit.find(s) == inhibit.end())
+        auto bs = { s, n, c };
+        for (auto j : bs)
         {
-            ret.push_back(s);
-            inhibit.insert(s);
-        }
-        if (inhibit.find(c) == inhibit.end())
-        {
-            ret.push_back(c);
-            inhibit.insert(c);
+            if (inhibit.find(j) == inhibit.end())
+            {
+                ret.push_back(j);
+                inhibit.insert(j);
+            }
         }
     }
     return ret;
