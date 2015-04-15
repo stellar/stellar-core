@@ -10,11 +10,13 @@
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
 
+
+
 namespace stellar
 {
 
 Node::Node(uint256 const& nodeID, SCP* SCP, int cacheCapacity)
-    : mNodeID(nodeID), mSCP(SCP), mCacheCapacity(cacheCapacity)
+    : mNodeID(nodeID), mSCP(SCP), mCache(cacheCapacity)
 {
 }
 
@@ -139,11 +141,9 @@ Node::retrieveQuorumSet(uint256 const& qSetHash)
     // Notify that we touched this node.
     mSCP->nodeTouched(mNodeID);
 
-    assert(mCacheLRU.size() == mCache.size());
-    auto it = mCache.find(qSetHash);
-    if (it != mCache.end())
+    if (mCache.exists(qSetHash))
     {
-        return it->second;
+        return mCache.get(qSetHash);
     }
 
     CLOG(DEBUG, "SCP") << "Node::retrieveQuorumSet"
@@ -161,20 +161,7 @@ Node::cacheQuorumSet(SCPQuorumSet const& qSet)
                        << "@" << hexAbbrev(mNodeID)
                        << " qSet: " << hexAbbrev(qSetHash);
 
-    if (mCache.find(qSetHash) != mCache.end())
-    {
-        return;
-    }
-
-    while (mCacheCapacity >= 0 && mCache.size() >= (size_t)mCacheCapacity)
-    {
-        assert(mCacheLRU.size() == mCache.size());
-        auto it = mCacheLRU.begin();
-        mCache.erase(*it);
-        mCacheLRU.erase(it);
-    }
-    mCacheLRU.push_back(qSetHash);
-    mCache[qSetHash] = qSet;
+    mCache.put(qSetHash, qSet);
 }
 
 uint256 const&

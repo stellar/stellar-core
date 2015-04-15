@@ -698,6 +698,9 @@
     <ClInclude Include="..\..\src\main\fuzz.h">
       <Filter>main\tests</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\src\lib\util\lrucache.hpp">
+      <Filter>lib\util</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="..\..\AUTHORS" />
