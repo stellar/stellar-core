@@ -317,8 +317,8 @@ std::string
 ApplicationImpl::getStateHuman() const
 {
     static const char* stateStrings[APP_NUM_STATE] = {
-        "APP_BOOTING_STATE", "APP_ACQUIRING_CONSENSUS_STATE",
-        "APP_CATCHING_UP_STATE", "APP_SYNCED_STATE"};
+        "Booting", "Joining SCP",
+        "Catching up", "Synced!"};
     return std::string(stateStrings[getState()]);
 }
 

@@ -42,9 +42,7 @@ Peer::Peer(Application& app, PeerRole role)
 void
 Peer::sendHello()
 {
-    LOG(DEBUG) << "Peer::sendHello "
-               << "@" << mApp.getConfig().PEER_PORT << " to "
-               << mRemoteListeningPort;
+    CLOG(DEBUG,"Overlay") << "Peer::sendHello to " << toString();
 
     StellarMessage msg;
     msg.type(HELLO);
@@ -70,7 +68,6 @@ Peer::connectHandler(asio::error_code const& error)
     if (error)
     {
         CLOG(WARNING, "Overlay")
-            << "@" << mApp.getConfig().PEER_PORT
             << " connectHandler error: " << error.message();
         drop();
     }
@@ -382,10 +379,8 @@ Peer::recvHello(StellarMessage const& msg)
     }
     mRemoteListeningPort =
         static_cast<unsigned short>(msg.hello().listeningPort);
-    CLOG(INFO, "Overlay") << "recvHello "
-                          << "@" << mApp.getConfig().PEER_PORT
-                          << " from: " << mRemoteProtocolVersion << " "
-                          << mRemoteVersion << " " << mRemoteListeningPort;
+    CLOG(DEBUG, "Overlay") << "recvHello from "
+                          << toString();
     mState = GOT_HELLO;
     mPeerID = msg.hello().peerID;
     return true;

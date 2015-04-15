@@ -98,13 +98,13 @@ OverlayManagerImpl::connectTo(PeerRecord& pr)
 {
     if (pr.mPort == 0)
     {
-        CLOG(DEBUG, "Overlay") << "Invalid port: " << pr.toString();
+        CLOG(ERROR, "Overlay") << "Invalid port: " << pr.toString();
         return;
     }
 
     if (!pr.mIP.size())
     {
-        CLOG(DEBUG, "Overlay") << "OverlayManagerImpl::connectTo Invalid IP ";
+        CLOG(ERROR, "Overlay") << "OverlayManagerImpl::connectTo Invalid IP ";
         return;
     }
 
@@ -173,7 +173,7 @@ OverlayManagerImpl::connectToMorePeers(int max)
 void
 OverlayManagerImpl::tick()
 {
-    LOG(DEBUG) << "OverlayManagerImpl tick @" << mApp.getConfig().PEER_PORT;
+    CLOG(DEBUG,"Overlay") << "OverlayManagerImpl tick";
     if (mPeers.size() < mApp.getConfig().TARGET_PEER_CONNECTIONS)
     {
         connectToMorePeers(static_cast<int>(
