@@ -22,17 +22,73 @@
 #include <cereal/types/vector.hpp>
 #include "lib/util/format.h"
 
-#include <iostream>
+#include <chrono>
 #include <fstream>
-#include <sstream>
+#include <future>
+#include <iostream>
 #include <set>
+#include <sstream>
 
 namespace stellar
 {
 
+bool
+HistoryArchiveState::futuresAllReady() const
+{
+    for (auto const& level : currentBuckets)
+    {
+        assert(level.next.empty());
+        if (level.nextFuture.valid())
+        {
+            auto status = level.nextFuture.wait_for(std::chrono::nanoseconds(1));
+            if (status != std::future_status::ready)
+            {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+bool
+HistoryArchiveState::futuresAllResolved() const
+{
+    for (auto const& level : currentBuckets)
+    {
+        if (level.next.empty())
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+void
+HistoryArchiveState::resolveAllFutures()
+{
+    uint256 zero;
+    std::string zstr = binToHex(zero);
+    for (auto& level : currentBuckets)
+    {
+        if (!level.next.empty())
+        {
+            continue;
+        }
+        if (level.nextFuture.valid())
+        {
+            level.next = binToHex(level.nextFuture.get()->getHash());
+        }
+        else
+        {
+            level.next = zstr;
+        }
+    }
+}
+
 void
 HistoryArchiveState::save(std::string const& outFile) const
 {
+    assert(futuresAllResolved());
     std::ofstream out(outFile);
     cereal::JSONOutputArchive ar(out);
     serialize(ar);
@@ -41,6 +97,7 @@ HistoryArchiveState::save(std::string const& outFile) const
 std::string
 HistoryArchiveState::toString() const
 {
+    assert(futuresAllResolved());
     std::ostringstream out;
     {
         cereal::JSONOutputArchive ar(out);
@@ -55,6 +112,11 @@ HistoryArchiveState::load(std::string const& inFile)
     std::ifstream in(inFile);
     cereal::JSONInputArchive ar(in);
     serialize(ar);
+    assert(futuresAllResolved());
+    for (auto& level : currentBuckets)
+    {
+        level.nextFuture = std::shared_future<std::shared_ptr<Bucket>>();
+    }
 }
 
 void
@@ -63,6 +125,11 @@ HistoryArchiveState::fromString(std::string const& str)
     std::istringstream in(str);
     cereal::JSONInputArchive ar(in);
     serialize(ar);
+    assert(futuresAllResolved());
+    for (auto& level : currentBuckets)
+    {
+        level.nextFuture = std::shared_future<std::shared_ptr<Bucket>>();
+    }
 }
 
 std::string
@@ -128,28 +195,31 @@ HistoryArchiveState::getBucketListHash()
 std::vector<std::string>
 HistoryArchiveState::differingBuckets(HistoryArchiveState const& other) const
 {
+    assert(futuresAllResolved());
     std::set<std::string> inhibit;
     uint256 zero;
     inhibit.insert(binToHex(zero));
     for (auto b : other.currentBuckets)
     {
         inhibit.insert(b.curr);
+        inhibit.insert(b.next);
         inhibit.insert(b.snap);
     }
     std::vector<std::string> ret;
     for (size_t i = BucketList::kNumLevels; i != 0; --i)
     {
         auto const& s = currentBuckets[i - 1].snap;
+        auto const& n = currentBuckets[i - 1].next;
+        assert(!n.empty());
         auto const& c = currentBuckets[i - 1].curr;
-        if (inhibit.find(s) == inhibit.end())
+        auto bs = { s, n, c };
+        for (auto j : bs)
         {
-            ret.push_back(s);
-            inhibit.insert(s);
-        }
-        if (inhibit.find(c) == inhibit.end())
-        {
-            ret.push_back(c);
-            inhibit.insert(c);
+            if (inhibit.find(j) == inhibit.end())
+            {
+                ret.push_back(j);
+                inhibit.insert(j);
+            }
         }
     }
     return ret;
@@ -177,6 +247,8 @@ HistoryArchiveState::HistoryArchiveState(uint32_t ledgerSeq,
         HistoryStateBucket b;
         auto& level = buckets.getLevel(i);
         b.curr = binToHex(level.getCurr()->getHash());
+        b.next = std::string();
+        b.nextFuture = level.getNext();
         b.snap = binToHex(level.getSnap()->getHash());
         currentBuckets.push_back(b);
     }

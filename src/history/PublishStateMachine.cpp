@@ -318,6 +318,7 @@ PublishStateMachine::PublishStateMachine(Application& app)
 bool
 PublishStateMachine::queueSnapshot(SnapshotPtr snap, PublishCallback handler)
 {
+    snap->mLocalState.resolveAllFutures();
     bool delayed = !mPendingSnaps.empty();
     mPendingSnaps.push_back(std::make_pair(snap, handler));
     mPendingSnapsSize.set_count(mPendingSnaps.size());
@@ -355,6 +356,10 @@ StateSnapshot::StateSnapshot(Application& app)
     for (size_t i = 0; i < BucketList::kNumLevels; ++i)
     {
         auto const& level = buckets.getLevel(i);
+        if (level.getNext().valid())
+        {
+            mLocalBuckets.push_back(level.getNext().get());
+        }
         mLocalBuckets.push_back(level.getCurr());
         mLocalBuckets.push_back(level.getSnap());
     }

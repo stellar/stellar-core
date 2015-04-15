@@ -228,7 +228,10 @@ BucketManagerImpl::forgetUnreferencedBuckets()
     for (size_t i = 0; i < BucketList::kNumLevels; ++i)
     {
         auto const& level = mBucketList.getLevel(i);
-        uint256 hashes[2] = {level.getCurr()->getHash(),
+        uint256 hashes[3] = {level.getCurr()->getHash(),
+                             (level.getNext().valid() ?
+                              level.getNext().get()->getHash() :
+                              uint256()),
                              level.getSnap()->getHash()};
         for (auto const& hash : hashes)
         {
@@ -293,11 +296,12 @@ std::vector<std::string>
 BucketManagerImpl::checkForMissingBucketsFiles(HistoryArchiveState const& has)
 {
     std::vector<std::string> buckets;
-    for (size_t i = 0; i < BucketList::kNumLevels; ++i)
+    for (auto const& level : has.currentBuckets)
     {
-        auto snap = bucketBasename(has.currentBuckets.at(i).snap);
-        buckets.push_back(has.currentBuckets.at(i).curr);
-        buckets.push_back(has.currentBuckets.at(i).snap);
+        assert(!level.next.empty());
+        buckets.push_back(level.next);
+        buckets.push_back(level.curr);
+        buckets.push_back(level.snap);
     }
 
     std::vector<std::string> result;
@@ -315,14 +319,21 @@ BucketManagerImpl::assumeState(HistoryArchiveState const& has)
     for (size_t i = 0; i < BucketList::kNumLevels; ++i)
     {
         auto curr = getBucketByHash(hexToBin256(has.currentBuckets.at(i).curr));
+        auto next = getBucketByHash(hexToBin256(has.currentBuckets.at(i).next));
         auto snap = getBucketByHash(hexToBin256(has.currentBuckets.at(i).snap));
-        if (!(curr && snap))
+        if (!(curr && next && snap))
         {
             throw std::runtime_error(
                 "Missing bucket files while assuming saved BucketList state");
         }
         mBucketList.getLevel(i).setCurr(curr);
         mBucketList.getLevel(i).setSnap(snap);
+
+        mBucketList.getLevel(i).clearPendingMerge();
+        if (i > 0 && next->getFilename().empty())
+        {
+            mBucketList.getLevel(i).setNext(next);
+        }
     }
     mBucketList.restartMerges(mApp, has.currentLedger);
 }

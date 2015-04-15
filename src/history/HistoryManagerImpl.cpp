@@ -53,6 +53,7 @@ HistoryManager::initializeHistoryArchive(Application& app, std::string arch)
     CLOG(INFO, "History") << "Initializing history archive '" << arch << "'";
     bool ok = true;
     bool done = false;
+    has.resolveAllFutures();
     i->second->putState(app, has, [arch, &done, &ok](asio::error_code const& ec)
                         {
                             if (ec)

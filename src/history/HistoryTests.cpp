@@ -224,6 +224,7 @@ TEST_CASE_METHOD(HistoryTests, "HistoryArchiveState::get_put", "[history]")
     auto archive = i->second;
 
     auto& theApp = this->app; // need a local scope reference
+    has.resolveAllFutures();
     archive->putState(app, has,
                       [&done, &theApp, archive](asio::error_code const& ec)
                       {

@@ -238,15 +238,17 @@ class Bucket;
 class BucketLevel
 {
     size_t mLevel;
-    std::future<std::shared_ptr<Bucket>> mNextCurr;
+    std::shared_future<std::shared_ptr<Bucket>> mNextCurr;
     std::shared_ptr<Bucket> mCurr;
     std::shared_ptr<Bucket> mSnap;
 
   public:
     BucketLevel(size_t i);
     uint256 getHash() const;
+    std::shared_future<std::shared_ptr<Bucket>> getNext() const;
     std::shared_ptr<Bucket> getCurr() const;
     std::shared_ptr<Bucket> getSnap() const;
+    void setNext(std::shared_ptr<Bucket>);
     void setCurr(std::shared_ptr<Bucket>);
     void setSnap(std::shared_ptr<Bucket>);
     void clearPendingMerge();
