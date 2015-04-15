@@ -3,10 +3,6 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "BucketList.h"
-// ASIO is somewhat particular about when it gets included -- it wants to be the
-// first to include <windows.h> -- so we try to include it before everything
-// else.
-#include "util/asio.h"
 #include "main/Application.h"
 #include "util/Logging.h"
 #include "util/types.h"
@@ -41,15 +37,13 @@ BucketLevel::getHash() const
 std::shared_future<std::shared_ptr<Bucket>>
 BucketLevel::getNext() const
 {
-    return std::shared_future<std::shared_ptr<Bucket>>(mNextCurr);
+    return mNextCurr.getSharedFuture();
 }
 
 void
 BucketLevel::setNext(std::shared_ptr<Bucket> bucket)
 {
-    std::promise<std::shared_ptr<Bucket>> promise;
-    mNextCurr = promise.get_future().share();
-    promise.set_value(bucket);
+    mNextCurr = FutureBucket(bucket);
 }
 
 std::shared_ptr<Bucket>
@@ -98,21 +92,19 @@ BucketLevel::clearPendingMerge()
 {
     // NB: MSVC future<> implementation doesn't purge the task lambda (and
     // its captures) on invalidation (due to get()); must explicitly reset.
-    mNextCurr = std::shared_future<std::shared_ptr<Bucket>>();
+    mNextCurr.clear();
 }
 
 void
 BucketLevel::commit()
 {
-    if (mNextCurr.valid())
+    if (mNextCurr.isLive())
     {
-        // NB: This might block if the worker thread is slow; might want to
-        // use mNextCurr.wait_for()
-        setCurr(mNextCurr.get());
+        setCurr(mNextCurr.commit());
         // CLOG(DEBUG, "Bucket") << "level " << mLevel << " set mCurr to "
         //            << mCurr->getEntries().size() << " elements";
     }
-    assert(!mNextCurr.valid());
+    assert(!mNextCurr.isMerging());
 }
 
 void
@@ -122,7 +114,7 @@ BucketLevel::prepare(Application& app, uint32_t currLedger,
 {
     // If more than one absorb is pending at the same time, we have a logic
     // error in our caller (and all hell will break loose).
-    assert(!mNextCurr.valid());
+    assert(!mNextCurr.isMerging());
 
     auto curr = mCurr;
 
@@ -141,33 +133,12 @@ BucketLevel::prepare(Application& app, uint32_t currLedger,
         {
             // CLOG(DEBUG, "Bucket") << "level " << mLevel
             //            << " skipping pending-snapshot curr";
-            curr.reset();
+            curr = std::make_shared<Bucket>();
         }
     }
 
-    //CLOG(INFO, "Bucket")
-    //    << "Worker preparing merge of " << snap->getFilename() << " with " << snap->getFilename();
-
-    BucketManager& bucketManager = app.getBucketManager();
-    using task_t = std::packaged_task<std::shared_ptr<Bucket>()>;
-    std::shared_ptr<task_t> task = std::make_shared<task_t>(
-        [curr, snap, &bucketManager, shadows]()
-        {
-            //CLOG(INFO, "Bucket")
-            //    << "Worker merging " << snap->getFilename() << " with " << snap->getFilename();
-
-             auto res = Bucket::merge(bucketManager,
-                                     (curr ? curr : std::make_shared<Bucket>()),
-                                     snap, shadows);
-             //CLOG(INFO, "Bucket")
-             //    << "Worker finished merging " << snap->getFilename() << " with " << snap->getFilename();
-             return res;
-        });
-
-    mNextCurr = task->get_future().share();
-    app.getWorkerIOService().post(bind(&task_t::operator(), task));
-
-    assert(mNextCurr.valid());
+    mNextCurr = FutureBucket(app, curr, snap, shadows);
+    assert(mNextCurr.isMerging());
 }
 
 std::shared_ptr<Bucket>
@@ -338,41 +309,6 @@ BucketList::restartMerges(Application& app, uint32_t currLedger)
      * of affairs until we get the code written to handle saving shadow lists
      * and restarting merges from them properly.
      */
-
-    return;
-
-    /*
-    // Scan the bucketlist, kill all existing merges and start a new merge between any
-    // nonzero snap and its subsequent level.
-
-    std::vector<std::shared_ptr<Bucket>> shadows;
-    for (auto& level : mLevels)
-    {
-        shadows.push_back(level.getCurr());
-        shadows.push_back(level.getSnap());
-    }
-
-    assert(shadows.size() >= 2);
-    shadows.pop_back();
-    shadows.pop_back();
-
-    for (size_t i = mLevels.size() - 1; i > 0; --i)
-    {
-        assert(shadows.size() >= 2);
-        shadows.pop_back();
-        shadows.pop_back();
-
-        mLevels[i].clearPendingMerge();
-
-        // Restart merges on _all_ nonzero-snap levels, assuming
-        // they should already have been running.
-        auto snap = mLevels[i - 1].getSnap();
-        if (!isZero(snap->getHash()))
-        {
-            mLevels[i].prepare(app, currLedger, snap, shadows);
-        }
-    }
-    */
 }
 
 size_t const BucketList::kNumLevels = 11;

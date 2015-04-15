@@ -14,6 +14,7 @@ FMT_SRCS =                                      \
     src/bucket/BucketList.cpp                   \
     src/bucket/BucketManagerImpl.cpp            \
     src/bucket/BucketTests.cpp                  \
+    src/bucket/FutureBucket.cpp                 \
     src/crypto/Base58.cpp                       \
     src/crypto/CryptoTests.cpp                  \
     src/crypto/Hex.cpp                          \
@@ -105,6 +106,7 @@ FMT_HDRS =                                      \
     src/bucket/BucketList.h                     \
     src/bucket/BucketManager.h                  \
     src/bucket/BucketManagerImpl.h              \
+    src/bucket/FutureBucket.h                   \
     src/bucket/LedgerCmp.h                      \
     src/crypto/Base58.h                         \
     src/crypto/ByteSlice.h                      \

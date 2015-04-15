@@ -5,6 +5,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include <future>
+#include "bucket/FutureBucket.h"
 #include "generated/StellarXDR.h"
 #include "xdrpp/message.h"
 
@@ -238,7 +239,7 @@ class Bucket;
 class BucketLevel
 {
     size_t mLevel;
-    std::shared_future<std::shared_ptr<Bucket>> mNextCurr;
+    FutureBucket mNextCurr;
     std::shared_ptr<Bucket> mCurr;
     std::shared_ptr<Bucket> mSnap;
 
