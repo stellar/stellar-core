@@ -248,6 +248,7 @@ class BucketLevel
     std::shared_future<std::shared_ptr<Bucket>> getNext() const;
     std::shared_ptr<Bucket> getCurr() const;
     std::shared_ptr<Bucket> getSnap() const;
+    void setNext(std::shared_ptr<Bucket>);
     void setCurr(std::shared_ptr<Bucket>);
     void setSnap(std::shared_ptr<Bucket>);
     void clearPendingMerge();

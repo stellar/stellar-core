@@ -44,6 +44,14 @@ BucketLevel::getNext() const
     return std::shared_future<std::shared_ptr<Bucket>>(mNextCurr);
 }
 
+void
+BucketLevel::setNext(std::shared_ptr<Bucket> bucket)
+{
+    std::promise<std::shared_ptr<Bucket>> promise;
+    mNextCurr = promise.get_future().share();
+    promise.set_value(bucket);
+}
+
 std::shared_ptr<Bucket>
 BucketLevel::getCurr() const
 {
@@ -322,6 +330,18 @@ BucketList::addBatch(Application& app, uint32_t currLedger,
 void
 BucketList::restartMerges(Application& app, uint32_t currLedger)
 {
+    /*
+     * FIXME: For the time being, we do not "restart" any merges because we do
+     * not save enough information (in the form of a shadow-list) to restart
+     * them properly. Instead we save the exact "next" bucket (completed but
+     * not-committed merge) and operate synchronously. This is a temporary state
+     * of affairs until we get the code written to handle saving shadow lists
+     * and restarting merges from them properly.
+     */
+
+    return;
+
+    /*
     // Scan the bucketlist, kill all existing merges and start a new merge between any
     // nonzero snap and its subsequent level.
 
@@ -352,6 +372,7 @@ BucketList::restartMerges(Application& app, uint32_t currLedger)
             mLevels[i].prepare(app, currLedger, snap, shadows);
         }
     }
+    */
 }
 
 size_t const BucketList::kNumLevels = 11;
