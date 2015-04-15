@@ -145,13 +145,14 @@ TEST_CASE("txset", "[herder]")
 
     SequenceNumber sourceSeq = getAccountSeqNum(sourceAccount, *app) + 1;
 
-    std::vector<TransactionFramePtr> transactions[nbAccounts];
+    std::vector<std::vector<TransactionFramePtr>> transactions;
 
     for (int i = 0; i < nbAccounts; i++)
     {
         std::string accountName = "A";
         accountName += '0' + (char)i;
         accounts[i] = getAccount(accountName.c_str());
+        transactions.push_back(std::vector<TransactionFramePtr>());
         for (int j = 0; j < nbTransactions; j++)
         {
             transactions[i].emplace_back(createPaymentTx(
