@@ -108,6 +108,7 @@ class Config : public std::enable_shared_from_this<Config>
     Config();
 
     void load(std::string const& filename);
-    void applyCommands();
+    SCPQuorumSet quorumSet() const;
+
 };
 }

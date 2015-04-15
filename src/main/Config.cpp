@@ -210,4 +210,18 @@ Config::load(std::string const& filename)
         throw std::invalid_argument(err);
     }
 }
+
+SCPQuorumSet
+Config::quorumSet() const
+{
+    SCPQuorumSet qSet;
+    qSet.threshold = QUORUM_THRESHOLD;
+    for (auto q : QUORUM_SET)
+    {
+        qSet.validators.push_back(q);
+    }
+    return qSet;
+}
+
+
 }

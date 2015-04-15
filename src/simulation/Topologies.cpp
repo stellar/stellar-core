@@ -111,9 +111,9 @@ Topologies::core(int nNodes, float quorumThresoldFraction, Simulation::Mode mode
 }
 
 Simulation::pointer
-Topologies::hierarchicalQuorum(int nBranches) // Figure 2 from the paper
+Topologies::hierarchicalQuorum(int nBranches, Simulation::Mode mode) // Figure 2 from the paper
 {
-    auto sim = Topologies::core(4, 1.0, Simulation::OVER_LOOPBACK);
+    auto sim = Topologies::core(4, 1.0, mode);
     vector<uint256> coreNodeIDs;
     for (auto coreNodeID : sim->getNodeIDs())
     {
@@ -124,7 +124,7 @@ Topologies::hierarchicalQuorum(int nBranches) // Figure 2 from the paper
     {
         // middle tier nodes
         vector<SecretKey> middletierKeys;
-        for (int j = 0; j < 3; j++)
+        for (int j = 0; j < 1; j++)
         {
             middletierKeys.push_back(SecretKey::fromSeed(sha256("SEED_VALIDATION_SEED_" + to_string(i) + "_middle_" + to_string(j))));
         }

@@ -9,22 +9,7 @@
 
 #include "scp/SCP.h"
 #include <lib/util/lrucache.hpp>
-
-namespace std
-{
-template<>
-struct hash<stellar::Hash>
-{
-    size_t operator()(stellar::Hash const & x) const noexcept
-    {
-        size_t res = x[0];
-        res = (res << 8) | x[1];
-        res = (res << 8) | x[2];
-        res = (res << 8) | x[3];
-        return res;
-    }
-};
-}
+#include "util/HashOfHash.h"
 
 
 namespace stellar
@@ -36,7 +21,8 @@ class Node
 {
 
   public:
-    Node(uint256 const& nodeID, SCP* SCP, int cacheCapacity = 4);
+    static int const CACHE_SIZE;
+    Node(uint256 const& nodeID, SCP* SCP);
 
     // Tests this node against nodeSet for the specified qSethash. Triggers the
     // retrieval of qSetHash for this node and may throw a QuorumSetNotFound
@@ -121,8 +107,6 @@ class Node
   protected:
     const uint256 mNodeID;
     SCP* mSCP;
-
-  private:
     cache::lru_cache<Hash, SCPQuorumSet> mCache;
 };
 }

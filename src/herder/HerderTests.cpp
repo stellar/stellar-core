@@ -4,22 +4,16 @@
 
 #include "herder/HerderImpl.h"
 #include "scp/SCP.h"
-#include "overlay/ItemFetcher.h"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "simulation/Simulation.h"
 
-#include <cassert>
-#include "util/make_unique.h"
 #include "main/test.h"
 #include "lib/catch.hpp"
-#include "util/Logging.h"
-#include "xdrpp/marshal.h"
-#include "xdrpp/printer.h"
-#include "crypto/Hex.h"
 #include "crypto/SHA.h"
 #include "transactions/TxTests.h"
 #include "database/Database.h"
+#include "ledger/LedgerManager.h"
 
 using namespace stellar;
 using namespace stellar::txtest;
