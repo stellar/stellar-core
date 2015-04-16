@@ -98,7 +98,7 @@ BucketLevel::commit()
 {
     if (mNextCurr.isLive())
     {
-        setCurr(mNextCurr.commit());
+        setCurr(mNextCurr.resolve());
         // CLOG(DEBUG, "Bucket") << "level " << mLevel << " set mCurr to "
         //            << mCurr->getEntries().size() << " elements";
     }

@@ -68,7 +68,7 @@ HistoryArchiveState::resolveAllFutures()
     {
         if (level.next.isMerging())
         {
-            level.next.commit();
+            level.next.resolve();
         }
     }
 }
@@ -184,7 +184,7 @@ HistoryArchiveState::differingBuckets(HistoryArchiveState const& other) const
         inhibit.insert(b.curr);
         if (b.next.isLive())
         {
-            b.next.commit();
+            b.next.resolve();
         }
         if (b.next.hasOutputHash())
         {

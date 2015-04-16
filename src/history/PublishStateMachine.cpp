@@ -358,7 +358,7 @@ StateSnapshot::StateSnapshot(Application& app)
         auto& level = buckets.getLevel(i);
         if (level.getNext().isLive())
         {
-            mLocalBuckets.push_back(level.getNext().commit());
+            mLocalBuckets.push_back(level.getNext().resolve());
         }
         mLocalBuckets.push_back(level.getCurr());
         mLocalBuckets.push_back(level.getSnap());

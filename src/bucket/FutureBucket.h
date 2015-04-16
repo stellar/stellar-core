@@ -35,10 +35,10 @@ class FutureBucket
     // There are two lifecycles of a FutureBucket:
     //
     // In one, it's created live, snapshotted at some point in the process
-    // (either before or after the merge completes), and committed/cleared.
+    // (either before or after the merge completes), and resolved/cleared.
     //
     // In another, it's created, deserialized (filling in the hashes of either
-    // the inputs or the output, but not both), made-live, and committed/cleared.
+    // the inputs or the output, but not both), made-live, and resolved/cleared.
 
     enum State
     {
@@ -110,11 +110,11 @@ public:
     // Precondition: hasOutputHash(); return the hash.
     std::string const& getOutputHash() const;
 
-    // Precondition: isLive(); returns whether a live merge is ready to commit.
+    // Precondition: isLive(); returns whether a live merge is ready to resolve.
     bool mergeComplete() const;
 
-    // Precondition: isLive(); waits-for and commits to merge completion.
-    std::shared_ptr<Bucket> commit();
+    // Precondition: isLive(); waits-for and resolves to merged bucket.
+    std::shared_ptr<Bucket> resolve();
 
     // Precondition: !isLive(); transitions from FB_HASH_FOO to FB_LIVE_FOO
     void makeLive(Application& app);

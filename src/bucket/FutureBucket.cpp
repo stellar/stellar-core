@@ -209,7 +209,7 @@ FutureBucket::mergeComplete() const
 }
 
 std::shared_ptr<Bucket>
-FutureBucket::commit()
+FutureBucket::resolve()
 {
     checkState();
     assert(isLive());
@@ -265,7 +265,7 @@ FutureBucket::startMerge(Application& app)
     assert(!mOutputBucket.valid());
 
     // Retain all buckets while being merged. They'll be freed by the
-    // BucketManagers only after the merge is done and committed-to.
+    // BucketManagers only after the merge is done and resolved.
     curr->setRetain(true);
     snap->setRetain(true);
     for (auto b : shadows)
