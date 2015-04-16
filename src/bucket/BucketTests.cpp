@@ -453,6 +453,23 @@ TEST_CASE("single entry bubbling up", "[bucket][bucketbubble]")
     }
 }
 
+static Hash
+closeLedger(Application& app)
+{
+    auto& lm = app.getLedgerManager();
+    auto lclHash = lm.getLastClosedLedgerHeader().hash;
+    CLOG(INFO, "Bucket")
+        << "Artificially closing ledger " << lm.getLedgerNum()
+        << " with lcl=" << hexAbbrev(lclHash)
+        << ", buckets="
+        << hexAbbrev(app.getBucketManager().getBucketList().getHash());
+    LedgerCloseData lcd(
+        lm.getLedgerNum(), std::make_shared<TxSetFrame>(lclHash),
+        lm.getCloseTime(), static_cast<int32_t>(lm.getTxFee()));
+    lm.externalizeValue(lcd);
+    return lm.getLastClosedLedgerHeader().hash;
+}
+
 TEST_CASE("bucket persistence over app restart", "[bucket][bucketpersist]")
 {
     autocheck::generator<std::vector<LedgerEntry>> liveGen;
@@ -460,46 +477,99 @@ TEST_CASE("bucket persistence over app restart", "[bucket][bucketpersist]")
     std::vector<stellar::LedgerEntry> emptySetEntry;
 
     VirtualClock clock;
-    Config cfg(getTestConfig(0, Config::TESTDB_ON_DISK_SQLITE));
+    Config cfg0(getTestConfig(0, Config::TESTDB_ON_DISK_SQLITE));
+    Config cfg1(getTestConfig(1, Config::TESTDB_ON_DISK_SQLITE));
 
-    Hash bucketHash1;
-    Hash lclHash1;
-
+    std::vector<std::vector<LedgerEntry>> batches;
+    for (size_t i = 0; i < 110; ++i)
     {
-        Application::pointer app1 = Application::create(clock, cfg);
-        app1->start();
-        BucketList& bl1 = app1->getBucketManager().getBucketList();
-        auto lclHash0 =
-            app1->getLedgerManager().getLastClosedLedgerHeader().hash;
-        for (uint32_t i = 2; i < 100; ++i)
-        {
-            bl1.addBatch(*app1, i, liveGen(1), emptySet);
-        }
-
-        // Checkpoint this bucketlist into a ledger, crudely.
-        auto& lm1 = app1->getLedgerManager();
-        LedgerCloseData lcd(
-            lm1.getLedgerNum(), std::make_shared<TxSetFrame>(lclHash0),
-            lm1.getCloseTime(), static_cast<int32_t>(lm1.getTxFee()));
-        app1->getLedgerManager().externalizeValue(lcd);
-        lclHash1 = app1->getLedgerManager().getLastClosedLedgerHeader().hash;
-        bucketHash1 = bl1.getLevel(1).getCurr()->getHash();
-        REQUIRE(!isZero(bucketHash1));
+        batches.push_back(liveGen(1));
     }
 
-    // app is now dead, but we want bucketHash1 to persist into a restart of the
-    // app, since that bucket is "live" in lclHash1, and the database persists.
-    cfg.REBUILD_DB = false;
-    cfg.FORCE_SCP = false;
+    Hash Lh50, Lh100;
+    Hash Blh50, Blh100;
 
+    // First, run an application through two ledger closes, picking up
+    // the bucket and ledger closes at each.
     {
-        Application::pointer app2 = Application::create(clock, cfg);
-        app2->start();
-        auto lclHash2 =
-            app2->getLedgerManager().getLastClosedLedgerHeader().hash;
-        REQUIRE(hexAbbrev(lclHash2) == hexAbbrev(lclHash1));
-        BucketList& bl2 = app2->getBucketManager().getBucketList();
-        auto bucketHash2 = bl2.getLevel(1).getCurr()->getHash();
-        CHECK(hexAbbrev(bucketHash2) == hexAbbrev(bucketHash1));
+        Application::pointer app = Application::create(clock, cfg0);
+        app->start();
+        BucketList& bl = app->getBucketManager().getBucketList();
+
+        uint32_t i = 2;
+        while (i < 50)
+        {
+            bl.addBatch(*app, i, batches[i], emptySet);
+            i++;
+        }
+
+        Lh50 = closeLedger(*app);
+        Blh50 = bl.getHash();
+        REQUIRE(!isZero(Lh50));
+        REQUIRE(!isZero(Blh50));
+
+        while (i < 100)
+        {
+            bl.addBatch(*app, i, batches[i], emptySet);
+            i++;
+        }
+
+        Lh100 = closeLedger(*app);
+        Blh100 = bl.getHash();
+        REQUIRE(!isZero(Blh100));
+        REQUIRE(!isZero(Lh100));
+    }
+
+    // Next run a new app with a disjoint config one ledger close, and
+    // stop it. It should have acquired the same state and ledger.
+    {
+        Application::pointer app = Application::create(clock, cfg1);
+        app->start();
+        BucketList& bl = app->getBucketManager().getBucketList();
+
+        uint32_t i = 2;
+        while (i < 50)
+        {
+            bl.addBatch(*app, i, batches[i], emptySet);
+            i++;
+        }
+
+        // Confirm that there are merges-in-progress in this checkpoint.
+        HistoryArchiveState has(i, bl);
+        REQUIRE(!has.futuresAllResolved());
+
+        REQUIRE(hexAbbrev(Lh50) == hexAbbrev(closeLedger(*app)));
+        REQUIRE(hexAbbrev(Blh50) == hexAbbrev(bl.getHash()));
+    }
+
+    // Finally *restart* an app on the same config, and see if it can
+    // pick up the bucket list correctly.
+    cfg1.REBUILD_DB = false;
+    cfg1.FORCE_SCP = false;
+    {
+        Application::pointer app = Application::create(clock, cfg1);
+        app->start();
+        BucketList& bl = app->getBucketManager().getBucketList();
+
+        // Confirm that we re-acquired the close-ledger state.
+        REQUIRE(hexAbbrev(Lh50) ==
+                hexAbbrev(app->getLedgerManager().getLastClosedLedgerHeader().hash));
+        REQUIRE(hexAbbrev(Blh50) == hexAbbrev(bl.getHash()));
+
+        uint32_t i = 50;
+
+        // Confirm that merges-in-progress were restarted.
+        HistoryArchiveState has(i, bl);
+        REQUIRE(!has.futuresAllResolved());
+
+        while (i < 100)
+        {
+            bl.addBatch(*app, i, batches[i], emptySet);
+            i++;
+        }
+
+        // Confirm that merges-in-progress finished with expected results.
+        REQUIRE(hexAbbrev(Lh100) == hexAbbrev(closeLedger(*app)));
+        REQUIRE(hexAbbrev(Blh100) == hexAbbrev(bl.getHash()));
     }
 }
