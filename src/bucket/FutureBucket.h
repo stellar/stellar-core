@@ -9,6 +9,7 @@
 #include <memory>
 #include <vector>
 #include <future>
+#include <cereal/cereal.hpp>
 
 namespace stellar
 {
@@ -113,12 +114,52 @@ public:
     template <class Archive>
     void load(Archive& ar)
     {
+        clear();
+        ar(cereal::make_nvp("state", mState));
+        switch (mState)
+        {
+        case FB_HASH_INPUTS:
+            ar(cereal::make_nvp("curr", mInputCurrBucketHash));
+            ar(cereal::make_nvp("snap", mInputSnapBucketHash));
+            ar(cereal::make_nvp("shadow", mInputShadowBucketHashes));
+            break;
+        case FB_HASH_OUTPUT:
+            ar(cereal::make_nvp("output", mOutputBucketHash));
+            break;
+        case FB_CLEAR:
+            break;
+        default:
+            throw std::runtime_error("deserialized unexpected FutureBucket state");
+            break;
+        }
+        checkState();
     }
 
     template <class Archive>
-    void save(Archive& ar)
+    void save(Archive& ar) const
     {
+        checkState();
+        switch (mState)
+        {
+        case FB_LIVE_INPUTS:
+        case FB_HASH_INPUTS:
+            ar(cereal::make_nvp("state", FB_HASH_INPUTS));
+            ar(cereal::make_nvp("curr", mInputCurrBucketHash));
+            ar(cereal::make_nvp("snap", mInputSnapBucketHash));
+            ar(cereal::make_nvp("shadow", mInputShadowBucketHashes));
+            break;
+        case FB_LIVE_OUTPUT:
+        case FB_HASH_OUTPUT:
+            ar(cereal::make_nvp("state", FB_HASH_OUTPUT));
+            ar(cereal::make_nvp("output", mOutputBucketHash));
+            break;
+        case FB_CLEAR:
+            ar(cereal::make_nvp("state", FB_CLEAR));
+            break;
+        default:
+            assert(false);
+            break;
+        }
     }
 };
-
 }
