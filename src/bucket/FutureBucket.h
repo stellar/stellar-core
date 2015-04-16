@@ -42,11 +42,11 @@ class FutureBucket
 
     enum State
     {
-        FB_CLEAR,         // No inputs; no outputs; no hashes.
-        FB_LIVE_INPUTS,   // Inputs; input hashes; no outputs. Merge running.
-        FB_LIVE_OUTPUT,   // Output; output hashes; _maybe_ inputs and hashes.
-        FB_HASH_INPUTS,   // Input hashes; no inputs; no outputs or hashes.
-        FB_HASH_OUTPUT    // Output hash; no output; no inputs or hashes.
+        FB_CLEAR = 0,         // No inputs; no outputs; no hashes.
+        FB_HASH_OUTPUT = 1,   // Output hash; no output; no inputs or hashes.
+        FB_HASH_INPUTS = 2,   // Input hashes; no inputs; no outputs or hashes.
+        FB_LIVE_OUTPUT = 3,   // Output; output hashes; _maybe_ inputs and hashes.
+        FB_LIVE_INPUTS = 4,   // Inputs; input hashes; no outputs. Merge running.
     };
 
     State mState {FB_CLEAR};
