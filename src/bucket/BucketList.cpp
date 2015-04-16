@@ -299,13 +299,19 @@ BucketList::addBatch(Application& app, uint32_t currLedger,
 void
 BucketList::restartMerges(Application& app, uint32_t currLedger)
 {
+    size_t i = 0;
     for (auto& level : mLevels)
     {
         auto& next = level.getNext();
         if (next.hasHashes() && !next.isLive())
         {
             next.makeLive(app);
+            if (next.isMerging())
+            {
+                CLOG(INFO, "Bucket") << "Restarted merge on BucketList level " << i;
+            }
         }
+        ++i;
     }
 }
 
