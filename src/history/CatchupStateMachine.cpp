@@ -726,12 +726,7 @@ CatchupStateMachine::applyBucketsAtLastClosedLedger()
             applying = true;
         }
 
-        existingLevel.clearPendingMerge();
-        auto next = getBucketToApply(i->next);
-        if (n > 0 && !next->getFilename().empty())
-        {
-            existingLevel.setNext(next);
-        }
+        existingLevel.setNext(i->next);
     }
 
     // Start the merges we need to have completed to resume running at LCL

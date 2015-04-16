@@ -355,10 +355,10 @@ StateSnapshot::StateSnapshot(Application& app)
     BucketList& buckets = app.getBucketManager().getBucketList();
     for (size_t i = 0; i < BucketList::kNumLevels; ++i)
     {
-        auto const& level = buckets.getLevel(i);
-        if (level.getNext().valid())
+        auto& level = buckets.getLevel(i);
+        if (level.getNext().isLive())
         {
-            mLocalBuckets.push_back(level.getNext().get());
+            mLocalBuckets.push_back(level.getNext().commit());
         }
         mLocalBuckets.push_back(level.getCurr());
         mLocalBuckets.push_back(level.getSnap());

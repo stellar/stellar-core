@@ -8,7 +8,7 @@
 #include <string>
 #include <system_error>
 #include <memory>
-#include <future>
+#include "bucket/FutureBucket.h"
 #include "generated/Stellar-types.h"
 
 namespace asio
@@ -26,8 +26,7 @@ class Bucket;
 struct HistoryStateBucket
 {
     std::string curr;
-    std::shared_future<std::shared_ptr<Bucket>> nextFuture;
-    std::string next;
+    FutureBucket next;
     std::string snap;
 
     template <class Archive>
@@ -49,6 +48,13 @@ struct HistoryStateBucket
     }
 };
 
+/**
+ * A snapshot of a ledger number and associated set of buckets; this is used
+ * when writing to HistoryArchives as well as when persisting the state of the
+ * BucketList to the local database, as PersistentState kHistoryArchiveState. It
+ * might reasonably be renamed BucketListState or similar, since it really only
+ * describes a BucketList, not an entire HistoryArchive.
+ */
 struct HistoryArchiveState
 {
     unsigned version{0};
@@ -72,9 +78,8 @@ struct HistoryArchiveState
     Hash getBucketListHash();
 
     // Return vector of buckets to fetch/apply to turn 'other' into 'this'.
-    // Vector
-    // is sorted from largest/highest-numbered bucket to smallest/lowest, and
-    // with snap buckets occurring before curr buckets. Zero-buckets are
+    // Vector is sorted from largest/highest-numbered bucket to smallest/lowest,
+    // and with snap buckets occurring before curr buckets. Zero-buckets are
     // omitted.
     std::vector<std::string>
     differingBuckets(HistoryArchiveState const& other) const;

@@ -5,6 +5,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include <future>
+#include "bucket/FutureBucket.h"
 #include "generated/StellarXDR.h"
 #include "xdrpp/message.h"
 
@@ -238,20 +239,20 @@ class Bucket;
 class BucketLevel
 {
     size_t mLevel;
-    std::shared_future<std::shared_ptr<Bucket>> mNextCurr;
+    FutureBucket mNextCurr;
     std::shared_ptr<Bucket> mCurr;
     std::shared_ptr<Bucket> mSnap;
 
   public:
     BucketLevel(size_t i);
     uint256 getHash() const;
-    std::shared_future<std::shared_ptr<Bucket>> getNext() const;
+    FutureBucket const& getNext() const;
+    FutureBucket& getNext();
     std::shared_ptr<Bucket> getCurr() const;
     std::shared_ptr<Bucket> getSnap() const;
-    void setNext(std::shared_ptr<Bucket>);
+    void setNext(FutureBucket const& fb);
     void setCurr(std::shared_ptr<Bucket>);
     void setSnap(std::shared_ptr<Bucket>);
-    void clearPendingMerge();
     void commit();
     void prepare(Application& app, uint32_t currLedger,
                  std::shared_ptr<Bucket> snap,
