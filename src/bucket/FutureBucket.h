@@ -75,6 +75,10 @@ class FutureBucket
     void checkState() const;
     void startMerge(Application& app);
 
+    void clearInputs();
+    void clearOutput();
+    void setLiveOutput(std::shared_ptr<Bucket> b);
+
 public:
 
     FutureBucket(Application& app,
@@ -82,7 +86,7 @@ public:
                  std::shared_ptr<Bucket> const& snap,
                  std::vector<std::shared_ptr<Bucket>> const& shadows);
 
-    FutureBucket(std::shared_ptr<Bucket> const& output);
+    FutureBucket(std::shared_ptr<Bucket> output);
 
     FutureBucket() = default;
     FutureBucket(FutureBucket const& other) = default;
@@ -100,7 +104,13 @@ public:
     // Returns whether this object is in a FB_HASH_FOO state.
     bool hasHashes() const;
 
-    // Precondition: isLive(); returns whether a live merge is complete.
+    // Returns whether this object is in FB_HASH_OUTPUT state.
+    bool hasOutputHash() const;
+
+    // Precondition: hasOutputHash(); return the hash.
+    std::string const& getOutputHash() const;
+
+    // Precondition: isLive(); returns whether a live merge is ready to commit.
     bool mergeComplete() const;
 
     // Precondition: isLive(); waits-for and commits to merge completion.
@@ -109,7 +119,8 @@ public:
     // Precondition: !isLive(); transitions from FB_HASH_FOO to FB_LIVE_FOO
     void makeLive(Application& app);
 
-    std::shared_future<std::shared_ptr<Bucket>> getSharedFuture() const;
+    // Return all hashes referenced by this future.
+    std::vector<std::string> getHashes() const;
 
     template <class Archive>
     void load(Archive& ar)

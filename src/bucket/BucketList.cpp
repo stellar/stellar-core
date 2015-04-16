@@ -34,16 +34,22 @@ BucketLevel::getHash() const
     return hsh->finish();
 }
 
-std::shared_future<std::shared_ptr<Bucket>>
+FutureBucket const&
 BucketLevel::getNext() const
 {
-    return mNextCurr.getSharedFuture();
+    return mNextCurr;
+}
+
+FutureBucket&
+BucketLevel::getNext()
+{
+    return mNextCurr;
 }
 
 void
-BucketLevel::setNext(std::shared_ptr<Bucket> bucket)
+BucketLevel::setNext(FutureBucket const& fb)
 {
-    mNextCurr = FutureBucket(bucket);
+    mNextCurr = fb;
 }
 
 std::shared_ptr<Bucket>
@@ -61,7 +67,7 @@ BucketLevel::getSnap() const
 void
 BucketLevel::setCurr(std::shared_ptr<Bucket> b)
 {
-    clearPendingMerge();
+    mNextCurr.clear();
     if (mCurr)
     {
         mCurr->setRetain(false);
@@ -85,14 +91,6 @@ BucketLevel::setSnap(std::shared_ptr<Bucket> b)
     {
         mSnap->setRetain(true);
     }
-}
-
-void
-BucketLevel::clearPendingMerge()
-{
-    // NB: MSVC future<> implementation doesn't purge the task lambda (and
-    // its captures) on invalidation (due to get()); must explicitly reset.
-    mNextCurr.clear();
 }
 
 void
@@ -301,14 +299,14 @@ BucketList::addBatch(Application& app, uint32_t currLedger,
 void
 BucketList::restartMerges(Application& app, uint32_t currLedger)
 {
-    /*
-     * FIXME: For the time being, we do not "restart" any merges because we do
-     * not save enough information (in the form of a shadow-list) to restart
-     * them properly. Instead we save the exact "next" bucket (completed but
-     * not-committed merge) and operate synchronously. This is a temporary state
-     * of affairs until we get the code written to handle saving shadow lists
-     * and restarting merges from them properly.
-     */
+    for (auto& level : mLevels)
+    {
+        auto& next = level.getNext();
+        if (next.hasHashes() && !next.isLive())
+        {
+            next.makeLive(app);
+        }
+    }
 }
 
 size_t const BucketList::kNumLevels = 11;

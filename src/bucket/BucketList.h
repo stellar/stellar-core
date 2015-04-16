@@ -246,13 +246,13 @@ class BucketLevel
   public:
     BucketLevel(size_t i);
     uint256 getHash() const;
-    std::shared_future<std::shared_ptr<Bucket>> getNext() const;
+    FutureBucket const& getNext() const;
+    FutureBucket& getNext();
     std::shared_ptr<Bucket> getCurr() const;
     std::shared_ptr<Bucket> getSnap() const;
-    void setNext(std::shared_ptr<Bucket>);
+    void setNext(FutureBucket const& fb);
     void setCurr(std::shared_ptr<Bucket>);
     void setSnap(std::shared_ptr<Bucket>);
-    void clearPendingMerge();
     void commit();
     void prepare(Application& app, uint32_t currLedger,
                  std::shared_ptr<Bucket> snap,

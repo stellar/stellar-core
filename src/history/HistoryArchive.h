@@ -8,7 +8,7 @@
 #include <string>
 #include <system_error>
 #include <memory>
-#include <future>
+#include "bucket/FutureBucket.h"
 #include "generated/Stellar-types.h"
 
 namespace asio
@@ -26,8 +26,7 @@ class Bucket;
 struct HistoryStateBucket
 {
     std::string curr;
-    std::shared_future<std::shared_ptr<Bucket>> nextFuture;
-    std::string next;
+    FutureBucket next;
     std::string snap;
 
     template <class Archive>
