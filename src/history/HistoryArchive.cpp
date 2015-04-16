@@ -74,6 +74,18 @@ HistoryArchiveState::resolveAllFutures()
 }
 
 void
+HistoryArchiveState::resolveAnyReadyFutures()
+{
+    for (auto& level : currentBuckets)
+    {
+        if (level.next.isMerging() && level.next.mergeComplete())
+        {
+            level.next.resolve();
+        }
+    }
+}
+
+void
 HistoryArchiveState::save(std::string const& outFile) const
 {
     assert(futuresAllResolved());

@@ -480,6 +480,8 @@ TEST_CASE("bucket persistence over app restart", "[bucket][bucketpersist]")
     Config cfg0(getTestConfig(0, Config::TESTDB_ON_DISK_SQLITE));
     Config cfg1(getTestConfig(1, Config::TESTDB_ON_DISK_SQLITE));
 
+    cfg1.ARTIFICIALLY_PESSIMIZE_MERGES_FOR_TESTING = true;
+
     std::vector<std::vector<LedgerEntry>> batches;
     for (size_t i = 0; i < 110; ++i)
     {
@@ -534,12 +536,12 @@ TEST_CASE("bucket persistence over app restart", "[bucket][bucketpersist]")
             i++;
         }
 
+        REQUIRE(hexAbbrev(Lh50) == hexAbbrev(closeLedger(*app)));
+        REQUIRE(hexAbbrev(Blh50) == hexAbbrev(bl.getHash()));
+
         // Confirm that there are merges-in-progress in this checkpoint.
         HistoryArchiveState has(i, bl);
         REQUIRE(!has.futuresAllResolved());
-
-        REQUIRE(hexAbbrev(Lh50) == hexAbbrev(closeLedger(*app)));
-        REQUIRE(hexAbbrev(Blh50) == hexAbbrev(bl.getHash()));
     }
 
     // Finally *restart* an app on the same config, and see if it can

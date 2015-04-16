@@ -65,6 +65,12 @@ class Config : public std::enable_shared_from_this<Config>
     // will make your history archives incompatible with those of anyone else.
     bool ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING;
 
+    // A config parameter that avoids resolving FutureBuckets before writing
+    // them to the database's persistent state; this option exists only
+    // for stress-testing the ability to resume from an interrupted merge,
+    // and should be false in all normal cases.
+    bool ARTIFICIALLY_PESSIMIZE_MERGES_FOR_TESTING;
+
     uint32_t PROTOCOL_VERSION;
     std::string VERSION_STR;
     std::string LOG_FILE_PATH;

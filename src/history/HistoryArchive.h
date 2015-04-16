@@ -109,7 +109,14 @@ struct HistoryArchiveState
     bool futuresAllResolved() const;
 
     // Resolve all futures, filling in the 'next' bucket hashes of each level.
+    // NB: this may block the calling thread, careful!
     void resolveAllFutures();
+
+    // Resolve any futures that are ready, filling in the 'next' bucket hashes
+    // of each resolved level.  NB: this will not block the calling thread, may
+    // slightly improve the resolved-ness of the FutureBuckets such that a nicer
+    // value is available for saving and reloading (fewer captured shadows).
+    void resolveAnyReadyFutures();
 
     void save(std::string const& outFile) const;
     void load(std::string const& inFile);
