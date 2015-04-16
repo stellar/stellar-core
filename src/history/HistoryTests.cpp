@@ -779,7 +779,14 @@ TEST_CASE_METHOD(HistoryTests, "Publish/catchup alternation, with stall",
 TEST_CASE_METHOD(HistoryTests, "Repair missing buckets via history", "[history][historybucketrepair]")
 {
     generateAndPublishInitialHistory(1);
-    auto state = app.getPersistentState().getState(PersistentState::kHistoryArchiveState);
+
+    // Forcibly resolve any merges in progress, so we have a calm state to repair;
+    // NB: we cannot repair lost buckets from merges-in-progress, as they're not
+    // necessarily _published_ anywhere.
+    HistoryArchiveState has(app.getLedgerManager().getLastClosedLedgerNum(),
+                            app.getBucketManager().getBucketList());
+    has.resolveAllFutures();
+    auto state = has.toString();
 
     auto cfg2 = getTestConfig(1);
     cfg2.BUCKET_DIR_PATH += "2";
