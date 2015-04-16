@@ -678,7 +678,6 @@ LedgerManagerImpl::closeLedgerHelper(LedgerDelta const& delta)
     // the bucketlist so we can survive a restart and re-attach to the buckets.
     HistoryArchiveState has(mCurrentLedger->mHeader.ledgerSeq,
                             mApp.getBucketManager().getBucketList());
-    has.resolveAllFutures();
     mApp.getPersistentState().setState(PersistentState::kHistoryArchiveState,
                                        has.toString());
 

@@ -85,7 +85,6 @@ HistoryArchiveState::save(std::string const& outFile) const
 std::string
 HistoryArchiveState::toString() const
 {
-    assert(futuresAllResolved());
     std::ostringstream out;
     {
         cereal::JSONOutputArchive ar(out);
