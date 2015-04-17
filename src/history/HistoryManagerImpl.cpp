@@ -218,6 +218,13 @@ HistoryManagerImpl::getCheckpointFrequency()
 }
 
 uint32_t
+HistoryManagerImpl::prevCheckpointLedger(uint32_t ledger)
+{
+    uint32_t freq = getCheckpointFrequency();
+    return (ledger / freq) * freq;
+}
+
+uint32_t
 HistoryManagerImpl::nextCheckpointLedger(uint32_t ledger)
 {
     uint32_t freq = getCheckpointFrequency();

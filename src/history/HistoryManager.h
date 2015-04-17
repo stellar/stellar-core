@@ -54,8 +54,8 @@
  *
  * While the _most recent_ checkpoint is in .well-known/stellar-history.json,
  * each checkpoint is also stored permanently at a path whose name includes the
- * checkpoint number (as a 32-bit hex string) and stored in a 3-level deep
- * directory tree of hex digit prefixes. For example, checkpoint number
+ * checkpoint ledger number (as a 32-bit hex string) and stored in a 3-level deep
+ * directory tree of hex digit prefixes. For example, checkpoint ledger-number
  * 0x12345678 will be described by file history/12/34/56/history-0x12345678.json
  * and the associated history block will be written to the two files
  * ledger/12/34/56/ledger-0x12345678.xdr.gz and
@@ -225,6 +225,9 @@ class HistoryManager
     // This should normally be a constant (64) but in testing cases
     // may be different (see ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING).
     virtual uint32_t getCheckpointFrequency() = 0;
+
+    // Given a ledger, tell when the previous checkpoint occured.
+    virtual uint32_t prevCheckpointLedger(uint32_t ledger) = 0;
 
     // Given a ledger, tell when the next checkpoint will occur.
     virtual uint32_t nextCheckpointLedger(uint32_t ledger) = 0;

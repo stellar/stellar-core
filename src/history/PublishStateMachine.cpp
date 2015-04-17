@@ -339,18 +339,18 @@ StateSnapshot::StateSnapshot(Application& app)
     , mSnapDir(app.getTmpDirManager().tmpDir("snapshot"))
     , mLedgerSnapFile(std::make_shared<FilePublishInfo>(
           FILE_PUBLISH_NEEDED, mSnapDir, HISTORY_FILE_TYPE_LEDGER,
-          uint32_t(mLocalState.currentLedger /
-                   app.getHistoryManager().getCheckpointFrequency())))
+          app.getHistoryManager().prevCheckpointLedger(
+              mLocalState.currentLedger)))
 
     , mTransactionSnapFile(std::make_shared<FilePublishInfo>(
           FILE_PUBLISH_NEEDED, mSnapDir, HISTORY_FILE_TYPE_TRANSACTIONS,
-          uint32_t(mLocalState.currentLedger /
-                   app.getHistoryManager().getCheckpointFrequency())))
+          app.getHistoryManager().prevCheckpointLedger(
+              mLocalState.currentLedger)))
 
     , mTransactionResultSnapFile(std::make_shared<FilePublishInfo>(
           FILE_PUBLISH_NEEDED, mSnapDir, HISTORY_FILE_TYPE_RESULTS,
-          uint32_t(mLocalState.currentLedger /
-                   app.getHistoryManager().getCheckpointFrequency())))
+          app.getHistoryManager().prevCheckpointLedger(
+              mLocalState.currentLedger)))
 {
     BucketList& buckets = app.getBucketManager().getBucketList();
     for (size_t i = 0; i < BucketList::kNumLevels; ++i)

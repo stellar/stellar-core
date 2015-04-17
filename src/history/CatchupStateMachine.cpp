@@ -111,8 +111,7 @@ CatchupStateMachine::enterBeginState()
 
     assert(mNextLedger > 0);
     uint32_t blockEnd = mNextLedger - 1;
-    uint32_t snap =
-        blockEnd / mApp.getHistoryManager().getCheckpointFrequency();
+    uint32_t snap = mApp.getHistoryManager().prevCheckpointLedger(blockEnd);
 
     CLOG(INFO, "History") << "Catchup BEGIN, initLedger=" << mInitLedger
                           << ", guessed nextLedger=" << mNextLedger
@@ -360,6 +359,7 @@ CatchupStateMachine::enterAnchoredState(HistoryArchiveState const& has)
     }
 
     std::vector<std::shared_ptr<FileCatchupInfo>> fileCatchupInfos;
+    auto& hm = mApp.getHistoryManager();
     uint32_t freq = mApp.getHistoryManager().getCheckpointFrequency();
     std::vector<std::string> bucketsToFetch;
 
@@ -375,7 +375,7 @@ CatchupStateMachine::enterAnchoredState(HistoryArchiveState const& has)
         bucketsToFetch = mArchiveState.differingBuckets(mLocalState);
 
         // ...and _the last_ history ledger file (to get its final state).
-        uint32_t snap = mArchiveState.currentLedger / freq;
+        uint32_t snap = hm.prevCheckpointLedger(mArchiveState.currentLedger);
         fileCatchupInfos.push_back(queueLedgerFile(snap));
     }
     else
@@ -383,8 +383,9 @@ CatchupStateMachine::enterAnchoredState(HistoryArchiveState const& has)
         assert(mMode == HistoryManager::CATCHUP_COMPLETE);
         // In CATCHUP_COMPLETE mode we need all the transaction and ledger
         // files.
-        for (uint32_t snap = mLocalState.currentLedger / freq;
-             snap <= mArchiveState.currentLedger / freq; ++snap)
+        for (uint32_t snap = hm.prevCheckpointLedger(mLocalState.currentLedger);
+             snap <= hm.prevCheckpointLedger(mArchiveState.currentLedger);
+             snap += freq)
         {
             fileCatchupInfos.push_back(queueTransactionsFile(snap));
             fileCatchupInfos.push_back(queueLedgerFile(snap));

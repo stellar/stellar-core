@@ -37,10 +37,10 @@ template <typename T> class FileTransferInfo
     }
 
     FileTransferInfo(T state, TmpDir const& snapDir,
-                     std::string const& snapType, uint32_t checkpointNum)
+                     std::string const& snapType, uint32_t checkpointLedger)
         : mTransferState(state)
         , mType(snapType)
-        , mHexDigits(fs::hexStr(checkpointNum))
+        , mHexDigits(fs::hexStr(checkpointLedger))
         , mLocalPath(snapDir.getName() + "/" + baseName_nogz())
     {
     }

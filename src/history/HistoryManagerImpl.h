@@ -41,6 +41,7 @@ public:
     ~HistoryManagerImpl() override;
 
     uint32_t getCheckpointFrequency();
+    uint32_t prevCheckpointLedger(uint32_t ledger);
     uint32_t nextCheckpointLedger(uint32_t ledger);
     uint64_t nextCheckpointCatchupProbe(uint32_t ledger);
 
