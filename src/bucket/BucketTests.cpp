@@ -473,6 +473,7 @@ closeLedger(Application& app)
 TEST_CASE("bucket persistence over app restart", "[bucket][bucketpersist]")
 {
     autocheck::generator<std::vector<LedgerEntry>> liveGen;
+    autocheck::generator<LedgerEntry> liveSingleGen;
     std::vector<stellar::LedgerKey> emptySet;
     std::vector<stellar::LedgerEntry> emptySetEntry;
 
@@ -488,8 +489,17 @@ TEST_CASE("bucket persistence over app restart", "[bucket][bucketpersist]")
         batches.push_back(liveGen(1));
     }
 
-    Hash Lh50, Lh100;
-    Hash Blh50, Blh100;
+    // Inject a common object at the first batch we're going to run (batch #2)
+    // and at the pause-merge threshold; this makes the pause-merge (#64, where
+    // we stop and serialize) sensitive to shadowing, and requires shadows be
+    // reconstituted when the merge is restarted.
+    auto alice = liveSingleGen(1);
+    size_t pause = 65;
+    batches[2].push_back(alice);
+    batches[pause-2].push_back(alice);
+
+    Hash Lh1, Lh2;
+    Hash Blh1, Blh2;
 
     // First, run an application through two ledger closes, picking up
     // the bucket and ledger closes at each.
@@ -499,27 +509,29 @@ TEST_CASE("bucket persistence over app restart", "[bucket][bucketpersist]")
         BucketList& bl = app->getBucketManager().getBucketList();
 
         uint32_t i = 2;
-        while (i < 50)
+        while (i < pause)
         {
+            CLOG(INFO, "Bucket") << "Adding setup phase 1 batch " << i;
             bl.addBatch(*app, i, batches[i], emptySet);
             i++;
         }
 
-        Lh50 = closeLedger(*app);
-        Blh50 = bl.getHash();
-        REQUIRE(!isZero(Lh50));
-        REQUIRE(!isZero(Blh50));
+        Lh1 = closeLedger(*app);
+        Blh1 = bl.getHash();
+        REQUIRE(!isZero(Lh1));
+        REQUIRE(!isZero(Blh1));
 
         while (i < 100)
         {
+            CLOG(INFO, "Bucket") << "Adding setup phase 2 batch " << i;
             bl.addBatch(*app, i, batches[i], emptySet);
             i++;
         }
 
-        Lh100 = closeLedger(*app);
-        Blh100 = bl.getHash();
-        REQUIRE(!isZero(Blh100));
-        REQUIRE(!isZero(Lh100));
+        Lh2 = closeLedger(*app);
+        Blh2 = bl.getHash();
+        REQUIRE(!isZero(Blh2));
+        REQUIRE(!isZero(Lh2));
     }
 
     // Next run a new app with a disjoint config one ledger close, and
@@ -530,14 +542,15 @@ TEST_CASE("bucket persistence over app restart", "[bucket][bucketpersist]")
         BucketList& bl = app->getBucketManager().getBucketList();
 
         uint32_t i = 2;
-        while (i < 50)
+        while (i < pause)
         {
+            CLOG(INFO, "Bucket") << "Adding prefix-batch " << i;
             bl.addBatch(*app, i, batches[i], emptySet);
             i++;
         }
 
-        REQUIRE(hexAbbrev(Lh50) == hexAbbrev(closeLedger(*app)));
-        REQUIRE(hexAbbrev(Blh50) == hexAbbrev(bl.getHash()));
+        REQUIRE(hexAbbrev(Lh1) == hexAbbrev(closeLedger(*app)));
+        REQUIRE(hexAbbrev(Blh1) == hexAbbrev(bl.getHash()));
 
         // Confirm that there are merges-in-progress in this checkpoint.
         HistoryArchiveState has(i, bl);
@@ -554,11 +567,11 @@ TEST_CASE("bucket persistence over app restart", "[bucket][bucketpersist]")
         BucketList& bl = app->getBucketManager().getBucketList();
 
         // Confirm that we re-acquired the close-ledger state.
-        REQUIRE(hexAbbrev(Lh50) ==
+        REQUIRE(hexAbbrev(Lh1) ==
                 hexAbbrev(app->getLedgerManager().getLastClosedLedgerHeader().hash));
-        REQUIRE(hexAbbrev(Blh50) == hexAbbrev(bl.getHash()));
+        REQUIRE(hexAbbrev(Blh1) == hexAbbrev(bl.getHash()));
 
-        uint32_t i = 50;
+        uint32_t i = pause;
 
         // Confirm that merges-in-progress were restarted.
         HistoryArchiveState has(i, bl);
@@ -566,12 +579,13 @@ TEST_CASE("bucket persistence over app restart", "[bucket][bucketpersist]")
 
         while (i < 100)
         {
+            CLOG(INFO, "Bucket") << "Adding suffix-batch " << i;
             bl.addBatch(*app, i, batches[i], emptySet);
             i++;
         }
 
         // Confirm that merges-in-progress finished with expected results.
-        REQUIRE(hexAbbrev(Lh100) == hexAbbrev(closeLedger(*app)));
-        REQUIRE(hexAbbrev(Blh100) == hexAbbrev(bl.getHash()));
+        REQUIRE(hexAbbrev(Lh2) == hexAbbrev(closeLedger(*app)));
+        REQUIRE(hexAbbrev(Blh2) == hexAbbrev(bl.getHash()));
     }
 }

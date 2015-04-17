@@ -321,6 +321,7 @@ FutureBucket::makeLive(Application& app)
         for (auto const& h : mInputShadowBucketHashes)
         {
             auto b = bm.getBucketByHash(hexToBin256(h));
+            CLOG(DEBUG, "Bucket") << "Reconstituting shadow " << h;
             mInputShadowBuckets.push_back(b);
         }
         mState = FB_LIVE_INPUTS;
