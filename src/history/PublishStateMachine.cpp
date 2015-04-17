@@ -319,24 +319,18 @@ PublishStateMachine::PublishStateMachine(Application& app)
 bool
 PublishStateMachine::queueSnapshot(SnapshotPtr snap, PublishCallback handler)
 {
-    snap->mLocalState.resolveAnyReadyFutures();
-    bool delayedAlreadyPublishing = !mPendingSnaps.empty();
-    bool delayedMergesPending = !snap->mLocalState.futuresAllResolved();
+    bool delayed = !mPendingSnaps.empty();
     mPendingSnaps.push_back(std::make_pair(snap, handler));
     mPendingSnapsSize.set_count(mPendingSnaps.size());
-    if (delayedAlreadyPublishing)
+    if (delayed)
     {
         CLOG(WARNING, "History") << "Snapshot queued while already publishing";
-    }
-    else if (delayedMergesPending)
-    {
-        CLOG(WARNING, "History") << "Snapshot queued while merges complete";
     }
     else
     {
         writeNextSnapshot();
     }
-    return delayedAlreadyPublishing || delayedMergesPending;
+    return delayed;
 }
 
 StateSnapshot::StateSnapshot(Application& app)
