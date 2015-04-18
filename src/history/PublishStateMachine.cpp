@@ -385,14 +385,14 @@ StateSnapshot::writeHistoryBlocks() const
     txOut.open(mTransactionSnapFile->localPath_nogz());
     txResultOut.open(mTransactionResultSnapFile->localPath_nogz());
 
-    uint32_t count = mApp.getHistoryManager().getCheckpointFrequency();
+    // 'mLocalState' describes the LCL, so its currentLedger will usually be 63,
+    // 127, 191, etc. We want to start our snapshot at 64-before the _next_
+    // ledger: 0, 64, 128, etc. In cases where we're forcibly checkpointed early,
+    // we still want to round-down to the previous checkpoint ledger.
+    uint32_t begin =
+        mApp.getHistoryManager().prevCheckpointLedger(mLocalState.currentLedger);
 
-    // 'mLocalState' describes the LCL, so its currentLedger will be 63, 127,
-    // 191, etc. We want to start our snapshot at 64-before the _next_ ledger:
-    // 0, 64, 128, etc.
-    assert(mLocalState.currentLedger + 1 >= count);
-    uint32_t begin = mLocalState.currentLedger + 1 - count;
-
+    uint32_t count = (mLocalState.currentLedger - begin) + 1;
     CLOG(DEBUG, "History") << "Streaming " << count
                            << " ledgers worth of history, from " << begin;
 

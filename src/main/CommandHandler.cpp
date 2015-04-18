@@ -56,6 +56,8 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
 
     mServer->add404(std::bind(&CommandHandler::fileNotFound, this, _1, _2));
 
+    mServer->addRoute("checkpoint",
+                      std::bind(&CommandHandler::checkpoint, this, _1, _2));
     mServer->addRoute("connect",
                       std::bind(&CommandHandler::connect, this, _1, _2));
     mServer->addRoute("info", std::bind(&CommandHandler::info, this, _1, _2));
@@ -248,6 +250,38 @@ void
 CommandHandler::logRotate(std::string const& params, std::string& retStr)
 {
     retStr = "Log rotate...";
+}
+
+void
+CommandHandler::checkpoint(std::string const& params, std::string& retStr)
+{
+    auto& hm = mApp.getHistoryManager();
+    if (hm.hasAnyWritableHistoryArchive())
+    {
+        bool done = false;
+        asio::error_code ec;
+        uint32_t ledgerNum = mApp.getLedgerManager().getLastClosedLedgerNum();
+        hm.publishHistory(
+            [&done, &ec](asio::error_code const& ec2) {
+                ec = ec2;
+                done = true;
+            });
+        while (!done && mApp.getClock().crank(false))
+            ;
+        if (ec)
+        {
+            retStr = std::string("Publish failed: ") + ec.message();
+        }
+        else
+        {
+            retStr = std::string("Published checkpoint ")
+                + std::to_string(ledgerNum);
+        }
+    }
+    else
+    {
+        retStr = "No writable history archives available";
+    }
 }
 
 void

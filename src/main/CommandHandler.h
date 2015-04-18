@@ -28,6 +28,7 @@ class CommandHandler
 
     void fileNotFound(std::string const& params, std::string& retStr);
 
+    void checkpoint(std::string const& params, std::string& retStr);
     void connect(std::string const& params, std::string& retStr);
     void info(std::string const& params, std::string& retStr);
     void ll(std::string const& params, std::string& retStr);
