@@ -68,7 +68,19 @@ HistoryArchiveState::resolveAllFutures()
     {
         if (level.next.isMerging())
         {
-            level.next.commit();
+            level.next.resolve();
+        }
+    }
+}
+
+void
+HistoryArchiveState::resolveAnyReadyFutures()
+{
+    for (auto& level : currentBuckets)
+    {
+        if (level.next.isMerging() && level.next.mergeComplete())
+        {
+            level.next.resolve();
         }
     }
 }
@@ -85,7 +97,6 @@ HistoryArchiveState::save(std::string const& outFile) const
 std::string
 HistoryArchiveState::toString() const
 {
-    assert(futuresAllResolved());
     std::ostringstream out;
     {
         cereal::JSONOutputArchive ar(out);
@@ -184,7 +195,7 @@ HistoryArchiveState::differingBuckets(HistoryArchiveState const& other) const
         inhibit.insert(b.curr);
         if (b.next.isLive())
         {
-            b.next.commit();
+            b.next.resolve();
         }
         if (b.next.hasOutputHash())
         {

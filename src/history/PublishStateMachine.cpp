@@ -312,13 +312,13 @@ PublishStateMachine::PublishStateMachine(Application& app)
                           {"history", "memory", "publishers"}))
     , mPendingSnapsSize(app.getMetrics().NewCounter(
                             {"history", "memory", "pending-snaps"}))
+    , mRecheckRunningMergeTimer(app)
 {
 }
 
 bool
 PublishStateMachine::queueSnapshot(SnapshotPtr snap, PublishCallback handler)
 {
-    snap->mLocalState.resolveAllFutures();
     bool delayed = !mPendingSnaps.empty();
     mPendingSnaps.push_back(std::make_pair(snap, handler));
     mPendingSnapsSize.set_count(mPendingSnaps.size());
@@ -358,7 +358,7 @@ StateSnapshot::StateSnapshot(Application& app)
         auto& level = buckets.getLevel(i);
         if (level.getNext().isLive())
         {
-            mLocalBuckets.push_back(level.getNext().commit());
+            mLocalBuckets.push_back(level.getNext().resolve());
         }
         mLocalBuckets.push_back(level.getCurr());
         mLocalBuckets.push_back(level.getSnap());
@@ -434,6 +434,23 @@ PublishStateMachine::writeNextSnapshot()
         return;
 
     auto snap = mPendingSnaps.front().first;
+
+    snap->mLocalState.resolveAnyReadyFutures();
+    if (!snap->mLocalState.futuresAllResolved())
+    {
+        CLOG(WARNING, "History")
+            << "Queued snapshot still awaiting running merges";
+        mRecheckRunningMergeTimer.expires_from_now(std::chrono::seconds(2));
+        mRecheckRunningMergeTimer.async_wait(
+            [this](asio::error_code const& ec)
+            {
+                if (!ec)
+                {
+                    this->writeNextSnapshot();
+                }
+            });
+        return;
+    }
 
     if (mApp.getDatabase().canUsePool())
     {

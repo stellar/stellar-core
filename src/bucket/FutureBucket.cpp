@@ -209,7 +209,7 @@ FutureBucket::mergeComplete() const
 }
 
 std::shared_ptr<Bucket>
-FutureBucket::commit()
+FutureBucket::resolve()
 {
     checkState();
     assert(isLive());
@@ -265,7 +265,7 @@ FutureBucket::startMerge(Application& app)
     assert(!mOutputBucket.valid());
 
     // Retain all buckets while being merged. They'll be freed by the
-    // BucketManagers only after the merge is done and committed-to.
+    // BucketManagers only after the merge is done and resolved.
     curr->setRetain(true);
     snap->setRetain(true);
     for (auto b : shadows)
@@ -321,6 +321,7 @@ FutureBucket::makeLive(Application& app)
         for (auto const& h : mInputShadowBucketHashes)
         {
             auto b = bm.getBucketByHash(hexToBin256(h));
+            CLOG(DEBUG, "Bucket") << "Reconstituting shadow " << h;
             mInputShadowBuckets.push_back(b);
         }
         mState = FB_LIVE_INPUTS;

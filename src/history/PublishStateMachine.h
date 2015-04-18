@@ -104,6 +104,7 @@ class PublishStateMachine
     std::deque<std::pair<SnapshotPtr, PublishCallback>> mPendingSnaps;
     medida::Counter& mPublishersSize;
     medida::Counter& mPendingSnapsSize;
+    VirtualTimer mRecheckRunningMergeTimer;
 
     void writeNextSnapshot();
     void finishOne(asio::error_code const&);

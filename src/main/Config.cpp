@@ -31,6 +31,7 @@ Config::Config() : PEER_KEY(SecretKey::random())
     MANUAL_CLOSE = false;
     CATCHUP_COMPLETE = false;
     ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = false;
+    ARTIFICIALLY_PESSIMIZE_MERGES_FOR_TESTING = false;
     TARGET_PEER_CONNECTIONS = 20;
     MAX_PEER_CONNECTIONS = 50;
     LOG_FILE_PATH = "stellar-core.log";
