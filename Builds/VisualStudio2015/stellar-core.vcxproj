@@ -325,6 +325,7 @@
     <ClInclude Include="..\..\src\lib\util\easylogging++.h" />
     <ClInclude Include="..\..\src\lib\util\format.h" />
     <ClInclude Include="..\..\src\lib\util\getopt.h" />
+    <ClInclude Include="..\..\src\lib\util\lrucache.hpp" />
     <ClInclude Include="..\..\src\lib\util\uint128_t.h" />
     <ClInclude Include="..\..\src\main\Application.h" />
     <ClInclude Include="..\..\src\main\ApplicationImpl.h" />
