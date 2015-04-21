@@ -263,7 +263,7 @@ ApplicationImpl::manualClose()
 {
     if (mConfig.MANUAL_CLOSE)
     {
-        mHerder->triggerNextLedger();
+        mHerder->triggerNextLedger(mLedgerManager->getLastClosedLedgerNum()+1);
         return true;
     }
     return false;

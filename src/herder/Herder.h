@@ -101,7 +101,7 @@ class Herder
     // and local state
     virtual uint32_t getCurrentLedgerSeq() const = 0;
 
-    virtual void triggerNextLedger() = 0;
+    virtual void triggerNextLedger(uint32_t ledgerSeqToTrigger) = 0;
     virtual ~Herder()
     {
     }
