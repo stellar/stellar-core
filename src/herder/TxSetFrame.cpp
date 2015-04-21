@@ -201,6 +201,7 @@ TxSetFrame::checkValid(Application& app)
     if (app.getLedgerManager().getLastClosedLedgerHeader().hash !=
         mPreviousLedgerHash)
     {
+        CLOG(TRACE, "Herder") << "Got bad txSet: " << hexAbbrev(mPreviousLedgerHash) << " ; expected: " << hexAbbrev(app.getLedgerManager().getLastClosedLedgerHeader().hash);
         return false;
     }
 
