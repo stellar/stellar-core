@@ -261,8 +261,12 @@ HerderImpl::validateValue(uint64 const& slotIndex, uint256 const& nodeID,
     // make sure all the tx we have in the old set are included
     auto validate = [cb, b, slotIndex, nodeID, this](TxSetFramePtr txSet)
     {
-        // Check txSet (only if we're fully synced)
-        if ((!mLedgerManager.isSynced()) || !txSet->checkValid(mApp))
+        if (!mLedgerManager.isSynced())
+        {
+            cb(true);
+            return;
+        }
+        if (!txSet->checkValid(mApp))
         {
             CLOG(DEBUG, "Herder")
                 << "HerderImpl::validateValue"
