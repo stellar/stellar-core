@@ -1200,7 +1200,10 @@ HerderImpl::triggerNextLedger()
 
     recvTxSet(proposedSet);
 
-    uint64_t slotIndex = nextConsensusLedgerIndex();
+    // use the slot index from ledger manager here as our vote is based off
+    // the last closed ledger stored in ledger manager
+    uint64_t slotIndex = lcl.header.ledgerSeq+1;
+    // SCP will deal with this properly
 
     // We pick as next close time the current time unless it's before the last
     // close time. We don't know how much time it will take to reach consensus
