@@ -297,12 +297,15 @@ class HistoryManager
     // Run catchup, we've just heard `initLedger` from the network. Mode can be
     // CATCHUP_COMPLETE, meaning replay history from last to present, or
     // CATCHUP_MINIMAL, meaning snap to the next state possible and discard
-    // history. See larger comment above for more detail.
+    // history. Pass `manualCatchup=true` for manual catchup mode, in which
+    // catchup adheres to `initLedger` only, avoiding rounding up or down to
+    // checkpoint boundaries. See larger comment above for more detail.
     virtual void catchupHistory(
         uint32_t initLedger, CatchupMode mode,
         std::function<void(asio::error_code const& ec, CatchupMode mode,
                            LedgerHeaderHistoryEntry const& lastClosed)>
-        handler) = 0;
+        handler,
+        bool manualCatchup=false) = 0;
 
     // Call posted after a worker thread has finished taking a snapshot; calls
     // PublishStateMachine::snapshotWritten after bumping counter.
