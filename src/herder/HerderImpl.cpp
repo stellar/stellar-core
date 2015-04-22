@@ -680,21 +680,20 @@ HerderImpl::retrieveQuorumSet(
     uint256 const& nodeID, Hash const& qSetHash,
     std::function<void(SCPQuorumSet const&)> const& cb)
 {
-
-    mQsetRetrieve.Mark();
-    CLOG(DEBUG, "Herder") << "HerderImpl::retrieveQuorumSet"
-                          << "@" << hexAbbrev(getLocalNodeID())
-                          << " qSet: " << hexAbbrev(qSetHash);
-
-
     auto tracker = mApp.getOverlayManager().getQuorumSetFetcher().getOrFetch(qSetHash, cb);
     if (tracker)
     {
+        mQsetRetrieve.Mark();
+
+        CLOG(DEBUG, "Herder") << "HerderImpl::retrieveQuorumSet"
+            << "@" << hexAbbrev(getLocalNodeID())
+            << " qSet: " << hexAbbrev(qSetHash);
+
         mQuorumSetFetches[qSetHash] = tracker;
 
         tracker->listen([qSetHash, this](SCPQuorumSet const &qSet)
         {
-            CLOG(TRACE, "Herder") << "HerderImpl: received SCPQuorumSet"
+            CLOG(DEBUG, "Herder") << "HerderImpl: received SCPQuorumSet"
                                   << "@" << hexAbbrev(getLocalNodeID()) << " qSet: "
                                   << hexAbbrev(sha256(xdr::xdr_to_opaque(qSet)));
 
