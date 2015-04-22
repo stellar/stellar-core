@@ -8,6 +8,7 @@
 #include "ledger/LedgerManager.h"
 #include "lib/http/server.hpp"
 #include "lib/json/json.h"
+#include "lib/util/format.h"
 #include "main/Application.h"
 #include "main/CommandHandler.h"
 #include "main/Config.h"
@@ -260,7 +261,8 @@ CommandHandler::checkpoint(std::string const& params, std::string& retStr)
     {
         bool done = false;
         asio::error_code ec;
-        uint32_t ledgerNum = mApp.getLedgerManager().getLastClosedLedgerNum();
+        uint32_t lclNum = mApp.getLedgerManager().getLastClosedLedgerNum();
+        uint32_t ledgerNum = mApp.getLedgerManager().getLedgerNum();
         hm.publishHistory(
             [&done, &ec](asio::error_code const& ec2) {
                 ec = ec2;
@@ -274,8 +276,12 @@ CommandHandler::checkpoint(std::string const& params, std::string& retStr)
         }
         else
         {
-            retStr = std::string("Published checkpoint ")
-                + std::to_string(ledgerNum);
+            retStr = fmt::format(
+                "Forcibly published checkpoint 0x{:08x}, "
+                "at current ledger {};\n"
+                "To force catch up on other peers, "
+                "issue the command 'catchup?ledger={}'",
+                lclNum, ledgerNum, ledgerNum);
         }
     }
     else

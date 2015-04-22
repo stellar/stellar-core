@@ -110,28 +110,27 @@ CatchupStateMachine::enterBeginState()
     mState = CATCHUP_BEGIN;
 
     assert(mNextLedger > 0);
-    uint32_t blockEnd = mNextLedger - 1;
-    uint32_t snap = mApp.getHistoryManager().prevCheckpointLedger(blockEnd);
+    uint32_t checkpoint = mNextLedger - 1;
 
     CLOG(INFO, "History") << "Catchup BEGIN, initLedger=" << mInitLedger
                           << ", guessed nextLedger=" << mNextLedger
-                          << ", anchor checkpoint=" << snap;
+                          << ", anchor checkpoint=" << checkpoint;
 
     uint64_t sleepSeconds =
         mApp.getHistoryManager().nextCheckpointCatchupProbe(mInitLedger);
 
     mArchive = selectRandomReadableHistoryArchive();
     mArchive->getSnapState(
-        mApp, snap, [this, blockEnd, snap, sleepSeconds](
+        mApp, checkpoint, [this, checkpoint, sleepSeconds](
             asio::error_code const& ec,
             HistoryArchiveState const& has)
         {
             if (ec ||
-                blockEnd != has.currentLedger)
+                checkpoint != has.currentLedger)
             {
                 CLOG(WARNING, "History")
                     << "History archive '" << this->mArchive->getName()
-                    << "', hasn't yet received checkpoint " << snap
+                    << "', hasn't yet received checkpoint " << checkpoint
                     << ", retrying catchup";
                 this->enterRetryingState(sleepSeconds);
             }
@@ -375,20 +374,23 @@ CatchupStateMachine::enterAnchoredState(HistoryArchiveState const& has)
         bucketsToFetch = mArchiveState.differingBuckets(mLocalState);
 
         // ...and _the last_ history ledger file (to get its final state).
-        uint32_t snap = hm.prevCheckpointLedger(mArchiveState.currentLedger);
-        fileCatchupInfos.push_back(queueLedgerFile(snap));
+        fileCatchupInfos.push_back(queueLedgerFile(mArchiveState.currentLedger));
     }
     else
     {
         assert(mMode == HistoryManager::CATCHUP_COMPLETE);
         // In CATCHUP_COMPLETE mode we need all the transaction and ledger
         // files.
-        for (uint32_t snap = hm.prevCheckpointLedger(mLocalState.currentLedger);
-             snap <= hm.prevCheckpointLedger(mArchiveState.currentLedger);
-             snap += freq)
+        for (uint32_t snap = mArchiveState.currentLedger;
+             snap >= mLocalState.currentLedger;
+             snap -= freq)
         {
             fileCatchupInfos.push_back(queueTransactionsFile(snap));
             fileCatchupInfos.push_back(queueLedgerFile(snap));
+            if (snap < freq)
+            {
+                break;
+            }
         }
     }
 

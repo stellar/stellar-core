@@ -54,12 +54,13 @@
  *
  * While the _most recent_ checkpoint is in .well-known/stellar-history.json,
  * each checkpoint is also stored permanently at a path whose name includes the
- * checkpoint ledger number (as a 32-bit hex string) and stored in a 3-level deep
- * directory tree of hex digit prefixes. For example, checkpoint ledger-number
- * 0x12345678 will be described by file history/12/34/56/history-0x12345678.json
- * and the associated history block will be written to the two files
- * ledger/12/34/56/ledger-0x12345678.xdr.gz and
- * transaction/12/34/56/transaction-0x12345678.xdr.gz
+ * last ledger number in the checkpoint (as a 32-bit hex string) and stored in a
+ * 3-level deep directory tree of hex digit prefixes. For example, checkpoint at
+ * current ledger-number 0x12345678 will write ledgers up to and including
+ * ledger 0x12345677 and be described by file
+ * history/12/34/56/history-0x12345677.json and the associated history block
+ * will be written to the two files ledger/12/34/56/ledger-0x12345677.xdr.gz and
+ * transaction/12/34/56/transaction-0x12345677.xdr.gz
  *
  * Bucket files accompanying each checkpoint are stored by hash name, again
  * separated by 3-level-deep hex prefixing, though as the hash is unpredictable,
@@ -67,11 +68,21 @@
  * bucket's hex hash is <AABBCCDEFG...> then the bucket is stored as
  * bucket/AA/BB/CC/bucket-<AABBCCDEFG...>.xdr.gz
  *
- * The first ledger and transaction files (containing the genesis ledger) can
- * therefore always be found in ledger/00/00/00/ledger-0x00000000.xdr.gz and
- * transaction/00/00/00/transaction-0x00000000.xdr.gz and described by
- * history/00/00/00/history-0x00000000.json. The buckets will all be empty in
- * that state.
+ * The first ledger and transaction files (containing the genesis ledger #1, and
+ * the subsequent 62 ledgers) are checkpointed when LedgerManager's currentLedger
+ * is 64 = 0x40, so the last ledger published into that snapshot is 0x3f, and
+ * it's stored in files ledger/00/00/00/ledger-0x0000003f.xdr.gz and
+ * transaction/00/00/00/transaction-0x0000003f.xdr.gz, and described by
+ * history/00/00/00/history-0x0000003f.json.
+ *
+ * A pseudo-checkpoint describing the system-state before any transactions are
+ * applied -- the fictional "ledger zero" state -- is also made in each history
+ * archive when it is initialized. This is described by
+ * history/00/00/00/history-0x00000000.json, with all-zero buckets. No
+ * transaction or ledger-history XDR files are associated with this
+ * pseudo-checkpoint; its presence simply indicates that the archive has been
+ * initialized, and gives the catchup system something to read when it probes
+ * the archive for a most-recent state.
  *
  *
  * Boundary conditions and counts:
@@ -79,7 +90,7 @@
  *
  * There is no ledger 0 -- that's the sequence number of a _fictional_ ledger
  * with no content, before "ledger 1, the genesis ledger" -- so the initial
- * ledger block (block 0x00000000) has 63 "real" ledger objects in it, not 64 as
+ * ledger block (block 0x0000003f) has 63 "real" ledger objects in it, not 64 as
  * in all subsequent blocks. We could, instead, shift all arithmetic in the
  * system to "count from 1" and have ledger blocks run from [1,64] and [65,128]
  * and so forth; but the disadvantages of propagating counts-from-1 arithmetic
