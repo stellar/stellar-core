@@ -584,7 +584,8 @@ CatchupStateMachine::verifyHistoryFromLastClosedLedger()
             {
                 CLOG(ERROR, "History")
                     << "History chain overshot expected ledger seq "
-                    << expectedSeq;
+                    << expectedSeq << ", got " << curr.header.ledgerSeq
+                    << " instead";
                 return HistoryManager::VERIFY_HASH_BAD;
             }
             if (verifyLedgerHistoryLink(prev.hash, curr) !=
@@ -598,7 +599,9 @@ CatchupStateMachine::verifyHistoryFromLastClosedLedger()
     if (prev.header.ledgerSeq + 1 != mNextLedger)
     {
         CLOG(INFO, "History")
-            << "Insufficient history to connect chain to ledger" << mNextLedger;
+            << "Insufficient history to connect chain to ledger " << mNextLedger;
+        CLOG(INFO, "History")
+            << "History chain ends at " << prev.header.ledgerSeq;
         return HistoryManager::VERIFY_HASH_BAD;
     }
     return lm.verifyCatchupCandidate(prev);
