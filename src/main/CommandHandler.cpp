@@ -57,6 +57,8 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
 
     mServer->add404(std::bind(&CommandHandler::fileNotFound, this, _1, _2));
 
+    mServer->addRoute("catchup",
+                      std::bind(&CommandHandler::catchup, this, _1, _2));
     mServer->addRoute("checkpoint",
                       std::bind(&CommandHandler::checkpoint, this, _1, _2));
     mServer->addRoute("connect",
@@ -251,6 +253,57 @@ void
 CommandHandler::logRotate(std::string const& params, std::string& retStr)
 {
     retStr = "Log rotate...";
+}
+
+void
+CommandHandler::catchup(std::string const& params, std::string& retStr)
+{
+    HistoryManager::CatchupMode mode = HistoryManager::CATCHUP_MINIMAL;
+    std::map<std::string, std::string> retMap;
+    http::server::server::parseParams(params, retMap);
+
+    uint32_t ledger = 0;
+    auto ledgerP = retMap.find("ledger");
+    if (ledgerP == retMap.end())
+    {
+        retStr = "Missing required parameter 'ledger=NNN'";
+        return;
+    }
+    else
+    {
+        std::stringstream str(ledgerP->second);
+        str >> ledger;
+        if (ledger == 0)
+        {
+            retStr = "Failed to parse ledger number";
+            return;
+        }
+    }
+
+    auto modeP = retMap.find("mode");
+    if (modeP != retMap.end())
+    {
+        if (modeP->second == std::string("complete"))
+        {
+            mode = HistoryManager::CATCHUP_COMPLETE;
+        }
+        else if (modeP->second == std::string("minimal"))
+        {
+            mode = HistoryManager::CATCHUP_MINIMAL;
+        }
+        else
+        {
+            retStr = "Mode should be either 'minimal' or 'complete'";
+            return;
+        }
+    }
+
+    mApp.getLedgerManager().startCatchUp(ledger, mode, true);
+    retStr = (std::string("Started catchup to ledger ")
+              + std::to_string(ledger)
+              + std::string(" in mode ")
+              + std::string(mode == HistoryManager::CATCHUP_COMPLETE ?
+                            "CATCHUP_COMPLETE" : "CATCHUP_MINIMAL"));
 }
 
 void
