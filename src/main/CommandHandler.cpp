@@ -141,7 +141,12 @@ CommandHandler::fileNotFound(std::string const& params, std::string& retStr)
     retStr += "supported commands:<p/>";
 
     retStr +=
-        "<p><h1> /connect?peer=NAME&port=NNN</h1>"
+        "<p><h1> /catchup?ledger=NNN[&mode=MODE]</h1>"
+        "triggers the instance to catch up to ledger NNN from history; "
+        "mode is either 'minimal' (the default, if omitted) or 'complete'."
+        "</p><p><h1> /checkpoint</h1>"
+        "triggers the instance to write an immediate history checkpoint."
+        "</p><p><h1> /connect?peer=NAME&port=NNN</h1>"
         "triggers the instance to connect to peer NAME at port NNN."
         "</p><p><h1> /help</h1>"
         "give a list of currently supported commands"
