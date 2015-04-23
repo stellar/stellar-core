@@ -64,13 +64,15 @@ ItemFetcher<T, TrackerT>::fetch(uint256 itemID, std::function<void(T const &item
     auto entry = mTrackers.find(itemID);
     TrackerPtr tracker;
 
-    if (entry == mTrackers.end())
-    {
-        tracker = std::make_shared<TrackerT>(mApp, itemID, *this);
-        mTrackers[itemID] = tracker;
-    } else
+    if (entry != mTrackers.end())
     {
         tracker = entry->second.lock();
+    }
+    if (!tracker)
+    {
+        // no entry, or the weak pointer on the tracker could not lock.
+        tracker = std::make_shared<TrackerT>(mApp, itemID, *this);
+        mTrackers[itemID] = tracker;
     }
 
     tracker->listen(cb);
@@ -250,11 +252,13 @@ void ItemFetcher<T, TrackerT>::Tracker::listen(std::function<void(T const &item)
 
 void TxSetTracker::askPeer(Peer::pointer peer)
 {
+    CLOG(INFO, "Overlay") << " asking " << peer->getRemoteListeningPort() << " for txSet " << hexAbbrev(mItemID);
     peer->sendGetTxSet(mItemID);
 }
 
 void QuorumSetTracker::askPeer(Peer::pointer peer)
 {
+    CLOG(INFO, "Overlay") << " asking " << peer->getRemoteListeningPort() << " for txSet " << hexAbbrev(mItemID);
     peer->sendGetQuorumSet(mItemID);
 }
 

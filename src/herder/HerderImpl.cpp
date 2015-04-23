@@ -262,7 +262,7 @@ void HerderImpl::fetchTxSet(Hash txSetHash, std::function<void(TxSetFrame const 
     auto existing = mTxSetFetches[txSetHash];
     if (!existing)
     {
-        auto tracker = mApp.getOverlayManager().getTxSetFetcher().fetch(txSetHash, [&](TxSetFrame const &txSet_)
+        auto tracker = mApp.getOverlayManager().getTxSetFetcher().fetch(txSetHash, [this, cb](TxSetFrame const &txSet_)
         {
             TxSetFrame txSet = txSet_; //  remove const
             // add all txs to the next set in case they don't get in this ledger
