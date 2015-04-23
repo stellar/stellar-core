@@ -218,8 +218,20 @@ HistoryManagerImpl::getCheckpointFrequency()
 }
 
 uint32_t
+HistoryManagerImpl::prevCheckpointLedger(uint32_t ledger)
+{
+    uint32_t freq = getCheckpointFrequency();
+    return (ledger / freq) * freq;
+}
+
+uint32_t
 HistoryManagerImpl::nextCheckpointLedger(uint32_t ledger)
 {
+    if (mManualCatchup)
+    {
+        return ledger;
+    }
+
     uint32_t freq = getCheckpointFrequency();
     if (ledger == 0)
         return freq;
@@ -521,7 +533,8 @@ void
 HistoryManagerImpl::catchupHistory(
     uint32_t initLedger, CatchupMode mode,
     std::function<void(asio::error_code const& ec, CatchupMode mode,
-                       LedgerHeaderHistoryEntry const& lastClosed)> handler)
+                       LedgerHeaderHistoryEntry const& lastClosed)> handler,
+    bool manualCatchup)
 {
     // To repair buckets, call `downloadMissingBuckets()` instead.
     assert(mode != CATCHUP_BUCKET_REPAIR); 
@@ -531,6 +544,7 @@ HistoryManagerImpl::catchupHistory(
         throw std::runtime_error("Catchup already in progress");
     }
     mCatchupStart.Mark();
+    mManualCatchup = manualCatchup;
 
     mCatchup = make_unique<CatchupStateMachine>(
         mApp, initLedger, mode, 

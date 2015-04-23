@@ -25,6 +25,7 @@ class HistoryManagerImpl : public HistoryManager
     std::unique_ptr<TmpDir> mWorkDir;
     std::unique_ptr<PublishStateMachine> mPublish;
     std::unique_ptr<CatchupStateMachine> mCatchup;
+    bool mManualCatchup { false };
 
     medida::Meter& mPublishSkip;
     medida::Meter& mPublishQueue;
@@ -41,6 +42,7 @@ public:
     ~HistoryManagerImpl() override;
 
     uint32_t getCheckpointFrequency();
+    uint32_t prevCheckpointLedger(uint32_t ledger);
     uint32_t nextCheckpointLedger(uint32_t ledger);
     uint64_t nextCheckpointCatchupProbe(uint32_t ledger);
 
@@ -82,7 +84,8 @@ public:
         uint32_t initLedger, CatchupMode mode,
         std::function<void(asio::error_code const& ec, CatchupMode mode,
                            LedgerHeaderHistoryEntry const& lastClosed)>
-            handler) override;
+        handler,
+        bool manualCatchup) override;
 
     void snapshotWritten(asio::error_code const&) override;
 

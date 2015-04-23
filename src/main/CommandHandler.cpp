@@ -8,6 +8,7 @@
 #include "ledger/LedgerManager.h"
 #include "lib/http/server.hpp"
 #include "lib/json/json.h"
+#include "lib/util/format.h"
 #include "main/Application.h"
 #include "main/CommandHandler.h"
 #include "main/Config.h"
@@ -56,6 +57,10 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
 
     mServer->add404(std::bind(&CommandHandler::fileNotFound, this, _1, _2));
 
+    mServer->addRoute("catchup",
+                      std::bind(&CommandHandler::catchup, this, _1, _2));
+    mServer->addRoute("checkpoint",
+                      std::bind(&CommandHandler::checkpoint, this, _1, _2));
     mServer->addRoute("connect",
                       std::bind(&CommandHandler::connect, this, _1, _2));
     mServer->addRoute("info", std::bind(&CommandHandler::info, this, _1, _2));
@@ -136,7 +141,12 @@ CommandHandler::fileNotFound(std::string const& params, std::string& retStr)
     retStr += "supported commands:<p/>";
 
     retStr +=
-        "<p><h1> /connect?peer=NAME&port=NNN</h1>"
+        "<p><h1> /catchup?ledger=NNN[&mode=MODE]</h1>"
+        "triggers the instance to catch up to ledger NNN from history; "
+        "mode is either 'minimal' (the default, if omitted) or 'complete'."
+        "</p><p><h1> /checkpoint</h1>"
+        "triggers the instance to write an immediate history checkpoint."
+        "</p><p><h1> /connect?peer=NAME&port=NNN</h1>"
         "triggers the instance to connect to peer NAME at port NNN."
         "</p><p><h1> /help</h1>"
         "give a list of currently supported commands"
@@ -248,6 +258,94 @@ void
 CommandHandler::logRotate(std::string const& params, std::string& retStr)
 {
     retStr = "Log rotate...";
+}
+
+void
+CommandHandler::catchup(std::string const& params, std::string& retStr)
+{
+    HistoryManager::CatchupMode mode = HistoryManager::CATCHUP_MINIMAL;
+    std::map<std::string, std::string> retMap;
+    http::server::server::parseParams(params, retMap);
+
+    uint32_t ledger = 0;
+    auto ledgerP = retMap.find("ledger");
+    if (ledgerP == retMap.end())
+    {
+        retStr = "Missing required parameter 'ledger=NNN'";
+        return;
+    }
+    else
+    {
+        std::stringstream str(ledgerP->second);
+        str >> ledger;
+        if (ledger == 0)
+        {
+            retStr = "Failed to parse ledger number";
+            return;
+        }
+    }
+
+    auto modeP = retMap.find("mode");
+    if (modeP != retMap.end())
+    {
+        if (modeP->second == std::string("complete"))
+        {
+            mode = HistoryManager::CATCHUP_COMPLETE;
+        }
+        else if (modeP->second == std::string("minimal"))
+        {
+            mode = HistoryManager::CATCHUP_MINIMAL;
+        }
+        else
+        {
+            retStr = "Mode should be either 'minimal' or 'complete'";
+            return;
+        }
+    }
+
+    mApp.getLedgerManager().startCatchUp(ledger, mode, true);
+    retStr = (std::string("Started catchup to ledger ")
+              + std::to_string(ledger)
+              + std::string(" in mode ")
+              + std::string(mode == HistoryManager::CATCHUP_COMPLETE ?
+                            "CATCHUP_COMPLETE" : "CATCHUP_MINIMAL"));
+}
+
+void
+CommandHandler::checkpoint(std::string const& params, std::string& retStr)
+{
+    auto& hm = mApp.getHistoryManager();
+    if (hm.hasAnyWritableHistoryArchive())
+    {
+        bool done = false;
+        asio::error_code ec;
+        uint32_t lclNum = mApp.getLedgerManager().getLastClosedLedgerNum();
+        uint32_t ledgerNum = mApp.getLedgerManager().getLedgerNum();
+        hm.publishHistory(
+            [&done, &ec](asio::error_code const& ec2) {
+                ec = ec2;
+                done = true;
+            });
+        while (!done && mApp.getClock().crank(false))
+            ;
+        if (ec)
+        {
+            retStr = std::string("Publish failed: ") + ec.message();
+        }
+        else
+        {
+            retStr = fmt::format(
+                "Forcibly published checkpoint 0x{:08x}, "
+                "at current ledger {};\n"
+                "To force catch up on other peers, "
+                "issue the command 'catchup?ledger={}'",
+                lclNum, ledgerNum, ledgerNum);
+        }
+    }
+    else
+    {
+        retStr = "No writable history archives available";
+    }
 }
 
 void

@@ -339,18 +339,15 @@ StateSnapshot::StateSnapshot(Application& app)
     , mSnapDir(app.getTmpDirManager().tmpDir("snapshot"))
     , mLedgerSnapFile(std::make_shared<FilePublishInfo>(
           FILE_PUBLISH_NEEDED, mSnapDir, HISTORY_FILE_TYPE_LEDGER,
-          uint32_t(mLocalState.currentLedger /
-                   app.getHistoryManager().getCheckpointFrequency())))
+          mLocalState.currentLedger))
 
     , mTransactionSnapFile(std::make_shared<FilePublishInfo>(
           FILE_PUBLISH_NEEDED, mSnapDir, HISTORY_FILE_TYPE_TRANSACTIONS,
-          uint32_t(mLocalState.currentLedger /
-                   app.getHistoryManager().getCheckpointFrequency())))
+          mLocalState.currentLedger))
 
     , mTransactionResultSnapFile(std::make_shared<FilePublishInfo>(
           FILE_PUBLISH_NEEDED, mSnapDir, HISTORY_FILE_TYPE_RESULTS,
-          uint32_t(mLocalState.currentLedger /
-                   app.getHistoryManager().getCheckpointFrequency())))
+          mLocalState.currentLedger))
 {
     BucketList& buckets = app.getBucketManager().getBucketList();
     for (size_t i = 0; i < BucketList::kNumLevels; ++i)
@@ -385,14 +382,14 @@ StateSnapshot::writeHistoryBlocks() const
     txOut.open(mTransactionSnapFile->localPath_nogz());
     txResultOut.open(mTransactionResultSnapFile->localPath_nogz());
 
-    uint32_t count = mApp.getHistoryManager().getCheckpointFrequency();
+    // 'mLocalState' describes the LCL, so its currentLedger will usually be 63,
+    // 127, 191, etc. We want to start our snapshot at 64-before the _next_
+    // ledger: 0, 64, 128, etc. In cases where we're forcibly checkpointed early,
+    // we still want to round-down to the previous checkpoint ledger.
+    uint32_t begin =
+        mApp.getHistoryManager().prevCheckpointLedger(mLocalState.currentLedger);
 
-    // 'mLocalState' describes the LCL, so its currentLedger will be 63, 127,
-    // 191, etc. We want to start our snapshot at 64-before the _next_ ledger:
-    // 0, 64, 128, etc.
-    assert(mLocalState.currentLedger + 1 >= count);
-    uint32_t begin = mLocalState.currentLedger + 1 - count;
-
+    uint32_t count = (mLocalState.currentLedger - begin) + 1;
     CLOG(DEBUG, "History") << "Streaming " << count
                            << " ledgers worth of history, from " << begin;
 

@@ -110,29 +110,27 @@ CatchupStateMachine::enterBeginState()
     mState = CATCHUP_BEGIN;
 
     assert(mNextLedger > 0);
-    uint32_t blockEnd = mNextLedger - 1;
-    uint32_t snap =
-        blockEnd / mApp.getHistoryManager().getCheckpointFrequency();
+    uint32_t checkpoint = mNextLedger - 1;
 
     CLOG(INFO, "History") << "Catchup BEGIN, initLedger=" << mInitLedger
                           << ", guessed nextLedger=" << mNextLedger
-                          << ", anchor checkpoint=" << snap;
+                          << ", anchor checkpoint=" << checkpoint;
 
     uint64_t sleepSeconds =
         mApp.getHistoryManager().nextCheckpointCatchupProbe(mInitLedger);
 
     mArchive = selectRandomReadableHistoryArchive();
     mArchive->getSnapState(
-        mApp, snap, [this, blockEnd, snap, sleepSeconds](
+        mApp, checkpoint, [this, checkpoint, sleepSeconds](
             asio::error_code const& ec,
             HistoryArchiveState const& has)
         {
             if (ec ||
-                blockEnd != has.currentLedger)
+                checkpoint != has.currentLedger)
             {
                 CLOG(WARNING, "History")
                     << "History archive '" << this->mArchive->getName()
-                    << "', hasn't yet received checkpoint " << snap
+                    << "', hasn't yet received checkpoint " << checkpoint
                     << ", retrying catchup";
                 this->enterRetryingState(sleepSeconds);
             }
@@ -360,7 +358,8 @@ CatchupStateMachine::enterAnchoredState(HistoryArchiveState const& has)
     }
 
     std::vector<std::shared_ptr<FileCatchupInfo>> fileCatchupInfos;
-    uint32_t freq = mApp.getHistoryManager().getCheckpointFrequency();
+    auto& hm = mApp.getHistoryManager();
+    uint32_t freq = hm.getCheckpointFrequency();
     std::vector<std::string> bucketsToFetch;
 
     // Then make sure all the files we _want_ are either present
@@ -375,19 +374,23 @@ CatchupStateMachine::enterAnchoredState(HistoryArchiveState const& has)
         bucketsToFetch = mArchiveState.differingBuckets(mLocalState);
 
         // ...and _the last_ history ledger file (to get its final state).
-        uint32_t snap = mArchiveState.currentLedger / freq;
-        fileCatchupInfos.push_back(queueLedgerFile(snap));
+        fileCatchupInfos.push_back(queueLedgerFile(mArchiveState.currentLedger));
     }
     else
     {
         assert(mMode == HistoryManager::CATCHUP_COMPLETE);
         // In CATCHUP_COMPLETE mode we need all the transaction and ledger
         // files.
-        for (uint32_t snap = mLocalState.currentLedger / freq;
-             snap <= mArchiveState.currentLedger / freq; ++snap)
+        for (uint32_t snap = mArchiveState.currentLedger;
+             snap >= mLocalState.currentLedger;
+             snap -= freq)
         {
             fileCatchupInfos.push_back(queueTransactionsFile(snap));
             fileCatchupInfos.push_back(queueLedgerFile(snap));
+            if (snap < freq)
+            {
+                break;
+            }
         }
     }
 
@@ -584,7 +587,8 @@ CatchupStateMachine::verifyHistoryFromLastClosedLedger()
             {
                 CLOG(ERROR, "History")
                     << "History chain overshot expected ledger seq "
-                    << expectedSeq;
+                    << expectedSeq << ", got " << curr.header.ledgerSeq
+                    << " instead";
                 return HistoryManager::VERIFY_HASH_BAD;
             }
             if (verifyLedgerHistoryLink(prev.hash, curr) !=
@@ -598,7 +602,9 @@ CatchupStateMachine::verifyHistoryFromLastClosedLedger()
     if (prev.header.ledgerSeq + 1 != mNextLedger)
     {
         CLOG(INFO, "History")
-            << "Insufficient history to connect chain to ledger" << mNextLedger;
+            << "Insufficient history to connect chain to ledger " << mNextLedger;
+        CLOG(INFO, "History")
+            << "History chain ends at " << prev.header.ledgerSeq;
         return HistoryManager::VERIFY_HASH_BAD;
     }
     return lm.verifyCatchupCandidate(prev);

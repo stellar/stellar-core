@@ -358,11 +358,9 @@ HistoryArchive::putState(
 {
     auto local = HistoryArchiveState::localName(app, mName);
     s.save(local);
-    uint32_t freq = app.getHistoryManager().getCheckpointFrequency();
-    uint32_t snap = s.currentLedger / freq;
     auto self = shared_from_this();
-    putStateInDir(app, s, local, HistoryArchiveState::remoteDir(snap),
-                  HistoryArchiveState::remoteName(snap),
+    putStateInDir(app, s, local, HistoryArchiveState::remoteDir(s.currentLedger),
+                  HistoryArchiveState::remoteName(s.currentLedger),
                   [&app, s, self, local, handler](asio::error_code const& ec)
                   {
         if (ec)

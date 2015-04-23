@@ -375,12 +375,14 @@ LedgerManagerImpl::externalizeValue(LedgerCloseData ledgerData)
 
 void
 LedgerManagerImpl::startCatchUp(uint32_t initLedger,
-                                HistoryManager::CatchupMode resume)
+                                HistoryManager::CatchupMode resume,
+                                bool manualCatchup)
 {
     setState(LM_CATCHING_UP_STATE);
     mApp.getHistoryManager().catchupHistory(
         initLedger, resume,
-        std::bind(&LedgerManagerImpl::historyCaughtup, this, _1, _2, _3));
+        std::bind(&LedgerManagerImpl::historyCaughtup, this, _1, _2, _3),
+        manualCatchup);
 }
 
 HistoryManager::VerifyHashStatus
