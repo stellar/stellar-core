@@ -237,10 +237,20 @@ class HistoryManager
     // may be different (see ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING).
     virtual uint32_t getCheckpointFrequency() = 0;
 
-    // Given a ledger, tell when the previous checkpoint occured.
+    // Given a "current ledger" (not LCL) for a node, return the "current
+    // ledger" value at which the previous scheduled checkpoint should have
+    // occurred, by rounding-down to the next multiple of checkpoint
+    // frequency. This does not consult the network nor take account of manual
+    // checkpoints.
     virtual uint32_t prevCheckpointLedger(uint32_t ledger) = 0;
 
-    // Given a ledger, tell when the next checkpoint will occur.
+    // Given a "current ledger" (not LCL) for a node, return the "current
+    // ledger" value at which the next checkpoint should occur; usually this
+    // returns the next scheduled checkpoint by rounding-up to the next
+    // multiple of checkpoint frequency, but when catching up to a manual
+    // checkpoint it will return the ledger passed in, indicating that the
+    // "next" checkpoint-ledger to look forward to is the same as the "init"
+    // ledger of the catchup operation.
     virtual uint32_t nextCheckpointLedger(uint32_t ledger) = 0;
 
     // Given a ledger, tell the number of seconds to sleep until the next catchup probe.
@@ -297,9 +307,13 @@ class HistoryManager
     // Run catchup, we've just heard `initLedger` from the network. Mode can be
     // CATCHUP_COMPLETE, meaning replay history from last to present, or
     // CATCHUP_MINIMAL, meaning snap to the next state possible and discard
-    // history. Pass `manualCatchup=true` for manual catchup mode, in which
-    // catchup adheres to `initLedger` only, avoiding rounding up or down to
-    // checkpoint boundaries. See larger comment above for more detail.
+    // history. See larger comment above for more detail.
+    //
+    // The `manualCatchup` flag modifies catchup behavior to avoid rounding up
+    // to the next scheduled checkpoint boundary, instead catching up to a
+    // checkpoint presumed to have been made at `initLedger` (i.e. with
+    // checkpoint ledger number equal to initLedger-1). This 'manual' catchup
+    // mode exists to support catching-up to manually created checkpoints.
     virtual void catchupHistory(
         uint32_t initLedger, CatchupMode mode,
         std::function<void(asio::error_code const& ec, CatchupMode mode,

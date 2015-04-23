@@ -359,7 +359,7 @@ CatchupStateMachine::enterAnchoredState(HistoryArchiveState const& has)
 
     std::vector<std::shared_ptr<FileCatchupInfo>> fileCatchupInfos;
     auto& hm = mApp.getHistoryManager();
-    uint32_t freq = mApp.getHistoryManager().getCheckpointFrequency();
+    uint32_t freq = hm.getCheckpointFrequency();
     std::vector<std::string> bucketsToFetch;
 
     // Then make sure all the files we _want_ are either present
