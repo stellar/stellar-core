@@ -69,7 +69,7 @@ ItemFetcher<T, TrackerT>::fetch(uint256 itemID, std::function<void(T const &item
     {
         tracker = entry->second.lock();
     }
-    if (!tracker)
+    if (!tracker || tracker->isStoped())
     {
         // no entry, or the weak pointer on the tracker could not lock.
         tracker = std::make_shared<TrackerT>(mApp, itemID, *this);
@@ -155,6 +155,12 @@ ItemFetcher<T, TrackerT>::Tracker::isItemFound()
     return mItem != nullptr;
 }
 
+template <class T, class TrackerT>
+bool ItemFetcher<T, TrackerT>::Tracker::isStoped()
+{
+    return mIsStoped;
+}
+
 template<class T, class TrackerT>
 T ItemFetcher<T, TrackerT>::Tracker::get()
 {
@@ -224,7 +230,7 @@ ItemFetcher<T, TrackerT>::Tracker::tryNextPeer()
 
             mLastAskedPeer = peer;
             mPeersAsked.push_back(peer);
-
+            nextTry = MS_TO_WAIT_FOR_FETCH_REPLY;
         }
 
         mTimer.expires_from_now(nextTry);
@@ -242,6 +248,7 @@ void ItemFetcher<T, TrackerT>::Tracker::cancel()
     mPeersAsked.clear();
     mTimer.cancel();
     mLastAskedPeer = nullptr;
+    mIsStoped = true;
 }
 
 template<class T, class TrackerT>
@@ -254,13 +261,11 @@ void ItemFetcher<T, TrackerT>::Tracker::listen(std::function<void(T const &item)
 
 void TxSetTracker::askPeer(Peer::pointer peer)
 {
-    CLOG(INFO, "Overlay") << " asking " << peer->getRemoteListeningPort() << " for txSet " << hexAbbrev(mItemID);
     peer->sendGetTxSet(mItemID);
 }
 
 void QuorumSetTracker::askPeer(Peer::pointer peer)
 {
-    CLOG(INFO, "Overlay") << " asking " << peer->getRemoteListeningPort() << " for txSet " << hexAbbrev(mItemID);
     peer->sendGetQuorumSet(mItemID);
 }
 

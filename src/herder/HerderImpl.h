@@ -125,6 +125,7 @@ class HerderImpl : public Herder, public SCP
         mBallotValidationTimers;
 
     std::map<uint256, TxSetTrackerPtr> mTxSetFetches;
+    std::map<uint256, TxSetTrackerPtr> mTxSetCatchupFetches;
     std::map<uint256, QuorumSetTrackerPtr> mQuorumSetFetches;
 
     void herderOutOfSync();

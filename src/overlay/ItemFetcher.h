@@ -50,9 +50,9 @@ public:
         std::vector<Peer::pointer> mPeersAsked;
         VirtualTimer mTimer;
         optional<T> mItem;
+        bool mIsStoped = false;
 
         std::vector<std::function<void(T item)>> mCallbacks;
-
     public:
         uint256 mItemID;
         explicit Tracker(Application &app, uint256 const& id, ItemFetcher &itemFetcher) : 
@@ -63,6 +63,7 @@ public:
         virtual ~Tracker();
 
         bool isItemFound();
+        bool isStoped();
         T get();
         void cancel();
         void listen(std::function<void(T const &item)> cb);

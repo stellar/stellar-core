@@ -575,9 +575,11 @@ HerderImpl::valueExternalized(uint64 const& slotIndex, Value const& value)
                               << " Externalized StellarBallot malformed";
     }
 
+    auto txSetHash = b.value.txSetHash;
+
     CLOG(DEBUG, "Herder") << "HerderImpl::valueExternalized"
                           << "@" << hexAbbrev(getLocalNodeID())
-                          << " txSet: " << hexAbbrev(b.value.txSetHash);
+                          << " txSet: " << hexAbbrev(txSetHash);
 
     // current value is not valid anymore
     mCurrentValue.clear();
@@ -585,19 +587,26 @@ HerderImpl::valueExternalized(uint64 const& slotIndex, Value const& value)
     mTrackingSCP = make_unique<ConsensusData>(slotIndex, b);
     trackingHeartBeat();
 
-    // we don't need to keep fetching any of the other TX sets
-    auto txSetTracker = mTxSetFetches[b.value.txSetHash];
-    mTxSetFetches.clear();
 
+    TxSetTrackerPtr txSetTracker = 
+        (mTxSetFetches[txSetHash] ? mTxSetFetches[txSetHash] : mTxSetCatchupFetches[txSetHash]);
+
+    std::shared_ptr<TxSetFrame> externalizedSet;
+    if (txSetTracker && txSetTracker->isItemFound())
+    {
+        externalizedSet = std::make_shared<TxSetFrame>(txSetTracker->get());
+    }
+
+    // We don't need to keep fetching any of the other TX sets
+    mTxSetFetches.clear();
 
     // trigger will be recreated when the ledger is closed
     // we do not want it to trigger while downloading the current set
     // and there is no point in taking a position after the round is over
     mTriggerTimer.cancel();
 
-    if (txSetTracker && txSetTracker->isItemFound())
+    if (externalizedSet)
     {
-        auto externalizedSet = std::make_shared<TxSetFrame>(txSetTracker->get());
 
         // tell the LedgerManager that this value got externalized
         // LedgerManager will perform the proper action based on its internal
@@ -650,19 +659,34 @@ HerderImpl::valueExternalized(uint64 const& slotIndex, Value const& value)
 
         ledgerClosed();
     }
-    else
+    else 
     {
-        // This should not occur. All values are validated and should
-        // therefore have been fetched already.
-        CLOG(ERROR, "Herder") << "HerderImpl::valueExternalized"
-            << "@" << hexAbbrev(getLocalNodeID())
-            << " Externalized txSet not found: "
-            << hexAbbrev(b.value.txSetHash);
-
-        fetchTxSet(b.value.txSetHash, [slotIndex, value, this](TxSetFrame const & txSet)
+        if (!mTxSetCatchupFetches[txSetHash])
         {
-            this->valueExternalized(slotIndex, value);
-        });
+            if (txSetTracker)
+            {
+                txSetTracker->cancel(); // cancel the previous scp callbacks on this item
+            }
+
+            // This only occurs if this node has fallen behind. The other
+            // nodes have convinced this node of the consensus without
+            // the value being validated by us.
+            CLOG(DEBUG, "Herder") << "HerderImpl::valueExternalized"
+                << "@" << hexAbbrev(getLocalNodeID())
+                << " Externalized txSet not found: "
+                << hexAbbrev(txSetHash) << ", fetching it now";
+
+            mTxSetCatchupFetches[txSetHash] =
+                mApp.getOverlayManager().getTxSetFetcher().fetch(txSetHash,
+                [this, slotIndex, value](TxSetFrame const &txSet_)
+            {
+                this->valueExternalized(slotIndex, value);
+            });
+
+        } else
+        {
+            CLOG(ERROR, "Herder") << "Catch up transaction set still not available";
+        }
     }
 }
 
