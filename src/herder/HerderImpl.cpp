@@ -187,7 +187,7 @@ HerderImpl::bootstrap()
     mLedgerManager.setState(LedgerManager::LM_SYNCED_STATE);
 
     trackingHeartBeat();
-    triggerNextLedger();
+    triggerNextLedger(lcl.header.ledgerSeq + 1);
 }
 
 void
@@ -261,8 +261,12 @@ HerderImpl::validateValue(uint64 const& slotIndex, uint256 const& nodeID,
     // make sure all the tx we have in the old set are included
     auto validate = [cb, b, slotIndex, nodeID, this](TxSetFramePtr txSet)
     {
-        // Check txSet (only if we're fully synced)
-        if ((!mLedgerManager.isSynced()) || !txSet->checkValid(mApp))
+        if (!mLedgerManager.isSynced())
+        {
+            cb(true);
+            return;
+        }
+        if (!txSet->checkValid(mApp))
         {
             CLOG(DEBUG, "Herder")
                 << "HerderImpl::validateValue"
@@ -514,15 +518,10 @@ HerderImpl::validateBallot(uint64 const& slotIndex, uint256 const& nodeID,
         ballotTimer->expires_from_now(std::chrono::milliseconds(
             (int)(1000 * pow(2.0, ballot.counter) / 2)));
         ballotTimer->async_wait(
-            [cb, this]()
+            [cb, this](asio::error_code const&)
             {
                 this->mBallotValid.Mark();
                 cb(true);
-            },
-            [cb, this](asio::error_code const&)
-            {
-                this->mBallotInvalid.Mark();
-                cb(false);
             });
         mBallotValidationTimers[ballot][nodeID].push_back(ballotTimer);
 
@@ -767,6 +766,14 @@ HerderImpl::emitEnvelope(SCPEnvelope const& envelope)
         // this should not happen: if we're just watching consensus
         // don't send out SCP messages
         if (getSecretKey().isZero())
+        {
+            return;
+        }
+
+        // SCP may emit envelopes as our instance changes state
+        // yet, we do not want to send those out as we don't do full validation
+        // when out of sync
+        if (!mTrackingSCP || !mLedgerManager.isSynced() || mCurrentValue.empty())
         {
             return;
         }
@@ -1122,7 +1129,7 @@ HerderImpl::ledgerClosed()
 
     if (!mApp.getConfig().MANUAL_CLOSE)
         mTriggerTimer.async_wait(
-            std::bind(&HerderImpl::triggerNextLedger, this),
+            std::bind(&HerderImpl::triggerNextLedger, this, static_cast<uint32_t>(nextIndex)),
             &VirtualTimer::onFailureNoop);
 }
 
@@ -1163,7 +1170,7 @@ HerderImpl::getCurrentLedgerSeq() const
 // called to take a position during the next round
 // uses the state in LedgerManager to derive a starting position
 void
-HerderImpl::triggerNextLedger()
+HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger)
 {
     if (!mTrackingSCP || !mLedgerManager.isSynced())
     {
@@ -1172,13 +1179,12 @@ HerderImpl::triggerNextLedger()
         return;
     }
     updateSCPCounters();
-    // We store at which time we triggered consensus
-    mLastTrigger = mApp.getClock().now();
 
     // our first choice for this round's set is all the tx we have collected
     // during last ledger close
     auto const& lcl = mLedgerManager.getLastClosedLedgerHeader();
     TxSetFramePtr proposedSet = std::make_shared<TxSetFrame>(lcl.hash);
+
     for (auto& list : mReceivedTransactions)
     {
         for (auto& tx : list)
@@ -1194,9 +1200,20 @@ HerderImpl::triggerNextLedger()
         removeReceivedTx(tx);
     }
 
+    // note: this can trigger SCP callbacks, externalize, etc
+    // if we happen to build a txset that we were trying to download
     recvTxSet(proposedSet);
 
-    uint64_t slotIndex = nextConsensusLedgerIndex();
+    // use the slot index from ledger manager here as our vote is based off
+    // the last closed ledger stored in ledger manager
+    uint64_t slotIndex = lcl.header.ledgerSeq+1;
+
+    // no point in sending out a prepare:
+    // externalize was triggered on a more recent ledger
+    if (ledgerSeqToTrigger != slotIndex)
+    {
+        return;
+    }
 
     // We pick as next close time the current time unless it's before the last
     // close time. We don't know how much time it will take to reach consensus
@@ -1224,6 +1241,9 @@ HerderImpl::triggerNextLedger()
                           << hexAbbrev(proposedSet->previousLedgerHash())
                           << " value: " << hexAbbrev(valueHash)
                           << " slot: " << slotIndex;
+
+    // We store at which time we triggered consensus
+    mLastTrigger = mApp.getClock().now();
 
     // We prepare that value. If we're monarch, the ballot will be validated,
     // and if we're not it'll just get ignored.

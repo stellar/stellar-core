@@ -10,6 +10,7 @@
 #include "generated/SCPXDR.h"
 #include "util/Timer.h"
 #include "database/Database.h"
+#include "util/NonCopyable.h"
 
 namespace stellar
 {
@@ -22,7 +23,7 @@ class LoopbackPeer;
 /*
  * Another peer out there that we are connected to
  */
-class Peer : public std::enable_shared_from_this<Peer>
+class Peer : public std::enable_shared_from_this<Peer>, public NonMovableOrCopyable
 {
 
   public:

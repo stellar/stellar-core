@@ -208,9 +208,11 @@ TCPPeer::startRead()
 {
     try
     {
+        assert(mIncomingHeader.size() == 0);
         CLOG(TRACE, "Overlay") << "TCPPeer::startRead to " << toString();
         resetReadIdle();
         auto self = shared_from_this();
+        mIncomingHeader.resize(4);
         asio::async_read(*(mSocket.get()), asio::buffer(mIncomingHeader),
                          [self](asio::error_code ec, std::size_t length)
                          {
@@ -272,6 +274,7 @@ TCPPeer::readHeaderHandler(asio::error_code const& error,
         asio::async_read(*mSocket.get(), asio::buffer(mIncomingBody),
                          [self](asio::error_code ec, std::size_t length)
                          {
+                             static_cast<TCPPeer*>(self.get())->mIncomingHeader.clear();
                              self->readBodyHandler(ec, length);
                          });
     }

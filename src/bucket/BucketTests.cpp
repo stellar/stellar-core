@@ -494,7 +494,7 @@ TEST_CASE("bucket persistence over app restart", "[bucket][bucketpersist]")
     // we stop and serialize) sensitive to shadowing, and requires shadows be
     // reconstituted when the merge is restarted.
     auto alice = liveSingleGen(1);
-    size_t pause = 65;
+    uint32_t pause = 65;
     batches[2].push_back(alice);
     batches[pause-2].push_back(alice);
 

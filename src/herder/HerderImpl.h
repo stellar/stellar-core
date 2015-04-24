@@ -99,7 +99,7 @@ class HerderImpl : public Herder, public SCP
 
     uint32_t getCurrentLedgerSeq() const override;
 
-    void triggerNextLedger() override;
+    void triggerNextLedger(uint32_t ledgerSeqToTrigger) override;
 
     void dumpInfo(Json::Value& ret) override;
 

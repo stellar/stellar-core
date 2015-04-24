@@ -21,7 +21,7 @@ class TCPPeer : public Peer
     std::shared_ptr<asio::ip::tcp::socket> mSocket;
     VirtualTimer mReadIdle;
     VirtualTimer mWriteIdle;
-    uint8_t mIncomingHeader[4];
+    std::vector<uint8_t> mIncomingHeader;
     std::vector<uint8_t> mIncomingBody;
 
     medida::Meter& mMessageRead;
