@@ -63,6 +63,7 @@ ItemFetcher<T, TrackerT>::fetch(uint256 itemID, std::function<void(T const &item
 {
     auto entry = mTrackers.find(itemID);
     TrackerPtr tracker;
+    bool newTracker = false;
 
     if (entry != mTrackers.end())
     {
@@ -73,6 +74,7 @@ ItemFetcher<T, TrackerT>::fetch(uint256 itemID, std::function<void(T const &item
         // no entry, or the weak pointer on the tracker could not lock.
         tracker = std::make_shared<TrackerT>(mApp, itemID, *this);
         mTrackers[itemID] = tracker;
+        newTracker = true;
     }
 
     tracker->listen(cb);
@@ -80,7 +82,7 @@ ItemFetcher<T, TrackerT>::fetch(uint256 itemID, std::function<void(T const &item
     {
         mTrackers.erase(itemID);
         tracker->recv(mCache.get(itemID));
-    } else
+    } else if (newTracker)
     {
         tracker->tryNextPeer();
     }
