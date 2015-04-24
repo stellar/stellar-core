@@ -104,6 +104,7 @@ TEST_CASE("ItemFetcher fetches", "[overlay]")
             tZero = itemFetcher.fetch(zero, cb);
             tZero2 = itemFetcher.fetch(zero, cb);
         }
+        REQUIRE(tZero->mAsked.size() == 1);
 
         while(tZero->mAsked.size() < 4)
         {

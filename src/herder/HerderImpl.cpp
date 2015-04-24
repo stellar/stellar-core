@@ -661,32 +661,21 @@ HerderImpl::valueExternalized(uint64 const& slotIndex, Value const& value)
     }
     else 
     {
-        if (!mTxSetCatchupFetches[txSetHash])
+        // This only occurs if this node has fallen behind. The other
+        // nodes have convinced this node of the consensus without
+        // the value being validated by us.
+        CLOG(DEBUG, "Herder") << "HerderImpl::valueExternalized"
+            << "@" << hexAbbrev(getLocalNodeID())
+            << " Externalized txSet not found: "
+            << hexAbbrev(txSetHash) << ", fetching it now";
+
+        assert(!mTxSetCatchupFetches[txSetHash]);
+        mTxSetCatchupFetches[txSetHash] =
+            mApp.getOverlayManager().getTxSetFetcher().fetch(txSetHash,
+            [this, slotIndex, value](TxSetFrame const &txSet_)
         {
-            if (txSetTracker)
-            {
-                txSetTracker->cancel(); // cancel the previous scp callbacks on this item
-            }
-
-            // This only occurs if this node has fallen behind. The other
-            // nodes have convinced this node of the consensus without
-            // the value being validated by us.
-            CLOG(DEBUG, "Herder") << "HerderImpl::valueExternalized"
-                << "@" << hexAbbrev(getLocalNodeID())
-                << " Externalized txSet not found: "
-                << hexAbbrev(txSetHash) << ", fetching it now";
-
-            mTxSetCatchupFetches[txSetHash] =
-                mApp.getOverlayManager().getTxSetFetcher().fetch(txSetHash,
-                [this, slotIndex, value](TxSetFrame const &txSet_)
-            {
-                this->valueExternalized(slotIndex, value);
-            });
-
-        } else
-        {
-            CLOG(ERROR, "Herder") << "Catch up transaction set still not available";
-        }
+            this->valueExternalized(slotIndex, value);
+        });
     }
 }
 
