@@ -518,15 +518,10 @@ HerderImpl::validateBallot(uint64 const& slotIndex, uint256 const& nodeID,
         ballotTimer->expires_from_now(std::chrono::milliseconds(
             (int)(1000 * pow(2.0, ballot.counter) / 2)));
         ballotTimer->async_wait(
-            [cb, this]()
+            [cb, this](asio::error_code const&)
             {
                 this->mBallotValid.Mark();
                 cb(true);
-            },
-            [cb, this](asio::error_code const&)
-            {
-                this->mBallotInvalid.Mark();
-                cb(false);
             });
         mBallotValidationTimers[ballot][nodeID].push_back(ballotTimer);
 
