@@ -57,6 +57,8 @@
 
 # test output
 /stellar-core-test-*
+/fuzz-findings/
+/my-history/
 
 # Windows specific
 **/Build/*

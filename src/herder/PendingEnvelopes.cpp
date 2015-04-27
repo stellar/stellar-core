@@ -199,6 +199,7 @@ PendingEnvelopes::checkReady(FetchingRecordPtr fRecord)
         auto & set = mFetching[fRecord->env->statement.slotIndex];
         set.erase(fRecord);
         mReady[fRecord->env->statement.slotIndex].push_back(fRecord);
+
         mHerder.processSCPQueue();
     }
 }

@@ -50,7 +50,7 @@ public:
         std::vector<Peer::pointer> mPeersAsked;
         VirtualTimer mTimer;
         optional<T> mItem;
-        bool mIsStoped = false;
+        bool mIsStopped = false;
 
         std::vector<std::function<void(T item)>> mCallbacks;
     public:
@@ -63,7 +63,7 @@ public:
         virtual ~Tracker();
 
         bool isItemFound();
-        bool isStoped();
+        bool isStopped();
         T get();
         void cancel();
         void listen(std::function<void(T const &item)> cb);
@@ -74,6 +74,7 @@ public:
         void recv(T item);
         void tryNextPeer();
     };
+    friend Tracker;
 
     using TrackerPtr = std::shared_ptr<TrackerT>;
 
@@ -102,22 +103,27 @@ public:
     // else starts fetching the item and returns a tracker.
     TrackerPtr getOrFetch(uint256 itemID, std::function<void(T const & item)> cb);
 
+
     void doesntHave(uint256 const& itemID, Peer::pointer peer);
 
     // recv: notifies all listeners of the arrival of the item and caches it if 
-    // it was needed
+    // it was needed.
     void recv(uint256 itemID, T const & item);
 
-    // cache: notifies all listeneers of the arrival of the item and caches it 
-    // unconditionaly
-    void cache(Hash itemID, T const & item);
+    // Caches the value and returns a tracker. The value will be force-held in the cache
+    // as long as there exists a live reference to the tracker.
+    // `cache` also notifies all listeneers of the arrival of the item.
+    TrackerPtr cache(Hash itemID, T const & item);
 
-    optional<Tracker> isNeeded(uint256 itemID);
+    TrackerPtr isNeeded(uint256 itemID);
 
 protected:
+    TrackerPtr getTracker(uint256 itemID, bool create, bool *retNewTracker = nullptr);
+
     Application& mApp;
     std::map<uint256, std::weak_ptr<TrackerT>> mTrackers;
     cache::lru_cache<uint256, T> mCache;
+    size_t mDropsSkipped = 0;
 
     // NB: There are many ItemFetchers in the system at once, but we are sharing
     // a single counter for all the items being fetched by all of them. Be
