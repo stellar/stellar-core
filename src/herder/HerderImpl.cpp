@@ -886,8 +886,6 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope envelope,
     }
 
     mPendingEnvelopes.add(envelope);
-
-    processSCPQueue();
 }
 
 void
@@ -914,7 +912,7 @@ HerderImpl::processSCPQueue()
         // we don't know which ledger we're in
         // try to consume the messages from the queue
         // starting from the smallest slot
-        for (auto& slot : mPendingEnvelopes.slots())
+        for (auto& slot : mPendingEnvelopes.readySlots())
         {
             processSCPQueueAtIndex(slot);
             if (mTrackingSCP)
@@ -932,17 +930,15 @@ HerderImpl::processSCPQueueAtIndex(uint64 slotIndex)
 {
     while(true)
     {
-        auto env = mPendingEnvelopes.pop(slotIndex);
-        if (env == nullptr)
+        auto fRecord = mPendingEnvelopes.pop(slotIndex);
+        if (fRecord == nullptr)
         {
             return;
         }
 
-        SCP::receiveEnvelope(*env);
+        SCP::receiveEnvelope(*fRecord->env);
     }
 }
-
-
 
 void
 HerderImpl::ledgerClosed()

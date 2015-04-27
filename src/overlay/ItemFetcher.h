@@ -98,7 +98,7 @@ public:
     TrackerPtr fetch(uint256 itemID, std::function<void(T const & item)> cb);
 
 
-    // Hands to item immediately to `cb` if available in cache and returns `nullptr`,
+    // Hands the item immediately to `cb` if available in cache and returns `nullptr`,
     // else starts fetching the item and returns a tracker.
     TrackerPtr getOrFetch(uint256 itemID, std::function<void(T const & item)> cb);
 

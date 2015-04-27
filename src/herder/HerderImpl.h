@@ -87,6 +87,8 @@ class HerderImpl : public Herder, public SCP
                          {
                          }) override;
 
+    void processSCPQueue();
+
     uint32_t getCurrentLedgerSeq() const override;
 
     void triggerNextLedger(uint32_t ledgerSeqToTrigger) override;
@@ -107,7 +109,6 @@ class HerderImpl : public Herder, public SCP
 
     void updateSCPCounters();
 
-    void processSCPQueue();
     void processSCPQueueAtIndex(uint64 slotIndex);
     
     // 0- tx we got during ledger close
