@@ -417,6 +417,12 @@
     <ClCompile Include="..\..\src\bucket\FutureBucket.cpp">
       <Filter>bucket</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\herder\PendingEnvelopes.cpp">
+      <Filter>herder</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\util\HashOfHash.cpp">
+      <Filter>util</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\ledger\LedgerManager.h">
@@ -706,6 +712,12 @@
     </ClInclude>
     <ClInclude Include="..\..\src\bucket\FutureBucket.h">
       <Filter>bucket</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\herder\PendingEnvelopes.h">
+      <Filter>herder</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\util\HashOfHash.h">
+      <Filter>util</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

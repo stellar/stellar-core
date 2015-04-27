@@ -3,22 +3,18 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "util/asio.h"
-#include <cassert>
 #include "main/ApplicationImpl.h"
 #include "main/Config.h"
 
-#include <cassert>
-#include "util/make_unique.h"
 #include "main/test.h"
 #include "lib/catch.hpp"
 #include "overlay/OverlayManager.h"
 #include "overlay/OverlayManagerImpl.h"
 #include "util/Timer.h"
 #include "database/Database.h"
-#include "util/TmpDir.h"
 #include <soci.h>
-#include "TCPPeer.h"
 #include "transactions/TxTests.h"
+#include "transactions/TransactionFrame.h"
 
 using namespace stellar;
 using namespace std;

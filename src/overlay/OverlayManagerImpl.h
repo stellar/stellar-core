@@ -10,10 +10,10 @@
 #include "overlay/ItemFetcher.h"
 #include "overlay/Floodgate.h"
 #include <vector>
-#include <thread>
 #include "generated/StellarXDR.h"
 #include "overlay/OverlayManager.h"
 #include "util/Timer.h"
+#include "herder/TxSetFrame.h"
 
 namespace medida
 {
@@ -50,6 +50,10 @@ class OverlayManagerImpl : public OverlayManager
     void storeConfigPeers();
     bool isPeerPreferred(Peer::pointer peer);
 
+
+    ItemFetcher<TxSetFrame, TxSetTracker> mTxSetFetcher;
+    ItemFetcher<SCPQuorumSet, QuorumSetTracker> mQuorumSetFetcher;
+
     friend class OverlayManagerTests;
 
   public:
@@ -62,7 +66,6 @@ class OverlayManagerImpl : public OverlayManager
     void recvFloodedMsg(StellarMessage const& msg, Peer::pointer peer) override;
     void broadcastMessage(StellarMessage const& msg,
                           bool force = false) override;
-
     void connectTo(std::string const& addr) override;
     virtual void connectTo(PeerRecord& pr) override;
 
@@ -78,5 +81,9 @@ class OverlayManagerImpl : public OverlayManager
 
     void connectToMorePeers(int max);
     Peer::pointer getRandomPeer() override;
+
+    ItemFetcher<TxSetFrame, TxSetTracker> & getTxSetFetcher() override;
+    ItemFetcher<SCPQuorumSet, QuorumSetTracker> & getQuorumSetFetcher() override;
+
 };
 }

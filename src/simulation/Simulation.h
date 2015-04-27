@@ -124,7 +124,7 @@ class Simulation
     bool loadAccount(AccountInfo &account);
     void loadAccounts();
 
-    std::string metricsSummary(std::string domain);
+    std::string metricsSummary(std::string domain = "");
 
 private:
     VirtualClock mClock;

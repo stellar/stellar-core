@@ -6,6 +6,7 @@
 
 #include "generated/StellarXDR.h"
 #include "overlay/Peer.h"
+#include "ItemFetcher.h"
 
 /**
  * OverlayManager maintains a virtual broadcast network, consisting of a set of
@@ -31,10 +32,10 @@
  *  - Two-way anycast messages requesting a value (by hash) or providing it:
  *    GET_TX_SET, TX_SET, GET_SCP_QUORUMSET, SCP_QUORUMSET
  *
- * Anycasts are initiated and serviced by subclasses of ItemFetcher
- * (TxSetFetcher and SCPQSetFetcher), instances of which are held in the Herder.
- * Anycast messages are sent to directly-connected peers, in sequence until
- * satisfied, not are not flooded between peers.
+ * Anycasts are initiated and serviced two instances of ItemFetcher
+ * (mTxSetFetcher and mQuorumSetFetcher). Anycast messages are sent to 
+ * directly-connected peers, in sequence until satisfied. They are not 
+ * flooded between peers.
  *
  * Broadcasts are initiated by the Herder and sent to both the Herder _and_ the
  * local FloodGate, for propagation to other peers.
@@ -48,6 +49,7 @@ namespace stellar
 
 class PeerRecord;
 
+
 class OverlayManager
 {
   public:
@@ -56,8 +58,8 @@ class OverlayManager
     // Drop all PeerRecords from the Database
     static void dropAll(Database& db);
 
-    // Flush all FloodGate state for ledgers older than `ledger`. This is
-    // called by LedgerManager when a ledger closes.
+    // Flush all FloodGate and ItemFetcher state for ledgers older than `ledger`. 
+    // This is called by LedgerManager when a ledger closes.
     virtual void ledgerClosed(uint32_t lastClosedledgerSeq) = 0;
 
     // Send a given message to all peers, via the FloodGate. This is called by
@@ -75,10 +77,10 @@ class OverlayManager
     // Return a random peer from the set of connected peers.
     virtual Peer::pointer getRandomPeer() = 0;
 
-    // Return the peer following the provided peer, in the set of connected
-    // peers.
+    // Returns the peer following the provided peer, in the set of connected
+    // peers, looping to the beginning if needed.
     // Returns a `nullptr`-valued pointer if the provided peer is not part of
-    // the in-memory peer set, or is the last peer in the set.
+    // the in-memory peer set.
     virtual Peer::pointer getNextPeer(Peer::pointer peer) = 0;
 
     // Return an already-connected peer at the given ip address and port;
@@ -110,6 +112,11 @@ class OverlayManager
 
     // Attempt to connect to a peer identified by peer record.
     virtual void connectTo(PeerRecord& pr) = 0;
+
+
+    virtual ItemFetcher<TxSetFrame, TxSetTracker> & getTxSetFetcher() = 0;
+    virtual ItemFetcher<SCPQuorumSet, QuorumSetTracker> & getQuorumSetFetcher() = 0;
+
 
     virtual ~OverlayManager()
     {

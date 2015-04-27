@@ -15,7 +15,6 @@
 #include "medida/meter.h"
 #include "medida/counter.h"
 
-#include <thread>
 #include <random>
 
 // TODO.3 flood older msgs to people that connect to you
@@ -61,6 +60,8 @@ OverlayManagerImpl::OverlayManagerImpl(Application& app)
           {"overlay", "connection", "reject"}, "connection"))
     , mPeersSize(app.getMetrics().NewCounter({"overlay", "memory", "peers"}))
     , mTimer(app)
+    , mTxSetFetcher(app, 400)     // TODO
+    , mQuorumSetFetcher(app, 400) // TODO
     , mFloodGate(app)
 {
     mTimer.expires_from_now(std::chrono::seconds(2));
@@ -271,20 +272,21 @@ OverlayManagerImpl::getRandomPeer()
     return Peer::pointer();
 }
 
+
 // returns NULL if the passed peer isn't found
 Peer::pointer
 OverlayManagerImpl::getNextPeer(Peer::pointer peer)
 {
-    for (unsigned int n = 0; n < mPeers.size(); n++)
+    auto index = std::find(mPeers.begin(), mPeers.end(), peer);
+    if (mPeers.empty() || index == mPeers.end())
     {
-        if (mPeers[n] == peer)
-        {
-            if (n == mPeers.size() - 1)
-                return mPeers[0];
-            return (mPeers[n + 1]);
-        }
+        return nullptr;
+    } else if (index + 1 == mPeers.end())
+    {
+        return mPeers.front();
     }
-    return Peer::pointer();
+    else
+        return *(index + 1);
 }
 
 void
@@ -307,4 +309,16 @@ OverlayManager::dropAll(Database& db)
 {
     PeerRecord::dropAll(db);
 }
+
+
+ItemFetcher<TxSetFrame, TxSetTracker> & OverlayManagerImpl::getTxSetFetcher()
+{
+    return mTxSetFetcher;
+}
+
+ItemFetcher<SCPQuorumSet, QuorumSetTracker> & OverlayManagerImpl::getQuorumSetFetcher()
+{
+    return mQuorumSetFetcher;
+}
+
 }

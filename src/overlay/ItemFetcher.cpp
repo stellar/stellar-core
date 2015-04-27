@@ -2,17 +2,14 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "crypto/SHA.h"
-#include "main/Application.h"
 #include "overlay/ItemFetcher.h"
+#include "main/Application.h"
 #include "overlay/OverlayManager.h"
 #include "util/Logging.h"
-
-#include "medida/counter.h"
 #include "medida/metrics_registry.h"
-#include "xdrpp/marshal.h"
-
-#define MS_TO_WAIT_FOR_FETCH_REPLY 500
+#include "herder/TxSetFrame.h"
+#include "generated/StellarXDR.h"
+#include <crypto/Hex.h>
 
 // TODO.1 I think we need to add something that after some time it retries to
 // fetch qsets that it really needs.
@@ -24,200 +21,155 @@
 namespace stellar
 {
 
-ItemFetcher::ItemFetcher(Application& app)
-    : mApp(app)
+template<class T, class TrackerT>
+ItemFetcher<T, TrackerT>::ItemFetcher(Application& app, size_t cacheSize) :
+    mApp(app)
+    , mCache(cacheSize)
     , mItemMapSize(
-          app.getMetrics().NewCounter({"overlay", "memory", "item-fetch-map"}))
-{
-}
+         app.getMetrics().NewCounter({ "overlay", "memory", "item-fetch-map" }))
+{}
 
-void
-ItemFetcher::doesntHave(uint256 const& itemID, Peer::pointer peer)
+template<class T, class TrackerT>
+optional<T> 
+ItemFetcher<T, TrackerT>::get(uint256 itemID)
 {
-    auto result = mItemMap.find(itemID);
-    if (result != mItemMap.end())
-    { // found
-        result->second->doesntHave(peer);
-    }
-}
-void
-ItemFetcher::stopFetchingAll()
-{
-    stopFetchingPred(nullptr);
-}
-
-void
-ItemFetcher::stopFetchingPred(
-    std::function<bool(uint256 const& itemID)> const& pred)
-{
-    for (auto& item : mItemMap)
+    if (mCache.exists(itemID))
     {
-        if (!pred || pred(item.first))
-            item.second->cancelFetch();
-    }
-}
-
-// LATER  Do we ever need to call this
-void
-ItemFetcher::stopFetching(uint256 const& itemID)
-{
-    auto result = mItemMap.find(itemID);
-    if (result != mItemMap.end())
+        return make_optional<T>(mCache.get(itemID));
+    } else
     {
-        result->second->refDec();
+        return nullopt<T>();
+    }
+
+}
+
+template<class T, class TrackerT>
+typename ItemFetcher<T, TrackerT>::TrackerPtr
+ItemFetcher<T, TrackerT>::getOrFetch(uint256 itemID, std::function<void(T const &item)> cb)
+{
+    if (mCache.exists(itemID))
+    {
+        cb(mCache.get(itemID));
+        return nullptr;
+    } else
+    {
+        return fetch(itemID, cb);
     }
 }
 
-void
-ItemFetcher::clear()
+template<class T, class TrackerT>
+typename ItemFetcher<T, TrackerT>::TrackerPtr
+ItemFetcher<T, TrackerT>::fetch(uint256 itemID, std::function<void(T const &item)> cb)
 {
-    int64_t n = static_cast<int64_t>(mItemMap.size());
-    mItemMap.clear();
-    mItemMapSize.dec(n);
+    auto entry = mTrackers.find(itemID);
+    TrackerPtr tracker;
+    bool newTracker = false;
+
+    if (entry != mTrackers.end())
+    {
+        tracker = entry->second.lock();
+    }
+    if (!tracker || tracker->isStoped())
+    {
+        // no entry, or the weak pointer on the tracker could not lock.
+        tracker = std::make_shared<TrackerT>(mApp, itemID, *this);
+        mTrackers[itemID] = tracker;
+        newTracker = true;
+    }
+
+    tracker->listen(cb);
+    if (mCache.exists(itemID))
+    {
+        mTrackers.erase(itemID);
+        tracker->recv(mCache.get(itemID));
+    } else if (newTracker)
+    {
+        tracker->tryNextPeer();
+    }
+    return tracker;
 }
 
-//////////////////////////////
 
-TxSetFramePtr
-TxSetFetcher::fetchItem(uint256 const& txSetHash, bool askNetwork)
+
+template<class T, class TrackerT>
+void 
+ItemFetcher<T, TrackerT>::doesntHave(uint256 const& itemID, Peer::pointer peer)
 {
-    // look it up in the map
-    // if not found then start fetching
-    auto result = mItemMap.find(txSetHash);
-    if (result != mItemMap.end())
-    { // collar found
-        if (result->second->isItemFound())
+    if (auto tracker = isNeeded(itemID))
+    {
+        tracker->doesntHave(peer);
+    }
+}
+
+template<class T, class TrackerT>
+void 
+ItemFetcher<T, TrackerT>::recv(uint256 itemID, T const & item)
+{
+    if (auto tracker = isNeeded(itemID))
+    {
+        mCache.put(itemID, item);
+        mTrackers.erase(itemID);
+        tracker->recv(item);
+    }
+}
+
+template<class T, class TrackerT>
+void ItemFetcher<T, TrackerT>::cache(Hash itemID, T const & item)
+{
+    mCache.put(itemID, item);
+    recv(itemID, item); // notify listeners, if any
+}
+
+template<class T, class TrackerT>
+optional<typename ItemFetcher<T, TrackerT>::Tracker>
+ItemFetcher<T, TrackerT>::isNeeded(uint256 itemID)
+{
+    auto entry = mTrackers.find(itemID);
+    if (entry != mTrackers.end())
+    {
+        if (auto tracker = entry->second.lock())
         {
-            return ((TxSetTrackingCollar*)result->second.get())->mTxSet;
+            return tracker;
         }
         else
         {
-            result->second->refInc();
+            mTrackers.erase(entry);
+            return nullptr;
         }
     }
-    else
-    { // not found
-
-        if (askNetwork)
-        {
-            TrackingCollar::pointer collar =
-                std::make_shared<TxSetTrackingCollar>(txSetHash,
-                                                      TxSetFramePtr(), mApp);
-            mItemMap[txSetHash] = collar;
-            mItemMapSize.inc();
-            collar->tryNextPeer();
-        }
-    }
-    return (TxSetFramePtr());
+    return nullptr;
 }
 
-// TODO.1: This all needs to change
-// returns true if we were waiting for this txSet
-bool
-TxSetFetcher::recvItem(TxSetFramePtr txSet)
+
+template<class T, class TrackerT>
+ItemFetcher<T, TrackerT>::Tracker::~Tracker()
 {
-    if (txSet)
-    {
-        auto result = mItemMap.find(txSet->getContentsHash());
-        if (result != mItemMap.end())
-        {
-            int refCount = result->second->getRefCount();
-            result->second->cancelFetch();
-            ((TxSetTrackingCollar*)result->second.get())->mTxSet = txSet;
-            if (refCount)
-            { // someone was still interested in
-                // this tx set so tell SCP
-                // LATER: maybe change this to pub/sub
-                return true;
-            }
-        }
-        else
-        { // doesn't seem like we were looking for it. Maybe just add it for
-            // now
-            mItemMap[txSet->getContentsHash()] =
-                std::make_shared<TxSetTrackingCollar>(txSet->getContentsHash(),
-                                                      txSet, mApp);
-            mItemMapSize.inc();
-        }
-    }
-    return false;
+    cancel();
 }
 
-////////////////////////////////////////
 
-SCPQuorumSetPtr
-SCPQSetFetcher::fetchItem(uint256 const& qSetHash, bool askNetwork)
+template<class T, class TrackerT>
+bool 
+ItemFetcher<T, TrackerT>::Tracker::isItemFound()
 {
-    // look it up in the map
-    // if not found then start fetching
-    auto result = mItemMap.find(qSetHash);
-    if (result != mItemMap.end())
-    { // collar found
-        if (result->second->isItemFound())
-        {
-            return ((QSetTrackingCollar*)result->second.get())->mQSet;
-        }
-        else
-        {
-            result->second->refInc();
-        }
-    }
-    else
-    { // not found
-        if (askNetwork)
-        {
-            TrackingCollar::pointer collar =
-                std::make_shared<QSetTrackingCollar>(qSetHash,
-                                                     SCPQuorumSetPtr(), mApp);
-            mItemMap[qSetHash] = collar;
-            mItemMapSize.inc();
-            collar->tryNextPeer(); // start asking
-        }
-    }
-    return (SCPQuorumSetPtr());
+    return mItem != nullptr;
 }
 
-// returns true if we were waiting for this qSet
-bool
-SCPQSetFetcher::recvItem(SCPQuorumSetPtr qSet)
+template <class T, class TrackerT>
+bool ItemFetcher<T, TrackerT>::Tracker::isStoped()
 {
-    if (qSet)
-    {
-        uint256 qSetHash = sha256(xdr::xdr_to_opaque(*qSet));
-        auto result = mItemMap.find(qSetHash);
-        if (result != mItemMap.end())
-        {
-            int refCount = result->second->getRefCount();
-            result->second->cancelFetch();
-            ((QSetTrackingCollar*)result->second.get())->mQSet = qSet;
-            if (refCount)
-            { // someone was still interested in
-                // this quorum set so tell SCP
-                // LATER: maybe change this to pub/sub
-                return true;
-            }
-        }
-        else
-        { // doesn't seem like we were looking for it. Maybe just add it for
-            // now
-            mItemMap[qSetHash] =
-                std::make_shared<QSetTrackingCollar>(qSetHash, qSet, mApp);
-            mItemMapSize.inc();
-        }
-    }
-    return false;
+    return mIsStoped;
 }
 
-//////////////////////////////////////////////////////////////////////////
-
-TrackingCollar::TrackingCollar(uint256 const& id, Application& app)
-    : mApp(app), mTimer(app), mItemID(id)
+template<class T, class TrackerT>
+T ItemFetcher<T, TrackerT>::Tracker::get()
 {
-    mRefCount = 1;
+    return *mItem;
 }
 
-void
-TrackingCollar::doesntHave(Peer::pointer peer)
+template<class T, class TrackerT>
+void 
+ItemFetcher<T, TrackerT>::Tracker::doesntHave(Peer::pointer peer)
 {
     if (mLastAskedPeer == peer)
     {
@@ -225,39 +177,40 @@ TrackingCollar::doesntHave(Peer::pointer peer)
     }
 }
 
-void
-TrackingCollar::refDec()
+template<class T, class TrackerT>
+void 
+ItemFetcher<T, TrackerT>::Tracker::recv(T item)
 {
-    mRefCount--;
-    if (mRefCount < 1)
-        cancelFetch();
+    mItem = make_optional<T>(item);
+    for(auto cb : mCallbacks)
+    {
+        cb(item);
+    }
+    cancel();
 }
 
-void
-TrackingCollar::cancelFetch()
+template<class T, class TrackerT>
+void 
+ItemFetcher<T, TrackerT>::Tracker::tryNextPeer()
 {
-    mRefCount = 0;
-    mTimer.cancel();
-}
+    // will be called by some timer or when we get a 
+    // response saying they don't have it
 
-// will be called by some timer or when we get a result saying they don't have
-// it
-void
-TrackingCollar::tryNextPeer()
-{
-    if (!isItemFound())
-    { // we still haven't found this item
+    if (!isItemFound() && mItemFetcher.isNeeded(mItemID))
+    { // we still haven't found this item, and someone still wants it
         Peer::pointer peer;
 
         if (mPeersAsked.size())
         {
             while (!peer && mPeersAsked.size())
-            { // keep looping till we find a peer
-                // we are still connected to
-                peer = mApp.getOverlayManager().getNextPeer(
-                    mPeersAsked[mPeersAsked.size() - 1]);
+            { 
+                peer = mApp.getOverlayManager().getNextPeer(mPeersAsked.back());
                 if (!peer)
+                {
+                    // no longer connected to this peer.
+                    // try another.
                     mPeersAsked.pop_back();
+                }
             }
         }
         else
@@ -265,61 +218,67 @@ TrackingCollar::tryNextPeer()
             peer = mApp.getOverlayManager().getRandomPeer();
         }
 
-        if (peer)
-        {
-            if (find(mPeersAsked.begin(), mPeersAsked.end(), peer) ==
-                mPeersAsked.end())
-            { // we have never asked this guy
-                mLastAskedPeer = peer;
-
-                askPeer(peer);
-                mPeersAsked.push_back(peer);
-            }
-
-            mTimer.cancel(); // cancel any stray timers
-            mTimer.expires_from_now(
-                std::chrono::milliseconds(MS_TO_WAIT_FOR_FETCH_REPLY));
-            mTimer.async_wait([this]()
-                              {
-                                    this->tryNextPeer();
-                              }, VirtualTimer::onFailureNoop);
-        }
-        else
-        { // we have asked all our peers
+        std::chrono::milliseconds nextTry;
+        if (!peer || find(mPeersAsked.begin(), mPeersAsked.end(), peer) != mPeersAsked.end())
+        {   // we have asked all our peers
             // clear list and try again in a bit
             mPeersAsked.clear();
-            mTimer.cancel(); // cancel any stray timers
-            mTimer.expires_from_now(
-                std::chrono::milliseconds(MS_TO_WAIT_FOR_FETCH_REPLY * 2));
-            mTimer.async_wait([this]()
-                              {
-                                this->tryNextPeer();
-                              }, VirtualTimer::onFailureNoop);
+            nextTry = MS_TO_WAIT_FOR_FETCH_REPLY * 2;
+        } else
+        {
+            askPeer(peer);
+
+            mLastAskedPeer = peer;
+            mPeersAsked.push_back(peer);
+            nextTry = MS_TO_WAIT_FOR_FETCH_REPLY;
         }
+
+        mTimer.expires_from_now(nextTry);
+        mTimer.async_wait([this]()
+        {
+            this->tryNextPeer();
+        }, VirtualTimer::onFailureNoop);
     }
 }
 
-QSetTrackingCollar::QSetTrackingCollar(uint256 const& id, SCPQuorumSetPtr qSet,
-                                       Application& app)
-    : TrackingCollar(id, app), mQSet(qSet)
+template<class T, class TrackerT>
+void ItemFetcher<T, TrackerT>::Tracker::cancel()
 {
+    mCallbacks.clear();
+    mPeersAsked.clear();
+    mTimer.cancel();
+    mLastAskedPeer = nullptr;
+    mIsStoped = true;
 }
 
-void
-QSetTrackingCollar::askPeer(Peer::pointer peer)
+template<class T, class TrackerT>
+void ItemFetcher<T, TrackerT>::Tracker::listen(std::function<void(T const &item)> cb)
+{
+    assert(!isItemFound());
+    mCallbacks.push_back(cb);
+}
+
+
+void TxSetTracker::askPeer(Peer::pointer peer)
+{
+    peer->sendGetTxSet(mItemID);
+}
+
+void QuorumSetTracker::askPeer(Peer::pointer peer)
 {
     peer->sendGetQuorumSet(mItemID);
 }
 
-TxSetTrackingCollar::TxSetTrackingCollar(uint256 const& id, TxSetFramePtr txSet,
-                                         Application& app)
-    : TrackingCollar(id, app), mTxSet(txSet)
+void IntTracker::askPeer(Peer::pointer peer)
 {
+    CLOG(INFO, "Overlay") << "asked for " << hexAbbrev(mItemID);
+    mAsked.push_back(peer);
 }
 
-void
-TxSetTrackingCollar::askPeer(Peer::pointer peer)
-{
-    peer->sendGetTxSet(mItemID);
-}
+template class ItemFetcher<int, IntTracker>;
+
+
+template class ItemFetcher<TxSetFrame, TxSetTracker>;
+template class ItemFetcher<SCPQuorumSet, QuorumSetTracker>;
+
 }

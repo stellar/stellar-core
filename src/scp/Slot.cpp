@@ -816,7 +816,7 @@ void
 Slot::dumpInfo(Json::Value& ret)
 {
     Json::Value slotValue;
-    slotValue["index"] = (int)mSlotIndex;
+    slotValue["index"] = static_cast<int>(mSlotIndex);
     slotValue["pristine"] = mIsPristine;
     slotValue["heard"] = mHeardFromQuorum;
     slotValue["committed"] = mIsCommitted;
@@ -839,7 +839,7 @@ Slot::dumpInfo(Json::Value& ret)
                        << " n:" << hexAbbrev(stateItem.first)
                        << " q:" << hexAbbrev(stateItem.second.quorumSetHash)
                        << " ,"
-                       << stateStrTable[(int)stateItem.second.pledges.type()];
+                       << stateStrTable[static_cast<int>(stateItem.second.pledges.type())];
                 slotValue["statements"][count++] = output.str();
             }
         }

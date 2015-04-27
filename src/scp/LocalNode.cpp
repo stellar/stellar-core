@@ -15,7 +15,7 @@ namespace stellar
 
 LocalNode::LocalNode(SecretKey const& secretKey, SCPQuorumSet const& qSet,
                      SCP* SCP)
-    : Node(secretKey.getPublicKey(), SCP, -1)
+    : Node(secretKey.getPublicKey(), SCP)
     , mSecretKey(secretKey)
     , mQSet(qSet)
     , mQSetHash(sha256(xdr::xdr_to_opaque(qSet)))

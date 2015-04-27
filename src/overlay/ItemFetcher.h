@@ -1,5 +1,4 @@
-#ifndef __ITEMFETCHER__
-#define __ITEMFETCHER__
+#pragma once
 
 // Copyright 2014 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
@@ -8,21 +7,15 @@
 #include <map>
 #include <functional>
 #include "generated/SCPXDR.h"
-#include "overlay/OverlayManager.h"
-#include "herder/TxSetFrame.h"
 #include "overlay/Peer.h"
 #include "util/Timer.h"
 #include "util/NonCopyable.h"
+#include "lib/util/lrucache.hpp"
+#include <util/optional.h>
+#include "util/HashOfHash.h"
 
 /*
 Manages asking for Transaction or Quorum sets from Peers
-
-LATER: This abstraction can be cleaned up it is a bit wonky
-
-Asks for TransactionSets from our Peers
-We need to get these for SCP.
-Anywhere else? If someone asked you you can late reply to them
-
 */
 
 namespace medida
@@ -32,47 +25,99 @@ class Counter;
 
 namespace stellar
 {
-class TrackingCollar : private NonMovableOrCopyable
+class TxSetFrame;
+struct SCPQuorumSet;
+using TxSetFramePtr = std::shared_ptr<TxSetFrame>;
+using SCPQuorumSetPtr = std::shared_ptr<SCPQuorumSet>;
+
+static std::chrono::milliseconds const MS_TO_WAIT_FOR_FETCH_REPLY{ 500 };
+
+template<class T, class TrackerT>
+class ItemFetcher : private NonMovableOrCopyable
 {
-    Application& mApp;
-    Peer::pointer mLastAskedPeer;
-    std::vector<Peer::pointer> mPeersAsked;
-    VirtualTimer mTimer;
-    int mRefCount;
-
-  protected:
-    virtual void askPeer(Peer::pointer peer) = 0;
-
-  public:
-    typedef std::shared_ptr<TrackingCollar> pointer;
-
-    uint256 mItemID;
-
-    virtual bool isItemFound() = 0;
-
-    TrackingCollar(uint256 const& id, Application& app);
-
-    void doesntHave(Peer::pointer peer);
-    void tryNextPeer();
-    void cancelFetch();
-    void
-    refInc()
+public:
+    // The Tracker class is exposed in order to isolate cancellations.
+    // Instead of having a `stopFetching(itemID)` method, which would 
+    // necessitate extra code to keep track of the different clients, 
+    // ItemFetcher stops fetching an item when all the shared_ptrs to 
+    // the item's tracker have been released.
+    // 
+    class Tracker : private NonMovableOrCopyable
     {
-        mRefCount++;
-    }
-    void refDec();
-    int
-    getRefCount()
-    {
-        return mRefCount;
-    }
-};
+        Application &mApp;
+        ItemFetcher &mItemFetcher;
+        Peer::pointer mLastAskedPeer;
+        std::vector<Peer::pointer> mPeersAsked;
+        VirtualTimer mTimer;
+        optional<T> mItem;
+        bool mIsStoped = false;
 
-class ItemFetcher
-{
-  protected:
+        std::vector<std::function<void(T item)>> mCallbacks;
+    public:
+        uint256 mItemID;
+        explicit Tracker(Application &app, uint256 const& id, ItemFetcher &itemFetcher) : 
+            mApp(app)
+          , mItemFetcher(itemFetcher)
+          , mTimer(app)
+          , mItemID(id) {}
+        virtual ~Tracker();
+
+        bool isItemFound();
+        bool isStoped();
+        T get();
+        void cancel();
+        void listen(std::function<void(T const &item)> cb);
+
+        virtual void askPeer(Peer::pointer peer) = 0;
+
+        void doesntHave(Peer::pointer peer);
+        void recv(T item);
+        void tryNextPeer();
+    };
+
+    using TrackerPtr = std::shared_ptr<TrackerT>;
+
+      
+    explicit ItemFetcher(Application& app, size_t cacheSize);
+
+    // Return the item if available in the cache, else returns nullopt.
+    optional<T> get(uint256 itemID);
+
+    // Start fetching the item and returns a tracker with `cb` registered 
+    // with the tracker). Releasing all shared_ptr references
+    // to the tracker will cancel the fetch. 
+    //
+    // Trackers are per-item. `cb` will be invoked so long as there
+    // remains at least one live shared_ptr reference to this item's tracker.
+    // 
+    // The fetch might complete immediately if the item is in the cache.
+    //
+    // The item will be held in cache for at least as long as there remains
+    // one or more live pointers to its tracker. Afterwards it the item becomes
+    // subject to the lru ejection policy and the given cache size.
+    TrackerPtr fetch(uint256 itemID, std::function<void(T const & item)> cb);
+
+
+    // Hands to item immediately to `cb` if available in cache and returns `nullptr`,
+    // else starts fetching the item and returns a tracker.
+    TrackerPtr getOrFetch(uint256 itemID, std::function<void(T const & item)> cb);
+
+    void doesntHave(uint256 const& itemID, Peer::pointer peer);
+
+    // recv: notifies all listeners of the arrival of the item and caches it if 
+    // it was needed
+    void recv(uint256 itemID, T const & item);
+
+    // cache: notifies all listeneers of the arrival of the item and caches it 
+    // unconditionaly
+    void cache(Hash itemID, T const & item);
+
+    optional<Tracker> isNeeded(uint256 itemID);
+
+protected:
     Application& mApp;
-    std::map<uint256, TrackingCollar::pointer> mItemMap;
+    std::map<uint256, std::weak_ptr<TrackerT>> mTrackers;
+    cache::lru_cache<uint256, T> mCache;
 
     // NB: There are many ItemFetchers in the system at once, but we are sharing
     // a single counter for all the items being fetched by all of them. Be
@@ -80,75 +125,40 @@ class ItemFetcher
     // it absolutely.
     medida::Counter& mItemMapSize;
 
-  public:
-    ItemFetcher(Application& app);
-    void clear();
-    void stopFetching(uint256 const& itemID);
-    void stopFetchingAll();
-    // stop fetching items that verify a condition
-    void
-    stopFetchingPred(std::function<bool(uint256 const& itemID)> const& pred);
-    void doesntHave(uint256 const& itemID, Peer::pointer peer);
 };
 
-// We want to keep the last N ledgers worth of Txsets around
-//    in case there are stragglers still trying to close
-class TxSetFetcher : public ItemFetcher
+class TxSetTracker : public ItemFetcher<TxSetFrame, TxSetTracker>::Tracker
 {
-  public:
-    TxSetFetcher(Application& app) : ItemFetcher(app)
-    {
-    }
-    TxSetFramePtr fetchItem(uint256 const& txSetHash, bool askNetwork);
-    // looks to see if we know about it but doesn't ask the network
-    TxSetFramePtr findItem(uint256 const& itemID);
-    bool recvItem(TxSetFramePtr txSet);
+public:
+    TxSetTracker(Application &app, uint256 id, ItemFetcher<TxSetFrame, TxSetTracker> &itemFetcher) :
+        Tracker(app, id, itemFetcher) {}
+
+    void askPeer(Peer::pointer peer) override;
 };
 
-class SCPQSetFetcher : public ItemFetcher
+class QuorumSetTracker : public ItemFetcher<SCPQuorumSet, QuorumSetTracker>::Tracker
 {
-  public:
-    SCPQSetFetcher(Application& app) : ItemFetcher(app)
-    {
-    }
-    SCPQuorumSetPtr fetchItem(uint256 const& qSetHash, bool askNetwork);
-    // looks to see if we know about it but doesn't ask the network
-    SCPQuorumSetPtr findItem(uint256 const& itemID);
-    bool recvItem(SCPQuorumSetPtr qSet);
+public:
+    QuorumSetTracker(Application &app, uint256 id, ItemFetcher<SCPQuorumSet, QuorumSetTracker> &itemFetcher) :
+        Tracker(app, id, itemFetcher) {}
+
+    void askPeer(Peer::pointer peer) override;
 };
 
-class TxSetTrackingCollar : public TrackingCollar
+
+class IntTracker : public ItemFetcher<int, IntTracker>::Tracker
 {
+public:
+    std::vector<Peer::pointer> mAsked;
+    IntTracker(Application &app, uint256 id, ItemFetcher<int, IntTracker> &itemFetcher) :
+        Tracker(app, id, itemFetcher) {}
 
-    void askPeer(Peer::pointer peer);
-
-  public:
-    TxSetFramePtr mTxSet;
-
-    TxSetTrackingCollar(uint256 const& id, TxSetFramePtr txSet,
-                        Application& app);
-    bool
-    isItemFound()
-    {
-        return (!!mTxSet);
-    }
+    void askPeer(Peer::pointer peer) override;
 };
 
-class QSetTrackingCollar : public TrackingCollar
-{
-    void askPeer(Peer::pointer peer);
+using TxSetTrackerPtr = ItemFetcher<TxSetFrame, TxSetTracker>::TrackerPtr;
+using QuorumSetTrackerPtr = ItemFetcher<SCPQuorumSet, QuorumSetTracker>::TrackerPtr;
+using IntTrackerPtr = ItemFetcher<int, IntTracker>::TrackerPtr;
 
-  public:
-    SCPQuorumSetPtr mQSet;
-
-    QSetTrackingCollar(uint256 const& id, SCPQuorumSetPtr qSet,
-                       Application& app);
-    bool
-    isItemFound()
-    {
-        return (!!mQSet);
-    }
-};
 }
 
-#endif

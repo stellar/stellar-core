@@ -38,6 +38,9 @@ AX_FRESH_COMPILER
 AX_APPEND_COMPILE_FLAGS([-Wno-unused-command-line-argument])
 AX_APPEND_COMPILE_FLAGS([-Qunused-arguments])
 
+# Asio's headers have unused typedefs that flood the compilation output without this
+AX_APPEND_COMPILE_FLAGS([-Wno-unused-local-typedef])
+
 # We want to consider unused MUST_USE results as errors
 AX_APPEND_COMPILE_FLAGS([-Werror=unused-result])
 

@@ -15,8 +15,10 @@
 namespace stellar
 {
 
-Node::Node(uint256 const& nodeID, SCP* SCP, int cacheCapacity)
-    : mNodeID(nodeID), mSCP(SCP), mCache(cacheCapacity)
+int const Node::CACHE_SIZE = 4;
+
+Node::Node(uint256 const& nodeID, SCP* SCP)
+    : mNodeID(nodeID), mSCP(SCP), mCache(CACHE_SIZE)
 {
 }
 
@@ -136,7 +138,7 @@ template bool Node::isQuorumTransitive<SCPStatement>(
     std::function<bool(uint256 const&, SCPStatement const&)> const& filter);
 
 SCPQuorumSet const&
-Node::retrieveQuorumSet(uint256 const& qSetHash)
+Node::retrieveQuorumSet(Hash const& qSetHash)
 {
     // Notify that we touched this node.
     mSCP->nodeTouched(mNodeID);

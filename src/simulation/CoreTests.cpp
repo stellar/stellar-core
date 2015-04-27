@@ -33,49 +33,60 @@ TEST_CASE("core4 topology", "[simulation]")
     REQUIRE(simulation->haveAllExternalized(3));
 }
 
-TEST_CASE("hierarchical topology at multiple scales", "[simulation][hide]")
+void
+hierarchicalTopo(int nLedgers, int nBranches, Simulation::Mode mode)
 {
-    int const nLedgers = 3;
-    std::vector<std::chrono::seconds> times;
+    auto tBegin = std::chrono::system_clock::now();
 
-    for (int nBranches = 0; nBranches < 30; nBranches++)
+    Simulation::pointer sim = Topologies::hierarchicalQuorum(nBranches, mode);
+    sim->startAllNodes();
+
+    sim->crankUntil(
+        [&sim, nLedgers]()
     {
-        auto tBegin = std::chrono::system_clock::now();
+        return sim->haveAllExternalized(nLedgers);
+    },
+        100 * nLedgers * Herder::EXP_LEDGER_TIMESPAN_SECONDS);
 
-        Simulation::pointer sim = Topologies::hierarchicalQuorum(nBranches);
-        sim->startAllNodes();
+    REQUIRE(sim->haveAllExternalized(3));
 
-        sim->crankUntil(
-            [&sim, nLedgers]()
-        {
-            return sim->haveAllExternalized(nLedgers);
-        },
-            100 * nLedgers * Herder::EXP_LEDGER_TIMESPAN_SECONDS);
+    auto t = std::chrono::duration_cast<std::chrono::seconds>(
+        std::chrono::system_clock::now() - tBegin);
 
-        REQUIRE(sim->haveAllExternalized(3));
+    LOG(INFO) << "Time spent closing " << nLedgers << " ledgers with " << sim->getNodes().size() << " nodes : "
+        << t.count() << " seconds";
 
-        auto t = std::chrono::duration_cast<std::chrono::seconds>(
-            std::chrono::system_clock::now() - tBegin);
-        times.push_back(t);
+    LOG(INFO) << sim->metricsSummary("scp");
+}
 
-        LOG(INFO) << "Time spent closing " << nLedgers << " ledgers with " << sim->getNodes().size() << " nodes : "
-            << t.count() << " seconds";
+TEST_CASE("compare", "[simulation][hide]")
+{
+    LOG(INFO) << "OVER_LOOPBACK";
+    hierarchicalTopo(2, 1, Simulation::OVER_LOOPBACK);
 
-        LOG(INFO) << sim->metricsSummary("scp");
-    }
+    LOG(INFO) << "OVER_TCP";
+    hierarchicalTopo(2, 1, Simulation::OVER_TCP);
 }
 
 
-
-TEST_CASE("core4 topology long, over tcp", "[simulation][long][hide]")
+TEST_CASE("hierarchical topology at multiple scales", "[simulation][hide]")
 {
-    Simulation::pointer simulation = Topologies::core(3, 1.0, Simulation::OVER_TCP);
+    int const nLedgers = 3;
+    for (auto nBranches = 0; nBranches <= 5; nBranches++)
+    {
+        hierarchicalTopo(nLedgers, nBranches, Simulation::OVER_LOOPBACK);
+    }
+}
+
+TEST_CASE("core4 topology long over tcp", "[simulation][long][hide]")
+{
+    Simulation::pointer simulation = Topologies::core(4, 1.0, Simulation::OVER_TCP);
     simulation->startAllNodes();
 
     simulation->crankUntil(
         [&simulation]()
     {
-        return simulation->haveAllExternalized(30);
+        return simulation->haveAllExternalized(10);
     },
         30 * Herder::EXP_LEDGER_TIMESPAN_SECONDS*2);
 
