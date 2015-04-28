@@ -189,7 +189,7 @@ bool ItemFetcher<T, TrackerT>::Tracker::isStopped()
 }
 
 template<class T, class TrackerT>
-T ItemFetcher<T, TrackerT>::Tracker::get()
+T const & ItemFetcher<T, TrackerT>::Tracker::get()
 {
     return *mItem;
 }

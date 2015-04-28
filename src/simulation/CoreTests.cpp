@@ -18,7 +18,7 @@ using namespace stellar;
 
 typedef std::unique_ptr<Application> appPtr;
 
-TEST_CASE("core4 topology", "[simulation]")
+TEST_CASE("core4_topology", "[simulation]")
 {
     Simulation::pointer simulation = Topologies::core(4, 1.0, Simulation::OVER_LOOPBACK);
     simulation->startAllNodes();
@@ -62,23 +62,23 @@ hierarchicalTopo(int nLedgers, int nBranches, Simulation::Mode mode)
 TEST_CASE("compare", "[simulation][hide]")
 {
     LOG(INFO) << "OVER_LOOPBACK";
-    hierarchicalTopo(2, 1, Simulation::OVER_LOOPBACK);
+    hierarchicalTopo(20, 1, Simulation::OVER_LOOPBACK);
 
     LOG(INFO) << "OVER_TCP";
-    hierarchicalTopo(2, 1, Simulation::OVER_TCP);
+    hierarchicalTopo(20, 1, Simulation::OVER_TCP);
 }
 
 
-TEST_CASE("hierarchical topology at multiple scales", "[simulation][hide]")
+TEST_CASE("hierarchical_topology_at_multiple_scales", "[simulation][hide]")
 {
-    int const nLedgers = 3;
-    for (auto nBranches = 0; nBranches <= 5; nBranches++)
+    int const nLedgers = 5;
+    for (auto nBranches = 0; nBranches <= 25; nBranches++)
     {
         hierarchicalTopo(nLedgers, nBranches, Simulation::OVER_LOOPBACK);
     }
 }
 
-TEST_CASE("core4 topology long over tcp", "[simulation][long][hide]")
+TEST_CASE("core4_topology_long_over_tcp", "[simulation][long][hide]")
 {
     Simulation::pointer simulation = Topologies::core(4, 1.0, Simulation::OVER_TCP);
     simulation->startAllNodes();

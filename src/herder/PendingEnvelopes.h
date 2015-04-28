@@ -46,8 +46,10 @@ public:
 
     void dumpInfo(Json::Value& ret);
 
-private:
+    TxSetFramePtr getTxSet(Hash txSetHash);
+    SCPQuorumSetPtr getQuorumSet(Hash qSetHash);
 
+private:
     void checkReady(FetchingRecordPtr fRecord);
     FetchingRecordPtr fetch(SCPEnvelope const & env);
     bool checkFutureCommitted(SCPEnvelope envelope);
