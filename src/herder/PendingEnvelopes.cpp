@@ -27,6 +27,8 @@ PendingEnvelopes::add(SCPEnvelope const &envelope)
         [&](FetchingRecordPtr fRecord) { return *fRecord->env == envelope;  }) == set.end())
     {
         mFetching[envelope.statement.slotIndex].insert(fetch(envelope));
+        mMinSlot = min(mMinSlot, envelope.statement.slotIndex);
+
         if (checkFutureCommitted(envelope))
         {
             mIsFutureCommitted.insert(envelope.statement.slotIndex);
@@ -61,7 +63,10 @@ void
 PendingEnvelopes::eraseBelow(uint64 slotIndex)
 {
     set<uint64> allSlots;
-
+    if (slotIndex < mMinSlot)
+    {
+        return;
+    }
     for (auto entry : mFetching)
     {
         allSlots.insert(entry.first);
@@ -96,6 +101,7 @@ PendingEnvelopes::eraseBelow(uint64 slotIndex)
         if (mDone[slot].empty())
             mDone.erase(slot);
     }
+    mMinSlot = slotIndex;
 
     if (mPendingEnvelopesSize.count() != size)
     {
@@ -183,6 +189,19 @@ void PendingEnvelopes::dumpInfo(Json::Value & ret)
     }
 }
 
+TxSetFramePtr PendingEnvelopes::getTxSet(Hash txSetHash)
+{
+    auto result = mApp.getOverlayManager().getTxSetFetcher().get(txSetHash);
+    assert(result);
+    return result;
+}
+
+SCPQuorumSetPtr PendingEnvelopes::getQuorumSet(Hash qSetHash)
+{
+    auto result = mApp.getOverlayManager().getQuorumSetFetcher().get(qSetHash);
+    assert(result);
+    return result;
+}
 
 bool 
 PendingEnvelopes::FetchingRecord::isReady()

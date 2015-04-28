@@ -64,7 +64,7 @@ public:
 
         bool isItemFound();
         bool isStopped();
-        T get();
+        T const & get();
         void cancel();
         void listen(std::function<void(T const &item)> cb);
 

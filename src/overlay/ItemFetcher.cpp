@@ -179,11 +179,15 @@ ItemFetcher<T, TrackerT>::dropStaleTrackers()
     }
     mDropsSkipped = 0;
 
-    for (auto it = mTrackers.begin(); it != mTrackers.end(); ++it)
+    auto it = mTrackers.begin();
+    while(it != mTrackers.end())
     {
         if (!it->second.lock())
         {
-            mTrackers.erase(it);
+            it = mTrackers.erase(it);
+        } else
+        {
+            ++it;
         }
     }
 }
@@ -209,7 +213,7 @@ bool ItemFetcher<T, TrackerT>::Tracker::isStopped()
 }
 
 template<class T, class TrackerT>
-T ItemFetcher<T, TrackerT>::Tracker::get()
+T const & ItemFetcher<T, TrackerT>::Tracker::get()
 {
     return *mItem;
 }

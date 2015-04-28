@@ -46,8 +46,11 @@ public:
 
     void dumpInfo(Json::Value& ret);
 
-private:
+    TxSetFramePtr getTxSet(Hash txSetHash);
+    SCPQuorumSetPtr getQuorumSet(Hash qSetHash);
 
+private:
+    uint64 mMinSlot = UINT64_MAX;
     void checkReady(FetchingRecordPtr fRecord);
     FetchingRecordPtr fetch(SCPEnvelope const & env);
     bool checkFutureCommitted(SCPEnvelope envelope);
