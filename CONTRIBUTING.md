@@ -12,7 +12,9 @@ Note: you may still have to run manual "rebase" commands on your branches, to re
 
 #Submitting Changes
 
-Please [sign the Contributor License Agreement](https://docs.google.com/forms/d/1g7EF6PERciwn7zfmfke5Sir2n10yddGGSXyZsq98tVY/viewform)
+Please [sign the Contributor License Agreement](https://docs.google.com/forms/d/1g7EF6PERciwn7zfmfke5Sir2n10yddGGSXyZsq98tVY/viewform).
+
+All content, comments, and pull requests must follow the [Stellar Community Guidelines](https://www.stellar.org/community-guidelines/). 
 
 Submit a pull request rebased on top of master
 
