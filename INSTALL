@@ -8,6 +8,14 @@ Build Dependencies
 - `pkg-config`
 - `bison` and `flex`
 
+When building on OSX, here's some dependencies you'll need:
+Install xcode
+Install homebrew
+brew install libsodium
+brew install libtool
+brew install automake
+brew install pkg-config
+
 Basic Installation
 ==================
 
@@ -18,3 +26,4 @@ Basic Installation
 - Type `./configure && make`.
 - Type `make check` to run tests.
 - Type `make install` to install.
+
