@@ -133,7 +133,7 @@ HerderImpl::getStateHuman() const
 void
 HerderImpl::bootstrap()
 {
-    CLOG(INFO, "Herder") << "Force joining SCP with local state";
+    CLOG(INFO, "Herder") << "Force joining SCP with local state @" << hexAbbrev(getLocalNodeID());;
     assert(!getSecretKey().isZero());
     assert(mApp.getConfig().FORCE_SCP);
 
@@ -635,12 +635,12 @@ HerderImpl::retrieveQuorumSet(
 }
 
 void
-HerderImpl::rebroadcast()
+HerderImpl::broadcast()
 {
     if (mLastSentMessage.type() == SCP_MESSAGE)
     {
         CLOG(DEBUG, "Herder")
-            << "rebroadcast "
+            << "broadcast@" << hexAbbrev(getLocalNodeID())
             << " s:" << mLastSentMessage.envelope().statement.pledges.type()
             << " i:" << mLastSentMessage.envelope().statement.slotIndex
             << " b:" << mLastSentMessage.envelope().statement.ballot.counter
@@ -662,8 +662,11 @@ HerderImpl::startRebroadcastTimer()
     {
         mRebroadcastTimer.expires_from_now(std::chrono::seconds(2));
 
-        mRebroadcastTimer.async_wait(std::bind(&HerderImpl::rebroadcast, this),
-                                     &VirtualTimer::onFailureNoop);
+        mRebroadcastTimer.async_wait([this]()
+        {
+            CLOG(DEBUG, "Herder") << "rebroadcast" << "@" << hexAbbrev(getLocalNodeID());
+            broadcast();
+        }, &VirtualTimer::onFailureNoop);
     }
 }
 
@@ -691,15 +694,14 @@ HerderImpl::emitEnvelope(SCPEnvelope const& envelope)
         mLastSentMessage.type(SCP_MESSAGE);
         mLastSentMessage.envelope() = envelope;
 
-        CLOG(DEBUG, "Herder") << "emitEnvelope"
-            << " from: " << hexAbbrev(envelope.nodeID)
+        CLOG(DEBUG, "Herder") << "emitEnvelope@" << hexAbbrev(getLocalNodeID())
             << " s:" << envelope.statement.pledges.type()
             << " i:" << envelope.statement.slotIndex
             << " b:" << envelope.statement.ballot.counter
             << " v:" << hexAbbrev(envelope.statement.ballot.value)
             << " a:" << mApp.getStateHuman();
 
-        rebroadcast();
+        broadcast();
     }
     else
     {
@@ -797,7 +799,7 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope envelope,
         if (envelope.statement.slotIndex > maxLedgerSeq ||
             envelope.statement.slotIndex < minLedgerSeq)
         {
-            CLOG(DEBUG, "Herder") << "Ignoring SCPEnvelope outside of range: "
+            CLOG(DEBUG, "Herder") << "Ignoring SCPEnvelope outside of range@" << hexAbbrev(getLocalNodeID()) << " : "
                                   << envelope.statement.slotIndex << "( "
                                   << minLedgerSeq << "," << maxLedgerSeq << ")";
             return;
@@ -825,6 +827,9 @@ HerderImpl::processSCPQueue()
         {
             processSCPQueueAtIndex(nextConsensusLedgerIndex());
         }
+        else
+            CLOG(DEBUG, "Herder") << "processSCPQueue@" << hexAbbrev(getLocalNodeID()) << " not processing";
+         
     }
     else
     {
@@ -1170,7 +1175,7 @@ HerderImpl::trackingHeartBeat()
 void
 HerderImpl::herderOutOfSync()
 {
-    CLOG(INFO, "Herder") << "Lost track of consensus";
+    CLOG(INFO, "Herder") << "Lost track of consensus @" << hexAbbrev(getLocalNodeID());;
     mTrackingSCP.reset();
     processSCPQueue();
 }

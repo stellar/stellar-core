@@ -100,7 +100,7 @@ class HerderImpl : public Herder, public SCP
     void expireBallot(uint64 const& slotIndex, SCPBallot const& ballot);
 
     void startRebroadcastTimer();
-    void rebroadcast();
+    void broadcast();
 
     // StellarBallot internal signature/verification
     void signStellarBallot(StellarBallot& b);
