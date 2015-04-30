@@ -4,6 +4,8 @@
 #include "crypto/Hex.h"
 #include <overlay/OverlayManager.h>
 #include <xdrpp/marshal.h>
+#include "util/Logging.h"
+#include <scp/Slot.h>
 
 namespace stellar
 {
@@ -26,7 +28,7 @@ PendingEnvelopes::add(SCPEnvelope const &envelope)
     if (find_if(set.begin(), set.end(),
         [&](FetchingRecordPtr fRecord) { return *fRecord->env == envelope;  }) == set.end())
     {
-        mFetching[envelope.statement.slotIndex].insert(fetch(envelope));
+        fetch(envelope);
         mMinSlot = min(mMinSlot, envelope.statement.slotIndex);
 
         if (checkFutureCommitted(envelope))
@@ -54,7 +56,8 @@ PendingEnvelopes::readySlots()
     vector<uint64> result;
     for(auto entry : mReady)
     {
-        result.push_back(entry.first);
+        if (!entry.second.empty())
+            result.push_back(entry.first);
     }
     return result;
 }
@@ -121,7 +124,7 @@ PendingEnvelopes::pop(uint64 slotIndex)
         mReady[slotIndex].pop_front();
 
         auto holding = make_shared<FetchingRecord>(*result);
-        // we don't need to keep the envelopes anymore, just the sets
+        // we don't need to keep the envelopes anymore, just the trackers
         holding->env.reset(); 
         mDone[slotIndex].insert(holding);
 
@@ -215,9 +218,14 @@ PendingEnvelopes::checkReady(FetchingRecordPtr fRecord)
 {
     if (fRecord->isReady())
     {
-        auto & set = mFetching[fRecord->env->statement.slotIndex];
+        auto iSlot = fRecord->env->statement.slotIndex;
+        auto & set = mFetching[iSlot];
         set.erase(fRecord);
-        mReady[fRecord->env->statement.slotIndex].push_back(fRecord);
+        mReady[iSlot].push_back(fRecord);
+
+        for(auto r : set)
+            assert(!r->mTxSetTracker->isItemFound() || !r->mQuorumSetTracker->isItemFound());
+
         mHerder.processSCPQueue();
     }
 }
@@ -235,9 +243,11 @@ PendingEnvelopes::fetch(SCPEnvelope const & env)
 
     fRecord->mTxSetTracker = mApp.getOverlayManager().getTxSetFetcher()
         .fetch(b.value.txSetHash, bind(&PendingEnvelopes::checkReady, this, fRecord));
+    
+    mFetching[fRecord->env->statement.slotIndex].insert(fRecord);
 
     // check if all items are already available from the cache.
-    checkReady(fRecord); 
+    checkReady(fRecord);
     return fRecord;
 }
 
