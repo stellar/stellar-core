@@ -223,9 +223,6 @@ PendingEnvelopes::checkReady(FetchingRecordPtr fRecord)
         set.erase(fRecord);
         mReady[iSlot].push_back(fRecord);
 
-        for(auto r : set)
-            assert(!r->mTxSetTracker->isItemFound() || !r->mQuorumSetTracker->isItemFound());
-
         mHerder.processSCPQueue();
     }
 }

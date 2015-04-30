@@ -94,34 +94,34 @@ ItemFetcher<T, TrackerT>::fetch(uint256 itemID, std::function<void(T const &item
     bool newTracker;
     auto tracker = getTracker(itemID, true, &newTracker);
 
-    if (mCache.exists(itemID))
-    {
-        cb(mCache.get(itemID));
-        return tracker;
-    } 
-    
     if (tracker->isItemFound())
     {
         cb(tracker->get());
         return tracker;
     }
-    
+
     if (tracker->isStopped())
     {
-        // tracker was cancelled before find the item, start a new one.
+        // tracker was cancelled before it found the item. start a new one.
         mTrackers.erase(itemID);
         tracker = getTracker(itemID, true, &newTracker);
         mTrackers[itemID] = tracker;
     }
 
     tracker->listen(cb);
-    if (newTracker)
+
+    if (mCache.exists(itemID))
+    {
+        tracker->recv(mCache.get(itemID));
+    }
+    else if (newTracker)
     {
         tracker->tryNextPeer();
     }
 
     return tracker;
 }
+
 
 template<class T, class TrackerT>
 void 

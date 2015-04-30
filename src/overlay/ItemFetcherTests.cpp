@@ -71,6 +71,8 @@ TEST_CASE("ItemFetcher fetches", "[overlay]")
         
     SECTION("caches")
     {
+        tTen.reset();
+        tTwelve.reset();
         itemFetcher.recv(fourteen, 14);
         REQUIRE(*itemFetcher.get(ten) == 10);
         REQUIRE(*itemFetcher.get(twelve) == 12);
