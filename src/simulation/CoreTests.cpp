@@ -18,19 +18,60 @@ using namespace stellar;
 
 typedef std::unique_ptr<Application> appPtr;
 
-TEST_CASE("core4_topology", "[simulation]")
+
+// Simulation tests. Some of the tests in this suite are long.
+// They are marked with [long][hide]. Run the day-to-day tests with 
+//
+//     --test 
+// or
+//     --test [simulation]~[long]
+//
+
+
+void printStats(int& nLedgers, std::chrono::system_clock::time_point tBegin, Simulation::pointer sim)
 {
-    Simulation::pointer simulation = Topologies::core(4, 1.0, Simulation::OVER_LOOPBACK);
-    simulation->startAllNodes();
+    auto t = std::chrono::duration_cast<std::chrono::seconds>(
+        std::chrono::system_clock::now() - tBegin);
 
-    simulation->crankUntil(
-        [&simulation]()
+    LOG(INFO) << "Time spent closing " << nLedgers << " ledgers with " << sim->getNodes().size() << " nodes : "
+        << t.count() << " seconds";
+
+    LOG(INFO) << sim->metricsSummary("scp");
+}
+
+
+
+TEST_CASE("core topology, 6 ledgers at scales 2..6", "[simulation]")
+{
+    Simulation::Mode mode = Simulation::OVER_LOOPBACK;
+    SECTION("Over loopback")
+    {
+        mode = Simulation::OVER_LOOPBACK;
+    }
+    SECTION("Over tcp")
+    {
+        mode = Simulation::OVER_TCP;
+    }
+
+    for (int size = 2; size <= 6; size+=2)
+    {
+        auto tBegin = std::chrono::system_clock::now();
+
+        Simulation::pointer sim = Topologies::core(size, 1.0, mode);
+        sim->startAllNodes();
+
+        int nLedgers = 6;
+        sim->crankUntil(
+            [&sim, nLedgers]()
         {
-            return simulation->haveAllExternalized(3);
+            return sim->haveAllExternalized(nLedgers);
         },
-        2 * Herder::EXP_LEDGER_TIMESPAN_SECONDS);
+            2 * nLedgers * Herder::EXP_LEDGER_TIMESPAN_SECONDS);
 
-    REQUIRE(simulation->haveAllExternalized(3));
+        REQUIRE(sim->haveAllExternalized(nLedgers));
+
+        printStats(nLedgers, tBegin, sim);
+    }
 }
 
 void
@@ -46,51 +87,30 @@ hierarchicalTopo(int nLedgers, int nBranches, Simulation::Mode mode)
     {
         return sim->haveAllExternalized(nLedgers);
     },
-        100 * nLedgers * Herder::EXP_LEDGER_TIMESPAN_SECONDS);
+        20 * nLedgers * Herder::EXP_LEDGER_TIMESPAN_SECONDS);
 
-    REQUIRE(sim->haveAllExternalized(3));
+    REQUIRE(sim->haveAllExternalized(nLedgers));
 
-    auto t = std::chrono::duration_cast<std::chrono::seconds>(
-        std::chrono::system_clock::now() - tBegin);
-
-    LOG(INFO) << "Time spent closing " << nLedgers << " ledgers with " << sim->getNodes().size() << " nodes : "
-        << t.count() << " seconds";
-
-    LOG(INFO) << sim->metricsSummary("scp");
+    printStats(nLedgers, tBegin, sim);
 }
 
-TEST_CASE("compare", "[simulation][hide]")
+TEST_CASE("hierarchical topology scales 5..11", "[simulation]")
 {
-    LOG(INFO) << "OVER_LOOPBACK";
-    hierarchicalTopo(20, 1, Simulation::OVER_LOOPBACK);
-
-    LOG(INFO) << "OVER_TCP";
-    hierarchicalTopo(20, 1, Simulation::OVER_TCP);
-}
-
-
-TEST_CASE("hierarchical_topology_at_multiple_scales", "[simulation][hide]")
-{
-    int const nLedgers = 5;
-    for (auto nBranches = 0; nBranches <= 25; nBranches++)
+    Simulation::Mode mode = Simulation::OVER_LOOPBACK;
+    SECTION("Over loopback")
     {
-        hierarchicalTopo(nLedgers, nBranches, Simulation::OVER_LOOPBACK);
+        mode = Simulation::OVER_LOOPBACK;
     }
-}
-
-TEST_CASE("core4_topology_long_over_tcp", "[simulation][long][hide]")
-{
-    Simulation::pointer simulation = Topologies::core(4, 1.0, Simulation::OVER_TCP);
-    simulation->startAllNodes();
-
-    simulation->crankUntil(
-        [&simulation]()
+    SECTION("Over tcp")
     {
-        return simulation->haveAllExternalized(10);
-    },
-        30 * Herder::EXP_LEDGER_TIMESPAN_SECONDS*2);
+        mode = Simulation::OVER_TCP;
+    }
 
-    REQUIRE(simulation->haveAllExternalized(3));
+    int const nLedgers = 5;
+    for (auto nBranches = 1; nBranches <= 7; nBranches+=2)
+    {
+        hierarchicalTopo(nLedgers, nBranches, mode);
+    }
 }
 
 
@@ -107,12 +127,12 @@ TEST_CASE("cycle4 topology", "[simulation]")
         std::chrono::seconds(20));
 
     // Still transiently does not work (quorum retrieval)
-    CHECK(simulation->haveAllExternalized(2));
+    REQUIRE(simulation->haveAllExternalized(2));
 }
 
 TEST_CASE(
     "Stress test on 2 nodes, 3 accounts, 10 random transactions, 10tx/sec",
-    "[stress100][simulation][stress][hide]")
+    "[stress100][simulation][stress][long][hide]")
 {
     Simulation::pointer simulation =
         Topologies::pair(Simulation::OVER_LOOPBACK);
