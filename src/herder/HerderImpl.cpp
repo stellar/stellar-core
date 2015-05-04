@@ -451,47 +451,96 @@ HerderImpl::validateBallot(uint64 const& slotIndex, uint256 const& nodeID,
     if (isKing && isTrusted)
     {
         mBallotValid.Mark();
-        cb(true);
-        return;
-    }
-    else
-    {
         CLOG(DEBUG, "Herder")
-            << "start timer"
+            << "validateBallot done"
             << "@" << hexAbbrev(getLocalNodeID()) << " i: " << slotIndex
             << " v: " << hexAbbrev(nodeID) << " o: " << hexAbbrev(b.nodeID)
             << " b: (" << ballot.counter << "," << hexAbbrev(valueHash) << ")"
             << " isTrusted: " << isTrusted << " isKing: " << isKing
             << " timeout: " << pow(2.0, ballot.counter) / 2;
 
+        cb(true);
+        return;
+    }
+    else
+    {
         // Create a timer to wait for current SCP timeout / 2 before accepting
         // that ballot.
-        std::shared_ptr<VirtualTimer> ballotTimer =
-            std::make_shared<VirtualTimer>(mApp);
-        ballotTimer->expires_from_now(std::chrono::milliseconds(
-            (int)(1000 * pow(2.0, ballot.counter) / 2)));
-        ballotTimer->async_wait(
-            [cb, this](asio::error_code const&)
-            {
-                this->mBallotValid.Mark();
-                cb(true);
-            });
-        mBallotValidationTimers[ballot][nodeID].push_back(ballotTimer);
+
+        std::chrono::milliseconds timeout(static_cast<int>(40000 + 1000 * pow(2.0, ballot.counter) / 2));
+
+//        startBallotTimer(
+//            slotIndex, nodeID, ballot,
+//            std::chrono::milliseconds(timeout),
+//            cb);
 
         // Check if the nodes that have requested validation for this ballot
-        // is a v-blocking. If so, rush validation by canceling all timers.
+        // is a v-blocking set. If so, rush validation by canceling all timers.
         std::vector<uint256> nodes;
-        for (auto it : mBallotValidationTimers[ballot])
+        for (auto& it : mBallotValidationTimers[ballot])
         {
             nodes.push_back(it.first);
         }
         if (isVBlocking(nodes))
         {
-            // This will cancel all timers.
-            mBallotValidationTimers.erase(ballot);
+            CLOG(DEBUG, "Herder")
+                << "isVBlocking, triggering all ballot timers immediately"
+                << "@" << hexAbbrev(getLocalNodeID()) << " i: " << slotIndex
+                << " v: " << hexAbbrev(nodeID) << " o: " << hexAbbrev(b.nodeID)
+                << " b: (" << ballot.counter << "," << hexAbbrev(valueHash) << ")"
+                << " isTrusted: " << isTrusted << " isKing: " << isKing;
+            triggerAllBallotTimers(ballot);
         }
         mBallotValidationTimersSize.set_count(mBallotValidationTimers.size());
     }
+}
+
+void
+HerderImpl::triggerAllBallotTimers(SCPBallot const& ballot)
+{
+    // Deleting the timers triggers their callback. These callbacks will`  
+    // possibly reenter `validateBallot`, so first make sure that the
+    // shared data structure is in a safe state.
+    auto toDelete = mBallotValidationTimers[ballot];
+    mBallotValidationTimers.erase(ballot);
+    toDelete.clear();
+}
+
+void
+HerderImpl::startBallotTimer(uint64 const& slotIndex, uint256 const& nodeID,
+                            SCPBallot const& ballot,
+                            std::chrono::milliseconds timeout,
+                            std::function<void(bool)> const& cb)
+{
+    StellarBallot b;
+    xdr::xdr_from_opaque(ballot.value, b);
+    uint256 valueHash = sha256(xdr::xdr_to_opaque(ballot.value));
+
+    CLOG(DEBUG, "Herder")
+        << "HerderImpl::startBallotTimer"
+        << "@" << hexAbbrev(getLocalNodeID()) << " i: " << slotIndex
+        << " v: " << hexAbbrev(nodeID) << " o: " << hexAbbrev(b.nodeID)
+        << " b: (" << ballot.counter << "," << hexAbbrev(valueHash) << ")"
+        << " timeout: " << timeout.count() << "ms";
+
+
+    std::shared_ptr<VirtualTimer> ballotTimer =
+        std::make_shared<VirtualTimer>(mApp);
+    ballotTimer->expires_from_now(timeout);
+    ballotTimer->async_wait(
+        [=](asio::error_code const&)
+    {
+        CLOG(DEBUG, "Herder")
+            << "HerderImpl::startBallotTimer timeout triggered"
+            << "@" << hexAbbrev(getLocalNodeID()) << " i: " << slotIndex
+            << " v: " << hexAbbrev(nodeID) << " o: " << hexAbbrev(b.nodeID)
+            << " b: (" << ballot.counter << "," << hexAbbrev(valueHash) << ")"
+            << " timeout: " << timeout.count() << "ms";
+
+        this->mBallotValid.Mark();
+        cb(true);
+    });
+    mBallotValidationTimers[ballot][nodeID].push_back(ballotTimer);
 }
 
 void
@@ -641,12 +690,7 @@ HerderImpl::broadcast()
     {
         CLOG(DEBUG, "Herder")
             << "broadcast@" << hexAbbrev(getLocalNodeID())
-            << " s:" << mLastSentMessage.envelope().statement.pledges.type()
-            << " i:" << mLastSentMessage.envelope().statement.slotIndex
-            << " b:" << mLastSentMessage.envelope().statement.ballot.counter
-            << " v:"
-            << binToHex(ByteSlice(
-                   &mLastSentMessage.envelope().statement.ballot.value[96], 3));
+            << " " << envToStr(mLastSentMessage.envelope());
 
         mEnvelopeEmit.Mark();
         mApp.getOverlayManager().broadcastMessage(mLastSentMessage, true);
@@ -695,10 +739,7 @@ HerderImpl::emitEnvelope(SCPEnvelope const& envelope)
         mLastSentMessage.envelope() = envelope;
 
         CLOG(DEBUG, "Herder") << "emitEnvelope@" << hexAbbrev(getLocalNodeID())
-            << " s:" << envelope.statement.pledges.type()
-            << " i:" << envelope.statement.slotIndex
-            << " b:" << envelope.statement.ballot.counter
-            << " v:" << hexAbbrev(envelope.statement.ballot.value)
+            << " " << envToStr(envelope)
             << " a:" << mApp.getStateHuman();
 
         broadcast();
@@ -777,11 +818,7 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope envelope,
                             std::function<void(EnvelopeState)> const& cb)
 {
     CLOG(DEBUG, "Herder") << "recvSCPEnvelope@" << hexAbbrev(getLocalNodeID())
-                          << " from: " << hexAbbrev(envelope.nodeID)
-                          << " s:" << envelope.statement.pledges.type()
-                          << " i:" << envelope.statement.slotIndex
-                          << " b:" << envelope.statement.ballot.counter
-                          << " v:" << hexAbbrev(envelope.statement.ballot.value)
+                          << " " << envToStr(envelope)
                           << " a:" << mApp.getStateHuman();
 
     mEnvelopeReceive.Mark();

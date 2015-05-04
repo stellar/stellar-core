@@ -52,6 +52,11 @@ class HerderImpl : public Herder, public SCP
     void validateBallot(uint64 const& slotIndex, uint256 const& nodeID,
                         SCPBallot const& ballot,
                         std::function<void(bool)> const& cb) override;
+    void triggerAllBallotTimers(SCPBallot const& ballot);
+    void startBallotTimer(uint64 const& slotIndex, uint256 const& nodeID,
+        SCPBallot const& ballot,
+        std::chrono::milliseconds timeout,
+        std::function<void(bool)> const& cb);
 
     void ballotDidHearFromQuorum(uint64 const& slotIndex,
                                  SCPBallot const& ballot) override;

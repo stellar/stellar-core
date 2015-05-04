@@ -115,9 +115,11 @@ public:
     TrackerPtr cache(Hash itemID, T const & item);
 
 
+    // Public for tests:
+    TrackerPtr isNeeded(uint256 itemID);
+
 protected:
     TrackerPtr getTracker(uint256 itemID, bool create, bool *retNewTracker = nullptr);
-    TrackerPtr isNeeded(uint256 itemID);
     void dropStaleTrackers();
 
     Application& mApp;
