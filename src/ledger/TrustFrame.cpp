@@ -267,6 +267,29 @@ TrustFrame::loadTrustLine(AccountID const& accountID, Currency const& currency,
     return res;
 }
 
+bool 
+TrustFrame::hasIssued(AccountID const& issuerID, Database& db)
+{
+    std::string accStr;
+    accStr = toBase58Check(VER_ACCOUNT_ID, issuerID);
+
+    session& session = db.getSession();
+
+    details::prepare_temp_type sql =
+        (session.prepare << "SELECT balance from TrustLines WHERE issuer=:id and balance>0 limit 1",
+        use(accStr));
+
+    auto timer = db.getSelectTimer("trust");
+    int balance = 0;
+    statement st = (sql, into(balance));
+    st.execute(true);
+    if(st.got_data())
+    {
+        return true;
+    }
+    return false;
+}
+
 void
 TrustFrame::loadLines(details::prepare_temp_type& prep,
                       std::function<void(TrustFrame const&)> trustProcessor)

@@ -174,7 +174,7 @@ OverlayManagerImpl::connectToMorePeers(int max)
 void
 OverlayManagerImpl::tick()
 {
-    CLOG(DEBUG,"Overlay") << "OverlayManagerImpl tick";
+    CLOG(TRACE,"Overlay") << "OverlayManagerImpl tick";
     if (mPeers.size() < mApp.getConfig().TARGET_PEER_CONNECTIONS)
     {
         connectToMorePeers(static_cast<int>(

@@ -22,7 +22,8 @@ struct Signer
 
 enum AccountFlags
 { // masks for each flag
-    AUTH_REQUIRED_FLAG = 0x1
+    AUTH_REQUIRED_FLAG = 0x1,
+    AUTH_REVOCABLE_FLAG = 0x2
 };
 
 /* AccountEntry

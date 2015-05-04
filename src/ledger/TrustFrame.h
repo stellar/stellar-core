@@ -69,6 +69,8 @@ class TrustFrame : public EntryFrame
     static void loadLines(AccountID const& accountID,
                           std::vector<TrustFrame>& retLines, Database& db);
 
+    static bool hasIssued(AccountID const& issuerID, Database& db);
+
     int64_t getBalance() const;
     bool addBalance(int64_t delta);
 

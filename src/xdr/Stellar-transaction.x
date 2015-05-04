@@ -330,7 +330,8 @@ enum SetOptionsResultCode
     SET_OPTIONS_LOW_RESERVE = -1,      // not enough funds to add a signer
     SET_OPTIONS_TOO_MANY_SIGNERS = -2, // max number of signers already reached
     SET_OPTIONS_BAD_FLAGS = -3,        // invalid combination of clear/set flags
-    SET_OPTIONS_INVALID_INFLATION = -4 // inflation account does not exist
+    SET_OPTIONS_INVALID_INFLATION = -4, // inflation account does not exist
+    SET_OPTIONS_AUTH_SET = -5
 };
 
 union SetOptionsResult switch (SetOptionsResultCode code)
@@ -371,7 +372,8 @@ enum AllowTrustResultCode
     // codes considered as "failure" for the operation
     ALLOW_TRUST_MALFORMED = -1,         // currency is not ISO4217
     ALLOW_TRUST_NO_TRUST_LINE = -2,     // trustor does not have a trustline
-    ALLOW_TRUST_TRUST_NOT_REQUIRED = -3 // source account does not require trust
+    ALLOW_TRUST_TRUST_NOT_REQUIRED = -3, // source account does not require trust
+    ALLOW_TRUST_CANT_REVOKE = -4 // source account can't revoke trust
 };
 
 union AllowTrustResult switch (AllowTrustResultCode code)
