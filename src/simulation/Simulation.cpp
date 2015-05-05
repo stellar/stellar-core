@@ -182,7 +182,7 @@ Simulation::haveAllExternalized(SequenceNumber num)
     uint32_t min = UINT_MAX;
     for (auto it = mNodes.begin(); it != mNodes.end(); ++it)
     {
-        auto n = it->second->getLedgerManager().getLedgerNum();
+        auto n = it->second->getLedgerManager().getLastClosedLedgerNum();
         LOG(DEBUG) << "Ledger#: " << n;
 
         if (n < min)

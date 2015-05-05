@@ -41,7 +41,7 @@ void printStats(int& nLedgers, std::chrono::system_clock::time_point tBegin, Sim
 
 
 
-TEST_CASE("core topology, 6 ledgers at scales 2..6", "[simulation]")
+TEST_CASE("core topology: 6 ledgers at scales 2..6", "[simulation]")
 {
     Simulation::Mode mode = Simulation::OVER_LOOPBACK;
     SECTION("Over loopback")
@@ -64,11 +64,11 @@ TEST_CASE("core topology, 6 ledgers at scales 2..6", "[simulation]")
         sim->crankUntil(
             [&sim, nLedgers]()
         {
-            return sim->haveAllExternalized(nLedgers);
+            return sim->haveAllExternalized(nLedgers+1);
         },
             2 * nLedgers * Herder::EXP_LEDGER_TIMESPAN_SECONDS);
 
-        REQUIRE(sim->haveAllExternalized(nLedgers));
+        REQUIRE(sim->haveAllExternalized(nLedgers+1));
 
         printStats(nLedgers, tBegin, sim);
     }
@@ -85,11 +85,11 @@ hierarchicalTopo(int nLedgers, int nBranches, Simulation::Mode mode)
     sim->crankUntil(
         [&sim, nLedgers]()
     {
-        return sim->haveAllExternalized(nLedgers);
+        return sim->haveAllExternalized(nLedgers+1);
     },
         20 * nLedgers * Herder::EXP_LEDGER_TIMESPAN_SECONDS);
 
-    REQUIRE(sim->haveAllExternalized(nLedgers));
+    REQUIRE(sim->haveAllExternalized(nLedgers+1));
 
     printStats(nLedgers, tBegin, sim);
 }
@@ -99,10 +99,12 @@ TEST_CASE("hierarchical topology scales 5..11", "[simulation]")
     Simulation::Mode mode = Simulation::OVER_LOOPBACK;
     SECTION("Over loopback")
     {
+        LOG(DEBUG) << "OVER_LOOPBACK";
         mode = Simulation::OVER_LOOPBACK;
     }
     SECTION("Over tcp")
     {
+        LOG(DEBUG) << "OVER_TCP";
         mode = Simulation::OVER_TCP;
     }
 
@@ -131,7 +133,7 @@ TEST_CASE("cycle4 topology", "[simulation]")
 }
 
 TEST_CASE(
-    "Stress test on 2 nodes, 3 accounts, 10 random transactions, 10tx/sec",
+    "Stress test on 2 nodes 3 accounts 10 random transactions 10tx/sec",
     "[stress100][simulation][stress][long][hide]")
 {
     Simulation::pointer simulation =

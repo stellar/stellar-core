@@ -167,7 +167,7 @@ TCPPeer::sendMessage(xdr::msg_ptr&& xdrBytes)
     //
     // The capture of `buf` is required to keep the buffer alive long enough.
 
-    CLOG(TRACE, "Overlay") << "TCPPeer:sendMessage to "<< toString();
+    CLOG(TRACE, "Overlay") << "TCPPeer:sendMessage to " << toString();
 
     resetWriteIdle();
     auto self = shared_from_this();
@@ -209,19 +209,29 @@ TCPPeer::startRead()
 {
     try
     {
-        assert(mIncomingHeader.size() == 0);
-        CLOG(TRACE, "Overlay") << "TCPPeer::startRead to " << toString();
-        resetReadIdle();
-        auto self = shared_from_this();
-        mIncomingHeader.resize(4);
-        asio::async_read(*(mSocket.get()), asio::buffer(mIncomingHeader),
-                         [self](asio::error_code ec, std::size_t length)
-                         {
-                             CLOG(TRACE, "Overlay")
-                                 << "TCPPeer::startRead calledback " << ec
-                                 << " length:" << length;
-                             self->readHeaderHandler(ec, length);
-                         });
+        auto self = dynamic_pointer_cast<TCPPeer>(shared_from_this());
+
+        mReadIdle.cancel();
+        mAsioLoopBreaker.expires_from_now(std::chrono::milliseconds(0));
+        mAsioLoopBreaker.async_wait(
+            [self]()
+            {
+                assert(self->mIncomingHeader.size() == 0);
+                CLOG(TRACE, "Overlay") << "TCPPeer::startRead to "
+                                       << self->toString();
+                self->resetReadIdle();
+                self->mIncomingHeader.resize(4);
+                asio::async_read(*(self->mSocket.get()),
+                                 asio::buffer(self->mIncomingHeader),
+                                 [self](asio::error_code ec, std::size_t length)
+                                 {
+                                     CLOG(TRACE, "Overlay")
+                                         << "TCPPeer::startRead calledback "
+                                         << ec << " length:" << length;
+                                     self->readHeaderHandler(ec, length);
+                                 });
+            },
+            VirtualTimer::onFailureNoop);
     }
     catch (asio::system_error& e)
     {
@@ -275,7 +285,8 @@ TCPPeer::readHeaderHandler(asio::error_code const& error,
         asio::async_read(*mSocket.get(), asio::buffer(mIncomingBody),
                          [self](asio::error_code ec, std::size_t length)
                          {
-                             static_cast<TCPPeer*>(self.get())->mIncomingHeader.clear();
+                             static_cast<TCPPeer*>(self.get())
+                                 ->mIncomingHeader.clear();
                              self->readBodyHandler(ec, length);
                          });
     }
@@ -287,8 +298,8 @@ TCPPeer::readHeaderHandler(asio::error_code const& error,
             // errors during shutdown or connection are common/expected.
             mErrorRead.Mark();
             CLOG(DEBUG, "Overlay")
-                << "readHeaderHandler error: " << error.message() 
-                << " :" << toString();
+                << "readHeaderHandler error: " << error.message() << " :"
+                << toString();
         }
         drop();
     }
@@ -306,17 +317,8 @@ TCPPeer::readBodyHandler(asio::error_code const& error,
     if (!error)
     {
         mByteRead.Mark(bytes_transferred);
-
-        mAsioLoopBreaker.expires_from_now(std::chrono::milliseconds(0));
-        mAsioLoopBreaker.async_wait([&](asio::error_code e)
-        {
-            if (!e)
-            {
-                recvMessage();
-                startRead();
-            }
-        });
-
+        recvMessage();
+        startRead();
     }
     else
     {
@@ -326,8 +328,8 @@ TCPPeer::readBodyHandler(asio::error_code const& error,
             // errors during shutdown or connection are common/expected.
             mErrorRead.Mark();
             CLOG(ERROR, "Overlay")
-                << "readBodyHandler error: " << error.message()
-                << " :" << toString();
+                << "readBodyHandler error: " << error.message() << " :"
+                << toString();
         }
         drop();
     }
@@ -400,9 +402,8 @@ TCPPeer::drop()
 
     bool wasConnected = (mState == CONNECTED || mState == GOT_HELLO);
 
-    CLOG(DEBUG, "Overlay") << "TCPPeer::drop "
-                          << toString() << " in state " << mState
-                          << " we called:" << mRole;
+    CLOG(DEBUG, "Overlay") << "TCPPeer::drop " << toString() << " in state "
+                           << mState << " we called:" << mRole;
 
     mState = CLOSING;
 
