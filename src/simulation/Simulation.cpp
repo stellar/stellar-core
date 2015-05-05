@@ -286,7 +286,7 @@ Simulation::crankUntil(function<bool()> const& predicate,
         if (crankAllNodes() == 0)
         {
             checkDone();
-            std::this_thread::sleep_for(chrono::milliseconds(1));
+            std::this_thread::sleep_for(chrono::milliseconds(50));
         }
         if (done)
             return;
