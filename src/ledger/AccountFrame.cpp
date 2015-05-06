@@ -37,6 +37,9 @@ const char* AccountFrame::kSQLCreateStatement2 =
     "PRIMARY KEY (accountID, publicKey)"
     ");";
 
+const char* AccountFrame::kSQLCreateStatement3 =
+    "CREATE INDEX signersAccount ON Signers (accountID)";
+
 AccountFrame::AccountFrame()
     : EntryFrame(ACCOUNT), mAccountEntry(mEntry.account())
 {

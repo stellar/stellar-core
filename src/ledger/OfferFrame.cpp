@@ -15,7 +15,7 @@ using namespace soci;
 
 namespace stellar
 {
-const char* OfferFrame::kSQLCreateStatement =
+const char* OfferFrame::kSQLCreateStatement1 =
     "CREATE TABLE Offers"
     "("
     "accountID       VARCHAR(51)  NOT NULL,"
@@ -30,6 +30,15 @@ const char* OfferFrame::kSQLCreateStatement =
     "price           BIGINT       NOT NULL,"
     "PRIMARY KEY (offerID)"
     ");";
+
+const char* OfferFrame::kSQLCreateStatement2 =
+    "CREATE INDEX paysIssuerIndex ON Offers (paysIssuer);";
+
+const char* OfferFrame::kSQLCreateStatement3 =
+    "CREATE INDEX getsIssuerIndex ON Offers (getsIssuer);";
+
+const char* OfferFrame::kSQLCreateStatement4 =
+    "CREATE INDEX priceIndex ON Offers (price);";
 
 OfferFrame::OfferFrame() : EntryFrame(OFFER), mOffer(mEntry.offer())
 {
@@ -389,6 +398,9 @@ void
 OfferFrame::dropAll(Database& db)
 {
     db.getSession() << "DROP TABLE IF EXISTS Offers;";
-    db.getSession() << kSQLCreateStatement;
+    db.getSession() << kSQLCreateStatement1;
+    db.getSession() << kSQLCreateStatement2;
+    db.getSession() << kSQLCreateStatement3;
+    db.getSession() << kSQLCreateStatement4;
 }
 }

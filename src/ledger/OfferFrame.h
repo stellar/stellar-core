@@ -91,6 +91,9 @@ class OfferFrame : public EntryFrame
                            std::vector<OfferFrame>& retOffers, Database& db);
 
     static void dropAll(Database& db);
-    static const char* kSQLCreateStatement;
+    static const char* kSQLCreateStatement1;
+    static const char* kSQLCreateStatement2;
+    static const char* kSQLCreateStatement3;
+    static const char* kSQLCreateStatement4;
 };
 }

@@ -15,7 +15,7 @@ using namespace soci;
 
 namespace stellar
 {
-const char* TrustFrame::kSQLCreateStatement =
+const char* TrustFrame::kSQLCreateStatement1 =
     "CREATE TABLE TrustLines"
     "("
     "accountID     VARCHAR(51)  NOT NULL,"
@@ -26,6 +26,9 @@ const char* TrustFrame::kSQLCreateStatement =
     "authorized    BOOL         NOT NULL,"
     "PRIMARY KEY (accountID, issuer, isoCurrency)"
     ");";
+
+const char* TrustFrame::kSQLCreateStatement2 =
+    "CREATE INDEX accountLines ON TrustLines (accountID);";
 
 TrustFrame::TrustFrame()
     : EntryFrame(TRUSTLINE), mTrustLine(mEntry.trustLine()), mIsIssuer(false)
@@ -345,6 +348,7 @@ void
 TrustFrame::dropAll(Database& db)
 {
     db.getSession() << "DROP TABLE IF EXISTS TrustLines;";
-    db.getSession() << kSQLCreateStatement;
+    db.getSession() << kSQLCreateStatement1;
+    db.getSession() << kSQLCreateStatement2;
 }
 }
