@@ -86,7 +86,7 @@ struct SetOptionsOp
 
     Thresholds* thresholds; // update the thresholds for the account
 
-	string32* homeDomain;
+	string32* homeDomain;  // sets the home domain
 
     // Add, update or remove a signer for the account
     // signer is deleted if the weight is 0
@@ -178,25 +178,25 @@ struct Operation
 
 enum MemoType
 {
-    NONE = 0,
-    TEXT = 1,
-	ID = 2,
-    HASH = 3,
-	RETURN =4
+    MEMO_TYPE_NONE = 0,
+    MEMO_TYPE_TEXT = 1,
+	MEMO_TYPE_ID = 2,
+    MEMO_TYPE_HASH = 3,
+	MEMO_TYPE_RETURN =4
 };
 
 union Memo switch (MemoType type)
 {
-	case NONE:
+	case MEMO_TYPE_NONE:
 		void;
-    case TEXT:
-		string text<32>;
-	case ID:
+    case MEMO_TYPE_TEXT:
+		string text<28>;
+	case MEMO_TYPE_ID:
 		uint64 id;
-    case HASH:
-		opaque hash[32];
-	case RETURN:
-		opaque retHash[32];  // the hash of the tx you are rejecting
+    case MEMO_TYPE_HASH:
+		Hash hash;         // the hash of what to pull from the content server
+	case MEMO_TYPE_RETURN:
+		Hash retHash;      // the hash of the tx you are rejecting
 };
 
 /* a transaction is a container for a set of operations

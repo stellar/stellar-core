@@ -49,7 +49,7 @@ struct AccountEntry
     // thresholds stores unsigned bytes: [weight of master|low|medium|high]
     Thresholds thresholds;
 
-    string homeDomain<32>; // can be used for reverse federation and memo lookup
+    string32 homeDomain; // can be used for reverse federation and memo lookup
 
     Signer signers<20>; // possible signers for this account
 };
