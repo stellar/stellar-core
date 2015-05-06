@@ -63,6 +63,11 @@ SetOptionsOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
         account.flags = account.flags | *mSetOptions.setFlags;
     }
 
+    if(mSetOptions.homeDomain)
+    {
+        account.homeDomain = *mSetOptions.homeDomain;
+    }
+
     if (mSetOptions.thresholds)
     {
         account.thresholds = *mSetOptions.thresholds;

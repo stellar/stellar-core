@@ -86,6 +86,8 @@ struct SetOptionsOp
 
     Thresholds* thresholds; // update the thresholds for the account
 
+	string32* homeDomain;
+
     // Add, update or remove a signer for the account
     // signer is deleted if the weight is 0
     Signer* signer;
@@ -174,6 +176,29 @@ struct Operation
     body;
 };
 
+enum MemoType
+{
+    NONE = 0,
+    TEXT = 1,
+	ID = 2,
+    HASH = 3,
+	RETURN =4
+};
+
+union Memo switch (MemoType type)
+{
+	case NONE:
+		void;
+    case TEXT:
+		string text<32>;
+	case ID:
+		uint64 id;
+    case HASH:
+		opaque hash[32];
+	case RETURN:
+		opaque retHash[32];  // the hash of the tx you are rejecting
+};
+
 /* a transaction is a container for a set of operations
     - is executed by an account
     - fees are collected from the account
@@ -197,6 +222,8 @@ struct Transaction
     // validity range (inclusive) for the ledger sequence number
     uint32 minLedger;
     uint32 maxLedger;
+
+	Memo memo;
 
     Operation operations<100>;
 };
@@ -331,7 +358,7 @@ enum SetOptionsResultCode
     SET_OPTIONS_TOO_MANY_SIGNERS = -2, // max number of signers already reached
     SET_OPTIONS_BAD_FLAGS = -3,        // invalid combination of clear/set flags
     SET_OPTIONS_INVALID_INFLATION = -4,// inflation account does not exist
-    SET_OPTIONS_CANT_CHANGE = -5,      // can no longer change this option
+    SET_OPTIONS_CANT_CHANGE = -5      // can no longer change this option
 };
 
 union SetOptionsResult switch (SetOptionsResultCode code)

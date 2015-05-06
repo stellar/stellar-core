@@ -18,6 +18,7 @@ typedef opaque AccountID[32];
 typedef opaque Signature[64];
 typedef opaque Hash[32];
 typedef opaque Thresholds[4];
+typedef string string32<32>;
 
 typedef uint64 SequenceNumber;
 
