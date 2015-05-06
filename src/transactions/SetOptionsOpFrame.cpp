@@ -56,7 +56,7 @@ SetOptionsOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
             // must ensure no one is holding your credit
             if(TrustFrame::hasIssued(account.accountID, db))
             {
-                innerResult().code(SET_OPTIONS_AUTH_SET);
+                innerResult().code(SET_OPTIONS_CANT_CHANGE);
                 return false;
             }
         }
