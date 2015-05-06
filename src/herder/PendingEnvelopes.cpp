@@ -29,6 +29,7 @@ PendingEnvelopes::add(SCPEnvelope const &envelope)
         [&](FetchingRecordPtr fRecord) { return *fRecord->env == envelope;  }) == set.end())
     {
         fetch(envelope);
+        CLOG(DEBUG, "Herder") << "PendingEnvelopes::add " << envToStr(envelope);
 
         if (checkFutureCommitted(envelope))
         {
@@ -36,6 +37,8 @@ PendingEnvelopes::add(SCPEnvelope const &envelope)
         }
 
         mPendingEnvelopesSize.set_count(mFetching.size());
+
+        auto fRecord = fetch(envelope);
     }
 }
 
@@ -212,6 +215,8 @@ PendingEnvelopes::checkReady(FetchingRecordPtr fRecord)
 {
     if (fRecord->isReady())
     {
+        CLOG(DEBUG, "Herder") << "PendingEnvelopes::checkReady isReady, releasing now " << envToStr(*fRecord->env);
+
         auto iSlot = fRecord->env->statement.slotIndex;
         auto & set = mFetching[iSlot];
         set.erase(fRecord);

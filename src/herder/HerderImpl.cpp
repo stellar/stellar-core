@@ -488,7 +488,9 @@ HerderImpl::validateBallot(uint64 const& slotIndex, uint256 const& nodeID,
         if (isVBlocking(nodes))
         {
             // This will cancel all timers.
+            auto toDelete = mBallotValidationTimers[ballot];
             mBallotValidationTimers.erase(ballot);
+            toDelete.clear();
         }
         mBallotValidationTimersSize.set_count(mBallotValidationTimers.size());
     }

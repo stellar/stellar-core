@@ -115,6 +115,7 @@ public:
     // `cache` also notifies all listeneers of the arrival of the item.
     TrackerPtr cache(Hash itemID, T const & item);
 
+    // Public for tests:
     TrackerPtr isNeeded(uint256 itemID);
 
 protected:
