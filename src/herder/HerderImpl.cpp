@@ -469,10 +469,10 @@ HerderImpl::validateBallot(uint64 const& slotIndex, uint256 const& nodeID,
 
         std::chrono::milliseconds timeout(static_cast<int>(40000 + 1000 * pow(2.0, ballot.counter) / 2));
 
-//        startBallotTimer(
-//            slotIndex, nodeID, ballot,
-//            std::chrono::milliseconds(timeout),
-//            cb);
+        startBallotTimer(
+            slotIndex, nodeID, ballot,
+            std::chrono::milliseconds(timeout),
+            cb);
 
         // Check if the nodes that have requested validation for this ballot
         // is a v-blocking set. If so, rush validation by canceling all timers.

@@ -94,7 +94,7 @@ hierarchicalTopo(int nLedgers, int nBranches, Simulation::Mode mode)
     printStats(nLedgers, tBegin, sim);
 }
 
-TEST_CASE("hierarchical topology scales 5..11", "[simulation]")
+TEST_CASE("hierarchical topology scales 5..9", "[simulation]")
 {
     Simulation::Mode mode = Simulation::OVER_LOOPBACK;
     SECTION("Over loopback")
@@ -107,7 +107,7 @@ TEST_CASE("hierarchical topology scales 5..11", "[simulation]")
     }
 
     int const nLedgers = 5;
-    for (auto nBranches = 1; nBranches <= 7; nBranches+=2)
+    for (auto nBranches = 1; nBranches <= 5; nBranches+=2)
     {
         hierarchicalTopo(nLedgers, nBranches, mode);
     }

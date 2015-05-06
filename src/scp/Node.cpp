@@ -25,10 +25,10 @@ Node::Node(uint256 const& nodeID, SCP* SCP)
 bool
 Node::hasQuorum(Hash const& qSetHash, std::vector<uint256> const& nodeSet)
 {
-    CLOG(DEBUG, "SCP") << "Node::hasQuorum"
-                       << "@" << hexAbbrev(mNodeID)
-                       << " qSet: " << hexAbbrev(qSetHash)
-                       << " nodeSet.size: " << nodeSet.size();
+//    CLOG(DEBUG, "SCP") << "Node::hasQuorum"
+//                       << "@" << hexAbbrev(mNodeID)
+//                       << " qSet: " << hexAbbrev(qSetHash)
+//                       << " nodeSet.size: " << nodeSet.size();
     // This call can throw a `QuorumSetNotFound` if the quorumSet is unknown.
     SCPQuorumSet const& qSet = retrieveQuorumSet(qSetHash);
 
@@ -39,18 +39,18 @@ Node::hasQuorum(Hash const& qSetHash, std::vector<uint256> const& nodeSet)
         count += (it != nodeSet.end()) ? 1 : 0;
     }
     auto result = (count >= qSet.threshold);
-    CLOG(DEBUG, "SCP") << "Node::hasQuorum"
-                       << "@" << hexAbbrev(mNodeID) << " is " << result;
+//    CLOG(DEBUG, "SCP") << "Node::hasQuorum"
+//                       << "@" << hexAbbrev(mNodeID) << " is " << result;
     return result;
 }
 
 bool
 Node::isVBlocking(Hash const& qSetHash, std::vector<uint256> const& nodeSet)
 {
-    CLOG(DEBUG, "SCP") << "Node::isVBlocking"
-                       << "@" << hexAbbrev(mNodeID)
-                       << " qSet: " << hexAbbrev(qSetHash)
-                       << " nodeSet.size: " << nodeSet.size();
+//    CLOG(DEBUG, "SCP") << "Node::isVBlocking"
+//                       << "@" << hexAbbrev(mNodeID)
+//                       << " qSet: " << hexAbbrev(qSetHash)
+//                       << " nodeSet.size: " << nodeSet.size();
     // This call can throw a `QuorumSetNotFound` if the quorumSet is unknown.
     SCPQuorumSet const& qSet = retrieveQuorumSet(qSetHash);
 
@@ -67,8 +67,8 @@ Node::isVBlocking(Hash const& qSetHash, std::vector<uint256> const& nodeSet)
         count += (it != nodeSet.end()) ? 1 : 0;
     }
     auto result = (qSet.validators.size() - count < qSet.threshold);
-    CLOG(DEBUG, "SCP") << "Node::isVBlocking"
-                       << "@" << hexAbbrev(mNodeID) << " is " << result;
+//    CLOG(DEBUG, "SCP") << "Node::isVBlocking"
+//                       << "@" << hexAbbrev(mNodeID) << " is " << result;
     return result;
 }
 
@@ -159,9 +159,9 @@ void
 Node::cacheQuorumSet(SCPQuorumSet const& qSet)
 {
     uint256 qSetHash = sha256(xdr::xdr_to_opaque(qSet));
-    CLOG(DEBUG, "SCP") << "Node::cacheQuorumSet"
-                       << "@" << hexAbbrev(mNodeID)
-                       << " qSet: " << hexAbbrev(qSetHash);
+//    CLOG(DEBUG, "SCP") << "Node::cacheQuorumSet"
+//                       << "@" << hexAbbrev(mNodeID)
+//                       << " qSet: " << hexAbbrev(qSetHash);
 
     mCache.put(qSetHash, qSet);
 }

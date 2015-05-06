@@ -16,6 +16,21 @@
 
 /*
 Manages asking for Transaction or Quorum sets from Peers
+
+The ItemFetcher returns instances of the Tracker class. There exists
+exactly one tracker per item. The tracker is used both to maintain
+the state of the search, as well as to isolate cancellations. Instead
+of having a `stopFetching(itemID)` method, which would necessitate
+extra code to keep track of the different clients, ItemFetcher stops
+fetching an item when all the shared_ptrs to the item's tracker have
+been released.
+
+
+ItemFetcher caches the items for they are found and evicts them lru
+order. Keeping the item's tracker alive forces the item to remain
+cached, and it does not count against the cache size. In other words,
+items are cached either in the lru queue or their trackers.
+
 */
 
 namespace medida
@@ -36,12 +51,6 @@ template<class T, class TrackerT>
 class ItemFetcher : private NonMovableOrCopyable
 {
 public:
-    // The Tracker class is exposed in order to isolate cancellations.
-    // Instead of having a `stopFetching(itemID)` method, which would 
-    // necessitate extra code to keep track of the different clients, 
-    // ItemFetcher stops fetching an item when all the shared_ptrs to 
-    // the item's tracker have been released.
-    // 
     class Tracker : private NonMovableOrCopyable
     {
         Application &mApp;
