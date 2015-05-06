@@ -1106,6 +1106,9 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger)
         return;
     }
 
+    // We store at which time we triggered consensus
+    mLastTrigger = mApp.getClock().now();
+
     // We pick as next close time the current time unless it's before the last
     // close time. We don't know how much time it will take to reach consensus
     // so this is the most appropriate value to use as closeTime.
@@ -1132,9 +1135,6 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger)
                           << hexAbbrev(proposedSet->previousLedgerHash())
                           << " value: " << hexAbbrev(valueHash)
                           << " slot: " << slotIndex;
-
-    // We store at which time we triggered consensus
-    mLastTrigger = mApp.getClock().now();
 
     // We prepare that value. If we're monarch, the ballot will be validated,
     // and if we're not it'll just get ignored.
