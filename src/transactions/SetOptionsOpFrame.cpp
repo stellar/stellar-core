@@ -50,7 +50,22 @@ SetOptionsOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
     }
     if (mSetOptions.setFlags)
     {
+        if((*mSetOptions.setFlags & AUTH_REQUIRED_FLAG) ||
+            (*mSetOptions.setFlags & AUTH_REVOCABLE_FLAG))
+        {
+            // must ensure no one is holding your credit
+            if(TrustFrame::hasIssued(account.accountID, db))
+            {
+                innerResult().code(SET_OPTIONS_CANT_CHANGE);
+                return false;
+            }
+        }
         account.flags = account.flags | *mSetOptions.setFlags;
+    }
+
+    if(mSetOptions.homeDomain)
+    {
+        account.homeDomain = *mSetOptions.homeDomain;
     }
 
     if (mSetOptions.thresholds)

@@ -22,7 +22,8 @@ struct Signer
 
 enum AccountFlags
 { // masks for each flag
-    AUTH_REQUIRED_FLAG = 0x1
+    AUTH_REQUIRED_FLAG = 0x1,
+    AUTH_REVOCABLE_FLAG = 0x2
 };
 
 /* AccountEntry
@@ -47,6 +48,8 @@ struct AccountEntry
     // fields used for signatures
     // thresholds stores unsigned bytes: [weight of master|low|medium|high]
     Thresholds thresholds;
+
+    string32 homeDomain; // can be used for reverse federation and memo lookup
 
     Signer signers<20>; // possible signers for this account
 };

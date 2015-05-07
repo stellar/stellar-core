@@ -287,7 +287,8 @@ TCPPeer::readHeaderHandler(asio::error_code const& error,
             // errors during shutdown or connection are common/expected.
             mErrorRead.Mark();
             CLOG(DEBUG, "Overlay")
-                << "readHeaderHandler error: " << error.message();
+                << "readHeaderHandler error: " << error.message() 
+                << " :" << toString();
         }
         drop();
     }
@@ -400,7 +401,8 @@ TCPPeer::drop()
     bool wasConnected = (mState == CONNECTED || mState == GOT_HELLO);
 
     CLOG(DEBUG, "Overlay") << "TCPPeer::drop "
-                          << toString() << " in state " << mState;
+                          << toString() << " in state " << mState
+                          << " we called:" << mRole;
 
     mState = CLOSING;
 

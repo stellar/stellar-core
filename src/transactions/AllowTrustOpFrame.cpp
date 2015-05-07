@@ -31,6 +31,13 @@ AllowTrustOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
         return false;
     }
 
+    if(!(mSourceAccount->getAccount().flags & AUTH_REVOCABLE_FLAG) &&
+        !mAllowTrust.authorize)
+    {
+        innerResult().code(ALLOW_TRUST_CANT_REVOKE);
+        return false;
+    }
+
     Currency ci;
     ci.type(ISO4217);
     ci.isoCI().currencyCode = mAllowTrust.currency.currencyCode();

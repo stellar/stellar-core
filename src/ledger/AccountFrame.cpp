@@ -23,6 +23,7 @@ const char* AccountFrame::kSQLCreateStatement1 =
     "seqNum          BIGINT       NOT NULL,"
     "numSubEntries   INT          NOT NULL CHECK (numSubEntries >= 0),"
     "inflationDest   VARCHAR(51),"
+    "homeDomain      VARCHAR(32),"
     "thresholds      TEXT,"
     "flags           INT          NOT NULL"
     ");";
@@ -153,8 +154,8 @@ AccountFrame::loadAccount(AccountID const& accountID, AccountFrame& retAcc,
 {
     std::string base58ID = toBase58Check(VER_ACCOUNT_ID, accountID);
     std::string publicKey, inflationDest, creditAuthKey;
-    std::string thresholds;
-    soci::indicator inflationDestInd, thresholdsInd;
+    std::string homeDomain, thresholds;
+    soci::indicator inflationDestInd, homeDomainInd, thresholdsInd;
 
     soci::session& session = db.getSession();
 
@@ -164,14 +165,21 @@ AccountFrame::loadAccount(AccountID const& accountID, AccountFrame& retAcc,
     {
         auto timer = db.getSelectTimer("account");
         session << "SELECT balance, seqNum, numSubEntries, \
-            inflationDest, thresholds,  flags from Accounts where accountID=:v1",
+            inflationDest, homeDomain, thresholds,  flags \
+            from Accounts where accountID=:v1",
             into(account.balance), into(account.seqNum),
             into(account.numSubEntries), into(inflationDest, inflationDestInd),
+            into(homeDomain, homeDomainInd),
             into(thresholds, thresholdsInd), into(account.flags), use(base58ID);
     }
 
     if (!session.got_data())
         return false;
+
+    if(homeDomainInd == soci::i_ok)
+    {
+        account.homeDomain = homeDomain;
+    }
 
     if (thresholdsInd == soci::i_ok)
     {
@@ -276,15 +284,16 @@ AccountFrame::storeUpdate(LedgerDelta& delta, Database& db, bool insert) const
     if (insert)
     {
         sql = std::string("INSERT INTO Accounts ( accountID, balance, seqNum, \
-            numSubEntries, inflationDest, thresholds, flags)            \
-            VALUES ( :id, :v1, :v2, :v3, :v4, :v5, :v6 )");
+            numSubEntries, inflationDest, homeDomain, thresholds, flags)       \
+            VALUES ( :id, :v1, :v2, :v3, :v4, :v5, :v6, :v7 )");
     }
     else
     {
-        sql = std::string(
-            "UPDATE Accounts SET balance = :v1, seqNum = :v2, numSubEntries = :v3, \
-                inflationDest = :v4, thresholds = :v5,                  \
-                flags = :v6 WHERE accountID = :id");
+         sql = std::string(
+            "UPDATE Accounts SET balance = :v1, seqNum = :v2, \
+                numSubEntries = :v3, \
+                inflationDest = :v4, homeDomain = :v5, thresholds = :v6,   \
+                flags = :v7 WHERE accountID = :id");
     }
 
     auto prep = db.getPreparedStatement(sql);
@@ -310,8 +319,9 @@ AccountFrame::storeUpdate(LedgerDelta& delta, Database& db, bool insert) const
         st.exchange(use(mAccountEntry.seqNum, "v2"));
         st.exchange(use(mAccountEntry.numSubEntries, "v3"));
         st.exchange(use(inflationDestStr, inflation_ind, "v4"));
-        st.exchange(use(thresholds, "v5"));
-        st.exchange(use(mAccountEntry.flags, "v6"));
+        st.exchange(use(string(mAccountEntry.homeDomain), "v5"));
+        st.exchange(use(thresholds, "v6"));
+        st.exchange(use(mAccountEntry.flags, "v7"));
         st.define_and_bind();
         {
             auto timer = insert ? db.getInsertTimer("account")
