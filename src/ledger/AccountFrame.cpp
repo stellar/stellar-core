@@ -40,6 +40,9 @@ const char* AccountFrame::kSQLCreateStatement2 =
 const char* AccountFrame::kSQLCreateStatement3 =
     "CREATE INDEX signersAccount ON Signers (accountID)";
 
+const char* AccountFrame::kSQLCreateStatement4 =
+    "CREATE INDEX accountBalances ON Accounts (balance)";
+
 AccountFrame::AccountFrame()
     : EntryFrame(ACCOUNT), mAccountEntry(mEntry.account())
 {
@@ -481,6 +484,38 @@ AccountFrame::storeAdd(LedgerDelta& delta, Database& db) const
 }
 
 void
+AccountFrame::processForInflation(
+    std::function<bool(AccountFrame::InflationVotes const&)> inflationProcessor,
+    int maxWinners, Database& db)
+{
+    soci::session& session = db.getSession();
+
+    InflationVotes v;
+    std::string inflationDest;
+
+    soci::statement st =
+        (session.prepare
+             << "SELECT"
+                " sum(balance) AS votes, inflationDest FROM Accounts WHERE"
+                " inflationDest IS NOT NULL"
+                " AND balance >= 1000000000 GROUP BY inflationDest"
+                " ORDER BY votes DESC, inflationDest DESC LIMIT :lim",
+         into(v.mVotes), into(inflationDest), use(maxWinners));
+
+    st.execute(true);
+
+    while (st.got_data())
+    {
+        v.mInflationDest = fromBase58Check256(VER_ACCOUNT_ID, inflationDest);
+        if (!inflationProcessor(v))
+        {
+            break;
+        }
+        st.fetch();
+    }
+}
+
+void
 AccountFrame::dropAll(Database& db)
 {
     db.getSession() << "DROP TABLE IF EXISTS Accounts;";
@@ -488,5 +523,7 @@ AccountFrame::dropAll(Database& db)
 
     db.getSession() << kSQLCreateStatement1;
     db.getSession() << kSQLCreateStatement2;
+    db.getSession() << kSQLCreateStatement3;
+    db.getSession() << kSQLCreateStatement4;
 }
 }

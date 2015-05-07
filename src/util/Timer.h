@@ -143,6 +143,10 @@ class VirtualClock
     void enqueue(std::shared_ptr<VirtualClockEvent> ve);
     void flushCancelledEvents();
     bool cancelAllEvents();
+
+    // only valid with VIRTUAL_TIME: sets the current value
+    // of the clock
+    void setCurrentTime(time_point t);
 };
 
 class VirtualClockEvent : public NonMovableOrCopyable
