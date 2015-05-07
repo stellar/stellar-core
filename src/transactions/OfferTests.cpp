@@ -212,10 +212,10 @@ TEST_CASE("create offer", "[tx][offers]")
                 // verifies that the offer was created as expected
                 REQUIRE(offer.getPrice() == usdPriceOfferA);
                 REQUIRE(offer.getAmount() == 100 * currencyMultiplier);
-                REQUIRE(offer.getTakerGets().isoCI().currencyCode ==
-                        idrCur.isoCI().currencyCode);
-                REQUIRE(offer.getTakerPays().isoCI().currencyCode ==
-                        usdCur.isoCI().currencyCode);
+                REQUIRE(offer.getTakerGets().alphaNum().currencyCode ==
+                        idrCur.alphaNum().currencyCode);
+                REQUIRE(offer.getTakerPays().alphaNum().currencyCode ==
+                        usdCur.alphaNum().currencyCode);
             }
 
             applyPaymentTx(app, root, b1, root_seq++, minBalance3 + 10000);
@@ -241,10 +241,10 @@ TEST_CASE("create offer", "[tx][offers]")
                                               app.getDatabase()));
                 REQUIRE(offer.getPrice() == twoone);
                 REQUIRE(offer.getAmount() == 40 * currencyMultiplier);
-                REQUIRE(offer.getTakerPays().isoCI().currencyCode ==
-                        idrCur.isoCI().currencyCode);
-                REQUIRE(offer.getTakerGets().isoCI().currencyCode ==
-                        usdCur.isoCI().currencyCode);
+                REQUIRE(offer.getTakerPays().alphaNum().currencyCode ==
+                        idrCur.alphaNum().currencyCode);
+                REQUIRE(offer.getTakerGets().alphaNum().currencyCode ==
+                        usdCur.alphaNum().currencyCode);
 
                 // and that a1 offers were not touched
                 for (auto a1Offer : a1OfferID)
@@ -253,10 +253,10 @@ TEST_CASE("create offer", "[tx][offers]")
                                                   offer, app.getDatabase()));
                     REQUIRE(offer.getPrice() == usdPriceOfferA);
                     REQUIRE(offer.getAmount() == 100 * currencyMultiplier);
-                    REQUIRE(offer.getTakerPays().isoCI().currencyCode ==
-                            usdCur.isoCI().currencyCode);
-                    REQUIRE(offer.getTakerGets().isoCI().currencyCode ==
-                            idrCur.isoCI().currencyCode);
+                    REQUIRE(offer.getTakerPays().alphaNum().currencyCode ==
+                            usdCur.alphaNum().currencyCode);
+                    REQUIRE(offer.getTakerGets().alphaNum().currencyCode ==
+                            idrCur.alphaNum().currencyCode);
                 }
             }
 
@@ -286,10 +286,10 @@ TEST_CASE("create offer", "[tx][offers]")
                                                   offer, app.getDatabase()));
                     REQUIRE(offer.getPrice() == usdPriceOfferA);
                     REQUIRE(offer.getAmount() == 100 * currencyMultiplier);
-                    REQUIRE(offer.getTakerPays().isoCI().currencyCode ==
-                            usdCur.isoCI().currencyCode);
-                    REQUIRE(offer.getTakerGets().isoCI().currencyCode ==
-                            idrCur.isoCI().currencyCode);
+                    REQUIRE(offer.getTakerPays().alphaNum().currencyCode ==
+                            usdCur.alphaNum().currencyCode);
+                    REQUIRE(offer.getTakerGets().alphaNum().currencyCode ==
+                            idrCur.alphaNum().currencyCode);
                 }
             }
 
@@ -333,10 +333,10 @@ TEST_CASE("create offer", "[tx][offers]")
                                                       app.getDatabase()));
                         REQUIRE(offer.getPrice() == usdPriceOfferA);
                         REQUIRE(offer.getAmount() == 100 * currencyMultiplier);
-                        REQUIRE(offer.getTakerPays().isoCI().currencyCode ==
-                                usdCur.isoCI().currencyCode);
-                        REQUIRE(offer.getTakerGets().isoCI().currencyCode ==
-                                idrCur.isoCI().currencyCode);
+                        REQUIRE(offer.getTakerPays().alphaNum().currencyCode ==
+                                usdCur.alphaNum().currencyCode);
+                        REQUIRE(offer.getTakerGets().alphaNum().currencyCode ==
+                                idrCur.alphaNum().currencyCode);
                     }
                 }
             }
@@ -411,10 +411,10 @@ TEST_CASE("create offer", "[tx][offers]")
                                                       a1Offer, offer,
                                                       app.getDatabase()));
                         REQUIRE(offer.getPrice() == usdPriceOfferA);
-                        REQUIRE(offer.getTakerPays().isoCI().currencyCode ==
-                                usdCur.isoCI().currencyCode);
-                        REQUIRE(offer.getTakerGets().isoCI().currencyCode ==
-                                idrCur.isoCI().currencyCode);
+                        REQUIRE(offer.getTakerPays().alphaNum().currencyCode ==
+                                usdCur.alphaNum().currencyCode);
+                        REQUIRE(offer.getTakerGets().alphaNum().currencyCode ==
+                                idrCur.alphaNum().currencyCode);
                         if (i == 6)
                         {
                             int64_t expected =
@@ -492,10 +492,10 @@ TEST_CASE("create offer", "[tx][offers]")
                     REQUIRE(OfferFrame::loadOffer(a1.getPublicKey(), a1Offer,
                                                   offer, app.getDatabase()));
 
-                    REQUIRE(offer.getTakerPays().isoCI().currencyCode ==
-                            usdCur.isoCI().currencyCode);
-                    REQUIRE(offer.getTakerGets().isoCI().currencyCode ==
-                            idrCur.isoCI().currencyCode);
+                    REQUIRE(offer.getTakerPays().alphaNum().currencyCode ==
+                            usdCur.alphaNum().currencyCode);
+                    REQUIRE(offer.getTakerGets().alphaNum().currencyCode ==
+                            idrCur.alphaNum().currencyCode);
 
                     if (i == 0)
                     {

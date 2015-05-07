@@ -35,7 +35,7 @@ OfferExchange::crossOffer(OfferFrame& sellingWheatOffer,
     }
 
     TrustFrame wheatLineAccountB;
-    if (wheat.type() != NATIVE)
+    if (wheat.type() != CURRENCY_TYPE_NATIVE)
     {
         if (!TrustFrame::loadTrustLine(accountBID, wheat, wheatLineAccountB,
                                        db))
@@ -47,7 +47,7 @@ OfferExchange::crossOffer(OfferFrame& sellingWheatOffer,
 
     TrustFrame sheepLineAccountB;
 
-    if (sheep.type() == NATIVE)
+    if (sheep.type() == CURRENCY_TYPE_NATIVE)
     {
         numWheatReceived = INT64_MAX;
     }
@@ -74,7 +74,7 @@ OfferExchange::crossOffer(OfferFrame& sellingWheatOffer,
     // adjust numWheatReceived with what the seller has
     {
         int64_t wheatCanSell;
-        if (wheat.type() == NATIVE)
+        if (wheat.type() == CURRENCY_TYPE_NATIVE)
         {
             // can only send above the minimum balance
             wheatCanSell = accountB.getBalanceAboveReserve(mLedgerManager);
@@ -166,7 +166,7 @@ OfferExchange::crossOffer(OfferFrame& sellingWheatOffer,
     }
 
     // Adjust balances
-    if (sheep.type() == NATIVE)
+    if (sheep.type() == CURRENCY_TYPE_NATIVE)
     {
         accountB.getAccount().balance += numSheepSend;
         accountB.storeChange(mDelta, db);
@@ -180,7 +180,7 @@ OfferExchange::crossOffer(OfferFrame& sellingWheatOffer,
         sheepLineAccountB.storeChange(mDelta, db);
     }
 
-    if (wheat.type() == NATIVE)
+    if (wheat.type() == CURRENCY_TYPE_NATIVE)
     {
         accountB.getAccount().balance -= numWheatReceived;
         accountB.storeChange(mDelta, db);

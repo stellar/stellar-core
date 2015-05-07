@@ -38,7 +38,7 @@ PaymentOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
 
     if (!AccountFrame::loadAccount(mPayment.destination, destAccount, db))
     { // this tx is creating an account
-        if (mPayment.currency.type() == NATIVE)
+        if (mPayment.currency.type() == CURRENCY_TYPE_NATIVE)
         {
             if (mPayment.amount < ledgerManager.getMinBalance(0))
             { // not over the minBalance to make an account
@@ -92,7 +92,7 @@ PaymentOpFrame::sendNoCreate(AccountFrame& destination, LedgerDelta& delta,
     // update last balance in the chain
     {
 
-        if (curB.type() == NATIVE)
+        if (curB.type() == CURRENCY_TYPE_NATIVE)
         {
             destination.getAccount().balance += curBReceived;
             destination.storeChange(delta, db);
@@ -184,7 +184,7 @@ PaymentOpFrame::sendNoCreate(AccountFrame& destination, LedgerDelta& delta,
         return false;
     }
 
-    if (curB.type() == NATIVE)
+    if (curB.type() == CURRENCY_TYPE_NATIVE)
     {
         int64_t minBalance = mSourceAccount->getMinimumBalance(ledgerManager);
 
@@ -200,7 +200,7 @@ PaymentOpFrame::sendNoCreate(AccountFrame& destination, LedgerDelta& delta,
     else
     {
         AccountFrame issuer;
-        if (!AccountFrame::loadAccount(curB.isoCI().issuer, issuer, db))
+        if (!AccountFrame::loadAccount(curB.alphaNum().issuer, issuer, db))
         {
             throw std::runtime_error("sendCredit Issuer not found");
         }
@@ -233,13 +233,13 @@ PaymentOpFrame::doCheckValid(Application& app)
         innerResult().code(PAYMENT_MALFORMED);
         return false;
     }
-    if(!isCurrencyValid(mPayment.currency))
+    if (!isCurrencyValid(mPayment.currency))
     {
         innerResult().code(PAYMENT_MALFORMED);
         return false;
     }
-    auto const&p = mPayment.path;
-    if(!std::all_of(p.begin(), p.end(), isCurrencyValid))
+    auto const& p = mPayment.path;
+    if (!std::all_of(p.begin(), p.end(), isCurrencyValid))
     {
         innerResult().code(PAYMENT_MALFORMED);
         return false;

@@ -101,10 +101,10 @@ createChangeTrust(SecretKey& from, SecretKey& to, SequenceNumber seq,
 
     op.body.type(CHANGE_TRUST);
     op.body.changeTrustOp().limit = limit;
-    op.body.changeTrustOp().line.type(ISO4217);
-    strToCurrencyCode(op.body.changeTrustOp().line.isoCI().currencyCode,
+    op.body.changeTrustOp().line.type(CURRENCY_TYPE_ALPHANUM);
+    strToCurrencyCode(op.body.changeTrustOp().line.alphaNum().currencyCode,
                       currencyCode);
-    op.body.changeTrustOp().line.isoCI().issuer = to.getPublicKey();
+    op.body.changeTrustOp().line.alphaNum().issuer = to.getPublicKey();
 
     return transactionFromOperation(from, seq, op);
 }
@@ -117,7 +117,7 @@ createAllowTrust(SecretKey& from, SecretKey& trustor, SequenceNumber seq,
 
     op.body.type(ALLOW_TRUST);
     op.body.allowTrustOp().trustor = trustor.getPublicKey();
-    op.body.allowTrustOp().currency.type(ISO4217);
+    op.body.allowTrustOp().currency.type(CURRENCY_TYPE_ALPHANUM);
     strToCurrencyCode(op.body.allowTrustOp().currency.currencyCode(),
                       currencyCode);
     op.body.allowTrustOp().authorize = authorize;
@@ -150,7 +150,7 @@ createPaymentTx(SecretKey& from, SecretKey& to, SequenceNumber seq,
     op.body.paymentOp().amount = amount;
     op.body.paymentOp().destination = to.getPublicKey();
     op.body.paymentOp().sendMax = INT64_MAX;
-    op.body.paymentOp().currency.type(NATIVE);
+    op.body.paymentOp().currency.type(CURRENCY_TYPE_NATIVE);
 
     return transactionFromOperation(from, seq, op);
 }
@@ -245,9 +245,9 @@ Currency
 makeCurrency(SecretKey& issuer, std::string const& code)
 {
     Currency currency;
-    currency.type(ISO4217);
-    currency.isoCI().issuer = issuer.getPublicKey();
-    strToCurrencyCode(currency.isoCI().currencyCode, code);
+    currency.type(CURRENCY_TYPE_ALPHANUM);
+    currency.alphaNum().issuer = issuer.getPublicKey();
+    strToCurrencyCode(currency.alphaNum().currencyCode, code);
     return currency;
 }
 

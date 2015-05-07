@@ -31,7 +31,7 @@ AllowTrustOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
         return false;
     }
 
-    if(!(mSourceAccount->getAccount().flags & AUTH_REVOCABLE_FLAG) &&
+    if (!(mSourceAccount->getAccount().flags & AUTH_REVOCABLE_FLAG) &&
         !mAllowTrust.authorize)
     {
         innerResult().code(ALLOW_TRUST_CANT_REVOKE);
@@ -39,9 +39,9 @@ AllowTrustOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
     }
 
     Currency ci;
-    ci.type(ISO4217);
-    ci.isoCI().currencyCode = mAllowTrust.currency.currencyCode();
-    ci.isoCI().issuer = getSourceID();
+    ci.type(CURRENCY_TYPE_ALPHANUM);
+    ci.alphaNum().currencyCode = mAllowTrust.currency.currencyCode();
+    ci.alphaNum().issuer = getSourceID();
 
     Database& db = ledgerManager.getDatabase();
     TrustFrame trustLine;
@@ -63,17 +63,17 @@ AllowTrustOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
 bool
 AllowTrustOpFrame::doCheckValid(Application& app)
 {
-    if (mAllowTrust.currency.type() != ISO4217)
+    if (mAllowTrust.currency.type() != CURRENCY_TYPE_ALPHANUM)
     {
         innerResult().code(ALLOW_TRUST_MALFORMED);
         return false;
     }
     Currency ci;
-    ci.type(ISO4217);
-    ci.isoCI().currencyCode = mAllowTrust.currency.currencyCode();
-    ci.isoCI().issuer = getSourceID();
+    ci.type(CURRENCY_TYPE_ALPHANUM);
+    ci.alphaNum().currencyCode = mAllowTrust.currency.currencyCode();
+    ci.alphaNum().issuer = getSourceID();
 
-    if(!isCurrencyValid(ci))
+    if (!isCurrencyValid(ci))
     {
         innerResult().code(ALLOW_TRUST_MALFORMED);
         return false;

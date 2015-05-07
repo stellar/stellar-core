@@ -24,23 +24,21 @@ typedef uint64 SequenceNumber;
 
 enum CurrencyType
 {
-    NATIVE = 0,
-    ISO4217 = 1
-};
-
-struct ISOCurrencyIssuer
-{
-    opaque currencyCode[4];
-    AccountID issuer;
+    CURRENCY_TYPE_NATIVE = 0,
+    CURRENCY_TYPE_ALPHANUM = 1
 };
 
 union Currency switch (CurrencyType type)
 {
-case NATIVE:
+case CURRENCY_TYPE_NATIVE:
     void;
 
-case ISO4217:
-    ISOCurrencyIssuer isoCI;
+case CURRENCY_TYPE_ALPHANUM:
+    struct
+    {
+        opaque currencyCode[4];
+        AccountID issuer;
+    } alphaNum;
 
     // add other currency types here in the future
 };

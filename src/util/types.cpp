@@ -32,9 +32,9 @@ makePublicKey(uint256 const& b)
 bool
 isCurrencyValid(Currency const& cur)
 {
-    if (cur.type() == ISO4217)
+    if (cur.type() == CURRENCY_TYPE_ALPHANUM)
     {
-        auto const& code = cur.isoCI().currencyCode;
+        auto const& code = cur.alphaNum().currencyCode;
         bool zeros = false;
         for (uint8_t b : code)
         {
@@ -67,15 +67,15 @@ compareCurrency(Currency const& first, Currency const& second)
     if (first.type() != second.type())
         return false;
 
-    if (first.type() == NATIVE)
+    if (first.type() == CURRENCY_TYPE_NATIVE)
     {
-        if (second.type() == NATIVE)
+        if (second.type() == CURRENCY_TYPE_NATIVE)
             return true;
     }
-    else if (second.type() == ISO4217)
+    else if (second.type() == CURRENCY_TYPE_ALPHANUM)
     {
-        if ((first.isoCI().issuer == second.isoCI().issuer) &&
-            (first.isoCI().currencyCode == second.isoCI().currencyCode))
+        if ((first.alphaNum().issuer == second.alphaNum().issuer) &&
+            (first.alphaNum().currencyCode == second.alphaNum().currencyCode))
             return true;
     }
     return false;
