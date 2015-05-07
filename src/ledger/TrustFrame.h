@@ -74,6 +74,9 @@ class TrustFrame : public EntryFrame
     int64_t getBalance() const;
     bool addBalance(int64_t delta);
 
+    bool isAuthorized() const;
+    void setAuthorized(bool authorized);
+
     // returns the maximum amount that can be added to this trust line
     int64_t getMaxAmountReceive() const;
 

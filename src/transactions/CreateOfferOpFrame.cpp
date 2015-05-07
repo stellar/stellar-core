@@ -56,7 +56,7 @@ CreateOfferOpFrame::checkOfferValid(Database& db)
             return false;
         }
 
-        if (!mWheatLineA.getTrustLine().authorized)
+        if (!mWheatLineA.isAuthorized())
         { // we are not authorized to hold what we are trying to buy
             innerResult().code(CREATE_OFFER_NOT_AUTHORIZED);
             return false;

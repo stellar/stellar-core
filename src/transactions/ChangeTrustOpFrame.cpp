@@ -64,7 +64,7 @@ ChangeTrustOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
         trustLine.getTrustLine().currency = mChangeTrust.line;
         trustLine.getTrustLine().limit = mChangeTrust.limit;
         trustLine.getTrustLine().balance = 0;
-        trustLine.getTrustLine().authorized = !issuer.isAuthRequired();
+        trustLine.setAuthorized(!issuer.isAuthRequired());
 
         if (!mSourceAccount->addNumEntries(1, ledgerManager))
         {

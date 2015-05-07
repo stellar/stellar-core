@@ -53,7 +53,8 @@ AllowTrustOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
 
     innerResult().code(ALLOW_TRUST_SUCCESS);
 
-    trustLine.getTrustLine().authorized = mAllowTrust.authorize;
+    trustLine.setAuthorized(mAllowTrust.authorize);
+
     trustLine.storeChange(delta, db);
 
     return true;

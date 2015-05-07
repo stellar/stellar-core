@@ -23,7 +23,7 @@ const char* TrustFrame::kSQLCreateStatement1 =
     "isoCurrency   VARCHAR(4)   NOT NULL,"
     "tlimit        BIGINT       NOT NULL DEFAULT 0 CHECK (tlimit >= 0),"
     "balance       BIGINT       NOT NULL DEFAULT 0 CHECK (balance >= 0),"
-    "authorized    BOOL         NOT NULL,"
+    "flags         INT          NOT NULL,"
     "PRIMARY KEY (accountID, issuer, isoCurrency)"
     ");";
 
@@ -77,6 +77,23 @@ TrustFrame::getBalance() const
     return mTrustLine.balance;
 }
 
+bool TrustFrame::isAuthorized() const
+{
+    return (mTrustLine.flags & AUTHORIZED_FLAG) != 0;
+}
+
+void TrustFrame::setAuthorized(bool authorized)
+{
+    if(authorized)
+    {
+        mTrustLine.flags |= AUTHORIZED_FLAG;
+    }
+    else
+    {
+        mTrustLine.flags &= ~AUTHORIZED_FLAG;
+    }
+}
+
 bool
 TrustFrame::addBalance(int64_t delta)
 {
@@ -88,7 +105,7 @@ TrustFrame::addBalance(int64_t delta)
     {
         return true;
     }
-    if (!mTrustLine.authorized)
+    if (!isAuthorized())
     {
         return false;
     }
@@ -112,7 +129,7 @@ TrustFrame::getMaxAmountReceive() const
     {
         amount = INT64_MAX;
     }
-    else if (mTrustLine.authorized)
+    else if (isAuthorized())
     {
         amount = mTrustLine.limit - mTrustLine.balance;
     }
@@ -175,10 +192,10 @@ TrustFrame::storeChange(LedgerDelta& delta, Database& db) const
 
     auto timer = db.getUpdateTimer("trust");
     statement st = (db.getSession().prepare << "UPDATE TrustLines \
-              SET balance=:b, tlimit=:tl, authorized=:a \
+              SET balance=:b, tlimit=:tl, flags=:a \
               WHERE accountID=:v1 and issuer=:v2 and isoCurrency=:v3",
                     use(mTrustLine.balance), use(mTrustLine.limit),
-                    use((int)mTrustLine.authorized), use(b58AccountID),
+                    use((int)mTrustLine.flags), use(b58AccountID),
                     use(b58Issuer), use(currencyCode));
 
     st.execute(true);
@@ -205,10 +222,10 @@ TrustFrame::storeAdd(LedgerDelta& delta, Database& db) const
     auto timer = db.getInsertTimer("trust");
     statement st =
         (db.getSession().prepare
-             << "INSERT INTO TrustLines (accountID, issuer, isoCurrency, tlimit, authorized) \
+             << "INSERT INTO TrustLines (accountID, issuer, isoCurrency, tlimit, flags) \
                  VALUES (:v1,:v2,:v3,:v4,:v5)",
          use(b58AccountID), use(b58Issuer), use(currencyCode),
-         use(mTrustLine.limit), use((int)mTrustLine.authorized));
+         use(mTrustLine.limit), use((int)mTrustLine.flags));
 
     st.execute(true);
 
@@ -221,7 +238,7 @@ TrustFrame::storeAdd(LedgerDelta& delta, Database& db) const
 }
 
 static const char* trustLineColumnSelector =
-    "SELECT accountID, issuer, isoCurrency, tlimit,balance,authorized FROM "
+    "SELECT accountID, issuer, isoCurrency, tlimit,balance,flags FROM "
     "TrustLines";
 
 void
@@ -229,7 +246,7 @@ TrustFrame::setAsIssuer(Currency const& issuer)
 {
     mIsIssuer = true;
     mTrustLine.accountID = issuer.isoCI().issuer;
-    mTrustLine.authorized = true;
+    mTrustLine.flags |= AUTHORIZED_FLAG;
     mTrustLine.balance = INT64_MAX;
     mTrustLine.currency = issuer;
     mTrustLine.limit = INT64_MAX;
@@ -299,14 +316,13 @@ TrustFrame::loadLines(details::prepare_temp_type& prep,
 {
     string accountID;
     std::string issuer, currency;
-    int authorized;
 
     TrustFrame curTrustLine;
 
     TrustLineEntry& tl = curTrustLine.mTrustLine;
 
     statement st = (prep, into(accountID), into(issuer), into(currency),
-                    into(tl.limit), into(tl.balance), into(authorized));
+                    into(tl.limit), into(tl.balance), into(tl.flags));
 
     st.execute(true);
     while (st.got_data())
@@ -315,7 +331,6 @@ TrustFrame::loadLines(details::prepare_temp_type& prep,
         tl.currency.type(ISO4217);
         tl.currency.isoCI().issuer = fromBase58Check256(VER_ACCOUNT_ID, issuer);
         strToCurrencyCode(tl.currency.isoCI().currencyCode, currency);
-        tl.authorized = (authorized != 0);
 
         assert(curTrustLine.isValid());
         trustProcessor(curTrustLine);

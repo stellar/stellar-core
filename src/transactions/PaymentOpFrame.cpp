@@ -108,7 +108,7 @@ PaymentOpFrame::sendNoCreate(AccountFrame& destination, LedgerDelta& delta,
                 return false;
             }
 
-            if (!destLine.getTrustLine().authorized)
+            if (!destLine.isAuthorized())
             {
                 innerResult().code(PAYMENT_NOT_AUTHORIZED);
                 return false;
