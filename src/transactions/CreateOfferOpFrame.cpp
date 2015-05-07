@@ -310,6 +310,12 @@ CreateOfferOpFrame::doCheckValid(Application& app)
 {
     Currency const& sheep = mCreateOffer.takerGets;
     Currency const& wheat = mCreateOffer.takerPays;
+
+    if(!isCurrencyValid(sheep) || !isCurrencyValid(wheat))
+    {
+        innerResult().code(CREATE_OFFER_MALFORMED);
+        return false;
+    }
     if (compareCurrency(sheep, wheat))
     {
         innerResult().code(CREATE_OFFER_MALFORMED);

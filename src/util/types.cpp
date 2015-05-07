@@ -4,6 +4,7 @@
 
 #include "util/types.h"
 #include "lib/util/uint128_t.h"
+#include <locale>
 
 namespace stellar
 {
@@ -26,6 +27,38 @@ makePublicKey(uint256 const& b)
     ret[1] = b[1];
     ret[2] = b[2];
     return (ret);
+}
+
+bool
+isCurrencyValid(Currency const& cur)
+{
+    if (cur.type() == ISO4217)
+    {
+        auto const& code = cur.isoCI().currencyCode;
+        bool zeros = false;
+        for (uint8_t b : code)
+        {
+            if (b == 0)
+            {
+                zeros = true;
+            }
+            else if (zeros)
+            {
+                // zeros can only be trailing
+                return false;
+            }
+            else
+            {
+                std::locale loc("C");
+                char t = *(char*)&b; // safe conversion to char
+                if (!std::isalnum(t, loc))
+                {
+                    return false;
+                }
+            }
+        }
+    }
+    return true;
 }
 
 bool

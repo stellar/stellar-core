@@ -16,6 +16,9 @@ bool isZero(uint256 const& b);
 
 uint256 makePublicKey(uint256 const& b);
 
+// returns true if the Currency value is well formed
+bool isCurrencyValid(Currency const& cur);
+
 // returns true if the currencies are the same
 bool compareCurrency(Currency const& first, Currency const& second);
 

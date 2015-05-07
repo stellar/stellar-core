@@ -67,6 +67,17 @@ AllowTrustOpFrame::doCheckValid(Application& app)
         innerResult().code(ALLOW_TRUST_MALFORMED);
         return false;
     }
+    Currency ci;
+    ci.type(ISO4217);
+    ci.isoCI().currencyCode = mAllowTrust.currency.currencyCode();
+    ci.isoCI().issuer = getSourceID();
+
+    if(!isCurrencyValid(ci))
+    {
+        innerResult().code(ALLOW_TRUST_MALFORMED);
+        return false;
+    }
+
     return true;
 }
 }

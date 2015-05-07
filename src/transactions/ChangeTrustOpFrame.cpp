@@ -87,6 +87,11 @@ ChangeTrustOpFrame::doCheckValid(Application& app)
         innerResult().code(CHANGE_TRUST_MALFORMED);
         return false;
     }
+    if(!isCurrencyValid(mChangeTrust.line))
+    {
+        innerResult().code(CHANGE_TRUST_MALFORMED);
+        return false;
+    }
     return true;
 }
 }

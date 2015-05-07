@@ -9,6 +9,7 @@
 #include "ledger/OfferFrame.h"
 #include "database/Database.h"
 #include "OfferExchange.h"
+#include <algorithm>
 
 namespace stellar
 {
@@ -228,6 +229,17 @@ bool
 PaymentOpFrame::doCheckValid(Application& app)
 {
     if (mPayment.amount < 0 || mPayment.sendMax < 0)
+    {
+        innerResult().code(PAYMENT_MALFORMED);
+        return false;
+    }
+    if(!isCurrencyValid(mPayment.currency))
+    {
+        innerResult().code(PAYMENT_MALFORMED);
+        return false;
+    }
+    auto const&p = mPayment.path;
+    if(!std::all_of(p.begin(), p.end(), isCurrencyValid))
     {
         innerResult().code(PAYMENT_MALFORMED);
         return false;
