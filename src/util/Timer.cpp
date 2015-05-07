@@ -201,6 +201,13 @@ VirtualClock::cancelAllEvents()
     return !wasEmpty;
 }
 
+void
+VirtualClock::setCurrentTime(time_point t)
+{
+    assert(mMode == VIRTUAL_TIME);
+    mNow = t;
+}
+
 size_t
 VirtualClock::advanceToNow()
 {

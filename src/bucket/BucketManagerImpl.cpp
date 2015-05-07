@@ -228,7 +228,7 @@ BucketManagerImpl::forgetUnreferencedBuckets()
     for (size_t i = 0; i < BucketList::kNumLevels; ++i)
     {
         auto const& level = mBucketList.getLevel(i);
-        uint256 hashes[3] = {level.getCurr()->getHash(),
+        uint256 hashes[2] = {level.getCurr()->getHash(),
                              level.getSnap()->getHash()};
         for (auto const& hash : hashes)
         {

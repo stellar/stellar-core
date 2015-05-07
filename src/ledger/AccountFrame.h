@@ -109,8 +109,24 @@ class AccountFrame : public EntryFrame
     // database utilities
     static bool loadAccount(AccountID const& accountID, AccountFrame& retEntry,
                             Database& db);
+
+    // inflation helper
+
+    struct InflationVotes
+    {
+        int64 mVotes;
+        AccountID mInflationDest;
+    };
+
+    // inflationProcessor returns true to continue processing, false otherwise
+    static void processForInflation(
+        std::function<bool(InflationVotes const&)> inflationProcessor,
+        int maxWinners, Database& db);
+
     static void dropAll(Database& db);
     static const char* kSQLCreateStatement1;
     static const char* kSQLCreateStatement2;
+    static const char* kSQLCreateStatement3;
+    static const char* kSQLCreateStatement4;
 };
 }

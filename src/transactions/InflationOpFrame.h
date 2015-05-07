@@ -20,8 +20,9 @@ class InflationOpFrame : public OperationFrame
     InflationOpFrame(Operation const& op, OperationResult& res,
                      TransactionFrame& parentTx);
 
-    bool doApply(LedgerDelta& delta, LedgerManager& ledgerManager);
-    bool doCheckValid(Application& app);
+    bool doApply(LedgerDelta& delta, LedgerManager& ledgerManager) override;
+    bool doCheckValid(Application& app) override;
+    int32_t getNeededThreshold() const override;
 
     static InflationResultCode
     getInnerCode(OperationResult const& res)

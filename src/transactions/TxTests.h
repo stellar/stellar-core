@@ -94,6 +94,11 @@ void applySetOptions(Application& app, SecretKey& source,
                      SequenceNumber seq,
                      SetOptionsResultCode result = SET_OPTIONS_SUCCESS);
 
+TransactionFramePtr createInflation(SecretKey& from, SequenceNumber seq);
+OperationResult applyInflation(Application& app, SecretKey& from,
+                               SequenceNumber seq,
+                               InflationResultCode result = INFLATION_SUCCESS);
+
 Currency makeCurrency(SecretKey& issuer, std::string const& code);
 
 OperationFrame const& getFirstOperationFrame(TransactionFrame const& tx);

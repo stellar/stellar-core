@@ -18,6 +18,7 @@
 #include "transactions/CreateOfferOpFrame.h"
 #include "transactions/SetOptionsOpFrame.h"
 #include "transactions/AllowTrustOpFrame.h"
+#include "transactions/InflationOpFrame.h"
 
 using namespace stellar;
 using namespace stellar::txtest;
@@ -435,6 +436,34 @@ applySetOptions(Application& app, SecretKey& source, AccountID* inflationDest,
     checkTransaction(*txFrame);
     REQUIRE(SetOptionsOpFrame::getInnerCode(
                 txFrame->getResult().result.results()[0]) == result);
+}
+
+TransactionFramePtr
+createInflation(SecretKey& from, SequenceNumber seq)
+{
+    Operation op;
+    op.body.type(INFLATION);
+
+    return transactionFromOperation(from, seq, op);
+}
+
+OperationResult
+applyInflation(Application& app, SecretKey& from, SequenceNumber seq,
+               InflationResultCode result)
+{
+    TransactionFramePtr txFrame = createInflation(from, seq);
+
+    LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader());
+    bool res = txFrame->apply(delta, app);
+
+    checkTransaction(*txFrame);
+    REQUIRE(InflationOpFrame::getInnerCode(
+                txFrame->getResult().result.results()[0]) == result);
+    if (res)
+    {
+        delta.commit();
+    }
+    return getFirstResult(*txFrame);
 }
 
 OperationFrame const&

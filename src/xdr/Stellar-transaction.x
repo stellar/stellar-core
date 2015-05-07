@@ -171,7 +171,7 @@ struct Operation
     case ACCOUNT_MERGE:
         uint256 destination;
     case INFLATION:
-        uint32 inflationSeq;
+        void;
     }
     body;
 };
