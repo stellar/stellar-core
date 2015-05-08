@@ -468,8 +468,7 @@ HerderImpl::validateBallot(uint64 const& slotIndex, uint256 const& nodeID,
         // that ballot.
         std::shared_ptr<VirtualTimer> ballotTimer =
             std::make_shared<VirtualTimer>(mApp);
-        ballotTimer->expires_from_now(std::chrono::milliseconds(
-            (int)(1000 * pow(2.0, ballot.counter) / 2)));
+        ballotTimer->expires_from_now(MAX_SCP_TIMEOUT_SECONDS * pow(2.0, ballot.counter) / 2);
         ballotTimer->async_wait(
             [cb, this](asio::error_code const&)
             {
