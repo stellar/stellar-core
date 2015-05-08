@@ -356,6 +356,48 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                             PAYMENT_SUCCESS);
                 }
             }
+            SECTION("operation using default signature")
+            {
+                SecretKey c1 = getAccount("C");
+
+                // build a transaction:
+                //  1. B funds C
+                //  2. send from C -> root
+
+                TransactionFramePtr tx =
+                    createPaymentTx(b1, c1, b1Seq++, paymentAmount / 2);
+
+                TransactionFramePtr tx_c = createPaymentTx(c1, root, 0, 1000);
+
+                tx_c->getEnvelope().tx.operations[0].sourceAccount.activate() =
+                    c1.getPublicKey();
+
+                tx->getEnvelope().tx.operations.push_back(
+                    tx_c->getEnvelope().tx.operations[0]);
+
+                tx->getEnvelope().tx.maxFee *= 2;
+
+                tx->getEnvelope().signatures.clear();
+                tx->addSignature(b1);
+                tx->addSignature(c1);
+
+                LedgerDelta delta(
+                    app.getLedgerManager().getCurrentLedgerHeader());
+
+                REQUIRE(tx->checkValid(app, 0));
+
+                tx->apply(delta, app);
+
+                REQUIRE(tx->getResult().feeCharged ==
+                        2 * app.getLedgerManager().getTxFee());
+                REQUIRE(tx->getResultCode() == txSUCCESS);
+
+                REQUIRE(PaymentOpFrame::getInnerCode(getFirstResult(*tx)) ==
+                        PAYMENT_SUCCESS);
+                REQUIRE(PaymentOpFrame::getInnerCode(
+                            tx->getOperations()[1]->getResult()) ==
+                        PAYMENT_SUCCESS);
+            }
         }
     }
 
