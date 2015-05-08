@@ -34,7 +34,7 @@ CreateOfferOpFrame::checkOfferValid(Database& db)
     Currency const& sheep = mCreateOffer.takerGets;
     Currency const& wheat = mCreateOffer.takerPays;
 
-    if (sheep.type() != NATIVE)
+    if (sheep.type() != CURRENCY_TYPE_NATIVE)
     {
         if (!TrustFrame::loadTrustLine(getSourceID(), sheep, mSheepLineA, db))
         { // we don't have what we are trying to sell
@@ -48,7 +48,7 @@ CreateOfferOpFrame::checkOfferValid(Database& db)
         }
     }
 
-    if (wheat.type() != NATIVE)
+    if (wheat.type() != CURRENCY_TYPE_NATIVE)
     {
         if (!TrustFrame::loadTrustLine(getSourceID(), wheat, mWheatLineA, db))
         { // we can't hold what we are trying to buy
@@ -56,7 +56,7 @@ CreateOfferOpFrame::checkOfferValid(Database& db)
             return false;
         }
 
-        if (!mWheatLineA.getTrustLine().authorized)
+        if (!mWheatLineA.isAuthorized())
         { // we are not authorized to hold what we are trying to buy
             innerResult().code(CREATE_OFFER_NOT_AUTHORIZED);
             return false;
@@ -117,7 +117,7 @@ CreateOfferOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
     int64_t maxSheepSend = mCreateOffer.amount;
 
     int64_t maxAmountOfSheepCanSell;
-    if (sheep.type() == NATIVE)
+    if (sheep.type() == CURRENCY_TYPE_NATIVE)
     {
         maxAmountOfSheepCanSell =
             mSourceAccount->getBalanceAboveReserve(ledgerManager);
@@ -129,7 +129,7 @@ CreateOfferOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
 
     // the maximum is defined by how much wheat it can receive
     int64_t maxWheatCanSell;
-    if (wheat.type() == NATIVE)
+    if (wheat.type() == CURRENCY_TYPE_NATIVE)
     {
         maxWheatCanSell = INT64_MAX;
     }
@@ -221,7 +221,7 @@ CreateOfferOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
 
         if (wheatReceived > 0)
         {
-            if (wheat.type() == NATIVE)
+            if (wheat.type() == CURRENCY_TYPE_NATIVE)
             {
                 mSourceAccount->getAccount().balance += wheatReceived;
                 mSourceAccount->storeChange(delta, db);
@@ -244,7 +244,7 @@ CreateOfferOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
                 wheatLineSigningAccount.storeChange(delta, db);
             }
 
-            if (sheep.type() == NATIVE)
+            if (sheep.type() == CURRENCY_TYPE_NATIVE)
             {
                 mSourceAccount->getAccount().balance -= sheepSent;
                 mSourceAccount->storeChange(delta, db);
@@ -310,6 +310,12 @@ CreateOfferOpFrame::doCheckValid(Application& app)
 {
     Currency const& sheep = mCreateOffer.takerGets;
     Currency const& wheat = mCreateOffer.takerPays;
+
+    if(!isCurrencyValid(sheep) || !isCurrencyValid(wheat))
+    {
+        innerResult().code(CREATE_OFFER_MALFORMED);
+        return false;
+    }
     if (compareCurrency(sheep, wheat))
     {
         innerResult().code(CREATE_OFFER_MALFORMED);

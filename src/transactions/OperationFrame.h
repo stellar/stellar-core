@@ -61,7 +61,7 @@ class OperationFrame
     }
     OperationResultCode getResultCode() const;
 
-    bool checkValid(Application& app);
+    bool checkValid(Application& app, bool forApply = false);
 
     bool apply(LedgerDelta& delta, Application& app);
 

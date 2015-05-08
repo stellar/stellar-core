@@ -65,6 +65,16 @@ AccountFrame::AccountFrame(AccountID const& id) : AccountFrame()
     mAccountEntry.accountID = id;
 }
 
+AccountFrame
+AccountFrame::makeAuthOnlyAccount(AccountID const& id)
+{
+    AccountFrame ret(id);
+    // puts a negative balance to trip any attempt to save this
+    ret.mAccountEntry.balance = INT64_MIN;
+
+    return ret;
+}
+
 void
 AccountFrame::normalize()
 {
@@ -175,14 +185,14 @@ AccountFrame::loadAccount(AccountID const& accountID, AccountFrame& retAcc,
             from Accounts where accountID=:v1",
             into(account.balance), into(account.seqNum),
             into(account.numSubEntries), into(inflationDest, inflationDestInd),
-            into(homeDomain, homeDomainInd),
-            into(thresholds, thresholdsInd), into(account.flags), use(base58ID);
+            into(homeDomain, homeDomainInd), into(thresholds, thresholdsInd),
+            into(account.flags), use(base58ID);
     }
 
     if (!session.got_data())
         return false;
 
-    if(homeDomainInd == soci::i_ok)
+    if (homeDomainInd == soci::i_ok)
     {
         account.homeDomain = homeDomain;
     }
@@ -295,8 +305,7 @@ AccountFrame::storeUpdate(LedgerDelta& delta, Database& db, bool insert) const
     }
     else
     {
-         sql = std::string(
-            "UPDATE Accounts SET balance = :v1, seqNum = :v2, \
+        sql = std::string("UPDATE Accounts SET balance = :v1, seqNum = :v2, \
                 numSubEntries = :v3, \
                 inflationDest = :v4, homeDomain = :v5, thresholds = :v6,   \
                 flags = :v7 WHERE accountID = :id");

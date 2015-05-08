@@ -357,7 +357,6 @@ HistoryTests::generateAndPublishInitialHistory(size_t nPublishes)
     app.start();
 
     auto& lm = app.getLedgerManager();
-    auto& hm = app.getHistoryManager();
 
     // At this point LCL should be 1, current ledger should be 2
     assert(lm.getLastClosedLedgerHeader().header.ledgerSeq == 1);
@@ -395,7 +394,6 @@ HistoryTests::catchupApplication(uint32_t initLedger,
 {
 
 
-    bool done = false;
     auto& lm = app2->getLedgerManager();
     if (doStart)
     {
@@ -610,7 +608,6 @@ TEST_CASE_METHOD(HistoryTests, "Full history catchup",
 {
     generateAndPublishInitialHistory(3);
 
-    uint32_t lastLedger = 0;
     uint32_t initLedger = app.getLedgerManager().getLastClosedLedgerNum();
 
     std::vector<Application::pointer> apps;
@@ -641,7 +638,6 @@ TEST_CASE_METHOD(HistoryTests, "History publish queueing",
 {
     generateAndPublishInitialHistory(1);
 
-    auto& lm = app.getLedgerManager();
     auto& hm = app.getHistoryManager();
 
     while (hm.getPublishDelayCount() < 2)

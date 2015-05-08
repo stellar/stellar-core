@@ -28,8 +28,8 @@ enum AccountFlags
 
 /* AccountEntry
 
-    Main entry representing a user in Stellar. All transactions are performed
-    using an account.
+    Main entry representing a user in Stellar. All transactions are
+    performed using an account.
 
     Other ledger entries created require an account.
 
@@ -60,6 +60,11 @@ struct AccountEntry
     as well as the balance.
 */
 
+enum TrustLineFlags
+{
+    AUTHORIZED_FLAG = 1 // issuer has authorized account to hold its credit
+};
+
 struct TrustLineEntry
 {
     AccountID accountID; // account this trustline belongs to
@@ -67,8 +72,8 @@ struct TrustLineEntry
     int64 balance;       // how much of this currency the user has.
                          // Currency defines the unit for this;
 
-    int64 limit;     // balance cannot be above this
-    bool authorized; // issuer has authorized account to hold its credit
+    int64 limit;  // balance cannot be above this
+    uint32 flags; // see TrustLineFlags
 };
 
 /* OfferEntry

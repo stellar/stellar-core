@@ -44,8 +44,8 @@ auto validLedgerEntryGenerator = autocheck::map(
         {
         case TRUSTLINE:
         {
-            le.trustLine().currency.type(ISO4217);
-            strToCurrencyCode(le.trustLine().currency.isoCI().currencyCode,
+            le.trustLine().currency.type(CURRENCY_TYPE_ALPHANUM);
+            strToCurrencyCode(le.trustLine().currency.alphaNum().currencyCode,
                               "USD");
             clampLow<int64_t>(0, le.trustLine().balance);
             clampLow<int64_t>(0, le.trustLine().limit);
@@ -55,11 +55,13 @@ auto validLedgerEntryGenerator = autocheck::map(
 
         case OFFER:
         {
-            le.offer().takerGets.type(ISO4217);
-            strToCurrencyCode(le.offer().takerGets.isoCI().currencyCode, "CAD");
+            le.offer().takerGets.type(CURRENCY_TYPE_ALPHANUM);
+            strToCurrencyCode(le.offer().takerGets.alphaNum().currencyCode,
+                              "CAD");
 
-            le.offer().takerPays.type(ISO4217);
-            strToCurrencyCode(le.offer().takerPays.isoCI().currencyCode, "EUR");
+            le.offer().takerPays.type(CURRENCY_TYPE_ALPHANUM);
+            strToCurrencyCode(le.offer().takerPays.alphaNum().currencyCode,
+                              "EUR");
 
             clampLow<int64_t>(0, le.offer().amount);
             clampLow(0, le.offer().price.n);

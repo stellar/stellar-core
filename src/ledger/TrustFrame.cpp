@@ -18,13 +18,13 @@ namespace stellar
 const char* TrustFrame::kSQLCreateStatement1 =
     "CREATE TABLE TrustLines"
     "("
-    "accountID     VARCHAR(51)  NOT NULL,"
-    "issuer        VARCHAR(51)  NOT NULL,"
-    "isoCurrency   VARCHAR(4)   NOT NULL,"
-    "tlimit        BIGINT       NOT NULL DEFAULT 0 CHECK (tlimit >= 0),"
-    "balance       BIGINT       NOT NULL DEFAULT 0 CHECK (balance >= 0),"
-    "authorized    BOOL         NOT NULL,"
-    "PRIMARY KEY (accountID, issuer, isoCurrency)"
+    "accountID     VARCHAR(51)     NOT NULL,"
+    "issuer        VARCHAR(51)     NOT NULL,"
+    "AlphaNumCurrency   VARCHAR(4) NOT NULL,"
+    "tlimit        BIGINT          NOT NULL DEFAULT 0 CHECK (tlimit >= 0),"
+    "balance       BIGINT          NOT NULL DEFAULT 0 CHECK (balance >= 0),"
+    "flags         INT             NOT NULL,"
+    "PRIMARY KEY (accountID, issuer, AlphaNumCurrency)"
     ");";
 
 const char* TrustFrame::kSQLCreateStatement2 =
@@ -61,12 +61,12 @@ TrustFrame::getKeyFields(LedgerKey const& key, std::string& base58AccountID,
                          std::string& base58Issuer, std::string& currencyCode)
 {
     base58AccountID = toBase58Check(VER_ACCOUNT_ID, key.trustLine().accountID);
-    base58Issuer =
-        toBase58Check(VER_ACCOUNT_ID, key.trustLine().currency.isoCI().issuer);
+    base58Issuer = toBase58Check(VER_ACCOUNT_ID,
+                                 key.trustLine().currency.alphaNum().issuer);
     if (base58AccountID == base58Issuer)
         throw std::runtime_error("Issuer's own trustline should not be used "
                                  "outside of OperationFrame");
-    currencyCodeToStr(key.trustLine().currency.isoCI().currencyCode,
+    currencyCodeToStr(key.trustLine().currency.alphaNum().currencyCode,
                       currencyCode);
 }
 
@@ -75,6 +75,25 @@ TrustFrame::getBalance() const
 {
     assert(isValid());
     return mTrustLine.balance;
+}
+
+bool
+TrustFrame::isAuthorized() const
+{
+    return (mTrustLine.flags & AUTHORIZED_FLAG) != 0;
+}
+
+void
+TrustFrame::setAuthorized(bool authorized)
+{
+    if (authorized)
+    {
+        mTrustLine.flags |= AUTHORIZED_FLAG;
+    }
+    else
+    {
+        mTrustLine.flags &= ~AUTHORIZED_FLAG;
+    }
 }
 
 bool
@@ -88,7 +107,7 @@ TrustFrame::addBalance(int64_t delta)
     {
         return true;
     }
-    if (!mTrustLine.authorized)
+    if (!isAuthorized())
     {
         return false;
     }
@@ -112,7 +131,7 @@ TrustFrame::getMaxAmountReceive() const
     {
         amount = INT64_MAX;
     }
-    else if (mTrustLine.authorized)
+    else if (isAuthorized())
     {
         amount = mTrustLine.limit - mTrustLine.balance;
     }
@@ -123,7 +142,7 @@ bool
 TrustFrame::isValid() const
 {
     TrustLineEntry const& tl = mTrustLine;
-    bool res = tl.currency.type() != NATIVE;
+    bool res = tl.currency.type() != CURRENCY_TYPE_NATIVE;
     res = res && (tl.balance >= 0);
     res = res && (tl.balance <= tl.limit);
     return res;
@@ -137,7 +156,7 @@ TrustFrame::exists(Database& db, LedgerKey const& key)
     int exists = 0;
     auto timer = db.getSelectTimer("trust-exists");
     db.getSession() << "SELECT EXISTS (SELECT NULL FROM TrustLines \
-             WHERE accountID=:v1 and issuer=:v2 and isoCurrency=:v3)",
+             WHERE accountID=:v1 and issuer=:v2 and AlphaNumCurrency=:v3)",
         use(b58AccountID), use(b58Issuer), use(currencyCode), into(exists);
     return exists != 0;
 }
@@ -156,7 +175,7 @@ TrustFrame::storeDelete(LedgerDelta& delta, Database& db, LedgerKey const& key)
 
     auto timer = db.getDeleteTimer("trust");
     db.getSession() << "DELETE from TrustLines \
-             WHERE accountID=:v1 and issuer=:v2 and isoCurrency=:v3",
+             WHERE accountID=:v1 and issuer=:v2 and AlphaNumCurrency=:v3",
         use(b58AccountID), use(b58Issuer), use(currencyCode);
 
     delta.deleteEntry(key);
@@ -175,10 +194,10 @@ TrustFrame::storeChange(LedgerDelta& delta, Database& db) const
 
     auto timer = db.getUpdateTimer("trust");
     statement st = (db.getSession().prepare << "UPDATE TrustLines \
-              SET balance=:b, tlimit=:tl, authorized=:a \
-              WHERE accountID=:v1 and issuer=:v2 and isoCurrency=:v3",
+              SET balance=:b, tlimit=:tl, flags=:a \
+              WHERE accountID=:v1 and issuer=:v2 and AlphaNumCurrency=:v3",
                     use(mTrustLine.balance), use(mTrustLine.limit),
-                    use((int)mTrustLine.authorized), use(b58AccountID),
+                    use((int)mTrustLine.flags), use(b58AccountID),
                     use(b58Issuer), use(currencyCode));
 
     st.execute(true);
@@ -205,10 +224,10 @@ TrustFrame::storeAdd(LedgerDelta& delta, Database& db) const
     auto timer = db.getInsertTimer("trust");
     statement st =
         (db.getSession().prepare
-             << "INSERT INTO TrustLines (accountID, issuer, isoCurrency, tlimit, authorized) \
+             << "INSERT INTO TrustLines (accountID, issuer, AlphaNumCurrency, tlimit, flags) \
                  VALUES (:v1,:v2,:v3,:v4,:v5)",
          use(b58AccountID), use(b58Issuer), use(currencyCode),
-         use(mTrustLine.limit), use((int)mTrustLine.authorized));
+         use(mTrustLine.limit), use((int)mTrustLine.flags));
 
     st.execute(true);
 
@@ -221,15 +240,15 @@ TrustFrame::storeAdd(LedgerDelta& delta, Database& db) const
 }
 
 static const char* trustLineColumnSelector =
-    "SELECT accountID, issuer, isoCurrency, tlimit,balance,authorized FROM "
+    "SELECT accountID, issuer, AlphaNumCurrency, tlimit,balance,flags FROM "
     "TrustLines";
 
 void
 TrustFrame::setAsIssuer(Currency const& issuer)
 {
     mIsIssuer = true;
-    mTrustLine.accountID = issuer.isoCI().issuer;
-    mTrustLine.authorized = true;
+    mTrustLine.accountID = issuer.alphaNum().issuer;
+    mTrustLine.flags |= AUTHORIZED_FLAG;
     mTrustLine.balance = INT64_MAX;
     mTrustLine.currency = issuer;
     mTrustLine.limit = INT64_MAX;
@@ -239,7 +258,7 @@ bool
 TrustFrame::loadTrustLine(AccountID const& accountID, Currency const& currency,
                           TrustFrame& retLine, Database& db)
 {
-    if (accountID == currency.isoCI().issuer)
+    if (accountID == currency.alphaNum().issuer)
     {
         retLine.setAsIssuer(currency);
         return true;
@@ -248,15 +267,15 @@ TrustFrame::loadTrustLine(AccountID const& accountID, Currency const& currency,
     std::string accStr, issuerStr, currencyStr;
 
     accStr = toBase58Check(VER_ACCOUNT_ID, accountID);
-    currencyCodeToStr(currency.isoCI().currencyCode, currencyStr);
-    issuerStr = toBase58Check(VER_ACCOUNT_ID, currency.isoCI().issuer);
+    currencyCodeToStr(currency.alphaNum().currencyCode, currencyStr);
+    issuerStr = toBase58Check(VER_ACCOUNT_ID, currency.alphaNum().issuer);
 
     session& session = db.getSession();
 
     details::prepare_temp_type sql =
         (session.prepare << trustLineColumnSelector
                          << " WHERE accountID=:id AND "
-                            "issuer=:issuer AND isoCurrency=:currency",
+                            "issuer=:issuer AND AlphaNumCurrency=:currency",
          use(accStr), use(issuerStr), use(currencyStr));
 
     bool res = false;
@@ -270,7 +289,7 @@ TrustFrame::loadTrustLine(AccountID const& accountID, Currency const& currency,
     return res;
 }
 
-bool 
+bool
 TrustFrame::hasIssued(AccountID const& issuerID, Database& db)
 {
     std::string accStr;
@@ -279,14 +298,15 @@ TrustFrame::hasIssued(AccountID const& issuerID, Database& db)
     session& session = db.getSession();
 
     details::prepare_temp_type sql =
-        (session.prepare << "SELECT balance from TrustLines WHERE issuer=:id and balance>0 limit 1",
-        use(accStr));
+        (session.prepare << "SELECT balance from TrustLines WHERE issuer=:id "
+                            "and balance>0 limit 1",
+         use(accStr));
 
     auto timer = db.getSelectTimer("trust");
     int balance = 0;
     statement st = (sql, into(balance));
     st.execute(true);
-    if(st.got_data())
+    if (st.got_data())
     {
         return true;
     }
@@ -299,23 +319,22 @@ TrustFrame::loadLines(details::prepare_temp_type& prep,
 {
     string accountID;
     std::string issuer, currency;
-    int authorized;
 
     TrustFrame curTrustLine;
 
     TrustLineEntry& tl = curTrustLine.mTrustLine;
 
     statement st = (prep, into(accountID), into(issuer), into(currency),
-                    into(tl.limit), into(tl.balance), into(authorized));
+                    into(tl.limit), into(tl.balance), into(tl.flags));
 
     st.execute(true);
     while (st.got_data())
     {
         tl.accountID = fromBase58Check256(VER_ACCOUNT_ID, accountID);
-        tl.currency.type(ISO4217);
-        tl.currency.isoCI().issuer = fromBase58Check256(VER_ACCOUNT_ID, issuer);
-        strToCurrencyCode(tl.currency.isoCI().currencyCode, currency);
-        tl.authorized = (authorized != 0);
+        tl.currency.type(CURRENCY_TYPE_ALPHANUM);
+        tl.currency.alphaNum().issuer =
+            fromBase58Check256(VER_ACCOUNT_ID, issuer);
+        strToCurrencyCode(tl.currency.alphaNum().currencyCode, currency);
 
         assert(curTrustLine.isValid());
         trustProcessor(curTrustLine);

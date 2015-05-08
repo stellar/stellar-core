@@ -60,7 +60,7 @@ bool
 OperationFrame::apply(LedgerDelta& delta, Application& app)
 {
     bool res;
-    res = checkValid(app);
+    res = checkValid(app, true);
     if (res)
     {
         res = doApply(delta, app.getLedgerManager());
@@ -109,18 +109,33 @@ OperationFrame::getResultCode() const
 // don't consider minBalance since you want to allow them to still send
 // around credit etc
 bool
-OperationFrame::checkValid(Application& app)
+OperationFrame::checkValid(Application& app, bool forApply)
 {
     if (!loadAccount(app))
     {
-        mResult.code(opNO_ACCOUNT);
-        return false;
+        if (forApply || !mOperation.sourceAccount)
+        {
+            mResult.code(opNO_ACCOUNT);
+            return false;
+        }
+        else
+        {
+            mSourceAccount = make_shared<AccountFrame>(
+                AccountFrame::makeAuthOnlyAccount(*mOperation.sourceAccount));
+        }
     }
 
     if (!checkSignature())
     {
         mResult.code(opBAD_AUTH);
         return false;
+    }
+
+    if (!forApply)
+    {
+        // safety: operations should not rely on ledger state as
+        // previous operations may change it (can even create the account)
+        mSourceAccount.reset();
     }
 
     mResult.code(opINNER);
