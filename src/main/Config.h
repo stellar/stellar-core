@@ -70,6 +70,7 @@ class Config : public std::enable_shared_from_this<Config>
     // for stress-testing the ability to resume from an interrupted merge,
     // and should be false in all normal cases.
     bool ARTIFICIALLY_PESSIMIZE_MERGES_FOR_TESTING;
+    bool BREAK_ASIO_LOOP_FOR_FAST_TESTS;
 
     uint32_t PROTOCOL_VERSION;
     std::string VERSION_STR;

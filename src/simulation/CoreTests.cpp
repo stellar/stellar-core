@@ -41,7 +41,7 @@ void printStats(int& nLedgers, std::chrono::system_clock::time_point tBegin, Sim
 
 
 
-TEST_CASE("core topology: 6 ledgers at scales 2..6", "[simulation]")
+TEST_CASE("core topology: 4 ledgers at scales 2..4", "[simulation]")
 {
     Simulation::Mode mode = Simulation::OVER_LOOPBACK;
     SECTION("Over loopback")
@@ -53,14 +53,14 @@ TEST_CASE("core topology: 6 ledgers at scales 2..6", "[simulation]")
         mode = Simulation::OVER_TCP;
     }
 
-    for (int size = 2; size <= 6; size+=2)
+    for (int size = 2; size <= 4; size++)
     {
         auto tBegin = std::chrono::system_clock::now();
 
         Simulation::pointer sim = Topologies::core(size, 1.0, mode);
         sim->startAllNodes();
 
-        int nLedgers = 6;
+        int nLedgers = 4;
         sim->crankUntil(
             [&sim, nLedgers]()
         {
@@ -94,7 +94,7 @@ hierarchicalTopo(int nLedgers, int nBranches, Simulation::Mode mode)
     printStats(nLedgers, tBegin, sim);
 }
 
-TEST_CASE("hierarchical topology scales 5..9", "[simulation]")
+TEST_CASE("hierarchical topology scales 1..3", "[simulation]")
 {
     Simulation::Mode mode = Simulation::OVER_LOOPBACK;
     SECTION("Over loopback")
@@ -108,8 +108,8 @@ TEST_CASE("hierarchical topology scales 5..9", "[simulation]")
         mode = Simulation::OVER_TCP;
     }
 
-    int const nLedgers = 5;
-    for (auto nBranches = 1; nBranches <= 5; nBranches+=2)
+    int const nLedgers = 4;
+    for (auto nBranches = 1; nBranches <= 3; nBranches+=2)
     {
         hierarchicalTopo(nLedgers, nBranches, mode);
     }
