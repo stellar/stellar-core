@@ -71,6 +71,7 @@ Simulation::addNode(SecretKey nodeKey, SCPQuorumSet qSet,
     {
         cfg = std::make_shared<Config>(getTestConfig(++mConfigCount));
     }
+    cfg->BREAK_ASIO_LOOP_FOR_FAST_TESTS = (mMode == OVER_TCP);
     cfg->VALIDATION_KEY = nodeKey;
     cfg->QUORUM_THRESHOLD = qSet.threshold;
     cfg->FORCE_SCP = true;
@@ -182,7 +183,7 @@ Simulation::haveAllExternalized(SequenceNumber num)
     uint32_t min = UINT_MAX;
     for (auto it = mNodes.begin(); it != mNodes.end(); ++it)
     {
-        auto n = it->second->getLedgerManager().getLedgerNum();
+        auto n = it->second->getLedgerManager().getLastClosedLedgerNum();
         LOG(DEBUG) << "Ledger#: " << n;
 
         if (n < min)

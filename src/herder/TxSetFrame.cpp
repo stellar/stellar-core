@@ -193,7 +193,7 @@ TxSetFrame::trimInvalid(Application& app,
 // the fees of all the tx it has submitted in this set
 // check seq num
 bool
-TxSetFrame::checkValid(Application& app)
+TxSetFrame::checkValid(Application& app) const
 {
     using xdr::operator==;
 
