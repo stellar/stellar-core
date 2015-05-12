@@ -41,7 +41,6 @@ class HerderImpl : public Herder, public SCP
 
     // Bootstraps the HerderImpl if we're creating a new Network
     void bootstrap() override;
-    void fetchTxSet(Hash tx_set_hash, std::function<void(TxSetFrame const & txSet)> cb);
 
     // SCP methods
     void validateValue(uint64 const& slotIndex, uint256 const& nodeID,
@@ -53,6 +52,11 @@ class HerderImpl : public Herder, public SCP
     void validateBallot(uint64 const& slotIndex, uint256 const& nodeID,
                         SCPBallot const& ballot,
                         std::function<void(bool)> const& cb) override;
+    void triggerAllBallotTimers(SCPBallot const& ballot);
+    void startBallotTimer(uint64 const& slotIndex, uint256 const& nodeID,
+        SCPBallot const& ballot,
+        std::chrono::milliseconds timeout,
+        std::function<void(bool)> const& cb);
 
     void ballotDidHearFromQuorum(uint64 const& slotIndex,
                                  SCPBallot const& ballot) override;
@@ -87,6 +91,8 @@ class HerderImpl : public Herder, public SCP
                          {
                          }) override;
 
+    void processSCPQueue();
+
     uint32_t getCurrentLedgerSeq() const override;
 
     void triggerNextLedger(uint32_t ledgerSeqToTrigger) override;
@@ -99,7 +105,7 @@ class HerderImpl : public Herder, public SCP
     void expireBallot(uint64 const& slotIndex, SCPBallot const& ballot);
 
     void startRebroadcastTimer();
-    void rebroadcast();
+    void broadcast();
 
     // StellarBallot internal signature/verification
     void signStellarBallot(StellarBallot& b);
@@ -107,7 +113,6 @@ class HerderImpl : public Herder, public SCP
 
     void updateSCPCounters();
 
-    void processSCPQueue();
     void processSCPQueueAtIndex(uint64 slotIndex);
     
     // 0- tx we got during ledger close
@@ -124,9 +129,7 @@ class HerderImpl : public Herder, public SCP
              std::map<uint256, std::vector<std::shared_ptr<VirtualTimer>>>>
         mBallotValidationTimers;
 
-    std::map<uint256, TxSetTrackerPtr> mTxSetFetches;
-    std::map<uint256, TxSetTrackerPtr> mTxSetCatchupFetches;
-    std::map<uint256, QuorumSetTrackerPtr> mQuorumSetFetches;
+    std::map<uint256, TxSetTrackerPtr> mProposedSetTrackers;
 
     void herderOutOfSync();
 

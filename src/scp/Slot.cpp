@@ -232,7 +232,10 @@ void
 Slot::bumpToBallot(SCPBallot const& ballot)
 {
     // `bumpToBallot` should be never called once we committed.
-    assert(!mIsCommitted && !mIsExternalized);
+    if (mIsCommitted || mIsExternalized)
+    {
+        return;
+    }
 
     CLOG(DEBUG, "SCP") << "Slot::bumpToBallot"
                        << "@" << hexAbbrev(mSCP->getLocalNodeID())

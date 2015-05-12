@@ -36,20 +36,24 @@ ItemFetcher<T, TrackerT>::get(uint256 itemID)
     if (mCache.exists(itemID))
     {
         return make_optional<T>(mCache.get(itemID));
-    } else
-    {
-        return nullopt<T>();
     }
-
+    if (auto tracker = getTracker(itemID, false))
+    {
+        if (tracker->isItemFound())
+        {
+            return make_optional<T>(tracker->get());
+        }
+    }
+    return nullptr;
 }
 
 template<class T, class TrackerT>
 typename ItemFetcher<T, TrackerT>::TrackerPtr
 ItemFetcher<T, TrackerT>::getOrFetch(uint256 itemID, std::function<void(T const &item)> cb)
 {
-    if (mCache.exists(itemID))
+    if (auto result = get(itemID))
     {
-        cb(mCache.get(itemID));
+        cb(*result);
         return nullptr;
     } else
     {
@@ -59,36 +63,64 @@ ItemFetcher<T, TrackerT>::getOrFetch(uint256 itemID, std::function<void(T const 
 
 template<class T, class TrackerT>
 typename ItemFetcher<T, TrackerT>::TrackerPtr
-ItemFetcher<T, TrackerT>::fetch(uint256 itemID, std::function<void(T const &item)> cb)
+ItemFetcher<T, TrackerT>::getTracker(uint256 itemID, bool create, bool *retNewTracker)
 {
-    auto entry = mTrackers.find(itemID);
     TrackerPtr tracker;
-    bool newTracker = false;
+    if (retNewTracker)
+        *retNewTracker = false;
 
-    if (entry != mTrackers.end())
+    auto entryIt = mTrackers.find(itemID);
+    if (entryIt != mTrackers.end())
     {
-        tracker = entry->second.lock();
+        tracker = entryIt->second.lock();
     }
-    if (!tracker || tracker->isStoped())
+
+    if (!tracker && create)
     {
         // no entry, or the weak pointer on the tracker could not lock.
         tracker = std::make_shared<TrackerT>(mApp, itemID, *this);
         mTrackers[itemID] = tracker;
-        newTracker = true;
-    }
 
-    tracker->listen(cb);
-    if (mCache.exists(itemID))
-    {
-        mTrackers.erase(itemID);
-        tracker->recv(mCache.get(itemID));
-    } else if (newTracker)
-    {
-        tracker->tryNextPeer();
+        if (retNewTracker)
+            *retNewTracker = true;
     }
     return tracker;
 }
 
+template<class T, class TrackerT>
+typename ItemFetcher<T, TrackerT>::TrackerPtr
+ItemFetcher<T, TrackerT>::fetch(uint256 itemID, std::function<void(T const &item)> cb)
+{
+    bool newTracker;
+    auto tracker = getTracker(itemID, true, &newTracker);
+
+    if (tracker->isItemFound())
+    {
+        cb(tracker->get());
+        return tracker;
+    }
+
+    if (tracker->isStopped())
+    {
+        // tracker was cancelled before it found the item. start a new one.
+        mTrackers.erase(itemID);
+        tracker = getTracker(itemID, true, &newTracker);
+        mTrackers[itemID] = tracker;
+    }
+
+    tracker->listen(cb);
+
+    if (mCache.exists(itemID))
+    {
+        tracker->recv(mCache.get(itemID));
+    }
+    else if (newTracker)
+    {
+        tracker->tryNextPeer();
+    }
+
+    return tracker;
+}
 
 
 template<class T, class TrackerT>
@@ -99,6 +131,7 @@ ItemFetcher<T, TrackerT>::doesntHave(uint256 const& itemID, Peer::pointer peer)
     {
         tracker->doesntHave(peer);
     }
+    dropStaleTrackers();
 }
 
 template<class T, class TrackerT>
@@ -108,38 +141,56 @@ ItemFetcher<T, TrackerT>::recv(uint256 itemID, T const & item)
     if (auto tracker = isNeeded(itemID))
     {
         mCache.put(itemID, item);
-        mTrackers.erase(itemID);
         tracker->recv(item);
     }
+    dropStaleTrackers();
 }
 
 template<class T, class TrackerT>
-void ItemFetcher<T, TrackerT>::cache(Hash itemID, T const & item)
+typename ItemFetcher<T, TrackerT>::TrackerPtr
+ItemFetcher<T, TrackerT>::cache(Hash itemID, T const & item)
 {
     mCache.put(itemID, item);
-    recv(itemID, item); // notify listeners, if any
+    auto result = getTracker(itemID, true);
+    recv(itemID, item); // notify listeners, if any, mark as found
+    return result;
 }
 
 template<class T, class TrackerT>
-optional<typename ItemFetcher<T, TrackerT>::Tracker>
+typename ItemFetcher<T, TrackerT>::TrackerPtr
 ItemFetcher<T, TrackerT>::isNeeded(uint256 itemID)
 {
-    auto entry = mTrackers.find(itemID);
-    if (entry != mTrackers.end())
+    if (auto tracker = getTracker(itemID, false))
     {
-        if (auto tracker = entry->second.lock())
-        {
+        if (!tracker->isItemFound())
             return tracker;
-        }
-        else
-        {
-            mTrackers.erase(entry);
-            return nullptr;
-        }
     }
     return nullptr;
 }
 
+template <class T, class TrackerT>
+void 
+ItemFetcher<T, TrackerT>::dropStaleTrackers()
+{
+    if (mDropsSkipped < mTrackers.size() / 2)
+    {
+        ++mDropsSkipped;
+        return;
+    }
+    mDropsSkipped = 0;
+
+    auto it = mTrackers.begin();
+    while(it != mTrackers.end())
+    {
+        if (!it->second.lock())
+        {
+            it = mTrackers.erase(it);
+        } else
+        {
+            ++it;
+        }
+    }
+}
 
 template<class T, class TrackerT>
 ItemFetcher<T, TrackerT>::Tracker::~Tracker()
@@ -156,13 +207,13 @@ ItemFetcher<T, TrackerT>::Tracker::isItemFound()
 }
 
 template <class T, class TrackerT>
-bool ItemFetcher<T, TrackerT>::Tracker::isStoped()
+bool ItemFetcher<T, TrackerT>::Tracker::isStopped()
 {
-    return mIsStoped;
+    return mIsStopped;
 }
 
 template<class T, class TrackerT>
-T ItemFetcher<T, TrackerT>::Tracker::get()
+T const & ItemFetcher<T, TrackerT>::Tracker::get()
 {
     return *mItem;
 }
@@ -239,6 +290,7 @@ ItemFetcher<T, TrackerT>::Tracker::tryNextPeer()
             this->tryNextPeer();
         }, VirtualTimer::onFailureNoop);
     }
+
 }
 
 template<class T, class TrackerT>
@@ -248,7 +300,7 @@ void ItemFetcher<T, TrackerT>::Tracker::cancel()
     mPeersAsked.clear();
     mTimer.cancel();
     mLastAskedPeer = nullptr;
-    mIsStoped = true;
+    mIsStopped = true;
 }
 
 template<class T, class TrackerT>

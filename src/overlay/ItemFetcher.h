@@ -16,6 +16,21 @@
 
 /*
 Manages asking for Transaction or Quorum sets from Peers
+
+The ItemFetcher returns instances of the Tracker class. There exists
+exactly one tracker per item. The tracker is used both to maintain
+the state of the search, as well as to isolate cancellations. Instead
+of having a `stopFetching(itemID)` method, which would necessitate
+extra code to keep track of the different clients, ItemFetcher stops
+fetching an item when all the shared_ptrs to the item's tracker have
+been released.
+
+
+ItemFetcher caches the items for they are found and evicts them lru
+order. Keeping the item's tracker alive forces the item to remain
+cached, and it does not count against the cache size. In other words,
+items are cached either in the lru queue or their trackers.
+
 */
 
 namespace medida
@@ -36,12 +51,6 @@ template<class T, class TrackerT>
 class ItemFetcher : private NonMovableOrCopyable
 {
 public:
-    // The Tracker class is exposed in order to isolate cancellations.
-    // Instead of having a `stopFetching(itemID)` method, which would 
-    // necessitate extra code to keep track of the different clients, 
-    // ItemFetcher stops fetching an item when all the shared_ptrs to 
-    // the item's tracker have been released.
-    // 
     class Tracker : private NonMovableOrCopyable
     {
         Application &mApp;
@@ -50,7 +59,7 @@ public:
         std::vector<Peer::pointer> mPeersAsked;
         VirtualTimer mTimer;
         optional<T> mItem;
-        bool mIsStoped = false;
+        bool mIsStopped = false;
 
         std::vector<std::function<void(T item)>> mCallbacks;
     public:
@@ -63,8 +72,8 @@ public:
         virtual ~Tracker();
 
         bool isItemFound();
-        bool isStoped();
-        T get();
+        bool isStopped();
+        T const & get();
         void cancel();
         void listen(std::function<void(T const &item)> cb);
 
@@ -98,26 +107,34 @@ public:
     TrackerPtr fetch(uint256 itemID, std::function<void(T const & item)> cb);
 
 
-    // Hands to item immediately to `cb` if available in cache and returns `nullptr`,
+    // Hands the item immediately to `cb` if available in cache and returns `nullptr`,
     // else starts fetching the item and returns a tracker.
     TrackerPtr getOrFetch(uint256 itemID, std::function<void(T const & item)> cb);
+
 
     void doesntHave(uint256 const& itemID, Peer::pointer peer);
 
     // recv: notifies all listeners of the arrival of the item and caches it if 
-    // it was needed
+    // it was needed.
     void recv(uint256 itemID, T const & item);
 
-    // cache: notifies all listeneers of the arrival of the item and caches it 
-    // unconditionaly
-    void cache(Hash itemID, T const & item);
+    // Caches the value and returns a tracker. The value will be force-held in the cache
+    // as long as there exists a live reference to the tracker.
+    // `cache` also notifies all listeneers of the arrival of the item.
+    TrackerPtr cache(Hash itemID, T const & item);
 
-    optional<Tracker> isNeeded(uint256 itemID);
+
+    // Public for tests:
+    TrackerPtr isNeeded(uint256 itemID);
 
 protected:
+    TrackerPtr getTracker(uint256 itemID, bool create, bool *retNewTracker = nullptr);
+    void dropStaleTrackers();
+
     Application& mApp;
     std::map<uint256, std::weak_ptr<TrackerT>> mTrackers;
     cache::lru_cache<uint256, T> mCache;
+    size_t mDropsSkipped = 0;
 
     // NB: There are many ItemFetchers in the system at once, but we are sharing
     // a single counter for all the items being fetched by all of them. Be
