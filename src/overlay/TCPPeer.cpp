@@ -209,38 +209,44 @@ TCPPeer::startRead()
 {
     try
     {
-        auto self = dynamic_pointer_cast<TCPPeer>(shared_from_this());
+        weak_ptr<TCPPeer> selfWeak =
+            dynamic_pointer_cast<TCPPeer>(shared_from_this());
 
-        auto cont = [self]()
+        auto cont = [selfWeak]()
         {
-            assert(self->mIncomingHeader.size() == 0);
-            CLOG(TRACE, "Overlay") << "TCPPeer::startRead to "
-                << self->toString();
-            self->resetReadIdle();
-            self->mIncomingHeader.resize(4);
-            asio::async_read(*(self->mSocket.get()),
-                asio::buffer(self->mIncomingHeader),
-                [self](asio::error_code ec, std::size_t length)
+            if (auto self = selfWeak.lock())
             {
-                CLOG(TRACE, "Overlay")
-                    << "TCPPeer::startRead calledback "
-                    << ec << " length:" << length;
-                self->readHeaderHandler(ec, length);
-            });
+                assert(self->mIncomingHeader.size() == 0);
+                CLOG(TRACE, "Overlay") << "TCPPeer::startRead to "
+                                       << self->toString();
+                self->resetReadIdle();
+                self->mIncomingHeader.resize(4);
+                asio::async_read(
+                    *(self->mSocket.get()), asio::buffer(self->mIncomingHeader),
+                    [selfWeak](asio::error_code ec, std::size_t length)
+                    {
+                        if (auto self = selfWeak.lock())
+                        {
+                            CLOG(TRACE, "Overlay")
+                                << "TCPPeer::startRead calledback " << ec
+                                << " length:" << length;
+                            self->readHeaderHandler(ec, length);
+                        }
+                    });
+            };
         };
 
-
         mReadIdle.cancel();
-
+            
         if (mApp.getConfig().BREAK_ASIO_LOOP_FOR_FAST_TESTS)
         {
             mAsioLoopBreaker.expires_from_now(std::chrono::milliseconds(0));
             mAsioLoopBreaker.async_wait(cont, VirtualTimer::onFailureNoop);
-        } else
+        }
+        else
         {
             cont();
         }
-
     }
     catch (asio::system_error& e)
     {
