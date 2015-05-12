@@ -93,7 +93,7 @@ MergeOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
 }
 
 bool
-MergeOpFrame::doCheckValid(Application& app)
+MergeOpFrame::doCheckValid()
 {
     // makes sure not merging into self
     if (getSourceID() == mOperation.body.destination())

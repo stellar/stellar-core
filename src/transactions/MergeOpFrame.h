@@ -21,8 +21,8 @@ class MergeOpFrame : public OperationFrame
                  TransactionFrame& parentTx);
 
     int32_t getNeededThreshold() const;
-    bool doApply(LedgerDelta& delta, LedgerManager& ledgerManager);
-    bool doCheckValid(Application& app);
+    bool doApply(LedgerDelta& delta, LedgerManager& ledgerManager) override;
+    bool doCheckValid() override;
 
     static AccountMergeResultCode
     getInnerCode(OperationResult const& res)

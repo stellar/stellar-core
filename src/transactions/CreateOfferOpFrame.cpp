@@ -306,7 +306,7 @@ CreateOfferOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
 
 // makes sure the currencies are different
 bool
-CreateOfferOpFrame::doCheckValid(Application& app)
+CreateOfferOpFrame::doCheckValid()
 {
     Currency const& sheep = mCreateOffer.takerGets;
     Currency const& wheat = mCreateOffer.takerPays;

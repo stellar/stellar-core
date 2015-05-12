@@ -61,7 +61,7 @@ AllowTrustOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
 }
 
 bool
-AllowTrustOpFrame::doCheckValid(Application& app)
+AllowTrustOpFrame::doCheckValid()
 {
     if (mAllowTrust.currency.type() != CURRENCY_TYPE_ALPHANUM)
     {

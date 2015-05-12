@@ -141,6 +141,6 @@ OperationFrame::checkValid(Application& app, bool forApply)
     mResult.code(opINNER);
     mResult.tr().type(mOperation.body.type());
 
-    return doCheckValid(app);
+    return doCheckValid();
 }
 }

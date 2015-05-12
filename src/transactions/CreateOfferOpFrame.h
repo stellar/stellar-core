@@ -31,8 +31,8 @@ class CreateOfferOpFrame : public OperationFrame
     CreateOfferOpFrame(Operation const& op, OperationResult& res,
                        TransactionFrame& parentTx);
 
-    bool doApply(LedgerDelta& delta, LedgerManager& ledgerManager);
-    bool doCheckValid(Application& app);
+    bool doApply(LedgerDelta& delta, LedgerManager& ledgerManager) override;
+    bool doCheckValid() override;
 
     static CreateOfferResultCode
     getInnerCode(OperationResult const& res)

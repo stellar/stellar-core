@@ -137,7 +137,7 @@ InflationOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
 }
 
 bool
-InflationOpFrame::doCheckValid(Application& app)
+InflationOpFrame::doCheckValid()
 {
     return true;
 }

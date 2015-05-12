@@ -21,7 +21,7 @@ class InflationOpFrame : public OperationFrame
                      TransactionFrame& parentTx);
 
     bool doApply(LedgerDelta& delta, LedgerManager& ledgerManager) override;
-    bool doCheckValid(Application& app) override;
+    bool doCheckValid() override;
     int32_t getNeededThreshold() const override;
 
     static InflationResultCode

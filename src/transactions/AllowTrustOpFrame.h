@@ -23,8 +23,8 @@ class AllowTrustOpFrame : public OperationFrame
     AllowTrustOpFrame(Operation const& op, OperationResult& res,
                       TransactionFrame& parentTx);
 
-    bool doApply(LedgerDelta& delta, LedgerManager& ledgerManager);
-    bool doCheckValid(Application& app);
+    bool doApply(LedgerDelta& delta, LedgerManager& ledgerManager) override;
+    bool doCheckValid() override;
 
     static AllowTrustResultCode
     getInnerCode(OperationResult const& res)

@@ -226,7 +226,7 @@ PaymentOpFrame::sendNoCreate(AccountFrame& destination, LedgerDelta& delta,
 }
 
 bool
-PaymentOpFrame::doCheckValid(Application& app)
+PaymentOpFrame::doCheckValid()
 {
     if (mPayment.amount < 0 || mPayment.sendMax < 0)
     {

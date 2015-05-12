@@ -26,8 +26,8 @@ class PaymentOpFrame : public OperationFrame
     PaymentOpFrame(Operation const& op, OperationResult& res,
                    TransactionFrame& parentTx);
 
-    bool doApply(LedgerDelta& delta, LedgerManager& ledgerManager);
-    bool doCheckValid(Application& app);
+    bool doApply(LedgerDelta& delta, LedgerManager& ledgerManager) override;
+    bool doCheckValid() override;
 
     static PaymentResultCode
     getInnerCode(OperationResult const& res)
