@@ -113,7 +113,7 @@ void
 TCPPeer::resetWriteIdle()
 {
     std::shared_ptr<TCPPeer> self =
-        std::dynamic_pointer_cast<TCPPeer>(shared_from_this());
+        std::static_pointer_cast<TCPPeer>(shared_from_this());
     mWriteIdle.expires_from_now(std::chrono::seconds(IO_TIMEOUT_SECONDS));
     mWriteIdle.async_wait([self](asio::error_code const& error)
                           {
@@ -126,7 +126,7 @@ void
 TCPPeer::resetReadIdle()
 {
     std::shared_ptr<TCPPeer> self =
-        std::dynamic_pointer_cast<TCPPeer>(shared_from_this());
+        std::static_pointer_cast<TCPPeer>(shared_from_this());
     mReadIdle.expires_from_now(std::chrono::seconds(IO_TIMEOUT_SECONDS));
     mReadIdle.async_wait([self](asio::error_code const& error)
                          {
@@ -210,7 +210,7 @@ TCPPeer::startRead()
     try
     {
         weak_ptr<TCPPeer> selfWeak =
-            dynamic_pointer_cast<TCPPeer>(shared_from_this());
+            static_pointer_cast<TCPPeer>(shared_from_this());
 
         auto cont = [selfWeak]()
         {

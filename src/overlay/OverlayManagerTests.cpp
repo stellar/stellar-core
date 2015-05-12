@@ -127,7 +127,7 @@ class OverlayManagerTests
     {
         vector<int> result;
         for (auto p : pm.mPeers)
-            result.push_back(dynamic_pointer_cast<PeerStub>(p)->sent);
+            result.push_back(static_pointer_cast<PeerStub>(p)->sent);
         return result;
     }
 
