@@ -559,7 +559,8 @@ HerderImpl::valueExternalized(uint64 const& slotIndex, Value const& value)
 
 
     auto externalizedSet = mPendingEnvelopes.getTxSet(txSetHash);
-    mProposedSetTrackers.clear();
+
+    mProposedSetTrackers.erase(slotIndex);
 
     // trigger will be recreated when the ledger is closed
     // we do not want it to trigger while downloading the current set
@@ -1007,12 +1008,12 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger)
     auto & fetcher = mApp.getOverlayManager().getTxSetFetcher();
     auto tracker = fetcher.cache(txSetHash, *proposedSet);
     
-    // Force the cache to hold the value as long as it remains a candidate.
-    mProposedSetTrackers[txSetHash] = tracker;
-
     // use the slot index from ledger manager here as our vote is based off
     // the last closed ledger stored in ledger manager
     uint64_t slotIndex = lcl.header.ledgerSeq+1;
+
+    // Force the cache to hold the value as long as it remains a candidate.
+    mProposedSetTrackers[slotIndex] = tracker;
 
     // no point in sending out a prepare:
     // externalize was triggered on a more recent ledger

@@ -70,6 +70,12 @@ class Config : public std::enable_shared_from_this<Config>
     // for stress-testing the ability to resume from an interrupted merge,
     // and should be false in all normal cases.
     bool ARTIFICIALLY_PESSIMIZE_MERGES_FOR_TESTING;
+
+    // With many `Application` running in the same process under the 
+    // virtual clock, asio pooling never relinquishes the event loop.
+    // This option inserts a VirtualClock event after each read to
+    // restore fairness. (Consider removing this option once
+    // we are confortable doing this on prod as well.)
     bool BREAK_ASIO_LOOP_FOR_FAST_TESTS;
 
     uint32_t PROTOCOL_VERSION;

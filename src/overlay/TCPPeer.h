@@ -38,18 +38,18 @@ class TCPPeer : public Peer
     void resetWriteIdle();
     void resetReadIdle();
     void recvMessage();
-    bool recvHello(StellarMessage const& msg);
-    void sendMessage(xdr::msg_ptr&& xdrBytes);
+    bool recvHello(StellarMessage const& msg) override;
+    void sendMessage(xdr::msg_ptr&& xdrBytes) override;
     int getIncomingMsgLength();
     virtual void connected() override;
     void startRead();
 
     void writeHandler(asio::error_code const& error,
-                      std::size_t bytes_transferred);
+                      std::size_t bytes_transferred) override;
     void readHeaderHandler(asio::error_code const& error,
-                           std::size_t bytes_transferred);
+                           std::size_t bytes_transferred) override;
     void readBodyHandler(asio::error_code const& error,
-                         std::size_t bytes_transferred);
+                         std::size_t bytes_transferred) override;
 
     VirtualTimer mAsioLoopBreaker;
 
