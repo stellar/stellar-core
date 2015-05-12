@@ -124,7 +124,7 @@ class HerderImpl : public Herder, public SCP
              std::map<uint256, std::vector<std::shared_ptr<VirtualTimer>>>>
         mBallotValidationTimers;
 
-    std::map<uint256, TxSetTrackerPtr> mProposedSetTrackers;
+    std::map<uint32_t, TxSetTrackerPtr> mProposedSetTrackers;
 
     void herderOutOfSync();
 
