@@ -209,9 +209,8 @@ struct Transaction
     // account used to run the transaction
     AccountID sourceAccount;
 
-    // maximum fee this transaction can collect
-    // the transaction is aborted if the fee is higher
-    int32 maxFee;
+    // the fee the sourceAccount will pay 
+    int32 fee;
 
     // sequence number to consume in the account
     SequenceNumber seqNum;

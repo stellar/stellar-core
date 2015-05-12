@@ -217,7 +217,7 @@ TransactionFrame::checkValid(Application& app, bool applying,
     // fee we'd like to charge for this transaction
     int64_t fee = getFee(app);
 
-    if (mEnvelope.tx.maxFee < fee)
+    if (mEnvelope.tx.fee < fee)
     {
         getResult().result.code(txINSUFFICIENT_FEE);
         return false;
@@ -248,10 +248,10 @@ TransactionFrame::checkValid(Application& app, bool applying,
 
     // failures after this point will end up charging a fee if attempting to run
     // "apply"
-    getResult().feeCharged = fee;
+    getResult().feeCharged = mEnvelope.tx.fee;
 
     // don't let the account go below the reserve
-    if (mSigningAccount->getAccount().balance - fee <
+    if (mSigningAccount->getAccount().balance - mEnvelope.tx.fee <
         mSigningAccount->getMinimumBalance(app.getLedgerManager()))
     {
         getResult().result.code(txINSUFFICIENT_BALANCE);
