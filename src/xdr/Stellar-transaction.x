@@ -39,9 +39,6 @@ struct PaymentOp
     Currency currency;     // what they end up with
     int64 amount;          // amount they end up with
 
-    opaque memo<32>;
-    opaque sourceMemo<32>; // used to return a payment
-
     // payment over path
     Currency path<5>; // what hops it must go through to get there
     int64 sendMax; // the maximum amount of the source currency (==path[0]) to
@@ -212,9 +209,8 @@ struct Transaction
     // account used to run the transaction
     AccountID sourceAccount;
 
-    // maximum fee this transaction can collect
-    // the transaction is aborted if the fee is higher
-    int32 maxFee;
+    // the fee the sourceAccount will pay 
+    int32 fee;
 
     // sequence number to consume in the account
     SequenceNumber seqNum;

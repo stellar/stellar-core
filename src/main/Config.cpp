@@ -26,6 +26,7 @@ Config::Config() : PEER_KEY(SecretKey::random())
 
     // configurable
     DESIRED_BASE_FEE = 10;
+    DESIRED_MAX_TX_PER_LEDGER = 500;
     PEER_PORT = DEFAULT_PEER_PORT;
     RUN_STANDALONE = false;
     MANUAL_CLOSE = false;
@@ -86,6 +87,9 @@ Config::load(std::string const& filename)
             else if (item.first == "DESIRED_BASE_FEE")
                 DESIRED_BASE_FEE =
                     (uint32_t)item.second->as<int64_t>()->value();
+            else if(item.first == "DESIRED_MAX_TX_PER_LEDGER")
+                DESIRED_MAX_TX_PER_LEDGER =
+                (uint32_t)item.second->as<int64_t>()->value();
             else if (item.first == "RUN_STANDALONE")
                 RUN_STANDALONE = item.second->as<bool>()->value();
             else if (item.first == "CATCHUP_COMPLETE")

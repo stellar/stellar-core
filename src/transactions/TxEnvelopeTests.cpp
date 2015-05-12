@@ -177,7 +177,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
         {
             TransactionEnvelope te;
             te.tx.sourceAccount = root.getPublicKey();
-            te.tx.maxFee = 1000;
+            te.tx.fee = 1000;
             te.tx.maxLedger = 1000;
             te.tx.minLedger = 0;
             te.tx.seqNum = rootSeq++;
@@ -254,7 +254,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                         .sourceAccount.activate() = b1.getPublicKey();
                     tx_a->getEnvelope().tx.operations.push_back(
                         tx_b->getEnvelope().tx.operations[0]);
-                    tx_a->getEnvelope().tx.maxFee *= 2;
+                    tx_a->getEnvelope().tx.fee *= 2;
                     TransactionFramePtr tx =
                         TransactionFrame::makeTransactionFromWire(
                             tx_a->getEnvelope());
@@ -292,7 +292,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                         .sourceAccount.activate() = b1.getPublicKey();
                     tx_a->getEnvelope().tx.operations.push_back(
                         tx_b->getEnvelope().tx.operations[0]);
-                    tx_a->getEnvelope().tx.maxFee *= 2;
+                    tx_a->getEnvelope().tx.fee *= 2;
                     TransactionFramePtr tx =
                         TransactionFrame::makeTransactionFromWire(
                             tx_a->getEnvelope());
@@ -329,7 +329,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                         .sourceAccount.activate() = b1.getPublicKey();
                     tx_a->getEnvelope().tx.operations.push_back(
                         tx_b->getEnvelope().tx.operations[0]);
-                    tx_a->getEnvelope().tx.maxFee *= 2;
+                    tx_a->getEnvelope().tx.fee *= 2;
                     TransactionFramePtr tx =
                         TransactionFrame::makeTransactionFromWire(
                             tx_a->getEnvelope());
@@ -375,7 +375,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                 tx->getEnvelope().tx.operations.push_back(
                     tx_c->getEnvelope().tx.operations[0]);
 
-                tx->getEnvelope().tx.maxFee *= 2;
+                tx->getEnvelope().tx.fee *= 2;
 
                 tx->getEnvelope().signatures.clear();
                 tx->addSignature(b1);
@@ -426,7 +426,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
             SECTION("Insufficient fee")
             {
                 txFrame = createPaymentTx(root, a1, rootSeq++, paymentAmount);
-                txFrame->getEnvelope().tx.maxFee = static_cast<uint32_t>(
+                txFrame->getEnvelope().tx.fee = static_cast<uint32_t>(
                     app.getLedgerManager().getTxFee() - 1);
 
                 txFrame->apply(delta, app);
