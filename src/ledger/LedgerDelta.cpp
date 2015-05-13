@@ -189,19 +189,19 @@ LedgerDelta::getTransactionMeta() const
 
     for (auto const& k : mNew)
     {
-        tm.entries.emplace_back(LIVEENTRY);
-        tm.entries.back().liveEntry() = k.second->mEntry;
+        tm.changes.emplace_back(LEDGER_ENTRY_CREATED);
+        tm.changes.back().created() = k.second->mEntry;
     }
     for (auto const& k : mMod)
     {
-        tm.entries.emplace_back(LIVEENTRY);
-        tm.entries.back().liveEntry() = k.second->mEntry;
+        tm.changes.emplace_back(LEDGER_ENTRY_UPDATED);
+        tm.changes.back().updated() = k.second->mEntry;
     }
 
     for (auto const& k : mDelete)
     {
-        tm.entries.emplace_back(DEADENTRY);
-        tm.entries.back().deadEntry() = k;
+        tm.changes.emplace_back(LEDGER_ENTRY_REMOVED);
+        tm.changes.back().removed() = k;
     }
 
     return xdr::xdr_to_opaque(tm);
