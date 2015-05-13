@@ -326,7 +326,7 @@ closeLedgerOn(Application& app, uint32 ledgerSeq, int day, int month, int year,
 
 TEST_CASE("inflation", "[tx][inflation]")
 {
-    Config const& cfg = getTestConfig(0, Config::TESTDB_ON_DISK_SQLITE);
+    Config const& cfg = getTestConfig(0);
 
     VirtualClock::time_point inflationStart;
     // inflation starts on 1-jul-2014
