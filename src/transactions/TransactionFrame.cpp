@@ -258,12 +258,13 @@ TransactionFrame::checkValid(Application& app, bool applying,
     getResult().feeCharged = mEnvelope.tx.fee;
 
     // don't let the account go below the reserve
-    if (mSigningAccount->getAccount().balance - mEnvelope.tx.fee <
+    if(mSigningAccount->getAccount().balance - mEnvelope.tx.fee <
         mSigningAccount->getMinimumBalance(app.getLedgerManager()))
     {
         getResult().result.code(txINSUFFICIENT_BALANCE);
         return false;
     }
+
 
     if (!applying)
     {
