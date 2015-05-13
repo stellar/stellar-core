@@ -582,21 +582,19 @@ enum TransactionResultCode
 {
     txSUCCESS = 0, // all operations succeeded
 
-    txDUPLICATE = -1, // transaction was already submited
+    txFAILED = -1, // one of the operations failed (but none were applied)
 
-    txFAILED = -2, // one of the operations failed (but none were applied)
+    txTOO_EARLY = -2,         // ledger closeTime before minTime
+    txTOO_LATE = -3,          // ledger closeTime after maxTime
+    txMISSING_OPERATION = -4, // no operation was specified
+    txBAD_SEQ = -5,           // sequence number does not match source account
 
-    txTOO_EARLY = -3,         // ledger closeTime before minTime
-    txTOO_LATE = -4,          // ledger closeTime after maxTime
-    txMISSING_OPERATION = -5, // no operation was specified
-    txBAD_SEQ = -6,           // sequence number does not match source account
-
-    txBAD_AUTH = -7,             // not enough signatures to perform transaction
-    txINSUFFICIENT_BALANCE = -8, // fee would bring account below reserve
-    txNO_ACCOUNT = -9,           // source account not found
-    txINSUFFICIENT_FEE = -10,    // fee is too small
-    txBAD_AUTH_EXTRA = -11,      // too many signatures on transaction
-    txINTERNAL_ERROR = -12       // an unknown error occured
+    txBAD_AUTH = -6,             // not enough signatures to perform transaction
+    txINSUFFICIENT_BALANCE = -7, // fee would bring account below reserve
+    txNO_ACCOUNT = -8,           // source account not found
+    txINSUFFICIENT_FEE = -9,     // fee is too small
+    txBAD_AUTH_EXTRA = -10,      // too many signatures on transaction
+    txINTERNAL_ERROR = -11       // an unknown error occured
 };
 
 struct TransactionResult

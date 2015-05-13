@@ -324,8 +324,11 @@ Simulation::createRandomTransaction(float alpha)
 void
 Simulation::TxInfo::execute(Application& app)
 {
-    app.getHerder().recvTransaction(createPaymentTx());
-    recordExecution(app.getConfig().DESIRED_BASE_FEE);
+    if (app.getHerder().recvTransaction(createPaymentTx()) ==
+        Herder::TX_STATUS_PENDING)
+    {
+        recordExecution(app.getConfig().DESIRED_BASE_FEE);
+    }
 }
 
 TransactionFramePtr

@@ -136,7 +136,8 @@ CommandHandler::testTx(std::string const& params, std::string& retStr)
         {
             txFrame = createPaymentTx(fromKey, toKey, fromSeq, paymentAmount);
         }
-        bool ret = mApp.getHerder().recvTransaction(txFrame);
+        bool ret =
+            (mApp.getHerder().recvTransaction(txFrame) == Herder::TX_STATUS_PENDING);
         retStr = ret ? "Transaction submitted" : "Something went wrong";
     }
     else
@@ -439,6 +440,9 @@ CommandHandler::ll(std::string const& params, std::string& retStr)
     retStr = root.toStyledString();
 }
 
+static const char* TX_STATUS_STRING[Herder::TX_STATUS_COUNT] = {
+    "PENDING", "DUPLICATE", "ERROR"};
+
 void
 CommandHandler::tx(std::string const& params, std::string& retStr)
 {
@@ -460,10 +464,10 @@ CommandHandler::tx(std::string const& params, std::string& retStr)
             {
                 // add it to our current set
                 // and make sure it is valid
-                bool wasReceived =
+                Herder::TransactionSubmitStatus status =
                     mApp.getHerder().recvTransaction(transaction);
 
-                if (wasReceived)
+                if (status == Herder::TX_STATUS_PENDING)
                 {
                     StellarMessage msg;
                     msg.type(TRANSACTION);
@@ -471,17 +475,17 @@ CommandHandler::tx(std::string const& params, std::string& retStr)
                     mApp.getOverlayManager().broadcastMessage(msg);
                 }
 
-                std::string resultHex =
-                    binToHex(xdr::xdr_to_opaque(transaction->getResult()));
-
                 output << "{"
+                       << "\"status\": "
+                       << "\"" << TX_STATUS_STRING[status] << "\"";
+                if (status == Herder::TX_STATUS_ERROR)
+                {
+                    std::string resultHex =
+                        binToHex(xdr::xdr_to_opaque(transaction->getResult()));
 
-                       << "\"wasReceived\": "
-                       << (wasReceived ? "true" : "false") << ","
-
-                       << "\"result\": \"" << resultHex << "\""
-
-                       << "}";
+                    output << " , \"error\": \"" << resultHex << "\"";
+                }
+                output << "}";
             }
         }
         catch (std::exception& e)

@@ -42,7 +42,7 @@ Peer::Peer(Application& app, PeerRole role)
 void
 Peer::sendHello()
 {
-    CLOG(DEBUG,"Overlay") << "Peer::sendHello to " << toString();
+    CLOG(DEBUG, "Overlay") << "Peer::sendHello to " << toString();
 
     StellarMessage msg;
     msg.type(HELLO);
@@ -92,7 +92,7 @@ Peer::sendDontHave(MessageType type, uint256 const& itemID)
 }
 
 void
-Peer::sendSCPQuorumSet(SCPQuorumSet const & qSet)
+Peer::sendSCPQuorumSet(SCPQuorumSet const& qSet)
 {
     StellarMessage msg;
     msg.type(SCP_QUORUMSET);
@@ -255,12 +255,12 @@ Peer::recvDontHave(StellarMessage const& msg)
     switch (msg.dontHave().type)
     {
     case TX_SET:
-        mApp.getOverlayManager().getTxSetFetcher().doesntHave(msg.dontHave().reqHash, 
-                                                              shared_from_this());
+        mApp.getOverlayManager().getTxSetFetcher().doesntHave(
+            msg.dontHave().reqHash, shared_from_this());
         break;
     case SCP_QUORUMSET:
-        mApp.getOverlayManager().getQuorumSetFetcher().doesntHave(msg.dontHave().reqHash,
-                                                                  shared_from_this());
+        mApp.getOverlayManager().getQuorumSetFetcher().doesntHave(
+            msg.dontHave().reqHash, shared_from_this());
         break;
     default:
         break;
@@ -271,14 +271,16 @@ void
 Peer::recvGetTxSet(StellarMessage const& msg)
 {
     auto self = shared_from_this();
-    if (auto txSet = mApp.getOverlayManager().getTxSetFetcher().get(msg.txSetHash()))
+    if (auto txSet =
+            mApp.getOverlayManager().getTxSetFetcher().get(msg.txSetHash()))
     {
         StellarMessage newMsg;
         newMsg.type(TX_SET);
         txSet->toXDR(newMsg.txSet());
 
         self->sendMessage(newMsg);
-    } else
+    }
+    else
     {
         sendDontHave(TX_SET, msg.txSetHash());
     }
@@ -300,7 +302,8 @@ Peer::recvTransaction(StellarMessage const& msg)
     {
         // add it to our current set
         // and make sure it is valid
-        if (mApp.getHerder().recvTransaction(transaction))
+        if (mApp.getHerder().recvTransaction(transaction) ==
+            Herder::TX_STATUS_PENDING)
         {
             mApp.getOverlayManager().recvFloodedMsg(msg, shared_from_this());
             mApp.getOverlayManager().broadcastMessage(msg);
@@ -317,10 +320,13 @@ Peer::recvGetSCPQuorumSet(StellarMessage const& msg)
     if (msg.qSetHash() == localHash)
     {
         sendSCPQuorumSet(localQSet);
-    } else if (auto qSet = mApp.getOverlayManager().getQuorumSetFetcher().get(msg.qSetHash()))
+    }
+    else if (auto qSet = mApp.getOverlayManager().getQuorumSetFetcher().get(
+                 msg.qSetHash()))
     {
         sendSCPQuorumSet(*qSet);
-    } else
+    }
+    else
     {
         CLOG(TRACE, "Overlay")
             << "No quorum set: " << hexAbbrev(msg.qSetHash());
@@ -382,8 +388,7 @@ Peer::recvHello(StellarMessage const& msg)
     }
     mRemoteListeningPort =
         static_cast<unsigned short>(msg.hello().listeningPort);
-    CLOG(DEBUG, "Overlay") << "recvHello from "
-                          << toString();
+    CLOG(DEBUG, "Overlay") << "recvHello from " << toString();
     mState = GOT_HELLO;
     mPeerID = msg.hello().peerID;
     return true;

@@ -718,7 +718,7 @@ HerderImpl::recvTransactions(TxSetFrame &txSet)
     bool allGood = true;
     for (auto tx : txSet.sortForApply())
     {
-        if (!recvTransaction(tx))
+        if (recvTransaction(tx) != TX_STATUS_PENDING)
         {
             allGood = false;
         }
@@ -726,7 +726,7 @@ HerderImpl::recvTransactions(TxSetFrame &txSet)
     return allGood;
 }
 
-bool
+Herder::TransactionSubmitStatus
 HerderImpl::recvTransaction(TransactionFramePtr tx)
 {
     Hash const& txID = tx->getFullHash();
@@ -742,8 +742,7 @@ HerderImpl::recvTransaction(TransactionFramePtr tx)
         {
             if (txID == oldTX->getFullHash())
             {
-                tx->getResult().result.code(txDUPLICATE);
-                return false;
+                return TX_STATUS_DUPLICATE;
             }
             if (oldTX->getSourceID() == tx->getSourceID())
             {
@@ -758,18 +757,18 @@ HerderImpl::recvTransaction(TransactionFramePtr tx)
 
     if (!tx->checkValid(mApp, highSeq))
     {
-        return false;
+        return TX_STATUS_ERROR;
     }
 
     if (tx->getSourceAccount().getBalanceAboveReserve(mLedgerManager) < totFee)
     {
         tx->getResult().result.code(txINSUFFICIENT_BALANCE);
-        return false;
+        return TX_STATUS_ERROR;
     }
 
     mReceivedTransactions[0].push_back(tx);
 
-    return true;
+    return TX_STATUS_PENDING;
 }
 
 void
