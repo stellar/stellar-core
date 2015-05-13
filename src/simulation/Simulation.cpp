@@ -64,8 +64,8 @@ Simulation::getClock()
 }
 
 uint256
-Simulation::addNode(SecretKey nodeKey, SCPQuorumSet qSet,
-                    VirtualClock& clock, Config::pointer cfg)
+Simulation::addNode(SecretKey nodeKey, SCPQuorumSet qSet, VirtualClock& clock,
+                    Config::pointer cfg)
 {
     if (!cfg)
     {
@@ -299,7 +299,7 @@ Simulation::crankUntil(function<bool()> const& predicate,
 Simulation::TxInfo
 Simulation::createTransferTransaction(size_t iFrom, size_t iTo, uint64_t amount)
 {
-    return TxInfo{mAccounts[iFrom], mAccounts[iTo], amount};
+    return TxInfo{mAccounts[iFrom], mAccounts[iTo], false, amount};
 }
 
 Simulation::TxInfo
@@ -331,8 +331,18 @@ Simulation::TxInfo::execute(Application& app)
 TransactionFramePtr
 Simulation::TxInfo::createPaymentTx()
 {
-    return txtest::createPaymentTx(mFrom->mKey, mTo->mKey, mFrom->mSeq + 1,
-                                   mAmount);
+    TransactionFramePtr res;
+    if (mCreate)
+    {
+        res = txtest::createCreateAccountTx(mFrom->mKey, mTo->mKey,
+                                            mFrom->mSeq + 1, mAmount);
+    }
+    else
+    {
+        res = txtest::createPaymentTx(mFrom->mKey, mTo->mKey, mFrom->mSeq + 1,
+                                      mAmount);
+    }
+    return res;
 }
 
 void
@@ -390,7 +400,7 @@ Simulation::createAccounts(size_t n)
 Simulation::TxInfo
 Simulation::AccountInfo::creationTransaction()
 {
-    return TxInfo{mSimulation.mAccounts[0], shared_from_this(),
+    return TxInfo{mSimulation.mAccounts[0], shared_from_this(), true,
                   100 * mSimulation.getMinBalance() +
                       mSimulation.mAccounts.size() - 1};
 }

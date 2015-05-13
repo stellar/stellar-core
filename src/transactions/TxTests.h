@@ -44,6 +44,14 @@ void applyAllowTrust(Application& app, SecretKey& from, SecretKey& trustor,
                      bool authorize,
                      AllowTrustResultCode result = ALLOW_TRUST_SUCCESS);
 
+TransactionFramePtr createCreateAccountTx(SecretKey& from, SecretKey& to,
+                                          SequenceNumber seq, int64_t amount);
+
+void
+applyCreateAccountTx(Application& app, SecretKey& from, SecretKey& to,
+                     SequenceNumber seq, int64_t amount,
+                     CreateAccountResultCode result = CREATE_ACCOUNT_SUCCESS);
+
 TransactionFramePtr createPaymentTx(SecretKey& from, SecretKey& to,
                                     SequenceNumber seq, int64_t amount);
 

@@ -73,12 +73,12 @@ TEST_CASE("create offer", "[tx][offers]")
     }
 
     // sets up gateway account
-    applyPaymentTx(app, root, gateway, root_seq++, minBalance2);
+    applyCreateAccountTx(app, root, gateway, root_seq++, minBalance2);
     SequenceNumber gateway_seq = getAccountSeqNum(gateway, app) + 1;
 
     SECTION("negative offer creation tests")
     {
-        applyPaymentTx(app, root, a1, root_seq++, minBalance2);
+        applyCreateAccountTx(app, root, a1, root_seq++, minBalance2);
         SequenceNumber a1_seq = getAccountSeqNum(a1, app) + 1;
 
         // sell IDR for USD
@@ -139,7 +139,7 @@ TEST_CASE("create offer", "[tx][offers]")
     {
         const int64_t minBalanceA = app.getLedgerManager().getMinBalance(3);
 
-        applyPaymentTx(app, root, a1, root_seq++, minBalanceA + 10000);
+        applyCreateAccountTx(app, root, a1, root_seq++, minBalanceA + 10000);
 
         SequenceNumber a1_seq = getAccountSeqNum(a1, app) + 1;
         applyChangeTrust(app, a1, gateway, a1_seq++, "USD", trustLineLimit);
@@ -180,7 +180,7 @@ TEST_CASE("create offer", "[tx][offers]")
         const int64_t minBalanceA =
             app.getLedgerManager().getMinBalance(3 + nbOffers);
 
-        applyPaymentTx(app, root, a1, root_seq++, minBalanceA + 10000);
+        applyCreateAccountTx(app, root, a1, root_seq++, minBalanceA + 10000);
         SequenceNumber a1_seq = getAccountSeqNum(a1, app) + 1;
 
         applyChangeTrust(app, a1, gateway, a1_seq++, "USD", trustLineLimit);
@@ -218,7 +218,8 @@ TEST_CASE("create offer", "[tx][offers]")
                         usdCur.alphaNum().currencyCode);
             }
 
-            applyPaymentTx(app, root, b1, root_seq++, minBalance3 + 10000);
+            applyCreateAccountTx(app, root, b1, root_seq++,
+                                 minBalance3 + 10000);
             SequenceNumber b1_seq = getAccountSeqNum(b1, app) + 1;
             applyChangeTrust(app, b1, gateway, b1_seq++, "IDR", trustLineLimit);
             applyChangeTrust(app, b1, gateway, b1_seq++, "USD", trustLineLimit);
@@ -543,8 +544,8 @@ TEST_CASE("create offer", "[tx][offers]")
                 // inject also an offer that should get cleaned up
                 uint64_t cOfferID = 0;
                 {
-                    applyPaymentTx(app, root, c1, root_seq++,
-                                   minBalance3 + 10000);
+                    applyCreateAccountTx(app, root, c1, root_seq++,
+                                         minBalance3 + 10000);
                     SequenceNumber c1_seq = getAccountSeqNum(c1, app) + 1;
                     applyChangeTrust(app, c1, gateway, c1_seq++, "IDR",
                                      trustLineLimit);
@@ -632,7 +633,8 @@ TEST_CASE("create offer", "[tx][offers]")
             SECTION("multiple parties")
             {
                 // b1 sells the same thing
-                applyPaymentTx(app, root, b1, root_seq++, minBalance3 + 10000);
+                applyCreateAccountTx(app, root, b1, root_seq++,
+                                     minBalance3 + 10000);
                 SequenceNumber b1_seq = getAccountSeqNum(b1, app) + 1;
                 applyChangeTrust(app, b1, gateway, b1_seq++, "IDR",
                                  trustLineLimit);
@@ -649,7 +651,8 @@ TEST_CASE("create offer", "[tx][offers]")
                 REQUIRE(OfferFrame::loadOffer(b1.getPublicKey(), offerB1, offer,
                                               app.getDatabase()));
 
-                applyPaymentTx(app, root, c1, root_seq++, minBalanceA + 10000);
+                applyCreateAccountTx(app, root, c1, root_seq++,
+                                     minBalanceA + 10000);
                 SequenceNumber c1_seq = getAccountSeqNum(c1, app) + 1;
 
                 applyChangeTrust(app, c1, gateway, c1_seq++, "USD",

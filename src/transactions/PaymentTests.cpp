@@ -53,7 +53,7 @@ TEST_CASE("payment", "[tx][payment]")
 
     SequenceNumber rootSeq = getAccountSeqNum(root, app) + 1;
     // create an account
-    applyPaymentTx(app, root, a1, rootSeq++, paymentAmount);
+    applyCreateAccountTx(app, root, a1, rootSeq++, paymentAmount);
 
     SequenceNumber a1Seq = getAccountSeqNum(a1, app) + 1;
 
@@ -80,7 +80,7 @@ TEST_CASE("payment", "[tx][payment]")
 
     // sets up gateway account
     const int64_t gatewayPayment = minBalance2 + morePayment;
-    applyPaymentTx(app, root, gateway, rootSeq++, gatewayPayment);
+    applyCreateAccountTx(app, root, gateway, rootSeq++, gatewayPayment);
     SequenceNumber gateway_seq = getAccountSeqNum(gateway, app) + 1;
 
     AccountFrame a1Account, rootAccount;
@@ -102,6 +102,33 @@ TEST_CASE("payment", "[tx][payment]")
             (100000000000000000 - paymentAmount - gatewayPayment - txfee * 2));
 
     LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader());
+
+    SECTION("Create account")
+    {
+        SECTION("Success")
+        {
+            applyCreateAccountTx(app, root, b1, rootSeq++,
+                                 app.getLedgerManager().getMinBalance(0));
+            SECTION("Account already exists")
+            {
+                applyCreateAccountTx(app, root, b1, rootSeq++,
+                                     app.getLedgerManager().getMinBalance(0),
+                                     CREATE_ACCOUNT_ALREADY_EXIST);
+            }
+        }
+        SECTION("Not enough funds (source)")
+        {
+            applyCreateAccountTx(app, gateway, b1, gateway_seq++,
+                                 gatewayPayment, CREATE_ACCOUNT_UNDERFUNDED);
+        }
+        SECTION("Amount too small to create account")
+        {
+            applyCreateAccountTx(app, root, b1, rootSeq++,
+                                 app.getLedgerManager().getMinBalance(0) - 1,
+                                 CREATE_ACCOUNT_LOW_RESERVE);
+        }
+    }
+
     SECTION("send XLM to an existing account")
     {
         applyPaymentTx(app, root, a1, rootSeq++, morePayment);
@@ -130,12 +157,12 @@ TEST_CASE("payment", "[tx][payment]")
                 (rootAccount.getBalance() - txfee));
     }
 
-    SECTION("send too little XLM to new account (below reserve)")
+    SECTION("send XLM to a new account (no destination)")
     {
         applyPaymentTx(
             app, root, b1, rootSeq++,
-            app.getLedgerManager().getCurrentLedgerHeader().baseReserve - 1,
-            PAYMENT_LOW_RESERVE);
+            app.getLedgerManager().getCurrentLedgerHeader().baseReserve * 2,
+            PAYMENT_NO_DESTINATION);
     }
     SECTION("simple credit")
     {
@@ -163,7 +190,7 @@ TEST_CASE("payment", "[tx][payment]")
             REQUIRE(line.getBalance() == 100);
 
             // create b1 account
-            applyPaymentTx(app, root, b1, rootSeq++, paymentAmount);
+            applyCreateAccountTx(app, root, b1, rootSeq++, paymentAmount);
 
             SequenceNumber b1Seq = getAccountSeqNum(b1, app) + 1;
 
@@ -231,7 +258,7 @@ TEST_CASE("payment", "[tx][payment]")
         const Price usdPriceOffer(2, 1);
 
         // offer is sell 100 IDR for 200 USD ; buy USD @ 2.0 = sell IRD @ 0.5
-        applyPaymentTx(app, root, b1, rootSeq++, minBalance3 + 10000);
+        applyCreateAccountTx(app, root, b1, rootSeq++, minBalance3 + 10000);
         SequenceNumber b1Seq = getAccountSeqNum(b1, app) + 1;
         applyChangeTrust(app, b1, gateway, b1Seq++, "USD", trustLineLimit);
         applyChangeTrust(app, b1, gateway, b1Seq++, "IDR", trustLineLimit);
@@ -246,7 +273,7 @@ TEST_CASE("payment", "[tx][payment]")
         // setup "c1"
         SecretKey c1 = getAccount("C");
 
-        applyPaymentTx(app, root, c1, rootSeq++, minBalance3 + 10000);
+        applyCreateAccountTx(app, root, c1, rootSeq++, minBalance3 + 10000);
         SequenceNumber c1Seq = getAccountSeqNum(c1, app) + 1;
 
         applyChangeTrust(app, c1, gateway, c1Seq++, "USD", trustLineLimit);
@@ -401,7 +428,7 @@ TEST_CASE("payment", "[tx][payment]")
     }
 }
 
-TEST_CASE("single payment tx SQL", "[singlesql][paymentsql][hide]")
+TEST_CASE("single create account SQL", "[singlesql][paymentsql][hide]")
 {
     Config::TestDbMode mode = Config::TESTDB_ON_DISK_SQLITE;
 #ifdef USE_POSTGRES
@@ -422,7 +449,7 @@ TEST_CASE("single payment tx SQL", "[singlesql][paymentsql][hide]")
     SequenceNumber rootSeq = getAccountSeqNum(root, *app) + 1;
 
     {
-        auto ctx = app->getDatabase().captureAndLogSQL("payment");
-        applyPaymentTx(*app, root, a1, rootSeq++, paymentAmount);
+        auto ctx = app->getDatabase().captureAndLogSQL("createAccount");
+        applyCreateAccountTx(*app, root, a1, rootSeq++, paymentAmount);
     }
 }

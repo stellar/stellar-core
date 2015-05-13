@@ -9,26 +9,26 @@
 namespace stellar
 {
 
-class PaymentOpFrame : public OperationFrame
+class CreateAccountOpFrame : public OperationFrame
 {
-    PaymentResult&
+    CreateAccountResult&
     innerResult()
     {
-        return mResult.tr().paymentResult();
+        return mResult.tr().createAccountResult();
     }
-    PaymentOp const& mPayment;
+    CreateAccountOp const& mCreateAccount;
 
   public:
-    PaymentOpFrame(Operation const& op, OperationResult& res,
-                   TransactionFrame& parentTx);
+    CreateAccountOpFrame(Operation const& op, OperationResult& res,
+                         TransactionFrame& parentTx);
 
     bool doApply(LedgerDelta& delta, LedgerManager& ledgerManager) override;
     bool doCheckValid() override;
 
-    static PaymentResultCode
+    static CreateAccountResultCode
     getInnerCode(OperationResult const& res)
     {
-        return res.tr().paymentResult().code();
+        return res.tr().createAccountResult().code();
     }
 };
 }

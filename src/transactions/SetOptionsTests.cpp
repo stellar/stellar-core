@@ -41,8 +41,8 @@ TEST_CASE("set options", "[tx][setoptions]")
 
     SequenceNumber rootSeq = getAccountSeqNum(root, app) + 1;
 
-    applyPaymentTx(app, root, a1, rootSeq++,
-                   app.getLedgerManager().getMinBalance(0) + 1000);
+    applyCreateAccountTx(app, root, a1, rootSeq++,
+                         app.getLedgerManager().getMinBalance(0) + 1000);
 
     SequenceNumber a1seq = getAccountSeqNum(a1, app) + 1;
 
@@ -64,8 +64,9 @@ TEST_CASE("set options", "[tx][setoptions]")
                             a1seq++, SET_OPTIONS_LOW_RESERVE);
         }
 
+        // add some funds
         applyPaymentTx(app, root, a1, rootSeq++,
-                       app.getLedgerManager().getMinBalance(2));
+                             app.getLedgerManager().getMinBalance(2));
 
         applySetOptions(app, a1, nullptr, nullptr, nullptr, &th, &sk1, a1seq++);
 

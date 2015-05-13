@@ -16,6 +16,7 @@
 #include "transactions/PathPaymentOpFrame.h"
 #include "transactions/PaymentOpFrame.h"
 #include "transactions/ChangeTrustOpFrame.h"
+#include "transactions/CreateAccountOpFrame.h"
 #include "transactions/CreateOfferOpFrame.h"
 #include "transactions/SetOptionsOpFrame.h"
 #include "transactions/AllowTrustOpFrame.h"
@@ -27,8 +28,11 @@ using namespace stellar::txtest;
 typedef std::unique_ptr<Application> appPtr;
 namespace stellar
 {
+using xdr::operator==;
+
 namespace txtest
 {
+
 SecretKey
 getRoot()
 {
@@ -141,6 +145,65 @@ applyAllowTrust(Application& app, SecretKey& from, SecretKey& trustor,
 }
 
 TransactionFramePtr
+createCreateAccountTx(SecretKey& from, SecretKey& to, SequenceNumber seq,
+                      int64_t amount)
+{
+    Operation op;
+    op.body.type(CREATE_ACCOUNT);
+    op.body.createAccountOp().startingBalance = amount;
+    op.body.createAccountOp().destination = to.getPublicKey();
+
+    return transactionFromOperation(from, seq, op);
+}
+
+void
+applyCreateAccountTx(Application& app, SecretKey& from, SecretKey& to,
+                     SequenceNumber seq, int64_t amount,
+                     CreateAccountResultCode result)
+{
+    TransactionFramePtr txFrame;
+
+    AccountFrame fromAccount;
+    AccountFrame toAccount;
+    bool beforeToExists = AccountFrame::loadAccount(
+        to.getPublicKey(), toAccount, app.getDatabase());
+
+    REQUIRE(AccountFrame::loadAccount(from.getPublicKey(), fromAccount,
+                                      app.getDatabase()));
+
+    txFrame = createCreateAccountTx(from, to, seq, amount);
+
+    LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader());
+    txFrame->apply(delta, app);
+
+    checkTransaction(*txFrame);
+    auto txResult = txFrame->getResult();
+    auto innerCode =
+        CreateAccountOpFrame::getInnerCode(txResult.result.results()[0]);
+    REQUIRE(innerCode == result);
+
+    REQUIRE(txResult.feeCharged == app.getLedgerManager().getTxFee());
+
+    AccountFrame toAccountAfter;
+    bool afterToExists = AccountFrame::loadAccount(
+        to.getPublicKey(), toAccountAfter, app.getDatabase());
+
+    if (innerCode != CREATE_ACCOUNT_SUCCESS)
+    {
+        // check that the target account didn't change
+        REQUIRE(beforeToExists == afterToExists);
+        if (beforeToExists && afterToExists)
+        {
+            REQUIRE(toAccount.getAccount() == toAccountAfter.getAccount());
+        }
+    }
+    else
+    {
+        REQUIRE(afterToExists);
+    }
+}
+
+TransactionFramePtr
 createPaymentTx(SecretKey& from, SecretKey& to, SequenceNumber seq,
                 int64_t amount)
 {
@@ -189,9 +252,7 @@ applyPaymentTx(Application& app, SecretKey& from, SecretKey& to,
         REQUIRE(beforeToExists == afterToExists);
         if (beforeToExists && afterToExists)
         {
-            REQUIRE(memcmp(&toAccount.getAccount(),
-                           &toAccountAfter.getAccount(),
-                           sizeof(AccountEntry)) == 0);
+            REQUIRE(toAccount.getAccount() == toAccountAfter.getAccount());
         }
     }
     else
@@ -369,13 +430,10 @@ applyCreateOfferHelper(Application& app, LedgerDelta& delta, uint64 offerId,
             REQUIRE(OfferFrame::loadOffer(source.getPublicKey(),
                                           expectedOfferID, offer,
                                           app.getDatabase()));
-            REQUIRE(memcmp(&offerEntry, &offerResult.offer(),
-                           sizeof(OfferEntry)) == 0);
+            REQUIRE(offerEntry == offerResult.offer());
             REQUIRE(offerEntry.price == price);
-            REQUIRE(memcmp(&offerEntry.takerGets, &takerGets,
-                           sizeof(Currency)) == 0);
-            REQUIRE(memcmp(&offerEntry.takerPays, &takerPays,
-                           sizeof(Currency)) == 0);
+            REQUIRE(offerEntry.takerGets == takerGets);
+            REQUIRE(offerEntry.takerPays == takerPays);
             break;
         case CREATE_OFFER_DELETED:
             REQUIRE(!OfferFrame::loadOffer(source.getPublicKey(),

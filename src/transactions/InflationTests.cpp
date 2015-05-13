@@ -51,7 +51,7 @@ createTestAccounts(Application& app, int nbAccounts,
         if (bal >= 0)
         {
             SecretKey to = getTestAccount(i);
-            applyPaymentTx(app, root, to, rootSeq++, setupBalance);
+            applyCreateAccountTx(app, root, to, rootSeq++, setupBalance);
 
             AccountFrame act;
             REQUIRE(AccountFrame::loadAccount(to.getPublicKey(), act, db));

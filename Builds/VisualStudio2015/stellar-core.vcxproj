@@ -243,6 +243,7 @@
     <ClCompile Include="..\..\src\simulation\Simulation.cpp" />
     <ClCompile Include="..\..\src\simulation\Topologies.cpp" />
     <ClCompile Include="..\..\src\transactions\AllowTrustOpFrame.cpp" />
+    <ClCompile Include="..\..\src\transactions\CreateAccountOpFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\CreateOfferOpFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\InflationOpFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\InflationTests.cpp" />
@@ -360,6 +361,7 @@
     <ClInclude Include="..\..\src\simulation\Simulation.h" />
     <ClInclude Include="..\..\src\simulation\Topologies.h" />
     <ClInclude Include="..\..\src\transactions\AllowTrustOpFrame.h" />
+    <ClInclude Include="..\..\src\transactions\CreateAccountOpFrame.h" />
     <ClInclude Include="..\..\src\transactions\CreateOfferOpFrame.h" />
     <ClInclude Include="..\..\src\transactions\InflationOpFrame.h" />
     <ClInclude Include="..\..\src\transactions\MergeOpFrame.h" />

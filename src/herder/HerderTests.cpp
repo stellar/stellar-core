@@ -74,9 +74,9 @@ TEST_CASE("standalone", "[herder]")
         {
             // create accounts
             TransactionFramePtr txFrameA1 =
-                createPaymentTx(root, a1, rootSeq++, paymentAmount);
+                createCreateAccountTx(root, a1, rootSeq++, paymentAmount);
             TransactionFramePtr txFrameA2 =
-                createPaymentTx(root, b1, rootSeq++, paymentAmount);
+                createCreateAccountTx(root, b1, rootSeq++, paymentAmount);
 
             REQUIRE(app->getHerder().recvTransaction(txFrameA1));
             REQUIRE(app->getHerder().recvTransaction(txFrameA2));
@@ -85,7 +85,8 @@ TEST_CASE("standalone", "[herder]")
         setupTimer.expires_from_now(std::chrono::seconds(0));
         setupTimer.async_wait(setup);
 
-        checkTimer.expires_from_now(Herder::EXP_LEDGER_TIMESPAN_SECONDS + std::chrono::seconds(1));
+        checkTimer.expires_from_now(Herder::EXP_LEDGER_TIMESPAN_SECONDS +
+                                    std::chrono::seconds(1));
         checkTimer.async_wait(check);
 
         while (!stop && app->getClock().crank(false) > 0)
@@ -135,7 +136,7 @@ TEST_CASE("txset", "[herder]")
         nbAccounts * nbTransactions * app->getLedgerManager().getTxFee() +
         paymentAmount;
 
-    applyPaymentTx(*app, root, sourceAccount, rootSeq++, amountPop);
+    applyCreateAccountTx(*app, root, sourceAccount, rootSeq++, amountPop);
 
     SequenceNumber sourceSeq = getAccountSeqNum(sourceAccount, *app) + 1;
 
@@ -149,8 +150,16 @@ TEST_CASE("txset", "[herder]")
         transactions.push_back(std::vector<TransactionFramePtr>());
         for (int j = 0; j < nbTransactions; j++)
         {
-            transactions[i].emplace_back(createPaymentTx(
-                sourceAccount, accounts[i], sourceSeq++, paymentAmount));
+            if (j == 0)
+            {
+                transactions[i].emplace_back(createCreateAccountTx(
+                    sourceAccount, accounts[i], sourceSeq++, paymentAmount));
+            }
+            else
+            {
+                transactions[i].emplace_back(createPaymentTx(
+                    sourceAccount, accounts[i], sourceSeq++, paymentAmount));
+            }
         }
     }
 

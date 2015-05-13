@@ -26,7 +26,7 @@ PaymentOpFrame::PaymentOpFrame(Operation const& op, OperationResult& res,
 bool
 PaymentOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
 {
-    AccountFrame destAccount;
+    AccountFrame destination;
 
     // if sending to self directly, just mark as success
     if (mPayment.destination == getSourceID())
@@ -37,39 +37,12 @@ PaymentOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
 
     Database& db = ledgerManager.getDatabase();
 
-    if (!AccountFrame::loadAccount(mPayment.destination, destAccount, db))
-    { // this tx is creating an account
-        if (mPayment.currency.type() == CURRENCY_TYPE_NATIVE)
-        {
-            if (mPayment.amount < ledgerManager.getMinBalance(0))
-            { // not over the minBalance to make an account
-                innerResult().code(PAYMENT_LOW_RESERVE);
-                return false;
-            }
-            else
-            {
-                destAccount.getAccount().accountID = mPayment.destination;
-                destAccount.getAccount().seqNum =
-                    delta.getHeaderFrame().getStartingSequenceNumber();
-                destAccount.getAccount().balance = 0;
-
-                destAccount.storeAdd(delta, db);
-            }
-        }
-        else
-        { // trying to send credit to an unmade account
-            innerResult().code(PAYMENT_NO_DESTINATION);
-            return false;
-        }
+    if (!AccountFrame::loadAccount(mPayment.destination, destination, db))
+    {
+        innerResult().code(PAYMENT_NO_DESTINATION);
+        return false;
     }
 
-    return sendNoCreate(destAccount, delta, ledgerManager);
-}
-
-bool
-PaymentOpFrame::sendNoCreate(AccountFrame& destination, LedgerDelta& delta,
-                             LedgerManager& ledgerManager)
-{
     // build a pathPaymentOp
     Operation op;
     op.sourceAccount = mOperation.sourceAccount;

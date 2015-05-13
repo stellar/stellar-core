@@ -9,6 +9,7 @@
 #include "util/Logging.h"
 #include "ledger/LedgerDelta.h"
 #include "transactions/AllowTrustOpFrame.h"
+#include "transactions/CreateAccountOpFrame.h"
 #include "transactions/CreateOfferOpFrame.h"
 #include "transactions/ChangeTrustOpFrame.h"
 #include "transactions/InflationOpFrame.h"
@@ -29,6 +30,9 @@ OperationFrame::makeHelper(Operation const& op, OperationResult& res,
 {
     switch (op.body.type())
     {
+    case CREATE_ACCOUNT:
+        return shared_ptr<OperationFrame>(
+            new CreateAccountOpFrame(op, res, tx));
     case PAYMENT:
         return shared_ptr<OperationFrame>(new PaymentOpFrame(op, res, tx));
     case PATH_PAYMENT:

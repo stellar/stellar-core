@@ -15,20 +15,35 @@ struct DecoratedSignature
 
 enum OperationType
 {
-    PAYMENT = 0,
-    PATH_PAYMENT = 1,
-    CREATE_OFFER = 2,
-    SET_OPTIONS = 3,
-    CHANGE_TRUST = 4,
-    ALLOW_TRUST = 5,
-    ACCOUNT_MERGE = 6,
-    INFLATION = 7
+    CREATE_ACCOUNT = 0,
+    PAYMENT = 1,
+    PATH_PAYMENT = 2,
+    CREATE_OFFER = 3,
+    SET_OPTIONS = 4,
+    CHANGE_TRUST = 5,
+    ALLOW_TRUST = 6,
+    ACCOUNT_MERGE = 7,
+    INFLATION = 8
+};
+
+/* CreateAccount
+Funds a new account with the specified starting balance
+
+Threshold: med
+
+Result: CreateAccountResult
+
+*/
+
+struct CreateAccountOp
+{
+    AccountID destination; // account to create
+    int64 startingBalance; // amount they end up with
 };
 
 /* Payment
 
     send an amount to a destination account.
-    XLM payments create the destination account if it does not exist
 
     Threshold: med
 
@@ -175,6 +190,8 @@ struct Operation
 
     union switch (OperationType type)
     {
+    case CREATE_ACCOUNT:
+        CreateAccountOp createAccountOp;
     case PAYMENT:
         PaymentOp paymentOp;
     case PATH_PAYMENT:
@@ -274,6 +291,29 @@ struct ClaimOfferAtom
     // should we also include the amount that the owner gets in return?
 };
 
+/******* CreateAccount Result ********/
+
+enum CreateAccountResultCode
+{
+    // codes considered as "success" for the operation
+    CREATE_ACCOUNT_SUCCESS = 0, // account was created
+
+    // codes considered as "failure" for the operation
+    CREATE_ACCOUNT_MALFORMED = 1,   // invalid destination
+    CREATE_ACCOUNT_UNDERFUNDED = 2, // not enough funds in source account
+    CREATE_ACCOUNT_LOW_RESERVE =
+        3, // would create an account below the min reserve
+    CREATE_ACCOUNT_ALREADY_EXIST = 4 // account already exists
+};
+
+union CreateAccountResult switch (CreateAccountResultCode code)
+{
+case CREATE_ACCOUNT_SUCCESS:
+    void;
+default:
+    void;
+};
+
 /******* Payment Result ********/
 
 enum PaymentResultCode
@@ -287,8 +327,7 @@ enum PaymentResultCode
     PAYMENT_NO_DESTINATION = -3, // destination account does not exist
     PAYMENT_NO_TRUST = -4, // destination missing a trust line for currency
     PAYMENT_NOT_AUTHORIZED = -5, // destination not authorized to hold currency
-    PAYMENT_LINE_FULL = -6,      // destination would go above their limit
-    PAYMENT_LOW_RESERVE = -7 // would create an account below the min reserve
+    PAYMENT_LINE_FULL = -6       // destination would go above their limit
 };
 
 union PaymentResult switch (PaymentResultCode code)
@@ -515,6 +554,8 @@ union OperationResult switch (OperationResultCode code)
 case opINNER:
     union switch (OperationType type)
     {
+    case CREATE_ACCOUNT:
+        CreateAccountResult createAccountResult;
     case PAYMENT:
         PaymentResult paymentResult;
     case PATH_PAYMENT:

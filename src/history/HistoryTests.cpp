@@ -259,6 +259,9 @@ HistoryTests::generateRandomLedger()
     SequenceNumber rseq = txtest::getAccountSeqNum(mRoot, app) + 1;
 
     // Root sends to alice every tx, bob every other tx, carol every 4rd tx.
+    txSet->add(txtest::createCreateAccountTx(mRoot, mAlice, rseq++, big));
+    txSet->add(txtest::createCreateAccountTx(mRoot, mBob, rseq++, big));
+    txSet->add(txtest::createCreateAccountTx(mRoot, mCarol, rseq++, big));
     txSet->add(txtest::createPaymentTx(mRoot, mAlice, rseq++, big));
     txSet->add(txtest::createPaymentTx(mRoot, mBob, rseq++, big));
     txSet->add(txtest::createPaymentTx(mRoot, mCarol, rseq++, big));
