@@ -164,6 +164,32 @@ TEST_CASE("payment", "[tx][payment]")
             app.getLedgerManager().getCurrentLedgerHeader().baseReserve * 2,
             PAYMENT_NO_DESTINATION);
     }
+
+    SECTION("rescue account (was below reserve)")
+    {
+        int64 orgReserve = app.getLedgerManager().getMinBalance(0);
+
+        applyCreateAccountTx(app, root, b1, rootSeq++, orgReserve + 1000);
+
+        SequenceNumber b1Seq = getAccountSeqNum(b1, app) + 1;
+
+        // raise the reserve
+        int32 addReserve = 100000;
+        app.getLedgerManager().getCurrentLedgerHeader().baseReserve += addReserve;
+
+        // verify that the account can't do anything
+        auto tx = createPaymentTx(b1, root, b1Seq++, 1);
+        REQUIRE(!tx->apply(delta, app));
+        REQUIRE(tx->getResultCode() == txINSUFFICIENT_BALANCE);
+
+        // top up the account to unblock it
+        int64 topUp = app.getLedgerManager().getMinBalance(0) - orgReserve;
+        applyPaymentTx(app, root, b1, rootSeq++, topUp);
+
+        // payment goes through
+        applyPaymentTx(app, b1, root, b1Seq++, 1);
+    }
+
     SECTION("simple credit")
     {
         SECTION("credit sent to new account (no account error)")
