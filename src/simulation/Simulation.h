@@ -99,6 +99,7 @@ class Simulation
     {
         AccountInfoPtr mFrom;
         AccountInfoPtr mTo;
+        bool mCreate;
         uint64_t mAmount;
         void execute(Application& app);
         TransactionFramePtr createPaymentTx();

@@ -109,7 +109,7 @@ namespace base64
       for (j = i; j <4; j++)
         char_array_4[j] = 0;
 
-      for (j = 0; j <4; j++)
+      for (j = 0; j < i; j++)
         char_array_4[j] = (unsigned char) chars.find( char_array_4[j] );
 
       char_array_3[0] = (char_array_4[0] << 2) + ((char_array_4[1] & 0x30) >> 4);

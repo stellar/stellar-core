@@ -78,6 +78,7 @@ FMT_SRCS =                                      \
     src/simulation/Topologies.cpp               \
     src/transactions/AllowTrustOpFrame.cpp      \
     src/transactions/ChangeTrustOpFrame.cpp     \
+    src/transactions/CreateAccountOpFrame.cpp   \
     src/transactions/CreateOfferOpFrame.cpp     \
     src/transactions/InflationOpFrame.cpp       \
     src/transactions/InflationTests.cpp         \
@@ -86,6 +87,7 @@ FMT_SRCS =                                      \
     src/transactions/OfferExchange.cpp          \
     src/transactions/OfferTests.cpp             \
     src/transactions/OperationFrame.cpp         \
+    src/transactions/PathPaymentOpFrame.cpp     \
     src/transactions/PaymentOpFrame.cpp         \
     src/transactions/PaymentTests.cpp           \
     src/transactions/SetOptionsOpFrame.cpp      \
@@ -163,11 +165,13 @@ FMT_HDRS =                                      \
     src/simulation/Topologies.h                 \
     src/transactions/AllowTrustOpFrame.h        \
     src/transactions/ChangeTrustOpFrame.h       \
+    src/transactions/CreateAccountOpFrame.h     \
     src/transactions/CreateOfferOpFrame.h       \
     src/transactions/InflationOpFrame.h         \
     src/transactions/MergeOpFrame.h             \
     src/transactions/OfferExchange.h            \
     src/transactions/OperationFrame.h           \
+    src/transactions/PathPaymentOpFrame.h       \
     src/transactions/PaymentOpFrame.h           \
     src/transactions/SetOptionsOpFrame.h        \
     src/transactions/TransactionFrame.h         \

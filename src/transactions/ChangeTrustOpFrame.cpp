@@ -79,7 +79,7 @@ ChangeTrustOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
 }
 
 bool
-ChangeTrustOpFrame::doCheckValid(Application& app)
+ChangeTrustOpFrame::doCheckValid()
 {
     if (mChangeTrust.limit < 0)
     {

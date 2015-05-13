@@ -53,7 +53,7 @@ TEST_CASE("payment", "[tx][payment]")
 
     SequenceNumber rootSeq = getAccountSeqNum(root, app) + 1;
     // create an account
-    applyPaymentTx(app, root, a1, rootSeq++, paymentAmount);
+    applyCreateAccountTx(app, root, a1, rootSeq++, paymentAmount);
 
     SequenceNumber a1Seq = getAccountSeqNum(a1, app) + 1;
 
@@ -80,7 +80,7 @@ TEST_CASE("payment", "[tx][payment]")
 
     // sets up gateway account
     const int64_t gatewayPayment = minBalance2 + morePayment;
-    applyPaymentTx(app, root, gateway, rootSeq++, gatewayPayment);
+    applyCreateAccountTx(app, root, gateway, rootSeq++, gatewayPayment);
     SequenceNumber gateway_seq = getAccountSeqNum(gateway, app) + 1;
 
     AccountFrame a1Account, rootAccount;
@@ -102,6 +102,33 @@ TEST_CASE("payment", "[tx][payment]")
             (100000000000000000 - paymentAmount - gatewayPayment - txfee * 2));
 
     LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader());
+
+    SECTION("Create account")
+    {
+        SECTION("Success")
+        {
+            applyCreateAccountTx(app, root, b1, rootSeq++,
+                                 app.getLedgerManager().getMinBalance(0));
+            SECTION("Account already exists")
+            {
+                applyCreateAccountTx(app, root, b1, rootSeq++,
+                                     app.getLedgerManager().getMinBalance(0),
+                                     CREATE_ACCOUNT_ALREADY_EXIST);
+            }
+        }
+        SECTION("Not enough funds (source)")
+        {
+            applyCreateAccountTx(app, gateway, b1, gateway_seq++,
+                                 gatewayPayment, CREATE_ACCOUNT_UNDERFUNDED);
+        }
+        SECTION("Amount too small to create account")
+        {
+            applyCreateAccountTx(app, root, b1, rootSeq++,
+                                 app.getLedgerManager().getMinBalance(0) - 1,
+                                 CREATE_ACCOUNT_LOW_RESERVE);
+        }
+    }
+
     SECTION("send XLM to an existing account")
     {
         applyPaymentTx(app, root, a1, rootSeq++, morePayment);
@@ -130,12 +157,12 @@ TEST_CASE("payment", "[tx][payment]")
                 (rootAccount.getBalance() - txfee));
     }
 
-    SECTION("send too little XLM to new account (below reserve)")
+    SECTION("send XLM to a new account (no destination)")
     {
         applyPaymentTx(
             app, root, b1, rootSeq++,
-            app.getLedgerManager().getCurrentLedgerHeader().baseReserve - 1,
-            PAYMENT_LOW_RESERVE);
+            app.getLedgerManager().getCurrentLedgerHeader().baseReserve * 2,
+            PAYMENT_NO_DESTINATION);
     }
     SECTION("simple credit")
     {
@@ -163,7 +190,7 @@ TEST_CASE("payment", "[tx][payment]")
             REQUIRE(line.getBalance() == 100);
 
             // create b1 account
-            applyPaymentTx(app, root, b1, rootSeq++, paymentAmount);
+            applyCreateAccountTx(app, root, b1, rootSeq++, paymentAmount);
 
             SequenceNumber b1Seq = getAccountSeqNum(b1, app) + 1;
 
@@ -187,15 +214,34 @@ TEST_CASE("payment", "[tx][payment]")
             REQUIRE(line.getBalance() == 0);
         }
     }
+    SECTION("issuer large amounts")
+    {
+        applyChangeTrust(app, a1, gateway, a1Seq++, "IDR", INT64_MAX);
+        applyCreditPaymentTx(app, gateway, a1, idrCur, gateway_seq++,
+                             INT64_MAX);
+        TrustFrame line;
+        REQUIRE(TrustFrame::loadTrustLine(a1.getPublicKey(), idrCur, line,
+                                          app.getDatabase()));
+        REQUIRE(line.getBalance() == INT64_MAX);
+
+        // send it all back
+        applyCreditPaymentTx(app, a1, gateway, idrCur, a1Seq++, INT64_MAX);
+        REQUIRE(TrustFrame::loadTrustLine(a1.getPublicKey(), idrCur, line,
+                                          app.getDatabase()));
+        REQUIRE(line.getBalance() == 0);
+
+        std::vector<TrustFrame> gwLines;
+        TrustFrame::loadLines(gateway.getPublicKey(), gwLines,
+                              app.getDatabase());
+        REQUIRE(gwLines.size() == 0);
+    }
     SECTION("payment through path")
     {
         SECTION("send XLM with path (not enough offers)")
         {
-            std::vector<Currency> path;
-            path.push_back(idrCur);
-
-            applyCreditPaymentTx(app, gateway, a1, xlmCur, gateway_seq++,
-                                 morePayment, PAYMENT_TOO_FEW_OFFERS, &path);
+            applyPathPaymentTx(app, gateway, a1, idrCur, morePayment * 10,
+                               xlmCur, morePayment, gateway_seq++,
+                               PATH_PAYMENT_TOO_FEW_OFFERS);
         }
 
         // setup a1
@@ -212,7 +258,7 @@ TEST_CASE("payment", "[tx][payment]")
         const Price usdPriceOffer(2, 1);
 
         // offer is sell 100 IDR for 200 USD ; buy USD @ 2.0 = sell IRD @ 0.5
-        applyPaymentTx(app, root, b1, rootSeq++, minBalance3 + 10000);
+        applyCreateAccountTx(app, root, b1, rootSeq++, minBalance3 + 10000);
         SequenceNumber b1Seq = getAccountSeqNum(b1, app) + 1;
         applyChangeTrust(app, b1, gateway, b1Seq++, "USD", trustLineLimit);
         applyChangeTrust(app, b1, gateway, b1Seq++, "IDR", trustLineLimit);
@@ -227,7 +273,7 @@ TEST_CASE("payment", "[tx][payment]")
         // setup "c1"
         SecretKey c1 = getAccount("C");
 
-        applyPaymentTx(app, root, c1, rootSeq++, minBalance3 + 10000);
+        applyCreateAccountTx(app, root, c1, rootSeq++, minBalance3 + 10000);
         SequenceNumber c1Seq = getAccountSeqNum(c1, app) + 1;
 
         applyChangeTrust(app, c1, gateway, c1Seq++, "USD", trustLineLimit);
@@ -247,38 +293,28 @@ TEST_CASE("payment", "[tx][payment]")
         // c1 holds (trustLineStartingBalance, IDR) (0, USD)
         SECTION("send with path (over sendmax)")
         {
-            // A1: try to send 100 IDR to B1 via USD
-            // with sendMax set to 149 USD
+            // A1: try to send 100 IDR to B1
+            // using 149 USD
 
-            std::vector<Currency> path;
-            path.push_back(usdCur);
-
-            TransactionFramePtr txFrame = createCreditPaymentTx(
-                a1, b1, idrCur, a1Seq++, 100 * currencyMultiplier, &path);
-            getFirstOperation(*txFrame).body.paymentOp().sendMax =
-                149 * currencyMultiplier;
-            reSignTransaction(*txFrame, a1);
-
-            txFrame->apply(delta, app);
-
-            REQUIRE(getFirstResult(*txFrame).tr().paymentResult().code() ==
-                    PAYMENT_OVER_SENDMAX);
+            auto res = applyPathPaymentTx(
+                app, a1, b1, usdCur, 149 * currencyMultiplier, idrCur,
+                100 * currencyMultiplier, a1Seq++, PATH_PAYMENT_OVER_SENDMAX);
         }
 
         SECTION("send with path (success)")
         {
-            // A1: try to send 125 IDR to B1 via USD
+            // A1: try to send 125 IDR to B1 using USD
             // should cost 150 (C's offer taken entirely) +
             //  50 (1/4 of B's offer)=200 USD
 
             std::vector<Currency> path;
             path.push_back(usdCur);
 
-            auto res = applyCreditPaymentTx(app, a1, b1, idrCur, a1Seq++,
-                                            125 * currencyMultiplier,
-                                            PAYMENT_SUCCESS_MULTI, &path);
+            auto res = applyPathPaymentTx(
+                app, a1, b1, usdCur, 250 * currencyMultiplier, idrCur,
+                125 * currencyMultiplier, a1Seq++, PATH_PAYMENT_SUCCESS);
 
-            auto& multi = res.multi();
+            auto const& multi = res.success();
 
             REQUIRE(multi.offers.size() == 2);
 
@@ -331,18 +367,18 @@ TEST_CASE("payment", "[tx][payment]")
             applyChangeTrust(app, c1, gateway, c1Seq++, "USD",
                              120 * currencyMultiplier);
 
-            // A1: try to send 105 IDR to B1 via USD
+            // A1: try to send 105 IDR to B1 using USD
             // cost 120 (C's offer maxed out at 4/5th of published amount)
             //  50 (1/4 of B's offer)=170 USD
 
             std::vector<Currency> path;
             path.push_back(usdCur);
 
-            auto res = applyCreditPaymentTx(app, a1, b1, idrCur, a1Seq++,
-                                            105 * currencyMultiplier,
-                                            PAYMENT_SUCCESS_MULTI, &path);
+            auto res = applyPathPaymentTx(
+                app, a1, b1, usdCur, 400 * currencyMultiplier, idrCur,
+                105 * currencyMultiplier, a1Seq++, PATH_PAYMENT_SUCCESS);
 
-            auto& multi = res.multi();
+            auto& multi = res.success();
 
             REQUIRE(multi.offers.size() == 2);
 
@@ -389,31 +425,10 @@ TEST_CASE("payment", "[tx][payment]")
             checkAmounts(line.getBalance(),
                          trustLineStartingBalance - 170 * currencyMultiplier);
         }
-        SECTION("issuer large amounts")
-        {
-            applyChangeTrust(app, a1, gateway, a1Seq++, "IDR", INT64_MAX);
-            applyCreditPaymentTx(app, gateway, a1, idrCur, gateway_seq++,
-                                 INT64_MAX);
-            TrustFrame line;
-            REQUIRE(TrustFrame::loadTrustLine(a1.getPublicKey(), idrCur, line,
-                                              app.getDatabase()));
-            REQUIRE(line.getBalance() == INT64_MAX);
-
-            // send it all back
-            applyCreditPaymentTx(app, a1, gateway, idrCur, a1Seq++, INT64_MAX);
-            REQUIRE(TrustFrame::loadTrustLine(a1.getPublicKey(), idrCur, line,
-                                              app.getDatabase()));
-            REQUIRE(line.getBalance() == 0);
-
-            std::vector<TrustFrame> gwLines;
-            TrustFrame::loadLines(gateway.getPublicKey(), gwLines,
-                                  app.getDatabase());
-            REQUIRE(gwLines.size() == 0);
-        }
     }
 }
 
-TEST_CASE("single payment tx SQL", "[singlesql][paymentsql][hide]")
+TEST_CASE("single create account SQL", "[singlesql][paymentsql][hide]")
 {
     Config::TestDbMode mode = Config::TESTDB_ON_DISK_SQLITE;
 #ifdef USE_POSTGRES
@@ -434,7 +449,7 @@ TEST_CASE("single payment tx SQL", "[singlesql][paymentsql][hide]")
     SequenceNumber rootSeq = getAccountSeqNum(root, *app) + 1;
 
     {
-        auto ctx = app->getDatabase().captureAndLogSQL("payment");
-        applyPaymentTx(*app, root, a1, rootSeq++, paymentAmount);
+        auto ctx = app->getDatabase().captureAndLogSQL("createAccount");
+        applyCreateAccountTx(*app, root, a1, rootSeq++, paymentAmount);
     }
 }

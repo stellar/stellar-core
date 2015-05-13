@@ -51,7 +51,7 @@ createTestAccounts(Application& app, int nbAccounts,
         if (bal >= 0)
         {
             SecretKey to = getTestAccount(i);
-            applyPaymentTx(app, root, to, rootSeq++, setupBalance);
+            applyCreateAccountTx(app, root, to, rootSeq++, setupBalance);
 
             AccountFrame act;
             REQUIRE(AccountFrame::loadAccount(to.getPublicKey(), act, db));
@@ -326,7 +326,7 @@ closeLedgerOn(Application& app, uint32 ledgerSeq, int day, int month, int year,
 
 TEST_CASE("inflation", "[tx][inflation]")
 {
-    Config const& cfg = getTestConfig(0, Config::TESTDB_ON_DISK_SQLITE);
+    Config const& cfg = getTestConfig(0);
 
     VirtualClock::time_point inflationStart;
     // inflation starts on 1-jul-2014

@@ -14,6 +14,7 @@
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerDelta.h"
 #include "transactions/PaymentOpFrame.h"
+#include "transactions/CreateAccountOpFrame.h"
 #include "transactions/CreateOfferOpFrame.h"
 #include "transactions/TxTests.h"
 
@@ -54,7 +55,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
         SECTION("no signature")
         {
-            txFrame = createPaymentTx(root, a1, rootSeq++, paymentAmount);
+            txFrame = createCreateAccountTx(root, a1, rootSeq++, paymentAmount);
             txFrame->getEnvelope().signatures.clear();
 
             txFrame->apply(delta, app);
@@ -63,7 +64,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
         }
         SECTION("bad signature")
         {
-            txFrame = createPaymentTx(root, a1, rootSeq++, paymentAmount);
+            txFrame = createCreateAccountTx(root, a1, rootSeq++, paymentAmount);
             txFrame->getEnvelope().signatures[0].signature.fill(123);
 
             txFrame->apply(delta, app);
@@ -72,7 +73,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
         }
         SECTION("bad signature (wrong hint)")
         {
-            txFrame = createPaymentTx(root, a1, rootSeq++, paymentAmount);
+            txFrame = createCreateAccountTx(root, a1, rootSeq++, paymentAmount);
             txFrame->getEnvelope().signatures[0].hint.fill(1);
 
             txFrame->apply(delta, app);
@@ -81,7 +82,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
         }
         SECTION("too many signatures (signed twice)")
         {
-            txFrame = createPaymentTx(root, a1, rootSeq++, paymentAmount);
+            txFrame = createCreateAccountTx(root, a1, rootSeq++, paymentAmount);
             txFrame->addSignature(a1);
 
             txFrame->apply(delta, app);
@@ -90,7 +91,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
         }
         SECTION("too many signatures (unused signature)")
         {
-            txFrame = createPaymentTx(root, a1, rootSeq++, paymentAmount);
+            txFrame = createCreateAccountTx(root, a1, rootSeq++, paymentAmount);
             SecretKey bogus = getAccount("bogus");
             txFrame->addSignature(bogus);
 
@@ -102,7 +103,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
     SECTION("multisig")
     {
-        applyPaymentTx(app, root, a1, rootSeq++, paymentAmount);
+        applyCreateAccountTx(app, root, a1, rootSeq++, paymentAmount);
         SequenceNumber a1Seq = getAccountSeqNum(a1, app) + 1;
 
         SecretKey s1 = getAccount("S1");
@@ -192,8 +193,8 @@ TEST_CASE("txenvelope", "[tx][envelope]")
         SECTION("non empty")
         {
             SecretKey b1 = getAccount("B");
-            applyPaymentTx(app, root, a1, rootSeq++, paymentAmount);
-            applyPaymentTx(app, root, b1, rootSeq++, paymentAmount);
+            applyCreateAccountTx(app, root, a1, rootSeq++, paymentAmount);
+            applyCreateAccountTx(app, root, b1, rootSeq++, paymentAmount);
 
             SequenceNumber a1Seq = getAccountSeqNum(a1, app) + 1;
             SequenceNumber b1Seq = getAccountSeqNum(b1, app) + 1;
@@ -363,7 +364,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                 //  2. send from C -> root
 
                 TransactionFramePtr tx =
-                    createPaymentTx(b1, c1, b1Seq++, paymentAmount / 2);
+                    createCreateAccountTx(b1, c1, b1Seq++, paymentAmount / 2);
 
                 TransactionFramePtr tx_c = createPaymentTx(c1, root, 0, 1000);
 
@@ -390,8 +391,8 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                         2 * app.getLedgerManager().getTxFee());
                 REQUIRE(tx->getResultCode() == txSUCCESS);
 
-                REQUIRE(PaymentOpFrame::getInnerCode(getFirstResult(*tx)) ==
-                        PAYMENT_SUCCESS);
+                REQUIRE(CreateAccountOpFrame::getInnerCode(
+                            getFirstResult(*tx)) == CREATE_ACCOUNT_SUCCESS);
                 REQUIRE(PaymentOpFrame::getInnerCode(
                             tx->getOperations()[1]->getResult()) ==
                         PAYMENT_SUCCESS);
@@ -406,11 +407,8 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
         TransactionFramePtr txFrame;
 
-        for (int i = 0; i < 10; i++)
-        {
-            txFrame = createPaymentTx(root, a1, rootSeq++, paymentAmount);
-            txSet->add(txFrame);
-        }
+        txFrame = createCreateAccountTx(root, a1, rootSeq++, paymentAmount);
+        txSet->add(txFrame);
 
         // close this ledger
         LedgerCloseData ledgerData(1, txSet, 1, 10);

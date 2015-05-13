@@ -8,26 +8,27 @@
 
 namespace stellar
 {
-class MergeOpFrame : public OperationFrame
+
+class PathPaymentOpFrame : public OperationFrame
 {
-    AccountMergeResult&
+    PathPaymentResult&
     innerResult()
     {
-        return mResult.tr().accountMergeResult();
+        return mResult.tr().pathPaymentResult();
     }
+    PathPaymentOp const& mPathPayment;
 
   public:
-    MergeOpFrame(Operation const& op, OperationResult& res,
-                 TransactionFrame& parentTx);
+    PathPaymentOpFrame(Operation const& op, OperationResult& res,
+                       TransactionFrame& parentTx);
 
-    int32_t getNeededThreshold() const;
     bool doApply(LedgerDelta& delta, LedgerManager& ledgerManager) override;
     bool doCheckValid() override;
 
-    static AccountMergeResultCode
+    static PathPaymentResultCode
     getInnerCode(OperationResult const& res)
     {
-        return res.tr().accountMergeResult().code();
+        return res.tr().pathPaymentResult().code();
     }
 };
 }

@@ -127,7 +127,7 @@ SetOptionsOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
 }
 
 bool
-SetOptionsOpFrame::doCheckValid(Application& app)
+SetOptionsOpFrame::doCheckValid()
 {
     if (mSetOptions.setFlags && mSetOptions.clearFlags)
     {

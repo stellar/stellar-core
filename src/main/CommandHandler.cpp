@@ -19,8 +19,6 @@
 #include "medida/reporting/json_reporter.h"
 #include "xdrpp/marshal.h"
 
-
-
 #include <regex>
 #include "transactions/TxTests.h"
 using namespace stellar::txtest;
@@ -35,8 +33,8 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
     if (!mApp.getConfig().RUN_STANDALONE && mApp.getConfig().HTTP_PORT)
     {
         std::string ipStr;
-        if(mApp.getConfig().PUBLIC_HTTP_PORT)
-        { 
+        if (mApp.getConfig().PUBLIC_HTTP_PORT)
+        {
             ipStr = "0.0.0.0";
         }
         else
@@ -74,7 +72,8 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
     mServer->addRoute("peers", std::bind(&CommandHandler::peers, this, _1, _2));
     mServer->addRoute("scp", std::bind(&CommandHandler::scpInfo, this, _1, _2));
     mServer->addRoute("stop", std::bind(&CommandHandler::stop, this, _1, _2));
-    mServer->addRoute("testtx", std::bind(&CommandHandler::testTx, this, _1, _2));
+    mServer->addRoute("testtx",
+                      std::bind(&CommandHandler::testTx, this, _1, _2));
     mServer->addRoute("tx", std::bind(&CommandHandler::tx, this, _1, _2));
 }
 
@@ -88,18 +87,19 @@ CommandHandler::manualCmd(std::string const& cmd)
     LOG(INFO) << cmd << " -> " << reply.content;
 }
 
-SequenceNumber getSeq(SecretKey const& k, Application& app)
+SequenceNumber
+getSeq(SecretKey const& k, Application& app)
 {
     AccountFrame account;
-    if(AccountFrame::loadAccount(k.getPublicKey(), account,
-        app.getDatabase()))
+    if (AccountFrame::loadAccount(k.getPublicKey(), account, app.getDatabase()))
     {
         return account.getSeqNum();
     }
-    return(0);
+    return (0);
 }
 
-void CommandHandler::testTx(std::string const& params, std::string& retStr)
+void
+CommandHandler::testTx(std::string const& params, std::string& retStr)
 {
     std::map<std::string, std::string> retMap;
     http::server::server::parseParams(params, retMap);
@@ -107,28 +107,39 @@ void CommandHandler::testTx(std::string const& params, std::string& retStr)
     auto to = retMap.find("to");
     auto from = retMap.find("from");
     auto amount = retMap.find("amount");
+    auto create = retMap.find("create");
 
-    if( to != retMap.end() && 
-        from != retMap.end() &&
-        amount != retMap.end())
+    if (to != retMap.end() && from != retMap.end() && amount != retMap.end())
     {
-        SecretKey toKey,fromKey;
-        if(to->second == "root") toKey = getRoot();
-        else toKey=getAccount(to->second.c_str());
+        SecretKey toKey, fromKey;
+        if (to->second == "root")
+            toKey = getRoot();
+        else
+            toKey = getAccount(to->second.c_str());
 
-        if(from->second == "root") fromKey = getRoot();
-        else fromKey = getAccount(from->second.c_str());
+        if (from->second == "root")
+            fromKey = getRoot();
+        else
+            fromKey = getAccount(from->second.c_str());
 
-        uint64_t paymentAmount = uint64_t(stoi(amount->second))*1000000ULL;
+        uint64_t paymentAmount = uint64_t(stoi(amount->second)) * 1000000ULL;
 
         SequenceNumber fromSeq = getSeq(fromKey, mApp) + 1;
 
-        TransactionFramePtr txFrame = createPaymentTx(fromKey, toKey, fromSeq, paymentAmount);
-        bool ret=mApp.getHerder().recvTransaction(txFrame);
-        if(ret) retStr = "Transaction submitted";
-        else retStr = "Something went wrong";
-
-    } else
+        TransactionFramePtr txFrame;
+        if (create != retMap.end() && create->second == "true")
+        {
+            txFrame =
+                createCreateAccountTx(fromKey, toKey, fromSeq, paymentAmount);
+        }
+        else
+        {
+            txFrame = createPaymentTx(fromKey, toKey, fromSeq, paymentAmount);
+        }
+        bool ret = mApp.getHerder().recvTransaction(txFrame);
+        retStr = ret ? "Transaction submitted" : "Something went wrong";
+    }
+    else
     {
         retStr = "try something like: testtx?from=root&to=bob&amount=100";
     }
@@ -304,11 +315,11 @@ CommandHandler::catchup(std::string const& params, std::string& retStr)
     }
 
     mApp.getLedgerManager().startCatchUp(ledger, mode, true);
-    retStr = (std::string("Started catchup to ledger ")
-              + std::to_string(ledger)
-              + std::string(" in mode ")
-              + std::string(mode == HistoryManager::CATCHUP_COMPLETE ?
-                            "CATCHUP_COMPLETE" : "CATCHUP_MINIMAL"));
+    retStr = (std::string("Started catchup to ledger ") +
+              std::to_string(ledger) + std::string(" in mode ") +
+              std::string(mode == HistoryManager::CATCHUP_COMPLETE
+                              ? "CATCHUP_COMPLETE"
+                              : "CATCHUP_MINIMAL"));
 }
 
 void
@@ -321,11 +332,11 @@ CommandHandler::checkpoint(std::string const& params, std::string& retStr)
         asio::error_code ec;
         uint32_t lclNum = mApp.getLedgerManager().getLastClosedLedgerNum();
         uint32_t ledgerNum = mApp.getLedgerManager().getLedgerNum();
-        hm.publishHistory(
-            [&done, &ec](asio::error_code const& ec2) {
-                ec = ec2;
-                done = true;
-            });
+        hm.publishHistory([&done, &ec](asio::error_code const& ec2)
+                          {
+                              ec = ec2;
+                              done = true;
+                          });
         while (!done && mApp.getClock().crank(false))
             ;
         if (ec)
@@ -334,12 +345,11 @@ CommandHandler::checkpoint(std::string const& params, std::string& retStr)
         }
         else
         {
-            retStr = fmt::format(
-                "Forcibly published checkpoint 0x{:08x}, "
-                "at current ledger {};\n"
-                "To force catch up on other peers, "
-                "issue the command 'catchup?ledger={}'",
-                lclNum, ledgerNum, ledgerNum);
+            retStr = fmt::format("Forcibly published checkpoint 0x{:08x}, "
+                                 "at current ledger {};\n"
+                                 "To force catch up on other peers, "
+                                 "issue the command 'catchup?ledger={}'",
+                                 lclNum, ledgerNum, ledgerNum);
         }
     }
     else
@@ -391,26 +401,35 @@ CommandHandler::ll(std::string const& params, std::string& retStr)
 
     std::string levelStr = retMap["level"];
     std::string partition = retMap["partition"];
-    if(!levelStr.size())
+    if (!levelStr.size())
     {
         root["Fs"] = Logging::getStringFromLL(Logging::getLogLevel("Fs"));
         root["SCP"] = Logging::getStringFromLL(Logging::getLogLevel("SCP"));
-        root["Bucket"] = Logging::getStringFromLL(Logging::getLogLevel("Bucket"));
-        root["Database"] = Logging::getStringFromLL(Logging::getLogLevel("Database"));
-        root["History"] = Logging::getStringFromLL(Logging::getLogLevel("History"));
-        root["Process"] = Logging::getStringFromLL(Logging::getLogLevel("Process"));
-        root["Ledger"] = Logging::getStringFromLL(Logging::getLogLevel("Ledger"));
-        root["Overlay"] = Logging::getStringFromLL(Logging::getLogLevel("Overlay"));
-        root["Herder"] = Logging::getStringFromLL(Logging::getLogLevel("Herder"));
+        root["Bucket"] =
+            Logging::getStringFromLL(Logging::getLogLevel("Bucket"));
+        root["Database"] =
+            Logging::getStringFromLL(Logging::getLogLevel("Database"));
+        root["History"] =
+            Logging::getStringFromLL(Logging::getLogLevel("History"));
+        root["Process"] =
+            Logging::getStringFromLL(Logging::getLogLevel("Process"));
+        root["Ledger"] =
+            Logging::getStringFromLL(Logging::getLogLevel("Ledger"));
+        root["Overlay"] =
+            Logging::getStringFromLL(Logging::getLogLevel("Overlay"));
+        root["Herder"] =
+            Logging::getStringFromLL(Logging::getLogLevel("Herder"));
         root["Tx"] = Logging::getStringFromLL(Logging::getLogLevel("Tx"));
-    } else
+    }
+    else
     {
         el::Level level = Logging::getLLfromString(levelStr);
-        if(partition.size())
+        if (partition.size())
         {
             Logging::setLogLevel(level, partition.c_str());
             root[partition] = Logging::getStringFromLL(level);
-        } else
+        }
+        else
         {
             Logging::setLogLevel(level, nullptr);
             root["Global"] = Logging::getStringFromLL(level);

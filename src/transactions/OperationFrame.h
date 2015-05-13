@@ -28,7 +28,7 @@ class OperationFrame
 
     bool checkSignature() const;
 
-    virtual bool doCheckValid(Application& app) = 0;
+    virtual bool doCheckValid() = 0;
     virtual bool doApply(LedgerDelta& delta, LedgerManager& ledgerManager) = 0;
     virtual int32_t getNeededThreshold() const;
 
@@ -46,6 +46,14 @@ class OperationFrame
     {
         assert(mSourceAccount);
         return *mSourceAccount;
+    }
+
+    // overrides internal sourceAccount used by this operation
+    // normally set automatically by checkValid
+    void
+    setSourceAccountPtr(AccountFrame::pointer sa)
+    {
+        mSourceAccount = sa;
     }
 
     AccountID const& getSourceID() const;

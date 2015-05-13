@@ -9,10 +9,12 @@
 #include "util/Logging.h"
 #include "ledger/LedgerDelta.h"
 #include "transactions/AllowTrustOpFrame.h"
+#include "transactions/CreateAccountOpFrame.h"
 #include "transactions/CreateOfferOpFrame.h"
 #include "transactions/ChangeTrustOpFrame.h"
 #include "transactions/InflationOpFrame.h"
 #include "transactions/MergeOpFrame.h"
+#include "transactions/PathPaymentOpFrame.h"
 #include "transactions/PaymentOpFrame.h"
 #include "transactions/SetOptionsOpFrame.h"
 #include "database/Database.h"
@@ -28,8 +30,13 @@ OperationFrame::makeHelper(Operation const& op, OperationResult& res,
 {
     switch (op.body.type())
     {
+    case CREATE_ACCOUNT:
+        return shared_ptr<OperationFrame>(
+            new CreateAccountOpFrame(op, res, tx));
     case PAYMENT:
         return shared_ptr<OperationFrame>(new PaymentOpFrame(op, res, tx));
+    case PATH_PAYMENT:
+        return shared_ptr<OperationFrame>(new PathPaymentOpFrame(op, res, tx));
     case CREATE_OFFER:
         return shared_ptr<OperationFrame>(new CreateOfferOpFrame(op, res, tx));
     case SET_OPTIONS:
@@ -141,6 +148,6 @@ OperationFrame::checkValid(Application& app, bool forApply)
     mResult.code(opINNER);
     mResult.tr().type(mOperation.body.type());
 
-    return doCheckValid(app);
+    return doCheckValid();
 }
 }
