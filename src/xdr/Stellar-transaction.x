@@ -196,6 +196,12 @@ case MEMO_TYPE_RETURN:
     Hash retHash; // the hash of the tx you are rejecting
 };
 
+struct TimeBounds
+{
+    uint64 minTime;
+    uint64 maxTime;
+};
+
 /* a transaction is a container for a set of operations
     - is executed by an account
     - fees are collected from the account
@@ -215,9 +221,8 @@ struct Transaction
     // sequence number to consume in the account
     SequenceNumber seqNum;
 
-    // validity range (inclusive) for the ledger sequence number
-    uint32 minLedger;
-    uint32 maxLedger;
+    // validity range (inclusive) for the last ledger close time
+    TimeBounds* timeBounds;
 
     Memo memo;
 
@@ -496,16 +501,17 @@ enum TransactionResultCode
 
     txFAILED = -2, // one of the operations failed (but none were applied)
 
-    txBAD_LEDGER = -3,        // ledger is not in range [minLeder; maxLedger]
-    txMISSING_OPERATION = -4, // no operation was specified
-    txBAD_SEQ = -5,           // sequence number does not match source account
+    txTOO_EARLY = -3,        // ledger closeTime before minTime
+	txTOO_LATE = -4,         // ledger closeTime after maxTime
+    txMISSING_OPERATION = -5, // no operation was specified
+    txBAD_SEQ = -6,           // sequence number does not match source account
 
-    txBAD_AUTH = -6,             // not enough signatures to perform transaction
-    txINSUFFICIENT_BALANCE = -7, // fee would bring account below reserve
-    txNO_ACCOUNT = -8,           // source account not found
-    txINSUFFICIENT_FEE = -9,     // max fee is too small
-    txBAD_AUTH_EXTRA = -10,      // too many signatures on transaction
-    txINTERNAL_ERROR = -11       // an unknown error occured
+    txBAD_AUTH = -7,             // not enough signatures to perform transaction
+    txINSUFFICIENT_BALANCE = -8, // fee would bring account below reserve
+    txNO_ACCOUNT = -9,           // source account not found
+    txINSUFFICIENT_FEE = -10,     // max fee is too small
+    txBAD_AUTH_EXTRA = -11,      // too many signatures on transaction
+    txINTERNAL_ERROR = -12       // an unknown error occured
 };
 
 struct TransactionResult
