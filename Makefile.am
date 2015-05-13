@@ -78,6 +78,7 @@ FMT_SRCS =                                      \
     src/simulation/Topologies.cpp               \
     src/transactions/AllowTrustOpFrame.cpp      \
     src/transactions/ChangeTrustOpFrame.cpp     \
+    src/transactions/ChangeTrustTests.cpp       \
     src/transactions/CreateAccountOpFrame.cpp   \
     src/transactions/CreateOfferOpFrame.cpp     \
     src/transactions/InflationOpFrame.cpp       \
