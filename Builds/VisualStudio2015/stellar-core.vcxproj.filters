@@ -423,6 +423,9 @@
     <ClCompile Include="..\..\src\util\HashOfHash.cpp">
       <Filter>util</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\transactions\PathPaymentOpFrame.cpp">
+      <Filter>transactions</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\ledger\LedgerManager.h">
@@ -718,6 +721,9 @@
     </ClInclude>
     <ClInclude Include="..\..\src\util\HashOfHash.h">
       <Filter>util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\transactions\PathPaymentOpFrame.h">
+      <Filter>transactions</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

@@ -46,8 +46,8 @@ TEST_CASE("create offer", "[tx][offers]")
 
     const int64_t currencyMultiplier = 1000000;
 
-    int64_t trustLineLimit = INT64_MAX;
     int64_t trustLineBalance = 100000 * currencyMultiplier;
+    int64_t trustLineLimit = trustLineBalance * 10;
 
     int64_t txfee = app.getLedgerManager().getTxFee();
 
@@ -111,7 +111,7 @@ TEST_CASE("create offer", "[tx][offers]")
         applyPaymentTx(app, root, a1, root_seq++, minBalance2);
 
         // can't receive more of what we're trying to buy
-        // first, fill the balance
+        // first, fill the trust line to the limit
         applyCreditPaymentTx(app, gateway, a1, usdCur, gateway_seq++,
                              trustLineLimit);
         applyCreateOfferWithResult(app, delta, 0, a1, idrCur, usdCur, oneone,

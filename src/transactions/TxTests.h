@@ -51,16 +51,27 @@ void applyPaymentTx(Application& app, SecretKey& from, SecretKey& to,
                     SequenceNumber seq, int64_t amount,
                     PaymentResultCode result = PAYMENT_SUCCESS);
 
-TransactionFramePtr
-createCreditPaymentTx(SecretKey& from, SecretKey& to, Currency& ci,
-                      SequenceNumber seq, int64_t amount,
-                      std::vector<Currency>* path = nullptr);
+TransactionFramePtr createCreditPaymentTx(SecretKey& from, SecretKey& to,
+                                          Currency& ci, SequenceNumber seq,
+                                          int64_t amount);
 
 PaymentResult applyCreditPaymentTx(Application& app, SecretKey& from,
                                    SecretKey& to, Currency& ci,
                                    SequenceNumber seq, int64_t amount,
-                                   PaymentResultCode result = PAYMENT_SUCCESS,
-                                   std::vector<Currency>* path = nullptr);
+                                   PaymentResultCode result = PAYMENT_SUCCESS);
+
+TransactionFramePtr createPathPaymentTx(SecretKey& from, SecretKey& to,
+                                        Currency const& sendCur,
+                                        int64_t sendMax,
+                                        Currency const& destCur,
+                                        int64_t destAmount, SequenceNumber seq,
+                                        std::vector<Currency>* path = nullptr);
+
+PathPaymentResult applyPathPaymentTx(
+    Application& app, SecretKey& from, SecretKey& to, Currency const& sendCur,
+    int64_t sendMax, Currency const& destCur, int64_t destAmount,
+    SequenceNumber seq, PathPaymentResultCode result = PATH_PAYMENT_SUCCESS,
+    std::vector<Currency>* path = nullptr);
 
 TransactionFramePtr createOfferOp(uint64 offerId, SecretKey& source,
                                   Currency& takerGets, Currency& takerPays,

@@ -13,6 +13,7 @@
 #include "transactions/ChangeTrustOpFrame.h"
 #include "transactions/InflationOpFrame.h"
 #include "transactions/MergeOpFrame.h"
+#include "transactions/PathPaymentOpFrame.h"
 #include "transactions/PaymentOpFrame.h"
 #include "transactions/SetOptionsOpFrame.h"
 #include "database/Database.h"
@@ -30,6 +31,8 @@ OperationFrame::makeHelper(Operation const& op, OperationResult& res,
     {
     case PAYMENT:
         return shared_ptr<OperationFrame>(new PaymentOpFrame(op, res, tx));
+    case PATH_PAYMENT:
+        return shared_ptr<OperationFrame>(new PathPaymentOpFrame(op, res, tx));
     case CREATE_OFFER:
         return shared_ptr<OperationFrame>(new CreateOfferOpFrame(op, res, tx));
     case SET_OPTIONS:

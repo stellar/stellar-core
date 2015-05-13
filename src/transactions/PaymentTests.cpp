@@ -187,15 +187,34 @@ TEST_CASE("payment", "[tx][payment]")
             REQUIRE(line.getBalance() == 0);
         }
     }
+    SECTION("issuer large amounts")
+    {
+        applyChangeTrust(app, a1, gateway, a1Seq++, "IDR", INT64_MAX);
+        applyCreditPaymentTx(app, gateway, a1, idrCur, gateway_seq++,
+                             INT64_MAX);
+        TrustFrame line;
+        REQUIRE(TrustFrame::loadTrustLine(a1.getPublicKey(), idrCur, line,
+                                          app.getDatabase()));
+        REQUIRE(line.getBalance() == INT64_MAX);
+
+        // send it all back
+        applyCreditPaymentTx(app, a1, gateway, idrCur, a1Seq++, INT64_MAX);
+        REQUIRE(TrustFrame::loadTrustLine(a1.getPublicKey(), idrCur, line,
+                                          app.getDatabase()));
+        REQUIRE(line.getBalance() == 0);
+
+        std::vector<TrustFrame> gwLines;
+        TrustFrame::loadLines(gateway.getPublicKey(), gwLines,
+                              app.getDatabase());
+        REQUIRE(gwLines.size() == 0);
+    }
     SECTION("payment through path")
     {
         SECTION("send XLM with path (not enough offers)")
         {
-            std::vector<Currency> path;
-            path.push_back(idrCur);
-
-            applyCreditPaymentTx(app, gateway, a1, xlmCur, gateway_seq++,
-                                 morePayment, PAYMENT_TOO_FEW_OFFERS, &path);
+            applyPathPaymentTx(app, gateway, a1, idrCur, morePayment * 10,
+                               xlmCur, morePayment, gateway_seq++,
+                               PATH_PAYMENT_TOO_FEW_OFFERS);
         }
 
         // setup a1
@@ -247,38 +266,28 @@ TEST_CASE("payment", "[tx][payment]")
         // c1 holds (trustLineStartingBalance, IDR) (0, USD)
         SECTION("send with path (over sendmax)")
         {
-            // A1: try to send 100 IDR to B1 via USD
-            // with sendMax set to 149 USD
+            // A1: try to send 100 IDR to B1
+            // using 149 USD
 
-            std::vector<Currency> path;
-            path.push_back(usdCur);
-
-            TransactionFramePtr txFrame = createCreditPaymentTx(
-                a1, b1, idrCur, a1Seq++, 100 * currencyMultiplier, &path);
-            getFirstOperation(*txFrame).body.paymentOp().sendMax =
-                149 * currencyMultiplier;
-            reSignTransaction(*txFrame, a1);
-
-            txFrame->apply(delta, app);
-
-            REQUIRE(getFirstResult(*txFrame).tr().paymentResult().code() ==
-                    PAYMENT_OVER_SENDMAX);
+            auto res = applyPathPaymentTx(
+                app, a1, b1, usdCur, 149 * currencyMultiplier, idrCur,
+                100 * currencyMultiplier, a1Seq++, PATH_PAYMENT_OVER_SENDMAX);
         }
 
         SECTION("send with path (success)")
         {
-            // A1: try to send 125 IDR to B1 via USD
+            // A1: try to send 125 IDR to B1 using USD
             // should cost 150 (C's offer taken entirely) +
             //  50 (1/4 of B's offer)=200 USD
 
             std::vector<Currency> path;
             path.push_back(usdCur);
 
-            auto res = applyCreditPaymentTx(app, a1, b1, idrCur, a1Seq++,
-                                            125 * currencyMultiplier,
-                                            PAYMENT_SUCCESS_MULTI, &path);
+            auto res = applyPathPaymentTx(
+                app, a1, b1, usdCur, 250 * currencyMultiplier, idrCur,
+                125 * currencyMultiplier, a1Seq++, PATH_PAYMENT_SUCCESS);
 
-            auto& multi = res.multi();
+            auto const& multi = res.success();
 
             REQUIRE(multi.offers.size() == 2);
 
@@ -331,18 +340,18 @@ TEST_CASE("payment", "[tx][payment]")
             applyChangeTrust(app, c1, gateway, c1Seq++, "USD",
                              120 * currencyMultiplier);
 
-            // A1: try to send 105 IDR to B1 via USD
+            // A1: try to send 105 IDR to B1 using USD
             // cost 120 (C's offer maxed out at 4/5th of published amount)
             //  50 (1/4 of B's offer)=170 USD
 
             std::vector<Currency> path;
             path.push_back(usdCur);
 
-            auto res = applyCreditPaymentTx(app, a1, b1, idrCur, a1Seq++,
-                                            105 * currencyMultiplier,
-                                            PAYMENT_SUCCESS_MULTI, &path);
+            auto res = applyPathPaymentTx(
+                app, a1, b1, usdCur, 400 * currencyMultiplier, idrCur,
+                105 * currencyMultiplier, a1Seq++, PATH_PAYMENT_SUCCESS);
 
-            auto& multi = res.multi();
+            auto& multi = res.success();
 
             REQUIRE(multi.offers.size() == 2);
 
@@ -388,27 +397,6 @@ TEST_CASE("payment", "[tx][payment]")
                                               app.getDatabase()));
             checkAmounts(line.getBalance(),
                          trustLineStartingBalance - 170 * currencyMultiplier);
-        }
-        SECTION("issuer large amounts")
-        {
-            applyChangeTrust(app, a1, gateway, a1Seq++, "IDR", INT64_MAX);
-            applyCreditPaymentTx(app, gateway, a1, idrCur, gateway_seq++,
-                                 INT64_MAX);
-            TrustFrame line;
-            REQUIRE(TrustFrame::loadTrustLine(a1.getPublicKey(), idrCur, line,
-                                              app.getDatabase()));
-            REQUIRE(line.getBalance() == INT64_MAX);
-
-            // send it all back
-            applyCreditPaymentTx(app, a1, gateway, idrCur, a1Seq++, INT64_MAX);
-            REQUIRE(TrustFrame::loadTrustLine(a1.getPublicKey(), idrCur, line,
-                                              app.getDatabase()));
-            REQUIRE(line.getBalance() == 0);
-
-            std::vector<TrustFrame> gwLines;
-            TrustFrame::loadLines(gateway.getPublicKey(), gwLines,
-                                  app.getDatabase());
-            REQUIRE(gwLines.size() == 0);
         }
     }
 }

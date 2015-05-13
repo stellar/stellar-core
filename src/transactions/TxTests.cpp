@@ -13,6 +13,7 @@
 #include "util/types.h"
 #include "transactions/TransactionFrame.h"
 #include "ledger/LedgerDelta.h"
+#include "transactions/PathPaymentOpFrame.h"
 #include "transactions/PaymentOpFrame.h"
 #include "transactions/ChangeTrustOpFrame.h"
 #include "transactions/CreateOfferOpFrame.h"
@@ -147,7 +148,6 @@ createPaymentTx(SecretKey& from, SecretKey& to, SequenceNumber seq,
     op.body.type(PAYMENT);
     op.body.paymentOp().amount = amount;
     op.body.paymentOp().destination = to.getPublicKey();
-    op.body.paymentOp().sendMax = INT64_MAX;
     op.body.paymentOp().currency.type(CURRENCY_TYPE_NATIVE);
 
     return transactionFromOperation(from, seq, op);
@@ -183,7 +183,7 @@ applyPaymentTx(Application& app, SecretKey& from, SecretKey& to,
     bool afterToExists = AccountFrame::loadAccount(
         to.getPublicKey(), toAccountAfter, app.getDatabase());
 
-    if (!(innerCode == PAYMENT_SUCCESS || innerCode == PAYMENT_SUCCESS_MULTI))
+    if (innerCode != PAYMENT_SUCCESS)
     {
         // check that the target account didn't change
         REQUIRE(beforeToExists == afterToExists);
@@ -219,22 +219,13 @@ applyChangeTrust(Application& app, SecretKey& from, SecretKey& to,
 
 TransactionFramePtr
 createCreditPaymentTx(SecretKey& from, SecretKey& to, Currency& ci,
-                      SequenceNumber seq, int64_t amount,
-                      std::vector<Currency>* path)
+                      SequenceNumber seq, int64_t amount)
 {
     Operation op;
     op.body.type(PAYMENT);
     op.body.paymentOp().amount = amount;
     op.body.paymentOp().currency = ci;
     op.body.paymentOp().destination = to.getPublicKey();
-    op.body.paymentOp().sendMax = INT64_MAX;
-    if (path)
-    {
-        for (auto const& cur : *path)
-        {
-            op.body.paymentOp().path.push_back(cur);
-        }
-    }
 
     return transactionFromOperation(from, seq, op);
 }
@@ -252,11 +243,11 @@ makeCurrency(SecretKey& issuer, std::string const& code)
 PaymentResult
 applyCreditPaymentTx(Application& app, SecretKey& from, SecretKey& to,
                      Currency& ci, SequenceNumber seq, int64_t amount,
-                     PaymentResultCode result, std::vector<Currency>* path)
+                     PaymentResultCode result)
 {
     TransactionFramePtr txFrame;
 
-    txFrame = createCreditPaymentTx(from, to, ci, seq, amount, path);
+    txFrame = createCreditPaymentTx(from, to, ci, seq, amount);
 
     LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader());
     txFrame->apply(delta, app);
@@ -266,6 +257,56 @@ applyCreditPaymentTx(Application& app, SecretKey& from, SecretKey& to,
     auto& firstResult = getFirstResult(*txFrame);
 
     PaymentResult res = firstResult.tr().paymentResult();
+    auto resCode = res.code();
+    REQUIRE(resCode == result);
+    return res;
+}
+
+TransactionFramePtr
+createPathPaymentTx(SecretKey& from, SecretKey& to, Currency const& sendCur,
+                    int64_t sendMax, Currency const& destCur,
+                    int64_t destAmount, SequenceNumber seq,
+                    std::vector<Currency>* path)
+{
+    Operation op;
+    op.body.type(PATH_PAYMENT);
+    PathPaymentOp& ppop = op.body.pathPaymentOp();
+    ppop.sendCurrency = sendCur;
+    ppop.sendMax = sendMax;
+    ppop.destCurrency = destCur;
+    ppop.destAmount = destAmount;
+    ppop.destination = to.getPublicKey();
+    if (path)
+    {
+        for (auto const& cur : *path)
+        {
+            ppop.path.push_back(cur);
+        }
+    }
+
+    return transactionFromOperation(from, seq, op);
+}
+
+PathPaymentResult
+applyPathPaymentTx(Application& app, SecretKey& from, SecretKey& to,
+                   Currency const& sendCur, int64_t sendMax,
+                   Currency const& destCur, int64_t destAmount,
+                   SequenceNumber seq, PathPaymentResultCode result,
+                   std::vector<Currency>* path)
+{
+    TransactionFramePtr txFrame;
+
+    txFrame = createPathPaymentTx(from, to, sendCur, sendMax, destCur,
+                                  destAmount, seq, path);
+
+    LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader());
+    txFrame->apply(delta, app);
+
+    checkTransaction(*txFrame);
+
+    auto& firstResult = getFirstResult(*txFrame);
+
+    PathPaymentResult res = firstResult.tr().pathPaymentResult();
     auto resCode = res.code();
     REQUIRE(resCode == result);
     return res;

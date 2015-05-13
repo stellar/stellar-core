@@ -48,6 +48,14 @@ class OperationFrame
         return *mSourceAccount;
     }
 
+    // overrides internal sourceAccount used by this operation
+    // normally set automatically by checkValid
+    void
+    setSourceAccountPtr(AccountFrame::pointer sa)
+    {
+        mSourceAccount = sa;
+    }
+
     AccountID const& getSourceID() const;
 
     // load account if needed

@@ -86,6 +86,7 @@ FMT_SRCS =                                      \
     src/transactions/OfferExchange.cpp          \
     src/transactions/OfferTests.cpp             \
     src/transactions/OperationFrame.cpp         \
+    src/transactions/PathPaymentOpFrame.cpp     \
     src/transactions/PaymentOpFrame.cpp         \
     src/transactions/PaymentTests.cpp           \
     src/transactions/SetOptionsOpFrame.cpp      \
@@ -168,6 +169,7 @@ FMT_HDRS =                                      \
     src/transactions/MergeOpFrame.h             \
     src/transactions/OfferExchange.h            \
     src/transactions/OperationFrame.h           \
+    src/transactions/PathPaymentOpFrame.h       \
     src/transactions/PaymentOpFrame.h           \
     src/transactions/SetOptionsOpFrame.h        \
     src/transactions/TransactionFrame.h         \
