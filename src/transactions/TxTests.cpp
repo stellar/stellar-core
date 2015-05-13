@@ -80,8 +80,6 @@ transactionFromOperation(SecretKey& from, SequenceNumber seq,
     TransactionEnvelope e;
 
     e.tx.sourceAccount = from.getPublicKey();
-    e.tx.maxLedger = UINT32_MAX;
-    e.tx.minLedger = 0;
     e.tx.fee = 10;
     e.tx.seqNum = seq;
     e.tx.operations.push_back(op);

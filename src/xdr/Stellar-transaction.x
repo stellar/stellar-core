@@ -175,25 +175,31 @@ struct Operation
 
 enum MemoType
 {
-    MEMO_TYPE_NONE = 0,
-    MEMO_TYPE_TEXT = 1,
-    MEMO_TYPE_ID = 2,
-    MEMO_TYPE_HASH = 3,
-    MEMO_TYPE_RETURN = 4
+    MEMO_NONE = 0,
+    MEMO_TEXT = 1,
+    MEMO_ID = 2,
+    MEMO_HASH = 3,
+    MEMO_RETURN = 4
 };
 
 union Memo switch (MemoType type)
 {
-case MEMO_TYPE_NONE:
+case MEMO_NONE:
     void;
-case MEMO_TYPE_TEXT:
+case MEMO_TEXT:
     string text<28>;
-case MEMO_TYPE_ID:
+case MEMO_ID:
     uint64 id;
-case MEMO_TYPE_HASH:
+case MEMO_HASH:
     Hash hash; // the hash of what to pull from the content server
-case MEMO_TYPE_RETURN:
+case MEMO_RETURN:
     Hash retHash; // the hash of the tx you are rejecting
+};
+
+struct TimeBounds
+{
+    uint64 minTime;
+    uint64 maxTime;
 };
 
 /* a transaction is a container for a set of operations
@@ -215,9 +221,8 @@ struct Transaction
     // sequence number to consume in the account
     SequenceNumber seqNum;
 
-    // validity range (inclusive) for the ledger sequence number
-    uint32 minLedger;
-    uint32 maxLedger;
+    // validity range (inclusive) for the last ledger close time
+    TimeBounds* timeBounds;
 
     Memo memo;
 
@@ -496,16 +501,17 @@ enum TransactionResultCode
 
     txFAILED = -2, // one of the operations failed (but none were applied)
 
-    txBAD_LEDGER = -3,        // ledger is not in range [minLeder; maxLedger]
-    txMISSING_OPERATION = -4, // no operation was specified
-    txBAD_SEQ = -5,           // sequence number does not match source account
+    txTOO_EARLY = -3,         // ledger closeTime before minTime
+	txTOO_LATE = -4,          // ledger closeTime after maxTime
+    txMISSING_OPERATION = -5, // no operation was specified
+    txBAD_SEQ = -6,           // sequence number does not match source account
 
-    txBAD_AUTH = -6,             // not enough signatures to perform transaction
-    txINSUFFICIENT_BALANCE = -7, // fee would bring account below reserve
-    txNO_ACCOUNT = -8,           // source account not found
-    txINSUFFICIENT_FEE = -9,     // max fee is too small
-    txBAD_AUTH_EXTRA = -10,      // too many signatures on transaction
-    txINTERNAL_ERROR = -11       // an unknown error occured
+    txBAD_AUTH = -7,             // not enough signatures to perform transaction
+    txINSUFFICIENT_BALANCE = -8, // fee would bring account below reserve
+    txNO_ACCOUNT = -9,           // source account not found
+    txINSUFFICIENT_FEE = -10,    // fee is too small
+    txBAD_AUTH_EXTRA = -11,      // too many signatures on transaction
+    txINTERNAL_ERROR = -12       // an unknown error occured
 };
 
 struct TransactionResult
