@@ -20,6 +20,7 @@ using namespace stellar::txtest;
 
 typedef std::unique_ptr<Application> appPtr;
 
+
 TEST_CASE("standalone", "[herder]")
 {
     SIMULATION_CREATE_NODE(0);

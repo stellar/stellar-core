@@ -26,9 +26,9 @@ class TestSCP : public SCP
     {
     }
     void
-    storeQuorumSet(SCPQuorumSet qSet)
+    storeQuorumSet(SCPQuorumSetPtr qSet)
     {
-        Hash qSetHash = sha256(xdr::xdr_to_opaque(qSet));
+        Hash qSetHash = sha256(xdr::xdr_to_opaque(*qSet.get()));
         mQuorumSets[qSetHash] = qSet;
     }
 
@@ -78,31 +78,25 @@ class TestSCP : public SCP
         mExternalizedValues[slotIndex] = value;
     }
 
-    void
-    retrieveQuorumSet(Hash const& nodeID, Hash const& qSetHash,
-                      std::function<void(SCPQuorumSet const&)> const& cb)
+    SCPQuorumSetPtr
+        getQSet(Hash const& qSetHash)
     {
-        if (mQuorumSets.find(qSetHash) != mQuorumSets.end())
+        if(mQuorumSets.find(qSetHash) != mQuorumSets.end())
         {
-            CLOG(DEBUG, "SCP") << "TestSCP::retrieveQuorumSet"
-                               << " qSet: " << hexAbbrev(qSetHash)
-                               << " nodeID: " << hexAbbrev(nodeID) << " OK";
-            return cb(mQuorumSets[qSetHash]);
+            
+            return mQuorumSets[qSetHash];
         }
-        else
-        {
-            CLOG(DEBUG, "SCP") << "TestSCP::retrieveQuorumSet"
-                               << " qSet: " << hexAbbrev(qSetHash)
-                               << " nodeID: " << hexAbbrev(nodeID) << " FAIL";
-        }
+        return SCPQuorumSetPtr();
     }
+
+   
     void
     emitEnvelope(SCPEnvelope const& envelope)
     {
         mEnvs.push_back(envelope);
     }
 
-    std::map<Hash, SCPQuorumSet> mQuorumSets;
+    std::map<Hash, SCPQuorumSetPtr> mQuorumSets;
     std::vector<SCPEnvelope> mEnvs;
     std::map<uint64, Value> mExternalizedValues;
     std::map<uint64, std::vector<SCPBallot>> mHeardFromQuorums;
@@ -153,7 +147,7 @@ TEST_CASE("protocol core4", "[scp]")
 
     TestSCP scp(v0SecretKey, qSet);
 
-    scp.storeQuorumSet(qSet);
+    scp.storeQuorumSet(std::make_shared<SCPQuorumSet>(qSet));
 
     CREATE_VALUE(x);
     CREATE_VALUE(y);

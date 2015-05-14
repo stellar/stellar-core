@@ -14,7 +14,7 @@
 
 namespace stellar
 {
-typedef std::shared_ptr<SCPQuorumSet> SCPQuorumSetPtr;
+
 
 class TxSetFrame;
 typedef std::shared_ptr<TxSetFrame> TxSetFramePtr;
@@ -78,16 +78,18 @@ class Herder
 
     virtual void bootstrap() = 0;
 
+    virtual void recvSCPQuorumSet(Hash hash, const SCPQuorumSet& qset)=0;
+    virtual void recvTxSet(Hash hash, const TxSetFrame& txset) = 0;
     // We are learning about a new transaction.
     virtual TransactionSubmitStatus recvTransaction(TransactionFramePtr tx) = 0;
+    virtual void peerDoesntHave(stellar::MessageType type, uint256 const& itemID, PeerPtr peer) = 0;
+    virtual TxSetFramePtr getTxSet(Hash hash) = 0;
+    virtual SCPQuorumSetPtr getQSet(const Hash& qSetHash) = 0;
 
-    // We are learning about a new envelope. Callback called with whether the
-    // envelope should be flooded or not.
-    virtual void recvSCPEnvelope(SCPEnvelope envelope,
-                                 std::function<void(SCP::EnvelopeState)> const&
-                                     cb = [](SCP::EnvelopeState)
-                                 {
-                                 }) = 0;
+   
+
+    // We are learning about a new envelope.
+    virtual void recvSCPEnvelope(SCPEnvelope envelope) = 0;
 
     // returns the latest known ledger seq using consensus information
     // and local state

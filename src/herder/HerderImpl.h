@@ -60,11 +60,8 @@ class HerderImpl : public Herder, public SCP
 
     void nodeTouched(uint256 const& nodeID) override;
 
-    void retrieveQuorumSet(
-        uint256 const& nodeID, Hash const& qSetHash,
-        std::function<void(SCPQuorumSet const&)> const& cb) override;
     void emitEnvelope(SCPEnvelope const& envelope) override;
-    bool recvTransactions(TxSetFrame &txSet);
+    bool recvTransactions(TxSetFramePtr txSet);
     // Extra SCP methods overridden solely to increment metrics.
     void ballotDidPrepare(uint64 const& slotIndex,
                           SCPBallot const& ballot) override;
@@ -79,10 +76,13 @@ class HerderImpl : public Herder, public SCP
 
     TransactionSubmitStatus recvTransaction(TransactionFramePtr tx) override;
 
-    void recvSCPEnvelope(SCPEnvelope envelope,
-                         std::function<void(EnvelopeState)> const& cb = [](bool)
-                         {
-                         }) override;
+    void recvSCPEnvelope(SCPEnvelope envelope) override;
+
+    void recvSCPQuorumSet(Hash hash, const SCPQuorumSet& qset) override;
+    void recvTxSet(Hash hash, const TxSetFrame& txset) override;
+    void peerDoesntHave(MessageType type, uint256 const& itemID, PeerPtr peer) override;
+    TxSetFramePtr getTxSet(Hash hash) override;
+    SCPQuorumSetPtr getQSet(const Hash& qSetHash) override;
 
     void processSCPQueue();
 
@@ -122,7 +122,7 @@ class HerderImpl : public Herder, public SCP
              std::map<uint256, std::vector<std::shared_ptr<VirtualTimer>>>>
         mBallotValidationTimers;
 
-    std::map<uint32_t, TxSetTrackerPtr> mProposedSetTrackers;
+    
 
     void herderOutOfSync();
 

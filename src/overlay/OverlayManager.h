@@ -114,8 +114,8 @@ class OverlayManager
     virtual void connectTo(PeerRecord& pr) = 0;
 
 
-    virtual ItemFetcher<TxSetFrame, TxSetTracker> & getTxSetFetcher() = 0;
-    virtual ItemFetcher<SCPQuorumSet, QuorumSetTracker> & getQuorumSetFetcher() = 0;
+    //virtual ItemFetcher<TxSetFrame, TxSetTracker> & getTxSetFetcher() = 0;
+    //virtual ItemFetcher<SCPQuorumSet, QuorumSetTracker> & getQuorumSetFetcher() = 0;
 
 
     virtual ~OverlayManager()

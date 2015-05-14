@@ -50,11 +50,13 @@ Simulation::Simulation(Mode mode)
 
 Simulation::~Simulation()
 {
+    
     // tear down
     mClock.getIOService().poll_one();
     mClock.getIOService().stop();
     while (mClock.cancelAllEvents())
         ;
+
 }
 
 VirtualClock&
@@ -153,8 +155,7 @@ void
 Simulation::startAllNodes()
 {
     // We wait for the connections to set up (HELLO).
-    while (crankAllNodes() > 0)
-        ;
+    while (crankAllNodes() > 0);
 
     for (auto it : mNodes)
     {

@@ -18,7 +18,7 @@ namespace stellar
 int const Node::CACHE_SIZE = 4;
 
 Node::Node(uint256 const& nodeID, SCP* SCP)
-    : mNodeID(nodeID), mSCP(SCP), mCache(CACHE_SIZE)
+    : mNodeID(nodeID), mSCP(SCP)
 {
 }
 
@@ -30,15 +30,15 @@ Node::hasQuorum(Hash const& qSetHash, std::vector<uint256> const& nodeSet)
                        << " qSet: " << hexAbbrev(qSetHash)
                        << " nodeSet.size: " << nodeSet.size();
     // This call can throw a `QuorumSetNotFound` if the quorumSet is unknown.
-    SCPQuorumSet const& qSet = retrieveQuorumSet(qSetHash);
+    SCPQuorumSetPtr qSet = retrieveQuorumSet(qSetHash);
 
     uint32 count = 0;
-    for (auto n : qSet.validators)
+    for (auto n : qSet->validators)
     {
         auto it = std::find(nodeSet.begin(), nodeSet.end(), n);
         count += (it != nodeSet.end()) ? 1 : 0;
     }
-    auto result = (count >= qSet.threshold);
+    auto result = (count >= qSet->threshold);
     CLOG(DEBUG, "SCP") << "Node::hasQuorum"
                        << "@" << hexAbbrev(mNodeID) << " is " << result;
     return result;
@@ -52,21 +52,21 @@ Node::isVBlocking(Hash const& qSetHash, std::vector<uint256> const& nodeSet)
                        << " qSet: " << hexAbbrev(qSetHash)
                        << " nodeSet.size: " << nodeSet.size();
     // This call can throw a `QuorumSetNotFound` if the quorumSet is unknown.
-    SCPQuorumSet const& qSet = retrieveQuorumSet(qSetHash);
+    SCPQuorumSetPtr qSet = retrieveQuorumSet(qSetHash);
 
     // There is no v-blocking set for {\empty}
-    if (qSet.threshold == 0)
+    if (qSet->threshold == 0)
     {
         return false;
     }
 
     uint32 count = 0;
-    for (auto n : qSet.validators)
+    for (auto n : qSet->validators)
     {
         auto it = std::find(nodeSet.begin(), nodeSet.end(), n);
         count += (it != nodeSet.end()) ? 1 : 0;
     }
-    auto result = (qSet.validators.size() - count < qSet.threshold);
+    auto result = (qSet->validators.size() - count < qSet->threshold);
     CLOG(DEBUG, "SCP") << "Node::isVBlocking"
                        << "@" << hexAbbrev(mNodeID) << " is " << result;
     return result;
@@ -137,34 +137,25 @@ template bool Node::isQuorumTransitive<SCPStatement>(
     std::function<Hash(SCPStatement const&)> const& qfun,
     std::function<bool(uint256 const&, SCPStatement const&)> const& filter);
 
-SCPQuorumSet const&
+SCPQuorumSetPtr
 Node::retrieveQuorumSet(Hash const& qSetHash)
 {
     // Notify that we touched this node.
     mSCP->nodeTouched(mNodeID);
 
-    if (mCache.exists(qSetHash))
+    SCPQuorumSetPtr ret = mSCP->getQSet(qSetHash);
+    if(ret)
     {
-        return mCache.get(qSetHash);
+        return ret;
     }
 
     CLOG(DEBUG, "SCP") << "Node::retrieveQuorumSet"
                        << "@" << hexAbbrev(mNodeID)
-                       << " qSet: " << hexAbbrev(qSetHash);
+                       << " not found qSet: " << hexAbbrev(qSetHash);
 
     throw QuorumSetNotFound(mNodeID, qSetHash);
 }
 
-void
-Node::cacheQuorumSet(SCPQuorumSet const& qSet)
-{
-    uint256 qSetHash = sha256(xdr::xdr_to_opaque(qSet));
-    CLOG(DEBUG, "SCP") << "Node::cacheQuorumSet"
-                       << "@" << hexAbbrev(mNodeID)
-                       << " qSet: " << hexAbbrev(qSetHash);
-
-    mCache.put(qSetHash, qSet);
-}
 
 uint256 const&
 Node::getNodeID()
@@ -172,9 +163,4 @@ Node::getNodeID()
     return mNodeID;
 }
 
-size_t
-Node::getCachedQuorumSetCount() const
-{
-    return mCache.size();
-}
 }

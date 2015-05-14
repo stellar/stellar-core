@@ -13,6 +13,7 @@
 #include "util/Logging.h"
 #include "util/types.h"
 #include "herder/Herder.h"
+#include "transactions/TransactionFrame.h"
 
 using namespace stellar;
 
@@ -39,6 +40,66 @@ void printStats(int& nLedgers, std::chrono::system_clock::time_point tBegin, Sim
     LOG(INFO) << sim->metricsSummary("scp");
 }
 
+
+#include "lib/util/lrucache.hpp"
+//typedef std::shared_ptr<TxSetFrame> TxSetFramePtr;
+
+TEST_CASE("3 nodes. 2 running. threshold 2", "[simulation]")
+{
+    Simulation::Mode mode = Simulation::OVER_LOOPBACK;
+    SECTION("Over loopback")
+    {
+        mode = Simulation::OVER_LOOPBACK;
+    }
+    
+    SECTION("Over tcp")
+    {
+        mode = Simulation::OVER_TCP;
+    }
+    
+
+    Simulation::pointer simulation = std::make_shared<Simulation>(mode);
+
+    std::vector<SecretKey> keys;
+    for(int i = 0; i < 3; i++)
+    {
+        keys.push_back(SecretKey::fromSeed(sha256("SEED_VALIDATION_SEED_" + std::to_string(i))));
+    }
+
+    SCPQuorumSet qSet;
+    qSet.threshold = 2;
+    for(auto k : keys)
+    {
+        qSet.validators.push_back(k.getPublicKey());
+    }
+
+    simulation->addNode(keys[0], qSet, simulation->getClock());
+    simulation->addNode(keys[1], qSet, simulation->getClock());
+    simulation->addConnection(keys[0].getPublicKey(), keys[1].getPublicKey());
+
+    
+    auto tBegin = std::chrono::system_clock::now();
+
+    LOG(INFO) << "#######################################################";
+
+    simulation->startAllNodes();
+
+
+    int nLedgers = 10;
+    simulation->crankUntil(
+        [&simulation, nLedgers]()
+    {
+        return simulation->haveAllExternalized(nLedgers + 1);
+    },
+        2 * nLedgers * Herder::EXP_LEDGER_TIMESPAN_SECONDS);
+
+    printStats(nLedgers, tBegin, simulation);
+
+    REQUIRE(simulation->haveAllExternalized(nLedgers + 1));
+
+    
+    
+}
 
 
 TEST_CASE("core topology: 4 ledgers at scales 2..4", "[simulation]")
@@ -93,7 +154,7 @@ hierarchicalTopo(int nLedgers, int nBranches, Simulation::Mode mode)
 
     printStats(nLedgers, tBegin, sim);
 }
-
+/* TODO.1 re-enable after SCP changes go in
 TEST_CASE("hierarchical topology scales 1..3", "[simulation]")
 {
     Simulation::Mode mode = Simulation::OVER_LOOPBACK;
@@ -114,6 +175,7 @@ TEST_CASE("hierarchical topology scales 1..3", "[simulation]")
         hierarchicalTopo(nLedgers, nBranches, mode);
     }
 }
+*/
 
 
 TEST_CASE("cycle4 topology", "[simulation]")

@@ -788,17 +788,7 @@ Slot::advanceSlot()
     }
     catch (Node::QuorumSetNotFound e)
     {
-        auto self = shared_from_this();
-        auto cb = [self, e](SCPQuorumSet const& qSet)
-        {
-            uint256 qSetHash = sha256(xdr::xdr_to_opaque(qSet));
-            if (e.qSetHash() == qSetHash)
-            {
-                self->mSCP->getNode(e.nodeID())->cacheQuorumSet(qSet);
-                self->advanceSlot();
-            }
-        };
-        mSCP->retrieveQuorumSet(e.nodeID(), e.qSetHash(), cb);
+        CLOG(ERROR, "SCP") << "QuorumSetNotFound";
     }
 
     mInAdvanceSlot = false;

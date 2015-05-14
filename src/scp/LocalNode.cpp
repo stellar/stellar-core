@@ -20,7 +20,7 @@ LocalNode::LocalNode(SecretKey const& secretKey, SCPQuorumSet const& qSet,
     , mQSet(qSet)
     , mQSetHash(sha256(xdr::xdr_to_opaque(qSet)))
 {
-    cacheQuorumSet(qSet);
+    
 
     CLOG(INFO, "SCP") << "LocalNode::LocalNode"
                       << "@" << hexAbbrev(mNodeID)
@@ -30,8 +30,6 @@ LocalNode::LocalNode(SecretKey const& secretKey, SCPQuorumSet const& qSet,
 void
 LocalNode::updateQuorumSet(SCPQuorumSet const& qSet)
 {
-    cacheQuorumSet(qSet);
-
     mQSetHash = sha256(xdr::xdr_to_opaque(qSet));
     mQSet = qSet;
 }
