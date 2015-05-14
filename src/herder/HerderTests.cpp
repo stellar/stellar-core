@@ -78,8 +78,10 @@ TEST_CASE("standalone", "[herder]")
             TransactionFramePtr txFrameA2 =
                 createCreateAccountTx(root, b1, rootSeq++, paymentAmount);
 
-            REQUIRE(app->getHerder().recvTransaction(txFrameA1));
-            REQUIRE(app->getHerder().recvTransaction(txFrameA2));
+            REQUIRE(app->getHerder().recvTransaction(txFrameA1) ==
+                    Herder::TX_STATUS_PENDING);
+            REQUIRE(app->getHerder().recvTransaction(txFrameA2) ==
+                    Herder::TX_STATUS_PENDING);
         };
 
         setupTimer.expires_from_now(std::chrono::seconds(0));

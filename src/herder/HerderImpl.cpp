@@ -560,7 +560,7 @@ HerderImpl::valueExternalized(uint64 const& slotIndex, Value const& value)
 
     auto externalizedSet = mPendingEnvelopes.getTxSet(txSetHash);
 
-    mProposedSetTrackers.erase(slotIndex);
+    mProposedSetTrackers.erase(static_cast<uint32_t>(slotIndex));
 
     // trigger will be recreated when the ledger is closed
     // we do not want it to trigger while downloading the current set
@@ -718,7 +718,7 @@ HerderImpl::recvTransactions(TxSetFrame &txSet)
     bool allGood = true;
     for (auto tx : txSet.sortForApply())
     {
-        if (!recvTransaction(tx))
+        if (recvTransaction(tx) != TX_STATUS_PENDING)
         {
             allGood = false;
         }
@@ -726,7 +726,7 @@ HerderImpl::recvTransactions(TxSetFrame &txSet)
     return allGood;
 }
 
-bool
+Herder::TransactionSubmitStatus
 HerderImpl::recvTransaction(TransactionFramePtr tx)
 {
     Hash const& txID = tx->getFullHash();
@@ -742,8 +742,7 @@ HerderImpl::recvTransaction(TransactionFramePtr tx)
         {
             if (txID == oldTX->getFullHash())
             {
-                tx->getResult().result.code(txDUPLICATE);
-                return false;
+                return TX_STATUS_DUPLICATE;
             }
             if (oldTX->getSourceID() == tx->getSourceID())
             {
@@ -758,18 +757,18 @@ HerderImpl::recvTransaction(TransactionFramePtr tx)
 
     if (!tx->checkValid(mApp, highSeq))
     {
-        return false;
+        return TX_STATUS_ERROR;
     }
 
     if (tx->getSourceAccount().getBalanceAboveReserve(mLedgerManager) < totFee)
     {
         tx->getResult().result.code(txINSUFFICIENT_BALANCE);
-        return false;
+        return TX_STATUS_ERROR;
     }
 
     mReceivedTransactions[0].push_back(tx);
 
-    return true;
+    return TX_STATUS_PENDING;
 }
 
 void
@@ -1010,7 +1009,7 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger)
     
     // use the slot index from ledger manager here as our vote is based off
     // the last closed ledger stored in ledger manager
-    uint64_t slotIndex = lcl.header.ledgerSeq+1;
+    uint32_t slotIndex = lcl.header.ledgerSeq+1;
 
     // Force the cache to hold the value as long as it remains a candidate.
     mProposedSetTrackers[slotIndex] = tracker;

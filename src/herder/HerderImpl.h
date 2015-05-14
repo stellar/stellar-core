@@ -77,9 +77,7 @@ class HerderImpl : public Herder, public SCP
     void envelopeSigned() override;
     void envelopeVerified(bool) override;
 
-
-    // returns whether the transaction should be flooded
-    bool recvTransaction(TransactionFramePtr tx) override;
+    TransactionSubmitStatus recvTransaction(TransactionFramePtr tx) override;
 
     void recvSCPEnvelope(SCPEnvelope envelope,
                          std::function<void(EnvelopeState)> const& cb = [](bool)

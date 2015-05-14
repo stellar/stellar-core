@@ -110,7 +110,9 @@ AccountFrame::getBalanceAboveReserve(LedgerManager const& lm) const
         getBalance() - lm.getMinBalance(mAccountEntry.numSubEntries);
     if (avail < 0)
     {
-        throw std::runtime_error("Balance cannot be below reserve");
+        // nothing can leave this account if below the reserve
+        // (this can happen if the reserve is raised)
+        avail = 0;
     }
     return avail;
 }

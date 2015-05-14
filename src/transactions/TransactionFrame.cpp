@@ -294,7 +294,7 @@ TransactionFrame::prepareResult(LedgerDelta& delta,
 
     if (fee > 0)
     {
-        int64_t avail = mSigningAccount->getBalanceAboveReserve(ledgerManager);
+        int64_t avail = mSigningAccount->getAccount().balance;
         if (avail < fee)
         {
             // take all their balance to be safe

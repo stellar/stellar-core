@@ -65,14 +65,21 @@ class Herder
         HERDER_NUM_STATE
     };
 
+    enum TransactionSubmitStatus
+    {
+        TX_STATUS_PENDING = 0,
+        TX_STATUS_DUPLICATE,
+        TX_STATUS_ERROR,
+        TX_STATUS_COUNT
+    };
+
     virtual State getState() const = 0;
     virtual std::string getStateHuman() const = 0;
 
     virtual void bootstrap() = 0;
 
-    // We are learning about a new transaction. Returns true if we should flood
-    // this tx.
-    virtual bool recvTransaction(TransactionFramePtr tx) = 0;
+    // We are learning about a new transaction.
+    virtual TransactionSubmitStatus recvTransaction(TransactionFramePtr tx) = 0;
 
     // We are learning about a new envelope. Callback called with whether the
     // envelope should be flooded or not.

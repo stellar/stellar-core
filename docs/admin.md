@@ -49,7 +49,10 @@
 ## /tx?blob=HEX
         submit a transaction to the network.
         blob is a hex encoded XDR serialized 'TransactionEnvelope'
-        returns a JSON object
-            wasReceived: boolean, true if transaction was queued properly
-            result: hex encoded, XDR serialized 'TransactionResult'
-
+        returns a JSON object with the following properties
+            status:
+                * "PENDING" - transaction is being considered by consensus
+                * "DUPLICATE" - transaction is already PENDING
+                * "ERROR" - transaction rejected by transaction engine
+            error: set when status is "ERROR".
+                hex encoded, XDR serialized 'TransactionResult'

@@ -92,10 +92,6 @@ struct TransactionResultSet
 };
 
 // Entries below are used in the historical subsystem
-struct TransactionMeta
-{
-    BucketEntry entries<>;
-};
 
 struct TransactionHistoryEntry
 {
@@ -113,5 +109,29 @@ struct LedgerHeaderHistoryEntry
 {
     Hash hash;
     LedgerHeader header;
+};
+
+// represents the meta in the transaction table history
+
+enum LedgerEntryChangeType
+{
+    LEDGER_ENTRY_CREATED = 0, // entry was added to the ledger
+    LEDGER_ENTRY_UPDATED = 1, // entry was modified in the ledger
+    LEDGER_ENTRY_REMOVED = 2  // entry was removed from the ledger
+};
+
+union LedgerEntryChange switch (LedgerEntryChangeType type)
+{
+case LEDGER_ENTRY_CREATED:
+    LedgerEntry created;
+case LEDGER_ENTRY_UPDATED:
+    LedgerEntry updated;
+case LEDGER_ENTRY_REMOVED:
+    LedgerKey removed;
+};
+
+struct TransactionMeta
+{
+    LedgerEntryChange changes<>;
 };
 }
