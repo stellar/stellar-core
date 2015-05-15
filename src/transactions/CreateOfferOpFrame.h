@@ -7,6 +7,7 @@
 #include "transactions/OperationFrame.h"
 #include "ledger/TrustFrame.h"
 #include "ledger/OfferFrame.h"
+#include "ledger/OfferFrame.h"
 
 namespace stellar
 {
@@ -15,7 +16,7 @@ class CreateOfferOpFrame : public OperationFrame
     TrustFrame mSheepLineA;
     TrustFrame mWheatLineA;
 
-    OfferFrame mSellSheepOffer;
+    OfferFrame::pointer mSellSheepOffer;
 
     bool checkOfferValid(Database& db);
 

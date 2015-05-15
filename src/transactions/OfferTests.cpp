@@ -130,8 +130,7 @@ TEST_CASE("create offer", "[tx][offers]")
         OfferFrame offer;
         for (int i = 0; i < 9; i++)
         {
-            REQUIRE(!OfferFrame::loadOffer(a1.getPublicKey(), i, offer,
-                                           app.getDatabase()));
+            REQUIRE(!loadOffer(a1, i, app, false));
         }
     }
 
@@ -152,17 +151,14 @@ TEST_CASE("create offer", "[tx][offers]")
                                               CREATE_OFFER_SUCCESS);
 
         auto offer = res.success().offer.offer();
-        OfferFrame loaded;
-        REQUIRE(OfferFrame::loadOffer(a1.getPublicKey(), offer.offerID, loaded,
-                                      app.getDatabase()));
+        loadOffer(a1, offer.offerID, app);
 
         auto cancelRes = applyCreateOfferWithResult(
             app, delta, offer.offerID, a1, idrCur, usdCur, oneone, 0, a1_seq++,
             CREATE_OFFER_SUCCESS);
 
         REQUIRE(cancelRes.success().offer.effect() == CREATE_OFFER_DELETED);
-        REQUIRE(!OfferFrame::loadOffer(a1.getPublicKey(), offer.offerID, loaded,
-                                       app.getDatabase()));
+        REQUIRE(!loadOffer(a1, offer.offerID, app, false));
     }
 
     // minimum balance to hold
@@ -171,7 +167,7 @@ TEST_CASE("create offer", "[tx][offers]")
 
     SECTION("a1 setup properly")
     {
-        OfferFrame offer;
+        OfferFrame::pointer offer;
 
         // fund a1 with some IDR and XLM
 
@@ -204,17 +200,16 @@ TEST_CASE("create offer", "[tx][offers]")
                     app, delta, 0, a1, idrCur, usdCur, usdPriceOfferA,
                     100 * currencyMultiplier, a1_seq++);
 
-                REQUIRE(OfferFrame::loadOffer(a1.getPublicKey(), newOfferID,
-                                              offer, app.getDatabase()));
+                offer = loadOffer(a1, newOfferID, app);
 
                 a1OfferID.push_back(newOfferID);
 
                 // verifies that the offer was created as expected
-                REQUIRE(offer.getPrice() == usdPriceOfferA);
-                REQUIRE(offer.getAmount() == 100 * currencyMultiplier);
-                REQUIRE(offer.getTakerGets().alphaNum().currencyCode ==
+                REQUIRE(offer->getPrice() == usdPriceOfferA);
+                REQUIRE(offer->getAmount() == 100 * currencyMultiplier);
+                REQUIRE(offer->getTakerGets().alphaNum().currencyCode ==
                         idrCur.alphaNum().currencyCode);
-                REQUIRE(offer.getTakerPays().alphaNum().currencyCode ==
+                REQUIRE(offer->getTakerPays().alphaNum().currencyCode ==
                         usdCur.alphaNum().currencyCode);
             }
 
@@ -238,25 +233,23 @@ TEST_CASE("create offer", "[tx][offers]")
                                      40 * currencyMultiplier, b1_seq++);
 
                 // verifies that the offer was created properly
-                REQUIRE(OfferFrame::loadOffer(b1.getPublicKey(), offerID, offer,
-                                              app.getDatabase()));
-                REQUIRE(offer.getPrice() == twoone);
-                REQUIRE(offer.getAmount() == 40 * currencyMultiplier);
-                REQUIRE(offer.getTakerPays().alphaNum().currencyCode ==
+                offer = loadOffer(b1, offerID, app);
+                REQUIRE(offer->getPrice() == twoone);
+                REQUIRE(offer->getAmount() == 40 * currencyMultiplier);
+                REQUIRE(offer->getTakerPays().alphaNum().currencyCode ==
                         idrCur.alphaNum().currencyCode);
-                REQUIRE(offer.getTakerGets().alphaNum().currencyCode ==
+                REQUIRE(offer->getTakerGets().alphaNum().currencyCode ==
                         usdCur.alphaNum().currencyCode);
 
                 // and that a1 offers were not touched
                 for (auto a1Offer : a1OfferID)
                 {
-                    REQUIRE(OfferFrame::loadOffer(a1.getPublicKey(), a1Offer,
-                                                  offer, app.getDatabase()));
-                    REQUIRE(offer.getPrice() == usdPriceOfferA);
-                    REQUIRE(offer.getAmount() == 100 * currencyMultiplier);
-                    REQUIRE(offer.getTakerPays().alphaNum().currencyCode ==
+                    offer = loadOffer(a1, a1Offer, app);
+                    REQUIRE(offer->getPrice() == usdPriceOfferA);
+                    REQUIRE(offer->getAmount() == 100 * currencyMultiplier);
+                    REQUIRE(offer->getTakerPays().alphaNum().currencyCode ==
                             usdCur.alphaNum().currencyCode);
-                    REQUIRE(offer.getTakerGets().alphaNum().currencyCode ==
+                    REQUIRE(offer->getTakerGets().alphaNum().currencyCode ==
                             idrCur.alphaNum().currencyCode);
                 }
             }
@@ -283,13 +276,12 @@ TEST_CASE("create offer", "[tx][offers]")
 
                 for (auto a1Offer : a1OfferID)
                 {
-                    REQUIRE(OfferFrame::loadOffer(a1.getPublicKey(), a1Offer,
-                                                  offer, app.getDatabase()));
-                    REQUIRE(offer.getPrice() == usdPriceOfferA);
-                    REQUIRE(offer.getAmount() == 100 * currencyMultiplier);
-                    REQUIRE(offer.getTakerPays().alphaNum().currencyCode ==
+                    offer = loadOffer(a1, a1Offer, app);
+                    REQUIRE(offer->getPrice() == usdPriceOfferA);
+                    REQUIRE(offer->getAmount() == 100 * currencyMultiplier);
+                    REQUIRE(offer->getTakerPays().alphaNum().currencyCode ==
                             usdCur.alphaNum().currencyCode);
-                    REQUIRE(offer.getTakerGets().alphaNum().currencyCode ==
+                    REQUIRE(offer->getTakerGets().alphaNum().currencyCode ==
                             idrCur.alphaNum().currencyCode);
                 }
             }
@@ -312,8 +304,7 @@ TEST_CASE("create offer", "[tx][offers]")
                 REQUIRE(res.success().offer.effect() == CREATE_OFFER_DELETED);
 
                 // verifies that the offer was not created
-                REQUIRE(!OfferFrame::loadOffer(b1.getPublicKey(), expectedID,
-                                               offer, app.getDatabase()));
+                REQUIRE(!loadOffer(b1, expectedID, app, false));
 
                 // and the state of a1 offers
                 for (int i = 0; i < nbOffers; i++)
@@ -323,20 +314,16 @@ TEST_CASE("create offer", "[tx][offers]")
                     if (i == 0)
                     {
                         // first offer was taken
-                        REQUIRE(!OfferFrame::loadOffer(a1.getPublicKey(),
-                                                       a1Offer, offer,
-                                                       app.getDatabase()));
+                        REQUIRE(!loadOffer(a1, a1Offer, app, false));
                     }
                     else
                     {
-                        REQUIRE(OfferFrame::loadOffer(a1.getPublicKey(),
-                                                      a1Offer, offer,
-                                                      app.getDatabase()));
-                        REQUIRE(offer.getPrice() == usdPriceOfferA);
-                        REQUIRE(offer.getAmount() == 100 * currencyMultiplier);
-                        REQUIRE(offer.getTakerPays().alphaNum().currencyCode ==
+                        offer = loadOffer(a1, a1Offer, app);
+                        REQUIRE(offer->getPrice() == usdPriceOfferA);
+                        REQUIRE(offer->getAmount() == 100 * currencyMultiplier);
+                        REQUIRE(offer->getTakerPays().alphaNum().currencyCode ==
                                 usdCur.alphaNum().currencyCode);
-                        REQUIRE(offer.getTakerGets().alphaNum().currencyCode ==
+                        REQUIRE(offer->getTakerGets().alphaNum().currencyCode ==
                                 idrCur.alphaNum().currencyCode);
                     }
                 }
@@ -375,8 +362,7 @@ TEST_CASE("create offer", "[tx][offers]")
 
                 REQUIRE(res.success().offer.effect() == CREATE_OFFER_DELETED);
                 // verify that the offer was not created
-                REQUIRE(!OfferFrame::loadOffer(b1.getPublicKey(), expectedID,
-                                               offer, app.getDatabase()));
+                REQUIRE(!loadOffer(b1, expectedID, app, false));
 
                 // Offers are: sell 100 IDR for 150 USD; sell IRD @ 0.66 -> buy
                 // USD
@@ -401,31 +387,27 @@ TEST_CASE("create offer", "[tx][offers]")
                     if (i < 6)
                     {
                         // first 6 offers are taken
-                        REQUIRE(!OfferFrame::loadOffer(a1.getPublicKey(),
-                                                       a1Offer, offer,
-                                                       app.getDatabase()));
+                        REQUIRE(!loadOffer(a1, a1Offer, app, false));
                     }
                     else
                     {
                         // others are untouched
-                        REQUIRE(OfferFrame::loadOffer(a1.getPublicKey(),
-                                                      a1Offer, offer,
-                                                      app.getDatabase()));
-                        REQUIRE(offer.getPrice() == usdPriceOfferA);
-                        REQUIRE(offer.getTakerPays().alphaNum().currencyCode ==
+                        offer = loadOffer(a1, a1Offer, app);
+                        REQUIRE(offer->getPrice() == usdPriceOfferA);
+                        REQUIRE(offer->getTakerPays().alphaNum().currencyCode ==
                                 usdCur.alphaNum().currencyCode);
-                        REQUIRE(offer.getTakerGets().alphaNum().currencyCode ==
+                        REQUIRE(offer->getTakerGets().alphaNum().currencyCode ==
                                 idrCur.alphaNum().currencyCode);
                         if (i == 6)
                         {
                             int64_t expected =
                                 100 * currencyMultiplier -
                                 (idrSend - 6 * 100 * currencyMultiplier);
-                            checkAmounts(expected, offer.getAmount());
+                            checkAmounts(expected, offer->getAmount());
                         }
                         else
                         {
-                            REQUIRE(offer.getAmount() ==
+                            REQUIRE(offer->getAmount() ==
                                     100 * currencyMultiplier);
                         }
                     }
@@ -481,31 +463,28 @@ TEST_CASE("create offer", "[tx][offers]")
 
                     REQUIRE(res.success().offer.effect() ==
                             CREATE_OFFER_DELETED);
-                    REQUIRE(!OfferFrame::loadOffer(b1.getPublicKey(),
-                                                   wouldCreateID, offer,
-                                                   app.getDatabase()));
+                    REQUIRE(!loadOffer(b1, wouldCreateID, app, false));
                 }
 
                 for (int i = 0; i < nbOffers; i++)
                 {
                     uint64_t a1Offer = a1OfferID[i];
 
-                    REQUIRE(OfferFrame::loadOffer(a1.getPublicKey(), a1Offer,
-                                                  offer, app.getDatabase()));
+                    offer = loadOffer(a1, a1Offer, app);
 
-                    REQUIRE(offer.getTakerPays().alphaNum().currencyCode ==
+                    REQUIRE(offer->getTakerPays().alphaNum().currencyCode ==
                             usdCur.alphaNum().currencyCode);
-                    REQUIRE(offer.getTakerGets().alphaNum().currencyCode ==
+                    REQUIRE(offer->getTakerGets().alphaNum().currencyCode ==
                             idrCur.alphaNum().currencyCode);
 
                     if (i == 0)
                     {
                         int64_t expected = 100 * currencyMultiplier - idrSend;
-                        checkAmounts(expected, offer.getAmount(), 10);
+                        checkAmounts(expected, offer->getAmount(), 10);
                     }
                     else
                     {
-                        REQUIRE(offer.getAmount() == 100 * currencyMultiplier);
+                        REQUIRE(offer->getAmount() == 100 * currencyMultiplier);
                     }
                 }
 
@@ -563,8 +542,7 @@ TEST_CASE("create offer", "[tx][offers]")
                     applyCreditPaymentTx(app, c1, gateway, idrCur, c1_seq++,
                                          20000 * currencyMultiplier);
                     // offer should still be there
-                    REQUIRE(OfferFrame::loadOffer(c1.getPublicKey(), cOfferID,
-                                                  offer, app.getDatabase()));
+                    loadOffer(c1, cOfferID, app);
                 }
 
                 // offer is sell 10000 USD for 5000 IDR; sell USD @ 0.5
@@ -574,8 +552,7 @@ TEST_CASE("create offer", "[tx][offers]")
                     applyCreateOffer(app, delta, 0, b1, usdCur, idrCur, onetwo,
                                      usdBalanceForSale, b1_seq++);
 
-                REQUIRE(OfferFrame::loadOffer(b1.getPublicKey(), offerID, offer,
-                                              app.getDatabase()));
+                offer = loadOffer(b1, offerID, app);
 
                 // Offers are: sell 100 IDR for 150 USD; sell IRD @ 0.66 -> buy
                 // USD
@@ -585,17 +562,15 @@ TEST_CASE("create offer", "[tx][offers]")
 
                 int64_t expected = usdBalanceForSale - usdRecv;
 
-                checkAmounts(expected, offer.getAmount());
+                checkAmounts(expected, offer->getAmount());
 
                 // check that the bogus offer was cleared
-                REQUIRE(!OfferFrame::loadOffer(c1.getPublicKey(), cOfferID,
-                                               offer, app.getDatabase()));
+                REQUIRE(!loadOffer(c1, cOfferID, app, false));
 
                 for (int i = 0; i < nbOffers; i++)
                 {
                     uint64_t a1Offer = a1OfferID[i];
-                    REQUIRE(!OfferFrame::loadOffer(a1.getPublicKey(), a1Offer,
-                                                   offer, app.getDatabase()));
+                    REQUIRE(!loadOffer(a1, a1Offer, app, false));
                 }
 
                 // check balances
@@ -627,8 +602,7 @@ TEST_CASE("create offer", "[tx][offers]")
                 app, delta, 0, a1, idrCur, usdCur, usdPriceOfferA,
                 100 * currencyMultiplier, a1_seq++);
 
-            REQUIRE(OfferFrame::loadOffer(a1.getPublicKey(), offerA1, offer,
-                                          app.getDatabase()));
+            offer = loadOffer(a1, offerA1, app);
 
             SECTION("multiple parties")
             {
@@ -648,8 +622,7 @@ TEST_CASE("create offer", "[tx][offers]")
                     app, delta, 0, b1, idrCur, usdCur, usdPriceOfferA,
                     100 * currencyMultiplier, b1_seq++);
 
-                REQUIRE(OfferFrame::loadOffer(b1.getPublicKey(), offerB1, offer,
-                                              app.getDatabase()));
+                offer = loadOffer(b1, offerB1, app);
 
                 applyCreateAccountTx(app, root, c1, root_seq++,
                                      minBalanceA + 10000);
@@ -753,9 +726,7 @@ TEST_CASE("create offer", "[tx][offers]")
                         // check balances
 
                         // A1's offer was deleted
-                        REQUIRE(!OfferFrame::loadOffer(a1.getPublicKey(),
-                                                       offerA1, offer,
-                                                       app.getDatabase()));
+                        REQUIRE(!loadOffer(a1, offerA1, app, false));
 
                         REQUIRE(TrustFrame::loadTrustLine(a1.getPublicKey(),
                                                           usdCur, line,
@@ -769,9 +740,7 @@ TEST_CASE("create offer", "[tx][offers]")
                                      line.getBalance());
 
                         // B1's offer was taken
-                        REQUIRE(!OfferFrame::loadOffer(b1.getPublicKey(),
-                                                       offerB1, offer,
-                                                       app.getDatabase()));
+                        REQUIRE(!loadOffer(b1, offerB1, app, false));
 
                         REQUIRE(TrustFrame::loadTrustLine(b1.getPublicKey(),
                                                           usdCur, line,
@@ -827,9 +796,7 @@ TEST_CASE("create offer", "[tx][offers]")
                             CREATE_OFFER_DELETED);
 
                     // gw's offer was deleted
-                    REQUIRE(!OfferFrame::loadOffer(gateway.getPublicKey(),
-                                                   gwOffer, offer,
-                                                   app.getDatabase()));
+                    REQUIRE(!loadOffer(gateway, gwOffer, app, false));
 
                     // check balance
                     REQUIRE(TrustFrame::loadTrustLine(a1.getPublicKey(), usdCur,
@@ -850,8 +817,7 @@ TEST_CASE("create offer", "[tx][offers]")
                             CREATE_OFFER_DELETED);
 
                     // A's offer was deleted
-                    REQUIRE(!OfferFrame::loadOffer(a1.getPublicKey(), offerA1,
-                                                   offer, app.getDatabase()));
+                    REQUIRE(!loadOffer(a1, offerA1, app, false));
 
                     // check balance
                     REQUIRE(TrustFrame::loadTrustLine(a1.getPublicKey(), usdCur,

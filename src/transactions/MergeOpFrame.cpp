@@ -70,17 +70,17 @@ MergeOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
     }
 
     // delete offers
-    std::vector<OfferFrame> retOffers;
+    std::vector<OfferFrame::pointer> retOffers;
     OfferFrame::loadOffers(getSourceID(), retOffers, db);
-    for (auto offer : retOffers)
+    for (auto& offer : retOffers)
     {
-        offer.storeDelete(delta, db);
+        offer->storeDelete(delta, db);
     }
 
     // delete trust lines
     std::vector<TrustFrame> retLines;
     TrustFrame::loadLines(getSourceID(), retLines, db);
-    for (auto line : retLines)
+    for (auto& line : retLines)
     {
         line.storeDelete(delta, db);
     }

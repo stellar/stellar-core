@@ -275,7 +275,7 @@ TEST_CASE("payment", "[tx][payment]")
 
         // add a couple offers in the order book
 
-        OfferFrame offer;
+        OfferFrame::pointer offer;
 
         const Price usdPriceOffer(2, 1);
 
@@ -345,8 +345,7 @@ TEST_CASE("payment", "[tx][payment]")
             // C1
             // offer was taken
             REQUIRE(multi.offers[0].offerID == offerC1);
-            REQUIRE(!OfferFrame::loadOffer(c1.getPublicKey(), offerC1, offer,
-                                           app.getDatabase()));
+            REQUIRE(!loadOffer(c1, offerC1, app, false));
             REQUIRE(TrustFrame::loadTrustLine(c1.getPublicKey(), idrCur, line,
                                               app.getDatabase()));
             checkAmounts(line.getBalance(),
@@ -358,9 +357,8 @@ TEST_CASE("payment", "[tx][payment]")
             // B1
             auto const& b1Res = multi.offers[1];
             REQUIRE(b1Res.offerID == offerB1);
-            REQUIRE(OfferFrame::loadOffer(b1.getPublicKey(), offerB1, offer,
-                                          app.getDatabase()));
-            OfferEntry const& oe = offer.getOffer();
+            offer = loadOffer(b1, offerB1, app);
+            OfferEntry const& oe = offer->getOffer();
             REQUIRE(b1Res.offerOwner == b1.getPublicKey());
             checkAmounts(b1Res.amountClaimed, 25 * currencyMultiplier);
             checkAmounts(oe.amount, 75 * currencyMultiplier);
@@ -409,8 +407,7 @@ TEST_CASE("payment", "[tx][payment]")
             // C1
             // offer was taken
             REQUIRE(multi.offers[0].offerID == offerC1);
-            REQUIRE(!OfferFrame::loadOffer(c1.getPublicKey(), offerC1, offer,
-                                           app.getDatabase()));
+            REQUIRE(!loadOffer(c1, offerC1, app, false));
             REQUIRE(TrustFrame::loadTrustLine(c1.getPublicKey(), idrCur, line,
                                               app.getDatabase()));
             checkAmounts(line.getBalance(),
@@ -422,9 +419,8 @@ TEST_CASE("payment", "[tx][payment]")
             // B1
             auto const& b1Res = multi.offers[1];
             REQUIRE(b1Res.offerID == offerB1);
-            REQUIRE(OfferFrame::loadOffer(b1.getPublicKey(), offerB1, offer,
-                                          app.getDatabase()));
-            OfferEntry const& oe = offer.getOffer();
+            offer = loadOffer(b1, offerB1, app);
+            OfferEntry const& oe = offer->getOffer();
             REQUIRE(b1Res.offerOwner == b1.getPublicKey());
             checkAmounts(b1Res.amountClaimed, 25 * currencyMultiplier);
             checkAmounts(oe.amount, 75 * currencyMultiplier);

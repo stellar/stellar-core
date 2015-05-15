@@ -64,18 +64,19 @@ OfferFrame& OfferFrame::operator=(OfferFrame const& other)
     return *this;
 }
 
-void
+OfferFrame::pointer
 OfferFrame::from(OperationFrame const& op)
 {
-    assert(mEntry.type() == OFFER);
-    mOffer.accountID = op.getSourceID();
+    OfferFrame::pointer res = make_shared<OfferFrame>();
+    OfferEntry& o = res->mEntry.offer();
+    o.accountID = op.getSourceID();
     CreateOfferOp const& create = op.getOperation().body.createOfferOp();
-    mOffer.amount = create.amount;
-    mOffer.price = create.price;
-    mOffer.offerID = create.offerID;
-    mOffer.takerGets = create.takerGets;
-    mOffer.takerPays = create.takerPays;
-    clearCached();
+    o.amount = create.amount;
+    o.price = create.price;
+    o.offerID = create.offerID;
+    o.takerGets = create.takerGets;
+    o.takerPays = create.takerPays;
+    return res;
 }
 
 Price const&
@@ -117,10 +118,12 @@ static const char* offerColumnSelector =
     "SELECT accountID,offerID,paysAlphaNumCurrency,paysIssuer,"
     "getsAlphaNumCurrency,getsIssuer,amount,priceN,priceD FROM Offers";
 
-bool
+OfferFrame::pointer
 OfferFrame::loadOffer(AccountID const& accountID, uint64_t offerID,
-                      OfferFrame& retOffer, Database& db)
+                      Database& db)
 {
+    OfferFrame::pointer retOffer;
+
     std::string accStr;
     accStr = toBase58Check(VER_ACCOUNT_ID, accountID);
 
@@ -131,22 +134,18 @@ OfferFrame::loadOffer(AccountID const& accountID, uint64_t offerID,
                          << " where accountID=:id and offerID=:offerID",
          use(accStr), use(offerID));
 
-    bool res = false;
-
     auto timer = db.getSelectTimer("offer");
-    retOffer.clearCached();
-    loadOffers(sql, [&retOffer, &res](OfferFrame const& offer)
+    loadOffers(sql, [&retOffer](LedgerEntry const& offer)
                {
-                   retOffer = offer;
-                   res = true;
+                   retOffer = make_shared<OfferFrame>(offer);
                });
 
-    return res;
+    return retOffer;
 }
 
 void
 OfferFrame::loadOffers(soci::details::prepare_temp_type& prep,
-                       std::function<void(OfferFrame const&)> offerProcessor)
+                       std::function<void(LedgerEntry const&)> offerProcessor)
 {
     string accountID;
     std::string paysAlphaNumCurrency, getsAlphaNumCurrency, paysIssuer,
@@ -154,10 +153,9 @@ OfferFrame::loadOffers(soci::details::prepare_temp_type& prep,
 
     soci::indicator paysAlphaNumIndicator, getsAlphaNumIndicator;
 
-    OfferFrame offerFrame;
-
-    offerFrame.clearCached();
-    OfferEntry& oe = offerFrame.mOffer;
+    LedgerEntry le;
+    le.type(OFFER);
+    OfferEntry& oe = le.offer();
 
     statement st =
         (prep, into(accountID), into(oe.offerID),
@@ -193,8 +191,7 @@ OfferFrame::loadOffers(soci::details::prepare_temp_type& prep,
         {
             oe.takerGets.type(CURRENCY_TYPE_NATIVE);
         }
-        offerFrame.mKeyCalculated = false;
-        offerProcessor(offerFrame);
+        offerProcessor(le);
         st.fetch();
     }
 }
@@ -202,7 +199,7 @@ OfferFrame::loadOffers(soci::details::prepare_temp_type& prep,
 void
 OfferFrame::loadBestOffers(size_t numOffers, size_t offset,
                            Currency const& pays, Currency const& gets,
-                           vector<OfferFrame>& retOffers, Database& db)
+                           vector<OfferFrame::pointer>& retOffers, Database& db)
 {
     soci::session& session = db.getSession();
 
@@ -240,15 +237,16 @@ OfferFrame::loadBestOffers(size_t numOffers, size_t offset,
         use(numOffers), use(offset);
 
     auto timer = db.getSelectTimer("offer");
-    loadOffers(sql, [&retOffers](OfferFrame const& of)
+    loadOffers(sql, [&retOffers](LedgerEntry const& of)
                {
-                   retOffers.push_back(of);
+                   retOffers.emplace_back(make_shared<OfferFrame>(of));
                });
 }
 
 void
 OfferFrame::loadOffers(AccountID const& accountID,
-                       std::vector<OfferFrame>& retOffers, Database& db)
+                       std::vector<OfferFrame::pointer>& retOffers,
+                       Database& db)
 {
     soci::session& session = db.getSession();
 
@@ -260,9 +258,9 @@ OfferFrame::loadOffers(AccountID const& accountID,
          use(accStr));
 
     auto timer = db.getSelectTimer("offer");
-    loadOffers(sql, [&retOffers](OfferFrame const& of)
+    loadOffers(sql, [&retOffers](LedgerEntry const& of)
                {
-                   retOffers.push_back(of);
+                   retOffers.emplace_back(make_shared<OfferFrame>(of));
                });
 }
 

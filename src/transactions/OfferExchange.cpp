@@ -219,16 +219,16 @@ OfferExchange::convertWithOffers(
 
     while (needMore)
     {
-        std::vector<OfferFrame> retList;
+        std::vector<OfferFrame::pointer> retList;
         OfferFrame::loadBestOffers(5, offerOffset, sheep, wheat, retList, db);
 
         offerOffset += retList.size();
 
-        for (auto wheatOffer : retList)
+        for (auto& wheatOffer : retList)
         {
             if (filter)
             {
-                OfferFilterResult r = filter(wheatOffer);
+                OfferFilterResult r = filter(*wheatOffer);
                 switch (r)
                 {
                 case eKeep:
@@ -242,7 +242,7 @@ OfferExchange::convertWithOffers(
             int64_t numSheepSend;
 
             CrossOfferResult cor =
-                crossOffer(wheatOffer, maxWheatReceive, numWheatReceived,
+                crossOffer(*wheatOffer, maxWheatReceive, numWheatReceived,
                            maxSheepSend, numSheepSend);
 
             switch (cor)

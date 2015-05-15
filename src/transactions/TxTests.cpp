@@ -71,6 +71,18 @@ requireNoAccount(SecretKey const& k, Application& app)
     REQUIRE(!res);
 }
 
+OfferFrame::pointer
+loadOffer(SecretKey const& k, uint64 offerID, Application& app, bool mustExist)
+{
+    OfferFrame::pointer res =
+        OfferFrame::loadOffer(k.getPublicKey(), offerID, app.getDatabase());
+    if (mustExist)
+    {
+        REQUIRE(res);
+    }
+    return res;
+}
+
 SequenceNumber
 getAccountSeqNum(SecretKey const& k, Application& app)
 {
@@ -428,27 +440,25 @@ applyCreateOfferHelper(Application& app, LedgerDelta& delta, uint64 offerId,
 
     if (createOfferResult.code() == CREATE_OFFER_SUCCESS)
     {
-        OfferFrame offer;
+        OfferFrame::pointer offer;
 
         auto& offerResult = createOfferResult.success().offer;
-        auto& offerEntry = offer.getOffer();
 
         switch (offerResult.effect())
         {
         case CREATE_OFFER_CREATED:
         case CREATE_OFFER_UPDATED:
-            REQUIRE(OfferFrame::loadOffer(source.getPublicKey(),
-                                          expectedOfferID, offer,
-                                          app.getDatabase()));
+        {
+            offer = loadOffer(source, expectedOfferID, app);
+            auto& offerEntry = offer->getOffer();
             REQUIRE(offerEntry == offerResult.offer());
             REQUIRE(offerEntry.price == price);
             REQUIRE(offerEntry.takerGets == takerGets);
             REQUIRE(offerEntry.takerPays == takerPays);
-            break;
+        }
+        break;
         case CREATE_OFFER_DELETED:
-            REQUIRE(!OfferFrame::loadOffer(source.getPublicKey(),
-                                           expectedOfferID, offer,
-                                           app.getDatabase()));
+            REQUIRE(!loadOffer(source, expectedOfferID, app, false));
             break;
         default:
             abort();
