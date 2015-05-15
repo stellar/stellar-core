@@ -29,16 +29,17 @@ class AccountFrame : public EntryFrame
 
     void normalize();
 
+    AccountFrame(AccountFrame const& from);
+
   public:
     typedef std::shared_ptr<AccountFrame> pointer;
 
     AccountFrame();
     AccountFrame(LedgerEntry const& from);
     AccountFrame(AccountID const& id);
-    AccountFrame(AccountFrame const& from);
 
     // builds an accountFrame for the sole purpose of authentication
-    static AccountFrame makeAuthOnlyAccount(AccountID const& id);
+    static AccountFrame::pointer makeAuthOnlyAccount(AccountID const& id);
 
     EntryFrame::pointer
     copy() const

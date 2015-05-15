@@ -6,6 +6,8 @@
 
 #include "generated/StellarXDR.h"
 #include "bucket/LedgerCmp.h"
+#include "util/NonCopyable.h"
+
 
 /*
 Frame
@@ -19,7 +21,7 @@ namespace stellar
 class Database;
 class LedgerDelta;
 
-class EntryFrame
+class EntryFrame : public NonMovableOrCopyable
 {
   protected:
     mutable bool mKeyCalculated;
@@ -35,7 +37,6 @@ class EntryFrame
 
     LedgerEntry mEntry;
 
-    EntryFrame() = delete;
     EntryFrame(LedgerEntryType type);
     EntryFrame(LedgerEntry const& from);
 
