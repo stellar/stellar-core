@@ -44,8 +44,10 @@ AllowTrustOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
     ci.alphaNum().issuer = getSourceID();
 
     Database& db = ledgerManager.getDatabase();
-    TrustFrame trustLine;
-    if (!TrustFrame::loadTrustLine(mAllowTrust.trustor, ci, trustLine, db))
+    TrustFrame::pointer trustLine;
+    trustLine = TrustFrame::loadTrustLine(mAllowTrust.trustor, ci, db);
+
+    if (!trustLine)
     {
         innerResult().code(ALLOW_TRUST_NO_TRUST_LINE);
         return false;
@@ -53,9 +55,9 @@ AllowTrustOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
 
     innerResult().code(ALLOW_TRUST_SUCCESS);
 
-    trustLine.setAuthorized(mAllowTrust.authorize);
+    trustLine->setAuthorized(mAllowTrust.authorize);
 
-    trustLine.storeChange(delta, db);
+    trustLine->storeChange(delta, db);
 
     return true;
 }

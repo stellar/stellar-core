@@ -62,28 +62,29 @@ PathPaymentOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
         }
         else
         {
-            TrustFrame destLine;
+            TrustFrame::pointer destLine;
 
-            if (!TrustFrame::loadTrustLine(destination->getID(), curB, destLine,
-                                           db))
+            destLine =
+                TrustFrame::loadTrustLine(destination->getID(), curB, db);
+            if (!destLine)
             {
                 innerResult().code(PATH_PAYMENT_NO_TRUST);
                 return false;
             }
 
-            if (!destLine.isAuthorized())
+            if (!destLine->isAuthorized())
             {
                 innerResult().code(PATH_PAYMENT_NOT_AUTHORIZED);
                 return false;
             }
 
-            if (!destLine.addBalance(curBReceived))
+            if (!destLine->addBalance(curBReceived))
             {
                 innerResult().code(PATH_PAYMENT_LINE_FULL);
                 return false;
             }
 
-            destLine.storeChange(delta, db);
+            destLine->storeChange(delta, db);
         }
 
         innerResult().success().last =
@@ -171,21 +172,21 @@ PathPaymentOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
             throw std::runtime_error("sendCredit Issuer not found");
         }
 
-        TrustFrame sourceLineFrame;
-        if (!TrustFrame::loadTrustLine(getSourceID(), curB, sourceLineFrame,
-                                       db))
+        TrustFrame::pointer sourceLineFrame;
+        sourceLineFrame = TrustFrame::loadTrustLine(getSourceID(), curB, db);
+        if (!sourceLineFrame)
         {
             innerResult().code(PATH_PAYMENT_UNDERFUNDED);
             return false;
         }
 
-        if (!sourceLineFrame.addBalance(-curBSent))
+        if (!sourceLineFrame->addBalance(-curBSent))
         {
             innerResult().code(PATH_PAYMENT_UNDERFUNDED);
             return false;
         }
 
-        sourceLineFrame.storeChange(delta, db);
+        sourceLineFrame->storeChange(delta, db);
     }
 
     return true;

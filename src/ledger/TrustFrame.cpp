@@ -38,6 +38,7 @@ TrustFrame::TrustFrame()
 TrustFrame::TrustFrame(LedgerEntry const& from)
     : EntryFrame(from), mTrustLine(mEntry.trustLine()), mIsIssuer(false)
 {
+    assert(isValid());
 }
 
 TrustFrame::TrustFrame(TrustFrame const& from) : TrustFrame(from.mEntry)
@@ -243,25 +244,27 @@ static const char* trustLineColumnSelector =
     "SELECT accountID, issuer, AlphaNumCurrency, tlimit,balance,flags FROM "
     "TrustLines";
 
-void
-TrustFrame::setAsIssuer(Currency const& issuer)
+TrustFrame::pointer
+TrustFrame::createIssuerFrame(Currency const& issuer)
 {
-    mIsIssuer = true;
-    mTrustLine.accountID = issuer.alphaNum().issuer;
-    mTrustLine.flags |= AUTHORIZED_FLAG;
-    mTrustLine.balance = INT64_MAX;
-    mTrustLine.currency = issuer;
-    mTrustLine.limit = INT64_MAX;
+    pointer res = make_shared<TrustFrame>();
+    res->mIsIssuer = true;
+    TrustLineEntry& tl = res->mEntry.trustLine();
+    tl.accountID = issuer.alphaNum().issuer;
+    tl.flags |= AUTHORIZED_FLAG;
+    tl.balance = INT64_MAX;
+    tl.currency = issuer;
+    tl.limit = INT64_MAX;
+    return res;
 }
 
-bool
+TrustFrame::pointer
 TrustFrame::loadTrustLine(AccountID const& accountID, Currency const& currency,
-                          TrustFrame& retLine, Database& db)
+                          Database& db)
 {
     if (accountID == currency.alphaNum().issuer)
     {
-        retLine.setAsIssuer(currency);
-        return true;
+        return createIssuerFrame(currency);
     }
 
     std::string accStr, issuerStr, currencyStr;
@@ -278,15 +281,13 @@ TrustFrame::loadTrustLine(AccountID const& accountID, Currency const& currency,
                             "issuer=:issuer AND AlphaNumCurrency=:currency",
          use(accStr), use(issuerStr), use(currencyStr));
 
-    bool res = false;
-
+    pointer retLine;
     auto timer = db.getSelectTimer("trust");
-    loadLines(sql, [&retLine, &res](TrustFrame const& trust)
+    loadLines(sql, [&retLine](LedgerEntry const& trust)
               {
-                  retLine = trust;
-                  res = true;
+                  retLine = make_shared<TrustFrame>(trust);
               });
-    return res;
+    return retLine;
 }
 
 bool
@@ -315,14 +316,15 @@ TrustFrame::hasIssued(AccountID const& issuerID, Database& db)
 
 void
 TrustFrame::loadLines(details::prepare_temp_type& prep,
-                      std::function<void(TrustFrame const&)> trustProcessor)
+                      std::function<void(LedgerEntry const&)> trustProcessor)
 {
     string accountID;
     std::string issuer, currency;
 
-    TrustFrame curTrustLine;
+    LedgerEntry le;
+    le.type(TRUSTLINE);
 
-    TrustLineEntry& tl = curTrustLine.mTrustLine;
+    TrustLineEntry& tl = le.trustLine();
 
     statement st = (prep, into(accountID), into(issuer), into(currency),
                     into(tl.limit), into(tl.balance), into(tl.flags));
@@ -336,8 +338,7 @@ TrustFrame::loadLines(details::prepare_temp_type& prep,
             fromBase58Check256(VER_ACCOUNT_ID, issuer);
         strToCurrencyCode(tl.currency.alphaNum().currencyCode, currency);
 
-        assert(curTrustLine.isValid());
-        trustProcessor(curTrustLine);
+        trustProcessor(le);
 
         st.fetch();
     }
@@ -345,7 +346,7 @@ TrustFrame::loadLines(details::prepare_temp_type& prep,
 
 void
 TrustFrame::loadLines(AccountID const& accountID,
-                      std::vector<TrustFrame>& retLines, Database& db)
+                      std::vector<TrustFrame::pointer>& retLines, Database& db)
 {
     std::string accStr;
     accStr = toBase58Check(VER_ACCOUNT_ID, accountID);
@@ -357,9 +358,9 @@ TrustFrame::loadLines(AccountID const& accountID,
          use(accStr));
 
     auto timer = db.getSelectTimer("trust");
-    loadLines(sql, [&retLines](TrustFrame const& cur)
+    loadLines(sql, [&retLines](LedgerEntry const& cur)
               {
-                  retLines.push_back(cur);
+                  retLines.emplace_back(make_shared<TrustFrame>(cur));
               });
 }
 

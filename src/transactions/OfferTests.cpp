@@ -329,14 +329,12 @@ TEST_CASE("create offer", "[tx][offers]")
                 }
             }
 
-            TrustFrame line;
-            REQUIRE(TrustFrame::loadTrustLine(a1.getPublicKey(), usdCur, line,
-                                              app.getDatabase()));
-            int64_t a1_usd = line.getBalance();
+            TrustFrame::pointer line;
+            line = loadTrustLine(a1, usdCur, app);
+            int64_t a1_usd = line->getBalance();
 
-            REQUIRE(TrustFrame::loadTrustLine(a1.getPublicKey(), idrCur, line,
-                                              app.getDatabase()));
-            int64_t a1_idr = line.getBalance();
+            line = loadTrustLine(a1, idrCur, app);
+            int64_t a1_idr = line->getBalance();
 
             const Price onetwo(1, 2);
 
@@ -345,13 +343,11 @@ TEST_CASE("create offer", "[tx][offers]")
                 applyCreditPaymentTx(app, gateway, b1, usdCur, gateway_seq++,
                                      20000 * currencyMultiplier);
 
-                REQUIRE(TrustFrame::loadTrustLine(b1.getPublicKey(), usdCur,
-                                                  line, app.getDatabase()));
-                int64_t b1_usd = line.getBalance();
+                line = loadTrustLine(b1, usdCur, app);
+                int64_t b1_usd = line->getBalance();
 
-                REQUIRE(TrustFrame::loadTrustLine(b1.getPublicKey(), idrCur,
-                                                  line, app.getDatabase()));
-                int64_t b1_idr = line.getBalance();
+                line = loadTrustLine(b1, idrCur, app);
+                int64_t b1_idr = line->getBalance();
 
                 uint64_t expectedID =
                     delta.getHeaderFrame().getLastGeneratedID() + 1;
@@ -414,22 +410,18 @@ TEST_CASE("create offer", "[tx][offers]")
                 }
 
                 // check balances
-                REQUIRE(TrustFrame::loadTrustLine(a1.getPublicKey(), usdCur,
-                                                  line, app.getDatabase()));
-                checkAmounts(a1_usd + usdRecv, line.getBalance());
+                line = loadTrustLine(a1, usdCur, app);
+                checkAmounts(a1_usd + usdRecv, line->getBalance());
 
-                REQUIRE(TrustFrame::loadTrustLine(a1.getPublicKey(), idrCur,
-                                                  line, app.getDatabase()));
-                checkAmounts(a1_idr - idrSend, line.getBalance());
+                line = loadTrustLine(a1, idrCur, app);
+                checkAmounts(a1_idr - idrSend, line->getBalance());
 
                 // buyer may have paid a bit more to cross offers
-                REQUIRE(TrustFrame::loadTrustLine(b1.getPublicKey(), usdCur,
-                                                  line, app.getDatabase()));
-                checkAmounts(line.getBalance(), b1_usd - usdRecv);
+                line = loadTrustLine(b1, usdCur, app);
+                checkAmounts(line->getBalance(), b1_usd - usdRecv);
 
-                REQUIRE(TrustFrame::loadTrustLine(b1.getPublicKey(), idrCur,
-                                                  line, app.getDatabase()));
-                checkAmounts(line.getBalance(), b1_idr + idrSend);
+                line = loadTrustLine(b1, idrCur, app);
+                checkAmounts(line->getBalance(), b1_idr + idrSend);
             }
 
             SECTION("Trying to extract value from an offer")
@@ -437,13 +429,11 @@ TEST_CASE("create offer", "[tx][offers]")
                 applyCreditPaymentTx(app, gateway, b1, usdCur, gateway_seq++,
                                      20000 * currencyMultiplier);
 
-                REQUIRE(TrustFrame::loadTrustLine(b1.getPublicKey(), usdCur,
-                                                  line, app.getDatabase()));
-                int64_t b1_usd = line.getBalance();
+                line = loadTrustLine(b1, usdCur, app);
+                int64_t b1_usd = line->getBalance();
 
-                REQUIRE(TrustFrame::loadTrustLine(b1.getPublicKey(), idrCur,
-                                                  line, app.getDatabase()));
-                int64_t b1_idr = line.getBalance();
+                line = loadTrustLine(b1, idrCur, app);
+                int64_t b1_idr = line->getBalance();
 
                 // the USDs were sold at the (better) rate found in the original
                 // offers
@@ -490,21 +480,17 @@ TEST_CASE("create offer", "[tx][offers]")
 
                 // check balances
 
-                REQUIRE(TrustFrame::loadTrustLine(a1.getPublicKey(), usdCur,
-                                                  line, app.getDatabase()));
-                checkAmounts(a1_usd + usdRecv, line.getBalance(), 10);
+                line = loadTrustLine(a1, usdCur, app);
+                checkAmounts(a1_usd + usdRecv, line->getBalance(), 10);
 
-                REQUIRE(TrustFrame::loadTrustLine(a1.getPublicKey(), idrCur,
-                                                  line, app.getDatabase()));
-                checkAmounts(a1_idr - idrSend, line.getBalance(), 10);
+                line = loadTrustLine(a1, idrCur, app);
+                checkAmounts(a1_idr - idrSend, line->getBalance(), 10);
 
-                REQUIRE(TrustFrame::loadTrustLine(b1.getPublicKey(), usdCur,
-                                                  line, app.getDatabase()));
-                checkAmounts(line.getBalance(), b1_usd - usdRecv, 10);
+                line = loadTrustLine(b1, usdCur, app);
+                checkAmounts(line->getBalance(), b1_usd - usdRecv, 10);
 
-                REQUIRE(TrustFrame::loadTrustLine(b1.getPublicKey(), idrCur,
-                                                  line, app.getDatabase()));
-                checkAmounts(line.getBalance(), b1_idr + idrSend, 10);
+                line = loadTrustLine(b1, idrCur, app);
+                checkAmounts(line->getBalance(), b1_idr + idrSend, 10);
             }
 
             SECTION("Offer that takes multiple other offers and remains")
@@ -512,13 +498,11 @@ TEST_CASE("create offer", "[tx][offers]")
                 applyCreditPaymentTx(app, gateway, b1, usdCur, gateway_seq++,
                                      20000 * currencyMultiplier);
 
-                REQUIRE(TrustFrame::loadTrustLine(b1.getPublicKey(), usdCur,
-                                                  line, app.getDatabase()));
-                int64_t b1_usd = line.getBalance();
+                line = loadTrustLine(b1, usdCur, app);
+                int64_t b1_usd = line->getBalance();
 
-                REQUIRE(TrustFrame::loadTrustLine(b1.getPublicKey(), idrCur,
-                                                  line, app.getDatabase()));
-                int64_t b1_idr = line.getBalance();
+                line = loadTrustLine(b1, idrCur, app);
+                int64_t b1_idr = line->getBalance();
 
                 // inject also an offer that should get cleaned up
                 uint64_t cOfferID = 0;
@@ -574,22 +558,18 @@ TEST_CASE("create offer", "[tx][offers]")
                 }
 
                 // check balances
-                REQUIRE(TrustFrame::loadTrustLine(a1.getPublicKey(), usdCur,
-                                                  line, app.getDatabase()));
-                checkAmounts(a1_usd + usdRecv, line.getBalance());
+                line = loadTrustLine(a1, usdCur, app);
+                checkAmounts(a1_usd + usdRecv, line->getBalance());
 
-                REQUIRE(TrustFrame::loadTrustLine(a1.getPublicKey(), idrCur,
-                                                  line, app.getDatabase()));
-                checkAmounts(a1_idr - idrSend, line.getBalance());
+                line = loadTrustLine(a1, idrCur, app);
+                checkAmounts(a1_idr - idrSend, line->getBalance());
 
                 // buyer may have paid a bit more to cross offers
-                REQUIRE(TrustFrame::loadTrustLine(b1.getPublicKey(), usdCur,
-                                                  line, app.getDatabase()));
-                checkAmounts(line.getBalance(), b1_usd - usdRecv);
+                line = loadTrustLine(b1, usdCur, app);
+                checkAmounts(line->getBalance(), b1_usd - usdRecv);
 
-                REQUIRE(TrustFrame::loadTrustLine(b1.getPublicKey(), idrCur,
-                                                  line, app.getDatabase()));
-                checkAmounts(line.getBalance(), b1_idr + idrSend);
+                line = loadTrustLine(b1, idrCur, app);
+                checkAmounts(line->getBalance(), b1_idr + idrSend);
             }
         }
 
@@ -659,40 +639,34 @@ TEST_CASE("create offer", "[tx][offers]")
                     REQUIRE(offerC1Res.success().offer.effect() ==
                             CREATE_OFFER_DELETED);
 
-                    TrustFrame line;
+                    TrustFrame::pointer line;
 
                     // check balances
 
                     // A1's offer was taken entirely
-                    REQUIRE(TrustFrame::loadTrustLine(a1.getPublicKey(), usdCur,
-                                                      line, app.getDatabase()));
-                    checkAmounts(150 * currencyMultiplier, line.getBalance());
+                    line = loadTrustLine(a1, usdCur, app);
+                    checkAmounts(150 * currencyMultiplier, line->getBalance());
 
-                    REQUIRE(TrustFrame::loadTrustLine(a1.getPublicKey(), idrCur,
-                                                      line, app.getDatabase()));
+                    line = loadTrustLine(a1, idrCur, app);
                     checkAmounts(trustLineBalance - 100 * currencyMultiplier,
-                                 line.getBalance());
+                                 line->getBalance());
 
                     // B1's offer was partially taken
                     // buyer may have paid a bit more to cross offers
-                    REQUIRE(TrustFrame::loadTrustLine(b1.getPublicKey(), usdCur,
-                                                      line, app.getDatabase()));
-                    checkAmounts(line.getBalance(), 75 * currencyMultiplier);
+                    line = loadTrustLine(b1, usdCur, app);
+                    checkAmounts(line->getBalance(), 75 * currencyMultiplier);
 
-                    REQUIRE(TrustFrame::loadTrustLine(b1.getPublicKey(), idrCur,
-                                                      line, app.getDatabase()));
-                    checkAmounts(line.getBalance(),
+                    line = loadTrustLine(b1, idrCur, app);
+                    checkAmounts(line->getBalance(),
                                  trustLineBalance - 50 * currencyMultiplier);
 
                     // C1
-                    REQUIRE(TrustFrame::loadTrustLine(c1.getPublicKey(), usdCur,
-                                                      line, app.getDatabase()));
-                    checkAmounts(line.getBalance(),
+                    line = loadTrustLine(c1, usdCur, app);
+                    checkAmounts(line->getBalance(),
                                  trustLineBalance - 225 * currencyMultiplier);
 
-                    REQUIRE(TrustFrame::loadTrustLine(c1.getPublicKey(), idrCur,
-                                                      line, app.getDatabase()));
-                    checkAmounts(line.getBalance(), trustLineLimit);
+                    line = loadTrustLine(c1, idrCur, app);
+                    checkAmounts(line->getBalance(), trustLineLimit);
                 }
                 SECTION("Create an offer, top seller has limits")
                 {
@@ -721,59 +695,47 @@ TEST_CASE("create offer", "[tx][offers]")
                         REQUIRE(offerC1Res.success().offer.offer().amount ==
                                 75 * currencyMultiplier);
 
-                        TrustFrame line;
+                        TrustFrame::pointer line;
 
                         // check balances
 
                         // A1's offer was deleted
                         REQUIRE(!loadOffer(a1, offerA1, app, false));
 
-                        REQUIRE(TrustFrame::loadTrustLine(a1.getPublicKey(),
-                                                          usdCur, line,
-                                                          app.getDatabase()));
-                        checkAmounts(trustLineLimit, line.getBalance());
+                        line = loadTrustLine(a1, usdCur, app);
+                        checkAmounts(trustLineLimit, line->getBalance());
 
-                        REQUIRE(TrustFrame::loadTrustLine(a1.getPublicKey(),
-                                                          idrCur, line,
-                                                          app.getDatabase()));
+                        line = loadTrustLine(a1, idrCur, app);
                         checkAmounts(trustLineBalance - 50 * currencyMultiplier,
-                                     line.getBalance());
+                                     line->getBalance());
 
                         // B1's offer was taken
                         REQUIRE(!loadOffer(b1, offerB1, app, false));
 
-                        REQUIRE(TrustFrame::loadTrustLine(b1.getPublicKey(),
-                                                          usdCur, line,
-                                                          app.getDatabase()));
-                        checkAmounts(line.getBalance(),
+                        line = loadTrustLine(b1, usdCur, app);
+                        checkAmounts(line->getBalance(),
                                      150 * currencyMultiplier);
 
-                        REQUIRE(TrustFrame::loadTrustLine(b1.getPublicKey(),
-                                                          idrCur, line,
-                                                          app.getDatabase()));
-                        checkAmounts(line.getBalance(),
+                        line = loadTrustLine(b1, idrCur, app);
+                        checkAmounts(line->getBalance(),
                                      trustLineBalance -
                                          100 * currencyMultiplier);
 
                         // C1
-                        REQUIRE(TrustFrame::loadTrustLine(c1.getPublicKey(),
-                                                          usdCur, line,
-                                                          app.getDatabase()));
-                        checkAmounts(line.getBalance(),
+                        line = loadTrustLine(c1, usdCur, app);
+                        checkAmounts(line->getBalance(),
                                      trustLineBalance -
                                          225 * currencyMultiplier);
 
-                        REQUIRE(TrustFrame::loadTrustLine(c1.getPublicKey(),
-                                                          idrCur, line,
-                                                          app.getDatabase()));
-                        checkAmounts(line.getBalance(),
+                        line = loadTrustLine(c1, idrCur, app);
+                        checkAmounts(line->getBalance(),
                                      150 * currencyMultiplier);
                     }
                 }
             }
             SECTION("issuer offers")
             {
-                TrustFrame line;
+                TrustFrame::pointer line;
 
                 SECTION("issuer creates an offer, claimed by somebody else")
                 {
@@ -799,14 +761,12 @@ TEST_CASE("create offer", "[tx][offers]")
                     REQUIRE(!loadOffer(gateway, gwOffer, app, false));
 
                     // check balance
-                    REQUIRE(TrustFrame::loadTrustLine(a1.getPublicKey(), usdCur,
-                                                      line, app.getDatabase()));
-                    checkAmounts(910 * currencyMultiplier, line.getBalance());
+                    line = loadTrustLine(a1, usdCur, app);
+                    checkAmounts(910 * currencyMultiplier, line->getBalance());
 
-                    REQUIRE(TrustFrame::loadTrustLine(a1.getPublicKey(), idrCur,
-                                                      line, app.getDatabase()));
+                    line = loadTrustLine(a1, idrCur, app);
                     checkAmounts(trustLineBalance + 100 * currencyMultiplier,
-                                 line.getBalance());
+                                 line->getBalance());
                 }
                 SECTION("issuer claims an offer from somebody else")
                 {
@@ -820,14 +780,12 @@ TEST_CASE("create offer", "[tx][offers]")
                     REQUIRE(!loadOffer(a1, offerA1, app, false));
 
                     // check balance
-                    REQUIRE(TrustFrame::loadTrustLine(a1.getPublicKey(), usdCur,
-                                                      line, app.getDatabase()));
-                    checkAmounts(150 * currencyMultiplier, line.getBalance());
+                    line = loadTrustLine(a1, usdCur, app);
+                    checkAmounts(150 * currencyMultiplier, line->getBalance());
 
-                    REQUIRE(TrustFrame::loadTrustLine(a1.getPublicKey(), idrCur,
-                                                      line, app.getDatabase()));
+                    line = loadTrustLine(a1, idrCur, app);
                     checkAmounts(trustLineBalance - 100 * currencyMultiplier,
-                                 line.getBalance());
+                                 line->getBalance());
                 }
             }
         }

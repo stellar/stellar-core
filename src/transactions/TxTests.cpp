@@ -83,6 +83,19 @@ loadOffer(SecretKey const& k, uint64 offerID, Application& app, bool mustExist)
     return res;
 }
 
+TrustFrame::pointer
+loadTrustLine(SecretKey const& k, Currency const& currency, Application& app,
+              bool mustExist)
+{
+    TrustFrame::pointer res = TrustFrame::loadTrustLine(
+        k.getPublicKey(), currency, app.getDatabase());
+    if (mustExist)
+    {
+        REQUIRE(res);
+    }
+    return res;
+}
+
 SequenceNumber
 getAccountSeqNum(SecretKey const& k, Application& app)
 {

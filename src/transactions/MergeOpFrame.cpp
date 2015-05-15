@@ -78,11 +78,11 @@ MergeOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
     }
 
     // delete trust lines
-    std::vector<TrustFrame> retLines;
+    std::vector<TrustFrame::pointer> retLines;
     TrustFrame::loadLines(getSourceID(), retLines, db);
     for (auto& line : retLines)
     {
-        line.storeDelete(delta, db);
+        line->storeDelete(delta, db);
     }
 
     otherAccount->getAccount().balance += mSourceAccount->getAccount().balance;

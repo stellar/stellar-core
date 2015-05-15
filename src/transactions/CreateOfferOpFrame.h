@@ -13,8 +13,8 @@ namespace stellar
 {
 class CreateOfferOpFrame : public OperationFrame
 {
-    TrustFrame mSheepLineA;
-    TrustFrame mWheatLineA;
+    TrustFrame::pointer mSheepLineA;
+    TrustFrame::pointer mWheatLineA;
 
     OfferFrame::pointer mSellSheepOffer;
 

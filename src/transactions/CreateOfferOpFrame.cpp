@@ -36,12 +36,13 @@ CreateOfferOpFrame::checkOfferValid(Database& db)
 
     if (sheep.type() != CURRENCY_TYPE_NATIVE)
     {
-        if (!TrustFrame::loadTrustLine(getSourceID(), sheep, mSheepLineA, db))
+        mSheepLineA = TrustFrame::loadTrustLine(getSourceID(), sheep, db);
+        if (!mSheepLineA)
         { // we don't have what we are trying to sell
             innerResult().code(CREATE_OFFER_UNDERFUNDED);
             return false;
         }
-        if (mSheepLineA.getBalance() == 0)
+        if (mSheepLineA->getBalance() == 0)
         {
             innerResult().code(CREATE_OFFER_UNDERFUNDED);
             return false;
@@ -50,13 +51,14 @@ CreateOfferOpFrame::checkOfferValid(Database& db)
 
     if (wheat.type() != CURRENCY_TYPE_NATIVE)
     {
-        if (!TrustFrame::loadTrustLine(getSourceID(), wheat, mWheatLineA, db))
+        mWheatLineA = TrustFrame::loadTrustLine(getSourceID(), wheat, db);
+        if (!mWheatLineA)
         { // we can't hold what we are trying to buy
             innerResult().code(CREATE_OFFER_NO_TRUST);
             return false;
         }
 
-        if (!mWheatLineA.isAuthorized())
+        if (!mWheatLineA->isAuthorized())
         { // we are not authorized to hold what we are trying to buy
             innerResult().code(CREATE_OFFER_NOT_AUTHORIZED);
             return false;
@@ -126,7 +128,7 @@ CreateOfferOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
     }
     else
     {
-        maxAmountOfSheepCanSell = mSheepLineA.getBalance();
+        maxAmountOfSheepCanSell = mSheepLineA->getBalance();
     }
 
     // the maximum is defined by how much wheat it can receive
@@ -137,7 +139,7 @@ CreateOfferOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
     }
     else
     {
-        maxWheatCanSell = mWheatLineA.getMaxAmountReceive();
+        maxWheatCanSell = mWheatLineA->getMaxAmountReceive();
         if (maxWheatCanSell == 0)
         {
             innerResult().code(CREATE_OFFER_LINE_FULL);
@@ -230,20 +232,21 @@ CreateOfferOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
             }
             else
             {
-                TrustFrame wheatLineSigningAccount;
-                if (!TrustFrame::loadTrustLine(getSourceID(), wheat,
-                                               wheatLineSigningAccount, db))
+                TrustFrame::pointer wheatLineSigningAccount;
+                wheatLineSigningAccount =
+                    TrustFrame::loadTrustLine(getSourceID(), wheat, db);
+                if (!wheatLineSigningAccount)
                 {
                     throw std::runtime_error("invalid database state: must "
                                              "have matching trust line");
                 }
-                if (!wheatLineSigningAccount.addBalance(wheatReceived))
+                if (!wheatLineSigningAccount->addBalance(wheatReceived))
                 {
                     // this would indicate a bug in OfferExchange
                     throw std::runtime_error("offer claimed over limit");
                 }
 
-                wheatLineSigningAccount.storeChange(delta, db);
+                wheatLineSigningAccount->storeChange(delta, db);
             }
 
             if (sheep.type() == CURRENCY_TYPE_NATIVE)
@@ -253,12 +256,12 @@ CreateOfferOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
             }
             else
             {
-                if (!mSheepLineA.addBalance(-sheepSent))
+                if (!mSheepLineA->addBalance(-sheepSent))
                 {
                     // this would indicate a bug in OfferExchange
                     throw std::runtime_error("offer sold more than balance");
                 }
-                mSheepLineA.storeChange(delta, db);
+                mSheepLineA->storeChange(delta, db);
             }
         }
 

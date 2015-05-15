@@ -8,6 +8,7 @@
 #include "crypto/SecretKey.h"
 #include "ledger/AccountFrame.h"
 #include "ledger/OfferFrame.h"
+#include "ledger/TrustFrame.h"
 
 namespace stellar
 {
@@ -31,6 +32,9 @@ void requireNoAccount(SecretKey const& k, Application& app);
 
 OfferFrame::pointer loadOffer(SecretKey const& k, uint64 offerID,
                               Application& app, bool mustExist = true);
+
+TrustFrame::pointer loadTrustLine(SecretKey const& k, Currency const& currency,
+                                  Application& app, bool mustExist = true);
 
 SequenceNumber getAccountSeqNum(SecretKey const& k, Application& app);
 
