@@ -43,9 +43,7 @@ TEST_CASE("standalone", "[herder]")
 
     const int64_t paymentAmount = app->getLedgerManager().getMinBalance(0);
 
-    AccountFrame rootAccount;
-    REQUIRE(AccountFrame::loadAccount(root.getPublicKey(), rootAccount,
-                                      app->getDatabase()));
+    AccountFrame::pointer rootAccount = loadAccount(root, *app);
 
     SequenceNumber rootSeq = getAccountSeqNum(root, *app) + 1;
     SECTION("basic ledger close on valid txs")
@@ -60,14 +58,11 @@ TEST_CASE("standalone", "[herder]")
 
             REQUIRE(app->getLedgerManager().getLastClosedLedgerNum() > 2);
 
-            AccountFrame a1Account, b1Account;
-            REQUIRE(AccountFrame::loadAccount(a1.getPublicKey(), a1Account,
-                                              app->getDatabase()));
-            REQUIRE(AccountFrame::loadAccount(b1.getPublicKey(), b1Account,
-                                              app->getDatabase()));
-
-            REQUIRE(a1Account.getBalance() == paymentAmount);
-            REQUIRE(b1Account.getBalance() == paymentAmount);
+            AccountFrame::pointer a1Account, b1Account;
+            a1Account = loadAccount(a1, *app);
+            b1Account = loadAccount(b1, *app);
+            REQUIRE(a1Account->getBalance() == paymentAmount);
+            REQUIRE(b1Account->getBalance() == paymentAmount);
         };
 
         auto setup = [&](asio::error_code const& error)
@@ -125,10 +120,9 @@ TEST_CASE("txset", "[herder]")
 
     const int64_t paymentAmount = app->getLedgerManager().getMinBalance(0);
 
-    AccountFrame rootAccount;
+    AccountFrame::pointer rootAccount;
 
-    REQUIRE(AccountFrame::loadAccount(root.getPublicKey(), rootAccount,
-                                      app->getDatabase()));
+    rootAccount = loadAccount(root, *app);
 
     SequenceNumber rootSeq = getAccountSeqNum(root, *app) + 1;
 

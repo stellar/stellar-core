@@ -31,11 +31,12 @@ MergeOpFrame::getNeededThreshold() const
 bool
 MergeOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
 {
-    AccountFrame otherAccount;
+    AccountFrame::pointer otherAccount;
     Database& db = ledgerManager.getDatabase();
 
-    if (!AccountFrame::loadAccount(mOperation.body.destination(), otherAccount,
-                                   db))
+    otherAccount = AccountFrame::loadAccount(mOperation.body.destination(), db);
+
+    if (!otherAccount)
     {
         innerResult().code(ACCOUNT_MERGE_NO_ACCOUNT);
         return false;
@@ -84,8 +85,8 @@ MergeOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
         line.storeDelete(delta, db);
     }
 
-    otherAccount.getAccount().balance += mSourceAccount->getAccount().balance;
-    otherAccount.storeChange(delta, db);
+    otherAccount->getAccount().balance += mSourceAccount->getAccount().balance;
+    otherAccount->storeChange(delta, db);
     mSourceAccount->storeDelete(delta, db);
 
     innerResult().code(ACCOUNT_MERGE_SUCCESS);

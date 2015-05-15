@@ -90,12 +90,13 @@ CommandHandler::manualCmd(std::string const& cmd)
 SequenceNumber
 getSeq(SecretKey const& k, Application& app)
 {
-    AccountFrame account;
-    if (AccountFrame::loadAccount(k.getPublicKey(), account, app.getDatabase()))
+    AccountFrame::pointer account;
+    account = AccountFrame::loadAccount(k.getPublicKey(), app.getDatabase());
+    if (account)
     {
-        return account.getSeqNum();
+        return account->getSeqNum();
     }
-    return (0);
+    return 0;
 }
 
 void
@@ -136,8 +137,8 @@ CommandHandler::testTx(std::string const& params, std::string& retStr)
         {
             txFrame = createPaymentTx(fromKey, toKey, fromSeq, paymentAmount);
         }
-        bool ret =
-            (mApp.getHerder().recvTransaction(txFrame) == Herder::TX_STATUS_PENDING);
+        bool ret = (mApp.getHerder().recvTransaction(txFrame) ==
+                    Herder::TX_STATUS_PENDING);
         retStr = ret ? "Transaction submitted" : "Something went wrong";
     }
     else

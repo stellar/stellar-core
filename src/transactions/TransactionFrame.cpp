@@ -156,12 +156,7 @@ TransactionFrame::loadAccount(Application& app, AccountID const& accountID)
     }
     else
     {
-        res = make_shared<AccountFrame>();
-        bool ok = AccountFrame::loadAccount(accountID, *res, app.getDatabase());
-        if (!ok)
-        {
-            res.reset();
-        }
+        res = AccountFrame::loadAccount(accountID, app.getDatabase());
     }
     return res;
 }
@@ -203,23 +198,23 @@ TransactionFrame::checkValid(Application& app, bool applying,
         return false;
     }
 
-    if(mEnvelope.tx.timeBounds)
+    if (mEnvelope.tx.timeBounds)
     {
-        if(mEnvelope.tx.timeBounds->minTime > 
+        if (mEnvelope.tx.timeBounds->minTime >
             app.getLedgerManager().getLastClosedLedgerHeader().header.closeTime)
         {
             getResult().result.code(txTOO_EARLY);
             return false;
         }
-        if(mEnvelope.tx.timeBounds->maxTime && (mEnvelope.tx.timeBounds->maxTime <
-            app.getLedgerManager().getLastClosedLedgerHeader().header.closeTime))
+        if (mEnvelope.tx.timeBounds->maxTime &&
+            (mEnvelope.tx.timeBounds->maxTime < app.getLedgerManager()
+                                                    .getLastClosedLedgerHeader()
+                                                    .header.closeTime))
         {
             getResult().result.code(txTOO_LATE);
             return false;
         }
     }
-
-    
 
     // fee we'd like to charge for this transaction
     int64_t fee = getFee(app);
@@ -258,13 +253,12 @@ TransactionFrame::checkValid(Application& app, bool applying,
     getResult().feeCharged = mEnvelope.tx.fee;
 
     // don't let the account go below the reserve
-    if(mSigningAccount->getAccount().balance - mEnvelope.tx.fee <
+    if (mSigningAccount->getAccount().balance - mEnvelope.tx.fee <
         mSigningAccount->getMinimumBalance(app.getLedgerManager()))
     {
         getResult().result.code(txINSUFFICIENT_BALANCE);
         return false;
     }
-
 
     if (!applying)
     {

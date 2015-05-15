@@ -166,9 +166,8 @@ AccountFrame::getLowThreshold() const
     return mAccountEntry.thresholds[1];
 }
 
-bool
-AccountFrame::loadAccount(AccountID const& accountID, AccountFrame& retAcc,
-                          Database& db)
+AccountFrame::pointer
+AccountFrame::loadAccount(AccountID const& accountID, Database& db)
 {
     std::string base58ID = toBase58Check(VER_ACCOUNT_ID, accountID);
     std::string publicKey, inflationDest, creditAuthKey;
@@ -177,9 +176,8 @@ AccountFrame::loadAccount(AccountID const& accountID, AccountFrame& retAcc,
 
     soci::session& session = db.getSession();
 
-    retAcc.clearCached();
-    retAcc.getAccount().accountID = accountID;
-    AccountEntry& account = retAcc.getAccount();
+    AccountFrame::pointer res = make_shared<AccountFrame>(accountID);
+    AccountEntry& account = res->getAccount();
     {
         auto timer = db.getSelectTimer("account");
         session << "SELECT balance, seqNum, numSubEntries, \
@@ -192,7 +190,7 @@ AccountFrame::loadAccount(AccountID const& accountID, AccountFrame& retAcc,
     }
 
     if (!session.got_data())
-        return false;
+        return nullptr;
 
     if (homeDomainInd == soci::i_ok)
     {
@@ -204,7 +202,7 @@ AccountFrame::loadAccount(AccountID const& accountID, AccountFrame& retAcc,
         std::vector<uint8_t> bin = hexToBin(thresholds);
         for (size_t n = 0; (n < 4) && (n < bin.size()); n++)
         {
-            retAcc.mAccountEntry.thresholds[n] = bin[n];
+            res->mAccountEntry.thresholds[n] = bin[n];
         }
     }
 
@@ -242,11 +240,11 @@ AccountFrame::loadAccount(AccountID const& accountID, AccountFrame& retAcc,
         }
     }
 
-    retAcc.normalize();
-    retAcc.mUpdateSigners = false;
+    res->normalize();
+    res->mUpdateSigners = false;
 
-    retAcc.mKeyCalculated = false;
-    return true;
+    res->mKeyCalculated = false;
+    return res;
 }
 
 bool
@@ -364,12 +362,13 @@ AccountFrame::storeUpdate(LedgerDelta& delta, Database& db, bool insert) const
     {
         // instead separate signatures from account, just like offers are
         // separate entities
-        AccountFrame startAccountFrame;
-        if (!loadAccount(getID(), startAccountFrame, db))
+        AccountFrame::pointer startAccountFrame;
+        startAccountFrame = loadAccount(getID(), db);
+        if (!startAccountFrame)
         {
             throw runtime_error("could not load account!");
         }
-        AccountEntry& startAccount = startAccountFrame.mAccountEntry;
+        AccountEntry& startAccount = startAccountFrame->mAccountEntry;
 
         // deal with changes to Signers
         if (mAccountEntry.signers.size() < startAccount.signers.size())

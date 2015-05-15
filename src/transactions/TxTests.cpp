@@ -52,22 +52,39 @@ getAccount(const char* n)
     return SecretKey::fromBase58Seed(b58SeedStr);
 }
 
+AccountFrame::pointer
+loadAccount(SecretKey const& k, Application& app, bool mustExist)
+{
+    AccountFrame::pointer res =
+        AccountFrame::loadAccount(k.getPublicKey(), app.getDatabase());
+    if (mustExist)
+    {
+        REQUIRE(res);
+    }
+    return res;
+}
+
+void
+requireNoAccount(SecretKey const& k, Application& app)
+{
+    AccountFrame::pointer res = loadAccount(k, app, false);
+    REQUIRE(!res);
+}
+
 SequenceNumber
 getAccountSeqNum(SecretKey const& k, Application& app)
 {
-    AccountFrame account;
-    REQUIRE(AccountFrame::loadAccount(k.getPublicKey(), account,
-                                      app.getDatabase()));
-    return account.getSeqNum();
+    AccountFrame::pointer account;
+    account = loadAccount(k, app);
+    return account->getSeqNum();
 }
 
 uint64_t
 getAccountBalance(SecretKey const& k, Application& app)
 {
-    AccountFrame account;
-    REQUIRE(AccountFrame::loadAccount(k.getPublicKey(), account,
-                                      app.getDatabase()));
-    return account.getBalance();
+    AccountFrame::pointer account;
+    account = loadAccount(k, app);
+    return account->getBalance();
 }
 
 void
@@ -163,13 +180,10 @@ applyCreateAccountTx(Application& app, SecretKey& from, SecretKey& to,
 {
     TransactionFramePtr txFrame;
 
-    AccountFrame fromAccount;
-    AccountFrame toAccount;
-    bool beforeToExists = AccountFrame::loadAccount(
-        to.getPublicKey(), toAccount, app.getDatabase());
+    AccountFrame::pointer fromAccount, toAccount;
+    toAccount = loadAccount(to, app, false);
 
-    REQUIRE(AccountFrame::loadAccount(from.getPublicKey(), fromAccount,
-                                      app.getDatabase()));
+    fromAccount = loadAccount(from, app);
 
     txFrame = createCreateAccountTx(from, to, seq, amount);
 
@@ -184,22 +198,21 @@ applyCreateAccountTx(Application& app, SecretKey& from, SecretKey& to,
 
     REQUIRE(txResult.feeCharged == app.getLedgerManager().getTxFee());
 
-    AccountFrame toAccountAfter;
-    bool afterToExists = AccountFrame::loadAccount(
-        to.getPublicKey(), toAccountAfter, app.getDatabase());
+    AccountFrame::pointer toAccountAfter;
+    toAccountAfter = loadAccount(to, app, false);
 
     if (innerCode != CREATE_ACCOUNT_SUCCESS)
     {
         // check that the target account didn't change
-        REQUIRE(beforeToExists == afterToExists);
-        if (beforeToExists && afterToExists)
+        REQUIRE(!!toAccount == !!toAccountAfter);
+        if (toAccount && toAccountAfter)
         {
-            REQUIRE(toAccount.getAccount() == toAccountAfter.getAccount());
+            REQUIRE(toAccount->getAccount() == toAccountAfter->getAccount());
         }
     }
     else
     {
-        REQUIRE(afterToExists);
+        REQUIRE(toAccountAfter);
     }
 }
 
@@ -222,13 +235,10 @@ applyPaymentTx(Application& app, SecretKey& from, SecretKey& to,
 {
     TransactionFramePtr txFrame;
 
-    AccountFrame fromAccount;
-    AccountFrame toAccount;
-    bool beforeToExists = AccountFrame::loadAccount(
-        to.getPublicKey(), toAccount, app.getDatabase());
+    AccountFrame::pointer fromAccount, toAccount;
+    toAccount = loadAccount(to, app, false);
 
-    REQUIRE(AccountFrame::loadAccount(from.getPublicKey(), fromAccount,
-                                      app.getDatabase()));
+    fromAccount = loadAccount(from, app);
 
     txFrame = createPaymentTx(from, to, seq, amount);
 
@@ -242,22 +252,22 @@ applyPaymentTx(Application& app, SecretKey& from, SecretKey& to,
 
     REQUIRE(txResult.feeCharged == app.getLedgerManager().getTxFee());
 
-    AccountFrame toAccountAfter;
-    bool afterToExists = AccountFrame::loadAccount(
-        to.getPublicKey(), toAccountAfter, app.getDatabase());
+    AccountFrame::pointer toAccountAfter;
+    toAccountAfter = loadAccount(to, app, false);
 
     if (innerCode != PAYMENT_SUCCESS)
     {
         // check that the target account didn't change
-        REQUIRE(beforeToExists == afterToExists);
-        if (beforeToExists && afterToExists)
+        REQUIRE(!!toAccount == !!toAccountAfter);
+        if (toAccount && toAccountAfter)
         {
-            REQUIRE(toAccount.getAccount() == toAccountAfter.getAccount());
+            REQUIRE(toAccount->getAccount() == toAccountAfter->getAccount());
         }
     }
     else
     {
-        REQUIRE(afterToExists);
+        REQUIRE(toAccount);
+        REQUIRE(toAccountAfter);
     }
 }
 

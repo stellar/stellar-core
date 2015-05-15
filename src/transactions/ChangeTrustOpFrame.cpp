@@ -51,9 +51,10 @@ ChangeTrustOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
     }
     else
     { // new trust line
-        AccountFrame issuer;
-        if (!AccountFrame::loadAccount(mChangeTrust.line.alphaNum().issuer,
-                                       issuer, db))
+        AccountFrame::pointer issuer;
+        issuer =
+            AccountFrame::loadAccount(mChangeTrust.line.alphaNum().issuer, db);
+        if (!issuer)
         {
             innerResult().code(CHANGE_TRUST_NO_ISSUER);
             return false;
@@ -63,7 +64,7 @@ ChangeTrustOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
         trustLine.getTrustLine().currency = mChangeTrust.line;
         trustLine.getTrustLine().limit = mChangeTrust.limit;
         trustLine.getTrustLine().balance = 0;
-        trustLine.setAuthorized(!issuer.isAuthRequired());
+        trustLine.setAuthorized(!issuer->isAuthRequired());
 
         if (!mSourceAccount->addNumEntries(1, ledgerManager))
         {

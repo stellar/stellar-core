@@ -8,7 +8,6 @@
 #include "bucket/LedgerCmp.h"
 #include "util/NonCopyable.h"
 
-
 /*
 Frame
 Parent of AccountFrame, TrustFrame, OfferFrame

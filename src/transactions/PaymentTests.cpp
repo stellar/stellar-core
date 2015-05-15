@@ -83,22 +83,20 @@ TEST_CASE("payment", "[tx][payment]")
     applyCreateAccountTx(app, root, gateway, rootSeq++, gatewayPayment);
     SequenceNumber gateway_seq = getAccountSeqNum(gateway, app) + 1;
 
-    AccountFrame a1Account, rootAccount;
-    REQUIRE(AccountFrame::loadAccount(root.getPublicKey(), rootAccount,
-                                      app.getDatabase()));
-    REQUIRE(AccountFrame::loadAccount(a1.getPublicKey(), a1Account,
-                                      app.getDatabase()));
-    REQUIRE(rootAccount.getMasterWeight() == 1);
-    REQUIRE(rootAccount.getHighThreshold() == 0);
-    REQUIRE(rootAccount.getLowThreshold() == 0);
-    REQUIRE(rootAccount.getMediumThreshold() == 0);
-    REQUIRE(a1Account.getBalance() == paymentAmount);
-    REQUIRE(a1Account.getMasterWeight() == 1);
-    REQUIRE(a1Account.getHighThreshold() == 0);
-    REQUIRE(a1Account.getLowThreshold() == 0);
-    REQUIRE(a1Account.getMediumThreshold() == 0);
+    AccountFrame::pointer a1Account, rootAccount;
+    rootAccount = loadAccount(root, app);
+    a1Account = loadAccount(a1, app);
+    REQUIRE(rootAccount->getMasterWeight() == 1);
+    REQUIRE(rootAccount->getHighThreshold() == 0);
+    REQUIRE(rootAccount->getLowThreshold() == 0);
+    REQUIRE(rootAccount->getMediumThreshold() == 0);
+    REQUIRE(a1Account->getBalance() == paymentAmount);
+    REQUIRE(a1Account->getMasterWeight() == 1);
+    REQUIRE(a1Account->getHighThreshold() == 0);
+    REQUIRE(a1Account->getLowThreshold() == 0);
+    REQUIRE(a1Account->getMediumThreshold() == 0);
     // root did 2 transactions at this point
-    REQUIRE(rootAccount.getBalance() ==
+    REQUIRE(rootAccount->getBalance() ==
             (100000000000000000 - paymentAmount - gatewayPayment - txfee * 2));
 
     LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader());
@@ -133,28 +131,25 @@ TEST_CASE("payment", "[tx][payment]")
     {
         applyPaymentTx(app, root, a1, rootSeq++, morePayment);
 
-        AccountFrame a1Account2, rootAccount2;
-        REQUIRE(AccountFrame::loadAccount(root.getPublicKey(), rootAccount2,
-                                          app.getDatabase()));
-        REQUIRE(AccountFrame::loadAccount(a1.getPublicKey(), a1Account2,
-                                          app.getDatabase()));
-        REQUIRE(a1Account2.getBalance() ==
-                a1Account.getBalance() + morePayment);
+        AccountFrame::pointer a1Account2, rootAccount2;
+        rootAccount2 = loadAccount(root, app);
+        a1Account2 = loadAccount(a1, app);
+        REQUIRE(a1Account2->getBalance() ==
+                a1Account->getBalance() + morePayment);
 
         // root did 2 transactions at this point
-        REQUIRE(rootAccount2.getBalance() ==
-                (rootAccount.getBalance() - morePayment - txfee));
+        REQUIRE(rootAccount2->getBalance() ==
+                (rootAccount->getBalance() - morePayment - txfee));
     }
 
     SECTION("send to self")
     {
         applyPaymentTx(app, root, root, rootSeq++, morePayment);
 
-        AccountFrame rootAccount2;
-        REQUIRE(AccountFrame::loadAccount(root.getPublicKey(), rootAccount2,
-                                          app.getDatabase()));
-        REQUIRE(rootAccount2.getBalance() ==
-                (rootAccount.getBalance() - txfee));
+        AccountFrame::pointer rootAccount2;
+        rootAccount2 = loadAccount(root, app);
+        REQUIRE(rootAccount2->getBalance() ==
+                (rootAccount->getBalance() - txfee));
     }
 
     SECTION("send XLM to a new account (no destination)")
@@ -175,7 +170,8 @@ TEST_CASE("payment", "[tx][payment]")
 
         // raise the reserve
         int32 addReserve = 100000;
-        app.getLedgerManager().getCurrentLedgerHeader().baseReserve += addReserve;
+        app.getLedgerManager().getCurrentLedgerHeader().baseReserve +=
+            addReserve;
 
         // verify that the account can't do anything
         auto tx = createPaymentTx(b1, root, b1Seq++, 1);

@@ -53,12 +53,12 @@ createTestAccounts(Application& app, int nbAccounts,
             SecretKey to = getTestAccount(i);
             applyCreateAccountTx(app, root, to, rootSeq++, setupBalance);
 
-            AccountFrame act;
-            REQUIRE(AccountFrame::loadAccount(to.getPublicKey(), act, db));
-            act.getAccount().balance = bal;
-            act.getAccount().inflationDest.activate() =
+            AccountFrame::pointer act;
+            act = loadAccount(to, app);
+            act->getAccount().balance = bal;
+            act->getAccount().inflationDest.activate() =
                 getTestAccount(getVote(i)).getPublicKey();
-            act.storeChange(delta, db);
+            act->storeChange(delta, db);
         }
     }
 }
@@ -185,23 +185,21 @@ doInflation(Application& app, int nbAccounts,
     // load account balances
     for (int i = 0; i < nbAccounts; i++)
     {
-        AccountFrame act;
         if (getBalance(i) < 0)
         {
             balances[i] = -1;
-            REQUIRE(!AccountFrame::loadAccount(getTestAccount(i).getPublicKey(),
-                                               act, app.getDatabase()));
+            requireNoAccount(getTestAccount(i), app);
         }
         else
         {
-            REQUIRE(AccountFrame::loadAccount(getTestAccount(i).getPublicKey(),
-                                              act, app.getDatabase()));
-            balances[i] = act.getBalance();
+            AccountFrame::pointer act;
+            act = loadAccount(getTestAccount(i), app);
+            balances[i] = act->getBalance();
             // double check that inflationDest is setup properly
-            if (act.getAccount().inflationDest)
+            if (act->getAccount().inflationDest)
             {
                 REQUIRE(getTestAccount(getVote(i)).getPublicKey() ==
-                        *act.getAccount().inflationDest);
+                        *act->getAccount().inflationDest);
             }
             else
             {
@@ -253,17 +251,17 @@ doInflation(Application& app, int nbAccounts,
 
     for (int i = 0; i < nbAccounts; i++)
     {
-        AccountFrame act;
-        auto const& pk = getTestAccount(i).getPublicKey();
+        auto const& k = getTestAccount(i);
         if (expectedBalances[i] < 0)
         {
-            REQUIRE(!AccountFrame::loadAccount(pk, act, app.getDatabase()));
+            requireNoAccount(k, app);
             REQUIRE(balances[i] < 0); // account didn't get deleted
         }
         else
         {
-            REQUIRE(AccountFrame::loadAccount(pk, act, app.getDatabase()));
-            REQUIRE(expectedBalances[i] == act.getBalance());
+            AccountFrame::pointer act;
+            act = loadAccount(k, app);
+            REQUIRE(expectedBalances[i] == act->getBalance());
 
             if (expectedBalances[i] != balances[i])
             {
@@ -272,7 +270,7 @@ doInflation(Application& app, int nbAccounts,
                 bool found = false;
                 for (auto const& p : payouts)
                 {
-                    if (p.destination == pk)
+                    if (p.destination == k.getPublicKey())
                     {
                         int64 computedFromResult = balances[i] + p.amount;
                         REQUIRE(computedFromResult == expectedBalances[i]);

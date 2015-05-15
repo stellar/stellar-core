@@ -27,11 +27,13 @@ PathPaymentOpFrame::PathPaymentOpFrame(Operation const& op,
 bool
 PathPaymentOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
 {
-    AccountFrame destination;
+    AccountFrame::pointer destination;
 
     Database& db = ledgerManager.getDatabase();
 
-    if (!AccountFrame::loadAccount(mPathPayment.destination, destination, db))
+    destination = AccountFrame::loadAccount(mPathPayment.destination, db);
+
+    if (!destination)
     {
         innerResult().code(PATH_PAYMENT_NO_DESTINATION);
         return false;
@@ -55,14 +57,14 @@ PathPaymentOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
     {
         if (curB.type() == CURRENCY_TYPE_NATIVE)
         {
-            destination.getAccount().balance += curBReceived;
-            destination.storeChange(delta, db);
+            destination->getAccount().balance += curBReceived;
+            destination->storeChange(delta, db);
         }
         else
         {
             TrustFrame destLine;
 
-            if (!TrustFrame::loadTrustLine(destination.getID(), curB, destLine,
+            if (!TrustFrame::loadTrustLine(destination->getID(), curB, destLine,
                                            db))
             {
                 innerResult().code(PATH_PAYMENT_NO_TRUST);
@@ -85,7 +87,7 @@ PathPaymentOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
         }
 
         innerResult().success().last =
-            SimplePaymentResult(destination.getID(), curB, curBReceived);
+            SimplePaymentResult(destination->getID(), curB, curBReceived);
     }
 
     // now, walk the path backwards
@@ -161,8 +163,10 @@ PathPaymentOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
     }
     else
     {
-        AccountFrame issuer;
-        if (!AccountFrame::loadAccount(curB.alphaNum().issuer, issuer, db))
+        AccountFrame::pointer issuer;
+        issuer = AccountFrame::loadAccount(curB.alphaNum().issuer, db);
+
+        if (!issuer)
         {
             throw std::runtime_error("sendCredit Issuer not found");
         }

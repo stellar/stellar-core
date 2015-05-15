@@ -27,8 +27,9 @@ OfferExchange::crossOffer(OfferFrame& sellingWheatOffer,
 
     Database& db = mLedgerManager.getDatabase();
 
-    AccountFrame accountB;
-    if (!AccountFrame::loadAccount(accountBID, accountB, db))
+    AccountFrame::pointer accountB;
+    accountB = AccountFrame::loadAccount(accountBID, db);
+    if (!accountB)
     {
         throw std::runtime_error(
             "invalid database state: offer must have matching account");
@@ -77,7 +78,7 @@ OfferExchange::crossOffer(OfferFrame& sellingWheatOffer,
         if (wheat.type() == CURRENCY_TYPE_NATIVE)
         {
             // can only send above the minimum balance
-            wheatCanSell = accountB.getBalanceAboveReserve(mLedgerManager);
+            wheatCanSell = accountB->getBalanceAboveReserve(mLedgerManager);
         }
         else
         {
@@ -156,8 +157,8 @@ OfferExchange::crossOffer(OfferFrame& sellingWheatOffer,
     { // entire offer is taken
         sellingWheatOffer.storeDelete(mDelta, db);
 
-        accountB.addNumEntries(-1, mLedgerManager);
-        accountB.storeChange(mDelta, db);
+        accountB->addNumEntries(-1, mLedgerManager);
+        accountB->storeChange(mDelta, db);
     }
     else
     {
@@ -168,8 +169,8 @@ OfferExchange::crossOffer(OfferFrame& sellingWheatOffer,
     // Adjust balances
     if (sheep.type() == CURRENCY_TYPE_NATIVE)
     {
-        accountB.getAccount().balance += numSheepSend;
-        accountB.storeChange(mDelta, db);
+        accountB->getAccount().balance += numSheepSend;
+        accountB->storeChange(mDelta, db);
     }
     else
     {
@@ -182,8 +183,8 @@ OfferExchange::crossOffer(OfferFrame& sellingWheatOffer,
 
     if (wheat.type() == CURRENCY_TYPE_NATIVE)
     {
-        accountB.getAccount().balance -= numWheatReceived;
-        accountB.storeChange(mDelta, db);
+        accountB->getAccount().balance -= numWheatReceived;
+        accountB->storeChange(mDelta, db);
     }
     else
     {
@@ -194,7 +195,7 @@ OfferExchange::crossOffer(OfferFrame& sellingWheatOffer,
         wheatLineAccountB.storeChange(mDelta, db);
     }
 
-    mOfferTrail.push_back(ClaimOfferAtom(accountB.getID(),
+    mOfferTrail.push_back(ClaimOfferAtom(accountB->getID(),
                                          sellingWheatOffer.getOfferID(), wheat,
                                          numWheatReceived));
 

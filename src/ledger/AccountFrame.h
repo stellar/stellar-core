@@ -111,8 +111,8 @@ class AccountFrame : public EntryFrame
     static bool exists(Database& db, LedgerKey const& key);
 
     // database utilities
-    static bool loadAccount(AccountID const& accountID, AccountFrame& retEntry,
-                            Database& db);
+    static AccountFrame::pointer loadAccount(AccountID const& accountID,
+                                             Database& db);
 
     // inflation helper
 

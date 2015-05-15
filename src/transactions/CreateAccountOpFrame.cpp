@@ -27,11 +27,12 @@ CreateAccountOpFrame::CreateAccountOpFrame(Operation const& op,
 bool
 CreateAccountOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
 {
-    AccountFrame destAccount;
+    AccountFrame::pointer destAccount;
 
     Database& db = ledgerManager.getDatabase();
 
-    if (!AccountFrame::loadAccount(mCreateAccount.destination, destAccount, db))
+    destAccount = AccountFrame::loadAccount(mCreateAccount.destination, db);
+    if (!destAccount)
     {
         if (mCreateAccount.startingBalance < ledgerManager.getMinBalance(0))
         { // not over the minBalance to make an account
@@ -54,12 +55,12 @@ CreateAccountOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
                 mCreateAccount.startingBalance;
             mSourceAccount->storeChange(delta, db);
 
-            destAccount.getAccount().accountID = mCreateAccount.destination;
-            destAccount.getAccount().seqNum =
+            destAccount = make_shared<AccountFrame>(mCreateAccount.destination);
+            destAccount->getAccount().seqNum =
                 delta.getHeaderFrame().getStartingSequenceNumber();
-            destAccount.getAccount().balance = mCreateAccount.startingBalance;
+            destAccount->getAccount().balance = mCreateAccount.startingBalance;
 
-            destAccount.storeAdd(delta, db);
+            destAccount->storeAdd(delta, db);
 
             innerResult().code(CREATE_ACCOUNT_SUCCESS);
             return true;
