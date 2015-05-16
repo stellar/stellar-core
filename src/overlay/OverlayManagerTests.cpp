@@ -111,7 +111,7 @@ class OverlayManagerTests
         pm.storePeerList(threePeers, 3);
 
         rowset<row> rs = app.getDatabase().getSession().prepare
-                         << "SELECT ip,port from Peers order by rank limit 5 ";
+                         << "SELECT ip,port FROM peers ORDER BY rank LIMIT 5 ";
         vector<string> actual;
         for (auto it = rs.begin(); it != rs.end(); ++it)
             actual.push_back(it->get<string>(0) + ":" +

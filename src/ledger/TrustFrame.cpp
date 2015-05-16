@@ -16,19 +16,19 @@ using namespace soci;
 namespace stellar
 {
 const char* TrustFrame::kSQLCreateStatement1 =
-    "CREATE TABLE TrustLines"
+    "CREATE TABLE trustlines"
     "("
-    "accountID     VARCHAR(51)     NOT NULL,"
+    "accountid     VARCHAR(51)     NOT NULL,"
     "issuer        VARCHAR(51)     NOT NULL,"
-    "AlphaNumCurrency   VARCHAR(4) NOT NULL,"
+    "alphanumcurrency   VARCHAR(4) NOT NULL,"
     "tlimit        BIGINT          NOT NULL DEFAULT 0 CHECK (tlimit >= 0),"
     "balance       BIGINT          NOT NULL DEFAULT 0 CHECK (balance >= 0),"
     "flags         INT             NOT NULL,"
-    "PRIMARY KEY (accountID, issuer, AlphaNumCurrency)"
+    "PRIMARY KEY (accountid, issuer, alphanumcurrency)"
     ");";
 
 const char* TrustFrame::kSQLCreateStatement2 =
-    "CREATE INDEX accountLines ON TrustLines (accountID);";
+    "CREATE INDEX accountlines ON trustlines (accountid);";
 
 TrustFrame::TrustFrame()
     : EntryFrame(TRUSTLINE), mTrustLine(mEntry.trustLine()), mIsIssuer(false)
@@ -156,8 +156,9 @@ TrustFrame::exists(Database& db, LedgerKey const& key)
     getKeyFields(key, b58AccountID, b58Issuer, currencyCode);
     int exists = 0;
     auto timer = db.getSelectTimer("trust-exists");
-    db.getSession() << "SELECT EXISTS (SELECT NULL FROM TrustLines \
-             WHERE accountID=:v1 and issuer=:v2 and AlphaNumCurrency=:v3)",
+    db.getSession()
+        << "SELECT EXISTS (SELECT NULL FROM trustlines "
+           "WHERE accountid=:v1 and issuer=:v2 and alphanumcurrency=:v3)",
         use(b58AccountID), use(b58Issuer), use(currencyCode), into(exists);
     return exists != 0;
 }
@@ -175,8 +176,9 @@ TrustFrame::storeDelete(LedgerDelta& delta, Database& db, LedgerKey const& key)
     getKeyFields(key, b58AccountID, b58Issuer, currencyCode);
 
     auto timer = db.getDeleteTimer("trust");
-    db.getSession() << "DELETE from TrustLines \
-             WHERE accountID=:v1 and issuer=:v2 and AlphaNumCurrency=:v3",
+    db.getSession()
+        << "DELETE FROM trustlines "
+           "WHERE accountid=:v1 AND issuer=:v2 AND alphanumcurrency=:v3",
         use(b58AccountID), use(b58Issuer), use(currencyCode);
 
     delta.deleteEntry(key);
@@ -194,12 +196,14 @@ TrustFrame::storeChange(LedgerDelta& delta, Database& db) const
     getKeyFields(getKey(), b58AccountID, b58Issuer, currencyCode);
 
     auto timer = db.getUpdateTimer("trust");
-    statement st = (db.getSession().prepare << "UPDATE TrustLines \
-              SET balance=:b, tlimit=:tl, flags=:a \
-              WHERE accountID=:v1 and issuer=:v2 and AlphaNumCurrency=:v3",
-                    use(mTrustLine.balance), use(mTrustLine.limit),
-                    use((int)mTrustLine.flags), use(b58AccountID),
-                    use(b58Issuer), use(currencyCode));
+    statement st =
+        (db.getSession().prepare
+             << "UPDATE trustlines "
+                "SET balance=:b, tlimit=:tl, flags=:a "
+                "WHERE accountid=:v1 AND issuer=:v2 AND alphanumcurrency=:v3",
+         use(mTrustLine.balance), use(mTrustLine.limit),
+         use((int)mTrustLine.flags), use(b58AccountID), use(b58Issuer),
+         use(currencyCode));
 
     st.execute(true);
 
@@ -224,9 +228,9 @@ TrustFrame::storeAdd(LedgerDelta& delta, Database& db) const
 
     auto timer = db.getInsertTimer("trust");
     statement st =
-        (db.getSession().prepare
-             << "INSERT INTO TrustLines (accountID, issuer, AlphaNumCurrency, tlimit, flags) \
-                 VALUES (:v1,:v2,:v3,:v4,:v5)",
+        (db.getSession().prepare << "INSERT INTO trustlines (accountid, "
+                                    "issuer, alphanumcurrency, tlimit, flags) "
+                                    "VALUES (:v1,:v2,:v3,:v4,:v5)",
          use(b58AccountID), use(b58Issuer), use(currencyCode),
          use(mTrustLine.limit), use((int)mTrustLine.flags));
 
@@ -241,8 +245,8 @@ TrustFrame::storeAdd(LedgerDelta& delta, Database& db) const
 }
 
 static const char* trustLineColumnSelector =
-    "SELECT accountID, issuer, AlphaNumCurrency, tlimit,balance,flags FROM "
-    "TrustLines";
+    "SELECT accountid, issuer, alphanumcurrency, tlimit,balance,flags FROM "
+    "trustlines";
 
 TrustFrame::pointer
 TrustFrame::createIssuerFrame(Currency const& issuer)
@@ -277,8 +281,8 @@ TrustFrame::loadTrustLine(AccountID const& accountID, Currency const& currency,
 
     details::prepare_temp_type sql =
         (session.prepare << trustLineColumnSelector
-                         << " WHERE accountID=:id AND "
-                            "issuer=:issuer AND AlphaNumCurrency=:currency",
+                         << " WHERE accountid=:id AND "
+                            "issuer=:issuer AND alphanumcurrency=:currency",
          use(accStr), use(issuerStr), use(currencyStr));
 
     pointer retLine;
@@ -299,8 +303,8 @@ TrustFrame::hasIssued(AccountID const& issuerID, Database& db)
     session& session = db.getSession();
 
     details::prepare_temp_type sql =
-        (session.prepare << "SELECT balance from TrustLines WHERE issuer=:id "
-                            "and balance>0 limit 1",
+        (session.prepare << "SELECT balance FROM trustlines WHERE issuer=:id "
+                            "AND balance>0 LIMIT 1",
          use(accStr));
 
     auto timer = db.getSelectTimer("trust");
@@ -354,7 +358,7 @@ TrustFrame::loadLines(AccountID const& accountID,
     session& session = db.getSession();
 
     details::prepare_temp_type sql =
-        (session.prepare << trustLineColumnSelector << " WHERE accountID=:id",
+        (session.prepare << trustLineColumnSelector << " WHERE accountid=:id",
          use(accStr));
 
     auto timer = db.getSelectTimer("trust");
@@ -367,7 +371,7 @@ TrustFrame::loadLines(AccountID const& accountID,
 void
 TrustFrame::dropAll(Database& db)
 {
-    db.getSession() << "DROP TABLE IF EXISTS TrustLines;";
+    db.getSession() << "DROP TABLE IF EXISTS trustlines;";
     db.getSession() << kSQLCreateStatement1;
     db.getSession() << kSQLCreateStatement2;
 }

@@ -130,8 +130,8 @@ PeerRecord::loadPeerRecord(Database& db, string ip, unsigned short port)
     // SOCI only support signed short, using intermediate int avoids ending up
     // with negative numbers in the database
     uint32_t lport;
-    db.getSession() << "Select ip,port, nextAttempt, numFailures, rank FROM "
-                       "Peers WHERE ip = :v1 AND port = :v2",
+    db.getSession() << "SELECT ip,port, nextattempt, numfailures, rank FROM "
+                       "peers WHERE ip = :v1 AND port = :v2",
         into(ret->mIP), into(lport), into(tm), into(ret->mNumFailures),
         into(ret->mRank), use(ip), use(uint32_t(port));
     if (db.getSession().got_data())
@@ -156,10 +156,10 @@ PeerRecord::loadPeerRecords(Database& db, uint32_t max,
         PeerRecord pr;
         uint32_t lport;
         statement st = (db.getSession().prepare
-                            << "SELECT ip, port, nextAttempt, "
-                               "numFailures, rank FROM Peers "
-                               "WHERE nextAttempt <= :nextAttempt "
-                               "ORDER BY rank DESC,numFailures ASC limit :max ",
+                            << "SELECT ip, port, nextattempt, "
+                               "numfailures, rank FROM peers "
+                               "WHERE nextattempt <= :nextattempt "
+                               "ORDER BY rank DESC,numfailures ASC limit :max ",
                         use(tm), use(max), into(pr.mIP), into(lport), into(tm),
                         into(pr.mNumFailures), into(pr.mRank));
         st.execute();
@@ -216,9 +216,9 @@ PeerRecord::insertIfNew(Database& db)
     else
     {
         statement stIn =
-            (db.getSession().prepare << "INSERT INTO Peers "
-                                        "(IP,Port,nextAttempt,numFailures,"
-                                        "Rank) values (:v1, :v2, :v3, :v4, "
+            (db.getSession().prepare << "INSERT INTO peers "
+                                        "(ip,port,nextattempt,numfailures,"
+                                        "rank) values (:v1, :v2, :v3, :v4, "
                                         ":v5)",
              use(mIP), use(uint32_t(mPort)), use(tm), use(mNumFailures),
              use(mRank));
@@ -235,9 +235,9 @@ PeerRecord::storePeerRecord(Database& db)
     {
         auto tm = VirtualClock::pointToTm(mNextAttempt);
         statement stUp =
-            (db.getSession().prepare << "UPDATE Peers SET "
-                                        "nextAttempt=:v1,numFailures=:v2,Rank=:"
-                                        "v3 WHERE IP=:v4 AND Port=:v5",
+            (db.getSession().prepare << "UPDATE peers SET "
+                                        "nextattempt=:v1,numfailures=:v2,rank=:"
+                                        "v3 WHERE ip=:v4 AND port=:v5",
              use(tm), use(mNumFailures), use(mRank), use(mIP),
              use(uint32_t(mPort)));
         {
@@ -271,16 +271,16 @@ PeerRecord::toString()
 void
 PeerRecord::dropAll(Database& db)
 {
-    db.getSession() << "DROP TABLE IF EXISTS Peers;";
+    db.getSession() << "DROP TABLE IF EXISTS peers;";
     db.getSession() << kSQLCreateStatement;
 }
 
 const char* PeerRecord::kSQLCreateStatement =
-    "CREATE TABLE Peers ("
+    "CREATE TABLE peers ("
     "ip            VARCHAR(15) NOT NULL,"
     "port          INT DEFAULT 0 CHECK (port > 0 AND port <= 65535) NOT NULL,"
-    "nextAttempt   TIMESTAMP NOT NULL,"
-    "numFailures   INT DEFAULT 0 CHECK (numFailures >= 0) NOT NULL,"
+    "nextattempt   TIMESTAMP NOT NULL,"
+    "numfailures   INT DEFAULT 0 CHECK (numfailures >= 0) NOT NULL,"
     "rank          INT DEFAULT 0 CHECK (rank >= 0) NOT NULL,"
     "PRIMARY KEY (ip, port)"
     ");";

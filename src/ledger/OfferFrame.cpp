@@ -16,29 +16,29 @@ using namespace soci;
 namespace stellar
 {
 const char* OfferFrame::kSQLCreateStatement1 =
-    "CREATE TABLE Offers"
+    "CREATE TABLE offers"
     "("
-    "accountID       VARCHAR(51)  NOT NULL,"
-    "offerID         BIGINT       NOT NULL CHECK (offerID >= 0),"
-    "paysAlphaNumCurrency VARCHAR(4)   NOT NULL,"
-    "paysIssuer      VARCHAR(51)  NOT NULL,"
-    "getsAlphaNumCurrency VARCHAR(4)   NOT NULL,"
-    "getsIssuer      VARCHAR(51)  NOT NULL,"
+    "accountid       VARCHAR(51)  NOT NULL,"
+    "offerid         BIGINT       NOT NULL CHECK (offerid >= 0),"
+    "paysalphanumcurrency VARCHAR(4)   NOT NULL,"
+    "paysissuer      VARCHAR(51)  NOT NULL,"
+    "getsalphanumcurrency VARCHAR(4)   NOT NULL,"
+    "getsissuer      VARCHAR(51)  NOT NULL,"
     "amount          BIGINT       NOT NULL CHECK (amount >= 0),"
-    "priceN          INT          NOT NULL,"
-    "priceD          INT          NOT NULL,"
+    "pricen          INT          NOT NULL,"
+    "priced          INT          NOT NULL,"
     "price           BIGINT       NOT NULL,"
-    "PRIMARY KEY (offerID)"
+    "PRIMARY KEY (offerid)"
     ");";
 
 const char* OfferFrame::kSQLCreateStatement2 =
-    "CREATE INDEX paysIssuerIndex ON Offers (paysIssuer);";
+    "CREATE INDEX paysissuerindex ON offers (paysissuer);";
 
 const char* OfferFrame::kSQLCreateStatement3 =
-    "CREATE INDEX getsIssuerIndex ON Offers (getsIssuer);";
+    "CREATE INDEX getsissuerindex ON offers (getsissuer);";
 
 const char* OfferFrame::kSQLCreateStatement4 =
-    "CREATE INDEX priceIndex ON Offers (price);";
+    "CREATE INDEX priceindex ON offers (price);";
 
 OfferFrame::OfferFrame() : EntryFrame(OFFER), mOffer(mEntry.offer())
 {
@@ -115,8 +115,8 @@ OfferFrame::getOfferID() const
 }
 
 static const char* offerColumnSelector =
-    "SELECT accountID,offerID,paysAlphaNumCurrency,paysIssuer,"
-    "getsAlphaNumCurrency,getsIssuer,amount,priceN,priceD FROM Offers";
+    "SELECT accountid,offerid,paysalphanumcurrency,paysissuer,"
+    "getsalphanumcurrency,getsissuer,amount,pricen,priced FROM offers";
 
 OfferFrame::pointer
 OfferFrame::loadOffer(AccountID const& accountID, uint64_t offerID,
@@ -131,7 +131,7 @@ OfferFrame::loadOffer(AccountID const& accountID, uint64_t offerID,
 
     soci::details::prepare_temp_type sql =
         (session.prepare << offerColumnSelector
-                         << " where accountID=:id and offerID=:offerID",
+                         << " where accountid=:id and offerid=:offerid",
          use(accStr), use(offerID));
 
     auto timer = db.getSelectTimer("offer");
@@ -211,29 +211,29 @@ OfferFrame::loadBestOffers(size_t numOffers, size_t offset,
 
     if (pays.type() == CURRENCY_TYPE_NATIVE)
     {
-        sql << " WHERE paysIssuer IS NULL";
+        sql << " WHERE paysissuer IS NULL";
     }
     else
     {
         currencyCodeToStr(pays.alphaNum().currencyCode, payCurrencyCode);
         b58PIssuer = toBase58Check(VER_ACCOUNT_ID, pays.alphaNum().issuer);
-        sql << " WHERE paysAlphaNumCurrency=:pcur AND paysIssuer = :pi",
+        sql << " WHERE paysalphanumcurrency=:pcur AND paysissuer = :pi",
             use(payCurrencyCode), use(b58PIssuer);
     }
 
     if (gets.type() == CURRENCY_TYPE_NATIVE)
     {
-        sql << " AND getsIssuer IS NULL";
+        sql << " AND getsissuer IS NULL";
     }
     else
     {
         currencyCodeToStr(gets.alphaNum().currencyCode, getCurrencyCode);
         b58GIssuer = toBase58Check(VER_ACCOUNT_ID, gets.alphaNum().issuer);
 
-        sql << " AND getsAlphaNumCurrency=:gcur AND getsIssuer = :gi",
+        sql << " AND getsalphanumcurrency=:gcur AND getsissuer = :gi",
             use(getCurrencyCode), use(b58GIssuer);
     }
-    sql << " ORDER BY price,offerID,accountID LIMIT :n OFFSET :o",
+    sql << " ORDER BY price,offerid,accountid LIMIT :n OFFSET :o",
         use(numOffers), use(offset);
 
     auto timer = db.getSelectTimer("offer");
@@ -254,7 +254,7 @@ OfferFrame::loadOffers(AccountID const& accountID,
     accStr = toBase58Check(VER_ACCOUNT_ID, accountID);
 
     soci::details::prepare_temp_type sql =
-        (session.prepare << offerColumnSelector << " WHERE accountID=:id",
+        (session.prepare << offerColumnSelector << " WHERE accountid=:id",
          use(accStr));
 
     auto timer = db.getSelectTimer("offer");
@@ -271,8 +271,8 @@ OfferFrame::exists(Database& db, LedgerKey const& key)
         toBase58Check(VER_ACCOUNT_ID, key.offer().accountID);
     int exists = 0;
     auto timer = db.getSelectTimer("offer-exists");
-    db.getSession() << "SELECT EXISTS (SELECT NULL FROM Offers \
-             WHERE accountID=:id AND offerID=:s)",
+    db.getSession() << "SELECT EXISTS (SELECT NULL FROM offers "
+                       "WHERE accountid=:id AND offerid=:s)",
         use(b58AccountID), use(key.offer().offerID), into(exists);
     return exists != 0;
 }
@@ -288,7 +288,7 @@ OfferFrame::storeDelete(LedgerDelta& delta, Database& db, LedgerKey const& key)
 {
     auto timer = db.getDeleteTimer("offer");
 
-    db.getSession() << "DELETE FROM Offers WHERE offerID=:s",
+    db.getSession() << "DELETE FROM offers WHERE offerid=:s",
         use(key.offer().offerID);
 
     delta.deleteEntry(key);
@@ -307,8 +307,8 @@ OfferFrame::storeChange(LedgerDelta& delta, Database& db) const
     auto timer = db.getUpdateTimer("offer");
 
     soci::statement st =
-        (db.getSession().prepare << "UPDATE Offers SET amount=:a, priceN=:n, "
-                                    "priceD=:D, price=:p WHERE offerID=:s",
+        (db.getSession().prepare << "UPDATE offers SET amount=:a, pricen=:n, "
+                                    "priced=:D, price=:p WHERE offerid=:s",
          use(mOffer.amount), use(mOffer.price.n), use(mOffer.price.d),
          use(computePrice()), use(mOffer.offerID));
 
@@ -339,9 +339,9 @@ OfferFrame::storeAdd(LedgerDelta& delta, Database& db) const
         currencyCodeToStr(mOffer.takerPays.alphaNum().currencyCode,
                           currencyCode);
         st = (db.getSession().prepare
-                  << "INSERT into Offers "
-                     "(accountID,offerID,paysAlphaNumCurrency,paysIssuer,"
-                     "amount,priceN,priceD,price) values"
+                  << "INSERT INTO offers "
+                     "(accountid,offerid,paysalphanumcurrency,paysissuer,"
+                     "amount,pricen,priced,price) VALUES"
                      "(:v1,:v2,:v3,:v4,:v5,:v6,:v7,:v8)",
               use(b58AccountID), use(mOffer.offerID), use(b58issuer),
               use(currencyCode), use(mOffer.amount), use(mOffer.price.n),
@@ -356,9 +356,9 @@ OfferFrame::storeAdd(LedgerDelta& delta, Database& db) const
         currencyCodeToStr(mOffer.takerGets.alphaNum().currencyCode,
                           currencyCode);
         st = (db.getSession().prepare
-                  << "INSERT into Offers "
-                     "(accountID,offerID,getsAlphaNumCurrency,getsIssuer,"
-                     "amount,priceN,priceD,price) values"
+                  << "INSERT INTO offers "
+                     "(accountid,offerid,getsalphanumcurrency,getsissuer,"
+                     "amount,pricen,priced,price) VALUES"
                      "(:v1,:v2,:v3,:v4,:v5,:v6,:v7,:v8)",
               use(b58AccountID), use(mOffer.offerID), use(b58issuer),
               use(currencyCode), use(mOffer.amount), use(mOffer.price.n),
@@ -377,10 +377,10 @@ OfferFrame::storeAdd(LedgerDelta& delta, Database& db) const
         currencyCodeToStr(mOffer.takerGets.alphaNum().currencyCode,
                           getsAlphaNumCurrency);
         st = (db.getSession().prepare
-                  << "INSERT into Offers (accountID,offerID,"
-                     "paysAlphaNumCurrency,paysIssuer,getsAlphaNumCurrency,"
-                     "getsIssuer,"
-                     "amount,priceN,priceD,price) values "
+                  << "INSERT INTO offers (accountid,offerid,"
+                     "paysalphanumcurrency,paysissuer,getsalphanumcurrency,"
+                     "getsissuer,"
+                     "amount,pricen,priced,price) VALUES "
                      "(:v1,:v2,:v3,:v4,:v5,:v6,:v7,:v8,:v9,:v10)",
               use(b58AccountID), use(mOffer.offerID), use(paysAlphaNumCurrency),
               use(b58PaysIssuer), use(getsAlphaNumCurrency), use(b58GetsIssuer),
@@ -400,7 +400,7 @@ OfferFrame::storeAdd(LedgerDelta& delta, Database& db) const
 void
 OfferFrame::dropAll(Database& db)
 {
-    db.getSession() << "DROP TABLE IF EXISTS Offers;";
+    db.getSession() << "DROP TABLE IF EXISTS offers;";
     db.getSession() << kSQLCreateStatement1;
     db.getSession() << kSQLCreateStatement2;
     db.getSession() << kSQLCreateStatement3;

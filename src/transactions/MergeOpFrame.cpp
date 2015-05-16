@@ -47,8 +47,8 @@ MergeOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
     std::string b58Account = toBase58Check(VER_ACCOUNT_ID, getSourceID());
     {
         auto timer = db.getSelectTimer("trust");
-        db.getSession() << "SELECT trustIndex from TrustLines where issuer=:v1 "
-                           "and balance>0 limit 1",
+        db.getSession() << "SELECT trustindex FROM trustlines where issuer=:v1 "
+                           "and balance>0 LIMIT 1",
             use(b58Account);
     }
     if (db.getSession().got_data())
@@ -59,8 +59,8 @@ MergeOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
 
     {
         auto timer = db.getSelectTimer("trust");
-        db.getSession() << "SELECT trustIndex from TrustLines where "
-                           "accountID=:v1 and balance>0 limit 1",
+        db.getSession() << "SELECT trustindex FROM trustlines WHERE "
+                           "accountid=:v1 and balance>0 limit 1",
             use(b58Account);
     }
     if (db.getSession().got_data())

@@ -13,13 +13,13 @@ namespace stellar
 using namespace std;
 
 string PersistentState::mapping[kLastEntry] = {
-    "lastClosedLedger", "historyArchiveState", "forceSCPOnNextLaunch",
-    "databaseInitialized"};
+    "lastclosedledger", "historyarchivestate", "forcescponnextlaunch",
+    "databaseinitialized"};
 
 string PersistentState::kSQLCreateStatement =
-    "CREATE TABLE IF NOT EXISTS StoreState ("
-    "StateName   CHARACTER(32) PRIMARY KEY,"
-    "State       TEXT"
+    "CREATE TABLE IF NOT EXISTS storestate ("
+    "statename   CHARACTER(32) PRIMARY KEY,"
+    "state       TEXT"
     "); ";
 
 PersistentState::PersistentState(Application& app) : mApp(app)
@@ -30,14 +30,14 @@ PersistentState::PersistentState(Application& app) : mApp(app)
 void
 PersistentState::dropAll(Database& db)
 {
-    db.getSession() << "DROP TABLE IF EXISTS StoreState;";
+    db.getSession() << "DROP TABLE IF EXISTS storestate;";
 
     soci::statement st = db.getSession().prepare << kSQLCreateStatement;
     st.execute(true);
 
     soci::statement st2 =
         db.getSession().prepare
-        << "INSERT INTO StoreState (StateName, State) VALUES ('" + mapping[kDatabaseInitialized] + "', 'true');";
+        << "INSERT INTO storestate (statename, state) VALUES ('" + mapping[kDatabaseInitialized] + "', 'true');";
     st2.execute(true);
 }
 
@@ -61,7 +61,7 @@ PersistentState::getState(PersistentState::Entry entry)
     auto& db = mApp.getDatabase();
     {
         auto timer = db.getSelectTimer("state");
-        db.getSession() << "SELECT State FROM StoreState WHERE StateName = :n;",
+        db.getSession() << "SELECT state FROM storestate WHERE statename = :n;",
             soci::use(sn), soci::into(res);
     }
 
@@ -80,7 +80,7 @@ PersistentState::setState(PersistentState::Entry entry, string const& value)
 
     soci::statement st =
         (mApp.getDatabase().getSession().prepare
-             << "UPDATE StoreState SET State = :v WHERE StateName = :n;",
+             << "UPDATE storestate SET state = :v WHERE statename = :n;",
          soci::use(value), soci::use(sn));
 
     {
@@ -92,7 +92,7 @@ PersistentState::setState(PersistentState::Entry entry, string const& value)
     {
         auto timer = mApp.getDatabase().getInsertTimer("state");
         st = (mApp.getDatabase().getSession().prepare
-                  << "INSERT INTO StoreState (StateName, State) VALUES (:n, :v "
+                  << "INSERT INTO storestate (statename, state) VALUES (:n, :v "
                      ");",
               soci::use(sn), soci::use(value));
 

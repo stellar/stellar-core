@@ -25,38 +25,38 @@ transactionTest(Application::pointer app)
 
     auto& session = app->getDatabase().getSession();
 
-    session << "drop table if exists test";
-    session << "create table test (x integer)";
+    session << "DROP TABLE IF EXISTS test";
+    session << "CREATE TABLE test (x INTEGER)";
 
     {
         soci::transaction tx(session);
 
-        session << "insert into test (x) values (:aa)", soci::use(a0, "aa");
+        session << "INSERT INTO test (x) VALUES (:aa)", soci::use(a0, "aa");
 
-        session << "select x from test", soci::into(b);
+        session << "SELECT x FROM test", soci::into(b);
         CHECK(a0 == b);
 
         {
             soci::transaction tx2(session);
-            session << "update test set x = :v", soci::use(a1, "v");
+            session << "UPDATE test SET x = :v", soci::use(a1, "v");
             tx2.rollback();
         }
 
-        session << "select x from test", soci::into(b);
+        session << "SELECT x FROM test", soci::into(b);
         CHECK(a0 == b);
 
         {
             soci::transaction tx3(session);
-            session << "update test set x = :v", soci::use(a, "v");
+            session << "UPDATE test SET x = :v", soci::use(a, "v");
             tx3.commit();
         }
-        session << "select x from test", soci::into(b);
+        session << "SELECT x FROM test", soci::into(b);
         CHECK(a == b);
 
         tx.commit();
     }
 
-    session << "select x from test", soci::into(b);
+    session << "SELECT x FROM test", soci::into(b);
     CHECK(a == b);
 }
 
@@ -262,7 +262,8 @@ TEST_CASE("postgres performance", "[db][pgperf][hide]")
         auto& session = app->getDatabase().getSession();
 
         session << "drop table if exists txtest;";
-        session << "create table txtest (a bigint, b bigint, c bigint, primary key (a, b));";
+        session << "create table txtest (a bigint, b bigint, c bigint, primary "
+                   "key (a, b));";
 
         int64_t pk = 0;
         int64_t sz = 10000;
@@ -285,13 +286,13 @@ TEST_CASE("postgres performance", "[db][pgperf][hide]")
         }
 
         LOG(INFO) << "retiming 10 inserts of " << sz << " rows"
-                  << " batched into " << sz/div
-                  << " subtransactions of " << div << " inserts each";
+                  << " batched into " << sz / div << " subtransactions of "
+                  << div << " inserts each";
         soci::transaction sqltx(session);
         for (int64_t i = 0; i < 10; ++i)
         {
             TIMED_SCOPE(timerobj, "many small-tx insert");
-            for (int64_t j = 0; j < sz/div; ++j)
+            for (int64_t j = 0; j < sz / div; ++j)
             {
                 soci::transaction subtx(session);
                 for (int64_t k = 0; k < div; ++k)

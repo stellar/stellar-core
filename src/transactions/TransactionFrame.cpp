@@ -446,8 +446,8 @@ TransactionFrame::storeTransaction(LedgerManager& ledgerManager,
     auto timer = ledgerManager.getDatabase().getInsertTimer("txhistory");
     soci::statement st =
         (ledgerManager.getDatabase().getSession().prepare
-             << "INSERT INTO TxHistory (txID, ledgerSeq, txindex, TxBody, "
-                "TxResult, TxMeta) VALUES "
+             << "INSERT INTO txhistory (txid, ledgerseq, txindex, txbody, "
+                "txresult, txmeta) VALUES "
                 "(:id,:seq,:txindex,:txb,:txres,:meta)",
          soci::use(txIDString),
          soci::use(ledgerManager.getCurrentLedgerHeader().ledgerSeq),
@@ -502,9 +502,9 @@ TransactionFrame::copyTransactionsToStream(Database& db, soci::session& sess,
 
     assert(begin <= end);
     soci::statement st =
-        (sess.prepare << "SELECT ledgerSeq, TxBody, TxResult FROM TxHistory "
-                         "WHERE ledgerSeq >= :begin AND ledgerSeq < :end ORDER "
-                         "BY ledgerSeq ASC, txindex ASC",
+        (sess.prepare << "SELECT ledgerseq, txbody, txresult FROM txhistory "
+                         "WHERE ledgerseq >= :begin AND ledgerseq < :end ORDER "
+                         "BY ledgerseq ASC, txindex ASC",
          soci::into(curLedgerSeq), soci::into(txBody), soci::into(txResult),
          soci::use(begin), soci::use(end));
 
@@ -564,17 +564,17 @@ TransactionFrame::copyTransactionsToStream(Database& db, soci::session& sess,
 void
 TransactionFrame::dropAll(Database& db)
 {
-    db.getSession() << "DROP TABLE IF EXISTS TxHistory";
+    db.getSession() << "DROP TABLE IF EXISTS txhistory";
 
-    db.getSession() << "CREATE TABLE TxHistory ("
-                       "txID          CHARACTER(64) NOT NULL,"
-                       "ledgerSeq     INT NOT NULL CHECK (ledgerSeq >= 0),"
+    db.getSession() << "CREATE TABLE txhistory ("
+                       "txid          CHARACTER(64) NOT NULL,"
+                       "ledgerseq     INT NOT NULL CHECK (ledgerseq >= 0),"
                        "txindex         INT NOT NULL,"
-                       "TxBody        TEXT NOT NULL,"
-                       "TxResult      TEXT NOT NULL,"
-                       "TxMeta        TEXT NOT NULL,"
-                       "PRIMARY KEY (txID, ledgerSeq),"
-                       "UNIQUE      (ledgerSeq, txindex)"
+                       "txbody        TEXT NOT NULL,"
+                       "txresult      TEXT NOT NULL,"
+                       "txmeta        TEXT NOT NULL,"
+                       "PRIMARY KEY (txid, ledgerseq),"
+                       "UNIQUE      (ledgerseq, txindex)"
                        ")";
 }
 }
