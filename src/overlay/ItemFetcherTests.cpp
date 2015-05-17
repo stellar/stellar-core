@@ -17,6 +17,7 @@ namespace stellar
 {
 
 
+/* this wasn't in the VS project. So I removed IntTracker. 
 
 using IntFetcher = ItemFetcher<int, IntTracker>;
 
@@ -124,6 +125,7 @@ TEST_CASE("ItemFetcher fetches", "[overlay]")
         
     }
 }
+*/
 
 
 }
