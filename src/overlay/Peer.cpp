@@ -366,6 +366,13 @@ Peer::recvHello(StellarMessage const& msg)
     CLOG(DEBUG, "Overlay") << "recvHello from " << toString();
     mState = GOT_HELLO;
     mPeerID = msg.hello().peerID;
+    if(mRole == INITIATOR)
+    {
+        PeerRecord pr( getIP(), mRemoteListeningPort,
+            mApp.getClock().now(), 0, 1 );
+
+        pr.insertIfNew(mApp.getDatabase());
+    }
     return true;
 }
 
