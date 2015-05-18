@@ -114,7 +114,7 @@ class VirtualClock
                             std::vector<std::shared_ptr<VirtualClockEvent>>,
                             VirtualClockEventCompare>;
     PrQueue mEvents;
-    size_t mFlushesIgnored;
+    size_t mFlushesIgnored = 0;
 
     bool mDestructing{false};
 
