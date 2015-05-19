@@ -43,6 +43,7 @@ TEST_CASE("create offer", "[tx][offers]")
     SecretKey b1 = getAccount("B");
     SecretKey c1 = getAccount("C");
     SecretKey gateway = getAccount("gate");
+    SecretKey secgateway = getAccount("secure");
 
     const int64_t currencyMultiplier = 1000000;
 
@@ -192,15 +193,13 @@ TEST_CASE("create offer", "[tx][offers]")
             const Price somePrice(3, 2);
             SECTION("IDR -> XLM")
             {
-                applyCreateOffer(
-                    app, delta, 0, a1, xlmCur, idrCur, somePrice,
-                    100 * currencyMultiplier, a1_seq++);
+                applyCreateOffer(app, delta, 0, a1, xlmCur, idrCur, somePrice,
+                                 100 * currencyMultiplier, a1_seq++);
             }
             SECTION("XLM -> IDR")
             {
-                applyCreateOffer(
-                    app, delta, 0, a1, idrCur, xlmCur, somePrice,
-                    100 * currencyMultiplier, a1_seq++);
+                applyCreateOffer(app, delta, 0, a1, idrCur, xlmCur, somePrice,
+                                 100 * currencyMultiplier, a1_seq++);
             }
         }
 
@@ -690,6 +689,135 @@ TEST_CASE("create offer", "[tx][offers]")
                 }
                 SECTION("Create an offer, top seller has limits")
                 {
+                    SECTION("Creates an offer, top seller not authorized")
+                    {
+                        Currency secUsdCur = makeCurrency(secgateway, "USD");
+
+                        // sets up the secure gateway account for USD
+                        applyCreateAccountTx(app, root, secgateway, root_seq++, minBalance2);
+                        SequenceNumber secgw_seq = getAccountSeqNum(secgateway, app) + 1;
+
+                        uint32_t setFlags = AUTH_REQUIRED_FLAG | AUTH_REVOCABLE_FLAG;
+
+                        applySetOptions(app, secgateway, nullptr, &setFlags,
+                                        nullptr, nullptr, nullptr,
+                                        secgw_seq++);
+
+                        // setup d1
+                        SecretKey d1 = getAccount("D");
+                        applyCreateAccountTx(app, root, d1, root_seq++,
+                                             minBalance3 + 10000);
+                        SequenceNumber d1_seq = getAccountSeqNum(d1, app) + 1;
+                        applyChangeTrust(app, d1, gateway, d1_seq++, "IDR",
+                                         trustLineLimit);
+                        applyChangeTrust(app, d1, secgateway, d1_seq++, "USD",
+                                         trustLineLimit);
+                        applyAllowTrust(app, secgateway, d1, secgw_seq++, "USD",
+                                        true);
+
+                        applyCreditPaymentTx(app, gateway, d1, idrCur, gateway_seq++,
+                                             trustLineBalance);
+
+                        const Price usdPriceOfferD(3, 2);
+                        // offer is sell 100 IDR for 150 USD; buy USD @ 1.5 = sell IRD @
+                        // 0.66
+                        auto offerD1 = applyCreateOffer(
+                            app, delta, 0, d1, idrCur, secUsdCur, usdPriceOfferD,
+                            100 * currencyMultiplier, d1_seq++);
+
+                        // makes "D" not authorized to hold "USD"
+                        applyAllowTrust(app, secgateway, d1, secgw_seq++, "USD",
+                                        false);
+
+                        // setup e1
+                        SecretKey e1 = getAccount("E");
+
+                        applyCreateAccountTx(app, root, e1, root_seq++,
+                                             minBalance3 + 10000);
+                        SequenceNumber e1_seq = getAccountSeqNum(e1, app) + 1;
+                        applyChangeTrust(app, e1, gateway, e1_seq++, "IDR",
+                                         trustLineLimit);
+                        applyChangeTrust(app, e1, secgateway, e1_seq++, "USD",
+                                         trustLineLimit);
+                        applyAllowTrust(app, secgateway, e1, secgw_seq++, "USD",
+                                        true);
+
+                        applyCreditPaymentTx(app, gateway, e1, idrCur, gateway_seq++,
+                                             trustLineBalance);
+
+                        uint64_t offerE1 = applyCreateOffer(
+                            app, delta, 0, e1, idrCur, secUsdCur, usdPriceOfferD,
+                            100 * currencyMultiplier, e1_seq++);
+
+                        // setup f1
+                        SecretKey f1 = getAccount("F");
+
+                        applyCreateAccountTx(app, root, f1, root_seq++,
+                                             minBalance3 + 10000);
+                        SequenceNumber f1_seq = getAccountSeqNum(f1, app) + 1;
+                        applyChangeTrust(app, f1, gateway, f1_seq++, "IDR",
+                                         trustLineLimit);
+                        applyChangeTrust(app, f1, secgateway, f1_seq++, "USD",
+                                         trustLineLimit);
+                        applyAllowTrust(app, secgateway, f1, secgw_seq++, "USD",
+                                        true);
+
+                        applyCreditPaymentTx(app, secgateway, f1, secUsdCur, secgw_seq++,
+                                             trustLineBalance);
+
+                        // try to create an offer:
+                        // it will cross with the offer from E and skip the
+                        // offer from D
+                        // it should still be able to buy 100 IDR / sell 150 USD
+
+                        // offer is buy 200 IDR for 300 USD; buy IDR @ 0.66 USD
+                        // -> sell USD @ 1.5 IDR
+                        const Price idrPriceOfferC(2, 3);
+                        auto offerF1Res = applyCreateOfferWithResult(
+                            app, delta, 0, f1, secUsdCur, idrCur, idrPriceOfferC,
+                            300 * currencyMultiplier, f1_seq++);
+                        // offer created would be buy 100 IDR for 150 USD ; 0.66
+                        REQUIRE(offerF1Res.success().offer.effect() ==
+                                CREATE_OFFER_CREATED);
+
+                        REQUIRE(offerF1Res.success().offer.offer().amount ==
+                                150 * currencyMultiplier);
+
+                        TrustFrame::pointer line;
+
+                        // check balances
+
+                        // D1's offer was deleted
+                        REQUIRE(!loadOffer(d1, offerD1, app, false));
+
+                        line = loadTrustLine(d1, secUsdCur, app);
+                        checkAmounts(0, line->getBalance());
+
+                        line = loadTrustLine(d1, idrCur, app);
+                        checkAmounts(trustLineBalance, line->getBalance());
+
+                        // E1's offer was taken
+                        REQUIRE(!loadOffer(e1, offerE1, app, false));
+
+                        line = loadTrustLine(e1, secUsdCur, app);
+                        checkAmounts(line->getBalance(),
+                                     150 * currencyMultiplier);
+
+                        line = loadTrustLine(e1, idrCur, app);
+                        checkAmounts(line->getBalance(),
+                                     trustLineBalance -
+                                         100 * currencyMultiplier);
+
+                        // F1
+                        line = loadTrustLine(f1, secUsdCur, app);
+                        checkAmounts(line->getBalance(),
+                                     trustLineBalance -
+                                         150 * currencyMultiplier);
+
+                        line = loadTrustLine(f1, idrCur, app);
+                        checkAmounts(line->getBalance(),
+                                     100 * currencyMultiplier);
+                    }
                     SECTION("Creates an offer, top seller reaches limit")
                     {
                         // makes "A" only capable of holding 75 "USD"
