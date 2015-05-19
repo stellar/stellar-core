@@ -66,16 +66,15 @@ TEST_CASE("set options", "[tx][setoptions]")
 
         // add some funds
         applyPaymentTx(app, root, a1, rootSeq++,
-                             app.getLedgerManager().getMinBalance(2));
+                       app.getLedgerManager().getMinBalance(2));
 
         applySetOptions(app, a1, nullptr, nullptr, nullptr, &th, &sk1, a1seq++);
 
-        AccountFrame a1Account;
+        AccountFrame::pointer a1Account;
 
-        REQUIRE(AccountFrame::loadAccount(a1.getPublicKey(), a1Account,
-                                          app.getDatabase()));
-        REQUIRE(a1Account.getAccount().signers.size() == 1);
-        Signer& a_sk1 = a1Account.getAccount().signers[0];
+        a1Account = loadAccount(a1, app);
+        REQUIRE(a1Account->getAccount().signers.size() == 1);
+        Signer& a_sk1 = a1Account->getAccount().signers[0];
         REQUIRE(a_sk1.pubKey == sk1.pubKey);
         REQUIRE(a_sk1.weight == sk1.weight);
 
@@ -85,9 +84,8 @@ TEST_CASE("set options", "[tx][setoptions]")
         applySetOptions(app, a1, nullptr, nullptr, nullptr, nullptr, &sk2,
                         a1seq++);
 
-        REQUIRE(AccountFrame::loadAccount(a1.getPublicKey(), a1Account,
-                                          app.getDatabase()));
-        REQUIRE(a1Account.getAccount().signers.size() == 2);
+        a1Account = loadAccount(a1, app);
+        REQUIRE(a1Account->getAccount().signers.size() == 2);
 
         // update signer 2
         sk2.weight = 11;
@@ -104,10 +102,9 @@ TEST_CASE("set options", "[tx][setoptions]")
         applySetOptions(app, a1, nullptr, nullptr, nullptr, nullptr, &sk1,
                         a1seq++);
 
-        REQUIRE(AccountFrame::loadAccount(a1.getPublicKey(), a1Account,
-                                          app.getDatabase()));
-        REQUIRE(a1Account.getAccount().signers.size() == 1);
-        Signer& a_sk2 = a1Account.getAccount().signers[0];
+        a1Account = loadAccount(a1, app);
+        REQUIRE(a1Account->getAccount().signers.size() == 1);
+        Signer& a_sk2 = a1Account->getAccount().signers[0];
         REQUIRE(a_sk2.pubKey == sk2.pubKey);
         REQUIRE(a_sk2.weight == sk2.weight);
     }

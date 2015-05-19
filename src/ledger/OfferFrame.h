@@ -25,13 +25,17 @@ class OfferFrame : public EntryFrame
 {
     static void
     loadOffers(soci::details::prepare_temp_type& prep,
-               std::function<void(OfferFrame const&)> offerProcessor);
+               std::function<void(LedgerEntry const&)> offerProcessor);
 
     int64_t computePrice() const;
 
     OfferEntry& mOffer;
 
+    OfferFrame(OfferFrame const& from);
+
   public:
+    typedef std::shared_ptr<OfferFrame> pointer;
+
     enum OfferFlags
     {
         PASSIVE_FLAG = 1
@@ -39,10 +43,9 @@ class OfferFrame : public EntryFrame
 
     OfferFrame();
     OfferFrame(LedgerEntry const& from);
-    OfferFrame(OfferFrame const& from);
 
     OfferFrame& operator=(OfferFrame const& other);
-    void from(OperationFrame const& op);
+    static OfferFrame::pointer from(OperationFrame const& op);
 
     EntryFrame::pointer
     copy() const
@@ -79,16 +82,17 @@ class OfferFrame : public EntryFrame
     static bool exists(Database& db, LedgerKey const& key);
 
     // database utilities
-    static bool loadOffer(AccountID const& accountID, uint64_t offerID,
-                          OfferFrame& retEntry, Database& db);
+    static pointer loadOffer(AccountID const& accountID, uint64_t offerID,
+                             Database& db);
 
     static void loadBestOffers(size_t numOffers, size_t offset,
                                Currency const& pays, Currency const& gets,
-                               std::vector<OfferFrame>& retOffers,
+                               std::vector<OfferFrame::pointer>& retOffers,
                                Database& db);
 
     static void loadOffers(AccountID const& accountID,
-                           std::vector<OfferFrame>& retOffers, Database& db);
+                           std::vector<OfferFrame::pointer>& retOffers,
+                           Database& db);
 
     static void dropAll(Database& db);
     static const char* kSQLCreateStatement1;

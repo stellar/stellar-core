@@ -27,25 +27,26 @@ OfferExchange::crossOffer(OfferFrame& sellingWheatOffer,
 
     Database& db = mLedgerManager.getDatabase();
 
-    AccountFrame accountB;
-    if (!AccountFrame::loadAccount(accountBID, accountB, db))
+    AccountFrame::pointer accountB;
+    accountB = AccountFrame::loadAccount(accountBID, db);
+    if (!accountB)
     {
         throw std::runtime_error(
             "invalid database state: offer must have matching account");
     }
 
-    TrustFrame wheatLineAccountB;
+    TrustFrame::pointer wheatLineAccountB;
     if (wheat.type() != CURRENCY_TYPE_NATIVE)
     {
-        if (!TrustFrame::loadTrustLine(accountBID, wheat, wheatLineAccountB,
-                                       db))
+        wheatLineAccountB = TrustFrame::loadTrustLine(accountBID, wheat, db);
+        if (!wheatLineAccountB)
         {
             throw std::runtime_error(
                 "invalid database state: offer must have matching trust line");
         }
     }
 
-    TrustFrame sheepLineAccountB;
+    TrustFrame::pointer sheepLineAccountB;
 
     if (sheep.type() == CURRENCY_TYPE_NATIVE)
     {
@@ -53,15 +54,15 @@ OfferExchange::crossOffer(OfferFrame& sellingWheatOffer,
     }
     else
     {
-        if (!TrustFrame::loadTrustLine(accountBID, sheep, sheepLineAccountB,
-                                       db))
+        sheepLineAccountB = TrustFrame::loadTrustLine(accountBID, sheep, db);
+        if (!sheepLineAccountB)
         {
             throw std::runtime_error(
                 "invalid database state: offer must have matching trust line");
         }
 
         // compute numWheatReceived based on what the account can receive
-        int64_t sellerMaxSheep = sheepLineAccountB.getMaxAmountReceive();
+        int64_t sellerMaxSheep = sheepLineAccountB->getMaxAmountReceive();
 
         if (!bigDivide(numWheatReceived, sellerMaxSheep,
                        sellingWheatOffer.getOffer().price.d,
@@ -77,11 +78,11 @@ OfferExchange::crossOffer(OfferFrame& sellingWheatOffer,
         if (wheat.type() == CURRENCY_TYPE_NATIVE)
         {
             // can only send above the minimum balance
-            wheatCanSell = accountB.getBalanceAboveReserve(mLedgerManager);
+            wheatCanSell = accountB->getBalanceAboveReserve(mLedgerManager);
         }
         else
         {
-            wheatCanSell = wheatLineAccountB.getBalance();
+            wheatCanSell = wheatLineAccountB->getBalance();
         }
         if (numWheatReceived > wheatCanSell)
         {
@@ -156,8 +157,8 @@ OfferExchange::crossOffer(OfferFrame& sellingWheatOffer,
     { // entire offer is taken
         sellingWheatOffer.storeDelete(mDelta, db);
 
-        accountB.addNumEntries(-1, mLedgerManager);
-        accountB.storeChange(mDelta, db);
+        accountB->addNumEntries(-1, mLedgerManager);
+        accountB->storeChange(mDelta, db);
     }
     else
     {
@@ -168,33 +169,33 @@ OfferExchange::crossOffer(OfferFrame& sellingWheatOffer,
     // Adjust balances
     if (sheep.type() == CURRENCY_TYPE_NATIVE)
     {
-        accountB.getAccount().balance += numSheepSend;
-        accountB.storeChange(mDelta, db);
+        accountB->getAccount().balance += numSheepSend;
+        accountB->storeChange(mDelta, db);
     }
     else
     {
-        if (!sheepLineAccountB.addBalance(numSheepSend))
+        if (!sheepLineAccountB->addBalance(numSheepSend))
         {
             return eOfferCantConvert;
         }
-        sheepLineAccountB.storeChange(mDelta, db);
+        sheepLineAccountB->storeChange(mDelta, db);
     }
 
     if (wheat.type() == CURRENCY_TYPE_NATIVE)
     {
-        accountB.getAccount().balance -= numWheatReceived;
-        accountB.storeChange(mDelta, db);
+        accountB->getAccount().balance -= numWheatReceived;
+        accountB->storeChange(mDelta, db);
     }
     else
     {
-        if (!wheatLineAccountB.addBalance(-numWheatReceived))
+        if (!wheatLineAccountB->addBalance(-numWheatReceived))
         {
             return eOfferCantConvert;
         }
-        wheatLineAccountB.storeChange(mDelta, db);
+        wheatLineAccountB->storeChange(mDelta, db);
     }
 
-    mOfferTrail.push_back(ClaimOfferAtom(accountB.getID(),
+    mOfferTrail.push_back(ClaimOfferAtom(accountB->getID(),
                                          sellingWheatOffer.getOfferID(), wheat,
                                          numWheatReceived));
 
@@ -218,16 +219,16 @@ OfferExchange::convertWithOffers(
 
     while (needMore)
     {
-        std::vector<OfferFrame> retList;
+        std::vector<OfferFrame::pointer> retList;
         OfferFrame::loadBestOffers(5, offerOffset, sheep, wheat, retList, db);
 
         offerOffset += retList.size();
 
-        for (auto wheatOffer : retList)
+        for (auto& wheatOffer : retList)
         {
             if (filter)
             {
-                OfferFilterResult r = filter(wheatOffer);
+                OfferFilterResult r = filter(*wheatOffer);
                 switch (r)
                 {
                 case eKeep:
@@ -241,7 +242,7 @@ OfferExchange::convertWithOffers(
             int64_t numSheepSend;
 
             CrossOfferResult cor =
-                crossOffer(wheatOffer, maxWheatReceive, numWheatReceived,
+                crossOffer(*wheatOffer, maxWheatReceive, numWheatReceived,
                            maxSheepSend, numSheepSend);
 
             switch (cor)

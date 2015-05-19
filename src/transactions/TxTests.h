@@ -6,6 +6,9 @@
 
 #include "generated/StellarXDR.h"
 #include "crypto/SecretKey.h"
+#include "ledger/AccountFrame.h"
+#include "ledger/OfferFrame.h"
+#include "ledger/TrustFrame.h"
 
 namespace stellar
 {
@@ -19,6 +22,19 @@ namespace txtest
 SecretKey getRoot();
 
 SecretKey getAccount(const char* n);
+
+// shorthand to load an existing account
+AccountFrame::pointer loadAccount(SecretKey const& k, Application& app,
+                                  bool mustExist = true);
+
+// short hand to check that an account does not exist
+void requireNoAccount(SecretKey const& k, Application& app);
+
+OfferFrame::pointer loadOffer(SecretKey const& k, uint64 offerID,
+                              Application& app, bool mustExist = true);
+
+TrustFrame::pointer loadTrustLine(SecretKey const& k, Currency const& currency,
+                                  Application& app, bool mustExist = true);
 
 SequenceNumber getAccountSeqNum(SecretKey const& k, Application& app);
 

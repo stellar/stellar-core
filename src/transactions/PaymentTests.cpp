@@ -83,22 +83,20 @@ TEST_CASE("payment", "[tx][payment]")
     applyCreateAccountTx(app, root, gateway, rootSeq++, gatewayPayment);
     SequenceNumber gateway_seq = getAccountSeqNum(gateway, app) + 1;
 
-    AccountFrame a1Account, rootAccount;
-    REQUIRE(AccountFrame::loadAccount(root.getPublicKey(), rootAccount,
-                                      app.getDatabase()));
-    REQUIRE(AccountFrame::loadAccount(a1.getPublicKey(), a1Account,
-                                      app.getDatabase()));
-    REQUIRE(rootAccount.getMasterWeight() == 1);
-    REQUIRE(rootAccount.getHighThreshold() == 0);
-    REQUIRE(rootAccount.getLowThreshold() == 0);
-    REQUIRE(rootAccount.getMediumThreshold() == 0);
-    REQUIRE(a1Account.getBalance() == paymentAmount);
-    REQUIRE(a1Account.getMasterWeight() == 1);
-    REQUIRE(a1Account.getHighThreshold() == 0);
-    REQUIRE(a1Account.getLowThreshold() == 0);
-    REQUIRE(a1Account.getMediumThreshold() == 0);
+    AccountFrame::pointer a1Account, rootAccount;
+    rootAccount = loadAccount(root, app);
+    a1Account = loadAccount(a1, app);
+    REQUIRE(rootAccount->getMasterWeight() == 1);
+    REQUIRE(rootAccount->getHighThreshold() == 0);
+    REQUIRE(rootAccount->getLowThreshold() == 0);
+    REQUIRE(rootAccount->getMediumThreshold() == 0);
+    REQUIRE(a1Account->getBalance() == paymentAmount);
+    REQUIRE(a1Account->getMasterWeight() == 1);
+    REQUIRE(a1Account->getHighThreshold() == 0);
+    REQUIRE(a1Account->getLowThreshold() == 0);
+    REQUIRE(a1Account->getMediumThreshold() == 0);
     // root did 2 transactions at this point
-    REQUIRE(rootAccount.getBalance() ==
+    REQUIRE(rootAccount->getBalance() ==
             (100000000000000000 - paymentAmount - gatewayPayment - txfee * 2));
 
     LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader());
@@ -133,28 +131,25 @@ TEST_CASE("payment", "[tx][payment]")
     {
         applyPaymentTx(app, root, a1, rootSeq++, morePayment);
 
-        AccountFrame a1Account2, rootAccount2;
-        REQUIRE(AccountFrame::loadAccount(root.getPublicKey(), rootAccount2,
-                                          app.getDatabase()));
-        REQUIRE(AccountFrame::loadAccount(a1.getPublicKey(), a1Account2,
-                                          app.getDatabase()));
-        REQUIRE(a1Account2.getBalance() ==
-                a1Account.getBalance() + morePayment);
+        AccountFrame::pointer a1Account2, rootAccount2;
+        rootAccount2 = loadAccount(root, app);
+        a1Account2 = loadAccount(a1, app);
+        REQUIRE(a1Account2->getBalance() ==
+                a1Account->getBalance() + morePayment);
 
         // root did 2 transactions at this point
-        REQUIRE(rootAccount2.getBalance() ==
-                (rootAccount.getBalance() - morePayment - txfee));
+        REQUIRE(rootAccount2->getBalance() ==
+                (rootAccount->getBalance() - morePayment - txfee));
     }
 
     SECTION("send to self")
     {
         applyPaymentTx(app, root, root, rootSeq++, morePayment);
 
-        AccountFrame rootAccount2;
-        REQUIRE(AccountFrame::loadAccount(root.getPublicKey(), rootAccount2,
-                                          app.getDatabase()));
-        REQUIRE(rootAccount2.getBalance() ==
-                (rootAccount.getBalance() - txfee));
+        AccountFrame::pointer rootAccount2;
+        rootAccount2 = loadAccount(root, app);
+        REQUIRE(rootAccount2->getBalance() ==
+                (rootAccount->getBalance() - txfee));
     }
 
     SECTION("send XLM to a new account (no destination)")
@@ -175,7 +170,8 @@ TEST_CASE("payment", "[tx][payment]")
 
         // raise the reserve
         int32 addReserve = 100000;
-        app.getLedgerManager().getCurrentLedgerHeader().baseReserve += addReserve;
+        app.getLedgerManager().getCurrentLedgerHeader().baseReserve +=
+            addReserve;
 
         // verify that the account can't do anything
         auto tx = createPaymentTx(b1, root, b1Seq++, 1);
@@ -210,10 +206,9 @@ TEST_CASE("payment", "[tx][payment]")
             applyChangeTrust(app, a1, gateway, a1Seq++, "IDR", 1000);
             applyCreditPaymentTx(app, gateway, a1, idrCur, gateway_seq++, 100);
 
-            TrustFrame line;
-            REQUIRE(TrustFrame::loadTrustLine(a1.getPublicKey(), idrCur, line,
-                                              app.getDatabase()));
-            REQUIRE(line.getBalance() == 100);
+            TrustFrame::pointer line;
+            line = loadTrustLine(a1, idrCur, app);
+            REQUIRE(line->getBalance() == 100);
 
             // create b1 account
             applyCreateAccountTx(app, root, b1, rootSeq++, paymentAmount);
@@ -225,19 +220,16 @@ TEST_CASE("payment", "[tx][payment]")
             // first, send 40 from a1 to b1
             applyCreditPaymentTx(app, a1, b1, idrCur, a1Seq++, 40);
 
-            REQUIRE(TrustFrame::loadTrustLine(a1.getPublicKey(), idrCur, line,
-                                              app.getDatabase()));
-            REQUIRE(line.getBalance() == 60);
-            REQUIRE(TrustFrame::loadTrustLine(b1.getPublicKey(), idrCur, line,
-                                              app.getDatabase()));
-            REQUIRE(line.getBalance() == 40);
+            line = loadTrustLine(a1, idrCur, app);
+            REQUIRE(line->getBalance() == 60);
+            line = loadTrustLine(b1, idrCur, app);
+            REQUIRE(line->getBalance() == 40);
 
             // then, send back to the gateway
             // the gateway does not have a trust line as it's the issuer
             applyCreditPaymentTx(app, b1, gateway, idrCur, b1Seq++, 40);
-            REQUIRE(TrustFrame::loadTrustLine(b1.getPublicKey(), idrCur, line,
-                                              app.getDatabase()));
-            REQUIRE(line.getBalance() == 0);
+            line = loadTrustLine(b1, idrCur, app);
+            REQUIRE(line->getBalance() == 0);
         }
     }
     SECTION("issuer large amounts")
@@ -245,18 +237,16 @@ TEST_CASE("payment", "[tx][payment]")
         applyChangeTrust(app, a1, gateway, a1Seq++, "IDR", INT64_MAX);
         applyCreditPaymentTx(app, gateway, a1, idrCur, gateway_seq++,
                              INT64_MAX);
-        TrustFrame line;
-        REQUIRE(TrustFrame::loadTrustLine(a1.getPublicKey(), idrCur, line,
-                                          app.getDatabase()));
-        REQUIRE(line.getBalance() == INT64_MAX);
+        TrustFrame::pointer line;
+        line = loadTrustLine(a1, idrCur, app);
+        REQUIRE(line->getBalance() == INT64_MAX);
 
         // send it all back
         applyCreditPaymentTx(app, a1, gateway, idrCur, a1Seq++, INT64_MAX);
-        REQUIRE(TrustFrame::loadTrustLine(a1.getPublicKey(), idrCur, line,
-                                          app.getDatabase()));
-        REQUIRE(line.getBalance() == 0);
+        line = loadTrustLine(a1, idrCur, app);
+        REQUIRE(line->getBalance() == 0);
 
-        std::vector<TrustFrame> gwLines;
+        std::vector<TrustFrame::pointer> gwLines;
         TrustFrame::loadLines(gateway.getPublicKey(), gwLines,
                               app.getDatabase());
         REQUIRE(gwLines.size() == 0);
@@ -279,7 +269,7 @@ TEST_CASE("payment", "[tx][payment]")
 
         // add a couple offers in the order book
 
-        OfferFrame offer;
+        OfferFrame::pointer offer;
 
         const Price usdPriceOffer(2, 1);
 
@@ -344,47 +334,39 @@ TEST_CASE("payment", "[tx][payment]")
 
             REQUIRE(multi.offers.size() == 2);
 
-            TrustFrame line;
+            TrustFrame::pointer line;
 
             // C1
             // offer was taken
             REQUIRE(multi.offers[0].offerID == offerC1);
-            REQUIRE(!OfferFrame::loadOffer(c1.getPublicKey(), offerC1, offer,
-                                           app.getDatabase()));
-            REQUIRE(TrustFrame::loadTrustLine(c1.getPublicKey(), idrCur, line,
-                                              app.getDatabase()));
-            checkAmounts(line.getBalance(),
+            REQUIRE(!loadOffer(c1, offerC1, app, false));
+            line = loadTrustLine(c1, idrCur, app);
+            checkAmounts(line->getBalance(),
                          trustLineStartingBalance - 100 * currencyMultiplier);
-            REQUIRE(TrustFrame::loadTrustLine(c1.getPublicKey(), usdCur, line,
-                                              app.getDatabase()));
-            checkAmounts(line.getBalance(), 150 * currencyMultiplier);
+            line = loadTrustLine(c1, usdCur, app);
+            checkAmounts(line->getBalance(), 150 * currencyMultiplier);
 
             // B1
             auto const& b1Res = multi.offers[1];
             REQUIRE(b1Res.offerID == offerB1);
-            REQUIRE(OfferFrame::loadOffer(b1.getPublicKey(), offerB1, offer,
-                                          app.getDatabase()));
-            OfferEntry const& oe = offer.getOffer();
+            offer = loadOffer(b1, offerB1, app);
+            OfferEntry const& oe = offer->getOffer();
             REQUIRE(b1Res.offerOwner == b1.getPublicKey());
             checkAmounts(b1Res.amountClaimed, 25 * currencyMultiplier);
             checkAmounts(oe.amount, 75 * currencyMultiplier);
-            REQUIRE(TrustFrame::loadTrustLine(b1.getPublicKey(), idrCur, line,
-                                              app.getDatabase()));
+            line = loadTrustLine(b1, idrCur, app);
             // 125 where sent, 25 were consumed by B's offer
-            checkAmounts(line.getBalance(),
+            checkAmounts(line->getBalance(),
                          trustLineStartingBalance +
                              (125 - 25) * currencyMultiplier);
-            REQUIRE(TrustFrame::loadTrustLine(b1.getPublicKey(), usdCur, line,
-                                              app.getDatabase()));
-            checkAmounts(line.getBalance(), 50 * currencyMultiplier);
+            line = loadTrustLine(b1, usdCur, app);
+            checkAmounts(line->getBalance(), 50 * currencyMultiplier);
 
             // A1
-            REQUIRE(TrustFrame::loadTrustLine(a1.getPublicKey(), idrCur, line,
-                                              app.getDatabase()));
-            checkAmounts(line.getBalance(), 0);
-            REQUIRE(TrustFrame::loadTrustLine(a1.getPublicKey(), usdCur, line,
-                                              app.getDatabase()));
-            checkAmounts(line.getBalance(),
+            line = loadTrustLine(a1, idrCur, app);
+            checkAmounts(line->getBalance(), 0);
+            line = loadTrustLine(a1, usdCur, app);
+            checkAmounts(line->getBalance(),
                          trustLineStartingBalance - 200 * currencyMultiplier);
         }
         SECTION("send with path (offer participant reaching limit)")
@@ -408,47 +390,39 @@ TEST_CASE("payment", "[tx][payment]")
 
             REQUIRE(multi.offers.size() == 2);
 
-            TrustFrame line;
+            TrustFrame::pointer line;
 
             // C1
             // offer was taken
             REQUIRE(multi.offers[0].offerID == offerC1);
-            REQUIRE(!OfferFrame::loadOffer(c1.getPublicKey(), offerC1, offer,
-                                           app.getDatabase()));
-            REQUIRE(TrustFrame::loadTrustLine(c1.getPublicKey(), idrCur, line,
-                                              app.getDatabase()));
-            checkAmounts(line.getBalance(),
+            REQUIRE(!loadOffer(c1, offerC1, app, false));
+            line = loadTrustLine(c1, idrCur, app);
+            checkAmounts(line->getBalance(),
                          trustLineStartingBalance - 80 * currencyMultiplier);
-            REQUIRE(TrustFrame::loadTrustLine(c1.getPublicKey(), usdCur, line,
-                                              app.getDatabase()));
-            checkAmounts(line.getBalance(), line.getTrustLine().limit);
+            line = loadTrustLine(c1, usdCur, app);
+            checkAmounts(line->getBalance(), line->getTrustLine().limit);
 
             // B1
             auto const& b1Res = multi.offers[1];
             REQUIRE(b1Res.offerID == offerB1);
-            REQUIRE(OfferFrame::loadOffer(b1.getPublicKey(), offerB1, offer,
-                                          app.getDatabase()));
-            OfferEntry const& oe = offer.getOffer();
+            offer = loadOffer(b1, offerB1, app);
+            OfferEntry const& oe = offer->getOffer();
             REQUIRE(b1Res.offerOwner == b1.getPublicKey());
             checkAmounts(b1Res.amountClaimed, 25 * currencyMultiplier);
             checkAmounts(oe.amount, 75 * currencyMultiplier);
-            REQUIRE(TrustFrame::loadTrustLine(b1.getPublicKey(), idrCur, line,
-                                              app.getDatabase()));
+            line = loadTrustLine(b1, idrCur, app);
             // 105 where sent, 25 were consumed by B's offer
-            checkAmounts(line.getBalance(),
+            checkAmounts(line->getBalance(),
                          trustLineStartingBalance +
                              (105 - 25) * currencyMultiplier);
-            REQUIRE(TrustFrame::loadTrustLine(b1.getPublicKey(), usdCur, line,
-                                              app.getDatabase()));
-            checkAmounts(line.getBalance(), 50 * currencyMultiplier);
+            line = loadTrustLine(b1, usdCur, app);
+            checkAmounts(line->getBalance(), 50 * currencyMultiplier);
 
             // A1
-            REQUIRE(TrustFrame::loadTrustLine(a1.getPublicKey(), idrCur, line,
-                                              app.getDatabase()));
-            checkAmounts(line.getBalance(), 0);
-            REQUIRE(TrustFrame::loadTrustLine(a1.getPublicKey(), usdCur, line,
-                                              app.getDatabase()));
-            checkAmounts(line.getBalance(),
+            line = loadTrustLine(a1, idrCur, app);
+            checkAmounts(line->getBalance(), 0);
+            line = loadTrustLine(a1, usdCur, app);
+            checkAmounts(line->getBalance(),
                          trustLineStartingBalance - 170 * currencyMultiplier);
         }
     }

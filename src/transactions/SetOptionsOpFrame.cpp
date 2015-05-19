@@ -34,9 +34,10 @@ SetOptionsOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
 
     if (mSetOptions.inflationDest)
     {
-        AccountFrame inflationAccount;
+        AccountFrame::pointer inflationAccount;
         AccountID inflationID = *mSetOptions.inflationDest;
-        if (!AccountFrame::loadAccount(inflationID, inflationAccount, db))
+        inflationAccount = AccountFrame::loadAccount(inflationID, db);
+        if (!inflationAccount)
         {
             innerResult().code(SET_OPTIONS_INVALID_INFLATION);
             return false;
@@ -50,11 +51,11 @@ SetOptionsOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
     }
     if (mSetOptions.setFlags)
     {
-        if((*mSetOptions.setFlags & AUTH_REQUIRED_FLAG) ||
+        if ((*mSetOptions.setFlags & AUTH_REQUIRED_FLAG) ||
             (*mSetOptions.setFlags & AUTH_REVOCABLE_FLAG))
         {
             // must ensure no one is holding your credit
-            if(TrustFrame::hasIssued(account.accountID, db))
+            if (TrustFrame::hasIssued(account.accountID, db))
             {
                 innerResult().code(SET_OPTIONS_CANT_CHANGE);
                 return false;
@@ -63,7 +64,7 @@ SetOptionsOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
         account.flags = account.flags | *mSetOptions.setFlags;
     }
 
-    if(mSetOptions.homeDomain)
+    if (mSetOptions.homeDomain)
     {
         account.homeDomain = *mSetOptions.homeDomain;
     }

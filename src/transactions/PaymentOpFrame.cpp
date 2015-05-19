@@ -26,21 +26,11 @@ PaymentOpFrame::PaymentOpFrame(Operation const& op, OperationResult& res,
 bool
 PaymentOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
 {
-    AccountFrame destination;
-
     // if sending to self directly, just mark as success
     if (mPayment.destination == getSourceID())
     {
         innerResult().code(PAYMENT_SUCCESS);
         return true;
-    }
-
-    Database& db = ledgerManager.getDatabase();
-
-    if (!AccountFrame::loadAccount(mPayment.destination, destination, db))
-    {
-        innerResult().code(PAYMENT_NO_DESTINATION);
-        return false;
     }
 
     // build a pathPaymentOp

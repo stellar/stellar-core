@@ -84,9 +84,9 @@ LedgerHeaderFrame::storeInsert(LedgerManager& ledgerManager) const
 
     // note: columns other than "data" are there to faciliate lookup/processing
     soci::statement st =
-        (db.getSession().prepare << "INSERT INTO LedgerHeaders "
-                                    "(ledgerHash,prevHash,bucketListHash, "
-                                    "ledgerSeq,closeTime,data) VALUES"
+        (db.getSession().prepare << "INSERT INTO ledgerheaders "
+                                    "(ledgerhash,prevhash,bucketlisthash, "
+                                    "ledgerseq,closetime,data) VALUES"
                                     "(:h,:ph,:blh,"
                                     ":seq,:ct,:data)",
          use(hash), use(prevHash), use(bucketListHash), use(mHeader.ledgerSeq),
@@ -123,8 +123,8 @@ LedgerHeaderFrame::loadByHash(Hash const& hash, Database& db)
     string headerEncoded;
     {
         auto timer = db.getSelectTimer("ledger-header");
-        db.getSession() << "SELECT data FROM LedgerHeaders "
-                           "WHERE ledgerHash = :h",
+        db.getSession() << "SELECT data FROM ledgerheaders "
+                           "WHERE ledgerhash = :h",
             into(headerEncoded), use(hash_s);
     }
     if (db.getSession().got_data())
@@ -149,8 +149,8 @@ LedgerHeaderFrame::loadBySequence(uint32_t seq, Database& db,
     string headerEncoded;
     {
         auto timer = db.getSelectTimer("ledger-header");
-        sess << "SELECT data FROM LedgerHeaders "
-                "WHERE ledgerSeq = :s",
+        sess << "SELECT data FROM ledgerheaders "
+                "WHERE ledgerseq = :s",
             into(headerEncoded), use(seq);
     }
     if (sess.got_data())
@@ -182,9 +182,9 @@ LedgerHeaderFrame::copyLedgerHeadersToStream(Database& db, soci::session& sess,
     assert(begin <= end);
 
     soci::statement st =
-        (sess.prepare << "SELECT data FROM LedgerHeaders "
-                         "WHERE ledgerSeq >= :begin AND ledgerSeq < :end ORDER "
-                         "BY ledgerSeq ASC",
+        (sess.prepare << "SELECT data FROM ledgerheaders "
+                         "WHERE ledgerseq >= :begin AND ledgerseq < :end ORDER "
+                         "BY ledgerseq ASC",
          into(headerEncoded), use(begin), use(end));
 
     st.execute(true);
@@ -206,18 +206,18 @@ LedgerHeaderFrame::copyLedgerHeadersToStream(Database& db, soci::session& sess,
 void
 LedgerHeaderFrame::dropAll(Database& db)
 {
-    db.getSession() << "DROP TABLE IF EXISTS LedgerHeaders;";
+    db.getSession() << "DROP TABLE IF EXISTS ledgerheaders;";
 
-    db.getSession() << "CREATE TABLE LedgerHeaders ("
-                       "ledgerHash      CHARACTER(64) PRIMARY KEY,"
-                       "prevHash        CHARACTER(64) NOT NULL,"
-                       "bucketListHash  CHARACTER(64) NOT NULL,"
-                       "ledgerSeq       INT UNIQUE CHECK (ledgerSeq >= 0),"
-                       "closeTime       BIGINT NOT NULL CHECK (closeTime >= 0),"
+    db.getSession() << "CREATE TABLE ledgerheaders ("
+                       "ledgerhash      CHARACTER(64) PRIMARY KEY,"
+                       "prevhash        CHARACTER(64) NOT NULL,"
+                       "bucketlisthash  CHARACTER(64) NOT NULL,"
+                       "ledgerseq       INT UNIQUE CHECK (ledgerseq >= 0),"
+                       "closetime       BIGINT NOT NULL CHECK (closetime >= 0),"
                        "data            TEXT NOT NULL"
                        ");";
 
     db.getSession()
-        << "CREATE INDEX LedgersBySeq ON LedgerHeaders ( ledgerSeq );";
+        << "CREATE INDEX ledgersbyseq ON ledgerheaders ( ledgerseq );";
 }
 }

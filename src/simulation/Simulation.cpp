@@ -485,15 +485,15 @@ Simulation::accountsOutOfSyncWithDb()
              accountIt != mAccounts.end(); accountIt++)
         {
             auto account = *accountIt;
-            AccountFrame accountFrame;
-            bool res = AccountFrame::loadAccount(
-                account->mKey.getPublicKey(), accountFrame, app->getDatabase());
+            AccountFrame::pointer accountFrame;
+            accountFrame = AccountFrame::loadAccount(
+                account->mKey.getPublicKey(), app->getDatabase());
             int64_t offset;
-            if (res)
+            if (accountFrame)
             {
-                offset = accountFrame.getBalance() -
+                offset = accountFrame->getBalance() -
                          static_cast<int64_t>(account->mBalance);
-                account->mSeq = accountFrame.getSeqNum();
+                account->mSeq = accountFrame->getSeqNum();
             }
             else
             {
@@ -503,8 +503,8 @@ Simulation::accountsOutOfSyncWithDb()
             {
                 LOG(DEBUG) << "On node " << iApp << ", account " << account->mId
                            << " is off by " << (offset) << "\t(has "
-                           << accountFrame.getBalance() << " should have "
-                           << account->mBalance << ")";
+                           << (accountFrame ? accountFrame->getBalance() : 0)
+                           << " should have " << account->mBalance << ")";
                 totalOffsets += abs(offset);
                 result.push_back(account);
             }
@@ -522,15 +522,16 @@ Simulation::loadAccount(AccountInfo& account)
     // assumes all nodes are in sync
     auto app = mNodes.begin()->second;
 
-    AccountFrame ret;
-    if (!AccountFrame::loadAccount(account.mKey.getPublicKey(), ret,
-                                   app->getDatabase()))
+    AccountFrame::pointer ret;
+    ret = AccountFrame::loadAccount(account.mKey.getPublicKey(),
+                                    app->getDatabase());
+    if (!ret)
     {
         return false;
     }
 
-    account.mBalance = ret.getBalance();
-    account.mSeq = ret.getSeqNum();
+    account.mBalance = ret->getBalance();
+    account.mSeq = ret->getSeqNum();
     return true;
 }
 

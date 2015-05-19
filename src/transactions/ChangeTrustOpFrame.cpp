@@ -20,50 +20,54 @@ ChangeTrustOpFrame::ChangeTrustOpFrame(Operation const& op,
 bool
 ChangeTrustOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
 {
-    TrustFrame trustLine;
+    TrustFrame::pointer trustLine;
     Database& db = ledgerManager.getDatabase();
 
-    if (TrustFrame::loadTrustLine(getSourceID(), mChangeTrust.line, trustLine,
-                                  db))
+    trustLine = TrustFrame::loadTrustLine(getSourceID(), mChangeTrust.line, db);
+
+    if (trustLine)
     { // we are modifying an old trustline
 
         if (mChangeTrust.limit < 0 ||
-            mChangeTrust.limit < trustLine.getBalance())
+            mChangeTrust.limit < trustLine->getBalance())
         { // Can't drop the limit below the balance you are holding with them
             innerResult().code(CHANGE_TRUST_INVALID_LIMIT);
             return false;
         }
 
-        trustLine.getTrustLine().limit = mChangeTrust.limit;
-        if (trustLine.getTrustLine().limit == 0 && trustLine.getBalance() == 0)
+        trustLine->getTrustLine().limit = mChangeTrust.limit;
+        if (trustLine->getTrustLine().limit == 0 &&
+            trustLine->getBalance() == 0)
         {
             // line gets deleted
             mSourceAccount->addNumEntries(-1, ledgerManager);
-            trustLine.storeDelete(delta, db);
+            trustLine->storeDelete(delta, db);
             mSourceAccount->storeChange(delta, db);
         }
         else
         {
-            trustLine.storeChange(delta, db);
+            trustLine->storeChange(delta, db);
         }
         innerResult().code(CHANGE_TRUST_SUCCESS);
         return true;
     }
     else
     { // new trust line
-        AccountFrame issuer;
-        if (!AccountFrame::loadAccount(mChangeTrust.line.alphaNum().issuer,
-                                       issuer, db))
+        AccountFrame::pointer issuer;
+        issuer =
+            AccountFrame::loadAccount(mChangeTrust.line.alphaNum().issuer, db);
+        if (!issuer)
         {
             innerResult().code(CHANGE_TRUST_NO_ISSUER);
             return false;
         }
-
-        trustLine.getTrustLine().accountID = getSourceID();
-        trustLine.getTrustLine().currency = mChangeTrust.line;
-        trustLine.getTrustLine().limit = mChangeTrust.limit;
-        trustLine.getTrustLine().balance = 0;
-        trustLine.setAuthorized(!issuer.isAuthRequired());
+        trustLine = std::make_shared<TrustFrame>();
+        auto& tl = trustLine->getTrustLine();
+        tl.accountID = getSourceID();
+        tl.currency = mChangeTrust.line;
+        tl.limit = mChangeTrust.limit;
+        tl.balance = 0;
+        trustLine->setAuthorized(!issuer->isAuthRequired());
 
         if (!mSourceAccount->addNumEntries(1, ledgerManager))
         {
@@ -71,7 +75,7 @@ ChangeTrustOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
         }
 
         mSourceAccount->storeChange(delta, db);
-        trustLine.storeAdd(delta, db);
+        trustLine->storeAdd(delta, db);
 
         innerResult().code(CHANGE_TRUST_SUCCESS);
         return true;

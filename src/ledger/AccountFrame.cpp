@@ -16,14 +16,14 @@ using namespace std;
 namespace stellar
 {
 const char* AccountFrame::kSQLCreateStatement1 =
-    "CREATE TABLE Accounts"
+    "CREATE TABLE accounts"
     "("
-    "accountID       VARCHAR(51)  PRIMARY KEY,"
+    "accountid       VARCHAR(51)  PRIMARY KEY,"
     "balance         BIGINT       NOT NULL CHECK (balance >= 0),"
-    "seqNum          BIGINT       NOT NULL,"
-    "numSubEntries   INT          NOT NULL CHECK (numSubEntries >= 0),"
-    "inflationDest   VARCHAR(51),"
-    "homeDomain      VARCHAR(32),"
+    "seqnum          BIGINT       NOT NULL,"
+    "numsubentries   INT          NOT NULL CHECK (numsubentries >= 0),"
+    "inflationdest   VARCHAR(51),"
+    "homedomain      VARCHAR(32),"
     "thresholds      TEXT,"
     "flags           INT          NOT NULL"
     ");";
@@ -31,17 +31,17 @@ const char* AccountFrame::kSQLCreateStatement1 =
 const char* AccountFrame::kSQLCreateStatement2 =
     "CREATE TABLE Signers"
     "("
-    "accountID       VARCHAR(51) NOT NULL,"
-    "publicKey       VARCHAR(51) NOT NULL,"
+    "accountid       VARCHAR(51) NOT NULL,"
+    "publickey       VARCHAR(51) NOT NULL,"
     "weight          INT         NOT NULL,"
-    "PRIMARY KEY (accountID, publicKey)"
+    "PRIMARY KEY (accountid, publickey)"
     ");";
 
 const char* AccountFrame::kSQLCreateStatement3 =
-    "CREATE INDEX signersAccount ON Signers (accountID)";
+    "CREATE INDEX signersaccount ON signers (accountid)";
 
 const char* AccountFrame::kSQLCreateStatement4 =
-    "CREATE INDEX accountBalances ON Accounts (balance)";
+    "CREATE INDEX accountbalances ON Accounts (balance)";
 
 AccountFrame::AccountFrame()
     : EntryFrame(ACCOUNT), mAccountEntry(mEntry.account())
@@ -65,12 +65,12 @@ AccountFrame::AccountFrame(AccountID const& id) : AccountFrame()
     mAccountEntry.accountID = id;
 }
 
-AccountFrame
+AccountFrame::pointer
 AccountFrame::makeAuthOnlyAccount(AccountID const& id)
 {
-    AccountFrame ret(id);
+    AccountFrame::pointer ret = make_shared<AccountFrame>(id);
     // puts a negative balance to trip any attempt to save this
-    ret.mAccountEntry.balance = INT64_MIN;
+    ret->mAccountEntry.balance = INT64_MIN;
 
     return ret;
 }
@@ -166,9 +166,8 @@ AccountFrame::getLowThreshold() const
     return mAccountEntry.thresholds[1];
 }
 
-bool
-AccountFrame::loadAccount(AccountID const& accountID, AccountFrame& retAcc,
-                          Database& db)
+AccountFrame::pointer
+AccountFrame::loadAccount(AccountID const& accountID, Database& db)
 {
     std::string base58ID = toBase58Check(VER_ACCOUNT_ID, accountID);
     std::string publicKey, inflationDest, creditAuthKey;
@@ -177,14 +176,13 @@ AccountFrame::loadAccount(AccountID const& accountID, AccountFrame& retAcc,
 
     soci::session& session = db.getSession();
 
-    retAcc.clearCached();
-    retAcc.getAccount().accountID = accountID;
-    AccountEntry& account = retAcc.getAccount();
+    AccountFrame::pointer res = make_shared<AccountFrame>(accountID);
+    AccountEntry& account = res->getAccount();
     {
         auto timer = db.getSelectTimer("account");
-        session << "SELECT balance, seqNum, numSubEntries, \
-            inflationDest, homeDomain, thresholds,  flags \
-            from Accounts where accountID=:v1",
+        session << "SELECT balance, seqnum, numsubentries, "
+                   "inflationdest, homedomain, thresholds,  flags "
+                   "FROM accounts WHERE accountid=:v1",
             into(account.balance), into(account.seqNum),
             into(account.numSubEntries), into(inflationDest, inflationDestInd),
             into(homeDomain, homeDomainInd), into(thresholds, thresholdsInd),
@@ -192,7 +190,7 @@ AccountFrame::loadAccount(AccountID const& accountID, AccountFrame& retAcc,
     }
 
     if (!session.got_data())
-        return false;
+        return nullptr;
 
     if (homeDomainInd == soci::i_ok)
     {
@@ -204,7 +202,7 @@ AccountFrame::loadAccount(AccountID const& accountID, AccountFrame& retAcc,
         std::vector<uint8_t> bin = hexToBin(thresholds);
         for (size_t n = 0; (n < 4) && (n < bin.size()); n++)
         {
-            retAcc.mAccountEntry.thresholds[n] = bin[n];
+            res->mAccountEntry.thresholds[n] = bin[n];
         }
     }
 
@@ -221,8 +219,8 @@ AccountFrame::loadAccount(AccountID const& accountID, AccountFrame& retAcc,
         string pubKey;
         Signer signer;
 
-        auto prep = db.getPreparedStatement("SELECT publicKey, weight from "
-                                            "Signers where accountID =:id");
+        auto prep = db.getPreparedStatement("SELECT publickey, weight from "
+                                            "signers where accountid =:id");
         auto& st = prep.statement();
         st.exchange(use(base58ID));
         st.exchange(into(pubKey));
@@ -242,11 +240,11 @@ AccountFrame::loadAccount(AccountID const& accountID, AccountFrame& retAcc,
         }
     }
 
-    retAcc.normalize();
-    retAcc.mUpdateSigners = false;
+    res->normalize();
+    res->mUpdateSigners = false;
 
-    retAcc.mKeyCalculated = false;
-    return true;
+    res->mKeyCalculated = false;
+    return res;
 }
 
 bool
@@ -257,8 +255,8 @@ AccountFrame::exists(Database& db, LedgerKey const& key)
     int exists = 0;
     {
         auto timer = db.getSelectTimer("account-exists");
-        db.getSession() << "SELECT EXISTS (SELECT NULL FROM Accounts \
-             WHERE accountID=:v1)",
+        db.getSession() << "SELECT EXISTS (SELECT NULL FROM accounts "
+                           "WHERE accountid=:v1)",
             use(base58ID), into(exists);
     }
     return exists != 0;
@@ -280,12 +278,12 @@ AccountFrame::storeDelete(LedgerDelta& delta, Database& db,
     soci::session& session = db.getSession();
     {
         auto timer = db.getDeleteTimer("account");
-        session << "DELETE from Accounts where accountID= :v1",
+        session << "DELETE from accounts where accountid= :v1",
             soci::use(base58ID);
     }
     {
         auto timer = db.getDeleteTimer("signer");
-        session << "DELETE from Signers where accountID= :v1",
+        session << "DELETE from signers where accountid= :v1",
             soci::use(base58ID);
     }
     delta.deleteEntry(key);
@@ -301,16 +299,18 @@ AccountFrame::storeUpdate(LedgerDelta& delta, Database& db, bool insert) const
 
     if (insert)
     {
-        sql = std::string("INSERT INTO Accounts ( accountID, balance, seqNum, \
-            numSubEntries, inflationDest, homeDomain, thresholds, flags)       \
-            VALUES ( :id, :v1, :v2, :v3, :v4, :v5, :v6, :v7 )");
+        sql = std::string(
+            "INSERT INTO accounts ( accountid, balance, seqnum, "
+            "numsubentries, inflationdest, homedomain, thresholds, flags) "
+            "VALUES ( :id, :v1, :v2, :v3, :v4, :v5, :v6, :v7 )");
     }
     else
     {
-        sql = std::string("UPDATE Accounts SET balance = :v1, seqNum = :v2, \
-                numSubEntries = :v3, \
-                inflationDest = :v4, homeDomain = :v5, thresholds = :v6,   \
-                flags = :v7 WHERE accountID = :id");
+        sql = std::string(
+            "UPDATE accounts SET balance = :v1, seqnum = :v2, "
+            "numsubentries = :v3, "
+            "inflationdest = :v4, homedomain = :v5, thresholds = :v6, "
+            "flags = :v7 WHERE accountid = :id");
     }
 
     auto prep = db.getPreparedStatement(sql);
@@ -364,12 +364,13 @@ AccountFrame::storeUpdate(LedgerDelta& delta, Database& db, bool insert) const
     {
         // instead separate signatures from account, just like offers are
         // separate entities
-        AccountFrame startAccountFrame;
-        if (!loadAccount(getID(), startAccountFrame, db))
+        AccountFrame::pointer startAccountFrame;
+        startAccountFrame = loadAccount(getID(), db);
+        if (!startAccountFrame)
         {
             throw runtime_error("could not load account!");
         }
-        AccountEntry& startAccount = startAccountFrame.mAccountEntry;
+        AccountEntry& startAccount = startAccountFrame->mAccountEntry;
 
         // deal with changes to Signers
         if (mAccountEntry.signers.size() < startAccount.signers.size())
@@ -388,8 +389,8 @@ AccountFrame::storeUpdate(LedgerDelta& delta, Database& db, bool insert) const
                             {
                                 auto timer = db.getUpdateTimer("signer");
                                 db.getSession()
-                                    << "UPDATE Signers set weight=:v1 where "
-                                       "accountID=:v2 and publicKey=:v3",
+                                    << "UPDATE signers set weight=:v1 where "
+                                       "accountid=:v2 and publickey=:v3",
                                     use(finalSigner.weight), use(base58ID),
                                     use(b58signKey);
                             }
@@ -404,9 +405,9 @@ AccountFrame::storeUpdate(LedgerDelta& delta, Database& db, bool insert) const
                         toBase58Check(VER_ACCOUNT_ID, startSigner.pubKey);
 
                     soci::statement st =
-                        (db.getSession().prepare << "DELETE from Signers where "
-                                                    "accountID=:v2 and "
-                                                    "publicKey=:v3",
+                        (db.getSession().prepare << "DELETE from signers where "
+                                                    "accountid=:v2 and "
+                                                    "publickey=:v3",
                          use(base58ID), use(b58signKey));
 
                     {
@@ -438,8 +439,8 @@ AccountFrame::storeUpdate(LedgerDelta& delta, Database& db, bool insert) const
 
                             soci::statement st =
                                 (db.getSession().prepare
-                                     << "UPDATE Signers set weight=:v1 where "
-                                        "accountID=:v2 and publicKey=:v3",
+                                     << "UPDATE signers set weight=:v1 where "
+                                        "accountid=:v2 and publickey=:v3",
                                  use(finalSigner.weight), use(base58ID),
                                  use(b58signKey));
 
@@ -461,9 +462,9 @@ AccountFrame::storeUpdate(LedgerDelta& delta, Database& db, bool insert) const
                         toBase58Check(VER_ACCOUNT_ID, finalSigner.pubKey);
 
                     soci::statement st = (db.getSession().prepare
-                                              << "INSERT INTO Signers "
-                                                 "(accountID,publicKey,weight) "
-                                                 "values (:v1,:v2,:v3)",
+                                              << "INSERT INTO signers "
+                                                 "(accountid,publickey,weight) "
+                                                 "VALUES (:v1,:v2,:v3)",
                                           use(base58ID), use(b58signKey),
                                           use(finalSigner.weight));
 
@@ -507,10 +508,10 @@ AccountFrame::processForInflation(
     soci::statement st =
         (session.prepare
              << "SELECT"
-                " sum(balance) AS votes, inflationDest FROM Accounts WHERE"
-                " inflationDest IS NOT NULL"
-                " AND balance >= 1000000000 GROUP BY inflationDest"
-                " ORDER BY votes DESC, inflationDest DESC LIMIT :lim",
+                " sum(balance) AS votes, inflationdest FROM accounts WHERE"
+                " inflationdest IS NOT NULL"
+                " AND balance >= 1000000000 GROUP BY inflationdest"
+                " ORDER BY votes DESC, inflationdest DESC LIMIT :lim",
          into(v.mVotes), into(inflationDest), use(maxWinners));
 
     st.execute(true);
@@ -529,8 +530,8 @@ AccountFrame::processForInflation(
 void
 AccountFrame::dropAll(Database& db)
 {
-    db.getSession() << "DROP TABLE IF EXISTS Accounts;";
-    db.getSession() << "DROP TABLE IF EXISTS Signers;";
+    db.getSession() << "DROP TABLE IF EXISTS accounts;";
+    db.getSession() << "DROP TABLE IF EXISTS signers;";
 
     db.getSession() << kSQLCreateStatement1;
     db.getSession() << kSQLCreateStatement2;

@@ -32,10 +32,13 @@ makePublicKey(uint256 const& b)
 bool
 isCurrencyValid(Currency const& cur)
 {
+    bool res;
     if (cur.type() == CURRENCY_TYPE_ALPHANUM)
     {
         auto const& code = cur.alphaNum().currencyCode;
         bool zeros = false;
+        bool onechar = false; // at least one non zero character
+        std::locale loc("C");
         for (uint8_t b : code)
         {
             if (b == 0)
@@ -49,16 +52,21 @@ isCurrencyValid(Currency const& cur)
             }
             else
             {
-                std::locale loc("C");
                 char t = *(char*)&b; // safe conversion to char
                 if (!std::isalnum(t, loc))
                 {
                     return false;
                 }
+                onechar = true;
             }
         }
+        res = onechar;
     }
-    return true;
+    else
+    {
+        res = true;
+    }
+    return res;
 }
 
 bool

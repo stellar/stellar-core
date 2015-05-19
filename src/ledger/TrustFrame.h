@@ -22,27 +22,29 @@ class TrustSetTx;
 
 class TrustFrame : public EntryFrame
 {
+  public:
+    typedef std::shared_ptr<TrustFrame> pointer;
+
+  private:
     static void getKeyFields(LedgerKey const& key, std::string& base58AccountID,
                              std::string& base58Issuer,
                              std::string& currencyCode);
 
     static void
     loadLines(soci::details::prepare_temp_type& prep,
-              std::function<void(TrustFrame const&)> trustProcessor);
+              std::function<void(LedgerEntry const&)> trustProcessor);
 
     TrustLineEntry& mTrustLine;
 
-    void setAsIssuer(Currency const& issuer);
+    static TrustFrame::pointer createIssuerFrame(Currency const& issuer);
     bool mIsIssuer; // the TrustFrame fakes an infinite trustline for issuers
 
-  public:
-    typedef std::shared_ptr<TrustFrame> pointer;
+    TrustFrame(TrustFrame const& from);
+    TrustFrame& operator=(TrustFrame const& other);
 
+  public:
     TrustFrame();
     TrustFrame(LedgerEntry const& from);
-    TrustFrame(TrustFrame const& from);
-
-    TrustFrame& operator=(TrustFrame const& other);
 
     EntryFrame::pointer
     copy() const
@@ -61,13 +63,13 @@ class TrustFrame : public EntryFrame
     static bool exists(Database& db, LedgerKey const& key);
 
     // returns the specified trustline or a generated one for issuers
-    static bool loadTrustLine(AccountID const& accountID,
-                              Currency const& currency, TrustFrame& retEntry,
-                              Database& db);
+    static pointer loadTrustLine(AccountID const& accountID,
+                                 Currency const& currency, Database& db);
 
     // note: only returns trust lines stored in the database
     static void loadLines(AccountID const& accountID,
-                          std::vector<TrustFrame>& retLines, Database& db);
+                          std::vector<TrustFrame::pointer>& retLines,
+                          Database& db);
 
     static bool hasIssued(AccountID const& issuerID, Database& db);
 

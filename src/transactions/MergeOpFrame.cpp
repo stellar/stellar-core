@@ -31,11 +31,12 @@ MergeOpFrame::getNeededThreshold() const
 bool
 MergeOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
 {
-    AccountFrame otherAccount;
+    AccountFrame::pointer otherAccount;
     Database& db = ledgerManager.getDatabase();
 
-    if (!AccountFrame::loadAccount(mOperation.body.destination(), otherAccount,
-                                   db))
+    otherAccount = AccountFrame::loadAccount(mOperation.body.destination(), db);
+
+    if (!otherAccount)
     {
         innerResult().code(ACCOUNT_MERGE_NO_ACCOUNT);
         return false;
@@ -46,8 +47,8 @@ MergeOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
     std::string b58Account = toBase58Check(VER_ACCOUNT_ID, getSourceID());
     {
         auto timer = db.getSelectTimer("trust");
-        db.getSession() << "SELECT trustIndex from TrustLines where issuer=:v1 "
-                           "and balance>0 limit 1",
+        db.getSession() << "SELECT trustindex FROM trustlines where issuer=:v1 "
+                           "and balance>0 LIMIT 1",
             use(b58Account);
     }
     if (db.getSession().got_data())
@@ -58,8 +59,8 @@ MergeOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
 
     {
         auto timer = db.getSelectTimer("trust");
-        db.getSession() << "SELECT trustIndex from TrustLines where "
-                           "accountID=:v1 and balance>0 limit 1",
+        db.getSession() << "SELECT trustindex FROM trustlines WHERE "
+                           "accountid=:v1 and balance>0 limit 1",
             use(b58Account);
     }
     if (db.getSession().got_data())
@@ -69,23 +70,23 @@ MergeOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
     }
 
     // delete offers
-    std::vector<OfferFrame> retOffers;
+    std::vector<OfferFrame::pointer> retOffers;
     OfferFrame::loadOffers(getSourceID(), retOffers, db);
-    for (auto offer : retOffers)
+    for (auto& offer : retOffers)
     {
-        offer.storeDelete(delta, db);
+        offer->storeDelete(delta, db);
     }
 
     // delete trust lines
-    std::vector<TrustFrame> retLines;
+    std::vector<TrustFrame::pointer> retLines;
     TrustFrame::loadLines(getSourceID(), retLines, db);
-    for (auto line : retLines)
+    for (auto& line : retLines)
     {
-        line.storeDelete(delta, db);
+        line->storeDelete(delta, db);
     }
 
-    otherAccount.getAccount().balance += mSourceAccount->getAccount().balance;
-    otherAccount.storeChange(delta, db);
+    otherAccount->getAccount().balance += mSourceAccount->getAccount().balance;
+    otherAccount->storeChange(delta, db);
     mSourceAccount->storeDelete(delta, db);
 
     innerResult().code(ACCOUNT_MERGE_SUCCESS);

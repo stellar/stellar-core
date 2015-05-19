@@ -105,17 +105,21 @@ InflationOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
     {
         for (auto const& w : winners)
         {
-            AccountFrame winner;
+            AccountFrame::pointer winner;
 
             int64 toDoleThisWinner =
                 bigDivide(amountToDole, w.mVotes, totalVotes);
 
-            if (toDoleThisWinner > 0 &&
-                AccountFrame::loadAccount(w.mInflationDest, winner, db))
+            if (toDoleThisWinner == 0)
+                continue;
+
+            winner = AccountFrame::loadAccount(w.mInflationDest, db);
+
+            if (winner)
             {
                 lcl.totalCoins += toDoleThisWinner;
-                winner.getAccount().balance += toDoleThisWinner;
-                winner.storeChange(inflationDelta, db);
+                winner->getAccount().balance += toDoleThisWinner;
+                winner->storeChange(inflationDelta, db);
                 payouts.emplace_back(w.mInflationDest, toDoleThisWinner);
             }
             else

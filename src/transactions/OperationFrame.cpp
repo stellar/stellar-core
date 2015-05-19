@@ -127,8 +127,8 @@ OperationFrame::checkValid(Application& app, bool forApply)
         }
         else
         {
-            mSourceAccount = make_shared<AccountFrame>(
-                AccountFrame::makeAuthOnlyAccount(*mOperation.sourceAccount));
+            mSourceAccount =
+                AccountFrame::makeAuthOnlyAccount(*mOperation.sourceAccount);
         }
     }
 
