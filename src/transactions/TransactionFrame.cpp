@@ -133,7 +133,7 @@ TransactionFrame::checkSignature(AccountFrame& account, int32_t neededWeight)
             {
                 mUsedSignatures[i] = true;
                 totalWeight += (*it).weight;
-                if (totalWeight >= neededWeight)
+                if (totalWeight > neededWeight)
                     return true;
 
                 keyWeights.erase(it); // can't sign twice
