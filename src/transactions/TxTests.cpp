@@ -21,6 +21,7 @@
 #include "transactions/SetOptionsOpFrame.h"
 #include "transactions/AllowTrustOpFrame.h"
 #include "transactions/InflationOpFrame.h"
+#include "transactions/MergeOpFrame.h"
 
 using namespace stellar;
 using namespace stellar::txtest;
@@ -594,6 +595,29 @@ applyInflation(Application& app, SecretKey& from, SequenceNumber seq,
         delta.commit();
     }
     return getFirstResult(*txFrame);
+}
+
+TransactionFramePtr
+createAccountMerge(SecretKey& source, SecretKey& dest, SequenceNumber seq)
+{
+    Operation op;
+    op.body.type(ACCOUNT_MERGE);
+    op.body.destination() = dest.getPublicKey();
+
+    return transactionFromOperation(source, seq, op);
+}
+
+void
+applyAccountMerge(Application& app, SecretKey& source, SecretKey& dest,
+                  SequenceNumber seq, AccountMergeResultCode result)
+{
+    TransactionFramePtr txFrame = createAccountMerge(source, dest, seq);
+
+    LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader());
+    txFrame->apply(delta, app);
+
+    REQUIRE(MergeOpFrame::getInnerCode(
+                txFrame->getResult().result.results()[0]) == result);
 }
 
 OperationFrame const&

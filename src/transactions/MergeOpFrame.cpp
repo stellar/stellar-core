@@ -42,47 +42,35 @@ MergeOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
         return false;
     }
 
-    // TODO: remove direct SQL statements, use *Frame objects instead
-
-    std::string b58Account = toBase58Check(VER_ACCOUNT_ID, getSourceID());
-    {
-        auto timer = db.getSelectTimer("trust");
-        db.getSession() << "SELECT trustindex FROM trustlines where issuer=:v1 "
-                           "and balance>0 LIMIT 1",
-            use(b58Account);
-    }
-    if (db.getSession().got_data())
+    if (TrustFrame::hasIssued(getSourceID(), db))
     {
         innerResult().code(ACCOUNT_MERGE_CREDIT_HELD);
         return false;
     }
 
+    std::vector<TrustFrame::pointer> lines;
+    TrustFrame::loadLines(getSourceID(), lines, db);
+    for(auto &l : lines)
     {
-        auto timer = db.getSelectTimer("trust");
-        db.getSession() << "SELECT trustindex FROM trustlines WHERE "
-                           "accountid=:v1 and balance>0 limit 1",
-            use(b58Account);
-    }
-    if (db.getSession().got_data())
-    {
-        innerResult().code(ACCOUNT_MERGE_HAS_CREDIT);
-        return false;
+        if(l->getBalance() > 0)
+        {
+            innerResult().code(ACCOUNT_MERGE_HAS_CREDIT);
+            return false;
+        }
     }
 
     // delete offers
-    std::vector<OfferFrame::pointer> retOffers;
-    OfferFrame::loadOffers(getSourceID(), retOffers, db);
-    for (auto& offer : retOffers)
+    std::vector<OfferFrame::pointer> offers;
+    OfferFrame::loadOffers(getSourceID(), offers, db);
+    for (auto& offer : offers)
     {
         offer->storeDelete(delta, db);
     }
 
     // delete trust lines
-    std::vector<TrustFrame::pointer> retLines;
-    TrustFrame::loadLines(getSourceID(), retLines, db);
-    for (auto& line : retLines)
+    for (auto& l : lines)
     {
-        line->storeDelete(delta, db);
+        l->storeDelete(delta, db);
     }
 
     otherAccount->getAccount().balance += mSourceAccount->getAccount().balance;
