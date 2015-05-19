@@ -184,6 +184,26 @@ TEST_CASE("create offer", "[tx][offers]")
         applyCreditPaymentTx(app, gateway, a1, idrCur, gateway_seq++,
                              trustLineBalance);
 
+        SECTION("Native offers")
+        {
+            Currency xlmCur;
+            xlmCur.type(CurrencyType::CURRENCY_TYPE_NATIVE);
+
+            const Price somePrice(3, 2);
+            SECTION("IDR -> XLM")
+            {
+                applyCreateOffer(
+                    app, delta, 0, a1, xlmCur, idrCur, somePrice,
+                    100 * currencyMultiplier, a1_seq++);
+            }
+            SECTION("XLM -> IDR")
+            {
+                applyCreateOffer(
+                    app, delta, 0, a1, idrCur, xlmCur, somePrice,
+                    100 * currencyMultiplier, a1_seq++);
+            }
+        }
+
         SECTION("multiple offers tests")
         {
             // create nbOffers

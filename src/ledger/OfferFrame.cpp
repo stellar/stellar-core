@@ -20,10 +20,10 @@ const char* OfferFrame::kSQLCreateStatement1 =
     "("
     "accountid       VARCHAR(51)  NOT NULL,"
     "offerid         BIGINT       NOT NULL CHECK (offerid >= 0),"
-    "paysalphanumcurrency VARCHAR(4)   NOT NULL,"
-    "paysissuer      VARCHAR(51)  NOT NULL,"
-    "getsalphanumcurrency VARCHAR(4)   NOT NULL,"
-    "getsissuer      VARCHAR(51)  NOT NULL,"
+    "paysalphanumcurrency VARCHAR(4),"
+    "paysissuer      VARCHAR(51),"
+    "getsalphanumcurrency VARCHAR(4),"
+    "getsissuer      VARCHAR(51),"
     "amount          BIGINT       NOT NULL CHECK (amount >= 0),"
     "pricen          INT          NOT NULL,"
     "priced          INT          NOT NULL,"
@@ -151,17 +151,19 @@ OfferFrame::loadOffers(soci::details::prepare_temp_type& prep,
     std::string paysAlphaNumCurrency, getsAlphaNumCurrency, paysIssuer,
         getsIssuer;
 
-    soci::indicator paysAlphaNumIndicator, getsAlphaNumIndicator;
+    soci::indicator paysAlphaNumIndicator, getsAlphaNumIndicator,
+        paysIssuerIndicator, getsIssuerIndicator;
 
     LedgerEntry le;
     le.type(OFFER);
     OfferEntry& oe = le.offer();
 
-    statement st =
-        (prep, into(accountID), into(oe.offerID),
-         into(paysAlphaNumCurrency, paysAlphaNumIndicator), into(paysIssuer),
-         into(getsAlphaNumCurrency, getsAlphaNumIndicator), into(getsIssuer),
-         into(oe.amount), into(oe.price.n), into(oe.price.d));
+    statement st = (prep, into(accountID), into(oe.offerID),
+                    into(paysAlphaNumCurrency, paysAlphaNumIndicator),
+                    into(paysIssuer, paysIssuerIndicator),
+                    into(getsAlphaNumCurrency, getsAlphaNumIndicator),
+                    into(getsIssuer, getsIssuerIndicator), into(oe.amount),
+                    into(oe.price.n), into(oe.price.d));
 
     st.execute(true);
     while (st.got_data())
@@ -169,6 +171,10 @@ OfferFrame::loadOffers(soci::details::prepare_temp_type& prep,
         oe.accountID = fromBase58Check256(VER_ACCOUNT_ID, accountID);
         if (paysAlphaNumIndicator == soci::i_ok)
         {
+            if (paysIssuerIndicator != soci::i_ok)
+            {
+                throw std::runtime_error("bad database state");
+            }
             oe.takerPays.type(CURRENCY_TYPE_ALPHANUM);
             strToCurrencyCode(oe.takerPays.alphaNum().currencyCode,
                               paysAlphaNumCurrency);
@@ -181,6 +187,10 @@ OfferFrame::loadOffers(soci::details::prepare_temp_type& prep,
         }
         if (getsAlphaNumIndicator == soci::i_ok)
         {
+            if (getsIssuerIndicator != soci::i_ok)
+            {
+                throw std::runtime_error("bad database state");
+            }
             oe.takerGets.type(CURRENCY_TYPE_ALPHANUM);
             strToCurrencyCode(oe.takerGets.alphaNum().currencyCode,
                               getsAlphaNumCurrency);
@@ -343,8 +353,8 @@ OfferFrame::storeAdd(LedgerDelta& delta, Database& db) const
                      "(accountid,offerid,paysalphanumcurrency,paysissuer,"
                      "amount,pricen,priced,price) VALUES"
                      "(:v1,:v2,:v3,:v4,:v5,:v6,:v7,:v8)",
-              use(b58AccountID), use(mOffer.offerID), use(b58issuer),
-              use(currencyCode), use(mOffer.amount), use(mOffer.price.n),
+              use(b58AccountID), use(mOffer.offerID), use(currencyCode),
+              use(b58issuer), use(mOffer.amount), use(mOffer.price.n),
               use(mOffer.price.d), use(computePrice()));
         st.execute(true);
     }
@@ -360,8 +370,8 @@ OfferFrame::storeAdd(LedgerDelta& delta, Database& db) const
                      "(accountid,offerid,getsalphanumcurrency,getsissuer,"
                      "amount,pricen,priced,price) VALUES"
                      "(:v1,:v2,:v3,:v4,:v5,:v6,:v7,:v8)",
-              use(b58AccountID), use(mOffer.offerID), use(b58issuer),
-              use(currencyCode), use(mOffer.amount), use(mOffer.price.n),
+              use(b58AccountID), use(mOffer.offerID), use(currencyCode),
+              use(b58issuer), use(mOffer.amount), use(mOffer.price.n),
               use(mOffer.price.d), use(computePrice()));
         st.execute(true);
     }
