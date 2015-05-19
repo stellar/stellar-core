@@ -251,6 +251,34 @@ TEST_CASE("payment", "[tx][payment]")
                               app.getDatabase());
         REQUIRE(gwLines.size() == 0);
     }
+    SECTION("authorize flag")
+    {
+        uint32_t setFlags = AUTH_REQUIRED_FLAG | AUTH_REVOCABLE_FLAG;
+
+        applySetOptions(app, gateway, nullptr, &setFlags, nullptr, nullptr,
+                        nullptr, gateway_seq++);
+
+        applyChangeTrust(app, a1, gateway, a1Seq++, "IDR", trustLineLimit);
+
+        applyCreditPaymentTx(app, gateway, a1, idrCur, gateway_seq++,
+                             trustLineStartingBalance, PAYMENT_NOT_AUTHORIZED);
+
+        applyAllowTrust(app, gateway, a1, gateway_seq++, "IDR", true);
+
+        applyCreditPaymentTx(app, gateway, a1, idrCur, gateway_seq++,
+                             trustLineStartingBalance);
+
+        // send it all back
+        applyAllowTrust(app, gateway, a1, gateway_seq++, "IDR", false);
+
+        applyCreditPaymentTx(app, a1, gateway, idrCur, a1Seq++,
+                             trustLineStartingBalance, PAYMENT_NOT_AUTHORIZED);
+
+        applyAllowTrust(app, gateway, a1, gateway_seq++, "IDR", true);
+
+        applyCreditPaymentTx(app, a1, gateway, idrCur, a1Seq++,
+                             trustLineStartingBalance);
+    }
     SECTION("payment through path")
     {
         SECTION("send XLM with path (not enough offers)")
