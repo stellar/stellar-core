@@ -184,7 +184,6 @@ TEST_CASE("create offer", "[tx][offers]")
         applyChangeTrust(app, a1, gateway, a1_seq++, "IDR", trustLineLimit);
         applyCreditPaymentTx(app, gateway, a1, idrCur, gateway_seq++,
                              trustLineBalance);
-
         SECTION("Native offers")
         {
             Currency xlmCur;
@@ -591,7 +590,6 @@ TEST_CASE("create offer", "[tx][offers]")
                 checkAmounts(line->getBalance(), b1_idr + idrSend);
             }
         }
-
         SECTION("limits and issuers")
         {
             const Price usdPriceOfferA(3, 2);
@@ -634,7 +632,6 @@ TEST_CASE("create offer", "[tx][offers]")
 
                 applyCreditPaymentTx(app, gateway, c1, usdCur, gateway_seq++,
                                      trustLineBalance);
-
                 SECTION("Creates an offer but reaches limit while selling")
                 {
                     // fund C such that it's 150 IDR below its limit
@@ -692,42 +689,55 @@ TEST_CASE("create offer", "[tx][offers]")
                     SECTION("Creates an offer, top seller not authorized")
                     {
                         Currency secUsdCur = makeCurrency(secgateway, "USD");
+                        Currency secIdrCur = makeCurrency(secgateway, "IDR");
 
                         // sets up the secure gateway account for USD
-                        applyCreateAccountTx(app, root, secgateway, root_seq++, minBalance2);
-                        SequenceNumber secgw_seq = getAccountSeqNum(secgateway, app) + 1;
+                        applyCreateAccountTx(app, root, secgateway, root_seq++,
+                                             minBalance2);
+                        SequenceNumber secgw_seq =
+                            getAccountSeqNum(secgateway, app) + 1;
 
-                        uint32_t setFlags = AUTH_REQUIRED_FLAG | AUTH_REVOCABLE_FLAG;
+                        uint32_t setFlags =
+                            AUTH_REQUIRED_FLAG | AUTH_REVOCABLE_FLAG;
 
                         applySetOptions(app, secgateway, nullptr, &setFlags,
-                                        nullptr, nullptr, nullptr,
-                                        secgw_seq++);
+                                        nullptr, nullptr, nullptr, secgw_seq++);
 
                         // setup d1
                         SecretKey d1 = getAccount("D");
                         applyCreateAccountTx(app, root, d1, root_seq++,
                                              minBalance3 + 10000);
                         SequenceNumber d1_seq = getAccountSeqNum(d1, app) + 1;
-                        applyChangeTrust(app, d1, gateway, d1_seq++, "IDR",
+                        applyChangeTrust(app, d1, secgateway, d1_seq++, "IDR",
                                          trustLineLimit);
                         applyChangeTrust(app, d1, secgateway, d1_seq++, "USD",
                                          trustLineLimit);
                         applyAllowTrust(app, secgateway, d1, secgw_seq++, "USD",
                                         true);
+                        applyAllowTrust(app, secgateway, d1, secgw_seq++, "IDR",
+                                        true);
 
-                        applyCreditPaymentTx(app, gateway, d1, idrCur, gateway_seq++,
-                                             trustLineBalance);
+                        applyCreditPaymentTx(app, secgateway, d1, secIdrCur,
+                                             secgw_seq++, trustLineBalance);
 
                         const Price usdPriceOfferD(3, 2);
-                        // offer is sell 100 IDR for 150 USD; buy USD @ 1.5 = sell IRD @
+                        // offer is sell 100 IDR for 150 USD; buy USD @ 1.5 =
+                        // sell IRD @
                         // 0.66
                         auto offerD1 = applyCreateOffer(
-                            app, delta, 0, d1, idrCur, secUsdCur, usdPriceOfferD,
-                            100 * currencyMultiplier, d1_seq++);
+                            app, delta, 0, d1, secIdrCur, secUsdCur,
+                            usdPriceOfferD, 100 * currencyMultiplier, d1_seq++);
 
-                        // makes "D" not authorized to hold "USD"
-                        applyAllowTrust(app, secgateway, d1, secgw_seq++, "USD",
-                                        false);
+                        SECTION("D not authorized to hold USD")
+                        {
+                            applyAllowTrust(app, secgateway, d1, secgw_seq++,
+                                            "USD", false);
+                        }
+                        SECTION("D not authorized to send IDR")
+                        {
+                            applyAllowTrust(app, secgateway, d1, secgw_seq++,
+                                            "IDR", false);
+                        }
 
                         // setup e1
                         SecretKey e1 = getAccount("E");
@@ -735,19 +745,21 @@ TEST_CASE("create offer", "[tx][offers]")
                         applyCreateAccountTx(app, root, e1, root_seq++,
                                              minBalance3 + 10000);
                         SequenceNumber e1_seq = getAccountSeqNum(e1, app) + 1;
-                        applyChangeTrust(app, e1, gateway, e1_seq++, "IDR",
+                        applyChangeTrust(app, e1, secgateway, e1_seq++, "IDR",
                                          trustLineLimit);
                         applyChangeTrust(app, e1, secgateway, e1_seq++, "USD",
                                          trustLineLimit);
                         applyAllowTrust(app, secgateway, e1, secgw_seq++, "USD",
                                         true);
+                        applyAllowTrust(app, secgateway, e1, secgw_seq++, "IDR",
+                                        true);
 
-                        applyCreditPaymentTx(app, gateway, e1, idrCur, gateway_seq++,
-                                             trustLineBalance);
+                        applyCreditPaymentTx(app, secgateway, e1, secIdrCur,
+                                             secgw_seq++, trustLineBalance);
 
                         uint64_t offerE1 = applyCreateOffer(
-                            app, delta, 0, e1, idrCur, secUsdCur, usdPriceOfferD,
-                            100 * currencyMultiplier, e1_seq++);
+                            app, delta, 0, e1, secIdrCur, secUsdCur,
+                            usdPriceOfferD, 100 * currencyMultiplier, e1_seq++);
 
                         // setup f1
                         SecretKey f1 = getAccount("F");
@@ -755,15 +767,17 @@ TEST_CASE("create offer", "[tx][offers]")
                         applyCreateAccountTx(app, root, f1, root_seq++,
                                              minBalance3 + 10000);
                         SequenceNumber f1_seq = getAccountSeqNum(f1, app) + 1;
-                        applyChangeTrust(app, f1, gateway, f1_seq++, "IDR",
+                        applyChangeTrust(app, f1, secgateway, f1_seq++, "IDR",
                                          trustLineLimit);
                         applyChangeTrust(app, f1, secgateway, f1_seq++, "USD",
                                          trustLineLimit);
                         applyAllowTrust(app, secgateway, f1, secgw_seq++, "USD",
                                         true);
+                        applyAllowTrust(app, secgateway, f1, secgw_seq++, "IDR",
+                                        true);
 
-                        applyCreditPaymentTx(app, secgateway, f1, secUsdCur, secgw_seq++,
-                                             trustLineBalance);
+                        applyCreditPaymentTx(app, secgateway, f1, secUsdCur,
+                                             secgw_seq++, trustLineBalance);
 
                         // try to create an offer:
                         // it will cross with the offer from E and skip the
@@ -774,8 +788,8 @@ TEST_CASE("create offer", "[tx][offers]")
                         // -> sell USD @ 1.5 IDR
                         const Price idrPriceOfferC(2, 3);
                         auto offerF1Res = applyCreateOfferWithResult(
-                            app, delta, 0, f1, secUsdCur, idrCur, idrPriceOfferC,
-                            300 * currencyMultiplier, f1_seq++);
+                            app, delta, 0, f1, secUsdCur, secIdrCur,
+                            idrPriceOfferC, 300 * currencyMultiplier, f1_seq++);
                         // offer created would be buy 100 IDR for 150 USD ; 0.66
                         REQUIRE(offerF1Res.success().offer.effect() ==
                                 CREATE_OFFER_CREATED);
@@ -793,7 +807,7 @@ TEST_CASE("create offer", "[tx][offers]")
                         line = loadTrustLine(d1, secUsdCur, app);
                         checkAmounts(0, line->getBalance());
 
-                        line = loadTrustLine(d1, idrCur, app);
+                        line = loadTrustLine(d1, secIdrCur, app);
                         checkAmounts(trustLineBalance, line->getBalance());
 
                         // E1's offer was taken
@@ -803,7 +817,7 @@ TEST_CASE("create offer", "[tx][offers]")
                         checkAmounts(line->getBalance(),
                                      150 * currencyMultiplier);
 
-                        line = loadTrustLine(e1, idrCur, app);
+                        line = loadTrustLine(e1, secIdrCur, app);
                         checkAmounts(line->getBalance(),
                                      trustLineBalance -
                                          100 * currencyMultiplier);
@@ -814,7 +828,7 @@ TEST_CASE("create offer", "[tx][offers]")
                                      trustLineBalance -
                                          150 * currencyMultiplier);
 
-                        line = loadTrustLine(f1, idrCur, app);
+                        line = loadTrustLine(f1, secIdrCur, app);
                         checkAmounts(line->getBalance(),
                                      100 * currencyMultiplier);
                     }

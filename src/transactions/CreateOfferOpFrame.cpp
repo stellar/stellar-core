@@ -47,6 +47,12 @@ CreateOfferOpFrame::checkOfferValid(Database& db)
             innerResult().code(CREATE_OFFER_UNDERFUNDED);
             return false;
         }
+        if (!mSheepLineA->isAuthorized())
+        {
+            // we are not authorized to sell
+            innerResult().code(CREATE_OFFER_NOT_AUTHORIZED);
+            return false;
+        }
     }
 
     if (wheat.type() != CURRENCY_TYPE_NATIVE)
