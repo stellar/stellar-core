@@ -244,6 +244,7 @@
     <ClCompile Include="..\..\src\simulation\Simulation.cpp" />
     <ClCompile Include="..\..\src\simulation\Topologies.cpp" />
     <ClCompile Include="..\..\src\transactions\AllowTrustOpFrame.cpp" />
+    <ClCompile Include="..\..\src\transactions\ChangeTrustTests.cpp" />
     <ClCompile Include="..\..\src\transactions\CreateAccountOpFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\CreateOfferOpFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\InflationOpFrame.cpp" />
