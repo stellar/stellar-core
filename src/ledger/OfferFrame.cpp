@@ -243,7 +243,7 @@ OfferFrame::loadBestOffers(size_t numOffers, size_t offset,
         sql << " AND getsalphanumcurrency=:gcur AND getsissuer = :gi",
             use(getCurrencyCode), use(b58GIssuer);
     }
-    sql << " ORDER BY price,offerid,accountid LIMIT :n OFFSET :o",
+    sql << " ORDER BY price,offerid LIMIT :n OFFSET :o",
         use(numOffers), use(offset);
 
     auto timer = db.getSelectTimer("offer");
