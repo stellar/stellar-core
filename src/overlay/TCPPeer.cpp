@@ -358,12 +358,20 @@ TCPPeer::readBodyHandler(asio::error_code const& error,
 void
 TCPPeer::recvMessage()
 {
-    xdr::xdr_get g(mIncomingBody.data(),
-                   mIncomingBody.data() + mIncomingBody.size());
-    mMessageRead.Mark();
-    StellarMessage sm;
-    xdr::xdr_argpack_archive(g, sm);
-    Peer::recvMessage(sm);
+    try
+    {
+        xdr::xdr_get g(mIncomingBody.data(),
+                       mIncomingBody.data() + mIncomingBody.size());
+        mMessageRead.Mark();
+        StellarMessage sm;
+        xdr::xdr_argpack_archive(g, sm);
+        Peer::recvMessage(sm);
+    }
+    catch (xdr::xdr_runtime_error& e)
+    {
+        CLOG(TRACE, "Overlay") << "recvMessage got a corrupt xdr: " << e.what();
+        drop();
+    }
 }
 
 bool
