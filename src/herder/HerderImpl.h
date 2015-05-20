@@ -76,7 +76,7 @@ class HerderImpl : public Herder, public SCP
 
     TransactionSubmitStatus recvTransaction(TransactionFramePtr tx) override;
 
-    void recvSCPEnvelope(SCPEnvelope envelope) override;
+    void recvSCPEnvelope(SCPEnvelope const & envelope) override;
 
     void recvSCPQuorumSet(Hash hash, const SCPQuorumSet& qset) override;
     void recvTxSet(Hash hash, const TxSetFrame& txset) override;

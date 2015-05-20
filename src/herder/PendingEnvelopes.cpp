@@ -228,24 +228,20 @@ PendingEnvelopes::slotClosed(uint64 slotIndex)
 
 TxSetFramePtr PendingEnvelopes::getTxSet(Hash hash)
 {
-    TxSetFramePtr txSet;
-
-    try {
-        txSet = mTxSetCache.get(hash);
+    if(mTxSetCache.exists(hash)) {
+        return mTxSetCache.get(hash);
     }
-    catch(std::range_error err)  {   }
-    return txSet;
+    
+    return TxSetFramePtr();
 }
 
 SCPQuorumSetPtr PendingEnvelopes::getQSet(Hash hash)
 {
-    SCPQuorumSetPtr qset;
-
-    try {
-        qset = mQsetCache.get(hash);
+    if(mQsetCache.exists(hash)){
+        return mQsetCache.get(hash);
     }
-    catch(std::range_error err) {   }
-    return qset;
+
+    return SCPQuorumSetPtr();
 }
 
 void 

@@ -424,7 +424,7 @@ HerderImpl::validateBallot(uint64 const& slotIndex, uint256 const& nodeID,
                           << ")"
                           << " timeout: " << pow(2.0, ballot.counter) / 2;
 
-    mBallotInvalid.Mark();
+    mBallotValid.Mark();
     return cb(true); 
 }
 
@@ -696,7 +696,7 @@ HerderImpl::recvTransaction(TransactionFramePtr tx)
 }
 
 void
-HerderImpl::recvSCPEnvelope(SCPEnvelope envelope)
+HerderImpl::recvSCPEnvelope(SCPEnvelope const & envelope)
 {
     CLOG(DEBUG, "Herder") << "recvSCPEnvelope@" << hexAbbrev(getLocalNodeID())
                           << " from: " << hexAbbrev(envelope.nodeID)
