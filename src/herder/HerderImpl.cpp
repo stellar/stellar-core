@@ -473,6 +473,8 @@ HerderImpl::valueExternalized(uint64 const& slotIndex, Value const& value)
         CLOG(ERROR, "Herder") << "HerderImpl::valueExternalized"
                               << "@" << hexAbbrev(getLocalNodeID())
                               << " Externalized StellarBallot malformed";
+        // no point in continuing as 'b' contains garbage at this point
+        abort();
     }
 
     auto txSetHash = b.value.txSetHash;
