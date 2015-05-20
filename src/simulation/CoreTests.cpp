@@ -19,30 +19,30 @@ using namespace stellar;
 
 typedef std::unique_ptr<Application> appPtr;
 
-
 // Simulation tests. Some of the tests in this suite are long.
-// They are marked with [long][hide]. Run the day-to-day tests with 
+// They are marked with [long][hide]. Run the day-to-day tests with
 //
-//     --test 
+//     --test
 // or
 //     --test [simulation]~[long]
 //
 
-
-void printStats(int& nLedgers, std::chrono::system_clock::time_point tBegin, Simulation::pointer sim)
+void
+printStats(int& nLedgers, std::chrono::system_clock::time_point tBegin,
+           Simulation::pointer sim)
 {
     auto t = std::chrono::duration_cast<std::chrono::seconds>(
         std::chrono::system_clock::now() - tBegin);
 
-    LOG(INFO) << "Time spent closing " << nLedgers << " ledgers with " << sim->getNodes().size() << " nodes : "
-        << t.count() << " seconds";
+    LOG(INFO) << "Time spent closing " << nLedgers << " ledgers with "
+              << sim->getNodes().size() << " nodes : " << t.count()
+              << " seconds";
 
     LOG(INFO) << sim->metricsSummary("scp");
 }
 
-
 #include "lib/util/lrucache.hpp"
-//typedef std::shared_ptr<TxSetFrame> TxSetFramePtr;
+// typedef std::shared_ptr<TxSetFrame> TxSetFramePtr;
 
 TEST_CASE("3 nodes. 2 running. threshold 2", "[simulation]")
 {
@@ -51,24 +51,24 @@ TEST_CASE("3 nodes. 2 running. threshold 2", "[simulation]")
     {
         mode = Simulation::OVER_LOOPBACK;
     }
-    
+
     SECTION("Over tcp")
     {
         mode = Simulation::OVER_TCP;
     }
-    
 
     Simulation::pointer simulation = std::make_shared<Simulation>(mode);
 
     std::vector<SecretKey> keys;
-    for(int i = 0; i < 3; i++)
+    for (int i = 0; i < 3; i++)
     {
-        keys.push_back(SecretKey::fromSeed(sha256("SEED_VALIDATION_SEED_" + std::to_string(i))));
+        keys.push_back(SecretKey::fromSeed(
+            sha256("SEED_VALIDATION_SEED_" + std::to_string(i))));
     }
 
     SCPQuorumSet qSet;
     qSet.threshold = 2;
-    for(auto k : keys)
+    for (auto& k : keys)
     {
         qSet.validators.push_back(k.getPublicKey());
     }
@@ -77,30 +77,24 @@ TEST_CASE("3 nodes. 2 running. threshold 2", "[simulation]")
     simulation->addNode(keys[1], qSet, simulation->getClock());
     simulation->addConnection(keys[0].getPublicKey(), keys[1].getPublicKey());
 
-    
     auto tBegin = std::chrono::system_clock::now();
 
     LOG(INFO) << "#######################################################";
 
     simulation->startAllNodes();
 
-
     int nLedgers = 10;
     simulation->crankUntil(
         [&simulation, nLedgers]()
-    {
-        return simulation->haveAllExternalized(nLedgers + 1);
-    },
+        {
+            return simulation->haveAllExternalized(nLedgers + 1);
+        },
         2 * nLedgers * Herder::EXP_LEDGER_TIMESPAN_SECONDS);
 
     printStats(nLedgers, tBegin, simulation);
 
     REQUIRE(simulation->haveAllExternalized(nLedgers + 1));
-
-    
-    
 }
-
 
 TEST_CASE("core topology: 4 ledgers at scales 2..4", "[simulation]")
 {
@@ -124,12 +118,12 @@ TEST_CASE("core topology: 4 ledgers at scales 2..4", "[simulation]")
         int nLedgers = 4;
         sim->crankUntil(
             [&sim, nLedgers]()
-        {
-            return sim->haveAllExternalized(nLedgers+1);
-        },
+            {
+                return sim->haveAllExternalized(nLedgers + 1);
+            },
             2 * nLedgers * Herder::EXP_LEDGER_TIMESPAN_SECONDS);
 
-        REQUIRE(sim->haveAllExternalized(nLedgers+1));
+        REQUIRE(sim->haveAllExternalized(nLedgers + 1));
 
         printStats(nLedgers, tBegin, sim);
     }
@@ -145,12 +139,12 @@ hierarchicalTopo(int nLedgers, int nBranches, Simulation::Mode mode)
 
     sim->crankUntil(
         [&sim, nLedgers]()
-    {
-        return sim->haveAllExternalized(nLedgers+1);
-    },
+        {
+            return sim->haveAllExternalized(nLedgers + 1);
+        },
         20 * nLedgers * Herder::EXP_LEDGER_TIMESPAN_SECONDS);
 
-    REQUIRE(sim->haveAllExternalized(nLedgers+1));
+    REQUIRE(sim->haveAllExternalized(nLedgers + 1));
 
     printStats(nLedgers, tBegin, sim);
 }
@@ -170,13 +164,12 @@ TEST_CASE("hierarchical topology scales 1..3", "[simulation]")
     }
 
     int const nLedgers = 4;
-    for (auto nBranches = 1; nBranches <= 3; nBranches+=2)
+    for (int nBranches = 1; nBranches <= 3; nBranches += 2)
     {
         hierarchicalTopo(nLedgers, nBranches, mode);
     }
 }
 */
-
 
 TEST_CASE("cycle4 topology", "[simulation]")
 {
@@ -194,9 +187,8 @@ TEST_CASE("cycle4 topology", "[simulation]")
     REQUIRE(simulation->haveAllExternalized(2));
 }
 
-TEST_CASE(
-    "Stress test on 2 nodes 3 accounts 10 random transactions 10tx/sec",
-    "[stress100][simulation][stress][long][hide]")
+TEST_CASE("Stress test on 2 nodes 3 accounts 10 random transactions 10tx/sec",
+          "[stress100][simulation][stress][long][hide]")
 {
     Simulation::pointer simulation =
         Topologies::pair(Simulation::OVER_LOOPBACK);

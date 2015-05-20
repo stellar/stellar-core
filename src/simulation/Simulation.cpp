@@ -28,7 +28,7 @@ uint64
 Simulation::getMinBalance()
 {
     int64_t mx = 0;
-    for (auto n : mNodes)
+    for (const auto& n : mNodes)
     {
         auto b = n.second->getLedgerManager().getMinBalance(0);
         mx = (b > mx ? b : mx);
@@ -50,13 +50,12 @@ Simulation::Simulation(Mode mode)
 
 Simulation::~Simulation()
 {
-    
+
     // tear down
     mClock.getIOService().poll_one();
     mClock.getIOService().stop();
     while (mClock.cancelAllEvents())
         ;
-
 }
 
 VirtualClock&
@@ -79,7 +78,7 @@ Simulation::addNode(SecretKey nodeKey, SCPQuorumSet qSet, VirtualClock& clock,
     cfg->FORCE_SCP = true;
     cfg->RUN_STANDALONE = (mMode == OVER_LOOPBACK);
 
-    for (auto q : qSet.validators)
+    for (auto const& q : qSet.validators)
     {
         cfg->QUORUM_SET.push_back(q);
     }
@@ -102,7 +101,7 @@ vector<Application::pointer>
 Simulation::getNodes()
 {
     vector<Application::pointer> result;
-    for (auto app : mNodes)
+    for (auto const& app : mNodes)
         result.push_back(app.second);
     return result;
 }
@@ -110,7 +109,7 @@ vector<uint256>
 Simulation::getNodeIDs()
 {
     vector<uint256> result;
-    for (auto app : mNodes)
+    for (auto const& app : mNodes)
         result.push_back(app.first);
     return result;
 }
@@ -155,9 +154,10 @@ void
 Simulation::startAllNodes()
 {
     // We wait for the connections to set up (HELLO).
-    while (crankAllNodes() > 0);
+    while (crankAllNodes() > 0)
+        ;
 
-    for (auto it : mNodes)
+    for (auto const& it : mNodes)
     {
         it.second->start();
     }
@@ -419,7 +419,7 @@ Simulation::execute(TxInfo transaction)
 void
 Simulation::executeAll(vector<TxInfo> const& transactions)
 {
-    for (auto tx : transactions)
+    for (auto& tx : transactions)
     {
         execute(tx);
     }
@@ -478,7 +478,7 @@ Simulation::accountsOutOfSyncWithDb()
     vector<AccountInfoPtr> result;
     int iApp = 0;
     int64_t totalOffsets = 0;
-    for (auto pair : mNodes)
+    for (auto const& pair : mNodes)
     {
         iApp++;
         auto app = pair.second;
@@ -579,7 +579,7 @@ Simulation::metricsSummary(string domain)
     std::stringstream out;
 
     ConsoleReporterWithSum reporter{registry, out};
-    for (auto kv : metrics)
+    for (auto const& kv : metrics)
     {
         auto metric = kv.first;
         if (domain == "" || metric.domain() == domain)

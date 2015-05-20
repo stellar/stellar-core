@@ -167,7 +167,7 @@ simulateInflation(int nbAccounts, int64& totCoins, int64& totFees,
     }
 
     std::vector<int64> balRes;
-    for (auto b : balances)
+    for (auto const& b : balances)
     {
         balRes.emplace_back(b.second);
     }

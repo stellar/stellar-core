@@ -253,7 +253,7 @@ void
 Peer::recvDontHave(StellarMessage const& msg)
 {
     mApp.getHerder().peerDoesntHave(msg.dontHave().type, msg.dontHave().reqHash,
-        shared_from_this());
+                                    shared_from_this());
 }
 
 void
@@ -277,7 +277,7 @@ Peer::recvGetTxSet(StellarMessage const& msg)
 void
 Peer::recvTxSet(StellarMessage const& msg)
 {
-    TxSetFrame frame(msg.txSet()); 
+    TxSetFrame frame(msg.txSet());
     mApp.getHerder().recvTxSet(frame.getContentsHash(), frame);
 }
 
@@ -302,9 +302,9 @@ Peer::recvTransaction(StellarMessage const& msg)
 void
 Peer::recvGetSCPQuorumSet(StellarMessage const& msg)
 {
-    SCPQuorumSetPtr qset=mApp.getHerder().getQSet(msg.qSetHash());
+    SCPQuorumSetPtr qset = mApp.getHerder().getQSet(msg.qSetHash());
 
-    if(qset)
+    if (qset)
     {
         sendSCPQuorumSet(qset);
     }
@@ -366,10 +366,10 @@ Peer::recvHello(StellarMessage const& msg)
     CLOG(DEBUG, "Overlay") << "recvHello from " << toString();
     mState = GOT_HELLO;
     mPeerID = msg.hello().peerID;
-    if(mRole == INITIATOR)
+    if (mRole == INITIATOR)
     {
-        PeerRecord pr( getIP(), mRemoteListeningPort,
-            mApp.getClock().now(), 0, 1 );
+        PeerRecord pr(getIP(), mRemoteListeningPort, mApp.getClock().now(), 0,
+                      1);
 
         pr.insertIfNew(mApp.getDatabase());
     }
@@ -385,7 +385,7 @@ Peer::recvGetPeers(StellarMessage const& msg)
 void
 Peer::recvPeers(StellarMessage const& msg)
 {
-    for (auto peer : msg.peers())
+    for (auto const& peer : msg.peers())
     {
         stringstream ip;
 

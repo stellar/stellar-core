@@ -85,7 +85,8 @@ class LedgerManager
     virtual State getState() const = 0;
     virtual std::string getStateHuman() const = 0;
 
-    bool isSynced() const
+    bool
+    isSynced() const
     {
         return getState() == LM_SYNCED_STATE;
     }
@@ -157,7 +158,7 @@ class LedgerManager
     // disabled.
     virtual void startCatchUp(uint32_t initLedger,
                               HistoryManager::CatchupMode resume,
-                              bool manualCatchup=false) = 0;
+                              bool manualCatchup = false) = 0;
 
     // Called by the history subsystem during catchup: this method asks the
     // LedgerManager whether or not the HistoryManager should trust (thus: begin
@@ -177,7 +178,7 @@ class LedgerManager
     // changes.  This is normally done automatically as part of
     // `externalizeValue()`; this method is present in the public interface to
     // permit testing.
-    virtual void closeLedger(LedgerCloseData ledgerData) = 0;
+    virtual void closeLedger(LedgerCloseData const& ledgerData) = 0;
 
     virtual ~LedgerManager()
     {

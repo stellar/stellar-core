@@ -144,7 +144,7 @@ bool
 SCP::isVBlocking(std::vector<uint256> const& nodes)
 {
     std::map<uint256, bool> map;
-    for (auto v : nodes)
+    for (auto const& v : nodes)
     {
         map[v] = true;
     }

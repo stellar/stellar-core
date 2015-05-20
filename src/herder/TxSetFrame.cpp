@@ -22,7 +22,7 @@ TxSetFrame::TxSetFrame(Hash const& previousLedgerHash)
 
 TxSetFrame::TxSetFrame(TransactionSet const& xdrSet) : mHashIsValid(false)
 {
-    for (auto txEnvelope : xdrSet.txs)
+    for (auto const& txEnvelope : xdrSet.txs)
     {
         TransactionFramePtr tx =
             TransactionFrame::makeTransactionFromWire(txEnvelope);
@@ -58,7 +58,7 @@ struct ApplyTxSorter
     }
 
     bool operator()(TransactionFramePtr const& tx1,
-                    TransactionFramePtr const& tx2)
+                    TransactionFramePtr const& tx2) const
     {
         // need to use the hash of whole tx here since multiple txs could have
         // the same Contents
@@ -117,7 +117,7 @@ TxSetFrame::sortForApply()
 
     retList.clear();
 
-    for (auto batch : txBatches)
+    for (auto& batch : txBatches)
     {
         // randomize each batch using the hash of the transaction set
         // as a way to randomize even more
@@ -201,7 +201,11 @@ TxSetFrame::checkValid(Application& app) const
     if (app.getLedgerManager().getLastClosedLedgerHeader().hash !=
         mPreviousLedgerHash)
     {
-        CLOG(TRACE, "Herder") << "Got bad txSet: " << hexAbbrev(mPreviousLedgerHash) << " ; expected: " << hexAbbrev(app.getLedgerManager().getLastClosedLedgerHeader().hash);
+        CLOG(TRACE, "Herder")
+            << "Got bad txSet: " << hexAbbrev(mPreviousLedgerHash)
+            << " ; expected: "
+            << hexAbbrev(
+                   app.getLedgerManager().getLastClosedLedgerHeader().hash);
         return false;
     }
 

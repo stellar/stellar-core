@@ -157,7 +157,8 @@ HistoryArchiveState::remoteName(uint32_t snapshotNumber)
 std::string
 HistoryArchiveState::localName(Application& app, std::string const& archiveName)
 {
-    return app.getHistoryManager().localFilename(archiveName + "-" + baseName());
+    return app.getHistoryManager().localFilename(archiveName + "-" +
+                                                 baseName());
 }
 
 Hash
@@ -213,7 +214,7 @@ HistoryArchiveState::differingBuckets(HistoryArchiveState const& other) const
             n = currentBuckets[i - 1].next.getOutputHash();
         }
         auto c = currentBuckets[i - 1].curr;
-        auto bs = { s, n, c };
+        auto bs = {s, n, c};
         for (auto const& j : bs)
         {
             if (inhibit.find(j) == inhibit.end())
@@ -253,7 +254,6 @@ HistoryArchiveState::HistoryArchiveState(uint32_t ledgerSeq,
         currentBuckets.push_back(b);
     }
 }
-
 
 HistoryArchive::HistoryArchive(std::string const& name,
                                std::string const& getCmd,
@@ -340,7 +340,7 @@ HistoryArchive::getStateFromPath(
                 {
                     has.load(local);
                 }
-                catch(...)
+                catch (...)
                 {
                     CLOG(WARNING, "History") << "Exception loading: " << local;
                     ec2 = std::make_error_code(std::errc::io_error);
@@ -359,27 +359,28 @@ HistoryArchive::putState(
     auto local = HistoryArchiveState::localName(app, mName);
     s.save(local);
     auto self = shared_from_this();
-    putStateInDir(app, s, local, HistoryArchiveState::remoteDir(s.currentLedger),
-                  HistoryArchiveState::remoteName(s.currentLedger),
-                  [&app, s, self, local, handler](asio::error_code const& ec)
-                  {
-        if (ec)
+    putStateInDir(
+        app, s, local, HistoryArchiveState::remoteDir(s.currentLedger),
+        HistoryArchiveState::remoteName(s.currentLedger),
+        [&app, s, self, local, handler](asio::error_code const& ec)
         {
-            std::remove(local.c_str());
-            handler(ec);
-        }
-        else
-        {
-            self->putStateInDir(app, s, local,
-                                HistoryArchiveState::wellKnownRemoteDir(),
-                                HistoryArchiveState::wellKnownRemoteName(),
-                                [local, handler](asio::error_code const& ec2)
-                                {
+            if (ec)
+            {
                 std::remove(local.c_str());
-                handler(ec2);
-            });
-        }
-    });
+                handler(ec);
+            }
+            else
+            {
+                self->putStateInDir(
+                    app, s, local, HistoryArchiveState::wellKnownRemoteDir(),
+                    HistoryArchiveState::wellKnownRemoteName(),
+                    [local, handler](asio::error_code const& ec2)
+                    {
+                        std::remove(local.c_str());
+                        handler(ec2);
+                    });
+            }
+        });
 }
 
 void
@@ -396,35 +397,37 @@ HistoryArchive::putStateInDir(
              [&hm, self, local, remoteDir, remoteName, handler, archiveName](
                  asio::error_code const& ec)
              {
-        if (ec)
-        {
-            CLOG(WARNING, "History") << "failed to make directory " << remoteDir
-                                     << " in history archive '" << archiveName
-                                     << "'";
-            handler(ec);
-        }
-        else
-        {
-            hm.putFile(
-                self, local, remoteName,
-                [remoteName, archiveName, handler](asio::error_code const& ec2)
-                {
-                    if (ec2)
-                    {
-                        CLOG(WARNING, "History")
-                            << "failed to put " << remoteName
-                            << " in history archive '" << archiveName << "'";
-                    }
-                    else
-                    {
-                        CLOG(INFO, "History") << "put " << remoteName
-                                              << " in history archive '"
-                                              << archiveName << "'";
-                    }
-                    handler(ec2);
-                });
-        }
-    });
+                 if (ec)
+                 {
+                     CLOG(WARNING, "History")
+                         << "failed to make directory " << remoteDir
+                         << " in history archive '" << archiveName << "'";
+                     handler(ec);
+                 }
+                 else
+                 {
+                     hm.putFile(self, local, remoteName,
+                                [remoteName, archiveName, handler](
+                                    asio::error_code const& ec2)
+                                {
+                                    if (ec2)
+                                    {
+                                        CLOG(WARNING, "History")
+                                            << "failed to put " << remoteName
+                                            << " in history archive '"
+                                            << archiveName << "'";
+                                    }
+                                    else
+                                    {
+                                        CLOG(INFO, "History")
+                                            << "put " << remoteName
+                                            << " in history archive '"
+                                            << archiveName << "'";
+                                    }
+                                    handler(ec2);
+                                });
+                 }
+             });
 }
 
 std::string

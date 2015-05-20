@@ -465,7 +465,7 @@ LedgerManagerImpl::historyCaughtup(asio::error_code const& ec,
 
         // Now replay remaining txs from buffered local network history.
         bool applied = false;
-        for (auto lcd : mSyncingLedgers)
+        for (auto const& lcd : mSyncingLedgers)
         {
             if (lcd.mLedgerSeq < mLastClosedLedger.header.ledgerSeq + 1)
             {
@@ -557,7 +557,7 @@ during replays.
 
 */
 void
-LedgerManagerImpl::closeLedger(LedgerCloseData ledgerData)
+LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
 {
     CLOG(DEBUG, "Ledger") << "starting closeLedger() on ledgerSeq="
                           << mCurrentLedger->mHeader.ledgerSeq;

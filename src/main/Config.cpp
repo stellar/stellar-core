@@ -88,9 +88,9 @@ Config::load(std::string const& filename)
             else if (item.first == "DESIRED_BASE_FEE")
                 DESIRED_BASE_FEE =
                     (uint32_t)item.second->as<int64_t>()->value();
-            else if(item.first == "DESIRED_MAX_TX_PER_LEDGER")
+            else if (item.first == "DESIRED_MAX_TX_PER_LEDGER")
                 DESIRED_MAX_TX_PER_LEDGER =
-                (uint32_t)item.second->as<int64_t>()->value();
+                    (uint32_t)item.second->as<int64_t>()->value();
             else if (item.first == "RUN_STANDALONE")
                 RUN_STANDALONE = item.second->as<bool>()->value();
             else if (item.first == "CATCHUP_COMPLETE")
@@ -183,9 +183,11 @@ Config::load(std::string const& filename)
                             }
                             else
                             {
-                                std::string err("Unknown HISTORY-table entry: '");
+                                std::string err(
+                                    "Unknown HISTORY-table entry: '");
                                 err += c.first;
-                                err += "', within [HISTORY." + archive.first + "]";
+                                err +=
+                                    "', within [HISTORY." + archive.first + "]";
                                 throw std::invalid_argument(err);
                             }
                         }
@@ -221,12 +223,10 @@ Config::quorumSet() const
 {
     SCPQuorumSet qSet;
     qSet.threshold = QUORUM_THRESHOLD;
-    for (auto q : QUORUM_SET)
+    for (auto const& q : QUORUM_SET)
     {
         qSet.validators.push_back(q);
     }
     return qSet;
 }
-
-
 }

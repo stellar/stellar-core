@@ -127,7 +127,7 @@ void
 OverlayManagerImpl::storePeerList(std::vector<std::string> const& list,
                                   int rank)
 {
-    for (auto peerStr : list)
+    for (auto const& peerStr : list)
     {
 
         PeerRecord pr;
@@ -155,7 +155,7 @@ OverlayManagerImpl::connectToMorePeers(int max)
     vector<PeerRecord> peers;
     PeerRecord::loadPeerRecords(mApp.getDatabase(), max, mApp.getClock().now(),
                                 peers);
-    for (auto pr : peers)
+    for (auto& pr : peers)
     {
         if (mPeers.size() >= mApp.getConfig().TARGET_PEER_CONNECTIONS)
         {
@@ -172,7 +172,7 @@ OverlayManagerImpl::connectToMorePeers(int max)
 void
 OverlayManagerImpl::tick()
 {
-    CLOG(TRACE,"Overlay") << "OverlayManagerImpl tick";
+    CLOG(TRACE, "Overlay") << "OverlayManagerImpl tick";
     if (mPeers.size() < mApp.getConfig().TARGET_PEER_CONNECTIONS)
     {
         connectToMorePeers(static_cast<int>(
@@ -191,7 +191,7 @@ OverlayManagerImpl::tick()
 Peer::pointer
 OverlayManagerImpl::getConnectedPeer(std::string const& ip, unsigned short port)
 {
-    for (auto peer : mPeers)
+    for (auto& peer : mPeers)
     {
         if (peer->getIP() == ip && peer->getRemoteListeningPort() == port)
         {
@@ -270,7 +270,6 @@ OverlayManagerImpl::getRandomPeer()
     return Peer::pointer();
 }
 
-
 // returns NULL if the passed peer isn't found
 Peer::pointer
 OverlayManagerImpl::getNextPeer(Peer::pointer peer)
@@ -279,7 +278,8 @@ OverlayManagerImpl::getNextPeer(Peer::pointer peer)
     if (mPeers.empty() || index == mPeers.end())
     {
         return nullptr;
-    } else if (index + 1 == mPeers.end())
+    }
+    else if (index + 1 == mPeers.end())
     {
         return mPeers.front();
     }
@@ -307,7 +307,4 @@ OverlayManager::dropAll(Database& db)
 {
     PeerRecord::dropAll(db);
 }
-
-
-
 }

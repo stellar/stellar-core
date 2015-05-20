@@ -40,5 +40,3 @@ TEST_CASE("loopback peer hello", "[overlay]")
         }
     }
 }
-
-

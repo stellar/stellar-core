@@ -33,7 +33,7 @@ Node::hasQuorum(Hash const& qSetHash, std::vector<uint256> const& nodeSet)
     SCPQuorumSetPtr qSet = retrieveQuorumSet(qSetHash);
 
     uint32 count = 0;
-    for (auto n : qSet->validators)
+    for (auto const& n : qSet->validators)
     {
         auto it = std::find(nodeSet.begin(), nodeSet.end(), n);
         count += (it != nodeSet.end()) ? 1 : 0;
@@ -61,7 +61,7 @@ Node::isVBlocking(Hash const& qSetHash, std::vector<uint256> const& nodeSet)
     }
 
     uint32 count = 0;
-    for (auto n : qSet->validators)
+    for (auto const &n : qSet->validators)
     {
         auto it = std::find(nodeSet.begin(), nodeSet.end(), n);
         count += (it != nodeSet.end()) ? 1 : 0;
@@ -78,7 +78,7 @@ Node::isVBlocking(Hash const& qSetHash, std::map<uint256, T> const& map,
                   std::function<bool(uint256 const&, T const&)> const& filter)
 {
     std::vector<uint256> pNodes;
-    for (auto it : map)
+    for (auto const& it : map)
     {
         if (filter(it.first, it.second))
         {
@@ -105,7 +105,7 @@ Node::isQuorumTransitive(
     std::function<bool(uint256 const&, T const&)> const& filter)
 {
     std::vector<uint256> pNodes;
-    for (auto it : map)
+    for (auto const& it : map)
     {
         if (filter(it.first, it.second))
         {

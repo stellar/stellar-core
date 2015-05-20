@@ -224,7 +224,7 @@ CreateOfferOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
 
         // updates the result with the offers that got taken on the way
 
-        for (auto oatom : oe.getOfferTrail())
+        for (auto const& oatom : oe.getOfferTrail())
         {
             innerResult().success().offersClaimed.push_back(oatom);
         }

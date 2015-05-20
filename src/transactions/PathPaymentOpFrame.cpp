@@ -180,7 +180,7 @@ PathPaymentOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
             return false;
         }
 
-        if(!sourceLineFrame->isAuthorized())
+        if (!sourceLineFrame->isAuthorized())
         {
             innerResult().code(PATH_PAYMENT_NOT_AUTHORIZED);
             return false;

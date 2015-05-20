@@ -221,26 +221,25 @@ HerderImpl::validateValue(uint64 const& slotIndex, uint256 const& nodeID,
 
     // we are fully synced up
 
-
     if (!mLedgerManager.isSynced())
     {
         cb(true);
         return;
     }
 
-   
-   TxSetFramePtr txSet = mPendingEnvelopes.getTxSet(txSetHash);
-   
-   if(!txSet)
-   {
-       CLOG(ERROR, "Herder")
-           << "HerderImpl::validateValue"
-           << "@" << hexAbbrev(getLocalNodeID()) << " i: " << slotIndex
-           << " n: " << hexAbbrev(nodeID) << " txSet not found?";
+    TxSetFramePtr txSet = mPendingEnvelopes.getTxSet(txSetHash);
 
-       this->mValueInvalid.Mark();
-       cb(false);
-   }else if(!txSet->checkValid(mApp))
+    if (!txSet)
+    {
+        CLOG(ERROR, "Herder")
+            << "HerderImpl::validateValue"
+            << "@" << hexAbbrev(getLocalNodeID()) << " i: " << slotIndex
+            << " n: " << hexAbbrev(nodeID) << " txSet not found?";
+
+        this->mValueInvalid.Mark();
+        cb(false);
+    }
+    else if (!txSet->checkValid(mApp))
     {
         CLOG(DEBUG, "Herder")
             << "HerderImpl::validateValue"
@@ -261,7 +260,6 @@ HerderImpl::validateValue(uint64 const& slotIndex, uint256 const& nodeID,
         cb(true);
     }
 }
-
 
 int
 HerderImpl::compareValues(uint64 const& slotIndex, uint32 const& ballotCounter,
@@ -425,7 +423,7 @@ HerderImpl::validateBallot(uint64 const& slotIndex, uint256 const& nodeID,
                           << " timeout: " << pow(2.0, ballot.counter) / 2;
 
     mBallotValid.Mark();
-    return cb(true); 
+    return cb(true);
 }
 
 void
@@ -489,9 +487,7 @@ HerderImpl::valueExternalized(uint64 const& slotIndex, Value const& value)
     mTrackingSCP = make_unique<ConsensusData>(slotIndex, b);
     trackingHeartBeat();
 
-
     TxSetFramePtr externalizedSet = mPendingEnvelopes.getTxSet(txSetHash);
-
 
     // trigger will be recreated when the ledger is closed
     // we do not want it to trigger while downloading the current set
@@ -502,7 +498,7 @@ HerderImpl::valueExternalized(uint64 const& slotIndex, Value const& value)
     // LedgerManager will perform the proper action based on its internal
     // state: apply, trigger catchup, etc
     LedgerCloseData ledgerData(lastConsensusLedgerIndex(), externalizedSet,
-        b.value.closeTime, b.value.baseFee);
+                               b.value.closeTime, b.value.baseFee);
     mLedgerManager.externalizeValue(ledgerData);
 
     // perform cleanups
@@ -522,7 +518,7 @@ HerderImpl::valueExternalized(uint64 const& slotIndex, Value const& value)
 
     // Evict nodes that weren't touched for more than
     auto now = mApp.getClock().now();
-    for (auto it : mNodeLastAccess)
+    for (auto& it : mNodeLastAccess)
     {
         if ((now - it.second) > NODE_EXPIRATION_SECONDS)
         {
@@ -558,7 +554,6 @@ HerderImpl::nodeTouched(uint256 const& nodeID)
     mNodeLastAccess[nodeID] = mApp.getClock().now();
     mNodeLastAccessSize.set_count(mNodeLastAccess.size());
 }
-
 
 void
 HerderImpl::rebroadcast()
@@ -608,7 +603,8 @@ HerderImpl::emitEnvelope(SCPEnvelope const& envelope)
         // SCP may emit envelopes as our instance changes state
         // yet, we do not want to send those out as we don't do full validation
         // when out of sync
-        if (!mTrackingSCP || !mLedgerManager.isSynced() || mCurrentValue.empty())
+        if (!mTrackingSCP || !mLedgerManager.isSynced() ||
+            mCurrentValue.empty())
         {
             return;
         }
@@ -617,7 +613,8 @@ HerderImpl::emitEnvelope(SCPEnvelope const& envelope)
         mLastSentMessage.type(SCP_MESSAGE);
         mLastSentMessage.envelope() = envelope;
 
-        CLOG(DEBUG, "Herder") << "emitEnvelope"
+        CLOG(DEBUG, "Herder")
+            << "emitEnvelope"
             << " from: " << hexAbbrev(envelope.nodeID)
             << " s:" << envelope.statement.pledges.type()
             << " i:" << envelope.statement.slotIndex
@@ -696,7 +693,7 @@ HerderImpl::recvTransaction(TransactionFramePtr tx)
 }
 
 void
-HerderImpl::recvSCPEnvelope(SCPEnvelope const & envelope)
+HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope)
 {
     CLOG(DEBUG, "Herder") << "recvSCPEnvelope@" << hexAbbrev(getLocalNodeID())
                           << " from: " << hexAbbrev(envelope.nodeID)
@@ -731,8 +728,6 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope const & envelope)
     mPendingEnvelopes.recvSCPEnvelope(envelope);
 }
 
-
-
 void
 HerderImpl::processSCPQueue()
 {
@@ -741,7 +736,7 @@ HerderImpl::processSCPQueue()
         // drop obsolete slots
         mPendingEnvelopes.eraseBelow(nextConsensusLedgerIndex());
 
-        // process current slot only 
+        // process current slot only
         processSCPQueueAtIndex(nextConsensusLedgerIndex());
     }
     else
@@ -765,10 +760,10 @@ HerderImpl::processSCPQueue()
 void
 HerderImpl::processSCPQueueAtIndex(uint64 slotIndex)
 {
-    while(true)
+    while (true)
     {
         SCPEnvelope env;
-        if (mPendingEnvelopes.pop(slotIndex,env))
+        if (mPendingEnvelopes.pop(slotIndex, env))
         {
             receiveEnvelope(env);
         }
@@ -842,9 +837,9 @@ HerderImpl::ledgerClosed()
     }
 
     if (!mApp.getConfig().MANUAL_CLOSE)
-        mTriggerTimer.async_wait(
-            std::bind(&HerderImpl::triggerNextLedger, this, static_cast<uint32_t>(nextIndex)),
-            &VirtualTimer::onFailureNoop);
+        mTriggerTimer.async_wait(std::bind(&HerderImpl::triggerNextLedger, this,
+                                           static_cast<uint32_t>(nextIndex)),
+                                 &VirtualTimer::onFailureNoop);
 }
 
 void
@@ -868,32 +863,33 @@ HerderImpl::removeReceivedTx(TransactionFramePtr dropTx)
     }
 }
 
-void 
+void
 HerderImpl::recvSCPQuorumSet(Hash hash, const SCPQuorumSet& qset)
 {
     mPendingEnvelopes.recvSCPQuorumSet(hash, qset);
 }
 
-void 
+void
 HerderImpl::recvTxSet(Hash hash, const TxSetFrame& t)
 {
     TxSetFramePtr txset(new TxSetFrame(t));
     mPendingEnvelopes.recvTxSet(hash, txset);
 }
 
-void 
-HerderImpl::peerDoesntHave(MessageType type, uint256 const& itemID, PeerPtr peer)
+void
+HerderImpl::peerDoesntHave(MessageType type, uint256 const& itemID,
+                           PeerPtr peer)
 {
     mPendingEnvelopes.peerDoesntHave(type, itemID, peer);
 }
 
-TxSetFramePtr 
+TxSetFramePtr
 HerderImpl::getTxSet(Hash hash)
 {
     return mPendingEnvelopes.getTxSet(hash);
 }
 
-SCPQuorumSetPtr 
+SCPQuorumSetPtr
 HerderImpl::getQSet(const Hash& qSetHash)
 {
     return mPendingEnvelopes.getQSet(qSetHash);
@@ -954,11 +950,10 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger)
     // can be answered. Note this can trigger SCP callbacks, externalize, etc
     // if we happen to build a txset that we were trying to download.
     mPendingEnvelopes.recvTxSet(txSetHash, proposedSet);
-    
+
     // use the slot index from ledger manager here as our vote is based off
     // the last closed ledger stored in ledger manager
-    uint32_t slotIndex = lcl.header.ledgerSeq+1;
-
+    uint32_t slotIndex = lcl.header.ledgerSeq + 1;
 
     // no point in sending out a prepare:
     // externalize was triggered on a more recent ledger
