@@ -74,39 +74,49 @@ PendingEnvelopes::recvSCPEnvelope(SCPEnvelope const& envelope)
     // do we have the qset
     // do we have the txset
 
-    auto& set = mFetchingEnvelopes[envelope.statement.slotIndex];
+    try
+    {
+        auto& set = mFetchingEnvelopes[envelope.statement.slotIndex];
 
-    if (find(set.begin(), set.end(), envelope) == set.end())
-    { // we aren't fetching this envelop
+        if (find(set.begin(), set.end(), envelope) == set.end())
+        { // we aren't fetching this envelop
 
-        auto& receivedList = mReceivedEnvelopes[envelope.statement.slotIndex];
-        if (find(receivedList.begin(), receivedList.end(), envelope) ==
-            receivedList.end())
-        { // we haven't seen this envelope before
+            auto& receivedList =
+                mReceivedEnvelopes[envelope.statement.slotIndex];
+            if (find(receivedList.begin(), receivedList.end(), envelope) ==
+                receivedList.end())
+            { // we haven't seen this envelope before
 
-            receivedList.push_back(envelope);
-            if (startFetch(envelope))
-            { // fully fetched
-                envelopeReady(envelope);
-            }
-            else
+                receivedList.push_back(envelope);
+                if (startFetch(envelope))
+                { // fully fetched
+                    envelopeReady(envelope);
+                }
+                else
+                {
+                    mFetchingEnvelopes[envelope.statement.slotIndex].insert(
+                        envelope);
+                }
+
+                CLOG(DEBUG, "Herder") << "PendingEnvelopes::recvSCPEnvelope "
+                                      << envToStr(envelope);
+
+            } // else we already have this one
+        }
+        else
+        { // we are fetching this envelope
+            // check if we are done fetching it
+            if (isFullyFetched(envelope))
             {
-                mFetchingEnvelopes[envelope.statement.slotIndex].insert(
-                    envelope);
-            }
-
-            CLOG(DEBUG, "Herder") << "PendingEnvelopes::add "
-                                  << envToStr(envelope);
-
-        } // else we already have this one
+                envelopeReady(envelope);
+            } // else just keep waiting for it to come in
+        }
     }
-    else
-    { // we are fetching this envelope
-        // check if we are done fetching it
-        if (isFullyFetched(envelope))
-        {
-            envelopeReady(envelope);
-        } // else just keep waiting for it to come in
+    catch (xdr::xdr_runtime_error& e)
+    {
+        CLOG(TRACE, "Herder")
+            << "PendingEnvelopes::recvSCPEnvelope got corrupt message: "
+            << e.what();
     }
 }
 
