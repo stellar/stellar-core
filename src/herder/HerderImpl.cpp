@@ -560,7 +560,8 @@ HerderImpl::nodeTouched(uint256 const& nodeID)
 void
 HerderImpl::rebroadcast()
 {
-    if (mLastSentMessage.type() == SCP_MESSAGE)
+    if (mLastSentMessage.type() == SCP_MESSAGE &&
+        !mApp.getConfig().MANUAL_CLOSE)
     {
         CLOG(DEBUG, "Herder")
             << "rebroadcast "
@@ -580,8 +581,7 @@ HerderImpl::rebroadcast()
 void
 HerderImpl::startRebroadcastTimer()
 {
-    if (!mApp.getConfig().MANUAL_CLOSE &&
-        mLastSentMessage.type() == SCP_MESSAGE)
+    if (mLastSentMessage.type() == SCP_MESSAGE)
     {
         mRebroadcastTimer.expires_from_now(std::chrono::seconds(2));
 
@@ -697,6 +697,11 @@ HerderImpl::recvTransaction(TransactionFramePtr tx)
 void
 HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope)
 {
+    if (mApp.getConfig().MANUAL_CLOSE)
+    {
+        return;
+    }
+
     CLOG(DEBUG, "Herder") << "recvSCPEnvelope@" << hexAbbrev(getLocalNodeID())
                           << " from: " << hexAbbrev(envelope.nodeID)
                           << " s:" << envelope.statement.pledges.type()
@@ -1104,6 +1109,11 @@ HerderImpl::dumpInfo(Json::Value& ret)
 void
 HerderImpl::trackingHeartBeat()
 {
+    if (mApp.getConfig().MANUAL_CLOSE)
+    {
+        return;
+    }
+
     assert(mTrackingSCP);
     mTrackingTimer.expires_from_now(
         std::chrono::seconds(CONSENSUS_STUCK_TIMEOUT_SECONDS));
