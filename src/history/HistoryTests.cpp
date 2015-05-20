@@ -33,22 +33,22 @@ using xdr::operator==;
 
 class Configurator : NonCopyable
 {
-public:
+  public:
     virtual Config& configure(Config& cfg, bool writable) const = 0;
 };
 
-class
-TmpDirConfigurator : public Configurator
+class TmpDirConfigurator : public Configurator
 {
     TmpDirManager mArchtmp;
     TmpDir mDir;
-public:
-    TmpDirConfigurator()
-        : mArchtmp("archtmp")
-        , mDir(mArchtmp.tmpDir("archive"))
-        {}
 
-    Config& configure(Config& cfg, bool writable) const override
+  public:
+    TmpDirConfigurator() : mArchtmp("archtmp"), mDir(mArchtmp.tmpDir("archive"))
+    {
+    }
+
+    Config&
+    configure(Config& cfg, bool writable) const override
     {
         std::string d = mDir.getName();
         std::string getCmd = "cp " + d + "/{0} {1}";
@@ -104,11 +104,12 @@ class HistoryTests
     std::vector<SequenceNumber> mCarolSeqs;
 
   public:
-    HistoryTests(std::shared_ptr<Configurator> cg
-                 = std::make_shared<TmpDirConfigurator>())
+    HistoryTests(std::shared_ptr<Configurator> cg =
+                     std::make_shared<TmpDirConfigurator>())
         : mConfigurator(cg)
         , cfg(getTestConfig())
-        , appPtr(Application::create(clock, mConfigurator->configure(cfg, true)))
+        , appPtr(
+              Application::create(clock, mConfigurator->configure(cfg, true)))
         , app(*appPtr)
         , mRoot(txtest::getRoot())
         , mAlice(txtest::getAccount("alice"))
@@ -123,14 +124,14 @@ class HistoryTests
     void generateAndPublishHistory(size_t nPublishes);
     void generateAndPublishInitialHistory(size_t nPublishes);
 
-    Application::pointer catchupNewApplication(
-        uint32_t initLedger, Config::TestDbMode dbMode,
-        HistoryManager::CatchupMode resumeMode, std::string const& appName);
+    Application::pointer
+    catchupNewApplication(uint32_t initLedger, Config::TestDbMode dbMode,
+                          HistoryManager::CatchupMode resumeMode,
+                          std::string const& appName);
 
     bool catchupApplication(uint32_t initLedger,
                             HistoryManager::CatchupMode resumeMode,
-                            Application::pointer app2,
-                            bool doStart = true,
+                            Application::pointer app2, bool doStart = true,
                             uint32_t maxCranks = 0xffffffff);
 
     bool
@@ -179,17 +180,17 @@ TEST_CASE_METHOD(HistoryTests, "HistoryManager::compress", "[history]")
     bool done = false;
     hm.compress(fname, [&done, &fname, &hm](asio::error_code const& ec)
                 {
-        std::string compressed = fname + ".gz";
-        CHECK(!fs::exists(fname));
-        CHECK(fs::exists(compressed));
-        hm.decompress(compressed,
-                      [&done, &fname, compressed](asio::error_code const& ec)
-                      {
-            CHECK(fs::exists(fname));
-            CHECK(!fs::exists(compressed));
-            done = true;
-        });
-    });
+                    std::string compressed = fname + ".gz";
+                    CHECK(!fs::exists(fname));
+                    CHECK(fs::exists(compressed));
+                    hm.decompress(compressed, [&done, &fname, compressed](
+                                                  asio::error_code const& ec)
+                                  {
+                                      CHECK(fs::exists(fname));
+                                      CHECK(!fs::exists(compressed));
+                                      done = true;
+                                  });
+                });
     crankTillDone(done);
 }
 
@@ -207,9 +208,9 @@ TEST_CASE_METHOD(HistoryTests, "HistoryManager::verifyHash", "[history]")
         "12998c017066eb0d2a70b94e6ed3192985855ce390f321bbdb832022888bd251");
     hm.verifyHash(fname, hash, [&done](asio::error_code const& ec)
                   {
-        CHECK(!ec);
-        done = true;
-    });
+                      CHECK(!ec);
+                      done = true;
+                  });
     crankTillDone(done);
 }
 
@@ -228,16 +229,16 @@ TEST_CASE_METHOD(HistoryTests, "HistoryArchiveState::get_put", "[history]")
     archive->putState(app, has,
                       [&done, &theApp, archive](asio::error_code const& ec)
                       {
-        CHECK(!ec);
-        archive->getMostRecentState(
-            theApp,
-            [&done](asio::error_code const& ec, HistoryArchiveState const& has2)
-            {
-                CHECK(!ec);
-                CHECK(has2.currentLedger == 0x1234);
-                done = true;
-            });
-    });
+                          CHECK(!ec);
+                          archive->getMostRecentState(
+                              theApp, [&done](asio::error_code const& ec,
+                                              HistoryArchiveState const& has2)
+                              {
+                                  CHECK(!ec);
+                                  CHECK(has2.currentLedger == 0x1234);
+                                  done = true;
+                              });
+                      });
     crankTillDone(done);
 }
 
@@ -293,8 +294,7 @@ HistoryTests::generateRandomLedger()
     txSet->getContentsHash();
 
     CLOG(DEBUG, "History") << "Closing synthetic ledger " << ledgerSeq
-                           << " with " << txSet->size()
-                           << " txs (txhash:"
+                           << " with " << txSet->size() << " txs (txhash:"
                            << hexAbbrev(txSet->getContentsHash()) << ")";
 
     mLedgerCloseDatas.emplace_back(ledgerSeq, txSet, closeTime, 10);
@@ -302,11 +302,18 @@ HistoryTests::generateRandomLedger()
 
     mLedgerSeqs.push_back(lm.getLastClosedLedgerHeader().header.ledgerSeq);
     mLedgerHashes.push_back(lm.getLastClosedLedgerHeader().hash);
-    mBucketListHashes.push_back(lm.getLastClosedLedgerHeader().header.bucketListHash);
-    mBucket0Hashes.push_back(
-        app.getBucketManager().getBucketList().getLevel(0).getCurr()->getHash());
-    mBucket1Hashes.push_back(
-        app.getBucketManager().getBucketList().getLevel(2).getCurr()->getHash());
+    mBucketListHashes.push_back(
+        lm.getLastClosedLedgerHeader().header.bucketListHash);
+    mBucket0Hashes.push_back(app.getBucketManager()
+                                 .getBucketList()
+                                 .getLevel(0)
+                                 .getCurr()
+                                 ->getHash());
+    mBucket1Hashes.push_back(app.getBucketManager()
+                                 .getBucketList()
+                                 .getLevel(2)
+                                 .getCurr()
+                                 ->getHash());
 
     mRootBalances.push_back(txtest::getAccountBalance(mRoot, app));
     mAliceBalances.push_back(txtest::getAccountBalance(mAlice, app));
@@ -353,7 +360,6 @@ HistoryTests::generateAndPublishHistory(size_t nPublishes)
             ((publishSuccesses + nPublishes) * hm.getCheckpointFrequency()));
 }
 
-
 void
 HistoryTests::generateAndPublishInitialHistory(size_t nPublishes)
 {
@@ -382,8 +388,8 @@ HistoryTests::catchupNewApplication(uint32_t initLedger,
 
     mCfgs.emplace_back(
         getTestConfig(static_cast<int>(mCfgs.size()) + 1, dbMode));
-    Application::pointer app2 =
-        Application::create(clock, mConfigurator->configure(mCfgs.back(), false));
+    Application::pointer app2 = Application::create(
+        clock, mConfigurator->configure(mCfgs.back(), false));
     app2->start();
     CHECK(catchupApplication(initLedger, resumeMode, app2) == true);
     return app2;
@@ -392,10 +398,9 @@ HistoryTests::catchupNewApplication(uint32_t initLedger,
 bool
 HistoryTests::catchupApplication(uint32_t initLedger,
                                  HistoryManager::CatchupMode resumeMode,
-                                 Application::pointer app2,
-                                 bool doStart, uint32_t maxCranks)
+                                 Application::pointer app2, bool doStart,
+                                 uint32_t maxCranks)
 {
-
 
     auto& lm = app2->getLedgerManager();
     if (doStart)
@@ -413,7 +418,8 @@ HistoryTests::catchupApplication(uint32_t initLedger,
         // 192 (the first entry in block 4) and externalize that value, so that
         // the catchup can see a {192}.prevHash to knit up block 3 against.
 
-        CLOG(INFO, "History") << "force-starting catchup at initLedger=" << initLedger;
+        CLOG(INFO, "History")
+            << "force-starting catchup at initLedger=" << initLedger;
         lm.startCatchUp(initLedger, resumeMode);
     }
 
@@ -421,8 +427,8 @@ HistoryTests::catchupApplication(uint32_t initLedger,
     // sitting on the boundary of it. This will ensure there's something
     // externalizable to knit-up with on the catchup side.
     if (app.getHistoryManager().nextCheckpointLedger(
-            app.getLedgerManager().getLastClosedLedgerNum())
-        == app.getLedgerManager().getLedgerNum())
+            app.getLedgerManager().getLastClosedLedgerNum()) ==
+        app.getLedgerManager().getLedgerNum())
     {
         CLOG(INFO, "History")
             << "force-publishing first ledger in next history block, ledger="
@@ -438,15 +444,15 @@ HistoryTests::catchupApplication(uint32_t initLedger,
         app.getHistoryManager().nextCheckpointLedger(initLedger);
     for (uint32_t n = initLedger; n <= nextBlockStart; ++n)
     {
-        if (n-2 >= mLedgerCloseDatas.size())
+        if (n - 2 >= mLedgerCloseDatas.size())
         {
             break;
         }
         // Remember the vectors count from 2, not 0.
-        auto const& lcd = mLedgerCloseDatas.at(n-2);
-        CLOG(INFO, "History") << "force-externalizing LedgerCloseData for "
-                              << n << " has txhash:"
-                              << hexAbbrev(lcd.mTxSet->getContentsHash());
+        auto const& lcd = mLedgerCloseDatas.at(n - 2);
+        CLOG(INFO, "History")
+            << "force-externalizing LedgerCloseData for " << n
+            << " has txhash:" << hexAbbrev(lcd.mTxSet->getContentsHash());
         lm.externalizeValue(lcd);
     }
 
@@ -454,9 +460,9 @@ HistoryTests::catchupApplication(uint32_t initLedger,
 
     assert(!app2->getClock().getIOService().stopped());
 
-    while ((app2->getLedgerManager().getState() != LedgerManager::LM_SYNCED_STATE) &&
-           !app2->getClock().getIOService().stopped() &&
-           (--maxCranks != 0))
+    while ((app2->getLedgerManager().getState() !=
+            LedgerManager::LM_SYNCED_STATE) &&
+           !app2->getClock().getIOService().stopped() && (--maxCranks != 0))
     {
         app2->getClock().crank(false);
     }
@@ -496,11 +502,18 @@ HistoryTests::catchupApplication(uint32_t initLedger,
 
     auto haveSeq = lm.getLastClosedLedgerHeader().header.ledgerSeq;
     auto haveHash = lm.getLastClosedLedgerHeader().hash;
-    auto haveBucketListHash = lm.getLastClosedLedgerHeader().header.bucketListHash;
-    auto haveBucket0Hash =
-        app2->getBucketManager().getBucketList().getLevel(0).getCurr()->getHash();
-    auto haveBucket1Hash =
-        app2->getBucketManager().getBucketList().getLevel(2).getCurr()->getHash();
+    auto haveBucketListHash =
+        lm.getLastClosedLedgerHeader().header.bucketListHash;
+    auto haveBucket0Hash = app2->getBucketManager()
+                               .getBucketList()
+                               .getLevel(0)
+                               .getCurr()
+                               ->getHash();
+    auto haveBucket1Hash = app2->getBucketManager()
+                               .getBucketList()
+                               .getLevel(2)
+                               .getCurr()
+                               ->getHash();
 
     CLOG(INFO, "History") << "Caught up: want Seq[" << i << "] = " << wantSeq;
     CLOG(INFO, "History") << "Caught up: have Seq[" << i << "] = " << haveSeq;
@@ -629,9 +642,9 @@ TEST_CASE_METHOD(HistoryTests, "Full history catchup",
         for (auto resumeMode : resumeModes)
         {
             apps.push_back(catchupNewApplication(
-                initLedger, dbMode, resumeMode,
-                std::string("full, ") + resumeModeName(resumeMode) + ", " +
-                    dbModeName(dbMode)));
+                initLedger, dbMode, resumeMode, std::string("full, ") +
+                                                    resumeModeName(resumeMode) +
+                                                    ", " + dbModeName(dbMode)));
         }
     }
 }
@@ -647,7 +660,8 @@ TEST_CASE_METHOD(HistoryTests, "History publish queueing",
     {
         generateRandomLedger();
     }
-    CLOG(INFO, "History") << "publish-delay count: " << hm.getPublishDelayCount();
+    CLOG(INFO, "History") << "publish-delay count: "
+                          << hm.getPublishDelayCount();
 
     while (hm.getPublishSuccessCount() < hm.getPublishQueueCount())
     {
@@ -660,15 +674,13 @@ TEST_CASE_METHOD(HistoryTests, "History publish queueing",
     CHECK(hm.getPublishSuccessCount() == 4);
 
     auto initLedger = app.getLedgerManager().getLastClosedLedgerNum();
-    auto app2 = catchupNewApplication(
-        initLedger,
-        Config::TESTDB_IN_MEMORY_SQLITE,
-        HistoryManager::CATCHUP_COMPLETE,
-        std::string("Catchup to delayed history"));
+    auto app2 =
+        catchupNewApplication(initLedger, Config::TESTDB_IN_MEMORY_SQLITE,
+                              HistoryManager::CATCHUP_COMPLETE,
+                              std::string("Catchup to delayed history"));
     CHECK(app2->getLedgerManager().getLedgerNum() ==
           app.getLedgerManager().getLedgerNum());
 }
-
 
 TEST_CASE_METHOD(HistoryTests, "History prefix catchup",
                  "[history][historycatchup][prefixcatchup]")
@@ -679,20 +691,18 @@ TEST_CASE_METHOD(HistoryTests, "History prefix catchup",
     // First attempt catchup to 10, prefix of 64. Should round up to 64.
     // Should replay the 64th (since it gets externalized) and land on 65.
     apps.push_back(catchupNewApplication(
-                       10, Config::TESTDB_IN_MEMORY_SQLITE,
-                       HistoryManager::CATCHUP_COMPLETE,
-                       std::string("Catchup to prefix of published history")));
+        10, Config::TESTDB_IN_MEMORY_SQLITE, HistoryManager::CATCHUP_COMPLETE,
+        std::string("Catchup to prefix of published history")));
     uint32_t freq = apps.back()->getHistoryManager().getCheckpointFrequency();
     CHECK(apps.back()->getLedgerManager().getLedgerNum() == freq + 1);
 
     // Then attempt catchup to 74, prefix of 128. Should round up to 128.
     // Should replay the 64th (since it gets externalized) and land on 129.
     apps.push_back(catchupNewApplication(
-                       freq + 10,
-                       Config::TESTDB_IN_MEMORY_SQLITE, HistoryManager::CATCHUP_COMPLETE,
-                       std::string("Catchup to second prefix of published history")));
-    CHECK(apps.back()->getLedgerManager().getLedgerNum() ==
-          2 * freq + 1);
+        freq + 10, Config::TESTDB_IN_MEMORY_SQLITE,
+        HistoryManager::CATCHUP_COMPLETE,
+        std::string("Catchup to second prefix of published history")));
+    CHECK(apps.back()->getLedgerManager().getLedgerNum() == 2 * freq + 1);
 }
 
 TEST_CASE_METHOD(HistoryTests, "Publish/catchup alternation, with stall",
@@ -708,13 +718,11 @@ TEST_CASE_METHOD(HistoryTests, "Publish/catchup alternation, with stall",
 
     uint32_t initLedger = lm.getLastClosedLedgerNum();
 
-    app2 = catchupNewApplication(initLedger,
-                                 Config::TESTDB_IN_MEMORY_SQLITE,
+    app2 = catchupNewApplication(initLedger, Config::TESTDB_IN_MEMORY_SQLITE,
                                  HistoryManager::CATCHUP_COMPLETE,
                                  std::string("app2"));
 
-    app3 = catchupNewApplication(initLedger,
-                                 Config::TESTDB_IN_MEMORY_SQLITE,
+    app3 = catchupNewApplication(initLedger, Config::TESTDB_IN_MEMORY_SQLITE,
                                  HistoryManager::CATCHUP_MINIMAL,
                                  std::string("app3"));
 
@@ -748,7 +756,6 @@ TEST_CASE_METHOD(HistoryTests, "Publish/catchup alternation, with stall",
     generateRandomLedger();
     generateRandomLedger();
 
-
     // Attempting to catch up here should _stall_. We evaluate stalling
     // by providing 30 cranks of the event loop and assuming that failure
     // to catch up within that time means 'stalled'.
@@ -763,7 +770,6 @@ TEST_CASE_METHOD(HistoryTests, "Publish/catchup alternation, with stall",
                                   app3, true, 30);
     CHECK(!caughtup);
 
-
     // Now complete this publish cycle and confirm that the stalled apps
     // will catch up.
     generateAndPublishHistory(1);
@@ -775,11 +781,13 @@ TEST_CASE_METHOD(HistoryTests, "Publish/catchup alternation, with stall",
     CHECK(caughtup);
 }
 
-TEST_CASE_METHOD(HistoryTests, "Repair missing buckets via history", "[history][historybucketrepair]")
+TEST_CASE_METHOD(HistoryTests, "Repair missing buckets via history",
+                 "[history][historybucketrepair]")
 {
     generateAndPublishInitialHistory(1);
 
-    // Forcibly resolve any merges in progress, so we have a calm state to repair;
+    // Forcibly resolve any merges in progress, so we have a calm state to
+    // repair;
     // NB: we cannot repair lost buckets from merges-in-progress, as they're not
     // necessarily _published_ anywhere.
     HistoryArchiveState has(app.getLedgerManager().getLastClosedLedgerNum(),
@@ -789,8 +797,10 @@ TEST_CASE_METHOD(HistoryTests, "Repair missing buckets via history", "[history][
 
     auto cfg2 = getTestConfig(1);
     cfg2.BUCKET_DIR_PATH += "2";
-    auto app2 = Application::create(clock, mConfigurator->configure(cfg2, false));
-    app2->getPersistentState().setState(PersistentState::kHistoryArchiveState, state);
+    auto app2 =
+        Application::create(clock, mConfigurator->configure(cfg2, false));
+    app2->getPersistentState().setState(PersistentState::kHistoryArchiveState,
+                                        state);
     app2->start();
 
     auto hash1 = appPtr->getBucketManager().getBucketList().getHash();
@@ -798,12 +808,11 @@ TEST_CASE_METHOD(HistoryTests, "Repair missing buckets via history", "[history][
     CHECK(hash1 == hash2);
 }
 
-
-class
-S3Configurator : public Configurator
+class S3Configurator : public Configurator
 {
-public:
-    Config& configure(Config& cfg, bool writable) const override
+  public:
+    Config&
+    configure(Config& cfg, bool writable) const override
     {
         char const* s3bucket = getenv("S3BUCKET");
         if (!s3bucket)
@@ -830,18 +839,17 @@ public:
 
 class S3HistoryTests : public HistoryTests
 {
-public:
-    S3HistoryTests()
-        : HistoryTests(std::make_shared<S3Configurator>())
-        {}
+  public:
+    S3HistoryTests() : HistoryTests(std::make_shared<S3Configurator>())
+    {
+    }
 };
 
-TEST_CASE_METHOD(S3HistoryTests, "Publish/catchup via s3",
-                 "[hide][s3]")
+TEST_CASE_METHOD(S3HistoryTests, "Publish/catchup via s3", "[hide][s3]")
 {
     generateAndPublishInitialHistory(3);
     auto app2 = catchupNewApplication(
         app.getLedgerManager().getCurrentLedgerHeader().ledgerSeq,
-        Config::TESTDB_IN_MEMORY_SQLITE,
-        HistoryManager::CATCHUP_COMPLETE, "s3");
+        Config::TESTDB_IN_MEMORY_SQLITE, HistoryManager::CATCHUP_COMPLETE,
+        "s3");
 }

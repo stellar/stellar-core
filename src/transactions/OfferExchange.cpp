@@ -82,7 +82,14 @@ OfferExchange::crossOffer(OfferFrame& sellingWheatOffer,
         }
         else
         {
-            wheatCanSell = wheatLineAccountB->getBalance();
+            if (wheatLineAccountB->isAuthorized())
+            {
+                wheatCanSell = wheatLineAccountB->getBalance();
+            }
+            else
+            {
+                wheatCanSell = 0;
+            }
         }
         if (numWheatReceived > wheatCanSell)
         {

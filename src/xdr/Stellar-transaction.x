@@ -386,7 +386,7 @@ enum CreateOfferResultCode
     // codes considered as "failure" for the operation
     CREATE_OFFER_MALFORMED = -1,      // generated offer would be invalid
     CREATE_OFFER_NO_TRUST = -2,       // can't hold what it's buying
-    CREATE_OFFER_NOT_AUTHORIZED = -3, // not authorized to hold what it's buying
+    CREATE_OFFER_NOT_AUTHORIZED = -3, // not authorized to sell or buy
     CREATE_OFFER_LINE_FULL = -4,      // can't receive more of what it's buying
     CREATE_OFFER_UNDERFUNDED = -5,    // doesn't hold what it's trying to sell
     CREATE_OFFER_CROSS_SELF = -6,     // would cross an offer from the same user

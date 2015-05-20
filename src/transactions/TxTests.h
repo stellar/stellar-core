@@ -134,6 +134,16 @@ OperationResult applyInflation(Application& app, SecretKey& from,
                                SequenceNumber seq,
                                InflationResultCode result = INFLATION_SUCCESS);
 
+TransactionFramePtr createAccountMerge(SecretKey& source,
+                                     SecretKey& dest,
+                                     SequenceNumber seq);
+
+void applyAccountMerge(Application& app, SecretKey& source,
+                     SecretKey & dest,
+                     SequenceNumber seq,
+                     AccountMergeResultCode result = ACCOUNT_MERGE_SUCCESS);
+
+
 Currency makeCurrency(SecretKey& issuer, std::string const& code);
 
 OperationFrame const& getFirstOperationFrame(TransactionFrame const& tx);

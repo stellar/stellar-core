@@ -432,6 +432,9 @@
     <ClCompile Include="..\..\src\overlay\ItemFetcherTests.cpp">
       <Filter>overlay</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\transactions\ChangeTrustTests.cpp">
+      <Filter>transactions\tests</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\ledger\LedgerManager.h">

@@ -33,17 +33,9 @@ TEST_CASE("change trust", "[tx][changeTrust]")
 
     SequenceNumber rootSeq = getAccountSeqNum(root, app) + 1;
 
-    SECTION("issuer does not exist") {
-        applyChangeTrust(app, root, a1, rootSeq, "USD", 100, CHANGE_TRUST_NO_ISSUER);
+    SECTION("issuer does not exist")
+    {
+        applyChangeTrust(app, root, a1, rootSeq, "USD", 100,
+                         CHANGE_TRUST_NO_ISSUER);
     }
 }
-
-
-
-
-
-
-
-
-
-

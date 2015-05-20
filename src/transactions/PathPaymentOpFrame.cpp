@@ -180,6 +180,12 @@ PathPaymentOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
             return false;
         }
 
+        if (!sourceLineFrame->isAuthorized())
+        {
+            innerResult().code(PATH_PAYMENT_NOT_AUTHORIZED);
+            return false;
+        }
+
         if (!sourceLineFrame->addBalance(-curBSent))
         {
             innerResult().code(PATH_PAYMENT_UNDERFUNDED);

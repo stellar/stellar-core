@@ -39,8 +39,7 @@ class Simulation
 
     VirtualClock& getClock();
 
-    uint256 addNode(SecretKey nodeKey, SCPQuorumSet qSet,
-                    VirtualClock& clock,
+    uint256 addNode(SecretKey nodeKey, SCPQuorumSet qSet, VirtualClock& clock,
                     Config::pointer cfg = std::shared_ptr<Config>());
     Application::pointer getNode(uint256 nodeID);
     std::vector<Application::pointer> getNodes();
@@ -48,8 +47,8 @@ class Simulation
 
     void addConnection(uint256 initiator, uint256 acceptor);
 
-    std::shared_ptr<LoopbackPeerConnection> addLoopbackConnection(uint256 initiator,
-                                                                  uint256 acceptor);
+    std::shared_ptr<LoopbackPeerConnection>
+    addLoopbackConnection(uint256 initiator, uint256 acceptor);
 
     void addTCPConnection(uint256 initiator, uint256 acception);
 
@@ -61,7 +60,8 @@ class Simulation
     void crankForAtMost(VirtualClock::duration seconds);
     void crankForAtLeast(VirtualClock::duration seconds);
     void crankUntilSync(VirtualClock::duration timeout);
-    void crankUntil(std::function<bool()> const& fn, VirtualClock::duration timeout);
+    void crankUntil(std::function<bool()> const& fn,
+                    VirtualClock::duration timeout);
 
     //////////
 
@@ -112,22 +112,22 @@ class Simulation
     TxInfo createTransferTransaction(size_t iFrom, size_t iTo, uint64_t amount);
     TxInfo createRandomTransaction(float alpha);
     std::vector<Simulation::TxInfo> createRandomTransactions(size_t n,
-                                                        float paretoAlpha);
+                                                             float paretoAlpha);
 
     void execute(TxInfo transaction);
     void executeAll(std::vector<TxInfo> const& transaction);
-    std::chrono::seconds executeStressTest(size_t nTransactions,
-                                           int injectionRatePerSec,
-                                           std::function<TxInfo(size_t)> generatorFn);
+    std::chrono::seconds
+    executeStressTest(size_t nTransactions, int injectionRatePerSec,
+                      std::function<TxInfo(size_t)> generatorFn);
 
-    std::vector<AccountInfoPtr> 
+    std::vector<AccountInfoPtr>
     accountsOutOfSyncWithDb(); // returns the accounts that don't match
-    bool loadAccount(AccountInfo &account);
+    bool loadAccount(AccountInfo& account);
     void loadAccounts();
 
     std::string metricsSummary(std::string domain = "");
 
-private:
+  private:
     VirtualClock mClock;
     Mode mMode;
     int mConfigCount;
@@ -136,7 +136,7 @@ private:
     std::map<uint256, Application::pointer> mNodes;
     std::vector<std::shared_ptr<LoopbackPeerConnection>> mConnections;
 
-protected:
+  protected:
     uint64 getMinBalance();
 };
 }

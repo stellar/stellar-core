@@ -308,10 +308,10 @@ ArchivePublisher::isDone() const
 
 PublishStateMachine::PublishStateMachine(Application& app)
     : mApp(app)
-    , mPublishersSize(app.getMetrics().NewCounter(
-                          {"history", "memory", "publishers"}))
-    , mPendingSnapsSize(app.getMetrics().NewCounter(
-                            {"history", "memory", "pending-snaps"}))
+    , mPublishersSize(
+          app.getMetrics().NewCounter({"history", "memory", "publishers"}))
+    , mPendingSnapsSize(
+          app.getMetrics().NewCounter({"history", "memory", "pending-snaps"}))
     , mRecheckRunningMergeTimer(app)
 {
 }
@@ -384,10 +384,11 @@ StateSnapshot::writeHistoryBlocks() const
 
     // 'mLocalState' describes the LCL, so its currentLedger will usually be 63,
     // 127, 191, etc. We want to start our snapshot at 64-before the _next_
-    // ledger: 0, 64, 128, etc. In cases where we're forcibly checkpointed early,
+    // ledger: 0, 64, 128, etc. In cases where we're forcibly checkpointed
+    // early,
     // we still want to round-down to the previous checkpoint ledger.
-    uint32_t begin =
-        mApp.getHistoryManager().prevCheckpointLedger(mLocalState.currentLedger);
+    uint32_t begin = mApp.getHistoryManager().prevCheckpointLedger(
+        mLocalState.currentLedger);
 
     uint32_t count = (mLocalState.currentLedger - begin) + 1;
     CLOG(DEBUG, "History") << "Streaming " << count
@@ -438,14 +439,13 @@ PublishStateMachine::writeNextSnapshot()
         CLOG(WARNING, "History")
             << "Queued snapshot still awaiting running merges";
         mRecheckRunningMergeTimer.expires_from_now(std::chrono::seconds(2));
-        mRecheckRunningMergeTimer.async_wait(
-            [this](asio::error_code const& ec)
-            {
-                if (!ec)
-                {
-                    this->writeNextSnapshot();
-                }
-            });
+        mRecheckRunningMergeTimer.async_wait([this](asio::error_code const& ec)
+                                             {
+                                                 if (!ec)
+                                                 {
+                                                     this->writeNextSnapshot();
+                                                 }
+                                             });
         return;
     }
 
@@ -517,12 +517,13 @@ PublishStateMachine::snapshotWritten(asio::error_code const& ec)
 void
 PublishStateMachine::snapshotPublished(asio::error_code const& ec)
 {
-    asio::error_code ecSaved(ec); // make a copy of ec as it could be deleted by following statement
+    asio::error_code ecSaved(
+        ec); // make a copy of ec as it could be deleted by following statement
     mPublishers.erase(std::remove_if(mPublishers.begin(), mPublishers.end(),
                                      [](std::shared_ptr<ArchivePublisher> p)
                                      {
-        return p->isDone();
-    }));
+                                         return p->isDone();
+                                     }));
     mPublishersSize.set_count(mPublishers.size());
     CLOG(DEBUG, "History") << "Completed publish to archive, "
                            << mPublishers.size() << " remain";

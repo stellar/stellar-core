@@ -375,10 +375,10 @@ AccountFrame::storeUpdate(LedgerDelta& delta, Database& db, bool insert) const
         // deal with changes to Signers
         if (mAccountEntry.signers.size() < startAccount.signers.size())
         { // some signers were removed
-            for (auto startSigner : startAccount.signers)
+            for (auto const& startSigner : startAccount.signers)
             {
                 bool found = false;
-                for (auto finalSigner : mAccountEntry.signers)
+                for (auto const& finalSigner : mAccountEntry.signers)
                 {
                     if (finalSigner.pubKey == startSigner.pubKey)
                     {
@@ -425,10 +425,10 @@ AccountFrame::storeUpdate(LedgerDelta& delta, Database& db, bool insert) const
         }
         else
         { // signers added or the same
-            for (auto finalSigner : mAccountEntry.signers)
+            for (auto const& finalSigner : mAccountEntry.signers)
             {
                 bool found = false;
-                for (auto startSigner : startAccount.signers)
+                for (auto const& startSigner : startAccount.signers)
                 {
                     if (finalSigner.pubKey == startSigner.pubKey)
                     {

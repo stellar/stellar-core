@@ -39,8 +39,7 @@ BucketManager::dropAll(Application& app)
 
     if (fs::exists(d))
     {
-        CLOG(DEBUG, "Bucket")
-            << "Deleting bucket directory: " << d;
+        CLOG(DEBUG, "Bucket") << "Deleting bucket directory: " << d;
         fs::deltree(d);
     }
 
@@ -48,8 +47,7 @@ BucketManager::dropAll(Application& app)
     {
         if (!fs::mkdir(d))
         {
-            throw std::runtime_error("Unable to create bucket directory: " +
-                d);
+            throw std::runtime_error("Unable to create bucket directory: " + d);
         }
     }
 }
@@ -58,15 +56,14 @@ BucketManagerImpl::BucketManagerImpl(Application& app)
     : mApp(app)
     , mWorkDir(nullptr)
     , mLockedBucketDir(nullptr)
-    , mBucketObjectInsert(app.getMetrics().NewMeter(
-                              {"bucket", "object", "insert"}, "object"))
+    , mBucketObjectInsert(
+          app.getMetrics().NewMeter({"bucket", "object", "insert"}, "object"))
     , mBucketByteInsert(
-        app.getMetrics().NewMeter({"bucket", "byte", "insert"}, "byte"))
+          app.getMetrics().NewMeter({"bucket", "byte", "insert"}, "byte"))
     , mBucketAddBatch(app.getMetrics().NewTimer({"bucket", "batch", "add"}))
-    , mBucketSnapMerge(
-        app.getMetrics().NewTimer({"bucket", "snap", "merge"}))
+    , mBucketSnapMerge(app.getMetrics().NewTimer({"bucket", "snap", "merge"}))
     , mSharedBucketsSize(
-        app.getMetrics().NewCounter({"bucket", "memory", "shared"}))
+          app.getMetrics().NewCounter({"bucket", "memory", "shared"}))
 
 {
 }
@@ -107,11 +104,15 @@ BucketManagerImpl::getBucketDir()
             auto pid = stoi(pidStr);
             if (fs::processExists(pid))
             {
-                std::string msg("Found existing lockfile '" + lock + "' and process " + std::to_string(pid) + " is still running.");
+                std::string msg("Found existing lockfile '" + lock +
+                                "' and process " + std::to_string(pid) +
+                                " is still running.");
                 throw std::runtime_error(msg);
-            } else
+            }
+            else
             {
-                CLOG(WARNING, "Bucket") << "Ignoring stale lockfile '" << lock << "', process " << pid << " is gone.";
+                CLOG(WARNING, "Bucket") << "Ignoring stale lockfile '" << lock
+                                        << "', process " << pid << " is gone.";
             }
         }
 
@@ -150,8 +151,9 @@ BucketManagerImpl::getMergeTimer()
 }
 
 std::shared_ptr<Bucket>
-BucketManagerImpl::adoptFileAsBucket(std::string const& filename, uint256 const& hash,
-                                     size_t nObjects, size_t nBytes)
+BucketManagerImpl::adoptFileAsBucket(std::string const& filename,
+                                     uint256 const& hash, size_t nObjects,
+                                     size_t nBytes)
 {
     std::lock_guard<std::recursive_mutex> lock(mBucketMutex);
     // Check to see if we have an existing bucket (either in-memory or on-disk)
@@ -159,7 +161,7 @@ BucketManagerImpl::adoptFileAsBucket(std::string const& filename, uint256 const&
     if (b)
     {
         CLOG(DEBUG, "Bucket") << "Deleting bucket file " << filename
-                           << " that is redundant with existing bucket";
+                              << " that is redundant with existing bucket";
         std::remove(filename.c_str());
     }
     else
@@ -169,7 +171,7 @@ BucketManagerImpl::adoptFileAsBucket(std::string const& filename, uint256 const&
         std::string basename = bucketBasename(binToHex(hash));
         std::string canonicalName = getBucketDir() + "/" + basename;
         CLOG(DEBUG, "Bucket") << "Adopting bucket file " << filename << " as "
-                           << canonicalName;
+                              << canonicalName;
         if (rename(filename.c_str(), canonicalName.c_str()) != 0)
         {
             std::string err("Failed to rename bucket :");
@@ -199,18 +201,17 @@ BucketManagerImpl::getBucketByHash(uint256 const& hash)
     auto i = mSharedBuckets.find(basename);
     if (i != mSharedBuckets.end())
     {
-        CLOG(TRACE, "Bucket")
-            << "BucketManager::getBucketByHash("
-            << binToHex(hash) << ") found bucket "
-            << i->second->getFilename();
+        CLOG(TRACE, "Bucket") << "BucketManager::getBucketByHash("
+                              << binToHex(hash) << ") found bucket "
+                              << i->second->getFilename();
         return i->second;
     }
     std::string canonicalName = getBucketDir() + "/" + basename;
     if (fs::exists(canonicalName))
     {
-        CLOG(TRACE, "Bucket")
-            << "BucketManager::getBucketByHash("
-            << binToHex(hash) << ") found no bucket, making new one";
+        CLOG(TRACE, "Bucket") << "BucketManager::getBucketByHash("
+                              << binToHex(hash)
+                              << ") found no bucket, making new one";
         auto p = std::make_shared<Bucket>(canonicalName, hash);
         mSharedBuckets.insert(std::make_pair(basename, p));
         mSharedBucketsSize.set_count(mSharedBuckets.size());
@@ -241,8 +242,7 @@ BucketManagerImpl::forgetUnreferencedBuckets()
         }
     }
 
-    for (auto i = mSharedBuckets.begin();
-         i != mSharedBuckets.end();)
+    for (auto i = mSharedBuckets.begin(); i != mSharedBuckets.end();)
     {
         // Standard says map iterators other than the one you're erasing remain
         // valid.
@@ -278,8 +278,8 @@ BucketManagerImpl::forgetUnreferencedBuckets()
 
 void
 BucketManagerImpl::addBatch(Application& app, uint32_t currLedger,
-                    std::vector<LedgerEntry> const& liveEntries,
-                    std::vector<LedgerKey> const& deadEntries)
+                            std::vector<LedgerEntry> const& liveEntries,
+                            std::vector<LedgerKey> const& deadEntries)
 {
     auto timer = mBucketAddBatch.TimeScope();
     mBucketList.addBatch(app, currLedger, liveEntries, deadEntries);
@@ -308,10 +308,12 @@ BucketManagerImpl::checkForMissingBucketsFiles(HistoryArchiveState const& has)
     }
 
     std::vector<std::string> result;
-    std::copy_if(buckets.begin(), buckets.end(), std::back_inserter(result), [&](std::string b) {
-        auto filename = getBucketDir() + "/" + bucketBasename(b);
-        return !isZero(hexToBin256(b)) && !fs::exists(filename);
-    });
+    std::copy_if(buckets.begin(), buckets.end(), std::back_inserter(result),
+                 [&](std::string b)
+                 {
+                     auto filename = getBucketDir() + "/" + bucketBasename(b);
+                     return !isZero(hexToBin256(b)) && !fs::exists(filename);
+                 });
 
     return result;
 }

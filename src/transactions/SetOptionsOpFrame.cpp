@@ -80,7 +80,7 @@ SetOptionsOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
         if (mSetOptions.signer->weight)
         { // add or change signer
             bool found = false;
-            for (auto oldSigner : signers)
+            for (auto& oldSigner : signers)
             {
                 if (oldSigner.pubKey == mSetOptions.signer->pubKey)
                 {
