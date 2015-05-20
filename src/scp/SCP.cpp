@@ -175,14 +175,5 @@ SCP::getCumulativeStatemtCount() const
     return c;
 }
 
-size_t
-SCP::getCumulativeCachedQuorumSetCount() const
-{
-    size_t c = 0;
-    for (auto const& n : mKnownNodes)
-    {
-        c += n.second->getCachedQuorumSetCount();
-    }
-    return c;
-}
+
 }

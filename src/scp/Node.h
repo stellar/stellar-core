@@ -8,7 +8,6 @@
 #include <vector>
 
 #include "scp/SCP.h"
-#include <lib/util/lrucache.hpp>
 #include "util/HashOfHash.h"
 
 
@@ -95,18 +94,14 @@ class Node
     // Retrieves the cached quorum set associated with this hash or throws a
     // QuorumSetNotFound exception otherwise. The exception shall not escape
     // the SCP module
-    SCPQuorumSet const& retrieveQuorumSet(Hash const& qSetHash);
-
-    // Cache a quorumSet for this node.
-    void cacheQuorumSet(SCPQuorumSet const& qSet);
+    SCPQuorumSetPtr retrieveQuorumSet(Hash const& qSetHash);
 
     uint256 const& getNodeID();
 
-    size_t getCachedQuorumSetCount() const;
+    
 
   protected:
     const uint256 mNodeID;
     SCP* mSCP;
-    cache::lru_cache<Hash, SCPQuorumSet> mCache;
 };
 }

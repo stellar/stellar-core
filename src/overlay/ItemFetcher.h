@@ -10,7 +10,6 @@
 #include "overlay/Peer.h"
 #include "util/Timer.h"
 #include "util/NonCopyable.h"
-#include "lib/util/lrucache.hpp"
 #include <util/optional.h>
 #include "util/HashOfHash.h"
 
@@ -24,12 +23,6 @@ of having a `stopFetching(itemID)` method, which would necessitate
 extra code to keep track of the different clients, ItemFetcher stops
 fetching an item when all the shared_ptrs to the item's tracker have
 been released.
-
-
-ItemFetcher caches the items for they are found and evicts them lru
-order. Keeping the item's tracker alive forces the item to remain
-cached, and it does not count against the cache size. In other words,
-items are cached either in the lru queue or their trackers.
 
 */
 
@@ -58,10 +51,9 @@ public:
         Peer::pointer mLastAskedPeer;
         std::vector<Peer::pointer> mPeersAsked;
         VirtualTimer mTimer;
-        optional<T> mItem;
         bool mIsStopped = false;
 
-        std::vector<std::function<void(T item)>> mCallbacks;
+        std::vector<SCPEnvelope> mWaitingEnvelopes;
     public:
         uint256 mItemID;
         explicit Tracker(Application &app, uint256 const& id, ItemFetcher &itemFetcher) : 
@@ -69,18 +61,19 @@ public:
           , mItemFetcher(itemFetcher)
           , mTimer(app)
           , mItemID(id) {}
+
         virtual ~Tracker();
 
-        bool isItemFound();
-        bool isStopped();
-        T const & get();
+        bool clearEnvelopesBelow(uint64 slotIndex);
+
+       
         void cancel();
-        void listen(std::function<void(T const &item)> cb);
+        void listen(const SCPEnvelope& env);
 
         virtual void askPeer(Peer::pointer peer) = 0;
 
         void doesntHave(Peer::pointer peer);
-        void recv(T item);
+        void itemReceived();
         void tryNextPeer();
     };
     friend Tracker;
@@ -88,52 +81,23 @@ public:
     using TrackerPtr = std::shared_ptr<TrackerT>;
 
       
-    explicit ItemFetcher(Application& app, size_t cacheSize);
+    explicit ItemFetcher(Application& app);
+    ~ItemFetcher();
+    
+    void fetch(uint256 itemID, const SCPEnvelope& envelope);
 
-    // Return the item if available in the cache, else returns nullopt.
-    optional<T> get(uint256 itemID);
-
-    // Start fetching the item and returns a tracker with `cb` registered 
-    // with the tracker). Releasing all shared_ptr references
-    // to the tracker will cancel the fetch. 
-    //
-    // Trackers are per-item. `cb` will be invoked so long as there
-    // remains at least one live shared_ptr reference to this item's tracker.
-    // 
-    // The fetch might complete immediately if the item is in the cache.
-    //
-    // The item will be held in cache for at least as long as there remains
-    // one or more live pointers to its tracker. Afterwards it the item becomes
-    // subject to the lru ejection policy and the given cache size.
-    TrackerPtr fetch(uint256 itemID, std::function<void(T const & item)> cb);
-
-
-    // Hands the item immediately to `cb` if available in cache and returns `nullptr`,
-    // else starts fetching the item and returns a tracker.
-    TrackerPtr getOrFetch(uint256 itemID, std::function<void(T const & item)> cb);
-
+    void removeTracker(const uint256& itemID);
+    void stopFetchingBelow(uint64 slotIndex);
 
     void doesntHave(uint256 const& itemID, Peer::pointer peer);
 
-    // recv: notifies all listeners of the arrival of the item and caches it if 
-    // it was needed.
-    void recv(uint256 itemID, T const & item);
-
-    // Caches the value and returns a tracker. The value will be force-held in the cache
-    // as long as there exists a live reference to the tracker.
-    // `cache` also notifies all listeneers of the arrival of the item.
-    TrackerPtr cache(Hash itemID, T const & item);
-
-    // Public for tests:
-    TrackerPtr isNeeded(uint256 itemID);
+    // recv: notifies all listeners of the arrival of the item and caches it
+    void recv(uint256 itemID, T item);
 
 protected:
-    TrackerPtr getTracker(uint256 itemID, bool create, bool *retNewTracker = nullptr);
-
+    
     Application& mApp;
-    std::map<uint256, std::weak_ptr<TrackerT>> mTrackers;
-    cache::lru_cache<uint256, T> mCache;
-    size_t mDropsSkipped = 0;
+    std::map<uint256, std::shared_ptr<TrackerT>> mTrackers;
 
     // NB: There are many ItemFetchers in the system at once, but we are sharing
     // a single counter for all the items being fetched by all of them. Be
@@ -143,38 +107,27 @@ protected:
 
 };
 
-class TxSetTracker : public ItemFetcher<TxSetFrame, TxSetTracker>::Tracker
+class TxSetTracker : public ItemFetcher<TxSetFramePtr, TxSetTracker>::Tracker
 {
 public:
-    TxSetTracker(Application &app, uint256 id, ItemFetcher<TxSetFrame, TxSetTracker> &itemFetcher) :
+    TxSetTracker(Application &app, uint256 id, ItemFetcher<TxSetFramePtr, TxSetTracker> &itemFetcher) :
         Tracker(app, id, itemFetcher) {}
 
     void askPeer(Peer::pointer peer) override;
 };
 
-class QuorumSetTracker : public ItemFetcher<SCPQuorumSet, QuorumSetTracker>::Tracker
+class QuorumSetTracker : public ItemFetcher<SCPQuorumSetPtr, QuorumSetTracker>::Tracker
 {
 public:
-    QuorumSetTracker(Application &app, uint256 id, ItemFetcher<SCPQuorumSet, QuorumSetTracker> &itemFetcher) :
+    QuorumSetTracker(Application &app, uint256 id, ItemFetcher<SCPQuorumSetPtr, QuorumSetTracker> &itemFetcher) :
         Tracker(app, id, itemFetcher) {}
 
     void askPeer(Peer::pointer peer) override;
 };
 
 
-class IntTracker : public ItemFetcher<int, IntTracker>::Tracker
-{
-public:
-    std::vector<Peer::pointer> mAsked;
-    IntTracker(Application &app, uint256 id, ItemFetcher<int, IntTracker> &itemFetcher) :
-        Tracker(app, id, itemFetcher) {}
-
-    void askPeer(Peer::pointer peer) override;
-};
-
-using TxSetTrackerPtr = ItemFetcher<TxSetFrame, TxSetTracker>::TrackerPtr;
-using QuorumSetTrackerPtr = ItemFetcher<SCPQuorumSet, QuorumSetTracker>::TrackerPtr;
-using IntTrackerPtr = ItemFetcher<int, IntTracker>::TrackerPtr;
+using TxSetTrackerPtr = ItemFetcher<TxSetFramePtr, TxSetTracker>::TrackerPtr;
+using QuorumSetTrackerPtr = ItemFetcher<SCPQuorumSetPtr, QuorumSetTracker>::TrackerPtr;
 
 }
 

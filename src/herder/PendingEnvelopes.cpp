@@ -6,128 +6,270 @@
 #include <xdrpp/marshal.h>
 #include "util/Logging.h"
 #include <scp/Slot.h>
+#include "herder/TxSetFrame.h"
+#include "main/Application.h"
+
+using namespace std;
+
+#define QSET_CACHE_SIZE 10000
+#define TXSET_CACHE_SIZE 10000
 
 namespace stellar
 {
 
-using namespace std;
-
-PendingEnvelopes::PendingEnvelopes(Application &app, HerderImpl &herder) :
-    mApp(app)
-    , mHerder(herder)
-    , mPendingEnvelopesSize(
-         app.getMetrics().NewCounter({ "scp", "memory", "pending-envelopes" }))
-{}
-
-
-void 
-PendingEnvelopes::add(SCPEnvelope const &envelope)
+PendingEnvelopes::PendingEnvelopes(Application& app,HerderImpl &herder) :
+    mHerder(herder),
+    mApp(app),
+    mQsetCache(QSET_CACHE_SIZE),
+    mTxSetCache(TXSET_CACHE_SIZE),
+    mQuorumSetFetcher(app),
+    mTxSetFetcher(app),
+    mPendingEnvelopesSize(
+        app.getMetrics().NewCounter({ "scp", "memory", "pending-envelopes" }))
 {
-    auto& set = mFetching[envelope.statement.slotIndex];
+}
 
-    if (find_if(set.begin(), set.end(),
-        [&](FetchingRecordPtr fRecord) { return *fRecord->env == envelope;  }) == set.end())
+PendingEnvelopes::~PendingEnvelopes()
+{
+
+}
+
+void PendingEnvelopes::peerDoesntHave(MessageType type, uint256 const& itemID, Peer::pointer peer)
+{
+    switch(type)
     {
-        fetch(envelope);
-        CLOG(DEBUG, "Herder") << "PendingEnvelopes::add " << envToStr(envelope);
-
-        if (checkFutureCommitted(envelope))
-        {
-            mIsFutureCommitted.insert(envelope.statement.slotIndex);
-        }
-
-        mPendingEnvelopesSize.set_count(mFetching.size());
-
-        auto fRecord = fetch(envelope);
+    case TX_SET:
+        mTxSetFetcher.doesntHave(itemID, peer);
+        break;
+    case SCP_QUORUMSET:
+        mQuorumSetFetcher.doesntHave(itemID, peer);
+        break;
+    default:
+        CLOG(INFO, "Herder") << "Unknown Type in peerDoesntHave: " << type;
+        break;
     }
 }
 
-void
-PendingEnvelopes::erase(uint64 slotIndex)
+
+void PendingEnvelopes::recvSCPQuorumSet(Hash hash, const SCPQuorumSet& q)
 {
-    mFetching.erase(slotIndex);
-    mReady.erase(slotIndex);
-    mDone.erase(slotIndex);
-    mIsFutureCommitted.erase(slotIndex);
+    SCPQuorumSetPtr qset(new SCPQuorumSet(q));
+    mQsetCache.put(hash, qset);
+    mQuorumSetFetcher.recv(hash, qset);
 }
 
+void PendingEnvelopes::recvTxSet(Hash hash, TxSetFramePtr txset)
+{
+    mTxSetCache.put(hash, txset);
+    mTxSetFetcher.recv(hash, txset);
+}
+
+
+// called from Peer and when an Item tracker completes
+void PendingEnvelopes::recvSCPEnvelope(SCPEnvelope const &envelope)
+{
+    // do we already have this envelope?
+    // do we have the qset
+    // do we have the txset
+
+    
+    auto& set = mFetchingEnvelopes[envelope.statement.slotIndex];
+
+    if(find(set.begin(), set.end(), envelope ) == set.end())
+    {  // we aren't fetching this envelop
+        
+        auto& receivedList = mReceivedEnvelopes[envelope.statement.slotIndex];
+        if(find(receivedList.begin(), receivedList.end(), envelope) == receivedList.end())
+        { // we haven't seen this envelope before
+
+            receivedList.push_back(envelope);
+            if(startFetch(envelope))
+            { // fully fetched
+                envelopeReady(envelope);
+            } else
+            { 
+                mFetchingEnvelopes[envelope.statement.slotIndex].insert(envelope);
+            }
+
+            CLOG(DEBUG, "Herder") << "PendingEnvelopes::add " << envToStr(envelope);
+            
+
+        }// else we already have this one
+
+    } else
+    { // we are fetching this envelope
+        // check if we are done fetching it
+        if(isFullyFetched(envelope))
+        {
+            envelopeReady(envelope);
+        }//else just keep waiting for it to come in
+
+    }
+}
+
+void PendingEnvelopes::envelopeReady(SCPEnvelope const &envelope)
+{
+    StellarMessage msg;
+    msg.type(SCP_MESSAGE);
+    msg.envelope() = envelope;
+    mApp.getOverlayManager().broadcastMessage(msg);
+
+    mPendingEnvelopes[envelope.statement.slotIndex].push_back(envelope);
+
+    /*
+    // if envelope is on the right slot send into SCP
+    // TODO.1 : below
+    if(checkFutureCommitted(envelope))
+    {
+        mIsFutureCommitted.insert(envelope.statement.slotIndex);
+    }
+    */
+
+    mHerder.processSCPQueue();
+}
+
+bool PendingEnvelopes::isFullyFetched(SCPEnvelope const &envelope)
+{
+    if(!mQsetCache.exists(envelope.statement.quorumSetHash)) return false;
+    StellarBallot b;
+    xdr::xdr_from_opaque(envelope.statement.ballot.value, b);
+
+    if(!mTxSetCache.exists(b.value.txSetHash)) return false;
+    
+    return true;
+}
+
+// returns true if already fetched
+bool 
+PendingEnvelopes::startFetch(SCPEnvelope const &envelope)
+{
+    bool ret = true;
+
+    if(!mQsetCache.exists(envelope.statement.quorumSetHash))
+    {
+        mQuorumSetFetcher.fetch(envelope.statement.quorumSetHash, envelope);
+        ret = false;
+    }
+
+    StellarBallot b;
+    xdr::xdr_from_opaque(envelope.statement.ballot.value, b);
+
+    if(!mTxSetCache.exists(b.value.txSetHash)) 
+    {
+        mTxSetFetcher.fetch(b.value.txSetHash, envelope);
+        ret = false;
+    }
+
+    return ret;
+}
+
+
+bool
+PendingEnvelopes::pop(uint64 slotIndex,SCPEnvelope& ret)
+{
+    if(mPendingEnvelopes.find(slotIndex)==mPendingEnvelopes.end())
+    {
+        return false;
+    } else
+    {
+        if(!mPendingEnvelopes[slotIndex].size()) return false;
+        ret = mPendingEnvelopes[slotIndex].back();
+        mPendingEnvelopes[slotIndex].pop_back();
+
+        return true;
+    }
+}
 
 vector<uint64>
 PendingEnvelopes::readySlots()
 {
     vector<uint64> result;
-    for(auto entry : mReady)
+    for(auto entry : mPendingEnvelopes)
     {
-        if (!entry.second.empty())
+        if(!entry.second.empty())
             result.push_back(entry.first);
     }
     return result;
 }
 
+
 void
 PendingEnvelopes::eraseBelow(uint64 slotIndex)
 {
-    set<uint64> allSlots;
-    for (auto entry : mFetching)
+    for(auto iter = mPendingEnvelopes.begin(); iter != mPendingEnvelopes.end(); )
     {
-        allSlots.insert(entry.first);
-    }
-    for (auto entry : mReady)
-    {
-        allSlots.insert(entry.first);
-    }
-    for (auto slot : mIsFutureCommitted)
-    {
-        allSlots.insert(slot);
-    }
-    for (auto entry : mDone)
-    {
-        allSlots.insert(entry.first);
-    }
-
-    int64_t size = 0;
-    for (auto & slot : allSlots)
-    {
-        if (slot < slotIndex)
+        if(iter->first < slotIndex)
         {
-            erase(slot);
-        }
-        size += mFetching[slot].size() + mReady[slot].size();
-
-        // also drop empty slots while we are here
-        if (mFetching[slot].empty())
-            mFetching.erase(slot);
-        if (mReady[slot].empty())
-            mReady.erase(slot);
-        if (mDone[slot].empty())
-            mDone.erase(slot);
+            iter = mPendingEnvelopes.erase(iter);
+        } else break;
     }
 
-    if (mPendingEnvelopesSize.count() != size)
+    for(auto iter = mFetchingEnvelopes.begin(); iter != mFetchingEnvelopes.end(); )
     {
-        mPendingEnvelopesSize.set_count(size);
+        if(iter->first < slotIndex)
+        {
+            iter = mFetchingEnvelopes.erase(iter);
+        } else break;
     }
 }
 
-optional<PendingEnvelopes::FetchingRecord> 
-PendingEnvelopes::pop(uint64 slotIndex)
+void
+PendingEnvelopes::slotClosed(uint64 slotIndex)
 {
-    if (mReady[slotIndex].empty())
-    {
-        return nullptr;
-    } else
-    {
-        auto result = mReady[slotIndex].front();
-        mReady[slotIndex].pop_front();
+    mPendingEnvelopes.erase(slotIndex);
 
-        auto holding = make_shared<FetchingRecord>(*result);
-        // we don't need to keep the envelopes anymore, just the trackers
-        holding->env.reset(); 
-        mDone[slotIndex].insert(holding);
+    // keep the last few ledgers worth of messages around to give to people
+    mReceivedEnvelopes.erase(slotIndex-10); 
+    mFetchingEnvelopes.erase(slotIndex);
 
-        return result;
-    }
+    mTxSetFetcher.stopFetchingBelow(slotIndex+1);
+    mQuorumSetFetcher.stopFetchingBelow(slotIndex+1);
 }
+
+TxSetFramePtr PendingEnvelopes::getTxSet(Hash hash)
+{
+    if(mTxSetCache.exists(hash)) {
+        return mTxSetCache.get(hash);
+    }
+    
+    return TxSetFramePtr();
+}
+
+SCPQuorumSetPtr PendingEnvelopes::getQSet(Hash hash)
+{
+    if(mQsetCache.exists(hash)){
+        return mQsetCache.get(hash);
+    }
+
+    return SCPQuorumSetPtr();
+}
+
+void 
+PendingEnvelopes::dumpInfo(Json::Value & ret)
+{
+    /* TODO.1
+    int count = 0;
+    for(auto& entry : mFetching)
+    {
+        for(auto& fRecord : entry.second)
+        {
+            auto & envelope = fRecord->env;
+            ostringstream output;
+            output << "i:" << entry.first
+                << " n:" << binToHex(envelope->nodeID).substr(0, 6);
+
+            ret["pending"][count++] = output.str();
+        }
+    }
+    */
+}
+
+
+
+///////////////////////////
+//////
+
+/* TODO.1
 
 // returns true if we have been left behind :(
 // see: walter the lazy mouse
@@ -172,22 +314,6 @@ PendingEnvelopes::checkFutureCommitted(SCPEnvelope newEnvelope)
 }
 
 
-void PendingEnvelopes::dumpInfo(Json::Value & ret)
-{
-    int count = 0;
-    for (auto& entry : mFetching)
-    {
-        for (auto& fRecord : entry.second)
-        {
-            auto & envelope = fRecord->env;
-            ostringstream output;
-            output << "i:" << entry.first
-                << " n:" << binToHex(envelope->nodeID).substr(0, 6);
-
-            ret["pending"][count++] = output.str();
-        }
-    }
-}
 
 TxSetFramePtr PendingEnvelopes::getTxSet(Hash txSetHash)
 {
@@ -203,48 +329,7 @@ SCPQuorumSetPtr PendingEnvelopes::getQuorumSet(Hash qSetHash)
     return result;
 }
 
-bool 
-PendingEnvelopes::FetchingRecord::isReady()
-{
-    return (mTxSetTracker && mTxSetTracker->isItemFound()) &&
-        (mQuorumSetTracker && mQuorumSetTracker->isItemFound());
-}
+*/
 
-void
-PendingEnvelopes::checkReady(FetchingRecordPtr fRecord)
-{
-    if (fRecord->isReady())
-    {
-        CLOG(DEBUG, "Herder") << "PendingEnvelopes::checkReady isReady, releasing now " << envToStr(*fRecord->env);
-
-        auto iSlot = fRecord->env->statement.slotIndex;
-        auto & set = mFetching[iSlot];
-        set.erase(fRecord);
-        mReady[iSlot].push_back(fRecord);
-
-        mHerder.processSCPQueue();
-    }
-}
-
-PendingEnvelopes::FetchingRecordPtr
-PendingEnvelopes::fetch(SCPEnvelope const & env)
-{
-    FetchingRecordPtr fRecord = make_shared<FetchingRecord>();
-    fRecord->env = make_shared<SCPEnvelope>(env);
-    fRecord->mQuorumSetTracker = mApp.getOverlayManager().getQuorumSetFetcher()
-        .fetch(env.statement.quorumSetHash, bind(&PendingEnvelopes::checkReady, this, fRecord));
-
-    StellarBallot b;
-    xdr::xdr_from_opaque(env.statement.ballot.value, b);
-
-    fRecord->mTxSetTracker = mApp.getOverlayManager().getTxSetFetcher()
-        .fetch(b.value.txSetHash, bind(&PendingEnvelopes::checkReady, this, fRecord));
-    
-    mFetching[fRecord->env->statement.slotIndex].insert(fRecord);
-
-    // check if all items are already available from the cache.
-    checkReady(fRecord);
-    return fRecord;
-}
 
 }

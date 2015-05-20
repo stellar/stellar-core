@@ -92,11 +92,11 @@ Peer::sendDontHave(MessageType type, uint256 const& itemID)
 }
 
 void
-Peer::sendSCPQuorumSet(SCPQuorumSet const& qSet)
+Peer::sendSCPQuorumSet(SCPQuorumSetPtr qSet)
 {
     StellarMessage msg;
     msg.type(SCP_QUORUMSET);
-    msg.qSet() = qSet;
+    msg.qSet() = *qSet;
 
     sendMessage(msg);
 }
@@ -252,27 +252,15 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
 void
 Peer::recvDontHave(StellarMessage const& msg)
 {
-    switch (msg.dontHave().type)
-    {
-    case TX_SET:
-        mApp.getOverlayManager().getTxSetFetcher().doesntHave(
-            msg.dontHave().reqHash, shared_from_this());
-        break;
-    case SCP_QUORUMSET:
-        mApp.getOverlayManager().getQuorumSetFetcher().doesntHave(
-            msg.dontHave().reqHash, shared_from_this());
-        break;
-    default:
-        break;
-    }
+    mApp.getHerder().peerDoesntHave(msg.dontHave().type, msg.dontHave().reqHash,
+        shared_from_this());
 }
 
 void
 Peer::recvGetTxSet(StellarMessage const& msg)
 {
     auto self = shared_from_this();
-    if (auto txSet =
-            mApp.getOverlayManager().getTxSetFetcher().get(msg.txSetHash()))
+    if (auto txSet = mApp.getHerder().getTxSet(msg.txSetHash()))
     {
         StellarMessage newMsg;
         newMsg.type(TX_SET);
@@ -289,8 +277,8 @@ Peer::recvGetTxSet(StellarMessage const& msg)
 void
 Peer::recvTxSet(StellarMessage const& msg)
 {
-    auto hash = TxSetFrame(msg.txSet()).getContentsHash();
-    mApp.getOverlayManager().getTxSetFetcher().recv(hash, msg.txSet());
+    TxSetFrame frame(msg.txSet()); 
+    mApp.getHerder().recvTxSet(frame.getContentsHash(), frame);
 }
 
 void
@@ -314,17 +302,11 @@ Peer::recvTransaction(StellarMessage const& msg)
 void
 Peer::recvGetSCPQuorumSet(StellarMessage const& msg)
 {
-    auto localQSet = mApp.getConfig().quorumSet();
-    auto localHash = sha256(xdr::xdr_to_opaque(localQSet));
+    SCPQuorumSetPtr qset=mApp.getHerder().getQSet(msg.qSetHash());
 
-    if (msg.qSetHash() == localHash)
+    if(qset)
     {
-        sendSCPQuorumSet(localQSet);
-    }
-    else if (auto qSet = mApp.getOverlayManager().getQuorumSetFetcher().get(
-                 msg.qSetHash()))
-    {
-        sendSCPQuorumSet(*qSet);
+        sendSCPQuorumSet(qset);
     }
     else
     {
@@ -337,8 +319,8 @@ Peer::recvGetSCPQuorumSet(StellarMessage const& msg)
 void
 Peer::recvSCPQuorumSet(StellarMessage const& msg)
 {
-    auto hash = sha256(xdr::xdr_to_opaque(msg.qSet()));
-    mApp.getOverlayManager().getQuorumSetFetcher().recv(hash, msg.qSet());
+    Hash hash = sha256(xdr::xdr_to_opaque(msg.qSet()));
+    mApp.getHerder().recvSCPQuorumSet(hash, msg.qSet());
 }
 
 void
@@ -351,14 +333,7 @@ Peer::recvSCPMessage(StellarMessage const& msg)
 
     mApp.getOverlayManager().recvFloodedMsg(msg, shared_from_this());
 
-    auto cb = [msg, this](SCP::EnvelopeState state)
-    {
-        if (state == SCP::EnvelopeState::VALID)
-        {
-            mApp.getOverlayManager().broadcastMessage(msg);
-        }
-    };
-    mApp.getHerder().recvSCPEnvelope(envelope, cb);
+    mApp.getHerder().recvSCPEnvelope(envelope);
 }
 
 void
@@ -391,6 +366,13 @@ Peer::recvHello(StellarMessage const& msg)
     CLOG(DEBUG, "Overlay") << "recvHello from " << toString();
     mState = GOT_HELLO;
     mPeerID = msg.hello().peerID;
+    if(mRole == INITIATOR)
+    {
+        PeerRecord pr( getIP(), mRemoteListeningPort,
+            mApp.getClock().now(), 0, 1 );
+
+        pr.insertIfNew(mApp.getDatabase());
+    }
     return true;
 }
 

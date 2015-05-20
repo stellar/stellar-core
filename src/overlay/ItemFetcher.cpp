@@ -10,6 +10,7 @@
 #include "herder/TxSetFrame.h"
 #include "generated/StellarXDR.h"
 #include <crypto/Hex.h>
+#include "herder/Herder.h"
 
 // TODO.1 I think we need to add something that after some time it retries to
 // fetch qsets that it really needs.
@@ -22,104 +23,56 @@ namespace stellar
 {
 
 template<class T, class TrackerT>
-ItemFetcher<T, TrackerT>::ItemFetcher(Application& app, size_t cacheSize) :
+ItemFetcher<T, TrackerT>::ItemFetcher(Application& app) :
     mApp(app)
-    , mCache(cacheSize)
     , mItemMapSize(
          app.getMetrics().NewCounter({ "overlay", "memory", "item-fetch-map" }))
 {}
 
 template<class T, class TrackerT>
-optional<T> 
-ItemFetcher<T, TrackerT>::get(uint256 itemID)
+ItemFetcher<T, TrackerT>::~ItemFetcher()
 {
-    if (mCache.exists(itemID))
-    {
-        return make_optional<T>(mCache.get(itemID));
-    }
-    if (auto tracker = getTracker(itemID, false))
-    {
-        if (tracker->isItemFound())
-        {
-            return make_optional<T>(tracker->get());
-        }
-    }
-    return nullptr;
+    mTrackers.clear();
 }
 
+
+
 template<class T, class TrackerT>
-typename ItemFetcher<T, TrackerT>::TrackerPtr
-ItemFetcher<T, TrackerT>::getOrFetch(uint256 itemID, std::function<void(T const &item)> cb)
+void
+ItemFetcher<T, TrackerT>::fetch(uint256 itemID, const SCPEnvelope& envelope)
 {
-    if (auto result = get(itemID))
-    {
-        cb(*result);
-        return nullptr;
+    auto entryIt = mTrackers.find(itemID);
+    if(entryIt == mTrackers.end())
+    { // not being tracked
+        TrackerPtr tracker = std::make_shared<TrackerT>(mApp, itemID, *this);
+        mTrackers[itemID] = tracker;
+
+        tracker->listen(envelope);
+        tracker->tryNextPeer();
     } else
     {
-        return fetch(itemID, cb);
+        entryIt->second->listen(envelope);
     }
 }
 
 template<class T, class TrackerT>
-typename ItemFetcher<T, TrackerT>::TrackerPtr
-ItemFetcher<T, TrackerT>::getTracker(uint256 itemID, bool create, bool *retNewTracker)
+void
+ItemFetcher<T, TrackerT>::removeTracker(const uint256& itemID)
 {
-    TrackerPtr tracker;
-    if (retNewTracker)
-        *retNewTracker = false;
-
-    auto entryIt = mTrackers.find(itemID);
-    if (entryIt != mTrackers.end())
-    {
-        tracker = entryIt->second.lock();
-    }
-
-    if (!tracker && create)
-    {
-        // no entry, or the weak pointer on the tracker could not lock.
-        tracker = std::make_shared<TrackerT>(mApp, itemID, *this);
-        mTrackers[itemID] = tracker;
-
-        if (retNewTracker)
-            *retNewTracker = true;
-    }
-    return tracker;
+    mTrackers.erase(itemID);
 }
 
 template<class T, class TrackerT>
-typename ItemFetcher<T, TrackerT>::TrackerPtr
-ItemFetcher<T, TrackerT>::fetch(uint256 itemID, std::function<void(T const &item)> cb)
+void 
+ItemFetcher<T, TrackerT>::stopFetchingBelow(uint64 slotIndex)
 {
-    bool newTracker;
-    auto tracker = getTracker(itemID, true, &newTracker);
-
-    if (tracker->isItemFound())
+    for(auto iter = mTrackers.begin(); iter != mTrackers.end();)
     {
-        cb(tracker->get());
-        return tracker;
+        if(!iter->second->clearEnvelopesBelow(slotIndex))
+        {
+            iter=mTrackers.erase(iter);
+        } else iter++;
     }
-
-    if (tracker->isStopped())
-    {
-        // tracker was cancelled before it found the item. start a new one.
-        mTrackers.erase(itemID);
-        tracker = getTracker(itemID, true, &newTracker);
-        mTrackers[itemID] = tracker;
-    }
-
-    tracker->listen(cb);
-
-    if (mCache.exists(itemID))
-    {
-        tracker->recv(mCache.get(itemID));
-    }
-    else if (newTracker)
-    {
-        tracker->tryNextPeer();
-    }
-
-    return tracker;
 }
 
 
@@ -127,72 +80,63 @@ template<class T, class TrackerT>
 void 
 ItemFetcher<T, TrackerT>::doesntHave(uint256 const& itemID, Peer::pointer peer)
 {
-    if (auto tracker = isNeeded(itemID))
+    const auto& iter = mTrackers.find(itemID);
+    if(iter != mTrackers.end())
     {
-        tracker->doesntHave(peer);
+        iter->second->doesntHave(peer);
     }
 }
 
 template<class T, class TrackerT>
 void 
-ItemFetcher<T, TrackerT>::recv(uint256 itemID, T const & item)
+ItemFetcher<T, TrackerT>::recv(uint256 itemID, T item)
 {
-    if (auto tracker = isNeeded(itemID))
+    const auto& iter = mTrackers.find(itemID);
+
+    if (iter != mTrackers.end())
     {
-        mCache.put(itemID, item);
-        tracker->recv(item);
+        iter->second->itemReceived();
     }
 }
 
-template<class T, class TrackerT>
-typename ItemFetcher<T, TrackerT>::TrackerPtr
-ItemFetcher<T, TrackerT>::cache(Hash itemID, T const & item)
-{
-    mCache.put(itemID, item);
-    auto result = getTracker(itemID, true);
-    recv(itemID, item); // notify listeners, if any, mark as found
-    return result;
-}
 
-template<class T, class TrackerT>
-typename ItemFetcher<T, TrackerT>::TrackerPtr
-ItemFetcher<T, TrackerT>::isNeeded(uint256 itemID)
-{
-    if (auto tracker = getTracker(itemID, false))
-    {
-        if (!tracker->isItemFound())
-            return tracker;
-    }
-    return nullptr;
-}
+
+
 
 
 template<class T, class TrackerT>
 ItemFetcher<T, TrackerT>::Tracker::~Tracker()
 {
-    cancel();
-    mItemFetcher.mTrackers.erase(mItemID);
+    mTimer.cancel();
+    //mItemFetcher.mTrackers.erase(mItemID);
 }
 
-
+// returns false if no one cares about this guy anymore
 template<class T, class TrackerT>
-bool 
-ItemFetcher<T, TrackerT>::Tracker::isItemFound()
+bool
+ItemFetcher<T, TrackerT>::Tracker::clearEnvelopesBelow(uint64 slotIndex)
 {
-    return mItem != nullptr;
+    for(auto iter = mWaitingEnvelopes.begin(); iter != mWaitingEnvelopes.end();)
+    {
+        if(iter->statement.slotIndex < slotIndex)
+        {
+            iter = mWaitingEnvelopes.erase(iter);
+        } else iter++;
+    }
+    if(mWaitingEnvelopes.size()) return true;
+
+
+    mPeersAsked.clear();
+    mTimer.cancel();
+    mLastAskedPeer = nullptr;
+    mIsStopped = true;
+
+    return false;
 }
 
-template <class T, class TrackerT>
-bool ItemFetcher<T, TrackerT>::Tracker::isStopped()
-{
-    return mIsStopped;
-}
 
-template<class T, class TrackerT>
-T const & ItemFetcher<T, TrackerT>::Tracker::get()
-{
-    return *mItem;
-}
+
+
 
 template<class T, class TrackerT>
 void 
@@ -206,12 +150,11 @@ ItemFetcher<T, TrackerT>::Tracker::doesntHave(Peer::pointer peer)
 
 template<class T, class TrackerT>
 void 
-ItemFetcher<T, TrackerT>::Tracker::recv(T item)
+ItemFetcher<T, TrackerT>::Tracker::itemReceived()
 {
-    mItem = make_optional<T>(item);
-    for(auto cb : mCallbacks)
+    for(SCPEnvelope& env : mWaitingEnvelopes)
     {
-        cb(item);
+        mApp.getHerder().recvSCPEnvelope(env);
     }
     cancel();
 }
@@ -222,68 +165,64 @@ ItemFetcher<T, TrackerT>::Tracker::tryNextPeer()
 {
     // will be called by some timer or when we get a 
     // response saying they don't have it
+    Peer::pointer peer;
 
-    if (!isItemFound() && mItemFetcher.isNeeded(mItemID))
-    { // we still haven't found this item, and someone still wants it
-        Peer::pointer peer;
-
-        if (mPeersAsked.size())
-        {
-            while (!peer && mPeersAsked.size())
-            { 
-                peer = mApp.getOverlayManager().getNextPeer(mPeersAsked.back());
-                if (!peer)
-                {
-                    // no longer connected to this peer.
-                    // try another.
-                    mPeersAsked.pop_back();
-                }
+    if (mPeersAsked.size())
+    {
+        while (!peer && mPeersAsked.size())
+        { 
+            peer = mApp.getOverlayManager().getNextPeer(mPeersAsked.back());
+            if (!peer)
+            {
+                // no longer connected to this peer.
+                // try another.
+                mPeersAsked.pop_back();
             }
         }
-        else
-        {
-            peer = mApp.getOverlayManager().getRandomPeer();
-        }
-
-        std::chrono::milliseconds nextTry;
-        if (!peer || find(mPeersAsked.begin(), mPeersAsked.end(), peer) != mPeersAsked.end())
-        {   // we have asked all our peers
-            // clear list and try again in a bit
-            mPeersAsked.clear();
-            nextTry = MS_TO_WAIT_FOR_FETCH_REPLY * 2;
-        } else
-        {
-            askPeer(peer);
-
-            mLastAskedPeer = peer;
-            mPeersAsked.push_back(peer);
-            nextTry = MS_TO_WAIT_FOR_FETCH_REPLY;
-        }
-
-        mTimer.expires_from_now(nextTry);
-        mTimer.async_wait([this]()
-        {
-            this->tryNextPeer();
-        }, VirtualTimer::onFailureNoop);
+    }
+    else
+    {
+        peer = mApp.getOverlayManager().getRandomPeer();
     }
 
+    std::chrono::milliseconds nextTry;
+    if (!peer || find(mPeersAsked.begin(), mPeersAsked.end(), peer) != mPeersAsked.end())
+    {   // we have asked all our peers
+        // clear list and try again in a bit
+        mPeersAsked.clear();
+        nextTry = MS_TO_WAIT_FOR_FETCH_REPLY * 2;
+    } else
+    {
+        askPeer(peer);
+
+        mLastAskedPeer = peer;
+        mPeersAsked.push_back(peer);
+        nextTry = MS_TO_WAIT_FOR_FETCH_REPLY;
+    }
+
+    mTimer.expires_from_now(nextTry);
+    mTimer.async_wait([this]()
+    {
+        this->tryNextPeer();
+    }, VirtualTimer::onFailureNoop);
 }
 
 template<class T, class TrackerT>
 void ItemFetcher<T, TrackerT>::Tracker::cancel()
 {
-    mCallbacks.clear();
+    mWaitingEnvelopes.clear();
     mPeersAsked.clear();
     mTimer.cancel();
     mLastAskedPeer = nullptr;
     mIsStopped = true;
+    mItemFetcher.removeTracker(mItemID);
+    
 }
 
 template<class T, class TrackerT>
-void ItemFetcher<T, TrackerT>::Tracker::listen(std::function<void(T const &item)> cb)
+void ItemFetcher<T, TrackerT>::Tracker::listen(const SCPEnvelope& env)
 {
-    assert(!isItemFound());
-    mCallbacks.push_back(cb);
+    mWaitingEnvelopes.push_back(env);
 }
 
 
@@ -297,16 +236,8 @@ void QuorumSetTracker::askPeer(Peer::pointer peer)
     peer->sendGetQuorumSet(mItemID);
 }
 
-void IntTracker::askPeer(Peer::pointer peer)
-{
-    CLOG(INFO, "Overlay") << "asked for " << hexAbbrev(mItemID);
-    mAsked.push_back(peer);
-}
 
-template class ItemFetcher<int, IntTracker>;
-
-
-template class ItemFetcher<TxSetFrame, TxSetTracker>;
-template class ItemFetcher<SCPQuorumSet, QuorumSetTracker>;
+template class ItemFetcher<TxSetFramePtr, TxSetTracker>;
+template class ItemFetcher<SCPQuorumSetPtr, QuorumSetTracker>;
 
 }

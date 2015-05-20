@@ -8,6 +8,13 @@
 #include <generated/SCPXDR.h>
 #include "overlay/ItemFetcher.h"
 #include "lib/json/json.h"
+#include "lib/util/lrucache.hpp"
+
+/*
+SCP messages that you have received but are waiting to get the info of
+before feeding into SCP 
+*/
+
 
 namespace stellar
 {
@@ -16,57 +23,70 @@ class HerderImpl;
 
 class PendingEnvelopes
 {
+    Application& mApp;
+    HerderImpl &mHerder;
+
+    // ledger# and list of envelopes we have received if they are fetched or not
+    std::map<uint64, std::vector<SCPEnvelope>> mReceivedEnvelopes;
+
+    // ledger# and list of envelopes we are fetching right now
+    std::map<uint64, std::set<SCPEnvelope>> mFetchingEnvelopes;
+
+    // ledger# and list of envelopes that haven't been sent to SCP yet
+    std::map<uint64, std::vector<SCPEnvelope>> mPendingEnvelopes;
+
+     // all the quorum sets we have learned about
+    cache::lru_cache<uint256, SCPQuorumSetPtr> mQsetCache;
+
+    
+
+    ItemFetcher<TxSetFramePtr, TxSetTracker> mTxSetFetcher;
+    ItemFetcher<SCPQuorumSetPtr, QuorumSetTracker> mQuorumSetFetcher;
+
+    // all the txsets we have learned about per ledger#
+    cache::lru_cache<uint256, TxSetFramePtr> mTxSetCache;
+    
+
+    bool checkFutureCommitted(SCPEnvelope envelope);
+
+    medida::Counter& mPendingEnvelopesSize;
 public:
-    using SCPEnvelopePtr = std::shared_ptr<SCPEnvelope>;
+   
 
-    struct FetchingRecord
-    {
-        SCPEnvelopePtr env;
-        TxSetTrackerPtr mTxSetTracker;
-        QuorumSetTrackerPtr mQuorumSetTracker;
-
-        bool isReady();
-    };
-    using FetchingRecordPtr = std::shared_ptr<FetchingRecord>;
 
     PendingEnvelopes(Application& app, HerderImpl &herder);
+    ~PendingEnvelopes();
 
-    void add(SCPEnvelope const & envelope);
+    void recvSCPEnvelope(SCPEnvelope const &envelope);
+    void recvSCPQuorumSet(Hash hash, const SCPQuorumSet& qset);
+    void recvTxSet(Hash hash, TxSetFramePtr txset);
 
-    void erase(uint64 slotIndex);
+    void peerDoesntHave(MessageType type, uint256 const& itemID, Peer::pointer peer);
 
-    std::vector<uint64> readySlots();
+    bool isFullyFetched(SCPEnvelope const &envelope);
+    // returns true if already fetched
+    bool startFetch(SCPEnvelope const &envelope);
+
+    void envelopeReady(SCPEnvelope const &envelope);
+
+    bool pop(uint64 slotIndex, SCPEnvelope& ret);
 
     void eraseBelow(uint64 slotIndex);
-    
-    optional<FetchingRecord> pop(uint64 slotIndex);
-    
+
+
+    void slotClosed(uint64 slotIndex);
+
+    std::vector<uint64> readySlots();
 
     bool isFutureCommitted(uint64 slotIndex);
 
     void dumpInfo(Json::Value& ret);
 
-    TxSetFramePtr getTxSet(Hash txSetHash);
-    SCPQuorumSetPtr getQuorumSet(Hash qSetHash);
+    TxSetFramePtr getTxSet(Hash hash);
+    SCPQuorumSetPtr getQSet(Hash hash);
 
-private:
-    void checkReady(FetchingRecordPtr fRecord);
-    FetchingRecordPtr fetch(SCPEnvelope const & env);
-    bool checkFutureCommitted(SCPEnvelope envelope);
-
-    Application &mApp;
-    HerderImpl &mHerder;
-
-    std::map<uint64, std::set<FetchingRecordPtr>> mFetching;
-    std::map<uint64, std::deque<FetchingRecordPtr>> mReady;
-    
-    // keep holding the txSet and quorumSet until they
-    // are not neeeded anymore
-    std::map<uint64, std::set<FetchingRecordPtr>> mDone; 
-
-    std::set<uint64> mIsFutureCommitted;
-
-    medida::Counter& mPendingEnvelopesSize;
 };
+
+
 
 }

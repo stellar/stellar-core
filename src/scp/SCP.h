@@ -17,6 +17,7 @@ namespace stellar
 class Node;
 class Slot;
 class LocalNode;
+typedef std::shared_ptr<SCPQuorumSet> SCPQuorumSetPtr;
 
 class SCP
 {
@@ -136,9 +137,8 @@ class SCP
 
     // Delegates the retrieval of the quorum set designated by `qSetHash` to
     // the user of SCP.
-    virtual void
-    retrieveQuorumSet(uint256 const& nodeID, Hash const& qSetHash,
-                      std::function<void(SCPQuorumSet const&)> const& cb) = 0;
+    virtual SCPQuorumSetPtr
+    getQSet(Hash const& qSetHash) = 0;
 
     // Delegates the emission of an SCPEnvelope to the user of SCP. Envelopes
     // should be flooded to the network.
@@ -209,7 +209,6 @@ class SCP
     size_t getKnownNodesCount() const;
     size_t getKnownSlotsCount() const;
     size_t getCumulativeStatemtCount() const;
-    size_t getCumulativeCachedQuorumSetCount() const;
 
   private:
     // Node getters

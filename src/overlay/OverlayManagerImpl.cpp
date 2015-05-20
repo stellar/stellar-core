@@ -60,8 +60,6 @@ OverlayManagerImpl::OverlayManagerImpl(Application& app)
           {"overlay", "connection", "reject"}, "connection"))
     , mPeersSize(app.getMetrics().NewCounter({"overlay", "memory", "peers"}))
     , mTimer(app)
-    , mTxSetFetcher(app, 400)     // TODO
-    , mQuorumSetFetcher(app, 400) // TODO
     , mFloodGate(app)
 {
     mTimer.expires_from_now(std::chrono::seconds(2));
@@ -311,14 +309,5 @@ OverlayManager::dropAll(Database& db)
 }
 
 
-ItemFetcher<TxSetFrame, TxSetTracker> & OverlayManagerImpl::getTxSetFetcher()
-{
-    return mTxSetFetcher;
-}
-
-ItemFetcher<SCPQuorumSet, QuorumSetTracker> & OverlayManagerImpl::getQuorumSetFetcher()
-{
-    return mQuorumSetFetcher;
-}
 
 }
