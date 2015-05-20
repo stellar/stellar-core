@@ -143,6 +143,8 @@ struct ChangeTrustOp
 /* Updates the "authorized" flag of an existing trust line
    this is called by the issuer of the related currency.
 
+   note that authorize can only be set (and not cleared) if
+   the issuer account does not have the AUTH_REVOCABLE_FLAG set
    Threshold: low
 
    Result: AllowTrustResult

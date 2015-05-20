@@ -22,7 +22,12 @@ struct Signer
 
 enum AccountFlags
 { // masks for each flag
+
+    // if set, TrustLines are created with authorized set to "false"
+    // requiring the issuer to set it for each TrustLine
     AUTH_REQUIRED_FLAG = 0x1,
+    // if set, the authorized flag in TrustTines can be cleared
+    // otherwise, authorization cannot be revoked
     AUTH_REVOCABLE_FLAG = 0x2
 };
 
@@ -62,7 +67,8 @@ struct AccountEntry
 
 enum TrustLineFlags
 {
-    AUTHORIZED_FLAG = 1 // issuer has authorized account to hold its credit
+    // issuer has authorized account to perform transactions with its credit
+    AUTHORIZED_FLAG = 1
 };
 
 struct TrustLineEntry
