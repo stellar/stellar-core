@@ -207,6 +207,11 @@ TCPPeer::writeHandler(asio::error_code const& error,
 void
 TCPPeer::startRead()
 {
+    if (mState == CLOSING)
+    {
+        return;
+    }
+
     try
     {
         weak_ptr<TCPPeer> selfWeak =
@@ -237,7 +242,7 @@ TCPPeer::startRead()
         };
 
         mReadIdle.cancel();
-            
+
         if (mApp.getConfig().BREAK_ASIO_LOOP_FOR_FAST_TESTS)
         {
             mAsioLoopBreaker.expires_from_now(std::chrono::milliseconds(0));
