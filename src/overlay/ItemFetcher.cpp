@@ -152,7 +152,8 @@ template<class T, class TrackerT>
 void 
 ItemFetcher<T, TrackerT>::Tracker::itemReceived()
 {
-    for(SCPEnvelope& env : mWaitingEnvelopes)
+    std::vector<SCPEnvelope> tempList = mWaitingEnvelopes;
+    for(SCPEnvelope& env : tempList)
     {
         mApp.getHerder().recvSCPEnvelope(env);
     }
