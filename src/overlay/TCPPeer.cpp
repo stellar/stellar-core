@@ -431,8 +431,6 @@ TCPPeer::drop()
         return;
     }
 
-    bool wasConnected = (mState == CONNECTED || mState == GOT_HELLO);
-
     CLOG(DEBUG, "Overlay") << "TCPPeer::drop " << toString() << " in state "
                            << mState << " we called:" << mRole;
 
@@ -440,33 +438,24 @@ TCPPeer::drop()
 
     mWriteIdle.cancel();
     mReadIdle.cancel();
-    auto self = shared_from_this();
-    auto sock = mSocket;
 
-    // We post the shutdown to io_service so that any final writes have a chance
-    // to get ahead of the shutdown and actually make it onto the wire.
-    mApp.getClock().getIOService().post(
-        [self, sock, wasConnected]()
-        {
-            self->getApp().getOverlayManager().dropPeer(self);
-            if (wasConnected)
-            {
-                try
-                {
-                    sock->shutdown(asio::socket_base::shutdown_both);
-                }
-                catch (asio::system_error& e)
-                {
-                    CLOG(ERROR, "Overlay")
-                        << "TCPPeer::drop shutdown failed: " << e.what();
-                }
-                catch (...)
-                {
-                    CLOG(ERROR, "Overlay")
-                        << "TCPPeer::drop socket shutdown failed";
-                }
-            }
-            sock->close();
-        });
+    auto self = shared_from_this();
+    getApp().getOverlayManager().dropPeer(self);
+
+    // close connection, abort all transmissions immediately
+    // this causes all read/write callbacks to be invoked with an error
+    try
+    {
+        mSocket->close();
+    }
+    catch (asio::system_error& e)
+    {
+        CLOG(ERROR, "Overlay")
+            << "TCPPeer::drop close socket failed: " << e.what();
+    }
+    catch (...)
+    {
+        CLOG(ERROR, "Overlay") << "TCPPeer::drop close socket failed";
+    }
 }
 }
