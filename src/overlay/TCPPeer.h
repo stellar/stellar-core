@@ -6,6 +6,7 @@
 
 #include "overlay/Peer.h"
 #include "util/Timer.h"
+#include <queue>
 
 namespace medida
 {
@@ -25,6 +26,8 @@ class TCPPeer : public Peer
     std::vector<uint8_t> mIncomingBody;
     asio::io_service::strand mStrand;
 
+    std::queue<std::shared_ptr<xdr::msg_ptr>> mWriteQueue;
+
     medida::Meter& mMessageRead;
     medida::Meter& mMessageWrite;
     medida::Meter& mByteRead;
@@ -41,6 +44,9 @@ class TCPPeer : public Peer
     void recvMessage();
     bool recvHello(StellarMessage const& msg) override;
     void sendMessage(xdr::msg_ptr&& xdrBytes) override;
+
+    void messageSender();
+
     int getIncomingMsgLength();
     virtual void connected() override;
     void startRead();

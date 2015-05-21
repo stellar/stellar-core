@@ -172,24 +172,46 @@ TCPPeer::getIP()
 void
 TCPPeer::sendMessage(xdr::msg_ptr&& xdrBytes)
 {
-    // Pass ownership of a serialized XDR message buffer, along with an
-    // asio::buffer pointing into it, to the callback for async_write, so it
-    // survives as long as the request is in flight in the io_service, and
-    // is deallocated when the write completes.
-    //
-    // The capture of `buf` is required to keep the buffer alive long enough.
-
     CLOG(TRACE, "Overlay") << "TCPPeer:sendMessage to " << toString();
 
-    resetWriteIdle();
-    auto self = shared_from_this();
+    bool wasEmpty = mWriteQueue.empty();
+
+    // places the buffer to write into the write queue
     auto buf = std::make_shared<xdr::msg_ptr>(std::move(xdrBytes));
+    mWriteQueue.emplace(buf);
+
+    if (wasEmpty)
+    {
+        // kick off the async write chain if we're the first one
+        messageSender();
+    }
+}
+
+void
+TCPPeer::messageSender()
+{
+    // if nothing to do, return
+    if(mWriteQueue.empty())
+    {
+        return;
+    }
+
+    resetWriteIdle();
+
+    auto self = static_pointer_cast<TCPPeer>(shared_from_this());
+
+    // peek the buffer from the queue
+    // do not remove it yet as we need the buffer for the duration of the
+    // write operation
+    auto buf = mWriteQueue.front();
+
     asio::async_write(
         *(mSocket.get()), asio::buffer((*buf)->raw_data(), (*buf)->raw_size()),
-        mStrand.wrap([self, buf](asio::error_code const& ec, std::size_t length)
+        mStrand.wrap([self](asio::error_code const& ec, std::size_t length)
                      {
                          self->writeHandler(ec, length);
-                         (void)buf;
+                         self->mWriteQueue.pop(); // done with front element
+                         self->messageSender();   // send the next one
                      }));
 }
 
