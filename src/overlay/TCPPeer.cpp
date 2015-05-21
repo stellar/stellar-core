@@ -112,6 +112,11 @@ TCPPeer::~TCPPeer()
 void
 TCPPeer::resetWriteIdle()
 {
+    if (mState == CLOSING)
+    {
+        return;
+    }
+
     std::shared_ptr<TCPPeer> self =
         std::static_pointer_cast<TCPPeer>(shared_from_this());
     mWriteIdle.expires_from_now(std::chrono::seconds(IO_TIMEOUT_SECONDS));
@@ -125,6 +130,11 @@ TCPPeer::resetWriteIdle()
 void
 TCPPeer::resetReadIdle()
 {
+    if (mState == CLOSING)
+    {
+        return;
+    }
+
     std::shared_ptr<TCPPeer> self =
         std::static_pointer_cast<TCPPeer>(shared_from_this());
     mReadIdle.expires_from_now(std::chrono::seconds(IO_TIMEOUT_SECONDS));
