@@ -224,31 +224,24 @@ TCPPeer::startRead()
 
     try
     {
-        weak_ptr<TCPPeer> selfWeak =
-            static_pointer_cast<TCPPeer>(shared_from_this());
+        auto self = static_pointer_cast<TCPPeer>(shared_from_this());
 
-        auto cont = [selfWeak]()
+        auto cont = [self]()
         {
-            if (auto self = selfWeak.lock())
-            {
-                assert(self->mIncomingHeader.size() == 0);
-                CLOG(TRACE, "Overlay") << "TCPPeer::startRead to "
-                                       << self->toString();
-                self->resetReadIdle();
-                self->mIncomingHeader.resize(4);
-                asio::async_read(
-                    *(self->mSocket.get()), asio::buffer(self->mIncomingHeader),
-                    [selfWeak](asio::error_code ec, std::size_t length)
-                    {
-                        if (auto self = selfWeak.lock())
-                        {
-                            CLOG(TRACE, "Overlay")
-                                << "TCPPeer::startRead calledback " << ec
-                                << " length:" << length;
-                            self->readHeaderHandler(ec, length);
-                        }
-                    });
-            };
+            assert(self->mIncomingHeader.size() == 0);
+            CLOG(TRACE, "Overlay") << "TCPPeer::startRead to "
+                                   << self->toString();
+            self->resetReadIdle();
+            self->mIncomingHeader.resize(4);
+            asio::async_read(*(self->mSocket.get()),
+                             asio::buffer(self->mIncomingHeader),
+                             [self](asio::error_code ec, std::size_t length)
+                             {
+                                 CLOG(TRACE, "Overlay")
+                                     << "TCPPeer::startRead calledback " << ec
+                                     << " length:" << length;
+                                 self->readHeaderHandler(ec, length);
+                             });
         };
 
         mReadIdle.cancel();
@@ -447,7 +440,6 @@ TCPPeer::drop()
 
     mWriteIdle.cancel();
     mReadIdle.cancel();
-    mAsioLoopBreaker.cancel();
     auto self = shared_from_this();
     auto sock = mSocket;
 
