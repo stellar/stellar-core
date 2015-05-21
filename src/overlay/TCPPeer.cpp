@@ -34,6 +34,7 @@ TCPPeer::TCPPeer(Application& app, Peer::PeerRole role,
     , mSocket(socket)
     , mReadIdle(app)
     , mWriteIdle(app)
+    , mStrand(app.getClock().getIOService())
     , mMessageRead(
           app.getMetrics().NewMeter({"overlay", "message", "read"}, "message"))
     , mMessageWrite(
@@ -66,10 +67,11 @@ TCPPeer::initiate(Application& app, std::string const& ip, unsigned short port)
     result->mIP = ip;
     result->mRemoteListeningPort = port;
     asio::ip::tcp::endpoint endpoint(asio::ip::address::from_string(ip), port);
-    socket->async_connect(endpoint, [result](asio::error_code const& error)
-                          {
-                              result->connectHandler(error);
-                          });
+    socket->async_connect(
+        endpoint, result->mStrand.wrap([result](asio::error_code const& error)
+                                       {
+                                           result->connectHandler(error);
+                                       }));
     return result;
 }
 
@@ -120,11 +122,11 @@ TCPPeer::resetWriteIdle()
     std::shared_ptr<TCPPeer> self =
         std::static_pointer_cast<TCPPeer>(shared_from_this());
     mWriteIdle.expires_from_now(std::chrono::seconds(IO_TIMEOUT_SECONDS));
-    mWriteIdle.async_wait([self](asio::error_code const& error)
-                          {
-                              if (!error)
-                                  self->timeoutWrite(error);
-                          });
+    mWriteIdle.async_wait(mStrand.wrap([self](asio::error_code const& error)
+                                       {
+                                           if (!error)
+                                               self->timeoutWrite(error);
+                                       }));
 }
 
 void
@@ -138,11 +140,11 @@ TCPPeer::resetReadIdle()
     std::shared_ptr<TCPPeer> self =
         std::static_pointer_cast<TCPPeer>(shared_from_this());
     mReadIdle.expires_from_now(std::chrono::seconds(IO_TIMEOUT_SECONDS));
-    mReadIdle.async_wait([self](asio::error_code const& error)
-                         {
-                             if (!error)
-                                 self->timeoutRead(error);
-                         });
+    mReadIdle.async_wait(mStrand.wrap([self](asio::error_code const& error)
+                                      {
+                                          if (!error)
+                                              self->timeoutRead(error);
+                                      }));
 }
 
 void
@@ -184,11 +186,11 @@ TCPPeer::sendMessage(xdr::msg_ptr&& xdrBytes)
     auto buf = std::make_shared<xdr::msg_ptr>(std::move(xdrBytes));
     asio::async_write(
         *(mSocket.get()), asio::buffer((*buf)->raw_data(), (*buf)->raw_size()),
-        [self, buf](asio::error_code const& ec, std::size_t length)
-        {
-            self->writeHandler(ec, length);
-            (void)buf;
-        });
+        mStrand.wrap([self, buf](asio::error_code const& ec, std::size_t length)
+                     {
+                         self->writeHandler(ec, length);
+                         (void)buf;
+                     }));
 }
 
 void
@@ -235,13 +237,14 @@ TCPPeer::startRead()
             self->mIncomingHeader.resize(4);
             asio::async_read(*(self->mSocket.get()),
                              asio::buffer(self->mIncomingHeader),
-                             [self](asio::error_code ec, std::size_t length)
-                             {
-                                 CLOG(TRACE, "Overlay")
-                                     << "TCPPeer::startRead calledback " << ec
-                                     << " length:" << length;
-                                 self->readHeaderHandler(ec, length);
-                             });
+                             self->mStrand.wrap(
+                                 [self](asio::error_code ec, std::size_t length)
+                                 {
+                                     CLOG(TRACE, "Overlay")
+                                         << "TCPPeer::startRead calledback "
+                                         << ec << " length:" << length;
+                                     self->readHeaderHandler(ec, length);
+                                 }));
         };
 
         mReadIdle.cancel();
@@ -304,14 +307,14 @@ TCPPeer::readHeaderHandler(asio::error_code const& error,
     {
         mByteRead.Mark(bytes_transferred);
         mIncomingBody.resize(getIncomingMsgLength());
-        auto self = shared_from_this();
-        asio::async_read(*mSocket.get(), asio::buffer(mIncomingBody),
-                         [self](asio::error_code ec, std::size_t length)
-                         {
-                             static_cast<TCPPeer*>(self.get())
-                                 ->mIncomingHeader.clear();
-                             self->readBodyHandler(ec, length);
-                         });
+        auto self = static_pointer_cast<TCPPeer>(shared_from_this());
+        asio::async_read(
+            *mSocket.get(), asio::buffer(mIncomingBody),
+            self->mStrand.wrap([self](asio::error_code ec, std::size_t length)
+                               {
+                                   self->mIncomingHeader.clear();
+                                   self->readBodyHandler(ec, length);
+                               }));
     }
     else
     {

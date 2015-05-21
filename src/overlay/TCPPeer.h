@@ -23,6 +23,7 @@ class TCPPeer : public Peer
     VirtualTimer mWriteIdle;
     std::vector<uint8_t> mIncomingHeader;
     std::vector<uint8_t> mIncomingBody;
+    asio::io_service::strand mStrand;
 
     medida::Meter& mMessageRead;
     medida::Meter& mMessageWrite;
