@@ -33,8 +33,8 @@
  *    GET_TX_SET, TX_SET, GET_SCP_QUORUMSET, SCP_QUORUMSET
  *
  * Anycasts are initiated and serviced two instances of ItemFetcher
- * (mTxSetFetcher and mQuorumSetFetcher). Anycast messages are sent to 
- * directly-connected peers, in sequence until satisfied. They are not 
+ * (mTxSetFetcher and mQuorumSetFetcher). Anycast messages are sent to
+ * directly-connected peers, in sequence until satisfied. They are not
  * flooded between peers.
  *
  * Broadcasts are initiated by the Herder and sent to both the Herder _and_ the
@@ -49,7 +49,6 @@ namespace stellar
 
 class PeerRecord;
 
-
 class OverlayManager
 {
   public:
@@ -58,7 +57,8 @@ class OverlayManager
     // Drop all PeerRecords from the Database
     static void dropAll(Database& db);
 
-    // Flush all FloodGate and ItemFetcher state for ledgers older than `ledger`. 
+    // Flush all FloodGate and ItemFetcher state for ledgers older than
+    // `ledger`.
     // This is called by LedgerManager when a ledger closes.
     virtual void ledgerClosed(uint32_t lastClosedledgerSeq) = 0;
 
@@ -112,6 +112,11 @@ class OverlayManager
 
     // Attempt to connect to a peer identified by peer record.
     virtual void connectTo(PeerRecord& pr) = 0;
+
+    // drops all connections
+    virtual void shutdown() = 0;
+
+    virtual bool isShuttingDown() const = 0;
 
     virtual ~OverlayManager()
     {
