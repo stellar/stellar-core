@@ -20,6 +20,11 @@ using namespace std;
 PeerDoor::PeerDoor(Application& app)
     : mApp(app), mAcceptor(mApp.getClock().getIOService())
 {
+}
+
+void
+PeerDoor::start()
+{
     if (!mApp.getConfig().RUN_STANDALONE)
     {
         tcp::endpoint endpoint(tcp::v4(), mApp.getConfig().PEER_PORT);

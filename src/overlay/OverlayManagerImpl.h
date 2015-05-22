@@ -79,6 +79,7 @@ class OverlayManagerImpl : public OverlayManager
     void connectToMorePeers(int max);
     Peer::pointer getRandomPeer() override;
 
+    void start() override;
     void shutdown() override;
 
     bool isShuttingDown() const override;

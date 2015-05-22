@@ -113,6 +113,8 @@ class OverlayManager
     // Attempt to connect to a peer identified by peer record.
     virtual void connectTo(PeerRecord& pr) = 0;
 
+    // start up all background tasks for overlay
+    virtual void start() = 0;
     // drops all connections
     virtual void shutdown() = 0;
 

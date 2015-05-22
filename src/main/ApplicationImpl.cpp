@@ -193,6 +193,8 @@ ApplicationImpl::timeNow()
 void
 ApplicationImpl::start()
 {
+    mOverlayManager->start();
+
     if (mPersistentState->getState(PersistentState::kDatabaseInitialized) !=
         "true")
     {

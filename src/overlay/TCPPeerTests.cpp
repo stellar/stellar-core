@@ -27,9 +27,12 @@ TEST_CASE("TCPPeer can communicate", "[overlay]")
         s->getNode(s->addNode(v10SecretKey, SCPQuorumSet(), s->getClock()));
     auto n1 =
         s->getNode(s->addNode(v11SecretKey, SCPQuorumSet(), s->getClock()));
+
+    s->startAllNodes();
+
     auto b = TCPPeer::initiate(*n0, "127.0.0.1", n1->getConfig().PEER_PORT);
 
-    s->crankForAtLeast(std::chrono::seconds(3), true);
+    s->crankForAtLeast(std::chrono::seconds(3), false);
 
     REQUIRE(n0->getOverlayManager()
                 .getConnectedPeer("127.0.0.1", n1->getConfig().PEER_PORT)
@@ -37,5 +40,6 @@ TEST_CASE("TCPPeer can communicate", "[overlay]")
     REQUIRE(n1->getOverlayManager()
                 .getConnectedPeer("127.0.0.1", n0->getConfig().PEER_PORT)
                 ->getState() == Peer::GOT_HELLO);
+    s->stopAllNodes();
 }
 }

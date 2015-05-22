@@ -63,6 +63,16 @@ OverlayManagerImpl::OverlayManagerImpl(Application& app)
     , mTimer(app)
     , mFloodGate(app)
 {
+}
+
+OverlayManagerImpl::~OverlayManagerImpl()
+{
+}
+
+void
+OverlayManagerImpl::start()
+{
+    mDoor->start();
     mTimer.expires_from_now(std::chrono::seconds(2));
 
     if (!mApp.getConfig().RUN_STANDALONE)
@@ -75,10 +85,6 @@ OverlayManagerImpl::OverlayManagerImpl(Application& app)
             },
             VirtualTimer::onFailureNoop);
     }
-}
-
-OverlayManagerImpl::~OverlayManagerImpl()
-{
 }
 
 void
