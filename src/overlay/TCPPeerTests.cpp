@@ -23,11 +23,13 @@ TEST_CASE("TCPPeer can communicate", "[overlay]")
     auto v10SecretKey = SecretKey::fromSeed(sha256("v10"));
     auto v11SecretKey = SecretKey::fromSeed(sha256("v11"));
 
-    auto n0 = s->getNode(s->addNode(v10SecretKey, SCPQuorumSet(), s->getClock()));
-    auto n1 = s->getNode(s->addNode(v11SecretKey, SCPQuorumSet(), s->getClock()));
+    auto n0 =
+        s->getNode(s->addNode(v10SecretKey, SCPQuorumSet(), s->getClock()));
+    auto n1 =
+        s->getNode(s->addNode(v11SecretKey, SCPQuorumSet(), s->getClock()));
     auto b = TCPPeer::initiate(*n0, "127.0.0.1", n1->getConfig().PEER_PORT);
 
-    s->crankForAtLeast(std::chrono::seconds(3));
+    s->crankForAtLeast(std::chrono::seconds(3), true);
 
     REQUIRE(n0->getOverlayManager()
                 .getConnectedPeer("127.0.0.1", n1->getConfig().PEER_PORT)

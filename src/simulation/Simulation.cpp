@@ -163,6 +163,18 @@ Simulation::startAllNodes()
     }
 }
 
+void
+Simulation::stopAllNodes()
+{
+    for (auto& n : mNodes)
+    {
+        n.second->gracefulStop();
+    }
+
+    while (crankAllNodes() > 0)
+        ;
+}
+
 std::size_t
 Simulation::crankAllNodes(int nbTicks)
 {
@@ -171,7 +183,7 @@ Simulation::crankAllNodes(int nbTicks)
     {
         if (mClock.getIOService().stopped())
         {
-            throw std::runtime_error("Simulation shut down");
+            return 0;
         }
         count += mClock.crank(false);
     }
@@ -194,7 +206,7 @@ Simulation::haveAllExternalized(SequenceNumber num)
 }
 
 void
-Simulation::crankForAtMost(VirtualClock::duration seconds)
+Simulation::crankForAtMost(VirtualClock::duration seconds, bool finalCrank)
 {
     bool stop = false;
     auto stopIt = [&](asio::error_code const& error)
@@ -215,10 +227,15 @@ Simulation::crankForAtMost(VirtualClock::duration seconds)
         LOG(INFO) << "Simulation timed out";
     else
         LOG(INFO) << "Simulation complete";
+
+    if (finalCrank)
+    {
+        stopAllNodes();
+    }
 }
 
 void
-Simulation::crankForAtLeast(VirtualClock::duration seconds)
+Simulation::crankForAtLeast(VirtualClock::duration seconds, bool finalCrank)
 {
     bool stop = false;
     auto stopIt = [&](asio::error_code const& error)
@@ -237,22 +254,27 @@ Simulation::crankForAtLeast(VirtualClock::duration seconds)
         if (crankAllNodes() == 0)
             std::this_thread::sleep_for(chrono::milliseconds(50));
     }
+
+    if (finalCrank)
+    {
+        stopAllNodes();
+    }
 }
 
 void
-Simulation::crankUntilSync(VirtualClock::duration timeout)
+Simulation::crankUntilSync(VirtualClock::duration timeout, bool finalCrank)
 {
     crankUntil(
         [&]()
         {
             return this->accountsOutOfSyncWithDb().empty();
         },
-        timeout);
+        timeout, finalCrank);
 }
 
 void
 Simulation::crankUntil(function<bool()> const& predicate,
-                       VirtualClock::duration timeout)
+                       VirtualClock::duration timeout, bool finalCrank)
 {
     bool timedOut = false;
     VirtualTimer timeoutTimer(*mIdleApp);
@@ -291,7 +313,13 @@ Simulation::crankUntil(function<bool()> const& predicate,
             std::this_thread::sleep_for(chrono::milliseconds(1));
         }
         if (done)
+        {
+            if (finalCrank)
+            {
+                stopAllNodes();
+            }
             return;
+        }
         if (timedOut)
             throw runtime_error("Simulation timed out");
     }
