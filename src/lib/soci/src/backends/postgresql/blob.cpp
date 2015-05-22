@@ -30,7 +30,7 @@ using namespace soci::details;
 
 postgresql_blob_backend::postgresql_blob_backend(
     postgresql_session_backend & session)
-    : session_(session), fd_(-1)
+    : session_(session), oid_(InvalidOid), fd_(-1)
 {
     if (session.transactionLevel_ <= 0)
     {
