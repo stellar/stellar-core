@@ -170,6 +170,12 @@ Peer::recvMessage(xdr::msg_ptr const& msg)
     recvMessage(sm);
 }
 
+bool
+Peer::shouldAbort() const
+{
+    return (mState == CLOSING) || mApp.getOverlayManager().isShuttingDown();
+}
+
 void
 Peer::recvMessage(StellarMessage const& stellarMsg)
 {

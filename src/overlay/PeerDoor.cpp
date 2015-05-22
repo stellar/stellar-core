@@ -51,15 +51,20 @@ PeerDoor::close()
 void
 PeerDoor::acceptNextPeer()
 {
+    if (mApp.getOverlayManager().isShuttingDown())
+    {
+        return;
+    }
+
     CLOG(DEBUG, "Overlay") << "PeerDoor acceptNextPeer()";
     auto sock = make_shared<tcp::socket>(mApp.getClock().getIOService());
     mAcceptor.async_accept(*sock, [this, sock](asio::error_code const& ec)
                            {
-        if (ec)
-            this->acceptNextPeer();
-        else
-            this->handleKnock(sock);
-    });
+                               if (ec)
+                                   this->acceptNextPeer();
+                               else
+                                   this->handleKnock(sock);
+                           });
 }
 
 void

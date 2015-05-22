@@ -114,8 +114,9 @@ TCPPeer::~TCPPeer()
 void
 TCPPeer::resetWriteIdle()
 {
-    if (mState == CLOSING)
+    if (shouldAbort())
     {
+        mWriteIdle.cancel();
         return;
     }
 
@@ -132,8 +133,9 @@ TCPPeer::resetWriteIdle()
 void
 TCPPeer::resetReadIdle()
 {
-    if (mState == CLOSING)
+    if (shouldAbort())
     {
+        mReadIdle.cancel();
         return;
     }
 
@@ -241,7 +243,7 @@ TCPPeer::writeHandler(asio::error_code const& error,
 void
 TCPPeer::startRead()
 {
-    if (mState == CLOSING)
+    if (shouldAbort())
     {
         return;
     }
