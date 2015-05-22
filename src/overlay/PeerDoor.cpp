@@ -35,7 +35,17 @@ PeerDoor::PeerDoor(Application& app)
 void
 PeerDoor::close()
 {
-    mAcceptor.cancel();
+    try
+    {
+        if (mAcceptor.is_open())
+        {
+            mAcceptor.close();
+        }
+    }
+    catch (asio::system_error&)
+    {
+        // ignore errors like this
+    }
 }
 
 void
