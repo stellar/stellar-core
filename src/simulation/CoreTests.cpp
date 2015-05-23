@@ -44,7 +44,7 @@ printStats(int& nLedgers, std::chrono::system_clock::time_point tBegin,
 #include "lib/util/lrucache.hpp"
 // typedef std::shared_ptr<TxSetFrame> TxSetFramePtr;
 
-TEST_CASE("3 nodes. 2 running. threshold 2", "[simulation]")
+TEST_CASE("3 nodes. 2 running. threshold 2", "[simulation][core3]")
 {
     Simulation::Mode mode = Simulation::OVER_LOOPBACK;
     SECTION("Over loopback")
@@ -57,43 +57,47 @@ TEST_CASE("3 nodes. 2 running. threshold 2", "[simulation]")
         mode = Simulation::OVER_TCP;
     }
 
-    Simulation::pointer simulation = std::make_shared<Simulation>(mode);
-
-    std::vector<SecretKey> keys;
-    for (int i = 0; i < 3; i++)
     {
-        keys.push_back(SecretKey::fromSeed(
-            sha256("SEED_VALIDATION_SEED_" + std::to_string(i))));
-    }
+        Simulation::pointer simulation = std::make_shared<Simulation>(mode);
 
-    SCPQuorumSet qSet;
-    qSet.threshold = 2;
-    for (auto& k : keys)
-    {
-        qSet.validators.push_back(k.getPublicKey());
-    }
-
-    simulation->addNode(keys[0], qSet, simulation->getClock());
-    simulation->addNode(keys[1], qSet, simulation->getClock());
-    simulation->addConnection(keys[0].getPublicKey(), keys[1].getPublicKey());
-
-    auto tBegin = std::chrono::system_clock::now();
-
-    LOG(INFO) << "#######################################################";
-
-    simulation->startAllNodes();
-
-    int nLedgers = 10;
-    simulation->crankUntil(
-        [&simulation, nLedgers]()
+        std::vector<SecretKey> keys;
+        for (int i = 0; i < 3; i++)
         {
-            return simulation->haveAllExternalized(nLedgers + 1);
-        },
-        2 * nLedgers * Herder::EXP_LEDGER_TIMESPAN_SECONDS);
+            keys.push_back(SecretKey::fromSeed(
+                sha256("SEED_VALIDATION_SEED_" + std::to_string(i))));
+        }
 
-    printStats(nLedgers, tBegin, simulation);
+        SCPQuorumSet qSet;
+        qSet.threshold = 2;
+        for (auto& k : keys)
+        {
+            qSet.validators.push_back(k.getPublicKey());
+        }
 
-    REQUIRE(simulation->haveAllExternalized(nLedgers + 1));
+        simulation->addNode(keys[0], qSet, simulation->getClock());
+        simulation->addNode(keys[1], qSet, simulation->getClock());
+        simulation->addConnection(keys[0].getPublicKey(),
+                                  keys[1].getPublicKey());
+
+        auto tBegin = std::chrono::system_clock::now();
+
+        LOG(INFO) << "#######################################################";
+
+        simulation->startAllNodes();
+
+        int nLedgers = 10;
+        simulation->crankUntil(
+            [&simulation, nLedgers]()
+            {
+                return simulation->haveAllExternalized(nLedgers + 1);
+            },
+            2 * nLedgers * Herder::EXP_LEDGER_TIMESPAN_SECONDS, true);
+
+        printStats(nLedgers, tBegin, simulation);
+
+        REQUIRE(simulation->haveAllExternalized(nLedgers + 1));
+    }
+    LOG(DEBUG) << "done with core3 test";
 }
 
 TEST_CASE("core topology: 4 ledgers at scales 2..4", "[simulation]")
@@ -121,7 +125,7 @@ TEST_CASE("core topology: 4 ledgers at scales 2..4", "[simulation]")
             {
                 return sim->haveAllExternalized(nLedgers + 1);
             },
-            2 * nLedgers * Herder::EXP_LEDGER_TIMESPAN_SECONDS);
+            2 * nLedgers * Herder::EXP_LEDGER_TIMESPAN_SECONDS, true);
 
         REQUIRE(sim->haveAllExternalized(nLedgers + 1));
 
@@ -142,7 +146,7 @@ hierarchicalTopo(int nLedgers, int nBranches, Simulation::Mode mode)
         {
             return sim->haveAllExternalized(nLedgers + 1);
         },
-        20 * nLedgers * Herder::EXP_LEDGER_TIMESPAN_SECONDS);
+        20 * nLedgers * Herder::EXP_LEDGER_TIMESPAN_SECONDS, true);
 
     REQUIRE(sim->haveAllExternalized(nLedgers + 1));
 
@@ -181,7 +185,7 @@ TEST_CASE("cycle4 topology", "[simulation]")
         {
             return simulation->haveAllExternalized(2);
         },
-        std::chrono::seconds(20));
+        std::chrono::seconds(20), true);
 
     // Still transiently does not work (quorum retrieval)
     REQUIRE(simulation->haveAllExternalized(2));
@@ -199,7 +203,7 @@ TEST_CASE("Stress test on 2 nodes 3 accounts 10 random transactions 10tx/sec",
         {
             return simulation->haveAllExternalized(3);
         },
-        2 * Herder::EXP_LEDGER_TIMESPAN_SECONDS);
+        2 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
 
     simulation->executeAll(simulation->accountCreationTransactions(3));
 
@@ -211,7 +215,7 @@ TEST_CASE("Stress test on 2 nodes 3 accounts 10 random transactions 10tx/sec",
                 return simulation->haveAllExternalized(4) &&
                        simulation->accountsOutOfSyncWithDb().empty();
             },
-            2 * Herder::EXP_LEDGER_TIMESPAN_SECONDS);
+            2 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
 
         auto crankingTime = simulation->executeStressTest(
             10, 10, [&simulation](size_t i)
@@ -224,7 +228,7 @@ TEST_CASE("Stress test on 2 nodes 3 accounts 10 random transactions 10tx/sec",
             {
                 return simulation->accountsOutOfSyncWithDb().empty();
             },
-            std::chrono::seconds(60));
+            std::chrono::seconds(60), true);
     }
     catch (...)
     {

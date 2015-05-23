@@ -170,6 +170,7 @@ VirtualClock::flushCancelledEvents()
     // LOG(DEBUG) << "VirtualClock::cancelAllEventsFrom";
 
     auto toKeep = vector<shared_ptr<VirtualClockEvent>>();
+    toKeep.reserve(mEvents.size());
 
     while (!mEvents.empty())
     {
@@ -182,7 +183,6 @@ VirtualClock::flushCancelledEvents()
     }
     mFlushesIgnored = 0;
     mEvents = PrQueue(toKeep.begin(), toKeep.end());
-    return;
 }
 
 bool
@@ -333,6 +333,7 @@ VirtualClockEvent::trigger()
     {
         mTriggered = true;
         mCallback(asio::error_code());
+        mCallback = nullptr;
     }
 }
 

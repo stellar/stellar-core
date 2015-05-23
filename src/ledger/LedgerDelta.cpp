@@ -161,8 +161,10 @@ void
 LedgerDelta::commit()
 {
     checkState();
+    using xdr::operator==;
     // checks if we're not about to override changes
-    if (std::memcmp(&mPreviousHeaderValue, mHeader, sizeof(LedgerHeader)) != 0)
+    // (commit a noop should never happen)
+    if (!(mPreviousHeaderValue == *mHeader))
     {
         throw std::runtime_error("unexpected header state");
     }

@@ -46,6 +46,7 @@ OverlayManager::create(Application& app)
 OverlayManagerImpl::OverlayManagerImpl(Application& app)
     : mApp(app)
     , mDoor(make_shared<PeerDoor>(mApp))
+    , mShuttingDown(false)
     , mMessagesReceived(app.getMetrics().NewMeter(
           {"overlay", "message", "receive"}, "message"))
     , mMessagesBroadcast(app.getMetrics().NewMeter(
@@ -62,6 +63,16 @@ OverlayManagerImpl::OverlayManagerImpl(Application& app)
     , mTimer(app)
     , mFloodGate(app)
 {
+}
+
+OverlayManagerImpl::~OverlayManagerImpl()
+{
+}
+
+void
+OverlayManagerImpl::start()
+{
+    mDoor->start();
     mTimer.expires_from_now(std::chrono::seconds(2));
 
     if (!mApp.getConfig().RUN_STANDALONE)
@@ -74,10 +85,6 @@ OverlayManagerImpl::OverlayManagerImpl(Application& app)
             },
             VirtualTimer::onFailureNoop);
     }
-}
-
-OverlayManagerImpl::~OverlayManagerImpl()
-{
 }
 
 void
@@ -210,6 +217,11 @@ OverlayManagerImpl::ledgerClosed(uint32_t lastClosedledgerSeq)
 void
 OverlayManagerImpl::addConnectedPeer(Peer::pointer peer)
 {
+    if (mShuttingDown)
+    {
+        peer->drop();
+        return;
+    }
     CLOG(INFO, "Overlay") << "New connected peer " << peer->toString();
     mConnectionsEstablished.Mark();
     mPeers.push_back(peer);
@@ -306,5 +318,31 @@ void
 OverlayManager::dropAll(Database& db)
 {
     PeerRecord::dropAll(db);
+}
+
+void
+OverlayManagerImpl::shutdown()
+{
+    if (mShuttingDown)
+    {
+        return;
+    }
+    mShuttingDown = true;
+    if (mDoor)
+    {
+        mDoor->close();
+    }
+    mFloodGate.shutdown();
+    auto peersToStop = mPeers;
+    for (auto& p : peersToStop)
+    {
+        p->drop();
+    }
+}
+
+bool
+OverlayManagerImpl::isShuttingDown() const
+{
+    return mShuttingDown;
 }
 }

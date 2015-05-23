@@ -53,15 +53,16 @@ class Simulation
     void addTCPConnection(uint256 initiator, uint256 acception);
 
     void startAllNodes();
+    void stopAllNodes();
 
     bool haveAllExternalized(SequenceNumber num);
 
     size_t crankAllNodes(int nbTicks = 1);
-    void crankForAtMost(VirtualClock::duration seconds);
-    void crankForAtLeast(VirtualClock::duration seconds);
-    void crankUntilSync(VirtualClock::duration timeout);
+    void crankForAtMost(VirtualClock::duration seconds, bool finalCrank);
+    void crankForAtLeast(VirtualClock::duration seconds, bool finalCrank);
+    void crankUntilSync(VirtualClock::duration timeout, bool finalCrank);
     void crankUntil(std::function<bool()> const& fn,
-                    VirtualClock::duration timeout);
+                    VirtualClock::duration timeout, bool finalCrank);
 
     //////////
 

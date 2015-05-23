@@ -33,6 +33,7 @@ class PeerDoor
 
     PeerDoor(Application&);
 
+    void start();
     void close();
 };
 }

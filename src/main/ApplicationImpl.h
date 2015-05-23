@@ -33,6 +33,7 @@ class ApplicationImpl : public Application
 
     virtual State getState() const override;
     virtual std::string getStateHuman() const override;
+    virtual bool isStopping() const override;
     virtual VirtualClock& getClock() override;
     virtual medida::MetricsRegistry& getMetrics() override;
     virtual TmpDirManager& getTmpDirManager() override;
@@ -100,6 +101,11 @@ class ApplicationImpl : public Application
 
     asio::signal_set mStopSignals;
 
+    bool mStopping;
+
+    VirtualTimer mStoppingTimer;
+
+    void shutdownMainIOService();
     void runWorkerThread(unsigned i);
 };
 }

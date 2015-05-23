@@ -129,6 +129,9 @@ class Application
         // In sync with SCP peers, applying transactions. SCP is active,
         APP_SYNCED_STATE,
 
+        // application is shutting down
+        APP_STOPPING_STATE,
+
         APP_NUM_STATE
     };
 
@@ -146,6 +149,7 @@ class Application
     // (derived from the state of other modules
     virtual State getState() const = 0;
     virtual std::string getStateHuman() const = 0;
+    virtual bool isStopping() const = 0;
 
     // Get the external VirtualClock to which this Application is bound.
     virtual VirtualClock& getClock() = 0;

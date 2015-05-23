@@ -27,6 +27,8 @@
 #include <set>
 #include <string>
 
+static const int SHUTDOWN_DELAY_SECONDS = 1;
+
 namespace stellar
 {
 
@@ -37,6 +39,8 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
     , mWork(make_unique<asio::io_service::work>(mWorkerIOService))
     , mWorkerThreads()
     , mStopSignals(clock.getIOService(), SIGINT)
+    , mStopping(false)
+    , mStoppingTimer(*this)
 {
 #ifdef SIGQUIT
     mStopSignals.add(SIGQUIT);
@@ -175,7 +179,7 @@ ApplicationImpl::~ApplicationImpl()
 {
     LOG(INFO) << "Application destructing";
     reportCfgMetrics();
-    gracefulStop();
+    shutdownMainIOService();
     joinAllThreads();
     LOG(INFO) << "Application destroyed";
 }
@@ -189,6 +193,8 @@ ApplicationImpl::timeNow()
 void
 ApplicationImpl::start()
 {
+    mOverlayManager->start();
+
     if (mPersistentState->getState(PersistentState::kDatabaseInitialized) !=
         "true")
     {
@@ -234,10 +240,34 @@ ApplicationImpl::runWorkerThread(unsigned i)
 void
 ApplicationImpl::gracefulStop()
 {
-    // Drain all events; things are shutting down.
-    while (mVirtualClock.cancelAllEvents())
-        ;
-    mVirtualClock.getIOService().stop();
+    if (mStopping)
+    {
+        return;
+    }
+    mStopping = true;
+    if (mOverlayManager)
+    {
+        mOverlayManager->shutdown();
+    }
+
+    mStoppingTimer.expires_from_now(
+        std::chrono::seconds(SHUTDOWN_DELAY_SECONDS));
+
+    mStoppingTimer.async_wait(
+        std::bind(&ApplicationImpl::shutdownMainIOService, this),
+        VirtualTimer::onFailureNoop);
+}
+
+void
+ApplicationImpl::shutdownMainIOService()
+{
+    if (!mVirtualClock.getIOService().stopped())
+    {
+        // Drain all events; things are shutting down.
+        while (mVirtualClock.cancelAllEvents())
+            ;
+        mVirtualClock.getIOService().stop();
+    }
 }
 
 void
@@ -263,7 +293,8 @@ ApplicationImpl::manualClose()
 {
     if (mConfig.MANUAL_CLOSE)
     {
-        mHerder->triggerNextLedger(mLedgerManager->getLastClosedLedgerNum()+1);
+        mHerder->triggerNextLedger(mLedgerManager->getLastClosedLedgerNum() +
+                                   1);
         return true;
     }
     return false;
@@ -288,7 +319,11 @@ Application::State
 ApplicationImpl::getState() const
 {
     State s;
-    if (mHerder->getState() == Herder::HERDER_SYNCING_STATE)
+    if (mStopping)
+    {
+        s = APP_STOPPING_STATE;
+    }
+    else if (mHerder->getState() == Herder::HERDER_SYNCING_STATE)
     {
         s = APP_ACQUIRING_CONSENSUS_STATE;
     }
@@ -317,9 +352,14 @@ std::string
 ApplicationImpl::getStateHuman() const
 {
     static const char* stateStrings[APP_NUM_STATE] = {
-        "Booting", "Joining SCP",
-        "Catching up", "Synced!"};
+        "Booting", "Joining SCP", "Catching up", "Synced!", "Stopping"};
     return std::string(stateStrings[getState()]);
+}
+
+bool
+ApplicationImpl::isStopping() const
+{
+    return mStopping;
 }
 
 VirtualClock&

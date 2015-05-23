@@ -344,6 +344,14 @@ main(int argc, char* const* argv)
         {
             return initializeHistories(cfg, newHistories);
         }
+
+        if (cfg.MANUAL_CLOSE)
+        {
+            // in manual close mode, we set FORCE_SCP
+            // so that the node starts fully in sync
+            // (this is to avoid to force scp all the time when testing)
+            cfg.FORCE_SCP = true;
+        }
     }
     catch (std::invalid_argument& e)
     {

@@ -23,7 +23,8 @@ class LoopbackPeer;
 /*
  * Another peer out there that we are connected to
  */
-class Peer : public std::enable_shared_from_this<Peer>, public NonMovableOrCopyable
+class Peer : public std::enable_shared_from_this<Peer>,
+             public NonMovableOrCopyable
 {
 
   public:
@@ -53,6 +54,8 @@ class Peer : public std::enable_shared_from_this<Peer>, public NonMovableOrCopya
     std::string mRemoteVersion;
     uint32_t mRemoteProtocolVersion;
     unsigned short mRemoteListeningPort;
+
+    bool shouldAbort() const;
     void recvMessage(StellarMessage const& msg);
     void recvMessage(xdr::msg_ptr const& xdrBytes);
 

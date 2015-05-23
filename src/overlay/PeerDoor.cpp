@@ -20,6 +20,11 @@ using namespace std;
 PeerDoor::PeerDoor(Application& app)
     : mApp(app), mAcceptor(mApp.getClock().getIOService())
 {
+}
+
+void
+PeerDoor::start()
+{
     if (!mApp.getConfig().RUN_STANDALONE)
     {
         tcp::endpoint endpoint(tcp::v4(), mApp.getConfig().PEER_PORT);
@@ -35,21 +40,36 @@ PeerDoor::PeerDoor(Application& app)
 void
 PeerDoor::close()
 {
-    mAcceptor.cancel();
+    try
+    {
+        if (mAcceptor.is_open())
+        {
+            mAcceptor.close();
+        }
+    }
+    catch (asio::system_error&)
+    {
+        // ignore errors like this
+    }
 }
 
 void
 PeerDoor::acceptNextPeer()
 {
+    if (mApp.getOverlayManager().isShuttingDown())
+    {
+        return;
+    }
+
     CLOG(DEBUG, "Overlay") << "PeerDoor acceptNextPeer()";
     auto sock = make_shared<tcp::socket>(mApp.getClock().getIOService());
     mAcceptor.async_accept(*sock, [this, sock](asio::error_code const& ec)
                            {
-        if (ec)
-            this->acceptNextPeer();
-        else
-            this->handleKnock(sock);
-    });
+                               if (ec)
+                                   this->acceptNextPeer();
+                               else
+                                   this->handleKnock(sock);
+                           });
 }
 
 void

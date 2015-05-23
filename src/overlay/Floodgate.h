@@ -46,6 +46,7 @@ class Floodgate
     std::map<uint256, FloodRecord::pointer> mFloodMap;
     Application& mApp;
     medida::Counter& mFloodMapSize;
+    bool mShuttingDown;
 
   public:
     Floodgate(Application& app);
@@ -55,5 +56,7 @@ class Floodgate
     bool addRecord(StellarMessage const& msg, Peer::pointer fromPeer);
 
     void broadcast(StellarMessage const& msg, bool force);
+
+    void shutdown();
 };
 }

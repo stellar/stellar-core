@@ -157,8 +157,23 @@ Peer::recvMessage(xdr::msg_ptr const& msg)
 {
     CLOG(TRACE, "Overlay") << "received xdr::msg_ptr";
     StellarMessage sm;
-    xdr::xdr_from_msg(msg, sm);
+    try
+    {
+        xdr::xdr_from_msg(msg, sm);
+    }
+    catch (xdr::xdr_runtime_error& e)
+    {
+        CLOG(TRACE, "Overlay") << "received corrupt xdr::msg_ptr " << e.what();
+        drop();
+        return;
+    }
     recvMessage(sm);
+}
+
+bool
+Peer::shouldAbort() const
+{
+    return (mState == CLOSING) || mApp.getOverlayManager().isShuttingDown();
 }
 
 void

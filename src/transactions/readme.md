@@ -178,10 +178,10 @@ Adding signers increases the reserve for the account.
 ##Thresholds
 
 Thresholds are a property of an account entry that controls
-* the weight of the master key
-* the threshold to use for "low", "medium" and "high"
+* the weight 'w' of the master key (default: 1)
+* the threshold to use for "low", "medium" and "high" (default: 0 for all)
 
-Thresholds are also noted [w l m h]
+Thresholds are also noted [w l m h].
 
 The weight of a signature is the weight corresponding to the key that was used 
 to sign the transaction.

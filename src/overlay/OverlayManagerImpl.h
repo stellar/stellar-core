@@ -34,6 +34,7 @@ class OverlayManagerImpl : public OverlayManager
     // peers we are connected to
     std::vector<Peer::pointer> mPeers;
     PeerDoor::pointer mDoor;
+    bool mShuttingDown;
 
     medida::Meter& mMessagesReceived;
     medida::Meter& mMessagesBroadcast;
@@ -49,9 +50,6 @@ class OverlayManagerImpl : public OverlayManager
     void storePeerList(std::vector<std::string> const& list, int rank);
     void storeConfigPeers();
     bool isPeerPreferred(Peer::pointer peer);
-
-
-    
 
     friend class OverlayManagerTests;
 
@@ -80,5 +78,10 @@ class OverlayManagerImpl : public OverlayManager
 
     void connectToMorePeers(int max);
     Peer::pointer getRandomPeer() override;
+
+    void start() override;
+    void shutdown() override;
+
+    bool isShuttingDown() const override;
 };
 }
