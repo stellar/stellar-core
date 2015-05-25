@@ -39,12 +39,40 @@ Config::Config() : PEER_KEY(SecretKey::random())
     LOG_FILE_PATH = "stellar-core.log";
     TMP_DIR_PATH = "tmp";
     BUCKET_DIR_PATH = "buckets";
-    QUORUM_THRESHOLD = 1000;
     HTTP_PORT = 39132;
     PUBLIC_HTTP_PORT = false;
     PEER_PUBLIC_KEY = PEER_KEY.getPublicKey();
 
     DATABASE = "sqlite3://:memory:";
+}
+
+void 
+loadQset(std::shared_ptr<cpptoml::toml_group> group, SCPQuorumSet& qset,int level)
+{
+    assert(level <= 2);
+
+    for(auto& item : *group)
+    {
+        if(item.first == "THRESHOLD")
+        {
+            qset.threshold = item.second->as<int64_t>()->value();
+        } else if(item.first == "VALIDATORS")
+        {
+            for(auto v : item.second->as_array()->array())
+            {
+                uint256 p = fromBase58Check256(
+                    VER_ACCOUNT_ID, v->as<std::string>()->value());
+                qset.validators.push_back(p);
+            }
+        } else
+        { // must be a subset
+            if(level < 2)
+            {
+                qset.innerSets.resize(qset.innerSets.size() + 1);
+                loadQset(item.second->as_group(), qset.innerSets[qset.innerSets.size() - 1], level + 1);
+            }
+        }
+    }
 }
 
 void
@@ -83,8 +111,6 @@ Config::load(std::string const& filename)
             }
             else if (item.first == "PUBLIC_HTTP_PORT")
                 PUBLIC_HTTP_PORT = item.second->as<bool>()->value();
-            else if (item.first == "QUORUM_THRESHOLD")
-                QUORUM_THRESHOLD = (int)item.second->as<int64_t>()->value();
             else if (item.first == "DESIRED_BASE_FEE")
                 DESIRED_BASE_FEE =
                     (uint32_t)item.second->as<int64_t>()->value();
@@ -138,12 +164,7 @@ Config::load(std::string const& filename)
             }
             else if (item.first == "QUORUM_SET")
             {
-                for (auto v : item.second->as_array()->array())
-                {
-                    uint256 p = fromBase58Check256(
-                        VER_ACCOUNT_ID, v->as<std::string>()->value());
-                    QUORUM_SET.push_back(p);
-                }
+                loadQset(item.second->as_group(), QUORUM_SET, 0);
             }
             else if (item.first == "COMMANDS")
             {
@@ -218,15 +239,5 @@ Config::load(std::string const& filename)
     }
 }
 
-SCPQuorumSet
-Config::quorumSet() const
-{
-    SCPQuorumSet qSet;
-    qSet.threshold = QUORUM_THRESHOLD;
-    for (auto const& q : QUORUM_SET)
-    {
-        qSet.validators.push_back(q);
-    }
-    return qSet;
-}
+
 }

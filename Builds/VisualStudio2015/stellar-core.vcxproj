@@ -400,6 +400,7 @@
     <None Include="..\..\docs\design.md" />
     <None Include="..\..\docs\readme.md" />
     <None Include="..\..\docs\stellar-core_example.cfg" />
+    <None Include="..\..\docs\stellar-core_testnet.cfg" />
     <None Include="..\..\docs\testnet.md" />
     <None Include="..\..\INSTALL" />
     <None Include="..\..\Makefile.am" />

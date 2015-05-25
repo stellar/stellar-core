@@ -17,6 +17,7 @@ class HistoryArchive;
 
 class Config : public std::enable_shared_from_this<Config>
 {
+    
   public:
     typedef std::shared_ptr<Config> pointer;
 
@@ -101,8 +102,7 @@ class Config : public std::enable_shared_from_this<Config>
 
     // SCP config
     SecretKey VALIDATION_KEY;
-    uint32_t QUORUM_THRESHOLD;
-    std::vector<uint256> QUORUM_SET;
+    stellar::SCPQuorumSet QUORUM_SET;
 
     // History config
     std::map<std::string, std::shared_ptr<HistoryArchive>> HISTORY;
@@ -116,7 +116,6 @@ class Config : public std::enable_shared_from_this<Config>
     Config();
 
     void load(std::string const& filename);
-    SCPQuorumSet quorumSet() const;
 
 };
 }
