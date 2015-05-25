@@ -152,7 +152,6 @@ FMT_HDRS =                                      \
     src/main/PersistentState.h                  \
     src/main/fuzz.h                             \
     src/main/test.h                             \
-    src/overlay/FetchableItem.h                 \
     src/overlay/Floodgate.h                     \
     src/overlay/ItemFetcher.h                   \
     src/overlay/LoopbackPeer.h                  \

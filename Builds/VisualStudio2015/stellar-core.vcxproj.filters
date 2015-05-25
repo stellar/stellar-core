@@ -452,9 +452,6 @@
     <ClInclude Include="..\..\src\main\Application.h">
       <Filter>main</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\overlay\FetchableItem.h">
-      <Filter>overlay</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\src\overlay\Floodgate.h">
       <Filter>overlay</Filter>
     </ClInclude>

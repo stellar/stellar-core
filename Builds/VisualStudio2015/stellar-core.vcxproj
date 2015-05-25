@@ -346,7 +346,6 @@
     <ClInclude Include="..\..\src\main\fuzz.h" />
     <ClInclude Include="..\..\src\main\PersistentState.h" />
     <ClInclude Include="..\..\src\main\test.h" />
-    <ClInclude Include="..\..\src\overlay\FetchableItem.h" />
     <ClInclude Include="..\..\src\overlay\Floodgate.h" />
     <ClInclude Include="..\..\src\overlay\ItemFetcher.h" />
     <ClInclude Include="..\..\src\overlay\LoopbackPeer.h" />
