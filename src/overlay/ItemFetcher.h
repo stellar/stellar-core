@@ -52,9 +52,8 @@ public:
         std::vector<Peer::pointer> mPeersAsked;
         VirtualTimer mTimer;
         bool mIsStopped = false;
-
-        std::vector<SCPEnvelope> mWaitingEnvelopes;
     public:
+        std::vector<SCPEnvelope> mWaitingEnvelopes;
         uint256 mItemID;
         explicit Tracker(Application &app, uint256 const& id, ItemFetcher &itemFetcher) : 
             mApp(app)
@@ -66,14 +65,11 @@ public:
 
         bool clearEnvelopesBelow(uint64 slotIndex);
 
-       
-        void cancel();
         void listen(const SCPEnvelope& env);
 
         virtual void askPeer(Peer::pointer peer) = 0;
 
         void doesntHave(Peer::pointer peer);
-        void itemReceived();
         void tryNextPeer();
     };
     friend Tracker;
@@ -82,11 +78,9 @@ public:
 
       
     explicit ItemFetcher(Application& app);
-    ~ItemFetcher();
     
     void fetch(uint256 itemID, const SCPEnvelope& envelope);
 
-    void removeTracker(const uint256& itemID);
     void stopFetchingBelow(uint64 slotIndex);
 
     void doesntHave(uint256 const& itemID, Peer::pointer peer);

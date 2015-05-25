@@ -30,11 +30,6 @@ ItemFetcher<T, TrackerT>::ItemFetcher(Application& app)
 {
 }
 
-template <class T, class TrackerT> ItemFetcher<T, TrackerT>::~ItemFetcher()
-{
-    mTrackers.clear();
-}
-
 template <class T, class TrackerT>
 void
 ItemFetcher<T, TrackerT>::fetch(uint256 itemID, const SCPEnvelope& envelope)
@@ -52,13 +47,6 @@ ItemFetcher<T, TrackerT>::fetch(uint256 itemID, const SCPEnvelope& envelope)
     {
         entryIt->second->listen(envelope);
     }
-}
-
-template <class T, class TrackerT>
-void
-ItemFetcher<T, TrackerT>::removeTracker(const uint256& itemID)
-{
-    mTrackers.erase(itemID);
 }
 
 template <class T, class TrackerT>
@@ -95,14 +83,18 @@ ItemFetcher<T, TrackerT>::recv(uint256 itemID, T item)
 
     if (iter != mTrackers.end())
     {
-        iter->second->itemReceived();
+        std::vector<SCPEnvelope> tempList = iter->second->mWaitingEnvelopes;
+        mTrackers.erase(iter);
+        for(SCPEnvelope& env : tempList)
+        {
+            mApp.getHerder().recvSCPEnvelope(env);
+        }
     }
 }
 
 template <class T, class TrackerT> ItemFetcher<T, TrackerT>::Tracker::~Tracker()
 {
     mTimer.cancel();
-    // mItemFetcher.mTrackers.erase(mItemID);
 }
 
 // returns false if no one cares about this guy anymore
@@ -141,17 +133,6 @@ ItemFetcher<T, TrackerT>::Tracker::doesntHave(Peer::pointer peer)
     }
 }
 
-template <class T, class TrackerT>
-void
-ItemFetcher<T, TrackerT>::Tracker::itemReceived()
-{
-    std::vector<SCPEnvelope> tempList = mWaitingEnvelopes;
-    for (SCPEnvelope& env : tempList)
-    {
-        mApp.getHerder().recvSCPEnvelope(env);
-    }
-    cancel();
-}
 
 template <class T, class TrackerT>
 void
@@ -203,18 +184,6 @@ ItemFetcher<T, TrackerT>::Tracker::tryNextPeer()
         this->tryNextPeer();
         },
         VirtualTimer::onFailureNoop);
-}
-
-template <class T, class TrackerT>
-void
-ItemFetcher<T, TrackerT>::Tracker::cancel()
-{
-    mWaitingEnvelopes.clear();
-    mPeersAsked.clear();
-    mTimer.cancel();
-    mLastAskedPeer = nullptr;
-    mIsStopped = true;
-    mItemFetcher.removeTracker(mItemID);
 }
 
 template <class T, class TrackerT>
