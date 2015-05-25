@@ -29,20 +29,21 @@ class Counter;
 namespace stellar
 {
 
-class FloodRecord
-{
-  public:
-    typedef std::shared_ptr<FloodRecord> pointer;
-
-    uint32_t mLedgerSeq;
-    StellarMessage mMessage;
-    std::vector<Peer::pointer> mPeersTold;
-
-    FloodRecord(StellarMessage const& msg, uint32_t ledger, Peer::pointer peer);
-};
-
 class Floodgate
 {
+    class FloodRecord
+    {
+      public:
+        typedef std::shared_ptr<FloodRecord> pointer;
+
+        uint32_t mLedgerSeq;
+        StellarMessage mMessage;
+        std::vector<Peer::pointer> mPeersTold;
+
+        FloodRecord(StellarMessage const& msg, uint32_t ledger,
+                    Peer::pointer peer);
+    };
+
     std::map<uint256, FloodRecord::pointer> mFloodMap;
     Application& mApp;
     medida::Counter& mFloodMapSize;
