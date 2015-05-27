@@ -40,40 +40,42 @@ using SCPQuorumSetPtr = std::shared_ptr<SCPQuorumSet>;
 
 static std::chrono::milliseconds const MS_TO_WAIT_FOR_FETCH_REPLY{ 500 };
 
-template<class T, class TrackerT>
+class Tracker 
+{
+protected:
+    template<class T> friend class ItemFetcher;
+    Application &mApp;
+    Peer::pointer mLastAskedPeer;
+    std::vector<Peer::pointer> mPeersAsked;
+    VirtualTimer mTimer;
+    bool mIsStopped = false;
+    std::vector<SCPEnvelope> mWaitingEnvelopes;
+    uint256 mItemID;
+
+    bool clearEnvelopesBelow(uint64 slotIndex);
+
+    void listen(const SCPEnvelope& env);
+
+    virtual void askPeer(Peer::pointer peer) = 0;
+
+    void doesntHave(Peer::pointer peer);
+    void tryNextPeer();
+
+public:
+    explicit Tracker(Application &app, uint256 const& id) :
+        mApp(app)
+        , mTimer(app)
+        , mItemID(id) {}
+
+    virtual ~Tracker();
+};
+
+template<class TrackerT>
 class ItemFetcher : private NonMovableOrCopyable
 {
-public:
-    class Tracker : private NonMovableOrCopyable
-    {
-        Application &mApp;
-        ItemFetcher &mItemFetcher;
-        Peer::pointer mLastAskedPeer;
-        std::vector<Peer::pointer> mPeersAsked;
-        VirtualTimer mTimer;
-        bool mIsStopped = false;
-    public:
-        std::vector<SCPEnvelope> mWaitingEnvelopes;
-        uint256 mItemID;
-        explicit Tracker(Application &app, uint256 const& id, ItemFetcher &itemFetcher) : 
-            mApp(app)
-          , mItemFetcher(itemFetcher)
-          , mTimer(app)
-          , mItemID(id) {}
-
-        virtual ~Tracker();
-
-        bool clearEnvelopesBelow(uint64 slotIndex);
-
-        void listen(const SCPEnvelope& env);
-
-        virtual void askPeer(Peer::pointer peer) = 0;
-
-        void doesntHave(Peer::pointer peer);
-        void tryNextPeer();
-    };
-    friend Tracker;
-
+    
+public:    
+    
     using TrackerPtr = std::shared_ptr<TrackerT>;
 
       
@@ -85,8 +87,8 @@ public:
 
     void doesntHave(uint256 const& itemID, Peer::pointer peer);
 
-    // recv: notifies all listeners of the arrival of the item and caches it
-    void recv(uint256 itemID, T item);
+    // recv: notifies all listeners of the arrival of the item
+    void recv(uint256 itemID);
 
 protected:
     
@@ -101,27 +103,27 @@ protected:
 
 };
 
-class TxSetTracker : public ItemFetcher<TxSetFramePtr, TxSetTracker>::Tracker
+class TxSetTracker : public Tracker
 {
 public:
-    TxSetTracker(Application &app, uint256 id, ItemFetcher<TxSetFramePtr, TxSetTracker> &itemFetcher) :
-        Tracker(app, id, itemFetcher) {}
+    TxSetTracker(Application &app, uint256 id) :
+        Tracker(app, id) {}
 
     void askPeer(Peer::pointer peer) override;
 };
 
-class QuorumSetTracker : public ItemFetcher<SCPQuorumSetPtr, QuorumSetTracker>::Tracker
+class QuorumSetTracker : public Tracker
 {
 public:
-    QuorumSetTracker(Application &app, uint256 id, ItemFetcher<SCPQuorumSetPtr, QuorumSetTracker> &itemFetcher) :
-        Tracker(app, id, itemFetcher) {}
+    QuorumSetTracker(Application &app, uint256 id) :
+        Tracker(app, id) {}
 
     void askPeer(Peer::pointer peer) override;
 };
 
 
-using TxSetTrackerPtr = ItemFetcher<TxSetFramePtr, TxSetTracker>::TrackerPtr;
-using QuorumSetTrackerPtr = ItemFetcher<SCPQuorumSetPtr, QuorumSetTracker>::TrackerPtr;
+using TxSetTrackerPtr = ItemFetcher<TxSetTracker>::TrackerPtr;
+using QuorumSetTrackerPtr = ItemFetcher<QuorumSetTracker>::TrackerPtr;
 
 }
 
