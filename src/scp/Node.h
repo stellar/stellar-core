@@ -18,7 +18,9 @@ namespace stellar
  */
 class Node
 {
-
+    // called recursively
+    bool hasQuorum(SCPQuorumSet const& qset, std::vector<uint256> const& nodeSet);
+    bool isVBlocking(SCPQuorumSet const& qset, std::vector<uint256> const& nodeSet);
   public:
     static int const CACHE_SIZE;
     Node(uint256 const& nodeID, SCP* SCP);

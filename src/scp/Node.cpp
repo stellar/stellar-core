@@ -22,6 +22,31 @@ Node::Node(uint256 const& nodeID, SCP* SCP)
 {
 }
 
+bool 
+Node::hasQuorum(SCPQuorumSet const& qset, std::vector<uint256> const& nodeSet)
+{
+    uint32 thresholdLeft = qset.threshold;
+    for(auto const& validator : qset.validators)
+    {
+        auto it = std::find(nodeSet.begin(), nodeSet.end(), validator);
+        if(it != nodeSet.end())
+        {
+            thresholdLeft--;
+            if(thresholdLeft <= 0) return true;
+        }
+    }
+
+    for(auto const& inner : qset.innerSets)
+    {
+        if(hasQuorum(inner, nodeSet))
+        {
+            thresholdLeft--;
+            if(thresholdLeft <= 0) return true;
+        }
+    }
+    return false;
+}
+
 bool
 Node::hasQuorum(Hash const& qSetHash, std::vector<uint256> const& nodeSet)
 {
@@ -32,16 +57,34 @@ Node::hasQuorum(Hash const& qSetHash, std::vector<uint256> const& nodeSet)
     // This call can throw a `QuorumSetNotFound` if the quorumSet is unknown.
     SCPQuorumSetPtr qSet = retrieveQuorumSet(qSetHash);
 
-    uint32 count = 0;
-    for (auto const& n : qSet->validators)
+    return hasQuorum(*qSet, nodeSet);
+}
+
+// called recursively
+bool 
+Node::isVBlocking(SCPQuorumSet const& qset, std::vector<uint256> const& nodeSet)
+{
+    int leftTillBlock = (int) ((qset.validators.size() + qset.innerSets.size()) - qset.threshold);
+
+    for(auto const &validator : qset.validators)
     {
-        auto it = std::find(nodeSet.begin(), nodeSet.end(), n);
-        count += (it != nodeSet.end()) ? 1 : 0;
+        auto it = std::find(nodeSet.begin(), nodeSet.end(), validator);
+        if(it != nodeSet.end())
+        {
+            leftTillBlock--;
+            if(leftTillBlock <= 0) return true;
+        }
     }
-    auto result = (count >= qSet->threshold);
-    CLOG(DEBUG, "SCP") << "Node::hasQuorum"
-                       << "@" << hexAbbrev(mNodeID) << " is " << result;
-    return result;
+    for(auto const& inner : qset.innerSets)
+    {
+        if(isVBlocking(inner, nodeSet))
+        {
+            leftTillBlock--;
+            if(leftTillBlock <= 0) return true;
+        }
+    }
+
+    return false;
 }
 
 bool
@@ -60,16 +103,7 @@ Node::isVBlocking(Hash const& qSetHash, std::vector<uint256> const& nodeSet)
         return false;
     }
 
-    uint32 count = 0;
-    for (auto const &n : qSet->validators)
-    {
-        auto it = std::find(nodeSet.begin(), nodeSet.end(), n);
-        count += (it != nodeSet.end()) ? 1 : 0;
-    }
-    auto result = (qSet->validators.size() - count < qSet->threshold);
-    CLOG(DEBUG, "SCP") << "Node::isVBlocking"
-                       << "@" << hexAbbrev(mNodeID) << " is " << result;
-    return result;
+    return isVBlocking(*qSet, nodeSet);
 }
 
 template <class T>
