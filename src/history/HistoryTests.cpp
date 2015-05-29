@@ -150,6 +150,21 @@ HistoryTests::crankTillDone(bool& done)
     }
 }
 
+void
+HistoryTests::generateAndPublishInitialHistory(size_t nPublishes)
+{
+    app.start();
+
+    auto& lm = app.getLedgerManager();
+
+    // At this point LCL should be 1, current ledger should be 2
+    assert(lm.getLastClosedLedgerHeader().header.ledgerSeq == 1);
+    assert(lm.getCurrentLedgerHeader().ledgerSeq == 2);
+
+    generateAndPublishHistory(nPublishes);
+}
+
+
 TEST_CASE_METHOD(HistoryTests, "next checkpoint ledger", "[history]")
 {
     HistoryManager& hm = app.getHistoryManager();
@@ -360,19 +375,6 @@ HistoryTests::generateAndPublishHistory(size_t nPublishes)
             ((publishSuccesses + nPublishes) * hm.getCheckpointFrequency()));
 }
 
-void
-HistoryTests::generateAndPublishInitialHistory(size_t nPublishes)
-{
-    app.start();
-
-    auto& lm = app.getLedgerManager();
-
-    // At this point LCL should be 1, current ledger should be 2
-    assert(lm.getLastClosedLedgerHeader().header.ledgerSeq == 1);
-    assert(lm.getCurrentLedgerHeader().ledgerSeq == 2);
-
-    generateAndPublishHistory(nPublishes);
-}
 
 Application::pointer
 HistoryTests::catchupNewApplication(uint32_t initLedger,

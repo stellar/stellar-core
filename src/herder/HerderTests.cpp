@@ -29,8 +29,8 @@ TEST_CASE("standalone", "[herder]")
 
     cfg.VALIDATION_KEY = v0SecretKey;
 
-    cfg.QUORUM_THRESHOLD = 1;
-    cfg.QUORUM_SET.push_back(v0NodeID);
+    cfg.QUORUM_SET.threshold = 1;
+    cfg.QUORUM_SET.validators.push_back(v0NodeID);
 
     VirtualClock clock;
     Application::pointer app = Application::create(clock, cfg);

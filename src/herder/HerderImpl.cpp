@@ -37,7 +37,7 @@ Herder::create(Application& app)
 }
 
 HerderImpl::HerderImpl(Application& app)
-    : SCP(app.getConfig().VALIDATION_KEY, app.getConfig().quorumSet())
+    : SCP(app.getConfig().VALIDATION_KEY, app.getConfig().QUORUM_SET)
     , mReceivedTransactions(4)
     , mPendingEnvelopes(app, *this)
     , mTrackingTimer(app)
@@ -110,8 +110,8 @@ HerderImpl::HerderImpl(Application& app)
           {"scp", "memory", "cumulative-cached-quorum-sets"}))
 
 {
-    Hash hash = sha256(xdr::xdr_to_opaque(app.getConfig().quorumSet()));
-    mPendingEnvelopes.recvSCPQuorumSet(hash, app.getConfig().quorumSet());
+    Hash hash = sha256(xdr::xdr_to_opaque(app.getConfig().QUORUM_SET));
+    mPendingEnvelopes.recvSCPQuorumSet(hash, app.getConfig().QUORUM_SET);
 }
 
 HerderImpl::~HerderImpl()

@@ -56,14 +56,14 @@ PendingEnvelopes::recvSCPQuorumSet(Hash hash, const SCPQuorumSet& q)
 {
     SCPQuorumSetPtr qset(new SCPQuorumSet(q));
     mQsetCache.put(hash, qset);
-    mQuorumSetFetcher.recv(hash, qset);
+    mQuorumSetFetcher.recv(hash);
 }
 
 void
 PendingEnvelopes::recvTxSet(Hash hash, TxSetFramePtr txset)
 {
     mTxSetCache.put(hash, txset);
-    mTxSetFetcher.recv(hash, txset);
+    mTxSetFetcher.recv(hash);
 }
 
 // called from Peer and when an Item tracker completes

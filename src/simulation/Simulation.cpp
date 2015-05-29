@@ -74,14 +74,10 @@ Simulation::addNode(SecretKey nodeKey, SCPQuorumSet qSet, VirtualClock& clock,
     }
     cfg->BREAK_ASIO_LOOP_FOR_FAST_TESTS = (mMode == OVER_TCP);
     cfg->VALIDATION_KEY = nodeKey;
-    cfg->QUORUM_THRESHOLD = qSet.threshold;
+    cfg->QUORUM_SET = qSet;
     cfg->FORCE_SCP = true;
     cfg->RUN_STANDALONE = (mMode == OVER_LOOPBACK);
 
-    for (auto const& q : qSet.validators)
-    {
-        cfg->QUORUM_SET.push_back(q);
-    }
 
     Application::pointer result = Application::create(clock, *cfg);
 

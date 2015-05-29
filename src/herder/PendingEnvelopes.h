@@ -40,8 +40,8 @@ class PendingEnvelopes
 
     
 
-    ItemFetcher<TxSetFramePtr, TxSetTracker> mTxSetFetcher;
-    ItemFetcher<SCPQuorumSetPtr, QuorumSetTracker> mQuorumSetFetcher;
+    ItemFetcher<TxSetTracker> mTxSetFetcher;
+    ItemFetcher<QuorumSetTracker> mQuorumSetFetcher;
 
     // all the txsets we have learned about per ledger#
     cache::lru_cache<uint256, TxSetFramePtr> mTxSetCache;
