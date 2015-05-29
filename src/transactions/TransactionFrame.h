@@ -121,7 +121,11 @@ class TransactionFrame
         return mEnvelope.tx.sourceAccount;
     }
 
-    int64_t getFee(Application& app) const;
+    int64_t getFee() const;
+
+    int64_t getMinFee(Application& app) const;
+
+    float getFeeRatio(Application& app) const;
 
     void addSignature(SecretKey const& secretKey);
 

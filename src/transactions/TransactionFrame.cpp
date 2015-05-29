@@ -85,8 +85,20 @@ TransactionFrame::getEnvelope()
     return mEnvelope;
 }
 
+float 
+TransactionFrame::getFeeRatio(Application& app) const
+{
+    return ((float)getFee() / (float)getMinFee(app));
+}
+
+int64_t 
+TransactionFrame::getFee() const
+{
+    return mEnvelope.tx.fee;
+}
+
 int64_t
-TransactionFrame::getFee(Application& app) const
+TransactionFrame::getMinFee(Application& app) const
 {
     size_t count = mOperations.size();
 
@@ -226,10 +238,8 @@ TransactionFrame::checkValid(Application& app, bool applying,
         }
     }
 
-    // fee we'd like to charge for this transaction
-    int64_t fee = getFee(app);
-
-    if (mEnvelope.tx.fee < fee)
+  
+    if (mEnvelope.tx.fee < getMinFee(app))
     {
         app.getMetrics().NewMeter(
             {"transaction", "invalid", "insufficient-fee"},

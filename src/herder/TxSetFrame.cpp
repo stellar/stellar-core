@@ -8,6 +8,7 @@
 #include "util/Logging.h"
 #include "crypto/Hex.h"
 #include "main/Application.h"
+#include "main/Config.h"
 #include <algorithm>
 
 namespace stellar
@@ -132,6 +133,36 @@ TxSetFrame::sortForApply()
     return retList;
 }
 
+struct SurgeSorter 
+{
+    Application& mApp;
+    SurgeSorter(Application& app) : mApp(app) {}
+    bool operator () (TransactionFramePtr const& tx1, TransactionFramePtr const& tx2)
+    {
+        return tx1->getFeeRatio(mApp) < tx2->getFeeRatio(mApp);
+    }
+};
+
+
+void 
+TxSetFrame::surgePricingFilter(Application& app)
+{
+    int max = app.getConfig().DESIRED_MAX_TX_PER_LEDGER;
+    if(mTransactions.size() > max)
+    {  // surge pricing in effect!
+        CLOG(DEBUG, "Herder") << "surge pricing in effect! " << mTransactions.size();
+        //sort tx by amount of fee they have paid 
+        // remove the bottom that aren't paying enough
+        std::vector<TransactionFramePtr> tempList = mTransactions;
+        std::sort(tempList.begin(), tempList.end(), SurgeSorter(app) );
+
+        for(auto iter = tempList.begin() + max; iter != tempList.end(); iter++)
+        {
+            removeTx(*iter);
+        }
+    }
+}
+
 // TODO.3 this and checkValid share a lot of code
 void
 TxSetFrame::trimInvalid(Application& app,
@@ -166,7 +197,7 @@ TxSetFrame::trimInvalid(Application& app,
                 removeTx(tx);
                 continue;
             }
-            totFee += tx->getFee(app);
+            totFee += tx->getFee();
 
             lastTx = tx;
             lastSeq = tx->getSeqNum();
@@ -237,7 +268,7 @@ TxSetFrame::checkValid(Application& app) const
             {
                 return false;
             }
-            totFee += tx->getFee(app);
+            totFee += tx->getFee();
 
             lastTx = tx;
             lastSeq = tx->getSeqNum();
