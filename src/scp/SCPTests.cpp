@@ -315,7 +315,7 @@ TEST_CASE("protocol core4", "[scp]")
                          SCPStatementType::PREPARED);
 
         scp.receiveEnvelope(prepared1);
-        REQUIRE(scp.mEnvs.size() == 1);
+        REQUIRE(scp.mEnvs.size() == 3);
         REQUIRE(scp.mHeardFromQuorums[0].size() == 0);
         scp.receiveEnvelope(prepared2);
         REQUIRE(scp.mEnvs.size() == 4);
@@ -372,7 +372,7 @@ TEST_CASE("protocol core4", "[scp]")
                          SCPStatementType::PREPARED);
 
         scp.receiveEnvelope(prepared1);
-        REQUIRE(scp.mEnvs.size() == 1);
+        REQUIRE(scp.mEnvs.size() == 2);
 
         scp.receiveEnvelope(prepared2);
         REQUIRE(scp.mEnvs.size() == 2);
@@ -854,7 +854,7 @@ TEST_CASE("protocol core4", "[scp]")
                          SCPStatementType::PREPARED);
 
         scp.receiveEnvelope(prepared1);
-        REQUIRE(scp.mEnvs.size() == 0);
+        REQUIRE(scp.mEnvs.size() == 2);
     }
 
     SECTION("commit(0,y) on pristine slot should not bump and request evidence")
@@ -892,7 +892,7 @@ TEST_CASE("protocol core4", "[scp]")
                          SCPStatementType::PREPARED);
 
         scp.receiveEnvelope(prepared1);
-        REQUIRE(scp.mEnvs.size() == 0);
+        REQUIRE(scp.mEnvs.size() == 2);
 
         scp.receiveEnvelope(prepared2);
         REQUIRE(scp.mEnvs.size() == 3);
