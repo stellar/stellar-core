@@ -29,6 +29,10 @@ struct LedgerHeader
 
     int32 baseFee;     // base fee per operation in stroops
     int32 baseReserve; // account base reserve in stroops
+
+    Hash skipList[4];  // hashes of ledgers in the past. allows you to jump back
+                       // in time without walking the chain back ledger by ledger
+					   // 5x fan out starting at 5^7
 };
 
 /* Entries used to define the bucket list */

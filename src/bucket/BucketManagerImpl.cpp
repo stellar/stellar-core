@@ -285,12 +285,35 @@ BucketManagerImpl::addBatch(Application& app, uint32_t currLedger,
     mBucketList.addBatch(app, currLedger, liveEntries, deadEntries);
 }
 
+#define FIVE_TO_7 78125
+#define FIVE_TO_8 390625
+#define FIVE_TO_9 1953125
+#define FIVE_TO_10 9765625
+
 // updates the given LedgerHeader to reflect the current state of the bucket
 // list
 void
 BucketManagerImpl::snapshotLedger(LedgerHeader& currentHeader)
 {
     currentHeader.bucketListHash = mBucketList.getHash();
+
+    if((currentHeader.ledgerSeq % FIVE_TO_7) == 0)
+    {
+        if(((currentHeader.ledgerSeq- FIVE_TO_7) % FIVE_TO_8) == 0)
+        {
+            if(((currentHeader.ledgerSeq - FIVE_TO_8) % FIVE_TO_9) == 0)
+            {
+                if(((currentHeader.ledgerSeq - FIVE_TO_9) % FIVE_TO_10) == 0)
+                {
+
+                    currentHeader.skipList[3] = currentHeader.skipList[2];
+                }
+                currentHeader.skipList[2] = currentHeader.skipList[1];
+            }
+            currentHeader.skipList[1] = currentHeader.skipList[0];
+        }
+        currentHeader.skipList[0] = currentHeader.bucketListHash;
+    }
 }
 
 std::vector<std::string>
