@@ -1,11 +1,16 @@
+---
+id: testnet
+title: Testnet
+category: Guides
+---
 # Starting a test network
 
 First, make sure you have copied the example config to your current working directory.
 From the TLD of the repo, run
 `cp docs/stellar_core_example.cfg ./bin/stellar-core.cfg`
 
-In order to come to a quorum and make progress when you're running your own 
-network (with one node), change your configuration quorum threshold to 1 and 
+In order to come to a quorum and make progress when you're running your own
+network (with one node), change your configuration quorum threshold to 1 and
 your quorum set to just your validation seed's public key.
 
 ```
@@ -25,7 +30,7 @@ this is done by:
 ```sh
 $ stellar-core --forcescp
 ```
-That will set state in the DB and then exit. The next time you start 
+That will set state in the DB and then exit. The next time you start
 stellar-core SCP will start immediately rather than waiting.
 
 
@@ -36,17 +41,17 @@ $ stellar-core --newdb --forcescp
 $ stellar-core
 ```
 
-This will start a new ledger on each server and cause them to move ahead with 
+This will start a new ledger on each server and cause them to move ahead with
 SCP. They will still wait to hear from a quorum of nodes before closing a ledger.
 
 # Bringing a test network back up
-If you need to restart the network after bringing it down. Do the following on 
+If you need to restart the network after bringing it down. Do the following on
 all the nodes:
 ```sh
 $ stellar-core --forcescp
 $ stellar-core
 ```
 
-This will start from the last saved state of each server. It is important that 
-a quorum of them all have the same laste ledger as their saved state before 
+This will start from the last saved state of each server. It is important that
+a quorum of them all have the same laste ledger as their saved state before
 they are restarted.

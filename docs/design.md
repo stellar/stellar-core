@@ -1,3 +1,8 @@
+---
+id: design
+title: Design
+category: Documents
+---
 #Open Questions
 ==============
 - How are we going to handle Tx Memos?
@@ -13,13 +18,13 @@
 
 
 - Are we charging enough for storage?
-	Right now you can make a few million offers and greatly increase 
+	Right now you can make a few million offers and greatly increase
 		the ledger size and get it all back at somepoint
 	Maybe it should be more than a bond. Like some part is destroyed permanently.
 
 - Are we charging enough for tx?
 
-- How do we boot a network when most or all the nodes have cashed? 
+- How do we boot a network when most or all the nodes have cashed?
 
 - should we make payments that go through the same orderbook in the same ledger cross each other?
 	- this will make things way more complicated but could potentially increase the liquidity a lot.
@@ -28,11 +33,11 @@
 
 If we id txs by hash of contents then there are multiple txs that could match
  maybe same contents were submitted too early and failed without consuming the seq num
- maybe two different sets of signers submitted the same contents 
+ maybe two different sets of signers submitted the same contents
  but
  If we id by hash(contents + sig) we have similar problems
  I think we have to id by account:seqnum that is garaunteed to be a unique tx
- but we still need a way to refer to txs that didn't claim a seq num? 
+ but we still need a way to refer to txs that didn't claim a seq num?
 
 
 #Bigger Pieces

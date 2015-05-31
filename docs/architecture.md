@@ -1,13 +1,17 @@
-
+---
+id: architecture
+title: Architecture
+category: Documents
+---
 Process-level architecture
 ==========================
 
-Application owns a ledger-forming component, a p2p "overlay" component for 
-connecting to peers and flooding messages between peers, a set-synchronization 
-component for arriving at likely-in-sync candidate transaction sets, a 
-transaction processing component for applying a consensus transaction set to 
-the ledger, a crypto component for confirming signatures and hashing results, 
-and a database component for persisting ledger changes. 
+Application owns a ledger-forming component, a p2p "overlay" component for
+connecting to peers and flooding messages between peers, a set-synchronization
+component for arriving at likely-in-sync candidate transaction sets, a
+transaction processing component for applying a consensus transaction set to
+the ledger, a crypto component for confirming signatures and hashing results,
+and a database component for persisting ledger changes.
 Two slightly-obscurely-named components are:
 
   - "bucketList", stored in the directory "bucket": the in-memory and on-disk
@@ -40,8 +44,8 @@ Other details:
     real-time timeouts (except the one that synchronizes virtual and real
     time, in production).
 
-  - Storage is split in two pieces, one bulk/cold Bucket-based store (history) 
-    kept in flat files, and one hot/indexed store (SQL DB). Both kept primarily 
+  - Storage is split in two pieces, one bulk/cold Bucket-based store (history)
+    kept in flat files, and one hot/indexed store (SQL DB). Both kept primarily
 	_off_ the validator nodes.
 
   - No direct service of public HTTP requests. HTTP and websocket frontends
@@ -65,14 +69,14 @@ Other details:
 Network-level architecture
 ==========================
 
-Validators are kept as simple as possible and offload as much responsibility as 
-they can to other parts of the system. In particular, validators do not store 
-or serve long-term history archives; they do not operate a transactional 
-(on disk) store for the "current state of the ledger"; they do not serve public 
+Validators are kept as simple as possible and offload as much responsibility as
+they can to other parts of the system. In particular, validators do not store
+or serve long-term history archives; they do not operate a transactional
+(on disk) store for the "current state of the ledger"; they do not serve public
 HTTP requests directly. These roles are offloaded to servers that are better
 suited to these tasks, for which there are existing/better software stacks;
-validators should have an "even" and predictable system-load profile. Validators 
-are also kept as stateless as possible keeping disk and memory constraints in 
+validators should have an "even" and predictable system-load profile. Validators
+are also kept as stateless as possible keeping disk and memory constraints in
 mind.
 
 - Set of core validator nodes. Running stellar-core only. Tasked with:
@@ -130,7 +134,7 @@ mind.
   failure mode, they can timeout/poll. Messages are idempotent,
   content-free pings.
 
-- (optional): Set of public validator nodes. Running stellar-core only. Tasked 
+- (optional): Set of public validator nodes. Running stellar-core only. Tasked
 with:
   - Listening to core validators and propagating their decisions blindly
     to anyone who asks.
