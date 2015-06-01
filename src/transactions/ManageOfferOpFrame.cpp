@@ -2,16 +2,13 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "transactions/CreateOfferOpFrame.h"
+#include "transactions/ManageOfferOpFrame.h"
 #include "ledger/OfferFrame.h"
 #include "util/Logging.h"
 #include "util/types.h"
 #include "database/Database.h"
 #include "ledger/LedgerDelta.h"
 #include "OfferExchange.h"
-
-#include "medida/meter.h"
-#include "medida/metrics_registry.h"
 
 // convert from sheep to wheat
 // selling sheep
@@ -22,48 +19,39 @@ namespace stellar
 
 using namespace std;
 
-CreateOfferOpFrame::CreateOfferOpFrame(Operation const& op,
+ManageOfferOpFrame::ManageOfferOpFrame(Operation const& op,
                                        OperationResult& res,
                                        TransactionFrame& parentTx)
     : OperationFrame(op, res, parentTx)
-    , mCreateOffer(mOperation.body.createOfferOp())
+    , mManageOffer(mOperation.body.manageOfferOp())
 {
+    mPassive = false;
 }
 
 // make sure these issuers exist and you can hold the ask currency
 bool
-CreateOfferOpFrame::checkOfferValid(medida::MetricsRegistry& metrics,
-                                    Database& db)
+ManageOfferOpFrame::checkOfferValid(Database& db)
 {
-    Currency const& sheep = mCreateOffer.takerGets;
-    Currency const& wheat = mCreateOffer.takerPays;
+    Currency const& sheep = mManageOffer.takerGets;
+    Currency const& wheat = mManageOffer.takerPays;
 
     if (sheep.type() != CURRENCY_TYPE_NATIVE)
     {
         mSheepLineA = TrustFrame::loadTrustLine(getSourceID(), sheep, db);
         if (!mSheepLineA)
         { // we don't have what we are trying to sell
-            metrics.NewMeter({"op-create-offer", "invalid",
-                              "underfunded-absent"},
-                             "operation").Mark();
-            innerResult().code(CREATE_OFFER_UNDERFUNDED);
+            innerResult().code(MANAGE_OFFER_UNDERFUNDED);
             return false;
         }
         if (mSheepLineA->getBalance() == 0)
         {
-            metrics.NewMeter({"op-create-offer", "invalid",
-                              "underfunded-balance"},
-                             "operation").Mark();
-            innerResult().code(CREATE_OFFER_UNDERFUNDED);
+            innerResult().code(MANAGE_OFFER_UNDERFUNDED);
             return false;
         }
         if (!mSheepLineA->isAuthorized())
         {
             // we are not authorized to sell
-            metrics.NewMeter({"op-create-offer", "invalid",
-                              "not-authorized-to-sell"},
-                             "operation").Mark();
-            innerResult().code(CREATE_OFFER_NOT_AUTHORIZED);
+            innerResult().code(MANAGE_OFFER_NOT_AUTHORIZED);
             return false;
         }
     }
@@ -73,18 +61,13 @@ CreateOfferOpFrame::checkOfferValid(medida::MetricsRegistry& metrics,
         mWheatLineA = TrustFrame::loadTrustLine(getSourceID(), wheat, db);
         if (!mWheatLineA)
         { // we can't hold what we are trying to buy
-            metrics.NewMeter({"op-create-offer", "invalid", "no-trust-to-buy"},
-                             "operation").Mark();
-            innerResult().code(CREATE_OFFER_NO_TRUST);
+            innerResult().code(MANAGE_OFFER_NO_TRUST);
             return false;
         }
 
         if (!mWheatLineA->isAuthorized())
         { // we are not authorized to hold what we are trying to buy
-            metrics.NewMeter({"op-create-offer", "invalid",
-                              "not-authorized-to-buy"},
-                             "operation").Mark();
-            innerResult().code(CREATE_OFFER_NOT_AUTHORIZED);
+            innerResult().code(MANAGE_OFFER_NOT_AUTHORIZED);
             return false;
         }
     }
@@ -99,46 +82,42 @@ CreateOfferOpFrame::checkOfferValid(medida::MetricsRegistry& metrics,
 // TODO: revisit this, offer code should share logic with payment code
 //      to keep the code working, I ended up duplicating the error codes
 bool
-CreateOfferOpFrame::doApply(medida::MetricsRegistry& metrics,
-                            LedgerDelta& delta, LedgerManager& ledgerManager)
+ManageOfferOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
 {
     Database& db = ledgerManager.getDatabase();
 
-    if (!checkOfferValid(metrics, db))
+    if (!checkOfferValid(db))
     {
         return false;
     }
 
-    Currency const& sheep = mCreateOffer.takerGets;
-    Currency const& wheat = mCreateOffer.takerPays;
+    Currency const& sheep = mManageOffer.takerGets;
+    Currency const& wheat = mManageOffer.takerPays;
 
     bool creatingNewOffer = false;
-    uint64_t offerID = mCreateOffer.offerID;
+    uint64_t offerID = mManageOffer.offerID;
 
     if (offerID)
     { // modifying an old offer
         mSellSheepOffer = OfferFrame::loadOffer(getSourceID(), offerID, db);
+        
 
         if (mSellSheepOffer)
         {
             // make sure the currencies are the same
-            if (!compareCurrency(mCreateOffer.takerGets,
+            if (!compareCurrency(mManageOffer.takerGets,
                                  mSellSheepOffer->getOffer().takerGets) ||
-                !compareCurrency(mCreateOffer.takerPays,
+                !compareCurrency(mManageOffer.takerPays,
                                  mSellSheepOffer->getOffer().takerPays))
             {
-                metrics.NewMeter({"op-create-offer", "failure",
-                                  "currency-mismatch"},
-                                 "operation").Mark();
-                innerResult().code(CREATE_OFFER_MISMATCH);
+                innerResult().code(MANAGE_OFFER_MISMATCH);
                 return false;
             }
+            mPassive = mSellSheepOffer->getFlags() & PASSIVE_FLAG;
         }
         else
         {
-            metrics.NewMeter({"op-create-offer", "failure", "offer-not-found"},
-                             "operation").Mark();
-            innerResult().code(CREATE_OFFER_NOT_FOUND);
+            innerResult().code(MANAGE_OFFER_NOT_FOUND);
             return false;
         }
     }
@@ -148,7 +127,7 @@ CreateOfferOpFrame::doApply(medida::MetricsRegistry& metrics,
         mSellSheepOffer = OfferFrame::from(*this);
     }
 
-    int64_t maxSheepSend = mCreateOffer.amount;
+    int64_t maxSheepSend = mManageOffer.amount;
 
     int64_t maxAmountOfSheepCanSell;
     if (sheep.type() == CURRENCY_TYPE_NATIVE)
@@ -172,9 +151,7 @@ CreateOfferOpFrame::doApply(medida::MetricsRegistry& metrics,
         maxWheatCanSell = mWheatLineA->getMaxAmountReceive();
         if (maxWheatCanSell == 0)
         {
-            metrics.NewMeter({"op-create-offer", "failure", "offer-line-full"},
-                             "operation").Mark();
-            innerResult().code(CREATE_OFFER_LINE_FULL);
+            innerResult().code(MANAGE_OFFER_LINE_FULL);
             return false;
         }
     }
@@ -182,7 +159,7 @@ CreateOfferOpFrame::doApply(medida::MetricsRegistry& metrics,
     {
         int64_t maxSheepBasedOnWheat;
         if (!bigDivide(maxSheepBasedOnWheat, maxWheatCanSell,
-                       mCreateOffer.price.d, mCreateOffer.price.n))
+            mManageOffer.price.d, mManageOffer.price.n))
         {
             maxSheepBasedOnWheat = INT64_MAX;
         }
@@ -200,9 +177,9 @@ CreateOfferOpFrame::doApply(medida::MetricsRegistry& metrics,
         maxSheepSend = maxAmountOfSheepCanSell;
     }
 
-    Price sheepPrice = mCreateOffer.price;
+    Price sheepPrice = mManageOffer.price;
 
-    innerResult().code(CREATE_OFFER_SUCCESS);
+    innerResult().code(MANAGE_OFFER_SUCCESS);
 
     {
         soci::transaction sqlTx(db.getSession());
@@ -218,14 +195,15 @@ CreateOfferOpFrame::doApply(medida::MetricsRegistry& metrics,
             sheep, maxSheepSend, sheepSent, wheat, maxWheatCanSell,
             wheatReceived, [this, maxWheatPrice](OfferFrame const& o)
             {
-                if (o.getPrice() > maxWheatPrice)
+                if( (mPassive && (o.getPrice() >= maxWheatPrice)) || 
+                    (o.getPrice() > maxWheatPrice) )
                 {
                     return OfferExchange::eStop;
                 }
                 if (o.getAccountID() == getSourceID())
                 {
                     // we are crossing our own offer
-                    innerResult().code(CREATE_OFFER_CROSS_SELF);
+                    innerResult().code(MANAGE_OFFER_CROSS_SELF);
                     return OfferExchange::eStop;
                 }
                 return OfferExchange::eKeep;
@@ -240,7 +218,7 @@ CreateOfferOpFrame::doApply(medida::MetricsRegistry& metrics,
             offerIsValid = true;
             break;
         case OfferExchange::eFilterStop:
-            if (innerResult().code() != CREATE_OFFER_SUCCESS)
+            if (innerResult().code() != MANAGE_OFFER_SUCCESS)
             {
                 return false;
             }
@@ -309,28 +287,25 @@ CreateOfferOpFrame::doApply(medida::MetricsRegistry& metrics,
                 // the minbalance
                 if (!mSourceAccount->addNumEntries(1, ledgerManager))
                 {
-                    metrics.NewMeter({"op-create-offer", "failure",
-                                      "low-reserve"},
-                                     "operation").Mark();
-                    innerResult().code(CREATE_OFFER_LOW_RESERVE);
+                    innerResult().code(MANAGE_OFFER_LOW_RESERVE);
                     return false;
                 }
                 mSellSheepOffer->mEntry.offer().offerID =
                     tempDelta.getHeaderFrame().generateID();
-                innerResult().success().offer.effect(CREATE_OFFER_CREATED);
+                innerResult().success().offer.effect(MANAGE_OFFER_CREATED);
                 mSellSheepOffer->storeAdd(tempDelta, db);
                 mSourceAccount->storeChange(tempDelta, db);
             }
             else
             {
-                innerResult().success().offer.effect(CREATE_OFFER_UPDATED);
+                innerResult().success().offer.effect(MANAGE_OFFER_UPDATED);
                 mSellSheepOffer->storeChange(tempDelta, db);
             }
             innerResult().success().offer.offer() = mSellSheepOffer->getOffer();
         }
         else
         {
-            innerResult().success().offer.effect(CREATE_OFFER_DELETED);
+            innerResult().success().offer.effect(MANAGE_OFFER_DELETED);
 
             if (!creatingNewOffer)
             {
@@ -341,41 +316,30 @@ CreateOfferOpFrame::doApply(medida::MetricsRegistry& metrics,
         sqlTx.commit();
         tempDelta.commit();
     }
-    metrics.NewMeter({"op-create-offer", "success", "apply"},
-                     "operation").Mark();
     return true;
 }
 
 // makes sure the currencies are different
 bool
-CreateOfferOpFrame::doCheckValid(medida::MetricsRegistry& metrics)
+ManageOfferOpFrame::doCheckValid()
 {
-    Currency const& sheep = mCreateOffer.takerGets;
-    Currency const& wheat = mCreateOffer.takerPays;
+    Currency const& sheep = mManageOffer.takerGets;
+    Currency const& wheat = mManageOffer.takerPays;
 
     if (!isCurrencyValid(sheep) || !isCurrencyValid(wheat))
     {
-        metrics.NewMeter({"op-create-offer", "invalid",
-                          "malformed-invalid-currency"},
-                         "operation").Mark();
-        innerResult().code(CREATE_OFFER_MALFORMED);
+        innerResult().code(MANAGE_OFFER_MALFORMED);
         return false;
     }
     if (compareCurrency(sheep, wheat))
     {
-        metrics.NewMeter({"op-create-offer", "invalid",
-                          "malformed-mismatched-currency"},
-                         "operation").Mark();
-        innerResult().code(CREATE_OFFER_MALFORMED);
+        innerResult().code(MANAGE_OFFER_MALFORMED);
         return false;
     }
-    if (mCreateOffer.amount < 0 || mCreateOffer.price.d <= 0 ||
-        mCreateOffer.price.n <= 0)
+    if (mManageOffer.amount < 0 || mManageOffer.price.d <= 0 ||
+        mManageOffer.price.n <= 0)
     {
-        metrics.NewMeter({"op-create-offer", "invalid",
-                          "malformed-prices"},
-                         "operation").Mark();
-        innerResult().code(CREATE_OFFER_MALFORMED);
+        innerResult().code(MANAGE_OFFER_MALFORMED);
         return false;
     }
 

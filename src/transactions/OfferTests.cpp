@@ -67,7 +67,7 @@ TEST_CASE("create offer", "[tx][offers]")
 
     SECTION("account a1 does not exist")
     {
-        auto txFrame = createOfferOp(0, a1, idrCur, usdCur, oneone, 100, 1);
+        auto txFrame = manageOfferOp(0, a1, idrCur, usdCur, oneone, 100, 1);
 
         txFrame->apply(delta, app);
         REQUIRE(txFrame->getResultCode() == txNO_ACCOUNT);
@@ -86,13 +86,13 @@ TEST_CASE("create offer", "[tx][offers]")
 
         // missing IDR trust
         applyCreateOfferWithResult(app, delta, 0, a1, idrCur, usdCur, oneone,
-                                   100, a1_seq++, CREATE_OFFER_UNDERFUNDED);
+                                   100, a1_seq++, MANAGE_OFFER_UNDERFUNDED);
 
         applyChangeTrust(app, a1, gateway, a1_seq++, "IDR", trustLineLimit);
 
         // can't sell IDR if account doesn't have any
         applyCreateOfferWithResult(app, delta, 0, a1, idrCur, usdCur, oneone,
-                                   100, a1_seq++, CREATE_OFFER_UNDERFUNDED);
+                                   100, a1_seq++, MANAGE_OFFER_UNDERFUNDED);
 
         // fund a1 with some IDR
         applyCreditPaymentTx(app, gateway, a1, idrCur, gateway_seq++,
@@ -100,13 +100,13 @@ TEST_CASE("create offer", "[tx][offers]")
 
         // missing USD trust
         applyCreateOfferWithResult(app, delta, 0, a1, idrCur, usdCur, oneone,
-                                   100, a1_seq++, CREATE_OFFER_NO_TRUST);
+                                   100, a1_seq++, MANAGE_OFFER_NO_TRUST);
 
         applyChangeTrust(app, a1, gateway, a1_seq++, "USD", trustLineLimit);
 
         // need sufficient XLM funds to create an offer
         applyCreateOfferWithResult(app, delta, 0, a1, idrCur, usdCur, oneone,
-                                   100, a1_seq++, CREATE_OFFER_LOW_RESERVE);
+                                   100, a1_seq++, MANAGE_OFFER_LOW_RESERVE);
 
         // add some funds to create the offer
         applyPaymentTx(app, root, a1, root_seq++, minBalance2);
@@ -116,7 +116,7 @@ TEST_CASE("create offer", "[tx][offers]")
         applyCreditPaymentTx(app, gateway, a1, usdCur, gateway_seq++,
                              trustLineLimit);
         applyCreateOfferWithResult(app, delta, 0, a1, idrCur, usdCur, oneone,
-                                   100, a1_seq++, CREATE_OFFER_LINE_FULL);
+                                   100, a1_seq++, MANAGE_OFFER_LINE_FULL);
 
         // try to overflow
         // first moves the limit and balance to INT64_MAX
@@ -125,7 +125,7 @@ TEST_CASE("create offer", "[tx][offers]")
                              INT64_MAX - trustLineLimit);
 
         applyCreateOfferWithResult(app, delta, 0, a1, idrCur, usdCur, oneone,
-                                   100, a1_seq++, CREATE_OFFER_LINE_FULL);
+                                   100, a1_seq++, MANAGE_OFFER_LINE_FULL);
 
         // there should be no pending offer at this point in the system
         OfferFrame offer;
@@ -149,16 +149,16 @@ TEST_CASE("create offer", "[tx][offers]")
 
         auto res = applyCreateOfferWithResult(app, delta, 0, a1, idrCur, usdCur,
                                               oneone, 100, a1_seq++,
-                                              CREATE_OFFER_SUCCESS);
+            MANAGE_OFFER_SUCCESS);
 
         auto offer = res.success().offer.offer();
         loadOffer(a1, offer.offerID, app);
 
         auto cancelRes = applyCreateOfferWithResult(
             app, delta, offer.offerID, a1, idrCur, usdCur, oneone, 0, a1_seq++,
-            CREATE_OFFER_SUCCESS);
+            MANAGE_OFFER_SUCCESS);
 
-        REQUIRE(cancelRes.success().offer.effect() == CREATE_OFFER_DELETED);
+        REQUIRE(cancelRes.success().offer.effect() == MANAGE_OFFER_DELETED);
         REQUIRE(!loadOffer(a1, offer.offerID, app, false));
     }
 
@@ -288,7 +288,7 @@ TEST_CASE("create offer", "[tx][offers]")
                 uint64_t beforeID = delta.getHeaderFrame().getLastGeneratedID();
                 applyCreateOfferWithResult(app, delta, 0, a1, usdCur, idrCur,
                                            exactCross, 150 * currencyMultiplier,
-                                           a1_seq++, CREATE_OFFER_CROSS_SELF);
+                                           a1_seq++, MANAGE_OFFER_CROSS_SELF);
                 REQUIRE(beforeID ==
                         delta.getHeaderFrame().getLastGeneratedID());
 
@@ -319,7 +319,7 @@ TEST_CASE("create offer", "[tx][offers]")
                     app, delta, 0, b1, usdCur, idrCur, exactCross,
                     150 * currencyMultiplier, b1_seq++);
 
-                REQUIRE(res.success().offer.effect() == CREATE_OFFER_DELETED);
+                REQUIRE(res.success().offer.effect() == MANAGE_OFFER_DELETED);
 
                 // verifies that the offer was not created
                 REQUIRE(!loadOffer(b1, expectedID, app, false));
@@ -374,7 +374,7 @@ TEST_CASE("create offer", "[tx][offers]")
                     app, delta, 0, b1, usdCur, idrCur, onetwo,
                     1010 * currencyMultiplier, b1_seq++);
 
-                REQUIRE(res.success().offer.effect() == CREATE_OFFER_DELETED);
+                REQUIRE(res.success().offer.effect() == MANAGE_OFFER_DELETED);
                 // verify that the offer was not created
                 REQUIRE(!loadOffer(b1, expectedID, app, false));
 
@@ -470,7 +470,7 @@ TEST_CASE("create offer", "[tx][offers]")
                         1 * currencyMultiplier, b1_seq++);
 
                     REQUIRE(res.success().offer.effect() ==
-                            CREATE_OFFER_DELETED);
+                        MANAGE_OFFER_DELETED);
                     REQUIRE(!loadOffer(b1, wouldCreateID, app, false));
                 }
 
@@ -653,7 +653,7 @@ TEST_CASE("create offer", "[tx][offers]")
                         300 * currencyMultiplier, c1_seq++);
                     // offer consumed offers but was not created
                     REQUIRE(offerC1Res.success().offer.effect() ==
-                            CREATE_OFFER_DELETED);
+                        MANAGE_OFFER_DELETED);
 
                     TrustFrame::pointer line;
 
@@ -792,7 +792,7 @@ TEST_CASE("create offer", "[tx][offers]")
                             idrPriceOfferC, 300 * currencyMultiplier, f1_seq++);
                         // offer created would be buy 100 IDR for 150 USD ; 0.66
                         REQUIRE(offerF1Res.success().offer.effect() ==
-                                CREATE_OFFER_CREATED);
+                            MANAGE_OFFER_CREATED);
 
                         REQUIRE(offerF1Res.success().offer.offer().amount ==
                                 150 * currencyMultiplier);
@@ -852,7 +852,7 @@ TEST_CASE("create offer", "[tx][offers]")
                             300 * currencyMultiplier, c1_seq++);
                         // offer created would be buy 50 IDR for 75 USD ; 0.66
                         REQUIRE(offerC1Res.success().offer.effect() ==
-                                CREATE_OFFER_CREATED);
+                            MANAGE_OFFER_CREATED);
 
                         REQUIRE(offerC1Res.success().offer.offer().amount ==
                                 75 * currencyMultiplier);
@@ -917,7 +917,7 @@ TEST_CASE("create offer", "[tx][offers]")
                         90 * currencyMultiplier, a1_seq++);
 
                     REQUIRE(resA.success().offer.effect() ==
-                            CREATE_OFFER_DELETED);
+                        MANAGE_OFFER_DELETED);
 
                     // gw's offer was deleted
                     REQUIRE(!loadOffer(gateway, gwOffer, app, false));
@@ -936,7 +936,7 @@ TEST_CASE("create offer", "[tx][offers]")
                         app, delta, 0, gateway, usdCur, idrCur, Price(2, 3),
                         150 * currencyMultiplier, gateway_seq++);
                     REQUIRE(res.success().offer.effect() ==
-                            CREATE_OFFER_DELETED);
+                        MANAGE_OFFER_DELETED);
 
                     // A's offer was deleted
                     REQUIRE(!loadOffer(a1, offerA1, app, false));

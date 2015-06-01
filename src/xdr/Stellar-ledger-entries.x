@@ -82,6 +82,13 @@ struct TrustLineEntry
     uint32 flags; // see TrustLineFlags
 };
 
+
+enum OfferEntryFlags
+{
+    // issuer has authorized account to perform transactions with its credit
+    PASSIVE_FLAG = 1
+};
+
 /* OfferEntry
     An offer is the building block of the offer book, they are automatically
     claimed by payments when the price set by the owner is met.
@@ -103,6 +110,7 @@ struct OfferEntry
         price is after fees
     */
     Price price;
+    uint32 flags; // see OfferEntryFlags
 };
 
 union LedgerEntry switch (LedgerEntryType type)

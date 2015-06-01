@@ -59,6 +59,7 @@ class OfferFrame : public EntryFrame
     Currency const& getTakerPays() const;
     Currency const& getTakerGets() const;
     uint64 getOfferID() const;
+    uint32 getFlags() const;
 
     OfferEntry const&
     getOffer() const

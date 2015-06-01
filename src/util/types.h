@@ -33,6 +33,7 @@ bool bigDivide(int64_t& result, int64_t A, int64_t B, int64_t C);
 
 bool iequals(std::string const& a, std::string const& b);
 
+bool operator>=(Price const& a, Price const& b);
 bool operator>(Price const& a, Price const& b);
 bool operator==(Price const& a, Price const& b);
 }

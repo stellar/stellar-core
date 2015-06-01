@@ -151,6 +151,15 @@ iequals(std::string const& a, std::string const& b)
     return true;
 }
 
+bool operator>=(Price const& a, Price const& b)
+{
+    uint128_t l(a.n);
+    uint128_t r(a.d);
+    l *= b.d;
+    r *= b.n;
+    return l >= r;
+}
+
 bool operator>(Price const& a, Price const& b)
 {
     uint128_t l(a.n);

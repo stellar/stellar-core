@@ -18,12 +18,13 @@ enum OperationType
     CREATE_ACCOUNT = 0,
     PAYMENT = 1,
     PATH_PAYMENT = 2,
-    CREATE_OFFER = 3,
-    SET_OPTIONS = 4,
-    CHANGE_TRUST = 5,
-    ALLOW_TRUST = 6,
-    ACCOUNT_MERGE = 7,
-    INFLATION = 8
+    MANAGE_OFFER = 3,
+	CREATE_PASSIVE_OFFER = 4,
+    SET_OPTIONS = 5,
+    CHANGE_TRUST = 6,
+    ALLOW_TRUST = 7,
+    ACCOUNT_MERGE = 8,
+    INFLATION = 9
 };
 
 /* CreateAccount
@@ -85,10 +86,10 @@ struct PathPaymentOp
 
 Threshold: med
 
-Result: CreateOfferResult
+Result: ManageOfferResult
 
 */
-struct CreateOfferOp
+struct ManageOfferOp
 {
     Currency takerGets;
     Currency takerPays;
@@ -97,6 +98,21 @@ struct CreateOfferOp
 
     // 0=create a new offer, otherwise edit an existing offer
     uint64 offerID;
+};
+
+/* Creates an offer that doesn't take offers of the same price
+
+Threshold: med
+
+Result: CreatePassiveOfferResult
+
+*/
+struct CreatePassiveOfferOp
+{
+    Currency takerGets;
+    Currency takerPays;
+    int64 amount; // amount taker gets. if set to 0, delete the offer
+    Price price;  // =takerPaysAmount/takerGetsAmount
 };
 
 /* Set Account Options
@@ -198,8 +214,10 @@ struct Operation
         PaymentOp paymentOp;
     case PATH_PAYMENT:
         PathPaymentOp pathPaymentOp;
-    case CREATE_OFFER:
-        CreateOfferOp createOfferOp;
+    case MANAGE_OFFER:
+        ManageOfferOp manageOfferOp;
+	case CREATE_PASSIVE_OFFER:
+        CreatePassiveOfferOp createPassiveOfferOp;
     case SET_OPTIONS:
         SetOptionsOp setOptionsOp;
     case CHANGE_TRUST:
@@ -378,44 +396,45 @@ default:
     void;
 };
 
-/******* CreateOffer Result ********/
+/******* ManageOffer Result ********/
 
-enum CreateOfferResultCode
+enum ManageOfferResultCode
 {
     // codes considered as "success" for the operation
-    CREATE_OFFER_SUCCESS = 0,
+    MANAGE_OFFER_SUCCESS = 0,
 
     // codes considered as "failure" for the operation
-    CREATE_OFFER_MALFORMED = -1,      // generated offer would be invalid
-    CREATE_OFFER_NO_TRUST = -2,       // can't hold what it's buying
-    CREATE_OFFER_NOT_AUTHORIZED = -3, // not authorized to sell or buy
-    CREATE_OFFER_LINE_FULL = -4,      // can't receive more of what it's buying
-    CREATE_OFFER_UNDERFUNDED = -5,    // doesn't hold what it's trying to sell
-    CREATE_OFFER_CROSS_SELF = -6,     // would cross an offer from the same user
+    MANAGE_OFFER_MALFORMED = -1,      // generated offer would be invalid
+    MANAGE_OFFER_NO_TRUST = -2,       // can't hold what it's buying
+    MANAGE_OFFER_NOT_AUTHORIZED = -3, // not authorized to sell or buy
+    MANAGE_OFFER_LINE_FULL = -4,      // can't receive more of what it's buying
+    MANAGE_OFFER_UNDERFUNDED = -5,    // doesn't hold what it's trying to sell
+    MANAGE_OFFER_CROSS_SELF = -6,     // would cross an offer from the same user
 
     // update errors
-    CREATE_OFFER_NOT_FOUND = -7, // offerID does not match an existing offer
-    CREATE_OFFER_MISMATCH = -8,  // currencies don't match offer
+    MANAGE_OFFER_NOT_FOUND = -7, // offerID does not match an existing offer
+    MANAGE_OFFER_MISMATCH = -8,  // currencies don't match offer
 
-    CREATE_OFFER_LOW_RESERVE = -9 // not enough funds to create a new Offer
+    MANAGE_OFFER_LOW_RESERVE = -9 // not enough funds to create a new Offer
 };
 
-enum CreateOfferEffect
+
+enum ManageOfferEffect
 {
-    CREATE_OFFER_CREATED = 0,
-    CREATE_OFFER_UPDATED = 1,
-    CREATE_OFFER_DELETED = 2
+    MANAGE_OFFER_CREATED = 0,
+    MANAGE_OFFER_UPDATED = 1,
+    MANAGE_OFFER_DELETED = 2
 };
 
-struct CreateOfferSuccessResult
+struct ManageOfferSuccessResult
 {
     // offers that got claimed while creating this offer
     ClaimOfferAtom offersClaimed<>;
 
-    union switch (CreateOfferEffect effect)
+    union switch (ManageOfferEffect effect)
     {
-    case CREATE_OFFER_CREATED:
-    case CREATE_OFFER_UPDATED:
+    case MANAGE_OFFER_CREATED:
+    case MANAGE_OFFER_UPDATED:
         OfferEntry offer;
     default:
         void;
@@ -423,10 +442,10 @@ struct CreateOfferSuccessResult
     offer;
 };
 
-union CreateOfferResult switch (CreateOfferResultCode code)
+union ManageOfferResult switch (ManageOfferResultCode code)
 {
-case CREATE_OFFER_SUCCESS:
-    CreateOfferSuccessResult success;
+case MANAGE_OFFER_SUCCESS:
+    ManageOfferSuccessResult success;
 default:
     void;
 };
@@ -442,7 +461,8 @@ enum SetOptionsResultCode
     SET_OPTIONS_TOO_MANY_SIGNERS = -2, // max number of signers already reached
     SET_OPTIONS_BAD_FLAGS = -3,        // invalid combination of clear/set flags
     SET_OPTIONS_INVALID_INFLATION = -4, // inflation account does not exist
-    SET_OPTIONS_CANT_CHANGE = -5        // can no longer change this option
+    SET_OPTIONS_CANT_CHANGE = -5,       // can no longer change this option
+    SET_OPTIONS_UNKNOWN_FLAG = -6		// can't set an unknown flag
 };
 
 union SetOptionsResult switch (SetOptionsResultCode code)
@@ -483,9 +503,9 @@ enum AllowTrustResultCode
     // codes considered as "failure" for the operation
     ALLOW_TRUST_MALFORMED = -1,     // currency is not CURRENCY_TYPE_ALPHANUM
     ALLOW_TRUST_NO_TRUST_LINE = -2, // trustor does not have a trustline
-    ALLOW_TRUST_TRUST_NOT_REQUIRED =
-        -3,                      // source account does not require trust
-    ALLOW_TRUST_CANT_REVOKE = -4 // source account can't revoke trust
+									// source account does not require trust
+    ALLOW_TRUST_TRUST_NOT_REQUIRED = -3, 
+    ALLOW_TRUST_CANT_REVOKE = -4    // source account can't revoke trust
 };
 
 union AllowTrustResult switch (AllowTrustResultCode code)
@@ -562,8 +582,10 @@ case opINNER:
         PaymentResult paymentResult;
     case PATH_PAYMENT:
         PathPaymentResult pathPaymentResult;
-    case CREATE_OFFER:
-        CreateOfferResult createOfferResult;
+    case MANAGE_OFFER:
+        ManageOfferResult manageOfferResult;
+    case CREATE_PASSIVE_OFFER:
+        ManageOfferResult createPassiveOfferResult;
     case SET_OPTIONS:
         SetOptionsResult setOptionsResult;
     case CHANGE_TRUST:

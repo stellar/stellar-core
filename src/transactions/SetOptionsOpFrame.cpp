@@ -56,6 +56,7 @@ SetOptionsOpFrame::doApply(medida::MetricsRegistry& metrics,
     {
         account.flags = account.flags & ~*mSetOptions.clearFlags;
     }
+
     if (mSetOptions.setFlags)
     {
         if ((*mSetOptions.setFlags & AUTH_REQUIRED_FLAG) ||
@@ -148,6 +149,26 @@ SetOptionsOpFrame::doApply(medida::MetricsRegistry& metrics,
 bool
 SetOptionsOpFrame::doCheckValid(medida::MetricsRegistry& metrics)
 {
+    if(mSetOptions.setFlags)
+    {
+        if( *mSetOptions.setFlags & 
+            ~(AUTH_REQUIRED_FLAG | AUTH_REVOCABLE_FLAG))
+        {
+            innerResult().code(SET_OPTIONS_UNKNOWN_FLAG);
+            return false;
+        }
+    }
+
+    if(mSetOptions.clearFlags)
+    {
+        if( *mSetOptions.clearFlags &
+            ~(AUTH_REQUIRED_FLAG | AUTH_REVOCABLE_FLAG))
+        {
+            innerResult().code(SET_OPTIONS_UNKNOWN_FLAG);
+            return false;
+        }
+    }
+
     if (mSetOptions.setFlags && mSetOptions.clearFlags)
     {
         if ((*mSetOptions.setFlags & *mSetOptions.clearFlags) != 0)

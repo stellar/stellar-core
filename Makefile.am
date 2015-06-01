@@ -81,7 +81,8 @@ FMT_SRCS =                                      \
     src/transactions/ChangeTrustOpFrame.cpp     \
     src/transactions/ChangeTrustTests.cpp       \
     src/transactions/CreateAccountOpFrame.cpp   \
-    src/transactions/CreateOfferOpFrame.cpp     \
+    src/transactions/ManageOfferOpFrame.cpp     \
+    src/transactions/CreatePassiveOfferOpFrame.cpp     \
     src/transactions/InflationOpFrame.cpp       \
     src/transactions/InflationTests.cpp         \
     src/transactions/MergeOpFrame.cpp           \
@@ -169,7 +170,8 @@ FMT_HDRS =                                      \
     src/transactions/AllowTrustOpFrame.h        \
     src/transactions/ChangeTrustOpFrame.h       \
     src/transactions/CreateAccountOpFrame.h     \
-    src/transactions/CreateOfferOpFrame.h       \
+    src/transactions/ManageOfferOpFrame.h       \
+    src/transactions/CreatePassiveOfferOpFrame.h       \
     src/transactions/InflationOpFrame.h         \
     src/transactions/MergeOpFrame.h             \
     src/transactions/OfferExchange.h            \

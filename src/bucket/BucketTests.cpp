@@ -169,8 +169,6 @@ TEST_CASE("skip list", "[bucket]")
             REQUIRE(header.skipList[2] == h4);
             REQUIRE(header.skipList[3] == h0);
 
-
-
         }
     };
 

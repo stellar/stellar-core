@@ -17,7 +17,7 @@
 #include "transactions/PaymentOpFrame.h"
 #include "transactions/ChangeTrustOpFrame.h"
 #include "transactions/CreateAccountOpFrame.h"
-#include "transactions/CreateOfferOpFrame.h"
+#include "transactions/ManageOfferOpFrame.h"
 #include "transactions/SetOptionsOpFrame.h"
 #include "transactions/AllowTrustOpFrame.h"
 #include "transactions/InflationOpFrame.h"
@@ -410,22 +410,22 @@ applyPathPaymentTx(Application& app, SecretKey& from, SecretKey& to,
 }
 
 TransactionFramePtr
-createOfferOp(uint64 offerId, SecretKey& source, Currency& takerGets,
+manageOfferOp(uint64 offerId, SecretKey& source, Currency& takerGets,
               Currency& takerPays, Price const& price, int64_t amount,
               SequenceNumber seq)
 {
     Operation op;
-    op.body.type(CREATE_OFFER);
-    op.body.createOfferOp().amount = amount;
-    op.body.createOfferOp().takerGets = takerGets;
-    op.body.createOfferOp().takerPays = takerPays;
-    op.body.createOfferOp().offerID = offerId;
-    op.body.createOfferOp().price = price;
+    op.body.type(MANAGE_OFFER);
+    op.body.manageOfferOp().amount = amount;
+    op.body.manageOfferOp().takerGets = takerGets;
+    op.body.manageOfferOp().takerPays = takerPays;
+    op.body.manageOfferOp().offerID = offerId;
+    op.body.manageOfferOp().price = price;
 
     return transactionFromOperation(source, seq, op);
 }
 
-static CreateOfferResult
+static ManageOfferResult
 applyCreateOfferHelper(Application& app, LedgerDelta& delta, uint64 offerId,
                        SecretKey& source, Currency& takerGets,
                        Currency& takerPays, Price const& price, int64_t amount,
@@ -439,7 +439,7 @@ applyCreateOfferHelper(Application& app, LedgerDelta& delta, uint64 offerId,
 
     TransactionFramePtr txFrame;
 
-    txFrame = createOfferOp(offerId, source, takerGets, takerPays, price,
+    txFrame = manageOfferOp(offerId, source, takerGets, takerPays, price,
                             amount, seq);
 
     txFrame->apply(delta, app);
@@ -450,18 +450,18 @@ applyCreateOfferHelper(Application& app, LedgerDelta& delta, uint64 offerId,
 
     REQUIRE(results.size() == 1);
 
-    auto& createOfferResult = results[0].tr().createOfferResult();
+    auto& manageOfferResult = results[0].tr().manageOfferResult();
 
-    if (createOfferResult.code() == CREATE_OFFER_SUCCESS)
+    if (manageOfferResult.code() == MANAGE_OFFER_SUCCESS)
     {
         OfferFrame::pointer offer;
 
-        auto& offerResult = createOfferResult.success().offer;
+        auto& offerResult = manageOfferResult.success().offer;
 
         switch (offerResult.effect())
         {
-        case CREATE_OFFER_CREATED:
-        case CREATE_OFFER_UPDATED:
+        case MANAGE_OFFER_CREATED:
+        case MANAGE_OFFER_UPDATED:
         {
             offer = loadOffer(source, expectedOfferID, app);
             auto& offerEntry = offer->getOffer();
@@ -471,7 +471,7 @@ applyCreateOfferHelper(Application& app, LedgerDelta& delta, uint64 offerId,
             REQUIRE(offerEntry.takerPays == takerPays);
         }
         break;
-        case CREATE_OFFER_DELETED:
+        case MANAGE_OFFER_DELETED:
             REQUIRE(!loadOffer(source, expectedOfferID, app, false));
             break;
         default:
@@ -479,7 +479,7 @@ applyCreateOfferHelper(Application& app, LedgerDelta& delta, uint64 offerId,
         }
     }
 
-    return createOfferResult;
+    return manageOfferResult;
 }
 
 uint64_t
@@ -487,32 +487,32 @@ applyCreateOffer(Application& app, LedgerDelta& delta, uint64 offerId,
                  SecretKey& source, Currency& takerGets, Currency& takerPays,
                  Price const& price, int64_t amount, SequenceNumber seq)
 {
-    CreateOfferResult const& createOfferRes = applyCreateOfferHelper(
+    ManageOfferResult const& createOfferRes = applyCreateOfferHelper(
         app, delta, offerId, source, takerGets, takerPays, price, amount, seq);
 
-    REQUIRE(createOfferRes.code() == CREATE_OFFER_SUCCESS);
+    REQUIRE(createOfferRes.code() == MANAGE_OFFER_SUCCESS);
 
     auto& success = createOfferRes.success().offer;
 
-    REQUIRE(success.effect() == CREATE_OFFER_CREATED);
+    REQUIRE(success.effect() == MANAGE_OFFER_CREATED);
 
     return success.offer().offerID;
 }
 
-CreateOfferResult
+ManageOfferResult
 applyCreateOfferWithResult(Application& app, LedgerDelta& delta, uint64 offerId,
                            SecretKey& source, Currency& takerGets,
                            Currency& takerPays, Price const& price,
                            int64_t amount, SequenceNumber seq,
-                           CreateOfferResultCode result)
+    ManageOfferResultCode result)
 {
-    CreateOfferResult const& createOfferRes = applyCreateOfferHelper(
+    ManageOfferResult const& manageOfferRes = applyCreateOfferHelper(
         app, delta, offerId, source, takerGets, takerPays, price, amount, seq);
 
-    auto res = createOfferRes.code();
+    auto res = manageOfferRes.code();
     REQUIRE(res == result);
 
-    return createOfferRes;
+    return manageOfferRes;
 }
 
 TransactionFramePtr

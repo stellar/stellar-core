@@ -15,7 +15,7 @@
 #include "ledger/LedgerDelta.h"
 #include "transactions/PaymentOpFrame.h"
 #include "transactions/CreateAccountOpFrame.h"
-#include "transactions/CreateOfferOpFrame.h"
+#include "transactions/ManageOfferOpFrame.h"
 #include "transactions/TxTests.h"
 
 using namespace stellar;
@@ -244,7 +244,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                 {
                     Currency idrCur = makeCurrency(b1, "IDR");
                     Price price(1, 1);
-                    TransactionFramePtr tx_b = createOfferOp(
+                    TransactionFramePtr tx_b = manageOfferOp(
                         0, b1, idrCur, idrCur, price, 1000, b1Seq);
 
                     // build a new tx based off tx_a and tx_b
@@ -276,9 +276,9 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                     REQUIRE(PaymentOpFrame::getInnerCode(getFirstResult(*tx)) ==
                             PAYMENT_SUCCESS);
                     // second
-                    REQUIRE(CreateOfferOpFrame::getInnerCode(
+                    REQUIRE(ManageOfferOpFrame::getInnerCode(
                                 tx->getOperations()[1]->getResult()) ==
-                            CREATE_OFFER_MALFORMED);
+                            MANAGE_OFFER_MALFORMED);
                 }
                 SECTION("one failed tx")
                 {

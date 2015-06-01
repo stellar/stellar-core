@@ -70,7 +70,7 @@ OfferFrame::from(OperationFrame const& op)
     OfferFrame::pointer res = make_shared<OfferFrame>();
     OfferEntry& o = res->mEntry.offer();
     o.accountID = op.getSourceID();
-    CreateOfferOp const& create = op.getOperation().body.createOfferOp();
+    ManageOfferOp const& create = op.getOperation().body.manageOfferOp();
     o.amount = create.amount;
     o.price = create.price;
     o.offerID = create.offerID;
@@ -112,6 +112,12 @@ uint64
 OfferFrame::getOfferID() const
 {
     return mOffer.offerID;
+}
+
+uint32 
+OfferFrame::getFlags() const
+{
+    return mOffer.flags;
 }
 
 static const char* offerColumnSelector =
