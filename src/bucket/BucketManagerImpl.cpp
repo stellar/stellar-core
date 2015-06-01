@@ -285,10 +285,7 @@ BucketManagerImpl::addBatch(Application& app, uint32_t currLedger,
     mBucketList.addBatch(app, currLedger, liveEntries, deadEntries);
 }
 
-#define FIVE_TO_7 78125
-#define FIVE_TO_8 390625
-#define FIVE_TO_9 1953125
-#define FIVE_TO_10 9765625
+
 
 // updates the given LedgerHeader to reflect the current state of the bucket
 // list
@@ -296,14 +293,25 @@ void
 BucketManagerImpl::snapshotLedger(LedgerHeader& currentHeader)
 {
     currentHeader.bucketListHash = mBucketList.getHash();
+    calculateSkipValues(currentHeader);
 
-    if((currentHeader.ledgerSeq % FIVE_TO_7) == 0)
+    
+}
+
+void 
+BucketManagerImpl::calculateSkipValues(LedgerHeader& currentHeader)
+{
+    
+    if((currentHeader.ledgerSeq % SKIP_1) == 0)
     {
-        if(((currentHeader.ledgerSeq- FIVE_TO_7) % FIVE_TO_8) == 0)
+        int v = currentHeader.ledgerSeq - SKIP_1;
+        if(v>0 && (v % SKIP_2) == 0)
         {
-            if(((currentHeader.ledgerSeq - FIVE_TO_8) % FIVE_TO_9) == 0)
+            v = currentHeader.ledgerSeq - SKIP_2 - SKIP_1;
+            if(v>0 && (v % SKIP_3) == 0)
             {
-                if(((currentHeader.ledgerSeq - FIVE_TO_9) % FIVE_TO_10) == 0)
+                v = currentHeader.ledgerSeq - SKIP_3 - SKIP_2 - SKIP_1;
+                if(v>0 && (v % SKIP_4) == 0)
                 {
 
                     currentHeader.skipList[3] = currentHeader.skipList[2];

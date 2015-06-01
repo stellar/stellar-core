@@ -45,6 +45,9 @@ class BucketManagerImpl : public BucketManager
     medida::Timer& mBucketSnapMerge;
     medida::Counter& mSharedBucketsSize;
 
+protected:
+    void calculateSkipValues(LedgerHeader& currentHeader);
+
 public:
     BucketManagerImpl(Application& app);
     ~BucketManagerImpl() override;
@@ -67,5 +70,10 @@ public:
     std::vector<std::string> checkForMissingBucketsFiles(HistoryArchiveState const& has) override;
     void assumeState(HistoryArchiveState const& has);
 };
+
+#define SKIP_1 50
+#define SKIP_2 5000
+#define SKIP_3 50000
+#define SKIP_4 1000000
 
 }
