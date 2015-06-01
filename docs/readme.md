@@ -1,3 +1,8 @@
+---
+id: readme
+title: Readme
+category: Getting Started
+---
 # Stellar-core Overview
 
 Stellar is a decentralized, federated peer-to-peer network that allows people to
@@ -6,19 +11,19 @@ minimal fee.
 
 `Stellar-core` is the core component of this network. `Stellar-core` is a C++
 implementation of the Stellar Consensus Protocol configured to construct a chain
-of ledgers that are guaranteed to be in agreement across all the participating 
+of ledgers that are guaranteed to be in agreement across all the participating
 nodes at all times.
 
 For more detail on the Stellar Consensus Protocol and how it establishes this
-guarantee see [`src/scp/README.md`](../src/scp/readme.md). 
+guarantee see [`src/scp/README.md`](../src/scp/readme.md).
 
 ##Key Concepts
 
-- **Ledger**: A ledger is the state of the distributed Stellar database at a 
-  particular point in time. It is composed of a set of _ledger entries_, 
-  including (1) accounts and their balances, (2) buy and sell offers, (3) and 
-  trust lines, as well as a _ledger header_ that records some additional meta 
-  data. Ledgers are linked together in a _ledger chain_. Each ledger has a 
+- **Ledger**: A ledger is the state of the distributed Stellar database at a
+  particular point in time. It is composed of a set of _ledger entries_,
+  including (1) accounts and their balances, (2) buy and sell offers, (3) and
+  trust lines, as well as a _ledger header_ that records some additional meta
+  data. Ledgers are linked together in a _ledger chain_. Each ledger has a
   sequence number that tells you where in the chain it falls.
 
 - **Ledger chain**: This is an ever increasing list of ledgers. Each ledger
@@ -26,7 +31,7 @@ guarantee see [`src/scp/README.md`](../src/scp/readme.md).
   time.
 
 - **Ledger header**: The ledger's header contains meta data about the ledger,
-  including the hash of the previous ledger (thus recording the chain) and its 
+  including the hash of the previous ledger (thus recording the chain) and its
   own hash. (See [`src/xdr/Stellar-ledger.x`](../src/xdr/Stellar-ledger.x))
 
 - **Transaction**: Making a payment, creating an offer and so forth. Anything
@@ -60,9 +65,9 @@ performance needs.
     where a minority of the accounts see the majority of the operations. Second,
     it participates in providing nodes that have fallen behind with the ledger
     data they need to catch-up with the current state of the chain. (See
-    [`src/bucket/readme.md`](../src/bucket/readme.md)). While the hash computed 
-	by the bucket list is functionally equivalent to a hash obtained 
-	concatenating all the entries, it is not the same value since the bucket 
+    [`src/bucket/readme.md`](../src/bucket/readme.md)). While the hash computed
+	by the bucket list is functionally equivalent to a hash obtained
+	concatenating all the entries, it is not the same value since the bucket
 	list deduplicates changed entries incrementally.
 
  4. Finally, `stellar-core` can be configured to upload detailed historical
@@ -89,17 +94,17 @@ source directory and its own dedicated `readme.md`.
 * **Herder** is responsible for interfacing between SCP and the rest of
   `stellar-core`. Herder provides SCP with concrete implementations of the
   methods SCP uses to communicate with peers, to compare values, to determine
-  whether values contain valid signatures, and so forth. Herder often 
-  accomplishes its tasks by delegating to other components 
+  whether values contain valid signatures, and so forth. Herder often
+  accomplishes its tasks by delegating to other components
   (See [`src/herder/readme.md`](../src/herder/readme.md)).
 
 * **Overlay** connects to and keeps track of the peers this nodeis knows
   about and is connected to. It floods messages and fetches from peers the data
-  that is needed to accomplish consensus (See 
+  that is needed to accomplish consensus (See
   [`src/overlay/readme.md`](../src/overlay/readme.md)). All
-  other data downloads are handled without imposing on the SCP-nodes, see 
+  other data downloads are handled without imposing on the SCP-nodes, see
   [`./architecture.md`](/docs/architecture.md).
-  
+
 * **Ledger** applies the transaction set that is externalized by SCP. It also
   forwards the externalization event to other components: it submits the changed
   ledger entries to the bucket list, triggers the publishing of history, and
@@ -116,7 +121,7 @@ source directory and its own dedicated `readme.md`.
 
 * **BucketList** stores ledger entries on disk arranged for hashing and
   block-catch-up. BucketList coordinates the hashing and deduplicating of
-  buckets by multiple background threads 
+  buckets by multiple background threads
   (See [`src/buckets/readme.md`](../src/buckets/readme.md)).
 
 * **Transactions** implements all the various transaction types (See
@@ -125,10 +130,10 @@ source directory and its own dedicated `readme.md`.
 
 ## Supporting Code Directories
 
-* **src/main** handles booting, loading of the configuration and of persistent 
+* **src/main** handles booting, loading of the configuration and of persistent
   state flags. Launches the test suite if requested.
 
-* **src/crypto** contains standard cryptographic routines, including random 
+* **src/crypto** contains standard cryptographic routines, including random
   number generation, hashing, and base-58 and hex encoding.
 
 * **src/util** gathers assorted logging and utility routines.
@@ -137,17 +142,17 @@ source directory and its own dedicated `readme.md`.
 
 * **src/database** is a thin layer above the functionality provided by the
   database-access library `soci`.
-  
+
 * **src/process** is an asynchronous implementation of `system()`, for running
   subprocesses.
 
-* **src/simulation** provides support for instantiating and exercising 
+* **src/simulation** provides support for instantiating and exercising
   in-process test networks.
 
 * **src/xdr** contains to definition of the wire protocol in the [`XDR`
     (RFC4506)](https://tools.ietf.org/html/rfc4506.html) specification language.
 
-* **src/generated** contains the wire protocol's C++ classes, generated from 
+* **src/generated** contains the wire protocol's C++ classes, generated from
   the definitions in `src/xdr`.
 
 
@@ -155,13 +160,13 @@ source directory and its own dedicated `readme.md`.
 
 This directory contains the following additional documentation:
 
-* [testnet.md](/docs/testnet.md) is short tutorial demonstrating how to 
+* [testnet.md](/docs/testnet.md) is short tutorial demonstrating how to
   configure and run a short-lived, isolated test network.
 
 * [architecture.md](/docs/architecture.md) describes how `stellar-core` is
   structured internally, how it is intended to be deployed and the collection of
   servers and services needed to get the full functionality and performance.
 
-* [admin.md](/docs/admin.md) describes the configuration concerns and documents 
+* [admin.md](/docs/admin.md) describes the configuration concerns and documents
   the command line options.
 
