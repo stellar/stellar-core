@@ -64,7 +64,7 @@ Node::hasQuorum(Hash const& qSetHash, std::vector<uint256> const& nodeSet)
 bool 
 Node::isVBlocking(SCPQuorumSet const& qset, std::vector<uint256> const& nodeSet)
 {
-    int leftTillBlock = (int) ((qset.validators.size() + qset.innerSets.size()) - qset.threshold);
+    int leftTillBlock = (int) ((1+qset.validators.size() + qset.innerSets.size()) - qset.threshold);
 
     for(auto const &validator : qset.validators)
     {

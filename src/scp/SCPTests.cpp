@@ -12,6 +12,7 @@
 #include "crypto/SHA.h"
 #include "util/Logging.h"
 #include "simulation/Simulation.h"
+#include "scp/Node.h"
 
 using namespace stellar;
 
@@ -128,6 +129,60 @@ signEnvelope(SecretKey const& secretKey, SCPEnvelope& envelope)
 #define CREATE_VALUE(X)                                                        \
     const Hash X##ValueHash = sha256("SEED_VALUE_HASH_" #X);                   \
     const Value X##Value = xdr::xdr_to_opaque(X##ValueHash);
+
+TEST_CASE("vblocking and quorum", "[scp]")
+{
+    class TestNode : public Node
+    {
+    public:
+        TestNode() : Node(uint256(), nullptr)
+        {
+
+        }
+
+        void test()
+        {
+            SIMULATION_CREATE_NODE(0);
+            SIMULATION_CREATE_NODE(1);
+            SIMULATION_CREATE_NODE(2);
+            SIMULATION_CREATE_NODE(3);
+
+            SCPQuorumSet qSet;
+            qSet.threshold = 3;
+            qSet.validators.push_back(v0NodeID);
+            qSet.validators.push_back(v1NodeID);
+            qSet.validators.push_back(v2NodeID);
+            qSet.validators.push_back(v3NodeID);
+
+            std::vector<uint256> nodeSet;
+            nodeSet.push_back(v0NodeID);
+
+            REQUIRE(hasQuorum(qSet, nodeSet) == false);
+            REQUIRE(isVBlocking(qSet, nodeSet) == false);
+
+
+            nodeSet.push_back(v2NodeID);
+
+            REQUIRE(hasQuorum(qSet, nodeSet) == false);
+            REQUIRE(isVBlocking(qSet, nodeSet) == true);
+
+            nodeSet.push_back(v3NodeID);
+            REQUIRE(hasQuorum(qSet, nodeSet) == true);
+            REQUIRE(isVBlocking(qSet, nodeSet) == true);
+
+            nodeSet.push_back(v1NodeID);
+            REQUIRE(hasQuorum(qSet, nodeSet) == true);
+            REQUIRE(isVBlocking(qSet, nodeSet) == true);
+
+
+        }
+    };
+
+    TestNode tnode;
+    tnode.test();
+}
+
+
 
 TEST_CASE("protocol core4", "[scp]")
 {
@@ -315,7 +370,7 @@ TEST_CASE("protocol core4", "[scp]")
                          SCPStatementType::PREPARED);
 
         scp.receiveEnvelope(prepared1);
-        REQUIRE(scp.mEnvs.size() == 3);
+        REQUIRE(scp.mEnvs.size() == 1);
         REQUIRE(scp.mHeardFromQuorums[0].size() == 0);
         scp.receiveEnvelope(prepared2);
         REQUIRE(scp.mEnvs.size() == 4);
@@ -372,7 +427,7 @@ TEST_CASE("protocol core4", "[scp]")
                          SCPStatementType::PREPARED);
 
         scp.receiveEnvelope(prepared1);
-        REQUIRE(scp.mEnvs.size() == 2);
+        REQUIRE(scp.mEnvs.size() == 1);
 
         scp.receiveEnvelope(prepared2);
         REQUIRE(scp.mEnvs.size() == 2);
@@ -854,7 +909,7 @@ TEST_CASE("protocol core4", "[scp]")
                          SCPStatementType::PREPARED);
 
         scp.receiveEnvelope(prepared1);
-        REQUIRE(scp.mEnvs.size() == 2);
+        REQUIRE(scp.mEnvs.size() == 0);
     }
 
     SECTION("commit(0,y) on pristine slot should not bump and request evidence")
@@ -892,7 +947,7 @@ TEST_CASE("protocol core4", "[scp]")
                          SCPStatementType::PREPARED);
 
         scp.receiveEnvelope(prepared1);
-        REQUIRE(scp.mEnvs.size() == 2);
+        REQUIRE(scp.mEnvs.size() == 0);
 
         scp.receiveEnvelope(prepared2);
         REQUIRE(scp.mEnvs.size() == 3);
