@@ -14,6 +14,7 @@
 #include "medida/medida.h"
 #include "transactions/TxTests.h"
 #include "generated/Stellar-types.h"
+#include "simulation/LoadGenerator.h"
 
 #define SIMULATION_CREATE_NODE(N)                                              \
     const Hash v##N##VSeed = sha256("SEED_VALIDATION_SEED_" #N);               \
@@ -23,7 +24,7 @@
 namespace stellar
 {
 
-class Simulation
+class Simulation : public LoadGenerator
 {
   public:
     enum Mode
@@ -66,55 +67,6 @@ class Simulation
 
     //////////
 
-    struct TxInfo;
-
-    class AccountInfo : public std::enable_shared_from_this<AccountInfo>
-    {
-      public:
-        AccountInfo(Simulation& simulation) : mSimulation(simulation)
-        {
-        }
-        AccountInfo(size_t id, SecretKey key, uint64_t balance,
-                    SequenceNumber seq, Simulation& simulation)
-            : mId(id)
-            , mKey(key)
-            , mBalance(balance)
-            , mSeq(seq)
-            , mSimulation(simulation)
-        {
-        }
-        size_t mId;
-        SecretKey mKey;
-        uint64_t mBalance;
-        SequenceNumber mSeq;
-
-        TxInfo creationTransaction();
-
-      private:
-        Simulation& mSimulation;
-    };
-    using AccountInfoPtr = std::shared_ptr<AccountInfo>;
-    std::vector<AccountInfoPtr> mAccounts;
-
-    struct TxInfo
-    {
-        AccountInfoPtr mFrom;
-        AccountInfoPtr mTo;
-        bool mCreate;
-        uint64_t mAmount;
-        void execute(Application& app);
-        TransactionFramePtr createPaymentTx();
-        void recordExecution(uint64_t baseFee);
-    };
-
-    std::vector<Simulation::TxInfo> accountCreationTransactions(size_t n);
-    Simulation::AccountInfoPtr createAccount(size_t i);
-    std::vector<Simulation::AccountInfoPtr> createAccounts(size_t n);
-    TxInfo createTransferTransaction(size_t iFrom, size_t iTo, uint64_t amount);
-    TxInfo createRandomTransaction(float alpha);
-    std::vector<Simulation::TxInfo> createRandomTransactions(size_t n,
-                                                             float paretoAlpha);
-
     void execute(TxInfo transaction);
     void executeAll(std::vector<TxInfo> const& transaction);
     std::chrono::seconds
@@ -137,7 +89,5 @@ class Simulation
     std::map<uint256, Application::pointer> mNodes;
     std::vector<std::shared_ptr<LoopbackPeerConnection>> mConnections;
 
-  protected:
-    uint64 getMinBalance();
 };
 }
