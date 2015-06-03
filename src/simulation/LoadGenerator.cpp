@@ -83,9 +83,43 @@ LoadGenerator::generateLoad(Application& app,
                       << nAccounts << " accounts and "
                       << nTxs << " txs remaining";
         }
-        nTxs -= txPerStep;
 
-        // FIXME: actually generate some load here.
+        vector<TxInfo> txs;
+        for (uint32_t i = 0; i < txPerStep; ++i)
+        {
+            bool doCreateAccount = false;
+            if (mAccounts.size() < 2)
+            {
+                doCreateAccount = true;
+            }
+            else if (nAccounts > 0)
+            {
+                doCreateAccount = rand_flip();
+            }
+            if (doCreateAccount)
+            {
+                auto acc = createAccount(mAccounts.size());
+                mAccounts.push_back(acc);
+                txs.push_back(acc->creationTransaction());
+                if (nAccounts > 0)
+                {
+                    nAccounts--;
+                }
+            }
+            else
+            {
+                txs.push_back(createRandomTransaction(0.5));
+                if (nTxs > 0)
+                {
+                    nTxs--;
+                }
+            }
+        }
+
+        for (auto& tx : txs)
+        {
+            tx.execute(app);
+        }
 
         scheduleLoadGeneration(app, nAccounts, nTxs, txRate);
     }
