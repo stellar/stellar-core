@@ -61,6 +61,8 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
                       std::bind(&CommandHandler::checkpoint, this, _1, _2));
     mServer->addRoute("connect",
                       std::bind(&CommandHandler::connect, this, _1, _2));
+    mServer->addRoute("generateload",
+                      std::bind(&CommandHandler::generateLoad, this, _1, _2));
     mServer->addRoute("info", std::bind(&CommandHandler::info, this, _1, _2));
     mServer->addRoute("ll", std::bind(&CommandHandler::ll, this, _1, _2));
     mServer->addRoute("logrotate",
@@ -161,6 +163,9 @@ CommandHandler::fileNotFound(std::string const& params, std::string& retStr)
         "triggers the instance to write an immediate history checkpoint."
         "</p><p><h1> /connect?peer=NAME&port=NNN</h1>"
         "triggers the instance to connect to peer NAME at port NNN."
+        "</p><p><h1> /generateload</h1>"
+        "artificially generate load for testing; must be used with "
+        "ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING set to true"
         "</p><p><h1> /help</h1>"
         "give a list of currently supported commands"
         "</p><p><h1> /info</h1>"
@@ -216,6 +221,71 @@ CommandHandler::stop(std::string const& params, std::string& retStr)
 {
     retStr = "Stopping...";
     mApp.gracefulStop();
+}
+
+void
+CommandHandler::generateLoad(std::string const& params, std::string& retStr)
+{
+    if (mApp.getConfig().ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING)
+    {
+        // Defaults are 10M accounts, 10M txs, 500 tx/s. This load-test will
+        // therefore take 40k secs or about 12 hours.
+
+        uint32_t nAccounts = 10000000;
+        uint32_t nTxs = 10000000;
+        uint32_t txRate = 500;
+
+        std::map<std::string, std::string> retMap;
+        http::server::server::parseParams(params, retMap);
+
+        auto i = retMap.find("accounts");
+        if (i != retMap.end())
+        {
+            std::stringstream str(i->second);
+            str >> nAccounts;
+            if (nAccounts == 0)
+            {
+                retStr = "Failed to parse 'accounts' argument";
+                return;
+            }
+        }
+
+        i = retMap.find("txs");
+        if (i != retMap.end())
+        {
+            std::stringstream str(i->second);
+            str >> nTxs;
+            if (nTxs == 0)
+            {
+                retStr = "Failed to parse 'txs' argument";
+                return;
+            }
+        }
+
+        i = retMap.find("txrate");
+        if (i != retMap.end())
+        {
+            std::stringstream str(i->second);
+            str >> txRate;
+            if (txRate == 0)
+            {
+                retStr = "Failed to parse 'txrate' argument";
+                return;
+            }
+        }
+
+        double hours = ((nAccounts + nTxs) / txRate) / 3600.0;
+        mApp.generateLoad(nAccounts, nTxs, txRate);
+        retStr = fmt::format(
+            "Generating load: {:d} accounts, {:d} txs, {:d} tx/s = {:f} hours",
+            nAccounts, nTxs, txRate, hours);
+    }
+    else
+    {
+        retStr =
+            "Set ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING=true in "
+            "the stellar-core.cfg if you want this behavior";
+    }
 }
 
 void

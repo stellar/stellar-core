@@ -10,11 +10,15 @@
 #include "util/Logging.h"
 #include "util/Math.h"
 #include "util/types.h"
+#include "util/Timer.h"
+#include "util/make_unique.h"
 
 namespace stellar
 {
 
 using namespace std;
+
+const uint32_t LoadGenerator::STEP_MSECS = 100;
 
 LoadGenerator::LoadGenerator()
 {
@@ -25,6 +29,66 @@ LoadGenerator::LoadGenerator()
 
 LoadGenerator::~LoadGenerator()
 {
+}
+
+// Schedule a callback to generateLoad() STEP_MSECS miliseconds from now.
+void
+LoadGenerator::scheduleLoadGeneration(Application& app,
+                                      uint32_t nAccounts,
+                                      uint32_t nTxs,
+                                      uint32_t txRate)
+{
+    if (!mLoadTimer)
+    {
+        mLoadTimer = make_unique<VirtualTimer>(app.getClock());
+    }
+    mLoadTimer->expires_from_now(std::chrono::milliseconds(STEP_MSECS));
+    mLoadTimer->async_wait(
+        [this, &app, nAccounts, nTxs, txRate]
+        (asio::error_code const& error)
+        {
+            if (!error)
+            {
+                this->generateLoad(app, nAccounts, nTxs, txRate);
+            }
+        });
+}
+
+// Generate one "step" worth of load (assuming 1 step per STEP_MSECS) at a
+// given target number of accounts and txs, and a given target tx/s rate.
+// If work remains after the current step, call scheduleLoadGeneration()
+// with the remainder.
+void
+LoadGenerator::generateLoad(Application& app,
+                            uint32_t nAccounts,
+                            uint32_t nTxs,
+                            uint32_t txRate)
+{
+    // txRate is "per second"; we're running one "step" worth which is a
+    // fraction of txRate determined by STEP_MSECS. For example if txRate
+    // is 200 and STEP_MSECS is 100, then we want to do 20 tx per step.
+    uint32_t txPerStep = (txRate * STEP_MSECS / 1000);
+    if (txPerStep > nTxs)
+    {
+        // We're done.
+        LOG(INFO) << "Load generation complete.";
+    }
+    else
+    {
+        // Emit a log message once per second.
+        if ((nTxs / txRate) != ((nTxs - txPerStep) / txRate))
+        {
+            LOG(INFO) << "Generating load at "
+                      << txRate << "txs/s, "
+                      << nAccounts << " accounts and "
+                      << nTxs << " txs remaining";
+        }
+        nTxs -= txPerStep;
+
+        // FIXME: actually generate some load here.
+
+        scheduleLoadGeneration(app, nAccounts, nTxs, txRate);
+    }
 }
 
 void

@@ -20,6 +20,7 @@ class HistoryManager;
 class ProcessManager;
 class CommandHandler;
 class Database;
+class LoadGenerator;
 
 class ApplicationImpl : public Application
 {
@@ -63,6 +64,10 @@ class ApplicationImpl : public Application
 
     virtual bool manualClose() override;
 
+    virtual void generateLoad(uint32_t nAccounts,
+                              uint32_t nTxs,
+                              uint32_t txRate) override;
+
     virtual void applyCfgCommands() override;
 
     virtual void reportCfgMetrics() override;
@@ -96,6 +101,7 @@ class ApplicationImpl : public Application
     std::unique_ptr<ProcessManager> mProcessManager;
     std::unique_ptr<CommandHandler> mCommandHandler;
     std::unique_ptr<PersistentState> mPersistentState;
+    std::unique_ptr<LoadGenerator> mLoadGenerator;
 
     std::vector<std::thread> mWorkerThreads;
 

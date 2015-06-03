@@ -30,6 +30,7 @@ class Herder;
 class OverlayManager;
 class Database;
 class PersistentState;
+class LoadGenerator;
 
 /*
  * State of a single instance of the stellar-core application.
@@ -193,6 +194,10 @@ class Application
     // If config.MANUAL_MODE=true, force the current ledger to close and return
     // true. Otherwise return false. This method exists only for testing.
     virtual bool manualClose() = 0;
+
+    // If config.ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING=true, generate some load
+    // against the current application.
+    virtual void generateLoad(uint32_t nAccounts, uint32_t nTxs, uint32_t txRate) = 0;
 
     // Execute any administrative commands written in the Config.COMMANDS
     // variable of the config file. This permits scripting certain actions to

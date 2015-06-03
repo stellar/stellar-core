@@ -17,6 +17,7 @@
 #include "database/Database.h"
 #include "process/ProcessManager.h"
 #include "main/CommandHandler.h"
+#include "simulation/LoadGenerator.h"
 #include "medida/metrics_registry.h"
 #include "medida/reporting/console_reporter.h"
 
@@ -298,6 +299,18 @@ ApplicationImpl::manualClose()
         return true;
     }
     return false;
+}
+
+void
+ApplicationImpl::generateLoad(uint32_t nAccounts,
+                              uint32_t nTxs,
+                              uint32_t txRate)
+{
+    if (!mLoadGenerator)
+    {
+        mLoadGenerator = make_unique<LoadGenerator>();
+    }
+    mLoadGenerator->generateLoad(*this, nAccounts, nTxs, txRate);
 }
 
 void

@@ -13,6 +13,8 @@
 namespace stellar
 {
 
+class VirtualTimer;
+
 class LoadGenerator
 {
 public:
@@ -23,8 +25,26 @@ public:
     struct AccountInfo;
     using AccountInfoPtr = std::shared_ptr<AccountInfo>;
 
+    static const uint32_t STEP_MSECS;
+
     std::vector<AccountInfoPtr> mAccounts;
+    std::unique_ptr<VirtualTimer> mLoadTimer;
     uint64 mMinBalance;
+
+    // Schedule a callback to generateLoad() STEP_MSECS miliseconds from now.
+    void scheduleLoadGeneration(Application& app,
+                                uint32_t nAccounts,
+                                uint32_t nTxs,
+                                uint32_t txRate);
+
+    // Generate one "step" worth of load (assuming 1 step per STEP_MSECS) at a
+    // given target number of accounts and txs, and a given target tx/s rate.
+    // If work remains after the current step, call scheduleLoadGeneration()
+    // with the remainder.
+    void generateLoad(Application& app,
+                      uint32_t nAccounts,
+                      uint32_t nTxs,
+                      uint32_t txRate);
 
     std::vector<TxInfo> accountCreationTransactions(size_t n);
     AccountInfoPtr createAccount(size_t i);

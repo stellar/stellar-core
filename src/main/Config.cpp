@@ -31,6 +31,7 @@ Config::Config() : PEER_KEY(SecretKey::random())
     RUN_STANDALONE = false;
     MANUAL_CLOSE = false;
     CATCHUP_COMPLETE = false;
+    ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING = false;
     ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = false;
     ARTIFICIALLY_PESSIMIZE_MERGES_FOR_TESTING = false;
     BREAK_ASIO_LOOP_FOR_FAST_TESTS = false;
@@ -121,6 +122,9 @@ Config::load(std::string const& filename)
                 RUN_STANDALONE = item.second->as<bool>()->value();
             else if (item.first == "CATCHUP_COMPLETE")
                 CATCHUP_COMPLETE = item.second->as<bool>()->value();
+            else if (item.first == "ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING")
+                ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING =
+                    item.second->as<bool>()->value();
             else if (item.first == "ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING")
                 ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING =
                     item.second->as<bool>()->value();
