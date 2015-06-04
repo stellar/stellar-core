@@ -79,13 +79,20 @@ LoadGenerator::generateLoad(Application& app,
     else
     {
         // Emit a log message once per second.
-        if ((nTxs / txRate) != ((nTxs - txPerStep) / txRate))
+        bool logBoundary = ((nTxs / txRate) != ((nTxs - txPerStep) / txRate));
+        if (logBoundary)
         {
-            LOG(INFO) << "Generating load at "
-                      << txRate << "txs/s, "
-                      << nAccounts << " accounts and "
-                      << nTxs << " txs remaining";
+            CLOG(INFO, "LoadGen") << "Target rate: "
+                                  << txRate << "txs/s, pending: "
+                                  << nAccounts << " accounts, "
+                                  << nTxs << " payments";
         }
+
+        auto& clock = app.getClock();
+        auto start = clock.now();
+
+        size_t creations = 0;
+        size_t payments = 0;
 
         vector<TxInfo> txs;
         for (uint32_t i = 0; i < txPerStep; ++i)
@@ -104,6 +111,7 @@ LoadGenerator::generateLoad(Application& app,
                 auto acc = createAccount(mAccounts.size());
                 mAccounts.push_back(acc);
                 txs.push_back(acc->creationTransaction());
+                ++creations;
                 if (nAccounts > 0)
                 {
                     nAccounts--;
@@ -112,12 +120,14 @@ LoadGenerator::generateLoad(Application& app,
             else
             {
                 txs.push_back(createRandomTransaction(0.5));
+                ++payments;
                 if (nTxs > 0)
                 {
                     nTxs--;
                 }
             }
         }
+        auto created = clock.now();
         auto rejected = 0;
 
         for (auto& tx : txs)
@@ -130,6 +140,23 @@ LoadGenerator::generateLoad(Application& app,
                 loadAccount(app, *tx.mTo);
             }
         }
+
+        if (logBoundary)
+        {
+            using namespace std::chrono;
+            auto executed = clock.now();
+            auto step1ms = duration_cast<milliseconds>(created-start).count();
+            auto step2ms = duration_cast<milliseconds>(executed-created).count();
+            auto totalms = duration_cast<milliseconds>(executed-start).count();
+            CLOG(INFO, "LoadGen") << "Step timing: "
+                                  << txs.size() << "txs, "
+                                  << creations << " creations, "
+                                  << payments << " payments, "
+                                  << rejected << " rejected, "
+                                  << totalms << "ms total = "
+                                  << step1ms << "ms build, "
+                                  << step2ms << "ms recv, "
+                                  << (STEP_MSECS - totalms) << "ms spare";
         }
 
         scheduleLoadGeneration(app, nAccounts, nTxs, txRate);
