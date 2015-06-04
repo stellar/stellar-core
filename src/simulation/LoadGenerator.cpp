@@ -21,6 +21,7 @@ using namespace std;
 const uint32_t LoadGenerator::STEP_MSECS = 100;
 
 LoadGenerator::LoadGenerator()
+    : mMinBalance(0)
 {
     auto root =
         make_shared<AccountInfo>(0, txtest::getRoot(), 1000000000, 0, *this);
@@ -64,6 +65,8 @@ LoadGenerator::generateLoad(Application& app,
                             uint32_t nTxs,
                             uint32_t txRate)
 {
+    updateMinBalance(app);
+
     // txRate is "per second"; we're running one "step" worth which is a
     // fraction of txRate determined by STEP_MSECS. For example if txRate
     // is 200 and STEP_MSECS is 100, then we want to do 20 tx per step.
