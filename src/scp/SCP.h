@@ -186,6 +186,16 @@ class SCP
     // Local nodeID getter
     uint256 const& getLocalNodeID();
 
+    // returns the local node descriptor
+    std::shared_ptr<LocalNode> getLocalNode();
+
+    // Envelope signature/verification
+    void signEnvelope(SCPEnvelope& envelope);
+    bool verifyEnvelope(SCPEnvelope const& envelope);
+
+    // Node getters
+    std::shared_ptr<Node> getNode(uint256 const& nodeID);
+
   protected:
     std::shared_ptr<LocalNode> mLocalNode;
     std::map<uint256, std::shared_ptr<Node>> mKnownNodes;
@@ -225,18 +235,7 @@ class SCP
     size_t getCumulativeStatemtCount() const;
 
   private:
-    // Node getters
-    std::shared_ptr<Node> getNode(uint256 const& nodeID);
-    std::shared_ptr<LocalNode> getLocalNode();
-
     // Slot getter
     std::shared_ptr<Slot> getSlot(uint64 slotIndex);
-
-    // Envelope signature/verification
-    void signEnvelope(SCPEnvelope& envelope);
-    bool verifyEnvelope(SCPEnvelope const& envelope);
-
-    friend class Slot;
-    friend class Node;
 };
 }

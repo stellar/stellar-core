@@ -23,6 +23,7 @@ FMT_SRCS =                                      \
     src/crypto/SecretKey.cpp                    \
     src/database/Database.cpp                   \
     src/database/DatabaseTests.cpp              \
+    src/scp/BallotProtocol.cpp                  \
     src/scp/SCP.cpp                             \
     src/scp/SCPTests.cpp                        \
     src/scp/LocalNode.cpp                       \
@@ -123,6 +124,7 @@ FMT_HDRS =                                      \
     src/crypto/SHA.h                            \
     src/crypto/SecretKey.h                      \
     src/database/Database.h                     \
+    src/scp/BallotProtocol.h                    \
     src/scp/SCP.h                               \
     src/scp/LocalNode.h                         \
     src/scp/Node.h                              \

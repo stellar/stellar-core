@@ -127,7 +127,7 @@ SCP::getSlot(uint64 slotIndex)
     auto it = mKnownSlots.find(slotIndex);
     if (it == mKnownSlots.end())
     {
-        mKnownSlots[slotIndex] = std::make_shared<Slot>(slotIndex, this);
+        mKnownSlots[slotIndex] = std::make_shared<Slot>(slotIndex, *this);
     }
     return mKnownSlots[slotIndex];
 }

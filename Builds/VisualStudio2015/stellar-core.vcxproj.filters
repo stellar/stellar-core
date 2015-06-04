@@ -441,6 +441,9 @@
     <ClCompile Include="..\..\src\simulation\LoadGenerator.cpp">
       <Filter>simulation</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\scp\BallotProtocol.cpp">
+      <Filter>scp</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\ledger\LedgerManager.h">
@@ -736,6 +739,9 @@
     </ClInclude>
     <ClInclude Include="..\..\src\transactions\CreateAccountOpFrame.h">
       <Filter>transactions</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\scp\BallotProtocol.h">
+      <Filter>scp</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\transactions\ManageOfferOpFrame.h">
       <Filter>transactions</Filter>

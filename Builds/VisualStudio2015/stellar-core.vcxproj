@@ -235,6 +235,7 @@
     <ClCompile Include="..\..\src\overlay\PeerRecord.cpp" />
     <ClCompile Include="..\..\src\overlay\PeerRecordTests.cpp" />
     <ClCompile Include="..\..\src\overlay\TCPPeerTests.cpp" />
+    <ClCompile Include="..\..\src\scp\BallotProtocol.cpp" />
     <ClCompile Include="..\..\src\scp\LocalNode.cpp" />
     <ClCompile Include="..\..\src\scp\Node.cpp" />
     <ClCompile Include="..\..\src\scp\SCP.cpp" />
@@ -357,6 +358,7 @@
     <ClInclude Include="..\..\src\overlay\TCPPeer.h" />
     <ClInclude Include="..\..\src\process\ProcessManager.h" />
     <ClInclude Include="..\..\src\process\ProcessManagerImpl.h" />
+    <ClInclude Include="..\..\src\scp\BallotProtocol.h" />
     <ClInclude Include="..\..\src\scp\LocalNode.h" />
     <ClInclude Include="..\..\src\scp\Node.h" />
     <ClInclude Include="..\..\src\scp\SCP.h" />
