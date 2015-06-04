@@ -223,6 +223,26 @@ CommandHandler::stop(std::string const& params, std::string& retStr)
     mApp.gracefulStop();
 }
 
+template <typename T> bool
+parseOptionalNumParam(std::map<std::string, std::string> const& map,
+                      std::string const& key,
+                      T& val,
+                      std::string &retStr)
+{
+    auto i = map.find(key);
+    if (i != map.end())
+    {
+        std::stringstream str(i->second);
+        str >> val;
+        if (val == 0)
+        {
+            retStr = fmt::format("Failed to parse '{}' argument", key);
+            return false;
+        }
+    }
+    return true;
+}
+
 void
 CommandHandler::generateLoad(std::string const& params, std::string& retStr)
 {
@@ -235,44 +255,17 @@ CommandHandler::generateLoad(std::string const& params, std::string& retStr)
         uint32_t nTxs = 10000000;
         uint32_t txRate = 500;
 
-        std::map<std::string, std::string> retMap;
-        http::server::server::parseParams(params, retMap);
+        std::map<std::string, std::string> map;
+        http::server::server::parseParams(params, map);
 
-        auto i = retMap.find("accounts");
-        if (i != retMap.end())
-        {
-            std::stringstream str(i->second);
-            str >> nAccounts;
-            if (nAccounts == 0)
-            {
-                retStr = "Failed to parse 'accounts' argument";
-                return;
-            }
-        }
+        if (!parseOptionalNumParam(map, "accounts", nAccounts, retStr))
+            return;
 
-        i = retMap.find("txs");
-        if (i != retMap.end())
-        {
-            std::stringstream str(i->second);
-            str >> nTxs;
-            if (nTxs == 0)
-            {
-                retStr = "Failed to parse 'txs' argument";
-                return;
-            }
-        }
+        if (!parseOptionalNumParam(map, "txs", nTxs, retStr))
+            return;
 
-        i = retMap.find("txrate");
-        if (i != retMap.end())
-        {
-            std::stringstream str(i->second);
-            str >> txRate;
-            if (txRate == 0)
-            {
-                retStr = "Failed to parse 'txrate' argument";
-                return;
-            }
-        }
+        if (!parseOptionalNumParam(map, "txrate", txRate, retStr))
+            return;
 
         double hours = ((nAccounts + nTxs) / txRate) / 3600.0;
         mApp.generateLoad(nAccounts, nTxs, txRate);
