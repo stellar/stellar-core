@@ -7,6 +7,9 @@
 #include "ledger/TrustFrame.h"
 #include "database/Database.h"
 
+#include "medida/meter.h"
+#include "medida/metrics_registry.h"
+
 namespace stellar
 {
 AllowTrustOpFrame::AllowTrustOpFrame(Operation const& op, OperationResult& res,
@@ -23,10 +26,13 @@ AllowTrustOpFrame::getNeededThreshold() const
 }
 
 bool
-AllowTrustOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
+AllowTrustOpFrame::doApply(medida::MetricsRegistry& metrics,
+                           LedgerDelta& delta, LedgerManager& ledgerManager)
 {
     if (!(mSourceAccount->getAccount().flags & AUTH_REQUIRED_FLAG))
     { // this account doesn't require authorization to hold credit
+        metrics.NewMeter({"op-allow-trust", "failure", "not-required"},
+                         "operation").Mark();
         innerResult().code(ALLOW_TRUST_TRUST_NOT_REQUIRED);
         return false;
     }
@@ -34,6 +40,8 @@ AllowTrustOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
     if (!(mSourceAccount->getAccount().flags & AUTH_REVOCABLE_FLAG) &&
         !mAllowTrust.authorize)
     {
+        metrics.NewMeter({"op-allow-trust", "failure", "cant-revoke"},
+                         "operation").Mark();
         innerResult().code(ALLOW_TRUST_CANT_REVOKE);
         return false;
     }
@@ -49,10 +57,14 @@ AllowTrustOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
 
     if (!trustLine)
     {
+        metrics.NewMeter({"op-allow-trust", "failure", "no-trust-line"},
+                         "operation").Mark();
         innerResult().code(ALLOW_TRUST_NO_TRUST_LINE);
         return false;
     }
 
+    metrics.NewMeter({"op-allow-trust", "success", "apply"},
+                     "operation").Mark();
     innerResult().code(ALLOW_TRUST_SUCCESS);
 
     trustLine->setAuthorized(mAllowTrust.authorize);
@@ -63,10 +75,13 @@ AllowTrustOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
 }
 
 bool
-AllowTrustOpFrame::doCheckValid()
+AllowTrustOpFrame::doCheckValid(medida::MetricsRegistry& metrics)
 {
     if (mAllowTrust.currency.type() != CURRENCY_TYPE_ALPHANUM)
     {
+        metrics.NewMeter({"op-allow-trust", "invalid",
+                          "malformed-non-alphanum"},
+                         "operation").Mark();
         innerResult().code(ALLOW_TRUST_MALFORMED);
         return false;
     }
@@ -77,6 +92,9 @@ AllowTrustOpFrame::doCheckValid()
 
     if (!isCurrencyValid(ci))
     {
+        metrics.NewMeter({"op-allow-trust", "invalid",
+                          "malformed-invalid-currency"},
+                         "operation").Mark();
         innerResult().code(ALLOW_TRUST_MALFORMED);
         return false;
     }

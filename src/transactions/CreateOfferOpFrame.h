@@ -18,7 +18,8 @@ class CreateOfferOpFrame : public OperationFrame
 
     OfferFrame::pointer mSellSheepOffer;
 
-    bool checkOfferValid(Database& db);
+    bool checkOfferValid(medida::MetricsRegistry& metrics,
+                         Database& db);
 
     CreateOfferResult&
     innerResult()
@@ -32,8 +33,9 @@ class CreateOfferOpFrame : public OperationFrame
     CreateOfferOpFrame(Operation const& op, OperationResult& res,
                        TransactionFrame& parentTx);
 
-    bool doApply(LedgerDelta& delta, LedgerManager& ledgerManager) override;
-    bool doCheckValid() override;
+    bool doApply(medida::MetricsRegistry& metrics,
+                 LedgerDelta& delta, LedgerManager& ledgerManager) override;
+    bool doCheckValid(medida::MetricsRegistry& metrics) override;
 
     static CreateOfferResultCode
     getInnerCode(OperationResult const& res)
