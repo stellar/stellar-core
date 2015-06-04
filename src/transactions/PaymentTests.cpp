@@ -48,8 +48,15 @@ TEST_CASE("payment", "[tx][payment]")
 
     int64_t txfee = app.getLedgerManager().getTxFee();
 
-    const int64_t paymentAmount =
-        app.getLedgerManager().getMinBalance(1) + txfee * 10;
+    // minimum balance necessary to hold 2 trust lines
+    const int64_t minBalance2 =
+        app.getLedgerManager().getMinBalance(2) + 10 * txfee;
+
+    // minimum balance necessary to hold 2 trust lines and an offer
+    const int64_t minBalance3 =
+        app.getLedgerManager().getMinBalance(3) + 10 * txfee;
+
+    const int64_t paymentAmount = minBalance2;
 
     SequenceNumber rootSeq = getAccountSeqNum(root, app) + 1;
     // create an account
@@ -66,14 +73,6 @@ TEST_CASE("payment", "[tx][payment]")
     int64_t trustLineLimit = INT64_MAX;
 
     int64_t trustLineStartingBalance = 20000 * currencyMultiplier;
-
-    // minimum balance necessary to hold 2 trust lines
-    const int64_t minBalance2 =
-        app.getLedgerManager().getMinBalance(2) + 10 * txfee;
-
-    // minimum balance necessary to hold 2 trust lines and an offer
-    const int64_t minBalance3 =
-        app.getLedgerManager().getMinBalance(3) + 10 * txfee;
 
     Currency idrCur = makeCurrency(gateway, "IDR");
     Currency usdCur = makeCurrency(gateway, "USD");

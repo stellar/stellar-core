@@ -72,6 +72,7 @@ ChangeTrustOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
         if (!mSourceAccount->addNumEntries(1, ledgerManager))
         {
             innerResult().code(CHANGE_TRUST_LOW_RESERVE);
+            return false;
         }
 
         mSourceAccount->storeChange(delta, db);
