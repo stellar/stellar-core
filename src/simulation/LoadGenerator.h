@@ -78,7 +78,7 @@ public:
         bool mCreate;
         uint64_t mAmount;
 
-        void execute(Application& app);
+        bool execute(Application& app);
         TransactionFramePtr createPaymentTx();
         void recordExecution(uint64_t baseFee);
     };

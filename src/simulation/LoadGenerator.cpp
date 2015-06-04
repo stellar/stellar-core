@@ -118,10 +118,18 @@ LoadGenerator::generateLoad(Application& app,
                 }
             }
         }
+        auto rejected = 0;
 
         for (auto& tx : txs)
         {
-            tx.execute(app);
+            if (!tx.execute(app))
+            {
+                rejected++;
+                // Hopefully the rejection was just a bad seq number.
+                loadAccount(app, *tx.mFrom);
+                loadAccount(app, *tx.mTo);
+            }
+        }
         }
 
         scheduleLoadGeneration(app, nAccounts, nTxs, txRate);
@@ -251,14 +259,16 @@ LoadGenerator::AccountInfo::creationTransaction()
 // TxInfo
 //////////////////////////////////////////////////////
 
-void
+bool
 LoadGenerator::TxInfo::execute(Application& app)
 {
     if (app.getHerder().recvTransaction(createPaymentTx()) ==
         Herder::TX_STATUS_PENDING)
     {
         recordExecution(app.getConfig().DESIRED_BASE_FEE);
+        return true;
     }
+    return false;
 }
 
 TransactionFramePtr
