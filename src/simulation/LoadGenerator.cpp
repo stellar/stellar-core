@@ -170,6 +170,21 @@ LoadGenerator::accountCreationTransactions(size_t n)
     return result;
 }
 
+bool
+LoadGenerator::loadAccount(Application& app, AccountInfo& account)
+{
+    AccountFrame::pointer ret;
+    ret = AccountFrame::loadAccount(account.mKey.getPublicKey(),
+                                    app.getDatabase());
+    if (!ret)
+    {
+        return false;
+    }
+
+    account.mBalance = ret->getBalance();
+    account.mSeq = ret->getSeqNum();
+    return true;
+}
 
 LoadGenerator::TxInfo
 LoadGenerator::createTransferTransaction(size_t iFrom, size_t iTo, uint64_t amount)

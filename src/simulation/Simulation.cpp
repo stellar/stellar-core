@@ -421,27 +421,7 @@ Simulation::loadAccount(AccountInfo& account)
 {
     // assumes all nodes are in sync
     auto app = mNodes.begin()->second;
-
-    AccountFrame::pointer ret;
-    ret = AccountFrame::loadAccount(account.mKey.getPublicKey(),
-                                    app->getDatabase());
-    if (!ret)
-    {
-        return false;
-    }
-
-    account.mBalance = ret->getBalance();
-    account.mSeq = ret->getSeqNum();
-    return true;
-}
-
-void
-Simulation::loadAccounts()
-{
-    for (auto& it : mAccounts)
-    {
-        loadAccount(*it);
-    }
+    return LoadGenerator::loadAccount(*app, account);
 }
 
 class ConsoleReporterWithSum : public medida::reporting::ConsoleReporter

@@ -49,6 +49,8 @@ public:
     std::vector<TxInfo> accountCreationTransactions(size_t n);
     AccountInfoPtr createAccount(size_t i);
     std::vector<AccountInfoPtr> createAccounts(size_t n);
+    bool loadAccount(Application& app, AccountInfo& account);
+
     TxInfo createTransferTransaction(size_t iFrom, size_t iTo, uint64_t amount);
     TxInfo createRandomTransaction(float alpha);
     std::vector<TxInfo> createRandomTransactions(size_t n, float paretoAlpha);

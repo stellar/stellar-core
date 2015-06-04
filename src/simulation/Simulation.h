@@ -76,8 +76,6 @@ class Simulation : public LoadGenerator
     std::vector<AccountInfoPtr>
     accountsOutOfSyncWithDb(); // returns the accounts that don't match
     bool loadAccount(AccountInfo& account);
-    void loadAccounts();
-
     std::string metricsSummary(std::string domain = "");
 
   private:
