@@ -232,4 +232,53 @@ Slot::envToStr(SCPStatement const& st) const
     oss << " }";
     return oss.str();
 }
+
+bool
+Slot::federatedAccept(StatementPredicate voted, StatementPredicate accepted,
+                      std::map<uint256, SCPStatement> const& statements)
+{
+    // Checks if the nodes that claimed to accept the statement form a
+    // v-blocking set
+    if (getLocalNode()->isVBlocking<SCPStatement>(
+            getLocalNode()->getQuorumSet(), statements, accepted))
+    {
+        return true;
+    }
+
+    // Checks if the set of nodes that accepted or voted for it form a quorum
+
+    auto ratifyFilter =
+        [this, &voted, &accepted](uint256 const& nodeID,
+                                  SCPStatement const& st) -> bool
+    {
+        bool res;
+        res = accepted(nodeID, st) || voted(nodeID, st);
+        return res;
+    };
+
+    if (getLocalNode()->isQuorum<SCPStatement>(
+            getLocalNode()->getQuorumSet(), statements,
+            std::bind(&Slot::getQuorumSetFromStatement, this, _1),
+            ratifyFilter))
+    {
+        return true;
+    }
+
+    return false;
+}
+
+bool
+Slot::federatedRatify(StatementPredicate voted,
+                      std::map<uint256, SCPStatement> const& statements)
+{
+    return getLocalNode()->isQuorum<SCPStatement>(
+        getLocalNode()->getQuorumSet(), statements,
+        std::bind(&Slot::getQuorumSetFromStatement, this, _1), voted);
+}
+
+std::shared_ptr<LocalNode>
+Slot::getLocalNode()
+{
+    return mSCP.getLocalNode();
+}
 }

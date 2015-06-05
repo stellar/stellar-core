@@ -135,8 +135,7 @@ BallotProtocol::recordStatement(SCPStatement const& st)
 }
 
 SCP::EnvelopeState
-BallotProtocol::processEnvelope(
-    SCPEnvelope const& envelope)
+BallotProtocol::processEnvelope(SCPEnvelope const& envelope)
 {
     SCP::EnvelopeState res = SCP::EnvelopeState::INVALID;
     assert(envelope.statement.slotIndex == mSlot.getSlotIndex());
@@ -586,8 +585,7 @@ BallotProtocol::emitCurrentStateStatement()
     if (processEnvelope(envelope) == SCP::EnvelopeState::VALID)
     {
         if (!mLastEnvelope ||
-            isNewerStatement(mLastEnvelope->statement,
-                                    envelope.statement))
+            isNewerStatement(mLastEnvelope->statement, envelope.statement))
         {
             mLastEnvelope = make_unique<SCPEnvelope>(envelope);
             mSlot.getSCP().emitEnvelope(envelope);
@@ -1279,48 +1277,6 @@ BallotProtocol::getCompanionQuorumSetHashFromStatement(SCPStatement const& st)
     return h;
 }
 
-bool
-BallotProtocol::federatedAccept(statementPredicate voted,
-                                statementPredicate accepted)
-{
-    // Checks if the nodes that claimed to accept the statement form a
-    // v-blocking set
-    if (getLocalNode()->isVBlocking<SCPStatement>(
-            getLocalNode()->getQuorumSet(), mLatestStatements, accepted))
-    {
-        return true;
-    }
-
-    // Checks if the set of nodes that accepted or voted for it form a quorum
-
-    auto ratifyFilter =
-        [this, &voted, &accepted](uint256 const& nodeID,
-                                  SCPStatement const& st) -> bool
-    {
-        bool res;
-        res = accepted(nodeID, st) || voted(nodeID, st);
-        return res;
-    };
-
-    if (getLocalNode()->isQuorum<SCPStatement>(
-            getLocalNode()->getQuorumSet(), mLatestStatements,
-            std::bind(&Slot::getQuorumSetFromStatement, &mSlot, _1),
-            ratifyFilter))
-    {
-        return true;
-    }
-
-    return false;
-}
-
-bool
-BallotProtocol::federatedRatify(statementPredicate voted)
-{
-    return getLocalNode()->isQuorum<SCPStatement>(
-        getLocalNode()->getQuorumSet(), mLatestStatements,
-        std::bind(&Slot::getQuorumSetFromStatement, &mSlot, _1), voted);
-}
-
 int
 BallotProtocol::compareBallots(std::unique_ptr<SCPBallot> const& b1,
                                std::unique_ptr<SCPBallot> const& b2)
@@ -1512,5 +1468,18 @@ std::shared_ptr<LocalNode>
 BallotProtocol::getLocalNode()
 {
     return mSlot.getSCP().getLocalNode();
+}
+
+bool
+BallotProtocol::federatedAccept(StatementPredicate voted,
+                                StatementPredicate accepted)
+{
+    return mSlot.federatedAccept(voted, accepted, mLatestStatements);
+}
+
+bool
+BallotProtocol::federatedRatify(StatementPredicate voted)
+{
+    return mSlot.federatedRatify(voted, mLatestStatements);
 }
 }

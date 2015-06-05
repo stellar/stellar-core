@@ -17,6 +17,10 @@ namespace stellar
 class Node;
 class Slot;
 
+// used to filter statements
+typedef std::function<bool(uint256 const& nodeID, SCPStatement const& st)>
+    StatementPredicate;
+
 /**
  * The Slot object is in charge of maintaining the state of the SCP protocol
  * for a given slot index.
@@ -127,9 +131,6 @@ class BallotProtocol
     bool attemptConfirmCommit(SCPBallot const& acceptCommitLow,
                               SCPBallot const& acceptCommitHigh);
 
-    typedef std::function<bool(uint256 const& nodeID, SCPStatement const& st)>
-        statementPredicate;
-
     // An interval is [low,high] represented as a pair
     using Interval = std::pair<uint32, uint32>;
 
@@ -144,15 +145,6 @@ class BallotProtocol
     // constructs the set boundaries compatible with the ballot
     std::set<Interval>
     getCommitBoundariesFromStatements(SCPBallot const& ballot);
-
-    // ** federated agreement helper functions
-
-    // returns true if the statement defined by voted and accepted
-    // should be accepted
-    bool federatedAccept(statementPredicate voted, statementPredicate accepted);
-    // returns true if the statement defined by voted
-    // is ratified
-    bool federatedRatify(statementPredicate voted);
 
     // ** helper predicates that evaluate if a statement satisfies
     // a certain property
@@ -226,5 +218,9 @@ class BallotProtocol
     std::string getLocalState() const;
 
     std::shared_ptr<LocalNode> getLocalNode();
+
+  protected:
+    bool federatedAccept(StatementPredicate voted, StatementPredicate accepted);
+    bool federatedRatify(StatementPredicate voted);
 };
 }

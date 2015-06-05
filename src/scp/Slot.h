@@ -104,5 +104,18 @@ class Slot : public std::enable_shared_from_this<Slot>
     std::string ballotToStr(std::unique_ptr<SCPBallot> const& ballot) const;
     std::string envToStr(SCPEnvelope const& envelope) const;
     std::string envToStr(SCPStatement const& st) const;
+
+    // ** federated agreement helper functions
+
+    // returns true if the statement defined by voted and accepted
+    // should be accepted
+    bool federatedAccept(StatementPredicate voted, StatementPredicate accepted,
+                         std::map<uint256, SCPStatement> const& statements);
+    // returns true if the statement defined by voted
+    // is ratified
+    bool federatedRatify(StatementPredicate voted,
+                         std::map<uint256, SCPStatement> const& statements);
+
+    std::shared_ptr<LocalNode> getLocalNode();
 };
 }
