@@ -19,6 +19,9 @@
 #include "transactions/SetOptionsOpFrame.h"
 #include "database/Database.h"
 
+#include "medida/meter.h"
+#include "medida/metrics_registry.h"
+
 namespace stellar
 {
 
@@ -70,7 +73,7 @@ OperationFrame::apply(LedgerDelta& delta, Application& app)
     res = checkValid(app, true);
     if (res)
     {
-        res = doApply(delta, app.getLedgerManager());
+        res = doApply(app.getMetrics(), delta, app.getLedgerManager());
     }
 
     return res;
@@ -122,6 +125,8 @@ OperationFrame::checkValid(Application& app, bool forApply)
     {
         if (forApply || !mOperation.sourceAccount)
         {
+            app.getMetrics().NewMeter(
+                {"operation", "invalid", "no-account"}, "operation").Mark();
             mResult.code(opNO_ACCOUNT);
             return false;
         }
@@ -134,6 +139,8 @@ OperationFrame::checkValid(Application& app, bool forApply)
 
     if (!checkSignature())
     {
+        app.getMetrics().NewMeter(
+            {"operation", "invalid", "bad-auth"}, "operation").Mark();
         mResult.code(opBAD_AUTH);
         return false;
     }
@@ -148,6 +155,6 @@ OperationFrame::checkValid(Application& app, bool forApply)
     mResult.code(opINNER);
     mResult.tr().type(mOperation.body.type());
 
-    return doCheckValid();
+    return doCheckValid(app.getMetrics());
 }
 }

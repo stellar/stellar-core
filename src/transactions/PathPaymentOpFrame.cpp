@@ -11,6 +11,9 @@
 #include "OfferExchange.h"
 #include <algorithm>
 
+#include "medida/meter.h"
+#include "medida/metrics_registry.h"
+
 namespace stellar
 {
 
@@ -25,7 +28,8 @@ PathPaymentOpFrame::PathPaymentOpFrame(Operation const& op,
 }
 
 bool
-PathPaymentOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
+PathPaymentOpFrame::doApply(medida::MetricsRegistry& metrics,
+                            LedgerDelta& delta, LedgerManager& ledgerManager)
 {
     AccountFrame::pointer destination;
 
@@ -35,6 +39,8 @@ PathPaymentOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
 
     if (!destination)
     {
+        metrics.NewMeter({"op-path-payment", "failure", "no-destination"},
+                         "operation").Mark();
         innerResult().code(PATH_PAYMENT_NO_DESTINATION);
         return false;
     }
@@ -68,18 +74,24 @@ PathPaymentOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
                 TrustFrame::loadTrustLine(destination->getID(), curB, db);
             if (!destLine)
             {
+                metrics.NewMeter({"op-path-payment", "failure", "no-trust"},
+                                 "operation").Mark();
                 innerResult().code(PATH_PAYMENT_NO_TRUST);
                 return false;
             }
 
             if (!destLine->isAuthorized())
             {
+                metrics.NewMeter({"op-path-payment", "failure", "not-authorized"},
+                                 "operation").Mark();
                 innerResult().code(PATH_PAYMENT_NOT_AUTHORIZED);
                 return false;
             }
 
             if (!destLine->addBalance(curBReceived))
             {
+                metrics.NewMeter({"op-path-payment", "failure", "line-full"},
+                                 "operation").Mark();
                 innerResult().code(PATH_PAYMENT_LINE_FULL);
                 return false;
             }
@@ -122,6 +134,8 @@ PathPaymentOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
             }
         // fall through
         case OfferExchange::ePartial:
+            metrics.NewMeter({"op-path-payment", "failure", "too-few-offers"},
+                             "operation").Mark();
             innerResult().code(PATH_PAYMENT_TOO_FEW_OFFERS);
             return false;
         }
@@ -145,6 +159,8 @@ PathPaymentOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
 
     if (curBSent > mPathPayment.sendMax)
     { // make sure not over the max
+        metrics.NewMeter({"op-path-payment", "failure", "over-send-max"},
+                         "operation").Mark();
         innerResult().code(PATH_PAYMENT_OVER_SENDMAX);
         return false;
     }
@@ -155,6 +171,8 @@ PathPaymentOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
 
         if (mSourceAccount->getAccount().balance < (minBalance + curBSent))
         { // they don't have enough to send
+            metrics.NewMeter({"op-path-payment", "failure", "underfunded"},
+                             "operation").Mark();
             innerResult().code(PATH_PAYMENT_UNDERFUNDED);
             return false;
         }
@@ -169,6 +187,8 @@ PathPaymentOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
 
         if (!issuer)
         {
+            metrics.NewMeter({"op-path-payment", "failure", "no-issuer"},
+                             "operation").Mark();
             throw std::runtime_error("sendCredit Issuer not found");
         }
 
@@ -176,18 +196,24 @@ PathPaymentOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
         sourceLineFrame = TrustFrame::loadTrustLine(getSourceID(), curB, db);
         if (!sourceLineFrame)
         {
+            metrics.NewMeter({"op-path-payment", "failure", "underfunded"},
+                             "operation").Mark();
             innerResult().code(PATH_PAYMENT_UNDERFUNDED);
             return false;
         }
 
         if (!sourceLineFrame->isAuthorized())
         {
+            metrics.NewMeter({"op-path-payment", "failure", "not-authorized"},
+                             "operation").Mark();
             innerResult().code(PATH_PAYMENT_NOT_AUTHORIZED);
             return false;
         }
 
         if (!sourceLineFrame->addBalance(-curBSent))
         {
+            metrics.NewMeter({"op-path-payment", "failure", "underfunded"},
+                             "operation").Mark();
             innerResult().code(PATH_PAYMENT_UNDERFUNDED);
             return false;
         }
@@ -195,26 +221,35 @@ PathPaymentOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
         sourceLineFrame->storeChange(delta, db);
     }
 
+    metrics.NewMeter({"op-path-payment", "success", "apply"},
+                     "operation").Mark();
+
     return true;
 }
 
 bool
-PathPaymentOpFrame::doCheckValid()
+PathPaymentOpFrame::doCheckValid(medida::MetricsRegistry& metrics)
 {
     if (mPathPayment.destAmount <= 0 || mPathPayment.sendMax <= 0)
     {
+        metrics.NewMeter({"op-path-payment", "invalid", "malformed-amounts"},
+                         "operation").Mark();
         innerResult().code(PATH_PAYMENT_MALFORMED);
         return false;
     }
     if (!isCurrencyValid(mPathPayment.sendCurrency) ||
         !isCurrencyValid(mPathPayment.destCurrency))
     {
+        metrics.NewMeter({"op-path-payment", "invalid", "malformed-currencies"},
+                         "operation").Mark();
         innerResult().code(PATH_PAYMENT_MALFORMED);
         return false;
     }
     auto const& p = mPathPayment.path;
     if (!std::all_of(p.begin(), p.end(), isCurrencyValid))
     {
+        metrics.NewMeter({"op-path-payment", "invalid", "malformed-currencies"},
+                         "operation").Mark();
         innerResult().code(PATH_PAYMENT_MALFORMED);
         return false;
     }

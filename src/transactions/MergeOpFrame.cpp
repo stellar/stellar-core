@@ -7,6 +7,9 @@
 #include "database/Database.h"
 #include "ledger/TrustFrame.h"
 
+#include "medida/meter.h"
+#include "medida/metrics_registry.h"
+
 using namespace soci;
 
 namespace stellar
@@ -29,7 +32,8 @@ MergeOpFrame::getNeededThreshold() const
 // make sure the we delete all the trustlines
 // move the XLM to the new account
 bool
-MergeOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
+MergeOpFrame::doApply(medida::MetricsRegistry& metrics,
+                      LedgerDelta& delta, LedgerManager& ledgerManager)
 {
     AccountFrame::pointer otherAccount;
     Database& db = ledgerManager.getDatabase();
@@ -38,12 +42,16 @@ MergeOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
 
     if (!otherAccount)
     {
+        metrics.NewMeter({"op-merge", "failure", "no-account"},
+                         "operation").Mark();
         innerResult().code(ACCOUNT_MERGE_NO_ACCOUNT);
         return false;
     }
 
     if (TrustFrame::hasIssued(getSourceID(), db))
     {
+        metrics.NewMeter({"op-merge", "failure", "credit-held"},
+                         "operation").Mark();
         innerResult().code(ACCOUNT_MERGE_CREDIT_HELD);
         return false;
     }
@@ -54,6 +62,8 @@ MergeOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
     {
         if(l->getBalance() > 0)
         {
+        metrics.NewMeter({"op-merge", "failure", "has-credit"},
+                         "operation").Mark();
             innerResult().code(ACCOUNT_MERGE_HAS_CREDIT);
             return false;
         }
@@ -77,16 +87,20 @@ MergeOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
     otherAccount->storeChange(delta, db);
     mSourceAccount->storeDelete(delta, db);
 
+    metrics.NewMeter({"op-merge", "success", "apply"},
+                     "operation").Mark();
     innerResult().code(ACCOUNT_MERGE_SUCCESS);
     return true;
 }
 
 bool
-MergeOpFrame::doCheckValid()
+MergeOpFrame::doCheckValid(medida::MetricsRegistry& metrics)
 {
     // makes sure not merging into self
     if (getSourceID() == mOperation.body.destination())
     {
+        metrics.NewMeter({"op-merge", "invalid", "malformed-self-merge"},
+                         "operation").Mark();
         innerResult().code(ACCOUNT_MERGE_MALFORMED);
         return false;
     }

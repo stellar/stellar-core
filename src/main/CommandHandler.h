@@ -31,6 +31,7 @@ class CommandHandler
     void catchup(std::string const& params, std::string& retStr);
     void checkpoint(std::string const& params, std::string& retStr);
     void connect(std::string const& params, std::string& retStr);
+    void generateLoad(std::string const& params, std::string& retStr);
     void info(std::string const& params, std::string& retStr);
     void ll(std::string const& params, std::string& retStr);
     void logRotate(std::string const& params, std::string& retStr);

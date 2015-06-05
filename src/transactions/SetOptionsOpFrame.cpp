@@ -6,6 +6,9 @@
 #include "crypto/Base58.h"
 #include "database/Database.h"
 
+#include "medida/meter.h"
+#include "medida/metrics_registry.h"
+
 namespace stellar
 {
 SetOptionsOpFrame::SetOptionsOpFrame(Operation const& op, OperationResult& res,
@@ -27,7 +30,8 @@ SetOptionsOpFrame::getNeededThreshold() const
 }
 
 bool
-SetOptionsOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
+SetOptionsOpFrame::doApply(medida::MetricsRegistry& metrics,
+                           LedgerDelta& delta, LedgerManager& ledgerManager)
 {
     Database& db = ledgerManager.getDatabase();
     AccountEntry& account = mSourceAccount->getAccount();
@@ -39,6 +43,9 @@ SetOptionsOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
         inflationAccount = AccountFrame::loadAccount(inflationID, db);
         if (!inflationAccount)
         {
+            metrics.NewMeter({"op-set-options", "failure",
+                              "invalid-inflation"},
+                             "operation").Mark();
             innerResult().code(SET_OPTIONS_INVALID_INFLATION);
             return false;
         }
@@ -57,6 +64,9 @@ SetOptionsOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
             // must ensure no one is holding your credit
             if (TrustFrame::hasIssued(account.accountID, db))
             {
+                metrics.NewMeter({"op-set-options", "failure",
+                                  "cant-change"},
+                                 "operation").Mark();
                 innerResult().code(SET_OPTIONS_CANT_CHANGE);
                 return false;
             }
@@ -91,11 +101,17 @@ SetOptionsOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
             {
                 if (signers.size() == signers.max_size())
                 {
+                    metrics.NewMeter({"op-set-options", "failure",
+                                      "too-many-signers"},
+                                     "operation").Mark();
                     innerResult().code(SET_OPTIONS_TOO_MANY_SIGNERS);
                     return false;
                 }
                 if (!mSourceAccount->addNumEntries(1, ledgerManager))
                 {
+                    metrics.NewMeter({"op-set-options", "failure",
+                                      "low-reserve"},
+                                     "operation").Mark();
                     innerResult().code(SET_OPTIONS_LOW_RESERVE);
                     return false;
                 }
@@ -122,18 +138,22 @@ SetOptionsOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
         mSourceAccount->setUpdateSigners();
     }
 
+    metrics.NewMeter({"op-set-options", "success", "apply"},
+                     "operation").Mark();
     innerResult().code(SET_OPTIONS_SUCCESS);
     mSourceAccount->storeChange(delta, db);
     return true;
 }
 
 bool
-SetOptionsOpFrame::doCheckValid()
+SetOptionsOpFrame::doCheckValid(medida::MetricsRegistry& metrics)
 {
     if (mSetOptions.setFlags && mSetOptions.clearFlags)
     {
         if ((*mSetOptions.setFlags & *mSetOptions.clearFlags) != 0)
         {
+            metrics.NewMeter({"op-set-options", "invalid", "bad-flags"},
+                             "operation").Mark();
             innerResult().code(SET_OPTIONS_BAD_FLAGS);
             return false;
         }

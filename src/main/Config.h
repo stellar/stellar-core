@@ -61,6 +61,12 @@ class Config : public std::enable_shared_from_this<Config>
     // meaning catchup "minimally", using deltas to the most recent snapshot.
     bool CATCHUP_COMPLETE;
 
+    // A config parameter that enables synthetic load generation on demand,
+    // using the `generateload` runtime command (see CommandHandler.cpp). This
+    // option only exists for stress-testing and should not be enabled in
+    // production networks.
+    bool ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING;
+
     // A config parameter that reduces ledger close time to 1s and checkpoint
     // frequency to every 8 ledgers. Do not ever set this in production, as it
     // will make your history archives incompatible with those of anyone else.

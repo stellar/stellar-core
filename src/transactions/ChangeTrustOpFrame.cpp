@@ -7,6 +7,9 @@
 #include "ledger/LedgerManager.h"
 #include "database/Database.h"
 
+#include "medida/meter.h"
+#include "medida/metrics_registry.h"
+
 namespace stellar
 {
 
@@ -18,7 +21,8 @@ ChangeTrustOpFrame::ChangeTrustOpFrame(Operation const& op,
 {
 }
 bool
-ChangeTrustOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
+ChangeTrustOpFrame::doApply(medida::MetricsRegistry& metrics,
+                            LedgerDelta& delta, LedgerManager& ledgerManager)
 {
     TrustFrame::pointer trustLine;
     Database& db = ledgerManager.getDatabase();
@@ -31,6 +35,8 @@ ChangeTrustOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
         if (mChangeTrust.limit < 0 ||
             mChangeTrust.limit < trustLine->getBalance())
         { // Can't drop the limit below the balance you are holding with them
+            metrics.NewMeter({"op-change-trust", "failure", "invalid-limit"},
+                             "operation").Mark();
             innerResult().code(CHANGE_TRUST_INVALID_LIMIT);
             return false;
         }
@@ -48,6 +54,8 @@ ChangeTrustOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
         {
             trustLine->storeChange(delta, db);
         }
+        metrics.NewMeter({"op-change-trust", "success", "apply"},
+                         "operation").Mark();
         innerResult().code(CHANGE_TRUST_SUCCESS);
         return true;
     }
@@ -58,6 +66,8 @@ ChangeTrustOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
             AccountFrame::loadAccount(mChangeTrust.line.alphaNum().issuer, db);
         if (!issuer)
         {
+            metrics.NewMeter({"op-change-trust", "failure", "no-issuer"},
+                             "operation").Mark();
             innerResult().code(CHANGE_TRUST_NO_ISSUER);
             return false;
         }
@@ -71,6 +81,8 @@ ChangeTrustOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
 
         if (!mSourceAccount->addNumEntries(1, ledgerManager))
         {
+            metrics.NewMeter({"op-change-trust", "failure", "low-reserve"},
+                             "operation").Mark();
             innerResult().code(CHANGE_TRUST_LOW_RESERVE);
             return false;
         }
@@ -78,21 +90,29 @@ ChangeTrustOpFrame::doApply(LedgerDelta& delta, LedgerManager& ledgerManager)
         mSourceAccount->storeChange(delta, db);
         trustLine->storeAdd(delta, db);
 
+        metrics.NewMeter({"op-change-trust", "success", "apply"},
+                         "operation").Mark();
         innerResult().code(CHANGE_TRUST_SUCCESS);
         return true;
     }
 }
 
 bool
-ChangeTrustOpFrame::doCheckValid()
+ChangeTrustOpFrame::doCheckValid(medida::MetricsRegistry& metrics)
 {
     if (mChangeTrust.limit < 0)
     {
+        metrics.NewMeter({"op-change-trust", "invalid",
+                          "malformed-negative-limit"},
+                         "operation").Mark();
         innerResult().code(CHANGE_TRUST_MALFORMED);
         return false;
     }
     if (!isCurrencyValid(mChangeTrust.line))
     {
+        metrics.NewMeter({"op-change-trust", "invalid",
+                          "malformed-invalid-currency"},
+                         "operation").Mark();
         innerResult().code(CHANGE_TRUST_MALFORMED);
         return false;
     }

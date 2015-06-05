@@ -74,6 +74,7 @@ FMT_SRCS =                                      \
     src/process/ProcessManagerImpl.cpp          \
     src/process/ProcessTests.cpp                \
     src/simulation/CoreTests.cpp                \
+    src/simulation/LoadGenerator.cpp            \
     src/simulation/Simulation.cpp               \
     src/simulation/Topologies.cpp               \
     src/transactions/AllowTrustOpFrame.cpp      \
@@ -163,6 +164,7 @@ FMT_HDRS =                                      \
     src/process/ProcessManager.h                \
     src/process/ProcessManagerImpl.h            \
     src/simulation/Simulation.h                 \
+    src/simulation/LoadGenerator.h              \
     src/simulation/Topologies.h                 \
     src/transactions/AllowTrustOpFrame.h        \
     src/transactions/ChangeTrustOpFrame.h       \

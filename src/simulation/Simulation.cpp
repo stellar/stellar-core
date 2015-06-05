@@ -24,18 +24,6 @@ namespace stellar
 
 using namespace std;
 
-uint64
-Simulation::getMinBalance()
-{
-    int64_t mx = 0;
-    for (const auto& n : mNodes)
-    {
-        auto b = n.second->getLedgerManager().getMinBalance(0);
-        mx = (b > mx ? b : mx);
-    }
-    return mx;
-}
-
 Simulation::Simulation(Mode mode)
     : mClock(mode == OVER_TCP ? VirtualClock::REAL_TIME
                               : VirtualClock::VIRTUAL_TIME)
@@ -43,9 +31,6 @@ Simulation::Simulation(Mode mode)
     , mConfigCount(0)
     , mIdleApp(Application::create(mClock, getTestConfig(++mConfigCount)))
 {
-    auto root =
-        make_shared<AccountInfo>(0, txtest::getRoot(), 1000000000, 0, *this);
-    mAccounts.push_back(root);
 }
 
 Simulation::~Simulation()
@@ -84,6 +69,7 @@ Simulation::addNode(SecretKey nodeKey, SCPQuorumSet qSet, VirtualClock& clock,
     uint256 nodeID = nodeKey.getPublicKey();
     mConfigs[nodeID] = cfg;
     mNodes[nodeID] = result;
+    updateMinBalance(*result);
 
     return nodeID;
 }
@@ -321,117 +307,6 @@ Simulation::crankUntil(function<bool()> const& predicate,
     }
 }
 
-Simulation::TxInfo
-Simulation::createTransferTransaction(size_t iFrom, size_t iTo, uint64_t amount)
-{
-    return TxInfo{mAccounts[iFrom], mAccounts[iTo], false, amount};
-}
-
-Simulation::TxInfo
-Simulation::createRandomTransaction(float alpha)
-{
-    size_t iFrom, iTo;
-    do
-    {
-        // iFrom = rand_pareto(alpha, mAccounts.size());
-        // iTo = rand_pareto(alpha, mAccounts.size());
-        iFrom = static_cast<int>(rand_fraction() * mAccounts.size());
-        iTo = static_cast<int>(rand_fraction() * mAccounts.size());
-    } while (iFrom == iTo);
-
-    uint64_t amount = static_cast<uint64_t>(
-        rand_fraction() *
-        min(static_cast<uint64_t>(1000),
-            (mAccounts[iFrom]->mBalance - getMinBalance()) / 3));
-    return createTransferTransaction(iFrom, iTo, amount);
-}
-
-void
-Simulation::TxInfo::execute(Application& app)
-{
-    if (app.getHerder().recvTransaction(createPaymentTx()) ==
-        Herder::TX_STATUS_PENDING)
-    {
-        recordExecution(app.getConfig().DESIRED_BASE_FEE);
-    }
-}
-
-TransactionFramePtr
-Simulation::TxInfo::createPaymentTx()
-{
-    TransactionFramePtr res;
-    if (mCreate)
-    {
-        res = txtest::createCreateAccountTx(mFrom->mKey, mTo->mKey,
-                                            mFrom->mSeq + 1, mAmount);
-    }
-    else
-    {
-        res = txtest::createPaymentTx(mFrom->mKey, mTo->mKey, mFrom->mSeq + 1,
-                                      mAmount);
-    }
-    return res;
-}
-
-void
-Simulation::TxInfo::recordExecution(uint64_t baseFee)
-{
-    mFrom->mSeq++;
-    mFrom->mBalance -= mAmount;
-    mFrom->mBalance -= baseFee;
-    mTo->mBalance += mAmount;
-}
-
-vector<Simulation::TxInfo>
-Simulation::createRandomTransactions(size_t n, float paretoAlpha)
-{
-    vector<TxInfo> result;
-    for (size_t i = 0; i < n; i++)
-    {
-        result.push_back(createRandomTransaction(paretoAlpha));
-    }
-    return result;
-}
-
-vector<Simulation::TxInfo>
-Simulation::accountCreationTransactions(size_t n)
-{
-    vector<TxInfo> result;
-    for (auto account : createAccounts(n))
-    {
-        result.push_back(account->creationTransaction());
-    }
-    return result;
-}
-
-Simulation::AccountInfoPtr
-Simulation::createAccount(size_t i)
-{
-    auto accountName = "Account-" + to_string(i);
-    return make_shared<AccountInfo>(i, txtest::getAccount(accountName.c_str()),
-                                    0, 0, *this);
-}
-
-vector<Simulation::AccountInfoPtr>
-Simulation::createAccounts(size_t n)
-{
-    vector<AccountInfoPtr> result;
-    for (size_t i = 0; i < n; i++)
-    {
-        auto account = createAccount(mAccounts.size());
-        mAccounts.push_back(account);
-        result.push_back(account);
-    }
-    return result;
-}
-
-Simulation::TxInfo
-Simulation::AccountInfo::creationTransaction()
-{
-    return TxInfo{mSimulation.mAccounts[0], shared_from_this(), true,
-                  100 * mSimulation.getMinBalance() +
-                      mSimulation.mAccounts.size() - 1};
-}
 
 void
 Simulation::execute(TxInfo transaction)
@@ -546,27 +421,7 @@ Simulation::loadAccount(AccountInfo& account)
 {
     // assumes all nodes are in sync
     auto app = mNodes.begin()->second;
-
-    AccountFrame::pointer ret;
-    ret = AccountFrame::loadAccount(account.mKey.getPublicKey(),
-                                    app->getDatabase());
-    if (!ret)
-    {
-        return false;
-    }
-
-    account.mBalance = ret->getBalance();
-    account.mSeq = ret->getSeqNum();
-    return true;
-}
-
-void
-Simulation::loadAccounts()
-{
-    for (auto& it : mAccounts)
-    {
-        loadAccount(*it);
-    }
+    return LoadGenerator::loadAccount(*app, account);
 }
 
 class ConsoleReporterWithSum : public medida::reporting::ConsoleReporter
