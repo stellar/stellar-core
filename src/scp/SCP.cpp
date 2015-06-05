@@ -30,19 +30,18 @@ SCP::getValueString(Value const& v) const
     return hexAbbrev(valueHash);
 }
 
-void
-SCP::receiveEnvelope(SCPEnvelope const& envelope,
-                     std::function<void(EnvelopeState)> const& cb)
+SCP::EnvelopeState
+SCP::receiveEnvelope(SCPEnvelope const& envelope)
 {
     // If the envelope is not correctly signed, we ignore it.
     if (!verifyEnvelope(envelope))
     {
         CLOG(DEBUG, "SCP") << "SCP::receiveEnvelope invalid";
-        return cb(SCP::EnvelopeState::INVALID);
+        return SCP::EnvelopeState::INVALID;
     }
 
     uint64 slotIndex = envelope.statement.slotIndex;
-    getSlot(slotIndex)->processEnvelope(envelope, cb);
+    return getSlot(slotIndex)->processEnvelope(envelope);
 }
 
 bool

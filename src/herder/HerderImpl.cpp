@@ -156,10 +156,9 @@ HerderImpl::bootstrap()
     triggerNextLedger(lcl.header.ledgerSeq + 1);
 }
 
-void
+bool
 HerderImpl::validateValue(uint64 slotIndex, uint256 const& nodeID,
-                          Value const& value,
-                          std::function<void(bool)> const& cb)
+                          Value const& value)
 {
     StellarBallot b;
     try
@@ -169,8 +168,7 @@ HerderImpl::validateValue(uint64 slotIndex, uint256 const& nodeID,
     catch (...)
     {
         mValueInvalid.Mark();
-        cb(false);
-        return;
+        return false;
     }
 
     // First of all let's verify the internal Stellar Ballot signature is
@@ -178,15 +176,13 @@ HerderImpl::validateValue(uint64 slotIndex, uint256 const& nodeID,
     if (!verifyStellarBallot(b))
     {
         mValueInvalid.Mark();
-        cb(false);
-        return;
+        return false;
     }
 
     if (!mTrackingSCP)
     {
         // if we're not tracking, there is not much more we can do to validate
-        cb(true);
-        return;
+        return true;
     }
 
     // Check slotIndex.
@@ -194,8 +190,7 @@ HerderImpl::validateValue(uint64 slotIndex, uint256 const& nodeID,
     {
         // we already moved on from this slot
         // still send it through for emitting the final messages
-        cb(true);
-        return;
+        return true;
     }
     if (nextConsensusLedgerIndex() < slotIndex)
     {
@@ -206,8 +201,7 @@ HerderImpl::validateValue(uint64 slotIndex, uint256 const& nodeID,
                               << " processing a future message while tracking";
 
         mValueInvalid.Mark();
-        cb(false);
-        return;
+        return false;
     }
 
     // Check closeTime (not too old)
@@ -215,8 +209,7 @@ HerderImpl::validateValue(uint64 slotIndex, uint256 const& nodeID,
         mTrackingSCP->mConsensusBallot.stellarValue.closeTime)
     {
         mValueInvalid.Mark();
-        cb(false);
-        return;
+        return false;
     }
 
     // Check closeTime (not too far in future)
@@ -224,27 +217,26 @@ HerderImpl::validateValue(uint64 slotIndex, uint256 const& nodeID,
     if (b.stellarValue.closeTime > timeNow + MAX_TIME_SLIP_SECONDS.count())
     {
         mValueInvalid.Mark();
-        cb(false);
-        return;
+        return false;
     }
 
     Hash txSetHash = b.stellarValue.txSetHash;
 
     if (!mLedgerManager.isSynced())
     {
-        cb(true);
-        return;
+        return true;
     }
 
     // we are fully synced up
 
     if (!mLedgerManager.isSynced())
     {
-        cb(true);
-        return;
+        return true;
     }
 
     TxSetFramePtr txSet = mPendingEnvelopes.getTxSet(txSetHash);
+
+    bool res;
 
     if (!txSet)
     {
@@ -254,7 +246,7 @@ HerderImpl::validateValue(uint64 slotIndex, uint256 const& nodeID,
             << " n: " << hexAbbrev(nodeID) << " txSet not found?";
 
         this->mValueInvalid.Mark();
-        cb(false);
+        res = false;
     }
     else if (!txSet->checkValid(mApp))
     {
@@ -264,7 +256,7 @@ HerderImpl::validateValue(uint64 slotIndex, uint256 const& nodeID,
                               << " Invalid txSet:"
                               << " " << hexAbbrev(txSet->getContentsHash());
         this->mValueInvalid.Mark();
-        cb(false);
+        res = false;
     }
     else
     {
@@ -273,8 +265,9 @@ HerderImpl::validateValue(uint64 slotIndex, uint256 const& nodeID,
             << " i: " << slotIndex << " n: " << hexAbbrev(nodeID) << " txSet:"
             << " " << hexAbbrev(txSet->getContentsHash()) << " OK";
         this->mValueValid.Mark();
-        cb(true);
+        res = true;
     }
+    return res;
 }
 
 int
@@ -360,10 +353,9 @@ HerderImpl::getValueString(Value const& v) const
     }
 }
 
-void
+bool
 HerderImpl::validateBallot(uint64 slotIndex, uint256 const& nodeID,
-                           SCPBallot const& ballot,
-                           std::function<void(bool)> const& cb)
+                           SCPBallot const& ballot)
 {
     StellarBallot b;
     try
@@ -373,8 +365,7 @@ HerderImpl::validateBallot(uint64 slotIndex, uint256 const& nodeID,
     catch (...)
     {
         mBallotInvalid.Mark();
-        cb(false);
-        return;
+        return false;
     }
 
     // Check closeTime (not too far in the future)
@@ -382,8 +373,7 @@ HerderImpl::validateBallot(uint64 slotIndex, uint256 const& nodeID,
     if (b.stellarValue.closeTime > timeNow + MAX_TIME_SLIP_SECONDS.count())
     {
         mBallotInvalid.Mark();
-        cb(false);
-        return;
+        return false;
     }
 
     if (mTrackingSCP && nextConsensusLedgerIndex() != slotIndex)
@@ -415,29 +405,26 @@ HerderImpl::validateBallot(uint64 slotIndex, uint256 const& nodeID,
     if ((timeNow + MAX_TIME_SLIP_SECONDS.count()) < (lastTrigger + sumTimeouts))
     {
         mBallotInvalid.Mark();
-        cb(false);
-        return;
+        return false;
     }
 
     // Check baseFee (within range of desired fee).
     if (b.stellarValue.baseFee < mApp.getConfig().DESIRED_BASE_FEE * .5)
     {
         mBallotInvalid.Mark();
-        cb(false);
-        return;
+        return false;
     }
     if (b.stellarValue.baseFee > mApp.getConfig().DESIRED_BASE_FEE * 2)
     {
         mBallotInvalid.Mark();
-        cb(false);
-        return;
+        return false;
     }
 
     // Ignore ourselves if we're just watching SCP.
     if (getSecretKey().isZero() && nodeID == getLocalNodeID())
     {
         mBallotInvalid.Mark();
-        return cb(false);
+        return false;
     }
 
     bool isTrusted = false;
@@ -462,7 +449,7 @@ HerderImpl::validateBallot(uint64 slotIndex, uint256 const& nodeID,
                           << " isTrusted: " << isTrusted;
 
     mBallotValid.Mark();
-    cb(true);
+    return true;
 }
 
 void

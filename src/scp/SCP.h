@@ -49,11 +49,10 @@ class SCP
     // is done. It should be used to filter out values that are not compatible
     // with the current state of that node. Unvalidated values can never
     // externalize.
-    virtual void
-    validateValue(uint64 slotIndex, uint256 const& nodeID, Value const& value,
-                  std::function<void(bool)> const& cb)
+    virtual bool
+    validateValue(uint64 slotIndex, uint256 const& nodeID, Value const& value)
     {
-        return cb(true);
+        return true;
     }
 
     // `compareValues` is used in ballot comparison. Ballots with higher values
@@ -81,11 +80,11 @@ class SCP
     // `validateBallot` is used to validate ballots associated with PREPARING
     // messages.  Therefore unvalidated ballots may still externalize if other
     // nodes PREARED and subsequently COMMITTED such ballot.
-    virtual void
+    virtual bool
     validateBallot(uint64 slotIndex, uint256 const& nodeID,
-                   SCPBallot const& ballot, std::function<void(bool)> const& cb)
+                   SCPBallot const& ballot)
     {
-        return cb(true);
+        return true;
     }
 
     // `ballotDidPrepare` is called each time the local node PREPARING a ballot.
@@ -156,8 +155,6 @@ class SCP
     // should be flooded to the network.
     virtual void emitEnvelope(SCPEnvelope const& envelope) = 0;
 
-    // Receives an envelope. `cb` asynchronously returns with a status for the
-    // envelope:
     enum EnvelopeState
     {
         INVALID, // the envelope is considered invalid
@@ -166,11 +163,7 @@ class SCP
     // If evidences are missing, a retransmission should take place for that
     // slot. see `procudeSlotEvidence` to implement such retransmission
     // mechanism on the other side of the wire.
-    void receiveEnvelope(SCPEnvelope const& envelope,
-                         std::function<void(EnvelopeState)> const& cb =
-                             [](EnvelopeState)
-                         {
-                         });
+    EnvelopeState receiveEnvelope(SCPEnvelope const& envelope);
 
     // request to trigger a 'bumpState'
     // returns the value returned by 'bumpState'

@@ -33,18 +33,17 @@ class TestSCP : public SCP
         mQuorumSets[qSetHash] = qSet;
     }
 
-    void
-    validateValue(uint64 slotIndex, Hash const& nodeID, Value const& value,
-                  std::function<void(bool)> const& cb)
+    bool
+    validateValue(uint64 slotIndex, Hash const& nodeID, Value const& value)
     {
-        cb(true);
+        return true;
     }
 
-    void
+    bool
     validateBallot(uint64 slotIndex, Hash const& nodeID,
-                   SCPBallot const& ballot, std::function<void(bool)> const& cb)
+                   SCPBallot const& ballot)
     {
-        cb(true);
+        return true;
     }
 
     void

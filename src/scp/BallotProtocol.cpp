@@ -134,56 +134,58 @@ BallotProtocol::recordStatement(SCPStatement const& st)
     mSlot.recordStatement(st);
 }
 
-void
+SCP::EnvelopeState
 BallotProtocol::processEnvelope(
-    SCPEnvelope const& envelope,
-    std::function<void(SCP::EnvelopeState)> const& cb)
+    SCPEnvelope const& envelope)
 {
+    SCP::EnvelopeState res = SCP::EnvelopeState::INVALID;
     assert(envelope.statement.slotIndex == mSlot.getSlotIndex());
 
-    // We copy everything we need as this can be async (no reference).
-    auto slot = mSlot.shared_from_this();
-    auto value_cb = [ statement = envelope.statement, cb, slot ](bool valid)
+    SCPStatement const& statement = envelope.statement;
+    uint256 const& nodeID = statement.nodeID;
+
+    if (!isStatementSane(statement))
     {
-        auto self = &slot->getBallotProtocol();
-        uint256 const& nodeID = statement.nodeID;
+        return SCP::EnvelopeState::INVALID;
+    }
 
-        // If the value is not valid, we just ignore it.
-        if (!valid)
-        {
-            CLOG(TRACE, "SCP") << "invalid value "
-                               << " i: " << self->mSlot.getSlotIndex();
+    if (!isNewerStatement(nodeID, statement))
+    {
+        CLOG(TRACE, "SCP") << "stale statement, skipping "
+                           << " i: " << mSlot.getSlotIndex();
 
-            return cb(SCP::EnvelopeState::INVALID);
-        }
+        return SCP::EnvelopeState::INVALID;
+    }
 
+    SCPBallot wb = getWorkingBallot(statement);
+
+    if (mSlot.getSCP().validateValue(mSlot.getSlotIndex(), nodeID, wb.value))
+    {
         bool processed = false;
         SCPBallot tickBallot = getWorkingBallot(statement);
 
-        if (self->mPhase != SCP_PHASE_EXTERNALIZE)
+        if (mPhase != SCP_PHASE_EXTERNALIZE)
         {
             switch (statement.pledges.type())
             {
             case SCPStatementType::SCP_ST_PREPARE:
             {
                 // don't bother with older statements
-                if (!self->mCurrentBallot ||
-                    self->mCurrentBallot->counter <= tickBallot.counter)
+                if (!mCurrentBallot ||
+                    mCurrentBallot->counter <= tickBallot.counter)
                 {
-                    auto ballot_cb = [statement, cb, slot, self](bool valid)
+                    if (mSlot.getSCP().validateBallot(mSlot.getSlotIndex(),
+                                                      nodeID, tickBallot))
+                    {
+                        recordStatement(statement);
+                        advanceSlot(statement.pledges.prepare().ballot);
+                        res = SCP::EnvelopeState::VALID;
+                    }
+                    else
                     {
                         // If the ballot is not valid, we just ignore it.
-                        if (!valid)
-                        {
-                            return cb(SCP::EnvelopeState::INVALID);
-                        }
-
-                        self->recordStatement(statement);
-                        self->advanceSlot(statement.pledges.prepare().ballot);
-                        cb(SCP::EnvelopeState::VALID);
-                    };
-                    slot->getSCP().validateBallot(slot->getSlotIndex(), nodeID,
-                                                  tickBallot, ballot_cb);
+                        res = SCP::EnvelopeState::INVALID;
+                    }
                     processed = true;
                 }
             }
@@ -194,29 +196,29 @@ BallotProtocol::processEnvelope(
                 // we don't filter CONFIRM/EXTERNALIZE statements based on
                 // counter value as they are valid for any counter greater
                 // than the one in the statement
-                self->recordStatement(statement);
+                recordStatement(statement);
 
                 // we trigger advance slot with our ballot counter if it's an
                 // old statement; otherwise it's newer and may trigger progress
                 // on a newer counter
                 uint32 myWorkingBallotCounter = 0;
-                if (self->mPhase == SCP_ST_PREPARE)
+                if (mPhase == SCP_ST_PREPARE)
                 {
-                    if (self->mCurrentBallot)
+                    if (mCurrentBallot)
                     {
-                        myWorkingBallotCounter = self->mCurrentBallot->counter;
+                        myWorkingBallotCounter = mCurrentBallot->counter;
                     }
                 }
                 else
                 {
-                    myWorkingBallotCounter = self->mPrepared->counter;
+                    myWorkingBallotCounter = mPrepared->counter;
                 }
                 if (tickBallot.counter < myWorkingBallotCounter)
                 {
                     tickBallot.counter = myWorkingBallotCounter;
                 }
-                self->advanceSlot(tickBallot);
-                cb(SCP::EnvelopeState::VALID);
+                advanceSlot(tickBallot);
+                res = SCP::EnvelopeState::VALID;
                 processed = true;
             }
             break;
@@ -229,43 +231,27 @@ BallotProtocol::processEnvelope(
         {
             // note: this handles also our own messages
             // in particular our final EXTERNALIZE message
-            if (self->mPhase == SCP_PHASE_EXTERNALIZE &&
-                self->mCommit->value == tickBallot.value)
+            if (mPhase == SCP_PHASE_EXTERNALIZE &&
+                mCommit->value == tickBallot.value)
             {
-                self->recordStatement(statement);
-                cb(SCP::EnvelopeState::VALID);
+                recordStatement(statement);
+                res = SCP::EnvelopeState::VALID;
             }
             else
             {
-                cb(SCP::EnvelopeState::INVALID);
+                res = SCP::EnvelopeState::INVALID;
             }
         }
-
-        return;
-    };
-
-    SCPStatement const& statement = envelope.statement;
-    uint256 const& nodeID = statement.nodeID;
-
-    if (!isStatementSane(statement))
-    {
-        cb(SCP::EnvelopeState::INVALID);
-        return;
     }
-
-    if (!isNewerStatement(nodeID, statement))
+    else
     {
-        CLOG(TRACE, "SCP") << "stale statement, skipping "
+        // If the value is not valid, we just ignore it.
+        CLOG(TRACE, "SCP") << "invalid value "
                            << " i: " << mSlot.getSlotIndex();
 
-        cb(SCP::EnvelopeState::INVALID);
-        return;
+        res = SCP::EnvelopeState::INVALID;
     }
-
-    SCPBallot wb = getWorkingBallot(statement);
-
-    mSlot.getSCP().validateValue(mSlot.getSlotIndex(), nodeID, wb.value,
-                                 value_cb);
+    return res;
 }
 
 bool
@@ -597,28 +583,22 @@ BallotProtocol::emitCurrentStateStatement()
     SCPStatement statement = createStatement(t);
     SCPEnvelope envelope = createEnvelope(statement);
 
-    auto slot = mSlot.shared_from_this();
-    auto cb = [envelope, slot](SCP::EnvelopeState s)
+    if (processEnvelope(envelope) == SCP::EnvelopeState::VALID)
     {
-        auto self = &slot->getBallotProtocol();
-        if (s == SCP::EnvelopeState::VALID)
+        if (!mLastEnvelope ||
+            isNewerStatement(mLastEnvelope->statement,
+                                    envelope.statement))
         {
-            if (!self->mLastEnvelope ||
-                self->isNewerStatement(self->mLastEnvelope->statement,
-                                       envelope.statement))
-            {
-                self->mLastEnvelope = make_unique<SCPEnvelope>(envelope);
-                self->mSlot.getSCP().emitEnvelope(envelope);
-            }
+            mLastEnvelope = make_unique<SCPEnvelope>(envelope);
+            mSlot.getSCP().emitEnvelope(envelope);
         }
-        else
-        {
-            // there is a bug in the application if it queued up
-            // a statement for itself that it considers invalid
-            throw std::runtime_error("moved to a bad state");
-        }
-    };
-    processEnvelope(envelope, cb);
+    }
+    else
+    {
+        // there is a bug in the application if it queued up
+        // a statement for itself that it considers invalid
+        throw std::runtime_error("moved to a bad state");
+    }
 }
 
 void

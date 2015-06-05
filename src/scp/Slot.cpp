@@ -33,16 +33,15 @@ Slot::recordStatement(SCPStatement const& st)
     mStatementsHistory.emplace_back(st);
 }
 
-void
-Slot::processEnvelope(SCPEnvelope const& envelope,
-                      std::function<void(SCP::EnvelopeState)> const& cb)
+SCP::EnvelopeState
+Slot::processEnvelope(SCPEnvelope const& envelope)
 {
     assert(envelope.statement.slotIndex == mSlotIndex);
 
     CLOG(DEBUG, "SCP") << "Slot::processEnvelope"
                        << " i: " << getSlotIndex() << " " << envToStr(envelope);
 
-    mBallotProtocol.processEnvelope(envelope, cb);
+    return mBallotProtocol.processEnvelope(envelope);
 }
 
 bool

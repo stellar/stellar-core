@@ -43,17 +43,15 @@ class HerderImpl : public Herder, public SCP
     void bootstrap() override;
 
     // SCP methods
-    void validateValue(uint64 slotIndex, uint256 const& nodeID,
-                       Value const& value,
-                       std::function<void(bool)> const& cb) override;
+    bool validateValue(uint64 slotIndex, uint256 const& nodeID,
+                       Value const& value) override;
     int compareValues(uint64 slotIndex, uint32 const& ballotCounter,
                       Value const& v1, Value const& v2) override;
 
     std::string getValueString(Value const& v) const override;
 
-    void validateBallot(uint64 slotIndex, uint256 const& nodeID,
-                        SCPBallot const& ballot,
-                        std::function<void(bool)> const& cb) override;
+    bool validateBallot(uint64 slotIndex, uint256 const& nodeID,
+                        SCPBallot const& ballot) override;
 
     void ballotDidHearFromQuorum(uint64 slotIndex,
                                  SCPBallot const& ballot) override;
