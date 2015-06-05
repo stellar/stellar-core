@@ -74,8 +74,90 @@ TEST_CASE("create offer", "[tx][offers]")
     }
 
     // sets up gateway account
-    applyCreateAccountTx(app, root, gateway, root_seq++, minBalance2);
+    applyCreateAccountTx(app, root, gateway, root_seq++, minBalance2 * 10);
     SequenceNumber gateway_seq = getAccountSeqNum(gateway, app) + 1;
+
+
+    SECTION("passive offer")
+    {
+        applyCreateAccountTx(app, root, a1, root_seq++, minBalance2 * 2);
+        SequenceNumber a1_seq = getAccountSeqNum(a1, app) + 1;
+
+        applyCreateAccountTx(app, root, b1, root_seq++, minBalance2 * 2);
+        SequenceNumber b1_seq = getAccountSeqNum(b1, app) + 1;
+
+
+        applyChangeTrust(app, a1, gateway, a1_seq++, "IDR", 1000);
+        applyChangeTrust(app, a1, gateway, a1_seq++, "USD", 1000);
+        applyChangeTrust(app, b1, gateway, b1_seq++, "IDR", 1000);
+        applyChangeTrust(app, b1, gateway, b1_seq++, "USD", 1000);
+
+        // fund a1 with some IDR
+        applyCreditPaymentTx(app, gateway, a1, idrCur, gateway_seq++, 500);
+        applyCreditPaymentTx(app, gateway, a1, usdCur, gateway_seq++, 500);
+        applyCreditPaymentTx(app, gateway, b1, idrCur, gateway_seq++, 500);
+        applyCreditPaymentTx(app, gateway, b1, usdCur, gateway_seq++, 500);
+
+
+        auto txFrame = manageOfferOp(0, a1, idrCur, usdCur, oneone, 100, a1_seq++);
+        REQUIRE(txFrame->apply(delta, app));
+
+        txFrame = createPassiveOfferOp(b1, usdCur, idrCur, oneone, 100, b1_seq++);
+        txFrame->apply(delta, app);
+
+        // same price 
+        OfferFrame::pointer offer = loadOffer(a1, 1, app);
+        REQUIRE(offer->getAmount() == 100);
+
+        offer = loadOffer(b1, 2, app);
+        REQUIRE(offer->getAmount() == 100);
+        REQUIRE((offer->getFlags() & PASSIVE_FLAG));
+
+        // better price
+        const Price lowPrice(100, 99);
+        const Price highPrice(99, 100);
+        txFrame = createPassiveOfferOp(b1, usdCur, idrCur, highPrice, 100, b1_seq++);
+        txFrame->apply(delta, app);
+
+        REQUIRE(!loadOffer(a1, 1, app, false));
+        REQUIRE(!loadOffer(b1, 3, app, false));
+
+
+        // modify existing passive offer
+        txFrame = manageOfferOp(0, a1, idrCur, usdCur, oneone, 200, a1_seq++);
+        txFrame->apply(delta, app);
+
+        REQUIRE(!loadOffer(a1, 1, app, false));
+        REQUIRE(!loadOffer(b1, 2, app, false));
+        REQUIRE(!loadOffer(b1, 3, app, false));
+
+        offer = loadOffer(a1, 3, app);
+        REQUIRE(offer->getAmount() == 100);
+
+        txFrame = createPassiveOfferOp(b1, usdCur, idrCur, lowPrice, 100, b1_seq++);
+        REQUIRE(txFrame->apply(delta, app));
+
+        offer = loadOffer(a1, 3, app);
+        REQUIRE(offer->getAmount() == 100);
+
+        offer = loadOffer(b1, 4, app);
+        REQUIRE(offer->getAmount() == 100);
+
+        txFrame = manageOfferOp(4, b1, usdCur, idrCur, oneone, 100, b1_seq++);
+        txFrame->apply(delta, app);
+
+        offer = loadOffer(a1, 3, app);
+        REQUIRE(offer->getAmount() == 100);
+
+        offer = loadOffer(b1, 4, app);
+        REQUIRE(offer->getAmount() == 100);
+
+        txFrame = manageOfferOp(4, b1, usdCur, idrCur, highPrice, 100, b1_seq++);
+        REQUIRE(txFrame->apply(delta, app));
+
+        REQUIRE(!loadOffer(a1, 3, app, false));
+        REQUIRE(!loadOffer(b1, 4, app, false));
+    }
 
     SECTION("negative offer creation tests")
     {

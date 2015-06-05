@@ -241,6 +241,7 @@
     <ClCompile Include="..\..\src\scp\SCPTests.cpp" />
     <ClCompile Include="..\..\src\scp\Slot.cpp" />
     <ClCompile Include="..\..\src\simulation\CoreTests.cpp" />
+    <ClCompile Include="..\..\src\simulation\LoadGenerator.cpp" />
     <ClCompile Include="..\..\src\simulation\Simulation.cpp" />
     <ClCompile Include="..\..\src\simulation\Topologies.cpp" />
     <ClCompile Include="..\..\src\transactions\AllowTrustOpFrame.cpp" />
@@ -361,6 +362,7 @@
     <ClInclude Include="..\..\src\scp\Node.h" />
     <ClInclude Include="..\..\src\scp\SCP.h" />
     <ClInclude Include="..\..\src\scp\Slot.h" />
+    <ClInclude Include="..\..\src\simulation\LoadGenerator.h" />
     <ClInclude Include="..\..\src\simulation\Simulation.h" />
     <ClInclude Include="..\..\src\simulation\Topologies.h" />
     <ClInclude Include="..\..\src\transactions\AllowTrustOpFrame.h" />

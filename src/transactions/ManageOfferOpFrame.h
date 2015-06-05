@@ -30,7 +30,7 @@ class ManageOfferOpFrame : public OperationFrame
   protected:
     bool mPassive;
   public:
-      ManageOfferOpFrame(Operation const& op, OperationResult& res,
+    ManageOfferOpFrame(Operation const& op, OperationResult& res,
                        TransactionFrame& parentTx);
 
     bool doApply(medida::MetricsRegistry& metrics,

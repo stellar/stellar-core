@@ -3,7 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "ledger/OfferFrame.h"
-#include "transactions/OperationFrame.h"
+#include "transactions/ManageOfferOpFrame.h"
 #include "database/Database.h"
 #include "crypto/Base58.h"
 #include "crypto/SHA.h"
@@ -28,6 +28,7 @@ const char* OfferFrame::kSQLCreateStatement1 =
     "pricen          INT          NOT NULL,"
     "priced          INT          NOT NULL,"
     "price           BIGINT       NOT NULL,"
+    "flags           INT          NOT NULL,"
     "PRIMARY KEY (offerid)"
     ");";
 
@@ -65,17 +66,17 @@ OfferFrame& OfferFrame::operator=(OfferFrame const& other)
 }
 
 OfferFrame::pointer
-OfferFrame::from(OperationFrame const& op)
+OfferFrame::from(AccountID const & account, ManageOfferOp const& op)
 {
     OfferFrame::pointer res = make_shared<OfferFrame>();
     OfferEntry& o = res->mEntry.offer();
-    o.accountID = op.getSourceID();
-    ManageOfferOp const& create = op.getOperation().body.manageOfferOp();
-    o.amount = create.amount;
-    o.price = create.price;
-    o.offerID = create.offerID;
-    o.takerGets = create.takerGets;
-    o.takerPays = create.takerPays;
+    o.accountID = account;
+    o.amount = op.amount;
+    o.price = op.price;
+    o.offerID = op.offerID;
+    o.takerGets = op.takerGets;
+    o.takerPays = op.takerPays;
+    o.flags = 0;
     return res;
 }
 
@@ -122,7 +123,7 @@ OfferFrame::getFlags() const
 
 static const char* offerColumnSelector =
     "SELECT accountid,offerid,paysalphanumcurrency,paysissuer,"
-    "getsalphanumcurrency,getsissuer,amount,pricen,priced FROM offers";
+    "getsalphanumcurrency,getsissuer,amount,pricen,priced,flags FROM offers";
 
 OfferFrame::pointer
 OfferFrame::loadOffer(AccountID const& accountID, uint64_t offerID,
@@ -169,7 +170,7 @@ OfferFrame::loadOffers(soci::details::prepare_temp_type& prep,
                     into(paysIssuer, paysIssuerIndicator),
                     into(getsAlphaNumCurrency, getsAlphaNumIndicator),
                     into(getsIssuer, getsIssuerIndicator), into(oe.amount),
-                    into(oe.price.n), into(oe.price.d));
+                    into(oe.price.n), into(oe.price.d),into(oe.flags));
 
     st.execute(true);
     while (st.got_data())
@@ -357,11 +358,11 @@ OfferFrame::storeAdd(LedgerDelta& delta, Database& db) const
         st = (db.getSession().prepare
                   << "INSERT INTO offers "
                      "(accountid,offerid,paysalphanumcurrency,paysissuer,"
-                     "amount,pricen,priced,price) VALUES"
-                     "(:v1,:v2,:v3,:v4,:v5,:v6,:v7,:v8)",
+                     "amount,pricen,priced,price,flags) VALUES"
+                     "(:v1,:v2,:v3,:v4,:v5,:v6,:v7,:v8,:v9)",
               use(b58AccountID), use(mOffer.offerID), use(currencyCode),
               use(b58issuer), use(mOffer.amount), use(mOffer.price.n),
-              use(mOffer.price.d), use(computePrice()));
+              use(mOffer.price.d), use(computePrice()),use(mOffer.flags));
         st.execute(true);
     }
     else if (mOffer.takerPays.type() == CURRENCY_TYPE_NATIVE)
@@ -374,11 +375,11 @@ OfferFrame::storeAdd(LedgerDelta& delta, Database& db) const
         st = (db.getSession().prepare
                   << "INSERT INTO offers "
                      "(accountid,offerid,getsalphanumcurrency,getsissuer,"
-                     "amount,pricen,priced,price) VALUES"
-                     "(:v1,:v2,:v3,:v4,:v5,:v6,:v7,:v8)",
+                     "amount,pricen,priced,price,flags) VALUES"
+                     "(:v1,:v2,:v3,:v4,:v5,:v6,:v7,:v8,:v9)",
               use(b58AccountID), use(mOffer.offerID), use(currencyCode),
               use(b58issuer), use(mOffer.amount), use(mOffer.price.n),
-              use(mOffer.price.d), use(computePrice()));
+              use(mOffer.price.d), use(computePrice()), use(mOffer.flags));
         st.execute(true);
     }
     else
@@ -396,12 +397,12 @@ OfferFrame::storeAdd(LedgerDelta& delta, Database& db) const
                   << "INSERT INTO offers (accountid,offerid,"
                      "paysalphanumcurrency,paysissuer,getsalphanumcurrency,"
                      "getsissuer,"
-                     "amount,pricen,priced,price) VALUES "
-                     "(:v1,:v2,:v3,:v4,:v5,:v6,:v7,:v8,:v9,:v10)",
+                     "amount,pricen,priced,price,flags) VALUES "
+                     "(:v1,:v2,:v3,:v4,:v5,:v6,:v7,:v8,:v9,:v10,:v11)",
               use(b58AccountID), use(mOffer.offerID), use(paysAlphaNumCurrency),
               use(b58PaysIssuer), use(getsAlphaNumCurrency), use(b58GetsIssuer),
               use(mOffer.amount), use(mOffer.price.n), use(mOffer.price.d),
-              use(computePrice()));
+              use(computePrice()), use(mOffer.flags));
         st.execute(true);
     }
 

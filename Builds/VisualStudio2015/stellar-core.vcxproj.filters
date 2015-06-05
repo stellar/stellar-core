@@ -438,6 +438,9 @@
     <ClCompile Include="..\..\src\transactions\CreatePassiveOfferOpFrame.cpp">
       <Filter>transactions</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\simulation\LoadGenerator.cpp">
+      <Filter>simulation</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\ledger\LedgerManager.h">
@@ -742,6 +745,9 @@
     </ClInclude>
     <ClInclude Include="..\..\src\transactions\CreatePassiveOfferOpFrame.h">
       <Filter>transactions</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\simulation\LoadGenerator.h">
+      <Filter>simulation</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

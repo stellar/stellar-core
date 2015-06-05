@@ -102,6 +102,11 @@ TransactionFramePtr manageOfferOp(uint64 offerId, SecretKey& source,
                                   Price const& price, int64_t amount,
                                   SequenceNumber seq);
 
+TransactionFramePtr createPassiveOfferOp(SecretKey& source,
+    Currency& takerGets, Currency& takerPays,
+    Price const& price, int64_t amount,
+    SequenceNumber seq);
+
 // expects success
 // expects a new offer to be created
 // returns the ID of the new offer

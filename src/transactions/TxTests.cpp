@@ -409,6 +409,22 @@ applyPathPaymentTx(Application& app, SecretKey& from, SecretKey& to,
     return res;
 }
 
+TransactionFramePtr 
+createPassiveOfferOp(SecretKey& source,
+    Currency& takerGets, Currency& takerPays,
+    Price const& price, int64_t amount,
+    SequenceNumber seq)
+{
+    Operation op;
+    op.body.type(CREATE_PASSIVE_OFFER);
+    op.body.createPassiveOfferOp().amount = amount;
+    op.body.createPassiveOfferOp().takerGets = takerGets;
+    op.body.createPassiveOfferOp().takerPays = takerPays;
+    op.body.createPassiveOfferOp().price = price;
+
+    return transactionFromOperation(source, seq, op);
+}
+
 TransactionFramePtr
 manageOfferOp(uint64 offerId, SecretKey& source, Currency& takerGets,
               Currency& takerPays, Price const& price, int64_t amount,
