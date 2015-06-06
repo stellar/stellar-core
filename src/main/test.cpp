@@ -82,6 +82,10 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
         // default and we do need a VALIDATION_KEY to start a new network
         thisConfig.VALIDATION_KEY = SecretKey::random();
 
+        // single node setup
+        thisConfig.QUORUM_SET.validators.push_back(thisConfig.VALIDATION_KEY.getPublicKey());
+        thisConfig.QUORUM_SET.threshold = 1;
+
         std::ostringstream dbname;
         switch (mode)
         {
