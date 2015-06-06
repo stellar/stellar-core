@@ -495,16 +495,6 @@ TEST_CASE("protocol core5", "[scp]")
 
         int i = 1;
         REQUIRE(scp.mEnvs.size() == i);
-#if 0
-        if (shouldswitch)
-        {
-            REQUIRE(scp.mEnvs.size() == i + 1);
-            verifyPrepare(scp.mEnvs[1], v0SecretKey, qSetHash, 0,
-                          expectedBallot);
-            i++;
-        }
-        else
-#endif
 
         // this triggers the prepared message
         SCPEnvelope prepared2 = makePrepare(v2SecretKey, qSetHash, 0,
@@ -607,34 +597,22 @@ TEST_CASE("protocol core5", "[scp]")
         SCPEnvelope prepare3 =
             makePrepare(v3SecretKey, qSetHash, 0, expectedBallot);
 
-#if 0
-        if (!shouldswitch)
-#else
-        if (true)
-#endif
-        {
-            // this won't be sufficient to prepare:
-            // the local node doesn't agree with the other ones
-            scp.receiveEnvelope(prepare3);
+        // this won't be sufficient to prepare:
+        // the local node doesn't agree with the other ones
+        scp.receiveEnvelope(prepare3);
 
-            REQUIRE(scp.mEnvs.size() == prepOffset);
+        REQUIRE(scp.mEnvs.size() == prepOffset);
 
-            // 4 nodes are present
-            REQUIRE(scp.mHeardFromQuorums[0].size() == 1);
+        // 4 nodes are present
+        REQUIRE(scp.mHeardFromQuorums[0].size() == 1);
 
-            SCPEnvelope prepare4 =
-                makePrepare(v4SecretKey, qSetHash, 0, expectedBallot);
+        SCPEnvelope prepare4 =
+            makePrepare(v4SecretKey, qSetHash, 0, expectedBallot);
 
-            scp.receiveEnvelope(prepare4);
+        scp.receiveEnvelope(prepare4);
 
-            // quorum changed its mind
-            REQUIRE(scp.mHeardFromQuorums[0].size() == 2);
-        }
-        else
-        {
-            scp.receiveEnvelope(prepare3);
-            REQUIRE(scp.mHeardFromQuorums[0].size() == 1);
-        }
+        // quorum changed its mind
+        REQUIRE(scp.mHeardFromQuorums[0].size() == 2);
 
         REQUIRE(scp.mEnvs.size() == 1 + prepOffset);
 
