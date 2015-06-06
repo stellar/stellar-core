@@ -1343,6 +1343,36 @@ BallotProtocol::advanceSlot(SCPBallot const& ballot)
 {
     CLOG(DEBUG, "SCP") << "BallotProtocol::advanceSlot" << getLocalState();
 
+    // Check if we should call `ballotDidHearFromQuorum`
+    // we do this here so that we have a chance to evaluate it between
+    // transitions
+    // when a single message causes several
+    if (!mHeardFromQuorum && mCurrentBallot)
+    {
+        if (getLocalNode()->isQuorum<SCPStatement>(
+                getLocalNode()->getQuorumSet(), mLatestStatements,
+                std::bind(&Slot::getQuorumSetFromStatement, &mSlot, _1),
+                [&](uint256 const&, SCPStatement const& st)
+                {
+                    bool res;
+                    if (st.pledges.type() == SCP_ST_PREPARE)
+                    {
+                        res = mCurrentBallot->counter <=
+                              st.pledges.prepare().ballot.counter;
+                    }
+                    else
+                    {
+                        res = true;
+                    }
+                    return res;
+                }))
+        {
+            mHeardFromQuorum = true;
+            mSlot.getSCP().ballotDidHearFromQuorum(mSlot.getSlotIndex(),
+                                                   *mCurrentBallot);
+        }
+    }
+
     // 'run' is used to avoid performing work multiple times:
     // attempt* methods will queue up messages, causing advanceSlot to be
     // called recursively
@@ -1382,32 +1412,6 @@ BallotProtocol::advanceSlot(SCPBallot const& ballot)
         run = attemptPrepare(ballot);
     }
 
-    // Check if we should call `ballotDidHearFromQuorum`
-    if (!mHeardFromQuorum && mCurrentBallot)
-    {
-        if (getLocalNode()->isQuorum<SCPStatement>(
-                getLocalNode()->getQuorumSet(), mLatestStatements,
-                std::bind(&Slot::getQuorumSetFromStatement, &mSlot, _1),
-                [&](uint256 const&, SCPStatement const& st)
-                {
-                    bool res;
-                    if (st.pledges.type() == SCP_ST_PREPARE)
-                    {
-                        res = mCurrentBallot->counter <=
-                              st.pledges.prepare().ballot.counter;
-                    }
-                    else
-                    {
-                        res = true;
-                    }
-                    return res;
-                }))
-        {
-            mHeardFromQuorum = true;
-            mSlot.getSCP().ballotDidHearFromQuorum(mSlot.getSlotIndex(),
-                                                   *mCurrentBallot);
-        }
-    }
     CLOG(DEBUG, "SCP") << "BallotProtocol::advanceSlot - exiting "
                        << getLocalState();
 }
