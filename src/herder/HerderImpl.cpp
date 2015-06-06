@@ -153,7 +153,8 @@ HerderImpl::bootstrap()
     mLedgerManager.setState(LedgerManager::LM_SYNCED_STATE);
 
     trackingHeartBeat();
-    triggerNextLedger(lcl.header.ledgerSeq + 1);
+    mLastTrigger = mApp.getClock().now() - Herder::EXP_LEDGER_TIMESPAN_SECONDS;
+    ledgerClosed();
 }
 
 bool
