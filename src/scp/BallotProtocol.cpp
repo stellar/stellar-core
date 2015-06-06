@@ -662,7 +662,8 @@ BallotProtocol::attemptPrepare(SCPBallot const& ballot)
                         {
                             cM = pl.externalize().commit;
                         }
-                        res = areBallotsLessAndCompatible(cM,
+                        res = mConfirmedPrepared &&
+                              areBallotsLessAndCompatible(cM,
                                                           *mConfirmedPrepared);
                     }
                     return res;

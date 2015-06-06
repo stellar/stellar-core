@@ -79,11 +79,11 @@ class TestSCP : public SCP
     }
 
     SCPQuorumSetPtr
-        getQSet(Hash const& qSetHash)
+    getQSet(Hash const& qSetHash)
     {
         if (mQuorumSets.find(qSetHash) != mQuorumSets.end())
         {
-            
+
             return mQuorumSets[qSetHash];
         }
         return SCPQuorumSetPtr();
@@ -451,9 +451,9 @@ TEST_CASE("protocol core5", "[scp]")
             scp.receiveEnvelope(confirm2b2);
             scp.receiveEnvelope(confirm3b2);
             scp.receiveEnvelope(confirm4b2);
-        REQUIRE(scp.mEnvs.size() == 5);
-        REQUIRE(scp.mExternalizedValues.size() == 1);
-    }
+            REQUIRE(scp.mEnvs.size() == 5);
+            REQUIRE(scp.mExternalizedValues.size() == 1);
+        }
     }
 
     SECTION("prepare (a), then prepared (b) by v-blocking")
@@ -494,6 +494,7 @@ TEST_CASE("protocol core5", "[scp]")
         scp.receiveEnvelope(prepared1);
 
         int i = 1;
+        REQUIRE(scp.mEnvs.size() == i);
 #if 0
         if (shouldswitch)
         {
@@ -501,12 +502,9 @@ TEST_CASE("protocol core5", "[scp]")
             verifyPrepare(scp.mEnvs[1], v0SecretKey, qSetHash, 0,
                           expectedBallot);
             i++;
-    }
+        }
         else
 #endif
-    {
-            REQUIRE(scp.mEnvs.size() == i);
-        }
 
         // this triggers the prepared message
         SCPEnvelope prepared2 = makePrepare(v2SecretKey, qSetHash, 0,
@@ -526,15 +524,15 @@ TEST_CASE("protocol core5", "[scp]")
 
         SECTION("by v-blocking")
         {
-        SCPEnvelope prepared1 =
+            SCPEnvelope prepared1 =
                 makePrepare(v1SecretKey, qSetHash, 0, b, &b);
-        SCPEnvelope prepared2 =
+            SCPEnvelope prepared2 =
                 makePrepare(v2SecretKey, qSetHash, 0, b, &b);
 
-        scp.receiveEnvelope(prepared1);
+            scp.receiveEnvelope(prepared1);
             REQUIRE(scp.mEnvs.size() == 0);
 
-        scp.receiveEnvelope(prepared2);
+            scp.receiveEnvelope(prepared2);
         }
         SECTION("by quorum")
         {
@@ -549,7 +547,7 @@ TEST_CASE("protocol core5", "[scp]")
             scp.receiveEnvelope(prepare3);
             REQUIRE(scp.mEnvs.size() == 0);
             scp.receiveEnvelope(prepare4);
-    }
+        }
         REQUIRE(scp.mEnvs.size() == 1);
         verifyPrepare(scp.mEnvs[0], v0SecretKey, qSetHash, 0, b, &b);
     }
@@ -560,7 +558,7 @@ TEST_CASE("protocol core5", "[scp]")
         SCPBallot expectedBallot;
 
         SECTION("x<y, prepare (1,x), prepared (1,y) by quorum")
-    {
+        {
             A = xValue;
             B = yValue;
             shouldswitch = false;
@@ -573,14 +571,6 @@ TEST_CASE("protocol core5", "[scp]")
             shouldswitch = true;
             expectedBallot = SCPBallot(2, B);
         }
-        SECTION("x<y, prepare (1,y), prepared (2,x) by quorum")
-        {
-            A = yValue;
-            B = xValue;
-            shouldswitch = true;
-            expectedBallot = SCPBallot(2, B);
-        }
-
         REQUIRE(scp.bumpState(0, A));
         REQUIRE(scp.mEnvs.size() == 1);
 
@@ -604,7 +594,7 @@ TEST_CASE("protocol core5", "[scp]")
         {
             // the 2nd prepare message causes the node to abandon its current
             // ballot.
-            REQUIRE(scp.mEnvs.size() == prepOffset+1);
+            REQUIRE(scp.mEnvs.size() == prepOffset + 1);
             verifyPrepare(scp.mEnvs[prepOffset], v0SecretKey, qSetHash, 0,
                           SCPBallot(2, A));
             prepOffset++;
@@ -612,7 +602,7 @@ TEST_CASE("protocol core5", "[scp]")
         else
         {
             REQUIRE(scp.mEnvs.size() == prepOffset);
-    }
+        }
 
         SCPEnvelope prepare3 =
             makePrepare(v3SecretKey, qSetHash, 0, expectedBallot);
@@ -622,7 +612,7 @@ TEST_CASE("protocol core5", "[scp]")
 #else
         if (true)
 #endif
-    {
+        {
             // this won't be sufficient to prepare:
             // the local node doesn't agree with the other ones
             scp.receiveEnvelope(prepare3);
@@ -642,7 +632,7 @@ TEST_CASE("protocol core5", "[scp]")
         }
         else
         {
-        scp.receiveEnvelope(prepare3);
+            scp.receiveEnvelope(prepare3);
             REQUIRE(scp.mHeardFromQuorums[0].size() == 1);
         }
 
@@ -692,18 +682,7 @@ TEST_CASE("protocol core5", "[scp]")
         scp.receiveEnvelope(prepared1);
 
         int i = 1;
-        if (shouldswitch)
-        {
-            REQUIRE(scp.mEnvs.size() == i + 1);
-
-            verifyPrepare(scp.mEnvs[1], v0SecretKey, qSetHash, 0,
-                          expectedBallot);
-            i++;
-    }
-        else
-    {
             REQUIRE(scp.mEnvs.size() == i);
-        }
         REQUIRE(scp.mHeardFromQuorums[0].size() == 0);
 
         SCPEnvelope prepared2 = makePrepare(v2SecretKey, qSetHash, 0,
@@ -745,7 +724,7 @@ TEST_CASE("protocol core5", "[scp]")
         SCPBallot expectedBallot;
 
         SECTION("x<y, prepared (1,x), accept commit (2,y) by quorum")
-    {
+        {
             A = xValue;
             B = yValue;
             shouldswitch = false;
@@ -814,13 +793,14 @@ TEST_CASE("protocol core5", "[scp]")
         // confirm as prepared -> set P, c and b
         // accept commit (quorum)
         scp.receiveEnvelope(committing3);
-        REQUIRE(scp.mHeardFromQuorums[0].size() == 1);
 
         REQUIRE(scp.mEnvs.size() == 1 + i);
 
         verifyConfirm(scp.mEnvs[i], v0SecretKey, qSetHash, 0,
                       expectedBallot.counter, expectedBallot,
                       expectedBallot.counter);
+
+        REQUIRE(scp.mHeardFromQuorums[0].size() == 1);
     }
 
     SECTION("prepared (a), accept commit by v-blocking (b)")
@@ -835,9 +815,9 @@ TEST_CASE("protocol core5", "[scp]")
             B = yValue;
             shouldswitch = false;
             expectedBallot = SCPBallot(2, B);
-    }
+        }
         SECTION("x<y, prepared (1,y), accept commit (2,x) by v-blocking")
-    {
+        {
             A = yValue;
             B = xValue;
             shouldswitch = false;
@@ -899,7 +879,7 @@ TEST_CASE("protocol core5", "[scp]")
         bool acceptExtraCommit = false;
 
         SECTION("x<y, prepared (1,x), confirm commit (2,y)")
-    {
+        {
             A = xValue;
             B = yValue;
             shouldswitch = false;
@@ -1008,7 +988,7 @@ TEST_CASE("protocol core5", "[scp]")
                           expectedBallot, expectedP);
 
             i++;
-    }
+        }
 
         REQUIRE(scp.mHeardFromQuorums[0].size() == 0);
 
