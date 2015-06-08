@@ -19,7 +19,7 @@ class prepare_temp_type;
 
 namespace stellar
 {
-class OperationFrame;
+class ManageOfferOpFrame;
 
 class OfferFrame : public EntryFrame
 {
@@ -45,7 +45,7 @@ class OfferFrame : public EntryFrame
     OfferFrame(LedgerEntry const& from);
 
     OfferFrame& operator=(OfferFrame const& other);
-    static OfferFrame::pointer from(OperationFrame const& op);
+    static OfferFrame::pointer from(AccountID const & account, ManageOfferOp const& op);
 
     EntryFrame::pointer
     copy() const
@@ -59,6 +59,7 @@ class OfferFrame : public EntryFrame
     Currency const& getTakerPays() const;
     Currency const& getTakerGets() const;
     uint64 getOfferID() const;
+    uint32 getFlags() const;
 
     OfferEntry const&
     getOffer() const

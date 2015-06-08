@@ -18,6 +18,9 @@ namespace stellar
  */
 class Node
 {
+protected:
+    const uint256 mNodeID;
+    SCP* mSCP;
     // called recursively
     bool hasQuorum(SCPQuorumSet const& qset, std::vector<uint256> const& nodeSet);
     bool isVBlocking(SCPQuorumSet const& qset, std::vector<uint256> const& nodeSet);
@@ -102,8 +105,6 @@ class Node
 
     
 
-  protected:
-    const uint256 mNodeID;
-    SCP* mSCP;
+ 
 };
 }

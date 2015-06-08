@@ -225,3 +225,55 @@ TEST_CASE("txset", "[herder]")
         }
     }
 }
+
+
+// under surge
+// over surge
+// make sure it drops the correct txs
+// txs with high fee but low ratio
+TEST_CASE("surge", "[herder]")
+{
+    Config cfg(getTestConfig());
+    cfg.DESIRED_MAX_TX_PER_LEDGER = 5;
+
+    VirtualClock clock;
+    Application::pointer app = Application::create(clock, cfg);
+
+    app->start();
+
+    // set up world
+    SecretKey root = getRoot();
+
+    AccountFrame::pointer rootAccount;
+
+    SecretKey destAccount = getAccount("destAccount");
+   
+
+    rootAccount = loadAccount(root, *app);
+
+    SequenceNumber rootSeq = getAccountSeqNum(root, *app) + 1;
+    
+    applyCreateAccountTx(*app, root, destAccount, rootSeq++, 50000000);
+
+    TxSetFramePtr txSet = std::make_shared<TxSetFrame>(
+        app->getLedgerManager().getLastClosedLedgerHeader().hash);
+
+    SECTION("over surge")
+    {
+        // extra transaction would push the account below the reserve
+        for(int n = 0; n < 10; n++)
+        {
+            txSet->add(createPaymentTx(root, destAccount, rootSeq++, n));
+        }
+        txSet->sortForHash();
+        txSet->surgePricingFilter(*app);
+        REQUIRE(txSet->mTransactions.size() == 5);
+    }
+
+    SECTION("high fee low ratio")
+    {
+        
+    }
+
+
+}

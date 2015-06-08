@@ -7,11 +7,10 @@
 #include "transactions/OperationFrame.h"
 #include "ledger/TrustFrame.h"
 #include "ledger/OfferFrame.h"
-#include "ledger/OfferFrame.h"
 
 namespace stellar
 {
-class CreateOfferOpFrame : public OperationFrame
+class ManageOfferOpFrame : public OperationFrame
 {
     TrustFrame::pointer mSheepLineA;
     TrustFrame::pointer mWheatLineA;
@@ -21,26 +20,27 @@ class CreateOfferOpFrame : public OperationFrame
     bool checkOfferValid(medida::MetricsRegistry& metrics,
                          Database& db);
 
-    CreateOfferResult&
+    ManageOfferResult&
     innerResult()
     {
-        return mResult.tr().createOfferResult();
+        return mResult.tr().manageOfferResult();
     }
 
-    CreateOfferOp const& mCreateOffer;
-
+    ManageOfferOp const& mManageOffer;
+  protected:
+    bool mPassive;
   public:
-    CreateOfferOpFrame(Operation const& op, OperationResult& res,
+    ManageOfferOpFrame(Operation const& op, OperationResult& res,
                        TransactionFrame& parentTx);
 
     bool doApply(medida::MetricsRegistry& metrics,
                  LedgerDelta& delta, LedgerManager& ledgerManager) override;
     bool doCheckValid(medida::MetricsRegistry& metrics) override;
 
-    static CreateOfferResultCode
+    static ManageOfferResultCode
     getInnerCode(OperationResult const& res)
     {
-        return res.tr().createOfferResult().code();
+        return res.tr().manageOfferResult().code();
     }
 };
 }

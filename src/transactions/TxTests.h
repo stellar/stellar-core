@@ -97,10 +97,15 @@ PathPaymentResult applyPathPaymentTx(
     SequenceNumber seq, PathPaymentResultCode result = PATH_PAYMENT_SUCCESS,
     std::vector<Currency>* path = nullptr);
 
-TransactionFramePtr createOfferOp(uint64 offerId, SecretKey& source,
+TransactionFramePtr manageOfferOp(uint64 offerId, SecretKey& source,
                                   Currency& takerGets, Currency& takerPays,
                                   Price const& price, int64_t amount,
                                   SequenceNumber seq);
+
+TransactionFramePtr createPassiveOfferOp(SecretKey& source,
+    Currency& takerGets, Currency& takerPays,
+    Price const& price, int64_t amount,
+    SequenceNumber seq);
 
 // expects success
 // expects a new offer to be created
@@ -110,12 +115,12 @@ uint64_t applyCreateOffer(Application& app, LedgerDelta& delta, uint64 offerId,
                           Currency& takerPays, Price const& price,
                           int64_t amount, SequenceNumber seq);
 
-CreateOfferResult
+ManageOfferResult
 applyCreateOfferWithResult(Application& app, LedgerDelta& delta, uint64 offerId,
                            SecretKey& source, Currency& takerGets,
                            Currency& takerPays, Price const& price,
                            int64_t amount, SequenceNumber seq,
-                           CreateOfferResultCode result = CREATE_OFFER_SUCCESS);
+    ManageOfferResultCode result = MANAGE_OFFER_SUCCESS);
 
 TransactionFramePtr createSetOptions(SecretKey& source,
                                      AccountID* inflationDest,

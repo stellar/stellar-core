@@ -285,12 +285,43 @@ BucketManagerImpl::addBatch(Application& app, uint32_t currLedger,
     mBucketList.addBatch(app, currLedger, liveEntries, deadEntries);
 }
 
+
+
 // updates the given LedgerHeader to reflect the current state of the bucket
 // list
 void
 BucketManagerImpl::snapshotLedger(LedgerHeader& currentHeader)
 {
     currentHeader.bucketListHash = mBucketList.getHash();
+    calculateSkipValues(currentHeader);
+
+    
+}
+
+void 
+BucketManagerImpl::calculateSkipValues(LedgerHeader& currentHeader)
+{
+    
+    if((currentHeader.ledgerSeq % SKIP_1) == 0)
+    {
+        int v = currentHeader.ledgerSeq - SKIP_1;
+        if(v>0 && (v % SKIP_2) == 0)
+        {
+            v = currentHeader.ledgerSeq - SKIP_2 - SKIP_1;
+            if(v>0 && (v % SKIP_3) == 0)
+            {
+                v = currentHeader.ledgerSeq - SKIP_3 - SKIP_2 - SKIP_1;
+                if(v>0 && (v % SKIP_4) == 0)
+                {
+
+                    currentHeader.skipList[3] = currentHeader.skipList[2];
+                }
+                currentHeader.skipList[2] = currentHeader.skipList[1];
+            }
+            currentHeader.skipList[1] = currentHeader.skipList[0];
+        }
+        currentHeader.skipList[0] = currentHeader.bucketListHash;
+    }
 }
 
 std::vector<std::string>

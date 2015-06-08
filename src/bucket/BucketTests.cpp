@@ -11,6 +11,7 @@
 #include "bucket/BucketList.h"
 #include "bucket/BucketManager.h"
 #include "bucket/LedgerCmp.h"
+#include "bucket/BucketManagerImpl.h"
 #include "crypto/Hex.h"
 #include "ledger/LedgerManager.h"
 #include "lib/catch.hpp"
@@ -77,6 +78,103 @@ countEntries(std::shared_ptr<Bucket> bucket)
 }
 
 using namespace BucketTests;
+
+TEST_CASE("skip list", "[bucket]")
+{
+    VirtualClock clock;
+    Config const& cfg = getTestConfig();
+    Application::pointer app = Application::create(clock, cfg);
+
+    class BucketManagerTest : public BucketManagerImpl
+    {
+    public:
+        BucketManagerTest(Application& app) : BucketManagerImpl(app)
+        {
+
+        }
+        void test()
+        {
+            Hash h0;
+            Hash h1 = SecretKey::random().getSeed();
+            Hash h2 = SecretKey::random().getSeed();
+            Hash h3 = SecretKey::random().getSeed();
+            Hash h4 = SecretKey::random().getSeed();
+            Hash h5 = SecretKey::random().getSeed();
+            Hash h6 = SecretKey::random().getSeed();
+            Hash h7 = SecretKey::random().getSeed();
+
+            // up first entry
+            LedgerHeader header;
+            header.ledgerSeq = 5;
+            header.bucketListHash = h1;
+            calculateSkipValues(header);
+            REQUIRE(header.skipList[0] == h0);
+            REQUIRE(header.skipList[1] == h0);
+            REQUIRE(header.skipList[2] == h0);
+            REQUIRE(header.skipList[3] == h0);
+
+            header.ledgerSeq = SKIP_1;
+            header.bucketListHash = h2;
+            calculateSkipValues(header);
+            REQUIRE(header.skipList[0] == h2);
+            REQUIRE(header.skipList[1] == h0);
+            REQUIRE(header.skipList[2] == h0);
+            REQUIRE(header.skipList[3] == h0);
+
+            header.ledgerSeq = SKIP_1*2;
+            header.bucketListHash = h3;
+            calculateSkipValues(header);
+            REQUIRE(header.skipList[0] == h3);
+            REQUIRE(header.skipList[1] == h0);
+            REQUIRE(header.skipList[2] == h0);
+            REQUIRE(header.skipList[3] == h0);
+
+            header.ledgerSeq = SKIP_1*2+1;
+            header.bucketListHash = h2;
+            calculateSkipValues(header);
+            REQUIRE(header.skipList[0] == h3);
+            REQUIRE(header.skipList[1] == h0);
+            REQUIRE(header.skipList[2] == h0);
+            REQUIRE(header.skipList[3] == h0);
+
+            header.ledgerSeq = SKIP_2;
+            header.bucketListHash = h4;
+            calculateSkipValues(header);
+            REQUIRE(header.skipList[0] == h4);
+            REQUIRE(header.skipList[1] == h0);
+            REQUIRE(header.skipList[2] == h0);
+            REQUIRE(header.skipList[3] == h0);
+
+            header.ledgerSeq = SKIP_2+SKIP_1;
+            header.bucketListHash = h5;
+            calculateSkipValues(header);
+            REQUIRE(header.skipList[0] == h5);
+            REQUIRE(header.skipList[1] == h4);
+            REQUIRE(header.skipList[2] == h0);
+            REQUIRE(header.skipList[3] == h0);
+
+            header.ledgerSeq = SKIP_3 + SKIP_2;
+            header.bucketListHash = h6;
+            calculateSkipValues(header);
+            REQUIRE(header.skipList[0] == h6);
+            REQUIRE(header.skipList[1] == h4);
+            REQUIRE(header.skipList[2] == h0);
+            REQUIRE(header.skipList[3] == h0);
+
+            header.ledgerSeq = SKIP_3 + SKIP_2+SKIP_1;
+            header.bucketListHash = h7;
+            calculateSkipValues(header);
+            REQUIRE(header.skipList[0] == h7);
+            REQUIRE(header.skipList[1] == h6);
+            REQUIRE(header.skipList[2] == h4);
+            REQUIRE(header.skipList[3] == h0);
+
+        }
+    };
+
+    BucketManagerTest btest(*app);
+    btest.test();
+}
 
 TEST_CASE("bucket list", "[bucket]")
 {

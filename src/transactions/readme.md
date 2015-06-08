@@ -15,7 +15,7 @@ See the TransactionFrame class for the implementation.
 ##Fees
 The network charges a fee for each transaction - right now the fee is just 
 proportional to the number of operations inside it. See 
-TransactionFrame::getFee for the actual implementation.
+TransactionFrame::getMinFee for the actual implementation.
 
 The base fee (multiplier) is decided during consensus; the desired base fee for 
 each instance is defined in their configuration file.

@@ -228,9 +228,6 @@
     <ClCompile Include="..\..\src\transactions\TransactionFrame.cpp">
       <Filter>transactions</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\transactions\CreateOfferOpFrame.cpp">
-      <Filter>transactions</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\transactions\InflationOpFrame.cpp">
       <Filter>transactions</Filter>
     </ClCompile>
@@ -435,6 +432,15 @@
     <ClCompile Include="..\..\src\transactions\ChangeTrustTests.cpp">
       <Filter>transactions\tests</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\transactions\ManageOfferOpFrame.cpp">
+      <Filter>transactions</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\CreatePassiveOfferOpFrame.cpp">
+      <Filter>transactions</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\simulation\LoadGenerator.cpp">
+      <Filter>simulation</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\ledger\LedgerManager.h">
@@ -558,9 +564,6 @@
       <Filter>util</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\transactions\TransactionFrame.h">
-      <Filter>transactions</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\transactions\CreateOfferOpFrame.h">
       <Filter>transactions</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\transactions\InflationOpFrame.h">
@@ -736,6 +739,15 @@
     </ClInclude>
     <ClInclude Include="..\..\src\transactions\CreateAccountOpFrame.h">
       <Filter>transactions</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\transactions\ManageOfferOpFrame.h">
+      <Filter>transactions</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\transactions\CreatePassiveOfferOpFrame.h">
+      <Filter>transactions</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\simulation\LoadGenerator.h">
+      <Filter>simulation</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

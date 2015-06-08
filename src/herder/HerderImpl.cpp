@@ -656,7 +656,7 @@ HerderImpl::recvTransaction(TransactionFramePtr tx)
 
     // determine if we have seen this tx before and if not if it has the right
     // seq num
-    int64_t totFee = tx->getFee(mApp);
+    int64_t totFee = tx->getFee();
     SequenceNumber highSeq = 0;
 
     for (auto& list : mReceivedTransactions)
@@ -669,7 +669,7 @@ HerderImpl::recvTransaction(TransactionFramePtr tx)
             }
             if (oldTX->getSourceID() == tx->getSourceID())
             {
-                totFee += oldTX->getFee(mApp);
+                totFee += oldTX->getFee();
                 if (oldTX->getSeqNum() > highSeq)
                 {
                     highSeq = oldTX->getSeqNum();
@@ -947,6 +947,8 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger)
     {
         removeReceivedTx(tx);
     }
+
+    proposedSet->surgePricingFilter(mApp);
 
     auto txSetHash = proposedSet->getContentsHash();
 

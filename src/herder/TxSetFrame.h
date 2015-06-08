@@ -42,6 +42,7 @@ class TxSetFrame
 
     bool checkValid(Application& app) const;
     void trimInvalid(Application& app, std::vector<TransactionFramePtr> trimmed);
+    void surgePricingFilter(Application& app);
 
     void removeTx(TransactionFramePtr tx);
 

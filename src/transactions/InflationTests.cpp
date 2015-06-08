@@ -220,7 +220,7 @@ doInflation(Application& app, int nbAccounts,
     TransactionFramePtr txFrame =
         createInflation(root, getAccountSeqNum(root, app) + 1);
 
-    expectedFees += txFrame->getFee(app);
+    expectedFees += txFrame->getFee();
 
     expectedBalances =
         simulateInflation(nbAccounts, expectedTotcoins, expectedFees,
