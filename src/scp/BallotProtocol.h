@@ -210,9 +210,6 @@ class BallotProtocol
     // create a statement of the given type using the state in node
     SCPStatement createStatement(SCPStatementType const& type);
 
-    // wraps a statement in an envelope (sign it, etc)
-    SCPEnvelope createEnvelope(SCPStatement const& statement);
-
     // returns a string representing the slot's state
     // used for log lines
     std::string getLocalState() const;

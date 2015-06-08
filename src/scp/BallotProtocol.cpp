@@ -487,8 +487,6 @@ BallotProtocol::createStatement(SCPStatementType const& type)
 
     checkInvariants();
 
-    statement.nodeID = mSlot.getSCP().getLocalNodeID();
-    statement.slotIndex = mSlot.getSlotIndex();
     statement.pledges.type(type);
     switch (type)
     {
@@ -548,17 +546,6 @@ BallotProtocol::createStatement(SCPStatementType const& type)
     return statement;
 }
 
-SCPEnvelope
-BallotProtocol::createEnvelope(SCPStatement const& statement)
-{
-    SCPEnvelope envelope;
-
-    envelope.statement = statement;
-    mSlot.getSCP().signEnvelope(envelope);
-
-    return envelope;
-}
-
 void
 BallotProtocol::emitCurrentStateStatement()
 {
@@ -580,7 +567,7 @@ BallotProtocol::emitCurrentStateStatement()
     }
 
     SCPStatement statement = createStatement(t);
-    SCPEnvelope envelope = createEnvelope(statement);
+    SCPEnvelope envelope = mSlot.createEnvelope(statement);
 
     if (processEnvelope(envelope) == SCP::EnvelopeState::VALID)
     {

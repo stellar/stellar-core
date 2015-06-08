@@ -62,6 +62,10 @@ Slot::createEnvelope(SCPStatement const& statement)
     SCPEnvelope envelope;
 
     envelope.statement = statement;
+    auto& mySt = envelope.statement;
+    mySt.nodeID = getSCP().getLocalNodeID();
+    mySt.slotIndex = getSlotIndex();
+
     mSCP.signEnvelope(envelope);
 
     return envelope;
