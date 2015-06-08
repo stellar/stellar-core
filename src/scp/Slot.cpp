@@ -92,6 +92,12 @@ Slot::getCompanionQuorumSetHashFromStatement(SCPStatement const& st)
     return h;
 }
 
+Value
+Slot::getStatementValue(SCPStatement const& st)
+{
+    return BallotProtocol::getWorkingBallot(st).value;
+}
+
 SCPQuorumSetPtr
 Slot::getQuorumSetFromStatement(SCPStatement const& st) const
 {
@@ -137,28 +143,6 @@ Slot::dumpInfo(Json::Value& ret)
     mBallotProtocol.dumpInfo(ret);
 
     ret["slot"].append(slotValue);
-}
-
-SCPBallot
-Slot::getWorkingBallot(SCPStatement const& st)
-{
-    SCPBallot res;
-    switch (st.pledges.type())
-    {
-    case SCP_ST_PREPARE:
-        res = st.pledges.prepare().ballot;
-        break;
-    case SCP_ST_CONFIRM:
-        res = SCPBallot(st.pledges.confirm().nPrepared,
-                        st.pledges.confirm().commit.value);
-        break;
-    case SCP_ST_EXTERNALIZE:
-        res = st.pledges.externalize().commit;
-        break;
-    default:
-        abort();
-    }
-    return res;
 }
 
 std::string

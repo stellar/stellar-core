@@ -148,7 +148,7 @@ PendingEnvelopes::isFullyFetched(SCPEnvelope const& envelope)
         return false;
 
     StellarBallot wb;
-    xdr::xdr_from_opaque(Slot::getWorkingBallot(envelope.statement).value, wb);
+    xdr::xdr_from_opaque(Slot::getStatementValue(envelope.statement), wb);
 
     if (!mTxSetCache.exists(wb.stellarValue.txSetHash))
         return false;
@@ -171,7 +171,7 @@ PendingEnvelopes::startFetch(SCPEnvelope const& envelope)
     }
 
     StellarBallot wb;
-    xdr::xdr_from_opaque(Slot::getWorkingBallot(envelope.statement).value, wb);
+    xdr::xdr_from_opaque(Slot::getStatementValue(envelope.statement), wb);
 
     if (!mTxSetCache.exists(wb.stellarValue.txSetHash))
     {

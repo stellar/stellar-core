@@ -1265,6 +1265,28 @@ BallotProtocol::getCompanionQuorumSetHashFromStatement(SCPStatement const& st)
     return h;
 }
 
+SCPBallot
+BallotProtocol::getWorkingBallot(SCPStatement const& st)
+{
+    SCPBallot res;
+    switch (st.pledges.type())
+    {
+    case SCP_ST_PREPARE:
+        res = st.pledges.prepare().ballot;
+        break;
+    case SCP_ST_CONFIRM:
+        res = SCPBallot(st.pledges.confirm().nPrepared,
+                        st.pledges.confirm().commit.value);
+        break;
+    case SCP_ST_EXTERNALIZE:
+        res = st.pledges.externalize().commit;
+        break;
+    default:
+        abort();
+    }
+    return res;
+}
+
 int
 BallotProtocol::compareBallots(std::unique_ptr<SCPBallot> const& b1,
                                std::unique_ptr<SCPBallot> const& b2)
@@ -1432,28 +1454,6 @@ BallotProtocol::getLocalState() const
         << " | c: " << mSlot.ballotToStr(mCommit)
         << " | M: " << mLatestStatements.size();
     return oss.str();
-}
-
-SCPBallot
-BallotProtocol::getWorkingBallot(SCPStatement const& st)
-{
-    SCPBallot res;
-    switch (st.pledges.type())
-    {
-    case SCP_ST_PREPARE:
-        res = st.pledges.prepare().ballot;
-        break;
-    case SCP_ST_CONFIRM:
-        res = SCPBallot(st.pledges.confirm().nPrepared,
-                        st.pledges.confirm().commit.value);
-        break;
-    case SCP_ST_EXTERNALIZE:
-        res = st.pledges.externalize().commit;
-        break;
-    default:
-        abort();
-    }
-    return res;
 }
 
 std::shared_ptr<LocalNode>

@@ -81,15 +81,14 @@ class Slot : public std::enable_shared_from_this<Slot>
     // including historical statements if available
     void dumpInfo(Json::Value& ret);
 
-    // helper function to retrieve b for PREPARE, P for CONFIRM or
-    // c for EXTERNALIZE messages
-    static SCPBallot getWorkingBallot(SCPStatement const& st);
-
     // returns the hash of the QuorumSet that should be downloaded
     // with the statement.
     // note: the companion hash for an EXTERNALIZE statement does
     // not match the hash of the QSet, but the hash of commitQuorumSetHash
     static Hash getCompanionQuorumSetHashFromStatement(SCPStatement const& st);
+
+    // returns the value associated with the statement
+    static Value getStatementValue(SCPStatement const& st);
 
     // returns the QuorumSet that should be used for a node given the
     // statement
