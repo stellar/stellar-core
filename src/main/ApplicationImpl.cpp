@@ -20,6 +20,7 @@
 #include "simulation/LoadGenerator.h"
 #include "medida/metrics_registry.h"
 #include "medida/reporting/console_reporter.h"
+#include "medida/meter.h"
 
 #include "util/TmpDir.h"
 #include "util/Logging.h"
@@ -310,6 +311,7 @@ ApplicationImpl::generateLoad(uint32_t nAccounts,
     {
         mLoadGenerator = make_unique<LoadGenerator>();
     }
+    getMetrics().NewMeter({"loadgen", "run", "start"}, "run").Mark();
     mLoadGenerator->generateLoad(*this, nAccounts, nTxs, txRate);
 }
 
