@@ -13,6 +13,9 @@
 #include "util/Timer.h"
 #include "util/make_unique.h"
 
+#include "medida/metrics_registry.h"
+#include "medida/meter.h"
+
 namespace stellar
 {
 
@@ -75,6 +78,7 @@ LoadGenerator::generateLoad(Application& app,
     {
         // We're done.
         LOG(INFO) << "Load generation complete.";
+        app.getMetrics().NewMeter({"loadgen", "run", "complete"}, "run").Mark();
     }
     else
     {
@@ -159,6 +163,10 @@ LoadGenerator::generateLoad(Application& app,
                                   << (STEP_MSECS - totalms) << "ms spare";
         }
 
+        app.getMetrics().NewMeter({"loadgen", "account", "created"}, "account").Mark(creations);
+        app.getMetrics().NewMeter({"loadgen", "payment", "sent"}, "payment").Mark(payments);
+        app.getMetrics().NewMeter({"loadgen", "txn", "attempted"}, "txn").Mark(txs.size());
+        app.getMetrics().NewMeter({"loadgen", "txn", "rejected"}, "txn").Mark(rejected);
         scheduleLoadGeneration(app, nAccounts, nTxs, txRate);
     }
 }
