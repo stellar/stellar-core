@@ -56,7 +56,7 @@ class HerderImpl : public Herder, public SCP
     void ballotDidHearFromQuorum(uint64 slotIndex,
                                  SCPBallot const& ballot) override;
 
-    void ballotGotBumped(SCPBallot const& ballot,
+    void ballotGotBumped(uint64 slotIndex, SCPBallot const& ballot,
                          std::chrono::milliseconds timeout) override;
 
     void valueExternalized(uint64 slotIndex, Value const& value) override;

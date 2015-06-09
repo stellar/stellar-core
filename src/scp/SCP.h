@@ -127,7 +127,8 @@ class SCP
     // timeout is the duration that the local instance should wait for before
     // attempting to prepare the value again
     virtual void
-    ballotGotBumped(SCPBallot const& ballot, std::chrono::milliseconds timeout)
+    ballotGotBumped(uint64 slotIndex, SCPBallot const& ballot,
+                    std::chrono::milliseconds timeout)
     {
     }
 

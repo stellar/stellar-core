@@ -460,7 +460,7 @@ HerderImpl::ballotDidHearFromQuorum(uint64 slotIndex, SCPBallot const& ballot)
 }
 
 void
-HerderImpl::ballotGotBumped(SCPBallot const& ballot,
+HerderImpl::ballotGotBumped(uint64 slotIndex, SCPBallot const& ballot,
                             std::chrono::milliseconds timeout)
 {
     mBumpTimer.cancel();

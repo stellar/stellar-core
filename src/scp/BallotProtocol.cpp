@@ -476,7 +476,8 @@ BallotProtocol::bumpToBallot(SCPBallot const& ballot)
 
     if (gotBumped)
     {
-        mSlot.getSCP().ballotGotBumped(*mCurrentBallot, timeout);
+        mSlot.getSCP().ballotGotBumped(mSlot.getSlotIndex(), *mCurrentBallot,
+                                       timeout);
     }
 }
 
