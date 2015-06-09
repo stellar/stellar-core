@@ -82,6 +82,9 @@ HerderImpl::HerderImpl(Application& app)
     , mQsetRetrieve(
           app.getMetrics().NewMeter({"scp", "qset", "retrieve"}, "qset"))
 
+    , mLostSync(
+          app.getMetrics().NewMeter({"scp", "sync", "lost"}, "sync"))
+
     , mEnvelopeEmit(
           app.getMetrics().NewMeter({"scp", "envelope", "emit"}, "envelope"))
     , mEnvelopeReceive(
@@ -1127,6 +1130,7 @@ void
 HerderImpl::herderOutOfSync()
 {
     CLOG(INFO, "Herder") << "Lost track of consensus";
+    mLostSync.Mark();
     mTrackingSCP.reset();
     processSCPQueue();
 }

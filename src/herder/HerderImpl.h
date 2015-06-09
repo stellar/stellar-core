@@ -195,6 +195,8 @@ class HerderImpl : public Herder, public SCP
     medida::Meter& mQuorumHeard;
     medida::Meter& mQsetRetrieve;
 
+    medida::Meter& mLostSync;
+
     medida::Meter& mEnvelopeEmit;
     medida::Meter& mEnvelopeReceive;
     medida::Meter& mEnvelopeSign;
