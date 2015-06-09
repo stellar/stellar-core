@@ -19,7 +19,7 @@ enum OperationType
     PAYMENT = 1,
     PATH_PAYMENT = 2,
     MANAGE_OFFER = 3,
-	CREATE_PASSIVE_OFFER = 4,
+    CREATE_PASSIVE_OFFER = 4,
     SET_OPTIONS = 5,
     CHANGE_TRUST = 6,
     ALLOW_TRUST = 7,
@@ -216,7 +216,7 @@ struct Operation
         PathPaymentOp pathPaymentOp;
     case MANAGE_OFFER:
         ManageOfferOp manageOfferOp;
-	case CREATE_PASSIVE_OFFER:
+    case CREATE_PASSIVE_OFFER:
         CreatePassiveOfferOp createPassiveOfferOp;
     case SET_OPTIONS:
         SetOptionsOp setOptionsOp;
@@ -308,7 +308,9 @@ struct ClaimOfferAtom
     Currency currencyClaimed;
     int64 amountClaimed;
 
-    // should we also include the amount that the owner gets in return?
+    // amount and currencysent to the owner
+    Currency currencySend;
+    int64 amountSend;
 };
 
 /******* CreateAccount Result ********/
@@ -418,7 +420,6 @@ enum ManageOfferResultCode
     MANAGE_OFFER_LOW_RESERVE = -9 // not enough funds to create a new Offer
 };
 
-
 enum ManageOfferEffect
 {
     MANAGE_OFFER_CREATED = 0,
@@ -462,7 +463,7 @@ enum SetOptionsResultCode
     SET_OPTIONS_BAD_FLAGS = -3,        // invalid combination of clear/set flags
     SET_OPTIONS_INVALID_INFLATION = -4, // inflation account does not exist
     SET_OPTIONS_CANT_CHANGE = -5,       // can no longer change this option
-    SET_OPTIONS_UNKNOWN_FLAG = -6		// can't set an unknown flag
+    SET_OPTIONS_UNKNOWN_FLAG = -6       // can't set an unknown flag
 };
 
 union SetOptionsResult switch (SetOptionsResultCode code)
@@ -503,9 +504,9 @@ enum AllowTrustResultCode
     // codes considered as "failure" for the operation
     ALLOW_TRUST_MALFORMED = -1,     // currency is not CURRENCY_TYPE_ALPHANUM
     ALLOW_TRUST_NO_TRUST_LINE = -2, // trustor does not have a trustline
-									// source account does not require trust
-    ALLOW_TRUST_TRUST_NOT_REQUIRED = -3, 
-    ALLOW_TRUST_CANT_REVOKE = -4    // source account can't revoke trust
+                                    // source account does not require trust
+    ALLOW_TRUST_TRUST_NOT_REQUIRED = -3,
+    ALLOW_TRUST_CANT_REVOKE = -4 // source account can't revoke trust
 };
 
 union AllowTrustResult switch (AllowTrustResultCode code)

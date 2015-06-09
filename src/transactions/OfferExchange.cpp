@@ -204,7 +204,7 @@ OfferExchange::crossOffer(OfferFrame& sellingWheatOffer,
 
     mOfferTrail.push_back(ClaimOfferAtom(accountB->getID(),
                                          sellingWheatOffer.getOfferID(), wheat,
-                                         numWheatReceived));
+                                         numWheatReceived, sheep, numSheepSend));
 
     return offerTaken ? eOfferTaken : eOfferPartial;
 }
