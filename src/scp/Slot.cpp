@@ -23,7 +23,7 @@ using xdr::operator<;
 using namespace std::placeholders;
 
 Slot::Slot(uint64 slotIndex, SCP& scp)
-    : mSlotIndex(slotIndex), mSCP(scp), mBallotProtocol(*this)
+    : mSlotIndex(slotIndex), mSCP(scp), mBallotProtocol(*this), mNominationProtocol(*this)
 {
 }
 
@@ -41,7 +41,17 @@ Slot::processEnvelope(SCPEnvelope const& envelope)
     CLOG(DEBUG, "SCP") << "Slot::processEnvelope"
                        << " i: " << getSlotIndex() << " " << envToStr(envelope);
 
-    return mBallotProtocol.processEnvelope(envelope);
+    SCP::EnvelopeState res;
+
+    if (envelope.statement.pledges.type() == SCPStatementType::SCP_ST_NOMINATE)
+    {
+        res = mNominationProtocol.processEnvelope(envelope);
+    }
+    else
+    {
+        res = mBallotProtocol.processEnvelope(envelope);
+    }
+    return res;
 }
 
 bool
@@ -86,6 +96,9 @@ Slot::getCompanionQuorumSetHashFromStatement(SCPStatement const& st)
     case SCP_ST_EXTERNALIZE:
         h = st.pledges.externalize().commitQuorumSetHash;
         break;
+    case SCP_ST_NOMINATE:
+        h = st.pledges.nominate().quorumSetHash;
+        break;
     default:
         abort();
     }
@@ -118,6 +131,10 @@ Slot::getQuorumSetFromStatement(SCPStatement const& st) const
         else if (t == SCP_ST_CONFIRM)
         {
             h = st.pledges.confirm().quorumSetHash;
+        }
+        else if (t == SCP_ST_NOMINATE)
+        {
+            h = st.pledges.nominate().quorumSetHash;
         }
         else
         {
@@ -213,6 +230,25 @@ Slot::envToStr(SCPStatement const& st) const
         oss << " | EXTERNALIZE"
             << " | c: " << ballotToStr(ex.commit) << " | nP: " << ex.nP
             << " | (lastD): " << hexAbbrev(qSetHash);
+    }
+    break;
+    case SCPStatementType::SCP_ST_NOMINATE:
+    {
+        auto const& nom = st.pledges.nominate();
+        oss << " | NOMINATE"
+            << " | D: " << hexAbbrev(qSetHash)
+            << " | X: {";
+        for (auto const&v : nom.votes)
+        {
+            oss << " '" << mSCP.getValueString(v) << "',";
+        }
+        oss << "}"
+            << " | Y: {";
+        for (auto const& a : nom.accepted)
+        {
+            oss << " '" << mSCP.getValueString(a) << "',";
+        }
+        oss << "}";
     }
     break;
     }

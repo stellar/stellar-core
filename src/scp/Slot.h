@@ -12,6 +12,7 @@
 #include "scp/SCP.h"
 #include "lib/json/json-forwards.h"
 #include "BallotProtocol.h"
+#include "NominationProtocol.h"
 
 namespace stellar
 {
@@ -27,6 +28,7 @@ class Slot : public std::enable_shared_from_this<Slot>
     SCP& mSCP;
 
     BallotProtocol mBallotProtocol;
+    NominationProtocol mNominationProtocol;
 
     // keeps track of all statements seen so far for this slot.
     // it is used for debugging purpose

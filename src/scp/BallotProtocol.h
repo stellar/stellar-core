@@ -216,7 +216,6 @@ class BallotProtocol
 
     std::shared_ptr<LocalNode> getLocalNode();
 
-  protected:
     bool federatedAccept(StatementPredicate voted, StatementPredicate accepted);
     bool federatedRatify(StatementPredicate voted);
 };

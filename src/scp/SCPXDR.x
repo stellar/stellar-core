@@ -19,7 +19,15 @@ enum SCPStatementType
 {
     SCP_ST_PREPARE = 0,
     SCP_ST_CONFIRM = 1,
-    SCP_ST_EXTERNALIZE = 2
+    SCP_ST_EXTERNALIZE = 2,
+    SCP_ST_NOMINATE = 3
+};
+
+struct SCPNomination
+{
+    Hash quorumSetHash; // D
+    Value votes<>; // X
+    Value accepted<>; // Y
 };
 
 struct SCPStatement
@@ -56,6 +64,8 @@ struct SCPStatement
             // traverse the graph based off only the latest statement
             Hash commitQuorumSetHash; // D used before EXTERNALIZE
         } externalize;
+    case SCP_ST_NOMINATE:
+        SCPNomination nominate;
     }
     pledges;
 };

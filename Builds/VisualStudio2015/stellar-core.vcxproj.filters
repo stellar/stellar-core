@@ -444,6 +444,9 @@
     <ClCompile Include="..\..\src\scp\BallotProtocol.cpp">
       <Filter>scp</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\scp\NominationProtocol.cpp">
+      <Filter>scp</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\ledger\LedgerManager.h">
@@ -741,6 +744,9 @@
       <Filter>transactions</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\scp\BallotProtocol.h">
+      <Filter>scp</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\scp\NominationProtocol.h">
       <Filter>scp</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\transactions\ManageOfferOpFrame.h">
