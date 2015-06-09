@@ -18,7 +18,7 @@ struct StellarBallot
 {
     uint256 nodeID;
     Signature signature;
-    StellarBallotValue value;
+    StellarBallotValue stellarValue;
 };
 
 struct Error

@@ -11,6 +11,7 @@
 #include "scp/LocalNode.h"
 #include "scp/Slot.h"
 #include "util/Logging.h"
+#include "crypto/Hex.h"
 
 namespace stellar
 {
@@ -19,6 +20,14 @@ SCP::SCP(SecretKey const& secretKey, SCPQuorumSet const& qSetLocal)
 {
     mLocalNode = std::make_shared<LocalNode>(secretKey, qSetLocal, this);
     mKnownNodes[mLocalNode->getNodeID()] = mLocalNode;
+}
+
+std::string
+SCP::getValueString(Value const& v) const
+{
+    uint256 valueHash = sha256(xdr::xdr_to_opaque(v));
+
+    return hexAbbrev(valueHash);
 }
 
 void
@@ -37,10 +46,17 @@ SCP::receiveEnvelope(SCPEnvelope const& envelope,
 }
 
 bool
-SCP::prepareValue(uint64 const& slotIndex, Value const& value, bool forceBump)
+SCP::abandonBallot(uint64 slotIndex)
 {
     assert(!getSecretKey().isZero());
-    return getSlot(slotIndex)->prepareValue(value, forceBump);
+    return getSlot(slotIndex)->abandonBallot();
+}
+
+bool
+SCP::bumpState(uint64 slotIndex, Value const& value)
+{
+    assert(!getSecretKey().isZero());
+    return getSlot(slotIndex)->bumpState(value);
 }
 
 void
@@ -72,7 +88,7 @@ SCP::purgeNode(uint256 const& nodeID)
 }
 
 void
-SCP::purgeSlots(uint64 const& maxSlotIndex)
+SCP::purgeSlots(uint64 maxSlotIndex)
 {
     auto it = mKnownSlots.begin();
     while (it != mKnownSlots.end())
@@ -106,7 +122,7 @@ SCP::getLocalNode()
 }
 
 std::shared_ptr<Slot>
-SCP::getSlot(uint64 const& slotIndex)
+SCP::getSlot(uint64 slotIndex)
 {
     auto it = mKnownSlots.find(slotIndex);
     if (it == mKnownSlots.end())
@@ -119,7 +135,7 @@ SCP::getSlot(uint64 const& slotIndex)
 void
 SCP::signEnvelope(SCPEnvelope& envelope)
 {
-    assert(envelope.nodeID == getSecretKey().getPublicKey());
+    assert(envelope.statement.nodeID == getSecretKey().getPublicKey());
     envelope.signature =
         getSecretKey().sign(xdr::xdr_to_opaque(envelope.statement));
     envelopeSigned();
@@ -128,7 +144,7 @@ SCP::signEnvelope(SCPEnvelope& envelope)
 bool
 SCP::verifyEnvelope(SCPEnvelope const& envelope)
 {
-    bool b = PublicKey::verifySig(envelope.nodeID, envelope.signature,
+    bool b = PublicKey::verifySig(envelope.statement.nodeID, envelope.signature,
                                   xdr::xdr_to_opaque(envelope.statement));
     envelopeVerified(b);
     return b;
@@ -148,7 +164,7 @@ SCP::isVBlocking(std::vector<uint256> const& nodes)
     {
         map[v] = true;
     }
-    return getLocalNode()->isVBlocking<bool>(getLocalNode()->getQuorumSetHash(),
+    return getLocalNode()->isVBlocking<bool>(getLocalNode()->getQuorumSet(),
                                              map);
 }
 
@@ -174,6 +190,4 @@ SCP::getCumulativeStatemtCount() const
     }
     return c;
 }
-
-
 }

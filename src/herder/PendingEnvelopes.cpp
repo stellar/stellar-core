@@ -98,8 +98,7 @@ PendingEnvelopes::recvSCPEnvelope(SCPEnvelope const& envelope)
                         envelope);
                 }
 
-                CLOG(DEBUG, "Herder") << "PendingEnvelopes::recvSCPEnvelope "
-                                      << envToStr(envelope);
+                CLOG(DEBUG, "Herder") << "PendingEnvelopes::recvSCPEnvelope";
 
             } // else we already have this one
         }
@@ -145,12 +144,13 @@ PendingEnvelopes::envelopeReady(SCPEnvelope const& envelope)
 bool
 PendingEnvelopes::isFullyFetched(SCPEnvelope const& envelope)
 {
-    if (!mQsetCache.exists(envelope.statement.quorumSetHash))
+    if (!mQsetCache.exists(Slot::getCompanionQuorumSetHashFromStatement(envelope.statement)))
         return false;
-    StellarBallot b;
-    xdr::xdr_from_opaque(envelope.statement.ballot.value, b);
 
-    if (!mTxSetCache.exists(b.value.txSetHash))
+    StellarBallot wb;
+    xdr::xdr_from_opaque(Slot::getWorkingBallot(envelope.statement).value, wb);
+
+    if (!mTxSetCache.exists(wb.stellarValue.txSetHash))
         return false;
 
     return true;
@@ -162,18 +162,20 @@ PendingEnvelopes::startFetch(SCPEnvelope const& envelope)
 {
     bool ret = true;
 
-    if (!mQsetCache.exists(envelope.statement.quorumSetHash))
+    Hash h = Slot::getCompanionQuorumSetHashFromStatement(envelope.statement);
+
+    if (!mQsetCache.exists(h))
     {
-        mQuorumSetFetcher.fetch(envelope.statement.quorumSetHash, envelope);
+        mQuorumSetFetcher.fetch(h, envelope);
         ret = false;
     }
 
-    StellarBallot b;
-    xdr::xdr_from_opaque(envelope.statement.ballot.value, b);
+    StellarBallot wb;
+    xdr::xdr_from_opaque(Slot::getWorkingBallot(envelope.statement).value, wb);
 
-    if (!mTxSetCache.exists(b.value.txSetHash))
+    if (!mTxSetCache.exists(wb.stellarValue.txSetHash))
     {
-        mTxSetFetcher.fetch(b.value.txSetHash, envelope);
+        mTxSetFetcher.fetch(wb.stellarValue.txSetHash, envelope);
         ret = false;
     }
 

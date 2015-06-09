@@ -10,7 +10,6 @@
 #include "scp/SCP.h"
 #include "util/HashOfHash.h"
 
-
 namespace stellar
 {
 /**
@@ -18,60 +17,73 @@ namespace stellar
  */
 class Node
 {
-protected:
+  protected:
+    // returns a quorum set {{ nodeID }}
+    static SCPQuorumSet buildSingletonQSet(uint256 const& nodeID);
+
     const uint256 mNodeID;
+    static Hash gSingleQSetHash; // hash of the singleton qset (magic number)
+    std::shared_ptr<SCPQuorumSet> mSingleQSet; // {{mNodeID}}
     SCP* mSCP;
+
     // called recursively
-    bool hasQuorum(SCPQuorumSet const& qset, std::vector<uint256> const& nodeSet);
-    bool isVBlocking(SCPQuorumSet const& qset, std::vector<uint256> const& nodeSet);
+    bool isQuorumSliceInternal(SCPQuorumSet const& qset,
+                               std::vector<uint256> const& nodeSet);
+    bool isVBlockingInternal(SCPQuorumSet const& qset,
+                             std::vector<uint256> const& nodeSet);
+
   public:
     static int const CACHE_SIZE;
     Node(uint256 const& nodeID, SCP* SCP);
 
+    // returns the quorum set {{X}}
+    static SCPQuorumSetPtr getSingletonQSet(uint256 const& nodeID);
+
     // Tests this node against nodeSet for the specified qSethash. Triggers the
-    // retrieval of qSetHash for this node and may throw a QuorumSetNotFound
+    // retrieval of qSetHash for this node and may throw a QuorumSlicesNotFound
     // exception
-    bool hasQuorum(Hash const& qSetHash, std::vector<uint256> const& nodeSet);
-    bool isVBlocking(Hash const& qSetHash, std::vector<uint256> const& nodeSet);
+    bool isQuorumSlice(SCPQuorumSet const& qSet,
+                       std::vector<uint256> const& nodeSet);
+    bool isVBlocking(SCPQuorumSet const& qSet,
+                     std::vector<uint256> const& nodeSet);
 
     // Tests this node against a map of nodeID -> T for the specified qSetHash.
     // Triggers the retrieval of qSetHash for this node and may throw a
-    // QuorumSetNotFound exception.
+    // QuorumSlicesNotFound exception.
 
     // `isVBlocking` tests if the filtered nodes V are a v-blocking set for
     // this node.
     template <class T>
     bool
-    isVBlocking(Hash const& qSetHash, std::map<uint256, T> const& map,
+    isVBlocking(SCPQuorumSet const& qSet, std::map<uint256, T> const& map,
                 std::function<bool(uint256 const&, T const&)> const& filter =
                     [](uint256 const&, T const&)
                 {
                     return true;
                 });
-    // `isQuorumTransitive` tests if the filtered nodes V are a transitive
-    // quorum for this node (meaning for each v \in V there is q \in Q(v)
+    // `isQuorum` tests if the filtered nodes V form a quorum
+    // (meaning for each v \in V there is q \in Q(v)
     // included in V and we have quorum on V for qSetHash). `qfun` extracts the
-    // qSetHash from the template T for its associated node in map (required
-    // for transitivity)
+    // SCPQuorumSetPtr from the template T for its associated node in map
+    // (required for transitivity)
     template <class T>
-    bool isQuorumTransitive(Hash const& qSetHash,
-                            std::map<uint256, T> const& map,
-                            std::function<Hash(T const&)> const& qfun,
-                            std::function<bool(uint256 const&, T const&)> const&
-                                filter = [](uint256 const&, T const&)
-                            {
-                                return true;
-                            });
+    bool isQuorum(SCPQuorumSet const& qSet, std::map<uint256, T> const& map,
+                  std::function<SCPQuorumSetPtr(T const&)> const& qfun,
+                  std::function<bool(uint256 const&, T const&)> const& filter =
+                      [](uint256 const&, T const&)
+                  {
+                      return true;
+                  });
 
     /**
      * Exception used to trigger the retrieval of a quorum set based on its
      * hash when it was not cached yet. This exception should not escape the
      * SCP module.
      */
-    class QuorumSetNotFound : public std::exception
+    class QuorumSlicesNotFound : public std::exception
     {
       public:
-        QuorumSetNotFound(uint256 const& nodeID, Hash const& qSetHash)
+        QuorumSlicesNotFound(uint256 const& nodeID, Hash const& qSetHash)
             : mNodeID(nodeID), mQSetHash(qSetHash)
         {
         }
@@ -97,14 +109,10 @@ protected:
     };
 
     // Retrieves the cached quorum set associated with this hash or throws a
-    // QuorumSetNotFound exception otherwise. The exception shall not escape
+    // QuorumSlicesNotFound exception otherwise. The exception shall not escape
     // the SCP module
     SCPQuorumSetPtr retrieveQuorumSet(Hash const& qSetHash);
 
     uint256 const& getNodeID();
-
-    
-
- 
 };
 }

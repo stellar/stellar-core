@@ -342,8 +342,8 @@ void
 Peer::recvSCPMessage(StellarMessage const& msg)
 {
     SCPEnvelope envelope = msg.envelope();
-    CLOG(TRACE, "Overlay") << "recvSCPMessage qset: "
-                           << binToHex(msg.envelope().statement.quorumSetHash)
+    CLOG(TRACE, "Overlay") << "recvSCPMessage node: "
+                           << binToHex(msg.envelope().statement.nodeID)
                                   .substr(0, 6);
 
     mApp.getOverlayManager().recvFloodedMsg(msg, shared_from_this());

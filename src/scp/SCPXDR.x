@@ -8,7 +8,6 @@ typedef opaque uint256[32];
 typedef unsigned int uint32;
 typedef unsigned hyper uint64;
 typedef opaque Value<>;
-typedef opaque Evidence<>;
 
 struct SCPBallot
 {
@@ -18,37 +17,51 @@ struct SCPBallot
 
 enum SCPStatementType
 {
-    PREPARING = 0,
-    PREPARED = 1,
-    COMMITTING = 2,
-    COMMITTED = 3
+    SCP_ST_PREPARE = 0,
+    SCP_ST_CONFIRM = 1,
+    SCP_ST_EXTERNALIZE = 2
 };
 
 struct SCPStatement
 {
-    uint64 slotIndex;   // i
-    SCPBallot ballot;   // b
-    Hash quorumSetHash; // D
+    uint256 nodeID;   // v
+    uint64 slotIndex; // i
 
     union switch (SCPStatementType type)
     {
-    case PREPARING:
+    case SCP_ST_PREPARE:
         struct
         {
-            SCPBallot excepted<>; // B_c
-            SCPBallot* prepared;  // p
+            Hash quorumSetHash;       // D
+            SCPBallot ballot;         // b
+            SCPBallot* prepared;      // p
+            SCPBallot* preparedPrime; // p'
+            uint32 nC;                // n_c
+            uint32 nP;                // n_P
         } prepare;
-    case PREPARED:
-    case COMMITTING:
-    case COMMITTED:
-        void;
+    case SCP_ST_CONFIRM:
+        struct
+        {
+            Hash quorumSetHash; // D
+            uint32 nPrepared;   // n_p
+            SCPBallot commit;   // c
+            uint32 nP;          // n_P
+        } confirm;
+    case SCP_ST_EXTERNALIZE:
+        struct
+        {
+            SCPBallot commit; // c
+            uint32 nP;        // n_P
+            // not from the paper, but useful to build tooling to
+            // traverse the graph based off only the latest statement
+            Hash commitQuorumSetHash; // D used before EXTERNALIZE
+        } externalize;
     }
     pledges;
 };
 
 struct SCPEnvelope
 {
-    uint256 nodeID; // v
     SCPStatement statement;
     Signature signature;
 };

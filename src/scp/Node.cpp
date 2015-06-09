@@ -10,105 +10,132 @@
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
 
-
-
 namespace stellar
 {
 
 int const Node::CACHE_SIZE = 4;
 
-Node::Node(uint256 const& nodeID, SCP* SCP)
-    : mNodeID(nodeID), mSCP(SCP)
+Hash Node::gSingleQSetHash;
+
+Node::Node(uint256 const& nodeID, SCP* SCP) : mNodeID(nodeID), mSCP(SCP)
 {
+    mSingleQSet = std::make_shared<SCPQuorumSet>(buildSingletonQSet(mNodeID));
+    gSingleQSetHash = sha256(xdr::xdr_to_opaque(*mSingleQSet));
 }
 
-bool 
-Node::hasQuorum(SCPQuorumSet const& qset, std::vector<uint256> const& nodeSet)
+SCPQuorumSet
+Node::buildSingletonQSet(uint256 const& nodeID)
+{
+    SCPQuorumSet qSet;
+    qSet.threshold = 1;
+    qSet.validators.emplace_back(nodeID);
+    return qSet;
+}
+
+SCPQuorumSetPtr
+Node::getSingletonQSet(uint256 const& nodeID)
+{
+    return std::make_shared<SCPQuorumSet>(buildSingletonQSet(nodeID));
+}
+
+bool
+Node::isQuorumSliceInternal(SCPQuorumSet const& qset,
+                            std::vector<uint256> const& nodeSet)
 {
     uint32 thresholdLeft = qset.threshold;
-    for(auto const& validator : qset.validators)
+    for (auto const& validator : qset.validators)
     {
         auto it = std::find(nodeSet.begin(), nodeSet.end(), validator);
-        if(it != nodeSet.end())
+        if (it != nodeSet.end())
         {
             thresholdLeft--;
-            if(thresholdLeft <= 0) return true;
+            if (thresholdLeft <= 0)
+            {
+                return true;
+            }
         }
     }
 
-    for(auto const& inner : qset.innerSets)
+    for (auto const& inner : qset.innerSets)
     {
-        if(hasQuorum(inner, nodeSet))
+        if (isQuorumSliceInternal(inner, nodeSet))
         {
             thresholdLeft--;
-            if(thresholdLeft <= 0) return true;
+            if (thresholdLeft <= 0)
+            {
+                return true;
+            }
         }
     }
     return false;
 }
 
 bool
-Node::hasQuorum(Hash const& qSetHash, std::vector<uint256> const& nodeSet)
+Node::isQuorumSlice(SCPQuorumSet const& qSet,
+                    std::vector<uint256> const& nodeSet)
 {
-    CLOG(DEBUG, "SCP") << "Node::hasQuorum"
+    CLOG(DEBUG, "SCP") << "Node::isQuorumSlice"
                        << "@" << hexAbbrev(mNodeID)
-                       << " qSet: " << hexAbbrev(qSetHash)
                        << " nodeSet.size: " << nodeSet.size();
-    // This call can throw a `QuorumSetNotFound` if the quorumSet is unknown.
-    SCPQuorumSetPtr qSet = retrieveQuorumSet(qSetHash);
 
-    return hasQuorum(*qSet, nodeSet);
+    return isQuorumSliceInternal(qSet, nodeSet);
 }
 
 // called recursively
-bool 
-Node::isVBlocking(SCPQuorumSet const& qset, std::vector<uint256> const& nodeSet)
-{
-    int leftTillBlock = (int) ((1+qset.validators.size() + qset.innerSets.size()) - qset.threshold);
-
-    for(auto const &validator : qset.validators)
-    {
-        auto it = std::find(nodeSet.begin(), nodeSet.end(), validator);
-        if(it != nodeSet.end())
-        {
-            leftTillBlock--;
-            if(leftTillBlock <= 0) return true;
-        }
-    }
-    for(auto const& inner : qset.innerSets)
-    {
-        if(isVBlocking(inner, nodeSet))
-        {
-            leftTillBlock--;
-            if(leftTillBlock <= 0) return true;
-        }
-    }
-
-    return false;
-}
-
 bool
-Node::isVBlocking(Hash const& qSetHash, std::vector<uint256> const& nodeSet)
+Node::isVBlockingInternal(SCPQuorumSet const& qset,
+                          std::vector<uint256> const& nodeSet)
 {
-    CLOG(DEBUG, "SCP") << "Node::isVBlocking"
-                       << "@" << hexAbbrev(mNodeID)
-                       << " qSet: " << hexAbbrev(qSetHash)
-                       << " nodeSet.size: " << nodeSet.size();
-    // This call can throw a `QuorumSetNotFound` if the quorumSet is unknown.
-    SCPQuorumSetPtr qSet = retrieveQuorumSet(qSetHash);
-
     // There is no v-blocking set for {\empty}
-    if (qSet->threshold == 0)
+    if (qset.threshold == 0)
     {
         return false;
     }
 
-    return isVBlocking(*qSet, nodeSet);
+    int leftTillBlock =
+        (int)((1 + qset.validators.size() + qset.innerSets.size()) -
+              qset.threshold);
+
+    for (auto const& validator : qset.validators)
+    {
+        auto it = std::find(nodeSet.begin(), nodeSet.end(), validator);
+        if (it != nodeSet.end())
+        {
+            leftTillBlock--;
+            if (leftTillBlock <= 0)
+            {
+                return true;
+            }
+        }
+    }
+    for (auto const& inner : qset.innerSets)
+    {
+        if (isVBlockingInternal(inner, nodeSet))
+        {
+            leftTillBlock--;
+            if (leftTillBlock <= 0)
+            {
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
+bool
+Node::isVBlocking(SCPQuorumSet const& qSet, std::vector<uint256> const& nodeSet)
+{
+    CLOG(DEBUG, "SCP") << "Node::isVBlocking"
+                       << "@" << hexAbbrev(mNodeID)
+                       << " nodeSet.size: " << nodeSet.size();
+
+    return isVBlockingInternal(qSet, nodeSet);
 }
 
 template <class T>
 bool
-Node::isVBlocking(Hash const& qSetHash, std::map<uint256, T> const& map,
+Node::isVBlocking(SCPQuorumSet const& qSet, std::map<uint256, T> const& map,
                   std::function<bool(uint256 const&, T const&)> const& filter)
 {
     std::vector<uint256> pNodes;
@@ -120,23 +147,22 @@ Node::isVBlocking(Hash const& qSetHash, std::map<uint256, T> const& map,
         }
     }
 
-    return isVBlocking(qSetHash, pNodes);
+    return isVBlocking(qSet, pNodes);
 }
 
 template bool Node::isVBlocking<SCPStatement>(
-    Hash const& qSetHash, std::map<uint256, SCPStatement> const& map,
+    SCPQuorumSet const& qSet, std::map<uint256, SCPStatement> const& map,
     std::function<bool(uint256 const&, SCPStatement const&)> const& filter);
 
 template bool Node::isVBlocking<bool>(
-    Hash const& qSetHash, std::map<uint256, bool> const& map,
+    SCPQuorumSet const& qSet, std::map<uint256, bool> const& map,
     std::function<bool(uint256 const&, bool const&)> const& filter);
 
 template <class T>
 bool
-Node::isQuorumTransitive(
-    Hash const& qSetHash, std::map<uint256, T> const& map,
-    std::function<Hash(T const&)> const& qfun,
-    std::function<bool(uint256 const&, T const&)> const& filter)
+Node::isQuorum(SCPQuorumSet const& qSet, std::map<uint256, T> const& map,
+               std::function<SCPQuorumSetPtr(T const&)> const& qfun,
+               std::function<bool(uint256 const&, T const&)> const& filter)
 {
     std::vector<uint256> pNodes;
     for (auto const& it : map)
@@ -155,7 +181,7 @@ Node::isQuorumTransitive(
         auto quorumFilter = [&](uint256 nodeID) -> bool
         {
             return mSCP->getNode(nodeID)
-                ->hasQuorum(qfun(map.find(nodeID)->second), pNodes);
+                ->isQuorumSlice(*qfun(map.find(nodeID)->second), pNodes);
         };
         auto it = std::copy_if(pNodes.begin(), pNodes.end(), fNodes.begin(),
                                quorumFilter);
@@ -163,12 +189,12 @@ Node::isQuorumTransitive(
         pNodes = fNodes;
     } while (count != pNodes.size());
 
-    return hasQuorum(qSetHash, pNodes);
+    return isQuorumSlice(qSet, pNodes);
 }
 
-template bool Node::isQuorumTransitive<SCPStatement>(
-    Hash const& qSetHash, std::map<uint256, SCPStatement> const& map,
-    std::function<Hash(SCPStatement const&)> const& qfun,
+template bool Node::isQuorum<SCPStatement>(
+    SCPQuorumSet const& qSet, std::map<uint256, SCPStatement> const& map,
+    std::function<SCPQuorumSetPtr(SCPStatement const&)> const& qfun,
     std::function<bool(uint256 const&, SCPStatement const&)> const& filter);
 
 SCPQuorumSetPtr
@@ -178,23 +204,26 @@ Node::retrieveQuorumSet(Hash const& qSetHash)
     mSCP->nodeTouched(mNodeID);
 
     SCPQuorumSetPtr ret = mSCP->getQSet(qSetHash);
-    if(ret)
+    if (ret)
     {
         return ret;
+    }
+
+    if (qSetHash == gSingleQSetHash)
+    {
+        return mSingleQSet;
     }
 
     CLOG(DEBUG, "SCP") << "Node::retrieveQuorumSet"
                        << "@" << hexAbbrev(mNodeID)
                        << " not found qSet: " << hexAbbrev(qSetHash);
 
-    throw QuorumSetNotFound(mNodeID, qSetHash);
+    throw QuorumSlicesNotFound(mNodeID, qSetHash);
 }
-
 
 uint256 const&
 Node::getNodeID()
 {
     return mNodeID;
 }
-
 }

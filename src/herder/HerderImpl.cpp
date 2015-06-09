@@ -145,9 +145,9 @@ HerderImpl::bootstrap()
     // setup a sufficient state that we can participate in consensus
     auto const& lcl = mLedgerManager.getLastClosedLedgerHeader();
     StellarBallot b;
-    b.value.txSetHash = lcl.header.txSetHash;
-    b.value.closeTime = lcl.header.closeTime;
-    b.value.baseFee = mApp.getConfig().DESIRED_BASE_FEE;
+    b.stellarValue.txSetHash = lcl.header.txSetHash;
+    b.stellarValue.closeTime = lcl.header.closeTime;
+    b.stellarValue.baseFee = mApp.getConfig().DESIRED_BASE_FEE;
     signStellarBallot(b);
     mTrackingSCP = make_unique<ConsensusData>(lcl.header.ledgerSeq, b);
     mLedgerManager.setState(LedgerManager::LM_SYNCED_STATE);
@@ -157,7 +157,7 @@ HerderImpl::bootstrap()
 }
 
 void
-HerderImpl::validateValue(uint64 const& slotIndex, uint256 const& nodeID,
+HerderImpl::validateValue(uint64 slotIndex, uint256 const& nodeID,
                           Value const& value,
                           std::function<void(bool)> const& cb)
 {
@@ -190,15 +190,29 @@ HerderImpl::validateValue(uint64 const& slotIndex, uint256 const& nodeID,
     }
 
     // Check slotIndex.
-    if (nextConsensusLedgerIndex() != slotIndex)
+    if (nextConsensusLedgerIndex() > slotIndex)
     {
+        // we already moved on from this slot
+        // still send it through for emitting the final messages
+        cb(true);
+        return;
+    }
+    if (nextConsensusLedgerIndex() < slotIndex)
+    {
+        // this is probably a bug as "tracking" means we're processing messages
+        // only for the right slot
+        CLOG(ERROR, "Herder") << "HerderImpl::validateValue"
+                              << " i: " << slotIndex
+                              << " processing a future message while tracking";
+
         mValueInvalid.Mark();
         cb(false);
         return;
     }
 
     // Check closeTime (not too old)
-    if (b.value.closeTime <= mTrackingSCP->mConsensusBallot.value.closeTime)
+    if (b.stellarValue.closeTime <=
+        mTrackingSCP->mConsensusBallot.stellarValue.closeTime)
     {
         mValueInvalid.Mark();
         cb(false);
@@ -207,14 +221,14 @@ HerderImpl::validateValue(uint64 const& slotIndex, uint256 const& nodeID,
 
     // Check closeTime (not too far in future)
     uint64_t timeNow = mApp.timeNow();
-    if (b.value.closeTime > timeNow + MAX_TIME_SLIP_SECONDS.count())
+    if (b.stellarValue.closeTime > timeNow + MAX_TIME_SLIP_SECONDS.count())
     {
         mValueInvalid.Mark();
         cb(false);
         return;
     }
 
-    Hash txSetHash = b.value.txSetHash;
+    Hash txSetHash = b.stellarValue.txSetHash;
 
     if (!mLedgerManager.isSynced())
     {
@@ -244,11 +258,11 @@ HerderImpl::validateValue(uint64 const& slotIndex, uint256 const& nodeID,
     }
     else if (!txSet->checkValid(mApp))
     {
-        CLOG(DEBUG, "Herder")
-            << "HerderImpl::validateValue"
-            << "@" << hexAbbrev(getLocalNodeID()) << " i: " << slotIndex
-            << " n: " << hexAbbrev(nodeID) << " Invalid txSet:"
-            << " " << hexAbbrev(txSet->getContentsHash());
+        CLOG(DEBUG, "Herder") << "HerderImpl::validateValue"
+                              << " i: " << slotIndex
+                              << " n: " << hexAbbrev(nodeID)
+                              << " Invalid txSet:"
+                              << " " << hexAbbrev(txSet->getContentsHash());
         this->mValueInvalid.Mark();
         cb(false);
     }
@@ -256,8 +270,7 @@ HerderImpl::validateValue(uint64 const& slotIndex, uint256 const& nodeID,
     {
         CLOG(DEBUG, "Herder")
             << "HerderImpl::validateValue"
-            << "@" << hexAbbrev(getLocalNodeID()) << " i: " << slotIndex
-            << " n: " << hexAbbrev(nodeID) << " txSet:"
+            << " i: " << slotIndex << " n: " << hexAbbrev(nodeID) << " txSet:"
             << " " << hexAbbrev(txSet->getContentsHash()) << " OK";
         this->mValueValid.Mark();
         cb(true);
@@ -265,7 +278,7 @@ HerderImpl::validateValue(uint64 const& slotIndex, uint256 const& nodeID,
 }
 
 int
-HerderImpl::compareValues(uint64 const& slotIndex, uint32 const& ballotCounter,
+HerderImpl::compareValues(uint64 slotIndex, uint32 const& ballotCounter,
                           Value const& v1, Value const& v2)
 {
     using xdr::operator<;
@@ -292,7 +305,6 @@ HerderImpl::compareValues(uint64 const& slotIndex, uint32 const& ballotCounter,
         // are compared.
         CLOG(ERROR, "Herder")
             << "HerderImpl::compareValues"
-            << "@" << hexAbbrev(getLocalNodeID())
             << " Unexpected invalid value format. v1:" << binToHex(v1)
             << " v2:" << binToHex(v2);
 
@@ -305,38 +317,51 @@ HerderImpl::compareValues(uint64 const& slotIndex, uint32 const& ballotCounter,
     assert(verifyStellarBallot(b1));
     assert(verifyStellarBallot(b2));
 
-    // Ordering is based on H(slotIndex, ballotCounter, nodeID). Such that the
-    // round king value gets privileged over other values. Given the hash
-    // function used, a new monarch is coronated for each round of SCP (ballot
-    // counter) and each slotIndex.
+    // values are totally ordered
+    // the network will reach consensus on a single SCP value
+    // note that multiple nodes may prepare the same stellarValue
+    // which only means that they are much more likely to accept
+    // the same stellarValue from a different node.
 
-    auto s1 = SHA256::create();
-    s1->add(xdr::xdr_to_opaque(slotIndex));
-    s1->add(xdr::xdr_to_opaque(ballotCounter));
-    s1->add(xdr::xdr_to_opaque(b1.nodeID));
-    auto h1 = s1->finish();
-
-    auto s2 = SHA256::create();
-    s2->add(xdr::xdr_to_opaque(slotIndex));
-    s2->add(xdr::xdr_to_opaque(ballotCounter));
-    s2->add(xdr::xdr_to_opaque(b2.nodeID));
-    auto h2 = s2->finish();
-
-    if (h1 < h2)
+    if (b1.nodeID < b2.nodeID)
+    {
         return -1;
-    if (h2 < h1)
+    }
+    else if (b1.nodeID > b2.nodeID)
+    {
         return 1;
+    }
 
-    if (b1.value < b2.value)
+    if (b1.stellarValue < b2.stellarValue)
         return -1;
-    if (b2.value < b1.value)
+    if (b2.stellarValue < b1.stellarValue)
         return 1;
 
     return 0;
 }
 
+std::string
+HerderImpl::getValueString(Value const& v) const
+{
+    std::ostringstream oss;
+    StellarBallot b;
+    try
+    {
+        xdr::xdr_from_opaque(v, b);
+        uint256 valueHash = sha256(xdr::xdr_to_opaque(b.stellarValue));
+
+        oss << "[ @" << hexAbbrev(b.nodeID) << ", h:" << hexAbbrev(valueHash)
+            << " ]";
+        return oss.str();
+    }
+    catch (...)
+    {
+        return "[invalid]";
+    }
+}
+
 void
-HerderImpl::validateBallot(uint64 const& slotIndex, uint256 const& nodeID,
+HerderImpl::validateBallot(uint64 slotIndex, uint256 const& nodeID,
                            SCPBallot const& ballot,
                            std::function<void(bool)> const& cb)
 {
@@ -354,7 +379,7 @@ HerderImpl::validateBallot(uint64 const& slotIndex, uint256 const& nodeID,
 
     // Check closeTime (not too far in the future)
     uint64_t timeNow = mApp.timeNow();
-    if (b.value.closeTime > timeNow + MAX_TIME_SLIP_SECONDS.count())
+    if (b.stellarValue.closeTime > timeNow + MAX_TIME_SLIP_SECONDS.count())
     {
         mBallotInvalid.Mark();
         cb(false);
@@ -395,13 +420,13 @@ HerderImpl::validateBallot(uint64 const& slotIndex, uint256 const& nodeID,
     }
 
     // Check baseFee (within range of desired fee).
-    if (b.value.baseFee < mApp.getConfig().DESIRED_BASE_FEE * .5)
+    if (b.stellarValue.baseFee < mApp.getConfig().DESIRED_BASE_FEE * .5)
     {
         mBallotInvalid.Mark();
         cb(false);
         return;
     }
-    if (b.value.baseFee > mApp.getConfig().DESIRED_BASE_FEE * 2)
+    if (b.stellarValue.baseFee > mApp.getConfig().DESIRED_BASE_FEE * 2)
     {
         mBallotInvalid.Mark();
         cb(false);
@@ -415,35 +440,44 @@ HerderImpl::validateBallot(uint64 const& slotIndex, uint256 const& nodeID,
         return cb(false);
     }
 
+    bool isTrusted = false;
+    for (auto const& vID : getLocalQuorumSet().validators)
+    {
+        // A ballot is trusted if its value is generated or prepared by a node
+        // in our qSet.
+        if (b.nodeID == vID || b.nodeID == getLocalNodeID())
+        {
+            isTrusted = true;
+            break;
+        }
+    }
+
     uint256 valueHash = sha256(xdr::xdr_to_opaque(ballot.value));
 
     CLOG(DEBUG, "Herder") << "HerderImpl::validateBallot"
-                          << "@" << hexAbbrev(getLocalNodeID())
                           << " i: " << slotIndex << " v: " << hexAbbrev(nodeID)
                           << " o: " << hexAbbrev(b.nodeID) << " b: ("
                           << ballot.counter << "," << hexAbbrev(valueHash)
                           << ")"
-                          << " timeout: " << pow(2.0, ballot.counter) / 2;
+                          << " isTrusted: " << isTrusted;
 
     mBallotValid.Mark();
-    return cb(true);
+    cb(true);
 }
 
 void
-HerderImpl::ballotDidHearFromQuorum(uint64 const& slotIndex,
-                                    SCPBallot const& ballot)
+HerderImpl::ballotDidHearFromQuorum(uint64 slotIndex, SCPBallot const& ballot)
 {
     mQuorumHeard.Mark();
+}
 
-    // This isn't always true if you are just joining the network
-    // assert(slotIndex == nextConsensusLedgerIndex());
-
+void
+HerderImpl::ballotGotBumped(SCPBallot const& ballot,
+                            std::chrono::milliseconds timeout)
+{
     mBumpTimer.cancel();
 
-    // Once we hear from a transitive quorum, we start a timer in case SCP
-    // timeouts.
-    mBumpTimer.expires_from_now(
-        std::chrono::seconds((int)pow(2.0, ballot.counter)));
+    mBumpTimer.expires_from_now(timeout);
 
     // TODO: Bumping on a timeout disabled for now, tends to stall scp
     // mBumpTimer.async_wait([&]() { expireBallot(slotIndex, ballot); },
@@ -459,7 +493,7 @@ HerderImpl::updateSCPCounters()
 }
 
 void
-HerderImpl::valueExternalized(uint64 const& slotIndex, Value const& value)
+HerderImpl::valueExternalized(uint64 slotIndex, Value const& value)
 {
     updateSCPCounters();
     mValueExternalize.Mark();
@@ -474,16 +508,14 @@ HerderImpl::valueExternalized(uint64 const& slotIndex, Value const& value)
         // This may not be possible as all messages are validated and should
         // therefore contain a valid StellarBallot.
         CLOG(ERROR, "Herder") << "HerderImpl::valueExternalized"
-                              << "@" << hexAbbrev(getLocalNodeID())
                               << " Externalized StellarBallot malformed";
         // no point in continuing as 'b' contains garbage at this point
         abort();
     }
 
-    auto txSetHash = b.value.txSetHash;
+    auto txSetHash = b.stellarValue.txSetHash;
 
     CLOG(DEBUG, "Herder") << "HerderImpl::valueExternalized"
-                          << "@" << hexAbbrev(getLocalNodeID())
                           << " txSet: " << hexAbbrev(txSetHash);
 
     // current value is not valid anymore
@@ -503,7 +535,8 @@ HerderImpl::valueExternalized(uint64 const& slotIndex, Value const& value)
     // LedgerManager will perform the proper action based on its internal
     // state: apply, trigger catchup, etc
     LedgerCloseData ledgerData(lastConsensusLedgerIndex(), externalizedSet,
-                               b.value.closeTime, b.value.baseFee);
+                               b.stellarValue.closeTime,
+                               b.stellarValue.baseFee);
     mLedgerManager.externalizeValue(ledgerData);
 
     // perform cleanups
@@ -569,11 +602,7 @@ HerderImpl::rebroadcast()
         CLOG(DEBUG, "Herder")
             << "rebroadcast "
             << " s:" << mLastSentMessage.envelope().statement.pledges.type()
-            << " i:" << mLastSentMessage.envelope().statement.slotIndex
-            << " b:" << mLastSentMessage.envelope().statement.ballot.counter
-            << " v:"
-            << binToHex(ByteSlice(
-                   &mLastSentMessage.envelope().statement.ballot.value[96], 3));
+            << " i:" << mLastSentMessage.envelope().statement.slotIndex;
 
         mEnvelopeEmit.Mark();
         mApp.getOverlayManager().broadcastMessage(mLastSentMessage, true);
@@ -596,46 +625,31 @@ HerderImpl::startRebroadcastTimer()
 void
 HerderImpl::emitEnvelope(SCPEnvelope const& envelope)
 {
-    if (envelope.nodeID == getLocalNodeID())
+    // this should not happen: if we're just watching consensus
+    // don't send out SCP messages
+    if (getSecretKey().isZero())
     {
-        // this should not happen: if we're just watching consensus
-        // don't send out SCP messages
-        if (getSecretKey().isZero())
-        {
-            return;
-        }
-
-        // SCP may emit envelopes as our instance changes state
-        // yet, we do not want to send those out as we don't do full validation
-        // when out of sync
-        if (!mTrackingSCP || !mLedgerManager.isSynced() ||
-            mCurrentValue.empty())
-        {
-            return;
-        }
-
-        // start to broadcast our latest message
-        mLastSentMessage.type(SCP_MESSAGE);
-        mLastSentMessage.envelope() = envelope;
-
-        CLOG(DEBUG, "Herder")
-            << "emitEnvelope"
-            << " from: " << hexAbbrev(envelope.nodeID)
-            << " s:" << envelope.statement.pledges.type()
-            << " i:" << envelope.statement.slotIndex
-            << " b:" << envelope.statement.ballot.counter
-            << " v:" << hexAbbrev(envelope.statement.ballot.value)
-            << " a:" << mApp.getStateHuman();
-
-        rebroadcast();
+        return;
     }
-    else
+
+    // SCP may emit envelopes as our instance changes state
+    // yet, we do not want to send those out as we don't do full validation
+    // when out of sync
+    if (!mTrackingSCP || !mLedgerManager.isSynced())
     {
-        StellarMessage msg;
-        msg.type(SCP_MESSAGE);
-        msg.envelope() = envelope;
-        mApp.getOverlayManager().broadcastMessage(msg, false);
+        return;
     }
+
+    // start to broadcast our latest message
+    mLastSentMessage.type(SCP_MESSAGE);
+    mLastSentMessage.envelope() = envelope;
+
+    CLOG(DEBUG, "Herder") << "emitEnvelope"
+                          << " s:" << envelope.statement.pledges.type()
+                          << " i:" << envelope.statement.slotIndex
+                          << " a:" << mApp.getStateHuman();
+
+    rebroadcast();
 }
 
 bool
@@ -705,12 +719,10 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope)
         return;
     }
 
-    CLOG(DEBUG, "Herder") << "recvSCPEnvelope@" << hexAbbrev(getLocalNodeID())
-                          << " from: " << hexAbbrev(envelope.nodeID)
+    CLOG(DEBUG, "Herder") << "recvSCPEnvelope"
+                          << " from: " << hexAbbrev(envelope.statement.nodeID)
                           << " s:" << envelope.statement.pledges.type()
                           << " i:" << envelope.statement.slotIndex
-                          << " b:" << envelope.statement.ballot.counter
-                          << " v:" << hexAbbrev(envelope.statement.ballot.value)
                           << " a:" << mApp.getStateHuman();
 
     mEnvelopeReceive.Mark();
@@ -778,7 +790,9 @@ HerderImpl::processSCPQueueAtIndex(uint64 slotIndex)
             receiveEnvelope(env);
         }
         else
+        {
             return;
+        }
     }
 }
 
@@ -788,8 +802,7 @@ HerderImpl::ledgerClosed()
     mTriggerTimer.cancel();
 
     updateSCPCounters();
-    CLOG(TRACE, "Herder") << "HerderImpl::ledgerClosed@"
-                          << "@" << hexAbbrev(getLocalNodeID());
+    CLOG(TRACE, "Herder") << "HerderImpl::ledgerClosed";
 
     mPendingEnvelopes.slotClosed(lastConsensusLedgerIndex());
 
@@ -987,16 +1000,15 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger)
     }
 
     StellarBallot b;
-    b.value.txSetHash = txSetHash;
-    b.value.closeTime = nextCloseTime;
-    b.value.baseFee = mApp.getConfig().DESIRED_BASE_FEE;
+    b.stellarValue.txSetHash = txSetHash;
+    b.stellarValue.closeTime = nextCloseTime;
+    b.stellarValue.baseFee = mApp.getConfig().DESIRED_BASE_FEE;
     signStellarBallot(b);
 
     mCurrentValue = xdr::xdr_to_opaque(b);
 
     uint256 valueHash = sha256(xdr::xdr_to_opaque(mCurrentValue));
     CLOG(DEBUG, "Herder") << "HerderImpl::triggerNextLedger"
-                          << "@" << hexAbbrev(getLocalNodeID())
                           << " txSet.size: "
                           << proposedSet->mTransactions.size()
                           << " previousLedgerHash: "
@@ -1004,23 +1016,19 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger)
                           << " value: " << hexAbbrev(valueHash)
                           << " slot: " << slotIndex;
 
-    // We prepare that value. If we're monarch, the ballot will be validated,
-    // and if we're not it'll just get ignored.
     mValuePrepare.Mark();
-    prepareValue(slotIndex, mCurrentValue);
+    bumpState(slotIndex, mCurrentValue);
 }
 
 void
-HerderImpl::expireBallot(uint64 const& slotIndex, SCPBallot const& ballot)
+HerderImpl::expireBallot(uint64 slotIndex, SCPBallot const& ballot)
 
 {
     mBallotExpire.Mark();
     assert(slotIndex == nextConsensusLedgerIndex());
 
-    // We prepare the value while bumping the ballot counter. If we're monarch,
-    // this prepare will go through. If not, we will have bumped our ballot.
     mValuePrepare.Mark();
-    prepareValue(slotIndex, mCurrentValue, true);
+    abandonBallot(slotIndex);
 }
 
 void
@@ -1028,14 +1036,14 @@ HerderImpl::signStellarBallot(StellarBallot& b)
 {
     mBallotSign.Mark();
     b.nodeID = getSecretKey().getPublicKey();
-    b.signature = getSecretKey().sign(xdr::xdr_to_opaque(b.value));
+    b.signature = getSecretKey().sign(xdr::xdr_to_opaque(b.stellarValue));
 }
 
 bool
 HerderImpl::verifyStellarBallot(StellarBallot const& b)
 {
     auto v = PublicKey::verifySig(b.nodeID, b.signature,
-                                  xdr::xdr_to_opaque(b.value));
+                                  xdr::xdr_to_opaque(b.stellarValue));
     if (v)
     {
         mBallotValidSig.Mark();
@@ -1049,25 +1057,25 @@ HerderImpl::verifyStellarBallot(StellarBallot const& b)
 
 // Extra SCP methods overridden solely to increment metrics.
 void
-HerderImpl::ballotDidPrepare(uint64 const& slotIndex, SCPBallot const& ballot)
+HerderImpl::ballotDidPrepare(uint64 slotIndex, SCPBallot const& ballot)
 {
     mBallotPrepare.Mark();
 }
 
 void
-HerderImpl::ballotDidPrepared(uint64 const& slotIndex, SCPBallot const& ballot)
+HerderImpl::ballotDidPrepared(uint64 slotIndex, SCPBallot const& ballot)
 {
     mBallotPrepared.Mark();
 }
 
 void
-HerderImpl::ballotDidCommit(uint64 const& slotIndex, SCPBallot const& ballot)
+HerderImpl::ballotDidCommit(uint64 slotIndex, SCPBallot const& ballot)
 {
     mBallotCommit.Mark();
 }
 
 void
-HerderImpl::ballotDidCommitted(uint64 const& slotIndex, SCPBallot const& ballot)
+HerderImpl::ballotDidCommitted(uint64 slotIndex, SCPBallot const& ballot)
 {
     mBallotCommitted.Mark();
 }

@@ -43,44 +43,46 @@ class HerderImpl : public Herder, public SCP
     void bootstrap() override;
 
     // SCP methods
-    void validateValue(uint64 const& slotIndex, uint256 const& nodeID,
+    void validateValue(uint64 slotIndex, uint256 const& nodeID,
                        Value const& value,
                        std::function<void(bool)> const& cb) override;
-    int compareValues(uint64 const& slotIndex, uint32 const& ballotCounter,
+    int compareValues(uint64 slotIndex, uint32 const& ballotCounter,
                       Value const& v1, Value const& v2) override;
 
-    void validateBallot(uint64 const& slotIndex, uint256 const& nodeID,
+    std::string getValueString(Value const& v) const override;
+
+    void validateBallot(uint64 slotIndex, uint256 const& nodeID,
                         SCPBallot const& ballot,
                         std::function<void(bool)> const& cb) override;
 
-    void ballotDidHearFromQuorum(uint64 const& slotIndex,
+    void ballotDidHearFromQuorum(uint64 slotIndex,
                                  SCPBallot const& ballot) override;
-    void valueExternalized(uint64 const& slotIndex,
-                           Value const& value) override;
+
+    void ballotGotBumped(SCPBallot const& ballot,
+                         std::chrono::milliseconds timeout) override;
+
+    void valueExternalized(uint64 slotIndex, Value const& value) override;
 
     void nodeTouched(uint256 const& nodeID) override;
 
     void emitEnvelope(SCPEnvelope const& envelope) override;
     bool recvTransactions(TxSetFramePtr txSet);
     // Extra SCP methods overridden solely to increment metrics.
-    void ballotDidPrepare(uint64 const& slotIndex,
-                          SCPBallot const& ballot) override;
-    void ballotDidPrepared(uint64 const& slotIndex,
-                           SCPBallot const& ballot) override;
-    void ballotDidCommit(uint64 const& slotIndex,
-                         SCPBallot const& ballot) override;
-    void ballotDidCommitted(uint64 const& slotIndex,
-                            SCPBallot const& ballot) override;
+    void ballotDidPrepare(uint64 slotIndex, SCPBallot const& ballot) override;
+    void ballotDidPrepared(uint64 slotIndex, SCPBallot const& ballot) override;
+    void ballotDidCommit(uint64 slotIndex, SCPBallot const& ballot) override;
+    void ballotDidCommitted(uint64 slotIndex, SCPBallot const& ballot) override;
     void envelopeSigned() override;
     void envelopeVerified(bool) override;
 
     TransactionSubmitStatus recvTransaction(TransactionFramePtr tx) override;
 
-    void recvSCPEnvelope(SCPEnvelope const & envelope) override;
+    void recvSCPEnvelope(SCPEnvelope const& envelope) override;
 
     void recvSCPQuorumSet(Hash hash, const SCPQuorumSet& qset) override;
     void recvTxSet(Hash hash, const TxSetFrame& txset) override;
-    void peerDoesntHave(MessageType type, uint256 const& itemID, PeerPtr peer) override;
+    void peerDoesntHave(MessageType type, uint256 const& itemID,
+                        PeerPtr peer) override;
     TxSetFramePtr getTxSet(Hash hash) override;
     SCPQuorumSetPtr getQSet(const Hash& qSetHash) override;
 
@@ -95,7 +97,7 @@ class HerderImpl : public Herder, public SCP
   private:
     void ledgerClosed();
     void removeReceivedTx(TransactionFramePtr tx);
-    void expireBallot(uint64 const& slotIndex, SCPBallot const& ballot);
+    void expireBallot(uint64 slotIndex, SCPBallot const& ballot);
 
     void startRebroadcastTimer();
     void rebroadcast();
@@ -107,7 +109,7 @@ class HerderImpl : public Herder, public SCP
     void updateSCPCounters();
 
     void processSCPQueueAtIndex(uint64 slotIndex);
-    
+
     // 0- tx we got during ledger close
     // 1- one ledger ago. rebroadcast
     // 2- two ledgers ago.
@@ -121,8 +123,6 @@ class HerderImpl : public Herder, public SCP
     std::map<SCPBallot,
              std::map<uint256, std::vector<std::shared_ptr<VirtualTimer>>>>
         mBallotValidationTimers;
-
-    
 
     void herderOutOfSync();
 
