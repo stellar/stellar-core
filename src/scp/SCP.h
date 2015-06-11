@@ -87,6 +87,11 @@ class SCP
         return true;
     }
 
+    // `computeHash` is used by the nomination protocol to
+    // randomize the order of messages between nodes.
+    virtual uint64 computeHash(uint64 slotIndex, bool isPriority, int32 roundNumber,
+                               uint256 const& nodeID);
+
     // `ballotDidPrepare` is called each time the local node PREPARING a ballot.
     // It is always called on the internally monotonically increasing `mBallot`.
     virtual void

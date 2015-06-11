@@ -31,6 +31,9 @@ int64_t bigDivide(int64_t A, int64_t B, int64_t C);
 // no throw version, returns true if result is valid
 bool bigDivide(int64_t& result, int64_t A, int64_t B, int64_t C);
 
+// no throw version, returns true if result is valid
+bool bigDivide(uint64_t& result, uint64_t A, uint64_t B, uint64_t C);
+
 bool iequals(std::string const& a, std::string const& b);
 
 bool operator>=(Price const& a, Price const& b);

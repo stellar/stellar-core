@@ -245,9 +245,8 @@ Slot::envToStr(SCPStatement const& st) const
     {
         auto const& nom = st.pledges.nominate();
         oss << " | NOMINATE"
-            << " | D: " << hexAbbrev(qSetHash)
-            << " | X: {";
-        for (auto const&v : nom.votes)
+            << " | D: " << hexAbbrev(qSetHash) << " | X: {";
+        for (auto const& v : nom.votes)
         {
             oss << " '" << mSCP.getValueString(v) << "',";
         }

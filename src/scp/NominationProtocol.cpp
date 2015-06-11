@@ -23,8 +23,10 @@ using xdr::operator==;
 using xdr::operator<;
 using namespace std::placeholders;
 
-NominationProtocol::NominationProtocol(Slot& slot) : mSlot(slot)
+NominationProtocol::NominationProtocol(Slot& slot)
+    : mSlot(slot), mRoundNumber(0), mNominationStarted(false)
 {
+    updateRoundLeaders();
 }
 
 bool
@@ -47,7 +49,7 @@ NominationProtocol::isNewerStatement(uint256 const& nodeID,
 
 bool
 NominationProtocol::isSubsetHelper(xdr::xvector<Value> const& p,
-                                   xdr::xvector<Value> const& v, bool notEqual)
+                                   xdr::xvector<Value> const& v, bool& notEqual)
 {
     bool res;
     if (p.size() <= v.size())
@@ -95,20 +97,17 @@ bool
 NominationProtocol::isValid(SCPStatement const& st)
 {
     auto const& nom = st.pledges.nominate();
-    bool res =
-        (nom.votes.size() + nom.accepted.size()) != 0;
+    bool res = (nom.votes.size() + nom.accepted.size()) != 0;
 
     res = res && std::is_sorted(nom.votes.begin(), nom.votes.end());
     res = res && std::is_sorted(nom.accepted.begin(), nom.accepted.end());
 
-    for (auto const& v : nom.votes)
-    {
-        res = res && mSlot.getSCP().validateValue(st.slotIndex, st.nodeID, v);
-    }
-    for (auto const& a : nom.accepted)
-    {
-        res = res && mSlot.getSCP().validateValue(st.slotIndex, st.nodeID, a);
-    }
+    applyAll(nom, [&](Value const& val)
+             {
+                 res =
+                     res &&
+                     mSlot.getSCP().validateValue(st.slotIndex, st.nodeID, val);
+             });
 
     return res;
 }
@@ -135,6 +134,9 @@ NominationProtocol::emitNomination()
     st.nodeID = mSlot.getLocalNode()->getNodeID();
     st.pledges.type(SCP_ST_NOMINATE);
     auto& nom = st.pledges.nominate();
+
+    nom.quorumSetHash = mSlot.getLocalNode()->getQuorumSetHash();
+
     for (auto const& v : mVotes)
     {
         nom.votes.emplace_back(v);
@@ -175,6 +177,67 @@ NominationProtocol::acceptPredicate(Value const& v, uint256 const&,
     return res;
 }
 
+void
+NominationProtocol::applyAll(SCPNomination const& nom,
+                             std::function<void(Value const&)> processor)
+{
+    for (auto const& v : nom.votes)
+    {
+        processor(v);
+    }
+    for (auto const& a : nom.accepted)
+    {
+        processor(a);
+    }
+}
+
+void
+NominationProtocol::updateRoundLeaders()
+{
+    mRoundLeaders.clear();
+    uint64 topPriority = 0;
+    SCPQuorumSet const& myQSet = mSlot.getLocalNode()->getQuorumSet();
+
+    Node::forAllNodes(myQSet, [&](uint256 const& cur)
+                      {
+                          uint64 w = getNodePriority(cur, myQSet);
+                          if (w > topPriority)
+                          {
+                              topPriority = w;
+                              mRoundLeaders.clear();
+                          }
+                          if (w == topPriority)
+                          {
+                              mRoundLeaders.insert(cur);
+                          }
+                      });
+}
+
+uint64
+NominationProtocol::hashValue(bool isPriority, uint256 const& nodeID)
+{
+    return mSlot.getSCP().computeHash(mSlot.getSlotIndex(), isPriority,
+                                      mRoundNumber, nodeID);
+}
+
+uint64
+NominationProtocol::getNodePriority(uint256 const& nodeID,
+                                    SCPQuorumSet const& qset)
+{
+    uint64 res;
+    uint64 w = Node::getNodeWeight(nodeID, qset);
+
+    if (hashValue(false, nodeID) < w)
+    {
+        res = hashValue(true, nodeID);
+    }
+    else
+    {
+        res = 0;
+    }
+    return res;
+}
+
 SCP::EnvelopeState
 NominationProtocol::processEnvelope(SCPEnvelope const& envelope)
 {
@@ -190,22 +253,11 @@ NominationProtocol::processEnvelope(SCPEnvelope const& envelope)
             recordStatement(st);
             res = SCP::EnvelopeState::VALID;
 
-            bool modified = false;
+            bool modified = false; // tracks if we should emit a new nomination message
+            bool newCandidates = false;
 
-            if (mCandidates.empty())
-            {
-                // see if we should update our list of votes
-                for (auto const& v : nom.votes)
-                {
-                    if (mVotes.find(v) == mVotes.end())
-                    {
-                        mVotes.emplace(v);
-                        modified = true;
-                    }
-                }
-            }
             // attempts to promote some of the votes to accepted
-            for (auto const& v : mVotes)
+            for (auto const& v : nom.votes)
             {
                 if (mAccepted.find(v) != mAccepted.end())
                 {
@@ -241,12 +293,39 @@ NominationProtocol::processEnvelope(SCPEnvelope const& envelope)
                         mLatestNominations))
                 {
                     mCandidates.insert(a);
-                    modified = true;
+                    newCandidates = true;
                 }
             }
-            if (modified)
+
+            // only take round leader votes if we still looking for candidates
+            if (mCandidates.empty() &&
+                mRoundLeaders.find(st.nodeID) != mRoundLeaders.end())
             {
-                emitNomination();
+                // see if we should update our list of votes
+                for (auto const& v : nom.votes)
+                {
+                    if (mVotes.find(v) == mVotes.end())
+                    {
+                        mVotes.emplace(v);
+                        modified = true;
+                    }
+                }
+            }
+
+            // don't participate in nomination if we don't have a value
+            if (mNominationStarted)
+            {
+                if (modified)
+                {
+                    emitNomination();
+                }
+
+                if (newCandidates)
+                {
+                    Value v = mSlot.getSCP().combineCandidates(
+                        mSlot.getSlotIndex(), mCandidates);
+                    mSlot.bumpState(v);
+                }
             }
         }
     }
@@ -257,16 +336,74 @@ std::vector<Value>
 NominationProtocol::getStatementValues(SCPStatement const& st)
 {
     std::vector<Value> res;
-    auto const& nom = st.pledges.nominate();
-    for (auto const& v : nom.votes)
-    {
-        res.emplace_back(v);
-    }
-    for (auto const& a : nom.accepted)
-    {
-        res.emplace_back(a);
-    }
+    applyAll(st.pledges.nominate(), [&](Value const& v)
+             {
+                 res.emplace_back(v);
+             });
     return res;
 }
 
+// attempts to nominate a value for consensus
+bool
+NominationProtocol::nominate(Value const& value, bool timedout)
+{
+    bool updated = false;
+
+    mNominationStarted = true;
+
+    if (timedout)
+    {
+        mRoundNumber++;
+        updateRoundLeaders();
+    }
+
+    if (mRoundLeaders.find(mSlot.getLocalNode()->getNodeID()) !=
+        mRoundLeaders.end())
+    {
+        auto ins = mVotes.insert(value);
+        if (ins.second)
+        {
+            updated = true;
+        }
+    }
+    else
+    {
+        for (auto const& leader : mRoundLeaders)
+        {
+            auto it = mLatestNominations.find(leader);
+            if (it != mLatestNominations.end())
+            {
+                applyAll(it->second.pledges.nominate(), [&](Value const& value)
+                         {
+                             auto ins = mVotes.insert(value);
+                             if (ins.second)
+                             {
+                                 updated = true;
+                             }
+                         });
+            }
+        }
+    }
+
+    if (timedout)
+    {
+        std::chrono::milliseconds timeout =
+            std::chrono::seconds(mRoundNumber * (mRoundNumber + 1) / 2);
+
+        if (updated)
+        {
+            Value nominatingValue =
+                mSlot.getSCP().combineCandidates(mSlot.getSlotIndex(), mVotes);
+            mSlot.getSCP().nominatingValue(mSlot.getSlotIndex(),
+                                           nominatingValue, timeout);
+        }
+    }
+
+    if (updated)
+    {
+        emitNomination();
+    }
+
+    return updated;
+}
 }

@@ -6,6 +6,7 @@
 
 #include <memory>
 #include <vector>
+#include <set>
 
 #include "scp/SCP.h"
 #include "util/HashOfHash.h"
@@ -31,6 +32,8 @@ class Node
                                std::vector<uint256> const& nodeSet);
     bool isVBlockingInternal(SCPQuorumSet const& qset,
                              std::vector<uint256> const& nodeSet);
+    static void forAllNodesInternal(SCPQuorumSet const& qset,
+                                    std::function<void(uint256 const&)> proc);
 
   public:
     static int const CACHE_SIZE;
@@ -38,6 +41,15 @@ class Node
 
     // returns the quorum set {{X}}
     static SCPQuorumSetPtr getSingletonQSet(uint256 const& nodeID);
+
+    // runs proc over all nodes contained in qset
+    static void forAllNodes(SCPQuorumSet const& qset,
+                            std::function<void(uint256 const&)> proc);
+
+    // returns the weight of the node within the qset
+    // normalized between 0-UINT64_MAX
+    static uint64 getNodeWeight(uint256 const& nodeID,
+                                SCPQuorumSet const& qset);
 
     // Tests this node against nodeSet for the specified qSethash. Triggers the
     // retrieval of qSetHash for this node and may throw a QuorumSlicesNotFound

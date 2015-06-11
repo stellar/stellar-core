@@ -30,6 +30,29 @@ SCP::getValueString(Value const& v) const
     return hexAbbrev(valueHash);
 }
 
+// values used to switch hash function between priority and neighborhood checks
+static const uint32 hash_N = 1;
+static const uint32 hash_P = 2;
+
+uint64
+SCP::computeHash(uint64 slotIndex, bool isPriority, int32 roundNumber,
+                 uint256 const& nodeID)
+{
+    auto h = SHA256::create();
+    h->add(xdr::xdr_to_opaque(slotIndex));
+    // h->add(xdr::xdr_to_opaque(mDependencies)); // TODO: set to previous value
+    h->add(xdr::xdr_to_opaque(isPriority ? hash_P : hash_N));
+    h->add(xdr::xdr_to_opaque(roundNumber));
+    h->add(nodeID);
+    uint256 t = h->finish();
+    uint64 res = 0;
+    for (int i = 0; i < sizeof(res); i++)
+    {
+        res = res << 8 | t[i];
+    }
+    return res;
+}
+
 SCP::EnvelopeState
 SCP::receiveEnvelope(SCPEnvelope const& envelope)
 {

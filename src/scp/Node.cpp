@@ -5,6 +5,7 @@
 #include "Node.h"
 
 #include <cassert>
+#include "util/types.h"
 #include "xdrpp/marshal.h"
 #include "util/Logging.h"
 #include "crypto/Hex.h"
@@ -36,6 +37,57 @@ SCPQuorumSetPtr
 Node::getSingletonQSet(uint256 const& nodeID)
 {
     return std::make_shared<SCPQuorumSet>(buildSingletonQSet(nodeID));
+}
+void
+Node::forAllNodesInternal(SCPQuorumSet const& qset,
+                          std::function<void(uint256 const&)> proc)
+{
+    for (auto const& n : qset.validators)
+    {
+        proc(n);
+    }
+    for (auto const& q : qset.innerSets)
+    {
+        forAllNodesInternal(q, proc);
+    }
+}
+
+// runs proc over all nodes contained in qset
+void
+Node::forAllNodes(SCPQuorumSet const& qset,
+                  std::function<void(uint256 const&)> proc)
+{
+    std::set<uint256> done;
+    forAllNodesInternal(qset, [&](uint256 const& n)
+                        {
+                            auto ins = done.insert(n);
+                            if (ins.second)
+                            {
+                                proc(n);
+                            }
+                        });
+}
+
+uint64
+Node::getNodeWeight(uint256 const& nodeID, SCPQuorumSet const& qset)
+{
+    // TODO: this is a bogus implementation that has "close-enough" properties
+    uint64 total = 0;
+    uint64 p = 0;
+    forAllNodes(qset, [&](uint256 const& n)
+                {
+                    total++;
+                    if (n == nodeID)
+                    {
+                        p++;
+                    }
+                });
+    uint64 res;
+    if (!bigDivide(res, UINT64_MAX, p, total))
+    {
+        abort();
+    }
+    return res;
 }
 
 bool
