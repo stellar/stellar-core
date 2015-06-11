@@ -47,30 +47,34 @@ Config::Config() : PEER_KEY(SecretKey::random())
     DATABASE = "sqlite3://:memory:";
 }
 
-void 
-loadQset(std::shared_ptr<cpptoml::toml_group> group, SCPQuorumSet& qset,int level)
+void
+loadQset(std::shared_ptr<cpptoml::toml_group> group, SCPQuorumSet& qset,
+         int level)
 {
     assert(level <= 2);
 
-    for(auto& item : *group)
+    for (auto& item : *group)
     {
-        if(item.first == "THRESHOLD")
+        if (item.first == "THRESHOLD")
         {
-            qset.threshold = item.second->as<int64_t>()->value();
-        } else if(item.first == "VALIDATORS")
+            qset.threshold = (uint32_t)item.second->as<int64_t>()->value();
+        }
+        else if (item.first == "VALIDATORS")
         {
-            for(auto v : item.second->as_array()->array())
+            for (auto v : item.second->as_array()->array())
             {
-                uint256 p = fromBase58Check256(
-                    VER_ACCOUNT_ID, v->as<std::string>()->value());
+                uint256 p = fromBase58Check256(VER_ACCOUNT_ID,
+                                               v->as<std::string>()->value());
                 qset.validators.push_back(p);
             }
-        } else
+        }
+        else
         { // must be a subset
-            if(level < 2)
+            if (level < 2)
             {
-                qset.innerSets.resize(qset.innerSets.size() + 1);
-                loadQset(item.second->as_group(), qset.innerSets[qset.innerSets.size() - 1], level + 1);
+                qset.innerSets.resize((uint32_t)qset.innerSets.size() + 1);
+                loadQset(item.second->as_group(),
+                         qset.innerSets[qset.innerSets.size() - 1], level + 1);
             }
         }
     }
@@ -242,6 +246,4 @@ Config::load(std::string const& filename)
         throw std::invalid_argument(err);
     }
 }
-
-
 }

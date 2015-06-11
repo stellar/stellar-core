@@ -77,10 +77,9 @@ class LedgerPerformanceTests : public Simulation
         txs.push_back(ensureAccountIsLoadedCreated(from->mId));
         txs.push_back(ensureAccountIsLoadedCreated(to->mId));
 
-        uint64_t amount = static_cast<uint64_t>(
-            rand_fraction() *
-            min(static_cast<uint64_t>(1000),
-                (from->mBalance - mMinBalance) / 3));
+        int64_t amount = static_cast<int64_t>(
+            rand_fraction() * min(static_cast<int64_t>(1000),
+                                  (from->mBalance - mMinBalance) / 3));
         txs.push_back(make_optional<TxInfo>(
             createTransferNativeTransaction(from, to, amount)));
 
