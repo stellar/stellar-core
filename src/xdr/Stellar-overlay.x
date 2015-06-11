@@ -7,18 +7,11 @@
 namespace stellar
 {
 
-struct StellarBallotValue
+struct StellarValue
 {
     Hash txSetHash;
     uint64 closeTime;
     uint32 baseFee;
-};
-
-struct StellarBallot
-{
-    uint256 nodeID;
-    Signature signature;
-    StellarBallotValue stellarValue;
 };
 
 struct Error

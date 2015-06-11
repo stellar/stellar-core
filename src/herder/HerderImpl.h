@@ -45,8 +45,6 @@ class HerderImpl : public Herder, public SCP
     // SCP methods
     bool validateValue(uint64 slotIndex, uint256 const& nodeID,
                        Value const& value) override;
-    int compareValues(uint64 slotIndex, uint32 const& ballotCounter,
-                      Value const& v1, Value const& v2) override;
 
     std::string getValueString(Value const& v) const override;
 
@@ -100,10 +98,6 @@ class HerderImpl : public Herder, public SCP
     void startRebroadcastTimer();
     void rebroadcast();
 
-    // StellarBallot internal signature/verification
-    void signStellarBallot(StellarBallot& b);
-    bool verifyStellarBallot(StellarBallot const& b);
-
     void updateSCPCounters();
 
     void processSCPQueueAtIndex(uint64 slotIndex);
@@ -127,9 +121,9 @@ class HerderImpl : public Herder, public SCP
     struct ConsensusData
     {
         uint64 mConsensusIndex;
-        StellarBallot mConsensusBallot;
-        ConsensusData(uint64 index, StellarBallot const& b)
-            : mConsensusIndex(index), mConsensusBallot(b)
+        StellarValue mConsensusValue;
+        ConsensusData(uint64 index, StellarValue const& b)
+            : mConsensusIndex(index), mConsensusValue(b)
         {
         }
     };

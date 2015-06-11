@@ -150,10 +150,10 @@ PendingEnvelopes::isFullyFetched(SCPEnvelope const& envelope)
     std::vector<Value> vals = Slot::getStatementValues(envelope.statement);
     for (auto const& v : vals)
     {
-        StellarBallot wb;
+        StellarValue wb;
         xdr::xdr_from_opaque(v, wb);
 
-        if (!mTxSetCache.exists(wb.stellarValue.txSetHash))
+        if (!mTxSetCache.exists(wb.txSetHash))
             return false;
     }
 
@@ -177,12 +177,12 @@ PendingEnvelopes::startFetch(SCPEnvelope const& envelope)
     std::vector<Value> vals = Slot::getStatementValues(envelope.statement);
     for (auto const& v : vals)
     {
-        StellarBallot wb;
+        StellarValue wb;
         xdr::xdr_from_opaque(v, wb);
 
-        if (!mTxSetCache.exists(wb.stellarValue.txSetHash))
+        if (!mTxSetCache.exists(wb.txSetHash))
         {
-            mTxSetFetcher.fetch(wb.stellarValue.txSetHash, envelope);
+            mTxSetFetcher.fetch(wb.txSetHash, envelope);
             ret = false;
         }
     }

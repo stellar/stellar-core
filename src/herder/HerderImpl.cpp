@@ -144,11 +144,10 @@ HerderImpl::bootstrap()
 
     // setup a sufficient state that we can participate in consensus
     auto const& lcl = mLedgerManager.getLastClosedLedgerHeader();
-    StellarBallot b;
-    b.stellarValue.txSetHash = lcl.header.txSetHash;
-    b.stellarValue.closeTime = lcl.header.closeTime;
-    b.stellarValue.baseFee = mApp.getConfig().DESIRED_BASE_FEE;
-    signStellarBallot(b);
+    StellarValue b;
+    b.txSetHash = lcl.header.txSetHash;
+    b.closeTime = lcl.header.closeTime;
+    b.baseFee = mApp.getConfig().DESIRED_BASE_FEE;
     mTrackingSCP = make_unique<ConsensusData>(lcl.header.ledgerSeq, b);
     mLedgerManager.setState(LedgerManager::LM_SYNCED_STATE);
 
@@ -161,20 +160,12 @@ bool
 HerderImpl::validateValue(uint64 slotIndex, uint256 const& nodeID,
                           Value const& value)
 {
-    StellarBallot b;
+    StellarValue b;
     try
     {
         xdr::xdr_from_opaque(value, b);
     }
     catch (...)
-    {
-        mValueInvalid.Mark();
-        return false;
-    }
-
-    // First of all let's verify the internal Stellar Ballot signature is
-    // correct.
-    if (!verifyStellarBallot(b))
     {
         mValueInvalid.Mark();
         return false;
@@ -206,8 +197,8 @@ HerderImpl::validateValue(uint64 slotIndex, uint256 const& nodeID,
     }
 
     // Check closeTime (not too old)
-    if (b.stellarValue.closeTime <=
-        mTrackingSCP->mConsensusBallot.stellarValue.closeTime)
+    if (b.closeTime <=
+        mTrackingSCP->mConsensusValue.closeTime)
     {
         mValueInvalid.Mark();
         return false;
@@ -215,13 +206,13 @@ HerderImpl::validateValue(uint64 slotIndex, uint256 const& nodeID,
 
     // Check closeTime (not too far in future)
     uint64_t timeNow = mApp.timeNow();
-    if (b.stellarValue.closeTime > timeNow + MAX_TIME_SLIP_SECONDS.count())
+    if (b.closeTime > timeNow + MAX_TIME_SLIP_SECONDS.count())
     {
         mValueInvalid.Mark();
         return false;
     }
 
-    Hash txSetHash = b.stellarValue.txSetHash;
+    Hash txSetHash = b.txSetHash;
 
     if (!mLedgerManager.isSynced())
     {
@@ -271,80 +262,17 @@ HerderImpl::validateValue(uint64 slotIndex, uint256 const& nodeID,
     return res;
 }
 
-int
-HerderImpl::compareValues(uint64 slotIndex, uint32 const& ballotCounter,
-                          Value const& v1, Value const& v2)
-{
-    using xdr::operator<;
-
-    if (!v1.size())
-    {
-        if (!v2.size())
-            return 0;
-        return -1;
-    }
-    else if (!v2.size())
-        return 1;
-
-    StellarBallot b1;
-    StellarBallot b2;
-    try
-    {
-        xdr::xdr_from_opaque(v1, b1);
-        xdr::xdr_from_opaque(v2, b2);
-    }
-    catch (...)
-    {
-        // This should not be possible. Values are validated before they
-        // are compared.
-        CLOG(ERROR, "Herder")
-            << "HerderImpl::compareValues"
-            << " Unexpected invalid value format. v1:" << binToHex(v1)
-            << " v2:" << binToHex(v2);
-
-        assert(false);
-        return 0;
-    }
-
-    // Unverified StellarBallot shouldn't be possible either for the precise
-    // same reasons.
-    assert(verifyStellarBallot(b1));
-    assert(verifyStellarBallot(b2));
-
-    // values are totally ordered
-    // the network will reach consensus on a single SCP value
-    // note that multiple nodes may prepare the same stellarValue
-    // which only means that they are much more likely to accept
-    // the same stellarValue from a different node.
-
-    if (b1.nodeID < b2.nodeID)
-    {
-        return -1;
-    }
-    else if (b1.nodeID > b2.nodeID)
-    {
-        return 1;
-    }
-
-    if (b1.stellarValue < b2.stellarValue)
-        return -1;
-    if (b2.stellarValue < b1.stellarValue)
-        return 1;
-
-    return 0;
-}
-
 std::string
 HerderImpl::getValueString(Value const& v) const
 {
     std::ostringstream oss;
-    StellarBallot b;
+    StellarValue b;
     try
     {
         xdr::xdr_from_opaque(v, b);
-        uint256 valueHash = sha256(xdr::xdr_to_opaque(b.stellarValue));
+        uint256 valueHash = sha256(xdr::xdr_to_opaque(b));
 
-        oss << "[ @" << hexAbbrev(b.nodeID) << ", h:" << hexAbbrev(valueHash)
+        oss << "[ h:" << hexAbbrev(valueHash)
             << " ]";
         return oss.str();
     }
@@ -358,7 +286,7 @@ bool
 HerderImpl::validateBallot(uint64 slotIndex, uint256 const& nodeID,
                            SCPBallot const& ballot)
 {
-    StellarBallot b;
+    StellarValue b;
     try
     {
         xdr::xdr_from_opaque(ballot.value, b);
@@ -371,7 +299,7 @@ HerderImpl::validateBallot(uint64 slotIndex, uint256 const& nodeID,
 
     // Check closeTime (not too far in the future)
     uint64_t timeNow = mApp.timeNow();
-    if (b.stellarValue.closeTime > timeNow + MAX_TIME_SLIP_SECONDS.count())
+    if (b.closeTime > timeNow + MAX_TIME_SLIP_SECONDS.count())
     {
         mBallotInvalid.Mark();
         return false;
@@ -410,12 +338,12 @@ HerderImpl::validateBallot(uint64 slotIndex, uint256 const& nodeID,
     }
 
     // Check baseFee (within range of desired fee).
-    if (b.stellarValue.baseFee < mApp.getConfig().DESIRED_BASE_FEE * .5)
+    if (b.baseFee < mApp.getConfig().DESIRED_BASE_FEE * .5)
     {
         mBallotInvalid.Mark();
         return false;
     }
-    if (b.stellarValue.baseFee > mApp.getConfig().DESIRED_BASE_FEE * 2)
+    if (b.baseFee > mApp.getConfig().DESIRED_BASE_FEE * 2)
     {
         mBallotInvalid.Mark();
         return false;
@@ -486,7 +414,7 @@ HerderImpl::valueExternalized(uint64 slotIndex, Value const& value)
     updateSCPCounters();
     mValueExternalize.Mark();
     mBumpTimer.cancel();
-    StellarBallot b;
+    StellarValue b;
     try
     {
         xdr::xdr_from_opaque(value, b);
@@ -494,14 +422,14 @@ HerderImpl::valueExternalized(uint64 slotIndex, Value const& value)
     catch (...)
     {
         // This may not be possible as all messages are validated and should
-        // therefore contain a valid StellarBallot.
+        // therefore contain a valid StellarValue.
         CLOG(ERROR, "Herder") << "HerderImpl::valueExternalized"
-                              << " Externalized StellarBallot malformed";
+                              << " Externalized StellarValue malformed";
         // no point in continuing as 'b' contains garbage at this point
         abort();
     }
 
-    auto txSetHash = b.stellarValue.txSetHash;
+    Hash const& txSetHash = b.txSetHash;
 
     CLOG(DEBUG, "Herder") << "HerderImpl::valueExternalized"
                           << " txSet: " << hexAbbrev(txSetHash);
@@ -523,8 +451,8 @@ HerderImpl::valueExternalized(uint64 slotIndex, Value const& value)
     // LedgerManager will perform the proper action based on its internal
     // state: apply, trigger catchup, etc
     LedgerCloseData ledgerData(lastConsensusLedgerIndex(), externalizedSet,
-                               b.stellarValue.closeTime,
-                               b.stellarValue.baseFee);
+                               b.closeTime,
+                               b.baseFee);
     mLedgerManager.externalizeValue(ledgerData);
 
     // perform cleanups
@@ -987,11 +915,10 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger)
         nextCloseTime = lcl.header.closeTime + 1;
     }
 
-    StellarBallot b;
-    b.stellarValue.txSetHash = txSetHash;
-    b.stellarValue.closeTime = nextCloseTime;
-    b.stellarValue.baseFee = mApp.getConfig().DESIRED_BASE_FEE;
-    signStellarBallot(b);
+    StellarValue b;
+    b.txSetHash = txSetHash;
+    b.closeTime = nextCloseTime;
+    b.baseFee = mApp.getConfig().DESIRED_BASE_FEE;
 
     mCurrentValue = xdr::xdr_to_opaque(b);
 
@@ -1017,30 +944,6 @@ HerderImpl::expireBallot(uint64 slotIndex, SCPBallot const& ballot)
 
     mValuePrepare.Mark();
     abandonBallot(slotIndex);
-}
-
-void
-HerderImpl::signStellarBallot(StellarBallot& b)
-{
-    mBallotSign.Mark();
-    b.nodeID = getSecretKey().getPublicKey();
-    b.signature = getSecretKey().sign(xdr::xdr_to_opaque(b.stellarValue));
-}
-
-bool
-HerderImpl::verifyStellarBallot(StellarBallot const& b)
-{
-    auto v = PublicKey::verifySig(b.nodeID, b.signature,
-                                  xdr::xdr_to_opaque(b.stellarValue));
-    if (v)
-    {
-        mBallotValidSig.Mark();
-    }
-    else
-    {
-        mBallotInvalidSig.Mark();
-    }
-    return v;
 }
 
 // Extra SCP methods overridden solely to increment metrics.

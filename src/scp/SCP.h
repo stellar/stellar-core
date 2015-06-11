@@ -33,7 +33,7 @@ class SCP
     // following virtual methods which are called by the SCP implementation to:
     //
     // 1) hand over the validation and ordering of values and ballots.
-    //    (`validateValue`, `compareValues`, `validateBallot`)
+    //    (`validateValue`, `validateBallot`)
     // 2) inform about events happening within the consensus algorithm.
     //    ( `ballotDidPrepare`, `ballotDidPrepared`, `ballotDidCommit`,
     //      `ballotDidCommitted`, `valueExternalized`)
