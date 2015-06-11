@@ -5,6 +5,7 @@
 
 #include "lib/catch.hpp"
 #include "scp/SCP.h"
+#include "scp/Slot.h"
 #include "util/types.h"
 #include "xdrpp/marshal.h"
 #include "xdrpp/printer.h"
@@ -14,10 +15,19 @@
 #include "simulation/Simulation.h"
 #include "scp/Node.h"
 
-using namespace stellar;
+namespace stellar
+{
 
 using xdr::operator<;
 using xdr::operator==;
+
+#define CREATE_VALUE(X)                                             \
+    static const Hash X##ValueHash = sha256("SEED_VALUE_HASH_" #X); \
+    static const Value X##Value = xdr::xdr_to_opaque(X##ValueHash);
+
+CREATE_VALUE(x);
+CREATE_VALUE(y);
+CREATE_VALUE(z);
 
 class TestSCP : public SCP
 {
@@ -25,6 +35,12 @@ class TestSCP : public SCP
     TestSCP(SecretKey const& secretKey, SCPQuorumSet const& qSetLocal)
         : SCP(secretKey, qSetLocal)
     {
+        mPriorityLookup =
+            [&](uint256 const& n)
+        {
+            return (n == secretKey.getPublicKey()) ? 1000 : 1;
+        };
+
     }
     void
     storeQuorumSet(SCPQuorumSetPtr qSet)
@@ -95,10 +111,55 @@ class TestSCP : public SCP
         mEnvs.push_back(envelope);
     }
 
+    // used to test BallotProtocol and bypass nomination
+    bool
+    bumpState(uint64 slotIndex, Value const& v)
+    {
+        return getSlot(slotIndex)->bumpState(v, true);
+    }
+
+    // only used by nomination protocol
+    Value
+    combineCandidates(uint64 slotIndex,
+                      std::set<Value> const& candidates) override
+    {
+        REQUIRE(candidates == mExpectedCandidates);
+        REQUIRE(!mCompositeValue.empty());
+
+        return mCompositeValue;
+    }
+
+    std::set<Value> mExpectedCandidates;
+    Value mCompositeValue;
+
+    // override the internal hashing scheme in order to make tests
+    // more predictable.
+    uint64 computeHash(uint64 slotIndex, bool isPriority, int32 roundNumber,
+                       uint256 const& nodeID) override
+    {
+        uint64 res;
+        if (isPriority)
+        {
+            res = mPriorityLookup(nodeID);
+        }
+        else
+        {
+            res = 0;
+        }
+        return res;
+    }
+
+    std::function<uint64(uint256 const&)> mPriorityLookup;
+
     std::map<Hash, SCPQuorumSetPtr> mQuorumSets;
     std::vector<SCPEnvelope> mEnvs;
     std::map<uint64, Value> mExternalizedValues;
     std::map<uint64, std::vector<SCPBallot>> mHeardFromQuorums;
+
+    Value const& getLatestCompositeCandidate(uint64 slotIndex)
+    {
+        return getSlot(slotIndex)->getLatestCompositeCandidate();
+    }
 };
 
 static SCPEnvelope
@@ -170,6 +231,28 @@ makePrepare(SecretKey const& secretKey, Hash const& qSetHash, uint64 slotIndex,
     return makeEnvelope(secretKey, slotIndex, st);
 }
 
+static SCPEnvelope
+makeNominate(SecretKey const& secretKey, Hash const& qSetHash, uint64 slotIndex,
+             std::vector<Value> votes, std::vector<Value> accepted)
+{
+    std::sort(votes.begin(), votes.end());
+    std::sort(accepted.begin(), accepted.end());
+
+    SCPStatement st;
+    st.pledges.type(SCP_ST_NOMINATE);
+    auto &nom = st.pledges.nominate();
+    nom.quorumSetHash = qSetHash;
+    for (auto const& v : votes)
+    {
+        nom.votes.emplace_back(v);
+    }
+    for (auto const& a : accepted)
+    {
+        nom.accepted.emplace_back(a);
+    }
+    return makeEnvelope(secretKey, slotIndex, st);
+}
+
 void
 verifyPrepare(SCPEnvelope const& actual, SecretKey const& secretKey,
               Hash const& qSetHash, uint64 slotIndex, SCPBallot const& ballot,
@@ -200,21 +283,25 @@ verifyExternalize(SCPEnvelope const& actual, SecretKey const& secretKey,
     REQUIRE(exp.statement == actual.statement);
 }
 
-#define CREATE_VALUE(X)                                                        \
-    const Hash X##ValueHash = sha256("SEED_VALUE_HASH_" #X);                   \
-    const Value X##Value = xdr::xdr_to_opaque(X##ValueHash);
+void
+verifyNominate(SCPEnvelope const& actual, SecretKey const& secretKey, Hash const& qSetHash, uint64 slotIndex,
+               std::vector<Value> votes, std::vector<Value> accepted)
+{
+    auto exp = makeNominate(secretKey, qSetHash, slotIndex, votes, accepted);
+    REQUIRE(exp.statement == actual.statement);
+}
 
 TEST_CASE("vblocking and quorum", "[scp]")
 {
     class TestNode : public Node
     {
-    public:
+      public:
         TestNode() : Node(uint256(), nullptr)
         {
-
         }
 
-        void test()
+        void
+        test()
         {
             SIMULATION_CREATE_NODE(0);
             SIMULATION_CREATE_NODE(1);
@@ -234,7 +321,6 @@ TEST_CASE("vblocking and quorum", "[scp]")
             REQUIRE(isQuorumSlice(qSet, nodeSet) == false);
             REQUIRE(isVBlocking(qSet, nodeSet) == false);
 
-
             nodeSet.push_back(v2NodeID);
 
             REQUIRE(isQuorumSlice(qSet, nodeSet) == false);
@@ -247,8 +333,6 @@ TEST_CASE("vblocking and quorum", "[scp]")
             nodeSet.push_back(v1NodeID);
             REQUIRE(isQuorumSlice(qSet, nodeSet) == true);
             REQUIRE(isVBlocking(qSet, nodeSet) == true);
-
-
         }
     };
 
@@ -256,9 +340,7 @@ TEST_CASE("vblocking and quorum", "[scp]")
     tnode.test();
 }
 
-
-
-TEST_CASE("protocol core5", "[scp]")
+TEST_CASE("protocol core5", "[scp][ballotprotocol]")
 {
     SIMULATION_CREATE_NODE(0);
     SIMULATION_CREATE_NODE(1);
@@ -282,10 +364,6 @@ TEST_CASE("protocol core5", "[scp]")
     TestSCP scp(v0SecretKey, qSet);
 
     scp.storeQuorumSet(std::make_shared<SCPQuorumSet>(qSet));
-
-    CREATE_VALUE(x);
-    CREATE_VALUE(y);
-    CREATE_VALUE(z);
 
     REQUIRE(xValue < yValue);
 
@@ -660,7 +738,7 @@ TEST_CASE("protocol core5", "[scp]")
         scp.receiveEnvelope(prepared1);
 
         int i = 1;
-            REQUIRE(scp.mEnvs.size() == i);
+        REQUIRE(scp.mEnvs.size() == i);
         REQUIRE(scp.mHeardFromQuorums[0].size() == 0);
 
         SCPEnvelope prepared2 = makePrepare(v2SecretKey, qSetHash, 0,
@@ -1133,4 +1211,288 @@ TEST_CASE("protocol core5", "[scp]")
         verifyPrepare(scp.mEnvs[3], v0SecretKey, qSetHash, 0, newbx, &bx,
                       bx.counter, bx.counter);
     }
+}
+
+TEST_CASE("nomination tests core5", "[scp][nominationprotocol]")
+{
+    SIMULATION_CREATE_NODE(0);
+    SIMULATION_CREATE_NODE(1);
+    SIMULATION_CREATE_NODE(2);
+    SIMULATION_CREATE_NODE(3);
+    SIMULATION_CREATE_NODE(4);
+
+    // we need 5 nodes to avoid sharing various thresholds:
+    // v-blocking set size: 2
+    // threshold: 4 = 3 + self
+    SCPQuorumSet qSet;
+    qSet.threshold = 4;
+    qSet.validators.push_back(v0NodeID);
+    qSet.validators.push_back(v1NodeID);
+    qSet.validators.push_back(v2NodeID);
+    qSet.validators.push_back(v3NodeID);
+    qSet.validators.push_back(v4NodeID);
+
+    uint256 qSetHash = sha256(xdr::xdr_to_opaque(qSet));
+
+    REQUIRE(xValue < yValue);
+
+    SECTION("nomination - v0 is top")
+    {
+        TestSCP scp(v0SecretKey, qSet);
+        scp.storeQuorumSet(std::make_shared<SCPQuorumSet>(qSet));
+
+        SECTION("others nominate what v0 says (x) -> prepare x")
+        {
+            scp.mExpectedCandidates.emplace(xValue);
+            scp.mCompositeValue = xValue;
+            REQUIRE(scp.nominate(0, xValue, false));
+
+            std::vector<Value> votes, accepted;
+            votes.emplace_back(xValue);
+
+            REQUIRE(scp.mEnvs.size() == 1);
+            verifyNominate(scp.mEnvs[0], v0SecretKey, qSetHash, 0, votes, accepted);
+
+            SCPEnvelope nom1 = makeNominate(v1SecretKey, qSetHash, 0, votes, accepted);
+            SCPEnvelope nom2 = makeNominate(v2SecretKey, qSetHash, 0, votes, accepted);
+            SCPEnvelope nom3 = makeNominate(v3SecretKey, qSetHash, 0, votes, accepted);
+            SCPEnvelope nom4 = makeNominate(v4SecretKey, qSetHash, 0, votes, accepted);
+
+            // nothing happens yet
+            scp.receiveEnvelope(nom1);
+            scp.receiveEnvelope(nom2);
+            REQUIRE(scp.mEnvs.size() == 1);
+
+            // this causes 'x' to be accepted (quorum)
+            scp.receiveEnvelope(nom3);
+            REQUIRE(scp.mEnvs.size() == 2);
+
+            accepted.emplace_back(xValue);
+            verifyNominate(scp.mEnvs[1], v0SecretKey, qSetHash, 0, votes, accepted);
+
+            // extra message doesn't do anything
+            scp.receiveEnvelope(nom4);
+            REQUIRE(scp.mEnvs.size() == 2);
+
+            SCPEnvelope acc1 = makeNominate(v1SecretKey, qSetHash, 0, votes, accepted);
+            SCPEnvelope acc2 = makeNominate(v2SecretKey, qSetHash, 0, votes, accepted);
+            SCPEnvelope acc3 = makeNominate(v3SecretKey, qSetHash, 0, votes, accepted);
+            SCPEnvelope acc4 = makeNominate(v4SecretKey, qSetHash, 0, votes, accepted);
+
+            // nothing happens yet
+            scp.receiveEnvelope(acc1);
+            scp.receiveEnvelope(acc2);
+            REQUIRE(scp.mEnvs.size() == 2);
+
+            scp.mCompositeValue = xValue;
+            // this causes the node to send a prepare message (quorum)
+            scp.receiveEnvelope(acc3);
+            REQUIRE(scp.mEnvs.size() == 3);
+
+            verifyPrepare(scp.mEnvs[2], v0SecretKey, qSetHash, 0, SCPBallot(1, xValue));
+
+            scp.receiveEnvelope(acc4);
+            REQUIRE(scp.mEnvs.size() == 3);
+
+            SECTION("nominate x -> accept x -> prepare (x) ; others accepted y -> update latest to (z=x+y)")
+            {
+                std::vector<Value> votes2 = votes;
+                votes2.emplace_back(yValue);
+
+                SCPEnvelope acc1_2 = makeNominate(v1SecretKey, qSetHash, 0, votes2, votes2);
+                SCPEnvelope acc2_2 = makeNominate(v2SecretKey, qSetHash, 0, votes2, votes2);
+                SCPEnvelope acc3_2 = makeNominate(v3SecretKey, qSetHash, 0, votes2, votes2);
+                SCPEnvelope acc4_2 = makeNominate(v4SecretKey, qSetHash, 0, votes2, votes2);
+
+                scp.receiveEnvelope(acc1_2);
+                REQUIRE(scp.mEnvs.size() == 3);
+
+                // v-blocking
+                scp.receiveEnvelope(acc2_2);
+                REQUIRE(scp.mEnvs.size() == 4);
+                verifyNominate(scp.mEnvs[3], v0SecretKey, qSetHash, 0, votes2, votes2);
+
+                scp.mExpectedCandidates.insert(yValue);
+                scp.mCompositeValue = zValue;
+                // this updates the composite value to use next time
+                // but does not prepare it
+                scp.receiveEnvelope(acc3_2);
+                REQUIRE(scp.mEnvs.size() == 4);
+
+                REQUIRE(scp.getLatestCompositeCandidate(0) == zValue);
+
+                scp.receiveEnvelope(acc4_2);
+                REQUIRE(scp.mEnvs.size() == 4);
+            }
+        }
+        SECTION("self nominates 'x', others nominate y -> prepare y")
+        {
+            std::vector<Value> myVotes, accepted;
+            myVotes.emplace_back(xValue);
+
+            scp.mExpectedCandidates.emplace(xValue);
+            scp.mCompositeValue = xValue;
+            REQUIRE(scp.nominate(0, xValue, false));
+
+            REQUIRE(scp.mEnvs.size() == 1);
+            verifyNominate(scp.mEnvs[0], v0SecretKey, qSetHash, 0, myVotes, accepted);
+
+            std::vector<Value> votes;
+            votes.emplace_back(yValue);
+
+            std::vector<Value> acceptedY = accepted;
+
+            acceptedY.emplace_back(yValue);
+
+            SCPEnvelope acc1 = makeNominate(v1SecretKey, qSetHash, 0, votes, acceptedY);
+            SCPEnvelope acc2 = makeNominate(v2SecretKey, qSetHash, 0, votes, acceptedY);
+            SCPEnvelope acc3 = makeNominate(v3SecretKey, qSetHash, 0, votes, acceptedY);
+            SCPEnvelope acc4 = makeNominate(v4SecretKey, qSetHash, 0, votes, acceptedY);
+
+            SECTION("via quorum")
+            {
+                SCPEnvelope nom1 = makeNominate(v1SecretKey, qSetHash, 0, votes, accepted);
+                SCPEnvelope nom2 = makeNominate(v2SecretKey, qSetHash, 0, votes, accepted);
+                SCPEnvelope nom3 = makeNominate(v3SecretKey, qSetHash, 0, votes, accepted);
+                SCPEnvelope nom4 = makeNominate(v4SecretKey, qSetHash, 0, votes, accepted);
+
+                // nothing happens yet
+                scp.receiveEnvelope(nom1);
+                scp.receiveEnvelope(nom2);
+                scp.receiveEnvelope(nom3);
+                REQUIRE(scp.mEnvs.size() == 1);
+
+                // this causes 'y' to be accepted (quorum)
+                scp.receiveEnvelope(nom4);
+                REQUIRE(scp.mEnvs.size() == 2);
+
+                myVotes.emplace_back(yValue);
+                verifyNominate(scp.mEnvs[1], v0SecretKey, qSetHash, 0, myVotes, acceptedY);
+
+                // nothing happens yet
+                scp.receiveEnvelope(acc1);
+                scp.receiveEnvelope(acc2);
+                REQUIRE(scp.mEnvs.size() == 2);
+            }
+            SECTION("via v-blocking")
+            {
+                scp.receiveEnvelope(acc1);
+                REQUIRE(scp.mEnvs.size() == 1);
+
+                // this causes 'y' to be accepted (quorum)
+                scp.receiveEnvelope(acc2);
+                REQUIRE(scp.mEnvs.size() == 2);
+
+                myVotes.emplace_back(yValue);
+                verifyNominate(scp.mEnvs[1], v0SecretKey, qSetHash, 0, myVotes, acceptedY);
+            }
+
+            scp.mExpectedCandidates.clear();
+            scp.mExpectedCandidates.insert(yValue);
+            scp.mCompositeValue = yValue;
+            // this causes the node to send a prepare message (quorum)
+            scp.receiveEnvelope(acc3);
+            REQUIRE(scp.mEnvs.size() == 3);
+
+            verifyPrepare(scp.mEnvs[2], v0SecretKey, qSetHash, 0, SCPBallot(1, yValue));
+
+            scp.receiveEnvelope(acc4);
+            REQUIRE(scp.mEnvs.size() == 3);
+        }
+    }
+    SECTION("v1 is top node")
+    {
+        TestSCP scp(v0SecretKey, qSet);
+        scp.storeQuorumSet(std::make_shared<SCPQuorumSet>(qSet));
+
+        scp.mPriorityLookup =
+            [&](uint256 const& n)
+        {
+            return (n == v1NodeID) ? 1000 : 1;
+        };
+
+        std::vector<Value> votesX, votesY, votesZ, emptyV;
+        votesX.emplace_back(xValue);
+        votesY.emplace_back(yValue);
+        votesZ.emplace_back(zValue);
+
+        SCPEnvelope nom1 = makeNominate(v1SecretKey, qSetHash, 0, votesY, emptyV);
+        SCPEnvelope nom2 = makeNominate(v2SecretKey, qSetHash, 0, votesZ, emptyV);
+
+        SECTION("nomination waits for v1")
+        {
+            REQUIRE(!scp.nominate(0, xValue, false));
+
+            REQUIRE(scp.mEnvs.size() == 0);
+
+            SCPEnvelope nom3 = makeNominate(v3SecretKey, qSetHash, 0, votesZ, emptyV);
+            SCPEnvelope nom4 = makeNominate(v4SecretKey, qSetHash, 0, votesZ, emptyV);
+
+            // nothing happens with non top nodes
+            scp.receiveEnvelope(nom2);
+            scp.receiveEnvelope(nom3);
+            REQUIRE(scp.mEnvs.size() == 0);
+
+            scp.mExpectedCandidates.emplace(yValue);
+            scp.mCompositeValue = yValue;
+
+            scp.receiveEnvelope(nom1);
+            REQUIRE(scp.mEnvs.size() == 1);
+            verifyNominate(scp.mEnvs[0], v0SecretKey, qSetHash, 0, votesY, emptyV);
+
+            scp.receiveEnvelope(nom4);
+            REQUIRE(scp.mEnvs.size() == 1);
+        }
+        SECTION("v1 dead, timeout")
+        {
+            REQUIRE(!scp.nominate(0, xValue, false));
+
+            REQUIRE(scp.mEnvs.size() == 0);
+
+            scp.receiveEnvelope(nom2);
+            REQUIRE(scp.mEnvs.size() == 0);
+
+            SECTION("v0 is new top node")
+            {
+                scp.mPriorityLookup =
+                    [&](uint256 const& n)
+                {
+                    return (n == v0NodeID) ? 1000 : 1;
+                };
+                scp.mExpectedCandidates.emplace(xValue);
+                scp.mCompositeValue = xValue;
+
+                REQUIRE(scp.nominate(0, xValue, true));
+                REQUIRE(scp.mEnvs.size() == 1);
+                verifyNominate(scp.mEnvs[0], v0SecretKey, qSetHash, 0, votesX, emptyV);
+            }
+            SECTION("v2 is new top node")
+            {
+                scp.mPriorityLookup =
+                    [&](uint256 const& n)
+                {
+                    return (n == v2NodeID) ? 1000 : 1;
+                };
+                scp.mExpectedCandidates.emplace(zValue);
+                scp.mCompositeValue = zValue;
+
+                REQUIRE(scp.nominate(0, xValue, true));
+                REQUIRE(scp.mEnvs.size() == 1);
+                verifyNominate(scp.mEnvs[0], v0SecretKey, qSetHash, 0, votesZ, emptyV);
+            }
+            SECTION("v3 is new top node")
+            {
+                scp.mPriorityLookup =
+                    [&](uint256 const& n)
+                {
+                    return (n == v3NodeID) ? 1000 : 1;
+                };
+                // nothing happens, we don't have any message for v3
+                REQUIRE(!scp.nominate(0, xValue, true));
+                REQUIRE(scp.mEnvs.size() == 0);
+            }
+        }
+    }
+}
+
 }

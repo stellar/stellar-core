@@ -249,7 +249,7 @@ class SCP
     size_t getKnownSlotsCount() const;
     size_t getCumulativeStatemtCount() const;
 
-  private:
+  protected:
     // Slot getter
     std::shared_ptr<Slot> getSlot(uint64 slotIndex);
 };
