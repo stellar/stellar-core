@@ -55,6 +55,8 @@ class Slot : public std::enable_shared_from_this<Slot>
         return mBallotProtocol;
     }
 
+    Value const& getLatestCompositeCandidate();
+
     // records the statement in the historical record for this slot
     void recordStatement(SCPStatement const& st);
 
@@ -69,7 +71,12 @@ class Slot : public std::enable_shared_from_this<Slot>
     // bumps the ballot based on the local state and the value passed in:
     // in prepare phase, attempts to take value
     // otherwise, no-ops
-    bool bumpState(Value const& value);
+    // force: when true, always bumps the value, otherwise only bumps
+    // the state if no value was prepared
+    bool bumpState(Value const& value, bool force);
+
+    // attempts to nominate a value for consensus
+    bool nominate(Value const& value, bool timedout);
 
     // ** status methods
 
@@ -100,7 +107,7 @@ class Slot : public std::enable_shared_from_this<Slot>
     SCPEnvelope createEnvelope(SCPStatement const& statement);
 
     // ** helper methods to stringify ballot for logging
-
+    std::string getValueString(Value const& v) const;
     std::string ballotToStr(SCPBallot const& ballot) const;
     std::string ballotToStr(std::unique_ptr<SCPBallot> const& ballot) const;
     std::string envToStr(SCPEnvelope const& envelope) const;

@@ -67,7 +67,9 @@ class BallotProtocol
     // bumps the ballot based on the local state and the value passed in:
     // in prepare phase, attempts to take value
     // otherwise, no-ops
-    bool bumpState(Value const& value);
+    // force: when true, always bumps the value, otherwise only bumps
+    // the state if no value was prepared
+    bool bumpState(Value const& value, bool force);
 
     // ** status methods
 

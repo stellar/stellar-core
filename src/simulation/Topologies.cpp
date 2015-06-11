@@ -41,16 +41,20 @@ Topologies::cycle4()
     SIMULATION_CREATE_NODE(3);
 
     SCPQuorumSet qSet0;
-    qSet0.threshold = 1;
+    qSet0.threshold = 2;
     qSet0.validators.push_back(v1NodeID);
+    qSet0.validators.push_back(v0NodeID);
     SCPQuorumSet qSet1;
-    qSet1.threshold = 1;
+    qSet1.threshold = 2;
+    qSet1.validators.push_back(v1NodeID);
     qSet1.validators.push_back(v2NodeID);
     SCPQuorumSet qSet2;
-    qSet2.threshold = 1;
+    qSet2.threshold = 2;
+    qSet2.validators.push_back(v2NodeID);
     qSet2.validators.push_back(v3NodeID);
     SCPQuorumSet qSet3;
-    qSet3.threshold = 1;
+    qSet3.threshold = 2;
+    qSet3.validators.push_back(v3NodeID);
     qSet3.validators.push_back(v0NodeID);
 
     auto n0 = simulation->addNode(v0SecretKey, qSet0, simulation->getClock());

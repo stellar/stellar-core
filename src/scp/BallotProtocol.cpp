@@ -321,65 +321,51 @@ bool
 BallotProtocol::abandonBallot()
 {
     bool res = false;
-    if (mCurrentBallot)
+    Value const& v = mSlot.getLatestCompositeCandidate();
+    if (v.empty())
     {
-        res = bumpState(mCurrentBallot->value);
+        if (mCurrentBallot)
+        {
+            res = bumpState(mCurrentBallot->value, true);
+        }
+    }
+    else
+    {
+        res = bumpState(v, true);
     }
     return res;
 }
 
 bool
-BallotProtocol::bumpState(Value const& value)
+BallotProtocol::bumpState(Value const& value, bool force)
 {
     if (mPhase != SCP_PHASE_PREPARE)
     {
         return false;
     }
 
-    uint32 newCounter = 1;
-
-    if (mCurrentBallot)
+    if (!force && mCurrentBallot)
     {
-        newCounter = mCurrentBallot->counter + 1;
+        return false;
     }
 
     SCPBallot newb;
-    bool isKing;
 
     if (mConfirmedPrepared)
     {
         // can only bump the counter if we committed to something already
-        isKing = false;
         newb = *mConfirmedPrepared;
         newb.counter++;
     }
     else
     {
-        newb.counter = newCounter;
-#if 0
-        Value kingValue = value;
-        isKing = true;
-        // updates what the value should really be by consuming statements
-        for (auto const& stp : mLatestStatements)
-        {
-            auto b = getWorkingBallot(stp.second);
-            if (b.counter == newCounter &&
-                mSlot.getSCP().compareValues(mSlot.getSlotIndex(), newCounter, value, b.value) < 0)
-            {
-                kingValue = b.value;
-                isKing = false;
-            }
-        }
-        newb.value = kingValue;
-#else
+        newb.counter = mCurrentBallot ? (mCurrentBallot->counter + 1) : 1;
         newb.value = value;
-#endif
     }
 
     CLOG(DEBUG, "SCP") << "BallotProtocol::bumpState"
                        << " i: " << mSlot.getSlotIndex()
-                       << " v: " << mSlot.ballotToStr(newb)
-                       << " isKing: " << isKing;
+                       << " v: " << mSlot.ballotToStr(newb);
 
     bool updated = updateCurrentValue(newb);
 
@@ -658,25 +644,6 @@ BallotProtocol::attemptPrepare(SCPBallot const& ballot)
                 }))
         {
             didWork = abandonBallot();
-        }
-        else
-        {
-#if 0
-            // this code will be replaced by proper conciliator when ready
-
-            // We switch ballot if:
-            // * it's on the same counter
-            // * it has a higher value
-            // * it's compatible with "c"
-            if (mCurrentBallot && (mCurrentBallot->counter == ballot.counter) &&
-                (!mCommit || areBallotsLessAndCompatible(*mCommit, ballot)) &&
-                (mSlot.getSCP().compareValues(mSlot.getSlotIndex(), ballot.counter,
-                                     mCurrentBallot->value, ballot.value) < 0))
-            {
-                didWork = updateCurrentValue(ballot);
-                emitCurrentStateStatement();
-            }
-#endif
         }
     }
 

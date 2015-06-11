@@ -59,6 +59,12 @@ class HerderImpl : public Herder, public SCP
 
     void valueExternalized(uint64 slotIndex, Value const& value) override;
 
+    void nominatingValue(uint64 slotIndex, Value const& value,
+                         std::chrono::milliseconds timeout) override;
+
+    Value combineCandidates(uint64 slotIndex,
+                            std::set<Value> const& candidates) override;
+
     void nodeTouched(uint256 const& nodeID) override;
 
     void emitEnvelope(SCPEnvelope const& envelope) override;
@@ -161,6 +167,7 @@ class HerderImpl : public Herder, public SCP
     VirtualTimer mTriggerTimer;
 
     VirtualTimer mBumpTimer;
+    VirtualTimer mNominationTimer;
     VirtualTimer mRebroadcastTimer;
     Value mCurrentValue;
     StellarMessage mLastSentMessage;

@@ -5,6 +5,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include <map>
+#include <set>
 #include <memory>
 #include <functional>
 #include <chrono>
@@ -130,7 +131,7 @@ class SCP
 
     // `ballotGotBumped` is called every time the local ballot is updated
     // timeout is the duration that the local instance should wait for before
-    // attempting to prepare the value again
+    // calling `abandonBallot`
     virtual void
     ballotGotBumped(uint64 slotIndex, SCPBallot const& ballot,
                     std::chrono::milliseconds timeout)
@@ -143,6 +144,21 @@ class SCP
     valueExternalized(uint64 slotIndex, Value const& value)
     {
     }
+
+    // ``nominatingValue`` is called every time the local instance nominates
+    // a new value.
+    // timeout is the duration for which the local instance should wait before
+    // calling 'nominate' with the 'timedout' flag set to true.
+    virtual void
+    nominatingValue(uint64 slotIndex, Value const& value,
+                    std::chrono::milliseconds timeout)
+    {
+    }
+
+    // `combineCandidates` computes the composite value based off a list
+    // of candidate values.
+    virtual Value combineCandidates(uint64 slotIndex,
+                                    std::set<Value> const& candidates) = 0;
 
     // `nodeTouched` is call whenever a node is used within the SCP consensus
     // protocol. It lets implementor of SCP evict nodes that haven't been
@@ -176,7 +192,7 @@ class SCP
     bool abandonBallot(uint64 slotIndex);
 
     // Submit a value for the SCP consensus phase
-    bool bumpState(uint64 slotIndex, Value const& value);
+    bool nominate(uint64 slotIndex, Value const& value, bool timedout);
 
     // Local QuorumSet interface (can be dynamically updated)
     void updateLocalQuorumSet(SCPQuorumSet const& qSet);

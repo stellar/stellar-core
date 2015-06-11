@@ -33,6 +33,9 @@ class NominationProtocol
     // true if 'nominate' was called
     bool mNominationStarted;
 
+    // the latest (if any) candidate value
+    Value mLatestCompositeCandidate;
+
     bool isNewerStatement(uint256 const& nodeID, SCPNomination const& st);
     bool isNewerStatement(SCPNomination const& oldst, SCPNomination const& st);
 
@@ -74,5 +77,11 @@ class NominationProtocol
 
     // attempts to nominate a value for consensus
     bool nominate(Value const& value, bool timedout);
+
+    Value const&
+    getLatestCompositeCandidate() const
+    {
+        return mLatestCompositeCandidate;
+    }
 };
 }

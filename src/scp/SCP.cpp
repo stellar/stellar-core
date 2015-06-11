@@ -75,10 +75,10 @@ SCP::abandonBallot(uint64 slotIndex)
 }
 
 bool
-SCP::bumpState(uint64 slotIndex, Value const& value)
+SCP::nominate(uint64 slotIndex, Value const& value, bool timedout)
 {
     assert(!getSecretKey().isZero());
-    return getSlot(slotIndex)->bumpState(value);
+    return getSlot(slotIndex)->nominate(value, timedout);
 }
 
 void

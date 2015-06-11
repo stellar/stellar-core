@@ -23,8 +23,17 @@ using xdr::operator<;
 using namespace std::placeholders;
 
 Slot::Slot(uint64 slotIndex, SCP& scp)
-    : mSlotIndex(slotIndex), mSCP(scp), mBallotProtocol(*this), mNominationProtocol(*this)
+    : mSlotIndex(slotIndex)
+    , mSCP(scp)
+    , mBallotProtocol(*this)
+    , mNominationProtocol(*this)
 {
+}
+
+Value const&
+Slot::getLatestCompositeCandidate()
+{
+    return mNominationProtocol.getLatestCompositeCandidate();
 }
 
 void
@@ -61,9 +70,16 @@ Slot::abandonBallot()
 }
 
 bool
-Slot::bumpState(Value const& value)
+Slot::bumpState(Value const& value, bool force)
 {
-    return mBallotProtocol.bumpState(value);
+
+    return mBallotProtocol.bumpState(value, force);
+}
+
+bool
+Slot::nominate(Value const& value, bool timedout)
+{
+    return mNominationProtocol.nominate(value, timedout);
 }
 
 SCPEnvelope
@@ -172,11 +188,17 @@ Slot::dumpInfo(Json::Value& ret)
 }
 
 std::string
+Slot::getValueString(Value const& v) const
+{
+    return mSCP.getValueString(v);
+}
+
+std::string
 Slot::ballotToStr(SCPBallot const& ballot) const
 {
     std::ostringstream oss;
 
-    oss << "(" << ballot.counter << "," << mSCP.getValueString(ballot.value)
+    oss << "(" << ballot.counter << "," << getValueString(ballot.value)
         << ")";
     return oss.str();
 }
@@ -248,13 +270,13 @@ Slot::envToStr(SCPStatement const& st) const
             << " | D: " << hexAbbrev(qSetHash) << " | X: {";
         for (auto const& v : nom.votes)
         {
-            oss << " '" << mSCP.getValueString(v) << "',";
+            oss << " '" << getValueString(v) << "',";
         }
         oss << "}"
             << " | Y: {";
         for (auto const& a : nom.accepted)
         {
-            oss << " '" << mSCP.getValueString(a) << "',";
+            oss << " '" << getValueString(a) << "',";
         }
         oss << "}";
     }

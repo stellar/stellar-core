@@ -24,7 +24,7 @@ using xdr::operator<;
 using namespace std::placeholders;
 
 NominationProtocol::NominationProtocol(Slot& slot)
-    : mSlot(slot), mRoundNumber(0), mNominationStarted(false)
+    : mSlot(slot), mRoundNumber(1), mNominationStarted(false)
 {
     updateRoundLeaders();
 }
@@ -253,68 +253,69 @@ NominationProtocol::processEnvelope(SCPEnvelope const& envelope)
             recordStatement(st);
             res = SCP::EnvelopeState::VALID;
 
-            bool modified = false; // tracks if we should emit a new nomination message
-            bool newCandidates = false;
-
-            // attempts to promote some of the votes to accepted
-            for (auto const& v : nom.votes)
+            if (mNominationStarted)
             {
-                if (mAccepted.find(v) != mAccepted.end())
+                bool modified =
+                    false; // tracks if we should emit a new nomination message
+                bool newCandidates = false;
+
+                // attempts to promote some of the votes to accepted
+                for (auto const& v : nom.votes)
                 {
-                    continue;
-                }
-                if (mSlot.federatedAccept(
+                    if (mAccepted.find(v) != mAccepted.end())
+                    {
+                        continue;
+                    }
+                    if (mSlot.federatedAccept(
                         [&v](uint256 const&, SCPStatement const& st) -> bool
-                        {
-                            auto const& nom = st.pledges.nominate();
-                            bool res;
-                            res = (std::find(nom.votes.begin(), nom.votes.end(),
-                                             v) != nom.votes.end());
-                            return res;
-                        },
+                    {
+                        auto const& nom = st.pledges.nominate();
+                        bool res;
+                        res = (std::find(nom.votes.begin(), nom.votes.end(),
+                                         v) != nom.votes.end());
+                        return res;
+                    },
                         std::bind(&NominationProtocol::acceptPredicate, v, _1,
                                   _2),
                         mLatestNominations))
-                {
-                    mAccepted.insert(v);
-                    modified = true;
-                }
-            }
-            // attempts to promote accepted values to candidates
-            for (auto const& a : mAccepted)
-            {
-                if (mCandidates.find(a) != mCandidates.end())
-                {
-                    continue;
-                }
-                if (mSlot.federatedRatify(
-                        std::bind(&NominationProtocol::acceptPredicate, a, _1,
-                                  _2),
-                        mLatestNominations))
-                {
-                    mCandidates.insert(a);
-                    newCandidates = true;
-                }
-            }
-
-            // only take round leader votes if we still looking for candidates
-            if (mCandidates.empty() &&
-                mRoundLeaders.find(st.nodeID) != mRoundLeaders.end())
-            {
-                // see if we should update our list of votes
-                for (auto const& v : nom.votes)
-                {
-                    if (mVotes.find(v) == mVotes.end())
                     {
+                        mAccepted.emplace(v);
                         mVotes.emplace(v);
                         modified = true;
                     }
                 }
-            }
+                // attempts to promote accepted values to candidates
+                for (auto const& a : mAccepted)
+                {
+                    if (mCandidates.find(a) != mCandidates.end())
+                    {
+                        continue;
+                    }
+                    if (mSlot.federatedRatify(
+                        std::bind(&NominationProtocol::acceptPredicate, a, _1,
+                                  _2),
+                        mLatestNominations))
+                    {
+                        mCandidates.emplace(a);
+                        newCandidates = true;
+                    }
+                }
 
-            // don't participate in nomination if we don't have a value
-            if (mNominationStarted)
-            {
+                // only take round leader votes if we still looking for candidates
+                if (mCandidates.empty() &&
+                    mRoundLeaders.find(st.nodeID) != mRoundLeaders.end())
+                {
+                    // see if we should update our list of votes
+                    for (auto const& v : nom.votes)
+                    {
+                        if (mVotes.find(v) == mVotes.end())
+                        {
+                            mVotes.emplace(v);
+                            modified = true;
+                        }
+                    }
+                }
+
                 if (modified)
                 {
                     emitNomination();
@@ -322,9 +323,10 @@ NominationProtocol::processEnvelope(SCPEnvelope const& envelope)
 
                 if (newCandidates)
                 {
-                    Value v = mSlot.getSCP().combineCandidates(
-                        mSlot.getSlotIndex(), mCandidates);
-                    mSlot.bumpState(v);
+                    mLatestCompositeCandidate =
+                        mSlot.getSCP().combineCandidates(mSlot.getSlotIndex(),
+                                                         mCandidates);
+                    mSlot.bumpState(mLatestCompositeCandidate, false);
                 }
             }
         }
@@ -347,6 +349,9 @@ NominationProtocol::getStatementValues(SCPStatement const& st)
 bool
 NominationProtocol::nominate(Value const& value, bool timedout)
 {
+    CLOG(DEBUG, "SCP") << "NominationProtocol::nominate "
+                       << mSlot.getValueString(value);
+
     bool updated = false;
 
     mNominationStarted = true;
@@ -385,23 +390,26 @@ NominationProtocol::nominate(Value const& value, bool timedout)
         }
     }
 
-    if (timedout)
-    {
-        std::chrono::milliseconds timeout =
-            std::chrono::seconds(mRoundNumber * (mRoundNumber + 1) / 2);
+    std::chrono::milliseconds timeout =
+        std::chrono::seconds(mRoundNumber * (mRoundNumber + 1) / 2);
 
-        if (updated)
-        {
-            Value nominatingValue =
-                mSlot.getSCP().combineCandidates(mSlot.getSlotIndex(), mVotes);
-            mSlot.getSCP().nominatingValue(mSlot.getSlotIndex(),
-                                           nominatingValue, timeout);
-        }
+    Value nominatingValue;
+    if (!mVotes.empty())
+    {
+        nominatingValue =
+            mSlot.getSCP().combineCandidates(mSlot.getSlotIndex(), mVotes);
     }
+    // called even with an empty value to start the timer
+    mSlot.getSCP().nominatingValue(mSlot.getSlotIndex(), nominatingValue,
+                                   timeout);
 
     if (updated)
     {
         emitNomination();
+    }
+    else
+    {
+        CLOG(DEBUG, "SCP") << "NominationProtocol::nominate (SKIPPED)";
     }
 
     return updated;

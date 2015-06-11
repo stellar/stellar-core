@@ -44,6 +44,7 @@ HerderImpl::HerderImpl(Application& app)
     , mLastTrigger(app.getClock().now())
     , mTriggerTimer(app)
     , mBumpTimer(app)
+    , mNominationTimer(app)
     , mRebroadcastTimer(app)
     , mApp(app)
     , mLedgerManager(app.getLedgerManager())
@@ -82,8 +83,7 @@ HerderImpl::HerderImpl(Application& app)
     , mQsetRetrieve(
           app.getMetrics().NewMeter({"scp", "qset", "retrieve"}, "qset"))
 
-    , mLostSync(
-          app.getMetrics().NewMeter({"scp", "sync", "lost"}, "sync"))
+    , mLostSync(app.getMetrics().NewMeter({"scp", "sync", "lost"}, "sync"))
 
     , mEnvelopeEmit(
           app.getMetrics().NewMeter({"scp", "envelope", "emit"}, "envelope"))
@@ -197,8 +197,7 @@ HerderImpl::validateValue(uint64 slotIndex, uint256 const& nodeID,
     }
 
     // Check closeTime (not too old)
-    if (b.closeTime <=
-        mTrackingSCP->mConsensusValue.closeTime)
+    if (b.closeTime <= mTrackingSCP->mConsensusValue.closeTime)
     {
         mValueInvalid.Mark();
         return false;
@@ -267,13 +266,17 @@ HerderImpl::getValueString(Value const& v) const
 {
     std::ostringstream oss;
     StellarValue b;
+    if (v.empty())
+    {
+        return "[empty]";
+    }
+
     try
     {
         xdr::xdr_from_opaque(v, b);
         uint256 valueHash = sha256(xdr::xdr_to_opaque(b));
 
-        oss << "[ h:" << hexAbbrev(valueHash)
-            << " ]";
+        oss << "[ h:" << hexAbbrev(valueHash) << " ]";
         return oss.str();
     }
     catch (...)
@@ -356,26 +359,12 @@ HerderImpl::validateBallot(uint64 slotIndex, uint256 const& nodeID,
         return false;
     }
 
-    bool isTrusted = false;
-    for (auto const& vID : getLocalQuorumSet().validators)
-    {
-        // A ballot is trusted if its value is generated or prepared by a node
-        // in our qSet.
-        if (b.nodeID == vID || b.nodeID == getLocalNodeID())
-        {
-            isTrusted = true;
-            break;
-        }
-    }
-
     uint256 valueHash = sha256(xdr::xdr_to_opaque(ballot.value));
 
     CLOG(DEBUG, "Herder") << "HerderImpl::validateBallot"
                           << " i: " << slotIndex << " v: " << hexAbbrev(nodeID)
-                          << " o: " << hexAbbrev(b.nodeID) << " b: ("
-                          << ballot.counter << "," << hexAbbrev(valueHash)
-                          << ")"
-                          << " isTrusted: " << isTrusted;
+                          << " b: (" << ballot.counter << ","
+                          << hexAbbrev(valueHash) << ")";
 
     mBallotValid.Mark();
     return true;
@@ -395,9 +384,12 @@ HerderImpl::ballotGotBumped(uint64 slotIndex, SCPBallot const& ballot,
 
     mBumpTimer.expires_from_now(timeout);
 
-    // TODO: Bumping on a timeout disabled for now, tends to stall scp
-    // mBumpTimer.async_wait([&]() { expireBallot(slotIndex, ballot); },
-    // &VirtualTimer::onFailureNoop);
+    mBumpTimer.async_wait(
+        [this, slotIndex, ballot]()
+        {
+            expireBallot(slotIndex, ballot);
+        },
+        &VirtualTimer::onFailureNoop);
 }
 
 void
@@ -414,6 +406,7 @@ HerderImpl::valueExternalized(uint64 slotIndex, Value const& value)
     updateSCPCounters();
     mValueExternalize.Mark();
     mBumpTimer.cancel();
+    mNominationTimer.cancel();
     StellarValue b;
     try
     {
@@ -451,8 +444,7 @@ HerderImpl::valueExternalized(uint64 slotIndex, Value const& value)
     // LedgerManager will perform the proper action based on its internal
     // state: apply, trigger catchup, etc
     LedgerCloseData ledgerData(lastConsensusLedgerIndex(), externalizedSet,
-                               b.closeTime,
-                               b.baseFee);
+                               b.closeTime, b.baseFee);
     mLedgerManager.externalizeValue(ledgerData);
 
     // perform cleanups
@@ -498,6 +490,78 @@ HerderImpl::valueExternalized(uint64 slotIndex, Value const& value)
     }
 
     ledgerClosed();
+}
+
+void
+HerderImpl::nominatingValue(uint64 slotIndex, Value const& value,
+                            std::chrono::milliseconds timeout)
+{
+    CLOG(DEBUG, "Herder") << "nominatingValue i:" << slotIndex
+                          << " t:" << timeout.count()
+                          << " v: " << getValueString(value);
+    mNominationTimer.cancel();
+
+    mNominationTimer.expires_from_now(timeout);
+
+    mNominationTimer.async_wait(
+        [this, slotIndex, value]()
+        {
+            assert(!mCurrentValue.empty());
+            nominate(slotIndex, mCurrentValue, true);
+        },
+        &VirtualTimer::onFailureNoop);
+}
+
+Value
+HerderImpl::combineCandidates(uint64 slotIndex,
+                              std::set<Value> const& candidates)
+{
+    Hash h;
+    StellarValue comp(h, 0, 0);
+
+    std::set<TransactionFramePtr> aggSet;
+
+    auto const& lcl = mLedgerManager.getLastClosedLedgerHeader();
+
+    for (auto const& c : candidates)
+    {
+        StellarValue sv;
+        xdr::xdr_from_opaque(c, sv);
+        // max fee
+        if (comp.baseFee < sv.baseFee)
+        {
+            comp.baseFee = sv.baseFee;
+        }
+        // max closeTime
+        if (comp.closeTime < sv.closeTime)
+        {
+            comp.closeTime = sv.closeTime;
+        }
+        // union of all transactions
+        TxSetFramePtr cTxSet = getTxSet(sv.txSetHash);
+        if (cTxSet && cTxSet->previousLedgerHash() == lcl.hash)
+        {
+            for (auto const& tx : cTxSet->mTransactions)
+            {
+                aggSet.insert(tx);
+            }
+        }
+    }
+    TxSetFramePtr aggTxSet = std::make_shared<TxSetFrame>(lcl.hash);
+    for (auto const& tx : aggSet)
+    {
+        aggTxSet->add(tx);
+    }
+
+    std::vector<TransactionFramePtr> removed;
+    aggTxSet->trimInvalid(mApp, removed);
+    aggTxSet->surgePricingFilter(mApp);
+
+    comp.txSetHash = aggTxSet->getContentsHash();
+
+    recvTxSet(comp.txSetHash, *aggTxSet);
+
+    return xdr::xdr_to_opaque(comp);
 }
 
 void
@@ -555,7 +619,6 @@ HerderImpl::emitEnvelope(SCPEnvelope const& envelope)
     {
         return;
     }
-
     // start to broadcast our latest message
     mLastSentMessage.type(SCP_MESSAGE);
     mLastSentMessage.envelope() = envelope;
@@ -932,7 +995,7 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger)
                           << " slot: " << slotIndex;
 
     mValuePrepare.Mark();
-    bumpState(slotIndex, mCurrentValue);
+    nominate(slotIndex, mCurrentValue, false);
 }
 
 void
