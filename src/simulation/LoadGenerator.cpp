@@ -307,8 +307,9 @@ LoadGenerator::AccountInfo::creationTransaction()
 bool
 LoadGenerator::TxInfo::execute(Application& app)
 {
-    if (app.getHerder().recvTransaction(createPaymentTx()) ==
-        Herder::TX_STATUS_PENDING)
+    auto tx = toTransactionFrame();
+    auto status = app.getHerder().recvTransaction(tx);
+    if (status == Herder::TX_STATUS_PENDING)
     {
         recordExecution(app.getConfig().DESIRED_BASE_FEE);
         return true;
@@ -317,7 +318,7 @@ LoadGenerator::TxInfo::execute(Application& app)
 }
 
 TransactionFramePtr
-LoadGenerator::TxInfo::createPaymentTx()
+LoadGenerator::TxInfo::toTransactionFrame()
 {
     TransactionFramePtr res;
     if (mCreate)

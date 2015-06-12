@@ -128,7 +128,7 @@ class LedgerPerformanceTests : public Simulation
             mApp->getLedgerManager().getLastClosedLedgerHeader().hash);
         for (auto& tx : txs)
         {
-            txSet->add(tx.createPaymentTx());
+            txSet->add(tx.toTransactionFrame());
             tx.recordExecution(baseFee);
         }
 

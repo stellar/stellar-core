@@ -80,7 +80,7 @@ public:
         uint64_t mAmount;
 
         bool execute(Application& app);
-        TransactionFramePtr createPaymentTx();
+        TransactionFramePtr toTransactionFrame();
         void recordExecution(uint64_t baseFee);
     };
 };
