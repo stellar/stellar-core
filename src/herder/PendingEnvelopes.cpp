@@ -147,11 +147,15 @@ PendingEnvelopes::isFullyFetched(SCPEnvelope const& envelope)
     if (!mQsetCache.exists(Slot::getCompanionQuorumSetHashFromStatement(envelope.statement)))
         return false;
 
-    StellarBallot wb;
-    xdr::xdr_from_opaque(Slot::getStatementValue(envelope.statement), wb);
+    std::vector<Value> vals = Slot::getStatementValues(envelope.statement);
+    for (auto const& v : vals)
+    {
+        StellarBallot wb;
+        xdr::xdr_from_opaque(v, wb);
 
-    if (!mTxSetCache.exists(wb.stellarValue.txSetHash))
-        return false;
+        if (!mTxSetCache.exists(wb.stellarValue.txSetHash))
+            return false;
+    }
 
     return true;
 }
@@ -170,13 +174,17 @@ PendingEnvelopes::startFetch(SCPEnvelope const& envelope)
         ret = false;
     }
 
-    StellarBallot wb;
-    xdr::xdr_from_opaque(Slot::getStatementValue(envelope.statement), wb);
-
-    if (!mTxSetCache.exists(wb.stellarValue.txSetHash))
+    std::vector<Value> vals = Slot::getStatementValues(envelope.statement);
+    for (auto const& v : vals)
     {
-        mTxSetFetcher.fetch(wb.stellarValue.txSetHash, envelope);
-        ret = false;
+        StellarBallot wb;
+        xdr::xdr_from_opaque(v, wb);
+
+        if (!mTxSetCache.exists(wb.stellarValue.txSetHash))
+        {
+            mTxSetFetcher.fetch(wb.stellarValue.txSetHash, envelope);
+            ret = false;
+        }
     }
 
     return ret;

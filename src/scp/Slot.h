@@ -89,8 +89,8 @@ class Slot : public std::enable_shared_from_this<Slot>
     // not match the hash of the QSet, but the hash of commitQuorumSetHash
     static Hash getCompanionQuorumSetHashFromStatement(SCPStatement const& st);
 
-    // returns the value associated with the statement
-    static Value getStatementValue(SCPStatement const& st);
+    // returns the values associated with the statement
+    static std::vector<Value> getStatementValues(SCPStatement const& st);
 
     // returns the QuorumSet that should be used for a node given the
     // statement

@@ -105,10 +105,19 @@ Slot::getCompanionQuorumSetHashFromStatement(SCPStatement const& st)
     return h;
 }
 
-Value
-Slot::getStatementValue(SCPStatement const& st)
+std::vector<Value>
+Slot::getStatementValues(SCPStatement const& st)
 {
-    return BallotProtocol::getWorkingBallot(st).value;
+    std::vector<Value> res;
+    if (st.pledges.type() == SCP_ST_NOMINATE)
+    {
+        res = NominationProtocol::getStatementValues(st);
+    }
+    else
+    {
+        res.emplace_back(BallotProtocol::getWorkingBallot(st).value);
+    }
+    return res;
 }
 
 SCPQuorumSetPtr

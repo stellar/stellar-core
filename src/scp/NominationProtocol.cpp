@@ -252,4 +252,21 @@ NominationProtocol::processEnvelope(SCPEnvelope const& envelope)
     }
     return res;
 }
+
+std::vector<Value>
+NominationProtocol::getStatementValues(SCPStatement const& st)
+{
+    std::vector<Value> res;
+    auto const& nom = st.pledges.nominate();
+    for (auto const& v : nom.votes)
+    {
+        res.emplace_back(v);
+    }
+    for (auto const& a : nom.accepted)
+    {
+        res.emplace_back(a);
+    }
+    return res;
+}
+
 }

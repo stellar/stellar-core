@@ -47,5 +47,7 @@ class NominationProtocol
     NominationProtocol(Slot& slot);
 
     SCP::EnvelopeState processEnvelope(SCPEnvelope const& envelope);
+
+    static std::vector<Value> getStatementValues(SCPStatement const& st);
 };
 }
