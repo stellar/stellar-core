@@ -47,12 +47,13 @@ public:
                       uint32_t txRate);
 
     std::vector<TxInfo> accountCreationTransactions(size_t n);
-    AccountInfoPtr createAccount(size_t i);
+    AccountInfoPtr createAccount(size_t i, uint32_t ledgerNum=0);
     std::vector<AccountInfoPtr> createAccounts(size_t n);
     bool loadAccount(Application& app, AccountInfo& account);
 
-    TxInfo createTransferTransaction(size_t iFrom, size_t iTo, uint64_t amount);
-    TxInfo createRandomTransaction(float alpha);
+    TxInfo createTransferTransaction(AccountInfoPtr from, AccountInfoPtr to, uint64_t amount);
+    AccountInfoPtr pickRandomAccount(AccountInfoPtr tryToAvoid, uint32_t ledgerNum);
+    TxInfo createRandomTransaction(float alpha, uint32_t ledgerNum=0);
     std::vector<TxInfo> createRandomTransactions(size_t n, float paretoAlpha);
     void updateMinBalance(Application& app);
 

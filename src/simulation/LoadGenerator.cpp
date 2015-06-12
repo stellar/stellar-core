@@ -98,6 +98,8 @@ LoadGenerator::generateLoad(Application& app,
         size_t creations = 0;
         size_t payments = 0;
 
+        uint32_t ledgerNum = app.getLedgerManager().getLedgerNum();
+
         vector<TxInfo> txs;
         for (uint32_t i = 0; i < txPerStep; ++i)
         {
@@ -112,7 +114,7 @@ LoadGenerator::generateLoad(Application& app,
             }
             if (doCreateAccount)
             {
-                auto acc = createAccount(mAccounts.size());
+                auto acc = createAccount(mAccounts.size(), ledgerNum);
                 mAccounts.push_back(acc);
                 txs.push_back(acc->creationTransaction());
                 ++creations;
@@ -123,7 +125,7 @@ LoadGenerator::generateLoad(Application& app,
             }
             else
             {
-                txs.push_back(createRandomTransaction(0.5));
+                txs.push_back(createRandomTransaction(0.5, ledgerNum));
                 ++payments;
                 if (nTxs > 0)
                 {
@@ -182,11 +184,13 @@ LoadGenerator::updateMinBalance(Application& app)
 }
 
 LoadGenerator::AccountInfoPtr
-LoadGenerator::createAccount(size_t i)
+LoadGenerator::createAccount(size_t i, uint32_t ledgerNum)
 {
     auto accountName = "Account-" + to_string(i);
     return make_shared<AccountInfo>(i, txtest::getAccount(accountName.c_str()),
-                                    0, 0, *this);
+                                    0,
+                                    (static_cast<SequenceNumber>(ledgerNum) << 32),
+                                    *this);
 }
 
 vector<LoadGenerator::AccountInfoPtr>
@@ -230,28 +234,34 @@ LoadGenerator::loadAccount(Application& app, AccountInfo& account)
 }
 
 LoadGenerator::TxInfo
-LoadGenerator::createTransferTransaction(size_t iFrom, size_t iTo, uint64_t amount)
+LoadGenerator::createTransferTransaction(AccountInfoPtr from, AccountInfoPtr to, uint64_t amount)
 {
-    return TxInfo{mAccounts[iFrom], mAccounts[iTo], false, amount};
+    return TxInfo{from, to, false, amount};
+}
+
+LoadGenerator::AccountInfoPtr
+LoadGenerator::pickRandomAccount(AccountInfoPtr tryToAvoid, uint32_t ledgerNum)
+{
+    SequenceNumber currSeq = static_cast<SequenceNumber>(ledgerNum) << 32;
+    size_t i = mAccounts.size();
+    while (i-- != 0)
+    {
+        auto n = rand_element(mAccounts);
+        if (n->mSeq < currSeq && n != tryToAvoid)
+        {
+            return n;
+        }
+    }
+    return tryToAvoid;
 }
 
 LoadGenerator::TxInfo
-LoadGenerator::createRandomTransaction(float alpha)
+LoadGenerator::createRandomTransaction(float alpha, uint32_t ledgerNum)
 {
-    size_t iFrom, iTo;
-    do
-    {
-        // iFrom = rand_pareto(alpha, mAccounts.size());
-        // iTo = rand_pareto(alpha, mAccounts.size());
-        iFrom = static_cast<int>(rand_fraction() * mAccounts.size());
-        iTo = static_cast<int>(rand_fraction() * mAccounts.size());
-    } while (iFrom == iTo);
-
-    uint64_t amount = static_cast<uint64_t>(
-        rand_fraction() *
-        min(static_cast<uint64_t>(1000),
-            (mAccounts[iFrom]->mBalance - mMinBalance) / 3));
-    return createTransferTransaction(iFrom, iTo, amount);
+    auto from = pickRandomAccount(mAccounts.at(0), ledgerNum);
+    auto to = pickRandomAccount(from, ledgerNum);
+    auto amount = rand_uniform<uint64_t>(10, 100);
+    return createTransferTransaction(from, to, amount);
 }
 
 vector<LoadGenerator::TxInfo>
@@ -271,8 +281,8 @@ LoadGenerator::createRandomTransactions(size_t n, float paretoAlpha)
 //////////////////////////////////////////////////////
 
 LoadGenerator::AccountInfo::AccountInfo(size_t id, SecretKey key, uint64_t balance,
-                                            SequenceNumber seq,
-                                            LoadGenerator& loadGen)
+                                        SequenceNumber seq,
+                                        LoadGenerator& loadGen)
     : mId(id)
     , mKey(key)
     , mBalance(balance)

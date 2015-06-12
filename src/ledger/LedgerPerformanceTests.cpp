@@ -70,23 +70,19 @@ class LedgerPerformanceTests : public Simulation
     vector<TxInfo>
     createRandomTransaction_uniformLoadingCreating()
     {
+        auto from = pickRandomAccount(mAccounts.at(0), 0);
+        auto to = pickRandomAccount(from, 0);
         vector<optional<TxInfo>> txs;
-        size_t iFrom, iTo;
-        do
-        {
-            iFrom = static_cast<int>(rand_fraction() * mAccounts.size());
-            iTo = static_cast<int>(rand_fraction() * mAccounts.size());
-        } while (iFrom == iTo);
 
-        txs.push_back(ensureAccountIsLoadedCreated(iFrom));
-        txs.push_back(ensureAccountIsLoadedCreated(iTo));
+        txs.push_back(ensureAccountIsLoadedCreated(from->mId));
+        txs.push_back(ensureAccountIsLoadedCreated(to->mId));
 
         uint64_t amount = static_cast<uint64_t>(
             rand_fraction() *
             min(static_cast<uint64_t>(1000),
-                (mAccounts[iFrom]->mBalance - mMinBalance) / 3));
+                (from->mBalance - mMinBalance) / 3));
         txs.push_back(make_optional<TxInfo>(
-            createTransferTransaction(iFrom, iTo, amount)));
+            createTransferTransaction(from, to, amount)));
 
         vector<TxInfo> result;
         for (auto tx : txs)
