@@ -13,6 +13,8 @@
 #include "util/Timer.h"
 #include "util/make_unique.h"
 
+#include "xdrpp/printer.h"
+
 #include "medida/metrics_registry.h"
 #include "medida/meter.h"
 
@@ -313,6 +315,18 @@ LoadGenerator::TxInfo::execute(Application& app)
     {
         recordExecution(app.getConfig().DESIRED_BASE_FEE);
         return true;
+    }
+    else
+    {
+        static const char* TX_STATUS_STRING[Herder::TX_STATUS_COUNT] =
+            {"PENDING", "DUPLICATE", "ERROR"};
+
+        CLOG(INFO, "LoadGen") << "tx rejected '"
+                             << TX_STATUS_STRING[status]
+                             << "': "
+                              << xdr::xdr_to_string(tx->getEnvelope())
+                              << " ===> "
+                              << xdr::xdr_to_string(tx->getResult());
     }
     return false;
 }
