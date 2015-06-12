@@ -242,7 +242,13 @@ uint64_t
 HistoryManagerImpl::nextCheckpointCatchupProbe(uint32_t ledger)
 {
     uint32_t next = this->nextCheckpointLedger(ledger);
-    return (((next - ledger) + 5) * CatchupStateMachine::SLEEP_SECONDS_PER_LEDGER.count());
+    auto ledger_duration = CatchupStateMachine::SLEEP_SECONDS_PER_LEDGER;
+    if (mApp.getConfig().ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING)
+    {
+         ledger_duration = std::chrono::seconds(1);
+    }
+
+    return (((next - ledger) + 5) * ledger_duration.count());
 }
 
 string const&
