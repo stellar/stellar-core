@@ -23,18 +23,35 @@ namespace stellar
 
 using namespace std;
 
+// Currency amounts are expressed in ten-millionths.
+static const uint64_t TENMILLION = 10000000;
+
+// Units of load are is scheduled at 100ms intervals.
 const uint32_t LoadGenerator::STEP_MSECS = 100;
 
 LoadGenerator::LoadGenerator()
     : mMinBalance(0)
 {
     auto root =
-        make_shared<AccountInfo>(0, txtest::getRoot(), 1000000000, 0, *this);
+        make_shared<AccountInfo>(0, txtest::getRoot(),
+                                 100 * TENMILLION, 0, *this);
     mAccounts.push_back(root);
 }
 
 LoadGenerator::~LoadGenerator()
 {
+}
+
+std::string
+LoadGenerator::pickRandomCurrency()
+{
+    static std::vector<std::string> const sCurrencies =
+        {
+            "USD", "EUR", "JPY", "CNY", "GBP"
+            "AUD", "CAD", "THB", "MXN", "DKK",
+            "IDR", "XBT", "TRY", "PLN", "HUF"
+        };
+    return rand_element(sCurrencies);
 }
 
 // Schedule a callback to generateLoad() STEP_MSECS miliseconds from now.
@@ -99,6 +116,7 @@ LoadGenerator::generateLoad(Application& app,
 
         size_t creations = 0;
         size_t payments = 0;
+        size_t funded = 0;
 
         uint32_t ledgerNum = app.getLedgerManager().getLedgerNum();
 
@@ -117,6 +135,12 @@ LoadGenerator::generateLoad(Application& app,
             if (doCreateAccount)
             {
                 auto acc = createAccount(mAccounts.size(), ledgerNum);
+                if (rand_uniform(0, 100) == 0)
+                {
+                    // One account in 1000 is willing to issue credit / be a gateway.
+                    acc->mIssuedCurrency = pickRandomCurrency();
+                    mGateways.push_back(acc);
+                }
                 mAccounts.push_back(acc);
                 txs.push_back(acc->creationTransaction());
                 ++creations;
@@ -133,6 +157,33 @@ LoadGenerator::generateLoad(Application& app,
                 {
                     nTxs--;
                 }
+            }
+            if (!mNeedFund.empty())
+            {
+                std::vector<AccountInfoPtr> remainder;
+                for (auto i : mNeedFund)
+                {
+                    bool allFunded = true;
+                    for (auto& tl : i->mTrustLines)
+                    {
+                        if (tl.mBalance != 0)
+                            continue;
+                        if (tl.mLedgerEstablished >= ledgerNum)
+                        {
+                            allFunded = false;
+                        }
+                        else
+                        {
+                            funded++;
+                            txs.push_back(createTransferCreditTransaction(tl.mIssuer, i,
+                                                                          100 * TENMILLION,
+                                                                          tl.mIssuer));
+                        }
+                    }
+                    if (!allFunded)
+                        remainder.push_back(i);
+                }
+                mNeedFund = remainder;
             }
         }
         auto created = clock.now();
@@ -160,6 +211,8 @@ LoadGenerator::generateLoad(Application& app,
                                   << txs.size() << "txs, "
                                   << creations << " creations, "
                                   << payments << " payments, "
+                                  << funded << " funded, "
+                                  << mNeedFund.size() << " pending funds, "
                                   << rejected << " rejected, "
                                   << totalms << "ms total = "
                                   << step1ms << "ms build, "
@@ -236,9 +289,27 @@ LoadGenerator::loadAccount(Application& app, AccountInfo& account)
 }
 
 LoadGenerator::TxInfo
-LoadGenerator::createTransferTransaction(AccountInfoPtr from, AccountInfoPtr to, uint64_t amount)
+LoadGenerator::createTransferNativeTransaction(AccountInfoPtr from,
+                                               AccountInfoPtr to,
+                                               uint64_t amount)
 {
-    return TxInfo{from, to, false, amount};
+    return TxInfo {from, to, TxInfo::TX_TRANSFER_NATIVE, amount};
+}
+
+LoadGenerator::TxInfo
+LoadGenerator::createTransferCreditTransaction(AccountInfoPtr from,
+                                               AccountInfoPtr to,
+                                               uint64_t amount,
+                                               AccountInfoPtr issuer)
+{
+    return TxInfo {from, to, TxInfo::TX_TRANSFER_CREDIT, amount, issuer};
+}
+
+LoadGenerator::TxInfo
+LoadGenerator::createEstablishTrustTransaction(AccountInfoPtr from,
+                                               AccountInfoPtr issuer)
+{
+    return TxInfo {from, nullptr, TxInfo::TX_ESTABLISH_TRUST, 0, issuer};
 }
 
 LoadGenerator::AccountInfoPtr
@@ -257,13 +328,60 @@ LoadGenerator::pickRandomAccount(AccountInfoPtr tryToAvoid, uint32_t ledgerNum)
     return tryToAvoid;
 }
 
+LoadGenerator::AccountInfoPtr
+LoadGenerator::pickRandomSharedTrustAccount(AccountInfoPtr from, uint32_t ledgerNum,
+                                            AccountInfoPtr& issuer)
+{
+    SequenceNumber currSeq = static_cast<SequenceNumber>(ledgerNum) << 32;
+    size_t i = mAccounts.size();
+    while (i-- != 0)
+    {
+        auto const& tl = rand_element(from->mTrustLines);
+        issuer = tl.mIssuer;
+        auto to = rand_element(tl.mIssuer->mTrustingAccounts);
+        if (to->mSeq < currSeq
+            && to != from
+            && tl.mBalance != 0)
+        {
+            return to;
+        }
+    }
+    issuer = nullptr;
+    return from;
+}
+
 LoadGenerator::TxInfo
 LoadGenerator::createRandomTransaction(float alpha, uint32_t ledgerNum)
 {
     auto from = pickRandomAccount(mAccounts.at(0), ledgerNum);
-    auto to = pickRandomAccount(from, ledgerNum);
     auto amount = rand_uniform<uint64_t>(10, 100);
-    return createTransferTransaction(from, to, amount);
+
+    // Establish up to 5 trustlines on each account.
+    if (from->mTrustLines.size() < 5 &&
+        !mGateways.empty())
+    {
+        auto gw = rand_element(mGateways);
+        assert(!gw->mIssuedCurrency.empty());
+        auto tl = TrustLineInfo {gw, ledgerNum, 0, 1000 * TENMILLION};
+        from->mTrustLines.push_back(tl);
+        gw->mTrustingAccounts.push_back(from);
+        mNeedFund.push_back(from);
+        return createEstablishTrustTransaction(from, gw);
+    }
+    else if (!from->mTrustLines.empty()
+             && rand_flip())
+    {
+        // Do a credit-transfer to someone else who trusts the credit
+        // that we have.
+        AccountInfoPtr issuer;
+        auto to = pickRandomSharedTrustAccount(from, ledgerNum, issuer);
+        if (issuer)
+        {
+            return createTransferCreditTransaction(from, to, amount, issuer);
+        }
+    }
+    auto to = pickRandomAccount(from, ledgerNum);
+    return createTransferNativeTransaction(from, to, amount);
 }
 
 vector<LoadGenerator::TxInfo>
@@ -296,9 +414,12 @@ LoadGenerator::AccountInfo::AccountInfo(size_t id, SecretKey key, uint64_t balan
 LoadGenerator::TxInfo
 LoadGenerator::AccountInfo::creationTransaction()
 {
-    return TxInfo{mLoadGen.mAccounts[0], shared_from_this(), true,
-                  100 * mLoadGen.mMinBalance +
-                      mLoadGen.mAccounts.size() - 1};
+    return TxInfo {
+        mLoadGen.mAccounts[0],
+        shared_from_this(),
+        TxInfo::TX_CREATE_ACCOUNT,
+        100 * mLoadGen.mMinBalance + mLoadGen.mAccounts.size() - 1
+    };
 }
 
 
@@ -309,52 +430,103 @@ LoadGenerator::AccountInfo::creationTransaction()
 bool
 LoadGenerator::TxInfo::execute(Application& app)
 {
-    auto tx = toTransactionFrame();
-    auto status = app.getHerder().recvTransaction(tx);
-    if (status == Herder::TX_STATUS_PENDING)
+    std::vector<TransactionFramePtr> txfs;
+    toTransactionFrames(txfs);
+    for (auto f : txfs)
     {
-        recordExecution(app.getConfig().DESIRED_BASE_FEE);
-        return true;
-    }
-    else
-    {
-        static const char* TX_STATUS_STRING[Herder::TX_STATUS_COUNT] =
-            {"PENDING", "DUPLICATE", "ERROR"};
+        auto status = app.getHerder().recvTransaction(f);
+        if (status != Herder::TX_STATUS_PENDING)
+        {
+            static const char* TX_STATUS_STRING[Herder::TX_STATUS_COUNT] =
+                {"PENDING", "DUPLICATE", "ERROR"};
 
-        CLOG(INFO, "LoadGen") << "tx rejected '"
-                             << TX_STATUS_STRING[status]
-                             << "': "
-                              << xdr::xdr_to_string(tx->getEnvelope())
-                              << " ===> "
-                              << xdr::xdr_to_string(tx->getResult());
+            CLOG(INFO, "LoadGen") << "tx rejected '"
+                                  << TX_STATUS_STRING[status]
+                                  << "': "
+                                  << xdr::xdr_to_string(f->getEnvelope())
+                                  << " ===> "
+                                  << xdr::xdr_to_string(f->getResult());
+            return false;
+        }
     }
-    return false;
+    recordExecution(app.getConfig().DESIRED_BASE_FEE);
+    return true;
 }
 
-TransactionFramePtr
-LoadGenerator::TxInfo::toTransactionFrame()
+void
+LoadGenerator::TxInfo::toTransactionFrames(std::vector<TransactionFramePtr> &txs)
 {
-    TransactionFramePtr res;
-    if (mCreate)
+    switch (mType)
     {
-        res = txtest::createCreateAccountTx(mFrom->mKey, mTo->mKey,
-                                            mFrom->mSeq + 1, mAmount);
-    }
-    else
+    case TxInfo::TX_CREATE_ACCOUNT:
+        txs.push_back(
+            txtest::createCreateAccountTx(mFrom->mKey, mTo->mKey,
+                                          mFrom->mSeq + 1, mAmount));
+        break;
+
+    case TxInfo::TX_TRANSFER_NATIVE:
+        txs.push_back(
+            txtest::createPaymentTx(mFrom->mKey, mTo->mKey,
+                                    mFrom->mSeq + 1, mAmount));
+        break;
+
+    case TxInfo::TX_ESTABLISH_TRUST:
     {
-        res = txtest::createPaymentTx(mFrom->mKey, mTo->mKey, mFrom->mSeq + 1,
-                                      mAmount);
+        assert(!mIssuer->mIssuedCurrency.empty());
+        txs.push_back(
+            txtest::createChangeTrust(mFrom->mKey, mIssuer->mKey,
+                                      mFrom->mSeq + 1,
+                                      mIssuer->mIssuedCurrency,
+                                      10000 * TENMILLION));
     }
-    return res;
+    break;
+
+    case TxInfo::TX_TRANSFER_CREDIT:
+    {
+        assert(!mIssuer->mIssuedCurrency.empty());
+        Currency ci = txtest::makeCurrency(mIssuer->mKey,
+                                           mIssuer->mIssuedCurrency);
+        txs.push_back(
+            txtest::createCreditPaymentTx(mFrom->mKey, mTo->mKey, ci,
+                                          mFrom->mSeq + 1, mAmount));
+    }
+    break;
+
+    default:
+        assert(false);
+    }
 }
 
 void
 LoadGenerator::TxInfo::recordExecution(uint64_t baseFee)
 {
     mFrom->mSeq++;
-    mFrom->mBalance -= mAmount;
     mFrom->mBalance -= baseFee;
-    mTo->mBalance += mAmount;
+    if (mFrom && mTo)
+    {
+        if (mIssuer)
+        {
+            for (auto& tl : mFrom->mTrustLines)
+            {
+                if (tl.mIssuer == mIssuer)
+                {
+                    tl.mBalance -= mAmount;
+                }
+            }
+            for (auto& tl : mTo->mTrustLines)
+            {
+                if (tl.mIssuer == mIssuer)
+                {
+                    tl.mBalance += mAmount;
+                }
+            }
+        }
+        else
+        {
+            mFrom->mBalance -= mAmount;
+            mTo->mBalance += mAmount;
+        }
+    }
 }
 
 

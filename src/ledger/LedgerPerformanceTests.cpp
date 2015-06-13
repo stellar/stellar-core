@@ -82,7 +82,7 @@ class LedgerPerformanceTests : public Simulation
             min(static_cast<uint64_t>(1000),
                 (from->mBalance - mMinBalance) / 3));
         txs.push_back(make_optional<TxInfo>(
-            createTransferTransaction(from, to, amount)));
+            createTransferNativeTransaction(from, to, amount)));
 
         vector<TxInfo> result;
         for (auto tx : txs)
@@ -128,7 +128,10 @@ class LedgerPerformanceTests : public Simulation
             mApp->getLedgerManager().getLastClosedLedgerHeader().hash);
         for (auto& tx : txs)
         {
-            txSet->add(tx.toTransactionFrame());
+            std::vector<TransactionFramePtr> txfs;
+            tx.toTransactionFrames(txfs);
+            for (auto f : txfs)
+                txSet->add(f);
             tx.recordExecution(baseFee);
         }
 

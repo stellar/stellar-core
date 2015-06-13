@@ -25,9 +25,13 @@ public:
     struct AccountInfo;
     using AccountInfoPtr = std::shared_ptr<AccountInfo>;
 
+    static std::string pickRandomCurrency();
     static const uint32_t STEP_MSECS;
 
     std::vector<AccountInfoPtr> mAccounts;
+    std::vector<AccountInfoPtr> mGateways;
+    std::vector<AccountInfoPtr> mNeedFund;
+
     std::unique_ptr<VirtualTimer> mLoadTimer;
     uint64 mMinBalance;
 
@@ -51,11 +55,36 @@ public:
     std::vector<AccountInfoPtr> createAccounts(size_t n);
     bool loadAccount(Application& app, AccountInfo& account);
 
-    TxInfo createTransferTransaction(AccountInfoPtr from, AccountInfoPtr to, uint64_t amount);
-    AccountInfoPtr pickRandomAccount(AccountInfoPtr tryToAvoid, uint32_t ledgerNum);
+    TxInfo createTransferNativeTransaction(AccountInfoPtr from,
+                                           AccountInfoPtr to,
+                                           uint64_t amount);
+
+    TxInfo createTransferCreditTransaction(AccountInfoPtr from,
+                                           AccountInfoPtr to,
+                                           uint64_t amount,
+                                           AccountInfoPtr issuer);
+
+    TxInfo createEstablishTrustTransaction(AccountInfoPtr from,
+                                           AccountInfoPtr issuer);
+
+    AccountInfoPtr pickRandomAccount(AccountInfoPtr tryToAvoid,
+                                     uint32_t ledgerNum);
+
+    AccountInfoPtr pickRandomSharedTrustAccount(AccountInfoPtr from,
+                                                uint32_t ledgerNum,
+                                                AccountInfoPtr& issuer);
+
     TxInfo createRandomTransaction(float alpha, uint32_t ledgerNum=0);
     std::vector<TxInfo> createRandomTransactions(size_t n, float paretoAlpha);
     void updateMinBalance(Application& app);
+
+    struct TrustLineInfo
+    {
+        AccountInfoPtr mIssuer;
+        uint32_t mLedgerEstablished;
+        uint64_t mBalance;
+        uint64_t mLimit;
+    };
 
     struct AccountInfo : public std::enable_shared_from_this<AccountInfo>
     {
@@ -65,6 +94,13 @@ public:
         SecretKey mKey;
         uint64_t mBalance;
         SequenceNumber mSeq;
+
+        // Used when this account trusts some other account's credits.
+        std::vector<TrustLineInfo> mTrustLines;
+
+        // Reverse map, when other accounts trust this account's credits.
+        std::vector<AccountInfoPtr> mTrustingAccounts;
+        std::string mIssuedCurrency;
 
         TxInfo creationTransaction();
 
@@ -76,11 +112,17 @@ public:
     {
         AccountInfoPtr mFrom;
         AccountInfoPtr mTo;
-        bool mCreate;
+        enum {
+            TX_CREATE_ACCOUNT,
+            TX_ESTABLISH_TRUST,
+            TX_TRANSFER_NATIVE,
+            TX_TRANSFER_CREDIT
+        } mType;
         uint64_t mAmount;
+        AccountInfoPtr mIssuer;
 
         bool execute(Application& app);
-        TransactionFramePtr toTransactionFrame();
+        void toTransactionFrames(std::vector<TransactionFramePtr> &txs);
         void recordExecution(uint64_t baseFee);
     };
 };
