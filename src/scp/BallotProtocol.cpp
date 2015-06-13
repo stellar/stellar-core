@@ -6,6 +6,7 @@
 
 #include <cassert>
 #include <functional>
+#include <cmath>
 #include "util/types.h"
 #include "xdrpp/marshal.h"
 #include "crypto/Hex.h"
