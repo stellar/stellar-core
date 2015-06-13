@@ -63,7 +63,10 @@ void
 PendingEnvelopes::recvTxSet(Hash hash, TxSetFramePtr txset)
 {
     mTxSetCache.put(hash, txset);
-    mTxSetFetcher.recv(hash);
+    mApp.getClock().getIOService().post([hash, this]()
+                                        {
+                                            mTxSetFetcher.recv(hash);
+                                        });
 }
 
 // called from Peer and when an Item tracker completes
@@ -138,13 +141,17 @@ PendingEnvelopes::envelopeReady(SCPEnvelope const& envelope)
     }
     */
 
-    mHerder.processSCPQueue();
+    mApp.getClock().getIOService().post([this]()
+                                        {
+                                            mHerder.processSCPQueue();
+                                        });
 }
 
 bool
 PendingEnvelopes::isFullyFetched(SCPEnvelope const& envelope)
 {
-    if (!mQsetCache.exists(Slot::getCompanionQuorumSetHashFromStatement(envelope.statement)))
+    if (!mQsetCache.exists(
+            Slot::getCompanionQuorumSetHashFromStatement(envelope.statement)))
         return false;
 
     std::vector<Value> vals = Slot::getStatementValues(envelope.statement);

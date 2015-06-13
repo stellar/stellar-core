@@ -53,6 +53,19 @@ template <class TrackerT>
 void
 ItemFetcher<TrackerT>::stopFetchingBelow(uint64 slotIndex)
 {
+    // only perform this cleanup from the top of the stack as it causes
+    // all sorts of evil side effects
+    mApp.getClock().getIOService().post(
+        [this, slotIndex]()
+    {
+        stopFetchingBelowInternal(slotIndex);
+    });
+}
+
+template <class TrackerT>
+void
+ItemFetcher<TrackerT>::stopFetchingBelowInternal(uint64 slotIndex)
+{
     for (auto iter = mTrackers.begin(); iter != mTrackers.end();)
     {
         if (!iter->second->clearEnvelopesBelow(slotIndex))
@@ -60,7 +73,9 @@ ItemFetcher<TrackerT>::stopFetchingBelow(uint64 slotIndex)
             iter = mTrackers.erase(iter);
         }
         else
+        {
             iter++;
+        }
     }
 }
 
@@ -80,13 +95,16 @@ void
 ItemFetcher<TrackerT>::recv(uint256 itemID)
 {
     const auto& iter = mTrackers.find(itemID);
-
+    using xdr::operator== ;
     if (iter != mTrackers.end())
     {
-        std::vector<SCPEnvelope> tempList = iter->second->mWaitingEnvelopes;
-        mTrackers.erase(iter);
-        for(SCPEnvelope& env : tempList)
+        // this code can safely be called even if recvSCPEnvelope ends up calling
+        // recv on the same itemID
+        auto &waiting = iter->second->mWaitingEnvelopes;
+        while (!waiting.empty())
         {
+            SCPEnvelope env = waiting.back();
+            waiting.pop_back();
             mApp.getHerder().recvSCPEnvelope(env);
         }
     }
@@ -107,12 +125,16 @@ Tracker::clearEnvelopesBelow(uint64 slotIndex)
         if (iter->statement.slotIndex < slotIndex)
         {
             iter = mWaitingEnvelopes.erase(iter);
-    }
+        }
         else
+        {
             iter++;
+        }
     }
-    if (mWaitingEnvelopes.size())
+    if (!mWaitingEnvelopes.empty())
+    {
         return true;
+    }
 
     mPeersAsked.clear();
     mTimer.cancel();
@@ -141,9 +163,9 @@ Tracker::tryNextPeer()
     // response saying they don't have it
     Peer::pointer peer;
 
-    if (mPeersAsked.size())
+    if (!mPeersAsked.empty())
     {
-        while (!peer && mPeersAsked.size())
+        while (!peer && !mPeersAsked.empty())
         {
             peer = mApp.getOverlayManager().getNextPeer(mPeersAsked.back());
             if (!peer)

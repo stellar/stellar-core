@@ -559,7 +559,7 @@ HerderImpl::combineCandidates(uint64 slotIndex,
 
     comp.txSetHash = aggTxSet->getContentsHash();
 
-    recvTxSet(comp.txSetHash, *aggTxSet);
+    mPendingEnvelopes.recvTxSet(comp.txSetHash, aggTxSet);
 
     return xdr::xdr_to_opaque(comp);
 }
