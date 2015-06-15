@@ -159,6 +159,9 @@ class BallotProtocol
     bool commitPredicate(SCPBallot const& ballot, Interval const& check,
                          uint256 const&, SCPStatement const& st);
 
+    // attempts to update p to ballot (updating p' if needed)
+    bool setPrepared(SCPBallot const& ballot);
+
     // ** Helper methods to compare two ballots
 
     // ballot comparison (ordering)

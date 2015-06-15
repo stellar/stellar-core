@@ -423,6 +423,7 @@ TEST_CASE("protocol core5", "[scp][ballotprotocol]")
         scp.receiveEnvelope(prepared1);
         REQUIRE(scp.mEnvs.size() == 3);
     };
+
     SECTION("bumpState x")
     {
         REQUIRE(scp.bumpState(0, xValue));
@@ -1064,6 +1065,37 @@ TEST_CASE("protocol core5", "[scp][ballotprotocol]")
         // The slot should have externalized the value
         REQUIRE(scp.mExternalizedValues.size() == 1);
         REQUIRE(scp.mExternalizedValues[0] == B);
+    }
+
+    SECTION("prepare (1,y), receives accept commit messages (1,x)")
+    {
+        REQUIRE(scp.bumpState(0, yValue));
+        REQUIRE(scp.mEnvs.size() == 1);
+
+        verifyPrepare(scp.mEnvs[0], v0SecretKey, qSetHash, 0, SCPBallot(1, yValue));
+
+        SCPBallot expectedBallot(1, xValue);
+        SCPEnvelope com1 = makePrepare(v1SecretKey, qSetHash, 0,
+                                       expectedBallot, &expectedBallot, 1, 1);
+        SCPEnvelope com2 = makePrepare(v2SecretKey, qSetHash, 0,
+                                       expectedBallot, &expectedBallot, 1, 1);
+        SCPEnvelope com3 = makePrepare(v3SecretKey, qSetHash, 0,
+                                       expectedBallot, &expectedBallot, 1, 1);
+        SCPEnvelope com4 = makePrepare(v4SecretKey, qSetHash, 0,
+                                       expectedBallot, &expectedBallot, 1, 1);
+
+        scp.receiveEnvelope(com1);
+        scp.receiveEnvelope(com2);
+        scp.receiveEnvelope(com3);
+        REQUIRE(scp.mEnvs.size() == 1);
+
+
+        // quorum accepts commit (1,x)
+        // -> we confirm commit (1,x)
+        scp.receiveEnvelope(com4);
+
+        REQUIRE(scp.mEnvs.size() == 2);
+        verifyConfirm(scp.mEnvs[1], v0SecretKey, qSetHash, 0, 1, expectedBallot, 1);
     }
     SECTION("single prepared(1,y) on pristine slot should not bump")
     {

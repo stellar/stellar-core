@@ -744,23 +744,7 @@ BallotProtocol::attemptPreparedAccept(SCPBallot const& ballot)
         }
     }
 
-    if (mPrepared)
-    {
-        if (compareBallots(*mPrepared, ballot) < 0)
-        {
-            if (!areBallotsCompatible(*mPrepared, ballot))
-            {
-                mPreparedPrime = make_unique<SCPBallot>(*mPrepared);
-            }
-            mPrepared = make_unique<SCPBallot>(ballot);
-            didWork = true;
-        }
-    }
-    else
-    {
-        mPrepared = make_unique<SCPBallot>(ballot);
-        didWork = true;
-    }
+    didWork = setPrepared(ballot);
 
     // check if we need to clear 'c'
     if (mCommit && mConfirmedPrepared)
@@ -1112,6 +1096,9 @@ BallotProtocol::attemptAcceptCommit(SCPBallot const& acceptCommitLow,
         mCurrentBallot =
             make_unique<SCPBallot>(UINT32_MAX, acceptCommitHigh.value);
 
+        // update p if needed
+        setPrepared(acceptCommitHigh);
+
         mPhase = SCP_PHASE_CONFIRM;
         didWork = true;
     }
@@ -1256,6 +1243,30 @@ BallotProtocol::getWorkingBallot(SCPStatement const& st)
     return res;
 }
 
+bool BallotProtocol::setPrepared(SCPBallot const& ballot)
+{
+    bool didWork = false;
+
+    if (mPrepared)
+    {
+        if (compareBallots(*mPrepared, ballot) < 0)
+        {
+            if (!areBallotsCompatible(*mPrepared, ballot))
+            {
+                mPreparedPrime = make_unique<SCPBallot>(*mPrepared);
+            }
+            mPrepared = make_unique<SCPBallot>(ballot);
+            didWork = true;
+        }
+    }
+    else
+    {
+        mPrepared = make_unique<SCPBallot>(ballot);
+        didWork = true;
+    }
+    return didWork;
+}
+
 int
 BallotProtocol::compareBallots(std::unique_ptr<SCPBallot> const& b1,
                                std::unique_ptr<SCPBallot> const& b2)
@@ -1320,7 +1331,7 @@ BallotProtocol::areBallotsLessAndCompatible(SCPBallot const& b1,
 void
 BallotProtocol::advanceSlot(SCPBallot const& ballot)
 {
-    CLOG(DEBUG, "SCP") << "BallotProtocol::advanceSlot" << getLocalState();
+    CLOG(DEBUG, "SCP") << "BallotProtocol::advanceSlot " << getLocalState();
 
     // Check if we should call `ballotDidHearFromQuorum`
     // we do this here so that we have a chance to evaluate it between
