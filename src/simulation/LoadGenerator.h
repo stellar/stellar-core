@@ -46,6 +46,9 @@ class LoadGenerator
     void generateLoad(Application& app, uint32_t nAccounts, uint32_t nTxs,
                       uint32_t txRate);
 
+    bool maybeCreateAccount(uint32_t ledgerNum, std::vector<TxInfo> &txs);
+    size_t fundPendingTrustlines(uint32_t ledgerNum, std::vector<TxInfo> &txs);
+
     std::vector<TxInfo> accountCreationTransactions(size_t n);
     AccountInfoPtr createAccount(size_t i, uint32_t ledgerNum = 0);
     std::vector<AccountInfoPtr> createAccounts(size_t n);

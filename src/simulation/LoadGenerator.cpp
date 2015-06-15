@@ -70,6 +70,57 @@ LoadGenerator::scheduleLoadGeneration(Application& app, uint32_t nAccounts,
         });
 }
 
+
+bool
+LoadGenerator::maybeCreateAccount(uint32_t ledgerNum, vector<TxInfo> &txs)
+{
+    if (mAccounts.size() < 2 || rand_flip())
+    {
+        auto acc = createAccount(mAccounts.size(), ledgerNum);
+        if (rand_uniform(0, 1000) == 0)
+        {
+            // One account in 1000 is willing to issue credit / be a gateway.
+            acc->mIssuedCurrency = pickRandomCurrency();
+            mGateways.push_back(acc);
+        }
+        mAccounts.push_back(acc);
+        txs.push_back(acc->creationTransaction());
+        return true;
+    }
+    return false;
+}
+
+size_t
+LoadGenerator::fundPendingTrustlines(uint32_t ledgerNum, std::vector<TxInfo> &txs)
+{
+    size_t funded = 0;
+    std::vector<AccountInfoPtr> remainder;
+    for (auto i : mNeedFund)
+    {
+        bool allFunded = true;
+        for (auto& tl : i->mTrustLines)
+        {
+            if (tl.mBalance != 0)
+                continue;
+            if (tl.mLedgerEstablished >= ledgerNum)
+            {
+                allFunded = false;
+            }
+            else
+            {
+                funded++;
+                txs.push_back(createTransferCreditTransaction(tl.mIssuer, i,
+                                                              100 * TENMILLION,
+                                                              tl.mIssuer));
+            }
+        }
+        if (!allFunded)
+            remainder.push_back(i);
+    }
+    mNeedFund = remainder;
+    return funded;
+}
+
 // Generate one "step" worth of load (assuming 1 step per STEP_MSECS) at a
 // given target number of accounts and txs, and a given target tx/s rate.
 // If work remains after the current step, call scheduleLoadGeneration()
@@ -109,31 +160,12 @@ LoadGenerator::generateLoad(Application& app, uint32_t nAccounts, uint32_t nTxs,
         size_t funded = 0;
 
         uint32_t ledgerNum = app.getLedgerManager().getLedgerNum();
-
         vector<TxInfo> txs;
+
         for (uint32_t i = 0; i < txPerStep; ++i)
         {
-            bool doCreateAccount = false;
-            if (mAccounts.size() < 2)
+            if (maybeCreateAccount(ledgerNum, txs))
             {
-                doCreateAccount = true;
-            }
-            else if (nAccounts > 0)
-            {
-                doCreateAccount = rand_flip();
-            }
-            if (doCreateAccount)
-            {
-                auto acc = createAccount(mAccounts.size(), ledgerNum);
-                if (rand_uniform(0, 100) == 0)
-                {
-                    // One account in 1000 is willing to issue credit / be a
-                    // gateway.
-                    acc->mIssuedCurrency = pickRandomCurrency();
-                    mGateways.push_back(acc);
-                }
-                mAccounts.push_back(acc);
-                txs.push_back(acc->creationTransaction());
                 ++creations;
                 if (nAccounts > 0)
                 {
@@ -149,32 +181,7 @@ LoadGenerator::generateLoad(Application& app, uint32_t nAccounts, uint32_t nTxs,
                     nTxs--;
                 }
             }
-            if (!mNeedFund.empty())
-            {
-                std::vector<AccountInfoPtr> remainder;
-                for (auto j : mNeedFund)
-                {
-                    bool allFunded = true;
-                    for (auto& tl : j->mTrustLines)
-                    {
-                        if (tl.mBalance != 0)
-                            continue;
-                        if (tl.mLedgerEstablished >= ledgerNum)
-                        {
-                            allFunded = false;
-                        }
-                        else
-                        {
-                            funded++;
-                            txs.push_back(createTransferCreditTransaction(
-                                tl.mIssuer, j, 100 * TENMILLION, tl.mIssuer));
-                        }
-                    }
-                    if (!allFunded)
-                        remainder.push_back(j);
-                }
-                mNeedFund = remainder;
-            }
+            funded += fundPendingTrustlines(ledgerNum, txs);
         }
         auto created = clock.now();
         auto rejected = 0;
