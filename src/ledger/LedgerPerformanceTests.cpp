@@ -123,12 +123,13 @@ class LedgerPerformanceTests : public Simulation
     closeLedger(vector<Simulation::TxInfo> txs)
     {
         auto baseFee = mApp->getConfig().DESIRED_BASE_FEE;
+        LoadGenerator::TxMetrics txm(mApp->getMetrics());
         TxSetFramePtr txSet = make_shared<TxSetFrame>(
             mApp->getLedgerManager().getLastClosedLedgerHeader().hash);
         for (auto& tx : txs)
         {
             std::vector<TransactionFramePtr> txfs;
-            tx.toTransactionFrames(txfs);
+            tx.toTransactionFrames(txfs, txm);
             for (auto f : txfs)
                 txSet->add(f);
             tx.recordExecution(baseFee);

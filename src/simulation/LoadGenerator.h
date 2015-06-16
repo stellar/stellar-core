@@ -10,6 +10,14 @@
 #include "generated/Stellar-types.h"
 #include <vector>
 
+namespace medida
+{
+class MetricsRegistry;
+class Meter;
+class Counter;
+class Timer;
+}
+
 namespace stellar
 {
 
@@ -60,8 +68,8 @@ class LoadGenerator
                       uint32_t txRate);
 
     bool maybeCreateAccount(uint32_t ledgerNum, std::vector<TxInfo> &txs);
-    size_t fundPendingTrustlines(uint32_t ledgerNum, std::vector<TxInfo> &txs);
-    size_t createPendingOffers(uint32_t ledgerNum, std::vector<TxInfo> &txs);
+    void fundPendingTrustlines(uint32_t ledgerNum, std::vector<TxInfo> &txs);
+    void createPendingOffers(uint32_t ledgerNum, std::vector<TxInfo> &txs);
 
     std::vector<TxInfo> accountCreationTransactions(size_t n);
     AccountInfoPtr createAccount(size_t i, uint32_t ledgerNum = 0);
@@ -129,6 +137,23 @@ class LoadGenerator
         LoadGenerator& mLoadGen;
     };
 
+    struct TxMetrics
+    {
+        medida::Meter& mAccountCreated;
+        medida::Meter& mTrustlineCreated;
+        medida::Meter& mOfferCreated;
+        medida::Meter& mNativePayment;
+        medida::Meter& mCreditPayment;
+        medida::Meter& mTxnAttempted;
+        medida::Meter& mTxnRejected;
+
+        medida::Counter& mPendingFunds;
+        medida::Counter& mPendingOffers;
+
+        TxMetrics(medida::MetricsRegistry& m);
+        void report();
+    };
+
     struct TxInfo
     {
         AccountInfoPtr mFrom;
@@ -145,7 +170,9 @@ class LoadGenerator
         AccountInfoPtr mIssuer;
 
         bool execute(Application& app);
-        void toTransactionFrames(std::vector<TransactionFramePtr>& txs);
+
+        void toTransactionFrames(std::vector<TransactionFramePtr>& txs
+                                 TxMetrics& metrics);
         void recordExecution(int64_t baseFee);
     };
 };
