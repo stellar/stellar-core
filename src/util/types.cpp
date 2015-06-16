@@ -116,8 +116,22 @@ void strToCurrencyCode(xdr::opaque_array<4U>& ret, std::string const& str)
 bool
 bigDivide(int64_t& result, int64_t A, int64_t B, int64_t C)
 {
-    // update when moving to (signed) int128
+    bool res;
     assert((A >= 0) && (B >= 0) && (C > 0));
+    uint64_t r2;
+    res = bigDivide(r2, (uint64_t)A, (uint64_t)B, (uint64_t)C);
+    if (res)
+    {
+        res = r2 <= INT64_MAX;
+        result = r2;
+    }
+    return res;
+}
+
+bool
+bigDivide(uint64_t& result, uint64_t A, uint64_t B, uint64_t C)
+{
+    // update when moving to (signed) int128
     uint128_t a(A);
     uint128_t b(B);
     uint128_t c(C);
@@ -125,7 +139,7 @@ bigDivide(int64_t& result, int64_t A, int64_t B, int64_t C)
 
     result = (uint64_t)x;
 
-    return (x <= INT64_MAX);
+    return (x <= UINT64_MAX);
 }
 
 int64_t

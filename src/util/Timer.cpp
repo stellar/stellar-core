@@ -228,6 +228,9 @@ VirtualClock::crank(bool block)
     }
     nRealTimerCancelEvents = 0;
     size_t nWorkDone = 0;
+
+    nWorkDone += mIOService.poll();
+
     if (mMode == REAL_TIME)
     {
         // Fire all pending timers.

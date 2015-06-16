@@ -378,12 +378,6 @@
     <ClCompile Include="..\..\src\transactions\OperationFrame.cpp">
       <Filter>transactions</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\scp\LocalNode.cpp">
-      <Filter>scp</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\scp\Node.cpp">
-      <Filter>scp</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\scp\SCP.cpp">
       <Filter>scp</Filter>
     </ClCompile>
@@ -441,6 +435,15 @@
     <ClCompile Include="..\..\src\simulation\LoadGenerator.cpp">
       <Filter>simulation</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\scp\BallotProtocol.cpp">
+      <Filter>scp</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\scp\NominationProtocol.cpp">
+      <Filter>scp</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\scp\LocalNode.cpp">
+      <Filter>scp</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\ledger\LedgerManager.h">
@@ -451,9 +454,6 @@
     </ClInclude>
     <ClInclude Include="..\..\src\main\Application.h">
       <Filter>main</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\overlay\FetchableItem.h">
-      <Filter>overlay</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\overlay\Floodgate.h">
       <Filter>overlay</Filter>
@@ -692,12 +692,6 @@
     <ClInclude Include="..\..\src\lib\json\json-forwards.h">
       <Filter>lib\json</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\scp\LocalNode.h">
-      <Filter>scp</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\scp\Node.h">
-      <Filter>scp</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\src\scp\SCP.h">
       <Filter>scp</Filter>
     </ClInclude>
@@ -740,6 +734,12 @@
     <ClInclude Include="..\..\src\transactions\CreateAccountOpFrame.h">
       <Filter>transactions</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\src\scp\BallotProtocol.h">
+      <Filter>scp</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\scp\NominationProtocol.h">
+      <Filter>scp</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\src\transactions\ManageOfferOpFrame.h">
       <Filter>transactions</Filter>
     </ClInclude>
@@ -748,6 +748,9 @@
     </ClInclude>
     <ClInclude Include="..\..\src\simulation\LoadGenerator.h">
       <Filter>simulation</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\scp\LocalNode.h">
+      <Filter>scp</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

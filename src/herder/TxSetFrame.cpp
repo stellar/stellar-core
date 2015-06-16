@@ -294,6 +294,7 @@ TxSetFrame::removeTx(TransactionFramePtr tx)
     auto it = std::find(mTransactions.begin(), mTransactions.end(), tx);
     if (it != mTransactions.end())
         mTransactions.erase(it);
+    mHashIsValid = false;
 }
 
 Hash

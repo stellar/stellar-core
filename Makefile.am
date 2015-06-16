@@ -23,10 +23,11 @@ FMT_SRCS =                                      \
     src/crypto/SecretKey.cpp                    \
     src/database/Database.cpp                   \
     src/database/DatabaseTests.cpp              \
+    src/scp/BallotProtocol.cpp                  \
     src/scp/SCP.cpp                             \
     src/scp/SCPTests.cpp                        \
     src/scp/LocalNode.cpp                       \
-    src/scp/Node.cpp                            \
+    src/scp/NominationProtocol.cpp              \
     src/scp/Slot.cpp                            \
     src/herder/Herder.cpp                       \
     src/herder/HerderImpl.cpp                   \
@@ -123,9 +124,10 @@ FMT_HDRS =                                      \
     src/crypto/SHA.h                            \
     src/crypto/SecretKey.h                      \
     src/database/Database.h                     \
+    src/scp/BallotProtocol.h                    \
     src/scp/SCP.h                               \
     src/scp/LocalNode.h                         \
-    src/scp/Node.h                              \
+    src/scp/NominationProtocol.h                \
     src/scp/Slot.h                              \
     src/herder/Herder.h                         \
     src/herder/HerderImpl.h                     \
@@ -152,7 +154,6 @@ FMT_HDRS =                                      \
     src/main/PersistentState.h                  \
     src/main/fuzz.h                             \
     src/main/test.h                             \
-    src/overlay/FetchableItem.h                 \
     src/overlay/Floodgate.h                     \
     src/overlay/ItemFetcher.h                   \
     src/overlay/LoopbackPeer.h                  \

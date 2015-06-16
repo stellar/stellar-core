@@ -91,7 +91,9 @@ public:
     void recv(uint256 itemID);
 
 protected:
-    
+
+    void stopFetchingBelowInternal(uint64 slotIndex);
+
     Application& mApp;
     std::map<uint256, std::shared_ptr<TrackerT>> mTrackers;
 

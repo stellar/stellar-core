@@ -30,6 +30,7 @@ TEST_CASE("standalone", "[herder]")
     cfg.VALIDATION_KEY = v0SecretKey;
 
     cfg.QUORUM_SET.threshold = 1;
+    cfg.QUORUM_SET.validators.clear();
     cfg.QUORUM_SET.validators.push_back(v0NodeID);
 
     VirtualClock clock;

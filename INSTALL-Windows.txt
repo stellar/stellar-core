@@ -4,7 +4,8 @@ Installation Instructions
 Build Dependencies
 ==================
 
-- Download and install `Visual Studio 2015 CTP 6` (for Visual C++) from https://www.visualstudio.com/en-us/downloads/visual-studio-2015-ctp-vs
+- Download and install `Visual Studio 2015 RC` (for Visual C++) ; the Community Edition is free and fully functional.
+       * https://www.visualstudio.com/en-us/downloads/visual-studio-2015-downloads-vs.aspx
 
 - Download and install PostgreSQL 9.4.1 from http://www.postgresql.org/download/windows/
   The default project file defines USE_POSTGRES and links against it.

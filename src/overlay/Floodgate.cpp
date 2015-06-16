@@ -15,8 +15,8 @@
 namespace stellar
 {
 
-FloodRecord::FloodRecord(StellarMessage const& msg, uint32_t ledger,
-                         Peer::pointer peer)
+Floodgate::FloodRecord::FloodRecord(StellarMessage const& msg, uint32_t ledger,
+                                    Peer::pointer peer)
     : mLedgerSeq(ledger), mMessage(msg)
 {
     if (peer)

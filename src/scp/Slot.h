@@ -4,14 +4,18 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include <memory>
+#include <functional>
+#include <string>
+#include <set>
+#include <utility>
 #include "scp/SCP.h"
 #include "lib/json/json-forwards.h"
+#include "BallotProtocol.h"
+#include "NominationProtocol.h"
 
 namespace stellar
 {
-std::string ballotToStr(SCPBallot const& ballot);
-std::string envToStr(SCPEnvelope const& envelope);
-
 class Node;
 
 /**
@@ -20,93 +24,106 @@ class Node;
  */
 class Slot : public std::enable_shared_from_this<Slot>
 {
+    const uint64 mSlotIndex; // the index this slot is tracking
+    SCP& mSCP;
+
+    BallotProtocol mBallotProtocol;
+    NominationProtocol mNominationProtocol;
+
+    // keeps track of all statements seen so far for this slot.
+    // it is used for debugging purpose
+    std::vector<SCPStatement> mStatementsHistory;
+
   public:
-    // Constructor
-    Slot(uint64 const& slotIndex, SCP* SCP);
+    Slot(uint64 slotIndex, SCP& SCP);
+
+    uint64
+    getSlotIndex() const
+    {
+        return mSlotIndex;
+    }
+
+    SCP&
+    getSCP()
+    {
+        return mSCP;
+    }
+
+    BallotProtocol&
+    getBallotProtocol()
+    {
+        return mBallotProtocol;
+    }
+
+    Value const& getLatestCompositeCandidate();
+
+    // records the statement in the historical record for this slot
+    void recordStatement(SCPStatement const& st);
 
     // Process a newly received envelope for this slot and update the state of
     // the slot accordingly. `cb` asynchronously returns whether the envelope
     // was validated or not. Must exclusively receive envelopes whose payload
     // type is STATEMENT
-    void processEnvelope(SCPEnvelope const& envelope,
-                         std::function<void(SCP::EnvelopeState)> const& cb);
+    SCP::EnvelopeState processEnvelope(SCPEnvelope const& envelope);
 
-    // Prepares a new ballot with the provided value for this slot. If the
-    // value is less or equal to the current ballot value, and forceBump is
-    // false, the current ballot counter is used. Otherwise a new ballot is
-    // generated with an increased counter value.
-    bool prepareValue(Value const& value, bool forceBump = false);
+    bool abandonBallot();
 
-    size_t getStatementCount() const;
+    // bumps the ballot based on the local state and the value passed in:
+    // in prepare phase, attempts to take value
+    // otherwise, no-ops
+    // force: when true, always bumps the value, otherwise only bumps
+    // the state if no value was prepared
+    bool bumpState(Value const& value, bool force);
 
+    // attempts to nominate a value for consensus
+    bool nominate(Value const& value, bool timedout);
+
+    // ** status methods
+
+    size_t
+    getStatementCount() const
+    {
+        return mStatementsHistory.size();
+    }
+
+    // returns information about the local state in JSON format
+    // including historical statements if available
     void dumpInfo(Json::Value& ret);
 
-  private:
-    // bumps to the specified ballot
-    void bumpToBallot(SCPBallot const& ballot);
+    // returns the hash of the QuorumSet that should be downloaded
+    // with the statement.
+    // note: the companion hash for an EXTERNALIZE statement does
+    // not match the hash of the QSet, but the hash of commitQuorumSetHash
+    static Hash getCompanionQuorumSetHashFromStatement(SCPStatement const& st);
 
-    // Helper methods to generate a new envelopes
-    SCPStatement createStatement(SCPStatementType const& type);
+    // returns the values associated with the statement
+    static std::vector<Value> getStatementValues(SCPStatement const& st);
+
+    // returns the QuorumSet that should be used for a node given the
+    // statement
+    SCPQuorumSetPtr getQuorumSetFromStatement(SCPStatement const& st) const;
+
+    // wraps a statement in an envelope (sign it, etc)
     SCPEnvelope createEnvelope(SCPStatement const& statement);
 
-    // `attempt*` methods progress the slot to the specified state if it was
-    // not already reached previously. They are in charge of emitting events
-    // and envelopes. They are idempotent. `attemptPrepared` takes an extra
-    // ballot argument as we can emit PREPARED messages for ballots different
-    // than our current `mBallot`.
+    // ** helper methods to stringify ballot for logging
+    std::string getValueString(Value const& v) const;
+    std::string ballotToStr(SCPBallot const& ballot) const;
+    std::string ballotToStr(std::unique_ptr<SCPBallot> const& ballot) const;
+    std::string envToStr(SCPEnvelope const& envelope) const;
+    std::string envToStr(SCPStatement const& st) const;
 
-    void attemptPreparing();
-    void attemptPrepared(const SCPBallot& ballot);
-    void attemptCommitting();
-    void attemptCommitted();
-    void attemptExternalize();
+    // ** federated agreement helper functions
 
-    // `is*` methods check if the specified state for the current slot has been
-    // reached or not. They are called by `advanceSlot` and drive the call of
-    // the `attempt*` methods. `isCommittedConfirmed` does not take a ballot
-    // but a `Value` as it is determined across ballot rounds
-    bool isPrepared(const SCPBallot& ballot);
-    bool isPreparedConfirmed(const SCPBallot& ballot);
-    bool isCommitted(const SCPBallot& ballot);
-    bool isCommittedConfirmed(const Value& value);
+    // returns true if the statement defined by voted and accepted
+    // should be accepted
+    bool federatedAccept(StatementPredicate voted, StatementPredicate accepted,
+                         std::map<uint256, SCPStatement> const& statements);
+    // returns true if the statement defined by voted
+    // is ratified
+    bool federatedRatify(StatementPredicate voted,
+                         std::map<uint256, SCPStatement> const& statements);
 
-    // Retrieve all the statements of a given type for a given node
-    std::vector<SCPStatement> getNodeStatements(uint256 const& nodeID,
-                                                SCPStatementType const& type);
-
-    // Helper method to compare two ballots
-    int compareBallots(SCPBallot const& b1, SCPBallot const& b2);
-
-    // `advanceSlot` can be called as many time as needed. It attempts to
-    // advance the slot to a next state if possible given the current
-    // knowledge of this node.
-    void advanceSlot();
-
-    const uint64 mSlotIndex;
-    SCP* mSCP;
-
-    // mBallot is the current ballot (monotonically increasing).
-    SCPBallot mBallot;
-    // mIsPristine is true while we never bump our ballot (mBallot invalid)
-    bool mIsPristine;
-
-    bool mHeardFromQuorum;
-    bool mIsCommitted;
-    bool mIsExternalized;
-
-    bool mInAdvanceSlot;
-    bool mRunAdvanceSlot;
-
-    // mStatements keep track of all statements seen so far for this slot.
-    // SCPBallot -> SCPStatementType -> uint256 -> SCPStatement
-    struct StatementMap : public std::map<uint256, SCPStatement>
-    {
-    };
-    struct StatementTypeMap : public std::map<SCPStatementType, StatementMap>
-    {
-    };
-    std::map<SCPBallot, StatementTypeMap> mStatements;
-
-    friend class Node;
+    std::shared_ptr<LocalNode> getLocalNode();
 };
 }

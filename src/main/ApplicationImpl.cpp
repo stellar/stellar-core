@@ -195,6 +195,10 @@ ApplicationImpl::timeNow()
 void
 ApplicationImpl::start()
 {
+    if (mConfig.QUORUM_SET.threshold == 0)
+    {
+        throw std::invalid_argument("Quorum not configured");
+    }
     mOverlayManager->start();
 
     if (mPersistentState->getState(PersistentState::kDatabaseInitialized) !=
@@ -229,8 +233,10 @@ ApplicationImpl::start()
             done = true;
         });
 
-    while (!done && mVirtualClock.crank(false) > 0)
-        ;
+    while (!done)
+    {
+        mVirtualClock.crank(false);
+    }
 }
 
 void

@@ -152,7 +152,9 @@ hierarchicalTopo(int nLedgers, int nBranches, Simulation::Mode mode)
 
     printStats(nLedgers, tBegin, sim);
 }
-/* TODO.1 re-enable after SCP changes go in
+
+/* this test is still busted for some reason:
+core4 doesn't close, connections get dropped
 TEST_CASE("hierarchical topology scales 1..3", "[simulation]")
 {
     Simulation::Mode mode = Simulation::OVER_LOOPBACK;
@@ -212,10 +214,13 @@ TEST_CASE("Stress test on 2 nodes 3 accounts 10 random transactions 10tx/sec",
         simulation->crankUntil(
             [&]()
             {
-                return simulation->haveAllExternalized(4) &&
+                // we need to wait 2 rounds in case the tx don't propagate
+                // to the second node in time and the second node gets the
+                // nomination
+                return simulation->haveAllExternalized(5) &&
                        simulation->accountsOutOfSyncWithDb().empty();
             },
-            2 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+            3 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
 
         auto crankingTime = simulation->executeStressTest(
             10, 10, [&simulation](size_t i)

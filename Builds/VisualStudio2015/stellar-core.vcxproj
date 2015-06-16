@@ -235,8 +235,9 @@
     <ClCompile Include="..\..\src\overlay\PeerRecord.cpp" />
     <ClCompile Include="..\..\src\overlay\PeerRecordTests.cpp" />
     <ClCompile Include="..\..\src\overlay\TCPPeerTests.cpp" />
+    <ClCompile Include="..\..\src\scp\BallotProtocol.cpp" />
     <ClCompile Include="..\..\src\scp\LocalNode.cpp" />
-    <ClCompile Include="..\..\src\scp\Node.cpp" />
+    <ClCompile Include="..\..\src\scp\NominationProtocol.cpp" />
     <ClCompile Include="..\..\src\scp\SCP.cpp" />
     <ClCompile Include="..\..\src\scp\SCPTests.cpp" />
     <ClCompile Include="..\..\src\scp\Slot.cpp" />
@@ -346,7 +347,6 @@
     <ClInclude Include="..\..\src\main\fuzz.h" />
     <ClInclude Include="..\..\src\main\PersistentState.h" />
     <ClInclude Include="..\..\src\main\test.h" />
-    <ClInclude Include="..\..\src\overlay\FetchableItem.h" />
     <ClInclude Include="..\..\src\overlay\Floodgate.h" />
     <ClInclude Include="..\..\src\overlay\ItemFetcher.h" />
     <ClInclude Include="..\..\src\overlay\LoopbackPeer.h" />
@@ -358,8 +358,9 @@
     <ClInclude Include="..\..\src\overlay\TCPPeer.h" />
     <ClInclude Include="..\..\src\process\ProcessManager.h" />
     <ClInclude Include="..\..\src\process\ProcessManagerImpl.h" />
+    <ClInclude Include="..\..\src\scp\BallotProtocol.h" />
     <ClInclude Include="..\..\src\scp\LocalNode.h" />
-    <ClInclude Include="..\..\src\scp\Node.h" />
+    <ClInclude Include="..\..\src\scp\NominationProtocol.h" />
     <ClInclude Include="..\..\src\scp\SCP.h" />
     <ClInclude Include="..\..\src\scp\Slot.h" />
     <ClInclude Include="..\..\src\simulation\LoadGenerator.h" />

@@ -43,44 +43,50 @@ class HerderImpl : public Herder, public SCP
     void bootstrap() override;
 
     // SCP methods
-    void validateValue(uint64 const& slotIndex, uint256 const& nodeID,
-                       Value const& value,
-                       std::function<void(bool)> const& cb) override;
-    int compareValues(uint64 const& slotIndex, uint32 const& ballotCounter,
-                      Value const& v1, Value const& v2) override;
+    bool validateValue(uint64 slotIndex, uint256 const& nodeID,
+                       Value const& value) override;
 
-    void validateBallot(uint64 const& slotIndex, uint256 const& nodeID,
-                        SCPBallot const& ballot,
-                        std::function<void(bool)> const& cb) override;
+    std::string getValueString(Value const& v) const override;
 
-    void ballotDidHearFromQuorum(uint64 const& slotIndex,
+    bool validateBallot(uint64 slotIndex, uint256 const& nodeID,
+                        SCPBallot const& ballot) override;
+
+    void ballotDidHearFromQuorum(uint64 slotIndex,
                                  SCPBallot const& ballot) override;
-    void valueExternalized(uint64 const& slotIndex,
-                           Value const& value) override;
 
-    void nodeTouched(uint256 const& nodeID) override;
+    void ballotGotBumped(uint64 slotIndex, SCPBallot const& ballot,
+                         std::chrono::milliseconds timeout) override;
+
+    void valueExternalized(uint64 slotIndex, Value const& value) override;
+
+    void nominatingValue(uint64 slotIndex, Value const& value,
+                         std::chrono::milliseconds timeout) override;
+
+    Value combineCandidates(uint64 slotIndex,
+                            std::set<Value> const& candidates) override;
 
     void emitEnvelope(SCPEnvelope const& envelope) override;
     bool recvTransactions(TxSetFramePtr txSet);
     // Extra SCP methods overridden solely to increment metrics.
-    void ballotDidPrepare(uint64 const& slotIndex,
-                          SCPBallot const& ballot) override;
-    void ballotDidPrepared(uint64 const& slotIndex,
-                           SCPBallot const& ballot) override;
-    void ballotDidCommit(uint64 const& slotIndex,
-                         SCPBallot const& ballot) override;
-    void ballotDidCommitted(uint64 const& slotIndex,
-                            SCPBallot const& ballot) override;
+    void updatedCandidateValue(uint64 slotIndex, Value const& value) override;
+    void startedBallotProtocol(uint64 slotIndex,
+                               SCPBallot const& ballot) override;
+    void acceptedBallotPrepared(uint64 slotIndex,
+                                SCPBallot const& ballot) override;
+    void confirmedBallotPrepared(uint64 slotIndex,
+                                 SCPBallot const& ballot) override;
+    void acceptedCommit(uint64 slotIndex, SCPBallot const& ballot) override;
     void envelopeSigned() override;
     void envelopeVerified(bool) override;
 
     TransactionSubmitStatus recvTransaction(TransactionFramePtr tx) override;
 
-    void recvSCPEnvelope(SCPEnvelope const & envelope) override;
+    void recvSCPEnvelope(SCPEnvelope const& envelope) override;
 
     void recvSCPQuorumSet(Hash hash, const SCPQuorumSet& qset) override;
     void recvTxSet(Hash hash, const TxSetFrame& txset) override;
-    void peerDoesntHave(MessageType type, uint256 const& itemID, PeerPtr peer) override;
+    void peerDoesntHave(MessageType type, uint256 const& itemID,
+                        PeerPtr peer) override;
     TxSetFramePtr getTxSet(Hash hash) override;
     SCPQuorumSetPtr getQSet(const Hash& qSetHash) override;
 
@@ -95,26 +101,19 @@ class HerderImpl : public Herder, public SCP
   private:
     void ledgerClosed();
     void removeReceivedTx(TransactionFramePtr tx);
-    void expireBallot(uint64 const& slotIndex, SCPBallot const& ballot);
+    void expireBallot(uint64 slotIndex, SCPBallot const& ballot);
 
     void startRebroadcastTimer();
     void rebroadcast();
 
-    // StellarBallot internal signature/verification
-    void signStellarBallot(StellarBallot& b);
-    bool verifyStellarBallot(StellarBallot const& b);
-
     void updateSCPCounters();
 
     void processSCPQueueAtIndex(uint64 slotIndex);
-    
+
     // 0- tx we got during ledger close
     // 1- one ledger ago. rebroadcast
     // 2- two ledgers ago.
     std::vector<std::vector<TransactionFramePtr>> mReceivedTransactions;
-
-    // Time of last access to a node, used to evict unused nodes.
-    std::map<uint256, VirtualClock::time_point> mNodeLastAccess;
 
     PendingEnvelopes mPendingEnvelopes;
 
@@ -122,16 +121,14 @@ class HerderImpl : public Herder, public SCP
              std::map<uint256, std::vector<std::shared_ptr<VirtualTimer>>>>
         mBallotValidationTimers;
 
-    
-
     void herderOutOfSync();
 
     struct ConsensusData
     {
         uint64 mConsensusIndex;
-        StellarBallot mConsensusBallot;
-        ConsensusData(uint64 index, StellarBallot const& b)
-            : mConsensusIndex(index), mConsensusBallot(b)
+        StellarValue mConsensusValue;
+        ConsensusData(uint64 index, StellarValue const& b)
+            : mConsensusIndex(index), mConsensusValue(b)
         {
         }
     };
@@ -169,6 +166,7 @@ class HerderImpl : public Herder, public SCP
     VirtualTimer mTriggerTimer;
 
     VirtualTimer mBumpTimer;
+    VirtualTimer mNominationTimer;
     VirtualTimer mRebroadcastTimer;
     Value mCurrentValue;
     StellarMessage mLastSentMessage;
@@ -176,46 +174,53 @@ class HerderImpl : public Herder, public SCP
     Application& mApp;
     LedgerManager& mLedgerManager;
 
-    medida::Meter& mValueValid;
-    medida::Meter& mValueInvalid;
-    medida::Meter& mValuePrepare;
-    medida::Meter& mValueExternalize;
+    struct SCPMetrics
+    {
+        medida::Meter& mValueValid;
+        medida::Meter& mValueInvalid;
+        medida::Meter& mNominatingValue;
+        medida::Meter& mValueExternalize;
 
-    medida::Meter& mBallotValid;
-    medida::Meter& mBallotInvalid;
-    medida::Meter& mBallotPrepare;
-    medida::Meter& mBallotPrepared;
-    medida::Meter& mBallotCommit;
-    medida::Meter& mBallotCommitted;
-    medida::Meter& mBallotSign;
-    medida::Meter& mBallotValidSig;
-    medida::Meter& mBallotInvalidSig;
-    medida::Meter& mBallotExpire;
+        medida::Meter& mUpdatedCandidate;
+        medida::Meter& mStartBallotProtocol;
+        medida::Meter& mAcceptedBallotPrepared;
+        medida::Meter& mConfirmedBallotPrepared;
+        medida::Meter& mAcceptedCommit;
 
-    medida::Meter& mQuorumHeard;
-    medida::Meter& mQsetRetrieve;
+        medida::Meter& mBallotValid;
+        medida::Meter& mBallotInvalid;
+        medida::Meter& mBallotSign;
+        medida::Meter& mBallotValidSig;
+        medida::Meter& mBallotInvalidSig;
+        medida::Meter& mBallotExpire;
 
-    medida::Meter& mLostSync;
+        medida::Meter& mQuorumHeard;
+        medida::Meter& mQsetRetrieve;
 
-    medida::Meter& mEnvelopeEmit;
-    medida::Meter& mEnvelopeReceive;
-    medida::Meter& mEnvelopeSign;
-    medida::Meter& mEnvelopeValidSig;
-    medida::Meter& mEnvelopeInvalidSig;
+        medida::Meter& mLostSync;
 
-    medida::Counter& mNodeLastAccessSize;
-    medida::Counter& mSCPQSetFetchesSize;
-    medida::Counter& mBallotValidationTimersSize;
+        medida::Meter& mEnvelopeEmit;
+        medida::Meter& mEnvelopeReceive;
+        medida::Meter& mEnvelopeSign;
+        medida::Meter& mEnvelopeValidSig;
+        medida::Meter& mEnvelopeInvalidSig;
 
-    // Counters for stuff in parent class (SCP)
-    // that we monitor on a best-effort basis from
-    // here.
-    medida::Counter& mKnownNodesSize;
-    medida::Counter& mKnownSlotsSize;
+        medida::Counter& mSCPQSetFetchesSize;
+        medida::Counter& mBallotValidationTimersSize;
 
-    // Counters for things reached-through the
-    // SCP maps: Slots and Nodes
-    medida::Counter& mCumulativeStatements;
-    medida::Counter& mCumulativeCachedQuorumSets;
+        // Counters for stuff in parent class (SCP)
+        // that we monitor on a best-effort basis from
+        // here.
+        medida::Counter& mKnownSlotsSize;
+
+        // Counters for things reached-through the
+        // SCP maps: Slots and Nodes
+        medida::Counter& mCumulativeStatements;
+        medida::Counter& mCumulativeCachedQuorumSets;
+
+        SCPMetrics(Application& app);
+    };
+
+    SCPMetrics mSCPMetrics;
 };
 }
