@@ -30,8 +30,10 @@ class LoadGenerator
 
     std::vector<AccountInfoPtr> mAccounts;
     std::vector<AccountInfoPtr> mGateways;
+    std::vector<AccountInfoPtr> mMarketMakers;
     std::vector<AccountInfoPtr> mNeedFund;
 
+    std::vector<AccountInfoPtr> mNeedOffer;
     std::unique_ptr<VirtualTimer> mLoadTimer;
     int64 mMinBalance;
 
@@ -48,6 +50,7 @@ class LoadGenerator
 
     bool maybeCreateAccount(uint32_t ledgerNum, std::vector<TxInfo> &txs);
     size_t fundPendingTrustlines(uint32_t ledgerNum, std::vector<TxInfo> &txs);
+    size_t createPendingOffers(uint32_t ledgerNum, std::vector<TxInfo> &txs);
 
     std::vector<TxInfo> accountCreationTransactions(size_t n);
     AccountInfoPtr createAccount(size_t i, uint32_t ledgerNum = 0);
@@ -63,6 +66,8 @@ class LoadGenerator
 
     TxInfo createEstablishTrustTransaction(AccountInfoPtr from,
                                            AccountInfoPtr issuer);
+
+    TxInfo createEstablishOfferTransaction(AccountInfoPtr from);
 
     AccountInfoPtr pickRandomAccount(AccountInfoPtr tryToAvoid,
                                      uint32_t ledgerNum);
@@ -95,9 +100,17 @@ class LoadGenerator
         // Used when this account trusts some other account's credits.
         std::vector<TrustLineInfo> mTrustLines;
 
-        // Reverse map, when other accounts trust this account's credits.
-        std::vector<AccountInfoPtr> mTrustingAccounts;
+        // Currency issued, if a gateway, as well as reverse maps to
+        // those accounts that trust this currency and those who are
+        // buying and selling it.
         std::string mIssuedCurrency;
+        std::vector<AccountInfoPtr> mTrustingAccounts;
+        std::vector<AccountInfoPtr> mBuyingAccounts;
+        std::vector<AccountInfoPtr> mSellingAccounts;
+
+        // Live offers, for accounts that are market makers.
+        AccountInfoPtr mBuyCredit;
+        AccountInfoPtr mSellCredit;
 
         TxInfo creationTransaction();
 
@@ -113,6 +126,7 @@ class LoadGenerator
         {
             TX_CREATE_ACCOUNT,
             TX_ESTABLISH_TRUST,
+            TX_ESTABLISH_OFFER,
             TX_TRANSFER_NATIVE,
             TX_TRANSFER_CREDIT
         } mType;

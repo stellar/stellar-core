@@ -83,6 +83,19 @@ LoadGenerator::maybeCreateAccount(uint32_t ledgerNum, vector<TxInfo> &txs)
             acc->mIssuedCurrency = pickRandomCurrency();
             mGateways.push_back(acc);
         }
+        if (mGateways.size() > 2 && rand_uniform(0, 100) == 0)
+        {
+            // One account in 100 is willing to act as a market-maker.
+            acc->mBuyCredit = rand_element(mGateways);
+            do
+            {
+                acc->mSellCredit = rand_element(mGateways);
+            } while (acc->mSellCredit != acc->mBuyCredit);
+            acc->mSellCredit->mSellingAccounts.push_back(acc);
+            acc->mBuyCredit->mBuyingAccounts.push_back(acc);
+            mMarketMakers.push_back(acc);
+            mNeedOffer.push_back(acc);
+        }
         mAccounts.push_back(acc);
         txs.push_back(acc->creationTransaction());
         return true;
@@ -119,6 +132,31 @@ LoadGenerator::fundPendingTrustlines(uint32_t ledgerNum, std::vector<TxInfo> &tx
     }
     mNeedFund = remainder;
     return funded;
+}
+
+size_t
+LoadGenerator::createPendingOffers(uint32_t ledgerNum, std::vector<TxInfo> &txs)
+{
+    size_t offered = 0;
+    std::vector<AccountInfoPtr> remainder;
+    SequenceNumber seq = static_cast<SequenceNumber>(ledgerNum) << 32;
+
+    for (auto i : mNeedOffer)
+    {
+        assert(i->mSellCredit);
+        assert(i->mBuyCredit);
+        if (i->mSeq >= seq ||
+            i->mSellCredit->mSeq >= seq ||
+            i->mBuyCredit->mSeq >= seq)
+        {
+            remainder.push_back(i);
+            continue;
+        }
+        txs.push_back(createEstablishOfferTransaction(i));
+        ++offered;
+    }
+    mNeedOffer = remainder;
+    return offered;
 }
 
 // Generate one "step" worth of load (assuming 1 step per STEP_MSECS) at a
@@ -314,6 +352,12 @@ LoadGenerator::createEstablishTrustTransaction(AccountInfoPtr from,
     return TxInfo{from, nullptr, TxInfo::TX_ESTABLISH_TRUST, 0, issuer};
 }
 
+LoadGenerator::TxInfo
+LoadGenerator::createEstablishOfferTransaction(AccountInfoPtr from)
+{
+    return TxInfo { from, nullptr, TxInfo::TX_ESTABLISH_OFFER };
+}
+
 LoadGenerator::AccountInfoPtr
 LoadGenerator::pickRandomAccount(AccountInfoPtr tryToAvoid, uint32_t ledgerNum)
 {
@@ -464,6 +508,33 @@ LoadGenerator::TxInfo::toTransactionFrames(
         txs.push_back(txtest::createChangeTrust(
             mFrom->mKey, mIssuer->mKey, mFrom->mSeq + 1,
             mIssuer->mIssuedCurrency, 10000 * TENMILLION));
+    }
+    break;
+
+    case TxInfo::TX_ESTABLISH_OFFER:
+    {
+        Price price;
+        price.d = 10000;
+        uint64_t diff = rand_uniform(1, 200);
+        price.n = rand_flip() ? (price.d + diff) : (price.d - diff);
+
+        uint64_t amount = 10000 * TENMILLION;
+
+        assert(!mFrom->mSellCredit->mIssuedCurrency.empty());
+        assert(!mFrom->mBuyCredit->mIssuedCurrency.empty());
+        Currency sellCurrency =
+            txtest::makeCurrency(mFrom->mSellCredit->mKey,
+                                 mFrom->mSellCredit->mIssuedCurrency);
+        Currency buyCurrency =
+            txtest::makeCurrency(mFrom->mBuyCredit->mKey,
+                                 mFrom->mBuyCredit->mIssuedCurrency);
+
+        txs.push_back(
+            txtest::createPassiveOfferOp(mFrom->mKey,
+                                         sellCurrency,
+                                         buyCurrency,
+                                         price, amount,
+                                         mFrom->mSeq));
     }
     break;
 
