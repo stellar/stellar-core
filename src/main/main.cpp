@@ -326,7 +326,8 @@ main(int argc, char* const* argv)
         }
 
         // don't log to file if just sending a command
-        Logging::setLoggingToFile(cfg.LOG_FILE_PATH);
+        if(cfg.LOG_FILE_PATH.size()) 
+            Logging::setLoggingToFile(cfg.LOG_FILE_PATH);
         Logging::setLogLevel(logLevel, nullptr);
 
         cfg.REBUILD_DB = newDB;
