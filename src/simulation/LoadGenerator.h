@@ -28,12 +28,23 @@ class LoadGenerator
     static std::string pickRandomCurrency();
     static const uint32_t STEP_MSECS;
 
+    // Primary store of accounts.
     std::vector<AccountInfoPtr> mAccounts;
+
+    // Subset of accounts that have issued credit in some currency.
     std::vector<AccountInfoPtr> mGateways;
+
+    // Subset of accounts that have made offers to trade in some credits.
     std::vector<AccountInfoPtr> mMarketMakers;
+
+    // Temporary: accounts that turst gateways but haven't been funded with
+    // gateway credit yet.
     std::vector<AccountInfoPtr> mNeedFund;
 
+    // Temporary: accounts that are market makers but haven't put in their
+    // offers yet.
     std::vector<AccountInfoPtr> mNeedOffer;
+
     std::unique_ptr<VirtualTimer> mLoadTimer;
     int64 mMinBalance;
 
