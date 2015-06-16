@@ -11,7 +11,6 @@
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
 #include "util/Logging.h"
-#include "scp/Node.h"
 #include "scp/LocalNode.h"
 #include "lib/json/json.h"
 #include "util/make_unique.h"
@@ -144,7 +143,7 @@ Slot::getQuorumSetFromStatement(SCPStatement const& st) const
 
     if (t == SCP_ST_EXTERNALIZE)
     {
-        res = Node::getSingletonQSet(st.nodeID);
+        res = LocalNode::getSingletonQSet(st.nodeID);
     }
     else
     {
@@ -198,8 +197,7 @@ Slot::ballotToStr(SCPBallot const& ballot) const
 {
     std::ostringstream oss;
 
-    oss << "(" << ballot.counter << "," << getValueString(ballot.value)
-        << ")";
+    oss << "(" << ballot.counter << "," << getValueString(ballot.value) << ")";
     return oss.str();
 }
 
@@ -293,8 +291,8 @@ Slot::federatedAccept(StatementPredicate voted, StatementPredicate accepted,
 {
     // Checks if the nodes that claimed to accept the statement form a
     // v-blocking set
-    if (getLocalNode()->isVBlocking<SCPStatement>(
-            getLocalNode()->getQuorumSet(), statements, accepted))
+    if (LocalNode::isVBlocking(getLocalNode()->getQuorumSet(), statements,
+                               accepted))
     {
         return true;
     }
@@ -310,7 +308,7 @@ Slot::federatedAccept(StatementPredicate voted, StatementPredicate accepted,
         return res;
     };
 
-    if (getLocalNode()->isQuorum<SCPStatement>(
+    if (LocalNode::isQuorum(
             getLocalNode()->getQuorumSet(), statements,
             std::bind(&Slot::getQuorumSetFromStatement, this, _1),
             ratifyFilter))
@@ -325,7 +323,7 @@ bool
 Slot::federatedRatify(StatementPredicate voted,
                       std::map<uint256, SCPStatement> const& statements)
 {
-    return getLocalNode()->isQuorum<SCPStatement>(
+    return LocalNode::isQuorum(
         getLocalNode()->getQuorumSet(), statements,
         std::bind(&Slot::getQuorumSetFromStatement, this, _1), voted);
 }

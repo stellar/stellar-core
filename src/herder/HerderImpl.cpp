@@ -16,7 +16,7 @@
 #include "util/Timer.h"
 #include "util/make_unique.h"
 #include "lib/json/json.h"
-#include "scp/Node.h"
+#include "scp/LocalNode.h"
 
 #include "medida/meter.h"
 #include "medida/counter.h"
@@ -395,7 +395,6 @@ HerderImpl::ballotGotBumped(uint64 slotIndex, SCPBallot const& ballot,
 void
 HerderImpl::updateSCPCounters()
 {
-    mKnownNodesSize.set_count(getKnownNodesCount());
     mKnownSlotsSize.set_count(getKnownSlotsCount());
     mCumulativeStatements.set_count(getCumulativeStatemtCount());
 }
@@ -460,16 +459,6 @@ HerderImpl::valueExternalized(uint64 slotIndex, Value const& value)
     {
         auto msg = tx->toStellarMessage();
         mApp.getOverlayManager().broadcastMessage(msg);
-    }
-
-    // Evict nodes that weren't touched for more than
-    auto now = mApp.getClock().now();
-    for (auto& it : mNodeLastAccess)
-    {
-        if ((now - it.second) > NODE_EXPIRATION_SECONDS)
-        {
-            purgeNode(it.first);
-        }
     }
 
     // Evict slots that are outside of our ledger validity bracket
@@ -1056,13 +1045,6 @@ HerderImpl::envelopeVerified(bool valid)
 void
 HerderImpl::dumpInfo(Json::Value& ret)
 {
-    int count = 0;
-    for (auto& item : mKnownNodes)
-    {
-        ret["nodes"][count++] =
-            toBase58Check(VER_ACCOUNT_ID, item.second->getNodeID()).c_str();
-    }
-
     ret["you"] = hexAbbrev(getSecretKey().getPublicKey());
 
     for (auto& item : mKnownSlots)

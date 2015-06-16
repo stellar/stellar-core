@@ -11,7 +11,6 @@
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
 #include "util/Logging.h"
-#include "scp/Node.h"
 #include "scp/LocalNode.h"
 #include "lib/json/json.h"
 #include "util/make_unique.h"
@@ -198,19 +197,19 @@ NominationProtocol::updateRoundLeaders()
     uint64 topPriority = 0;
     SCPQuorumSet const& myQSet = mSlot.getLocalNode()->getQuorumSet();
 
-    Node::forAllNodes(myQSet, [&](uint256 const& cur)
-                      {
-                          uint64 w = getNodePriority(cur, myQSet);
-                          if (w > topPriority)
-                          {
-                              topPriority = w;
-                              mRoundLeaders.clear();
-                          }
-                          if (w == topPriority)
-                          {
-                              mRoundLeaders.insert(cur);
-                          }
-                      });
+    LocalNode::forAllNodes(myQSet, [&](uint256 const& cur)
+                           {
+                               uint64 w = getNodePriority(cur, myQSet);
+                               if (w > topPriority)
+                               {
+                                   topPriority = w;
+                                   mRoundLeaders.clear();
+                               }
+                               if (w == topPriority)
+                               {
+                                   mRoundLeaders.insert(cur);
+                               }
+                           });
 }
 
 uint64
@@ -225,7 +224,7 @@ NominationProtocol::getNodePriority(uint256 const& nodeID,
                                     SCPQuorumSet const& qset)
 {
     uint64 res;
-    uint64 w = Node::getNodeWeight(nodeID, qset);
+    uint64 w = LocalNode::getNodeWeight(nodeID, qset);
 
     if (hashValue(false, nodeID) < w)
     {
@@ -267,17 +266,18 @@ NominationProtocol::processEnvelope(SCPEnvelope const& envelope)
                         continue;
                     }
                     if (mSlot.federatedAccept(
-                        [&v](uint256 const&, SCPStatement const& st) -> bool
-                    {
-                        auto const& nom = st.pledges.nominate();
-                        bool res;
-                        res = (std::find(nom.votes.begin(), nom.votes.end(),
-                                         v) != nom.votes.end());
-                        return res;
-                    },
-                        std::bind(&NominationProtocol::acceptPredicate, v, _1,
-                                  _2),
-                        mLatestNominations))
+                            [&v](uint256 const&, SCPStatement const& st) -> bool
+                            {
+                                auto const& nom = st.pledges.nominate();
+                                bool res;
+                                res = (std::find(nom.votes.begin(),
+                                                 nom.votes.end(),
+                                                 v) != nom.votes.end());
+                                return res;
+                            },
+                            std::bind(&NominationProtocol::acceptPredicate, v,
+                                      _1, _2),
+                            mLatestNominations))
                     {
                         mAccepted.emplace(v);
                         mVotes.emplace(v);
@@ -292,16 +292,17 @@ NominationProtocol::processEnvelope(SCPEnvelope const& envelope)
                         continue;
                     }
                     if (mSlot.federatedRatify(
-                        std::bind(&NominationProtocol::acceptPredicate, a, _1,
-                                  _2),
-                        mLatestNominations))
+                            std::bind(&NominationProtocol::acceptPredicate, a,
+                                      _1, _2),
+                            mLatestNominations))
                     {
                         mCandidates.emplace(a);
                         newCandidates = true;
                     }
                 }
 
-                // only take round leader votes if we still looking for candidates
+                // only take round leader votes if we still looking for
+                // candidates
                 if (mCandidates.empty() &&
                     mRoundLeaders.find(st.nodeID) != mRoundLeaders.end())
                 {

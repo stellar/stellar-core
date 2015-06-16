@@ -27,7 +27,6 @@ FMT_SRCS =                                      \
     src/scp/SCP.cpp                             \
     src/scp/SCPTests.cpp                        \
     src/scp/LocalNode.cpp                       \
-    src/scp/Node.cpp                            \
     src/scp/NominationProtocol.cpp              \
     src/scp/Slot.cpp                            \
     src/herder/Herder.cpp                       \
@@ -128,7 +127,6 @@ FMT_HDRS =                                      \
     src/scp/BallotProtocol.h                    \
     src/scp/SCP.h                               \
     src/scp/LocalNode.h                         \
-    src/scp/Node.h                              \
     src/scp/NominationProtocol.h                \
     src/scp/Slot.h                              \
     src/herder/Herder.h                         \

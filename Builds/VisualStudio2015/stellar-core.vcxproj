@@ -237,7 +237,6 @@
     <ClCompile Include="..\..\src\overlay\TCPPeerTests.cpp" />
     <ClCompile Include="..\..\src\scp\BallotProtocol.cpp" />
     <ClCompile Include="..\..\src\scp\LocalNode.cpp" />
-    <ClCompile Include="..\..\src\scp\Node.cpp" />
     <ClCompile Include="..\..\src\scp\NominationProtocol.cpp" />
     <ClCompile Include="..\..\src\scp\SCP.cpp" />
     <ClCompile Include="..\..\src\scp\SCPTests.cpp" />
@@ -361,7 +360,6 @@
     <ClInclude Include="..\..\src\process\ProcessManagerImpl.h" />
     <ClInclude Include="..\..\src\scp\BallotProtocol.h" />
     <ClInclude Include="..\..\src\scp\LocalNode.h" />
-    <ClInclude Include="..\..\src\scp\Node.h" />
     <ClInclude Include="..\..\src\scp\NominationProtocol.h" />
     <ClInclude Include="..\..\src\scp\SCP.h" />
     <ClInclude Include="..\..\src\scp\Slot.h" />

@@ -12,7 +12,6 @@
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
 #include "util/Logging.h"
-#include "scp/Node.h"
 #include "scp/LocalNode.h"
 #include "lib/json/json.h"
 #include "util/make_unique.h"
@@ -614,7 +613,7 @@ BallotProtocol::attemptPrepare(SCPBallot const& ballot)
     bool didWork = false;
     if (mPhase == SCP_PHASE_PREPARE)
     {
-        if (getLocalNode()->isVBlocking<SCPStatement>(
+        if (LocalNode::isVBlocking(
                 getLocalNode()->getQuorumSet(), mLatestStatements,
                 [&](uint256 const&, SCPStatement const& st)
                 {
@@ -1243,7 +1242,8 @@ BallotProtocol::getWorkingBallot(SCPStatement const& st)
     return res;
 }
 
-bool BallotProtocol::setPrepared(SCPBallot const& ballot)
+bool
+BallotProtocol::setPrepared(SCPBallot const& ballot)
 {
     bool didWork = false;
 
@@ -1339,7 +1339,7 @@ BallotProtocol::advanceSlot(SCPBallot const& ballot)
     // when a single message causes several
     if (!mHeardFromQuorum && mCurrentBallot)
     {
-        if (getLocalNode()->isQuorum<SCPStatement>(
+        if (LocalNode::isQuorum(
                 getLocalNode()->getQuorumSet(), mLatestStatements,
                 std::bind(&Slot::getQuorumSetFromStatement, &mSlot, _1),
                 [&](uint256 const&, SCPStatement const& st)

@@ -19,7 +19,6 @@ namespace stellar
 SCP::SCP(SecretKey const& secretKey, SCPQuorumSet const& qSetLocal)
 {
     mLocalNode = std::make_shared<LocalNode>(secretKey, qSetLocal, this);
-    mKnownNodes[mLocalNode->getNodeID()] = mLocalNode;
 }
 
 std::string
@@ -100,16 +99,6 @@ SCP::getLocalNodeID()
 }
 
 void
-SCP::purgeNode(uint256 const& nodeID)
-{
-    auto it = mKnownNodes.find(nodeID);
-    if (it != mKnownNodes.end())
-    {
-        mKnownNodes.erase(it);
-    }
-}
-
-void
 SCP::purgeSlots(uint64 maxSlotIndex)
 {
     auto it = mKnownSlots.begin();
@@ -124,17 +113,6 @@ SCP::purgeSlots(uint64 maxSlotIndex)
             ++it;
         }
     }
-}
-
-std::shared_ptr<Node>
-SCP::getNode(uint256 const& nodeID)
-{
-    auto it = mKnownNodes.find(nodeID);
-    if (it == mKnownNodes.end())
-    {
-        mKnownNodes[nodeID] = std::make_shared<Node>(nodeID, this);
-    }
-    return mKnownNodes[nodeID];
 }
 
 std::shared_ptr<LocalNode>
@@ -176,24 +154,6 @@ SecretKey const&
 SCP::getSecretKey()
 {
     return mLocalNode->getSecretKey();
-}
-
-bool
-SCP::isVBlocking(std::vector<uint256> const& nodes)
-{
-    std::map<uint256, bool> map;
-    for (auto const& v : nodes)
-    {
-        map[v] = true;
-    }
-    return getLocalNode()->isVBlocking<bool>(getLocalNode()->getQuorumSet(),
-                                             map);
-}
-
-size_t
-SCP::getKnownNodesCount() const
-{
-    return mKnownNodes.size();
 }
 
 size_t

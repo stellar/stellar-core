@@ -38,9 +38,7 @@ class SCP
     // 2) inform about events happening within the consensus algorithm.
     //    ( `ballotDidPrepare`, `ballotDidPrepared`, `ballotDidCommit`,
     //      `ballotDidCommitted`, `valueExternalized`)
-    // 3) retrieve data required by the SCP protocol.
-    //    (`retrieveQuorumSet`)
-    // 4) trigger the broadcast of Envelopes to other nodes in the network.
+    // 3) trigger the broadcast of Envelopes to other nodes in the network.
     //    (`emitEnvelope`)
     //
     // These methods are designed to abstract the transport layer used from the
@@ -90,8 +88,8 @@ class SCP
 
     // `computeHash` is used by the nomination protocol to
     // randomize the order of messages between nodes.
-    virtual uint64 computeHash(uint64 slotIndex, bool isPriority, int32 roundNumber,
-                               uint256 const& nodeID);
+    virtual uint64 computeHash(uint64 slotIndex, bool isPriority,
+                               int32 roundNumber, uint256 const& nodeID);
 
     // `ballotDidPrepare` is called each time the local node PREPARING a ballot.
     // It is always called on the internally monotonically increasing `mBallot`.
@@ -208,19 +206,9 @@ class SCP
     void signEnvelope(SCPEnvelope& envelope);
     bool verifyEnvelope(SCPEnvelope const& envelope);
 
-    // Node getters
-    std::shared_ptr<Node> getNode(uint256 const& nodeID);
-
   protected:
     std::shared_ptr<LocalNode> mLocalNode;
-    std::map<uint256, std::shared_ptr<Node>> mKnownNodes;
     std::map<uint64, std::shared_ptr<Slot>> mKnownSlots;
-
-    // Purges all data relative to that node. Can be called at any time on any
-    // node. If the node is subsequently needed, it will be recreated and its
-    // quorumSet retrieved again. This method has no effect if called on the
-    // local nodeID.
-    void purgeNode(uint256 const& nodeID);
 
     // Purges all data relative to all the slots whose slotIndex is smaller
     // than the specified `maxSlotIndex`.
@@ -228,10 +216,6 @@ class SCP
 
     // Retrieves the local secret key as specified at construction
     SecretKey const& getSecretKey();
-
-    // Tests whether a set of nodes is v-blocking for our local node. This can
-    // be used in ballot validation decisions.
-    bool isVBlocking(std::vector<uint256> const& nodes);
 
     // Hooks for subclasses to note signatures and verification pass/fail.
     virtual void
@@ -245,7 +229,6 @@ class SCP
 
     // Helpers for monitoring and reporting the internal memory-usage of the SCP
     // protocol to system metric reporters.
-    size_t getKnownNodesCount() const;
     size_t getKnownSlotsCount() const;
     size_t getCumulativeStatemtCount() const;
 
