@@ -63,7 +63,6 @@ Simulation::addNode(SecretKey nodeKey, SCPQuorumSet qSet, VirtualClock& clock,
     cfg->FORCE_SCP = true;
     cfg->RUN_STANDALONE = (mMode == OVER_LOOPBACK);
 
-
     Application::pointer result = Application::create(clock, *cfg);
 
     uint256 nodeID = nodeKey.getPublicKey();
@@ -307,12 +306,15 @@ Simulation::crankUntil(function<bool()> const& predicate,
     }
 }
 
-
 void
 Simulation::execute(TxInfo transaction)
 {
     // Execute on the first node
-    transaction.execute(*mNodes.begin()->second);
+    bool res = transaction.execute(*mNodes.begin()->second);
+    if (!res)
+    {
+        CLOG(DEBUG, "Simulation") << "Failed execution in simulation";
+    }
 }
 
 void

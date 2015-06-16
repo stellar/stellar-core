@@ -95,7 +95,7 @@ Topologies::core(int nNodes, float quorumThresoldFraction,
     SCPQuorumSet qSet;
     assert(quorumThresoldFraction >= 0.5);
     qSet.threshold = min(
-        nNodes, static_cast<int>(ceil(nNodes * quorumThresoldFraction)) + 1);
+        nNodes, static_cast<int>(ceil(nNodes * quorumThresoldFraction)));
     for (auto const& k : keys)
     {
         qSet.validators.push_back(k.getPublicKey());
@@ -119,13 +119,20 @@ Topologies::core(int nNodes, float quorumThresoldFraction,
 
 Simulation::pointer
 Topologies::hierarchicalQuorum(int nBranches,
-                               Simulation::Mode mode) // Figure 2 from the paper
+                               Simulation::Mode mode) // Figure 3 from the paper
 {
-    auto sim = Topologies::core(4, 1.0, mode);
+    auto sim = Topologies::core(4, 0.75, mode);
     vector<uint256> coreNodeIDs;
     for (auto const& coreNodeID : sim->getNodeIDs())
     {
         coreNodeIDs.push_back(coreNodeID);
+    }
+
+    SCPQuorumSet qSetTopTier;
+    qSetTopTier.threshold = 2;
+    for (auto const& coreNodeID : coreNodeIDs)
+    {
+        qSetTopTier.validators.push_back(coreNodeID);
     }
 
     for (int i = 0; i < nBranches; i++)
@@ -139,17 +146,14 @@ Topologies::hierarchicalQuorum(int nBranches,
                        to_string(j))));
         }
 
-        SCPQuorumSet qSet;
-        qSet.threshold = 3;
-        for (auto const& coreNodeID : coreNodeIDs)
-        {
-            qSet.validators.push_back(coreNodeID);
-        }
         for (auto const& key : middletierKeys)
         {
-            SCPQuorumSet qSetHere = qSet;
+            SCPQuorumSet qSetHere;
+            // self + any 2 from top tier
+            qSetHere.threshold = 2;
             qSetHere.validators.push_back(key.getPublicKey());
-            sim->addNode(key, qSet, sim->getClock());
+            qSetHere.innerSets.push_back(qSetTopTier);
+            sim->addNode(key, qSetHere, sim->getClock());
         }
 
         //// the leaf node
