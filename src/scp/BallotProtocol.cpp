@@ -371,6 +371,7 @@ BallotProtocol::bumpState(Value const& value, bool force)
 
     if (updated)
     {
+        mSlot.getSCP().startedBallotProtocol(mSlot.getSlotIndex(), newb);
         emitCurrentStateStatement();
     }
 
@@ -761,6 +762,7 @@ BallotProtocol::attemptPreparedAccept(SCPBallot const& ballot)
 
     if (didWork)
     {
+        mSlot.getSCP().acceptedBallotPrepared(mSlot.getSlotIndex(), ballot);
         emitCurrentStateStatement();
     }
 
@@ -857,6 +859,7 @@ BallotProtocol::attemptPreparedConfirmed(SCPBallot const& ballot)
 
     if (didWork)
     {
+        mSlot.getSCP().confirmedBallotPrepared(mSlot.getSlotIndex(), ballot);
         emitCurrentStateStatement();
     }
 
@@ -1104,6 +1107,7 @@ BallotProtocol::attemptAcceptCommit(SCPBallot const& acceptCommitLow,
 
     if (didWork)
     {
+        mSlot.getSCP().acceptedCommit(mSlot.getSlotIndex(), acceptCommitHigh);
         emitCurrentStateStatement();
     }
 

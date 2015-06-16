@@ -30,19 +30,52 @@ class SCP
     {
     }
 
+    enum EnvelopeState
+    {
+        INVALID, // the envelope is considered invalid
+        VALID    // the envelope is valid
+    };
+
+    // this is the main entry point of the SCP library
+    // it processes the envelope, updates the internal state and
+    // invokes the appropriate methods
+    EnvelopeState receiveEnvelope(SCPEnvelope const& envelope);
+
+    // Delegates the retrieval of the quorum set designated by `qSetHash` to
+    // the user of SCP.
+    virtual SCPQuorumSetPtr getQSet(Hash const& qSetHash) = 0;
+
+    // request to trigger a 'bumpState'
+    // returns the value returned by 'bumpState'
+    bool abandonBallot(uint64 slotIndex);
+
+    // Submit a value for the SCP consensus phase
+    bool nominate(uint64 slotIndex, Value const& value, bool timedout);
+
+    // Local QuorumSet interface (can be dynamically updated)
+    void updateLocalQuorumSet(SCPQuorumSet const& qSet);
+    SCPQuorumSet const& getLocalQuorumSet();
+
+    // Local nodeID getter
+    uint256 const& getLocalNodeID();
+
+    // returns the local node descriptor
+    std::shared_ptr<LocalNode> getLocalNode();
+
+    // Envelope signature/verification
+    void signEnvelope(SCPEnvelope& envelope);
+    bool verifyEnvelope(SCPEnvelope const& envelope);
+
     // Users of the SCP library should inherit from SCP and implement the
-    // following virtual methods which are called by the SCP implementation to:
-    //
-    // 1) hand over the validation and ordering of values and ballots.
-    //    (`validateValue`, `validateBallot`)
-    // 2) inform about events happening within the consensus algorithm.
-    //    ( `ballotDidPrepare`, `ballotDidPrepared`, `ballotDidCommit`,
-    //      `ballotDidCommitted`, `valueExternalized`)
-    // 3) trigger the broadcast of Envelopes to other nodes in the network.
-    //    (`emitEnvelope`)
-    //
-    // These methods are designed to abstract the transport layer used from the
-    // implementation of the SCP protocol.
+    // virtual methods which are called by the SCP implementation to
+    // abstract the transport layer used from the implementation of the SCP
+    // protocol.
+
+    // Delegates the emission of an SCPEnvelope to the user of SCP. Envelopes
+    // should be flooded to the network.
+    virtual void emitEnvelope(SCPEnvelope const& envelope) = 0;
+
+    // methods to hand over the validation and ordering of values and ballots.
 
     // `validateValue` is called on each message received before any processing
     // is done. It should be used to filter out values that are not compatible
@@ -91,41 +124,12 @@ class SCP
     virtual uint64 computeHash(uint64 slotIndex, bool isPriority,
                                int32 roundNumber, uint256 const& nodeID);
 
-    // `ballotDidPrepare` is called each time the local node PREPARING a ballot.
-    // It is always called on the internally monotonically increasing `mBallot`.
-    virtual void
-    ballotDidPrepare(uint64 slotIndex, SCPBallot const& ballot)
-    {
-    }
-    // `ballotDidPrepared` is called each time the local node PREPARED a
-    // ballot. It can be called on ballots lower than `mBallot`.
-    virtual void
-    ballotDidPrepared(uint64 slotIndex, SCPBallot const& ballot)
-    {
-    }
-    // `ballotDidCommit` is called each time the local node COMMITTING a ballot.
-    // It is always called on the internally monotonically increasing `mBallot`.
-    virtual void
-    ballotDidCommit(uint64 slotIndex, SCPBallot const& ballot)
-    {
-    }
-    // `ballotDidCommitted` is called each time the local node COMMITTED a
-    // ballot. It is always called on the internally monotonically increasing
-    // `mBallot`. Once COMMITTED, a slot cannot switch to another value. That
-    // does not mean that the network agrees on it yet though, but if the slot
-    // later externalize on this node, it will necessarily be on this value.
-    virtual void
-    ballotDidCommitted(uint64 slotIndex, SCPBallot const& ballot)
-    {
-    }
+    // `combineCandidates` computes the composite value based off a list
+    // of candidate values.
+    virtual Value combineCandidates(uint64 slotIndex,
+                                    std::set<Value> const& candidates) = 0;
 
-    // `ballotDidHearFromQuorum` is called when we received messages related to
-    // the current `mBallot` from a set of node that is a transitive quorum for
-    // the local node. It should be used to start ballot expiration timer.
-    virtual void
-    ballotDidHearFromQuorum(uint64 slotIndex, SCPBallot const& ballot)
-    {
-    }
+    // Inform about events happening within the consensus algorithm.
 
     // `ballotGotBumped` is called every time the local ballot is updated
     // timeout is the duration that the local instance should wait for before
@@ -153,58 +157,49 @@ class SCP
     {
     }
 
-    // `combineCandidates` computes the composite value based off a list
-    // of candidate values.
-    virtual Value combineCandidates(uint64 slotIndex,
-                                    std::set<Value> const& candidates) = 0;
+    // the following methods are used for monitoring of the SCP subsystem
+    // most implementation don't really need to do anything with these
 
-    // `nodeTouched` is call whenever a node is used within the SCP consensus
-    // protocol. It lets implementor of SCP evict nodes that haven't been
-    // touched for a long time (because it died or the quorum structure was
-    // updated).
+    // `updatedCandidateValue` is called every time a new candidate value
+    // is included in the candidate set, the value passed in is
+    // a composite value
     virtual void
-    nodeTouched(uint256 const& nodeID)
+    updatedCandidateValue(uint64 slotIndex, Value const& value)
     {
     }
 
-    // Delegates the retrieval of the quorum set designated by `qSetHash` to
-    // the user of SCP.
-    virtual SCPQuorumSetPtr getQSet(Hash const& qSetHash) = 0;
-
-    // Delegates the emission of an SCPEnvelope to the user of SCP. Envelopes
-    // should be flooded to the network.
-    virtual void emitEnvelope(SCPEnvelope const& envelope) = 0;
-
-    enum EnvelopeState
+    // `startedBallotProtocol` is called when the ballot protocol is started
+    // (ie attempts to prepare a new ballot)
+    virtual void
+    startedBallotProtocol(uint64 slotIndex, SCPBallot const& ballot)
     {
-        INVALID, // the envelope is considered invalid
-        VALID    // the envelope is valid
-    };
-    // If evidences are missing, a retransmission should take place for that
-    // slot. see `procudeSlotEvidence` to implement such retransmission
-    // mechanism on the other side of the wire.
-    EnvelopeState receiveEnvelope(SCPEnvelope const& envelope);
+    }
 
-    // request to trigger a 'bumpState'
-    // returns the value returned by 'bumpState'
-    bool abandonBallot(uint64 slotIndex);
+    // `acceptedBallotPrepared` every time a ballot is accepted as prepared
+    virtual void
+    acceptedBallotPrepared(uint64 slotIndex, SCPBallot const& ballot)
+    {
+    }
 
-    // Submit a value for the SCP consensus phase
-    bool nominate(uint64 slotIndex, Value const& value, bool timedout);
+    // `confirmedBallotPrepared` every time a ballot is confirmed prepared
+    virtual void
+    confirmedBallotPrepared(uint64 slotIndex, SCPBallot const& ballot)
+    {
+    }
 
-    // Local QuorumSet interface (can be dynamically updated)
-    void updateLocalQuorumSet(SCPQuorumSet const& qSet);
-    SCPQuorumSet const& getLocalQuorumSet();
+    // `acceptedCommit` every time a ballot is accepted commit
+    virtual void
+    acceptedCommit(uint64 slotIndex, SCPBallot const& ballot)
+    {
+    }
 
-    // Local nodeID getter
-    uint256 const& getLocalNodeID();
-
-    // returns the local node descriptor
-    std::shared_ptr<LocalNode> getLocalNode();
-
-    // Envelope signature/verification
-    void signEnvelope(SCPEnvelope& envelope);
-    bool verifyEnvelope(SCPEnvelope const& envelope);
+    // `ballotDidHearFromQuorum` is called when we received messages related to
+    // the current `mBallot` from a set of node that is a transitive quorum for
+    // the local node.
+    virtual void
+    ballotDidHearFromQuorum(uint64 slotIndex, SCPBallot const& ballot)
+    {
+    }
 
   protected:
     std::shared_ptr<LocalNode> mLocalNode;

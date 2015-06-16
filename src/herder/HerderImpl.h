@@ -65,15 +65,17 @@ class HerderImpl : public Herder, public SCP
     Value combineCandidates(uint64 slotIndex,
                             std::set<Value> const& candidates) override;
 
-    void nodeTouched(uint256 const& nodeID) override;
-
     void emitEnvelope(SCPEnvelope const& envelope) override;
     bool recvTransactions(TxSetFramePtr txSet);
     // Extra SCP methods overridden solely to increment metrics.
-    void ballotDidPrepare(uint64 slotIndex, SCPBallot const& ballot) override;
-    void ballotDidPrepared(uint64 slotIndex, SCPBallot const& ballot) override;
-    void ballotDidCommit(uint64 slotIndex, SCPBallot const& ballot) override;
-    void ballotDidCommitted(uint64 slotIndex, SCPBallot const& ballot) override;
+    void updatedCandidateValue(uint64 slotIndex, Value const& value) override;
+    void startedBallotProtocol(uint64 slotIndex,
+                               SCPBallot const& ballot) override;
+    void acceptedBallotPrepared(uint64 slotIndex,
+                                SCPBallot const& ballot) override;
+    void confirmedBallotPrepared(uint64 slotIndex,
+                                 SCPBallot const& ballot) override;
+    void acceptedCommit(uint64 slotIndex, SCPBallot const& ballot) override;
     void envelopeSigned() override;
     void envelopeVerified(bool) override;
 
@@ -112,9 +114,6 @@ class HerderImpl : public Herder, public SCP
     // 1- one ledger ago. rebroadcast
     // 2- two ledgers ago.
     std::vector<std::vector<TransactionFramePtr>> mReceivedTransactions;
-
-    // Time of last access to a node, used to evict unused nodes.
-    std::map<uint256, VirtualClock::time_point> mNodeLastAccess;
 
     PendingEnvelopes mPendingEnvelopes;
 
@@ -175,46 +174,53 @@ class HerderImpl : public Herder, public SCP
     Application& mApp;
     LedgerManager& mLedgerManager;
 
-    medida::Meter& mValueValid;
-    medida::Meter& mValueInvalid;
-    medida::Meter& mValuePrepare;
-    medida::Meter& mValueExternalize;
+    struct SCPMetrics
+    {
+        medida::Meter& mValueValid;
+        medida::Meter& mValueInvalid;
+        medida::Meter& mNominatingValue;
+        medida::Meter& mValueExternalize;
 
-    medida::Meter& mBallotValid;
-    medida::Meter& mBallotInvalid;
-    medida::Meter& mBallotPrepare;
-    medida::Meter& mBallotPrepared;
-    medida::Meter& mBallotCommit;
-    medida::Meter& mBallotCommitted;
-    medida::Meter& mBallotSign;
-    medida::Meter& mBallotValidSig;
-    medida::Meter& mBallotInvalidSig;
-    medida::Meter& mBallotExpire;
+        medida::Meter& mUpdatedCandidate;
+        medida::Meter& mStartBallotProtocol;
+        medida::Meter& mAcceptedBallotPrepared;
+        medida::Meter& mConfirmedBallotPrepared;
+        medida::Meter& mAcceptedCommit;
 
-    medida::Meter& mQuorumHeard;
-    medida::Meter& mQsetRetrieve;
+        medida::Meter& mBallotValid;
+        medida::Meter& mBallotInvalid;
+        medida::Meter& mBallotSign;
+        medida::Meter& mBallotValidSig;
+        medida::Meter& mBallotInvalidSig;
+        medida::Meter& mBallotExpire;
 
-    medida::Meter& mLostSync;
+        medida::Meter& mQuorumHeard;
+        medida::Meter& mQsetRetrieve;
 
-    medida::Meter& mEnvelopeEmit;
-    medida::Meter& mEnvelopeReceive;
-    medida::Meter& mEnvelopeSign;
-    medida::Meter& mEnvelopeValidSig;
-    medida::Meter& mEnvelopeInvalidSig;
+        medida::Meter& mLostSync;
 
-    medida::Counter& mNodeLastAccessSize;
-    medida::Counter& mSCPQSetFetchesSize;
-    medida::Counter& mBallotValidationTimersSize;
+        medida::Meter& mEnvelopeEmit;
+        medida::Meter& mEnvelopeReceive;
+        medida::Meter& mEnvelopeSign;
+        medida::Meter& mEnvelopeValidSig;
+        medida::Meter& mEnvelopeInvalidSig;
 
-    // Counters for stuff in parent class (SCP)
-    // that we monitor on a best-effort basis from
-    // here.
-    medida::Counter& mKnownNodesSize;
-    medida::Counter& mKnownSlotsSize;
+        medida::Counter& mSCPQSetFetchesSize;
+        medida::Counter& mBallotValidationTimersSize;
 
-    // Counters for things reached-through the
-    // SCP maps: Slots and Nodes
-    medida::Counter& mCumulativeStatements;
-    medida::Counter& mCumulativeCachedQuorumSets;
+        // Counters for stuff in parent class (SCP)
+        // that we monitor on a best-effort basis from
+        // here.
+        medida::Counter& mKnownSlotsSize;
+
+        // Counters for things reached-through the
+        // SCP maps: Slots and Nodes
+        medida::Counter& mCumulativeStatements;
+        medida::Counter& mCumulativeCachedQuorumSets;
+
+        SCPMetrics(Application& app);
+    };
+
+    SCPMetrics mSCPMetrics;
 };
 }

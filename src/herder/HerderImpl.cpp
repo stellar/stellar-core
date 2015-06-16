@@ -36,39 +36,28 @@ Herder::create(Application& app)
     return make_unique<HerderImpl>(app);
 }
 
-HerderImpl::HerderImpl(Application& app)
-    : SCP(app.getConfig().VALIDATION_KEY, app.getConfig().QUORUM_SET)
-    , mReceivedTransactions(4)
-    , mPendingEnvelopes(app, *this)
-    , mTrackingTimer(app)
-    , mLastTrigger(app.getClock().now())
-    , mTriggerTimer(app)
-    , mBumpTimer(app)
-    , mNominationTimer(app)
-    , mRebroadcastTimer(app)
-    , mApp(app)
-    , mLedgerManager(app.getLedgerManager())
-
-    , mValueValid(app.getMetrics().NewMeter({"scp", "value", "valid"}, "value"))
+HerderImpl::SCPMetrics::SCPMetrics(Application& app)
+    : mValueValid(app.getMetrics().NewMeter({"scp", "value", "valid"}, "value"))
     , mValueInvalid(
           app.getMetrics().NewMeter({"scp", "value", "invalid"}, "value"))
-    , mValuePrepare(
-          app.getMetrics().NewMeter({"scp", "value", "prepare"}, "value"))
+    , mNominatingValue(
+          app.getMetrics().NewMeter({"scp", "value", "nominating"}, "value"))
     , mValueExternalize(
           app.getMetrics().NewMeter({"scp", "value", "externalize"}, "value"))
-
+    , mUpdatedCandidate(
+          app.getMetrics().NewMeter({"scp", "value", "candidate"}, "value"))
+    , mStartBallotProtocol(
+          app.getMetrics().NewMeter({"scp", "ballot", "started"}, "ballot"))
+    , mAcceptedBallotPrepared(app.getMetrics().NewMeter(
+          {"scp", "ballot", "acceptedprepared"}, "ballot"))
+    , mConfirmedBallotPrepared(app.getMetrics().NewMeter(
+          {"scp", "ballot", "confirmedprepared"}, "ballot"))
+    , mAcceptedCommit(app.getMetrics().NewMeter(
+          {"scp", "ballot", "acceptedcommit"}, "ballot"))
     , mBallotValid(
           app.getMetrics().NewMeter({"scp", "ballot", "valid"}, "ballot"))
     , mBallotInvalid(
           app.getMetrics().NewMeter({"scp", "ballot", "invalid"}, "ballot"))
-    , mBallotPrepare(
-          app.getMetrics().NewMeter({"scp", "ballot", "prepare"}, "ballot"))
-    , mBallotPrepared(
-          app.getMetrics().NewMeter({"scp", "ballot", "prepared"}, "ballot"))
-    , mBallotCommit(
-          app.getMetrics().NewMeter({"scp", "ballot", "commit"}, "ballot"))
-    , mBallotCommitted(
-          app.getMetrics().NewMeter({"scp", "ballot", "committed"}, "ballot"))
     , mBallotSign(
           app.getMetrics().NewMeter({"scp", "ballot", "sign"}, "ballot"))
     , mBallotValidSig(
@@ -96,15 +85,11 @@ HerderImpl::HerderImpl(Application& app)
     , mEnvelopeInvalidSig(app.getMetrics().NewMeter(
           {"scp", "envelope", "invalidsig"}, "envelope"))
 
-    , mNodeLastAccessSize(
-          app.getMetrics().NewCounter({"scp", "memory", "node-last-access"}))
     , mSCPQSetFetchesSize(
           app.getMetrics().NewCounter({"scp", "memory", "qset-fetches"}))
     , mBallotValidationTimersSize(app.getMetrics().NewCounter(
           {"scp", "memory", "ballot-validation-timers"}))
 
-    , mKnownNodesSize(
-          app.getMetrics().NewCounter({"scp", "memory", "known-nodes"}))
     , mKnownSlotsSize(
           app.getMetrics().NewCounter({"scp", "memory", "known-slots"}))
     , mCumulativeStatements(app.getMetrics().NewCounter(
@@ -112,6 +97,22 @@ HerderImpl::HerderImpl(Application& app)
     , mCumulativeCachedQuorumSets(app.getMetrics().NewCounter(
           {"scp", "memory", "cumulative-cached-quorum-sets"}))
 
+{
+}
+
+HerderImpl::HerderImpl(Application& app)
+    : SCP(app.getConfig().VALIDATION_KEY, app.getConfig().QUORUM_SET)
+    , mReceivedTransactions(4)
+    , mPendingEnvelopes(app, *this)
+    , mTrackingTimer(app)
+    , mLastTrigger(app.getClock().now())
+    , mTriggerTimer(app)
+    , mBumpTimer(app)
+    , mNominationTimer(app)
+    , mRebroadcastTimer(app)
+    , mApp(app)
+    , mLedgerManager(app.getLedgerManager())
+    , mSCPMetrics(app)
 {
     Hash hash = sha256(xdr::xdr_to_opaque(app.getConfig().QUORUM_SET));
     mPendingEnvelopes.recvSCPQuorumSet(hash, app.getConfig().QUORUM_SET);
@@ -167,7 +168,7 @@ HerderImpl::validateValue(uint64 slotIndex, uint256 const& nodeID,
     }
     catch (...)
     {
-        mValueInvalid.Mark();
+        mSCPMetrics.mValueInvalid.Mark();
         return false;
     }
 
@@ -192,14 +193,14 @@ HerderImpl::validateValue(uint64 slotIndex, uint256 const& nodeID,
                               << " i: " << slotIndex
                               << " processing a future message while tracking";
 
-        mValueInvalid.Mark();
+        mSCPMetrics.mValueInvalid.Mark();
         return false;
     }
 
     // Check closeTime (not too old)
     if (b.closeTime <= mTrackingSCP->mConsensusValue.closeTime)
     {
-        mValueInvalid.Mark();
+        mSCPMetrics.mValueInvalid.Mark();
         return false;
     }
 
@@ -207,7 +208,7 @@ HerderImpl::validateValue(uint64 slotIndex, uint256 const& nodeID,
     uint64_t timeNow = mApp.timeNow();
     if (b.closeTime > timeNow + MAX_TIME_SLIP_SECONDS.count())
     {
-        mValueInvalid.Mark();
+        mSCPMetrics.mValueInvalid.Mark();
         return false;
     }
 
@@ -236,7 +237,7 @@ HerderImpl::validateValue(uint64 slotIndex, uint256 const& nodeID,
             << "@" << hexAbbrev(getLocalNodeID()) << " i: " << slotIndex
             << " n: " << hexAbbrev(nodeID) << " txSet not found?";
 
-        this->mValueInvalid.Mark();
+        mSCPMetrics.mValueInvalid.Mark();
         res = false;
     }
     else if (!txSet->checkValid(mApp))
@@ -246,7 +247,7 @@ HerderImpl::validateValue(uint64 slotIndex, uint256 const& nodeID,
                               << " n: " << hexAbbrev(nodeID)
                               << " Invalid txSet:"
                               << " " << hexAbbrev(txSet->getContentsHash());
-        this->mValueInvalid.Mark();
+        mSCPMetrics.mValueInvalid.Mark();
         res = false;
     }
     else
@@ -255,7 +256,7 @@ HerderImpl::validateValue(uint64 slotIndex, uint256 const& nodeID,
             << "HerderImpl::validateValue"
             << " i: " << slotIndex << " n: " << hexAbbrev(nodeID) << " txSet:"
             << " " << hexAbbrev(txSet->getContentsHash()) << " OK";
-        this->mValueValid.Mark();
+        mSCPMetrics.mValueValid.Mark();
         res = true;
     }
     return res;
@@ -296,7 +297,7 @@ HerderImpl::validateBallot(uint64 slotIndex, uint256 const& nodeID,
     }
     catch (...)
     {
-        mBallotInvalid.Mark();
+        mSCPMetrics.mBallotInvalid.Mark();
         return false;
     }
 
@@ -304,13 +305,13 @@ HerderImpl::validateBallot(uint64 slotIndex, uint256 const& nodeID,
     uint64_t timeNow = mApp.timeNow();
     if (b.closeTime > timeNow + MAX_TIME_SLIP_SECONDS.count())
     {
-        mBallotInvalid.Mark();
+        mSCPMetrics.mBallotInvalid.Mark();
         return false;
     }
 
     if (mTrackingSCP && nextConsensusLedgerIndex() != slotIndex)
     {
-        mValueInvalid.Mark();
+        mSCPMetrics.mValueInvalid.Mark();
         // return cb(false);
         // there is a bug somewhere if we're trying to process messages
         // for a different slot
@@ -336,26 +337,26 @@ HerderImpl::validateBallot(uint64 slotIndex, uint256 const& nodeID,
     // This inequality is effectively a limitation on `ballot.counter`
     if ((timeNow + MAX_TIME_SLIP_SECONDS.count()) < (lastTrigger + sumTimeouts))
     {
-        mBallotInvalid.Mark();
+        mSCPMetrics.mBallotInvalid.Mark();
         return false;
     }
 
     // Check baseFee (within range of desired fee).
     if (b.baseFee < mApp.getConfig().DESIRED_BASE_FEE * .5)
     {
-        mBallotInvalid.Mark();
+        mSCPMetrics.mBallotInvalid.Mark();
         return false;
     }
     if (b.baseFee > mApp.getConfig().DESIRED_BASE_FEE * 2)
     {
-        mBallotInvalid.Mark();
+        mSCPMetrics.mBallotInvalid.Mark();
         return false;
     }
 
     // Ignore ourselves if we're just watching SCP.
     if (getSecretKey().isZero() && nodeID == getLocalNodeID())
     {
-        mBallotInvalid.Mark();
+        mSCPMetrics.mBallotInvalid.Mark();
         return false;
     }
 
@@ -366,14 +367,14 @@ HerderImpl::validateBallot(uint64 slotIndex, uint256 const& nodeID,
                           << " b: (" << ballot.counter << ","
                           << hexAbbrev(valueHash) << ")";
 
-    mBallotValid.Mark();
+    mSCPMetrics.mBallotValid.Mark();
     return true;
 }
 
 void
 HerderImpl::ballotDidHearFromQuorum(uint64 slotIndex, SCPBallot const& ballot)
 {
-    mQuorumHeard.Mark();
+    mSCPMetrics.mQuorumHeard.Mark();
 }
 
 void
@@ -395,15 +396,15 @@ HerderImpl::ballotGotBumped(uint64 slotIndex, SCPBallot const& ballot,
 void
 HerderImpl::updateSCPCounters()
 {
-    mKnownSlotsSize.set_count(getKnownSlotsCount());
-    mCumulativeStatements.set_count(getCumulativeStatemtCount());
+    mSCPMetrics.mKnownSlotsSize.set_count(getKnownSlotsCount());
+    mSCPMetrics.mCumulativeStatements.set_count(getCumulativeStatemtCount());
 }
 
 void
 HerderImpl::valueExternalized(uint64 slotIndex, Value const& value)
 {
     updateSCPCounters();
-    mValueExternalize.Mark();
+    mSCPMetrics.mValueExternalize.Mark();
     mBumpTimer.cancel();
     mNominationTimer.cancel();
     StellarValue b;
@@ -488,6 +489,12 @@ HerderImpl::nominatingValue(uint64 slotIndex, Value const& value,
     CLOG(DEBUG, "Herder") << "nominatingValue i:" << slotIndex
                           << " t:" << timeout.count()
                           << " v: " << getValueString(value);
+
+    if (!value.empty())
+    {
+        mSCPMetrics.mNominatingValue.Mark();
+    }
+
     mNominationTimer.cancel();
 
     mNominationTimer.expires_from_now(timeout);
@@ -554,15 +561,6 @@ HerderImpl::combineCandidates(uint64 slotIndex,
 }
 
 void
-HerderImpl::nodeTouched(uint256 const& nodeID)
-{
-    // We simply store the time of last access each time a node is touched by
-    // SCP. That way we can evict old irrelevant nodes at each round.
-    mNodeLastAccess[nodeID] = mApp.getClock().now();
-    mNodeLastAccessSize.set_count(mNodeLastAccess.size());
-}
-
-void
 HerderImpl::rebroadcast()
 {
     if (mLastSentMessage.type() == SCP_MESSAGE &&
@@ -573,7 +571,7 @@ HerderImpl::rebroadcast()
             << " s:" << mLastSentMessage.envelope().statement.pledges.type()
             << " i:" << mLastSentMessage.envelope().statement.slotIndex;
 
-        mEnvelopeEmit.Mark();
+        mSCPMetrics.mEnvelopeEmit.Mark();
         mApp.getOverlayManager().broadcastMessage(mLastSentMessage, true);
         startRebroadcastTimer();
     }
@@ -693,7 +691,7 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope)
                           << " i:" << envelope.statement.slotIndex
                           << " a:" << mApp.getStateHuman();
 
-    mEnvelopeReceive.Mark();
+    mSCPMetrics.mEnvelopeReceive.Mark();
 
     if (mTrackingSCP)
     {
@@ -780,7 +778,8 @@ HerderImpl::ledgerClosed()
     // timers. Since the value externalized, the messages that this generates
     // wont' have any impact.
     mBallotValidationTimers.clear();
-    mBallotValidationTimersSize.set_count(mBallotValidationTimers.size());
+    mSCPMetrics.mBallotValidationTimersSize.set_count(
+        mBallotValidationTimers.size());
 
     uint64_t nextIndex = nextConsensusLedgerIndex();
 
@@ -983,7 +982,6 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger)
                           << " value: " << hexAbbrev(valueHash)
                           << " slot: " << slotIndex;
 
-    mValuePrepare.Mark();
     nominate(slotIndex, mCurrentValue, false);
 }
 
@@ -991,42 +989,46 @@ void
 HerderImpl::expireBallot(uint64 slotIndex, SCPBallot const& ballot)
 
 {
-    mBallotExpire.Mark();
+    mSCPMetrics.mBallotExpire.Mark();
     assert(slotIndex == nextConsensusLedgerIndex());
 
-    mValuePrepare.Mark();
     abandonBallot(slotIndex);
 }
 
 // Extra SCP methods overridden solely to increment metrics.
 void
-HerderImpl::ballotDidPrepare(uint64 slotIndex, SCPBallot const& ballot)
+HerderImpl::updatedCandidateValue(uint64 slotIndex, Value const& value)
 {
-    mBallotPrepare.Mark();
+    mSCPMetrics.mUpdatedCandidate.Mark();
 }
 
 void
-HerderImpl::ballotDidPrepared(uint64 slotIndex, SCPBallot const& ballot)
+HerderImpl::startedBallotProtocol(uint64 slotIndex, SCPBallot const& ballot)
 {
-    mBallotPrepared.Mark();
+    mSCPMetrics.mStartBallotProtocol.Mark();
+}
+void
+HerderImpl::acceptedBallotPrepared(uint64 slotIndex, SCPBallot const& ballot)
+{
+    mSCPMetrics.mAcceptedBallotPrepared.Mark();
 }
 
 void
-HerderImpl::ballotDidCommit(uint64 slotIndex, SCPBallot const& ballot)
+HerderImpl::confirmedBallotPrepared(uint64 slotIndex, SCPBallot const& ballot)
 {
-    mBallotCommit.Mark();
+    mSCPMetrics.mConfirmedBallotPrepared.Mark();
 }
 
 void
-HerderImpl::ballotDidCommitted(uint64 slotIndex, SCPBallot const& ballot)
+HerderImpl::acceptedCommit(uint64 slotIndex, SCPBallot const& ballot)
 {
-    mBallotCommitted.Mark();
+    mSCPMetrics.mAcceptedCommit.Mark();
 }
 
 void
 HerderImpl::envelopeSigned()
 {
-    mEnvelopeSign.Mark();
+    mSCPMetrics.mEnvelopeSign.Mark();
 }
 
 void
@@ -1034,11 +1036,11 @@ HerderImpl::envelopeVerified(bool valid)
 {
     if (valid)
     {
-        mEnvelopeValidSig.Mark();
+        mSCPMetrics.mEnvelopeValidSig.Mark();
     }
     else
     {
-        mEnvelopeInvalidSig.Mark();
+        mSCPMetrics.mEnvelopeInvalidSig.Mark();
     }
 }
 
@@ -1074,7 +1076,7 @@ void
 HerderImpl::herderOutOfSync()
 {
     CLOG(INFO, "Herder") << "Lost track of consensus";
-    mLostSync.Mark();
+    mSCPMetrics.mLostSync.Mark();
     mTrackingSCP.reset();
     processSCPQueue();
 }

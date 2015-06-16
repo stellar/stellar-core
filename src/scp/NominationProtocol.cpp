@@ -327,6 +327,9 @@ NominationProtocol::processEnvelope(SCPEnvelope const& envelope)
                     mLatestCompositeCandidate =
                         mSlot.getSCP().combineCandidates(mSlot.getSlotIndex(),
                                                          mCandidates);
+
+                    mSlot.getSCP().updatedCandidateValue(mSlot.getSlotIndex(), mLatestCompositeCandidate);
+
                     mSlot.bumpState(mLatestCompositeCandidate, false);
                 }
             }
