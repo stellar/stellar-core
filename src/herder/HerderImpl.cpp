@@ -101,7 +101,7 @@ HerderImpl::SCPMetrics::SCPMetrics(Application& app)
 }
 
 HerderImpl::HerderImpl(Application& app)
-    : SCP(app.getConfig().VALIDATION_KEY, app.getConfig().QUORUM_SET)
+    : mSCP(*this, app.getConfig().VALIDATION_KEY, app.getConfig().QUORUM_SET)
     , mReceivedTransactions(4)
     , mPendingEnvelopes(app, *this)
     , mTrackingTimer(app)
@@ -140,7 +140,7 @@ void
 HerderImpl::bootstrap()
 {
     CLOG(INFO, "Herder") << "Force joining SCP with local state";
-    assert(!getSecretKey().isZero());
+    assert(!mSCP.getSecretKey().isZero());
     assert(mApp.getConfig().FORCE_SCP);
 
     // setup a sufficient state that we can participate in consensus
@@ -232,10 +232,10 @@ HerderImpl::validateValue(uint64 slotIndex, uint256 const& nodeID,
 
     if (!txSet)
     {
-        CLOG(ERROR, "Herder")
-            << "HerderImpl::validateValue"
-            << "@" << hexAbbrev(getLocalNodeID()) << " i: " << slotIndex
-            << " n: " << hexAbbrev(nodeID) << " txSet not found?";
+        CLOG(ERROR, "Herder") << "HerderImpl::validateValue"
+                              << " i: " << slotIndex
+                              << " n: " << hexAbbrev(nodeID)
+                              << " txSet not found?";
 
         mSCPMetrics.mValueInvalid.Mark();
         res = false;
@@ -311,8 +311,9 @@ HerderImpl::ballotGotBumped(uint64 slotIndex, SCPBallot const& ballot,
 void
 HerderImpl::updateSCPCounters()
 {
-    mSCPMetrics.mKnownSlotsSize.set_count(getKnownSlotsCount());
-    mSCPMetrics.mCumulativeStatements.set_count(getCumulativeStatemtCount());
+    mSCPMetrics.mKnownSlotsSize.set_count(mSCP.getKnownSlotsCount());
+    mSCPMetrics.mCumulativeStatements.set_count(
+        mSCP.getCumulativeStatemtCount());
 }
 
 void
@@ -380,7 +381,7 @@ HerderImpl::valueExternalized(uint64 slotIndex, Value const& value)
     // Evict slots that are outside of our ledger validity bracket
     if (slotIndex > MAX_SLOTS_TO_REMEMBER)
     {
-        purgeSlots(slotIndex - MAX_SLOTS_TO_REMEMBER);
+        mSCP.purgeSlots(slotIndex - MAX_SLOTS_TO_REMEMBER);
     }
 
     // Move all the remaining to the next highest level don't move the
@@ -418,7 +419,7 @@ HerderImpl::nominatingValue(uint64 slotIndex, Value const& value,
         [this, slotIndex, value]()
         {
             assert(!mCurrentValue.empty());
-            nominate(slotIndex, mCurrentValue, true);
+            mSCP.nominate(slotIndex, mCurrentValue, true);
         },
         &VirtualTimer::onFailureNoop);
 }
@@ -509,7 +510,7 @@ HerderImpl::emitEnvelope(SCPEnvelope const& envelope)
 {
     // this should not happen: if we're just watching consensus
     // don't send out SCP messages
-    if (getSecretKey().isZero())
+    if (mSCP.getSecretKey().isZero())
     {
         return;
     }
@@ -668,7 +669,7 @@ HerderImpl::processSCPQueueAtIndex(uint64 slotIndex)
         SCPEnvelope env;
         if (mPendingEnvelopes.pop(slotIndex, env))
         {
-            receiveEnvelope(env);
+            mSCP.receiveEnvelope(env);
         }
         else
         {
@@ -710,7 +711,7 @@ HerderImpl::ledgerClosed()
 
     // If we are not a validating node and just watching SCP we don't call
     // triggerNextLedger. Likewise if we are not in synced state.
-    if (getSecretKey().isZero())
+    if (mSCP.getSecretKey().isZero())
     {
         CLOG(DEBUG, "Herder")
             << "Non-validating node, not triggering ledger-close.";
@@ -897,7 +898,7 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger)
                           << " value: " << hexAbbrev(valueHash)
                           << " slot: " << slotIndex;
 
-    nominate(slotIndex, mCurrentValue, false);
+    mSCP.nominate(slotIndex, mCurrentValue, false);
 }
 
 void
@@ -907,7 +908,7 @@ HerderImpl::expireBallot(uint64 slotIndex, SCPBallot const& ballot)
     mSCPMetrics.mBallotExpire.Mark();
     assert(slotIndex == nextConsensusLedgerIndex());
 
-    abandonBallot(slotIndex);
+    mSCP.abandonBallot(slotIndex);
 }
 
 // Extra SCP methods overridden solely to increment metrics.
@@ -962,12 +963,9 @@ HerderImpl::envelopeVerified(bool valid)
 void
 HerderImpl::dumpInfo(Json::Value& ret)
 {
-    ret["you"] = hexAbbrev(getSecretKey().getPublicKey());
+    ret["you"] = hexAbbrev(mSCP.getSecretKey().getPublicKey());
 
-    for (auto& item : mKnownSlots)
-    {
-        item.second->dumpInfo(ret);
-    }
+    mSCP.dumpInfo(ret);
 
     mPendingEnvelopes.dumpInfo(ret);
 }

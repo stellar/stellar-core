@@ -444,6 +444,9 @@
     <ClCompile Include="..\..\src\scp\LocalNode.cpp">
       <Filter>scp</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\scp\SCPDriver.cpp">
+      <Filter>scp</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\ledger\LedgerManager.h">
@@ -750,6 +753,9 @@
       <Filter>simulation</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\scp\LocalNode.h">
+      <Filter>scp</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\scp\SCPDriver.h">
       <Filter>scp</Filter>
     </ClInclude>
   </ItemGroup>

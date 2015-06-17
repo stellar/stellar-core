@@ -29,11 +29,13 @@ CREATE_VALUE(x);
 CREATE_VALUE(y);
 CREATE_VALUE(z);
 
-class TestSCP : public SCP
+class TestSCP : public SCPDriver
 {
   public:
+    SCP mSCP;
+
     TestSCP(SecretKey const& secretKey, SCPQuorumSet const& qSetLocal)
-        : SCP(secretKey, qSetLocal)
+        : mSCP(*this, secretKey, qSetLocal)
     {
         mPriorityLookup = [&](uint256 const& n)
         {
@@ -106,7 +108,7 @@ class TestSCP : public SCP
     bool
     bumpState(uint64 slotIndex, Value const& v)
     {
-        return getSlot(slotIndex)->bumpState(v, true);
+        return mSCP.getSlot(slotIndex)->bumpState(v, true);
     }
 
     // only used by nomination protocol
@@ -126,7 +128,7 @@ class TestSCP : public SCP
     // override the internal hashing scheme in order to make tests
     // more predictable.
     uint64
-    computeHash(uint64 slotIndex, bool isPriority, int32 roundNumber,
+    computeHash(uint64 slotIndex, bool isPriority, int32_t roundNumber,
                 uint256 const& nodeID) override
     {
         uint64 res;
@@ -151,7 +153,13 @@ class TestSCP : public SCP
     Value const&
     getLatestCompositeCandidate(uint64 slotIndex)
     {
-        return getSlot(slotIndex)->getLatestCompositeCandidate();
+        return mSCP.getSlot(slotIndex)->getLatestCompositeCandidate();
+    }
+
+    void
+    receiveEnvelope(SCPEnvelope const& envelope)
+    {
+        mSCP.receiveEnvelope(envelope);
     }
 };
 

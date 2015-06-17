@@ -153,7 +153,7 @@ Slot::getStatementValues(SCPStatement const& st)
 }
 
 SCPQuorumSetPtr
-Slot::getQuorumSetFromStatement(SCPStatement const& st) const
+Slot::getQuorumSetFromStatement(SCPStatement const& st)
 {
     SCPQuorumSetPtr res;
     SCPStatementType t = st.pledges.type();
@@ -181,7 +181,7 @@ Slot::getQuorumSetFromStatement(SCPStatement const& st) const
         {
             abort();
         }
-        res = mSCP.getQSet(h);
+        res = getSCPDriver().getQSet(h);
     }
     return res;
 }
@@ -206,7 +206,7 @@ Slot::dumpInfo(Json::Value& ret)
 std::string
 Slot::getValueString(Value const& v) const
 {
-    return mSCP.getValueString(v);
+    return getSCPDriver().getValueString(v);
 }
 
 std::string

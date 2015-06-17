@@ -103,9 +103,9 @@ NominationProtocol::isValid(SCPStatement const& st)
 
     applyAll(nom, [&](Value const& val)
              {
-                 res =
-                     res &&
-                     mSlot.getSCP().validateValue(st.slotIndex, st.nodeID, val);
+                 res = res &&
+                       mSlot.getSCPDriver().validateValue(st.slotIndex,
+                                                          st.nodeID, val);
              });
 
     return res;
@@ -154,7 +154,7 @@ NominationProtocol::emitNomination()
                              st.pledges.nominate()))
         {
             mLastEnvelope = make_unique<SCPEnvelope>(envelope);
-            mSlot.getSCP().emitEnvelope(envelope);
+            mSlot.getSCPDriver().emitEnvelope(envelope);
         }
     }
     else
@@ -215,8 +215,8 @@ NominationProtocol::updateRoundLeaders()
 uint64
 NominationProtocol::hashValue(bool isPriority, uint256 const& nodeID)
 {
-    return mSlot.getSCP().computeHash(mSlot.getSlotIndex(), isPriority,
-                                      mRoundNumber, nodeID);
+    return mSlot.getSCPDriver().computeHash(mSlot.getSlotIndex(), isPriority,
+                                            mRoundNumber, nodeID);
 }
 
 uint64
@@ -325,10 +325,10 @@ NominationProtocol::processEnvelope(SCPEnvelope const& envelope)
                 if (newCandidates)
                 {
                     mLatestCompositeCandidate =
-                        mSlot.getSCP().combineCandidates(mSlot.getSlotIndex(),
-                                                         mCandidates);
+                        mSlot.getSCPDriver().combineCandidates(
+                            mSlot.getSlotIndex(), mCandidates);
 
-                    mSlot.getSCP().updatedCandidateValue(
+                    mSlot.getSCPDriver().updatedCandidateValue(
                         mSlot.getSlotIndex(), mLatestCompositeCandidate);
 
                     mSlot.bumpState(mLatestCompositeCandidate, false);
@@ -401,12 +401,12 @@ NominationProtocol::nominate(Value const& value, bool timedout)
     Value nominatingValue;
     if (!mVotes.empty())
     {
-        nominatingValue =
-            mSlot.getSCP().combineCandidates(mSlot.getSlotIndex(), mVotes);
+        nominatingValue = mSlot.getSCPDriver().combineCandidates(
+            mSlot.getSlotIndex(), mVotes);
     }
     // called even with an empty value to start the timer
-    mSlot.getSCP().nominatingValue(mSlot.getSlotIndex(), nominatingValue,
-                                   timeout);
+    mSlot.getSCPDriver().nominatingValue(mSlot.getSlotIndex(), nominatingValue,
+                                         timeout);
 
     if (updated)
     {

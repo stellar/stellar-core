@@ -158,7 +158,8 @@ BallotProtocol::processEnvelope(SCPEnvelope const& envelope)
 
     SCPBallot wb = getWorkingBallot(statement);
 
-    if (mSlot.getSCP().validateValue(mSlot.getSlotIndex(), nodeID, wb.value))
+    if (mSlot.getSCPDriver().validateValue(mSlot.getSlotIndex(), nodeID,
+                                           wb.value))
     {
         bool processed = false;
         SCPBallot tickBallot = getWorkingBallot(statement);
@@ -358,7 +359,7 @@ BallotProtocol::bumpState(Value const& value, bool force)
 
     if (updated)
     {
-        mSlot.getSCP().startedBallotProtocol(mSlot.getSlotIndex(), newb);
+        mSlot.getSCPDriver().startedBallotProtocol(mSlot.getSlotIndex(), newb);
         emitCurrentStateStatement();
     }
 
@@ -450,8 +451,8 @@ BallotProtocol::bumpToBallot(SCPBallot const& ballot)
 
     if (gotBumped)
     {
-        mSlot.getSCP().ballotGotBumped(mSlot.getSlotIndex(), *mCurrentBallot,
-                                       timeout);
+        mSlot.getSCPDriver().ballotGotBumped(mSlot.getSlotIndex(),
+                                             *mCurrentBallot, timeout);
     }
 }
 
@@ -550,7 +551,7 @@ BallotProtocol::emitCurrentStateStatement()
             isNewerStatement(mLastEnvelope->statement, envelope.statement))
         {
             mLastEnvelope = make_unique<SCPEnvelope>(envelope);
-            mSlot.getSCP().emitEnvelope(envelope);
+            mSlot.getSCPDriver().emitEnvelope(envelope);
         }
     }
     else
@@ -749,7 +750,8 @@ BallotProtocol::attemptPreparedAccept(SCPBallot const& ballot)
 
     if (didWork)
     {
-        mSlot.getSCP().acceptedBallotPrepared(mSlot.getSlotIndex(), ballot);
+        mSlot.getSCPDriver().acceptedBallotPrepared(mSlot.getSlotIndex(),
+                                                    ballot);
         emitCurrentStateStatement();
     }
 
@@ -848,7 +850,8 @@ BallotProtocol::attemptPreparedConfirmed(SCPBallot const& ballot)
 
     if (didWork)
     {
-        mSlot.getSCP().confirmedBallotPrepared(mSlot.getSlotIndex(), ballot);
+        mSlot.getSCPDriver().confirmedBallotPrepared(mSlot.getSlotIndex(),
+                                                     ballot);
         emitCurrentStateStatement();
     }
 
@@ -1099,7 +1102,8 @@ BallotProtocol::attemptAcceptCommit(SCPBallot const& acceptCommitLow,
 
     if (didWork)
     {
-        mSlot.getSCP().acceptedCommit(mSlot.getSlotIndex(), acceptCommitHigh);
+        mSlot.getSCPDriver().acceptedCommit(mSlot.getSlotIndex(),
+                                            acceptCommitHigh);
         emitCurrentStateStatement();
     }
 
@@ -1155,8 +1159,8 @@ BallotProtocol::attemptConfirmCommit(SCPBallot const& acceptCommitLow,
 
     emitCurrentStateStatement();
 
-    mSlot.getSCP().valueExternalized(mSlot.getSlotIndex(),
-                                     mCurrentBallot->value);
+    mSlot.getSCPDriver().valueExternalized(mSlot.getSlotIndex(),
+                                           mCurrentBallot->value);
 
     return true;
 }
@@ -1363,8 +1367,8 @@ BallotProtocol::advanceSlot(SCPBallot const& ballot)
                 }))
         {
             mHeardFromQuorum = true;
-            mSlot.getSCP().ballotDidHearFromQuorum(mSlot.getSlotIndex(),
-                                                   *mCurrentBallot);
+            mSlot.getSCPDriver().ballotDidHearFromQuorum(mSlot.getSlotIndex(),
+                                                         *mCurrentBallot);
         }
     }
 

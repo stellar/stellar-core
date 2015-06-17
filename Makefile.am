@@ -25,6 +25,7 @@ FMT_SRCS =                                      \
     src/database/DatabaseTests.cpp              \
     src/scp/BallotProtocol.cpp                  \
     src/scp/SCP.cpp                             \
+    src/scp/SCPDriver.cpp                       \
     src/scp/SCPTests.cpp                        \
     src/scp/LocalNode.cpp                       \
     src/scp/NominationProtocol.cpp              \
@@ -126,6 +127,7 @@ FMT_HDRS =                                      \
     src/database/Database.h                     \
     src/scp/BallotProtocol.h                    \
     src/scp/SCP.h                               \
+    src/scp/SCPDriver.h                         \
     src/scp/LocalNode.h                         \
     src/scp/NominationProtocol.h                \
     src/scp/Slot.h                              \

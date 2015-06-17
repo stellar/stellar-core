@@ -49,6 +49,18 @@ class Slot : public std::enable_shared_from_this<Slot>
         return mSCP;
     }
 
+    SCPDriver&
+    getSCPDriver()
+    {
+        return mSCP.getDriver();
+    }
+
+    SCPDriver const&
+    getSCPDriver() const
+    {
+        return mSCP.getDriver();
+    }
+
     BallotProtocol&
     getBallotProtocol()
     {
@@ -100,7 +112,7 @@ class Slot : public std::enable_shared_from_this<Slot>
 
     // returns the QuorumSet that should be used for a node given the
     // statement
-    SCPQuorumSetPtr getQuorumSetFromStatement(SCPStatement const& st) const;
+    SCPQuorumSetPtr getQuorumSetFromStatement(SCPStatement const& st);
 
     // wraps a statement in an envelope (sign it, etc)
     SCPEnvelope createEnvelope(SCPStatement const& statement);
