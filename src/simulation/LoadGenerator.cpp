@@ -125,7 +125,7 @@ LoadGenerator::maybeCreateAccount(uint32_t ledgerNum, vector<TxInfo> &txs)
             do
             {
                 acc->mSellCredit = rand_element(mGateways);
-            } while (acc->mSellCredit != acc->mBuyCredit);
+            } while (acc->mSellCredit == acc->mBuyCredit);
             acc->mSellCredit->mSellingAccounts.push_back(acc);
             acc->mBuyCredit->mBuyingAccounts.push_back(acc);
             mMarketMakers.push_back(acc);
@@ -533,9 +533,6 @@ LoadGenerator::TxInfo::toTransactionFrames(std::vector<TransactionFramePtr> &txs
                 signingAccounts.insert(mTo);
             }
 
-// FIXME: for the time being, disable offers: they crash in CreatePassiveOfferOpFrame,
-// see https://github.com/stellar/stellar-core/issues/529 for investigation.
-#if 0
             // Add a CREATE_PASSIVE_OFFER op if this account is a market-maker.
             if (mTo->mBuyCredit)
             {
@@ -561,7 +558,6 @@ LoadGenerator::TxInfo::toTransactionFrames(std::vector<TransactionFramePtr> &txs
                 e.tx.operations.push_back(offerOp);
                 signingAccounts.insert(mTo);
             }
-#endif
 
             e.tx.fee = 10 * e.tx.operations.size();
             TransactionFramePtr res = TransactionFrame::makeTransactionFromWire(e);
