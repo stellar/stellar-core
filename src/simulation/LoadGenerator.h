@@ -45,14 +45,6 @@ class LoadGenerator
     // Subset of accounts that have made offers to trade in some credits.
     std::vector<AccountInfoPtr> mMarketMakers;
 
-    // Temporary: accounts that turst gateways but haven't been funded with
-    // gateway credit yet.
-    std::vector<AccountInfoPtr> mNeedFund;
-
-    // Temporary: accounts that are market makers but haven't put in their
-    // offers yet.
-    std::vector<AccountInfoPtr> mNeedOffer;
-
     std::unique_ptr<VirtualTimer> mLoadTimer;
     int64 mMinBalance;
 
@@ -68,8 +60,6 @@ class LoadGenerator
                       uint32_t txRate);
 
     bool maybeCreateAccount(uint32_t ledgerNum, std::vector<TxInfo> &txs);
-    void fundPendingTrustlines(uint32_t ledgerNum, std::vector<TxInfo> &txs);
-    void createPendingOffers(uint32_t ledgerNum, std::vector<TxInfo> &txs);
 
     std::vector<TxInfo> accountCreationTransactions(size_t n);
     AccountInfoPtr createAccount(size_t i, uint32_t ledgerNum = 0);
@@ -102,7 +92,6 @@ class LoadGenerator
     struct TrustLineInfo
     {
         AccountInfoPtr mIssuer;
-        uint32_t mLedgerEstablished;
         int64_t mBalance;
         int64_t mLimit;
     };
@@ -115,6 +104,8 @@ class LoadGenerator
         SecretKey mKey;
         int64_t mBalance;
         SequenceNumber mSeq;
+
+        void establishTrust(AccountInfoPtr a);
 
         // Used when this account trusts some other account's credits.
         std::vector<TrustLineInfo> mTrustLines;
@@ -147,8 +138,8 @@ class LoadGenerator
         medida::Meter& mTxnAttempted;
         medida::Meter& mTxnRejected;
 
-        medida::Counter& mPendingFunds;
-        medida::Counter& mPendingOffers;
+        medida::Counter& mGateways;
+        medida::Counter& mMarketMakers;
 
         TxMetrics(medida::MetricsRegistry& m);
         void report();
@@ -161,8 +152,6 @@ class LoadGenerator
         enum
         {
             TX_CREATE_ACCOUNT,
-            TX_ESTABLISH_TRUST,
-            TX_ESTABLISH_OFFER,
             TX_TRANSFER_NATIVE,
             TX_TRANSFER_CREDIT
         } mType;
@@ -171,7 +160,7 @@ class LoadGenerator
 
         bool execute(Application& app);
 
-        void toTransactionFrames(std::vector<TransactionFramePtr>& txs
+        void toTransactionFrames(std::vector<TransactionFramePtr>& txs,
                                  TxMetrics& metrics);
         void recordExecution(int64_t baseFee);
     };
