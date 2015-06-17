@@ -16,14 +16,14 @@ Two slightly-obscurely-named components are:
 
   - "bucketList", stored in the directory "bucket": the in-memory and on-disk
     linear history and ledger form that is hashed. A specific arrangement of
-    concatenations-of-XDR. Organized around "temporal buckets" rather than
-    rippled's merkle tries, but plays a similar role to the rippled nodestore.
+    concatenations-of-XDR. Organized around "temporal buckets". Entries tending 
+	to stay in buckets grouped by how frequently they change.
+	see [`src/bucket/readme.md`](../src/bucket/readme.md)
 
   - SCP -- "Stellar Consensus Protocol", the component implementing the
     new consensus algorithm.
 
 Other details:
-
 
   - Single main thread doing async I/O and forming consensus; multiple
     worker threads doing computation (primarily memcpy, serialization,

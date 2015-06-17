@@ -15,7 +15,7 @@ of ledgers that are guaranteed to be in agreement across all the participating
 nodes at all times.
 
 For more detail on the Stellar Consensus Protocol and how it establishes this
-guarantee see [`src/scp/README.md`](../src/scp/readme.md).
+guarantee see [`src/scp/readme.md`](../src/scp/readme.md).
 
 ##Key Concepts
 

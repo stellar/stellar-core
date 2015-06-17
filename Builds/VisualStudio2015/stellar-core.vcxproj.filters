@@ -758,9 +758,6 @@
     <None Include="..\..\ChangeLog" />
     <None Include="..\..\COPYING" />
     <None Include="..\..\NEWS" />
-    <None Include="..\..\docs\design.md">
-      <Filter>docs</Filter>
-    </None>
     <None Include="..\..\src\lib\xdrpp\tests\xdrtest.x">
       <Filter>lib\xdrpp</Filter>
     </None>
