@@ -65,6 +65,8 @@ class LoadGenerator
     AccountInfoPtr createAccount(size_t i, uint32_t ledgerNum = 0);
     std::vector<AccountInfoPtr> createAccounts(size_t n);
     bool loadAccount(Application& app, AccountInfo& account);
+    bool loadAccount(Application& app, AccountInfoPtr account);
+    bool loadAccounts(Application& app, std::vector<AccountInfoPtr> accounts);
 
     TxInfo createTransferNativeTransaction(AccountInfoPtr from,
                                            AccountInfoPtr to, int64_t amount);

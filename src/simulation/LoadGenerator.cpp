@@ -194,7 +194,20 @@ LoadGenerator::generateLoad(Application& app, uint32_t nAccounts, uint32_t nTxs,
             if (!tx.execute(app))
             {
                 // Hopefully the rejection was just a bad seq number.
-                loadAccount(app, *tx.mFrom);
+                std::vector<AccountInfoPtr> accs { tx.mFrom, tx.mTo, tx.mIssuer };
+                for (auto i : accs)
+                {
+                    loadAccount(app, i);
+                    if (i)
+                    {
+                        loadAccount(app, i->mBuyCredit);
+                        loadAccount(app, i->mSellCredit);
+                        for (auto const& tl : i->mTrustLines)
+                        {
+                            loadAccount(app, tl.mIssuer);
+                        }
+                    }
+                }
             }
         }
         auto recv = recvScope.Stop();
@@ -285,6 +298,30 @@ LoadGenerator::loadAccount(Application& app, AccountInfo& account)
     account.mBalance = ret->getBalance();
     account.mSeq = ret->getSeqNum();
     return true;
+}
+
+bool
+LoadGenerator::loadAccount(Application& app, AccountInfoPtr acc)
+{
+    if (acc)
+    {
+        return loadAccount(app, *acc);
+    }
+    return false;
+}
+
+bool
+LoadGenerator::loadAccounts(Application& app, std::vector<AccountInfoPtr> accs)
+{
+    bool loaded = !accs.empty();
+    for (auto a : accs)
+    {
+        if (!loadAccount(app, a))
+        {
+            loaded = false;
+        }
+    }
+    return loaded;
 }
 
 LoadGenerator::TxInfo
