@@ -402,7 +402,6 @@
     <None Include="..\..\COPYING" />
     <None Include="..\..\docs\admin.md" />
     <None Include="..\..\docs\architecture.md" />
-    <None Include="..\..\docs\design.md" />
     <None Include="..\..\docs\readme.md" />
     <None Include="..\..\docs\stellar-core_example.cfg" />
     <None Include="..\..\docs\stellar-core_testnet.cfg" />

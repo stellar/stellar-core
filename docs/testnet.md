@@ -53,5 +53,5 @@ $ stellar-core
 ```
 
 This will start from the last saved state of each server. It is important that
-a quorum of them all have the same laste ledger as their saved state before
+a quorum of them all have the same last ledger as their saved state before
 they are restarted.
