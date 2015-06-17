@@ -27,6 +27,7 @@
 #include "medida/meter.h"
 
 #include <set>
+#include <iomanip>
 
 namespace stellar
 {
@@ -194,7 +195,11 @@ LoadGenerator::generateLoad(Application& app, uint32_t nAccounts, uint32_t nTxs,
             if (!tx.execute(app))
             {
                 // Hopefully the rejection was just a bad seq number.
-                std::vector<AccountInfoPtr> accs { tx.mFrom, tx.mTo, tx.mIssuer };
+                std::vector<AccountInfoPtr> accs { tx.mFrom, tx.mTo };
+                if (!tx.mPath.empty())
+                {
+                    accs.insert(accs.end(), tx.mPath.begin(), tx.mPath.end());
+                }
                 for (auto i : accs)
                 {
                     loadAccount(app, i);
@@ -336,9 +341,9 @@ LoadGenerator::TxInfo
 LoadGenerator::createTransferCreditTransaction(AccountInfoPtr from,
                                                AccountInfoPtr to,
                                                int64_t amount,
-                                               AccountInfoPtr issuer)
+                                               std::vector<AccountInfoPtr> const& path)
 {
-    return TxInfo{from, to, TxInfo::TX_TRANSFER_CREDIT, amount, issuer};
+    return TxInfo{from, to, TxInfo::TX_TRANSFER_CREDIT, amount, path};
 }
 
 LoadGenerator::AccountInfoPtr
@@ -357,25 +362,107 @@ LoadGenerator::pickRandomAccount(AccountInfoPtr tryToAvoid, uint32_t ledgerNum)
     return tryToAvoid;
 }
 
-LoadGenerator::AccountInfoPtr
-LoadGenerator::pickRandomSharedTrustAccount(AccountInfoPtr from,
-                                            uint32_t ledgerNum,
-                                            AccountInfoPtr& issuer)
+bool
+acceptablePathExtension(LoadGenerator::AccountInfoPtr from,
+                        uint32_t ledgerNum,
+                        std::vector<LoadGenerator::AccountInfoPtr> const& path,
+                        LoadGenerator::AccountInfoPtr proposed)
 {
     SequenceNumber currSeq = static_cast<SequenceNumber>(ledgerNum) << 32;
-    size_t i = mAccounts.size();
-    while (i-- != 0)
+    if (proposed->mSeq >= currSeq || from == proposed)
     {
-        auto const& tl = rand_element(from->mTrustLines);
-        issuer = tl.mIssuer;
-        auto to = rand_element(tl.mIssuer->mTrustingAccounts);
-        if (to->mSeq < currSeq && to != from && tl.mBalance != 0)
+        return false;
+    }
+    for (auto i : path)
+    {
+        if (i == proposed)
         {
-            return to;
+            return false;
         }
     }
-    issuer = nullptr;
-    return from;
+    return true;
+}
+
+LoadGenerator::AccountInfoPtr
+pickMarketMakerForIssuer(LoadGenerator::AccountInfoPtr from,
+                         uint32_t ledgerNum,
+                         std::vector<LoadGenerator::AccountInfoPtr> const& path,
+                         LoadGenerator::AccountInfoPtr issuer)
+{
+    assert(issuer);
+    size_t i = issuer->mBuyingAccounts.size();
+    while (i-- != 0)
+    {
+        auto mm = rand_element(issuer->mBuyingAccounts);
+        if (acceptablePathExtension(from, ledgerNum, path, mm))
+        {
+            assert(mm->mBuyCredit == issuer);
+            return mm;
+        }
+    }
+    return nullptr;
+}
+
+void
+randomPathWalk(LoadGenerator::AccountInfoPtr from,
+               uint32_t ledgerNum,
+               std::vector<LoadGenerator::AccountInfoPtr>& path,
+               LoadGenerator::AccountInfoPtr &to)
+{
+    auto issuer = (path.empty() ?
+                   rand_element(from->mTrustLines).mIssuer :
+                   path.back());
+
+    auto mm = pickMarketMakerForIssuer(from, ledgerNum, path, issuer);
+    if (mm && rand_flip() && path.size() < 5)
+    {
+        // We have a market maker -- mm is buying 'issuer' credits -- and we
+        // want to let mm buy it and sell credit that someone else trusts;
+        // we then see about extending the walk from that someone.
+        assert(mm->mSellCredit);
+        size_t i = mm->mSellCredit->mTrustingAccounts.size();
+        while (i-- != 0)
+        {
+            auto maybeTo = rand_element(mm->mSellCredit->mTrustingAccounts);
+            if (maybeTo != mm &&
+                acceptablePathExtension(from, ledgerNum, path, maybeTo))
+            {
+                path.push_back(issuer);
+                to = maybeTo;
+                randomPathWalk(from, ledgerNum, path, to);
+                return;
+            }
+        }
+    }
+    // No market-maker, just find a destination that can accept credits from the
+    // issuer we've picked.
+    size_t i = issuer->mTrustingAccounts.size();
+    while (i-- != 0)
+    {
+        auto maybeTo = rand_element(issuer->mTrustingAccounts);
+        if (maybeTo != from)
+        {
+            to = maybeTo;
+            path.push_back(issuer);
+            break;
+        }
+    }
+}
+
+LoadGenerator::AccountInfoPtr
+LoadGenerator::pickRandomPath(LoadGenerator::AccountInfoPtr from,
+                              uint32_t ledgerNum,
+                              std::vector<LoadGenerator::AccountInfoPtr>& path)
+{
+    size_t i = mAccounts.size();
+    auto to = from;
+    do
+    {
+        path.clear();
+        randomPathWalk(from, ledgerNum, path, to);
+    }
+    while (i-- != 0 && from == to);
+    return to;
 }
 
 LoadGenerator::TxInfo
@@ -388,12 +475,12 @@ LoadGenerator::createRandomTransaction(float alpha, uint32_t ledgerNum)
         && rand_flip())
     {
         // Do a credit-transfer to someone else who trusts the credit
-        // that we have.
-        AccountInfoPtr issuer;
-        auto to = pickRandomSharedTrustAccount(from, ledgerNum, issuer);
-        if (issuer)
+        // that we have, or some path between us.
+        std::vector<AccountInfoPtr> path;
+        auto to = pickRandomPath(from, ledgerNum, path);
+        if (to != from && !path.empty())
         {
-            return createTransferCreditTransaction(from, to, amount, issuer);
+            return createTransferCreditTransaction(from, to, amount, path);
         }
     }
     auto to = pickRandomAccount(from, ledgerNum);
@@ -458,8 +545,17 @@ LoadGenerator::TxMetrics::TxMetrics(medida::MetricsRegistry& m)
     : mAccountCreated(m.NewMeter({"loadgen", "account", "created"}, "account"))
     , mTrustlineCreated(m.NewMeter({"loadgen", "trustline", "created"}, "trustline"))
     , mOfferCreated(m.NewMeter({"loadgen", "offer", "created"}, "offer"))
+    , mPayment(m.NewMeter({"loadgen", "payment", "any"}, "payment"))
     , mNativePayment(m.NewMeter({"loadgen", "payment", "native"}, "payment"))
     , mCreditPayment(m.NewMeter({"loadgen", "payment", "credit"}, "payment"))
+
+    , mOneOfferPathPayment(m.NewMeter({"loadgen", "payment", "one-offer-path"},
+                                      "payment"))
+    , mTwoOfferPathPayment(m.NewMeter({"loadgen", "payment", "two-offer-path"},
+                                      "payment"))
+    , mManyOfferPathPayment(m.NewMeter({"loadgen", "payment", "many-offer-path"},
+                                       "payment"))
+
     , mTxnAttempted(m.NewMeter({"loadgen", "txn", "attempted"}, "txn"))
     , mTxnRejected(m.NewMeter({"loadgen", "txn", "rejected"}, "txn"))
     , mGateways(m.NewCounter({"loadgen", "account", "gateways"}))
@@ -471,25 +567,35 @@ LoadGenerator::TxMetrics::report()
 {
     CLOG(INFO, "LoadGen")
         << "Counts: "
-        << mTxnAttempted.count() << " txn, "
-        << mTxnRejected.count() << " rej, "
-        << mAccountCreated.count() << " acc ("
+        << mTxnAttempted.count() << " tx, "
+        << mTxnRejected.count() << " rj, "
+        << mAccountCreated.count() << " ac ("
         << mGateways.count() << " gw, "
         << mMarketMakers.count() << " mm), "
         << mTrustlineCreated.count() << " tl, "
-        << mOfferCreated.count() << " offer, "
-        << mNativePayment.count() << " native, "
-        << mCreditPayment.count() << " credit";
+        << mOfferCreated.count() << " of, "
+        << mPayment.count() << " pa ("
+        << mNativePayment.count() << " na, "
+        << mCreditPayment.count() << " cr, "
+        << mOneOfferPathPayment.count() << " 1p, "
+        << mTwoOfferPathPayment.count() << " 2p, "
+        << mManyOfferPathPayment.count() << " Np)";
+
 
     CLOG(INFO, "LoadGen")
         << "Rates/sec (1min EWMA): "
-        << mTxnAttempted.one_minute_rate() << " txn, "
-        << mTxnRejected.one_minute_rate() << " rej, "
-        << mAccountCreated.one_minute_rate() << " acc, "
+        << std::setprecision(3)
+        << mTxnAttempted.one_minute_rate() << " tx, "
+        << mTxnRejected.one_minute_rate() << " rj, "
+        << mAccountCreated.one_minute_rate() << " ac, "
         << mTrustlineCreated.one_minute_rate() << " tl, "
-        << mOfferCreated.one_minute_rate() << " offer, "
-        << mNativePayment.one_minute_rate() << " native, "
-        << mCreditPayment.one_minute_rate() << " credit";
+        << mOfferCreated.one_minute_rate() << " of, "
+        << mPayment.one_minute_rate() << " pa ("
+        << mNativePayment.one_minute_rate() << " na, "
+        << mCreditPayment.one_minute_rate() << " cr, "
+        << mOneOfferPathPayment.one_minute_rate() << " 1p, "
+        << mTwoOfferPathPayment.one_minute_rate() << " 2p, "
+        << mManyOfferPathPayment.one_minute_rate() << " Np)";
 }
 
 bool
@@ -607,6 +713,7 @@ LoadGenerator::TxInfo::toTransactionFrames(std::vector<TransactionFramePtr> &txs
         break;
 
     case TxInfo::TX_TRANSFER_NATIVE:
+        txm.mPayment.Mark();
         txm.mNativePayment.Mark();
         txs.push_back(
             txtest::createPaymentTx(mFrom->mKey, mTo->mKey,
@@ -615,12 +722,47 @@ LoadGenerator::TxInfo::toTransactionFrames(std::vector<TransactionFramePtr> &txs
 
     case TxInfo::TX_TRANSFER_CREDIT:
     {
-        txm.mCreditPayment.Mark();
-        assert(!mIssuer->mIssuedCurrency.empty());
-        Currency ci =
-            txtest::makeCurrency(mIssuer->mKey, mIssuer->mIssuedCurrency);
-        txs.push_back(txtest::createCreditPaymentTx(mFrom->mKey, mTo->mKey, ci,
-                                                    mFrom->mSeq + 1, mAmount));
+        txm.mPayment.Mark();
+        std::vector<Currency> currencyPath;
+        for (auto acc : mPath)
+        {
+            assert(!acc->mIssuedCurrency.empty());
+            currencyPath.emplace_back(
+                txtest::makeCurrency(acc->mKey, acc->mIssuedCurrency));
+        }
+        assert(!currencyPath.empty());
+        if (currencyPath.size() == 1)
+        {
+            txm.mCreditPayment.Mark();
+            txs.emplace_back(txtest::createCreditPaymentTx(mFrom->mKey, mTo->mKey,
+                                                           currencyPath.front(),
+                                                           mFrom->mSeq + 1, mAmount));
+        }
+        else
+        {
+            switch (currencyPath.size())
+            {
+            case 2:
+                txm.mOneOfferPathPayment.Mark();
+                break;
+            case 3:
+                txm.mTwoOfferPathPayment.Mark();
+                break;
+            default:
+                txm.mManyOfferPathPayment.Mark();
+                break;
+            }
+
+            auto sendCurrency = currencyPath.front();
+            auto recvCurrency = currencyPath.back();
+            currencyPath.erase(currencyPath.begin());
+            currencyPath.pop_back();
+            auto sendMax = mAmount * 10;
+            txs.emplace_back(txtest::createPathPaymentTx(mFrom->mKey, mTo->mKey,
+                                                         sendCurrency, sendMax,
+                                                         recvCurrency, mAmount,
+                                                         mFrom->mSeq + 1, &currencyPath));
+        }
     }
     break;
 
@@ -636,18 +778,18 @@ LoadGenerator::TxInfo::recordExecution(int64_t baseFee)
     mFrom->mBalance -= baseFee;
     if (mFrom && mTo)
     {
-        if (mIssuer)
+        if (!mPath.empty())
         {
             for (auto& tl : mFrom->mTrustLines)
             {
-                if (tl.mIssuer == mIssuer)
+                if (tl.mIssuer == mPath.front())
                 {
                     tl.mBalance -= mAmount;
                 }
             }
             for (auto& tl : mTo->mTrustLines)
             {
-                if (tl.mIssuer == mIssuer)
+                if (tl.mIssuer == mPath.back())
                 {
                     tl.mBalance += mAmount;
                 }

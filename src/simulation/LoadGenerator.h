@@ -73,7 +73,7 @@ class LoadGenerator
 
     TxInfo createTransferCreditTransaction(AccountInfoPtr from,
                                            AccountInfoPtr to, int64_t amount,
-                                           AccountInfoPtr issuer);
+                                           std::vector<AccountInfoPtr> const& path);
 
     TxInfo createEstablishTrustTransaction(AccountInfoPtr from,
                                            AccountInfoPtr issuer);
@@ -83,9 +83,9 @@ class LoadGenerator
     AccountInfoPtr pickRandomAccount(AccountInfoPtr tryToAvoid,
                                      uint32_t ledgerNum);
 
-    AccountInfoPtr pickRandomSharedTrustAccount(AccountInfoPtr from,
-                                                uint32_t ledgerNum,
-                                                AccountInfoPtr& issuer);
+    AccountInfoPtr pickRandomPath(AccountInfoPtr from,
+                                  uint32_t ledgerNum,
+                                  std::vector<AccountInfoPtr>& path);
 
     TxInfo createRandomTransaction(float alpha, uint32_t ledgerNum = 0);
     std::vector<TxInfo> createRandomTransactions(size_t n, float paretoAlpha);
@@ -135,8 +135,12 @@ class LoadGenerator
         medida::Meter& mAccountCreated;
         medida::Meter& mTrustlineCreated;
         medida::Meter& mOfferCreated;
+        medida::Meter& mPayment;
         medida::Meter& mNativePayment;
         medida::Meter& mCreditPayment;
+        medida::Meter& mOneOfferPathPayment;
+        medida::Meter& mTwoOfferPathPayment;
+        medida::Meter& mManyOfferPathPayment;
         medida::Meter& mTxnAttempted;
         medida::Meter& mTxnRejected;
 
@@ -158,7 +162,7 @@ class LoadGenerator
             TX_TRANSFER_CREDIT
         } mType;
         int64_t mAmount;
-        AccountInfoPtr mIssuer;
+        std::vector<AccountInfoPtr> mPath;
 
         bool execute(Application& app);
 
