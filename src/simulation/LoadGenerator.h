@@ -10,6 +10,14 @@
 #include "generated/Stellar-types.h"
 #include <vector>
 
+namespace medida
+{
+class MetricsRegistry;
+class Meter;
+class Counter;
+class Timer;
+}
+
 namespace stellar
 {
 
@@ -28,9 +36,14 @@ class LoadGenerator
     static std::string pickRandomCurrency();
     static const uint32_t STEP_MSECS;
 
+    // Primary store of accounts.
     std::vector<AccountInfoPtr> mAccounts;
+
+    // Subset of accounts that have issued credit in some currency.
     std::vector<AccountInfoPtr> mGateways;
-    std::vector<AccountInfoPtr> mNeedFund;
+
+    // Subset of accounts that have made offers to trade in some credits.
+    std::vector<AccountInfoPtr> mMarketMakers;
 
     std::unique_ptr<VirtualTimer> mLoadTimer;
     int64 mMinBalance;
@@ -46,10 +59,14 @@ class LoadGenerator
     void generateLoad(Application& app, uint32_t nAccounts, uint32_t nTxs,
                       uint32_t txRate);
 
+    bool maybeCreateAccount(uint32_t ledgerNum, std::vector<TxInfo> &txs);
+
     std::vector<TxInfo> accountCreationTransactions(size_t n);
     AccountInfoPtr createAccount(size_t i, uint32_t ledgerNum = 0);
     std::vector<AccountInfoPtr> createAccounts(size_t n);
     bool loadAccount(Application& app, AccountInfo& account);
+    bool loadAccount(Application& app, AccountInfoPtr account);
+    bool loadAccounts(Application& app, std::vector<AccountInfoPtr> accounts);
 
     TxInfo createTransferNativeTransaction(AccountInfoPtr from,
                                            AccountInfoPtr to, int64_t amount);
@@ -60,6 +77,8 @@ class LoadGenerator
 
     TxInfo createEstablishTrustTransaction(AccountInfoPtr from,
                                            AccountInfoPtr issuer);
+
+    TxInfo createEstablishOfferTransaction(AccountInfoPtr from);
 
     AccountInfoPtr pickRandomAccount(AccountInfoPtr tryToAvoid,
                                      uint32_t ledgerNum);
@@ -75,7 +94,6 @@ class LoadGenerator
     struct TrustLineInfo
     {
         AccountInfoPtr mIssuer;
-        uint32_t mLedgerEstablished;
         int64_t mBalance;
         int64_t mLimit;
     };
@@ -89,17 +107,44 @@ class LoadGenerator
         int64_t mBalance;
         SequenceNumber mSeq;
 
+        void establishTrust(AccountInfoPtr a);
+
         // Used when this account trusts some other account's credits.
         std::vector<TrustLineInfo> mTrustLines;
 
-        // Reverse map, when other accounts trust this account's credits.
-        std::vector<AccountInfoPtr> mTrustingAccounts;
+        // Currency issued, if a gateway, as well as reverse maps to
+        // those accounts that trust this currency and those who are
+        // buying and selling it.
         std::string mIssuedCurrency;
+        std::vector<AccountInfoPtr> mTrustingAccounts;
+        std::vector<AccountInfoPtr> mBuyingAccounts;
+        std::vector<AccountInfoPtr> mSellingAccounts;
+
+        // Live offers, for accounts that are market makers.
+        AccountInfoPtr mBuyCredit;
+        AccountInfoPtr mSellCredit;
 
         TxInfo creationTransaction();
 
       private:
         LoadGenerator& mLoadGen;
+    };
+
+    struct TxMetrics
+    {
+        medida::Meter& mAccountCreated;
+        medida::Meter& mTrustlineCreated;
+        medida::Meter& mOfferCreated;
+        medida::Meter& mNativePayment;
+        medida::Meter& mCreditPayment;
+        medida::Meter& mTxnAttempted;
+        medida::Meter& mTxnRejected;
+
+        medida::Counter& mGateways;
+        medida::Counter& mMarketMakers;
+
+        TxMetrics(medida::MetricsRegistry& m);
+        void report();
     };
 
     struct TxInfo
@@ -109,7 +154,6 @@ class LoadGenerator
         enum
         {
             TX_CREATE_ACCOUNT,
-            TX_ESTABLISH_TRUST,
             TX_TRANSFER_NATIVE,
             TX_TRANSFER_CREDIT
         } mType;
@@ -117,7 +161,9 @@ class LoadGenerator
         AccountInfoPtr mIssuer;
 
         bool execute(Application& app);
-        void toTransactionFrames(std::vector<TransactionFramePtr>& txs);
+
+        void toTransactionFrames(std::vector<TransactionFramePtr>& txs,
+                                 TxMetrics& metrics);
         void recordExecution(int64_t baseFee);
     };
 };

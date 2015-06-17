@@ -362,7 +362,7 @@ ManageOfferOpFrame::doCheckValid(medida::MetricsRegistry& metrics)
     if (!isCurrencyValid(sheep) || !isCurrencyValid(wheat))
     {
         metrics.NewMeter({ "op-manage-offer", "invalid",
-            "underfunded-absent" },
+            "invalid-currency" },
             "operation").Mark();
         innerResult().code(MANAGE_OFFER_MALFORMED);
         return false;
@@ -370,7 +370,7 @@ ManageOfferOpFrame::doCheckValid(medida::MetricsRegistry& metrics)
     if (compareCurrency(sheep, wheat))
     {
         metrics.NewMeter({ "op-manage-offer", "invalid",
-            "underfunded-absent" },
+            "equal-currencies" },
             "operation").Mark();
         innerResult().code(MANAGE_OFFER_MALFORMED);
         return false;
@@ -379,7 +379,7 @@ ManageOfferOpFrame::doCheckValid(medida::MetricsRegistry& metrics)
         mManageOffer.price.n <= 0)
     {
         metrics.NewMeter({ "op-manage-offer", "invalid",
-            "underfunded-absent" },
+            "negative-or-zero-values" },
             "operation").Mark();
         innerResult().code(MANAGE_OFFER_MALFORMED);
         return false;
