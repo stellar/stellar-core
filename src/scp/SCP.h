@@ -91,16 +91,6 @@ class SCP
     // default implementation is the hash of the value
     virtual std::string getValueString(Value const& v) const;
 
-    // `validateBallot` is used to validate ballots associated with PREPARING
-    // messages.  Therefore unvalidated ballots may still externalize if other
-    // nodes PREARED and subsequently COMMITTED such ballot.
-    virtual bool
-    validateBallot(uint64 slotIndex, uint256 const& nodeID,
-                   SCPBallot const& ballot)
-    {
-        return true;
-    }
-
     // `computeHash` is used by the nomination protocol to
     // randomize the order of messages between nodes.
     virtual uint64 computeHash(uint64 slotIndex, bool isPriority,

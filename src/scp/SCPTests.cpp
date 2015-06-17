@@ -53,13 +53,6 @@ class TestSCP : public SCP
         return true;
     }
 
-    bool
-    validateBallot(uint64 slotIndex, Hash const& nodeID,
-                   SCPBallot const& ballot)
-    {
-        return true;
-    }
-
     void
     ballotDidPrepare(uint64 slotIndex, SCPBallot const& ballot)
     {

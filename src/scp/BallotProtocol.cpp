@@ -169,24 +169,10 @@ BallotProtocol::processEnvelope(SCPEnvelope const& envelope)
             {
             case SCPStatementType::SCP_ST_PREPARE:
             {
-                // don't bother with older statements
-                if (!mCurrentBallot ||
-                    mCurrentBallot->counter <= tickBallot.counter)
-                {
-                    if (mSlot.getSCP().validateBallot(mSlot.getSlotIndex(),
-                                                      nodeID, tickBallot))
-                    {
-                        recordStatement(statement);
-                        advanceSlot(statement.pledges.prepare().ballot);
-                        res = SCP::EnvelopeState::VALID;
-                    }
-                    else
-                    {
-                        // If the ballot is not valid, we just ignore it.
-                        res = SCP::EnvelopeState::INVALID;
-                    }
-                    processed = true;
-                }
+                recordStatement(statement);
+                processed = true;
+                advanceSlot(statement.pledges.prepare().ballot);
+                res = SCP::EnvelopeState::VALID;
             }
             break;
             case SCPStatementType::SCP_ST_CONFIRM:
