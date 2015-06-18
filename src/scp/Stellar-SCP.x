@@ -26,8 +26,8 @@ enum SCPStatementType
 struct SCPNomination
 {
     Hash quorumSetHash; // D
-    Value votes<>; // X
-    Value accepted<>; // Y
+    Value votes<>;      // X
+    Value accepted<>;   // Y
 };
 
 struct SCPStatement
@@ -76,15 +76,12 @@ struct SCPEnvelope
     Signature signature;
 };
 
-
 // supports things like: A,B,C,(D,E,F),(G,H,(I,J,K,L))
 // only allows 2 levels of nesting
 struct SCPQuorumSet
 {
     uint32 threshold;
-	Hash validators<>;
+    Hash validators<>;
     SCPQuorumSet innerSets<>;
 };
-
-
 }

@@ -831,7 +831,7 @@
     <CustomBuild Include="..\..\src\xdr\Stellar-ledger-entries.x">
       <Filter>xdr</Filter>
     </CustomBuild>
-    <CustomBuild Include="..\..\src\scp\SCPXDR.x">
+    <CustomBuild Include="..\..\src\scp\Stellar-SCP.x">
       <Filter>scp</Filter>
     </CustomBuild>
   </ItemGroup>
