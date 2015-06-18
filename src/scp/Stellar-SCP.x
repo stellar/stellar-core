@@ -8,6 +8,7 @@ typedef opaque uint256[32];
 typedef unsigned int uint32;
 typedef unsigned hyper uint64;
 typedef opaque Value<>;
+typedef opaque NodeID[32];
 
 struct SCPBallot
 {
@@ -26,13 +27,13 @@ enum SCPStatementType
 struct SCPNomination
 {
     Hash quorumSetHash; // D
-    Value votes<>; // X
-    Value accepted<>; // Y
+    Value votes<>;      // X
+    Value accepted<>;   // Y
 };
 
 struct SCPStatement
 {
-    uint256 nodeID;   // v
+    NodeID nodeID;    // v
     uint64 slotIndex; // i
 
     union switch (SCPStatementType type)
@@ -76,15 +77,12 @@ struct SCPEnvelope
     Signature signature;
 };
 
-
 // supports things like: A,B,C,(D,E,F),(G,H,(I,J,K,L))
 // only allows 2 levels of nesting
 struct SCPQuorumSet
 {
     uint32 threshold;
-	Hash validators<>;
+    Hash validators<>;
     SCPQuorumSet innerSets<>;
 };
-
-
 }

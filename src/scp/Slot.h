@@ -49,6 +49,18 @@ class Slot : public std::enable_shared_from_this<Slot>
         return mSCP;
     }
 
+    SCPDriver&
+    getSCPDriver()
+    {
+        return mSCP.getDriver();
+    }
+
+    SCPDriver const&
+    getSCPDriver() const
+    {
+        return mSCP.getDriver();
+    }
+
     BallotProtocol&
     getBallotProtocol()
     {
@@ -61,9 +73,8 @@ class Slot : public std::enable_shared_from_this<Slot>
     void recordStatement(SCPStatement const& st);
 
     // Process a newly received envelope for this slot and update the state of
-    // the slot accordingly. `cb` asynchronously returns whether the envelope
-    // was validated or not. Must exclusively receive envelopes whose payload
-    // type is STATEMENT
+    // the slot accordingly.
+    // Must exclusively receive envelopes whose payload type is STATEMENT
     SCP::EnvelopeState processEnvelope(SCPEnvelope const& envelope);
 
     bool abandonBallot();
@@ -76,7 +87,8 @@ class Slot : public std::enable_shared_from_this<Slot>
     bool bumpState(Value const& value, bool force);
 
     // attempts to nominate a value for consensus
-    bool nominate(Value const& value, bool timedout);
+    bool nominate(Value const& value, Value const& previousValue,
+                  bool timedout);
 
     // ** status methods
 
@@ -101,7 +113,7 @@ class Slot : public std::enable_shared_from_this<Slot>
 
     // returns the QuorumSet that should be used for a node given the
     // statement
-    SCPQuorumSetPtr getQuorumSetFromStatement(SCPStatement const& st) const;
+    SCPQuorumSetPtr getQuorumSetFromStatement(SCPStatement const& st);
 
     // wraps a statement in an envelope (sign it, etc)
     SCPEnvelope createEnvelope(SCPStatement const& statement);
@@ -118,12 +130,18 @@ class Slot : public std::enable_shared_from_this<Slot>
     // returns true if the statement defined by voted and accepted
     // should be accepted
     bool federatedAccept(StatementPredicate voted, StatementPredicate accepted,
-                         std::map<uint256, SCPStatement> const& statements);
+                         std::map<NodeID, SCPStatement> const& statements);
     // returns true if the statement defined by voted
     // is ratified
     bool federatedRatify(StatementPredicate voted,
-                         std::map<uint256, SCPStatement> const& statements);
+                         std::map<NodeID, SCPStatement> const& statements);
 
     std::shared_ptr<LocalNode> getLocalNode();
+
+    enum timerIDs
+    {
+        NOMINATION_TIMER = 0,
+        BALLOT_PROTOCOL_TIMER = 1
+    };
 };
 }

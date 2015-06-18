@@ -63,8 +63,8 @@ loadQset(std::shared_ptr<cpptoml::toml_group> group, SCPQuorumSet& qset,
         {
             for (auto v : item.second->as_array()->array())
             {
-                uint256 p = fromBase58Check256(VER_ACCOUNT_ID,
-                                               v->as<std::string>()->value());
+                NodeID p = fromBase58Check256(VER_ACCOUNT_ID,
+                                              v->as<std::string>()->value());
                 qset.validators.push_back(p);
             }
         }

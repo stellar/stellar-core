@@ -51,13 +51,30 @@ Slot::processEnvelope(SCPEnvelope const& envelope)
 
     SCP::EnvelopeState res;
 
-    if (envelope.statement.pledges.type() == SCPStatementType::SCP_ST_NOMINATE)
+    try
     {
-        res = mNominationProtocol.processEnvelope(envelope);
+
+        if (envelope.statement.pledges.type() ==
+            SCPStatementType::SCP_ST_NOMINATE)
+        {
+            res = mNominationProtocol.processEnvelope(envelope);
+        }
+        else
+        {
+            res = mBallotProtocol.processEnvelope(envelope);
+        }
     }
-    else
+    catch (...)
     {
-        res = mBallotProtocol.processEnvelope(envelope);
+        Json::Value info;
+
+        dumpInfo(info);
+
+        CLOG(DEBUG, "SCP") << "Exception in processEnvelope "
+                           << "state: " << info.toStyledString()
+                           << " processing envelope: " << envToStr(envelope);
+
+        throw;
     }
     return res;
 }
@@ -76,9 +93,9 @@ Slot::bumpState(Value const& value, bool force)
 }
 
 bool
-Slot::nominate(Value const& value, bool timedout)
+Slot::nominate(Value const& value, Value const& previousValue, bool timedout)
 {
-    return mNominationProtocol.nominate(value, timedout);
+    return mNominationProtocol.nominate(value, previousValue, timedout);
 }
 
 SCPEnvelope
@@ -136,7 +153,7 @@ Slot::getStatementValues(SCPStatement const& st)
 }
 
 SCPQuorumSetPtr
-Slot::getQuorumSetFromStatement(SCPStatement const& st) const
+Slot::getQuorumSetFromStatement(SCPStatement const& st)
 {
     SCPQuorumSetPtr res;
     SCPStatementType t = st.pledges.type();
@@ -164,7 +181,7 @@ Slot::getQuorumSetFromStatement(SCPStatement const& st) const
         {
             abort();
         }
-        res = mSCP.getQSet(h);
+        res = getSCPDriver().getQSet(h);
     }
     return res;
 }
@@ -189,7 +206,7 @@ Slot::dumpInfo(Json::Value& ret)
 std::string
 Slot::getValueString(Value const& v) const
 {
-    return mSCP.getValueString(v);
+    return getSCPDriver().getValueString(v);
 }
 
 std::string
@@ -287,7 +304,7 @@ Slot::envToStr(SCPStatement const& st) const
 
 bool
 Slot::federatedAccept(StatementPredicate voted, StatementPredicate accepted,
-                      std::map<uint256, SCPStatement> const& statements)
+                      std::map<NodeID, SCPStatement> const& statements)
 {
     // Checks if the nodes that claimed to accept the statement form a
     // v-blocking set
@@ -300,11 +317,10 @@ Slot::federatedAccept(StatementPredicate voted, StatementPredicate accepted,
     // Checks if the set of nodes that accepted or voted for it form a quorum
 
     auto ratifyFilter =
-        [this, &voted, &accepted](uint256 const& nodeID,
-                                  SCPStatement const& st) -> bool
+        [this, &voted, &accepted](SCPStatement const& st) -> bool
     {
         bool res;
-        res = accepted(nodeID, st) || voted(nodeID, st);
+        res = accepted(st) || voted(st);
         return res;
     };
 
@@ -321,7 +337,7 @@ Slot::federatedAccept(StatementPredicate voted, StatementPredicate accepted,
 
 bool
 Slot::federatedRatify(StatementPredicate voted,
-                      std::map<uint256, SCPStatement> const& statements)
+                      std::map<NodeID, SCPStatement> const& statements)
 {
     return LocalNode::isQuorum(
         getLocalNode()->getQuorumSet(), statements,

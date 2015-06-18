@@ -30,8 +30,10 @@ using xdr::operator==;
  * Drives the SCP protocol (is an SCP::Client). It is also in charge of
  * receiving transactions from the network.
  */
-class HerderImpl : public Herder, public SCP
+class HerderImpl : public Herder, public SCPDriver
 {
+    SCP mSCP;
+
   public:
     HerderImpl(Application& app);
     ~HerderImpl();
@@ -43,27 +45,24 @@ class HerderImpl : public Herder, public SCP
     void bootstrap() override;
 
     // SCP methods
-    bool validateValue(uint64 slotIndex, uint256 const& nodeID,
+    bool validateValue(uint64 slotIndex, NodeID const& nodeID,
                        Value const& value) override;
 
     std::string getValueString(Value const& v) const override;
 
-    bool validateBallot(uint64 slotIndex, uint256 const& nodeID,
-                        SCPBallot const& ballot) override;
-
     void ballotDidHearFromQuorum(uint64 slotIndex,
                                  SCPBallot const& ballot) override;
 
-    void ballotGotBumped(uint64 slotIndex, SCPBallot const& ballot,
-                         std::chrono::milliseconds timeout) override;
-
     void valueExternalized(uint64 slotIndex, Value const& value) override;
 
-    void nominatingValue(uint64 slotIndex, Value const& value,
-                         std::chrono::milliseconds timeout) override;
+    void nominatingValue(uint64 slotIndex, Value const& value) override;
 
     Value combineCandidates(uint64 slotIndex,
                             std::set<Value> const& candidates) override;
+
+    void setupTimer(uint64 slotIndex, int timerID,
+                    std::chrono::milliseconds timeout,
+                    std::function<void()> cb) override;
 
     void emitEnvelope(SCPEnvelope const& envelope) override;
     bool recvTransactions(TxSetFramePtr txSet);
@@ -118,7 +117,7 @@ class HerderImpl : public Herder, public SCP
     PendingEnvelopes mPendingEnvelopes;
 
     std::map<SCPBallot,
-             std::map<uint256, std::vector<std::shared_ptr<VirtualTimer>>>>
+             std::map<NodeID, std::vector<std::shared_ptr<VirtualTimer>>>>
         mBallotValidationTimers;
 
     void herderOutOfSync();
@@ -165,14 +164,22 @@ class HerderImpl : public Herder, public SCP
     VirtualClock::time_point mLastTrigger;
     VirtualTimer mTriggerTimer;
 
-    VirtualTimer mBumpTimer;
-    VirtualTimer mNominationTimer;
     VirtualTimer mRebroadcastTimer;
     Value mCurrentValue;
     StellarMessage mLastSentMessage;
 
+    // timers used by SCP
+    // indexed by slotIndex, timerID
+    std::map<uint64, std::map<int, std::unique_ptr<VirtualTimer>>> mSCPTimers;
+
     Application& mApp;
     LedgerManager& mLedgerManager;
+
+    // helper functions to build a 'Value' or 'StellarValue'
+    static Value buildValue(Hash const& txSetHash, uint64 closeTime,
+                            int32 baseFee);
+    static StellarValue buildStellarValue(Hash const& txSetHash,
+                                          uint64 closeTime, int32 baseFee);
 
     struct SCPMetrics
     {

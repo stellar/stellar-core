@@ -49,7 +49,7 @@ Simulation::getClock()
     return mClock;
 }
 
-uint256
+NodeID
 Simulation::addNode(SecretKey nodeKey, SCPQuorumSet qSet, VirtualClock& clock,
                     Config::pointer cfg)
 {
@@ -65,7 +65,7 @@ Simulation::addNode(SecretKey nodeKey, SCPQuorumSet qSet, VirtualClock& clock,
 
     Application::pointer result = Application::create(clock, *cfg);
 
-    uint256 nodeID = nodeKey.getPublicKey();
+    NodeID nodeID = nodeKey.getPublicKey();
     mConfigs[nodeID] = cfg;
     mNodes[nodeID] = result;
     updateMinBalance(*result);
@@ -74,7 +74,7 @@ Simulation::addNode(SecretKey nodeKey, SCPQuorumSet qSet, VirtualClock& clock,
 }
 
 Application::pointer
-Simulation::getNode(uint256 nodeID)
+Simulation::getNode(NodeID nodeID)
 {
     return mNodes[nodeID];
 }
@@ -86,17 +86,17 @@ Simulation::getNodes()
         result.push_back(app.second);
     return result;
 }
-vector<uint256>
+vector<NodeID>
 Simulation::getNodeIDs()
 {
-    vector<uint256> result;
+    vector<NodeID> result;
     for (auto const& app : mNodes)
         result.push_back(app.first);
     return result;
 }
 
 void
-Simulation::addConnection(uint256 initiator, uint256 acceptor)
+Simulation::addConnection(NodeID initiator, NodeID acceptor)
 {
     if (mMode == OVER_LOOPBACK)
         addLoopbackConnection(initiator, acceptor);
@@ -105,7 +105,7 @@ Simulation::addConnection(uint256 initiator, uint256 acceptor)
 }
 
 std::shared_ptr<LoopbackPeerConnection>
-Simulation::addLoopbackConnection(uint256 initiator, uint256 acceptor)
+Simulation::addLoopbackConnection(NodeID initiator, NodeID acceptor)
 {
     std::shared_ptr<LoopbackPeerConnection> connection;
     if (mNodes[initiator] && mNodes[acceptor])
@@ -118,7 +118,7 @@ Simulation::addLoopbackConnection(uint256 initiator, uint256 acceptor)
 }
 
 void
-Simulation::addTCPConnection(uint256 initiator, uint256 acceptor)
+Simulation::addTCPConnection(NodeID initiator, NodeID acceptor)
 {
     if (mMode != OVER_TCP)
     {

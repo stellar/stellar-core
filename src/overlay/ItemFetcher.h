@@ -6,7 +6,7 @@
 
 #include <map>
 #include <functional>
-#include "generated/SCPXDR.h"
+#include "generated/Stellar-SCP.h"
 #include "overlay/Peer.h"
 #include "util/Timer.h"
 #include "util/NonCopyable.h"
@@ -38,13 +38,13 @@ struct SCPQuorumSet;
 using TxSetFramePtr = std::shared_ptr<TxSetFrame>;
 using SCPQuorumSetPtr = std::shared_ptr<SCPQuorumSet>;
 
-static std::chrono::milliseconds const MS_TO_WAIT_FOR_FETCH_REPLY{ 500 };
+static std::chrono::milliseconds const MS_TO_WAIT_FOR_FETCH_REPLY{500};
 
-class Tracker 
+class Tracker
 {
-protected:
-    template<class T> friend class ItemFetcher;
-    Application &mApp;
+  protected:
+    template <class T> friend class ItemFetcher;
+    Application& mApp;
     Peer::pointer mLastAskedPeer;
     std::vector<Peer::pointer> mPeersAsked;
     VirtualTimer mTimer;
@@ -61,26 +61,23 @@ protected:
     void doesntHave(Peer::pointer peer);
     void tryNextPeer();
 
-public:
-    explicit Tracker(Application &app, uint256 const& id) :
-        mApp(app)
-        , mTimer(app)
-        , mItemID(id) {}
+  public:
+    explicit Tracker(Application& app, uint256 const& id)
+        : mApp(app), mTimer(app), mItemID(id)
+    {
+    }
 
     virtual ~Tracker();
 };
 
-template<class TrackerT>
-class ItemFetcher : private NonMovableOrCopyable
+template <class TrackerT> class ItemFetcher : private NonMovableOrCopyable
 {
-    
-public:    
-    
+
+  public:
     using TrackerPtr = std::shared_ptr<TrackerT>;
 
-      
     explicit ItemFetcher(Application& app);
-    
+
     void fetch(uint256 itemID, const SCPEnvelope& envelope);
 
     void stopFetchingBelow(uint64 slotIndex);
@@ -90,8 +87,7 @@ public:
     // recv: notifies all listeners of the arrival of the item
     void recv(uint256 itemID);
 
-protected:
-
+  protected:
     void stopFetchingBelowInternal(uint64 slotIndex);
 
     Application& mApp;
@@ -102,30 +98,28 @@ protected:
     // careful, therefore, to only increment and decrement this counter, not set
     // it absolutely.
     medida::Counter& mItemMapSize;
-
 };
 
 class TxSetTracker : public Tracker
 {
-public:
-    TxSetTracker(Application &app, uint256 id) :
-        Tracker(app, id) {}
+  public:
+    TxSetTracker(Application& app, uint256 id) : Tracker(app, id)
+    {
+    }
 
     void askPeer(Peer::pointer peer) override;
 };
 
 class QuorumSetTracker : public Tracker
 {
-public:
-    QuorumSetTracker(Application &app, uint256 id) :
-        Tracker(app, id) {}
+  public:
+    QuorumSetTracker(Application& app, uint256 id) : Tracker(app, id)
+    {
+    }
 
     void askPeer(Peer::pointer peer) override;
 };
 
-
 using TxSetTrackerPtr = ItemFetcher<TxSetTracker>::TrackerPtr;
 using QuorumSetTrackerPtr = ItemFetcher<QuorumSetTracker>::TrackerPtr;
-
 }
-

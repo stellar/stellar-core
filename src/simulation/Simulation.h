@@ -40,18 +40,18 @@ class Simulation : public LoadGenerator
 
     VirtualClock& getClock();
 
-    uint256 addNode(SecretKey nodeKey, SCPQuorumSet qSet, VirtualClock& clock,
-                    Config::pointer cfg = std::shared_ptr<Config>());
-    Application::pointer getNode(uint256 nodeID);
+    NodeID addNode(SecretKey nodeKey, SCPQuorumSet qSet, VirtualClock& clock,
+                   Config::pointer cfg = std::shared_ptr<Config>());
+    Application::pointer getNode(NodeID nodeID);
     std::vector<Application::pointer> getNodes();
-    std::vector<uint256> getNodeIDs();
+    std::vector<NodeID> getNodeIDs();
 
-    void addConnection(uint256 initiator, uint256 acceptor);
+    void addConnection(NodeID initiator, NodeID acceptor);
 
     std::shared_ptr<LoopbackPeerConnection>
-    addLoopbackConnection(uint256 initiator, uint256 acceptor);
+    addLoopbackConnection(NodeID initiator, NodeID acceptor);
 
-    void addTCPConnection(uint256 initiator, uint256 acception);
+    void addTCPConnection(NodeID initiator, NodeID acception);
 
     void startAllNodes();
     void stopAllNodes();
@@ -83,9 +83,8 @@ class Simulation : public LoadGenerator
     Mode mMode;
     int mConfigCount;
     Application::pointer mIdleApp;
-    std::map<uint256, Config::pointer> mConfigs;
-    std::map<uint256, Application::pointer> mNodes;
+    std::map<NodeID, Config::pointer> mConfigs;
+    std::map<NodeID, Application::pointer> mNodes;
     std::vector<std::shared_ptr<LoopbackPeerConnection>> mConnections;
-
 };
 }

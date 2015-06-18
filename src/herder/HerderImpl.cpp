@@ -101,14 +101,12 @@ HerderImpl::SCPMetrics::SCPMetrics(Application& app)
 }
 
 HerderImpl::HerderImpl(Application& app)
-    : SCP(app.getConfig().VALIDATION_KEY, app.getConfig().QUORUM_SET)
+    : mSCP(*this, app.getConfig().VALIDATION_KEY, app.getConfig().QUORUM_SET)
     , mReceivedTransactions(4)
     , mPendingEnvelopes(app, *this)
     , mTrackingTimer(app)
     , mLastTrigger(app.getClock().now())
     , mTriggerTimer(app)
-    , mBumpTimer(app)
-    , mNominationTimer(app)
     , mRebroadcastTimer(app)
     , mApp(app)
     , mLedgerManager(app.getLedgerManager())
@@ -140,15 +138,13 @@ void
 HerderImpl::bootstrap()
 {
     CLOG(INFO, "Herder") << "Force joining SCP with local state";
-    assert(!getSecretKey().isZero());
+    assert(!mSCP.getSecretKey().isZero());
     assert(mApp.getConfig().FORCE_SCP);
 
     // setup a sufficient state that we can participate in consensus
     auto const& lcl = mLedgerManager.getLastClosedLedgerHeader();
-    StellarValue b;
-    b.txSetHash = lcl.header.txSetHash;
-    b.closeTime = lcl.header.closeTime;
-    b.baseFee = mApp.getConfig().DESIRED_BASE_FEE;
+    StellarValue b = buildStellarValue(
+        lcl.header.txSetHash, lcl.header.closeTime, lcl.header.baseFee);
     mTrackingSCP = make_unique<ConsensusData>(lcl.header.ledgerSeq, b);
     mLedgerManager.setState(LedgerManager::LM_SYNCED_STATE);
 
@@ -158,7 +154,7 @@ HerderImpl::bootstrap()
 }
 
 bool
-HerderImpl::validateValue(uint64 slotIndex, uint256 const& nodeID,
+HerderImpl::validateValue(uint64 slotIndex, NodeID const& nodeID,
                           Value const& value)
 {
     StellarValue b;
@@ -232,10 +228,10 @@ HerderImpl::validateValue(uint64 slotIndex, uint256 const& nodeID,
 
     if (!txSet)
     {
-        CLOG(ERROR, "Herder")
-            << "HerderImpl::validateValue"
-            << "@" << hexAbbrev(getLocalNodeID()) << " i: " << slotIndex
-            << " n: " << hexAbbrev(nodeID) << " txSet not found?";
+        CLOG(ERROR, "Herder") << "HerderImpl::validateValue"
+                              << " i: " << slotIndex
+                              << " n: " << hexAbbrev(nodeID)
+                              << " txSet not found?";
 
         mSCPMetrics.mValueInvalid.Mark();
         res = false;
@@ -286,91 +282,6 @@ HerderImpl::getValueString(Value const& v) const
     }
 }
 
-bool
-HerderImpl::validateBallot(uint64 slotIndex, uint256 const& nodeID,
-                           SCPBallot const& ballot)
-{
-    StellarValue b;
-    try
-    {
-        xdr::xdr_from_opaque(ballot.value, b);
-    }
-    catch (...)
-    {
-        mSCPMetrics.mBallotInvalid.Mark();
-        return false;
-    }
-
-    // Check closeTime (not too far in the future)
-    uint64_t timeNow = mApp.timeNow();
-    if (b.closeTime > timeNow + MAX_TIME_SLIP_SECONDS.count())
-    {
-        mSCPMetrics.mBallotInvalid.Mark();
-        return false;
-    }
-
-    if (mTrackingSCP && nextConsensusLedgerIndex() != slotIndex)
-    {
-        mSCPMetrics.mValueInvalid.Mark();
-        // return cb(false);
-        // there is a bug somewhere if we're trying to process messages
-        // for a different slot
-        throw new std::runtime_error("unexpected state");
-    }
-
-    // Check the ballot counter is not growing too rapidly. We ignore ballots
-    // that were triggered before the expected series of timeouts (accepting
-    // MAX_TIME_SLIP_SECONDS as error). This prevents ballot counter
-    // exhaustion attacks.
-    uint64_t lastTrigger = VirtualClock::to_time_t(mLastTrigger);
-    uint64_t sumTimeouts = 0;
-    // The second condition is to prevent attackers from emitting ballots whose
-    // verification would busy lock us.
-    for (int unsigned i = 0; i < ballot.counter &&
-                             (timeNow + MAX_TIME_SLIP_SECONDS.count()) >=
-                                 (lastTrigger + sumTimeouts);
-         i++)
-    {
-        sumTimeouts += std::min((long long)MAX_SCP_TIMEOUT_SECONDS.count(),
-                                (long long)pow(2.0, i));
-    }
-    // This inequality is effectively a limitation on `ballot.counter`
-    if ((timeNow + MAX_TIME_SLIP_SECONDS.count()) < (lastTrigger + sumTimeouts))
-    {
-        mSCPMetrics.mBallotInvalid.Mark();
-        return false;
-    }
-
-    // Check baseFee (within range of desired fee).
-    if (b.baseFee < mApp.getConfig().DESIRED_BASE_FEE * .5)
-    {
-        mSCPMetrics.mBallotInvalid.Mark();
-        return false;
-    }
-    if (b.baseFee > mApp.getConfig().DESIRED_BASE_FEE * 2)
-    {
-        mSCPMetrics.mBallotInvalid.Mark();
-        return false;
-    }
-
-    // Ignore ourselves if we're just watching SCP.
-    if (getSecretKey().isZero() && nodeID == getLocalNodeID())
-    {
-        mSCPMetrics.mBallotInvalid.Mark();
-        return false;
-    }
-
-    uint256 valueHash = sha256(xdr::xdr_to_opaque(ballot.value));
-
-    CLOG(DEBUG, "Herder") << "HerderImpl::validateBallot"
-                          << " i: " << slotIndex << " v: " << hexAbbrev(nodeID)
-                          << " b: (" << ballot.counter << ","
-                          << hexAbbrev(valueHash) << ")";
-
-    mSCPMetrics.mBallotValid.Mark();
-    return true;
-}
-
 void
 HerderImpl::ballotDidHearFromQuorum(uint64 slotIndex, SCPBallot const& ballot)
 {
@@ -378,26 +289,11 @@ HerderImpl::ballotDidHearFromQuorum(uint64 slotIndex, SCPBallot const& ballot)
 }
 
 void
-HerderImpl::ballotGotBumped(uint64 slotIndex, SCPBallot const& ballot,
-                            std::chrono::milliseconds timeout)
-{
-    mBumpTimer.cancel();
-
-    mBumpTimer.expires_from_now(timeout);
-
-    mBumpTimer.async_wait(
-        [this, slotIndex, ballot]()
-        {
-            expireBallot(slotIndex, ballot);
-        },
-        &VirtualTimer::onFailureNoop);
-}
-
-void
 HerderImpl::updateSCPCounters()
 {
-    mSCPMetrics.mKnownSlotsSize.set_count(getKnownSlotsCount());
-    mSCPMetrics.mCumulativeStatements.set_count(getCumulativeStatemtCount());
+    mSCPMetrics.mKnownSlotsSize.set_count(mSCP.getKnownSlotsCount());
+    mSCPMetrics.mCumulativeStatements.set_count(
+        mSCP.getCumulativeStatemtCount());
 }
 
 void
@@ -405,8 +301,7 @@ HerderImpl::valueExternalized(uint64 slotIndex, Value const& value)
 {
     updateSCPCounters();
     mSCPMetrics.mValueExternalize.Mark();
-    mBumpTimer.cancel();
-    mNominationTimer.cancel();
+    mSCPTimers.erase(slotIndex); // cancels all timers for this slot
     StellarValue b;
     try
     {
@@ -465,7 +360,7 @@ HerderImpl::valueExternalized(uint64 slotIndex, Value const& value)
     // Evict slots that are outside of our ledger validity bracket
     if (slotIndex > MAX_SLOTS_TO_REMEMBER)
     {
-        purgeSlots(slotIndex - MAX_SLOTS_TO_REMEMBER);
+        mSCP.purgeSlots(slotIndex - MAX_SLOTS_TO_REMEMBER);
     }
 
     // Move all the remaining to the next highest level don't move the
@@ -483,29 +378,15 @@ HerderImpl::valueExternalized(uint64 slotIndex, Value const& value)
 }
 
 void
-HerderImpl::nominatingValue(uint64 slotIndex, Value const& value,
-                            std::chrono::milliseconds timeout)
+HerderImpl::nominatingValue(uint64 slotIndex, Value const& value)
 {
     CLOG(DEBUG, "Herder") << "nominatingValue i:" << slotIndex
-                          << " t:" << timeout.count()
                           << " v: " << getValueString(value);
 
     if (!value.empty())
     {
         mSCPMetrics.mNominatingValue.Mark();
     }
-
-    mNominationTimer.cancel();
-
-    mNominationTimer.expires_from_now(timeout);
-
-    mNominationTimer.async_wait(
-        [this, slotIndex, value]()
-        {
-            assert(!mCurrentValue.empty());
-            nominate(slotIndex, mCurrentValue, true);
-        },
-        &VirtualTimer::onFailureNoop);
 }
 
 Value
@@ -561,6 +442,31 @@ HerderImpl::combineCandidates(uint64 slotIndex,
 }
 
 void
+HerderImpl::setupTimer(uint64 slotIndex, int timerID,
+                       std::chrono::milliseconds timeout,
+                       std::function<void()> cb)
+{
+    // don't setup timers for old slots
+    if (mTrackingSCP && slotIndex < mTrackingSCP->mConsensusIndex)
+    {
+        mSCPTimers.erase(slotIndex);
+        return;
+    }
+
+    auto& slotTimers = mSCPTimers[slotIndex];
+
+    auto it = slotTimers.find(timerID);
+    if (it == slotTimers.end())
+    {
+        it = slotTimers.emplace(timerID, make_unique<VirtualTimer>(mApp)).first;
+    }
+    auto& timer = *it->second;
+    timer.cancel();
+    timer.expires_from_now(timeout);
+    timer.async_wait(cb, &VirtualTimer::onFailureNoop);
+}
+
+void
 HerderImpl::rebroadcast()
 {
     if (mLastSentMessage.type() == SCP_MESSAGE &&
@@ -594,7 +500,7 @@ HerderImpl::emitEnvelope(SCPEnvelope const& envelope)
 {
     // this should not happen: if we're just watching consensus
     // don't send out SCP messages
-    if (getSecretKey().isZero())
+    if (mSCP.getSecretKey().isZero())
     {
         return;
     }
@@ -753,7 +659,7 @@ HerderImpl::processSCPQueueAtIndex(uint64 slotIndex)
         SCPEnvelope env;
         if (mPendingEnvelopes.pop(slotIndex, env))
         {
-            receiveEnvelope(env);
+            mSCP.receiveEnvelope(env);
         }
         else
         {
@@ -795,7 +701,7 @@ HerderImpl::ledgerClosed()
 
     // If we are not a validating node and just watching SCP we don't call
     // triggerNextLedger. Likewise if we are not in synced state.
-    if (getSecretKey().isZero())
+    if (mSCP.getSecretKey().isZero())
     {
         CLOG(DEBUG, "Herder")
             << "Non-validating node, not triggering ledger-close.";
@@ -966,12 +872,8 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger)
         nextCloseTime = lcl.header.closeTime + 1;
     }
 
-    StellarValue b;
-    b.txSetHash = txSetHash;
-    b.closeTime = nextCloseTime;
-    b.baseFee = mApp.getConfig().DESIRED_BASE_FEE;
-
-    mCurrentValue = xdr::xdr_to_opaque(b);
+    mCurrentValue =
+        buildValue(txSetHash, nextCloseTime, mApp.getConfig().DESIRED_BASE_FEE);
 
     uint256 valueHash = sha256(xdr::xdr_to_opaque(mCurrentValue));
     CLOG(DEBUG, "Herder") << "HerderImpl::triggerNextLedger"
@@ -982,7 +884,10 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger)
                           << " value: " << hexAbbrev(valueHash)
                           << " slot: " << slotIndex;
 
-    nominate(slotIndex, mCurrentValue, false);
+    Value prevValue = buildValue(lcl.header.txSetHash, lcl.header.closeTime,
+                                 lcl.header.baseFee);
+
+    mSCP.nominate(slotIndex, mCurrentValue, prevValue);
 }
 
 void
@@ -992,7 +897,7 @@ HerderImpl::expireBallot(uint64 slotIndex, SCPBallot const& ballot)
     mSCPMetrics.mBallotExpire.Mark();
     assert(slotIndex == nextConsensusLedgerIndex());
 
-    abandonBallot(slotIndex);
+    mSCP.abandonBallot(slotIndex);
 }
 
 // Extra SCP methods overridden solely to increment metrics.
@@ -1047,12 +952,9 @@ HerderImpl::envelopeVerified(bool valid)
 void
 HerderImpl::dumpInfo(Json::Value& ret)
 {
-    ret["you"] = hexAbbrev(getSecretKey().getPublicKey());
+    ret["you"] = hexAbbrev(mSCP.getSecretKey().getPublicKey());
 
-    for (auto& item : mKnownSlots)
-    {
-        item.second->dumpInfo(ret);
-    }
+    mSCP.dumpInfo(ret);
 
     mPendingEnvelopes.dumpInfo(ret);
 }
@@ -1079,5 +981,22 @@ HerderImpl::herderOutOfSync()
     mSCPMetrics.mLostSync.Mark();
     mTrackingSCP.reset();
     processSCPQueue();
+}
+
+Value
+HerderImpl::buildValue(Hash const& txSetHash, uint64 closeTime, int32 baseFee)
+{
+    return xdr::xdr_to_opaque(buildStellarValue(txSetHash, closeTime, baseFee));
+}
+
+StellarValue
+HerderImpl::buildStellarValue(Hash const& txSetHash, uint64 closeTime,
+                              int32 baseFee)
+{
+    StellarValue b;
+    b.txSetHash = txSetHash;
+    b.closeTime = closeTime;
+    b.baseFee = baseFee;
+    return b;
 }
 }

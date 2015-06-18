@@ -16,40 +16,11 @@
 namespace stellar
 {
 
-SCP::SCP(SecretKey const& secretKey, SCPQuorumSet const& qSetLocal)
+SCP::SCP(SCPDriver& driver, SecretKey const& secretKey,
+         SCPQuorumSet const& qSetLocal)
+    : mDriver(driver)
 {
     mLocalNode = std::make_shared<LocalNode>(secretKey, qSetLocal, this);
-}
-
-std::string
-SCP::getValueString(Value const& v) const
-{
-    uint256 valueHash = sha256(xdr::xdr_to_opaque(v));
-
-    return hexAbbrev(valueHash);
-}
-
-// values used to switch hash function between priority and neighborhood checks
-static const uint32 hash_N = 1;
-static const uint32 hash_P = 2;
-
-uint64
-SCP::computeHash(uint64 slotIndex, bool isPriority, int32 roundNumber,
-                 uint256 const& nodeID)
-{
-    auto h = SHA256::create();
-    h->add(xdr::xdr_to_opaque(slotIndex));
-    // h->add(xdr::xdr_to_opaque(mDependencies)); // TODO: set to previous value
-    h->add(xdr::xdr_to_opaque(isPriority ? hash_P : hash_N));
-    h->add(xdr::xdr_to_opaque(roundNumber));
-    h->add(nodeID);
-    uint256 t = h->finish();
-    uint64 res = 0;
-    for (int i = 0; i < sizeof(res); i++)
-    {
-        res = res << 8 | t[i];
-    }
-    return res;
 }
 
 SCP::EnvelopeState
@@ -74,10 +45,10 @@ SCP::abandonBallot(uint64 slotIndex)
 }
 
 bool
-SCP::nominate(uint64 slotIndex, Value const& value, bool timedout)
+SCP::nominate(uint64 slotIndex, Value const& value, Value const& previousValue)
 {
     assert(!getSecretKey().isZero());
-    return getSlot(slotIndex)->nominate(value, timedout);
+    return getSlot(slotIndex)->nominate(value, previousValue, false);
 }
 
 void
@@ -92,7 +63,7 @@ SCP::getLocalQuorumSet()
     return mLocalNode->getQuorumSet();
 }
 
-uint256 const&
+NodeID const&
 SCP::getLocalNodeID()
 {
     return mLocalNode->getNodeID();
@@ -138,7 +109,7 @@ SCP::signEnvelope(SCPEnvelope& envelope)
     assert(envelope.statement.nodeID == getSecretKey().getPublicKey());
     envelope.signature =
         getSecretKey().sign(xdr::xdr_to_opaque(envelope.statement));
-    envelopeSigned();
+    mDriver.envelopeSigned();
 }
 
 bool
@@ -146,8 +117,17 @@ SCP::verifyEnvelope(SCPEnvelope const& envelope)
 {
     bool b = PublicKey::verifySig(envelope.statement.nodeID, envelope.signature,
                                   xdr::xdr_to_opaque(envelope.statement));
-    envelopeVerified(b);
+    mDriver.envelopeVerified(b);
     return b;
+}
+
+void
+SCP::dumpInfo(Json::Value& ret)
+{
+    for (auto& item : mKnownSlots)
+    {
+        item.second->dumpInfo(ret);
+    }
 }
 
 SecretKey const&

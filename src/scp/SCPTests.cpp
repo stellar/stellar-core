@@ -29,13 +29,15 @@ CREATE_VALUE(x);
 CREATE_VALUE(y);
 CREATE_VALUE(z);
 
-class TestSCP : public SCP
+class TestSCP : public SCPDriver
 {
   public:
+    SCP mSCP;
+
     TestSCP(SecretKey const& secretKey, SCPQuorumSet const& qSetLocal)
-        : SCP(secretKey, qSetLocal)
+        : mSCP(*this, secretKey, qSetLocal)
     {
-        mPriorityLookup = [&](uint256 const& n)
+        mPriorityLookup = [&](NodeID const& n)
         {
             return (n == secretKey.getPublicKey()) ? 1000 : 1;
         };
@@ -49,13 +51,6 @@ class TestSCP : public SCP
 
     bool
     validateValue(uint64 slotIndex, Hash const& nodeID, Value const& value)
-    {
-        return true;
-    }
-
-    bool
-    validateBallot(uint64 slotIndex, Hash const& nodeID,
-                   SCPBallot const& ballot)
     {
         return true;
     }
@@ -113,7 +108,13 @@ class TestSCP : public SCP
     bool
     bumpState(uint64 slotIndex, Value const& v)
     {
-        return getSlot(slotIndex)->bumpState(v, true);
+        return mSCP.getSlot(slotIndex)->bumpState(v, true);
+    }
+
+    bool
+    nominate(uint64 slotIndex, Value const& value, bool timedout)
+    {
+        return mSCP.getSlot(slotIndex)->nominate(value, value, timedout);
     }
 
     // only used by nomination protocol
@@ -133,8 +134,8 @@ class TestSCP : public SCP
     // override the internal hashing scheme in order to make tests
     // more predictable.
     uint64
-    computeHash(uint64 slotIndex, bool isPriority, int32 roundNumber,
-                uint256 const& nodeID) override
+    computeHash(uint64 slotIndex, bool isPriority, int32_t roundNumber,
+                NodeID const& nodeID, Value const& prev) override
     {
         uint64 res;
         if (isPriority)
@@ -148,7 +149,13 @@ class TestSCP : public SCP
         return res;
     }
 
-    std::function<uint64(uint256 const&)> mPriorityLookup;
+    void
+    setupTimer(uint64 slotIndex, int timerID, std::chrono::milliseconds timeout,
+               std::function<void()> cb) override
+    {
+    }
+
+    std::function<uint64(NodeID const&)> mPriorityLookup;
 
     std::map<Hash, SCPQuorumSetPtr> mQuorumSets;
     std::vector<SCPEnvelope> mEnvs;
@@ -158,7 +165,13 @@ class TestSCP : public SCP
     Value const&
     getLatestCompositeCandidate(uint64 slotIndex)
     {
-        return getSlot(slotIndex)->getLatestCompositeCandidate();
+        return mSCP.getSlot(slotIndex)->getLatestCompositeCandidate();
+    }
+
+    void
+    receiveEnvelope(SCPEnvelope const& envelope)
+    {
+        mSCP.receiveEnvelope(envelope);
     }
 };
 
@@ -306,7 +319,7 @@ TEST_CASE("vblocking and quorum", "[scp]")
     qSet.validators.push_back(v2NodeID);
     qSet.validators.push_back(v3NodeID);
 
-    std::vector<uint256> nodeSet;
+    std::vector<NodeID> nodeSet;
     nodeSet.push_back(v0NodeID);
 
     REQUIRE(LocalNode::isQuorumSlice(qSet, nodeSet) == false);
@@ -1453,7 +1466,7 @@ TEST_CASE("nomination tests core5", "[scp][nominationprotocol]")
         TestSCP scp(v0SecretKey, qSet);
         scp.storeQuorumSet(std::make_shared<SCPQuorumSet>(qSet));
 
-        scp.mPriorityLookup = [&](uint256 const& n)
+        scp.mPriorityLookup = [&](NodeID const& n)
         {
             return (n == v1NodeID) ? 1000 : 1;
         };
@@ -1506,7 +1519,7 @@ TEST_CASE("nomination tests core5", "[scp][nominationprotocol]")
 
             SECTION("v0 is new top node")
             {
-                scp.mPriorityLookup = [&](uint256 const& n)
+                scp.mPriorityLookup = [&](NodeID const& n)
                 {
                     return (n == v0NodeID) ? 1000 : 1;
                 };
@@ -1520,7 +1533,7 @@ TEST_CASE("nomination tests core5", "[scp][nominationprotocol]")
             }
             SECTION("v2 is new top node")
             {
-                scp.mPriorityLookup = [&](uint256 const& n)
+                scp.mPriorityLookup = [&](NodeID const& n)
                 {
                     return (n == v2NodeID) ? 1000 : 1;
                 };
@@ -1534,7 +1547,7 @@ TEST_CASE("nomination tests core5", "[scp][nominationprotocol]")
             }
             SECTION("v3 is new top node")
             {
-                scp.mPriorityLookup = [&](uint256 const& n)
+                scp.mPriorityLookup = [&](NodeID const& n)
                 {
                     return (n == v3NodeID) ? 1000 : 1;
                 };

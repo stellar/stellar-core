@@ -25,7 +25,7 @@ struct Hello
     int protocolVersion;
     string versionStr<100>;
     int listeningPort;
-    opaque peerID[32];
+    NodeID peerID;
 };
 
 struct PeerAddress
