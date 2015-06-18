@@ -31,7 +31,7 @@ LocalNode::LocalNode(SecretKey const& secretKey, SCPQuorumSet const& qSet,
 }
 
 SCPQuorumSet
-LocalNode::buildSingletonQSet(uint256 const& nodeID)
+LocalNode::buildSingletonQSet(NodeID const& nodeID)
 {
     SCPQuorumSet qSet;
     qSet.threshold = 1;
@@ -65,13 +65,13 @@ LocalNode::getSecretKey()
 }
 
 SCPQuorumSetPtr
-LocalNode::getSingletonQSet(uint256 const& nodeID)
+LocalNode::getSingletonQSet(NodeID const& nodeID)
 {
     return std::make_shared<SCPQuorumSet>(buildSingletonQSet(nodeID));
 }
 void
 LocalNode::forAllNodesInternal(SCPQuorumSet const& qset,
-                               std::function<void(uint256 const&)> proc)
+                               std::function<void(NodeID const&)> proc)
 {
     for (auto const& n : qset.validators)
     {
@@ -86,10 +86,10 @@ LocalNode::forAllNodesInternal(SCPQuorumSet const& qset,
 // runs proc over all nodes contained in qset
 void
 LocalNode::forAllNodes(SCPQuorumSet const& qset,
-                       std::function<void(uint256 const&)> proc)
+                       std::function<void(NodeID const&)> proc)
 {
-    std::set<uint256> done;
-    forAllNodesInternal(qset, [&](uint256 const& n)
+    std::set<NodeID> done;
+    forAllNodesInternal(qset, [&](NodeID const& n)
                         {
                             auto ins = done.insert(n);
                             if (ins.second)
@@ -100,12 +100,12 @@ LocalNode::forAllNodes(SCPQuorumSet const& qset,
 }
 
 uint64
-LocalNode::getNodeWeight(uint256 const& nodeID, SCPQuorumSet const& qset)
+LocalNode::getNodeWeight(NodeID const& nodeID, SCPQuorumSet const& qset)
 {
     // TODO: this is a bogus implementation that has "close-enough" properties
     uint64 total = 0;
     uint64 p = 0;
-    forAllNodes(qset, [&](uint256 const& n)
+    forAllNodes(qset, [&](NodeID const& n)
                 {
                     total++;
                     if (n == nodeID)
@@ -123,7 +123,7 @@ LocalNode::getNodeWeight(uint256 const& nodeID, SCPQuorumSet const& qset)
 
 bool
 LocalNode::isQuorumSliceInternal(SCPQuorumSet const& qset,
-                                 std::vector<uint256> const& nodeSet)
+                                 std::vector<NodeID> const& nodeSet)
 {
     uint32 thresholdLeft = qset.threshold;
     for (auto const& validator : qset.validators)
@@ -155,7 +155,7 @@ LocalNode::isQuorumSliceInternal(SCPQuorumSet const& qset,
 
 bool
 LocalNode::isQuorumSlice(SCPQuorumSet const& qSet,
-                         std::vector<uint256> const& nodeSet)
+                         std::vector<NodeID> const& nodeSet)
 {
     CLOG(DEBUG, "SCP") << "LocalNode::isQuorumSlice"
                        << " nodeSet.size: " << nodeSet.size();
@@ -166,7 +166,7 @@ LocalNode::isQuorumSlice(SCPQuorumSet const& qSet,
 // called recursively
 bool
 LocalNode::isVBlockingInternal(SCPQuorumSet const& qset,
-                               std::vector<uint256> const& nodeSet)
+                               std::vector<NodeID> const& nodeSet)
 {
     // There is no v-blocking set for {\empty}
     if (qset.threshold == 0)
@@ -207,7 +207,7 @@ LocalNode::isVBlockingInternal(SCPQuorumSet const& qset,
 
 bool
 LocalNode::isVBlocking(SCPQuorumSet const& qSet,
-                       std::vector<uint256> const& nodeSet)
+                       std::vector<NodeID> const& nodeSet)
 {
     CLOG(DEBUG, "SCP") << "LocalNode::isVBlocking"
                        << " nodeSet.size: " << nodeSet.size();
@@ -217,10 +217,10 @@ LocalNode::isVBlocking(SCPQuorumSet const& qSet,
 
 bool
 LocalNode::isVBlocking(
-    SCPQuorumSet const& qSet, std::map<uint256, SCPStatement> const& map,
-    std::function<bool(uint256 const&, SCPStatement const&)> const& filter)
+    SCPQuorumSet const& qSet, std::map<NodeID, SCPStatement> const& map,
+    std::function<bool(NodeID const&, SCPStatement const&)> const& filter)
 {
-    std::vector<uint256> pNodes;
+    std::vector<NodeID> pNodes;
     for (auto const& it : map)
     {
         if (filter(it.first, it.second))
@@ -234,11 +234,11 @@ LocalNode::isVBlocking(
 
 bool
 LocalNode::isQuorum(
-    SCPQuorumSet const& qSet, std::map<uint256, SCPStatement> const& map,
+    SCPQuorumSet const& qSet, std::map<NodeID, SCPStatement> const& map,
     std::function<SCPQuorumSetPtr(SCPStatement const&)> const& qfun,
-    std::function<bool(uint256 const&, SCPStatement const&)> const& filter)
+    std::function<bool(NodeID const&, SCPStatement const&)> const& filter)
 {
-    std::vector<uint256> pNodes;
+    std::vector<NodeID> pNodes;
     for (auto const& it : map)
     {
         if (filter(it.first, it.second))
@@ -251,8 +251,8 @@ LocalNode::isQuorum(
     do
     {
         count = pNodes.size();
-        std::vector<uint256> fNodes(pNodes.size());
-        auto quorumFilter = [&](uint256 nodeID) -> bool
+        std::vector<NodeID> fNodes(pNodes.size());
+        auto quorumFilter = [&](NodeID nodeID) -> bool
         {
             return isQuorumSlice(*qfun(map.find(nodeID)->second), pNodes);
         };
@@ -265,7 +265,7 @@ LocalNode::isQuorum(
     return isQuorumSlice(qSet, pNodes);
 }
 
-uint256 const&
+NodeID const&
 LocalNode::getNodeID()
 {
     return mNodeID;

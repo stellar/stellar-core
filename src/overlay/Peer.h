@@ -49,7 +49,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
 
     PeerRole mRole; // from point of view of the other end
     PeerState mState;
-    uint256 mPeerID;
+    NodeID mPeerID;
 
     std::string mRemoteVersion;
     uint32_t mRemoteProtocolVersion;
@@ -134,7 +134,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
     {
         return mRemoteListeningPort;
     }
-    uint256
+    NodeID
     getPeerID()
     {
         return mPeerID;

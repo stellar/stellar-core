@@ -82,7 +82,6 @@ struct TrustLineEntry
     uint32 flags; // see TrustLineFlags
 };
 
-
 enum OfferEntryFlags
 {
     // issuer has authorized account to perform transactions with its credit

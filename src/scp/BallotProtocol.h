@@ -18,7 +18,7 @@ class Node;
 class Slot;
 
 // used to filter statements
-typedef std::function<bool(uint256 const& nodeID, SCPStatement const& st)>
+typedef std::function<bool(NodeID const& nodeID, SCPStatement const& st)>
     StatementPredicate;
 
 /**
@@ -42,13 +42,13 @@ class BallotProtocol
     // human readable names matching SCPPhase
     static const char* phaseNames[];
 
-    std::unique_ptr<SCPBallot> mCurrentBallot;         // b
-    std::unique_ptr<SCPBallot> mPrepared;              // p
-    std::unique_ptr<SCPBallot> mPreparedPrime;         // p'
-    std::unique_ptr<SCPBallot> mConfirmedPrepared;     // P
-    std::unique_ptr<SCPBallot> mCommit;                // c
-    std::map<uint256, SCPStatement> mLatestStatements; // M
-    SCPPhase mPhase;                                   // Phi
+    std::unique_ptr<SCPBallot> mCurrentBallot;        // b
+    std::unique_ptr<SCPBallot> mPrepared;             // p
+    std::unique_ptr<SCPBallot> mPreparedPrime;        // p'
+    std::unique_ptr<SCPBallot> mConfirmedPrepared;    // P
+    std::unique_ptr<SCPBallot> mCommit;               // c
+    std::map<NodeID, SCPStatement> mLatestStatements; // M
+    SCPPhase mPhase;                                  // Phi
 
     std::unique_ptr<SCPEnvelope>
         mLastEnvelope; // last envelope emitted by this node
@@ -152,13 +152,12 @@ class BallotProtocol
     // a certain property
 
     // is ballot prepared by st
-    static bool hasPreparedBallot(SCPBallot const& ballot,
-                                  uint256 const& nodeID,
+    static bool hasPreparedBallot(SCPBallot const& ballot, NodeID const& nodeID,
                                   SCPStatement const& st);
 
     // returns true if the statement commits the ballot in the range 'check'
     static bool commitPredicate(SCPBallot const& ballot, Interval const& check,
-                                uint256 const&, SCPStatement const& st);
+                                NodeID const&, SCPStatement const& st);
 
     // attempts to update p to ballot (updating p' if needed)
     bool setPrepared(SCPBallot const& ballot);
@@ -184,7 +183,7 @@ class BallotProtocol
 
     // returns true if the statement is newer than the one we know about
     // for a given node.
-    bool isNewerStatement(uint256 const& nodeID, SCPStatement const& st);
+    bool isNewerStatement(NodeID const& nodeID, SCPStatement const& st);
 
     // returns true if st is newer than oldst
     static bool isNewerStatement(SCPStatement const& oldst,

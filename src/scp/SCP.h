@@ -65,7 +65,7 @@ class SCP
     SCPQuorumSet const& getLocalQuorumSet();
 
     // Local nodeID getter
-    uint256 const& getLocalNodeID();
+    NodeID const& getLocalNodeID();
 
     // returns the local node descriptor
     std::shared_ptr<LocalNode> getLocalNode();

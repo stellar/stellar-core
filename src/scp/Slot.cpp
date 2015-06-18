@@ -304,7 +304,7 @@ Slot::envToStr(SCPStatement const& st) const
 
 bool
 Slot::federatedAccept(StatementPredicate voted, StatementPredicate accepted,
-                      std::map<uint256, SCPStatement> const& statements)
+                      std::map<NodeID, SCPStatement> const& statements)
 {
     // Checks if the nodes that claimed to accept the statement form a
     // v-blocking set
@@ -317,7 +317,7 @@ Slot::federatedAccept(StatementPredicate voted, StatementPredicate accepted,
     // Checks if the set of nodes that accepted or voted for it form a quorum
 
     auto ratifyFilter =
-        [this, &voted, &accepted](uint256 const& nodeID,
+        [this, &voted, &accepted](NodeID const& nodeID,
                                   SCPStatement const& st) -> bool
     {
         bool res;
@@ -338,7 +338,7 @@ Slot::federatedAccept(StatementPredicate voted, StatementPredicate accepted,
 
 bool
 Slot::federatedRatify(StatementPredicate voted,
-                      std::map<uint256, SCPStatement> const& statements)
+                      std::map<NodeID, SCPStatement> const& statements)
 {
     return LocalNode::isQuorum(
         getLocalNode()->getQuorumSet(), statements,

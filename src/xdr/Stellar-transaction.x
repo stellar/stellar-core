@@ -225,7 +225,7 @@ struct Operation
     case ALLOW_TRUST:
         AllowTrustOp allowTrustOp;
     case ACCOUNT_MERGE:
-        uint256 destination;
+        AccountID destination;
     case INFLATION:
         void;
     }

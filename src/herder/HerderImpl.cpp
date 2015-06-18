@@ -156,7 +156,7 @@ HerderImpl::bootstrap()
 }
 
 bool
-HerderImpl::validateValue(uint64 slotIndex, uint256 const& nodeID,
+HerderImpl::validateValue(uint64 slotIndex, NodeID const& nodeID,
                           Value const& value)
 {
     StellarValue b;

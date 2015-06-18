@@ -64,7 +64,7 @@ SCP::getLocalQuorumSet()
     return mLocalNode->getQuorumSet();
 }
 
-uint256 const&
+NodeID const&
 SCP::getLocalNodeID()
 {
     return mLocalNode->getNodeID();

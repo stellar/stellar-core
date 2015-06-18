@@ -94,8 +94,8 @@ Topologies::core(int nNodes, float quorumThresoldFraction,
 
     SCPQuorumSet qSet;
     assert(quorumThresoldFraction >= 0.5);
-    qSet.threshold = min(
-        nNodes, static_cast<int>(ceil(nNodes * quorumThresoldFraction)));
+    qSet.threshold =
+        min(nNodes, static_cast<int>(ceil(nNodes * quorumThresoldFraction)));
     for (auto const& k : keys)
     {
         qSet.validators.push_back(k.getPublicKey());
@@ -122,7 +122,7 @@ Topologies::hierarchicalQuorum(int nBranches,
                                Simulation::Mode mode) // Figure 3 from the paper
 {
     auto sim = Topologies::core(4, 0.75, mode);
-    vector<uint256> coreNodeIDs;
+    vector<NodeID> coreNodeIDs;
     for (auto const& coreNodeID : sim->getNodeIDs())
     {
         coreNodeIDs.push_back(coreNodeID);

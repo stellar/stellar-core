@@ -8,6 +8,7 @@ typedef opaque uint256[32];
 typedef unsigned int uint32;
 typedef unsigned hyper uint64;
 typedef opaque Value<>;
+typedef opaque NodeID[32];
 
 struct SCPBallot
 {
@@ -32,7 +33,7 @@ struct SCPNomination
 
 struct SCPStatement
 {
-    uint256 nodeID;   // v
+    NodeID nodeID;    // v
     uint64 slotIndex; // i
 
     union switch (SCPStatementType type)

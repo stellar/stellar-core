@@ -29,7 +29,7 @@ BallotProtocol::BallotProtocol(Slot& slot)
 }
 
 bool
-BallotProtocol::isNewerStatement(uint256 const& nodeID, SCPStatement const& st)
+BallotProtocol::isNewerStatement(NodeID const& nodeID, SCPStatement const& st)
 {
     auto oldp = mLatestStatements.find(nodeID);
     bool res = false;
@@ -141,7 +141,7 @@ BallotProtocol::processEnvelope(SCPEnvelope const& envelope)
     assert(envelope.statement.slotIndex == mSlot.getSlotIndex());
 
     SCPStatement const& statement = envelope.statement;
-    uint256 const& nodeID = statement.nodeID;
+    NodeID const& nodeID = statement.nodeID;
 
     if (!isStatementSane(statement))
     {
@@ -604,7 +604,7 @@ BallotProtocol::attemptPrepare(SCPBallot const& ballot)
     {
         if (LocalNode::isVBlocking(
                 getLocalNode()->getQuorumSet(), mLatestStatements,
-                [&](uint256 const&, SCPStatement const& st)
+                [&](NodeID const&, SCPStatement const& st)
                 {
                     bool res;
                     auto const& pl = st.pledges;
@@ -666,7 +666,7 @@ BallotProtocol::isPreparedAccept(SCPBallot const& ballot)
 
     return federatedAccept(
         // checks if any node is voting for this ballot
-        [&ballot, this](uint256 const&, SCPStatement const& st)
+        [&ballot, this](NodeID const&, SCPStatement const& st)
         {
             bool res;
 
@@ -784,7 +784,7 @@ BallotProtocol::isPreparedConfirmed(SCPBallot const& ballot)
 
 bool
 BallotProtocol::commitPredicate(SCPBallot const& ballot, Interval const& check,
-                                uint256 const&, SCPStatement const& st)
+                                NodeID const&, SCPStatement const& st)
 {
     bool res = false;
     auto const& pl = st.pledges;
@@ -981,7 +981,7 @@ BallotProtocol::isAcceptCommit(SCPBallot const& ballot, SCPBallot& outLow,
     auto pred = [&ballot, this](Interval const& cur) -> bool
     {
         return federatedAccept(
-            [&](uint256 const&, SCPStatement const& st) -> bool
+            [&](NodeID const&, SCPStatement const& st) -> bool
             {
                 bool res = false;
                 auto const& pl = st.pledges;
@@ -1166,7 +1166,7 @@ BallotProtocol::attemptConfirmCommit(SCPBallot const& acceptCommitLow,
 }
 
 bool
-BallotProtocol::hasPreparedBallot(SCPBallot const& ballot, uint256 const&,
+BallotProtocol::hasPreparedBallot(SCPBallot const& ballot, NodeID const&,
                                   SCPStatement const& st)
 {
     bool res;
@@ -1351,7 +1351,7 @@ BallotProtocol::advanceSlot(SCPBallot const& ballot)
         if (LocalNode::isQuorum(
                 getLocalNode()->getQuorumSet(), mLatestStatements,
                 std::bind(&Slot::getQuorumSetFromStatement, &mSlot, _1),
-                [&](uint256 const&, SCPStatement const& st)
+                [&](NodeID const&, SCPStatement const& st)
                 {
                     bool res;
                     if (st.pledges.type() == SCP_ST_PREPARE)

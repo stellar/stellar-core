@@ -28,7 +28,7 @@ NominationProtocol::NominationProtocol(Slot& slot)
 }
 
 bool
-NominationProtocol::isNewerStatement(uint256 const& nodeID,
+NominationProtocol::isNewerStatement(NodeID const& nodeID,
                                      SCPNomination const& st)
 {
     auto oldp = mLatestNominations.find(nodeID);
@@ -165,7 +165,7 @@ NominationProtocol::emitNomination()
 }
 
 bool
-NominationProtocol::acceptPredicate(Value const& v, uint256 const&,
+NominationProtocol::acceptPredicate(Value const& v, NodeID const&,
                                     SCPStatement const& st)
 {
     auto const& nom = st.pledges.nominate();
@@ -196,7 +196,7 @@ NominationProtocol::updateRoundLeaders()
     uint64 topPriority = 0;
     SCPQuorumSet const& myQSet = mSlot.getLocalNode()->getQuorumSet();
 
-    LocalNode::forAllNodes(myQSet, [&](uint256 const& cur)
+    LocalNode::forAllNodes(myQSet, [&](NodeID const& cur)
                            {
                                uint64 w = getNodePriority(cur, myQSet);
                                if (w > topPriority)
@@ -212,7 +212,7 @@ NominationProtocol::updateRoundLeaders()
 }
 
 uint64
-NominationProtocol::hashValue(bool isPriority, uint256 const& nodeID)
+NominationProtocol::hashValue(bool isPriority, NodeID const& nodeID)
 {
     assert(!mPreviousValue.empty());
     return mSlot.getSCPDriver().computeHash(
@@ -220,7 +220,7 @@ NominationProtocol::hashValue(bool isPriority, uint256 const& nodeID)
 }
 
 uint64
-NominationProtocol::getNodePriority(uint256 const& nodeID,
+NominationProtocol::getNodePriority(NodeID const& nodeID,
                                     SCPQuorumSet const& qset)
 {
     uint64 res;
@@ -266,7 +266,7 @@ NominationProtocol::processEnvelope(SCPEnvelope const& envelope)
                         continue;
                     }
                     if (mSlot.federatedAccept(
-                            [&v](uint256 const&, SCPStatement const& st) -> bool
+                            [&v](NodeID const&, SCPStatement const& st) -> bool
                             {
                                 auto const& nom = st.pledges.nominate();
                                 bool res;

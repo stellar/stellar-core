@@ -27,7 +27,7 @@ static const uint32 hash_P = 2;
 
 uint64
 SCPDriver::computeHash(uint64 slotIndex, bool isPriority, int32_t roundNumber,
-                       uint256 const& nodeID, Value const& prev)
+                       NodeID const& nodeID, Value const& prev)
 {
     auto h = SHA256::create();
     h->add(xdr::xdr_to_opaque(slotIndex));

@@ -45,7 +45,7 @@ class HerderImpl : public Herder, public SCPDriver
     void bootstrap() override;
 
     // SCP methods
-    bool validateValue(uint64 slotIndex, uint256 const& nodeID,
+    bool validateValue(uint64 slotIndex, NodeID const& nodeID,
                        Value const& value) override;
 
     std::string getValueString(Value const& v) const override;
@@ -117,7 +117,7 @@ class HerderImpl : public Herder, public SCPDriver
     PendingEnvelopes mPendingEnvelopes;
 
     std::map<SCPBallot,
-             std::map<uint256, std::vector<std::shared_ptr<VirtualTimer>>>>
+             std::map<NodeID, std::vector<std::shared_ptr<VirtualTimer>>>>
         mBallotValidationTimers;
 
     void herderOutOfSync();
