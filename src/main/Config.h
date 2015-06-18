@@ -82,10 +82,11 @@ class Config : public std::enable_shared_from_this<Config>
     // virtual clock, asio pooling never relinquishes the event loop.
     // This option inserts a VirtualClock event after each read to
     // restore fairness. (Consider removing this option once
-    // we are confortable doing this on prod as well.)
+    // we are comfortable doing this on prod as well.)
     bool BREAK_ASIO_LOOP_FOR_FAST_TESTS;
 
-    uint32_t PROTOCOL_VERSION;
+    uint32_t LEDGER_PROTOCOL_VERSION;
+    uint32_t OVERLAY_PROTOCOL_VERSION;
     std::string VERSION_STR;
     std::string LOG_FILE_PATH;
     std::string TMP_DIR_PATH;

@@ -9,6 +9,7 @@ namespace stellar
 
 struct StellarValue
 {
+    uint32 ledgerVersion;
     Hash txSetHash;
     uint64 closeTime;
     uint32 baseFee;
@@ -22,7 +23,8 @@ struct Error
 
 struct Hello
 {
-    int protocolVersion;
+    uint32 ledgerVersion;
+    uint32 overlayVersion;
     string versionStr<100>;
     int listeningPort;
     NodeID peerID;

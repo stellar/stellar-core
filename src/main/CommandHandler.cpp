@@ -294,7 +294,7 @@ CommandHandler::peers(std::string const& params, std::string& retStr)
         root["peers"][counter]["ip"] = peer->getIP();
         root["peers"][counter]["port"] = (int)peer->getRemoteListeningPort();
         root["peers"][counter]["ver"] = peer->getRemoteVersion();
-        root["peers"][counter]["pver"] = (int)peer->getRemoteProtocolVersion();
+        root["peers"][counter]["olver"] = (int)peer->getRemoteOverlayVersion();
         root["peers"][counter]["id"] =
             toBase58Check(VER_ACCOUNT_ID, peer->getPeerID());
 

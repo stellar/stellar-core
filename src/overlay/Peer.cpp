@@ -34,7 +34,7 @@ Peer::Peer(Application& app, PeerRole role)
     : mApp(app)
     , mRole(role)
     , mState(role == ACCEPTOR ? CONNECTING : CONNECTED)
-    , mRemoteProtocolVersion(0)
+    , mRemoteOverlayVersion(0)
     , mRemoteListeningPort(0)
 {
 }
@@ -46,7 +46,8 @@ Peer::sendHello()
 
     StellarMessage msg;
     msg.type(HELLO);
-    msg.hello().protocolVersion = mApp.getConfig().PROTOCOL_VERSION;
+    msg.hello().ledgerVersion = mApp.getConfig().LEDGER_PROTOCOL_VERSION;
+    msg.hello().overlayVersion = mApp.getConfig().OVERLAY_PROTOCOL_VERSION;
     msg.hello().versionStr = mApp.getConfig().VERSION_STR;
     msg.hello().listeningPort = mApp.getConfig().PEER_PORT;
     msg.hello().peerID = mApp.getConfig().PEER_PUBLIC_KEY;
@@ -367,7 +368,7 @@ Peer::recvHello(StellarMessage const& msg)
         return false;
     }
 
-    mRemoteProtocolVersion = msg.hello().protocolVersion;
+    mRemoteOverlayVersion = msg.hello().overlayVersion;
     mRemoteVersion = msg.hello().versionStr;
     if (msg.hello().listeningPort <= 0 ||
         msg.hello().listeningPort > UINT16_MAX)

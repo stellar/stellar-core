@@ -394,7 +394,7 @@ HerderImpl::combineCandidates(uint64 slotIndex,
                               std::set<Value> const& candidates)
 {
     Hash h;
-    StellarValue comp(h, 0, 0);
+    StellarValue comp(mApp.getConfig().LEDGER_PROTOCOL_VERSION, h, 0, 0);
 
     std::set<TransactionFramePtr> aggSet;
 
