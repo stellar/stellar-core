@@ -87,24 +87,6 @@ class SCP
         return true;
     }
 
-    // `compareValues` is used in ballot comparison. Ballots with higher values
-    // cancel ones with lower values for the same ballot counter which
-    // prioritize higher values. It is acceptable to parametrize the value
-    // ordering by slotIndex and ballot counter. That's why they are provided
-    // as argument to `compareValues`.
-    virtual int
-    compareValues(uint64 slotIndex, uint32 const& ballotCounter,
-                  Value const& v1, Value const& v2)
-    {
-        using xdr::operator<;
-
-        if (v1 < v2)
-            return -1;
-        if (v2 < v1)
-            return 1;
-        return 0;
-    }
-
     // `getValueString` is used for debugging
     // default implementation is the hash of the value
     virtual std::string getValueString(Value const& v) const;

@@ -1308,20 +1308,29 @@ BallotProtocol::compareBallots(SCPBallot const& b1, SCPBallot const& b2)
     {
         return -1;
     }
-    if (b2.counter < b1.counter)
+    else if (b2.counter < b1.counter)
     {
         return 1;
     }
     // ballots are also strictly ordered by value
-    return mSlot.getSCP().compareValues(mSlot.getSlotIndex(), b1.counter,
-                                        b1.value, b2.value);
+    if (b1.value < b2.value)
+    {
+        return -1;
+    }
+    else if (b2.value < b1.value)
+    {
+        return 1;
+    }
+    else
+    {
+        return 0;
+    }
 }
 
 bool
 BallotProtocol::areBallotsCompatible(SCPBallot const& b1, SCPBallot const& b2)
 {
-    return mSlot.getSCP().compareValues(mSlot.getSlotIndex(), b1.counter,
-                                        b1.value, b2.value) == 0;
+    return b1.value == b2.value;
 }
 
 bool
