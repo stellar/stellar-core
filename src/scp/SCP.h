@@ -57,7 +57,8 @@ class SCP
     bool abandonBallot(uint64 slotIndex);
 
     // Submit a value for the SCP consensus phase
-    bool nominate(uint64 slotIndex, Value const& value, bool timedout);
+    bool nominate(uint64 slotIndex, Value const& value,
+                  Value const& previousValue, bool timedout);
 
     // Local QuorumSet interface (can be dynamically updated)
     void updateLocalQuorumSet(SCPQuorumSet const& qSet);

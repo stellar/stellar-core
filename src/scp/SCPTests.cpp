@@ -111,6 +111,12 @@ class TestSCP : public SCPDriver
         return mSCP.getSlot(slotIndex)->bumpState(v, true);
     }
 
+    bool
+    nominate(uint64 slotIndex, Value const& value, bool timedout)
+    {
+        return mSCP.getSlot(slotIndex)->nominate(value, value, timedout);
+    }
+
     // only used by nomination protocol
     Value
     combineCandidates(uint64 slotIndex,
@@ -129,7 +135,7 @@ class TestSCP : public SCPDriver
     // more predictable.
     uint64
     computeHash(uint64 slotIndex, bool isPriority, int32_t roundNumber,
-                uint256 const& nodeID) override
+                uint256 const& nodeID, Value const& prev) override
     {
         uint64 res;
         if (isPriority)

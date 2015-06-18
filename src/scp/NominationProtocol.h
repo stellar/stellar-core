@@ -36,6 +36,9 @@ class NominationProtocol
     // the latest (if any) candidate value
     Value mLatestCompositeCandidate;
 
+    // the value from the previous slot
+    Value mPreviousValue;
+
     bool isNewerStatement(uint256 const& nodeID, SCPNomination const& st);
     static bool isNewerStatement(SCPNomination const& oldst,
                                  SCPNomination const& st);
@@ -52,7 +55,7 @@ class NominationProtocol
 
     void emitNomination();
 
-    // returns true if the statement asserts that v is in the accepted list
+    // returns true if v is in the accepted list from the statement
     static bool acceptPredicate(Value const& v, uint256 const&,
                                 SCPStatement const& st);
 
@@ -77,7 +80,8 @@ class NominationProtocol
     static std::vector<Value> getStatementValues(SCPStatement const& st);
 
     // attempts to nominate a value for consensus
-    bool nominate(Value const& value, bool timedout);
+    bool nominate(Value const& value, Value const& previousValue,
+                  bool timedout);
 
     Value const&
     getLatestCompositeCandidate() const

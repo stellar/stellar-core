@@ -45,10 +45,11 @@ SCP::abandonBallot(uint64 slotIndex)
 }
 
 bool
-SCP::nominate(uint64 slotIndex, Value const& value, bool timedout)
+SCP::nominate(uint64 slotIndex, Value const& value, Value const& previousValue,
+              bool timedout)
 {
     assert(!getSecretKey().isZero());
-    return getSlot(slotIndex)->nominate(value, timedout);
+    return getSlot(slotIndex)->nominate(value, previousValue, timedout);
 }
 
 void

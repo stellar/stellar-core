@@ -87,7 +87,8 @@ class Slot : public std::enable_shared_from_this<Slot>
     bool bumpState(Value const& value, bool force);
 
     // attempts to nominate a value for consensus
-    bool nominate(Value const& value, bool timedout);
+    bool nominate(Value const& value, Value const& previousValue,
+                  bool timedout);
 
     // ** status methods
 

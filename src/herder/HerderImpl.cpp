@@ -145,10 +145,8 @@ HerderImpl::bootstrap()
 
     // setup a sufficient state that we can participate in consensus
     auto const& lcl = mLedgerManager.getLastClosedLedgerHeader();
-    StellarValue b;
-    b.txSetHash = lcl.header.txSetHash;
-    b.closeTime = lcl.header.closeTime;
-    b.baseFee = mApp.getConfig().DESIRED_BASE_FEE;
+    StellarValue b = buildStellarValue(
+        lcl.header.txSetHash, lcl.header.closeTime, lcl.header.baseFee);
     mTrackingSCP = make_unique<ConsensusData>(lcl.header.ledgerSeq, b);
     mLedgerManager.setState(LedgerManager::LM_SYNCED_STATE);
 
@@ -419,7 +417,9 @@ HerderImpl::nominatingValue(uint64 slotIndex, Value const& value,
         [this, slotIndex, value]()
         {
             assert(!mCurrentValue.empty());
-            mSCP.nominate(slotIndex, mCurrentValue, true);
+            auto const& lcl = mLedgerManager.getLastClosedLedgerHeader().header;
+            Value prev = buildValue(lcl.txSetHash, lcl.closeTime, lcl.baseFee);
+            mSCP.nominate(slotIndex, mCurrentValue, prev, true);
         },
         &VirtualTimer::onFailureNoop);
 }
@@ -882,12 +882,8 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger)
         nextCloseTime = lcl.header.closeTime + 1;
     }
 
-    StellarValue b;
-    b.txSetHash = txSetHash;
-    b.closeTime = nextCloseTime;
-    b.baseFee = mApp.getConfig().DESIRED_BASE_FEE;
-
-    mCurrentValue = xdr::xdr_to_opaque(b);
+    mCurrentValue =
+        buildValue(txSetHash, nextCloseTime, mApp.getConfig().DESIRED_BASE_FEE);
 
     uint256 valueHash = sha256(xdr::xdr_to_opaque(mCurrentValue));
     CLOG(DEBUG, "Herder") << "HerderImpl::triggerNextLedger"
@@ -898,7 +894,10 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger)
                           << " value: " << hexAbbrev(valueHash)
                           << " slot: " << slotIndex;
 
-    mSCP.nominate(slotIndex, mCurrentValue, false);
+    Value prevValue = buildValue(lcl.header.txSetHash, lcl.header.closeTime,
+                                 lcl.header.baseFee);
+
+    mSCP.nominate(slotIndex, mCurrentValue, prevValue, false);
 }
 
 void
@@ -992,5 +991,22 @@ HerderImpl::herderOutOfSync()
     mSCPMetrics.mLostSync.Mark();
     mTrackingSCP.reset();
     processSCPQueue();
+}
+
+Value
+HerderImpl::buildValue(Hash const& txSetHash, uint64 closeTime, int32 baseFee)
+{
+    return xdr::xdr_to_opaque(buildStellarValue(txSetHash, closeTime, baseFee));
+}
+
+StellarValue
+HerderImpl::buildStellarValue(Hash const& txSetHash, uint64 closeTime,
+                              int32 baseFee)
+{
+    StellarValue b;
+    b.txSetHash = txSetHash;
+    b.closeTime = closeTime;
+    b.baseFee = baseFee;
+    return b;
 }
 }

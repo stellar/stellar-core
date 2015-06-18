@@ -173,6 +173,12 @@ class HerderImpl : public Herder, public SCPDriver
     Application& mApp;
     LedgerManager& mLedgerManager;
 
+    // helper functions to build a 'Value' or 'StellarValue'
+    static Value buildValue(Hash const& txSetHash, uint64 closeTime,
+                            int32 baseFee);
+    static StellarValue buildStellarValue(Hash const& txSetHash,
+                                          uint64 closeTime, int32 baseFee);
+
     struct SCPMetrics
     {
         medida::Meter& mValueValid;

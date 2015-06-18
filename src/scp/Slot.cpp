@@ -93,9 +93,9 @@ Slot::bumpState(Value const& value, bool force)
 }
 
 bool
-Slot::nominate(Value const& value, bool timedout)
+Slot::nominate(Value const& value, Value const& previousValue, bool timedout)
 {
-    return mNominationProtocol.nominate(value, timedout);
+    return mNominationProtocol.nominate(value, previousValue, timedout);
 }
 
 SCPEnvelope

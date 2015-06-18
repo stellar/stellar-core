@@ -23,9 +23,8 @@ using xdr::operator<;
 using namespace std::placeholders;
 
 NominationProtocol::NominationProtocol(Slot& slot)
-    : mSlot(slot), mRoundNumber(1), mNominationStarted(false)
+    : mSlot(slot), mRoundNumber(0), mNominationStarted(false)
 {
-    updateRoundLeaders();
 }
 
 bool
@@ -215,8 +214,9 @@ NominationProtocol::updateRoundLeaders()
 uint64
 NominationProtocol::hashValue(bool isPriority, uint256 const& nodeID)
 {
-    return mSlot.getSCPDriver().computeHash(mSlot.getSlotIndex(), isPriority,
-                                            mRoundNumber, nodeID);
+    assert(!mPreviousValue.empty());
+    return mSlot.getSCPDriver().computeHash(
+        mSlot.getSlotIndex(), isPriority, mRoundNumber, nodeID, mPreviousValue);
 }
 
 uint64
@@ -352,7 +352,8 @@ NominationProtocol::getStatementValues(SCPStatement const& st)
 
 // attempts to nominate a value for consensus
 bool
-NominationProtocol::nominate(Value const& value, bool timedout)
+NominationProtocol::nominate(Value const& value, Value const& previousValue,
+                             bool timedout)
 {
     CLOG(DEBUG, "SCP") << "NominationProtocol::nominate "
                        << mSlot.getValueString(value);
@@ -361,11 +362,10 @@ NominationProtocol::nominate(Value const& value, bool timedout)
 
     mNominationStarted = true;
 
-    if (timedout)
-    {
-        mRoundNumber++;
-        updateRoundLeaders();
-    }
+    mPreviousValue = previousValue;
+
+    mRoundNumber++;
+    updateRoundLeaders();
 
     if (mRoundLeaders.find(mSlot.getLocalNode()->getNodeID()) !=
         mRoundLeaders.end())

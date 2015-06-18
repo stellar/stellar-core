@@ -55,7 +55,8 @@ class SCPDriver
     // `computeHash` is used by the nomination protocol to
     // randomize the order of messages between nodes.
     virtual uint64 computeHash(uint64 slotIndex, bool isPriority,
-                               int32_t roundNumber, uint256 const& nodeID);
+                               int32_t roundNumber, uint256 const& nodeID,
+                               Value const& prev);
 
     // `combineCandidates` computes the composite value based off a list
     // of candidate values.
