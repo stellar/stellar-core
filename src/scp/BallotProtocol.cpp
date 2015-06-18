@@ -604,7 +604,7 @@ BallotProtocol::attemptPrepare(SCPBallot const& ballot)
     {
         if (LocalNode::isVBlocking(
                 getLocalNode()->getQuorumSet(), mLatestStatements,
-                [&](NodeID const&, SCPStatement const& st)
+                [&](SCPStatement const& st)
                 {
                     bool res;
                     auto const& pl = st.pledges;
@@ -666,7 +666,7 @@ BallotProtocol::isPreparedAccept(SCPBallot const& ballot)
 
     return federatedAccept(
         // checks if any node is voting for this ballot
-        [&ballot, this](NodeID const&, SCPStatement const& st)
+        [&ballot, this](SCPStatement const& st)
         {
             bool res;
 
@@ -696,7 +696,7 @@ BallotProtocol::isPreparedAccept(SCPBallot const& ballot)
 
             return res;
         },
-        std::bind(&BallotProtocol::hasPreparedBallot, ballot, _1, _2));
+        std::bind(&BallotProtocol::hasPreparedBallot, ballot, _1));
 }
 
 bool
@@ -779,12 +779,12 @@ BallotProtocol::isPreparedConfirmed(SCPBallot const& ballot)
     }
 
     return federatedRatify(
-        std::bind(&BallotProtocol::hasPreparedBallot, ballot, _1, _2));
+        std::bind(&BallotProtocol::hasPreparedBallot, ballot, _1));
 }
 
 bool
 BallotProtocol::commitPredicate(SCPBallot const& ballot, Interval const& check,
-                                NodeID const&, SCPStatement const& st)
+                                SCPStatement const& st)
 {
     bool res = false;
     auto const& pl = st.pledges;
@@ -981,7 +981,7 @@ BallotProtocol::isAcceptCommit(SCPBallot const& ballot, SCPBallot& outLow,
     auto pred = [&ballot, this](Interval const& cur) -> bool
     {
         return federatedAccept(
-            [&](NodeID const&, SCPStatement const& st) -> bool
+            [&](SCPStatement const& st) -> bool
             {
                 bool res = false;
                 auto const& pl = st.pledges;
@@ -1022,7 +1022,7 @@ BallotProtocol::isAcceptCommit(SCPBallot const& ballot, SCPBallot& outLow,
                 }
                 return res;
             },
-            std::bind(&BallotProtocol::commitPredicate, ballot, cur, _1, _2));
+            std::bind(&BallotProtocol::commitPredicate, ballot, cur, _1));
     };
 
     // build the boundaries to scan
@@ -1130,7 +1130,7 @@ BallotProtocol::isConfirmCommit(SCPBallot const& ballot, SCPBallot& outLow,
     auto pred = [&ballot, this](Interval const& cur) -> bool
     {
         return federatedRatify(
-            std::bind(&BallotProtocol::commitPredicate, ballot, cur, _1, _2));
+            std::bind(&BallotProtocol::commitPredicate, ballot, cur, _1));
     };
 
     findExtendedInterval(candidate, boundaries, pred);
@@ -1166,7 +1166,7 @@ BallotProtocol::attemptConfirmCommit(SCPBallot const& acceptCommitLow,
 }
 
 bool
-BallotProtocol::hasPreparedBallot(SCPBallot const& ballot, NodeID const&,
+BallotProtocol::hasPreparedBallot(SCPBallot const& ballot,
                                   SCPStatement const& st)
 {
     bool res;
@@ -1351,7 +1351,7 @@ BallotProtocol::advanceSlot(SCPBallot const& ballot)
         if (LocalNode::isQuorum(
                 getLocalNode()->getQuorumSet(), mLatestStatements,
                 std::bind(&Slot::getQuorumSetFromStatement, &mSlot, _1),
-                [&](NodeID const&, SCPStatement const& st)
+                [&](SCPStatement const& st)
                 {
                     bool res;
                     if (st.pledges.type() == SCP_ST_PREPARE)

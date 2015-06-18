@@ -317,11 +317,10 @@ Slot::federatedAccept(StatementPredicate voted, StatementPredicate accepted,
     // Checks if the set of nodes that accepted or voted for it form a quorum
 
     auto ratifyFilter =
-        [this, &voted, &accepted](NodeID const& nodeID,
-                                  SCPStatement const& st) -> bool
+        [this, &voted, &accepted](SCPStatement const& st) -> bool
     {
         bool res;
-        res = accepted(nodeID, st) || voted(nodeID, st);
+        res = accepted(st) || voted(st);
         return res;
     };
 

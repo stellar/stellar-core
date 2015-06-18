@@ -56,8 +56,7 @@ class NominationProtocol
     void emitNomination();
 
     // returns true if v is in the accepted list from the statement
-    static bool acceptPredicate(Value const& v, NodeID const&,
-                                SCPStatement const& st);
+    static bool acceptPredicate(Value const& v, SCPStatement const& st);
 
     // applies 'processor' to all values from the passed in nomination
     static void applyAll(SCPNomination const& nom,

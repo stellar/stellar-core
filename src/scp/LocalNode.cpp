@@ -216,14 +216,14 @@ LocalNode::isVBlocking(SCPQuorumSet const& qSet,
 }
 
 bool
-LocalNode::isVBlocking(
-    SCPQuorumSet const& qSet, std::map<NodeID, SCPStatement> const& map,
-    std::function<bool(NodeID const&, SCPStatement const&)> const& filter)
+LocalNode::isVBlocking(SCPQuorumSet const& qSet,
+                       std::map<NodeID, SCPStatement> const& map,
+                       std::function<bool(SCPStatement const&)> const& filter)
 {
     std::vector<NodeID> pNodes;
     for (auto const& it : map)
     {
-        if (filter(it.first, it.second))
+        if (filter(it.second))
         {
             pNodes.push_back(it.first);
         }
@@ -236,12 +236,12 @@ bool
 LocalNode::isQuorum(
     SCPQuorumSet const& qSet, std::map<NodeID, SCPStatement> const& map,
     std::function<SCPQuorumSetPtr(SCPStatement const&)> const& qfun,
-    std::function<bool(NodeID const&, SCPStatement const&)> const& filter)
+    std::function<bool(SCPStatement const&)> const& filter)
 {
     std::vector<NodeID> pNodes;
     for (auto const& it : map)
     {
-        if (filter(it.first, it.second))
+        if (filter(it.second))
         {
             pNodes.push_back(it.first);
         }

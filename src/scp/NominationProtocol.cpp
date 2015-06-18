@@ -165,8 +165,7 @@ NominationProtocol::emitNomination()
 }
 
 bool
-NominationProtocol::acceptPredicate(Value const& v, NodeID const&,
-                                    SCPStatement const& st)
+NominationProtocol::acceptPredicate(Value const& v, SCPStatement const& st)
 {
     auto const& nom = st.pledges.nominate();
     bool res;
@@ -266,7 +265,7 @@ NominationProtocol::processEnvelope(SCPEnvelope const& envelope)
                         continue;
                     }
                     if (mSlot.federatedAccept(
-                            [&v](NodeID const&, SCPStatement const& st) -> bool
+                            [&v](SCPStatement const& st) -> bool
                             {
                                 auto const& nom = st.pledges.nominate();
                                 bool res;
@@ -276,7 +275,7 @@ NominationProtocol::processEnvelope(SCPEnvelope const& envelope)
                                 return res;
                             },
                             std::bind(&NominationProtocol::acceptPredicate, v,
-                                      _1, _2),
+                                      _1),
                             mLatestNominations))
                     {
                         mAccepted.emplace(v);
@@ -293,7 +292,7 @@ NominationProtocol::processEnvelope(SCPEnvelope const& envelope)
                     }
                     if (mSlot.federatedRatify(
                             std::bind(&NominationProtocol::acceptPredicate, a,
-                                      _1, _2),
+                                      _1),
                             mLatestNominations))
                     {
                         mCandidates.emplace(a);

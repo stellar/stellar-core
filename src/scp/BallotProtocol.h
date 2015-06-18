@@ -18,8 +18,7 @@ class Node;
 class Slot;
 
 // used to filter statements
-typedef std::function<bool(NodeID const& nodeID, SCPStatement const& st)>
-    StatementPredicate;
+typedef std::function<bool(SCPStatement const& st)> StatementPredicate;
 
 /**
  * The Slot object is in charge of maintaining the state of the SCP protocol
@@ -152,12 +151,12 @@ class BallotProtocol
     // a certain property
 
     // is ballot prepared by st
-    static bool hasPreparedBallot(SCPBallot const& ballot, NodeID const& nodeID,
+    static bool hasPreparedBallot(SCPBallot const& ballot,
                                   SCPStatement const& st);
 
     // returns true if the statement commits the ballot in the range 'check'
     static bool commitPredicate(SCPBallot const& ballot, Interval const& check,
-                                NodeID const&, SCPStatement const& st);
+                                SCPStatement const& st);
 
     // attempts to update p to ballot (updating p' if needed)
     bool setPrepared(SCPBallot const& ballot);
