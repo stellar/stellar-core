@@ -51,13 +51,30 @@ Slot::processEnvelope(SCPEnvelope const& envelope)
 
     SCP::EnvelopeState res;
 
-    if (envelope.statement.pledges.type() == SCPStatementType::SCP_ST_NOMINATE)
+    try
     {
-        res = mNominationProtocol.processEnvelope(envelope);
+
+        if (envelope.statement.pledges.type() ==
+            SCPStatementType::SCP_ST_NOMINATE)
+        {
+            res = mNominationProtocol.processEnvelope(envelope);
+        }
+        else
+        {
+            res = mBallotProtocol.processEnvelope(envelope);
+        }
     }
-    else
+    catch (...)
     {
-        res = mBallotProtocol.processEnvelope(envelope);
+        Json::Value info;
+
+        dumpInfo(info);
+
+        CLOG(DEBUG, "SCP") << "Exception in processEnvelope "
+                           << "state: " << info.toStyledString()
+                           << " processing envelope: " << envToStr(envelope);
+
+        throw;
     }
     return res;
 }

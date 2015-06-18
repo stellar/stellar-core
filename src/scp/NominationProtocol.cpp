@@ -161,7 +161,7 @@ NominationProtocol::emitNomination()
     {
         // there is a bug in the application if it queued up
         // a statement for itself that it considers invalid
-        throw std::runtime_error("moved to a bad state");
+        throw std::runtime_error("moved to a bad state (nomination)");
     }
 }
 
@@ -328,7 +328,8 @@ NominationProtocol::processEnvelope(SCPEnvelope const& envelope)
                         mSlot.getSCP().combineCandidates(mSlot.getSlotIndex(),
                                                          mCandidates);
 
-                    mSlot.getSCP().updatedCandidateValue(mSlot.getSlotIndex(), mLatestCompositeCandidate);
+                    mSlot.getSCP().updatedCandidateValue(
+                        mSlot.getSlotIndex(), mLatestCompositeCandidate);
 
                     mSlot.bumpState(mLatestCompositeCandidate, false);
                 }

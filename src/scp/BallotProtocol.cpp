@@ -570,7 +570,7 @@ BallotProtocol::emitCurrentStateStatement()
     {
         // there is a bug in the application if it queued up
         // a statement for itself that it considers invalid
-        throw std::runtime_error("moved to a bad state");
+        throw std::runtime_error("moved to a bad state (ballot protocol)");
     }
 }
 
