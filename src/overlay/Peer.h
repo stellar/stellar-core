@@ -52,7 +52,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
     uint256 mPeerID;
 
     std::string mRemoteVersion;
-    uint32_t mRemoteProtocolVersion;
+    uint32_t mRemoteOverlayVersion;
     unsigned short mRemoteListeningPort;
 
     bool shouldAbort() const;
@@ -124,9 +124,9 @@ class Peer : public std::enable_shared_from_this<Peer>,
     }
 
     uint32_t
-    getRemoteProtocolVersion() const
+    getRemoteOverlayVersion() const
     {
-        return mRemoteProtocolVersion;
+        return mRemoteOverlayVersion;
     }
 
     unsigned short
