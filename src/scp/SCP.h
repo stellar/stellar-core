@@ -56,9 +56,10 @@ class SCP
     // returns the value returned by 'bumpState'
     bool abandonBallot(uint64 slotIndex);
 
-    // Submit a value for the SCP consensus phase
+    // Submit a value to consider for slotIndex
+    // previousValue is the value from slotIndex-1
     bool nominate(uint64 slotIndex, Value const& value,
-                  Value const& previousValue, bool timedout);
+                  Value const& previousValue);
 
     // Local QuorumSet interface (can be dynamically updated)
     void updateLocalQuorumSet(SCPQuorumSet const& qSet);

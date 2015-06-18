@@ -451,8 +451,12 @@ BallotProtocol::bumpToBallot(SCPBallot const& ballot)
 
     if (gotBumped)
     {
-        mSlot.getSCPDriver().ballotGotBumped(mSlot.getSlotIndex(),
-                                             *mCurrentBallot, timeout);
+        std::shared_ptr<Slot> slot = mSlot.shared_from_this();
+        mSlot.getSCPDriver().setupTimer(
+            mSlot.getSlotIndex(), Slot::BALLOT_PROTOCOL_TIMER, timeout, [slot]()
+            {
+                slot->abandonBallot();
+            });
     }
 }
 

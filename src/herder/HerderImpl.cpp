@@ -107,8 +107,6 @@ HerderImpl::HerderImpl(Application& app)
     , mTrackingTimer(app)
     , mLastTrigger(app.getClock().now())
     , mTriggerTimer(app)
-    , mBumpTimer(app)
-    , mNominationTimer(app)
     , mRebroadcastTimer(app)
     , mApp(app)
     , mLedgerManager(app.getLedgerManager())
@@ -291,22 +289,6 @@ HerderImpl::ballotDidHearFromQuorum(uint64 slotIndex, SCPBallot const& ballot)
 }
 
 void
-HerderImpl::ballotGotBumped(uint64 slotIndex, SCPBallot const& ballot,
-                            std::chrono::milliseconds timeout)
-{
-    mBumpTimer.cancel();
-
-    mBumpTimer.expires_from_now(timeout);
-
-    mBumpTimer.async_wait(
-        [this, slotIndex, ballot]()
-        {
-            expireBallot(slotIndex, ballot);
-        },
-        &VirtualTimer::onFailureNoop);
-}
-
-void
 HerderImpl::updateSCPCounters()
 {
     mSCPMetrics.mKnownSlotsSize.set_count(mSCP.getKnownSlotsCount());
@@ -319,8 +301,7 @@ HerderImpl::valueExternalized(uint64 slotIndex, Value const& value)
 {
     updateSCPCounters();
     mSCPMetrics.mValueExternalize.Mark();
-    mBumpTimer.cancel();
-    mNominationTimer.cancel();
+    mSCPTimers.erase(slotIndex); // cancels all timers for this slot
     StellarValue b;
     try
     {
@@ -397,31 +378,15 @@ HerderImpl::valueExternalized(uint64 slotIndex, Value const& value)
 }
 
 void
-HerderImpl::nominatingValue(uint64 slotIndex, Value const& value,
-                            std::chrono::milliseconds timeout)
+HerderImpl::nominatingValue(uint64 slotIndex, Value const& value)
 {
     CLOG(DEBUG, "Herder") << "nominatingValue i:" << slotIndex
-                          << " t:" << timeout.count()
                           << " v: " << getValueString(value);
 
     if (!value.empty())
     {
         mSCPMetrics.mNominatingValue.Mark();
     }
-
-    mNominationTimer.cancel();
-
-    mNominationTimer.expires_from_now(timeout);
-
-    mNominationTimer.async_wait(
-        [this, slotIndex, value]()
-        {
-            assert(!mCurrentValue.empty());
-            auto const& lcl = mLedgerManager.getLastClosedLedgerHeader().header;
-            Value prev = buildValue(lcl.txSetHash, lcl.closeTime, lcl.baseFee);
-            mSCP.nominate(slotIndex, mCurrentValue, prev, true);
-        },
-        &VirtualTimer::onFailureNoop);
 }
 
 Value
@@ -474,6 +439,31 @@ HerderImpl::combineCandidates(uint64 slotIndex,
     mPendingEnvelopes.recvTxSet(comp.txSetHash, aggTxSet);
 
     return xdr::xdr_to_opaque(comp);
+}
+
+void
+HerderImpl::setupTimer(uint64 slotIndex, int timerID,
+                       std::chrono::milliseconds timeout,
+                       std::function<void()> cb)
+{
+    // don't setup timers for old slots
+    if (mTrackingSCP && slotIndex < mTrackingSCP->mConsensusIndex)
+    {
+        mSCPTimers.erase(slotIndex);
+        return;
+    }
+
+    auto& slotTimers = mSCPTimers[slotIndex];
+
+    auto it = slotTimers.find(timerID);
+    if (it == slotTimers.end())
+    {
+        it = slotTimers.emplace(timerID, make_unique<VirtualTimer>(mApp)).first;
+    }
+    auto& timer = *it->second;
+    timer.cancel();
+    timer.expires_from_now(timeout);
+    timer.async_wait(cb, &VirtualTimer::onFailureNoop);
 }
 
 void
@@ -897,7 +887,7 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger)
     Value prevValue = buildValue(lcl.header.txSetHash, lcl.header.closeTime,
                                  lcl.header.baseFee);
 
-    mSCP.nominate(slotIndex, mCurrentValue, prevValue, false);
+    mSCP.nominate(slotIndex, mCurrentValue, prevValue);
 }
 
 void

@@ -404,8 +404,15 @@ NominationProtocol::nominate(Value const& value, Value const& previousValue,
             mSlot.getSlotIndex(), mVotes);
     }
     // called even with an empty value to start the timer
-    mSlot.getSCPDriver().nominatingValue(mSlot.getSlotIndex(), nominatingValue,
-                                         timeout);
+    mSlot.getSCPDriver().nominatingValue(mSlot.getSlotIndex(), nominatingValue);
+
+    std::shared_ptr<Slot> slot = mSlot.shared_from_this();
+    mSlot.getSCPDriver().setupTimer(
+        mSlot.getSlotIndex(), Slot::NOMINATION_TIMER, timeout,
+        [slot, value, previousValue]()
+        {
+            slot->nominate(value, previousValue, true);
+        });
 
     if (updated)
     {

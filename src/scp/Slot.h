@@ -137,5 +137,11 @@ class Slot : public std::enable_shared_from_this<Slot>
                          std::map<NodeID, SCPStatement> const& statements);
 
     std::shared_ptr<LocalNode> getLocalNode();
+
+    enum timerIDs
+    {
+        NOMINATION_TIMER = 0,
+        BALLOT_PROTOCOL_TIMER = 1
+    };
 };
 }

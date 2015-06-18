@@ -149,6 +149,12 @@ class TestSCP : public SCPDriver
         return res;
     }
 
+    void
+    setupTimer(uint64 slotIndex, int timerID, std::chrono::milliseconds timeout,
+               std::function<void()> cb) override
+    {
+    }
+
     std::function<uint64(NodeID const&)> mPriorityLookup;
 
     std::map<Hash, SCPQuorumSetPtr> mQuorumSets;

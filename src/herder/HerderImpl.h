@@ -53,16 +53,16 @@ class HerderImpl : public Herder, public SCPDriver
     void ballotDidHearFromQuorum(uint64 slotIndex,
                                  SCPBallot const& ballot) override;
 
-    void ballotGotBumped(uint64 slotIndex, SCPBallot const& ballot,
-                         std::chrono::milliseconds timeout) override;
-
     void valueExternalized(uint64 slotIndex, Value const& value) override;
 
-    void nominatingValue(uint64 slotIndex, Value const& value,
-                         std::chrono::milliseconds timeout) override;
+    void nominatingValue(uint64 slotIndex, Value const& value) override;
 
     Value combineCandidates(uint64 slotIndex,
                             std::set<Value> const& candidates) override;
+
+    void setupTimer(uint64 slotIndex, int timerID,
+                    std::chrono::milliseconds timeout,
+                    std::function<void()> cb) override;
 
     void emitEnvelope(SCPEnvelope const& envelope) override;
     bool recvTransactions(TxSetFramePtr txSet);
@@ -164,11 +164,13 @@ class HerderImpl : public Herder, public SCPDriver
     VirtualClock::time_point mLastTrigger;
     VirtualTimer mTriggerTimer;
 
-    VirtualTimer mBumpTimer;
-    VirtualTimer mNominationTimer;
     VirtualTimer mRebroadcastTimer;
     Value mCurrentValue;
     StellarMessage mLastSentMessage;
+
+    // timers used by SCP
+    // indexed by slotIndex, timerID
+    std::map<uint64, std::map<int, std::unique_ptr<VirtualTimer>>> mSCPTimers;
 
     Application& mApp;
     LedgerManager& mLedgerManager;

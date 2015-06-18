@@ -63,16 +63,12 @@ class SCPDriver
     virtual Value combineCandidates(uint64 slotIndex,
                                     std::set<Value> const& candidates) = 0;
 
-    // Inform about events happening within the consensus algorithm.
+    // `setupTimer`: requests to trigger 'cb' after timeout
+    virtual void setupTimer(uint64 slotIndex, int timerID,
+                            std::chrono::milliseconds timeout,
+                            std::function<void()> cb) = 0;
 
-    // `ballotGotBumped` is called every time the local ballot is updated
-    // timeout is the duration that the local instance should wait for before
-    // calling `abandonBallot`
-    virtual void
-    ballotGotBumped(uint64 slotIndex, SCPBallot const& ballot,
-                    std::chrono::milliseconds timeout)
-    {
-    }
+    // Inform about events happening within the consensus algorithm.
 
     // `valueExternalized` is called at most once per slot when the slot
     // externalize its value.
@@ -83,11 +79,8 @@ class SCPDriver
 
     // ``nominatingValue`` is called every time the local instance nominates
     // a new value.
-    // timeout is the duration for which the local instance should wait before
-    // calling 'nominate' with the 'timedout' flag set to true.
     virtual void
-    nominatingValue(uint64 slotIndex, Value const& value,
-                    std::chrono::milliseconds timeout)
+    nominatingValue(uint64 slotIndex, Value const& value)
     {
     }
 
