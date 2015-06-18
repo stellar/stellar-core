@@ -140,9 +140,9 @@ class BallotProtocol
     // predicate.
     // 'candidate' can have an initial value to extend or be set to (0,0)
     // updates 'candidate' (or leave it unchanged)
-    void findExtendedInterval(Interval& candidate,
-                              std::set<Interval> const& boundaries,
-                              std::function<bool(Interval const&)> pred);
+    static void findExtendedInterval(Interval& candidate,
+                                     std::set<Interval> const& boundaries,
+                                     std::function<bool(Interval const&)> pred);
 
     // constructs the set boundaries compatible with the ballot
     std::set<Interval>
@@ -152,12 +152,13 @@ class BallotProtocol
     // a certain property
 
     // is ballot prepared by st
-    bool hasPreparedBallot(SCPBallot const& ballot, uint256 const& nodeID,
-                           SCPStatement const& st);
+    static bool hasPreparedBallot(SCPBallot const& ballot,
+                                  uint256 const& nodeID,
+                                  SCPStatement const& st);
 
     // returns true if the statement commits the ballot in the range 'check'
-    bool commitPredicate(SCPBallot const& ballot, Interval const& check,
-                         uint256 const&, SCPStatement const& st);
+    static bool commitPredicate(SCPBallot const& ballot, Interval const& check,
+                                uint256 const&, SCPStatement const& st);
 
     // attempts to update p to ballot (updating p' if needed)
     bool setPrepared(SCPBallot const& ballot);
@@ -165,18 +166,19 @@ class BallotProtocol
     // ** Helper methods to compare two ballots
 
     // ballot comparison (ordering)
-    int compareBallots(std::unique_ptr<SCPBallot> const& b1,
-                       std::unique_ptr<SCPBallot> const& b2);
-    int compareBallots(SCPBallot const& b1, SCPBallot const& b2);
+    static int compareBallots(std::unique_ptr<SCPBallot> const& b1,
+                              std::unique_ptr<SCPBallot> const& b2);
+    static int compareBallots(SCPBallot const& b1, SCPBallot const& b2);
 
     // b1 ~ b2
-    bool areBallotsCompatible(SCPBallot const& b1, SCPBallot const& b2);
+    static bool areBallotsCompatible(SCPBallot const& b1, SCPBallot const& b2);
 
     // b1 <= b2 && b1 !~ b2
-    bool areBallotsLessAndIncompatible(SCPBallot const& b1,
-                                       SCPBallot const& b2);
+    static bool areBallotsLessAndIncompatible(SCPBallot const& b1,
+                                              SCPBallot const& b2);
     // b1 <= b2 && b1 ~ b2
-    bool areBallotsLessAndCompatible(SCPBallot const& b1, SCPBallot const& b2);
+    static bool areBallotsLessAndCompatible(SCPBallot const& b1,
+                                            SCPBallot const& b2);
 
     // ** statement helper functions
 
@@ -185,10 +187,11 @@ class BallotProtocol
     bool isNewerStatement(uint256 const& nodeID, SCPStatement const& st);
 
     // returns true if st is newer than oldst
-    bool isNewerStatement(SCPStatement const& oldst, SCPStatement const& st);
+    static bool isNewerStatement(SCPStatement const& oldst,
+                                 SCPStatement const& st);
 
     // basic sanity check on statement
-    bool isStatementSane(SCPStatement const& st);
+    static bool isStatementSane(SCPStatement const& st);
 
     // records the statement in the state machine
     void recordStatement(SCPStatement const& env);
@@ -212,7 +215,7 @@ class BallotProtocol
     // verifies that the internal state is consistent
     void checkInvariants();
 
-    // create a statement of the given type using the state in node
+    // create a statement of the given type using the local state
     SCPStatement createStatement(SCPStatementType const& type);
 
     // returns a string representing the slot's state

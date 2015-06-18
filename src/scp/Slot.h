@@ -61,9 +61,8 @@ class Slot : public std::enable_shared_from_this<Slot>
     void recordStatement(SCPStatement const& st);
 
     // Process a newly received envelope for this slot and update the state of
-    // the slot accordingly. `cb` asynchronously returns whether the envelope
-    // was validated or not. Must exclusively receive envelopes whose payload
-    // type is STATEMENT
+    // the slot accordingly.
+    // Must exclusively receive envelopes whose payload type is STATEMENT
     SCP::EnvelopeState processEnvelope(SCPEnvelope const& envelope);
 
     bool abandonBallot();

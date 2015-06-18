@@ -37,13 +37,14 @@ class NominationProtocol
     Value mLatestCompositeCandidate;
 
     bool isNewerStatement(uint256 const& nodeID, SCPNomination const& st);
-    bool isNewerStatement(SCPNomination const& oldst, SCPNomination const& st);
+    static bool isNewerStatement(SCPNomination const& oldst,
+                                 SCPNomination const& st);
 
     // returns true if 'p' is a subset of 'v'
     // also sets 'notEqual' if p and v differ
     // note: p and v must be sorted
-    bool isSubsetHelper(xdr::xvector<Value> const& p,
-                        xdr::xvector<Value> const& v, bool& notEqual);
+    static bool isSubsetHelper(xdr::xvector<Value> const& p,
+                               xdr::xvector<Value> const& v, bool& notEqual);
 
     bool isValid(SCPStatement const& st);
 

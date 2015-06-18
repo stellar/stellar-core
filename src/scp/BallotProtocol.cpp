@@ -263,20 +263,21 @@ BallotProtocol::isStatementSane(SCPStatement const& st)
     case SCPStatementType::SCP_ST_PREPARE:
     {
         auto const& p = st.pledges.prepare();
-        bool mOK = p.ballot.counter > 0;
+        bool isOK = p.ballot.counter > 0;
 
-        mOK = mOK && (!p.prepared ||
-                      (areBallotsLessAndCompatible(*p.prepared, p.ballot)));
+        isOK = isOK && (!p.prepared ||
+                        (areBallotsLessAndCompatible(*p.prepared, p.ballot)));
 
-        mOK = mOK &&
-              ((!p.preparedPrime || !p.prepared) ||
-               (areBallotsLessAndIncompatible(*p.preparedPrime, *p.prepared)));
+        isOK = isOK &&
+               ((!p.preparedPrime || !p.prepared) ||
+                (areBallotsLessAndIncompatible(*p.preparedPrime, *p.prepared)));
 
-        mOK = mOK && (p.nP == 0 || (p.prepared && p.nP <= p.prepared->counter));
+        isOK =
+            isOK && (p.nP == 0 || (p.prepared && p.nP <= p.prepared->counter));
 
-        mOK = mOK && (p.nC == 0 || (p.nP != 0 && p.nP >= p.nC));
+        isOK = isOK && (p.nC == 0 || (p.nP != 0 && p.nP >= p.nC));
 
-        if (!mOK)
+        if (!isOK)
         {
             CLOG(TRACE, "SCP") << "Malformed PREPARE message";
             assert(false); // REMOVE in production
@@ -708,7 +709,7 @@ BallotProtocol::isPreparedAccept(SCPBallot const& ballot)
 
             return res;
         },
-        std::bind(&BallotProtocol::hasPreparedBallot, this, ballot, _1, _2));
+        std::bind(&BallotProtocol::hasPreparedBallot, ballot, _1, _2));
 }
 
 bool
@@ -790,7 +791,7 @@ BallotProtocol::isPreparedConfirmed(SCPBallot const& ballot)
     }
 
     return federatedRatify(
-        std::bind(&BallotProtocol::hasPreparedBallot, this, ballot, _1, _2));
+        std::bind(&BallotProtocol::hasPreparedBallot, ballot, _1, _2));
 }
 
 bool
@@ -1032,8 +1033,7 @@ BallotProtocol::isAcceptCommit(SCPBallot const& ballot, SCPBallot& outLow,
                 }
                 return res;
             },
-            std::bind(&BallotProtocol::commitPredicate, this, ballot, cur, _1,
-                      _2));
+            std::bind(&BallotProtocol::commitPredicate, ballot, cur, _1, _2));
     };
 
     // build the boundaries to scan
@@ -1139,8 +1139,8 @@ BallotProtocol::isConfirmCommit(SCPBallot const& ballot, SCPBallot& outLow,
 
     auto pred = [&ballot, this](Interval const& cur) -> bool
     {
-        return federatedRatify(std::bind(&BallotProtocol::commitPredicate, this,
-                                         ballot, cur, _1, _2));
+        return federatedRatify(
+            std::bind(&BallotProtocol::commitPredicate, ballot, cur, _1, _2));
     };
 
     findExtendedInterval(candidate, boundaries, pred);
