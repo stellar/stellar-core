@@ -201,7 +201,7 @@ BallotProtocol::processEnvelope(SCPEnvelope const& envelope)
                 // old statement; otherwise it's newer and may trigger progress
                 // on a newer counter
                 uint32 myWorkingBallotCounter = 0;
-                if (mPhase == SCP_ST_PREPARE)
+                if (mPhase == SCP_PHASE_PREPARE)
                 {
                     if (mCurrentBallot)
                     {
@@ -821,6 +821,8 @@ BallotProtocol::commitPredicate(SCPBallot const& ballot, Interval const& check,
         }
     }
     break;
+    default:
+        abort();
     }
     return res;
 }
@@ -962,6 +964,8 @@ BallotProtocol::getCommitBoundariesFromStatements(SCPBallot const& ballot)
             }
         }
         break;
+        default:
+            abort();
         }
     }
     return res;
@@ -1023,6 +1027,8 @@ BallotProtocol::isAcceptCommit(SCPBallot const& ballot, SCPBallot& outLow,
                     }
                 }
                 break;
+                default:
+                    abort();
                 }
                 return res;
             },

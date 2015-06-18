@@ -59,7 +59,7 @@ class LoadGenerator
     void generateLoad(Application& app, uint32_t nAccounts, uint32_t nTxs,
                       uint32_t txRate);
 
-    bool maybeCreateAccount(uint32_t ledgerNum, std::vector<TxInfo> &txs);
+    bool maybeCreateAccount(uint32_t ledgerNum, std::vector<TxInfo>& txs);
 
     std::vector<TxInfo> accountCreationTransactions(size_t n);
     AccountInfoPtr createAccount(size_t i, uint32_t ledgerNum = 0);
@@ -71,9 +71,10 @@ class LoadGenerator
     TxInfo createTransferNativeTransaction(AccountInfoPtr from,
                                            AccountInfoPtr to, int64_t amount);
 
-    TxInfo createTransferCreditTransaction(AccountInfoPtr from,
-                                           AccountInfoPtr to, int64_t amount,
-                                           std::vector<AccountInfoPtr> const& path);
+    TxInfo
+    createTransferCreditTransaction(AccountInfoPtr from, AccountInfoPtr to,
+                                    int64_t amount,
+                                    std::vector<AccountInfoPtr> const& path);
 
     TxInfo createEstablishTrustTransaction(AccountInfoPtr from,
                                            AccountInfoPtr issuer);
@@ -83,8 +84,7 @@ class LoadGenerator
     AccountInfoPtr pickRandomAccount(AccountInfoPtr tryToAvoid,
                                      uint32_t ledgerNum);
 
-    AccountInfoPtr pickRandomPath(AccountInfoPtr from,
-                                  uint32_t ledgerNum,
+    AccountInfoPtr pickRandomPath(AccountInfoPtr from, uint32_t ledgerNum,
                                   std::vector<AccountInfoPtr>& path);
 
     TxInfo createRandomTransaction(float alpha, uint32_t ledgerNum = 0);
