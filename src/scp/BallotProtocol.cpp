@@ -549,7 +549,7 @@ BallotProtocol::emitCurrentStateStatement()
     SCPStatement statement = createStatement(t);
     SCPEnvelope envelope = mSlot.createEnvelope(statement);
 
-    if (processEnvelope(envelope) == SCP::EnvelopeState::VALID)
+    if (mSlot.processEnvelope(envelope) == SCP::EnvelopeState::VALID)
     {
         if (!mLastEnvelope ||
             isNewerStatement(mLastEnvelope->statement, envelope.statement))
