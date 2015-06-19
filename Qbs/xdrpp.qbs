@@ -145,6 +145,7 @@ Project {
 
         Export {
             Depends { name: "cpp" }
+            Depends {name: "build_endian_header"}
             cpp.includePaths: [baseDirectory]
         }
 
