@@ -4,7 +4,6 @@
 
 #include "NominationProtocol.h"
 
-#include <cassert>
 #include <functional>
 #include "util/types.h"
 #include "xdrpp/marshal.h"
@@ -14,6 +13,7 @@
 #include "scp/LocalNode.h"
 #include "lib/json/json.h"
 #include "util/make_unique.h"
+#include "util/GlobalChecks.h"
 #include "Slot.h"
 
 namespace stellar
@@ -213,7 +213,7 @@ NominationProtocol::updateRoundLeaders()
 uint64
 NominationProtocol::hashValue(bool isPriority, NodeID const& nodeID)
 {
-    assert(!mPreviousValue.empty());
+    dbgAssert(!mPreviousValue.empty());
     return mSlot.getSCPDriver().computeHash(
         mSlot.getSlotIndex(), isPriority, mRoundNumber, nodeID, mPreviousValue);
 }

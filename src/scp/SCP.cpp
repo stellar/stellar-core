@@ -12,6 +12,7 @@
 #include "scp/Slot.h"
 #include "util/Logging.h"
 #include "crypto/Hex.h"
+#include "util/GlobalChecks.h"
 
 namespace stellar
 {
@@ -40,14 +41,14 @@ SCP::receiveEnvelope(SCPEnvelope const& envelope)
 bool
 SCP::abandonBallot(uint64 slotIndex)
 {
-    assert(!getSecretKey().isZero());
+    dbgAssert(!getSecretKey().isZero());
     return getSlot(slotIndex)->abandonBallot();
 }
 
 bool
 SCP::nominate(uint64 slotIndex, Value const& value, Value const& previousValue)
 {
-    assert(!getSecretKey().isZero());
+    dbgAssert(!getSecretKey().isZero());
     return getSlot(slotIndex)->nominate(value, previousValue, false);
 }
 
@@ -106,7 +107,7 @@ SCP::getSlot(uint64 slotIndex)
 void
 SCP::signEnvelope(SCPEnvelope& envelope)
 {
-    assert(envelope.statement.nodeID == getSecretKey().getPublicKey());
+    dbgAssert(envelope.statement.nodeID == getSecretKey().getPublicKey());
     envelope.signature =
         getSecretKey().sign(xdr::xdr_to_opaque(envelope.statement));
     mDriver.envelopeSigned();

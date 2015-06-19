@@ -4,7 +4,6 @@
 
 #include "LocalNode.h"
 
-#include <cassert>
 #include "util/types.h"
 #include "xdrpp/marshal.h"
 #include "util/Logging.h"

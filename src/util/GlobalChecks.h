@@ -7,4 +7,16 @@
 namespace stellar
 {
 void assertThreadIsMain();
+
+void dbgAbort();
+
+#ifdef NDEBUG
+
+#define dbgAssert(expression) ((void)0)
+
+#else
+
+#define dbgAssert(expression) (void)((!!(expression)) || (dbgAbort(), 0))
+
+#endif
 }
