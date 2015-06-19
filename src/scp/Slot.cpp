@@ -198,7 +198,8 @@ Slot::dumpInfo(Json::Value& ret)
         slotValue["statements"][count++] = envToStr(item);
     }
 
-    mBallotProtocol.dumpInfo(ret);
+    mNominationProtocol.dumpInfo(slotValue);
+    mBallotProtocol.dumpInfo(slotValue);
 
     ret["slot"].append(slotValue);
 }

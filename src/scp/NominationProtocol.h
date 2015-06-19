@@ -87,5 +87,7 @@ class NominationProtocol
     {
         return mLatestCompositeCandidate;
     }
+
+    void dumpInfo(Json::Value& ret);
 };
 }

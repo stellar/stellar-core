@@ -425,4 +425,13 @@ NominationProtocol::nominate(Value const& value, Value const& previousValue,
 
     return updated;
 }
+
+void
+NominationProtocol::dumpInfo(Json::Value& ret)
+{
+    Json::Value nomState;
+    nomState["roundnumber"] = mRoundNumber;
+    nomState["started"] = mNominationStarted;
+    ret["nomination"].append(nomState);
+}
 }
