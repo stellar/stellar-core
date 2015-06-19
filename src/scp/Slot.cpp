@@ -4,7 +4,6 @@
 
 #include "Slot.h"
 
-#include <cassert>
 #include <functional>
 #include "util/types.h"
 #include "xdrpp/marshal.h"
@@ -14,6 +13,7 @@
 #include "scp/LocalNode.h"
 #include "lib/json/json.h"
 #include "util/make_unique.h"
+#include "util/GlobalChecks.h"
 
 namespace stellar
 {
@@ -44,7 +44,7 @@ Slot::recordStatement(SCPStatement const& st)
 SCP::EnvelopeState
 Slot::processEnvelope(SCPEnvelope const& envelope)
 {
-    assert(envelope.statement.slotIndex == mSlotIndex);
+    dbgAssert(envelope.statement.slotIndex == mSlotIndex);
 
     CLOG(DEBUG, "SCP") << "Slot::processEnvelope"
                        << " i: " << getSlotIndex() << " " << envToStr(envelope);
@@ -132,7 +132,7 @@ Slot::getCompanionQuorumSetHashFromStatement(SCPStatement const& st)
         h = st.pledges.nominate().quorumSetHash;
         break;
     default:
-        abort();
+        dbgAbort();
     }
     return h;
 }
@@ -179,7 +179,7 @@ Slot::getQuorumSetFromStatement(SCPStatement const& st)
         }
         else
         {
-            abort();
+            dbgAbort();
         }
         res = getSCPDriver().getQSet(h);
     }

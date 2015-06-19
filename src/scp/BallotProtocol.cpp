@@ -4,7 +4,6 @@
 
 #include "BallotProtocol.h"
 
-#include <cassert>
 #include <functional>
 #include <cmath>
 #include "util/types.h"
@@ -15,6 +14,7 @@
 #include "scp/LocalNode.h"
 #include "lib/json/json.h"
 #include "util/make_unique.h"
+#include "util/GlobalChecks.h"
 #include "Slot.h"
 
 namespace stellar
@@ -138,7 +138,7 @@ SCP::EnvelopeState
 BallotProtocol::processEnvelope(SCPEnvelope const& envelope)
 {
     SCP::EnvelopeState res = SCP::EnvelopeState::INVALID;
-    assert(envelope.statement.slotIndex == mSlot.getSlotIndex());
+    dbgAssert(envelope.statement.slotIndex == mSlot.getSlotIndex());
 
     SCPStatement const& statement = envelope.statement;
     NodeID const& nodeID = statement.nodeID;
@@ -209,7 +209,7 @@ BallotProtocol::processEnvelope(SCPEnvelope const& envelope)
             }
             break;
             default:
-                abort();
+                dbgAbort();
             };
         }
 
@@ -252,8 +252,7 @@ BallotProtocol::isStatementSane(SCPStatement const& st)
         auto const& p = st.pledges.prepare();
         bool isOK = p.ballot.counter > 0;
 
-        isOK = isOK && (!p.prepared ||
-                        (areBallotsLessAndCompatible(*p.prepared, p.ballot)));
+        isOK = isOK && (!p.prepared || p.ballot.counter >= p.prepared->counter);
 
         isOK = isOK &&
                ((!p.preparedPrime || !p.prepared) ||
@@ -267,7 +266,7 @@ BallotProtocol::isStatementSane(SCPStatement const& st)
         if (!isOK)
         {
             CLOG(TRACE, "SCP") << "Malformed PREPARE message";
-            assert(false); // REMOVE in production
+            dbgAbort(); // REMOVE in production
             res = false;
         }
     }
@@ -280,7 +279,7 @@ BallotProtocol::isStatementSane(SCPStatement const& st)
         if (!res)
         {
             CLOG(TRACE, "SCP") << "Malformed CONFIRM message";
-            assert(false); // REMOVE in production
+            dbgAbort(); // REMOVE in production
         }
     }
     break;
@@ -294,12 +293,12 @@ BallotProtocol::isStatementSane(SCPStatement const& st)
         if (!res)
         {
             CLOG(TRACE, "SCP") << "Malformed EXTERNALIZE message";
-            assert(false); // REMOVE in production
+            dbgAbort(); // REMOVE in production
         }
     }
     break;
     default:
-        abort();
+        dbgAbort();
     }
 
     return res;
@@ -342,8 +341,8 @@ BallotProtocol::bumpState(Value const& value, bool force)
     if (mConfirmedPrepared)
     {
         // can only bump the counter if we committed to something already
-        newb = *mConfirmedPrepared;
-        newb.counter++;
+        newb =
+            SCPBallot(mCurrentBallot->counter + 1, mConfirmedPrepared->value);
     }
     else
     {
@@ -384,7 +383,7 @@ BallotProtocol::updateCurrentValue(SCPBallot const& ballot)
     }
     else
     {
-        assert(compareBallots(*mCurrentBallot, ballot) <= 0);
+        dbgAssert(compareBallots(*mCurrentBallot, ballot) <= 0);
 
         if (mCommit && !areBallotsCompatible(*mCommit, ballot))
         {
@@ -435,10 +434,10 @@ BallotProtocol::bumpToBallot(SCPBallot const& ballot)
                        << " b: " << mSlot.ballotToStr(ballot);
 
     // `bumpToBallot` should be never called once we committed.
-    assert(mPhase != SCP_PHASE_EXTERNALIZE);
+    dbgAssert(mPhase != SCP_PHASE_EXTERNALIZE);
 
     // We should move mCurrentBallot monotonically only
-    assert(!mCurrentBallot || compareBallots(ballot, *mCurrentBallot) >= 0);
+    dbgAssert(!mCurrentBallot || compareBallots(ballot, *mCurrentBallot) >= 0);
 
     bool gotBumped =
         !mCurrentBallot || (mCurrentBallot->counter != ballot.counter);
@@ -497,10 +496,10 @@ BallotProtocol::createStatement(SCPStatementType const& type)
     {
         auto& c = statement.pledges.confirm();
         c.quorumSetHash = getLocalNode()->getQuorumSetHash();
-        assert(mCurrentBallot->counter == UINT32_MAX);
-        assert(areBallotsLessAndCompatible(*mPrepared, *mCurrentBallot));
-        assert(areBallotsLessAndCompatible(*mCommit, *mPrepared));
-        assert(areBallotsLessAndCompatible(*mCommit, *mConfirmedPrepared));
+        dbgAssert(mCurrentBallot->counter == UINT32_MAX);
+        dbgAssert(areBallotsLessAndCompatible(*mPrepared, *mCurrentBallot));
+        dbgAssert(areBallotsLessAndCompatible(*mCommit, *mPrepared));
+        dbgAssert(areBallotsLessAndCompatible(*mCommit, *mConfirmedPrepared));
         c.nPrepared = mPrepared->counter;
         c.commit = *mCommit;
         c.nPrepared = mPrepared->counter;
@@ -509,10 +508,10 @@ BallotProtocol::createStatement(SCPStatementType const& type)
     break;
     case SCPStatementType::SCP_ST_EXTERNALIZE:
     {
-        assert(mCurrentBallot->counter == UINT32_MAX);
-        assert(areBallotsLessAndCompatible(*mPrepared, *mCurrentBallot));
-        assert(areBallotsLessAndCompatible(*mCommit, *mPrepared));
-        assert(areBallotsLessAndCompatible(*mCommit, *mConfirmedPrepared));
+        dbgAssert(mCurrentBallot->counter == UINT32_MAX);
+        dbgAssert(areBallotsLessAndCompatible(*mPrepared, *mCurrentBallot));
+        dbgAssert(areBallotsLessAndCompatible(*mCommit, *mPrepared));
+        dbgAssert(areBallotsLessAndCompatible(*mCommit, *mConfirmedPrepared));
         auto& e = statement.pledges.externalize();
         e.commit = *mCommit;
         e.nP = mConfirmedPrepared->counter;
@@ -520,7 +519,7 @@ BallotProtocol::createStatement(SCPStatementType const& type)
     }
     break;
     default:
-        abort();
+        dbgAbort();
     }
 
     return statement;
@@ -543,13 +542,13 @@ BallotProtocol::emitCurrentStateStatement()
         t = SCP_ST_EXTERNALIZE;
         break;
     default:
-        abort();
+        dbgAbort();
     }
 
     SCPStatement statement = createStatement(t);
     SCPEnvelope envelope = mSlot.createEnvelope(statement);
 
-    if (processEnvelope(envelope) == SCP::EnvelopeState::VALID)
+    if (mSlot.processEnvelope(envelope) == SCP::EnvelopeState::VALID)
     {
         if (!mLastEnvelope ||
             isNewerStatement(mLastEnvelope->statement, envelope.statement))
@@ -571,16 +570,16 @@ BallotProtocol::checkInvariants()
 {
     if (mCurrentBallot)
     {
-        assert(mCurrentBallot->counter != 0);
+        dbgAssert(mCurrentBallot->counter != 0);
     }
     if (mPrepared && mPreparedPrime)
     {
-        assert(areBallotsLessAndIncompatible(*mPreparedPrime, *mPrepared));
+        dbgAssert(areBallotsLessAndIncompatible(*mPreparedPrime, *mPrepared));
     }
     if (mCommit)
     {
-        assert(areBallotsLessAndCompatible(*mCommit, *mConfirmedPrepared));
-        assert(
+        dbgAssert(areBallotsLessAndCompatible(*mCommit, *mConfirmedPrepared));
+        dbgAssert(
             areBallotsLessAndCompatible(*mConfirmedPrepared, *mCurrentBallot));
     }
 
@@ -589,14 +588,14 @@ BallotProtocol::checkInvariants()
     case SCP_PHASE_PREPARE:
         break;
     case SCP_PHASE_CONFIRM:
-        assert(mCommit);
+        dbgAssert(mCommit);
         break;
     case SCP_PHASE_EXTERNALIZE:
-        assert(mCommit);
-        assert(mConfirmedPrepared);
+        dbgAssert(mCommit);
+        dbgAssert(mConfirmedPrepared);
         break;
     default:
-        abort();
+        dbgAbort();
     }
 }
 
@@ -659,7 +658,7 @@ BallotProtocol::isPreparedAccept(SCPBallot const& ballot)
         {
             return false;
         }
-        assert(areBallotsCompatible(*mCommit, ballot));
+        dbgAssert(areBallotsCompatible(*mCommit, ballot));
     }
 
     // if we already prepared this ballot, don't bother checking again
@@ -695,7 +694,8 @@ BallotProtocol::isPreparedAccept(SCPBallot const& ballot)
             }
             break;
             default:
-                abort();
+                res = false;
+                dbgAbort();
             }
 
             return res;
@@ -746,7 +746,7 @@ BallotProtocol::attemptPreparedAccept(SCPBallot const& ballot)
             (mPreparedPrime && areBallotsLessAndIncompatible(
                                    *mConfirmedPrepared, *mPreparedPrime)))
         {
-            assert(mPhase == SCP_PHASE_PREPARE);
+            dbgAssert(mPhase == SCP_PHASE_PREPARE);
             mCommit.reset();
             didWork = true;
         }
@@ -815,7 +815,7 @@ BallotProtocol::commitPredicate(SCPBallot const& ballot, Interval const& check,
     }
     break;
     default:
-        abort();
+        dbgAbort();
     }
     return res;
 }
@@ -879,7 +879,7 @@ BallotProtocol::findExtendedInterval(Interval& candidate,
             }
         }
 
-        assert(seg.first <= seg.second);
+        dbgAssert(seg.first <= seg.second);
 
         for (int i = 0; i < 2; i++)
         {
@@ -959,7 +959,7 @@ BallotProtocol::getCommitBoundariesFromStatements(SCPBallot const& ballot)
         }
         break;
         default:
-            abort();
+            dbgAbort();
         }
     }
     return res;
@@ -1022,7 +1022,7 @@ BallotProtocol::isAcceptCommit(SCPBallot const& ballot, SCPBallot& outLow,
                 }
                 break;
                 default:
-                    abort();
+                    dbgAbort();
                 }
                 return res;
             },
@@ -1197,7 +1197,8 @@ BallotProtocol::hasPreparedBallot(SCPBallot const& ballot,
     }
     break;
     default:
-        abort();
+        res = false;
+        dbgAbort();
     }
 
     return res;
@@ -1219,7 +1220,7 @@ BallotProtocol::getCompanionQuorumSetHashFromStatement(SCPStatement const& st)
         h = st.pledges.externalize().commitQuorumSetHash;
         break;
     default:
-        abort();
+        dbgAbort();
     }
     return h;
 }
@@ -1241,7 +1242,7 @@ BallotProtocol::getWorkingBallot(SCPStatement const& st)
         res = st.pledges.externalize().commit;
         break;
     default:
-        abort();
+        dbgAbort();
     }
     return res;
 }
