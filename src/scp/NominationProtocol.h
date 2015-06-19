@@ -87,5 +87,13 @@ class NominationProtocol
     {
         return mLatestCompositeCandidate;
     }
+
+    void dumpInfo(Json::Value& ret);
+
+    SCPEnvelope*
+    getLastMessage() const
+    {
+        return mLastEnvelope.get();
+    }
 };
 }

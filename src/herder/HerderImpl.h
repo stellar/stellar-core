@@ -104,10 +104,15 @@ class HerderImpl : public Herder, public SCPDriver
 
     void startRebroadcastTimer();
     void rebroadcast();
+    void broadcast(SCPEnvelope const& e);
 
     void updateSCPCounters();
 
     void processSCPQueueAtIndex(uint64 slotIndex);
+
+    // returns true if the local instance is in a state compatible with
+    // this slot
+    bool isSlotCompatibleWithCurrentState(uint64 slotIndex);
 
     // 0- tx we got during ledger close
     // 1- one ledger ago. rebroadcast
@@ -166,7 +171,6 @@ class HerderImpl : public Herder, public SCPDriver
 
     VirtualTimer mRebroadcastTimer;
     Value mCurrentValue;
-    StellarMessage mLastSentMessage;
 
     // timers used by SCP
     // indexed by slotIndex, timerID

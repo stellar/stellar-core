@@ -153,4 +153,10 @@ SCP::getCumulativeStatemtCount() const
     }
     return c;
 }
+
+std::vector<SCPEnvelope>
+SCP::getLatestMessages(uint64 slotIndex)
+{
+    return getSlot(slotIndex)->getLatestMessages();
+}
 }

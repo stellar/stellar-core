@@ -35,6 +35,24 @@ Slot::getLatestCompositeCandidate()
     return mNominationProtocol.getLatestCompositeCandidate();
 }
 
+std::vector<SCPEnvelope>
+Slot::getLatestMessages() const
+{
+    std::vector<SCPEnvelope> res;
+    SCPEnvelope* e;
+    e = mNominationProtocol.getLastMessage();
+    if (e)
+    {
+        res.emplace_back(*e);
+    }
+    e = mBallotProtocol.getLastMessage();
+    if (e)
+    {
+        res.emplace_back(*e);
+    }
+    return res;
+}
+
 void
 Slot::recordStatement(SCPStatement const& st)
 {
@@ -198,7 +216,8 @@ Slot::dumpInfo(Json::Value& ret)
         slotValue["statements"][count++] = envToStr(item);
     }
 
-    mBallotProtocol.dumpInfo(ret);
+    mNominationProtocol.dumpInfo(slotValue);
+    mBallotProtocol.dumpInfo(slotValue);
 
     ret["slot"].append(slotValue);
 }

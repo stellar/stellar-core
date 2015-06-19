@@ -86,6 +86,12 @@ class BallotProtocol
     // c for EXTERNALIZE messages
     static SCPBallot getWorkingBallot(SCPStatement const& st);
 
+    SCPEnvelope*
+    getLastMessage() const
+    {
+        return mLastEnvelope.get();
+    }
+
   private:
     // attempts to make progress using `ballot` as a hint
     void advanceSlot(SCPBallot const& ballot);
