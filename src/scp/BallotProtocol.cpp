@@ -252,8 +252,7 @@ BallotProtocol::isStatementSane(SCPStatement const& st)
         auto const& p = st.pledges.prepare();
         bool isOK = p.ballot.counter > 0;
 
-        isOK = isOK && (!p.prepared ||
-                        (areBallotsLessAndCompatible(*p.prepared, p.ballot)));
+        isOK = isOK && (!p.prepared || p.ballot.counter >= p.prepared->counter);
 
         isOK = isOK &&
                ((!p.preparedPrime || !p.prepared) ||
