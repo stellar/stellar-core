@@ -69,6 +69,9 @@ class Slot : public std::enable_shared_from_this<Slot>
 
     Value const& getLatestCompositeCandidate();
 
+    // returns the latest messages the slot emited
+    std::vector<SCPEnvelope> getLatestMessages() const;
+
     // records the statement in the historical record for this slot
     void recordStatement(SCPStatement const& st);
 

@@ -89,5 +89,11 @@ class NominationProtocol
     }
 
     void dumpInfo(Json::Value& ret);
+
+    SCPEnvelope*
+    getLastMessage() const
+    {
+        return mLastEnvelope.get();
+    }
 };
 }

@@ -104,6 +104,7 @@ class HerderImpl : public Herder, public SCPDriver
 
     void startRebroadcastTimer();
     void rebroadcast();
+    void broadcast(SCPEnvelope const& e);
 
     void updateSCPCounters();
 
@@ -170,7 +171,6 @@ class HerderImpl : public Herder, public SCPDriver
 
     VirtualTimer mRebroadcastTimer;
     Value mCurrentValue;
-    StellarMessage mLastSentMessage;
 
     // timers used by SCP
     // indexed by slotIndex, timerID

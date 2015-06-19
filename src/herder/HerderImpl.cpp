@@ -494,30 +494,38 @@ HerderImpl::setupTimer(uint64 slotIndex, int timerID,
 void
 HerderImpl::rebroadcast()
 {
-    if (mLastSentMessage.type() == SCP_MESSAGE &&
-        !mApp.getConfig().MANUAL_CLOSE)
+    for (auto const& e : mSCP.getLatestMessages(mLedgerManager.getLedgerNum()))
     {
-        CLOG(DEBUG, "Herder")
-            << "rebroadcast "
-            << " s:" << mLastSentMessage.envelope().statement.pledges.type()
-            << " i:" << mLastSentMessage.envelope().statement.slotIndex;
+        broadcast(e);
+    }
+    startRebroadcastTimer();
+}
+
+void
+HerderImpl::broadcast(SCPEnvelope const& e)
+{
+    if (!mApp.getConfig().MANUAL_CLOSE)
+    {
+        StellarMessage m;
+        m.type(SCP_MESSAGE);
+        m.envelope() = e;
+
+        CLOG(DEBUG, "Herder") << "broadcast "
+                              << " s:" << e.statement.pledges.type()
+                              << " i:" << e.statement.slotIndex;
 
         mSCPMetrics.mEnvelopeEmit.Mark();
-        mApp.getOverlayManager().broadcastMessage(mLastSentMessage, true);
-        startRebroadcastTimer();
+        mApp.getOverlayManager().broadcastMessage(m, true);
     }
 }
 
 void
 HerderImpl::startRebroadcastTimer()
 {
-    if (mLastSentMessage.type() == SCP_MESSAGE)
-    {
-        mRebroadcastTimer.expires_from_now(std::chrono::seconds(2));
+    mRebroadcastTimer.expires_from_now(std::chrono::seconds(2));
 
-        mRebroadcastTimer.async_wait(std::bind(&HerderImpl::rebroadcast, this),
-                                     &VirtualTimer::onFailureNoop);
-    }
+    mRebroadcastTimer.async_wait(std::bind(&HerderImpl::rebroadcast, this),
+                                 &VirtualTimer::onFailureNoop);
 }
 
 void
@@ -539,16 +547,16 @@ HerderImpl::emitEnvelope(SCPEnvelope const& envelope)
     {
         return;
     }
-    // start to broadcast our latest message
-    mLastSentMessage.type(SCP_MESSAGE);
-    mLastSentMessage.envelope() = envelope;
 
     CLOG(DEBUG, "Herder") << "emitEnvelope"
                           << " s:" << envelope.statement.pledges.type()
                           << " i:" << slotIndex
                           << " a:" << mApp.getStateHuman();
 
-    rebroadcast();
+    broadcast(envelope);
+
+    // this resets the re-broadcast timer
+    startRebroadcastTimer();
 }
 
 bool
