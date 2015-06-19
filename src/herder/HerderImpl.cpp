@@ -154,6 +154,19 @@ HerderImpl::bootstrap()
 }
 
 bool
+HerderImpl::isSlotCompatibleWithCurrentState(uint64 slotIndex)
+{
+    bool res = false;
+    if (mLedgerManager.isSynced())
+    {
+        auto const& lcl = mLedgerManager.getLastClosedLedgerHeader();
+        res = (slotIndex == (lcl.header.ledgerSeq + 1));
+    }
+
+    return res;
+}
+
+bool
 HerderImpl::validateValue(uint64 slotIndex, NodeID const& nodeID,
                           Value const& value)
 {
@@ -168,33 +181,49 @@ HerderImpl::validateValue(uint64 slotIndex, NodeID const& nodeID,
         return false;
     }
 
-    if (!mTrackingSCP)
-    {
-        // if we're not tracking, there is not much more we can do to validate
-        return true;
-    }
+    uint64 lastCloseTime;
 
-    // Check slotIndex.
-    if (nextConsensusLedgerIndex() > slotIndex)
-    {
-        // we already moved on from this slot
-        // still send it through for emitting the final messages
-        return true;
-    }
-    if (nextConsensusLedgerIndex() < slotIndex)
-    {
-        // this is probably a bug as "tracking" means we're processing messages
-        // only for the right slot
-        CLOG(ERROR, "Herder") << "HerderImpl::validateValue"
-                              << " i: " << slotIndex
-                              << " processing a future message while tracking";
+    bool compat = isSlotCompatibleWithCurrentState(slotIndex);
 
-        mSCPMetrics.mValueInvalid.Mark();
-        return false;
+    if (compat)
+    {
+        lastCloseTime =
+            mLedgerManager.getLastClosedLedgerHeader().header.closeTime;
+    }
+    else
+    {
+        if (!mTrackingSCP)
+        {
+            // if we're not tracking, there is not much more we can do to
+            // validate
+            return true;
+        }
+
+        // Check slotIndex.
+        if (nextConsensusLedgerIndex() > slotIndex)
+        {
+            // we already moved on from this slot
+            // still send it through for emitting the final messages
+            return true;
+        }
+        if (nextConsensusLedgerIndex() < slotIndex)
+        {
+            // this is probably a bug as "tracking" means we're processing
+            // messages
+            // only for the right slot
+            CLOG(ERROR, "Herder")
+                << "HerderImpl::validateValue"
+                << " i: " << slotIndex
+                << " processing a future message while tracking";
+
+            mSCPMetrics.mValueInvalid.Mark();
+            return false;
+        }
+        lastCloseTime = mTrackingSCP->mConsensusValue.closeTime;
     }
 
     // Check closeTime (not too old)
-    if (b.closeTime <= mTrackingSCP->mConsensusValue.closeTime)
+    if (b.closeTime <= lastCloseTime)
     {
         mSCPMetrics.mValueInvalid.Mark();
         return false;
@@ -208,19 +237,15 @@ HerderImpl::validateValue(uint64 slotIndex, NodeID const& nodeID,
         return false;
     }
 
+    if (!compat)
+    {
+        // this is as far as we can go if we don't have the state
+        return true;
+    }
+
     Hash txSetHash = b.txSetHash;
 
-    if (!mLedgerManager.isSynced())
-    {
-        return true;
-    }
-
     // we are fully synced up
-
-    if (!mLedgerManager.isSynced())
-    {
-        return true;
-    }
 
     TxSetFramePtr txSet = mPendingEnvelopes.getTxSet(txSetHash);
 
@@ -505,10 +530,12 @@ HerderImpl::emitEnvelope(SCPEnvelope const& envelope)
         return;
     }
 
+    uint64 slotIndex = envelope.statement.slotIndex;
+
     // SCP may emit envelopes as our instance changes state
-    // yet, we do not want to send those out as we don't do full validation
-    // when out of sync
-    if (!mTrackingSCP || !mLedgerManager.isSynced())
+    // yet, we do not want to send those out when we don't do full validation
+    if (!isSlotCompatibleWithCurrentState(slotIndex) &&
+        (!mTrackingSCP || !mLedgerManager.isSynced()))
     {
         return;
     }
@@ -518,7 +545,7 @@ HerderImpl::emitEnvelope(SCPEnvelope const& envelope)
 
     CLOG(DEBUG, "Herder") << "emitEnvelope"
                           << " s:" << envelope.statement.pledges.type()
-                          << " i:" << envelope.statement.slotIndex
+                          << " i:" << slotIndex
                           << " a:" << mApp.getStateHuman();
 
     rebroadcast();

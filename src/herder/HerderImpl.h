@@ -109,6 +109,10 @@ class HerderImpl : public Herder, public SCPDriver
 
     void processSCPQueueAtIndex(uint64 slotIndex);
 
+    // returns true if the local instance is in a state compatible with
+    // this slot
+    bool isSlotCompatibleWithCurrentState(uint64 slotIndex);
+
     // 0- tx we got during ledger close
     // 1- one ledger ago. rebroadcast
     // 2- two ledgers ago.
