@@ -6,14 +6,14 @@ import qbs.TextFile
 Project {
     name: "xdrpp"
 
-    readonly property path baseDirectory: FileInfo.path(sourceDirectory) + "/src/lib/xdrpp"
-
     Product {
         name: "build_endian_header"
         type: "hpp"
         files: [buildEndianFile]
 
-        readonly property path buildEndianFile: project.baseDirectory+"/xdrpp/build_endian.h.in"
+        Depends{name: "stellar_qbs_module"}
+
+        readonly property path buildEndianFile: stellar_qbs_module.srcDirectory + "/lib/xdrpp" +"/xdrpp/build_endian.h.in"
 
         Transformer {
             inputs: [buildEndianFile]
@@ -55,14 +55,14 @@ Project {
     CppApplication {
         name: "xdrc"
         Depends { name: "build_endian_header"}
-
-        cpp.cxxLanguageVersion: "c++11"
+        Depends {name: "stellar_qbs_module"}
+        readonly property path baseDirectory: stellar_qbs_module.srcDirectory + "/lib/xdrpp"
         cpp.includePaths: [baseDirectory, baseDirectory+"/msvc_xdrpp/include"]
 
         files: [baseDirectory+"/compat/getopt_long.c"]
         Group {
             name: "C++ Sources"
-            prefix: project.baseDirectory + "/xdrc/"
+            prefix: baseDirectory + "/xdrc/"
             files:[
                 "gen_hh.cc",
                 "gen_server.cc",
@@ -72,7 +72,7 @@ Project {
 
         Group {
             name: "Lex file"
-            prefix: project.baseDirectory + "/xdrc/"
+            prefix: baseDirectory + "/xdrc/"
             files:[
                 "scan.ll",
             ]
@@ -81,7 +81,7 @@ Project {
 
         Group {
             name: "Yacc file"
-            prefix: project.baseDirectory + "/xdrc/"
+            prefix: baseDirectory + "/xdrc/"
             files:[
                 "parse.yy",
             ]
@@ -129,21 +129,23 @@ Project {
 
     StaticLibrary {
         name: "libxdrpp"
-        Depends { name: "cpp" }
-        Depends { name: "build_endian_header"}
 
-        cpp.cxxLanguageVersion: "c++11"
+        Depends {name: "cpp"}
+        Depends {name: "build_endian_header"}
+        Depends{name: "stellar_qbs_module"}
+        readonly property path baseDirectory: stellar_qbs_module.srcDirectory + "/lib/xdrpp"
+
         cpp.includePaths: [baseDirectory]
 
         Group {
             name: "C++ Sources"
-            prefix: project.baseDirectory + "/xdrpp/"
+            prefix: baseDirectory + "/xdrpp/"
             files: ["marshal.cc", "printer.cc"]
         }
 
         Export {
             Depends { name: "cpp" }
-            cpp.includePaths: "."
+            cpp.includePaths: [baseDirectory]
         }
 
     }
