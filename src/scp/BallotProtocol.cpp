@@ -341,8 +341,8 @@ BallotProtocol::bumpState(Value const& value, bool force)
     if (mConfirmedPrepared)
     {
         // can only bump the counter if we committed to something already
-        newb = *mConfirmedPrepared;
-        newb.counter++;
+        newb =
+            SCPBallot(mCurrentBallot->counter + 1, mConfirmedPrepared->value);
     }
     else
     {
