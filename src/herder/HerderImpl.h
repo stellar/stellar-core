@@ -93,6 +93,8 @@ class HerderImpl : public Herder, public SCPDriver
 
     uint32_t getCurrentLedgerSeq() const override;
 
+    SequenceNumber getMaxSeqInPendingTxs(AccountID const&) override;
+
     void triggerNextLedger(uint32_t ledgerSeqToTrigger) override;
 
     void dumpInfo(Json::Value& ret) override;

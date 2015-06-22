@@ -153,6 +153,16 @@ LoadGenerator::generateLoad(Application& app, uint32_t nAccounts, uint32_t nTxs,
     // fraction of txRate determined by STEP_MSECS. For example if txRate
     // is 200 and STEP_MSECS is 100, then we want to do 20 tx per step.
     uint32_t txPerStep = (txRate * STEP_MSECS / 1000);
+
+    // If we have a very low tx rate (eg. 2/sec) then the previous division will
+    // be zero and we'll never issue anything; what we need to do instead is
+    // dispatch 1 tx every "few steps" (eg. every 5 steps). We do this by random
+    // choice, weighted to the desired frequency.
+    if (txPerStep == 0)
+    {
+        txPerStep = rand_uniform(0, 1000) < (txRate * STEP_MSECS) ? 1 : 0;
+    }
+
     if (txPerStep > nTxs)
     {
         // We're done.
@@ -301,6 +311,11 @@ LoadGenerator::loadAccount(Application& app, AccountInfo& account)
 
     account.mBalance = ret->getBalance();
     account.mSeq = ret->getSeqNum();
+    auto high = app.getHerder().getMaxSeqInPendingTxs(account.mKey.getPublicKey());
+    if (high > account.mSeq)
+    {
+        account.mSeq = high;
+    }
     return true;
 }
 
