@@ -839,6 +839,24 @@ HerderImpl::getCurrentLedgerSeq() const
     }
 }
 
+SequenceNumber
+HerderImpl::getMaxSeqInPendingTxs(AccountID const& acc)
+{
+    SequenceNumber highSeq = 0;
+    for (auto& list : mReceivedTransactions)
+    {
+        for (auto oldTX : list)
+        {
+            if (oldTX->getSourceID() == acc &&
+                oldTX->getSeqNum() > highSeq)
+            {
+                highSeq = oldTX->getSeqNum();
+            }
+        }
+    }
+    return highSeq;
+}
+
 // called to take a position during the next round
 // uses the state in LedgerManager to derive a starting position
 void

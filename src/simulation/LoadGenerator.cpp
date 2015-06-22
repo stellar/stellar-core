@@ -301,6 +301,11 @@ LoadGenerator::loadAccount(Application& app, AccountInfo& account)
 
     account.mBalance = ret->getBalance();
     account.mSeq = ret->getSeqNum();
+    auto high = app.getHerder().getMaxSeqInPendingTxs(account.mKey.getPublicKey());
+    if (high > account.mSeq)
+    {
+        account.mSeq = high;
+    }
     return true;
 }
 

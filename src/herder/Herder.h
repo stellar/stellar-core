@@ -86,14 +86,16 @@ class Herder
     virtual TxSetFramePtr getTxSet(Hash hash) = 0;
     virtual SCPQuorumSetPtr getQSet(Hash const & qSetHash) = 0;
 
-   
-
     // We are learning about a new envelope.
     virtual void recvSCPEnvelope(SCPEnvelope const & envelope) = 0;
 
     // returns the latest known ledger seq using consensus information
     // and local state
     virtual uint32_t getCurrentLedgerSeq() const = 0;
+
+    // Return the maximum sequence number for any tx (or 0 if none) from a given
+    // sender in the pending or recent tx sets.
+    virtual SequenceNumber getMaxSeqInPendingTxs(AccountID const&) = 0;
 
     virtual void triggerNextLedger(uint32_t ledgerSeqToTrigger) = 0;
     virtual ~Herder()
