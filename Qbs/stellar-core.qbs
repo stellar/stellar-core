@@ -63,6 +63,7 @@ Project {
         cpp.defines: [
             "NOMINMAX",
             "ASIO_STANDALONE",
+            "ASIO_HAS_THREADS",
             //"USE_POSTGRES",
             "_WINSOCK_DEPRECATED_NO_WARNINGS",
             "SODIUM_STATIC",
