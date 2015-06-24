@@ -301,26 +301,30 @@ HistoryManagerImpl::verifyHash(
         [&app, filename, handler, hash]()
         {
             auto hasher = SHA256::create();
-            char buf[4096];
-            ifstream in(filename, ofstream::binary);
-            while (in)
-            {
-                in.read(buf, sizeof(buf));
-                hasher->add(ByteSlice(buf, in.gcount()));
-            }
-            uint256 vHash = hasher->finish();
             asio::error_code ec;
-            if (vHash == hash)
+            char buf[4096];
             {
-                LOG(DEBUG) << "Verified hash (" << hexAbbrev(hash) << ") for "
-                           << filename;
-            }
-            else
-            {
-                LOG(WARNING) << "FAILED verifying hash for " << filename;
-                LOG(WARNING) << "expected hash: " << binToHex(hash);
-                LOG(WARNING) << "computed hash: " << binToHex(vHash);
-                ec = std::make_error_code(std::errc::io_error);
+                // ensure that the stream gets its own scope to avoid race with
+                // main thread
+                ifstream in(filename, ofstream::binary);
+                while (in)
+                {
+                    in.read(buf, sizeof(buf));
+                    hasher->add(ByteSlice(buf, in.gcount()));
+                }
+                uint256 vHash = hasher->finish();
+                if (vHash == hash)
+                {
+                    LOG(DEBUG) << "Verified hash (" << hexAbbrev(hash)
+                               << ") for " << filename;
+                }
+                else
+                {
+                    LOG(WARNING) << "FAILED verifying hash for " << filename;
+                    LOG(WARNING) << "expected hash: " << binToHex(hash);
+                    LOG(WARNING) << "computed hash: " << binToHex(vHash);
+                    ec = std::make_error_code(std::errc::io_error);
+                }
             }
             app.getClock().getIOService().post([ec, handler]()
                                                {
