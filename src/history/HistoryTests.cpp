@@ -146,7 +146,7 @@ HistoryTests::crankTillDone(bool& done)
 {
     while (!done && !app.getClock().getIOService().stopped())
     {
-        app.getClock().crank(false);
+        app.getClock().crank(true);
     }
 }
 
@@ -163,7 +163,6 @@ HistoryTests::generateAndPublishInitialHistory(size_t nPublishes)
 
     generateAndPublishHistory(nPublishes);
 }
-
 
 TEST_CASE_METHOD(HistoryTests, "next checkpoint ledger", "[history]")
 {
@@ -365,7 +364,7 @@ HistoryTests::generateAndPublishHistory(size_t nPublishes)
         while (hm.getPublishSuccessCount() < hm.getPublishQueueCount())
         {
             REQUIRE(hm.getPublishFailureCount() == 0);
-            app.getClock().crank(false);
+            app.getClock().crank(true);
         }
     }
 
@@ -374,7 +373,6 @@ HistoryTests::generateAndPublishHistory(size_t nPublishes)
     REQUIRE(lm.getLedgerNum() ==
             ((publishSuccesses + nPublishes) * hm.getCheckpointFrequency()));
 }
-
 
 Application::pointer
 HistoryTests::catchupNewApplication(uint32_t initLedger,
@@ -466,7 +464,7 @@ HistoryTests::catchupApplication(uint32_t initLedger,
             LedgerManager::LM_SYNCED_STATE) &&
            !app2->getClock().getIOService().stopped() && (--maxCranks != 0))
     {
-        app2->getClock().crank(false);
+        app2->getClock().crank(true);
     }
 
     if (maxCranks == 0)
@@ -668,7 +666,7 @@ TEST_CASE_METHOD(HistoryTests, "History publish queueing",
     while (hm.getPublishSuccessCount() < hm.getPublishQueueCount())
     {
         CHECK(hm.getPublishFailureCount() == 0);
-        app.getClock().crank(false);
+        app.getClock().crank(true);
     }
 
     // We should have 1 inital publish, 1 subsequent publish, and

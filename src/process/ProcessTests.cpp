@@ -37,7 +37,7 @@ TEST_CASE("subprocess", "[process]")
 
     while (!exited && !clock.getIOService().stopped())
     {
-        clock.crank(false);
+        clock.crank(true);
     }
     REQUIRE(!failed);
 }
@@ -64,7 +64,7 @@ TEST_CASE("subprocess fails", "[process]")
 
     while (!exited && !clock.getIOService().stopped())
     {
-        clock.crank(false);
+        clock.crank(true);
     }
     REQUIRE(failed);
 }
@@ -91,7 +91,7 @@ TEST_CASE("subprocess redirect to file", "[process]")
 
     while (!exited && !clock.getIOService().stopped())
     {
-        clock.crank(false);
+        clock.crank(true);
     }
 
     std::ifstream in(filename);

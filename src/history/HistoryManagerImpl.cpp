@@ -74,7 +74,7 @@ HistoryManager::initializeHistoryArchive(Application& app, std::string arch)
 
     while (!done && !app.getClock().getIOService().stopped())
     {
-        app.getClock().crank(false);
+        app.getClock().crank(true);
     }
     return ok;
 }
@@ -179,24 +179,24 @@ HistoryManagerImpl::HistoryManagerImpl(Application& app)
     , mPublish(nullptr)
     , mCatchup(nullptr)
 
-    , mPublishSkip(app.getMetrics().NewMeter({"history", "publish", "skip"},
-                                             "event"))
-    , mPublishQueue(app.getMetrics().NewMeter({"history", "publish", "queue"},
-                                              "event"))
-    , mPublishDelay(app.getMetrics().NewMeter({"history", "publish", "delay"},
-                                              "event"))
-    , mPublishStart(app.getMetrics().NewMeter(
-                        {"history", "publish", "start"}, "event"))
-    , mPublishSuccess(app.getMetrics().NewMeter(
-                          {"history", "publish", "success"}, "event"))
-    , mPublishFailure(app.getMetrics().NewMeter(
-                          {"history", "publish", "failure"}, "event"))
-    , mCatchupStart(app.getMetrics().NewMeter(
-                        {"history", "catchup", "start"}, "event"))
-    , mCatchupSuccess(app.getMetrics().NewMeter(
-                          {"history", "catchup", "success"}, "event"))
-    , mCatchupFailure(app.getMetrics().NewMeter(
-                          {"history", "catchup", "failure"}, "event"))
+    , mPublishSkip(
+          app.getMetrics().NewMeter({"history", "publish", "skip"}, "event"))
+    , mPublishQueue(
+          app.getMetrics().NewMeter({"history", "publish", "queue"}, "event"))
+    , mPublishDelay(
+          app.getMetrics().NewMeter({"history", "publish", "delay"}, "event"))
+    , mPublishStart(
+          app.getMetrics().NewMeter({"history", "publish", "start"}, "event"))
+    , mPublishSuccess(
+          app.getMetrics().NewMeter({"history", "publish", "success"}, "event"))
+    , mPublishFailure(
+          app.getMetrics().NewMeter({"history", "publish", "failure"}, "event"))
+    , mCatchupStart(
+          app.getMetrics().NewMeter({"history", "catchup", "start"}, "event"))
+    , mCatchupSuccess(
+          app.getMetrics().NewMeter({"history", "catchup", "success"}, "event"))
+    , mCatchupFailure(
+          app.getMetrics().NewMeter({"history", "catchup", "failure"}, "event"))
 {
 }
 
@@ -245,7 +245,7 @@ HistoryManagerImpl::nextCheckpointCatchupProbe(uint32_t ledger)
     auto ledger_duration = CatchupStateMachine::SLEEP_SECONDS_PER_LEDGER;
     if (mApp.getConfig().ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING)
     {
-         ledger_duration = std::chrono::seconds(1);
+        ledger_duration = std::chrono::seconds(1);
     }
 
     return (((next - ledger) + 5) * ledger_duration.count());
@@ -330,9 +330,10 @@ HistoryManagerImpl::verifyHash(
 }
 
 void
-HistoryManagerImpl::decompress(std::string const& filename_gz,
-                          std::function<void(asio::error_code const&)> handler,
-                          bool keepExisting) const
+HistoryManagerImpl::decompress(
+    std::string const& filename_gz,
+    std::function<void(asio::error_code const&)> handler,
+    bool keepExisting) const
 {
     checkGzipSuffix(filename_gz);
     std::string filename = filename_gz.substr(0, filename_gz.size() - 3);
@@ -363,9 +364,10 @@ HistoryManagerImpl::decompress(std::string const& filename_gz,
 }
 
 void
-HistoryManagerImpl::compress(std::string const& filename_nogz,
-                        std::function<void(asio::error_code const&)> handler,
-                        bool keepExisting) const
+HistoryManagerImpl::compress(
+    std::string const& filename_nogz,
+    std::function<void(asio::error_code const&)> handler,
+    bool keepExisting) const
 {
     checkNoGzipSuffix(filename_nogz);
     std::string filename = filename_nogz + ".gz";
@@ -396,9 +398,10 @@ HistoryManagerImpl::compress(std::string const& filename_nogz,
 }
 
 void
-HistoryManagerImpl::putFile(std::shared_ptr<HistoryArchive const> archive,
-                       string const& local, string const& remote,
-                       function<void(asio::error_code const& ec)> handler) const
+HistoryManagerImpl::putFile(
+    std::shared_ptr<HistoryArchive const> archive, string const& local,
+    string const& remote,
+    function<void(asio::error_code const& ec)> handler) const
 {
     assert(archive->hasPutCmd());
     auto cmd = archive->putFileCmd(local, remote);
@@ -407,9 +410,10 @@ HistoryManagerImpl::putFile(std::shared_ptr<HistoryArchive const> archive,
 }
 
 void
-HistoryManagerImpl::getFile(std::shared_ptr<HistoryArchive const> archive,
-                       string const& remote, string const& local,
-                       function<void(asio::error_code const& ec)> handler) const
+HistoryManagerImpl::getFile(
+    std::shared_ptr<HistoryArchive const> archive, string const& remote,
+    string const& local,
+    function<void(asio::error_code const& ec)> handler) const
 {
     assert(archive->hasGetCmd());
     auto cmd = archive->getFileCmd(remote, local);
@@ -418,9 +422,9 @@ HistoryManagerImpl::getFile(std::shared_ptr<HistoryArchive const> archive,
 }
 
 void
-HistoryManagerImpl::mkdir(std::shared_ptr<HistoryArchive const> archive,
-                     std::string const& dir,
-                     std::function<void(asio::error_code const&)> handler) const
+HistoryManagerImpl::mkdir(
+    std::shared_ptr<HistoryArchive const> archive, std::string const& dir,
+    std::function<void(asio::error_code const&)> handler) const
 {
     if (archive->hasMkdirCmd())
     {
@@ -438,9 +442,8 @@ HistoryManagerImpl::mkdir(std::shared_ptr<HistoryArchive const> archive,
 HistoryArchiveState
 HistoryManagerImpl::getLastClosedHistoryArchiveState() const
 {
-    auto seq = mApp.getLedgerManager()
-        .getLastClosedLedgerHeader()
-        .header.ledgerSeq;
+    auto seq =
+        mApp.getLedgerManager().getLastClosedLedgerHeader().header.ledgerSeq;
     auto& bl = mApp.getBucketManager().getBucketList();
     return HistoryArchiveState(seq, bl);
 }
@@ -489,20 +492,19 @@ HistoryManagerImpl::publishHistory(
     }
     mPublishQueue.Mark();
     auto snap = PublishStateMachine::takeSnapshot(mApp);
-    if (mPublish->queueSnapshot(
-        snap,
-        [this, handler](asio::error_code const& ec)
-        {
-            if (ec)
-            {
-                this->mPublishFailure.Mark();
-            }
-            else
-            {
-                this->mPublishSuccess.Mark();
-            }
-            handler(ec);
-        }))
+    if (mPublish->queueSnapshot(snap,
+                                [this, handler](asio::error_code const& ec)
+                                {
+                                    if (ec)
+                                    {
+                                        this->mPublishFailure.Mark();
+                                    }
+                                    else
+                                    {
+                                        this->mPublishSuccess.Mark();
+                                    }
+                                    handler(ec);
+                                }))
     {
         // Only bump this counter if there's a delay building up.
         mPublishDelay.Mark();
@@ -517,22 +519,20 @@ HistoryManagerImpl::snapshotWritten(asio::error_code const& ec)
     mPublish->snapshotWritten(ec);
 }
 
-void 
+void
 HistoryManagerImpl::downloadMissingBuckets(
     HistoryArchiveState desiredState,
-    std::function<void(asio::error_code const&ec)> handler)
+    std::function<void(asio::error_code const& ec)> handler)
 {
     mCatchup = make_unique<CatchupStateMachine>(
         mApp, 0, CATCHUP_BUCKET_REPAIR, desiredState,
-        [this, handler](asio::error_code const& ec,
-                        CatchupMode mode,
+        [this, handler](asio::error_code const& ec, CatchupMode mode,
                         LedgerHeaderHistoryEntry const& lastClosed)
-    {
-        // Destroy this machine at the end of the call to `handler`
-        std::unique_ptr<CatchupStateMachine> m(
-            std::move(this->mCatchup));
-        handler(ec);
-    });
+        {
+            // Destroy this machine at the end of the call to `handler`
+            std::unique_ptr<CatchupStateMachine> m(std::move(this->mCatchup));
+            handler(ec);
+        });
 }
 
 void
@@ -543,7 +543,7 @@ HistoryManagerImpl::catchupHistory(
     bool manualCatchup)
 {
     // To repair buckets, call `downloadMissingBuckets()` instead.
-    assert(mode != CATCHUP_BUCKET_REPAIR); 
+    assert(mode != CATCHUP_BUCKET_REPAIR);
 
     if (mCatchup)
     {
@@ -553,10 +553,8 @@ HistoryManagerImpl::catchupHistory(
     mManualCatchup = manualCatchup;
 
     mCatchup = make_unique<CatchupStateMachine>(
-        mApp, initLedger, mode, 
-        getLastClosedHistoryArchiveState(),
-        [this, handler](asio::error_code const& ec,
-                        CatchupMode mode,
+        mApp, initLedger, mode, getLastClosedHistoryArchiveState(),
+        [this, handler](asio::error_code const& ec, CatchupMode mode,
                         LedgerHeaderHistoryEntry const& lastClosed)
         {
             if (ec)
@@ -571,8 +569,7 @@ HistoryManagerImpl::catchupHistory(
             // caller's handler. Must keep the state machine alive long enough
             // for the callback, though, to avoid killing things living in
             // lambdas.
-            std::unique_ptr<CatchupStateMachine> m(
-                std::move(this->mCatchup));
+            std::unique_ptr<CatchupStateMachine> m(std::move(this->mCatchup));
             handler(ec, mode, lastClosed);
         });
 }

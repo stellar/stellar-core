@@ -237,21 +237,19 @@ VirtualClock::crank(bool block)
         nWorkDone += advanceToNow();
     }
 
-    if (block)
-    {
-        nWorkDone += mIOService.run();
-    }
-    else
-    {
-        nWorkDone += mIOService.poll();
-    }
-
+    nWorkDone += mIOService.poll();
     nWorkDone -= nRealTimerCancelEvents;
+
     if (mMode == VIRTUAL_TIME && nWorkDone == 0)
     {
         // If we did nothing and we're in virtual mode,
         // we're idle and can skip time forward.
         nWorkDone += advanceToNext();
+    }
+
+    if (block && nWorkDone == 0)
+    {
+        nWorkDone += mIOService.run_one();
     }
 
     return nWorkDone;
