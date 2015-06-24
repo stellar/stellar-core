@@ -409,11 +409,10 @@ applyPathPaymentTx(Application& app, SecretKey& from, SecretKey& to,
     return res;
 }
 
-TransactionFramePtr 
-createPassiveOfferOp(SecretKey& source,
-    Currency& takerGets, Currency& takerPays,
-    Price const& price, int64_t amount,
-    SequenceNumber seq)
+TransactionFramePtr
+createPassiveOfferOp(SecretKey& source, Currency& takerGets,
+                     Currency& takerPays, Price const& price, int64_t amount,
+                     SequenceNumber seq)
 {
     Operation op;
     op.body.type(CREATE_PASSIVE_OFFER);
@@ -520,7 +519,7 @@ applyCreateOfferWithResult(Application& app, LedgerDelta& delta, uint64 offerId,
                            SecretKey& source, Currency& takerGets,
                            Currency& takerPays, Price const& price,
                            int64_t amount, SequenceNumber seq,
-    ManageOfferResultCode result)
+                           ManageOfferResultCode result)
 {
     ManageOfferResult const& manageOfferRes = applyCreateOfferHelper(
         app, delta, offerId, source, takerGets, takerPays, price, amount, seq);
@@ -532,50 +531,68 @@ applyCreateOfferWithResult(Application& app, LedgerDelta& delta, uint64 offerId,
 }
 
 TransactionFramePtr
-createSetOptions(SecretKey& source, AccountID* inflationDest,
-                 uint32_t* setFlags, uint32_t* clearFlags, Thresholds* thrs,
-                 Signer* signer, SequenceNumber seq)
+createSetOptions(SecretKey& source, SequenceNumber seq,
+                 AccountID* inflationDest, uint32_t* setFlags,
+                 uint32_t* clearFlags, ThresholdSetter* thrs, Signer* signer)
 {
     Operation op;
     op.body.type(SET_OPTIONS);
 
+    SetOptionsOp& setOp = op.body.setOptionsOp();
+
     if (inflationDest)
     {
-        op.body.setOptionsOp().inflationDest.activate() = *inflationDest;
+        setOp.inflationDest.activate() = *inflationDest;
     }
 
     if (setFlags)
     {
-        op.body.setOptionsOp().setFlags.activate() = *setFlags;
+        setOp.setFlags.activate() = *setFlags;
     }
 
     if (clearFlags)
     {
-        op.body.setOptionsOp().clearFlags.activate() = *clearFlags;
+        setOp.clearFlags.activate() = *clearFlags;
     }
 
     if (thrs)
     {
-        op.body.setOptionsOp().thresholds.activate() = *thrs;
+        if (thrs->masterWeight)
+        {
+            setOp.masterWeight.activate() = *thrs->masterWeight;
+        }
+        if (thrs->lowThreshold)
+        {
+            setOp.lowThreshold.activate() = *thrs->lowThreshold;
+        }
+        if (thrs->medThreshold)
+        {
+            setOp.medThreshold.activate() = *thrs->medThreshold;
+        }
+        if (thrs->highThreshold)
+        {
+            setOp.highThreshold.activate() = *thrs->highThreshold;
+        }
     }
 
     if (signer)
     {
-        op.body.setOptionsOp().signer.activate() = *signer;
+        setOp.signer.activate() = *signer;
     }
 
     return transactionFromOperation(source, seq, op);
 }
 
 void
-applySetOptions(Application& app, SecretKey& source, AccountID* inflationDest,
-                uint32_t* setFlags, uint32_t* clearFlags, Thresholds* thrs,
-                Signer* signer, SequenceNumber seq, SetOptionsResultCode result)
+applySetOptions(Application& app, SecretKey& source, SequenceNumber seq,
+                AccountID* inflationDest, uint32_t* setFlags,
+                uint32_t* clearFlags, ThresholdSetter* thrs, Signer* signer,
+                SetOptionsResultCode result)
 {
     TransactionFramePtr txFrame;
 
-    txFrame = createSetOptions(source, inflationDest, setFlags, clearFlags,
-                               thrs, signer, seq);
+    txFrame = createSetOptions(source, seq, inflationDest, setFlags, clearFlags,
+                               thrs, signer);
 
     LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader());
     txFrame->apply(delta, app);

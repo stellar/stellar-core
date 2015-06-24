@@ -109,20 +109,20 @@ TEST_CASE("txenvelope", "[tx][envelope]")
         SecretKey s1 = getAccount("S1");
         Signer sk1(s1.getPublicKey(), 5); // below low rights
 
-        Thresholds th;
+        ThresholdSetter th;
 
-        th[0] = 100; // weight of master key
-        th[1] = 10;
-        th[2] = 50;
-        th[3] = 100;
+        th.masterWeight = make_optional<uint8_t>(100);
+        th.lowThreshold = make_optional<uint8_t>(10);
+        th.medThreshold = make_optional<uint8_t>(50);
+        th.highThreshold = make_optional<uint8_t>(100);
 
-        applySetOptions(app, a1, nullptr, nullptr, nullptr, &th, &sk1, a1Seq++);
+        applySetOptions(app, a1, a1Seq++, nullptr, nullptr, nullptr, &th, &sk1);
 
         SecretKey s2 = getAccount("S2");
         Signer sk2(s2.getPublicKey(), 95); // med rights account
 
-        applySetOptions(app, a1, nullptr, nullptr, nullptr, nullptr, &sk2,
-                        a1Seq++);
+        applySetOptions(app, a1, a1Seq++, nullptr, nullptr, nullptr, nullptr,
+                        &sk2);
 
         SECTION("not enough rights (envelope)")
         {
@@ -142,7 +142,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
         {
             // updating thresholds requires high
             TransactionFramePtr tx = createSetOptions(
-                a1, nullptr, nullptr, nullptr, &th, &sk1, a1Seq);
+                a1, a1Seq, nullptr, nullptr, nullptr, &th, &sk1);
 
             // only sign with s1 (med)
             tx->getEnvelope().signatures.clear();

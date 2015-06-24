@@ -77,7 +77,6 @@ TEST_CASE("create offer", "[tx][offers]")
     applyCreateAccountTx(app, root, gateway, root_seq++, minBalance2 * 10);
     SequenceNumber gateway_seq = getAccountSeqNum(gateway, app) + 1;
 
-
     SECTION("passive offer")
     {
         applyCreateAccountTx(app, root, a1, root_seq++, minBalance2 * 2);
@@ -85,7 +84,6 @@ TEST_CASE("create offer", "[tx][offers]")
 
         applyCreateAccountTx(app, root, b1, root_seq++, minBalance2 * 2);
         SequenceNumber b1_seq = getAccountSeqNum(b1, app) + 1;
-
 
         applyChangeTrust(app, a1, gateway, a1_seq++, "IDR", 1000);
         applyChangeTrust(app, a1, gateway, a1_seq++, "USD", 1000);
@@ -98,14 +96,15 @@ TEST_CASE("create offer", "[tx][offers]")
         applyCreditPaymentTx(app, gateway, b1, idrCur, gateway_seq++, 500);
         applyCreditPaymentTx(app, gateway, b1, usdCur, gateway_seq++, 500);
 
-
-        auto txFrame = manageOfferOp(0, a1, idrCur, usdCur, oneone, 100, a1_seq++);
+        auto txFrame =
+            manageOfferOp(0, a1, idrCur, usdCur, oneone, 100, a1_seq++);
         REQUIRE(txFrame->apply(delta, app));
 
-        txFrame = createPassiveOfferOp(b1, usdCur, idrCur, oneone, 100, b1_seq++);
+        txFrame =
+            createPassiveOfferOp(b1, usdCur, idrCur, oneone, 100, b1_seq++);
         txFrame->apply(delta, app);
 
-        // same price 
+        // same price
         OfferFrame::pointer offer = loadOffer(a1, 1, app);
         REQUIRE(offer->getAmount() == 100);
 
@@ -116,12 +115,12 @@ TEST_CASE("create offer", "[tx][offers]")
         // better price
         const Price lowPrice(100, 99);
         const Price highPrice(99, 100);
-        txFrame = createPassiveOfferOp(b1, usdCur, idrCur, highPrice, 100, b1_seq++);
+        txFrame =
+            createPassiveOfferOp(b1, usdCur, idrCur, highPrice, 100, b1_seq++);
         txFrame->apply(delta, app);
 
         REQUIRE(!loadOffer(a1, 1, app, false));
         REQUIRE(!loadOffer(b1, 3, app, false));
-
 
         // modify existing passive offer
         txFrame = manageOfferOp(0, a1, idrCur, usdCur, oneone, 200, a1_seq++);
@@ -134,7 +133,8 @@ TEST_CASE("create offer", "[tx][offers]")
         offer = loadOffer(a1, 3, app);
         REQUIRE(offer->getAmount() == 100);
 
-        txFrame = createPassiveOfferOp(b1, usdCur, idrCur, lowPrice, 100, b1_seq++);
+        txFrame =
+            createPassiveOfferOp(b1, usdCur, idrCur, lowPrice, 100, b1_seq++);
         REQUIRE(txFrame->apply(delta, app));
 
         offer = loadOffer(a1, 3, app);
@@ -152,7 +152,8 @@ TEST_CASE("create offer", "[tx][offers]")
         offer = loadOffer(b1, 4, app);
         REQUIRE(offer->getAmount() == 100);
 
-        txFrame = manageOfferOp(4, b1, usdCur, idrCur, highPrice, 100, b1_seq++);
+        txFrame =
+            manageOfferOp(4, b1, usdCur, idrCur, highPrice, 100, b1_seq++);
         REQUIRE(txFrame->apply(delta, app));
 
         REQUIRE(!loadOffer(a1, 3, app, false));
@@ -231,7 +232,7 @@ TEST_CASE("create offer", "[tx][offers]")
 
         auto res = applyCreateOfferWithResult(app, delta, 0, a1, idrCur, usdCur,
                                               oneone, 100, a1_seq++,
-            MANAGE_OFFER_SUCCESS);
+                                              MANAGE_OFFER_SUCCESS);
 
         auto offer = res.success().offer.offer();
         loadOffer(a1, offer.offerID, app);
@@ -552,7 +553,7 @@ TEST_CASE("create offer", "[tx][offers]")
                         1 * currencyMultiplier, b1_seq++);
 
                     REQUIRE(res.success().offer.effect() ==
-                        MANAGE_OFFER_DELETED);
+                            MANAGE_OFFER_DELETED);
                     REQUIRE(!loadOffer(b1, wouldCreateID, app, false));
                 }
 
@@ -735,7 +736,7 @@ TEST_CASE("create offer", "[tx][offers]")
                         300 * currencyMultiplier, c1_seq++);
                     // offer consumed offers but was not created
                     REQUIRE(offerC1Res.success().offer.effect() ==
-                        MANAGE_OFFER_DELETED);
+                            MANAGE_OFFER_DELETED);
 
                     TrustFrame::pointer line;
 
@@ -782,8 +783,8 @@ TEST_CASE("create offer", "[tx][offers]")
                         uint32_t setFlags =
                             AUTH_REQUIRED_FLAG | AUTH_REVOCABLE_FLAG;
 
-                        applySetOptions(app, secgateway, nullptr, &setFlags,
-                                        nullptr, nullptr, nullptr, secgw_seq++);
+                        applySetOptions(app, secgateway, secgw_seq++, nullptr,
+                                        &setFlags, nullptr, nullptr, nullptr);
 
                         // setup d1
                         SecretKey d1 = getAccount("D");
@@ -874,7 +875,7 @@ TEST_CASE("create offer", "[tx][offers]")
                             idrPriceOfferC, 300 * currencyMultiplier, f1_seq++);
                         // offer created would be buy 100 IDR for 150 USD ; 0.66
                         REQUIRE(offerF1Res.success().offer.effect() ==
-                            MANAGE_OFFER_CREATED);
+                                MANAGE_OFFER_CREATED);
 
                         REQUIRE(offerF1Res.success().offer.offer().amount ==
                                 150 * currencyMultiplier);
@@ -934,7 +935,7 @@ TEST_CASE("create offer", "[tx][offers]")
                             300 * currencyMultiplier, c1_seq++);
                         // offer created would be buy 50 IDR for 75 USD ; 0.66
                         REQUIRE(offerC1Res.success().offer.effect() ==
-                            MANAGE_OFFER_CREATED);
+                                MANAGE_OFFER_CREATED);
 
                         REQUIRE(offerC1Res.success().offer.offer().amount ==
                                 75 * currencyMultiplier);
@@ -999,7 +1000,7 @@ TEST_CASE("create offer", "[tx][offers]")
                         90 * currencyMultiplier, a1_seq++);
 
                     REQUIRE(resA.success().offer.effect() ==
-                        MANAGE_OFFER_DELETED);
+                            MANAGE_OFFER_DELETED);
 
                     // gw's offer was deleted
                     REQUIRE(!loadOffer(gateway, gwOffer, app, false));
@@ -1018,7 +1019,7 @@ TEST_CASE("create offer", "[tx][offers]")
                         app, delta, 0, gateway, usdCur, idrCur, Price(2, 3),
                         150 * currencyMultiplier, gateway_seq++);
                     REQUIRE(res.success().offer.effect() ==
-                        MANAGE_OFFER_DELETED);
+                            MANAGE_OFFER_DELETED);
 
                     // A's offer was deleted
                     REQUIRE(!loadOffer(a1, offerA1, app, false));

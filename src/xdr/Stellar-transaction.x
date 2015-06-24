@@ -132,7 +132,11 @@ struct SetOptionsOp
     uint32* clearFlags; // which flags to clear
     uint32* setFlags;   // which flags to set
 
-    Thresholds* thresholds; // update the thresholds for the account
+    // account threshold manipulation
+    uint32* masterWeight; // weight of the master account
+    uint32* lowThreshold;
+    uint32* medThreshold;
+    uint32* highThreshold;
 
     string32* homeDomain; // sets the home domain
 
@@ -461,9 +465,10 @@ enum SetOptionsResultCode
     SET_OPTIONS_LOW_RESERVE = -1,      // not enough funds to add a signer
     SET_OPTIONS_TOO_MANY_SIGNERS = -2, // max number of signers already reached
     SET_OPTIONS_BAD_FLAGS = -3,        // invalid combination of clear/set flags
-    SET_OPTIONS_INVALID_INFLATION = -4, // inflation account does not exist
-    SET_OPTIONS_CANT_CHANGE = -5,       // can no longer change this option
-    SET_OPTIONS_UNKNOWN_FLAG = -6       // can't set an unknown flag
+    SET_OPTIONS_INVALID_INFLATION = -4,    // inflation account does not exist
+    SET_OPTIONS_CANT_CHANGE = -5,          // can no longer change this option
+    SET_OPTIONS_UNKNOWN_FLAG = -6,         // can't set an unknown flag
+    SET_OPTIONS_THRESHOLD_OUT_OF_RANGE = 7 // bad value for weight or threshold
 };
 
 union SetOptionsResult switch (SetOptionsResultCode code)
