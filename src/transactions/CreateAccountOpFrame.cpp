@@ -50,11 +50,12 @@ CreateAccountOpFrame::doApply(medida::MetricsRegistry& metrics,
             int64_t minBalance =
                 mSourceAccount->getMinimumBalance(ledgerManager);
 
-            if (mSourceAccount->getAccount().balance <
-                (minBalance + mCreateAccount.startingBalance))
+            if ((mSourceAccount->getAccount().balance - minBalance) <
+                mCreateAccount.startingBalance)
             { // they don't have enough to send
-                metrics.NewMeter({"op-create-account", "failure", "underfunded"},
-                                 "operation").Mark();
+                metrics.NewMeter(
+                            {"op-create-account", "failure", "underfunded"},
+                            "operation").Mark();
                 innerResult().code(CREATE_ACCOUNT_UNDERFUNDED);
                 return false;
             }
