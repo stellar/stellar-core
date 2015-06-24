@@ -354,9 +354,9 @@ main(int argc, char* const* argv)
             cfg.FORCE_SCP = true;
         }
     }
-    catch (std::invalid_argument& e)
+    catch (std::exception& e)
     {
-        LOG(FATAL) << e.what();
+        LOG(FATAL) << "Got an exception: " << e.what();
         return 1;
     }
     // run outside of catch block so that we properly capture crashes
