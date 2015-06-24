@@ -6,13 +6,13 @@ Project {
     Product {
         name: "generated-xdr-header"
         type: "hpp"
-        Depends {name: "stellar_qbs_module"}
         Depends {name: "xdrc"}
+        Depends {name: "stellar_qbs_module"}
         Group {
             name: "XDR files"
             prefix: stellar_qbs_module.srcDirectory
             files: [
-                "/scp/SCPXDR.x",
+                "/scp/Stellar-SCP.x",
                 "/xdr/Stellar-types.x",
                 "/xdr/Stellar-ledger-entries.x",
                 "/xdr/Stellar-transaction.x",
@@ -52,15 +52,56 @@ Project {
     CppApplication  {
         name: "stellar-core"
         Depends {name: "stellar_qbs_module"}
-        cpp.includePaths: [
-            stellar_qbs_module.srcDirectory,
-            //TODO: absorb to Depends-Export
-            stellar_qbs_module.srcDirectory + "/lib/asio/include",
-            stellar_qbs_module.srcDirectory + "lib/cereal/include"
-        ]
-
         Depends {name: "generated-xdr-header"}
         Depends {name: "libxdrpp"}
+        Depends {name: "libmedida"}
+        Depends {name: "libsoci"}
+        Depends {name: "libsoci-sqlite3"}
+        Depends {name: "libsodium"}
+
+        cpp.windowsApiCharacterSet: "mbcs"
+        cpp.defines: [
+            "NOMINMAX",
+            "ASIO_STANDALONE",
+            //"USE_POSTGRES",
+            "_WINSOCK_DEPRECATED_NO_WARNINGS",
+            "SODIUM_STATIC",
+            "ASIO_SEPARATE_COMPILATION",
+            "ASIO_ERROR_CATEGORY_NOEXCEPT=noexcept",
+            "_CRT_SECURE_NO_WARNINGS",
+            "_WIN32_WINNT=0x0501",
+            "WIN32",
+        ]
+
+        cpp.includePaths: [
+            stellar_qbs_module.srcDirectory,
+            stellar_qbs_module.rootDirectory + "/Builds/VisualStudio2015/src",
+            stellar_qbs_module.srcDirectory + "/lib/autocheck/include",
+            stellar_qbs_module.srcDirectory + "/lib/cereal/include",
+            stellar_qbs_module.srcDirectory + "/lib/asio/include",
+        ]
+        Properties {
+            condition: qbs.targetOS.contains("windows")
+            cpp.dynamicLibraries:  ["ws2_32", "Psapi", "Mswsock"]
+        }
+
+        Group {
+            name: "3rd-party C++ Sources"
+            prefix: stellar_qbs_module.srcDirectory
+            files:[
+                "/lib/asio/src/asio.cpp",
+                "/lib/http/connection.cpp",
+                "/lib/http/connection_manager.cpp",
+                "/lib/http/HttpClient.cpp",
+                "/lib/http/reply.cpp",
+                "/lib/http/request_parser.cpp",
+                "/lib/http/server.cpp",
+                "/lib/json/jsoncpp.cpp",
+                "/lib/util/format.cc",
+                "/lib/util/getopt_long.c",
+                "/lib/util/uint128_t.cpp"
+            ]
+        }
 
         Group {
             name: "C++ Sources"
@@ -84,6 +125,9 @@ Project {
     }
 
     references: [
-        "xdrpp.qbs"
+        "xdrpp.qbs",
+        "medida.qbs",
+        "soci.qbs",
+        "sodium.qbs"
     ]
 }

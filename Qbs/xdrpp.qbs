@@ -54,10 +54,11 @@ Project {
 
     CppApplication {
         name: "xdrc"
-        Depends { name: "build_endian_header"}
         Depends {name: "stellar_qbs_module"}
+        Depends { name: "build_endian_header"}
         readonly property path baseDirectory: stellar_qbs_module.srcDirectory + "/lib/xdrpp"
         cpp.includePaths: [baseDirectory, baseDirectory+"/msvc_xdrpp/include"]
+        cpp.windowsApiCharacterSet: "mbcs"
 
         files: [baseDirectory+"/compat/getopt_long.c"]
         Group {
@@ -136,6 +137,7 @@ Project {
         readonly property path baseDirectory: stellar_qbs_module.srcDirectory + "/lib/xdrpp"
 
         cpp.includePaths: [baseDirectory]
+        cpp.windowsApiCharacterSet: "mbcs"
 
         Group {
             name: "C++ Sources"

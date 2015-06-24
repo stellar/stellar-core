@@ -7,5 +7,5 @@ Module {
 
     Depends {name: "cpp"}
     cpp.cxxLanguageVersion: "c++11"
-
+    cpp.windowsApiCharacterSet: "mbcs" //no effect, product depends on this module should explicitly set this
 }
