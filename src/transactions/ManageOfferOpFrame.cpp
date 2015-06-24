@@ -45,7 +45,7 @@ ManageOfferOpFrame::checkOfferValid(medida::MetricsRegistry& metrics, Database& 
             metrics.NewMeter({ "op-manage-offer", "invalid",
                 "underfunded-absent" },
                 "operation").Mark();
-            innerResult().code(MANAGE_OFFER_UNDERFUNDED);
+            innerResult().code(MANAGE_OFFER_SELL_NO_TRUST);
             return false;
         }
         if (mSheepLineA->getBalance() == 0)
@@ -62,7 +62,7 @@ ManageOfferOpFrame::checkOfferValid(medida::MetricsRegistry& metrics, Database& 
                 "not-authorized" },
                 "operation").Mark();
             // we are not authorized to sell
-            innerResult().code(MANAGE_OFFER_NOT_AUTHORIZED);
+            innerResult().code(MANAGE_OFFER_SELL_NOT_AUTHORIZED);
             return false;
         }
     }
@@ -75,7 +75,7 @@ ManageOfferOpFrame::checkOfferValid(medida::MetricsRegistry& metrics, Database& 
             metrics.NewMeter({ "op-manage-offer", "invalid",
                 "no-trust" },
                 "operation").Mark();
-            innerResult().code(MANAGE_OFFER_NO_TRUST);
+            innerResult().code(MANAGE_OFFER_BUY_NO_TRUST);
             return false;
         }
 
@@ -84,7 +84,7 @@ ManageOfferOpFrame::checkOfferValid(medida::MetricsRegistry& metrics, Database& 
             metrics.NewMeter({ "op-manage-offer", "invalid",
                 "not-authorized" },
                 "operation").Mark();
-            innerResult().code(MANAGE_OFFER_NOT_AUTHORIZED);
+            innerResult().code(MANAGE_OFFER_BUY_NOT_AUTHORIZED);
             return false;
         }
     }

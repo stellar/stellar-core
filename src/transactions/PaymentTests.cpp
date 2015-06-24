@@ -271,7 +271,8 @@ TEST_CASE("payment", "[tx][payment]")
         applyAllowTrust(app, gateway, a1, gateway_seq++, "IDR", false);
 
         applyCreditPaymentTx(app, a1, gateway, idrCur, a1Seq++,
-                             trustLineStartingBalance, PAYMENT_NOT_AUTHORIZED);
+                             trustLineStartingBalance,
+                             PAYMENT_SRC_NOT_AUTHORIZED);
 
         applyAllowTrust(app, gateway, a1, gateway_seq++, "IDR", true);
 

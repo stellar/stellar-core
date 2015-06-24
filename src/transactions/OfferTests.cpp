@@ -169,7 +169,7 @@ TEST_CASE("create offer", "[tx][offers]")
 
         // missing IDR trust
         applyCreateOfferWithResult(app, delta, 0, a1, idrCur, usdCur, oneone,
-                                   100, a1_seq++, MANAGE_OFFER_UNDERFUNDED);
+                                   100, a1_seq++, MANAGE_OFFER_SELL_NO_TRUST);
 
         applyChangeTrust(app, a1, gateway, a1_seq++, "IDR", trustLineLimit);
 
@@ -183,7 +183,7 @@ TEST_CASE("create offer", "[tx][offers]")
 
         // missing USD trust
         applyCreateOfferWithResult(app, delta, 0, a1, idrCur, usdCur, oneone,
-                                   100, a1_seq++, MANAGE_OFFER_NO_TRUST);
+                                   100, a1_seq++, MANAGE_OFFER_BUY_NO_TRUST);
 
         applyChangeTrust(app, a1, gateway, a1_seq++, "USD", trustLineLimit);
 

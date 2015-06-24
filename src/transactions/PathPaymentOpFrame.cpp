@@ -82,8 +82,9 @@ PathPaymentOpFrame::doApply(medida::MetricsRegistry& metrics,
 
             if (!destLine->isAuthorized())
             {
-                metrics.NewMeter({"op-path-payment", "failure", "not-authorized"},
-                                 "operation").Mark();
+                metrics.NewMeter(
+                            {"op-path-payment", "failure", "not-authorized"},
+                            "operation").Mark();
                 innerResult().code(PATH_PAYMENT_NOT_AUTHORIZED);
                 return false;
             }
@@ -169,7 +170,7 @@ PathPaymentOpFrame::doApply(medida::MetricsRegistry& metrics,
     {
         int64_t minBalance = mSourceAccount->getMinimumBalance(ledgerManager);
 
-        if (mSourceAccount->getAccount().balance < (minBalance + curBSent))
+        if ((mSourceAccount->getAccount().balance - curBSent) < minBalance)
         { // they don't have enough to send
             metrics.NewMeter({"op-path-payment", "failure", "underfunded"},
                              "operation").Mark();
@@ -196,17 +197,18 @@ PathPaymentOpFrame::doApply(medida::MetricsRegistry& metrics,
         sourceLineFrame = TrustFrame::loadTrustLine(getSourceID(), curB, db);
         if (!sourceLineFrame)
         {
-            metrics.NewMeter({"op-path-payment", "failure", "underfunded"},
+            metrics.NewMeter({"op-path-payment", "failure", "src-no-trust"},
                              "operation").Mark();
-            innerResult().code(PATH_PAYMENT_UNDERFUNDED);
+            innerResult().code(PATH_PAYMENT_SRC_NO_TRUST);
             return false;
         }
 
         if (!sourceLineFrame->isAuthorized())
         {
-            metrics.NewMeter({"op-path-payment", "failure", "not-authorized"},
-                             "operation").Mark();
-            innerResult().code(PATH_PAYMENT_NOT_AUTHORIZED);
+            metrics.NewMeter(
+                        {"op-path-payment", "failure", "src-not-authorized"},
+                        "operation").Mark();
+            innerResult().code(PATH_PAYMENT_SRC_NOT_AUTHORIZED);
             return false;
         }
 
@@ -221,8 +223,8 @@ PathPaymentOpFrame::doApply(medida::MetricsRegistry& metrics,
         sourceLineFrame->storeChange(delta, db);
     }
 
-    metrics.NewMeter({"op-path-payment", "success", "apply"},
-                     "operation").Mark();
+    metrics.NewMeter({"op-path-payment", "success", "apply"}, "operation")
+        .Mark();
 
     return true;
 }
