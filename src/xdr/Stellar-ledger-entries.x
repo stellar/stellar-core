@@ -57,6 +57,14 @@ struct AccountEntry
     Thresholds thresholds;
 
     Signer signers<20>; // possible signers for this account
+
+    // reserved for future use
+    union switch (int v)
+    {
+    case 0:
+        void;
+    }
+    ext;
 };
 
 /* TrustLineEntry
@@ -80,6 +88,14 @@ struct TrustLineEntry
 
     int64 limit;  // balance cannot be above this
     uint32 flags; // see TrustLineFlags
+
+    // reserved for future use
+    union switch (int v)
+    {
+    case 0:
+        void;
+    }
+    ext;
 };
 
 enum OfferEntryFlags
@@ -110,16 +126,22 @@ struct OfferEntry
     */
     Price price;
     uint32 flags; // see OfferEntryFlags
+
+    // reserved for future use
+    union switch (int v)
+    {
+    case 0:
+        void;
+    }
+    ext;
 };
 
 union LedgerEntry switch (LedgerEntryType type)
 {
 case ACCOUNT:
     AccountEntry account;
-
 case TRUSTLINE:
     TrustLineEntry trustLine;
-
 case OFFER:
     OfferEntry offer;
 };

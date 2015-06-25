@@ -36,6 +36,14 @@ struct LedgerHeader
                       // each slot contains the oldest ledger that is mod of
                       // either 50  5000  50000 or 500000 depending on index
                       // skipList[0] mod(50), skipList[1] mod(5000), etc
+
+    // reserved for future use
+    union switch (int v)
+    {
+    case 0:
+        void;
+    }
+    ext;
 };
 
 /* Entries used to define the bucket list */
@@ -104,18 +112,42 @@ struct TransactionHistoryEntry
 {
     uint32 ledgerSeq;
     TransactionSet txSet;
+
+    // reserved for future use
+    union switch (int v)
+    {
+    case 0:
+        void;
+    }
+    ext;
 };
 
 struct TransactionHistoryResultEntry
 {
     uint32 ledgerSeq;
     TransactionResultSet txResultSet;
+
+    // reserved for future use
+    union switch (int v)
+    {
+    case 0:
+        void;
+    }
+    ext;
 };
 
 struct LedgerHeaderHistoryEntry
 {
     Hash hash;
     LedgerHeader header;
+
+    // reserved for future use
+    union switch (int v)
+    {
+    case 0:
+        void;
+    }
+    ext;
 };
 
 // represents the meta in the transaction table history
