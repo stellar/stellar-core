@@ -20,7 +20,6 @@ using namespace stellar::txtest;
 
 typedef std::unique_ptr<Application> appPtr;
 
-
 TEST_CASE("standalone", "[herder]")
 {
     SIMULATION_CREATE_NODE(0);
@@ -88,8 +87,10 @@ TEST_CASE("standalone", "[herder]")
                                     std::chrono::seconds(1));
         checkTimer.async_wait(check);
 
-        while (!stop && app->getClock().crank(false) > 0)
-            ;
+        while (!stop)
+        {
+            app->getClock().crank(true);
+        }
     }
 }
 
@@ -227,7 +228,6 @@ TEST_CASE("txset", "[herder]")
     }
 }
 
-
 // under surge
 // over surge
 // make sure it drops the correct txs
@@ -248,12 +248,11 @@ TEST_CASE("surge", "[herder]")
     AccountFrame::pointer rootAccount;
 
     SecretKey destAccount = getAccount("destAccount");
-   
 
     rootAccount = loadAccount(root, *app);
 
     SequenceNumber rootSeq = getAccountSeqNum(root, *app) + 1;
-    
+
     applyCreateAccountTx(*app, root, destAccount, rootSeq++, 50000000);
 
     TxSetFramePtr txSet = std::make_shared<TxSetFrame>(
@@ -262,7 +261,7 @@ TEST_CASE("surge", "[herder]")
     SECTION("over surge")
     {
         // extra transaction would push the account below the reserve
-        for(int n = 0; n < 10; n++)
+        for (int n = 0; n < 10; n++)
         {
             txSet->add(createPaymentTx(root, destAccount, rootSeq++, n));
         }
@@ -273,8 +272,5 @@ TEST_CASE("surge", "[herder]")
 
     SECTION("high fee low ratio")
     {
-        
     }
-
-
 }

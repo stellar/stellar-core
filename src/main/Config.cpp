@@ -52,18 +52,45 @@ void
 loadQset(std::shared_ptr<cpptoml::toml_group> group, SCPQuorumSet& qset,
          int level)
 {
-    assert(level <= 2);
+    if (!group)
+    {
+        throw std::invalid_argument("invalid entry in quorum set definition");
+    }
+
+    if (level > 2)
+    {
+        throw std::invalid_argument("too many levels in quorum set");
+    }
+
+    qset.threshold = 0;
 
     for (auto& item : *group)
     {
         if (item.first == "THRESHOLD")
         {
-            qset.threshold = (uint32_t)item.second->as<int64_t>()->value();
+            if (!item.second->as<int64_t>())
+            {
+                throw std::invalid_argument("invalid THRESHOLD");
+            }
+            int64_t f = item.second->as<int64_t>()->value();
+            if (f <= 0 || f >= UINT32_MAX)
+            {
+                throw std::invalid_argument("invalid DESIRED_BASE_FEE");
+            }
+            qset.threshold = (uint32_t)f;
         }
         else if (item.first == "VALIDATORS")
         {
+            if (!item.second->is_array())
+            {
+                throw std::invalid_argument("VALIDATORS must be an array");
+            }
             for (auto v : item.second->as_array()->array())
             {
+                if (!v->as<std::string>())
+                {
+                    throw std::invalid_argument("invalid VALIDATORS");
+                }
                 NodeID p = fromBase58Check256(VER_ACCOUNT_ID,
                                               v->as<std::string>()->value());
                 qset.validators.push_back(p);
@@ -71,13 +98,30 @@ loadQset(std::shared_ptr<cpptoml::toml_group> group, SCPQuorumSet& qset,
         }
         else
         { // must be a subset
-            if (level < 2)
+            try
             {
+                if (!item.second->is_group())
+                {
+                    throw std::invalid_argument(
+                        "invalid quorum set, should be a group");
+                }
                 qset.innerSets.resize((uint32_t)qset.innerSets.size() + 1);
                 loadQset(item.second->as_group(),
                          qset.innerSets[qset.innerSets.size() - 1], level + 1);
             }
+            catch (std::exception& e)
+            {
+                std::string s;
+                s = e.what();
+                s += " while parsing '" + item.first + "'";
+                throw std::invalid_argument(s);
+            }
         }
+    }
+    if (qset.threshold == 0 ||
+        (qset.validators.empty() && qset.innerSets.empty()))
+    {
+        throw std::invalid_argument("invalid quorum set definition");
     }
 }
 
@@ -103,6 +147,10 @@ Config::load(std::string const& filename)
             LOG(DEBUG) << "Config item: " << item.first;
             if (item.first == "PEER_PORT")
             {
+                if (!item.second->as<int64_t>())
+                {
+                    throw std::invalid_argument("invalid PEER_PORT");
+                }
                 int64_t parsedPort = item.second->as<int64_t>()->value();
                 if (parsedPort <= 0 || parsedPort > UINT16_MAX)
                     throw std::invalid_argument("bad port number");
@@ -110,55 +158,163 @@ Config::load(std::string const& filename)
             }
             else if (item.first == "HTTP_PORT")
             {
+                if (!item.second->as<int64_t>())
+                {
+                    throw std::invalid_argument("invalid HTTP_PORT");
+                }
                 int64_t parsedPort = item.second->as<int64_t>()->value();
                 if (parsedPort <= 0 || parsedPort > UINT16_MAX)
                     throw std::invalid_argument("bad port number");
                 HTTP_PORT = static_cast<unsigned short>(parsedPort);
             }
             else if (item.first == "PUBLIC_HTTP_PORT")
+            {
+                if (!item.second->as<bool>())
+                {
+                    throw std::invalid_argument("invalid PUBLIC_HTTP_PORT");
+                }
                 PUBLIC_HTTP_PORT = item.second->as<bool>()->value();
+            }
             else if (item.first == "DESIRED_BASE_FEE")
-                DESIRED_BASE_FEE =
-                    (uint32_t)item.second->as<int64_t>()->value();
+            {
+                if (!item.second->as<int64_t>())
+                {
+                    throw std::invalid_argument("invalid DESIRED_BASE_FEE");
+                }
+                int64_t f = item.second->as<int64_t>()->value();
+                if (f <= 0 || f >= UINT32_MAX)
+                {
+                    throw std::invalid_argument("invalid DESIRED_BASE_FEE");
+                }
+                DESIRED_BASE_FEE = (uint32_t)f;
+            }
             else if (item.first == "DESIRED_MAX_TX_PER_LEDGER")
-                DESIRED_MAX_TX_PER_LEDGER =
-                    (uint32_t)item.second->as<int64_t>()->value();
+            {
+                if (!item.second->as<int64_t>())
+                {
+                    throw std::invalid_argument(
+                        "invalid DESIRED_MAX_TX_PER_LEDGER");
+                }
+                int64_t f = item.second->as<int64_t>()->value();
+                if (f <= 0 || f >= UINT32_MAX)
+                {
+                    throw std::invalid_argument("invalid DESIRED_BASE_FEE");
+                }
+                DESIRED_MAX_TX_PER_LEDGER = (uint32_t)f;
+            }
             else if (item.first == "RUN_STANDALONE")
+            {
+                if (!item.second->as<bool>())
+                {
+                    throw std::invalid_argument("invalid RUN_STANDALONE");
+                }
                 RUN_STANDALONE = item.second->as<bool>()->value();
+            }
             else if (item.first == "CATCHUP_COMPLETE")
+            {
+                if (!item.second->as<bool>())
+                {
+                    throw std::invalid_argument("invalid CATCHUP_COMPLETE");
+                }
                 CATCHUP_COMPLETE = item.second->as<bool>()->value();
+            }
+
             else if (item.first == "ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING")
+            {
+                if (!item.second->as<bool>())
+                {
+                    throw std::invalid_argument(
+                        "invalid ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING");
+                }
                 ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING =
                     item.second->as<bool>()->value();
+            }
             else if (item.first == "ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING")
+            {
+                if (!item.second->as<bool>())
+                {
+                    throw std::invalid_argument(
+                        "invalid ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING");
+                }
                 ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING =
                     item.second->as<bool>()->value();
+            }
             else if (item.first == "MANUAL_CLOSE")
+            {
+                if (!item.second->as<bool>())
+                {
+                    throw std::invalid_argument("invalid MANUAL_CLOSE");
+                }
                 MANUAL_CLOSE = item.second->as<bool>()->value();
+            }
             else if (item.first == "LOG_FILE_PATH")
+            {
+                if (!item.second->as<std::string>())
+                {
+                    throw std::invalid_argument("invalid LOG_FILE_PATH");
+                }
                 LOG_FILE_PATH = item.second->as<std::string>()->value();
+            }
             else if (item.first == "TMP_DIR_PATH")
+            {
+                if (!item.second->as<std::string>())
+                {
+                    throw std::invalid_argument("invalid TMP_DIR_PATH");
+                }
                 TMP_DIR_PATH = item.second->as<std::string>()->value();
+            }
             else if (item.first == "BUCKET_DIR_PATH")
+            {
+                if (!item.second->as<std::string>())
+                {
+                    throw std::invalid_argument("invalid BUCKET_DIR_PATH");
+                }
                 BUCKET_DIR_PATH = item.second->as<std::string>()->value();
+            }
             else if (item.first == "VALIDATION_SEED")
             {
+                if (!item.second->as<std::string>())
+                {
+                    throw std::invalid_argument("invalid VALIDATION_SEED");
+                }
                 std::string seed = item.second->as<std::string>()->value();
                 VALIDATION_KEY = SecretKey::fromBase58Seed(seed);
             }
             else if (item.first == "PEER_SEED")
             {
+                if (!item.second->as<std::string>())
+                {
+                    throw std::invalid_argument("invalid PEER_SEED");
+                }
                 std::string seed = item.second->as<std::string>()->value();
                 PEER_KEY = SecretKey::fromBase58Seed(seed);
                 PEER_PUBLIC_KEY = PEER_KEY.getPublicKey();
             }
             else if (item.first == "TARGET_PEER_CONNECTIONS")
+            {
+                if (!item.second->as<int64_t>())
+                {
+                    throw std::invalid_argument(
+                        "invalid TARGET_PEER_CONNECTIONS");
+                }
                 TARGET_PEER_CONNECTIONS =
                     (int)item.second->as<int64_t>()->value();
+            }
             else if (item.first == "MAX_PEER_CONNECTIONS")
+            {
+                if (!item.second->as<int64_t>())
+                {
+                    throw std::invalid_argument("invalid MAX_PEER_CONNECTIONS");
+                }
                 MAX_PEER_CONNECTIONS = (int)item.second->as<int64_t>()->value();
+            }
             else if (item.first == "PREFERRED_PEERS")
             {
+                if (!item.second->is_array())
+                {
+                    throw std::invalid_argument(
+                        "PREFERRED_PEERS must be an array");
+                }
                 for (auto v : item.second->as_array()->array())
                 {
                     PREFERRED_PEERS.push_back(v->as<std::string>()->value());
@@ -166,6 +322,10 @@ Config::load(std::string const& filename)
             }
             else if (item.first == "KNOWN_PEERS")
             {
+                if (!item.second->is_array())
+                {
+                    throw std::invalid_argument("KNOWN_PEERS must be an array");
+                }
                 for (auto v : item.second->as_array()->array())
                 {
                     KNOWN_PEERS.push_back(v->as<std::string>()->value());
@@ -177,6 +337,10 @@ Config::load(std::string const& filename)
             }
             else if (item.first == "COMMANDS")
             {
+                if (!item.second->is_array())
+                {
+                    throw std::invalid_argument("COMMANDS must be an array");
+                }
                 for (auto v : item.second->as_array()->array())
                 {
                     COMMANDS.push_back(v->as<std::string>()->value());
@@ -226,9 +390,19 @@ Config::load(std::string const& filename)
                                                              put, mkdir);
                     }
                 }
+                else
+                {
+                    throw std::invalid_argument("incomplete HISTORY block");
+                }
             }
             else if (item.first == "DATABASE")
+            {
+                if (!item.second->as<std::string>())
+                {
+                    throw std::invalid_argument("invalid DATABASE");
+                }
                 DATABASE = item.second->as<std::string>()->value();
+            }
             else
             {
                 std::string err("Unknown configuration entry: '");

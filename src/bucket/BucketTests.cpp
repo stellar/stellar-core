@@ -87,12 +87,12 @@ TEST_CASE("skip list", "[bucket]")
 
     class BucketManagerTest : public BucketManagerImpl
     {
-    public:
+      public:
         BucketManagerTest(Application& app) : BucketManagerImpl(app)
         {
-
         }
-        void test()
+        void
+        test()
         {
             Hash h0;
             Hash h1 = SecretKey::random().getSeed();
@@ -121,7 +121,7 @@ TEST_CASE("skip list", "[bucket]")
             REQUIRE(header.skipList[2] == h0);
             REQUIRE(header.skipList[3] == h0);
 
-            header.ledgerSeq = SKIP_1*2;
+            header.ledgerSeq = SKIP_1 * 2;
             header.bucketListHash = h3;
             calculateSkipValues(header);
             REQUIRE(header.skipList[0] == h3);
@@ -129,7 +129,7 @@ TEST_CASE("skip list", "[bucket]")
             REQUIRE(header.skipList[2] == h0);
             REQUIRE(header.skipList[3] == h0);
 
-            header.ledgerSeq = SKIP_1*2+1;
+            header.ledgerSeq = SKIP_1 * 2 + 1;
             header.bucketListHash = h2;
             calculateSkipValues(header);
             REQUIRE(header.skipList[0] == h3);
@@ -145,7 +145,7 @@ TEST_CASE("skip list", "[bucket]")
             REQUIRE(header.skipList[2] == h0);
             REQUIRE(header.skipList[3] == h0);
 
-            header.ledgerSeq = SKIP_2+SKIP_1;
+            header.ledgerSeq = SKIP_2 + SKIP_1;
             header.bucketListHash = h5;
             calculateSkipValues(header);
             REQUIRE(header.skipList[0] == h5);
@@ -161,14 +161,13 @@ TEST_CASE("skip list", "[bucket]")
             REQUIRE(header.skipList[2] == h0);
             REQUIRE(header.skipList[3] == h0);
 
-            header.ledgerSeq = SKIP_3 + SKIP_2+SKIP_1;
+            header.ledgerSeq = SKIP_3 + SKIP_2 + SKIP_1;
             header.bucketListHash = h7;
             calculateSkipValues(header);
             REQUIRE(header.skipList[0] == h7);
             REQUIRE(header.skipList[1] == h6);
             REQUIRE(header.skipList[2] == h4);
             REQUIRE(header.skipList[3] == h0);
-
         }
     };
 
@@ -194,7 +193,7 @@ TEST_CASE("bucket list", "[bucket]")
             bl.addBatch(*app, i, liveGen(8), deadGen(5));
             if (i % 10 == 0)
                 CLOG(DEBUG, "Bucket") << "Added batch " << i
-                                   << ", hash=" << binToHex(bl.getHash());
+                                      << ", hash=" << binToHex(bl.getHash());
             for (size_t j = 0; j < BucketList::kNumLevels; ++j)
             {
                 auto const& lev = bl.getLevel(j);
@@ -211,7 +210,7 @@ TEST_CASE("bucket list", "[bucket]")
     catch (std::future_error& e)
     {
         CLOG(DEBUG, "Bucket") << "Test caught std::future_error " << e.code()
-                           << ": " << e.what();
+                              << ": " << e.what();
         REQUIRE(false);
     }
 }
@@ -255,15 +254,16 @@ TEST_CASE("bucket list shadowing", "[bucket]")
         if (i % 100 == 0)
         {
             CLOG(DEBUG, "Bucket") << "Added batch " << i
-                               << ", hash=" << binToHex(bl.getHash());
+                                  << ", hash=" << binToHex(bl.getHash());
             // Alice and bob should be in either curr or snap of level 0 and 1
             for (size_t j = 0; j < 2; ++j)
             {
                 auto const& lev = bl.getLevel(j);
                 auto curr = lev.getCurr();
                 auto snap = lev.getSnap();
-                bool hasAlice = (curr->containsBucketIdentity(BucketEntryAlice) ||
-                                 snap->containsBucketIdentity(BucketEntryAlice));
+                bool hasAlice =
+                    (curr->containsBucketIdentity(BucketEntryAlice) ||
+                     snap->containsBucketIdentity(BucketEntryAlice));
                 bool hasBob = (curr->containsBucketIdentity(BucketEntryBob) ||
                                snap->containsBucketIdentity(BucketEntryBob));
                 CHECK(hasAlice);
@@ -277,8 +277,9 @@ TEST_CASE("bucket list shadowing", "[bucket]")
                 auto const& lev = bl.getLevel(j);
                 auto curr = lev.getCurr();
                 auto snap = lev.getSnap();
-                bool hasAlice = (curr->containsBucketIdentity(BucketEntryAlice) ||
-                                 snap->containsBucketIdentity(BucketEntryAlice));
+                bool hasAlice =
+                    (curr->containsBucketIdentity(BucketEntryAlice) ||
+                     snap->containsBucketIdentity(BucketEntryAlice));
                 bool hasBob = (curr->containsBucketIdentity(BucketEntryBob) ||
                                snap->containsBucketIdentity(BucketEntryBob));
                 CHECK(!hasAlice);
@@ -309,15 +310,16 @@ TEST_CASE("file-backed buckets", "[bucket]")
     for (size_t i = 0; i < 5; ++i)
     {
         CLOG(DEBUG, "Bucket") << "Merging 10000 new ledger entries into "
-                           << (i * 10000) << " entry bucket";
+                              << (i * 10000) << " entry bucket";
         for (auto& e : live)
             e = liveGen(3);
         for (auto& e : dead)
             e = deadGen(3);
         {
             TIMED_SCOPE(timerObj2, "merge");
-            b1 = Bucket::merge(app->getBucketManager(), b1,
-                               Bucket::fresh(app->getBucketManager(), live, dead));
+            b1 = Bucket::merge(
+                app->getBucketManager(), b1,
+                Bucket::fresh(app->getBucketManager(), live, dead));
         }
     }
     CLOG(DEBUG, "Bucket") << "Spill file size: " << fileSize(b1->getFilename());
@@ -395,8 +397,8 @@ TEST_CASE("merging bucket entries", "[bucket]")
             Bucket::fresh(app->getBucketManager(), live, dead);
         CHECK(countEntries(b1) == live.size());
         auto liveCount = b1->countLiveAndDeadEntries().first;
-        CLOG(DEBUG, "Bucket") << "post-merge live count: " << liveCount << " of "
-                           << live.size();
+        CLOG(DEBUG, "Bucket") << "post-merge live count: " << liveCount
+                              << " of " << live.size();
         CHECK(liveCount == live.size() - dead.size());
     }
 
@@ -516,7 +518,7 @@ TEST_CASE("single entry bubbling up", "[bucket][bucketbubble]")
             bl.addBatch(*app, i, emptySetEntry, emptySet);
             if (i % 10 == 0)
                 CLOG(DEBUG, "Bucket") << "Added batch " << i
-                                   << ", hash=" << binToHex(bl.getHash());
+                                      << ", hash=" << binToHex(bl.getHash());
 
             CLOG(DEBUG, "Bucket") << "------- ledger " << i;
 
@@ -529,7 +531,8 @@ TEST_CASE("single entry bubbling up", "[bucket][bucketbubble]")
                 auto currSz = countEntries(lev.getCurr());
                 auto snapSz = countEntries(lev.getSnap());
                 CLOG(DEBUG, "Bucket") << "ledger " << i << ", level " << j
-                                   << " curr=" << currSz << " snap=" << snapSz;
+                                      << " curr=" << currSz
+                                      << " snap=" << snapSz;
 
                 if (1 > lb && 1 <= hb)
                 {
@@ -546,7 +549,7 @@ TEST_CASE("single entry bubbling up", "[bucket][bucketbubble]")
     catch (std::future_error& e)
     {
         CLOG(DEBUG, "Bucket") << "Test caught std::future_error " << e.code()
-                           << ": " << e.what();
+                              << ": " << e.what();
         REQUIRE(false);
     }
 }
@@ -558,12 +561,11 @@ closeLedger(Application& app)
     auto lclHash = lm.getLastClosedLedgerHeader().hash;
     CLOG(INFO, "Bucket")
         << "Artificially closing ledger " << lm.getLedgerNum()
-        << " with lcl=" << hexAbbrev(lclHash)
-        << ", buckets="
+        << " with lcl=" << hexAbbrev(lclHash) << ", buckets="
         << hexAbbrev(app.getBucketManager().getBucketList().getHash());
-    LedgerCloseData lcd(
-        lm.getLedgerNum(), std::make_shared<TxSetFrame>(lclHash),
-        lm.getCloseTime(), static_cast<int32_t>(lm.getTxFee()));
+    LedgerCloseData lcd(lm.getLedgerNum(),
+                        std::make_shared<TxSetFrame>(lclHash),
+                        lm.getCloseTime(), static_cast<int32_t>(lm.getTxFee()));
     lm.externalizeValue(lcd);
     return lm.getLastClosedLedgerHeader().hash;
 }
@@ -594,7 +596,7 @@ TEST_CASE("bucket persistence over app restart", "[bucket][bucketpersist]")
     auto alice = liveSingleGen(1);
     uint32_t pause = 65;
     batches[2].push_back(alice);
-    batches[pause-2].push_back(alice);
+    batches[pause - 2].push_back(alice);
 
     Hash Lh1, Lh2;
     Hash Blh1, Blh2;
@@ -666,7 +668,8 @@ TEST_CASE("bucket persistence over app restart", "[bucket][bucketpersist]")
 
         // Confirm that we re-acquired the close-ledger state.
         REQUIRE(hexAbbrev(Lh1) ==
-                hexAbbrev(app->getLedgerManager().getLastClosedLedgerHeader().hash));
+                hexAbbrev(
+                    app->getLedgerManager().getLastClosedLedgerHeader().hash));
         REQUIRE(hexAbbrev(Blh1) == hexAbbrev(bl.getHash()));
 
         uint32_t i = pause;

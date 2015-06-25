@@ -223,11 +223,10 @@ CommandHandler::stop(std::string const& params, std::string& retStr)
     mApp.gracefulStop();
 }
 
-template <typename T> bool
+template <typename T>
+bool
 parseOptionalNumParam(std::map<std::string, std::string> const& map,
-                      std::string const& key,
-                      T& val,
-                      std::string &retStr)
+                      std::string const& key, T& val, std::string& retStr)
 {
     auto i = map.find(key);
     if (i != map.end())
@@ -275,9 +274,8 @@ CommandHandler::generateLoad(std::string const& params, std::string& retStr)
     }
     else
     {
-        retStr =
-            "Set ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING=true in "
-            "the stellar-core.cfg if you want this behavior";
+        retStr = "Set ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING=true in "
+                 "the stellar-core.cfg if you want this behavior";
     }
 }
 
@@ -402,8 +400,10 @@ CommandHandler::checkpoint(std::string const& params, std::string& retStr)
                               ec = ec2;
                               done = true;
                           });
-        while (!done && mApp.getClock().crank(false))
-            ;
+        while (!done)
+        {
+            mApp.getClock().crank(false);
+        }
         if (ec)
         {
             retStr = std::string("Publish failed: ") + ec.message();

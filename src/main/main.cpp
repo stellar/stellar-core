@@ -313,8 +313,10 @@ main(int argc, char* const* argv)
         }
         else
         {
-            LOG(WARNING) << "No config file " << cfgFile << " found";
-            cfgFile = ":default-settings:";
+            std::string s;
+            s = "No config file ";
+            s += cfgFile + " found";
+            throw std::invalid_argument(s);
         }
         Logging::setFmt(hexAbbrev(cfg.PEER_PUBLIC_KEY));
         Logging::setLogLevel(logLevel, nullptr);
@@ -326,7 +328,7 @@ main(int argc, char* const* argv)
         }
 
         // don't log to file if just sending a command
-        if(cfg.LOG_FILE_PATH.size()) 
+        if (cfg.LOG_FILE_PATH.size())
             Logging::setLoggingToFile(cfg.LOG_FILE_PATH);
         Logging::setLogLevel(logLevel, nullptr);
 
@@ -354,9 +356,9 @@ main(int argc, char* const* argv)
             cfg.FORCE_SCP = true;
         }
     }
-    catch (std::invalid_argument& e)
+    catch (std::exception& e)
     {
-        LOG(FATAL) << e.what();
+        LOG(FATAL) << "Got an exception: " << e.what();
         return 1;
     }
     // run outside of catch block so that we properly capture crashes

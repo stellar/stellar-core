@@ -9,6 +9,7 @@
 #include "ledger/AccountFrame.h"
 #include "ledger/OfferFrame.h"
 #include "ledger/TrustFrame.h"
+#include "util/optional.h"
 
 namespace stellar
 {
@@ -18,6 +19,14 @@ class OperationFrame;
 typedef std::shared_ptr<TransactionFrame> TransactionFramePtr;
 namespace txtest
 {
+
+struct ThresholdSetter
+{
+    optional<uint8_t> masterWeight;
+    optional<uint8_t> lowThreshold;
+    optional<uint8_t> medThreshold;
+    optional<uint8_t> highThreshold;
+};
 
 SecretKey getRoot();
 
@@ -102,10 +111,10 @@ TransactionFramePtr manageOfferOp(uint64 offerId, SecretKey& source,
                                   Price const& price, int64_t amount,
                                   SequenceNumber seq);
 
-TransactionFramePtr createPassiveOfferOp(SecretKey& source,
-    Currency& takerGets, Currency& takerPays,
-    Price const& price, int64_t amount,
-    SequenceNumber seq);
+TransactionFramePtr createPassiveOfferOp(SecretKey& source, Currency& takerGets,
+                                         Currency& takerPays,
+                                         Price const& price, int64_t amount,
+                                         SequenceNumber seq);
 
 // expects success
 // expects a new offer to be created
@@ -120,18 +129,17 @@ applyCreateOfferWithResult(Application& app, LedgerDelta& delta, uint64 offerId,
                            SecretKey& source, Currency& takerGets,
                            Currency& takerPays, Price const& price,
                            int64_t amount, SequenceNumber seq,
-    ManageOfferResultCode result = MANAGE_OFFER_SUCCESS);
+                           ManageOfferResultCode result = MANAGE_OFFER_SUCCESS);
 
-TransactionFramePtr createSetOptions(SecretKey& source,
+TransactionFramePtr createSetOptions(SecretKey& source, SequenceNumber seq,
                                      AccountID* inflationDest,
                                      uint32_t* setFlags, uint32_t* clearFlags,
-                                     Thresholds* thrs, Signer* signer,
-                                     SequenceNumber seq);
+                                     ThresholdSetter* thrs, Signer* signer);
 
-void applySetOptions(Application& app, SecretKey& source,
+void applySetOptions(Application& app, SecretKey& source, SequenceNumber seq,
                      AccountID* inflationDest, uint32_t* setFlags,
-                     uint32_t* clearFlags, Thresholds* thrs, Signer* signer,
-                     SequenceNumber seq,
+                     uint32_t* clearFlags, ThresholdSetter* thrs,
+                     Signer* signer,
                      SetOptionsResultCode result = SET_OPTIONS_SUCCESS);
 
 TransactionFramePtr createInflation(SecretKey& from, SequenceNumber seq);
@@ -139,15 +147,12 @@ OperationResult applyInflation(Application& app, SecretKey& from,
                                SequenceNumber seq,
                                InflationResultCode result = INFLATION_SUCCESS);
 
-TransactionFramePtr createAccountMerge(SecretKey& source,
-                                     SecretKey& dest,
-                                     SequenceNumber seq);
+TransactionFramePtr createAccountMerge(SecretKey& source, SecretKey& dest,
+                                       SequenceNumber seq);
 
-void applyAccountMerge(Application& app, SecretKey& source,
-                     SecretKey & dest,
-                     SequenceNumber seq,
-                     AccountMergeResultCode result = ACCOUNT_MERGE_SUCCESS);
-
+void applyAccountMerge(Application& app, SecretKey& source, SecretKey& dest,
+                       SequenceNumber seq,
+                       AccountMergeResultCode result = ACCOUNT_MERGE_SUCCESS);
 
 Currency makeCurrency(SecretKey& issuer, std::string const& code);
 

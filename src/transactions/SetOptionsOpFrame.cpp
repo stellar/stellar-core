@@ -22,7 +22,9 @@ int32_t
 SetOptionsOpFrame::getNeededThreshold() const
 {
     // updating thresholds or signer requires high threshold
-    if (mSetOptions.thresholds || mSetOptions.signer)
+    if (mSetOptions.masterWeight || mSetOptions.lowThreshold ||
+        mSetOptions.medThreshold || mSetOptions.highThreshold ||
+        mSetOptions.signer)
     {
         return mSourceAccount->getHighThreshold();
     }
@@ -30,8 +32,8 @@ SetOptionsOpFrame::getNeededThreshold() const
 }
 
 bool
-SetOptionsOpFrame::doApply(medida::MetricsRegistry& metrics,
-                           LedgerDelta& delta, LedgerManager& ledgerManager)
+SetOptionsOpFrame::doApply(medida::MetricsRegistry& metrics, LedgerDelta& delta,
+                           LedgerManager& ledgerManager)
 {
     Database& db = ledgerManager.getDatabase();
     AccountEntry& account = mSourceAccount->getAccount();
@@ -43,8 +45,7 @@ SetOptionsOpFrame::doApply(medida::MetricsRegistry& metrics,
         inflationAccount = AccountFrame::loadAccount(inflationID, db);
         if (!inflationAccount)
         {
-            metrics.NewMeter({"op-set-options", "failure",
-                              "invalid-inflation"},
+            metrics.NewMeter({"op-set-options", "failure", "invalid-inflation"},
                              "operation").Mark();
             innerResult().code(SET_OPTIONS_INVALID_INFLATION);
             return false;
@@ -65,8 +66,7 @@ SetOptionsOpFrame::doApply(medida::MetricsRegistry& metrics,
             // must ensure no one is holding your credit
             if (TrustFrame::hasIssued(account.accountID, db))
             {
-                metrics.NewMeter({"op-set-options", "failure",
-                                  "cant-change"},
+                metrics.NewMeter({"op-set-options", "failure", "cant-change"},
                                  "operation").Mark();
                 innerResult().code(SET_OPTIONS_CANT_CHANGE);
                 return false;
@@ -80,9 +80,28 @@ SetOptionsOpFrame::doApply(medida::MetricsRegistry& metrics,
         account.homeDomain = *mSetOptions.homeDomain;
     }
 
-    if (mSetOptions.thresholds)
+    if (mSetOptions.masterWeight)
     {
-        account.thresholds = *mSetOptions.thresholds;
+        account.thresholds[THRESHOLD_MASTER_WEIGHT] =
+            *mSetOptions.masterWeight & UINT8_MAX;
+    }
+
+    if (mSetOptions.lowThreshold)
+    {
+        account.thresholds[THRESHOLD_LOW] =
+            *mSetOptions.lowThreshold & UINT8_MAX;
+    }
+
+    if (mSetOptions.medThreshold)
+    {
+        account.thresholds[THRESHOLD_MED] =
+            *mSetOptions.medThreshold & UINT8_MAX;
+    }
+
+    if (mSetOptions.highThreshold)
+    {
+        account.thresholds[THRESHOLD_HIGH] =
+            *mSetOptions.highThreshold & UINT8_MAX;
     }
 
     if (mSetOptions.signer)
@@ -110,9 +129,9 @@ SetOptionsOpFrame::doApply(medida::MetricsRegistry& metrics,
                 }
                 if (!mSourceAccount->addNumEntries(1, ledgerManager))
                 {
-                    metrics.NewMeter({"op-set-options", "failure",
-                                      "low-reserve"},
-                                     "operation").Mark();
+                    metrics.NewMeter(
+                                {"op-set-options", "failure", "low-reserve"},
+                                "operation").Mark();
                     innerResult().code(SET_OPTIONS_LOW_RESERVE);
                     return false;
                 }
@@ -139,8 +158,8 @@ SetOptionsOpFrame::doApply(medida::MetricsRegistry& metrics,
         mSourceAccount->setUpdateSigners();
     }
 
-    metrics.NewMeter({"op-set-options", "success", "apply"},
-                     "operation").Mark();
+    metrics.NewMeter({"op-set-options", "success", "apply"}, "operation")
+        .Mark();
     innerResult().code(SET_OPTIONS_SUCCESS);
     mSourceAccount->storeChange(delta, db);
     return true;
@@ -149,19 +168,18 @@ SetOptionsOpFrame::doApply(medida::MetricsRegistry& metrics,
 bool
 SetOptionsOpFrame::doCheckValid(medida::MetricsRegistry& metrics)
 {
-    if(mSetOptions.setFlags)
+    if (mSetOptions.setFlags)
     {
-        if( *mSetOptions.setFlags & 
-            ~(AUTH_REQUIRED_FLAG | AUTH_REVOCABLE_FLAG))
+        if (*mSetOptions.setFlags & ~(AUTH_REQUIRED_FLAG | AUTH_REVOCABLE_FLAG))
         {
             innerResult().code(SET_OPTIONS_UNKNOWN_FLAG);
             return false;
         }
     }
 
-    if(mSetOptions.clearFlags)
+    if (mSetOptions.clearFlags)
     {
-        if( *mSetOptions.clearFlags &
+        if (*mSetOptions.clearFlags &
             ~(AUTH_REQUIRED_FLAG | AUTH_REVOCABLE_FLAG))
         {
             innerResult().code(SET_OPTIONS_UNKNOWN_FLAG);
@@ -179,6 +197,55 @@ SetOptionsOpFrame::doCheckValid(medida::MetricsRegistry& metrics)
             return false;
         }
     }
+
+    if (mSetOptions.masterWeight)
+    {
+        if (*mSetOptions.masterWeight > UINT8_MAX)
+        {
+            metrics.NewMeter(
+                        {"op-set-options", "invalid", "threshold-out-of-range"},
+                        "operation").Mark();
+            innerResult().code(SET_OPTIONS_THRESHOLD_OUT_OF_RANGE);
+            return false;
+        }
+    }
+
+    if (mSetOptions.lowThreshold)
+    {
+        if (*mSetOptions.lowThreshold > UINT8_MAX)
+        {
+            metrics.NewMeter(
+                        {"op-set-options", "invalid", "threshold-out-of-range"},
+                        "operation").Mark();
+            innerResult().code(SET_OPTIONS_THRESHOLD_OUT_OF_RANGE);
+            return false;
+        }
+    }
+
+    if (mSetOptions.medThreshold)
+    {
+        if (*mSetOptions.medThreshold > UINT8_MAX)
+        {
+            metrics.NewMeter(
+                        {"op-set-options", "invalid", "threshold-out-of-range"},
+                        "operation").Mark();
+            innerResult().code(SET_OPTIONS_THRESHOLD_OUT_OF_RANGE);
+            return false;
+        }
+    }
+
+    if (mSetOptions.highThreshold)
+    {
+        if (*mSetOptions.highThreshold > UINT8_MAX)
+        {
+            metrics.NewMeter(
+                        {"op-set-options", "invalid", "threshold-out-of-range"},
+                        "operation").Mark();
+            innerResult().code(SET_OPTIONS_THRESHOLD_OUT_OF_RANGE);
+            return false;
+        }
+    }
+
     return true;
 }
 }

@@ -254,8 +254,8 @@ TEST_CASE("payment", "[tx][payment]")
     {
         uint32_t setFlags = AUTH_REQUIRED_FLAG | AUTH_REVOCABLE_FLAG;
 
-        applySetOptions(app, gateway, nullptr, &setFlags, nullptr, nullptr,
-                        nullptr, gateway_seq++);
+        applySetOptions(app, gateway, gateway_seq++, nullptr, &setFlags,
+                        nullptr, nullptr, nullptr);
 
         applyChangeTrust(app, a1, gateway, a1Seq++, "IDR", trustLineLimit);
 
@@ -271,7 +271,8 @@ TEST_CASE("payment", "[tx][payment]")
         applyAllowTrust(app, gateway, a1, gateway_seq++, "IDR", false);
 
         applyCreditPaymentTx(app, a1, gateway, idrCur, a1Seq++,
-                             trustLineStartingBalance, PAYMENT_NOT_AUTHORIZED);
+                             trustLineStartingBalance,
+                             PAYMENT_SRC_NOT_AUTHORIZED);
 
         applyAllowTrust(app, gateway, a1, gateway_seq++, "IDR", true);
 

@@ -235,7 +235,7 @@ ApplicationImpl::start()
 
     while (!done)
     {
-        mVirtualClock.crank(false);
+        mVirtualClock.crank(true);
     }
 }
 
@@ -309,8 +309,7 @@ ApplicationImpl::manualClose()
 }
 
 void
-ApplicationImpl::generateLoad(uint32_t nAccounts,
-                              uint32_t nTxs,
+ApplicationImpl::generateLoad(uint32_t nAccounts, uint32_t nTxs,
                               uint32_t txRate)
 {
     if (!mLoadGenerator)

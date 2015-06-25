@@ -878,21 +878,28 @@ namespace cpptoml
         parse_type determine_value_type(const std::string::iterator& it,
             const std::string::iterator& end)
         {
-            if(*it == '"')
+            if (it != end)
             {
-                return parse_type::STRING;
-            } else if(is_date(it, end))
-            {
-                return parse_type::DATE;
-            } else if(is_number(*it) || *it == '-')
-            {
-                return determine_number_type(it, end);
-            } else if(*it == 't' || *it == 'f')
-            {
-                return parse_type::BOOL;
-            } else if(*it == '[')
-            {
-                return parse_type::ARRAY;
+                if (*it == '"')
+                {
+                    return parse_type::STRING;
+                }
+                else if (is_date(it, end))
+                {
+                    return parse_type::DATE;
+                }
+                else if (is_number(*it) || *it == '-')
+                {
+                    return determine_number_type(it, end);
+                }
+                else if (*it == 't' || *it == 'f')
+                {
+                    return parse_type::BOOL;
+                }
+                else if (*it == '[')
+                {
+                    return parse_type::ARRAY;
+                }
             }
             throw_parse_exception("Failed to parse value type");
         }
@@ -1139,7 +1146,7 @@ namespace cpptoml
                 if(auto v = value->as<Value>())
                     arr->array().push_back(value);
                 else
-                    throw_parse_exception("Arrays must be heterogeneous");
+                    throw_parse_exception("Arrays must be homogeneous");
                 skip_whitespace_and_comments(it, end);
                 if(*it != ',')
                     break;

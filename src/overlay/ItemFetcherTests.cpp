@@ -2,7 +2,6 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-
 #include "util/asio.h"
 #include <main/Application.h>
 #include "main/test.h"
@@ -16,8 +15,7 @@
 namespace stellar
 {
 
-
-/* this wasn't in the VS project. So I removed IntTracker. 
+/* this wasn't in the VS project. So I removed IntTracker.
 
 using IntFetcher = ItemFetcher<int, IntTracker>;
 
@@ -35,7 +33,7 @@ TEST_CASE("ItemFetcher fetches", "[overlay]")
     {
         received += std::to_string(item) + " ";
     };
-    
+
     Hash zero = sha256(ByteSlice("zero"));
     Hash ten = sha256(ByteSlice("ten"));
     Hash twelve = sha256(ByteSlice("twelve"));
@@ -49,7 +47,7 @@ TEST_CASE("ItemFetcher fetches", "[overlay]")
     REQUIRE(!itemFetcher.isNeeded(zero));
     REQUIRE(itemFetcher.isNeeded(ten));
     REQUIRE(itemFetcher.isNeeded(twelve));
-    
+
     itemFetcher.recv(twelve, 12);
     itemFetcher.recv(ten, 10);
 
@@ -69,7 +67,7 @@ TEST_CASE("ItemFetcher fetches", "[overlay]")
         itemFetcher.recv(fourteen, 14);
         REQUIRE(received == "12 12 10 ");
     }
-        
+
     SECTION("caches")
     {
         tTen.reset();
@@ -102,7 +100,8 @@ TEST_CASE("ItemFetcher fetches", "[overlay]")
             tZero = itemFetcher.fetch(zero, cb);
             tZero2 = tZero;
         }
-        SECTION("fetching twice does not trigger any additional network activity")
+        SECTION("fetching twice does not trigger any additional network
+activity")
         {
             tZero = itemFetcher.fetch(zero, cb);
             tZero2 = itemFetcher.fetch(zero, cb);
@@ -111,7 +110,7 @@ TEST_CASE("ItemFetcher fetches", "[overlay]")
 
         while(tZero->mAsked.size() < 4)
         {
-            clock.crank(false);
+            clock.crank(true);
         }
         itemFetcher.recv(zero, 0);
         while (clock.crank(false) > 0) { }
@@ -119,13 +118,13 @@ TEST_CASE("ItemFetcher fetches", "[overlay]")
         REQUIRE(tZero->mAsked.size() == 4);
         REQUIRE(tZero == tZero2);
 
-        REQUIRE(std::count(tZero->mAsked.begin(), tZero->mAsked.end(), peer1) == 2);
-        REQUIRE(std::count(tZero->mAsked.begin(), tZero->mAsked.end(), peer2) == 2);
+        REQUIRE(std::count(tZero->mAsked.begin(), tZero->mAsked.end(), peer1) ==
+2);
+        REQUIRE(std::count(tZero->mAsked.begin(), tZero->mAsked.end(), peer2) ==
+2);
 
-        
+
     }
 }
 */
-
-
 }

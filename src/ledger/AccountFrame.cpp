@@ -145,25 +145,25 @@ AccountFrame::getID() const
 uint32_t
 AccountFrame::getMasterWeight() const
 {
-    return mAccountEntry.thresholds[0];
+    return mAccountEntry.thresholds[THRESHOLD_MASTER_WEIGHT];
 }
 
 uint32_t
 AccountFrame::getHighThreshold() const
 {
-    return mAccountEntry.thresholds[3];
+    return mAccountEntry.thresholds[THRESHOLD_HIGH];
 }
 
 uint32_t
 AccountFrame::getMediumThreshold() const
 {
-    return mAccountEntry.thresholds[2];
+    return mAccountEntry.thresholds[THRESHOLD_MED];
 }
 
 uint32_t
 AccountFrame::getLowThreshold() const
 {
-    return mAccountEntry.thresholds[1];
+    return mAccountEntry.thresholds[THRESHOLD_LOW];
 }
 
 AccountFrame::pointer
