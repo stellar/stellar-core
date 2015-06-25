@@ -10,6 +10,7 @@
 #include "util/Logging.h"
 #include "crypto/Base58.h"
 #include "ledger/LedgerManager.h"
+#include "herder/LedgerCloseData.h"
 
 #include "main/Config.h"
 
@@ -29,11 +30,13 @@ TEST_CASE("ledgerheader", "[ledger]")
         Application::pointer app = Application::create(clock, cfg);
         app->start();
 
-        TxSetFramePtr txSet = make_shared<TxSetFrame>(
-            app->getLedgerManager().getLastClosedLedgerHeader().hash);
+        auto const& lcl = app->getLedgerManager().getLastClosedLedgerHeader();
+        auto const& lastHash = lcl.hash;
+        TxSetFramePtr txSet = make_shared<TxSetFrame>(lastHash);
 
         // close this ledger
-        LedgerCloseData ledgerData(1, txSet, 1, 10);
+        StellarValue sv(cfg.LEDGER_PROTOCOL_VERSION, lastHash, 1, 10);
+        LedgerCloseData ledgerData(lcl.header.ledgerSeq + 1, txSet, sv);
         app->getLedgerManager().closeLedger(ledgerData);
 
         saved = app->getLedgerManager().getLastClosedLedgerHeader().hash;

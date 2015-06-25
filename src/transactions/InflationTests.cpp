@@ -7,6 +7,7 @@
 #include "main/Config.h"
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerDelta.h"
+#include "herder/LedgerCloseData.h"
 #include "main/test.h"
 #include "lib/catch.hpp"
 #include "util/Logging.h"
@@ -315,8 +316,10 @@ closeLedgerOn(Application& app, uint32 ledgerSeq, int day, int month, int year,
         txSet->sortForHash();
     }
 
-    LedgerCloseData ledgerData(ledgerSeq, txSet, getTestDate(day, month, year),
-                               10);
+    StellarValue sv(app.getConfig().LEDGER_PROTOCOL_VERSION,
+                    txSet->getContentsHash(), getTestDate(day, month, year),
+                    10);
+    LedgerCloseData ledgerData(ledgerSeq, txSet, sv);
     app.getLedgerManager().closeLedger(ledgerData);
 
     REQUIRE(app.getLedgerManager().getLedgerNum() == (ledgerSeq + 1));

@@ -28,6 +28,9 @@ class SecretKey;
 class XDROutputFileStream;
 class SHA256;
 
+class TransactionFrame;
+typedef std::shared_ptr<TransactionFrame> TransactionFramePtr;
+
 class TransactionFrame
 {
   protected:
@@ -54,13 +57,11 @@ class TransactionFrame
     void markResultFailed();
 
   public:
-    typedef std::shared_ptr<TransactionFrame> pointer;
-
     TransactionFrame(TransactionEnvelope const& envelope);
     TransactionFrame(TransactionFrame const&) = delete;
     TransactionFrame() = delete;
 
-    static TransactionFrame::pointer
+    static TransactionFramePtr
     makeTransactionFromWire(TransactionEnvelope const& msg);
 
     Hash const& getFullHash() const;

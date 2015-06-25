@@ -17,6 +17,7 @@
 #include "ledger/LedgerDelta.h"
 #include "ledger/LedgerManager.h"
 #include "transactions/TransactionFrame.h"
+#include "herder/LedgerCloseData.h"
 #include "util/Logging.h"
 #include "util/XDRStream.h"
 #include "xdrpp/printer.h"
@@ -894,8 +895,9 @@ CatchupStateMachine::applyHistoryFromLastClosedLedger()
                                          "hash in replay ledger");
             }
 
-            LedgerCloseData closeData(header.ledgerSeq, txset, header.closeTime,
-                                      header.baseFee);
+            StellarValue sv(header.ledgerVersion, header.txSetHash,
+                            header.closeTime, header.baseFee);
+            LedgerCloseData closeData(header.ledgerSeq, txset, sv);
             lm.closeLedger(closeData);
 
             CLOG(DEBUG, "History")

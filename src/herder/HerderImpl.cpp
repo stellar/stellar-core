@@ -7,6 +7,7 @@
 #include "crypto/SHA.h"
 #include "crypto/Base58.h"
 #include "herder/TxSetFrame.h"
+#include "herder/LedgerCloseData.h"
 #include "ledger/LedgerManager.h"
 #include "main/Application.h"
 #include "main/Config.h"
@@ -286,24 +287,21 @@ HerderImpl::validateValue(uint64 slotIndex, NodeID const& nodeID,
 std::string
 HerderImpl::getValueString(Value const& v) const
 {
-    std::ostringstream oss;
     StellarValue b;
     if (v.empty())
     {
-        return "[empty]";
+        return "[:empty:]";
     }
 
     try
     {
         xdr::xdr_from_opaque(v, b);
-        uint256 valueHash = sha256(xdr::xdr_to_opaque(b));
 
-        oss << "[ h:" << hexAbbrev(valueHash) << " ]";
-        return oss.str();
+        return stellarValueToString(b);
     }
     catch (...)
     {
-        return "[invalid]";
+        return "[:invalid:]";
     }
 }
 
@@ -363,8 +361,7 @@ HerderImpl::valueExternalized(uint64 slotIndex, Value const& value)
     // tell the LedgerManager that this value got externalized
     // LedgerManager will perform the proper action based on its internal
     // state: apply, trigger catchup, etc
-    LedgerCloseData ledgerData(lastConsensusLedgerIndex(), externalizedSet,
-                               b.closeTime, b.baseFee);
+    LedgerCloseData ledgerData(lastConsensusLedgerIndex(), externalizedSet, b);
     mLedgerManager.externalizeValue(ledgerData);
 
     // perform cleanups

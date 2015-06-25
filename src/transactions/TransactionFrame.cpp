@@ -13,6 +13,7 @@
 #include "crypto/SHA.h"
 #include "crypto/SecretKey.h"
 #include "database/Database.h"
+#include "herder/TxSetFrame.h"
 #include "crypto/Hex.h"
 #include <cereal/external/base64.hpp>
 
@@ -24,10 +25,10 @@ namespace stellar
 
 using namespace std;
 
-TransactionFrame::pointer
+TransactionFramePtr
 TransactionFrame::makeTransactionFromWire(TransactionEnvelope const& msg)
 {
-    TransactionFrame::pointer res = make_shared<TransactionFrame>(msg);
+    TransactionFramePtr res = make_shared<TransactionFrame>(msg);
     return res;
 }
 
@@ -85,13 +86,13 @@ TransactionFrame::getEnvelope()
     return mEnvelope;
 }
 
-float 
+float
 TransactionFrame::getFeeRatio(Application& app) const
 {
     return ((float)getFee() / (float)getMinFee(app));
 }
 
-int64_t 
+int64_t
 TransactionFrame::getFee() const
 {
     return mEnvelope.tx.fee;
@@ -209,9 +210,10 @@ TransactionFrame::checkValid(Application& app, bool applying,
 
     if (mOperations.size() == 0)
     {
-        app.getMetrics().NewMeter(
-            {"transaction", "invalid", "missing-operation"},
-            "transaction").Mark();
+        app.getMetrics()
+            .NewMeter({"transaction", "invalid", "missing-operation"},
+                      "transaction")
+            .Mark();
         getResult().result.code(txMISSING_OPERATION);
         return false;
     }
@@ -221,8 +223,10 @@ TransactionFrame::checkValid(Application& app, bool applying,
         if (mEnvelope.tx.timeBounds->minTime >
             app.getLedgerManager().getLastClosedLedgerHeader().header.closeTime)
         {
-            app.getMetrics().NewMeter(
-                {"transaction", "invalid", "too-early"}, "transaction").Mark();
+            app.getMetrics()
+                .NewMeter({"transaction", "invalid", "too-early"},
+                          "transaction")
+                .Mark();
             getResult().result.code(txTOO_EARLY);
             return false;
         }
@@ -231,27 +235,29 @@ TransactionFrame::checkValid(Application& app, bool applying,
                                                     .getLastClosedLedgerHeader()
                                                     .header.closeTime))
         {
-            app.getMetrics().NewMeter(
-                {"transaction", "invalid", "too-late"}, "transaction").Mark();
+            app.getMetrics()
+                .NewMeter({"transaction", "invalid", "too-late"}, "transaction")
+                .Mark();
             getResult().result.code(txTOO_LATE);
             return false;
         }
     }
 
-  
     if (mEnvelope.tx.fee < getMinFee(app))
     {
-        app.getMetrics().NewMeter(
-            {"transaction", "invalid", "insufficient-fee"},
-            "transaction").Mark();
+        app.getMetrics()
+            .NewMeter({"transaction", "invalid", "insufficient-fee"},
+                      "transaction")
+            .Mark();
         getResult().result.code(txINSUFFICIENT_FEE);
         return false;
     }
 
     if (!loadAccount(app))
     {
-        app.getMetrics().NewMeter(
-            {"transaction", "invalid", "no-account"}, "transaction").Mark();
+        app.getMetrics()
+            .NewMeter({"transaction", "invalid", "no-account"}, "transaction")
+            .Mark();
         getResult().result.code(txNO_ACCOUNT);
         return false;
     }
@@ -263,16 +269,18 @@ TransactionFrame::checkValid(Application& app, bool applying,
 
     if (current + 1 != mEnvelope.tx.seqNum)
     {
-        app.getMetrics().NewMeter(
-            {"transaction", "invalid", "bad-seq"}, "transaction").Mark();
+        app.getMetrics()
+            .NewMeter({"transaction", "invalid", "bad-seq"}, "transaction")
+            .Mark();
         getResult().result.code(txBAD_SEQ);
         return false;
     }
 
     if (!checkSignature(*mSigningAccount, mSigningAccount->getLowThreshold()))
     {
-        app.getMetrics().NewMeter(
-            {"transaction", "invalid", "bad-auth"}, "transaction").Mark();
+        app.getMetrics()
+            .NewMeter({"transaction", "invalid", "bad-auth"}, "transaction")
+            .Mark();
         getResult().result.code(txBAD_AUTH);
         return false;
     }
@@ -285,9 +293,10 @@ TransactionFrame::checkValid(Application& app, bool applying,
     if (mSigningAccount->getAccount().balance - mEnvelope.tx.fee <
         mSigningAccount->getMinimumBalance(app.getLedgerManager()))
     {
-        app.getMetrics().NewMeter(
-            {"transaction", "invalid", "insufficient-balance"},
-            "transaction").Mark();
+        app.getMetrics()
+            .NewMeter({"transaction", "invalid", "insufficient-balance"},
+                      "transaction")
+            .Mark();
         getResult().result.code(txINSUFFICIENT_BALANCE);
         return false;
     }
@@ -301,9 +310,10 @@ TransactionFrame::checkValid(Application& app, bool applying,
                 // it's OK to just fast fail here and not try to call
                 // checkValid on all operations as the resulting object
                 // is only used by applications
-                app.getMetrics().NewMeter(
-                    {"transaction", "invalid", "invalid-op"},
-                    "transaction").Mark();
+                app.getMetrics()
+                    .NewMeter({"transaction", "invalid", "invalid-op"},
+                              "transaction")
+                    .Mark();
                 markResultFailed();
                 return false;
             }
@@ -311,9 +321,10 @@ TransactionFrame::checkValid(Application& app, bool applying,
         auto b = checkAllSignaturesUsed();
         if (!b)
         {
-            app.getMetrics().NewMeter(
-                {"transaction", "invalid", "bad-auth-extra"},
-                "transaction").Mark();
+            app.getMetrics()
+                .NewMeter({"transaction", "invalid", "bad-auth-extra"},
+                          "transaction")
+                .Mark();
         }
         return b;
     }

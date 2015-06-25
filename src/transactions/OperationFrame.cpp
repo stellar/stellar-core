@@ -8,6 +8,7 @@
 #include <string>
 #include "util/Logging.h"
 #include "ledger/LedgerDelta.h"
+#include "transactions/TransactionFrame.h"
 #include "transactions/AllowTrustOpFrame.h"
 #include "transactions/CreateAccountOpFrame.h"
 #include "transactions/ManageOfferOpFrame.h"
@@ -44,7 +45,8 @@ OperationFrame::makeHelper(Operation const& op, OperationResult& res,
     case MANAGE_OFFER:
         return shared_ptr<OperationFrame>(new ManageOfferOpFrame(op, res, tx));
     case CREATE_PASSIVE_OFFER:
-        return shared_ptr<OperationFrame>(new CreatePassiveOfferOpFrame(op, res, tx));
+        return shared_ptr<OperationFrame>(
+            new CreatePassiveOfferOpFrame(op, res, tx));
     case SET_OPTIONS:
         return shared_ptr<OperationFrame>(new SetOptionsOpFrame(op, res, tx));
     case CHANGE_TRUST:
@@ -128,8 +130,9 @@ OperationFrame::checkValid(Application& app, bool forApply)
     {
         if (forApply || !mOperation.sourceAccount)
         {
-            app.getMetrics().NewMeter(
-                {"operation", "invalid", "no-account"}, "operation").Mark();
+            app.getMetrics()
+                .NewMeter({"operation", "invalid", "no-account"}, "operation")
+                .Mark();
             mResult.code(opNO_ACCOUNT);
             return false;
         }
@@ -142,8 +145,9 @@ OperationFrame::checkValid(Application& app, bool forApply)
 
     if (!checkSignature())
     {
-        app.getMetrics().NewMeter(
-            {"operation", "invalid", "bad-auth"}, "operation").Mark();
+        app.getMetrics()
+            .NewMeter({"operation", "invalid", "bad-auth"}, "operation")
+            .Mark();
         mResult.code(opBAD_AUTH);
         return false;
     }

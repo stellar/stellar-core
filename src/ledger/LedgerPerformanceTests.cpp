@@ -16,6 +16,7 @@
 #include "main/Config.h"
 #include "main/PersistentState.h"
 #include "simulation/Simulation.h"
+#include "herder/LedgerCloseData.h"
 #include <soci.h>
 #include "crypto/Base58.h"
 #include "bucket/BucketManager.h"
@@ -135,9 +136,11 @@ class LedgerPerformanceTests : public Simulation
             tx.recordExecution(baseFee);
         }
 
-        LedgerCloseData ledgerData(
-            mApp->getLedgerManager().getLedgerNum(), txSet,
+        StellarValue sv(
+            mApp->getConfig().LEDGER_PROTOCOL_VERSION, txSet->getContentsHash(),
             VirtualClock::to_time_t(mApp->getClock().now()), baseFee);
+        LedgerCloseData ledgerData(mApp->getLedgerManager().getLedgerNum(),
+                                   txSet, sv);
 
         mApp->getLedgerManager().closeLedger(ledgerData);
     }

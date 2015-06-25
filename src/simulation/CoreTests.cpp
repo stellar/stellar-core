@@ -42,7 +42,6 @@ printStats(int& nLedgers, std::chrono::system_clock::time_point tBegin,
 }
 
 #include "lib/util/lrucache.hpp"
-// typedef std::shared_ptr<TxSetFrame> TxSetFramePtr;
 
 TEST_CASE("3 nodes. 2 running. threshold 2", "[simulation][core3]")
 {

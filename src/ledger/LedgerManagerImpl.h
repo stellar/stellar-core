@@ -60,7 +60,7 @@ class LedgerManagerImpl : public LedgerManager
     State getState() const override;
     std::string getStateHuman() const override;
 
-    void externalizeValue(LedgerCloseData ledgerData) override;
+    void externalizeValue(LedgerCloseData const& ledgerData) override;
 
     uint32_t getLedgerNum() const override;
     uint32_t getLastClosedLedgerNum() const override;

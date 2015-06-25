@@ -11,6 +11,7 @@
 #include "crypto/SHA.h"
 #include "xdrpp/marshal.h"
 #include "database/Database.h"
+#include "util/types.h"
 #include <cereal/external/base64.hpp>
 
 namespace stellar

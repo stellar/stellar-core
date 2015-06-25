@@ -19,6 +19,7 @@
 #include "transactions/TxTests.h"
 #include "ledger/LedgerManager.h"
 #include "util/NonCopyable.h"
+#include "herder/LedgerCloseData.h"
 #include <cstdio>
 #include <xdrpp/autocheck.h>
 #include <fstream>
@@ -311,7 +312,9 @@ HistoryTests::generateRandomLedger()
                            << " with " << txSet->size() << " txs (txhash:"
                            << hexAbbrev(txSet->getContentsHash()) << ")";
 
-    mLedgerCloseDatas.emplace_back(ledgerSeq, txSet, closeTime, 10);
+    StellarValue sv(app.getConfig().LEDGER_PROTOCOL_VERSION,
+                    txSet->getContentsHash(), closeTime, 10);
+    mLedgerCloseDatas.emplace_back(ledgerSeq, txSet, sv);
     lm.closeLedger(mLedgerCloseDatas.back());
 
     mLedgerSeqs.push_back(lm.getLastClosedLedgerHeader().header.ledgerSeq);

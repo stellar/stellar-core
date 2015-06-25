@@ -11,17 +11,10 @@
 #include "scp/SCP.h"
 #include "lib/json/json-forwards.h"
 #include "util/Timer.h"
+#include "TxSetFrame.h"
 
 namespace stellar
 {
-
-
-class TxSetFrame;
-typedef std::shared_ptr<TxSetFrame> TxSetFramePtr;
-
-class TransactionFrame;
-typedef std::shared_ptr<TransactionFrame> TransactionFramePtr;
-
 class Application;
 class Peer;
 typedef std::shared_ptr<Peer> PeerPtr;
@@ -78,16 +71,17 @@ class Herder
 
     virtual void bootstrap() = 0;
 
-    virtual void recvSCPQuorumSet(Hash hash, SCPQuorumSet const& qset)=0;
+    virtual void recvSCPQuorumSet(Hash hash, SCPQuorumSet const& qset) = 0;
     virtual void recvTxSet(Hash hash, TxSetFrame const& txset) = 0;
     // We are learning about a new transaction.
     virtual TransactionSubmitStatus recvTransaction(TransactionFramePtr tx) = 0;
-    virtual void peerDoesntHave(stellar::MessageType type, uint256 const& itemID, PeerPtr peer) = 0;
+    virtual void peerDoesntHave(stellar::MessageType type,
+                                uint256 const& itemID, PeerPtr peer) = 0;
     virtual TxSetFramePtr getTxSet(Hash hash) = 0;
-    virtual SCPQuorumSetPtr getQSet(Hash const & qSetHash) = 0;
+    virtual SCPQuorumSetPtr getQSet(Hash const& qSetHash) = 0;
 
     // We are learning about a new envelope.
-    virtual void recvSCPEnvelope(SCPEnvelope const & envelope) = 0;
+    virtual void recvSCPEnvelope(SCPEnvelope const& envelope) = 0;
 
     // returns the latest known ledger seq using consensus information
     // and local state

@@ -10,6 +10,7 @@
 #include "database/Database.h"
 #include "herder/Herder.h"
 #include "herder/TxSetFrame.h"
+#include "herder/LedgerCloseData.h"
 #include "history/HistoryManager.h"
 #include "ledger/LedgerDelta.h"
 #include "ledger/LedgerHeaderFrame.h"
@@ -284,18 +285,13 @@ LedgerManagerImpl::getLastClosedLedgerNum() const
 
 // called by txherder
 void
-LedgerManagerImpl::externalizeValue(LedgerCloseData ledgerData)
+LedgerManagerImpl::externalizeValue(LedgerCloseData const& ledgerData)
 {
     CLOG(INFO, "Ledger") << "Got consensus: "
                          << "[seq=" << ledgerData.mLedgerSeq << ", prev="
-                         << hexAbbrev(ledgerData.mTxSet->previousLedgerHash())
-                         << ", time=" << ledgerData.mCloseTime
-                         << ", txs=" << ledgerData.mTxSet->size() << ", txhash="
-                         << hexAbbrev(ledgerData.mTxSet->getContentsHash())
-                         << ", fee=" << ledgerData.mBaseFee << "]";
-
-    // ledgerAbbrev(ledgerData.mLedgerSeq-1,
-    //              ledgerData.mTxSet->previousLedgerHash())
+                         << ", txs=" << ledgerData.mTxSet->size()
+                         << ", sv: " << stellarValueToString(ledgerData.mValue)
+                         << "]";
 
     switch (getState())
     {
@@ -347,7 +343,7 @@ LedgerManagerImpl::externalizeValue(LedgerCloseData ledgerData)
             mSyncingLedgersSize.set_count(mSyncingLedgers.size());
 
             uint64_t now = mApp.timeNow();
-            uint64_t eta = mSyncingLedgers.front().mCloseTime +
+            uint64_t eta = mSyncingLedgers.front().mValue.closeTime +
                            mApp.getHistoryManager().nextCheckpointCatchupProbe(
                                mSyncingLedgers.front().mLedgerSeq);
 
@@ -483,8 +479,9 @@ LedgerManagerImpl::historyCaughtup(asio::error_code const& ec,
                     // approved in verifyCatchupCandidate).
                     assert(lcd.mTxSet->getContentsHash() ==
                            mLastClosedLedger.header.txSetHash);
-                    assert(lcd.mBaseFee == mLastClosedLedger.header.baseFee);
-                    assert(lcd.mCloseTime ==
+                    assert(lcd.mValue.baseFee ==
+                           mLastClosedLedger.header.baseFee);
+                    assert(lcd.mValue.closeTime ==
                            mLastClosedLedger.header.closeTime);
                 }
 
@@ -630,8 +627,10 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
         tx->storeTransaction(*this, delta, ++index, *txResultHasher);
     }
     ledgerDelta.commit();
-    mCurrentLedger->mHeader.baseFee = ledgerData.mBaseFee;
-    mCurrentLedger->mHeader.closeTime = ledgerData.mCloseTime;
+    auto const& sv = ledgerData.mValue;
+    mCurrentLedger->mHeader.baseFee = sv.baseFee;
+    mCurrentLedger->mHeader.closeTime = sv.closeTime;
+    mCurrentLedger->mHeader.ledgerVersion = sv.ledgerVersion;
     mCurrentLedger->mHeader.txSetHash = ledgerData.mTxSet->getContentsHash();
     mCurrentLedger->mHeader.txSetResultHash = txResultHasher->finish();
     closeLedgerHelper(ledgerDelta);
