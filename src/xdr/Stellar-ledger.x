@@ -12,7 +12,7 @@ namespace stellar
 */
 struct LedgerHeader
 {
-    uint32 ledgerVersion;
+    uint32 ledgerVersion;    // the protocol version of the ledger
     Hash previousLedgerHash; // hash of the previous ledger header
     Hash txSetHash;          // the tx set that was SCP confirmed
     Hash txSetResultHash;    // the TransactionResultSet that led to this ledger
@@ -33,6 +33,9 @@ struct LedgerHeader
 
     Hash skipList[4]; // hashes of ledgers in the past. allows you to jump back
                       // in time without walking the chain back ledger by ledger
+                      // each slot contains the oldest ledger that is mod of
+                      // either 50  5000  50000 or 500000 depending on index
+                      // skipList[0] mod(50), skipList[1] mod(5000), etc
 };
 
 /* Entries used to define the bucket list */
