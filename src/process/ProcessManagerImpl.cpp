@@ -35,7 +35,7 @@ ProcessManager::create(Application& app)
     return make_unique<ProcessManagerImpl>(app);
 }
 
-#ifdef _MSC_VER
+#ifdef _WIN32
 #include <windows.h>
 #include <tchar.h>
 
