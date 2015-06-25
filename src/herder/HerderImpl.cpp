@@ -847,8 +847,7 @@ HerderImpl::getMaxSeqInPendingTxs(AccountID const& acc)
     {
         for (auto oldTX : list)
         {
-            if (oldTX->getSourceID() == acc &&
-                oldTX->getSeqNum() > highSeq)
+            if (oldTX->getSourceID() == acc && oldTX->getSeqNum() > highSeq)
             {
                 highSeq = oldTX->getSeqNum();
             }
@@ -1037,14 +1036,14 @@ HerderImpl::herderOutOfSync()
 }
 
 Value
-HerderImpl::buildValue(Hash const& txSetHash, uint64 closeTime, int32 baseFee)
+HerderImpl::buildValue(Hash const& txSetHash, uint64 closeTime, uint32 baseFee)
 {
     return xdr::xdr_to_opaque(buildStellarValue(txSetHash, closeTime, baseFee));
 }
 
 StellarValue
 HerderImpl::buildStellarValue(Hash const& txSetHash, uint64 closeTime,
-                              int32 baseFee)
+                              uint32 baseFee)
 {
     StellarValue b;
     b.txSetHash = txSetHash;

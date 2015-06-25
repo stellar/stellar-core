@@ -29,10 +29,10 @@ class LedgerCloseData
     uint32_t mLedgerSeq;
     TxSetFramePtr mTxSet;
     uint64_t mCloseTime;
-    int32_t mBaseFee;
+    uint32_t mBaseFee;
 
     LedgerCloseData(uint32_t ledgerSeq, TxSetFramePtr txSet, uint64_t closeTime,
-                    int32_t baseFee)
+                    uint32_t baseFee)
         : mLedgerSeq(ledgerSeq)
         , mTxSet(txSet)
         , mCloseTime(closeTime)

@@ -133,30 +133,33 @@ TxSetFrame::sortForApply()
     return retList;
 }
 
-struct SurgeSorter 
+struct SurgeSorter
 {
     Application& mApp;
-    SurgeSorter(Application& app) : mApp(app) {}
-    bool operator () (TransactionFramePtr const& tx1, TransactionFramePtr const& tx2)
+    SurgeSorter(Application& app) : mApp(app)
+    {
+    }
+    bool operator()(TransactionFramePtr const& tx1,
+                    TransactionFramePtr const& tx2)
     {
         return tx1->getFeeRatio(mApp) < tx2->getFeeRatio(mApp);
     }
 };
 
-
-void 
+void
 TxSetFrame::surgePricingFilter(Application& app)
 {
     int max = app.getConfig().DESIRED_MAX_TX_PER_LEDGER;
-    if(mTransactions.size() > max)
-    {  // surge pricing in effect!
-        CLOG(DEBUG, "Herder") << "surge pricing in effect! " << mTransactions.size();
-        //sort tx by amount of fee they have paid 
+    if (mTransactions.size() > max)
+    { // surge pricing in effect!
+        CLOG(DEBUG, "Herder") << "surge pricing in effect! "
+                              << mTransactions.size();
+        // sort tx by amount of fee they have paid
         // remove the bottom that aren't paying enough
         std::vector<TransactionFramePtr> tempList = mTransactions;
-        std::sort(tempList.begin(), tempList.end(), SurgeSorter(app) );
+        std::sort(tempList.begin(), tempList.end(), SurgeSorter(app));
 
-        for(auto iter = tempList.begin() + max; iter != tempList.end(); iter++)
+        for (auto iter = tempList.begin() + max; iter != tempList.end(); iter++)
         {
             removeTx(*iter);
         }

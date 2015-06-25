@@ -565,7 +565,7 @@ closeLedger(Application& app)
         << hexAbbrev(app.getBucketManager().getBucketList().getHash());
     LedgerCloseData lcd(lm.getLedgerNum(),
                         std::make_shared<TxSetFrame>(lclHash),
-                        lm.getCloseTime(), static_cast<int32_t>(lm.getTxFee()));
+                        lm.getCloseTime(), static_cast<uint32>(lm.getTxFee()));
     lm.externalizeValue(lcd);
     return lm.getLastClosedLedgerHeader().hash;
 }

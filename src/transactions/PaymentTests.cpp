@@ -168,7 +168,7 @@ TEST_CASE("payment", "[tx][payment]")
         SequenceNumber b1Seq = getAccountSeqNum(b1, app) + 1;
 
         // raise the reserve
-        int32 addReserve = 100000;
+        uint32 addReserve = 100000;
         app.getLedgerManager().getCurrentLedgerHeader().baseReserve +=
             addReserve;
 

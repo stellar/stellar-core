@@ -311,7 +311,8 @@ LoadGenerator::loadAccount(Application& app, AccountInfo& account)
 
     account.mBalance = ret->getBalance();
     account.mSeq = ret->getSeqNum();
-    auto high = app.getHerder().getMaxSeqInPendingTxs(account.mKey.getPublicKey());
+    auto high =
+        app.getHerder().getMaxSeqInPendingTxs(account.mKey.getPublicKey());
     if (high > account.mSeq)
     {
         account.mSeq = high;
@@ -705,7 +706,7 @@ LoadGenerator::TxInfo::toTransactionFrames(
                 signingAccounts.insert(mTo);
             }
 
-            e.tx.fee = 10 * static_cast<int32>(e.tx.operations.size());
+            e.tx.fee = 10 * static_cast<uint32>(e.tx.operations.size());
             TransactionFramePtr res =
                 TransactionFrame::makeTransactionFromWire(e);
             for (auto a : signingAccounts)

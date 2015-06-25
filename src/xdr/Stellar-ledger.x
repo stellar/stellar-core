@@ -28,8 +28,8 @@ struct LedgerHeader
 
     uint64 idPool; // last used global ID, used for generating objects
 
-    int32 baseFee;     // base fee per operation in stroops
-    int32 baseReserve; // account base reserve in stroops
+    uint32 baseFee;     // base fee per operation in stroops
+    uint32 baseReserve; // account base reserve in stroops
 
     Hash skipList[4]; // hashes of ledgers in the past. allows you to jump back
                       // in time without walking the chain back ledger by ledger
