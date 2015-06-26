@@ -146,8 +146,10 @@ LedgerManagerImpl::startNewLedger()
     masterAccount.getAccount().balance = 100000000000000000;
     LedgerHeader genesisHeader;
 
-    genesisHeader.baseFee = mApp.getConfig().DESIRED_BASE_FEE;
-    genesisHeader.baseReserve = mApp.getConfig().DESIRED_BASE_RESERVE;
+    // all fields are initialized by default to 0
+    // set the ones that are not 0
+    genesisHeader.baseFee = 10;
+    genesisHeader.baseReserve = 10000000;
     genesisHeader.totalCoins = masterAccount.getAccount().balance;
     genesisHeader.ledgerSeq = 1;
 
