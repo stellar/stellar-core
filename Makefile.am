@@ -27,6 +27,7 @@ FMT_SRCS =                                      \
     src/scp/SCP.cpp                             \
     src/scp/SCPDriver.cpp                       \
     src/scp/SCPTests.cpp                        \
+	src/scp/SCPUnitTests.cpp                    \
     src/scp/LocalNode.cpp                       \
     src/scp/NominationProtocol.cpp              \
     src/scp/Slot.cpp                            \

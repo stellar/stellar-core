@@ -450,6 +450,9 @@
     <ClCompile Include="..\..\src\herder\LedgerCloseData.cpp">
       <Filter>herder</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\scp\SCPUnitTests.cpp">
+      <Filter>scp</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\ledger\LedgerManager.h">
