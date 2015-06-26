@@ -28,6 +28,8 @@
 
 #define MAX_SLOTS_TO_REMEMBER 4
 
+using namespace std;
+
 namespace stellar
 {
 
@@ -144,9 +146,8 @@ HerderImpl::bootstrap()
 
     // setup a sufficient state that we can participate in consensus
     auto const& lcl = mLedgerManager.getLastClosedLedgerHeader();
-    StellarValue b = buildStellarValue(
-        lcl.header.txSetHash, lcl.header.closeTime, lcl.header.baseFee);
-    mTrackingSCP = make_unique<ConsensusData>(lcl.header.ledgerSeq, b);
+    mTrackingSCP =
+        make_unique<ConsensusData>(lcl.header.ledgerSeq, lcl.header.scpValue);
     mLedgerManager.setState(LedgerManager::LM_SYNCED_STATE);
 
     trackingHeartBeat();
@@ -188,8 +189,8 @@ HerderImpl::validateValue(uint64 slotIndex, NodeID const& nodeID,
 
     if (compat)
     {
-        lastCloseTime =
-            mLedgerManager.getLastClosedLedgerHeader().header.closeTime;
+        lastCloseTime = mLedgerManager.getLastClosedLedgerHeader()
+                            .header.scpValue.closeTime;
     }
     else
     {
@@ -416,7 +417,11 @@ HerderImpl::combineCandidates(uint64 slotIndex,
                               std::set<Value> const& candidates)
 {
     Hash h;
-    StellarValue comp(mApp.getConfig().LEDGER_PROTOCOL_VERSION, h, 0, 0);
+    xdr::xvector<UpgradeType, 4> emptyV;
+
+    StellarValue comp(h, 0, emptyUpgradeSteps, 0);
+
+    std::map<LedgerUpgradeType, LedgerUpgrade> upgrades;
 
     std::set<TransactionFramePtr> aggSet;
 
@@ -426,11 +431,6 @@ HerderImpl::combineCandidates(uint64 slotIndex,
     {
         StellarValue sv;
         xdr::xdr_from_opaque(c, sv);
-        // max fee
-        if (comp.baseFee < sv.baseFee)
-        {
-            comp.baseFee = sv.baseFee;
-        }
         // max closeTime
         if (comp.closeTime < sv.closeTime)
         {
@@ -916,13 +916,40 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger)
     // close time. We don't know how much time it will take to reach consensus
     // so this is the most appropriate value to use as closeTime.
     uint64_t nextCloseTime = VirtualClock::to_time_t(mLastTrigger);
-    if (nextCloseTime <= lcl.header.closeTime)
+    if (nextCloseTime <= lcl.header.scpValue.closeTime)
     {
-        nextCloseTime = lcl.header.closeTime + 1;
+        nextCloseTime = lcl.header.scpValue.closeTime + 1;
     }
 
-    mCurrentValue =
-        buildValue(txSetHash, nextCloseTime, mApp.getConfig().DESIRED_BASE_FEE);
+    StellarValue newProposedValue(txSetHash, nextCloseTime, emptyUpgradeSteps,
+                                  0);
+
+    std::vector<LedgerUpgrade> upgrades;
+
+    if (lcl.header.baseFee != mApp.getConfig().DESIRED_BASE_FEE)
+    {
+        upgrades.emplace_back(LEDGER_UPGRADE_BASE_FEE);
+        upgrades.back().newBaseFee() = mApp.getConfig().DESIRED_BASE_FEE;
+    }
+
+    UpgradeType ut; // only used for max size check
+    for (auto const& upgrade : upgrades)
+    {
+        Value v(xdr::xdr_to_opaque(upgrade));
+        if (v.size() >= ut.max_size())
+        {
+            CLOG(ERROR, "Herder") << "HerderImpl::triggerNextLedger"
+                                  << " exceeded size for upgrade step (got "
+                                  << v.size() << " ) for upgrade type "
+                                  << std::to_string(upgrade.type());
+        }
+        else
+        {
+            newProposedValue.upgrades.emplace_back(v.begin(), v.end());
+        }
+    }
+
+    mCurrentValue = xdr::xdr_to_opaque(newProposedValue);
 
     uint256 valueHash = sha256(xdr::xdr_to_opaque(mCurrentValue));
     CLOG(DEBUG, "Herder") << "HerderImpl::triggerNextLedger"
@@ -933,8 +960,7 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger)
                           << " value: " << hexAbbrev(valueHash)
                           << " slot: " << slotIndex;
 
-    Value prevValue = buildValue(lcl.header.txSetHash, lcl.header.closeTime,
-                                 lcl.header.baseFee);
+    Value prevValue = xdr::xdr_to_opaque(lcl.header.scpValue);
 
     mSCP.nominate(slotIndex, mCurrentValue, prevValue);
 }
@@ -1030,22 +1056,5 @@ HerderImpl::herderOutOfSync()
     mSCPMetrics.mLostSync.Mark();
     mTrackingSCP.reset();
     processSCPQueue();
-}
-
-Value
-HerderImpl::buildValue(Hash const& txSetHash, uint64 closeTime, uint32 baseFee)
-{
-    return xdr::xdr_to_opaque(buildStellarValue(txSetHash, closeTime, baseFee));
-}
-
-StellarValue
-HerderImpl::buildStellarValue(Hash const& txSetHash, uint64 closeTime,
-                              uint32 baseFee)
-{
-    StellarValue b;
-    b.txSetHash = txSetHash;
-    b.closeTime = closeTime;
-    b.baseFee = baseFee;
-    return b;
 }
 }

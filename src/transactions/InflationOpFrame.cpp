@@ -28,21 +28,21 @@ InflationOpFrame::InflationOpFrame(Operation const& op, OperationResult& res,
 }
 
 bool
-InflationOpFrame::doApply(medida::MetricsRegistry& metrics,
-                          LedgerDelta& delta, LedgerManager& ledgerManager)
+InflationOpFrame::doApply(medida::MetricsRegistry& metrics, LedgerDelta& delta,
+                          LedgerManager& ledgerManager)
 {
     LedgerDelta inflationDelta(delta);
 
     auto& lcl = inflationDelta.getHeader();
 
-    time_t closeTime = lcl.closeTime;
+    time_t closeTime = lcl.scpValue.closeTime;
     uint32_t seq = lcl.inflationSeq;
 
     time_t inflationTime = (INFLATION_START_TIME + seq * INFLATION_FREQUENCY);
     if (closeTime < inflationTime)
     {
-        metrics.NewMeter({"op-inflation", "failure", "not-time"},
-                         "operation").Mark();
+        metrics.NewMeter({"op-inflation", "failure", "not-time"}, "operation")
+            .Mark();
         innerResult().code(INFLATION_NOT_TIME);
         return false;
     }
@@ -143,8 +143,7 @@ InflationOpFrame::doApply(medida::MetricsRegistry& metrics,
 
     inflationDelta.commit();
 
-    metrics.NewMeter({"op-inflation", "success", "apply"},
-                     "operation").Mark();
+    metrics.NewMeter({"op-inflation", "success", "apply"}, "operation").Mark();
     return true;
 }
 

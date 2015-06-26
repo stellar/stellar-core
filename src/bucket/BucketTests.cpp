@@ -564,10 +564,10 @@ closeLedger(Application& app)
         << "Artificially closing ledger " << lm.getLedgerNum()
         << " with lcl=" << hexAbbrev(lclHash) << ", buckets="
         << hexAbbrev(app.getBucketManager().getBucketList().getHash());
-    StellarValue sv(app.getConfig().LEDGER_PROTOCOL_VERSION, lclHash,
-                    lm.getCloseTime(), static_cast<uint32>(lm.getTxFee()));
-    LedgerCloseData lcd(lm.getLedgerNum(),
-                        std::make_shared<TxSetFrame>(lclHash), sv);
+    auto txSet = std::make_shared<TxSetFrame>(lclHash);
+    StellarValue sv(txSet->getContentsHash(), lm.getCloseTime(),
+                    emptyUpgradeSteps, 0);
+    LedgerCloseData lcd(lm.getLedgerNum(), txSet, sv);
     lm.externalizeValue(lcd);
     return lm.getLastClosedLedgerHeader().hash;
 }

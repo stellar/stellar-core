@@ -220,8 +220,9 @@ TransactionFrame::checkValid(Application& app, bool applying,
 
     if (mEnvelope.tx.timeBounds)
     {
-        if (mEnvelope.tx.timeBounds->minTime >
-            app.getLedgerManager().getLastClosedLedgerHeader().header.closeTime)
+        uint64 closeTime =
+            app.getLedgerManager().getCurrentLedgerHeader().scpValue.closeTime;
+        if (mEnvelope.tx.timeBounds->minTime > closeTime)
         {
             app.getMetrics()
                 .NewMeter({"transaction", "invalid", "too-early"},
@@ -231,9 +232,7 @@ TransactionFrame::checkValid(Application& app, bool applying,
             return false;
         }
         if (mEnvelope.tx.timeBounds->maxTime &&
-            (mEnvelope.tx.timeBounds->maxTime < app.getLedgerManager()
-                                                    .getLastClosedLedgerHeader()
-                                                    .header.closeTime))
+            (mEnvelope.tx.timeBounds->maxTime < closeTime))
         {
             app.getMetrics()
                 .NewMeter({"transaction", "invalid", "too-late"}, "transaction")

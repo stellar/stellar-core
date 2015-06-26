@@ -91,7 +91,7 @@ LedgerHeaderFrame::storeInsert(LedgerManager& ledgerManager) const
                                     "(:h,:ph,:blh,"
                                     ":seq,:ct,:data)",
          use(hash), use(prevHash), use(bucketListHash), use(mHeader.ledgerSeq),
-         use(mHeader.closeTime), use(headerEncoded));
+         use(mHeader.scpValue.closeTime), use(headerEncoded));
     {
         auto timer = db.getInsertTimer("ledger-header");
         st.execute(true);

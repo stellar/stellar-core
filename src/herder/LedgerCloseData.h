@@ -26,11 +26,10 @@ class LedgerCloseData
     StellarValue mValue;
 
     LedgerCloseData(uint32_t ledgerSeq, TxSetFramePtr txSet,
-                    StellarValue const& v)
-        : mLedgerSeq(ledgerSeq), mTxSet(txSet), mValue(v)
-    {
-    }
+                    StellarValue const& v);
 };
 
 std::string stellarValueToString(StellarValue const& sv);
+
+#define emptyUpgradeSteps (xdr::xvector<UpgradeType, 4>(0))
 }

@@ -35,7 +35,7 @@ TEST_CASE("ledgerheader", "[ledger]")
         TxSetFramePtr txSet = make_shared<TxSetFrame>(lastHash);
 
         // close this ledger
-        StellarValue sv(cfg.LEDGER_PROTOCOL_VERSION, lastHash, 1, 10);
+        StellarValue sv(txSet->getContentsHash(), 1, emptyUpgradeSteps, 0);
         LedgerCloseData ledgerData(lcl.header.ledgerSeq + 1, txSet, sv);
         app->getLedgerManager().closeLedger(ledgerData);
 

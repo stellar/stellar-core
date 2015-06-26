@@ -316,9 +316,8 @@ closeLedgerOn(Application& app, uint32 ledgerSeq, int day, int month, int year,
         txSet->sortForHash();
     }
 
-    StellarValue sv(app.getConfig().LEDGER_PROTOCOL_VERSION,
-                    txSet->getContentsHash(), getTestDate(day, month, year),
-                    10);
+    StellarValue sv(txSet->getContentsHash(), getTestDate(day, month, year),
+                    emptyUpgradeSteps, 0);
     LedgerCloseData ledgerData(ledgerSeq, txSet, sv);
     app.getLedgerManager().closeLedger(ledgerData);
 

@@ -7,14 +7,6 @@
 namespace stellar
 {
 
-struct StellarValue
-{
-    uint32 ledgerVersion;
-    Hash txSetHash;
-    uint64 closeTime;
-    uint32 baseFee;
-};
-
 struct Error
 {
     int code;

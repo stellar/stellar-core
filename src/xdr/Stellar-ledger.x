@@ -4,8 +4,32 @@
 
 %#include "generated/Stellar-transaction.h"
 
+typedef opaque UpgradeType<128>;
+
 namespace stellar
 {
+
+/* StellarValue is the value used by SCP to reach consensus on a given ledger
+*/
+struct StellarValue
+{
+    Hash txSetHash;   // transaction set to apply to previous ledger
+    uint64 closeTime; // network close time
+
+    // upgrades to apply to the previous ledger (usually empty)
+    // this is a vector of encoded 'LedgerUpgrade' so that nodes can drop
+    // unknown steps during consensus if needed.
+    // see notes below on 'LedgerUpgrade' for more detail
+    UpgradeType upgrades<4>;
+
+    // reserved for future use
+    union switch (int v)
+    {
+    case 0:
+        void;
+    }
+    ext;
+};
 
 /* The LedgerHeader is the highest level structure representing the
  * state of a ledger, cryptographically linked to previous ledgers.
@@ -14,12 +38,11 @@ struct LedgerHeader
 {
     uint32 ledgerVersion;    // the protocol version of the ledger
     Hash previousLedgerHash; // hash of the previous ledger header
-    Hash txSetHash;          // the tx set that was SCP confirmed
+    StellarValue scpValue;   // what consensus agreed to
     Hash txSetResultHash;    // the TransactionResultSet that led to this ledger
     Hash bucketListHash;     // hash of the ledger state
 
     uint32 ledgerSeq; // sequence number of this ledger
-    uint64 closeTime; // network close time
 
     int64 totalCoins; // total number of stroops in existence
 
@@ -44,6 +67,25 @@ struct LedgerHeader
         void;
     }
     ext;
+};
+
+/* Ledger upgrades
+note that the `upgrades` field from StellarValue is normalized such that
+it only contains one entry per LedgerUpgradeType, and entries are sorted
+in ascending order
+*/
+enum LedgerUpgradeType
+{
+    LEDGER_UPGRADE_VERSION = 1,
+    LEDGER_UPGRADE_BASE_FEE = 2
+};
+
+union LedgerUpgrade switch (LedgerUpgradeType type)
+{
+case LEDGER_UPGRADE_VERSION:
+    uint32 newLedgerVersion;
+case LEDGER_UPGRADE_BASE_FEE:
+    uint32 newBaseFee;
 };
 
 /* Entries used to define the bucket list */

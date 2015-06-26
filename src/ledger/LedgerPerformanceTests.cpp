@@ -136,9 +136,9 @@ class LedgerPerformanceTests : public Simulation
             tx.recordExecution(baseFee);
         }
 
-        StellarValue sv(
-            mApp->getConfig().LEDGER_PROTOCOL_VERSION, txSet->getContentsHash(),
-            VirtualClock::to_time_t(mApp->getClock().now()), baseFee);
+        StellarValue sv(txSet->getContentsHash(),
+                        VirtualClock::to_time_t(mApp->getClock().now()),
+                        emptyUpgradeSteps, 0);
         LedgerCloseData ledgerData(mApp->getLedgerManager().getLedgerNum(),
                                    txSet, sv);
 

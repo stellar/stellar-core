@@ -889,15 +889,13 @@ CatchupStateMachine::applyHistoryFromLastClosedLedger()
             // sense) in CATCHUP_VERIFY phase; we now need to check that the
             // txhash we're about to apply is the one denoted by that ledger
             // header.
-            if (header.txSetHash != txset->getContentsHash())
+            if (header.scpValue.txSetHash != txset->getContentsHash())
             {
                 throw std::runtime_error("replay txset hash differs from txset "
                                          "hash in replay ledger");
             }
 
-            StellarValue sv(header.ledgerVersion, header.txSetHash,
-                            header.closeTime, header.baseFee);
-            LedgerCloseData closeData(header.ledgerSeq, txset, sv);
+            LedgerCloseData closeData(header.ledgerSeq, txset, header.scpValue);
             lm.closeLedger(closeData);
 
             CLOG(DEBUG, "History")
