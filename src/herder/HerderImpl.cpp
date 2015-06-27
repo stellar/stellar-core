@@ -169,20 +169,8 @@ HerderImpl::isSlotCompatibleWithCurrentState(uint64 slotIndex)
 }
 
 bool
-HerderImpl::validateValue(uint64 slotIndex, NodeID const& nodeID,
-                          Value const& value)
+HerderImpl::validateValueHelper(uint64 slotIndex, StellarValue const& b)
 {
-    StellarValue b;
-    try
-    {
-        xdr::xdr_from_opaque(value, b);
-    }
-    catch (...)
-    {
-        mSCPMetrics.mValueInvalid.Mark();
-        return false;
-    }
-
     uint64 lastCloseTime;
 
     bool compat = isSlotCompatibleWithCurrentState(slotIndex);
@@ -218,7 +206,6 @@ HerderImpl::validateValue(uint64 slotIndex, NodeID const& nodeID,
                 << " i: " << slotIndex
                 << " processing a future message while tracking";
 
-            mSCPMetrics.mValueInvalid.Mark();
             return false;
         }
         lastCloseTime = mTrackingSCP->mConsensusValue.closeTime;
@@ -227,7 +214,6 @@ HerderImpl::validateValue(uint64 slotIndex, NodeID const& nodeID,
     // Check closeTime (not too old)
     if (b.closeTime <= lastCloseTime)
     {
-        mSCPMetrics.mValueInvalid.Mark();
         return false;
     }
 
@@ -235,7 +221,6 @@ HerderImpl::validateValue(uint64 slotIndex, NodeID const& nodeID,
     uint64_t timeNow = mApp.timeNow();
     if (b.closeTime > timeNow + MAX_TIME_SLIP_SECONDS.count())
     {
-        mSCPMetrics.mValueInvalid.Mark();
         return false;
     }
 
@@ -256,32 +241,149 @@ HerderImpl::validateValue(uint64 slotIndex, NodeID const& nodeID,
     if (!txSet)
     {
         CLOG(ERROR, "Herder") << "HerderImpl::validateValue"
-                              << " i: " << slotIndex
-                              << " n: " << hexAbbrev(nodeID)
-                              << " txSet not found?";
+                              << " i: " << slotIndex << " txSet not found?";
 
-        mSCPMetrics.mValueInvalid.Mark();
         res = false;
     }
     else if (!txSet->checkValid(mApp))
     {
         CLOG(DEBUG, "Herder") << "HerderImpl::validateValue"
-                              << " i: " << slotIndex
-                              << " n: " << hexAbbrev(nodeID)
-                              << " Invalid txSet:"
+                              << " i: " << slotIndex << " Invalid txSet:"
                               << " " << hexAbbrev(txSet->getContentsHash());
-        mSCPMetrics.mValueInvalid.Mark();
         res = false;
     }
     else
     {
         CLOG(DEBUG, "Herder")
             << "HerderImpl::validateValue"
-            << " i: " << slotIndex << " n: " << hexAbbrev(nodeID) << " txSet:"
-            << " " << hexAbbrev(txSet->getContentsHash()) << " OK";
-        mSCPMetrics.mValueValid.Mark();
+            << " i: " << slotIndex
+            << " txSet: " << hexAbbrev(txSet->getContentsHash()) << " OK";
         res = true;
     }
+    return res;
+}
+
+bool
+HerderImpl::validateUpgradeStep(uint64 slotIndex, UpgradeType const& upgrade,
+                                LedgerUpgradeType& upgradeType)
+{
+    LedgerUpgrade lupgrade;
+
+    try
+    {
+        xdr::xdr_from_opaque(upgrade, lupgrade);
+    }
+    catch (xdr::xdr_runtime_error&)
+    {
+        return false;
+    }
+
+    bool res;
+    switch (lupgrade.type())
+    {
+    case LEDGER_UPGRADE_BASE_FEE:
+    {
+        uint32 newFee = lupgrade.newBaseFee();
+        // allow fee to move within a 2x distance from the one we have in our
+        // config
+        res = (newFee >= mApp.getConfig().DESIRED_BASE_FEE * .5) &&
+              (newFee <= mApp.getConfig().DESIRED_BASE_FEE * 2);
+    }
+    break;
+    default:
+        res = false;
+    }
+    if (res)
+    {
+        upgradeType = lupgrade.type();
+    }
+    return res;
+}
+
+bool
+HerderImpl::validateValue(uint64 slotIndex, Value const& value)
+{
+    StellarValue b;
+    try
+    {
+        xdr::xdr_from_opaque(value, b);
+    }
+    catch (...)
+    {
+        mSCPMetrics.mValueInvalid.Mark();
+        return false;
+    }
+
+    bool res = validateValueHelper(slotIndex, b);
+    if (res)
+    {
+        LedgerUpgradeType lastUpgradeType = LEDGER_UPGRADE_VERSION;
+        // check upgrades
+        for (size_t i = 0; i < b.upgrades.size(); i++)
+        {
+            LedgerUpgradeType thisUpgradeType;
+            if (!validateUpgradeStep(slotIndex, b.upgrades[i], thisUpgradeType))
+            {
+                CLOG(TRACE, "Herder")
+                    << "HerderImpl::validateValue invalid step at index " << i;
+                res = false;
+            }
+            if (i != 0 && (lastUpgradeType >= thisUpgradeType))
+            {
+                CLOG(TRACE, "Herder") << "HerderImpl::validateValue out of "
+                                         "order upgrade step at index " << i;
+                res = false;
+            }
+
+            lastUpgradeType = thisUpgradeType;
+        }
+    }
+
+    if (res)
+    {
+        mSCPMetrics.mValueInvalid.Mark();
+    }
+    else
+    {
+        mSCPMetrics.mValueInvalid.Mark();
+    }
+    return res;
+}
+
+Value
+HerderImpl::extractValidValue(uint64 slotIndex, Value const& value)
+{
+    StellarValue b;
+    try
+    {
+        xdr::xdr_from_opaque(value, b);
+    }
+    catch (...)
+    {
+        return Value();
+    }
+    Value res;
+    if (validateValueHelper(slotIndex, b))
+    {
+        // value was not valid because of one of the upgrade steps,
+        // remove the ones we don't like
+        LedgerUpgradeType thisUpgradeType;
+        for (auto it = b.upgrades.begin(); it != b.upgrades.end();)
+        {
+
+            if (!validateUpgradeStep(slotIndex, *it, thisUpgradeType))
+            {
+                it = b.upgrades.erase(it);
+            }
+            else
+            {
+                it++;
+            }
+        }
+
+        res = xdr::xdr_to_opaque(b);
+    }
+
     return res;
 }
 
@@ -445,7 +547,41 @@ HerderImpl::combineCandidates(uint64 slotIndex,
                 aggSet.insert(tx);
             }
         }
+        for (auto const& upgrade : sv.upgrades)
+        {
+            LedgerUpgrade lupgrade;
+            xdr::xdr_from_opaque(upgrade, lupgrade);
+            auto it = upgrades.find(lupgrade.type());
+            if (it == upgrades.end())
+            {
+                upgrades.emplace(std::make_pair(lupgrade.type(), lupgrade));
+            }
+            else
+            {
+                LedgerUpgrade& clUpgrade = it->second;
+                switch (lupgrade.type())
+                {
+                case LEDGER_UPGRADE_BASE_FEE:
+                    // take the max fee
+                    if (clUpgrade.newBaseFee() < lupgrade.newBaseFee())
+                    {
+                        clUpgrade.newBaseFee() = lupgrade.newBaseFee();
+                    }
+                    break;
+                default:
+                    // should never get there with values that are not valid
+                    throw std::runtime_error("invalid upgrade step");
+                }
+            }
+        }
     }
+
+    for (auto const& upgrade : upgrades)
+    {
+        Value v(xdr::xdr_to_opaque(upgrade.second));
+        comp.upgrades.emplace_back(v.begin(), v.end());
+    }
+
     TxSetFramePtr aggTxSet = std::make_shared<TxSetFrame>(lcl.hash);
     for (auto const& tx : aggSet)
     {

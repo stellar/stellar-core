@@ -14,6 +14,9 @@ LedgerCloseData::LedgerCloseData(uint32_t ledgerSeq, TxSetFramePtr txSet,
                                  StellarValue const& v)
     : mLedgerSeq(ledgerSeq), mTxSet(txSet), mValue(v)
 {
+    Value x;
+    Value y(x.begin(), x.end());
+
     using xdr::operator==;
     assert(txSet->getContentsHash() == mValue.txSetHash);
 }

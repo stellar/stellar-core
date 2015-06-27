@@ -71,6 +71,18 @@ NominationProtocol::isSubsetHelper(xdr::xvector<Value> const& p,
 }
 
 bool
+NominationProtocol::validateValue(Value const& v)
+{
+    return mSlot.getSCPDriver().validateValue(mSlot.getSlotIndex(), v);
+}
+
+Value
+NominationProtocol::extractValidValue(Value const& value)
+{
+    return mSlot.getSCPDriver().extractValidValue(mSlot.getSlotIndex(), value);
+}
+
+bool
 NominationProtocol::isNewerStatement(SCPNomination const& oldst,
                                      SCPNomination const& st)
 {
@@ -92,20 +104,13 @@ NominationProtocol::isNewerStatement(SCPNomination const& oldst,
 }
 
 bool
-NominationProtocol::isValid(SCPStatement const& st)
+NominationProtocol::isSane(SCPStatement const& st)
 {
     auto const& nom = st.pledges.nominate();
     bool res = (nom.votes.size() + nom.accepted.size()) != 0;
 
     res = res && std::is_sorted(nom.votes.begin(), nom.votes.end());
     res = res && std::is_sorted(nom.accepted.begin(), nom.accepted.end());
-
-    applyAll(nom, [&](Value const& val)
-             {
-                 res = res &&
-                       mSlot.getSCPDriver().validateValue(st.slotIndex,
-                                                          st.nodeID, val);
-             });
 
     return res;
 }
@@ -246,7 +251,7 @@ NominationProtocol::processEnvelope(SCPEnvelope const& envelope)
 
     if (isNewerStatement(st.nodeID, nom))
     {
-        if (isValid(st))
+        if (isSane(st))
         {
             recordStatement(st);
             res = SCP::EnvelopeState::VALID;
@@ -278,9 +283,27 @@ NominationProtocol::processEnvelope(SCPEnvelope const& envelope)
                                       _1),
                             mLatestNominations))
                     {
-                        mAccepted.emplace(v);
-                        mVotes.emplace(v);
-                        modified = true;
+                        if (validateValue(v))
+                        {
+                            mAccepted.emplace(v);
+                            mVotes.emplace(v);
+                            modified = true;
+                        }
+                        else
+                        {
+                            // the value made it pretty far:
+                            // see if we can vote for a variation that
+                            // we consider valid
+                            Value toVote;
+                            toVote = extractValidValue(v);
+                            if (!toVote.empty())
+                            {
+                                if (mVotes.emplace(toVote).second)
+                                {
+                                    modified = true;
+                                }
+                            }
+                        }
                     }
                 }
                 // attempts to promote accepted values to candidates
@@ -384,10 +407,22 @@ NominationProtocol::nominate(Value const& value, Value const& previousValue,
             {
                 applyAll(it->second.pledges.nominate(), [&](Value const& value)
                          {
-                             auto ins = mVotes.insert(value);
-                             if (ins.second)
+                             Value valueToNominate;
+                             if (validateValue(value))
                              {
-                                 updated = true;
+                                 valueToNominate = value;
+                             }
+                             else
+                             {
+                                 valueToNominate = extractValidValue(value);
+                             }
+                             if (!valueToNominate.empty())
+                             {
+                                 auto ins = mVotes.insert(valueToNominate);
+                                 if (ins.second)
+                                 {
+                                     updated = true;
+                                 }
                              }
                          });
             }

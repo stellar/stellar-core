@@ -43,9 +43,20 @@ class SCPDriver
     // with the current state of that node. Unvalidated values can never
     // externalize.
     virtual bool
-    validateValue(uint64 slotIndex, NodeID const& nodeID, Value const& value)
+    validateValue(uint64 slotIndex, Value const& value)
     {
         return true;
+    }
+
+    // `extractValidValue` transforms the value, if possible to a different
+    // value that the local node would agree to.
+    // This is used during nomination when encountering an invalid value (ie
+    // validateValue returned `false` for this value).
+    // returning Value() means no valid value could be extracted
+    virtual Value
+    extractValidValue(uint64 slotIndex, Value const& value)
+    {
+        return Value();
     }
 
     // `getValueString` is used for debugging

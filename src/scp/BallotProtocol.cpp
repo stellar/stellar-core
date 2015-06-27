@@ -158,8 +158,7 @@ BallotProtocol::processEnvelope(SCPEnvelope const& envelope)
 
     SCPBallot wb = getWorkingBallot(statement);
 
-    if (mSlot.getSCPDriver().validateValue(mSlot.getSlotIndex(), nodeID,
-                                           wb.value))
+    if (mSlot.getSCPDriver().validateValue(mSlot.getSlotIndex(), wb.value))
     {
         bool processed = false;
         SCPBallot tickBallot = getWorkingBallot(statement);

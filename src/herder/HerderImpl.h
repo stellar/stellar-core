@@ -45,8 +45,9 @@ class HerderImpl : public Herder, public SCPDriver
     void bootstrap() override;
 
     // SCP methods
-    bool validateValue(uint64 slotIndex, NodeID const& nodeID,
-                       Value const& value) override;
+    bool validateValue(uint64 slotIndex, Value const& value) override;
+
+    Value extractValidValue(uint64 slotIndex, Value const& value) override;
 
     std::string getValueString(Value const& v) const override;
 
@@ -103,6 +104,12 @@ class HerderImpl : public Herder, public SCPDriver
     void ledgerClosed();
     void removeReceivedTx(TransactionFramePtr tx);
     void expireBallot(uint64 slotIndex, SCPBallot const& ballot);
+
+    // returns true if upgrade is a valid upgrade step
+    // in which case it also sets upgradeType
+    bool validateUpgradeStep(uint64 slotIndex, UpgradeType const& upgrade,
+                             LedgerUpgradeType& upgradeType);
+    bool validateValueHelper(uint64 slotIndex, StellarValue const& sv);
 
     void startRebroadcastTimer();
     void rebroadcast();
