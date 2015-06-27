@@ -291,7 +291,8 @@ LedgerManagerImpl::externalizeValue(LedgerCloseData const& ledgerData)
 {
     CLOG(INFO, "Ledger") << "Got consensus: "
                          << "[seq=" << ledgerData.mLedgerSeq << ", prev="
-                         << ", txs=" << ledgerData.mTxSet->size()
+                         << hexAbbrev(ledgerData.mTxSet->previousLedgerHash())
+                         << ", tx_count=" << ledgerData.mTxSet->size()
                          << ", sv: " << stellarValueToString(ledgerData.mValue)
                          << "]";
 
@@ -590,6 +591,9 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
         }
         switch (lupgrade.type())
         {
+        case LEDGER_UPGRADE_VERSION:
+            mCurrentLedger->mHeader.ledgerVersion = lupgrade.newLedgerVersion();
+            break;
         case LEDGER_UPGRADE_BASE_FEE:
             mCurrentLedger->mHeader.baseFee = lupgrade.newBaseFee();
             break;

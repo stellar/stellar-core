@@ -11,6 +11,7 @@
 #include "crypto/Base58.h"
 #include "ledger/LedgerManager.h"
 #include "herder/LedgerCloseData.h"
+#include "xdrpp/marshal.h"
 
 #include "main/Config.h"
 
@@ -53,5 +54,33 @@ TEST_CASE("ledgerheader", "[ledger]")
 
         REQUIRE(saved ==
                 app2->getLedgerManager().getLastClosedLedgerHeader().hash);
+    }
+
+    SECTION("update fee")
+    {
+        VirtualClock clock;
+        Application::pointer app = Application::create(clock, cfg);
+        app->start();
+
+        auto const& lcl = app->getLedgerManager().getLastClosedLedgerHeader();
+        auto const& lastHash = lcl.hash;
+        TxSetFramePtr txSet = make_shared<TxSetFrame>(lastHash);
+
+        REQUIRE(lcl.header.baseFee == 10);
+
+        StellarValue sv(txSet->getContentsHash(), 2, emptyUpgradeSteps, 0);
+        {
+            LedgerUpgrade up(LEDGER_UPGRADE_BASE_FEE);
+            up.newBaseFee() = 100;
+            Value v(xdr::xdr_to_opaque(up));
+            sv.upgrades.emplace_back(v.begin(), v.end());
+        }
+
+        LedgerCloseData ledgerData(lcl.header.ledgerSeq + 1, txSet, sv);
+        app->getLedgerManager().closeLedger(ledgerData);
+
+        auto& newLCL = app->getLedgerManager().getLastClosedLedgerHeader();
+
+        REQUIRE(newLCL.header.baseFee == 100);
     }
 }

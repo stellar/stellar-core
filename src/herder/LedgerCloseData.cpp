@@ -27,7 +27,7 @@ stellarValueToString(StellarValue const& sv)
     std::stringstream res;
 
     res << "[ "
-        << " h: " << hexAbbrev(sv.txSetHash) << ", ct: " << sv.closeTime
+        << " txH: " << hexAbbrev(sv.txSetHash) << ", ct: " << sv.closeTime
         << " upgrades: [";
     for (auto const& upgrade : sv.upgrades)
     {
@@ -44,11 +44,11 @@ stellarValueToString(StellarValue const& sv)
                 xdr::xdr_from_opaque(upgrade, lupgrade);
                 switch (lupgrade.type())
                 {
-                case LEDGER_UPGRADE_BASE_FEE:
-                    res << "BASE_FEE=" << lupgrade.newBaseFee();
-                    break;
                 case LEDGER_UPGRADE_VERSION:
                     res << "VERSION=" << lupgrade.newLedgerVersion();
+                    break;
+                case LEDGER_UPGRADE_BASE_FEE:
+                    res << "BASE_FEE=" << lupgrade.newBaseFee();
                     break;
                 default:
                     res << "<unsupported>";

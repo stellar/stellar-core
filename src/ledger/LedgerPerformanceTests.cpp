@@ -147,7 +147,7 @@ class LedgerPerformanceTests : public Simulation
 };
 }
 
-TEST_CASE("ledger performance test", "[ledger][performance][hide]")
+TEST_CASE("ledger performance test", "[performance][hide]")
 {
     int nAccounts = 10000000;
     int nLedgers =

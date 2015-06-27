@@ -281,6 +281,12 @@ HerderImpl::validateUpgradeStep(uint64 slotIndex, UpgradeType const& upgrade,
     bool res;
     switch (lupgrade.type())
     {
+    case LEDGER_UPGRADE_VERSION:
+    {
+        uint32 newVersion = lupgrade.newLedgerVersion();
+        res = (newVersion == mApp.getConfig().LEDGER_PROTOCOL_VERSION);
+    }
+    break;
     case LEDGER_UPGRADE_BASE_FEE:
     {
         uint32 newFee = lupgrade.newBaseFee();
@@ -561,6 +567,15 @@ HerderImpl::combineCandidates(uint64 slotIndex,
                 LedgerUpgrade& clUpgrade = it->second;
                 switch (lupgrade.type())
                 {
+                case LEDGER_UPGRADE_VERSION:
+                    // pick the highest version
+                    if (clUpgrade.newLedgerVersion() <
+                        lupgrade.newLedgerVersion())
+                    {
+                        clUpgrade.newLedgerVersion() =
+                            lupgrade.newLedgerVersion();
+                    }
+                    break;
                 case LEDGER_UPGRADE_BASE_FEE:
                     // take the max fee
                     if (clUpgrade.newBaseFee() < lupgrade.newBaseFee())
@@ -1062,6 +1077,12 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger)
 
     std::vector<LedgerUpgrade> upgrades;
 
+    if (lcl.header.ledgerVersion != mApp.getConfig().LEDGER_PROTOCOL_VERSION)
+    {
+        upgrades.emplace_back(LEDGER_UPGRADE_VERSION);
+        upgrades.back().newLedgerVersion() =
+            mApp.getConfig().LEDGER_PROTOCOL_VERSION;
+    }
     if (lcl.header.baseFee != mApp.getConfig().DESIRED_BASE_FEE)
     {
         upgrades.emplace_back(LEDGER_UPGRADE_BASE_FEE);
