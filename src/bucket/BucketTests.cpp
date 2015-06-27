@@ -14,6 +14,7 @@
 #include "bucket/BucketManagerImpl.h"
 #include "crypto/Hex.h"
 #include "ledger/LedgerManager.h"
+#include "herder/LedgerCloseData.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
 #include "main/test.h"
@@ -563,9 +564,10 @@ closeLedger(Application& app)
         << "Artificially closing ledger " << lm.getLedgerNum()
         << " with lcl=" << hexAbbrev(lclHash) << ", buckets="
         << hexAbbrev(app.getBucketManager().getBucketList().getHash());
-    LedgerCloseData lcd(lm.getLedgerNum(),
-                        std::make_shared<TxSetFrame>(lclHash),
-                        lm.getCloseTime(), static_cast<int32_t>(lm.getTxFee()));
+    auto txSet = std::make_shared<TxSetFrame>(lclHash);
+    StellarValue sv(txSet->getContentsHash(), lm.getCloseTime(),
+                    emptyUpgradeSteps, 0);
+    LedgerCloseData lcd(lm.getLedgerNum(), txSet, sv);
     lm.externalizeValue(lcd);
     return lm.getLastClosedLedgerHeader().hash;
 }

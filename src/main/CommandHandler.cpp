@@ -314,7 +314,7 @@ CommandHandler::info(std::string const& params, std::string& retStr)
     root["info"]["ledger"]["hash"] =
         binToHex(lm.getLastClosedLedgerHeader().hash);
     root["info"]["ledger"]["closeTime"] =
-        (int)lm.getLastClosedLedgerHeader().header.closeTime;
+        (int)lm.getLastClosedLedgerHeader().header.scpValue.closeTime;
     root["info"]["ledger"]["age"] = (int)lm.secondsSinceLastLedgerClose();
     root["info"]["numPeers"] = (int)mApp.getOverlayManager().getPeers().size();
 

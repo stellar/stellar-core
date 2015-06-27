@@ -10,13 +10,13 @@
 #include "ledger/OfferFrame.h"
 #include "ledger/TrustFrame.h"
 #include "util/optional.h"
+#include "herder/LedgerCloseData.h"
 
 namespace stellar
 {
 class TransactionFrame;
 class LedgerDelta;
 class OperationFrame;
-typedef std::shared_ptr<TransactionFrame> TransactionFramePtr;
 namespace txtest
 {
 

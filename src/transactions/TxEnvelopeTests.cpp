@@ -411,7 +411,8 @@ TEST_CASE("txenvelope", "[tx][envelope]")
         txSet->add(txFrame);
 
         // close this ledger
-        LedgerCloseData ledgerData(1, txSet, 1, 10);
+        StellarValue sv(txSet->getContentsHash(), 1, emptyUpgradeSteps, 0);
+        LedgerCloseData ledgerData(1, txSet, sv);
         app.getLedgerManager().closeLedger(ledgerData);
 
         REQUIRE(app.getLedgerManager().getLedgerNum() == 3);

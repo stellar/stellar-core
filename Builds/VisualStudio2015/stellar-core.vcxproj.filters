@@ -447,6 +447,9 @@
     <ClCompile Include="..\..\src\scp\SCPDriver.cpp">
       <Filter>scp</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\herder\LedgerCloseData.cpp">
+      <Filter>herder</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\ledger\LedgerManager.h">
@@ -757,6 +760,9 @@
     </ClInclude>
     <ClInclude Include="..\..\src\scp\SCPDriver.h">
       <Filter>scp</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\herder\LedgerCloseData.h">
+      <Filter>herder</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

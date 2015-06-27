@@ -10,6 +10,7 @@
 #include "database/Database.h"
 #include "herder/Herder.h"
 #include "herder/TxSetFrame.h"
+#include "herder/LedgerCloseData.h"
 #include "history/HistoryManager.h"
 #include "ledger/LedgerDelta.h"
 #include "ledger/LedgerHeaderFrame.h"
@@ -55,6 +56,8 @@ using namespace std;
 
 namespace stellar
 {
+
+using xdr::operator==;
 
 std::unique_ptr<LedgerManager>
 LedgerManager::create(Application& app)
@@ -143,11 +146,11 @@ LedgerManagerImpl::startNewLedger()
     masterAccount.getAccount().balance = 100000000000000000;
     LedgerHeader genesisHeader;
 
-    genesisHeader.baseFee = mApp.getConfig().DESIRED_BASE_FEE;
-    genesisHeader.baseReserve = mApp.getConfig().DESIRED_BASE_RESERVE;
+    // all fields are initialized by default to 0
+    // set the ones that are not 0
+    genesisHeader.baseFee = 10;
+    genesisHeader.baseReserve = 10000000;
     genesisHeader.totalCoins = masterAccount.getAccount().balance;
-    genesisHeader.closeTime = 0; // the genesis ledger has close time of 0 so it
-                                 // always has the same hash
     genesisHeader.ledgerSeq = 1;
 
     LedgerDelta delta(genesisHeader);
@@ -253,7 +256,7 @@ uint64_t
 LedgerManagerImpl::getCloseTime() const
 {
     assert(mCurrentLedger);
-    return mCurrentLedger->mHeader.closeTime;
+    return mCurrentLedger->mHeader.scpValue.closeTime;
 }
 
 LedgerHeader const&
@@ -284,18 +287,14 @@ LedgerManagerImpl::getLastClosedLedgerNum() const
 
 // called by txherder
 void
-LedgerManagerImpl::externalizeValue(LedgerCloseData ledgerData)
+LedgerManagerImpl::externalizeValue(LedgerCloseData const& ledgerData)
 {
     CLOG(INFO, "Ledger") << "Got consensus: "
                          << "[seq=" << ledgerData.mLedgerSeq << ", prev="
                          << hexAbbrev(ledgerData.mTxSet->previousLedgerHash())
-                         << ", time=" << ledgerData.mCloseTime
-                         << ", txs=" << ledgerData.mTxSet->size() << ", txhash="
-                         << hexAbbrev(ledgerData.mTxSet->getContentsHash())
-                         << ", fee=" << ledgerData.mBaseFee << "]";
-
-    // ledgerAbbrev(ledgerData.mLedgerSeq-1,
-    //              ledgerData.mTxSet->previousLedgerHash())
+                         << ", tx_count=" << ledgerData.mTxSet->size()
+                         << ", sv: " << stellarValueToString(ledgerData.mValue)
+                         << "]";
 
     switch (getState())
     {
@@ -347,7 +346,7 @@ LedgerManagerImpl::externalizeValue(LedgerCloseData ledgerData)
             mSyncingLedgersSize.set_count(mSyncingLedgers.size());
 
             uint64_t now = mApp.timeNow();
-            uint64_t eta = mSyncingLedgers.front().mCloseTime +
+            uint64_t eta = mSyncingLedgers.front().mValue.closeTime +
                            mApp.getHistoryManager().nextCheckpointCatchupProbe(
                                mSyncingLedgers.front().mLedgerSeq);
 
@@ -454,7 +453,6 @@ LedgerManagerImpl::historyCaughtup(asio::error_code const& ec,
             // In this case we should actually have been caught-up during the
             // replay process and, if judged successful, our LCL should be the
             // one provided as well.
-            using xdr::operator==;
             assert(mode == HistoryManager::CATCHUP_COMPLETE);
             assert(lastClosed.hash == mLastClosedLedger.hash);
             assert(lastClosed.header == mLastClosedLedger.header);
@@ -482,10 +480,8 @@ LedgerManagerImpl::historyCaughtup(asio::error_code const& ec,
                     // closed (which was proposed as a candidate, and we
                     // approved in verifyCatchupCandidate).
                     assert(lcd.mTxSet->getContentsHash() ==
-                           mLastClosedLedger.header.txSetHash);
-                    assert(lcd.mBaseFee == mLastClosedLedger.header.baseFee);
-                    assert(lcd.mCloseTime ==
-                           mLastClosedLedger.header.closeTime);
+                           lcd.mValue.txSetHash);
+                    assert(lcd.mValue == mLastClosedLedger.header.scpValue);
                 }
 
                 continue;
@@ -568,11 +564,50 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
         throw std::runtime_error("txset mismatch");
     }
 
-    LedgerDelta ledgerDelta(mCurrentLedger->mHeader);
+    if (ledgerData.mTxSet->getContentsHash() != ledgerData.mValue.txSetHash)
+    {
+        throw std::runtime_error("corrupt transaction set");
+    }
 
     soci::transaction txscope(getDatabase().getSession());
 
     auto ledgerTime = mLedgerClose.TimeScope();
+
+    auto const& sv = ledgerData.mValue;
+    mCurrentLedger->mHeader.scpValue = sv;
+
+    // apply any upgrades that were decided during consensus
+    for (size_t i = 0; i < sv.upgrades.size(); i++)
+    {
+        LedgerUpgrade lupgrade;
+        try
+        {
+            xdr::xdr_from_opaque(sv.upgrades[i], lupgrade);
+        }
+        catch (xdr::xdr_runtime_error)
+        {
+            CLOG(FATAL, "Ledger") << "Unknown upgrade step at index " << i;
+            throw;
+        }
+        switch (lupgrade.type())
+        {
+        case LEDGER_UPGRADE_VERSION:
+            mCurrentLedger->mHeader.ledgerVersion = lupgrade.newLedgerVersion();
+            break;
+        case LEDGER_UPGRADE_BASE_FEE:
+            mCurrentLedger->mHeader.baseFee = lupgrade.newBaseFee();
+            break;
+        default:
+        {
+            string s;
+            s = "Unknown upgrade type: ";
+            s += std::to_string(lupgrade.type());
+            throw std::runtime_error(s);
+        }
+        }
+    }
+
+    LedgerDelta ledgerDelta(mCurrentLedger->mHeader);
 
     // the transaction set that was agreed upon by consensus
     // was sorted by hash; we reorder it so that transactions are
@@ -630,9 +665,6 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
         tx->storeTransaction(*this, delta, ++index, *txResultHasher);
     }
     ledgerDelta.commit();
-    mCurrentLedger->mHeader.baseFee = ledgerData.mBaseFee;
-    mCurrentLedger->mHeader.closeTime = ledgerData.mCloseTime;
-    mCurrentLedger->mHeader.txSetHash = ledgerData.mTxSet->getContentsHash();
     mCurrentLedger->mHeader.txSetResultHash = txResultHasher->finish();
     closeLedgerHelper(ledgerDelta);
     txscope.commit();

@@ -11,6 +11,7 @@
 #include "crypto/SHA.h"
 #include "xdrpp/marshal.h"
 #include "database/Database.h"
+#include "util/types.h"
 #include <cereal/external/base64.hpp>
 
 namespace stellar
@@ -90,7 +91,7 @@ LedgerHeaderFrame::storeInsert(LedgerManager& ledgerManager) const
                                     "(:h,:ph,:blh,"
                                     ":seq,:ct,:data)",
          use(hash), use(prevHash), use(bucketListHash), use(mHeader.ledgerSeq),
-         use(mHeader.closeTime), use(headerEncoded));
+         use(mHeader.scpValue.closeTime), use(headerEncoded));
     {
         auto timer = db.getInsertTimer("ledger-header");
         st.execute(true);

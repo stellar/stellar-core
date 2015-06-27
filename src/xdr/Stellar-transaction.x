@@ -206,7 +206,7 @@ Result: InflationResult
 struct Operation
 {
     // sourceAccount is the account used to run the operation
-    // if not set, the runtime defaults to "account" specified at
+    // if not set, the runtime defaults to "sourceAccount" specified at
     // the transaction level
     AccountID* sourceAccount;
 
@@ -279,7 +279,7 @@ struct Transaction
     AccountID sourceAccount;
 
     // the fee the sourceAccount will pay
-    int32 fee;
+    uint32 fee;
 
     // sequence number to consume in the account
     SequenceNumber seqNum;
@@ -290,6 +290,14 @@ struct Transaction
     Memo memo;
 
     Operation operations<100>;
+
+    // reserved for future use
+    union switch (int v)
+    {
+    case 0:
+        void;
+    }
+    ext;
 };
 
 /* A TransactionEnvelope wraps a transaction with signatures. */
@@ -645,5 +653,13 @@ struct TransactionResult
         void;
     }
     result;
+
+    // reserved for future use
+    union switch (int v)
+    {
+    case 0:
+        void;
+    }
+    ext;
 };
 }

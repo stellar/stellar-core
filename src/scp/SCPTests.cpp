@@ -50,7 +50,7 @@ class TestSCP : public SCPDriver
     }
 
     bool
-    validateValue(uint64 slotIndex, Hash const& nodeID, Value const& value)
+    validateValue(uint64 slotIndex, Value const& value)
     {
         return true;
     }

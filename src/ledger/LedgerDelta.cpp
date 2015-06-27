@@ -10,6 +10,8 @@
 
 namespace stellar
 {
+using xdr::operator==;
+
 LedgerDelta::LedgerDelta(LedgerDelta& outerDelta)
     : mOuterDelta(&outerDelta)
     , mHeader(&outerDelta.getHeader())
@@ -161,7 +163,6 @@ void
 LedgerDelta::commit()
 {
     checkState();
-    using xdr::operator==;
     // checks if we're not about to override changes
     // (commit a noop should never happen)
     if (!(mPreviousHeaderValue == *mHeader))

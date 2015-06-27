@@ -7,6 +7,7 @@
 #include "crypto/SHA.h"
 #include "crypto/Base58.h"
 #include "herder/TxSetFrame.h"
+#include "herder/LedgerCloseData.h"
 #include "ledger/LedgerManager.h"
 #include "main/Application.h"
 #include "main/Config.h"
@@ -26,6 +27,8 @@
 #include <ctime>
 
 #define MAX_SLOTS_TO_REMEMBER 4
+
+using namespace std;
 
 namespace stellar
 {
@@ -143,9 +146,8 @@ HerderImpl::bootstrap()
 
     // setup a sufficient state that we can participate in consensus
     auto const& lcl = mLedgerManager.getLastClosedLedgerHeader();
-    StellarValue b = buildStellarValue(
-        lcl.header.txSetHash, lcl.header.closeTime, lcl.header.baseFee);
-    mTrackingSCP = make_unique<ConsensusData>(lcl.header.ledgerSeq, b);
+    mTrackingSCP =
+        make_unique<ConsensusData>(lcl.header.ledgerSeq, lcl.header.scpValue);
     mLedgerManager.setState(LedgerManager::LM_SYNCED_STATE);
 
     trackingHeartBeat();
@@ -167,28 +169,16 @@ HerderImpl::isSlotCompatibleWithCurrentState(uint64 slotIndex)
 }
 
 bool
-HerderImpl::validateValue(uint64 slotIndex, NodeID const& nodeID,
-                          Value const& value)
+HerderImpl::validateValueHelper(uint64 slotIndex, StellarValue const& b)
 {
-    StellarValue b;
-    try
-    {
-        xdr::xdr_from_opaque(value, b);
-    }
-    catch (...)
-    {
-        mSCPMetrics.mValueInvalid.Mark();
-        return false;
-    }
-
     uint64 lastCloseTime;
 
     bool compat = isSlotCompatibleWithCurrentState(slotIndex);
 
     if (compat)
     {
-        lastCloseTime =
-            mLedgerManager.getLastClosedLedgerHeader().header.closeTime;
+        lastCloseTime = mLedgerManager.getLastClosedLedgerHeader()
+                            .header.scpValue.closeTime;
     }
     else
     {
@@ -216,7 +206,6 @@ HerderImpl::validateValue(uint64 slotIndex, NodeID const& nodeID,
                 << " i: " << slotIndex
                 << " processing a future message while tracking";
 
-            mSCPMetrics.mValueInvalid.Mark();
             return false;
         }
         lastCloseTime = mTrackingSCP->mConsensusValue.closeTime;
@@ -225,7 +214,6 @@ HerderImpl::validateValue(uint64 slotIndex, NodeID const& nodeID,
     // Check closeTime (not too old)
     if (b.closeTime <= lastCloseTime)
     {
-        mSCPMetrics.mValueInvalid.Mark();
         return false;
     }
 
@@ -233,7 +221,6 @@ HerderImpl::validateValue(uint64 slotIndex, NodeID const& nodeID,
     uint64_t timeNow = mApp.timeNow();
     if (b.closeTime > timeNow + MAX_TIME_SLIP_SECONDS.count())
     {
-        mSCPMetrics.mValueInvalid.Mark();
         return false;
     }
 
@@ -254,56 +241,176 @@ HerderImpl::validateValue(uint64 slotIndex, NodeID const& nodeID,
     if (!txSet)
     {
         CLOG(ERROR, "Herder") << "HerderImpl::validateValue"
-                              << " i: " << slotIndex
-                              << " n: " << hexAbbrev(nodeID)
-                              << " txSet not found?";
+                              << " i: " << slotIndex << " txSet not found?";
 
-        mSCPMetrics.mValueInvalid.Mark();
         res = false;
     }
     else if (!txSet->checkValid(mApp))
     {
         CLOG(DEBUG, "Herder") << "HerderImpl::validateValue"
-                              << " i: " << slotIndex
-                              << " n: " << hexAbbrev(nodeID)
-                              << " Invalid txSet:"
+                              << " i: " << slotIndex << " Invalid txSet:"
                               << " " << hexAbbrev(txSet->getContentsHash());
-        mSCPMetrics.mValueInvalid.Mark();
         res = false;
     }
     else
     {
         CLOG(DEBUG, "Herder")
             << "HerderImpl::validateValue"
-            << " i: " << slotIndex << " n: " << hexAbbrev(nodeID) << " txSet:"
-            << " " << hexAbbrev(txSet->getContentsHash()) << " OK";
-        mSCPMetrics.mValueValid.Mark();
+            << " i: " << slotIndex
+            << " txSet: " << hexAbbrev(txSet->getContentsHash()) << " OK";
         res = true;
     }
+    return res;
+}
+
+bool
+HerderImpl::validateUpgradeStep(uint64 slotIndex, UpgradeType const& upgrade,
+                                LedgerUpgradeType& upgradeType)
+{
+    LedgerUpgrade lupgrade;
+
+    try
+    {
+        xdr::xdr_from_opaque(upgrade, lupgrade);
+    }
+    catch (xdr::xdr_runtime_error&)
+    {
+        return false;
+    }
+
+    bool res;
+    switch (lupgrade.type())
+    {
+    case LEDGER_UPGRADE_VERSION:
+    {
+        uint32 newVersion = lupgrade.newLedgerVersion();
+        res = (newVersion == mApp.getConfig().LEDGER_PROTOCOL_VERSION);
+    }
+    break;
+    case LEDGER_UPGRADE_BASE_FEE:
+    {
+        uint32 newFee = lupgrade.newBaseFee();
+        // allow fee to move within a 2x distance from the one we have in our
+        // config
+        res = (newFee >= mApp.getConfig().DESIRED_BASE_FEE * .5) &&
+              (newFee <= mApp.getConfig().DESIRED_BASE_FEE * 2);
+    }
+    break;
+    default:
+        res = false;
+    }
+    if (res)
+    {
+        upgradeType = lupgrade.type();
+    }
+    return res;
+}
+
+bool
+HerderImpl::validateValue(uint64 slotIndex, Value const& value)
+{
+    StellarValue b;
+    try
+    {
+        xdr::xdr_from_opaque(value, b);
+    }
+    catch (...)
+    {
+        mSCPMetrics.mValueInvalid.Mark();
+        return false;
+    }
+
+    bool res = validateValueHelper(slotIndex, b);
+    if (res)
+    {
+        LedgerUpgradeType lastUpgradeType = LEDGER_UPGRADE_VERSION;
+        // check upgrades
+        for (size_t i = 0; i < b.upgrades.size(); i++)
+        {
+            LedgerUpgradeType thisUpgradeType;
+            if (!validateUpgradeStep(slotIndex, b.upgrades[i], thisUpgradeType))
+            {
+                CLOG(TRACE, "Herder")
+                    << "HerderImpl::validateValue invalid step at index " << i;
+                res = false;
+            }
+            if (i != 0 && (lastUpgradeType >= thisUpgradeType))
+            {
+                CLOG(TRACE, "Herder") << "HerderImpl::validateValue out of "
+                                         "order upgrade step at index " << i;
+                res = false;
+            }
+
+            lastUpgradeType = thisUpgradeType;
+        }
+    }
+
+    if (res)
+    {
+        mSCPMetrics.mValueInvalid.Mark();
+    }
+    else
+    {
+        mSCPMetrics.mValueInvalid.Mark();
+    }
+    return res;
+}
+
+Value
+HerderImpl::extractValidValue(uint64 slotIndex, Value const& value)
+{
+    StellarValue b;
+    try
+    {
+        xdr::xdr_from_opaque(value, b);
+    }
+    catch (...)
+    {
+        return Value();
+    }
+    Value res;
+    if (validateValueHelper(slotIndex, b))
+    {
+        // value was not valid because of one of the upgrade steps,
+        // remove the ones we don't like
+        LedgerUpgradeType thisUpgradeType;
+        for (auto it = b.upgrades.begin(); it != b.upgrades.end();)
+        {
+
+            if (!validateUpgradeStep(slotIndex, *it, thisUpgradeType))
+            {
+                it = b.upgrades.erase(it);
+            }
+            else
+            {
+                it++;
+            }
+        }
+
+        res = xdr::xdr_to_opaque(b);
+    }
+
     return res;
 }
 
 std::string
 HerderImpl::getValueString(Value const& v) const
 {
-    std::ostringstream oss;
     StellarValue b;
     if (v.empty())
     {
-        return "[empty]";
+        return "[:empty:]";
     }
 
     try
     {
         xdr::xdr_from_opaque(v, b);
-        uint256 valueHash = sha256(xdr::xdr_to_opaque(b));
 
-        oss << "[ h:" << hexAbbrev(valueHash) << " ]";
-        return oss.str();
+        return stellarValueToString(b);
     }
     catch (...)
     {
-        return "[invalid]";
+        return "[:invalid:]";
     }
 }
 
@@ -363,8 +470,7 @@ HerderImpl::valueExternalized(uint64 slotIndex, Value const& value)
     // tell the LedgerManager that this value got externalized
     // LedgerManager will perform the proper action based on its internal
     // state: apply, trigger catchup, etc
-    LedgerCloseData ledgerData(lastConsensusLedgerIndex(), externalizedSet,
-                               b.closeTime, b.baseFee);
+    LedgerCloseData ledgerData(lastConsensusLedgerIndex(), externalizedSet, b);
     mLedgerManager.externalizeValue(ledgerData);
 
     // perform cleanups
@@ -419,7 +525,11 @@ HerderImpl::combineCandidates(uint64 slotIndex,
                               std::set<Value> const& candidates)
 {
     Hash h;
-    StellarValue comp(mApp.getConfig().LEDGER_PROTOCOL_VERSION, h, 0, 0);
+    xdr::xvector<UpgradeType, 4> emptyV;
+
+    StellarValue comp(h, 0, emptyUpgradeSteps, 0);
+
+    std::map<LedgerUpgradeType, LedgerUpgrade> upgrades;
 
     std::set<TransactionFramePtr> aggSet;
 
@@ -429,11 +539,6 @@ HerderImpl::combineCandidates(uint64 slotIndex,
     {
         StellarValue sv;
         xdr::xdr_from_opaque(c, sv);
-        // max fee
-        if (comp.baseFee < sv.baseFee)
-        {
-            comp.baseFee = sv.baseFee;
-        }
         // max closeTime
         if (comp.closeTime < sv.closeTime)
         {
@@ -448,7 +553,50 @@ HerderImpl::combineCandidates(uint64 slotIndex,
                 aggSet.insert(tx);
             }
         }
+        for (auto const& upgrade : sv.upgrades)
+        {
+            LedgerUpgrade lupgrade;
+            xdr::xdr_from_opaque(upgrade, lupgrade);
+            auto it = upgrades.find(lupgrade.type());
+            if (it == upgrades.end())
+            {
+                upgrades.emplace(std::make_pair(lupgrade.type(), lupgrade));
+            }
+            else
+            {
+                LedgerUpgrade& clUpgrade = it->second;
+                switch (lupgrade.type())
+                {
+                case LEDGER_UPGRADE_VERSION:
+                    // pick the highest version
+                    if (clUpgrade.newLedgerVersion() <
+                        lupgrade.newLedgerVersion())
+                    {
+                        clUpgrade.newLedgerVersion() =
+                            lupgrade.newLedgerVersion();
+                    }
+                    break;
+                case LEDGER_UPGRADE_BASE_FEE:
+                    // take the max fee
+                    if (clUpgrade.newBaseFee() < lupgrade.newBaseFee())
+                    {
+                        clUpgrade.newBaseFee() = lupgrade.newBaseFee();
+                    }
+                    break;
+                default:
+                    // should never get there with values that are not valid
+                    throw std::runtime_error("invalid upgrade step");
+                }
+            }
+        }
     }
+
+    for (auto const& upgrade : upgrades)
+    {
+        Value v(xdr::xdr_to_opaque(upgrade.second));
+        comp.upgrades.emplace_back(v.begin(), v.end());
+    }
+
     TxSetFramePtr aggTxSet = std::make_shared<TxSetFrame>(lcl.hash);
     for (auto const& tx : aggSet)
     {
@@ -847,8 +995,7 @@ HerderImpl::getMaxSeqInPendingTxs(AccountID const& acc)
     {
         for (auto oldTX : list)
         {
-            if (oldTX->getSourceID() == acc &&
-                oldTX->getSeqNum() > highSeq)
+            if (oldTX->getSourceID() == acc && oldTX->getSeqNum() > highSeq)
             {
                 highSeq = oldTX->getSeqNum();
             }
@@ -920,13 +1067,46 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger)
     // close time. We don't know how much time it will take to reach consensus
     // so this is the most appropriate value to use as closeTime.
     uint64_t nextCloseTime = VirtualClock::to_time_t(mLastTrigger);
-    if (nextCloseTime <= lcl.header.closeTime)
+    if (nextCloseTime <= lcl.header.scpValue.closeTime)
     {
-        nextCloseTime = lcl.header.closeTime + 1;
+        nextCloseTime = lcl.header.scpValue.closeTime + 1;
     }
 
-    mCurrentValue =
-        buildValue(txSetHash, nextCloseTime, mApp.getConfig().DESIRED_BASE_FEE);
+    StellarValue newProposedValue(txSetHash, nextCloseTime, emptyUpgradeSteps,
+                                  0);
+
+    std::vector<LedgerUpgrade> upgrades;
+
+    if (lcl.header.ledgerVersion != mApp.getConfig().LEDGER_PROTOCOL_VERSION)
+    {
+        upgrades.emplace_back(LEDGER_UPGRADE_VERSION);
+        upgrades.back().newLedgerVersion() =
+            mApp.getConfig().LEDGER_PROTOCOL_VERSION;
+    }
+    if (lcl.header.baseFee != mApp.getConfig().DESIRED_BASE_FEE)
+    {
+        upgrades.emplace_back(LEDGER_UPGRADE_BASE_FEE);
+        upgrades.back().newBaseFee() = mApp.getConfig().DESIRED_BASE_FEE;
+    }
+
+    UpgradeType ut; // only used for max size check
+    for (auto const& upgrade : upgrades)
+    {
+        Value v(xdr::xdr_to_opaque(upgrade));
+        if (v.size() >= ut.max_size())
+        {
+            CLOG(ERROR, "Herder") << "HerderImpl::triggerNextLedger"
+                                  << " exceeded size for upgrade step (got "
+                                  << v.size() << " ) for upgrade type "
+                                  << std::to_string(upgrade.type());
+        }
+        else
+        {
+            newProposedValue.upgrades.emplace_back(v.begin(), v.end());
+        }
+    }
+
+    mCurrentValue = xdr::xdr_to_opaque(newProposedValue);
 
     uint256 valueHash = sha256(xdr::xdr_to_opaque(mCurrentValue));
     CLOG(DEBUG, "Herder") << "HerderImpl::triggerNextLedger"
@@ -937,8 +1117,7 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger)
                           << " value: " << hexAbbrev(valueHash)
                           << " slot: " << slotIndex;
 
-    Value prevValue = buildValue(lcl.header.txSetHash, lcl.header.closeTime,
-                                 lcl.header.baseFee);
+    Value prevValue = xdr::xdr_to_opaque(lcl.header.scpValue);
 
     mSCP.nominate(slotIndex, mCurrentValue, prevValue);
 }
@@ -1034,22 +1213,5 @@ HerderImpl::herderOutOfSync()
     mSCPMetrics.mLostSync.Mark();
     mTrackingSCP.reset();
     processSCPQueue();
-}
-
-Value
-HerderImpl::buildValue(Hash const& txSetHash, uint64 closeTime, int32 baseFee)
-{
-    return xdr::xdr_to_opaque(buildStellarValue(txSetHash, closeTime, baseFee));
-}
-
-StellarValue
-HerderImpl::buildStellarValue(Hash const& txSetHash, uint64 closeTime,
-                              int32 baseFee)
-{
-    StellarValue b;
-    b.txSetHash = txSetHash;
-    b.closeTime = closeTime;
-    b.baseFee = baseFee;
-    return b;
 }
 }

@@ -4,8 +4,32 @@
 
 %#include "generated/Stellar-transaction.h"
 
+typedef opaque UpgradeType<128>;
+
 namespace stellar
 {
+
+/* StellarValue is the value used by SCP to reach consensus on a given ledger
+*/
+struct StellarValue
+{
+    Hash txSetHash;   // transaction set to apply to previous ledger
+    uint64 closeTime; // network close time
+
+    // upgrades to apply to the previous ledger (usually empty)
+    // this is a vector of encoded 'LedgerUpgrade' so that nodes can drop
+    // unknown steps during consensus if needed.
+    // see notes below on 'LedgerUpgrade' for more detail
+    UpgradeType upgrades<4>;
+
+    // reserved for future use
+    union switch (int v)
+    {
+    case 0:
+        void;
+    }
+    ext;
+};
 
 /* The LedgerHeader is the highest level structure representing the
  * state of a ledger, cryptographically linked to previous ledgers.
@@ -14,12 +38,11 @@ struct LedgerHeader
 {
     uint32 ledgerVersion;    // the protocol version of the ledger
     Hash previousLedgerHash; // hash of the previous ledger header
-    Hash txSetHash;          // the tx set that was SCP confirmed
+    StellarValue scpValue;   // what consensus agreed to
     Hash txSetResultHash;    // the TransactionResultSet that led to this ledger
     Hash bucketListHash;     // hash of the ledger state
 
     uint32 ledgerSeq; // sequence number of this ledger
-    uint64 closeTime; // network close time
 
     int64 totalCoins; // total number of stroops in existence
 
@@ -28,14 +51,41 @@ struct LedgerHeader
 
     uint64 idPool; // last used global ID, used for generating objects
 
-    int32 baseFee;     // base fee per operation in stroops
-    int32 baseReserve; // account base reserve in stroops
+    uint32 baseFee;     // base fee per operation in stroops
+    uint32 baseReserve; // account base reserve in stroops
 
     Hash skipList[4]; // hashes of ledgers in the past. allows you to jump back
                       // in time without walking the chain back ledger by ledger
                       // each slot contains the oldest ledger that is mod of
                       // either 50  5000  50000 or 500000 depending on index
                       // skipList[0] mod(50), skipList[1] mod(5000), etc
+
+    // reserved for future use
+    union switch (int v)
+    {
+    case 0:
+        void;
+    }
+    ext;
+};
+
+/* Ledger upgrades
+note that the `upgrades` field from StellarValue is normalized such that
+it only contains one entry per LedgerUpgradeType, and entries are sorted
+in ascending order
+*/
+enum LedgerUpgradeType
+{
+    LEDGER_UPGRADE_VERSION = 1,
+    LEDGER_UPGRADE_BASE_FEE = 2
+};
+
+union LedgerUpgrade switch (LedgerUpgradeType type)
+{
+case LEDGER_UPGRADE_VERSION:
+    uint32 newLedgerVersion;
+case LEDGER_UPGRADE_BASE_FEE:
+    uint32 newBaseFee;
 };
 
 /* Entries used to define the bucket list */
@@ -104,18 +154,42 @@ struct TransactionHistoryEntry
 {
     uint32 ledgerSeq;
     TransactionSet txSet;
+
+    // reserved for future use
+    union switch (int v)
+    {
+    case 0:
+        void;
+    }
+    ext;
 };
 
 struct TransactionHistoryResultEntry
 {
     uint32 ledgerSeq;
     TransactionResultSet txResultSet;
+
+    // reserved for future use
+    union switch (int v)
+    {
+    case 0:
+        void;
+    }
+    ext;
 };
 
 struct LedgerHeaderHistoryEntry
 {
     Hash hash;
     LedgerHeader header;
+
+    // reserved for future use
+    union switch (int v)
+    {
+    case 0:
+        void;
+    }
+    ext;
 };
 
 // represents the meta in the transaction table history

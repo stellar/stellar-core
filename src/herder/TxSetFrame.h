@@ -11,8 +11,8 @@ namespace stellar
 {
 class Application;
 
-class TransactionFrame;
-typedef std::shared_ptr<TransactionFrame> TransactionFramePtr;
+class TxSetFrame;
+typedef std::shared_ptr<TxSetFrame> TxSetFramePtr;
 
 class TxSetFrame
 {
@@ -22,8 +22,6 @@ class TxSetFrame
     Hash mPreviousLedgerHash;
 
   public:
-    typedef std::shared_ptr<TxSetFrame> pointer;
-
     std::vector<TransactionFramePtr> mTransactions;
 
     TxSetFrame(Hash const& previousLedgerHash);
@@ -41,7 +39,8 @@ class TxSetFrame
     std::vector<TransactionFramePtr> sortForApply();
 
     bool checkValid(Application& app) const;
-    void trimInvalid(Application& app, std::vector<TransactionFramePtr> trimmed);
+    void trimInvalid(Application& app,
+                     std::vector<TransactionFramePtr> trimmed);
     void surgePricingFilter(Application& app);
 
     void removeTx(TransactionFramePtr tx);

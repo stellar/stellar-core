@@ -49,7 +49,10 @@ class NominationProtocol
     static bool isSubsetHelper(xdr::xvector<Value> const& p,
                                xdr::xvector<Value> const& v, bool& notEqual);
 
-    bool isValid(SCPStatement const& st);
+    bool validateValue(Value const& v);
+    Value extractValidValue(Value const& value);
+
+    bool isSane(SCPStatement const& st);
 
     void recordStatement(SCPStatement const& st);
 
