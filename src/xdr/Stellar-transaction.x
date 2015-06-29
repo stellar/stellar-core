@@ -566,7 +566,7 @@ enum InflationResultCode
     INFLATION_NOT_TIME = -1
 };
 
-struct inflationPayout // or use PaymentResultAtom to limit types?
+struct InflationPayout // or use PaymentResultAtom to limit types?
 {
     AccountID destination;
     int64 amount;
@@ -575,7 +575,7 @@ struct inflationPayout // or use PaymentResultAtom to limit types?
 union InflationResult switch (InflationResultCode code)
 {
 case INFLATION_SUCCESS:
-    inflationPayout payouts<>;
+    InflationPayout payouts<>;
 default:
     void;
 };
