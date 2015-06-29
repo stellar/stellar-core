@@ -163,7 +163,7 @@ CommandHandler::fileNotFound(std::string const& params, std::string& retStr)
         "triggers the instance to write an immediate history checkpoint."
         "</p><p><h1> /connect?peer=NAME&port=NNN</h1>"
         "triggers the instance to connect to peer NAME at port NNN."
-        "</p><p><h1> /generateload</h1>"
+        "</p><p><h1> /generateload[?accounts=N&txs=M&txrate=R&autorate=true]</h1>"
         "artificially generate load for testing; must be used with "
         "ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING set to true"
         "</p><p><h1> /help</h1>"
@@ -247,12 +247,12 @@ CommandHandler::generateLoad(std::string const& params, std::string& retStr)
 {
     if (mApp.getConfig().ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING)
     {
-        // Defaults are 10M accounts, 10M txs, 500 tx/s. This load-test will
+        // Defaults are 200k accounts, 200k txs, 10 tx/s. This load-test will
         // therefore take 40k secs or about 12 hours.
 
-        uint32_t nAccounts = 10000000;
-        uint32_t nTxs = 10000000;
-        uint32_t txRate = 500;
+        uint32_t nAccounts = 200000;
+        uint32_t nTxs = 200000;
+        uint32_t txRate = 10;
 
         std::map<std::string, std::string> map;
         http::server::server::parseParams(params, map);
@@ -266,8 +266,10 @@ CommandHandler::generateLoad(std::string const& params, std::string& retStr)
         if (!parseOptionalNumParam(map, "txrate", txRate, retStr))
             return;
 
+        bool autoRate = map["autorate"] == "true";
+
         double hours = ((nAccounts + nTxs) / txRate) / 3600.0;
-        mApp.generateLoad(nAccounts, nTxs, txRate);
+        mApp.generateLoad(nAccounts, nTxs, txRate, autoRate);
         retStr = fmt::format(
             "Generating load: {:d} accounts, {:d} txs, {:d} tx/s = {:f} hours",
             nAccounts, nTxs, txRate, hours);

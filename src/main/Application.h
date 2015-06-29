@@ -197,7 +197,8 @@ class Application
 
     // If config.ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING=true, generate some load
     // against the current application.
-    virtual void generateLoad(uint32_t nAccounts, uint32_t nTxs, uint32_t txRate) = 0;
+    virtual void generateLoad(uint32_t nAccounts, uint32_t nTxs, uint32_t txRate,
+                              bool autoRate) = 0;
 
     // Execute any administrative commands written in the Config.COMMANDS
     // variable of the config file. This permits scripting certain actions to

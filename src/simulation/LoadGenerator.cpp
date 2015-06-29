@@ -28,6 +28,7 @@
 
 #include <set>
 #include <iomanip>
+#include <cmath>
 
 namespace stellar
 {
@@ -46,7 +47,7 @@ static const uint64_t LOADGEN_TRUSTLINE_LIMIT = 1000 * LOADGEN_ACCOUNT_BALANCE;
 // Units of load are is scheduled at 100ms intervals.
 const uint32_t LoadGenerator::STEP_MSECS = 100;
 
-LoadGenerator::LoadGenerator() : mMinBalance(0)
+LoadGenerator::LoadGenerator() : mMinBalance(0), mLastSecond(0)
 {
     // Root account gets enough XLM to create 100 million (10^8) accounts, which
     // thereby uses up 7 + 3 + 8 = 18 decimal digits. Luckily we have 2^63 =
@@ -73,7 +74,7 @@ LoadGenerator::pickRandomCurrency()
 // Schedule a callback to generateLoad() STEP_MSECS miliseconds from now.
 void
 LoadGenerator::scheduleLoadGeneration(Application& app, uint32_t nAccounts,
-                                      uint32_t nTxs, uint32_t txRate)
+                                      uint32_t nTxs, uint32_t txRate, bool autoRate)
 {
     if (!mLoadTimer)
     {
@@ -81,11 +82,12 @@ LoadGenerator::scheduleLoadGeneration(Application& app, uint32_t nAccounts,
     }
     mLoadTimer->expires_from_now(std::chrono::milliseconds(STEP_MSECS));
     mLoadTimer->async_wait(
-        [this, &app, nAccounts, nTxs, txRate](asio::error_code const& error)
+        [this, &app, nAccounts, nTxs, txRate, autoRate](
+            asio::error_code const& error)
         {
             if (!error)
             {
-                this->generateLoad(app, nAccounts, nTxs, txRate);
+                this->generateLoad(app, nAccounts, nTxs, txRate, autoRate);
             }
         });
 }
@@ -139,15 +141,48 @@ LoadGenerator::maybeCreateAccount(uint32_t ledgerNum, vector<TxInfo>& txs)
     return false;
 }
 
+bool
+maybeAdjustRate(double target, double actual, uint32_t& rate, bool increaseOk)
+{
+    if (actual == 0.0)
+    {
+        actual = 1.0;
+    }
+    double diff = target - actual;
+    double acceptableDeviation = 0.1 * target;
+    if (fabs(diff) > acceptableDeviation)
+    {
+        double pct = diff / actual;
+        int32_t incr = static_cast<int32_t>(pct * rate);
+        if (incr > 0 && !increaseOk)
+        {
+            return false;
+        }
+        LOG(INFO) << (incr > 0 ? "+++ Increasing" : "--- Decreasing")
+                  << " auto-tx target rate from "
+                  << rate
+                  << " to "
+                  << rate + incr;
+        rate += incr;
+        return true;
+    }
+    return false;
+}
+
 // Generate one "step" worth of load (assuming 1 step per STEP_MSECS) at a
 // given target number of accounts and txs, and a given target tx/s rate.
 // If work remains after the current step, call scheduleLoadGeneration()
 // with the remainder.
 void
 LoadGenerator::generateLoad(Application& app, uint32_t nAccounts, uint32_t nTxs,
-                            uint32_t txRate)
+                            uint32_t txRate, bool autoRate)
 {
     updateMinBalance(app);
+
+    if (txRate == 0)
+    {
+        txRate = 1;
+    }
 
     // txRate is "per second"; we're running one "step" worth which is a
     // fraction of txRate determined by STEP_MSECS. For example if txRate
@@ -228,22 +263,98 @@ LoadGenerator::generateLoad(Application& app, uint32_t nAccounts, uint32_t nTxs,
         }
         auto recv = recvScope.Stop();
 
+        uint64_t now = static_cast<uint64_t>(VirtualClock::to_time_t(app.getClock().now()));
+        bool secondBoundary = now != mLastSecond;
+        mLastSecond = now;
+
+        if (autoRate && secondBoundary)
+        {
+            // Automatic tx rate calculation involves taking the temperature
+            // of the program and deciding if there's "room" to increase the
+            // tx apply rate.
+            auto& m = app.getMetrics();
+            auto& ledgerCloseTimer = m.NewTimer({"ledger", "ledger", "close"});
+
+            if (ledgerNum > 10 && ledgerCloseTimer.count() > 5)
+            {
+                // We consider the system "well loaded" at the point where its
+                // ledger-close timer has median duration within 10% of 250ms.
+                //
+                // This is a bit arbitrary but it seems sufficient to
+                // empirically differentiate "totally easy" from "starting to
+                // struggle". If it's over this point, we reduce load; if it's
+                // under this point, we increase load.
+                //
+                // We also decrease load (but don't increase it) based on ledger
+                // age: if the age gets above the herder's timer target, we shed
+                // load accordingly because the network is not reaching
+                // consensus fast enough.
+
+                double targetLatency = 250.0;
+                double actualLatency = ledgerCloseTimer.GetSnapshot().getMedian();
+
+                double targetAge = (double) Herder::EXP_LEDGER_TIMESPAN_SECONDS.count();
+                double actualAge =
+                    (double) app.getLedgerManager().secondsSinceLastLedgerClose();
+                if (app.getConfig().ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING)
+                {
+                    targetAge = 1.0;
+                }
+
+                LOG(DEBUG) << "Considering auto-tx adjustment, median close time "
+                           << actualLatency << "ms, ledger age "
+                           << actualAge << "s";
+
+                if (!maybeAdjustRate(targetAge, actualAge, txRate, false))
+                {
+                    maybeAdjustRate(targetLatency, actualLatency, txRate, true);
+                }
+
+                if (txRate > 5000)
+                {
+                    LOG(WARNING) << "TxRate > 5000, likely metric stutter, resetting";
+                    txRate = 10;
+                }
+
+
+                // Unfortunately the timer reservoir size is 1028 by default and
+                // we cannot adjust it here, so in order to adapt to load
+                // relatively quickly, we clear it out every 5 ledgers.
+                ledgerCloseTimer.Clear();
+            }
+
+        }
+
         // Emit a log message once per second.
-        if (((nTxs / txRate) != ((nTxs - txPerStep) / txRate)))
+        if (secondBoundary)
         {
             using namespace std::chrono;
+
+            auto& m = app.getMetrics();
+            auto& apply = m.NewTimer({"ledger", "transaction", "apply"});
 
             auto step1ms = duration_cast<milliseconds>(build).count();
             auto step2ms = duration_cast<milliseconds>(recv).count();
             auto totalms = duration_cast<milliseconds>(build + recv).count();
-            CLOG(INFO, "LoadGen") << "Target rate: " << txRate
-                                  << "txs/s, pending: " << nAccounts
-                                  << " accounts, " << nTxs << " payments";
 
-            CLOG(INFO, "LoadGen") << "Step timing: " << totalms
-                                  << "ms total = " << step1ms << "ms build, "
-                                  << step2ms << "ms recv, "
-                                  << (STEP_MSECS - totalms) << "ms spare";
+            uint32_t etaSecs = (uint32_t)(((double)(nTxs + nAccounts)) / apply.one_minute_rate());
+            uint32_t etaHours = etaSecs / 3600;
+            uint32_t etaMins = etaSecs % 60;
+
+            CLOG(INFO, "LoadGen") << "Tx/s: "
+                                  << txRate << " target"
+                                  << (autoRate ? " (auto), " : ", ")
+                                  << std::setprecision(3)
+                                  << apply.one_minute_rate()
+                                  << " actual (1m EWMA)."
+                                  << " Pending: " << nAccounts
+                                  << " acct, " << nTxs << " tx."
+                                  << " ETA: " << etaHours << "h" << etaMins << "m";
+
+            CLOG(DEBUG, "LoadGen") << "Step timing: " << totalms
+                                   << "ms total = " << step1ms << "ms build, "
+                                   << step2ms << "ms recv, "
+                                   << (STEP_MSECS - totalms) << "ms spare";
 
             TxMetrics txm(app.getMetrics());
             txm.mGateways.set_count(mGateways.size());
@@ -251,7 +362,7 @@ LoadGenerator::generateLoad(Application& app, uint32_t nAccounts, uint32_t nTxs,
             txm.report();
         }
 
-        scheduleLoadGeneration(app, nAccounts, nTxs, txRate);
+        scheduleLoadGeneration(app, nAccounts, nTxs, txRate, autoRate);
     }
 }
 
@@ -571,32 +682,32 @@ LoadGenerator::TxMetrics::TxMetrics(medida::MetricsRegistry& m)
 void
 LoadGenerator::TxMetrics::report()
 {
-    CLOG(INFO, "LoadGen") << "Counts: " << mTxnAttempted.count() << " tx, "
-                          << mTxnRejected.count() << " rj, "
-                          << mAccountCreated.count() << " ac ("
-                          << mGateways.count() << " gw, "
-                          << mMarketMakers.count() << " mm), "
-                          << mTrustlineCreated.count() << " tl, "
-                          << mOfferCreated.count() << " of, "
-                          << mPayment.count() << " pa ("
-                          << mNativePayment.count() << " na, "
-                          << mCreditPayment.count() << " cr, "
-                          << mOneOfferPathPayment.count() << " 1p, "
-                          << mTwoOfferPathPayment.count() << " 2p, "
-                          << mManyOfferPathPayment.count() << " Np)";
+    CLOG(DEBUG, "LoadGen") << "Counts: " << mTxnAttempted.count() << " tx, "
+                           << mTxnRejected.count() << " rj, "
+                           << mAccountCreated.count() << " ac ("
+                           << mGateways.count() << " gw, "
+                           << mMarketMakers.count() << " mm), "
+                           << mTrustlineCreated.count() << " tl, "
+                           << mOfferCreated.count() << " of, "
+                           << mPayment.count() << " pa ("
+                           << mNativePayment.count() << " na, "
+                           << mCreditPayment.count() << " cr, "
+                           << mOneOfferPathPayment.count() << " 1p, "
+                           << mTwoOfferPathPayment.count() << " 2p, "
+                           << mManyOfferPathPayment.count() << " Np)";
 
-    CLOG(INFO, "LoadGen") << "Rates/sec (1min EWMA): " << std::setprecision(3)
-                          << mTxnAttempted.one_minute_rate() << " tx, "
-                          << mTxnRejected.one_minute_rate() << " rj, "
-                          << mAccountCreated.one_minute_rate() << " ac, "
-                          << mTrustlineCreated.one_minute_rate() << " tl, "
-                          << mOfferCreated.one_minute_rate() << " of, "
-                          << mPayment.one_minute_rate() << " pa ("
-                          << mNativePayment.one_minute_rate() << " na, "
-                          << mCreditPayment.one_minute_rate() << " cr, "
-                          << mOneOfferPathPayment.one_minute_rate() << " 1p, "
-                          << mTwoOfferPathPayment.one_minute_rate() << " 2p, "
-                          << mManyOfferPathPayment.one_minute_rate() << " Np)";
+    CLOG(DEBUG, "LoadGen") << "Rates/sec (1m EWMA): " << std::setprecision(3)
+                           << mTxnAttempted.one_minute_rate() << " tx, "
+                           << mTxnRejected.one_minute_rate() << " rj, "
+                           << mAccountCreated.one_minute_rate() << " ac, "
+                           << mTrustlineCreated.one_minute_rate() << " tl, "
+                           << mOfferCreated.one_minute_rate() << " of, "
+                           << mPayment.one_minute_rate() << " pa ("
+                           << mNativePayment.one_minute_rate() << " na, "
+                           << mCreditPayment.one_minute_rate() << " cr, "
+                           << mOneOfferPathPayment.one_minute_rate() << " 1p, "
+                           << mTwoOfferPathPayment.one_minute_rate() << " 2p, "
+                           << mManyOfferPathPayment.one_minute_rate() << " Np)";
 }
 
 bool

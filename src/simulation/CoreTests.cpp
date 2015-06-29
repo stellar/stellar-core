@@ -242,3 +242,23 @@ TEST_CASE("Stress test on 2 nodes 3 accounts 10 random transactions 10tx/sec",
 
     LOG(INFO) << simulation->metricsSummary("database");
 }
+
+TEST_CASE("Auto-calibrated single node load test", "[autoload][hide]")
+{
+#ifdef USE_POSTGRES
+    Config const& cfg = getTestConfig(0, Config::TESTDB_TCP_LOCALHOST_POSTGRESQL);
+#else
+    Config const& cfg = getTestConfig(0, Config::TESTDB_ON_DISK_SQLITE);
+#endif
+    VirtualClock clock(VirtualClock::REAL_TIME);
+    Application::pointer appPtr = Application::create(clock, cfg);
+    appPtr->start();
+    appPtr->generateLoad(100000, 100000, 10, true);
+    auto& io = clock.getIOService();
+    asio::io_service::work mainWork(io);
+    auto& complete = appPtr->getMetrics().NewMeter({"loadgen", "run", "complete"}, "run");
+    while (!io.stopped() && complete.count() == 0)
+    {
+        clock.crank();
+    }
+}

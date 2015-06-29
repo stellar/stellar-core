@@ -47,17 +47,19 @@ class LoadGenerator
 
     std::unique_ptr<VirtualTimer> mLoadTimer;
     int64 mMinBalance;
+    uint64_t mLastSecond;
 
     // Schedule a callback to generateLoad() STEP_MSECS miliseconds from now.
     void scheduleLoadGeneration(Application& app, uint32_t nAccounts,
-                                uint32_t nTxs, uint32_t txRate);
+                                uint32_t nTxs, uint32_t txRate,
+                                bool autoRate);
 
     // Generate one "step" worth of load (assuming 1 step per STEP_MSECS) at a
     // given target number of accounts and txs, and a given target tx/s rate.
     // If work remains after the current step, call scheduleLoadGeneration()
     // with the remainder.
     void generateLoad(Application& app, uint32_t nAccounts, uint32_t nTxs,
-                      uint32_t txRate);
+                      uint32_t txRate, bool autoRate);
 
     bool maybeCreateAccount(uint32_t ledgerNum, std::vector<TxInfo>& txs);
 
