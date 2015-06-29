@@ -310,14 +310,14 @@ ApplicationImpl::manualClose()
 
 void
 ApplicationImpl::generateLoad(uint32_t nAccounts, uint32_t nTxs,
-                              uint32_t txRate)
+                              uint32_t txRate, bool autoRate)
 {
     if (!mLoadGenerator)
     {
         mLoadGenerator = make_unique<LoadGenerator>();
     }
     getMetrics().NewMeter({"loadgen", "run", "start"}, "run").Mark();
-    mLoadGenerator->generateLoad(*this, nAccounts, nTxs, txRate);
+    mLoadGenerator->generateLoad(*this, nAccounts, nTxs, txRate, autoRate);
 }
 
 void
