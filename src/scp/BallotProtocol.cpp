@@ -23,8 +23,14 @@ using xdr::operator==;
 using xdr::operator<;
 using namespace std::placeholders;
 
+// max number of transitions that can occur from processing one message
+static const int MAX_ADVANCE_SLOT_RECURSION = 50;
+
 BallotProtocol::BallotProtocol(Slot& slot)
-    : mSlot(slot), mHeardFromQuorum(true), mPhase(SCP_PHASE_PREPARE)
+    : mSlot(slot)
+    , mHeardFromQuorum(true)
+    , mPhase(SCP_PHASE_PREPARE)
+    , mCurrentMessageLevel(0)
 {
 }
 
@@ -1344,7 +1350,15 @@ BallotProtocol::areBallotsLessAndCompatible(SCPBallot const& b1,
 void
 BallotProtocol::advanceSlot(SCPBallot const& ballot)
 {
-    CLOG(DEBUG, "SCP") << "BallotProtocol::advanceSlot " << getLocalState();
+    mCurrentMessageLevel++;
+    CLOG(DEBUG, "SCP") << "BallotProtocol::advanceSlot " << mCurrentMessageLevel
+                       << " " << getLocalState();
+
+    if (mCurrentMessageLevel >= MAX_ADVANCE_SLOT_RECURSION)
+    {
+        throw std::runtime_error(
+            "maximum number of transitions reached in advanceSlot");
+    }
 
     // Check if we should call `ballotDidHearFromQuorum`
     // we do this here so that we have a chance to evaluate it between
@@ -1415,8 +1429,10 @@ BallotProtocol::advanceSlot(SCPBallot const& ballot)
         run = attemptPrepare(ballot);
     }
 
-    CLOG(DEBUG, "SCP") << "BallotProtocol::advanceSlot - exiting "
-                       << getLocalState();
+    CLOG(DEBUG, "SCP") << "BallotProtocol::advanceSlot " << mCurrentMessageLevel
+                       << " - exiting " << getLocalState();
+
+    --mCurrentMessageLevel;
 }
 
 const char* BallotProtocol::phaseNames[SCP_PHASE_NUM] = {"PREPARE", "FINISH",
