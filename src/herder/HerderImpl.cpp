@@ -347,7 +347,7 @@ HerderImpl::validateValue(uint64 slotIndex, Value const& value)
 
     if (res)
     {
-        mSCPMetrics.mValueInvalid.Mark();
+        mSCPMetrics.mValueValid.Mark();
     }
     else
     {

@@ -255,8 +255,7 @@ Slot::ballotToStr(std::unique_ptr<SCPBallot> const& ballot) const
 std::string
 Slot::envToStr(SCPEnvelope const& envelope) const
 {
-    std::ostringstream oss;
-    return oss.str();
+    return envToStr(envelope.statement);
 }
 
 std::string

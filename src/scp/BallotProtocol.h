@@ -49,6 +49,8 @@ class BallotProtocol
     std::map<NodeID, SCPStatement> mLatestStatements; // M
     SCPPhase mPhase;                                  // Phi
 
+    int mCurrentMessageLevel; // number of messages triggered in one run
+
     std::unique_ptr<SCPEnvelope>
         mLastEnvelope; // last envelope emitted by this node
 
