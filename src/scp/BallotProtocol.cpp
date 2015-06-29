@@ -1444,6 +1444,7 @@ BallotProtocol::getLocalState() const
         << " | b: " << mSlot.ballotToStr(mCurrentBallot)
         << " | p: " << mSlot.ballotToStr(mPrepared)
         << " | p': " << mSlot.ballotToStr(mPreparedPrime)
+        << " | P: " << mSlot.ballotToStr(mConfirmedPrepared)
         << " | c: " << mSlot.ballotToStr(mCommit)
         << " | M: " << mLatestStatements.size();
     return oss.str();

@@ -28,7 +28,7 @@ stellarValueToString(StellarValue const& sv)
 
     res << "[ "
         << " txH: " << hexAbbrev(sv.txSetHash) << ", ct: " << sv.closeTime
-        << " upgrades: [";
+        << ", upgrades: [";
     for (auto const& upgrade : sv.upgrades)
     {
         if (upgrade.empty())
