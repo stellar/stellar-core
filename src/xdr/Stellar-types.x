@@ -8,8 +8,6 @@ namespace stellar
 typedef opaque Hash[32];
 typedef opaque uint256[32];
 
-typedef opaque uint512[64];
-
 typedef unsigned int uint32;
 typedef int int32;
 
@@ -33,4 +31,5 @@ typedef opaque Signature<64>;
 typedef opaque SignatureHint[4];
 
 typedef PublicKey NodeID;
+
 }

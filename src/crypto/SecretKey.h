@@ -15,6 +15,7 @@ class ByteSlice;
 
 class SecretKey
 {
+    using uint512 = xdr::opaque_array<64>;
     CryptoKeyTypes mKeyType;
     uint512 mSecretKey;
 

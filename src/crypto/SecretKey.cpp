@@ -11,15 +11,14 @@
 namespace stellar
 {
 
+SecretKey::SecretKey() : mKeyType(KEY_TYPES_ED25519)
+{
 static_assert(crypto_sign_PUBLICKEYBYTES == sizeof(uint256),
               "Unexpected public key length");
 static_assert(crypto_sign_SECRETKEYBYTES == sizeof(uint512),
               "Unexpected secret key length");
 static_assert(crypto_sign_BYTES == sizeof(uint512),
               "Unexpected signature length");
-
-SecretKey::SecretKey() : mKeyType(KEY_TYPES_ED25519)
-{
 }
 
 PublicKey
