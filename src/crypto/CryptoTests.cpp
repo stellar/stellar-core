@@ -273,7 +273,7 @@ struct SignVerifyTestcase
     SecretKey key;
     PublicKey pub;
     std::vector<uint8_t> msg;
-    uint512 sig;
+    Signature sig;
     void
     sign()
     {

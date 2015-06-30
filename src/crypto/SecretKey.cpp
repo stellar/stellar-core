@@ -77,12 +77,12 @@ SecretKey::isZero() const
     return true;
 }
 
-uint512
+Signature
 SecretKey::sign(ByteSlice const& bin) const
 {
     assert(mKeyType == KEY_TYPES_ED25519);
 
-    uint512 out(crypto_sign_BYTES, 0);
+    Signature out(crypto_sign_BYTES, 0);
     if (crypto_sign_detached(out.data(), NULL, bin.data(), bin.size(),
                              mSecretKey.data()) != 0)
     {
@@ -147,7 +147,7 @@ SecretKey::fromBase58Seed(std::string const& base58Seed)
 }
 
 bool
-PubKeyUtils::verifySig(PublicKey const& key, uint512 const& signature,
+PubKeyUtils::verifySig(PublicKey const& key, Signature const& signature,
                        ByteSlice const& bin)
 {
     return crypto_sign_verify_detached(signature.data(), bin.data(), bin.size(),

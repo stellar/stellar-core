@@ -27,5 +27,7 @@ case KEY_TYPES_ED25519:
     uint256 ed25519;
 };
 
+// variable size as the size depends on the signature scheme used
+typedef opaque Signature<64>;
 typedef PublicKey NodeID;
 }

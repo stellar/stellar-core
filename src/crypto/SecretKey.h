@@ -37,7 +37,7 @@ class SecretKey
     bool isZero() const;
 
     // Produce a signature of `bin` using this secret key.
-    uint512 sign(ByteSlice const& bin) const;
+    Signature sign(ByteSlice const& bin) const;
 
     // Create a new, random secret key.
     static SecretKey random();
@@ -58,7 +58,7 @@ class SecretKey
 namespace PubKeyUtils
 {
 // Return true iff `signature` is valid for `bin` under `key`.
-bool verifySig(PublicKey const& key, uint512 const& signature,
+bool verifySig(PublicKey const& key, Signature const& signature,
                ByteSlice const& bin);
 
 std::string toShortString(PublicKey const& pk);

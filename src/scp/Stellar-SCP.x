@@ -7,7 +7,6 @@
 namespace stellar
 {
 
-typedef opaque Signature[64];
 typedef opaque Value<>;
 
 struct SCPBallot

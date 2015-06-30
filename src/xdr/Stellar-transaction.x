@@ -10,7 +10,7 @@ namespace stellar
 struct DecoratedSignature
 {
     opaque hint[4];    // first 4 bytes of the public key, used as a hint
-    uint512 signature; // actual signature
+    Signature signature; // actual signature
 };
 
 enum OperationType
