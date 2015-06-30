@@ -53,7 +53,7 @@ TransactionFrame::getContentsHash() const
 {
     if (isZero(mContentsHash))
     {
-        mContentsHash = sha256(xdr::xdr_to_opaque(mEnvelope.tx));
+        mContentsHash = sha256(xdr::xdr_to_opaque(ENVELOPE_TYPE_TX, mEnvelope.tx));
     }
     return (mContentsHash);
 }

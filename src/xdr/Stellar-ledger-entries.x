@@ -188,4 +188,14 @@ case TRUSTLINE:
 case OFFER:
     OfferEntry offer;
 };
+
+// list of all envelope types used in the application
+// those are prefixes used when building signatures for
+// the respective envelopes
+enum EnvelopeTypes
+{
+    ENVELOPE_TYPE_SCP = 1,
+    ENVELOPE_TYPE_TX = 2
+};
+
 }
