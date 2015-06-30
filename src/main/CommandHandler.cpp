@@ -163,7 +163,8 @@ CommandHandler::fileNotFound(std::string const& params, std::string& retStr)
         "triggers the instance to write an immediate history checkpoint."
         "</p><p><h1> /connect?peer=NAME&port=NNN</h1>"
         "triggers the instance to connect to peer NAME at port NNN."
-        "</p><p><h1> /generateload[?accounts=N&txs=M&txrate=R&autorate=true]</h1>"
+        "</p><p><h1> "
+        "/generateload[?accounts=N&txs=M&txrate=R&autorate=true]</h1>"
         "artificially generate load for testing; must be used with "
         "ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING set to true"
         "</p><p><h1> /help</h1>"
@@ -290,13 +291,11 @@ CommandHandler::peers(std::string const& params, std::string& retStr)
     int counter = 0;
     for (auto peer : mApp.getOverlayManager().getPeers())
     {
-        binToHex(peer->getPeerID());
         root["peers"][counter]["ip"] = peer->getIP();
         root["peers"][counter]["port"] = (int)peer->getRemoteListeningPort();
         root["peers"][counter]["ver"] = peer->getRemoteVersion();
         root["peers"][counter]["olver"] = (int)peer->getRemoteOverlayVersion();
-        root["peers"][counter]["id"] =
-            toBase58Check(VER_ACCOUNT_ID, peer->getPeerID());
+        root["peers"][counter]["id"] = PubKeyUtils::toBase58(peer->getPeerID());
 
         counter++;
     }

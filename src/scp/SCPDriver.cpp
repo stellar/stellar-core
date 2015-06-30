@@ -34,7 +34,7 @@ SCPDriver::computeHash(uint64 slotIndex, bool isPriority, int32_t roundNumber,
     h->add(xdr::xdr_to_opaque(prev));
     h->add(xdr::xdr_to_opaque(isPriority ? hash_P : hash_N));
     h->add(xdr::xdr_to_opaque(roundNumber));
-    h->add(nodeID);
+    h->add(xdr::xdr_to_opaque(nodeID));
     uint256 t = h->finish();
     uint64 res = 0;
     for (int i = 0; i < sizeof(res); i++)

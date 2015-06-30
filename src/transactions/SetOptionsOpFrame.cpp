@@ -11,6 +11,8 @@
 
 namespace stellar
 {
+using xdr::operator==;
+
 SetOptionsOpFrame::SetOptionsOpFrame(Operation const& op, OperationResult& res,
                                      TransactionFrame& parentTx)
     : OperationFrame(op, res, parentTx)

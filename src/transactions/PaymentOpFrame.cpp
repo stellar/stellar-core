@@ -19,6 +19,7 @@ namespace stellar
 {
 
 using namespace std;
+using xdr::operator==;
 
 PaymentOpFrame::PaymentOpFrame(Operation const& op, OperationResult& res,
                                TransactionFrame& parentTx)

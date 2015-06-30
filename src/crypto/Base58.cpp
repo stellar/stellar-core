@@ -66,8 +66,8 @@ baseEncode(std::string const& alphabet, ByteSlice const& bytes)
     std::transform(digits.rbegin(), digits.rend(), ret.begin(),
                    [&alphabet](uint8_t digit)
                    {
-        return alphabet.at(digit);
-    });
+                       return alphabet.at(digit);
+                   });
     return ret;
 }
 
@@ -131,8 +131,8 @@ baseDecode(std::string const& alphabet, std::string const& encoded)
     std::vector<uint8_t> ret(bytes.size(), 0);
     std::transform(bytes.rbegin(), bytes.rend(), ret.begin(), [](uint16_t i)
                    {
-        return static_cast<uint8_t>(i);
-    });
+                       return static_cast<uint8_t>(i);
+                   });
     return ret;
 }
 

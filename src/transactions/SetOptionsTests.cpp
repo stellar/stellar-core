@@ -27,6 +27,8 @@ typedef std::unique_ptr<Application> appPtr;
 // minbalance
 TEST_CASE("set options", "[tx][setoptions]")
 {
+    using xdr::operator==;
+
     Config const& cfg = getTestConfig();
 
     VirtualClock clock;

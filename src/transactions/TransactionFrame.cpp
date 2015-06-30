@@ -24,6 +24,7 @@ namespace stellar
 {
 
 using namespace std;
+using xdr::operator==;
 
 TransactionFramePtr
 TransactionFrame::makeTransactionFromWire(TransactionEnvelope const& msg)
@@ -359,7 +360,7 @@ TransactionFrame::setSourceAccountPtr(AccountFrame::pointer signingAccount)
 {
     if (!signingAccount)
     {
-        if (mEnvelope.tx.sourceAccount != signingAccount->getID())
+        if (!(mEnvelope.tx.sourceAccount == signingAccount->getID()))
         {
             throw std::invalid_argument("wrong account");
         }

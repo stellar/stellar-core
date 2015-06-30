@@ -4,6 +4,7 @@
 
 #include "crypto/SecretKey.h"
 #include "crypto/Base58.h"
+#include "crypto/Hex.h"
 #include <sodium.h>
 #include <type_traits>
 
@@ -17,28 +18,19 @@ static_assert(crypto_sign_SECRETKEYBYTES == sizeof(uint512),
 static_assert(crypto_sign_BYTES == sizeof(uint512),
               "Unexpected signature length");
 
-bool
-PublicKey::verify(uint512 const& signature, ByteSlice const& bin) const
+SecretKey::SecretKey() : mKeyType(KEY_TYPES_ED25519)
 {
-    return crypto_sign_verify_detached(signature.data(), bin.data(), bin.size(),
-                                       data()) == 0;
 }
-
-bool
-PublicKey::verifySig(uint256 const& key, uint512 const& signature,
-                     ByteSlice const& bin)
-{
-    return crypto_sign_verify_detached(signature.data(), bin.data(), bin.size(),
-                                       key.data()) == 0;
-}
-
-//////////////////////////////////////////////////////////////////////////
 
 PublicKey
 SecretKey::getPublicKey() const
 {
     PublicKey pk;
-    if (crypto_sign_ed25519_sk_to_pk(pk.data(), data()) != 0)
+
+    assert(mKeyType == KEY_TYPES_ED25519);
+
+    if (crypto_sign_ed25519_sk_to_pk(pk.ed25519().data(), mSecretKey.data()) !=
+        0)
     {
         throw std::runtime_error("error extracting public key from secret key");
     }
@@ -48,8 +40,10 @@ SecretKey::getPublicKey() const
 uint256
 SecretKey::getSeed() const
 {
+    assert(mKeyType == KEY_TYPES_ED25519);
+
     uint256 seed;
-    if (crypto_sign_ed25519_sk_to_seed(seed.data(), data()) != 0)
+    if (crypto_sign_ed25519_sk_to_seed(seed.data(), mSecretKey.data()) != 0)
     {
         throw std::runtime_error("error extracting seed from secret key");
     }
@@ -59,30 +53,38 @@ SecretKey::getSeed() const
 std::string
 SecretKey::getBase58Seed() const
 {
+    assert(mKeyType == KEY_TYPES_ED25519);
+
     return toBase58Check(VER_SEED, getSeed());
 }
 
 std::string
 SecretKey::getBase58Public() const
 {
-    return toBase58Check(VER_ACCOUNT_ID, getPublicKey());
+    return PubKeyUtils::toBase58(getPublicKey());
 }
 
 bool
 SecretKey::isZero() const
 {
-    for (auto i : (*this))
+    for (auto i : mSecretKey)
+    {
         if (i != 0)
+        {
             return false;
+        }
+    }
     return true;
 }
 
 uint512
 SecretKey::sign(ByteSlice const& bin) const
 {
-    uint512 out;
+    assert(mKeyType == KEY_TYPES_ED25519);
+
+    uint512 out(crypto_sign_BYTES, 0);
     if (crypto_sign_detached(out.data(), NULL, bin.data(), bin.size(),
-                             data()) != 0)
+                             mSecretKey.data()) != 0)
     {
         throw std::runtime_error("error while signing");
     }
@@ -94,7 +96,8 @@ SecretKey::random()
 {
     PublicKey pk;
     SecretKey sk;
-    if (crypto_sign_keypair(pk.data(), sk.data()) != 0)
+    assert(sk.mKeyType == KEY_TYPES_ED25519);
+    if (crypto_sign_keypair(pk.ed25519().data(), sk.mSecretKey.data()) != 0)
     {
         throw std::runtime_error("error generating random secret key");
     }
@@ -106,7 +109,9 @@ SecretKey::fromSeed(uint256 const& seed)
 {
     PublicKey pk;
     SecretKey sk;
-    if (crypto_sign_seed_keypair(pk.data(), sk.data(),
+    assert(sk.mKeyType == KEY_TYPES_ED25519);
+
+    if (crypto_sign_seed_keypair(pk.ed25519().data(), sk.mSecretKey.data(),
                                  (unsigned char*)&(seed[0])) != 0)
     {
         throw std::runtime_error("error generating secret key from seed");
@@ -132,10 +137,42 @@ SecretKey::fromBase58Seed(std::string const& base58Seed)
 
     PublicKey pk;
     SecretKey sk;
-    if (crypto_sign_seed_keypair(pk.data(), sk.data(), pair.second.data()) != 0)
+    assert(sk.mKeyType == KEY_TYPES_ED25519);
+    if (crypto_sign_seed_keypair(pk.ed25519().data(), sk.mSecretKey.data(),
+                                 pair.second.data()) != 0)
     {
         throw std::runtime_error("error generating secret key from seed");
     }
     return sk;
 }
+
+bool
+PubKeyUtils::verifySig(PublicKey const& key, uint512 const& signature,
+                       ByteSlice const& bin)
+{
+    return crypto_sign_verify_detached(signature.data(), bin.data(), bin.size(),
+                                       key.ed25519().data()) == 0;
+}
+
+std::string
+PubKeyUtils::toShortString(PublicKey const& pk)
+{
+    return hexAbbrev(pk.ed25519());
+}
+
+std::string
+PubKeyUtils::toBase58(PublicKey const& pk)
+{
+    // uses VER_ACCOUNT_ID prefix for ed25519
+    return toBase58Check(VER_ACCOUNT_ID, pk.ed25519());
+}
+
+PublicKey
+PubKeyUtils::fromBase58(std::string const& s)
+{
+    PublicKey pk;
+    pk.ed25519() = fromBase58Check256(VER_ACCOUNT_ID, s);
+    return pk;
+}
+
 }

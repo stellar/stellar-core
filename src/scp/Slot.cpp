@@ -265,7 +265,7 @@ Slot::envToStr(SCPStatement const& st) const
 
     Hash qSetHash = getCompanionQuorumSetHashFromStatement(st);
 
-    oss << "{ENV@" << hexAbbrev(st.nodeID) << " | "
+    oss << "{ENV@" << PubKeyUtils::toShortString(st.nodeID) << " | "
         << " i: " << st.slotIndex;
     switch (st.pledges.type())
     {

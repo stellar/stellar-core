@@ -775,7 +775,8 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope)
     }
 
     CLOG(DEBUG, "Herder") << "recvSCPEnvelope"
-                          << " from: " << hexAbbrev(envelope.statement.nodeID)
+                          << " from: " << PubKeyUtils::toShortString(
+                                              envelope.statement.nodeID)
                           << " s:" << envelope.statement.pledges.type()
                           << " i:" << envelope.statement.slotIndex
                           << " a:" << mApp.getStateHuman();
@@ -1184,7 +1185,7 @@ HerderImpl::envelopeVerified(bool valid)
 void
 HerderImpl::dumpInfo(Json::Value& ret)
 {
-    ret["you"] = hexAbbrev(mSCP.getSecretKey().getPublicKey());
+    ret["you"] = PubKeyUtils::toShortString(mSCP.getSecretKey().getPublicKey());
 
     mSCP.dumpInfo(ret);
 

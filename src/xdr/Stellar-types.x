@@ -16,5 +16,16 @@ typedef int int32;
 typedef unsigned hyper uint64;
 typedef hyper int64;
 
-typedef opaque NodeID[32];
+enum CryptoKeyTypes
+{
+    KEY_TYPES_ED25519 = 0
+};
+
+union PublicKey switch (CryptoKeyTypes type)
+{
+case KEY_TYPES_ED25519:
+    uint256 ed25519;
+};
+
+typedef PublicKey NodeID;
 }

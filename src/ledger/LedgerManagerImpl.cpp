@@ -622,11 +622,11 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
         LedgerDelta delta(ledgerDelta);
         try
         {
-            CLOG(DEBUG, "Tx") << "APPLY: ledger "
-                              << mCurrentLedger->mHeader.ledgerSeq << " tx#"
-                              << index << " = " << hexAbbrev(tx->getFullHash())
-                              << " txseq=" << tx->getSeqNum() << " (@ "
-                              << hexAbbrev(tx->getSourceID()) << ")";
+            CLOG(DEBUG, "Tx")
+                << "APPLY: ledger " << mCurrentLedger->mHeader.ledgerSeq
+                << " tx#" << index << " = " << hexAbbrev(tx->getFullHash())
+                << " txseq=" << tx->getSeqNum() << " (@ "
+                << PubKeyUtils::toShortString(tx->getSourceID()) << ")";
 
             // note that success here just means it got processed
             // a failed transaction collecting a fee is successful at this layer

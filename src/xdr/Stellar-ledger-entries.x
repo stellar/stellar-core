@@ -7,7 +7,7 @@
 namespace stellar
 {
 
-typedef opaque AccountID[32];
+typedef PublicKey AccountID;
 typedef opaque Thresholds[4];
 typedef string string32<32>;
 typedef uint64 SequenceNumber;
@@ -59,7 +59,7 @@ enum LedgerEntryType
 
 struct Signer
 {
-    uint256 pubKey;
+    AccountID pubKey;
     uint32 weight; // really only need 1byte
 };
 

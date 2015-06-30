@@ -145,10 +145,10 @@ Peer::sendPeers()
 void
 Peer::sendMessage(StellarMessage const& msg)
 {
-    CLOG(TRACE, "Overlay") << "("
-                           << binToHex(mApp.getConfig().PEER_PUBLIC_KEY)
-                                  .substr(0, 6) << ")send: " << msg.type()
-                           << " to : " << hexAbbrev(mPeerID);
+    CLOG(TRACE, "Overlay") << "(" << PubKeyUtils::toShortString(
+                                         mApp.getConfig().PEER_PUBLIC_KEY)
+                           << ")send: " << msg.type()
+                           << " to : " << PubKeyUtils::toShortString(mPeerID);
     xdr::msg_ptr xdrBytes(xdr::xdr_to_msg(msg));
     this->sendMessage(std::move(xdrBytes));
 }
@@ -180,11 +180,10 @@ Peer::shouldAbort() const
 void
 Peer::recvMessage(StellarMessage const& stellarMsg)
 {
-    CLOG(TRACE, "Overlay") << "("
-                           << binToHex(mApp.getConfig().PEER_PUBLIC_KEY)
-                                  .substr(0, 6)
+    CLOG(TRACE, "Overlay") << "(" << PubKeyUtils::toShortString(
+                                         mApp.getConfig().PEER_PUBLIC_KEY)
                            << ")recv: " << stellarMsg.type()
-                           << " from:" << hexAbbrev(mPeerID);
+                           << " from:" << PubKeyUtils::toShortString(mPeerID);
 
     if (mState < GOT_HELLO &&
         ((stellarMsg.type() != HELLO) && (stellarMsg.type() != PEERS)))
@@ -344,8 +343,8 @@ Peer::recvSCPMessage(StellarMessage const& msg)
 {
     SCPEnvelope envelope = msg.envelope();
     CLOG(TRACE, "Overlay") << "recvSCPMessage node: "
-                           << binToHex(msg.envelope().statement.nodeID)
-                                  .substr(0, 6);
+                           << PubKeyUtils::toShortString(
+                                  msg.envelope().statement.nodeID);
 
     mApp.getOverlayManager().recvFloodedMsg(msg, shared_from_this());
 
@@ -361,6 +360,7 @@ Peer::recvError(StellarMessage const& msg)
 bool
 Peer::recvHello(StellarMessage const& msg)
 {
+    using xdr::operator==;
     if (msg.hello().peerID == mApp.getConfig().PEER_PUBLIC_KEY)
     {
         CLOG(DEBUG, "Overlay") << "connecting to self";

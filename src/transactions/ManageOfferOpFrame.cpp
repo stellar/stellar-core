@@ -20,6 +20,7 @@ namespace stellar
 {
 
 using namespace std;
+using xdr::operator==;
 
 ManageOfferOpFrame::ManageOfferOpFrame(Operation const& op,
                                        OperationResult& res,
@@ -32,7 +33,8 @@ ManageOfferOpFrame::ManageOfferOpFrame(Operation const& op,
 
 // make sure these issuers exist and you can hold the ask currency
 bool
-ManageOfferOpFrame::checkOfferValid(medida::MetricsRegistry& metrics, Database& db)
+ManageOfferOpFrame::checkOfferValid(medida::MetricsRegistry& metrics,
+                                    Database& db)
 {
     Currency const& sheep = mManageOffer.takerGets;
     Currency const& wheat = mManageOffer.takerPays;
@@ -42,25 +44,24 @@ ManageOfferOpFrame::checkOfferValid(medida::MetricsRegistry& metrics, Database& 
         mSheepLineA = TrustFrame::loadTrustLine(getSourceID(), sheep, db);
         if (!mSheepLineA)
         { // we don't have what we are trying to sell
-            metrics.NewMeter({ "op-manage-offer", "invalid",
-                "underfunded-absent" },
-                "operation").Mark();
+            metrics.NewMeter(
+                        {"op-manage-offer", "invalid", "underfunded-absent"},
+                        "operation").Mark();
             innerResult().code(MANAGE_OFFER_SELL_NO_TRUST);
             return false;
         }
         if (mSheepLineA->getBalance() == 0)
         {
-            metrics.NewMeter({ "op-manage-offer", "invalid",
-                "underfunded-absent" },
-                "operation").Mark();
+            metrics.NewMeter(
+                        {"op-manage-offer", "invalid", "underfunded-absent"},
+                        "operation").Mark();
             innerResult().code(MANAGE_OFFER_UNDERFUNDED);
             return false;
         }
         if (!mSheepLineA->isAuthorized())
         {
-            metrics.NewMeter({ "op-manage-offer", "invalid",
-                "not-authorized" },
-                "operation").Mark();
+            metrics.NewMeter({"op-manage-offer", "invalid", "not-authorized"},
+                             "operation").Mark();
             // we are not authorized to sell
             innerResult().code(MANAGE_OFFER_SELL_NOT_AUTHORIZED);
             return false;
@@ -72,18 +73,16 @@ ManageOfferOpFrame::checkOfferValid(medida::MetricsRegistry& metrics, Database& 
         mWheatLineA = TrustFrame::loadTrustLine(getSourceID(), wheat, db);
         if (!mWheatLineA)
         { // we can't hold what we are trying to buy
-            metrics.NewMeter({ "op-manage-offer", "invalid",
-                "no-trust" },
-                "operation").Mark();
+            metrics.NewMeter({"op-manage-offer", "invalid", "no-trust"},
+                             "operation").Mark();
             innerResult().code(MANAGE_OFFER_BUY_NO_TRUST);
             return false;
         }
 
         if (!mWheatLineA->isAuthorized())
         { // we are not authorized to hold what we are trying to buy
-            metrics.NewMeter({ "op-manage-offer", "invalid",
-                "not-authorized" },
-                "operation").Mark();
+            metrics.NewMeter({"op-manage-offer", "invalid", "not-authorized"},
+                             "operation").Mark();
             innerResult().code(MANAGE_OFFER_BUY_NOT_AUTHORIZED);
             return false;
         }
@@ -99,12 +98,12 @@ ManageOfferOpFrame::checkOfferValid(medida::MetricsRegistry& metrics, Database& 
 // TODO: revisit this, offer code should share logic with payment code
 //      to keep the code working, I ended up duplicating the error codes
 bool
-ManageOfferOpFrame::doApply(medida::MetricsRegistry& metrics, 
-    LedgerDelta& delta, LedgerManager& ledgerManager)
+ManageOfferOpFrame::doApply(medida::MetricsRegistry& metrics,
+                            LedgerDelta& delta, LedgerManager& ledgerManager)
 {
     Database& db = ledgerManager.getDatabase();
 
-    if (!checkOfferValid(metrics,db))
+    if (!checkOfferValid(metrics, db))
     {
         return false;
     }
@@ -118,7 +117,6 @@ ManageOfferOpFrame::doApply(medida::MetricsRegistry& metrics,
     if (offerID)
     { // modifying an old offer
         mSellSheepOffer = OfferFrame::loadOffer(getSourceID(), offerID, db);
-        
 
         if (mSellSheepOffer)
         {
@@ -128,9 +126,8 @@ ManageOfferOpFrame::doApply(medida::MetricsRegistry& metrics,
                 !compareCurrency(mManageOffer.takerPays,
                                  mSellSheepOffer->getOffer().takerPays))
             {
-                metrics.NewMeter({ "op-manage-offer", "invalid",
-                    "mismatch" },
-                    "operation").Mark();
+                metrics.NewMeter({"op-manage-offer", "invalid", "mismatch"},
+                                 "operation").Mark();
                 innerResult().code(MANAGE_OFFER_MISMATCH);
                 return false;
             }
@@ -138,9 +135,8 @@ ManageOfferOpFrame::doApply(medida::MetricsRegistry& metrics,
         }
         else
         {
-            metrics.NewMeter({ "op-manage-offer", "invalid",
-                "not-found" },
-                "operation").Mark();
+            metrics.NewMeter({"op-manage-offer", "invalid", "not-found"},
+                             "operation").Mark();
             innerResult().code(MANAGE_OFFER_NOT_FOUND);
             return false;
         }
@@ -148,8 +144,9 @@ ManageOfferOpFrame::doApply(medida::MetricsRegistry& metrics,
     else
     { // creating a new Offer
         creatingNewOffer = true;
-        mSellSheepOffer = OfferFrame::from(getSourceID(),mManageOffer);
-        if(mPassive) mSellSheepOffer->mEntry.offer().flags = PASSIVE_FLAG;
+        mSellSheepOffer = OfferFrame::from(getSourceID(), mManageOffer);
+        if (mPassive)
+            mSellSheepOffer->mEntry.offer().flags = PASSIVE_FLAG;
     }
 
     int64_t maxSheepSend = mManageOffer.amount;
@@ -176,9 +173,8 @@ ManageOfferOpFrame::doApply(medida::MetricsRegistry& metrics,
         maxWheatCanSell = mWheatLineA->getMaxAmountReceive();
         if (maxWheatCanSell == 0)
         {
-            metrics.NewMeter({ "op-manage-offer", "invalid",
-                "line-full" },
-                "operation").Mark();
+            metrics.NewMeter({"op-manage-offer", "invalid", "line-full"},
+                             "operation").Mark();
             innerResult().code(MANAGE_OFFER_LINE_FULL);
             return false;
         }
@@ -187,7 +183,7 @@ ManageOfferOpFrame::doApply(medida::MetricsRegistry& metrics,
     {
         int64_t maxSheepBasedOnWheat;
         if (!bigDivide(maxSheepBasedOnWheat, maxWheatCanSell,
-            mManageOffer.price.d, mManageOffer.price.n))
+                       mManageOffer.price.d, mManageOffer.price.n))
         {
             maxSheepBasedOnWheat = INT64_MAX;
         }
@@ -223,8 +219,8 @@ ManageOfferOpFrame::doApply(medida::MetricsRegistry& metrics,
             sheep, maxSheepSend, sheepSent, wheat, maxWheatCanSell,
             wheatReceived, [this, maxWheatPrice](OfferFrame const& o)
             {
-                if( (mPassive && (o.getPrice() >= maxWheatPrice)) || 
-                    (o.getPrice() > maxWheatPrice) )
+                if ((mPassive && (o.getPrice() >= maxWheatPrice)) ||
+                    (o.getPrice() > maxWheatPrice))
                 {
                     return OfferExchange::eStop;
                 }
@@ -315,9 +311,9 @@ ManageOfferOpFrame::doApply(medida::MetricsRegistry& metrics,
                 // the minbalance
                 if (!mSourceAccount->addNumEntries(1, ledgerManager))
                 {
-                    metrics.NewMeter({ "op-manage-offer", "invalid",
-                        "low reserve" },
-                        "operation").Mark();
+                    metrics.NewMeter(
+                                {"op-manage-offer", "invalid", "low reserve"},
+                                "operation").Mark();
                     innerResult().code(MANAGE_OFFER_LOW_RESERVE);
                     return false;
                 }
@@ -347,8 +343,8 @@ ManageOfferOpFrame::doApply(medida::MetricsRegistry& metrics,
         sqlTx.commit();
         tempDelta.commit();
     }
-    metrics.NewMeter({ "op-create-offer", "success", "apply" },
-        "operation").Mark();
+    metrics.NewMeter({"op-create-offer", "success", "apply"}, "operation")
+        .Mark();
     return true;
 }
 
@@ -361,26 +357,24 @@ ManageOfferOpFrame::doCheckValid(medida::MetricsRegistry& metrics)
 
     if (!isCurrencyValid(sheep) || !isCurrencyValid(wheat))
     {
-        metrics.NewMeter({ "op-manage-offer", "invalid",
-            "invalid-currency" },
-            "operation").Mark();
+        metrics.NewMeter({"op-manage-offer", "invalid", "invalid-currency"},
+                         "operation").Mark();
         innerResult().code(MANAGE_OFFER_MALFORMED);
         return false;
     }
     if (compareCurrency(sheep, wheat))
     {
-        metrics.NewMeter({ "op-manage-offer", "invalid",
-            "equal-currencies" },
-            "operation").Mark();
+        metrics.NewMeter({"op-manage-offer", "invalid", "equal-currencies"},
+                         "operation").Mark();
         innerResult().code(MANAGE_OFFER_MALFORMED);
         return false;
     }
     if (mManageOffer.amount < 0 || mManageOffer.price.d <= 0 ||
         mManageOffer.price.n <= 0)
     {
-        metrics.NewMeter({ "op-manage-offer", "invalid",
-            "negative-or-zero-values" },
-            "operation").Mark();
+        metrics.NewMeter(
+                    {"op-manage-offer", "invalid", "negative-or-zero-values"},
+                    "operation").Mark();
         innerResult().code(MANAGE_OFFER_MALFORMED);
         return false;
     }

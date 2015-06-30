@@ -16,6 +16,7 @@
 
 namespace stellar
 {
+using xdr::operator==;
 
 SCP::SCP(SCPDriver& driver, SecretKey const& secretKey,
          SCPQuorumSet const& qSetLocal)
@@ -116,8 +117,9 @@ SCP::signEnvelope(SCPEnvelope& envelope)
 bool
 SCP::verifyEnvelope(SCPEnvelope const& envelope)
 {
-    bool b = PublicKey::verifySig(envelope.statement.nodeID, envelope.signature,
-                                  xdr::xdr_to_opaque(envelope.statement));
+    bool b =
+        PubKeyUtils::verifySig(envelope.statement.nodeID, envelope.signature,
+                               xdr::xdr_to_opaque(envelope.statement));
     mDriver.envelopeVerified(b);
     return b;
 }

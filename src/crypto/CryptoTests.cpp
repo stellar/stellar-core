@@ -247,10 +247,8 @@ TEST_CASE("sign tests", "[crypto]")
 {
     auto sk = SecretKey::random();
     auto pk = sk.getPublicKey();
-    LOG(DEBUG) << "generated random secret key seed: "
-               << toBase58Check(VER_SEED, sk);
-    LOG(DEBUG) << "corresponding public key: " << toBase58Check(VER_ACCOUNT_ID,
-                                                                pk);
+    LOG(DEBUG) << "generated random secret key seed: " << sk.getBase58Seed();
+    LOG(DEBUG) << "corresponding public key: " << PubKeyUtils::toBase58(pk);
 
     CHECK(SecretKey::fromBase58Seed(sk.getBase58Seed()) == sk);
 
@@ -260,14 +258,14 @@ TEST_CASE("sign tests", "[crypto]")
     LOG(DEBUG) << "formed signature: " << binToHex(sig);
 
     LOG(DEBUG) << "checking signature-verify";
-    CHECK(pk.verify(sig, msg));
+    CHECK(PubKeyUtils::verifySig(pk, sig, msg));
 
     LOG(DEBUG) << "checking verify-failure on bad message";
-    CHECK(!pk.verify(sig, std::string("helloo")));
+    CHECK(!PubKeyUtils::verifySig(pk, sig, std::string("helloo")));
 
     LOG(DEBUG) << "checking verify-failure on bad signature";
     sig[4] ^= 1;
-    CHECK(!pk.verify(sig, msg));
+    CHECK(!PubKeyUtils::verifySig(pk, sig, msg));
 }
 
 struct SignVerifyTestcase
@@ -284,7 +282,7 @@ struct SignVerifyTestcase
     void
     verify()
     {
-        CHECK(pub.verify(sig, msg));
+        CHECK(PubKeyUtils::verifySig(pub, sig, msg));
     }
     static SignVerifyTestcase
     create()

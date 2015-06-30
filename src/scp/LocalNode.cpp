@@ -12,6 +12,8 @@
 
 namespace stellar
 {
+using xdr::operator==;
+using xdr::operator<;
 
 LocalNode::LocalNode(SecretKey const& secretKey, SCPQuorumSet const& qSet,
                      SCP* scp)
@@ -22,7 +24,7 @@ LocalNode::LocalNode(SecretKey const& secretKey, SCPQuorumSet const& qSet,
     , mSCP(scp)
 {
     CLOG(INFO, "SCP") << "LocalNode::LocalNode"
-                      << "@" << hexAbbrev(mNodeID)
+                      << "@" << PubKeyUtils::toShortString(mNodeID)
                       << " qSet: " << hexAbbrev(mQSetHash);
 
     mSingleQSet = std::make_shared<SCPQuorumSet>(buildSingletonQSet(mNodeID));

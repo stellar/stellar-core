@@ -18,6 +18,7 @@ namespace stellar
 {
 
 using namespace std;
+using xdr::operator==;
 
 PathPaymentOpFrame::PathPaymentOpFrame(Operation const& op,
                                        OperationResult& res,
@@ -109,8 +110,6 @@ PathPaymentOpFrame::doApply(medida::MetricsRegistry& metrics,
     {
         int64_t curASent, actualCurBReceived;
         Currency const& curA = fullPath[i];
-
-        using xdr::operator==;
 
         if (curA == curB)
         {

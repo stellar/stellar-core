@@ -5,7 +5,7 @@
 #include "ledger/OfferFrame.h"
 #include "transactions/ManageOfferOpFrame.h"
 #include "database/Database.h"
-#include "crypto/Base58.h"
+#include "crypto/SecretKey.h"
 #include "crypto/SHA.h"
 #include "LedgerDelta.h"
 #include "util/types.h"
@@ -66,7 +66,7 @@ OfferFrame& OfferFrame::operator=(OfferFrame const& other)
 }
 
 OfferFrame::pointer
-OfferFrame::from(AccountID const & account, ManageOfferOp const& op)
+OfferFrame::from(AccountID const& account, ManageOfferOp const& op)
 {
     OfferFrame::pointer res = make_shared<OfferFrame>();
     OfferEntry& o = res->mEntry.offer();
@@ -115,7 +115,7 @@ OfferFrame::getOfferID() const
     return mOffer.offerID;
 }
 
-uint32 
+uint32
 OfferFrame::getFlags() const
 {
     return mOffer.flags;
@@ -132,7 +132,7 @@ OfferFrame::loadOffer(AccountID const& accountID, uint64_t offerID,
     OfferFrame::pointer retOffer;
 
     std::string accStr;
-    accStr = toBase58Check(VER_ACCOUNT_ID, accountID);
+    accStr = PubKeyUtils::toBase58(accountID);
 
     soci::session& session = db.getSession();
 
@@ -170,12 +170,12 @@ OfferFrame::loadOffers(soci::details::prepare_temp_type& prep,
                     into(paysIssuer, paysIssuerIndicator),
                     into(getsAlphaNumCurrency, getsAlphaNumIndicator),
                     into(getsIssuer, getsIssuerIndicator), into(oe.amount),
-                    into(oe.price.n), into(oe.price.d),into(oe.flags));
+                    into(oe.price.n), into(oe.price.d), into(oe.flags));
 
     st.execute(true);
     while (st.got_data())
     {
-        oe.accountID = fromBase58Check256(VER_ACCOUNT_ID, accountID);
+        oe.accountID = PubKeyUtils::fromBase58(accountID);
         if (paysAlphaNumIndicator == soci::i_ok)
         {
             if (paysIssuerIndicator != soci::i_ok)
@@ -186,7 +186,7 @@ OfferFrame::loadOffers(soci::details::prepare_temp_type& prep,
             strToCurrencyCode(oe.takerPays.alphaNum().currencyCode,
                               paysAlphaNumCurrency);
             oe.takerPays.alphaNum().issuer =
-                fromBase58Check256(VER_ACCOUNT_ID, paysIssuer);
+                PubKeyUtils::fromBase58(paysIssuer);
         }
         else
         {
@@ -202,7 +202,7 @@ OfferFrame::loadOffers(soci::details::prepare_temp_type& prep,
             strToCurrencyCode(oe.takerGets.alphaNum().currencyCode,
                               getsAlphaNumCurrency);
             oe.takerGets.alphaNum().issuer =
-                fromBase58Check256(VER_ACCOUNT_ID, getsIssuer);
+                PubKeyUtils::fromBase58(getsIssuer);
         }
         else
         {
@@ -233,7 +233,7 @@ OfferFrame::loadBestOffers(size_t numOffers, size_t offset,
     else
     {
         currencyCodeToStr(pays.alphaNum().currencyCode, payCurrencyCode);
-        b58PIssuer = toBase58Check(VER_ACCOUNT_ID, pays.alphaNum().issuer);
+        b58PIssuer = PubKeyUtils::toBase58(pays.alphaNum().issuer);
         sql << " WHERE paysalphanumcurrency=:pcur AND paysissuer = :pi",
             use(payCurrencyCode), use(b58PIssuer);
     }
@@ -245,13 +245,13 @@ OfferFrame::loadBestOffers(size_t numOffers, size_t offset,
     else
     {
         currencyCodeToStr(gets.alphaNum().currencyCode, getCurrencyCode);
-        b58GIssuer = toBase58Check(VER_ACCOUNT_ID, gets.alphaNum().issuer);
+        b58GIssuer = PubKeyUtils::toBase58(gets.alphaNum().issuer);
 
         sql << " AND getsalphanumcurrency=:gcur AND getsissuer = :gi",
             use(getCurrencyCode), use(b58GIssuer);
     }
-    sql << " ORDER BY price,offerid LIMIT :n OFFSET :o",
-        use(numOffers), use(offset);
+    sql << " ORDER BY price,offerid LIMIT :n OFFSET :o", use(numOffers),
+        use(offset);
 
     auto timer = db.getSelectTimer("offer");
     loadOffers(sql, [&retOffers](LedgerEntry const& of)
@@ -268,7 +268,7 @@ OfferFrame::loadOffers(AccountID const& accountID,
     soci::session& session = db.getSession();
 
     std::string accStr;
-    accStr = toBase58Check(VER_ACCOUNT_ID, accountID);
+    accStr = PubKeyUtils::toBase58(accountID);
 
     soci::details::prepare_temp_type sql =
         (session.prepare << offerColumnSelector << " WHERE accountid=:id",
@@ -284,8 +284,7 @@ OfferFrame::loadOffers(AccountID const& accountID,
 bool
 OfferFrame::exists(Database& db, LedgerKey const& key)
 {
-    std::string b58AccountID =
-        toBase58Check(VER_ACCOUNT_ID, key.offer().accountID);
+    std::string b58AccountID = PubKeyUtils::toBase58(key.offer().accountID);
     int exists = 0;
     auto timer = db.getSelectTimer("offer-exists");
     db.getSession() << "SELECT EXISTS (SELECT NULL FROM offers "
@@ -342,7 +341,7 @@ OfferFrame::storeChange(LedgerDelta& delta, Database& db) const
 void
 OfferFrame::storeAdd(LedgerDelta& delta, Database& db) const
 {
-    std::string b58AccountID = toBase58Check(VER_ACCOUNT_ID, mOffer.accountID);
+    std::string b58AccountID = PubKeyUtils::toBase58(mOffer.accountID);
 
     soci::statement st(db.getSession().prepare << "select 1");
 
@@ -351,7 +350,7 @@ OfferFrame::storeAdd(LedgerDelta& delta, Database& db) const
     if (mOffer.takerGets.type() == CURRENCY_TYPE_NATIVE)
     {
         std::string b58issuer =
-            toBase58Check(VER_ACCOUNT_ID, mOffer.takerPays.alphaNum().issuer);
+            PubKeyUtils::toBase58(mOffer.takerPays.alphaNum().issuer);
         std::string currencyCode;
         currencyCodeToStr(mOffer.takerPays.alphaNum().currencyCode,
                           currencyCode);
@@ -362,13 +361,13 @@ OfferFrame::storeAdd(LedgerDelta& delta, Database& db) const
                      "(:v1,:v2,:v3,:v4,:v5,:v6,:v7,:v8,:v9)",
               use(b58AccountID), use(mOffer.offerID), use(currencyCode),
               use(b58issuer), use(mOffer.amount), use(mOffer.price.n),
-              use(mOffer.price.d), use(computePrice()),use(mOffer.flags));
+              use(mOffer.price.d), use(computePrice()), use(mOffer.flags));
         st.execute(true);
     }
     else if (mOffer.takerPays.type() == CURRENCY_TYPE_NATIVE)
     {
         std::string b58issuer =
-            toBase58Check(VER_ACCOUNT_ID, mOffer.takerGets.alphaNum().issuer);
+            PubKeyUtils::toBase58(mOffer.takerGets.alphaNum().issuer);
         std::string currencyCode;
         currencyCodeToStr(mOffer.takerGets.alphaNum().currencyCode,
                           currencyCode);
@@ -385,12 +384,12 @@ OfferFrame::storeAdd(LedgerDelta& delta, Database& db) const
     else
     {
         std::string b58PaysIssuer =
-            toBase58Check(VER_ACCOUNT_ID, mOffer.takerPays.alphaNum().issuer);
+            PubKeyUtils::toBase58(mOffer.takerPays.alphaNum().issuer);
         std::string paysAlphaNumCurrency, getsAlphaNumCurrency;
         currencyCodeToStr(mOffer.takerPays.alphaNum().currencyCode,
                           paysAlphaNumCurrency);
         std::string b58GetsIssuer =
-            toBase58Check(VER_ACCOUNT_ID, mOffer.takerGets.alphaNum().issuer);
+            PubKeyUtils::toBase58(mOffer.takerGets.alphaNum().issuer);
         currencyCodeToStr(mOffer.takerGets.alphaNum().currencyCode,
                           getsAlphaNumCurrency);
         st = (db.getSession().prepare

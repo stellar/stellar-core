@@ -180,6 +180,8 @@ doInflation(Application& app, int nbAccounts,
             std::function<int64(int)> getBalance,
             std::function<int(int)> getVote, int expectedWinnerCount)
 {
+    using xdr::operator==;
+
     // simulate the expected inflation based off the current ledger state
     std::map<int, int64> balances;
 
