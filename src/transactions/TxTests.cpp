@@ -34,6 +34,44 @@ using xdr::operator==;
 namespace txtest
 {
 
+time_t
+getTestDate(int day, int month, int year)
+{
+    std::tm tm = { 0 };
+    tm.tm_hour = 0;
+    tm.tm_min = 0;
+    tm.tm_sec = 0;
+    tm.tm_mday = day;
+    tm.tm_mon = month - 1; // 0 based
+    tm.tm_year = year - 1900;
+
+    VirtualClock::time_point tp = VirtualClock::tmToPoint(tm);
+    time_t t = VirtualClock::to_time_t(tp);
+
+    return t;
+}
+
+void
+closeLedgerOn(Application& app, uint32 ledgerSeq, int day, int month, int year,
+        TransactionFramePtr tx)
+{
+    TxSetFramePtr txSet = std::make_shared<TxSetFrame>(
+        app.getLedgerManager().getLastClosedLedgerHeader().hash);
+    if(tx)
+    {
+        txSet->add(tx);
+        txSet->sortForHash();
+    }
+
+    StellarValue sv(txSet->getContentsHash(), getTestDate(day, month, year),
+        emptyUpgradeSteps, 0);
+    LedgerCloseData ledgerData(ledgerSeq, txSet, sv);
+    app.getLedgerManager().closeLedger(ledgerData);
+
+    REQUIRE(app.getLedgerManager().getLedgerNum() == (ledgerSeq + 1));
+}
+
+
 SecretKey
 getRoot()
 {

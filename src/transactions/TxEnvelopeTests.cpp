@@ -48,6 +48,9 @@ TEST_CASE("txenvelope", "[tx][envelope]")
     const uint64_t paymentAmount =
         app.getLedgerManager().getCurrentLedgerHeader().baseReserve * 10;
 
+
+    
+
     SECTION("outer envelope")
     {
         TransactionFramePtr txFrame;
@@ -437,6 +440,42 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                 txFrame->apply(delta, app);
 
                 REQUIRE(txFrame->getResultCode() == txBAD_SEQ);
+            }
+
+            SECTION("time issues")
+            {
+                // tx too young
+                // tx ok
+                // tx too old
+                VirtualClock::time_point ledgerTime;
+                time_t start = getTestDate(1, 7, 2014);
+                ledgerTime = VirtualClock::from_time_t(start);
+
+                clock.setCurrentTime(ledgerTime);
+
+                txFrame = createPaymentTx(root, a1, rootSeq, paymentAmount);
+                txFrame->getEnvelope().tx.timeBounds.activate() = TimeBounds(start + 1000, start + 10000);
+
+                closeLedgerOn(app, 3, 1, 7, 2014);
+                txFrame->apply(delta, app);
+
+                REQUIRE(txFrame->getResultCode() == txTOO_EARLY);
+
+                txFrame = createPaymentTx(root, a1, rootSeq++, paymentAmount);
+                txFrame->getEnvelope().tx.timeBounds.activate() = TimeBounds(1000, start + 300000);
+
+                closeLedgerOn(app, 4, 2, 7, 2014);
+                txFrame->apply(delta, app);
+                REQUIRE(txFrame->getResultCode() == txSUCCESS);
+
+
+                txFrame = createPaymentTx(root, a1, rootSeq, paymentAmount);
+                txFrame->getEnvelope().tx.timeBounds.activate() = TimeBounds(1000, start);
+
+                closeLedgerOn(app, 5, 3, 7, 2014);
+                txFrame->apply(delta, app);
+                REQUIRE(txFrame->getResultCode() == txTOO_LATE);
+
             }
 
             SECTION("transaction gap")
