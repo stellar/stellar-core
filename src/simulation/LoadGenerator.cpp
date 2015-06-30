@@ -74,22 +74,23 @@ LoadGenerator::pickRandomCurrency()
 // Schedule a callback to generateLoad() STEP_MSECS miliseconds from now.
 void
 LoadGenerator::scheduleLoadGeneration(Application& app, uint32_t nAccounts,
-                                      uint32_t nTxs, uint32_t txRate, bool autoRate)
+                                      uint32_t nTxs, uint32_t txRate,
+                                      bool autoRate)
 {
     if (!mLoadTimer)
     {
         mLoadTimer = make_unique<VirtualTimer>(app.getClock());
     }
     mLoadTimer->expires_from_now(std::chrono::milliseconds(STEP_MSECS));
-    mLoadTimer->async_wait(
-        [this, &app, nAccounts, nTxs, txRate, autoRate](
-            asio::error_code const& error)
-        {
-            if (!error)
-            {
-                this->generateLoad(app, nAccounts, nTxs, txRate, autoRate);
-            }
-        });
+    mLoadTimer->async_wait([this, &app, nAccounts, nTxs, txRate, autoRate](
+        asio::error_code const& error)
+                           {
+                               if (!error)
+                               {
+                                   this->generateLoad(app, nAccounts, nTxs,
+                                                      txRate, autoRate);
+                               }
+                           });
 }
 
 bool
@@ -159,9 +160,7 @@ maybeAdjustRate(double target, double actual, uint32_t& rate, bool increaseOk)
             return false;
         }
         LOG(INFO) << (incr > 0 ? "+++ Increasing" : "--- Decreasing")
-                  << " auto-tx target rate from "
-                  << rate
-                  << " to "
+                  << " auto-tx target rate from " << rate << " to "
                   << rate + incr;
         rate += incr;
         return true;
@@ -195,7 +194,7 @@ LoadGenerator::generateLoad(Application& app, uint32_t nAccounts, uint32_t nTxs,
     // choice, weighted to the desired frequency.
     if (txPerStep == 0)
     {
-        txPerStep = rand_uniform(0, 1000) < (txRate * STEP_MSECS) ? 1 : 0;
+        txPerStep = rand_uniform(0U, 1000U) < (txRate * STEP_MSECS) ? 1 : 0;
     }
 
     if (txPerStep > nTxs)
@@ -263,7 +262,8 @@ LoadGenerator::generateLoad(Application& app, uint32_t nAccounts, uint32_t nTxs,
         }
         auto recv = recvScope.Stop();
 
-        uint64_t now = static_cast<uint64_t>(VirtualClock::to_time_t(app.getClock().now()));
+        uint64_t now = static_cast<uint64_t>(
+            VirtualClock::to_time_t(app.getClock().now()));
         bool secondBoundary = now != mLastSecond;
         mLastSecond = now;
 
@@ -291,19 +291,22 @@ LoadGenerator::generateLoad(Application& app, uint32_t nAccounts, uint32_t nTxs,
                 // consensus fast enough.
 
                 double targetLatency = 250.0;
-                double actualLatency = ledgerCloseTimer.GetSnapshot().getMedian();
+                double actualLatency =
+                    ledgerCloseTimer.GetSnapshot().getMedian();
 
-                double targetAge = (double) Herder::EXP_LEDGER_TIMESPAN_SECONDS.count();
+                double targetAge =
+                    (double)Herder::EXP_LEDGER_TIMESPAN_SECONDS.count();
                 double actualAge =
-                    (double) app.getLedgerManager().secondsSinceLastLedgerClose();
+                    (double)
+                        app.getLedgerManager().secondsSinceLastLedgerClose();
                 if (app.getConfig().ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING)
                 {
                     targetAge = 1.0;
                 }
 
-                LOG(DEBUG) << "Considering auto-tx adjustment, median close time "
-                           << actualLatency << "ms, ledger age "
-                           << actualAge << "s";
+                LOG(DEBUG)
+                    << "Considering auto-tx adjustment, median close time "
+                    << actualLatency << "ms, ledger age " << actualAge << "s";
 
                 if (!maybeAdjustRate(targetAge, actualAge, txRate, false))
                 {
@@ -312,17 +315,16 @@ LoadGenerator::generateLoad(Application& app, uint32_t nAccounts, uint32_t nTxs,
 
                 if (txRate > 5000)
                 {
-                    LOG(WARNING) << "TxRate > 5000, likely metric stutter, resetting";
+                    LOG(WARNING)
+                        << "TxRate > 5000, likely metric stutter, resetting";
                     txRate = 10;
                 }
-
 
                 // Unfortunately the timer reservoir size is 1028 by default and
                 // we cannot adjust it here, so in order to adapt to load
                 // relatively quickly, we clear it out every 5 ledgers.
                 ledgerCloseTimer.Clear();
             }
-
         }
 
         // Emit a log message once per second.
@@ -337,19 +339,17 @@ LoadGenerator::generateLoad(Application& app, uint32_t nAccounts, uint32_t nTxs,
             auto step2ms = duration_cast<milliseconds>(recv).count();
             auto totalms = duration_cast<milliseconds>(build + recv).count();
 
-            uint32_t etaSecs = (uint32_t)(((double)(nTxs + nAccounts)) / apply.one_minute_rate());
+            uint32_t etaSecs = (uint32_t)(((double)(nTxs + nAccounts)) /
+                                          apply.one_minute_rate());
             uint32_t etaHours = etaSecs / 3600;
             uint32_t etaMins = etaSecs % 60;
 
-            CLOG(INFO, "LoadGen") << "Tx/s: "
-                                  << txRate << " target"
-                                  << (autoRate ? " (auto), " : ", ")
-                                  << std::setprecision(3)
-                                  << apply.one_minute_rate()
-                                  << " actual (1m EWMA)."
-                                  << " Pending: " << nAccounts
-                                  << " acct, " << nTxs << " tx."
-                                  << " ETA: " << etaHours << "h" << etaMins << "m";
+            CLOG(INFO, "LoadGen")
+                << "Tx/s: " << txRate << " target"
+                << (autoRate ? " (auto), " : ", ") << std::setprecision(3)
+                << apply.one_minute_rate() << " actual (1m EWMA)."
+                << " Pending: " << nAccounts << " acct, " << nTxs << " tx."
+                << " ETA: " << etaHours << "h" << etaMins << "m";
 
             CLOG(DEBUG, "LoadGen") << "Step timing: " << totalms
                                    << "ms total = " << step1ms << "ms build, "
