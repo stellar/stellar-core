@@ -100,32 +100,33 @@ LocalNode::forAllNodes(SCPQuorumSet const& qset,
                         });
 }
 
-// if a validator is repeated multiple times its weight is only the 
-// weight of the first occurrence 
+// if a validator is repeated multiple times its weight is only the
+// weight of the first occurrence
 uint64
 LocalNode::getNodeWeight(NodeID const& nodeID, SCPQuorumSet const& qset)
 {
-    float chance = ((float)qset.threshold) /
-        (float)(qset.innerSets.size() + qset.validators.size());
+    double chance = ((double)qset.threshold) /
+                    (double)(qset.innerSets.size() + qset.validators.size());
 
-    for(auto const& qsetNode : qset.validators)
+    for (auto const& qsetNode : qset.validators)
     {
-        if(qsetNode == nodeID)
+        if (qsetNode == nodeID)
         {
-            return UINT64_MAX * chance;
+            return uint64(double(UINT64_MAX) * chance);
         }
     }
 
-    for(auto const& q : qset.innerSets)
+    for (auto const& q : qset.innerSets)
     {
         uint64 result = getNodeWeight(nodeID, q);
-        if(result)
-            return result * chance;
+        if (result)
+        {
+            return uint64(double(result) * chance);
+        }
     }
 
     return 0;
 }
-
 
 bool
 LocalNode::isQuorumSliceInternal(SCPQuorumSet const& qset,
