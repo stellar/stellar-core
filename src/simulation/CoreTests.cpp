@@ -92,7 +92,7 @@ TEST_CASE("3 nodes. 2 running. threshold 2", "[simulation][core3]")
             },
             2 * nLedgers * Herder::EXP_LEDGER_TIMESPAN_SECONDS, true);
 
-        printStats(nLedgers, tBegin, simulation);
+        //printStats(nLedgers, tBegin, simulation);
 
         REQUIRE(simulation->haveAllExternalized(nLedgers + 1));
     }
@@ -128,7 +128,7 @@ TEST_CASE("core topology: 4 ledgers at scales 2..4", "[simulation]")
 
         REQUIRE(sim->haveAllExternalized(nLedgers + 1));
 
-        printStats(nLedgers, tBegin, sim);
+        //printStats(nLedgers, tBegin, sim);
     }
 }
 
@@ -149,7 +149,7 @@ hierarchicalTopo(int nLedgers, int nBranches, Simulation::Mode mode)
 
     REQUIRE(sim->haveAllExternalized(nLedgers + 1));
 
-    printStats(nLedgers, tBegin, sim);
+    //printStats(nLedgers, tBegin, sim);
 }
 
 /* this test is still busted for some reason:
