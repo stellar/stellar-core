@@ -22,11 +22,17 @@ class SecretKey
   public:
     SecretKey();
 
+    struct Seed
+    {
+        CryptoKeyTypes mKeyType;
+        uint256 mSeed;
+    };
+
     // Get the public key portion of this secret key.
     PublicKey getPublicKey() const;
 
     // Get the seed portion of this secret key.
-    uint256 getSeed() const;
+    Seed getSeed() const;
 
     // Get the seed portion of this secret key as as Base58Check string.
     std::string getBase58Seed() const;
@@ -72,5 +78,10 @@ PublicKey fromBase58(std::string const& s);
 SignatureHint getHint(PublicKey const& pk);
 // returns true if the hint matches the key
 bool hasHint(PublicKey const& pk, SignatureHint const& hint);
+}
+
+namespace HashUtils
+{
+Hash random();
 }
 }

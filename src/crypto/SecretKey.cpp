@@ -36,13 +36,15 @@ SecretKey::getPublicKey() const
     return pk;
 }
 
-uint256
+SecretKey::Seed
 SecretKey::getSeed() const
 {
     assert(mKeyType == KEY_TYPES_ED25519);
 
-    uint256 seed;
-    if (crypto_sign_ed25519_sk_to_seed(seed.data(), mSecretKey.data()) != 0)
+    Seed seed;
+    seed.mKeyType = mKeyType;
+    if (crypto_sign_ed25519_sk_to_seed(seed.mSeed.data(), mSecretKey.data()) !=
+        0)
     {
         throw std::runtime_error("error extracting seed from secret key");
     }
@@ -54,7 +56,7 @@ SecretKey::getBase58Seed() const
 {
     assert(mKeyType == KEY_TYPES_ED25519);
 
-    return toBase58Check(VER_SEED, getSeed());
+    return toBase58Check(VER_SEED, getSeed().mSeed);
 }
 
 std::string
@@ -187,5 +189,13 @@ PubKeyUtils::hasHint(PublicKey const& pk, SignatureHint const& hint)
 {
     return memcmp(&pk.ed25519().back() - hint.size(), hint.data(),
                   sizeof(hint)) == 0;
+}
+
+Hash
+HashUtils::random()
+{
+    Hash res;
+    randombytes_buf(res.data(), res.size());
+    return res;
 }
 }
