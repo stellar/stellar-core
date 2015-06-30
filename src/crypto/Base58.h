@@ -18,12 +18,12 @@ namespace stellar
 
 typedef enum
 {
-    VER_NONE = 1,
-    VER_ACCOUNT_ID = 0, // 'g'
-    VER_SEED = 33       // 's'
+    B58_PUBKEY_ED25519 = 0, // 'g'
+    B58_SEED_ED25519 = 33   // 's'
 } Base58CheckVersionByte;
 
-// Encode a version byte and ByteSlice into Base58Check (with the stellar alphabet).
+// Encode a version byte and ByteSlice into Base58Check (with the stellar
+// alphabet).
 std::string toBase58Check(Base58CheckVersionByte ver, ByteSlice const& bin);
 
 // Decode a version byte and bytes from Base58Check (with the stellar alphabet).

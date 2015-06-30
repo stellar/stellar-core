@@ -56,7 +56,7 @@ SecretKey::getBase58Seed() const
 {
     assert(mKeyType == KEY_TYPES_ED25519);
 
-    return toBase58Check(VER_SEED, getSeed().mSeed);
+    return toBase58Check(B58_SEED_ED25519, getSeed().mSeed);
 }
 
 std::string
@@ -124,7 +124,7 @@ SecretKey
 SecretKey::fromBase58Seed(std::string const& base58Seed)
 {
     auto pair = fromBase58Check(base58Seed);
-    if (pair.first != VER_SEED)
+    if (pair.first != B58_SEED_ED25519)
     {
         throw std::runtime_error(
             "unexpected version byte on secret key base58 seed");
@@ -164,15 +164,15 @@ PubKeyUtils::toShortString(PublicKey const& pk)
 std::string
 PubKeyUtils::toBase58(PublicKey const& pk)
 {
-    // uses VER_ACCOUNT_ID prefix for ed25519
-    return toBase58Check(VER_ACCOUNT_ID, pk.ed25519());
+    // uses B58_PUBKEY_ED25519 prefix for ed25519
+    return toBase58Check(B58_PUBKEY_ED25519, pk.ed25519());
 }
 
 PublicKey
 PubKeyUtils::fromBase58(std::string const& s)
 {
     PublicKey pk;
-    pk.ed25519() = fromBase58Check256(VER_ACCOUNT_ID, s);
+    pk.ed25519() = fromBase58Check256(B58_PUBKEY_ED25519, s);
     return pk;
 }
 

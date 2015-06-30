@@ -139,7 +139,7 @@ LedgerManagerImpl::startNewLedger()
 {
     auto ledgerTime = mLedgerClose.TimeScope();
     ByteSlice bytes("allmylifemyhearthasbeensearching");
-    std::string b58SeedStr = toBase58Check(VER_SEED, bytes);
+    std::string b58SeedStr = toBase58Check(B58_SEED_ED25519, bytes);
     SecretKey skey = SecretKey::fromBase58Seed(b58SeedStr);
 
     AccountFrame masterAccount(skey.getPublicKey());
