@@ -29,7 +29,7 @@ SCP::EnvelopeState
 SCP::receiveEnvelope(SCPEnvelope const& envelope)
 {
     // If the envelope is not correctly signed, we ignore it.
-    if (!verifyEnvelope(envelope))
+    if (!mDriver.verifyEnvelope(envelope))
     {
         CLOG(DEBUG, "SCP") << "SCP::receiveEnvelope invalid";
         return SCP::EnvelopeState::INVALID;
@@ -103,25 +103,6 @@ SCP::getSlot(uint64 slotIndex)
         mKnownSlots[slotIndex] = std::make_shared<Slot>(slotIndex, *this);
     }
     return mKnownSlots[slotIndex];
-}
-
-void
-SCP::signEnvelope(SCPEnvelope& envelope)
-{
-    dbgAssert(envelope.statement.nodeID == getSecretKey().getPublicKey());
-    envelope.signature =
-        getSecretKey().sign(xdr::xdr_to_opaque(envelope.statement));
-    mDriver.envelopeSigned();
-}
-
-bool
-SCP::verifyEnvelope(SCPEnvelope const& envelope)
-{
-    bool b =
-        PubKeyUtils::verifySig(envelope.statement.nodeID, envelope.signature,
-                               xdr::xdr_to_opaque(envelope.statement));
-    mDriver.envelopeVerified(b);
-    return b;
 }
 
 void

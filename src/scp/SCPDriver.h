@@ -23,6 +23,10 @@ class SCPDriver
     {
     }
 
+    // Envelope signature/verification
+    virtual void signEnvelope(SCPEnvelope& envelope) = 0;
+    virtual bool verifyEnvelope(SCPEnvelope const& envelope) = 0;
+
     // Delegates the retrieval of the quorum set designated by `qSetHash` to
     // the user of SCP.
     virtual SCPQuorumSetPtr getQSet(Hash const& qSetHash) = 0;
@@ -136,17 +140,6 @@ class SCPDriver
     // the local node.
     virtual void
     ballotDidHearFromQuorum(uint64 slotIndex, SCPBallot const& ballot)
-    {
-    }
-
-    // Hooks for subclasses to note signatures and verification pass/fail.
-    virtual void
-    envelopeSigned()
-    {
-    }
-
-    virtual void
-    envelopeVerified(bool)
     {
     }
 };

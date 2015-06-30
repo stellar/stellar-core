@@ -42,6 +42,18 @@ class TestSCP : public SCPDriver
             return (n == secretKey.getPublicKey()) ? 1000 : 1;
         };
     }
+
+    void
+    signEnvelope(SCPEnvelope&) override
+    {
+    }
+
+    bool
+    verifyEnvelope(SCPEnvelope const& envelope) override
+    {
+        return true;
+    }
+
     void
     storeQuorumSet(SCPQuorumSetPtr qSet)
     {

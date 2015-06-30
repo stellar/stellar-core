@@ -45,6 +45,10 @@ class HerderImpl : public Herder, public SCPDriver
     void bootstrap() override;
 
     // SCP methods
+
+    void signEnvelope(SCPEnvelope& envelope) override;
+    bool verifyEnvelope(SCPEnvelope const& envelope) override;
+
     bool validateValue(uint64 slotIndex, Value const& value) override;
 
     Value extractValidValue(uint64 slotIndex, Value const& value) override;
@@ -76,8 +80,6 @@ class HerderImpl : public Herder, public SCPDriver
     void confirmedBallotPrepared(uint64 slotIndex,
                                  SCPBallot const& ballot) override;
     void acceptedCommit(uint64 slotIndex, SCPBallot const& ballot) override;
-    void envelopeSigned() override;
-    void envelopeVerified(bool) override;
 
     TransactionSubmitStatus recvTransaction(TransactionFramePtr tx) override;
 

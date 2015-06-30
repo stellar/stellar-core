@@ -306,6 +306,32 @@ HerderImpl::validateUpgradeStep(uint64 slotIndex, UpgradeType const& upgrade,
     return res;
 }
 
+void
+HerderImpl::signEnvelope(SCPEnvelope& envelope)
+{
+    mSCPMetrics.mEnvelopeSign.Mark();
+    envelope.signature =
+        mSCP.getSecretKey().sign(xdr::xdr_to_opaque(envelope.statement));
+}
+
+bool
+HerderImpl::verifyEnvelope(SCPEnvelope const& envelope)
+{
+    bool b =
+        PubKeyUtils::verifySig(envelope.statement.nodeID, envelope.signature,
+                               xdr::xdr_to_opaque(envelope.statement));
+    if (b)
+    {
+        mSCPMetrics.mEnvelopeValidSig.Mark();
+    }
+    else
+    {
+        mSCPMetrics.mEnvelopeInvalidSig.Mark();
+    }
+
+    return b;
+}
+
 bool
 HerderImpl::validateValue(uint64 slotIndex, Value const& value)
 {
@@ -1161,25 +1187,6 @@ void
 HerderImpl::acceptedCommit(uint64 slotIndex, SCPBallot const& ballot)
 {
     mSCPMetrics.mAcceptedCommit.Mark();
-}
-
-void
-HerderImpl::envelopeSigned()
-{
-    mSCPMetrics.mEnvelopeSign.Mark();
-}
-
-void
-HerderImpl::envelopeVerified(bool valid)
-{
-    if (valid)
-    {
-        mSCPMetrics.mEnvelopeValidSig.Mark();
-    }
-    else
-    {
-        mSCPMetrics.mEnvelopeInvalidSig.Mark();
-    }
 }
 
 void

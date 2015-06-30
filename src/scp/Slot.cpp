@@ -126,7 +126,7 @@ Slot::createEnvelope(SCPStatement const& statement)
     mySt.nodeID = getSCP().getLocalNodeID();
     mySt.slotIndex = getSlotIndex();
 
-    mSCP.signEnvelope(envelope);
+    mSCP.getDriver().signEnvelope(envelope);
 
     return envelope;
 }
