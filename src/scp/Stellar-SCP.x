@@ -1,14 +1,14 @@
+// Copyright 2015 Stellar Development Foundation and contributors. Licensed
+// under the Apache License, Version 2.0. See the COPYING file at the root
+// of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
+%#include "generated/Stellar-types.h"
 
 namespace stellar
 {
 
 typedef opaque Signature[64];
-typedef opaque Hash[32];
-typedef opaque uint256[32];
-typedef unsigned int uint32;
-typedef unsigned hyper uint64;
 typedef opaque Value<>;
-typedef opaque NodeID[32];
 
 struct SCPBallot
 {
