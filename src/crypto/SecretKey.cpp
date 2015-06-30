@@ -175,4 +175,18 @@ PubKeyUtils::fromBase58(std::string const& s)
     return pk;
 }
 
+SignatureHint
+PubKeyUtils::getHint(PublicKey const& pk)
+{
+    SignatureHint res;
+    memcpy(res.data(), &pk.ed25519().back() - res.size(), sizeof(res));
+    return res;
+}
+
+bool
+PubKeyUtils::hasHint(PublicKey const& pk, SignatureHint const& hint)
+{
+    return memcmp(&pk.ed25519().back() - hint.size(), hint.data(),
+                  sizeof(hint)) == 0;
+}
 }

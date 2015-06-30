@@ -66,5 +66,10 @@ std::string toShortString(PublicKey const& pk);
 std::string toBase58(PublicKey const& pk);
 
 PublicKey fromBase58(std::string const& s);
+
+// returns hint from key
+SignatureHint getHint(PublicKey const& pk);
+// returns true if the hint matches the key
+bool hasHint(PublicKey const& pk, SignatureHint const& hint);
 }
 }

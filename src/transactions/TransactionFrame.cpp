@@ -118,7 +118,7 @@ TransactionFrame::addSignature(SecretKey const& secretKey)
     clearCached();
     DecoratedSignature sig;
     sig.signature = secretKey.sign(getContentsHash());
-    memcpy(&sig.hint, secretKey.getPublicKey().data(), sizeof(sig.hint));
+    sig.hint = PubKeyUtils::getHint(secretKey.getPublicKey());
     mEnvelope.signatures.push_back(sig);
 }
 
@@ -144,9 +144,9 @@ TransactionFrame::checkSignature(AccountFrame& account, int32_t neededWeight)
 
         for (auto it = keyWeights.begin(); it != keyWeights.end(); it++)
         {
-            if ((std::memcmp(sig.hint.data(), (*it).pubKey.data(),
-                             sizeof(sig.hint)) == 0) &&
-                PublicKey::verifySig((*it).pubKey, sig.signature, contentsHash))
+            if (PubKeyUtils::hasHint((*it).pubKey, sig.hint) &&
+                PubKeyUtils::verifySig((*it).pubKey, sig.signature,
+                                       contentsHash))
             {
                 mUsedSignatures[i] = true;
                 totalWeight += (*it).weight;
