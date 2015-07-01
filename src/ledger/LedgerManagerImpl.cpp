@@ -584,7 +584,8 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
     vector<TransactionFramePtr> txs = ledgerData.mTxSet->sortForApply();
     int index = 0;
 
-    auto txResultHasher = SHA256::create();
+    TransactionResultSet txResultSet;
+    txResultSet.results.reserve(txs.size());
     for (auto tx : txs)
     {
         auto txTime = mTransactionApply.TimeScope();
@@ -631,10 +632,11 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
             // ensures that this transaction doesn't have any side effects
             delta.rollback();
         }
-        tx->storeTransaction(*this, delta, ++index, *txResultHasher);
+        tx->storeTransaction(*this, delta, ++index, txResultSet);
     }
 
-    ledgerDelta.getHeader().txSetResultHash = txResultHasher->finish();
+    ledgerDelta.getHeader().txSetResultHash =
+        sha256(xdr::xdr_to_opaque(txResultSet));
 
     // apply any upgrades that were decided during consensus
     for (size_t i = 0; i < sv.upgrades.size(); i++)
