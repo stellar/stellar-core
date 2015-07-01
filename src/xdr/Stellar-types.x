@@ -14,12 +14,12 @@ typedef int int32;
 typedef unsigned hyper uint64;
 typedef hyper int64;
 
-enum CryptoKeyTypes
+enum CryptoKeyType
 {
     KEY_TYPES_ED25519 = 0
 };
 
-union PublicKey switch (CryptoKeyTypes type)
+union PublicKey switch (CryptoKeyType type)
 {
 case KEY_TYPES_ED25519:
     uint256 ed25519;

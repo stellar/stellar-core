@@ -192,7 +192,7 @@ case OFFER:
 // list of all envelope types used in the application
 // those are prefixes used when building signatures for
 // the respective envelopes
-enum EnvelopeTypes
+enum EnvelopeType
 {
     ENVELOPE_TYPE_SCP = 1,
     ENVELOPE_TYPE_TX = 2

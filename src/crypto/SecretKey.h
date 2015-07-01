@@ -16,7 +16,7 @@ class ByteSlice;
 class SecretKey
 {
     using uint512 = xdr::opaque_array<64>;
-    CryptoKeyTypes mKeyType;
+    CryptoKeyType mKeyType;
     uint512 mSecretKey;
 
   public:
@@ -24,7 +24,7 @@ class SecretKey
 
     struct Seed
     {
-        CryptoKeyTypes mKeyType;
+        CryptoKeyType mKeyType;
         uint256 mSeed;
     };
 
