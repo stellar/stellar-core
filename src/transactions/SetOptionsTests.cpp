@@ -66,49 +66,60 @@ TEST_CASE("set options", "[tx][setoptions]")
                             &sk1, SET_OPTIONS_LOW_RESERVE);
         }
 
-        // add some funds
-        applyPaymentTx(app, root, a1, rootSeq++,
-                       app.getLedgerManager().getMinBalance(2));
+        SECTION("can't use master key as alternate signer")
+        {
+            Signer sk(a1.getPublicKey(), 100);
+            applySetOptions(app, a1, a1seq++, nullptr, nullptr, nullptr,
+                            nullptr, &sk, SET_OPTIONS_BAD_SIGNER);
+        }
 
-        applySetOptions(app, a1, a1seq++, nullptr, nullptr, nullptr, &th, &sk1);
+        SECTION("multiple signers")
+        {
+            // add some funds
+            applyPaymentTx(app, root, a1, rootSeq++,
+                           app.getLedgerManager().getMinBalance(2));
 
-        AccountFrame::pointer a1Account;
+            applySetOptions(app, a1, a1seq++, nullptr, nullptr, nullptr, &th,
+                            &sk1);
 
-        a1Account = loadAccount(a1, app);
-        REQUIRE(a1Account->getAccount().signers.size() == 1);
-        Signer& a_sk1 = a1Account->getAccount().signers[0];
-        REQUIRE(a_sk1.pubKey == sk1.pubKey);
-        REQUIRE(a_sk1.weight == sk1.weight);
+            AccountFrame::pointer a1Account;
 
-        // add signer 2
-        SecretKey s2 = getAccount("S2");
-        Signer sk2(s2.getPublicKey(), 100);
-        applySetOptions(app, a1, a1seq++, nullptr, nullptr, nullptr, nullptr,
-                        &sk2);
+            a1Account = loadAccount(a1, app);
+            REQUIRE(a1Account->getAccount().signers.size() == 1);
+            Signer& a_sk1 = a1Account->getAccount().signers[0];
+            REQUIRE(a_sk1.pubKey == sk1.pubKey);
+            REQUIRE(a_sk1.weight == sk1.weight);
 
-        a1Account = loadAccount(a1, app);
-        REQUIRE(a1Account->getAccount().signers.size() == 2);
+            // add signer 2
+            SecretKey s2 = getAccount("S2");
+            Signer sk2(s2.getPublicKey(), 100);
+            applySetOptions(app, a1, a1seq++, nullptr, nullptr, nullptr,
+                            nullptr, &sk2);
 
-        // update signer 2
-        sk2.weight = 11;
-        applySetOptions(app, a1, a1seq++, nullptr, nullptr, nullptr, nullptr,
-                        &sk2);
+            a1Account = loadAccount(a1, app);
+            REQUIRE(a1Account->getAccount().signers.size() == 2);
 
-        // update signer 1
-        sk1.weight = 11;
-        applySetOptions(app, a1, a1seq++, nullptr, nullptr, nullptr, nullptr,
-                        &sk1);
+            // update signer 2
+            sk2.weight = 11;
+            applySetOptions(app, a1, a1seq++, nullptr, nullptr, nullptr,
+                            nullptr, &sk2);
 
-        // remove signer 1
-        sk1.weight = 0;
-        applySetOptions(app, a1, a1seq++, nullptr, nullptr, nullptr, nullptr,
-                        &sk1);
+            // update signer 1
+            sk1.weight = 11;
+            applySetOptions(app, a1, a1seq++, nullptr, nullptr, nullptr,
+                            nullptr, &sk1);
 
-        a1Account = loadAccount(a1, app);
-        REQUIRE(a1Account->getAccount().signers.size() == 1);
-        Signer& a_sk2 = a1Account->getAccount().signers[0];
-        REQUIRE(a_sk2.pubKey == sk2.pubKey);
-        REQUIRE(a_sk2.weight == sk2.weight);
+            // remove signer 1
+            sk1.weight = 0;
+            applySetOptions(app, a1, a1seq++, nullptr, nullptr, nullptr,
+                            nullptr, &sk1);
+
+            a1Account = loadAccount(a1, app);
+            REQUIRE(a1Account->getAccount().signers.size() == 1);
+            Signer& a_sk2 = a1Account->getAccount().signers[0];
+            REQUIRE(a_sk2.pubKey == sk2.pubKey);
+            REQUIRE(a_sk2.weight == sk2.weight);
+        }
     }
 
     SECTION("Can't set and clear same flag")

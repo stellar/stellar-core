@@ -248,6 +248,17 @@ SetOptionsOpFrame::doCheckValid(medida::MetricsRegistry& metrics)
         }
     }
 
+    if (mSetOptions.signer)
+    {
+        if (mSetOptions.signer->pubKey == mSourceAccount->getID())
+        {
+            metrics.NewMeter({"op-set-options", "invalid", "bad-signer"},
+                             "operation").Mark();
+            innerResult().code(SET_OPTIONS_BAD_SIGNER);
+            return false;
+        }
+    }
+
     return true;
 }
 }
