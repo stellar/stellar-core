@@ -8,6 +8,7 @@
 
 namespace stellar
 {
+using xdr::operator<;
 
 // Helper for getting a LedgerKey from a LedgerEntry.
 LedgerKey LedgerEntryKey(LedgerEntry const& e);
@@ -53,10 +54,9 @@ struct LedgerEntryIdCmp
             auto const& btl = b.trustLine();
             if (atl.accountID < btl.accountID)
                 return true;
-            if (atl.accountID > btl.accountID)
+            if (btl.accountID < atl.accountID)
                 return false;
             {
-                using xdr::operator<;
                 return atl.currency < btl.currency;
             }
         }
@@ -67,7 +67,7 @@ struct LedgerEntryIdCmp
             auto const& bof = b.offer();
             if (aof.accountID < bof.accountID)
                 return true;
-            if (aof.accountID > bof.accountID)
+            if (bof.accountID < aof.accountID)
                 return false;
             return aof.offerID < bof.offerID;
         }

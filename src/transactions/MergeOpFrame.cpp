@@ -14,6 +14,8 @@ using namespace soci;
 
 namespace stellar
 {
+using xdr::operator==;
+
 MergeOpFrame::MergeOpFrame(Operation const& op, OperationResult& res,
                            TransactionFrame& parentTx)
     : OperationFrame(op, res, parentTx)
@@ -32,8 +34,8 @@ MergeOpFrame::getNeededThreshold() const
 // make sure the we delete all the trustlines
 // move the XLM to the new account
 bool
-MergeOpFrame::doApply(medida::MetricsRegistry& metrics,
-                      LedgerDelta& delta, LedgerManager& ledgerManager)
+MergeOpFrame::doApply(medida::MetricsRegistry& metrics, LedgerDelta& delta,
+                      LedgerManager& ledgerManager)
 {
     AccountFrame::pointer otherAccount;
     Database& db = ledgerManager.getDatabase();
@@ -42,28 +44,28 @@ MergeOpFrame::doApply(medida::MetricsRegistry& metrics,
 
     if (!otherAccount)
     {
-        metrics.NewMeter({"op-merge", "failure", "no-account"},
-                         "operation").Mark();
+        metrics.NewMeter({"op-merge", "failure", "no-account"}, "operation")
+            .Mark();
         innerResult().code(ACCOUNT_MERGE_NO_ACCOUNT);
         return false;
     }
 
     if (TrustFrame::hasIssued(getSourceID(), db))
     {
-        metrics.NewMeter({"op-merge", "failure", "credit-held"},
-                         "operation").Mark();
+        metrics.NewMeter({"op-merge", "failure", "credit-held"}, "operation")
+            .Mark();
         innerResult().code(ACCOUNT_MERGE_CREDIT_HELD);
         return false;
     }
 
     std::vector<TrustFrame::pointer> lines;
     TrustFrame::loadLines(getSourceID(), lines, db);
-    for(auto &l : lines)
+    for (auto& l : lines)
     {
-        if(l->getBalance() > 0)
+        if (l->getBalance() > 0)
         {
-        metrics.NewMeter({"op-merge", "failure", "has-credit"},
-                         "operation").Mark();
+            metrics.NewMeter({"op-merge", "failure", "has-credit"}, "operation")
+                .Mark();
             innerResult().code(ACCOUNT_MERGE_HAS_CREDIT);
             return false;
         }
@@ -87,8 +89,7 @@ MergeOpFrame::doApply(medida::MetricsRegistry& metrics,
     otherAccount->storeChange(delta, db);
     mSourceAccount->storeDelete(delta, db);
 
-    metrics.NewMeter({"op-merge", "success", "apply"},
-                     "operation").Mark();
+    metrics.NewMeter({"op-merge", "success", "apply"}, "operation").Mark();
     innerResult().code(ACCOUNT_MERGE_SUCCESS);
     return true;
 }

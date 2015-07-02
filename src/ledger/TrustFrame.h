@@ -47,7 +47,7 @@ class TrustFrame : public EntryFrame
     TrustFrame(LedgerEntry const& from);
 
     EntryFrame::pointer
-    copy() const
+    copy() const override
     {
         return EntryFrame::pointer(new TrustFrame(*this));
     }

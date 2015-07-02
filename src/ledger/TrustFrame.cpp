@@ -4,7 +4,7 @@
 
 #include "ledger/TrustFrame.h"
 #include "ledger/AccountFrame.h"
-#include "crypto/Base58.h"
+#include "crypto/SecretKey.h"
 #include "crypto/SHA.h"
 #include "database/Database.h"
 #include "LedgerDelta.h"
@@ -15,6 +15,8 @@ using namespace soci;
 
 namespace stellar
 {
+using xdr::operator==;
+
 const char* TrustFrame::kSQLCreateStatement1 =
     "CREATE TABLE trustlines"
     "("
@@ -61,9 +63,9 @@ void
 TrustFrame::getKeyFields(LedgerKey const& key, std::string& base58AccountID,
                          std::string& base58Issuer, std::string& currencyCode)
 {
-    base58AccountID = toBase58Check(VER_ACCOUNT_ID, key.trustLine().accountID);
-    base58Issuer = toBase58Check(VER_ACCOUNT_ID,
-                                 key.trustLine().currency.alphaNum().issuer);
+    base58AccountID = PubKeyUtils::toBase58(key.trustLine().accountID);
+    base58Issuer =
+        PubKeyUtils::toBase58(key.trustLine().currency.alphaNum().issuer);
     if (base58AccountID == base58Issuer)
         throw std::runtime_error("Issuer's own trustline should not be used "
                                  "outside of OperationFrame");
@@ -273,9 +275,9 @@ TrustFrame::loadTrustLine(AccountID const& accountID, Currency const& currency,
 
     std::string accStr, issuerStr, currencyStr;
 
-    accStr = toBase58Check(VER_ACCOUNT_ID, accountID);
+    accStr = PubKeyUtils::toBase58(accountID);
     currencyCodeToStr(currency.alphaNum().currencyCode, currencyStr);
-    issuerStr = toBase58Check(VER_ACCOUNT_ID, currency.alphaNum().issuer);
+    issuerStr = PubKeyUtils::toBase58(currency.alphaNum().issuer);
 
     session& session = db.getSession();
 
@@ -298,7 +300,7 @@ bool
 TrustFrame::hasIssued(AccountID const& issuerID, Database& db)
 {
     std::string accStr;
-    accStr = toBase58Check(VER_ACCOUNT_ID, issuerID);
+    accStr = PubKeyUtils::toBase58(issuerID);
 
     session& session = db.getSession();
 
@@ -336,10 +338,9 @@ TrustFrame::loadLines(details::prepare_temp_type& prep,
     st.execute(true);
     while (st.got_data())
     {
-        tl.accountID = fromBase58Check256(VER_ACCOUNT_ID, accountID);
+        tl.accountID = PubKeyUtils::fromBase58(accountID);
         tl.currency.type(CURRENCY_TYPE_ALPHANUM);
-        tl.currency.alphaNum().issuer =
-            fromBase58Check256(VER_ACCOUNT_ID, issuer);
+        tl.currency.alphaNum().issuer = PubKeyUtils::fromBase58(issuer);
         strToCurrencyCode(tl.currency.alphaNum().currencyCode, currency);
 
         trustProcessor(le);
@@ -353,7 +354,7 @@ TrustFrame::loadLines(AccountID const& accountID,
                       std::vector<TrustFrame::pointer>& retLines, Database& db)
 {
     std::string accStr;
-    accStr = toBase58Check(VER_ACCOUNT_ID, accountID);
+    accStr = PubKeyUtils::toBase58(accountID);
 
     session& session = db.getSession();
 

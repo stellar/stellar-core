@@ -306,6 +306,32 @@ HerderImpl::validateUpgradeStep(uint64 slotIndex, UpgradeType const& upgrade,
     return res;
 }
 
+void
+HerderImpl::signEnvelope(SCPEnvelope& envelope)
+{
+    mSCPMetrics.mEnvelopeSign.Mark();
+    envelope.signature = mSCP.getSecretKey().sign(
+        xdr::xdr_to_opaque(ENVELOPE_TYPE_SCP, envelope.statement));
+}
+
+bool
+HerderImpl::verifyEnvelope(SCPEnvelope const& envelope)
+{
+    bool b = PubKeyUtils::verifySig(
+        envelope.statement.nodeID, envelope.signature,
+        xdr::xdr_to_opaque(ENVELOPE_TYPE_SCP, envelope.statement));
+    if (b)
+    {
+        mSCPMetrics.mEnvelopeValidSig.Mark();
+    }
+    else
+    {
+        mSCPMetrics.mEnvelopeInvalidSig.Mark();
+    }
+
+    return b;
+}
+
 bool
 HerderImpl::validateValue(uint64 slotIndex, Value const& value)
 {
@@ -775,7 +801,8 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope)
     }
 
     CLOG(DEBUG, "Herder") << "recvSCPEnvelope"
-                          << " from: " << hexAbbrev(envelope.statement.nodeID)
+                          << " from: " << PubKeyUtils::toShortString(
+                                              envelope.statement.nodeID)
                           << " s:" << envelope.statement.pledges.type()
                           << " i:" << envelope.statement.slotIndex
                           << " a:" << mApp.getStateHuman();
@@ -1163,28 +1190,9 @@ HerderImpl::acceptedCommit(uint64 slotIndex, SCPBallot const& ballot)
 }
 
 void
-HerderImpl::envelopeSigned()
-{
-    mSCPMetrics.mEnvelopeSign.Mark();
-}
-
-void
-HerderImpl::envelopeVerified(bool valid)
-{
-    if (valid)
-    {
-        mSCPMetrics.mEnvelopeValidSig.Mark();
-    }
-    else
-    {
-        mSCPMetrics.mEnvelopeInvalidSig.Mark();
-    }
-}
-
-void
 HerderImpl::dumpInfo(Json::Value& ret)
 {
-    ret["you"] = hexAbbrev(mSCP.getSecretKey().getPublicKey());
+    ret["you"] = PubKeyUtils::toShortString(mSCP.getSecretKey().getPublicKey());
 
     mSCP.dumpInfo(ret);
 

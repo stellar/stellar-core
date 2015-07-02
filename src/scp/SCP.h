@@ -71,10 +71,6 @@ class SCP
     // returns the local node descriptor
     std::shared_ptr<LocalNode> getLocalNode();
 
-    // Envelope signature/verification
-    void signEnvelope(SCPEnvelope& envelope);
-    bool verifyEnvelope(SCPEnvelope const& envelope);
-
     void dumpInfo(Json::Value& ret);
 
     // Purges all data relative to all the slots whose slotIndex is smaller

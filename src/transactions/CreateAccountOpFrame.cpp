@@ -18,6 +18,7 @@ namespace stellar
 {
 
 using namespace std;
+using xdr::operator==;
 
 CreateAccountOpFrame::CreateAccountOpFrame(Operation const& op,
                                            OperationResult& res,

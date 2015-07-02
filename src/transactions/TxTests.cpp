@@ -37,7 +37,7 @@ namespace txtest
 time_t
 getTestDate(int day, int month, int year)
 {
-    std::tm tm = { 0 };
+    std::tm tm = {0};
     tm.tm_hour = 0;
     tm.tm_min = 0;
     tm.tm_sec = 0;
@@ -53,30 +53,29 @@ getTestDate(int day, int month, int year)
 
 void
 closeLedgerOn(Application& app, uint32 ledgerSeq, int day, int month, int year,
-        TransactionFramePtr tx)
+              TransactionFramePtr tx)
 {
     TxSetFramePtr txSet = std::make_shared<TxSetFrame>(
         app.getLedgerManager().getLastClosedLedgerHeader().hash);
-    if(tx)
+    if (tx)
     {
         txSet->add(tx);
         txSet->sortForHash();
     }
 
     StellarValue sv(txSet->getContentsHash(), getTestDate(day, month, year),
-        emptyUpgradeSteps, 0);
+                    emptyUpgradeSteps, 0);
     LedgerCloseData ledgerData(ledgerSeq, txSet, sv);
     app.getLedgerManager().closeLedger(ledgerData);
 
     REQUIRE(app.getLedgerManager().getLedgerNum() == (ledgerSeq + 1));
 }
 
-
 SecretKey
 getRoot()
 {
     std::string b58SeedStr =
-        toBase58Check(VER_SEED, "allmylifemyhearthasbeensearching");
+        toBase58Check(B58_SEED_ED25519, "allmylifemyhearthasbeensearching");
     return SecretKey::fromBase58Seed(b58SeedStr);
 }
 
@@ -87,7 +86,7 @@ getAccount(const char* n)
     std::string name(n);
     while (name.size() < 32)
         name += '.';
-    std::string b58SeedStr = toBase58Check(VER_SEED, name);
+    std::string b58SeedStr = toBase58Check(B58_SEED_ED25519, name);
     return SecretKey::fromBase58Seed(b58SeedStr);
 }
 

@@ -91,9 +91,8 @@ loadQset(std::shared_ptr<cpptoml::toml_group> group, SCPQuorumSet& qset,
                 {
                     throw std::invalid_argument("invalid VALIDATORS");
                 }
-                NodeID p = fromBase58Check256(VER_ACCOUNT_ID,
-                                              v->as<std::string>()->value());
-                qset.validators.push_back(p);
+                qset.validators.emplace_back(
+                    PubKeyUtils::fromBase58(v->as<std::string>()->value()));
             }
         }
         else

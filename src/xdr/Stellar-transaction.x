@@ -9,8 +9,8 @@ namespace stellar
 
 struct DecoratedSignature
 {
-    opaque hint[4];    // first 4 bytes of the public key, used as a hint
-    uint512 signature; // actual signature
+    SignatureHint hint;  // first 4 bytes of the public key, used as a hint
+    Signature signature; // actual signature
 };
 
 enum OperationType
@@ -566,7 +566,7 @@ enum InflationResultCode
     INFLATION_NOT_TIME = -1
 };
 
-struct inflationPayout // or use PaymentResultAtom to limit types?
+struct InflationPayout // or use PaymentResultAtom to limit types?
 {
     AccountID destination;
     int64 amount;
@@ -575,7 +575,7 @@ struct inflationPayout // or use PaymentResultAtom to limit types?
 union InflationResult switch (InflationResultCode code)
 {
 case INFLATION_SUCCESS:
-    inflationPayout payouts<>;
+    InflationPayout payouts<>;
 default:
     void;
 };

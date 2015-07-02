@@ -379,7 +379,7 @@ src/generated/StellarCoreVersion.h: Makefile
        echo "#define STELLAR_CORE_VERSION \"unknown\"" >$@;                     \
     fi
 
-src/generated/Stellar-types.h: src/xdr/Stellar-types.x src/generated/Stellar-SCP.h Makefile $(XDRC)
+src/generated/Stellar-types.h: src/xdr/Stellar-types.x Makefile $(XDRC)
 	$(AM_V_GEN)mkdir -p src/generated; \
 	$(XDRC) -hh -o $@ $<
 
@@ -399,11 +399,11 @@ src/generated/Stellar-ledger.h: src/xdr/Stellar-ledger.x src/generated/Stellar-t
 	$(AM_V_GEN)mkdir -p src/generated; \
 	$(XDRC) -hh -o $@ $<
 
-src/generated/StellarXDR.h: src/overlay/StellarXDR.x src/generated/Stellar-overlay.h Makefile $(XDRC)
+src/generated/StellarXDR.h: src/overlay/StellarXDR.x src/generated/Stellar-SCP.h src/generated/Stellar-overlay.h Makefile $(XDRC)
 	$(AM_V_GEN)mkdir -p src/generated; \
 	$(XDRC) -hh -o $@ $<
 
-src/generated/Stellar-SCP.h: src/scp/Stellar-SCP.x Makefile $(XDRC)
+src/generated/Stellar-SCP.h: src/scp/Stellar-SCP.x src/generated/Stellar-types.h Makefile $(XDRC)
 	$(AM_V_GEN)mkdir -p src/generated
 	$(XDRC) -hh -o $@ $<
 

@@ -68,7 +68,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
         SECTION("bad signature")
         {
             txFrame = createCreateAccountTx(root, a1, rootSeq++, paymentAmount);
-            txFrame->getEnvelope().signatures[0].signature.fill(123);
+            txFrame->getEnvelope().signatures[0].signature = Signature(32, 123);
 
             txFrame->apply(delta, app);
 

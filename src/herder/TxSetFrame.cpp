@@ -16,6 +16,9 @@ namespace stellar
 
 using namespace std;
 
+using xdr::operator==;
+using xdr::operator<;
+
 TxSetFrame::TxSetFrame(Hash const& previousLedgerHash)
     : mHashIsValid(false), mPreviousLedgerHash(previousLedgerHash)
 {
@@ -96,7 +99,7 @@ TxSetFrame::sortForApply()
     vector<TransactionFramePtr> retList;
 
     vector<vector<TransactionFramePtr>> txBatches(4);
-    map<uint256, size_t> accountTxCountMap;
+    map<AccountID, size_t> accountTxCountMap;
     retList = mTransactions;
     // sort all the txs by seqnum
     std::sort(retList.begin(), retList.end(), SeqSorter);
@@ -173,9 +176,7 @@ TxSetFrame::trimInvalid(Application& app,
 {
     sortForHash();
 
-    using xdr::operator==;
-
-    map<uint256, vector<TransactionFramePtr>> accountTxMap;
+    map<AccountID, vector<TransactionFramePtr>> accountTxMap;
 
     Hash lastHash;
     for (auto tx : mTransactions)
@@ -229,8 +230,6 @@ TxSetFrame::trimInvalid(Application& app,
 bool
 TxSetFrame::checkValid(Application& app) const
 {
-    using xdr::operator==;
-
     // Start by checking previousLedgerHash
     if (app.getLedgerManager().getLastClosedLedgerHeader().hash !=
         mPreviousLedgerHash)
@@ -243,7 +242,7 @@ TxSetFrame::checkValid(Application& app) const
         return false;
     }
 
-    map<uint256, vector<TransactionFramePtr>> accountTxMap;
+    map<AccountID, vector<TransactionFramePtr>> accountTxMap;
 
     Hash lastHash;
     for (auto tx : mTransactions)

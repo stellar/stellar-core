@@ -48,7 +48,7 @@ class OfferFrame : public EntryFrame
     static OfferFrame::pointer from(AccountID const & account, ManageOfferOp const& op);
 
     EntryFrame::pointer
-    copy() const
+    copy() const override
     {
         return EntryFrame::pointer(new OfferFrame(*this));
     }

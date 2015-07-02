@@ -4,31 +4,35 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "generated/StellarXDR.h"
+#include "generated/Stellar-types.h"
 
 namespace stellar
 {
 
+using xdr::operator==;
+
 class ByteSlice;
 
-struct PublicKey : public uint256
+class SecretKey
 {
-    // Return true iff `signature` is valid for `bin` under this key.
-    bool verify(uint512 const& signature, ByteSlice const& bin) const;
+    using uint512 = xdr::opaque_array<64>;
+    CryptoKeyTypes mKeyType;
+    uint512 mSecretKey;
 
-    // Return true iff `signature` is valid for `bin` under `key`.
-    static bool verifySig(uint256 const& key, uint512 const& signature,
-                          ByteSlice const& bin);
-};
-
-class SecretKey : public uint512
-{
   public:
+    SecretKey();
+
+    struct Seed
+    {
+        CryptoKeyTypes mKeyType;
+        uint256 mSeed;
+    };
+
     // Get the public key portion of this secret key.
     PublicKey getPublicKey() const;
 
     // Get the seed portion of this secret key.
-    uint256 getSeed() const;
+    Seed getSeed() const;
 
     // Get the seed portion of this secret key as as Base58Check string.
     std::string getBase58Seed() const;
@@ -40,7 +44,7 @@ class SecretKey : public uint512
     bool isZero() const;
 
     // Produce a signature of `bin` using this secret key.
-    uint512 sign(ByteSlice const& bin) const;
+    Signature sign(ByteSlice const& bin) const;
 
     // Create a new, random secret key.
     static SecretKey random();
@@ -50,5 +54,34 @@ class SecretKey : public uint512
 
     // Decode a secret key from a binary seed value.
     static SecretKey fromSeed(uint256 const& seed);
+
+    bool operator==(SecretKey const& rh)
+    {
+        return (mKeyType == rh.mKeyType) && (mSecretKey == rh.mSecretKey);
+    }
 };
+
+// public key utility functions
+namespace PubKeyUtils
+{
+// Return true iff `signature` is valid for `bin` under `key`.
+bool verifySig(PublicKey const& key, Signature const& signature,
+               ByteSlice const& bin);
+
+std::string toShortString(PublicKey const& pk);
+
+std::string toBase58(PublicKey const& pk);
+
+PublicKey fromBase58(std::string const& s);
+
+// returns hint from key
+SignatureHint getHint(PublicKey const& pk);
+// returns true if the hint matches the key
+bool hasHint(PublicKey const& pk, SignatureHint const& hint);
+}
+
+namespace HashUtils
+{
+Hash random();
+}
 }

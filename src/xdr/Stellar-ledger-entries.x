@@ -7,6 +7,49 @@
 namespace stellar
 {
 
+typedef PublicKey AccountID;
+typedef opaque Thresholds[4];
+typedef string string32<32>;
+typedef uint64 SequenceNumber;
+
+enum CurrencyType
+{
+    CURRENCY_TYPE_NATIVE = 0,
+    CURRENCY_TYPE_ALPHANUM = 1
+};
+
+union Currency switch (CurrencyType type)
+{
+case CURRENCY_TYPE_NATIVE:
+    void;
+
+case CURRENCY_TYPE_ALPHANUM:
+    struct
+    {
+        opaque currencyCode[4];
+        AccountID issuer;
+    } alphaNum;
+
+    // add other currency types here in the future
+};
+
+// price in fractional representation
+struct Price
+{
+    int32 n; // numerator
+    int32 d; // denominator
+};
+
+// the 'Thresholds' type is packed uint8_t values
+// defined by these indexes
+enum ThresholdIndexes
+{
+    THRESHOLD_MASTER_WEIGHT = 0,
+    THRESHOLD_LOW = 1,
+    THRESHOLD_MED = 2,
+    THRESHOLD_HIGH = 3
+};
+
 enum LedgerEntryType
 {
     ACCOUNT = 0,
@@ -16,7 +59,7 @@ enum LedgerEntryType
 
 struct Signer
 {
-    uint256 pubKey;
+    AccountID pubKey;
     uint32 weight; // really only need 1byte
 };
 
@@ -145,4 +188,14 @@ case TRUSTLINE:
 case OFFER:
     OfferEntry offer;
 };
+
+// list of all envelope types used in the application
+// those are prefixes used when building signatures for
+// the respective envelopes
+enum EnvelopeTypes
+{
+    ENVELOPE_TYPE_SCP = 1,
+    ENVELOPE_TYPE_TX = 2
+};
+
 }

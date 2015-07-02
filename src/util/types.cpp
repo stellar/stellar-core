@@ -8,6 +8,8 @@
 
 namespace stellar
 {
+using xdr::operator==;
+
 bool
 isZero(uint256 const& b)
 {

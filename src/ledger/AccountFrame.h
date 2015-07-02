@@ -42,7 +42,7 @@ class AccountFrame : public EntryFrame
     static AccountFrame::pointer makeAuthOnlyAccount(AccountID const& id);
 
     EntryFrame::pointer
-    copy() const
+    copy() const override
     {
         return EntryFrame::pointer(new AccountFrame(*this));
     }

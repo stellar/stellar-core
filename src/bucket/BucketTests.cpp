@@ -96,13 +96,13 @@ TEST_CASE("skip list", "[bucket]")
         test()
         {
             Hash h0;
-            Hash h1 = SecretKey::random().getSeed();
-            Hash h2 = SecretKey::random().getSeed();
-            Hash h3 = SecretKey::random().getSeed();
-            Hash h4 = SecretKey::random().getSeed();
-            Hash h5 = SecretKey::random().getSeed();
-            Hash h6 = SecretKey::random().getSeed();
-            Hash h7 = SecretKey::random().getSeed();
+            Hash h1 = HashUtils::random();
+            Hash h2 = HashUtils::random();
+            Hash h3 = HashUtils::random();
+            Hash h4 = HashUtils::random();
+            Hash h5 = HashUtils::random();
+            Hash h6 = HashUtils::random();
+            Hash h7 = HashUtils::random();
 
             // up first entry
             LedgerHeader header;

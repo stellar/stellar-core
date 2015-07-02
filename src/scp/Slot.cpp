@@ -126,7 +126,7 @@ Slot::createEnvelope(SCPStatement const& statement)
     mySt.nodeID = getSCP().getLocalNodeID();
     mySt.slotIndex = getSlotIndex();
 
-    mSCP.signEnvelope(envelope);
+    mSCP.getDriver().signEnvelope(envelope);
 
     return envelope;
 }
@@ -265,7 +265,7 @@ Slot::envToStr(SCPStatement const& st) const
 
     Hash qSetHash = getCompanionQuorumSetHashFromStatement(st);
 
-    oss << "{ENV@" << hexAbbrev(st.nodeID) << " | "
+    oss << "{ENV@" << PubKeyUtils::toShortString(st.nodeID) << " | "
         << " i: " << st.slotIndex;
     switch (st.pledges.type())
     {
