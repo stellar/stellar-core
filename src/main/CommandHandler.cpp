@@ -164,7 +164,7 @@ CommandHandler::fileNotFound(std::string const& params, std::string& retStr)
         "</p><p><h1> /connect?peer=NAME&port=NNN</h1>"
         "triggers the instance to connect to peer NAME at port NNN."
         "</p><p><h1> "
-        "/generateload[?accounts=N&txs=M&txrate=R&autorate=true]</h1>"
+        "/generateload[?accounts=N&txs=M&txrate=(R|auto)]</h1>"
         "artificially generate load for testing; must be used with "
         "ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING set to true"
         "</p><p><h1> /help</h1>"
@@ -254,6 +254,7 @@ CommandHandler::generateLoad(std::string const& params, std::string& retStr)
         uint32_t nAccounts = 200000;
         uint32_t nTxs = 200000;
         uint32_t txRate = 10;
+        bool autoRate = false;
 
         std::map<std::string, std::string> map;
         http::server::server::parseParams(params, map);
@@ -264,10 +265,15 @@ CommandHandler::generateLoad(std::string const& params, std::string& retStr)
         if (!parseOptionalNumParam(map, "txs", nTxs, retStr))
             return;
 
-        if (!parseOptionalNumParam(map, "txrate", txRate, retStr))
-            return;
-
-        bool autoRate = map["autorate"] == "true";
+        {
+            auto i = map.find("txrate");
+            if (i != map.end() && i->second == std::string("auto"))
+            {
+                autoRate = true;
+            }
+            else if (!parseOptionalNumParam(map, "txrate", txRate, retStr))
+                return;
+        }
 
         double hours = ((nAccounts + nTxs) / txRate) / 3600.0;
         mApp.generateLoad(nAccounts, nTxs, txRate, autoRate);
