@@ -146,7 +146,7 @@ class TransactionFrame
     // transaction history
     void storeTransaction(LedgerManager& ledgerManager,
                           LedgerDelta const& delta, int txindex,
-                          SHA256& resultHasher) const;
+                          TransactionResultSet& resultSet) const;
 
     /*
     txOut: stream of TransactionHistoryEntry

@@ -83,9 +83,9 @@ enum LedgerUpgradeType
 union LedgerUpgrade switch (LedgerUpgradeType type)
 {
 case LEDGER_UPGRADE_VERSION:
-    uint32 newLedgerVersion;
+    uint32 newLedgerVersion; // update ledgerVersion
 case LEDGER_UPGRADE_BASE_FEE:
-    uint32 newBaseFee;
+    uint32 newBaseFee; // update baseFee
 };
 
 /* Entries used to define the bucket list */

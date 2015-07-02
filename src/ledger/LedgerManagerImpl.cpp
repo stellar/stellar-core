@@ -576,37 +576,6 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
     auto const& sv = ledgerData.mValue;
     mCurrentLedger->mHeader.scpValue = sv;
 
-    // apply any upgrades that were decided during consensus
-    for (size_t i = 0; i < sv.upgrades.size(); i++)
-    {
-        LedgerUpgrade lupgrade;
-        try
-        {
-            xdr::xdr_from_opaque(sv.upgrades[i], lupgrade);
-        }
-        catch (xdr::xdr_runtime_error)
-        {
-            CLOG(FATAL, "Ledger") << "Unknown upgrade step at index " << i;
-            throw;
-        }
-        switch (lupgrade.type())
-        {
-        case LEDGER_UPGRADE_VERSION:
-            mCurrentLedger->mHeader.ledgerVersion = lupgrade.newLedgerVersion();
-            break;
-        case LEDGER_UPGRADE_BASE_FEE:
-            mCurrentLedger->mHeader.baseFee = lupgrade.newBaseFee();
-            break;
-        default:
-        {
-            string s;
-            s = "Unknown upgrade type: ";
-            s += std::to_string(lupgrade.type());
-            throw std::runtime_error(s);
-        }
-        }
-    }
-
     LedgerDelta ledgerDelta(mCurrentLedger->mHeader);
 
     // the transaction set that was agreed upon by consensus
@@ -615,7 +584,8 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
     vector<TransactionFramePtr> txs = ledgerData.mTxSet->sortForApply();
     int index = 0;
 
-    auto txResultHasher = SHA256::create();
+    TransactionResultSet txResultSet;
+    txResultSet.results.reserve(txs.size());
     for (auto tx : txs)
     {
         auto txTime = mTransactionApply.TimeScope();
@@ -662,10 +632,45 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
             // ensures that this transaction doesn't have any side effects
             delta.rollback();
         }
-        tx->storeTransaction(*this, delta, ++index, *txResultHasher);
+        tx->storeTransaction(*this, delta, ++index, txResultSet);
     }
+
+    ledgerDelta.getHeader().txSetResultHash =
+        sha256(xdr::xdr_to_opaque(txResultSet));
+
+    // apply any upgrades that were decided during consensus
+    for (size_t i = 0; i < sv.upgrades.size(); i++)
+    {
+        LedgerUpgrade lupgrade;
+        try
+        {
+            xdr::xdr_from_opaque(sv.upgrades[i], lupgrade);
+        }
+        catch (xdr::xdr_runtime_error)
+        {
+            CLOG(FATAL, "Ledger") << "Unknown upgrade step at index " << i;
+            throw;
+        }
+        switch (lupgrade.type())
+        {
+        case LEDGER_UPGRADE_VERSION:
+            ledgerDelta.getHeader().ledgerVersion = lupgrade.newLedgerVersion();
+            break;
+        case LEDGER_UPGRADE_BASE_FEE:
+            ledgerDelta.getHeader().baseFee = lupgrade.newBaseFee();
+            break;
+        default:
+        {
+            string s;
+            s = "Unknown upgrade type: ";
+            s += std::to_string(lupgrade.type());
+            throw std::runtime_error(s);
+        }
+        }
+    }
+
     ledgerDelta.commit();
-    mCurrentLedger->mHeader.txSetResultHash = txResultHasher->finish();
+
     closeLedgerHelper(ledgerDelta);
     txscope.commit();
 

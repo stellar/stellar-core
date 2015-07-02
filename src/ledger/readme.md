@@ -23,7 +23,7 @@ behaves just like pointers in typical data structures but with added
 security guarantees.
 
 See the protocol file for the object definitions.
-src/xdr/Stellar-ledger.x
+[`src/xdr/Stellar-ledger.x`](../xdr/Stellar-ledger.x)
 
 One can think of the historical chain as a linked list of LedgerHeaders:
 
@@ -33,34 +33,66 @@ One can think of the historical chain as a linked list of LedgerHeaders:
 Each LedgerHeader has many references described below.
 
 Some key properties are directly inside the LedgerHeader such as the number of
-lumens present at this given time.
+lumens present at a given time.
 
 ##Back references
 The way a ledger header refers to a previous ledger is actually done with
 alternate validation in mind.
-###The hash of the previous ledger header
+
+###Fields decided by consensus (SCP)
+During consensus, nodes work together to decide on the value of StellarValue.
+StellarValue is then saved in the scpValue field of the ledger header.
+Any node on the network, given the previous ledger (their previous state) and
+'StellarValue' should be able to transition to the same new ledger.
+
+####The hash of the transaction set
+This field is a hash which allows to lookup the related TransactionSet object.
+*TransactionSet* is a conceptual diff.
+It encodes both *what* should be applied (an ordered list of transactions) and
+*where* it should be applied (the hash of the previous ledger header).
+
+####Close Time
+Close time is the time at which transactions get applied, it's
+basically a time stamp that all nodes agreed upon.
+
+####Upgrades
+This represent an additional set of contracts that got applied to the ledger
+header after applying the transaction set.
+
+Supported upgrades are encoded using LedgerUpgradeType.
+An upgrade typically encodes both a set of conditions and an update to perform
+on the ledger header. For example, LEDGER_UPGRADE_BASE_FEE used to change the
+value of `baseFee`, will only accept values for `baseFee` that are within a
+range defined in the nodes configuration file.
+
+The reason it is done after applying the transaction set is that the
+transaction set is validated against the last closed ledger, independently of
+any upgrades. This allows to update `baseFee` (see ledger header), without
+risking invalidating transactions for the current ledger.
+
+###Other notable fields from the ledger header
+####Hash of the previous ledger header
 It is there to link the sequence of ledgers as previously described.
+This is a shortcut as this is already encoded by the transaction set field in
+scpValue.
 
-###The hash of the transaction set from SCP
-This directly links consensus messages to the chain as what consensus signs
-includes the transaction set.
+####Transaction Set Result
+Stored in txSetResultHash, it's the hash of a list of TransactionResultPair which
+conceptually links each transaction to a transaction result.
 
-The transaction set is what was used as input to the transaction engine to
-transition a ledger to the next.
-
-###The hash of the list of results for each transaction
 This data is not stricly speaking necessary for validating the chain, but
 makes it easier for entities to validate the result of a given transaction
 without having to replay and validate the entire ledger state.
 
-##Bucket list hash
+####Bucket list hash
 This is a reference to a multi level tree like structure described in more
-detail in src/bucket.
+detail in [`src/bucket/readme.md`](../bucket/readme.md).
 The leaf elements are what we call "Ledger Entries", this is the bulk of
 the data contained in a ledger.
 
-Ledger entries are specified in 
-src/xdr/Stellar-ledger-entries.x
+##Ledger state entries
+Ledger entries are specified in
+[`src/xdr/Stellar-ledger-entries.x`](../xdr/Stellar-ledger-entries.x)
 
 ###AccountEntry
 This entry represents an account. In Stellar, everything is centered around
@@ -133,21 +165,19 @@ See TxSetFrame::sortForApply for more detail.
 Once the list of transactions to apply is computed, each transaction is
 applied to the ledger.
 
-See src/transactions/ for more detail on how transactions are applied.
+See [`src/transactions/readme.md`](../transactions/readme.md) for more detail
+on how transactions are applied.
 
-After applying each transaction its result are stored in the transaction history
+After applying each transaction its result is stored in the transaction history
 table (see Historical data) and side effects (captured in LedgerDelta) are saved.
 
 After all transactions have been applied, the changes are committed to
 the current state of the database via SQL commit and to the overall LedgerDelta
 for the entire Ledger close is fed to the BucketManager (see BucketManager).
 
-At this point the module notifies other modules that a ledger was closed:
-* Herder so that it can trigger a new SCP round (see src/herder )
-* Overlay to reset its state and prepare accumulating changes for the next
-    ledger (see src/overlay )
-* History so that it can publish the new ledger/transaction set
-    for long term storage (see src/history )
+At this point the module notifies the history subsystem that a ledger was
+closed so that it can publish the new ledger/transaction set for long term storage.
+See [`src/history/readme.md`](../history/readme.md) for more detail.
 
 #Storage
 
@@ -157,7 +187,7 @@ The ledger state is persisted in two ways.
 We use SQL tables to store data. Each *Frame class is responsible for storing
 and retrieving data in its respective table.
 
-For more detail on the SQL implementation, see src/Database/
+For more detail on the SQL implementation, see [`src/database/`](../database/)
 
 ###Hot Ledger Data
 
@@ -171,8 +201,9 @@ LedgerHeader contains the ledger headers that were produced by the "closeLedger"
 method in LedgerManager.
 
 TxHistory contains the record of all transactions applied to all ledgers that
-were closed. See src/transactions/TransactionFrame.cpp for more detail
-
+were closed.
+See [`src/transactions/TransactionFrame.cpp`](../transactions/TransactionFrame.cpp)
+for more detail.
 
 ##BucketManager
 The final LedgerDelta generated by closing the ledger is fed into the
@@ -180,5 +211,5 @@ BucketManager to add it to the "L0" bucket.
 The resulting set is used to compute the hash of the entire set of
 Ledger Entries.
 
-See src/bucket for more detail.
+See [`src/bucket/readme.md`](../bucket/readme.md) for more detail.
 

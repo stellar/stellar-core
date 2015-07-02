@@ -53,7 +53,8 @@ TransactionFrame::getContentsHash() const
 {
     if (isZero(mContentsHash))
     {
-        mContentsHash = sha256(xdr::xdr_to_opaque(ENVELOPE_TYPE_TX, mEnvelope.tx));
+        mContentsHash =
+            sha256(xdr::xdr_to_opaque(ENVELOPE_TYPE_TX, mEnvelope.tx));
     }
     return (mContentsHash);
 }
@@ -475,12 +476,12 @@ TransactionFrame::toStellarMessage() const
 void
 TransactionFrame::storeTransaction(LedgerManager& ledgerManager,
                                    LedgerDelta const& delta, int txindex,
-                                   SHA256& resultHasher) const
+                                   TransactionResultSet& resultSet) const
 {
     auto txBytes(xdr::xdr_to_opaque(mEnvelope));
-    auto txResultBytes(xdr::xdr_to_opaque(getResultPair()));
 
-    resultHasher.add(txResultBytes);
+    resultSet.results.emplace_back(getResultPair());
+    auto txResultBytes(xdr::xdr_to_opaque(resultSet.results.back()));
 
     std::string txBody = base64::encode(
         reinterpret_cast<const unsigned char*>(txBytes.data()), txBytes.size());
