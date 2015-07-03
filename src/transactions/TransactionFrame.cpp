@@ -338,7 +338,7 @@ TransactionFrame::prepareResult(LedgerDelta& delta,
                                 LedgerManager& ledgerManager)
 {
     Database& db = ledgerManager.getDatabase();
-    int64_t fee = getResult().feeCharged;
+    int64_t& fee = getResult().feeCharged;
 
     if (fee > 0)
     {
