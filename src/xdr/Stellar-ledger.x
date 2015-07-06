@@ -4,10 +4,10 @@
 
 %#include "generated/Stellar-transaction.h"
 
-typedef opaque UpgradeType<128>;
-
 namespace stellar
 {
+
+typedef opaque UpgradeType<128>;
 
 /* StellarValue is the value used by SCP to reach consensus on a given ledger
 */
