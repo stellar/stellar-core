@@ -333,11 +333,11 @@ enum CreateAccountResultCode
     CREATE_ACCOUNT_SUCCESS = 0, // account was created
 
     // codes considered as "failure" for the operation
-    CREATE_ACCOUNT_MALFORMED = 1,   // invalid destination
-    CREATE_ACCOUNT_UNDERFUNDED = 2, // not enough funds in source account
+    CREATE_ACCOUNT_MALFORMED = -1,   // invalid destination
+    CREATE_ACCOUNT_UNDERFUNDED = -2, // not enough funds in source account
     CREATE_ACCOUNT_LOW_RESERVE =
-        3, // would create an account below the min reserve
-    CREATE_ACCOUNT_ALREADY_EXIST = 4 // account already exists
+        -3, // would create an account below the min reserve
+    CREATE_ACCOUNT_ALREADY_EXIST = -4 // account already exists
 };
 
 union CreateAccountResult switch (CreateAccountResultCode code)
