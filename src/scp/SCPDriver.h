@@ -73,6 +73,11 @@ class SCPDriver
                                bool isPriority, int32_t roundNumber,
                                NodeID const& nodeID);
 
+    // `computeValueHash` is used by the nomination protocol to
+    // randomize the relative order between values.
+    virtual uint64 computeValueHash(uint64 slotIndex, Value const& prev,
+                                    int32_t roundNumber, Value const& value);
+
     // `combineCandidates` computes the composite value based off a list
     // of candidate values.
     virtual Value combineCandidates(uint64 slotIndex,

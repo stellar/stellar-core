@@ -229,6 +229,14 @@ NominationProtocol::hashNode(bool isPriority, NodeID const& nodeID)
 }
 
 uint64
+NominationProtocol::hashValue(bool isPriority, Value const& value)
+{
+    dbgAssert(!mPreviousValue.empty());
+    return mSlot.getSCPDriver().computeValueHash(
+        mSlot.getSlotIndex(), mPreviousValue, mRoundNumber, value);
+}
+
+uint64
 NominationProtocol::getNodePriority(NodeID const& nodeID,
                                     SCPQuorumSet const& qset)
 {

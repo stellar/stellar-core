@@ -24,6 +24,7 @@ SCPDriver::getValueString(Value const& v) const
 // values used to switch hash function between priority and neighborhood checks
 static const uint32 hash_N = 1;
 static const uint32 hash_P = 2;
+static const uint32 hash_K = 3;
 
 static uint64
 hashHelper(uint64 slotIndex, Value const& prev,
@@ -52,6 +53,18 @@ SCPDriver::computeHashNode(uint64 slotIndex, Value const& prev, bool isPriority,
                               xdr::xdr_to_opaque(isPriority ? hash_P : hash_N));
                           h->add(xdr::xdr_to_opaque(roundNumber));
                           h->add(xdr::xdr_to_opaque(nodeID));
+                      });
+}
+
+uint64
+SCPDriver::computeValueHash(uint64 slotIndex, Value const& prev,
+                            int32_t roundNumber, Value const& value)
+{
+    return hashHelper(slotIndex, prev, [&](SHA256* h)
+                      {
+                          h->add(xdr::xdr_to_opaque(hash_K));
+                          h->add(xdr::xdr_to_opaque(roundNumber));
+                          h->add(xdr::xdr_to_opaque(value));
                       });
 }
 

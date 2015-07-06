@@ -72,6 +72,9 @@ class NominationProtocol
     // from the paper
     uint64 hashNode(bool isPriority, NodeID const& nodeID);
 
+    // computes Gi(K, prevValue, mRoundNumber, value)
+    uint64 hashValue(bool isPriority, Value const& value);
+
     uint64 getNodePriority(NodeID const& nodeID, SCPQuorumSet const& qset);
 
   public:
