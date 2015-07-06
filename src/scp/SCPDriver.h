@@ -67,11 +67,11 @@ class SCPDriver
     // default implementation is the hash of the value
     virtual std::string getValueString(Value const& v) const;
 
-    // `computeHash` is used by the nomination protocol to
+    // `computeHashNode` is used by the nomination protocol to
     // randomize the order of messages between nodes.
-    virtual uint64 computeHash(uint64 slotIndex, bool isPriority,
-                               int32_t roundNumber, NodeID const& nodeID,
-                               Value const& prev);
+    virtual uint64 computeHashNode(uint64 slotIndex, Value const& prev,
+                               bool isPriority, int32_t roundNumber,
+                               NodeID const& nodeID);
 
     // `combineCandidates` computes the composite value based off a list
     // of candidate values.

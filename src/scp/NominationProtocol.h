@@ -68,9 +68,9 @@ class NominationProtocol
     // updates the set of nodes that have priority over the others
     void updateRoundLeaders();
 
-    // equivalent to function Gi(isPriority?P:N, mRoundNumber, nodeID) from the
-    // paper
-    uint64 hashValue(bool isPriority, NodeID const& nodeID);
+    // computes Gi(isPriority?P:N, prevValue, mRoundNumber, nodeID)
+    // from the paper
+    uint64 hashNode(bool isPriority, NodeID const& nodeID);
 
     uint64 getNodePriority(NodeID const& nodeID, SCPQuorumSet const& qset);
 

@@ -130,8 +130,8 @@ class TestSCP : public SCPDriver
     // override the internal hashing scheme in order to make tests
     // more predictable.
     uint64
-    computeHash(uint64 slotIndex, bool isPriority, int32_t roundNumber,
-                NodeID const& nodeID, Value const& prev) override
+    computeHashNode(uint64 slotIndex, Value const& prev, bool isPriority,
+                int32_t roundNumber, NodeID const& nodeID) override
     {
         uint64 res;
         if (isPriority)

@@ -221,11 +221,11 @@ NominationProtocol::updateRoundLeaders()
 }
 
 uint64
-NominationProtocol::hashValue(bool isPriority, NodeID const& nodeID)
+NominationProtocol::hashNode(bool isPriority, NodeID const& nodeID)
 {
     dbgAssert(!mPreviousValue.empty());
-    return mSlot.getSCPDriver().computeHash(
-        mSlot.getSlotIndex(), isPriority, mRoundNumber, nodeID, mPreviousValue);
+    return mSlot.getSCPDriver().computeHashNode(
+        mSlot.getSlotIndex(), mPreviousValue, isPriority, mRoundNumber, nodeID);
 }
 
 uint64
@@ -235,9 +235,9 @@ NominationProtocol::getNodePriority(NodeID const& nodeID,
     uint64 res;
     uint64 w = LocalNode::getNodeWeight(nodeID, qset);
 
-    if (hashValue(false, nodeID) < w)
+    if (hashNode(false, nodeID) < w)
     {
-        res = hashValue(true, nodeID);
+        res = hashNode(true, nodeID);
     }
     else
     {
