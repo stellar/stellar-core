@@ -38,7 +38,7 @@ LoopbackPeer::sendMessage(xdr::msg_ptr&& msg)
 std::string
 LoopbackPeer::getIP()
 {
-    return "<loopback>";
+    return "127.0.0.1";
 }
 
 void
