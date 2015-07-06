@@ -204,6 +204,19 @@ namespace autocheck {
 
   /* TODO: Generic sequence generator. */
 
+  inline size_t elt_size(size_t nelts, size_t size)
+  {
+      switch (nelts)
+      {
+      case 0:
+          return 0;
+      case 1:
+          return size >> 1;
+      default:
+          return size / (nelts >> 1);
+      }
+  }
+
   template <typename Gen>
   class list_generator {
     private:
@@ -219,8 +232,9 @@ namespace autocheck {
       result_type operator() (size_t size = 0) {
         result_type rv;
         rv.reserve(size);
+        size_t eltsize = elt_size(size, size);
         std::generate_n(std::back_insert_iterator<result_type>(rv), size,
-            fix(size, eltgen));
+            fix(eltsize, eltgen));
         return rv;
       }
   };
