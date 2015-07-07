@@ -290,6 +290,49 @@ TEST_CASE("bucket list shadowing", "[bucket]")
     }
 }
 
+TEST_CASE("duplicate bucket entries", "[bucket]")
+{
+    VirtualClock clock;
+    Config const& cfg = getTestConfig();
+    try
+    {
+        Application::pointer app = Application::create(clock, cfg);
+        BucketList bl1, bl2;
+        autocheck::generator<std::vector<LedgerEntry>> liveGen;
+        autocheck::generator<std::vector<LedgerKey>> deadGen;
+        CLOG(DEBUG, "Bucket") << "Adding batches with duplicates to bucket list";
+        for (uint32_t i = 1;
+             !app->getClock().getIOService().stopped() && i < 130; ++i)
+        {
+            auto liveBatch = liveGen(8);
+            auto doubleLiveBatch = liveBatch;
+            doubleLiveBatch.insert(doubleLiveBatch.end(), liveBatch.begin(), liveBatch.end());
+            auto deadBatch = deadGen(8);
+            app->getClock().crank(false);
+            bl1.addBatch(*app, i, liveBatch, deadBatch);
+            bl2.addBatch(*app, i, doubleLiveBatch, deadBatch);
+
+            if (i % 10 == 0)
+                CLOG(DEBUG, "Bucket") << "Added batch " << i
+                                      << ", hash1=" << hexAbbrev(bl1.getHash())
+                                      << ", hash2=" << hexAbbrev(bl2.getHash());
+            for (size_t j = 0; j < BucketList::kNumLevels; ++j)
+            {
+                auto const& lev1 = bl1.getLevel(j);
+                auto const& lev2 = bl2.getLevel(j);
+                REQUIRE(lev1.getHash() == lev2.getHash());
+            }
+        }
+    }
+    catch (std::future_error& e)
+    {
+        CLOG(DEBUG, "Bucket") << "Test caught std::future_error " << e.code()
+                              << ": " << e.what();
+        REQUIRE(false);
+    }
+}
+
+
 TEST_CASE("file-backed buckets", "[bucket]")
 {
     VirtualClock clock;
