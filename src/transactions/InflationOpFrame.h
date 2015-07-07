@@ -16,14 +16,15 @@ class InflationOpFrame : public OperationFrame
         return mResult.tr().inflationResult();
     }
 
+    int32_t getNeededThreshold() const override;
+
   public:
     InflationOpFrame(Operation const& op, OperationResult& res,
                      TransactionFrame& parentTx);
 
-    bool doApply(medida::MetricsRegistry& metrics,
-                 LedgerDelta& delta, LedgerManager& ledgerManager) override;
+    bool doApply(medida::MetricsRegistry& metrics, LedgerDelta& delta,
+                 LedgerManager& ledgerManager) override;
     bool doCheckValid(medida::MetricsRegistry& metrics) override;
-    int32_t getNeededThreshold() const override;
 
     static InflationResultCode
     getInnerCode(OperationResult const& res)

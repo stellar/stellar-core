@@ -354,7 +354,6 @@ Peer::recvSCPMessage(StellarMessage const& msg)
 void
 Peer::recvError(StellarMessage const& msg)
 {
-    // TODO.4
 }
 
 bool

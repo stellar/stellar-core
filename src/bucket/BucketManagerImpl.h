@@ -45,10 +45,10 @@ class BucketManagerImpl : public BucketManager
     medida::Timer& mBucketSnapMerge;
     medida::Counter& mSharedBucketsSize;
 
-protected:
+  protected:
     void calculateSkipValues(LedgerHeader& currentHeader);
 
-public:
+  public:
     BucketManagerImpl(Application& app);
     ~BucketManagerImpl() override;
     std::string const& getTmpDir() override;
@@ -65,15 +65,15 @@ public:
     void addBatch(Application& app, uint32_t currLedger,
                   std::vector<LedgerEntry> const& liveEntries,
                   std::vector<LedgerKey> const& deadEntries) override;
-    void snapshotLedger(LedgerHeader& currentHeader);
+    void snapshotLedger(LedgerHeader& currentHeader) override;
 
-    std::vector<std::string> checkForMissingBucketsFiles(HistoryArchiveState const& has) override;
-    void assumeState(HistoryArchiveState const& has);
+    std::vector<std::string>
+    checkForMissingBucketsFiles(HistoryArchiveState const& has) override;
+    void assumeState(HistoryArchiveState const& has) override;
 };
 
 #define SKIP_1 50
 #define SKIP_2 5000
 #define SKIP_3 50000
 #define SKIP_4 500000
-
 }

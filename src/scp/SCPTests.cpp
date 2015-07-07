@@ -62,35 +62,19 @@ class TestSCP : public SCPDriver
     }
 
     bool
-    validateValue(uint64 slotIndex, Value const& value)
+    validateValue(uint64 slotIndex, Value const& value) override
     {
         return true;
     }
 
     void
-    ballotDidPrepare(uint64 slotIndex, SCPBallot const& ballot)
-    {
-    }
-    void
-    ballotDidPrepared(uint64 slotIndex, SCPBallot const& ballot)
-    {
-    }
-    void
-    ballotDidCommit(uint64 slotIndex, SCPBallot const& ballot)
-    {
-    }
-    void
-    ballotDidCommitted(uint64 slotIndex, SCPBallot const& ballot)
-    {
-    }
-    void
-    ballotDidHearFromQuorum(uint64 slotIndex, SCPBallot const& ballot)
+    ballotDidHearFromQuorum(uint64 slotIndex, SCPBallot const& ballot) override
     {
         mHeardFromQuorums[slotIndex].push_back(ballot);
     }
 
     void
-    valueExternalized(uint64 slotIndex, Value const& value)
+    valueExternalized(uint64 slotIndex, Value const& value) override
     {
         if (mExternalizedValues.find(slotIndex) != mExternalizedValues.end())
         {
@@ -100,7 +84,7 @@ class TestSCP : public SCPDriver
     }
 
     SCPQuorumSetPtr
-    getQSet(Hash const& qSetHash)
+    getQSet(Hash const& qSetHash) override
     {
         if (mQuorumSets.find(qSetHash) != mQuorumSets.end())
         {
@@ -111,7 +95,7 @@ class TestSCP : public SCPDriver
     }
 
     void
-    emitEnvelope(SCPEnvelope const& envelope)
+    emitEnvelope(SCPEnvelope const& envelope) override
     {
         mEnvs.push_back(envelope);
     }

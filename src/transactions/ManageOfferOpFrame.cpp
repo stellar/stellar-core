@@ -94,9 +94,6 @@ ManageOfferOpFrame::checkOfferValid(medida::MetricsRegistry& metrics,
 // need to check the counter offers selling wheat for sheep
 // see if this is modifying an old offer
 // see if this offer crosses any existing offers
-
-// TODO: revisit this, offer code should share logic with payment code
-//      to keep the code working, I ended up duplicating the error codes
 bool
 ManageOfferOpFrame::doApply(medida::MetricsRegistry& metrics,
                             LedgerDelta& delta, LedgerManager& ledgerManager)
