@@ -41,6 +41,11 @@ class TestSCP : public SCPDriver
         {
             return (n == secretKey.getPublicKey()) ? 1000 : 1;
         };
+
+        mHashValueCalculator = [&](Value const& v)
+        {
+            return 0;
+        };
     }
 
     void
@@ -131,7 +136,7 @@ class TestSCP : public SCPDriver
     // more predictable.
     uint64
     computeHashNode(uint64 slotIndex, Value const& prev, bool isPriority,
-                int32_t roundNumber, NodeID const& nodeID) override
+                    int32_t roundNumber, NodeID const& nodeID) override
     {
         uint64 res;
         if (isPriority)
@@ -145,6 +150,14 @@ class TestSCP : public SCPDriver
         return res;
     }
 
+    // override the value hashing, to make tests more predictable.
+    uint64
+    computeValueHash(uint64 slotIndex, Value const& prev, int32_t roundNumber,
+                     Value const& value) override
+    {
+        return mHashValueCalculator(value);
+    }
+
     void
     setupTimer(uint64 slotIndex, int timerID, std::chrono::milliseconds timeout,
                std::function<void()> cb) override
@@ -152,6 +165,7 @@ class TestSCP : public SCPDriver
     }
 
     std::function<uint64(NodeID const&)> mPriorityLookup;
+    std::function<uint64(Value const&)> mHashValueCalculator;
 
     std::map<Hash, SCPQuorumSetPtr> mQuorumSets;
     std::vector<SCPEnvelope> mEnvs;
@@ -1271,8 +1285,6 @@ TEST_CASE("nomination tests core5", "[scp][nominationprotocol]")
 
         SECTION("others nominate what v0 says (x) -> prepare x")
         {
-            scp.mExpectedCandidates.emplace(xValue);
-            scp.mCompositeValue = xValue;
             REQUIRE(scp.nominate(0, xValue, false));
 
             std::vector<Value> votes, accepted;
@@ -1299,6 +1311,9 @@ TEST_CASE("nomination tests core5", "[scp][nominationprotocol]")
             // this causes 'x' to be accepted (quorum)
             scp.receiveEnvelope(nom3);
             REQUIRE(scp.mEnvs.size() == 2);
+
+            scp.mExpectedCandidates.emplace(xValue);
+            scp.mCompositeValue = xValue;
 
             accepted.emplace_back(xValue);
             verifyNominate(scp.mEnvs[1], v0SecretKey, qSetHash, 0, votes,
@@ -1467,15 +1482,40 @@ TEST_CASE("nomination tests core5", "[scp][nominationprotocol]")
             return (n == v1NodeID) ? 1000 : 1;
         };
 
-        std::vector<Value> votesX, votesY, votesZ, emptyV;
+        std::vector<Value> votesX, votesY, votesZ, votesXY, votesYZ, votesXZ,
+            emptyV;
         votesX.emplace_back(xValue);
         votesY.emplace_back(yValue);
         votesZ.emplace_back(zValue);
 
+        votesXY.emplace_back(xValue);
+        votesXY.emplace_back(yValue);
+
+        votesYZ.emplace_back(yValue);
+        votesYZ.emplace_back(zValue);
+
+        votesXZ.emplace_back(xValue);
+        votesXZ.emplace_back(zValue);
+
+        std::vector<Value> valuesHash;
+        valuesHash.emplace_back(xValue);
+        valuesHash.emplace_back(yValue);
+        valuesHash.emplace_back(zValue);
+
+        scp.mHashValueCalculator = [&](Value const& v)
+        {
+            auto pos = std::find(valuesHash.begin(), valuesHash.end(), v);
+            if (pos == valuesHash.end())
+            {
+                abort();
+            }
+            return 1 + std::distance(valuesHash.begin(), pos);
+        };
+
         SCPEnvelope nom1 =
-            makeNominate(v1SecretKey, qSetHash, 0, votesY, emptyV);
+            makeNominate(v1SecretKey, qSetHash, 0, votesXY, emptyV);
         SCPEnvelope nom2 =
-            makeNominate(v2SecretKey, qSetHash, 0, votesZ, emptyV);
+            makeNominate(v2SecretKey, qSetHash, 0, votesXZ, emptyV);
 
         SECTION("nomination waits for v1")
         {
@@ -1484,17 +1524,14 @@ TEST_CASE("nomination tests core5", "[scp][nominationprotocol]")
             REQUIRE(scp.mEnvs.size() == 0);
 
             SCPEnvelope nom3 =
-                makeNominate(v3SecretKey, qSetHash, 0, votesZ, emptyV);
+                makeNominate(v3SecretKey, qSetHash, 0, votesYZ, emptyV);
             SCPEnvelope nom4 =
-                makeNominate(v4SecretKey, qSetHash, 0, votesZ, emptyV);
+                makeNominate(v4SecretKey, qSetHash, 0, votesXZ, emptyV);
 
             // nothing happens with non top nodes
             scp.receiveEnvelope(nom2);
             scp.receiveEnvelope(nom3);
             REQUIRE(scp.mEnvs.size() == 0);
-
-            scp.mExpectedCandidates.emplace(yValue);
-            scp.mCompositeValue = yValue;
 
             scp.receiveEnvelope(nom1);
             REQUIRE(scp.mEnvs.size() == 1);
@@ -1503,6 +1540,20 @@ TEST_CASE("nomination tests core5", "[scp][nominationprotocol]")
 
             scp.receiveEnvelope(nom4);
             REQUIRE(scp.mEnvs.size() == 1);
+
+            SECTION("timeout -> pick another value from v1")
+            {
+                scp.mExpectedCandidates.emplace(xValue);
+                scp.mCompositeValue = xValue;
+
+                // note: value passed in here should be ignored
+                REQUIRE(scp.nominate(0, zValue, true));
+                // picks up 'x' from v1 (as we already have 'y')
+                // which also happens to causes 'x' to be accepted
+                REQUIRE(scp.mEnvs.size() == 2);
+                verifyNominate(scp.mEnvs[1], v0SecretKey, qSetHash, 0, votesXY,
+                               votesX);
+            }
         }
         SECTION("v1 dead, timeout")
         {
@@ -1519,8 +1570,6 @@ TEST_CASE("nomination tests core5", "[scp][nominationprotocol]")
                 {
                     return (n == v0NodeID) ? 1000 : 1;
                 };
-                scp.mExpectedCandidates.emplace(xValue);
-                scp.mCompositeValue = xValue;
 
                 REQUIRE(scp.nominate(0, xValue, true));
                 REQUIRE(scp.mEnvs.size() == 1);
@@ -1533,8 +1582,6 @@ TEST_CASE("nomination tests core5", "[scp][nominationprotocol]")
                 {
                     return (n == v2NodeID) ? 1000 : 1;
                 };
-                scp.mExpectedCandidates.emplace(zValue);
-                scp.mCompositeValue = zValue;
 
                 REQUIRE(scp.nominate(0, xValue, true));
                 REQUIRE(scp.mEnvs.size() == 1);

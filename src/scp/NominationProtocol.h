@@ -73,9 +73,14 @@ class NominationProtocol
     uint64 hashNode(bool isPriority, NodeID const& nodeID);
 
     // computes Gi(K, prevValue, mRoundNumber, value)
-    uint64 hashValue(bool isPriority, Value const& value);
+    uint64 hashValue(Value const& value);
 
     uint64 getNodePriority(NodeID const& nodeID, SCPQuorumSet const& qset);
+
+    // returns the highest value that we don't have yet, that we should
+    // vote for, extracted from a nomination.
+    // returns the empty value if no new value was found
+    Value getNewValueFromNomination(SCPNomination const& nom);
 
   public:
     NominationProtocol(Slot& slot);

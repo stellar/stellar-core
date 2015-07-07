@@ -229,7 +229,7 @@ NominationProtocol::hashNode(bool isPriority, NodeID const& nodeID)
 }
 
 uint64
-NominationProtocol::hashValue(bool isPriority, Value const& value)
+NominationProtocol::hashValue(Value const& value)
 {
     dbgAssert(!mPreviousValue.empty());
     return mSlot.getSCPDriver().computeValueHash(
@@ -252,6 +252,41 @@ NominationProtocol::getNodePriority(NodeID const& nodeID,
         res = 0;
     }
     return res;
+}
+
+Value
+NominationProtocol::getNewValueFromNomination(SCPNomination const& nom)
+{
+    // pick the highest value we don't have from the leader
+    // sorted using hashValue.
+    Value newVote;
+    uint64 newHash = 0;
+
+    applyAll(nom, [&](Value const& value)
+             {
+                 Value valueToNominate;
+                 if (validateValue(value))
+                 {
+                     valueToNominate = value;
+                 }
+                 else
+                 {
+                     valueToNominate = extractValidValue(value);
+                 }
+                 if (!valueToNominate.empty())
+                 {
+                     if (mVotes.find(valueToNominate) == mVotes.end())
+                     {
+                         uint64 curHash = hashValue(valueToNominate);
+                         if (curHash >= newHash)
+                         {
+                             newHash = curHash;
+                             newVote = valueToNominate;
+                         }
+                     }
+                 }
+             });
+    return newVote;
 }
 
 SCP::EnvelopeState
@@ -341,14 +376,11 @@ NominationProtocol::processEnvelope(SCPEnvelope const& envelope)
                 if (mCandidates.empty() &&
                     mRoundLeaders.find(st.nodeID) != mRoundLeaders.end())
                 {
-                    // see if we should update our list of votes
-                    for (auto const& v : nom.votes)
+                    Value newVote = getNewValueFromNomination(nom);
+                    if (!newVote.empty())
                     {
-                        if (mVotes.find(v) == mVotes.end())
-                        {
-                            mVotes.emplace(v);
-                            modified = true;
-                        }
+                        mVotes.emplace(newVote);
+                        modified = true;
                     }
                 }
 
@@ -402,6 +434,8 @@ NominationProtocol::nominate(Value const& value, Value const& previousValue,
     mRoundNumber++;
     updateRoundLeaders();
 
+    Value nominatingValue;
+
     if (mRoundLeaders.find(mSlot.getLocalNode()->getNodeID()) !=
         mRoundLeaders.end())
     {
@@ -410,6 +444,7 @@ NominationProtocol::nominate(Value const& value, Value const& previousValue,
         {
             updated = true;
         }
+        nominatingValue = value;
     }
     else
     {
@@ -418,26 +453,13 @@ NominationProtocol::nominate(Value const& value, Value const& previousValue,
             auto it = mLatestNominations.find(leader);
             if (it != mLatestNominations.end())
             {
-                applyAll(it->second.pledges.nominate(), [&](Value const& value)
-                         {
-                             Value valueToNominate;
-                             if (validateValue(value))
-                             {
-                                 valueToNominate = value;
-                             }
-                             else
-                             {
-                                 valueToNominate = extractValidValue(value);
-                             }
-                             if (!valueToNominate.empty())
-                             {
-                                 auto ins = mVotes.insert(valueToNominate);
-                                 if (ins.second)
-                                 {
-                                     updated = true;
-                                 }
-                             }
-                         });
+                nominatingValue =
+                    getNewValueFromNomination(it->second.pledges.nominate());
+                if (!nominatingValue.empty())
+                {
+                    mVotes.insert(nominatingValue);
+                    updated = true;
+                }
             }
         }
     }
@@ -445,13 +467,6 @@ NominationProtocol::nominate(Value const& value, Value const& previousValue,
     std::chrono::milliseconds timeout =
         mSlot.getSCPDriver().computeTimeout(mRoundNumber);
 
-    Value nominatingValue;
-    if (!mVotes.empty())
-    {
-        nominatingValue = mSlot.getSCPDriver().combineCandidates(
-            mSlot.getSlotIndex(), mVotes);
-    }
-    // called even with an empty value to start the timer
     mSlot.getSCPDriver().nominatingValue(mSlot.getSlotIndex(), nominatingValue);
 
     std::shared_ptr<Slot> slot = mSlot.shared_from_this();
