@@ -18,12 +18,12 @@ namespace stellar
 {
 
 PendingEnvelopes::PendingEnvelopes(Application& app, HerderImpl& herder)
-    : mHerder(herder)
-    , mApp(app)
+    : mApp(app)
+    , mHerder(herder)
     , mQsetCache(QSET_CACHE_SIZE)
-    , mTxSetCache(TXSET_CACHE_SIZE)
-    , mQuorumSetFetcher(app)
     , mTxSetFetcher(app)
+    , mQuorumSetFetcher(app)
+    , mTxSetCache(TXSET_CACHE_SIZE)
     , mPendingEnvelopesSize(
           app.getMetrics().NewCounter({"scp", "memory", "pending-envelopes"}))
 {
@@ -307,72 +307,4 @@ PendingEnvelopes::dumpInfo(Json::Value& ret)
     }
     */
 }
-
-///////////////////////////
-//////
-
-/* TODO.1
-
-// returns true if we have been left behind :(
-// see: walter the lazy mouse
-bool
-PendingEnvelopes::isFutureCommitted(uint64 slotIndex)
-{
-    return mIsFutureCommitted.find(slotIndex) != mIsFutureCommitted.end();
-}
-
-
-bool
-PendingEnvelopes::checkFutureCommitted(SCPEnvelope newEnvelope)
-{
-    // is this a committed statement?
-    if (newEnvelope.statement.pledges.type() == COMMITTED)
-    {
-        SCPQuorumSet const& qset = mHerder.getLocalQuorumSet();
-
-        // is it from someone we care about?
-        if (find(qset.validators.begin(), qset.validators.end(),
-            newEnvelope.nodeID) != qset.validators.end())
-        {
-            vector<FetchingRecordPtr> allRecords;
-            auto slot = newEnvelope.statement.slotIndex;
-            copy(mFetching[slot].begin(), mFetching[slot].end(),
-back_inserter(allRecords));
-            copy(mReady[slot].begin(), mReady[slot].end(),
-back_inserter(allRecords));
-
-            auto count = count_if(allRecords.begin(), allRecords.end(),
-[&](FetchingRecordPtr fRecord)
-            {
-                return fRecord->env->statement.ballot.value ==
-                    newEnvelope.statement.ballot.value;
-            });
-
-            // do we have enough of these for the same ballot?
-            if (count >= qset.threshold)
-            {
-                return true;
-            }
-        }
-    }
-    return false;
-}
-
-
-
-TxSetFramePtr PendingEnvelopes::getTxSet(Hash txSetHash)
-{
-    auto result = mApp.getOverlayManager().getTxSetFetcher().get(txSetHash);
-    assert(result);
-    return result;
-}
-
-SCPQuorumSetPtr PendingEnvelopes::getQuorumSet(Hash qSetHash)
-{
-    auto result = mApp.getOverlayManager().getQuorumSetFetcher().get(qSetHash);
-    assert(result);
-    return result;
-}
-
-*/
 }

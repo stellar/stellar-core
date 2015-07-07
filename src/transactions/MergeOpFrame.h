@@ -16,13 +16,14 @@ class MergeOpFrame : public OperationFrame
         return mResult.tr().accountMergeResult();
     }
 
+    int32_t getNeededThreshold() const override;
+
   public:
     MergeOpFrame(Operation const& op, OperationResult& res,
                  TransactionFrame& parentTx);
 
-    int32_t getNeededThreshold() const;
-    bool doApply(medida::MetricsRegistry& metrics,
-                 LedgerDelta& delta, LedgerManager& ledgerManager) override;
+    bool doApply(medida::MetricsRegistry& metrics, LedgerDelta& delta,
+                 LedgerManager& ledgerManager) override;
     bool doCheckValid(medida::MetricsRegistry& metrics) override;
 
     static AccountMergeResultCode

@@ -25,7 +25,7 @@ class HistoryManagerImpl : public HistoryManager
     std::unique_ptr<TmpDir> mWorkDir;
     std::unique_ptr<PublishStateMachine> mPublish;
     std::unique_ptr<CatchupStateMachine> mCatchup;
-    bool mManualCatchup { false };
+    bool mManualCatchup{false};
 
     medida::Meter& mPublishSkip;
     medida::Meter& mPublishQueue;
@@ -37,17 +37,19 @@ class HistoryManagerImpl : public HistoryManager
     medida::Meter& mCatchupStart;
     medida::Meter& mCatchupSuccess;
     medida::Meter& mCatchupFailure;
-public:
+
+  public:
     HistoryManagerImpl(Application& app);
     ~HistoryManagerImpl() override;
 
-    uint32_t getCheckpointFrequency();
-    uint32_t prevCheckpointLedger(uint32_t ledger);
-    uint32_t nextCheckpointLedger(uint32_t ledger);
-    uint64_t nextCheckpointCatchupProbe(uint32_t ledger);
+    uint32_t getCheckpointFrequency() override;
+    uint32_t prevCheckpointLedger(uint32_t ledger) override;
+    uint32_t nextCheckpointLedger(uint32_t ledger) override;
+    uint64_t nextCheckpointCatchupProbe(uint32_t ledger) override;
 
-    void verifyHash(std::string const& filename, uint256 const& hash,
-                    std::function<void(asio::error_code const&)> handler) const override;
+    void verifyHash(
+        std::string const& filename, uint256 const& hash,
+        std::function<void(asio::error_code const&)> handler) const override;
 
     void decompress(std::string const& filename_gz,
                     std::function<void(asio::error_code const&)> handler,
@@ -57,34 +59,36 @@ public:
                   std::function<void(asio::error_code const&)> handler,
                   bool keepExisting = false) const override;
 
-    void putFile(std::shared_ptr<HistoryArchive const> archive,
-                 std::string const& local, std::string const& remote,
-                 std::function<void(asio::error_code const&)> handler) const override;
+    void putFile(
+        std::shared_ptr<HistoryArchive const> archive, std::string const& local,
+        std::string const& remote,
+        std::function<void(asio::error_code const&)> handler) const override;
 
-    void getFile(std::shared_ptr<HistoryArchive const> archive,
-                 std::string const& remote, std::string const& local,
-                 std::function<void(asio::error_code const&)> handler) const override;
+    void getFile(
+        std::shared_ptr<HistoryArchive const> archive,
+        std::string const& remote, std::string const& local,
+        std::function<void(asio::error_code const&)> handler) const override;
 
-    void mkdir(std::shared_ptr<HistoryArchive const> archive,
-               std::string const& dir,
-               std::function<void(asio::error_code const&)> handler) const override;
+    void
+    mkdir(std::shared_ptr<HistoryArchive const> archive, std::string const& dir,
+          std::function<void(asio::error_code const&)> handler) const override;
 
-    bool
-    maybePublishHistory(std::function<void(asio::error_code const&)> handler) override;
+    bool maybePublishHistory(
+        std::function<void(asio::error_code const&)> handler) override;
 
     bool hasAnyWritableHistoryArchive() override;
 
-    void publishHistory(std::function<void(asio::error_code const&)> handler) override;
+    void publishHistory(
+        std::function<void(asio::error_code const&)> handler) override;
 
     void downloadMissingBuckets(
         HistoryArchiveState desiredState,
-        std::function<void(asio::error_code const&ec)> handler) override;
+        std::function<void(asio::error_code const& ec)> handler) override;
 
     void catchupHistory(
         uint32_t initLedger, CatchupMode mode,
         std::function<void(asio::error_code const& ec, CatchupMode mode,
-                           LedgerHeaderHistoryEntry const& lastClosed)>
-        handler,
+                           LedgerHeaderHistoryEntry const& lastClosed)> handler,
         bool manualCatchup) override;
 
     void snapshotWritten(asio::error_code const&) override;
@@ -105,7 +109,5 @@ public:
     uint64_t getCatchupStartCount() override;
     uint64_t getCatchupSuccessCount() override;
     uint64_t getCatchupFailureCount() override;
-
 };
-
 }
