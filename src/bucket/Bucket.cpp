@@ -17,6 +17,7 @@
 #include "util/Logging.h"
 #include "util/TmpDir.h"
 #include "util/XDRStream.h"
+#include "util/make_unique.h"
 #include "xdrpp/message.h"
 #include "database/Database.h"
 #include "ledger/EntryFrame.h"
@@ -191,6 +192,8 @@ class Bucket::OutputIterator
 {
     std::string mFilename;
     XDROutputFileStream mOut;
+    BucketEntryIdCmp mCmp;
+    std::unique_ptr<BucketEntry> mBuf;
     std::unique_ptr<SHA256> mHasher;
     size_t mBytesPut{0};
     size_t mObjectsPut{0};
@@ -198,6 +201,7 @@ class Bucket::OutputIterator
   public:
     OutputIterator(std::string const& tmpDir)
         : mFilename(randomBucketName(tmpDir))
+        , mBuf(nullptr)
         , mHasher(SHA256::create())
     {
         CLOG(TRACE, "Bucket") << "Bucket::OutputIterator opening file to write: "
@@ -208,14 +212,41 @@ class Bucket::OutputIterator
     void
     put(BucketEntry const& e)
     {
-        mOut.writeOne(e, mHasher.get(), &mBytesPut);
-        mObjectsPut++;
+        // Check to see if there's an existing buffered entry.
+        if (mBuf)
+        {
+            // mCmp(e, *mBuf) means e < *mBuf; this should never be true since
+            // it would mean that we're getting entries out of order.
+            assert(!mCmp(e, *mBuf));
+
+            // Check to see if the new entry should flush (greater identity), or
+            // merely replace (same identity), the buffered entry.
+            if (mCmp(*mBuf, e))
+            {
+                mOut.writeOne(*mBuf, mHasher.get(), &mBytesPut);
+                mObjectsPut++;
+            }
+        }
+        else
+        {
+            mBuf = make_unique<BucketEntry>();
+        }
+
+        // In any case, replace *mBuf with e.
+        *mBuf = e;
     }
 
     std::shared_ptr<Bucket>
     getBucket(BucketManager& bucketManager)
     {
         assert(mOut);
+        if (mBuf)
+        {
+            mOut.writeOne(*mBuf, mHasher.get(), &mBytesPut);
+            mObjectsPut++;
+            mBuf.reset();
+        }
+
         mOut.close();
         if (mObjectsPut == 0 || mBytesPut == 0)
         {
