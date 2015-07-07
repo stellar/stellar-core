@@ -323,8 +323,6 @@ AccountFrame::storeUpdate(LedgerDelta& delta, Database& db, bool insert) const
         inflation_ind = soci::i_ok;
     }
 
-    // TODO.3   KeyValue data
-
     string thresholds(binToHex(mAccountEntry.thresholds));
 
     {

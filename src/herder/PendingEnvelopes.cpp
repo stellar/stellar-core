@@ -132,15 +132,6 @@ PendingEnvelopes::envelopeReady(SCPEnvelope const& envelope)
 
     mPendingEnvelopes[envelope.statement.slotIndex].push_back(envelope);
 
-    /*
-    // if envelope is on the right slot send into SCP
-    // TODO.1 : below
-    if(checkFutureCommitted(envelope))
-    {
-        mIsFutureCommitted.insert(envelope.statement.slotIndex);
-    }
-    */
-
     mApp.getClock().getIOService().post([this]()
                                         {
                                             mHerder.processSCPQueue();

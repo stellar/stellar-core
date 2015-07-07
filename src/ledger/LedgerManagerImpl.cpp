@@ -47,7 +47,6 @@ catching up to network:
     2) Pull history log or static deltas from history archive
     3) Replay or force-apply deltas, depending on catchup mode
 
-    // TODO.3 we need to store some validation history?
 */
 using std::placeholders::_1;
 using std::placeholders::_2;

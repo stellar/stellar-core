@@ -17,8 +17,6 @@
 
 #include <random>
 
-// TODO.3 flood older msgs to people that connect to you
-
 /*
 Connection process:
 A wants to connect to B
