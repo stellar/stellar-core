@@ -589,6 +589,7 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
     {
         auto txTime = mTransactionApply.TimeScope();
         LedgerDelta delta(ledgerDelta);
+        TransactionMeta tm;
         try
         {
             CLOG(DEBUG, "Tx")
@@ -599,7 +600,7 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
 
             // note that success here just means it got processed
             // a failed transaction collecting a fee is successful at this layer
-            if (tx->apply(delta, mApp))
+            if (tx->apply(delta, tm, mApp))
             {
                 delta.commit();
             }
@@ -630,8 +631,10 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
                 << "Result: " << xdr::xdr_to_string(tx->getResult());
             // ensures that this transaction doesn't have any side effects
             delta.rollback();
+            tm.v0().changes.clear();
+            tm.v0().operations.clear();
         }
-        tx->storeTransaction(*this, delta, ++index, txResultSet);
+        tx->storeTransaction(*this, delta, tm, ++index, txResultSet);
     }
 
     ledgerDelta.getHeader().txSetResultHash =

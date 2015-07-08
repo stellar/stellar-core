@@ -136,6 +136,9 @@ class TransactionFrame
 
     // apply this transaction to the current ledger
     // returns true if successfully applied
+    bool apply(LedgerDelta& delta, TransactionMeta& tm, Application& app);
+
+    // version without meta
     bool apply(LedgerDelta& delta, Application& app);
 
     StellarMessage toStellarMessage() const;
@@ -145,8 +148,8 @@ class TransactionFrame
 
     // transaction history
     void storeTransaction(LedgerManager& ledgerManager,
-                          LedgerDelta const& delta, int txindex,
-                          TransactionResultSet& resultSet) const;
+                          LedgerDelta const& delta, TransactionMeta& tm,
+                          int txindex, TransactionResultSet& resultSet) const;
 
     /*
     txOut: stream of TransactionHistoryEntry

@@ -212,8 +212,20 @@ case LEDGER_ENTRY_REMOVED:
     LedgerKey removed;
 };
 
-struct TransactionMeta
+typedef LedgerEntryChange LedgerEntryChanges<>;
+
+struct OperationMeta
 {
-    LedgerEntryChange changes<>;
+    LedgerEntryChanges changes;
+};
+
+union TransactionMeta switch (int v)
+{
+case 0:
+    struct
+    {
+        LedgerEntryChanges changes;
+        OperationMeta operations<>;
+    } v0;
 };
 }
