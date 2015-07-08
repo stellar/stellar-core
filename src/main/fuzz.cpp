@@ -19,6 +19,7 @@
 
 #include <xdrpp/autocheck.h>
 #include <xdrpp/printer.h>
+#include <signal.h>
 
 /**
  * This is a very simple fuzzer _stub_. It's intended to be run under an
@@ -145,7 +146,9 @@ fuzz(std::string const& filename, el::Level logLevel,
     }
 
     if (getenv("AFL_PERSISTENT") && persist_cnt++ < PERSIST_MAX) {
+#ifndef WIN32
         raise(SIGSTOP);
+#endif
         goto restart;
     }
 
