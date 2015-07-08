@@ -94,10 +94,10 @@ AS_IF([test "x$enable_afl" = "xyes"], [
   ])
   AC_CHECK_PROGS([AFL_FUZZ], [afl-fuzz])
   AS_CASE(["$CC"],
-          [clang*], [AC_CHECK_PROGS([AFL_CLANG], [afl-clang])
-                     AC_CHECK_PROGS([AFL_CLANGPP], [afl-clang++])
-                     CC="afl-clang"
-                     CXX="afl-clang++"],
+          [clang*], [AC_CHECK_PROGS([AFL_CLANG], [afl-clang-fast])
+                     AC_CHECK_PROGS([AFL_CLANGPP], [afl-clang-fast++])
+                     CC="afl-clang-fast"
+                     CXX="afl-clang-fast++"],
           [gcc*],   [AC_CHECK_PROGS([AFL_GCC], [afl-gcc])
                      AC_CHECK_PROGS([AFL_GPP], [afl-g++])
                      CC="afl-gcc"
