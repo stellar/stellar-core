@@ -48,9 +48,6 @@ TEST_CASE("txenvelope", "[tx][envelope]")
     const uint64_t paymentAmount =
         app.getLedgerManager().getCurrentLedgerHeader().baseReserve * 10;
 
-
-    
-
     SECTION("outer envelope")
     {
         TransactionFramePtr txFrame;
@@ -61,7 +58,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
             txFrame = createCreateAccountTx(root, a1, rootSeq++, paymentAmount);
             txFrame->getEnvelope().signatures.clear();
 
-            txFrame->apply(delta, app);
+            applyCheck(txFrame, delta, app);
 
             REQUIRE(txFrame->getResultCode() == txBAD_AUTH);
         }
@@ -70,7 +67,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
             txFrame = createCreateAccountTx(root, a1, rootSeq++, paymentAmount);
             txFrame->getEnvelope().signatures[0].signature = Signature(32, 123);
 
-            txFrame->apply(delta, app);
+            applyCheck(txFrame, delta, app);
 
             REQUIRE(txFrame->getResultCode() == txBAD_AUTH);
         }
@@ -79,7 +76,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
             txFrame = createCreateAccountTx(root, a1, rootSeq++, paymentAmount);
             txFrame->getEnvelope().signatures[0].hint.fill(1);
 
-            txFrame->apply(delta, app);
+            applyCheck(txFrame, delta, app);
 
             REQUIRE(txFrame->getResultCode() == txBAD_AUTH);
         }
@@ -88,7 +85,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
             txFrame = createCreateAccountTx(root, a1, rootSeq++, paymentAmount);
             txFrame->addSignature(a1);
 
-            txFrame->apply(delta, app);
+            applyCheck(txFrame, delta, app);
 
             REQUIRE(txFrame->getResultCode() == txBAD_AUTH_EXTRA);
         }
@@ -98,7 +95,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
             SecretKey bogus = getAccount("bogus");
             txFrame->addSignature(bogus);
 
-            txFrame->apply(delta, app);
+            applyCheck(txFrame, delta, app);
 
             REQUIRE(txFrame->getResultCode() == txBAD_AUTH_EXTRA);
         }
@@ -137,7 +134,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
             LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader());
 
-            tx->apply(delta, app);
+            applyCheck(tx, delta, app);
             REQUIRE(tx->getResultCode() == txBAD_AUTH);
         }
 
@@ -153,7 +150,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
             LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader());
 
-            tx->apply(delta, app);
+            applyCheck(tx, delta, app);
             REQUIRE(tx->getResultCode() == txFAILED);
             REQUIRE(getFirstResultCode(*tx) == opBAD_AUTH);
         }
@@ -168,7 +165,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
             LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader());
 
-            tx->apply(delta, app);
+            applyCheck(tx, delta, app);
             REQUIRE(tx->getResultCode() == txSUCCESS);
             REQUIRE(PaymentOpFrame::getInnerCode(getFirstResult(*tx)) ==
                     PAYMENT_SUCCESS);
@@ -183,14 +180,14 @@ TEST_CASE("txenvelope", "[tx][envelope]")
             te.tx.sourceAccount = root.getPublicKey();
             te.tx.fee = 1000;
             te.tx.seqNum = rootSeq++;
-            TransactionFrame tx(te);
-            tx.addSignature(root);
+            TransactionFramePtr tx = std::make_shared<TransactionFrame>(te);
+            tx->addSignature(root);
             LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader());
 
-            REQUIRE(!tx.checkValid(app, 0));
+            REQUIRE(!tx->checkValid(app, 0));
 
-            tx.apply(delta, app);
-            REQUIRE(tx.getResultCode() == txMISSING_OPERATION);
+            applyCheck(tx, delta, app);
+            REQUIRE(tx->getResultCode() == txMISSING_OPERATION);
         }
 
         SECTION("non empty")
@@ -220,7 +217,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                         app.getLedgerManager().getCurrentLedgerHeader());
 
                     REQUIRE(!tx->checkValid(app, 0));
-                    tx->apply(delta, app);
+                    applyCheck(tx, delta, app);
                     REQUIRE(tx->getResultCode() == txFAILED);
                     REQUIRE(tx->getOperations()[0]->getResultCode() ==
                             opBAD_AUTH);
@@ -233,7 +230,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                         app.getLedgerManager().getCurrentLedgerHeader());
 
                     REQUIRE(tx->checkValid(app, 0));
-                    tx->apply(delta, app);
+                    applyCheck(tx, delta, app);
                     REQUIRE(tx->getResultCode() == txSUCCESS);
                     REQUIRE(PaymentOpFrame::getInnerCode(getFirstResult(*tx)) ==
                             PAYMENT_SUCCESS);
@@ -270,7 +267,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
                     REQUIRE(!tx->checkValid(app, 0));
 
-                    tx->apply(delta, app);
+                    applyCheck(tx, delta, app);
 
                     REQUIRE(tx->getResult().feeCharged ==
                             2 * app.getLedgerManager().getTxFee());
@@ -308,7 +305,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
                     REQUIRE(tx->checkValid(app, 0));
 
-                    tx->apply(delta, app);
+                    applyCheck(tx, delta, app);
 
                     REQUIRE(tx->getResult().feeCharged ==
                             2 * app.getLedgerManager().getTxFee());
@@ -345,7 +342,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
                     REQUIRE(tx->checkValid(app, 0));
 
-                    tx->apply(delta, app);
+                    applyCheck(tx, delta, app);
 
                     REQUIRE(tx->getResult().feeCharged ==
                             2 * app.getLedgerManager().getTxFee());
@@ -388,7 +385,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
                 REQUIRE(tx->checkValid(app, 0));
 
-                tx->apply(delta, app);
+                applyCheck(tx, delta, app);
 
                 REQUIRE(tx->getResult().feeCharged ==
                         2 * app.getLedgerManager().getTxFee());
@@ -429,15 +426,14 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                 txFrame->getEnvelope().tx.fee = static_cast<uint32_t>(
                     app.getLedgerManager().getTxFee() - 1);
 
-                txFrame->apply(delta, app);
+                applyCheck(txFrame, delta, app);
 
                 REQUIRE(txFrame->getResultCode() == txINSUFFICIENT_FEE);
             }
 
             SECTION("duplicate payment")
             {
-
-                txFrame->apply(delta, app);
+                applyCheck(txFrame, delta, app);
 
                 REQUIRE(txFrame->getResultCode() == txBAD_SEQ);
             }
@@ -454,35 +450,36 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                 clock.setCurrentTime(ledgerTime);
 
                 txFrame = createPaymentTx(root, a1, rootSeq, paymentAmount);
-                txFrame->getEnvelope().tx.timeBounds.activate() = TimeBounds(start + 1000, start + 10000);
+                txFrame->getEnvelope().tx.timeBounds.activate() =
+                    TimeBounds(start + 1000, start + 10000);
 
                 closeLedgerOn(app, 3, 1, 7, 2014);
-                txFrame->apply(delta, app);
+                applyCheck(txFrame, delta, app);
 
                 REQUIRE(txFrame->getResultCode() == txTOO_EARLY);
 
                 txFrame = createPaymentTx(root, a1, rootSeq++, paymentAmount);
-                txFrame->getEnvelope().tx.timeBounds.activate() = TimeBounds(1000, start + 300000);
+                txFrame->getEnvelope().tx.timeBounds.activate() =
+                    TimeBounds(1000, start + 300000);
 
                 closeLedgerOn(app, 4, 2, 7, 2014);
-                txFrame->apply(delta, app);
+                applyCheck(txFrame, delta, app);
                 REQUIRE(txFrame->getResultCode() == txSUCCESS);
 
-
                 txFrame = createPaymentTx(root, a1, rootSeq, paymentAmount);
-                txFrame->getEnvelope().tx.timeBounds.activate() = TimeBounds(1000, start);
+                txFrame->getEnvelope().tx.timeBounds.activate() =
+                    TimeBounds(1000, start);
 
                 closeLedgerOn(app, 5, 3, 7, 2014);
-                txFrame->apply(delta, app);
+                applyCheck(txFrame, delta, app);
                 REQUIRE(txFrame->getResultCode() == txTOO_LATE);
-
             }
 
             SECTION("transaction gap")
             {
                 txFrame = createPaymentTx(root, a1, rootSeq + 1, paymentAmount);
 
-                txFrame->apply(delta, app);
+                applyCheck(txFrame, delta, app);
 
                 REQUIRE(txFrame->getResultCode() == txBAD_SEQ);
             }

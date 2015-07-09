@@ -174,7 +174,7 @@ TEST_CASE("payment", "[tx][payment]")
 
         // verify that the account can't do anything
         auto tx = createPaymentTx(b1, root, b1Seq++, 1);
-        REQUIRE(!tx->apply(delta, app));
+        REQUIRE(!applyCheck(tx, delta, app));
         REQUIRE(tx->getResultCode() == txINSUFFICIENT_BALANCE);
 
         // top up the account to unblock it
