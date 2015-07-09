@@ -213,6 +213,11 @@ NominationProtocol::updateRoundLeaders()
                                    mRoundLeaders.insert(cur);
                                }
                            });
+    CLOG(TRACE, "SCP") << "updateRoundLeaders: " << mRoundLeaders.size();
+    for (auto const& rl : mRoundLeaders)
+    {
+        CLOG(TRACE, "SCP") << "    leader " << PubKeyUtils::toShortString(rl);
+    }
 }
 
 uint64
