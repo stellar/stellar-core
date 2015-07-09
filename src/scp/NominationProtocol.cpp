@@ -430,7 +430,7 @@ NominationProtocol::nominate(Value const& value, Value const& previousValue,
     }
 
     std::chrono::milliseconds timeout =
-        std::chrono::seconds(mRoundNumber * (mRoundNumber + 1) / 2);
+        mSlot.getSCPDriver().computeTimeout(mRoundNumber);
 
     Value nominatingValue;
     if (!mVotes.empty())

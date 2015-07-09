@@ -83,6 +83,11 @@ class SCPDriver
                             std::chrono::milliseconds timeout,
                             std::function<void()> cb) = 0;
 
+    // `computeTimeout` computes a timeout given a round number
+    // it should be sufficiently large such that nodes in a
+    // quorum can exchange 4 messages
+    virtual std::chrono::milliseconds computeTimeout(uint32 roundNumber);
+
     // Inform about events happening within the consensus algorithm.
 
     // `valueExternalized` is called at most once per slot when the slot
