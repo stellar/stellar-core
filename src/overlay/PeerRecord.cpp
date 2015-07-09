@@ -8,7 +8,7 @@
 #include <cmath>
 #include "util/Logging.h"
 #include "util/must_use.h"
-#include "generated/StellarXDR.h"
+#include "main/StellarXDR.h"
 #include "main/Application.h"
 #include <regex>
 

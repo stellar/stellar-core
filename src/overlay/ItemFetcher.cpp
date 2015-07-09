@@ -8,7 +8,7 @@
 #include "util/Logging.h"
 #include "medida/metrics_registry.h"
 #include "herder/TxSetFrame.h"
-#include "generated/StellarXDR.h"
+#include "main/StellarXDR.h"
 #include <crypto/Hex.h>
 #include "herder/Herder.h"
 
@@ -50,9 +50,9 @@ ItemFetcher<TrackerT>::stopFetchingBelow(uint64 slotIndex)
     // all sorts of evil side effects
     mApp.getClock().getIOService().post(
         [this, slotIndex]()
-    {
-        stopFetchingBelowInternal(slotIndex);
-    });
+        {
+            stopFetchingBelowInternal(slotIndex);
+        });
 }
 
 template <class TrackerT>
@@ -88,12 +88,13 @@ void
 ItemFetcher<TrackerT>::recv(uint256 itemID)
 {
     const auto& iter = mTrackers.find(itemID);
-    using xdr::operator== ;
+    using xdr::operator==;
     if (iter != mTrackers.end())
     {
-        // this code can safely be called even if recvSCPEnvelope ends up calling
+        // this code can safely be called even if recvSCPEnvelope ends up
+        // calling
         // recv on the same itemID
-        auto &waiting = iter->second->mWaitingEnvelopes;
+        auto& waiting = iter->second->mWaitingEnvelopes;
         while (!waiting.empty())
         {
             SCPEnvelope env = waiting.back();
@@ -137,7 +138,6 @@ Tracker::clearEnvelopesBelow(uint64 slotIndex)
     return false;
 }
 
-
 void
 Tracker::doesntHave(Peer::pointer peer)
 {
@@ -146,8 +146,6 @@ Tracker::doesntHave(Peer::pointer peer)
         tryNextPeer();
     }
 }
-
-
 
 void
 Tracker::tryNextPeer()
@@ -194,12 +192,11 @@ Tracker::tryNextPeer()
     mTimer.expires_from_now(nextTry);
     mTimer.async_wait(
         [this]()
-    {
-        this->tryNextPeer();
+        {
+            this->tryNextPeer();
         },
         VirtualTimer::onFailureNoop);
 }
-
 
 void
 Tracker::listen(const SCPEnvelope& env)

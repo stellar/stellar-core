@@ -828,9 +828,6 @@
     </None>
   </ItemGroup>
   <ItemGroup>
-    <CustomBuild Include="..\..\src\overlay\StellarXDR.x">
-      <Filter>overlay</Filter>
-    </CustomBuild>
     <CustomBuild Include="..\..\src\xdr\Stellar-ledger.x">
       <Filter>xdr</Filter>
     </CustomBuild>

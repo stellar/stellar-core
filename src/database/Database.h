@@ -6,7 +6,7 @@
 
 #include <string>
 #include <soci.h>
-#include "generated/StellarXDR.h"
+#include "main/StellarXDR.h"
 #include "ledger/AccountFrame.h"
 #include "ledger/OfferFrame.h"
 #include "ledger/TrustFrame.h"

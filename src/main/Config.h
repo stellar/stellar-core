@@ -3,7 +3,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "generated/StellarXDR.h"
+#include "main/StellarXDR.h"
 #include <string>
 #include <memory>
 #include <map>
@@ -17,7 +17,7 @@ class HistoryArchive;
 
 class Config : public std::enable_shared_from_this<Config>
 {
-    
+
   public:
     typedef std::shared_ptr<Config> pointer;
 
@@ -78,7 +78,7 @@ class Config : public std::enable_shared_from_this<Config>
     // and should be false in all normal cases.
     bool ARTIFICIALLY_PESSIMIZE_MERGES_FOR_TESTING;
 
-    // With many `Application` running in the same process under the 
+    // With many `Application` running in the same process under the
     // virtual clock, asio pooling never relinquishes the event loop.
     // This option inserts a VirtualClock event after each read to
     // restore fairness. (Consider removing this option once
@@ -91,11 +91,11 @@ class Config : public std::enable_shared_from_this<Config>
     std::string LOG_FILE_PATH;
     std::string TMP_DIR_PATH;
     std::string BUCKET_DIR_PATH;
-    uint32_t DESIRED_BASE_FEE;      // in stroops
-    uint32_t DESIRED_BASE_RESERVE;  // in stroops
-    uint32_t DESIRED_MAX_TX_PER_LEDGER; 
-    unsigned short HTTP_PORT;       // what port to listen for commands
-    bool PUBLIC_HTTP_PORT;          // if you accept commands from not localhost
+    uint32_t DESIRED_BASE_FEE;     // in stroops
+    uint32_t DESIRED_BASE_RESERVE; // in stroops
+    uint32_t DESIRED_MAX_TX_PER_LEDGER;
+    unsigned short HTTP_PORT; // what port to listen for commands
+    bool PUBLIC_HTTP_PORT;    // if you accept commands from not localhost
 
     // overlay config
     unsigned short PEER_PORT;
@@ -123,6 +123,5 @@ class Config : public std::enable_shared_from_this<Config>
     Config();
 
     void load(std::string const& filename);
-
 };
 }

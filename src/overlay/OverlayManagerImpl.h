@@ -10,7 +10,7 @@
 #include "overlay/ItemFetcher.h"
 #include "overlay/Floodgate.h"
 #include <vector>
-#include "generated/StellarXDR.h"
+#include "main/StellarXDR.h"
 #include "overlay/OverlayManager.h"
 #include "util/Timer.h"
 #include "herder/TxSetFrame.h"

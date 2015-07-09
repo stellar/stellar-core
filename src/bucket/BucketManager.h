@@ -5,7 +5,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include <memory>
-#include "generated/StellarXDR.h"
+#include "main/StellarXDR.h"
 #include "bucket/Bucket.h"
 #include "util/NonCopyable.h"
 
@@ -43,11 +43,13 @@ struct HistoryArchiveState;
 class BucketManager : NonMovableOrCopyable
 {
 
-public:
+  public:
     static std::unique_ptr<BucketManager> create(Application&);
     static void dropAll(Application& app);
 
-    virtual ~BucketManager() {}
+    virtual ~BucketManager()
+    {
+    }
     virtual std::string const& getTmpDir() = 0;
     virtual std::string const& getBucketDir() = 0;
     virtual BucketList& getBucketList() = 0;
@@ -65,10 +67,9 @@ public:
     // This method is mostly-threadsafe -- assuming you don't destruct the
     // BucketManager mid-call -- and is intended to be called from both main and
     // worker threads. Very carefully.
-    virtual std::shared_ptr<Bucket> adoptFileAsBucket(std::string const& filename,
-                                                      uint256 const& hash,
-                                                      size_t nObjects = 0,
-                                                      size_t nBytes = 0) = 0;
+    virtual std::shared_ptr<Bucket>
+    adoptFileAsBucket(std::string const& filename, uint256 const& hash,
+                      size_t nObjects = 0, size_t nBytes = 0) = 0;
 
     // Return a bucket by hash if we have it, else return nullptr.
     virtual std::shared_ptr<Bucket> getBucketByHash(uint256 const& hash) = 0;
@@ -88,10 +89,13 @@ public:
     // state of the bucket list.
     virtual void snapshotLedger(LedgerHeader& currentHeader) = 0;
 
-    // Check for missing bucket files that would prevent `assumeState` from succeeding
-    virtual std::vector<std::string> checkForMissingBucketsFiles(HistoryArchiveState const& has) = 0;
+    // Check for missing bucket files that would prevent `assumeState` from
+    // succeeding
+    virtual std::vector<std::string>
+    checkForMissingBucketsFiles(HistoryArchiveState const& has) = 0;
 
-    // Restart from a saved state: find and attach all buckets in `has`, set current BL.
+    // Restart from a saved state: find and attach all buckets in `has`, set
+    // current BL.
     virtual void assumeState(HistoryArchiveState const& has) = 0;
 };
 }

@@ -7,7 +7,7 @@
 #include <memory>
 #include <functional>
 #include <string>
-#include "generated/StellarXDR.h"
+#include "main/StellarXDR.h"
 #include "scp/SCP.h"
 #include "lib/json/json-forwards.h"
 #include "util/Timer.h"

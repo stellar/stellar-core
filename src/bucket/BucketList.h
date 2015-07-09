@@ -6,7 +6,7 @@
 
 #include <future>
 #include "bucket/FutureBucket.h"
-#include "generated/StellarXDR.h"
+#include "main/StellarXDR.h"
 #include "xdrpp/message.h"
 
 namespace stellar
@@ -128,9 +128,9 @@ namespace stellar
 // level[1]  curr= ------ empty ------- ,  snap=(0x56789a0, 0x56789a8]
 // level[2]  curr= ------ empty ------- ,  snap=(0x5678980, 0x56789a0]
 // level[3]  curr= ------ empty ------- ,  snap=(0x5678900, 0x5678980]
-// level[4]  curr=(0x5678800, 0x5678900],  snap= ------ empty ------- 
+// level[4]  curr=(0x5678800, 0x5678900],  snap= ------ empty -------
 // level[5]  curr= ------ empty ------- ,  snap=(0x5678000, 0x5678800]
-// level[6]  curr= ------ empty ------- ,  snap= ------ empty ------- 
+// level[6]  curr= ------ empty ------- ,  snap= ------ empty -------
 // level[7]  curr= ------ empty ------- ,  snap=(0x5670000, 0x5678000]
 // level[8]  curr=(0x5660000, 0x5670000],  snap=(0x5640000, 0x5660000]
 // level[9]  curr=(0x5600000, 0x5640000],  snap= ------ empty -------
@@ -191,7 +191,7 @@ namespace stellar
 // either buying physical hardware (commodity SSDs sustain writes in the 400MB/s
 // range), by using instance storage rather than EBS (measured around 100MB/s
 // write on disk, 250MB/s on SSD) or by using striping across EBS or instance
-// volumes. 
+// volumes.
 //
 //
 // Degeneracy and limits:
@@ -267,7 +267,6 @@ class BucketList
     std::vector<BucketLevel> mLevels;
 
   public:
-
     // Number of bucket levels in the bucketlist. Every bucketlist in the system
     // will have this many levels and it effectively gets wired-in to the
     // protocol. Careful about changing it.

@@ -9,7 +9,7 @@
 #include <system_error>
 #include <memory>
 #include "bucket/FutureBucket.h"
-#include "generated/Stellar-types.h"
+#include "main/StellarXDR.h"
 
 namespace asio
 {
@@ -33,18 +33,14 @@ struct HistoryStateBucket
     void
     serialize(Archive& ar) const
     {
-        ar(CEREAL_NVP(curr),
-           CEREAL_NVP(next),
-           CEREAL_NVP(snap));
+        ar(CEREAL_NVP(curr), CEREAL_NVP(next), CEREAL_NVP(snap));
     }
 
     template <class Archive>
     void
     serialize(Archive& ar)
     {
-        ar(CEREAL_NVP(curr),
-           CEREAL_NVP(next),
-           CEREAL_NVP(snap));
+        ar(CEREAL_NVP(curr), CEREAL_NVP(next), CEREAL_NVP(snap));
     }
 };
 
@@ -63,8 +59,7 @@ struct HistoryArchiveState
 
     HistoryArchiveState();
 
-    HistoryArchiveState(uint32_t ledgerSeq,
-                        BucketList& buckets);
+    HistoryArchiveState(uint32_t ledgerSeq, BucketList& buckets);
 
     static std::string baseName();
     static std::string wellKnownRemoteDir();

@@ -4,7 +4,7 @@
 
 #include "simulation/Topologies.h"
 #include "lib/catch.hpp"
-#include "generated/StellarXDR.h"
+#include "main/StellarXDR.h"
 #include "main/Application.h"
 #include "overlay/LoopbackPeer.h"
 #include "util/make_unique.h"
@@ -92,7 +92,7 @@ TEST_CASE("3 nodes. 2 running. threshold 2", "[simulation][core3]")
             },
             2 * nLedgers * Herder::EXP_LEDGER_TIMESPAN_SECONDS, true);
 
-        //printStats(nLedgers, tBegin, simulation);
+        // printStats(nLedgers, tBegin, simulation);
 
         REQUIRE(simulation->haveAllExternalized(nLedgers + 1));
     }
@@ -128,7 +128,7 @@ TEST_CASE("core topology: 4 ledgers at scales 2..4", "[simulation]")
 
         REQUIRE(sim->haveAllExternalized(nLedgers + 1));
 
-        //printStats(nLedgers, tBegin, sim);
+        // printStats(nLedgers, tBegin, sim);
     }
 }
 
@@ -149,7 +149,7 @@ hierarchicalTopo(int nLedgers, int nBranches, Simulation::Mode mode)
 
     REQUIRE(sim->haveAllExternalized(nLedgers + 1));
 
-    //printStats(nLedgers, tBegin, sim);
+    // printStats(nLedgers, tBegin, sim);
 }
 
 /* this test is still busted for some reason:
@@ -246,7 +246,8 @@ TEST_CASE("Stress test on 2 nodes 3 accounts 10 random transactions 10tx/sec",
 TEST_CASE("Auto-calibrated single node load test", "[autoload][hide]")
 {
 #ifdef USE_POSTGRES
-    Config const& cfg = getTestConfig(0, Config::TESTDB_TCP_LOCALHOST_POSTGRESQL);
+    Config const& cfg =
+        getTestConfig(0, Config::TESTDB_TCP_LOCALHOST_POSTGRESQL);
 #else
     Config const& cfg = getTestConfig(0, Config::TESTDB_ON_DISK_SQLITE);
 #endif
@@ -256,7 +257,8 @@ TEST_CASE("Auto-calibrated single node load test", "[autoload][hide]")
     appPtr->generateLoad(100000, 100000, 10, true);
     auto& io = clock.getIOService();
     asio::io_service::work mainWork(io);
-    auto& complete = appPtr->getMetrics().NewMeter({"loadgen", "run", "complete"}, "run");
+    auto& complete =
+        appPtr->getMetrics().NewMeter({"loadgen", "run", "complete"}, "run");
     while (!io.stopped() && complete.count() == 0)
     {
         clock.crank();

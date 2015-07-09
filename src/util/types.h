@@ -5,7 +5,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include <vector>
-#include "generated/StellarXDR.h"
+#include "main/StellarXDR.h"
 #include "xdrpp/message.h"
 
 namespace stellar

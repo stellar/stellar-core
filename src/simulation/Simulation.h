@@ -8,12 +8,12 @@
 #include "main/Config.h"
 #include "main/Application.h"
 #include "overlay/LoopbackPeer.h"
-#include "generated/StellarXDR.h"
+#include "main/StellarXDR.h"
 #include "util/Timer.h"
 #include "crypto/SHA.h"
 #include "medida/medida.h"
 #include "transactions/TxTests.h"
-#include "generated/Stellar-types.h"
+#include "main/StellarXDR.h"
 #include "simulation/LoadGenerator.h"
 
 #define SIMULATION_CREATE_NODE(N)                                              \

@@ -4,7 +4,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "generated/StellarXDR.h"
+#include "main/StellarXDR.h"
 #include "history/HistoryArchive.h"
 #include <functional>
 #include <memory>
@@ -69,7 +69,8 @@
  * bucket/AA/BB/CC/bucket-<AABBCCDEFG...>.xdr.gz
  *
  * The first ledger and transaction files (containing the genesis ledger #1, and
- * the subsequent 62 ledgers) are checkpointed when LedgerManager's currentLedger
+ * the subsequent 62 ledgers) are checkpointed when LedgerManager's
+ *currentLedger
  * is 64 = 0x40, so the last ledger published into that snapshot is 0x3f, and
  * it's stored in files ledger/00/00/00/ledger-0x0000003f.xdr.gz and
  * transaction/00/00/00/transaction-0x0000003f.xdr.gz, and described by
@@ -182,7 +183,6 @@ struct StateSnapshot;
 class HistoryManager
 {
   public:
-
     // The two supported styles of catchup. CATCHUP_COMPLETE will replay all
     // history blocks, from the last closed ledger to the present, when catching
     // up; CATCHUP_MINIMAL will attempt to "fast forward" to the next BucketList
@@ -253,17 +253,20 @@ class HistoryManager
     // ledger of the catchup operation.
     virtual uint32_t nextCheckpointLedger(uint32_t ledger) = 0;
 
-    // Given a ledger, tell the number of seconds to sleep until the next catchup probe.
+    // Given a ledger, tell the number of seconds to sleep until the next
+    // catchup probe.
     virtual uint64_t nextCheckpointCatchupProbe(uint32_t ledger) = 0;
 
     // Verify that a file has a given hash.
-    virtual void verifyHash(std::string const& filename, uint256 const& hash,
-                            std::function<void(asio::error_code const&)> handler) const = 0;
+    virtual void
+    verifyHash(std::string const& filename, uint256 const& hash,
+               std::function<void(asio::error_code const&)> handler) const = 0;
 
     // Gunzip a file.
-    virtual void decompress(std::string const& filename_gz,
-                            std::function<void(asio::error_code const&)> handler,
-                            bool keepExisting = false) const = 0;
+    virtual void
+    decompress(std::string const& filename_gz,
+               std::function<void(asio::error_code const&)> handler,
+               bool keepExisting = false) const = 0;
 
     // Gzip a file.
     virtual void compress(std::string const& filename_nogz,
@@ -271,38 +274,42 @@ class HistoryManager
                           bool keepExisting = false) const = 0;
 
     // Put a file to a specific archive using it's `put` command.
-    virtual void putFile(std::shared_ptr<HistoryArchive const> archive,
-                         std::string const& local, std::string const& remote,
-                         std::function<void(asio::error_code const&)> handler) const = 0;
+    virtual void
+    putFile(std::shared_ptr<HistoryArchive const> archive,
+            std::string const& local, std::string const& remote,
+            std::function<void(asio::error_code const&)> handler) const = 0;
 
     // Get a file from a specific archive using it's `get` command.
-    virtual void getFile(std::shared_ptr<HistoryArchive const> archive,
-                         std::string const& remote, std::string const& local,
-                         std::function<void(asio::error_code const&)> handler) const = 0;
+    virtual void
+    getFile(std::shared_ptr<HistoryArchive const> archive,
+            std::string const& remote, std::string const& local,
+            std::function<void(asio::error_code const&)> handler) const = 0;
 
     // Make a directory on a specific archive using its `mkdir` command.
-    virtual void mkdir(std::shared_ptr<HistoryArchive const> archive,
-                       std::string const& dir,
-                       std::function<void(asio::error_code const&)> handler) const = 0;
+    virtual void
+    mkdir(std::shared_ptr<HistoryArchive const> archive, std::string const& dir,
+          std::function<void(asio::error_code const&)> handler) const = 0;
 
     // Publish history if the current ledger is a multiple of
     // getCheckpointFrequency() -- equivalently, the LCL is one _less_ than a
-    // multiple of getCheckpointFrequency() -- and no publish action is currently in
+    // multiple of getCheckpointFrequency() -- and no publish action is
+    // currently in
     // progress. Returns true if checkpoint publication of the LCL was started
     // (and the completion-handler queued), otherwise false.
-    virtual bool
-    maybePublishHistory(std::function<void(asio::error_code const&)> handler) = 0;
+    virtual bool maybePublishHistory(
+        std::function<void(asio::error_code const&)> handler) = 0;
 
     virtual bool hasAnyWritableHistoryArchive() = 0;
 
     // Checkpoint the LCL -- both the log of history from the previous
     // checkpoint to it, as well as the bucketlist of its state -- to all
     // writable history archives.
-    virtual void publishHistory(std::function<void(asio::error_code const&)> handler) = 0;
+    virtual void
+    publishHistory(std::function<void(asio::error_code const&)> handler) = 0;
 
     virtual void downloadMissingBuckets(
         HistoryArchiveState desiredState,
-        std::function<void(asio::error_code const&ec)> handler) = 0;
+        std::function<void(asio::error_code const& ec)> handler) = 0;
 
     // Run catchup, we've just heard `initLedger` from the network. Mode can be
     // CATCHUP_COMPLETE, meaning replay history from last to present, or
@@ -317,9 +324,8 @@ class HistoryManager
     virtual void catchupHistory(
         uint32_t initLedger, CatchupMode mode,
         std::function<void(asio::error_code const& ec, CatchupMode mode,
-                           LedgerHeaderHistoryEntry const& lastClosed)>
-        handler,
-        bool manualCatchup=false) = 0;
+                           LedgerHeaderHistoryEntry const& lastClosed)> handler,
+        bool manualCatchup = false) = 0;
 
     // Call posted after a worker thread has finished taking a snapshot; calls
     // PublishStateMachine::snapshotWritten after bumping counter.
@@ -332,7 +338,8 @@ class HistoryManager
     // transit).
     virtual std::string const& getTmpDir() = 0;
 
-    // Return the path of `basename` situated inside the HistoryManager's tmpdir.
+    // Return the path of `basename` situated inside the HistoryManager's
+    // tmpdir.
     virtual std::string localFilename(std::string const& basename) = 0;
 
     // Return the number of checkpoints that have been skipped due to
@@ -369,6 +376,6 @@ class HistoryManager
     // Return the number of times the catchup has failed.
     virtual uint64_t getCatchupFailureCount() = 0;
 
-    virtual ~HistoryManager() {};
+    virtual ~HistoryManager(){};
 };
 }

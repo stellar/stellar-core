@@ -5,7 +5,7 @@
 #include "overlay/TCPPeer.h"
 #include "util/Logging.h"
 #include "main/Application.h"
-#include "generated/StellarXDR.h"
+#include "main/StellarXDR.h"
 #include "xdrpp/marshal.h"
 #include "overlay/OverlayManager.h"
 #include "database/Database.h"
@@ -193,7 +193,7 @@ void
 TCPPeer::messageSender()
 {
     // if nothing to do, return
-    if(mWriteQueue.empty())
+    if (mWriteQueue.empty())
     {
         return;
     }

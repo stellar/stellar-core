@@ -7,7 +7,7 @@
 #include "database/Database.h"
 #include "lib/catch.hpp"
 #include "main/Config.h"
-#include "generated/StellarXDR.h"
+#include "main/StellarXDR.h"
 #include "main/Application.h"
 #include "main/test.h"
 
@@ -49,8 +49,8 @@ TEST_CASE("toXdr", "[overlay][PeerRecord]")
             pr2.mNumFailures++;
             REQUIRE(!pr2.insertIfNew(app->getDatabase()));
 
-            auto actualPR =
-                PeerRecord::loadPeerRecord(app->getDatabase(), pr.mIP, pr.mPort);
+            auto actualPR = PeerRecord::loadPeerRecord(app->getDatabase(),
+                                                       pr.mIP, pr.mPort);
             REQUIRE(*actualPR == pr);
         }
 
@@ -83,5 +83,4 @@ TEST_CASE("private addresses", "[overlay][PeerRecord]")
     PeerRecord::fromIPPort("192.168.1.2", 15, clock, pr);
     CHECK(pr.isPrivateAddress());
 }
-
 }

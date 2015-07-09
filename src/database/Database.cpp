@@ -6,7 +6,7 @@
 #include "crypto/Base58.h"
 #include "crypto/Hex.h"
 #include "database/Database.h"
-#include "generated/StellarXDR.h"
+#include "main/StellarXDR.h"
 #include "ledger/LedgerHeaderFrame.h"
 #include "main/Application.h"
 #include "main/Config.h"
@@ -66,7 +66,8 @@ Database::registerDrivers()
 
 Database::Database(Application& app)
     : mApp(app)
-    , mStatementsSize(app.getMetrics().NewCounter({"database", "memory", "statements"}))
+    , mStatementsSize(
+          app.getMetrics().NewCounter({"database", "memory", "statements"}))
 {
     registerDrivers();
     CLOG(INFO, "Database") << "Connecting to: " << app.getConfig().DATABASE;
@@ -181,11 +182,10 @@ class SQLLogContext : NonCopyable
     std::string mName;
     soci::session& mSess;
     std::ostringstream mCapture;
-public:
-    SQLLogContext(std::string const& name,
-                  soci::session& sess)
-        : mName(name)
-        , mSess(sess)
+
+  public:
+    SQLLogContext(std::string const& name, soci::session& sess)
+        : mName(name), mSess(sess)
     {
         mSess.set_log_stream(&mCapture);
     }
@@ -239,5 +239,4 @@ Database::captureAndLogSQL(std::string contextName)
 {
     return make_shared<SQLLogContext>(contextName, mSession);
 }
-
 }

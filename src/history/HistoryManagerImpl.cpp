@@ -12,7 +12,7 @@
 #include "bucket/BucketList.h"
 #include "bucket/BucketManager.h"
 #include "ledger/LedgerManager.h"
-#include "generated/StellarXDR.h"
+#include "main/StellarXDR.h"
 #include "history/HistoryArchive.h"
 #include "history/HistoryManagerImpl.h"
 #include "history/PublishStateMachine.h"

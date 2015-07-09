@@ -4,7 +4,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "generated/StellarXDR.h"
+#include "main/StellarXDR.h"
 #include "crypto/SecretKey.h"
 #include "ledger/AccountFrame.h"
 #include "ledger/OfferFrame.h"
@@ -20,8 +20,6 @@ class OperationFrame;
 namespace txtest
 {
 
-   
-
 struct ThresholdSetter
 {
     optional<uint8_t> masterWeight;
@@ -30,12 +28,10 @@ struct ThresholdSetter
     optional<uint8_t> highThreshold;
 };
 
-
 time_t getTestDate(int day, int month, int year);
 
-void
-closeLedgerOn(Application& app, uint32 ledgerSeq, int day, int month, int year,
-    TransactionFramePtr tx = nullptr);
+void closeLedgerOn(Application& app, uint32 ledgerSeq, int day, int month,
+                   int year, TransactionFramePtr tx = nullptr);
 
 SecretKey getRoot();
 
