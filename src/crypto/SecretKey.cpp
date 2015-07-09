@@ -13,12 +13,12 @@ namespace stellar
 
 SecretKey::SecretKey() : mKeyType(KEY_TYPES_ED25519)
 {
-static_assert(crypto_sign_PUBLICKEYBYTES == sizeof(uint256),
-              "Unexpected public key length");
-static_assert(crypto_sign_SECRETKEYBYTES == sizeof(uint512),
-              "Unexpected secret key length");
-static_assert(crypto_sign_BYTES == sizeof(uint512),
-              "Unexpected signature length");
+    static_assert(crypto_sign_PUBLICKEYBYTES == sizeof(uint256),
+                  "Unexpected public key length");
+    static_assert(crypto_sign_SECRETKEYBYTES == sizeof(uint512),
+                  "Unexpected secret key length");
+    static_assert(crypto_sign_BYTES == sizeof(uint512),
+                  "Unexpected signature length");
 }
 
 PublicKey
@@ -180,15 +180,15 @@ SignatureHint
 PubKeyUtils::getHint(PublicKey const& pk)
 {
     SignatureHint res;
-    memcpy(res.data(), &pk.ed25519().back() - res.size(), sizeof(res));
+    memcpy(res.data(), &pk.ed25519().back() - res.size() + 1, res.size());
     return res;
 }
 
 bool
 PubKeyUtils::hasHint(PublicKey const& pk, SignatureHint const& hint)
 {
-    return memcmp(&pk.ed25519().back() - hint.size(), hint.data(),
-                  sizeof(hint)) == 0;
+    return memcmp(&pk.ed25519().back() - hint.size() + 1, hint.data(),
+                  hint.size()) == 0;
 }
 
 Hash

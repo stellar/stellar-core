@@ -5,7 +5,6 @@
 #include "BallotProtocol.h"
 
 #include <functional>
-#include <cmath>
 #include "util/types.h"
 #include "xdrpp/marshal.h"
 #include "crypto/Hex.h"
@@ -451,7 +450,7 @@ BallotProtocol::bumpToBallot(SCPBallot const& ballot)
     mHeardFromQuorum = false;
 
     std::chrono::milliseconds timeout =
-        std::chrono::seconds((int)pow(2.0, ballot.counter));
+        mSlot.getSCPDriver().computeTimeout(ballot.counter);
 
     if (gotBumped)
     {

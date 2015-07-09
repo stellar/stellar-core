@@ -208,11 +208,16 @@ NominationProtocol::updateRoundLeaders()
                                    topPriority = w;
                                    mRoundLeaders.clear();
                                }
-                               if (w == topPriority)
+                               if (w == topPriority && w > 0)
                                {
                                    mRoundLeaders.insert(cur);
                                }
                            });
+    CLOG(TRACE, "SCP") << "updateRoundLeaders: " << mRoundLeaders.size();
+    for (auto const& rl : mRoundLeaders)
+    {
+        CLOG(TRACE, "SCP") << "    leader " << PubKeyUtils::toShortString(rl);
+    }
 }
 
 uint64
@@ -430,7 +435,7 @@ NominationProtocol::nominate(Value const& value, Value const& previousValue,
     }
 
     std::chrono::milliseconds timeout =
-        std::chrono::seconds(mRoundNumber * (mRoundNumber + 1) / 2);
+        mSlot.getSCPDriver().computeTimeout(mRoundNumber);
 
     Value nominatingValue;
     if (!mVotes.empty())

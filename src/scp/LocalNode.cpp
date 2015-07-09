@@ -105,23 +105,26 @@ LocalNode::forAllNodes(SCPQuorumSet const& qset,
 uint64
 LocalNode::getNodeWeight(NodeID const& nodeID, SCPQuorumSet const& qset)
 {
-    double chance = ((double)qset.threshold) /
-                    (double)(qset.innerSets.size() + qset.validators.size());
+    uint64 n = qset.threshold;
+    uint64 d = qset.innerSets.size() + qset.validators.size();
+    uint64 res;
 
     for (auto const& qsetNode : qset.validators)
     {
         if (qsetNode == nodeID)
         {
-            return uint64(double(UINT64_MAX) * chance);
+            bigDivide(res, UINT64_MAX, n, d);
+            return res;
         }
     }
 
     for (auto const& q : qset.innerSets)
     {
-        uint64 result = getNodeWeight(nodeID, q);
-        if (result)
+        uint64 leafW = getNodeWeight(nodeID, q);
+        if (leafW)
         {
-            return uint64(double(result) * chance);
+            bigDivide(res, leafW, n, d);
+            return res;
         }
     }
 
@@ -164,7 +167,7 @@ bool
 LocalNode::isQuorumSlice(SCPQuorumSet const& qSet,
                          std::vector<NodeID> const& nodeSet)
 {
-    CLOG(DEBUG, "SCP") << "LocalNode::isQuorumSlice"
+    CLOG(TRACE, "SCP") << "LocalNode::isQuorumSlice"
                        << " nodeSet.size: " << nodeSet.size();
 
     return isQuorumSliceInternal(qSet, nodeSet);
@@ -216,7 +219,7 @@ bool
 LocalNode::isVBlocking(SCPQuorumSet const& qSet,
                        std::vector<NodeID> const& nodeSet)
 {
-    CLOG(DEBUG, "SCP") << "LocalNode::isVBlocking"
+    CLOG(TRACE, "SCP") << "LocalNode::isVBlocking"
                        << " nodeSet.size: " << nodeSet.size();
 
     return isVBlockingInternal(qSet, nodeSet);
