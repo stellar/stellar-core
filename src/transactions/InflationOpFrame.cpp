@@ -6,7 +6,7 @@
 #include "ledger/AccountFrame.h"
 #include "ledger/LedgerDelta.h"
 #include "ledger/LedgerManager.h"
-#include "generated/StellarXDR.h"
+#include "main/StellarXDR.h"
 
 #include "medida/meter.h"
 #include "medida/metrics_registry.h"

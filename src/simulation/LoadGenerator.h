@@ -7,7 +7,7 @@
 #include "main/Application.h"
 #include "crypto/SecretKey.h"
 #include "transactions/TxTests.h"
-#include "generated/Stellar-types.h"
+#include "main/StellarXDR.h"
 #include <vector>
 
 namespace medida
@@ -51,8 +51,7 @@ class LoadGenerator
 
     // Schedule a callback to generateLoad() STEP_MSECS miliseconds from now.
     void scheduleLoadGeneration(Application& app, uint32_t nAccounts,
-                                uint32_t nTxs, uint32_t txRate,
-                                bool autoRate);
+                                uint32_t nTxs, uint32_t txRate, bool autoRate);
 
     // Generate one "step" worth of load (assuming 1 step per STEP_MSECS) at a
     // given target number of accounts and txs, and a given target tx/s rate.

@@ -7,7 +7,7 @@
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
 #include "database/Database.h"
-#include "generated/StellarXDR.h"
+#include "main/StellarXDR.h"
 #include "herder/Herder.h"
 #include "herder/TxSetFrame.h"
 #include "main/Application.h"

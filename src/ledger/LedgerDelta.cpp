@@ -3,7 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "ledger/LedgerDelta.h"
-#include "generated/Stellar-ledger.h"
+#include "main/StellarXDR.h"
 #include "main/Application.h"
 #include "medida/metrics_registry.h"
 #include "medida/meter.h"

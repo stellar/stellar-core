@@ -4,7 +4,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "generated/StellarXDR.h"
+#include "main/StellarXDR.h"
 #include <string>
 #include <memory>
 #include <vector>
@@ -42,14 +42,14 @@ class FutureBucket
 
     enum State
     {
-        FB_CLEAR = 0,         // No inputs; no outputs; no hashes.
-        FB_HASH_OUTPUT = 1,   // Output hash; no output; no inputs or hashes.
-        FB_HASH_INPUTS = 2,   // Input hashes; no inputs; no outputs or hashes.
-        FB_LIVE_OUTPUT = 3,   // Output; output hashes; _maybe_ inputs and hashes.
-        FB_LIVE_INPUTS = 4,   // Inputs; input hashes; no outputs. Merge running.
+        FB_CLEAR = 0,       // No inputs; no outputs; no hashes.
+        FB_HASH_OUTPUT = 1, // Output hash; no output; no inputs or hashes.
+        FB_HASH_INPUTS = 2, // Input hashes; no inputs; no outputs or hashes.
+        FB_LIVE_OUTPUT = 3, // Output; output hashes; _maybe_ inputs and hashes.
+        FB_LIVE_INPUTS = 4, // Inputs; input hashes; no outputs. Merge running.
     };
 
-    State mState {FB_CLEAR};
+    State mState{FB_CLEAR};
 
     // These live values hold the input buckets and/or output std::shared_future
     // for a "live" bucket merge in progress. They will be empty when the
@@ -79,10 +79,8 @@ class FutureBucket
     void clearOutput();
     void setLiveOutput(std::shared_ptr<Bucket> b);
 
-public:
-
-    FutureBucket(Application& app,
-                 std::shared_ptr<Bucket> const& curr,
+  public:
+    FutureBucket(Application& app, std::shared_ptr<Bucket> const& curr,
                  std::shared_ptr<Bucket> const& snap,
                  std::vector<std::shared_ptr<Bucket>> const& shadows);
 
@@ -98,7 +96,8 @@ public:
     // Returns whether this object is in a FB_LIVE_FOO state.
     bool isLive() const;
 
-    // Returns whether this object is in a FB_LIVE_INPUTS state (a merge is running).
+    // Returns whether this object is in a FB_LIVE_INPUTS state (a merge is
+    // running).
     bool isMerging() const;
 
     // Returns whether this object is in a FB_HASH_FOO state.
@@ -123,7 +122,8 @@ public:
     std::vector<std::string> getHashes() const;
 
     template <class Archive>
-    void load(Archive& ar)
+    void
+    load(Archive& ar)
     {
         clear();
         ar(cereal::make_nvp("state", mState));
@@ -140,14 +140,16 @@ public:
         case FB_CLEAR:
             break;
         default:
-            throw std::runtime_error("deserialized unexpected FutureBucket state");
+            throw std::runtime_error(
+                "deserialized unexpected FutureBucket state");
             break;
         }
         checkState();
     }
 
     template <class Archive>
-    void save(Archive& ar) const
+    void
+    save(Archive& ar) const
     {
         checkState();
         switch (mState)

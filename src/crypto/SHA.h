@@ -4,7 +4,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "generated/Stellar-SCP.h"
+#include "generated/Stellar-types.h"
 #include "crypto/ByteSlice.h"
 #include <memory>
 
@@ -19,7 +19,7 @@ class SHA256
 {
   public:
     static std::unique_ptr<SHA256> create();
-    virtual ~SHA256() {};
+    virtual ~SHA256(){};
     virtual void add(ByteSlice const& bin) = 0;
     virtual uint256 finish() = 0;
 };

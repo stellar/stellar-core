@@ -157,6 +157,7 @@ FMT_HDRS =                                      \
     src/main/CommandHandler.h                   \
     src/main/Config.h                           \
     src/main/PersistentState.h                  \
+    src/main/StellarXDR.h                       \
     src/main/fuzz.h                             \
     src/main/test.h                             \
     src/overlay/Floodgate.h                     \
@@ -201,8 +202,7 @@ FMT_HDRS =                                      \
     src/util/optional.h                         \
     src/util/types.h
 
-BUILT_SOURCES = src/generated/StellarCoreVersion.h                              \
-                src/generated/StellarXDR.h                                      \
+BUILT_SOURCES = src/generated/StellarCoreVersion.h                            \
                 src/generated/Stellar-SCP.h
 
 bin_stellar_core_SOURCES =                      \
@@ -396,10 +396,6 @@ src/generated/Stellar-transaction.h: src/xdr/Stellar-transaction.x src/generated
 	$(XDRC) -hh -o $@ $<
 
 src/generated/Stellar-ledger.h: src/xdr/Stellar-ledger.x src/generated/Stellar-transaction.h Makefile $(XDRC)
-	$(AM_V_GEN)mkdir -p src/generated; \
-	$(XDRC) -hh -o $@ $<
-
-src/generated/StellarXDR.h: src/overlay/StellarXDR.x src/generated/Stellar-SCP.h src/generated/Stellar-overlay.h Makefile $(XDRC)
 	$(AM_V_GEN)mkdir -p src/generated; \
 	$(XDRC) -hh -o $@ $<
 

@@ -10,7 +10,7 @@
 #include "ledger/LedgerHeaderFrame.h"
 #include "main/PersistentState.h"
 #include "history/HistoryManager.h"
-#include "generated/Stellar-ledger.h"
+#include "main/StellarXDR.h"
 
 /*
 Holds the current ledger

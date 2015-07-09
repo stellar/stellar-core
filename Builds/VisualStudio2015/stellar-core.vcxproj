@@ -75,7 +75,7 @@
       <Message>XDR</Message>
     </PreBuildEvent>
     <CustomBuildStep>
-      <Inputs>../../src/generated/StellarXDR.h</Inputs>
+      <Inputs>../../src/generated/Stellar-overlay.h</Inputs>
       <Command>@echo XDR &gt; $(IntermediateOutputPath)\xdrgen.stamp</Command>
       <Message>XDR check</Message>
       <Outputs>$(IntermediateOutputPath)\xdrgen.stamp</Outputs>
@@ -127,7 +127,7 @@
       <Message>XDR</Message>
     </PreBuildEvent>
     <CustomBuildStep>
-      <Inputs>../../src/generated/StellarXDR.h</Inputs>
+      <Inputs>../../src/generated/Stellar-overlay.h</Inputs>
       <Command>@echo XDR &gt; $(IntermediateOutputPath)\xdrgen.stamp</Command>
       <Message>XDR check</Message>
       <Outputs>$(IntermediateOutputPath)\xdrgen.stamp</Outputs>
@@ -414,21 +414,6 @@
     <None Include="..\..\INSTALL" />
     <None Include="..\..\Makefile.am" />
     <None Include="..\..\NEWS" />
-    <CustomBuild Include="..\..\src\overlay\StellarXDR.x">
-      <FileType>Document</FileType>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(SolutionDir)$(Platform)\$(Configuration)\xdrc.exe -hh -o ../../src/generated/StellarXDR.h ../../src/overlay/StellarXDR.x
-$(SolutionDir)$(Platform)\$(Configuration)\xdrc.exe -hh -o ../../src/generated/StellarXDR.h ../../src/overlay/StellarXDR.x</Command>
-      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">running xdrc</Message>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">../../src/generated/StellarXDR.h</Outputs>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(SolutionDir)$(Platform)\$(Configuration)\xdrc.exe -hh -o ../../src/generated/StellarXDR.h ../../src/overlay/StellarXDR.x
-$(SolutionDir)$(Platform)\$(Configuration)\xdrc.exe -hh -o ../../src/generated/StellarXDR.h ../../src/overlay/StellarXDR.x</Command>
-      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">running xdrc</Message>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">../../src/generated/StellarXDR.h</Outputs>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-      </ExcludedFromBuild>
-      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">../../src/overlay/StellarXDR.x;../../src/generated/Stellar-SCP.h;../../src/generated/Stellar-types.h;../../src/generated/Stellar-ledger-entries.h;../../src/generated/Stellar-transaction.h;../../src/generated/Stellar-ledger.h;../../src/generated/Stellar-overlay.h</AdditionalInputs>
-      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">../../src/overlay/StellarXDR.x;../../src/generated/Stellar-SCP.h;../../src/generated/Stellar-types.h;../../src/generated/Stellar-ledger-entries.h;../../src/generated/Stellar-transaction.h;../../src/generated/Stellar-ledger.h;../../src/generated/Stellar-overlay.h</AdditionalInputs>
-    </CustomBuild>
     <None Include="..\..\README.md" />
     <None Include="..\..\src\bucket\readme.md" />
     <None Include="..\..\src\crypto\readme.md" />
