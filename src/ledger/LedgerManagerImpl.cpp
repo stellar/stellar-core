@@ -492,8 +492,12 @@ LedgerManagerImpl::historyCaughtup(asio::error_code const& ec,
             }
             else if (lcd.mLedgerSeq == mLastClosedLedger.header.ledgerSeq + 1)
             {
-                CLOG(INFO, "Ledger") << "Replaying buffered ledger-close for "
-                                     << lcd.mLedgerSeq;
+                CLOG(INFO, "Ledger") << "Replaying buffered ledger-close: "
+                                     << "[seq=" << lcd.mLedgerSeq << ", prev="
+                                     << hexAbbrev(lcd.mTxSet->previousLedgerHash())
+                                     << ", tx_count=" << lcd.mTxSet->size()
+                                     << ", sv: " << stellarValueToString(lcd.mValue)
+                                     << "]";
                 closeLedger(lcd);
                 applied = true;
             }
@@ -565,6 +569,12 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
     if (ledgerData.mTxSet->previousLedgerHash() !=
         getLastClosedLedgerHeader().hash)
     {
+        CLOG(ERROR, "Ledger") << "TxSet mismatch: LCD wants "
+                              << ledgerAbbrev(ledgerData.mLedgerSeq - 1,
+                                              ledgerData.mTxSet->previousLedgerHash())
+                              << ", LCL is "
+                              << ledgerAbbrev(getLastClosedLedgerHeader());
+
         throw std::runtime_error("txset mismatch");
     }
 
