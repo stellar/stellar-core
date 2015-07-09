@@ -413,6 +413,14 @@ TransactionFrame::markResultFailed()
 bool
 TransactionFrame::apply(LedgerDelta& delta, Application& app)
 {
+    TransactionMeta tm;
+    return apply(delta, tm, app);
+}
+
+bool
+TransactionFrame::apply(LedgerDelta& delta, TransactionMeta& tm,
+                        Application& app)
+{
     resetState();
     LedgerManager& lm = app.getLedgerManager();
     if (!checkValid(app, true, 0))
@@ -422,6 +430,10 @@ TransactionFrame::apply(LedgerDelta& delta, Application& app)
     }
     // full fee charged at this point
     prepareResult(delta, lm);
+
+    auto& meta = tm.v0();
+
+    meta.changes = delta.getChanges();
 
     bool errorEncountered = false;
 
@@ -433,12 +445,15 @@ TransactionFrame::apply(LedgerDelta& delta, Application& app)
 
         for (auto& op : mOperations)
         {
-            bool txRes = op->apply(thisTxDelta, app);
+            LedgerDelta opDelta(thisTxDelta);
+            bool txRes = op->apply(opDelta, app);
 
             if (!txRes)
             {
                 errorEncountered = true;
             }
+            meta.operations.emplace_back(opDelta.getChanges());
+            opDelta.commit();
         }
 
         if (!errorEncountered)
@@ -457,6 +472,7 @@ TransactionFrame::apply(LedgerDelta& delta, Application& app)
 
     if (errorEncountered)
     {
+        meta.operations.clear();
         markResultFailed();
     }
 
@@ -475,7 +491,8 @@ TransactionFrame::toStellarMessage() const
 
 void
 TransactionFrame::storeTransaction(LedgerManager& ledgerManager,
-                                   LedgerDelta const& delta, int txindex,
+                                   LedgerDelta const& delta,
+                                   TransactionMeta& tm, int txindex,
                                    TransactionResultSet& resultSet) const
 {
     auto txBytes(xdr::xdr_to_opaque(mEnvelope));
@@ -490,7 +507,7 @@ TransactionFrame::storeTransaction(LedgerManager& ledgerManager,
         reinterpret_cast<const unsigned char*>(txResultBytes.data()),
         txResultBytes.size());
 
-    xdr::opaque_vec<> txMeta(delta.getTransactionMeta());
+    xdr::opaque_vec<> txMeta(xdr::xdr_to_opaque(tm));
 
     std::string meta = base64::encode(
         reinterpret_cast<const unsigned char*>(txMeta.data()), txMeta.size());

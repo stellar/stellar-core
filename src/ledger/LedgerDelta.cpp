@@ -185,29 +185,29 @@ LedgerDelta::rollback()
     mHeader = nullptr;
 }
 
-xdr::opaque_vec<>
-LedgerDelta::getTransactionMeta() const
+LedgerEntryChanges
+LedgerDelta::getChanges() const
 {
-    TransactionMeta tm;
+    LedgerEntryChanges changes;
 
     for (auto const& k : mNew)
     {
-        tm.changes.emplace_back(LEDGER_ENTRY_CREATED);
-        tm.changes.back().created() = k.second->mEntry;
+        changes.emplace_back(LEDGER_ENTRY_CREATED);
+        changes.back().created() = k.second->mEntry;
     }
     for (auto const& k : mMod)
     {
-        tm.changes.emplace_back(LEDGER_ENTRY_UPDATED);
-        tm.changes.back().updated() = k.second->mEntry;
+        changes.emplace_back(LEDGER_ENTRY_UPDATED);
+        changes.back().updated() = k.second->mEntry;
     }
 
     for (auto const& k : mDelete)
     {
-        tm.changes.emplace_back(LEDGER_ENTRY_REMOVED);
-        tm.changes.back().removed() = k;
+        changes.emplace_back(LEDGER_ENTRY_REMOVED);
+        changes.back().removed() = k;
     }
 
-    return xdr::xdr_to_opaque(tm);
+    return changes;
 }
 
 std::vector<LedgerEntry>
