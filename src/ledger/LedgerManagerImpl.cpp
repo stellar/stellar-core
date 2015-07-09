@@ -304,6 +304,7 @@ LedgerManagerImpl::externalizeValue(LedgerCloseData const& ledgerData)
             if (mLastClosedLedger.hash ==
                 ledgerData.mTxSet->previousLedgerHash())
             {
+                setState(LM_SYNCED_STATE);
                 closeLedger(ledgerData);
                 CLOG(INFO, "Ledger")
                     << "Closed ledger: " << ledgerAbbrev(mLastClosedLedger);
