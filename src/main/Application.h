@@ -122,6 +122,10 @@ class Application
         APP_ACQUIRING_CONSENSUS_STATE,
 
         // Connected to other SCP peers
+
+        // in sync with network but ledger subsystem still booting up
+        APP_CONNECTED_STANDBY_STATE,
+
         // some work required to catchup to the consensus ledger
         // ie: downloading from history, applying buckets and replaying
         // transactions

@@ -250,7 +250,7 @@ SetOptionsOpFrame::doCheckValid(medida::MetricsRegistry& metrics)
 
     if (mSetOptions.signer)
     {
-        if (mSetOptions.signer->pubKey == mSourceAccount->getID())
+        if (mSetOptions.signer->pubKey == getSourceID())
         {
             metrics.NewMeter({"op-set-options", "invalid", "bad-signer"},
                              "operation").Mark();

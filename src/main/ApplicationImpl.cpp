@@ -352,8 +352,7 @@ ApplicationImpl::getState() const
         switch (mLedgerManager->getState())
         {
         case LedgerManager::LM_BOOTING_STATE:
-            // not sure it's worth exposing this to the user?
-            s = APP_ACQUIRING_CONSENSUS_STATE;
+            s = APP_CONNECTED_STANDBY_STATE;
             break;
         case LedgerManager::LM_CATCHING_UP_STATE:
             s = APP_CATCHING_UP_STATE;
@@ -372,7 +371,8 @@ std::string
 ApplicationImpl::getStateHuman() const
 {
     static const char* stateStrings[APP_NUM_STATE] = {
-        "Booting", "Joining SCP", "Catching up", "Synced!", "Stopping"};
+        "Booting",     "Joining SCP", "Connected",
+        "Catching up", "Synced!",     "Stopping"};
     return std::string(stateStrings[getState()]);
 }
 
