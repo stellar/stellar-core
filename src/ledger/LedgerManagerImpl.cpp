@@ -295,7 +295,8 @@ LedgerManagerImpl::externalizeValue(LedgerCloseData const& ledgerData)
                          << ", sv: " << stellarValueToString(ledgerData.mValue)
                          << "]";
 
-    switch (getState())
+    auto st = getState();
+    switch (st)
     {
     case LedgerManager::LM_BOOTING_STATE:
     case LedgerManager::LM_SYNCED_STATE:
@@ -304,6 +305,10 @@ LedgerManagerImpl::externalizeValue(LedgerCloseData const& ledgerData)
             if (mLastClosedLedger.hash ==
                 ledgerData.mTxSet->previousLedgerHash())
             {
+                if (st == LM_BOOTING_STATE)
+                {
+                    setState(LM_SYNCED_STATE);
+                }
                 closeLedger(ledgerData);
                 CLOG(INFO, "Ledger")
                     << "Closed ledger: " << ledgerAbbrev(mLastClosedLedger);
