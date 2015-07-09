@@ -208,7 +208,7 @@ NominationProtocol::updateRoundLeaders()
                                    topPriority = w;
                                    mRoundLeaders.clear();
                                }
-                               if (w == topPriority)
+                               if (w == topPriority && w > 0)
                                {
                                    mRoundLeaders.insert(cur);
                                }
