@@ -67,11 +67,25 @@ CatchupStateMachine::selectRandomReadableHistoryArchive()
     std::vector<std::pair<std::string, std::shared_ptr<HistoryArchive>>>
         archives;
 
+    // First try for archives that _only_ have a get command; they're
+    // archives we're explicitly not publishing to, so likely ones we want.
     for (auto const& pair : mApp.getConfig().HISTORY)
     {
-        if (pair.second->hasGetCmd())
+        if (pair.second->hasGetCmd() && !pair.second->hasPutCmd())
         {
             archives.push_back(pair);
+        }
+    }
+
+    // If we have none of those, accept those with get+put
+    if (archives.size() == 0)
+    {
+        for (auto const& pair : mApp.getConfig().HISTORY)
+        {
+            if (pair.second->hasGetCmd() && pair.second->hasPutCmd())
+            {
+                archives.push_back(pair);
+            }
         }
     }
 

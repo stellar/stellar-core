@@ -46,7 +46,7 @@ void
 FutureBucket::setLiveOutput(std::shared_ptr<Bucket> output)
 {
     mState = FB_LIVE_OUTPUT;
-    binToHex(output->getHash());
+    mOutputBucketHash = binToHex(output->getHash());
     // Given an output bucket, fake-up a promise for it connected to
     // the future so that it can be immediately retrieved.
     std::promise<std::shared_ptr<Bucket>> promise;
