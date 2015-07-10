@@ -20,8 +20,6 @@ class OperationFrame;
 namespace txtest
 {
 
-   
-
 struct ThresholdSetter
 {
     optional<uint8_t> masterWeight;
@@ -30,12 +28,12 @@ struct ThresholdSetter
     optional<uint8_t> highThreshold;
 };
 
+bool applyCheck(TransactionFramePtr tx, LedgerDelta& delta, Application& app);
 
 time_t getTestDate(int day, int month, int year);
 
-void
-closeLedgerOn(Application& app, uint32 ledgerSeq, int day, int month, int year,
-    TransactionFramePtr tx = nullptr);
+void closeLedgerOn(Application& app, uint32 ledgerSeq, int day, int month,
+                   int year, TransactionFramePtr tx = nullptr);
 
 SecretKey getRoot();
 

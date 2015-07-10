@@ -69,7 +69,7 @@ TEST_CASE("create offer", "[tx][offers]")
     {
         auto txFrame = manageOfferOp(0, a1, idrCur, usdCur, oneone, 100, 1);
 
-        txFrame->apply(delta, app);
+        applyCheck(txFrame, delta, app);
         REQUIRE(txFrame->getResultCode() == txNO_ACCOUNT);
     }
 
@@ -98,11 +98,11 @@ TEST_CASE("create offer", "[tx][offers]")
 
         auto txFrame =
             manageOfferOp(0, a1, idrCur, usdCur, oneone, 100, a1_seq++);
-        REQUIRE(txFrame->apply(delta, app));
+        REQUIRE(applyCheck(txFrame, delta, app));
 
         txFrame =
             createPassiveOfferOp(b1, usdCur, idrCur, oneone, 100, b1_seq++);
-        txFrame->apply(delta, app);
+        applyCheck(txFrame, delta, app);
 
         // same price
         OfferFrame::pointer offer = loadOffer(a1, 1, app);
@@ -117,14 +117,14 @@ TEST_CASE("create offer", "[tx][offers]")
         const Price highPrice(99, 100);
         txFrame =
             createPassiveOfferOp(b1, usdCur, idrCur, highPrice, 100, b1_seq++);
-        txFrame->apply(delta, app);
+        applyCheck(txFrame, delta, app);
 
         REQUIRE(!loadOffer(a1, 1, app, false));
         REQUIRE(!loadOffer(b1, 3, app, false));
 
         // modify existing passive offer
         txFrame = manageOfferOp(0, a1, idrCur, usdCur, oneone, 200, a1_seq++);
-        txFrame->apply(delta, app);
+        applyCheck(txFrame, delta, app);
 
         REQUIRE(!loadOffer(a1, 1, app, false));
         REQUIRE(!loadOffer(b1, 2, app, false));
@@ -135,7 +135,7 @@ TEST_CASE("create offer", "[tx][offers]")
 
         txFrame =
             createPassiveOfferOp(b1, usdCur, idrCur, lowPrice, 100, b1_seq++);
-        REQUIRE(txFrame->apply(delta, app));
+        REQUIRE(applyCheck(txFrame, delta, app));
 
         offer = loadOffer(a1, 3, app);
         REQUIRE(offer->getAmount() == 100);
@@ -144,7 +144,7 @@ TEST_CASE("create offer", "[tx][offers]")
         REQUIRE(offer->getAmount() == 100);
 
         txFrame = manageOfferOp(4, b1, usdCur, idrCur, oneone, 100, b1_seq++);
-        txFrame->apply(delta, app);
+        applyCheck(txFrame, delta, app);
 
         offer = loadOffer(a1, 3, app);
         REQUIRE(offer->getAmount() == 100);
@@ -154,7 +154,7 @@ TEST_CASE("create offer", "[tx][offers]")
 
         txFrame =
             manageOfferOp(4, b1, usdCur, idrCur, highPrice, 100, b1_seq++);
-        REQUIRE(txFrame->apply(delta, app));
+        REQUIRE(applyCheck(txFrame, delta, app));
 
         REQUIRE(!loadOffer(a1, 3, app, false));
         REQUIRE(!loadOffer(b1, 4, app, false));

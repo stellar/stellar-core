@@ -34,6 +34,21 @@ using xdr::operator==;
 namespace txtest
 {
 
+bool
+applyCheck(TransactionFramePtr tx, LedgerDelta& delta, Application& app)
+{
+    bool check = tx->checkValid(app, 0);
+    TransactionResult checkResult = tx->getResult();
+    bool res = tx->apply(delta, app);
+
+    if (!check)
+    {
+        REQUIRE(checkResult == tx->getResult());
+    }
+
+    return res;
+}
+
 time_t
 getTestDate(int day, int month, int year)
 {
@@ -217,7 +232,7 @@ applyAllowTrust(Application& app, SecretKey& from, SecretKey& trustor,
     txFrame = createAllowTrust(from, trustor, seq, currencyCode, authorize);
 
     LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader());
-    txFrame->apply(delta, app);
+    applyCheck(txFrame, delta, app);
 
     checkTransaction(*txFrame);
     REQUIRE(AllowTrustOpFrame::getInnerCode(
@@ -251,7 +266,7 @@ applyCreateAccountTx(Application& app, SecretKey& from, SecretKey& to,
     txFrame = createCreateAccountTx(from, to, seq, amount);
 
     LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader());
-    txFrame->apply(delta, app);
+    applyCheck(txFrame, delta, app);
 
     checkTransaction(*txFrame);
     auto txResult = txFrame->getResult();
@@ -306,7 +321,7 @@ applyPaymentTx(Application& app, SecretKey& from, SecretKey& to,
     txFrame = createPaymentTx(from, to, seq, amount);
 
     LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader());
-    txFrame->apply(delta, app);
+    applyCheck(txFrame, delta, app);
 
     checkTransaction(*txFrame);
     auto txResult = txFrame->getResult();
@@ -344,7 +359,7 @@ applyChangeTrust(Application& app, SecretKey& from, SecretKey& to,
     txFrame = createChangeTrust(from, to, seq, currencyCode, limit);
 
     LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader());
-    txFrame->apply(delta, app);
+    applyCheck(txFrame, delta, app);
 
     checkTransaction(*txFrame);
     REQUIRE(ChangeTrustOpFrame::getInnerCode(
@@ -384,7 +399,7 @@ applyCreditPaymentTx(Application& app, SecretKey& from, SecretKey& to,
     txFrame = createCreditPaymentTx(from, to, ci, seq, amount);
 
     LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader());
-    txFrame->apply(delta, app);
+    applyCheck(txFrame, delta, app);
 
     checkTransaction(*txFrame);
 
@@ -434,7 +449,7 @@ applyPathPaymentTx(Application& app, SecretKey& from, SecretKey& to,
                                   destAmount, seq, path);
 
     LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader());
-    txFrame->apply(delta, app);
+    applyCheck(txFrame, delta, app);
 
     checkTransaction(*txFrame);
 
@@ -494,7 +509,7 @@ applyCreateOfferHelper(Application& app, LedgerDelta& delta, uint64 offerId,
     txFrame = manageOfferOp(offerId, source, takerGets, takerPays, price,
                             amount, seq);
 
-    txFrame->apply(delta, app);
+    applyCheck(txFrame, delta, app);
 
     checkTransaction(*txFrame);
 
@@ -632,7 +647,7 @@ applySetOptions(Application& app, SecretKey& source, SequenceNumber seq,
                                thrs, signer);
 
     LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader());
-    txFrame->apply(delta, app);
+    applyCheck(txFrame, delta, app);
 
     checkTransaction(*txFrame);
     REQUIRE(SetOptionsOpFrame::getInnerCode(
@@ -655,7 +670,7 @@ applyInflation(Application& app, SecretKey& from, SequenceNumber seq,
     TransactionFramePtr txFrame = createInflation(from, seq);
 
     LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader());
-    bool res = txFrame->apply(delta, app);
+    bool res = applyCheck(txFrame, delta, app);
 
     checkTransaction(*txFrame);
     REQUIRE(InflationOpFrame::getInnerCode(
@@ -684,7 +699,7 @@ applyAccountMerge(Application& app, SecretKey& source, SecretKey& dest,
     TransactionFramePtr txFrame = createAccountMerge(source, dest, seq);
 
     LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader());
-    txFrame->apply(delta, app);
+    applyCheck(txFrame, delta, app);
 
     REQUIRE(MergeOpFrame::getInnerCode(
                 txFrame->getResult().result.results()[0]) == result);
