@@ -21,7 +21,7 @@ dumpstream(XDRInputFileStream &in)
 void
 dumpxdr(std::string const& filename)
 {
-    std::regex rx("(ledger|bucket|transactions|results)-[[:xdigit:]]+\.xdr");
+    std::regex rx(".*(ledger|bucket|transactions|results)-[[:xdigit:]]+\\.xdr");
     std::smatch sm;
     if (std::regex_match(filename, sm, rx))
     {
