@@ -11,7 +11,7 @@
 namespace stellar
 {
 
-SecretKey::SecretKey() : mKeyType(KEY_TYPES_ED25519)
+SecretKey::SecretKey() : mKeyType(KEY_TYPE_ED25519)
 {
     static_assert(crypto_sign_PUBLICKEYBYTES == sizeof(uint256),
                   "Unexpected public key length");
@@ -26,7 +26,7 @@ SecretKey::getPublicKey() const
 {
     PublicKey pk;
 
-    assert(mKeyType == KEY_TYPES_ED25519);
+    assert(mKeyType == KEY_TYPE_ED25519);
 
     if (crypto_sign_ed25519_sk_to_pk(pk.ed25519().data(), mSecretKey.data()) !=
         0)
@@ -39,7 +39,7 @@ SecretKey::getPublicKey() const
 SecretKey::Seed
 SecretKey::getSeed() const
 {
-    assert(mKeyType == KEY_TYPES_ED25519);
+    assert(mKeyType == KEY_TYPE_ED25519);
 
     Seed seed;
     seed.mKeyType = mKeyType;
@@ -54,7 +54,7 @@ SecretKey::getSeed() const
 std::string
 SecretKey::getBase58Seed() const
 {
-    assert(mKeyType == KEY_TYPES_ED25519);
+    assert(mKeyType == KEY_TYPE_ED25519);
 
     return toBase58Check(B58_SEED_ED25519, getSeed().mSeed);
 }
@@ -81,7 +81,7 @@ SecretKey::isZero() const
 Signature
 SecretKey::sign(ByteSlice const& bin) const
 {
-    assert(mKeyType == KEY_TYPES_ED25519);
+    assert(mKeyType == KEY_TYPE_ED25519);
 
     Signature out(crypto_sign_BYTES, 0);
     if (crypto_sign_detached(out.data(), NULL, bin.data(), bin.size(),
@@ -97,7 +97,7 @@ SecretKey::random()
 {
     PublicKey pk;
     SecretKey sk;
-    assert(sk.mKeyType == KEY_TYPES_ED25519);
+    assert(sk.mKeyType == KEY_TYPE_ED25519);
     if (crypto_sign_keypair(pk.ed25519().data(), sk.mSecretKey.data()) != 0)
     {
         throw std::runtime_error("error generating random secret key");
@@ -110,7 +110,7 @@ SecretKey::fromSeed(uint256 const& seed)
 {
     PublicKey pk;
     SecretKey sk;
-    assert(sk.mKeyType == KEY_TYPES_ED25519);
+    assert(sk.mKeyType == KEY_TYPE_ED25519);
 
     if (crypto_sign_seed_keypair(pk.ed25519().data(), sk.mSecretKey.data(),
                                  (unsigned char*)&(seed[0])) != 0)
@@ -138,7 +138,7 @@ SecretKey::fromBase58Seed(std::string const& base58Seed)
 
     PublicKey pk;
     SecretKey sk;
-    assert(sk.mKeyType == KEY_TYPES_ED25519);
+    assert(sk.mKeyType == KEY_TYPE_ED25519);
     if (crypto_sign_seed_keypair(pk.ed25519().data(), sk.mSecretKey.data(),
                                  pair.second.data()) != 0)
     {
