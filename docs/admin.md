@@ -88,3 +88,15 @@ status:
         error: set when status is "ERROR".
             hex encoded, XDR serialized 'TransactionResult'
 ```
+
+
+## Additional Documentation
+
+This directory contains the following additional documentation:
+
+* [testnet.md](/docs/testnet.md) is short tutorial demonstrating how to
+  configure and run a short-lived, isolated test network.
+
+* [architecture.md](/docs/architecture.md) describes how `stellar-core` is
+  structured internally, how it is intended to be deployed and the collection of
+  servers and services needed to get the full functionality and performance.
