@@ -575,6 +575,9 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
                               << ", LCL is "
                               << ledgerAbbrev(getLastClosedLedgerHeader());
 
+        CLOG(ERROR, "Ledger") << "Full LCL: "
+                              << xdr::xdr_to_string(getLastClosedLedgerHeader());
+
         throw std::runtime_error("txset mismatch");
     }
 

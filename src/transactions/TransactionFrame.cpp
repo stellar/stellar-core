@@ -596,7 +596,7 @@ TransactionFrame::copyTransactionsToStream(Database& db, soci::session& sess,
                                   txOut, txResultOut);
             // reset state
             txSet.mTransactions.clear();
-            results.ledgerSeq = ledgerSeq;
+            results.ledgerSeq = curLedgerSeq;
             results.txResultSet.results.clear();
             lastLedgerSeq = curLedgerSeq;
         }
