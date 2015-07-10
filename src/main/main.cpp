@@ -8,6 +8,7 @@
 #include "util/Timer.h"
 #include "util/Fs.h"
 #include "lib/util/getopt.h"
+#include "main/dumpxdr.h"
 #include "main/fuzz.h"
 #include "main/test.h"
 #include "main/Config.h"
@@ -32,6 +33,7 @@ enum opttag
     OPT_VERSION = 0x100,
     OPT_HELP,
     OPT_TEST,
+    OPT_DUMPXDR,
     OPT_FUZZ,
     OPT_CONF,
     OPT_CMD,
@@ -48,6 +50,7 @@ static const struct option stellar_core_options[] = {
     {"version", no_argument, nullptr, OPT_VERSION},
     {"help", no_argument, nullptr, OPT_HELP},
     {"test", no_argument, nullptr, OPT_TEST},
+    {"dumpxdr", required_argument, nullptr, OPT_DUMPXDR},
     {"fuzz", required_argument, nullptr, OPT_FUZZ},
     {"conf", required_argument, nullptr, OPT_CONF},
     {"c", required_argument, nullptr, OPT_CMD},
@@ -69,6 +72,7 @@ usage(int err = 1)
           "      --help          To display this string\n"
           "      --version       To print version information\n"
           "      --test          To run self-tests\n"
+          "      --dumpxdr FILE  To dump an XDR file, for debugging\n"
           "      --fuzz FILE     To run a single fuzz input and exit\n"
           "      --metric METRIC Report metric METRIC on exit\n"
           "      --newdb         Creates or restores the DB to the genesis "
@@ -256,6 +260,9 @@ main(int argc, char* const* argv)
             return test(static_cast<int>(rest.size()), &rest[0], logLevel,
                         metrics);
         }
+        case OPT_DUMPXDR:
+            dumpxdr(std::string(optarg));
+            return 0;
         case OPT_FUZZ:
             fuzz(std::string(optarg), logLevel, metrics);
             return 0;
