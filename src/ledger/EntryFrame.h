@@ -40,6 +40,7 @@ class EntryFrame : public NonMovableOrCopyable
     EntryFrame(LedgerEntry const& from);
 
     static pointer FromXDR(LedgerEntry const& from);
+    static pointer storeLoad(LedgerKey const& key, Database& db);
 
     virtual EntryFrame::pointer copy() const = 0;
 
@@ -53,4 +54,7 @@ class EntryFrame : public NonMovableOrCopyable
     static void storeDelete(LedgerDelta& delta, Database& db,
                             LedgerKey const& key);
 };
+
+// static helper for getting a LedgerKey from a LedgerEntry.
+LedgerKey LedgerEntryKey(LedgerEntry const& e);
 }

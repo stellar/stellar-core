@@ -5,8 +5,10 @@
 #include "ledger/LedgerDelta.h"
 #include "generated/Stellar-ledger.h"
 #include "main/Application.h"
+#include "main/Config.h"
 #include "medida/metrics_registry.h"
 #include "medida/meter.h"
+#include "xdrpp/printer.h"
 
 namespace stellar
 {
@@ -309,6 +311,40 @@ LedgerDelta::markMeters(Application& app) const
                 .NewMeter({"ledger", "offer", "delete"}, "entry")
                 .Mark();
             break;
+        }
+    }
+}
+
+void
+LedgerDelta::checkAgainstDatabase(Application& app) const
+{
+    if (!app.getConfig().PARANOID_MODE)
+    {
+        return;
+    }
+    auto& db = app.getDatabase();
+    auto live = getLiveEntries();
+    for (auto const& l : live)
+    {
+        auto fromDb = EntryFrame::storeLoad(LedgerEntryKey(l), db);
+        if (!(fromDb->mEntry == l))
+        {
+            std::string s;
+            s = "Inconsistent state between objects: ";
+            s += xdr::xdr_to_string(fromDb->mEntry, "db");
+            s += xdr::xdr_to_string(l, "live");
+            throw std::runtime_error(s);
+        }
+    }
+    auto dead = getDeadEntries();
+    for (auto const& d : dead)
+    {
+        if (EntryFrame::exists(db, d))
+        {
+            std::string s;
+            s = "Inconsistent state ; entry should not exist in database: ";
+            s += xdr::xdr_to_string(d);
+            throw std::runtime_error(s);
         }
     }
 }

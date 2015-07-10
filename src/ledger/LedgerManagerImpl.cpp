@@ -492,12 +492,12 @@ LedgerManagerImpl::historyCaughtup(asio::error_code const& ec,
             }
             else if (lcd.mLedgerSeq == mLastClosedLedger.header.ledgerSeq + 1)
             {
-                CLOG(INFO, "Ledger") << "Replaying buffered ledger-close: "
-                                     << "[seq=" << lcd.mLedgerSeq << ", prev="
-                                     << hexAbbrev(lcd.mTxSet->previousLedgerHash())
-                                     << ", tx_count=" << lcd.mTxSet->size()
-                                     << ", sv: " << stellarValueToString(lcd.mValue)
-                                     << "]";
+                CLOG(INFO, "Ledger")
+                    << "Replaying buffered ledger-close: "
+                    << "[seq=" << lcd.mLedgerSeq
+                    << ", prev=" << hexAbbrev(lcd.mTxSet->previousLedgerHash())
+                    << ", tx_count=" << lcd.mTxSet->size()
+                    << ", sv: " << stellarValueToString(lcd.mValue) << "]";
                 closeLedger(lcd);
                 applied = true;
             }
@@ -569,14 +569,14 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
     if (ledgerData.mTxSet->previousLedgerHash() !=
         getLastClosedLedgerHeader().hash)
     {
-        CLOG(ERROR, "Ledger") << "TxSet mismatch: LCD wants "
-                              << ledgerAbbrev(ledgerData.mLedgerSeq - 1,
-                                              ledgerData.mTxSet->previousLedgerHash())
-                              << ", LCL is "
-                              << ledgerAbbrev(getLastClosedLedgerHeader());
+        CLOG(ERROR, "Ledger")
+            << "TxSet mismatch: LCD wants "
+            << ledgerAbbrev(ledgerData.mLedgerSeq - 1,
+                            ledgerData.mTxSet->previousLedgerHash())
+            << ", LCL is " << ledgerAbbrev(getLastClosedLedgerHeader());
 
-        CLOG(ERROR, "Ledger") << "Full LCL: "
-                              << xdr::xdr_to_string(getLastClosedLedgerHeader());
+        CLOG(ERROR, "Ledger")
+            << "Full LCL: " << xdr::xdr_to_string(getLastClosedLedgerHeader());
 
         throw std::runtime_error("txset mismatch");
     }
@@ -688,6 +688,8 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
         }
         }
     }
+
+    ledgerDelta.checkAgainstDatabase(mApp);
 
     ledgerDelta.commit();
 

@@ -31,6 +31,35 @@ EntryFrame::FromXDR(LedgerEntry const& from)
     return res;
 }
 
+EntryFrame::pointer
+EntryFrame::storeLoad(LedgerKey const& key, Database& db)
+{
+    EntryFrame::pointer res;
+
+    switch (key.type())
+    {
+    case ACCOUNT:
+        res = std::static_pointer_cast<EntryFrame>(
+            AccountFrame::loadAccount(key.account().accountID, db));
+        break;
+    case TRUSTLINE:
+    {
+        auto const& tl = key.trustLine();
+        res = std::static_pointer_cast<EntryFrame>(
+            TrustFrame::loadTrustLine(tl.accountID, tl.currency, db));
+    }
+    break;
+    case OFFER:
+    {
+        auto const& off = key.offer();
+        res = std::static_pointer_cast<EntryFrame>(
+            OfferFrame::loadOffer(off.accountID, off.offerID, db));
+    }
+    break;
+    }
+    return res;
+}
+
 EntryFrame::EntryFrame(LedgerEntryType type)
     : mKeyCalculated(false), mEntry(type)
 {
@@ -96,5 +125,32 @@ EntryFrame::storeDelete(LedgerDelta& delta, Database& db, LedgerKey const& key)
         OfferFrame::storeDelete(delta, db, key);
         break;
     }
+}
+
+LedgerKey
+LedgerEntryKey(LedgerEntry const& e)
+{
+    LedgerKey k;
+    switch (e.type())
+    {
+
+    case ACCOUNT:
+        k.type(ACCOUNT);
+        k.account().accountID = e.account().accountID;
+        break;
+
+    case TRUSTLINE:
+        k.type(TRUSTLINE);
+        k.trustLine().accountID = e.trustLine().accountID;
+        k.trustLine().currency = e.trustLine().currency;
+        break;
+
+    case OFFER:
+        k.type(OFFER);
+        k.offer().accountID = e.offer().accountID;
+        k.offer().offerID = e.offer().offerID;
+        break;
+    }
+    return k;
 }
 }
