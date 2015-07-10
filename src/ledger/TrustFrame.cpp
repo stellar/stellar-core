@@ -231,10 +231,10 @@ TrustFrame::storeAdd(LedgerDelta& delta, Database& db) const
     auto timer = db.getInsertTimer("trust");
     statement st =
         (db.getSession().prepare << "INSERT INTO trustlines (accountid, "
-                                    "issuer, alphanumcurrency, tlimit, flags) "
-                                    "VALUES (:v1,:v2,:v3,:v4,:v5)",
+                                    "issuer, alphanumcurrency, balance, tlimit, flags) "
+                                    "VALUES (:v1,:v2,:v3,:v4,:v5,:v6)",
          use(b58AccountID), use(b58Issuer), use(currencyCode),
-         use(mTrustLine.limit), use((int)mTrustLine.flags));
+         use(mTrustLine.balance), use(mTrustLine.limit), use((int)mTrustLine.flags));
 
     st.execute(true);
 
