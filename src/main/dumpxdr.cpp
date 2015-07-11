@@ -8,8 +8,9 @@
 namespace stellar
 {
 
-template <typename T> void
-dumpstream(XDRInputFileStream &in)
+template <typename T>
+void
+dumpstream(XDRInputFileStream& in)
 {
     T tmp;
     while (in && in.readOne(tmp))
