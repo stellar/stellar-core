@@ -31,6 +31,35 @@ EntryFrame::FromXDR(LedgerEntry const& from)
     return res;
 }
 
+EntryFrame::pointer
+EntryFrame::storeLoad(LedgerKey const& key, Database& db)
+{
+    EntryFrame::pointer res;
+
+    switch (key.type())
+    {
+    case ACCOUNT:
+        res = std::static_pointer_cast<EntryFrame>(
+            AccountFrame::loadAccount(key.account().accountID, db));
+        break;
+    case TRUSTLINE:
+    {
+        auto const& tl = key.trustLine();
+        res = std::static_pointer_cast<EntryFrame>(
+            TrustFrame::loadTrustLine(tl.accountID, tl.currency, db));
+    }
+    break;
+    case OFFER:
+    {
+        auto const& off = key.offer();
+        res = std::static_pointer_cast<EntryFrame>(
+            OfferFrame::loadOffer(off.accountID, off.offerID, db));
+    }
+    break;
+    }
+    return res;
+}
+
 EntryFrame::EntryFrame(LedgerEntryType type)
     : mKeyCalculated(false), mEntry(type)
 {
