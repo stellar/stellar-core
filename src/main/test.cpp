@@ -65,6 +65,8 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
         thisConfig.BUCKET_DIR_PATH = rootDir + "bucket";
         thisConfig.TMP_DIR_PATH = rootDir + "tmp";
 
+        thisConfig.PARANOID_MODE = true;
+
         // Tests are run in standalone by default, meaning that no external
         // listening interfaces are opened (all sockets must be manually created
         // and connected loopback sockets), no external connections are
@@ -83,7 +85,8 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
         thisConfig.VALIDATION_KEY = SecretKey::random();
 
         // single node setup
-        thisConfig.QUORUM_SET.validators.push_back(thisConfig.VALIDATION_KEY.getPublicKey());
+        thisConfig.QUORUM_SET.validators.push_back(
+            thisConfig.VALIDATION_KEY.getPublicKey());
         thisConfig.QUORUM_SET.threshold = 1;
 
         std::ostringstream dbname;

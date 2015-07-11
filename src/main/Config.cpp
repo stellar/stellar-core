@@ -44,6 +44,7 @@ Config::Config() : PEER_KEY(SecretKey::random())
     HTTP_PORT = 39132;
     PUBLIC_HTTP_PORT = false;
     PEER_PUBLIC_KEY = PEER_KEY.getPublicKey();
+    PARANOID_MODE = false;
 
     DATABASE = "sqlite3://:memory:";
 }
@@ -401,6 +402,14 @@ Config::load(std::string const& filename)
                     throw std::invalid_argument("invalid DATABASE");
                 }
                 DATABASE = item.second->as<std::string>()->value();
+            }
+            else if (item.first == "PARANOID_MODE")
+            {
+                if (!item.second->as<bool>())
+                {
+                    throw std::invalid_argument("invalid PARANOID_MODE");
+                }
+                PARANOID_MODE = item.second->as<bool>()->value();
             }
             else
             {
