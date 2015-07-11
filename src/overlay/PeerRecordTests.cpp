@@ -7,7 +7,7 @@
 #include "database/Database.h"
 #include "lib/catch.hpp"
 #include "main/Config.h"
-#include "generated/StellarXDR.h"
+#include "overlay/StellarXDR.h"
 #include "main/Application.h"
 #include "main/test.h"
 

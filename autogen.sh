@@ -1,44 +1,25 @@
-#!/bin/sh
+#!/bin/sh -e
 
-# Copyright 2015 Stellar Development Foundation and contributors. Licensed
-# under the Apache License, Version 2.0. See the COPYING file at the root
-# of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+# Public domain
 
-SUBMODULES="src/lib/libsodium src/lib/xdrpp src/lib/libmedida"
-GIT=`which git`
+case "$1" in
+    --skip-submodules|-s)
+	skip_submodules=yes
+	;;
+    "")
+	;;
+    *)
+	echo usage: $0 [--skip-submodules] >&2
+	exit 1
+	;;
+esac
 
-autogen_submodules()
-{
-	origdir=`pwd`
-
-	submod_initialized=1
-	for submod in $SUBMODULES; do
-		if [ ! -f $submod/configure ]; then
-			submod_initialized=0
-		fi
-	done
-
-	if [ -n "$GIT" ] && [ -f .gitmodules ] && [ -d .git ] && [ $submod_initialized = 0 ]; then
+case "${skip_submodules}" in
+    0|no|false|"")
         git submodule update --init
-		git submodule update --init --recursive
-	fi
+        git submodule foreach 'test ! -x ./autogen.sh || ./autogen.sh'
+    ;;
+esac
 
-	for submod in $SUBMODULES; do
-		echo "Running autogen in '$submod'..."
-		cd "$submod"
-		if [ -x autogen.sh ]; then
-			./autogen.sh
-		elif [ -f configure.in ] || [ -f configure.ac ]; then
-			autoreconf -i
-		else
-			echo "Don't know how to bootstrap submodule '$submod', skipping"
-		fi
-		cd "$origdir"
-	done
-}
-
-if [ -z "$skip_submodules" ] || [ "$skip_modules" = 0 ]; then
-	autogen_submodules
-fi
-
-autoreconf -v -i
+./make-mks
+autoreconf -i

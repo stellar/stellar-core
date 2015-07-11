@@ -3,7 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "test.h"
-#include "generated/StellarCoreVersion.h"
+#include "StellarCoreVersion.h"
 #include "main/Config.h"
 #include "util/make_unique.h"
 #include <time.h>

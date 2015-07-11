@@ -7,7 +7,7 @@
 #include <memory>
 #include "ledger/LedgerManager.h"
 #include "ledger/AccountFrame.h"
-#include "generated/StellarXDR.h"
+#include "overlay/StellarXDR.h"
 #include "util/types.h"
 
 namespace soci

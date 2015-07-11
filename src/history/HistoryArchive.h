@@ -9,7 +9,7 @@
 #include <system_error>
 #include <memory>
 #include "bucket/FutureBucket.h"
-#include "generated/Stellar-types.h"
+#include "xdr/Stellar-types.h"
 
 namespace asio
 {

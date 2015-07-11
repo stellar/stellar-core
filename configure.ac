@@ -7,14 +7,27 @@
 
 AC_PREREQ([2.68])
 AC_INIT([stellar-core],[0.1],[],[],[http://www.stellar.org])
-AM_INIT_AUTOMAKE([-Wall subdir-objects silent-rules])
-AM_SILENT_RULES([yes])
+# tar-ustar is required for long file names when libsodium is bundled
+AM_INIT_AUTOMAKE([-Wall subdir-objects tar-ustar])
 AC_CONFIG_SRCDIR([configure.ac])
 AC_CONFIG_MACRO_DIR([m4])
 
-test "${WFLAGS+set}" || WFLAGS="-Wall"
+if test -z "${WFLAGS+set}"; then
+   WFLAGS=-Wall
+
+   # Our large include path set makes for annoying warnings without this
+   WFLAGS="$WFLAGS -Wno-unused-command-line-argument -Qunused-arguments"
+
+   # Asio's headers have unused typedefs that flood the compilation
+   # output without this
+   WFLAGS="$WFLAGS -Wno-unused-local-typedef"
+
+   # We want to consider unused MUST_USE results as errors
+   WFLAGS="$WFLAGS -Werror=unused-result"
+fi
+
 test "${CFLAGS+set}" || CFLAGS="-g -O2"
-test "${CXXFLAGS+set}" || CXXFLAGS="-g -O2"
+test "${CXXFLAGS+set}" || CXXFLAGS="$CFLAGS"
 
 AC_PROG_CC([clang gcc cc])
 AC_PROG_CXX([clang++ g++ c++])
@@ -26,55 +39,37 @@ AC_SUBST(LIBTOOL_DEPS)
 
 LIBSODIUM_MIN_VERSION="1.0.0"
 
-dnl AC_PROG_INSTALL
-
 test -z "$WFLAGS" || CFLAGS="$CFLAGS $WFLAGS" CXXFLAGS="$CXXFLAGS $WFLAGS"
 
 AC_LANG(C++)
 AX_CXX_COMPILE_STDCXX_11(noext,mandatory)
 AX_FRESH_COMPILER
-
-# Our large include path set makes for annoying warnings without this
-AX_APPEND_COMPILE_FLAGS([-Wno-unused-command-line-argument])
-AX_APPEND_COMPILE_FLAGS([-Qunused-arguments])
-
-# Asio's headers have unused typedefs that flood the compilation output without this
-AX_APPEND_COMPILE_FLAGS([-Wno-unused-local-typedef])
-
-# We want to consider unused MUST_USE results as errors
-AX_APPEND_COMPILE_FLAGS([-Werror=unused-result])
-
 # -pthread seems to be required by -std=c++11 on some hosts
 AX_APPEND_COMPILE_FLAGS([-pthread])
 
-# add colorized diagnostics when possible
-AX_APPEND_COMPILE_FLAGS([-fcolor-diagnostics])
+AC_ARG_ENABLE([sdfprefs],
+    AS_HELP_STRING([--enable-sdfprefs],
+        [Enable build settings preferred by Stellar developers]))
 
-# Also add CXXFLAGS changes to CFLAGS
+AS_IF([test xyes = "x$enable_sdfprefs"],
+            [AM_SILENT_RULES([yes])
+	     WFLAGS="$WFLAGS -fcolor-diagnostics"])
+
+AX_APPEND_COMPILE_FLAGS($WFLAGS)
 AC_LANG_PUSH(C)
-AX_APPEND_COMPILE_FLAGS([-Werror=unused-result])
-AX_APPEND_COMPILE_FLAGS([-Wno-unused-command-line-argument])
-AX_APPEND_COMPILE_FLAGS([-Qunused-arguments])
-AX_APPEND_COMPILE_FLAGS([-fcolor-diagnostics])
+AX_APPEND_COMPILE_FLAGS($WFLAGS)
 AC_LANG_POP(C)
 
-# Permit user to enable asan instrumentation
 AC_ARG_ENABLE([asan],
-              AS_HELP_STRING([--enable-asan],
-                             [build with asan (address-sanitizer) instrumentation]))
+  AS_HELP_STRING([--enable-asan],
+		[build with asan (address-sanitizer) instrumentation]))
 AS_IF([test "x$enable_asan" = "xyes"], [
-  AX_APPEND_COMPILE_FLAGS([-fsanitize=address])
-  AX_APPEND_COMPILE_FLAGS([-fno-omit-frame-pointer])
-  AC_LANG_PUSH(C)
-  AX_APPEND_COMPILE_FLAGS([-fsanitize=address])
-  AX_APPEND_COMPILE_FLAGS([-fno-omit-frame-pointer])
-  AC_LANG_POP(C)
-])
+  # Compilation should fail if these options are not supported
+  $CFLAGS="$CFLAGS -fsanitize=address -fno-omit-frame-pointer"
+  $CXXFLAGS="$CXXFLAGS -fsanitize=address -fno-omit-frame-pointer"])
 
-# Permit user to build with ccache
 AC_ARG_ENABLE([ccache],
-              AS_HELP_STRING([--enable-ccache],
-                             [build with ccache]))
+              AS_HELP_STRING([--enable-ccache], [build with ccache]))
 AS_IF([test "x$enable_ccache" = "xyes"], [
   AC_CHECK_PROGS([CCACHE], [ccache])
   CC="ccache ${CC}"
@@ -111,60 +106,68 @@ AM_CONDITIONAL([USE_CLANG_FORMAT], [test "x$CLANG_FORMAT" != "x"])
 
 AX_VALGRIND_CHECK
 
-# This is a simple replacement for AX_CONFIG_DIR. We can't use
-# AC_CONFIG_SUBDIRS here because we want configuration to run immediately
-# so we can use the results in the calls to PKG_CHECK_MODULES immediately
-# below.  AX_CONFIG_DIR might work but it's ambiguously licensed.
-function configure_pkgconfig_subdir() {
-    ax_pkgname=`basename $1`
-    if test -f "$1/${ax_pkgname}-uninstalled.pc" -o -f "$1/${ax_pkgname}-uninstalled.pc.in"
-    then
-        if test -f "$1/configure.ac"
-        then
-            if test ! -f "$1/configure"
-            then
-                AC_MSG_ERROR([included $ax_pkgname present but no configure, run ./autogen.sh ?])
-            fi
-            ax_popdir=`pwd`
-            cd "$1"
-            AC_MSG_NOTICE([Configuring sources in $1])
-            eval ./configure $ac_configure_args "'--srcdir=$ac_srcdir'" "'$2'" "CXX='${CXX}'" "CC='${CC}'" "CXXFLAGS='${CXXFLAGS}'" "LDFLAGS='${LDFLAGS}'"
-            AC_MSG_NOTICE([Finished configuring $1])
-            cd "$ax_popdir"
-        fi
-        export PKG_CONFIG_PATH="${1}:${PKG_CONFIG_PATH}"
-        eval ${ax_pkgname}_INTERNAL=1
-    fi
-}
+if test yes != "$enable_shared"; then
+   ac_configure_args="$ac_configure_args --disable-shared"
+fi
 
-configure_pkgconfig_subdir src/lib/libsodium --disable-shared
-configure_pkgconfig_subdir src/lib/sqlite
-configure_pkgconfig_subdir src/lib/xdrpp
-configure_pkgconfig_subdir src/lib/libmedida
+AX_PKGCONFIG_SUBDIR(lib/libsodium)
 
-PKG_CHECK_MODULES([libsodium],[libsodium])
-AM_CONDITIONAL(LIBSODIUM_INTERNAL, [test "x$libsodium_INTERNAL" != "x"])
-
-PKG_CHECK_MODULES([sqlite],[sqlite])
-AM_CONDITIONAL(SQLITE_INTERNAL, [test "x$sqlite_INTERNAL" != "x"])
-
-PKG_CHECK_MODULES([xdrpp], [xdrpp])
-AM_CONDITIONAL(XDRPP_INTERNAL, [test "x$xdrpp_INTERNAL" != "x"])
-
-PKG_CHECK_MODULES([libmedida], [libmedida])
-AM_CONDITIONAL(LIBMEDIDA_INTERNAL, [test "x$libmedida_INTERNAL" != "x"])
-
+AX_PKGCONFIG_SUBDIR(lib/xdrpp)
 AC_MSG_CHECKING(for xdrc)
-XDRC=$(pkg-config --variable=xdrc xdrpp)
+if test -n "$XDRC"; then
+   :
+elif test -n "$xdrpp_INTERNAL" -a x"$cross_compiling" != xyes; then
+   XDRC='$(top_builddir)/lib/xdrpp/xdrc/xdrc$(EXEEXT)'
+else
+   AC_PATH_PROG(XDRC, [xdrc])
+fi
+if test -z "$XDRC"; then
+   AC_MSG_ERROR(Cannot find xdrc)
+fi
 AC_MSG_RESULT($XDRC)
 AC_SUBST(XDRC)
+
+# Directory needed for xdrc output (won't exist in build directory)
+mkdir -p src/xdr
+
+if test -s "$srcdir/lib/medida.mk"; then
+   libmedida_CFLAGS='-I$(top_srcdir)/lib/libmedida/src'
+   libmedida_LIBS=-lmedida
+   libmedida_INTERNAL=yes
+else
+   PKG_CHECK_MODULES(libmedida, libmedida)
+   unset libmedida_INTERNAL
+fi
+AM_CONDITIONAL(LIBMEDIDA_INTERNAL, test -n "$libmedida_INTERNAL")
+AC_SUBST(libmedida_CFLAGS)
+AC_SUBST(libmedida_LIBS)
+
+soci_CFLAGS='-I$(top_srcdir)/lib/soci/src/core'
+soci_CFLAGS="$soci_CFLAGS "'-I$(top_srcdir)/lib/soci/src/backends/sqlite3'
+soci_LIBS='-lsoci'
+AC_SUBST(soci_CFLAGS)
+AC_SUBST(soci_LIBS)
 
 # We do not bundle libpq, but we'll compile-in support if it's present.
 # Add other optional database drivers here (and later, in SOCI).
 PKG_CHECK_MODULES([libpq],[libpq],[use_POSTGRES=1],[use_POSTGRES=])
 AM_CONDITIONAL(USE_POSTGRES, [test "x$use_POSTGRES" != "x"])
+if test "x$use_POSTGRES" != "x"; then
+   soci_CFLAGS="$soci_CFLAGS "'-I$(top_srcdir)/lib/soci/src/backends/postgresql'
+   AC_DEFINE(USE_POSTGRES, 1, [Use PostgresQL])
+fi
 
-AC_CONFIG_HEADERS([config.h])
-AC_CONFIG_FILES([Makefile])
+CPPFLAGS="$CPPFLAGS -I\$(top_srcdir)"
+CPPFLAGS="$CPPFLAGS -DASIO_SEPARATE_COMPILATION -DSQLITE_OMIT_LOAD_EXTENSION"
+CPPFLAGS="$CPPFLAGS -I\$(top_srcdir)/src -I\$(top_builddir)/src"
+for lib in libsodium xdrpp soci libpq libmedida; do
+    CPPFLAGS="$CPPFLAGS \$(${lib}_CFLAGS)"
+done
+for lib in autocheck/include cereal/include asio/include util \
+    	soci/src/{core,backends/sqlite3}; do
+    CPPFLAGS="$CPPFLAGS -I\$(top_srcdir)/lib/$lib"
+done
+
+AC_CONFIG_HEADERS(config.h)
+AC_CONFIG_FILES(Makefile src/Makefile)
 AC_OUTPUT
-

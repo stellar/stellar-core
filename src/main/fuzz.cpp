@@ -6,7 +6,7 @@
 #include "crypto/SHA.h"
 #include "crypto/Hex.h"
 #include "main/Application.h"
-#include "generated/StellarCoreVersion.h"
+#include "StellarCoreVersion.h"
 #include "overlay/OverlayManager.h"
 #include "overlay/LoopbackPeer.h"
 #include "util/Logging.h"

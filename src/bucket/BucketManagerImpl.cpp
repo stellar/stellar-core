@@ -3,7 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "bucket/BucketManagerImpl.h"
-#include "generated/StellarXDR.h"
+#include "overlay/StellarXDR.h"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "bucket/BucketList.h"

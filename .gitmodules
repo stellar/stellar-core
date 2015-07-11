@@ -1,9 +1,9 @@
-[submodule "src/lib/libsodium"]
-	path = src/lib/libsodium
+[submodule "lib/libsodium"]
+	path = lib/libsodium
 	url = https://github.com/stellar/libsodium.git
-[submodule "src/lib/xdrpp"]
-	path = src/lib/xdrpp
+[submodule "lib/xdrpp"]
+	path = lib/xdrpp
 	url = https://github.com/xdrpp/xdrpp.git
-[submodule "src/lib/libmedida"]
-	path = src/lib/libmedida
+[submodule "lib/libmedida"]
+	path = lib/libmedida
 	url = https://github.com/stellar/medida.git

@@ -7,7 +7,7 @@
 #include "main/Application.h"
 #include "crypto/SecretKey.h"
 #include "transactions/TxTests.h"
-#include "generated/Stellar-types.h"
+#include "xdr/Stellar-types.h"
 #include <vector>
 
 namespace medida

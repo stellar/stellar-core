@@ -5,7 +5,7 @@
 #include "overlay/TCPPeer.h"
 #include "util/Logging.h"
 #include "main/Application.h"
-#include "generated/StellarXDR.h"
+#include "overlay/StellarXDR.h"
 #include "xdrpp/marshal.h"
 #include "overlay/OverlayManager.h"
 #include "database/Database.h"

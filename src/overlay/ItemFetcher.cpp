@@ -8,7 +8,7 @@
 #include "util/Logging.h"
 #include "medida/metrics_registry.h"
 #include "herder/TxSetFrame.h"
-#include "generated/StellarXDR.h"
+#include "overlay/StellarXDR.h"
 #include <crypto/Hex.h>
 #include "herder/Herder.h"
 
