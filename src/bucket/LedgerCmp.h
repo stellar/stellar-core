@@ -5,13 +5,11 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "generated/StellarXDR.h"
+#include "ledger/EntryFrame.h"
 
 namespace stellar
 {
 using xdr::operator<;
-
-// Helper for getting a LedgerKey from a LedgerEntry.
-LedgerKey LedgerEntryKey(LedgerEntry const& e);
 
 /**
  * Compare two LedgerEntries or LedgerKeys for 'identity', not content.

@@ -97,4 +97,31 @@ EntryFrame::storeDelete(LedgerDelta& delta, Database& db, LedgerKey const& key)
         break;
     }
 }
+
+LedgerKey
+LedgerEntryKey(LedgerEntry const& e)
+{
+    LedgerKey k;
+    switch (e.type())
+    {
+
+    case ACCOUNT:
+        k.type(ACCOUNT);
+        k.account().accountID = e.account().accountID;
+        break;
+
+    case TRUSTLINE:
+        k.type(TRUSTLINE);
+        k.trustLine().accountID = e.trustLine().accountID;
+        k.trustLine().currency = e.trustLine().currency;
+        break;
+
+    case OFFER:
+        k.type(OFFER);
+        k.offer().accountID = e.offer().accountID;
+        k.offer().offerID = e.offer().offerID;
+        break;
+    }
+    return k;
+}
 }

@@ -53,4 +53,7 @@ class EntryFrame : public NonMovableOrCopyable
     static void storeDelete(LedgerDelta& delta, Database& db,
                             LedgerKey const& key);
 };
+
+// static helper for getting a LedgerKey from a LedgerEntry.
+LedgerKey LedgerEntryKey(LedgerEntry const& e);
 }
