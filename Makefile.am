@@ -7,7 +7,7 @@ ACLOCAL_AMFLAGS = -I m4
 include $(top_srcdir)/common.mk
 
 # Can't use SUBDIRS for sub-packages as we don't want make install going there
-DIST_SUBDIRS = $(SUBDIRS) $(PKGCONFIG_SUBDIRS)
+DIST_SUBDIRS = src $(PKGCONFIG_SUBDIRS)
 .PHONY: $(PKGCONFIG_SUBDIRS)
 $(PKGCONFIG_SUBDIRS):
 	cd $@ && $(MAKE) $(AM_MAKEFLAGS)
@@ -58,12 +58,6 @@ VALGRIND_FLAGS = --num-callers=30 --trace-children=yes \
 VALGRIND_SUPPRESSIONS_FILES = stellar-core.supp
 
 maintainer-clean-local:
-	+@echo rm -rf `sed -ne 's!^/!!p' .gitignore` Makefile.in
-	rm -rf `sed -ne 's!^/!!p' .gitignore` Makefile.in
-if USE_AFL_FUZZ
-	+@echo rm -rf fuzz-testcases fuzz-findings
-	rm -rf fuzz-testcases fuzz-findings
-endif
+	cd $(srcdir) && rm -rf `sed -ne 's!^/!!p' .gitignore` *~ .gitignore~
 
-README: README.md
-	$(AM_V_GEN)cp $< $@
+CLEANFILES = stellar*.log test-suite.log .gitignore~ *~

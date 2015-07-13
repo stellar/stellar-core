@@ -31,7 +31,6 @@
 /src/scp/Stellar-SCP.h
 /src/StellarCoreVersion.h
 /src/xdr/*.h
-/README
 /Makefile
 /Makefile.in
 /aclocal.m4

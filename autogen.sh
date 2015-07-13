@@ -2,6 +2,12 @@
 
 # Public domain
 
+case "$0" in
+    */*)
+	cd $(dirname $0)
+	;;
+esac
+
 case "$1" in
     --skip-submodules|-s)
 	skip_submodules=yes

@@ -54,4 +54,7 @@ fuzz-clean: always
 distclean-local: fuzz-clean
 endif # USE_AFL_FUZZ
 
+CLEANFILES = $(BUILT_SOURCES) *~ */*~
+MAINTAINERCLEANFILES = $(srcdir)/Makefile.in $(srcdir)/*~ $(srcdir)/*/*~
+
 EXTRA_DIST = $(SRC_X_FILES) src.mk
