@@ -30,6 +30,14 @@ lib_lib3rdparty_a_SOURCES = $(SQLITE3_FILES) $(UTIL_FILES)	\
 	$(ASIO_CXX_FILES) $(JSON_FILES)
 noinst_HEADERS = $(MISC_H_FILES) $(ASIO_H_FILES)
 
+.PHONY: always
+always:
+	@:
+
+if USE_CLANG_FORMAT
+format: always
+	cd src && $(MAKE) $(AM_MAKEFLAGS) $@
+endif # USE_CLANG_FORMAT
 
 # XXX fix up directory
 if USE_AFL_FUZZ
@@ -44,7 +52,7 @@ fuzz: fuzz-testcases stellar-core
 	afl-fuzz -m 8000 -i fuzz-testcases -o fuzz-findings \
 	    ./stellar-core --fuzz @@
 
-fuzz-clean:
+fuzz-clean: always
 	rm -Rf fuzz-testcases fuzz-findings
 endif # USE_AFL_FUZZ
 
