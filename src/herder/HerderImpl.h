@@ -203,15 +203,9 @@ class HerderImpl : public Herder, public SCPDriver
         medida::Meter& mConfirmedBallotPrepared;
         medida::Meter& mAcceptedCommit;
 
-        medida::Meter& mBallotValid;
-        medida::Meter& mBallotInvalid;
-        medida::Meter& mBallotSign;
-        medida::Meter& mBallotValidSig;
-        medida::Meter& mBallotInvalidSig;
         medida::Meter& mBallotExpire;
 
         medida::Meter& mQuorumHeard;
-        medida::Meter& mQsetRetrieve;
 
         medida::Meter& mLostSync;
 
@@ -221,7 +215,6 @@ class HerderImpl : public Herder, public SCPDriver
         medida::Meter& mEnvelopeValidSig;
         medida::Meter& mEnvelopeInvalidSig;
 
-        medida::Counter& mSCPQSetFetchesSize;
         medida::Counter& mBallotValidationTimersSize;
 
         // Counters for stuff in parent class (SCP)
@@ -232,7 +225,6 @@ class HerderImpl : public Herder, public SCPDriver
         // Counters for things reached-through the
         // SCP maps: Slots and Nodes
         medida::Counter& mCumulativeStatements;
-        medida::Counter& mCumulativeCachedQuorumSets;
 
         SCPMetrics(Application& app);
     };

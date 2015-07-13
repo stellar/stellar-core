@@ -57,23 +57,11 @@ HerderImpl::SCPMetrics::SCPMetrics(Application& app)
           {"scp", "ballot", "confirmedprepared"}, "ballot"))
     , mAcceptedCommit(app.getMetrics().NewMeter(
           {"scp", "ballot", "acceptedcommit"}, "ballot"))
-    , mBallotValid(
-          app.getMetrics().NewMeter({"scp", "ballot", "valid"}, "ballot"))
-    , mBallotInvalid(
-          app.getMetrics().NewMeter({"scp", "ballot", "invalid"}, "ballot"))
-    , mBallotSign(
-          app.getMetrics().NewMeter({"scp", "ballot", "sign"}, "ballot"))
-    , mBallotValidSig(
-          app.getMetrics().NewMeter({"scp", "ballot", "validsig"}, "ballot"))
-    , mBallotInvalidSig(
-          app.getMetrics().NewMeter({"scp", "ballot", "invalidsig"}, "ballot"))
     , mBallotExpire(
           app.getMetrics().NewMeter({"scp", "ballot", "expire"}, "ballot"))
 
     , mQuorumHeard(
           app.getMetrics().NewMeter({"scp", "quorum", "heard"}, "quorum"))
-    , mQsetRetrieve(
-          app.getMetrics().NewMeter({"scp", "qset", "retrieve"}, "qset"))
 
     , mLostSync(app.getMetrics().NewMeter({"scp", "sync", "lost"}, "sync"))
 
@@ -88,8 +76,6 @@ HerderImpl::SCPMetrics::SCPMetrics(Application& app)
     , mEnvelopeInvalidSig(app.getMetrics().NewMeter(
           {"scp", "envelope", "invalidsig"}, "envelope"))
 
-    , mSCPQSetFetchesSize(
-          app.getMetrics().NewCounter({"scp", "memory", "qset-fetches"}))
     , mBallotValidationTimersSize(app.getMetrics().NewCounter(
           {"scp", "memory", "ballot-validation-timers"}))
 
@@ -97,9 +83,6 @@ HerderImpl::SCPMetrics::SCPMetrics(Application& app)
           app.getMetrics().NewCounter({"scp", "memory", "known-slots"}))
     , mCumulativeStatements(app.getMetrics().NewCounter(
           {"scp", "memory", "cumulative-statements"}))
-    , mCumulativeCachedQuorumSets(app.getMetrics().NewCounter(
-          {"scp", "memory", "cumulative-cached-quorum-sets"}))
-
 {
 }
 
