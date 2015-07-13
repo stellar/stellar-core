@@ -35,4 +35,22 @@ format: always
 	cd $(srcdir) && $(CLANG_FORMAT) -i $(SRC_CXX_FILES) $(SRC_H_FILES)
 endif # USE_CLANG_FORMAT
 
+if USE_AFL_FUZZ
+fuzz-testcases: stellar-core
+	mkdir -p fuzz-testcases
+	for i in `seq 1 10`; do \
+	    ./stellar-core --genfuzz fuzz-testcases/fuzz$$i.xdr; \
+	done
+
+fuzz: fuzz-testcases stellar-core
+	mkdir -p fuzz-findings
+	afl-fuzz -m 8000 -i fuzz-testcases -o fuzz-findings \
+	    ./stellar-core --fuzz @@
+
+fuzz-clean: always
+	rm -Rf fuzz-testcases fuzz-findings
+
+distclean-local: fuzz-clean
+endif # USE_AFL_FUZZ
+
 EXTRA_DIST = $(SRC_X_FILES) src.mk

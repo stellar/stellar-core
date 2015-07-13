@@ -39,21 +39,9 @@ format: always
 	cd src && $(MAKE) $(AM_MAKEFLAGS) $@
 endif # USE_CLANG_FORMAT
 
-# XXX fix up directory
 if USE_AFL_FUZZ
-fuzz-testcases: stellar-core
-	mkdir -p fuzz-testcases
-	for i in `seq 1 10`; do \
-	    ./stellar-core --genfuzz fuzz-testcases/fuzz$$i.xdr; \
-	done
-
-fuzz: fuzz-testcases stellar-core
-	mkdir -p fuzz-findings
-	afl-fuzz -m 8000 -i fuzz-testcases -o fuzz-findings \
-	    ./stellar-core --fuzz @@
-
-fuzz-clean: always
-	rm -Rf fuzz-testcases fuzz-findings
+fuzz-testcases fuzz fuzz-clean: all
+	cd src && $(MAKE) $(AM_MAKEFLAGS) $@
 endif # USE_AFL_FUZZ
 
 EXTRA_DIST = stellar-core.supp test/selftest-stellar-core	\
