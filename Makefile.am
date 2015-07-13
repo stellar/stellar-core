@@ -48,7 +48,7 @@ endif # USE_AFL_FUZZ
 
 EXTRA_DIST = stellar-core.supp test/selftest-stellar-core	\
 	test/testnet/multitail.conf test/testnet/run-test.sh	\
-	common.mk lib/lib.mk lib/medida.mk
+	README.md common.mk lib/lib.mk lib/medida.mk
 
 TESTS=test/selftest-stellar-core
 
