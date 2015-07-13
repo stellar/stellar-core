@@ -634,8 +634,8 @@ BallotProtocol::attemptPrepare(SCPBallot const& ballot)
                             cM = pl.externalize().commit;
                         }
                         res = mConfirmedPrepared &&
-                              areBallotsLessAndCompatible(cM,
-                                                          *mConfirmedPrepared);
+                              areBallotsLessAndCompatible(*mConfirmedPrepared,
+                                                          cM);
                     }
                     return res;
                 }))
@@ -1094,7 +1094,7 @@ BallotProtocol::attemptAcceptCommit(SCPBallot const& acceptCommitLow,
 
     bool didWork = false;
 
-    if (!mConfirmedPrepared ||
+    if (mPhase == SCP_PHASE_PREPARE ||
         areBallotsLessAndCompatible(*mConfirmedPrepared, acceptCommitHigh))
     {
         mCommit = make_unique<SCPBallot>(acceptCommitLow);

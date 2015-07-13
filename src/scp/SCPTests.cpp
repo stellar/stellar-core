@@ -1253,6 +1253,64 @@ TEST_CASE("protocol core5", "[scp][ballotprotocol]")
         verifyPrepare(scp.mEnvs[3], v0SecretKey, qSetHash, 0, newbx, &bx,
                       bx.counter, bx.counter);
     }
+
+    SECTION("timeout from multiple nodes")
+    {
+        REQUIRE(scp.bumpState(0, xValue));
+
+        SCPBallot x1(1, xValue);
+
+        REQUIRE(scp.mEnvs.size() == 1);
+        verifyPrepare(scp.mEnvs[0], v0SecretKey, qSetHash, 0, x1);
+
+        scp.receiveEnvelope(makePrepare(v1SecretKey, qSetHash, 0, x1));
+        scp.receiveEnvelope(makePrepare(v3SecretKey, qSetHash, 0, x1));
+        scp.receiveEnvelope(makePrepare(v4SecretKey, qSetHash, 0, x1));
+
+        // quorum -> prepared (1,x)
+        REQUIRE(scp.mEnvs.size() == 2);
+        verifyPrepare(scp.mEnvs[1], v0SecretKey, qSetHash, 0, x1, &x1);
+
+        SCPBallot x2(2, xValue);
+        // timeout from local node
+        REQUIRE(scp.bumpState(0, xValue));
+        // prepares (2,x)
+        REQUIRE(scp.mEnvs.size() == 3);
+        verifyPrepare(scp.mEnvs[2], v0SecretKey, qSetHash, 0, x2, &x1);
+
+        scp.receiveEnvelope(makePrepare(v2SecretKey, qSetHash, 0, x1, &x1));
+        scp.receiveEnvelope(makePrepare(v3SecretKey, qSetHash, 0, x1, &x1));
+        scp.receiveEnvelope(makePrepare(v4SecretKey, qSetHash, 0, x1, &x1));
+        // quorum -> set nP=1
+        REQUIRE(scp.mEnvs.size() == 4);
+        verifyPrepare(scp.mEnvs[3], v0SecretKey, qSetHash, 0, x2, &x1, 0, 1);
+
+        scp.receiveEnvelope(makePrepare(v1SecretKey, qSetHash, 0, x1, &x1));
+        REQUIRE(scp.mEnvs.size() == 4);
+
+        scp.receiveEnvelope(makePrepare(v2SecretKey, qSetHash, 0, x1, &x1, 1, 1));
+        scp.receiveEnvelope(makePrepare(v3SecretKey, qSetHash, 0, x1, &x1, 1, 1));
+        scp.receiveEnvelope(makePrepare(v4SecretKey, qSetHash, 0, x1, &x1, 1, 1));
+        REQUIRE(scp.mEnvs.size() == 4);
+
+        scp.receiveEnvelope(makePrepare(v2SecretKey, qSetHash, 0, x2, &x2, 1, 1));
+        scp.receiveEnvelope(makePrepare(v3SecretKey, qSetHash, 0, x2, &x2, 1, 1));
+        // v-blocking prepared (2,x) -> prepared (2,x)
+        REQUIRE(scp.mEnvs.size() == 5);
+        verifyPrepare(scp.mEnvs[4], v0SecretKey, qSetHash, 0, x2, &x2, 0, 1);
+
+        scp.receiveEnvelope(makePrepare(v4SecretKey, qSetHash, 0, x2, &x2, 1, 1));
+        // quorum confirms (2,x) prepared -> set P, also set c
+        REQUIRE(scp.mEnvs.size() == 6);
+        verifyPrepare(scp.mEnvs[5], v0SecretKey, qSetHash, 0, x2, &x2, 2, 2);
+
+        scp.receiveEnvelope(makeConfirm(v2SecretKey, qSetHash, 0, 2, x1, 1));
+        scp.receiveEnvelope(makeConfirm(v3SecretKey, qSetHash, 0, 2, x1, 1));
+        // v-blocking commit (1,x) -> accept (1,x)
+        REQUIRE(scp.mEnvs.size() == 7);
+        verifyConfirm(scp.mEnvs[6], v0SecretKey, qSetHash, 0, 2, x1, 1);
+    }
+
 }
 
 TEST_CASE("nomination tests core5", "[scp][nominationprotocol]")
