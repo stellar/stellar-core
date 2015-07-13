@@ -311,6 +311,7 @@ BallotProtocol::isStatementSane(SCPStatement const& st)
 bool
 BallotProtocol::abandonBallot()
 {
+    CLOG(DEBUG, "SCP") << "BallotProtocol::abandonBallot";
     bool res = false;
     Value const& v = mSlot.getLatestCompositeCandidate();
     if (v.empty())

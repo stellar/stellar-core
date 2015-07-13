@@ -283,7 +283,7 @@ Slot::envToStr(SCPStatement const& st) const
     case SCPStatementType::SCP_ST_CONFIRM:
     {
         auto const& c = st.pledges.confirm();
-        oss << " | COMMIT"
+        oss << " | CONFIRM"
             << " | D: " << hexAbbrev(qSetHash) << " | np: " << c.nPrepared
             << " | c: " << ballotToStr(c.commit) << " | nP: " << c.nP;
     }
