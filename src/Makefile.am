@@ -2,6 +2,7 @@
 
 bin_PROGRAMS = stellar-core
 
+include $(top_srcdir)/common.mk
 include $(srcdir)/src.mk
 
 noinst_HEADERS = $(SRC_H_FILES)

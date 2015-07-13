@@ -4,6 +4,8 @@ SUBDIRS = . src
 AM_EXTRA_RECURSIVE_TARGETS = check-valgrind
 ACLOCAL_AMFLAGS = -I m4
 
+include $(top_srcdir)/common.mk
+
 # Can't use SUBDIRS for sub-packages as we don't want make install going there
 DIST_SUBDIRS = $(SUBDIRS) $(PKGCONFIG_SUBDIRS)
 .PHONY: $(PKGCONFIG_SUBDIRS)
@@ -46,7 +48,7 @@ endif # USE_AFL_FUZZ
 
 EXTRA_DIST = stellar-core.supp test/selftest-stellar-core	\
 	test/testnet/multitail.conf test/testnet/run-test.sh	\
-	lib/lib.mk lib/medida.mk
+	common.mk lib/lib.mk lib/medida.mk
 
 TESTS=test/selftest-stellar-core
 

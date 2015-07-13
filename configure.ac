@@ -148,25 +148,21 @@ soci_LIBS='-lsoci'
 AC_SUBST(soci_CFLAGS)
 AC_SUBST(soci_LIBS)
 
-# We do not bundle libpq, but we'll compile-in support if it's present.
-# Add other optional database drivers here (and later, in SOCI).
-PKG_CHECK_MODULES([libpq],[libpq],[use_POSTGRES=1],[use_POSTGRES=])
-AM_CONDITIONAL(USE_POSTGRES, [test "x$use_POSTGRES" != "x"])
-if test "x$use_POSTGRES" != "x"; then
-   soci_CFLAGS="$soci_CFLAGS "'-I$(top_srcdir)/lib/soci/src/backends/postgresql'
-   AC_DEFINE(USE_POSTGRES, 1, [Use PostgresQL])
+AC_ARG_ENABLE(postgres,
+    AS_HELP_STRING([--disable-postgres],
+        [Disable postgres support even when libpq available]))
+unset have_postgres
+if test x"$enable_postgres" != xno; then
+    PKG_CHECK_MODULES(libpq, libpq, have_postgres=1)
+    if test -n "$enable_postgres" -a -z "$have_postgres"; then
+       AC_MSG_ERROR([Cannot find postgres library])
+    fi
+    if test -n "$have_postgres"; then
+       backend=
+       soci_CFLAGS="$soci_CFLAGS "'-I$(top_srcdir)/lib/soci/src/backends/postgresql'
+    fi
 fi
-
-CPPFLAGS="$CPPFLAGS -I\$(top_srcdir)"
-CPPFLAGS="$CPPFLAGS -DASIO_SEPARATE_COMPILATION -DSQLITE_OMIT_LOAD_EXTENSION"
-CPPFLAGS="$CPPFLAGS -I\$(top_srcdir)/src -I\$(top_builddir)/src"
-for lib in libsodium xdrpp soci libpq libmedida; do
-    CPPFLAGS="$CPPFLAGS \$(${lib}_CFLAGS)"
-done
-for lib in autocheck/include cereal/include asio/include util \
-    	soci/src/{core,backends/sqlite3}; do
-    CPPFLAGS="$CPPFLAGS -I\$(top_srcdir)/lib/$lib"
-done
+AM_CONDITIONAL(USE_POSTGRES, [test -n "$have_postgres"])
 
 AC_CONFIG_HEADERS(config.h)
 AC_CONFIG_FILES(Makefile src/Makefile)
