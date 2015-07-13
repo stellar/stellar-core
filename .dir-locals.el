@@ -5,16 +5,16 @@
  (nil . ((flycheck-clang-language-standard . "c++11")
          (flycheck-clang-include-path . ("."
                                          "src"
-                                         "src/lib/asio/include"
-                                         "src/lib/autocheck/include"
-                                         "src/lib/cereal/include"
-                                         "src/lib/util"
-                                         "src/lib/soci/src/core"
-                                         "src/lib/soci/src/backends/sqlite3"
-                                         "src/lib/xdrpp"
-                                         "src/lib/sqlite"
-                                         "src/lib/libsodium/src/libsodium"
-                                         "src/lib/libmedida/src"
+                                         "lib/asio/include"
+                                         "lib/autocheck/include"
+                                         "lib/cereal/include"
+                                         "lib/util"
+                                         "lib/soci/src/core"
+                                         "lib/soci/src/backends/sqlite3"
+                                         "lib/xdrpp"
+                                         "lib/sqlite"
+                                         "lib/libsodium/src/libsodium"
+                                         "lib/libmedida/src"
                                          ))
          (whitespace-style . (face tabs tab-mark trailing lines-tail empty))
          (c-file-style . "stroustrup")
