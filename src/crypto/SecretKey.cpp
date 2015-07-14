@@ -8,6 +8,8 @@
 #include "crypto/Hex.h"
 #include <sodium.h>
 #include <type_traits>
+#include <memory>
+#include <util/make_unique.h>
 
 namespace stellar
 {
@@ -257,6 +259,86 @@ PubKeyUtils::hasHint(PublicKey const& pk, SignatureHint const& hint)
 {
     return memcmp(&pk.ed25519().back() - hint.size() + 1, hint.data(),
                   hint.size()) == 0;
+}
+
+static void
+logPublicKey(std::ostream& s, PublicKey const& pk)
+{
+    s << "PublicKey:" << std::endl
+      << "  strKey: " << PubKeyUtils::toStrKey(pk) << std::endl
+      << "  base58: " << PubKeyUtils::toBase58(pk) << std::endl
+      << "  hex: " << binToHex(pk.ed25519()) << std::endl;
+}
+
+static void
+logSecretKey(std::ostream& s, SecretKey const& sk)
+{
+    s << "Seed:" << std::endl
+      << "  strKey: " << sk.getStrKeySeed() << std::endl
+      << "  base58: " << sk.getBase58Seed() << std::endl;
+    logPublicKey(s, sk.getPublicKey());
+}
+
+void
+StrKeyUtils::logKey(std::ostream& s, std::string const& key)
+{
+    // if it's a hex string, display it in all forms
+    try
+    {
+        uint256 data = hexToBin256(key);
+        PublicKey pk;
+        pk.type(KEY_TYPE_ED25519);
+        pk.ed25519() = data;
+        logPublicKey(s, pk);
+
+        SecretKey sk(SecretKey::fromSeed(data));
+        logSecretKey(s, sk);
+        return;
+    }
+    catch (...)
+    {
+    }
+
+    // see if it's a public key
+    try
+    {
+        PublicKey pk = PubKeyUtils::fromStrKey(key);
+        logPublicKey(s, pk);
+        return;
+    }
+    catch (...)
+    {
+    }
+    try
+    {
+        PublicKey pk = PubKeyUtils::fromBase58(key);
+        logPublicKey(s, pk);
+        return;
+    }
+    catch (...)
+    {
+    }
+
+    // see if it's a seed
+    try
+    {
+        SecretKey sk = SecretKey::fromStrKeySeed(key);
+        logSecretKey(s, sk);
+        return;
+    }
+    catch (...)
+    {
+    }
+    try
+    {
+        SecretKey sk = SecretKey::fromBase58Seed(key);
+        logSecretKey(s, sk);
+        return;
+    }
+    catch (...)
+    {
+    }
+    s << "Unknown key type" << std::endl;
 }
 
 Hash

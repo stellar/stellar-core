@@ -5,6 +5,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "xdr/Stellar-types.h"
+#include <ostream>
 
 namespace stellar
 {
@@ -91,6 +92,13 @@ PublicKey fromBase58(std::string const& s);
 SignatureHint getHint(PublicKey const& pk);
 // returns true if the hint matches the key
 bool hasHint(PublicKey const& pk, SignatureHint const& hint);
+}
+
+namespace StrKeyUtils
+{
+// logs a key (can be a public or private key) in all
+// known formats
+void logKey(std::ostream& s, std::string const& key);
 }
 
 namespace HashUtils

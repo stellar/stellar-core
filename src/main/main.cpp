@@ -30,37 +30,39 @@ using namespace std;
 
 enum opttag
 {
-    OPT_VERSION = 0x100,
-    OPT_HELP,
-    OPT_TEST,
-    OPT_DUMPXDR,
-    OPT_FUZZ,
-    OPT_CONF,
     OPT_CMD,
+    OPT_CONF,
+    OPT_CONVERTID,
+    OPT_DUMPXDR,
     OPT_FORCESCP,
-    OPT_GENSEED,
+    OPT_FUZZ,
     OPT_GENFUZZ,
+    OPT_GENSEED,
+    OPT_HELP,
     OPT_LOGLEVEL,
     OPT_METRIC,
     OPT_NEWDB,
-    OPT_NEWHIST
+    OPT_NEWHIST,
+    OPT_TEST,
+    OPT_VERSION
 };
 
 static const struct option stellar_core_options[] = {
-    {"version", no_argument, nullptr, OPT_VERSION},
-    {"help", no_argument, nullptr, OPT_HELP},
-    {"test", no_argument, nullptr, OPT_TEST},
-    {"dumpxdr", required_argument, nullptr, OPT_DUMPXDR},
-    {"fuzz", required_argument, nullptr, OPT_FUZZ},
-    {"conf", required_argument, nullptr, OPT_CONF},
     {"c", required_argument, nullptr, OPT_CMD},
-    {"genseed", no_argument, nullptr, OPT_GENSEED},
+    {"conf", required_argument, nullptr, OPT_CONF},
+    {"convertid", required_argument, nullptr, OPT_CONVERTID},
+    {"dumpxdr", required_argument, nullptr, OPT_DUMPXDR},
+    {"forcescp", optional_argument, nullptr, OPT_FORCESCP},
+    {"fuzz", required_argument, nullptr, OPT_FUZZ},
     {"genfuzz", required_argument, nullptr, OPT_GENFUZZ},
+    {"genseed", no_argument, nullptr, OPT_GENSEED},
+    {"help", no_argument, nullptr, OPT_HELP},
+    {"ll", required_argument, nullptr, OPT_LOGLEVEL},
     {"metric", required_argument, nullptr, OPT_METRIC},
     {"newdb", no_argument, nullptr, OPT_NEWDB},
     {"newhist", required_argument, nullptr, OPT_NEWHIST},
-    {"forcescp", optional_argument, nullptr, OPT_FORCESCP},
-    {"ll", required_argument, nullptr, OPT_LOGLEVEL},
+    {"test", no_argument, nullptr, OPT_TEST},
+    {"version", no_argument, nullptr, OPT_VERSION},
     {nullptr, 0, nullptr, 0}};
 
 static void
@@ -69,26 +71,27 @@ usage(int err = 1)
     std::ostream& os = err ? std::cerr : std::cout;
     os << "usage: stellar-core [OPTIONS]\n"
           "where OPTIONS can be any of:\n"
-          "      --help          To display this string\n"
-          "      --version       To print version information\n"
-          "      --test          To run self-tests\n"
+          "      --c             Command to send to local stellar-core. try "
+          "'--c help' for more information\n"
+          "      --conf FILE     To specify a config file ('-' for STDIN, "
+          "default 'stellar-core.cfg')\n"
+          "      --convertid ID  Displays ID in all known forms\n"
           "      --dumpxdr FILE  To dump an XDR file, for debugging\n"
+          "      --forcescp      When true, forces SCP to start with the local "
+          "ledger as position, close next time stellar-core is run\n"
           "      --fuzz FILE     To run a single fuzz input and exit\n"
+          "      --genfuzz FILE  Generate a random fuzzer input file\n "
+          "      --genseed       Generate and print a random node seed\n"
+          "      --help          To display this string\n"
+          "      --ll LEVEL      Set the log level. (redundant with --c ll but "
+          "you need this form for the tests.)\n"
+          "                      LEVEL can be:\n"
           "      --metric METRIC Report metric METRIC on exit\n"
           "      --newdb         Creates or restores the DB to the genesis "
           "ledger\n"
           "      --newhist ARCH  Initialize the named history archive ARCH\n"
-          "      --forcescp      When true, forces SCP to start with the local "
-          "ledger as position, close next time stellar-core is run\n"
-          "      --genseed       Generate and print a random node seed\n"
-          "      --genfuzz FILE  Generate a random fuzzer input file\n "
-          "      --ll LEVEL      Set the log level. (redundant with --c ll but "
-          "you need this form for the tests.)\n"
-          "                      LEVEL can be:\n"
-          "      --c             Command to send to local stellar-core. try "
-          "'--c help' for more information\n"
-          "      --conf FILE     To specify a config file ('-' for STDIN, "
-          "default 'stellar-core.cfg')\n";
+          "      --test          To run self-tests\n"
+          "      --version       To print version information\n";
     exit(err);
 }
 
@@ -253,32 +256,38 @@ main(int argc, char* const* argv)
     {
         switch (opt)
         {
-        case OPT_TEST:
-        {
-            rest.push_back(*argv);
-            rest.insert(++rest.begin(), argv + optind, argv + argc);
-            return test(static_cast<int>(rest.size()), &rest[0], logLevel,
-                        metrics);
-        }
-        case OPT_DUMPXDR:
-            dumpxdr(std::string(optarg));
-            return 0;
-        case OPT_FUZZ:
-            fuzz(std::string(optarg), logLevel, metrics);
-            return 0;
-        case OPT_CONF:
-            cfgFile = std::string(optarg);
-            break;
         case OPT_CMD:
             command = optarg;
             rest.insert(rest.begin(), argv + optind, argv + argc);
             break;
-        case OPT_VERSION:
-            std::cout << STELLAR_CORE_VERSION;
+        case OPT_CONF:
+            cfgFile = std::string(optarg);
+            break;
+        case OPT_CONVERTID:
+            StrKeyUtils::logKey(std::cout, std::string(optarg));
+            return 0;
+        case OPT_DUMPXDR:
+            dumpxdr(std::string(optarg));
             return 0;
         case OPT_FORCESCP:
             forceSCP = make_optional<bool>(optarg == nullptr ||
                                            string(optarg) == "true");
+            break;
+        case OPT_FUZZ:
+            fuzz(std::string(optarg), logLevel, metrics);
+            return 0;
+        case OPT_GENFUZZ:
+            genfuzz(std::string(optarg));
+            return 0;
+        case OPT_GENSEED:
+        {
+            SecretKey key = SecretKey::random();
+            std::cout << "Secret seed: " << key.getStrKeySeed() << std::endl;
+            std::cout << "Public: " << key.getStrKeyPublic() << std::endl;
+            return 0;
+        }
+        case OPT_LOGLEVEL:
+            logLevel = Logging::getLLfromString(std::string(optarg));
             break;
         case OPT_METRIC:
             metrics.push_back(std::string(optarg));
@@ -289,20 +298,16 @@ main(int argc, char* const* argv)
         case OPT_NEWHIST:
             newHistories.push_back(std::string(optarg));
             break;
-        case OPT_LOGLEVEL:
-            logLevel = Logging::getLLfromString(std::string(optarg));
-            break;
-        case OPT_GENSEED:
+        case OPT_TEST:
         {
-            SecretKey key = SecretKey::random();
-            std::cout << "Secret seed: " << key.getBase58Seed() << std::endl;
-            std::cout << "Public: " << key.getBase58Public() << std::endl;
-            return 0;
+            rest.push_back(*argv);
+            rest.insert(++rest.begin(), argv + optind, argv + argc);
+            return test(static_cast<int>(rest.size()), &rest[0], logLevel,
+                        metrics);
         }
-        case OPT_GENFUZZ:
-            genfuzz(std::string(optarg));
+        case OPT_VERSION:
+            std::cout << STELLAR_CORE_VERSION;
             return 0;
-
         default:
             usage(0);
             return 0;
