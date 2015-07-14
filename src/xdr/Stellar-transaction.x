@@ -28,7 +28,7 @@ enum OperationType
 };
 
 /* CreateAccount
-Funds a new account with the specified starting balance
+Creates and funds a new account with the specified starting balance.
 
 Threshold: med
 
@@ -44,7 +44,7 @@ struct CreateAccountOp
 
 /* Payment
 
-    send an amount to a destination account.
+    Send an amount in specified currency to a destination account.
 
     Threshold: med
 
