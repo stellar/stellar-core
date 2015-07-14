@@ -16,6 +16,8 @@ SecretKey::SecretKey() : mKeyType(KEY_TYPE_ED25519)
 {
     static_assert(crypto_sign_PUBLICKEYBYTES == sizeof(uint256),
                   "Unexpected public key length");
+    static_assert(crypto_sign_SEEDBYTES == sizeof(uint256),
+                  "Unexpected seed length");
     static_assert(crypto_sign_SECRETKEYBYTES == sizeof(uint512),
                   "Unexpected secret key length");
     static_assert(crypto_sign_BYTES == sizeof(uint512),
@@ -121,14 +123,18 @@ SecretKey::random()
 }
 
 SecretKey
-SecretKey::fromSeed(uint256 const& seed)
+SecretKey::fromSeed(ByteSlice const& seed)
 {
     PublicKey pk;
     SecretKey sk;
     assert(sk.mKeyType == KEY_TYPE_ED25519);
 
+    if (seed.size() != crypto_sign_SEEDBYTES)
+    {
+        throw std::runtime_error("seed does not match byte size");
+    }
     if (crypto_sign_seed_keypair(pk.ed25519().data(), sk.mSecretKey.data(),
-                                 (unsigned char*)&(seed[0])) != 0)
+                                 seed.data()) != 0)
     {
         throw std::runtime_error("error generating secret key from seed");
     }
@@ -140,8 +146,10 @@ SecretKey::fromStrKeySeed(std::string const& strKeySeed)
 {
     uint8_t ver;
     std::vector<uint8_t> seed;
-    if (!strKey::fromStrKey(strKeySeed, ver, seed) || (ver != strKey::STRKEY_SEED_ED25519) ||
-        (seed.size() != crypto_sign_SEEDBYTES))
+    if (!strKey::fromStrKey(strKeySeed, ver, seed) ||
+        (ver != strKey::STRKEY_SEED_ED25519) ||
+        (seed.size() != crypto_sign_SEEDBYTES) ||
+        (strKeySeed.size() != strKey::getStrKeySize(crypto_sign_SEEDBYTES)))
     {
         throw std::runtime_error("invalid seed");
     }
@@ -210,8 +218,10 @@ PubKeyUtils::fromStrKey(std::string const& s)
     PublicKey pk;
     uint8_t ver;
     std::vector<uint8_t> k;
-    if (!strKey::fromStrKey(s, ver, k) || (ver != strKey::STRKEY_PUBKEY_ED25519) ||
-        (k.size() != crypto_sign_PUBLICKEYBYTES))
+    if (!strKey::fromStrKey(s, ver, k) ||
+        (ver != strKey::STRKEY_PUBKEY_ED25519) ||
+        (k.size() != crypto_sign_PUBLICKEYBYTES) ||
+        (s.size() != strKey::getStrKeySize(crypto_sign_PUBLICKEYBYTES)))
     {
         throw std::runtime_error("bad public key");
     }

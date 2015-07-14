@@ -62,7 +62,7 @@ class SecretKey
     static SecretKey fromBase58Seed(std::string const& base58Seed);
 
     // Decode a secret key from a binary seed value.
-    static SecretKey fromSeed(uint256 const& seed);
+    static SecretKey fromSeed(ByteSlice const& seed);
 
     bool operator==(SecretKey const& rh)
     {
