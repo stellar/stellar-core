@@ -8,6 +8,11 @@
 #include <string>
 #include "util/NonCopyable.h"
 
+namespace medida
+{
+class MetricsRegistry;
+}
+
 namespace stellar
 {
 
@@ -23,6 +28,7 @@ namespace stellar
  */
 
 class BucketManager;
+class BucketList;
 class Database;
 
 class Bucket : public std::enable_shared_from_this<Bucket>
@@ -97,4 +103,12 @@ class Bucket : public std::enable_shared_from_this<Bucket>
           std::vector<std::shared_ptr<Bucket>> const& shadows =
               std::vector<std::shared_ptr<Bucket>>());
 };
+
+void
+checkDBAgainstBuckets(medida::MetricsRegistry& metrics,
+                      BucketManager& bucketManager,
+                      Database& db,
+                      BucketList& bl);
+
+
 }

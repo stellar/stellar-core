@@ -8,10 +8,12 @@
 // else.
 #include "util/asio.h"
 #include "bucket/BucketManager.h"
+#include "bucket/BucketList.h"
 #include "bucket/LedgerCmp.h"
 #include "crypto/Hex.h"
 #include "crypto/Random.h"
 #include "crypto/SHA.h"
+#include "database/Database.h"
 #include "main/Application.h"
 #include "util/Fs.h"
 #include "util/Logging.h"
@@ -23,8 +25,11 @@
 #include "ledger/EntryFrame.h"
 #include "ledger/LedgerDelta.h"
 #include "medida/medida.h"
+#include "lib/util/format.h"
+
 #include <cassert>
 #include <future>
+
 
 namespace stellar
 {
@@ -429,5 +434,111 @@ Bucket::merge(BucketManager& bucketManager,
         }
     }
     return out.getBucket(bucketManager);
+}
+
+
+static void
+compareSizes(std::string const& objType,
+             uint64_t inDatabase,
+             uint64_t inBucketlist)
+{
+    if (inDatabase != inBucketlist)
+    {
+        throw std::runtime_error(
+            fmt::format("{} object count mismatch: DB has {}, BucketList has {}",
+                        objType, inDatabase, inBucketlist));
+    }
+}
+
+// FIXME issue NNN: this should be refactored to run in a read-transaction on a
+// background thread and take a soci::session& rather than Database&. For now we
+// code it to run on main thread because there's a bunch of code to move around
+// in the ledger frames and db layer to make that work.
+
+void
+checkDBAgainstBuckets(medida::MetricsRegistry& metrics,
+                      BucketManager& bucketManager,
+                      Database& db,
+                      BucketList& bl)
+{
+    CLOG(INFO, "Bucket") << "CheckDB starting";
+    auto execTimer = metrics.NewTimer({"bucket", "checkdb", "execute"}).TimeScope();
+
+    // Step 1: Collect all buckets to merge.
+    std::vector<std::shared_ptr<Bucket>> buckets;
+    for (size_t i = 0; i < BucketList::kNumLevels; ++i)
+    {
+        CLOG(INFO, "Bucket") << "CheckDB collecting buckets from level " << i;
+        auto& level = bl.getLevel(i);
+        auto& next = level.getNext();
+        if (next.isLive())
+        {
+            CLOG(INFO, "Bucket") << "CheckDB resolving future bucket on level " << i;
+            buckets.push_back(next.resolve());
+        }
+        buckets.push_back(level.getCurr());
+        buckets.push_back(level.getSnap());
+    }
+
+    if (buckets.empty())
+    {
+        CLOG(INFO, "Bucket") << "CheckDB found no buckets, returning";
+        return;
+    }
+
+    // Step 2: merge all buckets into a single super-bucket.
+    auto i = buckets.begin();
+    assert(i != buckets.end());
+    std::shared_ptr<Bucket> superBucket = *i;
+    while (++i != buckets.end())
+    {
+        auto mergeTimer = metrics.NewTimer({"bucket", "checkdb", "merge"}).TimeScope();
+        assert(superBucket);
+        assert(*i);
+        superBucket = Bucket::merge(bucketManager, *i, superBucket);
+        assert(superBucket);
+    }
+
+    CLOG(INFO, "Bucket") << "CheckDB starting object comparison";
+
+    // Step 3: scan the superbucket, checking each object against the DB and
+    // counting objects along the way.
+    uint64_t nAccounts = 0, nTrustLines = 0, nOffers = 0;
+    {
+        auto& meter = metrics.NewMeter({"bucket", "checkdb", "object-compare"}, "comparison");
+        auto compareTimer = metrics.NewTimer({"bucket", "checkdb", "compare"}).TimeScope();
+        for (Bucket::InputIterator iter(superBucket); iter; ++iter)
+        {
+            meter.Mark();
+            auto& e = *iter;
+            if (e.type() == LIVEENTRY)
+            {
+                switch (e.liveEntry().type())
+                {
+                case ACCOUNT:
+                    ++nAccounts;
+                    break;
+                case TRUSTLINE:
+                    ++nTrustLines;
+                    break;
+                case OFFER:
+                    ++nOffers;
+                    break;
+                }
+                EntryFrame::checkAgainstDatabase(e.liveEntry(), db);
+                if (meter.count() % 100 == 0)
+                {
+                    CLOG(INFO, "Bucket") << "CheckDB compared "
+                                         << meter.count() << " objects";
+                }
+            }
+        }
+    }
+
+    // Step 4: confirm size of datasets matches size of datasets in DB.
+    soci::session& sess = db.getSession();
+    compareSizes("account", AccountFrame::countObjects(sess), nAccounts);
+    compareSizes("trustline", TrustFrame::countObjects(sess), nTrustLines);
+    compareSizes("offer", OfferFrame::countObjects(sess), nOffers);
 }
 }

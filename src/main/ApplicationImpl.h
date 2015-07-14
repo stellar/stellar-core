@@ -69,6 +69,8 @@ class ApplicationImpl : public Application
                               uint32_t txRate,
                               bool autoRate) override;
 
+    virtual void checkDB() override;
+
     virtual void applyCfgCommands() override;
 
     virtual void reportCfgMetrics() override;

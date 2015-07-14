@@ -9,6 +9,7 @@
 
 namespace soci
 {
+class session;
 namespace details
 {
 class prepare_temp_type;
@@ -61,6 +62,7 @@ class TrustFrame : public EntryFrame
     static void storeDelete(LedgerDelta& delta, Database& db,
                             LedgerKey const& key);
     static bool exists(Database& db, LedgerKey const& key);
+    static uint64_t countObjects(soci::session& sess);
 
     // returns the specified trustline or a generated one for issuers
     static pointer loadTrustLine(AccountID const& accountID,

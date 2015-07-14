@@ -165,6 +165,14 @@ TrustFrame::exists(Database& db, LedgerKey const& key)
     return exists != 0;
 }
 
+uint64_t
+TrustFrame::countObjects(soci::session& sess)
+{
+    uint64_t count = 0;
+    sess << "SELECT COUNT(*) FROM trustlines;", into(count);
+    return count;
+}
+
 void
 TrustFrame::storeDelete(LedgerDelta& delta, Database& db) const
 {

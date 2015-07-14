@@ -7,9 +7,11 @@
 #include "ledger/AccountFrame.h"
 #include "ledger/OfferFrame.h"
 #include "ledger/TrustFrame.h"
+#include "xdrpp/printer.h"
 
 namespace stellar
 {
+using xdr::operator==;
 
 EntryFrame::pointer
 EntryFrame::FromXDR(LedgerEntry const& from)
@@ -58,6 +60,20 @@ EntryFrame::storeLoad(LedgerKey const& key, Database& db)
     break;
     }
     return res;
+}
+
+void
+EntryFrame::checkAgainstDatabase(LedgerEntry const& entry, Database& db)
+{
+    auto const& fromDb = EntryFrame::storeLoad(LedgerEntryKey(entry), db);
+    if (!(fromDb->mEntry == entry))
+    {
+        std::string s;
+        s = "Inconsistent state between objects: ";
+        s += xdr::xdr_to_string(fromDb->mEntry, "db");
+        s += xdr::xdr_to_string(entry, "live");
+        throw std::runtime_error(s);
+    }
 }
 
 EntryFrame::EntryFrame(LedgerEntryType type)

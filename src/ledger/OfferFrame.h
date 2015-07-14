@@ -9,6 +9,7 @@
 
 namespace soci
 {
+class session;
 namespace details
 {
 class prepare_temp_type;
@@ -81,6 +82,7 @@ class OfferFrame : public EntryFrame
     static void storeDelete(LedgerDelta& delta, Database& db,
                             LedgerKey const& key);
     static bool exists(Database& db, LedgerKey const& key);
+    static uint64_t countObjects(soci::session& sess);
 
     // database utilities
     static pointer loadOffer(AccountID const& accountID, uint64_t offerID,

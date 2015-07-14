@@ -263,6 +263,14 @@ AccountFrame::exists(Database& db, LedgerKey const& key)
     return exists != 0;
 }
 
+uint64_t
+AccountFrame::countObjects(soci::session& sess)
+{
+    uint64_t count = 0;
+    sess << "SELECT COUNT(*) FROM accounts;", into(count);
+    return count;
+}
+
 void
 AccountFrame::storeDelete(LedgerDelta& delta, Database& db) const
 {
