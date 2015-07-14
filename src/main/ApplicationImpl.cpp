@@ -178,6 +178,13 @@ ApplicationImpl::reportCfgMetrics()
     }
 }
 
+void
+ApplicationImpl::reportInfo()
+{
+    mLedgerManager->loadLastKnownLedger(nullptr);
+    mCommandHandler->manualCmd("info");
+}
+
 ApplicationImpl::~ApplicationImpl()
 {
     LOG(INFO) << "Application destructing";

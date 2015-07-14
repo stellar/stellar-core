@@ -201,8 +201,8 @@ class Application
 
     // If config.ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING=true, generate some load
     // against the current application.
-    virtual void generateLoad(uint32_t nAccounts, uint32_t nTxs, uint32_t txRate,
-                              bool autoRate) = 0;
+    virtual void generateLoad(uint32_t nAccounts, uint32_t nTxs,
+                              uint32_t txRate, bool autoRate) = 0;
 
     // Run a consistency check between the database and the bucketlist.
     virtual void checkDB() = 0;
@@ -215,6 +215,9 @@ class Application
     // Report, via standard logging, the current state any metrics defined in
     // the Config.REPORT_METRICS (or passed on the command line with --metric)
     virtual void reportCfgMetrics() = 0;
+
+    // Report information about the instance to standard logging
+    virtual void reportInfo() = 0;
 
     // Factory: create a new Application object bound to `clock`, with a local
     // copy made of `cfg`.

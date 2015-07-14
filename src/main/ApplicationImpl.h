@@ -64,16 +64,16 @@ class ApplicationImpl : public Application
 
     virtual bool manualClose() override;
 
-    virtual void generateLoad(uint32_t nAccounts,
-                              uint32_t nTxs,
-                              uint32_t txRate,
-                              bool autoRate) override;
+    virtual void generateLoad(uint32_t nAccounts, uint32_t nTxs,
+                              uint32_t txRate, bool autoRate) override;
 
     virtual void checkDB() override;
 
     virtual void applyCfgCommands() override;
 
     virtual void reportCfgMetrics() override;
+
+    virtual void reportInfo() override;
 
   private:
     VirtualClock& mVirtualClock;

@@ -39,6 +39,7 @@ enum opttag
     OPT_GENFUZZ,
     OPT_GENSEED,
     OPT_HELP,
+    OPT_INFO,
     OPT_LOGLEVEL,
     OPT_METRIC,
     OPT_NEWDB,
@@ -57,6 +58,7 @@ static const struct option stellar_core_options[] = {
     {"genfuzz", required_argument, nullptr, OPT_GENFUZZ},
     {"genseed", no_argument, nullptr, OPT_GENSEED},
     {"help", no_argument, nullptr, OPT_HELP},
+    {"info", no_argument, nullptr, OPT_INFO},
     {"ll", required_argument, nullptr, OPT_LOGLEVEL},
     {"metric", required_argument, nullptr, OPT_METRIC},
     {"newdb", no_argument, nullptr, OPT_NEWDB},
@@ -83,6 +85,7 @@ usage(int err = 1)
           "      --genfuzz FILE  Generate a random fuzzer input file\n "
           "      --genseed       Generate and print a random node seed\n"
           "      --help          To display this string\n"
+          "      --info          Returns some information on the instance\n"
           "      --ll LEVEL      Set the log level. (redundant with --c ll but "
           "you need this form for the tests.)\n"
           "                      LEVEL can be:\n"
@@ -130,7 +133,7 @@ checkInitialized(Application::pointer app)
 }
 
 void
-setForceSCPFlag(Config& cfg, bool isOn)
+setForceSCPFlag(Config const& cfg, bool isOn)
 {
     VirtualClock clock;
     Application::pointer app = Application::create(clock, cfg);
@@ -158,6 +161,22 @@ setForceSCPFlag(Config& cfg, bool isOn)
             LOG(INFO) << "* The next launch will start normally.";
             LOG(INFO) << "* ";
         }
+    }
+}
+
+void
+showInfo(Config const& cfg)
+{
+    // needs real time to display proper stats
+    VirtualClock clock(VirtualClock::REAL_TIME);
+    Application::pointer app = Application::create(clock, cfg);
+    if (checkInitialized(app))
+    {
+        app->reportInfo();
+    }
+    else
+    {
+        LOG(INFO) << "Database is not initialized";
     }
 }
 
@@ -247,6 +266,7 @@ main(int argc, char* const* argv)
 
     optional<bool> forceSCP = nullptr;
     bool newDB = false;
+    bool getInfo = false;
     std::vector<std::string> newHistories;
     std::vector<std::string> metrics;
 
@@ -286,6 +306,9 @@ main(int argc, char* const* argv)
             std::cout << "Public: " << key.getStrKeyPublic() << std::endl;
             return 0;
         }
+        case OPT_INFO:
+            getInfo = true;
+            break;
         case OPT_LOGLEVEL:
             logLevel = Logging::getLLfromString(std::string(optarg));
             break;
@@ -347,12 +370,14 @@ main(int argc, char* const* argv)
         cfg.REBUILD_DB = newDB;
         cfg.REPORT_METRICS = metrics;
 
-        if (forceSCP || newDB)
+        if (forceSCP || newDB || getInfo)
         {
             if (newDB)
                 initializeDatabase(cfg);
             if (forceSCP)
                 setForceSCPFlag(cfg, *forceSCP);
+            if (getInfo)
+                showInfo(cfg);
             return 0;
         }
         else if (!newHistories.empty())

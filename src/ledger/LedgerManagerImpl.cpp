@@ -184,42 +184,51 @@ LedgerManagerImpl::loadLastKnownLedger(
             throw std::runtime_error("Could not load ledger from database");
         }
 
-        string hasString = mApp.getPersistentState().getState(
-            PersistentState::kHistoryArchiveState);
-        HistoryArchiveState has;
-        has.fromString(hasString);
-
-        auto continuation = [this, handler, has](asio::error_code const& ec)
+        if (handler)
         {
-            if (ec)
+            string hasString = mApp.getPersistentState().getState(
+                PersistentState::kHistoryArchiveState);
+            HistoryArchiveState has;
+            has.fromString(hasString);
+
+            auto continuation = [this, handler, has](asio::error_code const& ec)
             {
-                handler(ec);
+                if (ec)
+                {
+                    handler(ec);
+                }
+                else
+                {
+                    mApp.getBucketManager().assumeState(has);
+
+                    CLOG(INFO, "Ledger") << "Loaded last known ledger: "
+                                         << ledgerAbbrev(mCurrentLedger);
+
+                    advanceLedgerPointers();
+                    handler(ec);
+                }
+            };
+
+            auto missing =
+                mApp.getBucketManager().checkForMissingBucketsFiles(has);
+            if (!missing.empty())
+            {
+                CLOG(WARNING, "Ledger")
+                    << "Some buckets are missing in '"
+                    << mApp.getBucketManager().getBucketDir() << "'.";
+                CLOG(WARNING, "Ledger")
+                    << "Attempting to recover from the history store.";
+                mApp.getHistoryManager().downloadMissingBuckets(has,
+                                                                continuation);
             }
             else
             {
-                mApp.getBucketManager().assumeState(has);
-
-                CLOG(INFO, "Ledger") << "Loaded last known ledger: "
-                                     << ledgerAbbrev(mCurrentLedger);
-
-                advanceLedgerPointers();
-                handler(ec);
+                continuation(asio::error_code());
             }
-        };
-
-        auto missing = mApp.getBucketManager().checkForMissingBucketsFiles(has);
-        if (!missing.empty())
-        {
-            CLOG(WARNING, "Ledger") << "Some buckets are missing in '"
-                                    << mApp.getBucketManager().getBucketDir()
-                                    << "'.";
-            CLOG(WARNING, "Ledger")
-                << "Attempting to recover from the history store.";
-            mApp.getHistoryManager().downloadMissingBuckets(has, continuation);
         }
         else
         {
-            continuation(asio::error_code());
+            advanceLedgerPointers();
         }
     }
 }
