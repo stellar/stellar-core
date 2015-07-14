@@ -2,7 +2,6 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "crypto/Base58.h"
 #include "crypto/Hex.h"
 #include "herder/Herder.h"
 #include "ledger/LedgerManager.h"
@@ -305,7 +304,7 @@ CommandHandler::peers(std::string const& params, std::string& retStr)
         root["peers"][counter]["port"] = (int)peer->getRemoteListeningPort();
         root["peers"][counter]["ver"] = peer->getRemoteVersion();
         root["peers"][counter]["olver"] = (int)peer->getRemoteOverlayVersion();
-        root["peers"][counter]["id"] = PubKeyUtils::toBase58(peer->getPeerID());
+        root["peers"][counter]["id"] = PubKeyUtils::toStrKey(peer->getPeerID());
 
         counter++;
     }

@@ -27,8 +27,8 @@ class TrustFrame : public EntryFrame
     typedef std::shared_ptr<TrustFrame> pointer;
 
   private:
-    static void getKeyFields(LedgerKey const& key, std::string& base58AccountID,
-                             std::string& base58Issuer,
+    static void getKeyFields(LedgerKey const& key, std::string& actIDStrKey,
+                             std::string& issuerStrKey,
                              std::string& currencyCode);
 
     static void

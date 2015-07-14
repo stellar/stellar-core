@@ -8,7 +8,7 @@
 #include "main/test.h"
 #include "lib/catch.hpp"
 #include "util/Logging.h"
-#include "crypto/Base58.h"
+#include "crypto/ByteSlice.h"
 #include "transactions/TxTests.h"
 #include "util/types.h"
 #include "transactions/TransactionFrame.h"
@@ -89,20 +89,17 @@ closeLedgerOn(Application& app, uint32 ledgerSeq, int day, int month, int year,
 SecretKey
 getRoot()
 {
-    std::string b58SeedStr =
-        toBase58Check(B58_SEED_ED25519, "allmylifemyhearthasbeensearching");
-    return SecretKey::fromBase58Seed(b58SeedStr);
+    return SecretKey::fromSeed(ByteSlice("allmylifemyhearthasbeensearching"));
 }
 
 SecretKey
 getAccount(const char* n)
 {
-    // stretch name to 32 bytes
-    std::string name(n);
-    while (name.size() < 32)
-        name += '.';
-    std::string b58SeedStr = toBase58Check(B58_SEED_ED25519, name);
-    return SecretKey::fromBase58Seed(b58SeedStr);
+    // stretch seed to 32 bytes
+    std::string seed(n);
+    while (seed.size() < 32)
+        seed += '.';
+    return SecretKey::fromSeed(seed);
 }
 
 AccountFrame::pointer

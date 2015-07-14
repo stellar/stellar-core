@@ -6,7 +6,6 @@
 #include "LedgerManager.h"
 #include "util/XDRStream.h"
 #include "util/Logging.h"
-#include "crypto/Base58.h"
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
 #include "xdrpp/marshal.h"

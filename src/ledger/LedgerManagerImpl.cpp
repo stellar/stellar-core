@@ -3,7 +3,6 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "bucket/BucketManager.h"
-#include "crypto/Base58.h"
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
 #include "crypto/SecretKey.h"
@@ -138,8 +137,7 @@ LedgerManagerImpl::startNewLedger()
 {
     auto ledgerTime = mLedgerClose.TimeScope();
     ByteSlice bytes("allmylifemyhearthasbeensearching");
-    std::string b58SeedStr = toBase58Check(B58_SEED_ED25519, bytes);
-    SecretKey skey = SecretKey::fromBase58Seed(b58SeedStr);
+    SecretKey skey = SecretKey::fromSeed(bytes);
 
     AccountFrame masterAccount(skey.getPublicKey());
     masterAccount.getAccount().balance = 100000000000000000;

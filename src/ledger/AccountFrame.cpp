@@ -20,11 +20,11 @@ using xdr::operator<;
 const char* AccountFrame::kSQLCreateStatement1 =
     "CREATE TABLE accounts"
     "("
-    "accountid       VARCHAR(51)  PRIMARY KEY,"
+    "accountid       VARCHAR(56)  PRIMARY KEY,"
     "balance         BIGINT       NOT NULL CHECK (balance >= 0),"
     "seqnum          BIGINT       NOT NULL,"
     "numsubentries   INT          NOT NULL CHECK (numsubentries >= 0),"
-    "inflationdest   VARCHAR(51),"
+    "inflationdest   VARCHAR(56),"
     "homedomain      VARCHAR(32),"
     "thresholds      TEXT,"
     "flags           INT          NOT NULL"
@@ -33,8 +33,8 @@ const char* AccountFrame::kSQLCreateStatement1 =
 const char* AccountFrame::kSQLCreateStatement2 =
     "CREATE TABLE Signers"
     "("
-    "accountid       VARCHAR(51) NOT NULL,"
-    "publickey       VARCHAR(51) NOT NULL,"
+    "accountid       VARCHAR(56) NOT NULL,"
+    "publickey       VARCHAR(56) NOT NULL,"
     "weight          INT         NOT NULL,"
     "PRIMARY KEY (accountid, publickey)"
     ");";
@@ -171,7 +171,7 @@ AccountFrame::getLowThreshold() const
 AccountFrame::pointer
 AccountFrame::loadAccount(AccountID const& accountID, Database& db)
 {
-    std::string base58ID = PubKeyUtils::toBase58(accountID);
+    std::string actIDStrKey = PubKeyUtils::toStrKey(accountID);
     std::string publicKey, inflationDest, creditAuthKey;
     std::string homeDomain, thresholds;
     soci::indicator inflationDestInd, homeDomainInd, thresholdsInd;
@@ -188,7 +188,7 @@ AccountFrame::loadAccount(AccountID const& accountID, Database& db)
             into(account.balance), into(account.seqNum),
             into(account.numSubEntries), into(inflationDest, inflationDestInd),
             into(homeDomain, homeDomainInd), into(thresholds, thresholdsInd),
-            into(account.flags), use(base58ID);
+            into(account.flags), use(actIDStrKey);
     }
 
     if (!session.got_data())
@@ -211,7 +211,7 @@ AccountFrame::loadAccount(AccountID const& accountID, Database& db)
     if (inflationDestInd == soci::i_ok)
     {
         account.inflationDest.activate() =
-            PubKeyUtils::fromBase58(inflationDest);
+            PubKeyUtils::fromStrKey(inflationDest);
     }
 
     account.signers.clear();
@@ -224,7 +224,7 @@ AccountFrame::loadAccount(AccountID const& accountID, Database& db)
         auto prep = db.getPreparedStatement("SELECT publickey, weight from "
                                             "signers where accountid =:id");
         auto& st = prep.statement();
-        st.exchange(use(base58ID));
+        st.exchange(use(actIDStrKey));
         st.exchange(into(pubKey));
         st.exchange(into(signer.weight));
         st.define_and_bind();
@@ -234,7 +234,7 @@ AccountFrame::loadAccount(AccountID const& accountID, Database& db)
         }
         while (st.got_data())
         {
-            signer.pubKey = PubKeyUtils::fromBase58(pubKey);
+            signer.pubKey = PubKeyUtils::fromStrKey(pubKey);
 
             account.signers.push_back(signer);
 
@@ -252,13 +252,13 @@ AccountFrame::loadAccount(AccountID const& accountID, Database& db)
 bool
 AccountFrame::exists(Database& db, LedgerKey const& key)
 {
-    std::string base58ID = PubKeyUtils::toBase58(key.account().accountID);
+    std::string actIDStrKey = PubKeyUtils::toStrKey(key.account().accountID);
     int exists = 0;
     {
         auto timer = db.getSelectTimer("account-exists");
         db.getSession() << "SELECT EXISTS (SELECT NULL FROM accounts "
                            "WHERE accountid=:v1)",
-            use(base58ID), into(exists);
+            use(actIDStrKey), into(exists);
     }
     return exists != 0;
 }
@@ -281,18 +281,18 @@ void
 AccountFrame::storeDelete(LedgerDelta& delta, Database& db,
                           LedgerKey const& key)
 {
-    std::string base58ID = PubKeyUtils::toBase58(key.account().accountID);
+    std::string actIDStrKey = PubKeyUtils::toStrKey(key.account().accountID);
 
     soci::session& session = db.getSession();
     {
         auto timer = db.getDeleteTimer("account");
         session << "DELETE from accounts where accountid= :v1",
-            soci::use(base58ID);
+            soci::use(actIDStrKey);
     }
     {
         auto timer = db.getDeleteTimer("signer");
         session << "DELETE from signers where accountid= :v1",
-            soci::use(base58ID);
+            soci::use(actIDStrKey);
     }
     delta.deleteEntry(key);
 }
@@ -300,7 +300,7 @@ AccountFrame::storeDelete(LedgerDelta& delta, Database& db,
 void
 AccountFrame::storeUpdate(LedgerDelta& delta, Database& db, bool insert) const
 {
-    std::string base58ID = PubKeyUtils::toBase58(mAccountEntry.accountID);
+    std::string actIDStrKey = PubKeyUtils::toStrKey(mAccountEntry.accountID);
 
     std::string sql;
 
@@ -323,11 +323,12 @@ AccountFrame::storeUpdate(LedgerDelta& delta, Database& db, bool insert) const
     auto prep = db.getPreparedStatement(sql);
 
     soci::indicator inflation_ind = soci::i_null;
-    string inflationDestStr;
+    string inflationDestStrKey;
 
     if (mAccountEntry.inflationDest)
     {
-        inflationDestStr = PubKeyUtils::toBase58(*mAccountEntry.inflationDest);
+        inflationDestStrKey =
+            PubKeyUtils::toStrKey(*mAccountEntry.inflationDest);
         inflation_ind = soci::i_ok;
     }
 
@@ -335,11 +336,11 @@ AccountFrame::storeUpdate(LedgerDelta& delta, Database& db, bool insert) const
 
     {
         soci::statement& st = prep.statement();
-        st.exchange(use(base58ID, "id"));
+        st.exchange(use(actIDStrKey, "id"));
         st.exchange(use(mAccountEntry.balance, "v1"));
         st.exchange(use(mAccountEntry.seqNum, "v2"));
         st.exchange(use(mAccountEntry.numSubEntries, "v3"));
-        st.exchange(use(inflationDestStr, inflation_ind, "v4"));
+        st.exchange(use(inflationDestStrKey, inflation_ind, "v4"));
         st.exchange(use(string(mAccountEntry.homeDomain), "v5"));
         st.exchange(use(thresholds, "v6"));
         st.exchange(use(mAccountEntry.flags, "v7"));
@@ -388,15 +389,15 @@ AccountFrame::storeUpdate(LedgerDelta& delta, Database& db, bool insert) const
                     {
                         if (finalSigner.weight != startSigner.weight)
                         {
-                            std::string b58signKey =
-                                PubKeyUtils::toBase58(finalSigner.pubKey);
+                            std::string signerStrKey =
+                                PubKeyUtils::toStrKey(finalSigner.pubKey);
                             {
                                 auto timer = db.getUpdateTimer("signer");
                                 db.getSession()
                                     << "UPDATE signers set weight=:v1 where "
                                        "accountid=:v2 and publickey=:v3",
-                                    use(finalSigner.weight), use(base58ID),
-                                    use(b58signKey);
+                                    use(finalSigner.weight), use(actIDStrKey),
+                                    use(signerStrKey);
                             }
                         }
                         found = true;
@@ -405,14 +406,14 @@ AccountFrame::storeUpdate(LedgerDelta& delta, Database& db, bool insert) const
                 }
                 if (!found)
                 { // delete signer
-                    std::string b58signKey =
-                        PubKeyUtils::toBase58(startSigner.pubKey);
+                    std::string signerStrKey =
+                        PubKeyUtils::toStrKey(startSigner.pubKey);
 
                     soci::statement st =
                         (db.getSession().prepare << "DELETE from signers where "
                                                     "accountid=:v2 and "
                                                     "publickey=:v3",
-                         use(base58ID), use(b58signKey));
+                         use(actIDStrKey), use(signerStrKey));
 
                     {
                         auto timer = db.getDeleteTimer("signer");
@@ -438,15 +439,15 @@ AccountFrame::storeUpdate(LedgerDelta& delta, Database& db, bool insert) const
                     {
                         if (finalSigner.weight != startSigner.weight)
                         {
-                            std::string b58signKey =
-                                PubKeyUtils::toBase58(finalSigner.pubKey);
+                            std::string signerStrKey =
+                                PubKeyUtils::toStrKey(finalSigner.pubKey);
 
                             soci::statement st =
                                 (db.getSession().prepare
                                      << "UPDATE signers set weight=:v1 where "
                                         "accountid=:v2 and publickey=:v3",
-                                 use(finalSigner.weight), use(base58ID),
-                                 use(b58signKey));
+                                 use(finalSigner.weight), use(actIDStrKey),
+                                 use(signerStrKey));
 
                             st.execute(true);
 
@@ -462,14 +463,14 @@ AccountFrame::storeUpdate(LedgerDelta& delta, Database& db, bool insert) const
                 }
                 if (!found)
                 { // new signer
-                    std::string b58signKey =
-                        PubKeyUtils::toBase58(finalSigner.pubKey);
+                    std::string signerStrKey =
+                        PubKeyUtils::toStrKey(finalSigner.pubKey);
 
                     soci::statement st = (db.getSession().prepare
                                               << "INSERT INTO signers "
                                                  "(accountid,publickey,weight) "
                                                  "VALUES (:v1,:v2,:v3)",
-                                          use(base58ID), use(b58signKey),
+                                          use(actIDStrKey), use(signerStrKey),
                                           use(finalSigner.weight));
 
                     st.execute(true);
@@ -494,8 +495,6 @@ AccountFrame::storeChange(LedgerDelta& delta, Database& db) const
 void
 AccountFrame::storeAdd(LedgerDelta& delta, Database& db) const
 {
-    EntryFrame::pointer emptyAccount =
-        make_shared<AccountFrame>(mAccountEntry.accountID);
     storeUpdate(delta, db, true);
 }
 
@@ -522,7 +521,7 @@ AccountFrame::processForInflation(
 
     while (st.got_data())
     {
-        v.mInflationDest = PubKeyUtils::fromBase58(inflationDest);
+        v.mInflationDest = PubKeyUtils::fromStrKey(inflationDest);
         if (!inflationProcessor(v))
         {
             break;

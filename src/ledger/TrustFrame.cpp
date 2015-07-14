@@ -20,8 +20,8 @@ using xdr::operator==;
 const char* TrustFrame::kSQLCreateStatement1 =
     "CREATE TABLE trustlines"
     "("
-    "accountid     VARCHAR(51)     NOT NULL,"
-    "issuer        VARCHAR(51)     NOT NULL,"
+    "accountid     VARCHAR(56)     NOT NULL,"
+    "issuer        VARCHAR(56)     NOT NULL,"
     "alphanumcurrency   VARCHAR(4) NOT NULL,"
     "tlimit        BIGINT          NOT NULL DEFAULT 0 CHECK (tlimit >= 0),"
     "balance       BIGINT          NOT NULL DEFAULT 0 CHECK (balance >= 0),"
@@ -60,13 +60,13 @@ TrustFrame& TrustFrame::operator=(TrustFrame const& other)
 }
 
 void
-TrustFrame::getKeyFields(LedgerKey const& key, std::string& base58AccountID,
-                         std::string& base58Issuer, std::string& currencyCode)
+TrustFrame::getKeyFields(LedgerKey const& key, std::string& actIDStrKey,
+                         std::string& issuerStrKey, std::string& currencyCode)
 {
-    base58AccountID = PubKeyUtils::toBase58(key.trustLine().accountID);
-    base58Issuer =
-        PubKeyUtils::toBase58(key.trustLine().currency.alphaNum().issuer);
-    if (base58AccountID == base58Issuer)
+    actIDStrKey = PubKeyUtils::toStrKey(key.trustLine().accountID);
+    issuerStrKey =
+        PubKeyUtils::toStrKey(key.trustLine().currency.alphaNum().issuer);
+    if (actIDStrKey == issuerStrKey)
         throw std::runtime_error("Issuer's own trustline should not be used "
                                  "outside of OperationFrame");
     currencyCodeToStr(key.trustLine().currency.alphaNum().currencyCode,
@@ -154,14 +154,14 @@ TrustFrame::isValid() const
 bool
 TrustFrame::exists(Database& db, LedgerKey const& key)
 {
-    std::string b58AccountID, b58Issuer, currencyCode;
-    getKeyFields(key, b58AccountID, b58Issuer, currencyCode);
+    std::string actIDStrKey, issuerStrKey, currencyCode;
+    getKeyFields(key, actIDStrKey, issuerStrKey, currencyCode);
     int exists = 0;
     auto timer = db.getSelectTimer("trust-exists");
     db.getSession()
         << "SELECT EXISTS (SELECT NULL FROM trustlines "
            "WHERE accountid=:v1 and issuer=:v2 and alphanumcurrency=:v3)",
-        use(b58AccountID), use(b58Issuer), use(currencyCode), into(exists);
+        use(actIDStrKey), use(issuerStrKey), use(currencyCode), into(exists);
     return exists != 0;
 }
 
@@ -182,14 +182,14 @@ TrustFrame::storeDelete(LedgerDelta& delta, Database& db) const
 void
 TrustFrame::storeDelete(LedgerDelta& delta, Database& db, LedgerKey const& key)
 {
-    std::string b58AccountID, b58Issuer, currencyCode;
-    getKeyFields(key, b58AccountID, b58Issuer, currencyCode);
+    std::string actIDStrKey, issuerStrKey, currencyCode;
+    getKeyFields(key, actIDStrKey, issuerStrKey, currencyCode);
 
     auto timer = db.getDeleteTimer("trust");
     db.getSession()
         << "DELETE FROM trustlines "
            "WHERE accountid=:v1 AND issuer=:v2 AND alphanumcurrency=:v3",
-        use(b58AccountID), use(b58Issuer), use(currencyCode);
+        use(actIDStrKey), use(issuerStrKey), use(currencyCode);
 
     delta.deleteEntry(key);
 }
@@ -202,8 +202,8 @@ TrustFrame::storeChange(LedgerDelta& delta, Database& db) const
     if (mIsIssuer)
         return;
 
-    std::string b58AccountID, b58Issuer, currencyCode;
-    getKeyFields(getKey(), b58AccountID, b58Issuer, currencyCode);
+    std::string actIDStrKey, issuerStrKey, currencyCode;
+    getKeyFields(getKey(), actIDStrKey, issuerStrKey, currencyCode);
 
     auto timer = db.getUpdateTimer("trust");
     statement st =
@@ -212,7 +212,7 @@ TrustFrame::storeChange(LedgerDelta& delta, Database& db) const
                 "SET balance=:b, tlimit=:tl, flags=:a "
                 "WHERE accountid=:v1 AND issuer=:v2 AND alphanumcurrency=:v3",
          use(mTrustLine.balance), use(mTrustLine.limit),
-         use((int)mTrustLine.flags), use(b58AccountID), use(b58Issuer),
+         use((int)mTrustLine.flags), use(actIDStrKey), use(issuerStrKey),
          use(currencyCode));
 
     st.execute(true);
@@ -233,16 +233,17 @@ TrustFrame::storeAdd(LedgerDelta& delta, Database& db) const
     if (mIsIssuer)
         return;
 
-    std::string b58AccountID, b58Issuer, currencyCode;
-    getKeyFields(getKey(), b58AccountID, b58Issuer, currencyCode);
+    std::string actIDStrKey, issuerStrKey, currencyCode;
+    getKeyFields(getKey(), actIDStrKey, issuerStrKey, currencyCode);
 
     auto timer = db.getInsertTimer("trust");
-    statement st =
-        (db.getSession().prepare << "INSERT INTO trustlines (accountid, "
-                                    "issuer, alphanumcurrency, balance, tlimit, flags) "
-                                    "VALUES (:v1,:v2,:v3,:v4,:v5,:v6)",
-         use(b58AccountID), use(b58Issuer), use(currencyCode),
-         use(mTrustLine.balance), use(mTrustLine.limit), use((int)mTrustLine.flags));
+    statement st = (db.getSession().prepare
+                        << "INSERT INTO trustlines (accountid, "
+                           "issuer, alphanumcurrency, balance, tlimit, flags) "
+                           "VALUES (:v1,:v2,:v3,:v4,:v5,:v6)",
+                    use(actIDStrKey), use(issuerStrKey), use(currencyCode),
+                    use(mTrustLine.balance), use(mTrustLine.limit),
+                    use((int)mTrustLine.flags));
 
     st.execute(true);
 
@@ -283,9 +284,9 @@ TrustFrame::loadTrustLine(AccountID const& accountID, Currency const& currency,
 
     std::string accStr, issuerStr, currencyStr;
 
-    accStr = PubKeyUtils::toBase58(accountID);
+    accStr = PubKeyUtils::toStrKey(accountID);
     currencyCodeToStr(currency.alphaNum().currencyCode, currencyStr);
-    issuerStr = PubKeyUtils::toBase58(currency.alphaNum().issuer);
+    issuerStr = PubKeyUtils::toStrKey(currency.alphaNum().issuer);
 
     session& session = db.getSession();
 
@@ -307,15 +308,15 @@ TrustFrame::loadTrustLine(AccountID const& accountID, Currency const& currency,
 bool
 TrustFrame::hasIssued(AccountID const& issuerID, Database& db)
 {
-    std::string accStr;
-    accStr = PubKeyUtils::toBase58(issuerID);
+    std::string accStrKey;
+    accStrKey = PubKeyUtils::toStrKey(issuerID);
 
     session& session = db.getSession();
 
     details::prepare_temp_type sql =
         (session.prepare << "SELECT balance FROM trustlines WHERE issuer=:id "
                             "AND balance>0 LIMIT 1",
-         use(accStr));
+         use(accStrKey));
 
     auto timer = db.getSelectTimer("trust");
     int balance = 0;
@@ -332,23 +333,23 @@ void
 TrustFrame::loadLines(details::prepare_temp_type& prep,
                       std::function<void(LedgerEntry const&)> trustProcessor)
 {
-    string accountID;
-    std::string issuer, currency;
+    string actIDStrKey;
+    std::string issuerStrKey, currency;
 
     LedgerEntry le;
     le.type(TRUSTLINE);
 
     TrustLineEntry& tl = le.trustLine();
 
-    statement st = (prep, into(accountID), into(issuer), into(currency),
+    statement st = (prep, into(actIDStrKey), into(issuerStrKey), into(currency),
                     into(tl.limit), into(tl.balance), into(tl.flags));
 
     st.execute(true);
     while (st.got_data())
     {
-        tl.accountID = PubKeyUtils::fromBase58(accountID);
+        tl.accountID = PubKeyUtils::fromStrKey(actIDStrKey);
         tl.currency.type(CURRENCY_TYPE_ALPHANUM);
-        tl.currency.alphaNum().issuer = PubKeyUtils::fromBase58(issuer);
+        tl.currency.alphaNum().issuer = PubKeyUtils::fromStrKey(issuerStrKey);
         strToCurrencyCode(tl.currency.alphaNum().currencyCode, currency);
 
         trustProcessor(le);
@@ -361,14 +362,14 @@ void
 TrustFrame::loadLines(AccountID const& accountID,
                       std::vector<TrustFrame::pointer>& retLines, Database& db)
 {
-    std::string accStr;
-    accStr = PubKeyUtils::toBase58(accountID);
+    std::string actIDStrKey;
+    actIDStrKey = PubKeyUtils::toStrKey(accountID);
 
     session& session = db.getSession();
 
     details::prepare_temp_type sql =
         (session.prepare << trustLineColumnSelector << " WHERE accountid=:id",
-         use(accStr));
+         use(actIDStrKey));
 
     auto timer = db.getSelectTimer("trust");
     loadLines(sql, [&retLines](LedgerEntry const& cur)

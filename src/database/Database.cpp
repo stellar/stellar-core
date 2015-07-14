@@ -3,7 +3,6 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "bucket/BucketManager.h"
-#include "crypto/Base58.h"
 #include "crypto/Hex.h"
 #include "database/Database.h"
 #include "overlay/StellarXDR.h"
@@ -66,7 +65,8 @@ Database::registerDrivers()
 
 Database::Database(Application& app)
     : mApp(app)
-    , mStatementsSize(app.getMetrics().NewCounter({"database", "memory", "statements"}))
+    , mStatementsSize(
+          app.getMetrics().NewCounter({"database", "memory", "statements"}))
 {
     registerDrivers();
     CLOG(INFO, "Database") << "Connecting to: " << app.getConfig().DATABASE;
@@ -181,11 +181,10 @@ class SQLLogContext : NonCopyable
     std::string mName;
     soci::session& mSess;
     std::ostringstream mCapture;
-public:
-    SQLLogContext(std::string const& name,
-                  soci::session& sess)
-        : mName(name)
-        , mSess(sess)
+
+  public:
+    SQLLogContext(std::string const& name, soci::session& sess)
+        : mName(name), mSess(sess)
     {
         mSess.set_log_stream(&mCapture);
     }
@@ -239,5 +238,4 @@ Database::captureAndLogSQL(std::string contextName)
 {
     return make_shared<SQLLogContext>(contextName, mSession);
 }
-
 }
