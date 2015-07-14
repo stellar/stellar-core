@@ -103,7 +103,6 @@ LedgerManagerImpl::LedgerManagerImpl(Application& app)
     , mState(LM_BOOTING_STATE)
 
 {
-    mLastCloseTime = mApp.timeNow(); // this is 0 at this point
 }
 
 void
@@ -558,7 +557,9 @@ LedgerManagerImpl::historyCaughtup(asio::error_code const& ec,
 uint64_t
 LedgerManagerImpl::secondsSinceLastLedgerClose() const
 {
-    return mApp.timeNow() - mLastCloseTime;
+    uint64_t ct = getLastClosedLedgerHeader().header.scpValue.closeTime;
+    uint64_t now = mApp.timeNow();
+    return (now > ct) ? (now - ct) : 0;
 }
 
 /*
@@ -729,7 +730,6 @@ LedgerManagerImpl::advanceLedgerPointers()
 void
 LedgerManagerImpl::closeLedgerHelper(LedgerDelta const& delta)
 {
-    mLastCloseTime = mApp.timeNow();
     delta.markMeters(mApp);
     mApp.getBucketManager().addBatch(mApp, mCurrentLedger->mHeader.ledgerSeq,
                                      delta.getLiveEntries(),

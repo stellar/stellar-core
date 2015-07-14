@@ -40,8 +40,6 @@ class LedgerManagerImpl : public LedgerManager
     medida::Timer& mLedgerClose;
     medida::Counter& mSyncingLedgersSize;
 
-    uint64_t mLastCloseTime;
-
     std::vector<LedgerCloseData> mSyncingLedgers;
 
     void historyCaughtup(asio::error_code const& ec,
