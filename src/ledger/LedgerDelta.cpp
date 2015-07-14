@@ -326,15 +326,7 @@ LedgerDelta::checkAgainstDatabase(Application& app) const
     auto live = getLiveEntries();
     for (auto const& l : live)
     {
-        auto fromDb = EntryFrame::storeLoad(LedgerEntryKey(l), db);
-        if (!(fromDb->mEntry == l))
-        {
-            std::string s;
-            s = "Inconsistent state between objects: ";
-            s += xdr::xdr_to_string(fromDb->mEntry, "db");
-            s += xdr::xdr_to_string(l, "live");
-            throw std::runtime_error(s);
-        }
+        EntryFrame::checkAgainstDatabase(l, db);
     }
     auto dead = getDeadEntries();
     for (auto const& d : dead)

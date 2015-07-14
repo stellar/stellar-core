@@ -12,6 +12,7 @@
 #include "bucket/BucketManager.h"
 #include "bucket/LedgerCmp.h"
 #include "bucket/BucketManagerImpl.h"
+#include "database/Database.h"
 #include "crypto/Hex.h"
 #include "ledger/LedgerManager.h"
 #include "herder/LedgerCloseData.h"
@@ -24,6 +25,9 @@
 #include "util/TmpDir.h"
 #include "util/types.h"
 #include "xdrpp/autocheck.h"
+#include "medida/metrics_registry.h"
+#include "medida/timer.h"
+#include "medida/meter.h"
 #include <algorithm>
 #include <future>
 
@@ -735,3 +739,43 @@ TEST_CASE("bucket persistence over app restart", "[bucket][bucketpersist]")
         REQUIRE(hexAbbrev(Blh2) == hexAbbrev(bl.getHash()));
     }
 }
+
+TEST_CASE("checkdb succeeding", "[bucket][checkdb]")
+{
+    VirtualClock clock;
+    Config cfg(getTestConfig());
+    cfg.ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING = true;
+    Application::pointer app = Application::create(clock, cfg);
+    app->start();
+
+    autocheck::generator<std::vector<LedgerEntry>> liveGen;
+    autocheck::generator<LedgerEntry> liveSingleGen;
+    std::vector<stellar::LedgerKey> emptySet;
+
+    app->generateLoad(1000, 1000, 1000, false);
+    auto& m = app->getMetrics();
+    while (m.NewMeter({"loadgen", "run", "complete"}, "run").count() == 0)
+    {
+        clock.crank(false);
+    }
+
+    SECTION("successful checkdb")
+    {
+        app->checkDB();
+        while (m.NewTimer({"bucket", "checkdb", "execute"}).count() == 0)
+        {
+            clock.crank(false);
+        }
+        REQUIRE(m.NewMeter({"bucket", "checkdb", "object-compare"}, "comparison").count() >= 10);
+    }
+
+    SECTION("failing checkdb")
+    {
+        app->checkDB();
+        app->getDatabase().getSession()
+            << ("UPDATE accounts SET balance = balance * 2"
+                " WHERE accountid = (SELECT accountid FROM accounts LIMIT 1);");
+        REQUIRE_THROWS(clock.crank(false));
+    }
+}
+

@@ -12,6 +12,7 @@
 #include "ledger/LedgerManager.h"
 #include "herder/Herder.h"
 #include "overlay/OverlayManager.h"
+#include "bucket/Bucket.h"
 #include "bucket/BucketManager.h"
 #include "history/HistoryManager.h"
 #include "database/Database.h"
@@ -318,6 +319,19 @@ ApplicationImpl::generateLoad(uint32_t nAccounts, uint32_t nTxs,
     }
     getMetrics().NewMeter({"loadgen", "run", "start"}, "run").Mark();
     mLoadGenerator->generateLoad(*this, nAccounts, nTxs, txRate, autoRate);
+}
+
+void
+ApplicationImpl::checkDB()
+{
+    getClock().getIOService().post(
+        [this]
+        {
+            checkDBAgainstBuckets(this->getMetrics(),
+                                  this->getBucketManager(),
+                                  this->getDatabase(),
+                                  this->getBucketManager().getBucketList());
+        });
 }
 
 void

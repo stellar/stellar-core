@@ -57,6 +57,8 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
 
     mServer->addRoute("catchup",
                       std::bind(&CommandHandler::catchup, this, _1, _2));
+    mServer->addRoute("checkdb",
+                      std::bind(&CommandHandler::checkdb, this, _1, _2));
     mServer->addRoute("checkpoint",
                       std::bind(&CommandHandler::checkpoint, this, _1, _2));
     mServer->addRoute("connect",
@@ -159,6 +161,8 @@ CommandHandler::fileNotFound(std::string const& params, std::string& retStr)
         "<p><h1> /catchup?ledger=NNN[&mode=MODE]</h1>"
         "triggers the instance to catch up to ledger NNN from history; "
         "mode is either 'minimal' (the default, if omitted) or 'complete'."
+        "</p><p><h1> /checkdb</h1>"
+        "triggers the instance to perform an integrity check of the database."
         "</p><p><h1> /checkpoint</h1>"
         "triggers the instance to write an immediate history checkpoint."
         "</p><p><h1> /connect?peer=NAME&port=NNN</h1>"
@@ -390,6 +394,13 @@ CommandHandler::catchup(std::string const& params, std::string& retStr)
               std::string(mode == HistoryManager::CATCHUP_COMPLETE
                               ? "CATCHUP_COMPLETE"
                               : "CATCHUP_MINIMAL"));
+}
+
+void
+CommandHandler::checkdb(std::string const& params, std::string& retStr)
+{
+    mApp.checkDB();
+    retStr = "CheckDB started.";
 }
 
 void

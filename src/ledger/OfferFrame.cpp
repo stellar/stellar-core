@@ -293,6 +293,15 @@ OfferFrame::exists(Database& db, LedgerKey const& key)
     return exists != 0;
 }
 
+uint64_t
+OfferFrame::countObjects(soci::session& sess)
+{
+    uint64_t count = 0;
+    sess << "SELECT COUNT(*) FROM offers;", into(count);
+    return count;
+}
+
+
 void
 OfferFrame::storeDelete(LedgerDelta& delta, Database& db) const
 {

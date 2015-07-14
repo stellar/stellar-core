@@ -41,6 +41,8 @@ class EntryFrame : public NonMovableOrCopyable
 
     static pointer FromXDR(LedgerEntry const& from);
     static pointer storeLoad(LedgerKey const& key, Database& db);
+    static void checkAgainstDatabase(LedgerEntry const& entry,
+                                     Database& db);
 
     virtual EntryFrame::pointer copy() const = 0;
 
