@@ -15,7 +15,7 @@
 #include "database/Database.h"
 #include "herder/TxSetFrame.h"
 #include "crypto/Hex.h"
-#include <cereal/external/base64.hpp>
+#include "util/basen.h"
 
 #include "medida/meter.h"
 #include "medida/metrics_registry.h"
@@ -500,17 +500,20 @@ TransactionFrame::storeTransaction(LedgerManager& ledgerManager,
     resultSet.results.emplace_back(getResultPair());
     auto txResultBytes(xdr::xdr_to_opaque(resultSet.results.back()));
 
-    std::string txBody = base64::encode(
-        reinterpret_cast<const unsigned char*>(txBytes.data()), txBytes.size());
+    std::string txBody;
+    txBody.reserve(bn::encoded_size64(txBytes.size()) + 1);
+    bn::encode_b64(txBytes.begin(), txBytes.end(), std::back_inserter(txBody));
 
-    std::string txResult = base64::encode(
-        reinterpret_cast<const unsigned char*>(txResultBytes.data()),
-        txResultBytes.size());
+    std::string txResult;
+    txResult.reserve(bn::encoded_size64(txResultBytes.size()) + 1);
+    bn::encode_b64(txResultBytes.begin(), txResultBytes.end(),
+                   std::back_inserter(txResult));
 
     xdr::opaque_vec<> txMeta(xdr::xdr_to_opaque(tm));
 
-    std::string meta = base64::encode(
-        reinterpret_cast<const unsigned char*>(txMeta.data()), txMeta.size());
+    std::string meta;
+    txResult.reserve(bn::encoded_size64(txMeta.size()) + 1);
+    bn::encode_b64(txMeta.begin(), txMeta.end(), std::back_inserter(meta));
 
     string txIDString(binToHex(getContentsHash()));
 
@@ -601,16 +604,22 @@ TransactionFrame::copyTransactionsToStream(Database& db, soci::session& sess,
             lastLedgerSeq = curLedgerSeq;
         }
 
-        std::string body = base64::decode(txBody);
-        std::string result = base64::decode(txResult);
+        std::vector<uint8_t> body;
+        body.reserve(txBody.size());
+        bn::decode_b64(txBody.begin(), txBody.end(), std::back_inserter(body));
 
-        xdr::xdr_get g1(body.data(), body.data() + body.size());
+        std::vector<uint8_t> result;
+        result.reserve(txResult.size());
+        bn::decode_b64(txResult.begin(), txResult.end(),
+                       std::back_inserter(result));
+
+        xdr::xdr_get g1(&body.front(), &body.back());
         xdr_argpack_archive(g1, tx);
 
         TransactionFramePtr txFrame = make_shared<TransactionFrame>(tx);
         txSet.add(txFrame);
 
-        xdr::xdr_get g2(result.data(), result.data() + result.size());
+        xdr::xdr_get g2(&result.front(), &result.back());
         results.txResultSet.results.emplace_back();
 
         TransactionResultPair& p = results.txResultSet.results.back();

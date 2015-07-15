@@ -11,7 +11,7 @@
 #include "xdrpp/marshal.h"
 #include "database/Database.h"
 #include "util/types.h"
-#include <cereal/external/base64.hpp>
+#include <util/basen.h>
 
 namespace stellar
 {
@@ -76,9 +76,10 @@ LedgerHeaderFrame::storeInsert(LedgerManager& ledgerManager) const
 
     auto headerBytes(xdr::xdr_to_opaque(mHeader));
 
-    std::string headerEncoded = base64::encode(
-        reinterpret_cast<const unsigned char*>(headerBytes.data()),
-        headerBytes.size());
+    std::string headerEncoded;
+    headerEncoded.reserve(bn::encoded_size64(headerBytes.size()) + 1);
+    bn::encode_b64(headerBytes.begin(), headerBytes.end(),
+                   std::back_inserter(headerEncoded));
 
     auto& db = ledgerManager.getDatabase();
 
@@ -105,9 +106,11 @@ LedgerHeaderFrame::pointer
 LedgerHeaderFrame::decodeFromData(std::string const& data)
 {
     LedgerHeader lh;
-    string decoded(base64::decode(data));
+    std::vector<uint8_t> decoded;
+    decoded.reserve(data.size());
+    bn::decode_b64(data.begin(), data.end(), std::back_inserter(decoded));
 
-    xdr::xdr_get g(decoded.c_str(), decoded.c_str() + decoded.length());
+    xdr::xdr_get g(&decoded.front(), &decoded.back());
     xdr::xdr_argpack_archive(g, lh);
     g.done();
 
