@@ -28,6 +28,7 @@ class LoadGenerator
   public:
     LoadGenerator();
     ~LoadGenerator();
+    void clear();
 
     struct TxInfo;
     struct AccountInfo;

@@ -59,6 +59,7 @@ LoadGenerator::LoadGenerator() : mMinBalance(0), mLastSecond(0)
 
 LoadGenerator::~LoadGenerator()
 {
+    clear();
 }
 
 std::string
@@ -168,6 +169,21 @@ maybeAdjustRate(double target, double actual, uint32_t& rate, bool increaseOk)
     return false;
 }
 
+void
+LoadGenerator::clear()
+{
+    for (auto& a : mAccounts)
+    {
+        a->mTrustingAccounts.clear();
+        a->mBuyingAccounts.clear();
+        a->mSellingAccounts.clear();
+        a->mTrustingAccounts.clear();
+    }
+    mAccounts.clear();
+    mGateways.clear();
+    mMarketMakers.clear();
+}
+
 // Generate one "step" worth of load (assuming 1 step per STEP_MSECS) at a
 // given target number of accounts and txs, and a given target tx/s rate.
 // If work remains after the current step, call scheduleLoadGeneration()
@@ -202,6 +218,7 @@ LoadGenerator::generateLoad(Application& app, uint32_t nAccounts, uint32_t nTxs,
         // We're done.
         LOG(INFO) << "Load generation complete.";
         app.getMetrics().NewMeter({"loadgen", "run", "complete"}, "run").Mark();
+        clear();
     }
     else
     {
