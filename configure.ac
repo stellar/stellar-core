@@ -55,6 +55,9 @@ AS_IF([test xyes = "x$enable_sdfprefs"],
             [AM_SILENT_RULES([yes])
 	     WFLAGS="$WFLAGS -fcolor-diagnostics"])
 
+AS_IF([test xyes != "x$enable_sdfprefs" -a xyes != "x$enable_silent_rules"],
+	    ac_configure_args="$ac_configure_args --disable-silent-rules")
+
 AX_APPEND_COMPILE_FLAGS($WFLAGS)
 AC_LANG_PUSH(C)
 AX_APPEND_COMPILE_FLAGS($WFLAGS)
@@ -72,8 +75,20 @@ AC_ARG_ENABLE([ccache],
               AS_HELP_STRING([--enable-ccache], [build with ccache]))
 AS_IF([test "x$enable_ccache" = "xyes"], [
   AC_CHECK_PROGS([CCACHE], [ccache])
-  CC="ccache ${CC}"
-  CXX="ccache ${CXX}"
+  case "$CC" in
+  *ccache\ *)
+      ;;
+  *)
+      CC="ccache ${CC}"
+      ;;
+  esac
+  case "$CXX" in
+    *ccache\ *)
+      ;;
+    *)
+      CXX="ccache ${CXX}"
+      ;;
+  esac
 ])
 
 # Permit user to enable AFL instrumentation
@@ -163,6 +178,14 @@ if test x"$enable_postgres" != xno; then
     fi
 fi
 AM_CONDITIONAL(USE_POSTGRES, [test -n "$have_postgres"])
+
+# Need this to pass through ccache for xdrpp, libsodium
+esc() {
+    for arg in "$@"; do
+        echo "$arg" | sed "s/'/'\\''/g; s/^/'/; s/\$/'/"
+    done
+}
+ac_configure_args="$ac_configure_args $(esc "CC=$CC" "CXX=$CXX")"
 
 AC_CONFIG_HEADERS(config.h)
 AC_CONFIG_FILES(Makefile src/Makefile)
