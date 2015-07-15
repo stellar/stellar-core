@@ -69,7 +69,7 @@ enum AccountFlags
     // if set, TrustLines are created with authorized set to "false"
     // requiring the issuer to set it for each TrustLine
     AUTH_REQUIRED_FLAG = 0x1,
-    // if set, the authorized flag in TrustTines can be cleared
+    // if set, the authorized flag in TrustLines can be cleared
     // otherwise, authorization cannot be revoked
     AUTH_REVOCABLE_FLAG = 0x2
 };
