@@ -15,6 +15,7 @@
 #include "util/Logging.h"
 #include "util/make_unique.h"
 
+#include "util/basen.h"
 #include "medida/reporting/json_reporter.h"
 #include "xdrpp/marshal.h"
 
@@ -536,7 +537,10 @@ CommandHandler::tx(std::string const& params, std::string& retStr)
         try
         {
             std::string blob = params.substr(prefix.size());
-            std::vector<uint8_t> binBlob = hexToBin(blob);
+            std::vector<uint8_t> binBlob;
+            binBlob.reserve(params.size());
+            bn::decode_b64(blob.begin(), blob.end(),
+                           std::back_inserter(binBlob));
 
             xdr::xdr_from_opaque(binBlob, envelope);
             TransactionFramePtr transaction =
@@ -561,10 +565,14 @@ CommandHandler::tx(std::string const& params, std::string& retStr)
                        << "\"" << TX_STATUS_STRING[status] << "\"";
                 if (status == Herder::TX_STATUS_ERROR)
                 {
-                    std::string resultHex =
-                        binToHex(xdr::xdr_to_opaque(transaction->getResult()));
+                    std::string resultBase64;
+                    auto resultBin =
+                        xdr::xdr_to_opaque(transaction->getResult());
+                    resultBase64.reserve(bn::encoded_size64(resultBin.size()) + 1);
+                    bn::encode_b64(resultBin.begin(), resultBin.end(),
+                                   std::back_inserter(resultBase64));
 
-                    output << " , \"error\": \"" << resultHex << "\"";
+                    output << " , \"error\": \"" << resultBase64 << "\"";
                 }
                 output << "}";
             }
