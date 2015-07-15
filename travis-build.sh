@@ -32,11 +32,12 @@ g++ -v
 llvm-symbolizer --version || true
 
 # Create postgres databases
-psql -c "create user test with password 'test';" -U postgres
-psql -c "create database test;" -U postgres
+export PGUSER=postgres
+#psql -c "create user test with password 'test';"
+psql -c "create database test;"
 for i in $(seq 0 8)
 do
-    psql -c "create database test$i;" -U postgres
+    psql -c "create database test$i;"
 done
 
 ccache -s
