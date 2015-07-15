@@ -70,6 +70,7 @@ class FutureBucket
     std::string mInputSnapBucketHash;
     std::vector<std::string> mInputShadowBucketHashes;
     std::string mOutputBucketHash;
+    bool mKeepDeadEntries;
 
     void checkHashesMatch() const;
     void checkState() const;
@@ -84,7 +85,8 @@ public:
     FutureBucket(Application& app,
                  std::shared_ptr<Bucket> const& curr,
                  std::shared_ptr<Bucket> const& snap,
-                 std::vector<std::shared_ptr<Bucket>> const& shadows);
+                 std::vector<std::shared_ptr<Bucket>> const& shadows,
+                 bool keepDeadEntries);
 
     FutureBucket(std::shared_ptr<Bucket> output);
 

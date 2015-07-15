@@ -174,12 +174,14 @@ class Bucket::OutputIterator
     std::unique_ptr<SHA256> mHasher;
     size_t mBytesPut{0};
     size_t mObjectsPut{0};
+    bool mKeepDeadEntries{true};
 
   public:
-    OutputIterator(std::string const& tmpDir)
+    OutputIterator(std::string const& tmpDir, bool keepDeadEntries)
         : mFilename(randomBucketName(tmpDir))
         , mBuf(nullptr)
         , mHasher(SHA256::create())
+        , mKeepDeadEntries(keepDeadEntries)
     {
         CLOG(TRACE, "Bucket")
             << "Bucket::OutputIterator opening file to write: " << mFilename;
@@ -189,6 +191,11 @@ class Bucket::OutputIterator
     void
     put(BucketEntry const& e)
     {
+        if (!mKeepDeadEntries && e.type() == DEADENTRY)
+        {
+            return;
+        }
+
         // Check to see if there's an existing buffered entry.
         if (mBuf)
         {
@@ -330,8 +337,8 @@ Bucket::fresh(BucketManager& bucketManager,
 
     std::sort(dead.begin(), dead.end(), BucketEntryIdCmp());
 
-    OutputIterator liveOut(bucketManager.getTmpDir());
-    OutputIterator deadOut(bucketManager.getTmpDir());
+    OutputIterator liveOut(bucketManager.getTmpDir(), true);
+    OutputIterator deadOut(bucketManager.getTmpDir(), true);
     for (auto const& e : live)
     {
         liveOut.put(e);
@@ -380,7 +387,8 @@ std::shared_ptr<Bucket>
 Bucket::merge(BucketManager& bucketManager,
               std::shared_ptr<Bucket> const& oldBucket,
               std::shared_ptr<Bucket> const& newBucket,
-              std::vector<std::shared_ptr<Bucket>> const& shadows)
+              std::vector<std::shared_ptr<Bucket>> const& shadows,
+              bool keepDeadEntries)
 {
     // This is the key operation in the scheme: merging two (read-only)
     // buckets together into a new 3rd bucket, while calculating its hash,
@@ -396,7 +404,7 @@ Bucket::merge(BucketManager& bucketManager,
                                                        shadows.end());
 
     auto timer = bucketManager.getMergeTimer().TimeScope();
-    Bucket::OutputIterator out(bucketManager.getTmpDir());
+    Bucket::OutputIterator out(bucketManager.getTmpDir(), keepDeadEntries);
 
     BucketEntryIdCmp cmp;
     while (oi || ni)

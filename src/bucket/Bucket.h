@@ -101,7 +101,8 @@ class Bucket : public std::enable_shared_from_this<Bucket>
     merge(BucketManager& bucketManager, std::shared_ptr<Bucket> const& oldBucket,
           std::shared_ptr<Bucket> const& newBucket,
           std::vector<std::shared_ptr<Bucket>> const& shadows =
-              std::vector<std::shared_ptr<Bucket>>());
+          std::vector<std::shared_ptr<Bucket>>(),
+          bool keepDeadEntries=true);
 };
 
 void

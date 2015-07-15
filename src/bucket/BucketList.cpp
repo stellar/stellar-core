@@ -135,7 +135,8 @@ BucketLevel::prepare(Application& app, uint32_t currLedger,
         }
     }
 
-    mNextCurr = FutureBucket(app, curr, snap, shadows);
+    bool keepDeadEntries = mLevel < BucketList::kNumLevels - 1;
+    mNextCurr = FutureBucket(app, curr, snap, shadows, keepDeadEntries);
     assert(mNextCurr.isMerging());
 }
 
