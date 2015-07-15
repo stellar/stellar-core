@@ -57,17 +57,17 @@ VALGRIND_FLAGS = --num-callers=30 --trace-children=yes \
           --trace-children-skip=hostname,aws,gcutil,gcloud,azure,node,python
 VALGRIND_SUPPRESSIONS_FILES = stellar-core.supp
 
-PKGCONFIG_CLEAN = \
+PKGCONFIG_RECURSE = \
 	@set -e; target="$@"; target="$${target%%-local}"; \
 	for dir in $(PKGCONFIG_SUBDIRS); do \
 		(cd "$$dir" && $(MAKE) $(AM_MAKEFLAGS) "$$target"); \
 	done
 
 clean-local distclean-local:
-	$(PKGCONFIG_CLEAN)
+	$(PKGCONFIG_RECURSE)
 
-maintainer-clean-local:
+maintainer-clean-local check-local:
 	cd $(srcdir) && rm -rf `sed -ne 's!^/!!p' .gitignore` *~ .gitignore~
-	$(PKGCONFIG_CLEAN)
+	$(PKGCONFIG_RECURSE)
 
 CLEANFILES = stellar*.log test-suite.log .gitignore~ *~
