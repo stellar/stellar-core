@@ -17,4 +17,6 @@ getTestConfig(int instanceNumber = 0,
               Config::TestDbMode mode = Config::TESTDB_DEFAULT);
 int test(int argc, char* const* argv, el::Level logLevel,
          std::vector<std::string> const& metrics);
+
+extern bool force_sqlite;
 }

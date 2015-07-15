@@ -460,7 +460,8 @@ TEST_CASE("single create account SQL", "[singlesql][paymentsql][hide]")
 {
     Config::TestDbMode mode = Config::TESTDB_ON_DISK_SQLITE;
 #ifdef USE_POSTGRES
-    mode = Config::TESTDB_TCP_LOCALHOST_POSTGRESQL;
+    if (!force_sqlite)
+        mode = Config::TESTDB_POSTGRESQL;
 #endif
 
     VirtualClock clock;
