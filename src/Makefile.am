@@ -18,6 +18,9 @@ SUFFIXES = .x .h
 .x.h: $(XDRC)
 	$(XDRC) -hh -o $@ $<
 
+$(srcdir)/src.mk: $(top_srcdir)/make-mks
+	cd $(top_srcdir) && ./make-mks
+
 .PHONY: always
 always:
 	@:
@@ -57,4 +60,4 @@ endif # USE_AFL_FUZZ
 CLEANFILES = $(BUILT_SOURCES) *~ */*~
 MAINTAINERCLEANFILES = $(srcdir)/Makefile.in $(srcdir)/*~ $(srcdir)/*/*~
 
-EXTRA_DIST = $(SRC_X_FILES) src.mk
+EXTRA_DIST = $(SRC_X_FILES)

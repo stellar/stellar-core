@@ -32,6 +32,9 @@ lib_lib3rdparty_a_SOURCES = $(SQLITE3_FILES) $(UTIL_FILES)	\
 	$(ASIO_CXX_FILES) $(JSON_FILES)
 noinst_HEADERS = $(MISC_H_FILES) $(ASIO_H_FILES)
 
+$(srcdir)/lib/lib.mk $(srcdir)/lib/libmedida.mk: $(top_srcdir)/make-mks
+	cd $(top_srcdir) && ./make-mks
+
 .PHONY: always
 always:
 	@:
@@ -48,7 +51,7 @@ endif # USE_AFL_FUZZ
 
 EXTRA_DIST = stellar-core.supp test/selftest-stellar-core	\
 	test/testnet/multitail.conf test/testnet/run-test.sh	\
-	README.md common.mk lib/lib.mk lib/medida.mk
+	README.md make-mks
 
 TESTS=test/selftest-stellar-core
 

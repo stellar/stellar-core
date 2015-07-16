@@ -44,7 +44,9 @@ listall() {
  echo SQLITE3_FILES = $(listall lib/sqlite)
  echo UTIL_FILES = $(listall lib/util lib/http)
  echo ASIO_H_FILES = $(listall lib/asio/include)
- echo ASIO_CXX_FILES = lib/asio/src/*.cpp
+ # The following does not work without boost or -DASIO_STANDALONE=1
+ #echo ASIO_CXX_FILES = lib/asio/src/*.cpp
+ echo ASIO_CXX_FILES = lib/asio/src/asio.cpp
  echo JSON_FILES = $(listall lib/json)
 
  echo MISC_H_FILES = lib/*.hpp $(listall lib/autocheck lib/cereal)
