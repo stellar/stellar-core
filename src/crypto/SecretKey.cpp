@@ -4,6 +4,7 @@
 
 #include "crypto/SecretKey.h"
 #include "crypto/Base58.h"
+#include "crypto/StrKey.h"
 #include "crypto/Hex.h"
 #include <sodium.h>
 #include <type_traits>
@@ -49,6 +50,20 @@ SecretKey::getSeed() const
         throw std::runtime_error("error extracting seed from secret key");
     }
     return seed;
+}
+
+std::string
+SecretKey::getStrKeySeed() const
+{
+    assert(mKeyType == KEY_TYPE_ED25519);
+
+    return strKey::toStrKey(strKey::STRKEY_SEED_ED25519, getSeed().mSeed);
+}
+
+std::string
+SecretKey::getStrKeyPublic() const
+{
+    return PubKeyUtils::toStrKey(getPublicKey());
 }
 
 std::string
@@ -121,6 +136,28 @@ SecretKey::fromSeed(uint256 const& seed)
 }
 
 SecretKey
+SecretKey::fromStrKeySeed(std::string const& strKeySeed)
+{
+    uint8_t ver;
+    std::vector<uint8_t> seed;
+    if (!strKey::fromStrKey(strKeySeed, ver, seed) || (ver != strKey::STRKEY_SEED_ED25519) ||
+        (seed.size() != crypto_sign_SEEDBYTES))
+    {
+        throw std::runtime_error("invalid seed");
+    }
+
+    PublicKey pk;
+    SecretKey sk;
+    assert(sk.mKeyType == KEY_TYPE_ED25519);
+    if (crypto_sign_seed_keypair(pk.ed25519().data(), sk.mSecretKey.data(),
+                                 seed.data()) != 0)
+    {
+        throw std::runtime_error("error generating secret key from seed");
+    }
+    return sk;
+}
+
+SecretKey
 SecretKey::fromBase58Seed(std::string const& base58Seed)
 {
     auto pair = fromBase58Check(base58Seed);
@@ -159,6 +196,27 @@ std::string
 PubKeyUtils::toShortString(PublicKey const& pk)
 {
     return hexAbbrev(pk.ed25519());
+}
+
+std::string
+PubKeyUtils::toStrKey(PublicKey const& pk)
+{
+    return strKey::toStrKey(strKey::STRKEY_PUBKEY_ED25519, pk.ed25519());
+}
+
+PublicKey
+PubKeyUtils::fromStrKey(std::string const& s)
+{
+    PublicKey pk;
+    uint8_t ver;
+    std::vector<uint8_t> k;
+    if (!strKey::fromStrKey(s, ver, k) || (ver != strKey::STRKEY_PUBKEY_ED25519) ||
+        (k.size() != crypto_sign_PUBLICKEYBYTES))
+    {
+        throw std::runtime_error("bad public key");
+    }
+    std::copy(k.begin(), k.end(), pk.ed25519().begin());
+    return pk;
 }
 
 std::string
