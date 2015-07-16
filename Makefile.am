@@ -66,10 +66,12 @@ PKGCONFIG_RECURSE = \
 		(cd "$$dir" && $(MAKE) $(AM_MAKEFLAGS) "$$target"); \
 	done
 
-clean-local distclean-local:
+check: check-local check-recursive
+
+clean-local distclean-local check-local:
 	$(PKGCONFIG_RECURSE)
 
-maintainer-clean-local check-local:
+maintainer-clean-local:
 	cd $(srcdir) && rm -rf `sed -ne 's!^/!!p' .gitignore` *~ .gitignore~
 	$(PKGCONFIG_RECURSE)
 

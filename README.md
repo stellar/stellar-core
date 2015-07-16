@@ -33,31 +33,38 @@ Please sign the [Contributor License Agreement](http://goo.gl/forms/f2nhGi537n).
 # Running tests
 
 run tests with:
-  `bin/stellar-core --test`
+  `src/stellar-core --test`
 
 run one test with:
-  `bin/stellar-core --test  testName`
+  `src/stellar-core --test  testName`
 
 run one test category with:
-  `bin/stellar-core --test '[categoryName]'`
+  `src/stellar-core --test '[categoryName]'`
 
 Categories (or tags) can be combined: AND-ed (by juxtaposition) or OR-ed (by comma-listing).
 
 Tests tagged as [.] or [hide] are not part of the default test test.
 
 # Running tests against postgreSQL
-First you'll need to create the postgres role "test". If you've just installed postgresSQL with the default init, access the psql client by running `psql postgres`.
 
-Now create the 'test' role: `CREATE ROLE test SUPERUSER`
+There are two options.  The easiest is to have the test suite just
+create a temporary postgreSQL database cluster in /tmp and delete it
+after the test.  That will happen by default if you run `make check`.
 
-Now, create a few test databases:
-`CREATE DATABASE test WITH owner=test`
+You can also create a temporary database cluster manually, by running
+`./src/test/selftest-pg bash` to get a shell, then running tests
+manually.  The advantage of this is that you can examine the database
+log in `$PGDATA/pg_log/` after running tests, as well as manually
+inspect the database with `psql`.
 
-`CREATE DATABASE test0 WITH owner=test`
+Finally, you can use an existing database cluster so long as it has
+databases named `test0`, `test1`, ..., `test8`, and `test`.  Do set
+this up, make sure your `PGHOST` and `PGUSER` environment variables
+are appropriately set, then run the following from bash:
 
-`CREATE DATABASE test1 WITH owner=test`
-
-`CREATE DATABASE test2 WITH owner=test`
+    for i in $(seq 0 8) ''; do
+        psql -c "create database test$i;"
+    done
 
 # Running stress tests
 We adopt the convention of tagging a stress-test for subsystem foo as [foo-stress][stress][hide].
