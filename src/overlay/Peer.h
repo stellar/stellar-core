@@ -7,7 +7,6 @@
 #include "util/asio.h"
 #include "xdrpp/message.h"
 #include "overlay/StellarXDR.h"
-#include "scp/Stellar-SCP.h"
 #include "util/Timer.h"
 #include "database/Database.h"
 #include "util/NonCopyable.h"

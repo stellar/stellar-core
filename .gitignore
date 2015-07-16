@@ -28,7 +28,6 @@
 .deps
 .dirstamp
 
-/src/scp/Stellar-SCP.h
 /src/StellarCoreVersion.h
 /src/xdr/*.h
 /Makefile

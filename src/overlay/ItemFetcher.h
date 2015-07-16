@@ -6,7 +6,7 @@
 
 #include <map>
 #include <functional>
-#include "scp/Stellar-SCP.h"
+#include "xdr/Stellar-SCP.h"
 #include "overlay/Peer.h"
 #include "util/Timer.h"
 #include "util/NonCopyable.h"

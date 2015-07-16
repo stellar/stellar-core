@@ -10,7 +10,7 @@
 #include <functional>
 #include <chrono>
 
-#include "scp/Stellar-SCP.h"
+#include "xdr/Stellar-SCP.h"
 
 namespace stellar
 {

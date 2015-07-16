@@ -11,7 +11,7 @@
 #include <chrono>
 
 #include "crypto/SecretKey.h"
-#include "scp/Stellar-SCP.h"
+#include "xdr/Stellar-SCP.h"
 #include "lib/json/json-forwards.h"
 #include "scp/SCPDriver.h"
 
