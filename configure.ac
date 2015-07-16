@@ -123,6 +123,15 @@ if test yes != "$enable_shared"; then
    ac_configure_args="$ac_configure_args --disable-shared"
 fi
 
+PKG_CHECK_MODULES(sqlite3, sqlite3,, sqlite3_INTERNAL=yes)
+AM_CONDITIONAL(SQLITE3_INTERNAL, [test yes = "$sqlite3_INTERNAL"])
+if test yes = "$sqlite3_INTERNAL"; then
+   sqlite3_CFLAGS=-I'$(top_srcdir)/lib/sqlite'
+   sqlite3_LIBS=
+fi
+AC_SUBST(sqlite3_CFLAGS)
+AC_SUBST(sqlite3_LIBS)
+
 AX_PKGCONFIG_SUBDIR(lib/libsodium)
 # Work around broken -uninstalled.pc file
 libsodium_CFLAGS='-I$(top_srcdir)/lib/libsodium/src/libsodium/include'

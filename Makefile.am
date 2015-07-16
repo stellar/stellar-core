@@ -28,8 +28,10 @@ if USE_POSTGRES
 lib_libsoci_a_SOURCES += $(SOCI_PG_FILES)
 endif # USE_POSTGRES
 
-lib_lib3rdparty_a_SOURCES = $(SQLITE3_FILES) $(UTIL_FILES)	\
-	$(ASIO_CXX_FILES) $(JSON_FILES)
+lib_lib3rdparty_a_SOURCES = $(UTIL_FILES) $(ASIO_CXX_FILES) $(JSON_FILES)
+if SQLITE3_INTERNAL
+lib_lib3rdparty_a_SOURCES += $(SQLITE3_FILES)
+endif # SQLITE3_INTERNAL
 noinst_HEADERS = $(MISC_H_FILES) $(ASIO_H_FILES)
 
 $(srcdir)/lib/lib.mk $(srcdir)/lib/libmedida.mk: $(top_srcdir)/make-mks
