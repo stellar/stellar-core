@@ -74,4 +74,4 @@ maintainer-clean-local:
 	cd $(srcdir) && rm -rf `sed -ne 's!^/!!p' .gitignore` *~ .gitignore~
 	$(PKGCONFIG_RECURSE)
 
-CLEANFILES = stellar*.log test-suite.log .gitignore~ *~
+CLEANFILES = test-suite.log .gitignore~ *~
