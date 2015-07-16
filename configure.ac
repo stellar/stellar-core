@@ -8,7 +8,7 @@
 AC_PREREQ([2.68])
 AC_INIT([stellar-core],[0.1],[],[],[http://www.stellar.org])
 # tar-ustar is required for long file names when libsodium is bundled
-AM_INIT_AUTOMAKE([-Wall subdir-objects tar-ustar])
+AM_INIT_AUTOMAKE([-Wall subdir-objects tar-ustar silent-rules])
 AC_CONFIG_SRCDIR([configure.ac])
 AC_CONFIG_MACRO_DIR([m4])
 
