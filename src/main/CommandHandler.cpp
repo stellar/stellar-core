@@ -538,9 +538,7 @@ CommandHandler::tx(std::string const& params, std::string& retStr)
         {
             std::string blob = params.substr(prefix.size());
             std::vector<uint8_t> binBlob;
-            binBlob.reserve(params.size());
-            bn::decode_b64(blob.begin(), blob.end(),
-                           std::back_inserter(binBlob));
+            bn::decode_b64(blob, binBlob);
 
             xdr::xdr_from_opaque(binBlob, envelope);
             TransactionFramePtr transaction =
@@ -568,9 +566,9 @@ CommandHandler::tx(std::string const& params, std::string& retStr)
                     std::string resultBase64;
                     auto resultBin =
                         xdr::xdr_to_opaque(transaction->getResult());
-                    resultBase64.reserve(bn::encoded_size64(resultBin.size()) + 1);
-                    bn::encode_b64(resultBin.begin(), resultBin.end(),
-                                   std::back_inserter(resultBase64));
+                    resultBase64.reserve(bn::encoded_size64(resultBin.size()) +
+                                         1);
+                    resultBase64 = bn::encode_b64(resultBin);
 
                     output << " , \"error\": \"" << resultBase64 << "\"";
                 }

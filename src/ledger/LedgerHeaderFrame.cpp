@@ -77,7 +77,7 @@ LedgerHeaderFrame::storeInsert(LedgerManager& ledgerManager) const
     auto headerBytes(xdr::xdr_to_opaque(mHeader));
 
     std::string headerEncoded;
-    headerEncoded = bn::encode_b64(headerBytes.begin(), headerBytes.end());
+    headerEncoded = bn::encode_b64(headerBytes);
 
     auto& db = ledgerManager.getDatabase();
 
@@ -105,10 +105,9 @@ LedgerHeaderFrame::decodeFromData(std::string const& data)
 {
     LedgerHeader lh;
     std::vector<uint8_t> decoded;
-    decoded.reserve(data.size());
-    bn::decode_b64(data.begin(), data.end(), std::back_inserter(decoded));
+    bn::decode_b64(data, decoded);
 
-    xdr::xdr_get g(&decoded.front(), &decoded.back());
+    xdr::xdr_get g(&decoded.front(), &decoded.back() + 1);
     xdr::xdr_argpack_archive(g, lh);
     g.done();
 

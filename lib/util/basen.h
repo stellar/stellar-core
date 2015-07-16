@@ -303,30 +303,30 @@ void encode_b64(Iter1 start, Iter1 end, Iter2 out)
     encode<b64_conversion_traits>(start, end, out);
 }
 
-template<class Iter> inline
-std::string encode_b16(Iter start, Iter end)
+template<class T> inline
+std::string encode_b16(T const& v)
 {
     std::string res;
-    res.reserve(encoded_size16(std::distance(start, end)) + 1);
-    encode_b16(start, end, std::back_inserter(res));
+    res.reserve(encoded_size16(v.size()*sizeof(typename T::value_type)) + 1);
+    encode_b16(v.begin(), v.end(), std::back_inserter(res));
     return res;
 }
 
-template<class Iter> inline
-std::string encode_b32(Iter start, Iter end)
+template<class T> inline
+std::string encode_b32(T const& v)
 {
     std::string res;
-    res.reserve(encoded_size32(std::distance(start, end)) + 1);
-    encode_b32(start, end, std::back_inserter(res));
+    res.reserve(encoded_size64(v.size()*sizeof(typename T::value_type)) + 1);
+    encode_b32(v.begin(), v.end(), std::back_inserter(res));
     return res;
 }
 
-template<class Iter> inline
-std::string encode_b64(Iter start, Iter end)
+template<class T> inline
+std::string encode_b64(T const& v)
 {
     std::string res;
-    res.reserve(encoded_size64(std::distance(start, end)) + 1);
-    encode_b64(start, end, std::back_inserter(res));
+    res.reserve(encoded_size64(v.size()*sizeof(typename T::value_type)) + 1);
+    encode_b64(v.begin(), v.end(), std::back_inserter(res));
     return res;
 }
 
@@ -346,6 +346,30 @@ template<class Iter1, class Iter2> inline
 void decode_b64(Iter1 start, Iter1 end, Iter2 out)
 {
     decode<b64_conversion_traits>(start, end, out);
+}
+
+template<class V, class T> inline
+void decode_b16(V const& v, T& out)
+{
+    out.clear();
+    out.reserve(v.size()*sizeof(typename T::value_type));
+    decode_b16(v.begin(), v.end(), std::back_inserter(out));
+}
+
+template<class V, class T> inline
+void decode_b32(V const& v, T& out)
+{
+    out.clear();
+    out.reserve(v.size()*sizeof(typename T::value_type));
+    decode_b32(v.begin(), v.end(), std::back_inserter(out));
+}
+
+template<class V, class T> inline
+void decode_b64(V const& v, T& out)
+{
+    out.clear();
+    out.reserve(v.size()*sizeof(typename T::value_type));
+    decode_b64(v.begin(), v.end(), std::back_inserter(out));
 }
 
 } // bn

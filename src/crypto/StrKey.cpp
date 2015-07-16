@@ -26,7 +26,7 @@ toStrKey(uint8_t ver, ByteSlice const& bin)
     toEncode.emplace_back(crc & 0xFF);
 
     std::string res;
-    res = bn::encode_b32(toEncode.begin(), toEncode.end());
+    res = bn::encode_b32(toEncode);
     return res;
 }
 
@@ -41,9 +41,7 @@ bool
 fromStrKey(std::string const& strKey, uint8_t& outVersion,
            std::vector<uint8_t>& decoded)
 {
-    decoded.clear();
-    decoded.reserve((strKey.size() + 7) / 8 * 5);
-    bn::decode_b32(strKey.begin(), strKey.end(), std::back_inserter(decoded));
+    bn::decode_b32(strKey, decoded);
     if (decoded.size() < 3)
     {
         return false;

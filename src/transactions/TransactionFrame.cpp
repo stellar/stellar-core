@@ -501,15 +501,15 @@ TransactionFrame::storeTransaction(LedgerManager& ledgerManager,
     auto txResultBytes(xdr::xdr_to_opaque(resultSet.results.back()));
 
     std::string txBody;
-    txBody = bn::encode_b64(txBytes.begin(), txBytes.end());
+    txBody = bn::encode_b64(txBytes);
 
     std::string txResult;
-    txResult = bn::encode_b64(txResultBytes.begin(), txResultBytes.end());
+    txResult = bn::encode_b64(txResultBytes);
 
     xdr::opaque_vec<> txMeta(xdr::xdr_to_opaque(tm));
 
     std::string meta;
-    meta = bn::encode_b64(txMeta.begin(), txMeta.end());
+    meta = bn::encode_b64(txMeta);
 
     string txIDString(binToHex(getContentsHash()));
 
@@ -601,21 +601,18 @@ TransactionFrame::copyTransactionsToStream(Database& db, soci::session& sess,
         }
 
         std::vector<uint8_t> body;
-        body.reserve(txBody.size());
-        bn::decode_b64(txBody.begin(), txBody.end(), std::back_inserter(body));
+        bn::decode_b64(txBody, body);
 
         std::vector<uint8_t> result;
-        result.reserve(txResult.size());
-        bn::decode_b64(txResult.begin(), txResult.end(),
-                       std::back_inserter(result));
+        bn::decode_b64(txResult, result);
 
-        xdr::xdr_get g1(&body.front(), &body.back());
+        xdr::xdr_get g1(&body.front(), &body.back() + 1);
         xdr_argpack_archive(g1, tx);
 
         TransactionFramePtr txFrame = make_shared<TransactionFrame>(tx);
         txSet.add(txFrame);
 
-        xdr::xdr_get g2(&result.front(), &result.back());
+        xdr::xdr_get g2(&result.front(), &result.back() + 1);
         results.txResultSet.results.emplace_back();
 
         TransactionResultPair& p = results.txResultSet.results.back();
