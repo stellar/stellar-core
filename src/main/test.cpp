@@ -4,7 +4,7 @@
 
 #include <cstdlib>
 #include "test.h"
-#include "generated/StellarCoreVersion.h"
+#include "StellarCoreVersion.h"
 #include "main/Config.h"
 #include "util/make_unique.h"
 #include <time.h>

@@ -5,7 +5,7 @@
 
 #include "main/Config.h"
 #include "history/HistoryArchive.h"
-#include "generated/StellarCoreVersion.h"
+#include "StellarCoreVersion.h"
 #include "lib/util/cpptoml.h"
 #include "util/Logging.h"
 #include "util/types.h"

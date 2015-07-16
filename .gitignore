@@ -28,14 +28,15 @@
 .deps
 .dirstamp
 
-/src/generated
-/README
+/src/scp/Stellar-SCP.h
+/src/StellarCoreVersion.h
+/src/xdr/*.h
 /Makefile
 /Makefile.in
 /aclocal.m4
 /autom4te.cache
 /build
-/bin
+/src/stellar-core
 /buckets
 /compile
 /config.h
@@ -54,6 +55,12 @@
 /missing
 /test-driver
 /stamp-h1
+/ylwrap
+/src/Makefile
+/src/Makefile.in
+/src/src.mk
+/lib/medida.mk
+/lib/lib.mk
 
 # test output
 /stellar-core-test-*

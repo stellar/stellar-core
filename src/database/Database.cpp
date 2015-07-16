@@ -6,7 +6,7 @@
 #include "crypto/Base58.h"
 #include "crypto/Hex.h"
 #include "database/Database.h"
-#include "generated/StellarXDR.h"
+#include "overlay/StellarXDR.h"
 #include "ledger/LedgerHeaderFrame.h"
 #include "main/Application.h"
 #include "main/Config.h"

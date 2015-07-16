@@ -30,7 +30,7 @@ else
     exit 1
 fi
 
-ST=$(realpath ../../bin/stellar-core)
+ST=$(realpath ../../src/stellar-core)
 if [ ! -e $ST ]
 then
     exit "can't find stellar-core binary at '$ST'"

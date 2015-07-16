@@ -4,7 +4,7 @@
 
 #include "simulation/Topologies.h"
 #include "lib/catch.hpp"
-#include "generated/StellarXDR.h"
+#include "overlay/StellarXDR.h"
 #include "main/Application.h"
 #include "overlay/LoopbackPeer.h"
 #include "util/make_unique.h"

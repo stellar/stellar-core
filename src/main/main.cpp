@@ -3,7 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 #include "util/asio.h"
 #include "main/Application.h"
-#include "generated/StellarCoreVersion.h"
+#include "StellarCoreVersion.h"
 #include "util/Logging.h"
 #include "util/Timer.h"
 #include "util/Fs.h"
