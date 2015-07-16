@@ -31,7 +31,7 @@ static std::vector<std::string> gTestMetrics;
 static std::vector<std::unique_ptr<Config>> gTestCfg[Config::TESTDB_MODES];
 static std::vector<TmpDir> gTestRoots;
 
-bool force_sqlite = std::getenv("STELLAR_FORCE_SQLITE");
+bool force_sqlite = (std::getenv("STELLAR_FORCE_SQLITE") != nullptr);
 
 Config const&
 getTestConfig(int instanceNumber, Config::TestDbMode mode)
