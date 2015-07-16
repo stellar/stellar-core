@@ -15,45 +15,45 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\..\src\lib\soci\src\backends\postgresql\blob.cpp">
+    <ClCompile Include="..\..\..\lib\soci\src\backends\postgresql\blob.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\src\lib\soci\src\backends\postgresql\common.cpp">
+    <ClCompile Include="..\..\..\lib\soci\src\backends\postgresql\common.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\src\lib\soci\src\backends\postgresql\error.cpp">
+    <ClCompile Include="..\..\..\lib\soci\src\backends\postgresql\error.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\src\lib\soci\src\backends\postgresql\factory.cpp">
+    <ClCompile Include="..\..\..\lib\soci\src\backends\postgresql\factory.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\src\lib\soci\src\backends\postgresql\row-id.cpp">
+    <ClCompile Include="..\..\..\lib\soci\src\backends\postgresql\row-id.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\src\lib\soci\src\backends\postgresql\session.cpp">
+    <ClCompile Include="..\..\..\lib\soci\src\backends\postgresql\session.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\src\lib\soci\src\backends\postgresql\standard-into-type.cpp">
+    <ClCompile Include="..\..\..\lib\soci\src\backends\postgresql\standard-into-type.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\src\lib\soci\src\backends\postgresql\standard-use-type.cpp">
+    <ClCompile Include="..\..\..\lib\soci\src\backends\postgresql\standard-use-type.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\src\lib\soci\src\backends\postgresql\statement.cpp">
+    <ClCompile Include="..\..\..\lib\soci\src\backends\postgresql\statement.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\src\lib\soci\src\backends\postgresql\vector-into-type.cpp">
+    <ClCompile Include="..\..\..\lib\soci\src\backends\postgresql\vector-into-type.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\src\lib\soci\src\backends\postgresql\vector-use-type.cpp">
+    <ClCompile Include="..\..\..\lib\soci\src\backends\postgresql\vector-use-type.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\..\src\lib\soci\src\backends\postgresql\common.h">
+    <ClInclude Include="..\..\..\lib\soci\src\backends\postgresql\common.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\src\lib\soci\src\backends\postgresql\soci-postgresql.h">
+    <ClInclude Include="..\..\..\lib\soci\src\backends\postgresql\soci-postgresql.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

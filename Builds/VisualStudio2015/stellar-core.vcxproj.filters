@@ -117,7 +117,7 @@
     <ClCompile Include="..\..\src\main\Config.cpp">
       <Filter>main</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\lib\util\getopt_long.c">
+    <ClCompile Include="..\..\lib\util\getopt_long.c">
       <Filter>lib\util</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\overlay\LoopbackPeer.cpp">
@@ -129,22 +129,22 @@
     <ClCompile Include="..\..\src\overlay\OverlayTests.cpp">
       <Filter>overlay</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\lib\http\connection.cpp">
+    <ClCompile Include="..\..\lib\http\connection.cpp">
       <Filter>lib\http</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\lib\http\connection_manager.cpp">
+    <ClCompile Include="..\..\lib\http\connection_manager.cpp">
       <Filter>lib\http</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\lib\http\reply.cpp">
+    <ClCompile Include="..\..\lib\http\reply.cpp">
       <Filter>lib\http</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\lib\http\request_parser.cpp">
+    <ClCompile Include="..\..\lib\http\request_parser.cpp">
       <Filter>lib\http</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\lib\http\server.cpp">
+    <ClCompile Include="..\..\lib\http\server.cpp">
       <Filter>lib\http</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\lib\http\HttpClient.cpp">
+    <ClCompile Include="..\..\lib\http\HttpClient.cpp">
       <Filter>lib\http</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\main\CommandHandler.cpp">
@@ -168,7 +168,7 @@
     <ClCompile Include="..\..\src\util\Timer.cpp">
       <Filter>util</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\lib\json\jsoncpp.cpp">
+    <ClCompile Include="..\..\lib\json\jsoncpp.cpp">
       <Filter>lib\json</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\ledger\LedgerDelta.cpp">
@@ -186,31 +186,31 @@
     <ClCompile Include="..\..\src\database\DatabaseTests.cpp">
       <Filter>database</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\lib\xdrpp\tests\marshal.cc">
+    <ClCompile Include="..\..\lib\xdrpp\tests\marshal.cc">
       <Filter>lib\xdrpp</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\lib\xdrpp\tests\arpc.cc">
+    <ClCompile Include="..\..\lib\xdrpp\tests\arpc.cc">
       <Filter>lib\xdrpp</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\lib\xdrpp\tests\autocheck.cc">
+    <ClCompile Include="..\..\lib\xdrpp\tests\autocheck.cc">
       <Filter>lib\xdrpp</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\lib\xdrpp\tests\cereal.cc">
+    <ClCompile Include="..\..\lib\xdrpp\tests\cereal.cc">
       <Filter>lib\xdrpp</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\lib\xdrpp\tests\compare.cc">
+    <ClCompile Include="..\..\lib\xdrpp\tests\compare.cc">
       <Filter>lib\xdrpp</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\lib\xdrpp\tests\listener.cc">
+    <ClCompile Include="..\..\lib\xdrpp\tests\listener.cc">
       <Filter>lib\xdrpp</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\lib\xdrpp\tests\msgsock.cc">
+    <ClCompile Include="..\..\lib\xdrpp\tests\msgsock.cc">
       <Filter>lib\xdrpp</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\lib\xdrpp\tests\printer.cc">
+    <ClCompile Include="..\..\lib\xdrpp\tests\printer.cc">
       <Filter>lib\xdrpp</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\lib\xdrpp\tests\srpc.cc">
+    <ClCompile Include="..\..\lib\xdrpp\tests\srpc.cc">
       <Filter>lib\xdrpp</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\ledger\AccountFrame.cpp">
@@ -255,7 +255,7 @@
     <ClCompile Include="..\..\src\crypto\SHA.cpp">
       <Filter>crypto</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\lib\util\format.cc">
+    <ClCompile Include="..\..\lib\util\format.cc">
       <Filter>lib\util</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\crypto\SecretKey.cpp">
@@ -282,13 +282,13 @@
     <ClCompile Include="..\..\src\transactions\TxEnvelopeTests.cpp">
       <Filter>transactions\tests</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\lib\asio\src\asio.cpp">
+    <ClCompile Include="..\..\lib\asio\src\asio.cpp">
       <Filter>lib</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\bucket\BucketManagerImpl.cpp">
       <Filter>bucket</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\lib\util\uint128_t.cpp">
+    <ClCompile Include="..\..\lib\util\uint128_t.cpp">
       <Filter>lib\util</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\util\Uint128Tests.cpp">
@@ -494,13 +494,13 @@
     <ClInclude Include="..\..\src\bucket\BucketList.h">
       <Filter>bucket</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\lib\util\easylogging++.h">
+    <ClInclude Include="..\..\lib\util\easylogging++.h">
       <Filter>lib\util</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\lib\util\cpptoml.h">
+    <ClInclude Include="..\..\lib\util\cpptoml.h">
       <Filter>lib\util</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\lib\util\getopt.h">
+    <ClInclude Include="..\..\lib\util\getopt.h">
       <Filter>lib\util</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\overlay\LoopbackPeer.h">
@@ -509,28 +509,28 @@
     <ClInclude Include="..\..\src\overlay\TCPPeer.h">
       <Filter>overlay</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\lib\http\connection.hpp">
+    <ClInclude Include="..\..\lib\http\connection.hpp">
       <Filter>lib\http</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\lib\http\connection_manager.hpp">
+    <ClInclude Include="..\..\lib\http\connection_manager.hpp">
       <Filter>lib\http</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\lib\http\header.hpp">
+    <ClInclude Include="..\..\lib\http\header.hpp">
       <Filter>lib\http</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\lib\http\reply.hpp">
+    <ClInclude Include="..\..\lib\http\reply.hpp">
       <Filter>lib\http</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\lib\http\request.hpp">
+    <ClInclude Include="..\..\lib\http\request.hpp">
       <Filter>lib\http</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\lib\http\request_parser.hpp">
+    <ClInclude Include="..\..\lib\http\request_parser.hpp">
       <Filter>lib\http</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\lib\http\server.hpp">
+    <ClInclude Include="..\..\lib\http\server.hpp">
       <Filter>lib\http</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\lib\http\HttpClient.h">
+    <ClInclude Include="..\..\lib\http\HttpClient.h">
       <Filter>lib\http</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\main\CommandHandler.h">
@@ -614,10 +614,10 @@
     <ClInclude Include="..\..\src\transactions\TxTests.h">
       <Filter>transactions\tests</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\lib\util\format.h">
+    <ClInclude Include="..\..\lib\util\format.h">
       <Filter>lib\util</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\lib\util\uint128_t.h">
+    <ClInclude Include="..\..\lib\util\uint128_t.h">
       <Filter>lib\util</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\util\Logging.h">
@@ -698,10 +698,10 @@
     <ClInclude Include="..\..\src\transactions\OperationFrame.h">
       <Filter>transactions</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\lib\json\json.h">
+    <ClInclude Include="..\..\lib\json\json.h">
       <Filter>lib\json</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\lib\json\json-forwards.h">
+    <ClInclude Include="..\..\lib\json\json-forwards.h">
       <Filter>lib\json</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\scp\SCP.h">
@@ -728,7 +728,7 @@
     <ClInclude Include="..\..\src\main\fuzz.h">
       <Filter>main\tests</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\lib\util\lrucache.hpp">
+    <ClInclude Include="..\..\lib\util\lrucache.hpp">
       <Filter>lib\util</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\bucket\FutureBucket.h">
@@ -779,7 +779,7 @@
     <None Include="..\..\ChangeLog" />
     <None Include="..\..\COPYING" />
     <None Include="..\..\NEWS" />
-    <None Include="..\..\src\lib\xdrpp\tests\xdrtest.x">
+    <None Include="..\..\lib\xdrpp\tests\xdrtest.x">
       <Filter>lib\xdrpp</Filter>
     </None>
     <None Include="libmedida\libmedida.vcxproj" />

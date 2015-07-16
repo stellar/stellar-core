@@ -86,7 +86,7 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>..\..\..\src\lib\soci\src\core;..\..\..\src\lib\sqlite</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\..\lib\soci\src\core;..\..\..\lib\sqlite</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;_MBCS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <MinimalRebuild>false</MinimalRebuild>
       <EnableParallelCodeGeneration>
@@ -104,7 +104,7 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>..\..\..\src\lib\soci\src\core;..\..\..\src\lib\sqlite</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\..\lib\soci\src\core;..\..\..\lib\sqlite</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;_MBCS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <MinimalRebuild>false</MinimalRebuild>
       <EnableParallelCodeGeneration>
@@ -127,7 +127,7 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>..\..\..\src\lib\soci\src\core;..\..\..\src\lib\sqlite</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\..\lib\soci\src\core;..\..\..\lib\sqlite</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;_MBCS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
@@ -143,7 +143,7 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>..\..\..\src\lib\soci\src\core;..\..\..\src\lib\sqlite</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\..\lib\soci\src\core;..\..\..\lib\sqlite</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;_MBCS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <BrowseInformation>false</BrowseInformation>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
@@ -155,20 +155,20 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\..\src\lib\soci\src\backends\sqlite3\blob.cpp" />
-    <ClCompile Include="..\..\..\src\lib\soci\src\backends\sqlite3\common.cpp" />
-    <ClCompile Include="..\..\..\src\lib\soci\src\backends\sqlite3\factory.cpp" />
-    <ClCompile Include="..\..\..\src\lib\soci\src\backends\sqlite3\row-id.cpp" />
-    <ClCompile Include="..\..\..\src\lib\soci\src\backends\sqlite3\session.cpp" />
-    <ClCompile Include="..\..\..\src\lib\soci\src\backends\sqlite3\standard-into-type.cpp" />
-    <ClCompile Include="..\..\..\src\lib\soci\src\backends\sqlite3\standard-use-type.cpp" />
-    <ClCompile Include="..\..\..\src\lib\soci\src\backends\sqlite3\statement.cpp" />
-    <ClCompile Include="..\..\..\src\lib\soci\src\backends\sqlite3\vector-into-type.cpp" />
-    <ClCompile Include="..\..\..\src\lib\soci\src\backends\sqlite3\vector-use-type.cpp" />
+    <ClCompile Include="..\..\..\lib\soci\src\backends\sqlite3\blob.cpp" />
+    <ClCompile Include="..\..\..\lib\soci\src\backends\sqlite3\common.cpp" />
+    <ClCompile Include="..\..\..\lib\soci\src\backends\sqlite3\factory.cpp" />
+    <ClCompile Include="..\..\..\lib\soci\src\backends\sqlite3\row-id.cpp" />
+    <ClCompile Include="..\..\..\lib\soci\src\backends\sqlite3\session.cpp" />
+    <ClCompile Include="..\..\..\lib\soci\src\backends\sqlite3\standard-into-type.cpp" />
+    <ClCompile Include="..\..\..\lib\soci\src\backends\sqlite3\standard-use-type.cpp" />
+    <ClCompile Include="..\..\..\lib\soci\src\backends\sqlite3\statement.cpp" />
+    <ClCompile Include="..\..\..\lib\soci\src\backends\sqlite3\vector-into-type.cpp" />
+    <ClCompile Include="..\..\..\lib\soci\src\backends\sqlite3\vector-use-type.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\..\src\lib\soci\src\backends\sqlite3\common.h" />
-    <ClInclude Include="..\..\..\src\lib\soci\src\backends\sqlite3\soci-sqlite3.h" />
+    <ClInclude Include="..\..\..\lib\soci\src\backends\sqlite3\common.h" />
+    <ClInclude Include="..\..\..\lib\soci\src\backends\sqlite3\soci-sqlite3.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

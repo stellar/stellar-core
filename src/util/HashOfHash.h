@@ -1,5 +1,5 @@
 #pragma once
-#include <scp/Stellar-SCP.h>
+#include <xdr/Stellar-types.h>
 
 namespace std
 {

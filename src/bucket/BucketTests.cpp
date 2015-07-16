@@ -749,7 +749,6 @@ TEST_CASE("checkdb succeeding", "[bucket][checkdb]")
     app->start();
 
     autocheck::generator<std::vector<LedgerEntry>> liveGen;
-    autocheck::generator<LedgerEntry> liveSingleGen;
     std::vector<stellar::LedgerKey> emptySet;
 
     app->generateLoad(1000, 1000, 1000, false);

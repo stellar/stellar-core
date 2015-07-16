@@ -85,7 +85,7 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>..\..\..\src\lib\libmedida\src</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\..\lib\libmedida\src</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;_MBCS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
@@ -97,7 +97,7 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>..\..\..\src\lib\libmedida\src</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\..\lib\libmedida\src</AdditionalIncludeDirectories>
       <DisableSpecificWarnings>4244</DisableSpecificWarnings>
       <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
@@ -116,7 +116,7 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>..\..\..\src\lib\libmedida\src</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\..\lib\libmedida\src</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;_MBCS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
@@ -132,7 +132,7 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>..\..\..\src\lib\libmedida\src</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\..\lib\libmedida\src</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;_MBCS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <BrowseInformation>false</BrowseInformation>
     </ClCompile>
@@ -143,49 +143,49 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\..\src\lib\libmedida\src\medida\counter.cc" />
-    <ClCompile Include="..\..\..\src\lib\libmedida\src\medida\histogram.cc" />
-    <ClCompile Include="..\..\..\src\lib\libmedida\src\medida\meter.cc" />
-    <ClCompile Include="..\..\..\src\lib\libmedida\src\medida\metrics_registry.cc" />
-    <ClCompile Include="..\..\..\src\lib\libmedida\src\medida\metric_name.cc" />
-    <ClCompile Include="..\..\..\src\lib\libmedida\src\medida\metric_processor.cc" />
-    <ClCompile Include="..\..\..\src\lib\libmedida\src\medida\reporting\abstract_polling_reporter.cc" />
-    <ClCompile Include="..\..\..\src\lib\libmedida\src\medida\reporting\console_reporter.cc" />
-    <ClCompile Include="..\..\..\src\lib\libmedida\src\medida\reporting\json_reporter.cc">
+    <ClCompile Include="..\..\..\lib\libmedida\src\medida\counter.cc" />
+    <ClCompile Include="..\..\..\lib\libmedida\src\medida\histogram.cc" />
+    <ClCompile Include="..\..\..\lib\libmedida\src\medida\meter.cc" />
+    <ClCompile Include="..\..\..\lib\libmedida\src\medida\metrics_registry.cc" />
+    <ClCompile Include="..\..\..\lib\libmedida\src\medida\metric_name.cc" />
+    <ClCompile Include="..\..\..\lib\libmedida\src\medida\metric_processor.cc" />
+    <ClCompile Include="..\..\..\lib\libmedida\src\medida\reporting\abstract_polling_reporter.cc" />
+    <ClCompile Include="..\..\..\lib\libmedida\src\medida\reporting\console_reporter.cc" />
+    <ClCompile Include="..\..\..\lib\libmedida\src\medida\reporting\json_reporter.cc">
       <DisableSpecificWarnings Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">4244;4996</DisableSpecificWarnings>
     </ClCompile>
-    <ClCompile Include="..\..\..\src\lib\libmedida\src\medida\reporting\util.cc" />
-    <ClCompile Include="..\..\..\src\lib\libmedida\src\medida\stats\ewma.cc" />
-    <ClCompile Include="..\..\..\src\lib\libmedida\src\medida\stats\exp_decay_sample.cc" />
-    <ClCompile Include="..\..\..\src\lib\libmedida\src\medida\stats\snapshot.cc" />
-    <ClCompile Include="..\..\..\src\lib\libmedida\src\medida\stats\uniform_sample.cc" />
-    <ClCompile Include="..\..\..\src\lib\libmedida\src\medida\timer.cc" />
-    <ClCompile Include="..\..\..\src\lib\libmedida\src\medida\timer_context.cc" />
+    <ClCompile Include="..\..\..\lib\libmedida\src\medida\reporting\util.cc" />
+    <ClCompile Include="..\..\..\lib\libmedida\src\medida\stats\ewma.cc" />
+    <ClCompile Include="..\..\..\lib\libmedida\src\medida\stats\exp_decay_sample.cc" />
+    <ClCompile Include="..\..\..\lib\libmedida\src\medida\stats\snapshot.cc" />
+    <ClCompile Include="..\..\..\lib\libmedida\src\medida\stats\uniform_sample.cc" />
+    <ClCompile Include="..\..\..\lib\libmedida\src\medida\timer.cc" />
+    <ClCompile Include="..\..\..\lib\libmedida\src\medida\timer_context.cc" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\..\src\lib\libmedida\src\medida\counter.h" />
-    <ClInclude Include="..\..\..\src\lib\libmedida\src\medida\histogram.h" />
-    <ClInclude Include="..\..\..\src\lib\libmedida\src\medida\medida.h" />
-    <ClInclude Include="..\..\..\src\lib\libmedida\src\medida\meter.h" />
-    <ClInclude Include="..\..\..\src\lib\libmedida\src\medida\metered_interface.h" />
-    <ClInclude Include="..\..\..\src\lib\libmedida\src\medida\metrics_registry.h" />
-    <ClInclude Include="..\..\..\src\lib\libmedida\src\medida\metric_interface.h" />
-    <ClInclude Include="..\..\..\src\lib\libmedida\src\medida\metric_name.h" />
-    <ClInclude Include="..\..\..\src\lib\libmedida\src\medida\metric_processor.h" />
-    <ClInclude Include="..\..\..\src\lib\libmedida\src\medida\reporting\abstract_polling_reporter.h" />
-    <ClInclude Include="..\..\..\src\lib\libmedida\src\medida\reporting\console_reporter.h" />
-    <ClInclude Include="..\..\..\src\lib\libmedida\src\medida\reporting\json_reporter.h" />
-    <ClInclude Include="..\..\..\src\lib\libmedida\src\medida\reporting\util.h" />
-    <ClInclude Include="..\..\..\src\lib\libmedida\src\medida\sampling_interface.h" />
-    <ClInclude Include="..\..\..\src\lib\libmedida\src\medida\stats\ewma.h" />
-    <ClInclude Include="..\..\..\src\lib\libmedida\src\medida\stats\exp_decay_sample.h" />
-    <ClInclude Include="..\..\..\src\lib\libmedida\src\medida\stats\sample.h" />
-    <ClInclude Include="..\..\..\src\lib\libmedida\src\medida\stats\snapshot.h" />
-    <ClInclude Include="..\..\..\src\lib\libmedida\src\medida\stats\uniform_sample.h" />
-    <ClInclude Include="..\..\..\src\lib\libmedida\src\medida\summarizable_interface.h" />
-    <ClInclude Include="..\..\..\src\lib\libmedida\src\medida\timer.h" />
-    <ClInclude Include="..\..\..\src\lib\libmedida\src\medida\timer_context.h" />
-    <ClInclude Include="..\..\..\src\lib\libmedida\src\medida\types.h" />
+    <ClInclude Include="..\..\..\lib\libmedida\src\medida\counter.h" />
+    <ClInclude Include="..\..\..\lib\libmedida\src\medida\histogram.h" />
+    <ClInclude Include="..\..\..\lib\libmedida\src\medida\medida.h" />
+    <ClInclude Include="..\..\..\lib\libmedida\src\medida\meter.h" />
+    <ClInclude Include="..\..\..\lib\libmedida\src\medida\metered_interface.h" />
+    <ClInclude Include="..\..\..\lib\libmedida\src\medida\metrics_registry.h" />
+    <ClInclude Include="..\..\..\lib\libmedida\src\medida\metric_interface.h" />
+    <ClInclude Include="..\..\..\lib\libmedida\src\medida\metric_name.h" />
+    <ClInclude Include="..\..\..\lib\libmedida\src\medida\metric_processor.h" />
+    <ClInclude Include="..\..\..\lib\libmedida\src\medida\reporting\abstract_polling_reporter.h" />
+    <ClInclude Include="..\..\..\lib\libmedida\src\medida\reporting\console_reporter.h" />
+    <ClInclude Include="..\..\..\lib\libmedida\src\medida\reporting\json_reporter.h" />
+    <ClInclude Include="..\..\..\lib\libmedida\src\medida\reporting\util.h" />
+    <ClInclude Include="..\..\..\lib\libmedida\src\medida\sampling_interface.h" />
+    <ClInclude Include="..\..\..\lib\libmedida\src\medida\stats\ewma.h" />
+    <ClInclude Include="..\..\..\lib\libmedida\src\medida\stats\exp_decay_sample.h" />
+    <ClInclude Include="..\..\..\lib\libmedida\src\medida\stats\sample.h" />
+    <ClInclude Include="..\..\..\lib\libmedida\src\medida\stats\snapshot.h" />
+    <ClInclude Include="..\..\..\lib\libmedida\src\medida\stats\uniform_sample.h" />
+    <ClInclude Include="..\..\..\lib\libmedida\src\medida\summarizable_interface.h" />
+    <ClInclude Include="..\..\..\lib\libmedida\src\medida\timer.h" />
+    <ClInclude Include="..\..\..\lib\libmedida\src\medida\timer_context.h" />
+    <ClInclude Include="..\..\..\lib\libmedida\src\medida\types.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

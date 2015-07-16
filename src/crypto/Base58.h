@@ -6,7 +6,7 @@
 
 #include <string>
 #include <vector>
-#include "scp/Stellar-SCP.h"
+#include "xdr/Stellar-types.h"
 #include "crypto/ByteSlice.h"
 
 namespace stellar

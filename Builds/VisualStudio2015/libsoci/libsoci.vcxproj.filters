@@ -15,180 +15,180 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\..\src\lib\soci\src\core\backend-loader.cpp">
+    <ClCompile Include="..\..\..\lib\soci\src\core\backend-loader.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\src\lib\soci\src\core\blob.cpp">
+    <ClCompile Include="..\..\..\lib\soci\src\core\blob.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\src\lib\soci\src\core\connection-parameters.cpp">
+    <ClCompile Include="..\..\..\lib\soci\src\core\connection-parameters.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\src\lib\soci\src\core\connection-pool.cpp">
+    <ClCompile Include="..\..\..\lib\soci\src\core\connection-pool.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\src\lib\soci\src\core\error.cpp">
+    <ClCompile Include="..\..\..\lib\soci\src\core\error.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\src\lib\soci\src\core\into-type.cpp">
+    <ClCompile Include="..\..\..\lib\soci\src\core\into-type.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\src\lib\soci\src\core\once-temp-type.cpp">
+    <ClCompile Include="..\..\..\lib\soci\src\core\once-temp-type.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\src\lib\soci\src\core\prepare-temp-type.cpp">
+    <ClCompile Include="..\..\..\lib\soci\src\core\prepare-temp-type.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\src\lib\soci\src\core\procedure.cpp">
+    <ClCompile Include="..\..\..\lib\soci\src\core\procedure.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\src\lib\soci\src\core\ref-counted-prepare-info.cpp">
+    <ClCompile Include="..\..\..\lib\soci\src\core\ref-counted-prepare-info.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\src\lib\soci\src\core\ref-counted-statement.cpp">
+    <ClCompile Include="..\..\..\lib\soci\src\core\ref-counted-statement.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\src\lib\soci\src\core\row.cpp">
+    <ClCompile Include="..\..\..\lib\soci\src\core\row.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\src\lib\soci\src\core\rowid.cpp">
+    <ClCompile Include="..\..\..\lib\soci\src\core\rowid.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\src\lib\soci\src\core\session.cpp">
+    <ClCompile Include="..\..\..\lib\soci\src\core\session.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\src\lib\soci\src\core\soci-simple.cpp">
+    <ClCompile Include="..\..\..\lib\soci\src\core\soci-simple.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\src\lib\soci\src\core\statement.cpp">
+    <ClCompile Include="..\..\..\lib\soci\src\core\statement.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\src\lib\soci\src\core\transaction.cpp">
+    <ClCompile Include="..\..\..\lib\soci\src\core\transaction.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\src\lib\soci\src\core\use-type.cpp">
+    <ClCompile Include="..\..\..\lib\soci\src\core\use-type.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\src\lib\soci\src\core\values.cpp">
+    <ClCompile Include="..\..\..\lib\soci\src\core\values.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\..\src\lib\soci\src\core\backend-loader.h">
+    <ClInclude Include="..\..\..\lib\soci\src\core\backend-loader.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\src\lib\soci\src\core\blob.h">
+    <ClInclude Include="..\..\..\lib\soci\src\core\blob.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\src\lib\soci\src\core\blob-exchange.h">
+    <ClInclude Include="..\..\..\lib\soci\src\core\blob-exchange.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\src\lib\soci\src\core\connection-parameters.h">
+    <ClInclude Include="..\..\..\lib\soci\src\core\connection-parameters.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\src\lib\soci\src\core\connection-pool.h">
+    <ClInclude Include="..\..\..\lib\soci\src\core\connection-pool.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\src\lib\soci\src\core\error.h">
+    <ClInclude Include="..\..\..\lib\soci\src\core\error.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\src\lib\soci\src\core\exchange-traits.h">
+    <ClInclude Include="..\..\..\lib\soci\src\core\exchange-traits.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\src\lib\soci\src\core\into.h">
+    <ClInclude Include="..\..\..\lib\soci\src\core\into.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\src\lib\soci\src\core\into-type.h">
+    <ClInclude Include="..\..\..\lib\soci\src\core\into-type.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\src\lib\soci\src\core\once-temp-type.h">
+    <ClInclude Include="..\..\..\lib\soci\src\core\once-temp-type.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\src\lib\soci\src\core\prepare-temp-type.h">
+    <ClInclude Include="..\..\..\lib\soci\src\core\prepare-temp-type.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\src\lib\soci\src\core\procedure.h">
+    <ClInclude Include="..\..\..\lib\soci\src\core\procedure.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\src\lib\soci\src\core\query_transformation.h">
+    <ClInclude Include="..\..\..\lib\soci\src\core\query_transformation.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\src\lib\soci\src\core\ref-counted-prepare-info.h">
+    <ClInclude Include="..\..\..\lib\soci\src\core\ref-counted-prepare-info.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\src\lib\soci\src\core\ref-counted-statement.h">
+    <ClInclude Include="..\..\..\lib\soci\src\core\ref-counted-statement.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\src\lib\soci\src\core\row.h">
+    <ClInclude Include="..\..\..\lib\soci\src\core\row.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\src\lib\soci\src\core\row-exchange.h">
+    <ClInclude Include="..\..\..\lib\soci\src\core\row-exchange.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\src\lib\soci\src\core\rowid.h">
+    <ClInclude Include="..\..\..\lib\soci\src\core\rowid.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\src\lib\soci\src\core\rowid-exchange.h">
+    <ClInclude Include="..\..\..\lib\soci\src\core\rowid-exchange.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\src\lib\soci\src\core\rowset.h">
+    <ClInclude Include="..\..\..\lib\soci\src\core\rowset.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\src\lib\soci\src\core\session.h">
+    <ClInclude Include="..\..\..\lib\soci\src\core\session.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\src\lib\soci\src\core\soci.h">
+    <ClInclude Include="..\..\..\lib\soci\src\core\soci.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\src\lib\soci\src\core\soci_backends_config.h">
+    <ClInclude Include="..\..\..\lib\soci\src\core\soci_backends_config.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\src\lib\soci\src\core\soci-backend.h">
+    <ClInclude Include="..\..\..\lib\soci\src\core\soci-backend.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\src\lib\soci\src\core\soci-config.h">
+    <ClInclude Include="..\..\..\lib\soci\src\core\soci-config.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\src\lib\soci\src\core\soci-platform.h">
+    <ClInclude Include="..\..\..\lib\soci\src\core\soci-platform.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\src\lib\soci\src\core\soci-simple.h">
+    <ClInclude Include="..\..\..\lib\soci\src\core\soci-simple.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\src\lib\soci\src\core\statement.h">
+    <ClInclude Include="..\..\..\lib\soci\src\core\statement.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\src\lib\soci\src\core\transaction.h">
+    <ClInclude Include="..\..\..\lib\soci\src\core\transaction.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\src\lib\soci\src\core\type-conversion.h">
+    <ClInclude Include="..\..\..\lib\soci\src\core\type-conversion.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\src\lib\soci\src\core\type-conversion-traits.h">
+    <ClInclude Include="..\..\..\lib\soci\src\core\type-conversion-traits.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\src\lib\soci\src\core\type-holder.h">
+    <ClInclude Include="..\..\..\lib\soci\src\core\type-holder.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\src\lib\soci\src\core\type-ptr.h">
+    <ClInclude Include="..\..\..\lib\soci\src\core\type-ptr.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\src\lib\soci\src\core\unsigned-types.h">
+    <ClInclude Include="..\..\..\lib\soci\src\core\unsigned-types.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\src\lib\soci\src\core\use.h">
+    <ClInclude Include="..\..\..\lib\soci\src\core\use.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\src\lib\soci\src\core\use-type.h">
+    <ClInclude Include="..\..\..\lib\soci\src\core\use-type.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\src\lib\soci\src\core\values.h">
+    <ClInclude Include="..\..\..\lib\soci\src\core\values.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\src\lib\soci\src\core\values-exchange.h">
+    <ClInclude Include="..\..\..\lib\soci\src\core\values-exchange.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\src\lib\soci\src\core\version.h">
+    <ClInclude Include="..\..\..\lib\soci\src\core\version.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

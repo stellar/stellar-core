@@ -5,7 +5,7 @@
 #include <medida/medida.h>
 #include <util/optional.h>
 #include <set>
-#include <scp/Stellar-SCP.h>
+#include <xdr/Stellar-SCP.h>
 #include "overlay/ItemFetcher.h"
 #include "lib/json/json.h"
 #include "lib/util/lrucache.hpp"
