@@ -51,9 +51,8 @@ fuzz-testcases fuzz fuzz-clean: all
 	cd src && $(MAKE) $(AM_MAKEFLAGS) $@
 endif # USE_AFL_FUZZ
 
-EXTRA_DIST = stellar-core.supp test/selftest-stellar-core	\
-	test/testnet/multitail.conf test/testnet/run-test.sh	\
-	README.md make-mks
+EXTRA_DIST = stellar-core.supp test/testnet/multitail.conf	\
+	test/testnet/run-test.sh README.md make-mks
 
 @VALGRIND_CHECK_RULES@
 VALGRIND_FLAGS = --num-callers=30 --trace-children=yes \
