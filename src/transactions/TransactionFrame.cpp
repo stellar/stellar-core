@@ -501,19 +501,15 @@ TransactionFrame::storeTransaction(LedgerManager& ledgerManager,
     auto txResultBytes(xdr::xdr_to_opaque(resultSet.results.back()));
 
     std::string txBody;
-    txBody.reserve(bn::encoded_size64(txBytes.size()) + 1);
-    bn::encode_b64(txBytes.begin(), txBytes.end(), std::back_inserter(txBody));
+    txBody = bn::encode_b64(txBytes.begin(), txBytes.end());
 
     std::string txResult;
-    txResult.reserve(bn::encoded_size64(txResultBytes.size()) + 1);
-    bn::encode_b64(txResultBytes.begin(), txResultBytes.end(),
-                   std::back_inserter(txResult));
+    txResult = bn::encode_b64(txResultBytes.begin(), txResultBytes.end());
 
     xdr::opaque_vec<> txMeta(xdr::xdr_to_opaque(tm));
 
     std::string meta;
-    txResult.reserve(bn::encoded_size64(txMeta.size()) + 1);
-    bn::encode_b64(txMeta.begin(), txMeta.end(), std::back_inserter(meta));
+    meta = bn::encode_b64(txMeta.begin(), txMeta.end());
 
     string txIDString(binToHex(getContentsHash()));
 

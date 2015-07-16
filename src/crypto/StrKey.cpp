@@ -26,8 +26,7 @@ toStrKey(uint8_t ver, ByteSlice const& bin)
     toEncode.emplace_back(crc & 0xFF);
 
     std::string res;
-    res.reserve(getStrKeySize(bin.size()) + 1);
-    bn::encode_b32(toEncode.begin(), toEncode.end(), std::back_inserter(res));
+    res = bn::encode_b32(toEncode.begin(), toEncode.end());
     return res;
 }
 
