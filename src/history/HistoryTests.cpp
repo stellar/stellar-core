@@ -611,10 +611,8 @@ dbModeName(Config::TestDbMode mode)
     case Config::TESTDB_ON_DISK_SQLITE:
         return "TESTDB_ON_DISK_SQLITE";
 #ifdef USE_POSTGRES
-    case Config::TESTDB_UNIX_LOCAL_POSTGRESQL:
-        return "TESTDB_UNIX_LOCAL_POSTGRESQL";
-    case Config::TESTDB_TCP_LOCALHOST_POSTGRESQL:
-        return "TESTDB_TCP_LOCALHOST_POSTGRESQL";
+    case Config::TESTDB_POSTGRESQL:
+        return "TESTDB_POSTGRESQL";
 #endif
     default:
         abort();
@@ -634,10 +632,12 @@ TEST_CASE_METHOD(HistoryTests, "Full history catchup",
         HistoryManager::CATCHUP_MINIMAL, HistoryManager::CATCHUP_COMPLETE};
 
     std::vector<Config::TestDbMode> dbModes = {
+        Config::TESTDB_IN_MEMORY_SQLITE, Config::TESTDB_ON_DISK_SQLITE
+    };
 #ifdef USE_POSTGRES
-        Config::TESTDB_TCP_LOCALHOST_POSTGRESQL,
+    if (!force_sqlite)
+        dbModes.push_back(Config::TESTDB_POSTGRESQL);
 #endif
-        Config::TESTDB_IN_MEMORY_SQLITE, Config::TESTDB_ON_DISK_SQLITE};
 
     for (auto dbMode : dbModes)
     {

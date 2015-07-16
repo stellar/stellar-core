@@ -2,6 +2,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include <cstdlib>
 #include "test.h"
 #include "StellarCoreVersion.h"
 #include "main/Config.h"
@@ -29,6 +30,8 @@ namespace stellar
 static std::vector<std::string> gTestMetrics;
 static std::vector<std::unique_ptr<Config>> gTestCfg[Config::TESTDB_MODES];
 static std::vector<TmpDir> gTestRoots;
+
+bool force_sqlite = std::getenv("STELLAR_FORCE_SQLITE");
 
 Config const&
 getTestConfig(int instanceNumber, Config::TestDbMode mode)
@@ -100,12 +103,8 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
                    << ".db";
             break;
 #ifdef USE_POSTGRES
-        case Config::TESTDB_UNIX_LOCAL_POSTGRESQL:
+        case Config::TESTDB_POSTGRESQL:
             dbname << "postgresql://dbname=test" << instanceNumber;
-            break;
-        case Config::TESTDB_TCP_LOCALHOST_POSTGRESQL:
-            dbname << "postgresql://host=localhost dbname=test"
-                   << instanceNumber << " user=test password=test";
             break;
 #endif
         default:

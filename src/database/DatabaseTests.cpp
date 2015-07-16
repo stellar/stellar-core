@@ -190,7 +190,7 @@ TEST_CASE("sqlite MVCC test", "[db]")
 TEST_CASE("postgres smoketest", "[db]")
 {
     Config const& cfg =
-        getTestConfig(0, Config::TESTDB_TCP_LOCALHOST_POSTGRESQL);
+        getTestConfig(0, Config::TESTDB_POSTGRESQL);
     VirtualClock clock;
     try
     {
@@ -251,7 +251,7 @@ TEST_CASE("postgres smoketest", "[db]")
 
 TEST_CASE("postgres performance", "[db][pgperf][hide]")
 {
-    Config cfg(getTestConfig(0, Config::TESTDB_TCP_LOCALHOST_POSTGRESQL));
+    Config cfg(getTestConfig(0, Config::TESTDB_POSTGRESQL));
     VirtualClock clock;
     std::default_random_engine gen;
     std::uniform_int_distribution<uint64_t> dist;
