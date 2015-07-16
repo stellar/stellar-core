@@ -55,8 +55,6 @@ EXTRA_DIST = stellar-core.supp test/selftest-stellar-core	\
 	test/testnet/multitail.conf test/testnet/run-test.sh	\
 	README.md make-mks
 
-TESTS=test/selftest-stellar-core
-
 @VALGRIND_CHECK_RULES@
 VALGRIND_FLAGS = --num-callers=30 --trace-children=yes \
           --trace-children-skip=hostname,aws,gcutil,gcloud,azure,node,python

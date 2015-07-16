@@ -34,6 +34,12 @@ StellarCoreVersion.h: always
 	@if cmp -s $@~ $@; then rm -f $@~; else \
 	    mv -f $@~ $@ && printf "echo '%s' > $@\n" "$$(cat $@)"; fi
 
+if USE_POSTGRES
+TESTS=test/selftest-pg
+else # !USE_POSTGRES
+TESTS=test/selftest-nopg
+endif # !USE_POSTGRES
+
 if USE_CLANG_FORMAT
 format: always
 	cd $(srcdir) && $(CLANG_FORMAT) -i $(SRC_CXX_FILES) $(SRC_H_FILES)

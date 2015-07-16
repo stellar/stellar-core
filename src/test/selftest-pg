@@ -1,0 +1,60 @@
+#!/bin/sh
+
+# Written by David Mazieres 2013-2015.  Public domain.
+
+cleanup() {
+    pg_ctl stop -m immediate
+    rm -rf "$PGDATA"
+    exit
+}
+
+# Creates a temporary postgres database cluster, runs a command (or a
+# shell), then deletes the database cluster.  If PGDATA is already
+# set, then simply executes a command without running another postgres
+# instance.
+runpg() {
+    export PGDATA=$(mktemp -d ${TMPDIR-/tmp}/pgtmp.XXXXXXXX)
+    export PGHOST="$PGDATA"
+    export PGUSER=postgres
+    #export PGDATABASE=postgres
+
+    trap cleanup 0 2 15
+
+    echo Creating temporary PostgreSQL database cluster in "$PGDATA"
+
+    pg_ctl init -s -o "--no-locale -U ${PGUSER-postgres} -A trust" \
+	|| return 1
+    conf="$PGDATA/postgresql.conf"
+    usd=$(sed -ne '/#\(unix_socket_director[^ ]*\) =.*/{s//\1/p;q}' "$conf")
+    cat >> "$conf" <<EOF
+$usd = '$PGDATA'
+listen_addresses = ''
+logging_collector = yes
+fsync = no
+synchronous_commit = off
+full_page_writes = off
+EOF
+    pg_ctl start -w -s
+}
+
+setup_test() {
+    runpg || return 1
+    for i in $(seq 0 8) ''; do
+	psql -c "create database test$i;"
+    done
+}
+
+if test "$#" = 0; then
+    if psql -c '\quit' test 2> /dev/null || setup_test; then
+	echo "Enabling PostgreSQL in most tests"
+    else
+	echo "Disabling PostgreSQL in most tests"
+	export STELLAR_FORCE_SQLITE=1
+    fi
+    ./stellar-core --test -a
+else
+    # You can run "./test-pg bash" to get a shell with postgreSQL set up
+    setup_test
+    "$@"
+fi
+
