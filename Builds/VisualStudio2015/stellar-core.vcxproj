@@ -53,7 +53,7 @@
       <WarningLevel>Level4</WarningLevel>
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>src;../../src/lib/libmedida/src;../../src/lib/soci/src/core;../../src/lib/autocheck/include;../../src/lib/cereal/include;../../src/lib/asio/include;../../src/lib/xdrpp;../../src/lib/libsodium/src/libsodium/include;../../src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>src;../../src;../../lib;../../lib/libmedida/src;../../lib/soci/src/core;../../lib/autocheck/include;../../lib/cereal/include;../../lib/asio/include;../../lib/xdrpp;../../lib/libsodium/src/libsodium/include;../..;src/generated;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>NOMINMAX;ASIO_STANDALONE;USE_POSTGRES;_WINSOCK_DEPRECATED_NO_WARNINGS;SODIUM_STATIC;ASIO_SEPARATE_COMPILATION;ASIO_ERROR_CATEGORY_NOEXCEPT=noexcept;_CRT_SECURE_NO_WARNINGS;_WIN32_WINNT=0x0501;WIN32;_MBCS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <MinimalRebuild>false</MinimalRebuild>
@@ -107,7 +107,7 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>src;../../src/lib/libmedida/src;../../src/lib/soci/src/core;../../src/lib/autocheck/include;../../src/lib/cereal/include;../../src/lib/asio/include;../../src/lib/xdrpp;../../src/lib/libsodium/src/libsodium/include;../../src;</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>src;../../src;../../lib;../../lib/libmedida/src;../../lib/soci/src/core;../../lib/autocheck/include;../../lib/cereal/include;../../lib/asio/include;../../lib/xdrpp;../../lib/libsodium/src/libsodium/include;../..;src/generated;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>NOMINMAX;ASIO_STANDALONE;USE_POSTGRES;_WINSOCK_DEPRECATED_NO_WARNINGS;SODIUM_STATIC;ASIO_SEPARATE_COMPILATION;ASIO_ERROR_CATEGORY_NOEXCEPT=noexcept;_CRT_SECURE_NO_WARNINGS;_WIN32_WINNT=0x0501;WIN32;_MBCS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <BrowseInformation>false</BrowseInformation>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
@@ -180,50 +180,50 @@
     <ClCompile Include="..\..\src\ledger\LedgerTests.cpp" />
     <ClCompile Include="..\..\src\ledger\OfferFrame.cpp" />
     <ClCompile Include="..\..\src\ledger\TrustFrame.cpp" />
-    <ClCompile Include="..\..\src\lib\asio\src\asio.cpp" />
-    <ClCompile Include="..\..\src\lib\http\connection.cpp" />
-    <ClCompile Include="..\..\src\lib\http\connection_manager.cpp" />
-    <ClCompile Include="..\..\src\lib\http\HttpClient.cpp" />
-    <ClCompile Include="..\..\src\lib\http\reply.cpp" />
-    <ClCompile Include="..\..\src\lib\http\request_parser.cpp" />
-    <ClCompile Include="..\..\src\lib\http\server.cpp" />
-    <ClCompile Include="..\..\src\lib\json\jsoncpp.cpp" />
-    <ClCompile Include="..\..\src\lib\util\format.cc" />
-    <ClCompile Include="..\..\src\lib\util\getopt_long.c" />
-    <ClCompile Include="..\..\src\lib\util\uint128_t.cpp" />
-    <ClCompile Include="..\..\src\lib\xdrpp\tests\arpc.cc">
+    <ClCompile Include="..\..\lib\asio\src\asio.cpp" />
+    <ClCompile Include="..\..\lib\http\connection.cpp" />
+    <ClCompile Include="..\..\lib\http\connection_manager.cpp" />
+    <ClCompile Include="..\..\lib\http\HttpClient.cpp" />
+    <ClCompile Include="..\..\lib\http\reply.cpp" />
+    <ClCompile Include="..\..\lib\http\request_parser.cpp" />
+    <ClCompile Include="..\..\lib\http\server.cpp" />
+    <ClCompile Include="..\..\lib\json\jsoncpp.cpp" />
+    <ClCompile Include="..\..\lib\util\format.cc" />
+    <ClCompile Include="..\..\lib\util\getopt_long.c" />
+    <ClCompile Include="..\..\lib\util\uint128_t.cpp" />
+    <ClCompile Include="..\..\lib\xdrpp\tests\arpc.cc">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
     </ClCompile>
-    <ClCompile Include="..\..\src\lib\xdrpp\tests\autocheck.cc">
+    <ClCompile Include="..\..\lib\xdrpp\tests\autocheck.cc">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
     </ClCompile>
-    <ClCompile Include="..\..\src\lib\xdrpp\tests\cereal.cc">
+    <ClCompile Include="..\..\lib\xdrpp\tests\cereal.cc">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
     </ClCompile>
-    <ClCompile Include="..\..\src\lib\xdrpp\tests\compare.cc">
+    <ClCompile Include="..\..\lib\xdrpp\tests\compare.cc">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
     </ClCompile>
-    <ClCompile Include="..\..\src\lib\xdrpp\tests\listener.cc">
+    <ClCompile Include="..\..\lib\xdrpp\tests\listener.cc">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
     </ClCompile>
-    <ClCompile Include="..\..\src\lib\xdrpp\tests\marshal.cc">
+    <ClCompile Include="..\..\lib\xdrpp\tests\marshal.cc">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
     </ClCompile>
-    <ClCompile Include="..\..\src\lib\xdrpp\tests\msgsock.cc">
+    <ClCompile Include="..\..\lib\xdrpp\tests\msgsock.cc">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
     </ClCompile>
-    <ClCompile Include="..\..\src\lib\xdrpp\tests\printer.cc">
+    <ClCompile Include="..\..\lib\xdrpp\tests\printer.cc">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
     </ClCompile>
-    <ClCompile Include="..\..\src\lib\xdrpp\tests\srpc.cc">
+    <ClCompile Include="..\..\lib\xdrpp\tests\srpc.cc">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
     </ClCompile>
@@ -329,22 +329,22 @@
     <ClInclude Include="..\..\src\ledger\LedgerManagerImpl.h" />
     <ClInclude Include="..\..\src\ledger\OfferFrame.h" />
     <ClInclude Include="..\..\src\ledger\TrustFrame.h" />
-    <ClInclude Include="..\..\src\lib\http\connection.hpp" />
-    <ClInclude Include="..\..\src\lib\http\connection_manager.hpp" />
-    <ClInclude Include="..\..\src\lib\http\header.hpp" />
-    <ClInclude Include="..\..\src\lib\http\HttpClient.h" />
-    <ClInclude Include="..\..\src\lib\http\reply.hpp" />
-    <ClInclude Include="..\..\src\lib\http\request.hpp" />
-    <ClInclude Include="..\..\src\lib\http\request_parser.hpp" />
-    <ClInclude Include="..\..\src\lib\http\server.hpp" />
-    <ClInclude Include="..\..\src\lib\json\json-forwards.h" />
-    <ClInclude Include="..\..\src\lib\json\json.h" />
-    <ClInclude Include="..\..\src\lib\util\cpptoml.h" />
-    <ClInclude Include="..\..\src\lib\util\easylogging++.h" />
-    <ClInclude Include="..\..\src\lib\util\format.h" />
-    <ClInclude Include="..\..\src\lib\util\getopt.h" />
-    <ClInclude Include="..\..\src\lib\util\lrucache.hpp" />
-    <ClInclude Include="..\..\src\lib\util\uint128_t.h" />
+    <ClInclude Include="..\..\lib\http\connection.hpp" />
+    <ClInclude Include="..\..\lib\http\connection_manager.hpp" />
+    <ClInclude Include="..\..\lib\http\header.hpp" />
+    <ClInclude Include="..\..\lib\http\HttpClient.h" />
+    <ClInclude Include="..\..\lib\http\reply.hpp" />
+    <ClInclude Include="..\..\lib\http\request.hpp" />
+    <ClInclude Include="..\..\lib\http\request_parser.hpp" />
+    <ClInclude Include="..\..\lib\http\server.hpp" />
+    <ClInclude Include="..\..\lib\json\json-forwards.h" />
+    <ClInclude Include="..\..\lib\json\json.h" />
+    <ClInclude Include="..\..\lib\util\cpptoml.h" />
+    <ClInclude Include="..\..\lib\util\easylogging++.h" />
+    <ClInclude Include="..\..\lib\util\format.h" />
+    <ClInclude Include="..\..\lib\util\getopt.h" />
+    <ClInclude Include="..\..\lib\util\lrucache.hpp" />
+    <ClInclude Include="..\..\lib\util\uint128_t.h" />
     <ClInclude Include="..\..\src\main\Application.h" />
     <ClInclude Include="..\..\src\main\ApplicationImpl.h" />
     <ClInclude Include="..\..\src\main\CommandHandler.h" />
@@ -441,61 +441,61 @@ $(SolutionDir)$(Platform)\$(Configuration)\xdrc.exe -hh -o ../../src/generated/S
     <None Include="..\..\src\herder\readme.md" />
     <None Include="..\..\src\history\readme.md" />
     <None Include="..\..\src\ledger\readme.md" />
-    <None Include="..\..\src\lib\xdrpp\tests\xdrtest.x" />
+    <None Include="..\..\lib\xdrpp\tests\xdrtest.x" />
     <CustomBuild Include="..\..\src\xdr\Stellar-ledger.x">
       <FileType>Document</FileType>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(SolutionDir)$(Platform)\$(Configuration)\xdrc.exe -hh -o ../../src/generated/Stellar-ledger.h ../../src/xdr/Stellar-ledger.x</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(SolutionDir)$(Platform)\$(Configuration)\xdrc.exe -hh -o ../../src/generated/Stellar-ledger.h ../../src/xdr/Stellar-ledger.x</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(SolutionDir)$(Platform)\$(Configuration)\xdrc.exe -hh -o src/generated/xdr/Stellar-ledger.h ../../src/xdr/Stellar-ledger.x</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(SolutionDir)$(Platform)\$(Configuration)\xdrc.exe -hh -o src/generated/xdr/Stellar-ledger.h ../../src/xdr/Stellar-ledger.x</Command>
       <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">running xdrc</Message>
       <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">running xdrc</Message>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">../../src/generated/Stellar-ledger.h</Outputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">../../src/generated/Stellar-ledger.h</Outputs>
-      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">../../src/xdr/Stellar-ledger.x;../../src/generated/Stellar-transaction.h</AdditionalInputs>
-      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">../../src/xdr/Stellar-ledger.x;../../src/generated/Stellar-transaction.h</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">src/generated/xdr/Stellar-ledger.h</Outputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">src/generated/xdr/Stellar-ledger.h</Outputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">../../src/xdr/Stellar-ledger.x;src/generated/xdr/Stellar-transaction.h</AdditionalInputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">../../src/xdr/Stellar-ledger.x;src/generated/xdr/Stellar-transaction.h</AdditionalInputs>
     </CustomBuild>
     <CustomBuild Include="..\..\src\xdr\Stellar-transaction.x">
       <FileType>Document</FileType>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(SolutionDir)$(Platform)\$(Configuration)\xdrc.exe -hh -o ../../src/generated/Stellar-transaction.h ../../src/xdr/Stellar-transaction.x</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(SolutionDir)$(Platform)\$(Configuration)\xdrc.exe -hh -o ../../src/generated/Stellar-transaction.h ../../src/xdr/Stellar-transaction.x</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(SolutionDir)$(Platform)\$(Configuration)\xdrc.exe -hh -o src/generated/xdr/Stellar-transaction.h ../../src/xdr/Stellar-transaction.x</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(SolutionDir)$(Platform)\$(Configuration)\xdrc.exe -hh -o src/generated/xdr/Stellar-transaction.h ../../src/xdr/Stellar-transaction.x</Command>
       <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">running xdrc</Message>
       <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">running xdrc</Message>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">../../src/generated/Stellar-transaction.h</Outputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">../../src/generated/Stellar-transaction.h</Outputs>
-      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">../../src/xdr/Stellar-transaction.x;../../src/generated/Stellar-ledger-entries.h</AdditionalInputs>
-      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">../../src/xdr/Stellar-transaction.x;../../src/generated/Stellar-ledger-entries.h</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">src/generated/xdr/Stellar-transaction.h</Outputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">src/generated/xdr/Stellar-transaction.h</Outputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">../../src/xdr/Stellar-transaction.x;src/generated/xdr/Stellar-ledger-entries.h</AdditionalInputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">../../src/xdr/Stellar-transaction.x;src/generated/xdr/Stellar-ledger-entries.h</AdditionalInputs>
     </CustomBuild>
     <CustomBuild Include="..\..\src\xdr\Stellar-types.x">
       <FileType>Document</FileType>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(SolutionDir)$(Platform)\$(Configuration)\xdrc.exe -hh -o ../../src/generated/Stellar-types.h ../../src/xdr/Stellar-types.x</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(SolutionDir)$(Platform)\$(Configuration)\xdrc.exe -hh -o ../../src/generated/Stellar-types.h ../../src/xdr/Stellar-types.x</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(SolutionDir)$(Platform)\$(Configuration)\xdrc.exe -hh -o src/generated/xdr/Stellar-types.h ../../src/xdr/Stellar-types.x</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(SolutionDir)$(Platform)\$(Configuration)\xdrc.exe -hh -o src/generated/xdr/Stellar-types.h ../../src/xdr/Stellar-types.x</Command>
       <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">running xdrc</Message>
       <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">running xdrc</Message>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">../../src/generated/Stellar-types.h</Outputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">../../src/generated/Stellar-types.h</Outputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">src/generated/xdr/Stellar-types.h</Outputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">src/generated/xdr/Stellar-types.h</Outputs>
       <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">../../src/xdr/Stellar-types.x</AdditionalInputs>
       <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">../../src/xdr/Stellar-types.x</AdditionalInputs>
     </CustomBuild>
     <CustomBuild Include="..\..\src\xdr\Stellar-overlay.x">
       <FileType>Document</FileType>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(SolutionDir)$(Platform)\$(Configuration)\xdrc.exe -hh -o ../../src/generated/Stellar-overlay.h ../../src/xdr/Stellar-overlay.x</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(SolutionDir)$(Platform)\$(Configuration)\xdrc.exe -hh -o ../../src/generated/Stellar-overlay.h ../../src/xdr/Stellar-overlay.x</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(SolutionDir)$(Platform)\$(Configuration)\xdrc.exe -hh -o src/generated/xdr/Stellar-overlay.h ../../src/xdr/Stellar-overlay.x</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(SolutionDir)$(Platform)\$(Configuration)\xdrc.exe -hh -o src/generated/xdr/Stellar-overlay.h ../../src/xdr/Stellar-overlay.x</Command>
       <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">running xdrc</Message>
       <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">running xdrc</Message>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">../../src/generated/Stellar-overlay.h</Outputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">../../src/generated/Stellar-overlay.h</Outputs>
-      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">../../src/xdr/Stellar-overlay.x;../../src/generated/Stellar-ledger.h</AdditionalInputs>
-      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">../../src/xdr/Stellar-overlay.x;../../src/generated/Stellar-ledger.h</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">src/generated/xdr/Stellar-overlay.h</Outputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">src/generated/xdr/Stellar-overlay.h</Outputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">../../src/xdr/Stellar-overlay.x;src/generated/xdr/Stellar-ledger.h</AdditionalInputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">../../src/xdr/Stellar-overlay.x;src/generated/xdr/Stellar-ledger.h</AdditionalInputs>
     </CustomBuild>
     <CustomBuild Include="..\..\src\xdr\Stellar-ledger-entries.x">
       <FileType>Document</FileType>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(SolutionDir)$(Platform)\$(Configuration)\xdrc.exe -hh -o ../../src/generated/Stellar-ledger-entries.h ../../src/xdr/Stellar-ledger-entries.x</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(SolutionDir)$(Platform)\$(Configuration)\xdrc.exe -hh -o ../../src/generated/Stellar-ledger-entries.h ../../src/xdr/Stellar-ledger-entries.x</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(SolutionDir)$(Platform)\$(Configuration)\xdrc.exe -hh -o src/generated/xdr/Stellar-ledger-entries.h ../../src/xdr/Stellar-ledger-entries.x</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(SolutionDir)$(Platform)\$(Configuration)\xdrc.exe -hh -o src/generated/xdr/Stellar-ledger-entries.h ../../src/xdr/Stellar-ledger-entries.x</Command>
       <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">running xdrc</Message>
       <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">running xdrc</Message>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">../../src/generated/Stellar-ledger-entries.h</Outputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">../../src/generated/Stellar-ledger-entries.h</Outputs>
-      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">../../src/xdr/Stellar-ledger-entries.x;../../src/generated/Stellar-types.h</AdditionalInputs>
-      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">../../src/xdr/Stellar-ledger-entries.x;../../src/generated/Stellar-types.h</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">src/generated/xdr/Stellar-ledger-entries.h</Outputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">src/generated/xdr/Stellar-ledger-entries.h</Outputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">../../src/xdr/Stellar-ledger-entries.x;src/generated/xdr/Stellar-types.h</AdditionalInputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">../../src/xdr/Stellar-ledger-entries.x;src/generated/xdr/Stellar-types.h</AdditionalInputs>
     </CustomBuild>
     <CustomBuild Include="..\..\src\scp\Stellar-SCP.x">
       <FileType>Document</FileType>
@@ -514,13 +514,13 @@ $(SolutionDir)$(Platform)\$(Configuration)\xdrc.exe -hh -o ../../src/generated/S
     <None Include="libmedida\libmedida.vcxproj" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\src\lib\libsodium\builds\msvc\vs2013\libsodium\libsodium.vcxproj">
+    <ProjectReference Include="..\..\lib\libsodium\builds\msvc\vs2013\libsodium\libsodium.vcxproj">
       <Project>{a185b162-6cb6-4502-b03f-b56f7699a8d9}</Project>
     </ProjectReference>
-    <ProjectReference Include="..\..\src\lib\xdrpp\msvc_xdrpp\xdrc\xdrc.vcxproj">
+    <ProjectReference Include="..\..\lib\xdrpp\msvc_xdrpp\xdrc\xdrc.vcxproj">
       <Project>{e85843d9-b9e8-447b-bdd8-0cf9347229a4}</Project>
     </ProjectReference>
-    <ProjectReference Include="..\..\src\lib\xdrpp\msvc_xdrpp\xdrpp\xdrpp.vcxproj">
+    <ProjectReference Include="..\..\lib\xdrpp\msvc_xdrpp\xdrpp\xdrpp.vcxproj">
       <Project>{79708037-97a3-4b19-8e9e-252d00e2e007}</Project>
     </ProjectReference>
     <ProjectReference Include="libmedida\libmedida.vcxproj">

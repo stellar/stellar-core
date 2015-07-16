@@ -5,11 +5,11 @@ VisualStudioVersion = 14.0.22310.1
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "stellar-core", "stellar-core.vcxproj", "{916B91AB-A300-422C-B9C2-D683924DC109}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "libsodium", "..\..\src\lib\libsodium\builds\msvc\vs2013\libsodium\libsodium.vcxproj", "{A185B162-6CB6-4502-B03F-B56F7699A8D9}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "libsodium", "..\..\lib\libsodium\builds\msvc\vs2013\libsodium\libsodium.vcxproj", "{A185B162-6CB6-4502-B03F-B56F7699A8D9}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "xdrpp", "..\..\src\lib\xdrpp\msvc_xdrpp\xdrpp\xdrpp.vcxproj", "{79708037-97A3-4B19-8E9E-252D00E2E007}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "xdrpp", "..\..\lib\xdrpp\msvc_xdrpp\xdrpp\xdrpp.vcxproj", "{79708037-97A3-4B19-8E9E-252D00E2E007}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "xdrc", "..\..\src\lib\xdrpp\msvc_xdrpp\xdrc\xdrc.vcxproj", "{E85843D9-B9E8-447B-BDD8-0CF9347229A4}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "xdrc", "..\..\lib\xdrpp\msvc_xdrpp\xdrc\xdrc.vcxproj", "{E85843D9-B9E8-447B-BDD8-0CF9347229A4}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "libsqlite", "libsqlite\libsqlite.vcxproj", "{D16EE391-36CC-4A74-8F91-C6DE95AB1CC5}"
 EndProject

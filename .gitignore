@@ -69,5 +69,6 @@
 
 # Windows specific
 **/Build/*
+**/generated/*
 **/x64/*
 *.vcxproj.user

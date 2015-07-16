@@ -84,7 +84,7 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>..\..\..\src\lib\soci\src\core;c:\Program Files\PostgreSQL\9.4\include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\..\lib\soci\src\core;c:\Program Files\PostgreSQL\9.4\include</AdditionalIncludeDirectories>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <MinimalRebuild>false</MinimalRebuild>
       <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;_MBCS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
@@ -102,7 +102,7 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>..\..\..\src\lib\soci\src\core;c:\Program Files\PostgreSQL\9.4\include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\..\lib\soci\src\core;c:\Program Files\PostgreSQL\9.4\include</AdditionalIncludeDirectories>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <MinimalRebuild>false</MinimalRebuild>
       <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;_MBCS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
@@ -141,7 +141,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;_MBCS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <BrowseInformation>false</BrowseInformation>
-      <AdditionalIncludeDirectories>..\..\..\src\lib\soci\src\core;c:\Program Files\PostgreSQL\9.4\include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\..\lib\soci\src\core;c:\Program Files\PostgreSQL\9.4\include</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -150,21 +150,21 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\..\src\lib\soci\src\backends\postgresql\blob.cpp" />
-    <ClCompile Include="..\..\..\src\lib\soci\src\backends\postgresql\common.cpp" />
-    <ClCompile Include="..\..\..\src\lib\soci\src\backends\postgresql\error.cpp" />
-    <ClCompile Include="..\..\..\src\lib\soci\src\backends\postgresql\factory.cpp" />
-    <ClCompile Include="..\..\..\src\lib\soci\src\backends\postgresql\row-id.cpp" />
-    <ClCompile Include="..\..\..\src\lib\soci\src\backends\postgresql\session.cpp" />
-    <ClCompile Include="..\..\..\src\lib\soci\src\backends\postgresql\standard-into-type.cpp" />
-    <ClCompile Include="..\..\..\src\lib\soci\src\backends\postgresql\standard-use-type.cpp" />
-    <ClCompile Include="..\..\..\src\lib\soci\src\backends\postgresql\statement.cpp" />
-    <ClCompile Include="..\..\..\src\lib\soci\src\backends\postgresql\vector-into-type.cpp" />
-    <ClCompile Include="..\..\..\src\lib\soci\src\backends\postgresql\vector-use-type.cpp" />
+    <ClCompile Include="..\..\..\lib\soci\src\backends\postgresql\blob.cpp" />
+    <ClCompile Include="..\..\..\lib\soci\src\backends\postgresql\common.cpp" />
+    <ClCompile Include="..\..\..\lib\soci\src\backends\postgresql\error.cpp" />
+    <ClCompile Include="..\..\..\lib\soci\src\backends\postgresql\factory.cpp" />
+    <ClCompile Include="..\..\..\lib\soci\src\backends\postgresql\row-id.cpp" />
+    <ClCompile Include="..\..\..\lib\soci\src\backends\postgresql\session.cpp" />
+    <ClCompile Include="..\..\..\lib\soci\src\backends\postgresql\standard-into-type.cpp" />
+    <ClCompile Include="..\..\..\lib\soci\src\backends\postgresql\standard-use-type.cpp" />
+    <ClCompile Include="..\..\..\lib\soci\src\backends\postgresql\statement.cpp" />
+    <ClCompile Include="..\..\..\lib\soci\src\backends\postgresql\vector-into-type.cpp" />
+    <ClCompile Include="..\..\..\lib\soci\src\backends\postgresql\vector-use-type.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\..\src\lib\soci\src\backends\postgresql\common.h" />
-    <ClInclude Include="..\..\..\src\lib\soci\src\backends\postgresql\soci-postgresql.h" />
+    <ClInclude Include="..\..\..\lib\soci\src\backends\postgresql\common.h" />
+    <ClInclude Include="..\..\..\lib\soci\src\backends\postgresql\soci-postgresql.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
