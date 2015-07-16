@@ -126,6 +126,8 @@ if test yes != "$enable_shared"; then
 fi
 
 AX_PKGCONFIG_SUBDIR(lib/libsodium)
+# Work around broken -uninstalled.pc file
+libsodium_CFLAGS='-I$(top_srcdir)/lib/libsodium/src/libsodium/include'
 
 AX_PKGCONFIG_SUBDIR(lib/xdrpp)
 AC_MSG_CHECKING(for xdrc)
@@ -181,11 +183,14 @@ AM_CONDITIONAL(USE_POSTGRES, [test -n "$have_postgres"])
 
 # Need this to pass through ccache for xdrpp, libsodium
 esc() {
+    out=
     for arg in "$@"; do
-        echo "$arg" | sed "s/'/'\\''/g; s/^/'/; s/\$/'/"
+        out="$out${out+ }$(echo "$arg" | sed "s/'/'\\''/g; s/^/'/; s/\$/'/")"
     done
+    echo $out
 }
 ac_configure_args="$ac_configure_args $(esc "CC=$CC" "CXX=$CXX")"
+echo "*** ac_configure_args is $ac_configure_args"
 
 AC_CONFIG_HEADERS(config.h)
 AC_CONFIG_FILES(Makefile src/Makefile)
