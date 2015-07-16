@@ -15,12 +15,12 @@ your quorum set to just your validation seed's public key.
 
 ```
 # what generates the peerID (used for peer connections) used by this node
-PEER_SEED="s3BCUXncNvghHzKafx4gwYGaEG5rEeMUDdJPDsdjve3ojoFd5tK"
-# what generates the nodeID (used in FBA)
-VALIDATION_SEED="s3BCUXncNvghHzKafx4gwYGaEG5rEeMUDdJPDsdjve3ojoFd5tK"
+PEER_SEED="SCEHFJOTMHJQUS4SPZSEBCDZSWMVSK2XBXPTFCHALL55AO7ZTEQ53X4V"
+# what generates the nodeID (used in SCP)
+VALIDATION_SEED="SCEHFJOTMHJQUS4SPZSEBCDZSWMVSK2XBXPTFCHALL55AO7ZTEQ53X4V"
 
 QUORUM_THRESHOLD=1
-QUORUM_SET=["gxoicA8D962NezYaa4AmrhXKGHYbrELu8rhyKE2vt8osLHL3T5"]
+QUORUM_SET=["GB7LP43ZYFOCYW4PLW2LOSB6S4VFJKLN72DQNKGFI7T2VSJHYVUCGXMC"]
 ```
 
 By default stellar-core waits to hear from the network for a ledger close before

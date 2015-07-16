@@ -2,7 +2,6 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "crypto/Base58.h"
 #include "crypto/Hex.h"
 #include "herder/Herder.h"
 #include "ledger/LedgerManager.h"
@@ -16,6 +15,7 @@
 #include "util/Logging.h"
 #include "util/make_unique.h"
 
+#include "util/basen.h"
 #include "medida/reporting/json_reporter.h"
 #include "xdrpp/marshal.h"
 
@@ -305,7 +305,7 @@ CommandHandler::peers(std::string const& params, std::string& retStr)
         root["peers"][counter]["port"] = (int)peer->getRemoteListeningPort();
         root["peers"][counter]["ver"] = peer->getRemoteVersion();
         root["peers"][counter]["olver"] = (int)peer->getRemoteOverlayVersion();
-        root["peers"][counter]["id"] = PubKeyUtils::toBase58(peer->getPeerID());
+        root["peers"][counter]["id"] = PubKeyUtils::toStrKey(peer->getPeerID());
 
         counter++;
     }
@@ -537,7 +537,8 @@ CommandHandler::tx(std::string const& params, std::string& retStr)
         try
         {
             std::string blob = params.substr(prefix.size());
-            std::vector<uint8_t> binBlob = hexToBin(blob);
+            std::vector<uint8_t> binBlob;
+            bn::decode_b64(blob, binBlob);
 
             xdr::xdr_from_opaque(binBlob, envelope);
             TransactionFramePtr transaction =
@@ -562,10 +563,14 @@ CommandHandler::tx(std::string const& params, std::string& retStr)
                        << "\"" << TX_STATUS_STRING[status] << "\"";
                 if (status == Herder::TX_STATUS_ERROR)
                 {
-                    std::string resultHex =
-                        binToHex(xdr::xdr_to_opaque(transaction->getResult()));
+                    std::string resultBase64;
+                    auto resultBin =
+                        xdr::xdr_to_opaque(transaction->getResult());
+                    resultBase64.reserve(bn::encoded_size64(resultBin.size()) +
+                                         1);
+                    resultBase64 = bn::encode_b64(resultBin);
 
-                    output << " , \"error\": \"" << resultHex << "\"";
+                    output << " , \"error\": \"" << resultBase64 << "\"";
                 }
                 output << "}";
             }

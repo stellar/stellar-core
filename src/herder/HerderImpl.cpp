@@ -5,7 +5,6 @@
 #include "herder/HerderImpl.h"
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
-#include "crypto/Base58.h"
 #include "herder/TxSetFrame.h"
 #include "herder/LedgerCloseData.h"
 #include "ledger/LedgerManager.h"

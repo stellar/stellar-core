@@ -8,7 +8,6 @@
 #include "main/test.h"
 #include "lib/catch.hpp"
 #include "util/Logging.h"
-#include "crypto/Base58.h"
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerHeaderFrame.h"
 #include "transactions/TxTests.h"
@@ -18,7 +17,6 @@
 #include "simulation/Simulation.h"
 #include "herder/LedgerCloseData.h"
 #include <soci.h>
-#include "crypto/Base58.h"
 #include "bucket/BucketManager.h"
 #include "util/optional.h"
 #include "util/Math.h"

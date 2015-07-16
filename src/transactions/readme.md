@@ -35,7 +35,7 @@ Note that if several transactions are submitted as part of the same ledger, the
 rule is the same as if they were applied one after the other, which translates 
 to their sequence numbers being continuous: if 3 transactions are submitted and 
 the account is at sequence number 5, the transactions must have sequence 
-numbers 5, 6 and 7.
+numbers 6, 7 and 8.
 
 ##Validity of a transaction
 

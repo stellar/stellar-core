@@ -9,7 +9,6 @@
 #include "lib/util/cpptoml.h"
 #include "util/Logging.h"
 #include "util/types.h"
-#include "crypto/Base58.h"
 
 namespace stellar
 {
@@ -93,7 +92,7 @@ loadQset(std::shared_ptr<cpptoml::toml_group> group, SCPQuorumSet& qset,
                     throw std::invalid_argument("invalid VALIDATORS");
                 }
                 qset.validators.emplace_back(
-                    PubKeyUtils::fromBase58(v->as<std::string>()->value()));
+                    PubKeyUtils::fromStrKey(v->as<std::string>()->value()));
             }
         }
         else
@@ -278,7 +277,7 @@ Config::load(std::string const& filename)
                     throw std::invalid_argument("invalid VALIDATION_SEED");
                 }
                 std::string seed = item.second->as<std::string>()->value();
-                VALIDATION_KEY = SecretKey::fromBase58Seed(seed);
+                VALIDATION_KEY = SecretKey::fromStrKeySeed(seed);
             }
             else if (item.first == "PEER_SEED")
             {
@@ -287,7 +286,7 @@ Config::load(std::string const& filename)
                     throw std::invalid_argument("invalid PEER_SEED");
                 }
                 std::string seed = item.second->as<std::string>()->value();
-                PEER_KEY = SecretKey::fromBase58Seed(seed);
+                PEER_KEY = SecretKey::fromStrKeySeed(seed);
                 PEER_PUBLIC_KEY = PEER_KEY.getPublicKey();
             }
             else if (item.first == "TARGET_PEER_CONNECTIONS")

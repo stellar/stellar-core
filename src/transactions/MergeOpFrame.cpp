@@ -3,7 +3,6 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "transactions/MergeOpFrame.h"
-#include "crypto/Base58.h"
 #include "database/Database.h"
 #include "ledger/TrustFrame.h"
 

@@ -16,12 +16,12 @@ typedef hyper int64;
 
 enum CryptoKeyType
 {
-    KEY_TYPES_ED25519 = 0
+    KEY_TYPE_ED25519 = 0
 };
 
 union PublicKey switch (CryptoKeyType type)
 {
-case KEY_TYPES_ED25519:
+case KEY_TYPE_ED25519:
     uint256 ed25519;
 };
 
@@ -31,5 +31,4 @@ typedef opaque Signature<64>;
 typedef opaque SignatureHint[4];
 
 typedef PublicKey NodeID;
-
 }

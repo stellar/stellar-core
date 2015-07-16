@@ -8,7 +8,6 @@
 #include "main/test.h"
 #include "lib/catch.hpp"
 #include "util/Logging.h"
-#include "crypto/Base58.h"
 #include "ledger/LedgerManager.h"
 #include "herder/LedgerCloseData.h"
 #include "xdrpp/marshal.h"

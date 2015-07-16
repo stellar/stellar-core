@@ -5,6 +5,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "xdr/Stellar-types.h"
+#include <ostream>
 
 namespace stellar
 {
@@ -35,6 +36,12 @@ class SecretKey
     Seed getSeed() const;
 
     // Get the seed portion of this secret key as as Base58Check string.
+    std::string getStrKeySeed() const;
+
+    // Get the public key portion of this secret key as as Base58Check string.
+    std::string getStrKeyPublic() const;
+
+    // Get the seed portion of this secret key as as Base58Check string.
     std::string getBase58Seed() const;
 
     // Get the public key portion of this secret key as as Base58Check string.
@@ -49,11 +56,14 @@ class SecretKey
     // Create a new, random secret key.
     static SecretKey random();
 
+    // Decode a secret key from a provided StrKey seed value.
+    static SecretKey fromStrKeySeed(std::string const& strKeySeed);
+
     // Decode a secret key from a provided Base58Check seed value.
     static SecretKey fromBase58Seed(std::string const& base58Seed);
 
     // Decode a secret key from a binary seed value.
-    static SecretKey fromSeed(uint256 const& seed);
+    static SecretKey fromSeed(ByteSlice const& seed);
 
     bool operator==(SecretKey const& rh)
     {
@@ -70,6 +80,10 @@ bool verifySig(PublicKey const& key, Signature const& signature,
 
 std::string toShortString(PublicKey const& pk);
 
+std::string toStrKey(PublicKey const& pk);
+
+PublicKey fromStrKey(std::string const& s);
+
 std::string toBase58(PublicKey const& pk);
 
 PublicKey fromBase58(std::string const& s);
@@ -78,6 +92,13 @@ PublicKey fromBase58(std::string const& s);
 SignatureHint getHint(PublicKey const& pk);
 // returns true if the hint matches the key
 bool hasHint(PublicKey const& pk, SignatureHint const& hint);
+}
+
+namespace StrKeyUtils
+{
+// logs a key (can be a public or private key) in all
+// known formats
+void logKey(std::ostream& s, std::string const& key);
 }
 
 namespace HashUtils

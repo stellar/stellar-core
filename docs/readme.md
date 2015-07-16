@@ -84,7 +84,7 @@ source directory and its own dedicated `readme.md`.
   state flags. Launches the test suite if requested.
 
 * **src/crypto** contains standard cryptographic routines, including random
-  number generation, hashing, and base-58 and hex encoding.
+  number generation, hashing, hex encoding and Stellar Key encoding.
 
 * **src/util** gathers assorted logging and utility routines.
 

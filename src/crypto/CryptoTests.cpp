@@ -10,9 +10,12 @@
 #include "crypto/SHA.h"
 #include "crypto/SecretKey.h"
 #include "crypto/Random.h"
+#include "crypto/StrKey.h"
+#include "util/basen.h"
 #include <autocheck/autocheck.hpp>
 #include <sodium.h>
 #include <map>
+#include <regex>
 
 using namespace stellar;
 
@@ -319,5 +322,110 @@ TEST_CASE("sign and verify benchmarking", "[crypto-bench][bench][hide]")
         {
             c.verify();
         }
+    }
+}
+
+TEST_CASE("StrKey tests", "[crypto]")
+{
+    std::regex b32("^([A-Z2-7])+$");
+    std::regex b32Pad("^([A-Z2-7])+(=|===|====|======)?$");
+
+    autocheck::generator<std::vector<uint8_t>> input;
+
+    uint8_t version = 2;
+
+    // check round trip
+    for (int size = 0; size < 100; size++)
+    {
+        std::vector<uint8_t> in(input(size));
+
+        std::string encoded = strKey::toStrKey(version, in);
+
+        REQUIRE(encoded.size() == ((size + 3 + 4)/5 * 8));
+
+        // check the no padding case
+        if ((size + 3) % 5 == 0)
+        {
+            REQUIRE(std::regex_match(encoded, b32));
+        }
+        else
+        {
+            REQUIRE(std::regex_match(encoded, b32Pad));
+        }
+
+        uint8_t decodedVer = 0;
+        std::vector<uint8_t> decoded;
+        REQUIRE(strKey::fromStrKey(encoded, decodedVer, decoded));
+
+        REQUIRE(decodedVer == version);
+        REQUIRE(decoded == in);
+    }
+
+    // basic corruption check on a fixed size
+    for (int round = 0; round < 5; round++)
+    {
+        const int expectedSize = 32;
+        std::vector<uint8_t> in(input(expectedSize));
+        std::string encoded = strKey::toStrKey(version, in);
+
+        for (int p = 0; p < encoded.size(); p++)
+        {
+            for (int st = 0; st < 4; st++)
+            {
+                std::string corrupted(encoded);
+                auto pos = corrupted.begin() + p;
+                switch (st)
+                {
+                case 0:
+                    if (corrupted[p] == 'A' && p + 1 == encoded.size())
+                    {
+                        // trailing 'A' is equivalent to 0 (and can be dropped)
+                        continue;
+                    }
+                    else
+                    {
+                        corrupted.erase(pos);
+                        break;
+                    }
+                case 1:
+                    corrupted[p]++;
+                    break;
+                case 2:
+                    corrupted.insert(pos, corrupted[p]);
+                    break;
+                default:
+                    if (p > 0 && corrupted[p] != corrupted[p - 1])
+                    {
+                        std::swap(corrupted[p], corrupted[p - 1]);
+                    }
+                    else
+                    {
+                        continue;
+                    }
+                }
+                uint8_t ver;
+                std::vector<uint8_t> dt;
+                bool res = !strKey::fromStrKey(corrupted, ver, dt);
+                REQUIRE(res);
+            }
+        }
+    }
+}
+
+TEST_CASE("base64 tests", "[crypto]")
+{
+    autocheck::generator<std::vector<uint8_t>> input;
+    // check round trip
+    for (int s = 0; s < 100; s++)
+    {
+        std::vector<uint8_t> in(input(s));
+
+        std::string encoded = bn::encode_b64(in);
+
+        std::vector<uint8_t> decoded;
+
+        bn::decode_b64(encoded, decoded);
+
+        REQUIRE(in == decoded);
     }
 }

@@ -119,6 +119,9 @@ class LedgerManager
 
     // Called by application lifecycle events, system startup.
     virtual void startNewLedger() = 0;
+
+    // loads the last ledger information from the database
+    // if handler is set, also loads bucket information and invokes handler.
     virtual void loadLastKnownLedger(
         std::function<void(asio::error_code const& ec)> handler) = 0;
 

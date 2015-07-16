@@ -15,7 +15,7 @@
 #include "database/Database.h"
 #include "herder/TxSetFrame.h"
 #include "crypto/Hex.h"
-#include <cereal/external/base64.hpp>
+#include "util/basen.h"
 
 #include "medida/meter.h"
 #include "medida/metrics_registry.h"
@@ -500,17 +500,16 @@ TransactionFrame::storeTransaction(LedgerManager& ledgerManager,
     resultSet.results.emplace_back(getResultPair());
     auto txResultBytes(xdr::xdr_to_opaque(resultSet.results.back()));
 
-    std::string txBody = base64::encode(
-        reinterpret_cast<const unsigned char*>(txBytes.data()), txBytes.size());
+    std::string txBody;
+    txBody = bn::encode_b64(txBytes);
 
-    std::string txResult = base64::encode(
-        reinterpret_cast<const unsigned char*>(txResultBytes.data()),
-        txResultBytes.size());
+    std::string txResult;
+    txResult = bn::encode_b64(txResultBytes);
 
     xdr::opaque_vec<> txMeta(xdr::xdr_to_opaque(tm));
 
-    std::string meta = base64::encode(
-        reinterpret_cast<const unsigned char*>(txMeta.data()), txMeta.size());
+    std::string meta;
+    meta = bn::encode_b64(txMeta);
 
     string txIDString(binToHex(getContentsHash()));
 
@@ -601,16 +600,19 @@ TransactionFrame::copyTransactionsToStream(Database& db, soci::session& sess,
             lastLedgerSeq = curLedgerSeq;
         }
 
-        std::string body = base64::decode(txBody);
-        std::string result = base64::decode(txResult);
+        std::vector<uint8_t> body;
+        bn::decode_b64(txBody, body);
 
-        xdr::xdr_get g1(body.data(), body.data() + body.size());
+        std::vector<uint8_t> result;
+        bn::decode_b64(txResult, result);
+
+        xdr::xdr_get g1(&body.front(), &body.back() + 1);
         xdr_argpack_archive(g1, tx);
 
         TransactionFramePtr txFrame = make_shared<TransactionFrame>(tx);
         txSet.add(txFrame);
 
-        xdr::xdr_get g2(result.data(), result.data() + result.size());
+        xdr::xdr_get g2(&result.front(), &result.back() + 1);
         results.txResultSet.results.emplace_back();
 
         TransactionResultPair& p = results.txResultSet.results.back();

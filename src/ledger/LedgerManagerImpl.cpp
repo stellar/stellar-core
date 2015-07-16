@@ -3,7 +3,6 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "bucket/BucketManager.h"
-#include "crypto/Base58.h"
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
 #include "crypto/SecretKey.h"
@@ -104,7 +103,6 @@ LedgerManagerImpl::LedgerManagerImpl(Application& app)
     , mState(LM_BOOTING_STATE)
 
 {
-    mLastCloseTime = mApp.timeNow(); // this is 0 at this point
 }
 
 void
@@ -138,8 +136,7 @@ LedgerManagerImpl::startNewLedger()
 {
     auto ledgerTime = mLedgerClose.TimeScope();
     ByteSlice bytes("allmylifemyhearthasbeensearching");
-    std::string b58SeedStr = toBase58Check(B58_SEED_ED25519, bytes);
-    SecretKey skey = SecretKey::fromBase58Seed(b58SeedStr);
+    SecretKey skey = SecretKey::fromSeed(bytes);
 
     AccountFrame masterAccount(skey.getPublicKey());
     masterAccount.getAccount().balance = 100000000000000000;
@@ -186,42 +183,51 @@ LedgerManagerImpl::loadLastKnownLedger(
             throw std::runtime_error("Could not load ledger from database");
         }
 
-        string hasString = mApp.getPersistentState().getState(
-            PersistentState::kHistoryArchiveState);
-        HistoryArchiveState has;
-        has.fromString(hasString);
-
-        auto continuation = [this, handler, has](asio::error_code const& ec)
+        if (handler)
         {
-            if (ec)
+            string hasString = mApp.getPersistentState().getState(
+                PersistentState::kHistoryArchiveState);
+            HistoryArchiveState has;
+            has.fromString(hasString);
+
+            auto continuation = [this, handler, has](asio::error_code const& ec)
             {
-                handler(ec);
+                if (ec)
+                {
+                    handler(ec);
+                }
+                else
+                {
+                    mApp.getBucketManager().assumeState(has);
+
+                    CLOG(INFO, "Ledger") << "Loaded last known ledger: "
+                                         << ledgerAbbrev(mCurrentLedger);
+
+                    advanceLedgerPointers();
+                    handler(ec);
+                }
+            };
+
+            auto missing =
+                mApp.getBucketManager().checkForMissingBucketsFiles(has);
+            if (!missing.empty())
+            {
+                CLOG(WARNING, "Ledger")
+                    << "Some buckets are missing in '"
+                    << mApp.getBucketManager().getBucketDir() << "'.";
+                CLOG(WARNING, "Ledger")
+                    << "Attempting to recover from the history store.";
+                mApp.getHistoryManager().downloadMissingBuckets(has,
+                                                                continuation);
             }
             else
             {
-                mApp.getBucketManager().assumeState(has);
-
-                CLOG(INFO, "Ledger") << "Loaded last known ledger: "
-                                     << ledgerAbbrev(mCurrentLedger);
-
-                advanceLedgerPointers();
-                handler(ec);
+                continuation(asio::error_code());
             }
-        };
-
-        auto missing = mApp.getBucketManager().checkForMissingBucketsFiles(has);
-        if (!missing.empty())
-        {
-            CLOG(WARNING, "Ledger") << "Some buckets are missing in '"
-                                    << mApp.getBucketManager().getBucketDir()
-                                    << "'.";
-            CLOG(WARNING, "Ledger")
-                << "Attempting to recover from the history store.";
-            mApp.getHistoryManager().downloadMissingBuckets(has, continuation);
         }
         else
         {
-            continuation(asio::error_code());
+            advanceLedgerPointers();
         }
     }
 }
@@ -551,7 +557,9 @@ LedgerManagerImpl::historyCaughtup(asio::error_code const& ec,
 uint64_t
 LedgerManagerImpl::secondsSinceLastLedgerClose() const
 {
-    return mApp.timeNow() - mLastCloseTime;
+    uint64_t ct = getLastClosedLedgerHeader().header.scpValue.closeTime;
+    uint64_t now = mApp.timeNow();
+    return (now > ct) ? (now - ct) : 0;
 }
 
 /*
@@ -722,7 +730,6 @@ LedgerManagerImpl::advanceLedgerPointers()
 void
 LedgerManagerImpl::closeLedgerHelper(LedgerDelta const& delta)
 {
-    mLastCloseTime = mApp.timeNow();
     delta.markMeters(mApp);
     mApp.getBucketManager().addBatch(mApp, mCurrentLedger->mHeader.ledgerSeq,
                                      delta.getLiveEntries(),

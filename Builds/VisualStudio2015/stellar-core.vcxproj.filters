@@ -453,6 +453,12 @@
     <ClCompile Include="..\..\src\scp\SCPUnitTests.cpp">
       <Filter>scp</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\lib\util\crc16.cpp">
+      <Filter>util</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\crypto\StrKey.cpp">
+      <Filter>crypto</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\main\dumpxdr.cpp">
       <Filter>main</Filter>
     </ClCompile>
@@ -769,6 +775,15 @@
     </ClInclude>
     <ClInclude Include="..\..\src\herder\LedgerCloseData.h">
       <Filter>herder</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\lib\util\crc16.h">
+      <Filter>util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\lib\util\basen.h">
+      <Filter>util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\crypto\StrKey.h">
+      <Filter>crypto</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\main\dumpxdr.h">
       <Filter>main</Filter>
