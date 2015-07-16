@@ -109,7 +109,7 @@ template <typename T> class FileTransferInfo
     std::string
     remoteName() const
     {
-        return fs::remoteName(mType, mHexDigits, "xdr");
+        return fs::remoteName(mType, mHexDigits, "xdr.gz");
     }
 };
 }
