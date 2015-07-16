@@ -39,8 +39,6 @@ AC_SUBST(LIBTOOL_DEPS)
 
 LIBSODIUM_MIN_VERSION="1.0.0"
 
-test -z "$WFLAGS" || CFLAGS="$CFLAGS $WFLAGS" CXXFLAGS="$CXXFLAGS $WFLAGS"
-
 AC_LANG(C++)
 AX_CXX_COMPILE_STDCXX_11(noext,mandatory)
 AX_FRESH_COMPILER
@@ -190,7 +188,6 @@ esc() {
     echo $out
 }
 ac_configure_args="$ac_configure_args $(esc "CC=$CC" "CXX=$CXX")"
-echo "*** ac_configure_args is $ac_configure_args"
 
 AC_CONFIG_HEADERS(config.h)
 AC_CONFIG_FILES(Makefile src/Makefile)
