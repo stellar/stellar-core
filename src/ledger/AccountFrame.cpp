@@ -8,6 +8,7 @@
 #include "database/Database.h"
 #include "LedgerDelta.h"
 #include "ledger/LedgerManager.h"
+#include "util/basen.h"
 #include <algorithm>
 
 using namespace soci;
@@ -201,11 +202,8 @@ AccountFrame::loadAccount(AccountID const& accountID, Database& db)
 
     if (thresholdsInd == soci::i_ok)
     {
-        std::vector<uint8_t> bin = hexToBin(thresholds);
-        for (size_t n = 0; (n < 4) && (n < bin.size()); n++)
-        {
-            res->mAccountEntry.thresholds[n] = bin[n];
-        }
+        bn::decode_b64(thresholds.begin(), thresholds.end(),
+                       res->mAccountEntry.thresholds.begin());
     }
 
     if (inflationDestInd == soci::i_ok)
@@ -332,7 +330,7 @@ AccountFrame::storeUpdate(LedgerDelta& delta, Database& db, bool insert) const
         inflation_ind = soci::i_ok;
     }
 
-    string thresholds(binToHex(mAccountEntry.thresholds));
+    string thresholds(bn::encode_b64(mAccountEntry.thresholds));
 
     {
         soci::statement& st = prep.statement();
