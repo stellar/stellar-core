@@ -478,6 +478,45 @@ TEST_CASE("merging bucket entries", "[bucket]")
     }
 }
 
+static void
+clearFutures(Application::pointer app, BucketList&  bl)
+{
+
+    // First go through the BL and mop up all the FutureBuckets.
+    for (size_t i = 0; i < BucketList::kNumLevels; ++i)
+    {
+        bl.getLevel(i).getNext().clear();
+    }
+
+    // Then go through all the _worker threads_ and mop up any work they
+    // might still be doing (that might be "dropping a shared_ptr<Bucket>").
+
+    size_t n = std::thread::hardware_concurrency();
+    std::mutex mutex;
+    std::condition_variable cv, cv2;
+    size_t waiting = 0, finished = 0;
+    for (size_t i = 0; i < n; ++i)
+    {
+        app->getWorkerIOService().post([&]{
+                std::unique_lock<std::mutex> lock(mutex);
+                if (++waiting == n)
+                {
+                    cv.notify_all();
+                }
+                else
+                {
+                    cv.wait(lock, [&]{ return waiting == n; });
+                }
+                ++finished;
+                cv2.notify_one();
+            });
+    }
+    {
+        std::unique_lock<std::mutex> lock(mutex);
+        cv2.wait(lock, [&]{ return finished == n; });
+    }
+}
+
 TEST_CASE("bucketmanager ownership", "[bucket]")
 {
     VirtualClock clock;
@@ -519,6 +558,7 @@ TEST_CASE("bucketmanager ownership", "[bucket]")
     // Try adding a bucket to the BucketManager's bucketlist
     auto& bl = app->getBucketManager().getBucketList();
     bl.addBatch(*app, 1, live, dead);
+    clearFutures(app, bl);
     b1 = bl.getLevel(0).getCurr();
 
     // Bucket should be referenced by bucketlist itself, BucketManager cache and
@@ -533,6 +573,7 @@ TEST_CASE("bucketmanager ownership", "[bucket]")
     // But if we mutate the curr bucket of the bucketlist, it should.
     live[0] = leGen(10);
     bl.addBatch(*app, 1, live, dead);
+    clearFutures(app, bl);
     CHECK(b1.use_count() == 2);
 
     // Drop it again.
