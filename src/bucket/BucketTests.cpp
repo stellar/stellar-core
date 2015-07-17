@@ -336,6 +336,58 @@ TEST_CASE("duplicate bucket entries", "[bucket]")
     }
 }
 
+TEST_CASE("bucket tombstones expire at bottom level", "[bucket][tombstones]")
+{
+    VirtualClock clock;
+    Config const& cfg = getTestConfig();
+
+        Application::pointer app = Application::create(clock, cfg);
+        BucketList bl;
+        BucketManager& bm = app->getBucketManager();
+        autocheck::generator<std::vector<LedgerEntry>> liveGen;
+        autocheck::generator<std::vector<LedgerKey>> deadGen;
+        auto& mergeTimer = bm.getMergeTimer();
+        CLOG(INFO, "Bucket") << "Establishing random bucketlist";
+        for (uint32_t i = 0; i < BucketList::kNumLevels; ++i)
+        {
+            auto& level = bl.getLevel(i);
+            level.setCurr(Bucket::fresh(bm, liveGen(8), deadGen(8)));
+            level.setSnap(Bucket::fresh(bm, liveGen(8), deadGen(8)));
+        }
+
+        for (uint32_t i = 0; i < BucketList::kNumLevels; ++i)
+        {
+            std::vector<uint32_t> ledgers = { BucketList::levelHalf(i),
+                                              BucketList::levelSize(i) };
+            for (auto j : ledgers)
+            {
+                auto n = mergeTimer.count();
+                bl.addBatch(*app, j, liveGen(8), deadGen(8));
+                app->getClock().crank(false);
+                for (auto k = 0; k < BucketList::kNumLevels; ++k)
+                {
+                    auto& next = bl.getLevel(k).getNext();
+                    if (next.isLive())
+                    {
+                        next.resolve();
+                    }
+                }
+                n = mergeTimer.count() - n;
+                CLOG(INFO, "Bucket") << "Added batch at ledger " << j
+                                     << ", merges provoked: " << n;
+                REQUIRE(n > 0);
+                REQUIRE(n < 2 * BucketList::kNumLevels);
+            }
+        }
+
+        auto pair0 = bl.getLevel(BucketList::kNumLevels-3).getCurr()->countLiveAndDeadEntries();
+        auto pair1 = bl.getLevel(BucketList::kNumLevels-2).getCurr()->countLiveAndDeadEntries();
+        auto pair2 = bl.getLevel(BucketList::kNumLevels-1).getCurr()->countLiveAndDeadEntries();
+        REQUIRE(pair0.second != 0);
+        REQUIRE(pair1.second != 0);
+        REQUIRE(pair2.second == 0);
+}
+
 
 TEST_CASE("file-backed buckets", "[bucket]")
 {

@@ -22,11 +22,13 @@ namespace stellar
 FutureBucket::FutureBucket(Application& app,
                            std::shared_ptr<Bucket> const& curr,
                            std::shared_ptr<Bucket> const& snap,
-                           std::vector<std::shared_ptr<Bucket>> const& shadows)
+                           std::vector<std::shared_ptr<Bucket>> const& shadows,
+                           bool keepDeadEntries)
     : mState(FB_LIVE_INPUTS)
     , mInputCurrBucket(curr)
     , mInputSnapBucket(snap)
     , mInputShadowBuckets(shadows)
+    , mKeepDeadEntries(keepDeadEntries)
 {
     // Constructed with a bunch of inputs, _immediately_ commence merging
     // them; there's no valid state for have-inputs-but-not-merging, the
@@ -259,6 +261,7 @@ FutureBucket::startMerge(Application& app)
     std::shared_ptr<Bucket> curr = mInputCurrBucket;
     std::shared_ptr<Bucket> snap = mInputSnapBucket;
     std::vector<std::shared_ptr<Bucket>> shadows = mInputShadowBuckets;
+    bool keepDeadEntries = mKeepDeadEntries;
 
     assert(curr);
     assert(snap);
@@ -281,13 +284,13 @@ FutureBucket::startMerge(Application& app)
 
     using task_t = std::packaged_task<std::shared_ptr<Bucket>()>;
     std::shared_ptr<task_t> task = std::make_shared<task_t>(
-        [curr, snap, &bm, shadows]()
+        [curr, snap, &bm, shadows, keepDeadEntries]()
         {
             CLOG(TRACE, "Bucket")
             << "Worker merging curr=" << hexAbbrev(curr->getHash())
             << " with snap=" << hexAbbrev(snap->getHash());
 
-            auto res = Bucket::merge(bm, curr, snap, shadows);
+            auto res = Bucket::merge(bm, curr, snap, shadows, keepDeadEntries);
 
             CLOG(TRACE, "Bucket")
             << "Worker finished merging curr=" << hexAbbrev(curr->getHash())

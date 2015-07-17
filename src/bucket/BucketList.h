@@ -128,9 +128,9 @@ namespace stellar
 // level[1]  curr= ------ empty ------- ,  snap=(0x56789a0, 0x56789a8]
 // level[2]  curr= ------ empty ------- ,  snap=(0x5678980, 0x56789a0]
 // level[3]  curr= ------ empty ------- ,  snap=(0x5678900, 0x5678980]
-// level[4]  curr=(0x5678800, 0x5678900],  snap= ------ empty ------- 
+// level[4]  curr=(0x5678800, 0x5678900],  snap= ------ empty -------
 // level[5]  curr= ------ empty ------- ,  snap=(0x5678000, 0x5678800]
-// level[6]  curr= ------ empty ------- ,  snap= ------ empty ------- 
+// level[6]  curr= ------ empty ------- ,  snap= ------ empty -------
 // level[7]  curr= ------ empty ------- ,  snap=(0x5670000, 0x5678000]
 // level[8]  curr=(0x5660000, 0x5670000],  snap=(0x5640000, 0x5660000]
 // level[9]  curr=(0x5600000, 0x5640000],  snap= ------ empty -------
@@ -191,18 +191,18 @@ namespace stellar
 // either buying physical hardware (commodity SSDs sustain writes in the 400MB/s
 // range), by using instance storage rather than EBS (measured around 100MB/s
 // write on disk, 250MB/s on SSD) or by using striping across EBS or instance
-// volumes. 
+// volumes.
 //
 //
 // Degeneracy and limits:
 // ----------------------
 //
-// Beyond level 11, a certain degeneracy takes over. "Objects changed over the
-// course of 16 million ledgers" starts to sound like "the entire database": if
-// we're getting 10,000 objects changed per ledger, 16 million ledgers means
-// touching 160 billion objects. It's unlikely that we're going to have _much_
+// Beyond level 10, a certain degeneracy takes over. "Objects changed over the
+// course of 4 million ledgers" starts to sound like "the entire database": if
+// we're getting 10,000 objects changed per ledger, 4 million ledgers means
+// touching 40 billion objects. It's unlikely that we're going to have _much_
 // more objects than that over the long term; in particular we're unlikely to
-// bump up against 640 billion objects anytime soon, which is where the next
+// bump up against 160 billion objects anytime soon, which is where the next
 // level would be. There are only so many humans on earth. Having more levels
 // just produces "dead weight" levels that contain copies of the old database
 // and are completely shadowed by levels above them.
@@ -216,9 +216,9 @@ namespace stellar
 // history before: the state of the _full_ database at a certain point in the
 // past, with no implied dependence on deeper history beneath it.
 //
-// We therefore cut off at level 11. Level 12 doesn't exist: it's "the entire
-// database", which we update with a half-level-11 snapshot every 8-million
-// ledgers. Which is "every 16 months" (at 5s per ledger).
+// We therefore cut off at level 10. Level 11 doesn't exist: it's "the entire
+// database", which we update with a half-level-10 snapshot every 2-million
+// ledgers. Which is "every 4 months" (at 5s per ledger).
 //
 // Cutting off at a fixed level carries a minor design risk: that the database
 // might grow very large, relative to the transaction volume, and that we might
