@@ -33,7 +33,6 @@ llvm-symbolizer --version || true
 
 # Create postgres databases
 export PGUSER=postgres
-#psql -c "create user test with password 'test';"
 psql -c "create database test;"
 for i in $(seq 0 8)
 do
@@ -42,7 +41,7 @@ done
 
 ccache -s
 ./autogen.sh
-./configure --enable-asan --enable-ccache
+./configure --enable-asan --enable-ccache --enable-sdfprefs
 make
 ccache -s
 make check
