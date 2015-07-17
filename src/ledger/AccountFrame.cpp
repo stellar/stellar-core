@@ -31,7 +31,7 @@ const char* AccountFrame::kSQLCreateStatement1 =
     ");";
 
 const char* AccountFrame::kSQLCreateStatement2 =
-    "CREATE TABLE Signers"
+    "CREATE TABLE signers"
     "("
     "accountid       VARCHAR(56) NOT NULL,"
     "publickey       VARCHAR(56) NOT NULL,"
