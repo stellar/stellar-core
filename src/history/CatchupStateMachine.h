@@ -93,7 +93,7 @@ class HistoryArchive;
 struct HistoryArchiveState;
 class Application;
 
-class CatchupStateMachine
+class CatchupStateMachine : public std::enable_shared_from_this<CatchupStateMachine>
 {
 
 private:
@@ -154,6 +154,8 @@ public:
       std::function<void(asio::error_code const& ec,
                          HistoryManager::CatchupMode mode,
                          LedgerHeaderHistoryEntry const& lastClosed)> handler);
+
+    void begin();
 
   static const std::chrono::seconds SLEEP_SECONDS_PER_LEDGER;
 };

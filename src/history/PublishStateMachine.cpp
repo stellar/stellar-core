@@ -57,7 +57,6 @@ ArchivePublisher::ArchivePublisher(
     , mArchive(archive)
     , mSnap(snap)
 {
-    enterBeginState();
 }
 
 void
@@ -67,22 +66,28 @@ ArchivePublisher::enterRetryingState()
            mState == PUBLISH_COMMITTING);
     mState = PUBLISH_RETRYING;
     mRetryTimer.expires_from_now(std::chrono::seconds(2));
+    std::weak_ptr<ArchivePublisher> weak(shared_from_this());
     mRetryTimer.async_wait(
-        [this](asio::error_code const& ec)
+        [weak](asio::error_code const& ec)
         {
-            if (this->mRetryCount++ > kRetryLimit)
+            auto self = weak.lock();
+            if (!self)
+            {
+                return;
+            }
+            if (self->mRetryCount++ > kRetryLimit)
             {
                 CLOG(WARNING, "History")
                     << "Retry count " << kRetryLimit
                     << " exceeded, abandonning  publish-attempt on archive '"
-                    << this->mArchive->getName() << "'";
-                this->enterEndState();
+                    << self->mArchive->getName() << "'";
+                self->enterEndState();
             }
             else
             {
                 CLOG(INFO, "History") << "Retrying publish to archive '"
-                                      << this->mArchive->getName() << "'";
-                this->enterBeginState();
+                                      << self->mArchive->getName() << "'";
+                self->enterBeginState();
             }
         });
 }
@@ -92,20 +97,26 @@ ArchivePublisher::enterBeginState()
 {
     assert(mState == PUBLISH_RETRYING);
     mState = PUBLISH_BEGIN;
+    std::weak_ptr<ArchivePublisher> weak(shared_from_this());
     mArchive->getMostRecentState(
-        mApp, [this](asio::error_code const& ec, HistoryArchiveState const& has)
+        mApp, [weak](asio::error_code const& ec, HistoryArchiveState const& has)
         {
+            auto self = weak.lock();
+            if (!self)
+            {
+                return;
+            }
             if (ec)
             {
                 CLOG(WARNING, "History") << "Publisher failed to retrieve "
                                             "state from history archive '"
-                                         << this->mArchive->getName()
+                                         << self->mArchive->getName()
                                          << "', restarting publish";
-                this->enterRetryingState();
+                self->enterRetryingState();
             }
             else
             {
-                this->enterObservedState(has);
+                self->enterObservedState(has);
             }
         });
 }
@@ -190,6 +201,8 @@ ArchivePublisher::enterSendingState()
 
     FilePublishState minimumState = FILE_PUBLISH_UPLOADED;
     auto& hm = mApp.getHistoryManager();
+    std::weak_ptr<ArchivePublisher> weak(shared_from_this());
+
     for (auto& pair : mFileInfos)
     {
         auto fi = pair.second;
@@ -204,9 +217,14 @@ ArchivePublisher::enterSendingState()
             fi->setState(FILE_PUBLISH_COMPRESSING);
             CLOG(DEBUG, "History") << "Compressing " << name;
             hm.compress(fi->localPath_nogz(),
-                        [this, name](asio::error_code const& ec)
+                        [weak, name](asio::error_code const& ec)
                         {
-                            this->fileStateChange(ec, name,
+                            auto self = weak.lock();
+                            if (!self)
+                            {
+                                return;
+                            }
+                            self->fileStateChange(ec, name,
                                                   FILE_PUBLISH_COMPRESSED);
                         },
                         true);
@@ -220,9 +238,14 @@ ArchivePublisher::enterSendingState()
             CLOG(DEBUG, "History") << "Making remote directory "
                                    << fi->remoteDir();
             hm.mkdir(mArchive, fi->remoteDir(),
-                     [this, name](asio::error_code const& ec)
+                     [weak, name](asio::error_code const& ec)
                      {
-                         this->fileStateChange(ec, name, FILE_PUBLISH_MADE_DIR);
+                         auto self = weak.lock();
+                         if (!self)
+                         {
+                             return;
+                         }
+                         self->fileStateChange(ec, name, FILE_PUBLISH_MADE_DIR);
                      });
             break;
 
@@ -233,10 +256,15 @@ ArchivePublisher::enterSendingState()
             fi->setState(FILE_PUBLISH_UPLOADING);
             CLOG(INFO, "History") << "Publishing " << name;
             hm.putFile(mArchive, fi->localPath_gz(), fi->remoteName(),
-                       [this, name](asio::error_code const& ec)
+                       [weak, name](asio::error_code const& ec)
                        {
-                           this->fileStateChange(ec, name,
-                                                 FILE_PUBLISH_UPLOADED);
+                         auto self = weak.lock();
+                         if (!self)
+                         {
+                             return;
+                         }
+                         self->fileStateChange(ec, name,
+                                               FILE_PUBLISH_UPLOADED);
                        });
             break;
 
@@ -274,19 +302,25 @@ ArchivePublisher::enterCommittingState()
 {
     assert(mState == PUBLISH_SENDING);
     mState = PUBLISH_COMMITTING;
+    std::weak_ptr<ArchivePublisher> weak(shared_from_this());
     mArchive->putState(
-        mApp, mSnap->mLocalState, [this](asio::error_code const& ec)
+        mApp, mSnap->mLocalState, [weak](asio::error_code const& ec)
         {
+            auto self = weak.lock();
+            if (!self)
+            {
+                return;
+            }
             if (ec)
             {
                 CLOG(WARNING, "History")
                     << "Publisher failed to update state in history archive '"
-                    << this->mArchive->getName() << "', restarting publish";
-                this->enterRetryingState();
+                    << self->mArchive->getName() << "', restarting publish";
+                self->enterRetryingState();
             }
             else
             {
-                this->enterEndState();
+                self->enterEndState();
             }
         });
 }
@@ -510,6 +544,7 @@ PublishStateMachine::snapshotWritten(asio::error_code const& ec)
                 pair.second, snap);
             mPublishers.push_back(p);
             mPublishersSize.set_count(mPublishers.size());
+            p->enterBeginState();
         }
     }
 }

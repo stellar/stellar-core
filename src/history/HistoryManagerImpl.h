@@ -24,7 +24,7 @@ class HistoryManagerImpl : public HistoryManager
     Application& mApp;
     std::unique_ptr<TmpDir> mWorkDir;
     std::unique_ptr<PublishStateMachine> mPublish;
-    std::unique_ptr<CatchupStateMachine> mCatchup;
+    std::shared_ptr<CatchupStateMachine> mCatchup;
     bool mManualCatchup{false};
 
     medida::Meter& mPublishSkip;

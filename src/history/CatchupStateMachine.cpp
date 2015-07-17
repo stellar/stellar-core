@@ -52,10 +52,20 @@ CatchupStateMachine::CatchupStateMachine(
     , mLocalState(localState)
 {
     mLocalState.resolveAllFutures();
+}
+
+void
+CatchupStateMachine::begin()
+{
     // We start up in CATCHUP_RETRYING as that's the only valid
     // named pre-state for CATCHUP_BEGIN.
+    //
+    // This also has to be its own function so that there's a stable
+    // shared_ptr for self from which to call shared_from_this; can't
+    // call it during the constructor.
     enterBeginState();
 }
+
 
 /**
  * Select any readable history archive. If there are more than one,
@@ -134,22 +144,28 @@ CatchupStateMachine::enterBeginState()
         mApp.getHistoryManager().nextCheckpointCatchupProbe(mInitLedger);
 
     mArchive = selectRandomReadableHistoryArchive();
-    mArchive->getSnapState(mApp, checkpoint, [this, checkpoint, sleepSeconds](
+    std::weak_ptr<CatchupStateMachine> weak(shared_from_this());
+    mArchive->getSnapState(mApp, checkpoint, [weak, checkpoint, sleepSeconds](
                                                  asio::error_code const& ec,
                                                  HistoryArchiveState const& has)
                            {
+                               auto self = weak.lock();
+                               if (!self)
+                               {
+                                   return;
+                               }
                                if (ec || checkpoint != has.currentLedger)
                                {
                                    CLOG(WARNING, "History")
                                        << "History archive '"
-                                       << this->mArchive->getName()
+                                       << self->mArchive->getName()
                                        << "', hasn't yet received checkpoint "
                                        << checkpoint << ", retrying catchup";
-                                   this->enterRetryingState(sleepSeconds);
+                                   self->enterRetryingState(sleepSeconds);
                                }
                                else
                                {
-                                   this->enterAnchoredState(has);
+                                   self->enterAnchoredState(has);
                                }
                            });
 }
@@ -226,10 +242,16 @@ CatchupStateMachine::enterFetchingState()
             {
                 fi->setState(FILE_CATCHUP_DOWNLOADING);
                 CLOG(INFO, "History") << "Downloading " << name;
+                std::weak_ptr<CatchupStateMachine> weak(shared_from_this());
                 hm.getFile(mArchive, fi->remoteName(), fi->localPath_gz(),
-                           [this, name](asio::error_code const& ec)
+                           [weak, name](asio::error_code const& ec)
                            {
-                               this->fileStateChange(ec, name,
+                               auto self = weak.lock();
+                               if (!self)
+                               {
+                                   return;
+                               }
+                               self->fileStateChange(ec, name,
                                                      FILE_CATCHUP_DOWNLOADED);
                            });
             }
@@ -240,14 +262,22 @@ CatchupStateMachine::enterFetchingState()
             break;
 
         case FILE_CATCHUP_DOWNLOADED:
+        {
             fi->setState(FILE_CATCHUP_DECOMPRESSING);
             CLOG(DEBUG, "History") << "Decompressing " << fi->localPath_gz();
+            std::weak_ptr<CatchupStateMachine> weak(shared_from_this());
             hm.decompress(
-                fi->localPath_gz(), [this, name](asio::error_code const& ec)
+                fi->localPath_gz(), [weak, name](asio::error_code const& ec)
                 {
-                    this->fileStateChange(ec, name, FILE_CATCHUP_DECOMPRESSED);
+                    auto self = weak.lock();
+                    if (!self)
+                    {
+                        return;
+                    }
+                    self->fileStateChange(ec, name, FILE_CATCHUP_DECOMPRESSED);
                 });
             break;
+        }
 
         case FILE_CATCHUP_DECOMPRESSING:
             break;
@@ -272,18 +302,24 @@ CatchupStateMachine::enterFetchingState()
             {
                 CLOG(DEBUG, "History") << "Verifying " << name;
                 auto filename = fi->localPath_nogz();
+                std::weak_ptr<CatchupStateMachine> weak(shared_from_this());
                 hm.verifyHash(
-                    filename, hash, [this, name, filename, hashname, hash](
+                    filename, hash, [weak, name, filename, hashname, hash](
                                         asio::error_code const& ec)
                     {
+                        auto self = weak.lock();
+                        if (!self)
+                        {
+                            return;
+                        }
                         if (!ec)
                         {
                             auto b =
-                                this->mApp.getBucketManager().adoptFileAsBucket(
+                                self->mApp.getBucketManager().adoptFileAsBucket(
                                     filename, hash);
-                            this->mBuckets[hashname] = b;
+                            self->mBuckets[hashname] = b;
                         }
-                        this->fileStateChange(ec, name, FILE_CATCHUP_VERIFIED);
+                        self->fileStateChange(ec, name, FILE_CATCHUP_VERIFIED);
                     });
             }
             break;
@@ -445,39 +481,45 @@ CatchupStateMachine::enterRetryingState(uint64_t nseconds)
         << VirtualClock::pointToISOString(mApp.getClock().now() +
                                           std::chrono::seconds(nseconds));
 
+    std::weak_ptr<CatchupStateMachine> weak(shared_from_this());
     mRetryTimer.expires_from_now(std::chrono::seconds(nseconds));
     mRetryTimer.async_wait(
-        [this, anchored, verifying](asio::error_code const& ec)
+        [weak, anchored, verifying](asio::error_code const& ec)
         {
+            auto self = weak.lock();
+            if (!self)
+            {
+                return;
+            }
             if (ec)
             {
                 CLOG(WARNING, "History")
                     << "Retry timer canceled while waiting";
                 return;
             }
-            if (this->mRetryCount++ > kRetryLimit)
+            if (self->mRetryCount++ > kRetryLimit)
             {
                 CLOG(WARNING, "History") << "Retry count " << kRetryLimit
                                          << " exceeded, restarting catchup";
-                this->enterBeginState();
+                self->enterBeginState();
             }
             else if (!anchored)
             {
                 CLOG(WARNING, "History")
                     << "Unable to anchor, restarting catchup";
-                this->enterBeginState();
+                self->enterBeginState();
             }
             else if (!verifying)
             {
                 CLOG(INFO, "History") << "Retrying catchup with archive '"
-                                      << this->mArchive->getName() << "'";
-                this->enterAnchoredState(this->mArchiveState);
+                                      << self->mArchive->getName() << "'";
+                self->enterAnchoredState(self->mArchiveState);
             }
             else
             {
                 CLOG(INFO, "History") << "Retrying verify of catchup candidate "
-                                      << this->mNextLedger;
-                this->enterVerifyingState();
+                                      << self->mNextLedger;
+                self->enterVerifyingState();
             }
         });
 }
