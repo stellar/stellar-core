@@ -33,16 +33,36 @@ llvm-symbolizer --version || true
 
 # Create postgres databases
 export PGUSER=postgres
-#psql -c "create user test with password 'test';"
 psql -c "create database test;"
 for i in $(seq 0 8)
 do
     psql -c "create database test$i;"
 done
 
+committer_of(){
+    local c=$(git cat-file -p "$1" 2> /dev/null \
+	| sed -ne '/^committer \([^<]*[^ <]\)  *<.*>.*/{s//\1/p; q;}')
+    test -n "$c" -a Latobarita != "$c" && echo "$c"
+}
+committer=$(committer_of HEAD) \
+    || committer=$(committer_of HEAD^2) \
+    || committer=$(committer_of HEAD^1) \
+    || committer=Latobarita
+
+case $committer in
+    "David Mazieres")
+        config_flags="--enable-asan --enable-ccache"
+	;;
+    *)
+	config_flags="--enable-asan --enable-ccache --enable-sdfprefs"
+	;;
+esac
+
+echo "committer = $committer, config_flags = $config_flags"
+
 ccache -s
 ./autogen.sh
-./configure --enable-asan --enable-ccache
+./configure $config_flags
 make
 ccache -s
 make check
