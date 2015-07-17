@@ -11,6 +11,7 @@
 #include "crypto/SecretKey.h"
 #include "crypto/Random.h"
 #include "crypto/StrKey.h"
+#include "util/basen.h"
 #include <autocheck/autocheck.hpp>
 #include <sodium.h>
 #include <map>
@@ -324,7 +325,7 @@ TEST_CASE("sign and verify benchmarking", "[crypto-bench][bench][hide]")
     }
 }
 
-TEST_CASE("StrKey tests")
+TEST_CASE("StrKey tests", "[crypto]")
 {
     std::regex b32("^([A-Z2-7])+$");
     std::regex b32Pad("^([A-Z2-7])+(=|===|====|======)?$");
@@ -408,5 +409,23 @@ TEST_CASE("StrKey tests")
                 REQUIRE(res);
             }
         }
+    }
+}
+
+TEST_CASE("base64 tests", "[crypto]")
+{
+    autocheck::generator<std::vector<uint8_t>> input;
+    // check round trip
+    for (int s = 0; s < 100; s++)
+    {
+        std::vector<uint8_t> in(input(s));
+
+        std::string encoded = bn::encode_b64(in);
+
+        std::vector<uint8_t> decoded;
+
+        bn::decode_b64(encoded, decoded);
+
+        REQUIRE(in == decoded);
     }
 }

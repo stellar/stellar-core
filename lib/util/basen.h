@@ -125,21 +125,23 @@ struct b64_conversion_traits
 
     static char decode(char c)
     {
-        const int alph_len = 26;
+        const int indexOf_a = 26;
+        const int indexOf_0 = indexOf_a+ indexOf_a;
+        const int indexOf_Plus = indexOf_0 + 10;
         if (c >= 'A' && c <= 'Z') {
             return c - 'A';
         }
         else if (c >= 'a' && c <= 'z') {
-            return c - 'a' + alph_len * 1;
+            return c - 'a' + indexOf_a;
         }
         else if (c >= '0' && c <= '9') {
-            return c - '0' + alph_len * 2;
+            return c - '0' + indexOf_0;
         }
         else if (c == '+') {
-            return c - '+' + alph_len * 2 + 1;
+            return c - '+' + indexOf_Plus;
         }
         else if (c == '/') {
-            return c - '/' + alph_len * 2 + 2;
+            return c - '/' + indexOf_Plus + 1;
         }
         return -1;
     }
