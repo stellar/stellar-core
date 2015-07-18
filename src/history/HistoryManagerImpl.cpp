@@ -528,15 +528,17 @@ HistoryManagerImpl::downloadMissingBuckets(
     HistoryArchiveState desiredState,
     std::function<void(asio::error_code const& ec)> handler)
 {
-    mCatchup = make_unique<CatchupStateMachine>(
+    mCatchup = make_shared<CatchupStateMachine>(
         mApp, 0, CATCHUP_BUCKET_REPAIR, desiredState,
         [this, handler](asio::error_code const& ec, CatchupMode mode,
                         LedgerHeaderHistoryEntry const& lastClosed)
         {
             // Destroy this machine at the end of the call to `handler`
-            std::unique_ptr<CatchupStateMachine> m(std::move(this->mCatchup));
+            auto m = this->mCatchup;
+            this->mCatchup.reset();
             handler(ec);
         });
+    mCatchup->begin();
 }
 
 void
@@ -556,7 +558,7 @@ HistoryManagerImpl::catchupHistory(
     mCatchupStart.Mark();
     mManualCatchup = manualCatchup;
 
-    mCatchup = make_unique<CatchupStateMachine>(
+    mCatchup = make_shared<CatchupStateMachine>(
         mApp, initLedger, mode, getLastClosedHistoryArchiveState(),
         [this, handler](asio::error_code const& ec, CatchupMode mode,
                         LedgerHeaderHistoryEntry const& lastClosed)
@@ -573,9 +575,11 @@ HistoryManagerImpl::catchupHistory(
             // caller's handler. Must keep the state machine alive long enough
             // for the callback, though, to avoid killing things living in
             // lambdas.
-            std::unique_ptr<CatchupStateMachine> m(std::move(this->mCatchup));
+            auto m = this->mCatchup;
+            this->mCatchup.reset();
             handler(ec, mode, lastClosed);
         });
+    mCatchup->begin();
 }
 
 uint64_t
