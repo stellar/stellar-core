@@ -290,19 +290,15 @@ TrustFrame::pointer
 TrustFrame::loadTrustLine(AccountID const& accountID, Asset const& asset,
                           Database& db)
 {
-    AccountID& assetIssuer=AccountID();
     if(asset.type() == ASSET_TYPE_CREDIT_ALPHANUM4)
     {
-        assetIssuer = asset.alphaNum4().issuer;
+        if(accountID == asset.alphaNum4().issuer)
+            return createIssuerFrame(asset);
     } else if(asset.type() == ASSET_TYPE_CREDIT_ALPHANUM12)
     {
-        assetIssuer = asset.alphaNum12().issuer;
-    }
-
-    if (accountID == assetIssuer)
-    {
-        return createIssuerFrame(asset);
-    }
+        if(accountID == asset.alphaNum12().issuer)
+            return createIssuerFrame(asset);
+    } else throw std::runtime_error("XLM TrustLine?");
 
     std::string accStr, issuerStr, assetStr;
 
@@ -310,13 +306,13 @@ TrustFrame::loadTrustLine(AccountID const& accountID, Asset const& asset,
     if(asset.type() == ASSET_TYPE_CREDIT_ALPHANUM4)
     {
         assetCodeToStr(asset.alphaNum4().assetCode, assetStr);
+        issuerStr = PubKeyUtils::toStrKey(asset.alphaNum4().issuer);
     } else if(asset.type() == ASSET_TYPE_CREDIT_ALPHANUM12)
     {
         assetCodeToStr(asset.alphaNum12().assetCode, assetStr);
+        issuerStr = PubKeyUtils::toStrKey(asset.alphaNum12().issuer);
     }
    
-    issuerStr = PubKeyUtils::toStrKey(assetIssuer);
-
     session& session = db.getSession();
 
     details::prepare_temp_type sql =
