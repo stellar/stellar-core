@@ -46,10 +46,18 @@ AllowTrustOpFrame::doApply(medida::MetricsRegistry& metrics,
         return false;
     }
 
-    Currency ci;
-    ci.type(CURRENCY_TYPE_ALPHANUM);
-    ci.alphaNum().currencyCode = mAllowTrust.currency.currencyCode();
-    ci.alphaNum().issuer = getSourceID();
+    Asset ci;
+    ci.type(mAllowTrust.asset.type());
+    if(mAllowTrust.asset.type() == ASSET_TYPE_CREDIT_ALPHANUM4)
+    {
+        ci.alphaNum4().assetCode = mAllowTrust.asset.assetCode4();
+        ci.alphaNum4().issuer = getSourceID();
+    } else if(mAllowTrust.asset.type() == ASSET_TYPE_CREDIT_ALPHANUM12)
+    {
+        ci.alphaNum12().assetCode = mAllowTrust.asset.assetCode12();
+        ci.alphaNum12().issuer = getSourceID();
+    }
+    
 
     Database& db = ledgerManager.getDatabase();
     TrustFrame::pointer trustLine;
@@ -77,7 +85,7 @@ AllowTrustOpFrame::doApply(medida::MetricsRegistry& metrics,
 bool
 AllowTrustOpFrame::doCheckValid(medida::MetricsRegistry& metrics)
 {
-    if (mAllowTrust.currency.type() != CURRENCY_TYPE_ALPHANUM)
+    if (mAllowTrust.asset.type() == ASSET_TYPE_NATIVE)
     {
         metrics.NewMeter({"op-allow-trust", "invalid",
                           "malformed-non-alphanum"},
@@ -85,15 +93,22 @@ AllowTrustOpFrame::doCheckValid(medida::MetricsRegistry& metrics)
         innerResult().code(ALLOW_TRUST_MALFORMED);
         return false;
     }
-    Currency ci;
-    ci.type(CURRENCY_TYPE_ALPHANUM);
-    ci.alphaNum().currencyCode = mAllowTrust.currency.currencyCode();
-    ci.alphaNum().issuer = getSourceID();
+    Asset ci;
+    ci.type(mAllowTrust.asset.type());
+    if(mAllowTrust.asset.type() == ASSET_TYPE_CREDIT_ALPHANUM4)
+    {
+        ci.alphaNum4().assetCode = mAllowTrust.asset.assetCode4();
+        ci.alphaNum4().issuer = getSourceID();
+    } else if(mAllowTrust.asset.type() == ASSET_TYPE_CREDIT_ALPHANUM12)
+    {
+        ci.alphaNum12().assetCode = mAllowTrust.asset.assetCode12();
+        ci.alphaNum12().issuer = getSourceID();
+    }
 
-    if (!isCurrencyValid(ci))
+    if (!isAssetValid(ci))
     {
         metrics.NewMeter({"op-allow-trust", "invalid",
-                          "malformed-invalid-currency"},
+                          "malformed-invalid-asset"},
                          "operation").Mark();
         innerResult().code(ALLOW_TRUST_MALFORMED);
         return false;

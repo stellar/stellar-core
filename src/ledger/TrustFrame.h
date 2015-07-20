@@ -29,7 +29,7 @@ class TrustFrame : public EntryFrame
   private:
     static void getKeyFields(LedgerKey const& key, std::string& actIDStrKey,
                              std::string& issuerStrKey,
-                             std::string& currencyCode);
+                             std::string& assetCode);
 
     static void
     loadLines(soci::details::prepare_temp_type& prep,
@@ -37,7 +37,7 @@ class TrustFrame : public EntryFrame
 
     TrustLineEntry& mTrustLine;
 
-    static TrustFrame::pointer createIssuerFrame(Currency const& issuer);
+    static TrustFrame::pointer createIssuerFrame(Asset const& issuer);
     bool mIsIssuer; // the TrustFrame fakes an infinite trustline for issuers
 
     TrustFrame(TrustFrame const& from);
@@ -66,7 +66,7 @@ class TrustFrame : public EntryFrame
 
     // returns the specified trustline or a generated one for issuers
     static pointer loadTrustLine(AccountID const& accountID,
-                                 Currency const& currency, Database& db);
+        Asset const& asset, Database& db);
 
     // note: only returns trust lines stored in the database
     static void loadLines(AccountID const& accountID,

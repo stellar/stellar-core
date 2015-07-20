@@ -31,15 +31,15 @@ ManageOfferOpFrame::ManageOfferOpFrame(Operation const& op,
     mPassive = false;
 }
 
-// make sure these issuers exist and you can hold the ask currency
+// make sure these issuers exist and you can hold the ask asset
 bool
 ManageOfferOpFrame::checkOfferValid(medida::MetricsRegistry& metrics,
                                     Database& db)
 {
-    Currency const& sheep = mManageOffer.takerGets;
-    Currency const& wheat = mManageOffer.takerPays;
+    Asset const& sheep = mManageOffer.selling;
+    Asset const& wheat = mManageOffer.buying;
 
-    if (sheep.type() != CURRENCY_TYPE_NATIVE)
+    if (sheep.type() != ASSET_TYPE_NATIVE)
     {
         mSheepLineA = TrustFrame::loadTrustLine(getSourceID(), sheep, db);
         if (!mSheepLineA)
@@ -68,7 +68,7 @@ ManageOfferOpFrame::checkOfferValid(medida::MetricsRegistry& metrics,
         }
     }
 
-    if (wheat.type() != CURRENCY_TYPE_NATIVE)
+    if (wheat.type() != ASSET_TYPE_NATIVE)
     {
         mWheatLineA = TrustFrame::loadTrustLine(getSourceID(), wheat, db);
         if (!mWheatLineA)
@@ -105,8 +105,8 @@ ManageOfferOpFrame::doApply(medida::MetricsRegistry& metrics,
         return false;
     }
 
-    Currency const& sheep = mManageOffer.takerGets;
-    Currency const& wheat = mManageOffer.takerPays;
+    Asset const& sheep = mManageOffer.selling;
+    Asset const& wheat = mManageOffer.buying;
 
     bool creatingNewOffer = false;
     uint64_t offerID = mManageOffer.offerID;
@@ -118,10 +118,10 @@ ManageOfferOpFrame::doApply(medida::MetricsRegistry& metrics,
         if (mSellSheepOffer)
         {
             // make sure the currencies are the same
-            if (!compareCurrency(mManageOffer.takerGets,
-                                 mSellSheepOffer->getOffer().takerGets) ||
-                !compareCurrency(mManageOffer.takerPays,
-                                 mSellSheepOffer->getOffer().takerPays))
+            if (!compareAsset(mManageOffer.selling,
+                                 mSellSheepOffer->getOffer().selling) ||
+                !compareAsset(mManageOffer.buying,
+                                 mSellSheepOffer->getOffer().buying))
             {
                 metrics.NewMeter({"op-manage-offer", "invalid", "mismatch"},
                                  "operation").Mark();
@@ -149,7 +149,7 @@ ManageOfferOpFrame::doApply(medida::MetricsRegistry& metrics,
     int64_t maxSheepSend = mManageOffer.amount;
 
     int64_t maxAmountOfSheepCanSell;
-    if (sheep.type() == CURRENCY_TYPE_NATIVE)
+    if (sheep.type() == ASSET_TYPE_NATIVE)
     {
         maxAmountOfSheepCanSell =
             mSourceAccount->getBalanceAboveReserve(ledgerManager);
@@ -161,7 +161,7 @@ ManageOfferOpFrame::doApply(medida::MetricsRegistry& metrics,
 
     // the maximum is defined by how much wheat it can receive
     int64_t maxWheatCanSell;
-    if (wheat.type() == CURRENCY_TYPE_NATIVE)
+    if (wheat.type() == ASSET_TYPE_NATIVE)
     {
         maxWheatCanSell = INT64_MAX;
     }
@@ -217,11 +217,11 @@ ManageOfferOpFrame::doApply(medida::MetricsRegistry& metrics,
             wheatReceived, [this, maxWheatPrice](OfferFrame const& o)
             {
                 if ((mPassive && (o.getPrice() >= maxWheatPrice)) ||
-                    (o.getPrice() > maxWheatPrice))
+                    (o.getPrice() > maxWheatPrice))   
                 {
                     return OfferExchange::eStop;
                 }
-                if (o.getAccountID() == getSourceID())
+                if (o.getSellerID() == getSourceID())
                 {
                     // we are crossing our own offer
                     innerResult().code(MANAGE_OFFER_CROSS_SELF);
@@ -256,7 +256,7 @@ ManageOfferOpFrame::doApply(medida::MetricsRegistry& metrics,
 
         if (wheatReceived > 0)
         {
-            if (wheat.type() == CURRENCY_TYPE_NATIVE)
+            if (wheat.type() == ASSET_TYPE_NATIVE)
             {
                 mSourceAccount->getAccount().balance += wheatReceived;
                 mSourceAccount->storeChange(delta, db);
@@ -280,7 +280,7 @@ ManageOfferOpFrame::doApply(medida::MetricsRegistry& metrics,
                 wheatLineSigningAccount->storeChange(delta, db);
             }
 
-            if (sheep.type() == CURRENCY_TYPE_NATIVE)
+            if (sheep.type() == ASSET_TYPE_NATIVE)
             {
                 mSourceAccount->getAccount().balance -= sheepSent;
                 mSourceAccount->storeChange(delta, db);
@@ -349,17 +349,17 @@ ManageOfferOpFrame::doApply(medida::MetricsRegistry& metrics,
 bool
 ManageOfferOpFrame::doCheckValid(medida::MetricsRegistry& metrics)
 {
-    Currency const& sheep = mManageOffer.takerGets;
-    Currency const& wheat = mManageOffer.takerPays;
+    Asset const& sheep = mManageOffer.selling;
+    Asset const& wheat = mManageOffer.buying;
 
-    if (!isCurrencyValid(sheep) || !isCurrencyValid(wheat))
+    if (!isAssetValid(sheep) || !isAssetValid(wheat))
     {
-        metrics.NewMeter({"op-manage-offer", "invalid", "invalid-currency"},
+        metrics.NewMeter({"op-manage-offer", "invalid", "invalid-asset"},
                          "operation").Mark();
         innerResult().code(MANAGE_OFFER_MALFORMED);
         return false;
     }
-    if (compareCurrency(sheep, wheat))
+    if (compareAsset(sheep, wheat))
     {
         metrics.NewMeter({"op-manage-offer", "invalid", "equal-currencies"},
                          "operation").Mark();

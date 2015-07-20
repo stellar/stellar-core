@@ -63,7 +63,7 @@ LoadGenerator::~LoadGenerator()
 }
 
 std::string
-LoadGenerator::pickRandomCurrency()
+LoadGenerator::pickRandomAsset()
 {
     static std::vector<std::string> const sCurrencies = {
         "USD", "EUR", "JPY", "CNY", "GBP"
@@ -105,7 +105,7 @@ LoadGenerator::maybeCreateAccount(uint32_t ledgerNum, vector<TxInfo>& txs)
         // the first 3 gateways created immediately)
         if (mGateways.size() < 3 + (mAccounts.size() / 1000))
         {
-            acc->mIssuedCurrency = pickRandomCurrency();
+            acc->mIssuedAsset = pickRandomAsset();
             mGateways.push_back(acc);
         }
 
@@ -786,8 +786,8 @@ LoadGenerator::TxInfo::toTransactionFrames(
             {
                 txm.mTrustlineCreated.Mark();
                 Operation trustOp, paymentOp;
-                Currency ci = txtest::makeCurrency(tl.mIssuer->mKey,
-                                                   tl.mIssuer->mIssuedCurrency);
+                Asset ci = txtest::makeAsset(tl.mIssuer->mKey,
+                                                   tl.mIssuer->mIssuedAsset);
                 trustOp.body.type(CHANGE_TRUST);
                 trustOp.sourceAccount.activate() = mTo->mKey.getPublicKey();
                 trustOp.body.changeTrustOp().limit = LOADGEN_TRUSTLINE_LIMIT;
@@ -797,7 +797,7 @@ LoadGenerator::TxInfo::toTransactionFrames(
                 paymentOp.sourceAccount.activate() =
                     tl.mIssuer->mKey.getPublicKey();
                 paymentOp.body.paymentOp().amount = LOADGEN_ACCOUNT_BALANCE;
-                paymentOp.body.paymentOp().currency = ci;
+                paymentOp.body.paymentOp().asset = ci;
                 paymentOp.body.paymentOp().destination =
                     mTo->mKey.getPublicKey();
 
@@ -812,11 +812,11 @@ LoadGenerator::TxInfo::toTransactionFrames(
             {
                 txm.mOfferCreated.Mark();
                 Operation offerOp;
-                Currency buyCi = txtest::makeCurrency(
-                    mTo->mBuyCredit->mKey, mTo->mBuyCredit->mIssuedCurrency);
+                Asset buyCi = txtest::makeAsset(
+                    mTo->mBuyCredit->mKey, mTo->mBuyCredit->mIssuedAsset);
 
-                Currency sellCi = txtest::makeCurrency(
-                    mTo->mSellCredit->mKey, mTo->mSellCredit->mIssuedCurrency);
+                Asset sellCi = txtest::makeAsset(
+                    mTo->mSellCredit->mKey, mTo->mSellCredit->mIssuedAsset);
 
                 Price price;
                 price.d = 10000;
@@ -827,8 +827,8 @@ LoadGenerator::TxInfo::toTransactionFrames(
                 offerOp.sourceAccount.activate() = mTo->mKey.getPublicKey();
                 offerOp.body.createPassiveOfferOp().amount =
                     LOADGEN_ACCOUNT_BALANCE;
-                offerOp.body.createPassiveOfferOp().takerGets = sellCi;
-                offerOp.body.createPassiveOfferOp().takerPays = buyCi;
+                offerOp.body.createPassiveOfferOp().selling = sellCi;
+                offerOp.body.createPassiveOfferOp().buying = buyCi;
                 offerOp.body.createPassiveOfferOp().price = price;
                 e.tx.operations.push_back(offerOp);
                 signingAccounts.insert(mTo);
@@ -855,24 +855,24 @@ LoadGenerator::TxInfo::toTransactionFrames(
     case TxInfo::TX_TRANSFER_CREDIT:
     {
         txm.mPayment.Mark();
-        std::vector<Currency> currencyPath;
+        std::vector<Asset> assetPath;
         for (auto acc : mPath)
         {
-            assert(!acc->mIssuedCurrency.empty());
-            currencyPath.emplace_back(
-                txtest::makeCurrency(acc->mKey, acc->mIssuedCurrency));
+            assert(!acc->mIssuedAsset.empty());
+            assetPath.emplace_back(
+                txtest::makeAsset(acc->mKey, acc->mIssuedAsset));
         }
-        assert(!currencyPath.empty());
-        if (currencyPath.size() == 1)
+        assert(!assetPath.empty());
+        if (assetPath.size() == 1)
         {
             txm.mCreditPayment.Mark();
             txs.emplace_back(txtest::createCreditPaymentTx(
-                mFrom->mKey, mTo->mKey, currencyPath.front(), mFrom->mSeq + 1,
+                mFrom->mKey, mTo->mKey, assetPath.front(), mFrom->mSeq + 1,
                 mAmount));
         }
         else
         {
-            switch (currencyPath.size())
+            switch (assetPath.size())
             {
             case 2:
                 txm.mOneOfferPathPayment.Mark();
@@ -885,14 +885,14 @@ LoadGenerator::TxInfo::toTransactionFrames(
                 break;
             }
 
-            auto sendCurrency = currencyPath.front();
-            auto recvCurrency = currencyPath.back();
-            currencyPath.erase(currencyPath.begin());
-            currencyPath.pop_back();
+            auto sendAsset = assetPath.front();
+            auto recvAsset = assetPath.back();
+            assetPath.erase(assetPath.begin());
+            assetPath.pop_back();
             auto sendMax = mAmount * 10;
             txs.emplace_back(txtest::createPathPaymentTx(
-                mFrom->mKey, mTo->mKey, sendCurrency, sendMax, recvCurrency,
-                mAmount, mFrom->mSeq + 1, &currencyPath));
+                mFrom->mKey, mTo->mKey, sendAsset, sendMax, recvAsset,
+                mAmount, mFrom->mSeq + 1, &assetPath));
         }
     }
     break;

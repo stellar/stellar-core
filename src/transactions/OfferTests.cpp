@@ -44,9 +44,9 @@ TEST_CASE("create offer", "[tx][offers]")
     SecretKey gateway = getAccount("gate");
     SecretKey secgateway = getAccount("secure");
 
-    const int64_t currencyMultiplier = 1000000;
+    const int64_t assetMultiplier = 1000000;
 
-    int64_t trustLineBalance = 100000 * currencyMultiplier;
+    int64_t trustLineBalance = 100000 * assetMultiplier;
     int64_t trustLineLimit = trustLineBalance * 10;
 
     int64_t txfee = app.getLedgerManager().getTxFee();
@@ -57,8 +57,8 @@ TEST_CASE("create offer", "[tx][offers]")
     const int64_t minBalance2 =
         app.getLedgerManager().getMinBalance(2) + 20 * txfee;
 
-    Currency idrCur = makeCurrency(gateway, "IDR");
-    Currency usdCur = makeCurrency(gateway, "USD");
+    Asset idrCur = makeAsset(gateway, "IDR");
+    Asset usdCur = makeAsset(gateway, "USD");
 
     const Price oneone(1, 1);
 
@@ -112,10 +112,10 @@ TEST_CASE("create offer", "[tx][offers]")
         REQUIRE((offer->getFlags() & PASSIVE_FLAG));
 
         // better price
-        const Price lowPrice(100, 99);
-        const Price highPrice(99, 100);
+        const Price highPrice(100, 99);
+        const Price lowPrice(99, 100);
         txFrame =
-            createPassiveOfferOp(b1, usdCur, idrCur, highPrice, 100, b1_seq++);
+            createPassiveOfferOp(b1, usdCur, idrCur, lowPrice, 100, b1_seq++);
         applyCheck(txFrame, delta, app);
 
         REQUIRE(!loadOffer(a1, 1, app, false));
@@ -133,7 +133,7 @@ TEST_CASE("create offer", "[tx][offers]")
         REQUIRE(offer->getAmount() == 100);
 
         txFrame =
-            createPassiveOfferOp(b1, usdCur, idrCur, lowPrice, 100, b1_seq++);
+            createPassiveOfferOp(b1, usdCur, idrCur, highPrice, 100, b1_seq++);
         REQUIRE(applyCheck(txFrame, delta, app));
 
         offer = loadOffer(a1, 3, app);
@@ -152,7 +152,7 @@ TEST_CASE("create offer", "[tx][offers]")
         REQUIRE(offer->getAmount() == 100);
 
         txFrame =
-            manageOfferOp(4, b1, usdCur, idrCur, highPrice, 100, b1_seq++);
+            manageOfferOp(4, b1, usdCur, idrCur, lowPrice, 100, b1_seq++);
         REQUIRE(applyCheck(txFrame, delta, app));
 
         REQUIRE(!loadOffer(a1, 3, app, false));
@@ -268,19 +268,19 @@ TEST_CASE("create offer", "[tx][offers]")
                              trustLineBalance);
         SECTION("Native offers")
         {
-            Currency xlmCur;
-            xlmCur.type(CurrencyType::CURRENCY_TYPE_NATIVE);
+            Asset xlmCur;
+            xlmCur.type(AssetType::ASSET_TYPE_NATIVE);
 
             const Price somePrice(3, 2);
             SECTION("IDR -> XLM")
             {
                 applyCreateOffer(app, delta, 0, a1, xlmCur, idrCur, somePrice,
-                                 100 * currencyMultiplier, a1_seq++);
+                                 100 * assetMultiplier, a1_seq++);
             }
             SECTION("XLM -> IDR")
             {
                 applyCreateOffer(app, delta, 0, a1, idrCur, xlmCur, somePrice,
-                                 100 * currencyMultiplier, a1_seq++);
+                                 100 * assetMultiplier, a1_seq++);
             }
         }
 
@@ -298,7 +298,7 @@ TEST_CASE("create offer", "[tx][offers]")
                 // 1.5
                 uint64_t newOfferID = applyCreateOffer(
                     app, delta, 0, a1, idrCur, usdCur, usdPriceOfferA,
-                    100 * currencyMultiplier, a1_seq++);
+                    100 * assetMultiplier, a1_seq++);
 
                 offer = loadOffer(a1, newOfferID, app);
 
@@ -306,11 +306,11 @@ TEST_CASE("create offer", "[tx][offers]")
 
                 // verifies that the offer was created as expected
                 REQUIRE(offer->getPrice() == usdPriceOfferA);
-                REQUIRE(offer->getAmount() == 100 * currencyMultiplier);
-                REQUIRE(offer->getTakerGets().alphaNum().currencyCode ==
-                        idrCur.alphaNum().currencyCode);
-                REQUIRE(offer->getTakerPays().alphaNum().currencyCode ==
-                        usdCur.alphaNum().currencyCode);
+                REQUIRE(offer->getAmount() == 100 * assetMultiplier);
+                REQUIRE(offer->getSelling().alphaNum4().assetCode ==
+                        idrCur.alphaNum4().assetCode);
+                REQUIRE(offer->getBuying().alphaNum4().assetCode ==
+                        usdCur.alphaNum4().assetCode);
             }
 
             applyCreateAccountTx(app, root, b1, root_seq++,
@@ -324,44 +324,44 @@ TEST_CASE("create offer", "[tx][offers]")
             SECTION("offer that doesn't cross")
             {
                 applyCreditPaymentTx(app, gateway, b1, usdCur, gateway_seq++,
-                                     20000 * currencyMultiplier);
+                                     20000 * assetMultiplier);
 
                 // offer is sell 40 USD for 80 IDR ; sell USD @ 2
 
                 uint64_t offerID =
                     applyCreateOffer(app, delta, 0, b1, usdCur, idrCur, twoone,
-                                     40 * currencyMultiplier, b1_seq++);
+                                     40 * assetMultiplier, b1_seq++);
 
                 // verifies that the offer was created properly
                 offer = loadOffer(b1, offerID, app);
                 REQUIRE(offer->getPrice() == twoone);
-                REQUIRE(offer->getAmount() == 40 * currencyMultiplier);
-                REQUIRE(offer->getTakerPays().alphaNum().currencyCode ==
-                        idrCur.alphaNum().currencyCode);
-                REQUIRE(offer->getTakerGets().alphaNum().currencyCode ==
-                        usdCur.alphaNum().currencyCode);
+                REQUIRE(offer->getAmount() == 40 * assetMultiplier);
+                REQUIRE(offer->getBuying().alphaNum4().assetCode ==
+                        idrCur.alphaNum4().assetCode);
+                REQUIRE(offer->getSelling().alphaNum4().assetCode ==
+                        usdCur.alphaNum4().assetCode);
 
                 // and that a1 offers were not touched
                 for (auto a1Offer : a1OfferID)
                 {
                     offer = loadOffer(a1, a1Offer, app);
                     REQUIRE(offer->getPrice() == usdPriceOfferA);
-                    REQUIRE(offer->getAmount() == 100 * currencyMultiplier);
-                    REQUIRE(offer->getTakerPays().alphaNum().currencyCode ==
-                            usdCur.alphaNum().currencyCode);
-                    REQUIRE(offer->getTakerGets().alphaNum().currencyCode ==
-                            idrCur.alphaNum().currencyCode);
+                    REQUIRE(offer->getAmount() == 100 * assetMultiplier);
+                    REQUIRE(offer->getBuying().alphaNum4().assetCode ==
+                            usdCur.alphaNum4().assetCode);
+                    REQUIRE(offer->getSelling().alphaNum4().assetCode ==
+                            idrCur.alphaNum4().assetCode);
                 }
             }
 
             SECTION("Offer crossing own offer")
             {
                 applyCreditPaymentTx(app, gateway, a1, usdCur, gateway_seq++,
-                                     20000 * currencyMultiplier);
+                                     20000 * assetMultiplier);
 
                 // ensure we could receive proceeds from the offer
                 applyCreditPaymentTx(app, a1, gateway, idrCur, a1_seq++,
-                                     100000 * currencyMultiplier);
+                                     100000 * assetMultiplier);
 
                 // offer is sell 150 USD for 100 IDR; sell USD @ 1.5 / buy IRD @
                 // 0.66
@@ -369,7 +369,7 @@ TEST_CASE("create offer", "[tx][offers]")
 
                 uint64_t beforeID = delta.getHeaderFrame().getLastGeneratedID();
                 applyCreateOfferWithResult(app, delta, 0, a1, usdCur, idrCur,
-                                           exactCross, 150 * currencyMultiplier,
+                                           exactCross, 150 * assetMultiplier,
                                            a1_seq++, MANAGE_OFFER_CROSS_SELF);
                 REQUIRE(beforeID ==
                         delta.getHeaderFrame().getLastGeneratedID());
@@ -378,18 +378,18 @@ TEST_CASE("create offer", "[tx][offers]")
                 {
                     offer = loadOffer(a1, a1Offer, app);
                     REQUIRE(offer->getPrice() == usdPriceOfferA);
-                    REQUIRE(offer->getAmount() == 100 * currencyMultiplier);
-                    REQUIRE(offer->getTakerPays().alphaNum().currencyCode ==
-                            usdCur.alphaNum().currencyCode);
-                    REQUIRE(offer->getTakerGets().alphaNum().currencyCode ==
-                            idrCur.alphaNum().currencyCode);
+                    REQUIRE(offer->getAmount() == 100 * assetMultiplier);
+                    REQUIRE(offer->getBuying().alphaNum4().assetCode ==
+                            usdCur.alphaNum4().assetCode);
+                    REQUIRE(offer->getSelling().alphaNum4().assetCode ==
+                            idrCur.alphaNum4().assetCode);
                 }
             }
 
             SECTION("Offer that crosses exactly")
             {
                 applyCreditPaymentTx(app, gateway, b1, usdCur, gateway_seq++,
-                                     20000 * currencyMultiplier);
+                                     20000 * assetMultiplier);
 
                 // offer is sell 150 USD for 100 USD; sell USD @ 1.5 / buy IRD @
                 // 0.66
@@ -399,7 +399,7 @@ TEST_CASE("create offer", "[tx][offers]")
                     delta.getHeaderFrame().getLastGeneratedID() + 1;
                 auto const& res = applyCreateOfferWithResult(
                     app, delta, 0, b1, usdCur, idrCur, exactCross,
-                    150 * currencyMultiplier, b1_seq++);
+                    150 * assetMultiplier, b1_seq++);
 
                 REQUIRE(res.success().offer.effect() == MANAGE_OFFER_DELETED);
 
@@ -420,11 +420,11 @@ TEST_CASE("create offer", "[tx][offers]")
                     {
                         offer = loadOffer(a1, a1Offer, app);
                         REQUIRE(offer->getPrice() == usdPriceOfferA);
-                        REQUIRE(offer->getAmount() == 100 * currencyMultiplier);
-                        REQUIRE(offer->getTakerPays().alphaNum().currencyCode ==
-                                usdCur.alphaNum().currencyCode);
-                        REQUIRE(offer->getTakerGets().alphaNum().currencyCode ==
-                                idrCur.alphaNum().currencyCode);
+                        REQUIRE(offer->getAmount() == 100 * assetMultiplier);
+                        REQUIRE(offer->getBuying().alphaNum4().assetCode ==
+                                usdCur.alphaNum4().assetCode);
+                        REQUIRE(offer->getSelling().alphaNum4().assetCode ==
+                                idrCur.alphaNum4().assetCode);
                     }
                 }
             }
@@ -441,7 +441,7 @@ TEST_CASE("create offer", "[tx][offers]")
             SECTION("Offer that takes multiple other offers and is cleared")
             {
                 applyCreditPaymentTx(app, gateway, b1, usdCur, gateway_seq++,
-                                     20000 * currencyMultiplier);
+                                     20000 * assetMultiplier);
 
                 line = loadTrustLine(b1, usdCur, app);
                 int64_t b1_usd = line->getBalance();
@@ -454,7 +454,7 @@ TEST_CASE("create offer", "[tx][offers]")
                 // offer is sell 1010 USD for 505 IDR; sell USD @ 0.5
                 auto const& res = applyCreateOfferWithResult(
                     app, delta, 0, b1, usdCur, idrCur, onetwo,
-                    1010 * currencyMultiplier, b1_seq++);
+                    1010 * assetMultiplier, b1_seq++);
 
                 REQUIRE(res.success().offer.effect() == MANAGE_OFFER_DELETED);
                 // verify that the offer was not created
@@ -472,7 +472,7 @@ TEST_CASE("create offer", "[tx][offers]")
                 // 8 .. untouched
                 // the USDs were sold at the (better) rate found in the original
                 // offers
-                int64_t usdRecv = 1010 * currencyMultiplier;
+                int64_t usdRecv = 1010 * assetMultiplier;
 
                 int64_t idrSend = bigDivide(usdRecv, 2, 3);
 
@@ -490,21 +490,21 @@ TEST_CASE("create offer", "[tx][offers]")
                         // others are untouched
                         offer = loadOffer(a1, a1Offer, app);
                         REQUIRE(offer->getPrice() == usdPriceOfferA);
-                        REQUIRE(offer->getTakerPays().alphaNum().currencyCode ==
-                                usdCur.alphaNum().currencyCode);
-                        REQUIRE(offer->getTakerGets().alphaNum().currencyCode ==
-                                idrCur.alphaNum().currencyCode);
+                        REQUIRE(offer->getBuying().alphaNum4().assetCode ==
+                                usdCur.alphaNum4().assetCode);
+                        REQUIRE(offer->getSelling().alphaNum4().assetCode ==
+                                idrCur.alphaNum4().assetCode);
                         if (i == 6)
                         {
                             int64_t expected =
-                                100 * currencyMultiplier -
-                                (idrSend - 6 * 100 * currencyMultiplier);
+                                100 * assetMultiplier -
+                                (idrSend - 6 * 100 * assetMultiplier);
                             checkAmounts(expected, offer->getAmount());
                         }
                         else
                         {
                             REQUIRE(offer->getAmount() ==
-                                    100 * currencyMultiplier);
+                                    100 * assetMultiplier);
                         }
                     }
                 }
@@ -527,7 +527,7 @@ TEST_CASE("create offer", "[tx][offers]")
             SECTION("Trying to extract value from an offer")
             {
                 applyCreditPaymentTx(app, gateway, b1, usdCur, gateway_seq++,
-                                     20000 * currencyMultiplier);
+                                     20000 * assetMultiplier);
 
                 line = loadTrustLine(b1, usdCur, app);
                 int64_t b1_usd = line->getBalance();
@@ -537,7 +537,7 @@ TEST_CASE("create offer", "[tx][offers]")
 
                 // the USDs were sold at the (better) rate found in the original
                 // offers
-                int64_t usdRecv = 10 * currencyMultiplier;
+                int64_t usdRecv = 10 * assetMultiplier;
 
                 int64_t idrSend = bigDivide(usdRecv, 2, 3);
 
@@ -549,7 +549,7 @@ TEST_CASE("create offer", "[tx][offers]")
                         delta.getHeaderFrame().getLastGeneratedID() + 1;
                     auto const& res = applyCreateOfferWithResult(
                         app, delta, 0, b1, usdCur, idrCur, onetwo,
-                        1 * currencyMultiplier, b1_seq++);
+                        1 * assetMultiplier, b1_seq++);
 
                     REQUIRE(res.success().offer.effect() ==
                             MANAGE_OFFER_DELETED);
@@ -562,19 +562,19 @@ TEST_CASE("create offer", "[tx][offers]")
 
                     offer = loadOffer(a1, a1Offer, app);
 
-                    REQUIRE(offer->getTakerPays().alphaNum().currencyCode ==
-                            usdCur.alphaNum().currencyCode);
-                    REQUIRE(offer->getTakerGets().alphaNum().currencyCode ==
-                            idrCur.alphaNum().currencyCode);
+                    REQUIRE(offer->getBuying().alphaNum4().assetCode ==
+                            usdCur.alphaNum4().assetCode);
+                    REQUIRE(offer->getSelling().alphaNum4().assetCode ==
+                            idrCur.alphaNum4().assetCode);
 
                     if (i == 0)
                     {
-                        int64_t expected = 100 * currencyMultiplier - idrSend;
+                        int64_t expected = 100 * assetMultiplier - idrSend;
                         checkAmounts(expected, offer->getAmount(), 10);
                     }
                     else
                     {
-                        REQUIRE(offer->getAmount() == 100 * currencyMultiplier);
+                        REQUIRE(offer->getAmount() == 100 * assetMultiplier);
                     }
                 }
 
@@ -596,7 +596,7 @@ TEST_CASE("create offer", "[tx][offers]")
             SECTION("Offer that takes multiple other offers and remains")
             {
                 applyCreditPaymentTx(app, gateway, b1, usdCur, gateway_seq++,
-                                     20000 * currencyMultiplier);
+                                     20000 * assetMultiplier);
 
                 line = loadTrustLine(b1, usdCur, app);
                 int64_t b1_usd = line->getBalance();
@@ -616,22 +616,22 @@ TEST_CASE("create offer", "[tx][offers]")
                                      trustLineLimit);
                     applyCreditPaymentTx(app, gateway, c1, idrCur,
                                          gateway_seq++,
-                                         20000 * currencyMultiplier);
+                                         20000 * assetMultiplier);
 
                     // matches the offer from A
                     cOfferID = applyCreateOffer(
                         app, delta, 0, c1, idrCur, usdCur, usdPriceOfferA,
-                        100 * currencyMultiplier, c1_seq++);
+                        100 * assetMultiplier, c1_seq++);
                     // drain account
                     applyCreditPaymentTx(app, c1, gateway, idrCur, c1_seq++,
-                                         20000 * currencyMultiplier);
+                                         20000 * assetMultiplier);
                     // offer should still be there
                     loadOffer(c1, cOfferID, app);
                 }
 
                 // offer is sell 10000 USD for 5000 IDR; sell USD @ 0.5
 
-                int64_t usdBalanceForSale = 10000 * currencyMultiplier;
+                int64_t usdBalanceForSale = 10000 * assetMultiplier;
                 uint64_t offerID =
                     applyCreateOffer(app, delta, 0, b1, usdCur, idrCur, onetwo,
                                      usdBalanceForSale, b1_seq++);
@@ -641,7 +641,7 @@ TEST_CASE("create offer", "[tx][offers]")
                 // Offers are: sell 100 IDR for 150 USD; sell IRD @ 0.66 -> buy
                 // USD
                 // @ 1.5
-                int64_t usdRecv = 150 * currencyMultiplier * nbOffers;
+                int64_t usdRecv = 150 * assetMultiplier * nbOffers;
                 int64_t idrSend = bigDivide(usdRecv, 2, 3);
 
                 int64_t expected = usdBalanceForSale - usdRecv;
@@ -679,7 +679,7 @@ TEST_CASE("create offer", "[tx][offers]")
             // 0.66
             uint64_t offerA1 = applyCreateOffer(
                 app, delta, 0, a1, idrCur, usdCur, usdPriceOfferA,
-                100 * currencyMultiplier, a1_seq++);
+                100 * assetMultiplier, a1_seq++);
 
             offer = loadOffer(a1, offerA1, app);
 
@@ -699,7 +699,7 @@ TEST_CASE("create offer", "[tx][offers]")
 
                 uint64_t offerB1 = applyCreateOffer(
                     app, delta, 0, b1, idrCur, usdCur, usdPriceOfferA,
-                    100 * currencyMultiplier, b1_seq++);
+                    100 * assetMultiplier, b1_seq++);
 
                 offer = loadOffer(b1, offerB1, app);
 
@@ -719,7 +719,7 @@ TEST_CASE("create offer", "[tx][offers]")
                     // fund C such that it's 150 IDR below its limit
                     applyCreditPaymentTx(
                         app, gateway, c1, idrCur, gateway_seq++,
-                        trustLineLimit - 150 * currencyMultiplier);
+                        trustLineLimit - 150 * assetMultiplier);
 
                     // try to create an offer:
                     // it will cross with the offers from A and B but will stop
@@ -732,7 +732,7 @@ TEST_CASE("create offer", "[tx][offers]")
                     const Price idrPriceOfferC(2, 3);
                     auto offerC1Res = applyCreateOfferWithResult(
                         app, delta, 0, c1, usdCur, idrCur, idrPriceOfferC,
-                        300 * currencyMultiplier, c1_seq++);
+                        300 * assetMultiplier, c1_seq++);
                     // offer consumed offers but was not created
                     REQUIRE(offerC1Res.success().offer.effect() ==
                             MANAGE_OFFER_DELETED);
@@ -743,25 +743,25 @@ TEST_CASE("create offer", "[tx][offers]")
 
                     // A1's offer was taken entirely
                     line = loadTrustLine(a1, usdCur, app);
-                    checkAmounts(150 * currencyMultiplier, line->getBalance());
+                    checkAmounts(150 * assetMultiplier, line->getBalance());
 
                     line = loadTrustLine(a1, idrCur, app);
-                    checkAmounts(trustLineBalance - 100 * currencyMultiplier,
+                    checkAmounts(trustLineBalance - 100 * assetMultiplier,
                                  line->getBalance());
 
                     // B1's offer was partially taken
                     // buyer may have paid a bit more to cross offers
                     line = loadTrustLine(b1, usdCur, app);
-                    checkAmounts(line->getBalance(), 75 * currencyMultiplier);
+                    checkAmounts(line->getBalance(), 75 * assetMultiplier);
 
                     line = loadTrustLine(b1, idrCur, app);
                     checkAmounts(line->getBalance(),
-                                 trustLineBalance - 50 * currencyMultiplier);
+                                 trustLineBalance - 50 * assetMultiplier);
 
                     // C1
                     line = loadTrustLine(c1, usdCur, app);
                     checkAmounts(line->getBalance(),
-                                 trustLineBalance - 225 * currencyMultiplier);
+                                 trustLineBalance - 225 * assetMultiplier);
 
                     line = loadTrustLine(c1, idrCur, app);
                     checkAmounts(line->getBalance(), trustLineLimit);
@@ -770,8 +770,8 @@ TEST_CASE("create offer", "[tx][offers]")
                 {
                     SECTION("Creates an offer, top seller not authorized")
                     {
-                        Currency secUsdCur = makeCurrency(secgateway, "USD");
-                        Currency secIdrCur = makeCurrency(secgateway, "IDR");
+                        Asset secUsdCur = makeAsset(secgateway, "USD");
+                        Asset secIdrCur = makeAsset(secgateway, "IDR");
 
                         // sets up the secure gateway account for USD
                         applyCreateAccountTx(app, root, secgateway, root_seq++,
@@ -808,7 +808,7 @@ TEST_CASE("create offer", "[tx][offers]")
                         // 0.66
                         auto offerD1 = applyCreateOffer(
                             app, delta, 0, d1, secIdrCur, secUsdCur,
-                            usdPriceOfferD, 100 * currencyMultiplier, d1_seq++);
+                            usdPriceOfferD, 100 * assetMultiplier, d1_seq++);
 
                         SECTION("D not authorized to hold USD")
                         {
@@ -841,7 +841,7 @@ TEST_CASE("create offer", "[tx][offers]")
 
                         uint64_t offerE1 = applyCreateOffer(
                             app, delta, 0, e1, secIdrCur, secUsdCur,
-                            usdPriceOfferD, 100 * currencyMultiplier, e1_seq++);
+                            usdPriceOfferD, 100 * assetMultiplier, e1_seq++);
 
                         // setup f1
                         SecretKey f1 = getAccount("F");
@@ -871,13 +871,13 @@ TEST_CASE("create offer", "[tx][offers]")
                         const Price idrPriceOfferC(2, 3);
                         auto offerF1Res = applyCreateOfferWithResult(
                             app, delta, 0, f1, secUsdCur, secIdrCur,
-                            idrPriceOfferC, 300 * currencyMultiplier, f1_seq++);
+                            idrPriceOfferC, 300 * assetMultiplier, f1_seq++);
                         // offer created would be buy 100 IDR for 150 USD ; 0.66
                         REQUIRE(offerF1Res.success().offer.effect() ==
                                 MANAGE_OFFER_CREATED);
 
                         REQUIRE(offerF1Res.success().offer.offer().amount ==
-                                150 * currencyMultiplier);
+                                150 * assetMultiplier);
 
                         TrustFrame::pointer line;
 
@@ -897,29 +897,29 @@ TEST_CASE("create offer", "[tx][offers]")
 
                         line = loadTrustLine(e1, secUsdCur, app);
                         checkAmounts(line->getBalance(),
-                                     150 * currencyMultiplier);
+                                     150 * assetMultiplier);
 
                         line = loadTrustLine(e1, secIdrCur, app);
                         checkAmounts(line->getBalance(),
                                      trustLineBalance -
-                                         100 * currencyMultiplier);
+                                         100 * assetMultiplier);
 
                         // F1
                         line = loadTrustLine(f1, secUsdCur, app);
                         checkAmounts(line->getBalance(),
                                      trustLineBalance -
-                                         150 * currencyMultiplier);
+                                         150 * assetMultiplier);
 
                         line = loadTrustLine(f1, secIdrCur, app);
                         checkAmounts(line->getBalance(),
-                                     100 * currencyMultiplier);
+                                     100 * assetMultiplier);
                     }
                     SECTION("Creates an offer, top seller reaches limit")
                     {
                         // makes "A" only capable of holding 75 "USD"
                         applyCreditPaymentTx(
                             app, gateway, a1, usdCur, gateway_seq++,
-                            trustLineLimit - 75 * currencyMultiplier);
+                            trustLineLimit - 75 * assetMultiplier);
 
                         // try to create an offer:
                         // it will cross with the offer from B fully
@@ -931,13 +931,13 @@ TEST_CASE("create offer", "[tx][offers]")
                         const Price idrPriceOfferC(2, 3);
                         auto offerC1Res = applyCreateOfferWithResult(
                             app, delta, 0, c1, usdCur, idrCur, idrPriceOfferC,
-                            300 * currencyMultiplier, c1_seq++);
+                            300 * assetMultiplier, c1_seq++);
                         // offer created would be buy 50 IDR for 75 USD ; 0.66
                         REQUIRE(offerC1Res.success().offer.effect() ==
                                 MANAGE_OFFER_CREATED);
 
                         REQUIRE(offerC1Res.success().offer.offer().amount ==
-                                75 * currencyMultiplier);
+                                75 * assetMultiplier);
 
                         TrustFrame::pointer line;
 
@@ -950,7 +950,7 @@ TEST_CASE("create offer", "[tx][offers]")
                         checkAmounts(trustLineLimit, line->getBalance());
 
                         line = loadTrustLine(a1, idrCur, app);
-                        checkAmounts(trustLineBalance - 50 * currencyMultiplier,
+                        checkAmounts(trustLineBalance - 50 * assetMultiplier,
                                      line->getBalance());
 
                         // B1's offer was taken
@@ -958,22 +958,22 @@ TEST_CASE("create offer", "[tx][offers]")
 
                         line = loadTrustLine(b1, usdCur, app);
                         checkAmounts(line->getBalance(),
-                                     150 * currencyMultiplier);
+                                     150 * assetMultiplier);
 
                         line = loadTrustLine(b1, idrCur, app);
                         checkAmounts(line->getBalance(),
                                      trustLineBalance -
-                                         100 * currencyMultiplier);
+                                         100 * assetMultiplier);
 
                         // C1
                         line = loadTrustLine(c1, usdCur, app);
                         checkAmounts(line->getBalance(),
                                      trustLineBalance -
-                                         225 * currencyMultiplier);
+                                         225 * assetMultiplier);
 
                         line = loadTrustLine(c1, idrCur, app);
                         checkAmounts(line->getBalance(),
-                                     150 * currencyMultiplier);
+                                     150 * assetMultiplier);
                     }
                 }
             }
@@ -986,17 +986,17 @@ TEST_CASE("create offer", "[tx][offers]")
                     // sell 100 IDR for 90 USD
                     uint64_t gwOffer = applyCreateOffer(
                         app, delta, 0, gateway, idrCur, usdCur, Price(9, 10),
-                        100 * currencyMultiplier, gateway_seq++);
+                        100 * assetMultiplier, gateway_seq++);
 
                     // fund a1 with some USD
                     applyCreditPaymentTx(app, gateway, a1, usdCur,
                                          gateway_seq++,
-                                         1000 * currencyMultiplier);
+                                         1000 * assetMultiplier);
 
                     // sell USD for IDR
                     auto resA = applyCreateOfferWithResult(
                         app, delta, 0, a1, usdCur, idrCur, Price(1, 1),
-                        90 * currencyMultiplier, a1_seq++);
+                        90 * assetMultiplier, a1_seq++);
 
                     REQUIRE(resA.success().offer.effect() ==
                             MANAGE_OFFER_DELETED);
@@ -1006,17 +1006,17 @@ TEST_CASE("create offer", "[tx][offers]")
 
                     // check balance
                     line = loadTrustLine(a1, usdCur, app);
-                    checkAmounts(910 * currencyMultiplier, line->getBalance());
+                    checkAmounts(910 * assetMultiplier, line->getBalance());
 
                     line = loadTrustLine(a1, idrCur, app);
-                    checkAmounts(trustLineBalance + 100 * currencyMultiplier,
+                    checkAmounts(trustLineBalance + 100 * assetMultiplier,
                                  line->getBalance());
                 }
                 SECTION("issuer claims an offer from somebody else")
                 {
                     auto res = applyCreateOfferWithResult(
                         app, delta, 0, gateway, usdCur, idrCur, Price(2, 3),
-                        150 * currencyMultiplier, gateway_seq++);
+                        150 * assetMultiplier, gateway_seq++);
                     REQUIRE(res.success().offer.effect() ==
                             MANAGE_OFFER_DELETED);
 
@@ -1025,10 +1025,10 @@ TEST_CASE("create offer", "[tx][offers]")
 
                     // check balance
                     line = loadTrustLine(a1, usdCur, app);
-                    checkAmounts(150 * currencyMultiplier, line->getBalance());
+                    checkAmounts(150 * assetMultiplier, line->getBalance());
 
                     line = loadTrustLine(a1, idrCur, app);
-                    checkAmounts(trustLineBalance - 100 * currencyMultiplier,
+                    checkAmounts(trustLineBalance - 100 * assetMultiplier,
                                  line->getBalance());
                 }
             }

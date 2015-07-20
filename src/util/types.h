@@ -16,15 +16,17 @@ bool isZero(uint256 const& b);
 
 uint256 makePublicKey(uint256 const& b);
 
-// returns true if the Currency value is well formed
-bool isCurrencyValid(Currency const& cur);
+// returns true if the Asset value is well formed
+bool isAssetValid(Asset const& cur);
 
 // returns true if the currencies are the same
-bool compareCurrency(Currency const& first, Currency const& second);
+bool compareAsset(Asset const& first, Asset const& second);
 
-void currencyCodeToStr(xdr::opaque_array<4U> const& code, std::string& retStr);
+void assetCodeToStr(xdr::opaque_array<4U> const& code, std::string& retStr);
+void assetCodeToStr(xdr::opaque_array<12U> const& code, std::string& retStr);
 
-void strToCurrencyCode(xdr::opaque_array<4U>& ret, std::string const& str);
+void strToAssetCode(xdr::opaque_array<4U>& ret, std::string const& str);
+void strToAssetCode(xdr::opaque_array<12U>& ret, std::string const& str);
 
 // calculates A*B/C when A*B overflows 64bits
 int64_t bigDivide(int64_t A, int64_t B, int64_t C);

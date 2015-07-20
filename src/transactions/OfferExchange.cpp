@@ -21,9 +21,9 @@ OfferExchange::crossOffer(OfferFrame& sellingWheatOffer,
                           int64_t maxWheatReceived, int64_t& numWheatReceived,
                           int64_t maxSheepSend, int64_t& numSheepSend)
 {
-    Currency& sheep = sellingWheatOffer.getOffer().takerPays;
-    Currency& wheat = sellingWheatOffer.getOffer().takerGets;
-    AccountID& accountBID = sellingWheatOffer.getOffer().accountID;
+    Asset& sheep = sellingWheatOffer.getOffer().buying;
+    Asset& wheat = sellingWheatOffer.getOffer().selling;
+    AccountID& accountBID = sellingWheatOffer.getOffer().sellerID;
 
     Database& db = mLedgerManager.getDatabase();
 
@@ -36,7 +36,7 @@ OfferExchange::crossOffer(OfferFrame& sellingWheatOffer,
     }
 
     TrustFrame::pointer wheatLineAccountB;
-    if (wheat.type() != CURRENCY_TYPE_NATIVE)
+    if (wheat.type() != ASSET_TYPE_NATIVE)
     {
         wheatLineAccountB = TrustFrame::loadTrustLine(accountBID, wheat, db);
         if (!wheatLineAccountB)
@@ -48,7 +48,7 @@ OfferExchange::crossOffer(OfferFrame& sellingWheatOffer,
 
     TrustFrame::pointer sheepLineAccountB;
 
-    if (sheep.type() == CURRENCY_TYPE_NATIVE)
+    if (sheep.type() == ASSET_TYPE_NATIVE)
     {
         numWheatReceived = INT64_MAX;
     }
@@ -75,7 +75,7 @@ OfferExchange::crossOffer(OfferFrame& sellingWheatOffer,
     // adjust numWheatReceived with what the seller has
     {
         int64_t wheatCanSell;
-        if (wheat.type() == CURRENCY_TYPE_NATIVE)
+        if (wheat.type() == ASSET_TYPE_NATIVE)
         {
             // can only send above the minimum balance
             wheatCanSell = accountB->getBalanceAboveReserve(mLedgerManager);
@@ -174,7 +174,7 @@ OfferExchange::crossOffer(OfferFrame& sellingWheatOffer,
     }
 
     // Adjust balances
-    if (sheep.type() == CURRENCY_TYPE_NATIVE)
+    if (sheep.type() == ASSET_TYPE_NATIVE)
     {
         accountB->getAccount().balance += numSheepSend;
         accountB->storeChange(mDelta, db);
@@ -188,7 +188,7 @@ OfferExchange::crossOffer(OfferFrame& sellingWheatOffer,
         sheepLineAccountB->storeChange(mDelta, db);
     }
 
-    if (wheat.type() == CURRENCY_TYPE_NATIVE)
+    if (wheat.type() == ASSET_TYPE_NATIVE)
     {
         accountB->getAccount().balance -= numWheatReceived;
         accountB->storeChange(mDelta, db);
@@ -211,8 +211,8 @@ OfferExchange::crossOffer(OfferFrame& sellingWheatOffer,
 
 OfferExchange::ConvertResult
 OfferExchange::convertWithOffers(
-    Currency const& sheep, int64_t maxSheepSend, int64_t& sheepSend,
-    Currency const& wheat, int64_t maxWheatReceive, int64_t& wheatReceived,
+    Asset const& sheep, int64_t maxSheepSend, int64_t& sheepSend,
+    Asset const& wheat, int64_t maxWheatReceive, int64_t& wheatReceived,
     std::function<OfferFilterResult(OfferFrame const&)> filter)
 {
     sheepSend = 0;
@@ -227,7 +227,7 @@ OfferExchange::convertWithOffers(
     while (needMore)
     {
         std::vector<OfferFrame::pointer> retList;
-        OfferFrame::loadBestOffers(5, offerOffset, sheep, wheat, retList, db);
+        OfferFrame::loadBestOffers(5, offerOffset, wheat, sheep, retList, db);
 
         offerOffset += retList.size();
 

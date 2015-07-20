@@ -32,12 +32,13 @@ makePublicKey(uint256 const& b)
 }
 
 bool
-isCurrencyValid(Currency const& cur)
+isAssetValid(Asset const& cur)
 {
-    bool res;
-    if (cur.type() == CURRENCY_TYPE_ALPHANUM)
+    if(cur.type() == ASSET_TYPE_NATIVE) return true;
+
+    if (cur.type() == ASSET_TYPE_CREDIT_ALPHANUM4)
     {
-        auto const& code = cur.alphaNum().currencyCode;
+        auto const& code = cur.alphaNum4().assetCode;
         bool zeros = false;
         bool onechar = false; // at least one non zero character
         std::locale loc("C");
@@ -62,36 +63,67 @@ isCurrencyValid(Currency const& cur)
                 onechar = true;
             }
         }
-        res = onechar;
+        return onechar;
     }
-    else
+
+    if(cur.type() == ASSET_TYPE_CREDIT_ALPHANUM12)
     {
-        res = true;
+        auto const& code = cur.alphaNum12().assetCode;
+        bool zeros = false;
+        int charcount = 0; // at least 5 non zero characters
+        std::locale loc("C");
+        for(uint8_t b : code)
+        {
+            if(b == 0)
+            {
+                zeros = true;
+            } else if(zeros)
+            {
+                // zeros can only be trailing
+                return false;
+            } else
+            {
+                char t = *(char*)&b; // safe conversion to char
+                if(!std::isalnum(t, loc))
+                {
+                    return false;
+                }
+                charcount++;
+            }
+        }
+        return charcount>4;
     }
-    return res;
+    return false;
+
+    
 }
 
 bool
-compareCurrency(Currency const& first, Currency const& second)
+compareAsset(Asset const& first, Asset const& second)
 {
     if (first.type() != second.type())
         return false;
 
-    if (first.type() == CURRENCY_TYPE_NATIVE)
+    if (first.type() == ASSET_TYPE_NATIVE)
+        return true;
+  
+    if (second.type() == ASSET_TYPE_CREDIT_ALPHANUM4)
     {
-        if (second.type() == CURRENCY_TYPE_NATIVE)
+        if ((first.alphaNum4().issuer == second.alphaNum4().issuer) &&
+            (first.alphaNum4().assetCode == second.alphaNum4().assetCode))
             return true;
     }
-    else if (second.type() == CURRENCY_TYPE_ALPHANUM)
+
+    if(second.type() == ASSET_TYPE_CREDIT_ALPHANUM12)
     {
-        if ((first.alphaNum().issuer == second.alphaNum().issuer) &&
-            (first.alphaNum().currencyCode == second.alphaNum().currencyCode))
+        if((first.alphaNum12().issuer == second.alphaNum12().issuer) &&
+            (first.alphaNum12().assetCode == second.alphaNum12().assetCode))
             return true;
     }
     return false;
 }
 
-void currencyCodeToStr(xdr::opaque_array<4U> const& code, std::string& retStr)
+void assetCodeToStr(xdr::opaque_array<4U> const& code, std::string& retStr)
 {
     retStr = "    ";
     for (int n = 0; n < 4; n++)
@@ -106,9 +138,32 @@ void currencyCodeToStr(xdr::opaque_array<4U> const& code, std::string& retStr)
     }
 }
 
-void strToCurrencyCode(xdr::opaque_array<4U>& ret, std::string const& str)
+void assetCodeToStr(xdr::opaque_array<12U> const& code, std::string& retStr)
+{
+    retStr = "    ";
+    for(int n = 0; n < 12; n++)
+    {
+        if(code[n])
+            retStr[n] = code[n];
+        else
+        {
+            retStr.resize(n);
+            return;
+        }
+    }
+}
+
+void strToAssetCode(xdr::opaque_array<4U>& ret, std::string const& str)
 {
     for (size_t n = 0; (n < str.size()) && (n < 4); n++)
+    {
+        ret[n] = str[n];
+    }
+}
+
+void strToAssetCode(xdr::opaque_array<12U>& ret, std::string const& str)
+{
+    for(size_t n = 0; (n < str.size()) && (n < 12); n++)
     {
         ret[n] = str[n];
     }

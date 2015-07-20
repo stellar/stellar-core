@@ -102,13 +102,13 @@ case TRUSTLINE:
     struct
     {
         AccountID accountID;
-        Currency currency;
+        Asset asset;
     } trustLine;
 
 case OFFER:
     struct
     {
-        AccountID accountID;
+        AccountID sellerID;
         uint64 offerID;
     } offer;
 };

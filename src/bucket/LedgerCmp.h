@@ -18,8 +18,8 @@ using xdr::operator<;
  *
  *   - The same type
  *     - If accounts, then with same accountID
- *     - If trustlines, then with same (accountID, currency) pair
- *     - If offers, then with same (accountID, sequence) pair
+ *     - If trustlines, then with same (accountID, asset) pair
+ *     - If offers, then with same (sellerID, sequence) pair
  *
  * Equivalently: Two LedgerEntries have the same 'identity' iff their
  * corresponding LedgerKeys are exactly equal. This operator _could_ be
@@ -55,7 +55,7 @@ struct LedgerEntryIdCmp
             if (btl.accountID < atl.accountID)
                 return false;
             {
-                return atl.currency < btl.currency;
+                return atl.asset < btl.asset;
             }
         }
 
@@ -63,9 +63,9 @@ struct LedgerEntryIdCmp
         {
             auto const& aof = a.offer();
             auto const& bof = b.offer();
-            if (aof.accountID < bof.accountID)
+            if (aof.sellerID < bof.sellerID)
                 return true;
-            if (bof.accountID < aof.accountID)
+            if (bof.sellerID < aof.sellerID)
                 return false;
             return aof.offerID < bof.offerID;
         }

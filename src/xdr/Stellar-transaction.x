@@ -44,7 +44,7 @@ struct CreateAccountOp
 
 /* Payment
 
-    Send an amount in specified currency to a destination account.
+    Send an amount in specified asset to a destination account.
 
     Threshold: med
 
@@ -53,16 +53,16 @@ struct CreateAccountOp
 struct PaymentOp
 {
     AccountID destination; // recipient of the payment
-    Currency currency;     // what they end up with
+    Asset asset;     // what they end up with
     int64 amount;          // amount they end up with
 };
 
 /* PathPayment
 
 send an amount to a destination account through a path.
-(up to sendMax, sendCurrency)
+(up to sendMax, sendAsset)
 (X0, Path[0]) .. (Xn, Path[n])
-(destAmount, destCurrency)
+(destAmount, destAsset)
 
 Threshold: med
 
@@ -70,16 +70,16 @@ Result: PathPaymentResult
 */
 struct PathPaymentOp
 {
-    Currency sendCurrency; // currency we pay with
-    int64 sendMax;         // the maximum amount of sendCurrency to
+    Asset sendAsset; // asset we pay with
+    int64 sendMax;         // the maximum amount of sendAsset to
                            // send (excluding fees).
                            // The operation will fail if can't be met
 
     AccountID destination; // recipient of the payment
-    Currency destCurrency; // what they end up with
+    Asset destAsset; // what they end up with
     int64 destAmount;      // amount they end up with
 
-    Currency path<5>; // additional hops it must go through to get there
+    Asset path<5>; // additional hops it must go through to get there
 };
 
 /* Creates, updates or deletes an offer
@@ -91,10 +91,10 @@ Result: ManageOfferResult
 */
 struct ManageOfferOp
 {
-    Currency takerGets;
-    Currency takerPays;
-    int64 amount; // amount taker gets. if set to 0, delete the offer
-    Price price;  // =takerPaysAmount/takerGetsAmount
+    Asset selling;
+    Asset buying;
+    int64 amount; // amount being sold. if set to 0, delete the offer
+    Price price;  // price of thing being sold in terms of what you are buying
 
     // 0=create a new offer, otherwise edit an existing offer
     uint64 offerID;
@@ -109,10 +109,10 @@ Result: CreatePassiveOfferResult
 */
 struct CreatePassiveOfferOp
 {
-    Currency takerGets;
-    Currency takerPays;
-    int64 amount; // amount taker gets. if set to 0, delete the offer
-    Price price;  // =takerPaysAmount/takerGetsAmount
+    Asset selling;  // A
+    Asset buying;   // B
+    int64 amount;   // amount taker gets. if set to 0, delete the offer
+    Price price;    // cost of A in terms of B
 };
 
 /* Set Account Options
@@ -154,14 +154,14 @@ struct SetOptionsOp
 */
 struct ChangeTrustOp
 {
-    Currency line;
+    Asset line;
 
     // if limit is set to 0, deletes the trust line
     int64 limit;
 };
 
 /* Updates the "authorized" flag of an existing trust line
-   this is called by the issuer of the related currency.
+   this is called by the issuer of the related asset.
 
    note that authorize can only be set (and not cleared) if
    the issuer account does not have the AUTH_REVOCABLE_FLAG set
@@ -172,15 +172,18 @@ struct ChangeTrustOp
 struct AllowTrustOp
 {
     AccountID trustor;
-    union switch (CurrencyType type)
+    union switch (AssetType type)
     {
-    // CURRENCY_TYPE_NATIVE is not allowed
-    case CURRENCY_TYPE_ALPHANUM:
-        opaque currencyCode[4];
+    // ASSET_TYPE_NATIVE is not allowed
+    case ASSET_TYPE_CREDIT_ALPHANUM4:
+        opaque assetCode4[4];
 
-        // add other currency types here in the future
+	case ASSET_TYPE_CREDIT_ALPHANUM12:
+        opaque assetCode12[12];
+
+        // add other asset types here in the future
     }
-    currency;
+    asset;
 
     bool authorize;
 };
@@ -316,12 +319,12 @@ struct ClaimOfferAtom
     AccountID offerOwner; // Account that owns the offer
     uint64 offerID;
 
-    // amount and currency taken from the owner
-    Currency currencyClaimed;
+    // amount and asset taken from the owner
+    Asset assetClaimed;
     int64 amountClaimed;
 
-    // amount and currencysent to the owner
-    Currency currencySend;
+    // amount and assetsent to the owner
+    Asset assetSend;
     int64 amountSend;
 };
 
@@ -361,8 +364,8 @@ enum PaymentResultCode
     PAYMENT_SRC_NO_TRUST = -3,       // no trust line on source account
     PAYMENT_SRC_NOT_AUTHORIZED = -4, // source not authorized to transfer
     PAYMENT_NO_DESTINATION = -5,     // destination account does not exist
-    PAYMENT_NO_TRUST = -6, // destination missing a trust line for currency
-    PAYMENT_NOT_AUTHORIZED = -7, // destination not authorized to hold currency
+    PAYMENT_NO_TRUST = -6, // destination missing a trust line for asset
+    PAYMENT_NOT_AUTHORIZED = -7, // destination not authorized to hold asset
     PAYMENT_LINE_FULL = -8       // destination would go above their limit
 };
 
@@ -387,8 +390,8 @@ enum PathPaymentResultCode
     PATH_PAYMENT_SRC_NO_TRUST = -3,       // no trust line on source account
     PATH_PAYMENT_SRC_NOT_AUTHORIZED = -4, // source not authorized to transfer
     PATH_PAYMENT_NO_DESTINATION = -5,     // destination account does not exist
-    PATH_PAYMENT_NO_TRUST = -6,       // dest missing a trust line for currency
-    PATH_PAYMENT_NOT_AUTHORIZED = -7, // dest not authorized to hold currency
+    PATH_PAYMENT_NO_TRUST = -6,       // dest missing a trust line for asset
+    PATH_PAYMENT_NOT_AUTHORIZED = -7, // dest not authorized to hold asset
     PATH_PAYMENT_LINE_FULL = -8,      // dest would go above their limit
     PATH_PAYMENT_TOO_FEW_OFFERS = -9, // not enough offers to satisfy path
     PATH_PAYMENT_OVER_SENDMAX = -10   // could not satisfy sendmax
@@ -397,7 +400,7 @@ enum PathPaymentResultCode
 struct SimplePaymentResult
 {
     AccountID destination;
-    Currency currency;
+    Asset asset;
     int64 amount;
 };
 
@@ -521,7 +524,7 @@ enum AllowTrustResultCode
     // codes considered as "success" for the operation
     ALLOW_TRUST_SUCCESS = 0,
     // codes considered as "failure" for the operation
-    ALLOW_TRUST_MALFORMED = -1,     // currency is not CURRENCY_TYPE_ALPHANUM
+    ALLOW_TRUST_MALFORMED = -1,     // asset is not ASSET_TYPE_ALPHANUM
     ALLOW_TRUST_NO_TRUST_LINE = -2, // trustor does not have a trustline
                                     // source account does not require trust
     ALLOW_TRUST_TRUST_NOT_REQUIRED = -3,

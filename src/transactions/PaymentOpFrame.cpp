@@ -45,8 +45,8 @@ PaymentOpFrame::doApply(medida::MetricsRegistry& metrics, LedgerDelta& delta,
     op.sourceAccount = mOperation.sourceAccount;
     op.body.type(PATH_PAYMENT);
     PathPaymentOp& ppOp = op.body.pathPaymentOp();
-    ppOp.sendCurrency = mPayment.currency;
-    ppOp.destCurrency = mPayment.currency;
+    ppOp.sendAsset = mPayment.asset;
+    ppOp.destAsset = mPayment.asset;
 
     ppOp.destAmount = mPayment.amount;
     ppOp.sendMax = mPayment.amount;
@@ -131,10 +131,10 @@ PaymentOpFrame::doCheckValid(medida::MetricsRegistry& metrics)
         innerResult().code(PAYMENT_MALFORMED);
         return false;
     }
-    if (!isCurrencyValid(mPayment.currency))
+    if (!isAssetValid(mPayment.asset))
     {
         metrics.NewMeter(
-                    {"op-payment", "invalid", "malformed-invalid-currency"},
+                    {"op-payment", "invalid", "malformed-invalid-asset"},
                     "operation").Mark();
         innerResult().code(PAYMENT_MALFORMED);
         return false;

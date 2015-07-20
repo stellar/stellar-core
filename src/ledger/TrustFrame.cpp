@@ -21,12 +21,13 @@ const char* TrustFrame::kSQLCreateStatement1 =
     "CREATE TABLE trustlines"
     "("
     "accountid     VARCHAR(56)     NOT NULL,"
+    "assettype     INT             NOT NULL,"
     "issuer        VARCHAR(56)     NOT NULL,"
-    "alphanumcurrency   VARCHAR(4) NOT NULL,"
+    "assetcode     VARCHAR(12)     NOT NULL,"
     "tlimit        BIGINT          NOT NULL DEFAULT 0 CHECK (tlimit >= 0),"
     "balance       BIGINT          NOT NULL DEFAULT 0 CHECK (balance >= 0),"
     "flags         INT             NOT NULL,"
-    "PRIMARY KEY (accountid, issuer, alphanumcurrency)"
+    "PRIMARY KEY (accountid, issuer, assetcode)"
     ");";
 
 const char* TrustFrame::kSQLCreateStatement2 =
@@ -61,16 +62,27 @@ TrustFrame& TrustFrame::operator=(TrustFrame const& other)
 
 void
 TrustFrame::getKeyFields(LedgerKey const& key, std::string& actIDStrKey,
-                         std::string& issuerStrKey, std::string& currencyCode)
+                         std::string& issuerStrKey, std::string& assetCode)
 {
     actIDStrKey = PubKeyUtils::toStrKey(key.trustLine().accountID);
-    issuerStrKey =
-        PubKeyUtils::toStrKey(key.trustLine().currency.alphaNum().issuer);
+    if(key.trustLine().asset.type() == ASSET_TYPE_CREDIT_ALPHANUM4)
+    {
+        issuerStrKey =
+            PubKeyUtils::toStrKey(key.trustLine().asset.alphaNum4().issuer);
+        assetCodeToStr(key.trustLine().asset.alphaNum4().assetCode,
+            assetCode);
+    } else if(key.trustLine().asset.type() == ASSET_TYPE_CREDIT_ALPHANUM12)
+    {
+        issuerStrKey =
+            PubKeyUtils::toStrKey(key.trustLine().asset.alphaNum12().issuer);
+        assetCodeToStr(key.trustLine().asset.alphaNum12().assetCode,
+            assetCode);
+    }
+    
     if (actIDStrKey == issuerStrKey)
         throw std::runtime_error("Issuer's own trustline should not be used "
                                  "outside of OperationFrame");
-    currencyCodeToStr(key.trustLine().currency.alphaNum().currencyCode,
-                      currencyCode);
+   
 }
 
 int64_t
@@ -145,7 +157,7 @@ bool
 TrustFrame::isValid() const
 {
     TrustLineEntry const& tl = mTrustLine;
-    bool res = tl.currency.type() != CURRENCY_TYPE_NATIVE;
+    bool res = tl.asset.type() != ASSET_TYPE_NATIVE;
     res = res && (tl.balance >= 0);
     res = res && (tl.balance <= tl.limit);
     return res;
@@ -154,14 +166,14 @@ TrustFrame::isValid() const
 bool
 TrustFrame::exists(Database& db, LedgerKey const& key)
 {
-    std::string actIDStrKey, issuerStrKey, currencyCode;
-    getKeyFields(key, actIDStrKey, issuerStrKey, currencyCode);
+    std::string actIDStrKey, issuerStrKey, assetCode;
+    getKeyFields(key, actIDStrKey, issuerStrKey, assetCode);
     int exists = 0;
     auto timer = db.getSelectTimer("trust-exists");
     db.getSession()
         << "SELECT EXISTS (SELECT NULL FROM trustlines "
-           "WHERE accountid=:v1 and issuer=:v2 and alphanumcurrency=:v3)",
-        use(actIDStrKey), use(issuerStrKey), use(currencyCode), into(exists);
+           "WHERE accountid=:v1 and issuer=:v2 and assetcode=:v3)",
+        use(actIDStrKey), use(issuerStrKey), use(assetCode), into(exists);
     return exists != 0;
 }
 
@@ -182,14 +194,14 @@ TrustFrame::storeDelete(LedgerDelta& delta, Database& db) const
 void
 TrustFrame::storeDelete(LedgerDelta& delta, Database& db, LedgerKey const& key)
 {
-    std::string actIDStrKey, issuerStrKey, currencyCode;
-    getKeyFields(key, actIDStrKey, issuerStrKey, currencyCode);
+    std::string actIDStrKey, issuerStrKey, assetCode;
+    getKeyFields(key, actIDStrKey, issuerStrKey, assetCode);
 
     auto timer = db.getDeleteTimer("trust");
     db.getSession()
         << "DELETE FROM trustlines "
-           "WHERE accountid=:v1 AND issuer=:v2 AND alphanumcurrency=:v3",
-        use(actIDStrKey), use(issuerStrKey), use(currencyCode);
+           "WHERE accountid=:v1 AND issuer=:v2 AND assetcode=:v3",
+        use(actIDStrKey), use(issuerStrKey), use(assetCode);
 
     delta.deleteEntry(key);
 }
@@ -202,18 +214,18 @@ TrustFrame::storeChange(LedgerDelta& delta, Database& db) const
     if (mIsIssuer)
         return;
 
-    std::string actIDStrKey, issuerStrKey, currencyCode;
-    getKeyFields(getKey(), actIDStrKey, issuerStrKey, currencyCode);
+    std::string actIDStrKey, issuerStrKey, assetCode;
+    getKeyFields(getKey(), actIDStrKey, issuerStrKey, assetCode);
 
     auto timer = db.getUpdateTimer("trust");
     statement st =
         (db.getSession().prepare
              << "UPDATE trustlines "
                 "SET balance=:b, tlimit=:tl, flags=:a "
-                "WHERE accountid=:v1 AND issuer=:v2 AND alphanumcurrency=:v3",
+                "WHERE accountid=:v1 AND issuer=:v2 AND assetcode=:v3",
          use(mTrustLine.balance), use(mTrustLine.limit),
          use((int)mTrustLine.flags), use(actIDStrKey), use(issuerStrKey),
-         use(currencyCode));
+         use(assetCode));
 
     st.execute(true);
 
@@ -233,15 +245,16 @@ TrustFrame::storeAdd(LedgerDelta& delta, Database& db) const
     if (mIsIssuer)
         return;
 
-    std::string actIDStrKey, issuerStrKey, currencyCode;
-    getKeyFields(getKey(), actIDStrKey, issuerStrKey, currencyCode);
+    std::string actIDStrKey, issuerStrKey, assetCode;
+    unsigned int assetType = getKey().trustLine().asset.type();
+    getKeyFields(getKey(), actIDStrKey, issuerStrKey, assetCode);
 
     auto timer = db.getInsertTimer("trust");
     statement st = (db.getSession().prepare
                         << "INSERT INTO trustlines (accountid, "
-                           "issuer, alphanumcurrency, balance, tlimit, flags) "
-                           "VALUES (:v1,:v2,:v3,:v4,:v5,:v6)",
-                    use(actIDStrKey), use(issuerStrKey), use(currencyCode),
+                           "assettype, issuer, assetcode, balance, tlimit, flags) "
+                           "VALUES (:v1,:v2,:v3,:v4,:v5,:v6,:v7)",
+                    use(actIDStrKey), use(assetType), use(issuerStrKey), use(assetCode),
                     use(mTrustLine.balance), use(mTrustLine.limit),
                     use((int)mTrustLine.flags));
 
@@ -256,45 +269,61 @@ TrustFrame::storeAdd(LedgerDelta& delta, Database& db) const
 }
 
 static const char* trustLineColumnSelector =
-    "SELECT accountid, issuer, alphanumcurrency, tlimit,balance,flags FROM "
+    "SELECT accountid, assettype, issuer, assetcode, tlimit,balance,flags FROM "
     "trustlines";
 
 TrustFrame::pointer
-TrustFrame::createIssuerFrame(Currency const& issuer)
+TrustFrame::createIssuerFrame(Asset const& issuer)
 {
     pointer res = make_shared<TrustFrame>();
     res->mIsIssuer = true;
     TrustLineEntry& tl = res->mEntry.trustLine();
-    tl.accountID = issuer.alphaNum().issuer;
+    tl.accountID = issuer.alphaNum4().issuer;
     tl.flags |= AUTHORIZED_FLAG;
     tl.balance = INT64_MAX;
-    tl.currency = issuer;
+    tl.asset = issuer;
     tl.limit = INT64_MAX;
     return res;
 }
 
 TrustFrame::pointer
-TrustFrame::loadTrustLine(AccountID const& accountID, Currency const& currency,
+TrustFrame::loadTrustLine(AccountID const& accountID, Asset const& asset,
                           Database& db)
 {
-    if (accountID == currency.alphaNum().issuer)
+    AccountID& assetIssuer=AccountID();
+    if(asset.type() == ASSET_TYPE_CREDIT_ALPHANUM4)
     {
-        return createIssuerFrame(currency);
+        assetIssuer = asset.alphaNum4().issuer;
+    } else if(asset.type() == ASSET_TYPE_CREDIT_ALPHANUM12)
+    {
+        assetIssuer = asset.alphaNum12().issuer;
     }
 
-    std::string accStr, issuerStr, currencyStr;
+    if (accountID == assetIssuer)
+    {
+        return createIssuerFrame(asset);
+    }
+
+    std::string accStr, issuerStr, assetStr;
 
     accStr = PubKeyUtils::toStrKey(accountID);
-    currencyCodeToStr(currency.alphaNum().currencyCode, currencyStr);
-    issuerStr = PubKeyUtils::toStrKey(currency.alphaNum().issuer);
+    if(asset.type() == ASSET_TYPE_CREDIT_ALPHANUM4)
+    {
+        assetCodeToStr(asset.alphaNum4().assetCode, assetStr);
+    } else if(asset.type() == ASSET_TYPE_CREDIT_ALPHANUM12)
+    {
+        assetCodeToStr(asset.alphaNum12().assetCode, assetStr);
+    }
+   
+    issuerStr = PubKeyUtils::toStrKey(assetIssuer);
 
     session& session = db.getSession();
 
     details::prepare_temp_type sql =
         (session.prepare << trustLineColumnSelector
                          << " WHERE accountid=:id AND "
-                            "issuer=:issuer AND alphanumcurrency=:currency",
-         use(accStr), use(issuerStr), use(currencyStr));
+                            "issuer=:issuer AND assetcode=:asset",
+         use(accStr), use(issuerStr), use(assetStr));
 
     pointer retLine;
     auto timer = db.getSelectTimer("trust");
@@ -334,23 +363,32 @@ TrustFrame::loadLines(details::prepare_temp_type& prep,
                       std::function<void(LedgerEntry const&)> trustProcessor)
 {
     string actIDStrKey;
-    std::string issuerStrKey, currency;
+    std::string issuerStrKey, assetCode;
+    unsigned int assetType;
 
     LedgerEntry le;
     le.type(TRUSTLINE);
 
     TrustLineEntry& tl = le.trustLine();
 
-    statement st = (prep, into(actIDStrKey), into(issuerStrKey), into(currency),
+    statement st = (prep, into(actIDStrKey), into(assetType), into(issuerStrKey), 
+                    into(assetCode),
                     into(tl.limit), into(tl.balance), into(tl.flags));
 
     st.execute(true);
     while (st.got_data())
     {
         tl.accountID = PubKeyUtils::fromStrKey(actIDStrKey);
-        tl.currency.type(CURRENCY_TYPE_ALPHANUM);
-        tl.currency.alphaNum().issuer = PubKeyUtils::fromStrKey(issuerStrKey);
-        strToCurrencyCode(tl.currency.alphaNum().currencyCode, currency);
+        tl.asset.type((AssetType)assetType);
+        if(assetType == ASSET_TYPE_CREDIT_ALPHANUM4)
+        {
+            tl.asset.alphaNum4().issuer = PubKeyUtils::fromStrKey(issuerStrKey);
+            strToAssetCode(tl.asset.alphaNum4().assetCode, assetCode);
+        } else if(assetType == ASSET_TYPE_CREDIT_ALPHANUM12)
+        {
+            tl.asset.alphaNum12().issuer = PubKeyUtils::fromStrKey(issuerStrKey);
+            strToAssetCode(tl.asset.alphaNum12().assetCode, assetCode);
+        }
 
         trustProcessor(le);
 
