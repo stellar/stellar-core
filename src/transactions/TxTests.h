@@ -49,7 +49,7 @@ void requireNoAccount(SecretKey const& k, Application& app);
 OfferFrame::pointer loadOffer(SecretKey const& k, uint64 offerID,
                               Application& app, bool mustExist = true);
 
-TrustFrame::pointer loadTrustLine(SecretKey const& k, Currency const& currency,
+TrustFrame::pointer loadTrustLine(SecretKey const& k, Asset const& asset,
                                   Application& app, bool mustExist = true);
 
 SequenceNumber getAccountSeqNum(SecretKey const& k, Application& app);
@@ -58,21 +58,21 @@ uint64_t getAccountBalance(SecretKey const& k, Application& app);
 
 TransactionFramePtr createChangeTrust(SecretKey& from, SecretKey& to,
                                       SequenceNumber seq,
-                                      std::string const& currencyCode,
+                                      std::string const& assetCode,
                                       int64_t limit);
 
 void applyChangeTrust(Application& app, SecretKey& from, SecretKey& to,
-                      SequenceNumber seq, std::string const& currencyCode,
+                      SequenceNumber seq, std::string const& assetCode,
                       int64_t limit,
                       ChangeTrustResultCode result = CHANGE_TRUST_SUCCESS);
 
 TransactionFramePtr createAllowTrust(SecretKey& from, SecretKey& trustor,
                                      SequenceNumber seq,
-                                     std::string const& currencyCode,
+                                     std::string const& assetCode,
                                      bool authorize);
 
 void applyAllowTrust(Application& app, SecretKey& from, SecretKey& trustor,
-                     SequenceNumber seq, std::string const& currencyCode,
+                     SequenceNumber seq, std::string const& assetCode,
                      bool authorize,
                      AllowTrustResultCode result = ALLOW_TRUST_SUCCESS);
 
@@ -92,34 +92,34 @@ void applyPaymentTx(Application& app, SecretKey& from, SecretKey& to,
                     PaymentResultCode result = PAYMENT_SUCCESS);
 
 TransactionFramePtr createCreditPaymentTx(SecretKey& from, SecretKey& to,
-                                          Currency& ci, SequenceNumber seq,
+                                          Asset& ci, SequenceNumber seq,
                                           int64_t amount);
 
 PaymentResult applyCreditPaymentTx(Application& app, SecretKey& from,
-                                   SecretKey& to, Currency& ci,
+                                   SecretKey& to, Asset& ci,
                                    SequenceNumber seq, int64_t amount,
                                    PaymentResultCode result = PAYMENT_SUCCESS);
 
 TransactionFramePtr createPathPaymentTx(SecretKey& from, SecretKey& to,
-                                        Currency const& sendCur,
+                                        Asset const& sendCur,
                                         int64_t sendMax,
-                                        Currency const& destCur,
+                                        Asset const& destCur,
                                         int64_t destAmount, SequenceNumber seq,
-                                        std::vector<Currency>* path = nullptr);
+                                        std::vector<Asset>* path = nullptr);
 
 PathPaymentResult applyPathPaymentTx(
-    Application& app, SecretKey& from, SecretKey& to, Currency const& sendCur,
-    int64_t sendMax, Currency const& destCur, int64_t destAmount,
+    Application& app, SecretKey& from, SecretKey& to, Asset const& sendCur,
+    int64_t sendMax, Asset const& destCur, int64_t destAmount,
     SequenceNumber seq, PathPaymentResultCode result = PATH_PAYMENT_SUCCESS,
-    std::vector<Currency>* path = nullptr);
+    std::vector<Asset>* path = nullptr);
 
 TransactionFramePtr manageOfferOp(uint64 offerId, SecretKey& source,
-                                  Currency& takerGets, Currency& takerPays,
+                                  Asset& selling, Asset& buying,
                                   Price const& price, int64_t amount,
                                   SequenceNumber seq);
 
-TransactionFramePtr createPassiveOfferOp(SecretKey& source, Currency& takerGets,
-                                         Currency& takerPays,
+TransactionFramePtr createPassiveOfferOp(SecretKey& source, Asset& selling,
+                                         Asset& buying,
                                          Price const& price, int64_t amount,
                                          SequenceNumber seq);
 
@@ -127,14 +127,14 @@ TransactionFramePtr createPassiveOfferOp(SecretKey& source, Currency& takerGets,
 // expects a new offer to be created
 // returns the ID of the new offer
 uint64_t applyCreateOffer(Application& app, LedgerDelta& delta, uint64 offerId,
-                          SecretKey& source, Currency& takerGets,
-                          Currency& takerPays, Price const& price,
+                          SecretKey& source, Asset& selling,
+                          Asset& buying, Price const& price,
                           int64_t amount, SequenceNumber seq);
 
 ManageOfferResult
 applyCreateOfferWithResult(Application& app, LedgerDelta& delta, uint64 offerId,
-                           SecretKey& source, Currency& takerGets,
-                           Currency& takerPays, Price const& price,
+                           SecretKey& source, Asset& selling,
+                           Asset& buying, Price const& price,
                            int64_t amount, SequenceNumber seq,
                            ManageOfferResultCode result = MANAGE_OFFER_SUCCESS);
 
@@ -161,7 +161,7 @@ void applyAccountMerge(Application& app, SecretKey& source, SecretKey& dest,
                        SequenceNumber seq,
                        AccountMergeResultCode result = ACCOUNT_MERGE_SUCCESS);
 
-Currency makeCurrency(SecretKey& issuer, std::string const& code);
+Asset makeAsset(SecretKey& issuer, std::string const& code);
 
 OperationFrame const& getFirstOperationFrame(TransactionFrame const& tx);
 OperationResult const& getFirstResult(TransactionFrame const& tx);

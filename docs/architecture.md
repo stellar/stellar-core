@@ -62,7 +62,7 @@ Other details:
     single, standard XDR for canonical (hashed) format, history, and
     inter-node messaging.
 
-  - No use of custom datatypes (No custom time epochs, currency codes, decimal
+  - No use of custom datatypes (No custom time epochs, asset codes, decimal
     floating point, etc.)
 
 

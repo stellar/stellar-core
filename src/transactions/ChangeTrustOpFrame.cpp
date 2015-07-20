@@ -62,8 +62,13 @@ ChangeTrustOpFrame::doApply(medida::MetricsRegistry& metrics,
     else
     { // new trust line
         AccountFrame::pointer issuer;
-        issuer =
-            AccountFrame::loadAccount(mChangeTrust.line.alphaNum().issuer, db);
+        if(mChangeTrust.line.type()==ASSET_TYPE_CREDIT_ALPHANUM4)
+            issuer =
+                AccountFrame::loadAccount(mChangeTrust.line.alphaNum4().issuer, db);
+        else if(mChangeTrust.line.type() == ASSET_TYPE_CREDIT_ALPHANUM12)
+            issuer =
+                AccountFrame::loadAccount(mChangeTrust.line.alphaNum12().issuer, db);
+
         if (!issuer)
         {
             metrics.NewMeter({"op-change-trust", "failure", "no-issuer"},
@@ -74,7 +79,7 @@ ChangeTrustOpFrame::doApply(medida::MetricsRegistry& metrics,
         trustLine = std::make_shared<TrustFrame>();
         auto& tl = trustLine->getTrustLine();
         tl.accountID = getSourceID();
-        tl.currency = mChangeTrust.line;
+        tl.asset = mChangeTrust.line;
         tl.limit = mChangeTrust.limit;
         tl.balance = 0;
         trustLine->setAuthorized(!issuer->isAuthRequired());
@@ -108,10 +113,10 @@ ChangeTrustOpFrame::doCheckValid(medida::MetricsRegistry& metrics)
         innerResult().code(CHANGE_TRUST_MALFORMED);
         return false;
     }
-    if (!isCurrencyValid(mChangeTrust.line))
+    if (!isAssetValid(mChangeTrust.line))
     {
         metrics.NewMeter({"op-change-trust", "invalid",
-                          "malformed-invalid-currency"},
+                          "malformed-invalid-asset"},
                          "operation").Mark();
         innerResult().code(CHANGE_TRUST_MALFORMED);
         return false;

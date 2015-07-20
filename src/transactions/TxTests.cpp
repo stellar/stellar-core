@@ -134,11 +134,11 @@ loadOffer(SecretKey const& k, uint64 offerID, Application& app, bool mustExist)
 }
 
 TrustFrame::pointer
-loadTrustLine(SecretKey const& k, Currency const& currency, Application& app,
+loadTrustLine(SecretKey const& k, Asset const& asset, Application& app,
               bool mustExist)
 {
     TrustFrame::pointer res = TrustFrame::loadTrustLine(
-        k.getPublicKey(), currency, app.getDatabase());
+        k.getPublicKey(), asset, app.getDatabase());
     if (mustExist)
     {
         REQUIRE(res);
@@ -190,31 +190,31 @@ transactionFromOperation(SecretKey& from, SequenceNumber seq,
 
 TransactionFramePtr
 createChangeTrust(SecretKey& from, SecretKey& to, SequenceNumber seq,
-                  std::string const& currencyCode, int64_t limit)
+                  std::string const& assetCode, int64_t limit)
 {
     Operation op;
 
     op.body.type(CHANGE_TRUST);
     op.body.changeTrustOp().limit = limit;
-    op.body.changeTrustOp().line.type(CURRENCY_TYPE_ALPHANUM);
-    strToCurrencyCode(op.body.changeTrustOp().line.alphaNum().currencyCode,
-                      currencyCode);
-    op.body.changeTrustOp().line.alphaNum().issuer = to.getPublicKey();
+    op.body.changeTrustOp().line.type(ASSET_TYPE_CREDIT_ALPHANUM4);
+    strToAssetCode(op.body.changeTrustOp().line.alphaNum4().assetCode,
+                      assetCode);
+    op.body.changeTrustOp().line.alphaNum4().issuer = to.getPublicKey();
 
     return transactionFromOperation(from, seq, op);
 }
 
 TransactionFramePtr
 createAllowTrust(SecretKey& from, SecretKey& trustor, SequenceNumber seq,
-                 std::string const& currencyCode, bool authorize)
+                 std::string const& assetCode, bool authorize)
 {
     Operation op;
 
     op.body.type(ALLOW_TRUST);
     op.body.allowTrustOp().trustor = trustor.getPublicKey();
-    op.body.allowTrustOp().currency.type(CURRENCY_TYPE_ALPHANUM);
-    strToCurrencyCode(op.body.allowTrustOp().currency.currencyCode(),
-                      currencyCode);
+    op.body.allowTrustOp().asset.type(ASSET_TYPE_CREDIT_ALPHANUM4);
+    strToAssetCode(op.body.allowTrustOp().asset.assetCode4(),
+                      assetCode);
     op.body.allowTrustOp().authorize = authorize;
 
     return transactionFromOperation(from, seq, op);
@@ -222,11 +222,11 @@ createAllowTrust(SecretKey& from, SecretKey& trustor, SequenceNumber seq,
 
 void
 applyAllowTrust(Application& app, SecretKey& from, SecretKey& trustor,
-                SequenceNumber seq, std::string const& currencyCode,
+                SequenceNumber seq, std::string const& assetCode,
                 bool authorize, AllowTrustResultCode result)
 {
     TransactionFramePtr txFrame;
-    txFrame = createAllowTrust(from, trustor, seq, currencyCode, authorize);
+    txFrame = createAllowTrust(from, trustor, seq, assetCode, authorize);
 
     LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader());
     applyCheck(txFrame, delta, app);
@@ -299,7 +299,7 @@ createPaymentTx(SecretKey& from, SecretKey& to, SequenceNumber seq,
     op.body.type(PAYMENT);
     op.body.paymentOp().amount = amount;
     op.body.paymentOp().destination = to.getPublicKey();
-    op.body.paymentOp().currency.type(CURRENCY_TYPE_NATIVE);
+    op.body.paymentOp().asset.type(ASSET_TYPE_NATIVE);
 
     return transactionFromOperation(from, seq, op);
 }
@@ -348,12 +348,12 @@ applyPaymentTx(Application& app, SecretKey& from, SecretKey& to,
 
 void
 applyChangeTrust(Application& app, SecretKey& from, SecretKey& to,
-                 SequenceNumber seq, std::string const& currencyCode,
+                 SequenceNumber seq, std::string const& assetCode,
                  int64_t limit, ChangeTrustResultCode result)
 {
     TransactionFramePtr txFrame;
 
-    txFrame = createChangeTrust(from, to, seq, currencyCode, limit);
+    txFrame = createChangeTrust(from, to, seq, assetCode, limit);
 
     LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader());
     applyCheck(txFrame, delta, app);
@@ -364,31 +364,31 @@ applyChangeTrust(Application& app, SecretKey& from, SecretKey& to,
 }
 
 TransactionFramePtr
-createCreditPaymentTx(SecretKey& from, SecretKey& to, Currency& ci,
+createCreditPaymentTx(SecretKey& from, SecretKey& to, Asset& asset,
                       SequenceNumber seq, int64_t amount)
 {
     Operation op;
     op.body.type(PAYMENT);
     op.body.paymentOp().amount = amount;
-    op.body.paymentOp().currency = ci;
+    op.body.paymentOp().asset = asset;
     op.body.paymentOp().destination = to.getPublicKey();
 
     return transactionFromOperation(from, seq, op);
 }
 
-Currency
-makeCurrency(SecretKey& issuer, std::string const& code)
+Asset
+makeAsset(SecretKey& issuer, std::string const& code)
 {
-    Currency currency;
-    currency.type(CURRENCY_TYPE_ALPHANUM);
-    currency.alphaNum().issuer = issuer.getPublicKey();
-    strToCurrencyCode(currency.alphaNum().currencyCode, code);
-    return currency;
+    Asset asset;
+    asset.type(ASSET_TYPE_CREDIT_ALPHANUM4);
+    asset.alphaNum4().issuer = issuer.getPublicKey();
+    strToAssetCode(asset.alphaNum4().assetCode, code);
+    return asset;
 }
 
 PaymentResult
 applyCreditPaymentTx(Application& app, SecretKey& from, SecretKey& to,
-                     Currency& ci, SequenceNumber seq, int64_t amount,
+    Asset& ci, SequenceNumber seq, int64_t amount,
                      PaymentResultCode result)
 {
     TransactionFramePtr txFrame;
@@ -409,17 +409,17 @@ applyCreditPaymentTx(Application& app, SecretKey& from, SecretKey& to,
 }
 
 TransactionFramePtr
-createPathPaymentTx(SecretKey& from, SecretKey& to, Currency const& sendCur,
-                    int64_t sendMax, Currency const& destCur,
+createPathPaymentTx(SecretKey& from, SecretKey& to, Asset const& sendCur,
+                    int64_t sendMax, Asset const& destCur,
                     int64_t destAmount, SequenceNumber seq,
-                    std::vector<Currency>* path)
+                    std::vector<Asset>* path)
 {
     Operation op;
     op.body.type(PATH_PAYMENT);
     PathPaymentOp& ppop = op.body.pathPaymentOp();
-    ppop.sendCurrency = sendCur;
+    ppop.sendAsset = sendCur;
     ppop.sendMax = sendMax;
-    ppop.destCurrency = destCur;
+    ppop.destAsset = destCur;
     ppop.destAmount = destAmount;
     ppop.destination = to.getPublicKey();
     if (path)
@@ -435,10 +435,10 @@ createPathPaymentTx(SecretKey& from, SecretKey& to, Currency const& sendCur,
 
 PathPaymentResult
 applyPathPaymentTx(Application& app, SecretKey& from, SecretKey& to,
-                   Currency const& sendCur, int64_t sendMax,
-                   Currency const& destCur, int64_t destAmount,
+    Asset const& sendCur, int64_t sendMax,
+    Asset const& destCur, int64_t destAmount,
                    SequenceNumber seq, PathPaymentResultCode result,
-                   std::vector<Currency>* path)
+                   std::vector<Asset>* path)
 {
     TransactionFramePtr txFrame;
 
@@ -459,30 +459,30 @@ applyPathPaymentTx(Application& app, SecretKey& from, SecretKey& to,
 }
 
 TransactionFramePtr
-createPassiveOfferOp(SecretKey& source, Currency& takerGets,
-                     Currency& takerPays, Price const& price, int64_t amount,
+createPassiveOfferOp(SecretKey& source, Asset& selling,
+    Asset& buying, Price const& price, int64_t amount,
                      SequenceNumber seq)
 {
     Operation op;
     op.body.type(CREATE_PASSIVE_OFFER);
     op.body.createPassiveOfferOp().amount = amount;
-    op.body.createPassiveOfferOp().takerGets = takerGets;
-    op.body.createPassiveOfferOp().takerPays = takerPays;
+    op.body.createPassiveOfferOp().selling = selling;
+    op.body.createPassiveOfferOp().buying = buying;
     op.body.createPassiveOfferOp().price = price;
 
     return transactionFromOperation(source, seq, op);
 }
 
 TransactionFramePtr
-manageOfferOp(uint64 offerId, SecretKey& source, Currency& takerGets,
-              Currency& takerPays, Price const& price, int64_t amount,
+manageOfferOp(uint64 offerId, SecretKey& source, Asset& selling,
+    Asset& buying, Price const& price, int64_t amount,
               SequenceNumber seq)
 {
     Operation op;
     op.body.type(MANAGE_OFFER);
     op.body.manageOfferOp().amount = amount;
-    op.body.manageOfferOp().takerGets = takerGets;
-    op.body.manageOfferOp().takerPays = takerPays;
+    op.body.manageOfferOp().selling = selling;
+    op.body.manageOfferOp().buying = buying;
     op.body.manageOfferOp().offerID = offerId;
     op.body.manageOfferOp().price = price;
 
@@ -491,8 +491,8 @@ manageOfferOp(uint64 offerId, SecretKey& source, Currency& takerGets,
 
 static ManageOfferResult
 applyCreateOfferHelper(Application& app, LedgerDelta& delta, uint64 offerId,
-                       SecretKey& source, Currency& takerGets,
-                       Currency& takerPays, Price const& price, int64_t amount,
+                       SecretKey& source, Asset& selling,
+                       Asset& buying, Price const& price, int64_t amount,
                        SequenceNumber seq)
 {
     uint64_t expectedOfferID = delta.getHeaderFrame().getLastGeneratedID() + 1;
@@ -503,7 +503,7 @@ applyCreateOfferHelper(Application& app, LedgerDelta& delta, uint64 offerId,
 
     TransactionFramePtr txFrame;
 
-    txFrame = manageOfferOp(offerId, source, takerGets, takerPays, price,
+    txFrame = manageOfferOp(offerId, source, selling, buying, price,
                             amount, seq);
 
     applyCheck(txFrame, delta, app);
@@ -531,8 +531,8 @@ applyCreateOfferHelper(Application& app, LedgerDelta& delta, uint64 offerId,
             auto& offerEntry = offer->getOffer();
             REQUIRE(offerEntry == offerResult.offer());
             REQUIRE(offerEntry.price == price);
-            REQUIRE(offerEntry.takerGets == takerGets);
-            REQUIRE(offerEntry.takerPays == takerPays);
+            REQUIRE(offerEntry.selling == selling);
+            REQUIRE(offerEntry.buying == buying);
         }
         break;
         case MANAGE_OFFER_DELETED:
@@ -548,11 +548,11 @@ applyCreateOfferHelper(Application& app, LedgerDelta& delta, uint64 offerId,
 
 uint64_t
 applyCreateOffer(Application& app, LedgerDelta& delta, uint64 offerId,
-                 SecretKey& source, Currency& takerGets, Currency& takerPays,
+                 SecretKey& source, Asset& selling, Asset& buying,
                  Price const& price, int64_t amount, SequenceNumber seq)
 {
     ManageOfferResult const& createOfferRes = applyCreateOfferHelper(
-        app, delta, offerId, source, takerGets, takerPays, price, amount, seq);
+        app, delta, offerId, source, selling, buying, price, amount, seq);
 
     REQUIRE(createOfferRes.code() == MANAGE_OFFER_SUCCESS);
 
@@ -565,13 +565,13 @@ applyCreateOffer(Application& app, LedgerDelta& delta, uint64 offerId,
 
 ManageOfferResult
 applyCreateOfferWithResult(Application& app, LedgerDelta& delta, uint64 offerId,
-                           SecretKey& source, Currency& takerGets,
-                           Currency& takerPays, Price const& price,
+                           SecretKey& source, Asset& selling,
+    Asset& buying, Price const& price,
                            int64_t amount, SequenceNumber seq,
                            ManageOfferResultCode result)
 {
     ManageOfferResult const& manageOfferRes = applyCreateOfferHelper(
-        app, delta, offerId, source, takerGets, takerPays, price, amount, seq);
+        app, delta, offerId, source, selling, buying, price, amount, seq);
 
     auto res = manageOfferRes.code();
     REQUIRE(res == result);

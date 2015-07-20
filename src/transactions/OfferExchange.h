@@ -49,8 +49,8 @@ class OfferExchange
     };
     // buys wheat with sheep, crossing as many offers as necessary
     ConvertResult convertWithOffers(
-        Currency const& sheep, int64_t maxSheepSent, int64_t& sheepSend,
-        Currency const& wheat, int64_t maxWheatReceive, int64_t& weatReceived,
+        Asset const& sheep, int64_t maxSheepSent, int64_t& sheepSend,
+        Asset const& wheat, int64_t maxWheatReceive, int64_t& weatReceived,
         std::function<OfferFilterResult(OfferFrame const&)> filter);
 
     std::vector<ClaimOfferAtom> const&

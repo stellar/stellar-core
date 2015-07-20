@@ -48,14 +48,14 @@ EntryFrame::storeLoad(LedgerKey const& key, Database& db)
     {
         auto const& tl = key.trustLine();
         res = std::static_pointer_cast<EntryFrame>(
-            TrustFrame::loadTrustLine(tl.accountID, tl.currency, db));
+            TrustFrame::loadTrustLine(tl.accountID, tl.asset, db));
     }
     break;
     case OFFER:
     {
         auto const& off = key.offer();
         res = std::static_pointer_cast<EntryFrame>(
-            OfferFrame::loadOffer(off.accountID, off.offerID, db));
+            OfferFrame::loadOffer(off.sellerID, off.offerID, db));
     }
     break;
     }
@@ -158,12 +158,12 @@ LedgerEntryKey(LedgerEntry const& e)
     case TRUSTLINE:
         k.type(TRUSTLINE);
         k.trustLine().accountID = e.trustLine().accountID;
-        k.trustLine().currency = e.trustLine().currency;
+        k.trustLine().asset = e.trustLine().asset;
         break;
 
     case OFFER:
         k.type(OFFER);
-        k.offer().accountID = e.offer().accountID;
+        k.offer().sellerID = e.offer().sellerID;
         k.offer().offerID = e.offer().offerID;
         break;
     }

@@ -406,6 +406,12 @@
     <ClInclude Include="..\..\src\util\Timer.h" />
     <ClInclude Include="..\..\src\util\types.h" />
     <ClInclude Include="..\..\src\util\XDRStream.h" />
+    <ClInclude Include="src\generated\xdr\Stellar-ledger-entries.h" />
+    <ClInclude Include="src\generated\xdr\Stellar-ledger.h" />
+    <ClInclude Include="src\generated\xdr\Stellar-overlay.h" />
+    <ClInclude Include="src\generated\xdr\Stellar-SCP.h" />
+    <ClInclude Include="src\generated\xdr\Stellar-transaction.h" />
+    <ClInclude Include="src\generated\xdr\Stellar-types.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="..\..\AUTHORS" />

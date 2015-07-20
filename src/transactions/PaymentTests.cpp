@@ -43,7 +43,7 @@ TEST_CASE("payment", "[tx][payment]")
     SecretKey a1 = getAccount("A");
     SecretKey b1 = getAccount("B");
 
-    Currency xlmCur;
+    Asset xlmCur;
 
     int64_t txfee = app.getLedgerManager().getTxFee();
 
@@ -67,14 +67,14 @@ TEST_CASE("payment", "[tx][payment]")
 
     SecretKey gateway = getAccount("gate");
 
-    const int64_t currencyMultiplier = 1000000;
+    const int64_t assetMultiplier = 1000000;
 
     int64_t trustLineLimit = INT64_MAX;
 
-    int64_t trustLineStartingBalance = 20000 * currencyMultiplier;
+    int64_t trustLineStartingBalance = 20000 * assetMultiplier;
 
-    Currency idrCur = makeCurrency(gateway, "IDR");
-    Currency usdCur = makeCurrency(gateway, "USD");
+    Asset idrCur = makeAsset(gateway, "IDR");
+    Asset usdCur = makeAsset(gateway, "USD");
 
     // sets up gateway account
     const int64_t gatewayPayment = minBalance2 + morePayment;
@@ -311,7 +311,7 @@ TEST_CASE("payment", "[tx][payment]")
 
         uint64_t offerB1 =
             applyCreateOffer(app, delta, 0, b1, idrCur, usdCur, usdPriceOffer,
-                             100 * currencyMultiplier, b1Seq++);
+                             100 * assetMultiplier, b1Seq++);
 
         // setup "c1"
         SecretKey c1 = getAccount("C");
@@ -328,7 +328,7 @@ TEST_CASE("payment", "[tx][payment]")
         // offer is sell 100 IDR for 150 USD ; buy USD @ 1.5 = sell IRD @ 0.66
         uint64_t offerC1 =
             applyCreateOffer(app, delta, 0, c1, idrCur, usdCur, Price(3, 2),
-                             100 * currencyMultiplier, c1Seq++);
+                             100 * assetMultiplier, c1Seq++);
 
         // at this point:
         // a1 holds (0, IDR) (trustLineStartingBalance, USD)
@@ -340,8 +340,8 @@ TEST_CASE("payment", "[tx][payment]")
             // using 149 USD
 
             auto res = applyPathPaymentTx(
-                app, a1, b1, usdCur, 149 * currencyMultiplier, idrCur,
-                100 * currencyMultiplier, a1Seq++, PATH_PAYMENT_OVER_SENDMAX);
+                app, a1, b1, usdCur, 149 * assetMultiplier, idrCur,
+                100 * assetMultiplier, a1Seq++, PATH_PAYMENT_OVER_SENDMAX);
         }
 
         SECTION("send with path (success)")
@@ -350,12 +350,12 @@ TEST_CASE("payment", "[tx][payment]")
             // should cost 150 (C's offer taken entirely) +
             //  50 (1/4 of B's offer)=200 USD
 
-            std::vector<Currency> path;
+            std::vector<Asset> path;
             path.push_back(usdCur);
 
             auto res = applyPathPaymentTx(
-                app, a1, b1, usdCur, 250 * currencyMultiplier, idrCur,
-                125 * currencyMultiplier, a1Seq++, PATH_PAYMENT_SUCCESS);
+                app, a1, b1, usdCur, 250 * assetMultiplier, idrCur,
+                125 * assetMultiplier, a1Seq++, PATH_PAYMENT_SUCCESS);
 
             auto const& multi = res.success();
 
@@ -369,9 +369,9 @@ TEST_CASE("payment", "[tx][payment]")
             REQUIRE(!loadOffer(c1, offerC1, app, false));
             line = loadTrustLine(c1, idrCur, app);
             checkAmounts(line->getBalance(),
-                         trustLineStartingBalance - 100 * currencyMultiplier);
+                         trustLineStartingBalance - 100 * assetMultiplier);
             line = loadTrustLine(c1, usdCur, app);
-            checkAmounts(line->getBalance(), 150 * currencyMultiplier);
+            checkAmounts(line->getBalance(), 150 * assetMultiplier);
 
             // B1
             auto const& b1Res = multi.offers[1];
@@ -379,39 +379,39 @@ TEST_CASE("payment", "[tx][payment]")
             offer = loadOffer(b1, offerB1, app);
             OfferEntry const& oe = offer->getOffer();
             REQUIRE(b1Res.offerOwner == b1.getPublicKey());
-            checkAmounts(b1Res.amountClaimed, 25 * currencyMultiplier);
-            checkAmounts(oe.amount, 75 * currencyMultiplier);
+            checkAmounts(b1Res.amountClaimed, 25 * assetMultiplier);
+            checkAmounts(oe.amount, 75 * assetMultiplier);
             line = loadTrustLine(b1, idrCur, app);
             // 125 where sent, 25 were consumed by B's offer
             checkAmounts(line->getBalance(),
                          trustLineStartingBalance +
-                             (125 - 25) * currencyMultiplier);
+                             (125 - 25) * assetMultiplier);
             line = loadTrustLine(b1, usdCur, app);
-            checkAmounts(line->getBalance(), 50 * currencyMultiplier);
+            checkAmounts(line->getBalance(), 50 * assetMultiplier);
 
             // A1
             line = loadTrustLine(a1, idrCur, app);
             checkAmounts(line->getBalance(), 0);
             line = loadTrustLine(a1, usdCur, app);
             checkAmounts(line->getBalance(),
-                         trustLineStartingBalance - 200 * currencyMultiplier);
+                         trustLineStartingBalance - 200 * assetMultiplier);
         }
         SECTION("send with path (offer participant reaching limit)")
         {
             // make it such that C can only receive 120 USD (4/5th of offerC)
             applyChangeTrust(app, c1, gateway, c1Seq++, "USD",
-                             120 * currencyMultiplier);
+                             120 * assetMultiplier);
 
             // A1: try to send 105 IDR to B1 using USD
             // cost 120 (C's offer maxed out at 4/5th of published amount)
             //  50 (1/4 of B's offer)=170 USD
 
-            std::vector<Currency> path;
+            std::vector<Asset> path;
             path.push_back(usdCur);
 
             auto res = applyPathPaymentTx(
-                app, a1, b1, usdCur, 400 * currencyMultiplier, idrCur,
-                105 * currencyMultiplier, a1Seq++, PATH_PAYMENT_SUCCESS);
+                app, a1, b1, usdCur, 400 * assetMultiplier, idrCur,
+                105 * assetMultiplier, a1Seq++, PATH_PAYMENT_SUCCESS);
 
             auto& multi = res.success();
 
@@ -425,7 +425,7 @@ TEST_CASE("payment", "[tx][payment]")
             REQUIRE(!loadOffer(c1, offerC1, app, false));
             line = loadTrustLine(c1, idrCur, app);
             checkAmounts(line->getBalance(),
-                         trustLineStartingBalance - 80 * currencyMultiplier);
+                         trustLineStartingBalance - 80 * assetMultiplier);
             line = loadTrustLine(c1, usdCur, app);
             checkAmounts(line->getBalance(), line->getTrustLine().limit);
 
@@ -435,22 +435,22 @@ TEST_CASE("payment", "[tx][payment]")
             offer = loadOffer(b1, offerB1, app);
             OfferEntry const& oe = offer->getOffer();
             REQUIRE(b1Res.offerOwner == b1.getPublicKey());
-            checkAmounts(b1Res.amountClaimed, 25 * currencyMultiplier);
-            checkAmounts(oe.amount, 75 * currencyMultiplier);
+            checkAmounts(b1Res.amountClaimed, 25 * assetMultiplier);
+            checkAmounts(oe.amount, 75 * assetMultiplier);
             line = loadTrustLine(b1, idrCur, app);
             // 105 where sent, 25 were consumed by B's offer
             checkAmounts(line->getBalance(),
                          trustLineStartingBalance +
-                             (105 - 25) * currencyMultiplier);
+                             (105 - 25) * assetMultiplier);
             line = loadTrustLine(b1, usdCur, app);
-            checkAmounts(line->getBalance(), 50 * currencyMultiplier);
+            checkAmounts(line->getBalance(), 50 * assetMultiplier);
 
             // A1
             line = loadTrustLine(a1, idrCur, app);
             checkAmounts(line->getBalance(), 0);
             line = loadTrustLine(a1, usdCur, app);
             checkAmounts(line->getBalance(),
-                         trustLineStartingBalance - 170 * currencyMultiplier);
+                         trustLineStartingBalance - 170 * assetMultiplier);
         }
     }
 }

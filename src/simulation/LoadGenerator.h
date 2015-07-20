@@ -34,13 +34,13 @@ class LoadGenerator
     struct AccountInfo;
     using AccountInfoPtr = std::shared_ptr<AccountInfo>;
 
-    static std::string pickRandomCurrency();
+    static std::string pickRandomAsset();
     static const uint32_t STEP_MSECS;
 
     // Primary store of accounts.
     std::vector<AccountInfoPtr> mAccounts;
 
-    // Subset of accounts that have issued credit in some currency.
+    // Subset of accounts that have issued credit in some asset.
     std::vector<AccountInfoPtr> mGateways;
 
     // Subset of accounts that have made offers to trade in some credits.
@@ -115,10 +115,10 @@ class LoadGenerator
         // Used when this account trusts some other account's credits.
         std::vector<TrustLineInfo> mTrustLines;
 
-        // Currency issued, if a gateway, as well as reverse maps to
-        // those accounts that trust this currency and those who are
+        // Asset issued, if a gateway, as well as reverse maps to
+        // those accounts that trust this asset and those who are
         // buying and selling it.
-        std::string mIssuedCurrency;
+        std::string mIssuedAsset;
         std::vector<AccountInfoPtr> mTrustingAccounts;
         std::vector<AccountInfoPtr> mBuyingAccounts;
         std::vector<AccountInfoPtr> mSellingAccounts;

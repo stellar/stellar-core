@@ -50,19 +50,19 @@ PathPaymentOpFrame::doApply(medida::MetricsRegistry& metrics,
 
     // tracks the last amount that was traded
     int64_t curBReceived = mPathPayment.destAmount;
-    Currency curB = mPathPayment.destCurrency;
+    Asset curB = mPathPayment.destAsset;
 
     // update balances, walks backwards
 
-    // build the full path to the destination, starting with sendCurrency
-    std::vector<Currency> fullPath;
-    fullPath.emplace_back(mPathPayment.sendCurrency);
+    // build the full path to the destination, starting with sendAsset
+    std::vector<Asset> fullPath;
+    fullPath.emplace_back(mPathPayment.sendAsset);
     fullPath.insert(fullPath.end(), mPathPayment.path.begin(),
                     mPathPayment.path.end());
 
     // update last balance in the chain
     {
-        if (curB.type() == CURRENCY_TYPE_NATIVE)
+        if (curB.type() == ASSET_TYPE_NATIVE)
         {
             destination->getAccount().balance += curBReceived;
             destination->storeChange(delta, db);
@@ -109,7 +109,7 @@ PathPaymentOpFrame::doApply(medida::MetricsRegistry& metrics,
     for (int i = (int)fullPath.size() - 1; i >= 0; i--)
     {
         int64_t curASent, actualCurBReceived;
-        Currency const& curA = fullPath[i];
+        Asset const& curA = fullPath[i];
 
         if (curA == curB)
         {
@@ -165,7 +165,7 @@ PathPaymentOpFrame::doApply(medida::MetricsRegistry& metrics,
         return false;
     }
 
-    if (curB.type() == CURRENCY_TYPE_NATIVE)
+    if (curB.type() == ASSET_TYPE_NATIVE)
     {
         int64_t minBalance = mSourceAccount->getMinimumBalance(ledgerManager);
 
@@ -183,7 +183,10 @@ PathPaymentOpFrame::doApply(medida::MetricsRegistry& metrics,
     else
     {
         AccountFrame::pointer issuer;
-        issuer = AccountFrame::loadAccount(curB.alphaNum().issuer, db);
+        if(curB.type()==ASSET_TYPE_CREDIT_ALPHANUM4)
+            issuer = AccountFrame::loadAccount(curB.alphaNum4().issuer, db);
+        else if(curB.type()==ASSET_TYPE_CREDIT_ALPHANUM12)
+            issuer = AccountFrame::loadAccount(curB.alphaNum12().issuer, db);
 
         if (!issuer)
         {
@@ -238,8 +241,8 @@ PathPaymentOpFrame::doCheckValid(medida::MetricsRegistry& metrics)
         innerResult().code(PATH_PAYMENT_MALFORMED);
         return false;
     }
-    if (!isCurrencyValid(mPathPayment.sendCurrency) ||
-        !isCurrencyValid(mPathPayment.destCurrency))
+    if (!isAssetValid(mPathPayment.sendAsset) ||
+        !isAssetValid(mPathPayment.destAsset))
     {
         metrics.NewMeter({"op-path-payment", "invalid", "malformed-currencies"},
                          "operation").Mark();
@@ -247,7 +250,7 @@ PathPaymentOpFrame::doCheckValid(medida::MetricsRegistry& metrics)
         return false;
     }
     auto const& p = mPathPayment.path;
-    if (!std::all_of(p.begin(), p.end(), isCurrencyValid))
+    if (!std::all_of(p.begin(), p.end(), isAssetValid))
     {
         metrics.NewMeter({"op-path-payment", "invalid", "malformed-currencies"},
                          "operation").Mark();

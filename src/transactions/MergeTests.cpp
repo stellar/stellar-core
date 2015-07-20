@@ -39,9 +39,9 @@ TEST_CASE("merge", "[tx][merge]")
     SecretKey b1 = getAccount("B");
     SecretKey gateway = getAccount("gate");
 
-    const int64_t currencyMultiplier = 1000000;
+    const int64_t assetMultiplier = 1000000;
 
-    int64_t trustLineBalance = 100000 * currencyMultiplier;
+    int64_t trustLineBalance = 100000 * assetMultiplier;
     int64_t trustLineLimit = trustLineBalance * 10;
 
     int64_t txfee = app.getLedgerManager().getTxFee();
@@ -70,7 +70,7 @@ TEST_CASE("merge", "[tx][merge]")
 
     SequenceNumber gw_seq = getAccountSeqNum(gateway, app) + 1;
 
-    Currency usdCur = makeCurrency(gateway, "USD");
+    Asset usdCur = makeAsset(gateway, "USD");
     applyChangeTrust(app, a1, gateway, a1_seq++, "USD", trustLineLimit);
     applyCreditPaymentTx(app, gateway, a1, usdCur, gw_seq++, trustLineBalance);
 
@@ -91,14 +91,14 @@ TEST_CASE("merge", "[tx][merge]")
     {
         SECTION("with offers")
         {
-            Currency xlmCur;
-            xlmCur.type(CurrencyType::CURRENCY_TYPE_NATIVE);
+            Asset xlmCur;
+            xlmCur.type(AssetType::ASSET_TYPE_NATIVE);
 
             const Price somePrice(3, 2);
             for (int i = 0; i < 4; i++)
             {
                 applyCreateOffer(app, delta, 0, a1, xlmCur, usdCur, somePrice,
-                                 100 * currencyMultiplier, a1_seq++);
+                                 100 * assetMultiplier, a1_seq++);
             }
         }
 

@@ -18,12 +18,14 @@ namespace stellar
 const char* OfferFrame::kSQLCreateStatement1 =
     "CREATE TABLE offers"
     "("
-    "accountid       VARCHAR(56)  NOT NULL,"
+    "sellerid       VARCHAR(56)  NOT NULL,"
     "offerid         BIGINT       NOT NULL CHECK (offerid >= 0),"
-    "paysalphanumcurrency VARCHAR(4),"
-    "paysissuer      VARCHAR(56),"
-    "getsalphanumcurrency VARCHAR(4),"
-    "getsissuer      VARCHAR(56),"
+    "sellingassettype    INT,"
+    "sellingassetcode    VARCHAR(12),"
+    "sellingissuer       VARCHAR(56),"
+    "buyingassettype    INT,"
+    "buyingassetcode    VARCHAR(12),"
+    "buyingissuer       VARCHAR(56),"
     "amount          BIGINT       NOT NULL CHECK (amount >= 0),"
     "pricen          INT          NOT NULL,"
     "priced          INT          NOT NULL,"
@@ -33,13 +35,17 @@ const char* OfferFrame::kSQLCreateStatement1 =
     ");";
 
 const char* OfferFrame::kSQLCreateStatement2 =
-    "CREATE INDEX paysissuerindex ON offers (paysissuer);";
+    "CREATE INDEX sellingissuerindex ON offers (sellingissuer);";
 
 const char* OfferFrame::kSQLCreateStatement3 =
-    "CREATE INDEX getsissuerindex ON offers (getsissuer);";
+    "CREATE INDEX buyingissuerindex ON offers (buyingissuer);";
 
 const char* OfferFrame::kSQLCreateStatement4 =
     "CREATE INDEX priceindex ON offers (price);";
+
+static const char* offerColumnSelector =
+"SELECT sellerid,offerid,sellingassettype,sellingassetcode,sellingissuer,"
+"buyingassettype,buyingassetcode,buyingissuer,amount,pricen,priced,flags FROM offers";
 
 OfferFrame::OfferFrame() : EntryFrame(OFFER), mOffer(mEntry.offer())
 {
@@ -70,12 +76,12 @@ OfferFrame::from(AccountID const& account, ManageOfferOp const& op)
 {
     OfferFrame::pointer res = make_shared<OfferFrame>();
     OfferEntry& o = res->mEntry.offer();
-    o.accountID = account;
+    o.sellerID = account;
     o.amount = op.amount;
     o.price = op.price;
     o.offerID = op.offerID;
-    o.takerGets = op.takerGets;
-    o.takerPays = op.takerPays;
+    o.selling = op.selling;
+    o.buying = op.buying;
     o.flags = 0;
     return res;
 }
@@ -93,20 +99,20 @@ OfferFrame::getAmount() const
 }
 
 AccountID const&
-OfferFrame::getAccountID() const
+OfferFrame::getSellerID() const
 {
-    return mOffer.accountID;
+    return mOffer.sellerID;
 }
 
-Currency const&
-OfferFrame::getTakerPays() const
+Asset const&
+OfferFrame::getBuying() const
 {
-    return mOffer.takerPays;
+    return mOffer.buying;
 }
-Currency const&
-OfferFrame::getTakerGets() const
+Asset const&
+OfferFrame::getSelling() const
 {
-    return mOffer.takerGets;
+    return mOffer.selling;
 }
 
 uint64
@@ -121,24 +127,21 @@ OfferFrame::getFlags() const
     return mOffer.flags;
 }
 
-static const char* offerColumnSelector =
-    "SELECT accountid,offerid,paysalphanumcurrency,paysissuer,"
-    "getsalphanumcurrency,getsissuer,amount,pricen,priced,flags FROM offers";
 
 OfferFrame::pointer
-OfferFrame::loadOffer(AccountID const& accountID, uint64_t offerID,
+OfferFrame::loadOffer(AccountID const& sellerID, uint64_t offerID,
                       Database& db)
 {
     OfferFrame::pointer retOffer;
 
     std::string actIDStrKey;
-    actIDStrKey = PubKeyUtils::toStrKey(accountID);
+    actIDStrKey = PubKeyUtils::toStrKey(sellerID);
 
     soci::session& session = db.getSession();
 
     soci::details::prepare_temp_type sql =
         (session.prepare << offerColumnSelector
-                         << " where accountid=:id and offerid=:offerid",
+                         << " where sellerid=:id and offerid=:offerid",
          use(actIDStrKey), use(offerID));
 
     auto timer = db.getSelectTimer("offer");
@@ -155,11 +158,12 @@ OfferFrame::loadOffers(soci::details::prepare_temp_type& prep,
                        std::function<void(LedgerEntry const&)> offerProcessor)
 {
     string actIDStrKey;
-    std::string paysAlphaNumCurrency, getsAlphaNumCurrency, paysIssuerStrKey,
-        getsIssuerStrKey;
+    unsigned int sellingAssetType, buyingAssetType;
+    std::string sellingAssetCode, buyingAssetCode, sellingIssuerStrKey,
+        buyingIssuerStrKey;
 
-    soci::indicator paysAlphaNumIndicator, getsAlphaNumIndicator,
-        paysIssuerIndicator, getsIssuerIndicator;
+    soci::indicator sellingAssetCodeIndicator, buyingAssetCodeIndicator,
+        sellingIssuerIndicator, buyingIssuerIndicator;
 
     LedgerEntry le;
     le.type(OFFER);
@@ -167,48 +171,71 @@ OfferFrame::loadOffers(soci::details::prepare_temp_type& prep,
 
     statement st =
         (prep, into(actIDStrKey), into(oe.offerID),
-         into(paysAlphaNumCurrency, paysAlphaNumIndicator),
-         into(paysIssuerStrKey, paysIssuerIndicator),
-         into(getsAlphaNumCurrency, getsAlphaNumIndicator),
-         into(getsIssuerStrKey, getsIssuerIndicator), into(oe.amount),
+         into(sellingAssetType),
+         into(sellingAssetCode, sellingAssetCodeIndicator),
+         into(sellingIssuerStrKey, sellingIssuerIndicator),
+         into(buyingAssetType),
+         into(buyingAssetCode, buyingAssetCodeIndicator),
+         into(buyingIssuerStrKey, buyingIssuerIndicator), into(oe.amount),
          into(oe.price.n), into(oe.price.d), into(oe.flags));
 
     st.execute(true);
-    while (st.got_data())
+    while(st.got_data())
     {
-        oe.accountID = PubKeyUtils::fromStrKey(actIDStrKey);
-        if (paysAlphaNumIndicator == soci::i_ok)
+        oe.sellerID = PubKeyUtils::fromStrKey(actIDStrKey);
+        if( (buyingAssetType > ASSET_TYPE_CREDIT_ALPHANUM12) ||
+            (sellingAssetType > ASSET_TYPE_CREDIT_ALPHANUM12) )
+            throw std::runtime_error("bad database state");
+
+        oe.buying.type((AssetType)buyingAssetType);
+        oe.selling.type((AssetType)sellingAssetType);
+        if(sellingAssetType != ASSET_TYPE_NATIVE)
         {
-            if (paysIssuerIndicator != soci::i_ok)
+            if((sellingAssetCodeIndicator != soci::i_ok) ||
+                (sellingIssuerIndicator != soci::i_ok))
             {
                 throw std::runtime_error("bad database state");
             }
-            oe.takerPays.type(CURRENCY_TYPE_ALPHANUM);
-            strToCurrencyCode(oe.takerPays.alphaNum().currencyCode,
-                              paysAlphaNumCurrency);
-            oe.takerPays.alphaNum().issuer =
-                PubKeyUtils::fromStrKey(paysIssuerStrKey);
+            
+            if(sellingAssetType == ASSET_TYPE_CREDIT_ALPHANUM12)
+            {
+                oe.selling.alphaNum12().issuer =
+                    PubKeyUtils::fromStrKey(sellingIssuerStrKey);
+                strToAssetCode(oe.selling.alphaNum12().assetCode,
+                    sellingAssetCode);
+            } else if(sellingAssetType == ASSET_TYPE_CREDIT_ALPHANUM4)
+            {
+                oe.selling.alphaNum4().issuer =
+                    PubKeyUtils::fromStrKey(sellingIssuerStrKey);
+                strToAssetCode(oe.selling.alphaNum4().assetCode,
+                    sellingAssetCode);
+            }
+                
         }
-        else
+
+        if(buyingAssetType != ASSET_TYPE_NATIVE)
         {
-            oe.takerPays.type(CURRENCY_TYPE_NATIVE);
-        }
-        if (getsAlphaNumIndicator == soci::i_ok)
-        {
-            if (getsIssuerIndicator != soci::i_ok)
+            if((buyingAssetCodeIndicator != soci::i_ok) ||
+                (buyingIssuerIndicator != soci::i_ok))
             {
                 throw std::runtime_error("bad database state");
             }
-            oe.takerGets.type(CURRENCY_TYPE_ALPHANUM);
-            strToCurrencyCode(oe.takerGets.alphaNum().currencyCode,
-                              getsAlphaNumCurrency);
-            oe.takerGets.alphaNum().issuer =
-                PubKeyUtils::fromStrKey(getsIssuerStrKey);
+
+            if(buyingAssetType == ASSET_TYPE_CREDIT_ALPHANUM12)
+            {
+                oe.buying.alphaNum12().issuer =
+                    PubKeyUtils::fromStrKey(buyingIssuerStrKey);
+                strToAssetCode(oe.buying.alphaNum12().assetCode,
+                    buyingAssetCode);
+            } else if(buyingAssetType == ASSET_TYPE_CREDIT_ALPHANUM4)
+            {
+                oe.buying.alphaNum4().issuer =
+                    PubKeyUtils::fromStrKey(buyingIssuerStrKey);
+                strToAssetCode(oe.buying.alphaNum4().assetCode,
+                    buyingAssetCode);
+            }
         }
-        else
-        {
-            oe.takerGets.type(CURRENCY_TYPE_NATIVE);
-        }
+       
         offerProcessor(le);
         st.fetch();
     }
@@ -216,7 +243,7 @@ OfferFrame::loadOffers(soci::details::prepare_temp_type& prep,
 
 void
 OfferFrame::loadBestOffers(size_t numOffers, size_t offset,
-                           Currency const& pays, Currency const& gets,
+                           Asset const& selling, Asset const& buying,
                            vector<OfferFrame::pointer>& retOffers, Database& db)
 {
     soci::session& session = db.getSession();
@@ -224,32 +251,47 @@ OfferFrame::loadBestOffers(size_t numOffers, size_t offset,
     soci::details::prepare_temp_type sql =
         (session.prepare << offerColumnSelector);
 
-    std::string getCurrencyCode, getsIssuerStrKey;
-    std::string payCurrencyCode, paysIssuerStrKey;
+    std::string sellingAssetCode, sellingIssuerStrKey;
+    std::string buyingAssetCode, buyingIssuerStrKey;
 
-    if (pays.type() == CURRENCY_TYPE_NATIVE)
+    if (selling.type() == ASSET_TYPE_NATIVE)
     {
-        sql << " WHERE paysissuer IS NULL";
+        sql << " WHERE sellingassettype=0";
     }
     else
     {
-        currencyCodeToStr(pays.alphaNum().currencyCode, payCurrencyCode);
-        paysIssuerStrKey = PubKeyUtils::toStrKey(pays.alphaNum().issuer);
-        sql << " WHERE paysalphanumcurrency=:pcur AND paysissuer = :pi",
-            use(payCurrencyCode), use(paysIssuerStrKey);
+        if(selling.type() == ASSET_TYPE_CREDIT_ALPHANUM4)
+        {
+            assetCodeToStr(selling.alphaNum4().assetCode, sellingAssetCode);
+            sellingIssuerStrKey = PubKeyUtils::toStrKey(selling.alphaNum4().issuer);
+        } else if(selling.type() == ASSET_TYPE_CREDIT_ALPHANUM12)
+        {
+            assetCodeToStr(selling.alphaNum12().assetCode, sellingAssetCode);
+            sellingIssuerStrKey = PubKeyUtils::toStrKey(selling.alphaNum12().issuer);
+        }else throw std::runtime_error("unknown asset type");
+
+        sql << " WHERE sellingassetcode=:pcur AND sellingissuer = :pi",
+            use(sellingAssetCode), use(sellingIssuerStrKey);
     }
 
-    if (gets.type() == CURRENCY_TYPE_NATIVE)
+    if (buying.type() == ASSET_TYPE_NATIVE)
     {
-        sql << " AND getsissuer IS NULL";
+        sql << " AND buyingassettype=0";
     }
     else
     {
-        currencyCodeToStr(gets.alphaNum().currencyCode, getCurrencyCode);
-        getsIssuerStrKey = PubKeyUtils::toStrKey(gets.alphaNum().issuer);
+        if(buying.type() == ASSET_TYPE_CREDIT_ALPHANUM4)
+        {
+            assetCodeToStr(buying.alphaNum4().assetCode, buyingAssetCode);
+            buyingIssuerStrKey = PubKeyUtils::toStrKey(buying.alphaNum4().issuer);
+        } else if(buying.type() == ASSET_TYPE_CREDIT_ALPHANUM12)
+        {
+            assetCodeToStr(buying.alphaNum12().assetCode, buyingAssetCode);
+            buyingIssuerStrKey = PubKeyUtils::toStrKey(buying.alphaNum12().issuer);
+        }else throw std::runtime_error("unknown asset type");
 
-        sql << " AND getsalphanumcurrency=:gcur AND getsissuer = :gi",
-            use(getCurrencyCode), use(getsIssuerStrKey);
+        sql << " AND buyingassetcode=:gcur AND buyingissuer = :gi",
+            use(buyingAssetCode), use(buyingIssuerStrKey);
     }
     sql << " ORDER BY price,offerid LIMIT :n OFFSET :o", use(numOffers),
         use(offset);
@@ -272,7 +314,7 @@ OfferFrame::loadOffers(AccountID const& accountID,
     actIDStrKey = PubKeyUtils::toStrKey(accountID);
 
     soci::details::prepare_temp_type sql =
-        (session.prepare << offerColumnSelector << " WHERE accountid=:id",
+        (session.prepare << offerColumnSelector << " WHERE sellerid=:id",
          use(actIDStrKey));
 
     auto timer = db.getSelectTimer("offer");
@@ -285,11 +327,11 @@ OfferFrame::loadOffers(AccountID const& accountID,
 bool
 OfferFrame::exists(Database& db, LedgerKey const& key)
 {
-    std::string actIDStrKey = PubKeyUtils::toStrKey(key.offer().accountID);
+    std::string actIDStrKey = PubKeyUtils::toStrKey(key.offer().sellerID);
     int exists = 0;
     auto timer = db.getSelectTimer("offer-exists");
     db.getSession() << "SELECT EXISTS (SELECT NULL FROM offers "
-                       "WHERE accountid=:id AND offerid=:s)",
+                       "WHERE sellerid=:id AND offerid=:s)",
         use(actIDStrKey), use(key.offer().offerID), into(exists);
     return exists != 0;
 }
@@ -351,69 +393,62 @@ OfferFrame::storeChange(LedgerDelta& delta, Database& db) const
 void
 OfferFrame::storeAdd(LedgerDelta& delta, Database& db) const
 {
-    std::string actIDStrKey = PubKeyUtils::toStrKey(mOffer.accountID);
+    std::string actIDStrKey = PubKeyUtils::toStrKey(mOffer.sellerID);
 
     soci::statement st(db.getSession().prepare << "select 1");
 
     auto timer = db.getInsertTimer("offer");
 
-    if (mOffer.takerGets.type() == CURRENCY_TYPE_NATIVE)
+    unsigned int sellingType = mOffer.selling.type();
+    unsigned int buyingType = mOffer.buying.type();
+    std::string sellingIssuerStrKey, buyingIssuerStrKey;
+    std::string sellingAssetCode, buyingAssetCode;
+
+    if(sellingType == ASSET_TYPE_CREDIT_ALPHANUM4)
     {
-        std::string issuerStrKey =
-            PubKeyUtils::toStrKey(mOffer.takerPays.alphaNum().issuer);
-        std::string currencyCode;
-        currencyCodeToStr(mOffer.takerPays.alphaNum().currencyCode,
-                          currencyCode);
-        st = (db.getSession().prepare
-                  << "INSERT INTO offers "
-                     "(accountid,offerid,paysalphanumcurrency,paysissuer,"
-                     "amount,pricen,priced,price,flags) VALUES"
-                     "(:v1,:v2,:v3,:v4,:v5,:v6,:v7,:v8,:v9)",
-              use(actIDStrKey), use(mOffer.offerID), use(currencyCode),
-              use(issuerStrKey), use(mOffer.amount), use(mOffer.price.n),
-              use(mOffer.price.d), use(computePrice()), use(mOffer.flags));
-        st.execute(true);
-    }
-    else if (mOffer.takerPays.type() == CURRENCY_TYPE_NATIVE)
+        sellingIssuerStrKey =
+            PubKeyUtils::toStrKey(mOffer.selling.alphaNum4().issuer); 
+        assetCodeToStr(mOffer.selling.alphaNum4().assetCode,
+            sellingAssetCode);
+       
+    } else if(sellingType == ASSET_TYPE_CREDIT_ALPHANUM12)
     {
-        std::string issuerStrKey =
-            PubKeyUtils::toStrKey(mOffer.takerGets.alphaNum().issuer);
-        std::string currencyCode;
-        currencyCodeToStr(mOffer.takerGets.alphaNum().currencyCode,
-                          currencyCode);
-        st = (db.getSession().prepare
-                  << "INSERT INTO offers "
-                     "(accountid,offerid,getsalphanumcurrency,getsissuer,"
-                     "amount,pricen,priced,price,flags) VALUES"
-                     "(:v1,:v2,:v3,:v4,:v5,:v6,:v7,:v8,:v9)",
-              use(actIDStrKey), use(mOffer.offerID), use(currencyCode),
-              use(issuerStrKey), use(mOffer.amount), use(mOffer.price.n),
-              use(mOffer.price.d), use(computePrice()), use(mOffer.flags));
-        st.execute(true);
+        sellingIssuerStrKey =
+            PubKeyUtils::toStrKey(mOffer.selling.alphaNum12().issuer);
+        assetCodeToStr(mOffer.selling.alphaNum12().assetCode,
+            sellingAssetCode);
     }
-    else
+
+    if(buyingType == ASSET_TYPE_CREDIT_ALPHANUM4)
     {
-        std::string paysIssuerStrKey =
-            PubKeyUtils::toStrKey(mOffer.takerPays.alphaNum().issuer);
-        std::string paysAlphaNumCurrency, getsAlphaNumCurrency;
-        currencyCodeToStr(mOffer.takerPays.alphaNum().currencyCode,
-                          paysAlphaNumCurrency);
-        std::string getsIssuerStrKey =
-            PubKeyUtils::toStrKey(mOffer.takerGets.alphaNum().issuer);
-        currencyCodeToStr(mOffer.takerGets.alphaNum().currencyCode,
-                          getsAlphaNumCurrency);
-        st = (db.getSession().prepare
-                  << "INSERT INTO offers (accountid,offerid,"
-                     "paysalphanumcurrency,paysissuer,getsalphanumcurrency,"
-                     "getsissuer,"
-                     "amount,pricen,priced,price,flags) VALUES "
-                     "(:v1,:v2,:v3,:v4,:v5,:v6,:v7,:v8,:v9,:v10,:v11)",
-              use(actIDStrKey), use(mOffer.offerID), use(paysAlphaNumCurrency),
-              use(paysIssuerStrKey), use(getsAlphaNumCurrency),
-              use(getsIssuerStrKey), use(mOffer.amount), use(mOffer.price.n),
-              use(mOffer.price.d), use(computePrice()), use(mOffer.flags));
-        st.execute(true);
+        buyingIssuerStrKey =
+            PubKeyUtils::toStrKey(mOffer.buying.alphaNum4().issuer);
+        assetCodeToStr(mOffer.buying.alphaNum4().assetCode,
+            buyingAssetCode);
+
+    } else if(buyingType == ASSET_TYPE_CREDIT_ALPHANUM12)
+    {
+        buyingIssuerStrKey =
+            PubKeyUtils::toStrKey(mOffer.buying.alphaNum12().issuer);
+        assetCodeToStr(mOffer.buying.alphaNum12().assetCode,
+            buyingAssetCode);
     }
+    
+   
+    
+    st = (db.getSession().prepare
+        << "INSERT INTO offers (sellerid,offerid,"
+        "sellingassettype,sellingassetcode,sellingissuer,"
+        "buyingassettype,buyingassetcode,buyingissuer,"
+        "amount,pricen,priced,price,flags) VALUES "
+        "(:v1,:v2,:v3,:v4,:v5,:v6,:v7,:v8,:v9,:v10,:v11,:v12,:v13)",
+        use(actIDStrKey), use(mOffer.offerID), use(sellingType), 
+        use(sellingAssetCode),
+        use(sellingIssuerStrKey), use(buyingType), use(buyingAssetCode),
+        use(buyingIssuerStrKey), use(mOffer.amount), use(mOffer.price.n),
+        use(mOffer.price.d), use(computePrice()), use(mOffer.flags));
+    st.execute(true);
+    
 
     if (st.get_affected_rows() != 1)
     {

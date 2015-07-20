@@ -241,7 +241,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                     createPaymentTx(a1, root, a1Seq++, 1000);
                 SECTION("one invalid tx")
                 {
-                    Currency idrCur = makeCurrency(b1, "IDR");
+                    Asset idrCur = makeAsset(b1, "IDR");
                     Price price(1, 1);
                     TransactionFramePtr tx_b = manageOfferOp(
                         0, b1, idrCur, idrCur, price, 1000, b1Seq);

@@ -106,9 +106,9 @@ account (also known as reserve). See LedgerManager::getMinBalance for more detai
 
 ###TrustLineEntry
 Trust lines are lines of credit the account has given a particular issuer in a 
-specific currency.
+specific asset.
 
-It defines the rules around the use of this currency.
+It defines the rules around the use of this asset.
 Rules can be defined by the user (balance limit to limit risk), or by
 the issuer (authorized flag for example).
 

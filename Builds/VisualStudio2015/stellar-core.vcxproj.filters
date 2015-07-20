@@ -64,9 +64,6 @@
     <Filter Include="herder">
       <UniqueIdentifier>{951355b1-432c-4dbe-87c0-bf77b6fab706}</UniqueIdentifier>
     </Filter>
-    <Filter Include="overlay\generated">
-      <UniqueIdentifier>{a9692317-8851-4932-8329-6d2bb1a54787}</UniqueIdentifier>
-    </Filter>
     <Filter Include="xdr">
       <UniqueIdentifier>{fe536180-763e-40aa-8c30-2a100a064b94}</UniqueIdentifier>
     </Filter>
@@ -84,6 +81,9 @@
     </Filter>
     <Filter Include="herder\docs">
       <UniqueIdentifier>{aa45d521-588a-4f8f-b737-d3667c7d9404}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="xdr\generated">
+      <UniqueIdentifier>{02035318-e72a-43b0-a250-8b3af9fb4bbf}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -491,9 +491,6 @@
     <ClInclude Include="..\..\src\overlay\OverlayManagerImpl.h">
       <Filter>overlay</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\generated\StellarXDR.h">
-      <Filter>overlay\generated</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\src\main\Config.h">
       <Filter>main</Filter>
     </ClInclude>
@@ -788,6 +785,25 @@
     <ClInclude Include="..\..\src\main\dumpxdr.h">
       <Filter>main</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\src\overlay\StellarXDR.h" />
+    <ClInclude Include="src\generated\xdr\Stellar-ledger.h">
+      <Filter>xdr\generated</Filter>
+    </ClInclude>
+    <ClInclude Include="src\generated\xdr\Stellar-ledger-entries.h">
+      <Filter>xdr\generated</Filter>
+    </ClInclude>
+    <ClInclude Include="src\generated\xdr\Stellar-overlay.h">
+      <Filter>xdr\generated</Filter>
+    </ClInclude>
+    <ClInclude Include="src\generated\xdr\Stellar-SCP.h">
+      <Filter>xdr\generated</Filter>
+    </ClInclude>
+    <ClInclude Include="src\generated\xdr\Stellar-transaction.h">
+      <Filter>xdr\generated</Filter>
+    </ClInclude>
+    <ClInclude Include="src\generated\xdr\Stellar-types.h">
+      <Filter>xdr\generated</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="..\..\AUTHORS" />
@@ -858,9 +874,6 @@
     </None>
   </ItemGroup>
   <ItemGroup>
-    <CustomBuild Include="..\..\src\overlay\StellarXDR.x">
-      <Filter>overlay</Filter>
-    </CustomBuild>
     <CustomBuild Include="..\..\src\xdr\Stellar-ledger.x">
       <Filter>xdr</Filter>
     </CustomBuild>
@@ -876,8 +889,6 @@
     <CustomBuild Include="..\..\src\xdr\Stellar-ledger-entries.x">
       <Filter>xdr</Filter>
     </CustomBuild>
-    <CustomBuild Include="..\..\src\scp\Stellar-SCP.x">
-      <Filter>scp</Filter>
-    </CustomBuild>
+    <CustomBuild Include="..\..\src\xdr\Stellar-SCP.x" />
   </ItemGroup>
 </Project>

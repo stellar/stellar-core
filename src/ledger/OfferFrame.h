@@ -56,9 +56,9 @@ class OfferFrame : public EntryFrame
 
     Price const& getPrice() const;
     int64_t getAmount() const;
-    AccountID const& getAccountID() const;
-    Currency const& getTakerPays() const;
-    Currency const& getTakerGets() const;
+    AccountID const& getSellerID() const;
+    Asset const& getBuying() const;
+    Asset const& getSelling() const;
     uint64 getOfferID() const;
     uint32 getFlags() const;
 
@@ -89,7 +89,7 @@ class OfferFrame : public EntryFrame
                              Database& db);
 
     static void loadBestOffers(size_t numOffers, size_t offset,
-                               Currency const& pays, Currency const& gets,
+        Asset const& pays, Asset const& gets,
                                std::vector<OfferFrame::pointer>& retOffers,
                                Database& db);
 

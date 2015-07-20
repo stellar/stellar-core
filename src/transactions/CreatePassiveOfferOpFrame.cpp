@@ -12,8 +12,8 @@ ManageOfferOpHolder::ManageOfferOpHolder(Operation const& op)
 {
     mCreateOp.body.type(MANAGE_OFFER);
     mCreateOp.body.manageOfferOp().amount = op.body.createPassiveOfferOp().amount;
-    mCreateOp.body.manageOfferOp().takerGets = op.body.createPassiveOfferOp().takerGets;
-    mCreateOp.body.manageOfferOp().takerPays = op.body.createPassiveOfferOp().takerPays;
+    mCreateOp.body.manageOfferOp().buying = op.body.createPassiveOfferOp().buying;
+    mCreateOp.body.manageOfferOp().selling = op.body.createPassiveOfferOp().selling;
     mCreateOp.body.manageOfferOp().offerID = 0;
     mCreateOp.body.manageOfferOp().price = op.body.createPassiveOfferOp().price;
     mCreateOp.sourceAccount = op.sourceAccount;

@@ -459,7 +459,7 @@ TEST_CASE("merging bucket entries", "[bucket]")
         liveEntry.trustLine() = tlGen(10);
         deadEntry.type(TRUSTLINE);
         deadEntry.trustLine().accountID = liveEntry.trustLine().accountID;
-        deadEntry.trustLine().currency = liveEntry.trustLine().currency;
+        deadEntry.trustLine().asset = liveEntry.trustLine().asset;
         std::vector<LedgerEntry> live{liveEntry};
         std::vector<LedgerKey> dead{deadEntry};
         std::shared_ptr<Bucket> b1 =
@@ -472,7 +472,7 @@ TEST_CASE("merging bucket entries", "[bucket]")
         liveEntry.type(OFFER);
         liveEntry.offer() = ofGen(10);
         deadEntry.type(OFFER);
-        deadEntry.offer().accountID = liveEntry.offer().accountID;
+        deadEntry.offer().sellerID = liveEntry.offer().sellerID;
         deadEntry.offer().offerID = liveEntry.offer().offerID;
         std::vector<LedgerEntry> live{liveEntry};
         std::vector<LedgerKey> dead{deadEntry};
