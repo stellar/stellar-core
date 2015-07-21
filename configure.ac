@@ -123,7 +123,7 @@ if test yes != "$enable_shared"; then
    ac_configure_args="$ac_configure_args --disable-shared"
 fi
 
-PKG_CHECK_MODULES(sqlite3, sqlite3,, sqlite3_INTERNAL=yes)
+PKG_CHECK_MODULES(sqlite3, sqlite3, :, sqlite3_INTERNAL=yes)
 AM_CONDITIONAL(SQLITE3_INTERNAL, [test yes = "$sqlite3_INTERNAL"])
 if test yes = "$sqlite3_INTERNAL"; then
    sqlite3_CFLAGS=-I'$(top_srcdir)/lib/sqlite'
