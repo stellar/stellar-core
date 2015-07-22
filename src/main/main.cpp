@@ -99,6 +99,16 @@ usage(int err = 1)
 }
 
 static void
+setNoListen(Config& cfg)
+{
+    // prevent opening up a port for other peers
+    cfg.RUN_STANDALONE = true;
+    cfg.HTTP_PORT = 0;
+    cfg.MANUAL_CLOSE = true;
+}
+
+
+static void
 sendCommand(std::string const& command, const std::vector<char*>& rest,
             unsigned short port)
 {
@@ -196,11 +206,6 @@ initializeDatabase(Config& cfg)
 int
 initializeHistories(Config& cfg, vector<string> newHistories)
 {
-    // prevent opening up a port for other peers
-    cfg.RUN_STANDALONE = true;
-    cfg.HTTP_PORT = 0;
-    cfg.MANUAL_CLOSE = true;
-
     VirtualClock clock;
     Application::pointer app = Application::create(clock, cfg);
 
@@ -372,6 +377,7 @@ main(int argc, char* const* argv)
 
         if (forceSCP || newDB || getInfo)
         {
+            setNoListen(cfg);
             if (newDB)
                 initializeDatabase(cfg);
             if (forceSCP)
@@ -382,6 +388,7 @@ main(int argc, char* const* argv)
         }
         else if (!newHistories.empty())
         {
+            setNoListen(cfg);
             return initializeHistories(cfg, newHistories);
         }
 
