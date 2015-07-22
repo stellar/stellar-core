@@ -438,6 +438,13 @@ StateSnapshot::writeHistoryBlocks() const
                            << mTransactionSnapFile->localPath_nogz() << " and "
                            << mTransactionResultSnapFile->localPath_nogz();
 
+    if (nHeaders != count)
+    {
+        CLOG(WARNING, "History") << "Only wrote " << nHeaders << " ledger headers for "
+                                 << mLedgerSnapFile->localPath_nogz() << ", expecting "
+                                 << count;
+    }
+
     return true;
 }
 
@@ -468,10 +475,25 @@ PublishStateMachine::writeNextSnapshot()
     auto snap = mPendingSnaps.front().first;
 
     snap->mLocalState.resolveAnyReadyFutures();
-    if (!snap->mLocalState.futuresAllResolved())
+
+    bool readyToWrite = true;
+
+    if (mApp.getState() == Application::APP_CATCHING_UP_STATE)
     {
+        readyToWrite = false;
+        CLOG(WARNING, "History")
+            << "Queued snapshot awaiting catchup in progress";
+    }
+
+    else if (!snap->mLocalState.futuresAllResolved())
+    {
+        readyToWrite = false;
         CLOG(WARNING, "History")
             << "Queued snapshot still awaiting running merges";
+    }
+
+    if (!readyToWrite)
+    {
         mRecheckRunningMergeTimer.expires_from_now(std::chrono::seconds(2));
         mRecheckRunningMergeTimer.async_wait([this](asio::error_code const& ec)
                                              {
