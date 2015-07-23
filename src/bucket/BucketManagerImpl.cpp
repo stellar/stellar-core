@@ -96,13 +96,20 @@ BucketManagerImpl::getBucketDir()
         std::string d = mApp.getConfig().BUCKET_DIR_PATH;
 
         std::string lock = d + "/" + kLockFilename;
+        auto self = fs::getCurrentPid();
+
         if (fs::exists(lock))
         {
             std::ifstream lockfile(lock);
             std::string pidStr;
             lockfile >> pidStr;
             auto pid = stoi(pidStr);
-            if (fs::processExists(pid))
+            if (pid == self)
+            {
+                CLOG(WARNING, "Bucket") << "Ignoring stale lockfile '" << lock
+                                        << "', process " << pid << " is self.";
+            }
+            else if (fs::processExists(pid))
             {
                 std::string msg("Found existing lockfile '" + lock +
                                 "' and process " + std::to_string(pid) +
@@ -118,7 +125,7 @@ BucketManagerImpl::getBucketDir()
 
         {
             std::ofstream lockfile(lock, std::ios::trunc);
-            lockfile << std::to_string(fs::getCurrentPid()) << std::endl;
+            lockfile << std::to_string(self) << std::endl;
         }
         assert(fs::exists(lock));
         mLockedBucketDir = make_unique<std::string>(d);
