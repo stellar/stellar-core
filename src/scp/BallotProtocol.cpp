@@ -741,7 +741,7 @@ BallotProtocol::attemptPreparedAccept(SCPBallot const& ballot)
         }
     }
 
-    didWork = setPrepared(ballot);
+    didWork = setPrepared(ballot) || didWork;
 
     // check if we need to clear 'c'
     if (mCommit && mConfirmedPrepared)
