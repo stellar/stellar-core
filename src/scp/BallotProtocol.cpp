@@ -269,8 +269,7 @@ BallotProtocol::isStatementSane(SCPStatement const& st)
 
         if (!isOK)
         {
-            CLOG(TRACE, "SCP") << "Malformed PREPARE message";
-            dbgAbort(); // REMOVE in production
+            CLOG(DEBUG, "SCP") << "Malformed PREPARE message";
             res = false;
         }
     }
@@ -282,8 +281,7 @@ BallotProtocol::isStatementSane(SCPStatement const& st)
         res = res && c.commit.counter <= c.nP;
         if (!res)
         {
-            CLOG(TRACE, "SCP") << "Malformed CONFIRM message";
-            dbgAbort(); // REMOVE in production
+            CLOG(DEBUG, "SCP") << "Malformed CONFIRM message";
         }
     }
     break;
@@ -296,8 +294,7 @@ BallotProtocol::isStatementSane(SCPStatement const& st)
 
         if (!res)
         {
-            CLOG(TRACE, "SCP") << "Malformed EXTERNALIZE message";
-            dbgAbort(); // REMOVE in production
+            CLOG(DEBUG, "SCP") << "Malformed EXTERNALIZE message";
         }
     }
     break;
