@@ -715,6 +715,8 @@ BallotProtocol::attemptPreparedAccept(SCPBallot const& ballot)
     // update our state
     bool didWork = false;
 
+    // as a new ballot prepared, we also see if we can bump b
+    // as there is no point in waiting to trigger the logic in attemptPrepare
     if (!mCurrentBallot)
     {
         bumpToBallot(ballot);
@@ -730,17 +732,17 @@ BallotProtocol::attemptPreparedAccept(SCPBallot const& ballot)
         }
         else if (comp > 0)
         {
-            // our counter is too high
-            CLOG(WARNING, "SCP")
-                << "BallotProtocol::attemptPreparedAccept attempt to bump to "
-                   "a smaller value";
-            return false;
+            // we received an old message that allows to update p
+            // after bumping b (receive some messages after timing out
+            // most likely)
+            CLOG(DEBUG, "SCP") << "BallotProtocol::attemptPreparedAccept "
+                                  "updating p/p' after bumping b";
         }
     }
 
     didWork = setPrepared(ballot);
 
-    // check if we need to clear 'c'
+    // check if we also need to clear 'c'
     if (mCommit && mConfirmedPrepared)
     {
         if ((mPrepared &&

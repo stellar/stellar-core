@@ -1095,16 +1095,28 @@ TEST_CASE("protocol core5", "[scp][ballotprotocol]")
                                        &expectedBallot, 1, 1);
 
         scp.receiveEnvelope(com1);
-        scp.receiveEnvelope(com2);
-        scp.receiveEnvelope(com3);
         REQUIRE(scp.mEnvs.size() == 1);
 
+        scp.receiveEnvelope(com2);
+        REQUIRE(scp.mEnvs.size() == 2);
+
+        // v-blocking -> prepared
+        verifyPrepare(scp.mEnvs[1], v0SecretKey, qSetHash, 0,
+                      SCPBallot(1, yValue), &expectedBallot);
+
+        scp.receiveEnvelope(com3);
+        REQUIRE(scp.mEnvs.size() == 3);
+        // quorum confirms prepared (1,x) -> set P to (1,x)
+        // node really wants to commit (1,x) - so c is not set to 1 as b=(1,y)
+        // not sure if the paper is that clear in this situation
+        verifyPrepare(scp.mEnvs[2], v0SecretKey, qSetHash, 0,
+                      SCPBallot(1, yValue), &expectedBallot, 0, 1);
+
+        scp.receiveEnvelope(com4);
         // quorum accepts commit (1,x)
         // -> we confirm commit (1,x)
-        scp.receiveEnvelope(com4);
-
-        REQUIRE(scp.mEnvs.size() == 2);
-        verifyConfirm(scp.mEnvs[1], v0SecretKey, qSetHash, 0, 1, expectedBallot,
+        REQUIRE(scp.mEnvs.size() == 4);
+        verifyConfirm(scp.mEnvs[3], v0SecretKey, qSetHash, 0, 1, expectedBallot,
                       1);
     }
     SECTION("single prepared(1,y) on pristine slot should not bump")
@@ -1288,18 +1300,24 @@ TEST_CASE("protocol core5", "[scp][ballotprotocol]")
         scp.receiveEnvelope(makePrepare(v1SecretKey, qSetHash, 0, x1, &x1));
         REQUIRE(scp.mEnvs.size() == 4);
 
-        scp.receiveEnvelope(makePrepare(v2SecretKey, qSetHash, 0, x1, &x1, 1, 1));
-        scp.receiveEnvelope(makePrepare(v3SecretKey, qSetHash, 0, x1, &x1, 1, 1));
-        scp.receiveEnvelope(makePrepare(v4SecretKey, qSetHash, 0, x1, &x1, 1, 1));
+        scp.receiveEnvelope(
+            makePrepare(v2SecretKey, qSetHash, 0, x1, &x1, 1, 1));
+        scp.receiveEnvelope(
+            makePrepare(v3SecretKey, qSetHash, 0, x1, &x1, 1, 1));
+        scp.receiveEnvelope(
+            makePrepare(v4SecretKey, qSetHash, 0, x1, &x1, 1, 1));
         REQUIRE(scp.mEnvs.size() == 4);
 
-        scp.receiveEnvelope(makePrepare(v2SecretKey, qSetHash, 0, x2, &x2, 1, 1));
-        scp.receiveEnvelope(makePrepare(v3SecretKey, qSetHash, 0, x2, &x2, 1, 1));
+        scp.receiveEnvelope(
+            makePrepare(v2SecretKey, qSetHash, 0, x2, &x2, 1, 1));
+        scp.receiveEnvelope(
+            makePrepare(v3SecretKey, qSetHash, 0, x2, &x2, 1, 1));
         // v-blocking prepared (2,x) -> prepared (2,x)
         REQUIRE(scp.mEnvs.size() == 5);
         verifyPrepare(scp.mEnvs[4], v0SecretKey, qSetHash, 0, x2, &x2, 0, 1);
 
-        scp.receiveEnvelope(makePrepare(v4SecretKey, qSetHash, 0, x2, &x2, 1, 1));
+        scp.receiveEnvelope(
+            makePrepare(v4SecretKey, qSetHash, 0, x2, &x2, 1, 1));
         // quorum confirms (2,x) prepared -> set P, also set c
         REQUIRE(scp.mEnvs.size() == 6);
         verifyPrepare(scp.mEnvs[5], v0SecretKey, qSetHash, 0, x2, &x2, 2, 2);
@@ -1311,6 +1329,52 @@ TEST_CASE("protocol core5", "[scp][ballotprotocol]")
         verifyConfirm(scp.mEnvs[6], v0SecretKey, qSetHash, 0, 2, x1, 1);
     }
 
+    SECTION("timeout after prepare, receive old messages to prepare")
+    {
+        REQUIRE(scp.bumpState(0, xValue));
+
+        SCPBallot x1(1, xValue);
+
+        REQUIRE(scp.mEnvs.size() == 1);
+        verifyPrepare(scp.mEnvs[0], v0SecretKey, qSetHash, 0, x1);
+
+        scp.receiveEnvelope(makePrepare(v1SecretKey, qSetHash, 0, x1));
+        scp.receiveEnvelope(makePrepare(v2SecretKey, qSetHash, 0, x1));
+        scp.receiveEnvelope(makePrepare(v3SecretKey, qSetHash, 0, x1));
+
+        // quorum -> prepared (1,x)
+        REQUIRE(scp.mEnvs.size() == 2);
+        verifyPrepare(scp.mEnvs[1], v0SecretKey, qSetHash, 0, x1, &x1);
+
+        SCPBallot x2(2, xValue);
+        // timeout from local node
+        REQUIRE(scp.bumpState(0, xValue));
+        // prepares (2,x)
+        REQUIRE(scp.mEnvs.size() == 3);
+        verifyPrepare(scp.mEnvs[2], v0SecretKey, qSetHash, 0, x2, &x1);
+
+        SCPBallot x3(3, xValue);
+        // timeout again
+        REQUIRE(scp.bumpState(0, xValue));
+        // prepares (3,x)
+        REQUIRE(scp.mEnvs.size() == 4);
+        verifyPrepare(scp.mEnvs[3], v0SecretKey, qSetHash, 0, x3, &x1);
+
+        // other nodes moved on with x2
+        scp.receiveEnvelope(
+            makePrepare(v1SecretKey, qSetHash, 0, x2, &x2, 1, 2));
+        scp.receiveEnvelope(
+            makePrepare(v2SecretKey, qSetHash, 0, x2, &x2, 1, 2));
+        // v-blocking -> prepared x2
+        REQUIRE(scp.mEnvs.size() == 5);
+        verifyPrepare(scp.mEnvs[4], v0SecretKey, qSetHash, 0, x3, &x2);
+
+        scp.receiveEnvelope(
+            makePrepare(v3SecretKey, qSetHash, 0, x2, &x2, 1, 2));
+        // quorum -> set nP=2
+        REQUIRE(scp.mEnvs.size() == 6);
+        verifyPrepare(scp.mEnvs[5], v0SecretKey, qSetHash, 0, x3, &x2, 0, 2);
+    }
 }
 
 TEST_CASE("nomination tests core5", "[scp][nominationprotocol]")
