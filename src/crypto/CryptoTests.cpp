@@ -362,6 +362,9 @@ TEST_CASE("StrKey tests", "[crypto]")
     }
 
     // basic corruption check on a fixed size
+    size_t n_corrupted = 0;
+    size_t n_detected = 0;
+
     for (int round = 0; round < 5; round++)
     {
         const int expectedSize = 32;
@@ -405,11 +408,38 @@ TEST_CASE("StrKey tests", "[crypto]")
                 }
                 uint8_t ver;
                 std::vector<uint8_t> dt;
-                bool res = !strKey::fromStrKey(corrupted, ver, dt);
-                REQUIRE(res);
+                if (corrupted != encoded)
+                {
+                    n_corrupted++;
+                    bool res = !strKey::fromStrKey(corrupted, ver, dt);
+                    if (res)
+                    {
+                        ++n_detected;
+                    }
+                    else
+                    {
+                        LOG(WARNING) << "Failed to detect strkey corruption";
+                        LOG(WARNING) << " original: " << encoded;
+                        LOG(WARNING) << "  corrupt: " << corrupted;
+                    }
+                }
             }
         }
     }
+
+    // CCITT CRC16 theoretical maximum "uncorrelated error" detection rate
+    // is 99.9984% (1 undetected failure in 2^16); but we're not running an
+    // infinite (or even 2^16) sized set of inputs and our mutations are
+    // highly structured, so we give it some leeway. This is arbitrary but
+    // from watching the test above we seem to only get one undetected
+    // corruption pair in maybe 50 runs failing, each run being about 1000
+    // cases. To give us good odds of making it through integration tests
+    // we set the threshold quite wide here, to 98%. The test is very
+    // slighly nondeterministic but this should give it plenty of leeway.
+
+    double detectionRate = (((double)n_detected) / ((double)n_corrupted)) * 100.0;
+    LOG(INFO) << "CRC16 error-detection rate " << detectionRate;
+    REQUIRE(detectionRate > 98.0);
 }
 
 TEST_CASE("base64 tests", "[crypto]")
