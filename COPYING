@@ -15,12 +15,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 
 
-Additional files found in the subdirectory src/lib are copies of liberally
+Additional files found in the subdirectory lib are copies of liberally
 licensed external libraries (that we believe to be compatible with the license
 text of the collective work, above). The following are restatements of license
 information found in those files and/or their respective upstream repositories:
 
-src/lib/autocheck:
+lib/autocheck:
 
   The Autocheck library,
   Copyright 2012-2013 John Freeman
@@ -28,7 +28,7 @@ src/lib/autocheck:
   Licensed under the MIT license
   (http://opensource.org/licenses/MIT)
 
-src/lib/asio:
+lib/asio:
 
   The ASIO library,
   Copyright 2003-2014 Christopher M. Kohlhoff
@@ -36,7 +36,7 @@ src/lib/asio:
   Licensed under the Boost Software License 1.0
   (http://www.boost.org/LICENSE_1_0.txt)
 
-src/lib/catch.hpp:
+lib/catch.hpp:
 
   The Catch library,
   Copyright 2012 Two Blue Cubes Ltd.
@@ -44,7 +44,7 @@ src/lib/catch.hpp:
   Licensed under the Boost Software License 1.0
   (http://www.boost.org/LICENSE_1_0.txt)
 
-src/lib/http:
+lib/http:
 
   Example HTTP server from the ASIO library,
   Copyright 2003-2014 Christopher M. Kohlhoff
@@ -52,7 +52,7 @@ src/lib/http:
   Licensed under the Boost Software License 1.0
   (http://www.boost.org/LICENSE_1_0.txt)
 
-src/lib/util/easylogging++.h:
+lib/util/easylogging++.h:
 
   The EasyLogging++ library,
   Copyright 2014 Majid Khan
@@ -60,7 +60,7 @@ src/lib/util/easylogging++.h:
   Licensed under the MIT license
   (http://opensource.org/licenses/MIT)
 
-src/lib/util/getopt.h and getopt_long.c:
+lib/util/getopt.h and getopt_long.c:
 
   NetBSD's getopt/getopt_long libraries,
   Copyright 2000 The NetBSD Foundation, Inc.
@@ -68,7 +68,7 @@ src/lib/util/getopt.h and getopt_long.c:
   Licensed under the 2-clause BSD license
   (http://opensource.org/licenses/BSD-2-Clause)
 
-src/lib/util/cpptoml.h:
+lib/util/cpptoml.h:
 
   The cpptoml library,
   Copyright 2013-2014 Chase Geigle
@@ -76,7 +76,7 @@ src/lib/util/cpptoml.h:
   Licensed under the MIT license
   (http://opensource.org/licenses/MIT)
 
-src/lib/util/format.cc and format.h:
+lib/util/format.cc and format.h:
 
   The cppformat library,
   Copyright 2012, Victor Zverovich
@@ -84,7 +84,7 @@ src/lib/util/format.cc and format.h:
   Licensed under the 2-clause BSD license
   (http://opensource.org/licenses/BSD-2-Clause)
 
-src/lib/json/:
+lib/json/:
 
   The JsonCpp library,
   Copyright (c) 2007-2010 Baptiste Lepilleur
@@ -92,7 +92,7 @@ src/lib/json/:
   Licensed under the MIT license
   (http://opensource.org/licenses/MIT)
 
-src/lib/cereal:
+lib/cereal:
 
   The cereal library,
   Copyright 2014, Randolph Voorhies, Shane Grant
@@ -100,7 +100,7 @@ src/lib/cereal:
   Licensed under the 3-clause BSD license
   (http://opensource.org/licenses/BSD-3-Clause)
 
-src/lib/cereal/external/rapidjson:
+lib/cereal/external/rapidjson:
 
   The RapidJSON library,
   Copyright 2011 Milo Yip
@@ -108,13 +108,13 @@ src/lib/cereal/external/rapidjson:
   Licensed under the MIT license
   (http://opensource.org/licenses/MIT)
 
-src/lib/sqlite:
+lib/sqlite:
 
   The SQLite library,
   dedicated to the public domain
   (https://www.sqlite.org/copyright.html)
 
-src/lib/soci:
+lib/soci:
 
   The SOCI library,
   Copyright 2008 Maciej Sobczak
@@ -122,17 +122,41 @@ src/lib/soci:
   Licensed under the Boost Software License 1.0
   (http://www.boost.org/LICENSE_1_0.txt)
 
-src/lib/libmedida:
+lib/libmedida:
 
   The Medida library,
   Copyright 2012 Daniel Lundin
   Licensed under the Apache License, Version 2.0
   (https://www.apache.org/licenses/LICENSE-2.0)
 
-src/lib/util/uint128_t.{cpp,h}
+lib/util/uint128_t.{cpp,h}
 
   The uint128_t library,
   Copyright 2013 2014 Jason Lee
   (calccrypto@gmail.com)
   Licensed under the MIT license
   (http://opensource.org/licenses/MIT)
+
+lib/util/lrucache.hpp
+
+  The LRUCache libary
+  Copyright 2014 Alexander Ponomarev
+  Licensed under the 3-clause BSD license
+  (http://opensource.org/licenses/BSD-3-Clause)
+
+lib/util/basen.h
+
+  The Base-n library
+  Copyright 2012 Andrzej Zawadzki
+  (azawadzki@gmail.com)
+  Licensed under the MIT license
+  (http://opensource.org/licenses/MIT)
+
+lib/util/crc16.cpp
+
+  CRC16 function
+  Copyright 2001-2010 Georges Menie
+  (www.menie.org)
+  Copyright 2010-2012 Salvatore Sanfilippo
+  Licensed under the 3-clause BSD license
+  (http://opensource.org/licenses/BSD-3-Clause)
