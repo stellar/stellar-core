@@ -67,6 +67,7 @@ Database::Database(Application& app)
     : mApp(app)
     , mStatementsSize(
           app.getMetrics().NewCounter({"database", "memory", "statements"}))
+    , mEntryCache(4096)
 {
     registerDrivers();
     CLOG(INFO, "Database") << "Connecting to: " << app.getConfig().DATABASE;
@@ -175,6 +176,13 @@ Database::getPool()
     assert(mPool);
     return *mPool;
 }
+
+cache::lru_cache<std::string, std::shared_ptr<LedgerEntry const>>&
+Database::getEntryCache()
+{
+    return mEntryCache;
+}
+
 
 class SQLLogContext : NonCopyable
 {

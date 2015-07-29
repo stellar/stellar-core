@@ -12,6 +12,7 @@
 #include "ledger/TrustFrame.h"
 #include "medida/timer_context.h"
 #include "util/NonCopyable.h"
+#include "util/lrucache.hpp"
 
 namespace medida
 {
@@ -91,6 +92,8 @@ class Database : NonMovableOrCopyable
     std::map<std::string, std::shared_ptr<soci::statement>> mStatements;
     medida::Counter& mStatementsSize;
 
+    cache::lru_cache<std::string, std::shared_ptr<LedgerEntry const>> mEntryCache;
+
     static bool gDriversRegistered;
     static void registerDrivers();
 
@@ -135,5 +138,11 @@ class Database : NonMovableOrCopyable
     // Access the optional SOCI connection pool available for worker
     // threads. Throws an error if !canUsePool().
     soci::connection_pool& getPool();
+
+    // Access the LedgerEntry cache. Note: clients are responsible for
+    // invalidating entries in this cache as they perform statements
+    // against the database. It's kept here only for ease of access.
+    cache::lru_cache<std::string, std::shared_ptr<LedgerEntry const>>&
+        getEntryCache();
 };
 }
