@@ -78,6 +78,19 @@ namespace cache {
             }
         }
 
+        void erase_if_exists(const key_t& key) {
+            auto it = _cache_items_map.find(key);
+            if (it != _cache_items_map.end()) {
+                _cache_items_list.erase(it->second);
+                _cache_items_map.erase(it);
+            }
+        }
+
+        void clear() {
+            _cache_items_map.clear();
+            _cache_items_list.clear();
+        }
+
         bool exists(const key_t& key) const {
             return _cache_items_map.find(key) != _cache_items_map.end();
         }

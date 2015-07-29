@@ -245,12 +245,13 @@ TEST_CASE("Stress test on 2 nodes 3 accounts 10 random transactions 10tx/sec",
 
 TEST_CASE("Auto-calibrated single node load test", "[autoload][hide]")
 {
-    Config const& cfg =
+    Config cfg =
 #ifdef USE_POSTGRES
         !force_sqlite
         ? getTestConfig(0, Config::TESTDB_POSTGRESQL) :
 #endif
         getTestConfig(0, Config::TESTDB_ON_DISK_SQLITE);
+    cfg.RUN_STANDALONE = false;
     VirtualClock clock(VirtualClock::REAL_TIME);
     Application::pointer appPtr = Application::create(clock, cfg);
     appPtr->start();

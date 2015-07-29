@@ -8,6 +8,9 @@
 #include "ledger/OfferFrame.h"
 #include "ledger/TrustFrame.h"
 #include "xdrpp/printer.h"
+#include "xdrpp/marshal.h"
+#include "crypto/Hex.h"
+#include "database/Database.h"
 
 namespace stellar
 {
@@ -63,9 +66,53 @@ EntryFrame::storeLoad(LedgerKey const& key, Database& db)
 }
 
 void
+EntryFrame::flushCachedEntry(LedgerKey const& key, Database& db)
+{
+    auto s = binToHex(xdr::xdr_to_opaque(key));
+    db.getEntryCache().erase_if_exists(s);
+}
+
+
+bool
+EntryFrame::cachedEntryExists(LedgerKey const& key, Database& db)
+{
+    auto s = binToHex(xdr::xdr_to_opaque(key));
+    return db.getEntryCache().exists(s);
+}
+
+std::shared_ptr<LedgerEntry const>
+EntryFrame::getCachedEntry(LedgerKey const& key, Database& db)
+{
+    auto s = binToHex(xdr::xdr_to_opaque(key));
+    return db.getEntryCache().get(s);
+}
+
+void
+EntryFrame::putCachedEntry(LedgerKey const& key,
+                           std::shared_ptr<LedgerEntry const> p, Database& db)
+{
+    auto s = binToHex(xdr::xdr_to_opaque(key));
+    db.getEntryCache().put(s, p);
+}
+
+void
+EntryFrame::flushCachedEntry(Database& db) const
+{
+    flushCachedEntry(getKey(), db);
+}
+
+void
+EntryFrame::putCachedEntry(Database& db) const
+{
+    putCachedEntry(getKey(), std::make_shared<LedgerEntry const>(mEntry), db);
+}
+
+void
 EntryFrame::checkAgainstDatabase(LedgerEntry const& entry, Database& db)
 {
-    auto const& fromDb = EntryFrame::storeLoad(LedgerEntryKey(entry), db);
+    auto key = LedgerEntryKey(entry);
+    flushCachedEntry(key, db);
+    auto const& fromDb = EntryFrame::storeLoad(key, db);
     if (!(fromDb->mEntry == entry))
     {
         std::string s;

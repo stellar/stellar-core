@@ -41,6 +41,20 @@ class EntryFrame : public NonMovableOrCopyable
 
     static pointer FromXDR(LedgerEntry const& from);
     static pointer storeLoad(LedgerKey const& key, Database& db);
+
+    // Static helpers for working with the DB LedgerEntry cache.
+    static void flushCachedEntry(LedgerKey const& key, Database& db);
+    static bool cachedEntryExists(LedgerKey const& key, Database& db);
+    static std::shared_ptr<LedgerEntry const> getCachedEntry(
+        LedgerKey const& key, Database& db);
+    static void putCachedEntry(LedgerKey const& key,
+                               std::shared_ptr<LedgerEntry const> p,
+                               Database& db);
+
+    // Member helpers that call cache flush/put for self.
+    void flushCachedEntry(Database& db) const;
+    void putCachedEntry(Database& db) const;
+
     static void checkAgainstDatabase(LedgerEntry const& entry,
                                      Database& db);
 
