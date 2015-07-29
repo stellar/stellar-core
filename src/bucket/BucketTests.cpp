@@ -871,3 +871,41 @@ TEST_CASE("checkdb succeeding", "[bucket][checkdb]")
     }
 }
 
+TEST_CASE("bucket apply", "[bucket]")
+{
+    VirtualClock clock;
+    Config cfg(getTestConfig());
+    Application::pointer app = Application::create(clock, cfg);
+    app->start();
+
+    autocheck::generator<AccountEntry> accGen;
+    std::vector<LedgerEntry> live(10), noLive;
+    std::vector<LedgerKey> dead, noDead;
+
+    for (auto& e : live)
+    {
+        e.type(ACCOUNT);
+        e.account() = accGen(5);
+        e.account().balance = 1000000000;
+        dead.emplace_back(LedgerEntryKey(e));
+    }
+
+    std::shared_ptr<Bucket> birth =
+        Bucket::fresh(app->getBucketManager(), live, noDead);
+
+    std::shared_ptr<Bucket> death =
+        Bucket::fresh(app->getBucketManager(), noLive, dead);
+
+    auto& db = app->getDatabase();
+    auto& sess = db.getSession();
+
+    CLOG(INFO, "Bucket") << "Applying bucket with " << live.size() << " live entries";
+    birth->apply(db);
+    auto count = AccountFrame::countObjects(sess);
+    REQUIRE(count == live.size() + 1 /* root account */);
+
+    CLOG(INFO, "Bucket") << "Applying bucket with " << dead.size() << " dead entries";
+    death->apply(db);
+    count = AccountFrame::countObjects(sess);
+    REQUIRE(count == 1);
+}
