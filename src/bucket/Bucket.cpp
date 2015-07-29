@@ -293,9 +293,8 @@ Bucket::apply(Database& db) const
     LedgerDelta delta(lh);
     XDRInputFileStream in;
     in.open(getFilename());
-    while (in)
+    while (in && in.readOne(entry))
     {
-        in.readOne(entry);
         if (entry.type() == LIVEENTRY)
         {
             EntryFrame::pointer ep = EntryFrame::FromXDR(entry.liveEntry());
