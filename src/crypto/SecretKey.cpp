@@ -10,9 +10,39 @@
 #include <type_traits>
 #include <memory>
 #include <util/make_unique.h>
+#include <mutex>
+
+#include "util/lrucache.hpp"
 
 namespace stellar
 {
+
+// Process-wide global Ed25519 signature-verification cache.
+//
+// This is a pure mathematical function and has no relationship
+// to the state of the process; caching its results centrally
+// makes all signature-verification in the program faster and
+// has no effect on correctness.
+
+static std::mutex gVerifySigCacheMutex;
+static cache::lru_cache<std::string, bool> gVerifySigCache(4096);
+
+static bool
+shouldCacheVerifySig(PublicKey const& key, Signature const& signature,
+                     ByteSlice const& bin)
+{
+    return (bin.size() < 0xffff);
+}
+
+static std::string
+verifySigCacheKey(PublicKey const& key, Signature const& signature,
+                  ByteSlice const& bin)
+{
+    return (binToHex(key.ed25519())
+            + ":" + binToHex(signature)
+            + ":" + binToHex(bin));
+}
+
 
 SecretKey::SecretKey() : mKeyType(KEY_TYPE_ED25519)
 {
@@ -198,8 +228,27 @@ bool
 PubKeyUtils::verifySig(PublicKey const& key, Signature const& signature,
                        ByteSlice const& bin)
 {
-    return crypto_sign_verify_detached(signature.data(), bin.data(), bin.size(),
-                                       key.ed25519().data()) == 0;
+    bool shouldCache = shouldCacheVerifySig(key, signature, bin);
+    std::string cacheKey;
+
+    if (shouldCache)
+    {
+        cacheKey = verifySigCacheKey(key, signature, bin);
+        std::lock_guard<std::mutex> guard(gVerifySigCacheMutex);
+        if (gVerifySigCache.exists(cacheKey))
+        {
+            return gVerifySigCache.get(cacheKey);
+        }
+    }
+
+    bool ok = (crypto_sign_verify_detached(signature.data(), bin.data(), bin.size(),
+                                           key.ed25519().data()) == 0);
+    if (shouldCache)
+    {
+        std::lock_guard<std::mutex> guard(gVerifySigCacheMutex);
+        gVerifySigCache.put(cacheKey, ok);
+    }
+    return ok;
 }
 
 std::string
