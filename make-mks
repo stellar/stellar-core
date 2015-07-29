@@ -32,24 +32,26 @@ listall() {
 	 \( -name '*.[ch]' -o -name '*.[chi]pp' -o -name '*.cc' \) -print
 }
 
-(if test -f lib/libmedida/src/medida/medida.h; then
+(cd lib
+ if test -f libmedida/src/medida/medida.h; then
      echo "$message"
-     echo INTERNAL_MEDIDA_FILES = $(listall lib/libmedida/src/medida)
+     echo INTERNAL_MEDIDA_FILES = $(listall libmedida/src/medida)
  fi) > lib/medida.mk
 
-(echo "$message"
- echo SOCI_FILES = $(listall lib/soci/src/backends/sqlite3 lib/soci/src/core)
- echo SOCI_PG_FILES = $(listall lib/soci/src/backends/postgresql)
+(cd lib
+ echo "$message"
+ echo SOCI_FILES = $(listall soci/src/backends/sqlite3 soci/src/core)
+ echo SOCI_PG_FILES = $(listall soci/src/backends/postgresql)
 
- echo SQLITE3_FILES = $(listall lib/sqlite)
- echo UTIL_FILES = $(listall lib/util lib/http)
- echo ASIO_H_FILES = $(listall lib/asio/include)
+ echo SQLITE3_FILES = $(listall sqlite)
+ echo UTIL_FILES = $(listall util http)
+ echo ASIO_H_FILES = $(listall asio/include)
  # The following does not work without boost or -DASIO_STANDALONE=1
- #echo ASIO_CXX_FILES = lib/asio/src/*.cpp
- echo ASIO_CXX_FILES = lib/asio/src/asio.cpp
- echo JSON_FILES = $(listall lib/json)
+ #echo ASIO_CXX_FILES = asio/src/*.cpp
+ echo ASIO_CXX_FILES = asio/src/asio.cpp
+ echo JSON_FILES = $(listall json)
 
- echo MISC_H_FILES = lib/*.hpp $(listall lib/autocheck lib/cereal)
+ echo MISC_H_FILES = *.hpp $(listall autocheck cereal)
 ) > lib/lib.mk
 
 trap '' 0

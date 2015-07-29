@@ -28,6 +28,8 @@
 .deps
 .dirstamp
 
+/INSTALL
+
 /src/StellarCoreVersion.h
 /src/xdr/*.h
 /Makefile
@@ -57,6 +59,8 @@
 /ylwrap
 /src/Makefile
 /src/Makefile.in
+/lib/Makefile
+/lib/Makefile.in
 /src/src.mk
 /lib/medida.mk
 /lib/lib.mk
