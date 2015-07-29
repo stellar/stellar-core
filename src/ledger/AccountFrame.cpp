@@ -172,7 +172,17 @@ AccountFrame::getLowThreshold() const
 AccountFrame::pointer
 AccountFrame::loadAccount(AccountID const& accountID, Database& db)
 {
+    LedgerKey key;
+    key.type(ACCOUNT);
+    key.account().accountID = accountID;
+    if (cachedEntryExists(key, db))
+    {
+        auto p = getCachedEntry(key, db);
+        return p ? std::make_shared<AccountFrame>(*p) : nullptr;
+    }
+
     std::string actIDStrKey = PubKeyUtils::toStrKey(accountID);
+
     std::string publicKey, inflationDest, creditAuthKey;
     std::string homeDomain, thresholds;
     soci::indicator inflationDestInd, homeDomainInd, thresholdsInd;
@@ -193,7 +203,10 @@ AccountFrame::loadAccount(AccountID const& accountID, Database& db)
     }
 
     if (!session.got_data())
+    {
+        putCachedEntry(key, nullptr, db);
         return nullptr;
+    }
 
     if (homeDomainInd == soci::i_ok)
     {
@@ -244,12 +257,18 @@ AccountFrame::loadAccount(AccountID const& accountID, Database& db)
     res->mUpdateSigners = false;
 
     res->mKeyCalculated = false;
+    res->putCachedEntry(db);
     return res;
 }
 
 bool
 AccountFrame::exists(Database& db, LedgerKey const& key)
 {
+    if (cachedEntryExists(key, db) && getCachedEntry(key, db) != nullptr)
+    {
+        return true;
+    }
+
     std::string actIDStrKey = PubKeyUtils::toStrKey(key.account().accountID);
     int exists = 0;
     {
@@ -279,8 +298,9 @@ void
 AccountFrame::storeDelete(LedgerDelta& delta, Database& db,
                           LedgerKey const& key)
 {
-    std::string actIDStrKey = PubKeyUtils::toStrKey(key.account().accountID);
+    flushCachedEntry(key, db);
 
+    std::string actIDStrKey = PubKeyUtils::toStrKey(key.account().accountID);
     soci::session& session = db.getSession();
     {
         auto timer = db.getDeleteTimer("account");
@@ -298,8 +318,9 @@ AccountFrame::storeDelete(LedgerDelta& delta, Database& db,
 void
 AccountFrame::storeUpdate(LedgerDelta& delta, Database& db, bool insert) const
 {
-    std::string actIDStrKey = PubKeyUtils::toStrKey(mAccountEntry.accountID);
+    flushCachedEntry(db);
 
+    std::string actIDStrKey = PubKeyUtils::toStrKey(mAccountEntry.accountID);
     std::string sql;
 
     if (insert)
@@ -481,6 +502,9 @@ AccountFrame::storeUpdate(LedgerDelta& delta, Database& db, bool insert) const
                 }
             }
         }
+
+        // Flush again to ensure changed signers are reloaded.
+        flushCachedEntry(db);
     }
 }
 
