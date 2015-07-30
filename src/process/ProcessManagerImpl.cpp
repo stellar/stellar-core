@@ -133,7 +133,7 @@ ProcessManagerImpl::runProcess(std::string const& cmdLine, std::string outFile)
                        NULL);                 // no attr. template
         if (si.hStdOutput == INVALID_HANDLE_VALUE)
         {
-            CLOG(DEBUG, "Process") << "CreateFile() failed: " << GetLastError();
+            CLOG(ERROR, "Process") << "CreateFile() failed: " << GetLastError();
             throw std::runtime_error("CreateFile() failed");
         }
     }
@@ -151,7 +151,7 @@ ProcessManagerImpl::runProcess(std::string const& cmdLine, std::string outFile)
                        &pi)     // Pointer to PROCESS_INFORMATION structure
         )
     {
-        CLOG(DEBUG, "Process") << "CreateProcess() failed: " << GetLastError();
+        CLOG(ERROR, "Process") << "CreateProcess() failed: " << GetLastError();
         throw std::runtime_error("CreateProcess() failed");
     }
     CloseHandle(si.hStdOutput);
@@ -176,9 +176,11 @@ class ProcessExitEvent::Impl
   public:
     std::shared_ptr<RealTimer> mOuterTimer;
     std::shared_ptr<asio::error_code> mOuterEc;
+    std::string mCmdLine;
     Impl(std::shared_ptr<RealTimer> const& outerTimer,
-         std::shared_ptr<asio::error_code> const& outerEc)
-        : mOuterTimer(outerTimer), mOuterEc(outerEc)
+         std::shared_ptr<asio::error_code> const& outerEc,
+         std::string const& cmdLine)
+        : mOuterTimer(outerTimer), mOuterEc(outerEc), mCmdLine(cmdLine)
     {
     }
 };
@@ -215,11 +217,34 @@ ProcessManagerImpl::handleSignalWait()
         int pid = waitpid(-1, &status, WNOHANG);
         if (pid > 0)
         {
+            auto pair = gImpls.find(pid);
+            assert(pair != gImpls.end());
+            auto impl = pair->second;
+
             asio::error_code ec;
             if (WIFEXITED(status))
             {
-                CLOG(DEBUG, "Process") << "process " << pid << " exited "
-                                       << WEXITSTATUS(status);
+
+                CLOG(WARNING, "Process") << "process " << pid << " exited "
+                                         << WEXITSTATUS(status);
+#ifdef __linux__
+                // Linux posix_spawnp does not fault on file-not-found in the
+                // parent process at the point of invocation, as BSD does; so
+                // rather than a fatal error / throw we get an ambiguous and
+                // easily-overlooked shell-like 'exit 127' on waitpid.
+                if (WEXITSTATUS(status) == 127)
+                {
+                    CLOG(WARNING, "Process") << "";
+                    CLOG(WARNING, "Process") << "************";
+                    CLOG(WARNING, "Process") << "";
+                    CLOG(WARNING, "Process") << "  likely 'missing command':";
+                    CLOG(WARNING, "Process") << "";
+                    CLOG(WARNING, "Process") << "    " << impl->mCmdLine;
+                    CLOG(WARNING, "Process") << "";
+                    CLOG(WARNING, "Process") << "************";
+                    CLOG(WARNING, "Process") << "";
+                }
+#endif
                 // FIXME: this doesn't _quite_ do the right thing; it conveys
                 // the exit status back to the caller but it puts it in "system
                 // category" which on POSIX means if you call .message() on it
@@ -240,10 +265,6 @@ ProcessManagerImpl::handleSignalWait()
                 ec = asio::error_code(1, asio::system_category());
             }
 
-            auto pair = gImpls.find(pid);
-            assert(pair != gImpls.end());
-
-            auto impl = pair->second;
             gImpls.erase(pair);
             *(impl->mOuterEc) = ec;
             impl->mOuterTimer->cancel();
@@ -287,7 +308,7 @@ ProcessManagerImpl::runProcess(std::string const& cmdLine, std::string outFile)
         err = posix_spawn_file_actions_init(&fileActions);
         if (err)
         {
-            CLOG(DEBUG, "Process")
+            CLOG(ERROR, "Process")
                 << "posix_spawn_file_actions_init() failed: " << strerror(err);
             throw std::runtime_error("posix_spawn_file_actions_init() failed");
         }
@@ -295,7 +316,7 @@ ProcessManagerImpl::runProcess(std::string const& cmdLine, std::string outFile)
                                                O_RDWR | O_CREAT, 0600);
         if (err)
         {
-            CLOG(DEBUG, "Process")
+            CLOG(ERROR, "Process")
                 << "posix_spawn_file_actions_addopen() failed: "
                 << strerror(err);
             throw std::runtime_error(
@@ -309,7 +330,7 @@ ProcessManagerImpl::runProcess(std::string const& cmdLine, std::string outFile)
                        argv.data(), env);
     if (err)
     {
-        CLOG(DEBUG, "Process") << "posix_spawn() failed: " << strerror(err);
+        CLOG(ERROR, "Process") << "posix_spawn() failed: " << strerror(err);
         throw std::runtime_error("posix_spawn() failed");
     }
 
@@ -318,7 +339,7 @@ ProcessManagerImpl::runProcess(std::string const& cmdLine, std::string outFile)
         err = posix_spawn_file_actions_destroy(&fileActions);
         if (err)
         {
-            CLOG(DEBUG, "Process")
+            CLOG(ERROR, "Process")
                 << "posix_spawn_file_actions_destroy() failed: "
                 << strerror(err);
             throw std::runtime_error(
@@ -328,7 +349,7 @@ ProcessManagerImpl::runProcess(std::string const& cmdLine, std::string outFile)
 
     auto& svc = mApp.getClock().getIOService();
     ProcessExitEvent pe(svc);
-    pe.mImpl = std::make_shared<ProcessExitEvent::Impl>(pe.mTimer, pe.mEc);
+    pe.mImpl = std::make_shared<ProcessExitEvent::Impl>(pe.mTimer, pe.mEc, cmdLine);
     gImpls[pid] = pe.mImpl;
     mImplsSize.set_count(gImpls.size());
     return pe;
