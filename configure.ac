@@ -198,5 +198,5 @@ esc() {
 ac_configure_args="$ac_configure_args $(esc "CC=$CC" "CXX=$CXX")"
 
 AC_CONFIG_HEADERS(config.h)
-AC_CONFIG_FILES(Makefile src/Makefile)
+AC_CONFIG_FILES(lib/Makefile src/Makefile Makefile)
 AC_OUTPUT
