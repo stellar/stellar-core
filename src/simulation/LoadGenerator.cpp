@@ -160,9 +160,10 @@ maybeAdjustRate(double target, double actual, uint32_t& rate, bool increaseOk)
         {
             return false;
         }
-        LOG(INFO) << (incr > 0 ? "+++ Increasing" : "--- Decreasing")
-                  << " auto-tx target rate from " << rate << " to "
-                  << rate + incr;
+        CLOG(INFO, "LoadGen")
+            << (incr > 0 ? "+++ Increasing" : "--- Decreasing")
+            << " auto-tx target rate from " << rate << " to "
+            << rate + incr;
         rate += incr;
         return true;
     }
@@ -216,7 +217,7 @@ LoadGenerator::generateLoad(Application& app, uint32_t nAccounts, uint32_t nTxs,
     if (txPerStep > nTxs)
     {
         // We're done.
-        LOG(INFO) << "Load generation complete.";
+        CLOG(INFO, "LoadGen") << "Load generation complete.";
         app.getMetrics().NewMeter({"loadgen", "run", "complete"}, "run").Mark();
         clear();
     }
@@ -321,7 +322,7 @@ LoadGenerator::generateLoad(Application& app, uint32_t nAccounts, uint32_t nTxs,
                     targetAge = 1.0;
                 }
 
-                LOG(DEBUG)
+                CLOG(DEBUG, "LoadGen")
                     << "Considering auto-tx adjustment, median close time "
                     << actualLatency << "ms, ledger age " << actualAge << "s";
 
@@ -332,7 +333,7 @@ LoadGenerator::generateLoad(Application& app, uint32_t nAccounts, uint32_t nTxs,
 
                 if (txRate > 5000)
                 {
-                    LOG(WARNING)
+                    CLOG(WARNING, "LoadGen")
                         << "TxRate > 5000, likely metric stutter, resetting";
                     txRate = 10;
                 }
