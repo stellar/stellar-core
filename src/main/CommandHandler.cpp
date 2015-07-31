@@ -335,6 +335,7 @@ CommandHandler::info(std::string const& params, std::string& retStr)
 void
 CommandHandler::metrics(std::string const& params, std::string& retStr)
 {
+    mApp.syncAllMetrics();
     medida::reporting::JsonReporter jr(mApp.getMetrics());
     retStr = jr.Report();
 }

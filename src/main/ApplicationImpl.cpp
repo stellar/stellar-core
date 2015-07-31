@@ -22,6 +22,8 @@
 #include "medida/metrics_registry.h"
 #include "medida/reporting/console_reporter.h"
 #include "medida/meter.h"
+#include "medida/counter.h"
+#include "medida/timer.h"
 
 #include "util/TmpDir.h"
 #include "util/Logging.h"
@@ -44,6 +46,10 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
     , mStopSignals(clock.getIOService(), SIGINT)
     , mStopping(false)
     , mStoppingTimer(*this)
+    , mMetrics(make_unique<medida::MetricsRegistry>())
+    , mAppStateCurrent(mMetrics->NewCounter({"app", "state", "current"}))
+    , mAppStateChanges(mMetrics->NewTimer({"app", "state", "changes"}))
+    , mLastStateChange(clock.now())
 {
 #ifdef SIGQUIT
     mStopSignals.add(SIGQUIT);
@@ -67,7 +73,6 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
 
     // These must be constructed _after_ because they frequently call back
     // into App.getFoo() to get information / start up.
-    mMetrics = make_unique<medida::MetricsRegistry>();
     mDatabase = make_unique<Database>(*this);
     mPersistentState = make_unique<PersistentState>(*this);
 
@@ -413,6 +418,28 @@ medida::MetricsRegistry&
 ApplicationImpl::getMetrics()
 {
     return *mMetrics;
+}
+
+void
+ApplicationImpl::syncOwnMetrics()
+{
+    int64_t c = mAppStateCurrent.count();
+    int64_t n = static_cast<int64_t>(getState());
+    if (c != n)
+    {
+        mAppStateCurrent.set_count(n);
+        auto now = mVirtualClock.now();
+        mAppStateChanges.Update(now - mLastStateChange);
+        mLastStateChange = now;
+    }
+}
+
+void
+ApplicationImpl::syncAllMetrics()
+{
+    mHerder->syncMetrics();
+    mLedgerManager->syncMetrics();
+    syncOwnMetrics();
 }
 
 TmpDirManager&

@@ -82,6 +82,11 @@ HerderImpl::SCPMetrics::SCPMetrics(Application& app)
           app.getMetrics().NewCounter({"scp", "memory", "known-slots"}))
     , mCumulativeStatements(app.getMetrics().NewCounter(
           {"scp", "memory", "cumulative-statements"}))
+
+    , mHerderStateCurrent(app.getMetrics().NewCounter(
+                         {"herder", "state", "current"}))
+    , mHerderStateChanges(app.getMetrics().NewTimer(
+                         {"herder", "state", "changes"}))
 {
 }
 
@@ -90,6 +95,7 @@ HerderImpl::HerderImpl(Application& app)
     , mReceivedTransactions(4)
     , mPendingEnvelopes(app, *this)
     , mTrackingTimer(app)
+    , mLastStateChange(app.getClock().now())
     , mLastTrigger(app.getClock().now())
     , mTriggerTimer(app)
     , mRebroadcastTimer(app)
@@ -111,12 +117,33 @@ HerderImpl::getState() const
     return mTrackingSCP ? HERDER_TRACKING_STATE : HERDER_SYNCING_STATE;
 }
 
+void
+HerderImpl::syncMetrics()
+{
+    int64_t c = mSCPMetrics.mHerderStateCurrent.count();
+    int64_t n = static_cast<int64_t>(getState());
+    if (c != n)
+    {
+        mSCPMetrics.mHerderStateCurrent.set_count(n);
+    }
+}
+
 std::string
 HerderImpl::getStateHuman() const
 {
     static const char* stateStrings[HERDER_NUM_STATE] = {
         "HERDER_SYNCING_STATE", "HERDER_TRACKING_STATE"};
     return std::string(stateStrings[getState()]);
+}
+
+void
+HerderImpl::stateChanged()
+{
+    mSCPMetrics.mHerderStateCurrent.set_count(static_cast<int64_t>(getState()));
+    auto now = mApp.getClock().now();
+    mSCPMetrics.mHerderStateChanges.Update(now - mLastStateChange);
+    mLastStateChange = now;
+    mApp.syncOwnMetrics();
 }
 
 void
@@ -131,6 +158,7 @@ HerderImpl::bootstrap()
     mTrackingSCP =
         make_unique<ConsensusData>(lcl.header.ledgerSeq, lcl.header.scpValue);
     mLedgerManager.setState(LedgerManager::LM_SYNCED_STATE);
+    stateChanged();
 
     trackingHeartBeat();
     mLastTrigger = mApp.getClock().now() - Herder::EXP_LEDGER_TIMESPAN_SECONDS;
@@ -465,6 +493,10 @@ HerderImpl::valueExternalized(uint64 slotIndex, Value const& value)
     // current value is not valid anymore
     mCurrentValue.clear();
 
+    if (!mTrackingSCP)
+    {
+        stateChanged();
+    }
     mTrackingSCP = make_unique<ConsensusData>(slotIndex, b);
     trackingHeartBeat();
 
@@ -1201,6 +1233,7 @@ HerderImpl::herderOutOfSync()
 {
     CLOG(INFO, "Herder") << "Lost track of consensus";
     mSCPMetrics.mLostSync.Mark();
+    stateChanged();
     mTrackingSCP.reset();
     processSCPQueue();
 }

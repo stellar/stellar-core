@@ -9,6 +9,13 @@
 #include "main/Config.h"
 #include "main/PersistentState.h"
 #include <thread>
+#include "medida/timer_context.h"
+
+namespace medida
+{
+class Counter;
+class Timer;
+}
 
 namespace stellar
 {
@@ -37,6 +44,8 @@ class ApplicationImpl : public Application
     virtual bool isStopping() const override;
     virtual VirtualClock& getClock() override;
     virtual medida::MetricsRegistry& getMetrics() override;
+    virtual void syncOwnMetrics() override;
+    virtual void syncAllMetrics() override;
     virtual TmpDirManager& getTmpDirManager() override;
     virtual LedgerManager& getLedgerManager() override;
     virtual BucketManager& getBucketManager() override;
@@ -93,7 +102,6 @@ class ApplicationImpl : public Application
     asio::io_service mWorkerIOService;
     std::unique_ptr<asio::io_service::work> mWork;
 
-    std::unique_ptr<medida::MetricsRegistry> mMetrics;
     std::unique_ptr<Database> mDatabase;
     std::unique_ptr<TmpDirManager> mTmpDirManager;
     std::unique_ptr<OverlayManager> mOverlayManager;
@@ -113,6 +121,11 @@ class ApplicationImpl : public Application
     bool mStopping;
 
     VirtualTimer mStoppingTimer;
+
+    std::unique_ptr<medida::MetricsRegistry> mMetrics;
+    medida::Counter& mAppStateCurrent;
+    medida::Timer& mAppStateChanges;
+    VirtualClock::time_point mLastStateChange;
 
     void shutdownMainIOService();
     void runWorkerThread(unsigned i);

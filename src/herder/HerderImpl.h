@@ -16,6 +16,7 @@ namespace medida
 {
 class Meter;
 class Counter;
+class Timer;
 }
 
 namespace stellar
@@ -40,6 +41,8 @@ class HerderImpl : public Herder, public SCPDriver
 
     State getState() const override;
     std::string getStateHuman() const override;
+
+    void syncMetrics() override;
 
     // Bootstraps the HerderImpl if we're creating a new Network
     void bootstrap() override;
@@ -154,6 +157,10 @@ class HerderImpl : public Herder, public SCPDriver
     // reached consensus it can
     std::unique_ptr<ConsensusData> mTrackingSCP;
 
+    // Mark changes to mTrackingSCP in metrics.
+    void stateChanged();
+    VirtualClock::time_point mLastStateChange;
+
     // the ledger index that was last externalized
     uint32
     lastConsensusLedgerIndex() const
@@ -225,6 +232,10 @@ class HerderImpl : public Herder, public SCPDriver
         // Counters for things reached-through the
         // SCP maps: Slots and Nodes
         medida::Counter& mCumulativeStatements;
+
+        // State transition metrics
+        medida::Counter& mHerderStateCurrent;
+        medida::Timer& mHerderStateChanges;
 
         SCPMetrics(Application& app);
     };
