@@ -163,6 +163,13 @@ class Application
     // reported through the administrative HTTP interface, see CommandHandler.
     virtual medida::MetricsRegistry& getMetrics() = 0;
 
+    // Ensure any App-local metrics that are "current state" gauge-like counters
+    // reflect the current reality as best as possible.
+    virtual void syncOwnMetrics() = 0;
+
+    // Call syncOwnMetrics on self and syncMetrics all objects owned by App.
+    virtual void syncAllMetrics() = 0;
+
     // Get references to each of the "subsystem" objects.
     virtual TmpDirManager& getTmpDirManager() = 0;
     virtual LedgerManager& getLedgerManager() = 0;

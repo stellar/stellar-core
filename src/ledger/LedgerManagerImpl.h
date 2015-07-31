@@ -38,6 +38,13 @@ class LedgerManagerImpl : public LedgerManager
     Application& mApp;
     medida::Timer& mTransactionApply;
     medida::Timer& mLedgerClose;
+    medida::Timer& mLedgerAgeClosed;
+    medida::Counter& mLedgerAge;
+    medida::Counter& mLedgerStateCurrent;
+    medida::Timer& mLedgerStateChanges;
+    VirtualClock::time_point mLastClose;
+    VirtualClock::time_point mLastStateChange;
+
     medida::Counter& mSyncingLedgersSize;
 
     std::vector<LedgerCloseData> mSyncingLedgers;
@@ -66,6 +73,7 @@ class LedgerManagerImpl : public LedgerManager
     int64_t getTxFee() const override;
     uint64_t getCloseTime() const override;
     uint64_t secondsSinceLastLedgerClose() const override;
+    void syncMetrics() override;
 
     void startNewLedger() override;
     void loadLastKnownLedger(

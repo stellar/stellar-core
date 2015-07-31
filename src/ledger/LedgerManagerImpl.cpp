@@ -98,6 +98,12 @@ LedgerManagerImpl::LedgerManagerImpl(Application& app)
     , mTransactionApply(
           app.getMetrics().NewTimer({"ledger", "transaction", "apply"}))
     , mLedgerClose(app.getMetrics().NewTimer({"ledger", "ledger", "close"}))
+    , mLedgerAgeClosed(app.getMetrics().NewTimer({"ledger", "age", "closed"}))
+    , mLedgerAge(app.getMetrics().NewCounter({"ledger", "age", "current-seconds"}))
+    , mLedgerStateCurrent(app.getMetrics().NewCounter({"ledger", "state", "current"}))
+    , mLedgerStateChanges(app.getMetrics().NewTimer({"ledger", "state", "changes"}))
+    , mLastClose(mApp.getClock().now())
+    , mLastStateChange(mApp.getClock().now())
     , mSyncingLedgersSize(
           app.getMetrics().NewCounter({"ledger", "memory", "syncing-ledgers"}))
     , mState(LM_BOOTING_STATE)
@@ -112,6 +118,11 @@ LedgerManagerImpl::setState(State s)
     {
         std::string oldState = getStateHuman();
         mState = s;
+        mLedgerStateCurrent.set_count(static_cast<int64_t>(s));
+        auto now = mApp.getClock().now();
+        mLedgerStateChanges.Update(now - mLastStateChange);
+        mLastStateChange = now;
+        mApp.syncOwnMetrics();
         CLOG(INFO, "Ledger") << "Changing state " << oldState << " -> "
                              << getStateHuman();
     }
@@ -562,6 +573,22 @@ LedgerManagerImpl::secondsSinceLastLedgerClose() const
     return (now > ct) ? (now - ct) : 0;
 }
 
+void
+LedgerManagerImpl::syncMetrics()
+{
+    auto n = static_cast<int64_t>(getState());
+    auto c = mLedgerStateCurrent.count();
+    if (n != c)
+    {
+        mLedgerStateCurrent.set_count(n);
+        auto now = mApp.getClock().now();
+        mLedgerStateChanges.Update(now - mLastStateChange);
+        mLastStateChange = now;
+    }
+    mLedgerAge.set_count(secondsSinceLastLedgerClose());
+    mApp.syncOwnMetrics();
+}
+
 /*
     This is the main method that closes the current ledger based on
 the close context that was computed by SCP or by the historical module
@@ -573,6 +600,11 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
 {
     CLOG(DEBUG, "Ledger") << "starting closeLedger() on ledgerSeq="
                           << mCurrentLedger->mHeader.ledgerSeq;
+
+    auto now = mApp.getClock().now();
+    mLedgerAgeClosed.Update(now - mLastClose);
+    mLastClose = now;
+    mLedgerAge.set_count(0);
 
     if (ledgerData.mTxSet->previousLedgerHash() !=
         getLastClosedLedgerHeader().hash)

@@ -111,6 +111,10 @@ class LedgerManager
     // Return the (changing) number of seconds since the LCL closed.
     virtual uint64_t secondsSinceLastLedgerClose() const = 0;
 
+    // Ensure any metrics that are "current state" gauge-like counters reflect
+    // the current reality as best as possible.
+    virtual void syncMetrics() = 0;
+
     // Return a mutable reference to the current ledger header; this is used
     // solely by LedgerDelta to _modify_ the current ledger-in-progress.
     virtual LedgerHeader& getCurrentLedgerHeader() = 0;
