@@ -224,9 +224,16 @@ ProcessManagerImpl::handleSignalWait()
             asio::error_code ec;
             if (WIFEXITED(status))
             {
-
-                CLOG(WARNING, "Process") << "process " << pid << " exited "
-                                         << WEXITSTATUS(status);
+                if (WEXITSTATUS(status) == 0)
+                {
+                    CLOG(DEBUG, "Process") << "process " << pid << " exited "
+                                           << WEXITSTATUS(status);
+                }
+                else
+                {
+                    CLOG(WARNING, "Process") << "process " << pid << " exited "
+                                             << WEXITSTATUS(status);
+                }
 #ifdef __linux__
                 // Linux posix_spawnp does not fault on file-not-found in the
                 // parent process at the point of invocation, as BSD does; so
