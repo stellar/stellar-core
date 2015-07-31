@@ -82,16 +82,36 @@ LoadGenerator::scheduleLoadGeneration(Application& app, uint32_t nAccounts,
     {
         mLoadTimer = make_unique<VirtualTimer>(app.getClock());
     }
-    mLoadTimer->expires_from_now(std::chrono::milliseconds(STEP_MSECS));
-    mLoadTimer->async_wait([this, &app, nAccounts, nTxs, txRate, autoRate](
-        asio::error_code const& error)
-                           {
-                               if (!error)
+
+    if (app.getState() == Application::APP_SYNCED_STATE)
+    {
+        mLoadTimer->expires_from_now(std::chrono::milliseconds(STEP_MSECS));
+        mLoadTimer->async_wait([this, &app, nAccounts, nTxs, txRate, autoRate](
+                                   asio::error_code const& error)
                                {
-                                   this->generateLoad(app, nAccounts, nTxs,
-                                                      txRate, autoRate);
-                               }
-                           });
+                                   if (!error)
+                                   {
+                                       this->generateLoad(app, nAccounts, nTxs,
+                                                          txRate, autoRate);
+                                   }
+                               });
+    }
+    else
+    {
+        CLOG(WARNING, "LoadGen")
+            << "Application is not in sync, load generation inhibited.";
+        mLoadTimer->expires_from_now(std::chrono::seconds(10));
+        mLoadTimer->async_wait([this, &app, nAccounts, nTxs, txRate, autoRate](
+                                   asio::error_code const& error)
+                               {
+                                   if (!error)
+                                   {
+                                       this->scheduleLoadGeneration(app, nAccounts,
+                                                                    nTxs, txRate,
+                                                                    autoRate);
+                                   }
+                               });
+    }
 }
 
 bool
@@ -160,9 +180,10 @@ maybeAdjustRate(double target, double actual, uint32_t& rate, bool increaseOk)
         {
             return false;
         }
-        LOG(INFO) << (incr > 0 ? "+++ Increasing" : "--- Decreasing")
-                  << " auto-tx target rate from " << rate << " to "
-                  << rate + incr;
+        CLOG(INFO, "LoadGen")
+            << (incr > 0 ? "+++ Increasing" : "--- Decreasing")
+            << " auto-tx target rate from " << rate << " to "
+            << rate + incr;
         rate += incr;
         return true;
     }
@@ -216,7 +237,7 @@ LoadGenerator::generateLoad(Application& app, uint32_t nAccounts, uint32_t nTxs,
     if (txPerStep > nTxs)
     {
         // We're done.
-        LOG(INFO) << "Load generation complete.";
+        CLOG(INFO, "LoadGen") << "Load generation complete.";
         app.getMetrics().NewMeter({"loadgen", "run", "complete"}, "run").Mark();
         clear();
     }
@@ -321,7 +342,7 @@ LoadGenerator::generateLoad(Application& app, uint32_t nAccounts, uint32_t nTxs,
                     targetAge = 1.0;
                 }
 
-                LOG(DEBUG)
+                CLOG(DEBUG, "LoadGen")
                     << "Considering auto-tx adjustment, median close time "
                     << actualLatency << "ms, ledger age " << actualAge << "s";
 
@@ -332,7 +353,7 @@ LoadGenerator::generateLoad(Application& app, uint32_t nAccounts, uint32_t nTxs,
 
                 if (txRate > 5000)
                 {
-                    LOG(WARNING)
+                    CLOG(WARNING, "LoadGen")
                         << "TxRate > 5000, likely metric stutter, resetting";
                     txRate = 10;
                 }
