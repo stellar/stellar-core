@@ -33,7 +33,7 @@ install-data:
 	@:
 install-dvi:
 	@:
-install-exec:
+install-exec: all
 	@:
 install-html:
 	@:
@@ -43,7 +43,7 @@ install-pdf:
 	@:
 install-ps:
 	@:
-install:
+install: all
 	@:
 installcheck:
 	@:
