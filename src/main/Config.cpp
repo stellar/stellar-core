@@ -37,6 +37,7 @@ Config::Config() : PEER_KEY(SecretKey::random())
     BREAK_ASIO_LOOP_FOR_FAST_TESTS = false;
     TARGET_PEER_CONNECTIONS = 20;
     MAX_PEER_CONNECTIONS = 50;
+    MAX_CONCURRENT_SUBPROCESSES = 8;
     LOG_FILE_PATH = "stellar-core.log";
     TMP_DIR_PATH = "tmp";
     BUCKET_DIR_PATH = "buckets";
@@ -344,6 +345,14 @@ Config::load(std::string const& filename)
                 {
                     COMMANDS.push_back(v->as<std::string>()->value());
                 }
+            }
+            else if (item.first == "MAX_CONCURRENT_SUBPROCESSES")
+            {
+                if (!item.second->as<int64_t>())
+                {
+                    throw std::invalid_argument("invalid MAX_CONCURRENT_SUBPROCESSES");
+                }
+                MAX_CONCURRENT_SUBPROCESSES = (size_t)item.second->as<int64_t>()->value();
             }
             else if (item.first == "HISTORY")
             {

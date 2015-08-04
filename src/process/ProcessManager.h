@@ -50,6 +50,7 @@ class ProcessManager
     static std::unique_ptr<ProcessManager> create(Application& app);
     virtual ProcessExitEvent runProcess(std::string const& cmdLine,
                                         std::string outputFile = "") = 0;
+    virtual size_t getNumRunningProcesses() = 0;
     virtual ~ProcessManager() {}
 };
 }
