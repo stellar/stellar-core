@@ -11,6 +11,7 @@
 
 #include "util/Timer.h"
 #include "main/Application.h"
+#include "main/Config.h"
 #include "util/Logging.h"
 #include "util/make_unique.h"
 #include "process/ProcessManager.h"
@@ -35,6 +36,47 @@ ProcessManager::create(Application& app)
     return make_unique<ProcessManagerImpl>(app);
 }
 
+std::recursive_mutex ProcessManagerImpl::gImplsMutex;
+
+std::map<int, std::shared_ptr<ProcessExitEvent::Impl>>
+    ProcessManagerImpl::gImpls;
+
+size_t ProcessManagerImpl::gNumProcessesActive = 0;
+
+size_t
+ProcessManagerImpl::getNumRunningProcesses()
+{
+    std::lock_guard<std::recursive_mutex> guard(gImplsMutex);
+    return gNumProcessesActive;
+}
+
+ProcessManagerImpl::~ProcessManagerImpl()
+{
+}
+
+class ProcessExitEvent::Impl
+    : public std::enable_shared_from_this<ProcessExitEvent::Impl>
+{
+  public:
+    std::shared_ptr<RealTimer> mOuterTimer;
+    std::shared_ptr<asio::error_code> mOuterEc;
+    std::string mCmdLine;
+    std::string mOutFile;
+    bool mRunning{false};
+
+    Impl(std::shared_ptr<RealTimer> const& outerTimer,
+         std::shared_ptr<asio::error_code> const& outerEc,
+         std::string const& cmdLine,
+         std::string const& outFile)
+        : mOuterTimer(outerTimer)
+        , mOuterEc(outerEc)
+        , mCmdLine(cmdLine)
+        , mOutFile(outFile)
+    {
+    }
+    void run();
+};
+
 #ifdef _MSC_VER
 #include <windows.h>
 #include <tchar.h>
@@ -58,63 +100,23 @@ ProcessManagerImpl::handleSignalWait()
     // No-op on windows, uses waitable object handles
 }
 
-class ProcessExitEvent::Impl
-    : public std::enable_shared_from_this<ProcessExitEvent::Impl>
+void
+ProcessExitEvent::Impl::run()
 {
-  public:
-    std::shared_ptr<RealTimer> mOuterTimer;
-    std::shared_ptr<asio::error_code> mOuterEc;
-    asio::windows::object_handle mProcessHandle;
-
-    Impl(std::shared_ptr<RealTimer> const& outerTimer,
-         std::shared_ptr<asio::error_code> const& outerEc, HANDLE hProcess)
-        : mOuterTimer(outerTimer)
-        , mOuterEc(outerEc)
-        , mProcessHandle(outerTimer->get_io_service(), hProcess)
+    if (mRunning)
     {
+        CLOG(ERROR, "Process") << "ProcessExitEvent::Impl already running";
+        throw std::runtime_error("ProcessExitEvent::Impl already running");
     }
 
-    void
-    go()
-    {
-        // capture a shared pointer to "this" to keep Impl alive until the end
-        // of the execution
-        auto sf = shared_from_this();
-        mProcessHandle.async_wait(
-            [sf](asio::error_code ec)
-            {
-                if (ec)
-                {
-                    *(sf->mOuterEc) = ec;
-                }
-                else
-                {
-                    DWORD exitCode;
-                    BOOL res = GetExitCodeProcess(
-                        sf->mProcessHandle.native_handle(), &exitCode);
-                    if (!res)
-                    {
-                        exitCode = 1;
-                    }
-                    *(sf->mOuterEc) =
-                        asio::error_code(exitCode, asio::system_category());
-                }
-                sf->mOuterTimer->cancel();
-            });
-    }
-};
-
-ProcessExitEvent
-ProcessManagerImpl::runProcess(std::string const& cmdLine, std::string outFile)
-{
     STARTUPINFO si;
     PROCESS_INFORMATION pi;
     ZeroMemory(&si, sizeof(si));
     ZeroMemory(&pi, sizeof(pi));
     si.cb = sizeof(si);
-    LPSTR cmd = (LPSTR)cmdLine.data();
+    LPSTR cmd = (LPSTR)mCmdLine.data();
 
-    if (!outFile.empty())
+    if (!mOutFile.empty())
     {
         SECURITY_ATTRIBUTES sa;
         sa.nLength = sizeof(sa);
@@ -124,7 +126,7 @@ ProcessManagerImpl::runProcess(std::string const& cmdLine, std::string outFile)
         si.cb = sizeof(STARTUPINFO);
         si.dwFlags = STARTF_USESTDHANDLES;
         si.hStdOutput =
-            CreateFile((LPCTSTR)outFile.c_str(),           // name of the file
+            CreateFile((LPCTSTR)mOutFile.c_str(),          // name of the file
                        GENERIC_WRITE,                      // open for writing
                        FILE_SHARE_WRITE | FILE_SHARE_READ, // share r/w access
                        &sa,                   // security attributes
@@ -138,7 +140,6 @@ ProcessManagerImpl::runProcess(std::string const& cmdLine, std::string outFile)
         }
     }
 
-    CLOG(DEBUG, "Process") << "Starting process: " << cmdLine;
     if (!CreateProcess(NULL,    // No module name (use command line)
                        cmd,     // Command line
                        nullptr, // Process handle not inheritable
@@ -158,37 +159,46 @@ ProcessManagerImpl::runProcess(std::string const& cmdLine, std::string outFile)
     CloseHandle(pi.hThread); // we don't need this handle
     pi.hThread = INVALID_HANDLE_VALUE;
 
-    auto& svc = mApp.getClock().getIOService();
-    ProcessExitEvent pe(svc);
-    pe.mImpl = std::make_shared<ProcessExitEvent::Impl>(pe.mTimer, pe.mEc,
-                                                        pi.hProcess);
-    pe.mImpl->go();
-    return pe;
+    asio::windows::object_handle processHandle(mOuterTimer->get_io_service(),
+                                               pi.hProcess);
+
+    // capture a shared pointer to "this" to keep Impl alive until the end
+    // of the execution
+    auto hProcess = pi.hProcess;
+    auto sf = shared_from_this();
+    processHandle.async_wait(
+        [hProcess, sf](asio::error_code ec)
+        {
+            {
+                std::lock_guard<std::recursive_mutex>
+                    guard(ProcessManagerImpl::gImplsMutex);
+                --ProcessManagerImpl::gNumProcessesActive;
+            }
+            if (ec)
+            {
+                *(sf->mOuterEc) = ec;
+            }
+            else
+            {
+                DWORD exitCode;
+                BOOL res = GetExitCodeProcess(hProcess, &exitCode);
+                if (!res)
+                {
+                    exitCode = 1;
+                }
+                *(sf->mOuterEc) =
+                    asio::error_code(exitCode, asio::system_category());
+            }
+            sf->mOuterTimer->cancel();
+        });
+
+    mRunning = true;
 }
 
 #else
 
 #include <spawn.h>
 #include <sys/wait.h>
-
-class ProcessExitEvent::Impl
-{
-  public:
-    std::shared_ptr<RealTimer> mOuterTimer;
-    std::shared_ptr<asio::error_code> mOuterEc;
-    std::string mCmdLine;
-    Impl(std::shared_ptr<RealTimer> const& outerTimer,
-         std::shared_ptr<asio::error_code> const& outerEc,
-         std::string const& cmdLine)
-        : mOuterTimer(outerTimer), mOuterEc(outerEc), mCmdLine(cmdLine)
-    {
-    }
-};
-
-std::recursive_mutex ProcessManagerImpl::gImplsMutex;
-
-std::map<int, std::shared_ptr<ProcessExitEvent::Impl>>
-    ProcessManagerImpl::gImpls;
 
 ProcessManagerImpl::ProcessManagerImpl(Application& app)
     : mApp(app)
@@ -227,12 +237,14 @@ ProcessManagerImpl::handleSignalWait()
                 if (WEXITSTATUS(status) == 0)
                 {
                     CLOG(DEBUG, "Process") << "process " << pid << " exited "
-                                           << WEXITSTATUS(status);
+                                           << WEXITSTATUS(status) << ": "
+                                           << impl->mCmdLine;
                 }
                 else
                 {
                     CLOG(WARNING, "Process") << "process " << pid << " exited "
-                                             << WEXITSTATUS(status);
+                                             << WEXITSTATUS(status) << ": "
+                                             << impl->mCmdLine;
                 }
 #ifdef __linux__
                 // Linux posix_spawnp does not fault on file-not-found in the
@@ -272,6 +284,7 @@ ProcessManagerImpl::handleSignalWait()
                 ec = asio::error_code(1, asio::system_category());
             }
 
+            --gNumProcessesActive;
             gImpls.erase(pair);
             *(impl->mOuterEc) = ec;
             impl->mOuterTimer->cancel();
@@ -282,6 +295,7 @@ ProcessManagerImpl::handleSignalWait()
         }
     }
     mImplsSize.set_count(gImpls.size());
+    maybeRunPendingProcesses();
     startSignalWait();
 }
 
@@ -295,11 +309,16 @@ split(std::string const& s)
     return parts;
 }
 
-ProcessExitEvent
-ProcessManagerImpl::runProcess(std::string const& cmdLine, std::string outFile)
+void
+ProcessExitEvent::Impl::run()
 {
-    std::lock_guard<std::recursive_mutex> guard(gImplsMutex);
-    std::vector<std::string> args = split(cmdLine);
+    if (mRunning)
+    {
+        CLOG(ERROR, "Process") << "ProcessExitEvent::Impl already running";
+        throw std::runtime_error("ProcessExitEvent::Impl already running");
+    }
+    std::lock_guard<std::recursive_mutex> guard(ProcessManagerImpl::gImplsMutex);
+    std::vector<std::string> args = split(mCmdLine);
     std::vector<char*> argv;
     for (auto& a : args)
     {
@@ -310,7 +329,7 @@ ProcessManagerImpl::runProcess(std::string const& cmdLine, std::string outFile)
     int pid, err = 0;
 
     posix_spawn_file_actions_t fileActions;
-    if (!outFile.empty())
+    if (!mOutFile.empty())
     {
         err = posix_spawn_file_actions_init(&fileActions);
         if (err)
@@ -319,7 +338,7 @@ ProcessManagerImpl::runProcess(std::string const& cmdLine, std::string outFile)
                 << "posix_spawn_file_actions_init() failed: " << strerror(err);
             throw std::runtime_error("posix_spawn_file_actions_init() failed");
         }
-        err = posix_spawn_file_actions_addopen(&fileActions, 1, outFile.c_str(),
+        err = posix_spawn_file_actions_addopen(&fileActions, 1, mOutFile.c_str(),
                                                O_RDWR | O_CREAT, 0600);
         if (err)
         {
@@ -331,8 +350,7 @@ ProcessManagerImpl::runProcess(std::string const& cmdLine, std::string outFile)
         }
     }
 
-    CLOG(DEBUG, "Process") << "Starting process: " << cmdLine;
-    err = posix_spawnp(&pid, argv[0], outFile.empty() ? nullptr : &fileActions,
+    err = posix_spawnp(&pid, argv[0], mOutFile.empty() ? nullptr : &fileActions,
                        nullptr, // posix_spawnattr_t*
                        argv.data(), env);
     if (err)
@@ -341,7 +359,7 @@ ProcessManagerImpl::runProcess(std::string const& cmdLine, std::string outFile)
         throw std::runtime_error("posix_spawn() failed");
     }
 
-    if (!outFile.empty())
+    if (!mOutFile.empty())
     {
         err = posix_spawn_file_actions_destroy(&fileActions);
         if (err)
@@ -353,16 +371,50 @@ ProcessManagerImpl::runProcess(std::string const& cmdLine, std::string outFile)
                 "posix_spawn_file_actions_destroy() failed");
         }
     }
-
-    auto& svc = mApp.getClock().getIOService();
-    ProcessExitEvent pe(svc);
-    pe.mImpl = std::make_shared<ProcessExitEvent::Impl>(pe.mTimer, pe.mEc, cmdLine);
-    gImpls[pid] = pe.mImpl;
-    mImplsSize.set_count(gImpls.size());
-    return pe;
+    ProcessManagerImpl::gImpls[pid] = shared_from_this();
+    mRunning = true;
 }
 
 #endif
+
+ProcessExitEvent
+ProcessManagerImpl::runProcess(std::string const& cmdLine, std::string outFile)
+{
+    std::lock_guard<std::recursive_mutex> guard(gImplsMutex);
+    auto& svc = mApp.getClock().getIOService();
+    ProcessExitEvent pe(svc);
+    pe.mImpl = std::make_shared<ProcessExitEvent::Impl>(pe.mTimer, pe.mEc,
+                                                        cmdLine, outFile);
+    mPendingImpls.push_back(pe.mImpl);
+    maybeRunPendingProcesses();
+    mImplsSize.set_count(gNumProcessesActive);
+    return pe;
+}
+
+void
+ProcessManagerImpl::maybeRunPendingProcesses()
+{
+    std::lock_guard<std::recursive_mutex> guard(gImplsMutex);
+    while (!mPendingImpls.empty() &&
+           gNumProcessesActive < mApp.getConfig().MAX_CONCURRENT_SUBPROCESSES)
+    {
+        auto i = mPendingImpls.front();
+        mPendingImpls.pop_front();
+        try
+        {
+            CLOG(DEBUG, "Process") << "Running: " << i->mCmdLine;
+            i->run();
+            ++gNumProcessesActive;
+        }
+        catch (std::runtime_error& e)
+        {
+            CLOG(ERROR, "Process")
+                << "Error staring process: " << e.what();
+            CLOG(ERROR, "Process")
+                << "When running: " << i->mCmdLine;
+        }
+    }
+}
 
 ProcessExitEvent::ProcessExitEvent(asio::io_service& io_service)
     : mTimer(std::make_shared<RealTimer>(io_service))

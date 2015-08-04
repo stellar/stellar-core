@@ -106,6 +106,9 @@ class Config : public std::enable_shared_from_this<Config>
     std::vector<std::string> PREFERRED_PEERS;
     std::vector<std::string> KNOWN_PEERS;
 
+    // process-management config
+    size_t MAX_CONCURRENT_SUBPROCESSES;
+
     // Setting this causes all sorts of extra checks to occur
     // the overhead may cause slower systems to not perform as fast
     // as the rest of the network, caution is advised when using this.

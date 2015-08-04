@@ -10,6 +10,8 @@
 #include "lib/catch.hpp"
 #include "util/Logging.h"
 #include "util/Timer.h"
+#include "lib/util/format.h"
+#include "util/Fs.h"
 #include <future>
 #include "process/ProcessManager.h"
 
@@ -102,3 +104,61 @@ TEST_CASE("subprocess redirect to file", "[process]")
     CHECK(!s.empty());
     std::remove(filename.c_str());
 }
+
+#ifndef _MSC_VER
+TEST_CASE("subprocess storm", "[process]")
+{
+    VirtualClock clock;
+    Config const& cfg = getTestConfig();
+    Application::pointer appPtr = Application::create(clock, cfg);
+    Application& app = *appPtr;
+
+    size_t n = 100;
+    size_t completed = 0;
+
+    std::string dir(cfg.TMP_DIR_PATH + "/process-storm");
+    fs::mkdir(dir);
+    fs::mkdir(dir + "/src");
+    fs::mkdir(dir + "/dst");
+
+    for (size_t i = 0; i < n; ++i)
+    {
+        std::string src(fmt::format("{:s}/src/{:d}", dir, i));
+        std::string dst(fmt::format("{:s}/dst/{:d}", dir, i));
+        CLOG(INFO, "Process") << "making file " << src;
+        {
+            std::ofstream out(src);
+            out << i;
+        }
+        auto evt = app.getProcessManager().runProcess("mv " + src + " " + dst);
+        evt.async_wait([&](asio::error_code ec)
+                       {
+                       CLOG(INFO, "Process") << "process exited: " << ec;
+                       if (ec)
+                       {
+                           CLOG(DEBUG, "Process")
+                               << "error code: " << ec.message();
+                       }
+                       ++completed;
+                       });
+    }
+
+    while (completed < n && !clock.getIOService().stopped())
+    {
+        clock.crank(false);
+        size_t n = app.getProcessManager().getNumRunningProcesses();
+        CLOG(INFO, "Process") << "running subprocess count: " << n;
+        REQUIRE(n <= cfg.MAX_CONCURRENT_SUBPROCESSES);
+    }
+
+    for (size_t i = 0; i < n; ++i)
+    {
+        std::string src(fmt::format("{:s}/src/{:d}", dir, i));
+        std::string dst(fmt::format("{:s}/dst/{:d}", dir, i));
+        REQUIRE(!fs::exists(src));
+        REQUIRE(fs::exists(dst));
+    }
+}
+#endif
+
+
