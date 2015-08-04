@@ -32,6 +32,9 @@
 namespace stellar
 {
 
+unsigned const
+HistoryArchiveState::HISTORY_ARCHIVE_STATE_VERSION = 0;
+
 bool
 HistoryArchiveState::futuresAllReady() const
 {
@@ -111,6 +114,12 @@ HistoryArchiveState::load(std::string const& inFile)
     std::ifstream in(inFile);
     cereal::JSONInputArchive ar(in);
     serialize(ar);
+    if (version != HISTORY_ARCHIVE_STATE_VERSION)
+    {
+        CLOG(ERROR, "History")
+            << "unexpected history archive state version: " << version;
+        throw std::runtime_error("unexpected history archive state version");
+    }
     assert(futuresAllResolved());
 }
 
