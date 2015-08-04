@@ -14,6 +14,7 @@
 #include "overlay/OverlayManager.h"
 #include "util/Logging.h"
 #include "util/make_unique.h"
+#include "StellarCoreVersion.h"
 
 #include "util/basen.h"
 #include "medida/reporting/json_reporter.h"
@@ -320,6 +321,7 @@ CommandHandler::info(std::string const& params, std::string& retStr)
 
     LedgerManager& lm = mApp.getLedgerManager();
 
+    root["info"]["build"] = STELLAR_CORE_VERSION;
     root["info"]["state"] = mApp.getStateHuman();
     root["info"]["ledger"]["num"] = (int)lm.getLedgerNum();
     root["info"]["ledger"]["hash"] =
