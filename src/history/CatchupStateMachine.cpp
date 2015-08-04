@@ -675,9 +675,6 @@ CatchupStateMachine::enterApplyingState()
     auto& sess = db.getSession();
     soci::transaction sqltx(sess);
 
-    // FIXME: this should do a "pre-apply scan" of the incoming contents
-    // to confirm that it's part of the trusted chain of history we want
-    // to catch up with. Currently it applies blindly.
 
     if (mMode == HistoryManager::CATCHUP_MINIMAL)
     {
