@@ -133,7 +133,6 @@ AC_SUBST(sqlite3_CFLAGS)
 AC_SUBST(sqlite3_LIBS)
 
 AX_PKGCONFIG_SUBDIR(lib/libsodium)
-libsodium_CFLAGS="$libsodium_CFLAGS "'-I$(top_srcdir)/lib/libsodium/src/libsodium/include/sodium'
 
 AX_PKGCONFIG_SUBDIR(lib/xdrpp)
 AC_MSG_CHECKING(for xdrc)
