@@ -10,6 +10,7 @@
 #include <memory>
 #include "bucket/FutureBucket.h"
 #include "xdr/Stellar-types.h"
+#include "StellarCoreVersion.h"
 
 namespace asio
 {
@@ -60,6 +61,7 @@ struct HistoryArchiveState
     static unsigned const HISTORY_ARCHIVE_STATE_VERSION;
 
     unsigned version{HISTORY_ARCHIVE_STATE_VERSION};
+    std::string server{STELLAR_CORE_VERSION};
     uint32_t currentLedger{0};
     std::vector<HistoryStateBucket> currentBuckets;
 
@@ -90,7 +92,9 @@ struct HistoryArchiveState
     void
     serialize(Archive& ar)
     {
-        ar(CEREAL_NVP(version), CEREAL_NVP(currentLedger),
+        ar(CEREAL_NVP(version),
+           CEREAL_NVP(server),
+           CEREAL_NVP(currentLedger),
            CEREAL_NVP(currentBuckets));
     }
 
@@ -98,7 +102,9 @@ struct HistoryArchiveState
     void
     serialize(Archive& ar) const
     {
-        ar(CEREAL_NVP(version), CEREAL_NVP(currentLedger),
+        ar(CEREAL_NVP(version),
+           CEREAL_NVP(server),
+           CEREAL_NVP(currentLedger),
            CEREAL_NVP(currentBuckets));
     }
 
