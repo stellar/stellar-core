@@ -563,12 +563,13 @@ CatchupStateMachine::enterVerifyingState()
         enterApplyingState();
         break;
     case HistoryManager::VERIFY_HASH_BAD:
-        CLOG(INFO, "History")
-            << "Catchup material failed verification, restarting";
-        enterBeginState();
+        CLOG(ERROR, "History")
+            << "Catchup material failed verification, propagating failure";
+        mError = std::make_error_code(std::errc::bad_message);
+        enterEndState();
         break;
     case HistoryManager::VERIFY_HASH_UNKNOWN:
-        CLOG(INFO, "History")
+        CLOG(WARNING, "History")
             << "Catchup material verification inconclusive, pausing";
         enterRetryingState();
         break;
@@ -673,28 +674,35 @@ CatchupStateMachine::enterApplyingState()
     mState = CATCHUP_APPLYING;
     auto& db = mApp.getDatabase();
     auto& sess = db.getSession();
-    soci::transaction sqltx(sess);
-
-
-    if (mMode == HistoryManager::CATCHUP_MINIMAL)
+    try
     {
-        // In CATCHUP_MINIMAL mode we're applying the _state_ at mLastClosed
-        // without any history replay.
-        applyBucketsAtLastClosedLedger();
-    }
-    else if (mMode == HistoryManager::CATCHUP_COMPLETE)
-    {
-        // In CATCHUP_COMPLETE mode we're applying the _log_ of history from
-        // HistoryManager's LCL through mNextLedger, without any reconstitution.
-        applyHistoryFromLastClosedLedger();
-    }
-    else
-    {
-        assert(mMode == HistoryManager::CATCHUP_BUCKET_REPAIR);
-        // Nothing to do.
-    }
+        soci::transaction sqltx(sess);
 
-    sqltx.commit();
+        if (mMode == HistoryManager::CATCHUP_MINIMAL)
+        {
+            // In CATCHUP_MINIMAL mode we're applying the _state_ at mLastClosed
+            // without any history replay.
+            applyBucketsAtLastClosedLedger();
+        }
+        else if (mMode == HistoryManager::CATCHUP_COMPLETE)
+        {
+            // In CATCHUP_COMPLETE mode we're applying the _log_ of history from
+            // HistoryManager's LCL through mNextLedger, without any reconstitution.
+            applyHistoryFromLastClosedLedger();
+        }
+        else
+        {
+            assert(mMode == HistoryManager::CATCHUP_BUCKET_REPAIR);
+            // Nothing to do.
+        }
+
+        sqltx.commit();
+    }
+    catch (std::runtime_error& e)
+    {
+        CLOG(ERROR, "History") << "Error during apply: " << e.what();
+        mError = std::make_error_code(std::errc::bad_message);
+    }
     enterEndState();
 }
 
