@@ -58,8 +58,6 @@ template <typename T> class FileTransferInfo;
 
 class ArchivePublisher : public std::enable_shared_from_this<ArchivePublisher>
 {
-    static const size_t kRetryLimit;
-
     Application& mApp;
     std::function<void(asio::error_code const&)> mEndHandler;
     asio::error_code mError;
@@ -79,6 +77,7 @@ class ArchivePublisher : public std::enable_shared_from_this<ArchivePublisher>
                          FilePublishState newGoodState);
 
   public:
+    static const size_t kRetryLimit;
     ArchivePublisher(Application& app,
                      std::function<void(asio::error_code const&)> handler,
                      std::shared_ptr<HistoryArchive> archive,
