@@ -264,7 +264,7 @@ CatchupStateMachine::enterFetchingState()
         case FILE_CATCHUP_DOWNLOADED:
         {
             fi->setState(FILE_CATCHUP_DECOMPRESSING);
-            CLOG(DEBUG, "History") << "Decompressing " << fi->localPath_gz();
+            CLOG(INFO, "History") << "Decompressing " << fi->localPath_gz();
             std::weak_ptr<CatchupStateMachine> weak(shared_from_this());
             hm.decompress(
                 fi->localPath_gz(), [weak, name](asio::error_code const& ec)
@@ -300,7 +300,7 @@ CatchupStateMachine::enterFetchingState()
             }
             else
             {
-                CLOG(DEBUG, "History") << "Verifying " << name;
+                CLOG(INFO, "History") << "Verifying " << name;
                 auto filename = fi->localPath_nogz();
                 std::weak_ptr<CatchupStateMachine> weak(shared_from_this());
                 hm.verifyHash(
