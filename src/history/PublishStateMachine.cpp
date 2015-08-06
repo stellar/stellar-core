@@ -478,11 +478,11 @@ PublishStateMachine::writeNextSnapshot()
 
     bool readyToWrite = true;
 
-    if (mApp.getState() == Application::APP_CATCHING_UP_STATE)
+    if (mApp.getLedgerManager().getState() != LedgerManager::LM_SYNCED_STATE)
     {
         readyToWrite = false;
         CLOG(WARNING, "History")
-            << "Queued snapshot awaiting catchup in progress";
+            << "Queued snapshot awaiting ledgermanager sync";
     }
 
     else if (!snap->mLocalState.futuresAllResolved())
