@@ -138,11 +138,19 @@ private:
     void enterAnchoredState(HistoryArchiveState const& has);
     void enterRetryingState(uint64_t nseconds=2);
     void enterFetchingState();
+
     void enterVerifyingState();
+    void advanceVerifyingState(std::shared_ptr<LedgerHeaderHistoryEntry> prev,
+                               uint32_t checkpoint);
+    HistoryManager::VerifyHashStatus
+    verifyHistoryOfSingleCheckpoint(std::shared_ptr<LedgerHeaderHistoryEntry> prev,
+                                    uint32_t checkpoint);
+    void finishVerifyingState(HistoryManager::VerifyHashStatus status);
+
     void enterApplyingState();
     void enterEndState();
 
-    HistoryManager::VerifyHashStatus verifyHistoryFromLastClosedLedger();
+
     void applyBucketsAtLastClosedLedger();
     void acquireFinalLedgerState(uint32_t ledgerNum);
     void applyHistoryFromLastClosedLedger();

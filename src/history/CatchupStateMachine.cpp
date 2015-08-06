@@ -528,16 +528,27 @@ void
 CatchupStateMachine::enterVerifyingState()
 {
     assert(mState == CATCHUP_RETRYING || mState == CATCHUP_FETCHING);
-
     mState = CATCHUP_VERIFYING;
 
-    HistoryManager::VerifyHashStatus status =
-        HistoryManager::VERIFY_HASH_UNKNOWN;
     if (mMode == HistoryManager::CATCHUP_COMPLETE)
     {
-        // In CATCHUP_COMPLETE mode we need to verify he whole history chain;
-        // this includes checking the final LCL of the chain with LedgerManager.
-        status = verifyHistoryFromLastClosedLedger();
+        auto prev = std::make_shared<LedgerHeaderHistoryEntry>(
+            mApp.getLedgerManager().getLastClosedLedgerHeader());
+
+        CLOG(INFO, "History") << "Verifying ledger-history chain of "
+                              << mHeaderInfos.size()
+                              << " transaction-history files from LCL "
+                              << LedgerManager::ledgerAbbrev(*prev);
+
+        auto i = mHeaderInfos.begin();
+        if (i == mHeaderInfos.end())
+        {
+            finishVerifyingState(HistoryManager::VERIFY_HASH_OK);
+        }
+        else
+        {
+            advanceVerifyingState(prev, i->first);
+        }
     }
     else if (mMode == HistoryManager::CATCHUP_MINIMAL)
     {
@@ -545,7 +556,8 @@ CatchupStateMachine::enterVerifyingState()
         // mNextLedger
         // and check to see if it's acceptable.
         acquireFinalLedgerState(mNextLedger);
-        status = mApp.getLedgerManager().verifyCatchupCandidate(mLastClosed);
+        auto status = mApp.getLedgerManager().verifyCatchupCandidate(mLastClosed);
+        finishVerifyingState(status);
     }
     else
     {
@@ -553,9 +565,67 @@ CatchupStateMachine::enterVerifyingState()
         // In CATCHUP_BUCKET_REPAIR, the verification done by the download step
         // is all
         // we can do.
-        status = HistoryManager::VERIFY_HASH_OK;
+        finishVerifyingState(HistoryManager::VERIFY_HASH_OK);
+    }
+}
+
+// CATCHUP_VERIFYING has to be split in 3 pieces (enter/advance/finish) so
+// that it can bounce off the io_service scheduler in fine enough
+// increments to keep normal network traffic flowing, SCP messages flooding
+// and such. The same is true for CATCHUP_APPLYING.
+
+void
+CatchupStateMachine::advanceVerifyingState(std::shared_ptr<LedgerHeaderHistoryEntry> prev,
+                                           uint32_t checkpoint)
+{
+    assert(mState == CATCHUP_VERIFYING);
+    assert(mMode == HistoryManager::CATCHUP_COMPLETE);
+
+    auto status = HistoryManager::VERIFY_HASH_OK;
+
+    auto i = mHeaderInfos.find(checkpoint);
+    if (i != mHeaderInfos.end())
+    {
+        status = verifyHistoryOfSingleCheckpoint(prev, checkpoint);
+        ++i;
     }
 
+    if (status != HistoryManager::VERIFY_HASH_OK || i == mHeaderInfos.end())
+    {
+
+        if (prev->header.ledgerSeq + 1 != mNextLedger)
+        {
+            CLOG(ERROR, "History")
+                << "Insufficient history to connect chain to ledger "
+                << mNextLedger;
+            CLOG(ERROR, "History") << "History chain ends at "
+                                   << prev->header.ledgerSeq;
+            status = HistoryManager::VERIFY_HASH_BAD;
+        }
+        status = mApp.getLedgerManager().verifyCatchupCandidate(*prev);
+        finishVerifyingState(status);
+    }
+    else
+    {
+        uint32_t nextCheckpoint = i->first;
+        std::weak_ptr<CatchupStateMachine> weak(shared_from_this());
+        mApp.getClock().getIOService().post(
+            [weak, prev, nextCheckpoint]()
+            {
+                auto self = weak.lock();
+                if (!self)
+                {
+                    return;
+                }
+                self->advanceVerifyingState(prev, nextCheckpoint);
+            });
+    }
+}
+
+void
+CatchupStateMachine::finishVerifyingState(HistoryManager::VerifyHashStatus status)
+{
+    assert(mState == CATCHUP_VERIFYING);
     switch (status)
     {
     case HistoryManager::VERIFY_HASH_OK:
@@ -613,58 +683,44 @@ verifyLedgerHistoryLink(Hash const& prev, LedgerHeaderHistoryEntry const& curr)
 }
 
 HistoryManager::VerifyHashStatus
-CatchupStateMachine::verifyHistoryFromLastClosedLedger()
+CatchupStateMachine::verifyHistoryOfSingleCheckpoint(
+    std::shared_ptr<LedgerHeaderHistoryEntry> prev,
+    uint32_t checkpoint)
 {
-    auto& lm = mApp.getLedgerManager();
-    LedgerHeaderHistoryEntry prev = lm.getLastClosedLedgerHeader();
-    CLOG(INFO, "History") << "Verifying ledger-history chain of "
-                          << mHeaderInfos.size()
-                          << " transaction-history files from LCL "
-                          << LedgerManager::ledgerAbbrev(prev);
+    auto i = mHeaderInfos.find(checkpoint);
+    assert(i != mHeaderInfos.end());
+    auto hi = i->second;
 
-    for (auto& pair : mHeaderInfos)
+    XDRInputFileStream hdrIn;
+    CLOG(INFO, "History")
+        << "Verifying ledger headers from " << hi->localPath_nogz()
+        << " starting from ledger " << LedgerManager::ledgerAbbrev(*prev);
+    hdrIn.open(hi->localPath_nogz());
+    LedgerHeaderHistoryEntry curr;
+    while (hdrIn && hdrIn.readOne(curr))
     {
-        auto hi = pair.second;
-        XDRInputFileStream hdrIn;
-        CLOG(INFO, "History")
-            << "Verifying ledger headers from " << hi->localPath_nogz()
-            << " starting from ledger " << LedgerManager::ledgerAbbrev(prev);
-        hdrIn.open(hi->localPath_nogz());
-        LedgerHeaderHistoryEntry curr;
-        while (hdrIn && hdrIn.readOne(curr))
+        uint32_t expectedSeq = prev->header.ledgerSeq + 1;
+        if (curr.header.ledgerSeq < expectedSeq)
         {
-            uint32_t expectedSeq = prev.header.ledgerSeq + 1;
-            if (curr.header.ledgerSeq < expectedSeq)
-            {
-                // Harmless prehistory
-                continue;
-            }
-            else if (curr.header.ledgerSeq > expectedSeq)
-            {
-                CLOG(ERROR, "History")
-                    << "History chain overshot expected ledger seq "
-                    << expectedSeq << ", got " << curr.header.ledgerSeq
-                    << " instead";
-                return HistoryManager::VERIFY_HASH_BAD;
-            }
-            if (verifyLedgerHistoryLink(prev.hash, curr) !=
-                HistoryManager::VERIFY_HASH_OK)
-            {
-                return HistoryManager::VERIFY_HASH_BAD;
-            }
-            prev = curr;
+            // Harmless prehistory
+            continue;
         }
+        else if (curr.header.ledgerSeq > expectedSeq)
+        {
+            CLOG(ERROR, "History")
+                << "History chain overshot expected ledger seq "
+                << expectedSeq << ", got " << curr.header.ledgerSeq
+                << " instead";
+            return HistoryManager::VERIFY_HASH_BAD;
+        }
+        if (verifyLedgerHistoryLink(prev->hash, curr) !=
+            HistoryManager::VERIFY_HASH_OK)
+        {
+            return HistoryManager::VERIFY_HASH_BAD;
+        }
+        *prev = curr;
     }
-    if (prev.header.ledgerSeq + 1 != mNextLedger)
-    {
-        CLOG(INFO, "History")
-            << "Insufficient history to connect chain to ledger "
-            << mNextLedger;
-        CLOG(INFO, "History") << "History chain ends at "
-                              << prev.header.ledgerSeq;
-        return HistoryManager::VERIFY_HASH_BAD;
-    }
-    return lm.verifyCatchupCandidate(prev);
+    return HistoryManager::VERIFY_HASH_OK;
 }
 
 void
