@@ -31,7 +31,8 @@ const size_t ArchivePublisher::kRetryLimit = 16;
 
 typedef FileTransferInfo<FilePublishState> FilePublishInfo;
 
-struct StateSnapshot
+struct StateSnapshot :
+        public std::enable_shared_from_this<StateSnapshot>
 {
     Application& mApp;
     HistoryArchiveState mLocalState;
@@ -41,8 +42,13 @@ struct StateSnapshot
     std::shared_ptr<FilePublishInfo> mTransactionSnapFile;
     std::shared_ptr<FilePublishInfo> mTransactionResultSnapFile;
 
+    VirtualTimer mRetryTimer;
+    size_t mRetryCount{0};
+
     StateSnapshot(Application& app);
     bool writeHistoryBlocks() const;
+    void writeHistoryBlocksWithRetry();
+    void retryHistoryBlockWriteOrFail(asio::error_code const& ec);
 };
 
 ArchivePublisher::ArchivePublisher(
@@ -382,6 +388,7 @@ StateSnapshot::StateSnapshot(Application& app)
     , mTransactionResultSnapFile(std::make_shared<FilePublishInfo>(
           FILE_PUBLISH_NEEDED, mSnapDir, HISTORY_FILE_TYPE_RESULTS,
           mLocalState.currentLedger))
+    , mRetryTimer(app)
 {
     BucketList& buckets = app.getBucketManager().getBucketList();
     for (size_t i = 0; i < BucketList::kNumLevels; ++i)
@@ -399,7 +406,6 @@ StateSnapshot::StateSnapshot(Application& app)
 bool
 StateSnapshot::writeHistoryBlocks() const
 {
-
     std::unique_ptr<soci::session> snapSess(
         mApp.getDatabase().canUsePool()
             ? make_unique<soci::session>(mApp.getDatabase().getPool())
@@ -419,8 +425,7 @@ StateSnapshot::writeHistoryBlocks() const
     // 'mLocalState' describes the LCL, so its currentLedger will usually be 63,
     // 127, 191, etc. We want to start our snapshot at 64-before the _next_
     // ledger: 0, 64, 128, etc. In cases where we're forcibly checkpointed
-    // early,
-    // we still want to round-down to the previous checkpoint ledger.
+    // early, we still want to round-down to the previous checkpoint ledger.
     uint32_t begin = mApp.getHistoryManager().prevCheckpointLedger(
         mLocalState.currentLedger);
 
@@ -438,15 +443,82 @@ StateSnapshot::writeHistoryBlocks() const
                            << mTransactionSnapFile->localPath_nogz() << " and "
                            << mTransactionResultSnapFile->localPath_nogz();
 
-    if (nHeaders != count)
+    // When writing checkpoint 0x3f (63) we will have written 63 headers because
+    // header 0 doesn't exist, ledger 1 is the first. For all later checkpoints
+    // we will write 64 headers; any less and something went wrong[1].
+    //
+    // [1]: Probably our read transaction was serialized ahead of the write
+    // transaction composing the history itself, despite occurring in the
+    // opposite wall-clock order, this is legal behavior in SERIALIZABLE
+    // transaction-isolation level -- the highest offered! -- as txns only have
+    // to be applied in isolation and in _some_ order, not the wall-clock order
+    // we issued them. Anyway this is transient and should go away upon retry.
+    if (! ((begin == 0 && nHeaders == count - 1) ||
+           nHeaders == count))
     {
-        CLOG(WARNING, "History") << "Only wrote " << nHeaders << " ledger headers for "
-                                 << mLedgerSnapFile->localPath_nogz() << ", expecting "
-                                 << count;
+        CLOG(ERROR, "History") << "Only wrote " << nHeaders << " ledger headers for "
+                               << mLedgerSnapFile->localPath_nogz() << ", expecting "
+                               << count;
+        return false;
     }
 
     return true;
 }
+
+void
+StateSnapshot::retryHistoryBlockWriteOrFail(asio::error_code const& ec)
+{
+    if (ec && mRetryCount++ < ArchivePublisher::kRetryLimit)
+    {
+        CLOG(INFO, "History") << "Retrying history-block write";
+        auto self = shared_from_this();
+        mRetryTimer.expires_from_now(std::chrono::seconds(2));
+        mRetryTimer.async_wait([self](asio::error_code const& ec2)
+                               {
+                                   if (!ec2)
+                                   {
+                                       self->writeHistoryBlocksWithRetry();
+                                   }
+                               });
+    }
+    else
+    {
+        mApp.getHistoryManager().snapshotWritten(ec);
+    }
+}
+
+void
+StateSnapshot::writeHistoryBlocksWithRetry()
+{
+    auto snap = shared_from_this();
+    if (mApp.getDatabase().canUsePool())
+    {
+        mApp.getWorkerIOService().post(
+            [snap]()
+            {
+                asio::error_code ec;
+                if (!snap->writeHistoryBlocks())
+                {
+                        ec = std::make_error_code(std::errc::io_error);
+                }
+                snap->mApp.getClock().getIOService().post(
+                    [snap, ec]()
+                    {
+                        snap->retryHistoryBlockWriteOrFail(ec);
+                    });
+            });
+    }
+    else
+    {
+        asio::error_code ec;
+        if (!snap->writeHistoryBlocks())
+        {
+            ec = std::make_error_code(std::errc::io_error);
+        }
+        retryHistoryBlockWriteOrFail(ec);
+    }
+}
+
 
 std::shared_ptr<StateSnapshot>
 PublishStateMachine::takeSnapshot(Application& app)
@@ -478,11 +550,11 @@ PublishStateMachine::writeNextSnapshot()
 
     bool readyToWrite = true;
 
-    if (mApp.getState() == Application::APP_CATCHING_UP_STATE)
+    if (mApp.getLedgerManager().getState() != LedgerManager::LM_SYNCED_STATE)
     {
         readyToWrite = false;
         CLOG(WARNING, "History")
-            << "Queued snapshot awaiting catchup in progress";
+            << "Queued snapshot awaiting ledgermanager sync";
     }
 
     else if (!snap->mLocalState.futuresAllResolved())
@@ -505,32 +577,7 @@ PublishStateMachine::writeNextSnapshot()
         return;
     }
 
-    if (mApp.getDatabase().canUsePool())
-    {
-        mApp.getWorkerIOService().post(
-            [snap]()
-            {
-                asio::error_code ec;
-                if (!snap->writeHistoryBlocks())
-                {
-                    ec = std::make_error_code(std::errc::io_error);
-                }
-                snap->mApp.getClock().getIOService().post(
-                    [snap, ec]()
-                    {
-                        snap->mApp.getHistoryManager().snapshotWritten(ec);
-                    });
-            });
-    }
-    else
-    {
-        asio::error_code ec;
-        if (!snap->writeHistoryBlocks())
-        {
-            ec = std::make_error_code(std::errc::io_error);
-        }
-        mApp.getHistoryManager().snapshotWritten(ec);
-    }
+    snap->writeHistoryBlocksWithRetry();
 }
 
 void
