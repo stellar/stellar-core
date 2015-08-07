@@ -20,6 +20,7 @@ namespace stellar
 {
 
 class TrustSetTx;
+class StatementContext;
 
 class TrustFrame : public EntryFrame
 {
@@ -32,7 +33,7 @@ class TrustFrame : public EntryFrame
                              std::string& assetCode);
 
     static void
-    loadLines(soci::details::prepare_temp_type& prep,
+    loadLines(StatementContext& prep,
               std::function<void(LedgerEntry const&)> trustProcessor);
 
     TrustLineEntry& mTrustLine;

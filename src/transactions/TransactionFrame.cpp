@@ -513,18 +513,24 @@ TransactionFrame::storeTransaction(LedgerManager& ledgerManager,
 
     string txIDString(binToHex(getContentsHash()));
 
-    auto timer = ledgerManager.getDatabase().getInsertTimer("txhistory");
-    soci::statement st =
-        (ledgerManager.getDatabase().getSession().prepare
-             << "INSERT INTO txhistory (txid, ledgerseq, txindex, txbody, "
-                "txresult, txmeta) VALUES "
-                "(:id,:seq,:txindex,:txb,:txres,:meta)",
-         soci::use(txIDString),
-         soci::use(ledgerManager.getCurrentLedgerHeader().ledgerSeq),
-         soci::use(txindex), soci::use(txBody), soci::use(txResult),
-         soci::use(meta));
+    auto& db = ledgerManager.getDatabase();
+    auto prep = db.getPreparedStatement(
+        "INSERT INTO txhistory "
+        "( txid, ledgerseq, txindex,  txbody, txresult, txmeta) VALUES "
+        "(:id,  :seq,      :txindex, :txb,   :txres,   :meta)");
 
-    st.execute(true);
+    auto& st = prep.statement();
+    st.exchange(soci::use(txIDString));
+    st.exchange(soci::use(ledgerManager.getCurrentLedgerHeader().ledgerSeq));
+    st.exchange(soci::use(txindex));
+    st.exchange(soci::use(txBody));
+    st.exchange(soci::use(txResult));
+    st.exchange(soci::use(meta));
+    st.define_and_bind();
+    {
+        auto timer = db.getInsertTimer("txhistory");
+        st.execute(true);
+    }
 
     if (st.get_affected_rows() != 1)
     {

@@ -187,22 +187,29 @@ AccountFrame::loadAccount(AccountID const& accountID, Database& db)
     std::string homeDomain, thresholds;
     soci::indicator inflationDestInd, homeDomainInd, thresholdsInd;
 
-    soci::session& session = db.getSession();
-
     AccountFrame::pointer res = make_shared<AccountFrame>(accountID);
     AccountEntry& account = res->getAccount();
+
+    auto prep = db.getPreparedStatement(
+        "SELECT balance, seqnum, numsubentries, "
+        "inflationdest, homedomain, thresholds, flags "
+        "FROM accounts WHERE accountid=:v1");
+    auto& st = prep.statement();
+    st.exchange(into(account.balance));
+    st.exchange(into(account.seqNum));
+    st.exchange(into(account.numSubEntries));
+    st.exchange(into(inflationDest, inflationDestInd));
+    st.exchange(into(homeDomain, homeDomainInd));
+    st.exchange(into(thresholds, thresholdsInd));
+    st.exchange(into(account.flags));
+    st.exchange(use(actIDStrKey));
+    st.define_and_bind();
     {
         auto timer = db.getSelectTimer("account");
-        session << "SELECT balance, seqnum, numsubentries, "
-                   "inflationdest, homedomain, thresholds,  flags "
-                   "FROM accounts WHERE accountid=:v1",
-            into(account.balance), into(account.seqNum),
-            into(account.numSubEntries), into(inflationDest, inflationDestInd),
-            into(homeDomain, homeDomainInd), into(thresholds, thresholdsInd),
-            into(account.flags), use(actIDStrKey);
+        st.execute(true);
     }
 
-    if (!session.got_data())
+    if (!st.got_data())
     {
         putCachedEntry(key, nullptr, db);
         return nullptr;
