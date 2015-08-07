@@ -389,7 +389,7 @@ TEST_CASE("bucket tombstones expire at bottom level", "[bucket][tombstones]")
 }
 
 
-TEST_CASE("file-backed buckets", "[bucket]")
+TEST_CASE("file-backed buckets", "[bucket][bucketbench]")
 {
     VirtualClock clock;
     Config const& cfg = getTestConfig();
@@ -909,3 +909,44 @@ TEST_CASE("bucket apply", "[bucket]")
     count = AccountFrame::countObjects(sess);
     REQUIRE(count == 1);
 }
+
+#ifdef USE_POSTGRES
+TEST_CASE("bucket apply bench", "[bucketbench][hide]")
+{
+    VirtualClock clock;
+    Config cfg(getTestConfig(0, Config::TESTDB_POSTGRESQL));
+    Application::pointer app = Application::create(clock, cfg);
+    app->start();
+
+    autocheck::generator<AccountEntry> accGen;
+    std::vector<LedgerEntry> live(100000);
+    std::vector<LedgerKey> noDead;
+
+    for (auto& e : live)
+    {
+        e.type(ACCOUNT);
+        e.account() = accGen(5);
+        e.account().balance = 1000000000;
+        e.account().inflationDest.reset();
+        e.account().homeDomain.clear();
+        e.account().thresholds[0] = 0;
+        e.account().thresholds[1] = 0;
+        e.account().thresholds[2] = 0;
+        e.account().thresholds[3] = 0;
+    }
+
+    std::shared_ptr<Bucket> birth =
+        Bucket::fresh(app->getBucketManager(), live, noDead);
+
+    auto& db = app->getDatabase();
+    auto& sess = db.getSession();
+
+    CLOG(INFO, "Bucket") << "Applying bucket with " << live.size() << " live entries";
+    {
+        TIMED_SCOPE(timerObj, "apply");
+        soci::transaction sqltx(sess);
+        birth->apply(db);
+        sqltx.commit();
+    }
+}
+#endif
