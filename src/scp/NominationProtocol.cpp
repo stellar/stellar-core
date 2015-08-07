@@ -495,6 +495,28 @@ NominationProtocol::dumpInfo(Json::Value& ret)
     Json::Value nomState;
     nomState["roundnumber"] = mRoundNumber;
     nomState["started"] = mNominationStarted;
+
+    int counter = 0;
+    for(auto const& v : mVotes)
+    {
+        nomState["X"][counter] = mSlot.getValueString(v);
+        counter++;
+    }
+
+    counter = 0;
+    for(auto const& v : mAccepted)
+    {
+        nomState["Y"][counter] = mSlot.getValueString(v);
+        counter++;
+    }
+
+    counter = 0;
+    for(auto const& v : mCandidates)
+    {
+        nomState["Z"][counter] = mSlot.getValueString(v);
+        counter++;
+    }
+
     ret["nomination"].append(nomState);
 }
 }
