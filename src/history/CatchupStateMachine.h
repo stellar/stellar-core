@@ -147,13 +147,15 @@ private:
                                     uint32_t checkpoint);
     void finishVerifyingState(HistoryManager::VerifyHashStatus status);
 
+    struct ApplyState;
     void enterApplyingState();
+    void advanceApplyingState(std::shared_ptr<ApplyState>);
+
     void enterEndState();
 
-
-    void applyBucketsAtLastClosedLedger();
+    void applySingleBucketLevel(bool& applying, size_t& level);
     void acquireFinalLedgerState(uint32_t ledgerNum);
-    void applyHistoryFromLastClosedLedger();
+    void applyHistoryOfSingleCheckpoint(uint32_t checkpoint);
 
 public:
   CatchupStateMachine(
