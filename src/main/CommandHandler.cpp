@@ -321,6 +321,8 @@ CommandHandler::info(std::string const& params, std::string& retStr)
 
     LedgerManager& lm = mApp.getLedgerManager();
 
+    if(mApp.getConfig().UNSAFE_QUORUM) 
+        root["info"]["UNSAFE_QUORUM"] = "ALERT!!! QUORUM UNSAFE";
     root["info"]["build"] = STELLAR_CORE_VERSION;
     root["info"]["state"] = mApp.getStateHuman();
     root["info"]["ledger"]["num"] = (int)lm.getLedgerNum();

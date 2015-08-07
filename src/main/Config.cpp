@@ -43,7 +43,7 @@ Config::Config() : PEER_KEY(SecretKey::random())
     LOG_FILE_PATH = "stellar-core.log";
     TMP_DIR_PATH = "tmp";
     BUCKET_DIR_PATH = "buckets";
-    HTTP_PORT = 39132;
+    HTTP_PORT = DEFAULT_PEER_PORT+1;
     PUBLIC_HTTP_PORT = false;
     PEER_PUBLIC_KEY = PEER_KEY.getPublicKey();
     PARANOID_MODE = false;
