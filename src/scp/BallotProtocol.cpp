@@ -311,14 +311,13 @@ BallotProtocol::abandonBallot()
     CLOG(DEBUG, "SCP") << "BallotProtocol::abandonBallot";
     bool res = false;
     Value const& v = mSlot.getLatestCompositeCandidate();
-    if (v.empty())
+    if(v.empty())
     {
-        if (mCurrentBallot)
+        if(mCurrentBallot)
         {
             res = bumpState(mCurrentBallot->value, true);
         }
-    }
-    else
+    } else
     {
         res = bumpState(v, true);
     }
@@ -432,8 +431,8 @@ void
 BallotProtocol::bumpToBallot(SCPBallot const& ballot)
 {
     CLOG(DEBUG, "SCP") << "BallotProtocol::bumpToBallot"
-                       << " i: " << mSlot.getSlotIndex()
-                       << " b: " << mSlot.ballotToStr(ballot);
+        << " i: " << mSlot.getSlotIndex()
+        << " b: " << mSlot.ballotToStr(ballot);
 
     // `bumpToBallot` should be never called once we committed.
     dbgAssert(mPhase != SCP_PHASE_EXTERNALIZE);
@@ -443,21 +442,39 @@ BallotProtocol::bumpToBallot(SCPBallot const& ballot)
 
     bool gotBumped =
         !mCurrentBallot || (mCurrentBallot->counter != ballot.counter);
+
     mCurrentBallot = make_unique<SCPBallot>(ballot);
 
     mHeardFromQuorum = false;
 
-    std::chrono::milliseconds timeout =
-        mSlot.getSCPDriver().computeTimeout(ballot.counter);
+    if(gotBumped) startBallotProtocolTimer();
+}
 
-    if (gotBumped)
+void 
+BallotProtocol::startBallotProtocolTimer()
+{
+    std::chrono::milliseconds timeout =
+        mSlot.getSCPDriver().computeTimeout(mCurrentBallot->counter);
+
+   
+    std::shared_ptr<Slot> slot = mSlot.shared_from_this();
+    mSlot.getSCPDriver().setupTimer(
+        mSlot.getSlotIndex(), Slot::BALLOT_PROTOCOL_TIMER, timeout, [slot]()
     {
-        std::shared_ptr<Slot> slot = mSlot.shared_from_this();
-        mSlot.getSCPDriver().setupTimer(
-            mSlot.getSlotIndex(), Slot::BALLOT_PROTOCOL_TIMER, timeout, [slot]()
-            {
-                slot->abandonBallot();
-            });
+        slot->getBallotProtocol().ballotProtocolTimerExpired();
+    });
+   
+}
+
+void 
+BallotProtocol::ballotProtocolTimerExpired()
+{
+    // don't abandon the ballot until we have heard from a slice
+    if(mHeardFromQuorum) abandonBallot();
+    else
+    {
+        CLOG(DEBUG, "SCP") << "Waiting to hear from a slice.";
+        startBallotProtocolTimer();
     }
 }
 

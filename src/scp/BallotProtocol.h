@@ -63,6 +63,7 @@ class BallotProtocol
     // type is STATEMENT
     SCP::EnvelopeState processEnvelope(SCPEnvelope const& envelope);
 
+    void ballotProtocolTimerExpired();
     bool abandonBallot();
 
     // bumps the ballot based on the local state and the value passed in:
@@ -134,7 +135,7 @@ class BallotProtocol
     // step 6 from the SCP paper
     // ballot is used as a hint to find compatible ballots that can be
     // ratified commit.
-    // on sucess, sets (outLow, outHigh) to the new values for (c, P)
+    // on success, sets (outLow, outHigh) to the new values for (c, P)
     bool isConfirmCommit(SCPBallot const& ballot, SCPBallot& outLow,
                          SCPBallot& outHigh);
     bool attemptConfirmCommit(SCPBallot const& acceptCommitLow,
@@ -214,7 +215,7 @@ class BallotProtocol
     // we have.
     bool updateCurrentValue(SCPBallot const& ballot);
 
-    // emits a statement reflecting the nodes's current state
+    // emits a statement reflecting the nodes' current state
     // and attempts to make progress
     void emitCurrentStateStatement();
 
@@ -232,5 +233,7 @@ class BallotProtocol
 
     bool federatedAccept(StatementPredicate voted, StatementPredicate accepted);
     bool federatedRatify(StatementPredicate voted);
+
+    void startBallotProtocolTimer();
 };
 }
