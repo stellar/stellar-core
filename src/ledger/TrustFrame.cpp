@@ -230,7 +230,7 @@ TrustFrame::storeChange(LedgerDelta& delta, Database& db) const
     auto& st = prep.statement();
     st.exchange(use(mTrustLine.balance));
     st.exchange(use(mTrustLine.limit));
-    st.exchange(use((int)mTrustLine.flags));
+    st.exchange(use(mTrustLine.flags));
     st.exchange(use(actIDStrKey));
     st.exchange(use(issuerStrKey));
     st.exchange(use(assetCode));
@@ -270,7 +270,7 @@ TrustFrame::storeAdd(LedgerDelta& delta, Database& db) const
     st.exchange(use(assetCode));
     st.exchange(use(mTrustLine.balance));
     st.exchange(use(mTrustLine.limit));
-    st.exchange(use((int)mTrustLine.flags));
+    st.exchange(use(mTrustLine.flags));
     st.define_and_bind();
     {
         auto timer = db.getInsertTimer("trust");
