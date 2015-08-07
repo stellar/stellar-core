@@ -63,6 +63,9 @@ class ProcessExitEvent::Impl
     std::string mCmdLine;
     std::string mOutFile;
     bool mRunning{false};
+#ifdef _MSC_VER
+    asio::windows::object_handle mProcessHandle;
+#endif
 
     Impl(std::shared_ptr<RealTimer> const& outerTimer,
          std::shared_ptr<asio::error_code> const& outerEc,
@@ -72,8 +75,11 @@ class ProcessExitEvent::Impl
         , mOuterEc(outerEc)
         , mCmdLine(cmdLine)
         , mOutFile(outFile)
-    {
-    }
+#ifdef _MSC_VER
+        , mProcessHandle(outerTimer->get_io_service())
+#endif
+        {
+        }
     void run();
 };
 
@@ -159,15 +165,13 @@ ProcessExitEvent::Impl::run()
     CloseHandle(pi.hThread); // we don't need this handle
     pi.hThread = INVALID_HANDLE_VALUE;
 
-    asio::windows::object_handle processHandle(mOuterTimer->get_io_service(),
-                                               pi.hProcess);
+    mProcessHandle.assign(pi.hProcess);
 
     // capture a shared pointer to "this" to keep Impl alive until the end
     // of the execution
-    auto hProcess = pi.hProcess;
     auto sf = shared_from_this();
-    processHandle.async_wait(
-        [hProcess, sf](asio::error_code ec)
+    mProcessHandle.async_wait(
+        [sf](asio::error_code ec)
         {
             {
                 std::lock_guard<std::recursive_mutex>
@@ -181,7 +185,8 @@ ProcessExitEvent::Impl::run()
             else
             {
                 DWORD exitCode;
-                BOOL res = GetExitCodeProcess(hProcess, &exitCode);
+                BOOL res = GetExitCodeProcess(sf->mProcessHandle.native_handle(),
+                                              &exitCode);
                 if (!res)
                 {
                     exitCode = 1;
@@ -191,7 +196,6 @@ ProcessExitEvent::Impl::run()
             }
             sf->mOuterTimer->cancel();
         });
-
     mRunning = true;
 }
 
