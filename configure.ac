@@ -123,7 +123,10 @@ if test yes != "$enable_shared"; then
    ac_configure_args="$ac_configure_args --disable-shared"
 fi
 
-PKG_CHECK_MODULES(sqlite3, sqlite3, :, sqlite3_INTERNAL=yes)
+# NB: A bug present before sqlite 3.7.11 concerning the interaction
+# of non-reset prepared statements and ROLLBACK means we require 3.7.11
+# or later. Do not weaken this requirement.
+PKG_CHECK_MODULES(sqlite3, [sqlite3 >= 3.7.11], :, sqlite3_INTERNAL=yes)
 AM_CONDITIONAL(SQLITE3_INTERNAL, [test yes = "$sqlite3_INTERNAL"])
 if test yes = "$sqlite3_INTERNAL"; then
    sqlite3_CFLAGS=-I'$(top_srcdir)/lib/sqlite'
