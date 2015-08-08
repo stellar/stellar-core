@@ -240,7 +240,8 @@ PeerRecord::insertIfNew(Database& db)
             "(:v1, :v2,  :v3,         :v4,         :v5)");
         auto& st = prep.statement();
         st.exchange(use(mIP));
-        st.exchange(use(uint32_t(mPort)));
+        uint32_t port = uint32_t(mPort);
+        st.exchange(use(port));
         st.exchange(use(tm));
         st.exchange(use(mNumFailures));
         st.exchange(use(mRank));
@@ -270,7 +271,8 @@ PeerRecord::storePeerRecord(Database& db)
         st.exchange(use(mNumFailures));
         st.exchange(use(mRank));
         st.exchange(use(mIP));
-        st.exchange(use(uint32_t(mPort)));
+        uint32_t port = uint32_t(mPort);
+        st.exchange(use(port));
         st.define_and_bind();
         {
             auto timer = db.getUpdateTimer("peer");
