@@ -125,16 +125,27 @@ optional<PeerRecord>
 PeerRecord::loadPeerRecord(Database& db, string ip, unsigned short port)
 {
     auto ret = make_optional<PeerRecord>();
-    auto timer = db.getSelectTimer("peer");
     tm tm;
     // SOCI only support signed short, using intermediate int avoids ending up
     // with negative numbers in the database
     uint32_t lport;
-    db.getSession() << "SELECT ip,port, nextattempt, numfailures, rank FROM "
-                       "peers WHERE ip = :v1 AND port = :v2",
-        into(ret->mIP), into(lport), into(tm), into(ret->mNumFailures),
-        into(ret->mRank), use(ip), use(uint32_t(port));
-    if (db.getSession().got_data())
+    auto prep = db.getPreparedStatement(
+        "SELECT ip,port, nextattempt, numfailures, rank FROM "
+        "peers WHERE ip = :v1 AND port = :v2");
+    auto& st = prep.statement();
+    st.exchange(into(ret->mIP));
+    st.exchange(into(lport));
+    st.exchange(into(tm));
+    st.exchange(into(ret->mNumFailures));
+    st.exchange(into(ret->mRank));
+    st.exchange(use(ip));
+    st.exchange(use(uint32_t(port)));
+    st.define_and_bind();
+    {
+        auto timer = db.getSelectTimer("peer");
+        st.execute(true);
+    }
+    if (st.got_data())
     {
         ret->mPort = static_cast<unsigned short>(lport);
         ret->mNextAttempt = VirtualClock::tmToPoint(tm);
@@ -151,18 +162,27 @@ PeerRecord::loadPeerRecords(Database& db, uint32_t max,
 {
     try
     {
-        auto timer = db.getSelectTimer("peer");
         tm tm = VirtualClock::pointToTm(nextAttemptCutoff);
         PeerRecord pr;
         uint32_t lport;
-        statement st = (db.getSession().prepare
-                            << "SELECT ip, port, nextattempt, "
-                               "numfailures, rank FROM peers "
-                               "WHERE nextattempt <= :nextattempt "
-                               "ORDER BY rank DESC,numfailures ASC limit :max ",
-                        use(tm), use(max), into(pr.mIP), into(lport), into(tm),
-                        into(pr.mNumFailures), into(pr.mRank));
-        st.execute();
+        auto prep = db.getPreparedStatement(
+            "SELECT ip, port, nextattempt, numfailures, rank "
+            "FROM peers "
+            "WHERE nextattempt <= :nextattempt "
+            "ORDER BY rank DESC,numfailures ASC limit :max ");
+        auto& st = prep.statement();
+        st.exchange(use(tm));
+        st.exchange(use(max));
+        st.exchange(into(pr.mIP));
+        st.exchange(into(lport));
+        st.exchange(into(tm));
+        st.exchange(into(pr.mNumFailures));
+        st.exchange(into(pr.mRank));
+        st.define_and_bind();
+        {
+            auto timer = db.getSelectTimer("peer");
+            st.execute();
+        }
         while (st.fetch())
         {
             pr.mPort = static_cast<unsigned short>(lport);
@@ -204,7 +224,6 @@ PeerRecord::isStored(Database& db)
 bool
 PeerRecord::insertIfNew(Database& db)
 {
-    auto timer = db.getInsertTimer("peer");
     auto tm = VirtualClock::pointToTm(mNextAttempt);
 
     auto other = loadPeerRecord(db, mIP, mPort);
@@ -215,16 +234,23 @@ PeerRecord::insertIfNew(Database& db)
     }
     else
     {
-        statement stIn =
-            (db.getSession().prepare << "INSERT INTO peers "
-                                        "(ip,port,nextattempt,numfailures,"
-                                        "rank) values (:v1, :v2, :v3, :v4, "
-                                        ":v5)",
-             use(mIP), use(uint32_t(mPort)), use(tm), use(mNumFailures),
-             use(mRank));
-
-        stIn.execute(true);
-        return (stIn.get_affected_rows() == 1);
+        auto prep = db.getPreparedStatement(
+            "INSERT INTO peers "
+            "( ip,  port, nextattempt, numfailures, rank) VALUES "
+            "(:v1, :v2,  :v3,         :v4,         :v5)");
+        auto& st = prep.statement();
+        st.exchange(use(mIP));
+        uint32_t port = uint32_t(mPort);
+        st.exchange(use(port));
+        st.exchange(use(tm));
+        st.exchange(use(mNumFailures));
+        st.exchange(use(mRank));
+        st.define_and_bind();
+        {
+            auto timer = db.getInsertTimer("peer");
+            st.execute(true);
+        }
+        return (st.get_affected_rows() == 1);
     }
 }
 
@@ -234,16 +260,24 @@ PeerRecord::storePeerRecord(Database& db)
     if (!insertIfNew(db))
     {
         auto tm = VirtualClock::pointToTm(mNextAttempt);
-        statement stUp =
-            (db.getSession().prepare << "UPDATE peers SET "
-                                        "nextattempt=:v1,numfailures=:v2,rank=:"
-                                        "v3 WHERE ip=:v4 AND port=:v5",
-             use(tm), use(mNumFailures), use(mRank), use(mIP),
-             use(uint32_t(mPort)));
+        auto prep = db.getPreparedStatement(
+            "UPDATE peers SET "
+            "nextattempt = :v1, "
+            "numfailures = :v2, "
+            "rank = :v3 "
+            "WHERE ip = :v4 AND port = :v5");
+        auto& st = prep.statement();
+        st.exchange(use(tm));
+        st.exchange(use(mNumFailures));
+        st.exchange(use(mRank));
+        st.exchange(use(mIP));
+        uint32_t port = uint32_t(mPort);
+        st.exchange(use(port));
+        st.define_and_bind();
         {
             auto timer = db.getUpdateTimer("peer");
-            stUp.execute(true);
-            if (stUp.get_affected_rows() != 1)
+            st.execute(true);
+            if (st.get_affected_rows() != 1)
             {
                 throw runtime_error("PeerRecord::storePeerRecord: failed on " +
                                     toString());
