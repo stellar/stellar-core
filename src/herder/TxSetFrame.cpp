@@ -279,6 +279,17 @@ TxSetFrame::checkValid(Application& app) const
                     << " lastSeq:" << lastSeq
                     << " tx: " << xdr::xdr_to_string(tx->getEnvelope())
                     << " result: " << tx->getResultCode();
+                    
+                 // TEMP
+                if(tx->getResultCode() == -5)
+                {
+
+                    CLOG(INFO, "Herder") << "Account SeqNum: " << tx->getSourceAccount().getSeqNum();
+                    for(auto& tx2 : item.second)
+                    {
+                        CLOG(INFO, "Herder") << tx2->getSeqNum();
+                    }
+                }
 
                 return false;
             }
