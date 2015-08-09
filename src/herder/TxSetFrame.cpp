@@ -11,6 +11,8 @@
 #include "main/Config.h"
 #include <algorithm>
 
+#include "xdrpp/printer.h"
+
 namespace stellar
 {
 
@@ -234,7 +236,7 @@ TxSetFrame::checkValid(Application& app) const
     if (app.getLedgerManager().getLastClosedLedgerHeader().hash !=
         mPreviousLedgerHash)
     {
-        CLOG(TRACE, "Herder")
+        CLOG(INFO, "Herder")
             << "Got bad txSet: " << hexAbbrev(mPreviousLedgerHash)
             << " ; expected: "
             << hexAbbrev(
@@ -250,6 +252,9 @@ TxSetFrame::checkValid(Application& app) const
         // make sure the set is sorted correctly
         if (tx->getFullHash() < lastHash)
         {
+            CLOG(INFO, "Herder")
+                << "bad txSet: " << hexAbbrev(mPreviousLedgerHash)
+                << " not sorted correctly";
             return false;
         }
         accountTxMap[tx->getSourceID()].push_back(tx);
@@ -268,6 +273,13 @@ TxSetFrame::checkValid(Application& app) const
         {
             if (!tx->checkValid(app, lastSeq))
             {
+                CLOG(INFO, "Herder")
+                    << "bad txSet: " << hexAbbrev(mPreviousLedgerHash)
+                    << " tx invalid"
+                    << " lastSeq:" << lastSeq
+                    << " tx: " << xdr::xdr_to_string(tx->getEnvelope())
+                    << " result: " << tx->getResultCode();
+
                 return false;
             }
             totFee += tx->getFee();
@@ -283,6 +295,11 @@ TxSetFrame::checkValid(Application& app) const
             if (newBalance < lastTx->getSourceAccount().getMinimumBalance(
                                  app.getLedgerManager()))
             {
+                CLOG(INFO, "Herder")
+                    << "bad txSet: " << hexAbbrev(mPreviousLedgerHash)
+                    << " account can't pay fee"
+                    << " tx:" << xdr::xdr_to_string(lastTx->getEnvelope());
+
                 return false;
             }
         }
