@@ -239,24 +239,24 @@ AccountFrame::loadAccount(AccountID const& accountID, Database& db)
         string pubKey;
         Signer signer;
 
-        auto prep = db.getPreparedStatement("SELECT publickey, weight from "
+        auto prep2 = db.getPreparedStatement("SELECT publickey, weight from "
                                             "signers where accountid =:id");
-        auto& st = prep.statement();
-        st.exchange(use(actIDStrKey));
-        st.exchange(into(pubKey));
-        st.exchange(into(signer.weight));
-        st.define_and_bind();
+        auto& st2 = prep2.statement();
+        st2.exchange(use(actIDStrKey));
+        st2.exchange(into(pubKey));
+        st2.exchange(into(signer.weight));
+        st2.define_and_bind();
         {
             auto timer = db.getSelectTimer("signer");
-            st.execute(true);
+            st2.execute(true);
         }
-        while (st.got_data())
+        while (st2.got_data())
         {
             signer.pubKey = PubKeyUtils::fromStrKey(pubKey);
 
             account.signers.push_back(signer);
 
-            st.fetch();
+            st2.fetch();
         }
     }
 
