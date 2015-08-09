@@ -115,6 +115,7 @@ NominationProtocol::isSane(SCPStatement const& st)
     return res;
 }
 
+// only called after a call to isNewerStatement so safe to replace the mLatestNomination
 void
 NominationProtocol::recordStatement(SCPStatement const& st)
 {
@@ -213,10 +214,10 @@ NominationProtocol::updateRoundLeaders()
                                    mRoundLeaders.insert(cur);
                                }
                            });
-    CLOG(TRACE, "SCP") << "updateRoundLeaders: " << mRoundLeaders.size();
+    CLOG(DEBUG, "SCP") << "updateRoundLeaders: " << mRoundLeaders.size();
     for (auto const& rl : mRoundLeaders)
     {
-        CLOG(TRACE, "SCP") << "    leader " << PubKeyUtils::toShortString(rl);
+        CLOG(DEBUG, "SCP") << "    leader " << PubKeyUtils::toShortString(rl);
     }
 }
 
@@ -304,6 +305,10 @@ NominationProtocol::processEnvelope(SCPEnvelope const& envelope)
             recordStatement(st);
             res = SCP::EnvelopeState::VALID;
 
+            // TEMP
+            CLOG(INFO, "SCP") << "NominationProtocol::processEnvelope "
+                << "started: " << mNominationStarted;
+
             if (mNominationStarted)
             {
                 bool modified =
@@ -314,7 +319,7 @@ NominationProtocol::processEnvelope(SCPEnvelope const& envelope)
                 for (auto const& v : nom.votes)
                 {
                     if (mAccepted.find(v) != mAccepted.end())
-                    {
+                    {  // v is already accepted
                         continue;
                     }
                     if (mSlot.federatedAccept(
@@ -516,6 +521,17 @@ NominationProtocol::dumpInfo(Json::Value& ret)
         nomState["Z"][counter] = mSlot.getValueString(v);
         counter++;
     }
+
+    counter = 0;
+    for(auto const& v : mLatestNominations)
+    {
+        nomState["N"][counter]["id"] = PubKeyUtils::toShortString(v.first);
+        nomState["N"][counter]["statement"] = mSlot.envToStr(v.second);
+
+        counter++;
+    }
+
+
 
     ret["nomination"].append(nomState);
 }
