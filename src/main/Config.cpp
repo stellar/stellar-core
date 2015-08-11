@@ -37,7 +37,7 @@ Config::Config() : PEER_KEY(SecretKey::random())
     BREAK_ASIO_LOOP_FOR_FAST_TESTS = false;
     TARGET_PEER_CONNECTIONS = 20;
     MAX_PEER_CONNECTIONS = 50;
-    MAX_CONCURRENT_SUBPROCESSES = 8;
+    MAX_CONCURRENT_SUBPROCESSES = 32;
     LOG_FILE_PATH = "stellar-core.log";
     TMP_DIR_PATH = "tmp";
     BUCKET_DIR_PATH = "buckets";

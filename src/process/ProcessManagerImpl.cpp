@@ -290,6 +290,12 @@ ProcessManagerImpl::handleSignalWait()
 
             --gNumProcessesActive;
             gImpls.erase(pair);
+
+            // Fire off any new processes we've made room for before we
+            // trigger the callback.
+            mImplsSize.set_count(gImpls.size());
+            maybeRunPendingProcesses();
+
             *(impl->mOuterEc) = ec;
             impl->mOuterTimer->cancel();
         }
@@ -298,8 +304,6 @@ ProcessManagerImpl::handleSignalWait()
             break;
         }
     }
-    mImplsSize.set_count(gImpls.size());
-    maybeRunPendingProcesses();
     startSignalWait();
 }
 
