@@ -727,8 +727,6 @@ CatchupStateMachine::verifyHistoryOfSingleCheckpoint(
 // application of either buckets or headers.
 struct CatchupStateMachine::ApplyState : std::enable_shared_from_this<ApplyState>
 {
-    soci::transaction mSqlTx;
-
     // Variables for CATCHUP_COMPLETE application
     uint32_t mCheckpointNumber;
 
@@ -737,7 +735,6 @@ struct CatchupStateMachine::ApplyState : std::enable_shared_from_this<ApplyState
     bool mApplyingBuckets {false};
 
     ApplyState(Application& app)
-        : mSqlTx(app.getDatabase().getSession())
         {}
 };
 
@@ -837,14 +834,6 @@ CatchupStateMachine::advanceApplyingState(std::shared_ptr<ApplyState> state)
     }
     else
     {
-        if (mError)
-        {
-            state->mSqlTx.rollback();
-        }
-        else
-        {
-            state->mSqlTx.commit();
-        }
         enterEndState();
     }
 }
