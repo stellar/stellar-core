@@ -140,14 +140,21 @@ TxSetFrame::sortForApply()
 
 struct SurgeSorter
 {
-    Application& mApp;
-    SurgeSorter(Application& app) : mApp(app)
+    map<AccountID, float>& mAccountFeeMap;
+    SurgeSorter(map<AccountID, float>& afm) :  mAccountFeeMap(afm)
     {
     }
+
     bool operator()(TransactionFramePtr const& tx1,
                     TransactionFramePtr const& tx2)
     {
-        return tx1->getFeeRatio(mApp) < tx2->getFeeRatio(mApp);
+        if(tx1->getSourceID() == tx2->getSourceID())
+            return tx1->getSeqNum() < tx2->getSeqNum();
+        float fee1 = mAccountFeeMap[tx1->getSourceID()];
+        float fee2 = mAccountFeeMap[tx2->getSourceID()];
+        if(fee1 == fee2)
+            return tx1->getSourceID() < tx2->getSourceID();
+        return fee1 > fee2;
     }
 };
 
@@ -159,15 +166,26 @@ TxSetFrame::surgePricingFilter(Application& app)
     { // surge pricing in effect!
         CLOG(DEBUG, "Herder") << "surge pricing in effect! "
                               << mTransactions.size();
+
+        // determine the fee ratio for each account
+        map<AccountID, float> accountFeeMap;
+        for(auto& tx : mTransactions)
+        {
+            float r=tx->getFeeRatio(app);
+            float now = accountFeeMap[tx->getSourceID()];
+            if( now == 0) accountFeeMap[tx->getSourceID()] = r;
+            else if(r < now) accountFeeMap[tx->getSourceID()] = r;
+        }
+
         // sort tx by amount of fee they have paid
         // remove the bottom that aren't paying enough
         std::vector<TransactionFramePtr> tempList = mTransactions;
-        std::sort(tempList.begin(), tempList.end(), SurgeSorter(app));
+        std::sort(tempList.begin(), tempList.end(), SurgeSorter(accountFeeMap));
 
         for (auto iter = tempList.begin() + max; iter != tempList.end(); iter++)
         {
             removeTx(*iter);
-        }
+        }  
     }
 }
 
@@ -180,11 +198,9 @@ TxSetFrame::trimInvalid(Application& app,
 
     map<AccountID, vector<TransactionFramePtr>> accountTxMap;
 
-    Hash lastHash;
     for (auto tx : mTransactions)
     {
         accountTxMap[tx->getSourceID()].push_back(tx);
-        lastHash = tx->getFullHash();
     }
 
     for (auto& item : accountTxMap)
@@ -236,7 +252,7 @@ TxSetFrame::checkValid(Application& app) const
     if (app.getLedgerManager().getLastClosedLedgerHeader().hash !=
         mPreviousLedgerHash)
     {
-        CLOG(INFO, "Herder")
+        CLOG(DEBUG, "Herder")
             << "Got bad txSet: " << hexAbbrev(mPreviousLedgerHash)
             << " ; expected: "
             << hexAbbrev(
@@ -252,7 +268,7 @@ TxSetFrame::checkValid(Application& app) const
         // make sure the set is sorted correctly
         if (tx->getFullHash() < lastHash)
         {
-            CLOG(INFO, "Herder")
+            CLOG(DEBUG, "Herder")
                 << "bad txSet: " << hexAbbrev(mPreviousLedgerHash)
                 << " not sorted correctly";
             return false;
@@ -273,23 +289,13 @@ TxSetFrame::checkValid(Application& app) const
         {
             if (!tx->checkValid(app, lastSeq))
             {
-                CLOG(INFO, "Herder")
+                CLOG(DEBUG, "Herder")
                     << "bad txSet: " << hexAbbrev(mPreviousLedgerHash)
                     << " tx invalid"
                     << " lastSeq:" << lastSeq
                     << " tx: " << xdr::xdr_to_string(tx->getEnvelope())
                     << " result: " << tx->getResultCode();
-                    
-                 // TEMP
-                if(tx->getResultCode() == -5)
-                {
-
-                    CLOG(INFO, "Herder") << "Account SeqNum: " << tx->getSourceAccount().getSeqNum();
-                    for(auto& tx2 : item.second)
-                    {
-                        CLOG(INFO, "Herder") << tx2->getSeqNum();
-                    }
-                }
+              
 
                 return false;
             }
@@ -306,7 +312,7 @@ TxSetFrame::checkValid(Application& app) const
             if (newBalance < lastTx->getSourceAccount().getMinimumBalance(
                                  app.getLedgerManager()))
             {
-                CLOG(INFO, "Herder")
+                CLOG(DEBUG, "Herder")
                     << "bad txSet: " << hexAbbrev(mPreviousLedgerHash)
                     << " account can't pay fee"
                     << " tx:" << xdr::xdr_to_string(lastTx->getEnvelope());

@@ -305,10 +305,6 @@ NominationProtocol::processEnvelope(SCPEnvelope const& envelope)
             recordStatement(st);
             res = SCP::EnvelopeState::VALID;
 
-            // TEMP
-            CLOG(INFO, "SCP") << "NominationProtocol::processEnvelope "
-                << "started: " << mNominationStarted;
-
             if (mNominationStarted)
             {
                 bool modified =

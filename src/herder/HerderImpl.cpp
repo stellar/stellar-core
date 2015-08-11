@@ -1080,6 +1080,11 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger)
 
     proposedSet->surgePricingFilter(mApp);
 
+    if(!proposedSet->checkValid(mApp))
+    {
+        throw std::runtime_error("wanting to emit an invalid txSet");
+    }
+
     auto txSetHash = proposedSet->getContentsHash();
 
     // add all txs to next set in case they don't get in this ledger
