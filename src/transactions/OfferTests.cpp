@@ -62,7 +62,8 @@ TEST_CASE("create offer", "[tx][offers]")
 
     const Price oneone(1, 1);
 
-    LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader());
+    LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
+                      app.getDatabase());
 
     SECTION("account a1 does not exist")
     {

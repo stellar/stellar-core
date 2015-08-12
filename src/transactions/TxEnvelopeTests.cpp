@@ -50,7 +50,8 @@ TEST_CASE("txenvelope", "[tx][envelope]")
     SECTION("outer envelope")
     {
         TransactionFramePtr txFrame;
-        LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader());
+        LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
+                          app.getDatabase());
 
         SECTION("no signature")
         {
@@ -131,7 +132,8 @@ TEST_CASE("txenvelope", "[tx][envelope]")
             tx->getEnvelope().signatures.clear();
             tx->addSignature(s1);
 
-            LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader());
+            LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
+                              app.getDatabase());
 
             applyCheck(tx, delta, app);
             REQUIRE(tx->getResultCode() == txBAD_AUTH);
@@ -147,7 +149,8 @@ TEST_CASE("txenvelope", "[tx][envelope]")
             tx->getEnvelope().signatures.clear();
             tx->addSignature(s2);
 
-            LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader());
+            LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
+                              app.getDatabase());
 
             applyCheck(tx, delta, app);
             REQUIRE(tx->getResultCode() == txFAILED);
@@ -162,7 +165,8 @@ TEST_CASE("txenvelope", "[tx][envelope]")
             tx->addSignature(s1);
             tx->addSignature(s2);
 
-            LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader());
+            LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
+                              app.getDatabase());
 
             applyCheck(tx, delta, app);
             REQUIRE(tx->getResultCode() == txSUCCESS);
@@ -181,7 +185,8 @@ TEST_CASE("txenvelope", "[tx][envelope]")
             te.tx.seqNum = rootSeq++;
             TransactionFramePtr tx = std::make_shared<TransactionFrame>(te);
             tx->addSignature(root);
-            LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader());
+            LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
+                              app.getDatabase());
 
             REQUIRE(!tx->checkValid(app, 0));
 
@@ -213,7 +218,8 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                 SECTION("missing signature")
                 {
                     LedgerDelta delta(
-                        app.getLedgerManager().getCurrentLedgerHeader());
+                        app.getLedgerManager().getCurrentLedgerHeader(),
+                        app.getDatabase());
 
                     REQUIRE(!tx->checkValid(app, 0));
                     applyCheck(tx, delta, app);
@@ -226,7 +232,8 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                 {
                     tx->addSignature(b1);
                     LedgerDelta delta(
-                        app.getLedgerManager().getCurrentLedgerHeader());
+                        app.getLedgerManager().getCurrentLedgerHeader(),
+                        app.getDatabase());
 
                     REQUIRE(tx->checkValid(app, 0));
                     applyCheck(tx, delta, app);
@@ -262,7 +269,8 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                     tx->addSignature(b1);
 
                     LedgerDelta delta(
-                        app.getLedgerManager().getCurrentLedgerHeader());
+                        app.getLedgerManager().getCurrentLedgerHeader(),
+                        app.getDatabase());
 
                     REQUIRE(!tx->checkValid(app, 0));
 
@@ -300,7 +308,8 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                     tx->addSignature(b1);
 
                     LedgerDelta delta(
-                        app.getLedgerManager().getCurrentLedgerHeader());
+                        app.getLedgerManager().getCurrentLedgerHeader(),
+                        app.getDatabase());
 
                     REQUIRE(tx->checkValid(app, 0));
 
@@ -337,7 +346,8 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                     tx->addSignature(b1);
 
                     LedgerDelta delta(
-                        app.getLedgerManager().getCurrentLedgerHeader());
+                        app.getLedgerManager().getCurrentLedgerHeader(),
+                        app.getDatabase());
 
                     REQUIRE(tx->checkValid(app, 0));
 
@@ -380,7 +390,8 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                 tx->addSignature(c1);
 
                 LedgerDelta delta(
-                    app.getLedgerManager().getCurrentLedgerHeader());
+                    app.getLedgerManager().getCurrentLedgerHeader(),
+                    app.getDatabase());
 
                 REQUIRE(tx->checkValid(app, 0));
 
@@ -417,7 +428,8 @@ TEST_CASE("txenvelope", "[tx][envelope]")
         REQUIRE(app.getLedgerManager().getLedgerNum() == 3);
 
         {
-            LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader());
+            LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
+                              app.getDatabase());
 
             SECTION("Insufficient fee")
             {

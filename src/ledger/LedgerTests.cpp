@@ -72,6 +72,12 @@ auto validLedgerEntryGenerator = autocheck::map(
         case ACCOUNT:
         {
             clampLow<int64_t>(0, le.account().balance);
+            le.account().inflationDest.reset();
+            le.account().homeDomain.clear();
+            le.account().thresholds[0] = 0;
+            le.account().thresholds[1] = 0;
+            le.account().thresholds[2] = 0;
+            le.account().thresholds[3] = 0;
             break;
         }
         }
@@ -93,7 +99,8 @@ TEST_CASE("Ledger entry db lifecycle", "[ledger]")
     Application::pointer app = Application::create(clock, cfg);
 
     app->start();
-    LedgerDelta delta(app->getLedgerManager().getCurrentLedgerHeader());
+    LedgerDelta delta(app->getLedgerManager().getCurrentLedgerHeader(),
+                      app->getDatabase());
     auto& db = app->getDatabase();
     for (size_t i = 0; i < 100; ++i)
     {
@@ -106,7 +113,7 @@ TEST_CASE("Ledger entry db lifecycle", "[ledger]")
     }
 }
 
-TEST_CASE("single ledger entry insert SQL", "[singlesql][entrysql][hide]")
+TEST_CASE("single ledger entry insert SQL", "[singlesql][entrysql]")
 {
     Config::TestDbMode mode = Config::TESTDB_ON_DISK_SQLITE;
 #ifdef USE_POSTGRES
@@ -119,9 +126,87 @@ TEST_CASE("single ledger entry insert SQL", "[singlesql][entrysql][hide]")
         Application::create(clock, getTestConfig(0, mode));
     app->start();
 
-    LedgerDelta delta(app->getLedgerManager().getCurrentLedgerHeader());
+    LedgerDelta delta(app->getLedgerManager().getCurrentLedgerHeader(),
+                      app->getDatabase());
     auto& db = app->getDatabase();
     auto le = EntryFrame::FromXDR(validLedgerEntryGenerator(3));
     auto ctx = db.captureAndLogSQL("ledger-insert");
     le->storeAddOrChange(delta, db);
+}
+
+TEST_CASE("DB cache interaction with transactions", "[ledger][dbcache]")
+{
+    Config::TestDbMode mode = Config::TESTDB_ON_DISK_SQLITE;
+#ifdef USE_POSTGRES
+    if (!force_sqlite)
+        mode = Config::TESTDB_POSTGRESQL;
+#endif
+
+    VirtualClock clock;
+    Application::pointer app =
+        Application::create(clock, getTestConfig(0, mode));
+    app->start();
+
+    auto& db = app->getDatabase();
+    auto& session = db.getSession();
+    auto& cache = db.getEntryCache();
+
+    EntryFrame::pointer le;
+    do {
+        le = EntryFrame::FromXDR(validLedgerEntryGenerator(3));
+    } while (le->mEntry.type() != ACCOUNT);
+
+    auto key = le->getKey();
+
+    {
+        LedgerDelta delta(app->getLedgerManager().getCurrentLedgerHeader(),
+                          app->getDatabase());
+        soci::transaction sqltx(session);
+        le->storeAddOrChange(delta, db);
+        sqltx.commit();
+    }
+
+    // The write should have removed it from the cache.
+    REQUIRE(!EntryFrame::cachedEntryExists(key, db));
+
+    uint64_t balance0, balance1;
+
+    {
+        soci::transaction sqltx(session);
+        LedgerDelta delta(app->getLedgerManager().getCurrentLedgerHeader(),
+                          app->getDatabase());
+
+        auto acc = AccountFrame::loadAccount(key.account().accountID, db);
+        REQUIRE(EntryFrame::cachedEntryExists(key, db));
+
+        balance0 = acc->getAccount().balance;
+        acc->getAccount().balance += 1;
+        balance1 = acc->getAccount().balance;
+
+        acc->storeChange(delta, db);
+        // Write should flush cache, put balance1 in DB _pending commit_.
+        REQUIRE(!EntryFrame::cachedEntryExists(key, db));
+
+        acc = AccountFrame::loadAccount(key.account().accountID, db);
+        // Read should have populated cache.
+        REQUIRE(EntryFrame::cachedEntryExists(key, db));
+
+        // Read-back value should be balance1
+        REQUIRE(acc->getAccount().balance == balance1);
+
+        LOG(INFO) << "balance0: " << balance0;
+        LOG(INFO) << "balance1: " << balance1;
+
+        // Scope-end will rollback sqltx and delta
+    }
+
+    // Rollback should have evicted changed value from cache.
+    CHECK(!EntryFrame::cachedEntryExists(key, db));
+
+    auto acc = AccountFrame::loadAccount(key.account().accountID, db);
+    // Read should populate cache
+    CHECK(EntryFrame::cachedEntryExists(key, db));
+    LOG(INFO) << "cached balance: " << acc->getAccount().balance;
+
+    CHECK(balance0 == acc->getAccount().balance);
 }

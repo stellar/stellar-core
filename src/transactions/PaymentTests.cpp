@@ -97,7 +97,8 @@ TEST_CASE("payment", "[tx][payment]")
     REQUIRE(rootAccount->getBalance() ==
             (100000000000000000 - paymentAmount - gatewayPayment - txfee * 2));
 
-    LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader());
+    LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
+                      app.getDatabase());
 
     SECTION("Create account")
     {

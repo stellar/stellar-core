@@ -160,7 +160,7 @@ LedgerManagerImpl::startNewLedger()
     genesisHeader.totalCoins = masterAccount.getAccount().balance;
     genesisHeader.ledgerSeq = 1;
 
-    LedgerDelta delta(genesisHeader);
+    LedgerDelta delta(genesisHeader, getDatabase());
     masterAccount.storeAdd(delta, this->getDatabase());
     delta.commit();
 
@@ -633,7 +633,7 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
     auto const& sv = ledgerData.mValue;
     mCurrentLedger->mHeader.scpValue = sv;
 
-    LedgerDelta ledgerDelta(mCurrentLedger->mHeader);
+    LedgerDelta ledgerDelta(mCurrentLedger->mHeader, getDatabase());
 
     // the transaction set that was agreed upon by consensus
     // was sorted by hash; we reorder it so that transactions are
