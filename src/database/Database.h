@@ -142,7 +142,8 @@ class Database : NonMovableOrCopyable
     // Access the LedgerEntry cache. Note: clients are responsible for
     // invalidating entries in this cache as they perform statements
     // against the database. It's kept here only for ease of access.
-    cache::lru_cache<std::string, std::shared_ptr<LedgerEntry const>>&
-        getEntryCache();
+    typedef cache::lru_cache<std::string, std::shared_ptr<LedgerEntry const>>
+        EntryCache;
+    EntryCache& getEntryCache();
 };
 }

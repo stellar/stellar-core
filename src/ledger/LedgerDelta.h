@@ -14,6 +14,7 @@
 namespace stellar
 {
 class Application;
+class Database;
 
 class LedgerDelta
 {
@@ -33,6 +34,8 @@ class LedgerDelta
     KeyEntryMap mMod;
     std::set<LedgerKey, LedgerEntryIdCmp> mDelete;
 
+    Database& mDb; // Used strictly for rollback of db entry cache.
+
     void checkState();
     void addEntry(EntryFrame::pointer entry);
     void deleteEntry(EntryFrame::pointer entry);
@@ -47,8 +50,12 @@ class LedgerDelta
     explicit LedgerDelta(LedgerDelta& outerDelta);
 
     // keeps an internal reference to ledgerHeader,
-    // will apply changes to ledgerHeader on commit
-    LedgerDelta(LedgerHeader& ledgerHeader);
+    // will apply changes to ledgerHeader on commit,
+    // will clear db entry cache on rollback.
+    LedgerDelta(LedgerHeader& ledgerHeader,
+                Database& db);
+
+    ~LedgerDelta();
 
     LedgerHeader& getHeader();
     LedgerHeaderFrame& getHeaderFrame();
@@ -61,7 +68,7 @@ class LedgerDelta
 
     // commits this delta into outer delta
     void commit();
-    // aborts any changes pending
+    // aborts any changes pending, flush db cache entries
     void rollback();
 
     void markMeters(Application& app) const;

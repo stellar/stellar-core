@@ -19,15 +19,26 @@ LedgerDelta::LedgerDelta(LedgerDelta& outerDelta)
     , mHeader(&outerDelta.getHeader())
     , mCurrentHeader(outerDelta.getHeader())
     , mPreviousHeaderValue(outerDelta.getHeader())
+    , mDb(outerDelta.mDb)
 {
 }
 
-LedgerDelta::LedgerDelta(LedgerHeader& header)
+LedgerDelta::LedgerDelta(LedgerHeader& header,
+                         Database& db)
     : mOuterDelta(nullptr)
     , mHeader(&header)
     , mCurrentHeader(header)
     , mPreviousHeaderValue(header)
+    , mDb(db)
 {
+}
+
+LedgerDelta::~LedgerDelta()
+{
+    if (mHeader)
+    {
+        rollback();
+    }
 }
 
 LedgerHeader&
@@ -185,6 +196,19 @@ LedgerDelta::rollback()
 {
     checkState();
     mHeader = nullptr;
+
+    for (auto& d : mDelete)
+    {
+        EntryFrame::flushCachedEntry(d, mDb);
+    }
+    for (auto& n : mNew)
+    {
+        EntryFrame::flushCachedEntry(n.first, mDb);
+    }
+    for (auto& m : mMod)
+    {
+        EntryFrame::flushCachedEntry(m.first, mDb);
+    }
 }
 
 LedgerEntryChanges

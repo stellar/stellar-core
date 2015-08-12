@@ -289,12 +289,12 @@ Bucket::apply(Database& db) const
         return;
     }
     BucketEntry entry;
-    LedgerHeader lh; // buckets, by definition are independent from the header
-    LedgerDelta delta(lh);
     XDRInputFileStream in;
     in.open(getFilename());
     while (in && in.readOne(entry))
     {
+        LedgerHeader lh; // buckets, by definition are independent from the header
+        LedgerDelta delta(lh, db);
         if (entry.type() == LIVEENTRY)
         {
             EntryFrame::pointer ep = EntryFrame::FromXDR(entry.liveEntry());
@@ -304,6 +304,8 @@ Bucket::apply(Database& db) const
         {
             EntryFrame::storeDelete(delta, db, entry.deadEntry());
         }
+        // No-op, just to avoid needless rollback.
+        delta.commit();
     }
 }
 

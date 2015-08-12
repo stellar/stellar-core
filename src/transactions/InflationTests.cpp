@@ -45,7 +45,8 @@ createTestAccounts(Application& app, int nbAccounts,
 
     int64 setupBalance = lm.getMinBalance(0);
 
-    LedgerDelta delta(lm.getCurrentLedgerHeader());
+    LedgerDelta delta(lm.getCurrentLedgerHeader(),
+                      app.getDatabase());
     for (int i = 0; i < nbAccounts; i++)
     {
         int64 bal = getBalance(i);
@@ -235,7 +236,8 @@ doInflation(Application& app, int nbAccounts,
 
     // perform actual inflation
     {
-        LedgerDelta delta(lm.getCurrentLedgerHeader());
+        LedgerDelta delta(lm.getCurrentLedgerHeader(),
+                          app.getDatabase());
         REQUIRE(applyCheck(txFrame, delta, app));
         delta.commit();
     }

@@ -85,7 +85,8 @@ TEST_CASE("merge", "[tx][merge]")
         applyAccountMerge(app, a1, b1, a1_seq++, ACCOUNT_MERGE_HAS_CREDIT);
     }
 
-    LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader());
+    LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
+                      app.getDatabase());
 
     SECTION("success")
     {
