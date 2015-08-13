@@ -123,26 +123,6 @@ compareAsset(Asset const& first, Asset const& second)
     return false;
 }
 
-void assetCodeToStr(xdr::opaque_array<4U> const& code, std::string& retStr)
-{
-    return assetCodeToStr<4U>(code, retStr);
-}
-
-void assetCodeToStr(xdr::opaque_array<12U> const& code, std::string& retStr)
-{
-    return assetCodeToStr<12U>(code, retStr);
-}
-
-void strToAssetCode(xdr::opaque_array<4U>& ret, std::string const& str)
-{
-    return strToAssetCode<4U>(ret, str);
-}
-
-void strToAssetCode(xdr::opaque_array<12U>& ret, std::string const& str)
-{
-    return strToAssetCode<12U>(ret, str);
-}
-
 // calculates A*B/C when A*B overflows 64bits
 bool
 bigDivide(int64_t& result, int64_t A, int64_t B, int64_t C)

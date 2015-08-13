@@ -22,36 +22,26 @@ bool isAssetValid(Asset const& cur);
 // returns true if the currencies are the same
 bool compareAsset(Asset const& first, Asset const& second);
 
-template<int TInt>
-void assetCodeToStr(xdr::opaque_array<TInt> const& code, std::string& retStr){
-  std::fill(retStr.begin(), retStr.begin() + TInt, ' ');
-
-  for(int n = 0; n < TInt; n++)
-  {
-      if(code[n])
-          retStr[n] = code[n];
-      else
-      {
-          retStr.resize(n);
-          return;
-      }
-  }
+template<uint32_t N>
+void assetCodeToStr(xdr::opaque_array<N> const& code, std::string& retStr){
+    retStr.clear();
+    for (auto c : code)
+    {
+        if (!c)
+        {
+            break;
+        }
+        retStr.push_back(c);
+    }
 };
 
-void assetCodeToStr(xdr::opaque_array<4U> const& code, std::string& retStr);
-void assetCodeToStr(xdr::opaque_array<12U> const& code, std::string& retStr);
-
-template<int TInt>
-void strToAssetCode(xdr::opaque_array<TInt>& ret, std::string const& str)
+template<uint32_t N>
+void strToAssetCode(xdr::opaque_array<N>& ret, std::string const& str)
 {
-  for (size_t n = 0; (n < str.size()) && (n < TInt); n++)
-  {
-      ret[n] = str[n];
-  }
+    ret.fill(0);
+    size_t n = std::min(ret.size(), str.size());
+    std::copy(str.begin(), str.begin() + n, ret.begin());
 }
-
-void strToAssetCode(xdr::opaque_array<4U>& ret, std::string const& str);
-void strToAssetCode(xdr::opaque_array<12U>& ret, std::string const& str);
 
 // calculates A*B/C when A*B overflows 64bits
 int64_t bigDivide(int64_t A, int64_t B, int64_t C);
