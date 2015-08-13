@@ -324,48 +324,56 @@ LoadGenerator::generateLoad(Application& app, uint32_t nAccounts, uint32_t nTxs,
         uint64_t now = static_cast<uint64_t>(
             VirtualClock::to_time_t(app.getClock().now()));
         bool secondBoundary = now != mLastSecond;
-        mLastSecond = now;
 
         if (autoRate && secondBoundary)
         {
+            mLastSecond = now;
+
             // Automatic tx rate calculation involves taking the temperature
             // of the program and deciding if there's "room" to increase the
             // tx apply rate.
             auto& m = app.getMetrics();
             auto& ledgerCloseTimer = m.NewTimer({"ledger", "ledger", "close"});
+            auto& ledgerAgeClosedTimer = m.NewTimer({"ledger", "age", "closed"});
 
             if (ledgerNum > 10 && ledgerCloseTimer.count() > 5)
             {
                 // We consider the system "well loaded" at the point where its
-                // ledger-close timer has median duration within 10% of 250ms.
+                // ledger-close timer has 95%-ile duration within 10% of 2.5s
+                // (or, well, "half the ledger-age target" which is 5s by
+                // default).
                 //
                 // This is a bit arbitrary but it seems sufficient to
                 // empirically differentiate "totally easy" from "starting to
-                // struggle". If it's over this point, we reduce load; if it's
-                // under this point, we increase load.
+                // struggle"; the system still has half the ledger-period to
+                // digest incoming txs and acquire consensus. If it's over this
+                // point, we reduce load; if it's under this point, we increase
+                // load.
                 //
                 // We also decrease load (but don't increase it) based on ledger
-                // age: if the age gets above the herder's timer target, we shed
-                // load accordingly because the network is not reaching
-                // consensus fast enough.
-
-                double targetLatency = 250.0;
-                double actualLatency =
-                    ledgerCloseTimer.GetSnapshot().getMedian();
+                // age itself, directly: if the age gets above the herder's
+                // timer target, we shed load accordingly because the *network*
+                // (or some other component) is not reaching consensus fast
+                // enough, independent of database close-speed.
 
                 double targetAge =
-                    (double)Herder::EXP_LEDGER_TIMESPAN_SECONDS.count();
+                    (double)Herder::EXP_LEDGER_TIMESPAN_SECONDS.count() * 1000.0;
                 double actualAge =
-                    (double)
-                        app.getLedgerManager().secondsSinceLastLedgerClose();
+                    ledgerAgeClosedTimer.GetSnapshot().get95thPercentile();
+
                 if (app.getConfig().ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING)
                 {
                     targetAge = 1.0;
                 }
 
-                CLOG(DEBUG, "LoadGen")
-                    << "Considering auto-tx adjustment, median close time "
-                    << actualLatency << "ms, ledger age " << actualAge << "s";
+                double targetLatency = targetAge / 2.0;
+                double actualLatency =
+                    ledgerCloseTimer.GetSnapshot().get95thPercentile();
+
+                CLOG(INFO, "LoadGen")
+                    << "Considering auto-tx adjustment, 95% close time "
+                    << ((uint32_t)actualLatency) << "ms, 95% ledger age "
+                    << ((uint32_t)actualAge) << "ms";
 
                 if (!maybeAdjustRate(targetAge, actualAge, txRate, false))
                 {
@@ -382,6 +390,7 @@ LoadGenerator::generateLoad(Application& app, uint32_t nAccounts, uint32_t nTxs,
                 // Unfortunately the timer reservoir size is 1028 by default and
                 // we cannot adjust it here, so in order to adapt to load
                 // relatively quickly, we clear it out every 5 ledgers.
+                ledgerAgeClosedTimer.Clear();
                 ledgerCloseTimer.Clear();
             }
         }
