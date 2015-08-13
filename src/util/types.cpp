@@ -95,7 +95,7 @@ isAssetValid(Asset const& cur)
     }
     return false;
 
-    
+
 }
 
 bool
@@ -106,7 +106,7 @@ compareAsset(Asset const& first, Asset const& second)
 
     if (first.type() == ASSET_TYPE_NATIVE)
         return true;
-  
+
     if (second.type() == ASSET_TYPE_CREDIT_ALPHANUM4)
     {
         if ((first.alphaNum4().issuer == second.alphaNum4().issuer) &&
@@ -121,52 +121,6 @@ compareAsset(Asset const& first, Asset const& second)
             return true;
     }
     return false;
-}
-
-void assetCodeToStr(xdr::opaque_array<4U> const& code, std::string& retStr)
-{
-    retStr = "    ";
-    for (int n = 0; n < 4; n++)
-    {
-        if (code[n])
-            retStr[n] = code[n];
-        else
-        {
-            retStr.resize(n);
-            return;
-        }
-    }
-}
-
-void assetCodeToStr(xdr::opaque_array<12U> const& code, std::string& retStr)
-{
-    retStr = "    ";
-    for(int n = 0; n < 12; n++)
-    {
-        if(code[n])
-            retStr[n] = code[n];
-        else
-        {
-            retStr.resize(n);
-            return;
-        }
-    }
-}
-
-void strToAssetCode(xdr::opaque_array<4U>& ret, std::string const& str)
-{
-    for (size_t n = 0; (n < str.size()) && (n < 4); n++)
-    {
-        ret[n] = str[n];
-    }
-}
-
-void strToAssetCode(xdr::opaque_array<12U>& ret, std::string const& str)
-{
-    for(size_t n = 0; (n < str.size()) && (n < 12); n++)
-    {
-        ret[n] = str[n];
-    }
 }
 
 // calculates A*B/C when A*B overflows 64bits

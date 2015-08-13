@@ -78,11 +78,11 @@ TrustFrame::getKeyFields(LedgerKey const& key, std::string& actIDStrKey,
         assetCodeToStr(key.trustLine().asset.alphaNum12().assetCode,
             assetCode);
     }
-    
+
     if (actIDStrKey == issuerStrKey)
         throw std::runtime_error("Issuer's own trustline should not be used "
                                  "outside of OperationFrame");
-   
+
 }
 
 int64_t
@@ -255,6 +255,7 @@ TrustFrame::storeAdd(LedgerDelta& delta, Database& db) const
     if (mIsIssuer)
         return;
 
+
     std::string actIDStrKey, issuerStrKey, assetCode;
     unsigned int assetType = getKey().trustLine().asset.type();
     getKeyFields(getKey(), actIDStrKey, issuerStrKey, assetCode);
@@ -295,7 +296,16 @@ TrustFrame::createIssuerFrame(Asset const& issuer)
     pointer res = make_shared<TrustFrame>();
     res->mIsIssuer = true;
     TrustLineEntry& tl = res->mEntry.trustLine();
-    tl.accountID = issuer.alphaNum4().issuer;
+
+    if(issuer.type() == ASSET_TYPE_CREDIT_ALPHANUM4)
+    {
+        tl.accountID = issuer.alphaNum4().issuer;
+    }
+    else if(issuer.type() == ASSET_TYPE_CREDIT_ALPHANUM12)
+    {
+        tl.accountID = issuer.alphaNum12().issuer;
+    }
+
     tl.flags |= AUTHORIZED_FLAG;
     tl.balance = INT64_MAX;
     tl.asset = issuer;
@@ -387,6 +397,7 @@ TrustFrame::loadLines(StatementContext& prep,
     le.type(TRUSTLINE);
 
     TrustLineEntry& tl = le.trustLine();
+
 
     auto& st = prep.statement();
     st.exchange(into(actIDStrKey));
