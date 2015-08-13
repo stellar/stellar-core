@@ -31,7 +31,7 @@ namespace stellar
 {
 CommandHandler::CommandHandler(Application& app) : mApp(app)
 {
-    if (!mApp.getConfig().RUN_STANDALONE && mApp.getConfig().HTTP_PORT)
+    if (mApp.getConfig().HTTP_PORT)
     {
         std::string ipStr;
         if (mApp.getConfig().PUBLIC_HTTP_PORT)
@@ -76,7 +76,6 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
                       std::bind(&CommandHandler::metrics, this, _1, _2));
     mServer->addRoute("peers", std::bind(&CommandHandler::peers, this, _1, _2));
     mServer->addRoute("scp", std::bind(&CommandHandler::scpInfo, this, _1, _2));
-    mServer->addRoute("stop", std::bind(&CommandHandler::stop, this, _1, _2));
     mServer->addRoute("testtx",
                       std::bind(&CommandHandler::testTx, this, _1, _2));
     mServer->addRoute("tx", std::bind(&CommandHandler::tx, this, _1, _2));
@@ -192,8 +191,6 @@ CommandHandler::fileNotFound(std::string const& params, std::string& retStr)
         "returns the list of known peers in JSON format"
         "</p><p><h1> /scp</h1>"
         "returns a JSON object with the internal state of the SCP engine"
-        "</p><p><h1> /stop</h1>"
-        "stops the instance"
         "</p><p><h1> /tx?blob=HEX</h1>"
         "submit a transaction to the network.<br>"
         "blob is a hex encoded XDR serialized 'TransactionEnvelope'<br>"
@@ -222,12 +219,6 @@ CommandHandler::manualClose(std::string const& params, std::string& retStr)
     }
 }
 
-void
-CommandHandler::stop(std::string const& params, std::string& retStr)
-{
-    retStr = "Stopping...";
-    mApp.gracefulStop();
-}
 
 template <typename T>
 bool

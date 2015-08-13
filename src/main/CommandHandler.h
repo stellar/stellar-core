@@ -40,7 +40,6 @@ class CommandHandler
     void metrics(std::string const& params, std::string& retStr);
     void peers(std::string const& params, std::string& retStr);
     void scpInfo(std::string const& params, std::string& retStr);
-    void stop(std::string const& params, std::string& retStr);
     void tx(std::string const& params, std::string& retStr);
     void testTx(std::string const& params, std::string& retStr);
 };
