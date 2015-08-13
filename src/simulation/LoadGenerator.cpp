@@ -175,7 +175,11 @@ maybeAdjustRate(double target, double actual, uint32_t& rate, bool increaseOk)
     double acceptableDeviation = 0.1 * target;
     if (fabs(diff) > acceptableDeviation)
     {
-        double pct = diff / actual;
+        // Limit To doubling rate per adjustment period; even if it's measured
+        // as having more room to accelerate, it's likely we'll get a better
+        // measurement next time around, and we don't want to overshoot and
+        // thrash. Measurement is pretty noisy.
+        double pct = std::min(1.0, diff / actual);
         int32_t incr = static_cast<int32_t>(pct * rate);
         if (incr > 0 && !increaseOk)
         {
