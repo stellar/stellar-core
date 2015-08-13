@@ -22,6 +22,7 @@
 #include "transactions/AllowTrustOpFrame.h"
 
 #include "xdrpp/printer.h"
+#include "xdrpp/marshal.h"
 
 #include "medida/metrics_registry.h"
 #include "medida/meter.h"
@@ -712,6 +713,7 @@ LoadGenerator::TxMetrics::TxMetrics(medida::MetricsRegistry& m)
 
     , mTxnAttempted(m.NewMeter({"loadgen", "txn", "attempted"}, "txn"))
     , mTxnRejected(m.NewMeter({"loadgen", "txn", "rejected"}, "txn"))
+    , mTxnBytes(m.NewMeter({"loadgen", "txn", "bytes"}, "txn"))
     , mGateways(m.NewCounter({"loadgen", "account", "gateways"}))
     , mMarketMakers(m.NewCounter({"loadgen", "account", "marketmakers"}))
 {
@@ -722,6 +724,7 @@ LoadGenerator::TxMetrics::report()
 {
     CLOG(DEBUG, "LoadGen") << "Counts: " << mTxnAttempted.count() << " tx, "
                            << mTxnRejected.count() << " rj, "
+                           << mTxnBytes.count() << " by, "
                            << mAccountCreated.count() << " ac ("
                            << mGateways.count() << " gw, "
                            << mMarketMakers.count() << " mm), "
@@ -737,6 +740,7 @@ LoadGenerator::TxMetrics::report()
     CLOG(DEBUG, "LoadGen") << "Rates/sec (1m EWMA): " << std::setprecision(3)
                            << mTxnAttempted.one_minute_rate() << " tx, "
                            << mTxnRejected.one_minute_rate() << " rj, "
+                           << mTxnBytes.one_minute_rate() << " by, "
                            << mAccountCreated.one_minute_rate() << " ac, "
                            << mTrustlineCreated.one_minute_rate() << " tl, "
                            << mOfferCreated.one_minute_rate() << " of, "
@@ -757,6 +761,12 @@ LoadGenerator::TxInfo::execute(Application& app)
     for (auto f : txfs)
     {
         txm.mTxnAttempted.Mark();
+        {
+            StellarMessage msg;
+            msg.type(TRANSACTION);
+            msg.transaction() = f->getEnvelope();
+            txm.mTxnBytes.Mark(xdr::xdr_argpack_size(msg));
+        }
         auto status = app.getHerder().recvTransaction(f);
         if (status != Herder::TX_STATUS_PENDING)
         {
