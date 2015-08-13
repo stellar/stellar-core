@@ -230,6 +230,22 @@ LoadGenerator::generateLoad(Application& app, uint32_t nAccounts, uint32_t nTxs,
     // is 200 and STEP_MSECS is 100, then we want to do 20 tx per step.
     uint32_t txPerStep = (txRate * STEP_MSECS / 1000);
 
+    // There is a wrinkle here though which is that the tx-apply phase might
+    // well block timers for up to half the close-time; plus we'll be probably
+    // not be scheduled quite as often as we want due to the time it takes to
+    // run and the time the network is exchanging packets. So instead of a naive
+    // calculation based _just_ on target rate and STEP_MSECS, we also adjust
+    // based on how often we seem to be waking up and taking loadgen steps in
+    // reality.
+    auto& stepMeter =
+        app.getMetrics().NewMeter({"loadgen", "step", "count"}, "step");
+    stepMeter.Mark();
+    auto stepsPerSecond = stepMeter.one_minute_rate();
+    if (stepMeter.count() > 10 && stepsPerSecond != 0)
+    {
+        txPerStep = static_cast<uint32_t>(txRate / stepsPerSecond);
+    }
+
     // If we have a very low tx rate (eg. 2/sec) then the previous division will
     // be zero and we'll never issue anything; what we need to do instead is
     // dispatch 1 tx every "few steps" (eg. every 5 steps). We do this by random
