@@ -22,8 +22,33 @@ bool isAssetValid(Asset const& cur);
 // returns true if the currencies are the same
 bool compareAsset(Asset const& first, Asset const& second);
 
+template<int TInt>
+void assetCodeToStr(xdr::opaque_array<TInt> const& code, std::string& retStr){
+  std::fill(retStr.begin(), retStr.begin() + TInt, ' ');
+
+  for(int n = 0; n < TInt; n++)
+  {
+      if(code[n])
+          retStr[n] = code[n];
+      else
+      {
+          retStr.resize(n);
+          return;
+      }
+  }
+};
+
 void assetCodeToStr(xdr::opaque_array<4U> const& code, std::string& retStr);
 void assetCodeToStr(xdr::opaque_array<12U> const& code, std::string& retStr);
+
+template<int TInt>
+void strToAssetCode(xdr::opaque_array<TInt>& ret, std::string const& str)
+{
+  for (size_t n = 0; (n < str.size()) && (n < TInt); n++)
+  {
+      ret[n] = str[n];
+  }
+}
 
 void strToAssetCode(xdr::opaque_array<4U>& ret, std::string const& str);
 void strToAssetCode(xdr::opaque_array<12U>& ret, std::string const& str);
