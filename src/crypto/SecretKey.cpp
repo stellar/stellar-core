@@ -224,6 +224,13 @@ SecretKey::fromBase58Seed(std::string const& base58Seed)
     return sk;
 }
 
+void
+PubKeyUtils::clearVerifySigCache()
+{
+    std::lock_guard<std::mutex> guard(gVerifySigCacheMutex);
+    gVerifySigCache.clear();
+}
+
 bool
 PubKeyUtils::verifySig(PublicKey const& key, Signature const& signature,
                        ByteSlice const& bin)

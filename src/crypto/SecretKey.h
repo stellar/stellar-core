@@ -78,6 +78,8 @@ namespace PubKeyUtils
 bool verifySig(PublicKey const& key, Signature const& signature,
                ByteSlice const& bin);
 
+void clearVerifySigCache();
+
 std::string toShortString(PublicKey const& pk);
 
 std::string toStrKey(PublicKey const& pk);
