@@ -81,7 +81,7 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
         thisConfig.PEER_PORT =
             static_cast<unsigned short>(DEFAULT_PEER_PORT + instanceNumber * 2);
         thisConfig.HTTP_PORT = static_cast<unsigned short>(
-            DEFAULT_PEER_PORT + instanceNumber * 2 - 1);
+            DEFAULT_PEER_PORT + instanceNumber * 2 + 1);
 
         // We set a secret key by default as FORCE_SCP is true by
         // default and we do need a VALIDATION_KEY to start a new network

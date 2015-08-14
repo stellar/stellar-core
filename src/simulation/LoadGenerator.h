@@ -146,6 +146,7 @@ class LoadGenerator
         medida::Meter& mManyOfferPathPayment;
         medida::Meter& mTxnAttempted;
         medida::Meter& mTxnRejected;
+        medida::Meter& mTxnBytes;
 
         medida::Counter& mGateways;
         medida::Counter& mMarketMakers;

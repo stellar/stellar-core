@@ -166,6 +166,11 @@ TrustFrame::isValid() const
 bool
 TrustFrame::exists(Database& db, LedgerKey const& key)
 {
+    if (cachedEntryExists(key, db) && getCachedEntry(key, db) != nullptr)
+    {
+        return true;
+    }
+
     std::string actIDStrKey, issuerStrKey, assetCode;
     getKeyFields(key, actIDStrKey, issuerStrKey, assetCode);
     int exists = 0;
@@ -200,6 +205,8 @@ TrustFrame::storeDelete(LedgerDelta& delta, Database& db) const
 void
 TrustFrame::storeDelete(LedgerDelta& delta, Database& db, LedgerKey const& key)
 {
+    flushCachedEntry(key, db);
+
     std::string actIDStrKey, issuerStrKey, assetCode;
     getKeyFields(key, actIDStrKey, issuerStrKey, assetCode);
 
@@ -217,11 +224,14 @@ TrustFrame::storeChange(LedgerDelta& delta, Database& db) const
 {
     assert(isValid());
 
+    auto key = getKey();
+    flushCachedEntry(key, db);
+
     if (mIsIssuer)
         return;
 
     std::string actIDStrKey, issuerStrKey, assetCode;
-    getKeyFields(getKey(), actIDStrKey, issuerStrKey, assetCode);
+    getKeyFields(key, actIDStrKey, issuerStrKey, assetCode);
 
     auto prep = db.getPreparedStatement(
         "UPDATE trustlines "
@@ -251,6 +261,9 @@ void
 TrustFrame::storeAdd(LedgerDelta& delta, Database& db) const
 {
     assert(isValid());
+
+    auto key = getKey();
+    flushCachedEntry(key, db);
 
     if (mIsIssuer)
         return;
@@ -327,6 +340,16 @@ TrustFrame::loadTrustLine(AccountID const& accountID, Asset const& asset,
             return createIssuerFrame(asset);
     } else throw std::runtime_error("XLM TrustLine?");
 
+    LedgerKey key;
+    key.type(TRUSTLINE);
+    key.trustLine().accountID = accountID;
+    key.trustLine().asset = asset;
+    if (cachedEntryExists(key, db))
+    {
+        auto p = getCachedEntry(key, db);
+        return p ? std::make_shared<TrustFrame>(*p) : nullptr;
+    }
+
     std::string accStr, issuerStr, assetStr;
 
     accStr = PubKeyUtils::toStrKey(accountID);
@@ -356,6 +379,15 @@ TrustFrame::loadTrustLine(AccountID const& accountID, Asset const& asset,
               {
                   retLine = make_shared<TrustFrame>(trust);
               });
+
+    if (retLine)
+    {
+        retLine->putCachedEntry(db);
+    }
+    else
+    {
+        putCachedEntry(key, nullptr, db);
+    }
     return retLine;
 }
 

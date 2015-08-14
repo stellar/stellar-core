@@ -252,6 +252,8 @@ TEST_CASE("Auto-calibrated single node load test", "[autoload][hide]")
 #endif
         getTestConfig(0, Config::TESTDB_ON_DISK_SQLITE);
     cfg.RUN_STANDALONE = false;
+    cfg.PARANOID_MODE = false;
+    cfg.DESIRED_MAX_TX_PER_LEDGER = 10000;
     VirtualClock clock(VirtualClock::REAL_TIME);
     Application::pointer appPtr = Application::create(clock, cfg);
     appPtr->start();
