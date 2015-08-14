@@ -138,14 +138,24 @@ private:
     void enterAnchoredState(HistoryArchiveState const& has);
     void enterRetryingState(uint64_t nseconds=2);
     void enterFetchingState();
+
     void enterVerifyingState();
+    void advanceVerifyingState(std::shared_ptr<LedgerHeaderHistoryEntry> prev,
+                               uint32_t checkpoint);
+    HistoryManager::VerifyHashStatus
+    verifyHistoryOfSingleCheckpoint(std::shared_ptr<LedgerHeaderHistoryEntry> prev,
+                                    uint32_t checkpoint);
+    void finishVerifyingState(HistoryManager::VerifyHashStatus status);
+
+    struct ApplyState;
     void enterApplyingState();
+    void advanceApplyingState(std::shared_ptr<ApplyState>);
+
     void enterEndState();
 
-    HistoryManager::VerifyHashStatus verifyHistoryFromLastClosedLedger();
-    void applyBucketsAtLastClosedLedger();
+    void applySingleBucketLevel(bool& applying, size_t& level);
     void acquireFinalLedgerState(uint32_t ledgerNum);
-    void applyHistoryFromLastClosedLedger();
+    void applyHistoryOfSingleCheckpoint(uint32_t checkpoint);
 
 public:
   CatchupStateMachine(

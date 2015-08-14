@@ -61,7 +61,7 @@
       <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
       <BrowseInformation>false</BrowseInformation>
       <ControlFlowGuard>Guard</ControlFlowGuard>
-      <SmallerTypeCheck>true</SmallerTypeCheck>
+      <SmallerTypeCheck>false</SmallerTypeCheck>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
     </ClCompile>
     <Link>
@@ -420,10 +420,12 @@
     <None Include="..\..\COPYING" />
     <None Include="..\..\docs\admin.md" />
     <None Include="..\..\docs\architecture.md" />
+    <None Include="..\..\docs\commands.md" />
     <None Include="..\..\docs\concepts.md" />
     <None Include="..\..\docs\ledger.md" />
     <None Include="..\..\docs\readme.md" />
     <None Include="..\..\docs\stellar-core_example.cfg" />
+    <None Include="..\..\docs\stellar-core_standalone.cfg" />
     <None Include="..\..\docs\stellar-core_testnet.cfg" />
     <None Include="..\..\docs\testnet.md" />
     <None Include="..\..\docs\transaction.md" />

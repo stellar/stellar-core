@@ -22,11 +22,26 @@ bool isAssetValid(Asset const& cur);
 // returns true if the currencies are the same
 bool compareAsset(Asset const& first, Asset const& second);
 
-void assetCodeToStr(xdr::opaque_array<4U> const& code, std::string& retStr);
-void assetCodeToStr(xdr::opaque_array<12U> const& code, std::string& retStr);
+template<uint32_t N>
+void assetCodeToStr(xdr::opaque_array<N> const& code, std::string& retStr){
+    retStr.clear();
+    for (auto c : code)
+    {
+        if (!c)
+        {
+            break;
+        }
+        retStr.push_back(c);
+    }
+};
 
-void strToAssetCode(xdr::opaque_array<4U>& ret, std::string const& str);
-void strToAssetCode(xdr::opaque_array<12U>& ret, std::string const& str);
+template<uint32_t N>
+void strToAssetCode(xdr::opaque_array<N>& ret, std::string const& str)
+{
+    ret.fill(0);
+    size_t n = std::min(ret.size(), str.size());
+    std::copy(str.begin(), str.begin() + n, ret.begin());
+}
 
 // calculates A*B/C when A*B overflows 64bits
 int64_t bigDivide(int64_t A, int64_t B, int64_t C);

@@ -1,8 +1,3 @@
----
-id: architecture
-title: Architecture
-category: Documents
----
 Process-level architecture
 ==========================
 
@@ -21,7 +16,7 @@ Two slightly-obscurely-named components are:
 	see [`src/bucket/readme.md`](../src/bucket/readme.md)
 
   - SCP -- "Stellar Consensus Protocol", the component implementing the
-    new consensus algorithm.
+    [consensus algorithm](https://www.stellar.org/papers/stellar-consensus-protocol.pdf).
 
 Other details:
 
@@ -62,7 +57,7 @@ Other details:
     single, standard XDR for canonical (hashed) format, history, and
     inter-node messaging.
 
-  - No use of custom datatypes (No custom time epochs, asset codes, decimal
+  - No use of custom datatypes (No custom time epochs, currency codes, decimal
     floating point, etc.)
 
 
@@ -119,7 +114,7 @@ mind.
   - Storing the consensus transaction log and set of ledger snapshots in
     canonical form (compressed XDR blocks, aim for many megabytes, but not
     gigabytes, per block).
-  - Acccepting new blocks from validators running archival commands, at
+  - Accepting new blocks from validators running archival commands, at
     frequency between minutes and hours. Effectively "continuous backup".
   - Serving history to validators that are new or out of sync.
   - Serving history to the general public who want to analyze it / back it up.
@@ -141,5 +136,3 @@ with:
   - Optionally feeding (some?) tx proposals submitted to them into core network.
   - Basically just a stellar-network load balancer / firewall for public access,
     for people who don't want to form trust relationships.
-
-

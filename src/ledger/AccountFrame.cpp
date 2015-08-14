@@ -44,7 +44,7 @@ const char* AccountFrame::kSQLCreateStatement3 =
     "CREATE INDEX signersaccount ON signers (accountid)";
 
 const char* AccountFrame::kSQLCreateStatement4 =
-    "CREATE INDEX accountbalances ON Accounts (balance)";
+    "CREATE INDEX accountbalances ON Accounts (balance) WHERE balance >= 1000000000";
 
 AccountFrame::AccountFrame()
     : EntryFrame(ACCOUNT), mAccountEntry(mEntry.account())
@@ -187,22 +187,29 @@ AccountFrame::loadAccount(AccountID const& accountID, Database& db)
     std::string homeDomain, thresholds;
     soci::indicator inflationDestInd, homeDomainInd, thresholdsInd;
 
-    soci::session& session = db.getSession();
-
     AccountFrame::pointer res = make_shared<AccountFrame>(accountID);
     AccountEntry& account = res->getAccount();
+
+    auto prep = db.getPreparedStatement(
+        "SELECT balance, seqnum, numsubentries, "
+        "inflationdest, homedomain, thresholds, flags "
+        "FROM accounts WHERE accountid=:v1");
+    auto& st = prep.statement();
+    st.exchange(into(account.balance));
+    st.exchange(into(account.seqNum));
+    st.exchange(into(account.numSubEntries));
+    st.exchange(into(inflationDest, inflationDestInd));
+    st.exchange(into(homeDomain, homeDomainInd));
+    st.exchange(into(thresholds, thresholdsInd));
+    st.exchange(into(account.flags));
+    st.exchange(use(actIDStrKey));
+    st.define_and_bind();
     {
         auto timer = db.getSelectTimer("account");
-        session << "SELECT balance, seqnum, numsubentries, "
-                   "inflationdest, homedomain, thresholds,  flags "
-                   "FROM accounts WHERE accountid=:v1",
-            into(account.balance), into(account.seqNum),
-            into(account.numSubEntries), into(inflationDest, inflationDestInd),
-            into(homeDomain, homeDomainInd), into(thresholds, thresholdsInd),
-            into(account.flags), use(actIDStrKey);
+        st.execute(true);
     }
 
-    if (!session.got_data())
+    if (!st.got_data())
     {
         putCachedEntry(key, nullptr, db);
         return nullptr;
@@ -232,24 +239,24 @@ AccountFrame::loadAccount(AccountID const& accountID, Database& db)
         string pubKey;
         Signer signer;
 
-        auto prep = db.getPreparedStatement("SELECT publickey, weight from "
+        auto prep2 = db.getPreparedStatement("SELECT publickey, weight from "
                                             "signers where accountid =:id");
-        auto& st = prep.statement();
-        st.exchange(use(actIDStrKey));
-        st.exchange(into(pubKey));
-        st.exchange(into(signer.weight));
-        st.define_and_bind();
+        auto& st2 = prep2.statement();
+        st2.exchange(use(actIDStrKey));
+        st2.exchange(into(pubKey));
+        st2.exchange(into(signer.weight));
+        st2.define_and_bind();
         {
             auto timer = db.getSelectTimer("signer");
-            st.execute(true);
+            st2.execute(true);
         }
-        while (st.got_data())
+        while (st2.got_data())
         {
             signer.pubKey = PubKeyUtils::fromStrKey(pubKey);
 
             account.signers.push_back(signer);
 
-            st.fetch();
+            st2.fetch();
         }
     }
 

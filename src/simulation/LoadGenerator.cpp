@@ -22,6 +22,7 @@
 #include "transactions/AllowTrustOpFrame.h"
 
 #include "xdrpp/printer.h"
+#include "xdrpp/marshal.h"
 
 #include "medida/metrics_registry.h"
 #include "medida/meter.h"
@@ -38,8 +39,8 @@ using namespace std;
 // Account amounts are expressed in ten-millionths (10^-7).
 static const uint64_t TENMILLION = 10000000;
 
-// Every loadgen account or trustline gets a 1000 unit balance (10^3).
-static const uint64_t LOADGEN_ACCOUNT_BALANCE = 1000 * TENMILLION;
+// Every loadgen account or trustline gets a 99 unit balance (10^2 - 1).
+static const uint64_t LOADGEN_ACCOUNT_BALANCE = 99 * TENMILLION;
 
 // Trustlines are limited to 1000x the balance.
 static const uint64_t LOADGEN_TRUSTLINE_LIMIT = 1000 * LOADGEN_ACCOUNT_BALANCE;
@@ -50,8 +51,8 @@ const uint32_t LoadGenerator::STEP_MSECS = 100;
 LoadGenerator::LoadGenerator() : mMinBalance(0), mLastSecond(0)
 {
     // Root account gets enough XLM to create 100 million (10^8) accounts, which
-    // thereby uses up 7 + 3 + 8 = 18 decimal digits. Luckily we have 2^63 =
-    // 9.2*10^18, so there's room even in 63bits to do this.
+    // thereby uses up 7 + 2 + 8 = 17 decimal digits. Luckily we have 2^63 =
+    // 9.2*10^18, so there's room even in 62bits to do this.
     auto root = make_shared<AccountInfo>(
         0, txtest::getRoot(), 100000000ULL * LOADGEN_ACCOUNT_BALANCE, 0, *this);
     mAccounts.push_back(root);
@@ -174,7 +175,11 @@ maybeAdjustRate(double target, double actual, uint32_t& rate, bool increaseOk)
     double acceptableDeviation = 0.1 * target;
     if (fabs(diff) > acceptableDeviation)
     {
-        double pct = diff / actual;
+        // Limit To doubling rate per adjustment period; even if it's measured
+        // as having more room to accelerate, it's likely we'll get a better
+        // measurement next time around, and we don't want to overshoot and
+        // thrash. Measurement is pretty noisy.
+        double pct = std::min(1.0, diff / actual);
         int32_t incr = static_cast<int32_t>(pct * rate);
         if (incr > 0 && !increaseOk)
         {
@@ -224,6 +229,22 @@ LoadGenerator::generateLoad(Application& app, uint32_t nAccounts, uint32_t nTxs,
     // fraction of txRate determined by STEP_MSECS. For example if txRate
     // is 200 and STEP_MSECS is 100, then we want to do 20 tx per step.
     uint32_t txPerStep = (txRate * STEP_MSECS / 1000);
+
+    // There is a wrinkle here though which is that the tx-apply phase might
+    // well block timers for up to half the close-time; plus we'll be probably
+    // not be scheduled quite as often as we want due to the time it takes to
+    // run and the time the network is exchanging packets. So instead of a naive
+    // calculation based _just_ on target rate and STEP_MSECS, we also adjust
+    // based on how often we seem to be waking up and taking loadgen steps in
+    // reality.
+    auto& stepMeter =
+        app.getMetrics().NewMeter({"loadgen", "step", "count"}, "step");
+    stepMeter.Mark();
+    auto stepsPerSecond = stepMeter.one_minute_rate();
+    if (stepMeter.count() > 10 && stepsPerSecond != 0)
+    {
+        txPerStep = static_cast<uint32_t>(txRate / stepsPerSecond);
+    }
 
     // If we have a very low tx rate (eg. 2/sec) then the previous division will
     // be zero and we'll never issue anything; what we need to do instead is
@@ -303,48 +324,56 @@ LoadGenerator::generateLoad(Application& app, uint32_t nAccounts, uint32_t nTxs,
         uint64_t now = static_cast<uint64_t>(
             VirtualClock::to_time_t(app.getClock().now()));
         bool secondBoundary = now != mLastSecond;
-        mLastSecond = now;
 
         if (autoRate && secondBoundary)
         {
+            mLastSecond = now;
+
             // Automatic tx rate calculation involves taking the temperature
             // of the program and deciding if there's "room" to increase the
             // tx apply rate.
             auto& m = app.getMetrics();
             auto& ledgerCloseTimer = m.NewTimer({"ledger", "ledger", "close"});
+            auto& ledgerAgeClosedTimer = m.NewTimer({"ledger", "age", "closed"});
 
             if (ledgerNum > 10 && ledgerCloseTimer.count() > 5)
             {
                 // We consider the system "well loaded" at the point where its
-                // ledger-close timer has median duration within 10% of 250ms.
+                // ledger-close timer has 95%-ile duration within 10% of 2.5s
+                // (or, well, "half the ledger-age target" which is 5s by
+                // default).
                 //
                 // This is a bit arbitrary but it seems sufficient to
                 // empirically differentiate "totally easy" from "starting to
-                // struggle". If it's over this point, we reduce load; if it's
-                // under this point, we increase load.
+                // struggle"; the system still has half the ledger-period to
+                // digest incoming txs and acquire consensus. If it's over this
+                // point, we reduce load; if it's under this point, we increase
+                // load.
                 //
                 // We also decrease load (but don't increase it) based on ledger
-                // age: if the age gets above the herder's timer target, we shed
-                // load accordingly because the network is not reaching
-                // consensus fast enough.
-
-                double targetLatency = 250.0;
-                double actualLatency =
-                    ledgerCloseTimer.GetSnapshot().getMedian();
+                // age itself, directly: if the age gets above the herder's
+                // timer target, we shed load accordingly because the *network*
+                // (or some other component) is not reaching consensus fast
+                // enough, independent of database close-speed.
 
                 double targetAge =
-                    (double)Herder::EXP_LEDGER_TIMESPAN_SECONDS.count();
+                    (double)Herder::EXP_LEDGER_TIMESPAN_SECONDS.count() * 1000.0;
                 double actualAge =
-                    (double)
-                        app.getLedgerManager().secondsSinceLastLedgerClose();
+                    ledgerAgeClosedTimer.GetSnapshot().get95thPercentile();
+
                 if (app.getConfig().ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING)
                 {
                     targetAge = 1.0;
                 }
 
-                CLOG(DEBUG, "LoadGen")
-                    << "Considering auto-tx adjustment, median close time "
-                    << actualLatency << "ms, ledger age " << actualAge << "s";
+                double targetLatency = targetAge / 2.0;
+                double actualLatency =
+                    ledgerCloseTimer.GetSnapshot().get95thPercentile();
+
+                CLOG(INFO, "LoadGen")
+                    << "Considering auto-tx adjustment, 95% close time "
+                    << ((uint32_t)actualLatency) << "ms, 95% ledger age "
+                    << ((uint32_t)actualAge) << "ms";
 
                 if (!maybeAdjustRate(targetAge, actualAge, txRate, false))
                 {
@@ -361,6 +390,7 @@ LoadGenerator::generateLoad(Application& app, uint32_t nAccounts, uint32_t nTxs,
                 // Unfortunately the timer reservoir size is 1028 by default and
                 // we cannot adjust it here, so in order to adapt to load
                 // relatively quickly, we clear it out every 5 ledgers.
+                ledgerAgeClosedTimer.Clear();
                 ledgerCloseTimer.Clear();
             }
         }
@@ -712,6 +742,7 @@ LoadGenerator::TxMetrics::TxMetrics(medida::MetricsRegistry& m)
 
     , mTxnAttempted(m.NewMeter({"loadgen", "txn", "attempted"}, "txn"))
     , mTxnRejected(m.NewMeter({"loadgen", "txn", "rejected"}, "txn"))
+    , mTxnBytes(m.NewMeter({"loadgen", "txn", "bytes"}, "txn"))
     , mGateways(m.NewCounter({"loadgen", "account", "gateways"}))
     , mMarketMakers(m.NewCounter({"loadgen", "account", "marketmakers"}))
 {
@@ -722,6 +753,7 @@ LoadGenerator::TxMetrics::report()
 {
     CLOG(DEBUG, "LoadGen") << "Counts: " << mTxnAttempted.count() << " tx, "
                            << mTxnRejected.count() << " rj, "
+                           << mTxnBytes.count() << " by, "
                            << mAccountCreated.count() << " ac ("
                            << mGateways.count() << " gw, "
                            << mMarketMakers.count() << " mm), "
@@ -737,6 +769,7 @@ LoadGenerator::TxMetrics::report()
     CLOG(DEBUG, "LoadGen") << "Rates/sec (1m EWMA): " << std::setprecision(3)
                            << mTxnAttempted.one_minute_rate() << " tx, "
                            << mTxnRejected.one_minute_rate() << " rj, "
+                           << mTxnBytes.one_minute_rate() << " by, "
                            << mAccountCreated.one_minute_rate() << " ac, "
                            << mTrustlineCreated.one_minute_rate() << " tl, "
                            << mOfferCreated.one_minute_rate() << " of, "
@@ -757,6 +790,12 @@ LoadGenerator::TxInfo::execute(Application& app)
     for (auto f : txfs)
     {
         txm.mTxnAttempted.Mark();
+        {
+            StellarMessage msg;
+            msg.type(TRANSACTION);
+            msg.transaction() = f->getEnvelope();
+            txm.mTxnBytes.Mark(xdr::xdr_argpack_size(msg));
+        }
         auto status = app.getHerder().recvTransaction(f);
         if (status != Herder::TX_STATUS_PENDING)
         {

@@ -82,14 +82,19 @@ LedgerHeaderFrame::storeInsert(LedgerManager& ledgerManager) const
     auto& db = ledgerManager.getDatabase();
 
     // note: columns other than "data" are there to faciliate lookup/processing
-    soci::statement st =
-        (db.getSession().prepare << "INSERT INTO ledgerheaders "
-                                    "(ledgerhash,prevhash,bucketlisthash, "
-                                    "ledgerseq,closetime,data) VALUES"
-                                    "(:h,:ph,:blh,"
-                                    ":seq,:ct,:data)",
-         use(hash), use(prevHash), use(bucketListHash), use(mHeader.ledgerSeq),
-         use(mHeader.scpValue.closeTime), use(headerEncoded));
+    auto prep = db.getPreparedStatement(
+        "INSERT INTO ledgerheaders "
+        "(ledgerhash, prevhash, bucketlisthash, ledgerseq, closetime, data) "
+        "VALUES "
+        "(:h,        :ph,      :blh,            :seq,     :ct,       :data)");
+    auto& st = prep.statement();
+    st.exchange(use(hash));
+    st.exchange(use(prevHash));
+    st.exchange(use(bucketListHash));
+    st.exchange(use(mHeader.ledgerSeq));
+    st.exchange(use(mHeader.scpValue.closeTime));
+    st.exchange(use(headerEncoded));
+    st.define_and_bind();
     {
         auto timer = db.getInsertTimer("ledger-header");
         st.execute(true);
@@ -121,13 +126,19 @@ LedgerHeaderFrame::loadByHash(Hash const& hash, Database& db)
 
     string hash_s(binToHex(hash));
     string headerEncoded;
+
+    auto prep = db.getPreparedStatement(
+        "SELECT data FROM ledgerheaders "
+        "WHERE ledgerhash = :h");
+    auto& st = prep.statement();
+    st.exchange(into(headerEncoded));
+    st.exchange(use(hash_s));
+    st.define_and_bind();
     {
         auto timer = db.getSelectTimer("ledger-header");
-        db.getSession() << "SELECT data FROM ledgerheaders "
-                           "WHERE ledgerhash = :h",
-            into(headerEncoded), use(hash_s);
+        st.execute(true);
     }
-    if (db.getSession().got_data())
+    if (st.got_data())
     {
         lhf = decodeFromData(headerEncoded);
         if (lhf->getHash() != hash)

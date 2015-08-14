@@ -116,6 +116,7 @@ SetOptionsOpFrame::doApply(medida::MetricsRegistry& metrics, LedgerDelta& delta,
                 if (oldSigner.pubKey == mSetOptions.signer->pubKey)
                 {
                     oldSigner.weight = mSetOptions.signer->weight;
+                    found = true;
                 }
             }
             if (!found)

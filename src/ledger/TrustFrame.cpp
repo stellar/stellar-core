@@ -78,11 +78,11 @@ TrustFrame::getKeyFields(LedgerKey const& key, std::string& actIDStrKey,
         assetCodeToStr(key.trustLine().asset.alphaNum12().assetCode,
             assetCode);
     }
-    
+
     if (actIDStrKey == issuerStrKey)
         throw std::runtime_error("Issuer's own trustline should not be used "
                                  "outside of OperationFrame");
-   
+
 }
 
 int64_t
@@ -166,14 +166,25 @@ TrustFrame::isValid() const
 bool
 TrustFrame::exists(Database& db, LedgerKey const& key)
 {
+    if (cachedEntryExists(key, db) && getCachedEntry(key, db) != nullptr)
+    {
+        return true;
+    }
+
     std::string actIDStrKey, issuerStrKey, assetCode;
     getKeyFields(key, actIDStrKey, issuerStrKey, assetCode);
     int exists = 0;
     auto timer = db.getSelectTimer("trust-exists");
-    db.getSession()
-        << "SELECT EXISTS (SELECT NULL FROM trustlines "
-           "WHERE accountid=:v1 and issuer=:v2 and assetcode=:v3)",
-        use(actIDStrKey), use(issuerStrKey), use(assetCode), into(exists);
+    auto prep = db.getPreparedStatement(
+        "SELECT EXISTS (SELECT NULL FROM trustlines "
+        "WHERE accountid=:v1 and issuer=:v2 and assetcode=:v3)");
+    auto& st = prep.statement();
+    st.exchange(use(actIDStrKey));
+    st.exchange(use(issuerStrKey));
+    st.exchange(use(assetCode));
+    st.exchange(into(exists));
+    st.define_and_bind();
+    st.execute(true);
     return exists != 0;
 }
 
@@ -194,6 +205,8 @@ TrustFrame::storeDelete(LedgerDelta& delta, Database& db) const
 void
 TrustFrame::storeDelete(LedgerDelta& delta, Database& db, LedgerKey const& key)
 {
+    flushCachedEntry(key, db);
+
     std::string actIDStrKey, issuerStrKey, assetCode;
     getKeyFields(key, actIDStrKey, issuerStrKey, assetCode);
 
@@ -211,24 +224,31 @@ TrustFrame::storeChange(LedgerDelta& delta, Database& db) const
 {
     assert(isValid());
 
+    auto key = getKey();
+    flushCachedEntry(key, db);
+
     if (mIsIssuer)
         return;
 
     std::string actIDStrKey, issuerStrKey, assetCode;
-    getKeyFields(getKey(), actIDStrKey, issuerStrKey, assetCode);
+    getKeyFields(key, actIDStrKey, issuerStrKey, assetCode);
 
-    auto timer = db.getUpdateTimer("trust");
-    statement st =
-        (db.getSession().prepare
-             << "UPDATE trustlines "
-                "SET balance=:b, tlimit=:tl, flags=:a "
-                "WHERE accountid=:v1 AND issuer=:v2 AND assetcode=:v3",
-         use(mTrustLine.balance), use(mTrustLine.limit),
-         use((int)mTrustLine.flags), use(actIDStrKey), use(issuerStrKey),
-         use(assetCode));
-
-    st.execute(true);
-
+    auto prep = db.getPreparedStatement(
+        "UPDATE trustlines "
+        "SET balance=:b, tlimit=:tl, flags=:a "
+        "WHERE accountid=:v1 AND issuer=:v2 AND assetcode=:v3");
+    auto& st = prep.statement();
+    st.exchange(use(mTrustLine.balance));
+    st.exchange(use(mTrustLine.limit));
+    st.exchange(use(mTrustLine.flags));
+    st.exchange(use(actIDStrKey));
+    st.exchange(use(issuerStrKey));
+    st.exchange(use(assetCode));
+    st.define_and_bind();
+    {
+        auto timer = db.getUpdateTimer("trust");
+        st.execute(true);
+    }
     if (st.get_affected_rows() != 1)
     {
         throw std::runtime_error("Could not update data in SQL");
@@ -242,23 +262,34 @@ TrustFrame::storeAdd(LedgerDelta& delta, Database& db) const
 {
     assert(isValid());
 
+    auto key = getKey();
+    flushCachedEntry(key, db);
+
     if (mIsIssuer)
         return;
+
 
     std::string actIDStrKey, issuerStrKey, assetCode;
     unsigned int assetType = getKey().trustLine().asset.type();
     getKeyFields(getKey(), actIDStrKey, issuerStrKey, assetCode);
 
-    auto timer = db.getInsertTimer("trust");
-    statement st = (db.getSession().prepare
-                        << "INSERT INTO trustlines (accountid, "
-                           "assettype, issuer, assetcode, balance, tlimit, flags) "
-                           "VALUES (:v1,:v2,:v3,:v4,:v5,:v6,:v7)",
-                    use(actIDStrKey), use(assetType), use(issuerStrKey), use(assetCode),
-                    use(mTrustLine.balance), use(mTrustLine.limit),
-                    use((int)mTrustLine.flags));
-
-    st.execute(true);
+    auto prep = db.getPreparedStatement(
+        "INSERT INTO trustlines "
+        "(accountid, assettype, issuer, assetcode, balance, tlimit, flags) VALUES "
+        "(:v1,      :v2,       :v3,    :v4,       :v5,     :v6,    :v7)");
+    auto& st = prep.statement();
+    st.exchange(use(actIDStrKey));
+    st.exchange(use(assetType));
+    st.exchange(use(issuerStrKey));
+    st.exchange(use(assetCode));
+    st.exchange(use(mTrustLine.balance));
+    st.exchange(use(mTrustLine.limit));
+    st.exchange(use(mTrustLine.flags));
+    st.define_and_bind();
+    {
+        auto timer = db.getInsertTimer("trust");
+        st.execute(true);
+    }
 
     if (st.get_affected_rows() != 1)
     {
@@ -278,7 +309,16 @@ TrustFrame::createIssuerFrame(Asset const& issuer)
     pointer res = make_shared<TrustFrame>();
     res->mIsIssuer = true;
     TrustLineEntry& tl = res->mEntry.trustLine();
-    tl.accountID = issuer.alphaNum4().issuer;
+
+    if(issuer.type() == ASSET_TYPE_CREDIT_ALPHANUM4)
+    {
+        tl.accountID = issuer.alphaNum4().issuer;
+    }
+    else if(issuer.type() == ASSET_TYPE_CREDIT_ALPHANUM12)
+    {
+        tl.accountID = issuer.alphaNum12().issuer;
+    }
+
     tl.flags |= AUTHORIZED_FLAG;
     tl.balance = INT64_MAX;
     tl.asset = issuer;
@@ -300,6 +340,16 @@ TrustFrame::loadTrustLine(AccountID const& accountID, Asset const& asset,
             return createIssuerFrame(asset);
     } else throw std::runtime_error("XLM TrustLine?");
 
+    LedgerKey key;
+    key.type(TRUSTLINE);
+    key.trustLine().accountID = accountID;
+    key.trustLine().asset = asset;
+    if (cachedEntryExists(key, db))
+    {
+        auto p = getCachedEntry(key, db);
+        return p ? std::make_shared<TrustFrame>(*p) : nullptr;
+    }
+
     std::string accStr, issuerStr, assetStr;
 
     accStr = PubKeyUtils::toStrKey(accountID);
@@ -312,21 +362,32 @@ TrustFrame::loadTrustLine(AccountID const& accountID, Asset const& asset,
         assetCodeToStr(asset.alphaNum12().assetCode, assetStr);
         issuerStr = PubKeyUtils::toStrKey(asset.alphaNum12().issuer);
     }
-   
-    session& session = db.getSession();
 
-    details::prepare_temp_type sql =
-        (session.prepare << trustLineColumnSelector
-                         << " WHERE accountid=:id AND "
-                            "issuer=:issuer AND assetcode=:asset",
-         use(accStr), use(issuerStr), use(assetStr));
+    auto query = std::string(trustLineColumnSelector);
+    query += (" WHERE accountid = :id "
+              " AND issuer = :issuer "
+              " AND assetcode = :asset");
+    auto prep = db.getPreparedStatement(query);
+    auto& st = prep.statement();
+    st.exchange(use(accStr));
+    st.exchange(use(issuerStr));
+    st.exchange(use(assetStr));
 
     pointer retLine;
     auto timer = db.getSelectTimer("trust");
-    loadLines(sql, [&retLine](LedgerEntry const& trust)
+    loadLines(prep, [&retLine](LedgerEntry const& trust)
               {
                   retLine = make_shared<TrustFrame>(trust);
               });
+
+    if (retLine)
+    {
+        retLine->putCachedEntry(db);
+    }
+    else
+    {
+        putCachedEntry(key, nullptr, db);
+    }
     return retLine;
 }
 
@@ -335,18 +396,20 @@ TrustFrame::hasIssued(AccountID const& issuerID, Database& db)
 {
     std::string accStrKey;
     accStrKey = PubKeyUtils::toStrKey(issuerID);
-
-    session& session = db.getSession();
-
-    details::prepare_temp_type sql =
-        (session.prepare << "SELECT balance FROM trustlines WHERE issuer=:id "
-                            "AND balance>0 LIMIT 1",
-         use(accStrKey));
-
-    auto timer = db.getSelectTimer("trust");
     int balance = 0;
-    statement st = (sql, into(balance));
-    st.execute(true);
+
+    auto prep = db.getPreparedStatement(
+        "SELECT balance FROM trustlines WHERE issuer=:id "
+        "AND balance>0 LIMIT 1");
+    auto& st = prep.statement();
+    st.exchange(use(accStrKey));
+    st.exchange(into(balance));
+    st.define_and_bind();
+
+    {
+        auto timer = db.getSelectTimer("trust");
+        st.execute(true);
+    }
     if (st.got_data())
     {
         return true;
@@ -355,7 +418,7 @@ TrustFrame::hasIssued(AccountID const& issuerID, Database& db)
 }
 
 void
-TrustFrame::loadLines(details::prepare_temp_type& prep,
+TrustFrame::loadLines(StatementContext& prep,
                       std::function<void(LedgerEntry const&)> trustProcessor)
 {
     string actIDStrKey;
@@ -367,9 +430,16 @@ TrustFrame::loadLines(details::prepare_temp_type& prep,
 
     TrustLineEntry& tl = le.trustLine();
 
-    statement st = (prep, into(actIDStrKey), into(assetType), into(issuerStrKey), 
-                    into(assetCode),
-                    into(tl.limit), into(tl.balance), into(tl.flags));
+
+    auto& st = prep.statement();
+    st.exchange(into(actIDStrKey));
+    st.exchange(into(assetType));
+    st.exchange(into(issuerStrKey));
+    st.exchange(into(assetCode));
+    st.exchange(into(tl.limit));
+    st.exchange(into(tl.balance));
+    st.exchange(into(tl.flags));
+    st.define_and_bind();
 
     st.execute(true);
     while (st.got_data())
@@ -399,14 +469,14 @@ TrustFrame::loadLines(AccountID const& accountID,
     std::string actIDStrKey;
     actIDStrKey = PubKeyUtils::toStrKey(accountID);
 
-    session& session = db.getSession();
-
-    details::prepare_temp_type sql =
-        (session.prepare << trustLineColumnSelector << " WHERE accountid=:id",
-         use(actIDStrKey));
+    auto query = std::string(trustLineColumnSelector);
+    query += (" WHERE accountid = :id ");
+    auto prep = db.getPreparedStatement(query);
+    auto& st = prep.statement();
+    st.exchange(use(actIDStrKey));
 
     auto timer = db.getSelectTimer("trust");
-    loadLines(sql, [&retLines](LedgerEntry const& cur)
+    loadLines(prep, [&retLines](LedgerEntry const& cur)
               {
                   retLines.emplace_back(make_shared<TrustFrame>(cur));
               });

@@ -629,7 +629,7 @@ enum TransactionResultCode
 {
     txSUCCESS = 0, // all operations succeeded
 
-    txFAILED = -1, // one of the operations failed (but none were applied)
+    txFAILED = -1, // one of the operations failed (none were applied)
 
     txTOO_EARLY = -2,         // ledger closeTime before minTime
     txTOO_LATE = -3,          // ledger closeTime after maxTime
