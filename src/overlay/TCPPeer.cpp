@@ -32,8 +32,9 @@ TCPPeer::TCPPeer(Application& app, Peer::PeerRole role,
                  std::shared_ptr<asio::ip::tcp::socket> socket)
     : Peer(app, role)
     , mSocket(socket)
-    , mReadIdle(app)
-    , mWriteIdle(app)
+    , mIdleTimer(app)
+    , mLastRead(app.getClock().now())
+    , mLastWrite(app.getClock().now())
     , mStrand(app.getClock().getIOService())
     , mMessageRead(
           app.getMetrics().NewMeter({"overlay", "message", "read"}, "message"))
@@ -90,8 +91,7 @@ TCPPeer::accept(Application& app, shared_ptr<asio::ip::tcp::socket> socket)
 
 TCPPeer::~TCPPeer()
 {
-    mWriteIdle.cancel();
-    mReadIdle.cancel();
+    mIdleTimer.cancel();
     try
     {
         if (mSocket)
@@ -112,57 +112,45 @@ TCPPeer::~TCPPeer()
 }
 
 void
-TCPPeer::resetWriteIdle()
+TCPPeer::startIdleTimer()
 {
     if (shouldAbort())
     {
-        mWriteIdle.cancel();
         return;
     }
 
     std::shared_ptr<TCPPeer> self =
         std::static_pointer_cast<TCPPeer>(shared_from_this());
-    mWriteIdle.expires_from_now(std::chrono::seconds(IO_TIMEOUT_SECONDS));
-    mWriteIdle.async_wait(mStrand.wrap([self](asio::error_code const& error)
+    mIdleTimer.expires_from_now(std::chrono::seconds(IO_TIMEOUT_SECONDS));
+    mIdleTimer.async_wait(mStrand.wrap([self](asio::error_code const& error)
                                        {
-                                           if (!error)
-                                               self->timeoutWrite(error);
+                                           self->idleTimerExpired(error);
                                        }));
 }
 
 void
-TCPPeer::resetReadIdle()
+TCPPeer::idleTimerExpired(asio::error_code const& error)
 {
-    if (shouldAbort())
+    if (!error)
     {
-        mReadIdle.cancel();
-        return;
+        auto now = mApp.getClock().now();
+        if (now - mLastRead > std::chrono::seconds(IO_TIMEOUT_SECONDS))
+        {
+            CLOG(INFO, "Overlay") << "read timeout";
+            mTimeoutRead.Mark();
+            drop();
+        }
+        else if (now - mLastWrite > std::chrono::seconds(IO_TIMEOUT_SECONDS))
+        {
+            CLOG(DEBUG, "Overlay") << "write timeout";
+            mTimeoutWrite.Mark();
+            drop();
+        }
+        else
+        {
+            startIdleTimer();
+        }
     }
-
-    std::shared_ptr<TCPPeer> self =
-        std::static_pointer_cast<TCPPeer>(shared_from_this());
-    mReadIdle.expires_from_now(std::chrono::seconds(IO_TIMEOUT_SECONDS));
-    mReadIdle.async_wait(mStrand.wrap([self](asio::error_code const& error)
-                                      {
-                                          if (!error)
-                                              self->timeoutRead(error);
-                                      }));
-}
-
-void
-TCPPeer::timeoutWrite(asio::error_code const& error)
-{
-    CLOG(DEBUG, "Overlay") << "write timeout";
-    mTimeoutWrite.Mark();
-    drop();
-}
-
-void
-TCPPeer::timeoutRead(asio::error_code const& error)
-{
-    CLOG(INFO, "Overlay") << "read timeout";
-    mTimeoutRead.Mark();
-    drop();
 }
 
 std::string
@@ -198,7 +186,7 @@ TCPPeer::messageSender()
         return;
     }
 
-    resetWriteIdle();
+    mLastWrite = mApp.getClock().now();
 
     auto self = static_pointer_cast<TCPPeer>(shared_from_this());
 
@@ -257,7 +245,8 @@ TCPPeer::startRead()
             assert(self->mIncomingHeader.size() == 0);
             CLOG(TRACE, "Overlay") << "TCPPeer::startRead to "
                                    << self->toString();
-            self->resetReadIdle();
+
+            self->mLastRead = self->mApp.getClock().now();
             self->mIncomingHeader.resize(4);
             asio::async_read(*(self->mSocket.get()),
                              asio::buffer(self->mIncomingHeader),
@@ -270,8 +259,6 @@ TCPPeer::startRead()
                                      self->readHeaderHandler(ec, length);
                                  }));
         };
-
-        mReadIdle.cancel();
 
         if (mApp.getConfig().BREAK_ASIO_LOOP_FOR_FAST_TESTS)
         {
@@ -463,8 +450,7 @@ TCPPeer::drop()
 
     mState = CLOSING;
 
-    mWriteIdle.cancel();
-    mReadIdle.cancel();
+    mIdleTimer.cancel();
 
     auto self = shared_from_this();
     getApp().getOverlayManager().dropPeer(self);
