@@ -386,6 +386,7 @@ VirtualTimer::cancel()
             ev->cancel();
         }
         mClock.flushCancelledEvents();
+        mEvents.clear();
     }
 }
 
