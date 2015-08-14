@@ -339,7 +339,7 @@ LoadGenerator::generateLoad(Application& app, uint32_t nAccounts, uint32_t nTxs,
             if (ledgerNum > 10 && ledgerCloseTimer.count() > 5)
             {
                 // We consider the system "well loaded" at the point where its
-                // ledger-close timer has 95%-ile duration within 10% of 2.5s
+                // ledger-close timer has avg duration within 10% of 2.5s
                 // (or, well, "half the ledger-age target" which is 5s by
                 // default).
                 //
@@ -358,8 +358,7 @@ LoadGenerator::generateLoad(Application& app, uint32_t nAccounts, uint32_t nTxs,
 
                 double targetAge =
                     (double)Herder::EXP_LEDGER_TIMESPAN_SECONDS.count() * 1000.0;
-                double actualAge =
-                    ledgerAgeClosedTimer.GetSnapshot().get95thPercentile();
+                double actualAge = ledgerAgeClosedTimer.mean();
 
                 if (app.getConfig().ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING)
                 {
@@ -367,12 +366,11 @@ LoadGenerator::generateLoad(Application& app, uint32_t nAccounts, uint32_t nTxs,
                 }
 
                 double targetLatency = targetAge / 2.0;
-                double actualLatency =
-                    ledgerCloseTimer.GetSnapshot().get95thPercentile();
+                double actualLatency = ledgerCloseTimer.mean();
 
                 CLOG(INFO, "LoadGen")
-                    << "Considering auto-tx adjustment, 95% close time "
-                    << ((uint32_t)actualLatency) << "ms, 95% ledger age "
+                    << "Considering auto-tx adjustment, avg close time "
+                    << ((uint32_t)actualLatency) << "ms, avg ledger age "
                     << ((uint32_t)actualAge) << "ms";
 
                 if (!maybeAdjustRate(targetAge, actualAge, txRate, false))
