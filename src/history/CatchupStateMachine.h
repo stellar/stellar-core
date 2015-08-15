@@ -137,7 +137,8 @@ private:
     void enterBeginState();
     void enterAnchoredState(HistoryArchiveState const& has);
     void enterRetryingState(uint64_t nseconds=2);
-    void enterFetchingState();
+    bool advanceFileState(std::shared_ptr<FileTransferInfo<FileCatchupState>> fi);
+    void enterFetchingState(std::shared_ptr<FileTransferInfo<FileCatchupState>> fi = nullptr);
 
     void enterVerifyingState();
     void advanceVerifyingState(std::shared_ptr<LedgerHeaderHistoryEntry> prev,
