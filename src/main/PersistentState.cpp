@@ -94,7 +94,8 @@ PersistentState::setState(PersistentState::Entry entry, string const& value)
         st.execute(true);
     }
 
-    if (st.get_affected_rows() != 1)
+    if (st.get_affected_rows() != 1
+        && getState(entry).empty())
     {
         auto timer = mApp.getDatabase().getInsertTimer("state");
         auto prep2 = mApp.getDatabase().getPreparedStatement(
