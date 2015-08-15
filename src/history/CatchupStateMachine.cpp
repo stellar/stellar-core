@@ -185,12 +185,145 @@ CatchupStateMachine::fileStateChange(asio::error_code const& ec,
         CLOG(WARNING, "History") << "Catchup action failed on " << name;
         newState = FILE_CATCHUP_FAILED;
     }
-    mFileInfos[name]->setState(newState);
+    auto fi = mFileInfos[name];
+    fi->setState(newState);
     if (mState != CATCHUP_RETRYING)
     {
-        enterFetchingState();
+        enterFetchingState(fi);
     }
 }
+
+// Advance one file, returning true if a new callback has been scheduled.
+bool
+CatchupStateMachine::advanceFileState(std::shared_ptr<FileTransferInfo<FileCatchupState>> fi)
+{
+    auto& hm = mApp.getHistoryManager();
+    auto name = fi->baseName_nogz();
+    std::string hashname;
+    uint256 hash;
+    if (fi->getBucketHashName(hashname))
+    {
+        hash = hexToBin256(hashname);
+    }
+
+    switch (fi->getState())
+    {
+    case FILE_CATCHUP_FAILED:
+        break;
+
+    case FILE_CATCHUP_NEEDED:
+    {
+        std::shared_ptr<Bucket> b;
+        if (!hashname.empty())
+        {
+            b = mApp.getBucketManager().getBucketByHash(hash);
+        }
+        if (b)
+        {
+            // If for some reason this bucket exists and is live in the
+            // BucketManager, just grab a copy of it.
+            CLOG(DEBUG, "History")
+                << "Existing bucket found in BucketManager: " << hashname;
+            mBuckets[hashname] = b;
+            fi->setState(FILE_CATCHUP_VERIFIED);
+        }
+        else
+        {
+            fi->setState(FILE_CATCHUP_DOWNLOADING);
+            CLOG(INFO, "History") << "Downloading " << name;
+            std::weak_ptr<CatchupStateMachine> weak(shared_from_this());
+            hm.getFile(mArchive, fi->remoteName(), fi->localPath_gz(),
+                       [weak, name](asio::error_code const& ec)
+                       {
+                           auto self = weak.lock();
+                           if (!self)
+                           {
+                               return;
+                           }
+                           self->fileStateChange(ec, name,
+                                                 FILE_CATCHUP_DOWNLOADED);
+                       });
+            return true;
+        }
+    }
+    break;
+
+    case FILE_CATCHUP_DOWNLOADING:
+        return true;
+
+    case FILE_CATCHUP_DOWNLOADED:
+    {
+        fi->setState(FILE_CATCHUP_DECOMPRESSING);
+        CLOG(INFO, "History") << "Decompressing " << fi->localPath_gz();
+        std::weak_ptr<CatchupStateMachine> weak(shared_from_this());
+        hm.decompress(
+            fi->localPath_gz(), [weak, name](asio::error_code const& ec)
+            {
+                auto self = weak.lock();
+                if (!self)
+                {
+                    return;
+                }
+                self->fileStateChange(ec, name, FILE_CATCHUP_DECOMPRESSED);
+            });
+        return true;
+    }
+
+    case FILE_CATCHUP_DECOMPRESSING:
+        break;
+
+    case FILE_CATCHUP_DECOMPRESSED:
+        fi->setState(FILE_CATCHUP_VERIFYING);
+
+        // Note: verification here does not guarantee that the data is
+        // _trustworthy_, merely that it's the data we were expecting
+        // by-hash-name, not damaged in transport. In other words this check
+        // is just to save us wasting time applying XDR blobs that are
+        // corrupt. Trusting that hash name is a whole other issue, the data
+        // might still be full of lies and attacks at the ledger-level.
+
+        if (hashname.empty())
+        {
+            CLOG(DEBUG, "History") << "Not verifying " << name
+                                   << ", no hash";
+            fi->setState(FILE_CATCHUP_VERIFIED);
+        }
+        else
+        {
+            CLOG(INFO, "History") << "Verifying " << name;
+            auto filename = fi->localPath_nogz();
+            std::weak_ptr<CatchupStateMachine> weak(shared_from_this());
+            hm.verifyHash(
+                filename, hash, [weak, name, filename, hashname, hash](
+                    asio::error_code const& ec)
+                {
+                    auto self = weak.lock();
+                    if (!self)
+                    {
+                        return;
+                    }
+                    if (!ec)
+                    {
+                        auto b =
+                            self->mApp.getBucketManager().adoptFileAsBucket(
+                                filename, hash);
+                        self->mBuckets[hashname] = b;
+                    }
+                    self->fileStateChange(ec, name, FILE_CATCHUP_VERIFIED);
+                });
+            return true;
+        }
+        break;
+
+    case FILE_CATCHUP_VERIFYING:
+        break;
+
+    case FILE_CATCHUP_VERIFIED:
+        break;
+    }
+    return false;
+}
+
 
 /**
  * Attempt to step the state machine through a file-state-driven state
@@ -198,139 +331,24 @@ CatchupStateMachine::fileStateChange(asio::error_code const& ec,
  * reached the next step in their lifecycle.
  */
 void
-CatchupStateMachine::enterFetchingState()
+CatchupStateMachine::enterFetchingState(std::shared_ptr<FileTransferInfo<FileCatchupState>> fi)
 {
     assert(mState == CATCHUP_ANCHORED || mState == CATCHUP_FETCHING);
     mState = CATCHUP_FETCHING;
 
+    // Fast-path when we've just made a state-change on a single, specific
+    // file and are potentially just bouncing off into another callback.
+    if (fi && advanceFileState(fi))
+    {
+        return;
+    }
+
     FileCatchupState minimumState = FILE_CATCHUP_VERIFIED;
-    auto& hm = mApp.getHistoryManager();
+
     for (auto& pair : mFileInfos)
     {
         auto fi = pair.second;
-        auto name = fi->baseName_nogz();
-
-        std::string hashname;
-        uint256 hash;
-        if (fi->getBucketHashName(hashname))
-        {
-            hash = hexToBin256(hashname);
-        }
-
-        switch (fi->getState())
-        {
-        case FILE_CATCHUP_FAILED:
-            break;
-
-        case FILE_CATCHUP_NEEDED:
-        {
-            std::shared_ptr<Bucket> b;
-            if (!hashname.empty())
-            {
-                b = mApp.getBucketManager().getBucketByHash(hash);
-            }
-            if (b)
-            {
-                // If for some reason this bucket exists and is live in the
-                // BucketManager, just grab a copy of it.
-                CLOG(DEBUG, "History")
-                    << "Existing bucket found in BucketManager: " << hashname;
-                mBuckets[hashname] = b;
-                fi->setState(FILE_CATCHUP_VERIFIED);
-            }
-            else
-            {
-                fi->setState(FILE_CATCHUP_DOWNLOADING);
-                CLOG(INFO, "History") << "Downloading " << name;
-                std::weak_ptr<CatchupStateMachine> weak(shared_from_this());
-                hm.getFile(mArchive, fi->remoteName(), fi->localPath_gz(),
-                           [weak, name](asio::error_code const& ec)
-                           {
-                               auto self = weak.lock();
-                               if (!self)
-                               {
-                                   return;
-                               }
-                               self->fileStateChange(ec, name,
-                                                     FILE_CATCHUP_DOWNLOADED);
-                           });
-            }
-        }
-        break;
-
-        case FILE_CATCHUP_DOWNLOADING:
-            break;
-
-        case FILE_CATCHUP_DOWNLOADED:
-        {
-            fi->setState(FILE_CATCHUP_DECOMPRESSING);
-            CLOG(INFO, "History") << "Decompressing " << fi->localPath_gz();
-            std::weak_ptr<CatchupStateMachine> weak(shared_from_this());
-            hm.decompress(
-                fi->localPath_gz(), [weak, name](asio::error_code const& ec)
-                {
-                    auto self = weak.lock();
-                    if (!self)
-                    {
-                        return;
-                    }
-                    self->fileStateChange(ec, name, FILE_CATCHUP_DECOMPRESSED);
-                });
-            break;
-        }
-
-        case FILE_CATCHUP_DECOMPRESSING:
-            break;
-
-        case FILE_CATCHUP_DECOMPRESSED:
-            fi->setState(FILE_CATCHUP_VERIFYING);
-
-            // Note: verification here does not guarantee that the data is
-            // _trustworthy_, merely that it's the data we were expecting
-            // by-hash-name, not damaged in transport. In other words this check
-            // is just to save us wasting time applying XDR blobs that are
-            // corrupt. Trusting that hash name is a whole other issue, the data
-            // might still be full of lies and attacks at the ledger-level.
-
-            if (hashname.empty())
-            {
-                CLOG(DEBUG, "History") << "Not verifying " << name
-                                       << ", no hash";
-                fi->setState(FILE_CATCHUP_VERIFIED);
-            }
-            else
-            {
-                CLOG(INFO, "History") << "Verifying " << name;
-                auto filename = fi->localPath_nogz();
-                std::weak_ptr<CatchupStateMachine> weak(shared_from_this());
-                hm.verifyHash(
-                    filename, hash, [weak, name, filename, hashname, hash](
-                                        asio::error_code const& ec)
-                    {
-                        auto self = weak.lock();
-                        if (!self)
-                        {
-                            return;
-                        }
-                        if (!ec)
-                        {
-                            auto b =
-                                self->mApp.getBucketManager().adoptFileAsBucket(
-                                    filename, hash);
-                            self->mBuckets[hashname] = b;
-                        }
-                        self->fileStateChange(ec, name, FILE_CATCHUP_VERIFIED);
-                    });
-            }
-            break;
-
-        case FILE_CATCHUP_VERIFYING:
-            break;
-
-        case FILE_CATCHUP_VERIFIED:
-            break;
-        }
-
+        advanceFileState(fi);
         minimumState = std::min(fi->getState(), minimumState);
     }
 
