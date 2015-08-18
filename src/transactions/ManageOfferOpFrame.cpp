@@ -333,6 +333,7 @@ ManageOfferOpFrame::doApply(medida::MetricsRegistry& metrics,
 
             if (!creatingNewOffer)
             {
+                mSourceAccount->addNumEntries(-1, ledgerManager);
                 mSellSheepOffer->storeDelete(tempDelta, db);
             }
         }
