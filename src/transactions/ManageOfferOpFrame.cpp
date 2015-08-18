@@ -217,7 +217,7 @@ ManageOfferOpFrame::doApply(medida::MetricsRegistry& metrics,
             wheatReceived, [this, maxWheatPrice](OfferFrame const& o)
             {
                 if ((mPassive && (o.getPrice() >= maxWheatPrice)) ||
-                    (o.getPrice() > maxWheatPrice))   
+                    (o.getPrice() > maxWheatPrice))
                 {
                     return OfferExchange::eStop;
                 }
@@ -333,6 +333,7 @@ ManageOfferOpFrame::doApply(medida::MetricsRegistry& metrics,
 
             if (!creatingNewOffer)
             {
+                mSourceAccount->addNumEntries(-1, ledgerManager);
                 mSellSheepOffer->storeDelete(tempDelta, db);
             }
         }
