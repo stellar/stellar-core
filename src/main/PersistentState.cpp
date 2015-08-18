@@ -59,13 +59,18 @@ PersistentState::getState(PersistentState::Entry entry)
     string sn(getStoreStateName(entry));
 
     auto& db = mApp.getDatabase();
+    auto prep = db.getPreparedStatement(
+        "SELECT state FROM storestate WHERE statename = :n;");
+    auto& st = prep.statement();
+    st.exchange(soci::into(res));
+    st.exchange(soci::use(sn));
+    st.define_and_bind();
     {
         auto timer = db.getSelectTimer("state");
-        db.getSession() << "SELECT state FROM storestate WHERE statename = :n;",
-            soci::use(sn), soci::into(res);
+        st.execute(true);
     }
 
-    if (!mApp.getDatabase().getSession().got_data())
+    if (!st.got_data())
     {
         res.clear();
     }
@@ -77,28 +82,30 @@ void
 PersistentState::setState(PersistentState::Entry entry, string const& value)
 {
     string sn(getStoreStateName(entry));
+    auto prep = mApp.getDatabase().getPreparedStatement(
+        "UPDATE storestate SET state = :v WHERE statename = :n;");
 
-    soci::statement st =
-        (mApp.getDatabase().getSession().prepare
-             << "UPDATE storestate SET state = :v WHERE statename = :n;",
-         soci::use(value), soci::use(sn));
-
+    auto& st = prep.statement();
+    st.exchange(soci::use(value));
+    st.exchange(soci::use(sn));
+    st.define_and_bind();
     {
         auto timer = mApp.getDatabase().getUpdateTimer("state");
         st.execute(true);
     }
 
-    if (st.get_affected_rows() != 1)
+    if (st.get_affected_rows() != 1
+        && getState(entry).empty())
     {
         auto timer = mApp.getDatabase().getInsertTimer("state");
-        st = (mApp.getDatabase().getSession().prepare
-                  << "INSERT INTO storestate (statename, state) VALUES (:n, :v "
-                     ");",
-              soci::use(sn), soci::use(value));
-
-        st.execute(true);
-
-        if (st.get_affected_rows() != 1)
+        auto prep2 = mApp.getDatabase().getPreparedStatement(
+            "INSERT INTO storestate (statename, state) VALUES (:n, :v);");
+        auto& st2 = prep2.statement();
+        st2.exchange(soci::use(sn));
+        st2.exchange(soci::use(value));
+        st2.define_and_bind();
+        st2.execute(true);
+        if (st2.get_affected_rows() != 1)
         {
             throw std::runtime_error("Could not insert data in SQL");
         }
