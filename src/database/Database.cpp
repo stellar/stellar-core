@@ -129,6 +129,14 @@ Database::canUsePool() const
 void
 Database::initialize()
 {
+    // Flush all prepared statements; in sqlite they represent open cursors
+    // and will conflict with any DROP TABLE commands issued below
+    for (auto st : mStatements)
+    {
+        st.second->clean_up(true);
+    }
+    mStatements.clear();
+
     AccountFrame::dropAll(*this);
     OfferFrame::dropAll(*this);
     TrustFrame::dropAll(*this);
