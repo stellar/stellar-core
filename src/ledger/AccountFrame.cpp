@@ -280,9 +280,14 @@ AccountFrame::exists(Database& db, LedgerKey const& key)
     int exists = 0;
     {
         auto timer = db.getSelectTimer("account-exists");
-        db.getSession() << "SELECT EXISTS (SELECT NULL FROM accounts "
-                           "WHERE accountid=:v1)",
-            use(actIDStrKey), into(exists);
+        auto prep = db.getPreparedStatement(
+            "SELECT EXISTS (SELECT NULL FROM accounts "
+            "WHERE accountid=:v1)");
+        auto& st = prep.statement();
+        st.exchange(use(actIDStrKey));
+        st.exchange(into(exists));
+        st.define_and_bind();
+        st.execute(true);
     }
     return exists != 0;
 }
@@ -311,13 +316,21 @@ AccountFrame::storeDelete(LedgerDelta& delta, Database& db,
     soci::session& session = db.getSession();
     {
         auto timer = db.getDeleteTimer("account");
-        session << "DELETE from accounts where accountid= :v1",
-            soci::use(actIDStrKey);
+        auto prep = db.getPreparedStatement(
+            "DELETE from accounts where accountid= :v1");
+        auto& st = prep.statement();
+        st.exchange(soci::use(actIDStrKey));
+        st.define_and_bind();
+        st.execute(true);
     }
     {
         auto timer = db.getDeleteTimer("signer");
-        session << "DELETE from signers where accountid= :v1",
-            soci::use(actIDStrKey);
+        auto prep = db.getPreparedStatement(
+            "DELETE from signers where accountid= :v1");
+        auto& st = prep.statement();
+        st.exchange(soci::use(actIDStrKey));
+        st.define_and_bind();
+        st.execute(true);
     }
     delta.deleteEntry(key);
 }
@@ -419,11 +432,15 @@ AccountFrame::storeUpdate(LedgerDelta& delta, Database& db, bool insert) const
                                 PubKeyUtils::toStrKey(finalSigner.pubKey);
                             {
                                 auto timer = db.getUpdateTimer("signer");
-                                db.getSession()
-                                    << "UPDATE signers set weight=:v1 where "
-                                       "accountid=:v2 and publickey=:v3",
-                                    use(finalSigner.weight), use(actIDStrKey),
-                                    use(signerStrKey);
+                                auto prep = db.getPreparedStatement(
+                                    "UPDATE signers set weight=:v1 where "
+                                    "accountid=:v2 and publickey=:v3");
+                                auto& st = prep.statement();
+                                st.exchange(use(finalSigner.weight));
+                                st.exchange(use(actIDStrKey));
+                                st.exchange(use(signerStrKey));
+                                st.define_and_bind();
+                                st.execute(true);
                             }
                         }
                         found = true;
@@ -435,12 +452,14 @@ AccountFrame::storeUpdate(LedgerDelta& delta, Database& db, bool insert) const
                     std::string signerStrKey =
                         PubKeyUtils::toStrKey(startSigner.pubKey);
 
-                    soci::statement st =
-                        (db.getSession().prepare << "DELETE from signers where "
-                                                    "accountid=:v2 and "
-                                                    "publickey=:v3",
-                         use(actIDStrKey), use(signerStrKey));
-
+                    auto prep = db.getPreparedStatement(
+                        "DELETE from signers where "
+                        "accountid=:v2 and "
+                        "publickey=:v3");
+                    auto& st = prep.statement();
+                    st.exchange(use(actIDStrKey));
+                    st.exchange(use(signerStrKey));
+                    st.define_and_bind();
                     {
                         auto timer = db.getDeleteTimer("signer");
                         st.execute(true);
@@ -467,14 +486,14 @@ AccountFrame::storeUpdate(LedgerDelta& delta, Database& db, bool insert) const
                         {
                             std::string signerStrKey =
                                 PubKeyUtils::toStrKey(finalSigner.pubKey);
-
-                            soci::statement st =
-                                (db.getSession().prepare
-                                     << "UPDATE signers set weight=:v1 where "
-                                        "accountid=:v2 and publickey=:v3",
-                                 use(finalSigner.weight), use(actIDStrKey),
-                                 use(signerStrKey));
-
+                            auto prep = db.getPreparedStatement(
+                                "UPDATE signers set weight=:v1 where "
+                                "accountid=:v2 and publickey=:v3");
+                            auto& st = prep.statement();
+                            st.exchange(use(finalSigner.weight));
+                            st.exchange(use(actIDStrKey));
+                            st.exchange(use(signerStrKey));
+                            st.define_and_bind();
                             st.execute(true);
 
                             if (st.get_affected_rows() != 1)
@@ -492,13 +511,15 @@ AccountFrame::storeUpdate(LedgerDelta& delta, Database& db, bool insert) const
                     std::string signerStrKey =
                         PubKeyUtils::toStrKey(finalSigner.pubKey);
 
-                    soci::statement st = (db.getSession().prepare
-                                              << "INSERT INTO signers "
-                                                 "(accountid,publickey,weight) "
-                                                 "VALUES (:v1,:v2,:v3)",
-                                          use(actIDStrKey), use(signerStrKey),
-                                          use(finalSigner.weight));
-
+                    auto prep = db.getPreparedStatement(
+                        "INSERT INTO signers "
+                        "(accountid,publickey,weight) "
+                        "VALUES (:v1,:v2,:v3)");
+                    auto& st = prep.statement();
+                    st.exchange(use(actIDStrKey));
+                    st.exchange(use(signerStrKey));
+                    st.exchange(use(finalSigner.weight));
+                    st.define_and_bind();
                     st.execute(true);
 
                     if (st.get_affected_rows() != 1)
