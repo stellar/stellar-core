@@ -404,21 +404,23 @@ LoadGenerator::generateLoad(Application& app, uint32_t nAccounts, uint32_t nTxs,
             using namespace std::chrono;
 
             auto& m = app.getMetrics();
-            auto& apply = m.NewTimer({"ledger", "transaction", "apply"});
+            auto& applyTx = m.NewTimer({"ledger", "transaction", "apply"});
+            auto& applyOp = m.NewTimer({"transaction", "op", "apply"});
 
             auto step1ms = duration_cast<milliseconds>(build).count();
             auto step2ms = duration_cast<milliseconds>(recv).count();
             auto totalms = duration_cast<milliseconds>(build + recv).count();
 
             uint32_t etaSecs = (uint32_t)(((double)(nTxs + nAccounts)) /
-                                          apply.one_minute_rate());
+                                          applyTx.one_minute_rate());
             uint32_t etaHours = etaSecs / 3600;
             uint32_t etaMins = etaSecs % 60;
 
             CLOG(INFO, "LoadGen")
                 << "Tx/s: " << txRate << " target"
                 << (autoRate ? " (auto), " : ", ") << std::setprecision(3)
-                << apply.one_minute_rate() << " actual (1m EWMA)."
+                << applyTx.one_minute_rate() << "tx/"
+                << applyOp.one_minute_rate() << "op actual (1m EWMA)."
                 << " Pending: " << nAccounts << " acct, " << nTxs << " tx."
                 << " ETA: " << etaHours << "h" << etaMins << "m";
 
