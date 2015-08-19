@@ -313,7 +313,6 @@ AccountFrame::storeDelete(LedgerDelta& delta, Database& db,
     flushCachedEntry(key, db);
 
     std::string actIDStrKey = PubKeyUtils::toStrKey(key.account().accountID);
-    soci::session& session = db.getSession();
     {
         auto timer = db.getDeleteTimer("account");
         auto prep = db.getPreparedStatement(
