@@ -417,7 +417,8 @@ OfferFrame::storeChange(LedgerDelta& delta, Database& db) const
     st.exchange(use(mOffer.amount));
     st.exchange(use(mOffer.price.n));
     st.exchange(use(mOffer.price.d));
-    st.exchange(use(computePrice()));
+    auto price = computePrice();
+    st.exchange(use(price));
     st.exchange(use(mOffer.offerID));
     st.define_and_bind();
     st.execute(true);
@@ -491,7 +492,8 @@ OfferFrame::storeAdd(LedgerDelta& delta, Database& db) const
     st.exchange(use(mOffer.amount));
     st.exchange(use(mOffer.price.n));
     st.exchange(use(mOffer.price.d));
-    st.exchange(use(computePrice()));
+    auto price = computePrice();
+    st.exchange(use(price));
     st.exchange(use(mOffer.flags));
     st.define_and_bind();
     st.execute(true);
