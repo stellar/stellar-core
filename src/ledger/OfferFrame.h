@@ -10,10 +10,6 @@
 namespace soci
 {
 class session;
-namespace details
-{
-class prepare_temp_type;
-}
 }
 
 #define OFFER_PRICE_DIVISOR 10000000
@@ -21,11 +17,12 @@ class prepare_temp_type;
 namespace stellar
 {
 class ManageOfferOpFrame;
+class StatementContext;
 
 class OfferFrame : public EntryFrame
 {
     static void
-    loadOffers(soci::details::prepare_temp_type& prep,
+    loadOffers(StatementContext& prep,
                std::function<void(LedgerEntry const&)> offerProcessor);
 
     int64_t computePrice() const;

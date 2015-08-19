@@ -443,8 +443,12 @@ TransactionFrame::apply(LedgerDelta& delta, TransactionMeta& tm,
         soci::transaction sqlTx(app.getDatabase().getSession());
         LedgerDelta thisTxDelta(delta);
 
+        auto& opTimer = app.getMetrics().NewTimer(
+            {"transaction", "op", "apply"});
+
         for (auto& op : mOperations)
         {
+            auto time = opTimer.TimeScope();
             LedgerDelta opDelta(thisTxDelta);
             bool txRes = op->apply(opDelta, app);
 

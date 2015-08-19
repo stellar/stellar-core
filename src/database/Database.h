@@ -121,6 +121,11 @@ class Database : NonMovableOrCopyable
     medida::TimerContext getDeleteTimer(std::string const& entityName);
     medida::TimerContext getUpdateTimer(std::string const& entityName);
 
+    // If possible (i.e. "on postgres") issue an SQL pragma that marks
+    // the current transaction as read-only. The effects of this last
+    // only as long as the current SQL transaction.
+    void setCurrentTransactionReadOnly();
+
     // Return true if the Database target is SQLite, otherwise false.
     bool isSqlite() const;
 

@@ -114,6 +114,18 @@ Database::getUpdateTimer(std::string const& entityName)
         .TimeScope();
 }
 
+void
+Database::setCurrentTransactionReadOnly()
+{
+    if (!isSqlite())
+    {
+        auto prep = getPreparedStatement("SET TRANSACTION READ ONLY");
+        auto& st = prep.statement();
+        st.define_and_bind();
+        st.execute(false);
+    }
+}
+
 bool
 Database::isSqlite() const
 {
