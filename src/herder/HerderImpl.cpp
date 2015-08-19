@@ -755,6 +755,9 @@ HerderImpl::emitEnvelope(SCPEnvelope const& envelope)
 bool
 HerderImpl::recvTransactions(TxSetFramePtr txSet)
 {
+    soci::transaction sqltx(mApp.getDatabase().getSession());
+    mApp.getDatabase().setCurrentTransactionReadOnly();
+
     bool allGood = true;
     for (auto tx : txSet->sortForApply())
     {
@@ -769,6 +772,9 @@ HerderImpl::recvTransactions(TxSetFramePtr txSet)
 Herder::TransactionSubmitStatus
 HerderImpl::recvTransaction(TransactionFramePtr tx)
 {
+    soci::transaction sqltx(mApp.getDatabase().getSession());
+    mApp.getDatabase().setCurrentTransactionReadOnly();
+
     Hash const& txID = tx->getFullHash();
 
     // determine if we have seen this tx before and if not if it has the right

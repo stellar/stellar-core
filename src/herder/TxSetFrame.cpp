@@ -9,6 +9,7 @@
 #include "crypto/Hex.h"
 #include "main/Application.h"
 #include "main/Config.h"
+#include "database/Database.h"
 #include <algorithm>
 
 #include "xdrpp/printer.h"
@@ -194,6 +195,9 @@ void
 TxSetFrame::trimInvalid(Application& app,
                         std::vector<TransactionFramePtr> trimmed)
 {
+    soci::transaction sqltx(app.getDatabase().getSession());
+    app.getDatabase().setCurrentTransactionReadOnly();
+
     sortForHash();
 
     map<AccountID, vector<TransactionFramePtr>> accountTxMap;
@@ -248,6 +252,10 @@ TxSetFrame::trimInvalid(Application& app,
 bool
 TxSetFrame::checkValid(Application& app) const
 {
+    // Establish read-only transaction for duration of checkValid.
+    soci::transaction sqltx(app.getDatabase().getSession());
+    app.getDatabase().setCurrentTransactionReadOnly();
+
     // Start by checking previousLedgerHash
     if (app.getLedgerManager().getLastClosedLedgerHeader().hash !=
         mPreviousLedgerHash)

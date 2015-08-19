@@ -13,6 +13,8 @@
 #include "util/Timer.h"
 #include "util/make_unique.h"
 
+#include "database/Database.h"
+
 #include "transactions/TransactionFrame.h"
 #include "transactions/PathPaymentOpFrame.h"
 #include "transactions/PaymentOpFrame.h"
@@ -218,6 +220,9 @@ void
 LoadGenerator::generateLoad(Application& app, uint32_t nAccounts, uint32_t nTxs,
                             uint32_t txRate, bool autoRate)
 {
+    soci::transaction sqltx(app.getDatabase().getSession());
+    app.getDatabase().setCurrentTransactionReadOnly();
+
     updateMinBalance(app);
 
     if (txRate == 0)
