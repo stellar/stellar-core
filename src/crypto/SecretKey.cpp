@@ -26,6 +26,9 @@ namespace stellar
 
 static std::mutex gVerifySigCacheMutex;
 static cache::lru_cache<std::string, bool> gVerifySigCache(4096);
+static uint64_t gVerifyCacheHit = 0;
+static uint64_t gVerifyCacheMiss = 0;
+static uint64_t gVerifyCacheIgnore = 0;
 
 static bool
 shouldCacheVerifySig(PublicKey const& key, Signature const& signature,
@@ -231,6 +234,21 @@ PubKeyUtils::clearVerifySigCache()
     gVerifySigCache.clear();
 }
 
+void
+PubKeyUtils::flushVerifySigCacheCounts(uint64_t& hits,
+                                       uint64_t& misses,
+                                       uint64_t& ignores)
+{
+    std::lock_guard<std::mutex> guard(gVerifySigCacheMutex);
+    hits = gVerifyCacheHit;
+    misses = gVerifyCacheMiss;
+    ignores = gVerifyCacheIgnore;
+    gVerifyCacheHit = 0;
+    gVerifyCacheMiss = 0;
+    gVerifyCacheIgnore = 0;
+}
+
+
 bool
 PubKeyUtils::verifySig(PublicKey const& key, Signature const& signature,
                        ByteSlice const& bin)
@@ -244,8 +262,14 @@ PubKeyUtils::verifySig(PublicKey const& key, Signature const& signature,
         std::lock_guard<std::mutex> guard(gVerifySigCacheMutex);
         if (gVerifySigCache.exists(cacheKey))
         {
+            ++gVerifyCacheHit;
             return gVerifySigCache.get(cacheKey);
         }
+        ++gVerifyCacheMiss;
+    }
+    else
+    {
+        ++gVerifyCacheIgnore;
     }
 
     bool ok = (crypto_sign_verify_detached(signature.data(), bin.data(), bin.size(),
