@@ -483,6 +483,24 @@ countTxs(HerderImpl::AccountTxMap const& acc)
     }
     return sz;
 }
+
+static std::shared_ptr<HerderImpl::TxMap>
+findOrAdd(HerderImpl::AccountTxMap& acc, AccountID const& aid)
+{
+    std::shared_ptr<HerderImpl::TxMap> txmap = nullptr;
+    auto i = acc.find(aid);
+    if (i == acc.end())
+    {
+        txmap = std::make_shared<HerderImpl::TxMap>();
+        acc.insert(std::make_pair(aid, txmap));
+    }
+    else
+    {
+        txmap = i->second;
+    }
+    return txmap;
+}
+
 void
 HerderImpl::valueExternalized(uint64 slotIndex, Value const& value)
 {
@@ -535,16 +553,25 @@ HerderImpl::valueExternalized(uint64 slotIndex, Value const& value)
     // perform cleanups
 
     // remove all these tx from mReceivedTransactions
-    for (auto tx : externalizedSet->mTransactions)
+    removeReceivedTxs(externalizedSet->mTransactions);
+
+    // rebroadcast those left in set 1, sorted in an apply-order.
     {
-        removeReceivedTx(tx);
-    }
-    // rebroadcast those left in set 1
-    assert(mReceivedTransactions.size() >= 2);
-    for (auto& tx : mReceivedTransactions[1])
-    {
-        auto msg = tx->toStellarMessage();
-        mApp.getOverlayManager().broadcastMessage(msg);
+        Hash h;
+        TxSetFrame broadcast(h);
+        assert(mReceivedTransactions.size() >= 2);
+        for (auto const& pair : mReceivedTransactions[1])
+        {
+            for (auto const& tx : pair.second->mTransactions)
+            {
+                broadcast.add(tx.second);
+            }
+        }
+        for (auto tx : broadcast.sortForApply())
+        {
+            auto msg = tx->toStellarMessage();
+            mApp.getOverlayManager().broadcastMessage(msg);
+        }
     }
 
     // Evict slots that are outside of our ledger validity bracket
@@ -567,11 +594,19 @@ HerderImpl::valueExternalized(uint64 slotIndex, Value const& value)
     // largest array.
     for (size_t n = mReceivedTransactions.size() - 1; n > 0; n--)
     {
-        for (auto& tx : mReceivedTransactions[n - 1])
+        auto &curr = mReceivedTransactions[n];
+        auto &prev = mReceivedTransactions[n-1];
+        for (auto const& pair : prev)
         {
-            mReceivedTransactions[n].push_back(tx);
+            auto const& acc = pair.first;
+            auto const& srcmap = pair.second;
+            auto dstmap = findOrAdd(curr, acc);
+            for (auto tx : srcmap->mTransactions)
+            {
+                dstmap->addTx(tx.second);
+            }
         }
-        mReceivedTransactions[n - 1].clear();
+        prev.clear();
     }
 
     ledgerClosed();
@@ -793,35 +828,59 @@ HerderImpl::recvTransactions(TxSetFramePtr txSet)
     return allGood;
 }
 
+void
+HerderImpl::TxMap::addTx(TransactionFramePtr tx)
+{
+    auto const& h = tx->getFullHash();
+    if (mTransactions.find(h) != mTransactions.end())
+    {
+        return;
+    }
+    mTransactions.insert(std::make_pair(h, tx));
+    mMaxSeq = std::max(tx->getSeqNum(), mMaxSeq);
+    mTotalFees += tx->getFee();
+}
+
+void
+HerderImpl::TxMap::recalculate()
+{
+    mMaxSeq = 0;
+    mTotalFees = 0;
+    for (auto const& pair : mTransactions)
+    {
+        mMaxSeq = std::max(pair.second->getSeqNum(), mMaxSeq);
+        mTotalFees += pair.second->getFee();
+    }
+}
+
+
 Herder::TransactionSubmitStatus
 HerderImpl::recvTransaction(TransactionFramePtr tx)
 {
     soci::transaction sqltx(mApp.getDatabase().getSession());
     mApp.getDatabase().setCurrentTransactionReadOnly();
 
-    Hash const& txID = tx->getFullHash();
+    auto const& acc = tx->getSourceID();
+    auto const& txID = tx->getFullHash();
 
     // determine if we have seen this tx before and if not if it has the right
     // seq num
     int64_t totFee = tx->getFee();
     SequenceNumber highSeq = 0;
 
-    for (auto& list : mReceivedTransactions)
+    for (auto& map : mReceivedTransactions)
     {
-        for (auto oldTX : list)
+        auto i = map.find(acc);
+        if (i != map.end())
         {
-            if (txID == oldTX->getFullHash())
+            auto& txmap = i->second;
+            auto j = txmap->mTransactions.find(txID);
+            if (j != txmap->mTransactions.end())
             {
                 return TX_STATUS_DUPLICATE;
             }
-            if (oldTX->getSourceID() == tx->getSourceID())
-            {
-                totFee += oldTX->getFee();
-                if (oldTX->getSeqNum() > highSeq)
-                {
-                    highSeq = oldTX->getSeqNum();
-                }
-            }
+            totFee += txmap->mTotalFees;
+            highSeq = std::max(highSeq, txmap->mMaxSeq);
         }
     }
 
@@ -836,7 +895,8 @@ HerderImpl::recvTransaction(TransactionFramePtr tx)
         return TX_STATUS_ERROR;
     }
 
-    mReceivedTransactions[0].push_back(tx);
+    auto txmap = findOrAdd(mReceivedTransactions[0], acc);
+    txmap->addTx(tx);
 
     return TX_STATUS_PENDING;
 }
@@ -998,22 +1058,45 @@ HerderImpl::ledgerClosed()
 }
 
 void
-HerderImpl::removeReceivedTx(TransactionFramePtr dropTx)
+HerderImpl::removeReceivedTxs(
+    std::vector<TransactionFramePtr> const& dropTxs)
 {
-    for (auto& list : mReceivedTransactions)
+    for (auto& m : mReceivedTransactions)
     {
-        for (auto iter = list.begin(); iter != list.end();)
+        if (m.empty())
         {
-            if ((iter.operator->())->get()->getFullHash() ==
-                dropTx->getFullHash())
+            continue;
+        }
+
+        std::set<std::shared_ptr<TxMap>> toRecalculate;
+
+        for (auto const& tx : dropTxs)
+        {
+            auto const& acc = tx->getSourceID();
+            auto const& txID = tx->getFullHash();
+            auto i = m.find(acc);
+            if (i != m.end())
             {
-                list.erase(iter);
-                return;
+                auto& txs = i->second->mTransactions;
+                auto j = txs.find(txID);
+                if (j != txs.end())
+                {
+                    txs.erase(j);
+                    if (txs.empty())
+                    {
+                        m.erase(i);
+                    }
+                    else
+                    {
+                        toRecalculate.insert(i->second);
+                    }
+                }
             }
-            else
-            {
-                ++iter;
-            }
+        }
+
+        for (auto txm : toRecalculate)
+        {
+            txm->recalculate();
         }
     }
 }
@@ -1067,15 +1150,14 @@ SequenceNumber
 HerderImpl::getMaxSeqInPendingTxs(AccountID const& acc)
 {
     SequenceNumber highSeq = 0;
-    for (auto& list : mReceivedTransactions)
+    for (auto const& m : mReceivedTransactions)
     {
-        for (auto oldTX : list)
+        auto i = m.find(acc);
+        if (i == m.end())
         {
-            if (oldTX->getSourceID() == acc && oldTX->getSeqNum() > highSeq)
-            {
-                highSeq = oldTX->getSeqNum();
-            }
+            continue;
         }
+        highSeq = std::max(i->second->mMaxSeq, highSeq);
     }
     return highSeq;
 }
@@ -1098,20 +1180,20 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger)
     auto const& lcl = mLedgerManager.getLastClosedLedgerHeader();
     TxSetFramePtr proposedSet = std::make_shared<TxSetFrame>(lcl.hash);
 
-    for (auto& list : mReceivedTransactions)
+    for (auto const& m : mReceivedTransactions)
     {
-        for (auto& tx : list)
+        for (auto const& pair : m)
         {
-            proposedSet->add(tx);
+            for (auto const& tx : pair.second->mTransactions)
+            {
+                proposedSet->add(tx.second);
+            }
         }
     }
 
     std::vector<TransactionFramePtr> removed;
     proposedSet->trimInvalid(mApp, removed);
-    for (auto& tx : removed)
-    {
-        removeReceivedTx(tx);
-    }
+    removeReceivedTxs(removed);
 
     proposedSet->surgePricingFilter(mApp);
 
@@ -1121,9 +1203,6 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger)
     }
 
     auto txSetHash = proposedSet->getContentsHash();
-
-    // add all txs to next set in case they don't get in this ledger
-    recvTransactions(proposedSet);
 
     // Inform the item fetcher so queries from other peers about his txSet
     // can be answered. Note this can trigger SCP callbacks, externalize, etc

@@ -5,6 +5,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include <vector>
+#include <unordered_map>
 #include <memory>
 #include "herder/Herder.h"
 #include "scp/SCP.h"
@@ -105,9 +106,19 @@ class HerderImpl : public Herder, public SCPDriver
 
     void dumpInfo(Json::Value& ret) override;
 
+    struct TxMap
+    {
+        SequenceNumber mMaxSeq {0};
+        int64_t mTotalFees {0};
+        std::unordered_map<Hash, TransactionFramePtr> mTransactions;
+        void addTx(TransactionFramePtr);
+        void recalculate();
+    };
+    typedef std::unordered_map<AccountID, std::shared_ptr<TxMap>> AccountTxMap;
+
   private:
     void ledgerClosed();
-    void removeReceivedTx(TransactionFramePtr tx);
+    void removeReceivedTxs(std::vector<TransactionFramePtr> const& txs);
     void expireBallot(uint64 slotIndex, SCPBallot const& ballot);
 
     // returns true if upgrade is a valid upgrade step
@@ -131,7 +142,7 @@ class HerderImpl : public Herder, public SCPDriver
     // 0- tx we got during ledger close
     // 1- one ledger ago. rebroadcast
     // 2- two ledgers ago.
-    std::vector<std::vector<TransactionFramePtr>> mReceivedTransactions;
+    std::vector<AccountTxMap> mReceivedTransactions;
 
     PendingEnvelopes mPendingEnvelopes;
 

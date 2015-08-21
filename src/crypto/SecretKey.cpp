@@ -10,7 +10,8 @@
 #include <sodium.h>
 #include <type_traits>
 #include <memory>
-#include <util/make_unique.h>
+#include "util/make_unique.h"
+#include "util/HashOfHash.h"
 #include <mutex>
 
 #include "util/lrucache.hpp"
@@ -431,5 +432,12 @@ HashUtils::random()
     Hash res;
     randombytes_buf(res.data(), res.size());
     return res;
+}
+}
+
+namespace std {
+size_t hash<stellar::PublicKey>::operator()(stellar::PublicKey const & k) const noexcept
+{
+    return std::hash<stellar::uint256>()(k.ed25519());
 }
 }

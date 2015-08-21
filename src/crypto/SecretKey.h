@@ -6,6 +6,8 @@
 
 #include "xdr/Stellar-types.h"
 #include <ostream>
+#include <functional>
+#include <array>
 
 namespace stellar
 {
@@ -110,4 +112,12 @@ namespace HashUtils
 {
 Hash random();
 }
+}
+
+namespace std {
+template<>
+struct hash<stellar::PublicKey>
+{
+  size_t operator()(stellar::PublicKey const & x) const noexcept;
+};
 }
