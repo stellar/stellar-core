@@ -29,6 +29,7 @@ class SHA256Impl : public SHA256, NonCopyable
     bool mFinished;
 public:
     SHA256Impl();
+    void reset() override;
     void add(ByteSlice const& bin) override;
     uint256 finish() override;
 };
@@ -42,10 +43,17 @@ SHA256::create()
 SHA256Impl::SHA256Impl()
     : mFinished(false)
 {
+    reset();
+}
+
+void
+SHA256Impl::reset()
+{
     if (crypto_hash_sha256_init(&mState) != 0)
     {
         throw std::runtime_error("error from crypto_hash_sha256_init");
     }
+    mFinished = false;
 }
 
 void

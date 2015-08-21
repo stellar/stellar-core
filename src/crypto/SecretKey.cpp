@@ -6,6 +6,7 @@
 #include "crypto/Base58.h"
 #include "crypto/StrKey.h"
 #include "crypto/Hex.h"
+#include "crypto/SHA.h"
 #include <sodium.h>
 #include <type_traits>
 #include <memory>
@@ -25,7 +26,8 @@ namespace stellar
 // has no effect on correctness.
 
 static std::mutex gVerifySigCacheMutex;
-static cache::lru_cache<std::string, bool> gVerifySigCache(0xffff);
+static cache::lru_cache<Hash, bool> gVerifySigCache(0xffff);
+static std::unique_ptr<SHA256> gHasher = SHA256::create();
 static uint64_t gVerifyCacheHit = 0;
 static uint64_t gVerifyCacheMiss = 0;
 static uint64_t gVerifyCacheIgnore = 0;
@@ -34,16 +36,18 @@ static bool
 shouldCacheVerifySig(PublicKey const& key, Signature const& signature,
                      ByteSlice const& bin)
 {
-    return (bin.size() < 0xfff);
+    return true;
 }
 
-static std::string
+static Hash
 verifySigCacheKey(PublicKey const& key, Signature const& signature,
                   ByteSlice const& bin)
 {
-    return (binToHex(key.ed25519())
-            + ":" + binToHex(signature)
-            + ":" + binToHex(bin));
+    gHasher->reset();
+    gHasher->add(key.ed25519());
+    gHasher->add(signature);
+    gHasher->add(bin);
+    return gHasher->finish();
 }
 
 
@@ -254,7 +258,7 @@ PubKeyUtils::verifySig(PublicKey const& key, Signature const& signature,
                        ByteSlice const& bin)
 {
     bool shouldCache = shouldCacheVerifySig(key, signature, bin);
-    std::string cacheKey;
+    Hash cacheKey;
 
     if (shouldCache)
     {
