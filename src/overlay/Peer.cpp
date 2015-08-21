@@ -16,6 +16,9 @@
 #include "overlay/PeerRecord.h"
 #include "util/Logging.h"
 
+#include "medida/metrics_registry.h"
+#include "medida/timer.h"
+
 #include "xdrpp/marshal.h"
 
 #include <soci.h>
@@ -36,6 +39,17 @@ Peer::Peer(Application& app, PeerRole role)
     , mState(role == ACCEPTOR ? CONNECTING : CONNECTED)
     , mRemoteOverlayVersion(0)
     , mRemoteListeningPort(0)
+    , mRecvErrorTimer(app.getMetrics().NewTimer({"overlay", "recv", "error"}))
+    , mRecvHelloTimer(app.getMetrics().NewTimer({"overlay", "recv", "hello"}))
+    , mRecvDontHaveTimer(app.getMetrics().NewTimer({"overlay", "recv", "dont-have"}))
+    , mRecvGetPeersTimer(app.getMetrics().NewTimer({"overlay", "recv", "get-peers"}))
+    , mRecvPeersTimer(app.getMetrics().NewTimer({"overlay", "recv", "peers"}))
+    , mRecvGetTxSetTimer(app.getMetrics().NewTimer({"overlay", "recv", "get-txset"}))
+    , mRecvTxSetTimer(app.getMetrics().NewTimer({"overlay", "recv", "txset"}))
+    , mRecvTransactionTimer(app.getMetrics().NewTimer({"overlay", "recv", "transaction"}))
+    , mRecvGetSCPQuorumSetTimer(app.getMetrics().NewTimer({"overlay", "recv", "get-scp-qset"}))
+    , mRecvSCPQuorumSetTimer(app.getMetrics().NewTimer({"overlay", "recv", "scp-qset"}))
+    , mRecvSCPMessageTimer(app.getMetrics().NewTimer({"overlay", "recv", "scp-message"}))
 {
 }
 
@@ -198,66 +212,77 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
     {
     case ERROR_MSG:
     {
+        auto t = mRecvErrorTimer.TimeScope();
         recvError(stellarMsg);
     }
     break;
 
     case HELLO:
     {
+        auto t = mRecvHelloTimer.TimeScope();
         this->recvHello(stellarMsg);
     }
     break;
 
     case DONT_HAVE:
     {
+        auto t = mRecvDontHaveTimer.TimeScope();
         recvDontHave(stellarMsg);
     }
     break;
 
     case GET_PEERS:
     {
+        auto t = mRecvGetPeersTimer.TimeScope();
         recvGetPeers(stellarMsg);
     }
     break;
 
     case PEERS:
     {
+        auto t = mRecvPeersTimer.TimeScope();
         recvPeers(stellarMsg);
     }
     break;
 
     case GET_TX_SET:
     {
+        auto t = mRecvGetTxSetTimer.TimeScope();
         recvGetTxSet(stellarMsg);
     }
     break;
 
     case TX_SET:
     {
+        auto t = mRecvTxSetTimer.TimeScope();
         recvTxSet(stellarMsg);
     }
     break;
 
     case TRANSACTION:
     {
+        auto t = mRecvTransactionTimer.TimeScope();
         recvTransaction(stellarMsg);
     }
     break;
 
     case GET_SCP_QUORUMSET:
     {
+        auto t = mRecvGetSCPQuorumSetTimer.TimeScope();
         recvGetSCPQuorumSet(stellarMsg);
     }
     break;
 
     case SCP_QUORUMSET:
     {
+        auto t = mRecvSCPQuorumSetTimer.TimeScope();
         recvSCPQuorumSet(stellarMsg);
     }
     break;
 
     case SCP_MESSAGE:
     {
+        auto t = mRecvSCPMessageTimer.TimeScope();
         recvSCPMessage(stellarMsg);
     }
     break;
