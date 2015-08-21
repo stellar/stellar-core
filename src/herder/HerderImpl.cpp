@@ -493,11 +493,6 @@ HerderImpl::valueExternalized(uint64 slotIndex, Value const& value)
     // current value is not valid anymore
     mCurrentValue.clear();
 
-    // Inessential but to keep memory-use down clear verify-cache.
-    // (It is fixed-size anyways but there's no point keeping around
-    // irrelevant signatures once we've finished a round).
-    PubKeyUtils::clearVerifySigCache();
-
     if (!mTrackingSCP)
     {
         stateChanged();
