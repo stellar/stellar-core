@@ -6,10 +6,12 @@
 #include "crypto/Base58.h"
 #include "crypto/StrKey.h"
 #include "crypto/Hex.h"
+#include "crypto/SHA.h"
 #include <sodium.h>
 #include <type_traits>
 #include <memory>
-#include <util/make_unique.h>
+#include "util/make_unique.h"
+#include "util/HashOfHash.h"
 #include <mutex>
 
 #include "util/lrucache.hpp"
@@ -25,22 +27,28 @@ namespace stellar
 // has no effect on correctness.
 
 static std::mutex gVerifySigCacheMutex;
-static cache::lru_cache<std::string, bool> gVerifySigCache(4096);
+static cache::lru_cache<Hash, bool> gVerifySigCache(0xffff);
+static std::unique_ptr<SHA256> gHasher = SHA256::create();
+static uint64_t gVerifyCacheHit = 0;
+static uint64_t gVerifyCacheMiss = 0;
+static uint64_t gVerifyCacheIgnore = 0;
 
 static bool
 shouldCacheVerifySig(PublicKey const& key, Signature const& signature,
                      ByteSlice const& bin)
 {
-    return (bin.size() < 0xffff);
+    return true;
 }
 
-static std::string
+static Hash
 verifySigCacheKey(PublicKey const& key, Signature const& signature,
                   ByteSlice const& bin)
 {
-    return (binToHex(key.ed25519())
-            + ":" + binToHex(signature)
-            + ":" + binToHex(bin));
+    gHasher->reset();
+    gHasher->add(key.ed25519());
+    gHasher->add(signature);
+    gHasher->add(bin);
+    return gHasher->finish();
 }
 
 
@@ -231,12 +239,27 @@ PubKeyUtils::clearVerifySigCache()
     gVerifySigCache.clear();
 }
 
+void
+PubKeyUtils::flushVerifySigCacheCounts(uint64_t& hits,
+                                       uint64_t& misses,
+                                       uint64_t& ignores)
+{
+    std::lock_guard<std::mutex> guard(gVerifySigCacheMutex);
+    hits = gVerifyCacheHit;
+    misses = gVerifyCacheMiss;
+    ignores = gVerifyCacheIgnore;
+    gVerifyCacheHit = 0;
+    gVerifyCacheMiss = 0;
+    gVerifyCacheIgnore = 0;
+}
+
+
 bool
 PubKeyUtils::verifySig(PublicKey const& key, Signature const& signature,
                        ByteSlice const& bin)
 {
     bool shouldCache = shouldCacheVerifySig(key, signature, bin);
-    std::string cacheKey;
+    Hash cacheKey;
 
     if (shouldCache)
     {
@@ -244,8 +267,14 @@ PubKeyUtils::verifySig(PublicKey const& key, Signature const& signature,
         std::lock_guard<std::mutex> guard(gVerifySigCacheMutex);
         if (gVerifySigCache.exists(cacheKey))
         {
+            ++gVerifyCacheHit;
             return gVerifySigCache.get(cacheKey);
         }
+        ++gVerifyCacheMiss;
+    }
+    else
+    {
+        ++gVerifyCacheIgnore;
     }
 
     bool ok = (crypto_sign_verify_detached(signature.data(), bin.data(), bin.size(),
@@ -403,5 +432,12 @@ HashUtils::random()
     Hash res;
     randombytes_buf(res.data(), res.size());
     return res;
+}
+}
+
+namespace std {
+size_t hash<stellar::PublicKey>::operator()(stellar::PublicKey const & k) const noexcept
+{
+    return std::hash<stellar::uint256>()(k.ed25519());
 }
 }

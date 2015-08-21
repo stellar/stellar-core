@@ -193,7 +193,7 @@ TxSetFrame::surgePricingFilter(Application& app)
 // TODO.3 this and checkValid share a lot of code
 void
 TxSetFrame::trimInvalid(Application& app,
-                        std::vector<TransactionFramePtr> trimmed)
+                        std::vector<TransactionFramePtr>& trimmed)
 {
     soci::transaction sqltx(app.getDatabase().getSession());
     app.getDatabase().setCurrentTransactionReadOnly();

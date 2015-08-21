@@ -11,6 +11,11 @@
 #include "database/Database.h"
 #include "util/NonCopyable.h"
 
+namespace medida
+{
+class Timer;
+}
+
 namespace stellar
 {
 
@@ -53,6 +58,18 @@ class Peer : public std::enable_shared_from_this<Peer>,
     std::string mRemoteVersion;
     uint32_t mRemoteOverlayVersion;
     unsigned short mRemoteListeningPort;
+
+    medida::Timer& mRecvErrorTimer;
+    medida::Timer& mRecvHelloTimer;
+    medida::Timer& mRecvDontHaveTimer;
+    medida::Timer& mRecvGetPeersTimer;
+    medida::Timer& mRecvPeersTimer;
+    medida::Timer& mRecvGetTxSetTimer;
+    medida::Timer& mRecvTxSetTimer;
+    medida::Timer& mRecvTransactionTimer;
+    medida::Timer& mRecvGetSCPQuorumSetTimer;
+    medida::Timer& mRecvSCPQuorumSetTimer;
+    medida::Timer& mRecvSCPMessageTimer;
 
     bool shouldAbort() const;
     void recvMessage(StellarMessage const& msg);

@@ -19,6 +19,7 @@
 #include "process/ProcessManager.h"
 #include "main/CommandHandler.h"
 #include "simulation/LoadGenerator.h"
+#include "crypto/SecretKey.h"
 #include "medida/metrics_registry.h"
 #include "medida/reporting/console_reporter.h"
 #include "medida/meter.h"
@@ -432,6 +433,20 @@ ApplicationImpl::syncOwnMetrics()
         mAppStateChanges.Update(now - mLastStateChange);
         mLastStateChange = now;
     }
+
+    // Flush crypto pure-global-cache stats. They don't belong
+    // to a single app instance but first one to flush will claim
+    // them.
+    uint64_t vhit = 0, vmiss = 0, vignore = 0;
+    PubKeyUtils::flushVerifySigCacheCounts(vhit, vmiss, vignore);
+    mMetrics->NewMeter({"crypto", "verify", "hit"},
+                       "signature").Mark(vhit);
+    mMetrics->NewMeter({"crypto", "verify", "miss"},
+                       "signature").Mark(vmiss);
+    mMetrics->NewMeter({"crypto", "verify", "ignore"},
+                       "signature").Mark(vignore);
+    mMetrics->NewMeter({"crypto", "verify", "total"},
+                       "signature").Mark(vhit + vmiss + vignore);
 }
 
 void
