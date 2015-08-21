@@ -237,6 +237,12 @@ class HerderImpl : public Herder, public SCPDriver
         medida::Counter& mHerderStateCurrent;
         medida::Timer& mHerderStateChanges;
 
+        // Pending tx buffer sizes
+        medida::Counter& mHerderPendingTxs0;
+        medida::Counter& mHerderPendingTxs1;
+        medida::Counter& mHerderPendingTxs2;
+        medida::Counter& mHerderPendingTxs3;
+
         SCPMetrics(Application& app);
     };
 

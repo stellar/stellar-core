@@ -87,6 +87,15 @@ HerderImpl::SCPMetrics::SCPMetrics(Application& app)
                          {"herder", "state", "current"}))
     , mHerderStateChanges(app.getMetrics().NewTimer(
                          {"herder", "state", "changes"}))
+
+    , mHerderPendingTxs0(app.getMetrics().NewCounter(
+                             {"herder", "pending-txs", "age0"}))
+    , mHerderPendingTxs1(app.getMetrics().NewCounter(
+                             {"herder", "pending-txs", "age1"}))
+    , mHerderPendingTxs2(app.getMetrics().NewCounter(
+                             {"herder", "pending-txs", "age2"}))
+    , mHerderPendingTxs3(app.getMetrics().NewCounter(
+                             {"herder", "pending-txs", "age3"}))
 {
 }
 
@@ -464,6 +473,16 @@ HerderImpl::updateSCPCounters()
         mSCP.getCumulativeStatemtCount());
 }
 
+static uint64_t
+countTxs(HerderImpl::AccountTxMap const& acc)
+{
+    uint64_t sz =0;
+    for (auto const& a : acc)
+    {
+        sz += a.second->mTransactions.size();
+    }
+    return sz;
+}
 void
 HerderImpl::valueExternalized(uint64 slotIndex, Value const& value)
 {
@@ -533,6 +552,16 @@ HerderImpl::valueExternalized(uint64 slotIndex, Value const& value)
     {
         mSCP.purgeSlots(slotIndex - MAX_SLOTS_TO_REMEMBER);
     }
+
+    assert(mReceivedTransactions.size() >= 4);
+    mSCPMetrics.mHerderPendingTxs0.set_count(
+        countTxs(mReceivedTransactions[0]));
+    mSCPMetrics.mHerderPendingTxs1.set_count(
+        countTxs(mReceivedTransactions[1]));
+    mSCPMetrics.mHerderPendingTxs2.set_count(
+        countTxs(mReceivedTransactions[2]));
+    mSCPMetrics.mHerderPendingTxs3.set_count(
+        countTxs(mReceivedTransactions[3]));
 
     // Move all the remaining to the next highest level don't move the
     // largest array.
