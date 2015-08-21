@@ -25,7 +25,7 @@ namespace stellar
 // has no effect on correctness.
 
 static std::mutex gVerifySigCacheMutex;
-static cache::lru_cache<std::string, bool> gVerifySigCache(4096);
+static cache::lru_cache<std::string, bool> gVerifySigCache(0xffff);
 static uint64_t gVerifyCacheHit = 0;
 static uint64_t gVerifyCacheMiss = 0;
 static uint64_t gVerifyCacheIgnore = 0;
@@ -34,7 +34,7 @@ static bool
 shouldCacheVerifySig(PublicKey const& key, Signature const& signature,
                      ByteSlice const& bin)
 {
-    return (bin.size() < 0xffff);
+    return (bin.size() < 0xfff);
 }
 
 static std::string
