@@ -34,7 +34,8 @@ class OperationFrame
     bool checkSignature() const;
 
     virtual bool doCheckValid(medida::MetricsRegistry& metrics) = 0;
-    virtual bool doApply(medida::MetricsRegistry& metrics, LedgerDelta& delta, LedgerManager& ledgerManager) = 0;
+    virtual bool doApply(medida::MetricsRegistry& metrics, LedgerDelta& delta,
+                         LedgerManager& ledgerManager) = 0;
     virtual int32_t getNeededThreshold() const;
 
   public:

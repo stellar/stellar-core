@@ -203,7 +203,6 @@ Database::getEntryCache()
     return mEntryCache;
 }
 
-
 class SQLLogContext : NonCopyable
 {
     std::string mName;

@@ -31,8 +31,7 @@ const size_t ArchivePublisher::kRetryLimit = 16;
 
 typedef FileTransferInfo<FilePublishState> FilePublishInfo;
 
-struct StateSnapshot :
-        public std::enable_shared_from_this<StateSnapshot>
+struct StateSnapshot : public std::enable_shared_from_this<StateSnapshot>
 {
     Application& mApp;
     HistoryArchiveState mLocalState;
@@ -264,13 +263,13 @@ ArchivePublisher::enterSendingState()
             hm.putFile(mArchive, fi->localPath_gz(), fi->remoteName(),
                        [weak, name](asio::error_code const& ec)
                        {
-                         auto self = weak.lock();
-                         if (!self)
-                         {
-                             return;
-                         }
-                         self->fileStateChange(ec, name,
-                                               FILE_PUBLISH_UPLOADED);
+                           auto self = weak.lock();
+                           if (!self)
+                           {
+                               return;
+                           }
+                           self->fileStateChange(ec, name,
+                                                 FILE_PUBLISH_UPLOADED);
                        });
             break;
 
@@ -453,12 +452,11 @@ StateSnapshot::writeHistoryBlocks() const
     // transaction-isolation level -- the highest offered! -- as txns only have
     // to be applied in isolation and in _some_ order, not the wall-clock order
     // we issued them. Anyway this is transient and should go away upon retry.
-    if (! ((begin == 0 && nHeaders == count - 1) ||
-           nHeaders == count))
+    if (!((begin == 0 && nHeaders == count - 1) || nHeaders == count))
     {
-        CLOG(ERROR, "History") << "Only wrote " << nHeaders << " ledger headers for "
-                               << mLedgerSnapFile->localPath_nogz() << ", expecting "
-                               << count;
+        CLOG(ERROR, "History")
+            << "Only wrote " << nHeaders << " ledger headers for "
+            << mLedgerSnapFile->localPath_nogz() << ", expecting " << count;
         return false;
     }
 
@@ -499,7 +497,7 @@ StateSnapshot::writeHistoryBlocksWithRetry()
                 asio::error_code ec;
                 if (!snap->writeHistoryBlocks())
                 {
-                        ec = std::make_error_code(std::errc::io_error);
+                    ec = std::make_error_code(std::errc::io_error);
                 }
                 snap->mApp.getClock().getIOService().post(
                     [snap, ec]()
@@ -518,7 +516,6 @@ StateSnapshot::writeHistoryBlocksWithRetry()
         retryHistoryBlockWriteOrFail(ec);
     }
 }
-
 
 std::shared_ptr<StateSnapshot>
 PublishStateMachine::takeSnapshot(Application& app)

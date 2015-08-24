@@ -52,8 +52,7 @@ class LedgerDelta
     // keeps an internal reference to ledgerHeader,
     // will apply changes to ledgerHeader on commit,
     // will clear db entry cache on rollback.
-    LedgerDelta(LedgerHeader& ledgerHeader,
-                Database& db);
+    LedgerDelta(LedgerHeader& ledgerHeader, Database& db);
 
     ~LedgerDelta();
 

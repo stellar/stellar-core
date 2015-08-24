@@ -92,7 +92,8 @@ class Database : NonMovableOrCopyable
     std::map<std::string, std::shared_ptr<soci::statement>> mStatements;
     medida::Counter& mStatementsSize;
 
-    cache::lru_cache<std::string, std::shared_ptr<LedgerEntry const>> mEntryCache;
+    cache::lru_cache<std::string, std::shared_ptr<LedgerEntry const>>
+        mEntryCache;
 
     static bool gDriversRegistered;
     static void registerDrivers();

@@ -181,7 +181,7 @@ void
 TCPPeer::messageSender()
 {
     // if nothing to do, return
-    if(mWriteQueue.empty())
+    if (mWriteQueue.empty())
     {
         return;
     }

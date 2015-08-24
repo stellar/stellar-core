@@ -80,7 +80,8 @@ usage(int err = 1)
           "      --convertid ID  Displays ID in all known forms\n"
           "      --dumpxdr FILE  To dump an XDR file, for debugging\n"
           "      --forcescp      Next time stellar-core is run, SCP will start "
-          "with the local ledger rather than waiting to hear from the network.\n"
+          "with the local ledger rather than waiting to hear from the "
+          "network.\n"
           "      --fuzz FILE     To run a single fuzz input and exit\n"
           "      --genfuzz FILE  Generate a random fuzzer input file\n "
           "      --genseed       Generate and print a random node seed\n"
@@ -106,7 +107,6 @@ setNoListen(Config& cfg)
     cfg.HTTP_PORT = 0;
     cfg.MANUAL_CLOSE = true;
 }
-
 
 static void
 sendCommand(std::string const& command, const std::vector<char*>& rest,

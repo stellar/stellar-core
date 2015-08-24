@@ -384,9 +384,8 @@ TEST_CASE("payment", "[tx][payment]")
             checkAmounts(oe.amount, 75 * assetMultiplier);
             line = loadTrustLine(b1, idrCur, app);
             // 125 where sent, 25 were consumed by B's offer
-            checkAmounts(line->getBalance(),
-                         trustLineStartingBalance +
-                             (125 - 25) * assetMultiplier);
+            checkAmounts(line->getBalance(), trustLineStartingBalance +
+                                                 (125 - 25) * assetMultiplier);
             line = loadTrustLine(b1, usdCur, app);
             checkAmounts(line->getBalance(), 50 * assetMultiplier);
 
@@ -440,9 +439,8 @@ TEST_CASE("payment", "[tx][payment]")
             checkAmounts(oe.amount, 75 * assetMultiplier);
             line = loadTrustLine(b1, idrCur, app);
             // 105 where sent, 25 were consumed by B's offer
-            checkAmounts(line->getBalance(),
-                         trustLineStartingBalance +
-                             (105 - 25) * assetMultiplier);
+            checkAmounts(line->getBalance(), trustLineStartingBalance +
+                                                 (105 - 25) * assetMultiplier);
             line = loadTrustLine(b1, usdCur, app);
             checkAmounts(line->getBalance(), 50 * assetMultiplier);
 

@@ -133,13 +133,13 @@ TEST_CASE("subprocess storm", "[process]")
         auto evt = app.getProcessManager().runProcess("mv " + src + " " + dst);
         evt.async_wait([&](asio::error_code ec)
                        {
-                       CLOG(INFO, "Process") << "process exited: " << ec;
-                       if (ec)
-                       {
-                           CLOG(DEBUG, "Process")
-                               << "error code: " << ec.message();
-                       }
-                       ++completed;
+                           CLOG(INFO, "Process") << "process exited: " << ec;
+                           if (ec)
+                           {
+                               CLOG(DEBUG, "Process")
+                                   << "error code: " << ec.message();
+                           }
+                           ++completed;
                        });
     }
 
@@ -160,5 +160,3 @@ TEST_CASE("subprocess storm", "[process]")
     }
 }
 #endif
-
-

@@ -41,11 +41,11 @@
 namespace stellar
 {
 
-struct
-CfgDirGuard
+struct CfgDirGuard
 {
     Config const& mConfig;
-    static void clean(std::string const& path)
+    static void
+    clean(std::string const& path)
     {
         if (fs::exists(path))
         {
@@ -73,20 +73,20 @@ msgSummary(StellarMessage const& m)
 }
 
 bool
-tryRead(XDRInputFileStream &in, StellarMessage &m)
+tryRead(XDRInputFileStream& in, StellarMessage& m)
 {
     try
     {
         return in.readOne(m);
     }
-    catch (xdr::xdr_runtime_error &e)
+    catch (xdr::xdr_runtime_error& e)
     {
-        LOG(INFO) << "Caught XDR error '" << e.what() << "' on input substituting HELLO";
+        LOG(INFO) << "Caught XDR error '" << e.what()
+                  << "' on input substituting HELLO";
         m.type(HELLO);
         return true;
     }
 }
-
 
 #define PERSIST_MAX 1000
 static unsigned int persist_cnt = 0;
@@ -117,41 +117,41 @@ fuzz(std::string const& filename, el::Level logLevel,
     CfgDirGuard g1(cfg1);
     CfgDirGuard g2(cfg2);
 
- restart:
+restart:
+{
+    VirtualClock clock;
+    Application::pointer app1 = Application::create(clock, cfg1);
+    Application::pointer app2 = Application::create(clock, cfg2);
+    LoopbackPeerConnection loop(*app1, *app2);
+    while (clock.crank(false) > 0)
+        ;
+
+    XDRInputFileStream in;
+    in.open(filename);
+    StellarMessage msg;
+    size_t i = 0;
+    while (tryRead(in, msg))
     {
-        VirtualClock clock;
-        Application::pointer app1 = Application::create(clock, cfg1);
-        Application::pointer app2 = Application::create(clock, cfg2);
-        LoopbackPeerConnection loop(*app1, *app2);
-        while (clock.crank(false) > 0)
-            ;
-
-        XDRInputFileStream in;
-        in.open(filename);
-        StellarMessage msg;
-        size_t i = 0;
-        while (tryRead(in, msg))
+        ++i;
+        if (msg.type() != HELLO)
         {
-            ++i;
-            if (msg.type() != HELLO)
-            {
-                LOG(INFO) << "Fuzzer injecting message " << i << ": "
-                          << msgSummary(msg);
-                loop.getAcceptor()->Peer::sendMessage(msg);
-            }
-            size_t iter = 20;
-            while (clock.crank(false) > 0 && iter-- > 0)
-                ;
+            LOG(INFO) << "Fuzzer injecting message " << i << ": "
+                      << msgSummary(msg);
+            loop.getAcceptor()->Peer::sendMessage(msg);
         }
+        size_t iter = 20;
+        while (clock.crank(false) > 0 && iter-- > 0)
+            ;
     }
+}
 
-    if (getenv("AFL_PERSISTENT") && persist_cnt++ < PERSIST_MAX) {
+    if (getenv("AFL_PERSISTENT") && persist_cnt++ < PERSIST_MAX)
+    {
 #ifndef WIN32
         raise(SIGSTOP);
 #endif
         goto restart;
     }
-
 }
 
 void

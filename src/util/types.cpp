@@ -34,7 +34,8 @@ makePublicKey(uint256 const& b)
 bool
 isAssetValid(Asset const& cur)
 {
-    if(cur.type() == ASSET_TYPE_NATIVE) return true;
+    if (cur.type() == ASSET_TYPE_NATIVE)
+        return true;
 
     if (cur.type() == ASSET_TYPE_CREDIT_ALPHANUM4)
     {
@@ -66,36 +67,36 @@ isAssetValid(Asset const& cur)
         return onechar;
     }
 
-    if(cur.type() == ASSET_TYPE_CREDIT_ALPHANUM12)
+    if (cur.type() == ASSET_TYPE_CREDIT_ALPHANUM12)
     {
         auto const& code = cur.alphaNum12().assetCode;
         bool zeros = false;
         int charcount = 0; // at least 5 non zero characters
         std::locale loc("C");
-        for(uint8_t b : code)
+        for (uint8_t b : code)
         {
-            if(b == 0)
+            if (b == 0)
             {
                 zeros = true;
-            } else if(zeros)
+            }
+            else if (zeros)
             {
                 // zeros can only be trailing
                 return false;
-            } else
+            }
+            else
             {
                 char t = *(char*)&b; // safe conversion to char
-                if(!std::isalnum(t, loc))
+                if (!std::isalnum(t, loc))
                 {
                     return false;
                 }
                 charcount++;
             }
         }
-        return charcount>4;
+        return charcount > 4;
     }
     return false;
-
-
 }
 
 bool
@@ -114,9 +115,9 @@ compareAsset(Asset const& first, Asset const& second)
             return true;
     }
 
-    if(second.type() == ASSET_TYPE_CREDIT_ALPHANUM12)
+    if (second.type() == ASSET_TYPE_CREDIT_ALPHANUM12)
     {
-        if((first.alphaNum12().issuer == second.alphaNum12().issuer) &&
+        if ((first.alphaNum12().issuer == second.alphaNum12().issuer) &&
             (first.alphaNum12().assetCode == second.alphaNum12().assetCode))
             return true;
     }

@@ -18,6 +18,7 @@ class HistoryArchive;
 class Config : public std::enable_shared_from_this<Config>
 {
     void validateConfig();
+
   public:
     typedef std::shared_ptr<Config> pointer;
 
@@ -86,13 +87,13 @@ class Config : public std::enable_shared_from_this<Config>
 
     // This is the number of failures you want to be able to tolerate.
     // You will need at least 3f+1 nodes in your quorum set.
-    // If you don't have enough in your quorum set to tolerate the level you 
+    // If you don't have enough in your quorum set to tolerate the level you
     //  set here stellar-core won't run.
-    uint32_t FAILURE_SAFETY; 
+    uint32_t FAILURE_SAFETY;
 
-    // If set to true allows you to specify an unsafe quorum set. 
+    // If set to true allows you to specify an unsafe quorum set.
     // Otherwise it won't start if you have your threshold % set too low.
-    // You might want to set this if you are running your own network and 
+    // You might want to set this if you are running your own network and
     //  aren't concerned with byzantine failures.
     bool UNSAFE_QUORUM;
 

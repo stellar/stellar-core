@@ -10,7 +10,7 @@ namespace stellar
 {
 class ManageOfferOpHolder
 {
-public:
+  public:
     ManageOfferOpHolder(Operation const& op);
     Operation mCreateOp;
 };
@@ -18,9 +18,8 @@ public:
 class CreatePassiveOfferOpFrame : public ManageOfferOpHolder,
                                   public ManageOfferOpFrame
 {
-public:
+  public:
     CreatePassiveOfferOpFrame(Operation const& op, OperationResult& res,
                               TransactionFrame& parentTx);
 };
-
 }

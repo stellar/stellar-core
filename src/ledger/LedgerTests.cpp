@@ -45,8 +45,7 @@ auto validLedgerEntryGenerator = autocheck::map(
         case TRUSTLINE:
         {
             le.trustLine().asset.type(ASSET_TYPE_CREDIT_ALPHANUM4);
-            strToAssetCode(le.trustLine().asset.alphaNum4().assetCode,
-                              "USD");
+            strToAssetCode(le.trustLine().asset.alphaNum4().assetCode, "USD");
             clampLow<int64_t>(0, le.trustLine().balance);
             clampLow<int64_t>(0, le.trustLine().limit);
             clampHigh<int64_t>(le.trustLine().limit, le.trustLine().balance);
@@ -56,12 +55,10 @@ auto validLedgerEntryGenerator = autocheck::map(
         case OFFER:
         {
             le.offer().selling.type(ASSET_TYPE_CREDIT_ALPHANUM4);
-            strToAssetCode(le.offer().selling.alphaNum4().assetCode,
-                              "CAD");
+            strToAssetCode(le.offer().selling.alphaNum4().assetCode, "CAD");
 
             le.offer().buying.type(ASSET_TYPE_CREDIT_ALPHANUM4);
-            strToAssetCode(le.offer().buying.alphaNum4().assetCode,
-                              "EUR");
+            strToAssetCode(le.offer().buying.alphaNum4().assetCode, "EUR");
 
             clampLow<int64_t>(0, le.offer().amount);
             clampLow(0, le.offer().price.n);
@@ -151,7 +148,8 @@ TEST_CASE("DB cache interaction with transactions", "[ledger][dbcache]")
     auto& session = db.getSession();
 
     EntryFrame::pointer le;
-    do {
+    do
+    {
         le = EntryFrame::FromXDR(validLedgerEntryGenerator(3));
     } while (le->mEntry.type() != ACCOUNT);
 

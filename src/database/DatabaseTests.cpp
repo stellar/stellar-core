@@ -189,8 +189,7 @@ TEST_CASE("sqlite MVCC test", "[db]")
 #ifdef USE_POSTGRES
 TEST_CASE("postgres smoketest", "[db]")
 {
-    Config const& cfg =
-        getTestConfig(0, Config::TESTDB_POSTGRESQL);
+    Config const& cfg = getTestConfig(0, Config::TESTDB_POSTGRESQL);
     VirtualClock clock;
     try
     {

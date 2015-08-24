@@ -142,18 +142,18 @@ TxSetFrame::sortForApply()
 struct SurgeSorter
 {
     map<AccountID, float>& mAccountFeeMap;
-    SurgeSorter(map<AccountID, float>& afm) :  mAccountFeeMap(afm)
+    SurgeSorter(map<AccountID, float>& afm) : mAccountFeeMap(afm)
     {
     }
 
     bool operator()(TransactionFramePtr const& tx1,
                     TransactionFramePtr const& tx2)
     {
-        if(tx1->getSourceID() == tx2->getSourceID())
+        if (tx1->getSourceID() == tx2->getSourceID())
             return tx1->getSeqNum() < tx2->getSeqNum();
         float fee1 = mAccountFeeMap[tx1->getSourceID()];
         float fee2 = mAccountFeeMap[tx2->getSourceID()];
-        if(fee1 == fee2)
+        if (fee1 == fee2)
             return tx1->getSourceID() < tx2->getSourceID();
         return fee1 > fee2;
     }
@@ -170,12 +170,14 @@ TxSetFrame::surgePricingFilter(Application& app)
 
         // determine the fee ratio for each account
         map<AccountID, float> accountFeeMap;
-        for(auto& tx : mTransactions)
+        for (auto& tx : mTransactions)
         {
-            float r=tx->getFeeRatio(app);
+            float r = tx->getFeeRatio(app);
             float now = accountFeeMap[tx->getSourceID()];
-            if( now == 0) accountFeeMap[tx->getSourceID()] = r;
-            else if(r < now) accountFeeMap[tx->getSourceID()] = r;
+            if (now == 0)
+                accountFeeMap[tx->getSourceID()] = r;
+            else if (r < now)
+                accountFeeMap[tx->getSourceID()] = r;
         }
 
         // sort tx by amount of fee they have paid
@@ -186,7 +188,7 @@ TxSetFrame::surgePricingFilter(Application& app)
         for (auto iter = tempList.begin() + max; iter != tempList.end(); iter++)
         {
             removeTx(*iter);
-        }  
+        }
     }
 }
 
@@ -303,7 +305,6 @@ TxSetFrame::checkValid(Application& app) const
                     << " lastSeq:" << lastSeq
                     << " tx: " << xdr::xdr_to_string(tx->getEnvelope())
                     << " result: " << tx->getResultCode();
-              
 
                 return false;
             }

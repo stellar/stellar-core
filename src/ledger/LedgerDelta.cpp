@@ -23,8 +23,7 @@ LedgerDelta::LedgerDelta(LedgerDelta& outerDelta)
 {
 }
 
-LedgerDelta::LedgerDelta(LedgerHeader& header,
-                         Database& db)
+LedgerDelta::LedgerDelta(LedgerHeader& header, Database& db)
     : mOuterDelta(nullptr)
     , mHeader(&header)
     , mCurrentHeader(header)

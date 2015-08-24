@@ -219,7 +219,6 @@ CommandHandler::manualClose(std::string const& params, std::string& retStr)
     }
 }
 
-
 template <typename T>
 bool
 parseOptionalNumParam(std::map<std::string, std::string> const& map,
@@ -312,7 +311,7 @@ CommandHandler::info(std::string const& params, std::string& retStr)
 
     LedgerManager& lm = mApp.getLedgerManager();
 
-    if(mApp.getConfig().UNSAFE_QUORUM) 
+    if (mApp.getConfig().UNSAFE_QUORUM)
         root["info"]["UNSAFE_QUORUM"] = "ALERT!!! QUORUM UNSAFE";
     root["info"]["build"] = STELLAR_CORE_VERSION;
     root["info"]["state"] = mApp.getStateHuman();

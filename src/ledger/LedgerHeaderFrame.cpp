@@ -127,9 +127,8 @@ LedgerHeaderFrame::loadByHash(Hash const& hash, Database& db)
     string hash_s(binToHex(hash));
     string headerEncoded;
 
-    auto prep = db.getPreparedStatement(
-        "SELECT data FROM ledgerheaders "
-        "WHERE ledgerhash = :h");
+    auto prep = db.getPreparedStatement("SELECT data FROM ledgerheaders "
+                                        "WHERE ledgerhash = :h");
     auto& st = prep.statement();
     st.exchange(into(headerEncoded));
     st.exchange(use(hash_s));

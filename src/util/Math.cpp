@@ -34,5 +34,4 @@ rand_flip()
 {
     return bernoulliDistribution(gRandomEngine);
 }
-
 }

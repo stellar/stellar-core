@@ -202,9 +202,9 @@ OfferExchange::crossOffer(OfferFrame& sellingWheatOffer,
         wheatLineAccountB->storeChange(mDelta, db);
     }
 
-    mOfferTrail.push_back(ClaimOfferAtom(accountB->getID(),
-                                         sellingWheatOffer.getOfferID(), wheat,
-                                         numWheatReceived, sheep, numSheepSend));
+    mOfferTrail.push_back(
+        ClaimOfferAtom(accountB->getID(), sellingWheatOffer.getOfferID(), wheat,
+                       numWheatReceived, sheep, numSheepSend));
 
     return offerTaken ? eOfferTaken : eOfferPartial;
 }

@@ -276,9 +276,9 @@ FutureBucket::startMerge(Application& app)
         b->setRetain(true);
     }
 
-    CLOG(TRACE, "Bucket")
-        << "Preparing merge of curr=" << hexAbbrev(curr->getHash())
-        << " with snap=" << hexAbbrev(snap->getHash());
+    CLOG(TRACE, "Bucket") << "Preparing merge of curr="
+                          << hexAbbrev(curr->getHash())
+                          << " with snap=" << hexAbbrev(snap->getHash());
 
     BucketManager& bm = app.getBucketManager();
 
@@ -287,14 +287,14 @@ FutureBucket::startMerge(Application& app)
         [curr, snap, &bm, shadows, keepDeadEntries]()
         {
             CLOG(TRACE, "Bucket")
-            << "Worker merging curr=" << hexAbbrev(curr->getHash())
-            << " with snap=" << hexAbbrev(snap->getHash());
+                << "Worker merging curr=" << hexAbbrev(curr->getHash())
+                << " with snap=" << hexAbbrev(snap->getHash());
 
             auto res = Bucket::merge(bm, curr, snap, shadows, keepDeadEntries);
 
             CLOG(TRACE, "Bucket")
-            << "Worker finished merging curr=" << hexAbbrev(curr->getHash())
-            << " with snap=" << hexAbbrev(snap->getHash());
+                << "Worker finished merging curr=" << hexAbbrev(curr->getHash())
+                << " with snap=" << hexAbbrev(snap->getHash());
 
             return res;
         });
@@ -318,8 +318,10 @@ FutureBucket::makeLive(Application& app)
     else
     {
         assert(mState == FB_HASH_INPUTS);
-        mInputCurrBucket = bm.getBucketByHash(hexToBin256(mInputCurrBucketHash));
-        mInputSnapBucket = bm.getBucketByHash(hexToBin256(mInputSnapBucketHash));
+        mInputCurrBucket =
+            bm.getBucketByHash(hexToBin256(mInputCurrBucketHash));
+        mInputSnapBucket =
+            bm.getBucketByHash(hexToBin256(mInputSnapBucketHash));
         assert(mInputShadowBuckets.empty());
         for (auto const& h : mInputShadowBucketHashes)
         {
@@ -355,6 +357,4 @@ FutureBucket::getHashes() const
     }
     return hashes;
 }
-
-
 }

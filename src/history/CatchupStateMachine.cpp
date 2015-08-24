@@ -66,7 +66,6 @@ CatchupStateMachine::begin()
     enterBeginState();
 }
 
-
 /**
  * Select any readable history archive. If there are more than one,
  * select one at random.
@@ -195,7 +194,8 @@ CatchupStateMachine::fileStateChange(asio::error_code const& ec,
 
 // Advance one file, returning true if a new callback has been scheduled.
 bool
-CatchupStateMachine::advanceFileState(std::shared_ptr<FileTransferInfo<FileCatchupState>> fi)
+CatchupStateMachine::advanceFileState(
+    std::shared_ptr<FileTransferInfo<FileCatchupState>> fi)
 {
     auto& hm = mApp.getHistoryManager();
     auto name = fi->baseName_nogz();
@@ -284,8 +284,7 @@ CatchupStateMachine::advanceFileState(std::shared_ptr<FileTransferInfo<FileCatch
 
         if (hashname.empty())
         {
-            CLOG(DEBUG, "History") << "Not verifying " << name
-                                   << ", no hash";
+            CLOG(DEBUG, "History") << "Not verifying " << name << ", no hash";
             fi->setState(FILE_CATCHUP_VERIFIED);
         }
         else
@@ -295,7 +294,7 @@ CatchupStateMachine::advanceFileState(std::shared_ptr<FileTransferInfo<FileCatch
             std::weak_ptr<CatchupStateMachine> weak(shared_from_this());
             hm.verifyHash(
                 filename, hash, [weak, name, filename, hashname, hash](
-                    asio::error_code const& ec)
+                                    asio::error_code const& ec)
                 {
                     auto self = weak.lock();
                     if (!self)
@@ -324,14 +323,14 @@ CatchupStateMachine::advanceFileState(std::shared_ptr<FileTransferInfo<FileCatch
     return false;
 }
 
-
 /**
  * Attempt to step the state machine through a file-state-driven state
  * transition. The state machine advances only when all the files have
  * reached the next step in their lifecycle.
  */
 void
-CatchupStateMachine::enterFetchingState(std::shared_ptr<FileTransferInfo<FileCatchupState>> fi)
+CatchupStateMachine::enterFetchingState(
+    std::shared_ptr<FileTransferInfo<FileCatchupState>> fi)
 {
     assert(mState == CATCHUP_ANCHORED || mState == CATCHUP_FETCHING);
     mState = CATCHUP_FETCHING;
@@ -574,7 +573,8 @@ CatchupStateMachine::enterVerifyingState()
         // mNextLedger
         // and check to see if it's acceptable.
         acquireFinalLedgerState(mNextLedger);
-        auto status = mApp.getLedgerManager().verifyCatchupCandidate(mLastClosed);
+        auto status =
+            mApp.getLedgerManager().verifyCatchupCandidate(mLastClosed);
         finishVerifyingState(status);
     }
     else
@@ -593,8 +593,8 @@ CatchupStateMachine::enterVerifyingState()
 // and such. The same is true for CATCHUP_APPLYING.
 
 void
-CatchupStateMachine::advanceVerifyingState(std::shared_ptr<LedgerHeaderHistoryEntry> prev,
-                                           uint32_t checkpoint)
+CatchupStateMachine::advanceVerifyingState(
+    std::shared_ptr<LedgerHeaderHistoryEntry> prev, uint32_t checkpoint)
 {
     assert(mState == CATCHUP_VERIFYING);
     assert(mMode == HistoryManager::CATCHUP_COMPLETE);
@@ -641,7 +641,8 @@ CatchupStateMachine::advanceVerifyingState(std::shared_ptr<LedgerHeaderHistoryEn
 }
 
 void
-CatchupStateMachine::finishVerifyingState(HistoryManager::VerifyHashStatus status)
+CatchupStateMachine::finishVerifyingState(
+    HistoryManager::VerifyHashStatus status)
 {
     assert(mState == CATCHUP_VERIFYING);
     switch (status)
@@ -702,17 +703,16 @@ verifyLedgerHistoryLink(Hash const& prev, LedgerHeaderHistoryEntry const& curr)
 
 HistoryManager::VerifyHashStatus
 CatchupStateMachine::verifyHistoryOfSingleCheckpoint(
-    std::shared_ptr<LedgerHeaderHistoryEntry> prev,
-    uint32_t checkpoint)
+    std::shared_ptr<LedgerHeaderHistoryEntry> prev, uint32_t checkpoint)
 {
     auto i = mHeaderInfos.find(checkpoint);
     assert(i != mHeaderInfos.end());
     auto hi = i->second;
 
     XDRInputFileStream hdrIn;
-    CLOG(INFO, "History")
-        << "Verifying ledger headers from " << hi->localPath_nogz()
-        << " starting from ledger " << LedgerManager::ledgerAbbrev(*prev);
+    CLOG(INFO, "History") << "Verifying ledger headers from "
+                          << hi->localPath_nogz() << " starting from ledger "
+                          << LedgerManager::ledgerAbbrev(*prev);
     hdrIn.open(hi->localPath_nogz());
     LedgerHeaderHistoryEntry curr;
     while (hdrIn && hdrIn.readOne(curr))
@@ -726,9 +726,8 @@ CatchupStateMachine::verifyHistoryOfSingleCheckpoint(
         else if (curr.header.ledgerSeq > expectedSeq)
         {
             CLOG(ERROR, "History")
-                << "History chain overshot expected ledger seq "
-                << expectedSeq << ", got " << curr.header.ledgerSeq
-                << " instead";
+                << "History chain overshot expected ledger seq " << expectedSeq
+                << ", got " << curr.header.ledgerSeq << " instead";
             return HistoryManager::VERIFY_HASH_BAD;
         }
         if (verifyLedgerHistoryLink(prev->hash, curr) !=
@@ -743,17 +742,19 @@ CatchupStateMachine::verifyHistoryOfSingleCheckpoint(
 
 // Helper struct that encapsulates the state of ongoing incremental
 // application of either buckets or headers.
-struct CatchupStateMachine::ApplyState : std::enable_shared_from_this<ApplyState>
+struct CatchupStateMachine::ApplyState
+    : std::enable_shared_from_this<ApplyState>
 {
     // Variables for CATCHUP_COMPLETE application
     uint32_t mCheckpointNumber;
 
     // Variables for CATCHUP_MINIMAL application
-    size_t mBucketLevel {BucketList::kNumLevels-1};
-    bool mApplyingBuckets {false};
+    size_t mBucketLevel{BucketList::kNumLevels - 1};
+    bool mApplyingBuckets{false};
 
     ApplyState(Application& app)
-        {}
+    {
+    }
 };
 
 void
@@ -767,19 +768,21 @@ CatchupStateMachine::enterApplyingState()
         if (mMode == HistoryManager::CATCHUP_COMPLETE)
         {
             auto& lm = mApp.getLedgerManager();
-            CLOG(INFO, "History") << "Replaying contents of " << mHeaderInfos.size()
-                                  << " transaction-history files from LCL "
-                                  << LedgerManager::ledgerAbbrev(
-                                      lm.getLastClosedLedgerHeader());
-            state->mCheckpointNumber = (mHeaderInfos.empty() ? 0 :
-                                        mHeaderInfos.begin()->first);
+            CLOG(INFO, "History")
+                << "Replaying contents of " << mHeaderInfos.size()
+                << " transaction-history files from LCL "
+                << LedgerManager::ledgerAbbrev(lm.getLastClosedLedgerHeader());
+            state->mCheckpointNumber =
+                (mHeaderInfos.empty() ? 0 : mHeaderInfos.begin()->first);
         }
         else if (mMode == HistoryManager::CATCHUP_MINIMAL)
         {
-            CLOG(INFO, "History") << "Archive bucketListHash: "
-                                  << hexAbbrev(mArchiveState.getBucketListHash());
-            CLOG(INFO, "History") << "mLastClosed bucketListHash: "
-                                  << hexAbbrev(mLastClosed.header.bucketListHash);
+            CLOG(INFO, "History")
+                << "Archive bucketListHash: "
+                << hexAbbrev(mArchiveState.getBucketListHash());
+            CLOG(INFO, "History")
+                << "mLastClosed bucketListHash: "
+                << hexAbbrev(mLastClosed.header.bucketListHash);
         }
         advanceApplyingState(state);
     }
@@ -803,12 +806,14 @@ CatchupStateMachine::advanceApplyingState(std::shared_ptr<ApplyState> state)
             // In CATCHUP_MINIMAL mode we're applying the _state_ at mLastClosed
             // without any history replay.
             keepGoing = (state->mBucketLevel != 0);
-            applySingleBucketLevel(state->mApplyingBuckets, state->mBucketLevel);
+            applySingleBucketLevel(state->mApplyingBuckets,
+                                   state->mBucketLevel);
         }
         else if (mMode == HistoryManager::CATCHUP_COMPLETE)
         {
             // In CATCHUP_COMPLETE mode we're applying the _log_ of history from
-            // HistoryManager's LCL through mNextLedger, without any reconstitution.
+            // HistoryManager's LCL through mNextLedger, without any
+            // reconstitution.
             auto i = mHeaderInfos.find(state->mCheckpointNumber);
             if (i != mHeaderInfos.end())
             {
@@ -893,8 +898,7 @@ CatchupStateMachine::applySingleBucketLevel(bool& applying, size_t& n)
     auto& db = mApp.getDatabase();
     auto& bl = mApp.getBucketManager().getBucketList();
 
-    CLOG(INFO, "History") << "Applying buckets for level "
-                          << n << " at ledger "
+    CLOG(INFO, "History") << "Applying buckets for level " << n << " at ledger "
                           << mLastClosed.header.ledgerSeq;
 
     // We've verified mLastClosed (in the "trusted part of history" sense) in
@@ -917,9 +921,9 @@ CatchupStateMachine::applySingleBucketLevel(bool& applying, size_t& n)
     if (applying || i.snap != binToHex(existingLevel.getSnap()->getHash()))
     {
         std::shared_ptr<Bucket> b = getBucketToApply(i.snap);
-        CLOG(DEBUG, "History")
-            << "Applying bucket " << b->getFilename()
-            << " to ledger as BucketList 'snap' for level " << n;
+        CLOG(DEBUG, "History") << "Applying bucket " << b->getFilename()
+                               << " to ledger as BucketList 'snap' for level "
+                               << n;
         b->apply(db);
         existingLevel.setSnap(b);
         applying = true;
@@ -928,9 +932,9 @@ CatchupStateMachine::applySingleBucketLevel(bool& applying, size_t& n)
     if (applying || i.curr != binToHex(existingLevel.getCurr()->getHash()))
     {
         std::shared_ptr<Bucket> b = getBucketToApply(i.curr);
-        CLOG(DEBUG, "History")
-            << "Applying bucket " << b->getFilename()
-            << " to ledger as BucketList 'curr' for level " << n;
+        CLOG(DEBUG, "History") << "Applying bucket " << b->getFilename()
+                               << " to ledger as BucketList 'curr' for level "
+                               << n;
         b->apply(db);
         existingLevel.setCurr(b);
         applying = true;
@@ -1052,14 +1056,13 @@ CatchupStateMachine::applyHistoryOfSingleCheckpoint(uint32_t checkpoint)
         }
 
         // If we do not agree about LCL hash, we can't catch up: fail.
-        if (header.previousLedgerHash !=
-            lm.getLastClosedLedgerHeader().hash)
+        if (header.previousLedgerHash != lm.getLastClosedLedgerHeader().hash)
         {
             throw std::runtime_error(
                 "replay at current ledger disagreed on LCL hash");
         }
-        TxSetFramePtr txset = std::make_shared<TxSetFrame>(
-            lm.getLastClosedLedgerHeader().hash);
+        TxSetFramePtr txset =
+            std::make_shared<TxSetFrame>(lm.getLastClosedLedgerHeader().hash);
         if (!readTxSet)
         {
             readTxSet = txIn.readOne(txHistoryEntry);
@@ -1102,8 +1105,7 @@ CatchupStateMachine::applyHistoryOfSingleCheckpoint(uint32_t checkpoint)
                                << xdr::xdr_to_string(hHeader);
         if (lm.getLastClosedLedgerHeader().hash != hHeader.hash)
         {
-            throw std::runtime_error(
-                "replay produced mismatched ledger hash");
+            throw std::runtime_error("replay produced mismatched ledger hash");
         }
         mLastClosed = hHeader;
     }

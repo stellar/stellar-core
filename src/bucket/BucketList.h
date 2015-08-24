@@ -267,7 +267,6 @@ class BucketList
     std::vector<BucketLevel> mLevels;
 
   public:
-
     // Number of bucket levels in the bucketlist. Every bucketlist in the system
     // will have this many levels and it effectively gets wired-in to the
     // protocol. Careful about changing it.

@@ -41,15 +41,22 @@ Peer::Peer(Application& app, PeerRole role)
     , mRemoteListeningPort(0)
     , mRecvErrorTimer(app.getMetrics().NewTimer({"overlay", "recv", "error"}))
     , mRecvHelloTimer(app.getMetrics().NewTimer({"overlay", "recv", "hello"}))
-    , mRecvDontHaveTimer(app.getMetrics().NewTimer({"overlay", "recv", "dont-have"}))
-    , mRecvGetPeersTimer(app.getMetrics().NewTimer({"overlay", "recv", "get-peers"}))
+    , mRecvDontHaveTimer(
+          app.getMetrics().NewTimer({"overlay", "recv", "dont-have"}))
+    , mRecvGetPeersTimer(
+          app.getMetrics().NewTimer({"overlay", "recv", "get-peers"}))
     , mRecvPeersTimer(app.getMetrics().NewTimer({"overlay", "recv", "peers"}))
-    , mRecvGetTxSetTimer(app.getMetrics().NewTimer({"overlay", "recv", "get-txset"}))
+    , mRecvGetTxSetTimer(
+          app.getMetrics().NewTimer({"overlay", "recv", "get-txset"}))
     , mRecvTxSetTimer(app.getMetrics().NewTimer({"overlay", "recv", "txset"}))
-    , mRecvTransactionTimer(app.getMetrics().NewTimer({"overlay", "recv", "transaction"}))
-    , mRecvGetSCPQuorumSetTimer(app.getMetrics().NewTimer({"overlay", "recv", "get-scp-qset"}))
-    , mRecvSCPQuorumSetTimer(app.getMetrics().NewTimer({"overlay", "recv", "scp-qset"}))
-    , mRecvSCPMessageTimer(app.getMetrics().NewTimer({"overlay", "recv", "scp-message"}))
+    , mRecvTransactionTimer(
+          app.getMetrics().NewTimer({"overlay", "recv", "transaction"}))
+    , mRecvGetSCPQuorumSetTimer(
+          app.getMetrics().NewTimer({"overlay", "recv", "get-scp-qset"}))
+    , mRecvSCPQuorumSetTimer(
+          app.getMetrics().NewTimer({"overlay", "recv", "scp-qset"}))
+    , mRecvSCPMessageTimer(
+          app.getMetrics().NewTimer({"overlay", "recv", "scp-message"}))
 {
 }
 

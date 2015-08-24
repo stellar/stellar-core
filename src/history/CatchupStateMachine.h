@@ -93,10 +93,11 @@ class HistoryArchive;
 struct HistoryArchiveState;
 class Application;
 
-class CatchupStateMachine : public std::enable_shared_from_this<CatchupStateMachine>
+class CatchupStateMachine
+    : public std::enable_shared_from_this<CatchupStateMachine>
 {
 
-private:
+  private:
     static const size_t kRetryLimit;
 
     Application& mApp;
@@ -136,16 +137,17 @@ private:
 
     void enterBeginState();
     void enterAnchoredState(HistoryArchiveState const& has);
-    void enterRetryingState(uint64_t nseconds=2);
-    bool advanceFileState(std::shared_ptr<FileTransferInfo<FileCatchupState>> fi);
-    void enterFetchingState(std::shared_ptr<FileTransferInfo<FileCatchupState>> fi = nullptr);
+    void enterRetryingState(uint64_t nseconds = 2);
+    bool
+    advanceFileState(std::shared_ptr<FileTransferInfo<FileCatchupState>> fi);
+    void enterFetchingState(
+        std::shared_ptr<FileTransferInfo<FileCatchupState>> fi = nullptr);
 
     void enterVerifyingState();
     void advanceVerifyingState(std::shared_ptr<LedgerHeaderHistoryEntry> prev,
                                uint32_t checkpoint);
-    HistoryManager::VerifyHashStatus
-    verifyHistoryOfSingleCheckpoint(std::shared_ptr<LedgerHeaderHistoryEntry> prev,
-                                    uint32_t checkpoint);
+    HistoryManager::VerifyHashStatus verifyHistoryOfSingleCheckpoint(
+        std::shared_ptr<LedgerHeaderHistoryEntry> prev, uint32_t checkpoint);
     void finishVerifyingState(HistoryManager::VerifyHashStatus status);
 
     struct ApplyState;
@@ -158,16 +160,16 @@ private:
     void acquireFinalLedgerState(uint32_t ledgerNum);
     void applyHistoryOfSingleCheckpoint(uint32_t checkpoint);
 
-public:
-  CatchupStateMachine(
-      Application& app, uint32_t initLedger, HistoryManager::CatchupMode mode,
-      HistoryArchiveState localState,
-      std::function<void(asio::error_code const& ec,
-                         HistoryManager::CatchupMode mode,
-                         LedgerHeaderHistoryEntry const& lastClosed)> handler);
+  public:
+    CatchupStateMachine(
+        Application& app, uint32_t initLedger, HistoryManager::CatchupMode mode,
+        HistoryArchiveState localState,
+        std::function<
+            void(asio::error_code const& ec, HistoryManager::CatchupMode mode,
+                 LedgerHeaderHistoryEntry const& lastClosed)> handler);
 
     void begin();
 
-  static const std::chrono::seconds SLEEP_SECONDS_PER_LEDGER;
+    static const std::chrono::seconds SLEEP_SECONDS_PER_LEDGER;
 };
 }

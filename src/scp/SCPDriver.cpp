@@ -45,7 +45,7 @@ hashHelper(uint64 slotIndex, Value const& prev,
 
 uint64
 SCPDriver::computeHashNode(uint64 slotIndex, Value const& prev, bool isPriority,
-                       int32_t roundNumber, NodeID const& nodeID)
+                           int32_t roundNumber, NodeID const& nodeID)
 {
     return hashHelper(slotIndex, prev, [&](SHA256* h)
                       {
@@ -87,5 +87,4 @@ SCPDriver::computeTimeout(uint32 roundNumber)
     }
     return std::chrono::seconds(timeoutInSeconds);
 }
-
 }

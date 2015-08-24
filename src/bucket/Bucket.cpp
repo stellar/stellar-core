@@ -30,7 +30,6 @@
 #include <cassert>
 #include <future>
 
-
 namespace stellar
 {
 
@@ -293,7 +292,8 @@ Bucket::apply(Database& db) const
     in.open(getFilename());
     while (in && in.readOne(entry))
     {
-        LedgerHeader lh; // buckets, by definition are independent from the header
+        LedgerHeader
+            lh; // buckets, by definition are independent from the header
         LedgerDelta delta(lh, db);
         if (entry.type() == LIVEENTRY)
         {
@@ -445,17 +445,15 @@ Bucket::merge(BucketManager& bucketManager,
     return out.getBucket(bucketManager);
 }
 
-
 static void
-compareSizes(std::string const& objType,
-             uint64_t inDatabase,
+compareSizes(std::string const& objType, uint64_t inDatabase,
              uint64_t inBucketlist)
 {
     if (inDatabase != inBucketlist)
     {
-        throw std::runtime_error(
-            fmt::format("{} object count mismatch: DB has {}, BucketList has {}",
-                        objType, inDatabase, inBucketlist));
+        throw std::runtime_error(fmt::format(
+            "{} object count mismatch: DB has {}, BucketList has {}", objType,
+            inDatabase, inBucketlist));
     }
 }
 
@@ -466,12 +464,12 @@ compareSizes(std::string const& objType,
 
 void
 checkDBAgainstBuckets(medida::MetricsRegistry& metrics,
-                      BucketManager& bucketManager,
-                      Database& db,
+                      BucketManager& bucketManager, Database& db,
                       BucketList& bl)
 {
     CLOG(INFO, "Bucket") << "CheckDB starting";
-    auto execTimer = metrics.NewTimer({"bucket", "checkdb", "execute"}).TimeScope();
+    auto execTimer =
+        metrics.NewTimer({"bucket", "checkdb", "execute"}).TimeScope();
 
     // Step 1: Collect all buckets to merge.
     std::vector<std::shared_ptr<Bucket>> buckets;
@@ -482,7 +480,8 @@ checkDBAgainstBuckets(medida::MetricsRegistry& metrics,
         auto& next = level.getNext();
         if (next.isLive())
         {
-            CLOG(INFO, "Bucket") << "CheckDB resolving future bucket on level " << i;
+            CLOG(INFO, "Bucket") << "CheckDB resolving future bucket on level "
+                                 << i;
             buckets.push_back(next.resolve());
         }
         buckets.push_back(level.getCurr());
@@ -501,7 +500,8 @@ checkDBAgainstBuckets(medida::MetricsRegistry& metrics,
     std::shared_ptr<Bucket> superBucket = *i;
     while (++i != buckets.end())
     {
-        auto mergeTimer = metrics.NewTimer({"bucket", "checkdb", "merge"}).TimeScope();
+        auto mergeTimer =
+            metrics.NewTimer({"bucket", "checkdb", "merge"}).TimeScope();
         assert(superBucket);
         assert(*i);
         superBucket = Bucket::merge(bucketManager, *i, superBucket);
@@ -514,8 +514,10 @@ checkDBAgainstBuckets(medida::MetricsRegistry& metrics,
     // counting objects along the way.
     uint64_t nAccounts = 0, nTrustLines = 0, nOffers = 0;
     {
-        auto& meter = metrics.NewMeter({"bucket", "checkdb", "object-compare"}, "comparison");
-        auto compareTimer = metrics.NewTimer({"bucket", "checkdb", "compare"}).TimeScope();
+        auto& meter = metrics.NewMeter({"bucket", "checkdb", "object-compare"},
+                                       "comparison");
+        auto compareTimer =
+            metrics.NewTimer({"bucket", "checkdb", "compare"}).TimeScope();
         for (Bucket::InputIterator iter(superBucket); iter; ++iter)
         {
             meter.Mark();
@@ -537,8 +539,8 @@ checkDBAgainstBuckets(medida::MetricsRegistry& metrics,
                 EntryFrame::checkAgainstDatabase(e.liveEntry(), db);
                 if (meter.count() % 100 == 0)
                 {
-                    CLOG(INFO, "Bucket") << "CheckDB compared "
-                                         << meter.count() << " objects";
+                    CLOG(INFO, "Bucket") << "CheckDB compared " << meter.count()
+                                         << " objects";
                 }
             }
         }

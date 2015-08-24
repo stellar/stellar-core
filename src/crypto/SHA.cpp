@@ -27,7 +27,8 @@ class SHA256Impl : public SHA256, NonCopyable
 {
     crypto_hash_sha256_state mState;
     bool mFinished;
-public:
+
+  public:
     SHA256Impl();
     void reset() override;
     void add(ByteSlice const& bin) override;
@@ -40,8 +41,7 @@ SHA256::create()
     return make_unique<SHA256Impl>();
 }
 
-SHA256Impl::SHA256Impl()
-    : mFinished(false)
+SHA256Impl::SHA256Impl() : mFinished(false)
 {
     reset();
 }

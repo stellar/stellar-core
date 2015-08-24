@@ -51,7 +51,6 @@ verifySigCacheKey(PublicKey const& key, Signature const& signature,
     return gHasher->finish();
 }
 
-
 SecretKey::SecretKey() : mKeyType(KEY_TYPE_ED25519)
 {
     static_assert(crypto_sign_PUBLICKEYBYTES == sizeof(uint256),
@@ -240,8 +239,7 @@ PubKeyUtils::clearVerifySigCache()
 }
 
 void
-PubKeyUtils::flushVerifySigCacheCounts(uint64_t& hits,
-                                       uint64_t& misses,
+PubKeyUtils::flushVerifySigCacheCounts(uint64_t& hits, uint64_t& misses,
                                        uint64_t& ignores)
 {
     std::lock_guard<std::mutex> guard(gVerifySigCacheMutex);
@@ -252,7 +250,6 @@ PubKeyUtils::flushVerifySigCacheCounts(uint64_t& hits,
     gVerifyCacheMiss = 0;
     gVerifyCacheIgnore = 0;
 }
-
 
 bool
 PubKeyUtils::verifySig(PublicKey const& key, Signature const& signature,
@@ -277,8 +274,9 @@ PubKeyUtils::verifySig(PublicKey const& key, Signature const& signature,
         ++gVerifyCacheIgnore;
     }
 
-    bool ok = (crypto_sign_verify_detached(signature.data(), bin.data(), bin.size(),
-                                           key.ed25519().data()) == 0);
+    bool ok =
+        (crypto_sign_verify_detached(signature.data(), bin.data(), bin.size(),
+                                     key.ed25519().data()) == 0);
     if (shouldCache)
     {
         std::lock_guard<std::mutex> guard(gVerifySigCacheMutex);
@@ -435,8 +433,10 @@ HashUtils::random()
 }
 }
 
-namespace std {
-size_t hash<stellar::PublicKey>::operator()(stellar::PublicKey const & k) const noexcept
+namespace std
+{
+size_t hash<stellar::PublicKey>::operator()(stellar::PublicKey const& k) const
+    noexcept
 {
     return std::hash<stellar::uint256>()(k.ed25519());
 }

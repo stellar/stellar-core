@@ -83,19 +83,19 @@ HerderImpl::SCPMetrics::SCPMetrics(Application& app)
     , mCumulativeStatements(app.getMetrics().NewCounter(
           {"scp", "memory", "cumulative-statements"}))
 
-    , mHerderStateCurrent(app.getMetrics().NewCounter(
-                         {"herder", "state", "current"}))
-    , mHerderStateChanges(app.getMetrics().NewTimer(
-                         {"herder", "state", "changes"}))
+    , mHerderStateCurrent(
+          app.getMetrics().NewCounter({"herder", "state", "current"}))
+    , mHerderStateChanges(
+          app.getMetrics().NewTimer({"herder", "state", "changes"}))
 
-    , mHerderPendingTxs0(app.getMetrics().NewCounter(
-                             {"herder", "pending-txs", "age0"}))
-    , mHerderPendingTxs1(app.getMetrics().NewCounter(
-                             {"herder", "pending-txs", "age1"}))
-    , mHerderPendingTxs2(app.getMetrics().NewCounter(
-                             {"herder", "pending-txs", "age2"}))
-    , mHerderPendingTxs3(app.getMetrics().NewCounter(
-                             {"herder", "pending-txs", "age3"}))
+    , mHerderPendingTxs0(
+          app.getMetrics().NewCounter({"herder", "pending-txs", "age0"}))
+    , mHerderPendingTxs1(
+          app.getMetrics().NewCounter({"herder", "pending-txs", "age1"}))
+    , mHerderPendingTxs2(
+          app.getMetrics().NewCounter({"herder", "pending-txs", "age2"}))
+    , mHerderPendingTxs3(
+          app.getMetrics().NewCounter({"herder", "pending-txs", "age3"}))
 {
 }
 
@@ -476,7 +476,7 @@ HerderImpl::updateSCPCounters()
 static uint64_t
 countTxs(HerderImpl::AccountTxMap const& acc)
 {
-    uint64_t sz =0;
+    uint64_t sz = 0;
     for (auto const& a : acc)
     {
         sz += a.second->mTransactions.size();
@@ -594,8 +594,8 @@ HerderImpl::valueExternalized(uint64 slotIndex, Value const& value)
     // largest array.
     for (size_t n = mReceivedTransactions.size() - 1; n > 0; n--)
     {
-        auto &curr = mReceivedTransactions[n];
-        auto &prev = mReceivedTransactions[n-1];
+        auto& curr = mReceivedTransactions[n];
+        auto& prev = mReceivedTransactions[n - 1];
         for (auto const& pair : prev)
         {
             auto const& acc = pair.first;
@@ -853,7 +853,6 @@ HerderImpl::TxMap::recalculate()
     }
 }
 
-
 Herder::TransactionSubmitStatus
 HerderImpl::recvTransaction(TransactionFramePtr tx)
 {
@@ -1058,8 +1057,7 @@ HerderImpl::ledgerClosed()
 }
 
 void
-HerderImpl::removeReceivedTxs(
-    std::vector<TransactionFramePtr> const& dropTxs)
+HerderImpl::removeReceivedTxs(std::vector<TransactionFramePtr> const& dropTxs)
 {
     for (auto& m : mReceivedTransactions)
     {
@@ -1197,7 +1195,7 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger)
 
     proposedSet->surgePricingFilter(mApp);
 
-    if(!proposedSet->checkValid(mApp))
+    if (!proposedSet->checkValid(mApp))
     {
         throw std::runtime_error("wanting to emit an invalid txSet");
     }

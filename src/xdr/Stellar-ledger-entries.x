@@ -133,7 +133,7 @@ enum TrustLineFlags
 struct TrustLineEntry
 {
     AccountID accountID; // account this trustline belongs to
-    Asset asset;   // type of asset (with issuer)
+    Asset asset;         // type of asset (with issuer)
     int64 balance;       // how much of this asset the user has.
                          // Asset defines the unit for this;
 
@@ -167,8 +167,8 @@ struct OfferEntry
     AccountID sellerID;
     uint64 offerID;
     Asset selling; // A
-    Asset buying; // B
-    int64 amount;       // amount of A
+    Asset buying;  // B
+    int64 amount;  // amount of A
 
     /* price for this offer:
         price of A in terms of B
@@ -205,5 +205,4 @@ enum EnvelopeType
     ENVELOPE_TYPE_SCP = 1,
     ENVELOPE_TYPE_TX = 2
 };
-
 }

@@ -64,7 +64,8 @@ TEST_CASE("uint128_t", "[uint128]")
         [](unsigned __int128 x, unsigned __int128 y)
         {
             bool b = true;
-#define BINOP(op) (b = b && ((x op y) == toNative(fromNative(x) op fromNative(y))));
+#define BINOP(op)                                                              \
+    (b = b && ((x op y) == toNative(fromNative(x) op fromNative(y))));
             BINOP(+);
             BINOP(-);
             BINOP(*);

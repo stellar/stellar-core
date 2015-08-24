@@ -29,8 +29,7 @@ class TrustFrame : public EntryFrame
 
   private:
     static void getKeyFields(LedgerKey const& key, std::string& actIDStrKey,
-                             std::string& issuerStrKey,
-                             std::string& assetCode);
+                             std::string& issuerStrKey, std::string& assetCode);
 
     static void
     loadLines(StatementContext& prep,
@@ -66,8 +65,8 @@ class TrustFrame : public EntryFrame
     static uint64_t countObjects(soci::session& sess);
 
     // returns the specified trustline or a generated one for issuers
-    static pointer loadTrustLine(AccountID const& accountID,
-        Asset const& asset, Database& db);
+    static pointer loadTrustLine(AccountID const& accountID, Asset const& asset,
+                                 Database& db);
 
     // note: only returns trust lines stored in the database
     static void loadLines(AccountID const& accountID,
