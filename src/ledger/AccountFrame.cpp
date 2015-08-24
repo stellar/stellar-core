@@ -43,8 +43,9 @@ const char* AccountFrame::kSQLCreateStatement2 =
 const char* AccountFrame::kSQLCreateStatement3 =
     "CREATE INDEX signersaccount ON signers (accountid)";
 
-const char* AccountFrame::kSQLCreateStatement4 =
-    "CREATE INDEX accountbalances ON Accounts (balance) WHERE balance >= 1000000000";
+const char* AccountFrame::kSQLCreateStatement4 = "CREATE INDEX accountbalances "
+                                                 "ON Accounts (balance) WHERE "
+                                                 "balance >= 1000000000";
 
 AccountFrame::AccountFrame()
     : EntryFrame(ACCOUNT), mAccountEntry(mEntry.account())
@@ -130,7 +131,8 @@ AccountFrame::addNumEntries(int count, LedgerManager const& lm)
     {
         throw std::runtime_error("invalid account state");
     }
-    if (getBalance() < lm.getMinBalance(newEntriesCount))
+    // only check minBalance when attempting to add subEntries
+    if (count > 0 && getBalance() < lm.getMinBalance(newEntriesCount))
     {
         // balance too low
         return false;
@@ -190,10 +192,10 @@ AccountFrame::loadAccount(AccountID const& accountID, Database& db)
     AccountFrame::pointer res = make_shared<AccountFrame>(accountID);
     AccountEntry& account = res->getAccount();
 
-    auto prep = db.getPreparedStatement(
-        "SELECT balance, seqnum, numsubentries, "
-        "inflationdest, homedomain, thresholds, flags "
-        "FROM accounts WHERE accountid=:v1");
+    auto prep =
+        db.getPreparedStatement("SELECT balance, seqnum, numsubentries, "
+                                "inflationdest, homedomain, thresholds, flags "
+                                "FROM accounts WHERE accountid=:v1");
     auto& st = prep.statement();
     st.exchange(into(account.balance));
     st.exchange(into(account.seqNum));
@@ -240,7 +242,7 @@ AccountFrame::loadAccount(AccountID const& accountID, Database& db)
         Signer signer;
 
         auto prep2 = db.getPreparedStatement("SELECT publickey, weight from "
-                                            "signers where accountid =:id");
+                                             "signers where accountid =:id");
         auto& st2 = prep2.statement();
         st2.exchange(use(actIDStrKey));
         st2.exchange(into(pubKey));
@@ -280,9 +282,9 @@ AccountFrame::exists(Database& db, LedgerKey const& key)
     int exists = 0;
     {
         auto timer = db.getSelectTimer("account-exists");
-        auto prep = db.getPreparedStatement(
-            "SELECT EXISTS (SELECT NULL FROM accounts "
-            "WHERE accountid=:v1)");
+        auto prep =
+            db.getPreparedStatement("SELECT EXISTS (SELECT NULL FROM accounts "
+                                    "WHERE accountid=:v1)");
         auto& st = prep.statement();
         st.exchange(use(actIDStrKey));
         st.exchange(into(exists));
@@ -324,8 +326,8 @@ AccountFrame::storeDelete(LedgerDelta& delta, Database& db,
     }
     {
         auto timer = db.getDeleteTimer("signer");
-        auto prep = db.getPreparedStatement(
-            "DELETE from signers where accountid= :v1");
+        auto prep =
+            db.getPreparedStatement("DELETE from signers where accountid= :v1");
         auto& st = prep.statement();
         st.exchange(soci::use(actIDStrKey));
         st.define_and_bind();
@@ -451,10 +453,10 @@ AccountFrame::storeUpdate(LedgerDelta& delta, Database& db, bool insert) const
                     std::string signerStrKey =
                         PubKeyUtils::toStrKey(startSigner.pubKey);
 
-                    auto prep2 = db.getPreparedStatement(
-                        "DELETE from signers where "
-                        "accountid=:v2 and "
-                        "publickey=:v3");
+                    auto prep2 =
+                        db.getPreparedStatement("DELETE from signers where "
+                                                "accountid=:v2 and "
+                                                "publickey=:v3");
                     auto& st = prep2.statement();
                     st.exchange(use(actIDStrKey));
                     st.exchange(use(signerStrKey));
@@ -510,10 +512,10 @@ AccountFrame::storeUpdate(LedgerDelta& delta, Database& db, bool insert) const
                     std::string signerStrKey =
                         PubKeyUtils::toStrKey(finalSigner.pubKey);
 
-                    auto prep2 = db.getPreparedStatement(
-                        "INSERT INTO signers "
-                        "(accountid,publickey,weight) "
-                        "VALUES (:v1,:v2,:v3)");
+                    auto prep2 =
+                        db.getPreparedStatement("INSERT INTO signers "
+                                                "(accountid,publickey,weight) "
+                                                "VALUES (:v1,:v2,:v3)");
                     auto& st = prep2.statement();
                     st.exchange(use(actIDStrKey));
                     st.exchange(use(signerStrKey));
