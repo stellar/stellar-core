@@ -46,7 +46,60 @@ applyCheck(TransactionFramePtr tx, LedgerDelta& delta, Application& app)
         REQUIRE(checkResult == tx->getResult());
     }
 
+    // verify modified accounts invariants
+    auto const& changes = delta.getChanges();
+    for (auto const& c : changes)
+    {
+        switch (c.type())
+        {
+        case LEDGER_ENTRY_CREATED:
+            checkEntry(c.created(), app);
+            break;
+        case LEDGER_ENTRY_UPDATED:
+            checkEntry(c.updated(), app);
+            break;
+        default:
+            break;
+        }
+    }
+
     return res;
+}
+
+void
+checkEntry(LedgerEntry const& le, Application& app)
+{
+    switch (le.type())
+    {
+    case ACCOUNT:
+        checkAccount(le.account().accountID, app);
+        break;
+    case TRUSTLINE:
+        checkAccount(le.trustLine().accountID, app);
+        break;
+    case OFFER:
+        checkAccount(le.offer().sellerID, app);
+    default:
+        break;
+    }
+}
+
+void
+checkAccount(AccountID const& id, Application& app)
+{
+    AccountFrame::pointer res =
+        AccountFrame::loadAccount(id, app.getDatabase());
+    REQUIRE(!!res);
+    std::vector<TrustFrame::pointer> retLines;
+    TrustFrame::loadLines(id, retLines, app.getDatabase());
+
+    std::vector<OfferFrame::pointer> retOffers;
+    OfferFrame::loadOffers(id, retOffers, app.getDatabase());
+
+    size_t actualSubEntries =
+        res->getAccount().signers.size() + retLines.size() + retOffers.size();
+
+    REQUIRE(res->getAccount().numSubEntries == (uint32)actualSubEntries);
 }
 
 time_t
@@ -137,8 +190,8 @@ TrustFrame::pointer
 loadTrustLine(SecretKey const& k, Asset const& asset, Application& app,
               bool mustExist)
 {
-    TrustFrame::pointer res = TrustFrame::loadTrustLine(
-        k.getPublicKey(), asset, app.getDatabase());
+    TrustFrame::pointer res =
+        TrustFrame::loadTrustLine(k.getPublicKey(), asset, app.getDatabase());
     if (mustExist)
     {
         REQUIRE(res);
@@ -198,7 +251,7 @@ createChangeTrust(SecretKey& from, SecretKey& to, SequenceNumber seq,
     op.body.changeTrustOp().limit = limit;
     op.body.changeTrustOp().line.type(ASSET_TYPE_CREDIT_ALPHANUM4);
     strToAssetCode(op.body.changeTrustOp().line.alphaNum4().assetCode,
-                      assetCode);
+                   assetCode);
     op.body.changeTrustOp().line.alphaNum4().issuer = to.getPublicKey();
 
     return transactionFromOperation(from, seq, op);
@@ -213,8 +266,7 @@ createAllowTrust(SecretKey& from, SecretKey& trustor, SequenceNumber seq,
     op.body.type(ALLOW_TRUST);
     op.body.allowTrustOp().trustor = trustor.getPublicKey();
     op.body.allowTrustOp().asset.type(ASSET_TYPE_CREDIT_ALPHANUM4);
-    strToAssetCode(op.body.allowTrustOp().asset.assetCode4(),
-                      assetCode);
+    strToAssetCode(op.body.allowTrustOp().asset.assetCode4(), assetCode);
     op.body.allowTrustOp().authorize = authorize;
 
     return transactionFromOperation(from, seq, op);
@@ -392,7 +444,7 @@ makeAsset(SecretKey& issuer, std::string const& code)
 
 PaymentResult
 applyCreditPaymentTx(Application& app, SecretKey& from, SecretKey& to,
-    Asset& ci, SequenceNumber seq, int64_t amount,
+                     Asset& ci, SequenceNumber seq, int64_t amount,
                      PaymentResultCode result)
 {
     TransactionFramePtr txFrame;
@@ -415,9 +467,8 @@ applyCreditPaymentTx(Application& app, SecretKey& from, SecretKey& to,
 
 TransactionFramePtr
 createPathPaymentTx(SecretKey& from, SecretKey& to, Asset const& sendCur,
-                    int64_t sendMax, Asset const& destCur,
-                    int64_t destAmount, SequenceNumber seq,
-                    std::vector<Asset>* path)
+                    int64_t sendMax, Asset const& destCur, int64_t destAmount,
+                    SequenceNumber seq, std::vector<Asset>* path)
 {
     Operation op;
     op.body.type(PATH_PAYMENT);
@@ -440,10 +491,9 @@ createPathPaymentTx(SecretKey& from, SecretKey& to, Asset const& sendCur,
 
 PathPaymentResult
 applyPathPaymentTx(Application& app, SecretKey& from, SecretKey& to,
-    Asset const& sendCur, int64_t sendMax,
-    Asset const& destCur, int64_t destAmount,
-                   SequenceNumber seq, PathPaymentResultCode result,
-                   std::vector<Asset>* path)
+                   Asset const& sendCur, int64_t sendMax, Asset const& destCur,
+                   int64_t destAmount, SequenceNumber seq,
+                   PathPaymentResultCode result, std::vector<Asset>* path)
 {
     TransactionFramePtr txFrame;
 
@@ -465,9 +515,8 @@ applyPathPaymentTx(Application& app, SecretKey& from, SecretKey& to,
 }
 
 TransactionFramePtr
-createPassiveOfferOp(SecretKey& source, Asset& selling,
-    Asset& buying, Price const& price, int64_t amount,
-                     SequenceNumber seq)
+createPassiveOfferOp(SecretKey& source, Asset& selling, Asset& buying,
+                     Price const& price, int64_t amount, SequenceNumber seq)
 {
     Operation op;
     op.body.type(CREATE_PASSIVE_OFFER);
@@ -480,9 +529,8 @@ createPassiveOfferOp(SecretKey& source, Asset& selling,
 }
 
 TransactionFramePtr
-manageOfferOp(uint64 offerId, SecretKey& source, Asset& selling,
-    Asset& buying, Price const& price, int64_t amount,
-              SequenceNumber seq)
+manageOfferOp(uint64 offerId, SecretKey& source, Asset& selling, Asset& buying,
+              Price const& price, int64_t amount, SequenceNumber seq)
 {
     Operation op;
     op.body.type(MANAGE_OFFER);
@@ -497,9 +545,8 @@ manageOfferOp(uint64 offerId, SecretKey& source, Asset& selling,
 
 static ManageOfferResult
 applyCreateOfferHelper(Application& app, LedgerDelta& delta, uint64 offerId,
-                       SecretKey& source, Asset& selling,
-                       Asset& buying, Price const& price, int64_t amount,
-                       SequenceNumber seq)
+                       SecretKey& source, Asset& selling, Asset& buying,
+                       Price const& price, int64_t amount, SequenceNumber seq)
 {
     uint64_t expectedOfferID = delta.getHeaderFrame().getLastGeneratedID() + 1;
     if (offerId != 0)
@@ -509,8 +556,8 @@ applyCreateOfferHelper(Application& app, LedgerDelta& delta, uint64 offerId,
 
     TransactionFramePtr txFrame;
 
-    txFrame = manageOfferOp(offerId, source, selling, buying, price,
-                            amount, seq);
+    txFrame =
+        manageOfferOp(offerId, source, selling, buying, price, amount, seq);
 
     applyCheck(txFrame, delta, app);
 
@@ -571,10 +618,9 @@ applyCreateOffer(Application& app, LedgerDelta& delta, uint64 offerId,
 
 ManageOfferResult
 applyCreateOfferWithResult(Application& app, LedgerDelta& delta, uint64 offerId,
-                           SecretKey& source, Asset& selling,
-    Asset& buying, Price const& price,
-                           int64_t amount, SequenceNumber seq,
-                           ManageOfferResultCode result)
+                           SecretKey& source, Asset& selling, Asset& buying,
+                           Price const& price, int64_t amount,
+                           SequenceNumber seq, ManageOfferResultCode result)
 {
     ManageOfferResult const& manageOfferRes = applyCreateOfferHelper(
         app, delta, offerId, source, selling, buying, price, amount, seq);

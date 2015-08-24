@@ -46,28 +46,28 @@ ChangeTrustOpFrame::doApply(medida::MetricsRegistry& metrics,
             trustLine->getBalance() == 0)
         {
             // line gets deleted
-            mSourceAccount->addNumEntries(-1, ledgerManager);
             trustLine->storeDelete(delta, db);
+            mSourceAccount->addNumEntries(-1, ledgerManager);
             mSourceAccount->storeChange(delta, db);
         }
         else
         {
             trustLine->storeChange(delta, db);
         }
-        metrics.NewMeter({"op-change-trust", "success", "apply"},
-                         "operation").Mark();
+        metrics.NewMeter({"op-change-trust", "success", "apply"}, "operation")
+            .Mark();
         innerResult().code(CHANGE_TRUST_SUCCESS);
         return true;
     }
     else
     { // new trust line
         AccountFrame::pointer issuer;
-        if(mChangeTrust.line.type()==ASSET_TYPE_CREDIT_ALPHANUM4)
-            issuer =
-                AccountFrame::loadAccount(mChangeTrust.line.alphaNum4().issuer, db);
-        else if(mChangeTrust.line.type() == ASSET_TYPE_CREDIT_ALPHANUM12)
-            issuer =
-                AccountFrame::loadAccount(mChangeTrust.line.alphaNum12().issuer, db);
+        if (mChangeTrust.line.type() == ASSET_TYPE_CREDIT_ALPHANUM4)
+            issuer = AccountFrame::loadAccount(
+                mChangeTrust.line.alphaNum4().issuer, db);
+        else if (mChangeTrust.line.type() == ASSET_TYPE_CREDIT_ALPHANUM12)
+            issuer = AccountFrame::loadAccount(
+                mChangeTrust.line.alphaNum12().issuer, db);
 
         if (!issuer)
         {
@@ -95,8 +95,8 @@ ChangeTrustOpFrame::doApply(medida::MetricsRegistry& metrics,
         mSourceAccount->storeChange(delta, db);
         trustLine->storeAdd(delta, db);
 
-        metrics.NewMeter({"op-change-trust", "success", "apply"},
-                         "operation").Mark();
+        metrics.NewMeter({"op-change-trust", "success", "apply"}, "operation")
+            .Mark();
         innerResult().code(CHANGE_TRUST_SUCCESS);
         return true;
     }
@@ -107,17 +107,17 @@ ChangeTrustOpFrame::doCheckValid(medida::MetricsRegistry& metrics)
 {
     if (mChangeTrust.limit < 0)
     {
-        metrics.NewMeter({"op-change-trust", "invalid",
-                          "malformed-negative-limit"},
-                         "operation").Mark();
+        metrics.NewMeter(
+                    {"op-change-trust", "invalid", "malformed-negative-limit"},
+                    "operation").Mark();
         innerResult().code(CHANGE_TRUST_MALFORMED);
         return false;
     }
     if (!isAssetValid(mChangeTrust.line))
     {
-        metrics.NewMeter({"op-change-trust", "invalid",
-                          "malformed-invalid-asset"},
-                         "operation").Mark();
+        metrics.NewMeter(
+                    {"op-change-trust", "invalid", "malformed-invalid-asset"},
+                    "operation").Mark();
         innerResult().code(CHANGE_TRUST_MALFORMED);
         return false;
     }
